@@ -1,0 +1,75 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "agex://schema/tenant/tenant/v1",
+  "title": "AGEX Tenant Resource Schema",
+  "type": "object",
+  "required": ["api_version", "kind", "metadata", "specification", "status"],
+  "properties": {
+    "api_version": {
+      "type": "string",
+      "enum": ["agex/v1"]
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["Tenant"]
+    },
+    "metadata": {
+      "$ref": "agex://schema/common/resource-metadata/v1"
+    },
+    "specification": {
+      "type": "object",
+      "required": ["display_name", "home_region", "isolation_profile", "maximum_autonomy_level"],
+      "properties": {
+        "display_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "home_region": {
+          "type": "string"
+        },
+        "isolation_profile": {
+          "type": "string",
+          "enum": ["SHARED", "ISOLATED_DATA", "ISOLATED_RUNTIME", "DEDICATED"]
+        },
+        "maximum_autonomy_level": {
+          "type": "string",
+          "enum": ["L0", "L1", "L2", "L3", "L4", "L5"]
+        },
+        "data_residency_policy_id": {
+          "type": ["string", "null"]
+        },
+        "default_model_profile_id": {
+          "type": ["string", "null"]
+        },
+        "quota_profile_id": {
+          "type": ["string", "null"]
+        },
+        "retention_profile_id": {
+          "type": ["string", "null"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "status": {
+      "type": "object",
+      "required": ["state"],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": ["PROVISIONING", "ACTIVE", "RESTRICTED", "SUSPENDED", "CLOSING", "DELETING", "DELETED"]
+        },
+        "provisioning_state": {
+          "type": ["string", "null"]
+        },
+        "runtime_health": {
+          "type": ["string", "null"]
+        },
+        "suspension_reason": {
+          "type": ["string", "null"]
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

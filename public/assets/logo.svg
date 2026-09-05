@@ -1,0 +1,13 @@
+<svg width="42" height="42" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="agexGradWhite" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0052FF" />
+      <stop offset="60%" stop-color="#0080FF" />
+      <stop offset="100%" stop-color="#00D2FF" />
+    </linearGradient>
+  </defs>
+  <!-- Outer A shape tube stroke -->
+  <path d="M50 12 C53 12 56 14 58 18 L88 78 C91 84 86 90 79 90 L68 90 C64 90 61 88 59 84 L50 66 L41 84 C39 88 36 90 32 90 L21 90 C14 90 9 84 12 78 L42 18 C44 14 47 12 50 12 Z" fill="url(#agexGradWhite)" />
+  <!-- Inner Loop Fold Curve -->
+  <path d="M42 66 C42 56 58 56 58 68 C58 78 46 82 36 78" stroke="url(#agexGradWhite)" stroke-width="11" stroke-linecap="round" fill="none"/>
+</svg>

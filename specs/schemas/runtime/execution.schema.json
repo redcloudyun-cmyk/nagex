@@ -1,0 +1,70 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "agex://schema/runtime/execution/v1",
+  "title": "AGEX Execution Runtime Resource Schema",
+  "type": "object",
+  "required": ["api_version", "kind", "metadata", "specification", "status"],
+  "properties": {
+    "api_version": {
+      "type": "string",
+      "enum": ["agex/v1"]
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["Execution"]
+    },
+    "metadata": {
+      "$ref": "agex://schema/common/resource-metadata/v1"
+    },
+    "specification": {
+      "type": "object",
+      "required": ["target"],
+      "properties": {
+        "target": {
+          "$ref": "agex://schema/common/resource-reference/v1"
+        },
+        "input": { "type": "object" },
+        "execution_policy": { "type": "object" },
+        "parent_execution_id": { "type": ["string", "null"] },
+        "correlation_id": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "status": {
+      "type": "object",
+      "required": ["state"],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "CREATED",
+            "VALIDATING",
+            "QUEUED",
+            "RUNNING",
+            "WAITING",
+            "RETRYING",
+            "COMPLETED",
+            "FAILED",
+            "CANCELLED",
+            "TIMED_OUT",
+            "TERMINATED"
+          ]
+        },
+        "waiting_reason": {
+          "type": ["string", "null"],
+          "enum": ["APPROVAL", "USER_INPUT", "EVENT", "TIME", "CHILD_EXECUTION", "DEPENDENCY", null]
+        },
+        "current_task_id": { "type": ["string", "null"] },
+        "attempt": { "type": "integer", "minimum": 1 },
+        "started_at": { "type": ["string", "null"], "format": "date-time" },
+        "completed_at": { "type": ["string", "null"], "format": "date-time" },
+        "result": { "type": ["object", "null"] },
+        "error": { "type": ["object", "null"] },
+        "usage": { "type": "object" },
+        "checkpoint_id": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

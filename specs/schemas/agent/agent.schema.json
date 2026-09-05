@@ -1,0 +1,112 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "agex://schema/agent/agent/v1",
+  "title": "AGEX Agent Resource Schema",
+  "type": "object",
+  "required": ["api_version", "kind", "metadata", "specification", "status"],
+  "properties": {
+    "api_version": {
+      "type": "string",
+      "enum": ["agex/v1"]
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["Agent"]
+    },
+    "metadata": {
+      "$ref": "agex://schema/common/resource-metadata/v1"
+    },
+    "specification": {
+      "type": "object",
+      "required": ["role", "goal", "autonomy", "model_policy"],
+      "properties": {
+        "role": {
+          "type": "object",
+          "required": ["name"],
+          "properties": {
+            "name": { "type": "string" },
+            "description": { "type": "string" }
+          }
+        },
+        "goal": {
+          "type": "object",
+          "required": ["primary"],
+          "properties": {
+            "primary": { "type": "string" },
+            "completion_criteria": {
+              "type": "array",
+              "items": { "type": "object" }
+            }
+          }
+        },
+        "instructions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "type", "content"],
+            "properties": {
+              "id": { "type": "string" },
+              "type": { "type": "string", "enum": ["CORE", "TASK", "GUARDRAIL"] },
+              "content": { "type": "string" }
+            }
+          }
+        },
+        "capabilities": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "permissions": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "autonomy": {
+          "type": "object",
+          "required": ["level"],
+          "properties": {
+            "level": {
+              "type": "string",
+              "enum": ["L0", "L1", "L2", "L3", "L4", "L5"]
+            }
+          }
+        },
+        "model_policy": {
+          "type": "object",
+          "required": ["profile_id"],
+          "properties": {
+            "profile_id": { "type": "string" },
+            "required_capabilities": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        },
+        "context_policy": { "type": "object" },
+        "knowledge": { "type": "object" },
+        "memory": { "type": "object" },
+        "tools": { "type": "array", "items": { "type": "object" } },
+        "planning": { "type": "object" },
+        "collaboration": { "type": "object" },
+        "execution": { "type": "object" },
+        "evaluation": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "status": {
+      "type": "object",
+      "required": ["lifecycle_state"],
+      "properties": {
+        "lifecycle_state": {
+          "type": "string",
+          "enum": ["DRAFT", "VALIDATING", "EVALUATING", "REVIEW", "APPROVED", "PUBLISHED", "ACTIVE", "SUSPENDED", "DEPRECATED", "ARCHIVED", "DELETED"]
+        },
+        "active_version": { "type": ["integer", "null"] },
+        "health": { "type": ["string", "null"] },
+        "last_execution_at": { "type": ["string", "null"], "format": "date-time" },
+        "last_evaluation_id": { "type": ["string", "null"] },
+        "suspension_reason": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,33 @@
+# AGEX Agent Permission Definitions Registry
+# Schema Version: v1
+
+permissions:
+  - id: "agent:create"
+    domain: "agent"
+    action: "create"
+    risk: "MODERATE"
+    description: "새 에이전트 초안을 생성합니다."
+
+  - id: "agent:read"
+    domain: "agent"
+    action: "read"
+    risk: "LOW"
+    description: "에이전트 정의 및 상태를 조회합니다."
+
+  - id: "agent:update"
+    domain: "agent"
+    action: "update"
+    risk: "MODERATE"
+    description: "에이전트 명세 및 설정을 수정합니다."
+
+  - id: "agent:publish"
+    domain: "agent"
+    action: "publish"
+    risk: "HIGH"
+    description: "에이전트 버전을 게시(Publish)하여 불변 상태로 만듭니다."
+
+  - id: "agent:execute"
+    domain: "agent"
+    action: "execute"
+    risk: "HIGH"
+    description: "에이전트 런타임 실행(Execution)을 요청합니다."

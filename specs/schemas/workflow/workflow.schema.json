@@ -1,0 +1,90 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "agex://schema/workflow/workflow/v1",
+  "title": "AGEX Workflow Resource Schema",
+  "type": "object",
+  "required": ["api_version", "kind", "metadata", "specification", "status"],
+  "properties": {
+    "api_version": {
+      "type": "string",
+      "enum": ["agex/v1"]
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["Workflow"]
+    },
+    "metadata": {
+      "$ref": "agex://schema/common/resource-metadata/v1"
+    },
+    "specification": {
+      "type": "object",
+      "required": ["steps", "edges"],
+      "properties": {
+        "input_schema": { "type": "object" },
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "type", "name"],
+            "properties": {
+              "id": { "type": "string" },
+              "type": {
+                "type": "string",
+                "enum": ["AGENT", "MODEL", "PLUGIN", "FUNCTION", "CONDITION", "SWITCH", "PARALLEL", "JOIN", "LOOP", "WAIT", "EVENT_WAIT", "APPROVAL", "SUB_WORKFLOW", "EMIT_EVENT", "END"]
+              },
+              "name": { "type": "string" },
+              "input": { "type": "object" },
+              "configuration": { "type": "object" }
+            }
+          },
+          "minItems": 1
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["from", "to"],
+            "properties": {
+              "from": { "type": "string" },
+              "to": { "type": "string" },
+              "condition": { "type": ["string", "null"] }
+            }
+          }
+        },
+        "variables": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "schema", "scope"],
+            "properties": {
+              "name": { "type": "string" },
+              "schema": { "type": "object" },
+              "scope": { "type": "string" },
+              "initial_value": { "type": ["string", "object", "number", "boolean", "null"] }
+            }
+          }
+        },
+        "retry_policy": { "type": "object" },
+        "timeout_policy": { "type": "object" },
+        "output_schema": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "status": {
+      "type": "object",
+      "required": ["lifecycle_state"],
+      "properties": {
+        "lifecycle_state": {
+          "type": "string",
+          "enum": ["DRAFT", "VALIDATING", "REVIEW", "APPROVED", "PUBLISHED", "ACTIVE", "SUSPENDED", "DEPRECATED", "ARCHIVED", "DELETED"]
+        },
+        "active_version": { "type": ["integer", "null"] },
+        "validation_state": { "type": ["string", "null"] },
+        "last_execution": { "type": ["string", "null"] },
+        "suspension_reason": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

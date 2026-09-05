@@ -1,0 +1,102 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "agex://schema/common/resource-metadata/v1",
+  "title": "AGEX Resource Metadata Schema",
+  "type": "object",
+  "required": [
+    "id",
+    "scope_type",
+    "revision",
+    "lifecycle_state",
+    "created_at",
+    "updated_at",
+    "created_by",
+    "updated_by"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z]{2,4}_[a-zA-Z0-9_-]+$",
+      "description": "불변 Resource ID (예: agt_123, wfl_456)"
+    },
+    "name": {
+      "type": ["string", "null"],
+      "description": "Human-readable name"
+    },
+    "scope_type": {
+      "type": "string",
+      "enum": ["PLATFORM", "TENANT"],
+      "description": "Resource Scope"
+    },
+    "tenant_id": {
+      "type": ["string", "null"],
+      "description": "TENANT Scope일 때 필수"
+    },
+    "version": {
+      "type": ["integer", "null"],
+      "minimum": 1,
+      "description": "Published Resource Version"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Draft Revision"
+    },
+    "lifecycle_state": {
+      "type": "string",
+      "enum": [
+        "DRAFT",
+        "VALIDATING",
+        "REVIEW",
+        "APPROVED",
+        "PUBLISHED",
+        "ACTIVE",
+        "SUSPENDED",
+        "DEPRECATED",
+        "ARCHIVED",
+        "DELETED"
+      ],
+      "description": "Resource Lifecycle State"
+    },
+    "owner": {
+      "type": ["object", "null"],
+      "properties": {
+        "type": { "type": "string" },
+        "id": { "type": "string" }
+      }
+    },
+    "labels": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "annotations": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "created_by": {
+      "type": "object",
+      "required": ["type", "id"],
+      "properties": {
+        "type": { "type": "string" },
+        "id": { "type": "string" }
+      }
+    },
+    "updated_by": {
+      "type": "object",
+      "required": ["type", "id"],
+      "properties": {
+        "type": { "type": "string" },
+        "id": { "type": "string" }
+      }
+    }
+  },
+  "additionalProperties": false
+}

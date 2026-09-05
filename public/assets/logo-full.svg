@@ -1,0 +1,36 @@
+<svg width="150" height="42" viewBox="0 0 360 90" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="origAgexBlue" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0052FF" />
+      <stop offset="50%" stop-color="#0080FF" />
+      <stop offset="100%" stop-color="#00D2FF" />
+    </linearGradient>
+
+    <linearGradient id="origXGreen" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00D2FF" />
+      <stop offset="100%" stop-color="#10B981" />
+    </linearGradient>
+  </defs>
+
+  <!-- 'A' Symbol Exact Match -->
+  <g transform="translate(5, 8)">
+    <path d="M42 6 C47 6 52 9 55 14 L85 64 C89 71 85 78 77 78 L66 78 C62 78 59 76 57 72 L50 58 L39 76 C37 78 34 78 30 78 L19 78 C11 78 7 71 11 64 L40 14 C41 9 41 6 42 6 Z" fill="url(#origAgexBlue)" />
+    <path d="M38 58 C38 48 54 48 54 60 C54 70 42 74 32 70" stroke="url(#origAgexBlue)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  </g>
+
+  <!-- 'g' Wordmark -->
+  <g transform="translate(125, 10)">
+    <path d="M26 24 C36 24 43 31 43 41 L43 56 C43 66 36 72 22 72 L12 72 L12 62 L22 62 C30 62 33 59 33 54 L33 50 C29 55 22 55 17 55 C7 55 0 47 0 37 C0 27 7 24 17 24 L26 24 Z M22 34 C14 34 10 38 10 42 C10 47 14 51 22 51 C30 51 33 47 33 42 C33 37 30 34 22 34 Z" fill="#0f172a"/>
+  </g>
+
+  <!-- 'e' Wordmark -->
+  <g transform="translate(175, 10)">
+    <path d="M22 24 C34 24 41 32 41 43 L41 46 L11 46 C12 51 16 54 23 54 C28 54 33 52 37 49 L40 56 C34 60 27 61 21 61 C8 61 1 52 1 42 C1 31 8 24 22 24 Z M21 32 C15 32 12 36 12 40 L31 40 C31 36 27 32 21 32 Z" fill="#0f172a"/>
+  </g>
+
+  <!-- 'x' Wordmark with Original Green-Cyan Accent Slash -->
+  <g transform="translate(221, 10)">
+    <path d="M2 26 L15 26 L25 41 L35 26 L48 26 L32 44 L50 62 L37 62 L25 46 L13 62 L0 62 L18 44 Z" fill="#0f172a"/>
+    <path d="M35 26 L48 26 L38 39 Z" fill="url(#origXGreen)"/>
+  </g>
+</svg>

@@ -1,0 +1,56 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "agex://schema/identity/membership/v1",
+  "title": "AGEX Membership Resource Schema",
+  "type": "object",
+  "required": ["api_version", "kind", "metadata", "specification", "status"],
+  "properties": {
+    "api_version": {
+      "type": "string",
+      "enum": ["agex/v1"]
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["Membership"]
+    },
+    "metadata": {
+      "$ref": "agex://schema/common/resource-metadata/v1"
+    },
+    "specification": {
+      "type": "object",
+      "required": ["user_id", "tenant_id", "roles"],
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "pattern": "^usr_[a-zA-Z0-9_-]+$"
+        },
+        "tenant_id": {
+          "type": "string",
+          "pattern": "^ten_[a-zA-Z0-9_-]+$"
+        },
+        "roles": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        },
+        "expires_at": {
+          "type": ["string", "null"],
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    },
+    "status": {
+      "type": "object",
+      "required": ["state"],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": ["INVITED", "ACTIVE", "SUSPENDED", "REVOKED", "EXPIRED"]
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

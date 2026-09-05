@@ -1,0 +1,39 @@
+# AGEX Core Permission Definitions Registry
+# Schema Version: v1
+
+permissions:
+  - id: "tenant:create"
+    domain: "tenant"
+    action: "create"
+    risk: "HIGH"
+    description: "새로운 테넌트를 생성합니다."
+
+  - id: "tenant:delete"
+    domain: "tenant"
+    action: "delete"
+    risk: "CRITICAL"
+    description: "테넌트를 삭제 상태로 변경합니다."
+
+  - id: "user:admin"
+    domain: "user"
+    action: "admin"
+    risk: "CRITICAL"
+    description: "사용자 및 계정 관리 권한."
+
+  - id: "role:manage"
+    domain: "role"
+    action: "manage"
+    risk: "HIGH"
+    description: "역할 및 권한 바인딩 관리."
+
+  - id: "policy:publish"
+    domain: "policy"
+    action: "publish"
+    risk: "HIGH"
+    description: "보안 및 접근 정책을 게시합니다."
+
+  - id: "secret:manage"
+    domain: "secret"
+    action: "manage"
+    risk: "CRITICAL"
+    description: "시크릿 및 크리덴셜 관리."

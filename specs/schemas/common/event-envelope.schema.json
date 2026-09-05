@@ -1,0 +1,63 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "agex://schema/common/event-envelope/v1",
+  "title": "AGEX Event Envelope Schema",
+  "type": "object",
+  "required": [
+    "event_id",
+    "event_type",
+    "event_version",
+    "occurred_at",
+    "scope_type",
+    "data"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "pattern": "^evt_[a-zA-Z0-9_-]+$",
+      "description": "Unique Event ID for deduplication"
+    },
+    "event_type": {
+      "type": "string",
+      "description": "Event Type Name (예: execution.completed, entitlement.granted)"
+    },
+    "event_version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Event Contract Version"
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "scope_type": {
+      "type": "string",
+      "enum": ["PLATFORM", "TENANT"]
+    },
+    "tenant_id": {
+      "type": ["string", "null"]
+    },
+    "actor": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string" },
+        "id": { "type": "string" }
+      }
+    },
+    "resource": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string" },
+        "id": { "type": "string" }
+      }
+    },
+    "correlation_id": {
+      "type": ["string", "null"]
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

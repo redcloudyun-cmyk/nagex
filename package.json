@@ -1,0 +1,28 @@
+{
+  "name": "agex-core",
+  "version": "0.1.0",
+  "description": "AGEX AI Operating System - Modular Monolith Core",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/src/server_web.js",
+    "test": "tsc && node --test dist/tests/*.test.js"
+  },
+  "keywords": [
+    "agex",
+    "ai-os",
+    "runtime",
+    "agent",
+    "workflow"
+  ],
+  "author": "AGEX Core Team",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^26.2.0",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "js-yaml": "^5.3.0"
+  }
+}
