@@ -15,6 +15,7 @@
     autonomyConfig: { level: 'L2' },
     activeMockup: 'm01',
     pendingIntentResponse: null,
+    googleOAuth: { connected: false, scope: null, connectedAt: null },
   };
 
   async function apiFetch(endpoint, options = {}) {
@@ -35,11 +36,28 @@
     }
   }
 
+  function handleOAuthRedirectBanner() {
+    const params = new URLSearchParams(window.location.search);
+    const oauthResult = params.get('oauth');
+    if (!oauthResult) return;
+    const status = params.get('status');
+    window.alert(
+      oauthResult === 'google' && status === 'connected'
+        ? 'Google Calendar connected.'
+        : 'Could not connect Google Calendar. Please try again.'
+    );
+    params.delete('oauth');
+    params.delete('status');
+    const cleanUrl = window.location.pathname + (params.toString() ? `?${params.toString()}` : '');
+    window.history.replaceState({}, '', cleanUrl);
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     initNavigation();
     initQuickWake();
     initPrimaryScenario();
     initQuickActionChips();
+    handleOAuthRedirectBanner();
     loadAllData();
 
     window.addEventListener('keydown', (e) => {
@@ -114,7 +132,7 @@
   }
 
   async function loadAllData() {
-    const [memData, planData, skillData, toolData, apprData, execData, knowData, qwData, autoData] = await Promise.all([
+    const [memData, planData, skillData, toolData, apprData, execData, knowData, qwData, autoData, oauthData] = await Promise.all([
       apiFetch('/api/v1/memory'),
       apiFetch('/api/v1/plans'),
       apiFetch('/api/v1/skills'),
@@ -124,6 +142,7 @@
       apiFetch('/api/v1/knowledge'),
       apiFetch('/api/v1/quickwake/config'),
       apiFetch('/api/v1/autonomy/config'),
+      apiFetch('/api/v1/oauth/google/status'),
     ]);
 
     if (memData) state.memories = memData.memories || [];
@@ -135,6 +154,7 @@
     if (knowData) state.knowledge = knowData.documents || [];
     if (qwData) state.quickWakeConfig = qwData;
     if (autoData) state.autonomyConfig = autoData;
+    if (oauthData && typeof oauthData.connected === 'boolean') state.googleOAuth = oauthData;
 
     renderActiveTab();
   }
@@ -282,9 +302,34 @@
         <p class="card-body-text">Side Effect: <strong>${escapeHtml(t.sideEffectLevel)}</strong></p>
         <p class="card-body-text">Human Approval: <strong>${t.requiresApproval ? 'Required' : 'Autonomous'}</strong></p>
         <p class="card-body-text" style="font-size:0.75rem;">Connection: ${escapeHtml(t.connectionStatus)}</p>
+        ${t.id === 'google_calendar.create_event' ? `<div class="tool-oauth-actions">${
+          state.googleOAuth.connected
+            ? `<button class="btn-small danger" id="btn-google-calendar-disconnect">Disconnect Google Calendar</button>`
+            : `<button class="btn-small" id="btn-google-calendar-connect">🔗 Connect Google Calendar</button>`
+        }</div>` : ''}
       </div>`
       )
       .join('');
+
+    const btnConnect = document.getElementById('btn-google-calendar-connect');
+    if (btnConnect) {
+      btnConnect.onclick = async () => {
+        btnConnect.disabled = true;
+        const res = await apiFetch('/api/v1/oauth/google/start');
+        if (res && res.authorizeUrl) window.location.href = res.authorizeUrl;
+        else {
+          btnConnect.disabled = false;
+          btnConnect.textContent = (res && res.message) || 'Google Calendar is not configured on this server yet.';
+        }
+      };
+    }
+    const btnDisconnect = document.getElementById('btn-google-calendar-disconnect');
+    if (btnDisconnect) {
+      btnDisconnect.onclick = async () => {
+        await apiFetch('/api/v1/oauth/google/disconnect', { method: 'POST' });
+        await loadAllData();
+      };
+    }
   }
 
   function renderApprovals() {
@@ -612,7 +657,13 @@
       warningsEl.innerHTML = '';
     }
 
-    if (vm.showRunButton && vm.actionLabel) {
+    const calendarStep = (resolved.steps || []).find((s) => s.resolvedToolId === 'google_calendar.create_event');
+
+    if (calendarStep && calendarStep.toolAvailability === 'UNAVAILABLE' && vm.status !== 'EXECUTION_READY') {
+      renderConnectGoogleCalendarAction(actionsEl);
+    } else if (calendarStep && vm.status === 'APPROVAL_REQUIRED') {
+      renderCalendarComposeForm(actionsEl, calendarStep);
+    } else if (vm.showRunButton && vm.actionLabel) {
       const isApproval = vm.status === 'APPROVAL_REQUIRED';
       actionsEl.innerHTML = `<button class="btn-plan-action ${vm.statusCssClass}" id="btn-plan-resolution-action">${isApproval ? '🛡️' : '▶'} ${escapeHtml(vm.actionLabel)}</button>`;
       const btn = document.getElementById('btn-plan-resolution-action');
@@ -629,6 +680,157 @@
       }
     } else {
       actionsEl.innerHTML = '';
+    }
+  }
+
+  function renderConnectGoogleCalendarAction(actionsEl) {
+    actionsEl.innerHTML = `
+      <div class="calendar-connect-prompt">
+        <p>Google Calendar is not connected, so this step cannot proceed.</p>
+        <button class="btn-plan-action plan-status-approval" id="btn-connect-google-calendar">🔗 Connect Google Calendar</button>
+      </div>`;
+    const btn = document.getElementById('btn-connect-google-calendar');
+    if (btn) {
+      btn.onclick = async () => {
+        btn.disabled = true;
+        const res = await apiFetch('/api/v1/oauth/google/start');
+        if (res && res.authorizeUrl) {
+          window.location.href = res.authorizeUrl;
+        } else {
+          btn.disabled = false;
+          btn.textContent = (res && res.message) || 'Google Calendar is not configured on this server yet.';
+        }
+      };
+    }
+  }
+
+  function defaultEventStartLocal() {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    d.setHours(10, 0, 0, 0);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  function renderCalendarComposeForm(actionsEl, calendarStep) {
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    actionsEl.innerHTML = `
+      <form class="calendar-compose-form" id="calendar-compose-form">
+        <h4>Confirm the exact calendar event</h4>
+        <label>Title
+          <input type="text" id="cal-title" value="${escapeHtml(calendarStep.title)}" required>
+        </label>
+        <label>Start
+          <input type="datetime-local" id="cal-start" value="${defaultEventStartLocal()}" required>
+        </label>
+        <label>Duration (minutes)
+          <input type="number" id="cal-duration" value="30" min="5" step="5" required>
+        </label>
+        <label>Timezone
+          <input type="text" value="${escapeHtml(timezone)}" disabled>
+        </label>
+        <label>Attendee emails (comma-separated)
+          <input type="text" id="cal-attendees" placeholder="name@example.com">
+        </label>
+        <label>Description
+          <textarea id="cal-description" rows="2">${escapeHtml(calendarStep.reasoning || '')}</textarea>
+        </label>
+        <label class="calendar-checkbox-label">
+          <input type="checkbox" id="cal-meet-link"> Add a Google Meet link
+        </label>
+        <label>Calendar
+          <input type="text" value="primary" disabled>
+        </label>
+        <button type="submit" class="btn-plan-action plan-status-approval">🛡️ Preview & Request Approval</button>
+      </form>
+      <div id="calendar-preview-slot"></div>`;
+
+    const form = document.getElementById('calendar-compose-form');
+    if (form) {
+      form.onsubmit = (event) => {
+        event.preventDefault();
+        const start = document.getElementById('cal-start').value;
+        const durationMin = Number(document.getElementById('cal-duration').value) || 30;
+        const startDate = new Date(`${start}:00`);
+        const endDate = new Date(startDate.getTime() + durationMin * 60000);
+        const pad = (n) => String(n).padStart(2, '0');
+        const toLocalIso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+
+        const payload = {
+          title: document.getElementById('cal-title').value.trim(),
+          startTime: toLocalIso(startDate),
+          endTime: toLocalIso(endDate),
+          timezone,
+          attendees: document.getElementById('cal-attendees').value.split(',').map((e) => e.trim()).filter(Boolean),
+          description: document.getElementById('cal-description').value,
+          addMeetingLink: document.getElementById('cal-meet-link').checked,
+          calendarId: 'primary',
+        };
+        requestCalendarApproval(payload);
+      };
+    }
+  }
+
+  async function requestCalendarApproval(payload) {
+    const slot = document.getElementById('calendar-preview-slot');
+    const form = document.getElementById('calendar-compose-form');
+    if (!slot) return;
+    slot.innerHTML = `<p>Requesting approval…</p>`;
+
+    const approval = await apiFetch('/api/v1/tools/google-calendar/approvals', {
+      method: 'POST',
+      body: JSON.stringify({ payload }),
+    });
+
+    if (!approval || approval.error || !approval.id) {
+      slot.innerHTML = `<div class="resolution-warnings" style="display:block;">${escapeHtml((approval && approval.error && approval.error.message) || 'Could not request approval for this action.')}</div>`;
+      return;
+    }
+
+    if (form) form.style.display = 'none';
+    slot.innerHTML = `
+      <div class="calendar-preview-card">
+        <h4>Exact action awaiting your approval</h4>
+        <p><strong>${escapeHtml(payload.title)}</strong></p>
+        <p>${escapeHtml(payload.startTime.replace('T', ' '))} → ${escapeHtml(payload.endTime.replace('T', ' '))} (${escapeHtml(payload.timezone)})</p>
+        <p>Attendees: ${payload.attendees.length ? escapeHtml(payload.attendees.join(', ')) : 'None'}</p>
+        <p>Meeting link: ${payload.addMeetingLink ? 'Yes' : 'No'} · Calendar: ${escapeHtml(payload.calendarId)}</p>
+        <p class="policy-notice-pill">This exact action will run unmodified if you approve it.</p>
+        <div class="calendar-preview-actions">
+          <button class="btn-reject-outline" id="btn-calendar-reject">✕ Cancel</button>
+          <button class="btn-plan-action plan-status-ready" id="btn-calendar-approve">✓ Approve & Create Event</button>
+        </div>
+      </div>`;
+
+    const btnApprove = document.getElementById('btn-calendar-approve');
+    const btnReject = document.getElementById('btn-calendar-reject');
+    if (btnReject) {
+      btnReject.onclick = async () => {
+        await apiFetch(`/api/v1/tools/google-calendar/approvals/${approval.id}/action`, { method: 'POST', body: JSON.stringify({ action: 'REJECT' }) });
+        slot.innerHTML = `<p>Cancelled. No event was created.</p>`;
+      };
+    }
+    if (btnApprove) {
+      btnApprove.onclick = async () => {
+        btnApprove.disabled = true;
+        btnApprove.textContent = 'Creating…';
+        await apiFetch(`/api/v1/tools/google-calendar/approvals/${approval.id}/action`, { method: 'POST', body: JSON.stringify({ action: 'APPROVE' }) });
+        const result = await apiFetch('/api/v1/tools/google-calendar/create-event', {
+          method: 'POST',
+          body: JSON.stringify({ approvalId: approval.id, payload }),
+        });
+        if (result && result.status === 'SUCCESS') {
+          slot.innerHTML = `
+            <div class="calendar-preview-card">
+              <h4>✅ Calendar event created</h4>
+              <p><strong>${escapeHtml(payload.title)}</strong></p>
+              <p>${escapeHtml(payload.startTime.replace('T', ' '))} (${escapeHtml(payload.timezone)})</p>
+              <p><a href="${encodeURI(result.externalUrl)}" target="_blank" rel="noopener">Open in Google Calendar →</a></p>
+            </div>`;
+        } else {
+          slot.innerHTML = `<div class="resolution-warnings" style="display:block;">${escapeHtml((result && result.error && result.error.message) || 'The event could not be created.')}</div>`;
+        }
+      };
     }
   }
 

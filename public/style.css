@@ -283,6 +283,9 @@ body {
 .promo-progress-fill { height: 100%; background: var(--gradient-brand); }
 
 .sidebar-footer-brand { font-size: 0.75rem; color: #64748b; }
+.sidebar-footer-links { margin-top: 0.5rem; display: flex; gap: 0.4rem; }
+.sidebar-footer-links a { color: #64748b; text-decoration: none; }
+.sidebar-footer-links a:hover { color: #94a3b8; text-decoration: underline; }
 
 /* Center Main Canvas */
 .center-canvas {
@@ -658,6 +661,11 @@ body {
 
 .plan-action-btns { display: flex; gap: 0.4rem; }
 .btn-small-outline { font-size: 0.78rem; padding: 0.3rem 0.65rem; border: 1px solid var(--border-light); background: #fff; border-radius: 6px; cursor: pointer; }
+.btn-small { font-size: 0.78rem; font-weight: 600; padding: 0.3rem 0.65rem; border: 1px solid var(--border-light); background: var(--bg-subtle); color: var(--text-main); border-radius: 6px; cursor: pointer; }
+.btn-small:hover { background: var(--bg-hover); }
+.btn-small.danger { border-color: #fecaca; background: #fef2f2; color: #b91c1c; }
+.btn-small:disabled { opacity: 0.6; cursor: default; }
+.tool-oauth-actions { margin-top: 0.6rem; }
 .btn-primary-blue-sm { font-size: 0.78rem; padding: 0.3rem 0.75rem; background: var(--primary-blue); color: #fff; border: none; border-radius: 6px; cursor: pointer; }
 
 .plan-sub-tabs { display: flex; gap: 1rem; border-bottom: 1px solid var(--border-light); margin-top: 1rem; }
@@ -891,6 +899,31 @@ body {
 .btn-plan-action.plan-status-approval { background: var(--status-warning); }
 .btn-plan-action:disabled { opacity: 0.65; cursor: default; }
 
+.calendar-connect-prompt { display: flex; flex-direction: column; gap: 0.5rem; align-items: flex-start; }
+.calendar-connect-prompt p { font-size: 0.82rem; color: var(--text-muted); }
+
+.calendar-compose-form { display: flex; flex-direction: column; gap: 0.6rem; }
+.calendar-compose-form label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.78rem; font-weight: 600; color: var(--text-muted); }
+.calendar-compose-form input[type="text"],
+.calendar-compose-form input[type="datetime-local"],
+.calendar-compose-form input[type="number"],
+.calendar-compose-form textarea {
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  color: var(--text-main);
+  background: var(--bg-surface);
+}
+.calendar-compose-form input:disabled { color: var(--text-light); background: var(--bg-subtle); }
+.calendar-checkbox-label { flex-direction: row !important; align-items: center; gap: 0.5rem !important; }
+.calendar-compose-form button[type="submit"] { align-self: flex-start; }
+
+.calendar-preview-card { margin-top: 0.75rem; padding: 0.85rem; border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--bg-subtle); }
+.calendar-preview-card p { font-size: 0.82rem; color: var(--text-main); margin-top: 0.3rem; }
+.calendar-preview-actions { display: flex; gap: 0.6rem; margin-top: 0.75rem; }
+
 @media (max-width: 768px) {
   .hamburger-btn { display: block; }
   .mobile-bottom-nav { display: flex; }
@@ -899,3 +932,27 @@ body {
   .center-canvas { padding: 1rem; padding-bottom: 70px; }
   .plan-execute-split-layout { grid-template-columns: 1fr; }
 }
+
+/* Public Legal Pages (Privacy / Terms) */
+.legal-page { min-height: 100vh; display: flex; flex-direction: column; }
+
+.legal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-light);
+}
+.legal-brand { display: flex; align-items: center; }
+.legal-nav { display: flex; align-items: center; gap: 1.25rem; }
+.legal-nav a { font-size: 0.85rem; font-weight: 600; color: var(--text-muted); text-decoration: none; }
+.legal-nav a:hover { color: var(--primary-blue); }
+
+.legal-content { flex: 1; max-width: 760px; width: 100%; margin: 0 auto; padding: 2.5rem 1.5rem 4rem; }
+.legal-content h1 { font-family: var(--font-display); font-size: 1.9rem; font-weight: 800; color: var(--text-main); margin-bottom: 0.4rem; }
+.legal-content h2 { font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; color: var(--text-main); margin: 1.75rem 0 0.6rem; }
+.legal-content p, .legal-content li { font-size: 0.92rem; line-height: 1.65; color: var(--text-main); }
+.legal-content ul { padding-left: 1.25rem; margin-top: 0.4rem; display: flex; flex-direction: column; gap: 0.4rem; }
+.legal-content a { color: var(--primary-blue); }
+.legal-updated { color: var(--text-muted); font-size: 0.82rem; margin-bottom: 1.5rem; }

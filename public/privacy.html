@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NAgex — Privacy Policy</title>
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <link rel="apple-touch-icon" href="assets/nagex-app-icon.png">
+  <link rel="stylesheet" href="style.css?v=__NAGEX_BUILD_VERSION__">
+</head>
+<body>
+  <div class="legal-page">
+    <header class="legal-header">
+      <a href="/" class="legal-brand"><img src="assets/nagex-compact-logo.png" alt="NAgex" class="nagex-compact-logo header-logo"></a>
+      <nav class="legal-nav">
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+        <button class="lang-toggle-btn" id="legal-lang-toggle" type="button">KR</button>
+      </nav>
+    </header>
+
+    <main class="legal-content">
+      <div data-lang="en">
+        <h1>NAgex Privacy Policy</h1>
+        <p class="legal-updated">Last updated: September 6, 2026</p>
+
+        <p>NAgex ("we," "our") is an independent personal AI agent project, currently in active test and development. This page explains how NAgex handles data when you connect Google Calendar.</p>
+
+        <h2>1. Google Calendar Access</h2>
+        <ul>
+          <li>NAgex accesses your Google Calendar only after you explicitly grant consent through Google's OAuth consent screen.</li>
+          <li>NAgex requests only the minimum scopes needed for the features it provides: creating calendar events you approve, and checking calendar availability (free/busy).</li>
+          <li>NAgex does not request access to any other Google service or data beyond Calendar.</li>
+        </ul>
+
+        <h2>2. How Calendar Data Is Used</h2>
+        <ul>
+          <li>Calendar data is used only to provide the scheduling and availability features you request inside NAgex.</li>
+          <li>NAgex does not sell your Google user data to any third party.</li>
+          <li>NAgex does not use your Google user data for advertising or ad-targeting purposes.</li>
+        </ul>
+
+        <h2>3. Human Approval for Calendar Writes</h2>
+        <p>NAgex never creates, modifies, or deletes a calendar event without your explicit approval of the exact action beforehand. You review the exact event details — title, time, attendees, description — before anything is written to your calendar.</p>
+
+        <h2>4. Where OAuth Tokens Are Stored</h2>
+        <p>OAuth access and refresh tokens are stored only on the NAgex server. They are never sent to, or exposed in, browser JavaScript, and never appear anywhere in the NAgex interface. Tokens are held in server memory for as long as your connection is active. NAgex is currently a test/development service and does not yet persist tokens to a database, so restarting the service invalidates all stored connections.</p>
+
+        <h2>5. Disconnecting and Revoking Access</h2>
+        <ul>
+          <li>You can disconnect Google Calendar at any time from the NAgex Tools page. Disconnecting immediately deletes your stored tokens from the NAgex server.</li>
+          <li>You can also revoke NAgex's access directly from your Google Account, under Security → Third-party apps with account access.</li>
+        </ul>
+
+        <h2>6. Data Retention &amp; Deletion</h2>
+        <ul>
+          <li><strong>OAuth tokens</strong> — deleted immediately when you disconnect, or when the NAgex server restarts.</li>
+          <li><strong>Scheduling notes</strong> — when NAgex creates a calendar event for you, it may save a short note in NAgex Memory (for example, "Scheduled &lt;event title&gt; on &lt;date/time&gt;"). This note does not include attendee email addresses. You can remove it anytime from the Memory tab.</li>
+          <li><strong>Audit logs</strong> — NAgex keeps a short technical record of actions taken (which tool ran, whether it succeeded) for security and debugging. This record never contains OAuth tokens.</li>
+          <li>To request deletion of any data NAgex holds about you, contact us at the email below.</li>
+        </ul>
+
+        <h2>7. Contact</h2>
+        <p>Questions about this policy or your data: <a href="mailto:redcloudyun@gmail.com">redcloudyun@gmail.com</a></p>
+      </div>
+
+      <div data-lang="kr" hidden>
+        <h1>NAgex 개인정보 처리방침</h1>
+        <p class="legal-updated">최종 업데이트: 2026년 9월 6일</p>
+
+        <p>NAgex("당사")는 현재 테스트 및 개발 단계에 있는 독립 개인용 AI 에이전트 프로젝트입니다. 이 페이지는 사용자가 Google Calendar를 연결할 때 NAgex가 데이터를 어떻게 처리하는지 설명합니다.</p>
+
+        <h2>1. Google Calendar 접근</h2>
+        <ul>
+          <li>NAgex는 사용자가 Google의 OAuth 동의 화면에서 명시적으로 동의한 경우에만 Google Calendar에 접근합니다.</li>
+          <li>NAgex는 제공하는 기능(사용자가 승인한 일정 생성, 캘린더 여유 시간 확인)에 필요한 최소한의 권한 범위만 요청합니다.</li>
+          <li>NAgex는 Calendar 외의 다른 Google 서비스나 데이터에는 접근을 요청하지 않습니다.</li>
+        </ul>
+
+        <h2>2. 캘린더 데이터 사용 방식</h2>
+        <ul>
+          <li>캘린더 데이터는 사용자가 NAgex 내에서 요청한 일정 관리 및 여유 시간 확인 기능을 제공하는 용도로만 사용됩니다.</li>
+          <li>NAgex는 사용자의 Google 사용자 데이터를 제3자에게 판매하지 않습니다.</li>
+          <li>NAgex는 사용자의 Google 사용자 데이터를 광고나 광고 타겟팅 목적으로 사용하지 않습니다.</li>
+        </ul>
+
+        <h2>3. 캘린더 쓰기 작업에 대한 사람의 승인</h2>
+        <p>NAgex는 사전에 사용자가 정확한 작업 내용을 명시적으로 승인하지 않는 한 캘린더 일정을 생성, 수정, 삭제하지 않습니다. 실제로 캘린더에 반영되기 전에 제목, 시간, 참석자, 설명 등 정확한 이벤트 세부 정보를 검토하게 됩니다.</p>
+
+        <h2>4. OAuth 토큰 저장 위치</h2>
+        <p>OAuth 액세스 토큰과 리프레시 토큰은 NAgex 서버에만 저장됩니다. 브라우저 자바스크립트로 전송되거나 노출되지 않으며, NAgex 화면 어디에도 표시되지 않습니다. 토큰은 연결이 활성 상태인 동안 서버 메모리에 보관됩니다. NAgex는 현재 테스트/개발 단계 서비스로서 토큰을 데이터베이스에 영구 저장하지 않으므로, 서버가 재시작되면 저장된 모든 연결 정보가 무효화됩니다.</p>
+
+        <h2>5. 연결 해제 및 접근 권한 철회</h2>
+        <ul>
+          <li>NAgex의 Tools 페이지에서 언제든지 Google Calendar 연결을 해제할 수 있습니다. 연결을 해제하면 서버에 저장된 토큰이 즉시 삭제됩니다.</li>
+          <li>Google 계정의 보안 → 내 계정에 연결된 타사 앱 메뉴에서도 언제든지 NAgex의 접근 권한을 직접 철회할 수 있습니다.</li>
+        </ul>
+
+        <h2>6. 데이터 보관 및 삭제</h2>
+        <ul>
+          <li><strong>OAuth 토큰</strong> — 연결 해제 시 또는 NAgex 서버 재시작 시 즉시 삭제됩니다.</li>
+          <li><strong>일정 관련 메모</strong> — NAgex가 사용자를 대신해 캘린더 일정을 생성하면, NAgex Memory에 "&lt;일정 제목&gt;을(를) &lt;날짜/시간&gt;에 예약함"과 같은 짧은 메모를 저장할 수 있습니다. 이 메모에는 참석자 이메일 주소가 포함되지 않으며, Memory 탭에서 언제든지 삭제할 수 있습니다.</li>
+          <li><strong>감사 로그</strong> — NAgex는 보안 및 디버깅 목적으로 어떤 도구가 실행되었는지, 성공했는지 등 간단한 기술 기록을 보관합니다. 이 기록에는 OAuth 토큰이 포함되지 않습니다.</li>
+          <li>NAgex가 보유한 데이터의 삭제를 요청하려면 아래 이메일로 문의해 주세요.</li>
+        </ul>
+
+        <h2>7. 문의</h2>
+        <p>본 정책 또는 사용자 데이터에 대한 문의: <a href="mailto:redcloudyun@gmail.com">redcloudyun@gmail.com</a></p>
+      </div>
+    </main>
+  </div>
+
+  <script src="legal.js?v=__NAGEX_BUILD_VERSION__"></script>
+</body>
+</html>

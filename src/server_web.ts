@@ -19,6 +19,11 @@ import { UnifiedModelRouter } from './model-gateway/unified-model-router.js';
 import { skillRegistry as canonicalSkillRegistry } from './skills/skill-registry.js';
 import { toolRegistry as canonicalToolRegistry } from './tools/tool-registry.js';
 import { PlanResolver } from './planning/plan-resolver.js';
+import { ActionApprovalStore } from './governance/action-approval.store.js';
+import { GoogleCalendarService } from './tools/google-calendar.service.js';
+import { googleTokenStore, DEFAULT_GOOGLE_TENANT_ID } from './integrations/google/token.store.js';
+import { buildGoogleAuthorizeUrl, exchangeGoogleAuthorizationCode, readGoogleOAuthConfig } from './integrations/google/oauth.client.js';
+import { queryFreeBusy, computeFreeSlots } from './integrations/google/calendar.client.js';
 
 const PORT = Number(process.env.PORT || 8085);
 const PUBLIC_DIR = path.join(process.cwd(), 'public');
@@ -27,12 +32,14 @@ const NO_CACHE_HEADERS = {
   Pragma: 'no-cache',
   Expires: '0',
 } as const;
-const MUTABLE_FRONTEND_FILES = new Set(['index.html', 'style.css', 'app.js', 'i18n.js', 'plan-resolution-view.js']);
+const MUTABLE_FRONTEND_FILES = new Set(['index.html', 'style.css', 'app.js', 'i18n.js', 'plan-resolution-view.js', 'legal.js', 'privacy.html', 'terms.html']);
+const VERSIONED_HTML_FILES = new Set(['index.html', 'privacy.html', 'terms.html']);
+const CLEAN_URL_ALIASES: Record<string, string> = { '/privacy': 'privacy.html', '/terms': 'terms.html' };
 const BUILD_VERSION_PLACEHOLDER = '__NAGEX_BUILD_VERSION__';
 
 function createBuildVersion(): string {
   const hash = crypto.createHash('sha256');
-  for (const filename of ['style.css', 'i18n.js', 'plan-resolution-view.js', 'app.js']) {
+  for (const filename of ['style.css', 'i18n.js', 'plan-resolution-view.js', 'legal.js', 'app.js']) {
     hash.update(filename);
     hash.update(fs.readFileSync(path.join(PUBLIC_DIR, filename)));
   }
@@ -62,6 +69,9 @@ const creditEngine = new CreditEngine(billing);
 const memoryEngine = new MemoryEngine();
 const aiService = new AiService(new UnifiedModelRouter(createProviders()));
 const planResolver = new PlanResolver(canonicalSkillRegistry, canonicalToolRegistry);
+const actionApprovals = new ActionApprovalStore();
+const googleCalendarService = new GoogleCalendarService(googleTokenStore, actionApprovals, auditLogger, memoryEngine);
+let pendingGoogleOAuthState: string | null = null;
 
 const INITIAL_CREDIT_GRANT = 10000;
 const seededTenants = new Set<string>();
@@ -313,11 +323,26 @@ function getRelevantMemories(principalId: string, prompt: string): MemoryRecord[
     .map(({ memory }) => memory);
 }
 
-type ApiResult = { status: number; data: unknown };
+type ApiResult = { status: number; data: unknown; redirectTo?: string };
+
+const ERROR_CATEGORY_STATUS: Record<string, number> = {
+  VALIDATION: 400,
+  AUTHENTICATION: 401,
+  AUTHORIZATION: 403,
+  POLICY: 403,
+  NOT_FOUND: 404,
+  CONFLICT: 409,
+  QUOTA: 429,
+  RATE_LIMIT: 429,
+  TIMEOUT: 504,
+  PROVIDER: 502,
+  RUNTIME: 500,
+  INTERNAL: 500,
+};
 
 function modelErrorResult(error: unknown): ApiResult {
   if (error instanceof NagexError) {
-    const status = error.category === 'VALIDATION' ? 400 : error.category === 'TIMEOUT' ? 504 : 502;
+    const status = ERROR_CATEGORY_STATUS[error.category] ?? 502;
     return { status, data: error.toJSON() };
   }
   const requestId = `req_${crypto.randomUUID()}`;
@@ -331,6 +356,7 @@ export async function handleAsyncApiRequest(
   body: Record<string, unknown> | null,
   headers: Record<string, string | string[] | undefined> = {},
   service: AiService = aiService,
+  query: Record<string, string> = {},
 ): Promise<ApiResult> {
   try {
     if (pathname === '/api/v1/providers/status' && method === 'GET') {
@@ -354,9 +380,55 @@ export async function handleAsyncApiRequest(
       });
       return { status: 200, data: { status: 'PLAN_PREVIEW', message: 'Plan generated. Review it before any tools are executed.', plan: result.data, provider: result.provider, model: result.model, latencyMs: result.latencyMs, requestId: result.requestId } };
     }
+    if (pathname === '/api/v1/oauth/google/callback' && method === 'GET') {
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const requestId = `req_oauth_${crypto.randomUUID()}`;
+      const expectedState = pendingGoogleOAuthState;
+      pendingGoogleOAuthState = null; // one-time use, prevents callback replay
+
+      if (query.error) {
+        return { status: 302, data: null, redirectTo: '/?oauth=google&status=error' };
+      }
+      if (!query.state || !expectedState || query.state !== expectedState || !query.code) {
+        return { status: 302, data: null, redirectTo: '/?oauth=google&status=error' };
+      }
+      const config = readGoogleOAuthConfig();
+      if (!config) {
+        return { status: 302, data: null, redirectTo: '/?oauth=google&status=error' };
+      }
+      try {
+        const token = await exchangeGoogleAuthorizationCode(config, query.code, fetch, requestId);
+        googleTokenStore.save(tenantId, token);
+        auditLogger.logEvent({ actor: { type: 'user', id: 'usr_admin_001' }, tenant_id: tenantId, action: 'oauth:google_connected', resource: { type: 'OAuthConnection', id: 'google_calendar' }, result: 'SUCCESS', request_id: requestId });
+        return { status: 302, data: null, redirectTo: '/?oauth=google&status=connected' };
+      } catch {
+        return { status: 302, data: null, redirectTo: '/?oauth=google&status=error' };
+      }
+    }
     if (pathname === '/api/v1/plans/resolve' && method === 'POST') {
       const candidate = body?.plan && typeof body.plan === 'object' ? body.plan : body;
       return { status: 200, data: planResolver.resolve(candidate as unknown as PlanPreview) };
+    }
+    if (pathname === '/api/v1/tools/google-calendar/create-event' && method === 'POST') {
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+      const approvalId = typeof body?.approvalId === 'string' ? body.approvalId : '';
+      if (!approvalId) throw new NagexError({ code: 'APPROVAL_ID_REQUIRED', category: 'VALIDATION', message: 'approvalId is required.', request_id: requestId });
+      const result = await googleCalendarService.executeCreateEvent({ approvalId, payload: body?.payload, tenantId, principalId, requestId });
+      return { status: 200, data: result };
+    }
+    if (pathname === '/api/v1/tools/google-calendar/free-slots' && method === 'POST') {
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+      const config = readGoogleOAuthConfig();
+      const accessToken = config ? await googleTokenStore.getValidAccessToken(tenantId, config, fetch, requestId) : null;
+      if (!accessToken) throw new NagexError({ code: 'GOOGLE_CALENDAR_DISCONNECTED', category: 'POLICY', message: 'Google Calendar is not connected.', request_id: requestId });
+      const calendarId = (typeof body?.calendarId === 'string' && body.calendarId) || 'primary';
+      const timeMin = typeof body?.timeMin === 'string' ? body.timeMin : new Date().toISOString();
+      const timeMax = typeof body?.timeMax === 'string' ? body.timeMax : new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
+      const busy = await queryFreeBusy(accessToken, { calendarId, timeMin, timeMax }, fetch, requestId);
+      return { status: 200, data: { busy, freeSlots: computeFreeSlots(busy, timeMin, timeMax) } };
     }
     return handleApiRequest(method, pathname, body, headers);
   } catch (error) {
@@ -402,6 +474,11 @@ export function handleApiRequest(
 
   if (pathname.startsWith('/api/v1/memory/') && method === 'DELETE') {
     const memId = pathname.replace('/api/v1/memory/', '');
+    try {
+      memoryEngine.deleteMemory(memId);
+    } catch (error) {
+      return modelErrorResult(error);
+    }
     pinnedMemories.delete(memId);
     return { status: 200, data: { success: true, deleted_id: memId } };
   }
@@ -423,7 +500,7 @@ export function handleApiRequest(
   }
 
   if (pathname === '/api/v1/tools' && method === 'GET') {
-    const tools = canonicalToolRegistry.list().map(({ aliases: _aliases, ...tool }) => tool);
+    const tools = canonicalToolRegistry.list();
     return { status: 200, data: { tools, total: tools.length } };
   }
 
@@ -450,6 +527,49 @@ export function handleApiRequest(
     });
 
     return { status: 200, data: item };
+  }
+
+  if (pathname === '/api/v1/oauth/google/start' && method === 'GET') {
+    const config = readGoogleOAuthConfig();
+    if (!config) {
+      return { status: 503, data: { error: 'GOOGLE_OAUTH_NOT_CONFIGURED', message: 'GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI must be set.' } };
+    }
+    pendingGoogleOAuthState = crypto.randomUUID();
+    return { status: 200, data: { authorizeUrl: buildGoogleAuthorizeUrl(config, pendingGoogleOAuthState) } };
+  }
+
+  if (pathname === '/api/v1/oauth/google/status' && method === 'GET') {
+    return { status: 200, data: googleTokenStore.getStatus(tenantId || DEFAULT_GOOGLE_TENANT_ID) };
+  }
+
+  if (pathname === '/api/v1/oauth/google/disconnect' && method === 'POST') {
+    googleTokenStore.clear(tenantId || DEFAULT_GOOGLE_TENANT_ID);
+    auditLogger.logEvent({ actor: principal, tenant_id: tenantId, action: 'oauth:google_disconnected', resource: { type: 'OAuthConnection', id: 'google_calendar' }, result: 'SUCCESS', request_id: `req_oauth_${Date.now()}` });
+    return { status: 200, data: googleTokenStore.getStatus(tenantId || DEFAULT_GOOGLE_TENANT_ID) };
+  }
+
+  if (pathname === '/api/v1/tools/google-calendar/approvals' && method === 'POST') {
+    const requestId = `req_appr_${Date.now()}`;
+    try {
+      const record = googleCalendarService.requestCreateEventApproval({ tenantId, principalId: principal.id, payload: body?.payload, requestId });
+      return { status: 201, data: record };
+    } catch (error) {
+      return modelErrorResult(error);
+    }
+  }
+
+  if (pathname.startsWith('/api/v1/tools/google-calendar/approvals/') && method === 'POST') {
+    const approvalId = pathname.replace('/api/v1/tools/google-calendar/approvals/', '').replace('/action', '');
+    const action = (body?.action as string) || 'APPROVE';
+    const requestId = `req_appr_${Date.now()}`;
+    try {
+      const record = action === 'APPROVE'
+        ? googleCalendarService.approve(approvalId, principal.id, requestId)
+        : googleCalendarService.reject(approvalId, principal.id, requestId);
+      return { status: 200, data: record };
+    } catch (error) {
+      return modelErrorResult(error);
+    }
   }
 
   if (pathname === '/api/v1/quickwake/config' && method === 'GET') return { status: 200, data: quickWakeConfig };
@@ -538,14 +658,20 @@ export const server = http.createServer((req, res) => {
       } catch {
         /* ignore */
       }
-      const result = await handleAsyncApiRequest(method, pathname, parsedBody, req.headers);
+      const query = Object.fromEntries(url.searchParams);
+      const result = await handleAsyncApiRequest(method, pathname, parsedBody, req.headers, aiService, query);
+      if (result.redirectTo) {
+        res.writeHead(result.status, { Location: result.redirectTo });
+        res.end();
+        return;
+      }
       res.writeHead(result.status, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify(result.data, null, 2));
     });
     return;
   }
 
-  const relativePath = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
+  const relativePath = pathname === '/' ? 'index.html' : (CLEAN_URL_ALIASES[pathname] || pathname.replace(/^\/+/, ''));
   const filePath = path.resolve(PUBLIC_DIR, relativePath);
   if (filePath !== PUBLIC_DIR && !filePath.startsWith(`${PUBLIC_DIR}${path.sep}`)) {
     res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8', ...NO_CACHE_HEADERS });
@@ -570,7 +696,7 @@ export const server = http.createServer((req, res) => {
         Object.assign(headers, NO_CACHE_HEADERS);
       }
 
-      if (relativePath === 'index.html') {
+      if (VERSIONED_HTML_FILES.has(relativePath)) {
         const versionedHtml = content
           .toString('utf8')
           .replaceAll(BUILD_VERSION_PLACEHOLDER, FRONTEND_BUILD_VERSION);

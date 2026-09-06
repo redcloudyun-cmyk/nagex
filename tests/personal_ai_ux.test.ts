@@ -72,6 +72,21 @@ test('3. Personal AI: API POST /api/v1/memory creates and activates new memory',
   assert.strictEqual(data.pinned, true);
 });
 
+test('3b. Personal AI: DELETE /api/v1/memory/:id permanently removes the record, not just its pin', () => {
+  const created = handleApiRequest('POST', '/api/v1/memory', { scope: 'USER', subject: 'Temp Note', predicate: 'is', value: 'delete me' });
+  const memId = (created.data as { id: string }).id;
+
+  const deleted = handleApiRequest('DELETE', `/api/v1/memory/${memId}`, null);
+  assert.strictEqual(deleted.status, 200);
+
+  const listing = handleApiRequest('GET', '/api/v1/memory', null);
+  const memories = (listing.data as { memories: Array<{ id: string }> }).memories;
+  assert.ok(!memories.some((m) => m.id === memId));
+
+  const deletedAgain = handleApiRequest('DELETE', `/api/v1/memory/${memId}`, null);
+  assert.strictEqual(deletedAgain.status, 404);
+});
+
 test('4. Personal AI: Tool Invoker Autonomy & Human Approval Gate', async () => {
   const invoker = new ToolInvoker();
   invoker.registerTool({

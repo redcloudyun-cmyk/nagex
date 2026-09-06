@@ -85,4 +85,22 @@ export class MemoryEngine {
     }
     return active;
   }
+
+  // Memory must be controllable and deletable (MASTER.md Safety Principle 9):
+  // this permanently removes the record, not merely unpins it.
+  public deleteMemory(id: string): MemoryRecord {
+    const record = this.memoryStore.get(id);
+    if (!record) {
+      throw new NagexError({
+        code: 'MEMORY_NOT_FOUND',
+        category: 'NOT_FOUND',
+        message: `Memory ID ${id} not found.`,
+        request_id: 'mem_req',
+      });
+    }
+    record.lifecycle = 'DELETED';
+    record.updated_at = getCurrentISOString();
+    this.memoryStore.delete(id);
+    return record;
+  }
 }
