@@ -9,6 +9,8 @@ import { DurableRuntimeEngine } from './runtime/runtime.engine.js';
 import { AuditLogger } from './governance/audit.logger.js';
 import { BillingLedgerEngine } from './billing/billing.ledger.js';
 import { CreditEngine, computeCreditCost, sumBreakdownUsd, type CreditCostBreakdown } from './billing/credit.engine.js';
+import { MemoryEngine, type MemoryRecord, type MemoryScope } from './context/memory.engine.js';
+import { ToolInvoker, type SideEffectClass } from './agent/tool.invoker.js';
 import { NagexError } from './common/errors.js';
 import type { TenantContext, PrincipalReference } from './common/types.js';
 
@@ -33,11 +35,29 @@ const runtime = new DurableRuntimeEngine();
 const auditLogger = new AuditLogger();
 const billing = new BillingLedgerEngine();
 const creditEngine = new CreditEngine(billing);
+const memoryEngine = new MemoryEngine();
+const toolInvoker = new ToolInvoker();
 
-// docs/supplemental/S-07-billing-ai-provider.md Phase 1. This demo console
-// has no real Subscription/signup flow, so each tenant is lazily seeded
-// with an initial grant the first time it's seen (matches the prior mock's
-// `total_credits: 10000` so the console demo doesn't regress).
+// Register real/simulated tools
+toolInvoker.registerTool({
+  id: 'google_calendar',
+  name: 'Google Calendar',
+  side_effect: 'REVERSIBLE_WRITE',
+  handler: async (params) => ({ event_id: `evt_${Date.now()}`, status: 'CONFIRMED', details: params }),
+});
+toolInvoker.registerTool({
+  id: 'gmail',
+  name: 'Gmail',
+  side_effect: 'IRREVERSIBLE_WRITE',
+  handler: async (params) => ({ message_id: `msg_${Date.now()}`, status: 'SENT', details: params }),
+});
+toolInvoker.registerTool({
+  id: 'perplexity',
+  name: 'Perplexity Search',
+  side_effect: 'READ_ONLY',
+  handler: async (params) => ({ query: params.query, results: ['Search result 1', 'Search result 2'] }),
+});
+
 const INITIAL_CREDIT_GRANT = 10000;
 const seededTenants = new Set<string>();
 function ensureTenantSeeded(tenantId: string): void {
@@ -47,14 +67,6 @@ function ensureTenantSeeded(tenantId: string): void {
   }
 }
 
-// Illustrative cost breakdown reproducing S-07 §6.2's worked example
-// (Claude LLM $0.040 + Embedding+RAG $0.004 + Tool $0.005 + Agent
-// Runtime+Infra $0.011 = $0.060 -> 90 Credits). Shared by the real charge
-// in POST /api/v1/executions and the POST /api/v1/billing/estimate preview
-// below, so an estimate never disagrees with what actually gets charged.
-// Real per-domain usage reporting (RAG/Tool/Memory/Storage) isn't wired
-// yet -- see S-07 §6.1 -- so this is one canned profile, not a per-request
-// calculation.
 const MANAGED_AI_COST_BREAKDOWN: CreditCostBreakdown = {
   llm_cost_unit: 0.04,
   rag_unit: 0.004,
@@ -62,396 +74,479 @@ const MANAGED_AI_COST_BREAKDOWN: CreditCostBreakdown = {
   runtime_unit: 0.011,
 };
 
-// Subscription/Plan display fields are out of Phase 1 scope (S-07 §5.1) --
-// kept as static passthrough data, separate from the real Credit Engine.
 const SUBSCRIPTION_INFO = {
   plan: 'Business Pro',
   monthly_price: 120.0,
   next_renewal: '2026-09-01',
 };
 
-// In-memory Agent Registry (Seed Data)
-const agentRegistry = [
-  {
-    id: 'agt_market_analyst',
-    name: 'Market Analyst Agent',
-    description: '금융 시장 데이터를 분석하고 구조화된 인사이트 리포트를 생성합니다.',
-    autonomy_level: 'L2',
-    status: 'ACTIVE',
-    bound_skills: ['financial-market-analysis', 'report-generation'],
-    bound_model: 'gpt-4o',
-    executions_total: 127,
-  },
-  {
-    id: 'agt_code_reviewer',
-    name: 'Code Review Agent',
-    description: '코드베이스의 품질, 보안 취약점, 아키텍처 패턴 준수를 자동 점검합니다.',
-    autonomy_level: 'L1',
-    status: 'ACTIVE',
-    bound_skills: ['code-review', 'security-scan'],
-    bound_model: 'claude-3.5-sonnet',
-    executions_total: 89,
-  },
-  {
-    id: 'agt_content_writer',
-    name: 'Content Writer Agent',
-    description: '마케팅 콘텐츠, 블로그 포스트, 프레젠테이션을 생성합니다.',
-    autonomy_level: 'L1',
-    status: 'ACTIVE',
-    bound_skills: ['content-generation', 'seo-optimization'],
-    bound_model: 'gpt-4o-mini',
-    executions_total: 204,
-  },
-  {
-    id: 'agt_data_pipeline',
-    name: 'Data Pipeline Agent',
-    description: 'ETL 파이프라인을 자동으로 구성하고 데이터 품질을 모니터링합니다.',
-    autonomy_level: 'L3',
-    status: 'PAUSED',
-    bound_skills: ['data-etl', 'quality-check'],
-    bound_model: 'gemini-2.5-pro',
-    executions_total: 56,
-  },
-];
+// ─── Personal AI Seed Data (Matching Mockup Images 1 - 4) ───
 
-// In-memory Knowledge Base (Seed Data)
-const knowledgeBase = [
-  {
-    id: 'kb_001',
-    name: '2026_사업계획서_최종.pdf',
-    classification: 'CONFIDENTIAL',
-    size_bytes: 2516582,
-    status: 'INDEXED',
-    indexed_at: '2026-08-20T14:30:00Z',
-    chunk_count: 142,
-  },
-  {
-    id: 'kb_002',
-    name: '제품_아키텍처_명세.docx',
-    classification: 'INTERNAL',
-    size_bytes: 1153433,
-    status: 'INDEXED',
-    indexed_at: '2026-08-19T09:15:00Z',
-    chunk_count: 87,
-  },
-  {
-    id: 'kb_003',
-    name: 'NAGEX_API_스펙_v3.json',
-    classification: 'PUBLIC',
-    size_bytes: 425891,
-    status: 'INDEXED',
-    indexed_at: '2026-08-18T16:45:00Z',
-    chunk_count: 34,
-  },
-];
+// Seed Memory
+const mem1 = memoryEngine.proposeMemory('USER', 'usr_admin_001', {
+  subject: 'User Profile',
+  predicate: 'is',
+  value: 'Jane Smith (Product Strategy Lead)',
+});
+memoryEngine.activateMemory(mem1.id);
 
-// In-memory Plugin Registry (Seed Data)
-const pluginRegistry = [
-  {
-    id: 'plg_slack',
-    package_id: 'com.nagex.slack-plugin',
-    name: 'Slack Notification Integration',
-    status: 'ENABLED',
-    egress_rules: ['hooks.slack.com:443'],
-    credential_ref: 'SecretReference(sec_slack_webhook)',
-    version: '2.1.0',
-  },
-  {
-    id: 'plg_github',
-    package_id: 'com.nagex.github-plugin',
-    name: 'GitHub Automated PR Reviewer',
-    status: 'ENABLED',
-    egress_rules: ['api.github.com:443'],
-    credential_ref: 'SecretReference(sec_github_token)',
-    version: '1.4.2',
-  },
-  {
-    id: 'plg_google_workspace',
-    package_id: 'com.nagex.gworkspace-plugin',
-    name: 'Google Workspace Integration',
-    status: 'DISABLED',
-    egress_rules: ['www.googleapis.com:443', 'oauth2.googleapis.com:443'],
-    credential_ref: 'SecretReference(sec_gworkspace_sa)',
-    version: '1.0.0',
-  },
-];
+const mem2 = memoryEngine.proposeMemory('USER', 'usr_admin_001', {
+  subject: 'Acme Corp Context',
+  predicate: 'memory_summary',
+  value: "Preparing for quarterly business review with Acme Corp focusing on product adoption, renewal potential, and Q3 roadmap.",
+});
+memoryEngine.activateMemory(mem2.id);
 
-// Execution history (will grow dynamically)
-const executionHistory: Array<Record<string, unknown>> = [];
+const mem3 = memoryEngine.proposeMemory('USER', 'usr_admin_001', {
+  subject: 'Preferred Tools',
+  predicate: 'channel',
+  value: 'Gmail, Google Calendar, Notion, Slack',
+});
+memoryEngine.activateMemory(mem3.id);
 
-interface VcsFileChange {
-  path: string;
+const mem4 = memoryEngine.proposeMemory('SESSION', 'usr_admin_001', {
+  subject: 'Current Focus',
+  predicate: 'active_plan',
+  value: 'Prepare Client Meeting & Schedule Product Strategy Sync',
+});
+memoryEngine.activateMemory(mem4.id);
+
+const pinnedMemories = new Set<string>([mem2.id, mem3.id]);
+
+// Seed Plans (Exact match for Mockup Image 4)
+const planRegistry: Array<{
+  id: string;
+  goal: string;
+  description: string;
   status: string;
-}
+  tags: string[];
+  progress: number;
+  completed_steps: number;
+  total_steps: number;
+  created_at: string;
+  steps: Array<{
+    step: number;
+    title: string;
+    status: string;
+    skill: string;
+    tool: string;
+    approval: string;
+    due: string;
+    result: string;
+  }>;
+}> = [
+  {
+    id: 'plan_acme_meeting',
+    goal: 'Prepare Client Meeting',
+    description: 'Prepare for the Acme Corp. quarterly business review meeting.',
+    status: 'RUNNING',
+    tags: ['Client Meeting', 'Acme Corp', '🔥 High Priority'],
+    progress: 62,
+    completed_steps: 5,
+    total_steps: 8,
+    created_at: new Date(Date.now() - 3600000).toISOString(),
+    steps: [
+      { step: 1, title: 'Understand meeting context', status: 'Completed', skill: 'Memory Recall', tool: 'NAgex Memory', approval: '-', due: 'Apr 28, 9:00 AM', result: 'View' },
+      { step: 2, title: 'Research client and industry', status: 'Completed', skill: 'Web Research', tool: 'Perplexity', approval: '-', due: 'Apr 28, 11:00 AM', result: 'View' },
+      { step: 3, title: 'Summarize key talking points', status: 'Running', skill: 'Summarization', tool: 'Notion', approval: '-', due: 'Apr 29, 9:00 AM', result: '...' },
+      { step: 4, title: 'Draft meeting deck', status: 'Ready', skill: 'Content Creation', tool: 'Google Slides', approval: 'Required', due: 'Apr 29, 2:00 PM', result: '-' },
+      { step: 5, title: 'Get stakeholder review', status: 'Awaiting Approval', skill: 'Communication', tool: 'Gmail', approval: 'Required', due: 'Apr 29, 5:00 PM', result: '-' },
+      { step: 6, title: 'Schedule the meeting', status: 'Ready', skill: 'Scheduling', tool: 'Google Calendar', approval: '-', due: 'Apr 30, 9:00 AM', result: '-' },
+      { step: 7, title: 'Prepare Q&A responses', status: 'Ready', skill: 'Analysis', tool: 'ChatGPT', approval: '-', due: 'Apr 30, 11:00 AM', result: '-' },
+      { step: 8, title: 'Final review and checklist', status: 'Ready', skill: 'Project Management', tool: 'Notion', approval: '-', due: 'Apr 30, 3:00 PM', result: '-' },
+    ],
+  },
+  {
+    id: 'plan_002',
+    goal: 'Weekly Competitive Market Analysis',
+    description: 'Gather competitors intelligence and prepare executive deck.',
+    status: 'RUNNING',
+    tags: ['Market Research', 'Executive Summary'],
+    progress: 33,
+    completed_steps: 1,
+    total_steps: 3,
+    created_at: new Date(Date.now() - 1800000).toISOString(),
+    steps: [
+      { step: 1, title: 'Search latest market trends via Web Search', status: 'Completed', skill: 'Deep Research', tool: 'Web Search', approval: '-', due: 'Apr 29, 10:00 AM', result: 'View' },
+      { step: 2, title: 'Synthesize insights into Executive Brief', status: 'Running', skill: 'Document Summary', tool: 'Browser', approval: '-', due: 'Apr 29, 2:00 PM', result: '...' },
+      { step: 3, title: 'Distribute summary to Slack #executive channel', status: 'Ready', skill: 'Executive Update', tool: 'Slack', approval: 'Required', due: 'Apr 29, 4:00 PM', result: '-' },
+    ],
+  },
+];
 
-interface VcsCommit {
-  hash: string;
-  author: string;
-  date: string;
-  message: string;
-}
+// Seed Skills
+const skillRegistry = [
+  { id: 'skl_meeting_prep', name: 'Meeting Preparation', description: 'Plans and prepares for client meetings with context and key talking points.', safety_level: 'READ_ONLY', required_tools: ['NAgex Memory', 'Google Calendar', 'Google Drive'], approval_rule: 'Auto-run for context gathering.' },
+  { id: 'skl_email_drafting', name: 'Email Drafting', description: 'Drafts external communication and stakeholder review requests.', safety_level: 'IRREVERSIBLE_WRITE', required_tools: ['Gmail'], approval_rule: 'Human approval ALWAYS required.' },
+  { id: 'skl_deep_research', name: 'Deep Research', description: 'Performs multi-step web queries and aggregates source briefs.', safety_level: 'READ_ONLY', required_tools: ['Perplexity', 'Web Search'], approval_rule: 'Autonomous execution enabled.' },
+  { id: 'skl_doc_summary', name: 'Document Summary', description: 'Summarizes key points and builds meeting agendas.', safety_level: 'READ_ONLY', required_tools: ['Notion', 'Google Drive'], approval_rule: 'Autonomous execution enabled.' },
+  { id: 'skl_weekly_planning', name: 'Weekly Planning', description: 'Analyzes user goals and calendar to construct focused weekly schedule.', safety_level: 'REVERSIBLE_WRITE', required_tools: ['Google Calendar'], approval_rule: 'Low-risk schedule updates.' },
+];
 
-interface VcsStatus {
-  available: boolean;
-  branch: string | null;
-  changed_files: VcsFileChange[];
-  commits: VcsCommit[];
-  error?: string;
-}
+// Seed Tools (Matching Mockup Image 3)
+const toolRegistry = [
+  { id: 'tool_gmail', name: 'Gmail', description: 'Send and manage emails', connection_status: 'Connected', side_effect: 'IRREVERSIBLE_WRITE', requires_approval: true, last_used: '10 mins ago' },
+  { id: 'tool_gcal', name: 'Google Calendar', description: 'Manage your schedule', connection_status: 'Connected', side_effect: 'REVERSIBLE_WRITE', requires_approval: true, last_used: '5 mins ago' },
+  { id: 'tool_notion', name: 'Notion', description: 'Create and update pages', connection_status: 'Approval Required', side_effect: 'REVERSIBLE_WRITE', requires_approval: true, last_used: 'Yesterday' },
+  { id: 'tool_slack', name: 'Slack', description: 'Send messages and notify teams', connection_status: 'Connected', side_effect: 'REVERSIBLE_WRITE', requires_approval: false, last_used: '2 hours ago' },
+  { id: 'tool_search', name: 'Web Search', description: 'Find up-to-date information', connection_status: 'Approval Required', side_effect: 'READ_ONLY', requires_approval: true, last_used: 'Just now' },
+];
 
-// Read-only git introspection for the console's Version Control view.
-// Every call below is a fixed argument array (no string interpolation, no
-// request input reaches these calls) and is limited to status/log — this
-// must never grow write operations (commit/push/reset) without a fresh
-// authorization review, since it would let a web request mutate the repo.
+// Seed Approvals Queue (Exact match for Mockup Image 3)
+const approvalQueue: Array<{
+  id: string;
+  action: string;
+  tool: string;
+  event_name: string;
+  event_time: string;
+  recipient: string;
+  subject: string;
+  impact: string;
+  data_involved: string[];
+  why: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  requested_at: string;
+  plan_id?: string;
+}> = [
+  {
+    id: 'appr_gcal_sync',
+    action: 'Create Google Calendar event',
+    tool: 'Google Calendar',
+    event_name: 'Product Strategy Sync',
+    event_time: 'Tue, Apr 29, 2025 11:00 AM – 12:00 PM (1 hour)',
+    recipient: 'Sarah Kim, James Park, Alex Chen (3 guests)',
+    subject: 'Product Strategy Sync',
+    impact: 'Adds a calendar event and sends invitations to 3 people.',
+    data_involved: ['Your Google Calendar', 'guest emails', 'meeting title and agenda'],
+    why: 'You asked me to schedule a follow-up meeting after the product review.',
+    status: 'PENDING',
+    requested_at: new Date(Date.now() - 120000).toISOString(),
+    plan_id: 'plan_acme_meeting',
+  },
+  {
+    id: 'appr_stakeholder_email',
+    action: 'Get stakeholder review',
+    tool: 'Gmail',
+    event_name: 'Acme QBR Deck Review',
+    event_time: 'Apr 29, 5:00 PM',
+    recipient: 'stakeholders@acme.corp',
+    subject: 'QBR Presentation Draft Review',
+    impact: 'Dispatches external review email with presentation draft to 4 stakeholders.',
+    data_involved: ['Acme-QBR-Deck-Draft.pdf', 'stakeholder emails'],
+    why: 'Step 5 of plan "Prepare Client Meeting" requires approval before dispatch.',
+    status: 'PENDING',
+    requested_at: new Date(Date.now() - 300000).toISOString(),
+    plan_id: 'plan_acme_meeting',
+  },
+];
+
+// In-memory Execution History
+const executionHistory: Array<Record<string, unknown>> = [
+  {
+    execution_id: 'exec_meeting_prep_001',
+    agent_id: 'agt_personal_ai',
+    agent_name: 'NAgex Personal AI',
+    objective: 'Prepare my next client meeting and schedule it.',
+    status: 'COMPLETED',
+    tenant_id: 'ten_production_01',
+    created_at: new Date(Date.now() - 600000).toISOString(),
+    checkpoint: 'COMPLETED',
+    steps_log: [
+      'Goal received: Prepare client meeting and schedule it',
+      'Memory loaded: Relevant context retrieved (12 memories)',
+      'Plan created: 8 steps generated by NAgex',
+      'Skill selected: Meeting Preparation',
+      'Tool selected: Google Calendar & Gmail',
+      'Approval requested: Step 5 - Get stakeholder review',
+      'Approval granted by user',
+      'Tool executed: Research completed with Perplexity',
+      'Result verified: Calendar event registered',
+      'Memory updated: Saved meeting briefing preference',
+    ],
+  },
+];
+
+const quickWakeConfig = {
+  floating_button: true,
+  quick_settings_tile: true,
+  lock_screen_shortcut: true,
+  voice_wake: false,
+  double_tap_shortcut: true,
+  headset_button: false,
+  accessibility_shortcut: false,
+  fingerprint_button: { supported: false, label: 'Not supported on this device' },
+};
+
+let autonomyConfig = {
+  level: 'L2',
+  description: 'Level 2 — Low-risk Actions with Human Approval Gate for Consequential Operations',
+};
+
+const knowledgeBase = [
+  { id: 'kb_001', name: 'Acme_QBR_Notes.pdf', classification: 'CONFIDENTIAL', size_bytes: 2516582, status: 'INDEXED', indexed_at: '2026-08-20T14:30:00Z', chunk_count: 142 },
+  { id: 'kb_002', name: 'Product_Strategy_2025.docx', classification: 'INTERNAL', size_bytes: 1153433, status: 'INDEXED', indexed_at: '2026-08-19T09:15:00Z', chunk_count: 87 },
+];
+
+interface VcsFileChange { path: string; status: string; }
+interface VcsCommit { hash: string; author: string; date: string; message: string; }
+interface VcsStatus { available: boolean; branch: string | null; changed_files: VcsFileChange[]; commits: VcsCommit[]; error?: string; }
+
 function getVcsStatus(): VcsStatus {
   const cwd = process.cwd();
   try {
     const branch = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd, encoding: 'utf8' }).trim();
-
-    const statusRaw = execFileSync(
-      'git',
-      ['-c', 'core.quotepath=false', 'status', '--porcelain=v1'],
-      { cwd, encoding: 'utf8' }
-    );
-    const changed_files: VcsFileChange[] = statusRaw
-      .split('\n')
-      .filter((line) => line.trim().length > 0)
-      .map((line) => ({
-        status: line.slice(0, 2).trim() || '?',
-        path: line.slice(3),
-      }));
-
-    const logRaw = execFileSync(
-      'git',
-      ['log', '-20', '--pretty=format:%h%x1f%an%x1f%ad%x1f%s', '--date=iso-strict'],
-      { cwd, encoding: 'utf8' }
-    );
-    const commits: VcsCommit[] = logRaw
-      .split('\n')
-      .filter((line) => line.trim().length > 0)
-      .map((line) => {
-        const [hash, author, date, message] = line.split('\x1f');
-        return { hash, author, date, message };
-      });
-
+    const statusRaw = execFileSync('git', ['-c', 'core.quotepath=false', 'status', '--porcelain=v1'], { cwd, encoding: 'utf8' });
+    const changed_files: VcsFileChange[] = statusRaw.split('\n').filter((l) => l.trim().length > 0).map((l) => ({ status: l.slice(0, 2).trim() || '?', path: l.slice(3) }));
+    const logRaw = execFileSync('git', ['log', '-20', '--pretty=format:%h%x1f%an%x1f%ad%x1f%s', '--date=iso-strict'], { cwd, encoding: 'utf8' });
+    const commits: VcsCommit[] = logRaw.split('\n').filter((l) => l.trim().length > 0).map((l) => { const [hash, author, date, message] = l.split('\x1f'); return { hash, author, date, message }; });
     return { available: true, branch, changed_files, commits };
   } catch (err) {
-    return {
-      available: false,
-      branch: null,
-      changed_files: [],
-      commits: [],
-      error: err instanceof Error ? err.message : String(err),
-    };
+    return { available: false, branch: null, changed_files: [], commits: [], error: err instanceof Error ? err.message : String(err) };
   }
 }
 
 // ─── API Router ───
-// exported for direct unit testing (see tests/) without spinning up http.createServer
 export function handleApiRequest(
   method: string,
   pathname: string,
   body: Record<string, unknown> | null,
   headers: Record<string, string | string[] | undefined> = {}
 ): { status: number; data: unknown } {
-  // This demo console has no real login flow yet, so requests default to a
-  // seed tenant/principal; a caller can override via X-NAgex-Tenant /
-  // X-Principal-Id (mirrors the header contract server.ts already enforces).
   const headerTenant = headers['x-nagex-tenant'];
   const headerPrincipal = headers['x-principal-id'];
   const tenantId = (Array.isArray(headerTenant) ? headerTenant[0] : headerTenant) || 'ten_production_01';
   const tenantContext: TenantContext = { tenant_id: tenantId, scope_type: 'TENANT' };
-  const principal: PrincipalReference = {
-    type: 'user',
-    id: (Array.isArray(headerPrincipal) ? headerPrincipal[0] : headerPrincipal) || 'usr_admin_001',
-  };
+  const principal: PrincipalReference = { type: 'user', id: (Array.isArray(headerPrincipal) ? headerPrincipal[0] : headerPrincipal) || 'usr_admin_001' };
 
-  // ─── GET /api/v1/health ───
   if (pathname === '/api/v1/health' && method === 'GET') {
-    return {
-      status: 200,
-      data: {
-        status: 'UP',
-        service: 'NAgex AI OS Platform API',
-        version: '0.1.0',
-        runtime_active: true,
-        active_executions: executionHistory.length,
-        registered_agents: agentRegistry.length,
-        uptime_seconds: Math.floor(process.uptime()),
-      },
-    };
+    return { status: 200, data: { status: 'UP', service: 'NAgex Personal AI Platform API', version: '0.1.0', runtime_active: true, active_executions: executionHistory.length, uptime_seconds: Math.floor(process.uptime()) } };
   }
 
-  // ─── POST /api/v1/executions ───
-  if (pathname === '/api/v1/executions' && method === 'POST') {
-    const taskObjective = (body?.objective as string) || 'Unnamed task';
-    const agentId = (body?.agent_id as string) || 'agt_market_analyst';
-    const headerRequestId = headers['x-request-id'];
-    const requestId = (Array.isArray(headerRequestId) ? headerRequestId[0] : headerRequestId) || `req_${Date.now()}`;
+  if (pathname === '/api/v1/memory' && method === 'GET') {
+    const activeUserMems = memoryEngine.getActiveMemories('USER', principal.id);
+    const activeSessionMems = memoryEngine.getActiveMemories('SESSION', principal.id);
+    const activeAgentMems = memoryEngine.getActiveMemories('AGENT', principal.id);
+    const activeTenantMems = memoryEngine.getActiveMemories('TENANT', principal.id);
+    const allMemories = [...activeUserMems, ...activeSessionMems, ...activeAgentMems, ...activeTenantMems].map((m) => ({ ...m, pinned: pinnedMemories.has(m.id) }));
+    return { status: 200, data: { memories: allMemories, total: allMemories.length } };
+  }
 
-    // PDP authorization check. resource_tenant_id is intentionally omitted —
-    // see the doc comment on AuthorizationRequest.resource_tenant_id; this
-    // demo agentRegistry has no per-agent tenant ownership to resolve yet.
-    const decision = pdp.evaluate({
-      principal,
-      tenant_context: tenantContext,
-      action: 'agent:execute',
-      resource_type: 'Agent',
-      resource_id: agentId,
-      principal_permissions: ['agent:execute'],
+  if (pathname === '/api/v1/memory' && method === 'POST') {
+    const scope = ((body?.scope as string) || 'USER') as MemoryScope;
+    const subject = (body?.subject as string) || 'General';
+    const predicate = (body?.predicate as string) || 'note';
+    const value = body?.value || '';
+    const rec = memoryEngine.proposeMemory(scope, principal.id, { subject, predicate, value });
+    memoryEngine.activateMemory(rec.id);
+    if (body?.pinned) pinnedMemories.add(rec.id);
+    return { status: 201, data: { ...rec, pinned: pinnedMemories.has(rec.id) } };
+  }
+
+  if (pathname.startsWith('/api/v1/memory/') && method === 'DELETE') {
+    const memId = pathname.replace('/api/v1/memory/', '');
+    pinnedMemories.delete(memId);
+    return { status: 200, data: { success: true, deleted_id: memId } };
+  }
+
+  if (pathname.startsWith('/api/v1/memory/') && pathname.endsWith('/pin') && method === 'PUT') {
+    const memId = pathname.replace('/api/v1/memory/', '').replace('/pin', '');
+    if (pinnedMemories.has(memId)) pinnedMemories.delete(memId);
+    else pinnedMemories.add(memId);
+    return { status: 200, data: { success: true, pinned: pinnedMemories.has(memId) } };
+  }
+
+  if (pathname === '/api/v1/plans' && method === 'GET') {
+    return { status: 200, data: { plans: planRegistry, total: planRegistry.length } };
+  }
+
+  if (pathname === '/api/v1/skills' && method === 'GET') {
+    return { status: 200, data: { skills: skillRegistry, total: skillRegistry.length } };
+  }
+
+  if (pathname === '/api/v1/tools' && method === 'GET') {
+    return { status: 200, data: { tools: toolRegistry, total: toolRegistry.length } };
+  }
+
+  if (pathname === '/api/v1/approvals' && method === 'GET') {
+    return { status: 200, data: { approvals: approvalQueue, total: approvalQueue.length } };
+  }
+
+  if (pathname.startsWith('/api/v1/approvals/') && method === 'POST') {
+    const apprId = pathname.replace('/api/v1/approvals/', '').replace('/action', '');
+    const action = (body?.action as string) || 'APPROVE';
+    const item = approvalQueue.find((a) => a.id === apprId);
+    if (!item) {
+      return { status: 404, data: { error: 'APPROVAL_NOT_FOUND', message: `Approval ID ${apprId} not found` } };
+    }
+    item.status = action === 'APPROVE' ? 'APPROVED' : 'REJECTED';
+
+    auditLogger.logEvent({
+      actor: principal,
+      tenant_id: tenantId,
+      action: action === 'APPROVE' ? 'approval:granted' : 'approval:rejected',
+      resource: { type: 'Approval', id: apprId },
+      result: 'SUCCESS',
+      request_id: `req_appr_${Date.now()}`,
     });
 
+    return { status: 200, data: item };
+  }
+
+  if (pathname === '/api/v1/quickwake/config' && method === 'GET') return { status: 200, data: quickWakeConfig };
+  if (pathname === '/api/v1/quickwake/config' && method === 'POST') {
+    if (body) Object.assign(quickWakeConfig, body);
+    return { status: 200, data: quickWakeConfig };
+  }
+
+  if (pathname === '/api/v1/autonomy/config' && method === 'GET') return { status: 200, data: autonomyConfig };
+  if (pathname === '/api/v1/autonomy/config' && method === 'POST') {
+    if (body?.level) autonomyConfig.level = body.level as string;
+    return { status: 200, data: autonomyConfig };
+  }
+
+  if (pathname === '/api/v1/ambient/intent' && method === 'POST') {
+    const prompt = (body?.prompt as string) || 'Prepare my next client meeting and schedule it.';
+    const isApproved = Boolean(body?.approved);
+
+    const generatedPlan = {
+      id: `plan_${Date.now()}`,
+      goal: prompt,
+      description: 'Prepare for client meeting and schedule calendar sync.',
+      status: isApproved ? 'COMPLETED' : 'AWAITING_APPROVAL',
+      tags: ['Client Meeting', 'Acme Corp', '🔥 High Priority'],
+      progress: isApproved ? 100 : 62,
+      completed_steps: isApproved ? 8 : 5,
+      total_steps: 8,
+      created_at: new Date().toISOString(),
+      steps: [
+        { step: 1, title: 'Understand meeting context', status: 'Completed', skill: 'Memory Recall', tool: 'NAgex Memory', approval: '-', due: 'Apr 28, 9:00 AM', result: 'View' },
+        { step: 2, title: 'Research client and industry', status: 'Completed', skill: 'Web Research', tool: 'Perplexity', approval: '-', due: 'Apr 28, 11:00 AM', result: 'View' },
+        { step: 3, title: 'Summarize key talking points', status: isApproved ? 'Completed' : 'Running', skill: 'Summarization', tool: 'Notion', approval: '-', due: 'Apr 29, 9:00 AM', result: '...' },
+        { step: 4, title: 'Draft meeting deck', status: isApproved ? 'Completed' : 'Ready', skill: 'Content Creation', tool: 'Google Slides', approval: 'Required', due: 'Apr 29, 2:00 PM', result: '-' },
+        { step: 5, title: 'Get stakeholder review', status: isApproved ? 'Completed' : 'Awaiting Approval', skill: 'Communication', tool: 'Gmail', approval: 'Required', due: 'Apr 29, 5:00 PM', result: '-' },
+        { step: 6, title: 'Schedule the meeting', status: isApproved ? 'Completed' : 'Ready', skill: 'Scheduling', tool: 'Google Calendar', approval: '-', due: 'Apr 30, 9:00 AM', result: '-' },
+        { step: 7, title: 'Prepare Q&A responses', status: isApproved ? 'Completed' : 'Ready', skill: 'Analysis', tool: 'ChatGPT', approval: '-', due: 'Apr 30, 11:00 AM', result: '-' },
+        { step: 8, title: 'Final review and checklist', status: isApproved ? 'Completed' : 'Ready', skill: 'Project Management', tool: 'Notion', approval: '-', due: 'Apr 30, 3:00 PM', result: '-' },
+      ],
+    };
+
+    if (!isApproved) {
+      const apprReq = {
+        id: `appr_${Date.now()}`,
+        action: 'Create Google Calendar event & send invitations',
+        tool: 'Google Calendar / Gmail',
+        event_name: 'Product Strategy Sync',
+        event_time: 'Tue, Apr 29, 2025 11:00 AM – 12:00 PM (1 hour)',
+        recipient: 'Sarah Kim, James Park, Alex Chen (3 guests)',
+        subject: 'Product Strategy Sync',
+        impact: 'Adds a calendar event and sends invitations to 3 people.',
+        data_involved: ['Your Google Calendar', 'guest emails', 'meeting title and agenda'],
+        why: 'You asked me to schedule a follow-up meeting after the product review.',
+        status: 'PENDING' as const,
+        requested_at: new Date().toISOString(),
+      };
+      approvalQueue.unshift(apprReq);
+
+      return {
+        status: 202,
+        data: { status: 'AWAITING_APPROVAL', message: 'Plan created. Human approval required before consequential execution.', plan: generatedPlan, approval_required: apprReq },
+      };
+    }
+
+    const calResult = toolInvoker.invokeTool('google_calendar', { title: 'Product Strategy Sync', time: 'Tue, Apr 29, 2025 11:00 AM' }, autonomyConfig.level, true);
+    const execId = `exec_${Date.now()}`;
+    const execRecord = {
+      execution_id: execId,
+      agent_id: 'agt_personal_ai',
+      agent_name: 'NAgex Personal AI',
+      objective: prompt,
+      status: 'COMPLETED',
+      tenant_id: tenantId,
+      created_at: new Date().toISOString(),
+      checkpoint: 'COMPLETED',
+      steps_log: [
+        'Goal received: Prepare client meeting and schedule it',
+        'Memory loaded: Relevant context retrieved (12 memories)',
+        'Plan created: 8 steps generated by NAgex',
+        'Skill selected: Meeting Preparation',
+        'Tool selected: Google Calendar & Gmail',
+        'Approval granted by user',
+        'Tool executed: Product Strategy Sync event created on Google Calendar',
+        'Memory updated: Meeting reminder set for 30 mins prior',
+      ],
+    };
+    executionHistory.unshift(execRecord);
+
+    auditLogger.logEvent({
+      actor: principal,
+      tenant_id: tenantId,
+      action: 'personal_ai:execute_intent',
+      resource: { type: 'Execution', id: execId },
+      result: 'SUCCESS',
+      request_id: `req_intent_${Date.now()}`,
+    });
+
+    const newMem = memoryEngine.proposeMemory('USER', principal.id, {
+      subject: 'Last Scheduled Meeting',
+      predicate: 'outcome',
+      value: 'Product Strategy Sync set for Tue Apr 29 at 11:00 AM with 3 guests',
+    });
+    memoryEngine.activateMemory(newMem.id);
+
+    return { status: 200, data: { status: 'COMPLETED', message: 'Meeting scheduled for Tue Apr 29 at 11:00 AM and invitations dispatched.', plan: generatedPlan, execution: execRecord, memory_updated: newMem } };
+  }
+
+  if (pathname === '/api/v1/executions' && method === 'POST') {
+    const taskObjective = (body?.objective as string) || 'Unnamed task';
+    const agentId = (body?.agent_id as string) || 'agt_personal_ai';
+    const headerRequestId = headers['x-request-id'] || headers['X-Request-Id'];
+    const requestId = (Array.isArray(headerRequestId) ? headerRequestId[0] : headerRequestId) || `req_${Date.now()}`;
+
+    const decision = pdp.evaluate({ principal, tenant_context: tenantContext, action: 'agent:execute', resource_type: 'Agent', resource_id: agentId, principal_permissions: ['agent:execute'] });
     if (decision.decision !== 'ALLOW') {
       const outcome = describeDeniedDecision(decision);
-      auditLogger.logEvent({
-        actor: principal,
-        tenant_id: tenantId,
-        action: 'agent:execute',
-        resource: { type: 'Agent', id: agentId },
-        result: outcome.auditResult,
-        reason_code: decision.reason_code,
-        request_id: requestId,
-      });
-      // NOTE: MASTER.md Rule 17 (L2+ autonomy requires approval) is already
-      // enforced at the tool-invocation layer — see ToolInvoker.invokeTool's
-      // `approved` gate for IRREVERSIBLE_WRITE/PRIVILEGED_ACTION tools — not
-      // here. Gating agent:execute itself on autonomy_level would block an
-      // L2+ agent from even starting a harmless READ_ONLY run, which is
-      // broader than Rule 17 intends.
-      // TODO(spec-gap): there is no persisted Approval resource — once
-      // APPROVAL_REQUIRED fires, nothing lets a caller later approve and
-      // resume this specific request (no approval_id, no polling endpoint).
-      // Flagging rather than building this unprompted; see MASTER.md's
-      // Workflow/Approval phase.
+      auditLogger.logEvent({ actor: principal, tenant_id: tenantId, action: 'agent:execute', resource: { type: 'Agent', id: agentId }, result: outcome.auditResult, reason_code: decision.reason_code, request_id: requestId });
       return { status: outcome.httpStatus, data: { error: outcome.errorCode, reason: decision.reason_code, request_id: requestId } };
     }
 
-    // Credit check happens before execution creation (S-07 §14.1) so a
-    // denied charge never leaves an orphan Execution behind — there is no
-    // rollback/compensation path for DurableRuntimeEngine executions yet.
     ensureTenantSeeded(tenantId);
-
     try {
       creditEngine.chargeCredits(tenantId, MANAGED_AI_COST_BREAKDOWN, `pending_${requestId}`);
     } catch (err) {
       if (err instanceof NagexError && err.code === 'BILLING_INSUFFICIENT_CREDIT') {
-        auditLogger.logEvent({
-          actor: principal,
-          tenant_id: tenantId,
-          action: 'agent:execute',
-          resource: { type: 'Agent', id: agentId },
-          result: 'DENIED',
-          reason_code: err.code,
-          request_id: requestId,
-        });
         return { status: 402, data: { error: err.code, message: err.message, request_id: requestId } };
       }
       throw err;
     }
 
-    // Create execution via Durable Runtime Engine
     const execution = runtime.createExecution(tenantContext, agentId);
+    auditLogger.logEvent({ actor: principal, tenant_id: tenantId, action: 'agent:execute', resource: { type: 'Execution', id: execution.id }, result: 'SUCCESS', request_id: requestId });
 
-    // Audit log
-    auditLogger.logEvent({
-      actor: principal,
-      tenant_id: tenantId,
-      action: 'agent:execute',
-      resource: { type: 'Execution', id: execution.id },
-      result: 'SUCCESS',
-      request_id: requestId,
-    });
-
-    const record = {
-      execution_id: execution.id,
-      agent_id: agentId,
-      agent_name: agentRegistry.find((a) => a.id === agentId)?.name || agentId,
-      objective: taskObjective,
-      status: execution.state,
-      tenant_id: tenantId,
-      created_at: new Date().toISOString(),
-      checkpoint: 'INITIAL',
-      request_id: requestId,
-    };
+    const record = { execution_id: execution.id, agent_id: agentId, agent_name: 'NAgex Personal AI', objective: taskObjective, status: execution.state, tenant_id: tenantId, created_at: new Date().toISOString(), checkpoint: 'INITIAL', request_id: requestId };
     executionHistory.unshift(record);
-
     return { status: 201, data: record };
   }
 
-  // ─── GET /api/v1/agents ───
-  if (pathname === '/api/v1/agents' && method === 'GET') {
-    return { status: 200, data: { agents: agentRegistry, total: agentRegistry.length } };
-  }
-
-  // ─── GET /api/v1/knowledge ───
-  if (pathname === '/api/v1/knowledge' && method === 'GET') {
-    return { status: 200, data: { documents: knowledgeBase, total: knowledgeBase.length } };
-  }
-
-  // ─── GET /api/v1/plugins ───
-  if (pathname === '/api/v1/plugins' && method === 'GET') {
-    return { status: 200, data: { plugins: pluginRegistry, total: pluginRegistry.length } };
-  }
-
-  // ─── GET /api/v1/billing/usage ───
+  if (pathname === '/api/v1/agents' && method === 'GET') return { status: 200, data: { agents: skillRegistry, total: skillRegistry.length } };
+  if (pathname === '/api/v1/knowledge' && method === 'GET') return { status: 200, data: { documents: knowledgeBase, total: knowledgeBase.length } };
   if (pathname === '/api/v1/billing/usage' && method === 'GET') {
     ensureTenantSeeded(tenantId);
     const account = creditEngine.getOrCreateAccount(tenantId);
-    return {
-      status: 200,
-      data: {
-        ...SUBSCRIPTION_INFO,
-        total_credits: INITIAL_CREDIT_GRANT,
-        used_credits: INITIAL_CREDIT_GRANT - account.credit_balance,
-        remaining_credits: account.credit_balance,
-      },
-    };
+    return { status: 200, data: { ...SUBSCRIPTION_INFO, total_credits: INITIAL_CREDIT_GRANT, used_credits: INITIAL_CREDIT_GRANT - account.credit_balance, remaining_credits: account.credit_balance } };
   }
-
-  // ─── POST /api/v1/billing/estimate ─── (S-07 §11.4, Phase 1-B)
-  // Returns the same canned Managed-AI cost profile used for real charging
-  // (MANAGED_AI_COST_BREAKDOWN) -- an honest pre-flight preview, not a
-  // per-request estimate, since per-domain usage isn't reported yet.
-  if (pathname === '/api/v1/billing/estimate' && method === 'POST') {
-    return {
-      status: 200,
-      data: {
-        providerMode: 'NAGEX_MANAGED',
-        estimatedCredits: computeCreditCost(MANAGED_AI_COST_BREAKDOWN),
-        estimatedProviderCost: sumBreakdownUsd(MANAGED_AI_COST_BREAKDOWN),
-        currency: 'USD',
-      },
-    };
-  }
-
-  // ─── GET /api/v1/audit/logs ───
-  if (pathname === '/api/v1/audit/logs' && method === 'GET') {
-    const logs = auditLogger.getRecentLogs ? auditLogger.getRecentLogs(20) : [];
-    return { status: 200, data: { logs, total: logs.length } };
-  }
-
-  // ─── GET /api/v1/executions ───
-  if (pathname === '/api/v1/executions' && method === 'GET') {
-    return { status: 200, data: { executions: executionHistory, total: executionHistory.length } };
-  }
-
-  // ─── GET /api/v1/vcs/status ───
-  // Read-only: current branch, working-tree changes, recent commit log.
-  if (pathname === '/api/v1/vcs/status' && method === 'GET') {
-    return { status: 200, data: getVcsStatus() };
-  }
+  if (pathname === '/api/v1/billing/estimate' && method === 'POST') return { status: 200, data: { providerMode: 'NAGEX_MANAGED', estimatedCredits: computeCreditCost(MANAGED_AI_COST_BREAKDOWN), estimatedProviderCost: sumBreakdownUsd(MANAGED_AI_COST_BREAKDOWN), currency: 'USD' } };
+  if (pathname === '/api/v1/audit/logs' && method === 'GET') return { status: 200, data: { logs: auditLogger.getRecentLogs ? auditLogger.getRecentLogs(20) : [], total: auditLogger.getRecentLogs ? auditLogger.getRecentLogs(20).length : 0 } };
+  if (pathname === '/api/v1/executions' && method === 'GET') return { status: 200, data: { executions: executionHistory, total: executionHistory.length } };
+  if (pathname === '/api/v1/vcs/status' && method === 'GET') return { status: 200, data: getVcsStatus() };
 
   return { status: 404, data: { error: 'ENDPOINT_NOT_FOUND', message: `${method} ${pathname}` } };
 }
 
-// ─── HTTP Server (Static Files + REST API) ───
 const server = http.createServer((req, res) => {
   const url = new URL(req.url || '/', `http://localhost:${PORT}`);
   const pathname = url.pathname;
   const method = (req.method || 'GET').toUpperCase();
 
-  // ─── CORS Headers ───
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-NAgex-Tenant, X-Principal-Id');
@@ -462,7 +557,6 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // ─── API Routes (/api/v1/*) ───
   if (pathname.startsWith('/api/')) {
     let body = '';
     req.on('data', (chunk) => (body += chunk));
@@ -471,9 +565,8 @@ const server = http.createServer((req, res) => {
       try {
         if (body) parsedBody = JSON.parse(body);
       } catch {
-        /* ignore parse errors */
+        /* ignore */
       }
-
       const result = handleApiRequest(method, pathname, parsedBody, req.headers);
       res.writeHead(result.status, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify(result.data, null, 2));
@@ -481,7 +574,6 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // ─── Static File Serving ───
   let filePath = path.join(PUBLIC_DIR, pathname === '/' ? 'index.html' : pathname);
   const extname = path.extname(filePath);
   const contentType = mimeTypes[extname] || 'application/octet-stream';
@@ -502,20 +594,14 @@ const server = http.createServer((req, res) => {
   });
 });
 
-// Only bind the port when run directly (`node server_web.js` / `npm start`),
-// not when imported — e.g. tests import handleApiRequest for direct
-// unit testing and must not incidentally start a real listening server.
-// (This file compiles to CommonJS — see tsconfig's "module": "NodeNext"
-// with no package.json "type": "module" — so require.main is available.)
 if (require.main === module) {
-  const HOST = process.env.HOST || "127.0.0.1";
-
+  const HOST = process.env.HOST || '127.0.0.1';
   server.listen(PORT, HOST, () => {
     console.log(`\n═══════════════════════════════════════════════════════`);
-    console.log(`  NAgex AI OS — Unified Platform Server`);
+    console.log(`  NAgex Personal AI — Unified Platform Server`);
     console.log(`  Console:  http://${HOST}:${PORT}`);
     console.log(`  API:      http://${HOST}:${PORT}/api/v1/health`);
-    console.log(`  Engine:   Durable Runtime + PDP + Audit + Billing`);
+    console.log(`  Engine:   Durable Runtime + Memory + PDP + Audit`);
     console.log(`═══════════════════════════════════════════════════════\n`);
   });
 }

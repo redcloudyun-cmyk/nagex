@@ -1,1840 +1,600 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NAgex AI 워크스페이스 6.0 - Control Canvas</title>
+  <title>NAgex — Personal AI Control Center</title>
   <link rel="icon" type="image/png" href="assets/logo-mark-white-theme.png">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div class="app-wrapper">
     <!-- Header -->
-    <header>
+    <header class="app-header">
       <div class="brand-section">
-        <button class="hamburger-btn" id="btn-hamburger" data-i18n-aria-label="header.hamburgerLabel" aria-label="메뉴 열기">
+        <button class="hamburger-btn" id="btn-hamburger" aria-label="Toggle Menu">
           <svg class="svg-icon" viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
         </button>
-        <img src="assets/logo-full-white-theme.png" alt="NAgex" class="brand-logo-img">
-        <span class="brand-badge">AI OS v0.1</span>
+        <div class="brand-logo-group">
+          <span class="brand-icon-n">N</span>
+          <span class="brand-text">NAgex</span>
+        </div>
+        <span class="header-subtitle-tag">NEXT-GENERATION AGENT EXPERIENCE</span>
+      </div>
+
+      <div class="header-search-bar">
+        <svg class="svg-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+        <input type="text" placeholder="Search anything..." readonly>
+        <span class="kbd-badge">⌘ K</span>
       </div>
 
       <div class="header-right">
-        <button class="lang-toggle-btn" id="btn-lang-toggle" data-i18n-lang-toggle title="Switch language">EN</button>
-        <div class="tenant-pill">
-          <span>Tenant: <strong>ten_production_01</strong></span>
-        </div>
-        <div class="badge-live">
-          <span class="dot-live"></span>
-          <span>Durable Runtime Active</span>
+        <button class="quickwake-header-btn" id="btn-header-quickwake" title="Quick Wake (Alt+N)">
+          <svg class="svg-icon" viewBox="0 0 24 24"><path d="M11 21h-1l1-7H7.5c-.88 0-.33-.75-.32-.78C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.49 0 .56.33.47.51C14.7 15.1 12.3 19.1 11 21z"/></svg>
+          <span>Quick Wake (Alt+N)</span>
+        </button>
+        <button class="mockup-ref-btn" id="btn-mockup-toggle">
+          <svg class="svg-icon" viewBox="0 0 24 24"><path d="M4 6h16v12H4z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 10h16"/></svg>
+          <span data-i18n="nav.mockups">Design Mockups</span>
+        </button>
+        <button class="lang-toggle-btn" id="btn-lang-toggle" data-i18n-lang-toggle title="Switch language">KR</button>
+        <div class="user-pill-header">
+          <div class="user-avatar-img">J</div>
         </div>
       </div>
     </header>
 
     <!-- Workspace Grid -->
     <div class="workspace-grid">
-      <!-- Left Sidebar (Manus & ChatGPT Style User-Centric Navigation) -->
+      <!-- Left Sidebar (Dark Navy Theme) -->
       <div class="sidebar-overlay" id="sidebar-overlay"></div>
       <aside class="sidebar-left" id="sidebar-left">
         <div class="sidebar-top-group">
-          <button class="btn-new-task" id="btn-sidebar-new">
-            <svg class="svg-icon" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-            <span data-i18n="nav.newTask">새 작업 시작</span>
-          </button>
+          <div class="brand-logo-sidebar">
+            <span class="brand-icon-n">N</span>
+            <span class="brand-text">NAgex</span>
+          </div>
 
-          <div class="nav-group-title" data-i18n="nav.groupWorkspace">워크스페이스</div>
           <ul class="nav-menu">
-            <li class="nav-item active" data-tab="tab-workspace">
+            <li class="nav-item active" data-tab="tab-home">
               <button class="nav-link">
                 <svg class="svg-icon" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
-                <span data-i18n="nav.workspace">AI 워크스페이스</span>
+                <span data-i18n="nav.home">Home</span>
               </button>
             </li>
-            <li class="nav-item" data-tab="tab-agents">
+            <li class="nav-item" data-tab="tab-memory">
               <button class="nav-link">
-                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M12 2a2 2 0 0 1 2 2v2h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2V4a2 2 0 0 1 2-2zm0 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg>
-                <span data-i18n="nav.agents">나의 에이전트</span>
+                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+                <span data-i18n="nav.memory">Memory</span>
+              </button>
+            </li>
+            <li class="nav-item" data-tab="tab-plans">
+              <button class="nav-link">
+                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+                <span data-i18n="nav.plans">Plans</span>
+              </button>
+            </li>
+            <li class="nav-item" data-tab="tab-skills">
+              <button class="nav-link">
+                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                <span data-i18n="nav.skills">Skills</span>
+              </button>
+            </li>
+            <li class="nav-item" data-tab="tab-tools">
+              <button class="nav-link">
+                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.6C.4 7 1 10 3 12c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.4-.4.4-1.1 0-1.5z"/></svg>
+                <span data-i18n="nav.tools">Tools</span>
+              </button>
+            </li>
+            <li class="nav-item" data-tab="tab-approvals">
+              <button class="nav-link">
+                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-5.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
+                <span data-i18n="nav.approvals">Approvals</span>
+              </button>
+            </li>
+            <li class="nav-item" data-tab="tab-executions">
+              <button class="nav-link">
+                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+                <span data-i18n="nav.executions">Executions</span>
               </button>
             </li>
             <li class="nav-item" data-tab="tab-knowledge">
               <button class="nav-link">
                 <svg class="svg-icon" viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h9v2zm-4 4H9v-2h5v2zm4-8H9V5h9v2z"/></svg>
-                <span data-i18n="nav.knowledge">지식 및 파일 (Knowledge)</span>
+                <span data-i18n="nav.knowledge">Knowledge</span>
               </button>
             </li>
-            <li class="nav-item" data-tab="tab-plugins">
+            <li class="nav-item" data-tab="tab-settings">
               <button class="nav-link">
-                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.38 0 2.5 1.12 2.5 2.5s-1.12 2.5-2.5 2.5H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5s-1.12-2.5-2.5-2.5z"/></svg>
-                <span data-i18n="nav.plugins">플러그인 연동</span>
+                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+                <span data-i18n="nav.settings">Settings</span>
               </button>
-            </li>
-            <li class="nav-item" data-tab="tab-datasources">
-              <button class="nav-link">
-                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M12 2C7.58 2 4 3.79 4 6s3.58 4 8 4 8-1.79 8-4-3.58-4-8-4zM4 8v4c0 2.21 3.58 4 8 4s8-1.79 8-4V8c0 2.21-3.58 4-8 4S4 10.21 4 8zm0 6v4c0 2.21 3.58 4 8 4s8-1.79 8-4v-4c0 2.21-3.58 4-8 4s-8-1.79-8-4z"/></svg>
-                <span data-i18n="nav.datasources">데이터 소스</span>
-              </button>
-            </li>
-            <li class="nav-item" data-tab="tab-library">
-              <button class="nav-link">
-                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
-                <span data-i18n="nav.library">작업 히스토리 / 라이브러리</span>
-              </button>
-            </li>
-          </ul>
-
-          <div class="nav-group-title-row">
-            <div class="nav-group-title" data-i18n="nav.groupProjects">프로젝트</div>
-            <button class="nav-group-add-btn" id="btn-new-project" data-i18n-title="nav.newProjectTitle" title="새 프로젝트">
-              <svg class="svg-icon" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-            </button>
-          </div>
-          <ul class="project-list" id="project-list">
-            <li class="project-item expanded" data-project-id="proj_financial_research">
-              <div class="project-item-row">
-                <svg class="svg-icon project-chevron" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
-                <svg class="svg-icon" viewBox="0 0 24 24" style="width:14px;height:14px;color:var(--text-light); flex-shrink:0;"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
-                <span class="project-item-name" data-i18n="nav.projectFinancial">금융 리서치</span>
-              </div>
-              <ul class="project-chat-list">
-                <li class="project-chat-item" data-i18n="nav.recentReport">금융 시장 분석 리포트 발행</li>
-                <li class="project-chat-item" data-i18n="library.taskArchSummary">제품 아키텍처 명세서 요약</li>
-              </ul>
-            </li>
-            <li class="project-item expanded" data-project-id="proj_nagex_core">
-              <div class="project-item-row" data-tab="tab-vcs" data-i18n-title="nav.enterProjectTitle" title="프로젝트로 이동">
-                <svg class="svg-icon project-chevron" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
-                <svg class="svg-icon" viewBox="0 0 24 24" style="width:14px;height:14px;color:var(--text-light); flex-shrink:0;"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
-                <span class="project-item-name" data-i18n="nav.projectNagexCore">NAgex 코어 개발</span>
-              </div>
-              <ul class="project-chat-list">
-                <li class="project-chat-item" data-i18n="nav.recentServerFix">서버 API 정합성 버그 수정</li>
-              </ul>
-            </li>
-            <li class="project-item" data-project-id="proj_web">
-              <div class="project-item-row">
-                <svg class="svg-icon project-chevron" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
-                <svg class="svg-icon" viewBox="0 0 24 24" style="width:14px;height:14px;color:var(--text-light); flex-shrink:0;"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
-                <span class="project-item-name" data-i18n="nav.projectWeb">웹 프로젝트</span>
-              </div>
-              <ul class="project-chat-list">
-                <li class="project-chat-item" data-i18n="nav.recentLanding">회사 랜딩페이지 디자인 구축</li>
-                <li class="project-chat-item" data-i18n="nav.recentWebsite">How to Create Website</li>
-              </ul>
             </li>
           </ul>
         </div>
 
-        <!-- Left Bottom Manus/ChatGPT Style Personalized User Profile & Settings Popover Trigger -->
-        <div class="sidebar-bottom-user" id="user-profile-trigger">
-          <div class="user-profile-bar">
-            <div class="user-avatar-circle" data-i18n="user.avatarInitial">윤</div>
-            <div class="user-details">
-              <div class="user-name-text">bjyoon@nagex.ai</div>
-              <div class="user-role-sub" data-i18n="user.role">개인 / Admin</div>
-            </div>
-            <svg class="svg-icon arrow-icon" viewBox="0 0 24 24"><path d="M12 5.83L15.17 9l1.41-1.41L12 3 7.41 7.59 8.83 9 12 5.83zm0 12.34L8.83 15l-1.41 1.41L12 21l4.59-4.59L15.17 15 12 18.17z"/></svg>
+        <div class="sidebar-bottom-user">
+          <div class="sidebar-promo-card">
+            <span class="sparkle-icon">✦</span>
+            <div class="promo-title">A more capable you, every day.</div>
+            <div class="promo-progress-bar"><div class="promo-progress-fill" style="width: 75%;"></div></div>
           </div>
-
-          <!-- Manus Style Popover Modal Menu (Click to Toggle) -->
-          <div class="manus-popover-menu" id="manus-popover" style="display:none;">
-            <div class="popover-header">
-              <span class="pro-badge" id="pro-badge-prime" data-i18n="popover.primeBadge">NAgex 프라임</span>
-              <span class="pro-badge" id="pro-badge-free" style="display:none;" data-i18n="billing.freePlanName">NAgex 코어</span>
-              <button class="btn-charge" id="btn-charge-core" data-i18n="popover.chargeBtn">코어 충전</button>
-            </div>
-
-            <div class="popover-item popover-credit" data-tab="tab-billing">
-              <div class="pop-left">
-                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M21 18v1c0 1.1-.9 2-2 2H5c-1.11 0-2-.9-2-2V5c0-1.1.89-2 2-2h14c1.1 0 2 .9 2 2v1h-9c-1.11 0-2 .9-2 2v8c0 1.1.89 2 2 2h9zm-9-2h10V8H12v8zm4-2.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>
-                <span data-i18n="popover.credit">코어 사용량</span>
-              </div>
-              <span class="credit-num">16K &gt;</span>
-            </div>
-
-            <div class="popover-divider"></div>
-
-            <div class="popover-item" data-tab="tab-iam">
-              <svg class="svg-icon" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-              <span data-i18n="popover.iam">계정 & Zero-Trust IAM</span>
-            </div>
-
-            <div class="popover-item" data-tab="tab-skills">
-              <svg class="svg-icon" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
-              <span data-i18n="popover.skills">스킬 & SKILL.md 관리</span>
-            </div>
-
-            <div class="popover-item" id="pop-system-settings" data-tab="tab-settings">
-              <svg class="svg-icon" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
-              <span data-i18n="popover.settings">설정</span>
-            </div>
-
-            <div class="popover-divider"></div>
-
-            <div class="popover-item" data-tab="tab-support">
-              <svg class="svg-icon" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 16h-2v-2h2v2zm0-4h-2V7h2v7z"/></svg>
-              <span data-i18n="popover.help">도움받기</span>
-            </div>
-
-            <div class="popover-item danger-item" id="pop-logout">
-              <svg class="svg-icon" viewBox="0 0 24 24"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
-              <span data-i18n="popover.logout">로그아웃</span>
-            </div>
+          <div class="sidebar-footer-brand">
+            <strong>NAgex</strong><br>
+            <small>Your personal AI, always by your side.</small>
           </div>
         </div>
       </aside>
 
-      <!-- Center Main Canvas (Genspark 6.0 & Manus 1.6 Synthesis) -->
-      <section class="center-canvas">
-        <!-- View 1: Workspace Home View -->
-        <div id="view-workspace" class="tab-view active-view" style="display:flex; flex-direction:column; align-items:stretch; width:100%;">
-        <div id="workspace-home" style="display:flex; flex-direction:column; align-items:center; width:100%;">
-          <div class="hero-eyebrow">
-            <span class="dot-live"></span>
-            <span data-i18n="hero.badge">Durable Runtime 연결됨</span>
-          </div>
-          <h1 class="genspark-hero-title"><img src="assets/logo-full-white-theme.png" alt="NAgex" class="hero-logo-img"> <span data-i18n="hero.titleSuffix">AI 워크스페이스 6.0</span></h1>
-          <p class="hero-subtitle" data-i18n="hero.subtitle">하나의 프롬프트로 리서치, 문서 작성, 코드 실행까지 — NAgex 멀티에이전트가 대신 처리합니다.</p>
+      <!-- Center Main View Container -->
+      <main class="center-canvas">
 
-          <div class="super-input-card">
-            <textarea id="prompt-input" class="super-textarea" data-i18n-placeholder="input.placeholder" data-i18n-value="input.defaultText" placeholder="무엇이든 물어보고 만들어보세요 (NAgex Durable Runtime 통과)...">금융 시장 동향을 분석하고 구조화된 리포트를 생성해줘</textarea>
-
-            <div class="output-format-row">
-              <span class="output-format-label" data-i18n="format.label">무엇을 만들어 드릴까요?</span>
-              <div class="format-chip-group" id="format-chip-group" role="group" data-i18n-aria-label="format.label" aria-label="무엇을 만들어 드릴까요?">
-                <button type="button" class="format-chip active" data-format="chat" aria-pressed="true">
-                  <svg class="svg-icon" viewBox="0 0 24 24"><path d="M21 6h-2v9H6v2c0 .55.45 1 1 1h11l4 4V7c0-.55-.45-1-1-1zm-4-4H3c-.55 0-1 .45-1 1v14l4-4h11c.55 0 1-.45 1-1V3c0-.55-.45-1-1-1z"/></svg>
-                  <span data-i18n="format.chat">일반 답변</span>
-                </button>
-                <button type="button" class="format-chip" data-format="document" aria-pressed="false">
-                  <svg class="svg-icon" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
-                  <span data-i18n="format.document">문서·리포트</span>
-                </button>
-                <button type="button" class="format-chip" data-format="image" aria-pressed="false">
-                  <svg class="svg-icon" viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
-                  <span data-i18n="format.image">이미지</span>
-                </button>
-                <button type="button" class="format-chip" data-format="slides" aria-pressed="false">
-                  <svg class="svg-icon" viewBox="0 0 24 24"><path d="M2 3h20v14H2V3zm2 2v10h16V5H4zm4 3l6 4-6 4V8z"/></svg>
-                  <span data-i18n="format.slides">슬라이드</span>
-                </button>
-                <button type="button" class="format-chip" data-format="video" aria-pressed="false">
-                  <svg class="svg-icon" viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
-                  <span data-i18n="format.video">동영상</span>
-                </button>
-                <button type="button" class="format-chip" data-format="code" aria-pressed="false">
-                  <svg class="svg-icon" viewBox="0 0 24 24"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>
-                  <span data-i18n="format.code">코드·앱</span>
-                </button>
-              </div>
+        <!-- VIEW 1: DESKTOP HOME (MOCKUP IMAGE 2) -->
+        <div id="view-home" class="tab-view active-view">
+          <div class="mountain-hero-banner">
+            <div class="hero-text-col">
+              <span class="eyebrow-text">GOOD TO SEE YOU</span>
+              <h1 class="personal-hero-title">Hello, Jane 👋</h1>
+              <p class="personal-hero-subtitle">What would you like to do today?</p>
+              <p class="hero-desc-sub">NAgex is your personal AI that remembers, plans, and acts — so you can focus on what matters most.</p>
             </div>
+            <div class="hero-handwritten-quote">
+              <em>Ideas to a brighter you.</em>
+            </div>
+          </div>
 
-            <div class="super-input-footer">
-              <div class="controls-left">
-                <button class="select-pill" id="btn-attach">
-                  <svg class="svg-icon" viewBox="0 0 24 24"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4s-4 1.79-4 4v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/></svg>
-                  <span data-i18n="input.attach">첨부</span>
-                </button>
-
-                <button class="select-pill">
-                  <svg class="svg-icon" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-                  <span data-i18n="input.coreModel">코어 모델</span>
-                </button>
-
-                <button class="select-pill" id="btn-prime-agent" style="color:var(--primary-blue); background:#eff6ff;">
-                  <svg class="svg-icon" viewBox="0 0 24 24"><path d="M12 2a2 2 0 0 1 2 2v2h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2V4a2 2 0 0 1 2-2z"/></svg>
-                  <span data-i18n="input.newAgent">새로운 프라임 에이전트</span>
-                </button>
-              </div>
-
-              <div class="controls-right">
-                <button class="btn-voice-mic" id="btn-voice-input" data-i18n-title="input.voiceInputTitle" title="음성으로 입력 (Speech-to-Text)">
-                  <svg class="svg-icon" viewBox="0 0 24 24"><path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>
-                </button>
-                <button class="btn-voice-speak" id="btn-voice-output" data-i18n-title="input.voiceOutputTitle" title="AI 응답을 음성으로 듣기 (Text-to-Speech)">
-                  <svg class="svg-icon" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
-                </button>
-                <button class="btn-chat-run" id="btn-run-task">
-                  <span data-i18n="input.run">대화 / 실행</span>
-                  <svg class="svg-icon" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-                </button>
+          <!-- Prompt Box with Mockup Styling -->
+          <div class="mockup-prompt-box">
+            <div class="prompt-input-row">
+              <span class="prompt-star-icon">✦</span>
+              <input type="text" id="home-prompt-input" class="mockup-prompt-input" placeholder="Ask NAgex anything..." value="Prepare my next client meeting and schedule it.">
+              <div class="prompt-right-tools">
+                <button class="tool-circle-btn" title="Attach file">📎</button>
+                <button class="tool-circle-btn" title="Voice input">🎙️</button>
+                <button class="btn-prompt-send-blue" id="btn-home-prompt-send" title="Send">✈️</button>
               </div>
             </div>
           </div>
 
-          <div class="feature-banner-card">
-            <div class="banner-content">
-              <div class="banner-tag">NEW FEATURE</div>
-              <div class="banner-title" data-i18n="banner.title">SecondBrain Note. 카드처럼 얇은 NAgex AI 보이스 레코더 & 멀티에이전트 노드</div>
-              <div class="banner-desc" data-i18n="banner.desc">한 번 누르면 최대 35시간까지 녹음됩니다. 유료 회원은 무제한 AI 전사 및 요약이 가능합니다.</div>
-            </div>
-            <button class="btn-banner" data-i18n="banner.cta">자세히 보기</button>
+          <!-- Quick Action Chips -->
+          <div class="quick-actions-row">
+            <span class="quick-action-chip" data-action="plan-day">☀️ <span data-i18n="home.actionPlanDay">Plan my day</span></span>
+            <span class="quick-action-chip" data-action="summarize-notes">📝 <span data-i18n="home.actionSummarizeNotes">Summarize my notes</span></span>
+            <span class="quick-action-chip" data-action="prepare-meeting">👥 <span data-i18n="home.actionPrepareMeeting">Prepare for a meeting</span></span>
+            <span class="quick-action-chip" data-action="research-topic">🔍 <span data-i18n="home.actionResearchTopic">Research a topic</span></span>
+            <span class="quick-action-chip" data-action="execute-task">⚡ <span data-i18n="home.actionExecuteTask">Execute a task</span></span>
+            <span class="hero-quote-side">"A calmer mind. A more intentional tomorrow." — NAgex</span>
           </div>
-        </div>
 
-        <!-- Session view: chat thread (left) + working canvas (right) — shown
-             once a task is running. Desktop only splits side-by-side; mobile
-             shows one pane at a time via the toggle in the canvas header. -->
-        <div id="workspace-session" style="display:none; width:100%; flex:1;">
-          <div class="session-shell">
-            <div class="session-chat-col">
-              <div class="session-chat-header">
-                <button class="session-back-btn" id="btn-session-back">
-                  <svg class="svg-icon" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
-                  <span data-i18n="session.newTask">새 작업</span>
-                </button>
-                <button class="session-canvas-toggle" id="btn-session-toggle-to-canvas" data-i18n="session.viewCanvas">결과 보기</button>
+          <!-- 4 Summary Cards Grid (Mockup Image 2) -->
+          <div class="status-summary-grid">
+            <div class="status-mini-card green-theme" onclick="window.NAGEX.switchTab('tab-memory')">
+              <div class="card-icon-circle green">🛢️</div>
+              <div class="card-summary-info">
+                <span class="status-mini-title">Memory</span>
+                <span class="status-mini-val">Active</span>
+                <span class="status-mini-sub">Remembers what matters</span>
               </div>
-              <div class="session-chat-messages" id="session-chat-messages"></div>
-              <div class="session-chat-input-row">
-                <input type="text" id="session-chat-input" class="session-chat-input" data-i18n-placeholder="session.followUpPlaceholder" placeholder="추가로 요청할 내용을 입력하세요...">
-                <button class="btn-chat-run" id="btn-session-send" style="border-radius:12px;">
-                  <svg class="svg-icon" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-                </button>
-              </div>
+              <span class="arrow-nav">&gt;</span>
             </div>
 
-            <div class="session-canvas-col" id="session-canvas-col">
-              <div class="session-canvas-header">
-                <div class="session-canvas-title-group">
-                  <span class="session-canvas-icon" id="session-canvas-icon"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M21 6h-2v9H6v2c0 .55.45 1 1 1h11l4 4V7c0-.55-.45-1-1-1zm-4-4H3c-.55 0-1 .45-1 1v14l4-4h11c.55 0 1-.45 1-1V3c0-.55-.45-1-1-1z"/></svg></span>
-                  <span id="session-canvas-title" data-i18n="format.chat">일반 답변</span>
+            <div class="status-mini-card blue-theme" onclick="window.NAGEX.switchTab('tab-plans')">
+              <div class="card-icon-circle blue">📅</div>
+              <div class="card-summary-info">
+                <span class="status-mini-title">Open plans</span>
+                <span class="status-mini-val">3</span>
+                <span class="status-mini-sub">2 for today • 1 upcoming</span>
+              </div>
+              <span class="arrow-nav">&gt;</span>
+            </div>
+
+            <div class="status-mini-card orange-theme" onclick="window.NAGEX.switchTab('tab-approvals')">
+              <div class="card-icon-circle orange">🛡️</div>
+              <div class="card-summary-info">
+                <span class="status-mini-title">Pending approvals</span>
+                <span class="status-mini-val warning">2</span>
+                <span class="status-mini-sub">Tasks waiting for your OK</span>
+              </div>
+              <span class="arrow-nav">&gt;</span>
+            </div>
+
+            <div class="status-mini-card purple-theme" onclick="window.NAGEX.switchTab('tab-tools')">
+              <div class="card-icon-circle purple">🔌</div>
+              <div class="card-summary-info">
+                <span class="status-mini-title">Connected tools</span>
+                <span class="status-mini-val">5</span>
+                <span class="status-mini-sub">Google, Notion, Slack and more</span>
+              </div>
+              <span class="arrow-nav">&gt;</span>
+            </div>
+          </div>
+
+          <!-- Lower 3-Column Dashboard Section -->
+          <div class="dashboard-widgets-grid-3col">
+            <!-- Col 1: Recent conversations -->
+            <div class="dash-card">
+              <div class="dash-card-header">
+                <h3 data-i18n="home.recentConvos">Recent conversations</h3>
+                <a class="link-view-all" onclick="window.NAGEX.switchTab('tab-executions')">View all</a>
+              </div>
+              <div class="dash-card-content">
+                <div class="convo-row">
+                  <div class="convo-icon-bubble">💬</div>
+                  <div class="convo-info">
+                    <div class="convo-title">Prepare for product meeting</div>
+                    <div class="convo-sub">Summarize key points, draft talking...</div>
+                  </div>
+                  <span class="convo-time">2h ago &gt;</span>
                 </div>
-                <button class="session-canvas-toggle" id="btn-session-toggle-to-chat" data-i18n="session.viewChat">채팅 보기</button>
-              </div>
-              <div class="session-canvas-body" id="session-canvas-body">
-                <div class="session-canvas-placeholder">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:32px;height:32px;"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
-                  <p id="session-canvas-placeholder-text" data-i18n="session.placeholderChat">여기에 에이전트의 결과물이 실시간으로 표시됩니다.</p>
+                <div class="convo-row">
+                  <div class="convo-icon-bubble">💬</div>
+                  <div class="convo-info">
+                    <div class="convo-title">Plan my week</div>
+                    <div class="convo-sub">Create a focused plan with time blocks...</div>
+                  </div>
+                  <span class="convo-time">1d ago &gt;</span>
+                </div>
+                <div class="convo-row">
+                  <div class="convo-icon-bubble">💬</div>
+                  <div class="convo-info">
+                    <div class="convo-title">Research on AI productivity</div>
+                    <div class="convo-sub">Find the latest trends and key insights...</div>
+                  </div>
+                  <span class="convo-time">2d ago &gt;</span>
+                </div>
+                <div class="convo-row">
+                  <div class="convo-icon-bubble">💬</div>
+                  <div class="convo-info">
+                    <div class="convo-title">Draft a birthday message</div>
+                    <div class="convo-sub">Write a warm and thoughtful message...</div>
+                  </div>
+                  <span class="convo-time">3d ago &gt;</span>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-        </div>
 
-        <!-- View 2: Knowledge Base & Files -->
-        <div id="view-knowledge" class="tab-view" style="display:none; width:100%; max-width:860px;">
-          <div class="feature-banner-card" style="flex-direction:column; align-items:flex-start; margin-bottom:1.5rem;">
-            <h2 class="section-heading" data-i18n="knowledge.heading">지식 저장소 및 문서 연결 (Knowledge Base)</h2>
-            <p class="section-desc" data-i18n="knowledge.desc">AI 에이전트가 답변 및 작업 시 참조할 문서(PDF, Word, TXT) 및 DB 연결을 관리합니다.</p>
-          </div>
-
-          <div style="background:#fff; border:1px solid var(--border-light); border-radius:14px; padding:1.5rem; width:100%;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-              <span style="font-weight:700;" data-i18n="knowledge.listTitle">업로드된 문서 목록</span>
-              <button id="btn-knowledge-upload" class="btn-chat-run" style="padding:0.4rem 0.9rem; font-size:0.82rem;" data-i18n="knowledge.uploadBtn">+ 문서 업로드</button>
-            </div>
-            <table class="table-custom">
-              <thead>
-                <tr>
-                  <th data-i18n="knowledge.thDoc">문서명</th>
-                  <th data-i18n="knowledge.thSecurity">보안 등급</th>
-                  <th data-i18n="knowledge.thSize">크기</th>
-                  <th data-i18n="knowledge.thStatus">상태</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>2026_사업계획서_최종.pdf</td>
-                  <td><span class="status-tag status-waiting">CONFIDENTIAL</span></td>
-                  <td>2.4 MB</td>
-                  <td><span class="status-tag status-running">INDEXED</span></td>
-                </tr>
-                <tr>
-                  <td>제품_아키텍처_명세.docx</td>
-                  <td><span class="status-tag status-queued">INTERNAL</span></td>
-                  <td>1.1 MB</td>
-                  <td><span class="status-tag status-running">INDEXED</span></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- View 3: Billing & Usage -->
-        <div id="view-billing" class="tab-view" style="display:none; width:100%; max-width:860px;">
-          <div class="feature-banner-card" style="flex-direction:column; align-items:flex-start; margin-bottom:1.5rem;">
-            <h2 class="section-heading" data-i18n="billing.heading">사용량 및 요금제 (Billing & Usage)</h2>
-            <p class="section-desc" data-i18n="billing.desc">현재 플랜, 남은 코어 및 이번 달 사용 내역입니다.</p>
-          </div>
-
-          <!-- Pro plan summary (hidden for free-tier accounts) -->
-          <div id="plan-summary-pro" class="plan-summary" style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; width:100%; margin-bottom:1.5rem;">
-            <div class="panel-card">
-              <div class="panel-card-title" data-i18n="billing.planTitle">현재 구독 플랜</div>
-              <div class="metric-big" data-i18n="billing.primePlanName">NAgex 프라임</div>
-              <div class="metric-sub" data-i18n="billing.planSub">월 $120.00 / 코어 10,000개 포함</div>
-            </div>
-
-            <div class="panel-card">
-              <div class="panel-card-title" data-i18n="billing.creditTitle">남은 코어</div>
-              <div class="metric-big" style="color:var(--primary-blue);"><span id="pro-credit-balance">8,450</span> / <span id="pro-credit-total">10,000</span></div>
-              <div class="metric-sub" data-i18n="billing.creditSub">다음 갱신일: 2026-09-01</div>
-            </div>
-          </div>
-
-          <!-- Free plan summary (hidden for pro accounts) -->
-          <div id="plan-summary-free" class="plan-summary" style="display:none; grid-template-columns:1fr 1fr; gap:1rem; width:100%; margin-bottom:1.5rem;">
-            <div class="panel-card">
-              <div class="panel-card-title" data-i18n="billing.planTitle">현재 구독 플랜</div>
-              <div class="metric-big" data-i18n="billing.freePlanName">NAgex 코어</div>
-              <div class="metric-sub" data-i18n="billing.freePlanSub">기본 제공 코어 + 광고 시청으로 충전</div>
-            </div>
-
-            <div class="panel-card">
-              <div class="panel-card-title" data-i18n="billing.creditTitle">남은 코어</div>
-              <div class="metric-big" style="color:var(--primary-blue); display:flex; align-items:baseline; flex-wrap:wrap; gap:0.35em;"><span style="white-space:nowrap;"><span id="free-credit-balance">250</span> / 500</span> <span style="font-size:0.5em; font-weight:600; color:var(--text-muted); white-space:nowrap;" data-i18n="billing.creditUnit">코어</span></div>
-              <div class="metric-sub" data-i18n="billing.freeCreditSub">매일 자정 500으로 초기화</div>
-            </div>
-          </div>
-
-          <!-- Free plan: model tier restriction notice -->
-          <div id="billing-model-tier-notice" style="display:none; align-items:center; gap:0.6rem; background:var(--bg-subtle); border:1px solid var(--border-light); border-radius:12px; padding:0.9rem 1.1rem; width:100%; margin-bottom:1.5rem; font-size:0.82rem; color:var(--text-muted);">
-            <svg class="svg-icon" viewBox="0 0 24 24" style="width:16px;height:16px;color:var(--text-light); flex-shrink:0;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
-            <span data-i18n="billing.modelTierNotice">코어는 코어 모델에서만 사용할 수 있어요. 프라임 에이전트 등 고성능 모델을 쓰려면 NAgex 프라임이 필요합니다.</span>
-          </div>
-
-          <!-- Free plan: earn more credits -->
-          <div id="earn-credits-section" style="display:none; width:100%;">
-            <div class="section-heading" style="margin-bottom:0.9rem;" data-i18n="billing.earnHeading">코어 추가 받기</div>
-            <div class="connector-list">
-              <div class="connector-row">
-                <div class="connector-icon" style="background:var(--gradient-brand);">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+            <!-- Col 2: Suggested for you -->
+            <div class="dash-card">
+              <div class="dash-card-header">
+                <h3 data-i18n="home.suggestedTasks">Suggested for you</h3>
+                <a class="link-view-all">See more</a>
+              </div>
+              <div class="dash-card-content">
+                <div class="suggest-row" onclick="window.NAGEX.openAmbientWithPrompt('Plan my day')">
+                  <div class="suggest-icon-blue">📅</div>
+                  <div class="suggest-info">
+                    <div class="suggest-title">Plan your day</div>
+                    <div class="suggest-sub">Turn your goals into a focused plan</div>
+                  </div>
+                  <span class="suggest-arrow">&rarr;</span>
                 </div>
-                <div class="connector-body">
-                  <div class="connector-title" data-i18n="billing.referTitle">친구 추천하기</div>
-                  <div class="connector-desc" data-i18n="billing.referDesc">추천 링크로 친구가 가입하면 1명당 코어 500개를 받습니다.</div>
-                  <div class="referral-code-row">
-                    <code id="referral-code">nagex.ai/r/bjyoon4x9</code>
-                    <button class="btn-connect" id="btn-copy-referral" data-i18n="billing.copyLink">링크 복사</button>
+                <div class="suggest-row" onclick="window.NAGEX.openAmbientWithPrompt('Summarize my notes')">
+                  <div class="suggest-icon-green">📄</div>
+                  <div class="suggest-info">
+                    <div class="suggest-title">Summarize your notes</div>
+                    <div class="suggest-sub">Get key takeaways in seconds</div>
+                  </div>
+                  <span class="suggest-arrow">&rarr;</span>
+                </div>
+                <div class="suggest-row" onclick="window.NAGEX.openAmbientWithPrompt('Prepare for a meeting')">
+                  <div class="suggest-icon-purple">👥</div>
+                  <div class="suggest-info">
+                    <div class="suggest-title">Prepare for a meeting</div>
+                    <div class="suggest-sub">Review context and draft talking points</div>
+                  </div>
+                  <span class="suggest-arrow">&rarr;</span>
+                </div>
+                <div class="suggest-row" onclick="window.NAGEX.openAmbientWithPrompt('Explore a new topic')">
+                  <div class="suggest-icon-cyan">🔍</div>
+                  <div class="suggest-info">
+                    <div class="suggest-title">Explore a new topic</div>
+                    <div class="suggest-sub">Get a clear, sourced summary</div>
+                  </div>
+                  <span class="suggest-arrow">&rarr;</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Col 3: Today at a glance -->
+            <div class="dash-card">
+              <div class="dash-card-header">
+                <h3 data-i18n="home.todayAtGlance">Today at a glance</h3>
+                <span class="glance-date">Tue, Apr 29</span>
+              </div>
+              <div class="dash-card-content">
+                <div class="timeline-glance-item">
+                  <span class="time-label">9:00 AM</span>
+                  <div class="glance-event-box">
+                    <strong>Product sync</strong><br>
+                    <small>Prepare talking points</small>
                   </div>
                 </div>
-                <span class="status-tag status-running" id="referral-progress">2/3 <span data-i18n="billing.referred">가입함</span></span>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#7c3aed;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M8 5v14l11-7z"/></svg>
+                <div class="timeline-glance-item">
+                  <span class="time-label">11:00 AM</span>
+                  <div class="glance-event-box">
+                    <strong>Review PRD</strong><br>
+                    <small>Add feedback</small>
+                  </div>
                 </div>
-                <div class="connector-body">
-                  <div class="connector-title" data-i18n="billing.watchAdTitle">전면 광고 시청하고 받기</div>
-                  <div class="connector-desc" data-i18n="billing.watchAdDesc">30초 광고를 끝까지 보면 코어 100개를 즉시 드려요.</div>
+                <div class="timeline-glance-item">
+                  <span class="time-label">1:00 PM</span>
+                  <div class="glance-event-box">
+                    <strong>Focus work</strong><br>
+                    <small>Deep work session</small>
+                  </div>
                 </div>
-                <button class="btn-connect" id="btn-watch-ad" data-i18n="billing.watchAdCta">광고 보기</button>
+                <div class="timeline-glance-item">
+                  <span class="time-label">4:00 PM</span>
+                  <div class="glance-event-box">
+                    <strong>Team check-in</strong><br>
+                    <small>Discuss next steps</small>
+                  </div>
+                </div>
+                <button class="btn-full-plan-outline" onclick="window.NAGEX.switchTab('tab-plans')">View full plan &rarr;</button>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Full-screen mock interstitial ad overlay (free plan credit reward) -->
-        <div id="interstitial-ad-overlay" class="interstitial-overlay" style="display:none;">
-          <div class="interstitial-card">
-            <span class="ad-label" data-i18n="ad.label">광고</span>
-            <div class="interstitial-visual">
-              <svg viewBox="0 0 24 24" style="width:52px;height:52px;"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
+        <!-- VIEW 2: MEMORY -->
+        <div id="view-memory" class="tab-view">
+          <div class="view-header">
+            <div>
+              <h2 data-i18n="memory.title">Personal Memory</h2>
+              <p class="view-subtitle" data-i18n="memory.subtitle">NAgex remembers preferences, session context, and task history across interactions. Fully inspectable and controllable.</p>
             </div>
-            <div class="interstitial-headline" data-i18n="billing.interstitialHeadline">NAgex 프라임으로 광고 없이, 더 빠른 모델을 만나보세요</div>
-            <div class="interstitial-footer">
-              <span id="interstitial-timer" class="interstitial-timer">5</span>
-              <button class="ad-cta" id="btn-interstitial-claim" disabled data-i18n="billing.claimCredits">코어 받기</button>
+            <div class="header-btns-row">
+              <button class="btn-secondary" id="btn-clear-session-mem" data-i18n="memory.btnClearSession">Clear Session Memory</button>
             </div>
+          </div>
+
+          <div class="memory-categories-tabs">
+            <button class="mem-tab-btn active" data-mem-scope="ALL">All Memory</button>
+            <button class="mem-tab-btn" data-mem-scope="USER" data-i18n="memory.catProfile">Profile & Preferences</button>
+            <button class="mem-tab-btn" data-mem-scope="SESSION" data-i18n="memory.catSession">Session Memory</button>
+            <button class="mem-tab-btn" data-mem-scope="AGENT" data-i18n="memory.catTaskHistory">Task History</button>
+            <button class="mem-tab-btn" data-mem-scope="TENANT" data-i18n="memory.catGoals">Goals & Tool Prefs</button>
+          </div>
+
+          <div class="memory-grid" id="memory-cards-container">
+            <!-- Dynamically populated -->
           </div>
         </div>
 
-        <!-- View 4: Plugins View -->
-        <div id="view-plugins" class="tab-view" style="display:none; width:100%; max-width:860px;">
-          <div class="feature-banner-card" style="flex-direction:column; align-items:flex-start; margin-bottom:1.5rem;">
-            <h2 class="section-heading" data-i18n="plugins.heading">플러그인 및 서비스 연동</h2>
-            <p class="section-desc" data-i18n="plugins.desc">Slack, GitHub, Google Workspace 등 외부 서비스를 연결합니다. 연동된 Plugin은 에이전트가 Tool로 호출할 수 있습니다.</p>
+        <!-- VIEW 3: DESKTOP PLAN & EXECUTE (MOCKUP IMAGE 4) -->
+        <div id="view-plans" class="tab-view">
+          <div class="mountain-hero-banner-sub">
+            <span class="eyebrow-text">NAGEX CONTROL CENTER</span>
+            <h1 class="personal-hero-title">Plan & Execute</h1>
+            <p class="personal-hero-subtitle">Turn your goals into real outcomes.</p>
+            <p class="hero-desc-sub">Create structured plans, get the right skills and tools, and let NAgex execute — with your control, approvals, and full visibility.</p>
           </div>
 
-          <input type="text" id="plugin-search-input" class="plugin-search-input" data-i18n-placeholder="plugins.searchPlaceholder" placeholder="커넥터 검색 (예: Slack, 문서, CRM)...">
-
-          <div class="plugin-category" data-category="communication">
-            <div class="plugin-category-heading" data-i18n="plugins.catCommunication">커뮤니케이션</div>
-            <div class="connector-list">
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#4A154B;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M8.5 2A2.5 2.5 0 0 0 6 4.5v4A2.5 2.5 0 0 0 8.5 11h4A2.5 2.5 0 0 0 15 8.5v-4A2.5 2.5 0 0 0 12.5 2h-4zm7 7A2.5 2.5 0 0 0 13 11.5v4a2.5 2.5 0 0 0 2.5 2.5h4a2.5 2.5 0 0 0 2.5-2.5v-4A2.5 2.5 0 0 0 19.5 9h-4z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Slack</div>
-                  <div class="connector-desc" data-i18n="plugins.slackDesc">채널 알림 수신 및 슬래시 커맨드로 에이전트 실행</div>
-                </div>
-                <span class="status-tag status-running" data-i18n="plugins.connected">연결됨</span>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#6264A7;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M21 6h-2v9H6v2c0 .55.45 1 1 1h11l4 4V7c0-.55-.45-1-1-1zm-4-4H3c-.55 0-1 .45-1 1v14l4-4h11c.55 0 1-.45 1-1V3c0-.55-.45-1-1-1z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Microsoft Teams</div>
-                  <div class="connector-desc" data-i18n="plugins.teamsDesc">팀 채널 알림 수신 및 봇 커맨드로 에이전트 실행</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#fff; border:1px solid var(--border-light);">
-                  <img src="https://cdn.simpleicons.org/gmail" alt="Gmail" style="width:20px;height:20px;" onerror="this.style.display='none'">
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Gmail</div>
-                  <div class="connector-desc" data-i18n="plugins.gmailDesc">이메일 초안 작성, 요약 및 자동 회신</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#0078D4;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Outlook</div>
-                  <div class="connector-desc" data-i18n="plugins.outlookDesc">받은 편지함 정리 및 이메일 초안 작성</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#fff; border:1px solid var(--border-light);">
-                  <img src="https://cdn.simpleicons.org/zoom" alt="Zoom" style="width:20px;height:20px;" onerror="this.style.display='none'">
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Zoom</div>
-                  <div class="connector-desc" data-i18n="plugins.zoomDesc">회의 요약 및 스마트 미팅 인사이트</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#0f172a;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Superhuman</div>
-                  <div class="connector-desc" data-i18n="plugins.superhumanDesc">가장 빠른 이메일 트리아지 워크플로우</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:var(--bg-subtle); border:1.5px dashed var(--border-strong);">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:var(--text-muted);"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title" data-i18n="plugins.customEmailTitle">다른 이메일 계정 추가</div>
-                  <div class="connector-desc" data-i18n="plugins.customEmailDesc">Hotmail 등 목록에 없는 이메일도 IMAP으로 직접 연결할 수 있습니다.</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
+          <!-- Top 3 Cards + Primary Button (Mockup Image 4) -->
+          <div class="plans-summary-row">
+            <div class="plan-sum-card">
+              <div class="card-icon-circle blue">📅</div>
+              <div>
+                <strong>Open plans</strong>
+                <div class="plan-num">3</div>
+                <small>2 in progress • 1 not started</small>
               </div>
             </div>
+            <div class="plan-sum-card">
+              <div class="card-icon-circle orange">🛡️</div>
+              <div>
+                <strong>Pending approvals</strong>
+                <div class="plan-num warning">2</div>
+                <small>Tasks waiting for your OK</small>
+              </div>
+            </div>
+            <div class="plan-sum-card">
+              <div class="card-icon-circle purple">▶️</div>
+              <div>
+                <strong>Recent executions</strong>
+                <div class="plan-num">6</div>
+                <small>4 completed • 2 running</small>
+              </div>
+            </div>
+            <button class="btn-create-plan-primary">+ Create a new plan</button>
           </div>
 
-          <div class="plugin-category" data-category="productivity">
-            <div class="plugin-category-heading" data-i18n="plugins.catProductivity">생산성 & 문서</div>
-            <div class="connector-list">
-              <div class="connector-row">
-                <div class="connector-icon" style="background:linear-gradient(135deg,#4285F4,#34A853);">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+          <!-- Main Layout Split: Table Left (8 cols) + Context Right Sidebar -->
+          <div class="plan-execute-split-layout">
+            <!-- Left Main Card: Plan Table -->
+            <div class="plan-main-card">
+              <div class="plan-card-header-top">
+                <div class="plan-title-group">
+                  <div class="plan-icon-square">👥</div>
+                  <div>
+                    <h2>Prepare Client Meeting</h2>
+                    <p class="sub-text">Prepare for the Acme Corp. quarterly business review meeting.</p>
+                  </div>
                 </div>
-                <div class="connector-body">
-                  <div class="connector-title">Google Workspace</div>
-                  <div class="connector-desc" data-i18n="plugins.gworkspaceDesc">Docs, Sheets, Calendar 연동으로 문서 생성 및 일정 관리</div>
+                <div class="plan-progress-badge-group">
+                  <span>5 of 8 steps completed</span>
+                  <div class="progress-bar-small"><div class="fill" style="width: 62%;"></div></div>
+                  <strong>62%</strong>
                 </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
               </div>
 
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#fff; border:1px solid var(--border-light);">
-                  <img src="https://cdn.simpleicons.org/notion" alt="Notion" style="width:20px;height:20px;" onerror="this.style.display='none'">
+              <div class="plan-tags-actions-bar">
+                <div class="tags-list">
+                  <span class="chip-tag">Client Meeting</span>
+                  <span class="chip-tag">Acme Corp</span>
+                  <span class="chip-tag high-priority">🔥 High Priority</span>
+                  <span class="due-tag">📅 Due Apr 30, 2024</span>
                 </div>
-                <div class="connector-body">
-                  <div class="connector-title">Notion</div>
-                  <div class="connector-desc" data-i18n="plugins.notionDesc">지식 저장소 페이지를 Knowledge Base에 자동 동기화</div>
+                <div class="plan-action-btns">
+                  <button class="btn-small-outline">Edit</button>
+                  <button class="btn-small-outline">Share</button>
+                  <button class="btn-small-outline">...</button>
+                  <button class="btn-primary-blue-sm">▶ Execute plan</button>
                 </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
               </div>
 
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#fff; border:1px solid var(--border-light);">
-                  <img src="https://cdn.simpleicons.org/confluence" alt="Confluence" style="width:20px;height:20px;" onerror="this.style.display='none'">
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Confluence</div>
-                  <div class="connector-desc" data-i18n="plugins.confluenceDesc">위키 페이지를 Knowledge Base에 자동 동기화</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
+              <!-- Sub-tabs -->
+              <div class="plan-sub-tabs">
+                <button class="tab-item active">Plan steps</button>
+                <button class="tab-item">AI proposal</button>
+                <button class="tab-item">Related plans</button>
+                <button class="tab-item">Activity</button>
               </div>
 
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#fff; border:1px solid var(--border-light);">
-                  <img src="https://cdn.simpleicons.org/googlecalendar" alt="Google Calendar" style="width:20px;height:20px;" onerror="this.style.display='none'">
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Google Calendar</div>
-                  <div class="connector-desc" data-i18n="plugins.calendarDesc">일정 조회 및 이벤트 관리</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#111827;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Granola</div>
-                  <div class="connector-desc" data-i18n="plugins.granolaDesc">회의 메모와 컨텍스트를 에이전트에 제공</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#f97316;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Fireflies</div>
-                  <div class="connector-desc" data-i18n="plugins.firefliesDesc">회의 녹취록 검색 및 요약</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#fff; border:1px solid var(--border-light);">
-                  <img src="https://cdn.simpleicons.org/linear" alt="Linear" style="width:20px;height:20px;" onerror="this.style.display='none'">
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Linear</div>
-                  <div class="connector-desc" data-i18n="plugins.linearDesc">제품 기획 및 이슈 트래킹</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="plugin-category" data-category="creative">
-            <div class="plugin-category-heading" data-i18n="plugins.catCreative">창작</div>
-            <div class="connector-list">
-              <div class="connector-row">
-                <div class="connector-icon" style="background:linear-gradient(135deg,#00C4CC,#7D2AE8);">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Canva</div>
-                  <div class="connector-desc" data-i18n="plugins.canvaDesc">디자인 생성, 검토 및 편집</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#fff; border:1px solid var(--border-light);">
-                  <img src="https://cdn.simpleicons.org/figma" alt="Figma" style="width:20px;height:20px;" onerror="this.style.display='none'">
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Figma</div>
-                  <div class="connector-desc" data-i18n="plugins.figmaDesc">디자인-투-코드 워크플로우</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#7c3aed;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">HeyGen</div>
-                  <div class="connector-desc" data-i18n="plugins.heygenDesc">AI 아바타 영상 생성</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#000000;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Runway</div>
-                  <div class="connector-desc" data-i18n="plugins.runwayDesc">이미지 및 영상 생성 모델</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#db2777;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M12 2l1.6 5.2L19 9l-5.4 1.8L12 16l-1.6-5.2L5 9l5.4-1.8L12 2z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Magnific</div>
-                  <div class="connector-desc" data-i18n="plugins.magnificDesc">이미지 업스케일 및 디자인 생성</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="plugin-category" data-category="dev">
-            <div class="plugin-category-heading" data-i18n="plugins.catDev">개발</div>
-            <div class="connector-list">
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#0f172a;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.5v-1.75c-2.78.62-3.37-1.36-3.37-1.36-.46-1.2-1.11-1.52-1.11-1.52-.91-.64.07-.63.07-.63 1 .07 1.53 1.05 1.53 1.05.9 1.57 2.34 1.12 2.91.86.09-.66.35-1.12.64-1.38-2.22-.26-4.56-1.14-4.56-5.06 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.31.1-2.72 0 0 .84-.28 2.75 1.05a9.3 9.3 0 0 1 5 0c1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.46.1 2.72.64.72 1.03 1.63 1.03 2.75 0 3.93-2.34 4.8-4.57 5.05.36.32.68.95.68 1.92v2.85c0 .28.18.6.69.5A10.02 10.02 0 0 0 22 12.25C22 6.58 17.52 2 12 2z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">GitHub</div>
-                  <div class="connector-desc" data-i18n="plugins.githubDesc">저장소 컨텍스트 조회, 코드 수정 및 PR 초안 생성</div>
-                </div>
-                <span class="status-tag status-running" data-i18n="plugins.connected">연결됨</span>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#FC6D26;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">GitLab</div>
-                  <div class="connector-desc" data-i18n="plugins.gitlabDesc">저장소 컨텍스트 조회, 코드 수정 및 MR 초안 생성</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#0052CC;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Jira</div>
-                  <div class="connector-desc" data-i18n="plugins.jiraDesc">이슈 조회·생성 및 스프린트 현황 요약</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#fff; border:1px solid var(--border-light);">
-                  <img src="https://cdn.simpleicons.org/vercel" alt="Vercel" style="width:20px;height:20px;" onerror="this.style.display='none'">
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Vercel</div>
-                  <div class="connector-desc" data-i18n="plugins.vercelDesc">웹 앱 및 에이전트 빌드·배포</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#fff; border:1px solid var(--border-light);">
-                  <img src="https://cdn.simpleicons.org/supabase" alt="Supabase" style="width:20px;height:20px;" onerror="this.style.display='none'">
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Supabase</div>
-                  <div class="connector-desc" data-i18n="plugins.supabaseDesc">데이터베이스 관리 및 쿼리</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#00e599;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M12 2C7.58 2 4 3.79 4 6s3.58 4 8 4 8-1.79 8-4-3.58-4-8-4zM4 8v4c0 2.21 3.58 4 8 4s8-1.79 8-4V8c0 2.21-3.58 4-8 4S4 10.21 4 8zm0 6v4c0 2.21 3.58 4 8 4s8-1.79 8-4v-4c0 2.21-3.58 4-8 4s-8-1.79-8-4z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Neon Postgres</div>
-                  <div class="connector-desc" data-i18n="plugins.neonDesc">Neon Postgres 데이터베이스 관리</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#fff; border:1px solid var(--border-light);">
-                  <img src="https://cdn.simpleicons.org/datadog" alt="Datadog" style="width:20px;height:20px;" onerror="this.style.display='none'">
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Datadog</div>
-                  <div class="connector-desc" data-i18n="plugins.datadogDesc">로그·메트릭 검색 및 조치</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="plugin-category" data-category="business">
-            <div class="plugin-category-heading" data-i18n="plugins.catBusiness">비즈니스 및 운영</div>
-            <div class="connector-list">
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#00A1E0;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Salesforce</div>
-                  <div class="connector-desc" data-i18n="plugins.salesforceDesc">고객 데이터 조회 및 리드·기회(Opportunity) 업데이트</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#fff; border:1px solid var(--border-light);">
-                  <img src="https://cdn.simpleicons.org/hubspot" alt="HubSpot" style="width:20px;height:20px;" onerror="this.style.display='none'">
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">HubSpot</div>
-                  <div class="connector-desc" data-i18n="plugins.hubspotDesc">마케팅·영업 데이터 기반 액션 실행</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#fff; border:1px solid var(--border-light);">
-                  <img src="https://cdn.simpleicons.org/shopify" alt="Shopify" style="width:20px;height:20px;" onerror="this.style.display='none'">
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Shopify</div>
-                  <div class="connector-desc" data-i18n="plugins.shopifyDesc">온라인 스토어 구축 및 관리</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#fff; border:1px solid var(--border-light);">
-                  <img src="https://cdn.simpleicons.org/webflow" alt="Webflow" style="width:20px;height:20px;" onerror="this.style.display='none'">
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Webflow</div>
-                  <div class="connector-desc" data-i18n="plugins.webflowDesc">Webflow 사이트 관리</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#4338ca;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 15c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1s1 .45 1 1v4c0 .55-.45 1-1 1zm1-8h-2V7h2v2z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Apollo.io</div>
-                  <div class="connector-desc" data-i18n="plugins.apolloDesc">잠재 고객 발굴 및 영업 파이프라인 관리</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#fff; border:1px solid var(--border-light);">
-                  <img src="https://cdn.simpleicons.org/zoho" alt="Zoho CRM" style="width:20px;height:20px;" onerror="this.style.display='none'">
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Zoho CRM</div>
-                  <div class="connector-desc" data-i18n="plugins.zohoDesc">영업 프로세스 자동화</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="plugin-category" data-category="data">
-            <div class="plugin-category-heading" data-i18n="plugins.catData">데이터 및 분석</div>
-            <div class="connector-list">
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#4285F4;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M5 9.2h3V19H5V9.2zm5.5-4.4h3V19h-3V4.8zm5.5 8h3V19h-3v-6.2z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Google BigQuery</div>
-                  <div class="connector-desc" data-i18n="plugins.bigqueryDesc">대규모 데이터셋 쿼리 및 분석 리포트 생성</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#fff; border:1px solid var(--border-light);">
-                  <img src="https://cdn.simpleicons.org/posthog" alt="PostHog" style="width:20px;height:20px;" onerror="this.style.display='none'">
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">PostHog</div>
-                  <div class="connector-desc" data-i18n="plugins.posthogDesc">제품 데이터 분석</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#fff; border:1px solid var(--border-light);">
-                  <img src="https://cdn.simpleicons.org/mixpanel" alt="Mixpanel" style="width:20px;height:20px;" onerror="this.style.display='none'">
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Mixpanel</div>
-                  <div class="connector-desc" data-i18n="plugins.mixpanelDesc">사용자 행동 데이터 쿼리 및 분석</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#fcd34d;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#0f172a;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">MotherDuck</div>
-                  <div class="connector-desc" data-i18n="plugins.motherduckDesc">데이터로부터 즉시 답변 도출</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#dc2626;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm7.93 9h-3.11a15.6 15.6 0 0 0-1.06-5.24A8.01 8.01 0 0 1 19.93 11zM12 4.06c.83 1.2 1.48 2.83 1.87 4.94H10.13c.39-2.11 1.04-3.74 1.87-4.94z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Firecrawl</div>
-                  <div class="connector-desc" data-i18n="plugins.firecrawlDesc">웹 페이지를 AI 컨텍스트로 변환</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="plugin-category" data-category="security">
-            <div class="plugin-category-heading" data-i18n="plugins.catSecurity">보안</div>
-            <div class="connector-list">
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#16a34a;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Vanta</div>
-                  <div class="connector-desc" data-i18n="plugins.vantaDesc">컴플라이언스 및 신뢰 구축 자동화</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#2563eb;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Malwarebytes</div>
-                  <div class="connector-desc" data-i18n="plugins.malwarebytesDesc">링크·도메인·전화번호 안전성 검증</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#dc2626;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Bitdefender</div>
-                  <div class="connector-desc" data-i18n="plugins.bitdefenderDesc">URL 안전성 검사 도구</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#0f172a;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Codex Security</div>
-                  <div class="connector-desc" data-i18n="plugins.codexSecurityDesc">코드베이스 취약점 스캔</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="plugin-category" data-category="education">
-            <div class="plugin-category-heading" data-i18n="plugins.catEducation">교육 및 연구</div>
-            <div class="connector-list">
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#7c3aed;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.3 4.75 1.05.1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Elicit</div>
-                  <div class="connector-desc" data-i18n="plugins.elicitDesc">과학 문헌 검색 및 요약</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#059669;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Consensus</div>
-                  <div class="connector-desc" data-i18n="plugins.consensusDesc">과학적 연구 결과 탐색</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#ea580c;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.3 4.75 1.05.1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Readwise</div>
-                  <div class="connector-desc" data-i18n="plugins.readwiseDesc">저장한 글과 하이라이트 검색·학습</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#0891b2;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">SciSpace</div>
-                  <div class="connector-desc" data-i18n="plugins.scispaceDesc">과학 및 연구 논문 탐색</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="plugin-category" data-category="finance">
-            <div class="plugin-category-heading" data-i18n="plugins.catFinance">금융</div>
-            <div class="connector-list">
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#fff; border:1px solid var(--border-light);">
-                  <img src="https://cdn.simpleicons.org/stripe" alt="Stripe" style="width:20px;height:20px;" onerror="this.style.display='none'">
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Stripe</div>
-                  <div class="connector-desc" data-i18n="plugins.stripeDesc">결제 데이터 조회 및 정산 관리</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#1d4ed8;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Interactive Brokers</div>
-                  <div class="connector-desc" data-i18n="plugins.ibkrDesc">글로벌 시장 데이터 분석</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#facc15;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#0f172a;"><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Alpaca</div>
-                  <div class="connector-desc" data-i18n="plugins.alpacaDesc">주식 및 암호화폐 시장 데이터</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#0f172a;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Quartr</div>
-                  <div class="connector-desc" data-i18n="plugins.quartrDesc">기업 리서치 데이터</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="plugin-category" data-category="healthcare">
-            <div class="plugin-category-heading" data-i18n="plugins.catHealthcare">헬스케어</div>
-            <div class="connector-list">
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#f43f5e;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Health</div>
-                  <div class="connector-desc" data-i18n="plugins.healthDesc">건강 데이터 연결 및 탐색</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#f97316;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Calorie Tracker</div>
-                  <div class="connector-desc" data-i18n="plugins.calorieDesc">식단 및 칼로리 트래킹</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#0f172a;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">COROS</div>
-                  <div class="connector-desc" data-i18n="plugins.corosDesc">운동 데이터 인사이트</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#dc2626;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Fitness AI</div>
-                  <div class="connector-desc" data-i18n="plugins.fitnessAiDesc">웨어러블 데이터 기반 AI 코칭</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="plugin-category" data-category="travel">
-            <div class="plugin-category-heading" data-i18n="plugins.catTravel">여행</div>
-            <div class="connector-list">
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#0284c7;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2.5 1.5V22l4-1 4 1v-1.5L13 19v-5.5l8 2.5z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Skyscanner</div>
-                  <div class="connector-desc" data-i18n="plugins.skyscannerDesc">저렴한 항공권 검색</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#2563eb;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2.5 1.5V22l4-1 4 1v-1.5L13 19v-5.5l8 2.5z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Trip.com</div>
-                  <div class="connector-desc" data-i18n="plugins.tripcomDesc">항공·호텔 통합 예약</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#16a34a;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">komoot</div>
-                  <div class="connector-desc" data-i18n="plugins.komootDesc">야외 스포츠 루트 탐색</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#0f172a;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2.5 1.5V22l4-1 4 1v-1.5L13 19v-5.5l8 2.5z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">eDreams</div>
-                  <div class="connector-desc" data-i18n="plugins.edreamsDesc">항공권 및 호텔 검색</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="plugin-category" data-category="entertainment">
-            <div class="plugin-category-heading" data-i18n="plugins.catEntertainment">엔터테인먼트</div>
-            <div class="connector-list">
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#fff; border:1px solid var(--border-light);">
-                  <img src="https://cdn.simpleicons.org/spotify" alt="Spotify" style="width:20px;height:20px;" onerror="this.style.display='none'">
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Spotify</div>
-                  <div class="connector-desc" data-i18n="plugins.spotifyDesc">음악 및 팟캐스트 추천</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#fff; border:1px solid var(--border-light);">
-                  <img src="https://cdn.simpleicons.org/applemusic" alt="Apple Music" style="width:20px;height:20px;" onerror="this.style.display='none'">
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Apple Music</div>
-                  <div class="connector-desc" data-i18n="plugins.applemusicDesc">플레이리스트 구성 및 음악 탐색</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#0284c7;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Shazam</div>
-                  <div class="connector-desc" data-i18n="plugins.shazamDesc">노래 즉시 인식</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#0f172a;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Chessy</div>
-                  <div class="connector-desc" data-i18n="plugins.chessyDesc">ChatGPT를 상대로 체스 두기</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="plugin-category" data-category="other">
-            <div class="plugin-category-heading" data-i18n="plugins.catOther">기타</div>
-            <div class="connector-list">
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#0A66C2;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">LinkedIn</div>
-                  <div class="connector-desc" data-i18n="plugins.linkedinDesc">적합한 인재 및 인맥 탐색</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#fff; border:1px solid var(--border-light);">
-                  <img src="https://cdn.simpleicons.org/indeed" alt="Indeed" style="width:20px;height:20px;" onerror="this.style.display='none'">
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Indeed</div>
-                  <div class="connector-desc" data-i18n="plugins.indeedDesc">맞춤 채용 공고 탐색</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#6d28d9;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M12 2l1.6 5.2L19 9l-5.4 1.8L12 16l-1.6-5.2L5 9l5.4-1.8L12 2z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Tarot</div>
-                  <div class="connector-desc" data-i18n="plugins.tarotDesc">타로 리딩 및 점술</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#059669;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">idealista</div>
-                  <div class="connector-desc" data-i18n="plugins.idealistaDesc">매물 검색 및 부동산 탐색</div>
-                </div>
-                <button class="btn-connect" data-i18n="plugins.connectBtn">연동하기</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="plugin-category" data-category="mcp">
-            <div class="plugin-category-heading" data-i18n="plugins.catMcp">MCP & 에이전트 프로토콜</div>
-            <div class="connector-list">
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#0f172a;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Model Context Protocol (MCP)</div>
-                  <div class="connector-desc" data-i18n="plugins.mcpDesc">MCP 호환 서버를 연결해 커스텀 도구를 에이전트에 제공합니다.</div>
-                </div>
-                <span class="status-tag status-queued" data-i18n="plugins.comingSoonTag">준비 중</span>
-              </div>
-
-              <div class="connector-row">
-                <div class="connector-icon" style="background:#FF4A00;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M13 3L4 14h6l-1 7 9-11h-6l1-7z"/></svg>
-                </div>
-                <div class="connector-body">
-                  <div class="connector-title">Zapier</div>
-                  <div class="connector-desc" data-i18n="plugins.zapierDesc">5,000개 이상의 앱과 연동된 자동화 워크플로우를 에이전트가 트리거합니다.</div>
-                </div>
-                <span class="status-tag status-queued" data-i18n="plugins.comingSoonTag">준비 중</span>
-              </div>
-            </div>
-          </div>
-
-          <p class="plugin-search-empty" id="plugin-search-empty" style="display:none;" data-i18n="plugins.searchEmpty">검색 결과가 없습니다.</p>
-        </div>
-
-        <!-- View 5: My Agents -->
-        <div id="view-agents" class="tab-view" style="display:none; width:100%; max-width:860px;">
-          <div class="feature-banner-card" style="flex-direction:column; align-items:flex-start; margin-bottom:1.5rem;">
-            <h2 class="section-heading" data-i18n="agents.heading">나의 에이전트 (My Agents)</h2>
-            <p class="section-desc" data-i18n="agents.desc">TENANT 스코프로 등록된 에이전트 목록입니다. 각 에이전트는 Durable Runtime을 통해서만 실행됩니다.</p>
-          </div>
-
-          <div class="agent-grid">
-            <div class="agent-card">
-              <div class="agent-card-top">
-                <div class="agent-avatar" style="background:var(--gradient-brand);">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:20px;height:20px;color:#fff;"><path d="M12 2a2 2 0 0 1 2 2v2h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2V4a2 2 0 0 1 2-2zm0 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg>
-                </div>
-                <span class="status-tag status-running">ACTIVE</span>
-              </div>
-              <div class="agent-name" data-i18n="agents.researchName">리서치 애널리스트</div>
-              <div class="agent-desc" data-i18n="agents.researchDesc">시장 동향을 조사하고 구조화된 리포트를 작성하는 멀티에이전트 워크플로우.</div>
-              <div class="agent-meta">
-                <span data-i18n="input.coreModel">코어 모델</span>
-                <span>·</span>
-                <span>TENANT</span>
+              <!-- Steps Table (Mockup Image 4) -->
+              <div class="steps-table-wrapper">
+                <table class="mockup-steps-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Step title</th>
+                      <th>Status</th>
+                      <th>Selected skill</th>
+                      <th>Selected tool</th>
+                      <th>Approval</th>
+                      <th>Due time</th>
+                      <th>Result</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>1</td>
+                      <td><strong>Understand meeting context</strong></td>
+                      <td><span class="badge-status green">✓ Completed</span></td>
+                      <td>Memory Recall</td>
+                      <td>NAgex Memory</td>
+                      <td>-</td>
+                      <td>Apr 28, 9:00 AM</td>
+                      <td><button class="btn-link">View</button></td>
+                    </tr>
+                    <tr>
+                      <td>2</td>
+                      <td><strong>Research client and industry</strong></td>
+                      <td><span class="badge-status green">✓ Completed</span></td>
+                      <td>Web Research</td>
+                      <td>Perplexity</td>
+                      <td>-</td>
+                      <td>Apr 28, 11:00 AM</td>
+                      <td><button class="btn-link">View</button></td>
+                    </tr>
+                    <tr>
+                      <td>3</td>
+                      <td><strong>Summarize key talking points</strong></td>
+                      <td><span class="badge-status blue">🔵 Running</span></td>
+                      <td>Summarization</td>
+                      <td>Notion</td>
+                      <td>-</td>
+                      <td>Apr 29, 9:00 AM</td>
+                      <td>...</td>
+                    </tr>
+                    <tr>
+                      <td>4</td>
+                      <td><strong>Draft meeting deck</strong></td>
+                      <td><span class="badge-status gray">⚪ Ready</span></td>
+                      <td>Content Creation</td>
+                      <td>Google Slides</td>
+                      <td><span class="badge-appr-req">🟠 Required</span></td>
+                      <td>Apr 29, 2:00 PM</td>
+                      <td>-</td>
+                    </tr>
+                    <tr>
+                      <td>5</td>
+                      <td><strong>Get stakeholder review</strong></td>
+                      <td><span class="badge-status orange">🟠 Awaiting Approval</span></td>
+                      <td>Communication</td>
+                      <td>Gmail</td>
+                      <td><span class="badge-appr-req">🟠 Required</span></td>
+                      <td>Apr 29, 5:00 PM</td>
+                      <td>-</td>
+                    </tr>
+                    <tr>
+                      <td>6</td>
+                      <td><strong>Schedule the meeting</strong></td>
+                      <td><span class="badge-status gray">⚪ Ready</span></td>
+                      <td>Scheduling</td>
+                      <td>Google Calendar</td>
+                      <td>-</td>
+                      <td>Apr 30, 9:00 AM</td>
+                      <td>-</td>
+                    </tr>
+                    <tr>
+                      <td>7</td>
+                      <td><strong>Prepare Q&A responses</strong></td>
+                      <td><span class="badge-status gray">⚪ Ready</span></td>
+                      <td>Analysis</td>
+                      <td>ChatGPT</td>
+                      <td>-</td>
+                      <td>Apr 30, 11:00 AM</td>
+                      <td>-</td>
+                    </tr>
+                    <tr>
+                      <td>8</td>
+                      <td><strong>Final review and checklist</strong></td>
+                      <td><span class="badge-status gray">⚪ Ready</span></td>
+                      <td>Project Management</td>
+                      <td>Notion</td>
+                      <td>-</td>
+                      <td>Apr 30, 3:00 PM</td>
+                      <td>-</td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </div>
 
-            <div class="agent-card">
-              <div class="agent-card-top">
-                <div class="agent-avatar" style="background:#0f172a;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:20px;height:20px;color:#fff;"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>
+            <!-- Right Sidebar: Execution Context (Mockup Image 4) -->
+            <div class="plan-context-sidebar">
+              <div class="sidebar-card">
+                <div class="side-card-header">
+                  <strong>Execution context</strong>
+                  <a class="link-view-all">View all</a>
                 </div>
-                <span class="status-tag status-running">ACTIVE</span>
-              </div>
-              <div class="agent-name" data-i18n="suites.codeReactor">코드 리액터</div>
-              <div class="agent-desc" data-i18n="agents.codeDesc">저장소 컨텍스트를 읽고 코드 수정·테스트·PR 초안까지 처리하는 빌드 에이전트.</div>
-              <div class="agent-meta">
-                <span data-i18n="agents.primeAgent">프라임 에이전트</span>
-                <span>·</span>
-                <span>TENANT</span>
-              </div>
-            </div>
-
-            <div class="agent-card">
-              <div class="agent-card-top">
-                <div class="agent-avatar" style="background:#10b981;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:20px;height:20px;color:#fff;"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h9v2zm-4 4H9v-2h5v2zm4-8H9V5h9v2z"/></svg>
+                <div class="memory-summary-box">
+                  <div class="box-title">Memory summary <small>From your memory</small></div>
+                  <p>You are preparing for a quarterly business review with Acme Corp. You've previously discussed their growth targets and are focusing on product adoption, renewal potential, and Q3 roadmap.</p>
                 </div>
-                <span class="status-tag status-queued">IDLE</span>
-              </div>
-              <div class="agent-name">Knowledge Curator</div>
-              <div class="agent-desc" data-i18n="agents.knowledgeDesc">업로드된 문서를 인덱싱하고 질의에 맞는 근거를 찾아 인용과 함께 답합니다.</div>
-              <div class="agent-meta">
-                <span data-i18n="input.coreModel">코어 모델</span>
-                <span>·</span>
-                <span>TENANT</span>
-              </div>
-            </div>
 
-            <div class="agent-card agent-card-new" id="btn-agent-new">
-              <div class="agent-avatar" style="background:var(--bg-subtle); border:1.5px dashed var(--border-strong);">
-                <svg class="svg-icon" viewBox="0 0 24 24" style="width:20px;height:20px;color:var(--text-muted);"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-              </div>
-              <div class="agent-name" style="color:var(--text-muted);" data-i18n="agents.newTitle">새 에이전트 만들기</div>
-              <div class="agent-desc" data-i18n="agents.newDesc">역할, 도구, 모델을 정의해서 나만의 에이전트를 등록합니다.</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- View 6: Task History / Library -->
-        <div id="view-library" class="tab-view" style="display:none; width:100%; max-width:860px;">
-          <div class="feature-banner-card" style="flex-direction:column; align-items:flex-start; margin-bottom:1.5rem;">
-            <h2 class="section-heading" data-i18n="library.heading">작업 히스토리 / 라이브러리</h2>
-            <p class="section-desc" data-i18n="library.desc">Durable Runtime에서 실행 완료 또는 진행 중인 작업 기록입니다.</p>
-          </div>
-
-          <div style="background:#fff; border:1px solid var(--border-light); border-radius:14px; padding:1.25rem; width:100%;">
-            <table class="table-custom">
-              <thead>
-                <tr>
-                  <th data-i18n="library.thTask">작업명</th>
-                  <th data-i18n="library.thType">유형</th>
-                  <th data-i18n="library.thStatus">상태</th>
-                  <th data-i18n="library.thDate">생성일</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td data-i18n="nav.recentReport">금융 시장 분석 리포트 발행</td>
-                  <td data-i18n="agents.researchName">리서치 애널리스트</td>
-                  <td><span class="status-tag status-running" data-i18n="library.statusDone">완료</span></td>
-                  <td>2026-08-20</td>
-                </tr>
-                <tr>
-                  <td data-i18n="nav.recentLanding">회사 랜딩페이지 디자인 구축</td>
-                  <td data-i18n="suites.codeReactor">코드 리액터</td>
-                  <td><span class="status-tag status-running" data-i18n="library.statusDone">완료</span></td>
-                  <td>2026-08-18</td>
-                </tr>
-                <tr>
-                  <td data-i18n="nav.recentWebsite">How to Create Website</td>
-                  <td data-i18n="suites.codeReactor">코드 리액터</td>
-                  <td><span class="status-tag status-queued" data-i18n="library.statusInProgress">진행 중</span></td>
-                  <td>2026-08-21</td>
-                </tr>
-                <tr>
-                  <td data-i18n="library.taskArchSummary">제품 아키텍처 명세서 요약</td>
-                  <td>Knowledge Curator</td>
-                  <td><span class="status-tag status-waiting" data-i18n="library.statusWaiting">대기</span></td>
-                  <td>2026-08-21</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- View 7: Zero-Trust IAM -->
-        <div id="view-iam" class="tab-view" style="display:none; width:100%; max-width:860px;">
-          <div class="feature-banner-card" style="flex-direction:column; align-items:flex-start; margin-bottom:1.5rem;">
-            <h2 class="section-heading" data-i18n="iam.heading">계정 & Zero-Trust IAM</h2>
-            <p class="section-desc" data-i18n="iam.desc">현재 계정의 역할과 Permission 범위입니다. Cross-Tenant 접근은 기본적으로 차단됩니다.</p>
-          </div>
-
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; width:100%; margin-bottom:1.5rem;">
-            <div class="panel-card">
-              <div class="panel-card-title" data-i18n="iam.roleTitle">현재 역할</div>
-              <div class="metric-big">Admin</div>
-              <div class="metric-sub">Tenant: ten_production_01</div>
-            </div>
-            <div class="panel-card">
-              <div class="panel-card-title" data-i18n="iam.crossTitle">Cross-Tenant 접근</div>
-              <div class="metric-big" style="color:#dc2626;">Default Deny</div>
-              <div class="metric-sub" style="color:var(--text-muted);" data-i18n="iam.crossSub">정책 위반 시 자동 차단</div>
-            </div>
-          </div>
-
-          <div style="background:#fff; border:1px solid var(--border-light); border-radius:14px; padding:1.25rem; width:100%;">
-            <div style="font-weight:700; margin-bottom:1rem;" data-i18n="iam.grantedTitle">부여된 Permission</div>
-            <div class="iam-permission-list">
-              <div class="iam-permission-row">
-                <span data-i18n="iam.perm1">Resource 생성 / 게시 (Agent, Workflow, Knowledge)</span>
-                <span class="status-tag status-running" data-i18n="iam.allow">허용</span>
-              </div>
-              <div class="iam-permission-row">
-                <span data-i18n="iam.perm2">Published Version 직접 수정</span>
-                <span class="status-tag status-waiting" data-i18n="iam.deny">거부</span>
-              </div>
-              <div class="iam-permission-row">
-                <span data-i18n="iam.perm3">Billing / Entitlement 관리</span>
-                <span class="status-tag status-running" data-i18n="iam.allow">허용</span>
-              </div>
-              <div class="iam-permission-row">
-                <span data-i18n="iam.perm4">IRREVERSIBLE_WRITE 작업 승인</span>
-                <span class="status-tag status-queued" data-i18n="iam.approvalNeeded">승인 필요</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- View 8: Skills Management -->
-        <div id="view-skills" class="tab-view" style="display:none; width:100%; max-width:860px;">
-          <div class="feature-banner-card" style="flex-direction:column; align-items:flex-start; margin-bottom:1.5rem;">
-            <h2 class="section-heading" data-i18n="skills.heading">스킬 & SKILL.md 관리</h2>
-            <p class="section-desc" data-i18n="skills.desc">에이전트가 참조하는 재사용 가능한 스킬 정의입니다.</p>
-          </div>
-
-          <div class="agent-grid">
-            <div class="agent-card">
-              <div class="agent-card-top">
-                <div class="agent-avatar" style="background:#2563eb;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M5 9.2h3V19H5V9.2zm5.5-4.4h3V19h-3V4.8zm5.5 8h3V19h-3v-6.2z"/></svg>
-                </div>
-                <button class="card-add-btn added" disabled>
-                  <svg class="svg-icon" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>
-                </button>
-              </div>
-              <div class="agent-name">market-report-builder</div>
-              <div class="agent-desc" data-i18n="skills.desc1">시장 데이터를 수집해 구조화된 리포트 템플릿으로 정리합니다.</div>
-            </div>
-
-            <div class="agent-card">
-              <div class="agent-card-top">
-                <div class="agent-avatar" style="background:#0891b2;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
-                </div>
-                <button class="card-add-btn added" disabled>
-                  <svg class="svg-icon" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>
-                </button>
-              </div>
-              <div class="agent-name">doc-indexer</div>
-              <div class="agent-desc" data-i18n="skills.desc2">업로드 문서를 청크로 분할하고 Knowledge Base에 인덱싱합니다.</div>
-            </div>
-
-            <div class="agent-card">
-              <div class="agent-card-top">
-                <div class="agent-avatar" style="background:#7c3aed;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>
-                </div>
-                <span class="status-tag status-queued" data-i18n="skills.reviewing">검토 중</span>
-              </div>
-              <div class="agent-name">code-pr-drafter</div>
-              <div class="agent-desc" data-i18n="skills.desc3">코드 변경 사항을 정리해 PR 설명 초안을 생성합니다.</div>
-            </div>
-
-            <div class="agent-card">
-              <div class="agent-card-top">
-                <div class="agent-avatar" style="background:#db2777;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>
-                </div>
-                <button class="card-add-btn">
-                  <svg class="svg-icon" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-                </button>
-              </div>
-              <div class="agent-name" data-i18n="skills.compareTitle">비교 리포트 작성기</div>
-              <div class="agent-desc" data-i18n="skills.compareDesc">여러 옵션·제품·벤더를 비교하는 구조화된 리포트를 작성합니다.</div>
-            </div>
-
-            <div class="agent-card">
-              <div class="agent-card-top">
-                <div class="agent-avatar" style="background:#ea580c;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-                </div>
-                <button class="card-add-btn">
-                  <svg class="svg-icon" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-                </button>
-              </div>
-              <div class="agent-name" data-i18n="skills.gapTitle">콘텐츠 갭 분석</div>
-              <div class="agent-desc" data-i18n="skills.gapDesc">경쟁사와 비교해 콘텐츠 격차를 식별하고 우선순위를 정합니다.</div>
-            </div>
-
-            <div class="agent-card">
-              <div class="agent-card-top">
-                <div class="agent-avatar" style="background:#16a34a;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/></svg>
-                </div>
-                <button class="card-add-btn">
-                  <svg class="svg-icon" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-                </button>
-              </div>
-              <div class="agent-name" data-i18n="skills.finTitle">재무 분석</div>
-              <div class="agent-desc" data-i18n="skills.finDesc">재무 데이터, 시세, 실적 발표 자료를 분석해 투자 프레젠테이션을 준비합니다.</div>
-            </div>
-
-            <div class="agent-card">
-              <div class="agent-card-top">
-                <div class="agent-avatar" style="background:#0f172a;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
-                </div>
-                <button class="card-add-btn">
-                  <svg class="svg-icon" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-                </button>
-              </div>
-              <div class="agent-name" data-i18n="skills.videoTitle">비디오 생성기</div>
-              <div class="agent-desc" data-i18n="skills.videoDesc">데모·광고·단편 영상을 만드는 AI 비디오 제작 워크플로우입니다.</div>
-            </div>
-
-            <div class="agent-card">
-              <div class="agent-card-top">
-                <div class="agent-avatar" style="background:#4338ca;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
-                </div>
-                <button class="card-add-btn">
-                  <svg class="svg-icon" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-                </button>
-              </div>
-              <div class="agent-name" data-i18n="skills.slideTitle">슬라이드 생성기</div>
-              <div class="agent-desc" data-i18n="skills.slideDesc">주제와 자료를 바탕으로 프레젠테이션 슬라이드를 자동 생성합니다.</div>
-            </div>
-
-            <div class="agent-card">
-              <div class="agent-card-top">
-                <div class="agent-avatar" style="background:var(--gradient-brand);">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.38 0 2.5 1.12 2.5 2.5s-1.12 2.5-2.5 2.5H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5s-1.12-2.5-2.5-2.5z"/></svg>
-                </div>
-                <button class="card-add-btn added" disabled>
-                  <svg class="svg-icon" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>
-                </button>
-              </div>
-              <div class="agent-name" data-i18n="skills.creatorTitle">스킬 크리에이터</div>
-              <div class="agent-desc" data-i18n="skills.creatorDesc">전문 지식이나 반복 워크플로우를 재사용 가능한 스킬로 만듭니다.</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- View 10: Data Sources -->
-        <div id="view-datasources" class="tab-view" style="display:none; width:100%; max-width:860px;">
-          <div class="feature-banner-card" style="flex-direction:column; align-items:flex-start; margin-bottom:1.5rem;">
-            <h2 class="section-heading" data-i18n="datasources.heading">데이터 소스</h2>
-            <p class="section-desc" data-i18n="datasources.desc">내장 데이터 소스에 연결해 에이전트가 실시간 데이터를 바탕으로 답변하게 합니다.</p>
-          </div>
-
-          <div class="agent-grid">
-            <div class="agent-card">
-              <div class="agent-card-top">
-                <div class="agent-avatar" style="background:#fff; border:1px solid var(--border-light);">
-                  <img src="https://cdn.simpleicons.org/similarweb" alt="Similarweb" style="width:18px;height:18px;" onerror="this.style.display='none'">
-                </div>
-                <button class="card-add-btn added" disabled>
-                  <svg class="svg-icon" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>
-                </button>
-              </div>
-              <div class="agent-name">Similarweb</div>
-              <div class="agent-desc" data-i18n="datasources.similarwebDesc">웹사이트 트래픽, 순위, 마케팅 채널 및 리퍼럴 데이터를 조회합니다.</div>
-            </div>
-
-            <div class="agent-card">
-              <div class="agent-card-top">
-                <div class="agent-avatar" style="background:#0f172a;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm7.93 9h-3.11a15.6 15.6 0 0 0-1.06-5.24A8.01 8.01 0 0 1 19.93 11zM12 4.06c.83 1.2 1.48 2.83 1.87 4.94H10.13c.39-2.11 1.04-3.74 1.87-4.94z"/></svg>
-                </div>
-                <button class="card-add-btn added" disabled>
-                  <svg class="svg-icon" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>
-                </button>
-              </div>
-              <div class="agent-name">World Bank DataBank</div>
-              <div class="agent-desc" data-i18n="datasources.worldbankDesc">국가·소득그룹별 GDP, 인플레이션, 실업률, 인구 등 공식 통계를 가져옵니다.</div>
-            </div>
-
-            <div class="agent-card">
-              <div class="agent-card-top">
-                <div class="agent-avatar" style="background:#000000;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M18.9 2H22l-7.6 8.7L23 22h-6.9l-5.4-7-6.2 7H1.4l8.1-9.3L1 2h7l4.9 6.4L18.9 2zm-1.2 18h1.9L7.4 4H5.3l12.4 16z"/></svg>
-                </div>
-                <button class="card-add-btn added" disabled>
-                  <svg class="svg-icon" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>
-                </button>
-              </div>
-              <div class="agent-name">X (Twitter)</div>
-              <div class="agent-desc" data-i18n="datasources.xDesc">공개 게시물, 게시물 ID, @아이디 기반 데이터를 조회합니다.</div>
-            </div>
-
-            <div class="agent-card">
-              <div class="agent-card-top">
-                <div class="agent-avatar" style="background:#059669;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-                </div>
-                <button class="card-add-btn">
-                  <svg class="svg-icon" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-                </button>
-              </div>
-              <div class="agent-name">Brand24</div>
-              <div class="agent-desc" data-i18n="datasources.brand24Desc">브랜드 언급량, 감정 분석 및 인플루언서를 모니터링합니다.</div>
-            </div>
-
-            <div class="agent-card">
-              <div class="agent-card-top">
-                <div class="agent-avatar" style="background:#f97316;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-                </div>
-                <button class="card-add-btn">
-                  <svg class="svg-icon" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-                </button>
-              </div>
-              <div class="agent-name">Ahrefs</div>
-              <div class="agent-desc" data-i18n="datasources.ahrefsDesc">SEO 성능을 분석하고 순위를 추적하며 키워드를 리서치합니다.</div>
-            </div>
-
-            <div class="agent-card">
-              <div class="agent-card-top">
-                <div class="agent-avatar" style="background:#facc15;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#0f172a;"><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/></svg>
-                </div>
-                <button class="card-add-btn">
-                  <svg class="svg-icon" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-                </button>
-              </div>
-              <div class="agent-name">CoinGecko</div>
-              <div class="agent-desc" data-i18n="datasources.coingeckoDesc">실시간 시장 데이터, 가격, 트렌드 및 온체인 분석에 접근합니다.</div>
-            </div>
-
-            <div class="agent-card">
-              <div class="agent-card-top">
-                <div class="agent-avatar" style="background:#dc2626;">
-                  <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#fff;"><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/></svg>
-                </div>
-                <button class="card-add-btn">
-                  <svg class="svg-icon" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-                </button>
-              </div>
-              <div class="agent-name">Morningstar</div>
-              <div class="agent-desc" data-i18n="datasources.morningstarDesc">투자 리서치 및 증권 분석 데이터에 접근해 글로벌 증권을 파악합니다.</div>
-            </div>
-
-            <div class="agent-card agent-card-new" id="btn-datasource-custom">
-              <div class="agent-avatar" style="background:var(--bg-subtle); border:1.5px dashed var(--border-strong);">
-                <svg class="svg-icon" viewBox="0 0 24 24" style="width:20px;height:20px;color:var(--text-muted);"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-              </div>
-              <div class="agent-name" style="color:var(--text-muted);" data-i18n="datasources.customTitle">커스텀 데이터 소스 연결</div>
-              <div class="agent-desc" data-i18n="datasources.customDesc">REST API나 데이터베이스 커넥션 문자열로 직접 연결합니다.</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- View 11: Version Control (Git) -->
-        <div id="view-vcs" class="tab-view" style="display:none; width:100%; max-width:860px;">
-          <div class="feature-banner-card" style="flex-direction:column; align-items:flex-start; margin-bottom:1.5rem;">
-            <h2 class="section-heading" data-i18n="vcs.heading">버전 관리 (Git)</h2>
-            <p class="section-desc" data-i18n="vcs.desc">이 프로젝트의 실제 Git 저장소 상태를 읽기 전용으로 보여줍니다.</p>
-          </div>
-
-          <div id="vcs-loading" class="plugin-search-empty" data-i18n="vcs.loading">불러오는 중...</div>
-
-          <div id="vcs-content" style="display:none; width:100%;">
-            <div class="panel-card" style="margin-bottom:1.5rem; max-width:320px;">
-              <div class="panel-card-title" data-i18n="vcs.branchTitle">현재 브랜치</div>
-              <div class="metric-big" style="display:flex; align-items:center; gap:0.5rem; font-size:1.15rem;">
-                <svg class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:var(--primary-blue);"><path d="M7 3a3 3 0 0 0-1 5.83v6.34a3.001 3.001 0 1 0 2 0V14a3 3 0 0 0 2 .83h4.17A3.001 3.001 0 1 0 17 12a3.001 3.001 0 0 0-2.83 2H10a1 1 0 0 1-1-1V8.83A3 3 0 0 0 7 3zm0 2a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm0 12a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm10-4a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/></svg>
-                <span id="vcs-branch-name">—</span>
-              </div>
-            </div>
-
-            <div class="section-heading" style="font-size:1rem; margin-bottom:0.6rem;" data-i18n="vcs.changedFilesTitle">변경된 파일</div>
-            <div class="vcs-file-list" id="vcs-changed-files" style="margin-bottom:1.8rem;"></div>
-            <p id="vcs-no-changes" class="plugin-search-empty" style="display:none; padding:0.8rem 0; text-align:left;" data-i18n="vcs.noChanges">변경된 파일이 없습니다. 작업 디렉터리가 깨끗합니다.</p>
-
-            <div class="section-heading" style="font-size:1rem; margin-bottom:0.6rem;" data-i18n="vcs.commitsTitle">최근 커밋</div>
-            <div class="vcs-commit-graph" id="vcs-commits"></div>
-          </div>
-
-          <p id="vcs-error" class="plugin-search-empty" style="display:none;" data-i18n="vcs.unavailable">Git 저장소 정보를 불러올 수 없습니다.</p>
-        </div>
-
-        <!-- View 12: Settings -->
-        <div id="view-settings" class="tab-view" style="display:none; width:100%; max-width:960px;">
-          <div class="feature-banner-card" style="flex-direction:column; align-items:flex-start; margin-bottom:1.5rem;">
-            <h2 class="section-heading" data-i18n="settings.heading">설정</h2>
-            <p class="section-desc" data-i18n="settings.desc">계정, 개인화, 에이전트 실행 방식을 관리합니다.</p>
-          </div>
-
-          <div class="settings-shell">
-            <div class="settings-nav" id="settings-nav">
-              <button class="settings-nav-item active" data-settings-section="general" data-i18n="settings.navGeneral">일반</button>
-              <button class="settings-nav-item" data-settings-section="appearance" data-i18n="settings.navAppearance">모양</button>
-              <button class="settings-nav-item" data-settings-section="profile" data-i18n="settings.navProfile">프로필</button>
-              <button class="settings-nav-item" data-settings-section="personalization" data-i18n="settings.navPersonalization">개인 맞춤 설정</button>
-              <button class="settings-nav-item" data-settings-section="agent" data-i18n="settings.navAgent">구성 (에이전트)</button>
-            </div>
-
-            <div class="settings-content">
-              <!-- General -->
-              <div class="settings-section active" data-settings-section="general">
-                <div class="settings-card">
-                  <div class="settings-item">
+                <div class="side-field-group">
+                  <div class="side-field-label">Selected skill <a class="link-view-all">Change</a></div>
+                  <div class="skill-mini-card">
+                    <span class="star-purple">✦</span>
                     <div>
-                      <div class="settings-item-label" data-i18n="settings.language">언어</div>
-                      <div class="settings-item-desc" data-i18n="settings.languageDesc">콘솔 UI에 사용할 언어입니다.</div>
-                    </div>
-                    <select class="settings-select" id="settings-language-select">
-                      <option value="ko">한국어</option>
-                      <option value="en">English</option>
-                    </select>
-                  </div>
-                  <div class="settings-item">
-                    <div>
-                      <div class="settings-item-label" data-i18n="settings.timezone">시간대</div>
-                      <div class="settings-item-desc" data-i18n="settings.timezoneDesc">일정 및 실행 로그에 표시되는 시간대입니다.</div>
-                    </div>
-                    <span class="status-tag status-running">Asia/Seoul (UTC+9)</span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Appearance -->
-              <div class="settings-section" data-settings-section="appearance">
-                <div class="settings-section-title" data-i18n="settings.themeTitle">테마</div>
-                <div class="settings-section-subtitle" data-i18n="settings.themeSubtitle">라이트 테마만 현재 지원됩니다. 시스템/다크 테마는 준비 중입니다.</div>
-                <div class="settings-theme-grid">
-                  <div class="settings-theme-card" data-theme-option="system">
-                    <div class="settings-theme-preview theme-system"></div>
-                    <div class="settings-theme-label" data-i18n="settings.themeSystem">시스템</div>
-                  </div>
-                  <div class="settings-theme-card active" data-theme-option="light">
-                    <div class="settings-theme-preview theme-light"></div>
-                    <div class="settings-theme-label" data-i18n="settings.themeLight">라이트 모드</div>
-                  </div>
-                  <div class="settings-theme-card" data-theme-option="dark">
-                    <div class="settings-theme-preview theme-dark"></div>
-                    <div class="settings-theme-label" data-i18n="settings.themeDark">다크 모드</div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Profile -->
-              <div class="settings-section" data-settings-section="profile">
-                <div class="settings-card" style="padding:1.2rem;">
-                  <div class="settings-profile-header">
-                    <div class="settings-profile-avatar" data-i18n="user.avatarInitial">윤</div>
-                    <div>
-                      <div class="settings-profile-name">bjyoon</div>
-                      <div class="settings-profile-email">bjyoon@nagex.ai</div>
+                      <strong>Meeting Preparation</strong><br>
+                      <small>Plans and prepares for client meetings with context...</small>
                     </div>
                   </div>
-                  <div class="settings-item">
-                    <div>
-                      <div class="settings-item-label" data-i18n="settings.role">역할</div>
-                    </div>
-                    <span data-i18n="user.role">개인 / Admin</span>
-                  </div>
-                  <div class="settings-item">
-                    <div>
-                      <div class="settings-item-label" data-i18n="settings.plan">현재 플랜</div>
-                    </div>
-                    <span class="pro-badge" id="settings-plan-badge">NAgex 코어</span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Personalization -->
-              <div class="settings-section" data-settings-section="personalization">
-                <div class="settings-section-title" data-i18n="settings.customInstructionsTitle">맞춤형 지침</div>
-                <div class="settings-section-subtitle" data-i18n="settings.customInstructionsSubtitle">모든 작업에서 NAgex 에이전트가 참고할 추가 지침과 컨텍스트를 입력하세요.</div>
-                <textarea class="settings-textarea" id="settings-custom-instructions" data-i18n-placeholder="settings.customInstructionsPlaceholder" placeholder="맞춤형 지침 추가..."></textarea>
-                <div style="display:flex; justify-content:flex-end; margin-top:0.6rem; margin-bottom:1.8rem;">
-                  <button class="settings-btn" id="btn-save-instructions" data-i18n="settings.save">저장</button>
                 </div>
 
-                <div class="settings-section-title" data-i18n="settings.memoryTitle">메모리</div>
-                <div class="settings-section-subtitle" data-i18n="settings.memorySubtitle">NAgex Memory Engine이 대화에서 수집하는 정보를 관리합니다.</div>
-                <div class="settings-card">
-                  <div class="settings-item">
-                    <div>
-                      <div class="settings-item-label" data-i18n="settings.memoryEnable">로컬 메모리 활성화</div>
-                      <div class="settings-item-desc" data-i18n="settings.memoryEnableDesc">이 계정의 대화에서 메모리를 생성하고 향후 대화를 개인화하는 데 사용합니다.</div>
-                    </div>
-                    <label class="settings-toggle">
-                      <input type="checkbox" id="settings-memory-toggle">
-                      <span class="toggle-slider"></span>
-                    </label>
-                  </div>
-                  <div class="settings-item">
-                    <div>
-                      <div class="settings-item-label" data-i18n="settings.memoryClear">로컬 메모리 삭제</div>
-                      <div class="settings-item-desc" data-i18n="settings.memoryClearDesc">저장된 모든 메모리를 삭제합니다.</div>
-                    </div>
-                    <button class="settings-btn" id="btn-clear-memory" style="color:#dc2626; border-color:#fecaca;" data-i18n="settings.clear">삭제</button>
+                <div class="side-field-group">
+                  <div class="side-field-label">Selected tools <a class="link-view-all">Manage</a></div>
+                  <div class="tools-icons-row">
+                    <span class="tool-app-icon">N</span>
+                    <span class="tool-app-icon">📅</span>
+                    <span class="tool-app-icon">✉️</span>
+                    <span class="tool-app-icon">📁</span>
+                    <button class="tool-app-add">+</button>
                   </div>
                 </div>
-              </div>
 
-              <!-- Agent Configuration -->
-              <div class="settings-section" data-settings-section="agent">
-                <div class="settings-section-title" data-i18n="settings.agentTitle">에이전트 기본값</div>
-                <div class="settings-section-subtitle" data-i18n="settings.agentSubtitle">새 작업의 권한, 승인, 추론 수준을 설정합니다. NAGEX의 PDP(Policy Decision Point) 승인 게이트 및 Side Effect 분류와 연동됩니다.</div>
-                <div class="settings-card">
-                  <div class="settings-item">
-                    <div>
-                      <div class="settings-item-label" data-i18n="settings.approvalPolicy">승인 정책</div>
-                      <div class="settings-item-desc" data-i18n="settings.approvalPolicyDesc">에이전트가 IRREVERSIBLE_WRITE·PRIVILEGED_ACTION 작업 전에 승인을 요청할 시점을 선택합니다.</div>
+                <div class="side-field-group">
+                  <div class="side-field-label">Execution timeline <a class="link-view-all">View all</a></div>
+                  <div class="timeline-vertical-mini">
+                    <div class="time-item green">
+                      <span class="dot"></span>
+                      <div><strong>Memory loaded</strong><small>Apr 28, 9:01 AM • Relevant context retrieved (12 memories)</small></div>
                     </div>
-                    <select class="settings-select" id="settings-approval-select">
-                      <option value="always" data-i18n="settings.approvalAlways">항상 자동 실행</option>
-                      <option value="risky" selected data-i18n="settings.approvalRisky">위험 작업만 승인 요청</option>
-                      <option value="all" data-i18n="settings.approvalAll">항상 승인 필요</option>
-                    </select>
-                  </div>
-                  <div class="settings-item">
-                    <div>
-                      <div class="settings-item-label" data-i18n="settings.sandbox">샌드박스 설정</div>
-                      <div class="settings-item-desc" data-i18n="settings.sandboxDesc">명령 실행 시 에이전트에게 허용할 Side Effect 범위를 선택합니다.</div>
+                    <div class="time-item blue">
+                      <span class="dot"></span>
+                      <div><strong>Plan created</strong><small>Apr 28, 9:02 AM • 8 steps generated by NAgex</small></div>
                     </div>
-                    <select class="settings-select" id="settings-sandbox-select">
-                      <option value="read_only" selected data-i18n="settings.sandboxReadOnly">읽기 전용</option>
-                      <option value="reversible" data-i18n="settings.sandboxReversible">제한된 쓰기</option>
-                      <option value="full" data-i18n="settings.sandboxFull">전체 접근</option>
-                    </select>
-                  </div>
-                  <div class="settings-item">
-                    <div>
-                      <div class="settings-item-label" data-i18n="settings.reasoning">추론 수준</div>
-                      <div class="settings-item-desc" data-i18n="settings.reasoningDesc">Model Gateway가 라우팅할 기본 추론 강도입니다.</div>
+                    <div class="time-item orange">
+                      <span class="dot"></span>
+                      <div><strong>Approval requested</strong><small>Apr 28, 9:05 AM • Step 5 - Get stakeholder review</small></div>
                     </div>
-                    <select class="settings-select" id="settings-reasoning-select">
-                      <option value="auto" selected data-i18n="settings.reasoningAuto">자동</option>
-                      <option value="low" data-i18n="settings.reasoningLow">낮음</option>
-                      <option value="medium" data-i18n="settings.reasoningMedium">보통</option>
-                      <option value="high" data-i18n="settings.reasoningHigh">높음</option>
-                    </select>
+                    <div class="time-item purple">
+                      <span class="dot"></span>
+                      <div><strong>Tool executed</strong><small>Apr 29, 9:03 AM • Research completed with Perplexity</small></div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1842,52 +602,411 @@
           </div>
         </div>
 
-        <!-- View 9: AI Customer Support -->
-        <div id="view-support" class="tab-view" style="display:none; width:100%; max-width:780px;">
-          <div class="feature-banner-card" style="flex-direction:column; align-items:flex-start; margin-bottom:1.5rem;">
-            <h2 class="section-heading" data-i18n="support.heading">AI 고객센터</h2>
-            <p class="section-desc" data-i18n="support.desc">AI 상담원이 24시간 실시간으로 답변합니다. 복잡한 문의는 담당 팀으로 자동 연결돼요.</p>
+        <!-- VIEW 4: SKILLS -->
+        <div id="view-skills" class="tab-view">
+          <div class="view-header">
+            <div>
+              <h2 data-i18n="skills.title">Reusable Skills</h2>
+              <p class="view-subtitle" data-i18n="skills.subtitle">Skill = How NAgex performs a reusable task. Procedural behaviors defining execution rules.</p>
+            </div>
+            <div class="skills-distinction-pill">
+              <span data-i18n="skills.tagHow">Skill = How NAgex performs a task</span> |
+              <span data-i18n="skills.tagTool">Tool = What capability NAgex invokes</span>
+            </div>
           </div>
 
-          <div class="support-chip-row">
-            <button class="support-chip" data-faq="credits" data-i18n="support.faqCredits">코어는 언제 초기화되나요?</button>
-            <button class="support-chip" data-faq="upgrade" data-i18n="support.faqUpgrade">프라임으로 업그레이드하려면?</button>
-            <button class="support-chip" data-faq="tenant" data-i18n="support.faqTenant">테넌트란 무엇인가요?</button>
-            <button class="support-chip" data-faq="plugins" data-i18n="support.faqPlugins">플러그인은 어떻게 연동하나요?</button>
-            <button class="support-chip" data-faq="projects" data-i18n="support.faqProjects">프로젝트는 어떻게 만드나요?</button>
-            <button class="support-chip" data-faq="git" data-i18n="support.faqGit">버전 관리(Git)는 어디서 보나요?</button>
-            <button class="support-chip" data-faq="human" data-i18n="support.faqHuman">담당자와 직접 이야기하고 싶어요</button>
+          <div class="skills-grid" id="skills-grid-container">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+        <!-- VIEW 5: TOOLS -->
+        <div id="view-tools" class="tab-view">
+          <div class="view-header">
+            <div>
+              <h2 data-i18n="tools.title">Executable Tools</h2>
+              <p class="view-subtitle" data-i18n="tools.subtitle">Tool = What capability NAgex invokes. Integration endpoints with explicit safety policies.</p>
+            </div>
           </div>
 
-          <div class="support-chat-panel">
-            <div class="support-chat-messages" id="support-chat-messages">
-              <div class="chat-message ai">
-                <div class="chat-avatar ai-avatar">AI</div>
-                <div class="chat-bubble" data-i18n="support.welcome">안녕하세요! NAgex AI 상담원입니다. 코어, 요금제, 에이전트 사용법 등 무엇이든 물어보세요.</div>
+          <div class="tools-grid" id="tools-grid-container">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+        <!-- VIEW 6: MOBILE APPROVALS & CONNECTED TOOLS (MOCKUP IMAGE 3) -->
+        <div id="view-approvals" class="tab-view">
+          <div class="mountain-hero-banner-sub">
+            <span class="eyebrow-text">HUMAN-CONTROLLED AUTONOMY</span>
+            <h1 class="personal-hero-title">Approvals</h1>
+            <p class="personal-hero-subtitle">You're always in control.</p>
+            <p class="hero-desc-sub">NAgex proposes actions and waits for your approval before taking consequential steps.</p>
+          </div>
+
+          <div class="approvals-tabs">
+            <button class="appr-tab-btn active" data-appr-filter="PENDING">🛡️ Pending (2)</button>
+            <button class="appr-tab-btn" data-appr-filter="APPROVED">🕒 History</button>
+          </div>
+
+          <!-- Pending Approval Card (Mockup Image 3) -->
+          <div class="mockup-approval-card">
+            <div class="card-header-appr">
+              <div class="appr-title-left">
+                <span class="appr-tool-badge gmail">✉️</span>
+                <div>
+                  <h3>Create Google Calendar event</h3>
+                  <small>Google Calendar • Scheduling</small>
+                </div>
+              </div>
+              <span class="time-ago">2m ago</span>
+            </div>
+
+            <div class="appr-details-list">
+              <div class="appr-detail-row">
+                <span class="icon">📅</span>
+                <span class="lbl">Event</span>
+                <div class="val"><strong>Product Strategy Sync</strong><br><small>Tue, Apr 29, 2025 11:00 AM – 12:00 PM (1 hour)<br>With: Sarah Kim, James Park, Alex Chen (3 guests)</small></div>
+              </div>
+              <div class="appr-detail-row">
+                <span class="icon">📊</span>
+                <span class="lbl">Impact</span>
+                <div class="val">Adds a calendar event and sends invitations to 3 people.</div>
+              </div>
+              <div class="appr-detail-row">
+                <span class="icon">🛢️</span>
+                <span class="lbl">Data involved</span>
+                <div class="val">Your Google Calendar, guest emails, meeting title and agenda</div>
+              </div>
+              <div class="appr-detail-row">
+                <span class="icon">📝</span>
+                <span class="lbl">Reason</span>
+                <div class="val">You asked me to schedule a follow-up meeting after the product review.</div>
               </div>
             </div>
 
-            <div class="support-chat-input-row">
-              <input type="text" id="support-chat-input" class="support-chat-input" data-i18n-placeholder="support.inputPlaceholder" placeholder="궁금한 점을 입력하세요...">
-              <button class="btn-chat-run" id="btn-support-send" style="border-radius:12px;">
-                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-              </button>
+            <div class="appr-card-btn-row">
+              <button class="btn-reject-outline" onclick="alert('Approval Rejected')">✕ Reject</button>
+              <button class="btn-approve-blue" onclick="alert('Approval Granted & Action Executed')">✓ Approve</button>
+            </div>
+          </div>
+
+          <!-- Connected Tools List Section (Mockup Image 3) -->
+          <div class="connected-tools-section">
+            <div class="section-title-row">
+              <h3>Connected tools</h3>
+              <a class="link-manage" onclick="window.NAGEX.switchTab('tab-tools')">Manage tools &rarr;</a>
+            </div>
+            <div class="tools-compact-list">
+              <div class="tool-compact-item">
+                <div class="left">
+                  <span class="icon gmail">✉️</span>
+                  <div><strong>Gmail</strong><br><small>Send and manage emails</small></div>
+                </div>
+                <span class="badge-status green">✓ Connected &gt;</span>
+              </div>
+              <div class="tool-compact-item">
+                <div class="left">
+                  <span class="icon gcal">📅</span>
+                  <div><strong>Google Calendar</strong><br><small>Manage your schedule</small></div>
+                </div>
+                <span class="badge-status green">✓ Connected &gt;</span>
+              </div>
+              <div class="tool-compact-item">
+                <div class="left">
+                  <span class="icon notion">N</span>
+                  <div><strong>Notion</strong><br><small>Create and update pages</small></div>
+                </div>
+                <span class="badge-appr-req">🛡️ Approval Required &gt;</span>
+              </div>
+              <div class="tool-compact-item">
+                <div class="left">
+                  <span class="icon slack">💬</span>
+                  <div><strong>Slack</strong><br><small>Send messages and notify teams</small></div>
+                </div>
+                <span class="badge-status green">✓ Connected &gt;</span>
+              </div>
+              <div class="tool-compact-item">
+                <div class="left">
+                  <span class="icon search">🔍</span>
+                  <div><strong>Web Search</strong><br><small>Find up-to-date information</small></div>
+                </div>
+                <span class="badge-appr-req">🛡️ Approval Required &gt;</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent Activity Section -->
+          <div class="recent-activity-section">
+            <div class="section-title-row">
+              <h3>Recent activity</h3>
+              <a class="link-manage" onclick="window.NAGEX.switchTab('tab-executions')">View all &rarr;</a>
+            </div>
+            <div class="activity-card">
+              <span class="check-circle green">✓</span>
+              <div class="act-info">
+                <strong>Email sent to client</strong><br>
+                <small>Gmail • To: client@acme.co</small><br>
+                <em>"Shared the updated proposal and next steps."</em>
+              </div>
+              <span class="act-time">Apr 28, 4:32 PM &gt;</span>
             </div>
           </div>
         </div>
-      </section>
+
+        <!-- VIEW 7: EXECUTIONS -->
+        <div id="view-executions" class="tab-view">
+          <div class="view-header">
+            <div>
+              <h2 data-i18n="executions.title">Executions & Audit Timeline</h2>
+              <p class="view-subtitle" data-i18n="executions.subtitle">Live execution lifecycle tracking from goal intake to verified outcome and memory update.</p>
+            </div>
+          </div>
+
+          <div class="executions-container" id="executions-list-container">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+        <!-- VIEW 8: KNOWLEDGE -->
+        <div id="view-knowledge" class="tab-view">
+          <div class="view-header">
+            <div>
+              <h2 data-i18n="knowledge.title">Reference Knowledge</h2>
+              <p class="view-subtitle" data-i18n="knowledge.subtitle">External files, documents, and reference materials NAgex can access during reasoning (Knowledge ≠ Memory).</p>
+            </div>
+          </div>
+
+          <div class="knowledge-grid" id="knowledge-list-container">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+        <!-- VIEW 9: SETTINGS -->
+        <div id="view-settings" class="tab-view">
+          <div class="view-header">
+            <div>
+              <h2 data-i18n="settings.title">Personal AI & Provider Settings</h2>
+              <p class="view-subtitle" data-i18n="settings.subtitle">Configure Quick Wake invocation triggers, autonomy levels, connected tools, and Nebius / NVIDIA runtime integrations.</p>
+            </div>
+          </div>
+
+          <div class="settings-sections-list">
+            <div class="settings-card">
+              <h3 data-i18n="settings.providers">Nebius & NVIDIA Model Gateway</h3>
+              <div class="provider-status-row">
+                <div class="provider-box">
+                  <div class="provider-name">Nebius AI Cloud Runtime</div>
+                  <span class="badge-status green">Connected</span>
+                  <p class="setting-sub" style="margin-top:0.25rem;">Token Factory & High-throughput Agent Execution</p>
+                </div>
+                <div class="provider-box">
+                  <div class="provider-name">NVIDIA Nemotron Open Model</div>
+                  <span class="badge-status green">Active via Gateway</span>
+                  <p class="setting-sub" style="margin-top:0.25rem;">Reasoning, Planning & Structured Tool Dispatch</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <h3 data-i18n="settings.quickWake">Quick Wake Invocation</h3>
+              <div class="settings-options-group" id="quickwake-settings-options">
+                <!-- Dynamically populated -->
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <h3 data-i18n="settings.autonomy">Autonomy Level</h3>
+              <div class="autonomy-selector-group" id="autonomy-selector-container">
+                <!-- Dynamically populated -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- VIEW 10: MOCKUP REFERENCES -->
+        <div id="view-mockups" class="tab-view">
+          <div class="view-header">
+            <div>
+              <h2 data-i18n="mockups.title">Design Mockup Reference Viewer</h2>
+              <p class="view-subtitle">Inspect the four canonical NAgex design mockup layout specifications.</p>
+            </div>
+          </div>
+
+          <div class="mockup-selector-row">
+            <button class="mock-nav-btn active" data-mockup="m01" data-i18n="mockups.m01">Mockup 01 — Home / Personal AI</button>
+            <button class="mock-nav-btn" data-mockup="m02" data-i18n="mockups.m02">Mockup 02 — Memory</button>
+            <button class="mock-nav-btn" data-mockup="m03" data-i18n="mockups.m03">Mockup 03 — Plan & Execute</button>
+            <button class="mock-nav-btn" data-mockup="m04" data-i18n="mockups.m04">Mockup 04 — Approvals & Tools</button>
+          </div>
+
+          <div class="mockup-preview-display" id="mockup-preview-container">
+            <!-- Dynamically populated preview layout -->
+          </div>
+        </div>
+
+      </main>
     </div>
-  </div>
 
-  <!-- Free-tier house ad. Only shown when the account is on the Free plan.
-       By design there is no dismiss/close control — upgrading to Pro is the
-       only way to remove it (see #ad-widget-free in app.js). -->
-  <div class="ad-widget-free" id="ad-widget-free">
-    <span class="ad-label" data-i18n="ad.label">광고</span>
-    <div class="ad-body">
-      <div class="ad-headline" data-i18n="ad.headline">광고 없이 NAgex 프라임으로 더 빠르게 작업하세요</div>
-      <button class="ad-cta" id="btn-ad-upgrade" data-i18n="ad.cta">업그레이드</button>
+    <!-- Mobile Bottom Navigation Bar (Mockup Image 3) -->
+    <nav class="mobile-bottom-nav">
+      <button class="mob-nav-item active" onclick="window.NAGEX.switchTab('tab-home')">
+        <span class="icon">🏠</span>
+        <span>Home</span>
+      </button>
+      <button class="mob-nav-item" onclick="window.NAGEX.switchTab('tab-plans')">
+        <span class="icon">📅</span>
+        <span>Plans</span>
+      </button>
+      <button class="mob-nav-item" onclick="window.NAGEX.switchTab('tab-tools')">
+        <span class="icon">🎛️</span>
+        <span>Tools</span>
+      </button>
+      <button class="mob-nav-item" onclick="window.NAGEX.switchTab('tab-approvals')">
+        <span class="icon">🛡️</span>
+        <span>Approvals</span>
+        <span class="dot-unread"></span>
+      </button>
+      <button class="mob-nav-item" onclick="window.NAGEX.switchTab('tab-memory')">
+        <span class="icon">🧠</span>
+        <span>Memory</span>
+      </button>
+    </nav>
+
+    <!-- Floating Quick Wake Button -->
+    <button class="floating-quickwake-btn" id="btn-floating-quickwake" title="NAgex Quick Wake (Alt+N)">
+      <svg class="svg-icon" viewBox="0 0 24 24"><path d="M11 21h-1l1-7H7.5c-.88 0-.33-.75-.32-.78C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.49 0 .56.33.47.51C14.7 15.1 12.3 19.1 11 21z"/></svg>
+    </button>
+
+    <!-- AMBIENT ASSISTANT OVERLAY SHEET (MOCKUP IMAGE 1) -->
+    <div class="ambient-overlay-backdrop" id="ambient-overlay-backdrop" style="display:none;">
+      <div class="ambient-sheet-modal">
+        <div class="ambient-sheet-header">
+          <div class="ambient-brand-title">
+            <span class="brand-icon-n" style="width:20px;height:20px;font-size:0.7rem;">N</span>
+            <span>NAgex</span>
+          </div>
+          <button class="ambient-close-btn" id="btn-close-ambient">&times;</button>
+        </div>
+
+        <div class="ambient-sheet-body">
+          <!-- Floating Voice Widget (Mockup Image 1) -->
+          <div class="ambient-voice-card">
+            <div class="voice-card-top">
+              <div class="glowing-mic-icon">🎙️</div>
+              <div>
+                <strong data-i18n="ambient.listening">Listening...</strong><br>
+                <span class="voice-prompt-title">What would you like me to do?</span>
+              </div>
+            </div>
+
+            <div class="ambient-voice-waveform" id="ambient-waveform">
+              <div class="wave-bar"></div>
+              <div class="wave-bar"></div>
+              <div class="wave-bar"></div>
+              <div class="wave-bar"></div>
+              <div class="wave-bar"></div>
+              <div class="wave-bar"></div>
+              <div class="wave-bar"></div>
+            </div>
+
+            <div class="voice-controls-bar">
+              <button class="btn-circle-sub">📎</button>
+              <button class="btn-circle-sub">⌨️</button>
+              <button class="btn-circle-mic-primary">🎙️</button>
+              <div class="ambient-type-input-wrap">
+                <input type="text" id="ambient-prompt-input" placeholder="Or type a message..." value="Prepare my next client meeting and schedule it.">
+                <button class="btn-send-mini" id="btn-ambient-run">✈️</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- User & NAgex Chat Speech Bubbles -->
+          <div class="ambient-chat-bubbles">
+            <div class="chat-bubble user">
+              <div class="avatar">👤</div>
+              <div class="bubble-text">Prepare my next client meeting and schedule it.</div>
+            </div>
+
+            <div class="chat-bubble nagex">
+              <div class="avatar-n">N</div>
+              <div class="bubble-text">
+                <p>I can help with that. Here's my plan:</p>
+                <div class="ambient-mini-plan-card">
+                  <div class="mini-step">
+                    <span class="icon">📅</span>
+                    <span class="num">1</span>
+                    <div><strong>Check calendar</strong><br><small>Find a suitable time and avoid conflicts</small></div>
+                  </div>
+                  <div class="mini-step">
+                    <span class="icon">📄</span>
+                    <span class="num">2</span>
+                    <div><strong>Gather context</strong><br><small>Review client details, past conversations, and relevant documents</small></div>
+                  </div>
+                  <div class="mini-step">
+                    <span class="icon">👤+</span>
+                    <span class="num">3</span>
+                    <div><strong>Create calendar event</strong><br><small>Add the meeting with agenda and send invites</small></div>
+                  </div>
+                  <div class="mini-plan-btns">
+                    <button class="btn-review-plan-outline" id="btn-review-plan">Review Plan</button>
+                    <button class="btn-run-blue-primary" id="btn-run-ambient-plan">▶ Run</button>
+                  </div>
+                </div>
+                <div class="policy-notice-pill">
+                  🛡️ I'll request your approval when needed. ℹ️
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="ambient-progress-container" id="ambient-progress-container" style="display:none;">
+            <div class="progress-step-text" id="ambient-progress-text">Understanding request...</div>
+            <div class="progress-track"><div class="progress-fill" id="ambient-progress-fill" style="width: 20%;"></div></div>
+          </div>
+        </div>
+      </div>
     </div>
+
+    <!-- APPROVAL PROMPT MODAL OVERLAY (MOCKUP IMAGE 3) -->
+    <div class="approval-modal-backdrop" id="approval-modal-backdrop" style="display:none;">
+      <div class="approval-modal-card">
+        <div class="approval-modal-header">
+          <span class="appr-modal-icon">🛡️</span>
+          <h3 data-i18n="ambient.approvalRequired">Human Approval Required</h3>
+        </div>
+        <div class="approval-modal-body">
+          <div class="appr-field">
+            <span class="appr-label" data-i18n="ambient.action">Action</span>
+            <span class="appr-value" id="appr-field-action">Create Google Calendar event</span>
+          </div>
+          <div class="appr-field">
+            <span class="appr-label">Event</span>
+            <span class="appr-value" id="appr-field-event">Product Strategy Sync (Tue, Apr 29, 2025 11:00 AM)</span>
+          </div>
+          <div class="appr-field">
+            <span class="appr-label" data-i18n="ambient.impact">Impact</span>
+            <span class="appr-value" style="color:var(--status-warning);">Adds a calendar event and sends invitations to 3 people.</span>
+          </div>
+          <div class="appr-field">
+            <span class="appr-label" data-i18n="ambient.sharedData">Data involved</span>
+            <div class="appr-tags" id="appr-field-data">
+              <span class="data-tag">Your Google Calendar</span>
+              <span class="data-tag">Guest emails</span>
+              <span class="data-tag">Meeting title & agenda</span>
+            </div>
+          </div>
+          <div class="appr-field">
+            <span class="appr-label" data-i18n="ambient.why">Reason</span>
+            <p class="appr-reason-text" id="appr-field-why">You asked me to schedule a follow-up meeting after the product review.</p>
+          </div>
+        </div>
+        <div class="approval-modal-footer">
+          <button class="btn-reject-outline" id="btn-modal-reject" data-i18n="ambient.reject">✕ Reject</button>
+          <button class="btn-approve-blue" id="btn-modal-approve" data-i18n="ambient.approve">✓ Approve</button>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <script src="i18n.js"></script>
