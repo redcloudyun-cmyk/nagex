@@ -32,8 +32,21 @@
   // Guards the activity timeline against logging the same lifecycle event
   // twice for the same plan/approval — e.g. "Plan created" must appear once
   // per generated plan even if plan generation and resolution/UI hydration
-  // both end up trying to record it.
+  // both end up trying to record it. Deliberately never reset: every real
+  // plan/approval id is a fresh, globally-unique value minted server-side,
+  // so a key can never legitimately recur — resetting this on every ambient
+  // overlay open would only reintroduce a way for a genuine duplicate call
+  // to slip back through.
   const ambientTimelineDeduper = window.NAGEX_TIMELINE_DEDUPE ? window.NAGEX_TIMELINE_DEDUPE.createDeduper() : null;
+
+  // The actual root cause of a duplicate "Plan created": two separate calls
+  // into the generation pipeline (from any combination of the composer, a
+  // quick-action chip, the demo scenario button, etc.) each legitimately
+  // mint their own requestId — the per-plan dedupe above correctly does NOT
+  // merge them, because they really are two different plans. This guard
+  // stops a second generation from ever starting while one is still in
+  // flight, regardless of which control tried to start it.
+  const ambientRunGuard = window.NAGEX_SINGLE_FLIGHT ? window.NAGEX_SINGLE_FLIGHT.createSingleFlightGuard() : null;
 
   function updateFlowStage(stageLabel) {
     const el = document.getElementById('ambient-flow-stepper');
@@ -59,7 +72,6 @@
     const timelineList = document.getElementById('ambient-timeline-list');
     if (timeline) timeline.style.display = 'none';
     if (timelineList) timelineList.innerHTML = '';
-    if (ambientTimelineDeduper) ambientTimelineDeduper.reset();
     if (state.approvalCountdownTimer) {
       clearInterval(state.approvalCountdownTimer);
       state.approvalCountdownTimer = null;
@@ -718,55 +730,64 @@
   }
 
   async function runAmbientTask(promptText) {
-    const progress = document.getElementById('ambient-progress-container');
-    const fill = document.getElementById('ambient-progress-fill');
-    const text = document.getElementById('ambient-progress-text');
-    const preview = document.getElementById('ambient-plan-preview');
-    const planSteps = document.getElementById('ambient-plan-steps');
-    const resultCard = document.getElementById('ambient-result-card');
-    const resultText = document.getElementById('ambient-result-text');
+    // Single-flight: while one generation is in flight, ignore any further
+    // trigger rather than starting a second, legitimately-different plan
+    // for what the user perceives as one action.
+    if (ambientRunGuard && !ambientRunGuard.tryEnter()) return;
+    try {
+      const progress = document.getElementById('ambient-progress-container');
+      const fill = document.getElementById('ambient-progress-fill');
+      const text = document.getElementById('ambient-progress-text');
+      const preview = document.getElementById('ambient-plan-preview');
+      const planSteps = document.getElementById('ambient-plan-steps');
+      const resultCard = document.getElementById('ambient-result-card');
+      const resultText = document.getElementById('ambient-result-text');
 
-    updateFlowStage('User message');
-    if (progress) progress.style.display = 'flex';
-    if (fill) fill.style.width = '20%';
-    if (text) text.textContent = 'Understanding request & recalling memory...';
+      updateFlowStage('User message');
+      if (progress) progress.style.display = 'flex';
+      if (fill) fill.style.width = '20%';
+      if (text) text.textContent = 'Understanding request & recalling memory...';
 
-    if (fill) fill.style.width = '50%';
-    if (text) text.textContent = 'Routing to the best available model & creating a plan...';
+      if (fill) fill.style.width = '50%';
+      if (text) text.textContent = 'Routing to the best available model & creating a plan...';
 
-    const res = await apiFetch('/api/v1/ambient/intent', {
-      method: 'POST',
-      body: JSON.stringify({ prompt: promptText }),
-    });
+      const res = await apiFetch('/api/v1/ambient/intent', {
+        method: 'POST',
+        body: JSON.stringify({ prompt: promptText }),
+      });
 
-    if (!res || res.error) {
-      if (text) text.textContent = res?.error?.message || 'Unable to generate a plan.';
-      return;
-    }
+      if (!res || res.error) {
+        if (text) text.textContent = res?.error?.message || 'Unable to generate a plan.';
+        return;
+      }
 
-    if (fill) fill.style.width = '100%';
-    if (text) text.textContent = `Plan ready via ${res.provider} · ${res.model} · ${res.latencyMs}ms`;
+      if (fill) fill.style.width = '100%';
+      if (text) text.textContent = `Plan ready via ${res.provider} · ${res.model} · ${res.latencyMs}ms`;
 
-    updateFlowStage('Plan Preview');
-    addTimelineEntry('Plan created', res.requestId);
+      updateFlowStage('Plan Preview');
+      addTimelineEntry('Plan created', res.requestId);
 
-    if (preview && planSteps && res.plan) {
-      preview.style.display = 'block';
-      planSteps.innerHTML = res.plan.steps
-        .map((s) => `<div class="step-row">
-          <span class="step-num">${s.step}.</span>
-          <span class="step-name"><strong>${escapeHtml(s.title)}</strong><br><small>${escapeHtml(s.reasoning)} · Skill: ${escapeHtml(s.skill)}${s.tool ? ` · Tool: ${escapeHtml(s.tool)}` : ''}${s.requiresApproval ? ' · Approval required' : ''}</small></span>
-        </div>`)
-        .join('');
-    }
+      if (preview && planSteps && res.plan) {
+        preview.style.display = 'block';
+        planSteps.innerHTML = res.plan.steps
+          .map((s) => `<div class="step-row">
+            <span class="step-num">${s.step}.</span>
+            <span class="step-name"><strong>${escapeHtml(s.title)}</strong><br><small>${escapeHtml(s.reasoning)} · Skill: ${escapeHtml(s.skill)}${s.tool ? ` · Tool: ${escapeHtml(s.tool)}` : ''}${s.requiresApproval ? ' · Approval required' : ''}</small></span>
+          </div>`)
+          .join('');
+      }
 
-    // res.requestId is this plan's stable identity for the rest of the flow
-    // (resolution, approval preparation, UI hydration) — never re-minted.
-    if (res.plan) await resolvePlanIntoUi(res.plan, promptText, res.requestId);
+      // res.requestId is this plan's stable identity for the rest of the
+      // flow (resolution, approval preparation, UI hydration) — never
+      // re-minted.
+      if (res.plan) await resolvePlanIntoUi(res.plan, promptText, res.requestId);
 
-    if (resultCard && resultText) {
-      resultCard.style.display = 'block';
-      resultText.textContent = `${res.plan.summary} No tools have been executed. Request ID: ${res.requestId}`;
+      if (resultCard && resultText) {
+        resultCard.style.display = 'block';
+        resultText.textContent = `${res.plan.summary} No tools have been executed. Request ID: ${res.requestId}`;
+      }
+    } finally {
+      if (ambientRunGuard) ambientRunGuard.exit();
     }
   }
 
