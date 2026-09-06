@@ -33,14 +33,14 @@ const NO_CACHE_HEADERS = {
   Pragma: 'no-cache',
   Expires: '0',
 } as const;
-const MUTABLE_FRONTEND_FILES = new Set(['index.html', 'style.css', 'app.js', 'i18n.js', 'plan-resolution-view.js', 'legal.js', 'privacy.html', 'terms.html']);
+const MUTABLE_FRONTEND_FILES = new Set(['index.html', 'style.css', 'app.js', 'i18n.js', 'plan-resolution-view.js', 'calendar-approval-view.js', 'legal.js', 'privacy.html', 'terms.html']);
 const VERSIONED_HTML_FILES = new Set(['index.html', 'privacy.html', 'terms.html']);
 const CLEAN_URL_ALIASES: Record<string, string> = { '/privacy': 'privacy.html', '/terms': 'terms.html' };
 const BUILD_VERSION_PLACEHOLDER = '__NAGEX_BUILD_VERSION__';
 
 function createBuildVersion(): string {
   const hash = crypto.createHash('sha256');
-  for (const filename of ['style.css', 'i18n.js', 'plan-resolution-view.js', 'legal.js', 'app.js']) {
+  for (const filename of ['style.css', 'i18n.js', 'plan-resolution-view.js', 'calendar-approval-view.js', 'legal.js', 'app.js']) {
     hash.update(filename);
     hash.update(fs.readFileSync(path.join(PUBLIC_DIR, filename)));
   }

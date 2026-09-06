@@ -862,6 +862,10 @@
         </div>
 
         <div class="ambient-sheet-body">
+          <!-- Ambient Assistant flow stepper: User message -> Plan Preview ->
+               Plan Resolution -> Approval Card -> Human Approval -> Execution -> Result -->
+          <div class="ambient-flow-stepper" id="ambient-flow-stepper" aria-live="polite"></div>
+
           <!-- Floating Voice Widget (Mockup Image 1) -->
           <div class="ambient-voice-card">
             <div class="voice-card-top">
@@ -950,6 +954,11 @@
             <div class="resolution-actions" id="ambient-resolution-actions"></div>
           </section>
 
+          <section class="ambient-timeline" id="ambient-timeline" style="display:none;" aria-live="polite">
+            <h3>Activity Timeline</h3>
+            <ol class="ambient-timeline-list" id="ambient-timeline-list"></ol>
+          </section>
+
           <section class="ambient-result-card" id="ambient-result-card" style="display:none;" aria-live="polite">
             <strong>Model response</strong>
             <p id="ambient-result-text"></p>
@@ -1002,6 +1011,7 @@
 
   <script src="i18n.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="plan-resolution-view.js?v=__NAGEX_BUILD_VERSION__"></script>
+  <script src="calendar-approval-view.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="app.js?v=__NAGEX_BUILD_VERSION__"></script>
 </body>
 </html>

@@ -16,7 +16,43 @@
     activeMockup: 'm01',
     pendingIntentResponse: null,
     googleOAuth: { configured: false, connected: false, scopes: [], expiresAt: null },
+    approvalCountdownTimer: null,
   };
+
+  var FLOW_STAGES = ['User message', 'Plan Preview', 'Plan Resolution', 'Approval Card', 'Human Approval', 'Execution', 'Result'];
+
+  function updateFlowStage(stageLabel) {
+    const el = document.getElementById('ambient-flow-stepper');
+    if (!el) return;
+    const activeIdx = FLOW_STAGES.indexOf(stageLabel);
+    el.innerHTML = FLOW_STAGES.map((s, idx) => {
+      const cls = idx === activeIdx ? 'flow-stage active' : idx < activeIdx ? 'flow-stage done' : 'flow-stage';
+      return `<span class="${cls}">${escapeHtml(s)}</span>`;
+    }).join('');
+  }
+
+  function resetAmbientFlowUi() {
+    updateFlowStage(null);
+    const timeline = document.getElementById('ambient-timeline');
+    const timelineList = document.getElementById('ambient-timeline-list');
+    if (timeline) timeline.style.display = 'none';
+    if (timelineList) timelineList.innerHTML = '';
+    if (state.approvalCountdownTimer) {
+      clearInterval(state.approvalCountdownTimer);
+      state.approvalCountdownTimer = null;
+    }
+  }
+
+  function addTimelineEntry(label) {
+    const timeline = document.getElementById('ambient-timeline');
+    const list = document.getElementById('ambient-timeline-list');
+    if (!timeline || !list) return;
+    timeline.style.display = 'block';
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const li = document.createElement('li');
+    li.innerHTML = `<span>${escapeHtml(label)}</span><span class="timeline-time">${time}</span>`;
+    list.appendChild(li);
+  }
 
   async function apiFetch(endpoint, options = {}) {
     try {
@@ -526,6 +562,7 @@
     if (preview) preview.style.display = 'none';
     if (resolution) resolution.style.display = 'none';
     if (result) result.style.display = 'none';
+    resetAmbientFlowUi();
   }
 
   function closeAmbientOverlay() {
@@ -562,6 +599,7 @@
     const resultCard = document.getElementById('ambient-result-card');
     const resultText = document.getElementById('ambient-result-text');
 
+    updateFlowStage('User message');
     if (progress) progress.style.display = 'flex';
     if (fill) fill.style.width = '20%';
     if (text) text.textContent = 'Understanding request & recalling memory...';
@@ -581,6 +619,9 @@
 
     if (fill) fill.style.width = '100%';
     if (text) text.textContent = `Plan ready via ${res.provider} · ${res.model} · ${res.latencyMs}ms`;
+
+    updateFlowStage('Plan Preview');
+    addTimelineEntry('Plan created');
 
     if (preview && planSteps && res.plan) {
       preview.style.display = 'block';
@@ -624,6 +665,8 @@
       actionsEl.innerHTML = '';
       return;
     }
+
+    updateFlowStage('Plan Resolution');
 
     const vm = view.buildResolutionViewModel(resolved);
 
@@ -770,15 +813,59 @@
     }
   }
 
+  const GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID = 'google_calendar.create_event';
+
+  function renderCalendarApprovalCard(slot, approval, view) {
+    const vmView = view.buildCardViewModel(approval, Date.now());
+    const f = vmView.fields;
+    slot.innerHTML = `
+      <div class="calendar-approval-card">
+        <h4>Approval required</h4>
+        <dl class="calendar-approval-fields">
+          <div><dt>Title</dt><dd>${escapeHtml(f.title)}</dd></div>
+          <div><dt>Description</dt><dd>${escapeHtml(f.description) || '—'}</dd></div>
+          <div><dt>Date</dt><dd>${escapeHtml(f.date)}</dd></div>
+          <div><dt>Start time</dt><dd>${escapeHtml(f.startTime)}</dd></div>
+          <div><dt>End time</dt><dd>${escapeHtml(f.endTime)}</dd></div>
+          <div><dt>Timezone</dt><dd>${escapeHtml(f.timezone)}</dd></div>
+          <div><dt>Calendar</dt><dd>${escapeHtml(f.calendar)}</dd></div>
+          <div><dt>Attendees</dt><dd>${f.attendees.length ? escapeHtml(f.attendees.join(', ')) : 'None'}</dd></div>
+        </dl>
+        <p class="calendar-approval-status" id="calendar-approval-status">${escapeHtml(vmView.statusLabel)}</p>
+        <p class="calendar-approval-expiry" id="calendar-approval-expiry">${vmView.countdownLabel ? escapeHtml(vmView.countdownLabel) : ''}</p>
+        <div class="calendar-preview-actions">
+          <button class="btn-reject-outline" id="btn-calendar-reject" ${vmView.rejectDisabled ? 'disabled' : ''}>Reject</button>
+          <button class="btn-plan-action plan-status-ready" id="btn-calendar-approve" ${vmView.approveDisabled ? 'disabled' : ''}>Approve & Create</button>
+        </div>
+      </div>`;
+    return vmView;
+  }
+
+  function renderCalendarSuccessCard(slot, approval, result, view) {
+    const successVm = view.buildSuccessViewModel(approval.canonicalPayload, result);
+    slot.innerHTML = `
+      <div class="calendar-preview-card">
+        <h4>Calendar event created</h4>
+        <p><strong>${escapeHtml(successVm.title)}</strong></p>
+        <p>${escapeHtml(successVm.date)} ${escapeHtml(successVm.startTime)}–${escapeHtml(successVm.endTime)} (${escapeHtml(successVm.timezone)})</p>
+        <p>Execution ID: ${escapeHtml(successVm.executionId)}</p>
+        <a class="btn-plan-action plan-status-ready" href="${encodeURI(successVm.externalUrl)}" target="_blank" rel="noopener">Open in Google Calendar →</a>
+      </div>`;
+  }
+
   async function requestCalendarApproval(payload) {
     const slot = document.getElementById('calendar-preview-slot');
     const form = document.getElementById('calendar-compose-form');
-    if (!slot) return;
+    const view = window.NAGEX_CALENDAR_APPROVAL_VIEW;
+    if (!slot || !view) return;
     slot.innerHTML = `<p>Requesting approval…</p>`;
 
-    const approval = await apiFetch('/api/v1/approvals/calendar-event', {
+    // Step 3: the approval API is the single source of truth from here on.
+    // Its canonicalPayload — never this locally-composed `payload` — is what
+    // gets displayed and, later, what gets executed (steps 2 and 7).
+    const approval = await apiFetch('/api/v1/approvals', {
       method: 'POST',
-      body: JSON.stringify({ payload }),
+      body: JSON.stringify({ toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, payload }),
     });
 
     if (!approval || approval.error || !approval.approvalId) {
@@ -787,50 +874,111 @@
     }
 
     if (form) form.style.display = 'none';
-    slot.innerHTML = `
-      <div class="calendar-preview-card">
-        <h4>Exact action awaiting your approval</h4>
-        <p><strong>${escapeHtml(payload.summary)}</strong></p>
-        <p>${escapeHtml(payload.start.replace('T', ' '))} → ${escapeHtml(payload.end.replace('T', ' '))} (${escapeHtml(payload.timezone)})</p>
-        <p>Attendees: ${payload.attendees.length ? escapeHtml(payload.attendees.join(', ')) : 'None'}</p>
-        <p>Meeting link: ${payload.conferenceData ? 'Yes' : 'No'} · Calendar: ${escapeHtml(payload.calendarId)}</p>
-        <p class="policy-notice-pill">This exact action will run unmodified if you approve it.</p>
-        <div class="calendar-preview-actions">
-          <button class="btn-reject-outline" id="btn-calendar-reject">✕ Cancel</button>
-          <button class="btn-plan-action plan-status-ready" id="btn-calendar-approve">✓ Approve & Create Event</button>
-        </div>
-      </div>`;
+    addTimelineEntry('Approval requested');
+    updateFlowStage('Approval Card');
+    updateFlowStage('Human Approval');
 
-    const btnApprove = document.getElementById('btn-calendar-approve');
-    const btnReject = document.getElementById('btn-calendar-reject');
-    if (btnReject) {
-      btnReject.onclick = async () => {
-        await apiFetch(`/api/v1/approvals/${approval.approvalId}/action`, { method: 'POST', body: JSON.stringify({ action: 'REJECT' }) });
-        slot.innerHTML = `<p>Cancelled. No event was created.</p>`;
-      };
+    function stopCountdown() {
+      if (state.approvalCountdownTimer) {
+        clearInterval(state.approvalCountdownTimer);
+        state.approvalCountdownTimer = null;
+      }
     }
-    if (btnApprove) {
-      btnApprove.onclick = async () => {
-        btnApprove.disabled = true;
-        btnApprove.textContent = 'Creating…';
-        await apiFetch(`/api/v1/approvals/${approval.approvalId}/action`, { method: 'POST', body: JSON.stringify({ action: 'APPROVE' }) });
-        const result = await apiFetch('/api/v1/tools/google-calendar/create-event', {
-          method: 'POST',
-          body: JSON.stringify({ approvalId: approval.approvalId, payload }),
-        });
-        if (result && result.status === 'SUCCEEDED') {
-          slot.innerHTML = `
-            <div class="calendar-preview-card">
-              <h4>✅ Calendar event created</h4>
-              <p><strong>${escapeHtml(payload.summary)}</strong></p>
-              <p>${escapeHtml(payload.start.replace('T', ' '))} (${escapeHtml(payload.timezone)})</p>
-              <p><a href="${encodeURI(result.externalUrl)}" target="_blank" rel="noopener">Open in Google Calendar →</a></p>
-            </div>`;
-        } else {
-          slot.innerHTML = `<div class="resolution-warnings" style="display:block;">${escapeHtml((result && result.error && result.error.message) || 'The event could not be created.')}</div>`;
-        }
-      };
+
+    function wireButtons() {
+      const btnReject = document.getElementById('btn-calendar-reject');
+      const btnApprove = document.getElementById('btn-calendar-approve');
+      const statusEl = () => document.getElementById('calendar-approval-status');
+
+      if (btnReject) {
+        btnReject.onclick = async () => {
+          stopCountdown();
+          btnReject.disabled = true;
+          if (btnApprove) btnApprove.disabled = true;
+          const rejected = await apiFetch(`/api/v1/approvals/${approval.approvalId}/reject`, { method: 'POST' });
+          updateFlowStage('Result');
+          if (rejected && !rejected.error && rejected.status === 'REJECTED') {
+            approval.status = 'REJECTED';
+            addTimelineEntry('Rejected');
+            const el = statusEl();
+            if (el) el.textContent = 'Rejected';
+          } else {
+            const code = rejected && rejected.error && rejected.error.code;
+            const message = view.describeExecutionError(code) || (rejected && rejected.error && rejected.error.message) || 'This approval could not be rejected.';
+            const el = statusEl();
+            if (el) el.textContent = message;
+          }
+        };
+      }
+
+      if (btnApprove) {
+        btnApprove.onclick = async () => {
+          // Fail closed: both buttons are disabled the instant this fires,
+          // and the countdown is stopped so it can never re-enable them out
+          // from under an in-flight approve/execute request (step 8).
+          stopCountdown();
+          btnApprove.disabled = true;
+          if (btnReject) btnReject.disabled = true;
+          updateFlowStage('Execution');
+          const elBusy = statusEl();
+          if (elBusy) elBusy.textContent = 'Creating calendar event...';
+
+          // Step 6: approve first, then execute — never the other way round.
+          const approved = await apiFetch(`/api/v1/approvals/${approval.approvalId}/approve`, { method: 'POST' });
+          if (!approved || approved.error) {
+            updateFlowStage('Result');
+            const code = approved && approved.error && approved.error.code;
+            const message = view.describeExecutionError(code) || (approved && approved.error && approved.error.message) || 'This action could not be approved.';
+            const el = statusEl();
+            if (el) el.textContent = message;
+            return; // no create-event call is ever made without a successful approve
+          }
+          approval.status = approved.status;
+          addTimelineEntry('Approved');
+
+          // Step 7: execute with the exact canonicalPayload the approval API
+          // returned — never the locally-composed `payload` variable.
+          const result = await apiFetch('/api/v1/tools/google-calendar/create-event', {
+            method: 'POST',
+            body: JSON.stringify({ approvalId: approval.approvalId, payload: approval.canonicalPayload }),
+          });
+
+          updateFlowStage('Result');
+
+          if (result && result.status === 'SUCCEEDED') {
+            addTimelineEntry('Calendar event created');
+            renderCalendarSuccessCard(slot, approval, result, view);
+            return;
+          }
+
+          // Step 10: on APPROVAL_ALREADY_CONSUMED (or any other failure), show
+          // the failure and stop — never retry automatically.
+          const code = result && result.error && result.error.code;
+          const message = view.describeExecutionError(code) || (result && result.error && result.error.message) || 'The event could not be created.';
+          const el = statusEl();
+          if (el) el.textContent = message;
+        };
+      }
     }
+
+    function render() {
+      const vmView = renderCalendarApprovalCard(slot, approval, view);
+      wireButtons();
+      return vmView;
+    }
+
+    render();
+
+    // Step 11: live countdown while PENDING; the moment the deadline passes,
+    // fail closed by disabling Approve (and Reject, since the server would
+    // reject either transition on an EXPIRED approval) and stop polling.
+    state.approvalCountdownTimer = setInterval(() => {
+      const vmView = render();
+      if (vmView.status === 'EXPIRED') {
+        stopCountdown();
+        addTimelineEntry('Approval expired');
+      }
+    }, 1000);
   }
 
   function initPrimaryScenario() {
