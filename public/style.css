@@ -109,26 +109,12 @@ body {
 .brand-logo-group, .brand-logo-sidebar {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
 }
 
-.brand-mark {
-  height: 26px;
+.nagex-compact-logo {
+  height: 28px;
   width: auto;
   display: block;
-}
-.brand-mark-sm {
-  height: 20px;
-}
-
-.brand-text {
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: 1.25rem;
-  color: var(--text-main);
-}
-.brand-logo-sidebar .brand-text {
-  color: #ffffff;
 }
 
 .header-search-bar {
@@ -764,7 +750,8 @@ body {
   overflow: hidden;
 }
 .ambient-sheet-header { display: flex; justify-content: space-between; align-items: center; padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--border-light); }
-.ambient-brand-title { display: flex; align-items: center; gap: 0.4rem; font-family: var(--font-display); font-weight: 800; font-size: 1rem; color: var(--text-main); }
+.ambient-brand-title { display: flex; align-items: center; }
+.ambient-logo { height: 22px; }
 .ambient-sheet-body { padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem; }
 
 .ambient-voice-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 20px; padding: 1rem; }
