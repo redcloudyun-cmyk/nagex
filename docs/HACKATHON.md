@@ -1,10 +1,10 @@
-# NAGEX Hackathon Specification
+# NAgex Hackathon Specification
 
 ## 1. Target Event
 
 **Nebius x NVIDIA Global AI Hackathon**
 
-NAGEX is being independently developed for this hackathon from 2026-09-05 onward.
+NAgex is being independently developed for this hackathon from 2026-09-05 onward.
 
 Its repository was bootstrapped from an earlier internal experimental codebase owned by the same entrant.
 
@@ -12,7 +12,7 @@ That origin must be described transparently where required.
 
 ## 2. Hackathon Product Direction
 
-NAGEX targets a Personal AI / Agentic AI experience.
+NAgex targets a Personal AI / Agentic AI experience.
 
 The strongest submission should demonstrate more than a branded assistant UI.
 
@@ -24,7 +24,7 @@ Target stack:
 
 - NVIDIA open-source model, with Nemotron as the primary target family
 - Nebius Token Factory and/or Nebius AI Cloud
-- NAGEX Model Gateway / Router
+- NAgex Model Gateway / Router
 - Personal Agent Runtime
 - Memory
 - Skills / Tools
@@ -57,13 +57,13 @@ Example structure:
 
 ```text
 1. User provides a goal
-2. NAGEX retrieves relevant memory/context
-3. NAGEX plans the task
+2. NAgex retrieves relevant memory/context
+3. NAgex plans the task
 4. NVIDIA/Nebius reasoning is visibly used
-5. NAGEX chooses a Skill / Tool
+5. NAgex chooses a Skill / Tool
 6. A consequential action triggers approval
 7. User approves
-8. NAGEX executes the action
+8. NAgex executes the action
 9. Result and audit trail are displayed
 10. Useful outcome is retained in memory
 ```
@@ -102,6 +102,6 @@ Meaningful updates should include:
 
 Preferred positioning:
 
-> NAGEX is a new hackathon project created during the submission period and bootstrapped from an entrant-owned internal experimental codebase. The hackathon work establishes a new product identity and implements the Personal AI, NVIDIA/Nebius, memory, agent-planning, tool-execution, and human-approval direction.
+> NAgex is a new hackathon project created during the submission period and bootstrapped from an entrant-owned internal experimental codebase. The hackathon work establishes a new product identity and implements the Personal AI, NVIDIA/Nebius, memory, agent-planning, tool-execution, and human-approval direction.
 
-Avoid describing the bootstrap source as a previous commercial NAGEX product.
+Avoid describing the bootstrap source as a previous commercial NAgex product.

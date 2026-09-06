@@ -89,7 +89,7 @@ test('2. Knowledge Engine Candidate Retrieval ACL Filter', () => {
     source_id: 'kns_public',
     title: 'Public Architecture Guide',
     classification: 'PUBLIC',
-    content: 'General NAGEX System Guide',
+    content: 'General NAgex System Guide',
   });
 
   knEngine.addDocument({
@@ -116,7 +116,7 @@ test('2b. Knowledge Engine Grounded Citation Check rejects fabricated references
     source_id: 'kns_public',
     title: 'Public Architecture Guide',
     classification: 'PUBLIC',
-    content: 'General NAGEX System Guide',
+    content: 'General NAgex System Guide',
   });
 
   const candidates = knEngine.retrieveCandidates('Guide', ['PUBLIC']);

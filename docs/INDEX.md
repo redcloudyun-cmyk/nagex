@@ -1,8 +1,8 @@
-# NAGEX Documentation Index
+# NAgex Documentation Index
 
-> **NAGEX — Next-generation Agent Experience**
+> **NAgex — Next-generation Agent Experience**
 
-This directory contains the canonical domain documentation for NAGEX.
+This directory contains the canonical domain documentation for NAgex.
 
 `MASTER.md` remains the Level 0 product-level source of truth.  
 Files under `docs/` define the major product and implementation domains.
@@ -49,14 +49,14 @@ Documentation must never present a planned or mocked capability as production-re
 Canonical product naming:
 
 ```text
-NAGEX
-NAGEX Agent
-NAGEX Runtime
-NAGEX Memory
-NAGEX Skill
-NAGEX Tool
-NAGEX Model Gateway
-NAGEX Model Router
+NAgex
+NAgex Agent
+NAgex Runtime
+NAgex Memory
+NAgex Skill
+NAgex Tool
+NAgex Model Gateway
+NAgex Model Router
 ```
 
-Legacy bootstrap identifiers may remain temporarily inside code while migration is in progress, but they do not define NAGEX product identity.
+Legacy bootstrap identifiers may remain temporarily inside code while migration is in progress, but they do not define NAgex product identity.

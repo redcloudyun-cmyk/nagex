@@ -1,14 +1,14 @@
-# NAGEX Architecture Specification
+# NAgex Architecture Specification
 
 ## 1. Architectural Goal
 
-NAGEX separates product reasoning, execution policy, tools, memory, and model-provider concerns so that the agent can act autonomously within explicit user-controlled boundaries.
+NAgex separates product reasoning, execution policy, tools, memory, and model-provider concerns so that the agent can act autonomously within explicit user-controlled boundaries.
 
 ## 2. High-Level Architecture
 
 ```text
 ┌───────────────────────────────┐
-│           NAGEX UI            │
+│           NAgex UI            │
 └───────────────┬───────────────┘
                 │
                 ▼
@@ -165,7 +165,7 @@ Legacy `agex` identifiers must not be globally renamed without checking all cont
 
 ## 6. Failure Handling
 
-NAGEX should distinguish:
+NAgex should distinguish:
 
 - model-provider failure,
 - tool failure,

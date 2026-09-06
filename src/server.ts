@@ -45,7 +45,7 @@ export class NagexPlatformApiServer {
         throw new NagexError({
           code: 'TENANT_CONTEXT_MISSING',
           category: 'AUTHENTICATION',
-          message: 'Header X-NAGEX-Tenant is mandatory for tenant-scoped endpoints.',
+          message: 'Header X-NAgex-Tenant is mandatory for tenant-scoped endpoints.',
           request_id: requestId,
         });
       }
@@ -62,7 +62,7 @@ export class NagexPlatformApiServer {
 
       // Router Endpoints
       if (req.path === '/api/v1/health' && req.method === 'GET') {
-        return { status: 200, body: { status: 'UP', service: 'NAGEX AI OS Platform API' } };
+        return { status: 200, body: { status: 'UP', service: 'NAgex AI OS Platform API' } };
       }
 
       if (req.path === '/api/v1/executions' && req.method === 'POST') {

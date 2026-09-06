@@ -1,14 +1,14 @@
-# NAGEX Product Specification
+# NAgex Product Specification
 
 ## 1. Product Name
 
-**NAGEX — Next-generation Agent Experience**
+**NAgex — Next-generation Agent Experience**
 
 ## 2. Product Statement
 
-NAGEX is a personal AI agent system designed to remember useful context, reason about user goals, select reusable skills and tools, request approval for consequential actions, execute real tasks, and preserve an auditable history.
+NAgex is a personal AI agent system designed to remember useful context, reason about user goals, select reusable skills and tools, request approval for consequential actions, execute real tasks, and preserve an auditable history.
 
-NAGEX is not intended to be only:
+NAgex is not intended to be only:
 
 - a chatbot,
 - a prompt wrapper,
@@ -23,13 +23,13 @@ The desired experience is:
 
 ```text
 The user explains the goal once
-→ NAGEX understands context
-→ NAGEX creates a plan
-→ NAGEX selects skills and tools
-→ NAGEX asks only when approval is necessary
-→ NAGEX executes
-→ NAGEX explains what happened
-→ NAGEX remembers useful outcomes
+→ NAgex understands context
+→ NAgex creates a plan
+→ NAgex selects skills and tools
+→ NAgex asks only when approval is necessary
+→ NAgex executes
+→ NAgex explains what happened
+→ NAgex remembers useful outcomes
 ```
 
 ## 4. Core Capabilities
@@ -70,13 +70,13 @@ Preserve enough information to understand what the agent attempted and why.
 
 ## 6. Product Boundaries
 
-NAGEX may support multi-user or tenant-aware infrastructure where inherited code already provides useful foundations, but the product experience for the hackathon should remain centered on Personal AI and agentic execution.
+NAgex may support multi-user or tenant-aware infrastructure where inherited code already provides useful foundations, but the product experience for the hackathon should remain centered on Personal AI and agentic execution.
 
 Broad marketplace, enterprise governance, advanced billing, or unrelated platform features are secondary unless they directly support the hackathon experience.
 
 ## 7. Target Demo Experience
 
-A successful demo should show a user providing a goal and NAGEX performing a real execution loop:
+A successful demo should show a user providing a goal and NAgex performing a real execution loop:
 
 ```text
 Goal
@@ -101,4 +101,4 @@ The product is stronger when judges can clearly see:
 - where NVIDIA and Nebius are used,
 - what external action is being performed,
 - when human approval is required,
-- and how NAGEX differs from a simple LLM chat interface.
+- and how NAgex differs from a simple LLM chat interface.

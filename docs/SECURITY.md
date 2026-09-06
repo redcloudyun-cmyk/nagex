@@ -1,8 +1,8 @@
-# NAGEX Security Specification
+# NAgex Security Specification
 
 ## 1. Security Goal
 
-NAGEX must allow useful agent autonomy without allowing the agent to silently exceed user authority.
+NAgex must allow useful agent autonomy without allowing the agent to silently exceed user authority.
 
 ## 2. Core Principles
 

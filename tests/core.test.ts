@@ -113,7 +113,7 @@ test('2g. server_web handleApiRequest reads tenant/principal from headers, not h
   const defaulted = handleApiRequest('GET', '/api/v1/health', null);
   assert.strictEqual(defaulted.status, 200);
 
-  // A caller-supplied X-NAGEX-Tenant must actually end up on the created execution
+  // A caller-supplied X-NAgex-Tenant must actually end up on the created execution
   const withHeaders = handleApiRequest(
     'POST',
     '/api/v1/executions',

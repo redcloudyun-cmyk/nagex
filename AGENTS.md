@@ -1,10 +1,10 @@
-# NAGEX Development Instructions & AI Coding Agent Harness
+# NAgex Development Instructions & AI Coding Agent Harness
 
-This file defines mandatory operating rules for AI coding agents working on NAGEX.
+This file defines mandatory operating rules for AI coding agents working on NAgex.
 
-NAGEX means **Next-generation Agent Experience**.
+NAgex means **Next-generation Agent Experience**.
 
-NAGEX is an independent project created on 2026-09-05 for the Nebius x NVIDIA Global AI Hackathon. It was bootstrapped from an earlier internal experimental codebase, but NAGEX is not that earlier product.
+NAgex is an independent project created on 2026-09-05 for the Nebius x NVIDIA Global AI Hackathon. It was bootstrapped from an earlier internal experimental codebase, but NAgex is not that earlier product.
 
 ## Required Reading Order
 
@@ -16,9 +16,9 @@ NAGEX is an independent project created on 2026-09-05 for the Nebius x NVIDIA Gl
 
 ## Product Boundary
 
-The primary NAGEX product is a Personal AI / Agentic AI system centered on persistent memory, reasoning, planning, skills, tools, human approval, execution, model routing, and auditability.
+The primary NAgex product is a Personal AI / Agentic AI system centered on persistent memory, reasoning, planning, skills, tools, human approval, execution, model routing, and auditability.
 
-Do not expand NAGEX into a generic enterprise AI platform unless explicitly required by `MASTER.md`.
+Do not expand NAgex into a generic enterprise AI platform unless explicitly required by `MASTER.md`.
 
 ## Hackathon Requirements
 
@@ -80,7 +80,7 @@ Also verify no secrets, no unexpected generated files, documentation accuracy, U
 
 For substantial implementation, identify:
 
-- Governing NAGEX specification
+- Governing NAgex specification
 - Affected domains
 - Affected schemas / APIs / events
 - Security implications
@@ -88,4 +88,4 @@ For substantial implementation, identify:
 
 ## Final Rule
 
-Do not optimize for preserving inherited code. Optimize for building the NAGEX product defined by `MASTER.md`.
+Do not optimize for preserving inherited code. Optimize for building the NAgex product defined by `MASTER.md`.

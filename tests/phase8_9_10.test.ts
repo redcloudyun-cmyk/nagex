@@ -122,7 +122,7 @@ test('2b. Credit Engine: computeCreditCost, charge/grant, insufficient balance (
   assert.strictEqual(credits.getOrCreateAccount('ten_credit_test').credit_balance, 10);
 });
 
-test('3. NAGEX Platform API Server Endpoints & Security Interception', async () => {
+test('3. NAgex Platform API Server Endpoints & Security Interception', async () => {
   const pdp = new PolicyDecisionPoint();
   const runtime = new DurableRuntimeEngine();
   const logger = new AuditLogger();
@@ -176,7 +176,7 @@ test('4. Tenant Resource Specification Validation', () => {
       updated_by: actor,
     },
     specification: {
-      display_name: 'NAGEX Production Tenant',
+      display_name: 'NAgex Production Tenant',
       home_region: 'ap-northeast-2',
       isolation_profile: 'ISOLATED_DATA',
       maximum_autonomy_level: 'L2',

@@ -1,8 +1,8 @@
-# NAGEX Development Specification
+# NAgex Development Specification
 
 ## 1. Development Goal
 
-Development should prioritize a small, real, demonstrable NAGEX agent loop over broad but incomplete platform scope.
+Development should prioritize a small, real, demonstrable NAgex agent loop over broad but incomplete platform scope.
 
 ## 2. Current Priority Order
 
@@ -76,8 +76,8 @@ Avoid:
 Prefer focused commits such as:
 
 ```text
-docs: establish NAGEX product specifications
-refactor: migrate public NAGEX identifiers
+docs: establish NAgex product specifications
+refactor: migrate public NAgex identifiers
 feat: add Nebius Nemotron provider
 feat: add agent planning loop
 feat: add persistent memory

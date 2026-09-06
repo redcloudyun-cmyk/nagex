@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
-// ─── NAGEX Core Engine Imports ───
+// ─── NAgex Core Engine Imports ───
 import { PolicyDecisionPoint, describeDeniedDecision } from './identity/pdp.js';
 import { DurableRuntimeEngine } from './runtime/runtime.engine.js';
 import { AuditLogger } from './governance/audit.logger.js';
@@ -27,7 +27,7 @@ const mimeTypes: Record<string, string> = {
   '.woff2': 'font/woff2',
 };
 
-// ─── Boot NAGEX Core Engine ───
+// ─── Boot NAgex Core Engine ───
 const pdp = new PolicyDecisionPoint();
 const runtime = new DurableRuntimeEngine();
 const auditLogger = new AuditLogger();
@@ -256,7 +256,7 @@ export function handleApiRequest(
   headers: Record<string, string | string[] | undefined> = {}
 ): { status: number; data: unknown } {
   // This demo console has no real login flow yet, so requests default to a
-  // seed tenant/principal; a caller can override via X-NAGEX-Tenant /
+  // seed tenant/principal; a caller can override via X-NAgex-Tenant /
   // X-Principal-Id (mirrors the header contract server.ts already enforces).
   const headerTenant = headers['x-nagex-tenant'];
   const headerPrincipal = headers['x-principal-id'];
@@ -273,7 +273,7 @@ export function handleApiRequest(
       status: 200,
       data: {
         status: 'UP',
-        service: 'NAGEX AI OS Platform API',
+        service: 'NAgex AI OS Platform API',
         version: '0.1.0',
         runtime_active: true,
         active_executions: executionHistory.length,
@@ -454,7 +454,7 @@ const server = http.createServer((req, res) => {
   // ─── CORS Headers ───
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-NAGEX-Tenant, X-Principal-Id');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-NAgex-Tenant, X-Principal-Id');
 
   if (method === 'OPTIONS') {
     res.writeHead(204);
@@ -512,7 +512,7 @@ if (require.main === module) {
 
   server.listen(PORT, HOST, () => {
     console.log(`\n═══════════════════════════════════════════════════════`);
-    console.log(`  NAGEX AI OS — Unified Platform Server`);
+    console.log(`  NAgex AI OS — Unified Platform Server`);
     console.log(`  Console:  http://${HOST}:${PORT}`);
     console.log(`  API:      http://${HOST}:${PORT}/api/v1/health`);
     console.log(`  Engine:   Durable Runtime + PDP + Audit + Billing`);

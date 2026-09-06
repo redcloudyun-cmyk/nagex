@@ -1,8 +1,8 @@
-# NAGEX Model Router Specification
+# NAgex Model Router Specification
 
 ## 1. Purpose
 
-NAGEX should not assume one model is optimal for every task.
+NAgex should not assume one model is optimal for every task.
 
 The Model Gateway abstracts providers, while the Model Router selects an appropriate model according to task requirements and policy.
 
@@ -61,7 +61,7 @@ Examples:
 The initial primary hackathon route should support:
 
 ```text
-NAGEX Runtime
+NAgex Runtime
 → Model Router
 → NVIDIA Nemotron
 → Nebius Token Factory / Nebius AI Cloud
@@ -104,9 +104,9 @@ error
 
 ## 9. BYOK and Managed Provider Direction
 
-NAGEX may eventually support both:
+NAgex may eventually support both:
 
-- NAGEX-managed provider credentials
+- NAgex-managed provider credentials
 - user-supplied provider credentials
 
 For the hackathon, implementation simplicity and reproducibility are more important than implementing a full billing system.

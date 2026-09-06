@@ -1,18 +1,18 @@
-# NAGEX Claude Code Instructions
+# NAgex Claude Code Instructions
 
 Before implementation, read:
 
 @MASTER.md
 @AGENTS.md
 
-NAGEX means **Next-generation Agent Experience**.
+NAgex means **Next-generation Agent Experience**.
 
-NAGEX is an independent Personal AI / Agentic AI project created on 2026-09-05 for the Nebius x NVIDIA Global AI Hackathon.
+NAgex is an independent Personal AI / Agentic AI project created on 2026-09-05 for the Nebius x NVIDIA Global AI Hackathon.
 
 ## Mandatory Rules
 
 1. Treat `MASTER.md` as the product-level source of truth.
-2. Do not assume inherited bootstrap code defines the final NAGEX architecture.
+2. Do not assume inherited bootstrap code defines the final NAgex architecture.
 3. Do not perform blind repository-wide product-name replacements.
 4. Public contract changes must update code, schema, tests, and documentation together.
 5. Preserve tenant and security boundaries.

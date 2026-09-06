@@ -495,7 +495,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ─── Free-Tier Plan State (Core) vs Paid (Prime) ───
   // Not wired to real billing/entitlement data yet (Phase 10), so this reads
-  // a local mock flag: 'free' (default — NAGEX Core) or 'pro' (NAGEX Prime).
+  // a local mock flag: 'free' (default — NAgex Core) or 'pro' (NAgex Prime).
   const adWidget = document.getElementById('ad-widget-free');
   const btnAdUpgrade = document.getElementById('btn-ad-upgrade');
   const planSummaryPro = document.getElementById('plan-summary-pro');
@@ -525,14 +525,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (settingsPlanBadge) {
       settingsPlanBadge.textContent = i18n
         ? i18n.t(free ? 'billing.freePlanName' : 'billing.primePlanName')
-        : (free ? 'NAGEX 코어' : 'NAGEX 프라임');
+        : (free ? 'NAgex 코어' : 'NAgex 프라임');
     }
   }
 
   function upgradeToPrime() {
     localStorage.setItem('nagex_plan', 'pro');
     refreshPlanUI();
-    showToast(i18n ? i18n.t('toast.upgraded') : 'NAGEX 프라임으로 업그레이드되었습니다.');
+    showToast(i18n ? i18n.t('toast.upgraded') : 'NAgex 프라임으로 업그레이드되었습니다.');
   }
 
   // Pro-plan balance now reflects the real CreditEngine (S-07 Phase 1) via
@@ -564,7 +564,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnPrimeAgent) {
     btnPrimeAgent.addEventListener('click', () => {
       if (isFreePlan()) {
-        showToast(i18n ? i18n.t('toast.superAgentLocked') : '프라임 에이전트는 NAGEX 프라임 전용입니다. 코어 탭에서 업그레이드하세요.');
+        showToast(i18n ? i18n.t('toast.superAgentLocked') : '프라임 에이전트는 NAgex 프라임 전용입니다. 코어 탭에서 업그레이드하세요.');
       }
     });
   }
@@ -745,7 +745,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // 현재 입력창의 텍스트를 읽거나, 없으면 기본 AI 응답 텍스트를 읽음
         const textToSpeak = promptInput && promptInput.value.trim()
           ? promptInput.value.trim()
-          : (i18n ? i18n.t('toast.defaultSpeak') : 'NAGEX AI 워크스페이스에 오신 것을 환영합니다. 원하시는 작업을 말씀해 주세요.');
+          : (i18n ? i18n.t('toast.defaultSpeak') : 'NAgex AI 워크스페이스에 오신 것을 환영합니다. 원하시는 작업을 말씀해 주세요.');
 
         const utterance = new SpeechSynthesisUtterance(textToSpeak);
         const langTag = speechLangTag();

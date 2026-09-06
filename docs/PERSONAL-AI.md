@@ -1,14 +1,14 @@
-# NAGEX Personal AI Specification
+# NAgex Personal AI Specification
 
 ## 1. Purpose
 
-Personal AI is the central product direction of NAGEX.
+Personal AI is the central product direction of NAgex.
 
 The system should become more useful over time by retaining relevant context while preserving user visibility and control.
 
 ## 2. Memory Classes
 
-NAGEX should distinguish at minimum:
+NAgex should distinguish at minimum:
 
 ### Session Memory
 Short-lived context associated with the current interaction or execution.

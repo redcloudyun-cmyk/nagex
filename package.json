@@ -1,7 +1,7 @@
 {
   "name": "nagex-core",
   "version": "0.1.0",
-  "description": "NAGEX AI Operating System - Modular Monolith Core",
+  "description": "NAgex AI Operating System - Modular Monolith Core",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
@@ -15,7 +15,7 @@
     "agent",
     "workflow"
   ],
-  "author": "NAGEX Core Team",
+  "author": "NAgex Core Team",
   "license": "MIT",
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",

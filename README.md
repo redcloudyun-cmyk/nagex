@@ -1,22 +1,22 @@
-# NAGEX
+# NAgex
 
 ### Next-generation Agent Experience
 
-NAGEX is a Personal AI and agentic system designed to **remember, reason, use tools, and execute real-world tasks with human-controlled autonomy**.
+NAgex is a Personal AI and agentic system designed to **remember, reason, use tools, and execute real-world tasks with human-controlled autonomy**.
 
 > Project started: September 5, 2026  
 > Target: Nebius x NVIDIA Global AI Hackathon
 
-## What NAGEX Is
+## What NAgex Is
 
 Most AI assistants respond to prompts.
 
-NAGEX is being built to maintain context, form plans, select reusable skills and tools, request human approval when needed, execute tasks, observe results, and preserve useful memory.
+NAgex is being built to maintain context, form plans, select reusable skills and tools, request human approval when needed, execute tasks, observe results, and preserve useful memory.
 
 ```text
 User
  ↓
-NAGEX Personal Agent
+NAgex Personal Agent
  ↓
 Memory + Context
  ↓
@@ -45,7 +45,7 @@ Audit + Memory
 
 ## NVIDIA + Nebius
 
-NAGEX is being developed for the Nebius x NVIDIA Global AI Hackathon.
+NAgex is being developed for the Nebius x NVIDIA Global AI Hackathon.
 
 The target AI stack includes:
 
@@ -58,7 +58,7 @@ Integration status must always be represented truthfully in this repository. Fea
 ## Architecture
 
 ```text
-NAGEX UI
+NAgex UI
    │
    ▼
 Personal Agent Runtime
@@ -99,17 +99,17 @@ src/
   billing/
 ```
 
-These modules are being evaluated and refactored for the NAGEX product definition.
+These modules are being evaluated and refactored for the NAgex product definition.
 
 ## Project Origin
 
-NAGEX was created as an independent project on **2026-09-05**.
+NAgex was created as an independent project on **2026-09-05**.
 
 The initial technical baseline was bootstrapped from an earlier internal experimental AI platform codebase owned by the same entrant.
 
-NAGEX itself has a separate repository, Git history, brand, product definition, and independent hackathon development.
+NAgex itself has a separate repository, Git history, brand, product definition, and independent hackathon development.
 
-The prior codebase was not a commercially released NAGEX product.
+The prior codebase was not a commercially released NAgex product.
 
 ## Development
 
@@ -127,7 +127,7 @@ See:
 
 ## Development Status
 
-NAGEX is under active development.
+NAgex is under active development.
 
 The repository may currently contain a mixture of implemented foundation code, components being refactored, prototype UI, and hackathon-specific work in progress.
 
