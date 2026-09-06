@@ -1,5 +1,5 @@
 import { generateResourceId, getCurrentISOString } from '../common/utils.js';
-import { AgexError } from '../common/errors.js';
+import { NagexError } from '../common/errors.js';
 import { BillingLedgerEngine, type LedgerEntry } from './billing.ledger.js';
 
 // docs/supplemental/S-07-billing-ai-provider.md -- Phase 1 ("Billing
@@ -125,7 +125,7 @@ export class CreditEngine {
     const cost = computeCreditCost(breakdown);
 
     if (account.credit_balance < cost) {
-      throw new AgexError({
+      throw new NagexError({
         code: 'BILLING_INSUFFICIENT_CREDIT',
         category: 'QUOTA',
         message: `Tenant ${tenantId} has insufficient credit balance (${account.credit_balance}) for a charge of ${cost}.`,

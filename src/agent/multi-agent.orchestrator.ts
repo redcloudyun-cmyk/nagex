@@ -1,5 +1,5 @@
 import { generateResourceId, getCurrentISOString } from '../common/utils.js';
-import { AgexError } from '../common/errors.js';
+import { NagexError } from '../common/errors.js';
 
 export interface DelegationRequest {
   parent_agent_id: string;
@@ -25,7 +25,7 @@ export class MultiAgentOrchestrator {
     );
 
     if (effectivePermissions.length === 0) {
-      throw new AgexError({
+      throw new NagexError({
         code: 'EMPTY_DELEGATED_SCOPE',
         category: 'POLICY',
         message: `Delegation from Agent ${request.parent_agent_id} to Agent ${request.child_agent_id} resulted in empty permission scope.`,

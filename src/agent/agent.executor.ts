@@ -2,7 +2,7 @@ import type { TenantContext, PrincipalReference } from '../common/types.js';
 import type { PolicyDecisionPoint } from '../identity/pdp.js';
 import { describeDeniedDecision } from '../identity/pdp.js';
 import type { ToolInvoker, ToolInvocationResult } from './tool.invoker.js';
-import { AgexError } from '../common/errors.js';
+import { NagexError } from '../common/errors.js';
 
 export interface AgentExecutionConfig {
   agent_id: string;
@@ -43,7 +43,7 @@ export class AgentExecutor {
     if (authDecision.decision !== 'ALLOW') {
       const outcome = describeDeniedDecision(authDecision);
       const requiresApproval = authDecision.decision === 'CONDITIONAL';
-      throw new AgexError({
+      throw new NagexError({
         code: outcome.errorCode,
         category: requiresApproval ? 'POLICY' : 'AUTHORIZATION',
         message: `Agent execution ${requiresApproval ? 'requires approval' : 'denied'} by PDP: ${authDecision.reason_code}`,

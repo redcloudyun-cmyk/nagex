@@ -1,6 +1,6 @@
 import type { TaskDispatcher, TaskRecord } from './task.dispatcher.js';
 import type { DurableRuntimeEngine } from './runtime.engine.js';
-import { AgexError } from '../common/errors.js';
+import { NagexError } from '../common/errors.js';
 
 export class RuntimeReconciler {
   private dispatcher: TaskDispatcher;
@@ -21,7 +21,7 @@ export class RuntimeReconciler {
       try {
         this.engine.restoreCheckpoint(task.execution_id, `chk_recovery_${Date.now()}`);
       } catch (err) {
-        if (err instanceof AgexError && err.code === 'MAX_RETRY_ATTEMPTS_EXCEEDED') {
+        if (err instanceof NagexError && err.code === 'MAX_RETRY_ATTEMPTS_EXCEEDED') {
           task.status = 'FAILED';
           task.lease_owner = null;
           task.lease_expires_at = null;

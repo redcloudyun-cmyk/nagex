@@ -68,7 +68,7 @@ test('3. Tool Invoker & Autonomy Level Safety Gate', async () => {
     handler: async () => ({ deleted: true }),
   });
 
-  // L1 Agent attempt to execute IRREVERSIBLE_WRITE tool -> Should throw AGEX Policy Error
+  // L1 Agent attempt to execute IRREVERSIBLE_WRITE tool -> Should throw NAGEX Policy Error
   await assert.rejects(
     async () => {
       await invoker.invokeTool('tool_delete_db', {}, 'L1');
@@ -112,7 +112,7 @@ test('4. Agent Executor End-to-End Execution Flow', async () => {
       permissions: ['agent:execute'],
     },
     'tool_search',
-    { q: 'AGEX Architecture' }
+    { q: 'NAGEX Architecture' }
   );
 
   assert.strictEqual(result.status, 'SUCCESS');

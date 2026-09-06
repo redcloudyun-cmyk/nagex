@@ -1,23 +1,23 @@
 import type { TenantContext, PrincipalReference } from './common/types.js';
-import { AgexError } from './common/errors.js';
+import { NagexError } from './common/errors.js';
 import { PolicyDecisionPoint, describeDeniedDecision } from './identity/pdp.js';
 import { DurableRuntimeEngine } from './runtime/runtime.engine.js';
 import { AuditLogger } from './governance/audit.logger.js';
 import { BillingLedgerEngine } from './billing/billing.ledger.js';
 
-export interface AgexApiRequest {
+export interface NagexApiRequest {
   path: string;
   method: 'GET' | 'POST' | 'PUT' | 'DELETE';
   headers: Record<string, string>;
   body?: Record<string, unknown>;
 }
 
-export interface AgexApiResponse {
+export interface NagexApiResponse {
   status: number;
   body: Record<string, unknown>;
 }
 
-export class AgexPlatformApiServer {
+export class NagexPlatformApiServer {
   private pdp: PolicyDecisionPoint;
   private runtime: DurableRuntimeEngine;
   private auditLogger: AuditLogger;
@@ -35,17 +35,17 @@ export class AgexPlatformApiServer {
     this.billingEngine = billingEngine;
   }
 
-  public async handleRequest(req: AgexApiRequest): Promise<AgexApiResponse> {
+  public async handleRequest(req: NagexApiRequest): Promise<NagexApiResponse> {
     const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
-    const tenantHeader = req.headers['x-agex-tenant'];
+    const tenantHeader = req.headers['x-nagex-tenant'];
 
     try {
       // 1. Tenant Context Validation
       if (!tenantHeader && req.path !== '/api/v1/health') {
-        throw new AgexError({
+        throw new NagexError({
           code: 'TENANT_CONTEXT_MISSING',
           category: 'AUTHENTICATION',
-          message: 'Header X-AGEX-Tenant is mandatory for tenant-scoped endpoints.',
+          message: 'Header X-NAGEX-Tenant is mandatory for tenant-scoped endpoints.',
           request_id: requestId,
         });
       }
@@ -62,7 +62,7 @@ export class AgexPlatformApiServer {
 
       // Router Endpoints
       if (req.path === '/api/v1/health' && req.method === 'GET') {
-        return { status: 200, body: { status: 'UP', service: 'AGEX AI OS Platform API' } };
+        return { status: 200, body: { status: 'UP', service: 'NAGEX AI OS Platform API' } };
       }
 
       if (req.path === '/api/v1/executions' && req.method === 'POST') {
@@ -97,7 +97,7 @@ export class AgexPlatformApiServer {
           });
 
           const requiresApproval = decision.decision === 'CONDITIONAL';
-          throw new AgexError({
+          throw new NagexError({
             code: outcome.errorCode,
             category: requiresApproval ? 'POLICY' : 'AUTHORIZATION',
             message: `Execution ${requiresApproval ? 'requires approval' : 'denied'}: ${decision.reason_code}`,
@@ -120,18 +120,18 @@ export class AgexPlatformApiServer {
         return { status: 201, body: { data: execution as unknown as Record<string, unknown> } };
       }
 
-      throw new AgexError({
+      throw new NagexError({
         code: 'ENDPOINT_NOT_FOUND',
         category: 'NOT_FOUND',
         message: `Endpoint ${req.method} ${req.path} not found.`,
         request_id: requestId,
       });
     } catch (err: unknown) {
-      if (err instanceof AgexError) {
+      if (err instanceof NagexError) {
         return { status: this.mapCategoryToHttpStatus(err.category), body: err.toJSON() };
       }
 
-      const internalErr = new AgexError({
+      const internalErr = new NagexError({
         code: 'INTERNAL_SERVER_ERROR',
         category: 'INTERNAL',
         message: err instanceof Error ? err.message : String(err),

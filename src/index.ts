@@ -17,4 +17,4 @@ export * from './governance/audit.logger.js';
 export * from './billing/billing.ledger.js';
 export * from './server.js';
 
-console.log('AGEX AI Operating System - Full System Core & API Server Initialized.');
+console.log('NAGEX AI Operating System - Full System Core & API Server Initialized.');

@@ -1,5 +1,5 @@
 import { generateResourceId } from '../common/utils.js';
-import { AgexError } from '../common/errors.js';
+import { NagexError } from '../common/errors.js';
 
 export type KnowledgeClassification = 'PUBLIC' | 'INTERNAL' | 'CONFIDENTIAL' | 'RESTRICTED';
 
@@ -85,7 +85,7 @@ export function verifyGroundedCitations(
 
   for (const citedId of citedDocumentIds) {
     if (!candidateIds.has(citedId)) {
-      throw new AgexError({
+      throw new NagexError({
         code: 'UNGROUNDED_CITATION',
         category: 'VALIDATION',
         message: `Cited document_id ${citedId} was not among the retrieved candidates for this query.`,

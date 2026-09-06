@@ -1,5 +1,5 @@
 import { generateResourceId, getCurrentISOString } from '../common/utils.js';
-import { AgexError } from '../common/errors.js';
+import { NagexError } from '../common/errors.js';
 
 export type MemoryScope = 'EXECUTION' | 'SESSION' | 'AGENT' | 'USER' | 'TENANT';
 export type MemoryLifecycle = 'PROPOSED' | 'VALIDATING' | 'ACTIVE' | 'CONFLICTED' | 'SUPERSEDED' | 'EXPIRED' | 'DELETED';
@@ -53,7 +53,7 @@ export class MemoryEngine {
   public activateMemory(id: string): MemoryRecord {
     const record = this.memoryStore.get(id);
     if (!record) {
-      throw new AgexError({
+      throw new NagexError({
         code: 'MEMORY_NOT_FOUND',
         category: 'NOT_FOUND',
         message: `Memory ID ${id} not found.`,
@@ -62,7 +62,7 @@ export class MemoryEngine {
     }
 
     if (TERMINAL_MEMORY_STATES.has(record.lifecycle)) {
-      throw new AgexError({
+      throw new NagexError({
         code: 'MEMORY_ALREADY_TERMINAL',
         category: 'CONFLICT',
         message: `Memory ID ${id} is in terminal state ${record.lifecycle} and cannot be reactivated.`,

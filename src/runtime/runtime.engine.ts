@@ -1,6 +1,6 @@
 import type { ResourceMetadata, TenantContext } from '../common/types.js';
 import { generateResourceId, getCurrentISOString } from '../common/utils.js';
-import { AgexError } from '../common/errors.js';
+import { NagexError } from '../common/errors.js';
 
 export type ExecutionState =
   | 'CREATED'
@@ -109,7 +109,7 @@ export class DurableRuntimeEngine {
       record.state = 'FAILED';
       record.updated_at = getCurrentISOString();
       this.executionStore.set(id, record);
-      throw new AgexError({
+      throw new NagexError({
         code: 'MAX_RETRY_ATTEMPTS_EXCEEDED',
         category: 'RUNTIME',
         message: `Execution ID ${id} exceeded the maximum of ${MAX_RESTORE_ATTEMPTS} restore attempts and has been marked FAILED.`,
@@ -129,7 +129,7 @@ export class DurableRuntimeEngine {
   private getOwnedRecord(id: string, expectedTenantId?: string): ExecutionRecord {
     const record = this.executionStore.get(id);
     if (!record) {
-      throw new AgexError({
+      throw new NagexError({
         code: 'EXECUTION_NOT_FOUND',
         category: 'NOT_FOUND',
         message: `Execution ID ${id} not found in Durable Store.`,
@@ -138,7 +138,7 @@ export class DurableRuntimeEngine {
     }
 
     if (expectedTenantId && record.tenant_id !== expectedTenantId) {
-      throw new AgexError({
+      throw new NagexError({
         code: 'CROSS_TENANT_ACCESS_DENIED',
         category: 'AUTHORIZATION',
         message: `Execution ID ${id} does not belong to the requesting tenant.`,
@@ -151,7 +151,7 @@ export class DurableRuntimeEngine {
 
   private assertNotTerminal(record: ExecutionRecord): void {
     if (TERMINAL_STATES.has(record.state)) {
-      throw new AgexError({
+      throw new NagexError({
         code: 'EXECUTION_ALREADY_TERMINAL',
         category: 'CONFLICT',
         message: `Execution ID ${record.id} is already in terminal state ${record.state} and cannot be mutated further.`,

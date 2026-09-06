@@ -1,68 +1,266 @@
-# AGEX MASTER SPECIFICATION
+# NAGEX MASTER SPECIFICATION
 
-**30종 공식 문서 통합 검증 및 최상위 개발 명세 체계 (Single Source of Truth)**
+> **NAGEX — Next-generation Agent Experience**
 
-- **문서 등급**: LEVEL 0 — 최상위 SSOT
-- **적용 대상**: Product / Architecture / Backend / Runtime / AI / Security / DevOps / QA / SDK / Console / Operations
-- **상태**: 공식 기준안
+**Document Role:** Level 0 / Single Source of Truth  
+**Project Start:** 2026-09-05  
+**Project Type:** Independent hackathon project  
+**Target Event:** Nebius x NVIDIA Global AI Hackathon
 
----
+## 1. Product Definition
 
-## 1. 본 문서의 목적
-AGEX 30종 공식 문서와 Supplemental 명세(S-01 ~ S-06)의 의미, 규격, 우선순위를 하나로 통합하여 AGEX 개발에서 사용되는 모든 공식 개념, Resource, Contract, 책임, 상태, 보안 경계 및 구현 우선순위의 최상위 기준을 SSOT(Single Source of Truth) 체계로 고정한다.
+NAGEX is a Personal AI and Agentic AI system designed to remember user context, reason about goals, use tools, execute real-world tasks, and keep meaningful actions under human control.
 
----
+NAGEX is not defined as a generic chatbot or a simple LLM wrapper.
 
-## 2. 문서 권한 계층 (Document Hierarchy)
+```text
+User Intent
+   ↓
+Context + Persistent Memory
+   ↓
+Planning / Reasoning
+   ↓
+Skills + Tools
+   ↓
+Human Approval when required
+   ↓
+Execution
+   ↓
+Result + Audit
+   ↓
+Memory / Learning
+```
 
-| 계층 | 문서 구분 | 대표 문서 | 역할 및 해석 원칙 |
-|---|---|---|---|
-| **LEVEL 0** | 최상위 SSOT | `MASTER.md` (S-01) | 문서 간 충돌 해결, 용어 통합, Domain Boundary, 구현 순서 결정. 하위 문서와 충돌 시 LEVEL 0 우선. |
-| **LEVEL 1** | Product Constitution | `01-product-vision.md`, `02-product-philosophy.md` | AGEX가 무엇이고 무엇이 아닌지를 결정하는 절대적 제품 철학. |
-| **LEVEL 2** | System Architecture | `03-product-architecture.md` ~ `05-runtime-architecture.md`, `14`~`17` | 시스템 구조, 보안, 멀티테넌트, 배포 및 거버넌스의 경계 기준. |
-| **LEVEL 3** | Domain Specifications | `06-agent-framework.md` ~ `13-api-specification.md`, Supplemental Specs (S-03 ~ S-07) | 개발팀이 각 도메인을 직접 구현하는 핵심 사양 명세. |
-| **LEVEL 4** | Execution Planning | `18-product-roadmap.md` ~ `23-cost-estimation.md` | WBS, 개발 일정, 예산 계획. **Core Architecture를 변경할 권한 없음.** |
-| **LEVEL 5** | Commercial | `24-business-model.md` | 아키텍처의 Capability를 상품화하는 비즈니스 모델. Security Architecture보다 후순위. |
-| **LEVEL 6** | Explanatory Docs | `25-technical-white-paper.md` ~ `30-developer-guide.md` | 기술 설명서 및 개발 가이드. 상위 명세가 우선. |
+## 2. Brand
 
----
+**Name:** NAGEX  
+**Meaning:** Next-generation Agent Experience
 
-## 3. 핵심 개발 원칙 20선
+> A personal AI agent that remembers, reasons, uses tools, and acts with human-controlled autonomy.
 
-1. **모든 주요 AI 구성요소는 Resource다**: Agent, Workflow, Knowledge, Memory, Plugin, Model 등은 독립적인 First-Class Resource로 관리한다.
-2. **모든 Resource는 명시적 Scope를 가진다**: `PLATFORM` 또는 `TENANT` Scope 중 하나를 명확히 갖는다.
-3. **Tenant Context 없는 Tenant 작업은 실패한다**: Multi-Tenant 환경에서 Tenant ID와 Context 검증은 필수이며 미지정 시 Fail-Closed 처리한다.
-4. **Published Version은 Immutable하다**: 승인/게시된 버전은 불변이며 변경 시 새로운 Version/Revision을 생성한다.
-5. **실제 실행은 Runtime을 통과한다**: 컨트롤 플레인 조작 및 실행은 반드시 Runtime 엔진 및 Security Gate를 통과해야 한다.
-6. **Queue는 Source of Truth가 아니다**: Queue는 단순 전달 메커니즘일 뿐, Durable Execution Store가 실제 상태의 원천이다.
-7. **Model Output은 권한이 아니다**: LLM이 생성한 결과는 실행 권한을 담보하지 않으며 IAM/Policy 검증을 거쳐야 한다.
-8. **Capability와 Permission은 다르다**: Capability는 기술적 기능, Permission은 허용된 보안 권한이다.
-9. **Entitlement와 Permission은 다르다**: Entitlement는 상업 계약 자격, Permission은 IAM 보안 접근 권한이다.
-10. **Knowledge와 Memory는 다르다**: Knowledge는 출처가 명확한 공식 지식, Memory는 실행 과정에서 형성된 맥락/경험이다.
-11. **Plugin과 Tool은 다르다**: Plugin은 기술 패키지 단위이며, Tool은 에이전트에 바인딩된 실행 가능 인터페이스다.
-12. **Secret은 Prompt에 들어가지 않는다**: Secret 값은 별도의 Secret Store 및 SecretReference로 처리한다.
-13. **Cross-Tenant는 Default Deny다**: 테넌트 간 데이터/실행 접근은 명시적 Trust Contract 없이는 기본 차단한다.
-14. **AI Action은 Schema Validation을 거친다**: 입출력 데이터 형태는 Canonical Schema에 의한 철저한 검증을 받는다.
-15. **Side Effect는 명시적으로 분류한다**: `READ_ONLY`, `REVERSIBLE_WRITE`, `IRREVERSIBLE_WRITE`, `PRIVILEGED_ACTION`으로 명시한다.
-16. **Retry는 Bounded다**: 무한 재시도를 금지하며 Bounded Retry Policy를 적용한다.
-17. **Autonomy는 Bounded다**: 자율성 등급(L0~L5)을 엄격히 제한하고 L2 이상은 승인 절차를 거친다.
-18. **Raw CoT를 운영 Contract로 사용하지 않는다**: 추론 과정(CoT)은 참고용이며 최종 결과/구조화된 결정을 저장한다.
-19. **모든 기능은 관측 가능해야 한다**: Audit, Usage, Metric, Trace가 기록되어야 완료로 간주한다.
-20. **Code보다 Contract가 먼저다**: 스키마(Schema)와 계약(Contract)이 확정된 후 코드를 구현한다.
+NAGEX must be presented as an independent product.
 
----
+## 3. Project Origin
 
-## 4. 로드맵 및 단계별 구현 (Phases 0 ~ 11)
+NAGEX was created as an independent project on 2026-09-05.
 
-- **PHASE 0 — Contract Foundation**: Canonical Glossary, Resource Model, IDs, Error/Event Envelope, Tenant Context, Auth, Schema Repository
-- **PHASE 1 — Core**: Tenant, Identity, Registry, Lifecycle, Audit
-- **PHASE 2 — Runtime**: Execution, Task, Queue, Worker, State, Retry, Timeout, Cancellation, Checkpoint, Recovery
-- **PHASE 3 — Model Gateway**: Provider, Model Registry, Adapter, Router, Usage, Health, Fallback
-- **PHASE 4 — Agent**: L0-L2 Execution, Context, Structured Action, Tools
-- **PHASE 5 — Workflow**: Durable Graph, Wait, Approval, Branch, Retry
-- **PHASE 6 — Context**: Knowledge, Memory
-- **PHASE 7 — Extension**: Plugin, Sandbox, Credential Broker
-- **PHASE 8 — Developer Platform**: API, SDK, CLI, Console
-- **PHASE 9 — Enterprise**: Advanced Security, Governance, Dedicated Deployment
-- **PHASE 10 — Ecosystem**: Marketplace, Billing, Entitlement
-- **PHASE 11 — Autonomous**: L3-L5, Multi-Agent, Dynamic Planning
+The initial repository was bootstrapped from an earlier internal experimental AI platform codebase owned by the same entrant. That prior codebase is used only as a technical starting point.
+
+From the NAGEX root commit onward:
+
+- Product decisions belong to NAGEX.
+- Branding belongs to NAGEX.
+- Hackathon implementation belongs to NAGEX.
+- Architecture may diverge from the earlier experimental project.
+- NAGEX must not be presented as a previously released commercial product.
+- NAGEX must not conceal the fact that an internal experimental codebase was used as its initial technical foundation.
+
+## 4. Hackathon Objective
+
+NAGEX is being developed for the Nebius x NVIDIA Global AI Hackathon.
+
+The hackathon implementation must demonstrate real use of required Nebius and NVIDIA technologies rather than documentation-only integration.
+
+Target integration areas:
+
+- NVIDIA Nemotron models
+- Nebius Token Factory
+- Nebius AI Cloud
+- Agent reasoning
+- Tool execution
+- Persistent memory
+- Human approval
+- Model routing
+- Auditable execution
+
+Features that are planned but not yet implemented must never be described as completed.
+
+## 5. Core Product Capabilities
+
+### 5.1 Persistent Memory
+NAGEX should retain useful user context across interactions. Memory must distinguish session context, user preferences, task history, long-term memory, sensitive data, and agent execution history. Memory must be inspectable and controllable by the user.
+
+### 5.2 Agent Planning
+NAGEX must transform an objective into executable steps.
+
+```text
+Goal
+→ Analyze
+→ Plan
+→ Select Skill / Tool
+→ Execute or Request Approval
+→ Observe Result
+→ Re-plan when necessary
+→ Complete
+```
+
+### 5.3 Skills
+Reusable capabilities should be explicit Skills with name, description, permissions, input/output contract, required tools, safety level, and execution policy.
+
+### 5.4 Tools
+Tools provide controlled access to capabilities such as web, files, code execution, APIs, search, browser, and user-authorized integrations.
+
+### 5.5 Human Approval
+Meaningful external-impact actions must support human approval, including external messaging, data modification, financial actions, destructive operations, permission changes, and sensitive data transfers.
+
+### 5.6 Execution
+Each execution should preserve goal, plan, selected model, tool calls, approval state, result, errors, timestamps, and audit information.
+
+### 5.7 Model Routing
+The Model Router should support routing based on task type, complexity, latency, context length, cost, model capability, availability, and failure recovery. NVIDIA/Nebius usage must remain substantive in the hackathon execution path.
+
+## 6. Target Architecture
+
+```text
+NAGEX UI
+   │
+   ▼
+Personal Agent Runtime
+   │
+   ├── Memory
+   ├── Planner
+   ├── Skills
+   ├── Tools
+   └── Approval
+   │
+   ▼
+Model Gateway / Router
+   │
+   ├── NVIDIA Nemotron
+   └── Additional Models
+   │
+   ▼
+Nebius Token Factory / Nebius AI Cloud
+   │
+   ▼
+Execution Result
+   │
+   ▼
+Audit + Memory
+```
+
+## 7. Safety and Control Principles
+
+1. Human authority takes precedence over agent autonomy.
+2. Sensitive actions require explicit policy evaluation.
+3. Secrets must not be embedded in source code, logs, prompts, or public repositories.
+4. Tool permissions must be explicit.
+5. Cross-user and cross-tenant access is default-deny.
+6. Agent actions must be observable.
+7. Destructive operations must not happen silently.
+8. Model failure must not bypass security policy.
+9. Memory must be controllable and deletable.
+10. Demo convenience must not create unsafe production defaults.
+
+## 8. Implementation Truthfulness
+
+Documentation, UI, README, demo video, and Devpost submission must distinguish:
+
+- Implemented
+- Partially implemented
+- Prototype / Mock
+- Planned
+
+A mock must never be represented as a live integration.
+
+## 9. Development Priorities
+
+### Phase H1 — Separation and Foundation
+- NAGEX independent repository
+- Independent Git history
+- NAGEX branding
+- Remove legacy product-specific documentation
+- Normalize package names and internal identifiers
+- Establish NAGEX documentation SSOT
+
+### Phase H2 — Hackathon AI Core
+- NVIDIA Nemotron integration
+- Nebius Token Factory integration
+- Model Gateway
+- Model Router
+- Agent planning loop
+
+### Phase H3 — Personal AI
+- Persistent memory
+- Skills
+- Tool registry
+- Permission model
+- Human approval
+
+### Phase H4 — Demonstrable Execution
+- Real tool execution
+- Execution timeline
+- Audit log
+- Failure handling
+- Re-planning
+- User-visible model/provider state
+
+### Phase H5 — Submission Productization
+- Product UI
+- NAGEX branding
+- Public repository cleanup
+- Security review
+- README
+- Architecture documentation
+- Demo scenario
+- Demo video
+- Devpost submission
+
+## 10. Naming Rules
+
+Canonical naming:
+
+```text
+NAGEX
+NAGEX Agent
+NAGEX Runtime
+NAGEX Memory
+NAGEX Skill
+NAGEX Tool
+NAGEX Model Gateway
+NAGEX Model Router
+```
+
+Internal identifiers should eventually use `nagex`, `Nagex`, and `NAGEX`.
+
+Legacy identifiers inherited from the bootstrap codebase must be migrated deliberately with associated schemas and tests.
+
+## 11. Source of Truth Priority
+
+```text
+MASTER.md
+   ↓
+AGENTS.md
+   ↓
+Domain documentation under docs/
+   ↓
+Schemas / API contracts
+   ↓
+Tests
+   ↓
+Implementation
+```
+
+Existing implementation does not override this specification merely because legacy code already behaves differently.
+
+## 12. Definition of Done
+
+A NAGEX feature is complete only when applicable items are satisfied:
+
+- Product behavior implemented
+- Security boundary checked
+- Input/output contract defined
+- Error handling implemented
+- Tests pass
+- UI state is truthful
+- Auditability exists where required
+- Documentation matches implementation
+- No secrets committed
+- No misleading mock behavior
+- Build succeeds
+
+## 13. Core Product Statement
+
+> **A next-generation personal AI agent experience that combines persistent memory, reasoning, reusable skills, controlled tools, human approval, and real task execution.**
+
+This definition supersedes inherited product descriptions from the bootstrap codebase.

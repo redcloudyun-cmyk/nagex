@@ -1,8 +1,8 @@
-// AGEX Console i18n — lightweight dictionary-based localization.
+// NAGEX Console i18n — lightweight dictionary-based localization.
 // No build step in this project, so translations are applied at runtime by
 // walking [data-i18n*] attributes rather than templating at render time.
 (function () {
-  const STORAGE_KEY = 'agex_locale';
+  const STORAGE_KEY = 'nagex_locale';
 
   const translations = {
     ko: {
@@ -19,7 +19,7 @@
       'nav.newProjectTitle': '새 프로젝트',
       'nav.newProjectPlaceholder': '프로젝트 이름',
       'nav.projectFinancial': '금융 리서치',
-      'nav.projectAgexCore': 'AGEX 코어 개발',
+      'nav.projectNagexCore': 'NAGEX 코어 개발',
       'nav.enterProjectTitle': '프로젝트로 이동',
       'nav.projectWeb': '웹 프로젝트',
       'nav.recentServerFix': '서버 API 정합성 버그 수정',
@@ -29,14 +29,14 @@
 
       'user.role': '개인 / Admin',
       'user.avatarInitial': '윤',
-      'page.title': 'AGEX AI 워크스페이스 6.0 - Control Canvas',
+      'page.title': 'NAGEX AI 워크스페이스 6.0 - Control Canvas',
 
       'header.hamburgerLabel': '메뉴 열기',
       'header.langToggle': 'EN',
 
       'popover.credit': '코어 사용량',
       'popover.chargeBtn': '코어 충전',
-      'popover.primeBadge': 'AGEX 프라임',
+      'popover.primeBadge': 'NAGEX 프라임',
       'popover.iam': '계정 & Zero-Trust IAM',
       'popover.skills': '스킬 & SKILL.md 관리',
       'popover.settings': '설정',
@@ -45,9 +45,9 @@
 
       'hero.badge': 'Durable Runtime 연결됨',
       'hero.titleSuffix': 'AI 워크스페이스 6.0',
-      'hero.subtitle': '하나의 프롬프트로 리서치, 문서 작성, 코드 실행까지 — AGEX 멀티에이전트가 대신 처리합니다.',
+      'hero.subtitle': '하나의 프롬프트로 리서치, 문서 작성, 코드 실행까지 — NAGEX 멀티에이전트가 대신 처리합니다.',
 
-      'input.placeholder': '무엇이든 물어보고 만들어보세요 (AGEX Durable Runtime 통과)...',
+      'input.placeholder': '무엇이든 물어보고 만들어보세요 (NAGEX Durable Runtime 통과)...',
       'input.defaultText': '금융 시장 동향을 분석하고 구조화된 리포트를 생성해줘',
       'input.attach': '첨부',
       'input.coreModel': '코어 모델',
@@ -73,7 +73,7 @@
       'session.mockAck': "'{format}' 형식으로 작업을 준비하고 있어요. (실제 생성 결과는 LLM 연동이 완료되면 여기 캔버스에 표시됩니다.)",
       'session.followUpReply': '확인했습니다. 캔버스에 반영해드릴게요.',
 
-      'banner.title': 'SecondBrain Note. 카드처럼 얇은 AGEX AI 보이스 레코더 & 멀티에이전트 노드',
+      'banner.title': 'SecondBrain Note. 카드처럼 얇은 NAGEX AI 보이스 레코더 & 멀티에이전트 노드',
       'banner.desc': '한 번 누르면 최대 35시간까지 녹음됩니다. 유료 회원은 무제한 AI 전사 및 요약이 가능합니다.',
       'banner.cta': '자세히 보기',
 
@@ -89,15 +89,15 @@
       'billing.heading': '사용량 및 요금제 (Billing & Usage)',
       'billing.desc': '현재 플랜, 남은 코어 및 이번 달 사용 내역입니다.',
       'billing.planTitle': '현재 구독 플랜',
-      'billing.primePlanName': 'AGEX 프라임',
+      'billing.primePlanName': 'NAGEX 프라임',
       'billing.planSub': '월 $120.00 / 코어 10,000개 포함',
       'billing.creditTitle': '남은 코어',
       'billing.creditUnit': '코어',
       'billing.creditSub': '다음 갱신일: 2026-09-01',
-      'billing.freePlanName': 'AGEX 코어',
+      'billing.freePlanName': 'NAGEX 코어',
       'billing.freePlanSub': '기본 제공 코어 + 광고 시청으로 충전',
       'billing.freeCreditSub': '매일 자정 500으로 초기화',
-      'billing.modelTierNotice': '코어는 코어 모델에서만 사용할 수 있어요. 프라임 에이전트 등 고성능 모델을 쓰려면 AGEX 프라임이 필요합니다.',
+      'billing.modelTierNotice': '코어는 코어 모델에서만 사용할 수 있어요. 프라임 에이전트 등 고성능 모델을 쓰려면 NAGEX 프라임이 필요합니다.',
       'billing.earnHeading': '코어 추가 받기',
       'billing.referTitle': '친구 추천하기',
       'billing.referDesc': '추천 링크로 친구가 가입하면 1명당 코어 500개를 받습니다.',
@@ -106,11 +106,11 @@
       'billing.watchAdTitle': '전면 광고 시청하고 받기',
       'billing.watchAdDesc': '30초 광고를 끝까지 보면 코어 100개를 즉시 드려요.',
       'billing.watchAdCta': '광고 보기',
-      'billing.interstitialHeadline': 'AGEX 프라임으로 광고 없이, 더 빠른 모델을 만나보세요',
+      'billing.interstitialHeadline': 'NAGEX 프라임으로 광고 없이, 더 빠른 모델을 만나보세요',
       'billing.claimCredits': '코어 받기',
       'toast.referralCopied': '추천 링크가 복사되었습니다.',
       'toast.creditsEarned': '코어 100개를 받았습니다!',
-      'toast.superAgentLocked': '프라임 에이전트는 AGEX 프라임 전용입니다. 코어 탭에서 업그레이드하세요.',
+      'toast.superAgentLocked': '프라임 에이전트는 NAGEX 프라임 전용입니다. 코어 탭에서 업그레이드하세요.',
 
       'plugins.heading': '플러그인 및 서비스 연동',
       'plugins.desc': 'Slack, GitHub, Google Workspace 등 외부 서비스를 연결합니다. 연동된 Plugin은 에이전트가 Tool로 호출할 수 있습니다.',
@@ -297,18 +297,18 @@
       'settings.role': '역할',
       'settings.plan': '현재 플랜',
       'settings.customInstructionsTitle': '맞춤형 지침',
-      'settings.customInstructionsSubtitle': '모든 작업에서 AGEX 에이전트가 참고할 추가 지침과 컨텍스트를 입력하세요.',
+      'settings.customInstructionsSubtitle': '모든 작업에서 NAGEX 에이전트가 참고할 추가 지침과 컨텍스트를 입력하세요.',
       'settings.customInstructionsPlaceholder': '맞춤형 지침 추가...',
       'settings.save': '저장',
       'settings.memoryTitle': '메모리',
-      'settings.memorySubtitle': 'AGEX Memory Engine이 대화에서 수집하는 정보를 관리합니다.',
+      'settings.memorySubtitle': 'NAGEX Memory Engine이 대화에서 수집하는 정보를 관리합니다.',
       'settings.memoryEnable': '로컬 메모리 활성화',
       'settings.memoryEnableDesc': '이 계정의 대화에서 메모리를 생성하고 향후 대화를 개인화하는 데 사용합니다.',
       'settings.memoryClear': '로컬 메모리 삭제',
       'settings.memoryClearDesc': '저장된 모든 메모리를 삭제합니다.',
       'settings.clear': '삭제',
       'settings.agentTitle': '에이전트 기본값',
-      'settings.agentSubtitle': '새 작업의 권한, 승인, 추론 수준을 설정합니다. AGEX의 PDP(Policy Decision Point) 승인 게이트 및 Side Effect 분류와 연동됩니다.',
+      'settings.agentSubtitle': '새 작업의 권한, 승인, 추론 수준을 설정합니다. NAGEX의 PDP(Policy Decision Point) 승인 게이트 및 Side Effect 분류와 연동됩니다.',
       'settings.approvalPolicy': '승인 정책',
       'settings.approvalPolicyDesc': '에이전트가 IRREVERSIBLE_WRITE·PRIVILEGED_ACTION 작업 전에 승인을 요청할 시점을 선택합니다.',
       'settings.approvalAlways': '항상 자동 실행',
@@ -339,7 +339,7 @@
       'toast.sttUnsupported': '이 브라우저는 음성 인식을 지원하지 않습니다.',
       'toast.speaking': 'AI 음성 출력 중...',
       'toast.ttsUnsupported': '이 브라우저는 음성 출력을 지원하지 않습니다.',
-      'toast.defaultSpeak': 'AGEX AI 워크스페이스에 오신 것을 환영합니다. 원하시는 작업을 말씀해 주세요.',
+      'toast.defaultSpeak': 'NAGEX AI 워크스페이스에 오신 것을 환영합니다. 원하시는 작업을 말씀해 주세요.',
       'toast.connectDone': '연동 완료',
       'toast.skillAdded': '{name} 추가됨',
       'toast.projectCreated': "'{name}' 프로젝트를 만들었습니다.",
@@ -357,12 +357,12 @@
       'support.faqProjects': '프로젝트는 어떻게 만드나요?',
       'support.faqGit': '버전 관리(Git)는 어디서 보나요?',
       'support.faqHuman': '담당자와 직접 이야기하고 싶어요',
-      'support.welcome': '안녕하세요! AGEX AI 상담원입니다. 코어, 요금제, 에이전트 사용법 등 무엇이든 물어보세요.',
+      'support.welcome': '안녕하세요! NAGEX AI 상담원입니다. 코어, 요금제, 에이전트 사용법 등 무엇이든 물어보세요.',
       'support.inputPlaceholder': '궁금한 점을 입력하세요...',
       'support.you': '나',
-      'support.answerCredits': '코어는 AGEX 코어(무료) 플랜 기준 매일 자정에 500개로 초기화돼요. 친구 추천이나 전면 광고 시청으로 추가로 받을 수도 있습니다. 자세한 내용은 사용량 및 요금제 탭을 확인해주세요.',
-      'support.answerUpgrade': '사이드바 하단 프로필을 눌러 코어 충전을 선택하거나, 우측 하단 배너의 업그레이드 버튼을 누르면 AGEX 프라임으로 즉시 전환됩니다. 프라임은 프라임 에이전트와 고성능 모델을 제한 없이 사용할 수 있어요.',
-      'support.answerTenant': '테넌트는 AGEX에서 조직/워크스페이스 단위를 뜻해요. 같은 테넌트 안의 데이터와 실행만 서로 접근 가능하고, 다른 테넌트 것은 기본적으로 완전히 차단됩니다.',
+      'support.answerCredits': '코어는 NAGEX 코어(무료) 플랜 기준 매일 자정에 500개로 초기화돼요. 친구 추천이나 전면 광고 시청으로 추가로 받을 수도 있습니다. 자세한 내용은 사용량 및 요금제 탭을 확인해주세요.',
+      'support.answerUpgrade': '사이드바 하단 프로필을 눌러 코어 충전을 선택하거나, 우측 하단 배너의 업그레이드 버튼을 누르면 NAGEX 프라임으로 즉시 전환됩니다. 프라임은 프라임 에이전트와 고성능 모델을 제한 없이 사용할 수 있어요.',
+      'support.answerTenant': '테넌트는 NAGEX에서 조직/워크스페이스 단위를 뜻해요. 같은 테넌트 안의 데이터와 실행만 서로 접근 가능하고, 다른 테넌트 것은 기본적으로 완전히 차단됩니다.',
       'support.answerPlugins': '사이드바의 플러그인 연동 메뉴에서 CRM·커뮤니케이션·클라우드 등 다양한 커넥터를 검색하고 연결할 수 있어요. 현재는 연동 상태를 관리하는 화면 단계이고, 실제 API 연동은 순차적으로 확장 중입니다.',
       'support.answerSkills': '스킬 메뉴에서 기본 제공 스킬을 바로 추가하거나, 스킬 크리에이터로 나만의 스킬을 등록할 수 있어요.',
       'support.answerDataSources': '데이터 소스 메뉴에서 데이터베이스나 파일 소스를 연결하고 관리할 수 있어요.',
@@ -375,9 +375,9 @@
       'support.answerDefault': '문의 감사합니다. 정확한 답변을 위해 담당 팀에게 전달했어요. 그동안 위의 빠른 질문 버튼도 참고해보세요.',
 
       'ad.label': '광고',
-      'ad.headline': '광고 없이 AGEX 프라임으로 더 빠르게 작업하세요',
+      'ad.headline': '광고 없이 NAGEX 프라임으로 더 빠르게 작업하세요',
       'ad.cta': '업그레이드',
-      'toast.upgraded': 'AGEX 프라임으로 업그레이드되었습니다.',
+      'toast.upgraded': 'NAGEX 프라임으로 업그레이드되었습니다.',
     },
     en: {
       'nav.newTask': 'New Task',
@@ -393,7 +393,7 @@
       'nav.newProjectTitle': 'New project',
       'nav.newProjectPlaceholder': 'Project name',
       'nav.projectFinancial': 'Financial Research',
-      'nav.projectAgexCore': 'AGEX Core Development',
+      'nav.projectNagexCore': 'NAGEX Core Development',
       'nav.enterProjectTitle': 'Go to project',
       'nav.projectWeb': 'Web Project',
       'nav.recentServerFix': 'Server API Consistency Fixes',
@@ -403,14 +403,14 @@
 
       'user.role': 'Personal / Admin',
       'user.avatarInitial': 'B',
-      'page.title': 'AGEX AI Workspace 6.0 - Control Canvas',
+      'page.title': 'NAGEX AI Workspace 6.0 - Control Canvas',
 
       'header.hamburgerLabel': 'Open menu',
       'header.langToggle': '한국어',
 
       'popover.credit': 'Core Usage',
       'popover.chargeBtn': 'Top Up Core',
-      'popover.primeBadge': 'AGEX Prime',
+      'popover.primeBadge': 'NAGEX Prime',
       'popover.iam': 'Account & Zero-Trust IAM',
       'popover.skills': 'Skills & SKILL.md',
       'popover.settings': 'Settings',
@@ -419,9 +419,9 @@
 
       'hero.badge': 'Durable Runtime Connected',
       'hero.titleSuffix': 'AI Workspace 6.0',
-      'hero.subtitle': 'One prompt handles research, writing, and code execution — AGEX multi-agents do it for you.',
+      'hero.subtitle': 'One prompt handles research, writing, and code execution — NAGEX multi-agents do it for you.',
 
-      'input.placeholder': 'Ask or build anything (routed through the AGEX Durable Runtime)...',
+      'input.placeholder': 'Ask or build anything (routed through the NAGEX Durable Runtime)...',
       'input.defaultText': 'Analyze financial market trends and generate a structured report',
       'input.attach': 'Attach',
       'input.coreModel': 'Core Model',
@@ -447,7 +447,7 @@
       'session.mockAck': "Getting your '{format}' ready. (Once LLM integration is live, the real output will render here in the canvas.)",
       'session.followUpReply': "Got it — I'll reflect that in the canvas.",
 
-      'banner.title': 'SecondBrain Note. A card-thin AGEX AI voice recorder & multi-agent node.',
+      'banner.title': 'SecondBrain Note. A card-thin NAGEX AI voice recorder & multi-agent node.',
       'banner.desc': 'One tap records up to 35 hours. Paid members get unlimited AI transcription and summaries.',
       'banner.cta': 'Learn More',
 
@@ -463,15 +463,15 @@
       'billing.heading': 'Billing & Usage',
       'billing.desc': "Your current plan, remaining Core balance, and this month's usage.",
       'billing.planTitle': 'Current Plan',
-      'billing.primePlanName': 'AGEX Prime',
+      'billing.primePlanName': 'NAGEX Prime',
       'billing.planSub': '$120.00/mo · includes 10,000 Core',
       'billing.creditTitle': 'Remaining Core',
       'billing.creditUnit': 'Core',
       'billing.creditSub': 'Next renewal: 2026-09-01',
-      'billing.freePlanName': 'AGEX Core',
+      'billing.freePlanName': 'NAGEX Core',
       'billing.freePlanSub': 'Starter Core + ad-supported top-ups',
       'billing.freeCreditSub': 'Resets to 500 every day at midnight',
-      'billing.modelTierNotice': 'Core only works with the Core Model. Prime Agent and other high-performance models require AGEX Prime.',
+      'billing.modelTierNotice': 'Core only works with the Core Model. Prime Agent and other high-performance models require NAGEX Prime.',
       'billing.earnHeading': 'Earn More Core',
       'billing.referTitle': 'Refer a Friend',
       'billing.referDesc': 'Get 500 Core for every friend who signs up with your link.',
@@ -480,11 +480,11 @@
       'billing.watchAdTitle': 'Watch a Full-Screen Ad',
       'billing.watchAdDesc': 'Watch a 30-second ad to the end and get 100 Core instantly.',
       'billing.watchAdCta': 'Watch Ad',
-      'billing.interstitialHeadline': 'Go ad-free with faster models on AGEX Prime',
+      'billing.interstitialHeadline': 'Go ad-free with faster models on NAGEX Prime',
       'billing.claimCredits': 'Claim Core',
       'toast.referralCopied': 'Referral link copied.',
       'toast.creditsEarned': 'You earned 100 Core!',
-      'toast.superAgentLocked': 'Prime Agent is AGEX Prime only. Upgrade from the Billing tab.',
+      'toast.superAgentLocked': 'Prime Agent is NAGEX Prime only. Upgrade from the Billing tab.',
 
       'plugins.heading': 'Plugins & Integrations',
       'plugins.desc': 'Connect external services like Slack, GitHub, and Google Workspace. Connected plugins can be invoked by agents as tools.',
@@ -671,18 +671,18 @@
       'settings.role': 'Role',
       'settings.plan': 'Current Plan',
       'settings.customInstructionsTitle': 'Custom Instructions',
-      'settings.customInstructionsSubtitle': 'Give AGEX agents extra instructions and context to reference on every task.',
+      'settings.customInstructionsSubtitle': 'Give NAGEX agents extra instructions and context to reference on every task.',
       'settings.customInstructionsPlaceholder': 'Add custom instructions...',
       'settings.save': 'Save',
       'settings.memoryTitle': 'Memory',
-      'settings.memorySubtitle': 'Manage what the AGEX Memory Engine collects from your conversations.',
+      'settings.memorySubtitle': 'Manage what the NAGEX Memory Engine collects from your conversations.',
       'settings.memoryEnable': 'Enable Local Memory',
       'settings.memoryEnableDesc': "Generate memories from this account's conversations and use them to personalize future chats.",
       'settings.memoryClear': 'Clear Local Memory',
       'settings.memoryClearDesc': 'Delete all memories stored locally.',
       'settings.clear': 'Clear',
       'settings.agentTitle': 'Agent Defaults',
-      'settings.agentSubtitle': "Set new tasks' permissions, approval, and reasoning level. Ties into AGEX's PDP (Policy Decision Point) approval gate and Side Effect classification.",
+      'settings.agentSubtitle': "Set new tasks' permissions, approval, and reasoning level. Ties into NAGEX's PDP (Policy Decision Point) approval gate and Side Effect classification.",
       'settings.approvalPolicy': 'Approval Policy',
       'settings.approvalPolicyDesc': 'Choose when agents should request approval before IRREVERSIBLE_WRITE / PRIVILEGED_ACTION operations.',
       'settings.approvalAlways': 'Always auto-run',
@@ -713,7 +713,7 @@
       'toast.sttUnsupported': "This browser doesn't support speech recognition.",
       'toast.speaking': 'Playing AI voice output...',
       'toast.ttsUnsupported': "This browser doesn't support voice output.",
-      'toast.defaultSpeak': "Welcome to the AGEX AI Workspace. Tell me what you'd like to do.",
+      'toast.defaultSpeak': "Welcome to the NAGEX AI Workspace. Tell me what you'd like to do.",
       'toast.connectDone': 'connected',
       'toast.skillAdded': '{name} added',
       'toast.projectCreated': "Created project '{name}'.",
@@ -731,12 +731,12 @@
       'support.faqProjects': 'How do I create a project?',
       'support.faqGit': 'Where can I see version control (Git)?',
       'support.faqHuman': "I'd like to talk to a person",
-      'support.welcome': "Hi! I'm the AGEX AI support agent. Ask me anything about Core, plans, or using your agents.",
+      'support.welcome': "Hi! I'm the NAGEX AI support agent. Ask me anything about Core, plans, or using your agents.",
       'support.inputPlaceholder': 'Type your question...',
       'support.you': 'You',
-      'support.answerCredits': 'On the AGEX Core (free) plan, your Core balance resets to 500 every day at midnight. You can also earn more by referring friends or watching a full-screen ad — check the Billing & Usage tab for details.',
-      'support.answerUpgrade': 'Open the profile menu at the bottom of the sidebar and choose Top Up Core, or click Upgrade on the banner in the bottom-right corner to switch to AGEX Prime instantly. Prime gives you unlimited access to the Prime Agent and high-performance models.',
-      'support.answerTenant': 'A tenant is your organization or workspace in AGEX. Data and executions are only accessible within the same tenant — access from any other tenant is blocked by default.',
+      'support.answerCredits': 'On the NAGEX Core (free) plan, your Core balance resets to 500 every day at midnight. You can also earn more by referring friends or watching a full-screen ad — check the Billing & Usage tab for details.',
+      'support.answerUpgrade': 'Open the profile menu at the bottom of the sidebar and choose Top Up Core, or click Upgrade on the banner in the bottom-right corner to switch to NAGEX Prime instantly. Prime gives you unlimited access to the Prime Agent and high-performance models.',
+      'support.answerTenant': 'A tenant is your organization or workspace in NAGEX. Data and executions are only accessible within the same tenant — access from any other tenant is blocked by default.',
       'support.answerPlugins': 'Open the Plugin Connectors menu in the sidebar to search and connect CRM, communication, cloud, and other connectors. This is currently a connection-management screen — real API integrations are being rolled out incrementally.',
       'support.answerSkills': 'Open the Skills menu to add a built-in skill instantly, or use the Skill Creator to register your own.',
       'support.answerDataSources': 'Open the Data Sources menu to connect and manage databases or file sources.',
@@ -749,9 +749,9 @@
       'support.answerDefault': "Thanks for reaching out. I've forwarded this to our team for an accurate answer. In the meantime, feel free to check the quick questions above.",
 
       'ad.label': 'Ad',
-      'ad.headline': 'Go ad-free and work faster with AGEX Prime',
+      'ad.headline': 'Go ad-free and work faster with NAGEX Prime',
       'ad.cta': 'Upgrade',
-      'toast.upgraded': 'Upgraded to AGEX Prime.',
+      'toast.upgraded': 'Upgraded to NAGEX Prime.',
     },
   };
 
@@ -807,5 +807,5 @@
     setLocale(currentLocale === 'ko' ? 'en' : 'ko');
   }
 
-  window.AGEX_I18N = { t, getLocale, setLocale, toggleLocale, applyLocale };
+  window.NAGEX_I18N = { t, getLocale, setLocale, toggleLocale, applyLocale };
 })();

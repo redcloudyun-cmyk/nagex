@@ -1,4 +1,4 @@
-import { AgexError } from '../common/errors.js';
+import { NagexError } from '../common/errors.js';
 
 export interface EgressRule {
   host: string;
@@ -27,7 +27,7 @@ export class PluginFramework {
   ): boolean {
     const plugin = this.registeredPlugins.get(packageName);
     if (!plugin) {
-      throw new AgexError({
+      throw new NagexError({
         code: 'PLUGIN_NOT_FOUND',
         category: 'NOT_FOUND',
         message: `Plugin package ${packageName} not registered.`,
@@ -43,7 +43,7 @@ export class PluginFramework {
     );
 
     if (!allowed) {
-      throw new AgexError({
+      throw new NagexError({
         code: 'PLUGIN_EGRESS_DENIED',
         category: 'POLICY',
         message: `Plugin ${packageName} denied egress access to ${targetProtocol}://${targetHost}:${targetPort}.`,

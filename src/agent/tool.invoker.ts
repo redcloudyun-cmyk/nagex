@@ -1,4 +1,4 @@
-import { AgexError } from '../common/errors.js';
+import { NagexError } from '../common/errors.js';
 
 export type SideEffectClass = 'READ_ONLY' | 'REVERSIBLE_WRITE' | 'IRREVERSIBLE_WRITE' | 'PRIVILEGED_ACTION';
 
@@ -33,7 +33,7 @@ export class ToolInvoker {
   ): Promise<ToolInvocationResult> {
     const tool = this.registry.get(toolId);
     if (!tool) {
-      throw new AgexError({
+      throw new NagexError({
         code: 'TOOL_NOT_FOUND',
         category: 'NOT_FOUND',
         message: `Tool ID ${toolId} not registered in tool invoker.`,
@@ -48,7 +48,7 @@ export class ToolInvoker {
     // level alone.
     if (tool.side_effect === 'IRREVERSIBLE_WRITE' || tool.side_effect === 'PRIVILEGED_ACTION') {
       if (autonomyLevel === 'L0' || autonomyLevel === 'L1') {
-        throw new AgexError({
+        throw new NagexError({
           code: 'AUTONOMY_LEVEL_EXCEEDED',
           category: 'POLICY',
           message: `Autonomy level ${autonomyLevel} cannot execute ${tool.side_effect} tool under any circumstances.`,
@@ -57,7 +57,7 @@ export class ToolInvoker {
       }
 
       if (!approved) {
-        throw new AgexError({
+        throw new NagexError({
           code: 'APPROVAL_REQUIRED',
           category: 'POLICY',
           message: `Autonomy level ${autonomyLevel} requires explicit approval to execute ${tool.side_effect} tool ${toolId}.`,

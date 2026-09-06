@@ -1,6 +1,6 @@
 import type { DurableRuntimeEngine, ExecutionRecord } from '../runtime/runtime.engine.js';
 import type { TenantContext } from '../common/types.js';
-import { AgexError } from '../common/errors.js';
+import { NagexError } from '../common/errors.js';
 
 export type StepType =
   | 'AGENT'
@@ -79,7 +79,7 @@ export class WorkflowEngine {
 
     while (currentStepId) {
       if (++stepsVisited > MAX_WORKFLOW_STEPS) {
-        throw new AgexError({
+        throw new NagexError({
           code: 'WORKFLOW_STEP_LIMIT_EXCEEDED',
           category: 'RUNTIME',
           message: `Workflow ${workflow.id} exceeded ${MAX_WORKFLOW_STEPS} step traversals; likely an unbounded cycle in edges.`,
@@ -89,7 +89,7 @@ export class WorkflowEngine {
 
       const step = workflow.steps.find(s => s.id === currentStepId);
       if (!step) {
-        throw new AgexError({
+        throw new NagexError({
           code: 'WORKFLOW_STEP_NOT_FOUND',
           category: 'VALIDATION',
           message: `Workflow ${workflow.id} has an edge pointing to unknown step id ${currentStepId}.`,
@@ -98,7 +98,7 @@ export class WorkflowEngine {
       }
 
       if (!SUPPORTED_STEP_TYPES.has(step.type)) {
-        throw new AgexError({
+        throw new NagexError({
           code: 'UNSUPPORTED_STEP_TYPE',
           category: 'VALIDATION',
           message: `Step ${step.id} has type ${step.type}, which this Workflow Engine does not yet execute.`,

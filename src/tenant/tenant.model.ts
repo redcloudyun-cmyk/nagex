@@ -1,5 +1,5 @@
 import type { ResourceMetadata } from '../common/types.js';
-import { AgexError } from '../common/errors.js';
+import { NagexError } from '../common/errors.js';
 
 export type IsolationProfile = 'SHARED' | 'ISOLATED_DATA' | 'ISOLATED_RUNTIME' | 'DEDICATED';
 export type AutonomyLevel = 'L0' | 'L1' | 'L2' | 'L3' | 'L4' | 'L5';
@@ -32,7 +32,7 @@ export interface TenantStatus {
 }
 
 export interface TenantResource {
-  api_version: 'agex/v1';
+  api_version: 'nagex/v1';
   kind: 'Tenant';
   metadata: ResourceMetadata;
   specification: TenantSpecification;
@@ -41,7 +41,7 @@ export interface TenantResource {
 
 export function validateTenantResource(tenant: TenantResource): void {
   if (tenant.kind !== 'Tenant') {
-    throw new AgexError({
+    throw new NagexError({
       code: 'VALIDATION_ERROR',
       category: 'VALIDATION',
       message: `Invalid Resource kind: ${tenant.kind}. Expected 'Tenant'.`,
@@ -50,7 +50,7 @@ export function validateTenantResource(tenant: TenantResource): void {
   }
 
   if (tenant.metadata.scope_type !== 'PLATFORM') {
-    throw new AgexError({
+    throw new NagexError({
       code: 'VALIDATION_ERROR',
       category: 'VALIDATION',
       message: `Tenant Resource metadata scope_type must be 'PLATFORM'.`,
@@ -59,7 +59,7 @@ export function validateTenantResource(tenant: TenantResource): void {
   }
 
   if (!tenant.specification.display_name) {
-    throw new AgexError({
+    throw new NagexError({
       code: 'VALIDATION_ERROR',
       category: 'VALIDATION',
       message: `Tenant display_name is required.`,
@@ -68,7 +68,7 @@ export function validateTenantResource(tenant: TenantResource): void {
   }
 
   if (!tenant.specification.home_region) {
-    throw new AgexError({
+    throw new NagexError({
       code: 'VALIDATION_ERROR',
       category: 'VALIDATION',
       message: `Tenant home_region is required.`,
@@ -77,7 +77,7 @@ export function validateTenantResource(tenant: TenantResource): void {
   }
 
   if (!VALID_ISOLATION_PROFILES.has(tenant.specification.isolation_profile)) {
-    throw new AgexError({
+    throw new NagexError({
       code: 'VALIDATION_ERROR',
       category: 'VALIDATION',
       message: `Invalid isolation_profile: ${tenant.specification.isolation_profile}.`,
@@ -86,7 +86,7 @@ export function validateTenantResource(tenant: TenantResource): void {
   }
 
   if (!VALID_AUTONOMY_LEVELS.has(tenant.specification.maximum_autonomy_level)) {
-    throw new AgexError({
+    throw new NagexError({
       code: 'VALIDATION_ERROR',
       category: 'VALIDATION',
       message: `Invalid maximum_autonomy_level: ${tenant.specification.maximum_autonomy_level}.`,

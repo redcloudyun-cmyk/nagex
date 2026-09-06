@@ -89,7 +89,7 @@ test('2. Knowledge Engine Candidate Retrieval ACL Filter', () => {
     source_id: 'kns_public',
     title: 'Public Architecture Guide',
     classification: 'PUBLIC',
-    content: 'General AGEX System Guide',
+    content: 'General NAGEX System Guide',
   });
 
   knEngine.addDocument({
@@ -116,7 +116,7 @@ test('2b. Knowledge Engine Grounded Citation Check rejects fabricated references
     source_id: 'kns_public',
     title: 'Public Architecture Guide',
     classification: 'PUBLIC',
-    content: 'General AGEX System Guide',
+    content: 'General NAGEX System Guide',
   });
 
   const candidates = knEngine.retrieveCandidates('Guide', ['PUBLIC']);
@@ -176,7 +176,7 @@ test('4. Plugin Framework Sandbox Egress Control', () => {
   const pluginFw = new PluginFramework();
 
   pluginFw.registerPlugin({
-    package: 'com.agex.slack-plugin',
+    package: 'com.nagex.slack-plugin',
     version: '1.0.0',
     egress: [
       { host: 'hooks.slack.com', port: 443, protocol: 'HTTPS' },
@@ -184,13 +184,13 @@ test('4. Plugin Framework Sandbox Egress Control', () => {
   });
 
   // Allowed Egress
-  const allowed = pluginFw.validateEgressAccess('com.agex.slack-plugin', 'hooks.slack.com', 443, 'HTTPS');
+  const allowed = pluginFw.validateEgressAccess('com.nagex.slack-plugin', 'hooks.slack.com', 443, 'HTTPS');
   assert.strictEqual(allowed, true);
 
   // Denied Egress (Unauthorized Host)
   assert.throws(
     () => {
-      pluginFw.validateEgressAccess('com.agex.slack-plugin', 'malicious.external.com', 443, 'HTTPS');
+      pluginFw.validateEgressAccess('com.nagex.slack-plugin', 'malicious.external.com', 443, 'HTTPS');
     },
     (err: any) => err.code === 'PLUGIN_EGRESS_DENIED'
   );
@@ -198,7 +198,7 @@ test('4. Plugin Framework Sandbox Egress Control', () => {
   // Denied Egress (Correct Host/Port but Undeclared Protocol)
   assert.throws(
     () => {
-      pluginFw.validateEgressAccess('com.agex.slack-plugin', 'hooks.slack.com', 443, 'HTTP');
+      pluginFw.validateEgressAccess('com.nagex.slack-plugin', 'hooks.slack.com', 443, 'HTTP');
     },
     (err: any) => err.code === 'PLUGIN_EGRESS_DENIED'
   );

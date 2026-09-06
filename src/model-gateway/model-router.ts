@@ -1,4 +1,4 @@
-import { AgexError } from '../common/errors.js';
+import { NagexError } from '../common/errors.js';
 
 export type ProviderTrustClass = 'PRIVATE' | 'DIRECT_APPROVED' | 'ENTERPRISE_APPROVED' | 'AGGREGATOR';
 export type DataClassification = 'PUBLIC' | 'INTERNAL' | 'CONFIDENTIAL' | 'RESTRICTED';
@@ -47,7 +47,7 @@ export class ModelRouter {
     );
 
     if (filtered.length === 0) {
-      throw new AgexError({
+      throw new NagexError({
         code: 'NO_CAPABLE_MODEL_FOUND',
         category: 'PROVIDER',
         message: 'No model satisfies required capabilities.',
@@ -61,7 +61,7 @@ export class ModelRouter {
     );
 
     if (filtered.length === 0) {
-      throw new AgexError({
+      throw new NagexError({
         code: 'DATA_CLASSIFICATION_DENIED',
         category: 'POLICY',
         message: `No model allowed for classification: ${request.data_classification}.`,
@@ -73,7 +73,7 @@ export class ModelRouter {
     filtered = filtered.filter(m => m.healthy);
 
     if (filtered.length === 0) {
-      throw new AgexError({
+      throw new NagexError({
         code: 'ALL_PROVIDERS_UNHEALTHY',
         category: 'PROVIDER',
         message: 'All matching model providers are currently unhealthy.',
@@ -88,7 +88,7 @@ export class ModelRouter {
       filtered = filtered.filter(m => m.region.includes(request.target_region!));
 
       if (filtered.length === 0) {
-        throw new AgexError({
+        throw new NagexError({
           code: 'REGION_CONSTRAINT_VIOLATED',
           category: 'POLICY',
           message: `No model available in required region: ${request.target_region}.`,

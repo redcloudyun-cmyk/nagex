@@ -1,58 +1,41 @@
-# AGEX Claude Code & AI Agent Instructions
+# NAGEX Claude Code Instructions
 
-Before doing any implementation work, read:
+Before implementation, read:
+
+@MASTER.md
 @AGENTS.md
 
-The instructions in AGENTS.md are the primary development rules for this repository.
-Also follow the rules below.
+NAGEX means **Next-generation Agent Experience**.
 
----
+NAGEX is an independent Personal AI / Agentic AI project created on 2026-09-05 for the Nebius x NVIDIA Global AI Hackathon.
 
-## Claude-Specific Working Rules
+## Mandatory Rules
 
-1. Read `MASTER.md` before architectural or cross-domain changes.
-2. Use `docs/INDEX.md` to locate only the specifications relevant to the current task.
-3. Do not load all AGEX documents unless the task spans the entire platform.
-4. Do not infer missing platform contracts from existing code alone.
-5. If implementation and specification conflict, identify the mismatch before preserving legacy behavior.
-6. Do not introduce a new Resource, Permission, Event, lifecycle state, or public API shape without checking the canonical specification.
-7. When making a public contract change, include schema and test changes in the same task.
-8. Never bypass Runtime, Model Gateway, IAM, Tenant Isolation, or Security boundaries for implementation convenience.
-9. Do not replace explicit AGEX domain concepts with generic maps or `any` objects simply to move faster.
-10. Prefer a narrow, specification-compliant change over a broad speculative redesign.
+1. Treat `MASTER.md` as the product-level source of truth.
+2. Do not assume inherited bootstrap code defines the final NAGEX architecture.
+3. Do not perform blind repository-wide product-name replacements.
+4. Public contract changes must update code, schema, tests, and documentation together.
+5. Preserve tenant and security boundaries.
+6. Consequential external actions must support human approval.
+7. Never commit secrets.
+8. Keep provider-specific logic behind the Model Gateway.
+9. Clearly distinguish live integration, mock behavior, and planned functionality.
+10. NVIDIA/Nebius usage claimed in the product must exist in the real runtime path.
 
----
+## Product Focus
 
-## Required Response Before Major Implementation
+Prioritize persistent memory, agent planning, NVIDIA Nemotron reasoning, Nebius integration, skills, tools, human approval, real execution, model routing, and auditability.
 
-For substantial work, briefly identify:
-- Governing AGEX specification
-- Affected domain(s)
-- Affected schemas/APIs/events
-- Security/tenant implications
-- Tests required
+Avoid broad unrelated platform expansion.
 
-Then implement.
+## Completion
 
----
+Before completion run:
 
-## Specification Gap Behavior
+```text
+npm run build
+npm test
+git status
+```
 
-If a necessary contract is genuinely undefined:
-- Do not silently invent one;
-- Identify the missing contract;
-- Propose the smallest specification-compatible option;
-- Isolate any provisional implementation behind a clearly named interface or TODO.
-
----
-
-## Completion Check
-
-Before declaring a task complete, verify:
-- Specification compliance
-- Tenant isolation
-- Permission/policy handling
-- Versioning implications
-- Error handling
-- Observability
-- Tests
+Do not declare success while tests fail or documentation misrepresents implementation.

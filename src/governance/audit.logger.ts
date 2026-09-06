@@ -1,5 +1,5 @@
 import { generateResourceId, getCurrentISOString } from '../common/utils.js';
-import { AgexError } from '../common/errors.js';
+import { NagexError } from '../common/errors.js';
 
 export interface AuditEventRecord {
   audit_id: string;

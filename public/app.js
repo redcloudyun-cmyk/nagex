@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-  const i18n = window.AGEX_I18N;
+  const i18n = window.NAGEX_I18N;
   if (i18n) i18n.applyLocale();
 
   const btnRun = document.getElementById('btn-run-task');
@@ -259,11 +259,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const customInstructionsEl = document.getElementById('settings-custom-instructions');
   const btnSaveInstructions = document.getElementById('btn-save-instructions');
   if (customInstructionsEl) {
-    customInstructionsEl.value = localStorage.getItem('agex_custom_instructions') || '';
+    customInstructionsEl.value = localStorage.getItem('nagex_custom_instructions') || '';
   }
   if (btnSaveInstructions && customInstructionsEl) {
     btnSaveInstructions.addEventListener('click', () => {
-      localStorage.setItem('agex_custom_instructions', customInstructionsEl.value);
+      localStorage.setItem('nagex_custom_instructions', customInstructionsEl.value);
       showToast(i18n ? i18n.t('toast.instructionsSaved') : '맞춤형 지침이 저장되었습니다.');
     });
   }
@@ -272,14 +272,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const memoryToggleEl = document.getElementById('settings-memory-toggle');
   const btnClearMemory = document.getElementById('btn-clear-memory');
   if (memoryToggleEl) {
-    memoryToggleEl.checked = localStorage.getItem('agex_memory_enabled') === 'true';
+    memoryToggleEl.checked = localStorage.getItem('nagex_memory_enabled') === 'true';
     memoryToggleEl.addEventListener('change', () => {
-      localStorage.setItem('agex_memory_enabled', String(memoryToggleEl.checked));
+      localStorage.setItem('nagex_memory_enabled', String(memoryToggleEl.checked));
     });
   }
   if (btnClearMemory) {
     btnClearMemory.addEventListener('click', () => {
-      localStorage.removeItem('agex_memory_enabled');
+      localStorage.removeItem('nagex_memory_enabled');
       if (memoryToggleEl) memoryToggleEl.checked = false;
       showToast(i18n ? i18n.t('toast.memoryCleared') : '로컬 메모리를 삭제했습니다.');
     });
@@ -289,9 +289,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Persisted locally for now; not yet read by the PDP or Model Gateway —
   // see the section's own subtitle disclaimer in index.html.
   [
-    ['settings-approval-select', 'agex_approval_policy'],
-    ['settings-sandbox-select', 'agex_sandbox_setting'],
-    ['settings-reasoning-select', 'agex_reasoning_level'],
+    ['settings-approval-select', 'nagex_approval_policy'],
+    ['settings-sandbox-select', 'nagex_sandbox_setting'],
+    ['settings-reasoning-select', 'nagex_reasoning_level'],
   ].forEach(([id, storageKey]) => {
     const el = document.getElementById(id);
     if (!el) return;
@@ -495,7 +495,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ─── Free-Tier Plan State (Core) vs Paid (Prime) ───
   // Not wired to real billing/entitlement data yet (Phase 10), so this reads
-  // a local mock flag: 'free' (default — AGEX Core) or 'pro' (AGEX Prime).
+  // a local mock flag: 'free' (default — NAGEX Core) or 'pro' (NAGEX Prime).
   const adWidget = document.getElementById('ad-widget-free');
   const btnAdUpgrade = document.getElementById('btn-ad-upgrade');
   const planSummaryPro = document.getElementById('plan-summary-pro');
@@ -508,7 +508,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const settingsPlanBadge = document.getElementById('settings-plan-badge');
 
   function isFreePlan() {
-    return (localStorage.getItem('agex_plan') || 'free') === 'free';
+    return (localStorage.getItem('nagex_plan') || 'free') === 'free';
   }
 
   function refreshPlanUI() {
@@ -525,14 +525,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (settingsPlanBadge) {
       settingsPlanBadge.textContent = i18n
         ? i18n.t(free ? 'billing.freePlanName' : 'billing.primePlanName')
-        : (free ? 'AGEX 코어' : 'AGEX 프라임');
+        : (free ? 'NAGEX 코어' : 'NAGEX 프라임');
     }
   }
 
   function upgradeToPrime() {
-    localStorage.setItem('agex_plan', 'pro');
+    localStorage.setItem('nagex_plan', 'pro');
     refreshPlanUI();
-    showToast(i18n ? i18n.t('toast.upgraded') : 'AGEX 프라임으로 업그레이드되었습니다.');
+    showToast(i18n ? i18n.t('toast.upgraded') : 'NAGEX 프라임으로 업그레이드되었습니다.');
   }
 
   // Pro-plan balance now reflects the real CreditEngine (S-07 Phase 1) via
@@ -564,7 +564,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnPrimeAgent) {
     btnPrimeAgent.addEventListener('click', () => {
       if (isFreePlan()) {
-        showToast(i18n ? i18n.t('toast.superAgentLocked') : '프라임 에이전트는 AGEX 프라임 전용입니다. 코어 탭에서 업그레이드하세요.');
+        showToast(i18n ? i18n.t('toast.superAgentLocked') : '프라임 에이전트는 NAGEX 프라임 전용입니다. 코어 탭에서 업그레이드하세요.');
       }
     });
   }
@@ -745,7 +745,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // 현재 입력창의 텍스트를 읽거나, 없으면 기본 AI 응답 텍스트를 읽음
         const textToSpeak = promptInput && promptInput.value.trim()
           ? promptInput.value.trim()
-          : (i18n ? i18n.t('toast.defaultSpeak') : 'AGEX AI 워크스페이스에 오신 것을 환영합니다. 원하시는 작업을 말씀해 주세요.');
+          : (i18n ? i18n.t('toast.defaultSpeak') : 'NAGEX AI 워크스페이스에 오신 것을 환영합니다. 원하시는 작업을 말씀해 주세요.');
 
         const utterance = new SpeechSynthesisUtterance(textToSpeak);
         const langTag = speechLangTag();

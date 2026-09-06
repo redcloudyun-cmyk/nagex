@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "agex://schema/context/grounded-response/v1",
-  "title": "AGEX Grounded Citation Check Contract",
+  "$id": "nagex://schema/context/grounded-response/v1",
+  "title": "NAGEX Grounded Citation Check Contract",
   "description": "TODO(spec-gap): provisional contract -- no LEVEL 3 domain specification for the Knowledge Engine exists yet (see docs/INDEX.md). This formalizes the smallest checkable piece of MASTER.md principles #7 (Model Output은 권한이 아니다) and #14 (Schema Validation on all AI Actions) available before real Model Gateway generation is wired up: an AI-generated answer may only cite Knowledge Engine document_ids that were actually retrieved as candidates for its query. A citation to any other document_id is rejected as a fabricated (hallucinated) reference -- see src/context/knowledge.engine.ts verifyGroundedCitations().",
   "type": "object",
   "required": ["grounded", "candidates_considered", "cited_document_ids"],

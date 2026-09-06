@@ -1,5 +1,5 @@
 import { generateResourceId, getCurrentISOString } from '../common/utils.js';
-import { AgexError } from '../common/errors.js';
+import { NagexError } from '../common/errors.js';
 
 export type LedgerEntryType =
   | 'CHARGE'
@@ -50,7 +50,7 @@ export class BillingLedgerEngine {
   public recordUsage(record: Omit<UsageRecord, 'usage_id' | 'occurred_at'>): UsageRecord {
     // 1. Idempotency Check (Rule 39 in S-06)
     if (this.idempotencyKeys.has(record.idempotency_key)) {
-      throw new AgexError({
+      throw new NagexError({
         code: 'DUPLICATE_USAGE_RECORD',
         category: 'CONFLICT',
         message: `Usage record with idempotency key ${record.idempotency_key} already recorded.`,

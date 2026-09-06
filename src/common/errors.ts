@@ -12,7 +12,7 @@ export type ErrorCategory =
   | 'TIMEOUT'
   | 'INTERNAL';
 
-export interface AgexErrorDetails {
+export interface NagexErrorDetails {
   code: string;
   category: ErrorCategory;
   message: string;
@@ -21,16 +21,16 @@ export interface AgexErrorDetails {
   details?: Record<string, unknown>;
 }
 
-export class AgexError extends Error {
+export class NagexError extends Error {
   public readonly code: string;
   public readonly category: ErrorCategory;
   public readonly requestId: string;
   public readonly correlationId?: string | null;
   public readonly details?: Record<string, unknown>;
 
-  constructor(payload: AgexErrorDetails) {
+  constructor(payload: NagexErrorDetails) {
     super(payload.message);
-    this.name = 'AgexError';
+    this.name = 'NagexError';
     this.code = payload.code;
     this.category = payload.category;
     this.requestId = payload.request_id;
@@ -38,7 +38,7 @@ export class AgexError extends Error {
     this.details = payload.details;
   }
 
-  public toJSON(): { error: AgexErrorDetails } {
+  public toJSON(): { error: NagexErrorDetails } {
     return {
       error: {
         code: this.code,

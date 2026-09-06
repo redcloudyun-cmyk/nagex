@@ -1,62 +1,137 @@
-# AGEX AI OS
+# NAGEX
 
-AGEX is a modular-monolith **AI Operating System core** — a governed runtime for building, executing, and auditing AI agents and workflows across multiple tenants. It pairs a TypeScript core engine (Runtime, Model Gateway, IAM, Workflow, Knowledge/Memory, Billing, Governance) with a lightweight web console.
+### Next-generation Agent Experience
 
-## Quick Start
+NAGEX is a Personal AI and agentic system designed to **remember, reason, use tools, and execute real-world tasks with human-controlled autonomy**.
 
-Requires Node.js 24+ (uses native TypeScript execution — no build step needed to run scripts directly).
+> Project started: September 5, 2026  
+> Target: Nebius x NVIDIA Global AI Hackathon
 
-```bash
-npm install
-npm run build   # compile src/ + tests/ to dist/
-npm test        # build, then run the contract test suite
-npm start       # boot the console + REST API at http://localhost:8085
-PORT=3000 npm start   # or on a different port
+## What NAGEX Is
+
+Most AI assistants respond to prompts.
+
+NAGEX is being built to maintain context, form plans, select reusable skills and tools, request human approval when needed, execute tasks, observe results, and preserve useful memory.
+
+```text
+User
+ ↓
+NAGEX Personal Agent
+ ↓
+Memory + Context
+ ↓
+Planning / Reasoning
+ ↓
+Skills + Tools
+ ↓
+Human Approval
+ ↓
+Execution
+ ↓
+Audit + Memory
 ```
 
-Open `http://localhost:8085` (or your configured `PORT`) for the console (workspace, agents, knowledge base, plugins, data sources, projects, billing, IAM, skills, AI support, settings — with Korean/English switching), or hit `http://localhost:8085/api/v1/health` for the API. The console's Version Control view reads this repo's real git status via `GET /api/v1/vcs/status` (read-only — branch, working-tree changes, recent commits; never commits or pushes).
+## Core Capabilities
 
-## Project Layout
+- Persistent Personal Memory
+- Agent Planning
+- Reusable Skills
+- Tool Execution
+- Human Approval
+- Model Gateway
+- Intelligent Model Routing
+- Auditable Agent Execution
+- Security and Permission Control
 
+## NVIDIA + Nebius
+
+NAGEX is being developed for the Nebius x NVIDIA Global AI Hackathon.
+
+The target AI stack includes:
+
+- NVIDIA Nemotron
+- Nebius Token Factory
+- Nebius AI Cloud
+
+Integration status must always be represented truthfully in this repository. Features that are not yet connected to a live runtime are considered planned or prototype functionality.
+
+## Architecture
+
+```text
+NAGEX UI
+   │
+   ▼
+Personal Agent Runtime
+   │
+   ├── Memory
+   ├── Planner
+   ├── Skills
+   ├── Tools
+   └── Approval
+   │
+   ▼
+Model Gateway / Router
+   │
+   ├── NVIDIA Nemotron
+   └── Additional Model Providers
+   │
+   ▼
+Nebius
+   │
+   ▼
+Execution / Audit / Memory
 ```
+
+## Current Technical Foundation
+
+The current codebase uses TypeScript and includes an inherited modular runtime foundation containing components such as:
+
+```text
 src/
-  agent/            Agent executor, tool invoker, multi-agent delegation
-  billing/          Usage ledger, idempotent charge/adjustment entries
-  common/           Shared types, error envelope, resource ID generation
-  context/          Knowledge Engine (ACL-filtered retrieval, grounded-citation check), Memory Engine (lifecycle)
-  governance/       Audit logging with secret redaction
-  identity/         Policy Decision Point (PDP) — tenant/permission authorization
-  model-gateway/    Model Router (capability → classification → region → trust → cost)
-  plugin/           Plugin manifest + egress sandboxing
-  runtime/          Durable execution engine, task dispatcher, crash reconciler
-  tenant/           Tenant resource model + validation
-  workflow/         Durable workflow graph execution
-  server.ts         Tenant-scoped Platform API (library-style)
-  server_web.ts     The actual running server — static console + REST API
-  index.ts          Library barrel export (used when AGEX Core is imported as a package)
-public/             Web console (vanilla HTML/CSS/JS, no build step, i18n via public/i18n.js)
-tests/              node:test contract tests (mirrors src/ by phase)
-specs/              JSON Schemas and permission definitions (canonical contracts)
-docs/, MASTER.md    Governing specifications — see AGENTS.md before making architectural changes
+  agent/
+  context/
+  model-gateway/
+  runtime/
+  workflow/
+  identity/
+  governance/
+  plugin/
+  billing/
 ```
 
-## Core Principles
+These modules are being evaluated and refactored for the NAGEX product definition.
 
-AGEX's 20 design principles live in `MASTER.md`; a few that shape the code you'll see throughout:
+## Project Origin
 
-- **Every Resource has an explicit Scope** — `PLATFORM` or `TENANT`.
-- **Cross-tenant access is default-deny.** Tenant context is required for tenant-scoped operations.
-- **Autonomy is bounded.** Agents run at levels `L0`–`L5`; `L2` and above require explicit approval before `IRREVERSIBLE_WRITE` or `PRIVILEGED_ACTION` tool calls.
-- **Retries and workflow traversal are bounded** — no unbounded loops or infinite retry storms.
-- **Secrets never reach prompts, logs, or audit records** — the audit logger recursively strips them.
+NAGEX was created as an independent project on **2026-09-05**.
 
-## Console Plans
+The initial technical baseline was bootstrapped from an earlier internal experimental AI platform codebase owned by the same entrant.
 
-The console models two account tiers: **AGEX Core** (free — daily-reset credit balance, ads, Core Model only) and **AGEX Prime** (paid — unlimited Prime Agent access). Plan state isn't wired to real billing yet; it's mocked via `localStorage` until Phase 10 (Billing & Entitlement) lands.
+NAGEX itself has a separate repository, Git history, brand, product definition, and independent hackathon development.
 
-## Contributing / AI Agent Instructions
+The prior codebase was not a commercially released NAGEX product.
 
-If you're an AI coding agent (Claude, Codex, etc.) working in this repo, **read `AGENTS.md` first** — it defines the required spec-reading order (`AGENTS.md` → `MASTER.md` → `docs/INDEX.md` → domain spec → schema → code) and the 7-step process for any change.
+## Development
+
+```text
+npm install
+npm run build
+npm test
+```
+
+See:
+
+- `MASTER.md` — product and architecture source of truth
+- `AGENTS.md` — AI coding agent rules
+- `CLAUDE.md` — Claude Code instructions
+
+## Development Status
+
+NAGEX is under active development.
+
+The repository may currently contain a mixture of implemented foundation code, components being refactored, prototype UI, and hackathon-specific work in progress.
+
+Do not assume every capability described in the roadmap is already operational.
 
 ## License
 

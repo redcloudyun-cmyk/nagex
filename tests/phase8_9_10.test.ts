@@ -3,7 +3,7 @@ import assert from 'node:assert';
 import { AuditLogger } from '../src/governance/audit.logger.js';
 import { BillingLedgerEngine } from '../src/billing/billing.ledger.js';
 import { CreditEngine, computeCreditCost } from '../src/billing/credit.engine.js';
-import { AgexPlatformApiServer } from '../src/server.js';
+import { NagexPlatformApiServer } from '../src/server.js';
 import { PolicyDecisionPoint } from '../src/identity/pdp.js';
 import { DurableRuntimeEngine } from '../src/runtime/runtime.engine.js';
 import { validateTenantResource, type TenantResource } from '../src/tenant/tenant.model.js';
@@ -122,13 +122,13 @@ test('2b. Credit Engine: computeCreditCost, charge/grant, insufficient balance (
   assert.strictEqual(credits.getOrCreateAccount('ten_credit_test').credit_balance, 10);
 });
 
-test('3. AGEX Platform API Server Endpoints & Security Interception', async () => {
+test('3. NAGEX Platform API Server Endpoints & Security Interception', async () => {
   const pdp = new PolicyDecisionPoint();
   const runtime = new DurableRuntimeEngine();
   const logger = new AuditLogger();
   const billing = new BillingLedgerEngine();
 
-  const server = new AgexPlatformApiServer(pdp, runtime, logger, billing);
+  const server = new NagexPlatformApiServer(pdp, runtime, logger, billing);
 
   // 3a. Missing Tenant Header -> Should return 401 TENANT_CONTEXT_MISSING
   const resNoTenant = await server.handleRequest({
@@ -143,7 +143,7 @@ test('3. AGEX Platform API Server Endpoints & Security Interception', async () =
     path: '/api/v1/executions',
     method: 'POST',
     headers: {
-      'x-agex-tenant': 'ten_001',
+      'x-nagex-tenant': 'ten_001',
       'x-principal-id': 'usr_001',
       'x-request-id': 'req_exec_test',
     },
@@ -163,7 +163,7 @@ test('3. AGEX Platform API Server Endpoints & Security Interception', async () =
 test('4. Tenant Resource Specification Validation', () => {
   const actor = { type: 'user' as const, id: 'usr_platform_admin' };
   const baseTenant: TenantResource = {
-    api_version: 'agex/v1',
+    api_version: 'nagex/v1',
     kind: 'Tenant',
     metadata: {
       id: 'ten_valid_001',
@@ -176,7 +176,7 @@ test('4. Tenant Resource Specification Validation', () => {
       updated_by: actor,
     },
     specification: {
-      display_name: 'AGEX Production Tenant',
+      display_name: 'NAGEX Production Tenant',
       home_region: 'ap-northeast-2',
       isolation_profile: 'ISOLATED_DATA',
       maximum_autonomy_level: 'L2',

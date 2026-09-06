@@ -36,5 +36,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`AGEX Console Web Server running at http://localhost:${PORT}`);
+  console.log(`NAGEX Console Web Server running at http://localhost:${PORT}`);
 });

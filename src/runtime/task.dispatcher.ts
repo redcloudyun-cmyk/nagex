@@ -1,5 +1,5 @@
 import { generateResourceId, getCurrentISOString } from '../common/utils.js';
-import { AgexError } from '../common/errors.js';
+import { NagexError } from '../common/errors.js';
 import type { TenantContext } from '../common/types.js';
 
 export type TaskStatus = 'CREATED' | 'QUEUED' | 'LEASED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'RETRY_WAIT' | 'CANCELLED';
@@ -55,7 +55,7 @@ export class TaskDispatcher {
     const task = this.getOwnedTask(taskId, expectedTenantId);
 
     if (TERMINAL_TASK_STATES.has(task.status)) {
-      throw new AgexError({
+      throw new NagexError({
         code: 'TASK_ALREADY_TERMINAL',
         category: 'CONFLICT',
         message: `Task ID ${taskId} is already in terminal state ${task.status} and cannot be leased again.`,
@@ -67,7 +67,7 @@ export class TaskDispatcher {
       const nowMs = Date.now();
       const expiresMs = task.lease_expires_at ? new Date(task.lease_expires_at).getTime() : 0;
       if (expiresMs > nowMs && task.lease_owner !== workerId) {
-        throw new AgexError({
+        throw new NagexError({
           code: 'TASK_ALREADY_LEASED',
           category: 'CONFLICT',
           message: `Task ID ${taskId} is currently leased by worker ${task.lease_owner}.`,
@@ -98,7 +98,7 @@ export class TaskDispatcher {
   ): void {
     const task = this.getOwnedTask(taskId, expectedTenantId);
     if (task.lease_owner !== workerId) {
-      throw new AgexError({
+      throw new NagexError({
         code: 'INVALID_LEASE_OWNER',
         category: 'AUTHORIZATION',
         message: `Worker ${workerId} does not own task ${taskId}.`,
@@ -117,7 +117,7 @@ export class TaskDispatcher {
   public completeTask(taskId: string, workerId: string, expectedTenantId?: string): TaskRecord {
     const task = this.getOwnedTask(taskId, expectedTenantId);
     if (task.lease_owner !== workerId) {
-      throw new AgexError({
+      throw new NagexError({
         code: 'INVALID_LEASE_OWNER',
         category: 'AUTHORIZATION',
         message: `Worker ${workerId} cannot complete task ${taskId}.`,
@@ -136,7 +136,7 @@ export class TaskDispatcher {
   private getOwnedTask(taskId: string, expectedTenantId?: string): TaskRecord {
     const task = this.taskMap.get(taskId);
     if (!task) {
-      throw new AgexError({
+      throw new NagexError({
         code: 'TASK_NOT_FOUND',
         category: 'NOT_FOUND',
         message: `Task ID ${taskId} not found.`,
@@ -145,7 +145,7 @@ export class TaskDispatcher {
     }
 
     if (expectedTenantId && task.tenant_id !== expectedTenantId) {
-      throw new AgexError({
+      throw new NagexError({
         code: 'CROSS_TENANT_ACCESS_DENIED',
         category: 'AUTHORIZATION',
         message: `Task ID ${taskId} does not belong to the requesting tenant.`,
