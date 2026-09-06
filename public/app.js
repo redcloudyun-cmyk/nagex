@@ -29,6 +29,11 @@
   let ambientModalTriggerElement = null;
   let ambientModalKeydownHandler = null;
   const ambientBodyScrollLock = window.NAGEX_MODAL_BEHAVIOR ? window.NAGEX_MODAL_BEHAVIOR.createScrollLock() : null;
+  // Guards the activity timeline against logging the same lifecycle event
+  // twice for the same plan/approval — e.g. "Plan created" must appear once
+  // per generated plan even if plan generation and resolution/UI hydration
+  // both end up trying to record it.
+  const ambientTimelineDeduper = window.NAGEX_TIMELINE_DEDUPE ? window.NAGEX_TIMELINE_DEDUPE.createDeduper() : null;
 
   function updateFlowStage(stageLabel) {
     const el = document.getElementById('ambient-flow-stepper');
@@ -54,13 +59,19 @@
     const timelineList = document.getElementById('ambient-timeline-list');
     if (timeline) timeline.style.display = 'none';
     if (timelineList) timelineList.innerHTML = '';
+    if (ambientTimelineDeduper) ambientTimelineDeduper.reset();
     if (state.approvalCountdownTimer) {
       clearInterval(state.approvalCountdownTimer);
       state.approvalCountdownTimer = null;
     }
   }
 
-  function addTimelineEntry(label) {
+  // `dedupeId` should be a stable identity for the thing this event is
+  // about (a plan's requestId, an approval's approvalId) — passing one
+  // ensures the same lifecycle event for that same plan/approval is only
+  // ever recorded once. Omit it for events that are inherently one-off.
+  function addTimelineEntry(label, dedupeId) {
+    if (ambientTimelineDeduper && !ambientTimelineDeduper.shouldLog(label, dedupeId)) return;
     const timeline = document.getElementById('ambient-timeline');
     const list = document.getElementById('ambient-timeline-list');
     if (!timeline || !list) return;
@@ -737,7 +748,7 @@
     if (text) text.textContent = `Plan ready via ${res.provider} · ${res.model} · ${res.latencyMs}ms`;
 
     updateFlowStage('Plan Preview');
-    addTimelineEntry('Plan created');
+    addTimelineEntry('Plan created', res.requestId);
 
     if (preview && planSteps && res.plan) {
       preview.style.display = 'block';
@@ -1022,7 +1033,7 @@
     }
 
     if (form) form.style.display = 'none';
-    addTimelineEntry('Approval requested');
+    addTimelineEntry('Approval requested', approval.approvalId);
     updateFlowStage('Approval Card');
     updateFlowStage('Human Approval');
 
@@ -1047,7 +1058,7 @@
           updateFlowStage('Result');
           if (rejected && !rejected.error && rejected.status === 'REJECTED') {
             approval.status = 'REJECTED';
-            addTimelineEntry('Rejected');
+            addTimelineEntry('Rejected', approval.approvalId);
             const el = statusEl();
             if (el) el.textContent = 'Rejected';
           } else {
@@ -1082,7 +1093,7 @@
             return; // no create-event call is ever made without a successful approve
           }
           approval.status = approved.status;
-          addTimelineEntry('Approved');
+          addTimelineEntry('Approved', approval.approvalId);
 
           // Step 7: execute with the exact canonicalPayload the approval API
           // returned — never the locally-composed `payload` variable.
@@ -1094,7 +1105,7 @@
           updateFlowStage('Result');
 
           if (result && result.status === 'SUCCEEDED') {
-            addTimelineEntry('Calendar event created');
+            addTimelineEntry('Calendar event created', approval.approvalId);
             renderCalendarSuccessCard(slot, approval, result, view);
             return;
           }
@@ -1124,7 +1135,7 @@
       const vmView = render();
       if (vmView.status === 'EXPIRED') {
         stopCountdown();
-        addTimelineEntry('Approval expired');
+        addTimelineEntry('Approval expired', approval.approvalId);
       }
     }, 1000);
   }

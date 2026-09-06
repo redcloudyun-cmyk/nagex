@@ -33,14 +33,14 @@ const NO_CACHE_HEADERS = {
   Pragma: 'no-cache',
   Expires: '0',
 } as const;
-const MUTABLE_FRONTEND_FILES = new Set(['index.html', 'style.css', 'app.js', 'i18n.js', 'plan-resolution-view.js', 'calendar-approval-view.js', 'calendar-intent-extraction.js', 'modal-behavior.js', 'legal.js', 'privacy.html', 'terms.html']);
+const MUTABLE_FRONTEND_FILES = new Set(['index.html', 'style.css', 'app.js', 'i18n.js', 'plan-resolution-view.js', 'calendar-approval-view.js', 'calendar-intent-extraction.js', 'modal-behavior.js', 'timeline-dedupe.js', 'legal.js', 'privacy.html', 'terms.html']);
 const VERSIONED_HTML_FILES = new Set(['index.html', 'privacy.html', 'terms.html']);
 const CLEAN_URL_ALIASES: Record<string, string> = { '/privacy': 'privacy.html', '/terms': 'terms.html' };
 const BUILD_VERSION_PLACEHOLDER = '__NAGEX_BUILD_VERSION__';
 
 function createBuildVersion(): string {
   const hash = crypto.createHash('sha256');
-  for (const filename of ['style.css', 'i18n.js', 'plan-resolution-view.js', 'calendar-approval-view.js', 'calendar-intent-extraction.js', 'modal-behavior.js', 'legal.js', 'app.js']) {
+  for (const filename of ['style.css', 'i18n.js', 'plan-resolution-view.js', 'calendar-approval-view.js', 'calendar-intent-extraction.js', 'modal-behavior.js', 'timeline-dedupe.js', 'legal.js', 'app.js']) {
     hash.update(filename);
     hash.update(fs.readFileSync(path.join(PUBLIC_DIR, filename)));
   }
@@ -319,6 +319,21 @@ function getHeaderValue(headers: Record<string, string | string[] | undefined>, 
   return Array.isArray(value) ? value[0] : value;
 }
 
+// Common words that would otherwise create spurious "relevance" matches
+// (e.g. a prompt's "and" matching a completely unrelated memory's "and").
+// Deliberately small/explicit, not a general stopword library — this only
+// needs to keep the memory-relevance signal from tripping on noise words.
+const MEMORY_RELEVANCE_STOPWORDS = new Set([
+  'and', 'the', 'for', 'with', 'to', 'of', 'in', 'on', 'my', 'a', 'an', 'is', 'it', 'this', 'that',
+  'are', 'was', 'were', 'be', 'been', 'will', 'can', 'you', 'your', 'me', 'we', 'our', 'they', 'them',
+  'but', 'or', 'if', 'not', 'no', 'do', 'does', 'did', 'have', 'has', 'had', 'from', 'as', 'at', 'by',
+]);
+
+// Only ever surfaces memory that shares real content words with the current
+// prompt (never a memory whose only "match" is a pinned flag or a stopword):
+// a generic request must not drag in a strongly-pinned but otherwise
+// unrelated memory (e.g. a specific past client) just because it is pinned.
+// Pinning still nudges ranking among memories that are already relevant.
 function getRelevantMemories(principalId: string, prompt: string): MemoryRecord[] {
   const memories = [
     ...memoryEngine.getActiveMemories('USER', principalId),
@@ -326,10 +341,13 @@ function getRelevantMemories(principalId: string, prompt: string): MemoryRecord[
     ...memoryEngine.getActiveMemories('AGENT', principalId),
     ...memoryEngine.getActiveMemories('TENANT', principalId),
   ];
-  const terms = new Set(prompt.toLowerCase().split(/[^a-z0-9]+/).filter((term) => term.length > 2));
+  const terms = new Set(
+    prompt.toLowerCase().split(/[^a-z0-9]+/).filter((term) => term.length > 2 && !MEMORY_RELEVANCE_STOPWORDS.has(term)),
+  );
   return memories
-    .map((memory) => ({ memory, score: [...terms].filter((term) => JSON.stringify(memory.content).toLowerCase().includes(term)).length + (pinnedMemories.has(memory.id) ? 2 : 0) }))
-    .sort((a, b) => b.score - a.score)
+    .map((memory) => ({ memory, score: [...terms].filter((term) => JSON.stringify(memory.content).toLowerCase().includes(term)).length }))
+    .filter(({ score }) => score > 0)
+    .sort((a, b) => (b.score + (pinnedMemories.has(b.memory.id) ? 0.5 : 0)) - (a.score + (pinnedMemories.has(a.memory.id) ? 0.5 : 0)))
     .slice(0, 8)
     .map(({ memory }) => memory);
 }

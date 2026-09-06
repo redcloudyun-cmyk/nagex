@@ -50,6 +50,16 @@ export const skillRegistry = new SkillRegistry([
   { id: 'skill.email_drafting', name: 'Email Drafting', description: 'Draft email content without sending it.', aliases: ['draft email', 'communication'] },
   { id: 'skill.deep_research', name: 'Deep Research', description: 'Research and synthesize sources.', aliases: ['web research', 'research'] },
   { id: 'skill.document_summary', name: 'Document Summary', description: 'Summarize documents and notes.', aliases: ['summarization', 'summarize'] },
-  { id: 'skill.scheduling', name: 'Scheduling', description: 'Prepare scheduling actions.', aliases: ['calendar scheduling', 'schedule meeting'] },
+  {
+    id: 'skill.scheduling',
+    name: 'Scheduling',
+    description: 'Prepare scheduling actions.',
+    // Explicit alias table (never a fuzzy matcher — see PlanResolver/
+    // SkillRegistry.resolve): every known semantic variant the planning
+    // model has been observed to emit for "create/schedule a calendar
+    // event" resolves here. An unrelated skill (e.g. "calendar.delete")
+    // must NOT be added unless it is actually registered for that purpose.
+    aliases: ['calendar scheduling', 'schedule meeting', 'calendar.create', 'calendar.schedule', 'calendar.scheduling', 'meeting scheduling'],
+  },
   { id: 'skill.planning', name: 'Planning', description: 'Create and refine action plans.', aliases: ['task planning'] },
 ]);
