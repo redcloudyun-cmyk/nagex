@@ -1,6 +1,7 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 
 // ─── NAgex Core Engine Imports ───
@@ -16,6 +17,24 @@ import type { TenantContext, PrincipalReference } from './common/types.js';
 
 const PORT = Number(process.env.PORT || 8085);
 const PUBLIC_DIR = path.join(process.cwd(), 'public');
+const NO_CACHE_HEADERS = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate',
+  Pragma: 'no-cache',
+  Expires: '0',
+} as const;
+const MUTABLE_FRONTEND_FILES = new Set(['index.html', 'style.css', 'app.js', 'i18n.js']);
+const BUILD_VERSION_PLACEHOLDER = '__NAGEX_BUILD_VERSION__';
+
+function createBuildVersion(): string {
+  const hash = crypto.createHash('sha256');
+  for (const filename of ['style.css', 'i18n.js', 'app.js']) {
+    hash.update(filename);
+    hash.update(fs.readFileSync(path.join(PUBLIC_DIR, filename)));
+  }
+  return hash.digest('hex').slice(0, 12);
+}
+
+export const FRONTEND_BUILD_VERSION = createBuildVersion();
 
 // ─── MIME Types ───
 const mimeTypes: Record<string, string> = {
@@ -542,7 +561,7 @@ export function handleApiRequest(
   return { status: 404, data: { error: 'ENDPOINT_NOT_FOUND', message: `${method} ${pathname}` } };
 }
 
-const server = http.createServer((req, res) => {
+export const server = http.createServer((req, res) => {
   const url = new URL(req.url || '/', `http://localhost:${PORT}`);
   const pathname = url.pathname;
   const method = (req.method || 'GET').toUpperCase();
@@ -574,7 +593,13 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  let filePath = path.join(PUBLIC_DIR, pathname === '/' ? 'index.html' : pathname);
+  const relativePath = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
+  const filePath = path.resolve(PUBLIC_DIR, relativePath);
+  if (filePath !== PUBLIC_DIR && !filePath.startsWith(`${PUBLIC_DIR}${path.sep}`)) {
+    res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8', ...NO_CACHE_HEADERS });
+    res.end('Forbidden');
+    return;
+  }
   const extname = path.extname(filePath);
   const contentType = mimeTypes[extname] || 'application/octet-stream';
 
@@ -588,8 +613,22 @@ const server = http.createServer((req, res) => {
         res.end(`Server Error: ${error.code}`);
       }
     } else {
-      res.writeHead(200, { 'Content-Type': contentType });
-      res.end(content, 'utf-8');
+      const headers: Record<string, string> = { 'Content-Type': contentType };
+      if (pathname === '/' || MUTABLE_FRONTEND_FILES.has(relativePath)) {
+        Object.assign(headers, NO_CACHE_HEADERS);
+      }
+
+      if (relativePath === 'index.html') {
+        const versionedHtml = content
+          .toString('utf8')
+          .replaceAll(BUILD_VERSION_PLACEHOLDER, FRONTEND_BUILD_VERSION);
+        res.writeHead(200, headers);
+        res.end(versionedHtml, 'utf-8');
+        return;
+      }
+
+      res.writeHead(200, headers);
+      res.end(content);
     }
   });
 });

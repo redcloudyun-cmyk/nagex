@@ -109,12 +109,27 @@ body {
 .brand-logo-group, .brand-logo-sidebar {
   display: flex;
   align-items: center;
+  overflow: hidden;
 }
 
 .nagex-compact-logo {
-  height: 28px;
   width: auto;
   display: block;
+  object-fit: contain;
+}
+
+.header-logo {
+  max-height: 28px;
+  width: auto;
+  max-width: 150px;
+  object-fit: contain;
+}
+
+.sidebar-logo {
+  max-height: 30px;
+  width: auto;
+  max-width: 160px;
+  object-fit: contain;
 }
 
 .header-search-bar {
