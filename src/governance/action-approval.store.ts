@@ -1,23 +1,27 @@
+import crypto from 'node:crypto';
 import { generateResourceId, getCurrentISOString } from '../common/utils.js';
 import { NagexError } from '../common/errors.js';
 
 export type ActionApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CONSUMED' | 'EXPIRED';
 
 export interface ActionApprovalRecord {
-  id: string;
+  approvalId: string;
   toolId: string;
   tenantId: string;
   principalId: string;
   payload: Record<string, unknown>;
+  payloadHash: string;
   status: ActionApprovalStatus;
   createdAt: string;
   expiresAt: string;
   approvedAt: string | null;
-  consumedAt: string | null;
+  usedAt: string | null;
 }
 
 const DEFAULT_TTL_MS = 15 * 60 * 1000; // 15 minutes to act on an approval
 
+// Deterministic key ordering so two objects with the same content in a
+// different key order canonicalize (and therefore hash) identically.
 function canonicalize(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalize);
   if (value && typeof value === 'object') {
@@ -30,8 +34,8 @@ function canonicalize(value: unknown): unknown {
   return value;
 }
 
-function payloadsMatchExactly(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
-  return JSON.stringify(canonicalize(a)) === JSON.stringify(canonicalize(b));
+export function hashCanonicalPayload(payload: Record<string, unknown>): string {
+  return crypto.createHash('sha256').update(JSON.stringify(canonicalize(payload))).digest('hex');
 }
 
 export class ActionApprovalStore {
@@ -40,26 +44,28 @@ export class ActionApprovalStore {
   constructor(private readonly now: () => number = Date.now, private readonly ttlMs: number = DEFAULT_TTL_MS) {}
 
   public request(input: { toolId: string; tenantId: string; principalId: string; payload: Record<string, unknown> }): ActionApprovalRecord {
+    const canonicalPayload = canonicalize(input.payload) as Record<string, unknown>;
     const record: ActionApprovalRecord = {
-      id: generateResourceId('apr'),
+      approvalId: generateResourceId('apr'),
       toolId: input.toolId,
       tenantId: input.tenantId,
       principalId: input.principalId,
-      payload: canonicalize(input.payload) as Record<string, unknown>,
+      payload: canonicalPayload,
+      payloadHash: hashCanonicalPayload(canonicalPayload),
       status: 'PENDING',
       createdAt: getCurrentISOString(),
       expiresAt: new Date(this.now() + this.ttlMs).toISOString(),
       approvedAt: null,
-      consumedAt: null,
+      usedAt: null,
     };
-    this.records.set(record.id, record);
+    this.records.set(record.approvalId, record);
     return record;
   }
 
-  private getLive(id: string, requestId: string): ActionApprovalRecord {
-    const record = this.records.get(id);
+  private getLive(approvalId: string, requestId: string): ActionApprovalRecord {
+    const record = this.records.get(approvalId);
     if (!record) {
-      throw new NagexError({ code: 'APPROVAL_NOT_FOUND', category: 'NOT_FOUND', message: `Approval ${id} was not found.`, request_id: requestId });
+      throw new NagexError({ code: 'APPROVAL_NOT_FOUND', category: 'NOT_FOUND', message: `Approval ${approvalId} was not found.`, request_id: requestId });
     }
     if (record.status === 'PENDING' && new Date(record.expiresAt).getTime() <= this.now()) {
       record.status = 'EXPIRED';
@@ -67,57 +73,61 @@ export class ActionApprovalStore {
     return record;
   }
 
-  public approve(id: string, requestId = 'apr_approve'): ActionApprovalRecord {
-    const record = this.getLive(id, requestId);
+  public approve(approvalId: string, requestId = 'apr_approve'): ActionApprovalRecord {
+    const record = this.getLive(approvalId, requestId);
     if (record.status === 'EXPIRED') {
-      throw new NagexError({ code: 'APPROVAL_EXPIRED', category: 'POLICY', message: `Approval ${id} has expired.`, request_id: requestId });
+      throw new NagexError({ code: 'APPROVAL_EXPIRED', category: 'POLICY', message: `Approval ${approvalId} has expired.`, request_id: requestId });
     }
     if (record.status !== 'PENDING') {
-      throw new NagexError({ code: 'APPROVAL_NOT_PENDING', category: 'CONFLICT', message: `Approval ${id} is ${record.status}, not pending.`, request_id: requestId });
+      throw new NagexError({ code: 'APPROVAL_NOT_PENDING', category: 'CONFLICT', message: `Approval ${approvalId} is ${record.status}, not pending.`, request_id: requestId });
     }
     record.status = 'APPROVED';
     record.approvedAt = getCurrentISOString();
     return record;
   }
 
-  public reject(id: string, requestId = 'apr_reject'): ActionApprovalRecord {
-    const record = this.getLive(id, requestId);
+  public reject(approvalId: string, requestId = 'apr_reject'): ActionApprovalRecord {
+    const record = this.getLive(approvalId, requestId);
     if (record.status !== 'PENDING') {
-      throw new NagexError({ code: 'APPROVAL_NOT_PENDING', category: 'CONFLICT', message: `Approval ${id} is ${record.status}, not pending.`, request_id: requestId });
+      throw new NagexError({ code: 'APPROVAL_NOT_PENDING', category: 'CONFLICT', message: `Approval ${approvalId} is ${record.status}, not pending.`, request_id: requestId });
     }
     record.status = 'REJECTED';
     return record;
   }
 
-  public get(id: string): ActionApprovalRecord | undefined {
-    return this.records.get(id);
+  public get(approvalId: string): ActionApprovalRecord | undefined {
+    return this.records.get(approvalId);
   }
 
-  // Verifies the approval is APPROVED, unexpired, unconsumed, bound to the
-  // given tool, and that the exact payload being executed matches the exact
-  // payload that was approved. On success, marks it CONSUMED so it can never
-  // be replayed. Throws a distinct NagexError code for every failure mode.
-  public consume(id: string, toolId: string, payload: Record<string, unknown>, requestId: string): ActionApprovalRecord {
-    const record = this.getLive(id, requestId);
+  // Verifies the approval is APPROVED, unexpired, unused, bound to the given
+  // tool, and that the exact payload being executed hashes to the same value
+  // as the payload that was approved. On success, marks it consumed (usedAt
+  // set, status CONSUMED) atomically so it can never be replayed. Throws a
+  // distinct NagexError code for every failure mode.
+  public consume(approvalId: string, toolId: string, payload: Record<string, unknown>, requestId: string): ActionApprovalRecord {
+    const record = this.getLive(approvalId, requestId);
 
     if (record.toolId !== toolId) {
-      throw new NagexError({ code: 'APPROVAL_TOOL_MISMATCH', category: 'VALIDATION', message: `Approval ${id} was not requested for tool ${toolId}.`, request_id: requestId });
+      throw new NagexError({ code: 'APPROVAL_TOOL_MISMATCH', category: 'VALIDATION', message: `Approval ${approvalId} was not requested for tool ${toolId}.`, request_id: requestId });
     }
     if (record.status === 'EXPIRED') {
-      throw new NagexError({ code: 'APPROVAL_EXPIRED', category: 'POLICY', message: `Approval ${id} has expired.`, request_id: requestId });
+      throw new NagexError({ code: 'APPROVAL_EXPIRED', category: 'POLICY', message: `Approval ${approvalId} has expired.`, request_id: requestId });
     }
     if (record.status === 'CONSUMED') {
-      throw new NagexError({ code: 'APPROVAL_ALREADY_CONSUMED', category: 'CONFLICT', message: `Approval ${id} has already been executed and cannot be replayed.`, request_id: requestId });
+      throw new NagexError({ code: 'APPROVAL_ALREADY_CONSUMED', category: 'CONFLICT', message: `Approval ${approvalId} has already been used and cannot be replayed.`, request_id: requestId });
     }
     if (record.status !== 'APPROVED') {
-      throw new NagexError({ code: 'APPROVAL_NOT_GRANTED', category: 'POLICY', message: `Approval ${id} is ${record.status}, not approved.`, request_id: requestId });
+      throw new NagexError({ code: 'APPROVAL_NOT_GRANTED', category: 'POLICY', message: `Approval ${approvalId} is ${record.status}, not approved.`, request_id: requestId });
     }
-    if (!payloadsMatchExactly(record.payload, payload)) {
+    if (hashCanonicalPayload(payload) !== record.payloadHash) {
       throw new NagexError({ code: 'APPROVAL_PAYLOAD_MISMATCH', category: 'VALIDATION', message: `The requested action does not exactly match what was approved.`, request_id: requestId });
     }
 
+    // Single synchronous statement pair, no intervening await — atomic with
+    // respect to this single-threaded event loop, so two concurrent execute
+    // calls can never both observe status !== 'CONSUMED' and both proceed.
     record.status = 'CONSUMED';
-    record.consumedAt = getCurrentISOString();
+    record.usedAt = getCurrentISOString();
     return record;
   }
 }

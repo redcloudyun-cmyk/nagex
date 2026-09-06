@@ -2,8 +2,6 @@ import { NagexError } from '../../common/errors.js';
 
 type FetchFn = typeof fetch;
 
-export type ConferenceDataPreference = 'none' | 'hangoutsMeet';
-
 export interface CalendarEventPayload {
   calendarId: string; // e.g. "primary"
   summary: string; // event title
@@ -12,7 +10,7 @@ export interface CalendarEventPayload {
   end: string; // ISO 8601
   timezone: string; // IANA timezone, e.g. "America/Los_Angeles"
   attendees: string[]; // emails
-  conferenceDataPreference: ConferenceDataPreference;
+  conferenceData: boolean; // true = attach a Google Meet link
 }
 
 export interface CreatedCalendarEvent {
@@ -71,7 +69,7 @@ export async function createCalendarEvent(
   requestId: string,
 ): Promise<CreatedCalendarEvent> {
   const calendarId = encodeURIComponent(payload.calendarId || 'primary');
-  const wantsConference = payload.conferenceDataPreference !== 'none';
+  const wantsConference = payload.conferenceData === true;
   const body: Record<string, unknown> = {
     summary: payload.summary,
     description: payload.description || undefined,
@@ -81,7 +79,7 @@ export async function createCalendarEvent(
   };
   if (wantsConference) {
     body.conferenceData = {
-      createRequest: { requestId: `nagex_${requestId}`, conferenceSolutionKey: { type: payload.conferenceDataPreference } },
+      createRequest: { requestId: `nagex_${requestId}`, conferenceSolutionKey: { type: 'hangoutsMeet' } },
     };
   }
 

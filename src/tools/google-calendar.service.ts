@@ -12,7 +12,7 @@ export const GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID = 'google_calendar.create_even
 export interface NormalizedExecutionResult {
   executionId: string;
   toolId: string;
-  status: 'SUCCESS';
+  status: 'SUCCEEDED';
   externalId: string;
   externalUrl: string;
   startedAt: string;
@@ -34,18 +34,18 @@ function assertValidPayload(payload: unknown, requestId: string): asserts payloa
     typeof p.end !== 'string' || !p.end ||
     typeof p.timezone !== 'string' || !p.timezone ||
     !Array.isArray(p.attendees) || !p.attendees.every((email) => typeof email === 'string') ||
-    (p.conferenceDataPreference !== 'none' && p.conferenceDataPreference !== 'hangoutsMeet')
+    typeof p.conferenceData !== 'boolean'
   ) {
     throw new NagexError({
       code: 'INVALID_CALENDAR_EVENT_PAYLOAD',
       category: 'VALIDATION',
-      message: 'A calendar event approval payload must include calendarId, summary, description, start, end, timezone, attendees, and conferenceDataPreference.',
+      message: 'A calendar event approval payload must include calendarId, summary, description, start, end, timezone, attendees, and conferenceData.',
       request_id: requestId,
     });
   }
 }
 
-function formatScheduledFor(isoDateTime: string, timezone: string): string {
+function formatScheduledOn(isoDateTime: string, timezone: string): string {
   // "YYYY-MM-DD HH:mm" — the sv-SE locale happens to format this way by default.
   return new Intl.DateTimeFormat('sv-SE', {
     timeZone: timezone,
@@ -79,8 +79,8 @@ export class GoogleCalendarService {
     this.audit.logEvent({
       actor: { type: 'user', id: input.principalId },
       tenant_id: input.tenantId,
-      action: 'approval:requested',
-      resource: { type: 'ActionApproval', id: record.id },
+      action: 'approval.requested',
+      resource: { type: 'ActionApproval', id: record.approvalId },
       result: 'PENDING_APPROVAL',
       request_id: input.requestId,
       details: { toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, summary: input.payload.summary },
@@ -93,7 +93,7 @@ export class GoogleCalendarService {
     this.audit.logEvent({
       actor: { type: 'user', id: principalId },
       tenant_id: record.tenantId,
-      action: 'approval:granted',
+      action: 'approval.approved',
       resource: { type: 'ActionApproval', id: approvalId },
       result: 'SUCCESS',
       request_id: requestId,
@@ -106,7 +106,7 @@ export class GoogleCalendarService {
     this.audit.logEvent({
       actor: { type: 'user', id: principalId },
       tenant_id: record.tenantId,
-      action: 'approval:rejected',
+      action: 'approval.rejected',
       resource: { type: 'ActionApproval', id: approvalId },
       result: 'DENIED',
       request_id: requestId,
@@ -128,7 +128,7 @@ export class GoogleCalendarService {
     this.audit.logEvent({
       actor: { type: 'user', id: input.principalId },
       tenant_id: input.tenantId,
-      action: 'tool:execution_started',
+      action: 'tool.execution.started',
       resource: { type: 'ToolExecution', id: executionId },
       result: 'PENDING_APPROVAL',
       request_id: input.requestId,
@@ -141,7 +141,7 @@ export class GoogleCalendarService {
       this.audit.logEvent({
         actor: { type: 'user', id: input.principalId },
         tenant_id: input.tenantId,
-        action: 'tool:execution_failed',
+        action: 'tool.execution.failed',
         resource: { type: 'ToolExecution', id: executionId },
         result: 'FAILED',
         reason_code: 'GOOGLE_CALENDAR_DISCONNECTED',
@@ -156,6 +156,10 @@ export class GoogleCalendarService {
       });
     }
 
+    // Consuming the approval (hash-checked, one-time-use) happens before the
+    // real Google call, and atomically with respect to this event loop — no
+    // await occurs between checking and marking it CONSUMED — so a replayed
+    // or concurrent execute request can never reach Google twice.
     let approvalRecord: ActionApprovalRecord;
     try {
       approvalRecord = this.approvals.consume(input.approvalId, GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, input.payload as unknown as Record<string, unknown>, input.requestId);
@@ -164,7 +168,7 @@ export class GoogleCalendarService {
       this.audit.logEvent({
         actor: { type: 'user', id: input.principalId },
         tenant_id: input.tenantId,
-        action: 'tool:execution_failed',
+        action: 'tool.execution.failed',
         resource: { type: 'ToolExecution', id: executionId },
         result: 'DENIED',
         reason_code: code,
@@ -182,25 +186,25 @@ export class GoogleCalendarService {
       this.audit.logEvent({
         actor: { type: 'user', id: input.principalId },
         tenant_id: input.tenantId,
-        action: 'tool:execution_succeeded',
+        action: 'tool.execution.succeeded',
         resource: { type: 'ToolExecution', id: executionId },
         result: 'SUCCESS',
         request_id: input.requestId,
         details: { toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, externalEventId: created.externalId },
       });
 
-      const scheduledFor = formatScheduledFor(input.payload.start, input.payload.timezone);
+      const scheduledOn = formatScheduledOn(input.payload.start, input.payload.timezone);
       const memoryRecord = this.memory.proposeMemory('USER', input.principalId, {
         subject: 'Calendar Event',
         predicate: 'scheduled',
-        value: `Scheduled ${input.payload.summary} for ${scheduledFor}.`,
+        value: `Scheduled ${input.payload.summary} on ${scheduledOn}.`,
       });
       this.memory.activateMemory(memoryRecord.id);
 
       return {
         executionId,
         toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID,
-        status: 'SUCCESS',
+        status: 'SUCCEEDED',
         externalId: created.externalId,
         externalUrl: created.externalUrl,
         startedAt,
@@ -211,7 +215,7 @@ export class GoogleCalendarService {
       this.audit.logEvent({
         actor: { type: 'user', id: input.principalId },
         tenant_id: input.tenantId,
-        action: 'tool:execution_failed',
+        action: 'tool.execution.failed',
         resource: { type: 'ToolExecution', id: executionId },
         result: 'FAILED',
         reason_code: code,

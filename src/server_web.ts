@@ -508,25 +508,44 @@ export function handleApiRequest(
     return { status: 200, data: { approvals: approvalQueue, total: approvalQueue.length } };
   }
 
+  if (pathname === '/api/v1/approvals/calendar-event' && method === 'POST') {
+    const requestId = `req_appr_${Date.now()}`;
+    try {
+      const record = googleCalendarService.requestCreateEventApproval({ tenantId, principalId: principal.id, payload: body?.payload, requestId });
+      return { status: 201, data: record };
+    } catch (error) {
+      return modelErrorResult(error);
+    }
+  }
+
   if (pathname.startsWith('/api/v1/approvals/') && method === 'POST') {
     const apprId = pathname.replace('/api/v1/approvals/', '').replace('/action', '');
     const action = (body?.action as string) || 'APPROVE';
     const item = approvalQueue.find((a) => a.id === apprId);
-    if (!item) {
-      return { status: 404, data: { error: 'APPROVAL_NOT_FOUND', message: `Approval ID ${apprId} not found` } };
+    if (item) {
+      item.status = action === 'APPROVE' ? 'APPROVED' : 'REJECTED';
+      auditLogger.logEvent({
+        actor: principal,
+        tenant_id: tenantId,
+        action: action === 'APPROVE' ? 'approval:granted' : 'approval:rejected',
+        resource: { type: 'Approval', id: apprId },
+        result: 'SUCCESS',
+        request_id: `req_appr_${Date.now()}`,
+      });
+      return { status: 200, data: item };
     }
-    item.status = action === 'APPROVE' ? 'APPROVED' : 'REJECTED';
 
-    auditLogger.logEvent({
-      actor: principal,
-      tenant_id: tenantId,
-      action: action === 'APPROVE' ? 'approval:granted' : 'approval:rejected',
-      resource: { type: 'Approval', id: apprId },
-      result: 'SUCCESS',
-      request_id: `req_appr_${Date.now()}`,
-    });
-
-    return { status: 200, data: item };
+    // Not a legacy demo approval — try the real, hash-verified action approvals
+    // (e.g. Google Calendar create-event requests) sharing this same endpoint.
+    const requestId = `req_appr_${Date.now()}`;
+    try {
+      const record = action === 'APPROVE'
+        ? googleCalendarService.approve(apprId, principal.id, requestId)
+        : googleCalendarService.reject(apprId, principal.id, requestId);
+      return { status: 200, data: record };
+    } catch (error) {
+      return modelErrorResult(error);
+    }
   }
 
   if (pathname === '/api/v1/oauth/google/start' && method === 'GET') {
@@ -558,30 +577,6 @@ export function handleApiRequest(
     googleTokenStore.clear(tenantId || DEFAULT_GOOGLE_TENANT_ID);
     auditLogger.logEvent({ actor: principal, tenant_id: tenantId, action: 'oauth:google_disconnected', resource: { type: 'OAuthConnection', id: 'google_calendar' }, result: 'SUCCESS', request_id: `req_oauth_${Date.now()}` });
     return { status: 200, data: googleTokenStore.getStatus(tenantId || DEFAULT_GOOGLE_TENANT_ID) };
-  }
-
-  if (pathname === '/api/v1/tools/google-calendar/approvals' && method === 'POST') {
-    const requestId = `req_appr_${Date.now()}`;
-    try {
-      const record = googleCalendarService.requestCreateEventApproval({ tenantId, principalId: principal.id, payload: body?.payload, requestId });
-      return { status: 201, data: record };
-    } catch (error) {
-      return modelErrorResult(error);
-    }
-  }
-
-  if (pathname.startsWith('/api/v1/tools/google-calendar/approvals/') && method === 'POST') {
-    const approvalId = pathname.replace('/api/v1/tools/google-calendar/approvals/', '').replace('/action', '');
-    const action = (body?.action as string) || 'APPROVE';
-    const requestId = `req_appr_${Date.now()}`;
-    try {
-      const record = action === 'APPROVE'
-        ? googleCalendarService.approve(approvalId, principal.id, requestId)
-        : googleCalendarService.reject(approvalId, principal.id, requestId);
-      return { status: 200, data: record };
-    } catch (error) {
-      return modelErrorResult(error);
-    }
   }
 
   if (pathname === '/api/v1/quickwake/config' && method === 'GET') return { status: 200, data: quickWakeConfig };

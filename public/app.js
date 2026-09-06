@@ -763,7 +763,7 @@
           end: toLocalIso(endDate),
           timezone,
           attendees: document.getElementById('cal-attendees').value.split(',').map((e) => e.trim()).filter(Boolean),
-          conferenceDataPreference: document.getElementById('cal-meet-link').checked ? 'hangoutsMeet' : 'none',
+          conferenceData: document.getElementById('cal-meet-link').checked,
         };
         requestCalendarApproval(payload);
       };
@@ -776,12 +776,12 @@
     if (!slot) return;
     slot.innerHTML = `<p>Requesting approval…</p>`;
 
-    const approval = await apiFetch('/api/v1/tools/google-calendar/approvals', {
+    const approval = await apiFetch('/api/v1/approvals/calendar-event', {
       method: 'POST',
       body: JSON.stringify({ payload }),
     });
 
-    if (!approval || approval.error || !approval.id) {
+    if (!approval || approval.error || !approval.approvalId) {
       slot.innerHTML = `<div class="resolution-warnings" style="display:block;">${escapeHtml((approval && approval.error && approval.error.message) || 'Could not request approval for this action.')}</div>`;
       return;
     }
@@ -793,7 +793,7 @@
         <p><strong>${escapeHtml(payload.summary)}</strong></p>
         <p>${escapeHtml(payload.start.replace('T', ' '))} → ${escapeHtml(payload.end.replace('T', ' '))} (${escapeHtml(payload.timezone)})</p>
         <p>Attendees: ${payload.attendees.length ? escapeHtml(payload.attendees.join(', ')) : 'None'}</p>
-        <p>Meeting link: ${payload.conferenceDataPreference !== 'none' ? 'Yes' : 'No'} · Calendar: ${escapeHtml(payload.calendarId)}</p>
+        <p>Meeting link: ${payload.conferenceData ? 'Yes' : 'No'} · Calendar: ${escapeHtml(payload.calendarId)}</p>
         <p class="policy-notice-pill">This exact action will run unmodified if you approve it.</p>
         <div class="calendar-preview-actions">
           <button class="btn-reject-outline" id="btn-calendar-reject">✕ Cancel</button>
@@ -805,7 +805,7 @@
     const btnReject = document.getElementById('btn-calendar-reject');
     if (btnReject) {
       btnReject.onclick = async () => {
-        await apiFetch(`/api/v1/tools/google-calendar/approvals/${approval.id}/action`, { method: 'POST', body: JSON.stringify({ action: 'REJECT' }) });
+        await apiFetch(`/api/v1/approvals/${approval.approvalId}/action`, { method: 'POST', body: JSON.stringify({ action: 'REJECT' }) });
         slot.innerHTML = `<p>Cancelled. No event was created.</p>`;
       };
     }
@@ -813,12 +813,12 @@
       btnApprove.onclick = async () => {
         btnApprove.disabled = true;
         btnApprove.textContent = 'Creating…';
-        await apiFetch(`/api/v1/tools/google-calendar/approvals/${approval.id}/action`, { method: 'POST', body: JSON.stringify({ action: 'APPROVE' }) });
+        await apiFetch(`/api/v1/approvals/${approval.approvalId}/action`, { method: 'POST', body: JSON.stringify({ action: 'APPROVE' }) });
         const result = await apiFetch('/api/v1/tools/google-calendar/create-event', {
           method: 'POST',
-          body: JSON.stringify({ approvalId: approval.id, payload }),
+          body: JSON.stringify({ approvalId: approval.approvalId, payload }),
         });
-        if (result && result.status === 'SUCCESS') {
+        if (result && result.status === 'SUCCEEDED') {
           slot.innerHTML = `
             <div class="calendar-preview-card">
               <h4>✅ Calendar event created</h4>
