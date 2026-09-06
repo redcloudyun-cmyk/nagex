@@ -802,6 +802,7 @@ body {
 }
 
 .ambient-generated-plan,
+.ambient-resolution-card,
 .ambient-result-card {
   margin-top: 1rem;
   padding: 1rem;
@@ -811,6 +812,7 @@ body {
 }
 
 .ambient-generated-plan h3,
+.ambient-resolution-card h3,
 .ambient-result-card strong {
   color: var(--text-main);
 }
@@ -820,6 +822,74 @@ body {
   color: var(--text-muted);
   font-size: 0.85rem;
 }
+
+.step-row { display: flex; gap: 0.6rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border-light); }
+.step-row:last-child { border-bottom: none; }
+.step-num { font-weight: 700; color: var(--primary-blue); flex-shrink: 0; }
+.step-name { font-size: 0.85rem; color: var(--text-main); }
+.step-name small { color: var(--text-muted); }
+
+/* Plan Resolution UI */
+.resolution-status-banner { margin: 0.5rem 0 0.75rem; }
+
+.plan-status-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.2rem 0.6rem;
+  border-radius: 12px;
+}
+.plan-status-badge.plan-status-ready { background: #d1fae5; color: #047857; }
+.plan-status-badge.plan-status-approval { background: #fef3c7; color: #b45309; }
+.plan-status-badge.plan-status-blocked { background: #fee2e2; color: #b91c1c; }
+.plan-status-badge.plan-status-unknown { background: var(--bg-subtle); color: var(--text-muted); }
+
+.resolution-step-list { display: flex; flex-direction: column; gap: 0.6rem; }
+
+.resolution-step-row {
+  border: 1px solid var(--border-light);
+  border-left: 3px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.75rem;
+  background: var(--bg-subtle);
+}
+.resolution-step-row.plan-status-ready { border-left-color: var(--status-success); }
+.resolution-step-row.plan-status-approval { border-left-color: var(--status-warning); }
+.resolution-step-row.plan-status-blocked { border-left-color: var(--status-error); }
+
+.resolution-step-head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; margin-bottom: 0.35rem; }
+.resolution-step-head strong { font-size: 0.85rem; color: var(--text-main); }
+
+.resolution-step-meta { display: flex; flex-wrap: wrap; gap: 0.15rem 0.9rem; font-size: 0.75rem; color: var(--text-muted); }
+
+.resolution-step-warnings { margin: 0.4rem 0 0; padding-left: 1.1rem; font-size: 0.75rem; color: var(--status-error); }
+
+.resolution-warnings {
+  margin-top: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-sm);
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: 0.8rem;
+}
+.resolution-warnings ul { margin: 0.3rem 0 0; padding-left: 1.1rem; }
+
+.resolution-actions { margin-top: 0.85rem; }
+
+.btn-plan-action {
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 1.1rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  color: #fff;
+}
+.btn-plan-action.plan-status-ready { background: var(--status-success); }
+.btn-plan-action.plan-status-approval { background: var(--status-warning); }
+.btn-plan-action:disabled { opacity: 0.65; cursor: default; }
 
 @media (max-width: 768px) {
   .hamburger-btn { display: block; }

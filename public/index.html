@@ -937,6 +937,14 @@
             <div class="plan-step-list" id="ambient-plan-steps"></div>
           </section>
 
+          <section class="ambient-resolution-card" id="ambient-resolution-card" style="display:none;" aria-live="polite">
+            <h3>Plan Resolution</h3>
+            <div class="resolution-status-banner" id="ambient-resolution-status"></div>
+            <div class="resolution-step-list" id="ambient-resolution-steps"></div>
+            <div class="resolution-warnings" id="ambient-resolution-warnings" style="display:none;"></div>
+            <div class="resolution-actions" id="ambient-resolution-actions"></div>
+          </section>
+
           <section class="ambient-result-card" id="ambient-result-card" style="display:none;" aria-live="polite">
             <strong>Model response</strong>
             <p id="ambient-result-text"></p>
@@ -988,6 +996,7 @@
   </div>
 
   <script src="i18n.js?v=__NAGEX_BUILD_VERSION__"></script>
+  <script src="plan-resolution-view.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="app.js?v=__NAGEX_BUILD_VERSION__"></script>
 </body>
 </html>

@@ -472,12 +472,14 @@
     const input = document.getElementById('ambient-prompt-input');
     const progress = document.getElementById('ambient-progress-container');
     const preview = document.getElementById('ambient-plan-preview');
+    const resolution = document.getElementById('ambient-resolution-card');
     const result = document.getElementById('ambient-result-card');
 
     if (backdrop) backdrop.style.display = 'flex';
     if (input) input.value = initialPrompt || 'Prepare my next client meeting and schedule it.';
     if (progress) progress.style.display = 'none';
     if (preview) preview.style.display = 'none';
+    if (resolution) resolution.style.display = 'none';
     if (result) result.style.display = 'none';
   }
 
@@ -545,9 +547,88 @@
         .join('');
     }
 
+    if (res.plan) await resolvePlanIntoUi(res.plan);
+
     if (resultCard && resultText) {
       resultCard.style.display = 'block';
       resultText.textContent = `${res.plan.summary} No tools have been executed. Request ID: ${res.requestId}`;
+    }
+  }
+
+  async function resolvePlanIntoUi(plan) {
+    const card = document.getElementById('ambient-resolution-card');
+    const statusEl = document.getElementById('ambient-resolution-status');
+    const stepsEl = document.getElementById('ambient-resolution-steps');
+    const warningsEl = document.getElementById('ambient-resolution-warnings');
+    const actionsEl = document.getElementById('ambient-resolution-actions');
+    const view = window.NAGEX_PLAN_VIEW;
+    if (!card || !statusEl || !stepsEl || !warningsEl || !actionsEl || !view) return;
+
+    const resolved = await apiFetch('/api/v1/plans/resolve', {
+      method: 'POST',
+      body: JSON.stringify({ plan }),
+    });
+
+    card.style.display = 'block';
+
+    if (!resolved || resolved.error) {
+      statusEl.innerHTML = `<span class="plan-status-badge plan-status-blocked">Cannot Execute</span>`;
+      stepsEl.innerHTML = '';
+      warningsEl.style.display = 'block';
+      warningsEl.innerHTML = `<strong>Warnings</strong><ul><li>${escapeHtml((resolved && resolved.error && resolved.error.message) || 'Unable to resolve the generated plan against the registries.')}</li></ul>`;
+      actionsEl.innerHTML = '';
+      return;
+    }
+
+    const vm = view.buildResolutionViewModel(resolved);
+
+    statusEl.innerHTML = `<span class="plan-status-badge ${vm.statusCssClass}">${escapeHtml(vm.statusLabel)}</span>`;
+
+    stepsEl.innerHTML = vm.steps
+      .map(
+        (s) => `<div class="resolution-step-row ${s.statusCssClass}">
+        <div class="resolution-step-head">
+          <strong>${escapeHtml(s.title)}</strong>
+          <span class="plan-status-badge ${s.statusCssClass}">${escapeHtml(s.statusLabel)}</span>
+        </div>
+        <div class="resolution-step-meta">
+          <span>Skill: ${s.resolvedSkillId ? escapeHtml(s.resolvedSkillId) : 'Unresolved'}</span>
+          <span>Tool: ${s.resolvedToolId ? escapeHtml(s.resolvedToolId) : 'None'}</span>
+          <span>Availability: ${escapeHtml(s.toolAvailability)}</span>
+          <span>Approval: ${s.approvalRequired ? 'Required' : 'Not required'}</span>
+        </div>
+        ${s.warnings.length ? `<ul class="resolution-step-warnings">${s.warnings.map((w) => `<li>${escapeHtml(w)}</li>`).join('')}</ul>` : ''}
+      </div>`
+      )
+      .join('');
+
+    if (vm.warnings.length) {
+      warningsEl.style.display = 'block';
+      warningsEl.innerHTML = `<strong>Warnings</strong><ul>${vm.warnings
+        .map((w) => `<li>${w.stepTitle ? `${escapeHtml(w.stepTitle)}: ` : ''}${escapeHtml(w.message)}</li>`)
+        .join('')}</ul>`;
+    } else {
+      warningsEl.style.display = 'none';
+      warningsEl.innerHTML = '';
+    }
+
+    if (vm.showRunButton && vm.actionLabel) {
+      const isApproval = vm.status === 'APPROVAL_REQUIRED';
+      actionsEl.innerHTML = `<button class="btn-plan-action ${vm.statusCssClass}" id="btn-plan-resolution-action">${isApproval ? '🛡️' : '▶'} ${escapeHtml(vm.actionLabel)}</button>`;
+      const btn = document.getElementById('btn-plan-resolution-action');
+      if (btn) {
+        btn.onclick = () => {
+          if (isApproval) {
+            closeAmbientOverlay();
+            switchTab('tab-approvals');
+          } else {
+            btn.disabled = true;
+            btn.textContent = 'Execution not yet connected in this phase';
+          }
+        };
+      }
+    } else {
+      actionsEl.innerHTML = '';
     }
   }
 
