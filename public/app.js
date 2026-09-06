@@ -762,13 +762,23 @@
   // not a timer/debounce, purely tied to ambientRunGuard's actual busy
   // state — so a user physically cannot fire a second submission while one
   // is in flight, on top of (not instead of) the guard itself rejecting a
-  // re-entrant call.
+  // re-entrant call. Includes the example card's "Run" button: it submits
+  // through the same canonical path (see initPrimaryScenario), so it must
+  // be disabled/relabeled by the same busy state as everything else.
   function setAmbientRunControlsDisabled(disabled) {
-    const ids = ['ambient-prompt-input', 'btn-ambient-run', 'home-prompt-input', 'btn-home-prompt-send'];
+    const ids = ['ambient-prompt-input', 'btn-ambient-run', 'home-prompt-input', 'btn-home-prompt-send', 'btn-run-ambient-plan'];
     ids.forEach((id) => {
       const el = document.getElementById(id);
       if (el) el.disabled = disabled;
     });
+
+    const runLabel = document.getElementById('btn-run-ambient-plan-label');
+    if (runLabel) {
+      const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : null;
+      runLabel.textContent = disabled
+        ? (t ? t('ambient.running') : 'Running...')
+        : (t ? t('ambient.run') : 'Run');
+    }
   }
 
   async function runAmbientTask(promptText) {
@@ -1243,21 +1253,22 @@
   // conversation, right next to the real composer. It used to call
   // runAmbientTask() directly with a hardcoded prompt — a second, redundant
   // producer of plan generations reachable from the same view as the real
-  // composer, with no visible link between "I clicked Run" and "a new plan
-  // appeared", which is exactly the kind of surface that produces confusing
-  // duplicate-looking timeline entries (two genuinely different plans, both
-  // triggered from the one open overlay, both using the same example text).
-  // It now only fills and focuses the composer, so submitting the example
-  // always goes through the one real path (Enter / Send).
+  // composer (two genuinely different plans, both triggered from the one
+  // open overlay, both using the same example text, which is what produced
+  // confusing duplicate-looking timeline entries). It must not go back to
+  // calling runAmbientTask() itself, but a button labeled "Run" also must
+  // not be a dead/fill-only control: it places the example prompt into the
+  // real composer and submits through the exact same canonical path a
+  // typed Enter/Send would use (submitAmbientComposerInput), so there is
+  // still only ever one execution path and the app cannot tell the two
+  // apart after submission.
   function initPrimaryScenario() {
     const btnAmbientPlan = document.getElementById('btn-run-ambient-plan');
     if (btnAmbientPlan) {
       btnAmbientPlan.onclick = () => {
         const input = document.getElementById('ambient-prompt-input');
-        if (input) {
-          input.value = 'Prepare my next client meeting and schedule it.';
-          input.focus();
-        }
+        if (input) input.value = 'Prepare my next client meeting and schedule it.';
+        submitAmbientComposerInput();
       };
     }
   }
