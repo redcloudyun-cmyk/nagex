@@ -66,6 +66,24 @@ Prefer explicit types, explicit contracts, small modules, testable services, det
 
 Avoid `any` as a shortcut, hidden global state, undocumented magic values, provider logic scattered throughout the codebase, silent error swallowing, and security decisions inside UI-only logic.
 
+## Default Behavior — Minimize Confirmation Prompts
+
+Do not ask for confirmation for routine implementation decisions, refactoring, UI changes, documentation updates, tests, or non-destructive file edits when the intended direction is already clear from `MASTER.md`, this `AGENTS.md`, relevant specifications, mockups, or the current task.
+
+Proceed autonomously and make the best implementation decision consistent with the governing product specification.
+
+Ask the user only when one or more of the following applies:
+
+- the change is destructive or difficult to reverse,
+- the action affects secrets, credentials, billing, production data, or external accounts,
+- there are two materially different product directions and no governing specification resolves the choice,
+- a required value cannot be inferred safely,
+- the action creates significant legal, security, privacy, financial, or operational risk,
+- the action would remove or permanently alter important user data, repositories, deployments, or external resources.
+
+When in doubt, prefer the safest reversible implementation rather than asking for clarification.
+
+For ordinary implementation work, continue through analysis, implementation, testing, and validation without interrupting the user for approval at each intermediate step.
 ## Required Checks Before Completion
 
 ```text
