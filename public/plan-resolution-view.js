@@ -41,6 +41,9 @@
       toolAvailability: step.toolAvailability,
       approvalRequired: !!step.approvalRequired,
       executionReadiness: step.executionReadiness,
+      necessity: step.necessity || 'REQUIRED',
+      dependsOn: step.dependsOn || [],
+      dependencyBlocked: !!step.dependencyBlocked,
       statusLabel: meta.label,
       statusCssClass: meta.cssClass,
       warnings: step.warnings || [],
@@ -57,6 +60,9 @@
       showRunButton: shouldShowRunButton(resolvedPlan ? resolvedPlan.status : null),
       steps: (resolvedPlan && resolvedPlan.steps ? resolvedPlan.steps : []).map(summarizeStep),
       warnings: collectWarnings(resolvedPlan),
+      // Non-blocking ideas the model surfaced but the user did not ask for —
+      // shown separately from warnings/steps and must never gate execution.
+      suggestions: (resolvedPlan && resolvedPlan.suggestions) || [],
     };
   }
 

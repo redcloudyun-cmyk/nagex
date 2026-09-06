@@ -633,7 +633,7 @@
         .join('');
     }
 
-    if (res.plan) await resolvePlanIntoUi(res.plan);
+    if (res.plan) await resolvePlanIntoUi(res.plan, promptText);
 
     if (resultCard && resultText) {
       resultCard.style.display = 'block';
@@ -641,11 +641,12 @@
     }
   }
 
-  async function resolvePlanIntoUi(plan) {
+  async function resolvePlanIntoUi(plan, originalPromptText) {
     const card = document.getElementById('ambient-resolution-card');
     const statusEl = document.getElementById('ambient-resolution-status');
     const stepsEl = document.getElementById('ambient-resolution-steps');
     const warningsEl = document.getElementById('ambient-resolution-warnings');
+    const suggestionsEl = document.getElementById('ambient-resolution-suggestions');
     const actionsEl = document.getElementById('ambient-resolution-actions');
     const view = window.NAGEX_PLAN_VIEW;
     if (!card || !statusEl || !stepsEl || !warningsEl || !actionsEl || !view) return;
@@ -700,12 +701,43 @@
       warningsEl.innerHTML = '';
     }
 
+    // Suggestions are informational-only ideas the model did not add as plan
+    // steps (see the scope policy in ai-service.ts) — they must never block
+    // or replace the requested action, so they render separately from
+    // warnings and never affect vm.status/showRunButton.
+    if (suggestionsEl) {
+      if (vm.suggestions && vm.suggestions.length) {
+        suggestionsEl.style.display = 'block';
+        suggestionsEl.innerHTML = `<strong>You might also want to:</strong><ul>${vm.suggestions.map((s) => `<li>${escapeHtml(s)}</li>`).join('')}</ul>`;
+      } else {
+        suggestionsEl.style.display = 'none';
+        suggestionsEl.innerHTML = '';
+      }
+    }
+
+    // Look at the Calendar step's OWN executionReadiness rather than the
+    // plan's overall vm.status: an unrelated blocked step (e.g. an
+    // unavailable Notion tool the user separately asked for) must never mask
+    // an independently executable/approvable Calendar step behind a "Cannot
+    // Execute" banner (partial execution safety).
     const calendarStep = (resolved.steps || []).find((s) => s.resolvedToolId === 'google_calendar.create_event');
 
-    if (calendarStep && calendarStep.toolAvailability === 'UNAVAILABLE' && vm.status !== 'EXECUTION_READY') {
+    if (calendarStep && calendarStep.executionReadiness === 'BLOCKED' && calendarStep.toolAvailability === 'UNAVAILABLE') {
       renderConnectGoogleCalendarAction(actionsEl);
-    } else if (calendarStep && vm.status === 'APPROVAL_REQUIRED') {
-      renderCalendarComposeForm(actionsEl, calendarStep);
+    } else if (calendarStep && calendarStep.executionReadiness === 'APPROVAL_REQUIRED') {
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+      const extractor = window.NAGEX_CALENDAR_INTENT;
+      const extracted = extractor ? extractor.extractCalendarIntent(originalPromptText || '', new Date(), timezone) : null;
+      if (extracted) {
+        // The prompt already fully specifies the event: skip the manual
+        // compose form and go straight to requesting approval (per the
+        // Ambient UI flow: Plan Preview -> one Calendar step -> Approval
+        // Card, with no intermediate form for a fully-specified request).
+        actionsEl.innerHTML = '<div id="calendar-preview-slot"></div>';
+        requestCalendarApproval(extracted);
+      } else {
+        renderCalendarComposeForm(actionsEl, calendarStep);
+      }
     } else if (vm.showRunButton && vm.actionLabel) {
       const isApproval = vm.status === 'APPROVAL_REQUIRED';
       actionsEl.innerHTML = `<button class="btn-plan-action ${vm.statusCssClass}" id="btn-plan-resolution-action">${isApproval ? '🛡️' : '▶'} ${escapeHtml(vm.actionLabel)}</button>`;

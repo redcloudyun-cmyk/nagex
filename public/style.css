@@ -884,6 +884,17 @@ body {
 }
 .resolution-warnings ul { margin: 0.3rem 0 0; padding-left: 1.1rem; }
 
+.resolution-suggestions {
+  margin-top: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+.resolution-suggestions ul { margin: 0.3rem 0 0; padding-left: 1.1rem; }
+
 .resolution-actions { margin-top: 0.85rem; }
 
 .btn-plan-action {
