@@ -106,7 +106,7 @@ body {
   color: var(--text-muted);
 }
 
-.brand-logo-group, .brand-logo-sidebar {
+.brand-logo-group {
   display: flex;
   align-items: center;
   overflow: hidden;
@@ -122,13 +122,6 @@ body {
   max-height: 28px;
   width: auto;
   max-width: 150px;
-  object-fit: contain;
-}
-
-.sidebar-logo {
-  max-height: 30px;
-  width: auto;
-  max-width: 160px;
   object-fit: contain;
 }
 

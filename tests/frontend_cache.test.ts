@@ -38,16 +38,19 @@ test('mutable frontend resources are never cached and HTML is deterministically 
   });
 });
 
-test('logo markup and CSS preserve direct assets and bounded sizing', async () => {
+test('only the global header renders the compact logo with bounded sizing', async () => {
   await withServer(async (origin) => {
     const html = await (await fetch(`${origin}/`)).text();
     const css = await (await fetch(`${origin}/style.css`)).text();
 
     assert.match(html, /src="assets\/nagex-compact-logo\.png"[^>]*class="nagex-compact-logo header-logo"/);
-    assert.match(html, /src="assets\/nagex-compact-logo-dark-bg\.png"[^>]*class="nagex-compact-logo sidebar-logo"/);
+    assert.doesNotMatch(html, /brand-logo-sidebar|class="[^"]*sidebar-logo/);
+    assert.equal((html.match(/class="nagex-compact-logo header-logo"/g) ?? []).length, 1);
+    assert.match(html, /<div class="sidebar-top-group">\s*<ul class="nav-menu">\s*<li class="nav-item active" data-tab="tab-home">/s);
+    assert.match(html, /<link rel="icon" type="image\/png" href="assets\/favicon\.png">/);
+    assert.match(html, /<link rel="apple-touch-icon" href="assets\/nagex-app-icon\.png">/);
     assert.match(css, /\.header-logo\s*{[^}]*max-height:\s*28px;[^}]*width:\s*auto;[^}]*max-width:\s*150px;[^}]*object-fit:\s*contain;/s);
-    assert.match(css, /\.sidebar-logo\s*{[^}]*max-height:\s*30px;[^}]*width:\s*auto;[^}]*max-width:\s*160px;[^}]*object-fit:\s*contain;/s);
     assert.match(css, /\.nagex-compact-logo\s*{[^}]*width:\s*auto;[^}]*object-fit:\s*contain;/s);
-    assert.match(css, /\.brand-logo-group, \.brand-logo-sidebar\s*{[^}]*overflow:\s*hidden;/s);
+    assert.match(css, /\.brand-logo-group\s*{[^}]*overflow:\s*hidden;/s);
   });
 });
