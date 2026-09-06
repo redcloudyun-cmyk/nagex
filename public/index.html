@@ -4,7 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NAgex — Personal AI Control Center</title>
-  <link rel="icon" type="image/png" href="assets/logo-mark-white-theme.png">
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <link rel="apple-touch-icon" href="assets/nagex-app-icon.png">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -15,11 +16,10 @@
         <button class="hamburger-btn" id="btn-hamburger" aria-label="Toggle Menu">
           <svg class="svg-icon" viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
         </button>
-        <div class="brand-logo-group">
-          <span class="brand-icon-n">N</span>
+        <div class="brand-logo-group" title="NAgex — Next-generation Agent Experience">
+          <img class="brand-mark" src="assets/nagex-mark.png" alt="NAgex">
           <span class="brand-text">NAgex</span>
         </div>
-        <span class="header-subtitle-tag">NEXT-GENERATION AGENT EXPERIENCE</span>
       </div>
 
       <div class="header-search-bar">
@@ -32,10 +32,6 @@
         <button class="quickwake-header-btn" id="btn-header-quickwake" title="Quick Wake (Alt+N)">
           <svg class="svg-icon" viewBox="0 0 24 24"><path d="M11 21h-1l1-7H7.5c-.88 0-.33-.75-.32-.78C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.49 0 .56.33.47.51C14.7 15.1 12.3 19.1 11 21z"/></svg>
           <span>Quick Wake (Alt+N)</span>
-        </button>
-        <button class="mockup-ref-btn" id="btn-mockup-toggle">
-          <svg class="svg-icon" viewBox="0 0 24 24"><path d="M4 6h16v12H4z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 10h16"/></svg>
-          <span data-i18n="nav.mockups">Design Mockups</span>
         </button>
         <button class="lang-toggle-btn" id="btn-lang-toggle" data-i18n-lang-toggle title="Switch language">KR</button>
         <div class="user-pill-header">
@@ -50,8 +46,8 @@
       <div class="sidebar-overlay" id="sidebar-overlay"></div>
       <aside class="sidebar-left" id="sidebar-left">
         <div class="sidebar-top-group">
-          <div class="brand-logo-sidebar">
-            <span class="brand-icon-n">N</span>
+          <div class="brand-logo-sidebar" title="NAgex — Next-generation Agent Experience">
+            <img class="brand-mark" src="assets/nagex-mark.png" alt="NAgex">
             <span class="brand-text">NAgex</span>
           </div>
 
@@ -823,27 +819,6 @@
           </div>
         </div>
 
-        <!-- VIEW 10: MOCKUP REFERENCES -->
-        <div id="view-mockups" class="tab-view">
-          <div class="view-header">
-            <div>
-              <h2 data-i18n="mockups.title">Design Mockup Reference Viewer</h2>
-              <p class="view-subtitle">Inspect the four canonical NAgex design mockup layout specifications.</p>
-            </div>
-          </div>
-
-          <div class="mockup-selector-row">
-            <button class="mock-nav-btn active" data-mockup="m01" data-i18n="mockups.m01">Mockup 01 — Home / Personal AI</button>
-            <button class="mock-nav-btn" data-mockup="m02" data-i18n="mockups.m02">Mockup 02 — Memory</button>
-            <button class="mock-nav-btn" data-mockup="m03" data-i18n="mockups.m03">Mockup 03 — Plan & Execute</button>
-            <button class="mock-nav-btn" data-mockup="m04" data-i18n="mockups.m04">Mockup 04 — Approvals & Tools</button>
-          </div>
-
-          <div class="mockup-preview-display" id="mockup-preview-container">
-            <!-- Dynamically populated preview layout -->
-          </div>
-        </div>
-
       </main>
     </div>
 
@@ -882,7 +857,7 @@
       <div class="ambient-sheet-modal">
         <div class="ambient-sheet-header">
           <div class="ambient-brand-title">
-            <span class="brand-icon-n" style="width:20px;height:20px;font-size:0.7rem;">N</span>
+            <img class="brand-mark brand-mark-sm" src="assets/nagex-mark.png" alt="NAgex">
             <span>NAgex</span>
           </div>
           <button class="ambient-close-btn" id="btn-close-ambient">&times;</button>

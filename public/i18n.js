@@ -19,7 +19,6 @@
       'nav.knowledge': 'Knowledge',
       'nav.settings': 'Settings',
       'nav.quickwake': 'Quick Wake',
-      'nav.mockups': 'Design Mockups',
       'nav.newTask': 'Quick Action',
       'nav.groupWorkspace': 'Control Center',
 
@@ -143,13 +142,6 @@
       'settings.autonomy.l2': 'Level 2 — Low-risk Actions',
       'settings.autonomy.l3': 'Level 3 — Trusted Workflows',
       'settings.providers': 'Nebius & NVIDIA Model Gateway',
-
-      // Mockup Reference Screens
-      'mockups.title': 'Design Mockup Reference Viewer',
-      'mockups.m01': 'Mockup 01 — Home / Personal AI',
-      'mockups.m02': 'Mockup 02 — Memory',
-      'mockups.m03': 'Mockup 03 — Plan & Execute',
-      'mockups.m04': 'Mockup 04 — Approvals & Tools',
     },
     ko: {
       'page.title': 'NAgex — 개인용 AI 컨트롤 센터',
@@ -166,7 +158,6 @@
       'nav.knowledge': '지식',
       'nav.settings': '설정',
       'nav.quickwake': '빠른 호출',
-      'nav.mockups': '디자인 목업',
       'nav.newTask': '빠른 액션',
       'nav.groupWorkspace': '컨트롤 센터',
 
@@ -290,13 +281,6 @@
       'settings.autonomy.l2': '레벨 2 — 저위험 액션',
       'settings.autonomy.l3': '레벨 3 — 신뢰된 워크플로',
       'settings.providers': 'Nebius & NVIDIA 모델 가이트웨이',
-
-      // Mockup Reference Screens
-      'mockups.title': '디자인 목업 참조 뷰어',
-      'mockups.m01': '목업 01 — 홈 / Personal AI',
-      'mockups.m02': '목업 02 — 메모리 (Memory)',
-      'mockups.m03': '목업 03 — 계획 & 실행 (Plan & Execute)',
-      'mockups.m04': '목업 04 — 승인 & 도구 (Approvals & Tools)',
     },
   };
 

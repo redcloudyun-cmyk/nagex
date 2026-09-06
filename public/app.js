@@ -39,7 +39,6 @@
     initNavigation();
     initQuickWake();
     initPrimaryScenario();
-    initMockups();
     initQuickActionChips();
     loadAllData();
 
@@ -112,7 +111,6 @@
     else if (state.activeTab === 'tab-executions') renderExecutions();
     else if (state.activeTab === 'tab-knowledge') renderKnowledge();
     else if (state.activeTab === 'tab-settings') renderSettings();
-    else if (state.activeTab === 'tab-mockups') renderMockupView();
   }
 
   async function loadAllData() {
@@ -424,17 +422,6 @@
         )
         .join('');
     }
-  }
-
-  function initMockups() {
-    const btnMock = document.getElementById('btn-mockup-toggle');
-    if (btnMock) {
-      btnMock.onclick = () => switchTab('tab-home');
-    }
-  }
-
-  function renderMockupView() {
-    // Legacy container fallback handled directly via switchTab
   }
 
   function initQuickWake() {
