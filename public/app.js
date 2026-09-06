@@ -231,7 +231,8 @@
       btnSend.onclick = () => {
         const text = homeInput.value.trim();
         if (text) {
-          openAmbientOverlay(text);
+          homeInput.value = '';
+          openAmbientOverlay();
           runAmbientTask(text);
         }
       };
@@ -248,7 +249,7 @@
         else if (action === 'prepare-meeting') promptText = 'Prepare my next client meeting and schedule it.';
         else if (action === 'research-topic') promptText = 'Perform deep research on current AI Agent market trends.';
         else if (action === 'execute-task') promptText = 'Run automated code security review on active repository.';
-        openAmbientOverlay(promptText);
+        openAmbientOverlay();
         runAmbientTask(promptText);
       };
     });
@@ -556,12 +557,19 @@
       };
     }
 
-    if (btnRun) {
-      btnRun.onclick = () => {
-        const input = document.getElementById('ambient-prompt-input');
-        const text = input ? input.value.trim() : '';
-        if (text) runAmbientTask(text);
-      };
+    if (btnRun) btnRun.onclick = submitAmbientComposerInput;
+
+    const ambientInput = document.getElementById('ambient-prompt-input');
+    if (ambientInput) {
+      ambientInput.addEventListener('keydown', (event) => {
+        // Enter submits; Shift+Enter is left to the browser's native
+        // behavior (a no-op on this single-line input, so no newline is
+        // ever inserted — this is a plain <input>, not multiline).
+        if (event.key === 'Enter' && !event.shiftKey) {
+          event.preventDefault();
+          submitAmbientComposerInput();
+        }
+      });
     }
 
     const btnModalApprove = document.getElementById('btn-modal-approve');
@@ -580,7 +588,22 @@
     }
   }
 
-  function openAmbientOverlay(initialPrompt = '') {
+  // Shared by the send button and Enter keydown: reads the composer's
+  // genuinely-typed text, clears it (the placeholder reappears naturally
+  // since the element is now empty — no demo text is ever restored), and
+  // hands the captured text off to the task pipeline before the input is
+  // touched again, so nothing submitted is ever lost by clearing.
+  function submitAmbientComposerInput() {
+    const input = document.getElementById('ambient-prompt-input');
+    if (!input) return;
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    runAmbientTask(text);
+    input.focus();
+  }
+
+  function openAmbientOverlay() {
     const backdrop = document.getElementById('ambient-overlay-backdrop');
     const modal = document.getElementById('ambient-sheet-modal');
     const input = document.getElementById('ambient-prompt-input');
@@ -593,7 +616,12 @@
     ambientModalTriggerElement = document.activeElement;
 
     if (backdrop) backdrop.style.display = 'flex';
-    if (input) input.value = initialPrompt || 'Prepare my next client meeting and schedule it.';
+    // The composer always starts empty (placeholder visible), even when an
+    // initialPrompt is supplied — every caller passes that prompt straight
+    // to runAmbientTask() below, not into this field, so the box is
+    // immediately ready for the user's next message rather than showing
+    // stale demo/echoed text.
+    if (input) input.value = '';
     if (progress) progress.style.display = 'none';
     if (preview) preview.style.display = 'none';
     if (resolution) resolution.style.display = 'none';
@@ -1106,7 +1134,7 @@
     const btnAmbientPlan = document.getElementById('btn-run-ambient-plan');
     const runPrimaryScenario = () => {
       const scenarioPrompt = 'Prepare my next client meeting and schedule it.';
-      openAmbientOverlay(scenarioPrompt);
+      openAmbientOverlay();
       runAmbientTask(scenarioPrompt);
     };
     if (btnHero) {
@@ -1127,7 +1155,7 @@
   window.NAGEX = {
     switchTab,
     openAmbientWithPrompt: (promptText) => {
-      openAmbientOverlay(promptText);
+      openAmbientOverlay();
       runAmbientTask(promptText);
     },
     togglePinMemory: async (id) => {
