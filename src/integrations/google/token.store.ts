@@ -10,16 +10,34 @@ interface StoredGoogleToken {
 
 export interface GoogleConnectionStatus {
   connected: boolean;
-  scope: string | null;
-  connectedAt: string | null;
+  scopes: string[];
+  expiresAt: string | null;
 }
 
 type FetchFn = typeof fetch;
 
+// Abstraction boundary for OAuth token persistence. The current test phase
+// uses an in-memory implementation (below); a later phase can add a
+// DB-backed implementation of this same interface without touching any
+// caller (ToolRegistry, GoogleCalendarService, or the OAuth routes).
+export interface GoogleOAuthTokenStore {
+  save(tenantId: string, token: GoogleTokenResponse): void;
+  clear(tenantId: string): void;
+  isConnected(tenantId: string): boolean;
+  getStatus(tenantId: string): GoogleConnectionStatus;
+  getValidAccessToken(
+    tenantId: string,
+    config: GoogleOAuthConfig,
+    fetchFn: FetchFn,
+    requestId: string,
+    now?: () => number,
+  ): Promise<string | null>;
+}
+
 // Server-side only. Tokens never leave this process — no API route returns
 // accessToken/refreshToken, and callers must not spread StoredGoogleToken into
 // any response body or audit detail object.
-export class GoogleTokenStore {
+export class InMemoryGoogleOAuthTokenStore implements GoogleOAuthTokenStore {
   private readonly tokensByTenant = new Map<string, StoredGoogleToken>();
 
   public save(tenantId: string, token: GoogleTokenResponse): void {
@@ -43,8 +61,12 @@ export class GoogleTokenStore {
 
   public getStatus(tenantId: string): GoogleConnectionStatus {
     const token = this.tokensByTenant.get(tenantId);
-    if (!token) return { connected: false, scope: null, connectedAt: null };
-    return { connected: true, scope: token.scope, connectedAt: token.connectedAt };
+    if (!token) return { connected: false, scopes: [], expiresAt: null };
+    return {
+      connected: true,
+      scopes: token.scope.split(' ').filter(Boolean),
+      expiresAt: new Date(token.expiresAt).toISOString(),
+    };
   }
 
   // Returns a currently-valid access token, transparently refreshing it if
@@ -79,4 +101,4 @@ export class GoogleTokenStore {
 // 'ten_production_01' default), so the tool registry's live-status check below
 // reads this one shared store rather than threading tenantId through PlanResolver.
 export const DEFAULT_GOOGLE_TENANT_ID = 'ten_production_01';
-export const googleTokenStore = new GoogleTokenStore();
+export const googleTokenStore: GoogleOAuthTokenStore = new InMemoryGoogleOAuthTokenStore();

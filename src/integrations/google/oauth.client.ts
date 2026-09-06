@@ -1,11 +1,11 @@
 import { NagexError } from '../../common/errors.js';
 
-// Minimum scopes for the two capabilities this phase implements:
-// - calendar.events: create events
-// - calendar.freebusy: check availability without any read/write access to event content
+// Scopes configured on the NAgex Google Cloud OAuth client — must match exactly
+// what was registered there, not a broader or narrower set chosen independently.
 export const GOOGLE_CALENDAR_SCOPES = [
   'https://www.googleapis.com/auth/calendar.events',
-  'https://www.googleapis.com/auth/calendar.freebusy',
+  'https://www.googleapis.com/auth/calendar.events.freebusy',
+  'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
 ] as const;
 
 export interface GoogleOAuthConfig {

@@ -1,14 +1,23 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { GoogleTokenStore } from '../src/integrations/google/token.store.js';
-import { readGoogleOAuthConfig, exchangeGoogleAuthorizationCode, type GoogleOAuthConfig } from '../src/integrations/google/oauth.client.js';
+import {
+  InMemoryGoogleOAuthTokenStore,
+  googleTokenStore as sharedGoogleTokenStore,
+  DEFAULT_GOOGLE_TENANT_ID,
+} from '../src/integrations/google/token.store.js';
+import {
+  readGoogleOAuthConfig,
+  exchangeGoogleAuthorizationCode,
+  GOOGLE_CALENDAR_SCOPES,
+  type GoogleOAuthConfig,
+} from '../src/integrations/google/oauth.client.js';
+import { queryFreeBusy, computeFreeSlots } from '../src/integrations/google/calendar.client.js';
 import { ActionApprovalStore } from '../src/governance/action-approval.store.js';
 import { AuditLogger } from '../src/governance/audit.logger.js';
 import { MemoryEngine } from '../src/context/memory.engine.js';
 import { GoogleCalendarService, GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, type NormalizedExecutionResult } from '../src/tools/google-calendar.service.js';
 import { PlanResolver } from '../src/planning/plan-resolver.js';
 import { skillRegistry } from '../src/skills/skill-registry.js';
-import { googleTokenStore as sharedGoogleTokenStore } from '../src/integrations/google/token.store.js';
 import { toolRegistry as sharedToolRegistry } from '../src/tools/tool-registry.js';
 import { handleApiRequest, handleAsyncApiRequest } from '../src/server_web.js';
 import type { PlanPreview } from '../src/model-gateway/ai-service.js';
@@ -17,24 +26,25 @@ function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
-const config: GoogleOAuthConfig = { clientId: 'cid', clientSecret: 'csecret', redirectUri: 'https://app.example/callback' };
+const GRANTED_SCOPE_STRING = GOOGLE_CALENDAR_SCOPES.join(' ');
+const config: GoogleOAuthConfig = { clientId: 'cid', clientSecret: 'csecret', redirectUri: 'https://nagex-test.agex.site/api/v1/oauth/google/callback' };
 
 function validPayload(overrides: Record<string, unknown> = {}) {
   return {
-    title: 'Client Strategy Sync',
-    startTime: '2026-10-01T17:00:00.000Z',
-    endTime: '2026-10-01T17:30:00.000Z',
+    calendarId: 'primary',
+    summary: 'Client Strategy Sync',
+    description: 'Quarterly strategy discussion.',
+    start: '2026-10-01T17:00:00.000Z',
+    end: '2026-10-01T17:30:00.000Z',
     timezone: 'America/Los_Angeles',
     attendees: ['client@example.com'],
-    description: 'Quarterly strategy discussion.',
-    addMeetingLink: false,
-    calendarId: 'primary',
+    conferenceDataPreference: 'none',
     ...overrides,
   };
 }
 
 function buildHarness(fetchFn: typeof fetch, now: () => number = Date.now) {
-  const tokenStore = new GoogleTokenStore();
+  const tokenStore = new InMemoryGoogleOAuthTokenStore();
   const approvals = new ActionApprovalStore(now);
   const audit = new AuditLogger();
   const memory = new MemoryEngine();
@@ -42,28 +52,38 @@ function buildHarness(fetchFn: typeof fetch, now: () => number = Date.now) {
   return { tokenStore, approvals, audit, memory, service };
 }
 
+async function withEnv<T>(env: Record<string, string>, fn: () => T | Promise<T>): Promise<T> {
+  for (const [key, value] of Object.entries(env)) process.env[key] = value;
+  try {
+    return await fn();
+  } finally {
+    for (const key of Object.keys(env)) delete process.env[key];
+  }
+}
+
 // ── OAuth disconnected / connected ──────────────────────────────────────────
 
 test('OAuth disconnected: status reports not connected and no secrets are ever exposed', () => {
-  const tokenStore = new GoogleTokenStore();
+  const tokenStore = new InMemoryGoogleOAuthTokenStore();
   const status = tokenStore.getStatus('ten_test');
   assert.equal(status.connected, false);
-  assert.equal(status.scope, null);
-  assert.equal(status.connectedAt, null);
+  assert.deepEqual(status.scopes, []);
+  assert.equal(status.expiresAt, null);
   assert.equal((status as unknown as Record<string, unknown>).accessToken, undefined);
   assert.equal((status as unknown as Record<string, unknown>).refreshToken, undefined);
 });
 
 test('OAuth connected: a real token exchange stores the token server-side without leaking it in status', async () => {
-  const fetchFn: typeof fetch = async () => jsonResponse({ access_token: 'at_123', refresh_token: 'rt_456', expires_in: 3600, scope: 'calendar.events calendar.freebusy' });
-  const tokenStore = new GoogleTokenStore();
+  const fetchFn: typeof fetch = async () => jsonResponse({ access_token: 'at_123', refresh_token: 'rt_456', expires_in: 3600, scope: GRANTED_SCOPE_STRING });
+  const tokenStore = new InMemoryGoogleOAuthTokenStore();
   const token = await exchangeGoogleAuthorizationCode(config, 'auth_code', fetchFn, 'req_oauth_1');
   tokenStore.save('ten_test', token);
 
   const status = tokenStore.getStatus('ten_test');
   assert.equal(status.connected, true);
-  assert.equal(status.scope, 'calendar.events calendar.freebusy');
-  assert.equal(typeof status.connectedAt, 'string');
+  assert.deepEqual(status.scopes, GOOGLE_CALENDAR_SCOPES.slice());
+  assert.equal(typeof status.expiresAt, 'string');
+  assert.ok(new Date(status.expiresAt as string).getTime() > Date.now());
   const serialized = JSON.stringify(status);
   assert.doesNotMatch(serialized, /at_123|rt_456/);
 });
@@ -75,54 +95,143 @@ test('readGoogleOAuthConfig never reports configured from partial or missing env
   assert.deepEqual(full, { clientId: 'id', clientSecret: 'secret', redirectUri: 'https://x/callback' });
 });
 
-test('GET /api/v1/oauth/google/start fails closed with 503 when Google OAuth env vars are not set', () => {
-  const result = handleApiRequest('GET', '/api/v1/oauth/google/start', null);
-  assert.equal(result.status, 503);
-  assert.equal((result.data as Record<string, unknown>).error, 'GOOGLE_OAUTH_NOT_CONFIGURED');
+test('GET /api/v1/oauth/google/status reports configured=false and connected=false when nothing is set up', () => {
+  sharedGoogleTokenStore.clear(DEFAULT_GOOGLE_TENANT_ID);
+  const result = handleApiRequest('GET', '/api/v1/oauth/google/status', null);
+  assert.equal(result.status, 200);
+  const data = result.data as Record<string, unknown>;
+  assert.equal(data.configured, false);
+  assert.equal(data.connected, false);
+});
+
+test('GET /api/v1/oauth/google/start and /start-url fail closed with 503 when Google OAuth env vars are not set', () => {
+  const start = handleApiRequest('GET', '/api/v1/oauth/google/start', null);
+  assert.equal(start.status, 503);
+  assert.equal((start.data as Record<string, unknown>).error, 'GOOGLE_OAUTH_NOT_CONFIGURED');
+
+  const startUrl = handleApiRequest('GET', '/api/v1/oauth/google/start-url', null);
+  assert.equal(startUrl.status, 503);
+  assert.equal((startUrl.data as Record<string, unknown>).error, 'GOOGLE_OAUTH_NOT_CONFIGURED');
+});
+
+// ── OAuth start: real 302 browser redirect ──────────────────────────────────
+
+test('OAuth start URL: GET /api/v1/oauth/google/start redirects (302) straight to Google, never as JSON', async () => {
+  await withEnv({ GOOGLE_CLIENT_ID: 'redir-client', GOOGLE_CLIENT_SECRET: 'redir-secret', GOOGLE_REDIRECT_URI: 'https://nagex-test.agex.site/api/v1/oauth/google/callback' }, () => {
+    const result = handleApiRequest('GET', '/api/v1/oauth/google/start', null);
+
+    assert.equal(result.status, 302);
+    assert.equal(result.data, null);
+    assert.equal(typeof result.redirectTo, 'string');
+
+    const location = new URL(result.redirectTo as string);
+    assert.equal(`${location.protocol}//${location.host}`, 'https://accounts.google.com');
+
+    const state = location.searchParams.get('state');
+    assert.equal(typeof state, 'string');
+    assert.ok((state as string).length > 0);
+
+    assert.equal(location.searchParams.get('redirect_uri'), 'https://nagex-test.agex.site/api/v1/oauth/google/callback');
+    assert.equal(location.searchParams.get('access_type'), 'offline');
+    assert.equal(location.searchParams.get('prompt'), 'consent');
+    assert.equal(location.searchParams.get('include_granted_scopes'), 'true');
+
+    const grantedScopes = (location.searchParams.get('scope') || '').split(' ');
+    for (const scope of GOOGLE_CALENDAR_SCOPES) {
+      assert.ok(grantedScopes.includes(scope), `missing scope: ${scope}`);
+    }
+    assert.equal(grantedScopes.length, GOOGLE_CALENDAR_SCOPES.length);
+  });
+});
+
+test('OAuth start-url (debug/API endpoint): returns the same authorize URL as JSON instead of redirecting', async () => {
+  await withEnv({ GOOGLE_CLIENT_ID: 'redir-client', GOOGLE_CLIENT_SECRET: 'redir-secret', GOOGLE_REDIRECT_URI: 'https://nagex-test.agex.site/api/v1/oauth/google/callback' }, () => {
+    const result = handleApiRequest('GET', '/api/v1/oauth/google/start-url', null);
+    assert.equal(result.status, 200);
+    const authorizeUrl = new URL((result.data as Record<string, string>).authorizeUrl);
+    assert.equal(`${authorizeUrl.protocol}//${authorizeUrl.host}`, 'https://accounts.google.com');
+    assert.equal(authorizeUrl.searchParams.get('access_type'), 'offline');
+    assert.equal(authorizeUrl.searchParams.get('prompt'), 'consent');
+  });
+});
+
+// ── token refresh ────────────────────────────────────────────────────────────
+
+test('token refresh: an expired access token is transparently refreshed using the stored refresh token', async () => {
+  let refreshCalls = 0;
+  const fetchFn: typeof fetch = async (_url, init) => {
+    refreshCalls += 1;
+    const body = String(init?.body ?? '');
+    assert.match(body, /grant_type=refresh_token/);
+    assert.match(body, /refresh_token=old-refresh-token/);
+    return jsonResponse({ access_token: 'refreshed-access-token', expires_in: 3600, scope: GRANTED_SCOPE_STRING });
+  };
+  let clock = 1_700_000_000_000;
+  const tokenStore = new InMemoryGoogleOAuthTokenStore();
+  tokenStore.save('t1', { accessToken: 'stale-access-token', refreshToken: 'old-refresh-token', expiresAt: clock - 1000, scope: GRANTED_SCOPE_STRING });
+
+  const accessToken = await tokenStore.getValidAccessToken('t1', config, fetchFn, 'req_refresh_1', () => clock);
+
+  assert.equal(refreshCalls, 1);
+  assert.equal(accessToken, 'refreshed-access-token');
+  const status = tokenStore.getStatus('t1');
+  assert.equal(status.connected, true);
+  assert.ok(new Date(status.expiresAt as string).getTime() > clock);
+});
+
+test('token refresh failure clears the connection (fail closed) instead of returning a stale token', async () => {
+  const fetchFn: typeof fetch = async () => jsonResponse({ error: 'invalid_grant', error_description: 'Token has been revoked' }, 400);
+  const tokenStore = new InMemoryGoogleOAuthTokenStore();
+  tokenStore.save('t1', { accessToken: 'stale', refreshToken: 'revoked-refresh-token', expiresAt: Date.now() - 1000, scope: GRANTED_SCOPE_STRING });
+
+  const accessToken = await tokenStore.getValidAccessToken('t1', config, fetchFn, 'req_refresh_2');
+
+  assert.equal(accessToken, null);
+  assert.equal(tokenStore.isConnected('t1'), false);
 });
 
 // ── live registry transition ────────────────────────────────────────────────
 
-test('live registry transition: tool registry reports disconnected/unavailable, then connected/live, based on real OAuth state alone', () => {
-  sharedGoogleTokenStore.clear('ten_production_01');
-  const disconnected = sharedToolRegistry.resolve('Google Calendar');
-  assert.equal(disconnected.connectionStatus, 'disconnected');
-  assert.equal(disconnected.executionMode, 'unavailable');
-  assert.equal(disconnected.availability, 'UNAVAILABLE');
-
-  sharedGoogleTokenStore.save('ten_production_01', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: 'calendar.events' });
-  const connected = sharedToolRegistry.resolve('Google Calendar');
-  assert.equal(connected.connectionStatus, 'connected');
-  assert.equal(connected.executionMode, 'live');
-  assert.equal(connected.availability, 'AVAILABLE');
-
-  const listed = sharedToolRegistry.list().find((tool) => tool.id === GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID);
-  assert.equal(listed?.connectionStatus, 'connected');
-  assert.equal(listed?.executionMode, 'live');
-
-  sharedGoogleTokenStore.clear('ten_production_01'); // leave shared state clean for other tests
+test('disconnected tool state: Google Calendar tools report disconnected/unavailable with no OAuth connection', () => {
+  sharedGoogleTokenStore.clear(DEFAULT_GOOGLE_TENANT_ID);
+  for (const toolName of ['Google Calendar', 'find free slots']) {
+    const resolution = sharedToolRegistry.resolve(toolName);
+    assert.equal(resolution.connectionStatus, 'disconnected');
+    assert.equal(resolution.executionMode, 'unavailable');
+    assert.equal(resolution.availability, 'UNAVAILABLE');
+  }
 });
 
-test('setting only GOOGLE_CLIENT_ID/SECRET env vars (no real OAuth connection) never flips the tool to live', () => {
-  sharedGoogleTokenStore.clear('ten_production_01');
-  process.env.GOOGLE_CLIENT_ID = 'unit-test-client-id';
-  process.env.GOOGLE_CLIENT_SECRET = 'unit-test-secret';
-  process.env.GOOGLE_REDIRECT_URI = 'https://app.example/callback';
+test('connected tool state: Google Calendar tools report connected/live once a real OAuth connection exists', () => {
+  sharedGoogleTokenStore.save(DEFAULT_GOOGLE_TENANT_ID, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
   try {
+    for (const toolName of ['Google Calendar', 'find free slots']) {
+      const resolution = sharedToolRegistry.resolve(toolName);
+      assert.equal(resolution.connectionStatus, 'connected');
+      assert.equal(resolution.executionMode, 'live');
+      assert.equal(resolution.availability, 'AVAILABLE');
+    }
+    const listed = sharedToolRegistry.list().find((tool) => tool.id === GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID);
+    assert.equal(listed?.connectionStatus, 'connected');
+    assert.equal(listed?.executionMode, 'live');
+  } finally {
+    sharedGoogleTokenStore.clear(DEFAULT_GOOGLE_TENANT_ID);
+  }
+});
+
+test('setting only GOOGLE_CLIENT_ID/SECRET env vars (no real OAuth connection) never flips the tool to live', async () => {
+  sharedGoogleTokenStore.clear(DEFAULT_GOOGLE_TENANT_ID);
+  await withEnv({ GOOGLE_CLIENT_ID: 'unit-test-client-id', GOOGLE_CLIENT_SECRET: 'unit-test-secret', GOOGLE_REDIRECT_URI: 'https://nagex-test.agex.site/api/v1/oauth/google/callback' }, () => {
     const resolution = sharedToolRegistry.resolve('Google Calendar');
     assert.equal(resolution.executionMode, 'unavailable');
     assert.equal(resolution.connectionStatus, 'disconnected');
-  } finally {
-    delete process.env.GOOGLE_CLIENT_ID;
-    delete process.env.GOOGLE_CLIENT_SECRET;
-    delete process.env.GOOGLE_REDIRECT_URI;
-  }
+  });
 });
 
 // ── approval required ───────────────────────────────────────────────────────
 
 test('approval required: a live Google Calendar create-event step always resolves to APPROVAL_REQUIRED', () => {
-  sharedGoogleTokenStore.save('ten_production_01', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: 'calendar.events' });
+  sharedGoogleTokenStore.save(DEFAULT_GOOGLE_TENANT_ID, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
   try {
     const resolver = new PlanResolver(skillRegistry, sharedToolRegistry);
     const plan: PlanPreview = {
@@ -136,7 +245,76 @@ test('approval required: a live Google Calendar create-event step always resolve
     assert.equal(resolved.steps[0].toolAvailability, 'AVAILABLE');
     assert.equal(resolved.steps[0].approvalRequired, true);
   } finally {
-    sharedGoogleTokenStore.clear('ten_production_01');
+    sharedGoogleTokenStore.clear(DEFAULT_GOOGLE_TENANT_ID);
+  }
+});
+
+test('find_free_slots never requires approval, even when connected', () => {
+  sharedGoogleTokenStore.save(DEFAULT_GOOGLE_TENANT_ID, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
+  try {
+    const resolution = sharedToolRegistry.resolve('find free slots');
+    assert.equal(resolution.requiresApproval, false);
+  } finally {
+    sharedGoogleTokenStore.clear(DEFAULT_GOOGLE_TENANT_ID);
+  }
+});
+
+// ── freebusy (find_free_slots) ───────────────────────────────────────────────
+
+test('freebusy success: queryFreeBusy calls the real FreeBusy API and computeFreeSlots normalizes the gaps', async () => {
+  let capturedUrl = '';
+  let capturedBody: Record<string, unknown> = {};
+  const fetchFn: typeof fetch = async (url, init) => {
+    capturedUrl = String(url);
+    capturedBody = JSON.parse(String(init?.body));
+    return jsonResponse({ calendars: { primary: { busy: [{ start: '2026-10-01T18:00:00.000Z', end: '2026-10-01T18:30:00.000Z' }] } } });
+  };
+
+  const busy = await queryFreeBusy(
+    'valid-access-token',
+    { calendarId: 'primary', timeMin: '2026-10-01T17:00:00.000Z', timeMax: '2026-10-01T19:00:00.000Z' },
+    fetchFn,
+    'req_freebusy_1',
+  );
+
+  assert.equal(capturedUrl, 'https://www.googleapis.com/calendar/v3/freeBusy');
+  assert.deepEqual(capturedBody.items, [{ id: 'primary' }]);
+  assert.equal(busy.length, 1);
+  assert.equal(busy[0].start, '2026-10-01T18:00:00.000Z');
+
+  const freeSlots = computeFreeSlots(busy, '2026-10-01T17:00:00.000Z', '2026-10-01T19:00:00.000Z', 30);
+  assert.equal(freeSlots.length, 2);
+  assert.equal(freeSlots[0].start, '2026-10-01T17:00:00.000Z');
+  assert.equal(freeSlots[0].end, '2026-10-01T18:00:00.000Z');
+  assert.equal(freeSlots[1].start, '2026-10-01T18:30:00.000Z');
+  assert.equal(freeSlots[1].end, '2026-10-01T19:00:00.000Z');
+});
+
+test('POST /api/v1/tools/google-calendar/free-slots fails closed when Google Calendar is disconnected', async () => {
+  sharedGoogleTokenStore.clear(DEFAULT_GOOGLE_TENANT_ID);
+  const result = await handleAsyncApiRequest('POST', '/api/v1/tools/google-calendar/free-slots', {});
+  assert.notEqual(result.status, 200);
+});
+
+test('POST /api/v1/tools/google-calendar/free-slots returns normalized busy/freeSlots once connected', async () => {
+  sharedGoogleTokenStore.save(DEFAULT_GOOGLE_TENANT_ID, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
+  const originalFetch = global.fetch;
+  global.fetch = (async () => jsonResponse({ calendars: { primary: { busy: [] } } })) as typeof fetch;
+  try {
+    await withEnv({ GOOGLE_CLIENT_ID: 'fs-client', GOOGLE_CLIENT_SECRET: 'fs-secret', GOOGLE_REDIRECT_URI: 'https://nagex-test.agex.site/api/v1/oauth/google/callback' }, async () => {
+      const result = await handleAsyncApiRequest('POST', '/api/v1/tools/google-calendar/free-slots', {
+        calendarId: 'primary',
+        timeMin: '2026-10-01T00:00:00.000Z',
+        timeMax: '2026-10-02T00:00:00.000Z',
+      });
+      assert.equal(result.status, 200);
+      const data = result.data as Record<string, unknown>;
+      assert.deepEqual(data.busy, []);
+      assert.ok(Array.isArray(data.freeSlots));
+    });
+  } finally {
+    global.fetch = originalFetch;
+    sharedGoogleTokenStore.clear(DEFAULT_GOOGLE_TENANT_ID);
   }
 });
 
@@ -147,7 +325,7 @@ test('modified payload rejection: consuming with a changed field is rejected eve
   const record = approvals.request({ toolId: 'google_calendar.create_event', tenantId: 't1', principalId: 'u1', payload: validPayload() });
   approvals.approve(record.id);
   assert.throws(
-    () => approvals.consume(record.id, 'google_calendar.create_event', validPayload({ title: 'A different meeting title' }), 'req_1'),
+    () => approvals.consume(record.id, 'google_calendar.create_event', validPayload({ summary: 'A different meeting title' }), 'req_1'),
     (error: any) => error.code === 'APPROVAL_PAYLOAD_MISMATCH',
   );
 });
@@ -187,7 +365,7 @@ test('execution success: returns a normalized result and never fakes success wit
     throw new Error(`unexpected fetch: ${url}`);
   };
   const { tokenStore, approvals, service } = buildHarness(fetchFn);
-  tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: 'calendar.events' });
+  tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
   const record = approvals.request({ toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, tenantId: 't1', principalId: 'u1', payload: validPayload() });
   approvals.approve(record.id);
 
@@ -206,7 +384,7 @@ test('execution success: returns a normalized result and never fakes success wit
 test('execution provider error: a failing Google API call rejects and never returns a fake success', async () => {
   const fetchFn: typeof fetch = async () => jsonResponse({ error: { message: 'insufficient scope' } }, 500);
   const { tokenStore, approvals, service, audit } = buildHarness(fetchFn);
-  tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: 'calendar.events' });
+  tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
   const record = approvals.request({ toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, tenantId: 't1', principalId: 'u1', payload: validPayload() });
   approvals.approve(record.id);
 
@@ -235,7 +413,7 @@ test('reject disconnected OAuth: execution is refused even with a valid, matchin
 test('unapproved execution attempts never reach Google: pending and rejected approvals are refused', async () => {
   const fetchFn: typeof fetch = async () => { throw new Error('must not call Google without a granted approval'); };
   const { tokenStore, approvals, service } = buildHarness(fetchFn);
-  tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: 'calendar.events' });
+  tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
 
   const pending = approvals.request({ toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, tenantId: 't1', principalId: 'u1', payload: validPayload() });
   await assert.rejects(
@@ -256,7 +434,7 @@ test('unapproved execution attempts never reach Google: pending and rejected app
 test('audit event creation: every stage of the approval + execution lifecycle is logged, tokens are never logged', async () => {
   const fetchFn: typeof fetch = async () => jsonResponse({ id: 'gcal_evt_audit', htmlLink: 'https://calendar.google.com/event?eid=audit' });
   const { tokenStore, service, audit, approvals } = buildHarness(fetchFn);
-  tokenStore.save('t1', { accessToken: 'super-secret-access-token', refreshToken: 'super-secret-refresh-token', expiresAt: Date.now() + 3600_000, scope: 'calendar.events' });
+  tokenStore.save('t1', { accessToken: 'super-secret-access-token', refreshToken: 'super-secret-refresh-token', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
 
   const requested = service.requestCreateEventApproval({ tenantId: 't1', principalId: 'u1', payload: validPayload(), requestId: 'req_audit_1' });
   service.approve(requested.id, 'u1', 'req_audit_2');
@@ -277,10 +455,20 @@ test('audit event creation: every stage of the approval + execution lifecycle is
   void approvals;
 });
 
+test('oauth connected/disconnected audit events are recorded via the real server routes, without tokens', async () => {
+  sharedGoogleTokenStore.clear(DEFAULT_GOOGLE_TENANT_ID);
+  const disconnect = handleApiRequest('POST', '/api/v1/oauth/google/disconnect', null);
+  assert.equal(disconnect.status, 200);
+
+  const auditResult = handleApiRequest('GET', '/api/v1/audit/logs', null);
+  const logs = (auditResult.data as { logs: Array<Record<string, unknown>> }).logs;
+  assert.ok(logs.some((entry) => entry.action === 'oauth:google_disconnected'));
+});
+
 test('memory update after success: writes a scheduling memory without persisting attendee emails', async () => {
   const fetchFn: typeof fetch = async () => jsonResponse({ id: 'gcal_evt_mem', htmlLink: 'https://calendar.google.com/event?eid=mem' });
   const { tokenStore, approvals, service, memory } = buildHarness(fetchFn);
-  tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: 'calendar.events' });
+  tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
   const record = approvals.request({ toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, tenantId: 't1', principalId: 'usr_mem_test', payload: validPayload({ attendees: ['secret-attendee@example.com'] }) });
   approvals.approve(record.id);
 
@@ -288,14 +476,14 @@ test('memory update after success: writes a scheduling memory without persisting
 
   const memories = memory.getActiveMemories('USER', 'usr_mem_test');
   assert.equal(memories.length, 1);
-  assert.match(String(memories[0].content.value), /Scheduled "Client Strategy Sync" on/);
+  assert.match(String(memories[0].content.value), /Scheduled Client Strategy Sync for /);
   assert.doesNotMatch(JSON.stringify(memories[0]), /secret-attendee@example\.com/);
 });
 
 // ── HTTP-level wiring ────────────────────────────────────────────────────────
 
 test('POST /api/v1/tools/google-calendar/approvals then create-event round-trips through the real server routes', async () => {
-  sharedGoogleTokenStore.save('ten_production_01', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: 'calendar.events' });
+  sharedGoogleTokenStore.save(DEFAULT_GOOGLE_TENANT_ID, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
   try {
     const created = handleApiRequest('POST', '/api/v1/tools/google-calendar/approvals', { payload: validPayload() });
     assert.equal(created.status, 201);
@@ -310,49 +498,42 @@ test('POST /api/v1/tools/google-calendar/approvals then create-event round-trips
     const executed = await handleAsyncApiRequest('POST', '/api/v1/tools/google-calendar/create-event', { approvalId, payload: validPayload() });
     assert.notEqual(executed.status, 200);
   } finally {
-    sharedGoogleTokenStore.clear('ten_production_01');
+    sharedGoogleTokenStore.clear(DEFAULT_GOOGLE_TENANT_ID);
   }
 });
 
 test('GET /api/v1/oauth/google/callback exchanges a valid code+state and redirects connected', async () => {
-  process.env.GOOGLE_CLIENT_ID = 'cb-client-id';
-  process.env.GOOGLE_CLIENT_SECRET = 'cb-secret';
-  process.env.GOOGLE_REDIRECT_URI = 'https://app.example/callback';
   const originalFetch = global.fetch;
-  global.fetch = (async () => jsonResponse({ access_token: 'cb_at', refresh_token: 'cb_rt', expires_in: 3600, scope: 'calendar.events calendar.freebusy' })) as typeof fetch;
+  global.fetch = (async () => jsonResponse({ access_token: 'cb_at', refresh_token: 'cb_rt', expires_in: 3600, scope: GRANTED_SCOPE_STRING })) as typeof fetch;
 
-  try {
-    const started = handleApiRequest('GET', '/api/v1/oauth/google/start', null);
-    assert.equal(started.status, 200);
-    const authorizeUrl = new URL((started.data as Record<string, string>).authorizeUrl);
-    const state = authorizeUrl.searchParams.get('state') as string;
+  await withEnv({ GOOGLE_CLIENT_ID: 'cb-client-id', GOOGLE_CLIENT_SECRET: 'cb-secret', GOOGLE_REDIRECT_URI: 'https://nagex-test.agex.site/api/v1/oauth/google/callback' }, async () => {
+    try {
+      const started = handleApiRequest('GET', '/api/v1/oauth/google/start-url', null);
+      assert.equal(started.status, 200);
+      const authorizeUrl = new URL((started.data as Record<string, string>).authorizeUrl);
+      const state = authorizeUrl.searchParams.get('state') as string;
 
-    const callback = await handleAsyncApiRequest('GET', '/api/v1/oauth/google/callback', null, {}, undefined, { code: 'auth_code_123', state });
-    assert.equal(callback.status, 302);
-    assert.equal(callback.redirectTo, '/?oauth=google&status=connected');
-    assert.equal(sharedGoogleTokenStore.isConnected('ten_production_01'), true);
-  } finally {
-    global.fetch = originalFetch;
-    sharedGoogleTokenStore.clear('ten_production_01');
-    delete process.env.GOOGLE_CLIENT_ID;
-    delete process.env.GOOGLE_CLIENT_SECRET;
-    delete process.env.GOOGLE_REDIRECT_URI;
-  }
+      const callback = await handleAsyncApiRequest('GET', '/api/v1/oauth/google/callback', null, {}, undefined, { code: 'auth_code_123', state });
+      assert.equal(callback.status, 302);
+      assert.equal(callback.redirectTo, '/?oauth=google&status=connected');
+      assert.equal(sharedGoogleTokenStore.isConnected(DEFAULT_GOOGLE_TENANT_ID), true);
+
+      const status = sharedGoogleTokenStore.getStatus(DEFAULT_GOOGLE_TENANT_ID);
+      assert.deepEqual(status.scopes, GOOGLE_CALENDAR_SCOPES.slice());
+    } finally {
+      sharedGoogleTokenStore.clear(DEFAULT_GOOGLE_TENANT_ID);
+    }
+  });
+
+  global.fetch = originalFetch;
 });
 
 test('GET /api/v1/oauth/google/callback rejects a state that does not match the pending request', async () => {
-  process.env.GOOGLE_CLIENT_ID = 'cb-client-id';
-  process.env.GOOGLE_CLIENT_SECRET = 'cb-secret';
-  process.env.GOOGLE_REDIRECT_URI = 'https://app.example/callback';
-  try {
-    handleApiRequest('GET', '/api/v1/oauth/google/start', null);
+  await withEnv({ GOOGLE_CLIENT_ID: 'cb-client-id', GOOGLE_CLIENT_SECRET: 'cb-secret', GOOGLE_REDIRECT_URI: 'https://nagex-test.agex.site/api/v1/oauth/google/callback' }, async () => {
+    handleApiRequest('GET', '/api/v1/oauth/google/start-url', null);
     const callback = await handleAsyncApiRequest('GET', '/api/v1/oauth/google/callback', null, {}, undefined, { code: 'auth_code_123', state: 'not-the-real-state' });
     assert.equal(callback.status, 302);
     assert.equal(callback.redirectTo, '/?oauth=google&status=error');
-    assert.equal(sharedGoogleTokenStore.isConnected('ten_production_01'), false);
-  } finally {
-    delete process.env.GOOGLE_CLIENT_ID;
-    delete process.env.GOOGLE_CLIENT_SECRET;
-    delete process.env.GOOGLE_REDIRECT_URI;
-  }
+    assert.equal(sharedGoogleTokenStore.isConnected(DEFAULT_GOOGLE_TENANT_ID), false);
+  });
 });

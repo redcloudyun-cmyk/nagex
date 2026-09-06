@@ -5,7 +5,7 @@ import { ActionApprovalStore, type ActionApprovalRecord } from '../governance/ac
 import { MemoryEngine } from '../context/memory.engine.js';
 import { createCalendarEvent, type CalendarEventPayload } from '../integrations/google/calendar.client.js';
 import { readGoogleOAuthConfig, type GoogleOAuthConfig } from '../integrations/google/oauth.client.js';
-import { GoogleTokenStore } from '../integrations/google/token.store.js';
+import type { GoogleOAuthTokenStore } from '../integrations/google/token.store.js';
 
 export const GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID = 'google_calendar.create_event';
 
@@ -27,27 +27,40 @@ function assertValidPayload(payload: unknown, requestId: string): asserts payloa
   const p = payload as Partial<CalendarEventPayload> | null;
   if (
     !p ||
-    typeof p.title !== 'string' || !p.title.trim() ||
-    typeof p.startTime !== 'string' || !p.startTime ||
-    typeof p.endTime !== 'string' || !p.endTime ||
+    typeof p.calendarId !== 'string' || !p.calendarId ||
+    typeof p.summary !== 'string' || !p.summary.trim() ||
+    typeof p.description !== 'string' ||
+    typeof p.start !== 'string' || !p.start ||
+    typeof p.end !== 'string' || !p.end ||
     typeof p.timezone !== 'string' || !p.timezone ||
     !Array.isArray(p.attendees) || !p.attendees.every((email) => typeof email === 'string') ||
-    typeof p.description !== 'string' ||
-    typeof p.addMeetingLink !== 'boolean' ||
-    typeof p.calendarId !== 'string' || !p.calendarId
+    (p.conferenceDataPreference !== 'none' && p.conferenceDataPreference !== 'hangoutsMeet')
   ) {
     throw new NagexError({
       code: 'INVALID_CALENDAR_EVENT_PAYLOAD',
       category: 'VALIDATION',
-      message: 'A calendar event approval payload must include title, startTime, endTime, timezone, attendees, description, addMeetingLink, and calendarId.',
+      message: 'A calendar event approval payload must include calendarId, summary, description, start, end, timezone, attendees, and conferenceDataPreference.',
       request_id: requestId,
     });
   }
 }
 
+function formatScheduledFor(isoDateTime: string, timezone: string): string {
+  // "YYYY-MM-DD HH:mm" — the sv-SE locale happens to format this way by default.
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date(isoDateTime));
+}
+
 export class GoogleCalendarService {
   constructor(
-    private readonly tokenStore: GoogleTokenStore,
+    private readonly tokenStore: GoogleOAuthTokenStore,
     private readonly approvals: ActionApprovalStore,
     private readonly audit: AuditLogger,
     private readonly memory: MemoryEngine,
@@ -70,7 +83,7 @@ export class GoogleCalendarService {
       resource: { type: 'ActionApproval', id: record.id },
       result: 'PENDING_APPROVAL',
       request_id: input.requestId,
-      details: { toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, title: input.payload.title },
+      details: { toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, summary: input.payload.summary },
     });
     return record;
   }
@@ -176,11 +189,11 @@ export class GoogleCalendarService {
         details: { toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, externalEventId: created.externalId },
       });
 
-      const scheduledFor = new Date(input.payload.startTime).toLocaleString('en-US', { timeZone: input.payload.timezone });
+      const scheduledFor = formatScheduledFor(input.payload.start, input.payload.timezone);
       const memoryRecord = this.memory.proposeMemory('USER', input.principalId, {
         subject: 'Calendar Event',
         predicate: 'scheduled',
-        value: `Scheduled "${input.payload.title}" on ${scheduledFor}`,
+        value: `Scheduled ${input.payload.summary} for ${scheduledFor}.`,
       });
       this.memory.activateMemory(memoryRecord.id);
 

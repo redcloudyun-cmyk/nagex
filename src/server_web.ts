@@ -441,7 +441,7 @@ export function handleApiRequest(
   pathname: string,
   body: Record<string, unknown> | null,
   headers: Record<string, string | string[] | undefined> = {}
-): { status: number; data: unknown } {
+): ApiResult {
   const headerTenant = headers['x-nagex-tenant'];
   const headerPrincipal = headers['x-principal-id'];
   const tenantId = (Array.isArray(headerTenant) ? headerTenant[0] : headerTenant) || 'ten_production_01';
@@ -535,11 +535,23 @@ export function handleApiRequest(
       return { status: 503, data: { error: 'GOOGLE_OAUTH_NOT_CONFIGURED', message: 'GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI must be set.' } };
     }
     pendingGoogleOAuthState = crypto.randomUUID();
+    // Real browser navigation: redirect straight to Google, never hand back
+    // the authorize URL as a JSON body for this endpoint.
+    return { status: 302, data: null, redirectTo: buildGoogleAuthorizeUrl(config, pendingGoogleOAuthState) };
+  }
+
+  if (pathname === '/api/v1/oauth/google/start-url' && method === 'GET') {
+    const config = readGoogleOAuthConfig();
+    if (!config) {
+      return { status: 503, data: { error: 'GOOGLE_OAUTH_NOT_CONFIGURED', message: 'GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI must be set.' } };
+    }
+    pendingGoogleOAuthState = crypto.randomUUID();
     return { status: 200, data: { authorizeUrl: buildGoogleAuthorizeUrl(config, pendingGoogleOAuthState) } };
   }
 
   if (pathname === '/api/v1/oauth/google/status' && method === 'GET') {
-    return { status: 200, data: googleTokenStore.getStatus(tenantId || DEFAULT_GOOGLE_TENANT_ID) };
+    const status = googleTokenStore.getStatus(tenantId || DEFAULT_GOOGLE_TENANT_ID);
+    return { status: 200, data: { configured: Boolean(readGoogleOAuthConfig()), ...status } };
   }
 
   if (pathname === '/api/v1/oauth/google/disconnect' && method === 'POST') {

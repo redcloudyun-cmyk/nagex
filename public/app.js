@@ -15,7 +15,7 @@
     autonomyConfig: { level: 'L2' },
     activeMockup: 'm01',
     pendingIntentResponse: null,
-    googleOAuth: { connected: false, scope: null, connectedAt: null },
+    googleOAuth: { configured: false, connected: false, scopes: [], expiresAt: null },
   };
 
   async function apiFetch(endpoint, options = {}) {
@@ -313,14 +313,14 @@
 
     const btnConnect = document.getElementById('btn-google-calendar-connect');
     if (btnConnect) {
-      btnConnect.onclick = async () => {
-        btnConnect.disabled = true;
-        const res = await apiFetch('/api/v1/oauth/google/start');
-        if (res && res.authorizeUrl) window.location.href = res.authorizeUrl;
-        else {
-          btnConnect.disabled = false;
-          btnConnect.textContent = (res && res.message) || 'Google Calendar is not configured on this server yet.';
+      btnConnect.onclick = () => {
+        if (!state.googleOAuth.configured) {
+          btnConnect.disabled = true;
+          btnConnect.textContent = 'Google Calendar is not configured on this server yet.';
+          return;
         }
+        // Real browser navigation so the server's 302 redirect takes us to Google.
+        window.location.href = '/api/v1/oauth/google/start';
       };
     }
     const btnDisconnect = document.getElementById('btn-google-calendar-disconnect');
@@ -691,15 +691,14 @@
       </div>`;
     const btn = document.getElementById('btn-connect-google-calendar');
     if (btn) {
-      btn.onclick = async () => {
-        btn.disabled = true;
-        const res = await apiFetch('/api/v1/oauth/google/start');
-        if (res && res.authorizeUrl) {
-          window.location.href = res.authorizeUrl;
-        } else {
-          btn.disabled = false;
-          btn.textContent = (res && res.message) || 'Google Calendar is not configured on this server yet.';
+      btn.onclick = () => {
+        if (!state.googleOAuth.configured) {
+          btn.disabled = true;
+          btn.textContent = 'Google Calendar is not configured on this server yet.';
+          return;
         }
+        // Real browser navigation so the server's 302 redirect takes us to Google.
+        window.location.href = '/api/v1/oauth/google/start';
       };
     }
   }
@@ -757,14 +756,14 @@
         const toLocalIso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
 
         const payload = {
-          title: document.getElementById('cal-title').value.trim(),
-          startTime: toLocalIso(startDate),
-          endTime: toLocalIso(endDate),
+          calendarId: 'primary',
+          summary: document.getElementById('cal-title').value.trim(),
+          description: document.getElementById('cal-description').value,
+          start: toLocalIso(startDate),
+          end: toLocalIso(endDate),
           timezone,
           attendees: document.getElementById('cal-attendees').value.split(',').map((e) => e.trim()).filter(Boolean),
-          description: document.getElementById('cal-description').value,
-          addMeetingLink: document.getElementById('cal-meet-link').checked,
-          calendarId: 'primary',
+          conferenceDataPreference: document.getElementById('cal-meet-link').checked ? 'hangoutsMeet' : 'none',
         };
         requestCalendarApproval(payload);
       };
@@ -791,10 +790,10 @@
     slot.innerHTML = `
       <div class="calendar-preview-card">
         <h4>Exact action awaiting your approval</h4>
-        <p><strong>${escapeHtml(payload.title)}</strong></p>
-        <p>${escapeHtml(payload.startTime.replace('T', ' '))} → ${escapeHtml(payload.endTime.replace('T', ' '))} (${escapeHtml(payload.timezone)})</p>
+        <p><strong>${escapeHtml(payload.summary)}</strong></p>
+        <p>${escapeHtml(payload.start.replace('T', ' '))} → ${escapeHtml(payload.end.replace('T', ' '))} (${escapeHtml(payload.timezone)})</p>
         <p>Attendees: ${payload.attendees.length ? escapeHtml(payload.attendees.join(', ')) : 'None'}</p>
-        <p>Meeting link: ${payload.addMeetingLink ? 'Yes' : 'No'} · Calendar: ${escapeHtml(payload.calendarId)}</p>
+        <p>Meeting link: ${payload.conferenceDataPreference !== 'none' ? 'Yes' : 'No'} · Calendar: ${escapeHtml(payload.calendarId)}</p>
         <p class="policy-notice-pill">This exact action will run unmodified if you approve it.</p>
         <div class="calendar-preview-actions">
           <button class="btn-reject-outline" id="btn-calendar-reject">✕ Cancel</button>
@@ -823,8 +822,8 @@
           slot.innerHTML = `
             <div class="calendar-preview-card">
               <h4>✅ Calendar event created</h4>
-              <p><strong>${escapeHtml(payload.title)}</strong></p>
-              <p>${escapeHtml(payload.startTime.replace('T', ' '))} (${escapeHtml(payload.timezone)})</p>
+              <p><strong>${escapeHtml(payload.summary)}</strong></p>
+              <p>${escapeHtml(payload.start.replace('T', ' '))} (${escapeHtml(payload.timezone)})</p>
               <p><a href="${encodeURI(result.externalUrl)}" target="_blank" rel="noopener">Open in Google Calendar →</a></p>
             </div>`;
         } else {

@@ -2,15 +2,17 @@ import { NagexError } from '../../common/errors.js';
 
 type FetchFn = typeof fetch;
 
+export type ConferenceDataPreference = 'none' | 'hangoutsMeet';
+
 export interface CalendarEventPayload {
-  title: string;
-  startTime: string; // ISO 8601
-  endTime: string; // ISO 8601
+  calendarId: string; // e.g. "primary"
+  summary: string; // event title
+  description: string;
+  start: string; // ISO 8601
+  end: string; // ISO 8601
   timezone: string; // IANA timezone, e.g. "America/Los_Angeles"
   attendees: string[]; // emails
-  description: string;
-  addMeetingLink: boolean;
-  calendarId: string; // e.g. "primary"
+  conferenceDataPreference: ConferenceDataPreference;
 }
 
 export interface CreatedCalendarEvent {
@@ -69,20 +71,21 @@ export async function createCalendarEvent(
   requestId: string,
 ): Promise<CreatedCalendarEvent> {
   const calendarId = encodeURIComponent(payload.calendarId || 'primary');
+  const wantsConference = payload.conferenceDataPreference !== 'none';
   const body: Record<string, unknown> = {
-    summary: payload.title,
+    summary: payload.summary,
     description: payload.description || undefined,
-    start: { dateTime: payload.startTime, timeZone: payload.timezone },
-    end: { dateTime: payload.endTime, timeZone: payload.timezone },
+    start: { dateTime: payload.start, timeZone: payload.timezone },
+    end: { dateTime: payload.end, timeZone: payload.timezone },
     attendees: payload.attendees.map((email) => ({ email })),
   };
-  if (payload.addMeetingLink) {
+  if (wantsConference) {
     body.conferenceData = {
-      createRequest: { requestId: `nagex_${requestId}`, conferenceSolutionKey: { type: 'hangoutsMeet' } },
+      createRequest: { requestId: `nagex_${requestId}`, conferenceSolutionKey: { type: payload.conferenceDataPreference } },
     };
   }
 
-  const url = `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events${payload.addMeetingLink ? '?conferenceDataVersion=1' : ''}`;
+  const url = `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events${wantsConference ? '?conferenceDataVersion=1' : ''}`;
   const result = await googleApiRequest(url, 'POST', accessToken, body, fetchFn, requestId);
 
   const externalId = typeof result.id === 'string' ? result.id : null;
