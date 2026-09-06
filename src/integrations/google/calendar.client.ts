@@ -10,7 +10,7 @@ export interface CalendarEventPayload {
   end: string; // ISO 8601
   timezone: string; // IANA timezone, e.g. "America/Los_Angeles"
   attendees: string[]; // emails
-  conferenceData: boolean; // true = attach a Google Meet link
+  conferenceData?: boolean; // true = attach a Google Meet link; omitted/false = none
 }
 
 export interface CreatedCalendarEvent {

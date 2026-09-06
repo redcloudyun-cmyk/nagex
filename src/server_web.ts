@@ -19,8 +19,9 @@ import { UnifiedModelRouter } from './model-gateway/unified-model-router.js';
 import { skillRegistry as canonicalSkillRegistry } from './skills/skill-registry.js';
 import { toolRegistry as canonicalToolRegistry } from './tools/tool-registry.js';
 import { PlanResolver } from './planning/plan-resolver.js';
-import { ActionApprovalStore } from './governance/action-approval.store.js';
-import { GoogleCalendarService } from './tools/google-calendar.service.js';
+import { PersistentActionApprovalStore } from './governance/action-approval.store.js';
+import { ExecutionStore } from './governance/execution.store.js';
+import { GoogleCalendarService, GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID } from './tools/google-calendar.service.js';
 import { googleTokenStore, DEFAULT_GOOGLE_TENANT_ID } from './integrations/google/token.store.js';
 import { buildGoogleAuthorizeUrl, exchangeGoogleAuthorizationCode, readGoogleOAuthConfig } from './integrations/google/oauth.client.js';
 import { queryFreeBusy, computeFreeSlots } from './integrations/google/calendar.client.js';
@@ -69,8 +70,18 @@ const creditEngine = new CreditEngine(billing);
 const memoryEngine = new MemoryEngine();
 const aiService = new AiService(new UnifiedModelRouter(createProviders()));
 const planResolver = new PlanResolver(canonicalSkillRegistry, canonicalToolRegistry);
-const actionApprovals = new ActionApprovalStore();
-const googleCalendarService = new GoogleCalendarService(googleTokenStore, actionApprovals, auditLogger, memoryEngine);
+export const actionApprovals = new PersistentActionApprovalStore({
+  onExpired: (record) => auditLogger.logEvent({
+    actor: { type: 'user', id: record.principalId },
+    tenant_id: record.tenantId,
+    action: 'approval.expired',
+    resource: { type: 'ActionApproval', id: record.approvalId },
+    result: 'DENIED',
+    request_id: `req_appr_expired_${Date.now()}`,
+  }),
+});
+export const executionStore = new ExecutionStore();
+const googleCalendarService = new GoogleCalendarService(googleTokenStore, actionApprovals, auditLogger, memoryEngine, fetch, readGoogleOAuthConfig, executionStore);
 let pendingGoogleOAuthState: string | null = null;
 
 const INITIAL_CREDIT_GRANT = 10000;
@@ -357,6 +368,7 @@ export async function handleAsyncApiRequest(
   headers: Record<string, string | string[] | undefined> = {},
   service: AiService = aiService,
   query: Record<string, string> = {},
+  calendarService: GoogleCalendarService = googleCalendarService,
 ): Promise<ApiResult> {
   try {
     if (pathname === '/api/v1/providers/status' && method === 'GET') {
@@ -435,7 +447,7 @@ export async function handleAsyncApiRequest(
       const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
       const approvalId = typeof body?.approvalId === 'string' ? body.approvalId : '';
       if (!approvalId) throw new NagexError({ code: 'APPROVAL_ID_REQUIRED', category: 'VALIDATION', message: 'approvalId is required.', request_id: requestId });
-      const result = await googleCalendarService.executeCreateEvent({ approvalId, payload: body?.payload, tenantId, principalId, requestId });
+      const result = await calendarService.executeCreateEvent({ approvalId, payload: body?.payload, tenantId, principalId, requestId });
       return { status: 200, data: result };
     }
     if (pathname === '/api/v1/tools/google-calendar/free-slots' && method === 'POST') {
@@ -528,11 +540,49 @@ export function handleApiRequest(
     return { status: 200, data: { approvals: approvalQueue, total: approvalQueue.length } };
   }
 
+  if (pathname === '/api/v1/approvals' && method === 'POST') {
+    const requestId = `req_appr_${Date.now()}`;
+    const toolId = typeof body?.toolId === 'string' ? body.toolId : '';
+    try {
+      if (toolId === GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID) {
+        const record = googleCalendarService.requestCreateEventApproval({ tenantId, principalId: principal.id, payload: body?.payload, requestId });
+        return { status: 201, data: record };
+      }
+      throw new NagexError({ code: 'UNSUPPORTED_APPROVAL_TOOL', category: 'VALIDATION', message: `No approval-gated execution is registered for toolId "${toolId}".`, request_id: requestId });
+    } catch (error) {
+      return modelErrorResult(error);
+    }
+  }
+
+  if (pathname.startsWith('/api/v1/approvals/') && pathname !== '/api/v1/approvals/calendar-event' && method === 'GET') {
+    const apprId = pathname.slice('/api/v1/approvals/'.length);
+    const record = googleCalendarService.getApproval(apprId);
+    if (!record) {
+      return { status: 404, data: { error: 'APPROVAL_NOT_FOUND', message: `Approval ${apprId} was not found.` } };
+    }
+    return { status: 200, data: record };
+  }
+
   if (pathname === '/api/v1/approvals/calendar-event' && method === 'POST') {
     const requestId = `req_appr_${Date.now()}`;
     try {
       const record = googleCalendarService.requestCreateEventApproval({ tenantId, principalId: principal.id, payload: body?.payload, requestId });
       return { status: 201, data: record };
+    } catch (error) {
+      return modelErrorResult(error);
+    }
+  }
+
+  if (pathname.startsWith('/api/v1/approvals/') && (pathname.endsWith('/approve') || pathname.endsWith('/reject')) && method === 'POST') {
+    const isApprove = pathname.endsWith('/approve');
+    const suffix = isApprove ? '/approve' : '/reject';
+    const apprId = pathname.slice('/api/v1/approvals/'.length, pathname.length - suffix.length);
+    const requestId = `req_appr_${Date.now()}`;
+    try {
+      const record = isApprove
+        ? googleCalendarService.approve(apprId, principal.id, requestId)
+        : googleCalendarService.reject(apprId, principal.id, requestId);
+      return { status: 200, data: record };
     } catch (error) {
       return modelErrorResult(error);
     }

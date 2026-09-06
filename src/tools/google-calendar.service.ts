@@ -2,6 +2,7 @@ import { NagexError } from '../common/errors.js';
 import { generateResourceId, getCurrentISOString } from '../common/utils.js';
 import { AuditLogger } from '../governance/audit.logger.js';
 import { ActionApprovalStore, type ActionApprovalRecord } from '../governance/action-approval.store.js';
+import { ExecutionStore } from '../governance/execution.store.js';
 import { MemoryEngine } from '../context/memory.engine.js';
 import { createCalendarEvent, type CalendarEventPayload } from '../integrations/google/calendar.client.js';
 import { readGoogleOAuthConfig, type GoogleOAuthConfig } from '../integrations/google/oauth.client.js';
@@ -21,31 +22,63 @@ export interface NormalizedExecutionResult {
 
 type FetchFn = typeof fetch;
 
-// Structural validation only — approvalId/OAuth/payload-match gating happens
-// in requestApproval/executeCreateEvent, which is where "fail closed" matters.
+function isValidIsoDateTime(value: string): boolean {
+  return !Number.isNaN(new Date(value).getTime());
+}
+
+function isValidTimezone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Structural + semantic validation (malformed datetime, invalid timezone) —
+// approvalId/OAuth/payload-hash gating happens in requestApproval/
+// executeCreateEvent, which is where "fail closed" for tampering matters.
 function assertValidPayload(payload: unknown, requestId: string): asserts payload is CalendarEventPayload {
   const p = payload as Partial<CalendarEventPayload> | null;
-  if (
-    !p ||
-    typeof p.calendarId !== 'string' || !p.calendarId ||
-    typeof p.summary !== 'string' || !p.summary.trim() ||
-    typeof p.description !== 'string' ||
-    typeof p.start !== 'string' || !p.start ||
-    typeof p.end !== 'string' || !p.end ||
-    typeof p.timezone !== 'string' || !p.timezone ||
-    !Array.isArray(p.attendees) || !p.attendees.every((email) => typeof email === 'string') ||
-    typeof p.conferenceData !== 'boolean'
-  ) {
+  const structurallyValid = Boolean(
+    p &&
+    typeof p.calendarId === 'string' && p.calendarId &&
+    typeof p.summary === 'string' && p.summary.trim() &&
+    typeof p.description === 'string' &&
+    typeof p.start === 'string' && p.start &&
+    typeof p.end === 'string' && p.end &&
+    typeof p.timezone === 'string' && p.timezone &&
+    Array.isArray(p.attendees) && p.attendees.every((email) => typeof email === 'string') &&
+    (p.conferenceData === undefined || typeof p.conferenceData === 'boolean'),
+  );
+  if (!structurallyValid) {
     throw new NagexError({
       code: 'INVALID_CALENDAR_EVENT_PAYLOAD',
       category: 'VALIDATION',
-      message: 'A calendar event approval payload must include calendarId, summary, description, start, end, timezone, attendees, and conferenceData.',
+      message: 'A calendar event approval payload must include calendarId, summary, description, start, end, timezone, and attendees (conferenceData is optional, defaulting to no meeting link).',
+      request_id: requestId,
+    });
+  }
+  const valid = p as CalendarEventPayload;
+  if (!isValidIsoDateTime(valid.start) || !isValidIsoDateTime(valid.end)) {
+    throw new NagexError({
+      code: 'INVALID_CALENDAR_EVENT_DATETIME',
+      category: 'VALIDATION',
+      message: 'start and end must be valid date-time strings.',
+      request_id: requestId,
+    });
+  }
+  if (!isValidTimezone(valid.timezone)) {
+    throw new NagexError({
+      code: 'INVALID_CALENDAR_EVENT_TIMEZONE',
+      category: 'VALIDATION',
+      message: `"${valid.timezone}" is not a recognized IANA timezone.`,
       request_id: requestId,
     });
   }
 }
 
-function formatScheduledOn(isoDateTime: string, timezone: string): string {
+function formatScheduledFor(isoDateTime: string, timezone: string): string {
   // "YYYY-MM-DD HH:mm" — the sv-SE locale happens to format this way by default.
   return new Intl.DateTimeFormat('sv-SE', {
     timeZone: timezone,
@@ -66,6 +99,7 @@ export class GoogleCalendarService {
     private readonly memory: MemoryEngine,
     private readonly fetchFn: FetchFn = fetch,
     private readonly getConfig: (env?: NodeJS.ProcessEnv) => GoogleOAuthConfig | null = readGoogleOAuthConfig,
+    private readonly executions: ExecutionStore = new ExecutionStore(),
   ) {}
 
   public requestCreateEventApproval(input: { tenantId: string; principalId: string; payload: unknown; requestId: string }): ActionApprovalRecord {
@@ -86,6 +120,10 @@ export class GoogleCalendarService {
       details: { toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, summary: input.payload.summary },
     });
     return record;
+  }
+
+  public getApproval(approvalId: string): ActionApprovalRecord | undefined {
+    return this.approvals.get(approvalId);
   }
 
   public approve(approvalId: string, principalId: string, requestId: string): ActionApprovalRecord {
@@ -160,9 +198,8 @@ export class GoogleCalendarService {
     // real Google call, and atomically with respect to this event loop — no
     // await occurs between checking and marking it CONSUMED — so a replayed
     // or concurrent execute request can never reach Google twice.
-    let approvalRecord: ActionApprovalRecord;
     try {
-      approvalRecord = this.approvals.consume(input.approvalId, GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, input.payload as unknown as Record<string, unknown>, input.requestId);
+      this.approvals.consume(input.approvalId, GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, input.payload as unknown as Record<string, unknown>, input.requestId, executionId);
     } catch (error) {
       const code = error instanceof NagexError ? error.code : 'APPROVAL_VALIDATION_FAILED';
       this.audit.logEvent({
@@ -177,11 +214,20 @@ export class GoogleCalendarService {
       });
       throw error;
     }
-    void approvalRecord;
+
+    this.executions.start({
+      executionId,
+      toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID,
+      approvalId: input.approvalId,
+      tenantId: input.tenantId,
+      principalId: input.principalId,
+      startedAt,
+    });
 
     try {
       const created = await createCalendarEvent(accessToken, input.payload, this.fetchFn, input.requestId);
       const completedAt = getCurrentISOString();
+      this.executions.succeed(executionId, { externalId: created.externalId, externalUrl: created.externalUrl, completedAt });
 
       this.audit.logEvent({
         actor: { type: 'user', id: input.principalId },
@@ -193,11 +239,11 @@ export class GoogleCalendarService {
         details: { toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, externalEventId: created.externalId },
       });
 
-      const scheduledOn = formatScheduledOn(input.payload.start, input.payload.timezone);
+      const scheduledFor = formatScheduledFor(input.payload.start, input.payload.timezone);
       const memoryRecord = this.memory.proposeMemory('USER', input.principalId, {
         subject: 'Calendar Event',
         predicate: 'scheduled',
-        value: `Scheduled ${input.payload.summary} on ${scheduledOn}.`,
+        value: `Scheduled ${input.payload.summary} for ${scheduledFor}.`,
       });
       this.memory.activateMemory(memoryRecord.id);
 
@@ -212,6 +258,8 @@ export class GoogleCalendarService {
       };
     } catch (error) {
       const code = error instanceof NagexError ? error.code : 'GOOGLE_CALENDAR_EXECUTION_FAILED';
+      const completedAt = getCurrentISOString();
+      this.executions.fail(executionId, { errorCode: code, completedAt });
       this.audit.logEvent({
         actor: { type: 'user', id: input.principalId },
         tenant_id: input.tenantId,

@@ -61,3 +61,30 @@ OAuth connection:
   access token is refreshed transparently on first use (e.g. the next
   `GET /api/v1/oauth/google/status` call) and the refreshed token is
   re-persisted.
+
+## Approval and Execution Persistence
+
+Google Calendar approval requests and tool execution records also
+survive a restart, so an approval created (or approved) right before a
+redeploy is not lost, and execution history isn't wiped on restart.
+Unlike OAuth tokens, these records hold only calendar event details
+(never tokens or the client secret), so they are stored as plain JSON
+— one file per record — rather than encrypted.
+
+| Data | Default path | Override |
+| --- | --- | --- |
+| Approvals | `/var/lib/nagex/approvals/<approvalId>.json` (falls back to `~/.local/share/nagex/approvals` the same way the OAuth token store does) | `NAGEX_APPROVALS_DIR` |
+| Executions | `/var/lib/nagex/executions/<executionId>.json` | `NAGEX_EXECUTIONS_DIR` |
+
+No extra `sudo mkdir` step is needed for these two subdirectories —
+NAgex creates them under `/var/lib/nagex` automatically (that base
+directory's permissions are the one-time setup above).
+
+`NAGEX_APPROVAL_TTL_SECONDS` overrides the default 15-minute approval
+expiry window (`900`); an approval past its expiry is reported (and
+persisted) as `EXPIRED` and can never be approved or executed.
+
+Each write (create, approve, reject, consume, execution start/succeed/
+fail) is atomic — temp file in the same directory, `chmod 0600`, then
+an atomic rename — so a crash mid-write can never leave a torn or
+partially-written record.

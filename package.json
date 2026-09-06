@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/src/server_web.js",
-    "test": "tsc && node --test dist/tests/*.test.js"
+    "test": "tsc && node --require ./dist/tests/_setup.js --test dist/tests/*.test.js"
   },
   "keywords": [
     "nagex",

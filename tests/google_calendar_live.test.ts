@@ -19,7 +19,7 @@ import { GoogleCalendarService, GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, type Norma
 import { PlanResolver } from '../src/planning/plan-resolver.js';
 import { skillRegistry } from '../src/skills/skill-registry.js';
 import { toolRegistry as sharedToolRegistry } from '../src/tools/tool-registry.js';
-import { handleApiRequest, handleAsyncApiRequest } from '../src/server_web.js';
+import { handleApiRequest, handleAsyncApiRequest, actionApprovals as sharedActionApprovals } from '../src/server_web.js';
 import type { PlanPreview } from '../src/model-gateway/ai-service.js';
 
 function jsonResponse(data: unknown, status = 200): Response {
@@ -362,7 +362,7 @@ test('modified payload rejection: consuming with a changed field is rejected eve
   const record = approvals.request({ toolId: 'google_calendar.create_event', tenantId: 't1', principalId: 'u1', payload: validPayload() });
   approvals.approve(record.approvalId);
   assert.throws(
-    () => approvals.consume(record.approvalId, 'google_calendar.create_event', validPayload({ summary: 'A different meeting title' }), 'req_1'),
+    () => approvals.consume(record.approvalId, 'google_calendar.create_event', validPayload({ summary: 'A different meeting title' }), 'req_1', 'exe_test'),
     (error: any) => error.code === 'APPROVAL_PAYLOAD_MISMATCH',
   );
 });
@@ -372,7 +372,7 @@ test('rejected approval rejection: a REJECTED approval can never be consumed', (
   const record = approvals.request({ toolId: 'google_calendar.create_event', tenantId: 't1', principalId: 'u1', payload: validPayload() });
   approvals.reject(record.approvalId);
   assert.throws(
-    () => approvals.consume(record.approvalId, 'google_calendar.create_event', validPayload(), 'req_1'),
+    () => approvals.consume(record.approvalId, 'google_calendar.create_event', validPayload(), 'req_1', 'exe_test'),
     (error: any) => error.code === 'APPROVAL_NOT_GRANTED',
   );
 });
@@ -384,7 +384,7 @@ test('expired approval rejection: an approval past its TTL cannot be approved or
   clock += 61_000;
   assert.throws(() => approvals.approve(record.approvalId), (error: any) => error.code === 'APPROVAL_EXPIRED');
   assert.throws(
-    () => approvals.consume(record.approvalId, 'google_calendar.create_event', validPayload(), 'req_1'),
+    () => approvals.consume(record.approvalId, 'google_calendar.create_event', validPayload(), 'req_1', 'exe_test'),
     (error: any) => error.code === 'APPROVAL_EXPIRED',
   );
 });
@@ -393,9 +393,9 @@ test('replay rejection: the same approval cannot be consumed twice', () => {
   const approvals = new ActionApprovalStore();
   const record = approvals.request({ toolId: 'google_calendar.create_event', tenantId: 't1', principalId: 'u1', payload: validPayload() });
   approvals.approve(record.approvalId);
-  approvals.consume(record.approvalId, 'google_calendar.create_event', validPayload(), 'req_1');
+  approvals.consume(record.approvalId, 'google_calendar.create_event', validPayload(), 'req_1', 'exe_test');
   assert.throws(
-    () => approvals.consume(record.approvalId, 'google_calendar.create_event', validPayload(), 'req_2'),
+    () => approvals.consume(record.approvalId, 'google_calendar.create_event', validPayload(), 'req_2', 'exe_test_2'),
     (error: any) => error.code === 'APPROVAL_ALREADY_CONSUMED',
   );
 });
@@ -406,12 +406,12 @@ test('approval consumed exactly once: usedAt moves from null to a timestamp exac
   assert.equal(record.usedAt, null);
   approvals.approve(record.approvalId);
 
-  const consumed = approvals.consume(record.approvalId, 'google_calendar.create_event', validPayload(), 'req_1');
+  const consumed = approvals.consume(record.approvalId, 'google_calendar.create_event', validPayload(), 'req_1', 'exe_test');
   assert.equal(consumed.status, 'CONSUMED');
   assert.equal(typeof consumed.usedAt, 'string');
   const firstUsedAt = consumed.usedAt;
 
-  assert.throws(() => approvals.consume(record.approvalId, 'google_calendar.create_event', validPayload(), 'req_2'));
+  assert.throws(() => approvals.consume(record.approvalId, 'google_calendar.create_event', validPayload(), 'req_2', 'exe_test_2'));
   // usedAt must not move again on the rejected replay attempt.
   assert.equal(approvals.get(record.approvalId)?.usedAt, firstUsedAt);
 });
@@ -547,7 +547,7 @@ test('oauth connected/disconnected audit events are recorded via the real server
   assert.ok(logs.some((entry) => entry.action === 'oauth:google_disconnected'));
 });
 
-test('memory update after success: writes "Scheduled <summary> on <date/time>." without persisting attendee emails', async () => {
+test('memory update after success: writes "Scheduled <summary> for <date/time>." without persisting attendee emails', async () => {
   const fetchFn: typeof fetch = async () => jsonResponse({ id: 'gcal_evt_mem', htmlLink: 'https://calendar.google.com/event?eid=mem' });
   const { tokenStore, approvals, service, memory } = buildHarness(fetchFn);
   tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
@@ -558,7 +558,7 @@ test('memory update after success: writes "Scheduled <summary> on <date/time>." 
 
   const memories = memory.getActiveMemories('USER', 'usr_mem_test');
   assert.equal(memories.length, 1);
-  assert.match(String(memories[0].content.value), /^Scheduled Client Strategy Sync on \d{4}-\d{2}-\d{2} \d{2}:\d{2}\.$/);
+  assert.match(String(memories[0].content.value), /^Scheduled Client Strategy Sync for \d{4}-\d{2}-\d{2} \d{2}:\d{2}\.$/);
   assert.doesNotMatch(JSON.stringify(memories[0]), /secret-attendee@example\.com/);
 });
 
@@ -590,6 +590,114 @@ test('the legacy demo /api/v1/approvals/:id/action queue still works unchanged',
   const approved = handleApiRequest('POST', '/api/v1/approvals/appr_gcal_sync/action', { action: 'APPROVE' });
   assert.equal(approved.status, 200);
   assert.equal((approved.data as Record<string, unknown>).id, 'appr_gcal_sync');
+});
+
+// ── generic POST /api/v1/approvals + dedicated /approve, /reject verbs ──────
+
+test('approval creation: POST /api/v1/approvals accepts { toolId, payload } and returns the required fields', () => {
+  const result = handleApiRequest('POST', '/api/v1/approvals', {
+    toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID,
+    payload: validPayload({ attendees: [] }),
+  });
+  assert.equal(result.status, 201);
+  const data = result.data as Record<string, unknown>;
+  assert.equal(typeof data.approvalId, 'string');
+  assert.equal(data.status, 'PENDING');
+  assert.equal(data.toolId, GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID);
+  assert.equal(typeof data.payloadHash, 'string');
+  assert.equal(typeof data.createdAt, 'string');
+  assert.equal(typeof data.expiresAt, 'string');
+});
+
+test('POST /api/v1/approvals accepts a payload with conferenceData omitted, matching the documented example', () => {
+  const { conferenceData: _omit, ...withoutConferenceData } = validPayload();
+  const result = handleApiRequest('POST', '/api/v1/approvals', {
+    toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID,
+    payload: withoutConferenceData,
+  });
+  assert.equal(result.status, 201);
+  assert.equal((result.data as Record<string, unknown>).status, 'PENDING');
+});
+
+test('POST /api/v1/approvals rejects an unsupported toolId rather than silently accepting it', () => {
+  const result = handleApiRequest('POST', '/api/v1/approvals', { toolId: 'not_a_real_tool', payload: validPayload() });
+  assert.notEqual(result.status, 201);
+  assert.equal((result.data as { error: { code: string } }).error.code, 'UNSUPPORTED_APPROVAL_TOOL');
+});
+
+test('full flow with the exact endpoints from spec: POST /api/v1/approvals -> POST .../approve -> POST create-event, then replay is rejected', async () => {
+  // Approval creation/approve are plain synchronous routes (no network), so
+  // they're exercised through the real HTTP handlers and the real shared
+  // approval store (exported from server_web.ts as `actionApprovals`).
+  // Execution is the one step that calls Google, so for it we inject a
+  // GoogleCalendarService built on that *same* shared approval store but
+  // with a mocked fetchFn — mirroring the `service: AiService` DI parameter
+  // handleAsyncApiRequest already supports for the AI routes. Mutating
+  // global.fetch would not work here: the real googleCalendarService
+  // singleton captures its fetchFn once at module load (like the model
+  // providers do), long before any test runs.
+  const payload = validPayload({ summary: 'NAgex Calendar Integration Test' });
+  let calledCreateEvent = false;
+  const mockFetch: typeof fetch = async (url) => {
+    calledCreateEvent = true;
+    assert.match(String(url), /\/calendar\/v3\/calendars\/primary\/events/);
+    return jsonResponse({ id: 'gcal_evt_flow', htmlLink: 'https://calendar.google.com/event?eid=flow' });
+  };
+  const testConfig: GoogleOAuthConfig = { clientId: 'x', clientSecret: 'y', redirectUri: 'https://nagex-test.agex.site/api/v1/oauth/google/callback' };
+  const testCalendarService = new GoogleCalendarService(sharedGoogleTokenStore, sharedActionApprovals, new AuditLogger(), new MemoryEngine(), mockFetch, () => testConfig);
+
+  sharedGoogleTokenStore.save(DEFAULT_GOOGLE_TENANT_ID, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
+  try {
+    const created = handleApiRequest('POST', '/api/v1/approvals', { toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, payload });
+    assert.equal(created.status, 201);
+    const approvalId = (created.data as Record<string, unknown>).approvalId as string;
+    assert.equal((created.data as Record<string, unknown>).status, 'PENDING');
+
+    const approved = handleApiRequest('POST', `/api/v1/approvals/${approvalId}/approve`, null);
+    assert.equal(approved.status, 200);
+    assert.equal((approved.data as Record<string, unknown>).status, 'APPROVED');
+
+    // Re-approving a non-PENDING approval must be rejected, not silently accepted.
+    const reapproved = handleApiRequest('POST', `/api/v1/approvals/${approvalId}/approve`, null);
+    assert.notEqual(reapproved.status, 200);
+
+    const executed = await handleAsyncApiRequest('POST', '/api/v1/tools/google-calendar/create-event', { approvalId, payload }, {}, undefined, {}, testCalendarService);
+    assert.equal(calledCreateEvent, true);
+    assert.equal(executed.status, 200);
+    const result = executed.data as Record<string, unknown>;
+    assert.equal(result.status, 'SUCCEEDED');
+    assert.equal(result.toolId, GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID);
+    assert.equal(result.externalId, 'gcal_evt_flow');
+    assert.equal(result.externalUrl, 'https://calendar.google.com/event?eid=flow');
+    assert.equal(typeof result.executionId, 'string');
+
+    // The same approvalId must never execute twice.
+    const replay = await handleAsyncApiRequest('POST', '/api/v1/tools/google-calendar/create-event', { approvalId, payload }, {}, undefined, {}, testCalendarService);
+    assert.notEqual(replay.status, 200);
+    assert.equal((replay.data as { error: { code: string } }).error.code, 'APPROVAL_ALREADY_CONSUMED');
+  } finally {
+    sharedGoogleTokenStore.clear(DEFAULT_GOOGLE_TENANT_ID);
+  }
+});
+
+test('POST /api/v1/approvals/:id/reject moves PENDING -> REJECTED and blocks execution', async () => {
+  sharedGoogleTokenStore.save(DEFAULT_GOOGLE_TENANT_ID, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
+  try {
+    await withEnv({ GOOGLE_CLIENT_ID: 'reject-client', GOOGLE_CLIENT_SECRET: 'reject-secret', GOOGLE_REDIRECT_URI: 'https://nagex-test.agex.site/api/v1/oauth/google/callback' }, async () => {
+      const created = handleApiRequest('POST', '/api/v1/approvals', { toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, payload: validPayload() });
+      const approvalId = (created.data as Record<string, unknown>).approvalId as string;
+
+      const rejected = handleApiRequest('POST', `/api/v1/approvals/${approvalId}/reject`, null);
+      assert.equal(rejected.status, 200);
+      assert.equal((rejected.data as Record<string, unknown>).status, 'REJECTED');
+
+      const executed = await handleAsyncApiRequest('POST', '/api/v1/tools/google-calendar/create-event', { approvalId, payload: validPayload() });
+      assert.notEqual(executed.status, 200);
+      assert.equal((executed.data as { error: { code: string } }).error.code, 'APPROVAL_NOT_GRANTED');
+    });
+  } finally {
+    sharedGoogleTokenStore.clear(DEFAULT_GOOGLE_TENANT_ID);
+  }
 });
 
 test('GET /api/v1/oauth/google/callback exchanges a valid code+state and redirects connected', async () => {
