@@ -1,8 +1,33 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { handleApiRequest } from '../src/server_web.js';
+import { handleApiRequest, handleAsyncApiRequest } from '../src/server_web.js';
 import { MemoryEngine } from '../src/context/memory.engine.js';
 import { ToolInvoker } from '../src/agent/tool.invoker.js';
+import { AiService } from '../src/model-gateway/ai-service.js';
+import type { ModelProvider } from '../src/model-gateway/model-provider.js';
+import { UnifiedModelRouter } from '../src/model-gateway/unified-model-router.js';
+
+const planningProvider: ModelProvider = {
+  name: 'openai',
+  model: 'test-openai-model',
+  status: () => ({ configured: true, available: true, provider: 'openai', model: 'test-openai-model' }),
+  generate: async (request) => ({
+    text: JSON.stringify({
+      goal: 'Prepare my next client meeting and schedule it.',
+      summary: 'Prepare the meeting and draft a scheduling action for later approval.',
+      reasoningSummary: 'Use relevant client context before proposing any external action.',
+      steps: [
+        { title: 'Recall client context', reasoning: 'Ground the plan in memory.', skill: 'Memory Recall', tool: null, requiresApproval: false },
+        { title: 'Draft calendar event', reasoning: 'Prepare but do not create the event.', skill: 'Scheduling', tool: 'Google Calendar', requiresApproval: true },
+      ],
+    }),
+    provider: 'openai',
+    model: 'test-openai-model',
+    latencyMs: 4,
+    requestId: request.requestId,
+  }),
+};
+const planningService = new AiService(new UnifiedModelRouter([planningProvider], { info: () => {}, warn: () => {} }));
 
 test('1. Personal AI: Memory CRUD Operations & State Lifecycles', () => {
   const memEngine = new MemoryEngine();
@@ -71,33 +96,28 @@ test('4. Personal AI: Tool Invoker Autonomy & Human Approval Gate', async () => 
   assert.strictEqual((res.output as any).sent, true);
 });
 
-test('5. Personal AI: Primary End-to-End Ambient Intent Pipeline (Awaiting Approval)', () => {
+test('5. Personal AI: Ambient Intent returns a real model-backed Plan Preview', async () => {
   const payload = {
     prompt: 'Prepare my next client meeting and schedule it.',
-    approved: false,
   };
-  const res = handleApiRequest('POST', '/api/v1/ambient/intent', payload);
-  assert.strictEqual(res.status, 202);
-  const data = res.data as { status: string; approval_required: any; plan: any };
-  assert.strictEqual(data.status, 'AWAITING_APPROVAL');
-  assert.ok(data.approval_required);
-  assert.strictEqual(data.approval_required.tool, 'Google Calendar / Gmail');
+  const res = await handleAsyncApiRequest('POST', '/api/v1/ambient/intent', payload, { 'x-request-id': 'req_plan_preview' }, planningService);
+  assert.strictEqual(res.status, 200);
+  const data = res.data as { status: string; provider: string; model: string; requestId: string; plan: any };
+  assert.strictEqual(data.status, 'PLAN_PREVIEW');
+  assert.strictEqual(data.provider, 'openai');
+  assert.strictEqual(data.model, 'test-openai-model');
+  assert.strictEqual(data.requestId, 'req_plan_preview');
   assert.ok(data.plan);
-  assert.strictEqual(data.plan.steps.length, 8);
+  assert.strictEqual(data.plan.steps.length, 2);
+  assert.strictEqual(data.plan.steps[1].requiresApproval, true);
 });
 
-test('6. Personal AI: Primary End-to-End Ambient Intent Pipeline (Approved Execution)', () => {
-  const payload = {
-    prompt: 'Prepare my next client meeting and schedule it.',
-    approved: true,
-  };
-  const res = handleApiRequest('POST', '/api/v1/ambient/intent', payload);
-  assert.strictEqual(res.status, 200);
-  const data = res.data as { status: string; execution: any; memory_updated: any };
-  assert.strictEqual(data.status, 'COMPLETED');
-  assert.ok(data.execution);
-  assert.strictEqual(data.execution.status, 'COMPLETED');
-  assert.ok(data.memory_updated);
+test('6. Personal AI: Ambient Intent never accepts an approval shortcut or executes tools', async () => {
+  const res = await handleAsyncApiRequest('POST', '/api/v1/ambient/intent', { prompt: 'Schedule it.', approved: true }, {}, planningService);
+  const data = res.data as Record<string, unknown>;
+  assert.strictEqual(data.status, 'PLAN_PREVIEW');
+  assert.strictEqual(data.execution, undefined);
+  assert.strictEqual(data.memory_updated, undefined);
 });
 
 test('7. Personal AI: Approval Queue Handling (Approve Action)', () => {

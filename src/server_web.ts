@@ -11,9 +11,11 @@ import { AuditLogger } from './governance/audit.logger.js';
 import { BillingLedgerEngine } from './billing/billing.ledger.js';
 import { CreditEngine, computeCreditCost, sumBreakdownUsd, type CreditCostBreakdown } from './billing/credit.engine.js';
 import { MemoryEngine, type MemoryRecord, type MemoryScope } from './context/memory.engine.js';
-import { ToolInvoker, type SideEffectClass } from './agent/tool.invoker.js';
 import { NagexError } from './common/errors.js';
 import type { TenantContext, PrincipalReference } from './common/types.js';
+import { AiService, parseRoutingMode } from './model-gateway/ai-service.js';
+import { createProviders } from './model-gateway/providers.js';
+import { UnifiedModelRouter } from './model-gateway/unified-model-router.js';
 
 const PORT = Number(process.env.PORT || 8085);
 const PUBLIC_DIR = path.join(process.cwd(), 'public');
@@ -55,27 +57,7 @@ const auditLogger = new AuditLogger();
 const billing = new BillingLedgerEngine();
 const creditEngine = new CreditEngine(billing);
 const memoryEngine = new MemoryEngine();
-const toolInvoker = new ToolInvoker();
-
-// Register real/simulated tools
-toolInvoker.registerTool({
-  id: 'google_calendar',
-  name: 'Google Calendar',
-  side_effect: 'REVERSIBLE_WRITE',
-  handler: async (params) => ({ event_id: `evt_${Date.now()}`, status: 'CONFIRMED', details: params }),
-});
-toolInvoker.registerTool({
-  id: 'gmail',
-  name: 'Gmail',
-  side_effect: 'IRREVERSIBLE_WRITE',
-  handler: async (params) => ({ message_id: `msg_${Date.now()}`, status: 'SENT', details: params }),
-});
-toolInvoker.registerTool({
-  id: 'perplexity',
-  name: 'Perplexity Search',
-  side_effect: 'READ_ONLY',
-  handler: async (params) => ({ query: params.query, results: ['Search result 1', 'Search result 2'] }),
-});
+const aiService = new AiService(new UnifiedModelRouter(createProviders()));
 
 const INITIAL_CREDIT_GRANT = 10000;
 const seededTenants = new Set<string>();
@@ -325,6 +307,73 @@ function getVcsStatus(): VcsStatus {
 }
 
 // ─── API Router ───
+function getHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
+  const value = headers[name] ?? headers[name.toLowerCase()];
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function getRelevantMemories(principalId: string, prompt: string): MemoryRecord[] {
+  const memories = [
+    ...memoryEngine.getActiveMemories('USER', principalId),
+    ...memoryEngine.getActiveMemories('SESSION', principalId),
+    ...memoryEngine.getActiveMemories('AGENT', principalId),
+    ...memoryEngine.getActiveMemories('TENANT', principalId),
+  ];
+  const terms = new Set(prompt.toLowerCase().split(/[^a-z0-9]+/).filter((term) => term.length > 2));
+  return memories
+    .map((memory) => ({ memory, score: [...terms].filter((term) => JSON.stringify(memory.content).toLowerCase().includes(term)).length + (pinnedMemories.has(memory.id) ? 2 : 0) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 8)
+    .map(({ memory }) => memory);
+}
+
+type ApiResult = { status: number; data: unknown };
+
+function modelErrorResult(error: unknown): ApiResult {
+  if (error instanceof NagexError) {
+    const status = error.category === 'VALIDATION' ? 400 : error.category === 'TIMEOUT' ? 504 : 502;
+    return { status, data: error.toJSON() };
+  }
+  const requestId = `req_${crypto.randomUUID()}`;
+  console.error(JSON.stringify({ event: 'ai_request_failed', requestId, code: 'INTERNAL_ERROR' }));
+  return { status: 500, data: { error: { code: 'INTERNAL_ERROR', category: 'INTERNAL', message: 'AI request failed.', request_id: requestId } } };
+}
+
+export async function handleAsyncApiRequest(
+  method: string,
+  pathname: string,
+  body: Record<string, unknown> | null,
+  headers: Record<string, string | string[] | undefined> = {},
+  service: AiService = aiService,
+): Promise<ApiResult> {
+  try {
+    if (pathname === '/api/v1/providers/status' && method === 'GET') {
+      return { status: 200, data: { providers: service.statuses() } };
+    }
+    if (pathname === '/api/v1/ai/chat' && method === 'POST') {
+      const message = typeof body?.message === 'string' ? body.message.trim() : '';
+      if (!message) throw new NagexError({ code: 'MESSAGE_REQUIRED', category: 'VALIDATION', message: 'message is required.', request_id: `req_${crypto.randomUUID()}` });
+      const result = await service.chat({ message, mode: parseRoutingMode(body?.provider, process.env.NAGEX_MODEL_PROVIDER), requestId: getHeaderValue(headers, 'x-request-id') });
+      return { status: 200, data: result };
+    }
+    if (pathname === '/api/v1/ambient/intent' && method === 'POST') {
+      const prompt = typeof body?.prompt === 'string' ? body.prompt.trim() : '';
+      if (!prompt) throw new NagexError({ code: 'PROMPT_REQUIRED', category: 'VALIDATION', message: 'prompt is required.', request_id: `req_${crypto.randomUUID()}` });
+      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const result = await service.plan({
+        prompt,
+        memories: getRelevantMemories(principalId, prompt),
+        mode: parseRoutingMode(body?.provider, process.env.NAGEX_MODEL_PROVIDER),
+        requestId: getHeaderValue(headers, 'x-request-id'),
+      });
+      return { status: 200, data: { status: 'PLAN_PREVIEW', message: 'Plan generated. Review it before any tools are executed.', plan: result.data, provider: result.provider, model: result.model, latencyMs: result.latencyMs, requestId: result.requestId } };
+    }
+    return handleApiRequest(method, pathname, body, headers);
+  } catch (error) {
+    return modelErrorResult(error);
+  }
+}
+
 export function handleApiRequest(
   method: string,
   pathname: string,
@@ -423,98 +472,6 @@ export function handleApiRequest(
     return { status: 200, data: autonomyConfig };
   }
 
-  if (pathname === '/api/v1/ambient/intent' && method === 'POST') {
-    const prompt = (body?.prompt as string) || 'Prepare my next client meeting and schedule it.';
-    const isApproved = Boolean(body?.approved);
-
-    const generatedPlan = {
-      id: `plan_${Date.now()}`,
-      goal: prompt,
-      description: 'Prepare for client meeting and schedule calendar sync.',
-      status: isApproved ? 'COMPLETED' : 'AWAITING_APPROVAL',
-      tags: ['Client Meeting', 'Acme Corp', '🔥 High Priority'],
-      progress: isApproved ? 100 : 62,
-      completed_steps: isApproved ? 8 : 5,
-      total_steps: 8,
-      created_at: new Date().toISOString(),
-      steps: [
-        { step: 1, title: 'Understand meeting context', status: 'Completed', skill: 'Memory Recall', tool: 'NAgex Memory', approval: '-', due: 'Apr 28, 9:00 AM', result: 'View' },
-        { step: 2, title: 'Research client and industry', status: 'Completed', skill: 'Web Research', tool: 'Perplexity', approval: '-', due: 'Apr 28, 11:00 AM', result: 'View' },
-        { step: 3, title: 'Summarize key talking points', status: isApproved ? 'Completed' : 'Running', skill: 'Summarization', tool: 'Notion', approval: '-', due: 'Apr 29, 9:00 AM', result: '...' },
-        { step: 4, title: 'Draft meeting deck', status: isApproved ? 'Completed' : 'Ready', skill: 'Content Creation', tool: 'Google Slides', approval: 'Required', due: 'Apr 29, 2:00 PM', result: '-' },
-        { step: 5, title: 'Get stakeholder review', status: isApproved ? 'Completed' : 'Awaiting Approval', skill: 'Communication', tool: 'Gmail', approval: 'Required', due: 'Apr 29, 5:00 PM', result: '-' },
-        { step: 6, title: 'Schedule the meeting', status: isApproved ? 'Completed' : 'Ready', skill: 'Scheduling', tool: 'Google Calendar', approval: '-', due: 'Apr 30, 9:00 AM', result: '-' },
-        { step: 7, title: 'Prepare Q&A responses', status: isApproved ? 'Completed' : 'Ready', skill: 'Analysis', tool: 'ChatGPT', approval: '-', due: 'Apr 30, 11:00 AM', result: '-' },
-        { step: 8, title: 'Final review and checklist', status: isApproved ? 'Completed' : 'Ready', skill: 'Project Management', tool: 'Notion', approval: '-', due: 'Apr 30, 3:00 PM', result: '-' },
-      ],
-    };
-
-    if (!isApproved) {
-      const apprReq = {
-        id: `appr_${Date.now()}`,
-        action: 'Create Google Calendar event & send invitations',
-        tool: 'Google Calendar / Gmail',
-        event_name: 'Product Strategy Sync',
-        event_time: 'Tue, Apr 29, 2025 11:00 AM – 12:00 PM (1 hour)',
-        recipient: 'Sarah Kim, James Park, Alex Chen (3 guests)',
-        subject: 'Product Strategy Sync',
-        impact: 'Adds a calendar event and sends invitations to 3 people.',
-        data_involved: ['Your Google Calendar', 'guest emails', 'meeting title and agenda'],
-        why: 'You asked me to schedule a follow-up meeting after the product review.',
-        status: 'PENDING' as const,
-        requested_at: new Date().toISOString(),
-      };
-      approvalQueue.unshift(apprReq);
-
-      return {
-        status: 202,
-        data: { status: 'AWAITING_APPROVAL', message: 'Plan created. Human approval required before consequential execution.', plan: generatedPlan, approval_required: apprReq },
-      };
-    }
-
-    const calResult = toolInvoker.invokeTool('google_calendar', { title: 'Product Strategy Sync', time: 'Tue, Apr 29, 2025 11:00 AM' }, autonomyConfig.level, true);
-    const execId = `exec_${Date.now()}`;
-    const execRecord = {
-      execution_id: execId,
-      agent_id: 'agt_personal_ai',
-      agent_name: 'NAgex Personal AI',
-      objective: prompt,
-      status: 'COMPLETED',
-      tenant_id: tenantId,
-      created_at: new Date().toISOString(),
-      checkpoint: 'COMPLETED',
-      steps_log: [
-        'Goal received: Prepare client meeting and schedule it',
-        'Memory loaded: Relevant context retrieved (12 memories)',
-        'Plan created: 8 steps generated by NAgex',
-        'Skill selected: Meeting Preparation',
-        'Tool selected: Google Calendar & Gmail',
-        'Approval granted by user',
-        'Tool executed: Product Strategy Sync event created on Google Calendar',
-        'Memory updated: Meeting reminder set for 30 mins prior',
-      ],
-    };
-    executionHistory.unshift(execRecord);
-
-    auditLogger.logEvent({
-      actor: principal,
-      tenant_id: tenantId,
-      action: 'personal_ai:execute_intent',
-      resource: { type: 'Execution', id: execId },
-      result: 'SUCCESS',
-      request_id: `req_intent_${Date.now()}`,
-    });
-
-    const newMem = memoryEngine.proposeMemory('USER', principal.id, {
-      subject: 'Last Scheduled Meeting',
-      predicate: 'outcome',
-      value: 'Product Strategy Sync set for Tue Apr 29 at 11:00 AM with 3 guests',
-    });
-    memoryEngine.activateMemory(newMem.id);
-
-    return { status: 200, data: { status: 'COMPLETED', message: 'Meeting scheduled for Tue Apr 29 at 11:00 AM and invitations dispatched.', plan: generatedPlan, execution: execRecord, memory_updated: newMem } };
-  }
-
   if (pathname === '/api/v1/executions' && method === 'POST') {
     const taskObjective = (body?.objective as string) || 'Unnamed task';
     const agentId = (body?.agent_id as string) || 'agt_personal_ai';
@@ -568,7 +525,7 @@ export const server = http.createServer((req, res) => {
 
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-NAgex-Tenant, X-Principal-Id');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-NAgex-Tenant, X-Principal-Id, X-Request-Id');
 
   if (method === 'OPTIONS') {
     res.writeHead(204);
@@ -579,14 +536,14 @@ export const server = http.createServer((req, res) => {
   if (pathname.startsWith('/api/')) {
     let body = '';
     req.on('data', (chunk) => (body += chunk));
-    req.on('end', () => {
+    req.on('end', async () => {
       let parsedBody: Record<string, unknown> | null = null;
       try {
         if (body) parsedBody = JSON.parse(body);
       } catch {
         /* ignore */
       }
-      const result = handleApiRequest(method, pathname, parsedBody, req.headers);
+      const result = await handleAsyncApiRequest(method, pathname, parsedBody, req.headers);
       res.writeHead(result.status, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify(result.data, null, 2));
     });

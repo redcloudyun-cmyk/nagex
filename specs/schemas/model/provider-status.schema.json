@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "nagex://schema/model/provider-status/v1",
+  "title": "NAgex Model Provider Status Response",
+  "type": "object",
+  "required": ["providers"],
+  "properties": {
+    "providers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["configured", "available", "provider", "model"],
+        "properties": {
+          "configured": { "type": "boolean" },
+          "available": { "type": "boolean" },
+          "provider": { "type": "string", "minLength": 1 },
+          "model": { "type": ["string", "null"] }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

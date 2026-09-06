@@ -801,6 +801,26 @@ body {
   box-shadow: 0 8px 24px rgba(37, 99, 235, 0.35); display: flex; align-items: center; justify-content: center; z-index: 100;
 }
 
+.ambient-generated-plan,
+.ambient-result-card {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+}
+
+.ambient-generated-plan h3,
+.ambient-result-card strong {
+  color: var(--text-main);
+}
+
+.ambient-result-card p {
+  margin-top: 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
 @media (max-width: 768px) {
   .hamburger-btn { display: block; }
   .mobile-bottom-nav { display: flex; }

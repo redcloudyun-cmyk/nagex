@@ -457,9 +457,7 @@
     if (btnModalApprove) {
       btnModalApprove.onclick = async () => {
         closeApprovalModal();
-        if (state.pendingIntentResponse && state.pendingIntentResponse.prompt) {
-          await runAmbientTask(state.pendingIntentResponse.prompt, true);
-        }
+        closeAmbientOverlay();
       };
     }
     if (btnModalReject) {
@@ -509,7 +507,7 @@
     if (backdrop) backdrop.style.display = 'none';
   }
 
-  async function runAmbientTask(promptText, approved = false) {
+  async function runAmbientTask(promptText) {
     const progress = document.getElementById('ambient-progress-container');
     const fill = document.getElementById('ambient-progress-fill');
     const text = document.getElementById('ambient-progress-text');
@@ -522,64 +520,50 @@
     if (fill) fill.style.width = '20%';
     if (text) text.textContent = 'Understanding request & recalling memory...';
 
-    await sleep(400);
     if (fill) fill.style.width = '50%';
-    if (text) text.textContent = 'Creating action plan & selecting skills...';
+    if (text) text.textContent = 'Routing to the best available model & creating a plan...';
 
     const res = await apiFetch('/api/v1/ambient/intent', {
       method: 'POST',
-      body: JSON.stringify({ prompt: promptText, approved }),
+      body: JSON.stringify({ prompt: promptText }),
     });
 
-    if (!res) {
-      if (text) text.textContent = 'Error executing intent.';
-      return;
-    }
-
-    if (res.status === 'AWAITING_APPROVAL') {
-      if (fill) fill.style.width = '75%';
-      if (text) text.textContent = 'Waiting for human approval...';
-
-      if (preview && planSteps && res.data.plan) {
-        preview.style.display = 'block';
-        planSteps.innerHTML = res.data.plan.steps
-          .map((s) => `<div class="step-row"><span class="step-name">${s.step}. ${escapeHtml(s.title)}</span></div>`)
-          .join('');
-      }
-
-      state.pendingIntentResponse = { prompt: promptText, data: res.data };
-      await sleep(300);
-      openApprovalModal(res.data.approval_required);
+    if (!res || res.error) {
+      if (text) text.textContent = res?.error?.message || 'Unable to generate a plan.';
       return;
     }
 
     if (fill) fill.style.width = '100%';
-    if (text) text.textContent = 'Task Completed!';
+    if (text) text.textContent = `Plan ready via ${res.provider} · ${res.model} · ${res.latencyMs}ms`;
 
-    if (preview && planSteps && res.data.plan) {
+    if (preview && planSteps && res.plan) {
       preview.style.display = 'block';
-      planSteps.innerHTML = res.data.plan.steps
-        .map((s) => `<div class="step-row"><span class="step-name">✓ ${escapeHtml(s.title)}</span></div>`)
+      planSteps.innerHTML = res.plan.steps
+        .map((s) => `<div class="step-row">
+          <span class="step-num">${s.step}.</span>
+          <span class="step-name"><strong>${escapeHtml(s.title)}</strong><br><small>${escapeHtml(s.reasoning)} · Skill: ${escapeHtml(s.skill)}${s.tool ? ` · Tool: ${escapeHtml(s.tool)}` : ''}${s.requiresApproval ? ' · Approval required' : ''}</small></span>
+        </div>`)
         .join('');
     }
 
     if (resultCard && resultText) {
       resultCard.style.display = 'block';
-      resultText.textContent = res.data.message || 'Task completed successfully.';
+      resultText.textContent = `${res.plan.summary} No tools have been executed. Request ID: ${res.requestId}`;
     }
-
-    await loadAllData();
   }
 
   function initPrimaryScenario() {
     const btnHero = document.getElementById('btn-run-primary-scenario');
+    const btnAmbientPlan = document.getElementById('btn-run-ambient-plan');
+    const runPrimaryScenario = () => {
+      const scenarioPrompt = 'Prepare my next client meeting and schedule it.';
+      openAmbientOverlay(scenarioPrompt);
+      runAmbientTask(scenarioPrompt);
+    };
     if (btnHero) {
-      btnHero.onclick = () => {
-        const scenarioPrompt = 'Prepare my next client meeting and schedule it.';
-        openAmbientOverlay(scenarioPrompt);
-        runAmbientTask(scenarioPrompt);
-      };
+      btnHero.onclick = runPrimaryScenario;
     }
+    if (btnAmbientPlan) btnAmbientPlan.onclick = runPrimaryScenario;
   }
 
   function sleep(ms) {

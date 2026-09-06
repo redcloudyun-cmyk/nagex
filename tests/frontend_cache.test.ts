@@ -49,6 +49,10 @@ test('only the global header renders the compact logo with bounded sizing', asyn
     assert.match(html, /<div class="sidebar-top-group">\s*<ul class="nav-menu">\s*<li class="nav-item active" data-tab="tab-home">/s);
     assert.match(html, /<link rel="icon" type="image\/png" href="assets\/favicon\.png">/);
     assert.match(html, /<link rel="apple-touch-icon" href="assets\/nagex-app-icon\.png">/);
+    assert.match(html, /id="ambient-plan-preview"/);
+    assert.match(html, /id="ambient-plan-steps"/);
+    assert.match(html, /id="ambient-result-card"/);
+    assert.match(await (await fetch(`${origin}/app.js`)).text(), /api\/v1\/ambient\/intent/);
     assert.match(css, /\.header-logo\s*{[^}]*max-height:\s*28px;[^}]*width:\s*auto;[^}]*max-width:\s*150px;[^}]*object-fit:\s*contain;/s);
     assert.match(css, /\.nagex-compact-logo\s*{[^}]*width:\s*auto;[^}]*object-fit:\s*contain;/s);
     assert.match(css, /\.brand-logo-group\s*{[^}]*overflow:\s*hidden;/s);

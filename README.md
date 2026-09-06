@@ -55,6 +55,20 @@ The target AI stack includes:
 
 Integration status must always be represented truthfully in this repository. Features that are not yet connected to a live runtime are considered planned or prototype functionality.
 
+### Live model gateway
+
+The NAgex server now has implemented provider adapters for OpenAI, Gemini, and Nebius Token Factory. The active route and all model IDs are configured with environment variables; no model ID or credential is sent to the browser beyond the selected provider/model metadata. In `auto` mode the router prefers the Nebius route so the configured NVIDIA model remains in the real hackathon execution path, with fallback to other configured providers after normalized timeout/provider failures.
+
+The gateway is provider-extensible: core runtime and planning depend only on `ModelProvider`, while registered adapter order is configuration-driven. A future LLM integration does not require changes to runtime, memory, planning, skills, tools, approval, execution, response schemas, or router selection logic.
+
+The Home prompt now performs this real flow:
+
+```text
+User intent → relevant memory → model router → structured plan → Plan Preview
+```
+
+This phase deliberately stops before Skill/Tool execution. A generated plan may identify tools and approval requirements, but it does not perform consequential actions.
+
 ## Architecture
 
 ```text

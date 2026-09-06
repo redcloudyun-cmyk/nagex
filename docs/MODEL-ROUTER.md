@@ -122,3 +122,21 @@ A live model route is complete when:
 - tests cover routing behavior,
 - no secrets reach the client,
 - README accurately describes the integration.
+
+## 11. Implemented Unified Router
+
+The server implements live OpenAI, Gemini, and Nebius Token Factory providers behind one normalized `ModelProvider` contract. Provider selection supports `auto`, `openai`, `gemini`, and `nebius`; failures and timeouts are normalized and routed to the next configured provider. `auto` prefers the hackathon-critical Nebius/NVIDIA route, then OpenAI, then Gemini.
+
+The router itself contains no provider-name enum or provider-specific fallback list. It routes any registered `ModelProvider` adapter, uses adapter registration order for `auto`, and accepts any registered provider ID for explicit routing. The built-in priority is configuration-driven through `NAGEX_PROVIDER_PRIORITY` (default `nebius,openai,gemini`). Adding another provider requires only its adapter and gateway registration/configuration; runtime, memory, planning, skills, tools, approval, and execution modules remain unchanged.
+
+All credentials and model identifiers are server-side configuration:
+
+```text
+OPENAI_API_KEY + NAGEX_OPENAI_MODEL
+GEMINI_API_KEY + NAGEX_GEMINI_MODEL
+NEBIUS_API_KEY + NAGEX_NEBIUS_MODEL
+NAGEX_MODEL_PROVIDER
+NAGEX_PROVIDER_PRIORITY (optional comma-separated adapter priority)
+```
+
+`GET /api/v1/providers/status` exposes only configuration/availability booleans, provider name, and model ID. `POST /api/v1/ai/chat` returns normalized text and routing metadata. `POST /api/v1/ambient/intent` retrieves relevant memory and returns a validated structured Plan Preview. It does not execute tools.
