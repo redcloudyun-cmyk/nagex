@@ -13,9 +13,12 @@ import { CreditEngine, computeCreditCost, sumBreakdownUsd, type CreditCostBreakd
 import { MemoryEngine, type MemoryRecord, type MemoryScope } from './context/memory.engine.js';
 import { NagexError } from './common/errors.js';
 import type { TenantContext, PrincipalReference } from './common/types.js';
-import { AiService, parseRoutingMode } from './model-gateway/ai-service.js';
+import { AiService, parseRoutingMode, type PlanPreview } from './model-gateway/ai-service.js';
 import { createProviders } from './model-gateway/providers.js';
 import { UnifiedModelRouter } from './model-gateway/unified-model-router.js';
+import { skillRegistry as canonicalSkillRegistry } from './skills/skill-registry.js';
+import { toolRegistry as canonicalToolRegistry } from './tools/tool-registry.js';
+import { PlanResolver } from './planning/plan-resolver.js';
 
 const PORT = Number(process.env.PORT || 8085);
 const PUBLIC_DIR = path.join(process.cwd(), 'public');
@@ -58,6 +61,7 @@ const billing = new BillingLedgerEngine();
 const creditEngine = new CreditEngine(billing);
 const memoryEngine = new MemoryEngine();
 const aiService = new AiService(new UnifiedModelRouter(createProviders()));
+const planResolver = new PlanResolver(canonicalSkillRegistry, canonicalToolRegistry);
 
 const INITIAL_CREDIT_GRANT = 10000;
 const seededTenants = new Set<string>();
@@ -173,24 +177,6 @@ const planRegistry: Array<{
       { step: 3, title: 'Distribute summary to Slack #executive channel', status: 'Ready', skill: 'Executive Update', tool: 'Slack', approval: 'Required', due: 'Apr 29, 4:00 PM', result: '-' },
     ],
   },
-];
-
-// Seed Skills
-const skillRegistry = [
-  { id: 'skl_meeting_prep', name: 'Meeting Preparation', description: 'Plans and prepares for client meetings with context and key talking points.', safety_level: 'READ_ONLY', required_tools: ['NAgex Memory', 'Google Calendar', 'Google Drive'], approval_rule: 'Auto-run for context gathering.' },
-  { id: 'skl_email_drafting', name: 'Email Drafting', description: 'Drafts external communication and stakeholder review requests.', safety_level: 'IRREVERSIBLE_WRITE', required_tools: ['Gmail'], approval_rule: 'Human approval ALWAYS required.' },
-  { id: 'skl_deep_research', name: 'Deep Research', description: 'Performs multi-step web queries and aggregates source briefs.', safety_level: 'READ_ONLY', required_tools: ['Perplexity', 'Web Search'], approval_rule: 'Autonomous execution enabled.' },
-  { id: 'skl_doc_summary', name: 'Document Summary', description: 'Summarizes key points and builds meeting agendas.', safety_level: 'READ_ONLY', required_tools: ['Notion', 'Google Drive'], approval_rule: 'Autonomous execution enabled.' },
-  { id: 'skl_weekly_planning', name: 'Weekly Planning', description: 'Analyzes user goals and calendar to construct focused weekly schedule.', safety_level: 'REVERSIBLE_WRITE', required_tools: ['Google Calendar'], approval_rule: 'Low-risk schedule updates.' },
-];
-
-// Seed Tools (Matching Mockup Image 3)
-const toolRegistry = [
-  { id: 'tool_gmail', name: 'Gmail', description: 'Send and manage emails', connection_status: 'Connected', side_effect: 'IRREVERSIBLE_WRITE', requires_approval: true, last_used: '10 mins ago' },
-  { id: 'tool_gcal', name: 'Google Calendar', description: 'Manage your schedule', connection_status: 'Connected', side_effect: 'REVERSIBLE_WRITE', requires_approval: true, last_used: '5 mins ago' },
-  { id: 'tool_notion', name: 'Notion', description: 'Create and update pages', connection_status: 'Approval Required', side_effect: 'REVERSIBLE_WRITE', requires_approval: true, last_used: 'Yesterday' },
-  { id: 'tool_slack', name: 'Slack', description: 'Send messages and notify teams', connection_status: 'Connected', side_effect: 'REVERSIBLE_WRITE', requires_approval: false, last_used: '2 hours ago' },
-  { id: 'tool_search', name: 'Web Search', description: 'Find up-to-date information', connection_status: 'Approval Required', side_effect: 'READ_ONLY', requires_approval: true, last_used: 'Just now' },
 ];
 
 // Seed Approvals Queue (Exact match for Mockup Image 3)
@@ -368,6 +354,10 @@ export async function handleAsyncApiRequest(
       });
       return { status: 200, data: { status: 'PLAN_PREVIEW', message: 'Plan generated. Review it before any tools are executed.', plan: result.data, provider: result.provider, model: result.model, latencyMs: result.latencyMs, requestId: result.requestId } };
     }
+    if (pathname === '/api/v1/plans/resolve' && method === 'POST') {
+      const candidate = body?.plan && typeof body.plan === 'object' ? body.plan : body;
+      return { status: 200, data: planResolver.resolve(candidate as unknown as PlanPreview) };
+    }
     return handleApiRequest(method, pathname, body, headers);
   } catch (error) {
     return modelErrorResult(error);
@@ -428,11 +418,13 @@ export function handleApiRequest(
   }
 
   if (pathname === '/api/v1/skills' && method === 'GET') {
-    return { status: 200, data: { skills: skillRegistry, total: skillRegistry.length } };
+    const skills = canonicalSkillRegistry.list();
+    return { status: 200, data: { skills, total: skills.length } };
   }
 
   if (pathname === '/api/v1/tools' && method === 'GET') {
-    return { status: 200, data: { tools: toolRegistry, total: toolRegistry.length } };
+    const tools = canonicalToolRegistry.list().map(({ aliases: _aliases, ...tool }) => tool);
+    return { status: 200, data: { tools, total: tools.length } };
   }
 
   if (pathname === '/api/v1/approvals' && method === 'GET') {
@@ -503,7 +495,10 @@ export function handleApiRequest(
     return { status: 201, data: record };
   }
 
-  if (pathname === '/api/v1/agents' && method === 'GET') return { status: 200, data: { agents: skillRegistry, total: skillRegistry.length } };
+  if (pathname === '/api/v1/agents' && method === 'GET') {
+    const agents = canonicalSkillRegistry.list();
+    return { status: 200, data: { agents, total: agents.length } };
+  }
   if (pathname === '/api/v1/knowledge' && method === 'GET') return { status: 200, data: { documents: knowledgeBase, total: knowledgeBase.length } };
   if (pathname === '/api/v1/billing/usage' && method === 'GET') {
     ensureTenantSeeded(tenantId);

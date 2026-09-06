@@ -149,7 +149,7 @@
     if (elMemCount) elMemCount.textContent = state.memories.length;
     if (elPlanCount) elPlanCount.textContent = state.plans.filter((p) => p.status === 'RUNNING' || p.status === 'AWAITING_APPROVAL').length || state.plans.length;
     if (elApprCount) elApprCount.textContent = state.approvals.filter((a) => a.status === 'PENDING').length;
-    if (elToolCount) elToolCount.textContent = `${state.tools.filter((t) => t.connection_status === 'Connected').length} / ${state.tools.length}`;
+    if (elToolCount) elToolCount.textContent = `${state.tools.filter((t) => t.connectionStatus === 'connected' && t.executionMode === 'live').length} / ${state.tools.length}`;
 
     // Home Prompt Button
     const btnSend = document.getElementById('btn-home-prompt-send');
@@ -258,11 +258,9 @@
       <div class="skill-card">
         <div class="card-header-row">
           <span class="card-title">${escapeHtml(s.name)}</span>
-          <span class="tag-scope">${s.safety_level}</span>
+          <span class="tag-scope">${escapeHtml(s.id)}</span>
         </div>
         <p class="card-body-text">${escapeHtml(s.description)}</p>
-        <p class="card-body-text" style="font-size:0.75rem;"><strong>Required Tools:</strong> ${s.required_tools.join(', ')}</p>
-        <p class="card-body-text" style="font-size:0.75rem; color:var(--primary-indigo);"><strong>Approval Policy:</strong> ${s.approval_rule}</p>
       </div>`
       )
       .join('');
@@ -278,11 +276,12 @@
       <div class="tool-card">
         <div class="card-header-row">
           <span class="card-title">${escapeHtml(t.name)}</span>
-          <span class="step-badge ${t.connection_status === 'Connected' ? 'completed' : 'approval'}">${t.connection_status}</span>
+          <span class="step-badge ${t.executionMode === 'live' && t.connectionStatus === 'connected' ? 'completed' : 'approval'}">${escapeHtml(t.executionMode)}</span>
         </div>
-        <p class="card-body-text">Side Effect: <strong>${t.side_effect}</strong></p>
-        <p class="card-body-text">Human Approval: <strong>${t.requires_approval ? 'Required' : 'Autonomous'}</strong></p>
-        <p class="card-body-text" style="font-size:0.75rem;">Last used: ${t.last_used}</p>
+        <p class="card-body-text">Capability: <strong>${escapeHtml(t.capability)}</strong></p>
+        <p class="card-body-text">Side Effect: <strong>${escapeHtml(t.sideEffectLevel)}</strong></p>
+        <p class="card-body-text">Human Approval: <strong>${t.requiresApproval ? 'Required' : 'Autonomous'}</strong></p>
+        <p class="card-body-text" style="font-size:0.75rem;">Connection: ${escapeHtml(t.connectionStatus)}</p>
       </div>`
       )
       .join('');
