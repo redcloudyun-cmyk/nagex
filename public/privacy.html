@@ -44,7 +44,7 @@
         <p>NAgex never creates, modifies, or deletes a calendar event without your explicit approval of the exact action beforehand. You review the exact event details — title, time, attendees, description — before anything is written to your calendar.</p>
 
         <h2>4. Where OAuth Tokens Are Stored</h2>
-        <p>OAuth access and refresh tokens are stored only on the NAgex server. They are never sent to, or exposed in, browser JavaScript, and never appear anywhere in the NAgex interface. Tokens are held in server memory for as long as your connection is active. NAgex is currently a test/development service and does not yet persist tokens to a database, so restarting the service invalidates all stored connections.</p>
+        <p>OAuth access and refresh tokens are stored only on the NAgex server, encrypted at rest. They are never sent to, or exposed in, browser JavaScript, never written to logs, and never appear anywhere in the NAgex interface. Restarting or redeploying the NAgex service does not disconnect Google Calendar — the encrypted token is read back and, if needed, silently refreshed on the next use.</p>
 
         <h2>5. Disconnecting and Revoking Access</h2>
         <ul>
@@ -54,7 +54,7 @@
 
         <h2>6. Data Retention &amp; Deletion</h2>
         <ul>
-          <li><strong>OAuth tokens</strong> — deleted immediately when you disconnect, or when the NAgex server restarts.</li>
+          <li><strong>OAuth tokens</strong> — kept encrypted on the server for as long as your connection is active, and deleted immediately when you disconnect. A server restart does not delete them.</li>
           <li><strong>Scheduling notes</strong> — when NAgex creates a calendar event for you, it may save a short note in NAgex Memory (for example, "Scheduled Product Strategy Sync on 2026-09-10 14:00."). This note does not include attendee email addresses. You can remove it anytime from the Memory tab.</li>
           <li><strong>Audit logs</strong> — NAgex keeps a short technical record of actions taken (which tool ran, whether it succeeded) for security and debugging. This record never contains OAuth tokens.</li>
           <li>To request deletion of any data NAgex holds about you, contact us at the email below.</li>
@@ -88,7 +88,7 @@
         <p>NAgex는 사전에 사용자가 정확한 작업 내용을 명시적으로 승인하지 않는 한 캘린더 일정을 생성, 수정, 삭제하지 않습니다. 실제로 캘린더에 반영되기 전에 제목, 시간, 참석자, 설명 등 정확한 이벤트 세부 정보를 검토하게 됩니다.</p>
 
         <h2>4. OAuth 토큰 저장 위치</h2>
-        <p>OAuth 액세스 토큰과 리프레시 토큰은 NAgex 서버에만 저장됩니다. 브라우저 자바스크립트로 전송되거나 노출되지 않으며, NAgex 화면 어디에도 표시되지 않습니다. 토큰은 연결이 활성 상태인 동안 서버 메모리에 보관됩니다. NAgex는 현재 테스트/개발 단계 서비스로서 토큰을 데이터베이스에 영구 저장하지 않으므로, 서버가 재시작되면 저장된 모든 연결 정보가 무효화됩니다.</p>
+        <p>OAuth 액세스 토큰과 리프레시 토큰은 NAgex 서버에만 암호화된 상태로 저장됩니다. 브라우저 자바스크립트로 전송되거나 노출되지 않으며, 로그에 기록되지 않고, NAgex 화면 어디에도 표시되지 않습니다. NAgex 서비스가 재시작되거나 재배포되어도 Google Calendar 연결은 끊어지지 않습니다 — 암호화된 토큰을 다시 불러오고, 필요한 경우 다음 사용 시점에 자동으로 갱신합니다.</p>
 
         <h2>5. 연결 해제 및 접근 권한 철회</h2>
         <ul>
@@ -98,7 +98,7 @@
 
         <h2>6. 데이터 보관 및 삭제</h2>
         <ul>
-          <li><strong>OAuth 토큰</strong> — 연결 해제 시 또는 NAgex 서버 재시작 시 즉시 삭제됩니다.</li>
+          <li><strong>OAuth 토큰</strong> — 연결이 활성 상태인 동안 서버에 암호화되어 보관되며, 연결 해제 시 즉시 삭제됩니다. 서버 재시작으로는 삭제되지 않습니다.</li>
           <li><strong>일정 관련 메모</strong> — NAgex가 사용자를 대신해 캘린더 일정을 생성하면, NAgex Memory에 "&lt;일정 제목&gt;을(를) &lt;날짜/시간&gt;에 예약함"과 같은 짧은 메모를 저장할 수 있습니다. 이 메모에는 참석자 이메일 주소가 포함되지 않으며, Memory 탭에서 언제든지 삭제할 수 있습니다.</li>
           <li><strong>감사 로그</strong> — NAgex는 보안 및 디버깅 목적으로 어떤 도구가 실행되었는지, 성공했는지 등 간단한 기술 기록을 보관합니다. 이 기록에는 OAuth 토큰이 포함되지 않습니다.</li>
           <li>NAgex가 보유한 데이터의 삭제를 요청하려면 아래 이메일로 문의해 주세요.</li>

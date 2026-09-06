@@ -95,9 +95,9 @@ test('readGoogleOAuthConfig never reports configured from partial or missing env
   assert.deepEqual(full, { clientId: 'id', clientSecret: 'secret', redirectUri: 'https://x/callback' });
 });
 
-test('GET /api/v1/oauth/google/status reports configured=false and connected=false when nothing is set up', () => {
+test('GET /api/v1/oauth/google/status reports configured=false and connected=false when nothing is set up', async () => {
   sharedGoogleTokenStore.clear(DEFAULT_GOOGLE_TENANT_ID);
-  const result = handleApiRequest('GET', '/api/v1/oauth/google/status', null);
+  const result = await handleAsyncApiRequest('GET', '/api/v1/oauth/google/status', null);
   assert.equal(result.status, 200);
   const data = result.data as Record<string, unknown>;
   assert.equal(data.configured, false);
@@ -539,7 +539,7 @@ test('audit failure path: a rejected approval logs approval.rejected, and a fail
 
 test('oauth connected/disconnected audit events are recorded via the real server routes, without tokens', async () => {
   sharedGoogleTokenStore.clear(DEFAULT_GOOGLE_TENANT_ID);
-  const disconnect = handleApiRequest('POST', '/api/v1/oauth/google/disconnect', null);
+  const disconnect = await handleAsyncApiRequest('POST', '/api/v1/oauth/google/disconnect', null);
   assert.equal(disconnect.status, 200);
 
   const auditResult = handleApiRequest('GET', '/api/v1/audit/logs', null);

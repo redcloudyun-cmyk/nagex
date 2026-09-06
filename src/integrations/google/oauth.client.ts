@@ -19,6 +19,7 @@ export interface GoogleTokenResponse {
   refreshToken: string | null;
   expiresAt: number; // epoch ms
   scope: string;
+  tokenType?: string | null;
 }
 
 type FetchFn = typeof fetch;
@@ -49,6 +50,7 @@ interface GoogleTokenApiPayload {
   refresh_token?: string;
   expires_in?: number;
   scope?: string;
+  token_type?: string;
   error?: string;
   error_description?: string;
 }
@@ -86,6 +88,7 @@ async function postToken(body: URLSearchParams, fetchFn: FetchFn, requestId: str
     refreshToken: payload.refresh_token ?? null,
     expiresAt: now() + Math.max(0, (payload.expires_in ?? 3600) - 60) * 1000, // refresh 60s early
     scope: payload.scope ?? GOOGLE_CALENDAR_SCOPES.join(' '),
+    tokenType: payload.token_type ?? null,
   };
 }
 
@@ -122,4 +125,14 @@ export async function refreshGoogleAccessToken(
   const refreshed = await postToken(body, fetchFn, requestId, now);
   // Google does not resend the refresh token on refresh; keep the original.
   return { ...refreshed, refreshToken: refreshed.refreshToken ?? refreshToken };
+}
+
+// Best-effort: revoking with Google must never block a local disconnect —
+// network failure or an already-invalid token here is not fatal.
+export async function revokeGoogleToken(token: string, fetchFn: FetchFn): Promise<void> {
+  try {
+    await fetchFn(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(token)}`, { method: 'POST' });
+  } catch {
+    /* ignore — local disconnect proceeds regardless */
+  }
 }

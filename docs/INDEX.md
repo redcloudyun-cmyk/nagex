@@ -32,6 +32,7 @@ MASTER.md
 | `MODEL-ROUTER.md` | Model Gateway, routing policy, NVIDIA Nemotron, Nebius integration |
 | `SECURITY.md` | Permissions, human approval, secrets, audit, isolation |
 | `DEVELOPMENT.md` | Development workflow, implementation order, testing, release readiness |
+| `DEPLOYMENT.md` | Server setup and env vars for OAuth token persistence, restart-safety notes |
 
 ## Documentation Status Rules
 

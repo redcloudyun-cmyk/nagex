@@ -405,6 +405,26 @@ export async function handleAsyncApiRequest(
         return { status: 302, data: null, redirectTo: '/?oauth=google&status=error' };
       }
     }
+    if (pathname === '/api/v1/oauth/google/status' && method === 'GET') {
+      const tid = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_oauth_${crypto.randomUUID()}`;
+      const config = readGoogleOAuthConfig();
+      if (config) {
+        // Touches (and transparently refreshes + persists) the token if it's
+        // expired, so "connected" reflects real usability, not stale state.
+        await googleTokenStore.getValidAccessToken(tid, config, fetch, requestId);
+      }
+      const status = googleTokenStore.getStatus(tid);
+      return { status: 200, data: { configured: Boolean(config), ...status } };
+    }
+    if (pathname === '/api/v1/oauth/google/disconnect' && method === 'POST') {
+      const tid = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_oauth_${crypto.randomUUID()}`;
+      await googleTokenStore.revoke(tid, fetch, requestId);
+      auditLogger.logEvent({ actor: { type: 'user', id: principalId }, tenant_id: tid, action: 'oauth:google_disconnected', resource: { type: 'OAuthConnection', id: 'google_calendar' }, result: 'SUCCESS', request_id: requestId });
+      return { status: 200, data: googleTokenStore.getStatus(tid) };
+    }
     if (pathname === '/api/v1/plans/resolve' && method === 'POST') {
       const candidate = body?.plan && typeof body.plan === 'object' ? body.plan : body;
       return { status: 200, data: planResolver.resolve(candidate as unknown as PlanPreview) };
@@ -566,17 +586,6 @@ export function handleApiRequest(
     }
     pendingGoogleOAuthState = crypto.randomUUID();
     return { status: 200, data: { authorizeUrl: buildGoogleAuthorizeUrl(config, pendingGoogleOAuthState) } };
-  }
-
-  if (pathname === '/api/v1/oauth/google/status' && method === 'GET') {
-    const status = googleTokenStore.getStatus(tenantId || DEFAULT_GOOGLE_TENANT_ID);
-    return { status: 200, data: { configured: Boolean(readGoogleOAuthConfig()), ...status } };
-  }
-
-  if (pathname === '/api/v1/oauth/google/disconnect' && method === 'POST') {
-    googleTokenStore.clear(tenantId || DEFAULT_GOOGLE_TENANT_ID);
-    auditLogger.logEvent({ actor: principal, tenant_id: tenantId, action: 'oauth:google_disconnected', resource: { type: 'OAuthConnection', id: 'google_calendar' }, result: 'SUCCESS', request_id: `req_oauth_${Date.now()}` });
-    return { status: 200, data: googleTokenStore.getStatus(tenantId || DEFAULT_GOOGLE_TENANT_ID) };
   }
 
   if (pathname === '/api/v1/quickwake/config' && method === 'GET') return { status: 200, data: quickWakeConfig };
