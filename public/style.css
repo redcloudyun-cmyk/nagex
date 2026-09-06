@@ -973,6 +973,8 @@ body {
 .calendar-compose-form input:disabled { color: var(--text-light); background: var(--bg-subtle); }
 .calendar-checkbox-label { flex-direction: row !important; align-items: center; gap: 0.5rem !important; }
 .calendar-compose-form button[type="submit"] { align-self: flex-start; }
+.field-suggested-hint { font-weight: 400; color: var(--text-muted); text-transform: none; letter-spacing: normal; }
+.calendar-form-error { font-size: 0.78rem; color: var(--status-error, #dc2626); margin: 0; }
 
 .calendar-preview-card { margin-top: 0.75rem; padding: 0.85rem; border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--bg-subtle); }
 .calendar-preview-card p { font-size: 0.82rem; color: var(--text-main); margin-top: 0.3rem; }

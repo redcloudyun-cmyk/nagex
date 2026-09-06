@@ -760,7 +760,9 @@
         .join('');
     }
 
-    if (res.plan) await resolvePlanIntoUi(res.plan, promptText);
+    // res.requestId is this plan's stable identity for the rest of the flow
+    // (resolution, approval preparation, UI hydration) — never re-minted.
+    if (res.plan) await resolvePlanIntoUi(res.plan, promptText, res.requestId);
 
     if (resultCard && resultText) {
       resultCard.style.display = 'block';
@@ -768,7 +770,7 @@
     }
   }
 
-  async function resolvePlanIntoUi(plan, originalPromptText) {
+  async function resolvePlanIntoUi(plan, originalPromptText, planId) {
     const card = document.getElementById('ambient-resolution-card');
     const statusEl = document.getElementById('ambient-resolution-status');
     const stepsEl = document.getElementById('ambient-resolution-steps');
@@ -795,6 +797,7 @@
     }
 
     updateFlowStage('Plan Resolution');
+    addTimelineEntry('Plan resolved', planId);
 
     const vm = view.buildResolutionViewModel(resolved);
 
@@ -855,16 +858,13 @@
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
       const extractor = window.NAGEX_CALENDAR_INTENT;
       const extracted = extractor ? extractor.extractCalendarIntent(originalPromptText || '', new Date(), timezone) : null;
-      if (extracted) {
-        // The prompt already fully specifies the event: skip the manual
-        // compose form and go straight to requesting approval (per the
-        // Ambient UI flow: Plan Preview -> one Calendar step -> Approval
-        // Card, with no intermediate form for a fully-specified request).
-        actionsEl.innerHTML = '<div id="calendar-preview-slot"></div>';
-        requestCalendarApproval(extracted);
-      } else {
-        renderCalendarComposeForm(actionsEl, calendarStep);
-      }
+      // Always show the confirmation form — never request approval merely
+      // because the plan resolved. Exact values the user already stated in
+      // their message (title/start/duration) prefill it verbatim; anything
+      // not stated is left blank (or, for duration, a clearly-labeled
+      // suggested default) rather than an invented value like 10:00 AM.
+      // The approval is only ever created when the user submits this form.
+      renderCalendarComposeForm(actionsEl, extracted, timezone);
     } else if (vm.showRunButton && vm.actionLabel) {
       const isApproval = vm.status === 'APPROVAL_REQUIRED';
       actionsEl.innerHTML = `<button class="btn-plan-action ${vm.statusCssClass}" id="btn-plan-resolution-action">${isApproval ? '🛡️' : '▶'} ${escapeHtml(vm.actionLabel)}</button>`;
@@ -905,36 +905,41 @@
     }
   }
 
-  function defaultEventStartLocal() {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    d.setHours(10, 0, 0, 0);
-    const pad = (n) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  }
+  // extracted (from calendar-intent-extraction.js) may be null, or may only
+  // have some fields confidently parsed — this form must reflect exactly
+  // what was extracted and nothing more: a field the user didn't state is
+  // left blank (title, start, attendees) or shown as a clearly-labeled
+  // suggested default (duration) rather than a silently-invented value.
+  function renderCalendarComposeForm(actionsEl, extracted, timezone) {
+    const titleValue = (extracted && extracted.summary) || '';
+    const startValue = extracted ? extracted.start.slice(0, 16) : '';
+    const attendeesValue = extracted && extracted.attendees.length ? extracted.attendees.join(', ') : '';
+    const extractedDurationMinutes = extracted
+      ? Math.round((new Date(extracted.end).getTime() - new Date(extracted.start).getTime()) / 60000)
+      : null;
+    const durationValue = extractedDurationMinutes !== null && extractedDurationMinutes > 0 ? extractedDurationMinutes : 30;
+    const durationIsSuggested = extractedDurationMinutes === null || extractedDurationMinutes <= 0;
 
-  function renderCalendarComposeForm(actionsEl, calendarStep) {
-    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
     actionsEl.innerHTML = `
-      <form class="calendar-compose-form" id="calendar-compose-form">
+      <form class="calendar-compose-form" id="calendar-compose-form" novalidate>
         <h4>Confirm the exact calendar event</h4>
         <label>Title
-          <input type="text" id="cal-title" value="${escapeHtml(calendarStep.title)}" required>
+          <input type="text" id="cal-title" value="${escapeHtml(titleValue)}" placeholder="e.g. Client Strategy Sync" required>
         </label>
         <label>Start
-          <input type="datetime-local" id="cal-start" value="${defaultEventStartLocal()}" required>
+          <input type="datetime-local" id="cal-start" value="${escapeHtml(startValue)}" required>
         </label>
-        <label>Duration (minutes)
-          <input type="number" id="cal-duration" value="30" min="5" step="5" required>
+        <label>Duration (minutes)${durationIsSuggested ? ' <span class="field-suggested-hint">(suggested — please confirm)</span>' : ''}
+          <input type="number" id="cal-duration" value="${durationValue}" min="1" step="5" required>
         </label>
         <label>Timezone
           <input type="text" value="${escapeHtml(timezone)}" disabled>
         </label>
         <label>Attendee emails (comma-separated)
-          <input type="text" id="cal-attendees" placeholder="name@example.com">
+          <input type="text" id="cal-attendees" placeholder="name@example.com" value="${escapeHtml(attendeesValue)}">
         </label>
         <label>Description
-          <textarea id="cal-description" rows="2">${escapeHtml(calendarStep.reasoning || '')}</textarea>
+          <textarea id="cal-description" rows="2" placeholder="Optional"></textarea>
         </label>
         <label class="calendar-checkbox-label">
           <input type="checkbox" id="cal-meet-link"> Add a Google Meet link
@@ -942,6 +947,7 @@
         <label>Calendar
           <input type="text" value="primary" disabled>
         </label>
+        <p class="calendar-form-error" id="calendar-form-error" style="display:none;"></p>
         <button type="submit" class="btn-plan-action plan-status-approval">🛡️ Preview & Request Approval</button>
       </form>
       <div id="calendar-preview-slot"></div>`;
@@ -950,21 +956,45 @@
     if (form) {
       form.onsubmit = (event) => {
         event.preventDefault();
-        const start = document.getElementById('cal-start').value;
-        const durationMin = Number(document.getElementById('cal-duration').value) || 30;
-        const startDate = new Date(`${start}:00`);
-        const endDate = new Date(startDate.getTime() + durationMin * 60000);
+        const errorEl = document.getElementById('calendar-form-error');
+        const titleRaw = document.getElementById('cal-title').value;
+        const startRaw = document.getElementById('cal-start').value;
+        const durationMinutes = Number(document.getElementById('cal-duration').value);
+        const attendeesRaw = document.getElementById('cal-attendees').value;
+
+        const validation = window.NAGEX_CALENDAR_VALIDATION;
+        const result = validation
+          ? validation.validateCalendarComposeForm({ title: titleRaw, start: startRaw, durationMinutes, timezone, attendeesRaw })
+          : { valid: true, errors: {}, attendees: attendeesRaw.split(',').map((e) => e.trim()).filter(Boolean), startDate: startRaw ? new Date(startRaw) : null };
+
+        if (!result.valid) {
+          if (errorEl) {
+            errorEl.style.display = 'block';
+            errorEl.textContent = Object.values(result.errors).join(' ');
+          }
+          return; // Preview & Request Approval never proceeds while invalid.
+        }
+        if (errorEl) {
+          errorEl.style.display = 'none';
+          errorEl.textContent = '';
+        }
+
         const pad = (n) => String(n).padStart(2, '0');
         const toLocalIso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+        const endDate = new Date(result.startDate.getTime() + durationMinutes * 60000);
 
+        // Whatever is in the form right now — extracted-and-untouched,
+        // extracted-and-edited, or filled in from blank — becomes the exact
+        // canonical payload. Nothing here is re-derived from the original
+        // prompt again.
         const payload = {
           calendarId: 'primary',
-          summary: document.getElementById('cal-title').value.trim(),
+          summary: titleRaw.trim(),
           description: document.getElementById('cal-description').value,
-          start: toLocalIso(startDate),
+          start: toLocalIso(result.startDate),
           end: toLocalIso(endDate),
           timezone,
-          attendees: document.getElementById('cal-attendees').value.split(',').map((e) => e.trim()).filter(Boolean),
+          attendees: result.attendees,
           conferenceData: document.getElementById('cal-meet-link').checked,
         };
         requestCalendarApproval(payload);
@@ -1094,6 +1124,7 @@
           }
           approval.status = approved.status;
           addTimelineEntry('Approved', approval.approvalId);
+          addTimelineEntry('Execution started', approval.approvalId);
 
           // Step 7: execute with the exact canonicalPayload the approval API
           // returned — never the locally-composed `payload` variable.
