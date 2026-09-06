@@ -21,14 +21,31 @@
 
   var FLOW_STAGES = ['User message', 'Plan Preview', 'Plan Resolution', 'Approval Card', 'Human Approval', 'Execution', 'Result'];
 
+  // Modal dismissal state: which element to return focus to on close, the
+  // per-open Escape/Tab-trap keydown handler (added on open, removed on
+  // close), and a lock/unlock state machine for the background scroll —
+  // see public/modal-behavior.js for why this is a small state machine
+  // rather than a single `document.body.style.overflow = ''` on close.
+  let ambientModalTriggerElement = null;
+  let ambientModalKeydownHandler = null;
+  const ambientBodyScrollLock = window.NAGEX_MODAL_BEHAVIOR ? window.NAGEX_MODAL_BEHAVIOR.createScrollLock() : null;
+
   function updateFlowStage(stageLabel) {
     const el = document.getElementById('ambient-flow-stepper');
+    const statusEl = document.getElementById('ambient-modal-status');
+    if (statusEl) statusEl.textContent = stageLabel || '';
     if (!el) return;
     const activeIdx = FLOW_STAGES.indexOf(stageLabel);
     el.innerHTML = FLOW_STAGES.map((s, idx) => {
       const cls = idx === activeIdx ? 'flow-stage active' : idx < activeIdx ? 'flow-stage done' : 'flow-stage';
       return `<span class="${cls}">${escapeHtml(s)}</span>`;
     }).join('');
+  }
+
+  function getFocusableElements(container) {
+    if (!container) return [];
+    const selector = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    return Array.from(container.querySelectorAll(selector)).filter((el) => el.offsetParent !== null);
   }
 
   function resetAmbientFlowUi() {
@@ -511,11 +528,26 @@
     const btnCancel = document.getElementById('btn-ambient-cancel');
     const btnRun = document.getElementById('btn-ambient-run');
     const btnVoice = document.getElementById('btn-ambient-voice-toggle');
+    const backdrop = document.getElementById('ambient-overlay-backdrop');
 
     if (btnFloat) btnFloat.onclick = () => openAmbientOverlay();
     if (btnHeader) btnHeader.onclick = () => openAmbientOverlay();
+    // X button and footer "Close" button: both only ever dismiss the UI —
+    // closeAmbientOverlay() never approves/rejects/executes anything.
     if (btnClose) btnClose.onclick = closeAmbientOverlay;
     if (btnCancel) btnCancel.onclick = closeAmbientOverlay;
+
+    // Backdrop click closes the modal, but only when the click lands on the
+    // backdrop itself — a click that starts or ends inside the modal (a
+    // descendant of the backdrop) must never close it.
+    if (backdrop) {
+      backdrop.addEventListener('click', (event) => {
+        const isBackdropClick = window.NAGEX_MODAL_BEHAVIOR
+          ? window.NAGEX_MODAL_BEHAVIOR.isBackdropSelfClick(event.target, backdrop)
+          : event.target === backdrop;
+        if (isBackdropClick) closeAmbientOverlay();
+      });
+    }
 
     if (btnVoice) {
       btnVoice.onclick = () => {
@@ -550,11 +582,15 @@
 
   function openAmbientOverlay(initialPrompt = '') {
     const backdrop = document.getElementById('ambient-overlay-backdrop');
+    const modal = document.getElementById('ambient-sheet-modal');
     const input = document.getElementById('ambient-prompt-input');
     const progress = document.getElementById('ambient-progress-container');
     const preview = document.getElementById('ambient-plan-preview');
     const resolution = document.getElementById('ambient-resolution-card');
     const result = document.getElementById('ambient-result-card');
+
+    // Remember what had focus so it can be restored when the modal closes.
+    ambientModalTriggerElement = document.activeElement;
 
     if (backdrop) backdrop.style.display = 'flex';
     if (input) input.value = initialPrompt || 'Prepare my next client meeting and schedule it.';
@@ -563,11 +599,63 @@
     if (resolution) resolution.style.display = 'none';
     if (result) result.style.display = 'none';
     resetAmbientFlowUi();
+
+    if (ambientBodyScrollLock) ambientBodyScrollLock.lock(document.body.style.overflow);
+    document.body.style.overflow = 'hidden';
+
+    // Move focus into the modal, and trap it there (Tab/Shift+Tab wrap
+    // around) until the modal closes; Escape closes it from anywhere.
+    const btnClose = document.getElementById('btn-close-ambient');
+    if (btnClose) btnClose.focus();
+
+    ambientModalKeydownHandler = (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeAmbientOverlay();
+        return;
+      }
+      if (event.key === 'Tab' && modal && window.NAGEX_MODAL_BEHAVIOR) {
+        const focusable = getFocusableElements(modal);
+        const target = window.NAGEX_MODAL_BEHAVIOR.computeFocusTrapTarget(focusable, document.activeElement, event.shiftKey);
+        if (target) {
+          event.preventDefault();
+          target.focus();
+        }
+      }
+    };
+    document.addEventListener('keydown', ambientModalKeydownHandler, true);
   }
 
+  // Dismisses the Ambient Assistant / Plan Preview modal only — this must
+  // never approve, reject, or execute anything, and must never leave the
+  // page in a broken state (locked scroll, dangling key handler, lost
+  // focus), no matter which of the four dismissal paths (X, footer Close,
+  // Escape, backdrop click) triggered it, or how many times it is called.
   function closeAmbientOverlay() {
     const backdrop = document.getElementById('ambient-overlay-backdrop');
     if (backdrop) backdrop.style.display = 'none';
+
+    if (ambientBodyScrollLock) {
+      const restore = ambientBodyScrollLock.unlock();
+      if (restore !== null) document.body.style.overflow = restore;
+    } else {
+      document.body.style.overflow = '';
+    }
+
+    if (ambientModalKeydownHandler) {
+      document.removeEventListener('keydown', ambientModalKeydownHandler, true);
+      ambientModalKeydownHandler = null;
+    }
+
+    if (state.approvalCountdownTimer) {
+      clearInterval(state.approvalCountdownTimer);
+      state.approvalCountdownTimer = null;
+    }
+
+    if (ambientModalTriggerElement && typeof ambientModalTriggerElement.focus === 'function' && document.contains(ambientModalTriggerElement)) {
+      ambientModalTriggerElement.focus();
+    }
+    ambientModalTriggerElement = null;
   }
 
   function openApprovalModal(appr) {

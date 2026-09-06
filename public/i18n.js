@@ -24,6 +24,9 @@
 
       // Ambient Assistant Overlay
       'ambient.title': 'NAgex Ambient Assistant',
+      'ambient.modalTitle': 'Plan Preview',
+      'ambient.close': 'Close',
+      'ambient.pressEscToClose': 'Press Esc to close',
       'ambient.listening': 'Listening... "What would you like me to do?"',
       'ambient.understood': 'I understood:',
       'ambient.plan': 'Mini Plan',
@@ -163,6 +166,9 @@
 
       // Ambient Assistant Overlay
       'ambient.title': 'NAgex 앰비언트 어시스턴트',
+      'ambient.modalTitle': '계획 미리보기',
+      'ambient.close': '닫기',
+      'ambient.pressEscToClose': 'Esc 키를 눌러 닫기',
       'ambient.listening': '음성 듣는 중... "어떤 작업을 수행할까요?"',
       'ambient.understood': '인식된 요청:',
       'ambient.plan': '미니 플랜',

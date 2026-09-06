@@ -853,15 +853,17 @@
 
     <!-- AMBIENT ASSISTANT OVERLAY SHEET (MOCKUP IMAGE 1) -->
     <div class="ambient-overlay-backdrop" id="ambient-overlay-backdrop" style="display:none;">
-      <div class="ambient-sheet-modal">
+      <div class="ambient-sheet-modal" id="ambient-sheet-modal" role="dialog" aria-modal="true" aria-labelledby="ambient-modal-title">
         <div class="ambient-sheet-header">
           <div class="ambient-brand-title">
             <img src="assets/nagex-compact-logo.png" alt="NAgex" class="nagex-compact-logo ambient-logo">
+            <h2 class="ambient-modal-title" id="ambient-modal-title" data-i18n="ambient.modalTitle">Plan Preview</h2>
+            <span class="ambient-modal-status" id="ambient-modal-status"></span>
           </div>
-          <button class="ambient-close-btn" id="btn-close-ambient">&times;</button>
+          <button class="ambient-close-btn" id="btn-close-ambient" type="button" aria-label="Close" data-i18n-aria-label="ambient.close">&times;</button>
         </div>
 
-        <div class="ambient-sheet-body">
+        <div class="ambient-sheet-body" id="ambient-sheet-body">
           <!-- Ambient Assistant flow stepper: User message -> Plan Preview ->
                Plan Resolution -> Approval Card -> Human Approval -> Execution -> Result -->
           <div class="ambient-flow-stepper" id="ambient-flow-stepper" aria-live="polite"></div>
@@ -965,6 +967,11 @@
             <p id="ambient-result-text"></p>
           </section>
         </div>
+
+        <div class="ambient-sheet-footer">
+          <span class="ambient-esc-hint" data-i18n="ambient.pressEscToClose">Press Esc to close</span>
+          <button class="btn-ambient-footer-close" id="btn-ambient-cancel" type="button" data-i18n="ambient.close">Close</button>
+        </div>
       </div>
     </div>
 
@@ -1014,6 +1021,7 @@
   <script src="plan-resolution-view.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="calendar-approval-view.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="calendar-intent-extraction.js?v=__NAGEX_BUILD_VERSION__"></script>
+  <script src="modal-behavior.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="app.js?v=__NAGEX_BUILD_VERSION__"></script>
 </body>
 </html>
