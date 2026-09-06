@@ -78,12 +78,39 @@
     }
   }
 
-  // `dedupeId` should be a stable identity for the thing this event is
-  // about (a plan's requestId, an approval's approvalId) — passing one
-  // ensures the same lifecycle event for that same plan/approval is only
-  // ever recorded once. Omit it for events that are inherently one-off.
-  function addTimelineEntry(label, dedupeId) {
-    if (ambientTimelineDeduper && !ambientTimelineDeduper.shouldLog(label, dedupeId)) return;
+  // Dev/test-only debug instrumentation: never logs payload contents, tool
+  // arguments, or secrets — only the lifecycle key, label, which function
+  // produced this emit attempt, and whether it was actually recorded or
+  // suppressed as a duplicate. Gated so it never runs against a real
+  // deployed origin by accident; opt in locally with ?debugTimeline=1.
+  function isTimelineDebugEnabled() {
+    try {
+      if (new URLSearchParams(window.location.search).has('debugTimeline')) return true;
+      return window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function logTimelineDebug(info) {
+    if (!isTimelineDebugEnabled()) return;
+    // eslint-disable-next-line no-console
+    console.debug('[NAgex timeline]', info);
+  }
+
+  // lifecycleKey must be a single, fully-formed, deterministic identity —
+  // never a timestamp — such as `plan:${planId}:created` or
+  // `approval:${approvalId}:requested` (see timeline-dedupe.js). Passing one
+  // ensures the same lifecycle stage for that same plan/approval/execution
+  // is only ever recorded once, no matter which function or how many times
+  // it is called. `producer` is a short string naming the calling function,
+  // surfaced only in the debug log above — it plays no role in dedup.
+  function addTimelineEntry(label, lifecycleKey, producer) {
+    if (ambientTimelineDeduper && !ambientTimelineDeduper.shouldLog(lifecycleKey)) {
+      logTimelineDebug({ lifecycleKey, eventType: label, producer, outcome: 'suppressed-duplicate' });
+      return;
+    }
+    logTimelineDebug({ lifecycleKey, eventType: label, producer, outcome: 'recorded' });
     const timeline = document.getElementById('ambient-timeline');
     const list = document.getElementById('ambient-timeline-list');
     if (!timeline || !list) return;
@@ -622,8 +649,10 @@
     const text = input.value.trim();
     if (!text) return;
     input.value = '';
+    // Focus is restored once runAmbientTask finishes and re-enables the
+    // controls (see its `finally` block) — focusing here would be a no-op,
+    // since the input is disabled for the duration of the request.
     runAmbientTask(text);
-    input.focus();
   }
 
   function openAmbientOverlay() {
@@ -729,11 +758,25 @@
     if (backdrop) backdrop.style.display = 'none';
   }
 
+  // Disables every real trigger surface for the duration of a generation —
+  // not a timer/debounce, purely tied to ambientRunGuard's actual busy
+  // state — so a user physically cannot fire a second submission while one
+  // is in flight, on top of (not instead of) the guard itself rejecting a
+  // re-entrant call.
+  function setAmbientRunControlsDisabled(disabled) {
+    const ids = ['ambient-prompt-input', 'btn-ambient-run', 'home-prompt-input', 'btn-home-prompt-send'];
+    ids.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.disabled = disabled;
+    });
+  }
+
   async function runAmbientTask(promptText) {
     // Single-flight: while one generation is in flight, ignore any further
     // trigger rather than starting a second, legitimately-different plan
     // for what the user perceives as one action.
     if (ambientRunGuard && !ambientRunGuard.tryEnter()) return;
+    setAmbientRunControlsDisabled(true);
     try {
       const progress = document.getElementById('ambient-progress-container');
       const fill = document.getElementById('ambient-progress-fill');
@@ -765,7 +808,7 @@
       if (text) text.textContent = `Plan ready via ${res.provider} · ${res.model} · ${res.latencyMs}ms`;
 
       updateFlowStage('Plan Preview');
-      addTimelineEntry('Plan created', res.requestId);
+      addTimelineEntry('Plan created', `plan:${res.requestId}:created`, 'runAmbientTask');
 
       if (preview && planSteps && res.plan) {
         preview.style.display = 'block';
@@ -788,6 +831,10 @@
       }
     } finally {
       if (ambientRunGuard) ambientRunGuard.exit();
+      setAmbientRunControlsDisabled(false);
+      const input = document.getElementById('ambient-prompt-input');
+      const backdrop = document.getElementById('ambient-overlay-backdrop');
+      if (input && backdrop && backdrop.style.display !== 'none') input.focus();
     }
   }
 
@@ -818,7 +865,7 @@
     }
 
     updateFlowStage('Plan Resolution');
-    addTimelineEntry('Plan resolved', planId);
+    addTimelineEntry('Plan resolved', `plan:${planId}:resolved`, 'resolvePlanIntoUi');
 
     const vm = view.buildResolutionViewModel(resolved);
 
@@ -1084,7 +1131,7 @@
     }
 
     if (form) form.style.display = 'none';
-    addTimelineEntry('Approval requested', approval.approvalId);
+    addTimelineEntry('Approval requested', `approval:${approval.approvalId}:requested`, 'requestCalendarApproval');
     updateFlowStage('Approval Card');
     updateFlowStage('Human Approval');
 
@@ -1109,7 +1156,7 @@
           updateFlowStage('Result');
           if (rejected && !rejected.error && rejected.status === 'REJECTED') {
             approval.status = 'REJECTED';
-            addTimelineEntry('Rejected', approval.approvalId);
+            addTimelineEntry('Rejected', `approval:${approval.approvalId}:rejected`, 'btnReject.onclick');
             const el = statusEl();
             if (el) el.textContent = 'Rejected';
           } else {
@@ -1144,8 +1191,8 @@
             return; // no create-event call is ever made without a successful approve
           }
           approval.status = approved.status;
-          addTimelineEntry('Approved', approval.approvalId);
-          addTimelineEntry('Execution started', approval.approvalId);
+          addTimelineEntry('Approved', `approval:${approval.approvalId}:approved`, 'btnApprove.onclick');
+          addTimelineEntry('Execution started', `execution:${approval.approvalId}:started`, 'btnApprove.onclick');
 
           // Step 7: execute with the exact canonicalPayload the approval API
           // returned — never the locally-composed `payload` variable.
@@ -1157,7 +1204,7 @@
           updateFlowStage('Result');
 
           if (result && result.status === 'SUCCEEDED') {
-            addTimelineEntry('Calendar event created', approval.approvalId);
+            addTimelineEntry('Calendar event created', `execution:${result.executionId}:succeeded`, 'btnApprove.onclick');
             renderCalendarSuccessCard(slot, approval, result, view);
             return;
           }
@@ -1187,23 +1234,32 @@
       const vmView = render();
       if (vmView.status === 'EXPIRED') {
         stopCountdown();
-        addTimelineEntry('Approval expired', approval.approvalId);
+        addTimelineEntry('Approval expired', `approval:${approval.approvalId}:expired`, 'countdown-interval');
       }
     }, 1000);
   }
 
+  // The "▶ Run" button lives inside the ambient overlay's static example
+  // conversation, right next to the real composer. It used to call
+  // runAmbientTask() directly with a hardcoded prompt — a second, redundant
+  // producer of plan generations reachable from the same view as the real
+  // composer, with no visible link between "I clicked Run" and "a new plan
+  // appeared", which is exactly the kind of surface that produces confusing
+  // duplicate-looking timeline entries (two genuinely different plans, both
+  // triggered from the one open overlay, both using the same example text).
+  // It now only fills and focuses the composer, so submitting the example
+  // always goes through the one real path (Enter / Send).
   function initPrimaryScenario() {
-    const btnHero = document.getElementById('btn-run-primary-scenario');
     const btnAmbientPlan = document.getElementById('btn-run-ambient-plan');
-    const runPrimaryScenario = () => {
-      const scenarioPrompt = 'Prepare my next client meeting and schedule it.';
-      openAmbientOverlay();
-      runAmbientTask(scenarioPrompt);
-    };
-    if (btnHero) {
-      btnHero.onclick = runPrimaryScenario;
+    if (btnAmbientPlan) {
+      btnAmbientPlan.onclick = () => {
+        const input = document.getElementById('ambient-prompt-input');
+        if (input) {
+          input.value = 'Prepare my next client meeting and schedule it.';
+          input.focus();
+        }
+      };
     }
-    if (btnAmbientPlan) btnAmbientPlan.onclick = runPrimaryScenario;
   }
 
   function sleep(ms) {

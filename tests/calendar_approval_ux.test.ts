@@ -85,25 +85,26 @@ test('item 6: the activity timeline is wired for the full expected order, includ
     const appJs = await (await fetch(`${origin}/app.js`)).text();
 
     // Plan created / Plan resolved happen in the plan-generation/resolution
-    // functions with the SAME plan identity (res.requestId / planId).
+    // functions, keyed by the SAME plan identity (res.requestId / planId)
+    // via an explicit canonical lifecycle key.
     const runTaskBody = extractFunctionBody(appJs, 'async function runAmbientTask(');
-    assert.match(runTaskBody, /addTimelineEntry\('Plan created', res\.requestId\)/);
+    assert.match(runTaskBody, /addTimelineEntry\('Plan created', `plan:\$\{res\.requestId\}:created`/);
 
     const resolveBody = extractFunctionBody(appJs, 'async function resolvePlanIntoUi(');
-    assert.match(resolveBody, /addTimelineEntry\('Plan resolved', planId\)/);
+    assert.match(resolveBody, /addTimelineEntry\('Plan resolved', `plan:\$\{planId\}:resolved`/);
     // resolvePlanIntoUi must never log "Plan created" itself — only
     // runAmbientTask does, once, per generated plan.
     assert.doesNotMatch(resolveBody, /addTimelineEntry\('Plan created'/);
 
-    assert.match(appJs, /addTimelineEntry\('Approval requested', approval\.approvalId\)/);
-    assert.match(appJs, /addTimelineEntry\('Approved', approval\.approvalId\)/);
-    assert.match(appJs, /addTimelineEntry\('Execution started', approval\.approvalId\)/);
-    assert.match(appJs, /addTimelineEntry\('Calendar event created', approval\.approvalId\)/);
+    assert.match(appJs, /addTimelineEntry\('Approval requested', `approval:\$\{approval\.approvalId\}:requested`/);
+    assert.match(appJs, /addTimelineEntry\('Approved', `approval:\$\{approval\.approvalId\}:approved`/);
+    assert.match(appJs, /addTimelineEntry\('Execution started', `execution:\$\{approval\.approvalId\}:started`/);
+    assert.match(appJs, /addTimelineEntry\('Calendar event created', `execution:\$\{result\.executionId\}:succeeded`/);
 
     // Approved must be logged before Execution started, which must be
     // logged before the create-event call.
-    const approvedIdx = appJs.indexOf("addTimelineEntry('Approved', approval.approvalId)");
-    const executionIdx = appJs.indexOf("addTimelineEntry('Execution started', approval.approvalId)");
+    const approvedIdx = appJs.indexOf("addTimelineEntry('Approved', `approval:${approval.approvalId}:approved`");
+    const executionIdx = appJs.indexOf("addTimelineEntry('Execution started', `execution:${approval.approvalId}:started`");
     const createEventIdx = appJs.indexOf("apiFetch('/api/v1/tools/google-calendar/create-event'");
     assert.ok(approvedIdx > 0 && executionIdx > approvedIdx && createEventIdx > executionIdx, 'expected Approved -> Execution started -> create-event call, in that source order');
   });

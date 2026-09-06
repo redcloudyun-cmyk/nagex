@@ -73,8 +73,14 @@ test('submitting the composer clears it (placeholder returns) and hands the capt
     assert.ok(captureIdx >= 0 && clearIdx >= 0 && runIdx >= 0, 'expected capture, clear, and run steps in submitAmbientComposerInput');
     assert.ok(captureIdx < clearIdx && clearIdx < runIdx, 'expected capture -> clear -> run order');
 
-    // Input remains focused after submit.
-    assert.match(body, /input\.focus\(\)/);
+    // The composer is disabled for the duration of the request (see
+    // runAmbientTask's setAmbientRunControlsDisabled), so focusing it here
+    // would be a no-op; focus is restored once runAmbientTask's `finally`
+    // re-enables the controls.
+    const runTaskStart = appJs.indexOf('async function runAmbientTask(');
+    const runTaskNext = appJs.indexOf('\n  async function resolvePlanIntoUi(', runTaskStart + 1);
+    const runTaskBody = runTaskNext > runTaskStart ? appJs.slice(runTaskStart, runTaskNext) : appJs.slice(runTaskStart);
+    assert.match(runTaskBody, /input\.focus\(\)/);
   });
 });
 
@@ -86,19 +92,24 @@ test('Enter submits the composer; Shift+Enter is left alone (no custom newline h
   });
 });
 
-test('nothing in app.js ever restores the demo sentence into any input value, and nothing clears an input merely on focus', async () => {
+test('opening the overlay never re-injects the demo sentence, and nothing clears an input merely on focus', async () => {
   await withServer(async (origin) => {
     const appJs = await (await fetch(`${origin}/app.js`)).text();
 
-    // The demo sentence must never again be assigned as an element's .value
-    // anywhere in the client bundle — every remaining reference to it is the
-    // quick-action/scenario prompt text handed straight to runAmbientTask(),
-    // never to an input element.
-    assert.doesNotMatch(appJs, /\.value\s*=\s*['"]Prepare my next client meeting/);
+    // openAmbientOverlay() must always leave the composer empty — the demo
+    // sentence is only ever placed into it by an explicit, separate user
+    // click (initPrimaryScenario's "▶ Run" -> fill-the-composer action,
+    // covered in tests/plan_lifecycle_timeline.test.ts), never automatically
+    // on open/render/hydration.
+    const openStart = appJs.indexOf('function openAmbientOverlay(');
+    const openNext = appJs.indexOf('\n  function ', openStart + 1);
+    const openBody = openNext > openStart ? appJs.slice(openStart, openNext) : appJs.slice(openStart);
+    assert.doesNotMatch(openBody, /Prepare my next client meeting/);
+    assert.match(openBody, /input\.value = ''/);
 
     // No focus/focusin handler exists at all — the only way an input's value
-    // ever changes in this app is the user typing or a submit clearing it,
-    // never a focus event.
+    // ever changes in this app is the user typing, an explicit example-fill
+    // click, or a submit clearing it — never a focus event.
     assert.doesNotMatch(appJs, /addEventListener\(\s*['"]focus/);
   });
 });
