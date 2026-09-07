@@ -549,6 +549,63 @@ In addition to Section 12, a new Gateway/Tasks feature must also answer:
 12. Does current intent take priority over memory?
 13. Is execution replay-safe?
 
+### 14.9 Personal Workspace, Quick Capture, NAgex Inbox, & Personal Cloud Vault Specification
+
+Adopted 2026-09-07 from the NAgex Personal Workspace Planning Directive.
+
+NAgex Personal Workspace unifies raw human input (audio recordings, URL links, screenshots, PDFs/documents, transient thoughts, voice memos, meeting candidates, email snippets) into a single Personal AI system with structured processing, persistent cloud vaulting, and seamless linkage to Tasks, Calendar, Memory, and Knowledge.
+
+```text
+Any Input (Voice / Audio / File / URL / Text / Image)
+   ↓
+Quick Capture (Desktop / Mobile / Web / Channel)
+   ↓
+NAgex Inbox (CAPTURED → UPLOADING → PROCESSING → READY / NEEDS_REVIEW)
+   ↓
+AI Processing Pipeline (Extract Context, Entities, Intent)
+   ↓
+Personal Cloud Vault (Canonical Storage + Knowledge Vector Index)
+   ↓
+Automated Relationships (Task Creation / Calendar Event / Memory Update)
+```
+
+#### 1. Personal Workspace Core Concepts
+
+- **Quick Capture**: Frictionless, single-action entry point accessible from Desktop Quick Wake, Mobile Sheet, Web Composer, or Messaging (Telegram/Slack).
+- **NAgex Inbox**: The single triage hub where all captured items land in truthful processing states before or after automated AI enrichment.
+- **Personal Cloud Vault**: The user's cloud-first canonical repository for captured media, documents, links, and structured notes, equipped with local offline caching.
+- **Home Redesign**: Dominant Main Canvas with a collapsed 56–64px sidebar, reduced hero height, dynamic canvas width modes (Chat 850–1000px, Task/Research 1200–1440px, Full Width Browser/Doc), and zero decorative emoji/KPI clutter.
+
+#### 2. Truthful Processing Lifecycle States
+
+Every capture item progresses through explicit, observable states:
+
+```text
+CAPTURED → UPLOADING → PROCESSING → READY / NEEDS_REVIEW → ACTIONED / ARCHIVED
+                                      └─→ FAILED
+```
+
+- `CAPTURED`: Raw input received locally or via channel API.
+- `UPLOADING`: Media or binary payload syncing to Personal Cloud Vault.
+- `PROCESSING`: AI Pipeline extracting metadata, entities, summary, and action items.
+- `READY`: Processing complete; insights mapped to Memory/Vault.
+- `NEEDS_REVIEW`: Action item extracted requires human review/confirmation.
+- `ACTIONED`: User or agent converted capture into a Task, Calendar event, or Knowledge item.
+- `FAILED`: Processing or upload encountered an explicit error.
+- `ARCHIVED`: Archived item stored permanently in Personal Cloud Vault.
+
+#### 3. Capture → System Relationships
+
+- **Capture → Task**: Extracted action items generate standing or one-time Tasks in the Tasks Center.
+- **Capture → Calendar**: Dates, candidates, and meeting notes populate Calendar intent slots.
+- **Capture → Memory**: Long-term preferences, project facts, and key facts enrich `MemoryEngine`.
+- **Capture → Knowledge**: Documents and long-form texts index into `KnowledgeEngine` for deep RAG retrieval.
+
+#### 4. Multi-Surface Capture & Storage Architecture
+
+- **Surfaces**: Desktop Quick Wake (Hotkey Alt+N), Web Canvas ("Ask or drop anything here..."), Mobile App Ambient Sheet, Telegram/Slack Bot forwarding.
+- **Cloud-First + Local Offline Layer**: All capture metadata and binary artifacts store canonical copies in encrypted cloud storage with local offline sync buffers for instant desktop responsiveness.
+
 ## 15. Final Product Position
 
 ```text

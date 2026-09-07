@@ -54,6 +54,8 @@ import { SlackService } from './integrations/slack/slack.service.js';
 import { NotificationStore } from './notifications/notification.store.js';
 import { NotificationEngine } from './notifications/notification.engine.js';
 import { DesktopRuntimeEngine } from './desktop/desktop-runtime.engine.js';
+import { captureStore } from './workspace/capture.store.js';
+import { QuickCaptureService } from './workspace/quick-capture.service.js';
 
 const PORT = Number(process.env.PORT || 8085);
 const PUBLIC_DIR = path.join(process.cwd(), 'public');
@@ -133,6 +135,9 @@ const taskRunner = new CompositeTaskRunner(
   new ConditionalWatchTaskRunner(browserService, aiService),
   new BackgroundTaskRunner(taskStore, aiService, planResolver, (principalId, prompt) => getRelevantMemories(principalId, prompt)),
 );
+
+// ─── MASTER.md Section 14.9 — NAgex Personal Workspace Core ───
+export const quickCaptureService = new QuickCaptureService(captureStore, taskStore, memoryEngine);
 
 // ─── MASTER.md Section 14 — Telegram Integration (Item 10) ───
 export const telegramIdentityStore = new TelegramIdentityStore();
@@ -569,6 +574,35 @@ export async function handleAsyncApiRequest(
       await googleTokenStore.revoke(tid, fetch, requestId);
       auditLogger.logEvent({ actor: { type: 'user', id: principalId }, tenant_id: tid, action: 'oauth:google_disconnected', resource: { type: 'OAuthConnection', id: 'google_calendar' }, result: 'SUCCESS', request_id: requestId });
       return { status: 200, data: googleTokenStore.getStatus(tid) };
+    }
+    if (pathname === '/api/v1/workspace/capture' && method === 'POST') {
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const result = await quickCaptureService.capture({
+        ownerId,
+        tenantId,
+        type: (typeof body?.type === 'string' ? body.type : 'TEXT') as any,
+        content: typeof body?.content === 'string' ? body.content : '',
+        source: (typeof body?.source === 'string' ? body.source : 'WEB') as any,
+        originalName: typeof body?.originalName === 'string' ? body.originalName : undefined,
+        mimeType: typeof body?.mimeType === 'string' ? body.mimeType : undefined,
+        sizeBytes: typeof body?.sizeBytes === 'number' ? body.sizeBytes : undefined,
+      });
+      return { status: 201, data: result };
+    }
+    if (pathname === '/api/v1/workspace/inbox' && method === 'GET') {
+      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      return { status: 200, data: quickCaptureService.getInboxSummary(ownerId) };
+    }
+    if (pathname === '/api/v1/workspace/vault' && method === 'GET') {
+      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      return { status: 200, data: quickCaptureService.getVaultSummary(ownerId) };
+    }
+    if (pathname.startsWith('/api/v1/workspace/capture/') && method === 'PATCH') {
+      const captureId = pathname.slice('/api/v1/workspace/capture/'.length);
+      const actionType = body?.status as 'ACTIONED' | 'ARCHIVED';
+      const updated = await quickCaptureService.actionCapture(captureId, actionType ?? 'ACTIONED');
+      return { status: 200, data: updated };
     }
     if (pathname === '/api/v1/plans/resolve' && method === 'POST') {
       const candidate = body?.plan && typeof body.plan === 'object' ? body.plan : body;

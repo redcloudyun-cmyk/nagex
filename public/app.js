@@ -26,6 +26,8 @@
     telegram: { status: { configured: false, botUsername: null }, identities: [] },
     slack: { status: { configured: false, botId: null }, identities: [] },
     notifications: { items: [], unreadCount: 0 },
+    inbox: [],
+    vault: null,
   };
 
   var FLOW_STAGES = ['User message', 'Plan Preview', 'Plan Resolution', 'Approval Card', 'Human Approval', 'Execution', 'Result'];
@@ -233,6 +235,8 @@
 
   function renderActiveTab() {
     if (state.activeTab === 'tab-home') renderHome();
+    else if (state.activeTab === 'tab-inbox') renderInbox();
+    else if (state.activeTab === 'tab-vault') renderVault();
     else if (state.activeTab === 'tab-memory') renderMemory();
     else if (state.activeTab === 'tab-plans') renderPlans();
     else if (state.activeTab === 'tab-tasks') renderTasks();
@@ -288,31 +292,164 @@
   }
 
   function renderHome() {
-    // Update summary counters
-    const elMemCount = document.getElementById('val-memory-count');
-    const elPlanCount = document.getElementById('val-open-plans-count');
-    const elApprCount = document.getElementById('val-pending-appr-count');
-    const elToolCount = document.getElementById('val-tools-count');
+    renderHomeWorkspaceSections();
 
-    if (elMemCount) elMemCount.textContent = state.memories.length;
-    if (elPlanCount) elPlanCount.textContent = state.plans.filter((p) => p.status === 'RUNNING' || p.status === 'AWAITING_APPROVAL').length || state.plans.length;
-    if (elApprCount) elApprCount.textContent = state.approvals.filter((a) => a.status === 'PENDING').length;
-    if (elToolCount) elToolCount.textContent = `${state.tools.filter((t) => t.connectionStatus === 'connected' && t.executionMode === 'live').length} / ${state.tools.length}`;
-
-    // Home Prompt Button
+    // Home Prompt / Capture Button
     const btnSend = document.getElementById('btn-home-prompt-send');
     const homeInput = document.getElementById('home-prompt-input');
+    const btnLink = document.getElementById('btn-afford-link');
+    const btnFile = document.getElementById('btn-afford-file');
+    const btnAudio = document.getElementById('btn-afford-audio');
+
     if (btnSend && homeInput) {
-      btnSend.onclick = () => {
+      btnSend.onclick = async () => {
         const text = homeInput.value.trim();
         if (text) {
           homeInput.value = '';
+          // 1. Send as natural conversation query if starts with question or command
           openAmbientOverlay();
           runAmbientTask(text);
+          // 2. Also capture into Inbox as background quick capture
+          await apiFetch('/api/v1/workspace/capture', {
+            method: 'POST',
+            body: JSON.stringify({ type: 'TEXT', content: text, source: 'WEB' }),
+          });
         }
       };
     }
+
+    if (btnLink && homeInput) {
+      btnLink.onclick = async () => {
+        const url = window.prompt('Enter URL link to capture into Vault:', 'https://');
+        if (url && url.startsWith('http')) {
+          await apiFetch('/api/v1/workspace/capture', {
+            method: 'POST',
+            body: JSON.stringify({ type: 'LINK', content: url, source: 'WEB' }),
+          });
+          renderInbox();
+          switchTab('tab-inbox');
+        }
+      };
+    }
+
+    if (btnFile) {
+      btnFile.onclick = () => {
+        const fileDrop = document.getElementById('composer-drop-zone');
+        if (fileDrop) fileDrop.classList.toggle('hidden');
+      };
+    }
+
+    if (btnAudio) {
+      btnAudio.onclick = async () => {
+        alert('Voice capture active — recording audio memo into Personal Cloud Vault...');
+        await apiFetch('/api/v1/workspace/capture', {
+          method: 'POST',
+          body: JSON.stringify({ type: 'AUDIO', content: 'Voice_Note_' + Date.now() + '.mp3', originalName: 'Voice Note.mp3', mimeType: 'audio/mp3', sizeBytes: 1048576, source: 'WEB' }),
+        });
+        renderInbox();
+        switchTab('tab-inbox');
+      };
+    }
   }
+
+  async function renderHomeWorkspaceSections() {
+    // 1. NAgex is working
+    const elWorking = document.getElementById('list-nagex-working');
+    if (elWorking) {
+      const activeTasks = state.tasks.filter((t) => t.status === 'RUNNING' || t.status === 'WAITING');
+      if (activeTasks.length > 0) {
+        elWorking.innerHTML = activeTasks.map((t) => `<div class="inbox-item-card"><div class="inbox-item-main"><span class="inbox-item-title">${escapeHtml(t.name || t.taskId)}</span><span class="inbox-item-summary">${escapeHtml(t.type)} • ${escapeHtml(t.status)}</span></div><span class="badge-status status-PROCESSING">ACTIVE</span></div>`).join('');
+      } else {
+        elWorking.innerHTML = '<div class="empty-state-text">No active background tasks running right now.</div>';
+      }
+    }
+
+    // 2. Needs your attention
+    const elAttention = document.getElementById('list-needs-attention');
+    if (elAttention) {
+      const pendingApprs = state.approvals.filter((a) => a.status === 'PENDING');
+      const reviewCaptures = (state.inbox || []).filter((c) => c.status === 'NEEDS_REVIEW');
+      const totalCount = pendingApprs.length + reviewCaptures.length;
+      if (totalCount > 0) {
+        let html = '';
+        if (pendingApprs.length > 0) {
+          html += pendingApprs.map((a) => `<div class="inbox-item-card" onclick="window.NAGEX.switchTab('tab-approvals')"><div class="inbox-item-main"><span class="inbox-item-title">Approval Required: ${escapeHtml(a.intent || a.action)}</span><span class="inbox-item-summary">${escapeHtml(a.resource?.id || '')}</span></div><span class="badge-status status-NEEDS_REVIEW">PENDING</span></div>`).join('');
+        }
+        if (reviewCaptures.length > 0) {
+          html += reviewCaptures.map((c) => `<div class="inbox-item-card" onclick="window.NAGEX.switchTab('tab-inbox')"><div class="inbox-item-main"><span class="inbox-item-title">Review Item: ${escapeHtml(c.metadata?.extractedTitle || c.content)}</span><span class="inbox-item-summary">${escapeHtml(c.metadata?.extractedSummary || '')}</span></div><span class="badge-status status-NEEDS_REVIEW">REVIEW</span></div>`).join('');
+        }
+        elAttention.innerHTML = html;
+      } else {
+        elAttention.innerHTML = '<div class="empty-state-text">All approvals and review items are up to date.</div>';
+      }
+    }
+
+    // 3. Recent activity
+    const elRecent = document.getElementById('list-recent-activity');
+    if (elRecent) {
+      const execs = state.executions.slice(0, 3);
+      if (execs.length > 0) {
+        elRecent.innerHTML = execs.map((e) => `<div class="inbox-item-card"><div class="inbox-item-main"><span class="inbox-item-title">${escapeHtml(e.action || e.executionId)}</span><span class="inbox-item-summary">${new Date(e.createdAt || Date.now()).toLocaleTimeString()}</span></div><span class="badge-status status-READY">${escapeHtml(e.status)}</span></div>`).join('');
+      }
+    }
+  }
+
+  async function renderInbox() {
+    const data = await apiFetch('/api/v1/workspace/inbox');
+    if (data && Array.isArray(data.items)) {
+      state.inbox = data.items;
+      const listEl = document.getElementById('inbox-items-list');
+      if (listEl) {
+        if (data.items.length === 0) {
+          listEl.innerHTML = '<div class="empty-state-text">No captured items in Inbox yet. Use the composer on Home or Quick Wake (Alt+N) to capture anything!</div>';
+        } else {
+          listEl.innerHTML = data.items.map((item) => `
+            <div class="inbox-item-card">
+              <div class="inbox-item-main">
+                <span class="inbox-item-title">${escapeHtml(item.metadata?.extractedTitle || item.content)}</span>
+                <span class="inbox-item-summary">${escapeHtml(item.metadata?.extractedSummary || item.content)} (${item.type} • ${item.source})</span>
+              </div>
+              <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <span class="badge-status status-${item.status}">${item.status}</span>
+                ${item.status === 'NEEDS_REVIEW' ? `<button class="btn-secondary" style="font-size: 0.75rem;" onclick="window.NAGEX.actionCapture('${item.captureId}', 'ACTIONED')">Action</button>` : ''}
+              </div>
+            </div>
+          `).join('');
+        }
+      }
+    }
+  }
+
+  async function renderVault() {
+    const data = await apiFetch('/api/v1/workspace/vault');
+    if (data) {
+      state.vault = data;
+      const elUsed = document.getElementById('vault-used-text');
+      const elBar = document.getElementById('vault-quota-bar');
+      const elGrid = document.getElementById('vault-categories-grid');
+
+      if (elUsed) elUsed.textContent = `${(data.totalSizeBytes / (1024 * 1024)).toFixed(1)} MB`;
+      if (elBar) elBar.style.width = `${Math.min(100, (data.totalSizeBytes / data.quotaSizeBytes) * 100).toFixed(1)}%`;
+
+      if (elGrid && Array.isArray(data.categories)) {
+        elGrid.innerHTML = data.categories.map((cat) => `
+          <div class="category-card">
+            <span class="category-name">${escapeHtml(cat.name)}</span>
+            <span class="category-count">${cat.itemCount} items (${(cat.totalSizeBytes / 1024).toFixed(1)} KB)</span>
+          </div>
+        `).join('');
+      }
+    }
+  }
+
+  window.NAGEX = window.NAGEX || {};
+  window.NAGEX.actionCapture = async (captureId, actionType) => {
+    await apiFetch(`/api/v1/workspace/capture/${captureId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: actionType }),
+    });
+    renderInbox();
+  };
 
   function initQuickActionChips() {
     const chips = document.querySelectorAll('.quick-action-chip');

@@ -1047,3 +1047,274 @@ body {
 .legal-content ul { padding-left: 1.25rem; margin-top: 0.4rem; display: flex; flex-direction: column; gap: 0.4rem; }
 .legal-content a { color: var(--primary-blue); }
 .legal-updated { color: var(--text-muted); font-size: 0.82rem; margin-bottom: 1.5rem; }
+
+/* ─── NAgex Personal Workspace & Home Canvas Redesign (2026-09-07) ─── */
+:root {
+  --bg-app: #fafbfd;
+  --bg-surface: #ffffff;
+  --text-navy: #0f172a;
+  --text-secondary: #64748b;
+  --accent-blue: #2563eb;
+  --border-subtle: #e2e8f0;
+  --shadow-subtle: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+
+/* Sidebar Collapsed Width */
+.sidebar-left {
+  width: 60px !important;
+  transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+.sidebar-left:hover {
+  width: 220px !important;
+}
+.sidebar-left .nav-link span {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  white-space: nowrap;
+}
+.sidebar-left:hover .nav-link span {
+  opacity: 1;
+}
+
+/* Dynamic Canvas Modes */
+.canvas-mode-chat { max-width: 960px; margin: 0 auto; }
+.canvas-mode-task { max-width: 1320px; margin: 0 auto; }
+.canvas-mode-doc { max-width: 100%; }
+
+/* Compact Home Hero */
+.compact-home-hero {
+  padding: 1rem 0 0.5rem;
+}
+.compact-home-hero .personal-hero-title {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--text-navy);
+}
+.compact-home-hero .personal-hero-subtitle {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+/* Unified "Ask or drop anything here..." Composer */
+.unified-capture-composer {
+  margin: 1rem 0 1.25rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 0.6rem 0.85rem;
+  box-shadow: var(--shadow-subtle);
+}
+.composer-main-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.unified-prompt-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 0.95rem;
+  color: var(--text-navy);
+  background: transparent;
+}
+.composer-affordances {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.affordance-btn {
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  padding: 0.4rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.affordance-btn:hover {
+  background: #f1f5f9;
+  color: var(--accent-blue);
+}
+.btn-primary-action {
+  background: var(--accent-blue);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.45rem 0.75rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-primary-action:hover {
+  background: #1d4ed8;
+}
+.svg-icon-sm {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+.composer-file-drop-zone {
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  border: 1.5px dashed var(--accent-blue);
+  border-radius: 8px;
+  background: #eff6ff;
+  font-size: 0.82rem;
+  color: var(--accent-blue);
+  text-align: center;
+}
+
+/* Home Canvas 4-Section Layout */
+.home-canvas-sections {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.canvas-section-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 1rem;
+  box-shadow: var(--shadow-subtle);
+}
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  color: var(--text-navy);
+}
+.section-header h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.section-content-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.empty-state-text {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  font-style: normal;
+  padding: 0.5rem 0;
+}
+
+/* Inbox & Vault View Styling */
+.view-header-bar {
+  margin-bottom: 1.25rem;
+}
+.view-header-bar h2 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--text-navy);
+}
+.view-sub {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+.inbox-toolbar {
+  margin-bottom: 1rem;
+}
+.inbox-filters {
+  display: flex;
+  gap: 0.4rem;
+}
+.filter-pill {
+  background: #f1f5f9;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.filter-pill.active {
+  background: var(--accent-blue);
+  color: #fff;
+  border-color: var(--accent-blue);
+}
+
+.inbox-item-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  margin-bottom: 0.6rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.inbox-item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.inbox-item-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-navy);
+}
+.inbox-item-summary {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+.badge-status {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+.status-READY { background: #dcfce7; color: #166534; }
+.status-NEEDS_REVIEW { background: #fef3c7; color: #92400e; }
+.status-PROCESSING { background: #dbeafe; color: #1e40af; }
+.status-CAPTURED { background: #f3f4f6; color: #374151; }
+
+.vault-quota-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1.25rem;
+}
+.quota-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: var(--text-navy);
+  margin-bottom: 0.5rem;
+}
+.quota-bar-track {
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.quota-bar-fill {
+  height: 100%;
+  background: var(--accent-blue);
+  border-radius: 3px;
+}
+.vault-categories-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.85rem;
+}
+.category-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.category-name { font-size: 0.88rem; font-weight: 600; color: var(--text-navy); }
+.category-count { font-size: 0.78rem; color: var(--text-secondary); }

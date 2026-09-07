@@ -52,6 +52,18 @@
                 <span data-i18n="nav.home">Home</span>
               </button>
             </li>
+            <li class="nav-item" data-tab="tab-inbox">
+              <button class="nav-link">
+                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5v-3h3.56c.69 1.19 1.97 2 3.44 2s2.75-.81 3.44-2H19v3zm0-5h-4.18c-.41 1.16-1.51 2-2.82 2s-2.41-.84-2.82-2H5V5h14v9z"/></svg>
+                <span data-i18n="nav.inbox">Inbox</span>
+              </button>
+            </li>
+            <li class="nav-item" data-tab="tab-vault">
+              <button class="nav-link">
+                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+                <span data-i18n="nav.vault">Cloud Vault</span>
+              </button>
+            </li>
             <li class="nav-item" data-tab="tab-memory">
               <button class="nav-link">
                 <svg class="svg-icon" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
@@ -130,85 +142,148 @@
       <!-- Center Main View Container -->
       <main class="center-canvas">
 
-        <!-- VIEW 1: DESKTOP HOME (MOCKUP IMAGE 2) -->
-        <div id="view-home" class="tab-view active-view">
-          <div class="mountain-hero-banner">
-            <div class="hero-text-col">
-              <span class="eyebrow-text">GOOD TO SEE YOU</span>
-              <h1 class="personal-hero-title">Hello, Jane 👋</h1>
-              <p class="personal-hero-subtitle">What would you like to do today?</p>
-              <p class="hero-desc-sub">NAgex is your personal AI that remembers, plans, and acts — so you can focus on what matters most.</p>
-            </div>
-            <div class="hero-handwritten-quote">
-              <em>Ideas to a brighter you.</em>
+        <!-- VIEW 1: DESKTOP HOME (CALM REDESIGN & UNIFIED COMPOSER) -->
+        <div id="view-home" class="tab-view active-view canvas-mode-chat">
+          <div class="compact-home-hero">
+            <div class="hero-text-compact">
+              <h1 class="personal-hero-title">Hello, Jane</h1>
+              <p class="personal-hero-subtitle">What would you like NAgex to do or remember today?</p>
             </div>
           </div>
 
-          <!-- Prompt Box with Mockup Styling -->
-          <div class="mockup-prompt-box">
-            <div class="prompt-input-row">
-              <span class="prompt-star-icon">✦</span>
-              <input type="text" id="home-prompt-input" class="mockup-prompt-input" placeholder="Ask NAgex anything..." value="">
-              <div class="prompt-right-tools">
-                <button class="tool-circle-btn" title="Attach file">📎</button>
-                <button class="tool-circle-btn" title="Voice input">🎙️</button>
-                <button class="btn-prompt-send-blue" id="btn-home-prompt-send" title="Send">✈️</button>
+          <!-- Unified "Ask or drop anything here..." Composer -->
+          <div class="unified-capture-composer" id="unified-composer">
+            <div class="composer-main-row">
+              <input type="text" id="home-prompt-input" class="unified-prompt-input" placeholder="Ask or drop anything here..." data-i18n-placeholder="workspace.askOrDrop" value="">
+              <div class="composer-affordances">
+                <button class="affordance-btn" id="btn-afford-link" title="Capture Link / URL">
+                  <svg class="svg-icon-sm" viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg>
+                </button>
+                <button class="affordance-btn" id="btn-afford-file" title="Upload File / Document">
+                  <svg class="svg-icon-sm" viewBox="0 0 24 24"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/></svg>
+                </button>
+                <button class="affordance-btn" id="btn-afford-audio" title="Capture Voice / Audio">
+                  <svg class="svg-icon-sm" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5zm6 6c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+                </button>
+                <button class="btn-primary-action" id="btn-home-prompt-send" title="Send or Capture">
+                  <svg class="svg-icon-sm" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                </button>
               </div>
+            </div>
+            <div class="composer-file-drop-zone hidden" id="composer-drop-zone">
+              <span>Drop files here to capture into Personal Cloud Vault...</span>
             </div>
           </div>
 
           <!-- Quick Action Chips -->
           <div class="quick-actions-row">
-            <span class="quick-action-chip" data-action="plan-day">☀️ <span data-i18n="home.actionPlanDay">Plan my day</span></span>
-            <span class="quick-action-chip" data-action="summarize-notes">📝 <span data-i18n="home.actionSummarizeNotes">Summarize my notes</span></span>
-            <span class="quick-action-chip" data-action="prepare-meeting">👥 <span data-i18n="home.actionPrepareMeeting">Prepare for a meeting</span></span>
-            <span class="quick-action-chip" data-action="research-topic">🔍 <span data-i18n="home.actionResearchTopic">Research a topic</span></span>
-            <span class="quick-action-chip" data-action="execute-task">⚡ <span data-i18n="home.actionExecuteTask">Execute a task</span></span>
-            <span class="hero-quote-side">"A calmer mind. A more intentional tomorrow." — NAgex</span>
+            <span class="quick-action-chip" data-action="plan-day"><span data-i18n="home.actionPlanDay">Plan my day</span></span>
+            <span class="quick-action-chip" data-action="summarize-notes"><span data-i18n="home.actionSummarizeNotes">Summarize notes</span></span>
+            <span class="quick-action-chip" data-action="prepare-meeting"><span data-i18n="home.actionPrepareMeeting">Prepare meeting</span></span>
+            <span class="quick-action-chip" data-action="research-topic"><span data-i18n="home.actionResearchTopic">Research topic</span></span>
           </div>
 
-          <!-- 4 Summary Cards Grid (Mockup Image 2) -->
-          <div class="status-summary-grid">
-            <div class="status-mini-card green-theme" onclick="window.NAGEX.switchTab('tab-memory')">
-              <div class="card-icon-circle green">🛢️</div>
-              <div class="card-summary-info">
-                <span class="status-mini-title">Memory</span>
-                <span class="status-mini-val">Active</span>
-                <span class="status-mini-sub">Remembers what matters</span>
+          <!-- Home Canvas 4-Section Layout -->
+          <div class="home-canvas-sections">
+            <!-- 1. NAgex is Working -->
+            <div class="canvas-section-card">
+              <div class="section-header">
+                <svg class="svg-icon-sm" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.2 14.2L11 13V7h1.5v5.2l4.5 2.7-.8 1.3z"/></svg>
+                <h3 data-i18n="workspace.working">NAgex is working</h3>
               </div>
-              <span class="arrow-nav">&gt;</span>
+              <div class="section-content-list" id="list-nagex-working">
+                <div class="empty-state-text">No active background tasks running right now.</div>
+              </div>
             </div>
 
-            <div class="status-mini-card blue-theme" onclick="window.NAGEX.switchTab('tab-plans')">
-              <div class="card-icon-circle blue">📅</div>
-              <div class="card-summary-info">
-                <span class="status-mini-title">Open plans</span>
-                <span class="status-mini-val">3</span>
-                <span class="status-mini-sub">2 for today • 1 upcoming</span>
+            <!-- 2. Needs Your Attention -->
+            <div class="canvas-section-card">
+              <div class="section-header">
+                <svg class="svg-icon-sm" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-5.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
+                <h3 data-i18n="workspace.attention">Needs your attention</h3>
               </div>
-              <span class="arrow-nav">&gt;</span>
+              <div class="section-content-list" id="list-needs-attention">
+                <div class="empty-state-text">All approvals and review items are up to date.</div>
+              </div>
             </div>
 
-            <div class="status-mini-card orange-theme" onclick="window.NAGEX.switchTab('tab-approvals')">
-              <div class="card-icon-circle orange">🛡️</div>
-              <div class="card-summary-info">
-                <span class="status-mini-title">Pending approvals</span>
-                <span class="status-mini-val warning">2</span>
-                <span class="status-mini-sub">Tasks waiting for your OK</span>
+            <!-- 3. Today -->
+            <div class="canvas-section-card">
+              <div class="section-header">
+                <svg class="svg-icon-sm" viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z"/></svg>
+                <h3 data-i18n="workspace.today">Today</h3>
               </div>
-              <span class="arrow-nav">&gt;</span>
+              <div class="section-content-list" id="list-today-summary">
+                <div class="agenda-item-row">
+                  <span class="badge-time">09:00 AM</span>
+                  <span class="agenda-text">Review Nebius & NVIDIA hackathon submission timeline</span>
+                </div>
+              </div>
             </div>
 
-            <div class="status-mini-card purple-theme" onclick="window.NAGEX.switchTab('tab-tools')">
-              <div class="card-icon-circle purple">🔌</div>
-              <div class="card-summary-info">
-                <span class="status-mini-title">Connected tools</span>
-                <span class="status-mini-val">5</span>
-                <span class="status-mini-sub">Google, Notion, Slack and more</span>
+            <!-- 4. Recent Activity -->
+            <div class="canvas-section-card">
+              <div class="section-header">
+                <svg class="svg-icon-sm" viewBox="0 0 24 24"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+                <h3 data-i18n="workspace.recentActivity">Recent Activity</h3>
               </div>
-              <span class="arrow-nav">&gt;</span>
+              <div class="section-content-list" id="list-recent-activity">
+                <div class="empty-state-text">Browser Agent MVP validated and synced.</div>
+              </div>
             </div>
           </div>
+        </div>
+
+        <!-- VIEW: INBOX (NAGEX INBOX) -->
+        <div id="view-inbox" class="tab-view canvas-mode-doc">
+          <div class="view-header-bar">
+            <div>
+              <h2 data-i18n="workspace.inboxTitle">NAgex Inbox</h2>
+              <p class="view-sub" data-i18n="workspace.inboxSubtitle">Single triage hub for quick captures, files, URLs, and audio notes.</p>
+            </div>
+          </div>
+          <div class="inbox-container">
+            <div class="inbox-toolbar">
+              <div class="inbox-filters">
+                <button class="filter-pill active" data-inbox-filter="ALL">All Items</button>
+                <button class="filter-pill" data-inbox-filter="NEEDS_REVIEW">Needs Review</button>
+                <button class="filter-pill" data-inbox-filter="READY">Ready</button>
+                <button class="filter-pill" data-inbox-filter="PROCESSING">Processing</button>
+              </div>
+            </div>
+            <div class="inbox-items-list" id="inbox-items-list">
+              <div class="empty-state-text">No captured items in Inbox yet.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- VIEW: VAULT (PERSONAL CLOUD VAULT) -->
+        <div id="view-vault" class="tab-view canvas-mode-doc">
+          <div class="view-header-bar">
+            <div>
+              <h2 data-i18n="workspace.vaultTitle">Personal Cloud Vault</h2>
+              <p class="view-sub" data-i18n="workspace.vaultSubtitle">Encrypted canonical storage for captured assets, documents, and reference knowledge.</p>
+            </div>
+          </div>
+          <div class="vault-container">
+            <div class="vault-quota-card">
+              <div class="quota-info">
+                <span>Storage Used: <strong id="vault-used-text">12.5 MB</strong> / 10 GB</span>
+                <span class="quota-percent">0.1%</span>
+              </div>
+              <div class="quota-bar-track">
+                <div class="quota-bar-fill" id="vault-quota-bar" style="width: 0.1%;"></div>
+              </div>
+            </div>
+            <div class="vault-categories-grid" id="vault-categories-grid">
+              <!-- Rendered dynamically by app.js -->
+            </div>
+            <div class="vault-recent-list" id="vault-recent-list">
+              <h4 style="margin-top: 24px; color: var(--navy-head);">Vault Index</h4>
+              <div class="empty-state-text">No vault items uploaded yet.</div>
+            </div>
+          </div>
+        </div>
 
           <!-- Lower 3-Column Dashboard Section -->
           <div class="dashboard-widgets-grid-3col">
