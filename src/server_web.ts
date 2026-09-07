@@ -34,6 +34,9 @@ import {
   GMAIL_REPLY_TOOL_ID,
   GMAIL_CREATE_DRAFT_TOOL_ID,
 } from './tools/gmail.service.js';
+import { BrowserToolService } from './tools/browser.service.js';
+import { browserRuntime } from './integrations/browser/browser.runtime.js';
+import { browserSessionStore } from './browser/browser-session.store.js';
 import { googleTokenStore, DEFAULT_GOOGLE_TENANT_ID } from './integrations/google/token.store.js';
 import { buildGoogleAuthorizeUrl, exchangeGoogleAuthorizationCode, readGoogleOAuthConfig } from './integrations/google/oauth.client.js';
 import { queryFreeBusy, computeFreeSlots } from './integrations/google/calendar.client.js';
@@ -50,14 +53,14 @@ const NO_CACHE_HEADERS = {
   Pragma: 'no-cache',
   Expires: '0',
 } as const;
-const MUTABLE_FRONTEND_FILES = new Set(['index.html', 'style.css', 'app.js', 'i18n.js', 'plan-resolution-view.js', 'calendar-approval-view.js', 'calendar-intent-extraction.js', 'calendar-payload-validation.js', 'gmail-approval-view.js', 'gmail-intent-extraction.js', 'modal-behavior.js', 'timeline-dedupe.js', 'single-flight-guard.js', 'legal.js', 'privacy.html', 'terms.html']);
+const MUTABLE_FRONTEND_FILES = new Set(['index.html', 'style.css', 'app.js', 'i18n.js', 'plan-resolution-view.js', 'calendar-approval-view.js', 'calendar-intent-extraction.js', 'calendar-payload-validation.js', 'gmail-approval-view.js', 'gmail-intent-extraction.js', 'browser-approval-view.js', 'browser-intent-extraction.js', 'modal-behavior.js', 'timeline-dedupe.js', 'single-flight-guard.js', 'legal.js', 'privacy.html', 'terms.html']);
 const VERSIONED_HTML_FILES = new Set(['index.html', 'privacy.html', 'terms.html']);
 const CLEAN_URL_ALIASES: Record<string, string> = { '/privacy': 'privacy.html', '/terms': 'terms.html' };
 const BUILD_VERSION_PLACEHOLDER = '__NAGEX_BUILD_VERSION__';
 
 function createBuildVersion(): string {
   const hash = crypto.createHash('sha256');
-  for (const filename of ['style.css', 'i18n.js', 'plan-resolution-view.js', 'calendar-approval-view.js', 'calendar-intent-extraction.js', 'calendar-payload-validation.js', 'gmail-approval-view.js', 'gmail-intent-extraction.js', 'modal-behavior.js', 'timeline-dedupe.js', 'single-flight-guard.js', 'legal.js', 'app.js']) {
+  for (const filename of ['style.css', 'i18n.js', 'plan-resolution-view.js', 'calendar-approval-view.js', 'calendar-intent-extraction.js', 'calendar-payload-validation.js', 'gmail-approval-view.js', 'gmail-intent-extraction.js', 'browser-approval-view.js', 'browser-intent-extraction.js', 'modal-behavior.js', 'timeline-dedupe.js', 'single-flight-guard.js', 'legal.js', 'app.js']) {
     hash.update(filename);
     hash.update(fs.readFileSync(path.join(PUBLIC_DIR, filename)));
   }
@@ -103,6 +106,13 @@ const googleCalendarService = new GoogleCalendarService(googleTokenStore, action
 // actionApprovals/executionStore/auditLogger/memoryEngine/googleTokenStore
 // singletons as Calendar. No separate approval architecture.
 const gmailService = new GmailService(googleTokenStore, actionApprovals, auditLogger, memoryEngine, fetch, readGoogleOAuthConfig, executionStore);
+// Browser Agent MVP — the third real capability, same shared approval store.
+// browser.click's dynamic (server-decides-per-click) shape is genuinely
+// different from Gmail/Calendar's client-composes-the-full-payload-upfront
+// approvals — see browser.service.ts's click()/executeApprovedClick() split
+// — but it consumes the identical ActionApprovalStore, replay-protected the
+// same way, and GET/approve/reject need no route changes here either.
+const browserService = new BrowserToolService(browserRuntime, browserSessionStore, actionApprovals, auditLogger, memoryEngine, executionStore);
 let pendingGoogleOAuthState: string | null = null;
 
 // ─── MASTER.md Section 14 — Main Session + Tasks Foundation ───
@@ -429,6 +439,7 @@ export async function handleAsyncApiRequest(
   query: Record<string, string> = {},
   calendarService: GoogleCalendarService = googleCalendarService,
   gmailApiService: GmailService = gmailService,
+  browserApiService: BrowserToolService = browserService,
 ): Promise<ApiResult> {
   try {
     if (pathname === '/api/v1/providers/status' && method === 'GET') {
@@ -579,6 +590,138 @@ export async function handleAsyncApiRequest(
       const result = await gmailApiService.readThread({ tenantId, threadId, requestId });
       return { status: 200, data: result };
     }
+
+    // ── Browser Agent MVP (MASTER.md Section 14.5 item 06) ─────────────────
+    if (pathname === '/api/v1/browser/sessions' && method === 'POST') {
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+      const result = await browserApiService.open({ tenantId, ownerId, requestId });
+      return { status: 201, data: result };
+    }
+    if (pathname === '/api/v1/tools/browser/navigate' && method === 'POST') {
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+      const browserSessionId = typeof body?.browserSessionId === 'string' ? body.browserSessionId : '';
+      const url = typeof body?.url === 'string' ? body.url : '';
+      if (!browserSessionId) throw new NagexError({ code: 'BROWSER_SESSION_ID_REQUIRED', category: 'VALIDATION', message: 'browserSessionId is required.', request_id: requestId });
+      if (!url) throw new NagexError({ code: 'BROWSER_URL_REQUIRED', category: 'VALIDATION', message: 'url is required.', request_id: requestId });
+      const result = await browserApiService.navigate({ tenantId, ownerId, requestId, browserSessionId, url });
+      return { status: 200, data: result };
+    }
+    if (pathname === '/api/v1/tools/browser/tabs' && method === 'POST') {
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+      const browserSessionId = typeof body?.browserSessionId === 'string' ? body.browserSessionId : '';
+      if (!browserSessionId) throw new NagexError({ code: 'BROWSER_SESSION_ID_REQUIRED', category: 'VALIDATION', message: 'browserSessionId is required.', request_id: requestId });
+      const result = await browserApiService.tabs({ tenantId, ownerId, requestId, browserSessionId });
+      return { status: 200, data: { tabs: result } };
+    }
+    if (pathname === '/api/v1/tools/browser/snapshot' && method === 'POST') {
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+      const browserSessionId = typeof body?.browserSessionId === 'string' ? body.browserSessionId : '';
+      if (!browserSessionId) throw new NagexError({ code: 'BROWSER_SESSION_ID_REQUIRED', category: 'VALIDATION', message: 'browserSessionId is required.', request_id: requestId });
+      const result = await browserApiService.snapshot({ tenantId, ownerId, requestId, browserSessionId });
+      return { status: 200, data: result };
+    }
+    if (pathname === '/api/v1/tools/browser/screenshot' && method === 'POST') {
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+      const browserSessionId = typeof body?.browserSessionId === 'string' ? body.browserSessionId : '';
+      if (!browserSessionId) throw new NagexError({ code: 'BROWSER_SESSION_ID_REQUIRED', category: 'VALIDATION', message: 'browserSessionId is required.', request_id: requestId });
+      const result = await browserApiService.screenshot({ tenantId, ownerId, requestId, browserSessionId });
+      return { status: 200, data: result };
+    }
+    if (pathname === '/api/v1/tools/browser/scroll' && method === 'POST') {
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+      const browserSessionId = typeof body?.browserSessionId === 'string' ? body.browserSessionId : '';
+      const direction = body?.direction === 'up' ? 'up' : 'down';
+      if (!browserSessionId) throw new NagexError({ code: 'BROWSER_SESSION_ID_REQUIRED', category: 'VALIDATION', message: 'browserSessionId is required.', request_id: requestId });
+      await browserApiService.scroll({ tenantId, ownerId, requestId, browserSessionId, direction, amountPx: typeof body?.amountPx === 'number' ? body.amountPx : undefined });
+      return { status: 200, data: { status: 'SUCCEEDED' } };
+    }
+    if (pathname === '/api/v1/tools/browser/wait' && method === 'POST') {
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+      const browserSessionId = typeof body?.browserSessionId === 'string' ? body.browserSessionId : '';
+      const ms = typeof body?.ms === 'number' ? body.ms : 1000;
+      if (!browserSessionId) throw new NagexError({ code: 'BROWSER_SESSION_ID_REQUIRED', category: 'VALIDATION', message: 'browserSessionId is required.', request_id: requestId });
+      await browserApiService.wait({ tenantId, ownerId, requestId, browserSessionId, ms });
+      return { status: 200, data: { status: 'SUCCEEDED' } };
+    }
+    if (pathname === '/api/v1/tools/browser/type' && method === 'POST') {
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+      const browserSessionId = typeof body?.browserSessionId === 'string' ? body.browserSessionId : '';
+      const selector = typeof body?.selector === 'string' ? body.selector : '';
+      const text = typeof body?.text === 'string' ? body.text : '';
+      if (!browserSessionId || !selector) throw new NagexError({ code: 'BROWSER_SELECTOR_REQUIRED', category: 'VALIDATION', message: 'browserSessionId and selector are required.', request_id: requestId });
+      await browserApiService.type({ tenantId, ownerId, requestId, browserSessionId, selector, text });
+      return { status: 200, data: { status: 'SUCCEEDED' } };
+    }
+    if (pathname === '/api/v1/tools/browser/select' && method === 'POST') {
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+      const browserSessionId = typeof body?.browserSessionId === 'string' ? body.browserSessionId : '';
+      const selector = typeof body?.selector === 'string' ? body.selector : '';
+      const value = typeof body?.value === 'string' ? body.value : '';
+      if (!browserSessionId || !selector) throw new NagexError({ code: 'BROWSER_SELECTOR_REQUIRED', category: 'VALIDATION', message: 'browserSessionId and selector are required.', request_id: requestId });
+      await browserApiService.select({ tenantId, ownerId, requestId, browserSessionId, selector, value });
+      return { status: 200, data: { status: 'SUCCEEDED' } };
+    }
+    // The one entry point a client calls to click — the server resolves the
+    // real target element live and decides whether this is a harmless
+    // navigation click (executes immediately) or a consequential one
+    // (Submit/Buy/Pay/Delete/...), in which case it returns an
+    // APPROVAL_REQUIRED result with a real ActionApprovalRecord instead of
+    // executing. This is genuinely different from Gmail/Calendar's
+    // "client composes payload -> POST /api/v1/approvals" shape because
+    // only the live page (not the client) knows what a selector resolves
+    // to — see browser.service.ts's click() for the full reasoning.
+    if (pathname === '/api/v1/tools/browser/click' && method === 'POST') {
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+      const browserSessionId = typeof body?.browserSessionId === 'string' ? body.browserSessionId : '';
+      const selector = typeof body?.selector === 'string' ? body.selector : '';
+      if (!browserSessionId || !selector) throw new NagexError({ code: 'BROWSER_SELECTOR_REQUIRED', category: 'VALIDATION', message: 'browserSessionId and selector are required.', request_id: requestId });
+      const result = await browserApiService.click({ tenantId, ownerId, requestId, browserSessionId, selector });
+      return { status: result.status === 'APPROVAL_REQUIRED' ? 201 : 200, data: result };
+    }
+    // Called only after the approval returned above has been approved via
+    // the existing, unchanged, tool-agnostic POST /api/v1/approvals/:id/approve.
+    if (pathname === '/api/v1/tools/browser/click/execute' && method === 'POST') {
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+      const approvalId = typeof body?.approvalId === 'string' ? body.approvalId : '';
+      const browserSessionId = typeof body?.browserSessionId === 'string' ? body.browserSessionId : '';
+      const selector = typeof body?.selector === 'string' ? body.selector : '';
+      if (!approvalId) throw new NagexError({ code: 'APPROVAL_ID_REQUIRED', category: 'VALIDATION', message: 'approvalId is required.', request_id: requestId });
+      if (!browserSessionId || !selector) throw new NagexError({ code: 'BROWSER_SELECTOR_REQUIRED', category: 'VALIDATION', message: 'browserSessionId and selector are required.', request_id: requestId });
+      const result = await browserApiService.executeApprovedClick({ approvalId, browserSessionId, selector, tenantId, ownerId, requestId });
+      return { status: 200, data: result };
+    }
+    if (pathname === '/api/v1/tools/browser/close' && method === 'POST') {
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+      const browserSessionId = typeof body?.browserSessionId === 'string' ? body.browserSessionId : '';
+      if (!browserSessionId) throw new NagexError({ code: 'BROWSER_SESSION_ID_REQUIRED', category: 'VALIDATION', message: 'browserSessionId is required.', request_id: requestId });
+      await browserApiService.close({ tenantId, ownerId, requestId, browserSessionId });
+      return { status: 200, data: { status: 'SUCCEEDED' } };
+    }
+
     if (pathname.startsWith('/api/v1/tasks/') && pathname.endsWith('/run') && method === 'POST') {
       const taskId = pathname.slice('/api/v1/tasks/'.length, pathname.length - '/run'.length);
       const requestId = getHeaderValue(headers, 'x-request-id') || `req_task_run_${crypto.randomUUID()}`;

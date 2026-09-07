@@ -18,3 +18,6 @@ process.env.NAGEX_GOOGLE_TOKEN_STORE_PATH ??= path.join(dataRoot, 'google-oauth.
 process.env.NAGEX_SESSIONS_DIR ??= path.join(dataRoot, 'sessions');
 process.env.NAGEX_TASKS_DIR ??= path.join(dataRoot, 'tasks');
 process.env.NAGEX_TASK_RUNS_DIR ??= path.join(dataRoot, 'task-runs');
+process.env.NAGEX_BROWSER_SESSIONS_DIR ??= path.join(dataRoot, 'browser-sessions');
+process.env.NAGEX_BROWSER_PROFILE_DIR ??= path.join(dataRoot, 'browser-profile');
+process.env.NAGEX_BROWSER_EVIDENCE_DIR ??= path.join(dataRoot, 'browser-evidence');

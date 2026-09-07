@@ -1081,6 +1081,18 @@
       const gmailReadStep = (resolved.steps || []).find((s) => GMAIL_READ_TOOL_IDS.has(s.resolvedToolId) && s.executionReadiness === 'EXECUTION_READY');
       // Read-only — runs immediately, no approval, per policy.
       runGmailReadOnlyStep(actionsEl, gmailReadStep.resolvedToolId, originalPromptText, planId);
+    } else if ((resolved.steps || []).find((s) => BROWSER_READ_TOOL_IDS.has(s.resolvedToolId) && s.executionReadiness === 'BLOCKED' && s.toolAvailability === 'UNAVAILABLE')) {
+      renderBrowserUnavailableAction(actionsEl);
+    } else if ((resolved.steps || []).find((s) => BROWSER_READ_TOOL_IDS.has(s.resolvedToolId) && s.executionReadiness === 'EXECUTION_READY')) {
+      // Browser open/navigate are READ_ONLY (no approval) — but unlike
+      // Calendar/Gmail there is no compose form here: the only thing to
+      // confirm before browsing is the destination URL itself, and only a
+      // literal URL already in the prompt is ever used (never a guessed
+      // domain for "the airline website"). A consequential in-page action
+      // (Submit/Buy/Pay/Delete/...) is a separate, later step this ambient
+      // flow does not drive yet — see browser-approval-view.js's header
+      // comment for why that is an intentional, documented scope boundary.
+      runBrowserReadOnlyStep(actionsEl, originalPromptText, planId);
     } else if (vm.showRunButton && vm.actionLabel) {
       const isApproval = vm.status === 'APPROVAL_REQUIRED';
       actionsEl.innerHTML = `<button class="btn-plan-action ${vm.statusCssClass}" id="btn-plan-resolution-action">${isApproval ? '🛡️' : '▶'} ${escapeHtml(vm.actionLabel)}</button>`;
@@ -1232,6 +1244,10 @@
     [GMAIL_REPLY_TOOL_ID]: '/api/v1/tools/gmail/reply',
     [GMAIL_CREATE_DRAFT_TOOL_ID]: '/api/v1/tools/gmail/create-draft',
   };
+
+  const BROWSER_OPEN_TOOL_ID = 'browser.open';
+  const BROWSER_NAVIGATE_TOOL_ID = 'browser.navigate';
+  const BROWSER_READ_TOOL_IDS = new Set([BROWSER_OPEN_TOOL_ID, BROWSER_NAVIGATE_TOOL_ID]);
 
   function renderCalendarApprovalCard(slot, approval, view) {
     const vmView = view.buildCardViewModel(approval, Date.now());
@@ -1791,6 +1807,96 @@
       addTimelineEntry('Thread loaded', `execution:${planId}:${toolId}:completed`, 'runGmailReadOnlyStep');
       renderGmailThreadMessages(actionsEl, result.threadId, result.messages || []);
     }
+  }
+
+  // ── Browser Agent MVP ambient wiring (MASTER.md Section 14.5 item 06) ──
+  // Scope: the read-only "open a page and tell me what it says" flow only
+  // (browser.open/browser.navigate -> browser.snapshot, no approval, per
+  // policy). Driving an in-page click/type/select from the ambient composer
+  // is NOT wired here — that is fundamentally a multi-turn loop (navigate,
+  // read the live page, decide what to click) rather than a single-shot
+  // form, and the backend + approval-card view model for it already exist
+  // and are tested (see browser.service.ts, browser-approval-view.js) for a
+  // later, focused turn to wire up. See browser-approval-view.js's header
+  // comment for the same note.
+
+  function renderBrowserUnavailableAction(actionsEl) {
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    actionsEl.innerHTML = `<div class="resolution-warnings" style="display:block;">${escapeHtml(t('browser.connectPrompt'))}</div>`;
+  }
+
+  async function runBrowserReadOnlyStep(actionsEl, originalPromptText, planId) {
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    const extractor = window.NAGEX_BROWSER_INTENT;
+    const extracted = extractor ? extractor.extractBrowserIntent(originalPromptText || '') : null;
+    const literalUrl = extracted && extracted.url;
+
+    if (!literalUrl) {
+      // Never invents a destination for "the airline website" — asks for
+      // the real URL exactly the way a blank required Calendar/Gmail field
+      // does, by simply requiring it before proceeding.
+      actionsEl.innerHTML = `
+        <form class="calendar-compose-form" id="browser-open-form" novalidate>
+          <label>URL
+            <input type="url" id="browser-url-input" placeholder="https://example.com" required>
+          </label>
+          <button type="submit" class="btn-plan-action plan-status-ready">▶ ${escapeHtml(t('browser.openingWebsite'))}</button>
+        </form>`;
+      const form = document.getElementById('browser-open-form');
+      if (form) {
+        form.onsubmit = (event) => {
+          event.preventDefault();
+          const input = document.getElementById('browser-url-input');
+          const url = input ? input.value.trim() : '';
+          if (!url) return;
+          executeBrowserOpenAndRead(actionsEl, url, planId);
+        };
+      }
+      return;
+    }
+
+    await executeBrowserOpenAndRead(actionsEl, literalUrl, planId);
+  }
+
+  async function executeBrowserOpenAndRead(actionsEl, url, planId) {
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    updateFlowStage('Execution');
+    actionsEl.innerHTML = `<p>${escapeHtml(t('browser.openingWebsite'))}</p>`;
+    addTimelineEntry('Execution started', `execution:${planId}:browser.open:started`, 'runBrowserReadOnlyStep');
+
+    const session = await apiFetch('/api/v1/browser/sessions', { method: 'POST' });
+    if (!session || session.error || !session.browserSessionId) {
+      updateFlowStage('Result');
+      actionsEl.innerHTML = `<div class="resolution-warnings" style="display:block;">${escapeHtml((session && session.error && session.error.message) || 'Could not open a browser session.')}</div>`;
+      return;
+    }
+
+    const navigated = await apiFetch('/api/v1/tools/browser/navigate', { method: 'POST', body: JSON.stringify({ browserSessionId: session.browserSessionId, url }) });
+    if (!navigated || navigated.error) {
+      updateFlowStage('Result');
+      const t2 = window.NAGEX_BROWSER_APPROVAL_VIEW;
+      const code = navigated && navigated.error && navigated.error.code;
+      const message = (t2 && t2.describeExecutionError(code)) || (navigated && navigated.error && navigated.error.message) || 'Could not open that page.';
+      actionsEl.innerHTML = `<div class="resolution-warnings" style="display:block;">${escapeHtml(message)}</div>`;
+      return;
+    }
+
+    actionsEl.innerHTML = `<p>${escapeHtml(t('browser.readingPage'))}</p>`;
+    const snap = await apiFetch('/api/v1/tools/browser/snapshot', { method: 'POST', body: JSON.stringify({ browserSessionId: session.browserSessionId }) });
+    updateFlowStage('Result');
+
+    if (!snap || snap.error) {
+      actionsEl.innerHTML = `<div class="resolution-warnings" style="display:block;">${escapeHtml((snap && snap.error && snap.error.message) || 'Could not read that page.')}</div>`;
+      return;
+    }
+
+    addTimelineEntry('Page read', `execution:${planId}:browser.open:completed`, 'runBrowserReadOnlyStep');
+    actionsEl.innerHTML = `
+      <div class="calendar-preview-card">
+        <h4>${escapeHtml(snap.title || navigated.title || url)}</h4>
+        <p style="white-space:pre-wrap;">${escapeHtml((snap.text || '').slice(0, 800))}</p>
+        <a class="btn-plan-action plan-status-ready" href="${encodeURI(snap.url || url)}" target="_blank" rel="noopener">${escapeHtml(t('browser.openLink'))}</a>
+      </div>`;
   }
 
   // The "▶ Run" button lives inside the ambient overlay's static example

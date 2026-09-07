@@ -1,5 +1,6 @@
 import { googleTokenStore, DEFAULT_GOOGLE_TENANT_ID } from '../integrations/google/token.store.js';
 import { GMAIL_SCOPES } from '../integrations/google/oauth.client.js';
+import { isBrowserRuntimeAvailableSync } from '../integrations/browser/browser.runtime.js';
 
 export type SideEffectLevel = 'READ_ONLY' | 'REVERSIBLE_WRITE' | 'IRREVERSIBLE_WRITE';
 export type ToolExecutionMode = 'live' | 'mock' | 'unavailable';
@@ -139,6 +140,14 @@ function gmailLiveStatus(): LiveToolStatus {
   return hasGmailScope ? { connectionStatus: 'connected', executionMode: 'live' } : { connectionStatus: 'disconnected', executionMode: 'unavailable' };
 }
 
+// Live = the Chromium binary Playwright expects is actually present on
+// disk (checked once, cheaply, synchronously — see
+// isBrowserRuntimeAvailableSync). Never reports live from configuration or
+// intent alone.
+function browserRuntimeLiveStatus(): LiveToolStatus {
+  return isBrowserRuntimeAvailableSync() ? { connectionStatus: 'connected', executionMode: 'live' } : { connectionStatus: 'disconnected', executionMode: 'unavailable' };
+}
+
 export const toolRegistry = new ToolRegistry([
   {
     id: 'gmail.send_email',
@@ -256,4 +265,30 @@ export const toolRegistry = new ToolRegistry([
   { id: 'memory.search', name: 'NAgex Memory', capability: 'memory.read', connectionStatus: 'connected', sideEffectLevel: 'READ_ONLY', requiresApproval: false, executionMode: 'live', aliases: ['memory recall', 'search memory'] },
   { id: 'workspace.prepare_draft', name: 'Workspace Draft', capability: 'document.draft.prepare', connectionStatus: 'connected', sideEffectLevel: 'REVERSIBLE_WRITE', requiresApproval: true, executionMode: 'live', aliases: ['prepare draft', 'draft document'] },
   { id: 'web.search', name: 'Web Search', capability: 'web.search', connectionStatus: 'unavailable', sideEffectLevel: 'READ_ONLY', requiresApproval: false, executionMode: 'unavailable', aliases: ['internet search'] },
+
+  // Browser Agent MVP (MASTER.md Section 14.5 item 06). open/navigate/
+  // tabs/snapshot/screenshot/scroll/wait never touch anything outside the
+  // NAgex-controlled browser profile — READ_ONLY, no approval.
+  { id: 'browser.open', name: 'Browser Open', capability: 'browser.session.open', connectionStatus: 'disconnected', sideEffectLevel: 'READ_ONLY', requiresApproval: false, executionMode: 'unavailable', aliases: ['open browser', 'open a browser session'], getLiveStatus: browserRuntimeLiveStatus },
+  { id: 'browser.navigate', name: 'Browser Navigate', capability: 'browser.page.navigate', connectionStatus: 'disconnected', sideEffectLevel: 'READ_ONLY', requiresApproval: false, executionMode: 'unavailable', aliases: ['navigate browser', 'open website', 'go to website', 'open the website'], getLiveStatus: browserRuntimeLiveStatus },
+  { id: 'browser.tabs', name: 'Browser Tabs', capability: 'browser.tabs.list', connectionStatus: 'disconnected', sideEffectLevel: 'READ_ONLY', requiresApproval: false, executionMode: 'unavailable', aliases: ['list browser tabs', 'browser tabs'], getLiveStatus: browserRuntimeLiveStatus },
+  { id: 'browser.snapshot', name: 'Browser Snapshot', capability: 'browser.page.snapshot', connectionStatus: 'disconnected', sideEffectLevel: 'READ_ONLY', requiresApproval: false, executionMode: 'unavailable', aliases: ['read page', 'read the page', 'browser snapshot'], getLiveStatus: browserRuntimeLiveStatus },
+  { id: 'browser.screenshot', name: 'Browser Screenshot', capability: 'browser.page.screenshot', connectionStatus: 'disconnected', sideEffectLevel: 'READ_ONLY', requiresApproval: false, executionMode: 'unavailable', aliases: ['screenshot the page', 'browser screenshot'], getLiveStatus: browserRuntimeLiveStatus },
+  { id: 'browser.scroll', name: 'Browser Scroll', capability: 'browser.page.scroll', connectionStatus: 'disconnected', sideEffectLevel: 'READ_ONLY', requiresApproval: false, executionMode: 'unavailable', aliases: ['scroll the page', 'browser scroll'], getLiveStatus: browserRuntimeLiveStatus },
+  { id: 'browser.wait', name: 'Browser Wait', capability: 'browser.page.wait', connectionStatus: 'disconnected', sideEffectLevel: 'READ_ONLY', requiresApproval: false, executionMode: 'unavailable', aliases: ['wait on the page', 'browser wait'], getLiveStatus: browserRuntimeLiveStatus },
+  // type/select only ever change LOCAL, reversible page/form state — they
+  // never submit or send anything by themselves (the click that follows
+  // is what does, and IS approval-gated below) — so, like the read-only
+  // tools above, they never require approval in this system's vocabulary.
+  { id: 'browser.type', name: 'Browser Type', capability: 'browser.form.type', connectionStatus: 'disconnected', sideEffectLevel: 'READ_ONLY', requiresApproval: false, executionMode: 'unavailable', aliases: ['type in browser', 'fill field', 'browser type'], getLiveStatus: browserRuntimeLiveStatus },
+  { id: 'browser.select', name: 'Browser Select', capability: 'browser.form.select', connectionStatus: 'disconnected', sideEffectLevel: 'READ_ONLY', requiresApproval: false, executionMode: 'unavailable', aliases: ['select in browser', 'choose option', 'browser select'], getLiveStatus: browserRuntimeLiveStatus },
+  // click is genuinely context-dependent (navigation vs. consequential —
+  // Submit/Buy/Pay/Delete/...); browser.service.ts classifies each click
+  // dynamically from the real target element and only creates an approval
+  // for a consequential one. REVERSIBLE_WRITE here is a conservative static
+  // default so the Plan Resolution UI never shows a browser.click step as
+  // execution-ready outright — the real per-click decision always happens
+  // at execution time, never more permissively than that.
+  { id: 'browser.click', name: 'Browser Click', capability: 'browser.page.click', connectionStatus: 'disconnected', sideEffectLevel: 'REVERSIBLE_WRITE', requiresApproval: false, executionMode: 'unavailable', aliases: ['click', 'click element', 'browser click'], getLiveStatus: browserRuntimeLiveStatus },
+  { id: 'browser.close', name: 'Browser Close', capability: 'browser.session.close', connectionStatus: 'disconnected', sideEffectLevel: 'READ_ONLY', requiresApproval: false, executionMode: 'unavailable', aliases: ['close browser', 'close browser session'], getLiveStatus: browserRuntimeLiveStatus },
 ]);

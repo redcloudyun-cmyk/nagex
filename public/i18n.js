@@ -166,6 +166,19 @@
       'gmail.approveAndCreateDraft': 'Approve & Create Draft',
       'gmail.reject': 'Reject',
 
+      // Browser Agent MVP
+      'browser.openingWebsite': 'Opening website...',
+      'browser.readingPage': 'Reading page...',
+      'browser.connectPrompt': 'The browser runtime is not available on this server.',
+      'browser.sessionBlocked': 'This browser session requires human verification (CAPTCHA/MFA) and cannot continue automatically.',
+      'browser.approvalRequired': 'Confirm this action before it runs',
+      'browser.target': 'Target',
+      'browser.currentPage': 'Current page',
+      'browser.approveAndClick': 'Approve & Click',
+      'browser.reject': 'Reject',
+      'browser.actionCompleted': 'Action completed',
+      'browser.openLink': 'Open in new tab →',
+
       // Skills View
       'skills.title': 'Reusable Skills',
       'skills.subtitle': 'Skill = How NAgex performs a reusable task. Procedural behaviors defining execution rules.',
@@ -368,6 +381,19 @@
       'gmail.approveAndReply': '승인 및 답장',
       'gmail.approveAndCreateDraft': '승인 및 초안 생성',
       'gmail.reject': '거부',
+
+      // Browser Agent MVP
+      'browser.openingWebsite': '웹사이트 여는 중...',
+      'browser.readingPage': '페이지 읽는 중...',
+      'browser.connectPrompt': '이 서버에서는 브라우저 런타임을 사용할 수 없습니다.',
+      'browser.sessionBlocked': '이 브라우저 세션은 사람의 확인(캡차/2단계 인증)이 필요하여 자동으로 계속할 수 없습니다.',
+      'browser.approvalRequired': '실행 전에 이 작업을 확인하세요',
+      'browser.target': '대상',
+      'browser.currentPage': '현재 페이지',
+      'browser.approveAndClick': '승인 및 클릭',
+      'browser.reject': '거부',
+      'browser.actionCompleted': '작업이 완료되었습니다',
+      'browser.openLink': '새 탭에서 열기 →',
 
       // Skills View
       'skills.title': '재사용 스킬',
