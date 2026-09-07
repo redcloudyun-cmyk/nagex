@@ -6,6 +6,7 @@
     activeTab: 'tab-home',
     memories: [],
     plans: [],
+    tasks: [],
     skills: [],
     tools: [],
     approvals: [],
@@ -226,6 +227,7 @@
     if (state.activeTab === 'tab-home') renderHome();
     else if (state.activeTab === 'tab-memory') renderMemory();
     else if (state.activeTab === 'tab-plans') renderPlans();
+    else if (state.activeTab === 'tab-tasks') renderTasks();
     else if (state.activeTab === 'tab-skills') renderSkills();
     else if (state.activeTab === 'tab-tools') renderTools();
     else if (state.activeTab === 'tab-approvals') renderApprovals();
@@ -235,9 +237,10 @@
   }
 
   async function loadAllData() {
-    const [memData, planData, skillData, toolData, apprData, execData, knowData, qwData, autoData, oauthData] = await Promise.all([
+    const [memData, planData, taskData, skillData, toolData, apprData, execData, knowData, qwData, autoData, oauthData] = await Promise.all([
       apiFetch('/api/v1/memory'),
       apiFetch('/api/v1/plans'),
+      apiFetch('/api/v1/tasks'),
       apiFetch('/api/v1/skills'),
       apiFetch('/api/v1/tools'),
       apiFetch('/api/v1/approvals'),
@@ -250,6 +253,7 @@
 
     if (memData) state.memories = memData.memories || [];
     if (planData) state.plans = planData.plans || [];
+    if (taskData) state.tasks = taskData.tasks || [];
     if (skillData) state.skills = skillData.skills || [];
     if (toolData) state.tools = toolData.tools || [];
     if (apprData) state.approvals = apprData.approvals || [];
@@ -370,6 +374,119 @@
       </div>`
       )
       .join('');
+  }
+
+  function formatTaskTrigger(trigger) {
+    if (!trigger) return 'MANUAL';
+    if (trigger.type === 'SCHEDULE') return `SCHEDULE · ${trigger.schedule || ''} (${trigger.timezone || 'UTC'})`;
+    if (trigger.type === 'INTERVAL') return `INTERVAL · every ${trigger.intervalMinutes || '?'} min`;
+    if (trigger.type === 'CONDITION') return `CONDITION · ${trigger.condition || ''}`;
+    return trigger.type;
+  }
+
+  function formatTaskTimestamp(iso) {
+    if (!iso) return (window.NAGEX_I18N ? window.NAGEX_I18N.t('tasks.never') : 'Never');
+    return new Date(iso).toLocaleString();
+  }
+
+  function renderTasks() {
+    const container = document.getElementById('tasks-list-container');
+    if (!container) return;
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (key) => key;
+
+    if (!state.tasks.length) {
+      container.innerHTML = `<p class="card-body-text">${escapeHtml(t('tasks.empty'))}</p>`;
+    } else {
+      container.innerHTML = state.tasks
+        .map((task) => `
+        <div class="plan-item-card">
+          <div class="plan-item-header">
+            <span class="plan-goal-title">${escapeHtml(task.name)}</span>
+            <span class="step-badge ${String(task.status).toLowerCase()}">${escapeHtml(task.status)}</span>
+          </div>
+          <p class="card-body-text">${escapeHtml(task.objective)}</p>
+          <p class="card-body-text" style="font-size:0.75rem; color:var(--text-muted);">
+            ${escapeHtml(task.type)} · ${escapeHtml(formatTaskTrigger(task.trigger))}
+          </p>
+          <p class="card-body-text" style="font-size:0.75rem; color:var(--text-muted);">
+            ${escapeHtml(t('tasks.nextRun'))}: ${escapeHtml(formatTaskTimestamp(task.nextRunAt))} ·
+            ${escapeHtml(t('tasks.lastRun'))}: ${escapeHtml(formatTaskTimestamp(task.lastRunAt))}${task.lastRunStatus ? ` (${escapeHtml(task.lastRunStatus)})` : ''}
+          </p>
+          <div class="card-footer-actions">
+            ${task.status === 'ACTIVE' || task.status === 'WAITING' ? `<button class="btn-small" onclick="window.NAGEX.pauseTask('${task.taskId}')">${escapeHtml(t('tasks.pause'))}</button>` : ''}
+            ${task.status === 'PAUSED' ? `<button class="btn-small" onclick="window.NAGEX.resumeTask('${task.taskId}')">${escapeHtml(t('tasks.resume'))}</button>` : ''}
+            <button class="btn-small" onclick="window.NAGEX.runTaskNow('${task.taskId}')">${escapeHtml(t('tasks.runNow'))}</button>
+            <button class="btn-small danger" onclick="window.NAGEX.deleteTask('${task.taskId}')">${escapeHtml(t('tasks.delete'))}</button>
+          </div>
+        </div>`)
+        .join('');
+    }
+
+    const btnNew = document.getElementById('btn-new-task');
+    const form = document.getElementById('task-create-form');
+    const btnCancel = document.getElementById('btn-task-cancel');
+    const triggerSelect = document.getElementById('task-trigger-type');
+    const scheduleField = document.getElementById('task-schedule-field');
+    const intervalField = document.getElementById('task-interval-field');
+    const conditionField = document.getElementById('task-condition-field');
+
+    function syncTriggerFields() {
+      if (!triggerSelect) return;
+      const v = triggerSelect.value;
+      if (scheduleField) scheduleField.style.display = v === 'SCHEDULE' ? 'flex' : 'none';
+      if (intervalField) intervalField.style.display = v === 'INTERVAL' ? 'flex' : 'none';
+      if (conditionField) conditionField.style.display = v === 'CONDITION' ? 'flex' : 'none';
+    }
+
+    if (btnNew && form) {
+      btnNew.onclick = () => {
+        form.style.display = form.style.display === 'none' ? 'flex' : 'none';
+        syncTriggerFields();
+      };
+    }
+    if (btnCancel && form) {
+      btnCancel.onclick = () => { form.style.display = 'none'; };
+    }
+    if (triggerSelect) triggerSelect.onchange = syncTriggerFields;
+
+    if (form) {
+      form.onsubmit = async (event) => {
+        event.preventDefault();
+        const errorEl = document.getElementById('task-form-error');
+        const name = document.getElementById('task-name').value.trim();
+        const objective = document.getElementById('task-objective').value.trim();
+        const type = document.getElementById('task-type').value;
+        const triggerType = document.getElementById('task-trigger-type').value;
+        const approvalPolicy = document.getElementById('task-approval-policy').value;
+
+        const trigger = { type: triggerType };
+        if (triggerType === 'SCHEDULE') {
+          trigger.schedule = document.getElementById('task-schedule').value.trim();
+          trigger.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+        } else if (triggerType === 'INTERVAL') {
+          trigger.intervalMinutes = Number(document.getElementById('task-interval').value) || 60;
+        } else if (triggerType === 'CONDITION') {
+          trigger.condition = document.getElementById('task-condition').value.trim();
+        }
+
+        const result = await apiFetch('/api/v1/tasks', {
+          method: 'POST',
+          body: JSON.stringify({ name, objective, type, trigger, approvalPolicy }),
+        });
+        if (!result || result.error) {
+          if (errorEl) {
+            errorEl.style.display = 'block';
+            errorEl.textContent = (result && result.error && result.error.message) || 'Could not create task.';
+          }
+          return;
+        }
+        if (errorEl) { errorEl.style.display = 'none'; errorEl.textContent = ''; }
+        form.reset();
+        form.style.display = 'none';
+        await loadAllData();
+        switchTab('tab-tasks');
+      };
+    }
   }
 
   function renderSkills() {
@@ -1317,6 +1434,22 @@
         body: JSON.stringify({ level }),
       });
       renderSettings();
+    },
+    pauseTask: async (taskId) => {
+      await apiFetch(`/api/v1/tasks/${taskId}/pause`, { method: 'POST' });
+      await loadAllData();
+    },
+    resumeTask: async (taskId) => {
+      await apiFetch(`/api/v1/tasks/${taskId}/resume`, { method: 'POST' });
+      await loadAllData();
+    },
+    runTaskNow: async (taskId) => {
+      await apiFetch(`/api/v1/tasks/${taskId}/run`, { method: 'POST' });
+      await loadAllData();
+    },
+    deleteTask: async (taskId) => {
+      await apiFetch(`/api/v1/tasks/${taskId}`, { method: 'DELETE' });
+      await loadAllData();
     },
   };
 })();

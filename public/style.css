@@ -956,12 +956,18 @@ body {
 .calendar-connect-prompt { display: flex; flex-direction: column; gap: 0.5rem; align-items: flex-start; }
 .calendar-connect-prompt p { font-size: 0.82rem; color: var(--text-muted); }
 
-.calendar-compose-form { display: flex; flex-direction: column; gap: 0.6rem; }
-.calendar-compose-form label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.78rem; font-weight: 600; color: var(--text-muted); }
+.calendar-compose-form,
+.task-create-form { display: flex; flex-direction: column; gap: 0.6rem; }
+.calendar-compose-form label,
+.task-create-form label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.78rem; font-weight: 600; color: var(--text-muted); }
 .calendar-compose-form input[type="text"],
 .calendar-compose-form input[type="datetime-local"],
 .calendar-compose-form input[type="number"],
-.calendar-compose-form textarea {
+.calendar-compose-form textarea,
+.task-create-form input[type="text"],
+.task-create-form input[type="number"],
+.task-create-form textarea,
+.task-create-form select {
   font-family: var(--font-sans);
   font-size: 0.85rem;
   padding: 0.45rem 0.6rem;
@@ -973,6 +979,7 @@ body {
 .calendar-compose-form input:disabled { color: var(--text-light); background: var(--bg-subtle); }
 .calendar-checkbox-label { flex-direction: row !important; align-items: center; gap: 0.5rem !important; }
 .calendar-compose-form button[type="submit"] { align-self: flex-start; }
+.task-create-form { margin: 1rem 0; padding: 1rem; border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--bg-surface); }
 .field-suggested-hint { font-weight: 400; color: var(--text-muted); text-transform: none; letter-spacing: normal; }
 .calendar-form-error { font-size: 0.78rem; color: var(--status-error, #dc2626); margin: 0; }
 

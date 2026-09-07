@@ -24,7 +24,8 @@ export type ResourcePrefix =
   | 'usg'
   | 'led'
   | 'dlg'
-  | 'bac';
+  | 'bac'
+  | 'sess';
 
 export function generateResourceId(prefix: ResourcePrefix): string {
   const opaqueId = crypto.randomBytes(8).toString('hex');

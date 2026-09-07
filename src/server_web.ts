@@ -25,6 +25,11 @@ import { GoogleCalendarService, GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID } from './t
 import { googleTokenStore, DEFAULT_GOOGLE_TENANT_ID } from './integrations/google/token.store.js';
 import { buildGoogleAuthorizeUrl, exchangeGoogleAuthorizationCode, readGoogleOAuthConfig } from './integrations/google/oauth.client.js';
 import { queryFreeBusy, computeFreeSlots } from './integrations/google/calendar.client.js';
+import { SessionStore } from './sessions/session.store.js';
+import { TaskStore, type TaskType, type TaskTrigger, type TaskApprovalPolicy } from './tasks/task.store.js';
+import { TaskRunStore } from './tasks/task-run.store.js';
+import { TaskScheduler, computeNextRunAt } from './tasks/task.scheduler.js';
+import { PlanPreviewTaskRunner } from './tasks/task.runner.js';
 
 const PORT = Number(process.env.PORT || 8085);
 const PUBLIC_DIR = path.join(process.cwd(), 'public');
@@ -83,6 +88,26 @@ export const actionApprovals = new PersistentActionApprovalStore({
 export const executionStore = new ExecutionStore();
 const googleCalendarService = new GoogleCalendarService(googleTokenStore, actionApprovals, auditLogger, memoryEngine, fetch, readGoogleOAuthConfig, executionStore);
 let pendingGoogleOAuthState: string | null = null;
+
+// ─── MASTER.md Section 14 — Main Session + Tasks Foundation ───
+export const sessionStore = new SessionStore();
+export const taskStore = new TaskStore();
+export const taskRunStore = new TaskRunStore();
+const taskRunner = new PlanPreviewTaskRunner(aiService, planResolver, (principalId, prompt) => getRelevantMemories(principalId, prompt));
+export const taskScheduler = new TaskScheduler(taskStore, taskRunStore, taskRunner, auditLogger);
+
+// A real (not fake) background scheduler loop — only runs when this module
+// is the actual running server, never when imported by tests (see the
+// require.main guard at the bottom of this file, mirrored here so the
+// interval itself is never created under `npm test`).
+const TASK_SCHEDULER_TICK_MS = Number(process.env.NAGEX_TASK_SCHEDULER_INTERVAL_MS) || 30_000;
+if (require.main === module) {
+  setInterval(() => {
+    taskScheduler.tick().catch((error) => {
+      console.error(JSON.stringify({ event: 'task_scheduler_tick_failed', message: error instanceof Error ? error.message : String(error) }));
+    });
+  }, TASK_SCHEDULER_TICK_MS).unref();
+}
 
 const INITIAL_CREDIT_GRANT = 10000;
 const seededTenants = new Set<string>();
@@ -468,6 +493,25 @@ export async function handleAsyncApiRequest(
       const result = await calendarService.executeCreateEvent({ approvalId, payload: body?.payload, tenantId, principalId, requestId });
       return { status: 200, data: result };
     }
+    if (pathname.startsWith('/api/v1/tasks/') && pathname.endsWith('/run') && method === 'POST') {
+      const taskId = pathname.slice('/api/v1/tasks/'.length, pathname.length - '/run'.length);
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_task_run_${crypto.randomUUID()}`;
+      const task = taskStore.get(taskId);
+      if (!task) return { status: 404, data: { error: { code: 'TASK_NOT_FOUND', category: 'NOT_FOUND', message: `Task ${taskId} was not found.`, request_id: requestId } } };
+      // Mirrors the `calendarService` DI pattern below: the shared
+      // taskScheduler singleton (built on the real aiService) is used
+      // unless a test injects a different `service`, in which case a
+      // throwaway scheduler wraps that same injected model so a real
+      // network call is never made from a test.
+      const scheduler = service === aiService ? taskScheduler : new TaskScheduler(
+        taskStore,
+        taskRunStore,
+        new PlanPreviewTaskRunner(service, planResolver, (principalId, prompt) => getRelevantMemories(principalId, prompt)),
+        auditLogger,
+      );
+      const run = await scheduler.runOne(task);
+      return { status: 200, data: run };
+    }
     if (pathname === '/api/v1/tools/google-calendar/free-slots' && method === 'POST') {
       const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
       const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
@@ -713,6 +757,128 @@ export function handleApiRequest(
   if (pathname === '/api/v1/audit/logs' && method === 'GET') return { status: 200, data: { logs: auditLogger.getRecentLogs ? auditLogger.getRecentLogs(20) : [], total: auditLogger.getRecentLogs ? auditLogger.getRecentLogs(20).length : 0 } };
   if (pathname === '/api/v1/executions' && method === 'GET') return { status: 200, data: { executions: executionHistory, total: executionHistory.length } };
   if (pathname === '/api/v1/vcs/status' && method === 'GET') return { status: 200, data: getVcsStatus() };
+
+  // ─── MASTER.md Section 14.6 — Main Session + Tasks Foundation ───
+
+  if (pathname === '/api/v1/sessions/main' && method === 'GET') {
+    const session = sessionStore.getOrCreateMain(tenantId, principal.id);
+    return { status: 200, data: session };
+  }
+
+  if (pathname === '/api/v1/tasks' && method === 'GET') {
+    const tasks = taskStore.list(principal.id);
+    return { status: 200, data: { tasks, total: tasks.length } };
+  }
+
+  if (pathname === '/api/v1/tasks' && method === 'POST') {
+    const requestId = `req_task_${Date.now()}`;
+    try {
+      const VALID_TASK_TYPES: readonly string[] = ['ONE_TIME', 'RECURRING', 'CONDITIONAL', 'BACKGROUND', 'WAITING', 'STANDING_INTENT'];
+      const VALID_TRIGGER_TYPES: readonly string[] = ['SCHEDULE', 'INTERVAL', 'CONDITION', 'WEBHOOK', 'EMAIL_EVENT', 'CALENDAR_EVENT', 'FILE_EVENT', 'MANUAL', 'SYSTEM_EVENT', 'AGENT_EVENT'];
+      const typeRaw = body?.type;
+      if (typeof typeRaw !== 'string' || !VALID_TASK_TYPES.includes(typeRaw)) {
+        throw new NagexError({ code: 'INVALID_TASK_TYPE', category: 'VALIDATION', message: `type must be one of ${VALID_TASK_TYPES.join(', ')}.`, request_id: requestId });
+      }
+      const type = typeRaw as TaskType;
+      const triggerRaw = (body?.trigger && typeof body.trigger === 'object' ? body.trigger : { type: 'MANUAL' }) as Record<string, unknown>;
+      if (typeof triggerRaw.type !== 'string' || !VALID_TRIGGER_TYPES.includes(triggerRaw.type)) {
+        throw new NagexError({ code: 'INVALID_TASK_TRIGGER_TYPE', category: 'VALIDATION', message: `trigger.type must be one of ${VALID_TRIGGER_TYPES.join(', ')}.`, request_id: requestId });
+      }
+      const trigger = triggerRaw as unknown as TaskTrigger;
+      const now = new Date();
+      const initialNextRunAt = computeNextRunAt(trigger, now);
+      const session = sessionStore.getOrCreateMain(tenantId, principal.id);
+      const task = taskStore.create({
+        tenantId,
+        ownerId: principal.id,
+        name: (body?.name as string) || '',
+        objective: (body?.objective as string) || '',
+        type,
+        sourceSessionId: session.sessionId,
+        trigger,
+        approvalPolicy: (body?.approvalPolicy as TaskApprovalPolicy) || 'ALWAYS_APPROVE',
+        nextRunAt: initialNextRunAt ? initialNextRunAt.toISOString() : null,
+      });
+      auditLogger.logEvent({
+        actor: principal,
+        tenant_id: tenantId,
+        action: 'task.created',
+        resource: { type: 'Task', id: task.taskId },
+        result: 'SUCCESS',
+        request_id: requestId,
+        details: { type: task.type, triggerType: task.trigger.type },
+      });
+      return { status: 201, data: task };
+    } catch (error) {
+      return modelErrorResult(error);
+    }
+  }
+
+  if (pathname.startsWith('/api/v1/tasks/') && pathname.endsWith('/runs') && method === 'GET') {
+    const taskId = pathname.slice('/api/v1/tasks/'.length, pathname.length - '/runs'.length);
+    const runs = taskRunStore.listForTask(taskId);
+    return { status: 200, data: { runs, total: runs.length } };
+  }
+
+  if (pathname.startsWith('/api/v1/tasks/') && pathname.endsWith('/pause') && method === 'POST') {
+    const taskId = pathname.slice('/api/v1/tasks/'.length, pathname.length - '/pause'.length);
+    try {
+      const task = taskStore.pause(taskId);
+      auditLogger.logEvent({ actor: principal, tenant_id: tenantId, action: 'task.paused', resource: { type: 'Task', id: taskId }, result: 'SUCCESS', request_id: `req_task_${Date.now()}` });
+      return { status: 200, data: task };
+    } catch (error) {
+      return modelErrorResult(error);
+    }
+  }
+
+  if (pathname.startsWith('/api/v1/tasks/') && pathname.endsWith('/resume') && method === 'POST') {
+    const taskId = pathname.slice('/api/v1/tasks/'.length, pathname.length - '/resume'.length);
+    try {
+      const task = taskStore.resume(taskId);
+      auditLogger.logEvent({ actor: principal, tenant_id: tenantId, action: 'task.resumed', resource: { type: 'Task', id: taskId }, result: 'SUCCESS', request_id: `req_task_${Date.now()}` });
+      return { status: 200, data: task };
+    } catch (error) {
+      return modelErrorResult(error);
+    }
+  }
+
+  if (pathname.startsWith('/api/v1/tasks/') && method === 'DELETE') {
+    const taskId = pathname.slice('/api/v1/tasks/'.length);
+    try {
+      taskStore.delete(taskId);
+      auditLogger.logEvent({ actor: principal, tenant_id: tenantId, action: 'task.deleted', resource: { type: 'Task', id: taskId }, result: 'SUCCESS', request_id: `req_task_${Date.now()}` });
+      return { status: 200, data: { success: true, deleted_id: taskId } };
+    } catch (error) {
+      return modelErrorResult(error);
+    }
+  }
+
+  if (pathname.startsWith('/api/v1/tasks/') && method === 'PATCH') {
+    const taskId = pathname.slice('/api/v1/tasks/'.length);
+    try {
+      const patch: Record<string, unknown> = {};
+      if (typeof body?.name === 'string') patch.name = body.name;
+      if (typeof body?.objective === 'string') patch.objective = body.objective;
+      if (typeof body?.approvalPolicy === 'string') patch.approvalPolicy = body.approvalPolicy;
+      if (body?.trigger && typeof body.trigger === 'object') {
+        patch.trigger = body.trigger;
+        const nextRun = computeNextRunAt(body.trigger as unknown as TaskTrigger, new Date());
+        patch.nextRunAt = nextRun ? nextRun.toISOString() : null;
+      }
+      const task = taskStore.update(taskId, patch);
+      auditLogger.logEvent({ actor: principal, tenant_id: tenantId, action: 'task.updated', resource: { type: 'Task', id: taskId }, result: 'SUCCESS', request_id: `req_task_${Date.now()}` });
+      return { status: 200, data: task };
+    } catch (error) {
+      return modelErrorResult(error);
+    }
+  }
+
+  if (pathname.startsWith('/api/v1/tasks/') && method === 'GET') {
+    const taskId = pathname.slice('/api/v1/tasks/'.length);
+    const task = taskStore.get(taskId);
+    if (!task) return { status: 404, data: { error: { code: 'TASK_NOT_FOUND', category: 'NOT_FOUND', message: `Task ${taskId} was not found.`, request_id: `req_task_${Date.now()}` } } };
+    return { status: 200, data: task };
+  }
 
   return { status: 404, data: { error: 'ENDPOINT_NOT_FOUND', message: `${method} ${pathname}` } };
 }

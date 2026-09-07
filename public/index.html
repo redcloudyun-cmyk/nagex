@@ -64,6 +64,12 @@
                 <span data-i18n="nav.plans">Plans</span>
               </button>
             </li>
+            <li class="nav-item" data-tab="tab-tasks">
+              <button class="nav-link">
+                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.2 14.2L11 13V7h1.5v5.2l4.5 2.7-.8 1.3z"/></svg>
+                <span data-i18n="nav.tasks">Tasks</span>
+              </button>
+            </li>
             <li class="nav-item" data-tab="tab-skills">
               <button class="nav-link">
                 <svg class="svg-icon" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
@@ -595,6 +601,66 @@
               </div>
             </div>
           </div>
+        </div>
+
+        <!-- VIEW: TASKS (MASTER.md Section 14.4 — Tasks Center) -->
+        <div id="view-tasks" class="tab-view">
+          <div class="view-header">
+            <div>
+              <h2 data-i18n="tasks.title">Tasks</h2>
+              <p class="view-subtitle" data-i18n="tasks.subtitle">Standing work that runs, recurs, waits, watches a condition, or tracks in the background — distinct from a one-off Plan.</p>
+            </div>
+            <button class="btn-plan-action plan-status-ready" id="btn-new-task" type="button" data-i18n="tasks.newTask">New Task</button>
+          </div>
+
+          <form class="task-create-form" id="task-create-form" style="display:none;">
+            <label>Name
+              <input type="text" id="task-name" required data-i18n-placeholder="tasks.form.namePlaceholder" placeholder="e.g. Daily Morning Brief">
+            </label>
+            <label data-i18n="tasks.form.objective">Objective
+              <textarea id="task-objective" rows="2" required data-i18n-placeholder="tasks.form.objectivePlaceholder" placeholder="What should NAgex do each time this runs?"></textarea>
+            </label>
+            <label data-i18n="tasks.form.type">Type
+              <select id="task-type">
+                <option value="ONE_TIME">ONE_TIME</option>
+                <option value="RECURRING">RECURRING</option>
+                <option value="CONDITIONAL">CONDITIONAL</option>
+                <option value="BACKGROUND">BACKGROUND</option>
+                <option value="WAITING">WAITING</option>
+                <option value="STANDING_INTENT">STANDING_INTENT</option>
+              </select>
+            </label>
+            <label data-i18n="tasks.form.trigger">Trigger
+              <select id="task-trigger-type">
+                <option value="MANUAL">MANUAL</option>
+                <option value="SCHEDULE">SCHEDULE (cron)</option>
+                <option value="INTERVAL">INTERVAL (minutes)</option>
+                <option value="CONDITION">CONDITION</option>
+              </select>
+            </label>
+            <label id="task-schedule-field" style="display:none;">Cron expression
+              <input type="text" id="task-schedule" placeholder="0 8 * * *">
+            </label>
+            <label id="task-interval-field" style="display:none;">Interval (minutes)
+              <input type="number" id="task-interval" min="1" value="60">
+            </label>
+            <label id="task-condition-field" style="display:none;">Condition (description only — evaluation not yet implemented)
+              <input type="text" id="task-condition" placeholder="e.g. flight price drops below ₩800,000">
+            </label>
+            <label>Approval policy
+              <select id="task-approval-policy">
+                <option value="ALWAYS_APPROVE">ALWAYS_APPROVE</option>
+                <option value="READ_ONLY_AUTO">READ_ONLY_AUTO</option>
+              </select>
+            </label>
+            <p class="calendar-form-error" id="task-form-error" style="display:none;"></p>
+            <div class="card-footer-actions">
+              <button type="button" class="btn-small" id="btn-task-cancel" data-i18n="ambient.close">Cancel</button>
+              <button type="submit" class="btn-plan-action plan-status-ready" data-i18n="tasks.form.create">Create Task</button>
+            </div>
+          </form>
+
+          <div class="tasks-list-container" id="tasks-list-container"></div>
         </div>
 
         <!-- VIEW 4: SKILLS -->

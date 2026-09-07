@@ -20,6 +20,8 @@ The primary NAgex product is a Personal AI / Agentic AI system centered on persi
 
 Do not expand NAgex into a generic enterprise AI platform unless explicitly required by `MASTER.md`.
 
+`MASTER.md` Section 14 adopts a longer-term extended vision (always-on Gateway, Main Session, Tasks Center, multi-channel, browser/device control, multi-agent, plugins). That extended roadmap is real and governs new work in its domain, but it does not override the near-term hackathon-critical path in `MASTER.md` Section 9 (Phase H1–H5) — when the two could compete for effort, Section 9 wins unless the user says otherwise.
+
 ## Hackathon Requirements
 
 NVIDIA and Nebius integration must be real and demonstrable.
@@ -39,6 +41,8 @@ For public contracts, change implementation, schema, tests, and documentation to
 ## Security Rules
 
 Never commit API keys or tokens, store secrets in source code, print secrets in logs, bypass human approval for consequential actions, allow cross-user or cross-tenant access by default, or execute destructive tool operations silently.
+
+For the extended Gateway/Tasks/multi-channel/multi-agent/plugin roadmap (`MASTER.md` Section 14) specifically, also never: copy OpenClaw source code or UI/branding directly, fake runtime state, use uncontrolled fuzzy tool/skill resolution (explicit alias tables only, per the existing Skill Registry), perform hidden background actions, hide a persistent Task from the UI, let saved memory outrank the user's current explicit instruction, or allow duplicate/replayed execution of the same action.
 
 ## Agent Execution Principles
 
