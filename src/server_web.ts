@@ -44,7 +44,15 @@ import { SessionStore } from './sessions/session.store.js';
 import { TaskStore, type TaskType, type TaskTrigger, type TaskApprovalPolicy } from './tasks/task.store.js';
 import { TaskRunStore } from './tasks/task-run.store.js';
 import { TaskScheduler, computeNextRunAt } from './tasks/task.scheduler.js';
-import { PlanPreviewTaskRunner, ConditionalWatchTaskRunner, CompositeTaskRunner } from './tasks/task.runner.js';
+import { PlanPreviewTaskRunner, ConditionalWatchTaskRunner, BackgroundTaskRunner, CompositeTaskRunner } from './tasks/task.runner.js';
+import { TelegramIdentityStore } from './integrations/telegram/telegram-identity.store.js';
+import { TelegramBotClient, type TelegramUpdate } from './integrations/telegram/telegram.client.js';
+import { TelegramService } from './integrations/telegram/telegram.service.js';
+import { SlackIdentityStore } from './integrations/slack/slack-identity.store.js';
+import { SlackClient, type SlackEventPayload } from './integrations/slack/slack.client.js';
+import { SlackService } from './integrations/slack/slack.service.js';
+import { NotificationStore } from './notifications/notification.store.js';
+import { NotificationEngine } from './notifications/notification.engine.js';
 
 const PORT = Number(process.env.PORT || 8085);
 const PUBLIC_DIR = path.join(process.cwd(), 'public');
@@ -122,8 +130,47 @@ export const taskRunStore = new TaskRunStore();
 const taskRunner = new CompositeTaskRunner(
   new PlanPreviewTaskRunner(aiService, planResolver, (principalId, prompt) => getRelevantMemories(principalId, prompt)),
   new ConditionalWatchTaskRunner(browserService, aiService),
+  new BackgroundTaskRunner(taskStore, aiService, planResolver, (principalId, prompt) => getRelevantMemories(principalId, prompt)),
 );
-export const taskScheduler = new TaskScheduler(taskStore, taskRunStore, taskRunner, auditLogger);
+
+// ─── MASTER.md Section 14 — Telegram Integration (Item 10) ───
+export const telegramIdentityStore = new TelegramIdentityStore();
+export const telegramBotClient = new TelegramBotClient();
+export const telegramService = new TelegramService({
+  botClient: telegramBotClient,
+  identityStore: telegramIdentityStore,
+  sessionStore,
+  aiService,
+  planResolver,
+  getMemories: (principalId, prompt) => getRelevantMemories(principalId, prompt),
+  auditLogger,
+});
+
+// ─── MASTER.md Section 14 — Slack Integration (Item 11) ───
+export const slackIdentityStore = new SlackIdentityStore();
+export const slackClient = new SlackClient();
+export const slackService = new SlackService({
+  slackClient,
+  identityStore: slackIdentityStore,
+  sessionStore,
+  aiService,
+  planResolver,
+  getMemories: (principalId, prompt) => getRelevantMemories(principalId, prompt),
+  auditLogger,
+});
+
+// ─── MASTER.md Section 14 — Notification Engine (Item 12) ───
+export const notificationStore = new NotificationStore();
+export const notificationEngine = new NotificationEngine({
+  store: notificationStore,
+  telegramIdentityStore,
+  telegramBotClient,
+  slackIdentityStore,
+  slackClient,
+  auditLogger,
+});
+
+export const taskScheduler = new TaskScheduler(taskStore, taskRunStore, taskRunner, auditLogger, undefined, notificationEngine);
 
 // A real (not fake) background scheduler loop — only runs when this module
 // is the actual running server, never when imported by tests (see the
@@ -443,6 +490,9 @@ export async function handleAsyncApiRequest(
   calendarService: GoogleCalendarService = googleCalendarService,
   gmailApiService: GmailService = gmailService,
   browserApiService: BrowserToolService = browserService,
+  telegramApiService: TelegramService = telegramService,
+  slackApiService: SlackService = slackService,
+  notificationApiService: NotificationEngine = notificationEngine,
 ): Promise<ApiResult> {
   try {
     if (pathname === '/api/v1/providers/status' && method === 'GET') {
@@ -741,6 +791,7 @@ export async function handleAsyncApiRequest(
         new CompositeTaskRunner(
           new PlanPreviewTaskRunner(service, planResolver, (principalId, prompt) => getRelevantMemories(principalId, prompt)),
           new ConditionalWatchTaskRunner(browserApiService, service),
+          new BackgroundTaskRunner(taskStore, service, planResolver, (principalId, prompt) => getRelevantMemories(principalId, prompt)),
         ),
         auditLogger,
       );
@@ -759,6 +810,150 @@ export async function handleAsyncApiRequest(
       const busy = await queryFreeBusy(accessToken, { calendarId, timeMin, timeMax }, fetch, requestId);
       return { status: 200, data: { busy, freeSlots: computeFreeSlots(busy, timeMin, timeMax) } };
     }
+
+    // ── Telegram Integration (MASTER.md Section 14.5 item 10) ─────────────
+    if (pathname === '/api/v1/integrations/telegram/status' && method === 'GET') {
+      return { status: 200, data: telegramBotClient.getStatus() };
+    }
+    if (pathname === '/api/v1/integrations/telegram/webhook' && method === 'POST') {
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_tg_wh_${crypto.randomUUID()}`;
+      const update = (body || {}) as unknown as TelegramUpdate;
+      const result = await telegramApiService.processUpdate(update, requestId);
+      return { status: 200, data: { status: 'ok', handled: result !== null, result } };
+    }
+    if (pathname === '/api/v1/integrations/telegram/send' && method === 'POST') {
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_tg_send_${crypto.randomUUID()}`;
+      const chatId = body?.chatId ? (typeof body.chatId === 'number' || typeof body.chatId === 'string' ? body.chatId : '') : '';
+      const text = typeof body?.text === 'string' ? body.text.trim() : '';
+      if (!chatId || !text) {
+        throw new NagexError({ code: 'INVALID_TELEGRAM_SEND_PAYLOAD', category: 'VALIDATION', message: 'chatId and text are required.', request_id: requestId });
+      }
+      const sent = await telegramBotClient.sendMessage({ chatId, text });
+      return { status: 200, data: { success: sent } };
+    }
+    if (pathname === '/api/v1/integrations/telegram/identity/link' && method === 'POST') {
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_tg_link_${crypto.randomUUID()}`;
+      const telegramUserId = String(body?.telegramUserId || '').trim();
+      const principalId = typeof body?.principalId === 'string' && body.principalId.trim() ? body.principalId.trim() : (getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001');
+      const tenantId = typeof body?.tenantId === 'string' && body.tenantId.trim() ? body.tenantId.trim() : (getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID);
+      const username = typeof body?.username === 'string' ? body.username.trim() : undefined;
+
+      if (!telegramUserId) {
+        throw new NagexError({ code: 'TELEGRAM_USER_ID_REQUIRED', category: 'VALIDATION', message: 'telegramUserId is required.', request_id: requestId });
+      }
+      const record = telegramIdentityStore.link(telegramUserId, principalId, tenantId, username);
+      auditLogger.logEvent({
+        actor: { type: 'user', id: principalId },
+        tenant_id: tenantId,
+        action: 'channel:telegram_identity_linked',
+        resource: { type: 'TelegramIdentityLink', id: telegramUserId },
+        result: 'SUCCESS',
+        request_id: requestId,
+        details: { telegramUserId, principalId, tenantId, username },
+      });
+      return { status: 200, data: record };
+    }
+    if (pathname === '/api/v1/integrations/telegram/identities' && method === 'GET') {
+      const identities = telegramIdentityStore.list();
+      return { status: 200, data: { identities, total: identities.length } };
+    }
+
+    // ── Slack Integration (MASTER.md Section 14.5 item 11) ────────────────
+    if (pathname === '/api/v1/integrations/slack/status' && method === 'GET') {
+      return { status: 200, data: slackClient.getStatus() };
+    }
+    if (pathname === '/api/v1/integrations/slack/events' && method === 'POST') {
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_slack_evt_${crypto.randomUUID()}`;
+      const payload = (body || {}) as unknown as SlackEventPayload;
+      if (payload.type === 'url_verification' && payload.challenge) {
+        return { status: 200, data: { challenge: payload.challenge } };
+      }
+      const result = await slackApiService.processEvent(payload, requestId);
+      return { status: 200, data: { status: 'ok', handled: result !== null, result } };
+    }
+    if (pathname === '/api/v1/integrations/slack/send' && method === 'POST') {
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_slack_send_${crypto.randomUUID()}`;
+      const channel = typeof body?.channel === 'string' ? body.channel.trim() : '';
+      const text = typeof body?.text === 'string' ? body.text.trim() : '';
+      const threadTs = typeof body?.threadTs === 'string' ? body.threadTs.trim() : undefined;
+      if (!channel || !text) {
+        throw new NagexError({ code: 'INVALID_SLACK_SEND_PAYLOAD', category: 'VALIDATION', message: 'channel and text are required.', request_id: requestId });
+      }
+      const sent = await slackClient.postMessage({ channel, text, threadTs });
+      return { status: 200, data: { success: sent } };
+    }
+    if (pathname === '/api/v1/integrations/slack/identity/link' && method === 'POST') {
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_slack_link_${crypto.randomUUID()}`;
+      const slackUserId = String(body?.slackUserId || '').trim();
+      const principalId = typeof body?.principalId === 'string' && body.principalId.trim() ? body.principalId.trim() : (getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001');
+      const tenantId = typeof body?.tenantId === 'string' && body.tenantId.trim() ? body.tenantId.trim() : (getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID);
+      const slackTeamId = typeof body?.slackTeamId === 'string' ? body.slackTeamId.trim() : undefined;
+      const username = typeof body?.username === 'string' ? body.username.trim() : undefined;
+
+      if (!slackUserId) {
+        throw new NagexError({ code: 'SLACK_USER_ID_REQUIRED', category: 'VALIDATION', message: 'slackUserId is required.', request_id: requestId });
+      }
+      const record = slackIdentityStore.link(slackUserId, principalId, tenantId, slackTeamId, username);
+      auditLogger.logEvent({
+        actor: { type: 'user', id: principalId },
+        tenant_id: tenantId,
+        action: 'channel:slack_identity_linked',
+        resource: { type: 'SlackIdentityLink', id: slackUserId },
+        result: 'SUCCESS',
+        request_id: requestId,
+        details: { slackUserId, principalId, tenantId, slackTeamId, username },
+      });
+      return { status: 200, data: record };
+    }
+    if (pathname === '/api/v1/integrations/slack/identities' && method === 'GET') {
+      const identities = slackIdentityStore.list();
+      return { status: 200, data: { identities, total: identities.length } };
+    }
+
+    // ── Notification Engine (MASTER.md Section 14.5 item 12) ──────────────
+    if (pathname === '/api/v1/notifications' && method === 'GET') {
+      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const notifications = notificationApiService.list(principalId);
+      const unreadCount = notificationApiService.getUnreadCount(principalId);
+      return { status: 200, data: { notifications, unreadCount, total: notifications.length } };
+    }
+    if (pathname === '/api/v1/notifications/read-all' && method === 'POST') {
+      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const updatedCount = notificationApiService.markAllAsRead(principalId);
+      return { status: 200, data: { success: true, updatedCount } };
+    }
+    if (pathname.startsWith('/api/v1/notifications/') && pathname.endsWith('/read') && method === 'POST') {
+      const id = pathname.slice('/api/v1/notifications/'.length, pathname.length - '/read'.length);
+      const record = notificationApiService.markAsRead(id);
+      if (!record) {
+        return { status: 404, data: { error: { code: 'NOTIFICATION_NOT_FOUND', category: 'NOT_FOUND', message: `Notification ${id} was not found.` } } };
+      }
+      return { status: 200, data: record };
+    }
+    if (pathname === '/api/v1/notifications/dispatch' && method === 'POST') {
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_notif_disp_${crypto.randomUUID()}`;
+      const principalId = typeof body?.principalId === 'string' && body.principalId.trim() ? body.principalId.trim() : (getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001');
+      const tenantId = typeof body?.tenantId === 'string' && body.tenantId.trim() ? body.tenantId.trim() : (getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID);
+      const type = (typeof body?.type === 'string' ? body.type : 'SYSTEM_ALERT') as any;
+      const title = typeof body?.title === 'string' ? body.title.trim() : 'Notification';
+      const bodyText = typeof body?.body === 'string' ? body.body.trim() : '';
+
+      if (!bodyText) {
+        throw new NagexError({ code: 'NOTIFICATION_BODY_REQUIRED', category: 'VALIDATION', message: 'Notification body is required.', request_id: requestId });
+      }
+
+      const record = await notificationApiService.dispatch({
+        tenantId,
+        principalId,
+        type,
+        title,
+        body: bodyText,
+        metadata: body?.metadata && typeof body.metadata === 'object' ? (body.metadata as Record<string, unknown>) : undefined,
+        requestId,
+      });
+      return { status: 201, data: record };
+    }
+
     return handleApiRequest(method, pathname, body, headers);
   } catch (error) {
     return modelErrorResult(error);
@@ -1102,6 +1297,17 @@ export function handleApiRequest(
     try {
       const task = taskStore.resume(taskId);
       auditLogger.logEvent({ actor: principal, tenant_id: tenantId, action: 'task.resumed', resource: { type: 'Task', id: taskId }, result: 'SUCCESS', request_id: `req_task_${Date.now()}` });
+      return { status: 200, data: task };
+    } catch (error) {
+      return modelErrorResult(error);
+    }
+  }
+
+  if (pathname.startsWith('/api/v1/tasks/') && pathname.endsWith('/cancel') && method === 'POST') {
+    const taskId = pathname.slice('/api/v1/tasks/'.length, pathname.length - '/cancel'.length);
+    try {
+      const task = taskStore.cancel(taskId);
+      auditLogger.logEvent({ actor: principal, tenant_id: tenantId, action: 'task.cancelled', resource: { type: 'Task', id: taskId }, result: 'SUCCESS', request_id: `req_task_${Date.now()}` });
       return { status: 200, data: task };
     } catch (error) {
       return modelErrorResult(error);

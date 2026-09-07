@@ -291,4 +291,36 @@ export const toolRegistry = new ToolRegistry([
   // at execution time, never more permissively than that.
   { id: 'browser.click', name: 'Browser Click', capability: 'browser.page.click', connectionStatus: 'disconnected', sideEffectLevel: 'REVERSIBLE_WRITE', requiresApproval: false, executionMode: 'unavailable', aliases: ['click', 'click element', 'browser click'], getLiveStatus: browserRuntimeLiveStatus },
   { id: 'browser.close', name: 'Browser Close', capability: 'browser.session.close', connectionStatus: 'disconnected', sideEffectLevel: 'READ_ONLY', requiresApproval: false, executionMode: 'unavailable', aliases: ['close browser', 'close browser session'], getLiveStatus: browserRuntimeLiveStatus },
+
+  // Telegram Integration (MASTER.md Section 14.5 item 10)
+  {
+    id: 'telegram.bot',
+    name: 'Telegram Integration',
+    capability: 'messaging.chat.send',
+    connectionStatus: 'connected',
+    sideEffectLevel: 'REVERSIBLE_WRITE',
+    requiresApproval: true,
+    executionMode: 'live',
+    aliases: ['telegram', 'telegram bot', 'send telegram message', 'telegram.bot'],
+    getLiveStatus: () => ({
+      connectionStatus: process.env.TELEGRAM_BOT_TOKEN ? 'connected' : 'disconnected',
+      executionMode: process.env.TELEGRAM_BOT_TOKEN ? 'live' : 'mock',
+    }),
+  },
+
+  // Slack Integration (MASTER.md Section 14.5 item 11)
+  {
+    id: 'slack.bot',
+    name: 'Slack Integration',
+    capability: 'messaging.channel.post',
+    connectionStatus: 'connected',
+    sideEffectLevel: 'REVERSIBLE_WRITE',
+    requiresApproval: true,
+    executionMode: 'live',
+    aliases: ['slack', 'slack bot', 'post slack message', 'slack.bot', 'notify slack'],
+    getLiveStatus: () => ({
+      connectionStatus: process.env.SLACK_BOT_TOKEN ? 'connected' : 'disconnected',
+      executionMode: process.env.SLACK_BOT_TOKEN ? 'live' : 'mock',
+    }),
+  },
 ]);

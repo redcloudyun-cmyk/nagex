@@ -29,6 +29,15 @@ export interface TaskTrigger {
   checkIntervalMinutes?: number;
 }
 
+export interface TaskProgress {
+  percent: number;
+  currentStep: string;
+  totalSteps: number;
+  completedSteps: number;
+  statusMessage: string;
+  logs: string[];
+}
+
 export interface TaskRecord {
   taskId: string;
   tenantId: string;
@@ -44,6 +53,7 @@ export interface TaskRecord {
   nextRunAt: string | null;
   lastRunAt: string | null;
   lastRunStatus: 'SUCCEEDED' | 'FAILED' | null;
+  progress?: TaskProgress | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -179,6 +189,12 @@ export class TaskStore {
     if (patch.trigger !== undefined) record.trigger = patch.trigger;
     if (patch.approvalPolicy !== undefined) record.approvalPolicy = patch.approvalPolicy;
     if (patch.nextRunAt !== undefined) record.nextRunAt = patch.nextRunAt;
+    return this.persist(record);
+  }
+
+  public updateProgress(taskId: string, progress: TaskProgress, requestId = 'task_update_progress'): TaskRecord {
+    const record = this.require(taskId, requestId);
+    record.progress = progress;
     return this.persist(record);
   }
 

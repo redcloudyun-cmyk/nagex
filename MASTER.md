@@ -451,7 +451,7 @@ Current vs. target (informational — near-term hackathon priority is still Sect
 |---|---|---|
 | Main Session | Partial (Ambient interaction) | Persistent canonical session |
 | Memory | Initial implementation | Long-term / episodic / project / relationship / preference memory |
-| Multi-channel | Web-only | Telegram, Slack, WhatsApp, Mobile |
+| Multi-channel | Implemented (Telegram Bot & Slack Event API + Identity Resolution AC-13) | Telegram & Slack implemented; WhatsApp, Mobile target |
 | Calendar | Live (create/update/cancel/RSVP, all approval-gated) | Confirmation UX in the ambient composer for update/cancel/RSVP (create_event's compose form + approval card already ships this) |
 | Gmail | Live (send/reply/create_draft, all approval-gated; search/read_thread read-only) | Approval-card UI wired into the ambient composer (pure view-model exists — see public/gmail-approval-view.js — but no natural-language compose flow yet) |
 | Browser | Not implemented | Agent-controlled browser |
@@ -459,14 +459,15 @@ Current vs. target (informational — near-term hackathon priority is still Sect
 | Local Files | Limited | Read/write/edit/search |
 | Shell | Not implemented | Sandboxed exec |
 | Automation | SCHEDULE/INTERVAL implemented; CONDITION implemented via browser-page watch (item 07); WEBHOOK/EMAIL_EVENT/CALENDAR_EVENT/FILE_EVENT/SYSTEM_EVENT/AGENT_EVENT not implemented | Full trigger-type coverage |
-| Tasks Center | Implemented (create/list/get/patch/pause/resume/run/delete, ONE_TIME/RECURRING/CONDITIONAL) | BACKGROUND/STANDING_INTENT task types not yet meaningfully distinct from the others |
-| Background Agent | Not implemented | Durable background execution |
+| Tasks Center | Implemented (create/list/get/patch/pause/resume/run/cancel/delete, ONE_TIME/RECURRING/CONDITIONAL/BACKGROUND) | STANDING_INTENT task type not yet meaningfully distinct |
+| Background Agent | Implemented (Durable background execution with step progress tracking 0-100%, cancellation, re-check, AC-12 passing) | Advanced background sub-agent orchestration |
 | Multi-agent | Not implemented | Sub-agent / isolated workspace |
 | Plugins | Not implemented | Runtime plugin SDK |
 | Mobile | Concept only | Android-first node |
 | Voice | UI-only | Real STT/TTS / wake flow |
 | Governance | Foundational | Advanced |
 | Audit | Basic | Unified task/execution audit |
+| Notification Engine | Implemented (Multi-channel Web, Telegram & Slack proactive dispatch, task outcome & condition wiring) | Push notification service & channel preferences |
 
 Extended roadmap phases (post-hackathon-critical-path; do not block Section 9's H-phases on these):
 

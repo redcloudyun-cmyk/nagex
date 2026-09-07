@@ -1,5 +1,6 @@
 import { generateResourceId, getCurrentISOString } from '../common/utils.js';
 import type { AuditLogger } from '../governance/audit.logger.js';
+import type { NotificationEngine } from '../notifications/notification.engine.js';
 import { TaskStore, type TaskRecord, type TaskTrigger } from './task.store.js';
 import { TaskRunStore, type TaskRunRecord } from './task-run.store.js';
 
@@ -150,6 +151,7 @@ export class TaskScheduler {
     private readonly runner: TaskRunner,
     private readonly audit: AuditLogger,
     private readonly now: () => Date = () => new Date(),
+    private readonly notificationEngine?: NotificationEngine,
   ) {}
 
   public async tick(): Promise<TaskRunRecord[]> {
@@ -203,6 +205,30 @@ export class TaskScheduler {
         result: 'SUCCESS',
         request_id: requestId,
       });
+
+      if (this.notificationEngine) {
+        if (outcome.conditionMet) {
+          this.notificationEngine.dispatch({
+            tenantId: task.tenantId,
+            principalId: task.ownerId,
+            type: 'CONDITION_MET',
+            title: `Condition Met: ${task.name}`,
+            body: `Watched condition for task "${task.name}" was fulfilled.`,
+            metadata: { taskId: task.taskId, runId },
+            requestId,
+          }).catch(() => {});
+        } else {
+          this.notificationEngine.dispatch({
+            tenantId: task.tenantId,
+            principalId: task.ownerId,
+            type: 'TASK_COMPLETED',
+            title: `Task Completed: ${task.name}`,
+            body: `Task "${task.name}" completed successfully.`,
+            metadata: { taskId: task.taskId, runId },
+            requestId,
+          }).catch(() => {});
+        }
+      }
     } else {
       this.runs.fail(runId, { errorCode: outcome.errorCode ?? 'TASK_RUN_FAILED', completedAt });
       this.audit.logEvent({
@@ -214,6 +240,18 @@ export class TaskScheduler {
         reason_code: outcome.errorCode ?? 'TASK_RUN_FAILED',
         request_id: requestId,
       });
+
+      if (this.notificationEngine) {
+        this.notificationEngine.dispatch({
+          tenantId: task.tenantId,
+          principalId: task.ownerId,
+          type: 'TASK_FAILED',
+          title: `Task Failed: ${task.name}`,
+          body: `Task "${task.name}" failed: ${outcome.errorCode ?? 'Execution error'}`,
+          metadata: { taskId: task.taskId, runId },
+          requestId,
+        }).catch(() => {});
+      }
     }
 
     const nextRun = computeNextRunAt(task.trigger, this.now());

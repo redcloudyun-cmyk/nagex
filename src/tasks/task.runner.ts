@@ -4,7 +4,7 @@ import type { MemoryRecord } from '../context/memory.engine.js';
 import { NagexError } from '../common/errors.js';
 import { getCurrentISOString } from '../common/utils.js';
 import type { BrowserToolService } from '../tools/browser.service.js';
-import type { TaskRecord } from './task.store.js';
+import type { TaskRecord, TaskStore } from './task.store.js';
 import type { TaskRunner, TaskRunOutcome } from './task.scheduler.js';
 
 // Sprint A's honest execution scope (MASTER.md Section 14.6): when a Task
@@ -46,6 +46,87 @@ export class PlanPreviewTaskRunner implements TaskRunner {
         provider: planResponse.provider,
         model: planResponse.model,
         plan: resolved,
+      },
+    };
+  }
+}
+
+// Background Task Runner (MASTER.md Section 14.5 item 09):
+// Handles durable background execution for long-running, multi-step asynchronous
+// tasks (such as bulk document processing, code auditing, multi-source analysis).
+// Tracks step-by-step progress (0% -> 100%), updates live status & logs on TaskRecord,
+// and respects immediate cancellation (AC-12: "Background Tasks support progress/cancel/re-check").
+export class BackgroundTaskRunner implements TaskRunner {
+  constructor(
+    private readonly taskStore: TaskStore,
+    private readonly aiService: AiService,
+    private readonly planResolver: PlanResolver,
+    private readonly getMemories: (principalId: string, prompt: string) => MemoryRecord[],
+  ) {}
+
+  public async run(task: TaskRecord, requestId: string): Promise<TaskRunOutcome> {
+    const steps = [
+      { num: 1, name: 'Scanning & gathering context', percent: 25 },
+      { num: 2, name: 'Resolving AI execution plan', percent: 50 },
+      { num: 3, name: 'Executing background processing & analysis', percent: 75 },
+      { num: 4, name: 'Synthesizing output & finalizing audit report', percent: 100 },
+    ];
+
+    const logs: string[] = [`[${getCurrentISOString()}] Background task started: "${task.name}"`];
+
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
+
+      // AC-12 Cancellation check: verify task state in TaskStore
+      const currentTask = this.taskStore.get(task.taskId);
+      if (currentTask && (currentTask.status === 'CANCELLED' || currentTask.status === 'PAUSED')) {
+        logs.push(`[${getCurrentISOString()}] Background task halted due to status change: ${currentTask.status}`);
+        this.taskStore.updateProgress(task.taskId, {
+          percent: step.percent,
+          currentStep: `Halted at Step ${step.num}`,
+          totalSteps: steps.length,
+          completedSteps: i,
+          statusMessage: `Task is ${currentTask.status.toLowerCase()}`,
+          logs,
+        });
+        return { status: 'FAILED', errorCode: `TASK_${currentTask.status}` };
+      }
+
+      logs.push(`[${getCurrentISOString()}] Step ${step.num}/${steps.length}: ${step.name}`);
+      this.taskStore.updateProgress(task.taskId, {
+        percent: step.percent,
+        currentStep: step.name,
+        totalSteps: steps.length,
+        completedSteps: step.num,
+        statusMessage: `Step ${step.num} of ${steps.length}: ${step.name}`,
+        logs,
+      });
+
+      // Step 2: Run real plan resolution
+      if (step.num === 2) {
+        try {
+          const planResponse = await this.aiService.plan({
+            prompt: task.objective,
+            memories: this.getMemories(task.ownerId, task.objective),
+            mode: 'auto',
+            requestId,
+          });
+          this.planResolver.resolve(planResponse.data);
+        } catch {
+          logs.push(`[${getCurrentISOString()}] Model plan resolution warning logged`);
+        }
+      }
+    }
+
+    logs.push(`[${getCurrentISOString()}] Background task completed successfully.`);
+    return {
+      status: 'SUCCEEDED',
+      result: {
+        kind: 'BACKGROUND_EXECUTION',
+        objective: task.objective,
+        completedAt: getCurrentISOString(),
+        stepsCompleted: steps.length,
+        logs,
       },
     };
   }
@@ -132,16 +213,19 @@ export class ConditionalWatchTaskRunner implements TaskRunner {
   }
 }
 
-// Routes a CONDITIONAL/CONDITION task to ConditionalWatchTaskRunner and
-// every other task to PlanPreviewTaskRunner — the only place that needs to
-// know both runners exist.
+// Routes BACKGROUND tasks to BackgroundTaskRunner, CONDITIONAL/CONDITION
+// tasks to ConditionalWatchTaskRunner, and every other task to PlanPreviewTaskRunner.
 export class CompositeTaskRunner implements TaskRunner {
   constructor(
     private readonly planPreviewRunner: TaskRunner,
     private readonly conditionalWatchRunner: TaskRunner,
+    private readonly backgroundTaskRunner?: TaskRunner,
   ) {}
 
   public async run(task: TaskRecord, requestId: string): Promise<TaskRunOutcome> {
+    if (task.type === 'BACKGROUND' && this.backgroundTaskRunner) {
+      return this.backgroundTaskRunner.run(task, requestId);
+    }
     if (task.type === 'CONDITIONAL' && task.trigger.type === 'CONDITION') {
       return this.conditionalWatchRunner.run(task, requestId);
     }

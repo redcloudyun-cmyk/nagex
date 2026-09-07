@@ -127,6 +127,9 @@
       'tasks.pause': 'Pause',
       'tasks.resume': 'Resume',
       'tasks.runNow': 'Run now',
+      'tasks.cancelTask': 'Cancel Task',
+      'tasks.recheckTask': 'Re-check',
+      'tasks.progress': 'Progress',
       'tasks.delete': 'Delete',
       'tasks.nextRun': 'Next run',
       'tasks.lastRun': 'Last run',
@@ -175,6 +178,26 @@
       'browser.readingPage': 'Reading page...',
       'browser.connectPrompt': 'The browser runtime is not available on this server.',
       'browser.sessionBlocked': 'This browser session requires human verification (CAPTCHA/MFA) and cannot continue automatically.',
+
+      // Telegram Integration
+      'telegram.title': 'Telegram Integration',
+      'telegram.subtitle': 'Connect NAgex to Telegram to send & receive messages via mobile bot.',
+      'telegram.linkIdentity': 'Link Telegram User ID',
+      'telegram.linkedUsers': 'Linked Users',
+      'telegram.botStatus': 'Bot Status',
+
+      // Slack Integration
+      'slack.title': 'Slack Integration',
+      'slack.subtitle': 'Connect NAgex to Slack to receive channel events and post responses.',
+      'slack.linkIdentity': 'Link Slack User ID',
+      'slack.linkedUsers': 'Linked Users',
+      'slack.botStatus': 'Bot Status',
+
+      // Notifications
+      'notifications.title': 'Notifications',
+      'notifications.subtitle': 'Proactive alerts and multi-channel notifications across Web, Telegram, and Slack.',
+      'notifications.markAllRead': 'Mark All as Read',
+      'notifications.empty': 'No notifications.',
       'browser.approvalRequired': 'Confirm this action before it runs',
       'browser.target': 'Target',
       'browser.currentPage': 'Current page',
@@ -347,6 +370,9 @@
       'tasks.pause': '일시중지',
       'tasks.resume': '재개',
       'tasks.runNow': '지금 실행',
+      'tasks.cancelTask': '작업 취소',
+      'tasks.recheckTask': '진행 상태 재확인',
+      'tasks.progress': '진행률',
       'tasks.delete': '삭제',
       'tasks.nextRun': '다음 실행',
       'tasks.lastRun': '마지막 실행',
@@ -395,6 +421,26 @@
       'browser.readingPage': '페이지 읽는 중...',
       'browser.connectPrompt': '이 서버에서는 브라우저 런타임을 사용할 수 없습니다.',
       'browser.sessionBlocked': '이 브라우저 세션은 사람의 확인(캡차/2단계 인증)이 필요하여 자동으로 계속할 수 없습니다.',
+
+      // Telegram Integration
+      'telegram.title': '텔레그램 연동',
+      'telegram.subtitle': '텔레그램 봇을 통해 모바일에서도 NAgex와 메시지를 주고받을 수 있습니다.',
+      'telegram.linkIdentity': '텔레그램 사용자 ID 연결',
+      'telegram.linkedUsers': '연결된 사용자',
+      'telegram.botStatus': '봇 상태',
+
+      // Slack Integration
+      'slack.title': '슬랙 연동',
+      'slack.subtitle': '슬랙 워크스페이스 채널 이벤트를 수신하고 답변을 전송합니다.',
+      'slack.linkIdentity': '슬랙 사용자 ID 연결',
+      'slack.linkedUsers': '연결된 사용자',
+      'slack.botStatus': '봇 상태',
+
+      // Notifications
+      'notifications.title': '알림',
+      'notifications.subtitle': '웹, 텔레그램, 슬랙을 통한 실시간 멀티채널 프로액티브 알림입니다.',
+      'notifications.markAllRead': '모두 읽음으로 표시',
+      'notifications.empty': '알림이 없습니다.',
       'browser.approvalRequired': '실행 전에 이 작업을 확인하세요',
       'browser.target': '대상',
       'browser.currentPage': '현재 페이지',

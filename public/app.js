@@ -23,6 +23,9 @@
     // source a follow-up reply/read_thread request may prefill threadId/
     // replyToMessageId from. Never populated from a guess.
     lastGmailThread: null,
+    telegram: { status: { configured: false, botUsername: null }, identities: [] },
+    slack: { status: { configured: false, botId: null }, identities: [] },
+    notifications: { items: [], unreadCount: 0 },
   };
 
   var FLOW_STAGES = ['User message', 'Plan Preview', 'Plan Resolution', 'Approval Card', 'Human Approval', 'Execution', 'Result'];
@@ -242,7 +245,7 @@
   }
 
   async function loadAllData() {
-    const [memData, planData, taskData, skillData, toolData, apprData, execData, knowData, qwData, autoData, oauthData] = await Promise.all([
+    const [memData, planData, taskData, skillData, toolData, apprData, execData, knowData, qwData, autoData, oauthData, tgStatus, tgIdentities, slackStatus, slackIdentities, notifData] = await Promise.all([
       apiFetch('/api/v1/memory'),
       apiFetch('/api/v1/plans'),
       apiFetch('/api/v1/tasks'),
@@ -254,6 +257,11 @@
       apiFetch('/api/v1/quickwake/config'),
       apiFetch('/api/v1/autonomy/config'),
       apiFetch('/api/v1/oauth/google/status'),
+      apiFetch('/api/v1/integrations/telegram/status'),
+      apiFetch('/api/v1/integrations/telegram/identities'),
+      apiFetch('/api/v1/integrations/slack/status'),
+      apiFetch('/api/v1/integrations/slack/identities'),
+      apiFetch('/api/v1/notifications'),
     ]);
 
     if (memData) state.memories = memData.memories || [];
@@ -267,6 +275,14 @@
     if (qwData) state.quickWakeConfig = qwData;
     if (autoData) state.autonomyConfig = autoData;
     if (oauthData && typeof oauthData.connected === 'boolean') state.googleOAuth = oauthData;
+    if (tgStatus) state.telegram.status = tgStatus;
+    if (tgIdentities) state.telegram.identities = tgIdentities.identities || [];
+    if (slackStatus) state.slack.status = slackStatus;
+    if (slackIdentities) state.slack.identities = slackIdentities.identities || [];
+    if (notifData) {
+      state.notifications.items = notifData.notifications || [];
+      state.notifications.unreadCount = typeof notifData.unreadCount === 'number' ? notifData.unreadCount : 0;
+    }
 
     renderActiveTab();
   }
@@ -403,7 +419,12 @@
       container.innerHTML = `<p class="card-body-text">${escapeHtml(t('tasks.empty'))}</p>`;
     } else {
       container.innerHTML = state.tasks
-        .map((task) => `
+        .map((task) => {
+          const hasProgress = Boolean(task.progress);
+          const percent = hasProgress ? (task.progress.percent || 0) : 0;
+          const statusMsg = hasProgress ? (task.progress.statusMessage || task.progress.currentStep || '') : '';
+
+          return `
         <div class="plan-item-card">
           <div class="plan-item-header">
             <span class="plan-goal-title">${escapeHtml(task.name)}</span>
@@ -413,6 +434,14 @@
           <p class="card-body-text" style="font-size:0.75rem; color:var(--text-muted);">
             ${escapeHtml(task.type)} · ${escapeHtml(formatTaskTrigger(task.trigger))}
           </p>
+          ${hasProgress ? `
+          <div class="task-progress-box" style="margin: 0.5rem 0; background: var(--bg-subtle); padding: 0.5rem 0.75rem; border-radius: 8px;">
+            <div style="display:flex; justify-content:space-between; font-size:0.75rem; font-weight:600; margin-bottom: 0.25rem;">
+              <span>${escapeHtml(statusMsg)}</span>
+              <span>${percent}%</span>
+            </div>
+            <div class="progress-bar-small"><div class="fill" style="width: ${percent}%;"></div></div>
+          </div>` : ''}
           <p class="card-body-text" style="font-size:0.75rem; color:var(--text-muted);">
             ${escapeHtml(t('tasks.nextRun'))}: ${escapeHtml(formatTaskTimestamp(task.nextRunAt))} ·
             ${escapeHtml(t('tasks.lastRun'))}: ${escapeHtml(formatTaskTimestamp(task.lastRunAt))}${task.lastRunStatus ? ` (${escapeHtml(task.lastRunStatus)})` : ''}
@@ -420,10 +449,13 @@
           <div class="card-footer-actions">
             ${task.status === 'ACTIVE' || task.status === 'WAITING' ? `<button class="btn-small" onclick="window.NAGEX.pauseTask('${task.taskId}')">${escapeHtml(t('tasks.pause'))}</button>` : ''}
             ${task.status === 'PAUSED' ? `<button class="btn-small" onclick="window.NAGEX.resumeTask('${task.taskId}')">${escapeHtml(t('tasks.resume'))}</button>` : ''}
+            ${task.status === 'RUNNING' || task.status === 'ACTIVE' || task.status === 'WAITING' ? `<button class="btn-small danger" onclick="window.NAGEX.cancelTask('${task.taskId}')">${escapeHtml(t('tasks.cancelTask'))}</button>` : ''}
+            <button class="btn-small" onclick="window.NAGEX.recheckTask('${task.taskId}')">${escapeHtml(t('tasks.recheckTask'))}</button>
             <button class="btn-small" onclick="window.NAGEX.runTaskNow('${task.taskId}')">${escapeHtml(t('tasks.runNow'))}</button>
             <button class="btn-small danger" onclick="window.NAGEX.deleteTask('${task.taskId}')">${escapeHtml(t('tasks.delete'))}</button>
           </div>
-        </div>`)
+        </div>`;
+        })
         .join('');
     }
 
@@ -542,6 +574,16 @@
             ? `<button class="btn-small danger" id="btn-google-calendar-disconnect">Disconnect Google Calendar</button>`
             : `<button class="btn-small" id="btn-google-calendar-connect">🔗 Connect Google Calendar</button>`
         }</div>` : ''}
+        ${t.id === 'telegram.bot' ? `<div class="tool-oauth-actions">
+          <p style="font-size:0.75rem; margin-top:0.25rem; color:var(--text-muted);">Bot Status: <strong>${state.telegram && state.telegram.status && state.telegram.status.configured ? 'Active' : 'Mock Mode (No Token)'}</strong></p>
+          <p style="font-size:0.75rem; color:var(--text-muted);">Linked Users: <strong>${(state.telegram && state.telegram.identities && state.telegram.identities.length) || 0}</strong></p>
+          <button class="btn-small" id="btn-telegram-link-identity">🔗 Link Telegram User</button>
+        </div>` : ''}
+        ${t.id === 'slack.bot' ? `<div class="tool-oauth-actions">
+          <p style="font-size:0.75rem; margin-top:0.25rem; color:var(--text-muted);">Bot Status: <strong>${state.slack && state.slack.status && state.slack.status.configured ? 'Active' : 'Mock Mode (No Token)'}</strong></p>
+          <p style="font-size:0.75rem; color:var(--text-muted);">Linked Users: <strong>${(state.slack && state.slack.identities && state.slack.identities.length) || 0}</strong></p>
+          <button class="btn-small" id="btn-slack-link-identity">🔗 Link Slack User</button>
+        </div>` : ''}
       </div>`
       )
       .join('');
@@ -563,6 +605,26 @@
       btnDisconnect.onclick = async () => {
         await apiFetch('/api/v1/oauth/google/disconnect', { method: 'POST' });
         await loadAllData();
+      };
+    }
+    const btnTgLink = document.getElementById('btn-telegram-link-identity');
+    if (btnTgLink) {
+      btnTgLink.onclick = async () => {
+        const tgUserId = prompt('Enter Telegram User ID to link to your NAgex Main Session (e.g. 12345678):');
+        if (tgUserId && tgUserId.trim()) {
+          const username = prompt('Optional: Telegram Username (e.g. janesmith):') || undefined;
+          await window.NAGEX.linkTelegramIdentity(tgUserId.trim(), 'usr_admin_001', username);
+        }
+      };
+    }
+    const btnSlackLink = document.getElementById('btn-slack-link-identity');
+    if (btnSlackLink) {
+      btnSlackLink.onclick = async () => {
+        const slackUserId = prompt('Enter Slack User ID to link to your NAgex Main Session (e.g. U1234567):');
+        if (slackUserId && slackUserId.trim()) {
+          const username = prompt('Optional: Slack Username (e.g. janesmith):') || undefined;
+          await window.NAGEX.linkSlackIdentity(slackUserId.trim(), 'usr_admin_001', undefined, username);
+        }
       };
     }
   }
@@ -1985,12 +2047,42 @@
       await apiFetch(`/api/v1/tasks/${taskId}/resume`, { method: 'POST' });
       await loadAllData();
     },
+    cancelTask: async (taskId) => {
+      await apiFetch(`/api/v1/tasks/${taskId}/cancel`, { method: 'POST' });
+      await loadAllData();
+    },
+    recheckTask: async (taskId) => {
+      await apiFetch(`/api/v1/tasks/${taskId}`, { method: 'GET' });
+      await loadAllData();
+    },
     runTaskNow: async (taskId) => {
       await apiFetch(`/api/v1/tasks/${taskId}/run`, { method: 'POST' });
       await loadAllData();
     },
     deleteTask: async (taskId) => {
       await apiFetch(`/api/v1/tasks/${taskId}`, { method: 'DELETE' });
+      await loadAllData();
+    },
+    linkTelegramIdentity: async (telegramUserId, principalId = 'usr_admin_001', username) => {
+      await apiFetch('/api/v1/integrations/telegram/identity/link', {
+        method: 'POST',
+        body: JSON.stringify({ telegramUserId, principalId, username }),
+      });
+      await loadAllData();
+    },
+    linkSlackIdentity: async (slackUserId, principalId = 'usr_admin_001', slackTeamId, username) => {
+      await apiFetch('/api/v1/integrations/slack/identity/link', {
+        method: 'POST',
+        body: JSON.stringify({ slackUserId, principalId, slackTeamId, username }),
+      });
+      await loadAllData();
+    },
+    markNotificationRead: async (id) => {
+      await apiFetch(`/api/v1/notifications/${id}/read`, { method: 'POST' });
+      await loadAllData();
+    },
+    markAllNotificationsRead: async () => {
+      await apiFetch('/api/v1/notifications/read-all', { method: 'POST' });
       await loadAllData();
     },
   };
