@@ -73,40 +73,60 @@ test('LocalStorageProvider: handles putObject, getObject, headObject, and delete
 });
 
 test('S3StorageProvider: handles S3 configuration and object lifecycle contract', async () => {
-  const provider = new S3StorageProvider({
-    endpoint: 'https://storage.nebius.cloud',
-    region: 'eu-north1',
-    bucket: 'nagex-vault-bucket',
-    accessKeyId: 'test_access_key',
-    secretAccessKey: 'test_secret_key',
-  });
+  const origMockFallback = process.env.NAGEX_S3_ALLOW_MOCK_FALLBACK;
+  process.env.NAGEX_S3_ALLOW_MOCK_FALLBACK = '1';
+  try {
+    const provider = new S3StorageProvider({
+      endpoint: 'https://storage.nebius.cloud',
+      region: 'eu-north1',
+      bucket: 'nagex-vault-bucket',
+      accessKeyId: 'test_access_key',
+      secretAccessKey: 'test_secret_key',
+    });
 
-  assert.equal(provider.getProviderName(), 's3');
+    assert.equal(provider.getProviderName(), 's3');
 
-  const meta = await provider.putObject('vault/usr_01/files/report.pdf', Buffer.from('S3 PDF content'), 'application/pdf');
-  assert.equal(meta.mimeType, 'application/pdf');
+    const meta = await provider.putObject('vault/usr_01/files/report.pdf', Buffer.from('S3 PDF content'), 'application/pdf');
+    assert.equal(meta.mimeType, 'application/pdf');
 
-  const signedUrl = await provider.getSignedUrl('vault/usr_01/files/report.pdf');
-  assert.ok(signedUrl.startsWith('https://storage.nebius.cloud/nagex-vault-bucket/'));
+    const signedUrl = await provider.getSignedUrl('vault/usr_01/files/report.pdf');
+    assert.ok(signedUrl.startsWith('https://storage.nebius.cloud/nagex-vault-bucket/'));
 
-  const obj = await provider.getObject('vault/usr_01/files/report.pdf');
-  assert.ok(obj);
-  assert.equal(obj.data.toString(), 'S3 PDF content');
+    const obj = await provider.getObject('vault/usr_01/files/report.pdf');
+    assert.ok(obj);
+    assert.equal(obj.data.toString(), 'S3 PDF content');
+  } finally {
+    if (origMockFallback !== undefined) {
+      process.env.NAGEX_S3_ALLOW_MOCK_FALLBACK = origMockFallback;
+    } else {
+      delete process.env.NAGEX_S3_ALLOW_MOCK_FALLBACK;
+    }
+  }
 });
 
 test('S3StorageProvider.checkHealth: distinguishes endpointReachable, bucketAuthorized, readable, and writable, and never returns LIVE on 403 or unauthorized', async () => {
-  const provider = new S3StorageProvider({
-    endpoint: 'https://storage.nebius.cloud',
-    region: 'eu-north1',
-    bucket: 'nagex-vault-bucket',
-    accessKeyId: 'test_access_key',
-    secretAccessKey: 'test_secret_key',
-  });
+  const origMockFallback = process.env.NAGEX_S3_ALLOW_MOCK_FALLBACK;
+  delete process.env.NAGEX_S3_ALLOW_MOCK_FALLBACK;
+  try {
+    const provider = new S3StorageProvider({
+      endpoint: 'https://storage.nebius.cloud',
+      region: 'eu-north1',
+      bucket: 'nagex-vault-bucket',
+      accessKeyId: 'test_access_key',
+      secretAccessKey: 'test_secret_key',
+    });
 
-  const health = await provider.checkHealth();
-  assert.equal(health.configured, true);
-  assert.notEqual(health.mode, 'LIVE');
-  assert.equal(health.writable, false);
+    const health = await provider.checkHealth();
+    assert.equal(health.configured, true);
+    assert.notEqual(health.mode, 'LIVE');
+    assert.equal(health.writable, false);
+  } finally {
+    if (origMockFallback !== undefined) {
+      process.env.NAGEX_S3_ALLOW_MOCK_FALLBACK = origMockFallback;
+    } else {
+      delete process.env.NAGEX_S3_ALLOW_MOCK_FALLBACK;
+    }
+  }
 });
 
 test('QuickCaptureService: rejects zero-byte audio payloads and requires real bytes', async () => {

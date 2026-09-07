@@ -517,6 +517,9 @@ export async function handleAsyncApiRequest(
     if (pathname === '/api/v1/providers/status' && method === 'GET') {
       return { status: 200, data: { providers: service.statuses() } };
     }
+    if (pathname === '/api/v1/vcs/status' && method === 'GET') {
+      return { status: 200, data: getVcsStatus() };
+    }
     if (pathname === '/api/v1/ai/chat' && method === 'POST') {
       const message = typeof body?.message === 'string' ? body.message.trim() : '';
       if (!message) throw new NagexError({ code: 'MESSAGE_REQUIRED', category: 'VALIDATION', message: 'message is required.', request_id: `req_${crypto.randomUUID()}` });
@@ -1263,6 +1266,10 @@ export function handleApiRequest(
 
   if (pathname === '/api/v1/health' && method === 'GET') {
     return { status: 200, data: { status: 'UP', service: 'NAgex Personal AI Platform API', version: '0.1.0', runtime_active: true, active_executions: executionHistory.length, uptime_seconds: Math.floor(process.uptime()) } };
+  }
+
+  if (pathname === '/api/v1/vcs/status' && method === 'GET') {
+    return { status: 200, data: getVcsStatus() };
   }
 
   if (pathname === '/api/v1/memory' && method === 'GET') {
