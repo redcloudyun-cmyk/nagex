@@ -93,4 +93,12 @@ export class LocalStorageProvider implements StorageProvider {
       return null;
     }
   }
+
+  public async checkHealth(): Promise<{ configured: boolean; reachable: boolean; bucket?: string; region?: string; mode: 'LIVE' | 'DEVELOPMENT' | 'OFFLINE' }> {
+    return {
+      configured: true,
+      reachable: true,
+      mode: 'DEVELOPMENT',
+    };
+  }
 }

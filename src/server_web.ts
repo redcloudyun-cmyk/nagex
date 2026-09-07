@@ -636,13 +636,17 @@ export async function handleAsyncApiRequest(
       });
       return { status: 201, data: result };
     }
+    if (pathname === '/api/v1/workspace/storage/status' && method === 'GET') {
+      const status = await quickCaptureService.getStorageHealth();
+      return { status: 200, data: status };
+    }
     if (pathname === '/api/v1/workspace/inbox' && method === 'GET') {
       const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
       return { status: 200, data: quickCaptureService.getInboxSummary(ownerId) };
     }
     if (pathname === '/api/v1/workspace/vault' && method === 'GET') {
       const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      return { status: 200, data: quickCaptureService.getVaultSummary(ownerId) };
+      return { status: 200, data: await quickCaptureService.getVaultSummary(ownerId) };
     }
     if (pathname.startsWith('/api/v1/workspace/capture/') && method === 'PATCH') {
       const captureId = pathname.slice('/api/v1/workspace/capture/'.length);
@@ -1672,14 +1676,25 @@ export const server = http.createServer((req, res) => {
   }
 
   if (pathname.startsWith('/api/')) {
-    let body = '';
-    req.on('data', (chunk) => (body += chunk));
+    const bodyChunks: Buffer[] = [];
+    req.on('data', (chunk) => bodyChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
     req.on('end', async () => {
       let parsedBody: Record<string, unknown> | null = null;
-      try {
-        if (body) parsedBody = JSON.parse(body);
-      } catch {
-        /* ignore */
+      const rawBuffer = Buffer.concat(bodyChunks);
+      const contentType = (req.headers['content-type'] || '').toLowerCase();
+      if (contentType.includes('application/json') || (!contentType && rawBuffer.length > 0 && (rawBuffer[0] === 0x7b || rawBuffer[0] === 0x5b))) {
+        try {
+          if (rawBuffer.length > 0) parsedBody = JSON.parse(rawBuffer.toString('utf8'));
+        } catch {
+          /* ignore */
+        }
+      } else if (rawBuffer.length > 0) {
+        const filename = (req.headers['x-filename'] as string) || url.searchParams.get('filename') || 'upload.bin';
+        parsedBody = {
+          filename,
+          mimeType: contentType || 'application/octet-stream',
+          data: rawBuffer,
+        };
       }
       const query = Object.fromEntries(url.searchParams);
       const result = await handleAsyncApiRequest(method, pathname, parsedBody, req.headers, aiService, query);

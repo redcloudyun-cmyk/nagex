@@ -1,3 +1,5 @@
+import crypto from 'node:crypto';
+import { NagexError } from '../common/errors.js';
 import type { CaptureStore } from './capture.store.js';
 import type { CaptureItem, CaptureStatus, CaptureType, InboxSummary, PersonalVaultSummary } from './workspace.types.js';
 import type { TaskStore } from '../tasks/task.store.js';
@@ -15,6 +17,7 @@ import {
   validateMimeAndExtension,
 } from './vault-security.js';
 import { generateResourceId } from '../common/utils.js';
+
 
 export interface PresignedUploadInitResult {
   uploadId: string;
@@ -132,20 +135,34 @@ export class QuickCaptureService {
       }
     }
 
-    if (buf) {
-      if (buf.length === 0) {
-        throw new Error('ZERO_BYTE_PAYLOAD: Cannot capture an object with 0 bytes.');
-      }
-      validateMimeAndExtension(params.originalFilename, params.mimeType, buf);
-      const scan = scanObjectForMalware(buf);
-      if (!scan.passed) {
-        throw new Error(`SECURITY_MALWARE_DETECTED: ${scan.threat || 'Threat found'}`);
-      }
-      // If data provided directly, put into storage
-      if (params.data) {
-        await this.storageProvider.putObject(params.objectKey, buf, params.mimeType);
-      }
+    if (!buf || buf.length === 0) {
+      throw new NagexError({
+        code: 'STORAGE_OBJECT_NOT_FOUND',
+        category: 'NOT_FOUND',
+        message: `Object "${params.objectKey}" could not be retrieved from storage.`,
+        request_id: `req_chk_${Date.now()}`,
+      });
     }
+
+    const actualChecksum = crypto.createHash('sha256').update(buf).digest('hex');
+    if (params.checksum && params.checksum.trim() && params.checksum.toLowerCase() !== actualChecksum.toLowerCase()) {
+      throw new NagexError({
+        code: 'CHECKSUM_MISMATCH',
+        category: 'VALIDATION',
+        message: `SHA-256 checksum mismatch: declared ${params.checksum}, computed ${actualChecksum}.`,
+        request_id: `req_chk_${Date.now()}`,
+      });
+    }
+    validateMimeAndExtension(params.originalFilename, params.mimeType, buf);
+    const scan = scanObjectForMalware(buf);
+    if (!scan.passed) {
+      throw new Error(`SECURITY_MALWARE_DETECTED: ${scan.threat || 'Threat found'}`);
+    }
+    // If data provided directly, put into storage
+    if (params.data) {
+      await this.storageProvider.putObject(params.objectKey, buf, params.mimeType);
+    }
+
 
     let item = this.store.getCapture(params.captureId);
     if (!item) {
@@ -161,12 +178,12 @@ export class QuickCaptureService {
           sizeBytes: params.sizeBytes,
           objectKey: params.objectKey,
           storageProvider: this.storageProvider.getProviderName(),
-          checksum: params.checksum,
+          checksum: actualChecksum,
         },
       });
     } else {
       this.store.updateStatus(params.captureId, 'QUEUED', {
-        checksum: params.checksum,
+        checksum: actualChecksum,
         sizeBytes: params.sizeBytes,
       });
     }
@@ -295,7 +312,7 @@ export class QuickCaptureService {
     return { ownerId, unreadCount, needsReviewCount, items };
   }
 
-  public getVaultSummary(ownerId: string): PersonalVaultSummary {
+  public async getVaultSummary(ownerId: string): Promise<PersonalVaultSummary> {
     const items = this.store.listCaptures(ownerId);
     const quotaState = this.quotaEngine.getQuota(ownerId);
 
@@ -330,8 +347,21 @@ export class QuickCaptureService {
       totalSizeBytes: val.bytes,
     }));
 
+    const health = this.storageProvider.checkHealth
+      ? await this.storageProvider.checkHealth()
+      : { configured: true, reachable: true, mode: 'DEVELOPMENT' as const };
+
     const providerName = this.storageProvider.getProviderName();
     const isCloud = providerName === 's3';
+    let label = 'Local Development Vault';
+
+    if (isCloud) {
+      if (health.configured && health.reachable) {
+        label = 'NAgex Cloud Vault (Nebius S3) - LIVE';
+      } else {
+        label = 'Cloud Vault - Configuration required';
+      }
+    }
 
     return {
       ownerId,
@@ -341,10 +371,38 @@ export class QuickCaptureService {
       storageInfo: {
         provider: providerName,
         isCloud,
-        label: isCloud ? 'NAgex Cloud Vault (Nebius S3)' : 'Local Development Vault',
+        label,
+        mode: health.mode,
+        reachable: health.reachable,
+        bucket: health.bucket,
+        region: health.region,
       },
       categories,
       recentItems: items.slice(0, 10),
+    };
+  }
+
+  public async getStorageHealth(): Promise<{
+    provider: 'local' | 's3';
+    configured: boolean;
+    reachable: boolean;
+    bucket?: string;
+    region?: string;
+    mode: 'LIVE' | 'DEVELOPMENT' | 'OFFLINE';
+    lastCheckedAt: string;
+  }> {
+    const health = this.storageProvider.checkHealth
+      ? await this.storageProvider.checkHealth()
+      : { configured: true, reachable: true, mode: 'DEVELOPMENT' as const };
+
+    return {
+      provider: this.storageProvider.getProviderName(),
+      configured: health.configured,
+      reachable: health.reachable,
+      bucket: health.bucket,
+      region: health.region,
+      mode: health.mode,
+      lastCheckedAt: new Date().toISOString(),
     };
   }
 

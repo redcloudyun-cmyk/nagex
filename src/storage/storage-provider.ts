@@ -14,4 +14,5 @@ export interface StorageProvider {
   getSignedUploadUrl?(key: string, mimeType: string, expiresInSeconds?: number): Promise<string>;
   headObject(key: string): Promise<ObjectMetadata | null>;
   getProviderName(): 'local' | 's3';
+  checkHealth?(): Promise<{ configured: boolean; reachable: boolean; bucket?: string; region?: string; mode: 'LIVE' | 'DEVELOPMENT' | 'OFFLINE' }>;
 }

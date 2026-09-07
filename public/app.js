@@ -480,6 +480,7 @@
 
   async function renderVault() {
     const data = await apiFetch('/api/v1/workspace/vault');
+    const health = await apiFetch('/api/v1/workspace/storage/status');
     if (data) {
       state.vault = data;
       const elUsed = document.getElementById('vault-used-text');
@@ -487,9 +488,22 @@
       const elGrid = document.getElementById('vault-categories-grid');
       const elLabel = document.getElementById('vault-storage-provider-label');
 
+      let truthfulLabel = data.storageInfo?.label || 'Local Development Vault';
+      if (health) {
+        if (health.provider === 's3') {
+          if (health.configured && health.reachable) {
+            truthfulLabel = 'NAgex Cloud Vault (Nebius S3) - LIVE';
+          } else {
+            truthfulLabel = 'Cloud Vault - Configuration required';
+          }
+        } else {
+          truthfulLabel = 'Local Development Vault';
+        }
+      }
+
       if (elUsed) elUsed.textContent = `${(data.totalSizeBytes / (1024 * 1024)).toFixed(1)} MB`;
       if (elBar) elBar.style.width = `${Math.min(100, (data.totalSizeBytes / data.quotaSizeBytes) * 100).toFixed(1)}%`;
-      if (elLabel && data.storageInfo?.label) elLabel.textContent = data.storageInfo.label;
+      if (elLabel) elLabel.textContent = truthfulLabel;
 
       if (elGrid && Array.isArray(data.categories)) {
         elGrid.innerHTML = data.categories.map((cat) => `

@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { QuickCaptureService } from '../src/workspace/quick-capture.service.js';
 import { CaptureStore } from '../src/workspace/capture.store.js';
 import { LocalStorageProvider } from '../src/storage/local-storage.provider.js';
@@ -33,6 +34,7 @@ describe('PRODUCTION-GRADE PERSONAL CLOUD VAULT SMOKE TESTS', () => {
     assert.ok(init.uploadUrl.includes('/api/v1/workspace/storage/upload/'));
     assert.ok(init.objectKey.startsWith('tenant/ten_production_01/principal/usr_admin_001/captures/'));
 
+    const pdfChecksum = crypto.createHash('sha256').update(pdfHeader).digest('hex');
     // B & C. Complete upload with real PDF bytes & verify object metadata
     const completedItem = await service.completeUpload({
       captureId: init.captureId,
@@ -40,7 +42,7 @@ describe('PRODUCTION-GRADE PERSONAL CLOUD VAULT SMOKE TESTS', () => {
       tenantId: 'ten_production_01',
       objectKey: init.objectKey,
       mimeType: 'application/pdf',
-      checksum: 'fake_sha256',
+      checksum: pdfChecksum,
       sizeBytes: pdfHeader.length,
       originalFilename: 'Q3_Strategy_Report.pdf',
       data: pdfHeader,
@@ -83,6 +85,7 @@ describe('PRODUCTION-GRADE PERSONAL CLOUD VAULT SMOKE TESTS', () => {
 
     // Real WebM header magic bytes (\x1a\x45\xdf\xa3)
     const audioBytes = Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 0x99, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22]);
+    const audioChecksum = crypto.createHash('sha256').update(audioBytes).digest('hex');
     const init = await service.initUpload({
       ownerId: 'usr_admin_001',
       tenantId: 'ten_production_01',
@@ -98,7 +101,7 @@ describe('PRODUCTION-GRADE PERSONAL CLOUD VAULT SMOKE TESTS', () => {
       tenantId: 'ten_production_01',
       objectKey: init.objectKey,
       mimeType: 'audio/webm',
-      checksum: 'audio_sha256',
+      checksum: audioChecksum,
       sizeBytes: audioBytes.length,
       originalFilename: 'Voice_Memo_Meeting.webm',
       data: audioBytes,

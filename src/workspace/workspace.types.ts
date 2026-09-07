@@ -108,6 +108,10 @@ export interface PersonalVaultSummary {
     provider: 'local' | 's3';
     isCloud: boolean;
     label: string;
+    mode?: 'LIVE' | 'DEVELOPMENT' | 'OFFLINE';
+    reachable?: boolean;
+    bucket?: string;
+    region?: string;
   };
   categories: VaultCategory[];
   recentItems: CaptureItem[];
