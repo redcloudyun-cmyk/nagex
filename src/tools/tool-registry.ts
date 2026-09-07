@@ -290,6 +290,11 @@ export const toolRegistry = new ToolRegistry([
   // execution-ready outright — the real per-click decision always happens
   // at execution time, never more permissively than that.
   { id: 'browser.click', name: 'Browser Click', capability: 'browser.page.click', connectionStatus: 'disconnected', sideEffectLevel: 'REVERSIBLE_WRITE', requiresApproval: false, executionMode: 'unavailable', aliases: ['click', 'click element', 'browser click'], getLiveStatus: browserRuntimeLiveStatus },
+  { id: 'browser.find', name: 'Browser Find', capability: 'browser.page.find', connectionStatus: 'disconnected', sideEffectLevel: 'READ_ONLY', requiresApproval: false, executionMode: 'unavailable', aliases: ['find in browser', 'find element', 'search page'], getLiveStatus: browserRuntimeLiveStatus },
+  { id: 'browser.extract', name: 'Browser Extract', capability: 'browser.page.extract', connectionStatus: 'disconnected', sideEffectLevel: 'READ_ONLY', requiresApproval: false, executionMode: 'unavailable', aliases: ['extract from browser', 'extract page text', 'extract links', 'scrape page'], getLiveStatus: browserRuntimeLiveStatus },
+  { id: 'browser.back', name: 'Browser Back', capability: 'browser.page.back', connectionStatus: 'disconnected', sideEffectLevel: 'READ_ONLY', requiresApproval: false, executionMode: 'unavailable', aliases: ['browser back', 'go back'], getLiveStatus: browserRuntimeLiveStatus },
+  { id: 'browser.forward', name: 'Browser Forward', capability: 'browser.page.forward', connectionStatus: 'disconnected', sideEffectLevel: 'READ_ONLY', requiresApproval: false, executionMode: 'unavailable', aliases: ['browser forward', 'go forward'], getLiveStatus: browserRuntimeLiveStatus },
+  { id: 'browser.reload', name: 'Browser Reload', capability: 'browser.page.reload', connectionStatus: 'disconnected', sideEffectLevel: 'READ_ONLY', requiresApproval: false, executionMode: 'unavailable', aliases: ['reload page', 'refresh browser'], getLiveStatus: browserRuntimeLiveStatus },
   { id: 'browser.close', name: 'Browser Close', capability: 'browser.session.close', connectionStatus: 'disconnected', sideEffectLevel: 'READ_ONLY', requiresApproval: false, executionMode: 'unavailable', aliases: ['close browser', 'close browser session'], getLiveStatus: browserRuntimeLiveStatus },
 
   // Telegram Integration (MASTER.md Section 14.5 item 10)

@@ -12,6 +12,8 @@ import path from 'node:path';
 
 const dataRoot = path.join(os.tmpdir(), 'nagex-test-data', `${process.pid}-${Date.now()}`);
 
+process.env.NODE_ENV ??= 'test';
+process.env.NAGEX_ALLOW_LOCAL_TEST_URLS ??= '1';
 process.env.NAGEX_APPROVALS_DIR ??= path.join(dataRoot, 'approvals');
 process.env.NAGEX_EXECUTIONS_DIR ??= path.join(dataRoot, 'executions');
 process.env.NAGEX_GOOGLE_TOKEN_STORE_PATH ??= path.join(dataRoot, 'google-oauth.json');

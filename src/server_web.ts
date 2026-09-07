@@ -783,6 +783,53 @@ export async function handleAsyncApiRequest(
       await browserApiService.close({ tenantId, ownerId, requestId, browserSessionId });
       return { status: 200, data: { status: 'SUCCEEDED' } };
     }
+    if (pathname === '/api/v1/tools/browser/find' && method === 'POST') {
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+      const browserSessionId = typeof body?.browserSessionId === 'string' ? body.browserSessionId : '';
+      const query = typeof body?.query === 'string' ? body.query : '';
+      if (!browserSessionId || !query) throw new NagexError({ code: 'BROWSER_QUERY_REQUIRED', category: 'VALIDATION', message: 'browserSessionId and query are required.', request_id: requestId });
+      const result = await browserApiService.find({ tenantId, ownerId, requestId, browserSessionId, query });
+      return { status: 200, data: result };
+    }
+    if (pathname === '/api/v1/tools/browser/extract' && method === 'POST') {
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+      const browserSessionId = typeof body?.browserSessionId === 'string' ? body.browserSessionId : '';
+      const target = (typeof body?.target === 'string' ? body.target : 'all') as any;
+      if (!browserSessionId) throw new NagexError({ code: 'BROWSER_SESSION_ID_REQUIRED', category: 'VALIDATION', message: 'browserSessionId is required.', request_id: requestId });
+      const result = await browserApiService.extract({ tenantId, ownerId, requestId, browserSessionId, target });
+      return { status: 200, data: result };
+    }
+    if (pathname === '/api/v1/tools/browser/back' && method === 'POST') {
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+      const browserSessionId = typeof body?.browserSessionId === 'string' ? body.browserSessionId : '';
+      if (!browserSessionId) throw new NagexError({ code: 'BROWSER_SESSION_ID_REQUIRED', category: 'VALIDATION', message: 'browserSessionId is required.', request_id: requestId });
+      const result = await browserApiService.back({ tenantId, ownerId, requestId, browserSessionId });
+      return { status: 200, data: result };
+    }
+    if (pathname === '/api/v1/tools/browser/forward' && method === 'POST') {
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+      const browserSessionId = typeof body?.browserSessionId === 'string' ? body.browserSessionId : '';
+      if (!browserSessionId) throw new NagexError({ code: 'BROWSER_SESSION_ID_REQUIRED', category: 'VALIDATION', message: 'browserSessionId is required.', request_id: requestId });
+      const result = await browserApiService.forward({ tenantId, ownerId, requestId, browserSessionId });
+      return { status: 200, data: result };
+    }
+    if (pathname === '/api/v1/tools/browser/reload' && method === 'POST') {
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+      const browserSessionId = typeof body?.browserSessionId === 'string' ? body.browserSessionId : '';
+      if (!browserSessionId) throw new NagexError({ code: 'BROWSER_SESSION_ID_REQUIRED', category: 'VALIDATION', message: 'browserSessionId is required.', request_id: requestId });
+      const result = await browserApiService.reload({ tenantId, ownerId, requestId, browserSessionId });
+      return { status: 200, data: result };
+    }
 
     if (pathname.startsWith('/api/v1/tasks/') && pathname.endsWith('/run') && method === 'POST') {
       const taskId = pathname.slice('/api/v1/tasks/'.length, pathname.length - '/run'.length);

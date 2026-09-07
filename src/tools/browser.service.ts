@@ -10,6 +10,8 @@ import { MemoryEngine } from '../context/memory.engine.js';
 import { resolveNagexDataDir } from '../governance/file-record.store.js';
 import { BrowserSessionStore, type BrowserSessionRecord, generateEvidenceId } from '../browser/browser-session.store.js';
 import { isBrowserRuntimeAvailableSync, type BrowserRuntime, type BrowserSnapshot } from '../integrations/browser/browser.runtime.js';
+import { assertUrlSafe } from '../browser/browser-url-validator.js';
+import type { FindResult, ExtractResult, StructuredBrowserSnapshot } from '../browser/browser.types.js';
 
 // Browser Agent MVP tool service (MASTER.md Section 14.5 item 06). Reuses
 // the exact same shared ActionApprovalStore/ExecutionStore/AuditLogger/
@@ -168,9 +170,10 @@ export class BrowserToolService {
   public async navigate(input: BrowserActionInput & { url: string }): Promise<BrowserActionResult> {
     this.requireAvailable(input.requestId);
     const record = this.requireSession(input.browserSessionId, input.requestId);
-    this.auditAction('browser.navigate', 'tool.execution.started', input, 'PENDING_APPROVAL', { url: input.url });
+    const safeUrl = assertUrlSafe(input.url, input.requestId);
+    this.auditAction('browser.navigate', 'tool.execution.started', input, 'PENDING_APPROVAL', { url: safeUrl });
     try {
-      const result = await this.runtime.navigate(record.browserSessionId, input.url);
+      const result = await this.runtime.navigate(record.browserSessionId, safeUrl);
       this.sessions.updateUrl(record.browserSessionId, result.url);
       const snapshot = await this.runtime.snapshot(record.browserSessionId);
       await this.checkHumanVerification(input, snapshot);
@@ -195,6 +198,64 @@ export class BrowserToolService {
     const snapshot = await this.runtime.snapshot(record.browserSessionId);
     this.auditAction('browser.snapshot', 'tool.execution.succeeded', input, 'SUCCESS', { url: snapshot.url });
     return snapshot;
+  }
+
+  public async structuredSnapshot(input: BrowserActionInput): Promise<StructuredBrowserSnapshot> {
+    this.requireAvailable(input.requestId);
+    const record = this.requireSession(input.browserSessionId, input.requestId);
+    const snapshot = await this.runtime.structuredSnapshot(record.browserSessionId);
+    this.auditAction('browser.snapshot', 'tool.execution.succeeded', input, 'SUCCESS', { url: snapshot.url });
+    return snapshot;
+  }
+
+  public async find(input: BrowserActionInput & { query: string }): Promise<FindResult> {
+    this.requireAvailable(input.requestId);
+    const record = this.requireSession(input.browserSessionId, input.requestId);
+    const result = await this.runtime.find(record.browserSessionId, input.query);
+    this.auditAction('browser.find', 'tool.execution.succeeded', input, 'SUCCESS', { query: input.query, matchCount: result.candidates.length });
+    return result;
+  }
+
+  public async extract(input: BrowserActionInput & { target?: 'text' | 'links' | 'buttons' | 'inputs' | 'all' }): Promise<ExtractResult> {
+    this.requireAvailable(input.requestId);
+    const record = this.requireSession(input.browserSessionId, input.requestId);
+    const result = await this.runtime.extract(record.browserSessionId, input.target);
+    this.auditAction('browser.extract', 'tool.execution.succeeded', input, 'SUCCESS', { target: input.target || 'all' });
+    return result;
+  }
+
+  public async back(input: BrowserActionInput): Promise<BrowserActionResult> {
+    this.requireAvailable(input.requestId);
+    const record = this.requireSession(input.browserSessionId, input.requestId);
+    const result = await this.runtime.back(record.browserSessionId);
+    this.sessions.updateUrl(record.browserSessionId, result.url);
+    this.auditAction('browser.back', 'tool.execution.succeeded', input, 'SUCCESS', { url: result.url });
+    return result;
+  }
+
+  public async forward(input: BrowserActionInput): Promise<BrowserActionResult> {
+    this.requireAvailable(input.requestId);
+    const record = this.requireSession(input.browserSessionId, input.requestId);
+    const result = await this.runtime.forward(record.browserSessionId);
+    this.sessions.updateUrl(record.browserSessionId, result.url);
+    this.auditAction('browser.forward', 'tool.execution.succeeded', input, 'SUCCESS', { url: result.url });
+    return result;
+  }
+
+  public async reload(input: BrowserActionInput): Promise<BrowserActionResult> {
+    this.requireAvailable(input.requestId);
+    const record = this.requireSession(input.browserSessionId, input.requestId);
+    const result = await this.runtime.reload(record.browserSessionId);
+    this.sessions.updateUrl(record.browserSessionId, result.url);
+    this.auditAction('browser.reload', 'tool.execution.succeeded', input, 'SUCCESS', { url: result.url });
+    return result;
+  }
+
+  public async clearProfile(input: BrowserActionInput): Promise<void> {
+    this.requireAvailable(input.requestId);
+    await this.runtime.clearProfile(input.browserSessionId);
+    this.sessions.close(input.browserSessionId);
+    this.auditAction('browser.clearProfile', 'tool.execution.succeeded', input, 'SUCCESS');
   }
 
   public async screenshot(input: BrowserActionInput): Promise<BrowserEvidence> {
