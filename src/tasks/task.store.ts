@@ -17,12 +17,16 @@ export interface TaskTrigger {
   timezone?: string;
   // INTERVAL: fire every N minutes from the last run.
   intervalMinutes?: number;
-  // CONDITION: a free-text description of what is being watched for. Actual
-  // condition evaluation (e.g. polling a flight-price API) is not
-  // implemented yet — see MASTER.md Section 14.7 — a CONDITIONAL task stays
-  // in WAITING status until a future condition-checker plugs in or a user
-  // cancels it. This is intentionally honest about scope, not a stub bug.
+  // CONDITION: a free-text description of what is being watched for,
+  // evaluated by ConditionalWatchTaskRunner (src/tasks/conditional-watch.runner.ts)
+  // against the real, live content of `watchUrl` — fetched read-only via
+  // the Browser Agent (MASTER.md Section 14.5 item 07) on every
+  // `checkIntervalMinutes` heartbeat. Never notifies while unmet (AC-11):
+  // an unmet or failed check simply stays WAITING and retries at the next
+  // interval; only a genuinely met condition ever completes the task.
   condition?: string;
+  watchUrl?: string;
+  checkIntervalMinutes?: number;
 }
 
 export interface TaskRecord {
@@ -120,7 +124,10 @@ export class TaskStore {
       name: input.name.trim(),
       objective: input.objective.trim(),
       type: input.type,
-      status: 'ACTIVE',
+      // A CONDITIONAL task starts (and, per recordRunOutcome below, stays)
+      // WAITING until its condition is actually met — it is never ACTIVE
+      // the way a RECURRING/ONE_TIME task's next-run countdown is.
+      status: input.type === 'CONDITIONAL' ? 'WAITING' : 'ACTIVE',
       sourceSessionId: input.sourceSessionId ?? null,
       trigger: input.trigger,
       approvalPolicy: input.approvalPolicy ?? 'ALWAYS_APPROVE',
@@ -151,13 +158,17 @@ export class TaskStore {
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
-  // Tasks whose SCHEDULE/INTERVAL nextRunAt has arrived and are ACTIVE —
-  // the only kind the scheduler may fire automatically. CONDITIONAL/
-  // WEBHOOK/MANUAL-triggered tasks are never returned here.
+  // Tasks whose nextRunAt has arrived: ACTIVE (SCHEDULE/INTERVAL) tasks, and
+  // WAITING CONDITIONAL tasks whose next heartbeat check is due. WEBHOOK/
+  // MANUAL/EMAIL_EVENT/... triggered tasks are never returned here — they
+  // have no nextRunAt to arrive in the first place.
   public listDue(asOf: Date): TaskRecord[] {
     const nowMs = asOf.getTime();
     return [...this.records.values()].filter(
-      (t) => t.status === 'ACTIVE' && t.nextRunAt !== null && new Date(t.nextRunAt).getTime() <= nowMs,
+      (t) =>
+        (t.status === 'ACTIVE' || (t.status === 'WAITING' && t.type === 'CONDITIONAL')) &&
+        t.nextRunAt !== null &&
+        new Date(t.nextRunAt).getTime() <= nowMs,
     );
   }
 
@@ -213,7 +224,7 @@ export class TaskStore {
   // not know cron/interval semantics.
   public recordRunOutcome(
     taskId: string,
-    outcome: { status: 'SUCCEEDED' | 'FAILED'; completedAt: string; nextRunAt: string | null },
+    outcome: { status: 'SUCCEEDED' | 'FAILED'; completedAt: string; nextRunAt: string | null; conditionMet?: boolean },
     requestId = 'task_run_outcome',
   ): TaskRecord {
     const record = this.require(taskId, requestId);
@@ -225,6 +236,19 @@ export class TaskStore {
     } else if (record.type === 'ONE_TIME') {
       record.status = outcome.status === 'SUCCEEDED' ? 'COMPLETED' : 'FAILED';
       record.nextRunAt = null;
+    } else if (record.type === 'CONDITIONAL') {
+      // AC-11: never notify while unmet. A check that errored (page
+      // unreachable, CAPTCHA, ambiguous judgment) and a check that
+      // completed but found the condition still unmet are treated exactly
+      // the same way here — silently stay WAITING and retry at the next
+      // heartbeat. Only outcome.conditionMet === true ever completes it.
+      if (outcome.status === 'SUCCEEDED' && outcome.conditionMet) {
+        record.status = 'COMPLETED';
+        record.nextRunAt = null;
+      } else {
+        record.status = 'WAITING';
+        record.nextRunAt = outcome.nextRunAt;
+      }
     } else {
       record.status = outcome.status === 'SUCCEEDED' ? 'ACTIVE' : 'FAILED';
       record.nextRunAt = outcome.nextRunAt;

@@ -434,6 +434,8 @@
     const scheduleField = document.getElementById('task-schedule-field');
     const intervalField = document.getElementById('task-interval-field');
     const conditionField = document.getElementById('task-condition-field');
+    const watchUrlField = document.getElementById('task-watch-url-field');
+    const checkIntervalField = document.getElementById('task-check-interval-field');
 
     function syncTriggerFields() {
       if (!triggerSelect) return;
@@ -441,6 +443,8 @@
       if (scheduleField) scheduleField.style.display = v === 'SCHEDULE' ? 'flex' : 'none';
       if (intervalField) intervalField.style.display = v === 'INTERVAL' ? 'flex' : 'none';
       if (conditionField) conditionField.style.display = v === 'CONDITION' ? 'flex' : 'none';
+      if (watchUrlField) watchUrlField.style.display = v === 'CONDITION' ? 'flex' : 'none';
+      if (checkIntervalField) checkIntervalField.style.display = v === 'CONDITION' ? 'flex' : 'none';
     }
 
     if (btnNew && form) {
@@ -471,7 +475,12 @@
         } else if (triggerType === 'INTERVAL') {
           trigger.intervalMinutes = Number(document.getElementById('task-interval').value) || 60;
         } else if (triggerType === 'CONDITION') {
+          // Never invents a page to watch — a real http(s) URL is required
+          // by the server (see server_web.ts's WATCH_URL_REQUIRED check),
+          // exactly like Calendar/Gmail's required fields.
           trigger.condition = document.getElementById('task-condition').value.trim();
+          trigger.watchUrl = document.getElementById('task-watch-url').value.trim();
+          trigger.checkIntervalMinutes = Number(document.getElementById('task-check-interval').value) || 15;
         }
 
         const result = await apiFetch('/api/v1/tasks', {

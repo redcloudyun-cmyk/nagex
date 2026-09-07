@@ -458,8 +458,8 @@ Current vs. target (informational — near-term hackathon priority is still Sect
 | Computer Use | Not implemented | Paired-node based |
 | Local Files | Limited | Read/write/edit/search |
 | Shell | Not implemented | Sandboxed exec |
-| Automation | Not implemented / initial | Scheduled + conditional + webhook |
-| Tasks Center | Not implemented | One-time/recurring/conditional/background |
+| Automation | SCHEDULE/INTERVAL implemented; CONDITION implemented via browser-page watch (item 07); WEBHOOK/EMAIL_EVENT/CALENDAR_EVENT/FILE_EVENT/SYSTEM_EVENT/AGENT_EVENT not implemented | Full trigger-type coverage |
+| Tasks Center | Implemented (create/list/get/patch/pause/resume/run/delete, ONE_TIME/RECURRING/CONDITIONAL) | BACKGROUND/STANDING_INTENT task types not yet meaningfully distinct from the others |
 | Background Agent | Not implemented | Durable background execution |
 | Multi-agent | Not implemented | Sub-agent / isolated workspace |
 | Plugins | Not implemented | Runtime plugin SDK |

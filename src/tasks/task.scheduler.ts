@@ -110,8 +110,15 @@ export function computeNextRunAt(trigger: TaskTrigger, fromDate: Date): Date | n
   if (trigger.type === 'INTERVAL' && typeof trigger.intervalMinutes === 'number' && trigger.intervalMinutes > 0) {
     return new Date(fromDate.getTime() + trigger.intervalMinutes * 60000);
   }
-  // CONDITION / WEBHOOK / MANUAL / EMAIL_EVENT / CALENDAR_EVENT / FILE_EVENT /
-  // SYSTEM_EVENT / AGENT_EVENT are not time-scheduler-driven.
+  // A CONDITION trigger with a real watchUrl is heartbeat-driven at
+  // checkIntervalMinutes — this is what lets ConditionalWatchTaskRunner
+  // actually get invoked periodically (see task.store.ts's listDue).
+  if (trigger.type === 'CONDITION' && trigger.watchUrl && typeof trigger.checkIntervalMinutes === 'number' && trigger.checkIntervalMinutes > 0) {
+    return new Date(fromDate.getTime() + trigger.checkIntervalMinutes * 60000);
+  }
+  // WEBHOOK / MANUAL / EMAIL_EVENT / CALENDAR_EVENT / FILE_EVENT /
+  // SYSTEM_EVENT / AGENT_EVENT (and a CONDITION trigger with no watchUrl)
+  // are not time-scheduler-driven.
   return null;
 }
 
@@ -121,6 +128,9 @@ export interface TaskRunOutcome {
   status: 'SUCCEEDED' | 'FAILED';
   result?: unknown;
   errorCode?: string;
+  // CONDITIONAL tasks only — whether ConditionalWatchTaskRunner determined
+  // the watched condition is now true. Ignored for every other task type.
+  conditionMet?: boolean;
 }
 
 export interface TaskRunner {
@@ -209,7 +219,7 @@ export class TaskScheduler {
     const nextRun = computeNextRunAt(task.trigger, this.now());
     this.tasks.recordRunOutcome(
       task.taskId,
-      { status: outcome.status, completedAt, nextRunAt: nextRun ? nextRun.toISOString() : null },
+      { status: outcome.status, completedAt, nextRunAt: nextRun ? nextRun.toISOString() : null, conditionMet: outcome.conditionMet },
       requestId,
     );
 

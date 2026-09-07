@@ -44,7 +44,7 @@ import { SessionStore } from './sessions/session.store.js';
 import { TaskStore, type TaskType, type TaskTrigger, type TaskApprovalPolicy } from './tasks/task.store.js';
 import { TaskRunStore } from './tasks/task-run.store.js';
 import { TaskScheduler, computeNextRunAt } from './tasks/task.scheduler.js';
-import { PlanPreviewTaskRunner } from './tasks/task.runner.js';
+import { PlanPreviewTaskRunner, ConditionalWatchTaskRunner, CompositeTaskRunner } from './tasks/task.runner.js';
 
 const PORT = Number(process.env.PORT || 8085);
 const PUBLIC_DIR = path.join(process.cwd(), 'public');
@@ -119,7 +119,10 @@ let pendingGoogleOAuthState: string | null = null;
 export const sessionStore = new SessionStore();
 export const taskStore = new TaskStore();
 export const taskRunStore = new TaskRunStore();
-const taskRunner = new PlanPreviewTaskRunner(aiService, planResolver, (principalId, prompt) => getRelevantMemories(principalId, prompt));
+const taskRunner = new CompositeTaskRunner(
+  new PlanPreviewTaskRunner(aiService, planResolver, (principalId, prompt) => getRelevantMemories(principalId, prompt)),
+  new ConditionalWatchTaskRunner(browserService, aiService),
+);
 export const taskScheduler = new TaskScheduler(taskStore, taskRunStore, taskRunner, auditLogger);
 
 // A real (not fake) background scheduler loop — only runs when this module
@@ -735,7 +738,10 @@ export async function handleAsyncApiRequest(
       const scheduler = service === aiService ? taskScheduler : new TaskScheduler(
         taskStore,
         taskRunStore,
-        new PlanPreviewTaskRunner(service, planResolver, (principalId, prompt) => getRelevantMemories(principalId, prompt)),
+        new CompositeTaskRunner(
+          new PlanPreviewTaskRunner(service, planResolver, (principalId, prompt) => getRelevantMemories(principalId, prompt)),
+          new ConditionalWatchTaskRunner(browserApiService, service),
+        ),
         auditLogger,
       );
       const run = await scheduler.runOne(task);
@@ -1030,6 +1036,21 @@ export function handleApiRequest(
         throw new NagexError({ code: 'INVALID_TASK_TRIGGER_TYPE', category: 'VALIDATION', message: `trigger.type must be one of ${VALID_TRIGGER_TYPES.join(', ')}.`, request_id: requestId });
       }
       const trigger = triggerRaw as unknown as TaskTrigger;
+      if (type === 'CONDITIONAL') {
+        if (trigger.type !== 'CONDITION') {
+          throw new NagexError({ code: 'CONDITIONAL_TASK_REQUIRES_CONDITION_TRIGGER', category: 'VALIDATION', message: 'A CONDITIONAL task requires trigger.type "CONDITION".', request_id: requestId });
+        }
+        if (!trigger.condition?.trim()) {
+          throw new NagexError({ code: 'CONDITION_REQUIRED', category: 'VALIDATION', message: 'trigger.condition (what to watch for) is required for a CONDITIONAL task.', request_id: requestId });
+        }
+        if (!trigger.watchUrl?.trim() || !/^https?:\/\//i.test(trigger.watchUrl)) {
+          throw new NagexError({ code: 'WATCH_URL_REQUIRED', category: 'VALIDATION', message: 'trigger.watchUrl (a real http(s) URL to check) is required for a CONDITIONAL task — NAgex never invents a page to watch.', request_id: requestId });
+        }
+        // A sensible default cadence, not a guess at the condition itself —
+        // the same category of default INTERVAL/SCHEDULE tasks already
+        // require the caller to state explicitly for themselves.
+        if (!trigger.checkIntervalMinutes || trigger.checkIntervalMinutes <= 0) trigger.checkIntervalMinutes = 15;
+      }
       const now = new Date();
       const initialNextRunAt = computeNextRunAt(trigger, now);
       const session = sessionStore.getOrCreateMain(tenantId, principal.id);

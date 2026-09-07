@@ -644,8 +644,14 @@
             <label id="task-interval-field" style="display:none;">Interval (minutes)
               <input type="number" id="task-interval" min="1" value="60">
             </label>
-            <label id="task-condition-field" style="display:none;">Condition (description only — evaluation not yet implemented)
-              <input type="text" id="task-condition" placeholder="e.g. flight price drops below ₩800,000">
+            <label id="task-condition-field" style="display:none;" data-i18n="tasks.form.condition">Condition to watch for
+              <input type="text" id="task-condition" data-i18n-placeholder="tasks.form.conditionPlaceholder" placeholder="e.g. the price is below ₩800,000">
+            </label>
+            <label id="task-watch-url-field" style="display:none;" data-i18n="tasks.form.watchUrl">Page to watch (URL)
+              <input type="url" id="task-watch-url" placeholder="https://example.com/flight">
+            </label>
+            <label id="task-check-interval-field" style="display:none;" data-i18n="tasks.form.checkInterval">Check every (minutes)
+              <input type="number" id="task-check-interval" min="1" value="15">
             </label>
             <label>Approval policy
               <select id="task-approval-policy">

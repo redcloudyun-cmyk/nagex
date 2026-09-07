@@ -1,6 +1,9 @@
 import type { AiService } from '../model-gateway/ai-service.js';
 import type { PlanResolver, ResolvedPlan } from '../planning/plan-resolver.js';
 import type { MemoryRecord } from '../context/memory.engine.js';
+import { NagexError } from '../common/errors.js';
+import { getCurrentISOString } from '../common/utils.js';
+import type { BrowserToolService } from '../tools/browser.service.js';
 import type { TaskRecord } from './task.store.js';
 import type { TaskRunner, TaskRunOutcome } from './task.scheduler.js';
 
@@ -45,5 +48,103 @@ export class PlanPreviewTaskRunner implements TaskRunner {
         plan: resolved,
       },
     };
+  }
+}
+
+// Conditional Watch (MASTER.md Section 14.5 item 07): on each heartbeat
+// (task.store.ts's listDue + task.scheduler.ts's computeNextRunAt drive the
+// cadence via trigger.checkIntervalMinutes), opens a fresh, read-only
+// Browser Agent session, navigates to trigger.watchUrl, and asks the model
+// whether trigger.condition is now true given the real page content —
+// never a fabricated judgment, and never anything beyond a plain read
+// (browser.open/navigate/snapshot are all no-approval, per the Browser
+// Agent's own policy). The session is always closed afterward so a
+// long-running watch never accumulates open browser contexts between
+// checks. AC-11 ("never notify while unmet") is enforced by
+// TaskStore.recordRunOutcome, not here — this runner's only job is to
+// report status + conditionMet honestly, including on failure (a page
+// that errors, requires CAPTCHA/MFA, or an ambiguous model judgment must
+// never be reported as met).
+export class ConditionalWatchTaskRunner implements TaskRunner {
+  constructor(
+    private readonly browserService: BrowserToolService,
+    private readonly aiService: AiService,
+  ) {}
+
+  public async run(task: TaskRecord, requestId: string): Promise<TaskRunOutcome> {
+    const trigger = task.trigger;
+    if (trigger.type !== 'CONDITION' || !trigger.condition?.trim() || !trigger.watchUrl?.trim()) {
+      return { status: 'FAILED', errorCode: 'CONDITION_WATCH_MISCONFIGURED', conditionMet: false };
+    }
+
+    let browserSessionId: string | null = null;
+    try {
+      const session = await this.browserService.open({ tenantId: task.tenantId, ownerId: task.ownerId, requestId });
+      browserSessionId = session.browserSessionId;
+      await this.browserService.navigate({ tenantId: task.tenantId, ownerId: task.ownerId, requestId, browserSessionId, url: trigger.watchUrl });
+      const snapshot = await this.browserService.snapshot({ tenantId: task.tenantId, ownerId: task.ownerId, requestId, browserSessionId });
+      const judgment = await this.judge(trigger.condition, snapshot, requestId);
+      return {
+        status: 'SUCCEEDED',
+        conditionMet: judgment.met,
+        result: { kind: 'CONDITION_CHECK', met: judgment.met, reason: judgment.reason, url: snapshot.url, checkedAt: getCurrentISOString() },
+      };
+    } catch (error) {
+      const code = error instanceof NagexError ? error.code : 'CONDITION_CHECK_FAILED';
+      return { status: 'FAILED', errorCode: code, conditionMet: false };
+    } finally {
+      if (browserSessionId) {
+        await this.browserService.close({ tenantId: task.tenantId, ownerId: task.ownerId, requestId, browserSessionId }).catch(() => {});
+      }
+    }
+  }
+
+  private async judge(condition: string, snapshot: { url: string; title: string; text: string }, requestId: string): Promise<{ met: boolean; reason: string }> {
+    const prompt = [
+      'You are checking whether a watched condition has become true, based only on the real webpage content shown below — never assume or invent anything not present in it.',
+      '',
+      `Condition to check: "${condition}"`,
+      '',
+      `Page URL: ${snapshot.url}`,
+      `Page title: ${snapshot.title}`,
+      'Page content:',
+      '"""',
+      snapshot.text,
+      '"""',
+      '',
+      'Respond with EXACTLY two lines, nothing else:',
+      'MET: true',
+      'or',
+      'MET: false',
+      'REASON: <one sentence, grounded only in the page content above>',
+    ].join('\n');
+
+    const response = await this.aiService.chat({ message: prompt, mode: 'auto', requestId });
+    const text = response.data.message || '';
+    const metMatch = /MET:\s*(true|false)/i.exec(text);
+    const reasonMatch = /REASON:\s*(.+)/i.exec(text);
+    // Fail-safe: any ambiguity in the model's response defaults to NOT met
+    // — AC-11 requires never notifying while unmet, so an unparseable
+    // judgment must never be treated as "met".
+    const met = metMatch ? metMatch[1].toLowerCase() === 'true' : false;
+    const reason = reasonMatch ? reasonMatch[1].trim() : 'Could not confidently determine condition status from the page content.';
+    return { met, reason };
+  }
+}
+
+// Routes a CONDITIONAL/CONDITION task to ConditionalWatchTaskRunner and
+// every other task to PlanPreviewTaskRunner — the only place that needs to
+// know both runners exist.
+export class CompositeTaskRunner implements TaskRunner {
+  constructor(
+    private readonly planPreviewRunner: TaskRunner,
+    private readonly conditionalWatchRunner: TaskRunner,
+  ) {}
+
+  public async run(task: TaskRecord, requestId: string): Promise<TaskRunOutcome> {
+    if (task.type === 'CONDITIONAL' && task.trigger.type === 'CONDITION') {
+      return this.conditionalWatchRunner.run(task, requestId);
+    }
+    return this.planPreviewRunner.run(task, requestId);
   }
 }

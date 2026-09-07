@@ -49,3 +49,19 @@ test('the task creation form never bypasses the real POST /api/v1/tasks endpoint
     assert.match(body, /method: 'POST'/);
   });
 });
+
+test('Conditional Watch (item 07): the form exposes watchUrl + checkIntervalMinutes for CONDITION, and never invents them', async () => {
+  await withServer(async (origin) => {
+    const html = await (await fetch(`${origin}/`)).text();
+    assert.match(html, /id="task-watch-url"/);
+    assert.match(html, /id="task-check-interval"/);
+    // The old "evaluation not yet implemented" label must be gone now that
+    // it is — leaving it would misrepresent implementation status (MASTER.md
+    // Section 8).
+    assert.doesNotMatch(html, /evaluation not yet implemented/);
+
+    const appJs = await (await fetch(`${origin}/app.js`)).text();
+    assert.match(appJs, /trigger\.watchUrl = document\.getElementById\('task-watch-url'\)\.value\.trim\(\)/);
+    assert.match(appJs, /trigger\.checkIntervalMinutes = Number\(document\.getElementById\('task-check-interval'\)\.value\) \|\| 15/);
+  });
+});
