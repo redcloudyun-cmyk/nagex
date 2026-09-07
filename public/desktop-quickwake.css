@@ -29,6 +29,12 @@ html, body.desktop-quickwake-body {
   padding: 0.75rem 1rem;
   background: #0d1117;
   border-bottom: 1px solid #21262d;
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.qw-header button, .qw-header input, .qw-header a {
+  -webkit-app-region: no-drag;
 }
 
 .qw-brand {

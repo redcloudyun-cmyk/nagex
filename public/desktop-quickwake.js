@@ -250,17 +250,38 @@
   }
 
   // ── Global Desktop Exposed API ──────────────────────────────────────────
+  const nativeBridge = window.NAGEX_DESKTOP && window.NAGEX_DESKTOP.isNativeDesktop ? window.NAGEX_DESKTOP : null;
+
+  if (nativeBridge) {
+    nativeBridge.onHotkeyTriggered(() => {
+      const input = document.getElementById('qw-composer-input');
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    });
+  }
+
   window.NAGEX_DESKTOP = {
+    ...(nativeBridge || {}),
     openControlCenter: (tab = 'tab-home') => {
-      apiFetch('/api/v1/desktop/quickwake/tray/action', {
-        method: 'POST',
-        body: JSON.stringify({ action: 'OPEN_CONTROL_CENTER' }),
-      });
-      window.location.href = `/?tab=${tab}`;
+      if (nativeBridge && nativeBridge.openExternal) {
+        nativeBridge.openExternal(`http://localhost:8085/?tab=${tab}`);
+      } else {
+        apiFetch('/api/v1/desktop/quickwake/tray/action', {
+          method: 'POST',
+          body: JSON.stringify({ action: 'OPEN_CONTROL_CENTER' }),
+        });
+        window.location.href = `/?tab=${tab}`;
+      }
     },
 
     hideWindow: () => {
-      apiFetch('/api/v1/desktop/quickwake/toggle', { method: 'POST' });
+      if (nativeBridge && nativeBridge.hideWindow) {
+        nativeBridge.hideWindow();
+      } else {
+        apiFetch('/api/v1/desktop/quickwake/toggle', { method: 'POST' });
+      }
     },
 
     pauseTask: async (taskId) => {

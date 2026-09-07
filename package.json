@@ -2,11 +2,31 @@
   "name": "nagex-core",
   "version": "0.1.0",
   "description": "NAgex AI Operating System - Modular Monolith Core",
-  "main": "dist/index.js",
+  "main": "dist/src/desktop/desktop-app.js",
   "scripts": {
     "build": "tsc",
     "start": "node dist/src/server_web.js",
+    "desktop:dev": "tsc && electron .",
+    "desktop:build": "tsc && electron-builder --win nsis",
     "test": "tsc && node --require ./dist/tests/_setup.js --test dist/tests/*.test.js"
+  },
+  "build": {
+    "appId": "com.nagex.desktop",
+    "productName": "NAgex Desktop Quick Wake",
+    "directories": {
+      "output": "dist-desktop"
+    },
+    "files": [
+      "dist/**/*",
+      "public/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    }
   },
   "keywords": [
     "nagex",
@@ -20,6 +40,8 @@
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^26.2.0",
+    "electron": "^44.2.0",
+    "electron-builder": "^26.15.3",
     "typescript": "^5.9.3"
   },
   "dependencies": {
