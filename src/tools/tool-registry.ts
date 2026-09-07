@@ -1,4 +1,5 @@
 import { googleTokenStore, DEFAULT_GOOGLE_TENANT_ID } from '../integrations/google/token.store.js';
+import { GMAIL_SCOPES } from '../integrations/google/oauth.client.js';
 
 export type SideEffectLevel = 'READ_ONLY' | 'REVERSIBLE_WRITE' | 'IRREVERSIBLE_WRITE';
 export type ToolExecutionMode = 'live' | 'mock' | 'unavailable';
@@ -128,8 +129,74 @@ function googleCalendarLiveStatus(): LiveToolStatus {
   return connected ? { connectionStatus: 'connected', executionMode: 'live' } : { connectionStatus: 'disconnected', executionMode: 'unavailable' };
 }
 
+// Gmail is LIVE only once the shared Google connection actually carries the
+// gmail.modify scope — an account connected before Gmail scopes existed
+// (Calendar-only) must reconnect once; "connected" alone is not enough,
+// unlike Calendar, which only ever asked for its own scopes.
+function gmailLiveStatus(): LiveToolStatus {
+  const status = googleTokenStore.getStatus(DEFAULT_GOOGLE_TENANT_ID);
+  const hasGmailScope = status.connected && status.scopes.includes(GMAIL_SCOPES[0]);
+  return hasGmailScope ? { connectionStatus: 'connected', executionMode: 'live' } : { connectionStatus: 'disconnected', executionMode: 'unavailable' };
+}
+
 export const toolRegistry = new ToolRegistry([
-  { id: 'gmail.send_email', name: 'Gmail', capability: 'email.send', connectionStatus: 'connected', sideEffectLevel: 'IRREVERSIBLE_WRITE', requiresApproval: true, executionMode: 'mock', aliases: ['gmail.send', 'send gmail', 'gmail send email'] },
+  {
+    id: 'gmail.send_email',
+    name: 'Gmail Send',
+    capability: 'email.send',
+    connectionStatus: 'disconnected',
+    sideEffectLevel: 'IRREVERSIBLE_WRITE',
+    requiresApproval: true,
+    executionMode: 'unavailable',
+    // 'gmail' (bare) is kept for backward compatibility — the model has
+    // historically referred to this tool simply as "Gmail".
+    aliases: ['gmail', 'gmail.send', 'send gmail', 'gmail send email', 'send email'],
+    getLiveStatus: gmailLiveStatus,
+  },
+  {
+    id: 'gmail.reply',
+    name: 'Gmail Reply',
+    capability: 'email.reply',
+    connectionStatus: 'disconnected',
+    sideEffectLevel: 'IRREVERSIBLE_WRITE',
+    requiresApproval: true,
+    executionMode: 'unavailable',
+    aliases: ['reply gmail', 'gmail reply', 'reply to email'],
+    getLiveStatus: gmailLiveStatus,
+  },
+  {
+    id: 'gmail.create_draft',
+    name: 'Gmail Draft',
+    capability: 'email.draft.create',
+    connectionStatus: 'disconnected',
+    sideEffectLevel: 'REVERSIBLE_WRITE',
+    requiresApproval: true,
+    executionMode: 'unavailable',
+    aliases: ['create gmail draft', 'draft email in gmail', 'gmail draft'],
+    getLiveStatus: gmailLiveStatus,
+  },
+  {
+    id: 'gmail.search',
+    name: 'Gmail Search',
+    capability: 'email.search',
+    connectionStatus: 'disconnected',
+    sideEffectLevel: 'READ_ONLY',
+    requiresApproval: false,
+    executionMode: 'unavailable',
+    aliases: ['search gmail', 'search email', 'gmail search'],
+    getLiveStatus: gmailLiveStatus,
+  },
+  {
+    id: 'gmail.read_thread',
+    name: 'Gmail Read Thread',
+    capability: 'email.thread.read',
+    connectionStatus: 'disconnected',
+    sideEffectLevel: 'READ_ONLY',
+    requiresApproval: false,
+    executionMode: 'unavailable',
+    aliases: ['read gmail thread', 'read email thread', 'gmail read thread'],
+    getLiveStatus: gmailLiveStatus,
+  },
   {
     id: 'google_calendar.create_event',
     name: 'Google Calendar',

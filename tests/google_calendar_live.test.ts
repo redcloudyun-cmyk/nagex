@@ -9,6 +9,8 @@ import {
   readGoogleOAuthConfig,
   exchangeGoogleAuthorizationCode,
   GOOGLE_CALENDAR_SCOPES,
+  GMAIL_SCOPES,
+  GOOGLE_OAUTH_SCOPES,
   type GoogleOAuthConfig,
 } from '../src/integrations/google/oauth.client.js';
 import { queryFreeBusy, computeFreeSlots } from '../src/integrations/google/calendar.client.js';
@@ -138,9 +140,14 @@ test('OAuth start URL: GET /api/v1/oauth/google/start redirects (302) straight t
 
     const grantedScopes = (location.searchParams.get('scope') || '').split(' ');
     for (const scope of GOOGLE_CALENDAR_SCOPES) {
-      assert.ok(grantedScopes.includes(scope), `missing scope: ${scope}`);
+      assert.ok(grantedScopes.includes(scope), `missing calendar scope: ${scope}`);
     }
-    assert.equal(grantedScopes.length, GOOGLE_CALENDAR_SCOPES.length);
+    for (const scope of GMAIL_SCOPES) {
+      assert.ok(grantedScopes.includes(scope), `missing gmail scope: ${scope}`);
+    }
+    // One Google connection covers both Calendar and Gmail — the exact
+    // union, no more and no fewer scopes than that.
+    assert.equal(grantedScopes.length, GOOGLE_OAUTH_SCOPES.length);
   });
 });
 

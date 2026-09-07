@@ -8,6 +8,19 @@ export const GOOGLE_CALENDAR_SCOPES = [
   'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
 ] as const;
 
+// A single scope covers every Gmail tool NAgex implements (search, read
+// thread, create/manage drafts, send, reply) short of permanent deletion —
+// see MASTER.md's Gmail LIVE section. Requesting the narrowest sufficient
+// scope rather than one scope per tool.
+export const GMAIL_SCOPES = ['https://www.googleapis.com/auth/gmail.modify'] as const;
+
+// The full set requested at the OAuth consent screen — one Google
+// connection covers both Calendar and Gmail. An account connected before
+// Gmail scopes existed will not have gmail.modify granted yet and must
+// reconnect once (see ToolRegistry's live-status checks, which verify the
+// scope is actually present, not just that a connection exists).
+export const GOOGLE_OAUTH_SCOPES = [...GOOGLE_CALENDAR_SCOPES, ...GMAIL_SCOPES] as const;
+
 export interface GoogleOAuthConfig {
   clientId: string;
   clientSecret: string;
@@ -37,7 +50,7 @@ export function buildGoogleAuthorizeUrl(config: GoogleOAuthConfig, state: string
   url.searchParams.set('client_id', config.clientId);
   url.searchParams.set('redirect_uri', config.redirectUri);
   url.searchParams.set('response_type', 'code');
-  url.searchParams.set('scope', GOOGLE_CALENDAR_SCOPES.join(' '));
+  url.searchParams.set('scope', GOOGLE_OAUTH_SCOPES.join(' '));
   url.searchParams.set('access_type', 'offline');
   url.searchParams.set('prompt', 'consent');
   url.searchParams.set('include_granted_scopes', 'true');
@@ -87,7 +100,7 @@ async function postToken(body: URLSearchParams, fetchFn: FetchFn, requestId: str
     accessToken: payload.access_token,
     refreshToken: payload.refresh_token ?? null,
     expiresAt: now() + Math.max(0, (payload.expires_in ?? 3600) - 60) * 1000, // refresh 60s early
-    scope: payload.scope ?? GOOGLE_CALENDAR_SCOPES.join(' '),
+    scope: payload.scope ?? GOOGLE_OAUTH_SCOPES.join(' '),
     tokenType: payload.token_type ?? null,
   };
 }

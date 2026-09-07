@@ -6,7 +6,7 @@ import path from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { PlanResolver } from '../src/planning/plan-resolver.js';
 import { skillRegistry } from '../src/skills/skill-registry.js';
-import { toolRegistry } from '../src/tools/tool-registry.js';
+import { toolRegistry, ToolRegistry } from '../src/tools/tool-registry.js';
 import type { PlanPreview } from '../src/model-gateway/ai-service.js';
 import { server } from '../src/server_web.js';
 
@@ -83,14 +83,26 @@ test('blocked plan UI: an unresolved/hallucinated tool shows "Cannot Execute"', 
   assert.equal(vmView.statusCssClass, 'plan-status-blocked');
 });
 
-test('no Run button when blocked, for every blocking reason (unresolved, unavailable, mock)', () => {
-  for (const tool of ['unknown.tool', 'notion.create_page', 'Gmail']) {
-    const resolved = resolver.resolve(planFor(tool, tool === 'Gmail' ? 'Email Drafting' : 'Document Summary'));
+test('no Run button when blocked, for every blocking reason (unresolved, unavailable)', () => {
+  for (const tool of ['unknown.tool', 'notion.create_page']) {
+    const resolved = resolver.resolve(planFor(tool, 'Document Summary'));
     const vmView = planView.buildResolutionViewModel(resolved);
     assert.equal(vmView.status, 'BLOCKED', `expected BLOCKED for tool ${tool}`);
     assert.equal(vmView.showRunButton, false, `expected no run button for tool ${tool}`);
     assert.equal(vmView.actionLabel, null, `expected no action label for tool ${tool}`);
   }
+});
+
+test('no Run button when blocked for a mock-mode tool either (Gmail is LIVE-or-unavailable now, not mock — see tool-registry.ts)', () => {
+  const mockOnlyRegistry = new ToolRegistry([
+    { id: 'demo.mock_tool', name: 'Demo Mock Tool', capability: 'demo.mock', connectionStatus: 'connected', sideEffectLevel: 'IRREVERSIBLE_WRITE', requiresApproval: true, executionMode: 'mock', aliases: ['demo mock tool'] },
+  ]);
+  const mockResolver = new PlanResolver(skillRegistry, mockOnlyRegistry);
+  const resolved = mockResolver.resolve(planFor('demo.mock_tool', 'Email Drafting'));
+  const vmView = planView.buildResolutionViewModel(resolved);
+  assert.equal(vmView.status, 'BLOCKED');
+  assert.equal(vmView.showRunButton, false);
+  assert.equal(vmView.actionLabel, null);
 });
 
 test('warning rendering: resolver warnings surface on the blocked step and roll up to the plan', () => {

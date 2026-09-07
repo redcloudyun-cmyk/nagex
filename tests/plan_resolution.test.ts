@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PlanResolver } from '../src/planning/plan-resolver.js';
 import { skillRegistry } from '../src/skills/skill-registry.js';
-import { toolRegistry } from '../src/tools/tool-registry.js';
+import { toolRegistry, ToolRegistry } from '../src/tools/tool-registry.js';
 import type { PlanPreview } from '../src/model-gateway/ai-service.js';
 import { handleAsyncApiRequest } from '../src/server_web.js';
 
@@ -46,8 +46,16 @@ test('unavailable registered tool is resolved but blocked', () => {
 });
 
 test('mock registered tools are never treated as live or execution-ready', () => {
-  const step = resolver.resolve(planFor('Gmail', 'Email Drafting')).steps[0];
-  assert.equal(step.resolvedToolId, 'gmail.send_email');
+  // Gmail is now a real LIVE-or-unavailable tool (no mock state — see
+  // tool-registry.ts's gmailLiveStatus), so this test exercises the
+  // registry's generic mock handling against a throwaway mock-mode tool
+  // instead of depending on which specific tool happens to be mocked today.
+  const mockOnlyRegistry = new ToolRegistry([
+    { id: 'demo.mock_tool', name: 'Demo Mock Tool', capability: 'demo.mock', connectionStatus: 'connected', sideEffectLevel: 'IRREVERSIBLE_WRITE', requiresApproval: true, executionMode: 'mock', aliases: ['demo mock tool'] },
+  ]);
+  const mockResolver = new PlanResolver(skillRegistry, mockOnlyRegistry);
+  const step = mockResolver.resolve(planFor('demo.mock_tool', 'Email Drafting')).steps[0];
+  assert.equal(step.resolvedToolId, 'demo.mock_tool');
   assert.equal(step.toolAvailability, 'MOCK_ONLY');
   assert.equal(step.executionReadiness, 'BLOCKED');
 });

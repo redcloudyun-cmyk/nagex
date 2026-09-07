@@ -48,7 +48,7 @@ test('A. Simple calendar request: only the Calendar scheduling step is required 
 
 // ── 11.B: "Schedule it and email John" ──────────────────────────────────────
 
-test('B. "Schedule it and email John": Calendar + Gmail, Calendar stays independently approval-required even though Gmail is mock-only', () => withGoogleConnected(() => {
+test('B. "Schedule it and email John": Calendar + Gmail, Calendar stays independently approval-required even though Gmail is not yet connected with Gmail scope', () => withGoogleConnected(() => {
   const plan: PlanPreview = {
     goal: 'Schedule the meeting and email John',
     summary: 'Create the event and email John, as explicitly requested.',
@@ -64,9 +64,9 @@ test('B. "Schedule it and email John": Calendar + Gmail, Calendar stays independ
   assert.equal(resolved.steps[0].resolvedToolId, GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID);
   assert.equal(resolved.steps[0].executionReadiness, 'APPROVAL_REQUIRED');
   assert.equal(resolved.steps[1].resolvedToolId, 'gmail.send_email');
-  assert.equal(resolved.steps[1].toolAvailability, 'MOCK_ONLY');
+  assert.equal(resolved.steps[1].toolAvailability, 'UNAVAILABLE');
   assert.equal(resolved.steps[1].executionReadiness, 'BLOCKED');
-  // Partial execution safety: Gmail being mock-only must not mask Calendar's
+  // Partial execution safety: Gmail being unavailable must not mask Calendar's
   // own, independently-calculated readiness, nor drag the whole plan BLOCKED.
   assert.equal(resolved.status, 'APPROVAL_REQUIRED');
 }));
