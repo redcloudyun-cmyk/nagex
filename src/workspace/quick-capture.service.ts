@@ -356,7 +356,7 @@ export class QuickCaptureService {
     let label = 'Local Development Vault';
 
     if (isCloud) {
-      if (health.configured && health.reachable) {
+      if (health.configured && health.bucketAuthorized && health.readable && health.writable && health.mode === 'LIVE') {
         label = 'NAgex Cloud Vault (Nebius S3) - LIVE';
       } else {
         label = 'Cloud Vault - Configuration required';
@@ -374,6 +374,10 @@ export class QuickCaptureService {
         label,
         mode: health.mode,
         reachable: health.reachable,
+        endpointReachable: health.endpointReachable,
+        bucketAuthorized: health.bucketAuthorized,
+        readable: health.readable,
+        writable: health.writable,
         bucket: health.bucket,
         region: health.region,
       },
@@ -386,6 +390,10 @@ export class QuickCaptureService {
     provider: 'local' | 's3';
     configured: boolean;
     reachable: boolean;
+    endpointReachable?: boolean;
+    bucketAuthorized?: boolean;
+    readable?: boolean;
+    writable?: boolean;
     bucket?: string;
     region?: string;
     mode: 'LIVE' | 'DEVELOPMENT' | 'OFFLINE';
@@ -399,6 +407,10 @@ export class QuickCaptureService {
       provider: this.storageProvider.getProviderName(),
       configured: health.configured,
       reachable: health.reachable,
+      endpointReachable: health.endpointReachable,
+      bucketAuthorized: health.bucketAuthorized,
+      readable: health.readable,
+      writable: health.writable,
       bucket: health.bucket,
       region: health.region,
       mode: health.mode,

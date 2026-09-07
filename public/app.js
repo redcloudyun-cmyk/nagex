@@ -491,7 +491,7 @@
       let truthfulLabel = data.storageInfo?.label || 'Local Development Vault';
       if (health) {
         if (health.provider === 's3') {
-          if (health.configured && health.reachable) {
+          if (health.configured && health.bucketAuthorized && health.readable && health.writable && health.mode === 'LIVE') {
             truthfulLabel = 'NAgex Cloud Vault (Nebius S3) - LIVE';
           } else {
             truthfulLabel = 'Cloud Vault - Configuration required';

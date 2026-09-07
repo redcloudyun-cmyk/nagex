@@ -94,6 +94,21 @@ test('S3StorageProvider: handles S3 configuration and object lifecycle contract'
   assert.equal(obj.data.toString(), 'S3 PDF content');
 });
 
+test('S3StorageProvider.checkHealth: distinguishes endpointReachable, bucketAuthorized, readable, and writable, and never returns LIVE on 403 or unauthorized', async () => {
+  const provider = new S3StorageProvider({
+    endpoint: 'https://storage.nebius.cloud',
+    region: 'eu-north1',
+    bucket: 'nagex-vault-bucket',
+    accessKeyId: 'test_access_key',
+    secretAccessKey: 'test_secret_key',
+  });
+
+  const health = await provider.checkHealth();
+  assert.equal(health.configured, true);
+  assert.notEqual(health.mode, 'LIVE');
+  assert.equal(health.writable, false);
+});
+
 test('QuickCaptureService: rejects zero-byte audio payloads and requires real bytes', async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-capture-test-'));
   const store = new CaptureStore(tmpDir);

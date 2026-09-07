@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { NagexError } from '../common/errors.js';
-import type { ObjectMetadata, StorageProvider } from './storage-provider.js';
+import type { ObjectMetadata, StorageHealthResult, StorageProvider } from './storage-provider.js';
 
 export interface S3Config {
   endpoint: string;
@@ -201,28 +201,87 @@ export class S3StorageProvider implements StorageProvider {
     return entry ? entry.metadata : null;
   }
 
-  public async checkHealth(): Promise<{ configured: boolean; reachable: boolean; bucket?: string; region?: string; mode: 'LIVE' | 'DEVELOPMENT' | 'OFFLINE' }> {
-    const pingKey = `health_ping_${Date.now()}.txt`;
+  public async checkHealth(): Promise<StorageHealthResult> {
+    const pingKey = `_nagex_health_check_${Date.now()}.txt`;
+    const payload = Buffer.from('health_check');
+    let endpointReachable = false;
+    let bucketAuthorized = false;
+    let writable = false;
+    let readable = false;
+
+    // 1. Test Writable: PUT health object
     try {
-      const headUrl = this.buildSigV4Url('HEAD', pingKey, 60);
-      const res = await fetch(headUrl, { method: 'HEAD' });
-      const reachable = res.status < 500; // HTTP 200, 404, or 403 means S3 endpoint is online
-      return {
-        configured: true,
-        reachable,
-        bucket: this.config.bucket,
-        region: this.config.region,
-        mode: reachable ? 'LIVE' : 'OFFLINE',
-      };
+      const putUrl = await this.getSignedUploadUrl(pingKey, 'text/plain', 60);
+      const putRes = await fetch(putUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'text/plain' },
+        body: payload,
+      });
+
+      if (putRes.ok || putRes.status === 204) {
+        endpointReachable = true;
+        bucketAuthorized = true;
+        writable = true;
+      } else {
+        endpointReachable = true;
+        if (putRes.status === 401 || putRes.status === 403) {
+          bucketAuthorized = false;
+        }
+      }
     } catch {
-      return {
-        configured: true,
-        reachable: false,
-        bucket: this.config.bucket,
-        region: this.config.region,
-        mode: 'OFFLINE',
-      };
+      endpointReachable = false;
     }
+
+    // 2. Test Readable & cleanup if Writable succeeded
+    if (writable) {
+      try {
+        const headUrl = this.buildSigV4Url('HEAD', pingKey, 60);
+        const headRes = await fetch(headUrl, { method: 'HEAD' });
+        if (headRes.ok) {
+          readable = true;
+        } else if (headRes.status === 401 || headRes.status === 403) {
+          bucketAuthorized = false;
+        }
+      } catch {
+        readable = false;
+      }
+
+      // Always delete temporary health check object
+      try {
+        const delUrl = this.buildSigV4Url('DELETE', pingKey, 60);
+        await fetch(delUrl, { method: 'DELETE' });
+      } catch {
+        /* cleanup best effort */
+      }
+    } else if (endpointReachable) {
+      try {
+        const headUrl = this.buildSigV4Url('HEAD', `_nagex_ping_check_${Date.now()}.txt`, 60);
+        const headRes = await fetch(headUrl, { method: 'HEAD' });
+        if (headRes.status === 404) {
+          bucketAuthorized = true;
+          readable = true;
+        } else if (headRes.status === 401 || headRes.status === 403) {
+          bucketAuthorized = false;
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
+    const mode = (endpointReachable && bucketAuthorized && readable && writable) ? 'LIVE' : 'OFFLINE';
+    const reachable = endpointReachable && bucketAuthorized;
+
+    return {
+      configured: true,
+      reachable,
+      endpointReachable,
+      bucketAuthorized,
+      readable,
+      writable,
+      bucket: this.config.bucket,
+      region: this.config.region,
+      mode,
+    };
   }
 
   public async getSignedUrl(key: string, expiresInSeconds: number = 3600): Promise<string> {

@@ -110,6 +110,10 @@ export interface PersonalVaultSummary {
     label: string;
     mode?: 'LIVE' | 'DEVELOPMENT' | 'OFFLINE';
     reachable?: boolean;
+    endpointReachable?: boolean;
+    bucketAuthorized?: boolean;
+    readable?: boolean;
+    writable?: boolean;
     bucket?: string;
     region?: string;
   };

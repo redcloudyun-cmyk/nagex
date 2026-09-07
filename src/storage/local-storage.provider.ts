@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { resolveNagexDataDir } from '../governance/file-record.store.js';
-import type { ObjectMetadata, StorageProvider } from './storage-provider.js';
+import type { ObjectMetadata, StorageHealthResult, StorageProvider } from './storage-provider.js';
 
 export class LocalStorageProvider implements StorageProvider {
   private readonly storageDir: string;
@@ -94,10 +94,14 @@ export class LocalStorageProvider implements StorageProvider {
     }
   }
 
-  public async checkHealth(): Promise<{ configured: boolean; reachable: boolean; bucket?: string; region?: string; mode: 'LIVE' | 'DEVELOPMENT' | 'OFFLINE' }> {
+  public async checkHealth(): Promise<StorageHealthResult> {
     return {
       configured: true,
       reachable: true,
+      endpointReachable: true,
+      bucketAuthorized: true,
+      readable: true,
+      writable: true,
       mode: 'DEVELOPMENT',
     };
   }
