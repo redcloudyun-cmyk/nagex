@@ -259,11 +259,12 @@
 
         <!-- VIEW: VAULT (PERSONAL CLOUD VAULT) -->
         <div id="view-vault" class="tab-view canvas-mode-doc">
-          <div class="view-header-bar">
+          <div class="view-header-bar" style="display: flex; justify-content: space-between; align-items: center;">
             <div>
               <h2 data-i18n="workspace.vaultTitle">Personal Cloud Vault</h2>
               <p class="view-sub" data-i18n="workspace.vaultSubtitle">Encrypted canonical storage for captured assets, documents, and reference knowledge.</p>
             </div>
+            <span id="vault-storage-provider-label" class="badge-status status-PROCESSING" style="font-size: 0.78rem; padding: 0.35rem 0.75rem;">Local Development Vault</span>
           </div>
           <div class="vault-container">
             <div class="vault-quota-card">

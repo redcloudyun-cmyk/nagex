@@ -56,6 +56,8 @@ import { NotificationEngine } from './notifications/notification.engine.js';
 import { DesktopRuntimeEngine } from './desktop/desktop-runtime.engine.js';
 import { captureStore } from './workspace/capture.store.js';
 import { QuickCaptureService } from './workspace/quick-capture.service.js';
+import { InputRouter } from './workspace/input-router.js';
+import { createConfiguredStorageProvider } from './storage/s3-storage.provider.js';
 
 const PORT = Number(process.env.PORT || 8085);
 const PUBLIC_DIR = path.join(process.cwd(), 'public');
@@ -137,7 +139,8 @@ const taskRunner = new CompositeTaskRunner(
 );
 
 // ─── MASTER.md Section 14.9 — NAgex Personal Workspace Core ───
-export const quickCaptureService = new QuickCaptureService(captureStore, taskStore, memoryEngine);
+export const storageProvider = createConfiguredStorageProvider();
+export const quickCaptureService = new QuickCaptureService(captureStore, storageProvider, taskStore, memoryEngine);
 
 // ─── MASTER.md Section 14 — Telegram Integration (Item 10) ───
 export const telegramIdentityStore = new TelegramIdentityStore();
@@ -575,18 +578,59 @@ export async function handleAsyncApiRequest(
       auditLogger.logEvent({ actor: { type: 'user', id: principalId }, tenant_id: tid, action: 'oauth:google_disconnected', resource: { type: 'OAuthConnection', id: 'google_calendar' }, result: 'SUCCESS', request_id: requestId });
       return { status: 200, data: googleTokenStore.getStatus(tid) };
     }
+    if (pathname === '/api/v1/workspace/route-input' && method === 'POST') {
+      const text = typeof body?.text === 'string' ? body.text : '';
+      const hasFile = Boolean(body?.hasFile);
+      const hasAudio = Boolean(body?.hasAudio);
+      const mimeType = typeof body?.mimeType === 'string' ? body.mimeType : undefined;
+      const classification = InputRouter.classify({ text, hasFile, hasAudio, mimeType });
+      return { status: 200, data: classification };
+    }
+    if (pathname === '/api/v1/workspace/upload' && method === 'POST') {
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+
+      const type = (typeof body?.type === 'string' ? body.type : 'FILE') as any;
+      const filename = typeof body?.filename === 'string' ? body.filename : 'file.bin';
+      const mimeType = typeof body?.mimeType === 'string' ? body.mimeType : 'application/octet-stream';
+      const source = (typeof body?.source === 'string' ? body.source : 'WEB') as any;
+
+      // Convert base64 data or raw string to Buffer
+      let dataBuf: Buffer;
+      if (typeof body?.base64 === 'string') {
+        dataBuf = Buffer.from(body.base64, 'base64');
+      } else if (typeof body?.content === 'string') {
+        dataBuf = Buffer.from(body.content, 'utf8');
+      } else {
+        throw new NagexError({ code: 'EMPTY_FILE_PAYLOAD', category: 'VALIDATION', message: 'Binary payload data is required.', request_id: requestId });
+      }
+
+      // Max size validation (50 MB limit)
+      if (dataBuf.length > 50 * 1024 * 1024) {
+        throw new NagexError({ code: 'FILE_TOO_LARGE', category: 'VALIDATION', message: 'File size exceeds maximum allowed limit of 50 MB.', request_id: requestId });
+      }
+
+      const result = await quickCaptureService.uploadBinaryObject({
+        ownerId,
+        tenantId,
+        type,
+        filename,
+        mimeType,
+        data: dataBuf,
+        source,
+      });
+      return { status: 201, data: result };
+    }
     if (pathname === '/api/v1/workspace/capture' && method === 'POST') {
       const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
       const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const result = await quickCaptureService.capture({
+      const result = await quickCaptureService.captureTextOrLink({
         ownerId,
         tenantId,
         type: (typeof body?.type === 'string' ? body.type : 'TEXT') as any,
         content: typeof body?.content === 'string' ? body.content : '',
         source: (typeof body?.source === 'string' ? body.source : 'WEB') as any,
-        originalName: typeof body?.originalName === 'string' ? body.originalName : undefined,
-        mimeType: typeof body?.mimeType === 'string' ? body.mimeType : undefined,
-        sizeBytes: typeof body?.sizeBytes === 'number' ? body.sizeBytes : undefined,
       });
       return { status: 201, data: result };
     }

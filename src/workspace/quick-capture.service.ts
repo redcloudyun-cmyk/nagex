@@ -3,53 +3,90 @@ import type { CaptureItem, CaptureStatus, CaptureType, InboxSummary, PersonalVau
 import type { TaskStore } from '../tasks/task.store.js';
 import type { MemoryEngine } from '../context/memory.engine.js';
 import type { KnowledgeEngine } from '../context/knowledge.engine.js';
+import type { StorageProvider } from '../storage/storage-provider.js';
+import { LocalStorageProvider } from '../storage/local-storage.provider.js';
 
 export class QuickCaptureService {
   constructor(
     private readonly store: CaptureStore,
+    private readonly storageProvider: StorageProvider = new LocalStorageProvider(),
     private readonly taskStore?: TaskStore,
     private readonly memoryEngine?: MemoryEngine,
     private readonly knowledgeEngine?: KnowledgeEngine,
   ) {}
 
-  public async capture(params: {
+  public getStorageProvider(): StorageProvider {
+    return this.storageProvider;
+  }
+
+  public async uploadBinaryObject(params: {
     ownerId: string;
     tenantId: string;
     type: CaptureType;
+    filename: string;
+    mimeType: string;
+    data: Buffer | Uint8Array;
+    source?: 'WEB' | 'DESKTOP' | 'MOBILE' | 'TELEGRAM' | 'SLACK';
+  }): Promise<CaptureItem> {
+    if (!params.data || params.data.length === 0) {
+      throw new Error('ZERO_BYTE_PAYLOAD: Cannot capture an object with 0 bytes.');
+    }
+
+    // 1. Ingest & Store binary object into StorageProvider
+    const key = `vault/${params.ownerId}/${params.type.toLowerCase()}s/${Date.now()}_${params.filename}`;
+    const objectMeta = await this.storageProvider.putObject(key, params.data, params.mimeType);
+
+    // 2. Create CaptureItem metadata record
+    const item = this.store.createCapture({
+      ownerId: params.ownerId,
+      tenantId: params.tenantId,
+      type: params.type,
+      content: key,
+      source: params.source ?? 'WEB',
+      metadata: {
+        originalName: params.filename,
+        mimeType: params.mimeType,
+        sizeBytes: objectMeta.sizeBytes,
+        objectKey: objectMeta.objectKey,
+        storageProvider: this.storageProvider.getProviderName(),
+        checksum: objectMeta.checksum,
+      },
+    });
+
+    // 3. Process capture pipeline
+    await this.processCapturePipeline(item);
+    return this.store.getCapture(item.captureId) ?? item;
+  }
+
+  public async captureTextOrLink(params: {
+    ownerId: string;
+    tenantId: string;
+    type: 'TEXT' | 'LINK';
     content: string;
     source?: 'WEB' | 'DESKTOP' | 'MOBILE' | 'TELEGRAM' | 'SLACK';
-    originalName?: string;
-    mimeType?: string;
-    sizeBytes?: number;
   }): Promise<CaptureItem> {
     const item = this.store.createCapture({
       ownerId: params.ownerId,
       tenantId: params.tenantId,
       type: params.type,
       content: params.content,
-      source: params.source,
+      source: params.source ?? 'WEB',
       metadata: {
-        originalName: params.originalName,
-        mimeType: params.mimeType,
-        sizeBytes: params.sizeBytes,
+        storageProvider: this.storageProvider.getProviderName(),
       },
     });
 
-    // Run truthful processing pipeline synchronously/async
     await this.processCapturePipeline(item);
     return this.store.getCapture(item.captureId) ?? item;
   }
 
   private async processCapturePipeline(item: CaptureItem): Promise<void> {
-    // 1. Transition to UPLOADING if binary file/audio payload
     if (item.type === 'FILE' || item.type === 'AUDIO') {
       this.store.updateStatus(item.captureId, 'UPLOADING');
     }
 
-    // 2. Transition to PROCESSING
     this.store.updateStatus(item.captureId, 'PROCESSING');
 
-    // 3. Extract title, summary, and action items truthfully based on type
     const extractedTitle = this.extractTitle(item);
     const extractedSummary = this.extractSummary(item);
     const suggestedAction = this.extractSuggestedAction(item);
@@ -64,7 +101,6 @@ export class QuickCaptureService {
       extractedTags: [item.type.toLowerCase(), item.source.toLowerCase()],
     });
 
-    // Update vault path
     const updated = this.store.getCapture(item.captureId);
     if (updated) {
       updated.vaultPath = vaultPath;
@@ -86,9 +122,9 @@ export class QuickCaptureService {
   }
 
   private extractSummary(item: CaptureItem): string {
-    if (item.type === 'LINK') return `Web capture saved to Personal Cloud Vault. Contains reference link to ${item.content}`;
-    if (item.type === 'AUDIO') return `Voice memo captured from ${item.source}. Processed and indexed into Vault.`;
-    if (item.type === 'FILE') return `Document artifact (${item.metadata.originalName || 'file'}) uploaded to Cloud Vault.`;
+    if (item.type === 'LINK') return `Web reference saved to Vault (${item.content}).`;
+    if (item.type === 'AUDIO') return `Voice audio recording uploaded (${(item.metadata.sizeBytes || 0) / 1024} KB).`;
+    if (item.type === 'FILE') return `Document artifact uploaded (${item.metadata.originalName || 'file'}).`;
     return `Captured note: ${item.content}`;
   }
 
@@ -104,7 +140,7 @@ export class QuickCaptureService {
     if (text.includes('meeting') || text.includes('schedule') || text.includes('calendar') || text.includes('tomorrow')) {
       return {
         type: 'CALENDAR',
-        title: `Calendar event candidate: ${this.extractTitle(item)}`,
+        title: `Calendar candidate: ${this.extractTitle(item)}`,
         detail: item.content,
       };
     }
@@ -153,11 +189,19 @@ export class QuickCaptureService {
       totalSizeBytes: val.bytes,
     }));
 
+    const providerName = this.storageProvider.getProviderName();
+    const isCloud = providerName === 's3';
+
     return {
       ownerId,
       totalItems: items.length,
       totalSizeBytes,
-      quotaSizeBytes: 10 * 1024 * 1024 * 1024, // 10 GB default vault quota
+      quotaSizeBytes: 10 * 1024 * 1024 * 1024,
+      storageInfo: {
+        provider: providerName,
+        isCloud,
+        label: isCloud ? 'NAgex Cloud Vault (Nebius S3)' : 'Local Development Vault',
+      },
       categories,
       recentItems: items.slice(0, 10),
     };

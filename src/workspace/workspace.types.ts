@@ -19,6 +19,9 @@ export interface CaptureMetadata {
   extractedTitle?: string;
   extractedSummary?: string;
   extractedTags?: string[];
+  objectKey?: string;
+  storageProvider?: 'local' | 's3';
+  checksum?: string;
   suggestedAction?: {
     type: 'TASK' | 'CALENDAR' | 'MEMORY' | 'KNOWLEDGE';
     title: string;
@@ -31,7 +34,7 @@ export interface CaptureItem {
   ownerId: string;
   tenantId: string;
   type: CaptureType;
-  content: string; // Text content, URL, file path, or transcript
+  content: string; // Text content, URL, or reference
   status: CaptureStatus;
   source: 'WEB' | 'DESKTOP' | 'MOBILE' | 'TELEGRAM' | 'SLACK';
   metadata: CaptureMetadata;
@@ -53,6 +56,11 @@ export interface PersonalVaultSummary {
   totalItems: number;
   totalSizeBytes: number;
   quotaSizeBytes: number;
+  storageInfo: {
+    provider: 'local' | 's3';
+    isCloud: boolean;
+    label: string;
+  };
   categories: VaultCategory[];
   recentItems: CaptureItem[];
 }

@@ -291,10 +291,12 @@
     renderActiveTab();
   }
 
+  let realMediaRecorder = null;
+  let realAudioChunks = [];
+
   function renderHome() {
     renderHomeWorkspaceSections();
 
-    // Home Prompt / Capture Button
     const btnSend = document.getElementById('btn-home-prompt-send');
     const homeInput = document.getElementById('home-prompt-input');
     const btnLink = document.getElementById('btn-afford-link');
@@ -304,16 +306,32 @@
     if (btnSend && homeInput) {
       btnSend.onclick = async () => {
         const text = homeInput.value.trim();
-        if (text) {
-          homeInput.value = '';
-          // 1. Send as natural conversation query if starts with question or command
+        if (!text) return;
+        homeInput.value = '';
+
+        // 1. Run InputRouter classification
+        const routeRes = await apiFetch('/api/v1/workspace/route-input', {
+          method: 'POST',
+          body: JSON.stringify({ text }),
+        });
+
+        const intent = routeRes?.data?.primaryIntent || 'ASK';
+
+        // 2. Dispatch to single primary path
+        if (intent === 'ASK' || intent === 'COMMAND') {
           openAmbientOverlay();
           runAmbientTask(text);
-          // 2. Also capture into Inbox as background quick capture
+        } else if (intent === 'LINK_CAPTURE' || intent === 'CAPTURE') {
           await apiFetch('/api/v1/workspace/capture', {
             method: 'POST',
-            body: JSON.stringify({ type: 'TEXT', content: text, source: 'WEB' }),
+            body: JSON.stringify({
+              type: intent === 'LINK_CAPTURE' ? 'LINK' : 'TEXT',
+              content: text,
+              source: 'WEB',
+            }),
           });
+          renderInbox();
+          switchTab('tab-inbox');
         }
       };
     }
@@ -341,13 +359,53 @@
 
     if (btnAudio) {
       btnAudio.onclick = async () => {
-        alert('Voice capture active — recording audio memo into Personal Cloud Vault...');
-        await apiFetch('/api/v1/workspace/capture', {
-          method: 'POST',
-          body: JSON.stringify({ type: 'AUDIO', content: 'Voice_Note_' + Date.now() + '.mp3', originalName: 'Voice Note.mp3', mimeType: 'audio/mp3', sizeBytes: 1048576, source: 'WEB' }),
-        });
-        renderInbox();
-        switchTab('tab-inbox');
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          alert('Microphone recording is not supported by your browser.');
+          return;
+        }
+        if (realMediaRecorder && realMediaRecorder.state === 'recording') {
+          realMediaRecorder.stop();
+          btnAudio.style.background = 'transparent';
+          btnAudio.title = 'Capture Voice / Audio';
+          return;
+        }
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          realAudioChunks = [];
+          realMediaRecorder = new MediaRecorder(stream);
+          realMediaRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) realAudioChunks.push(e.data);
+          };
+          realMediaRecorder.onstop = async () => {
+            const audioBlob = new Blob(realAudioChunks, { type: 'audio/webm' });
+            stream.getTracks().forEach((track) => track.stop());
+            if (audioBlob.size === 0) return;
+
+            const reader = new FileReader();
+            reader.onloadend = async () => {
+              const base64Data = (reader.result || '').toString().split(',')[1];
+              if (!base64Data) return;
+              await apiFetch('/api/v1/workspace/upload', {
+                method: 'POST',
+                body: JSON.stringify({
+                  type: 'AUDIO',
+                  filename: `voice_memo_${Date.now()}.webm`,
+                  mimeType: 'audio/webm',
+                  base64: base64Data,
+                  source: 'WEB',
+                }),
+              });
+              renderInbox();
+              switchTab('tab-inbox');
+            };
+            reader.readAsDataURL(audioBlob);
+          };
+          realMediaRecorder.start();
+          btnAudio.style.background = '#fee2e2';
+          btnAudio.title = 'Recording... Click to stop';
+        } catch (err) {
+          alert('Microphone access denied or error: ' + (err.message || err));
+        }
       };
     }
   }
@@ -427,9 +485,11 @@
       const elUsed = document.getElementById('vault-used-text');
       const elBar = document.getElementById('vault-quota-bar');
       const elGrid = document.getElementById('vault-categories-grid');
+      const elLabel = document.getElementById('vault-storage-provider-label');
 
       if (elUsed) elUsed.textContent = `${(data.totalSizeBytes / (1024 * 1024)).toFixed(1)} MB`;
       if (elBar) elBar.style.width = `${Math.min(100, (data.totalSizeBytes / data.quotaSizeBytes) * 100).toFixed(1)}%`;
+      if (elLabel && data.storageInfo?.label) elLabel.textContent = data.storageInfo.label;
 
       if (elGrid && Array.isArray(data.categories)) {
         elGrid.innerHTML = data.categories.map((cat) => `

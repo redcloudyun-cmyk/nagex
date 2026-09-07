@@ -23,7 +23,7 @@ function createTempStore(): { store: CaptureStore; service: QuickCaptureService;
 test('QuickCaptureService: captures text note and processes to READY status', async () => {
   const { service, cleanup } = createTempStore();
   try {
-    const item = await service.capture({
+    const item = await service.captureTextOrLink({
       ownerId: 'usr_test_01',
       tenantId: 'ten_test_01',
       type: 'TEXT',
@@ -44,7 +44,7 @@ test('QuickCaptureService: captures text note and processes to READY status', as
 test('QuickCaptureService: captures action item text and detects NEEDS_REVIEW status with suggested TASK action', async () => {
   const { service, cleanup } = createTempStore();
   try {
-    const item = await service.capture({
+    const item = await service.captureTextOrLink({
       ownerId: 'usr_test_02',
       tenantId: 'ten_test_01',
       type: 'TEXT',
@@ -63,14 +63,13 @@ test('QuickCaptureService: captures action item text and detects NEEDS_REVIEW st
 test('QuickCaptureService: captures FILE payload with UPLOADING -> PROCESSING -> READY lifecycle', async () => {
   const { service, cleanup } = createTempStore();
   try {
-    const item = await service.capture({
+    const item = await service.uploadBinaryObject({
       ownerId: 'usr_test_03',
       tenantId: 'ten_test_01',
       type: 'FILE',
-      content: 'f:/docs/architecture.pdf',
-      originalName: 'architecture.pdf',
+      filename: 'architecture.pdf',
       mimeType: 'application/pdf',
-      sizeBytes: 2048576,
+      data: Buffer.from('Binary PDF content'),
       source: 'WEB',
     });
 
@@ -85,7 +84,7 @@ test('QuickCaptureService: captures FILE payload with UPLOADING -> PROCESSING ->
 test('QuickCaptureService: getInboxSummary and getVaultSummary aggregate items truthfully', async () => {
   const { service, cleanup } = createTempStore();
   try {
-    await service.capture({
+    await service.captureTextOrLink({
       ownerId: 'usr_test_04',
       tenantId: 'ten_test_01',
       type: 'LINK',
@@ -93,14 +92,13 @@ test('QuickCaptureService: getInboxSummary and getVaultSummary aggregate items t
       source: 'WEB',
     });
 
-    await service.capture({
+    await service.uploadBinaryObject({
       ownerId: 'usr_test_04',
       tenantId: 'ten_test_01',
       type: 'AUDIO',
-      content: 'voice_memo_meeting_notes.mp3',
-      originalName: 'meeting_notes.mp3',
-      mimeType: 'audio/mp3',
-      sizeBytes: 5242880,
+      filename: 'meeting_notes.webm',
+      mimeType: 'audio/webm',
+      data: Buffer.from([0x1a, 0x45, 0xdf, 0xa3]),
       source: 'MOBILE',
     });
 
