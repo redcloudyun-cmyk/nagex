@@ -5,20 +5,181 @@ import type { MemoryEngine } from '../context/memory.engine.js';
 import type { KnowledgeEngine } from '../context/knowledge.engine.js';
 import type { StorageProvider } from '../storage/storage-provider.js';
 import { LocalStorageProvider } from '../storage/local-storage.provider.js';
+import { WorkspaceQuotaEngine } from './quota-engine.js';
+import { CaptureProcessor } from './capture-processor.js';
+import {
+  generateCanonicalObjectKey,
+  sanitizeFilename,
+  scanObjectForMalware,
+  validateFileSize,
+  validateMimeAndExtension,
+} from './vault-security.js';
+import { generateResourceId } from '../common/utils.js';
+
+export interface PresignedUploadInitResult {
+  uploadId: string;
+  captureId: string;
+  objectKey: string;
+  uploadUrl: string;
+  expiresAt: string;
+  maxSizeBytes: number;
+}
 
 export class QuickCaptureService {
+  private readonly quotaEngine: WorkspaceQuotaEngine;
+  private readonly processor: CaptureProcessor;
+
   constructor(
     private readonly store: CaptureStore,
     private readonly storageProvider: StorageProvider = new LocalStorageProvider(),
     private readonly taskStore?: TaskStore,
     private readonly memoryEngine?: MemoryEngine,
     private readonly knowledgeEngine?: KnowledgeEngine,
-  ) {}
+  ) {
+    this.quotaEngine = new WorkspaceQuotaEngine();
+    this.processor = new CaptureProcessor(this.store);
+  }
 
   public getStorageProvider(): StorageProvider {
     return this.storageProvider;
   }
 
+  public getQuotaEngine(): WorkspaceQuotaEngine {
+    return this.quotaEngine;
+  }
+
+  /**
+   * Presigned Upload Init Flow (Phase 2 Upload Architecture)
+   */
+  public async initUpload(params: {
+    ownerId: string;
+    tenantId: string;
+    filename: string;
+    mimeType: string;
+    sizeBytes: number;
+    intent?: CaptureType;
+  }): Promise<PresignedUploadInitResult> {
+    const cleanFilename = sanitizeFilename(params.filename);
+    const category = params.intent || (params.mimeType.startsWith('audio/') ? 'AUDIO' : params.mimeType.includes('pdf') ? 'PDF' : 'FILE');
+
+    // 1. Security & Quota Validation
+    validateFileSize(params.sizeBytes, category);
+    this.quotaEngine.checkQuota(params.ownerId, params.sizeBytes);
+
+    // 2. Generate isolated canonical object key
+    const captureId = generateResourceId('cap');
+    const objectId = `${Date.now()}_${cleanFilename}`;
+    const objectKey = generateCanonicalObjectKey({
+      tenantId: params.tenantId,
+      principalId: params.ownerId,
+      captureId,
+      objectId,
+    });
+
+    // 3. Obtain signed upload URL
+    const expiresInSeconds = 3600;
+    const uploadUrl = this.storageProvider.getSignedUploadUrl
+      ? await this.storageProvider.getSignedUploadUrl(objectKey, params.mimeType, expiresInSeconds)
+      : await this.storageProvider.getSignedUrl(objectKey, expiresInSeconds);
+
+    // 4. Create initial CaptureItem in UPLOADING state
+    this.store.createCapture({
+      ownerId: params.ownerId,
+      tenantId: params.tenantId,
+      type: (params.mimeType.startsWith('audio/') ? 'AUDIO' : 'FILE') as CaptureType,
+      content: objectKey,
+      source: 'WEB',
+      metadata: {
+        originalName: cleanFilename,
+        mimeType: params.mimeType,
+        sizeBytes: params.sizeBytes,
+        objectKey,
+        storageProvider: this.storageProvider.getProviderName(),
+      },
+    });
+    this.store.updateStatus(captureId, 'UPLOADING');
+
+    return {
+      uploadId: captureId,
+      captureId,
+      objectKey,
+      uploadUrl,
+      expiresAt: new Date(Date.now() + expiresInSeconds * 1000).toISOString(),
+      maxSizeBytes: params.sizeBytes,
+    };
+  }
+
+  /**
+   * Presigned Upload Complete Flow
+   */
+  public async completeUpload(params: {
+    captureId: string;
+    ownerId: string;
+    tenantId: string;
+    objectKey: string;
+    mimeType: string;
+    checksum: string;
+    sizeBytes: number;
+    originalFilename: string;
+    data?: Buffer | Uint8Array;
+  }): Promise<CaptureItem> {
+    let buf: Buffer | null = params.data ? Buffer.from(params.data) : null;
+
+    if (!buf) {
+      const stored = await this.storageProvider.getObject(params.objectKey);
+      if (stored) {
+        buf = stored.data;
+      }
+    }
+
+    if (buf) {
+      if (buf.length === 0) {
+        throw new Error('ZERO_BYTE_PAYLOAD: Cannot capture an object with 0 bytes.');
+      }
+      validateMimeAndExtension(params.originalFilename, params.mimeType, buf);
+      const scan = scanObjectForMalware(buf);
+      if (!scan.passed) {
+        throw new Error(`SECURITY_MALWARE_DETECTED: ${scan.threat || 'Threat found'}`);
+      }
+      // If data provided directly, put into storage
+      if (params.data) {
+        await this.storageProvider.putObject(params.objectKey, buf, params.mimeType);
+      }
+    }
+
+    let item = this.store.getCapture(params.captureId);
+    if (!item) {
+      item = this.store.createCapture({
+        ownerId: params.ownerId,
+        tenantId: params.tenantId,
+        type: (params.mimeType.startsWith('audio/') ? 'AUDIO' : 'FILE') as CaptureType,
+        content: params.objectKey,
+        source: 'WEB',
+        metadata: {
+          originalName: params.originalFilename,
+          mimeType: params.mimeType,
+          sizeBytes: params.sizeBytes,
+          objectKey: params.objectKey,
+          storageProvider: this.storageProvider.getProviderName(),
+          checksum: params.checksum,
+        },
+      });
+    } else {
+      this.store.updateStatus(params.captureId, 'QUEUED', {
+        checksum: params.checksum,
+        sizeBytes: params.sizeBytes,
+      });
+    }
+
+    this.quotaEngine.recordUpload(params.ownerId, params.sizeBytes);
+
+    // Trigger async processing pipeline
+    return await this.processor.process(item, buf ?? undefined);
+  }
+
+  /**
+   * Direct Binary Object Ingestion Fallback / Stream Endpoint
+   */
   public async uploadBinaryObject(params: {
     ownerId: string;
     tenantId: string;
@@ -28,23 +189,35 @@ export class QuickCaptureService {
     data: Buffer | Uint8Array;
     source?: 'WEB' | 'DESKTOP' | 'MOBILE' | 'TELEGRAM' | 'SLACK';
   }): Promise<CaptureItem> {
-    if (!params.data || params.data.length === 0) {
+    const buf = Buffer.from(params.data);
+    if (!buf || buf.length === 0) {
       throw new Error('ZERO_BYTE_PAYLOAD: Cannot capture an object with 0 bytes.');
     }
 
-    // 1. Ingest & Store binary object into StorageProvider
-    const key = `vault/${params.ownerId}/${params.type.toLowerCase()}s/${Date.now()}_${params.filename}`;
-    const objectMeta = await this.storageProvider.putObject(key, params.data, params.mimeType);
+    const cleanFilename = sanitizeFilename(params.filename);
+    validateFileSize(buf.length, params.type);
+    validateMimeAndExtension(cleanFilename, params.mimeType, buf);
+    this.quotaEngine.checkQuota(params.ownerId, buf.length);
 
-    // 2. Create CaptureItem metadata record
+    const captureId = generateResourceId('cap');
+    const objectId = `${Date.now()}_${cleanFilename}`;
+    const objectKey = generateCanonicalObjectKey({
+      tenantId: params.tenantId,
+      principalId: params.ownerId,
+      captureId,
+      objectId,
+    });
+
+    const objectMeta = await this.storageProvider.putObject(objectKey, buf, params.mimeType);
+
     const item = this.store.createCapture({
       ownerId: params.ownerId,
       tenantId: params.tenantId,
       type: params.type,
-      content: key,
+      content: objectKey,
       source: params.source ?? 'WEB',
       metadata: {
-        originalName: params.filename,
+        originalName: cleanFilename,
         mimeType: params.mimeType,
         sizeBytes: objectMeta.sizeBytes,
         objectKey: objectMeta.objectKey,
@@ -53,9 +226,8 @@ export class QuickCaptureService {
       },
     });
 
-    // 3. Process capture pipeline
-    await this.processCapturePipeline(item);
-    return this.store.getCapture(item.captureId) ?? item;
+    this.quotaEngine.recordUpload(params.ownerId, objectMeta.sizeBytes);
+    return await this.processor.process(item, buf);
   }
 
   public async captureTextOrLink(params: {
@@ -76,75 +248,44 @@ export class QuickCaptureService {
       },
     });
 
-    await this.processCapturePipeline(item);
-    return this.store.getCapture(item.captureId) ?? item;
+    return await this.processor.process(item);
   }
 
-  private async processCapturePipeline(item: CaptureItem): Promise<void> {
-    if (item.type === 'FILE' || item.type === 'AUDIO') {
-      this.store.updateStatus(item.captureId, 'UPLOADING');
+  /**
+   * Delete Propagation (Phase 7 Requirements)
+   * Removes binary object, metadata, derived cache/transcripts, updates quota.
+   * Preserves user-approved downstream Tasks/Calendar events.
+   */
+  public async deleteCaptureItem(captureId: string, ownerId: string): Promise<boolean> {
+    const item = this.store.getCapture(captureId);
+    if (!item || item.ownerId !== ownerId) return false;
+
+    // 1. Remove binary object from storage provider if exists
+    if (item.metadata.objectKey) {
+      await this.storageProvider.deleteObject(item.metadata.objectKey);
     }
 
-    this.store.updateStatus(item.captureId, 'PROCESSING');
-
-    const extractedTitle = this.extractTitle(item);
-    const extractedSummary = this.extractSummary(item);
-    const suggestedAction = this.extractSuggestedAction(item);
-
-    const vaultPath = `vault/${item.ownerId}/${item.type.toLowerCase()}s/${item.captureId}`;
-    const nextStatus: CaptureStatus = suggestedAction ? 'NEEDS_REVIEW' : 'READY';
-
-    this.store.updateStatus(item.captureId, nextStatus, {
-      extractedTitle,
-      extractedSummary,
-      suggestedAction,
-      extractedTags: [item.type.toLowerCase(), item.source.toLowerCase()],
-    });
-
-    const updated = this.store.getCapture(item.captureId);
-    if (updated) {
-      updated.vaultPath = vaultPath;
+    // 2. Update Quota Engine
+    if (item.metadata.sizeBytes) {
+      this.quotaEngine.recordDeletion(ownerId, item.metadata.sizeBytes);
     }
+
+    // 3. Delete Capture record & metadata sidecar
+    const deleted = this.store.deleteCapture(captureId);
+
+    // Note: User-approved Tasks, Calendar events, and Memory entries remain intact
+    return deleted;
   }
 
-  private extractTitle(item: CaptureItem): string {
-    if (item.metadata.originalName) return item.metadata.originalName;
-    if (item.type === 'LINK') {
-      try {
-        const u = new URL(item.content);
-        return `Link: ${u.hostname}${u.pathname.slice(0, 20)}`;
-      } catch {
-        return `Captured Link: ${item.content.slice(0, 30)}`;
-      }
-    }
-    if (item.type === 'AUDIO') return `Audio Note (${new Date(item.createdAt).toLocaleTimeString()})`;
-    return item.content.slice(0, 40) || 'Quick Note';
+  public async getDownloadUrl(captureId: string, ownerId: string): Promise<string | null> {
+    const item = this.store.getCapture(captureId);
+    if (!item || item.ownerId !== ownerId || !item.metadata.objectKey) return null;
+
+    return await this.storageProvider.getSignedUrl(item.metadata.objectKey, 3600);
   }
 
-  private extractSummary(item: CaptureItem): string {
-    if (item.type === 'LINK') return `Web reference saved to Vault (${item.content}).`;
-    if (item.type === 'AUDIO') return `Voice audio recording uploaded (${(item.metadata.sizeBytes || 0) / 1024} KB).`;
-    if (item.type === 'FILE') return `Document artifact uploaded (${item.metadata.originalName || 'file'}).`;
-    return `Captured note: ${item.content}`;
-  }
-
-  private extractSuggestedAction(item: CaptureItem): CaptureItem['metadata']['suggestedAction'] | undefined {
-    const text = (item.content + ' ' + (item.metadata.originalName || '')).toLowerCase();
-    if (text.includes('todo') || text.includes('task') || text.includes('must') || text.includes('review') || text.includes('due')) {
-      return {
-        type: 'TASK',
-        title: `Task candidate: ${this.extractTitle(item)}`,
-        detail: item.content,
-      };
-    }
-    if (text.includes('meeting') || text.includes('schedule') || text.includes('calendar') || text.includes('tomorrow')) {
-      return {
-        type: 'CALENDAR',
-        title: `Calendar candidate: ${this.extractTitle(item)}`,
-        detail: item.content,
-      };
-    }
-    return undefined;
+  public async getPreviewUrl(captureId: string, ownerId: string): Promise<string | null> {
+    return this.getDownloadUrl(captureId, ownerId);
   }
 
   public getInboxSummary(ownerId: string): InboxSummary {
@@ -156,7 +297,7 @@ export class QuickCaptureService {
 
   public getVaultSummary(ownerId: string): PersonalVaultSummary {
     const items = this.store.listCaptures(ownerId);
-    const totalSizeBytes = items.reduce((acc, i) => acc + (i.metadata.sizeBytes || 1024), 0);
+    const quotaState = this.quotaEngine.getQuota(ownerId);
 
     const categoriesMap = new Map<string, { count: number; bytes: number; icon: string }>();
     categoriesMap.set('Files', { count: 0, bytes: 0, icon: 'file-text' });
@@ -195,8 +336,8 @@ export class QuickCaptureService {
     return {
       ownerId,
       totalItems: items.length,
-      totalSizeBytes,
-      quotaSizeBytes: 10 * 1024 * 1024 * 1024,
+      totalSizeBytes: quotaState.usedBytes,
+      quotaSizeBytes: quotaState.quotaBytes,
       storageInfo: {
         provider: providerName,
         isCloud,

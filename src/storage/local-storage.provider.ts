@@ -76,8 +76,13 @@ export class LocalStorageProvider implements StorageProvider {
 
   public async getSignedUrl(key: string, expiresInSeconds: number = 3600): Promise<string> {
     const safeKey = this.sanitizeKey(key);
-    return `/api/v1/storage/local/${safeKey}?expires=${Date.now() + expiresInSeconds * 1000}`;
+    return `/api/v1/workspace/storage/download/${encodeURIComponent(key)}?expires=${Date.now() + expiresInSeconds * 1000}`;
   }
+
+  public async getSignedUploadUrl(key: string, mimeType: string, expiresInSeconds: number = 3600): Promise<string> {
+    return `/api/v1/workspace/storage/upload/${encodeURIComponent(key)}?mimeType=${encodeURIComponent(mimeType)}&expires=${Date.now() + expiresInSeconds * 1000}`;
+  }
+
 
   public async headObject(key: string): Promise<ObjectMetadata | null> {
     const { metaPath } = this.getPaths(key);

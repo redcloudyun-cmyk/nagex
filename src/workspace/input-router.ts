@@ -19,12 +19,22 @@ export interface InputClassificationResult {
 }
 
 export class InputRouter {
+  public classify(input: {
+    text?: string;
+    hasFile?: boolean;
+    hasAudio?: boolean;
+    mimeType?: string;
+  }): InputClassificationResult {
+    return InputRouter.classify(input);
+  }
+
   public static classify(input: {
     text?: string;
     hasFile?: boolean;
     hasAudio?: boolean;
     mimeType?: string;
   }): InputClassificationResult {
+
     const rawText = (input.text || '').trim();
 
     // 1. Audio Capture Primary Path

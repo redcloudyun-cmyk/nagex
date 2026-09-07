@@ -11,6 +11,7 @@ export interface StorageProvider {
   getObject(key: string): Promise<{ data: Buffer; metadata: ObjectMetadata } | null>;
   deleteObject(key: string): Promise<boolean>;
   getSignedUrl(key: string, expiresInSeconds?: number): Promise<string>;
+  getSignedUploadUrl?(key: string, mimeType: string, expiresInSeconds?: number): Promise<string>;
   headObject(key: string): Promise<ObjectMetadata | null>;
   getProviderName(): 'local' | 's3';
 }

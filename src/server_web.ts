@@ -138,10 +138,6 @@ const taskRunner = new CompositeTaskRunner(
   new BackgroundTaskRunner(taskStore, aiService, planResolver, (principalId, prompt) => getRelevantMemories(principalId, prompt)),
 );
 
-// ─── MASTER.md Section 14.9 — NAgex Personal Workspace Core ───
-export const storageProvider = createConfiguredStorageProvider();
-export const quickCaptureService = new QuickCaptureService(captureStore, storageProvider, taskStore, memoryEngine);
-
 // ─── MASTER.md Section 14 — Telegram Integration (Item 10) ───
 export const telegramIdentityStore = new TelegramIdentityStore();
 export const telegramBotClient = new TelegramBotClient();
@@ -188,6 +184,12 @@ export const notificationEngine = new NotificationEngine({
 });
 
 export const taskScheduler = new TaskScheduler(taskStore, taskRunStore, taskRunner, auditLogger, undefined, notificationEngine);
+
+// ─── MASTER.md Section 14 — Personal Workspace & Personal Cloud Vault ───
+export const storageProvider = createConfiguredStorageProvider();
+export const quickCaptureService = new QuickCaptureService(captureStore, storageProvider, taskStore, memoryEngine);
+export const inputRouter = new InputRouter();
+
 
 // A real (not fake) background scheduler loop — only runs when this module
 // is the actual running server, never when imported by tests (see the
@@ -1107,6 +1109,132 @@ export async function handleAsyncApiRequest(
       return { status: 200, data: result };
     }
 
+    // ─── Personal Workspace Async API Routes ───
+    if (pathname === '/api/v1/workspace/uploads/init' && method === 'POST') {
+      const filename = (body?.filename as string) || 'upload.bin';
+      const mimeType = (body?.mimeType as string) || 'application/octet-stream';
+      const sizeBytes = Number(body?.sizeBytes || 0);
+      const intent = body?.intent as any;
+      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'ten_production_01';
+      const initResult = await quickCaptureService.initUpload({
+        ownerId: principalId,
+        tenantId,
+        filename,
+        mimeType,
+        sizeBytes,
+        intent,
+      });
+      return { status: 201, data: initResult };
+    }
+
+    if (pathname === '/api/v1/workspace/uploads/complete' && method === 'POST') {
+      const captureId = (body?.captureId as string) || '';
+      const objectKey = (body?.objectKey as string) || '';
+      const mimeType = (body?.mimeType as string) || 'application/octet-stream';
+      const checksum = (body?.checksum as string) || '';
+      const sizeBytes = Number(body?.sizeBytes || 0);
+      const originalFilename = (body?.originalFilename as string) || 'upload.bin';
+      const rawData = body?.data ? Buffer.from(body.data as any) : undefined;
+      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'ten_production_01';
+      const item = await quickCaptureService.completeUpload({
+        captureId,
+        ownerId: principalId,
+        tenantId,
+        objectKey,
+        mimeType,
+        checksum,
+        sizeBytes,
+        originalFilename,
+        data: rawData,
+      });
+      return { status: 200, data: item };
+    }
+
+    if (pathname === '/api/v1/workspace/upload' && method === 'POST') {
+      const filename = (body?.filename as string) || 'upload.bin';
+      const mimeType = (body?.mimeType as string) || 'application/octet-stream';
+      const rawData = body?.data ? (typeof body.data === 'string' ? Buffer.from(body.data, 'base64') : Buffer.from(body.data as any)) : Buffer.alloc(0);
+      const type = (body?.type as any) || (mimeType.startsWith('audio/') ? 'AUDIO' : 'FILE');
+      const source = (body?.source as any) || 'WEB';
+      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'ten_production_01';
+      const item = await quickCaptureService.uploadBinaryObject({
+        ownerId: principalId,
+        tenantId,
+        type,
+        filename,
+        mimeType,
+        data: rawData,
+        source,
+      });
+      return { status: 201, data: item };
+    }
+
+    if ((pathname === '/api/v1/workspace/captures' || pathname === '/api/v1/workspace/capture') && method === 'POST') {
+      const type = (body?.type as any) || 'TEXT';
+      const content = (body?.content as string) || '';
+      const source = (body?.source as any) || 'WEB';
+      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'ten_production_01';
+      const item = await quickCaptureService.captureTextOrLink({
+        ownerId: principalId,
+        tenantId,
+        type,
+        content,
+        source,
+      });
+      return { status: 201, data: item };
+    }
+
+    if (pathname.startsWith('/api/v1/workspace/capture/') && (method === 'PATCH' || method === 'POST')) {
+      const captureId = pathname.slice('/api/v1/workspace/capture/'.length);
+      const action = (body?.status as any) || (body?.action as any) || 'ACTIONED';
+      const item = await quickCaptureService.actionCapture(captureId, action);
+      if (!item) {
+        return { status: 404, data: { error: 'ITEM_NOT_FOUND', message: `Capture item ${captureId} not found.` } };
+      }
+      return { status: 200, data: item };
+    }
+
+    if (pathname.startsWith('/api/v1/workspace/items/') && pathname.endsWith('/download') && method === 'GET') {
+      const captureId = pathname.slice('/api/v1/workspace/items/'.length, pathname.length - '/download'.length);
+      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const downloadUrl = await quickCaptureService.getDownloadUrl(captureId, principalId);
+      if (!downloadUrl) {
+        return { status: 404, data: { error: 'ITEM_NOT_FOUND', message: `Capture item ${captureId} not found or no object attached.` } };
+      }
+      return { status: 200, data: { captureId, downloadUrl } };
+    }
+
+    if (pathname.startsWith('/api/v1/workspace/items/') && pathname.endsWith('/preview') && method === 'GET') {
+      const captureId = pathname.slice('/api/v1/workspace/items/'.length, pathname.length - '/preview'.length);
+      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const previewUrl = await quickCaptureService.getPreviewUrl(captureId, principalId);
+      if (!previewUrl) {
+        return { status: 404, data: { error: 'ITEM_NOT_FOUND', message: `Capture item ${captureId} not found or no object attached.` } };
+      }
+      return { status: 200, data: { captureId, previewUrl } };
+    }
+
+    if (pathname.startsWith('/api/v1/workspace/items/') && pathname.endsWith('/action') && method === 'POST') {
+      const captureId = pathname.slice('/api/v1/workspace/items/'.length, pathname.length - '/action'.length);
+      const action = (body?.action as any) || 'ACTIONED';
+      const item = await quickCaptureService.actionCapture(captureId, action);
+      if (!item) {
+        return { status: 404, data: { error: 'ITEM_NOT_FOUND', message: `Capture item ${captureId} not found.` } };
+      }
+      return { status: 200, data: item };
+    }
+
+    if (pathname.startsWith('/api/v1/workspace/items/') && method === 'DELETE') {
+      const captureId = pathname.slice('/api/v1/workspace/items/'.length);
+      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const deleted = await quickCaptureService.deleteCaptureItem(captureId, principalId);
+      return { status: 200, data: { success: deleted, captureId } };
+    }
+
     return handleApiRequest(method, pathname, body, headers);
   } catch (error) {
     return modelErrorResult(error);
@@ -1119,6 +1247,10 @@ export function handleApiRequest(
   body: Record<string, unknown> | null,
   headers: Record<string, string | string[] | undefined> = {}
 ): ApiResult {
+
+
+
+
   const headerTenant = headers['x-nagex-tenant'];
   const headerPrincipal = headers['x-principal-id'];
   const tenantId = (Array.isArray(headerTenant) ? headerTenant[0] : headerTenant) || 'ten_production_01';
@@ -1355,9 +1487,25 @@ export function handleApiRequest(
   if (pathname === '/api/v1/billing/estimate' && method === 'POST') return { status: 200, data: { providerMode: 'NAGEX_MANAGED', estimatedCredits: computeCreditCost(MANAGED_AI_COST_BREAKDOWN), estimatedProviderCost: sumBreakdownUsd(MANAGED_AI_COST_BREAKDOWN), currency: 'USD' } };
   if (pathname === '/api/v1/audit/logs' && method === 'GET') return { status: 200, data: { logs: auditLogger.getRecentLogs ? auditLogger.getRecentLogs(20) : [], total: auditLogger.getRecentLogs ? auditLogger.getRecentLogs(20).length : 0 } };
   if (pathname === '/api/v1/executions' && method === 'GET') return { status: 200, data: { executions: executionHistory, total: executionHistory.length } };
-  if (pathname === '/api/v1/vcs/status' && method === 'GET') return { status: 200, data: getVcsStatus() };
-
   // ─── MASTER.md Section 14.6 — Main Session + Tasks Foundation ───
+
+  if (pathname === '/api/v1/workspace/route-input' && method === 'POST') {
+    const text = (body?.text as string) || '';
+    const classification = inputRouter.classify({ text });
+    return { status: 200, data: classification };
+  }
+
+  if (pathname === '/api/v1/workspace/vault' && method === 'GET') {
+    const summary = quickCaptureService.getVaultSummary(principal.id);
+    return { status: 200, data: summary };
+  }
+
+  if (pathname === '/api/v1/workspace/inbox' && method === 'GET') {
+    const summary = quickCaptureService.getInboxSummary(principal.id);
+    return { status: 200, data: summary };
+  }
+
+
 
   if (pathname === '/api/v1/sessions/main' && method === 'GET') {
     const session = sessionStore.getOrCreateMain(tenantId, principal.id);

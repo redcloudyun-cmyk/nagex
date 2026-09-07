@@ -48,8 +48,8 @@ test('1. Personal AI: Memory CRUD Operations & State Lifecycles', () => {
   assert.strictEqual(memories[0].id, rec.id);
 });
 
-test('2. Personal AI: API GET /api/v1/memory returns active memories', () => {
-  const res = handleApiRequest('GET', '/api/v1/memory', null);
+test('2. Personal AI: API GET /api/v1/memory returns active memories', async () => {
+  const res = await handleApiRequest('GET', '/api/v1/memory', null);
   assert.strictEqual(res.status, 200);
   const data = res.data as { memories: Array<any>; total: number };
   assert.ok(Array.isArray(data.memories));
@@ -57,7 +57,7 @@ test('2. Personal AI: API GET /api/v1/memory returns active memories', () => {
   assert.ok(data.memories.some((m) => m.content.subject === 'User Profile'));
 });
 
-test('3. Personal AI: API POST /api/v1/memory creates and activates new memory', () => {
+test('3. Personal AI: API POST /api/v1/memory creates and activates new memory', async () => {
   const newMem = {
     scope: 'USER',
     subject: 'Working Hours',
@@ -65,25 +65,25 @@ test('3. Personal AI: API POST /api/v1/memory creates and activates new memory',
     value: '9 AM to 6 PM',
     pinned: true,
   };
-  const res = handleApiRequest('POST', '/api/v1/memory', newMem);
+  const res = await handleApiRequest('POST', '/api/v1/memory', newMem);
   assert.strictEqual(res.status, 201);
   const data = res.data as { id: string; lifecycle: string; pinned: boolean };
   assert.strictEqual(data.lifecycle, 'ACTIVE');
   assert.strictEqual(data.pinned, true);
 });
 
-test('3b. Personal AI: DELETE /api/v1/memory/:id permanently removes the record, not just its pin', () => {
-  const created = handleApiRequest('POST', '/api/v1/memory', { scope: 'USER', subject: 'Temp Note', predicate: 'is', value: 'delete me' });
+test('3b. Personal AI: DELETE /api/v1/memory/:id permanently removes the record, not just its pin', async () => {
+  const created = await handleApiRequest('POST', '/api/v1/memory', { scope: 'USER', subject: 'Temp Note', predicate: 'is', value: 'delete me' });
   const memId = (created.data as { id: string }).id;
 
-  const deleted = handleApiRequest('DELETE', `/api/v1/memory/${memId}`, null);
+  const deleted = await handleApiRequest('DELETE', `/api/v1/memory/${memId}`, null);
   assert.strictEqual(deleted.status, 200);
 
-  const listing = handleApiRequest('GET', '/api/v1/memory', null);
+  const listing = await handleApiRequest('GET', '/api/v1/memory', null);
   const memories = (listing.data as { memories: Array<{ id: string }> }).memories;
   assert.ok(!memories.some((m) => m.id === memId));
 
-  const deletedAgain = handleApiRequest('DELETE', `/api/v1/memory/${memId}`, null);
+  const deletedAgain = await handleApiRequest('DELETE', `/api/v1/memory/${memId}`, null);
   assert.strictEqual(deletedAgain.status, 404);
 });
 
@@ -135,29 +135,29 @@ test('6. Personal AI: Ambient Intent never accepts an approval shortcut or execu
   assert.strictEqual(data.memory_updated, undefined);
 });
 
-test('7. Personal AI: Approval Queue Handling (Approve Action)', () => {
-  const res = handleApiRequest('POST', '/api/v1/approvals/appr_gcal_sync/action', { action: 'APPROVE' });
+test('7. Personal AI: Approval Queue Handling (Approve Action)', async () => {
+  const res = await handleApiRequest('POST', '/api/v1/approvals/appr_gcal_sync/action', { action: 'APPROVE' });
   assert.strictEqual(res.status, 200);
   const data = res.data as { id: string; status: string };
   assert.strictEqual(data.id, 'appr_gcal_sync');
   assert.strictEqual(data.status, 'APPROVED');
 });
 
-test('8. Personal AI: Approval Queue Handling (Reject Action)', () => {
-  const res = handleApiRequest('POST', '/api/v1/approvals/appr_stakeholder_email/action', { action: 'REJECT' });
+test('8. Personal AI: Approval Queue Handling (Reject Action)', async () => {
+  const res = await handleApiRequest('POST', '/api/v1/approvals/appr_stakeholder_email/action', { action: 'REJECT' });
   assert.strictEqual(res.status, 200);
   const data = res.data as { id: string; status: string };
   assert.strictEqual(data.status, 'REJECTED');
 });
 
-test('9. Personal AI: Quick Wake & Autonomy Configuration Endpoints', () => {
-  let res = handleApiRequest('GET', '/api/v1/quickwake/config', null);
+test('9. Personal AI: Quick Wake & Autonomy Configuration Endpoints', async () => {
+  let res = await handleApiRequest('GET', '/api/v1/quickwake/config', null);
   assert.strictEqual(res.status, 200);
   let data = res.data as { floating_button: boolean; fingerprint_button: any };
   assert.strictEqual(data.floating_button, true);
   assert.strictEqual(data.fingerprint_button.supported, false);
 
-  res = handleApiRequest('POST', '/api/v1/autonomy/config', { level: 'L3' });
+  res = await handleApiRequest('POST', '/api/v1/autonomy/config', { level: 'L3' });
   assert.strictEqual(res.status, 200);
   data = res.data as any;
   assert.strictEqual((data as any).level, 'L3');

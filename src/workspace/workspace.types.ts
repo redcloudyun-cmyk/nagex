@@ -3,12 +3,52 @@ export type CaptureType = 'TEXT' | 'LINK' | 'FILE' | 'AUDIO';
 export type CaptureStatus =
   | 'CAPTURED'
   | 'UPLOADING'
+  | 'QUEUED'
   | 'PROCESSING'
   | 'READY'
   | 'NEEDS_REVIEW'
   | 'ACTIONED'
   | 'FAILED'
   | 'ARCHIVED';
+
+export interface TaskCandidate {
+  type: 'TASK';
+  title: string;
+  description?: string;
+  dueDate?: string;
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH';
+  confidence: number;
+}
+
+export interface CalendarCandidate {
+  type: 'CALENDAR';
+  title: string;
+  startTime?: string;
+  endTime?: string;
+  location?: string;
+  confidence: number;
+}
+
+export interface MemoryCandidate {
+  type: 'MEMORY';
+  content: string;
+  category?: string;
+  confidence: number;
+}
+
+export interface KnowledgeCandidate {
+  type: 'KNOWLEDGE';
+  title: string;
+  content: string;
+  tags?: string[];
+  confidence: number;
+}
+
+export type WorkspaceCandidate =
+  | TaskCandidate
+  | CalendarCandidate
+  | MemoryCandidate
+  | KnowledgeCandidate;
 
 export interface CaptureMetadata {
   originalName?: string;
@@ -22,6 +62,14 @@ export interface CaptureMetadata {
   objectKey?: string;
   storageProvider?: 'local' | 's3';
   checksum?: string;
+  transcript?: {
+    text: string;
+    timestamps?: Array<{ start: number; end: number; text: string }>;
+    speakers?: Array<{ speaker: string; text: string }>;
+  };
+  extractedContent?: string;
+  chunks?: string[];
+  candidates?: WorkspaceCandidate[];
   suggestedAction?: {
     type: 'TASK' | 'CALENDAR' | 'MEMORY' | 'KNOWLEDGE';
     title: string;
