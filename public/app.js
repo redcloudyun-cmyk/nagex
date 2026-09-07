@@ -18,6 +18,11 @@
     pendingIntentResponse: null,
     googleOAuth: { configured: false, connected: false, scopes: [], expiresAt: null },
     approvalCountdownTimer: null,
+    // The most recent Gmail thread NAgex actually loaded (from a real
+    // gmail.search or gmail.read_thread result) in this session — the only
+    // source a follow-up reply/read_thread request may prefill threadId/
+    // replyToMessageId from. Never populated from a guess.
+    lastGmailThread: null,
   };
 
   var FLOW_STAGES = ['User message', 'Plan Preview', 'Plan Resolution', 'Approval Card', 'Human Approval', 'Execution', 'Result'];
@@ -1060,6 +1065,22 @@
       // suggested default) rather than an invented value like 10:00 AM.
       // The approval is only ever created when the user submits this form.
       renderCalendarComposeForm(actionsEl, extracted, timezone);
+    } else if ((() => { const s = (resolved.steps || []).find((st) => GMAIL_WRITE_TOOL_IDS.has(st.resolvedToolId)); return s && s.executionReadiness === 'BLOCKED' && s.toolAvailability === 'UNAVAILABLE'; })()) {
+      renderConnectGmailAction(actionsEl);
+    } else if ((resolved.steps || []).find((s) => GMAIL_WRITE_TOOL_IDS.has(s.resolvedToolId) && s.executionReadiness === 'APPROVAL_REQUIRED')) {
+      const gmailStep = (resolved.steps || []).find((s) => GMAIL_WRITE_TOOL_IDS.has(s.resolvedToolId) && s.executionReadiness === 'APPROVAL_REQUIRED');
+      const extractor = window.NAGEX_GMAIL_INTENT;
+      const extracted = extractor ? extractor.extractGmailIntent(originalPromptText || '') : null;
+      // Same rule as Calendar: never request approval merely because the
+      // plan resolved. Only literal values found in the prompt (or a real
+      // prior gmail.read_thread/search result for reply context) prefill
+      // this form; a bare name never becomes an address. The approval is
+      // only ever created once the user submits this form.
+      renderGmailComposeForm(actionsEl, gmailStep.resolvedToolId, extracted);
+    } else if ((resolved.steps || []).find((s) => GMAIL_READ_TOOL_IDS.has(s.resolvedToolId) && s.executionReadiness === 'EXECUTION_READY')) {
+      const gmailReadStep = (resolved.steps || []).find((s) => GMAIL_READ_TOOL_IDS.has(s.resolvedToolId) && s.executionReadiness === 'EXECUTION_READY');
+      // Read-only — runs immediately, no approval, per policy.
+      runGmailReadOnlyStep(actionsEl, gmailReadStep.resolvedToolId, originalPromptText, planId);
     } else if (vm.showRunButton && vm.actionLabel) {
       const isApproval = vm.status === 'APPROVAL_REQUIRED';
       actionsEl.innerHTML = `<button class="btn-plan-action ${vm.statusCssClass}" id="btn-plan-resolution-action">${isApproval ? '🛡️' : '▶'} ${escapeHtml(vm.actionLabel)}</button>`;
@@ -1198,6 +1219,19 @@
   }
 
   const GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID = 'google_calendar.create_event';
+
+  const GMAIL_SEND_EMAIL_TOOL_ID = 'gmail.send_email';
+  const GMAIL_REPLY_TOOL_ID = 'gmail.reply';
+  const GMAIL_CREATE_DRAFT_TOOL_ID = 'gmail.create_draft';
+  const GMAIL_SEARCH_TOOL_ID = 'gmail.search';
+  const GMAIL_READ_THREAD_TOOL_ID = 'gmail.read_thread';
+  const GMAIL_WRITE_TOOL_IDS = new Set([GMAIL_SEND_EMAIL_TOOL_ID, GMAIL_REPLY_TOOL_ID, GMAIL_CREATE_DRAFT_TOOL_ID]);
+  const GMAIL_READ_TOOL_IDS = new Set([GMAIL_SEARCH_TOOL_ID, GMAIL_READ_THREAD_TOOL_ID]);
+  const GMAIL_EXECUTE_ENDPOINT = {
+    [GMAIL_SEND_EMAIL_TOOL_ID]: '/api/v1/tools/gmail/send-email',
+    [GMAIL_REPLY_TOOL_ID]: '/api/v1/tools/gmail/reply',
+    [GMAIL_CREATE_DRAFT_TOOL_ID]: '/api/v1/tools/gmail/create-draft',
+  };
 
   function renderCalendarApprovalCard(slot, approval, view) {
     const vmView = view.buildCardViewModel(approval, Date.now());
@@ -1364,6 +1398,399 @@
         addTimelineEntry('Approval expired', `approval:${approval.approvalId}:expired`, 'countdown-interval');
       }
     }, 1000);
+  }
+
+  // ── Gmail Ambient E2E (MASTER.md Section 14: user types an email request,
+  // completes it end to end, without curl) — mirrors the Calendar compose
+  // form / approval card / success card pattern above, using the shared
+  // gmail-approval-view.js view model and gmail-intent-extraction.js's
+  // deterministic, never-invents-a-value extraction.
+
+  function renderConnectGmailAction(actionsEl) {
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    actionsEl.innerHTML = `
+      <div class="calendar-connect-prompt">
+        <p>${escapeHtml(t('gmail.connectPrompt'))}</p>
+        <button class="btn-plan-action plan-status-approval" id="btn-connect-gmail">🔗 ${escapeHtml(t('gmail.connectButton'))}</button>
+      </div>`;
+    const btn = document.getElementById('btn-connect-gmail');
+    if (btn) {
+      btn.onclick = () => {
+        if (!state.googleOAuth.configured) {
+          btn.disabled = true;
+          btn.textContent = t('gmail.connectNotConfigured');
+          return;
+        }
+        window.location.href = '/api/v1/oauth/google/start';
+      };
+    }
+  }
+
+  function gmailComposeTitleKey(toolId) {
+    if (toolId === GMAIL_REPLY_TOOL_ID) return 'gmail.confirmReply';
+    if (toolId === GMAIL_CREATE_DRAFT_TOOL_ID) return 'gmail.confirmDraft';
+    return 'gmail.confirmSend';
+  }
+
+  function gmailExecutingLabelKey(toolId) {
+    if (toolId === GMAIL_CREATE_DRAFT_TOOL_ID) return 'gmail.savingDraft';
+    if (toolId === GMAIL_REPLY_TOOL_ID) return 'gmail.replying';
+    return 'gmail.sending';
+  }
+
+  function gmailSucceededLabelKey(toolId) {
+    if (toolId === GMAIL_CREATE_DRAFT_TOOL_ID) return 'gmail.draftCreated';
+    if (toolId === GMAIL_REPLY_TOOL_ID) return 'gmail.replySent';
+    return 'gmail.sent';
+  }
+
+  function gmailApproveButtonLabelKey(toolId) {
+    if (toolId === GMAIL_CREATE_DRAFT_TOOL_ID) return 'gmail.approveAndCreateDraft';
+    if (toolId === GMAIL_REPLY_TOOL_ID) return 'gmail.approveAndReply';
+    return 'gmail.approveAndSend';
+  }
+
+  // `extracted` (from gmail-intent-extraction.js) may be null, or may only
+  // have some fields confidently parsed. A field the user didn't literally
+  // state (to, subject, body) is left blank — never filled with a guess —
+  // and `recipientNameHint` (a bare name like "John") is shown only as text
+  // next to the still-blank, still-required To field, exactly mirroring how
+  // renderCalendarComposeForm leaves title/start blank rather than inventing
+  // a value. Submitting is the only thing that ever creates an approval.
+  function renderGmailComposeForm(actionsEl, toolId, extracted) {
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    const isReply = toolId === GMAIL_REPLY_TOOL_ID;
+    const toValue = extracted && extracted.to.length ? extracted.to.join(', ') : '';
+    const ccValue = extracted && extracted.cc.length ? extracted.cc.join(', ') : '';
+    const bccValue = extracted && extracted.bcc.length ? extracted.bcc.join(', ') : '';
+    const subjectValue = (extracted && extracted.subject) || '';
+    const bodyValue = (extracted && extracted.body) || '';
+    const recipientHint = extracted && extracted.recipientNameHint
+      ? `<p class="field-suggested-hint">${escapeHtml(t('gmail.recipientHint'))} "${escapeHtml(extracted.recipientNameHint)}" ${escapeHtml(t('gmail.recipientHintSuffix'))}</p>`
+      : '';
+    // Reply thread context is only ever prefilled from a thread NAgex
+    // actually just loaded in this session (state.lastGmailThread) — never
+    // guessed at from the prompt text alone.
+    const threadPrefill = (isReply && state.lastGmailThread) || { threadId: '', replyToMessageId: '' };
+
+    actionsEl.innerHTML = `
+      <form class="calendar-compose-form" id="gmail-compose-form" novalidate>
+        <h4>${escapeHtml(t(gmailComposeTitleKey(toolId)))}</h4>
+        ${recipientHint}
+        <label>${escapeHtml(t('gmail.to'))}
+          <input type="text" id="gmail-to" value="${escapeHtml(toValue)}" placeholder="name@example.com" required>
+        </label>
+        <label>${escapeHtml(t('gmail.cc'))}
+          <input type="text" id="gmail-cc" value="${escapeHtml(ccValue)}" placeholder="name@example.com">
+        </label>
+        <label>${escapeHtml(t('gmail.bcc'))}
+          <input type="text" id="gmail-bcc" value="${escapeHtml(bccValue)}" placeholder="name@example.com">
+        </label>
+        <label>${escapeHtml(t('gmail.subject'))}
+          <input type="text" id="gmail-subject" value="${escapeHtml(subjectValue)}">
+        </label>
+        <label>${escapeHtml(t('gmail.body'))}
+          <textarea id="gmail-body" rows="4" required>${escapeHtml(bodyValue)}</textarea>
+        </label>
+        ${isReply ? `
+        <label>${escapeHtml(t('gmail.threadId'))}
+          <input type="text" id="gmail-thread-id" value="${escapeHtml(threadPrefill.threadId || '')}" required>
+        </label>
+        <label>${escapeHtml(t('gmail.replyToMessageId'))}
+          <input type="text" id="gmail-reply-to-message-id" value="${escapeHtml(threadPrefill.replyToMessageId || '')}" required>
+        </label>` : ''}
+        <label>${escapeHtml(t('gmail.account'))}
+          <input type="text" value="me" disabled>
+        </label>
+        <p class="calendar-form-error" id="gmail-form-error" style="display:none;"></p>
+        <button type="submit" class="btn-plan-action plan-status-approval">🛡️ ${escapeHtml(t('gmail.previewAndRequestApproval'))}</button>
+      </form>
+      <div id="gmail-preview-slot"></div>`;
+
+    const form = document.getElementById('gmail-compose-form');
+    if (form) {
+      form.onsubmit = (event) => {
+        event.preventDefault();
+        const errorEl = document.getElementById('gmail-form-error');
+        const parseEmails = (raw) => raw.split(',').map((e) => e.trim()).filter(Boolean);
+        const to = parseEmails(document.getElementById('gmail-to').value);
+        const cc = parseEmails(document.getElementById('gmail-cc').value);
+        const bcc = parseEmails(document.getElementById('gmail-bcc').value);
+        const subject = document.getElementById('gmail-subject').value;
+        const body = document.getElementById('gmail-body').value;
+        const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        // Fail closed: at least one confirmed, syntactically valid recipient
+        // is required before an approval can even be requested — an
+        // ambiguous/blank recipient is "asked about" by the form itself
+        // simply refusing to submit, never by inventing an address.
+        if (!to.length || !to.every((e) => EMAIL_RE.test(e))) {
+          if (errorEl) {
+            errorEl.style.display = 'block';
+            errorEl.textContent = t('gmail.toRequired');
+          }
+          return;
+        }
+        if (errorEl) {
+          errorEl.style.display = 'none';
+          errorEl.textContent = '';
+        }
+
+        const payload = {
+          from: 'me',
+          to,
+          cc,
+          bcc,
+          subject,
+          body,
+          attachments: [],
+          threadId: isReply ? (document.getElementById('gmail-thread-id').value.trim() || null) : null,
+          replyToMessageId: isReply ? (document.getElementById('gmail-reply-to-message-id').value.trim() || null) : null,
+        };
+        requestGmailApproval(toolId, payload);
+      };
+    }
+  }
+
+  function renderGmailApprovalCard(slot, approval, view) {
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    const vmView = view.buildCardViewModel(approval, Date.now());
+    const f = vmView.fields;
+    slot.innerHTML = `
+      <div class="calendar-approval-card">
+        <h4>${escapeHtml(t('ambient.approvalRequired'))}</h4>
+        <dl class="calendar-approval-fields">
+          <div><dt>${escapeHtml(t('gmail.to'))}</dt><dd>${f.to.length ? escapeHtml(f.to.join(', ')) : '—'}</dd></div>
+          ${f.cc.length ? `<div><dt>${escapeHtml(t('gmail.cc'))}</dt><dd>${escapeHtml(f.cc.join(', '))}</dd></div>` : ''}
+          ${f.bcc.length ? `<div><dt>${escapeHtml(t('gmail.bcc'))}</dt><dd>${escapeHtml(f.bcc.join(', '))}</dd></div>` : ''}
+          <div><dt>${escapeHtml(t('gmail.subject'))}</dt><dd>${escapeHtml(f.subject) || '—'}</dd></div>
+          <div><dt>${escapeHtml(t('gmail.body'))}</dt><dd>${escapeHtml(f.body)}</dd></div>
+          <div><dt>${escapeHtml(t('gmail.account'))}</dt><dd>${escapeHtml(f.from)}</dd></div>
+        </dl>
+        <p class="calendar-approval-status" id="gmail-approval-status">${escapeHtml(vmView.statusLabel)}</p>
+        <p class="calendar-approval-expiry" id="gmail-approval-expiry">${vmView.countdownLabel ? escapeHtml(vmView.countdownLabel) : ''}</p>
+        <div class="calendar-preview-actions">
+          <button class="btn-reject-outline" id="btn-gmail-reject" ${vmView.rejectDisabled ? 'disabled' : ''}>${escapeHtml(t('gmail.reject'))}</button>
+          <button class="btn-plan-action plan-status-ready" id="btn-gmail-approve" ${vmView.approveDisabled ? 'disabled' : ''}>${escapeHtml(t(gmailApproveButtonLabelKey(approval.toolId)))}</button>
+        </div>
+      </div>`;
+    return vmView;
+  }
+
+  function renderGmailSuccessCard(slot, approval, result, view) {
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    const successVm = view.buildSuccessViewModel(approval.toolId, approval.canonicalPayload, result);
+    slot.innerHTML = `
+      <div class="calendar-preview-card">
+        <h4>${escapeHtml(t(gmailSucceededLabelKey(approval.toolId)))}</h4>
+        <p><strong>${escapeHtml(successVm.subject) || '—'}</strong></p>
+        <p>${escapeHtml(t('gmail.to'))}: ${escapeHtml(successVm.to.join(', '))}</p>
+        <p>Execution ID: ${escapeHtml(successVm.executionId)}</p>
+        <a class="btn-plan-action plan-status-ready" href="${encodeURI(successVm.externalUrl)}" target="_blank" rel="noopener">${escapeHtml(t('gmail.openInGmail'))}</a>
+      </div>`;
+  }
+
+  async function requestGmailApproval(toolId, payload) {
+    const slot = document.getElementById('gmail-preview-slot');
+    const form = document.getElementById('gmail-compose-form');
+    const view = window.NAGEX_GMAIL_APPROVAL_VIEW;
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    if (!slot || !view) return;
+    slot.innerHTML = `<p>${escapeHtml(t('gmail.requestingApproval'))}</p>`;
+
+    // The approval API is the single source of truth from here on — its
+    // canonicalPayload, never this locally-composed `payload`, is what gets
+    // displayed and, later, what gets executed.
+    const approval = await apiFetch('/api/v1/approvals', {
+      method: 'POST',
+      body: JSON.stringify({ toolId, payload }),
+    });
+
+    if (!approval || approval.error || !approval.approvalId) {
+      slot.innerHTML = `<div class="resolution-warnings" style="display:block;">${escapeHtml((approval && approval.error && approval.error.message) || 'Could not request approval for this action.')}</div>`;
+      return;
+    }
+
+    if (form) form.style.display = 'none';
+    addTimelineEntry('Approval requested', `approval:${approval.approvalId}:requested`, 'requestGmailApproval');
+    updateFlowStage('Approval Card');
+    updateFlowStage('Human Approval');
+
+    function stopCountdown() {
+      if (state.approvalCountdownTimer) {
+        clearInterval(state.approvalCountdownTimer);
+        state.approvalCountdownTimer = null;
+      }
+    }
+
+    function wireButtons() {
+      const btnReject = document.getElementById('btn-gmail-reject');
+      const btnApprove = document.getElementById('btn-gmail-approve');
+      const statusEl = () => document.getElementById('gmail-approval-status');
+
+      if (btnReject) {
+        btnReject.onclick = async () => {
+          stopCountdown();
+          btnReject.disabled = true;
+          if (btnApprove) btnApprove.disabled = true;
+          const rejected = await apiFetch(`/api/v1/approvals/${approval.approvalId}/reject`, { method: 'POST' });
+          updateFlowStage('Result');
+          if (rejected && !rejected.error && rejected.status === 'REJECTED') {
+            approval.status = 'REJECTED';
+            addTimelineEntry('Rejected', `approval:${approval.approvalId}:rejected`, 'btnGmailReject.onclick');
+            const el = statusEl();
+            if (el) el.textContent = t('gmail.reject');
+          } else {
+            const code = rejected && rejected.error && rejected.error.code;
+            const message = view.describeExecutionError(code) || (rejected && rejected.error && rejected.error.message) || 'This approval could not be rejected.';
+            const el = statusEl();
+            if (el) el.textContent = message;
+          }
+        };
+      }
+
+      if (btnApprove) {
+        btnApprove.onclick = async () => {
+          // Fail closed: both buttons disable the instant this fires, and
+          // the countdown stops so it can never re-enable them out from
+          // under an in-flight approve/execute request.
+          stopCountdown();
+          btnApprove.disabled = true;
+          if (btnReject) btnReject.disabled = true;
+          updateFlowStage('Execution');
+          const elBusy = statusEl();
+          if (elBusy) elBusy.textContent = t(gmailExecutingLabelKey(toolId));
+
+          // Approve first, then execute — never the other way round.
+          const approved = await apiFetch(`/api/v1/approvals/${approval.approvalId}/approve`, { method: 'POST' });
+          if (!approved || approved.error) {
+            updateFlowStage('Result');
+            const code = approved && approved.error && approved.error.code;
+            const message = view.describeExecutionError(code) || (approved && approved.error && approved.error.message) || 'This action could not be approved.';
+            const el = statusEl();
+            if (el) el.textContent = message;
+            return; // no send/reply/draft call is ever made without a successful approve
+          }
+          approval.status = approved.status;
+          addTimelineEntry('Approved', `approval:${approval.approvalId}:approved`, 'btnGmailApprove.onclick');
+          addTimelineEntry('Execution started', `execution:${approval.approvalId}:started`, 'btnGmailApprove.onclick');
+
+          // Execute with the exact canonicalPayload the approval API
+          // returned — never the locally-composed `payload` variable.
+          const result = await apiFetch(GMAIL_EXECUTE_ENDPOINT[toolId], {
+            method: 'POST',
+            body: JSON.stringify({ approvalId: approval.approvalId, payload: approval.canonicalPayload }),
+          });
+
+          updateFlowStage('Result');
+
+          if (result && result.status === 'SUCCEEDED') {
+            addTimelineEntry(t(gmailSucceededLabelKey(toolId)), `execution:${result.executionId}:succeeded`, 'btnGmailApprove.onclick');
+            renderGmailSuccessCard(slot, approval, result, view);
+            return;
+          }
+
+          // On APPROVAL_ALREADY_CONSUMED (or any other failure), show the
+          // failure and stop — never retry automatically.
+          const code = result && result.error && result.error.code;
+          const message = view.describeExecutionError(code) || (result && result.error && result.error.message) || 'The action could not be completed.';
+          const el = statusEl();
+          if (el) el.textContent = message;
+        };
+      }
+    }
+
+    function render() {
+      const vmView = renderGmailApprovalCard(slot, approval, view);
+      wireButtons();
+      return vmView;
+    }
+
+    render();
+
+    // Live countdown while PENDING; the moment the deadline passes, fail
+    // closed by disabling Approve/Reject and stop polling.
+    state.approvalCountdownTimer = setInterval(() => {
+      const vmView = render();
+      if (vmView.status === 'EXPIRED') {
+        stopCountdown();
+        addTimelineEntry('Approval expired', `approval:${approval.approvalId}:expired`, 'countdown-interval');
+      }
+    }, 1000);
+  }
+
+  function renderGmailSearchResults(actionsEl, threads) {
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    if (!threads.length) {
+      actionsEl.innerHTML = `<p>${escapeHtml(t('gmail.noResults'))}</p>`;
+      return;
+    }
+    actionsEl.innerHTML = `
+      <div class="calendar-preview-card">
+        <h4>${escapeHtml(t('gmail.searchResults'))}</h4>
+        <ul class="gmail-thread-list">
+          ${threads.map((th) => `<li><strong>${escapeHtml(th.threadId)}</strong><p>${escapeHtml(th.snippet)}</p></li>`).join('')}
+        </ul>
+      </div>`;
+    // Remembers the top real result so a follow-up reply/read_thread request
+    // in this session can use its actual threadId — never invented.
+    if (threads[0]) state.lastGmailThread = { threadId: threads[0].threadId, replyToMessageId: null };
+  }
+
+  function renderGmailThreadMessages(actionsEl, threadId, messages) {
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    actionsEl.innerHTML = `
+      <div class="calendar-preview-card">
+        <h4>${escapeHtml(t('gmail.threadMessages'))}</h4>
+        <ul class="gmail-thread-list">
+          ${messages.map((m) => `<li><p>${escapeHtml(m.snippet)}</p></li>`).join('')}
+        </ul>
+      </div>`;
+    const lastMessage = messages[messages.length - 1];
+    state.lastGmailThread = { threadId, replyToMessageId: lastMessage ? lastMessage.id : null };
+  }
+
+  // Read-only Gmail actions (search, read_thread) run immediately with no
+  // approval, per policy — but never fabricate a result: read_thread with no
+  // real threadId known in this session (from a prior search/read result)
+  // stops and asks the user to search first, rather than guessing one.
+  async function runGmailReadOnlyStep(actionsEl, toolId, originalPromptText, planId) {
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    const isSearch = toolId === GMAIL_SEARCH_TOOL_ID;
+    actionsEl.innerHTML = `<p>${escapeHtml(t(isSearch ? 'gmail.searching' : 'gmail.loadingThread'))}</p>`;
+    updateFlowStage('Execution');
+    addTimelineEntry('Execution started', `execution:${planId}:${toolId}:started`, 'runGmailReadOnlyStep');
+
+    if (!isSearch && !(state.lastGmailThread && state.lastGmailThread.threadId)) {
+      updateFlowStage('Result');
+      actionsEl.innerHTML = `<div class="resolution-warnings" style="display:block;">${escapeHtml(t('gmail.noResults'))}</div>`;
+      return;
+    }
+
+    let result;
+    if (isSearch) {
+      const extractor = window.NAGEX_GMAIL_INTENT;
+      const extracted = extractor ? extractor.extractGmailIntent(originalPromptText || '') : null;
+      const query = (extracted && extracted.searchQuery) || originalPromptText || '';
+      result = await apiFetch('/api/v1/tools/gmail/search', { method: 'POST', body: JSON.stringify({ query }) });
+    } else {
+      result = await apiFetch('/api/v1/tools/gmail/read-thread', { method: 'POST', body: JSON.stringify({ threadId: state.lastGmailThread.threadId }) });
+    }
+
+    updateFlowStage('Result');
+
+    if (!result || result.error) {
+      actionsEl.innerHTML = `<div class="resolution-warnings" style="display:block;">${escapeHtml((result && result.error && result.error.message) || 'The request could not be completed.')}</div>`;
+      return;
+    }
+
+    if (isSearch) {
+      addTimelineEntry('Search completed', `execution:${planId}:${toolId}:completed`, 'runGmailReadOnlyStep');
+      renderGmailSearchResults(actionsEl, result.threads || []);
+    } else {
+      addTimelineEntry('Thread loaded', `execution:${planId}:${toolId}:completed`, 'runGmailReadOnlyStep');
+      renderGmailThreadMessages(actionsEl, result.threadId, result.messages || []);
+    }
   }
 
   // The "▶ Run" button lives inside the ambient overlay's static example
