@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NAgex — Quick Wake Mini Command Window</title>
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <link rel="stylesheet" href="style.css?v=__NAGEX_BUILD_VERSION__">
+  <link rel="stylesheet" href="desktop-quickwake.css?v=__NAGEX_BUILD_VERSION__">
+</head>
+<body class="desktop-quickwake-body">
+  <div class="qw-container" id="qw-mini-container">
+    <!-- Header bar -->
+    <header class="qw-header">
+      <div class="qw-brand">
+        <img src="assets/nagex-compact-logo.png" alt="NAgex" class="qw-logo">
+        <div class="qw-title-group">
+          <span class="qw-title">NAgex Quick Wake</span>
+          <span class="qw-session-badge" id="qw-session-badge">Session: sess_main_001</span>
+        </div>
+      </div>
+      <div class="qw-header-actions">
+        <button class="qw-icon-btn" id="qw-btn-lang" title="Toggle Language">KR</button>
+        <button class="qw-icon-btn" id="qw-btn-expand" title="Expand to Control Center" onclick="window.NAGEX_DESKTOP.openControlCenter()">↗</button>
+        <button class="qw-icon-btn qw-close-btn" id="qw-btn-close" title="Hide Quick Wake (Alt+N)" onclick="window.NAGEX_DESKTOP.hideWindow()">&times;</button>
+      </div>
+    </header>
+
+    <!-- Navigation Sub-bar (Chat / Tasks) -->
+    <div class="qw-subnav">
+      <button class="qw-tab-btn active" id="qw-tab-chat" data-qw-tab="chat">💬 <span data-i18n="desktop.tabChat">Chat & Action</span></button>
+      <button class="qw-tab-btn" id="qw-tab-tasks" data-qw-tab="tasks">⚡ <span data-i18n="desktop.tabTasks">Tasks Quick View</span> <span class="qw-task-badge" id="qw-task-count">0</span></button>
+    </div>
+
+    <!-- Main Content Area: Tab 1 — Chat & Action -->
+    <main class="qw-content-view active" id="qw-view-chat">
+      <div class="qw-messages-scroll" id="qw-messages-container">
+        <!-- Default Welcome / Hello Jane -->
+        <div class="qw-welcome-card">
+          <div class="qw-greeting" data-i18n="home.greeting">Hello, Jane</div>
+          <div class="qw-sub" data-i18n="home.subtitle">What would you like to do today?</div>
+          <div class="qw-chips-row">
+            <button class="qw-chip" data-prompt="Plan my day">Plan my day</button>
+            <button class="qw-chip" data-prompt="Prepare my next client meeting and schedule it.">Prepare meeting</button>
+            <button class="qw-chip" data-prompt="Summarize my notes">Summarize notes</button>
+          </div>
+        </div>
+
+        <!-- Chat Stream -->
+        <div class="qw-stream" id="qw-stream-body"></div>
+      </div>
+    </main>
+
+    <!-- Main Content Area: Tab 2 — Tasks Quick View -->
+    <main class="qw-content-view" id="qw-view-tasks" style="display:none;">
+      <div class="qw-tasks-header">
+        <strong data-i18n="desktop.activeStandingTasks">Active Standing Tasks & Watches</strong>
+        <button class="qw-link-btn" onclick="window.NAGEX_DESKTOP.openControlCenter('tab-tasks')" data-i18n="desktop.manageInCenter">Manage →</button>
+      </div>
+      <div class="qw-tasks-list" id="qw-tasks-list-container">
+        <p class="qw-empty-text">Loading active tasks...</p>
+      </div>
+    </main>
+
+    <!-- Bottom Composer & Voice Bar -->
+    <footer class="qw-footer-composer">
+      <div class="qw-composer-wrap">
+        <button class="qw-voice-btn" id="qw-btn-voice" title="Voice Input Placeholder">🎙️</button>
+        <input type="text" id="qw-composer-input" placeholder="Ask NAgex anything... (Alt+N)" data-i18n-placeholder="home.promptPlaceholder" autocomplete="off">
+        <button class="qw-send-btn" id="qw-btn-send" title="Send (Enter)">✈️</button>
+      </div>
+      <div class="qw-hotkey-hint">
+        <span>Hotkey: <kbd>Alt+N</kbd></span>
+        <span id="qw-status-msg">Connected to Main Session</span>
+      </div>
+    </footer>
+  </div>
+
+  <script src="i18n.js?v=__NAGEX_BUILD_VERSION__"></script>
+  <script src="plan-resolution-view.js?v=__NAGEX_BUILD_VERSION__"></script>
+  <script src="calendar-approval-view.js?v=__NAGEX_BUILD_VERSION__"></script>
+  <script src="gmail-approval-view.js?v=__NAGEX_BUILD_VERSION__"></script>
+  <script src="browser-approval-view.js?v=__NAGEX_BUILD_VERSION__"></script>
+  <script src="desktop-quickwake.js?v=__NAGEX_BUILD_VERSION__"></script>
+</body>
+</html>

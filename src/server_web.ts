@@ -53,6 +53,7 @@ import { SlackClient, type SlackEventPayload } from './integrations/slack/slack.
 import { SlackService } from './integrations/slack/slack.service.js';
 import { NotificationStore } from './notifications/notification.store.js';
 import { NotificationEngine } from './notifications/notification.engine.js';
+import { DesktopRuntimeEngine } from './desktop/desktop-runtime.engine.js';
 
 const PORT = Number(process.env.PORT || 8085);
 const PUBLIC_DIR = path.join(process.cwd(), 'public');
@@ -61,9 +62,9 @@ const NO_CACHE_HEADERS = {
   Pragma: 'no-cache',
   Expires: '0',
 } as const;
-const MUTABLE_FRONTEND_FILES = new Set(['index.html', 'style.css', 'app.js', 'i18n.js', 'plan-resolution-view.js', 'calendar-approval-view.js', 'calendar-intent-extraction.js', 'calendar-payload-validation.js', 'gmail-approval-view.js', 'gmail-intent-extraction.js', 'browser-approval-view.js', 'browser-intent-extraction.js', 'modal-behavior.js', 'timeline-dedupe.js', 'single-flight-guard.js', 'legal.js', 'privacy.html', 'terms.html']);
-const VERSIONED_HTML_FILES = new Set(['index.html', 'privacy.html', 'terms.html']);
-const CLEAN_URL_ALIASES: Record<string, string> = { '/privacy': 'privacy.html', '/terms': 'terms.html' };
+const MUTABLE_FRONTEND_FILES = new Set(['index.html', 'style.css', 'app.js', 'i18n.js', 'plan-resolution-view.js', 'calendar-approval-view.js', 'calendar-intent-extraction.js', 'calendar-payload-validation.js', 'gmail-approval-view.js', 'gmail-intent-extraction.js', 'browser-approval-view.js', 'browser-intent-extraction.js', 'modal-behavior.js', 'timeline-dedupe.js', 'single-flight-guard.js', 'legal.js', 'privacy.html', 'terms.html', 'desktop-quickwake.html', 'desktop-quickwake.css', 'desktop-quickwake.js']);
+const VERSIONED_HTML_FILES = new Set(['index.html', 'privacy.html', 'terms.html', 'desktop-quickwake.html']);
+const CLEAN_URL_ALIASES: Record<string, string> = { '/privacy': 'privacy.html', '/terms': 'terms.html', '/quickwake': 'desktop-quickwake.html' };
 const BUILD_VERSION_PLACEHOLDER = '__NAGEX_BUILD_VERSION__';
 
 function createBuildVersion(): string {
@@ -159,6 +160,13 @@ export const slackService = new SlackService({
   auditLogger,
 });
 
+// ─── MASTER.md Section 14 — Desktop Quick Wake Runtime (Item 14) ───
+export const desktopRuntimeEngine = new DesktopRuntimeEngine({
+  sessionStore,
+  taskStore,
+  auditLogger,
+});
+
 // ─── MASTER.md Section 14 — Notification Engine (Item 12) ───
 export const notificationStore = new NotificationStore();
 export const notificationEngine = new NotificationEngine({
@@ -167,6 +175,7 @@ export const notificationEngine = new NotificationEngine({
   telegramBotClient,
   slackIdentityStore,
   slackClient,
+  desktopRuntimeEngine,
   auditLogger,
 });
 
@@ -952,6 +961,25 @@ export async function handleAsyncApiRequest(
         requestId,
       });
       return { status: 201, data: record };
+    }
+
+    // ─── Desktop Quick Wake Endpoints ───
+    if (pathname === '/api/v1/desktop/quickwake/status' && method === 'GET') {
+      return { status: 200, data: { hotkey: desktopRuntimeEngine.getHotkey(), windowState: desktopRuntimeEngine.getWindowState(), isRunning: desktopRuntimeEngine.isRunning() } };
+    }
+    if (pathname === '/api/v1/desktop/quickwake/toggle' && method === 'POST') {
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_hk_toggle_${crypto.randomUUID()}`;
+      const state = desktopRuntimeEngine.triggerGlobalHotkey(requestId);
+      return { status: 200, data: { hotkey: desktopRuntimeEngine.getHotkey(), windowState: state, isRunning: desktopRuntimeEngine.isRunning() } };
+    }
+    if (pathname === '/api/v1/desktop/quickwake/tray/action' && method === 'POST') {
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_tray_act_${crypto.randomUUID()}`;
+      const action = typeof body?.action === 'string' ? body.action.trim() : '';
+      if (!action) {
+        throw new NagexError({ code: 'INVALID_TRAY_ACTION', category: 'VALIDATION', message: 'Tray action string is required.', request_id: requestId });
+      }
+      const result = desktopRuntimeEngine.handleTrayAction(action as any, requestId);
+      return { status: 200, data: result };
     }
 
     return handleApiRequest(method, pathname, body, headers);

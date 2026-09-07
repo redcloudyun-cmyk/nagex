@@ -5,7 +5,7 @@ export type NotificationType = 'APPROVAL_REQUEST' | 'TASK_COMPLETED' | 'TASK_FAI
 export type DeliveryStatus = 'PENDING' | 'DELIVERED' | 'FAILED' | 'SKIPPED';
 
 export interface ChannelDelivery {
-  channel: 'WEB' | 'TELEGRAM' | 'SLACK';
+  channel: 'WEB' | 'TELEGRAM' | 'SLACK' | 'DESKTOP';
   status: DeliveryStatus;
   targetId?: string;
   deliveredAt?: string;

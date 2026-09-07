@@ -4,6 +4,7 @@ import type { TelegramIdentityStore } from '../integrations/telegram/telegram-id
 import type { TelegramBotClient } from '../integrations/telegram/telegram.client.js';
 import type { SlackIdentityStore } from '../integrations/slack/slack-identity.store.js';
 import type { SlackClient } from '../integrations/slack/slack.client.js';
+import type { DesktopRuntimeEngine } from '../desktop/desktop-runtime.engine.js';
 import {
   NotificationStore,
   type NotificationRecord,
@@ -27,6 +28,7 @@ export interface NotificationEngineOptions {
   telegramBotClient?: TelegramBotClient;
   slackIdentityStore?: SlackIdentityStore;
   slackClient?: SlackClient;
+  desktopRuntimeEngine?: DesktopRuntimeEngine;
   auditLogger: AuditLogger;
 }
 
@@ -96,6 +98,31 @@ export class NotificationEngine {
             error: err instanceof Error ? err.message : String(err),
           });
         }
+      }
+    }
+
+    // 3. Desktop Native Notification Dispatch
+    if (this.options.desktopRuntimeEngine) {
+      try {
+        const desktopSent = this.options.desktopRuntimeEngine.dispatchNotification({
+          type: opts.type,
+          title: opts.title,
+          body: opts.body,
+          metadata: opts.metadata,
+        });
+        deliveries.push({
+          channel: 'DESKTOP',
+          status: desktopSent ? 'DELIVERED' : 'SKIPPED',
+          targetId: opts.principalId,
+          deliveredAt: desktopSent ? new Date().toISOString() : undefined,
+        });
+      } catch (err) {
+        deliveries.push({
+          channel: 'DESKTOP',
+          status: 'FAILED',
+          targetId: opts.principalId,
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     }
 
