@@ -452,8 +452,8 @@ Current vs. target (informational — near-term hackathon priority is still Sect
 | Main Session | Partial (Ambient interaction) | Persistent canonical session |
 | Memory | Initial implementation | Long-term / episodic / project / relationship / preference memory |
 | Multi-channel | Web-only | Telegram, Slack, WhatsApp, Mobile |
-| Calendar | Live | End-to-end scheduling + confirmation |
-| Gmail | Mock | Live |
+| Calendar | Live (create/update/cancel/RSVP, all approval-gated) | Confirmation UX in the ambient composer for update/cancel/RSVP (create_event's compose form + approval card already ships this) |
+| Gmail | Live (send/reply/create_draft, all approval-gated; search/read_thread read-only) | Approval-card UI wired into the ambient composer (pure view-model exists — see public/gmail-approval-view.js — but no natural-language compose flow yet) |
 | Browser | Not implemented | Agent-controlled browser |
 | Computer Use | Not implemented | Paired-node based |
 | Local Files | Limited | Read/write/edit/search |

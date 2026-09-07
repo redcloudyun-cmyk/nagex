@@ -20,7 +20,7 @@ export interface CreatedCalendarEvent {
 
 async function googleApiRequest(
   url: string,
-  method: 'GET' | 'POST',
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
   accessToken: string,
   body: unknown,
   fetchFn: FetchFn,
@@ -86,6 +86,112 @@ export async function createCalendarEvent(
   const url = `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events${wantsConference ? '?conferenceDataVersion=1' : ''}`;
   const result = await googleApiRequest(url, 'POST', accessToken, body, fetchFn, requestId);
 
+  const externalId = typeof result.id === 'string' ? result.id : null;
+  const externalUrl = typeof result.htmlLink === 'string' ? result.htmlLink : null;
+  if (!externalId || !externalUrl) {
+    throw new NagexError({
+      code: 'GOOGLE_CALENDAR_MALFORMED_RESPONSE',
+      category: 'PROVIDER',
+      message: 'Google Calendar did not return an event ID or link.',
+      request_id: requestId,
+    });
+  }
+  return { externalId, externalUrl };
+}
+
+export interface UpdateCalendarEventPayload {
+  calendarId: string;
+  eventId: string;
+  summary?: string;
+  description?: string;
+  start?: string;
+  end?: string;
+  timezone?: string;
+  attendees?: string[];
+}
+
+export async function updateCalendarEvent(
+  accessToken: string,
+  payload: UpdateCalendarEventPayload,
+  fetchFn: FetchFn,
+  requestId: string,
+): Promise<CreatedCalendarEvent> {
+  const calendarId = encodeURIComponent(payload.calendarId || 'primary');
+  const eventId = encodeURIComponent(payload.eventId);
+  const body: Record<string, unknown> = {};
+  if (payload.summary !== undefined) body.summary = payload.summary;
+  if (payload.description !== undefined) body.description = payload.description;
+  if (payload.start !== undefined) body.start = { dateTime: payload.start, timeZone: payload.timezone };
+  if (payload.end !== undefined) body.end = { dateTime: payload.end, timeZone: payload.timezone };
+  if (payload.attendees !== undefined) body.attendees = payload.attendees.map((email) => ({ email }));
+
+  const url = `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${eventId}`;
+  const result = await googleApiRequest(url, 'PATCH', accessToken, body, fetchFn, requestId);
+
+  const externalId = typeof result.id === 'string' ? result.id : null;
+  const externalUrl = typeof result.htmlLink === 'string' ? result.htmlLink : null;
+  if (!externalId || !externalUrl) {
+    throw new NagexError({
+      code: 'GOOGLE_CALENDAR_MALFORMED_RESPONSE',
+      category: 'PROVIDER',
+      message: 'Google Calendar did not return an event ID or link.',
+      request_id: requestId,
+    });
+  }
+  return { externalId, externalUrl };
+}
+
+export async function cancelCalendarEvent(
+  accessToken: string,
+  params: { calendarId: string; eventId: string },
+  fetchFn: FetchFn,
+  requestId: string,
+): Promise<CreatedCalendarEvent> {
+  const calendarId = encodeURIComponent(params.calendarId || 'primary');
+  const eventId = encodeURIComponent(params.eventId);
+  const url = `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${eventId}`;
+  // A successful cancel/delete returns HTTP 204 with no body — there is
+  // nothing to parse for an id/link, so the URL is reconstructed from the
+  // known eventId rather than taken from the (empty) response.
+  await googleApiRequest(url, 'DELETE', accessToken, null, fetchFn, requestId);
+  return { externalId: params.eventId, externalUrl: `https://calendar.google.com/calendar/u/0/r/eventedit/${eventId}` };
+}
+
+export type CalendarRsvpResponseStatus = 'accepted' | 'declined' | 'tentative';
+
+export interface RespondToCalendarEventPayload {
+  calendarId: string;
+  eventId: string;
+  responseStatus: CalendarRsvpResponseStatus;
+}
+
+export async function respondToCalendarEvent(
+  accessToken: string,
+  payload: RespondToCalendarEventPayload,
+  fetchFn: FetchFn,
+  requestId: string,
+): Promise<CreatedCalendarEvent> {
+  const calendarId = encodeURIComponent(payload.calendarId || 'primary');
+  const eventId = encodeURIComponent(payload.eventId);
+  const eventUrl = `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${eventId}`;
+
+  // The Calendar API models "my RSVP" as one entry within the event's own
+  // attendees array (the one Google flags `self: true`), not a separate
+  // endpoint — so responding requires reading the current attendees first,
+  // then PATCHing back the same array with only that one entry changed.
+  const existing = await googleApiRequest(eventUrl, 'GET', accessToken, null, fetchFn, requestId);
+  const attendees = Array.isArray(existing.attendees) ? (existing.attendees as Array<Record<string, unknown>>) : [];
+  if (!attendees.some((attendee) => attendee.self === true)) {
+    throw new NagexError({
+      code: 'GOOGLE_CALENDAR_NOT_AN_ATTENDEE',
+      category: 'VALIDATION',
+      message: 'The connected account is not an attendee on this event, so there is no RSVP to change.',
+      request_id: requestId,
+    });
+  }
+  const updatedAttendees = attendees.map((attendee) => (attendee.self === true ? { ...attendee, responseStatus: payload.responseStatus } : attendee));
+
+  const result = await googleApiRequest(eventUrl, 'PATCH', accessToken, { attendees: updatedAttendees }, fetchFn, requestId);
   const externalId = typeof result.id === 'string' ? result.id : null;
   const externalUrl = typeof result.htmlLink === 'string' ? result.htmlLink : null;
   if (!externalId || !externalUrl) {

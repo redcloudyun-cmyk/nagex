@@ -21,7 +21,13 @@ import { toolRegistry as canonicalToolRegistry } from './tools/tool-registry.js'
 import { PlanResolver } from './planning/plan-resolver.js';
 import { PersistentActionApprovalStore } from './governance/action-approval.store.js';
 import { ExecutionStore } from './governance/execution.store.js';
-import { GoogleCalendarService, GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID } from './tools/google-calendar.service.js';
+import {
+  GoogleCalendarService,
+  GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID,
+  GOOGLE_CALENDAR_UPDATE_EVENT_TOOL_ID,
+  GOOGLE_CALENDAR_CANCEL_EVENT_TOOL_ID,
+  GOOGLE_CALENDAR_RESPOND_EVENT_TOOL_ID,
+} from './tools/google-calendar.service.js';
 import {
   GmailService,
   GMAIL_SEND_EMAIL_TOOL_ID,
@@ -504,6 +510,33 @@ export async function handleAsyncApiRequest(
       const result = await calendarService.executeCreateEvent({ approvalId, payload: body?.payload, tenantId, principalId, requestId });
       return { status: 200, data: result };
     }
+    if (pathname === '/api/v1/tools/google-calendar/update-event' && method === 'POST') {
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+      const approvalId = typeof body?.approvalId === 'string' ? body.approvalId : '';
+      if (!approvalId) throw new NagexError({ code: 'APPROVAL_ID_REQUIRED', category: 'VALIDATION', message: 'approvalId is required.', request_id: requestId });
+      const result = await calendarService.executeUpdateEvent({ approvalId, payload: body?.payload, tenantId, principalId, requestId });
+      return { status: 200, data: result };
+    }
+    if (pathname === '/api/v1/tools/google-calendar/cancel-event' && method === 'POST') {
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+      const approvalId = typeof body?.approvalId === 'string' ? body.approvalId : '';
+      if (!approvalId) throw new NagexError({ code: 'APPROVAL_ID_REQUIRED', category: 'VALIDATION', message: 'approvalId is required.', request_id: requestId });
+      const result = await calendarService.executeCancelEvent({ approvalId, payload: body?.payload, tenantId, principalId, requestId });
+      return { status: 200, data: result };
+    }
+    if (pathname === '/api/v1/tools/google-calendar/respond-to-event' && method === 'POST') {
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+      const approvalId = typeof body?.approvalId === 'string' ? body.approvalId : '';
+      if (!approvalId) throw new NagexError({ code: 'APPROVAL_ID_REQUIRED', category: 'VALIDATION', message: 'approvalId is required.', request_id: requestId });
+      const result = await calendarService.executeRespondToEvent({ approvalId, payload: body?.payload, tenantId, principalId, requestId });
+      return { status: 200, data: result };
+    }
     if (pathname === '/api/v1/tools/gmail/send-email' && method === 'POST') {
       const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
       const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
@@ -661,6 +694,18 @@ export function handleApiRequest(
     try {
       if (toolId === GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID) {
         const record = googleCalendarService.requestCreateEventApproval({ tenantId, principalId: principal.id, payload: body?.payload, requestId });
+        return { status: 201, data: record };
+      }
+      if (toolId === GOOGLE_CALENDAR_UPDATE_EVENT_TOOL_ID) {
+        const record = googleCalendarService.requestUpdateEventApproval({ tenantId, principalId: principal.id, payload: body?.payload, requestId });
+        return { status: 201, data: record };
+      }
+      if (toolId === GOOGLE_CALENDAR_CANCEL_EVENT_TOOL_ID) {
+        const record = googleCalendarService.requestCancelEventApproval({ tenantId, principalId: principal.id, payload: body?.payload, requestId });
+        return { status: 201, data: record };
+      }
+      if (toolId === GOOGLE_CALENDAR_RESPOND_EVENT_TOOL_ID) {
+        const record = googleCalendarService.requestRespondToEventApproval({ tenantId, principalId: principal.id, payload: body?.payload, requestId });
         return { status: 201, data: record };
       }
       if (toolId === GMAIL_SEND_EMAIL_TOOL_ID || toolId === GMAIL_REPLY_TOOL_ID || toolId === GMAIL_CREATE_DRAFT_TOOL_ID) {
