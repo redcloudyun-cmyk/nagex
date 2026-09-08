@@ -2,15 +2,11 @@ import crypto from 'node:crypto';
 import { NagexError } from '../common/errors.js';
 import type { CaptureStore } from './capture.store.js';
 import type {
-  CalendarCandidate,
   CaptureItem,
   CaptureStatus,
   CaptureType,
   InboxSummary,
-  KnowledgeCandidate,
-  MemoryCandidate,
   PersonalVaultSummary,
-  TaskCandidate,
 } from './workspace.types.js';
 import type { TaskStore } from '../tasks/task.store.js';
 import type { MemoryEngine } from '../context/memory.engine.js';
@@ -23,6 +19,11 @@ import type { StorageProvider } from '../storage/storage-provider.js';
 import { LocalStorageProvider } from '../storage/local-storage.provider.js';
 import { WorkspaceQuotaEngine } from './quota-engine.js';
 import { CaptureProcessor } from './capture-processor.js';
+import type { CandidateStore } from './candidate.store.js';
+import type { CandidateRecord, CandidateStatus, CandidateType } from './candidate.types.js';
+import type { CandidateActionResolver } from './action-resolver.js';
+import type { ActivityStore } from '../governance/activity.store.js';
+import { classifyFailure } from '../common/failure-taxonomy.js';
 import {
   generateCanonicalObjectKey,
   sanitizeFilename,
@@ -65,6 +66,16 @@ export class QuickCaptureService {
     private readonly browserService?: BrowserToolService,
     private readonly auditLogger?: AuditLogger,
     private readonly actionApprovals?: ActionApprovalStore,
+    // Phase 1 STEP 5 — Canonical Candidate Model. Optional and appended last
+    // so every existing positional call site (tests included) keeps working
+    // unchanged.
+    private readonly candidateStore?: CandidateStore,
+    // Phase 1 STEP 7 — Real Actions. Pre-built by the caller (server_web.ts)
+    // since it needs collaborators (GoogleCalendarService, ExecutionStore)
+    // QuickCaptureService itself has no other reason to depend on.
+    private readonly actionResolver?: CandidateActionResolver,
+    // Phase 1 STEP 8 — durable, tenant-isolated consumer Activity projection.
+    private readonly activityStore?: ActivityStore,
   ) {
     this.quotaEngine = new WorkspaceQuotaEngine();
     this.processor = new CaptureProcessor(
@@ -74,6 +85,8 @@ export class QuickCaptureService {
       this.auditLogger,
       this.storageProvider,
       this.knowledgeEngine,
+      this.candidateStore,
+      this.activityStore,
     );
   }
 
@@ -467,6 +480,14 @@ export class QuickCaptureService {
     return item;
   }
 
+  // Legacy embedded-array candidate action (Phase 1 STEP 1-4). Phase 1
+  // STEP 5, item J: accepting a candidate — through this endpoint or the new
+  // canonical one below — NEVER creates a Task, requests a Calendar
+  // approval, writes Memory, or indexes Knowledge. It only ever changes the
+  // candidate's own status; real execution is a later, separate Action
+  // phase (STEP 7). Kept only as a backward-compatible status flip over the
+  // temporary embedded metadata.candidates array (item O) — new code should
+  // use acceptCandidate/rejectCandidate against the canonical CandidateStore.
   public async actionCandidate(params: {
     captureId: string;
     candidateId: string;
@@ -487,57 +508,6 @@ export class QuickCaptureService {
 
     if (params.action === 'ACCEPT') {
       candidate.status = 'ACCEPTED';
-
-      if (candidate.type === 'TASK') {
-        if (this.taskStore) {
-          const tc = candidate as TaskCandidate;
-          this.taskStore.create({
-            tenantId: params.tenantId,
-            ownerId: params.ownerId,
-            name: tc.title,
-            objective: tc.description || tc.title,
-            type: 'ONE_TIME',
-            trigger: { type: 'MANUAL' },
-          });
-        }
-      } else if (candidate.type === 'CALENDAR') {
-        const cc = candidate as CalendarCandidate;
-        if (this.actionApprovals) {
-          this.actionApprovals.request({
-            toolId: 'google_calendar.create_event',
-            tenantId: params.tenantId,
-            principalId: params.ownerId,
-            payload: {
-              summary: cc.title,
-              startTime: cc.startCandidate,
-              endTime: cc.endCandidate,
-              timezone: cc.timezone,
-              location: cc.location,
-            },
-          });
-        }
-      } else if (candidate.type === 'MEMORY') {
-        const mc = candidate as MemoryCandidate;
-        if (this.memoryEngine) {
-          const mem = this.memoryEngine.proposeMemory('USER', params.ownerId, {
-            subject: 'user',
-            predicate: 'preference',
-            value: mc.statement || mc.title,
-          });
-          this.memoryEngine.activateMemory(mem.id);
-        }
-      } else if (candidate.type === 'KNOWLEDGE') {
-        const kc = candidate as KnowledgeCandidate;
-        if (this.knowledgeEngine) {
-          this.knowledgeEngine.addDocument({
-            source_id: params.captureId,
-            title: kc.title,
-            classification: 'INTERNAL',
-            content: kc.summary || kc.title,
-          });
-        }
-      }
-
       if (this.auditLogger) {
         this.auditLogger.logEvent({
           actor: { type: 'user', id: params.ownerId },
@@ -575,9 +545,156 @@ export class QuickCaptureService {
     return updated ?? item;
   }
 
+  // ─── Phase 1 STEP 5 — Canonical Candidate Model ───
+  // Thin pass-throughs onto CandidateStore. IMPORTANT (item J): accept
+  // NEVER creates a Task/Calendar event/Memory record/Knowledge entry — it
+  // only changes the candidate's own status. Real execution is STEP 7's
+  // concern, not this one.
+
+  private requireCandidateStore(): CandidateStore {
+    if (!this.candidateStore) {
+      throw new NagexError({
+        code: 'CANDIDATE_STORE_NOT_CONFIGURED',
+        category: 'CONFLICT',
+        message: 'The canonical Candidate store is not configured.',
+        request_id: `req_cand_${Date.now()}`,
+      });
+    }
+    return this.candidateStore;
+  }
+
+  public getCandidate(candidateId: string, ownerId: string, tenantId: string): CandidateRecord | null {
+    if (!this.candidateStore) return null;
+    const record = this.candidateStore.get(candidateId);
+    if (!record || record.principalId !== ownerId || record.tenantId !== tenantId) return null;
+    return record;
+  }
+
+  public listCandidates(ownerId: string, tenantId: string, filter?: { status?: CandidateStatus; type?: CandidateType }): CandidateRecord[] {
+    if (!this.candidateStore) return [];
+    return this.candidateStore.list(ownerId, tenantId, filter);
+  }
+
+  // Phase 1 STEP 8 — the consumer-safe Activity projection (never raw
+  // AuditLogger, never the legacy non-isolated executionHistory array).
+  public listActivity(ownerId: string, tenantId: string, limit = 50): ReturnType<ActivityStore['list']> {
+    if (!this.activityStore) return [];
+    return this.activityStore.list(tenantId, ownerId, limit);
+  }
+
+  public acceptCandidate(candidateId: string, ownerId: string, tenantId: string): CandidateRecord {
+    const store = this.requireCandidateStore();
+    const record = store.accept(candidateId, tenantId, ownerId, `req_cand_acc_${Date.now()}`);
+    if (this.auditLogger) {
+      this.auditLogger.logEvent({
+        actor: { type: 'user', id: ownerId },
+        tenant_id: tenantId,
+        action: 'candidate.accepted',
+        resource: { type: 'Candidate', id: candidateId },
+        result: 'SUCCESS',
+        request_id: `req_cand_acc_${Date.now()}`,
+        details: { captureId: record.captureId, candidateType: record.type },
+      });
+    }
+    return record;
+  }
+
+  public rejectCandidate(candidateId: string, ownerId: string, tenantId: string): CandidateRecord {
+    const store = this.requireCandidateStore();
+    const record = store.reject(candidateId, tenantId, ownerId, `req_cand_rej_${Date.now()}`);
+    if (this.auditLogger) {
+      this.auditLogger.logEvent({
+        actor: { type: 'user', id: ownerId },
+        tenant_id: tenantId,
+        action: 'candidate.rejected',
+        resource: { type: 'Candidate', id: candidateId },
+        result: 'SUCCESS',
+        request_id: `req_cand_rej_${Date.now()}`,
+        details: { captureId: record.captureId, candidateType: record.type },
+      });
+    }
+    return record;
+  }
+
+  // Phase 1 STEP 6, item G: modify a still-PROPOSED candidate's title/payload
+  // before deciding. Never touches type/tenantId/principalId/captureId/
+  // contentHash/sourceRefs/status — CandidateStore.modify() enforces this
+  // structurally and validates the type-specific payload, failing closed.
+  public modifyCandidate(candidateId: string, ownerId: string, tenantId: string, patch: { title?: string; payload?: Record<string, unknown> }): CandidateRecord {
+    const store = this.requireCandidateStore();
+    const record = store.modify(candidateId, tenantId, ownerId, patch, `req_cand_mod_${Date.now()}`);
+    if (this.auditLogger) {
+      this.auditLogger.logEvent({
+        actor: { type: 'user', id: ownerId },
+        tenant_id: tenantId,
+        action: 'candidate.modified',
+        resource: { type: 'Candidate', id: candidateId },
+        result: 'SUCCESS',
+        request_id: `req_cand_mod_${Date.now()}`,
+        details: { captureId: record.captureId, candidateType: record.type },
+      });
+    }
+    return record;
+  }
+
+  // ─── Phase 1 STEP 7 — Real Actions ───
+  // Thin pass-throughs onto CandidateActionResolver. See action-resolver.ts
+  // for the actual execution logic, idempotency, approval-gating, and
+  // stale-source protection — this class only forwards.
+
+  private requireActionResolver(): CandidateActionResolver {
+    if (!this.actionResolver) {
+      throw new NagexError({
+        code: 'CANDIDATE_ACTION_RESOLVER_NOT_CONFIGURED',
+        category: 'CONFLICT',
+        message: 'The Candidate Action Resolver is not configured.',
+        request_id: `req_cand_act_${Date.now()}`,
+      });
+    }
+    return this.actionResolver;
+  }
+
+  public async executeCandidateAction(candidateId: string, ownerId: string, tenantId: string): Promise<CandidateRecord> {
+    return this.requireActionResolver().executeCandidate(candidateId, tenantId, ownerId);
+  }
+
+  public async retryCandidateAction(candidateId: string, ownerId: string, tenantId: string): Promise<CandidateRecord> {
+    return this.requireActionResolver().retryCandidate(candidateId, tenantId, ownerId);
+  }
+
+  public getCandidateAction(candidateId: string, ownerId: string, tenantId: string): CandidateRecord['action'] {
+    return this.requireActionResolver().getAction(candidateId, tenantId, ownerId);
+  }
+
   public async retryCapture(captureId: string, ownerId: string): Promise<CaptureItem | null> {
     const item = this.store.getCapture(captureId);
     if (!item || item.ownerId !== ownerId) return null;
+
+    // Phase 1 STEP 9, item R/S — only a capture whose recorded failure
+    // classification says retryable=true (or has no classification yet,
+    // e.g. pre-STEP-9 data) may be retried; a TERMINAL/NEEDS_HUMAN failure
+    // is refused here, server-side, not merely hidden by the UI's button.
+    if (item.metadata.retryable === false) {
+      throw new NagexError({
+        code: item.metadata.errorCode || 'CAPTURE_NOT_RETRYABLE',
+        category: 'CONFLICT',
+        message: classifyFailure(item.metadata.errorCode).userMessage,
+        request_id: `req_cap_retry_blocked_${Date.now()}`,
+      });
+    }
+
+    const requestId = `req_cap_retry_${Date.now()}`;
+    if (this.auditLogger) {
+      this.auditLogger.logEvent({
+        actor: { type: 'user', id: ownerId },
+        tenant_id: item.tenantId,
+        action: 'capture.retry.requested',
+        resource: { type: 'CaptureItem', id: captureId },
+        result: 'SUCCESS',
+        request_id: requestId,
+        details: { previousErrorCode: item.metadata.errorCode, attemptCount: item.metadata.retryAttemptCount ?? 0 },
+      });
+    }
 
     const existingCandidates = (item.metadata.candidates || []).filter((c) => c.status !== 'PROPOSED');
 
@@ -596,7 +713,34 @@ export class QuickCaptureService {
       }
     }
 
+    if (this.auditLogger) {
+      this.auditLogger.logEvent({
+        actor: { type: 'system', id: 'capture-processor' },
+        tenant_id: item.tenantId,
+        action: 'capture.retry.started',
+        resource: { type: 'CaptureItem', id: captureId },
+        result: 'SUCCESS',
+        request_id: requestId,
+        details: {},
+      });
+    }
+
     const retriedItem = this.store.getCapture(captureId) || item;
-    return await this.processor.process(retriedItem, rawBuffer);
+    const result = await this.processor.process(retriedItem, rawBuffer);
+
+    if (this.auditLogger) {
+      const succeeded = result.status !== 'FAILED';
+      this.auditLogger.logEvent({
+        actor: { type: 'system', id: 'capture-processor' },
+        tenant_id: item.tenantId,
+        action: succeeded ? 'capture.retry.succeeded' : 'capture.retry.failed',
+        resource: { type: 'CaptureItem', id: captureId },
+        result: succeeded ? 'SUCCESS' : 'DENIED',
+        request_id: requestId,
+        details: { status: result.status, errorCode: result.metadata.errorCode },
+      });
+    }
+
+    return result;
   }
 }

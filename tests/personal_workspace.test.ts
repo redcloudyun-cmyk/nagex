@@ -6,6 +6,7 @@ import os from 'node:os';
 import { CaptureStore } from '../src/workspace/capture.store.js';
 import { QuickCaptureService } from '../src/workspace/quick-capture.service.js';
 import { handleAsyncApiRequest } from '../src/server_web.js';
+import { generateTextPdf } from './_pdf_fixtures.js';
 
 function createTempStore(): { store: CaptureStore; service: QuickCaptureService; cleanup: () => void } {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-test-workspace-'));
@@ -63,20 +64,18 @@ test('QuickCaptureService: captures action item text and detects NEEDS_REVIEW st
 test('QuickCaptureService: captures FILE payload with UPLOADING -> PROCESSING -> READY lifecycle', async () => {
   const { service, cleanup } = createTempStore();
   try {
-    // A minimal but real PDF: a valid %PDF- header plus a BT/Tj text
-    // operator so pdf-extractor.ts's genuine (non-mocked) text extraction
-    // has something real to find — a plain non-PDF buffer is correctly
-    // rejected as PDF_CORRUPT by extractPdfText's magic-header check.
-    const minimalPdf = Buffer.from(
-      '%PDF-1.4\n1 0 obj\n<< >>\nendobj\nBT\n(This document describes the target architecture for NAgex.) Tj\nET\n%%EOF'
-    );
+    // A genuine, structurally valid PDF (Phase 1 STEP 4, item R) so
+    // pdf-extractor.ts's real pdfjs-dist parsing has real content to find —
+    // a hand-built %PDF-/BT/Tj string is no longer accepted by a real
+    // parser, since it lacks a valid xref/trailer.
+    const realPdf = await generateTextPdf(['This document describes the target architecture for NAgex.']);
     const item = await service.uploadBinaryObject({
       ownerId: 'usr_test_03',
       tenantId: 'ten_test_01',
       type: 'FILE',
       filename: 'architecture.pdf',
       mimeType: 'application/pdf',
-      data: minimalPdf,
+      data: realPdf,
       source: 'WEB',
     });
 

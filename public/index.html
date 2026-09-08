@@ -234,6 +234,13 @@
             <div class="inbox-items-list" id="inbox-items-list">
               <div class="empty-state-text">No captured items in Inbox yet.</div>
             </div>
+            <!-- Phase 1 STEP 5: canonical Candidate records (CandidateStore),
+                 shown read-only here to prove retrieval/listing — full
+                 review controls are a later step. -->
+            <div class="inbox-candidates-section" style="margin-top: 1.5rem;">
+              <h3 style="font-size: 0.85rem; color: var(--color-text-secondary); margin-bottom: 0.5rem;" data-i18n="workspace.candidatesTitle">Suggested (Candidates)</h3>
+              <div class="inbox-candidates-list" id="inbox-candidates-list"></div>
+            </div>
           </div>
         </div>
 
@@ -333,7 +340,8 @@
             <button class="btn-create-plan-primary">+ Create a new plan</button>
           </div>
 
-          <!-- Main Layout Split: Table Left (8 cols) + Context Right Sidebar -->
+          <!-- Dynamic Plans Container -->
+          <div class="plans-list-container" id="plans-list-container"></div>
           <div class="plan-execute-split-layout">
             <!-- Left Main Card: Plan Table -->
             <div class="plan-main-card">
@@ -652,108 +660,9 @@
             <button class="appr-tab-btn" data-appr-filter="APPROVED">🕒 History</button>
           </div>
 
-          <!-- Pending Approval Card (Mockup Image 3) -->
-          <div class="mockup-approval-card">
-            <div class="card-header-appr">
-              <div class="appr-title-left">
-                <span class="appr-tool-badge gmail">✉️</span>
-                <div>
-                  <h3>Create Google Calendar event</h3>
-                  <small>Google Calendar • Scheduling</small>
-                </div>
-              </div>
-              <span class="time-ago">2m ago</span>
-            </div>
-
-            <div class="appr-details-list">
-              <div class="appr-detail-row">
-                <span class="icon">📅</span>
-                <span class="lbl">Event</span>
-                <div class="val"><strong>Product Strategy Sync</strong><br><small>Tue, Apr 29, 2025 11:00 AM – 12:00 PM (1 hour)<br>With: Sarah Kim, James Park, Alex Chen (3 guests)</small></div>
-              </div>
-              <div class="appr-detail-row">
-                <span class="icon">📊</span>
-                <span class="lbl">Impact</span>
-                <div class="val">Adds a calendar event and sends invitations to 3 people.</div>
-              </div>
-              <div class="appr-detail-row">
-                <span class="icon">🛢️</span>
-                <span class="lbl">Data involved</span>
-                <div class="val">Your Google Calendar, guest emails, meeting title and agenda</div>
-              </div>
-              <div class="appr-detail-row">
-                <span class="icon">📝</span>
-                <span class="lbl">Reason</span>
-                <div class="val">You asked me to schedule a follow-up meeting after the product review.</div>
-              </div>
-            </div>
-
-            <div class="appr-card-btn-row">
-              <button class="btn-reject-outline" onclick="alert('Approval Rejected')">✕ Reject</button>
-              <button class="btn-approve-blue" onclick="alert('Approval Granted & Action Executed')">✓ Approve</button>
-            </div>
-          </div>
-
-          <!-- Connected Tools List Section (Mockup Image 3) -->
-          <div class="connected-tools-section">
-            <div class="section-title-row">
-              <h3>Connected tools</h3>
-              <a class="link-manage" onclick="window.NAGEX.switchTab('tab-tools')">Manage tools &rarr;</a>
-            </div>
-            <div class="tools-compact-list">
-              <div class="tool-compact-item">
-                <div class="left">
-                  <span class="icon gmail">✉️</span>
-                  <div><strong>Gmail</strong><br><small>Send and manage emails</small></div>
-                </div>
-                <span class="badge-status green">✓ Connected &gt;</span>
-              </div>
-              <div class="tool-compact-item">
-                <div class="left">
-                  <span class="icon gcal">📅</span>
-                  <div><strong>Google Calendar</strong><br><small>Manage your schedule</small></div>
-                </div>
-                <span class="badge-status green">✓ Connected &gt;</span>
-              </div>
-              <div class="tool-compact-item">
-                <div class="left">
-                  <span class="icon notion">N</span>
-                  <div><strong>Notion</strong><br><small>Create and update pages</small></div>
-                </div>
-                <span class="badge-appr-req">🛡️ Approval Required &gt;</span>
-              </div>
-              <div class="tool-compact-item">
-                <div class="left">
-                  <span class="icon slack">💬</span>
-                  <div><strong>Slack</strong><br><small>Send messages and notify teams</small></div>
-                </div>
-                <span class="badge-status green">✓ Connected &gt;</span>
-              </div>
-              <div class="tool-compact-item">
-                <div class="left">
-                  <span class="icon search">🔍</span>
-                  <div><strong>Web Search</strong><br><small>Find up-to-date information</small></div>
-                </div>
-                <span class="badge-appr-req">🛡️ Approval Required &gt;</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Recent Activity Section -->
-          <div class="recent-activity-section">
-            <div class="section-title-row">
-              <h3>Recent activity</h3>
-              <a class="link-manage" onclick="window.NAGEX.switchTab('tab-executions')">View all &rarr;</a>
-            </div>
-            <div class="activity-card">
-              <span class="check-circle green">✓</span>
-              <div class="act-info">
-                <strong>Email sent to client</strong><br>
-                <small>Gmail • To: client@acme.co</small><br>
-                <em>"Shared the updated proposal and next steps."</em>
-              </div>
-              <span class="act-time">Apr 28, 4:32 PM &gt;</span>
-            </div>
+          <!-- Dynamic Approvals List Container -->
+          <div class="approvals-list-container" id="approvals-list-container">
+            <!-- Dynamically populated -->
           </div>
         </div>
 

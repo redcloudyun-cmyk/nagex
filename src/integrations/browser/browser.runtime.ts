@@ -30,8 +30,18 @@ export interface BrowserSnapshot {
   title: string;
   // A simplified, size-capped text extraction of the page — never the raw
   // DOM/HTML — for read-only "what does this page say" use (item 6: return
-  // readable results inline).
+  // readable results inline). `text.length` always equals returnedCharacters
+  // (it is exactly what was kept after any truncation).
   text: string;
+  // Real extracted length BEFORE truncation — a caller (e.g. CaptureProcessor)
+  // needs this to tell a genuinely short page apart from a long one that was
+  // capped, which `text.length` alone cannot do (Phase 1 STEP 3 truthfulness
+  // fix — see MAX_SNAPSHOT_TEXT_LENGTH below).
+  totalCharacters: number;
+  // Always equal to `text.length` — included alongside totalCharacters/
+  // truncated so a consumer never has to re-derive it.
+  returnedCharacters: number;
+  truncated: boolean;
 }
 
 export interface BrowserRuntime {
@@ -65,11 +75,29 @@ export interface BrowserRuntime {
   shutdown(): Promise<void>;
 }
 
-const MAX_SNAPSHOT_TEXT_LENGTH = 4000;
+// Phase 1 STEP 3: raised from the original 4000 so CaptureProcessor's
+// existing 8000-character chunk/synthesis path (shared with PDF
+// understanding) can actually be reached for real long-form pages, while
+// still bounding memory/serialization size — a "sane maximum," not
+// unbounded. Never silently discards how much was cut: see truncateWithMeta.
+const MAX_SNAPSHOT_TEXT_LENGTH = 20_000;
 const MAX_WAIT_MS = 15_000;
 
-function truncate(text: string, max: number): string {
-  return text.length > max ? `${text.slice(0, max)}…` : text;
+interface TruncationResult {
+  text: string;
+  totalCharacters: number;
+  returnedCharacters: number;
+  truncated: boolean;
+}
+
+// Unlike the old truncate() this never discards the real pre-truncation
+// length — a caller needs totalCharacters to tell a genuinely short page
+// apart from a long one that was capped (Phase 1 STEP 3 truthfulness fix).
+function truncateWithMeta(text: string, max: number): TruncationResult {
+  const totalCharacters = text.length;
+  const truncated = totalCharacters > max;
+  const returnedText = truncated ? text.slice(0, max) : text;
+  return { text: returnedText, totalCharacters, returnedCharacters: returnedText.length, truncated };
 }
 
 let cachedAvailable: boolean | null = null;
@@ -209,7 +237,8 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
       const doc = (globalThis as unknown as { document?: { body?: { innerText?: string } } }).document;
       return doc && doc.body ? doc.body.innerText || '' : '';
     });
-    return { url: page.url(), title, text: truncate(text || '', MAX_SNAPSHOT_TEXT_LENGTH) };
+    const { text: boundedText, totalCharacters, returnedCharacters, truncated } = truncateWithMeta(text || '', MAX_SNAPSHOT_TEXT_LENGTH);
+    return { url: page.url(), title, text: boundedText, totalCharacters, returnedCharacters, truncated };
   }
 
   public async structuredSnapshot(sessionId: string): Promise<StructuredBrowserSnapshot> {
@@ -253,7 +282,7 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
       return { text, links, buttons, inputs, forms };
     });
 
-    return { url, title, text: truncate(result.text || '', MAX_SNAPSHOT_TEXT_LENGTH), links: result.links, buttons: result.buttons, inputs: result.inputs, forms: result.forms };
+    return { url, title, text: truncateWithMeta(result.text || '', MAX_SNAPSHOT_TEXT_LENGTH).text, links: result.links, buttons: result.buttons, inputs: result.inputs, forms: result.forms };
   }
 
   public async screenshot(sessionId: string): Promise<Buffer> {

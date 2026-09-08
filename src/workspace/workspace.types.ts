@@ -79,10 +79,35 @@ export type WorkspaceCandidate =
   | MemoryCandidate
   | KnowledgeCandidate;
 
+// Real Text Understanding output (Phase 1 STEP 2) — grounded in the source
+// content only, never invented.
+export interface ExtractedEntity {
+  name: string;
+  type: string;
+}
+
+export interface ExtractedDate {
+  text: string;
+  normalized: string | null;
+  confidence: number;
+}
+
+export interface ExtractedActionItem {
+  text: string;
+  confidence: number;
+}
+
 export interface ProcessingChunk {
+  // Deterministic for the same captureId + contentHash (Phase 1 STEP 4, item
+  // G) — a retry over unchanged bytes always mints the same chunkIds.
   chunkId: string;
   text: string;
-  pageNumber?: number;
+  // null (never guessed) when the source has no page structure (e.g. a URL
+  // capture) or the parser could not determine page boundaries.
+  pageStart: number | null;
+  pageEnd: number | null;
+  characterStart: number;
+  characterEnd: number;
   tokenEstimate: number;
 }
 
@@ -107,25 +132,55 @@ export interface CaptureMetadata {
   processorVersion?: string; // '1.0.0'
   modelProvider?: string;
   modelName?: string;
+  modelRequestId?: string;
+  modelLatencyMs?: number;
   errorCode?: string;
   errorMessage?: string;
+  // Phase 1 STEP 9, item C/R — the same failure taxonomy used for Candidate
+  // Actions, so the UI's Retry/"Try again" gating reads one consistent pair
+  // of fields regardless of whether a capture or an action failed.
+  failureCategory?: 'RETRYABLE' | 'TERMINAL' | 'AMBIGUOUS' | 'NEEDS_HUMAN';
+  retryable?: boolean;
+  // Durable retry bookkeeping (item D/V) — survives restart via the same
+  // CaptureItem persistence every other field here already uses.
+  retryAttemptCount?: number;
+  lastRetryAt?: string;
 
   // Extracted Web & Document Properties
   sourceUrl?: string;
   finalUrl?: string;
-  pageTitle?: string;
+  // null (never a fabricated placeholder) when the real page genuinely has
+  // no title — see Phase 1 STEP 3, item D.
+  pageTitle?: string | null;
   retrievedAt?: string;
   contentText?: string;
   contentHash?: string;
   pageCount?: number;
   characterCount?: number;
   chunks?: ProcessingChunk[];
+  // Real PDF extraction truthfulness (Phase 1 STEP 4, item D/N).
+  extractedCharacters?: number;
+  hasText?: boolean;
+  extractionMethod?: string;
+  extractionWarnings?: string[];
+  totalChunks?: number;
+  processedChunks?: number;
+  // Browser Agent session used for this retrieval (Phase 1 STEP 3, item D) —
+  // present whenever a session was actually opened, even on a failed or
+  // human-verification-blocked retrieval.
+  browserSessionId?: string | null;
+  // Large-page/large-document handling truthfulness (Phase 1 STEP 3 item J,
+  // reused for PDFs in STEP 4 item I): whether the content sent to the model
+  // covered the full retrieved page/document or was truncated, and how much.
+  truncated?: boolean;
+  processedCharacters?: number;
+  totalCharacters?: number;
 
   // Extracted Entities, Dates, Action Items & Topics
   topics?: string[];
-  entities?: string[];
-  dates?: string[];
-  actionItems?: string[];
+  entities?: ExtractedEntity[];
+  dates?: ExtractedDate[];
+  actionItems?: ExtractedActionItem[];
 
   // Transcripts & Hardened Candidates
   transcript?: {
@@ -134,7 +189,16 @@ export interface CaptureMetadata {
     speakers?: Array<{ speaker: string; text: string }>;
   };
   extractedContent?: string;
+  // Legacy embedded candidate array (Phase 1 STEP 2-4) — kept as a
+  // temporary backward-compatibility echo (Phase 1 STEP 5, item O). Not the
+  // source of truth: canonical candidate identity/status lives in
+  // CandidateStore, referenced by candidateIds below.
   candidates?: WorkspaceCandidate[];
+  // References into the canonical CandidateStore (Phase 1 STEP 5, item P) —
+  // the durable, typed record for each id is the source of truth for that
+  // candidate's status; this capture never stores a second, divergent copy
+  // of it.
+  candidateIds?: string[];
   suggestedAction?: {
     type: 'TASK' | 'CALENDAR' | 'MEMORY' | 'KNOWLEDGE';
     title: string;

@@ -54,6 +54,11 @@ export interface TaskRecord {
   lastRunAt: string | null;
   lastRunStatus: 'SUCCEEDED' | 'FAILED' | null;
   progress?: TaskProgress | null;
+  // Phase 1 STEP 9, item J — traceability back to the canonical Candidate
+  // this task was created from, so a lost/crashed action-linkage write can
+  // be reconciled by searching for it instead of guessing whether the task
+  // was ever created.
+  candidateId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -86,6 +91,7 @@ export interface CreateTaskInput {
   trigger: TaskTrigger;
   approvalPolicy?: TaskApprovalPolicy;
   nextRunAt?: string | null;
+  candidateId?: string;
 }
 
 export interface TaskStoreOptions {
@@ -144,10 +150,21 @@ export class TaskStore {
       nextRunAt: input.nextRunAt ?? null,
       lastRunAt: null,
       lastRunStatus: null,
+      candidateId: input.candidateId,
       createdAt: timestamp,
       updatedAt: timestamp,
     };
     return this.persist(record);
+  }
+
+  // Phase 1 STEP 9 — reconciliation lookup: "does a Task already exist for
+  // this candidate?" so a retry/crash-recovery path never creates a second
+  // Task for the same accepted candidate (items J/P).
+  public findByCandidateId(candidateId: string): TaskRecord | undefined {
+    for (const record of this.records.values()) {
+      if (record.candidateId === candidateId) return record;
+    }
+    return undefined;
   }
 
   public get(taskId: string): TaskRecord | undefined {

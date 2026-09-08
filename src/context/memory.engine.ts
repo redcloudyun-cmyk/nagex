@@ -21,6 +21,10 @@ export interface MemoryRecord {
     predicate: string;
     value: unknown;
   };
+  // Phase 1 STEP 9, item K — traceability back to the canonical Candidate
+  // this memory was written from, so a lost/crashed action-linkage write
+  // can be reconciled instead of writing a second memory.
+  candidateId?: string;
   created_at: string;
   updated_at: string;
 }
@@ -31,7 +35,8 @@ export class MemoryEngine {
   public proposeMemory(
     scope: MemoryScope,
     ownerId: string,
-    content: { subject: string; predicate: string; value: unknown }
+    content: { subject: string; predicate: string; value: unknown },
+    candidateId?: string,
   ): MemoryRecord {
     const id = generateResourceId('mem');
     const now = getCurrentISOString();
@@ -42,12 +47,21 @@ export class MemoryEngine {
       owner_id: ownerId,
       lifecycle: 'PROPOSED',
       content,
+      candidateId,
       created_at: now,
       updated_at: now,
     };
 
     this.memoryStore.set(id, record);
     return record;
+  }
+
+  // Phase 1 STEP 9 — reconciliation lookup, mirrors TaskStore.findByCandidateId.
+  public findByCandidateId(candidateId: string): MemoryRecord | undefined {
+    for (const record of this.memoryStore.values()) {
+      if (record.candidateId === candidateId) return record;
+    }
+    return undefined;
   }
 
   public activateMemory(id: string): MemoryRecord {

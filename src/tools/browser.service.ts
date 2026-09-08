@@ -158,8 +158,18 @@ export class BrowserToolService {
     return { ...record, title };
   }
 
+  // Deliberately does NOT go through requireSession()'s stricter guard:
+  // close() must always be a safe way to release a session, including one
+  // permanently BLOCKED_NEEDS_HUMAN (Phase 1 STEP 3 — a caller finishing a
+  // capture attempt on a CAPTCHA-blocked page must still be able to tear
+  // it down) and including an already-CLOSED one (idempotent no-op, so a
+  // caller's cleanup path never itself needs special-casing).
   public async close(input: BrowserActionInput): Promise<void> {
-    const record = this.requireSession(input.browserSessionId, input.requestId);
+    const record = this.sessions.get(input.browserSessionId);
+    if (!record) {
+      throw new NagexError({ code: 'BROWSER_SESSION_NOT_FOUND', category: 'NOT_FOUND', message: `Browser session ${input.browserSessionId} was not found.`, request_id: input.requestId });
+    }
+    if (record.status === 'CLOSED') return;
     await this.runtime.closeSession(record.browserSessionId);
     this.sessions.close(record.browserSessionId);
     this.auditAction('browser.close', 'tool.execution.succeeded', input, 'SUCCESS');

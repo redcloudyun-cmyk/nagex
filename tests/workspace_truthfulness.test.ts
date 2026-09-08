@@ -9,6 +9,7 @@ import { S3StorageProvider, readS3ConfigFromEnv } from '../src/storage/s3-storag
 import { CaptureStore } from '../src/workspace/capture.store.js';
 import { QuickCaptureService } from '../src/workspace/quick-capture.service.js';
 import { handleAsyncApiRequest } from '../src/server_web.js';
+import { generateTextPdf } from './_pdf_fixtures.js';
 
 test('InputRouter: classifies input intents correctly into a single primary path', () => {
   // 1. ASK
@@ -186,12 +187,12 @@ test('REST API: /api/v1/workspace/route-input and /api/v1/workspace/upload valid
   assert.equal((routedAsk.data as any).primaryIntent, 'ASK');
 
   // 2. Upload binary document via /api/v1/workspace/upload
-  // A real %PDF- header + BT/Tj text so pdf-extractor.ts's genuine text
-  // extraction succeeds — a buffer without the magic header is correctly
-  // rejected as PDF_CORRUPT rather than faked as parseable.
-  const fileContentBase64 = Buffer.from(
-    '%PDF-1.4\n1 0 obj\n<< >>\nendobj\nBT\n(Nebius Token Factory documentation for the Personal Cloud Vault.) Tj\nET\n%%EOF'
-  ).toString('base64');
+  // A genuine, structurally valid PDF (Phase 1 STEP 4, item R) so
+  // pdf-extractor.ts's real pdfjs-dist parsing genuinely succeeds — a
+  // hand-built %PDF-/BT/Tj string lacks a real xref/trailer and is
+  // correctly rejected by a real parser, not merely faked as parseable.
+  const realPdf = await generateTextPdf(['Nebius Token Factory documentation for the Personal Cloud Vault.']);
+  const fileContentBase64 = realPdf.toString('base64');
   const uploadRes = await handleAsyncApiRequest(
     'POST',
     '/api/v1/workspace/upload',
@@ -208,7 +209,15 @@ test('REST API: /api/v1/workspace/route-input and /api/v1/workspace/upload valid
   assert.equal(uploadRes.status, 201);
   const uploadData = uploadRes.data as any;
   assert.equal(uploadData.type, 'FILE');
-  assert.equal(uploadData.status, 'READY');
+  // Phase 1 STEP 2 (Real Text Understanding): this test exercises the real
+  // production singleton, whose real AiService has no model provider
+  // configured in the test environment (no API keys). Per the truthfulness
+  // requirement, that must surface as a genuine FAILED — never a silently
+  // faked READY — so this is the correct status here, not a regression.
+  // See conditional_watch/personal_workspace/text_understanding tests for
+  // coverage of the real (mocked-provider) understanding path itself.
+  assert.equal(uploadData.status, 'FAILED');
+  assert.equal(uploadData.metadata.errorCode, 'NO_MODEL_PROVIDER_CONFIGURED');
   assert.ok(uploadData.metadata.checksum);
   assert.equal(uploadData.metadata.originalName, 'nebius_guide.pdf');
 

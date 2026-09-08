@@ -37,14 +37,14 @@ export interface AiServiceResponse<T> {
   requestId: string;
 }
 
-function parseJsonObject(text: string, requestId: string): Record<string, unknown> {
+function parseJsonObject(text: string, requestId: string, context: string = 'structured plan'): Record<string, unknown> {
   const cleaned = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
   try {
     const parsed: unknown = JSON.parse(cleaned);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('not an object');
     return parsed as Record<string, unknown>;
   } catch {
-    throw new NagexError({ code: 'INVALID_MODEL_RESPONSE', category: 'PROVIDER', message: 'The model returned invalid structured plan JSON.', request_id: requestId });
+    throw new NagexError({ code: 'INVALID_MODEL_RESPONSE', category: 'PROVIDER', message: `The model returned invalid ${context} JSON.`, request_id: requestId });
   }
 }
 
@@ -97,6 +97,189 @@ function normalizePlan(text: string, requestId: string): PlanPreview {
     }),
   };
 }
+
+// ── Real Text Understanding (Phase 1 STEP 2) ────────────────────────────────
+// Structured, grounded understanding of a single piece of TEXT content.
+// Candidates here are proposals only (status PROPOSED is attached by the
+// caller) — this layer never persists or executes anything.
+
+export interface TextUnderstandingEntity {
+  name: string;
+  type: string;
+}
+
+export interface TextUnderstandingDate {
+  text: string;
+  normalized: string | null;
+  confidence: number;
+}
+
+export interface TextUnderstandingActionItem {
+  text: string;
+  confidence: number;
+}
+
+export interface TextUnderstandingTaskCandidate {
+  title: string;
+  description?: string;
+  priorityCandidate?: 'LOW' | 'MEDIUM' | 'HIGH';
+  dueDateCandidate?: string;
+  confidence: number;
+}
+
+export interface TextUnderstandingCalendarCandidate {
+  title: string;
+  startCandidate?: string;
+  endCandidate?: string;
+  timezone?: string;
+  location?: string;
+  confidence: number;
+}
+
+export interface TextUnderstandingMemoryCandidate {
+  statement: string;
+  memoryType?: 'USER' | 'FACT' | 'PREFERENCE';
+  confidence: number;
+}
+
+export interface TextUnderstandingKnowledgeCandidate {
+  title: string;
+  summary: string;
+  tags?: string[];
+  confidence: number;
+}
+
+export interface TextUnderstandingResult {
+  title: string;
+  summary: string;
+  contentType: string;
+  topics: string[];
+  entities: TextUnderstandingEntity[];
+  dates: TextUnderstandingDate[];
+  actionItems: TextUnderstandingActionItem[];
+  taskCandidates: TextUnderstandingTaskCandidate[];
+  calendarCandidates: TextUnderstandingCalendarCandidate[];
+  memoryCandidates: TextUnderstandingMemoryCandidate[];
+  knowledgeCandidates: TextUnderstandingKnowledgeCandidate[];
+}
+
+function clampConfidence(value: unknown): number {
+  const n = typeof value === 'number' && Number.isFinite(value) ? value : 0.5;
+  return Math.max(0, Math.min(1, n));
+}
+
+function asObjectArray(value: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(value)) return [];
+  return value.filter((v): v is Record<string, unknown> => Boolean(v) && typeof v === 'object' && !Array.isArray(v));
+}
+
+function normalizeEntities(value: unknown): TextUnderstandingEntity[] {
+  return asObjectArray(value)
+    .map((v) => ({ name: typeof v.name === 'string' ? v.name.trim() : '', type: typeof v.type === 'string' && v.type.trim() ? v.type.trim() : 'OTHER' }))
+    .filter((e) => e.name.length > 0);
+}
+
+function normalizeDates(value: unknown): TextUnderstandingDate[] {
+  return asObjectArray(value)
+    .map((v) => ({
+      text: typeof v.text === 'string' ? v.text.trim() : '',
+      // Ambiguous/unstated dates must stay null — never a guessed resolution.
+      normalized: typeof v.normalized === 'string' && v.normalized.trim() ? v.normalized.trim() : null,
+      confidence: clampConfidence(v.confidence),
+    }))
+    .filter((d) => d.text.length > 0);
+}
+
+function normalizeActionItems(value: unknown): TextUnderstandingActionItem[] {
+  return asObjectArray(value)
+    .map((v) => ({ text: typeof v.text === 'string' ? v.text.trim() : '', confidence: clampConfidence(v.confidence) }))
+    .filter((a) => a.text.length > 0);
+}
+
+function normalizePriority(value: unknown): 'LOW' | 'MEDIUM' | 'HIGH' {
+  if (value === 'LOW') return 'LOW';
+  if (value === 'HIGH') return 'HIGH';
+  return 'MEDIUM';
+}
+
+function normalizeTaskCandidates(value: unknown): TextUnderstandingTaskCandidate[] {
+  return asObjectArray(value)
+    .map((v) => ({
+      title: typeof v.title === 'string' ? v.title.trim() : '',
+      description: typeof v.description === 'string' && v.description.trim() ? v.description.trim() : undefined,
+      priorityCandidate: normalizePriority(v.priorityCandidate),
+      dueDateCandidate: typeof v.dueDateCandidate === 'string' && v.dueDateCandidate.trim() ? v.dueDateCandidate.trim() : undefined,
+      confidence: clampConfidence(v.confidence),
+    }))
+    .filter((t) => t.title.length > 0);
+}
+
+function normalizeCalendarCandidates(value: unknown): TextUnderstandingCalendarCandidate[] {
+  return asObjectArray(value)
+    .map((v) => ({
+      title: typeof v.title === 'string' ? v.title.trim() : '',
+      startCandidate: typeof v.startCandidate === 'string' && v.startCandidate.trim() ? v.startCandidate.trim() : undefined,
+      endCandidate: typeof v.endCandidate === 'string' && v.endCandidate.trim() ? v.endCandidate.trim() : undefined,
+      timezone: typeof v.timezone === 'string' && v.timezone.trim() ? v.timezone.trim() : undefined,
+      location: typeof v.location === 'string' && v.location.trim() ? v.location.trim() : undefined,
+      confidence: clampConfidence(v.confidence),
+    }))
+    .filter((c) => c.title.length > 0);
+}
+
+function normalizeMemoryType(value: unknown): 'USER' | 'FACT' | 'PREFERENCE' {
+  if (value === 'FACT') return 'FACT';
+  if (value === 'PREFERENCE') return 'PREFERENCE';
+  return 'USER';
+}
+
+function normalizeMemoryCandidates(value: unknown): TextUnderstandingMemoryCandidate[] {
+  return asObjectArray(value)
+    .map((v) => ({
+      statement: typeof v.statement === 'string' ? v.statement.trim() : '',
+      memoryType: normalizeMemoryType(v.memoryType),
+      confidence: clampConfidence(v.confidence),
+    }))
+    .filter((m) => m.statement.length > 0);
+}
+
+function normalizeKnowledgeCandidates(value: unknown): TextUnderstandingKnowledgeCandidate[] {
+  return asObjectArray(value)
+    .map((v) => ({
+      title: typeof v.title === 'string' ? v.title.trim() : '',
+      summary: typeof v.summary === 'string' ? v.summary.trim() : '',
+      tags: Array.isArray(v.tags) ? v.tags.filter((t): t is string => typeof t === 'string' && t.trim().length > 0).map((t) => t.trim()) : undefined,
+      confidence: clampConfidence(v.confidence),
+    }))
+    .filter((k) => k.title.length > 0 && k.summary.length > 0);
+}
+
+function normalizeUnderstanding(text: string, requestId: string): TextUnderstandingResult {
+  const raw = parseJsonObject(text, requestId, 'text understanding');
+  return {
+    title: requireString(raw.title, 'title', requestId),
+    summary: requireString(raw.summary, 'summary', requestId),
+    contentType: typeof raw.contentType === 'string' && raw.contentType.trim() ? raw.contentType.trim() : 'note',
+    topics: Array.isArray(raw.topics) ? raw.topics.filter((t): t is string => typeof t === 'string' && t.trim().length > 0).map((t) => t.trim()) : [],
+    entities: normalizeEntities(raw.entities),
+    dates: normalizeDates(raw.dates),
+    actionItems: normalizeActionItems(raw.actionItems),
+    taskCandidates: normalizeTaskCandidates(raw.taskCandidates),
+    calendarCandidates: normalizeCalendarCandidates(raw.calendarCandidates),
+    memoryCandidates: normalizeMemoryCandidates(raw.memoryCandidates),
+    knowledgeCandidates: normalizeKnowledgeCandidates(raw.knowledgeCandidates),
+  };
+}
+
+const TEXT_UNDERSTANDING_SYSTEM_PROMPT = [
+  'You are the NAgex text understanding model. You analyze a single piece of captured text and extract only what is explicitly grounded in it.',
+  'Never invent dates, people, organizations, or tasks that are not present in the text. Distinguish an explicit fact stated in the text from an inferred suggestion.',
+  'Candidate generation must be conservative: only propose a taskCandidates/calendarCandidates/memoryCandidates/knowledgeCandidates entry when the text clearly and specifically supports it. When in doubt, omit it — an empty array is correct far more often than a proposed candidate. Never create a candidate merely to appear thorough.',
+  'If a date or detail is ambiguous, relative without a clear anchor, or not stated precisely, set "normalized" to null rather than guessing a resolved date.',
+  'Return JSON only with this exact shape:',
+  '{"title":"string","summary":"string","contentType":"note|idea|task|document|article","topics":["string"],"entities":[{"name":"string","type":"string"}],"dates":[{"text":"string as it appears in the source","normalized":"YYYY-MM-DD or null","confidence":0.0}],"actionItems":[{"text":"string","confidence":0.0}],"taskCandidates":[{"title":"string","description":"string","priorityCandidate":"LOW|MEDIUM|HIGH","dueDateCandidate":"YYYY-MM-DD (omit if unknown)","confidence":0.0}],"calendarCandidates":[{"title":"string","startCandidate":"ISO datetime","endCandidate":"ISO datetime (omit if unknown)","location":"string (omit if unknown)","confidence":0.0}],"memoryCandidates":[{"statement":"string","memoryType":"USER|PREFERENCE|FACT","confidence":0.0}],"knowledgeCandidates":[{"title":"string","summary":"string","tags":["string"],"confidence":0.0}]}',
+  'taskCandidates/calendarCandidates/memoryCandidates/knowledgeCandidates are almost always empty arrays. Only populate one when the text is unambiguous: an explicit thing the user needs to do (task), an explicit event with a date/time (calendar), a durable personal preference or fact worth remembering (memory), or substantial reference material worth indexing (knowledge).',
+].join('\n');
 
 function summarizeMemories(memories: MemoryRecord[]): string {
   if (memories.length === 0) return 'No relevant saved memory.';
@@ -156,6 +339,35 @@ export class AiService {
       ],
     });
     return { data: normalizePlan(response.text, requestId), provider: response.provider, model: response.model, latencyMs: response.latencyMs, requestId: response.requestId };
+  }
+
+  // Real, model-backed understanding of captured TEXT content (Phase 1
+  // STEP 2). Throws (NO_MODEL_PROVIDER_CONFIGURED / ALL_MODEL_PROVIDERS_FAILED
+  // / INVALID_MODEL_RESPONSE) when no provider actually produces a valid,
+  // schema-conforming result — callers must never treat that as success.
+  public async understand(input: { content: string; contentType: string; defaultTitle?: string; mode?: RoutingMode; requestId?: string }): Promise<AiServiceResponse<TextUnderstandingResult>> {
+    const requestId = input.requestId || `understand_${randomUUID()}`;
+    const response = await this.router.generate({
+      mode: input.mode || 'auto',
+      requestId,
+      jsonMode: true,
+      validate: (text) => { normalizeUnderstanding(text, requestId); },
+      messages: [
+        { role: 'system', content: TEXT_UNDERSTANDING_SYSTEM_PROMPT },
+        {
+          role: 'user',
+          content: [
+            `Content type: ${input.contentType}`,
+            input.defaultTitle ? `Suggested title context (do not use unless it matches the content): ${input.defaultTitle}` : null,
+            'Content:',
+            '"""',
+            input.content,
+            '"""',
+          ].filter((line): line is string => line !== null).join('\n'),
+        },
+      ],
+    });
+    return { data: normalizeUnderstanding(response.text, requestId), provider: response.provider, model: response.model, latencyMs: response.latencyMs, requestId: response.requestId };
   }
 }
 

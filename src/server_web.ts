@@ -57,6 +57,10 @@ import { DesktopRuntimeEngine } from './desktop/desktop-runtime.engine.js';
 import { captureStore } from './workspace/capture.store.js';
 import { QuickCaptureService } from './workspace/quick-capture.service.js';
 import { InputRouter } from './workspace/input-router.js';
+import { CandidateStore } from './workspace/candidate.store.js';
+import type { CandidateStatus, CandidateType } from './workspace/candidate.types.js';
+import { CandidateActionResolver } from './workspace/action-resolver.js';
+import { ActivityStore } from './governance/activity.store.js';
 import { createConfiguredStorageProvider } from './storage/s3-storage.provider.js';
 
 const PORT = Number(process.env.PORT || 8085);
@@ -189,6 +193,19 @@ import { KnowledgeEngine } from './context/knowledge.engine.js';
 
 export const knowledgeEngine = new KnowledgeEngine();
 export const storageProvider = createConfiguredStorageProvider();
+export const candidateStore = new CandidateStore();
+export const activityStore = new ActivityStore();
+export const candidateActionResolver = new CandidateActionResolver({
+  candidateStore,
+  captureStore,
+  taskStore,
+  memoryEngine,
+  knowledgeEngine,
+  calendarService: googleCalendarService,
+  executionStore,
+  auditLogger,
+  activityStore,
+});
 export const quickCaptureService = new QuickCaptureService(
   captureStore,
   storageProvider,
@@ -199,6 +216,9 @@ export const quickCaptureService = new QuickCaptureService(
   browserService,
   auditLogger,
   actionApprovals,
+  candidateStore,
+  candidateActionResolver,
+  activityStore,
 );
 export const inputRouter = new InputRouter();
 
@@ -1231,6 +1251,104 @@ export async function handleAsyncApiRequest(
         return { status: 404, data: { error: 'CANDIDATE_NOT_FOUND', message: `Candidate ${candidateId} or capture ${captureId} not found.` } };
       }
       return { status: 200, data: updated };
+    }
+
+    // ─── Phase 1 STEP 5 — Canonical Candidate Model API ───
+    // Accept/reject here ONLY change the candidate's own status — they never
+    // create a Task, request a Calendar approval, write Memory, or index
+    // Knowledge (item J). Real execution is a later, separate Action phase.
+    if (pathname === '/api/v1/candidates' && method === 'GET') {
+      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const statusFilter = query.status as CandidateStatus | undefined;
+      const typeFilter = query.type as CandidateType | undefined;
+      const candidates = quickCaptureService.listCandidates(ownerId, tenantId, {
+        status: statusFilter,
+        type: typeFilter,
+      });
+      return { status: 200, data: { candidates } };
+    }
+
+    // ─── Phase 1 STEP 8 — Consumer Activity Projection ───
+    // Tenant/principal-isolated, durable, human-readable (item F/H/I) —
+    // never the raw AuditLogger and never the legacy non-tenant-isolated
+    // executionHistory array.
+    if (pathname === '/api/v1/activity' && method === 'GET') {
+      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const limitRaw = Number(query.limit);
+      const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 200) : 50;
+      const activities = quickCaptureService.listActivity(ownerId, tenantId, limit);
+      return { status: 200, data: { activities } };
+    }
+
+    if (pathname.startsWith('/api/v1/candidates/') && pathname.endsWith('/accept') && method === 'POST') {
+      const candidateId = pathname.slice('/api/v1/candidates/'.length, pathname.length - '/accept'.length);
+      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const record = quickCaptureService.acceptCandidate(candidateId, ownerId, tenantId);
+      return { status: 200, data: record };
+    }
+
+    if (pathname.startsWith('/api/v1/candidates/') && pathname.endsWith('/reject') && method === 'POST') {
+      const candidateId = pathname.slice('/api/v1/candidates/'.length, pathname.length - '/reject'.length);
+      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const record = quickCaptureService.rejectCandidate(candidateId, ownerId, tenantId);
+      return { status: 200, data: record };
+    }
+
+    // ─── Phase 1 STEP 7 — Real Actions ───
+    // Execute/retry ONLY ever advance a candidate's own `action` sub-state —
+    // Candidate Review (accept/reject above) is a separate operation from
+    // Action execution, and for CALENDAR specifically this first call only
+    // ever requests the existing Action Approval; the real Google write
+    // still requires that approval to be separately granted via the
+    // unchanged /api/v1/approvals/:id/approve endpoint.
+    if (pathname.startsWith('/api/v1/candidates/') && pathname.endsWith('/execute') && method === 'POST') {
+      const candidateId = pathname.slice('/api/v1/candidates/'.length, pathname.length - '/execute'.length);
+      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const record = await quickCaptureService.executeCandidateAction(candidateId, ownerId, tenantId);
+      return { status: 200, data: record };
+    }
+
+    if (pathname.startsWith('/api/v1/candidates/') && pathname.endsWith('/retry') && method === 'POST') {
+      const candidateId = pathname.slice('/api/v1/candidates/'.length, pathname.length - '/retry'.length);
+      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const record = await quickCaptureService.retryCandidateAction(candidateId, ownerId, tenantId);
+      return { status: 200, data: record };
+    }
+
+    if (pathname.startsWith('/api/v1/candidates/') && pathname.endsWith('/action') && method === 'GET') {
+      const candidateId = pathname.slice('/api/v1/candidates/'.length, pathname.length - '/action'.length);
+      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const action = quickCaptureService.getCandidateAction(candidateId, ownerId, tenantId);
+      return { status: 200, data: { candidateId, action } };
+    }
+
+    if (pathname.startsWith('/api/v1/candidates/') && method === 'PATCH') {
+      const candidateId = pathname.slice('/api/v1/candidates/'.length);
+      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const record = quickCaptureService.modifyCandidate(candidateId, ownerId, tenantId, {
+        title: typeof body?.title === 'string' ? body.title : undefined,
+        payload: (body?.payload && typeof body.payload === 'object') ? body.payload as Record<string, unknown> : undefined,
+      });
+      return { status: 200, data: record };
+    }
+
+    if (pathname.startsWith('/api/v1/candidates/') && method === 'GET') {
+      const candidateId = pathname.slice('/api/v1/candidates/'.length);
+      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const record = quickCaptureService.getCandidate(candidateId, ownerId, tenantId);
+      if (!record) {
+        return { status: 404, data: { error: 'CANDIDATE_NOT_FOUND', message: `Candidate ${candidateId} not found.` } };
+      }
+      return { status: 200, data: record };
     }
 
     if (pathname.startsWith('/api/v1/workspace/items/') && pathname.endsWith('/retry') && method === 'POST') {

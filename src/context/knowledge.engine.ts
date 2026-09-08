@@ -9,6 +9,12 @@ export interface KnowledgeDocument {
   title: string;
   classification: KnowledgeClassification;
   content: string;
+  // Phase 1 STEP 7 — traceability back to the canonical Candidate/Capture a
+  // document was created from (item F): never set for documents added
+  // through any other path, and never fabricated when absent.
+  candidateId?: string;
+  contentHash?: string;
+  sourceRefs?: string[];
 }
 
 export interface KnowledgeCandidate {
@@ -29,6 +35,18 @@ export class KnowledgeEngine {
     };
     this.documents.set(document_id, document);
     return document;
+  }
+
+  public getDocument(documentId: string): KnowledgeDocument | undefined {
+    return this.documents.get(documentId);
+  }
+
+  // Phase 1 STEP 9 — reconciliation lookup, mirrors TaskStore.findByCandidateId.
+  public findByCandidateId(candidateId: string): KnowledgeDocument | undefined {
+    for (const document of this.documents.values()) {
+      if (document.candidateId === candidateId) return document;
+    }
+    return undefined;
   }
 
   public retrieveCandidates(
