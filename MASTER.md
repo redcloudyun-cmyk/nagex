@@ -839,6 +839,63 @@ Settings
 
 **Known pre-existing gap surfaced while implementing this** (not introduced by this change, not fixed by it — out of scope for a navigation-only pass): `view-approvals`'s markup is still the original static mockup from the early UI-cloning pass (hardcoded names/events, a `renderApprovals()` target container that doesn't exist in that markup, so it never actually renders `state.approvals`). The real, live approvals surface remains Home's "Needs your attention" section and the Inbox, both of which are genuinely data-driven; only the secondary, Advanced-only Approvals page itself is stale and still needs a truthfulness pass.
 
+### 14.13 Nebius x NVIDIA Global AI Hackathon — 7-Week Execution Roadmap
+
+Adopted 2026-09-08 from the NAgex Nebius/NVIDIA Hackathon 7-Week Execution Roadmap directive. This is the near-term calendar-bound execution plan for Section 4's Hackathon Objective — it refines Section 9's Phase H1–H5 with actual dates and takes priority over Section 14's longer-term extended-vision items whenever the two compete for effort between now and submission.
+
+**Deadlines:**
+
+```text
+Official submission deadline : 2026-10-30 10:00 PDT (2026-10-31 02:00 KST)
+Recommended internal target   : 2026-10-29 KST
+Recommended feature freeze    : 2026-10-25
+Recommended code/demo freeze  : 2026-10-27
+```
+
+**Required-green hackathon checklist:** run on Nebius Token Factory/AI Cloud; use at least one NVIDIA open-source model; a working hosted demo/test-build URL; a public source repo with an open-source license; clear README setup/run instructions; an explicit explanation of where Nebius/NVIDIA are actually used; a public YouTube demo under 3 minutes matching the shipped product; and, since NAgex predates this submission period, a clear disclosure of what changed during it. Nebius/NVIDIA integration must not be left to the final week.
+
+**Product thesis:** NAgex is not "another Agent framework / MCP client / AI dashboard / multi-model chat interface." It is a Personal AI that understands intent and internally selects the model, agent, MCP, tool, and connection needed — none of which the user ever picks. Canonical principle: **"Model, Agent, MCP, and Tool are infrastructure. Intent is the interface."**
+
+**Demo thesis (canonical loop):** input → NAgex understands it → memory/context applied → capability auto-selected (Agent/MCP/Tool invisible) → connection/approval requested only when required → real action executes → result stored → Activity/Memory/Vault update → NAgex can continue or notify later. Recommended concrete scenario: drop a PDF or paste a URL → NAgex summarizes and detects a date/action item → proposes a Task or Calendar candidate → user approves → a real Google Calendar/Gmail action executes → result recorded → optionally a Conditional Watch continues the work.
+
+**7-week plan:**
+
+| Week | Dates | Focus | Checkpoint |
+|---|---|---|---|
+| 1 | Sep 8–13 | Product/UX/architecture lock: finalize Agentless Command UI (done — Section 14.12) and the Capability Broker / Invisible MCP architecture concept; keep the sequence Unified Capture → Real Understanding → Candidate → Review → Action; STEP 1 Unified Capture accepted (done); no new major feature categories | 2026-09-13 |
+| 2 | Sep 14–20 | Real (not simulated) text understanding via the existing Model Router → structured output (title/summary/contentType/topics/entities/dates/actionItems/taskCandidates/calendarCandidates/memoryCandidates/knowledgeCandidates); Candidate model states PROPOSED/ACCEPTED/REJECTED/EXPIRED; no candidate may auto-mutate Task/Calendar/Memory; Review UX foundation; retry/idempotency | 2026-09-20 |
+| 3 | Sep 21–27 | URL understanding (reuse Browser Agent, safe URL validation, semantic extraction, grounded source metadata, CAPTCHA/login → NEEDS_HUMAN, no bypass) and PDF understanding (real fixtures, extraction, chunking, synthesis, source chunk refs, zero-text PDF → OCR-needed/unsupported state, never fake understanding); real Accept/Modify/Reject review flow in Inbox | 2026-09-27 |
+| 4 | Sep 28–Oct 4 | Real action loop: candidate acceptance → real Task creation; Calendar candidate → Safe Plan + Approval → real Google Calendar action; Memory candidate → explicit accepted persistence; Knowledge candidate → honest persistence/indexing; Activity/Home propagation; failure/retry UX. Capability Broker foundation: canonical capability IDs, provider abstraction, Capability Registry, wrapping the existing Calendar/Gmail/Browser providers while preserving existing approval/replay/audit controls. **Do not start dynamic MCP discovery yet.** | 2026-10-04 |
+| 5 | Oct 5–11 | Nebius + NVIDIA proof: confirm a real Nebius runtime call and at least one real NVIDIA open-source model in the actual flow; surface Nebius/NVIDIA evidence (requestId/provider/model/latency/capability/result) in audit/developer views, never consumer UX, and never hidden by failover during the demo; Connection Resolver + `Settings → Connections` + contextual "Connect Google/Notion/…" UX; optionally one static trusted MCP PoC behind the Capability Broker, with no visible MCP install flow | 2026-10-11 |
+| 6 | Oct 12–18 | Freeze one primary demo flow (Quick Wake/Home → voice or file input → real understanding → candidate → review → invisible capability resolution → real Calendar/Gmail/Browser action → result → Activity/Memory/Vault → optional watch/notification); polish error/loading/empty states, EN/KR copy, latency, Home hierarchy, Inbox/approval clarity, test-server reliability; start README/architecture-diagram/screenshot/significant-update-disclosure drafts | 2026-10-18 |
+| 7 | Oct 19–25 | Submission package + reliability freeze: regression/browser/deployment/OAuth tests, public demo accessibility, judge test account if needed; repo (LICENSE, README, setup, architecture, env template, no secrets, significant-update statement); Devpost draft; <3 min video script (0:00–0:20 thesis, 0:20–0:45 command-first experience, 0:45–2:10 real end-to-end demo, 2:10–2:35 Nebius/NVIDIA evidence, 2:35–2:55 differentiation, 2:55–3:00 close). **Feature freeze 2026-10-25.** | 2026-10-25 |
+
+**Final submission buffer (Oct 26–30, not a development week):** Oct 26 full regression + deployment rehearsal + public URL check; Oct 27 code/demo freeze + record final video; Oct 28 final README/screenshots/Devpost; Oct 29 recommended final submission + verify YouTube/GitHub/test URL/credentials/license; Oct 30 KST emergency buffer only; **Oct 31 02:00 KST hard deadline** — never plan a first-time submission near the hard deadline.
+
+**Priority matrix:**
+
+```text
+P0 (must exist):    Command-first Home, Unified Capture, real Text/URL/PDF
+                     Understanding, Candidate/Review, real action execution
+                     (Calendar/Gmail/Browser), Capability Broker foundation,
+                     Nebius runtime, NVIDIA open-source model, public demo,
+                     README, license, <3 min video.
+P1 (differentiators): Voice/Quick Wake, persistent Memory, Conditional Watch,
+                     Notifications, invisible/static-trusted MCP PoC,
+                     Connection Resolver, Inbox, Activity, Vault.
+P2 (only if time remains, must never delay P0/P1): dynamic MCP discovery,
+                     Computer Use, large MCP catalog, marketplace, mobile
+                     app, advanced automation builder, multi-agent visual UI.
+```
+
+**Scope control rules (in force now through submission):** no new top-level menu for a new capability; no visible Agent/MCP/Tool/Model picker in consumer mode; every new feature must strengthen the primary demo loop; architecture work that can't be demoed by Oct 18 is lower priority; dynamic MCP discovery is optional but the Capability Broker is not; Nebius/NVIDIA real integration must be green by Oct 11; no new feature development after Oct 25.
+
+**Weekly go/no-go check:** does the primary demo still work; is the feature real or simulated; does it improve the Personal AI story; does it require the user to understand internal architecture; can a judge see the value within 30 seconds; does it threaten the Oct 25 freeze. A feature that fails the Personal-AI-story, architecture-exposure, or freeze-threat question is deferred.
+
+**Canonical demo acceptance test** — a judge should be able to: open NAgex; type/speak/paste a URL/drop a PDF; watch NAgex understand it and identify next actions without ever picking an Agent/MCP/Tool/Model; get asked to connect a service only if needed; get asked for approval only if the action is consequential; see a real action execute; see the result land in Activity/Vault/Memory/Task state; and verify Nebius+NVIDIA usage in technical evidence. If this flow is green, the submission is viable.
+
+**Final rule:** September builds the product; early October proves the architecture; mid-October perfects the demo; late October submits — it does not invent new features. The target is the most convincing version of NAgex that proves **"Intent is the interface,"** not the largest NAgex.
+
 ## 15. Final Product Position
 
 ```text
