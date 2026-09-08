@@ -22,6 +22,8 @@ import { extractPdfText, chunkText } from './pdf-extractor.js';
 import { CandidateStore, type UpsertCandidateInput } from './candidate.store.js';
 import type { ActivityStore } from '../governance/activity.store.js';
 import { classifyFailure } from '../common/failure-taxonomy.js';
+import { SafetyEngine } from '../governance/safety.engine.js';
+import { PersistentSafetyStore } from '../governance/safety.store.js';
 
 // The internal analysis shape used throughout this file is exactly
 // AiService's real understanding output — see ai-service.ts. Kept as a local
@@ -137,6 +139,44 @@ export class CaptureProcessor {
     }
 
     try {
+      // Phase 2 Step 1 — Trust & Safety Layer: Intent Risk Evaluation (TS-5, Directive Section 2.2)
+      const safetyDecision = await SafetyEngine.getInstance().evaluateIntent({
+        input: item.content || item.metadata.originalName || '',
+        tenantId: item.tenantId,
+        userId: item.ownerId,
+        sourceType: item.type === 'LINK' ? 'URL' : item.type === 'FILE' ? 'PDF' : 'TEXT',
+      });
+
+      if (!safetyDecision.planningAllowed || !safetyDecision.responseAllowed) {
+        const blockedAt = new Date().toISOString();
+        const blocked = this.updateStatusWithFailure(item, 'NEEDS_REVIEW', {
+          processingStage: 'NEEDS_REVIEW',
+          processingCompletedAt: blockedAt,
+          errorCode: 'SAFETY_BLOCKED',
+          errorMessage: safetyDecision.userFacingExplanation,
+          extractedSummary: `Blocked by Trust & Safety policy (${safetyDecision.riskLevel}): ${safetyDecision.userFacingExplanation}`,
+        });
+
+        const safetyStore = new PersistentSafetyStore();
+        await safetyStore.recordEvent({
+          eventId: `sev_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          tenantId: item.tenantId,
+          userId: item.ownerId,
+          decisionId: safetyDecision.decisionId,
+          eventType: safetyDecision.riskLevel === 'R4' ? 'safety.high_severity_event.created' : 'safety.action.blocked',
+          riskLevel: safetyDecision.riskLevel,
+          categories: safetyDecision.categories,
+          reasonCodes: safetyDecision.reasonCodes,
+          policyVersion: safetyDecision.policyVersion,
+          actionTaken: safetyDecision.userFacingExplanation,
+          userFacingExplanation: safetyDecision.userFacingExplanation,
+          timestamp: blockedAt,
+        });
+
+        this.recordCaptureActivity(blocked ?? item);
+        return blocked ?? item;
+      }
+
       let result: CaptureItem;
       if (item.type === 'LINK') {
         result = await this.processUrl(item);

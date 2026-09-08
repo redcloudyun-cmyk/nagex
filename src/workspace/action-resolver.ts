@@ -47,6 +47,8 @@ import type { ExecutionStore } from '../governance/execution.store.js';
 import type { AuditLogger } from '../governance/audit.logger.js';
 import type { ActivityStore, ActivityStatus } from '../governance/activity.store.js';
 import type { CalendarEventPayload } from '../integrations/google/calendar.client.js';
+import { PreExecutionSafetyGate } from '../governance/action-safety.gate.js';
+import { PersistentSafetyStore } from '../governance/safety.store.js';
 
 export interface CandidateActionResolverOptions {
   candidateStore: CandidateStore;
@@ -111,6 +113,50 @@ export class CandidateActionResolver {
         message: `Candidate ${candidateId}'s action is already running.`,
         request_id: requestId,
       });
+    }
+
+    // Phase 2 Step 1 — Pre-Execution Action Safety Gate (TS-4, Directive Section 6 & 17)
+    const safetyDecision = await PreExecutionSafetyGate.getInstance().evaluateAction({
+      tenantId,
+      userId: principalId,
+      capabilityId: candidate.type,
+      actionType: candidate.type,
+      toolArguments: candidate.payload as Record<string, any>,
+    });
+
+    if (!safetyDecision.executionAllowed) {
+      const now = new Date().toISOString();
+      const updated = this.deps.candidateStore.updateAction(
+        candidate.candidateId,
+        candidate.tenantId,
+        candidate.principalId,
+        {
+          status: 'FAILED',
+          errorCode: 'SAFETY_BLOCKED',
+          category: 'TERMINAL',
+          retryable: false,
+        },
+        requestId
+      );
+
+      const safetyStore = new PersistentSafetyStore();
+      await safetyStore.recordEvent({
+        eventId: `sev_act_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        tenantId,
+        userId: principalId,
+        decisionId: safetyDecision.decisionId,
+        eventType: 'safety.action.blocked',
+        riskLevel: safetyDecision.riskLevel,
+        categories: safetyDecision.categories,
+        reasonCodes: safetyDecision.reasonCodes,
+        policyVersion: safetyDecision.policyVersion,
+        actionTaken: safetyDecision.userFacingExplanation,
+        userFacingExplanation: safetyDecision.userFacingExplanation,
+        timestamp: now,
+      });
+
+      this.audit('candidate.action.blocked', updated, requestId, 'DENIED');
+      return updated;
     }
 
     this.audit('candidate.action.requested', candidate, requestId, 'PENDING_APPROVAL');
