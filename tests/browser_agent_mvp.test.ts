@@ -1,17 +1,27 @@
-import { test } from 'node:test';
+import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { BrowserToolService } from '../src/tools/browser.service.js';
-import { PlaywrightBrowserRuntime } from '../src/integrations/browser/browser.runtime.js';
+import { PlaywrightBrowserRuntime, browserRuntime } from '../src/integrations/browser/browser.runtime.js';
 import { BrowserSessionStore } from '../src/browser/browser-session.store.js';
 import { ActionApprovalStore } from '../src/governance/action-approval.store.js';
 import { AuditLogger } from '../src/governance/audit.logger.js';
 import { MemoryEngine } from '../src/context/memory.engine.js';
 import { isUrlSafe, assertUrlSafe } from '../src/browser/browser-url-validator.js';
 import { handleAsyncApiRequest } from '../src/server_web.js';
+
+// The "REST API endpoints" test below goes through server_web.ts's default
+// (non-DI'd) route, which launches the process-lifetime `browserRuntime`
+// singleton — the same instance a live server never closes. Left open here,
+// its real Chromium process keeps `node --test` from ever exiting once this
+// file's tests finish, so it must be shut down explicitly (mirrors the
+// shared-runtime shutdown() pattern in browser_agent.test.ts / conditional_watch.test.ts).
+after(async () => {
+  await browserRuntime.shutdown();
+});
 
 function tempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-browser-mvp-test-'));
