@@ -595,8 +595,29 @@ export async function handleAsyncApiRequest(
       auditLogger.logEvent({ actor: { type: 'user', id: principalId }, tenant_id: tid, action: 'oauth:google_disconnected', resource: { type: 'OAuthConnection', id: 'google_calendar' }, result: 'SUCCESS', request_id: requestId });
       return { status: 200, data: googleTokenStore.getStatus(tid) };
     }
-    // NOTE: Capture routes (route-input, upload, capture, vault, inbox, storage/status)
-    // are handled in the canonical Phase 2 Personal Workspace section below (~line 1131).
+    // NOTE: upload/capture/capture-PATCH are handled in the canonical Phase 2
+    // Personal Workspace section below (~line 1131) — this is the async path,
+    // so the Promise-returning summary/health routes belong here instead.
+    if (pathname === '/api/v1/workspace/route-input' && method === 'POST') {
+      const text = typeof body?.text === 'string' ? body.text : '';
+      const hasFile = Boolean(body?.hasFile);
+      const hasAudio = Boolean(body?.hasAudio);
+      const mimeType = typeof body?.mimeType === 'string' ? body.mimeType : undefined;
+      const classification = InputRouter.classify({ text, hasFile, hasAudio, mimeType });
+      return { status: 200, data: classification };
+    }
+    if (pathname === '/api/v1/workspace/storage/status' && method === 'GET') {
+      const status = await quickCaptureService.getStorageHealth();
+      return { status: 200, data: status };
+    }
+    if (pathname === '/api/v1/workspace/inbox' && method === 'GET') {
+      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      return { status: 200, data: quickCaptureService.getInboxSummary(ownerId) };
+    }
+    if (pathname === '/api/v1/workspace/vault' && method === 'GET') {
+      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      return { status: 200, data: await quickCaptureService.getVaultSummary(ownerId) };
+    }
     if (pathname === '/api/v1/plans/resolve' && method === 'POST') {
       const candidate = body?.plan && typeof body.plan === 'object' ? body.plan : body;
       return { status: 200, data: planResolver.resolve(candidate as unknown as PlanPreview) };

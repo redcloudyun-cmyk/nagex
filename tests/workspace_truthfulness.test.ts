@@ -186,7 +186,12 @@ test('REST API: /api/v1/workspace/route-input and /api/v1/workspace/upload valid
   assert.equal((routedAsk.data as any).primaryIntent, 'ASK');
 
   // 2. Upload binary document via /api/v1/workspace/upload
-  const fileContentBase64 = Buffer.from('Binary PDF content bytes for Personal Cloud Vault').toString('base64');
+  // A real %PDF- header + BT/Tj text so pdf-extractor.ts's genuine text
+  // extraction succeeds — a buffer without the magic header is correctly
+  // rejected as PDF_CORRUPT rather than faked as parseable.
+  const fileContentBase64 = Buffer.from(
+    '%PDF-1.4\n1 0 obj\n<< >>\nendobj\nBT\n(Nebius Token Factory documentation for the Personal Cloud Vault.) Tj\nET\n%%EOF'
+  ).toString('base64');
   const uploadRes = await handleAsyncApiRequest(
     'POST',
     '/api/v1/workspace/upload',

@@ -63,13 +63,20 @@ test('QuickCaptureService: captures action item text and detects NEEDS_REVIEW st
 test('QuickCaptureService: captures FILE payload with UPLOADING -> PROCESSING -> READY lifecycle', async () => {
   const { service, cleanup } = createTempStore();
   try {
+    // A minimal but real PDF: a valid %PDF- header plus a BT/Tj text
+    // operator so pdf-extractor.ts's genuine (non-mocked) text extraction
+    // has something real to find — a plain non-PDF buffer is correctly
+    // rejected as PDF_CORRUPT by extractPdfText's magic-header check.
+    const minimalPdf = Buffer.from(
+      '%PDF-1.4\n1 0 obj\n<< >>\nendobj\nBT\n(This document describes the target architecture for NAgex.) Tj\nET\n%%EOF'
+    );
     const item = await service.uploadBinaryObject({
       ownerId: 'usr_test_03',
       tenantId: 'ten_test_01',
       type: 'FILE',
       filename: 'architecture.pdf',
       mimeType: 'application/pdf',
-      data: Buffer.from('Binary PDF content'),
+      data: minimalPdf,
       source: 'WEB',
     });
 

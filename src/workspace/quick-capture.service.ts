@@ -32,6 +32,16 @@ import {
 } from './vault-security.js';
 import { generateResourceId } from '../common/utils.js';
 
+// Matches getVaultSummary()'s category grouping (Files/Links/Audio/Notes) so
+// a capture's vaultPath always points into the same category folder it is
+// aggregated under in the Vault view.
+function vaultFolderFor(type: CaptureType): string {
+  if (type === 'FILE') return 'files';
+  if (type === 'LINK') return 'links';
+  if (type === 'AUDIO') return 'audio';
+  return 'notes';
+}
+
 export interface PresignedUploadInitResult {
   uploadId: string;
   captureId: string;
@@ -110,10 +120,11 @@ export class QuickCaptureService {
       : await this.storageProvider.getSignedUrl(objectKey, expiresInSeconds);
 
     // 4. Create initial CaptureItem in UPLOADING state
+    const initType = (params.mimeType.startsWith('audio/') ? 'AUDIO' : 'FILE') as CaptureType;
     this.store.createCapture({
       ownerId: params.ownerId,
       tenantId: params.tenantId,
-      type: (params.mimeType.startsWith('audio/') ? 'AUDIO' : 'FILE') as CaptureType,
+      type: initType,
       content: objectKey,
       source: 'WEB',
       metadata: {
@@ -123,6 +134,7 @@ export class QuickCaptureService {
         objectKey,
         storageProvider: this.storageProvider.getProviderName(),
       },
+      vaultPath: `${vaultFolderFor(initType)}/${objectKey}`,
     });
     this.store.updateStatus(captureId, 'UPLOADING');
 
@@ -190,10 +202,11 @@ export class QuickCaptureService {
 
     let item = this.store.getCapture(params.captureId);
     if (!item) {
+      const completeType = (params.mimeType.startsWith('audio/') ? 'AUDIO' : 'FILE') as CaptureType;
       item = this.store.createCapture({
         ownerId: params.ownerId,
         tenantId: params.tenantId,
-        type: (params.mimeType.startsWith('audio/') ? 'AUDIO' : 'FILE') as CaptureType,
+        type: completeType,
         content: params.objectKey,
         source: 'WEB',
         metadata: {
@@ -204,6 +217,7 @@ export class QuickCaptureService {
           storageProvider: this.storageProvider.getProviderName(),
           checksum: actualChecksum,
         },
+        vaultPath: `${vaultFolderFor(completeType)}/${params.objectKey}`,
       });
     } else {
       this.store.updateStatus(params.captureId, 'QUEUED', {
@@ -265,6 +279,7 @@ export class QuickCaptureService {
         storageProvider: this.storageProvider.getProviderName(),
         checksum: objectMeta.checksum,
       },
+      vaultPath: `${vaultFolderFor(params.type)}/${objectKey}`,
     });
 
     this.quotaEngine.recordUpload(params.ownerId, objectMeta.sizeBytes);

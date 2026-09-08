@@ -437,24 +437,6 @@ export class CaptureProcessor {
 
     const candidates = this.buildCandidatesFromAnalysis(item.captureId, analysis, sourceRefs);
 
-    // Automatically propose a KnowledgeCandidate for PDFs if not already present
-    if (!candidates.some((c) => c.type === 'KNOWLEDGE')) {
-      const knCandidate: KnowledgeCandidate = {
-        candidateId: generateResourceId('cand'),
-        captureId: item.captureId,
-        type: 'KNOWLEDGE',
-        title: analysis.title || docTitle,
-        summary: analysis.summary,
-        tags: analysis.topics,
-        chunkIds: chunks.map((c) => c.chunkId),
-        reason: 'Structured knowledge extracted from PDF document',
-        confidence: 0.9,
-        sourceRefs,
-        status: 'PROPOSED',
-      };
-      candidates.push(knCandidate);
-    }
-
     const completedAt = new Date().toISOString();
     const nextStatus: CaptureStatus = candidates.length > 0 ? 'NEEDS_REVIEW' : 'READY';
 
@@ -514,7 +496,26 @@ export class CaptureProcessor {
     const title = item.metadata.originalName || `Voice Memo (${new Date(item.createdAt).toLocaleTimeString()})`;
     const transcriptText = `Audio recording transcript (${sizeKb} KB processed).`;
 
-    const candidates: WorkspaceCandidate[] = [];
+    // No real speech-to-text provider is wired yet (MASTER.md Section 8: a
+    // mock must never be represented as live) — the transcript honestly
+    // records only what is verifiable (size, filename), never fabricated
+    // spoken content. Since the recording's actual content is unknown until
+    // it is played back, a review task is proposed rather than silently
+    // discarding it.
+    const candidates: WorkspaceCandidate[] = [
+      {
+        candidateId: generateResourceId('cand'),
+        captureId: item.captureId,
+        type: 'TASK',
+        title: `Review voice memo: ${title}`,
+        description: `Listen to and review this ${sizeKb} KB audio recording — automatic transcription is not yet configured.`,
+        priorityCandidate: 'MEDIUM',
+        reason: 'Audio captures need manual review until a real speech-to-text provider is connected',
+        confidence: 0.6,
+        sourceRefs: [],
+        status: 'PROPOSED',
+      } as TaskCandidate,
+    ];
     const completedAt = new Date().toISOString();
 
     const updated = this.store.updateStatus(item.captureId, 'READY', {
@@ -523,7 +524,13 @@ export class CaptureProcessor {
       extractedTitle: title,
       extractedSummary: `Voice transcript (${sizeKb} KB): ${transcriptText}`,
       extractedContent: transcriptText,
+      transcript: { text: transcriptText },
       candidates,
+      suggestedAction: {
+        type: 'TASK',
+        title: candidates[0].title,
+        detail: (candidates[0] as TaskCandidate).description,
+      },
     });
 
     return updated ?? item;

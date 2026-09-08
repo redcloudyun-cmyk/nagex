@@ -46,6 +46,7 @@ export class CaptureStore {
     content: string;
     source?: 'WEB' | 'DESKTOP' | 'MOBILE' | 'TELEGRAM' | 'SLACK';
     metadata?: Partial<CaptureItem['metadata']>;
+    vaultPath?: string;
   }): CaptureItem {
     const captureId = generateResourceId('cap');
     const now = new Date().toISOString();
@@ -58,6 +59,7 @@ export class CaptureStore {
       status: 'CAPTURED',
       source: params.source ?? 'WEB',
       metadata: params.metadata ?? {},
+      vaultPath: params.vaultPath,
       createdAt: now,
       updatedAt: now,
     };
