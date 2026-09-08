@@ -1,5 +1,72 @@
 # NAgex Deployment Notes
 
+## Application Update (`scripts/nagex-update.sh`)
+
+This is the repository-managed, version-controlled version of the
+operational `nagex-update` command referenced throughout this document.
+Run it on the deployment host from the repo checkout:
+
+```bash
+scripts/nagex-update.sh
+```
+
+It runs, in order, failing (and leaving the previous process running)
+if any stage fails:
+
+1. Verifies the repo path/branch and refuses to run against a dirty
+   working tree.
+2. `git fetch origin` → `git checkout main` → `git reset --hard
+   origin/main` (non-interactive — same behavior the server's existing
+   `nagex-update` uses).
+3. `npm ci`.
+4. Resolves the **exact** Chromium executable the installed Playwright
+   version expects (`chromium.executablePath()`), not merely whether
+   `~/.cache/ms-playwright` exists — a stale/partial cache from a
+   different Playwright version would pass a directory check while
+   still being unusable. Runs `npx playwright install chromium` only
+   if that executable is actually missing.
+5. Performs a **real** headless `chromium.launch()` to confirm the
+   browser genuinely starts, not just that a binary file exists on
+   disk. The deploy is aborted if this fails.
+6. `npm run build`, then `npm test`.
+7. Restarts the service (`sudo systemctl restart nagex`) — only
+   reached once every check above is green.
+
+Browser Agent intentionally **fails closed** with `BROWSER_UNAVAILABLE`
+whenever no usable browser runtime exists (missing binary, or a binary
+that exists but cannot launch on this host) — this is correct,
+intended safety behavior, not a bug. Step 5 above exists so a broken
+Chromium install is caught during deployment instead of surfacing
+later as `BROWSER_UNAVAILABLE`/failed Conditional Watch checks in
+production.
+
+There is currently no documented (or implemented) canonical health
+endpoint for NAgex, so `nagex-update.sh` does not attempt a post-deploy
+health check — only build/test success gates the restart. Add one here
+once a real `/health`-style endpoint exists.
+
+### One-time Ubuntu host provisioning (not part of every deployment)
+
+Chromium's OS-level shared-library dependencies (fonts, `libnss3`,
+`libatk`, etc.) are a **host provisioning** concern, separate from the
+application update above — they require `sudo`, they don't change
+between deploys, and a routine update should never mutate OS packages.
+Run this once per host (and again only if the OS image changes or
+Playwright's browser dependency list changes):
+
+```bash
+sudo npx playwright install-deps chromium
+```
+
+`scripts/nagex-update.sh` deliberately never runs `install-deps`.
+
+### CI (`.github/workflows/ci.yml`)
+
+GitHub-hosted runners are ephemeral, so CI provisions Chromium *and*
+its OS dependencies together on every run (`npx playwright install
+--with-deps chromium`) — the same "OS deps are separate" rule doesn't
+apply there because there is no persistent host to provision once.
+
 ## Google OAuth Token Persistence
 
 Google Calendar OAuth tokens are stored encrypted on disk so a service

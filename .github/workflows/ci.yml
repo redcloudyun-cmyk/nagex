@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   pull_request:
-    branches: [master]
+    branches: [main]
 
 jobs:
   build-and-test:
@@ -18,5 +18,13 @@ jobs:
           cache: npm
 
       - run: npm ci
+
+      # GitHub-hosted runners are ephemeral — nothing installed by a
+      # previous run persists — so the Chromium binary AND its OS-level
+      # dependencies must be provisioned on every run. This is CI-only:
+      # scripts/nagex-update.sh deliberately never runs --with-deps on a
+      # persistent host (see docs/DEPLOYMENT.md).
+      - run: npx playwright install --with-deps chromium
+
       - run: npm run build
       - run: npm test
