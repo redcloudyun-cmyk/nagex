@@ -298,8 +298,8 @@
     const hour = new Date().getHours();
     const isKr = window.NAGEX_I18N && window.NAGEX_I18N.currentLocale === 'kr';
     const greetingText = isKr
-      ? (hour < 12 ? '좋은 아침입니다, SARAH' : hour < 18 ? '좋은 오후입니다, SARAH' : '좋은 저녁입니다, SARAH')
-      : (hour < 12 ? 'GOOD MORNING, SARAH' : hour < 18 ? 'GOOD AFTERNOON, SARAH' : 'GOOD EVENING, SARAH');
+      ? (hour < 12 ? '좋은 아침입니다' : hour < 18 ? '좋은 오후입니다' : '좋은 저녁입니다')
+      : (hour < 12 ? 'GOOD MORNING' : hour < 18 ? 'GOOD AFTERNOON' : 'GOOD EVENING');
 
     const heroEyebrow = document.querySelector('.eyebrow-text');
     const heroSub = document.querySelector('.personal-hero-subtitle');
@@ -424,11 +424,11 @@
   async function renderHomeWorkspaceSections() {
     const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
 
-    // 1. NAgex is working
+    // 1. NAgex is working (max 2 items)
     const elWorking = document.getElementById('list-nagex-working');
     if (elWorking) {
       const card = elWorking.closest('.canvas-section-card');
-      const activeTasks = state.tasks.filter((task) => task.status === 'RUNNING' || task.status === 'WAITING' || task.status === 'ACTIVE');
+      const activeTasks = state.tasks.filter((task) => task.status === 'RUNNING' || task.status === 'WAITING' || task.status === 'ACTIVE').slice(0, 2);
       if (activeTasks.length > 0) {
         if (card) card.style.display = 'block';
         elWorking.innerHTML = activeTasks.map((task) => {
@@ -446,7 +446,7 @@
       }
     }
 
-    // 2. Needs your attention
+    // 2. Needs your attention (max 2 items total)
     const elAttention = document.getElementById('list-needs-attention');
     if (elAttention) {
       const card = elAttention.closest('.canvas-section-card');
@@ -455,9 +455,11 @@
       const totalCount = pendingApprs.length + reviewCaptures.length;
       if (totalCount > 0) {
         if (card) card.style.display = 'block';
+        const visibleApprs = pendingApprs.slice(0, 2);
+        const visibleCaptures = reviewCaptures.slice(0, Math.max(0, 2 - visibleApprs.length));
         let html = '';
-        if (pendingApprs.length > 0) {
-          html += pendingApprs.map((a) => {
+        if (visibleApprs.length > 0) {
+          html += visibleApprs.map((a) => {
             const humanAction = a.intent || a.action || 'Approval Required';
             return `<div class="inbox-item-card contextual-approval-card">
               <div class="inbox-item-main">
@@ -472,8 +474,8 @@
             </div>`;
           }).join('');
         }
-        if (reviewCaptures.length > 0) {
-          html += reviewCaptures.map((c) => `<div class="inbox-item-card" onclick="window.NAGEX.switchTab('tab-inbox')"><div class="inbox-item-main"><span class="inbox-item-title">${escapeHtml(c.metadata?.extractedTitle || c.content)}</span><span class="inbox-item-summary">${escapeHtml(c.metadata?.extractedSummary || '')}</span></div><span class="badge-status status-NEEDS_REVIEW">REVIEW</span></div>`).join('');
+        if (visibleCaptures.length > 0) {
+          html += visibleCaptures.map((c) => `<div class="inbox-item-card" onclick="window.NAGEX.switchTab('tab-inbox')"><div class="inbox-item-main"><span class="inbox-item-title">${escapeHtml(c.metadata?.extractedTitle || c.content)}</span><span class="inbox-item-summary">${escapeHtml(c.metadata?.extractedSummary || '')}</span></div><span class="badge-status status-NEEDS_REVIEW">REVIEW</span></div>`).join('');
         }
         elAttention.innerHTML = html;
       } else {
@@ -481,7 +483,7 @@
       }
     }
 
-    // 3. Today summary
+    // 3. Today summary (max 2 items)
     const elToday = document.getElementById('list-today-summary');
     if (elToday) {
       const card = elToday.closest('.canvas-section-card');
@@ -491,11 +493,11 @@
       }
     }
 
-    // 4. Recent activity
+    // 4. Recent activity (max 2 items)
     const elRecent = document.getElementById('list-recent-activity');
     if (elRecent) {
       const card = elRecent.closest('.canvas-section-card');
-      const execs = state.executions.slice(0, 3);
+      const execs = state.executions.slice(0, 2);
       if (execs.length > 0) {
         if (card) card.style.display = 'block';
         elRecent.innerHTML = execs.map((e) => {

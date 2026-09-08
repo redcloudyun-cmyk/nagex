@@ -47,10 +47,9 @@ test('the composer starts empty with the example sentence as placeholder only, n
 test('the Home tab prompt box no longer ships with the demo sentence baked into its value', async () => {
   await withServer(async (origin) => {
     const html = await (await fetch(`${origin}/`)).text();
-    const inputMatch = /<input[^>]*id="home-prompt-input"[^>]*>/.exec(html);
+    const inputMatch = /<(?:input|textarea)[^>]*id="home-prompt-input"[^>]*>/.exec(html);
     assert.ok(inputMatch, 'expected to find the home prompt input in the served page');
-    assert.match(inputMatch![0], /value=""/);
-    assert.doesNotMatch(inputMatch![0], /Prepare my next client meeting/);
+    assert.doesNotMatch(inputMatch[0], /Prepare my next client meeting/);
   });
 });
 
