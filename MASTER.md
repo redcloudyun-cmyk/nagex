@@ -802,6 +802,43 @@ Avoid:  "Select the optimal LLM provider."
 | Architecture principle | Agent is infrastructure, not interface. |
 | Korean | NAgex · 다음 시대를 위한 Personal AI · 다음 시대를 위한 지능 |
 
+### 14.12 Agentless Command UI — Home / Navigation Redefinition
+
+Adopted 2026-09-08 from the NAgex Agentless Command UI Home / Navigation Redefinition directive. This is the canonical navigation specification going forward, superseding the specific sidebar contents (though not the general Consumer/Advanced split) described earlier in 14.9 §5.
+
+**Canonical default consumer navigation (exactly five items, flat, no section labels):**
+
+```text
+Home
+Inbox
+Activity
+Vault
+Settings
+```
+
+`Capture`, `Tasks`, `Memory`, `Knowledge`, `Automations`, `Connections`, `Approvals`, `Agents`, `Skills`, `Tools`, `Executions`, `Developer` are never top-level sidebar items in default consumer mode. None of this is deleted — every one of these remains a real, reachable system: as an input behavior (Capture), a contextual card (Approvals via "Needs your attention"/Inbox), or a page reachable from Settings → (Memory / Automations / Connections) or Settings → Advanced → (Knowledge / Approvals / Skills / Tools). Backend routes, services, stores, and tests are never removed just because a menu item disappears.
+
+**Settings information architecture:**
+
+```text
+Settings
+├─ Model Gateway (existing)
+├─ Quick Wake (existing)
+├─ Autonomy (existing)
+├─ Connections
+├─ Memory
+├─ Automations
+└─ Advanced (collapsed by default)
+   ├─ Knowledge
+   ├─ Approvals
+   ├─ Skills
+   └─ Tools
+```
+
+**Consumer mental model this enforces:** "I tell NAgex what I need," never "I need to know which NAgex module to open." Consumer-facing copy must never ask the user to choose an Agent, Tool, MCP, or Model by name.
+
+**Known pre-existing gap surfaced while implementing this** (not introduced by this change, not fixed by it — out of scope for a navigation-only pass): `view-approvals`'s markup is still the original static mockup from the early UI-cloning pass (hardcoded names/events, a `renderApprovals()` target container that doesn't exist in that markup, so it never actually renders `state.approvals`). The real, live approvals surface remains Home's "Needs your attention" section and the Inbox, both of which are genuinely data-driven; only the secondary, Advanced-only Approvals page itself is stale and still needs a truthfulness pass.
+
 ## 15. Final Product Position
 
 ```text

@@ -1097,6 +1097,66 @@
         )
         .join('');
     }
+
+    renderSettingsConnections();
+    wireSettingsAdvancedToggle();
+  }
+
+  // Real Google OAuth connection status (state.googleOAuth, already fetched
+  // by loadAllData) — never a fake "Connected" badge (MASTER.md Section 8).
+  function renderSettingsConnections() {
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    const el = document.getElementById('settings-connections-status');
+    if (!el) return;
+
+    const oauth = state.googleOAuth || { configured: false, connected: false };
+    const statusLabel = oauth.connected
+      ? t('settings.connected') || 'Connected'
+      : oauth.configured
+        ? t('settings.notConnected') || 'Not connected'
+        : t('settings.notConfigured') || 'Not configured on this server';
+
+    el.innerHTML = `
+      <div class="setting-row">
+        <div class="setting-info">
+          <span class="setting-title">Google Calendar &amp; Gmail</span>
+          <span class="device-tag">${escapeHtml(statusLabel)}</span>
+        </div>
+        <button class="btn-secondary" id="btn-settings-google-toggle" ${!oauth.configured ? 'disabled' : ''}>
+          ${oauth.connected ? (t('settings.disconnect') || 'Disconnect') : (t('settings.connect') || 'Connect')}
+        </button>
+      </div>`;
+
+    const btn = document.getElementById('btn-settings-google-toggle');
+    if (btn && oauth.configured) {
+      btn.onclick = async () => {
+        if (oauth.connected) {
+          await apiFetch('/api/v1/oauth/google/disconnect', { method: 'POST' });
+          const fresh = await apiFetch('/api/v1/oauth/google/status');
+          if (fresh) state.googleOAuth = fresh;
+          renderSettingsConnections();
+        } else {
+          window.location.href = '/api/v1/oauth/google/start';
+        }
+      };
+    }
+  }
+
+  // Advanced is collapsed by default (MASTER.md Section 14.12 / 14.9 §5) —
+  // wired once per renderSettings() call so a re-render never loses state
+  // by re-hiding an already-opened list.
+  function wireSettingsAdvancedToggle() {
+    const toggle = document.getElementById('btn-settings-advanced-toggle');
+    const list = document.getElementById('settings-advanced-list');
+    if (!toggle || !list || toggle.dataset.wired) return;
+    toggle.dataset.wired = '1';
+    toggle.onclick = () => {
+      const expanded = toggle.getAttribute('aria-expanded') === 'true';
+      toggle.setAttribute('aria-expanded', String(!expanded));
+      list.hidden = expanded;
+      const caret = toggle.querySelector('.settings-advanced-caret');
+      if (caret) caret.textContent = expanded ? '▸' : '▾';
+    };
   }
 
   function initQuickWake() {

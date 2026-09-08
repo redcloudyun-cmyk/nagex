@@ -40,7 +40,11 @@
       <aside class="sidebar-left" id="sidebar-left">
         <div class="sidebar-top-group">
           <ul class="nav-menu">
-            <!-- Primary Navigation (Consumer Interface) -->
+            <!-- Default Consumer Navigation (MASTER.md Section 14.12) — exactly
+                 five flat items, no section labels. Capture/Tasks/Memory/
+                 Knowledge/Automations/Connections/Approvals/Skills/Tools are
+                 not deleted — they're reachable from Settings/Settings →
+                 Advanced (see #view-settings) or contextually (Inbox). -->
             <li class="nav-item active" data-tab="tab-home">
               <button class="nav-link" title="Home">
                 <svg class="svg-icon" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
@@ -48,21 +52,15 @@
               </button>
             </li>
             <li class="nav-item" data-tab="tab-inbox">
-              <button class="nav-link" title="Capture">
+              <button class="nav-link" title="Inbox">
                 <svg class="svg-icon" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5v-3h3.56c.69 1.19 1.97 2 3.44 2s2.75-.81 3.44-2H19v3zm0-5h-4.18c-.41 1.16-1.51 2-2.82 2s-2.41-.84-2.82-2H5V5h14v9z"/></svg>
-                <span data-i18n="nav.capture">Capture</span>
+                <span data-i18n="nav.inbox">Inbox</span>
               </button>
             </li>
-            <li class="nav-item" data-tab="tab-tasks">
-              <button class="nav-link" title="Tasks">
-                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.2 14.2L11 13V7h1.5v5.2l4.5 2.7-.8 1.3z"/></svg>
-                <span data-i18n="nav.tasks">Tasks</span>
-              </button>
-            </li>
-            <li class="nav-item" data-tab="tab-memory">
-              <button class="nav-link" title="Memory">
-                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
-                <span data-i18n="nav.memory">Memory</span>
+            <li class="nav-item" data-tab="tab-executions">
+              <button class="nav-link" title="Activity">
+                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+                <span data-i18n="nav.activity">Activity</span>
               </button>
             </li>
             <li class="nav-item" data-tab="tab-vault">
@@ -71,46 +69,10 @@
                 <span data-i18n="nav.vault">Vault</span>
               </button>
             </li>
-
-            <!-- Secondary Navigation (More) -->
-            <li class="nav-header-divider"><span data-i18n="nav.more">More</span></li>
-            <li class="nav-item" data-tab="tab-executions">
-              <button class="nav-link" title="Activity">
-                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
-                <span data-i18n="nav.activity">Activity</span>
-              </button>
-            </li>
-            <li class="nav-item" data-tab="tab-knowledge">
-              <button class="nav-link" title="Knowledge">
-                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h9v2zm-4 4H9v-2h5v2zm4-8H9V5h9v2z"/></svg>
-                <span data-i18n="nav.knowledge">Knowledge</span>
-              </button>
-            </li>
             <li class="nav-item" data-tab="tab-settings">
               <button class="nav-link" title="Settings">
                 <svg class="svg-icon" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
                 <span data-i18n="nav.settings">Settings</span>
-              </button>
-            </li>
-
-            <!-- Advanced / Platform Navigation -->
-            <li class="nav-header-divider"><span data-i18n="nav.advanced">Advanced</span></li>
-            <li class="nav-item" data-tab="tab-approvals">
-              <button class="nav-link" title="Approvals">
-                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-5.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
-                <span data-i18n="nav.approvals">Approvals</span>
-              </button>
-            </li>
-            <li class="nav-item" data-tab="tab-skills">
-              <button class="nav-link" title="Skills">
-                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
-                <span data-i18n="nav.skills">Skills</span>
-              </button>
-            </li>
-            <li class="nav-item" data-tab="tab-tools">
-              <button class="nav-link" title="Tools">
-                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.6C.4 7 1 10 3 12c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.4-.4.4-1.1 0-1.5z"/></svg>
-                <span data-i18n="nav.tools">Tools</span>
               </button>
             </li>
           </ul>
@@ -309,6 +271,7 @@
 
         <!-- VIEW 2: MEMORY -->
         <div id="view-memory" class="tab-view">
+          <button class="settings-back-link" data-tab="tab-settings" onclick="window.NAGEX.switchTab('tab-settings')">‹ <span data-i18n="settings.backToSettings">Back to Settings</span></button>
           <div class="view-header">
             <div>
               <h2 data-i18n="memory.title">Personal Memory</h2>
@@ -575,6 +538,7 @@
 
         <!-- VIEW: TASKS (MASTER.md Section 14.4 — Tasks Center) -->
         <div id="view-tasks" class="tab-view">
+          <button class="settings-back-link" data-tab="tab-settings" onclick="window.NAGEX.switchTab('tab-settings')">‹ <span data-i18n="settings.backToSettings">Back to Settings</span></button>
           <div class="view-header">
             <div>
               <h2 data-i18n="tasks.title">Tasks</h2>
@@ -641,6 +605,7 @@
 
         <!-- VIEW 4: SKILLS -->
         <div id="view-skills" class="tab-view">
+          <button class="settings-back-link" data-tab="tab-settings" onclick="window.NAGEX.switchTab('tab-settings')">‹ <span data-i18n="settings.backToSettings">Back to Settings</span></button>
           <div class="view-header">
             <div>
               <h2 data-i18n="skills.title">Reusable Skills</h2>
@@ -659,6 +624,7 @@
 
         <!-- VIEW 5: TOOLS -->
         <div id="view-tools" class="tab-view">
+          <button class="settings-back-link" data-tab="tab-settings" onclick="window.NAGEX.switchTab('tab-settings')">‹ <span data-i18n="settings.backToSettings">Back to Settings</span></button>
           <div class="view-header">
             <div>
               <h2 data-i18n="tools.title">Executable Tools</h2>
@@ -673,6 +639,7 @@
 
         <!-- VIEW 6: MOBILE APPROVALS & CONNECTED TOOLS (MOCKUP IMAGE 3) -->
         <div id="view-approvals" class="tab-view">
+          <button class="settings-back-link" data-tab="tab-settings" onclick="window.NAGEX.switchTab('tab-settings')">‹ <span data-i18n="settings.backToSettings">Back to Settings</span></button>
           <div class="mountain-hero-banner-sub">
             <span class="eyebrow-text">HUMAN-CONTROLLED AUTONOMY</span>
             <h1 class="personal-hero-title">Approvals</h1>
@@ -806,6 +773,7 @@
 
         <!-- VIEW 8: KNOWLEDGE -->
         <div id="view-knowledge" class="tab-view">
+          <button class="settings-back-link" data-tab="tab-settings" onclick="window.NAGEX.switchTab('tab-settings')">‹ <span data-i18n="settings.backToSettings">Back to Settings</span></button>
           <div class="view-header">
             <div>
               <h2 data-i18n="knowledge.title">Reference Knowledge</h2>
@@ -857,6 +825,44 @@
                 <!-- Dynamically populated -->
               </div>
             </div>
+
+            <!-- Connections, Memory, Automations, and Advanced (MASTER.md
+                 Section 14.12) are reclassified here from former top-level
+                 sidebar items — same views/routes, reached from Settings
+                 instead of the default sidebar. -->
+            <div class="settings-card">
+              <h3 data-i18n="settings.connections">Connections</h3>
+              <p class="setting-sub" data-i18n="settings.connectionsDesc">Services NAgex can act on with your approval.</p>
+              <div id="settings-connections-status">
+                <!-- Dynamically populated -->
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <h3 data-i18n="settings.memory">Memory</h3>
+              <p class="setting-sub" data-i18n="settings.memoryDesc">Preferences, session context, and task history NAgex remembers — inspectable and controllable.</p>
+              <button class="btn-secondary" data-tab="tab-memory" onclick="window.NAGEX.switchTab('tab-memory')" data-i18n="settings.openMemory">Open Memory</button>
+            </div>
+
+            <div class="settings-card">
+              <h3 data-i18n="settings.automations">Automations</h3>
+              <p class="setting-sub" data-i18n="settings.automationsDesc">Standing work that recurs, waits, watches a condition, or runs in the background.</p>
+              <button class="btn-secondary" data-tab="tab-tasks" onclick="window.NAGEX.switchTab('tab-tasks')" data-i18n="settings.openAutomations">Open Automations</button>
+            </div>
+
+            <div class="settings-card">
+              <button class="settings-advanced-toggle" id="btn-settings-advanced-toggle" aria-expanded="false" aria-controls="settings-advanced-list">
+                <h3 data-i18n="settings.advanced">Advanced</h3>
+                <span class="settings-advanced-caret">▸</span>
+              </button>
+              <p class="setting-sub" data-i18n="settings.advancedDesc">Internal architecture — Knowledge, Approvals, Skills, and Tools. Not needed for everyday use.</p>
+              <div class="settings-advanced-list" id="settings-advanced-list" hidden>
+                <button class="btn-secondary" data-tab="tab-knowledge" onclick="window.NAGEX.switchTab('tab-knowledge')" data-i18n="settings.knowledge">Knowledge</button>
+                <button class="btn-secondary" data-tab="tab-approvals" onclick="window.NAGEX.switchTab('tab-approvals')" data-i18n="settings.approvals">Approvals</button>
+                <button class="btn-secondary" data-tab="tab-skills" onclick="window.NAGEX.switchTab('tab-skills')" data-i18n="settings.skills">Skills</button>
+                <button class="btn-secondary" data-tab="tab-tools" onclick="window.NAGEX.switchTab('tab-tools')" data-i18n="settings.tools">Tools</button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -874,7 +880,9 @@
       </aside>
     </div>
 
-    <!-- Mobile Bottom Navigation Bar (Primary Consumer Model: Home, Capture, Tasks) -->
+    <!-- Mobile Bottom Navigation Bar — mirrors the default consumer nav
+         (MASTER.md Section 14.12): Home, Inbox, Activity, Vault. Settings
+         stays reachable via the hamburger sidebar, same as desktop. -->
     <nav class="mobile-bottom-nav">
       <button class="mob-nav-item active" onclick="window.NAGEX.switchTab('tab-home')">
         <span class="icon">🏠</span>
@@ -882,11 +890,15 @@
       </button>
       <button class="mob-nav-item" onclick="window.NAGEX.switchTab('tab-inbox')">
         <span class="icon">📥</span>
-        <span data-i18n="nav.capture">Capture</span>
+        <span data-i18n="nav.inbox">Inbox</span>
       </button>
-      <button class="mob-nav-item" onclick="window.NAGEX.switchTab('tab-tasks')">
+      <button class="mob-nav-item" onclick="window.NAGEX.switchTab('tab-executions')">
         <span class="icon">⚡</span>
-        <span data-i18n="nav.tasks">Tasks</span>
+        <span data-i18n="nav.activity">Activity</span>
+      </button>
+      <button class="mob-nav-item" onclick="window.NAGEX.switchTab('tab-vault')">
+        <span class="icon">🗄️</span>
+        <span data-i18n="nav.vault">Vault</span>
       </button>
     </nav>
 

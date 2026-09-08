@@ -1781,3 +1781,40 @@ body {
 }
 .category-name { font-size: 0.88rem; font-weight: 600; color: var(--text-navy); }
 .category-count { font-size: 0.78rem; color: var(--text-secondary); }
+
+/* Settings-reached secondary views (Memory/Tasks/Skills/Tools/Knowledge/
+   Approvals — MASTER.md Section 14.12): a lightweight way back, since none
+   of these have a sidebar entry of their own anymore. */
+.settings-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+  padding: 0.3rem 0.6rem;
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.settings-back-link:hover { color: var(--accent-blue); border-color: var(--accent-blue); }
+
+.settings-advanced-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+.settings-advanced-caret { color: var(--text-secondary); font-size: 0.85rem; }
+.settings-advanced-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
