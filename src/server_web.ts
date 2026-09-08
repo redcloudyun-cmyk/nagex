@@ -595,80 +595,8 @@ export async function handleAsyncApiRequest(
       auditLogger.logEvent({ actor: { type: 'user', id: principalId }, tenant_id: tid, action: 'oauth:google_disconnected', resource: { type: 'OAuthConnection', id: 'google_calendar' }, result: 'SUCCESS', request_id: requestId });
       return { status: 200, data: googleTokenStore.getStatus(tid) };
     }
-    if (pathname === '/api/v1/workspace/route-input' && method === 'POST') {
-      const text = typeof body?.text === 'string' ? body.text : '';
-      const hasFile = Boolean(body?.hasFile);
-      const hasAudio = Boolean(body?.hasAudio);
-      const mimeType = typeof body?.mimeType === 'string' ? body.mimeType : undefined;
-      const classification = InputRouter.classify({ text, hasFile, hasAudio, mimeType });
-      return { status: 200, data: classification };
-    }
-    if (pathname === '/api/v1/workspace/upload' && method === 'POST') {
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
-
-      const type = (typeof body?.type === 'string' ? body.type : 'FILE') as any;
-      const filename = typeof body?.filename === 'string' ? body.filename : 'file.bin';
-      const mimeType = typeof body?.mimeType === 'string' ? body.mimeType : 'application/octet-stream';
-      const source = (typeof body?.source === 'string' ? body.source : 'WEB') as any;
-
-      // Convert base64 data or raw string to Buffer
-      let dataBuf: Buffer;
-      if (typeof body?.base64 === 'string') {
-        dataBuf = Buffer.from(body.base64, 'base64');
-      } else if (typeof body?.content === 'string') {
-        dataBuf = Buffer.from(body.content, 'utf8');
-      } else {
-        throw new NagexError({ code: 'EMPTY_FILE_PAYLOAD', category: 'VALIDATION', message: 'Binary payload data is required.', request_id: requestId });
-      }
-
-      // Max size validation (50 MB limit)
-      if (dataBuf.length > 50 * 1024 * 1024) {
-        throw new NagexError({ code: 'FILE_TOO_LARGE', category: 'VALIDATION', message: 'File size exceeds maximum allowed limit of 50 MB.', request_id: requestId });
-      }
-
-      const result = await quickCaptureService.uploadBinaryObject({
-        ownerId,
-        tenantId,
-        type,
-        filename,
-        mimeType,
-        data: dataBuf,
-        source,
-      });
-      return { status: 201, data: result };
-    }
-    if (pathname === '/api/v1/workspace/capture' && method === 'POST') {
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const result = await quickCaptureService.captureTextOrLink({
-        ownerId,
-        tenantId,
-        type: (typeof body?.type === 'string' ? body.type : 'TEXT') as any,
-        content: typeof body?.content === 'string' ? body.content : '',
-        source: (typeof body?.source === 'string' ? body.source : 'WEB') as any,
-      });
-      return { status: 201, data: result };
-    }
-    if (pathname === '/api/v1/workspace/storage/status' && method === 'GET') {
-      const status = await quickCaptureService.getStorageHealth();
-      return { status: 200, data: status };
-    }
-    if (pathname === '/api/v1/workspace/inbox' && method === 'GET') {
-      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      return { status: 200, data: quickCaptureService.getInboxSummary(ownerId) };
-    }
-    if (pathname === '/api/v1/workspace/vault' && method === 'GET') {
-      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      return { status: 200, data: await quickCaptureService.getVaultSummary(ownerId) };
-    }
-    if (pathname.startsWith('/api/v1/workspace/capture/') && method === 'PATCH') {
-      const captureId = pathname.slice('/api/v1/workspace/capture/'.length);
-      const actionType = body?.status as 'ACTIONED' | 'ARCHIVED';
-      const updated = await quickCaptureService.actionCapture(captureId, actionType ?? 'ACTIONED');
-      return { status: 200, data: updated };
-    }
+    // NOTE: Capture routes (route-input, upload, capture, vault, inbox, storage/status)
+    // are handled in the canonical Phase 2 Personal Workspace section below (~line 1131).
     if (pathname === '/api/v1/plans/resolve' && method === 'POST') {
       const candidate = body?.plan && typeof body.plan === 'object' ? body.plan : body;
       return { status: 200, data: planResolver.resolve(candidate as unknown as PlanPreview) };
@@ -1174,11 +1102,26 @@ export async function handleAsyncApiRequest(
     if (pathname === '/api/v1/workspace/upload' && method === 'POST') {
       const filename = (body?.filename as string) || 'upload.bin';
       const mimeType = (body?.mimeType as string) || 'application/octet-stream';
-      const rawData = body?.data ? (typeof body.data === 'string' ? Buffer.from(body.data, 'base64') : Buffer.from(body.data as any)) : Buffer.alloc(0);
       const type = (body?.type as any) || (mimeType.startsWith('audio/') ? 'AUDIO' : 'FILE');
       const source = (body?.source as any) || 'WEB';
       const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
       const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'ten_production_01';
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+      // Accept body.base64 (from frontend audio/file recorder), body.data (binary stream),
+      // or body.content (plain text fallback). Reject empty payloads.
+      let rawData: Buffer;
+      if (typeof body?.base64 === 'string' && body.base64.length > 0) {
+        rawData = Buffer.from(body.base64, 'base64');
+      } else if (body?.data) {
+        rawData = typeof body.data === 'string' ? Buffer.from(body.data, 'base64') : Buffer.from(body.data as any);
+      } else if (typeof body?.content === 'string' && body.content.length > 0) {
+        rawData = Buffer.from(body.content, 'utf8');
+      } else {
+        throw new NagexError({ code: 'EMPTY_FILE_PAYLOAD', category: 'VALIDATION', message: 'Binary payload data is required (base64, data, or content).', request_id: requestId });
+      }
+      if (rawData.length > 50 * 1024 * 1024) {
+        throw new NagexError({ code: 'FILE_TOO_LARGE', category: 'VALIDATION', message: 'File size exceeds maximum allowed limit of 50 MB.', request_id: requestId });
+      }
       const item = await quickCaptureService.uploadBinaryObject({
         ownerId: principalId,
         tenantId,
@@ -1553,23 +1496,9 @@ export function handleApiRequest(
   if (pathname === '/api/v1/audit/logs' && method === 'GET') return { status: 200, data: { logs: auditLogger.getRecentLogs ? auditLogger.getRecentLogs(20) : [], total: auditLogger.getRecentLogs ? auditLogger.getRecentLogs(20).length : 0 } };
   if (pathname === '/api/v1/executions' && method === 'GET') return { status: 200, data: { executions: executionHistory, total: executionHistory.length } };
   // ─── MASTER.md Section 14.6 — Main Session + Tasks Foundation ───
-
-  if (pathname === '/api/v1/workspace/route-input' && method === 'POST') {
-    const text = (body?.text as string) || '';
-    const classification = inputRouter.classify({ text });
-    return { status: 200, data: classification };
-  }
-
-  if (pathname === '/api/v1/workspace/vault' && method === 'GET') {
-    const summary = quickCaptureService.getVaultSummary(principal.id);
-    return { status: 200, data: summary };
-  }
-
-  if (pathname === '/api/v1/workspace/inbox' && method === 'GET') {
-    const summary = quickCaptureService.getInboxSummary(principal.id);
-    return { status: 200, data: summary };
-  }
-
+  // NOTE: workspace/route-input, workspace/vault, workspace/inbox are handled
+  // in handleAsyncApiRequest (async). They cannot appear here (sync fallback)
+  // because getVaultSummary() returns a Promise that would be returned raw.
 
 
   if (pathname === '/api/v1/sessions/main' && method === 'GET') {
