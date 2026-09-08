@@ -46,76 +46,77 @@
       <aside class="sidebar-left" id="sidebar-left">
         <div class="sidebar-top-group">
           <ul class="nav-menu">
+            <!-- Primary Navigation (Consumer Interface) -->
             <li class="nav-item active" data-tab="tab-home">
-              <button class="nav-link">
+              <button class="nav-link" title="Home">
                 <svg class="svg-icon" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
                 <span data-i18n="nav.home">Home</span>
               </button>
             </li>
             <li class="nav-item" data-tab="tab-inbox">
-              <button class="nav-link">
+              <button class="nav-link" title="Capture">
                 <svg class="svg-icon" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5v-3h3.56c.69 1.19 1.97 2 3.44 2s2.75-.81 3.44-2H19v3zm0-5h-4.18c-.41 1.16-1.51 2-2.82 2s-2.41-.84-2.82-2H5V5h14v9z"/></svg>
-                <span data-i18n="nav.inbox">Inbox</span>
-              </button>
-            </li>
-            <li class="nav-item" data-tab="tab-vault">
-              <button class="nav-link">
-                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
-                <span data-i18n="nav.vault">Cloud Vault</span>
-              </button>
-            </li>
-            <li class="nav-item" data-tab="tab-memory">
-              <button class="nav-link">
-                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
-                <span data-i18n="nav.memory">Memory</span>
-              </button>
-            </li>
-            <li class="nav-item" data-tab="tab-plans">
-              <button class="nav-link">
-                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
-                <span data-i18n="nav.plans">Plans</span>
+                <span data-i18n="nav.capture">Capture</span>
               </button>
             </li>
             <li class="nav-item" data-tab="tab-tasks">
-              <button class="nav-link">
+              <button class="nav-link" title="Tasks">
                 <svg class="svg-icon" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.2 14.2L11 13V7h1.5v5.2l4.5 2.7-.8 1.3z"/></svg>
                 <span data-i18n="nav.tasks">Tasks</span>
               </button>
             </li>
-            <li class="nav-item" data-tab="tab-skills">
-              <button class="nav-link">
-                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
-                <span data-i18n="nav.skills">Skills</span>
+            <li class="nav-item" data-tab="tab-memory">
+              <button class="nav-link" title="Memory">
+                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+                <span data-i18n="nav.memory">Memory</span>
               </button>
             </li>
-            <li class="nav-item" data-tab="tab-tools">
-              <button class="nav-link">
-                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.6C.4 7 1 10 3 12c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.4-.4.4-1.1 0-1.5z"/></svg>
-                <span data-i18n="nav.tools">Tools</span>
+            <li class="nav-item" data-tab="tab-vault">
+              <button class="nav-link" title="Vault">
+                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+                <span data-i18n="nav.vault">Vault</span>
               </button>
             </li>
-            <li class="nav-item" data-tab="tab-approvals">
-              <button class="nav-link">
-                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-5.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
-                <span data-i18n="nav.approvals">Approvals</span>
-              </button>
-            </li>
+
+            <!-- Secondary Navigation (More) -->
+            <li class="nav-header-divider"><span data-i18n="nav.more">More</span></li>
             <li class="nav-item" data-tab="tab-executions">
-              <button class="nav-link">
+              <button class="nav-link" title="Activity">
                 <svg class="svg-icon" viewBox="0 0 24 24"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
-                <span data-i18n="nav.executions">Executions</span>
+                <span data-i18n="nav.activity">Activity</span>
               </button>
             </li>
             <li class="nav-item" data-tab="tab-knowledge">
-              <button class="nav-link">
+              <button class="nav-link" title="Knowledge">
                 <svg class="svg-icon" viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h9v2zm-4 4H9v-2h5v2zm4-8H9V5h9v2z"/></svg>
                 <span data-i18n="nav.knowledge">Knowledge</span>
               </button>
             </li>
             <li class="nav-item" data-tab="tab-settings">
-              <button class="nav-link">
+              <button class="nav-link" title="Settings">
                 <svg class="svg-icon" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
                 <span data-i18n="nav.settings">Settings</span>
+              </button>
+            </li>
+
+            <!-- Advanced / Platform Navigation -->
+            <li class="nav-header-divider"><span data-i18n="nav.advanced">Advanced</span></li>
+            <li class="nav-item" data-tab="tab-approvals">
+              <button class="nav-link" title="Approvals">
+                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-5.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
+                <span data-i18n="nav.approvals">Approvals</span>
+              </button>
+            </li>
+            <li class="nav-item" data-tab="tab-skills">
+              <button class="nav-link" title="Skills">
+                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                <span data-i18n="nav.skills">Skills</span>
+              </button>
+            </li>
+            <li class="nav-item" data-tab="tab-tools">
+              <button class="nav-link" title="Tools">
+                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.6C.4 7 1 10 3 12c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.4-.4.4-1.1 0-1.5z"/></svg>
+                <span data-i18n="nav.tools">Tools</span>
               </button>
             </li>
           </ul>
@@ -286,131 +287,7 @@
           </div>
         </div>
 
-          <!-- Lower 3-Column Dashboard Section -->
-          <div class="dashboard-widgets-grid-3col">
-            <!-- Col 1: Recent conversations -->
-            <div class="dash-card">
-              <div class="dash-card-header">
-                <h3 data-i18n="home.recentConvos">Recent conversations</h3>
-                <a class="link-view-all" onclick="window.NAGEX.switchTab('tab-executions')">View all</a>
-              </div>
-              <div class="dash-card-content">
-                <div class="convo-row">
-                  <div class="convo-icon-bubble">💬</div>
-                  <div class="convo-info">
-                    <div class="convo-title">Prepare for product meeting</div>
-                    <div class="convo-sub">Summarize key points, draft talking...</div>
-                  </div>
-                  <span class="convo-time">2h ago &gt;</span>
-                </div>
-                <div class="convo-row">
-                  <div class="convo-icon-bubble">💬</div>
-                  <div class="convo-info">
-                    <div class="convo-title">Plan my week</div>
-                    <div class="convo-sub">Create a focused plan with time blocks...</div>
-                  </div>
-                  <span class="convo-time">1d ago &gt;</span>
-                </div>
-                <div class="convo-row">
-                  <div class="convo-icon-bubble">💬</div>
-                  <div class="convo-info">
-                    <div class="convo-title">Research on AI productivity</div>
-                    <div class="convo-sub">Find the latest trends and key insights...</div>
-                  </div>
-                  <span class="convo-time">2d ago &gt;</span>
-                </div>
-                <div class="convo-row">
-                  <div class="convo-icon-bubble">💬</div>
-                  <div class="convo-info">
-                    <div class="convo-title">Draft a birthday message</div>
-                    <div class="convo-sub">Write a warm and thoughtful message...</div>
-                  </div>
-                  <span class="convo-time">3d ago &gt;</span>
-                </div>
-              </div>
-            </div>
 
-            <!-- Col 2: Suggested for you -->
-            <div class="dash-card">
-              <div class="dash-card-header">
-                <h3 data-i18n="home.suggestedTasks">Suggested for you</h3>
-                <a class="link-view-all">See more</a>
-              </div>
-              <div class="dash-card-content">
-                <div class="suggest-row" onclick="window.NAGEX.openAmbientWithPrompt('Plan my day')">
-                  <div class="suggest-icon-blue">📅</div>
-                  <div class="suggest-info">
-                    <div class="suggest-title">Plan your day</div>
-                    <div class="suggest-sub">Turn your goals into a focused plan</div>
-                  </div>
-                  <span class="suggest-arrow">&rarr;</span>
-                </div>
-                <div class="suggest-row" onclick="window.NAGEX.openAmbientWithPrompt('Summarize my notes')">
-                  <div class="suggest-icon-green">📄</div>
-                  <div class="suggest-info">
-                    <div class="suggest-title">Summarize your notes</div>
-                    <div class="suggest-sub">Get key takeaways in seconds</div>
-                  </div>
-                  <span class="suggest-arrow">&rarr;</span>
-                </div>
-                <div class="suggest-row" onclick="window.NAGEX.openAmbientWithPrompt('Prepare for a meeting')">
-                  <div class="suggest-icon-purple">👥</div>
-                  <div class="suggest-info">
-                    <div class="suggest-title">Prepare for a meeting</div>
-                    <div class="suggest-sub">Review context and draft talking points</div>
-                  </div>
-                  <span class="suggest-arrow">&rarr;</span>
-                </div>
-                <div class="suggest-row" onclick="window.NAGEX.openAmbientWithPrompt('Explore a new topic')">
-                  <div class="suggest-icon-cyan">🔍</div>
-                  <div class="suggest-info">
-                    <div class="suggest-title">Explore a new topic</div>
-                    <div class="suggest-sub">Get a clear, sourced summary</div>
-                  </div>
-                  <span class="suggest-arrow">&rarr;</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Col 3: Today at a glance -->
-            <div class="dash-card">
-              <div class="dash-card-header">
-                <h3 data-i18n="home.todayAtGlance">Today at a glance</h3>
-                <span class="glance-date">Tue, Apr 29</span>
-              </div>
-              <div class="dash-card-content">
-                <div class="timeline-glance-item">
-                  <span class="time-label">9:00 AM</span>
-                  <div class="glance-event-box">
-                    <strong>Product sync</strong><br>
-                    <small>Prepare talking points</small>
-                  </div>
-                </div>
-                <div class="timeline-glance-item">
-                  <span class="time-label">11:00 AM</span>
-                  <div class="glance-event-box">
-                    <strong>Review PRD</strong><br>
-                    <small>Add feedback</small>
-                  </div>
-                </div>
-                <div class="timeline-glance-item">
-                  <span class="time-label">1:00 PM</span>
-                  <div class="glance-event-box">
-                    <strong>Focus work</strong><br>
-                    <small>Deep work session</small>
-                  </div>
-                </div>
-                <div class="timeline-glance-item">
-                  <span class="time-label">4:00 PM</span>
-                  <div class="glance-event-box">
-                    <strong>Team check-in</strong><br>
-                    <small>Discuss next steps</small>
-                  </div>
-                </div>
-                <button class="btn-full-plan-outline" onclick="window.NAGEX.switchTab('tab-plans')">View full plan &rarr;</button>
-              </div>
-            </div>
-          </div>
         </div>
 
         <!-- VIEW 2: MEMORY -->
@@ -967,30 +844,32 @@
         </div>
 
       </main>
+
+      <!-- Right Context Drawer (Closed by default, opened contextually) -->
+      <aside class="context-drawer hidden" id="context-drawer">
+        <div class="drawer-header">
+          <h3 id="drawer-title">Context</h3>
+          <button class="drawer-close-btn" id="btn-close-drawer" onclick="document.getElementById('context-drawer').classList.add('hidden')">&times;</button>
+        </div>
+        <div class="drawer-content" id="drawer-content-body">
+          <div class="empty-state-text">Select an item to view contextual details.</div>
+        </div>
+      </aside>
     </div>
 
-    <!-- Mobile Bottom Navigation Bar (Mockup Image 3) -->
+    <!-- Mobile Bottom Navigation Bar (Primary Consumer Model: Home, Capture, Tasks) -->
     <nav class="mobile-bottom-nav">
       <button class="mob-nav-item active" onclick="window.NAGEX.switchTab('tab-home')">
         <span class="icon">🏠</span>
-        <span>Home</span>
+        <span data-i18n="nav.home">Home</span>
       </button>
-      <button class="mob-nav-item" onclick="window.NAGEX.switchTab('tab-plans')">
-        <span class="icon">📅</span>
-        <span>Plans</span>
+      <button class="mob-nav-item" onclick="window.NAGEX.switchTab('tab-inbox')">
+        <span class="icon">📥</span>
+        <span data-i18n="nav.capture">Capture</span>
       </button>
-      <button class="mob-nav-item" onclick="window.NAGEX.switchTab('tab-tools')">
-        <span class="icon">🎛️</span>
-        <span>Tools</span>
-      </button>
-      <button class="mob-nav-item" onclick="window.NAGEX.switchTab('tab-approvals')">
-        <span class="icon">🛡️</span>
-        <span>Approvals</span>
-        <span class="dot-unread"></span>
-      </button>
-      <button class="mob-nav-item" onclick="window.NAGEX.switchTab('tab-memory')">
-        <span class="icon">🧠</span>
-        <span>Memory</span>
+      <button class="mob-nav-item" onclick="window.NAGEX.switchTab('tab-tasks')">
+        <span class="icon">⚡</span>
+        <span data-i18n="nav.tasks">Tasks</span>
       </button>
     </nav>
 

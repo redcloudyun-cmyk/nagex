@@ -295,6 +295,17 @@
   let realAudioChunks = [];
 
   function renderHome() {
+    const hour = new Date().getHours();
+    const isKr = window.NAGEX_I18N && window.NAGEX_I18N.currentLocale === 'kr';
+    const greetingText = isKr
+      ? (hour < 12 ? '좋은 아침입니다' : hour < 18 ? '좋은 오후입니다' : '좋은 저녁입니다')
+      : (hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening');
+
+    const heroTitle = document.querySelector('.personal-hero-title');
+    const heroSub = document.querySelector('.personal-hero-subtitle');
+    if (heroTitle) heroTitle.textContent = greetingText;
+    if (heroSub) heroSub.textContent = isKr ? 'NAgex가 무엇을 처리해 드릴까요?' : 'What would you like NAgex to handle?';
+
     renderHomeWorkspaceSections();
 
     const btnSend = document.getElementById('btn-home-prompt-send');
@@ -411,43 +422,89 @@
   }
 
   async function renderHomeWorkspaceSections() {
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+
     // 1. NAgex is working
     const elWorking = document.getElementById('list-nagex-working');
     if (elWorking) {
-      const activeTasks = state.tasks.filter((t) => t.status === 'RUNNING' || t.status === 'WAITING');
+      const card = elWorking.closest('.canvas-section-card');
+      const activeTasks = state.tasks.filter((task) => task.status === 'RUNNING' || task.status === 'WAITING' || task.status === 'ACTIVE');
       if (activeTasks.length > 0) {
-        elWorking.innerHTML = activeTasks.map((t) => `<div class="inbox-item-card"><div class="inbox-item-main"><span class="inbox-item-title">${escapeHtml(t.name || t.taskId)}</span><span class="inbox-item-summary">${escapeHtml(t.type)} • ${escapeHtml(t.status)}</span></div><span class="badge-status status-PROCESSING">ACTIVE</span></div>`).join('');
+        if (card) card.style.display = 'block';
+        elWorking.innerHTML = activeTasks.map((task) => {
+          const userFriendlyTitle = task.name || 'Task in progress...';
+          return `<div class="inbox-item-card">
+            <div class="inbox-item-main">
+              <span class="inbox-item-title">${escapeHtml(userFriendlyTitle)}</span>
+              <span class="inbox-item-summary">Started ${task.lastRunAt ? new Date(task.lastRunAt).toLocaleTimeString() : 'recently'}</span>
+            </div>
+            <span class="badge-status status-PROCESSING">${escapeHtml(t('workspace.working') || 'WORKING')}</span>
+          </div>`;
+        }).join('');
       } else {
-        elWorking.innerHTML = '<div class="empty-state-text">No active background tasks running right now.</div>';
+        if (card) card.style.display = 'none';
       }
     }
 
     // 2. Needs your attention
     const elAttention = document.getElementById('list-needs-attention');
     if (elAttention) {
+      const card = elAttention.closest('.canvas-section-card');
       const pendingApprs = state.approvals.filter((a) => a.status === 'PENDING');
       const reviewCaptures = (state.inbox || []).filter((c) => c.status === 'NEEDS_REVIEW');
       const totalCount = pendingApprs.length + reviewCaptures.length;
       if (totalCount > 0) {
+        if (card) card.style.display = 'block';
         let html = '';
         if (pendingApprs.length > 0) {
-          html += pendingApprs.map((a) => `<div class="inbox-item-card" onclick="window.NAGEX.switchTab('tab-approvals')"><div class="inbox-item-main"><span class="inbox-item-title">Approval Required: ${escapeHtml(a.intent || a.action)}</span><span class="inbox-item-summary">${escapeHtml(a.resource?.id || '')}</span></div><span class="badge-status status-NEEDS_REVIEW">PENDING</span></div>`).join('');
+          html += pendingApprs.map((a) => {
+            const humanAction = a.intent || a.action || 'Approval Required';
+            return `<div class="inbox-item-card contextual-approval-card">
+              <div class="inbox-item-main">
+                <span class="inbox-item-title">${escapeHtml(humanAction)}</span>
+                <span class="inbox-item-summary">${escapeHtml(a.resource?.id || 'Action Approval')}</span>
+              </div>
+              <div class="contextual-appr-btns" style="display: flex; gap: 0.35rem; margin-top: 0.25rem;">
+                <button class="btn-primary" style="font-size:0.75rem; padding:0.25rem 0.6rem;" onclick="window.NAGEX.handleApprovalAction('${a.approvalId}', 'APPROVE')">Approve</button>
+                <button class="btn-secondary" style="font-size:0.75rem; padding:0.25rem 0.6rem;" onclick="window.NAGEX.switchTab('tab-approvals')">Review</button>
+                <button class="btn-secondary danger" style="font-size:0.75rem; padding:0.25rem 0.6rem;" onclick="window.NAGEX.handleApprovalAction('${a.approvalId}', 'REJECT')">Reject</button>
+              </div>
+            </div>`;
+          }).join('');
         }
         if (reviewCaptures.length > 0) {
-          html += reviewCaptures.map((c) => `<div class="inbox-item-card" onclick="window.NAGEX.switchTab('tab-inbox')"><div class="inbox-item-main"><span class="inbox-item-title">Review Item: ${escapeHtml(c.metadata?.extractedTitle || c.content)}</span><span class="inbox-item-summary">${escapeHtml(c.metadata?.extractedSummary || '')}</span></div><span class="badge-status status-NEEDS_REVIEW">REVIEW</span></div>`).join('');
+          html += reviewCaptures.map((c) => `<div class="inbox-item-card" onclick="window.NAGEX.switchTab('tab-inbox')"><div class="inbox-item-main"><span class="inbox-item-title">${escapeHtml(c.metadata?.extractedTitle || c.content)}</span><span class="inbox-item-summary">${escapeHtml(c.metadata?.extractedSummary || '')}</span></div><span class="badge-status status-NEEDS_REVIEW">REVIEW</span></div>`).join('');
         }
         elAttention.innerHTML = html;
       } else {
-        elAttention.innerHTML = '<div class="empty-state-text">All approvals and review items are up to date.</div>';
+        if (card) card.style.display = 'none';
       }
     }
 
-    // 3. Recent activity
+    // 3. Today summary
+    const elToday = document.getElementById('list-today-summary');
+    if (elToday) {
+      const card = elToday.closest('.canvas-section-card');
+      if (card) {
+        const hasAgenda = elToday.children && elToday.children.length > 0 && !elToday.querySelector('.empty-state-text');
+        card.style.display = hasAgenda ? 'block' : 'none';
+      }
+    }
+
+    // 4. Recent activity
     const elRecent = document.getElementById('list-recent-activity');
     if (elRecent) {
+      const card = elRecent.closest('.canvas-section-card');
       const execs = state.executions.slice(0, 3);
       if (execs.length > 0) {
-        elRecent.innerHTML = execs.map((e) => `<div class="inbox-item-card"><div class="inbox-item-main"><span class="inbox-item-title">${escapeHtml(e.action || e.executionId)}</span><span class="inbox-item-summary">${new Date(e.createdAt || Date.now()).toLocaleTimeString()}</span></div><span class="badge-status status-READY">${escapeHtml(e.status)}</span></div>`).join('');
+        if (card) card.style.display = 'block';
+        elRecent.innerHTML = execs.map((e) => {
+          const time = new Date(e.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          const userAction = e.action || 'Activity completed';
+          return `<div class="inbox-item-card"><div class="inbox-item-main"><span class="inbox-item-title">${escapeHtml(userAction)}</span><span class="inbox-item-summary">${time}</span></div><span class="badge-status status-READY">${escapeHtml(e.status)}</span></div>`;
+        }).join('');
+      } else {
+        if (card) card.style.display = 'none';
       }
     }
   }
@@ -461,22 +518,80 @@
         if (data.items.length === 0) {
           listEl.innerHTML = '<div class="empty-state-text">No captured items in Inbox yet. Use the composer on Home or Quick Wake (Alt+N) to capture anything!</div>';
         } else {
-          listEl.innerHTML = data.items.map((item) => `
-            <div class="inbox-item-card">
-              <div class="inbox-item-main">
-                <span class="inbox-item-title">${escapeHtml(item.metadata?.extractedTitle || item.content)}</span>
-                <span class="inbox-item-summary">${escapeHtml(item.metadata?.extractedSummary || item.content)} (${item.type} • ${item.source})</span>
+          listEl.innerHTML = data.items.map((item) => {
+            const subStage = item.metadata?.processingSubStage || (item.status === 'PROCESSING' ? 'Processing...' : '');
+            const candidates = item.metadata?.candidates || [];
+            const proposedCands = candidates.filter((c) => c.status === 'PROPOSED');
+
+            const candidatesHtml = proposedCands.length > 0 ? `
+              <div class="candidate-review-section" style="margin-top: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.03); border-radius: 6px;">
+                <div style="font-size: 0.75rem; font-weight: 600; margin-bottom: 0.375rem; color: var(--color-accent-teal);">Suggested Actions (${proposedCands.length}):</div>
+                ${proposedCands.map((c) => `
+                  <div class="candidate-card" style="display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem; padding: 0.25rem 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <div>
+                      <span class="badge-status status-READY" style="font-size: 0.65rem; padding: 1px 4px;">${escapeHtml(c.type)}</span>
+                      <strong style="margin-left: 4px;">${escapeHtml(c.title)}</strong>
+                    </div>
+                    <div style="display: flex; gap: 0.25rem;">
+                      <button class="btn-primary" style="font-size: 0.7rem; padding: 2px 8px;" onclick="window.NAGEX.actionCandidate('${item.captureId}', '${c.candidateId}', 'ACCEPT')">Accept</button>
+                      <button class="btn-secondary" style="font-size: 0.7rem; padding: 2px 8px;" onclick="window.NAGEX.actionCandidate('${item.captureId}', '${c.candidateId}', 'REJECT')">Reject</button>
+                    </div>
+                  </div>
+                `).join('')}
               </div>
-              <div style="display: flex; gap: 0.5rem; align-items: center;">
-                <span class="badge-status status-${item.status}">${item.status}</span>
-                ${item.status === 'NEEDS_REVIEW' ? `<button class="btn-secondary" style="font-size: 0.75rem;" onclick="window.NAGEX.actionCapture('${item.captureId}', 'ACTIONED')">Action</button>` : ''}
+            ` : '';
+
+            const errorHtml = item.status === 'FAILED' ? `
+              <div style="color: #ef4444; font-size: 0.75rem; margin-top: 0.25rem;">
+                Error: ${escapeHtml(item.metadata?.errorMessage || 'Processing error')}
+                <button class="btn-secondary" style="font-size: 0.7rem; margin-left: 0.5rem; padding: 2px 6px;" onclick="window.NAGEX.retryCapture('${item.captureId}')">Retry</button>
               </div>
-            </div>
-          `).join('');
+            ` : '';
+
+            return `
+              <div class="inbox-item-card">
+                <div class="inbox-item-main">
+                  <span class="inbox-item-title">${escapeHtml(item.metadata?.extractedTitle || item.content)}</span>
+                  <span class="inbox-item-summary">${escapeHtml(item.metadata?.extractedSummary || item.content)} (${item.type} • ${item.source})</span>
+                  ${subStage ? `<span class="inbox-item-substage" style="font-size: 0.75rem; color: var(--color-text-secondary);">${escapeHtml(subStage)}</span>` : ''}
+                  ${errorHtml}
+                  ${candidatesHtml}
+                </div>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                  <span class="badge-status status-${item.status}">${item.status}</span>
+                  ${item.status === 'NEEDS_REVIEW' && proposedCands.length === 0 ? `<button class="btn-secondary" style="font-size: 0.75rem;" onclick="window.NAGEX.actionCapture('${item.captureId}', 'ACTIONED')">Action</button>` : ''}
+                </div>
+              </div>
+            `;
+          }).join('');
         }
       }
     }
   }
+
+  window.NAGEX = window.NAGEX || {};
+  window.NAGEX.actionCapture = async (captureId, actionType) => {
+    await apiFetch(`/api/v1/workspace/capture/${captureId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: actionType }),
+    });
+    renderInbox();
+  };
+
+  window.NAGEX.actionCandidate = async (captureId, candidateId, action) => {
+    await apiFetch(`/api/v1/workspace/items/${captureId}/candidates/${candidateId}/action`, {
+      method: 'POST',
+      body: JSON.stringify({ action }),
+    });
+    renderInbox();
+  };
+
+  window.NAGEX.retryCapture = async (captureId) => {
+    await apiFetch(`/api/v1/workspace/items/${captureId}/retry`, {
+      method: 'POST',
+    });
+    renderInbox();
+  };
 
   async function renderVault() {
     const data = await apiFetch('/api/v1/workspace/vault');

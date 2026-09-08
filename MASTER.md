@@ -606,6 +606,48 @@ CAPTURED → UPLOADING → PROCESSING → READY / NEEDS_REVIEW → ACTIONED / AR
 - **Surfaces**: Desktop Quick Wake (Hotkey Alt+N), Web Canvas ("Ask or drop anything here..."), Mobile App Ambient Sheet, Telegram/Slack Bot forwarding.
 - **Cloud-First + Local Offline Layer**: All capture metadata and binary artifacts store canonical copies in encrypted cloud storage with local offline sync buffers for instant desktop responsiveness.
 
+#### 5. Level-0 Canonical UX Principles & Agentless Experience Specification
+
+Adopted 2026-09-08 from the NAgex Personal AI UX Redesign Directive.
+
+1. **Agent is infrastructure, not interface**: NAgex presents one Personal AI to the user. Agentic complexity is internal.
+2. **One NAgex, not many visible agents**: Users do not select or operate individual agents; they communicate with NAgex.
+3. **One primary input surface**: The unified Home composer and Quick Wake overlay accept text, voice, URLs, files, PDFs, audio, and screenshots without forcing category pre-selection.
+4. **User intent takes priority over feature navigation**: Actions flow directly from intent to completion.
+5. **Main Canvas takes priority over dashboards**: Workspace canvas dominates the UI; static KPI grids are eliminated.
+6. **Progressive disclosure is mandatory**: Simple human status by default ("NAgex is preparing your report"), technical details (plan steps, execution IDs, audit logs) expanded on demand.
+7. **Approval appears in context, not as the default primary workflow**: Pending approvals present contextually in "Needs attention", while retaining full auditability under Advanced.
+8. **Capture first; classify internally**: Input is ingested instantly, processed asynchronously by the AI pipeline, and classified into candidates for user review.
+9. **AI structures and recommends; the user decides**: NAgex proposes candidates (Task, Calendar, Memory, Knowledge); the user accepts or rejects.
+10. **Internal complexity stays hidden by default**: Internal layers (Agents, Skills, Tools, Plans, Executions) stay hidden from routine consumer interaction.
+11. **If the user must understand NAgex system architecture to use NAgex, the UX has failed**: Product success requires intuitive, frictionless interaction.
+
+##### Product Naming & Architectural Hierarchy
+
+- **Consumer Product Name**: NAgex Personal AI
+- **Internal Architecture Name**: NAgex Personal AI Operating System
+
+```text
+Consumer Interface (Primary Navigation):
+NAgex
+├─ Home
+├─ Capture
+├─ Tasks
+├─ Memory
+└─ Vault
+
+Secondary Navigation (under "More"):
+Activity | Automations | Connections | Knowledge | Settings
+
+Advanced / Platform Navigation (under "Advanced" / "Developer"):
+Approvals | Agents | Skills | Tools | Executions | Developer
+
+Internal Platform Architecture:
+Planner | Agents | Skills | Tools | Model Router | Approval Engine | Execution Engine | Memory Engine | Browser Agent | Computer Use | Knowledge | Audit
+```
+
+**Capability Rule**: A new capability MUST NOT automatically create a new top-level navigation item. (Example: Adding Computer Use capability does NOT add a "Computer Agent" menu item. Instead, NAgex utilizes Computer Use internally when executing user instructions).
+
 ## 15. Final Product Position
 
 ```text

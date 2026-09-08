@@ -5,43 +5,72 @@ export type CaptureStatus =
   | 'UPLOADING'
   | 'QUEUED'
   | 'PROCESSING'
+  | 'EXTRACTED'
+  | 'UNDERSTOOD'
   | 'READY'
   | 'NEEDS_REVIEW'
   | 'ACTIONED'
   | 'FAILED'
   | 'ARCHIVED';
 
-export interface TaskCandidate {
+export type ProcessingStage =
+  | 'CAPTURED'
+  | 'UPLOADED'
+  | 'QUEUED'
+  | 'PROCESSING'
+  | 'EXTRACTED'
+  | 'UNDERSTOOD'
+  | 'NEEDS_REVIEW'
+  | 'READY'
+  | 'ACTIONED'
+  | 'FAILED';
+
+export type CandidateStatus = 'PROPOSED' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED';
+
+export interface CandidateSourceRef {
+  chunkId?: string;
+  pageNumber?: number;
+  snippet?: string;
+}
+
+export interface BaseCandidate {
+  candidateId: string;
+  captureId: string;
+  type: 'TASK' | 'CALENDAR' | 'MEMORY' | 'KNOWLEDGE';
+  title: string;
+  reason: string;
+  confidence: number;
+  sourceRefs: CandidateSourceRef[];
+  status: CandidateStatus;
+}
+
+export interface TaskCandidate extends BaseCandidate {
   type: 'TASK';
-  title: string;
   description?: string;
-  dueDate?: string;
-  priority?: 'LOW' | 'MEDIUM' | 'HIGH';
-  confidence: number;
+  dueDateCandidate?: string;
+  priorityCandidate?: 'LOW' | 'MEDIUM' | 'HIGH';
 }
 
-export interface CalendarCandidate {
+export interface CalendarCandidate extends BaseCandidate {
   type: 'CALENDAR';
-  title: string;
-  startTime?: string;
-  endTime?: string;
+  startCandidate?: string;
+  endCandidate?: string;
+  timezone?: string;
   location?: string;
-  confidence: number;
 }
 
-export interface MemoryCandidate {
+export interface MemoryCandidate extends BaseCandidate {
   type: 'MEMORY';
-  content: string;
-  category?: string;
-  confidence: number;
+  statement: string;
+  memoryType?: 'USER' | 'FACT' | 'PREFERENCE';
+  scope?: string;
 }
 
-export interface KnowledgeCandidate {
+export interface KnowledgeCandidate extends BaseCandidate {
   type: 'KNOWLEDGE';
-  title: string;
-  content: string;
+  summary: string;
   tags?: string[];
-  confidence: number;
+  chunkIds?: string[];
 }
 
 export type WorkspaceCandidate =
@@ -49,6 +78,13 @@ export type WorkspaceCandidate =
   | CalendarCandidate
   | MemoryCandidate
   | KnowledgeCandidate;
+
+export interface ProcessingChunk {
+  chunkId: string;
+  text: string;
+  pageNumber?: number;
+  tokenEstimate: number;
+}
 
 export interface CaptureMetadata {
   originalName?: string;
@@ -62,13 +98,42 @@ export interface CaptureMetadata {
   objectKey?: string;
   storageProvider?: 'local' | 's3';
   checksum?: string;
+
+  // Canonical Pipeline Metadata
+  processingStage?: ProcessingStage;
+  processingSubStage?: string; // 'Reading page...', 'Extracting PDF...', 'Analyzing content...', 'Preparing suggestions...'
+  processingStartedAt?: string;
+  processingCompletedAt?: string;
+  processorVersion?: string; // '1.0.0'
+  modelProvider?: string;
+  modelName?: string;
+  errorCode?: string;
+  errorMessage?: string;
+
+  // Extracted Web & Document Properties
+  sourceUrl?: string;
+  finalUrl?: string;
+  pageTitle?: string;
+  retrievedAt?: string;
+  contentText?: string;
+  contentHash?: string;
+  pageCount?: number;
+  characterCount?: number;
+  chunks?: ProcessingChunk[];
+
+  // Extracted Entities, Dates, Action Items & Topics
+  topics?: string[];
+  entities?: string[];
+  dates?: string[];
+  actionItems?: string[];
+
+  // Transcripts & Hardened Candidates
   transcript?: {
     text: string;
     timestamps?: Array<{ start: number; end: number; text: string }>;
     speakers?: Array<{ speaker: string; text: string }>;
   };
   extractedContent?: string;
-  chunks?: string[];
   candidates?: WorkspaceCandidate[];
   suggestedAction?: {
     type: 'TASK' | 'CALENDAR' | 'MEMORY' | 'KNOWLEDGE';

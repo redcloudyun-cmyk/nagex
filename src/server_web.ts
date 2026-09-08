@@ -185,9 +185,21 @@ export const notificationEngine = new NotificationEngine({
 
 export const taskScheduler = new TaskScheduler(taskStore, taskRunStore, taskRunner, auditLogger, undefined, notificationEngine);
 
-// ─── MASTER.md Section 14 — Personal Workspace & Personal Cloud Vault ───
+import { KnowledgeEngine } from './context/knowledge.engine.js';
+
+export const knowledgeEngine = new KnowledgeEngine();
 export const storageProvider = createConfiguredStorageProvider();
-export const quickCaptureService = new QuickCaptureService(captureStore, storageProvider, taskStore, memoryEngine);
+export const quickCaptureService = new QuickCaptureService(
+  captureStore,
+  storageProvider,
+  taskStore,
+  memoryEngine,
+  knowledgeEngine,
+  aiService,
+  browserService,
+  auditLogger,
+  actionApprovals,
+);
 export const inputRouter = new InputRouter();
 
 
@@ -1229,6 +1241,48 @@ export async function handleAsyncApiRequest(
       const captureId = pathname.slice('/api/v1/workspace/items/'.length, pathname.length - '/action'.length);
       const action = (body?.action as any) || 'ACTIONED';
       const item = await quickCaptureService.actionCapture(captureId, action);
+      if (!item) {
+        return { status: 404, data: { error: 'ITEM_NOT_FOUND', message: `Capture item ${captureId} not found.` } };
+      }
+      return { status: 200, data: item };
+    }
+
+    if (pathname.startsWith('/api/v1/workspace/items/') && pathname.includes('/candidates/') && pathname.endsWith('/action') && method === 'POST') {
+      const parts = pathname.slice('/api/v1/workspace/items/'.length).split('/candidates/');
+      const captureId = parts[0];
+      const candidateId = parts[1] ? parts[1].replace(/\/action$/, '') : '';
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const action = body?.action === 'ACCEPT' ? 'ACCEPT' : 'REJECT';
+
+      const updated = await quickCaptureService.actionCandidate({
+        captureId,
+        candidateId,
+        action,
+        ownerId,
+        tenantId,
+      });
+
+      if (!updated) {
+        return { status: 404, data: { error: 'CANDIDATE_NOT_FOUND', message: `Candidate ${candidateId} or capture ${captureId} not found.` } };
+      }
+      return { status: 200, data: updated };
+    }
+
+    if (pathname.startsWith('/api/v1/workspace/items/') && pathname.endsWith('/retry') && method === 'POST') {
+      const captureId = pathname.slice('/api/v1/workspace/items/'.length, pathname.length - '/retry'.length);
+      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const retried = await quickCaptureService.retryCapture(captureId, ownerId);
+      if (!retried) {
+        return { status: 404, data: { error: 'ITEM_NOT_FOUND', message: `Capture item ${captureId} not found.` } };
+      }
+      return { status: 200, data: retried };
+    }
+
+    if (pathname.startsWith('/api/v1/workspace/items/') && !pathname.endsWith('/download') && !pathname.endsWith('/preview') && !pathname.endsWith('/action') && !pathname.endsWith('/retry') && !pathname.includes('/candidates/') && method === 'GET') {
+      const captureId = pathname.slice('/api/v1/workspace/items/'.length);
+      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const item = await quickCaptureService.getCaptureItem(captureId, ownerId);
       if (!item) {
         return { status: 404, data: { error: 'ITEM_NOT_FOUND', message: `Capture item ${captureId} not found.` } };
       }

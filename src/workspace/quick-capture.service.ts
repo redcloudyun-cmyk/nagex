@@ -1,10 +1,24 @@
 import crypto from 'node:crypto';
 import { NagexError } from '../common/errors.js';
 import type { CaptureStore } from './capture.store.js';
-import type { CaptureItem, CaptureStatus, CaptureType, InboxSummary, PersonalVaultSummary } from './workspace.types.js';
+import type {
+  CalendarCandidate,
+  CaptureItem,
+  CaptureStatus,
+  CaptureType,
+  InboxSummary,
+  KnowledgeCandidate,
+  MemoryCandidate,
+  PersonalVaultSummary,
+  TaskCandidate,
+} from './workspace.types.js';
 import type { TaskStore } from '../tasks/task.store.js';
 import type { MemoryEngine } from '../context/memory.engine.js';
 import type { KnowledgeEngine } from '../context/knowledge.engine.js';
+import type { AiService } from '../model-gateway/ai-service.js';
+import type { BrowserToolService } from '../tools/browser.service.js';
+import type { AuditLogger } from '../governance/audit.logger.js';
+import type { ActionApprovalStore } from '../governance/action-approval.store.js';
 import type { StorageProvider } from '../storage/storage-provider.js';
 import { LocalStorageProvider } from '../storage/local-storage.provider.js';
 import { WorkspaceQuotaEngine } from './quota-engine.js';
@@ -17,7 +31,6 @@ import {
   validateMimeAndExtension,
 } from './vault-security.js';
 import { generateResourceId } from '../common/utils.js';
-
 
 export interface PresignedUploadInitResult {
   uploadId: string;
@@ -38,9 +51,20 @@ export class QuickCaptureService {
     private readonly taskStore?: TaskStore,
     private readonly memoryEngine?: MemoryEngine,
     private readonly knowledgeEngine?: KnowledgeEngine,
+    private readonly aiService?: AiService,
+    private readonly browserService?: BrowserToolService,
+    private readonly auditLogger?: AuditLogger,
+    private readonly actionApprovals?: ActionApprovalStore,
   ) {
     this.quotaEngine = new WorkspaceQuotaEngine();
-    this.processor = new CaptureProcessor(this.store);
+    this.processor = new CaptureProcessor(
+      this.store,
+      this.aiService,
+      this.browserService,
+      this.auditLogger,
+      this.storageProvider,
+      this.knowledgeEngine,
+    );
   }
 
   public getStorageProvider(): StorageProvider {
@@ -420,5 +444,144 @@ export class QuickCaptureService {
 
   public async actionCapture(captureId: string, actionType: 'ACTIONED' | 'ARCHIVED'): Promise<CaptureItem | null> {
     return this.store.updateStatus(captureId, actionType);
+  }
+
+  public async getCaptureItem(captureId: string, ownerId: string): Promise<CaptureItem | null> {
+    const item = this.store.getCapture(captureId);
+    if (!item || item.ownerId !== ownerId) return null;
+    return item;
+  }
+
+  public async actionCandidate(params: {
+    captureId: string;
+    candidateId: string;
+    action: 'ACCEPT' | 'REJECT';
+    ownerId: string;
+    tenantId: string;
+  }): Promise<CaptureItem | null> {
+    const item = this.store.getCapture(params.captureId);
+    if (!item || item.ownerId !== params.ownerId) return null;
+
+    const candidates = item.metadata.candidates || [];
+    const candidate = candidates.find((c) => c.candidateId === params.candidateId);
+    if (!candidate) return null;
+
+    if (candidate.status !== 'PROPOSED') {
+      return item;
+    }
+
+    if (params.action === 'ACCEPT') {
+      candidate.status = 'ACCEPTED';
+
+      if (candidate.type === 'TASK') {
+        if (this.taskStore) {
+          const tc = candidate as TaskCandidate;
+          this.taskStore.create({
+            tenantId: params.tenantId,
+            ownerId: params.ownerId,
+            name: tc.title,
+            objective: tc.description || tc.title,
+            type: 'ONE_TIME',
+            trigger: { type: 'MANUAL' },
+          });
+        }
+      } else if (candidate.type === 'CALENDAR') {
+        const cc = candidate as CalendarCandidate;
+        if (this.actionApprovals) {
+          this.actionApprovals.request({
+            toolId: 'google_calendar.create_event',
+            tenantId: params.tenantId,
+            principalId: params.ownerId,
+            payload: {
+              summary: cc.title,
+              startTime: cc.startCandidate,
+              endTime: cc.endCandidate,
+              timezone: cc.timezone,
+              location: cc.location,
+            },
+          });
+        }
+      } else if (candidate.type === 'MEMORY') {
+        const mc = candidate as MemoryCandidate;
+        if (this.memoryEngine) {
+          const mem = this.memoryEngine.proposeMemory('USER', params.ownerId, {
+            subject: 'user',
+            predicate: 'preference',
+            value: mc.statement || mc.title,
+          });
+          this.memoryEngine.activateMemory(mem.id);
+        }
+      } else if (candidate.type === 'KNOWLEDGE') {
+        const kc = candidate as KnowledgeCandidate;
+        if (this.knowledgeEngine) {
+          this.knowledgeEngine.addDocument({
+            source_id: params.captureId,
+            title: kc.title,
+            classification: 'INTERNAL',
+            content: kc.summary || kc.title,
+          });
+        }
+      }
+
+      if (this.auditLogger) {
+        this.auditLogger.logEvent({
+          actor: { type: 'user', id: params.ownerId },
+          tenant_id: params.tenantId,
+          action: 'candidate.accepted',
+          resource: { type: 'Candidate', id: params.candidateId },
+          result: 'SUCCESS',
+          request_id: `req_cand_acc_${Date.now()}`,
+          details: { captureId: params.captureId, candidateType: candidate.type },
+        });
+      }
+    } else if (params.action === 'REJECT') {
+      candidate.status = 'REJECTED';
+
+      if (this.auditLogger) {
+        this.auditLogger.logEvent({
+          actor: { type: 'user', id: params.ownerId },
+          tenant_id: params.tenantId,
+          action: 'candidate.rejected',
+          resource: { type: 'Candidate', id: params.candidateId },
+          result: 'SUCCESS',
+          request_id: `req_cand_rej_${Date.now()}`,
+          details: { captureId: params.captureId, candidateType: candidate.type },
+        });
+      }
+    }
+
+    const allResolved = candidates.every((c) => c.status !== 'PROPOSED');
+    const newStatus: CaptureStatus = allResolved ? 'ACTIONED' : item.status;
+
+    const updated = this.store.updateStatus(params.captureId, newStatus, {
+      candidates,
+    });
+
+    return updated ?? item;
+  }
+
+  public async retryCapture(captureId: string, ownerId: string): Promise<CaptureItem | null> {
+    const item = this.store.getCapture(captureId);
+    if (!item || item.ownerId !== ownerId) return null;
+
+    const existingCandidates = (item.metadata.candidates || []).filter((c) => c.status !== 'PROPOSED');
+
+    this.store.updateStatus(captureId, 'QUEUED', {
+      processingStage: 'QUEUED',
+      errorCode: undefined,
+      errorMessage: undefined,
+      candidates: existingCandidates,
+    });
+
+    let rawBuffer: Buffer | undefined;
+    if (item.metadata.objectKey && this.storageProvider) {
+      const obj = await this.storageProvider.getObject(item.metadata.objectKey);
+      if (obj) {
+        rawBuffer = obj.data;
+      }
+    }
+
+    const retriedItem = this.store.getCapture(captureId) || item;
+    return await this.processor.process(retriedItem, rawBuffer);
   }
 }
