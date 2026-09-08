@@ -1,6 +1,6 @@
 # NAgex MASTER SPECIFICATION
 
-> **NAgex — Next-generation Agent Experience**
+> **NAgex — Personal AI for the Next Age**
 
 **Document Role:** Level 0 / Single Source of Truth  
 **Project Start:** 2026-09-05  
@@ -34,11 +34,16 @@ Memory / Learning
 ## 2. Brand
 
 **Name:** NAgex  
-**Meaning:** Next-generation Agent Experience
+**Origin meaning:** Next-generation Agent Experience — the name NAgex started from this acronym and it remains true internally, but it no longer defines the brand's ceiling.
 
-> A personal AI agent that remembers, reasons, uses tools, and acts with human-controlled autonomy.
+**Category:** Personal AI  
+**Brand Promise:** Intelligence for the Next Age.  
+**Consumer Positioning:** NAgex — Personal AI for the Next Age  
+**Internal Architecture:** NAgex Personal AI Operating System
 
-NAgex must be presented as an independent product.
+> NAgex is a Personal AI for the Next Age: it understands, remembers, plans, uses tools, and acts with human-controlled autonomy.
+
+NAgex must be presented as an independent product. See Section 14.11 for the full brand specification (positioning, voice, naming rules, and brand decision checklist).
 
 ## 3. Project Origin
 
@@ -261,9 +266,9 @@ A NAgex feature is complete only when applicable items are satisfied:
 
 ## 13. Core Product Statement
 
-> **A next-generation personal AI agent experience that combines persistent memory, reasoning, reusable skills, controlled tools, human approval, and real task execution.**
+> **NAgex is a Personal AI that understands, remembers, organizes, plans, acts, and continues work across time with human-controlled autonomy.**
 
-This definition supersedes inherited product descriptions from the bootstrap codebase.
+This definition supersedes inherited product descriptions from the bootstrap codebase, and is restated in brand terms in Section 14.11 ("Intelligence for the Next Age.").
 
 ## 14. Extended Vision — Always-On Personal AI Gateway
 
@@ -737,6 +742,65 @@ Understand | Capture | Remember | Organize | Plan | Act | Watch | Notify | Revie
 
 > **Do not build more visible agents. Build more capability into one NAgex.**
 > NAgex should feel less like a system the user operates and more like a Personal AI the user entrusts with work.
+
+### 14.11 Brand Definition — Personal AI for the Next Age
+
+Adopted 2026-09-08 from the NAgex Brand Definition directive (full text: `docs/NAgex_Brand_Definition_Next_Age_20260908.md`).
+
+This section extends Section 2 (Brand) with the canonical brand specification. It does not change product scope, architecture, or the Section 9 hackathon-critical path — it governs brand copy, voice, and naming going forward.
+
+**Canonical brand statement:** NAgex is a Personal AI for the Next Age.
+
+**Brand promise:** Intelligence for the Next Age. — deliberately independent of any current technology term (Agent, LLM, Model, Tool, Workflow, Computer Use), so the promise survives even as those terms change.
+
+**What "Next Age" means:** a shift in how a user relates to AI, not a claim of AGI or a futuristic aesthetic:
+
+```text
+AI as a passive tool
+→ AI as an active agent
+→ AI as persistent, contextual, personal intelligence
+```
+
+**Brand philosophy:**
+1. One AI — the user has one NAgex, not a set of agents to pick from.
+2. Agent is infrastructure, not interface (already canonical — see 14.9 §5).
+3. Human-controlled autonomy — "Autonomy without losing control": NAgex acts, but consequential external actions are approved, visible, and where possible reversible.
+4. Personal context — NAgex remembers preferences, people, projects, facts, and working patterns and applies them to future work.
+5. Continuity — the same Personal AI follows the user across Web, Desktop, and Mobile.
+
+**Positioning — what NAgex is not:** AI Agent Builder, Agent Marketplace, Workflow Automation Platform, Chatbot, LLM Wrapper, Model Aggregator. These capabilities may exist internally or under Advanced, but none of them is the brand center.
+
+**Brand personality:** calm, intelligent, confident, personal, trustworthy, forward-looking, minimal. Avoid: cyberpunk, overly futuristic, robotic, developer-only, dashboard-heavy, agent-marketplace-like.
+
+**Voice:** short, plain, outcome-first; never makes the user learn NAgex's internal architecture to use it.
+
+```text
+Good:   "NAgex is checking tomorrow's schedule."
+Good:   "This needs your attention."
+Avoid:  "3 agents are currently executing 7 tool calls."
+Avoid:  "Select the optimal LLM provider."
+```
+
+**Naming rule going forward:** new features are not automatically suffixed "Agent" in user-facing copy. Use the plain capability name (Browser, Calendar, Email, Connections, Tasks, Memory, Vault); "Agent" naming stays in internal architecture and developer docs only (consistent with the 14.9 §5 navigation taxonomy already in place).
+
+**Brand decision checklist** for new brand copy or UI text:
+1. Does it read as one Personal AI, not a specific Agent product?
+2. Is it free of dependence on one specific LLM/provider?
+3. Does it avoid requiring the user to understand internal system architecture?
+4. Does it avoid overstated AGI/autonomy claims?
+5. Is "Next Age" tied to a real product-philosophy point, not used as decoration?
+6. Would the phrase still make sense in 3–5 years?
+
+**Canonical copy:**
+
+| Slot | Copy |
+|---|---|
+| Primary | NAgex — Personal AI for the Next Age |
+| Brand promise | Intelligence for the Next Age. |
+| Product description | NAgex is a Personal AI that understands, remembers, organizes, plans, acts, and continues work across time with human-controlled autonomy. |
+| UX principle | Tell NAgex what you need. It handles the complexity internally. |
+| Architecture principle | Agent is infrastructure, not interface. |
+| Korean | NAgex · 다음 시대를 위한 Personal AI · 다음 시대를 위한 지능 |
 
 ## 15. Final Product Position
 

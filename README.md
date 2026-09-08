@@ -1,8 +1,8 @@
 # NAgex
 
-### Next-generation Agent Experience
+### Personal AI for the Next Age
 
-NAgex is a Personal AI and agentic system designed to **remember, reason, use tools, and execute real-world tasks with human-controlled autonomy**.
+NAgex is a Personal AI that **understands, remembers, plans, uses tools, and acts with human-controlled autonomy**.
 
 > Project started: September 5, 2026  
 > Target: Nebius x NVIDIA Global AI Hackathon

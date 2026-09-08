@@ -2,11 +2,11 @@
 
 ## 1. Product Name
 
-**NAgex — Next-generation Agent Experience**
+**NAgex — Personal AI for the Next Age**
 
 ## 2. Product Statement
 
-NAgex is a personal AI agent system designed to remember useful context, reason about user goals, select reusable skills and tools, request approval for consequential actions, execute real tasks, and preserve an auditable history.
+NAgex is a Personal AI that understands, remembers, organizes, plans, acts, and continues work across time with human-controlled autonomy — it remembers useful context, reasons about user goals, selects reusable skills and tools, requests approval for consequential actions, executes real tasks, and preserves an auditable history.
 
 NAgex is not intended to be only:
 

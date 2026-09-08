@@ -1,6 +1,6 @@
 # NAgex Documentation Index
 
-> **NAgex — Next-generation Agent Experience**
+> **NAgex — Personal AI for the Next Age**
 
 This directory contains the canonical domain documentation for NAgex.
 
