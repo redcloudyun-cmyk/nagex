@@ -295,16 +295,22 @@
   let realAudioChunks = [];
 
   function renderHome() {
-    const hour = new Date().getHours();
     const isKr = window.NAGEX_I18N && window.NAGEX_I18N.currentLocale === 'kr';
-    const greetingText = isKr
-      ? (hour < 12 ? '좋은 아침입니다' : hour < 18 ? '좋은 오후입니다' : '좋은 저녁입니다')
-      : (hour < 12 ? 'GOOD MORNING' : hour < 18 ? 'GOOD AFTERNOON' : 'GOOD EVENING');
-
     const heroEyebrow = document.querySelector('.eyebrow-text');
+    const heroTitle = document.querySelector('.personal-hero-title');
     const heroSub = document.querySelector('.personal-hero-subtitle');
-    if (heroEyebrow) heroEyebrow.textContent = greetingText;
-    if (heroSub) heroSub.textContent = isKr ? '무엇이든 물어보거나 말하거나 붙여넣거나 드롭하세요. 생각하고 만들고 완료하도록 도와드릴게요.' : "Ask, talk, paste, or drop anything here. I'll help you think, create, and get things done.";
+
+    if (heroEyebrow) heroEyebrow.textContent = 'NAGEX';
+    if (heroTitle) {
+      heroTitle.innerHTML = isKr
+        ? '<span class="brand-blue">NAgex</span> — 다음 시대를 위한 Personal AI'
+        : '<span class="brand-blue">NAgex</span> — Personal AI for the Next Age';
+    }
+    if (heroSub) {
+      heroSub.textContent = isKr
+        ? '당신과 함께 기억하고, 이해하며, 실행하는 지능.'
+        : 'Intelligence that remembers, understands, and acts with you.';
+    }
 
     renderHomeWorkspaceSections();
 

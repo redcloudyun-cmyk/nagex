@@ -648,6 +648,96 @@ Planner | Agents | Skills | Tools | Model Router | Approval Engine | Execution E
 
 **Capability Rule**: A new capability MUST NOT automatically create a new top-level navigation item. (Example: Adding Computer Use capability does NOT add a "Computer Agent" menu item. Instead, NAgex utilizes Computer Use internally when executing user instructions).
 
+### 14.10 NAgex Personal AI Capability Architecture & Functional Redefinition
+
+Adopted 2026-09-08 from the NAgex Personal AI Capability Architecture & Functional Redefinition Directive.
+
+This canonical specification redefines NAgex from an agent/tool/plan-centric UI ("Agent Platform") into a unified Personal AI user experience centered on 10 core human capabilities, while preserving internal agentic operating system architecture.
+
+#### 1. Executive Summary & Paradigm Shift
+
+NAgex is not an "Agent Platform" where users select and operate individual agents. The user experiences **ONE NAgex Personal AI**.
+
+```text
+OLD PRODUCT DEFINITION (System-facing):
+Browser Agent | Calendar Agent | Gmail Tool | Plan | Approval | Execution | Memory Engine | Task Engine
+
+↓
+
+NEW PRODUCT DEFINITION (User-facing Capability Map):
+Understand | Capture | Remember | Organize | Plan | Act | Watch | Notify | Review | Continue
+```
+
+- **Canonical Rule**: `Agent is infrastructure, not interface.`
+- **Product Layer**: NAgex Personal AI (Ask, Talk, Paste, Share, Drop, Capture).
+- **Architecture Layer**: Main Session, Input Router, Model Router, Planner, Agent Runtime, Skill Registry, Tool Registry, Task Engine, Scheduler, Conditional Watch, Approval Engine, Replay Protection, Audit, Browser Agent, Computer Use, Calendar, Gmail, Notification Engine, Memory Engine, Vault, Knowledge.
+
+#### 2. NAgex 10 Core Capability Map
+
+1. **Ask & Understand**: Answer questions, summarize text/PDFs/URLs, compare documents, analyze structured data, and synthesize multi-modal context.
+2. **Capture Anything**: Instant ingestion of text, URLs, PDFs, audio, screenshots, and files without forcing manual pre-classification ("Capture first. Classify later.").
+3. **Remember**: Retain long-term preferences, people, projects, work patterns, and key facts across interactions.
+4. **Organize**: Generate semantic views (Projects, People, Meetings, Ideas, Reference) and entity relationships automatically without manual folder setup.
+5. **Plan & Decide**: Transform high-level human goals into internal execution steps and present clear decision candidates to the user.
+6. **Act**: Perform real-world actions in Calendar, Gmail, Browser, Telegram, Slack, Computer Use, Local Files, and external services with human-controlled safety.
+7. **Watch & Wait**: Continuously monitor time, conditions, webhooks, and external events across long durations (Now, Later, Waiting, Recurring).
+8. **Notify & Surface**: Deliver noise-reduced, high-value alerts and completion notifications across Web, Telegram, Slack, Desktop, and Mobile.
+9. **Review & Control**: Contextual human approval ("Needs your attention"), replay protection, immutable audit trails, and action revert/modify controls.
+10. **Continue Across Time**: Maintain persistent session continuity, standing intents, and multi-day task execution without losing state.
+
+#### 3. Cross-Cutting Capabilities & Taxonomies
+
+- **Context**: Automatic contextual fusion across Memory, Tasks, Vault, Knowledge, and Calendar without requiring redundant user explanation.
+- **Trust**: Human approval, auditability, replay protection, privacy boundaries, and zero fake state.
+- **Multi-Model Intelligence**: Invisible internal Model Router steering queries to Nebius, NVIDIA, OpenAI, Gemini, or Local models based on intent.
+- **Internal Agent Taxonomy**: Agents (Browser, Research, Calendar, Email, Computer) are internal specialized workers exposed only in Advanced/Developer modes.
+- **Skill / Tool Resolution**: Skill = how NAgex performs a task; Tool = executable capability. User never selects tools manually.
+
+#### 4. Capability Maturity & System Mapping
+
+| Existing System | Reclassified Capability | Current Maturity |
+|---|---|---|
+| Main Session / Model Router | Ask & Understand / Continue | Strong |
+| Memory Engine | Remember | Medium |
+| Workspace Capture | Capture Anything | Medium |
+| Personal Cloud Vault | Organize | Medium |
+| Task Engine / Scheduler / Watch | Watch & Wait / Continue | Medium / Strong |
+| Browser Agent | Ask & Understand / Act | Strong |
+| Calendar / Gmail | Act | Strong |
+| Approval Engine / Audit | Review & Control | Strong |
+| Document / Multimodal AI | Ask & Understand / Capture | In progress / Planned |
+| Computer Use / Local Files | Act | Planned (P2) |
+
+#### 5. Priority Matrix & Development Roadmap
+
+- **P0 (Personal AI Foundation)**: Unified Ask/Capture, Real Capture Processing, Memory integration, Tasks/background continuation, Contextual approval, Live Calendar/Gmail/Browser.
+- **P1 (Differentiators)**: Audio transcription, Screenshot/Document understanding, Semantic Vault, Standing intent, Conditional Watch UX, Cross-device continuity.
+- **P2 (Deep Autonomy)**: Computer Use, Local Files, Shell, Android background assistant.
+- **P3 (Platform Expansion)**: Plugin SDK, Marketplace, Developer ecosystem.
+
+##### Sprint Roadmap
+- **Sprint 1**: Capability Reclassification & UI Terminology Alignment
+- **Sprint 2**: Real Capture Processing (Text, URL, PDF, Candidate Generation)
+- **Sprint 3**: Memory / Knowledge / Vault Linkage & Source Traceability
+- **Sprint 4**: Watch / Continue (Conditional, Waiting, Recurring, Standing Intent UX)
+- **Sprint 5**: Audio / Screenshot / Image Multimodal Processing
+- **Sprint 6**: Computer Use (Safe Desktop/Browser/Device actions)
+- **Sprint 7**: Android Ambient Personal AI (Share Target, Quick Capture, Voice)
+
+#### 6. Experience Loops & Candidate Model
+
+- **Loop A (Ask)**: Ask → Understand → Answer → Remember if useful.
+- **Loop B (Capture)**: Capture → Store → Understand → Organize → Propose Candidate.
+- **Loop C (Act)**: Intent → Plan → Review if required → Act → Confirm.
+- **Loop D (Background)**: Delegate → Work → Wait / Watch → Notify → Continue.
+- **Loop E (Personalization)**: Use → Learn → Remember → Better context next time.
+- **Candidate Model**: AI proposes candidates (Task Candidate, Calendar Candidate, Memory Candidate, Knowledge Candidate); human accepts, modifies, or rejects.
+
+#### 7. Final Principle
+
+> **Do not build more visible agents. Build more capability into one NAgex.**
+> NAgex should feel less like a system the user operates and more like a Personal AI the user entrusts with work.
+
 ## 15. Final Product Position
 
 ```text
