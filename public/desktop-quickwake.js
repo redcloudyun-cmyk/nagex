@@ -183,7 +183,34 @@
 
       stream.scrollTop = stream.scrollHeight;
 
-      // 3. Call Ambient Plan API
+      // 3. Route to the single primary path first — the same classification
+      // Home's composer uses — so a note/link typed here is captured into
+      // the Inbox/Vault, never misread as a chat goal (MASTER.md Section
+      // 14.9 SS5 item 3: Quick Wake must accept text/URLs/etc. exactly like
+      // the Home composer).
+      const routeRes = await apiFetch('/api/v1/workspace/route-input', {
+        method: 'POST',
+        body: JSON.stringify({ text: promptText }),
+      });
+      const intent = routeRes?.data?.primaryIntent || 'ASK';
+
+      if (intent === 'LINK_CAPTURE' || intent === 'CAPTURE') {
+        await apiFetch('/api/v1/workspace/capture', {
+          method: 'POST',
+          body: JSON.stringify({
+            type: intent === 'LINK_CAPTURE' ? 'LINK' : 'TEXT',
+            content: promptText,
+            source: 'DESKTOP',
+          }),
+        });
+        nagexBubble.textContent = 'Saved to your Inbox.';
+        stream.scrollTop = stream.scrollHeight;
+        state.isSubmitting = false;
+        await loadData();
+        return;
+      }
+
+      // 4. Call Ambient Plan API for ASK/COMMAND intents
       const res = await apiFetch('/api/v1/ambient/intent', {
         method: 'POST',
         body: JSON.stringify({ prompt: promptText }),

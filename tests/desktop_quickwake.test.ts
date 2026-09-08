@@ -176,3 +176,35 @@ test('Desktop Quick Wake HTML/JS frontend assets accessibility', async () => {
   assert.ok(i18nContent.includes('desktop.title'), 'i18n.js should contain desktop.title key');
   assert.ok(i18nContent.includes('NAgex 빠른 호출'), 'i18n.js should contain Korean desktop translation');
 });
+
+test('Unified Capture Routing (STEP 1): Quick Wake classifies input through the same route-input path as Home, never a competing implementation', () => {
+  const jsPath = path.join(process.cwd(), 'public', 'desktop-quickwake.js');
+  const jsContent = fs.readFileSync(jsPath, 'utf8');
+
+  const start = jsContent.indexOf('async function submitPrompt(');
+  assert.ok(start >= 0, 'submitPrompt should exist');
+  const end = jsContent.indexOf('\n  // ── Tasks Quick View Renderer', start);
+  const body = end > start ? jsContent.slice(start, end) : jsContent.slice(start);
+
+  // Quick Wake must classify via the single canonical InputRouter endpoint —
+  // never reimplement classification logic itself (no competing router).
+  assert.match(body, /apiFetch\('\/api\/v1\/workspace\/route-input', \{/);
+  assert.doesNotMatch(jsContent, /class\s+InputRouter|function\s+classify\s*\(/, 'desktop-quickwake.js must not reimplement InputRouter');
+
+  // Classification must happen before the ambient/intent (chat/plan) call,
+  // and a capture/link intent must resolve to the capture endpoint instead
+  // of ever reaching ambient/intent — mirrors Home's single-dispatch rule.
+  const routeCallIdx = body.indexOf("/api/v1/workspace/route-input");
+  const ambientCallIdx = body.indexOf("/api/v1/ambient/intent");
+  const captureCallIdx = body.indexOf("/api/v1/workspace/capture");
+  assert.ok(routeCallIdx >= 0 && ambientCallIdx >= 0 && captureCallIdx >= 0);
+  assert.ok(routeCallIdx < ambientCallIdx, 'route-input must be classified before ambient/intent is ever called');
+  assert.ok(routeCallIdx < captureCallIdx, 'route-input must be classified before the capture endpoint is called');
+  assert.match(body, /intent === 'LINK_CAPTURE' \|\| intent === 'CAPTURE'/);
+
+  // The capture branch must return before reaching the ambient/intent call,
+  // so a single input never dual-dispatches to both chat and capture.
+  const captureBranchIdx = body.indexOf("intent === 'LINK_CAPTURE' || intent === 'CAPTURE'");
+  const returnAfterCaptureIdx = body.indexOf('return;', captureBranchIdx);
+  assert.ok(captureBranchIdx >= 0 && returnAfterCaptureIdx >= 0 && returnAfterCaptureIdx < ambientCallIdx);
+});
