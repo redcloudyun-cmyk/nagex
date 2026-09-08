@@ -298,13 +298,13 @@
     const hour = new Date().getHours();
     const isKr = window.NAGEX_I18N && window.NAGEX_I18N.currentLocale === 'kr';
     const greetingText = isKr
-      ? (hour < 12 ? '좋은 아침입니다' : hour < 18 ? '좋은 오후입니다' : '좋은 저녁입니다')
-      : (hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening');
+      ? (hour < 12 ? '좋은 아침입니다, SARAH' : hour < 18 ? '좋은 오후입니다, SARAH' : '좋은 저녁입니다, SARAH')
+      : (hour < 12 ? 'GOOD MORNING, SARAH' : hour < 18 ? 'GOOD AFTERNOON, SARAH' : 'GOOD EVENING, SARAH');
 
-    const heroTitle = document.querySelector('.personal-hero-title');
+    const heroEyebrow = document.querySelector('.eyebrow-text');
     const heroSub = document.querySelector('.personal-hero-subtitle');
-    if (heroTitle) heroTitle.textContent = greetingText;
-    if (heroSub) heroSub.textContent = isKr ? 'NAgex가 무엇을 처리해 드릴까요?' : 'What would you like NAgex to handle?';
+    if (heroEyebrow) heroEyebrow.textContent = greetingText;
+    if (heroSub) heroSub.textContent = isKr ? '무엇이든 물어보거나 말하거나 붙여넣거나 드롭하세요. 생각하고 만들고 완료하도록 도와드릴게요.' : "Ask, talk, paste, or drop anything here. I'll help you think, create, and get things done.";
 
     renderHomeWorkspaceSections();
 
