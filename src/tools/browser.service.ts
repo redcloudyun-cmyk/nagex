@@ -336,13 +336,13 @@ export class BrowserToolService {
 
   // ── click: context-dependent — navigation vs. consequential ─────────────
 
-  public async click(input: BrowserActionInput & { selector: string }): Promise<BrowserClickResult> {
+  public async click(input: BrowserActionInput & { selector: string; forceApproval?: boolean }): Promise<BrowserClickResult> {
     this.requireAvailable(input.requestId);
     const record = this.requireSession(input.browserSessionId, input.requestId);
     const match = await this.runtime.resolveSelector(record.browserSessionId, input.selector);
     this.assertSelectorResolved(match, input);
 
-    if (!classifyClickConsequence(match.text, match.isFormControl)) {
+    if (!input.forceApproval && !classifyClickConsequence(match.text, match.isFormControl)) {
       await this.runtime.click(record.browserSessionId, input.selector);
       const page = await this.runtime.snapshot(record.browserSessionId);
       this.sessions.updateUrl(record.browserSessionId, page.url);

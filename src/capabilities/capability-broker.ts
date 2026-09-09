@@ -35,6 +35,17 @@ export function isCapabilityIdempotencyRecord(value: unknown): value is Capabili
   );
 }
 
+const NATIVE_APPROVAL_CAPABILITIES = new Set([
+  'google_calendar.create_event',
+  'google_calendar.update_event',
+  'google_calendar.cancel_event',
+  'google_calendar.respond_to_event',
+  'gmail.send_email',
+  'gmail.reply',
+  'gmail.create_draft',
+  'browser.click',
+]);
+
 export class CapabilityBroker {
   private readonly idempotencyStore: FileRecordStore<CapabilityIdempotencyRecord>;
 
@@ -222,6 +233,33 @@ export class CapabilityBroker {
   ): Promise<CapabilityBrokerResult> {
     const payload = (request.payload ?? {}) as Record<string, any>;
 
+    // Fix B — Enforce effectiveApproval:
+    // If safety policy requires action approval (effectiveApproval === 'REQUIRED')
+    // but the requested capability has no native approval continuation, BLOCK with CAPABILITY_SAFETY_APPROVAL_REQUIRED.
+    if (effectiveApproval === 'REQUIRED' && !NATIVE_APPROVAL_CAPABILITIES.has(request.capabilityId)) {
+      this.auditLogger.logEvent({
+        actor: { type: 'user', id: request.principalId },
+        tenant_id: request.tenantId,
+        action: 'capability.blocked',
+        resource: { type: 'Capability', id: request.capabilityId },
+        result: 'DENIED',
+        reason_code: 'CAPABILITY_SAFETY_APPROVAL_REQUIRED',
+        request_id: request.requestId,
+        details: {
+          capabilityId: request.capabilityId,
+          provider: def.provider,
+          risk: def.risk,
+          source: request.source,
+          requestId: request.requestId,
+        },
+      });
+      return {
+        status: 'BLOCKED',
+        capabilityId: request.capabilityId,
+        reasonCode: 'CAPABILITY_SAFETY_APPROVAL_REQUIRED',
+      };
+    }
+
     // Handle Google Calendar Capabilities
     if (def.provider === 'GOOGLE_CALENDAR') {
       if (request.capabilityId === 'google_calendar.create_event') {
@@ -269,10 +307,17 @@ export class CapabilityBroker {
       }
 
       if (request.capabilityId === 'google_calendar.free_slots') {
+        const res = await this.calendarService.getFreeSlots({
+          tenantId: request.tenantId,
+          calendarId: payload.calendarId || 'primary',
+          timeMin: payload.timeMin,
+          timeMax: payload.timeMax,
+          requestId: request.requestId,
+        });
         return {
           status: 'EXECUTED',
           capabilityId: request.capabilityId,
-          result: { slots: [] },
+          result: res,
         };
       }
     }
@@ -435,6 +480,7 @@ export class CapabilityBroker {
           ...input,
           browserSessionId: payload.browserSessionId,
           selector: payload.selector || payload.targetId || '',
+          forceApproval: effectiveApproval === 'REQUIRED',
         });
 
         if (clickRes.status === 'APPROVAL_REQUIRED') {

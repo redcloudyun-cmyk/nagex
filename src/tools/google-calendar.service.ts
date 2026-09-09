@@ -9,9 +9,12 @@ import {
   updateCalendarEvent,
   cancelCalendarEvent,
   respondToCalendarEvent,
+  queryFreeBusy,
+  computeFreeSlots,
   type CalendarEventPayload,
   type UpdateCalendarEventPayload,
   type CalendarRsvpResponseStatus,
+  type FreeBusyInterval,
 } from '../integrations/google/calendar.client.js';
 import { readGoogleOAuthConfig, type GoogleOAuthConfig } from '../integrations/google/oauth.client.js';
 import type { GoogleOAuthTokenStore } from '../integrations/google/token.store.js';
@@ -192,6 +195,30 @@ export class GoogleCalendarService {
     private readonly getConfig: (env?: NodeJS.ProcessEnv) => GoogleOAuthConfig | null = readGoogleOAuthConfig,
     private readonly executions: ExecutionStore = new ExecutionStore(),
   ) {}
+
+  public async getFreeSlots(input: {
+    tenantId: string;
+    calendarId?: string;
+    timeMin: string;
+    timeMax: string;
+    requestId: string;
+  }): Promise<{ slots: FreeBusyInterval[]; busy: FreeBusyInterval[]; calendarId: string; timeMin: string; timeMax: string }> {
+    const config = this.getConfig();
+    const accessToken = config ? await this.tokenStore.getValidAccessToken(input.tenantId, config, this.fetchFn, input.requestId) : null;
+    if (!accessToken) {
+      throw new NagexError({
+        code: 'GOOGLE_CALENDAR_DISCONNECTED',
+        category: 'POLICY',
+        message: 'Google Calendar is not connected. Connect it before querying free slots.',
+        request_id: input.requestId,
+      });
+    }
+
+    const calendarId = input.calendarId || 'primary';
+    const busy = await queryFreeBusy(accessToken, { calendarId, timeMin: input.timeMin, timeMax: input.timeMax }, this.fetchFn, input.requestId);
+    const slots = computeFreeSlots(busy, input.timeMin, input.timeMax);
+    return { slots, busy, calendarId, timeMin: input.timeMin, timeMax: input.timeMax };
+  }
 
   public requestCreateEventApproval(input: { tenantId: string; principalId: string; payload: unknown; requestId: string }): ActionApprovalRecord {
     assertValidPayload(input.payload, input.requestId);

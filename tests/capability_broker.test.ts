@@ -62,7 +62,21 @@ describe('Capability Broker Mandatory Tests', () => {
       actionApprovals,
       auditLogger,
       memoryEngine,
-      async () => new Response(JSON.stringify({ id: 'evt_123', htmlLink: 'https://calendar.google.com' }), { status: 200 }),
+      async (url: any, opts: any) => {
+        if (typeof url === 'string' && url.includes('freeBusy')) {
+          return new Response(
+            JSON.stringify({
+              calendars: {
+                primary: {
+                  busy: [{ start: '2026-09-10T09:00:00Z', end: '2026-09-10T10:00:00Z' }],
+                },
+              },
+            }),
+            { status: 200 }
+          );
+        }
+        return new Response(JSON.stringify({ id: 'evt_123', htmlLink: 'https://calendar.google.com' }), { status: 200 });
+      },
       getConfig,
       executionStore
     );
@@ -808,6 +822,148 @@ describe('Capability Broker Mandatory Tests', () => {
     for (const ev of brokerEvents) {
       const dump = JSON.stringify(ev);
       assert.equal(dump.includes(secretBody), false, `Secret body found in audit log event ${ev.action}`);
+    }
+  });
+
+  it('21. google_calendar.free_slots returns real computed free slots', async () => {
+    const res = await capabilityBroker.execute({
+      capabilityId: 'google_calendar.free_slots',
+      tenantId: 'ten_01',
+      principalId: 'usr_01',
+      requestId: 'req_free_slots_1',
+      payload: {
+        calendarId: 'primary',
+        timeMin: '2026-09-10T08:00:00Z',
+        timeMax: '2026-09-10T12:00:00Z',
+      },
+      source: 'WEB',
+    });
+    assert.equal(res.status, 'EXECUTED');
+    if (res.status === 'EXECUTED') {
+      assert.ok(res.result);
+      const resData = res.result as any;
+      assert.equal(resData.calendarId, 'primary');
+      assert.ok(Array.isArray(resData.slots));
+    }
+  });
+
+  it('22. google_calendar.free_slots fails when disconnected', async () => {
+    const disconnectedTokenStore: any = {
+      getValidAccessToken: async () => null,
+    };
+    const discCalService = new GoogleCalendarService(
+      disconnectedTokenStore,
+      actionApprovals,
+      auditLogger,
+      memoryEngine,
+      async () => new Response('{}', { status: 401 }),
+      () => ({ clientId: 'm', clientSecret: 'm', redirectUri: 'm' }),
+      executionStore
+    );
+    const discBroker = new CapabilityBroker(
+      discCalService,
+      gmailService,
+      browserService,
+      auditLogger,
+      registry,
+      'test_idempotency_disc',
+      'NAGEX_TEST_IDEMPOTENCY_DIR'
+    );
+    await assert.rejects(
+      async () => {
+        await discBroker.execute({
+          capabilityId: 'google_calendar.free_slots',
+          tenantId: 'ten_01',
+          principalId: 'usr_01',
+          requestId: 'req_free_slots_disc',
+          payload: { calendarId: 'primary', timeMin: '2026-09-10T08:00:00Z', timeMax: '2026-09-10T12:00:00Z' },
+          source: 'WEB',
+        });
+      },
+      (err: any) => Boolean(err && (err.code === 'GOOGLE_CALENDAR_DISCONNECTED' || String(err).includes('not connected')))
+    );
+  });
+
+  it('23. safety requiring approval blocks read-only tool (CAPABILITY_SAFETY_APPROVAL_REQUIRED)', async () => {
+    const safetyReqApproval: SafetyDecision = {
+      decisionId: 'sd_read_appr',
+      tenantId: 'ten_01',
+      userId: 'usr_01',
+      riskLevel: 'R1',
+      categories: [],
+      responseMode: 'LIMITED',
+      responseAllowed: true,
+      planningAllowed: true,
+      executionAllowed: true,
+      requiresActionApproval: true,
+      requiresHumanReview: false,
+      reasonCodes: ['ELEVATED_RISK'],
+      userFacingExplanation: 'Requires approval',
+      policyVersion: '1.0',
+      classifierVersion: '1.0',
+      createdAt: new Date().toISOString(),
+    };
+
+    const res = await capabilityBroker.execute({
+      capabilityId: 'gmail.search',
+      tenantId: 'ten_01',
+      principalId: 'usr_01',
+      requestId: 'req_gmail_search_safety_appr',
+      payload: { query: 'test' },
+      source: 'WEB',
+      safetyDecision: safetyReqApproval,
+    });
+
+    assert.equal(res.status, 'BLOCKED');
+    if (res.status === 'BLOCKED') {
+      assert.equal(res.reasonCode, 'CAPABILITY_SAFETY_APPROVAL_REQUIRED');
+    }
+  });
+
+  it('24. safety requiring approval forces approval on harmless browser.click', async () => {
+    const openRes = await capabilityBroker.execute({
+      capabilityId: 'browser.open',
+      tenantId: 'ten_01',
+      principalId: 'usr_01',
+      requestId: 'req_b_open_safety_force',
+      payload: {},
+      source: 'WEB',
+    });
+    const sessionId = (openRes as any).result.browserSessionId;
+
+    const safetyReqApproval: SafetyDecision = {
+      decisionId: 'sd_click_appr',
+      tenantId: 'ten_01',
+      userId: 'usr_01',
+      riskLevel: 'R1',
+      categories: [],
+      responseMode: 'LIMITED',
+      responseAllowed: true,
+      planningAllowed: true,
+      executionAllowed: true,
+      requiresActionApproval: true,
+      requiresHumanReview: false,
+      reasonCodes: ['ELEVATED_RISK'],
+      userFacingExplanation: 'Requires approval',
+      policyVersion: '1.0',
+      classifierVersion: '1.0',
+      createdAt: new Date().toISOString(),
+    };
+
+    const res = await capabilityBroker.execute({
+      capabilityId: 'browser.click',
+      tenantId: 'ten_01',
+      principalId: 'usr_01',
+      requestId: 'req_b_click_safety_appr',
+      payload: { browserSessionId: sessionId, selector: 'a#next-link' },
+      source: 'WEB',
+      safetyDecision: safetyReqApproval,
+    });
+
+    assert.equal(res.status, 'APPROVAL_REQUIRED');
+    if (res.status === 'APPROVAL_REQUIRED') {
+      assert.ok(res.approval);
+      assert.equal((res.approval as any).toolId, 'browser.click');
     }
   });
 });
