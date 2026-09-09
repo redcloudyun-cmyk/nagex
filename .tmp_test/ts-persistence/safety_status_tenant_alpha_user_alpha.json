@@ -1,9 +1,0 @@
-{
-  "tenantId": "tenant_alpha",
-  "userId": "user_alpha",
-  "enforcementLevel": "WARN",
-  "warningCount": 1,
-  "blockedCount": 1,
-  "requiresHumanReview": false,
-  "lastEventAt": "2026-09-09T01:28:58.598Z"
-}
