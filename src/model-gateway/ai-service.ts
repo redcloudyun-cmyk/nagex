@@ -289,6 +289,11 @@ function summarizeMemories(memories: MemoryRecord[]): string {
   }).join('\n');
 }
 
+function summarizeConversation(conversation?: Array<{ role: 'user' | 'assistant'; content: string }>): string {
+  if (!conversation || conversation.length === 0) return 'No prior conversation context.';
+  return conversation.map((msg) => `${msg.role.toUpperCase()}: ${msg.content}`).join('\n');
+}
+
 export class AiService {
   constructor(private readonly router: UnifiedModelRouter) {}
 
@@ -296,20 +301,29 @@ export class AiService {
     return this.router.statuses();
   }
 
-  public async chat(input: { message: string; mode: RoutingMode; requestId?: string }): Promise<AiServiceResponse<{ message: string }>> {
+  public async chat(input: { message: string; mode: RoutingMode; requestId?: string; conversation?: Array<{ role: 'user' | 'assistant'; content: string }> }): Promise<AiServiceResponse<{ message: string }>> {
     const requestId = input.requestId || `chat_${randomUUID()}`;
+    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+      { role: 'system', content: 'You are NAgex, a personal AI assistant. Be concise and do not claim that tools were executed.' },
+    ];
+    if (input.conversation && input.conversation.length > 0) {
+      for (const item of input.conversation) {
+        messages.push({ role: item.role, content: item.content });
+      }
+    }
+    const lastItem = input.conversation?.[input.conversation.length - 1];
+    if (!lastItem || lastItem.role !== 'user' || lastItem.content !== input.message) {
+      messages.push({ role: 'user', content: input.message });
+    }
     const response = await this.router.generate({
       mode: input.mode,
       requestId,
-      messages: [
-        { role: 'system', content: 'You are NAgex, a personal AI assistant. Be concise and do not claim that tools were executed.' },
-        { role: 'user', content: input.message },
-      ],
+      messages,
     });
     return { data: { message: response.text }, provider: response.provider, model: response.model, latencyMs: response.latencyMs, requestId: response.requestId };
   }
 
-  public async plan(input: { prompt: string; memories: MemoryRecord[]; mode: RoutingMode; requestId?: string }): Promise<AiServiceResponse<PlanPreview>> {
+  public async plan(input: { prompt: string; memories: MemoryRecord[]; mode: RoutingMode; requestId?: string; conversation?: Array<{ role: 'user' | 'assistant'; content: string }> }): Promise<AiServiceResponse<PlanPreview>> {
     const requestId = input.requestId || `plan_${randomUUID()}`;
     const response = await this.router.generate({
       mode: input.mode,
@@ -335,7 +349,14 @@ export class AiService {
             'Mark any consequential tool step as requiresApproval=true.',
           ].join('\n'),
         },
-        { role: 'user', content: `User intent:\n${input.prompt}\n\nRelevant memory:\n${summarizeMemories(input.memories)}` },
+        {
+          role: 'user',
+          content: [
+            `User intent:\n${input.prompt}`,
+            `Recent conversation context:\n${summarizeConversation(input.conversation)}`,
+            `Relevant memory:\n${summarizeMemories(input.memories)}`,
+          ].join('\n\n'),
+        },
       ],
     });
     return { data: normalizePlan(response.text, requestId), provider: response.provider, model: response.model, latencyMs: response.latencyMs, requestId: response.requestId };

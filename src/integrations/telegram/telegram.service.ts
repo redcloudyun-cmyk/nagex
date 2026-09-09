@@ -6,6 +6,9 @@ import type { PlanResolver } from '../../planning/plan-resolver.js';
 import { TelegramBotClient, type TelegramUpdate } from './telegram.client.js';
 import { TelegramIdentityStore } from './telegram-identity.store.js';
 
+import type { ConversationStore } from '../../conversations/conversation.store.js';
+import type { ConversationContextService } from '../../conversations/conversation-context.service.js';
+
 export interface TelegramServiceOptions {
   botClient: TelegramBotClient;
   identityStore: TelegramIdentityStore;
@@ -14,6 +17,8 @@ export interface TelegramServiceOptions {
   planResolver: PlanResolver;
   getMemories: (principalId: string, prompt: string) => MemoryRecord[];
   auditLogger: AuditLogger;
+  conversationStore?: ConversationStore;
+  conversationContextService?: ConversationContextService;
 }
 
 export interface TelegramProcessResult {
@@ -42,6 +47,19 @@ export class TelegramService {
     const { principalId, tenantId } = this.options.identityStore.resolve(tgUserId);
     const session = this.options.sessionStore.getOrCreateMain(tenantId, principalId);
 
+    // Persist USER message if conversation store is provided
+    if (this.options.conversationStore) {
+      this.options.conversationStore.append({
+        tenantId,
+        principalId,
+        sessionId: session.sessionId,
+        role: 'USER',
+        source: 'TELEGRAM',
+        content: text,
+        requestId,
+      });
+    }
+
     this.options.auditLogger.logEvent({
       actor: { type: 'user', id: principalId },
       tenant_id: tenantId,
@@ -52,8 +70,13 @@ export class TelegramService {
       details: { text, telegramUserId: tgUserId, username: msg.from.username },
     });
 
-    // 2. Fetch Relevant Memory Context
+    // 2. Fetch Relevant Memory Context & Conversation Context
     const memories = this.options.getMemories(principalId, text);
+    const conversation = this.options.conversationContextService?.buildContext({
+      tenantId,
+      principalId,
+      sessionId: session.sessionId,
+    });
 
     // 3. Process Intent via AI Service (Chat or Plan Preview)
     let responseText = '';
@@ -64,6 +87,7 @@ export class TelegramService {
       const planRes = await this.options.aiService.plan({
         prompt: text,
         memories,
+        conversation,
         mode: 'auto',
         requestId,
       });
@@ -79,10 +103,24 @@ export class TelegramService {
     } else {
       const chatRes = await this.options.aiService.chat({
         message: text,
+        conversation,
         mode: 'auto',
         requestId,
       });
       responseText = chatRes.data.message || 'I processed your request.';
+    }
+
+    // Persist ASSISTANT message if conversation store is provided
+    if (this.options.conversationStore) {
+      this.options.conversationStore.append({
+        tenantId,
+        principalId,
+        sessionId: session.sessionId,
+        role: 'ASSISTANT',
+        source: 'TELEGRAM',
+        content: responseText,
+        requestId,
+      });
     }
 
     // 4. Send Response Back to Telegram

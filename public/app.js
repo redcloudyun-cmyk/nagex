@@ -258,7 +258,7 @@
   }
 
   async function loadAllData() {
-    const [memData, planData, taskData, skillData, toolData, apprData, execData, knowData, qwData, autoData, oauthData, tgStatus, tgIdentities, slackStatus, slackIdentities, notifData, candData, activityData, inboxData] = await Promise.all([
+    const [memData, planData, taskData, skillData, toolData, apprData, execData, knowData, qwData, autoData, oauthData, tgStatus, tgIdentities, slackStatus, slackIdentities, notifData, candData, activityData, inboxData, convData] = await Promise.all([
       apiFetch('/api/v1/memory'),
       apiFetch('/api/v1/plans'),
       apiFetch('/api/v1/tasks'),
@@ -278,6 +278,7 @@
       apiFetch('/api/v1/candidates'),
       apiFetch('/api/v1/activity'),
       apiFetch('/api/v1/workspace/inbox'),
+      apiFetch('/api/v1/conversations/main'),
     ]);
 
     if (memData) state.memories = memData.memories || [];
@@ -291,6 +292,7 @@
     if (candData) state.candidates = candData.candidates || [];
     if (activityData) state.activity = activityData.activities || [];
     if (inboxData && Array.isArray(inboxData.items)) state.inbox = inboxData.items;
+    if (convData) state.mainConversation = convData;
     if (qwData) state.quickWakeConfig = qwData;
     if (autoData) state.autonomyConfig = autoData;
     if (oauthData && typeof oauthData.connected === 'boolean') state.googleOAuth = oauthData;

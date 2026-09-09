@@ -6,6 +6,9 @@ import type { PlanResolver } from '../../planning/plan-resolver.js';
 import { SlackClient, type SlackEventPayload } from './slack.client.js';
 import { SlackIdentityStore } from './slack-identity.store.js';
 
+import type { ConversationStore } from '../../conversations/conversation.store.js';
+import type { ConversationContextService } from '../../conversations/conversation-context.service.js';
+
 export interface SlackServiceOptions {
   slackClient: SlackClient;
   identityStore: SlackIdentityStore;
@@ -14,6 +17,8 @@ export interface SlackServiceOptions {
   planResolver: PlanResolver;
   getMemories: (principalId: string, prompt: string) => MemoryRecord[];
   auditLogger: AuditLogger;
+  conversationStore?: ConversationStore;
+  conversationContextService?: ConversationContextService;
 }
 
 export interface SlackProcessResult {
@@ -55,6 +60,19 @@ export class SlackService {
     const { principalId, tenantId } = this.options.identityStore.resolve(slackUserId);
     const session = this.options.sessionStore.getOrCreateMain(tenantId, principalId);
 
+    // Persist USER message if conversation store is provided
+    if (this.options.conversationStore) {
+      this.options.conversationStore.append({
+        tenantId,
+        principalId,
+        sessionId: session.sessionId,
+        role: 'USER',
+        source: 'SLACK',
+        content: text,
+        requestId,
+      });
+    }
+
     this.options.auditLogger.logEvent({
       actor: { type: 'user', id: principalId },
       tenant_id: tenantId,
@@ -65,8 +83,13 @@ export class SlackService {
       details: { text, slackUserId, teamId: payload.team_id },
     });
 
-    // 3. Fetch Relevant Memories
+    // 3. Fetch Relevant Memories & Conversation Context
     const memories = this.options.getMemories(principalId, text);
+    const conversation = this.options.conversationContextService?.buildContext({
+      tenantId,
+      principalId,
+      sessionId: session.sessionId,
+    });
 
     // 4. Process Intent via AI Service
     let responseText = '';
@@ -76,6 +99,7 @@ export class SlackService {
       const planRes = await this.options.aiService.plan({
         prompt: text,
         memories,
+        conversation,
         mode: 'auto',
         requestId,
       });
@@ -91,10 +115,24 @@ export class SlackService {
     } else {
       const chatRes = await this.options.aiService.chat({
         message: text,
+        conversation,
         mode: 'auto',
         requestId,
       });
       responseText = chatRes.data.message || 'I processed your request.';
+    }
+
+    // Persist ASSISTANT message if conversation store is provided
+    if (this.options.conversationStore) {
+      this.options.conversationStore.append({
+        tenantId,
+        principalId,
+        sessionId: session.sessionId,
+        role: 'ASSISTANT',
+        source: 'SLACK',
+        content: responseText,
+        requestId,
+      });
     }
 
     // 5. Send Response Back to Slack

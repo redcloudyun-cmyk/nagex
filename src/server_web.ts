@@ -41,6 +41,8 @@ import { googleTokenStore, DEFAULT_GOOGLE_TENANT_ID } from './integrations/googl
 import { buildGoogleAuthorizeUrl, exchangeGoogleAuthorizationCode, readGoogleOAuthConfig } from './integrations/google/oauth.client.js';
 import { queryFreeBusy, computeFreeSlots } from './integrations/google/calendar.client.js';
 import { SessionStore } from './sessions/session.store.js';
+import { ConversationStore } from './conversations/conversation.store.js';
+import { ConversationContextService } from './conversations/conversation-context.service.js';
 import { TaskStore, type TaskType, type TaskTrigger, type TaskApprovalPolicy } from './tasks/task.store.js';
 import { TaskRunStore } from './tasks/task-run.store.js';
 import { TaskScheduler, computeNextRunAt } from './tasks/task.scheduler.js';
@@ -136,6 +138,8 @@ let pendingGoogleOAuthState: string | null = null;
 
 // ─── MASTER.md Section 14 — Main Session + Tasks Foundation ───
 export const sessionStore = new SessionStore();
+export const conversationStore = new ConversationStore();
+export const conversationContextService = new ConversationContextService(conversationStore);
 export const taskStore = new TaskStore();
 export const taskRunStore = new TaskRunStore();
 const taskRunner = new CompositeTaskRunner(
@@ -155,6 +159,8 @@ export const telegramService = new TelegramService({
   planResolver,
   getMemories: (principalId, prompt) => getRelevantMemories(principalId, prompt),
   auditLogger,
+  conversationStore,
+  conversationContextService,
 });
 
 // ─── MASTER.md Section 14 — Slack Integration (Item 11) ───
@@ -168,6 +174,8 @@ export const slackService = new SlackService({
   planResolver,
   getMemories: (principalId, prompt) => getRelevantMemories(principalId, prompt),
   auditLogger,
+  conversationStore,
+  conversationContextService,
 });
 
 // ─── MASTER.md Section 14 — Desktop Quick Wake Runtime (Item 14) ───
@@ -546,6 +554,8 @@ export async function handleAsyncApiRequest(
   telegramApiService: TelegramService = telegramService,
   slackApiService: SlackService = slackService,
   notificationApiService: NotificationEngine = notificationEngine,
+  convStore: ConversationStore = conversationStore,
+  convContextService: ConversationContextService = conversationContextService,
 ): Promise<ApiResult> {
   try {
     if (pathname === '/api/v1/providers/status' && method === 'GET') {
@@ -581,22 +591,215 @@ export async function handleAsyncApiRequest(
     if (pathname === '/api/v1/vcs/status' && method === 'GET') {
       return { status: 200, data: getVcsStatus() };
     }
+    if (pathname === '/api/v1/conversations/main' && method === 'GET') {
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_conv_get_${crypto.randomUUID()}`;
+      const session = sessionStore.getOrCreateMain(tenantId, principalId);
+      const messages = convStore.listSession(tenantId, principalId, session.sessionId)
+        .filter((m) => m.status !== 'DELETED');
+
+      auditLogger.logEvent({
+        actor: { type: 'user', id: principalId },
+        tenant_id: tenantId,
+        action: 'conversation.context.loaded',
+        resource: { type: 'Session', id: session.sessionId },
+        result: 'SUCCESS',
+        request_id: requestId,
+        details: { sessionId: session.sessionId, messageCount: messages.length },
+      });
+
+      return {
+        status: 200,
+        data: {
+          session: { sessionId: session.sessionId, type: session.type },
+          messages,
+        },
+      };
+    }
+    if (pathname === '/api/v1/conversations/main/messages' && method === 'POST') {
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_conv_msg_${crypto.randomUUID()}`;
+      const content = typeof body?.content === 'string' ? body.content.trim() : '';
+      if (!content) {
+        throw new NagexError({ code: 'INVALID_CONVERSATION_PAYLOAD', category: 'VALIDATION', message: 'content is required.', request_id: requestId });
+      }
+      const role = (typeof body?.role === 'string' ? body.role : 'USER') as any;
+      const source = (typeof body?.source === 'string' ? body.source : 'WEB') as any;
+      const session = sessionStore.getOrCreateMain(tenantId, principalId);
+
+      const record = convStore.append({
+        tenantId,
+        principalId,
+        sessionId: session.sessionId,
+        role,
+        source,
+        content,
+        requestId,
+      });
+
+      auditLogger.logEvent({
+        actor: { type: 'user', id: principalId },
+        tenant_id: tenantId,
+        action: 'conversation.message.created',
+        resource: { type: 'ConversationMessage', id: record.messageId },
+        result: 'SUCCESS',
+        request_id: requestId,
+        details: { sessionId: session.sessionId, messageId: record.messageId, role: record.role, source: record.source },
+      });
+
+      return { status: 201, data: record };
+    }
+    if (pathname === '/api/v1/conversations/main' && method === 'DELETE') {
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_conv_del_${crypto.randomUUID()}`;
+      const session = sessionStore.getOrCreateMain(tenantId, principalId);
+      const clearedCount = convStore.deleteSession(tenantId, principalId, session.sessionId);
+
+      auditLogger.logEvent({
+        actor: { type: 'user', id: principalId },
+        tenant_id: tenantId,
+        action: 'conversation.session.cleared',
+        resource: { type: 'Session', id: session.sessionId },
+        result: 'SUCCESS',
+        request_id: requestId,
+        details: { sessionId: session.sessionId, clearedCount },
+      });
+
+      return { status: 200, data: { clearedCount } };
+    }
     if (pathname === '/api/v1/ai/chat' && method === 'POST') {
       const message = typeof body?.message === 'string' ? body.message.trim() : '';
       if (!message) throw new NagexError({ code: 'MESSAGE_REQUIRED', category: 'VALIDATION', message: 'message is required.', request_id: `req_${crypto.randomUUID()}` });
-      const result = await service.chat({ message, mode: parseRoutingMode(body?.provider, process.env.NAGEX_MODEL_PROVIDER), requestId: getHeaderValue(headers, 'x-request-id') });
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_chat_${crypto.randomUUID()}`;
+      const session = sessionStore.getOrCreateMain(tenantId, principalId);
+
+      // Section 6: Persist USER message BEFORE AI reasoning
+      const userMsgRecord = convStore.append({
+        tenantId,
+        principalId,
+        sessionId: session.sessionId,
+        role: 'USER',
+        source: 'WEB',
+        content: message,
+        requestId,
+      });
+
+      auditLogger.logEvent({
+        actor: { type: 'user', id: principalId },
+        tenant_id: tenantId,
+        action: 'conversation.message.created',
+        resource: { type: 'ConversationMessage', id: userMsgRecord.messageId },
+        result: 'SUCCESS',
+        request_id: requestId,
+        details: { sessionId: session.sessionId, messageId: userMsgRecord.messageId, role: 'USER', source: 'WEB' },
+      });
+
+      const conversation = convContextService.buildContext({
+        tenantId,
+        principalId,
+        sessionId: session.sessionId,
+      });
+
+      const result = await service.chat({
+        message,
+        conversation,
+        mode: parseRoutingMode(body?.provider, process.env.NAGEX_MODEL_PROVIDER),
+        requestId,
+      });
+
+      // Section 6: Persist ASSISTANT message AFTER successful AI response
+      const assistantMsgRecord = convStore.append({
+        tenantId,
+        principalId,
+        sessionId: session.sessionId,
+        role: 'ASSISTANT',
+        source: 'WEB',
+        content: result.data.message,
+        requestId,
+      });
+
+      auditLogger.logEvent({
+        actor: { type: 'user', id: principalId },
+        tenant_id: tenantId,
+        action: 'conversation.message.created',
+        resource: { type: 'ConversationMessage', id: assistantMsgRecord.messageId },
+        result: 'SUCCESS',
+        request_id: requestId,
+        details: { sessionId: session.sessionId, messageId: assistantMsgRecord.messageId, role: 'ASSISTANT', source: 'WEB' },
+      });
+
       return { status: 200, data: result };
     }
     if (pathname === '/api/v1/ambient/intent' && method === 'POST') {
       const prompt = typeof body?.prompt === 'string' ? body.prompt.trim() : '';
       if (!prompt) throw new NagexError({ code: 'PROMPT_REQUIRED', category: 'VALIDATION', message: 'prompt is required.', request_id: `req_${crypto.randomUUID()}` });
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
       const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_intent_${crypto.randomUUID()}`;
+      const session = sessionStore.getOrCreateMain(tenantId, principalId);
+
+      // Section 6: Persist USER message BEFORE AI reasoning
+      const userMsgRecord = convStore.append({
+        tenantId,
+        principalId,
+        sessionId: session.sessionId,
+        role: 'USER',
+        source: 'WEB',
+        content: prompt,
+        requestId,
+      });
+
+      auditLogger.logEvent({
+        actor: { type: 'user', id: principalId },
+        tenant_id: tenantId,
+        action: 'conversation.message.created',
+        resource: { type: 'ConversationMessage', id: userMsgRecord.messageId },
+        result: 'SUCCESS',
+        request_id: requestId,
+        details: { sessionId: session.sessionId, messageId: userMsgRecord.messageId, role: 'USER', source: 'WEB' },
+      });
+
+      const conversation = convContextService.buildContext({
+        tenantId,
+        principalId,
+        sessionId: session.sessionId,
+      });
+
       const result = await service.plan({
         prompt,
         memories: getRelevantMemories(principalId, prompt),
+        conversation,
         mode: parseRoutingMode(body?.provider, process.env.NAGEX_MODEL_PROVIDER),
-        requestId: getHeaderValue(headers, 'x-request-id'),
+        requestId,
       });
+
+      // Section 6: Persist ASSISTANT message AFTER successful AI generation
+      const assistantContent = result.data.summary || result.data.goal || 'Plan generated.';
+      const assistantMsgRecord = convStore.append({
+        tenantId,
+        principalId,
+        sessionId: session.sessionId,
+        role: 'ASSISTANT',
+        source: 'WEB',
+        content: assistantContent,
+        requestId,
+      });
+
+      auditLogger.logEvent({
+        actor: { type: 'user', id: principalId },
+        tenant_id: tenantId,
+        action: 'conversation.message.created',
+        resource: { type: 'ConversationMessage', id: assistantMsgRecord.messageId },
+        result: 'SUCCESS',
+        request_id: requestId,
+        details: { sessionId: session.sessionId, messageId: assistantMsgRecord.messageId, role: 'ASSISTANT', source: 'WEB' },
+      });
+
       return { status: 200, data: { status: 'PLAN_PREVIEW', message: 'Plan generated. Review it before any tools are executed.', plan: result.data, provider: result.provider, model: result.model, latencyMs: result.latencyMs, requestId: result.requestId } };
     }
     if (pathname === '/api/v1/oauth/google/callback' && method === 'GET') {

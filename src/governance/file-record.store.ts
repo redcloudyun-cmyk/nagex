@@ -38,25 +38,29 @@ export class FileRecordStore<T> {
 
   public write(id: string, record: T): void {
     try {
-      fs.mkdirSync(this.dir, { recursive: true, mode: 0o700 });
-      const tmpPath = path.join(this.dir, `.${id.replace(/[^a-zA-Z0-9_.-]/g, '_')}.tmp-${process.pid}-${crypto.randomBytes(4).toString('hex')}`);
-      const fd = fs.openSync(tmpPath, 'w', 0o600);
-      try {
-        fs.writeSync(fd, JSON.stringify(record));
-        try {
-          fs.fsyncSync(fd);
-        } catch {
-          /* fsync not supported on this filesystem — best effort */
-        }
-      } finally {
-        fs.closeSync(fd);
-      }
-      fs.chmodSync(tmpPath, 0o600);
-      fs.renameSync(tmpPath, this.filePath(id));
-      fs.chmodSync(this.filePath(id), 0o600);
+      this.writeOrThrow(id, record);
     } catch (error) {
       console.error(JSON.stringify({ event: 'nagex_record_persist_failed', dir: this.dir, code: (error as NodeJS.ErrnoException).code ?? 'UNKNOWN' }));
     }
+  }
+
+  public writeOrThrow(id: string, record: T): void {
+    fs.mkdirSync(this.dir, { recursive: true, mode: 0o700 });
+    const tmpPath = path.join(this.dir, `.${id.replace(/[^a-zA-Z0-9_.-]/g, '_')}.tmp-${process.pid}-${crypto.randomBytes(4).toString('hex')}`);
+    const fd = fs.openSync(tmpPath, 'w', 0o600);
+    try {
+      fs.writeSync(fd, JSON.stringify(record));
+      try {
+        fs.fsyncSync(fd);
+      } catch {
+        /* fsync not supported on this filesystem — best effort */
+      }
+    } finally {
+      fs.closeSync(fd);
+    }
+    fs.chmodSync(tmpPath, 0o600);
+    fs.renameSync(tmpPath, this.filePath(id));
+    fs.chmodSync(this.filePath(id), 0o600);
   }
 
   public read(id: string): T | null {
