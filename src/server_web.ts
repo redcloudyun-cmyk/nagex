@@ -66,6 +66,7 @@ import type { CandidateStatus, CandidateType } from './workspace/candidate.types
 import { CandidateActionResolver } from './workspace/action-resolver.js';
 import { ActivityStore } from './governance/activity.store.js';
 import { createConfiguredStorageProvider } from './storage/s3-storage.provider.js';
+import { CapabilityBroker, capabilityRegistry } from './capabilities/index.js';
 
 const PORT = Number(process.env.PORT || 8085);
 const PUBLIC_DIR = path.join(process.cwd(), 'public');
@@ -134,6 +135,13 @@ const gmailService = new GmailService(googleTokenStore, actionApprovals, auditLo
 // — but it consumes the identical ActionApprovalStore, replay-protected the
 // same way, and GET/approve/reject need no route changes here either.
 const browserService = new BrowserToolService(browserRuntime, browserSessionStore, actionApprovals, auditLogger, memoryEngine, executionStore);
+export const capabilityBroker = new CapabilityBroker(
+  googleCalendarService,
+  gmailService,
+  browserService,
+  auditLogger,
+  capabilityRegistry
+);
 let pendingGoogleOAuthState: string | null = null;
 
 // ─── MASTER.md Section 14 — Main Session + Tasks Foundation ───
@@ -1608,6 +1616,58 @@ export async function handleAsyncApiRequest(
       const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
       const deleted = await quickCaptureService.deleteCaptureItem(captureId, principalId);
       return { status: 200, data: { success: deleted, captureId } };
+    }
+
+    if (pathname === '/api/v1/capabilities/execute' && method === 'POST') {
+      const tenantId = (Array.isArray(headers['x-nagex-tenant']) ? headers['x-nagex-tenant'][0] : headers['x-nagex-tenant']) || 'ten_production_01';
+      const principalId = (Array.isArray(headers['x-principal-id']) ? headers['x-principal-id'][0] : headers['x-principal-id']) || 'usr_admin_001';
+      const headerRequestId = headers['x-request-id'] || headers['X-Request-Id'];
+      const requestId = (Array.isArray(headerRequestId) ? headerRequestId[0] : headerRequestId) || `req_cap_${Date.now()}`;
+
+      const capabilityId = typeof body?.capabilityId === 'string' ? body.capabilityId : '';
+      const payload = body?.payload ?? {};
+      const idempotencyKey = typeof body?.idempotencyKey === 'string' ? body.idempotencyKey : undefined;
+      const sourceRaw = typeof body?.source === 'string' ? body.source : 'WEB';
+      const source = ['WEB', 'QUICK_WAKE', 'TELEGRAM', 'SLACK', 'TASK', 'SYSTEM'].includes(sourceRaw)
+        ? (sourceRaw as any)
+        : 'WEB';
+
+      try {
+        const result = await capabilityBroker.execute({
+          capabilityId,
+          tenantId,
+          principalId,
+          requestId,
+          payload,
+          source,
+          idempotencyKey,
+        });
+
+        if (result.status === 'EXECUTED') {
+          return { status: 200, data: result };
+        }
+        if (result.status === 'APPROVAL_REQUIRED') {
+          return { status: 202, data: result };
+        }
+        if (result.status === 'BLOCKED') {
+          const httpStatus = result.reasonCode === 'CAPABILITY_NOT_FOUND' ? 404 : 403;
+          return { status: httpStatus, data: result };
+        }
+        return { status: 400, data: result };
+      } catch (error) {
+        if (error instanceof NagexError) {
+          if (error.code === 'CAPABILITY_NOT_FOUND') {
+            return { status: 404, data: { error: error.code, message: error.message, request_id: requestId } };
+          }
+          if (error.code === 'CAPABILITY_IDEMPOTENCY_CONFLICT') {
+            return { status: 409, data: { error: error.code, message: error.message, request_id: requestId } };
+          }
+          if (['CAPABILITY_DISABLED', 'CAPABILITY_BLOCKED_BY_SAFETY', 'CAPABILITY_POLICY_FAILED'].includes(error.code)) {
+            return { status: 403, data: { error: error.code, message: error.message, request_id: requestId } };
+          }
+        }
+        return modelErrorResult(error);
+      }
     }
 
     return handleApiRequest(method, pathname, body, headers);
