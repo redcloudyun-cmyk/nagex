@@ -154,6 +154,28 @@ export class ActionApprovalStore {
     return this.getLive(approvalId, requestId);
   }
 
+  // Performs a read-only preflight validation of approval state without mutating
+  // or consuming the record. Validates toolId binding, expiration, one-time-use,
+  // and APPROVED status. Throws appropriate NagexError for non-executable state.
+  public assertExecutable(approvalId: string, toolId: string, requestId: string): ActionApprovalRecord {
+    const record = this.getLive(approvalId, requestId);
+
+    if (record.toolId !== toolId) {
+      throw new NagexError({ code: 'APPROVAL_TOOL_MISMATCH', category: 'VALIDATION', message: `Approval ${approvalId} was not requested for tool ${toolId}.`, request_id: requestId });
+    }
+    if (record.status === 'EXPIRED') {
+      throw new NagexError({ code: 'APPROVAL_EXPIRED', category: 'POLICY', message: `Approval ${approvalId} has expired.`, request_id: requestId });
+    }
+    if (record.status === 'CONSUMED') {
+      throw new NagexError({ code: 'APPROVAL_ALREADY_CONSUMED', category: 'CONFLICT', message: `Approval ${approvalId} has already been used and cannot be replayed.`, request_id: requestId });
+    }
+    if (record.status !== 'APPROVED') {
+      throw new NagexError({ code: 'APPROVAL_NOT_GRANTED', category: 'POLICY', message: `Approval ${approvalId} is ${record.status}, not approved.`, request_id: requestId });
+    }
+
+    return record;
+  }
+
   // Verifies the approval is APPROVED, unexpired, unused, bound to the given
   // tool, and that the exact payload being executed hashes to the same value
   // as the payload that was approved. On success, marks it consumed (usedAt

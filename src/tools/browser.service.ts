@@ -385,6 +385,14 @@ export class BrowserToolService {
 
     this.auditAction(BROWSER_CLICK_TOOL_ID, 'tool.execution.started', input, 'PENDING_APPROVAL', { approvalId: input.approvalId, selector: input.selector });
 
+    try {
+      this.approvals.assertExecutable(input.approvalId, BROWSER_CLICK_TOOL_ID, input.requestId);
+    } catch (error) {
+      const code = error instanceof NagexError ? error.code : 'APPROVAL_VALIDATION_FAILED';
+      this.auditAction(BROWSER_CLICK_TOOL_ID, 'tool.execution.failed', input, 'DENIED', { approvalId: input.approvalId }, code);
+      throw error;
+    }
+
     // Re-resolve the selector NOW (not trusting the state at request time)
     // so a page that changed between approval and execution is caught here
     // too, before the approval is even consumed.
