@@ -339,9 +339,9 @@ fi
 # ── Result & Output ────────────────────────────────────────────────────────
 printf "\n==========================================\n"
 if [ "$OVERALL_EXIT" -eq 0 ]; then
-  printf " CAPABILITY BROKER FREEZE GATE: ${COLOR_GREEN}PASS${COLOR_NC}\n"
+  printf " SAFE VERIFICATION: ${COLOR_GREEN}PASS${COLOR_NC}\n"
 else
-  printf " CAPABILITY BROKER FREEZE GATE: ${COLOR_RED}FAIL${COLOR_NC}\n"
+  printf " SAFE VERIFICATION: ${COLOR_RED}FAIL${COLOR_NC}\n"
 fi
 printf "==========================================\n\n"
 

@@ -83,21 +83,34 @@ printf "==========================================\n"
 # ── 1. Gmail Live E2E ──────────────────────────────────────────────────────
 section "Gmail Live E2E"
 
-GMAIL_APPROVAL_ID=""
-GMAIL_PAYLOAD="$(node -e '
+# The inner payload is kept as its own value so the EXACT same object can be
+# resent on execute/replay — gmail.service.ts's executeCompose() hash-checks
+# the resent payload against what was approved ("Exact Payload Freeze",
+# MASTER.md 14.1) and rejects a request that omits it, so `{approvalId}`
+# alone was never a valid execute call (confirmed against every passing
+# test that exercises executeSendEmail: gmail_live.test.ts,
+# capability_broker.test.ts, approval_ttl_security.test.ts all resend
+# `payload` alongside `approvalId`).
+GMAIL_SEND_PAYLOAD="$(node -e '
   console.log(JSON.stringify({
-    capabilityId: "gmail.send_email",
-    payload: {
-      from: "me",
-      to: [process.argv[1]],
-      subject: "NAgex Live E2E " + process.argv[2],
-      body: "Controlled NAgex Gmail live E2E test. Safe to delete."
-    }
+    from: "me",
+    to: [process.argv[1]],
+    subject: "NAgex Live E2E " + process.argv[2],
+    body: "Controlled NAgex Gmail live E2E test. Safe to delete."
   }));
 ' "$TO_EMAIL" "$TIMESTAMP")"
 
+GMAIL_REQUEST_PAYLOAD="$(node -e '
+  const payload = JSON.parse(process.argv[1]);
+  console.log(JSON.stringify({ capabilityId: "gmail.send_email", payload }));
+' "$GMAIL_SEND_PAYLOAD")"
+
+GMAIL_APPROVAL_ID=""
+
 # 1.1 Approval Request
-REQ_RESP="$(curl -s -X POST -H "Content-Type: application/json" -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" -d "$GMAIL_PAYLOAD" "${BASE}/api/v1/capabilities/execute" 2>/dev/null || echo "{}")"
+api_call POST "${BASE}/api/v1/capabilities/execute" "$GMAIL_REQUEST_PAYLOAD"
+REQ_HTTP_CODE="$API_CALL_STATUS"
+REQ_RESP="$API_CALL_BODY"
 REQ_STATUS="$(json_get "$REQ_RESP" 'data.status')"
 GMAIL_APPROVAL_ID="$(json_get "$REQ_RESP" 'data.approval ? data.approval.approvalId : ""')"
 
@@ -105,27 +118,36 @@ if [ "$REQ_STATUS" = "APPROVAL_REQUIRED" ] && [ -n "$GMAIL_APPROVAL_ID" ]; then
   pass "Gmail approval requested" "approvalId=$GMAIL_APPROVAL_ID"
   log_result "gmailApprovalRequest" "PASS"
 else
-  fail "Gmail approval requested" "expected APPROVAL_REQUIRED, got '$REQ_STATUS'"
+  fail "Gmail approval requested" "HTTP $REQ_HTTP_CODE, $(api_error_summary "$REQ_RESP")"
   log_result "gmailApprovalRequest" "FAIL"
   OVERALL_EXIT=1
 fi
 
 if [ -n "$GMAIL_APPROVAL_ID" ]; then
   # 1.2 Approve
-  APP_RESP="$(curl -s -X POST -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" "${BASE}/api/v1/approvals/${GMAIL_APPROVAL_ID}/approve" 2>/dev/null || echo "{}")"
+  api_call POST "${BASE}/api/v1/approvals/${GMAIL_APPROVAL_ID}/approve"
+  APP_HTTP_CODE="$API_CALL_STATUS"
+  APP_RESP="$API_CALL_BODY"
   APP_STATUS="$(json_get "$APP_RESP" 'data.status')"
   if [ "$APP_STATUS" = "APPROVED" ]; then
     pass "Gmail approval granted"
     log_result "gmailApprove" "PASS"
   else
-    fail "Gmail approval granted" "status=$APP_STATUS"
+    fail "Gmail approval granted" "HTTP $APP_HTTP_CODE, $(api_error_summary "$APP_RESP")"
     log_result "gmailApprove" "FAIL"
     OVERALL_EXIT=1
   fi
 
-  # 1.3 Actual Send Execution
-  EXEC_PAYLOAD="{\"approvalId\":\"$GMAIL_APPROVAL_ID\"}"
-  EXEC_RESP="$(curl -s -X POST -H "Content-Type: application/json" -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" -d "$EXEC_PAYLOAD" "${BASE}/api/v1/tools/gmail/send-email" 2>/dev/null || echo "{}")"
+  # 1.3 Actual Send Execution — resends the SAME payload the approval was
+  # requested with (the contract requires it; see comment above).
+  EXEC_PAYLOAD="$(node -e '
+    const payload = JSON.parse(process.argv[2]);
+    console.log(JSON.stringify({ approvalId: process.argv[1], payload }));
+  ' "$GMAIL_APPROVAL_ID" "$GMAIL_SEND_PAYLOAD")"
+
+  api_call POST "${BASE}/api/v1/tools/gmail/send-email" "$EXEC_PAYLOAD"
+  EXEC_HTTP_CODE="$API_CALL_STATUS"
+  EXEC_RESP="$API_CALL_BODY"
   EXEC_STATUS="$(json_get "$EXEC_RESP" 'data.status')"
   EXEC_ID="$(json_get "$EXEC_RESP" 'data.executionId')"
   EXT_ID="$(json_get "$EXEC_RESP" 'data.externalId')"
@@ -134,22 +156,22 @@ if [ -n "$GMAIL_APPROVAL_ID" ]; then
     pass "Gmail actual send" "executionId=$EXEC_ID, externalId=$EXT_ID"
     log_result "gmailSendExecution" "PASS"
   else
-    fail "Gmail actual send" "status=$EXEC_STATUS"
+    fail "Gmail actual send" "HTTP $EXEC_HTTP_CODE, $(api_error_summary "$EXEC_RESP")"
     log_result "gmailSendExecution" "FAIL"
     OVERALL_EXIT=1
   fi
 
-  # 1.4 Replay Protection Check
-  REPLAY_RESP="$(curl -s -w "\n%{http_code}" -X POST -H "Content-Type: application/json" -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" -d "$EXEC_PAYLOAD" "${BASE}/api/v1/tools/gmail/send-email" 2>/dev/null || echo "")"
-  REPLAY_HTTP_CODE="$(echo "$REPLAY_RESP" | tail -n1)"
-  REPLAY_BODY="$(echo "$REPLAY_RESP" | sed '$d')"
+  # 1.4 Replay Protection Check — same payload, same (now-consumed) approvalId.
+  api_call POST "${BASE}/api/v1/tools/gmail/send-email" "$EXEC_PAYLOAD"
+  REPLAY_HTTP_CODE="$API_CALL_STATUS"
+  REPLAY_BODY="$API_CALL_BODY"
   REPLAY_ERR_CODE="$(json_get "$REPLAY_BODY" 'data.error ? data.error.code : (data.code || "")')"
 
   if [ "$REPLAY_HTTP_CODE" = "409" ] && [ "$REPLAY_ERR_CODE" = "APPROVAL_ALREADY_CONSUMED" ]; then
     pass "Gmail replay block" "HTTP 409 APPROVAL_ALREADY_CONSUMED"
     log_result "gmailReplayBlock" "PASS"
   else
-    fail "Gmail replay block" "expected 409 APPROVAL_ALREADY_CONSUMED, got HTTP $REPLAY_HTTP_CODE code '$REPLAY_ERR_CODE'"
+    fail "Gmail replay block" "expected 409 APPROVAL_ALREADY_CONSUMED, got HTTP $REPLAY_HTTP_CODE, $(api_error_summary "$REPLAY_BODY")"
     log_result "gmailReplayBlock" "FAIL"
     OVERALL_EXIT=1
   fi
@@ -167,22 +189,34 @@ CAL_TIMES="$(node -e '
 START_TIME="$(json_get "$CAL_TIMES" 'data.start')"
 END_TIME="$(json_get "$CAL_TIMES" 'data.end')"
 
-CAL_APPROVAL_ID=""
-CAL_REQ_PAYLOAD="$(node -e '
+# Real contract (google-calendar.service.ts assertValidPayload / calendar.client.ts
+# CalendarEventPayload): calendarId, summary, description, start, end,
+# timezone, attendees — confirmed against approval_execution_persistence.test.ts
+# and approval_ttl_security.test.ts. Field names are start/end/timezone, not
+# startTime/endTime/timeZone, and calendarId/description are required.
+CAL_EVENT_PAYLOAD="$(node -e '
   console.log(JSON.stringify({
-    capabilityId: "google_calendar.create_event",
-    payload: {
-      summary: "NAgex Live E2E " + process.argv[1],
-      startTime: process.argv[2],
-      endTime: process.argv[3],
-      timeZone: "Asia/Seoul",
-      attendees: []
-    }
+    calendarId: "primary",
+    summary: "NAgex Live E2E " + process.argv[1],
+    description: "Controlled NAgex Calendar live E2E test. Safe to delete.",
+    start: process.argv[2],
+    end: process.argv[3],
+    timezone: "Asia/Seoul",
+    attendees: []
   }));
 ' "$TIMESTAMP" "$START_TIME" "$END_TIME")"
 
+CAL_REQ_PAYLOAD="$(node -e '
+  const payload = JSON.parse(process.argv[1]);
+  console.log(JSON.stringify({ capabilityId: "google_calendar.create_event", payload }));
+' "$CAL_EVENT_PAYLOAD")"
+
+CAL_APPROVAL_ID=""
+
 # 2.1 Approval Request
-CAL_REQ_RESP="$(curl -s -X POST -H "Content-Type: application/json" -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" -d "$CAL_REQ_PAYLOAD" "${BASE}/api/v1/capabilities/execute" 2>/dev/null || echo "{}")"
+api_call POST "${BASE}/api/v1/capabilities/execute" "$CAL_REQ_PAYLOAD"
+CAL_REQ_HTTP_CODE="$API_CALL_STATUS"
+CAL_REQ_RESP="$API_CALL_BODY"
 CAL_REQ_STATUS="$(json_get "$CAL_REQ_RESP" 'data.status')"
 CAL_APPROVAL_ID="$(json_get "$CAL_REQ_RESP" 'data.approval ? data.approval.approvalId : ""')"
 
@@ -190,27 +224,36 @@ if [ "$CAL_REQ_STATUS" = "APPROVAL_REQUIRED" ] && [ -n "$CAL_APPROVAL_ID" ]; the
   pass "Calendar approval requested" "approvalId=$CAL_APPROVAL_ID"
   log_result "calendarApprovalRequest" "PASS"
 else
-  fail "Calendar approval requested" "expected APPROVAL_REQUIRED, got '$CAL_REQ_STATUS'"
+  fail "Calendar approval requested" "HTTP $CAL_REQ_HTTP_CODE, $(api_error_summary "$CAL_REQ_RESP")"
   log_result "calendarApprovalRequest" "FAIL"
   OVERALL_EXIT=1
 fi
 
 if [ -n "$CAL_APPROVAL_ID" ]; then
   # 2.2 Approve
-  CAL_APP_RESP="$(curl -s -X POST -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" "${BASE}/api/v1/approvals/${CAL_APPROVAL_ID}/approve" 2>/dev/null || echo "{}")"
+  api_call POST "${BASE}/api/v1/approvals/${CAL_APPROVAL_ID}/approve"
+  CAL_APP_HTTP_CODE="$API_CALL_STATUS"
+  CAL_APP_RESP="$API_CALL_BODY"
   CAL_APP_STATUS="$(json_get "$CAL_APP_RESP" 'data.status')"
   if [ "$CAL_APP_STATUS" = "APPROVED" ]; then
     pass "Calendar approval granted"
     log_result "calendarApprove" "PASS"
   else
-    fail "Calendar approval granted" "status=$CAL_APP_STATUS"
+    fail "Calendar approval granted" "HTTP $CAL_APP_HTTP_CODE, $(api_error_summary "$CAL_APP_RESP")"
     log_result "calendarApprove" "FAIL"
     OVERALL_EXIT=1
   fi
 
-  # 2.3 Actual Event Creation
-  CAL_EXEC_PAYLOAD="{\"approvalId\":\"$CAL_APPROVAL_ID\"}"
-  CAL_EXEC_RESP="$(curl -s -X POST -H "Content-Type: application/json" -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" -d "$CAL_EXEC_PAYLOAD" "${BASE}/api/v1/tools/google-calendar/create-event" 2>/dev/null || echo "{}")"
+  # 2.3 Actual Event Creation — resends the SAME payload the approval was
+  # requested with (required by assertValidPayload's hash check).
+  CAL_EXEC_PAYLOAD="$(node -e '
+    const payload = JSON.parse(process.argv[2]);
+    console.log(JSON.stringify({ approvalId: process.argv[1], payload }));
+  ' "$CAL_APPROVAL_ID" "$CAL_EVENT_PAYLOAD")"
+
+  api_call POST "${BASE}/api/v1/tools/google-calendar/create-event" "$CAL_EXEC_PAYLOAD"
+  CAL_EXEC_HTTP_CODE="$API_CALL_STATUS"
+  CAL_EXEC_RESP="$API_CALL_BODY"
   CAL_EXEC_STATUS="$(json_get "$CAL_EXEC_RESP" 'data.status')"
   CAL_EXEC_ID="$(json_get "$CAL_EXEC_RESP" 'data.executionId')"
   CAL_EXT_ID="$(json_get "$CAL_EXEC_RESP" 'data.externalId')"
@@ -219,22 +262,22 @@ if [ -n "$CAL_APPROVAL_ID" ]; then
     pass "Calendar actual create" "executionId=$CAL_EXEC_ID, externalId=$CAL_EXT_ID"
     log_result "calendarCreateExecution" "PASS"
   else
-    fail "Calendar actual create" "status=$CAL_EXEC_STATUS"
+    fail "Calendar actual create" "HTTP $CAL_EXEC_HTTP_CODE, $(api_error_summary "$CAL_EXEC_RESP")"
     log_result "calendarCreateExecution" "FAIL"
     OVERALL_EXIT=1
   fi
 
   # 2.4 Replay Protection Check
-  CAL_REPLAY_RESP="$(curl -s -w "\n%{http_code}" -X POST -H "Content-Type: application/json" -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" -d "$CAL_EXEC_PAYLOAD" "${BASE}/api/v1/tools/google-calendar/create-event" 2>/dev/null || echo "")"
-  CAL_REPLAY_HTTP_CODE="$(echo "$CAL_REPLAY_RESP" | tail -n1)"
-  CAL_REPLAY_BODY="$(echo "$CAL_REPLAY_RESP" | sed '$d')"
+  api_call POST "${BASE}/api/v1/tools/google-calendar/create-event" "$CAL_EXEC_PAYLOAD"
+  CAL_REPLAY_HTTP_CODE="$API_CALL_STATUS"
+  CAL_REPLAY_BODY="$API_CALL_BODY"
   CAL_REPLAY_ERR_CODE="$(json_get "$CAL_REPLAY_BODY" 'data.error ? data.error.code : (data.code || "")')"
 
   if [ "$CAL_REPLAY_HTTP_CODE" = "409" ] && [ "$CAL_REPLAY_ERR_CODE" = "APPROVAL_ALREADY_CONSUMED" ]; then
     pass "Calendar replay block" "HTTP 409 APPROVAL_ALREADY_CONSUMED"
     log_result "calendarReplayBlock" "PASS"
   else
-    fail "Calendar replay block" "expected 409 APPROVAL_ALREADY_CONSUMED, got HTTP $CAL_REPLAY_HTTP_CODE code '$CAL_REPLAY_ERR_CODE'"
+    fail "Calendar replay block" "expected 409 APPROVAL_ALREADY_CONSUMED, got HTTP $CAL_REPLAY_HTTP_CODE, $(api_error_summary "$CAL_REPLAY_BODY")"
     log_result "calendarReplayBlock" "FAIL"
     OVERALL_EXIT=1
   fi
@@ -252,45 +295,59 @@ cleanup_live_browser_session() {
 trap cleanup_live_browser_session EXIT
 
 # 3.1 Open Session
-BRW_OPEN="$(curl -s -X POST -H "Content-Type: application/json" -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" "${BASE}/api/v1/browser/sessions" 2>/dev/null || echo "{}")"
+api_call POST "${BASE}/api/v1/browser/sessions"
+BRW_OPEN_HTTP_CODE="$API_CALL_STATUS"
+BRW_OPEN="$API_CALL_BODY"
 LIVE_BROWSER_SESSION_ID="$(json_get "$BRW_OPEN" 'data.browserSessionId')"
 
 if [ -n "$LIVE_BROWSER_SESSION_ID" ]; then
   pass "Browser open" "session=$LIVE_BROWSER_SESSION_ID"
   log_result "browserOpen" "PASS"
 else
-  fail "Browser open" "failed to open session"
+  fail "Browser open" "HTTP $BRW_OPEN_HTTP_CODE, $(api_error_summary "$BRW_OPEN")"
   log_result "browserOpen" "FAIL"
   OVERALL_EXIT=1
 fi
 
 if [ -n "$LIVE_BROWSER_SESSION_ID" ]; then
   # 3.2 Navigate to controlled endpoint
-  BRW_NAV="$(curl -s -X POST -H "Content-Type: application/json" -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" -d "{\"browserSessionId\":\"$LIVE_BROWSER_SESSION_ID\",\"url\":\"https://httpbin.org/forms/post\"}" "${BASE}/api/v1/tools/browser/navigate" 2>/dev/null || echo "{}")"
+  api_call POST "${BASE}/api/v1/tools/browser/navigate" "{\"browserSessionId\":\"$LIVE_BROWSER_SESSION_ID\",\"url\":\"https://httpbin.org/forms/post\"}"
+  BRW_NAV_HTTP_CODE="$API_CALL_STATUS"
+  BRW_NAV="$API_CALL_BODY"
   BRW_NAV_URL="$(json_get "$BRW_NAV" 'data.url')"
   if [ -n "$BRW_NAV_URL" ]; then
     pass "Browser navigate" "httpbin.org/forms/post"
     log_result "browserNavigate" "PASS"
   else
-    fail "Browser navigate" "failed to navigate to httpbin form"
+    fail "Browser navigate" "HTTP $BRW_NAV_HTTP_CODE, $(api_error_summary "$BRW_NAV")"
     log_result "browserNavigate" "FAIL"
     OVERALL_EXIT=1
   fi
 
-  # 3.3 Structured Snapshot (Verify button count == 1)
-  BRW_STRUCT="$(curl -s -X POST -H "Content-Type: application/json" -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" -d "{\"browserSessionId\":\"$LIVE_BROWSER_SESSION_ID\"}" "${BASE}/api/v1/tools/browser/snapshot" 2>/dev/null || echo "{}")"
-  BRW_TITLE="$(json_get "$BRW_STRUCT" 'data.title')"
-  if [ -n "$BRW_TITLE" ]; then
-    pass "Browser snapshot" "title='$BRW_TITLE'"
+  # 3.3 Snapshot — asserts on url/totalCharacters, which BrowserSnapshot
+  # always populates for any page with visible content. Does NOT assert on
+  # `title` being non-empty: title is the page's real, unfabricated
+  # document.title (browser.runtime.ts), and httpbin.org/forms/post has no
+  # <title> tag at all (confirmed directly against the live page), so an
+  # empty title here is truthful, correct behavior, not a failure.
+  api_call POST "${BASE}/api/v1/tools/browser/snapshot" "{\"browserSessionId\":\"$LIVE_BROWSER_SESSION_ID\"}"
+  BRW_SNAP_HTTP_CODE="$API_CALL_STATUS"
+  BRW_STRUCT="$API_CALL_BODY"
+  BRW_SNAP_URL="$(json_get "$BRW_STRUCT" 'data.url')"
+  BRW_TOTAL_CHARS="$(json_get "$BRW_STRUCT" 'data.totalCharacters')"
+  if [ "$BRW_SNAP_HTTP_CODE" = "200" ] && [ -n "$BRW_SNAP_URL" ] && [ -n "$BRW_TOTAL_CHARS" ] && [ "$BRW_TOTAL_CHARS" != "0" ]; then
+    pass "Browser snapshot" "url='$BRW_SNAP_URL' totalCharacters=$BRW_TOTAL_CHARS"
     log_result "browserSnapshot" "PASS"
   else
-    fail "Browser snapshot" "failed snapshot"
+    fail "Browser snapshot" "HTTP $BRW_SNAP_HTTP_CODE, $(api_error_summary "$BRW_STRUCT")"
     log_result "browserSnapshot" "FAIL"
     OVERALL_EXIT=1
   fi
 
   # 3.4 Consequential Click Request
-  BRW_CLICK_REQ="$(curl -s -X POST -H "Content-Type: application/json" -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" -d "{\"browserSessionId\":\"$LIVE_BROWSER_SESSION_ID\",\"selector\":\"button\"}" "${BASE}/api/v1/tools/browser/click" 2>/dev/null || echo "{}")"
+  api_call POST "${BASE}/api/v1/tools/browser/click" "{\"browserSessionId\":\"$LIVE_BROWSER_SESSION_ID\",\"selector\":\"button\"}"
+  BRW_CLICK_HTTP_CODE="$API_CALL_STATUS"
+  BRW_CLICK_REQ="$API_CALL_BODY"
   BRW_CLICK_STATUS="$(json_get "$BRW_CLICK_REQ" 'data.status')"
   BRW_APPROVAL_ID="$(json_get "$BRW_CLICK_REQ" 'data.approval ? data.approval.approvalId : ""')"
 
@@ -298,61 +355,67 @@ if [ -n "$LIVE_BROWSER_SESSION_ID" ]; then
     pass "Browser approval requested" "approvalId=$BRW_APPROVAL_ID"
     log_result "browserApprovalRequest" "PASS"
   else
-    fail "Browser approval requested" "expected APPROVAL_REQUIRED, got '$BRW_CLICK_STATUS'"
+    fail "Browser approval requested" "HTTP $BRW_CLICK_HTTP_CODE, $(api_error_summary "$BRW_CLICK_REQ")"
     log_result "browserApprovalRequest" "FAIL"
     OVERALL_EXIT=1
   fi
 
   if [ -n "$BRW_APPROVAL_ID" ]; then
     # 3.5 Approve Browser Click
-    BRW_APP_RESP="$(curl -s -X POST -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" "${BASE}/api/v1/approvals/${BRW_APPROVAL_ID}/approve" 2>/dev/null || echo "{}")"
+    api_call POST "${BASE}/api/v1/approvals/${BRW_APPROVAL_ID}/approve"
+    BRW_APP_HTTP_CODE="$API_CALL_STATUS"
+    BRW_APP_RESP="$API_CALL_BODY"
     BRW_APP_STATUS="$(json_get "$BRW_APP_RESP" 'data.status')"
     if [ "$BRW_APP_STATUS" = "APPROVED" ]; then
       pass "Browser approval granted"
       log_result "browserApprove" "PASS"
     else
-      fail "Browser approval granted" "status=$BRW_APP_STATUS"
+      fail "Browser approval granted" "HTTP $BRW_APP_HTTP_CODE, $(api_error_summary "$BRW_APP_RESP")"
       log_result "browserApprove" "FAIL"
       OVERALL_EXIT=1
     fi
 
     # 3.6 Execute Approved Click
     BRW_EXEC_PAYLOAD="{\"approvalId\":\"$BRW_APPROVAL_ID\",\"browserSessionId\":\"$LIVE_BROWSER_SESSION_ID\",\"selector\":\"button\"}"
-    BRW_EXEC_RESP="$(curl -s -X POST -H "Content-Type: application/json" -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" -d "$BRW_EXEC_PAYLOAD" "${BASE}/api/v1/tools/browser/click/execute" 2>/dev/null || echo "{}")"
+    api_call POST "${BASE}/api/v1/tools/browser/click/execute" "$BRW_EXEC_PAYLOAD"
+    BRW_EXEC_HTTP_CODE="$API_CALL_STATUS"
+    BRW_EXEC_RESP="$API_CALL_BODY"
     BRW_EXEC_STATUS="$(json_get "$BRW_EXEC_RESP" 'data.status')"
     if [ "$BRW_EXEC_STATUS" = "EXECUTED" ]; then
       pass "Browser click execute" "status=EXECUTED"
       log_result "browserClickExecution" "PASS"
     else
-      fail "Browser click execute" "status=$BRW_EXEC_STATUS"
+      fail "Browser click execute" "HTTP $BRW_EXEC_HTTP_CODE, $(api_error_summary "$BRW_EXEC_RESP")"
       log_result "browserClickExecution" "FAIL"
       OVERALL_EXIT=1
     fi
 
     # 3.7 Replay Protection Check (Deterministic test)
-    BRW_REPLAY_RESP="$(curl -s -w "\n%{http_code}" -X POST -H "Content-Type: application/json" -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" -d "$BRW_EXEC_PAYLOAD" "${BASE}/api/v1/tools/browser/click/execute" 2>/dev/null || echo "")"
-    BRW_REPLAY_HTTP_CODE="$(echo "$BRW_REPLAY_RESP" | tail -n1)"
-    BRW_REPLAY_BODY="$(echo "$BRW_REPLAY_RESP" | sed '$d')"
+    api_call POST "${BASE}/api/v1/tools/browser/click/execute" "$BRW_EXEC_PAYLOAD"
+    BRW_REPLAY_HTTP_CODE="$API_CALL_STATUS"
+    BRW_REPLAY_BODY="$API_CALL_BODY"
     BRW_REPLAY_ERR_CODE="$(json_get "$BRW_REPLAY_BODY" 'data.error ? data.error.code : (data.code || "")')"
 
     if [ "$BRW_REPLAY_HTTP_CODE" = "409" ] && [ "$BRW_REPLAY_ERR_CODE" = "APPROVAL_ALREADY_CONSUMED" ]; then
       pass "Browser replay block" "HTTP 409 APPROVAL_ALREADY_CONSUMED (deterministic)"
       log_result "browserReplayBlock" "PASS"
     else
-      fail "Browser replay block" "expected 409 APPROVAL_ALREADY_CONSUMED, got HTTP $BRW_REPLAY_HTTP_CODE code '$BRW_REPLAY_ERR_CODE'"
+      fail "Browser replay block" "expected 409 APPROVAL_ALREADY_CONSUMED, got HTTP $BRW_REPLAY_HTTP_CODE, $(api_error_summary "$BRW_REPLAY_BODY")"
       log_result "browserReplayBlock" "FAIL"
       OVERALL_EXIT=1
     fi
   fi
 
   # 3.8 Close Session
-  BRW_CLOSE_RESP="$(curl -s -X POST -H "Content-Type: application/json" -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" -d "{\"browserSessionId\":\"$LIVE_BROWSER_SESSION_ID\"}" "${BASE}/api/v1/tools/browser/close" 2>/dev/null || echo "{}")"
+  api_call POST "${BASE}/api/v1/tools/browser/close" "{\"browserSessionId\":\"$LIVE_BROWSER_SESSION_ID\"}"
+  BRW_CLOSE_HTTP_CODE="$API_CALL_STATUS"
+  BRW_CLOSE_RESP="$API_CALL_BODY"
   BRW_CLOSE_STATUS="$(json_get "$BRW_CLOSE_RESP" 'data.status')"
   if [ "$BRW_CLOSE_STATUS" = "SUCCEEDED" ]; then
     pass "Browser close" "session closed"
     log_result "browserClose" "PASS"
   else
-    fail "Browser close" "status=$BRW_CLOSE_STATUS"
+    fail "Browser close" "HTTP $BRW_CLOSE_HTTP_CODE, $(api_error_summary "$BRW_CLOSE_RESP")"
     log_result "browserClose" "FAIL"
     OVERALL_EXIT=1
   fi
