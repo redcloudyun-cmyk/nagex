@@ -65,7 +65,7 @@ skip() {
 
 section() {
   printf "\n${COLOR_BOLD}%s${COLOR_NC}\n" "$1"
-  printf '------------------------------------------\n'
+  printf '%s\n' '------------------------------------------'
 }
 
 require_command() {
