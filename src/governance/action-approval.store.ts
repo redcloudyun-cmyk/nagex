@@ -100,13 +100,27 @@ export class ActionApprovalStore {
   private getLive(approvalId: string, requestId: string): ActionApprovalRecord {
     const record = this.records.get(approvalId);
     if (!record) {
-      throw new NagexError({ code: 'APPROVAL_NOT_FOUND', category: 'NOT_FOUND', message: `Approval ${approvalId} was not found.`, request_id: requestId });
+      throw new NagexError({
+        code: 'APPROVAL_NOT_FOUND',
+        category: 'NOT_FOUND',
+        message: `Approval ${approvalId} was not found.`,
+        request_id: requestId,
+      });
     }
-    if (record.status === 'PENDING' && new Date(record.expiresAt).getTime() <= this.now()) {
+
+    const isExpirableStatus =
+      record.status === 'PENDING' ||
+      record.status === 'APPROVED';
+
+    const isExpired =
+      new Date(record.expiresAt).getTime() <= this.now();
+
+    if (isExpirableStatus && isExpired) {
       record.status = 'EXPIRED';
       this.onChange(record);
       this.onExpired?.(record);
     }
+
     return record;
   }
 
