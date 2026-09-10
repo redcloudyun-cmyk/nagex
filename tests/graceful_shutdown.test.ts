@@ -57,12 +57,15 @@ test('Graceful Shutdown — SIGTERM stops HTTP server and exits naturally', { sk
   const ready = await waitForServer(testPort);
   assert.equal(ready, true, 'Server failed to start on test port');
 
+  // Attached BEFORE the signal is sent — the child could in principle exit
+  // (for any reason) before a listener attached afterward ever gets a
+  // chance to see the 'exit' event, and that event is not replayed.
+  const exitPromise = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => {
+    child.once('exit', (code, signal) => resolve({ code, signal }));
+  });
+
   const startTime = Date.now();
   child.kill('SIGTERM');
-
-  const exitPromise = new Promise<{ code: number | null; signal: string | null }>((resolve) => {
-    child.on('exit', (code, signal) => resolve({ code, signal }));
-  });
 
   const res = await exitPromise;
   const elapsedMs = Date.now() - startTime;
@@ -89,11 +92,11 @@ test('Graceful Shutdown — SIGINT stops HTTP server and exits naturally', { ski
   const ready = await waitForServer(testPort);
   assert.equal(ready, true, 'Server failed to start on test port');
 
-  child.kill('SIGINT');
-
-  const exitPromise = new Promise<{ code: number | null; signal: string | null }>((resolve) => {
-    child.on('exit', (code, signal) => resolve({ code, signal }));
+  const exitPromise = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => {
+    child.once('exit', (code, signal) => resolve({ code, signal }));
   });
+
+  child.kill('SIGINT');
 
   const res = await exitPromise;
   assert.equal(res.code, 0, `Expected exit code 0, got code=${res.code}`);
@@ -116,13 +119,13 @@ test('Graceful Shutdown — Duplicate signals run cleanup only once', { skip: sk
   const ready = await waitForServer(testPort);
   assert.equal(ready, true, 'Server failed to start on test port');
 
+  const exitPromise = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => {
+    child.once('exit', (code, signal) => resolve({ code, signal }));
+  });
+
   child.kill('SIGTERM');
   child.kill('SIGINT');
   child.kill('SIGTERM');
-
-  const exitPromise = new Promise<{ code: number | null; signal: string | null }>((resolve) => {
-    child.on('exit', (code, signal) => resolve({ code, signal }));
-  });
 
   const res = await exitPromise;
   assert.equal(res.code, 0, `Expected exit code 0, got code=${res.code}`);
@@ -143,6 +146,10 @@ test('Graceful Shutdown — Server refuses new connections after SIGTERM', { ski
   const ready = await waitForServer(testPort);
   assert.equal(ready, true, 'Server failed to start on test port');
 
+  const exitPromise = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => {
+    child.once('exit', (code, signal) => resolve({ code, signal }));
+  });
+
   child.kill('SIGTERM');
   await new Promise((r) => setTimeout(r, 200));
 
@@ -162,6 +169,7 @@ test('Graceful Shutdown — Server refuses new connections after SIGTERM', { ski
     connectionRefused = true;
   }
 
-  await new Promise((resolve) => child.on('exit', resolve));
+  const result = await exitPromise;
   assert.equal(connectionRefused, true, 'New connections should be refused after SIGTERM');
+  assert.equal(result.code, 0, `Expected clean exit, got code=${result.code}, signal=${result.signal}`);
 });
