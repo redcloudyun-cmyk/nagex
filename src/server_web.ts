@@ -67,6 +67,7 @@ import { CandidateActionResolver } from './workspace/action-resolver.js';
 import { ActivityStore } from './governance/activity.store.js';
 import { createConfiguredStorageProvider } from './storage/s3-storage.provider.js';
 import { CapabilityBroker, capabilityRegistry } from './capabilities/index.js';
+import { createNagexApplication } from './app/create-nagex-application.js';
 
 const PORT = Number(process.env.PORT || 8085);
 const PUBLIC_DIR = path.join(process.cwd(), 'public');
@@ -103,142 +104,56 @@ const mimeTypes: Record<string, string> = {
   '.woff2': 'font/woff2',
 };
 
-// ─── Boot NAgex Core Engine ───
-const pdp = new PolicyDecisionPoint();
-const runtime = new DurableRuntimeEngine();
-const auditLogger = new AuditLogger();
-const billing = new BillingLedgerEngine();
-const creditEngine = new CreditEngine(billing);
-const memoryEngine = new MemoryEngine();
-const aiService = new AiService(new UnifiedModelRouter(createProviders()));
-const planResolver = new PlanResolver(canonicalSkillRegistry, canonicalToolRegistry);
-export const actionApprovals = new PersistentActionApprovalStore({
-  onExpired: (record) => auditLogger.logEvent({
-    actor: { type: 'user', id: record.principalId },
-    tenant_id: record.tenantId,
-    action: 'approval.expired',
-    resource: { type: 'ActionApproval', id: record.approvalId },
-    result: 'DENIED',
-    request_id: `req_appr_expired_${Date.now()}`,
-  }),
-});
-export const executionStore = new ExecutionStore();
-const googleCalendarService = new GoogleCalendarService(googleTokenStore, actionApprovals, auditLogger, memoryEngine, fetch, readGoogleOAuthConfig, executionStore);
-// Gmail as the second real external service — reuses the exact same shared
-// actionApprovals/executionStore/auditLogger/memoryEngine/googleTokenStore
-// singletons as Calendar. No separate approval architecture.
-const gmailService = new GmailService(googleTokenStore, actionApprovals, auditLogger, memoryEngine, fetch, readGoogleOAuthConfig, executionStore);
-// Browser Agent MVP — the third real capability, same shared approval store.
-// browser.click's dynamic (server-decides-per-click) shape is genuinely
-// different from Gmail/Calendar's client-composes-the-full-payload-upfront
-// approvals — see browser.service.ts's click()/executeApprovedClick() split
-// — but it consumes the identical ActionApprovalStore, replay-protected the
-// same way, and GET/approve/reject need no route changes here either.
-const browserService = new BrowserToolService(browserRuntime, browserSessionStore, actionApprovals, auditLogger, memoryEngine, executionStore);
-export const capabilityBroker = new CapabilityBroker(
+// ─── Composition Root ───
+// Phase 01 — application-level production object construction lives in
+// createNagexApplication() (src/app/create-nagex-application.ts) now, not
+// here. This is the exact same construction, at the exact same module-load
+// timing (called synchronously, once, right here) — only the "where" moved.
+const app = createNagexApplication();
+const {
+  pdp,
+  runtime,
+  auditLogger,
+  billing,
+  creditEngine,
+  memoryEngine,
+  aiService,
+  planResolver,
   googleCalendarService,
   gmailService,
   browserService,
-  auditLogger,
-  capabilityRegistry
-);
-let pendingGoogleOAuthState: string | null = null;
-
-// ─── MASTER.md Section 14 — Main Session + Tasks Foundation ───
-export const sessionStore = new SessionStore();
-export const conversationStore = new ConversationStore();
-export const conversationContextService = new ConversationContextService(conversationStore);
-export const taskStore = new TaskStore();
-export const taskRunStore = new TaskRunStore();
-const taskRunner = new CompositeTaskRunner(
-  new PlanPreviewTaskRunner(aiService, planResolver, (principalId, prompt) => getRelevantMemories(principalId, prompt)),
-  new ConditionalWatchTaskRunner(capabilityBroker, aiService),
-  new BackgroundTaskRunner(taskStore, aiService, planResolver, (principalId, prompt) => getRelevantMemories(principalId, prompt)),
-);
-
-// ─── MASTER.md Section 14 — Telegram Integration (Item 10) ───
-export const telegramIdentityStore = new TelegramIdentityStore();
-export const telegramBotClient = new TelegramBotClient();
-export const telegramService = new TelegramService({
-  botClient: telegramBotClient,
-  identityStore: telegramIdentityStore,
+  taskRunner,
+  getRelevantMemories,
+  pinnedMemories,
+} = app;
+export const {
+  actionApprovals,
+  executionStore,
+  capabilityBroker,
   sessionStore,
-  aiService,
-  planResolver,
-  getMemories: (principalId, prompt) => getRelevantMemories(principalId, prompt),
-  auditLogger,
   conversationStore,
   conversationContextService,
-});
-
-// ─── MASTER.md Section 14 — Slack Integration (Item 11) ───
-export const slackIdentityStore = new SlackIdentityStore();
-export const slackClient = new SlackClient();
-export const slackService = new SlackService({
-  slackClient,
-  identityStore: slackIdentityStore,
-  sessionStore,
-  aiService,
-  planResolver,
-  getMemories: (principalId, prompt) => getRelevantMemories(principalId, prompt),
-  auditLogger,
-  conversationStore,
-  conversationContextService,
-});
-
-// ─── MASTER.md Section 14 — Desktop Quick Wake Runtime (Item 14) ───
-export const desktopRuntimeEngine = new DesktopRuntimeEngine({
-  sessionStore,
   taskStore,
-  auditLogger,
-});
-
-// ─── MASTER.md Section 14 — Notification Engine (Item 12) ───
-export const notificationStore = new NotificationStore();
-export const notificationEngine = new NotificationEngine({
-  store: notificationStore,
+  taskRunStore,
   telegramIdentityStore,
   telegramBotClient,
+  telegramService,
   slackIdentityStore,
   slackClient,
+  slackService,
   desktopRuntimeEngine,
-  auditLogger,
-});
-
-export const taskScheduler = new TaskScheduler(taskStore, taskRunStore, taskRunner, auditLogger, undefined, notificationEngine);
-
-import { KnowledgeEngine } from './context/knowledge.engine.js';
-
-export const knowledgeEngine = new KnowledgeEngine();
-export const storageProvider = createConfiguredStorageProvider();
-export const candidateStore = new CandidateStore();
-export const activityStore = new ActivityStore();
-export const candidateActionResolver = new CandidateActionResolver({
-  candidateStore,
-  captureStore,
-  taskStore,
-  memoryEngine,
+  notificationStore,
+  notificationEngine,
+  taskScheduler,
   knowledgeEngine,
-  calendarService: googleCalendarService,
-  executionStore,
-  auditLogger,
-  activityStore,
-});
-export const quickCaptureService = new QuickCaptureService(
-  captureStore,
   storageProvider,
-  taskStore,
-  memoryEngine,
-  knowledgeEngine,
-  aiService,
-  browserService,
-  auditLogger,
-  actionApprovals,
   candidateStore,
-  candidateActionResolver,
   activityStore,
-);
-export const inputRouter = new InputRouter();
+  candidateActionResolver,
+  quickCaptureService,
+  inputRouter,
+} = app;
+let pendingGoogleOAuthState: string | null = null;
 
 
 // A real (not fake) background scheduler loop — only runs when this module
@@ -276,38 +191,11 @@ const SUBSCRIPTION_INFO = {
   next_renewal: '2026-09-01',
 };
 
-// ─── Personal AI Seed Data (Matching Mockup Images 1 - 4) ───
-
-// Seed Memory
-const mem1 = memoryEngine.proposeMemory('USER', 'usr_admin_001', {
-  subject: 'User Profile',
-  predicate: 'is',
-  value: 'Jane Smith (Product Strategy Lead)',
-});
-memoryEngine.activateMemory(mem1.id);
-
-const mem2 = memoryEngine.proposeMemory('USER', 'usr_admin_001', {
-  subject: 'Acme Corp Context',
-  predicate: 'memory_summary',
-  value: "Preparing for quarterly business review with Acme Corp focusing on product adoption, renewal potential, and Q3 roadmap.",
-});
-memoryEngine.activateMemory(mem2.id);
-
-const mem3 = memoryEngine.proposeMemory('USER', 'usr_admin_001', {
-  subject: 'Preferred Tools',
-  predicate: 'channel',
-  value: 'Gmail, Google Calendar, Notion, Slack',
-});
-memoryEngine.activateMemory(mem3.id);
-
-const mem4 = memoryEngine.proposeMemory('SESSION', 'usr_admin_001', {
-  subject: 'Current Focus',
-  predicate: 'active_plan',
-  value: 'Prepare Client Meeting & Schedule Product Strategy Sync',
-});
-memoryEngine.activateMemory(mem4.id);
-
-const pinnedMemories = new Set<string>([mem2.id, mem3.id]);
+// Personal AI seed memory (mem1-4) + pinnedMemories moved into
+// createNagexApplication() — see app.pinnedMemories, destructured above —
+// since getRelevantMemories/pinnedMemories are genuine construction-time
+// dependencies of taskRunner/telegramService/slackService there, not
+// merely seed-time artifacts.
 
 // Seed Plans (Exact match for Mockup Image 4)
 const planRegistry: Array<{
@@ -489,38 +377,10 @@ function getHeaderValue(headers: Record<string, string | string[] | undefined>, 
   return Array.isArray(value) ? value[0] : value;
 }
 
-// Common words that would otherwise create spurious "relevance" matches
-// (e.g. a prompt's "and" matching a completely unrelated memory's "and").
-// Deliberately small/explicit, not a general stopword library — this only
-// needs to keep the memory-relevance signal from tripping on noise words.
-const MEMORY_RELEVANCE_STOPWORDS = new Set([
-  'and', 'the', 'for', 'with', 'to', 'of', 'in', 'on', 'my', 'a', 'an', 'is', 'it', 'this', 'that',
-  'are', 'was', 'were', 'be', 'been', 'will', 'can', 'you', 'your', 'me', 'we', 'our', 'they', 'them',
-  'but', 'or', 'if', 'not', 'no', 'do', 'does', 'did', 'have', 'has', 'had', 'from', 'as', 'at', 'by',
-]);
-
-// Only ever surfaces memory that shares real content words with the current
-// prompt (never a memory whose only "match" is a pinned flag or a stopword):
-// a generic request must not drag in a strongly-pinned but otherwise
-// unrelated memory (e.g. a specific past client) just because it is pinned.
-// Pinning still nudges ranking among memories that are already relevant.
-function getRelevantMemories(principalId: string, prompt: string): MemoryRecord[] {
-  const memories = [
-    ...memoryEngine.getActiveMemories('USER', principalId),
-    ...memoryEngine.getActiveMemories('SESSION', principalId),
-    ...memoryEngine.getActiveMemories('AGENT', principalId),
-    ...memoryEngine.getActiveMemories('TENANT', principalId),
-  ];
-  const terms = new Set(
-    prompt.toLowerCase().split(/[^a-z0-9]+/).filter((term) => term.length > 2 && !MEMORY_RELEVANCE_STOPWORDS.has(term)),
-  );
-  return memories
-    .map((memory) => ({ memory, score: [...terms].filter((term) => JSON.stringify(memory.content).toLowerCase().includes(term)).length }))
-    .filter(({ score }) => score > 0)
-    .sort((a, b) => (b.score + (pinnedMemories.has(b.memory.id) ? 0.5 : 0)) - (a.score + (pinnedMemories.has(a.memory.id) ? 0.5 : 0)))
-    .slice(0, 8)
-    .map(({ memory }) => memory);
-}
+// getRelevantMemories/MEMORY_RELEVANCE_STOPWORDS moved into
+// createNagexApplication() (see app.getRelevantMemories, destructured
+// above) — it is a genuine construction-time dependency of
+// taskRunner/telegramService/slackService there.
 
 type ApiResult = { status: number; data: unknown; redirectTo?: string };
 
