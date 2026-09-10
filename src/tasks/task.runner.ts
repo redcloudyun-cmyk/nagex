@@ -152,12 +152,13 @@ export class ConditionalWatchTaskRunner implements TaskRunner {
     }
 
     let browserSessionId: string | null = null;
+    const runReqId = `${requestId}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     try {
       const openRes = await this.capabilityBroker.execute({
         capabilityId: 'browser.open',
         tenantId: task.tenantId,
         principalId: task.ownerId,
-        requestId,
+        requestId: `${runReqId}_open`,
         payload: {},
         source: 'TASK',
       });
@@ -170,7 +171,7 @@ export class ConditionalWatchTaskRunner implements TaskRunner {
         capabilityId: 'browser.navigate',
         tenantId: task.tenantId,
         principalId: task.ownerId,
-        requestId,
+        requestId: `${runReqId}_nav`,
         payload: { browserSessionId, url: trigger.watchUrl },
         source: 'TASK',
       });
@@ -182,7 +183,7 @@ export class ConditionalWatchTaskRunner implements TaskRunner {
         capabilityId: 'browser.snapshot',
         tenantId: task.tenantId,
         principalId: task.ownerId,
-        requestId,
+        requestId: `${runReqId}_snap`,
         payload: { browserSessionId },
         source: 'TASK',
       });
@@ -206,7 +207,7 @@ export class ConditionalWatchTaskRunner implements TaskRunner {
           capabilityId: 'browser.close',
           tenantId: task.tenantId,
           principalId: task.ownerId,
-          requestId,
+          requestId: `${runReqId}_close`,
           payload: { browserSessionId },
           source: 'TASK',
         }).catch(() => {});

@@ -23,6 +23,7 @@ import { PlanResolver } from '../src/planning/plan-resolver.js';
 import { skillRegistry } from '../src/skills/skill-registry.js';
 import { toolRegistry } from '../src/tools/tool-registry.js';
 import { CapabilityBroker } from '../src/capabilities/capability-broker.js';
+import { NagexError } from '../src/common/errors.js';
 import { handleApiRequest, handleAsyncApiRequest } from '../src/server_web.js';
 
 function startFixtureServer(priceText: string): Promise<{ origin: string; close: () => Promise<void> }> {
@@ -50,7 +51,8 @@ function buildBrowserService() {
 }
 
 function buildCapabilityBroker(browserService: BrowserToolService = buildBrowserService()): CapabilityBroker {
-  return new CapabilityBroker(undefined as any, undefined as any, browserService, new AuditLogger());
+  const idempotencyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-broker-test-'));
+  return new CapabilityBroker(undefined as any, undefined as any, browserService, new AuditLogger(), undefined, idempotencyDir, 'NAGEX_TEST_IDEMPOTENCY_DIR');
 }
 
 // A mock model whose response is controlled per-test, and which records the
@@ -370,3 +372,96 @@ test('EN/KR: the new watchUrl/checkInterval/condition form labels are translated
     assert.notEqual(i18n.t(key), key, `expected a KR translation for ${key}`);
   }
 });
+
+// ── Explicit CapabilityBroker Governance & Lifecycle Assertions ─────────────
+
+test('ConditionalWatchTaskRunner routes open/navigate/snapshot/close exclusively through CapabilityBroker and closes in finally on success', async () => {
+  const executedCapabilities: string[] = [];
+  const mockBroker = {
+    execute: async (req: any) => {
+      executedCapabilities.push(req.capabilityId);
+      if (req.capabilityId === 'browser.open') {
+        return { status: 'EXECUTED', capabilityId: 'browser.open', result: { browserSessionId: 'ses_mock_1' } };
+      }
+      if (req.capabilityId === 'browser.navigate') {
+        return { status: 'EXECUTED', capabilityId: 'browser.navigate', result: { url: req.payload.url } };
+      }
+      if (req.capabilityId === 'browser.snapshot') {
+        return { status: 'EXECUTED', capabilityId: 'browser.snapshot', result: { url: req.payload.url, title: 'Mock', text: 'Current price: $700' } };
+      }
+      if (req.capabilityId === 'browser.close') {
+        return { status: 'EXECUTED', capabilityId: 'browser.close', result: { closed: true } };
+      }
+      throw new Error(`Unexpected capability: ${req.capabilityId}`);
+    },
+  } as any;
+
+  const aiService = buildMockAiService('MET: true\nREASON: $700 is below $800 threshold');
+  const runner = new ConditionalWatchTaskRunner(mockBroker, aiService);
+
+  const outcome = await runner.run(conditionTask({ trigger: { type: 'CONDITION', condition: 'The price is below $800', watchUrl: 'https://example.com/item', checkIntervalMinutes: 15 } }), 'req_mock_success');
+
+  assert.equal(outcome.status, 'SUCCEEDED');
+  assert.equal(outcome.conditionMet, true);
+  assert.match((outcome.result as { reason: string }).reason, /\$700/);
+  assert.deepEqual(executedCapabilities, ['browser.open', 'browser.navigate', 'browser.snapshot', 'browser.close']);
+});
+
+test('ConditionalWatchTaskRunner invokes browser.close via Broker in finally when CAPTCHA/error occurs, and preserves BROWSER_HUMAN_VERIFICATION_REQUIRED error code', async () => {
+  const executedCapabilities: string[] = [];
+  const mockBroker = {
+    execute: async (req: any) => {
+      executedCapabilities.push(req.capabilityId);
+      if (req.capabilityId === 'browser.open') {
+        return { status: 'EXECUTED', capabilityId: 'browser.open', result: { browserSessionId: 'ses_mock_captcha' } };
+      }
+      if (req.capabilityId === 'browser.navigate') {
+        throw new NagexError({ code: 'BROWSER_HUMAN_VERIFICATION_REQUIRED', category: 'POLICY', message: 'CAPTCHA detected', request_id: req.requestId });
+      }
+      if (req.capabilityId === 'browser.close') {
+        return { status: 'EXECUTED', capabilityId: 'browser.close', result: { closed: true } };
+      }
+      throw new Error(`Unexpected capability: ${req.capabilityId}`);
+    },
+  } as any;
+
+  const aiService = buildMockAiService('MET: true\nREASON: unreachable');
+  const runner = new ConditionalWatchTaskRunner(mockBroker, aiService);
+
+  const outcome = await runner.run(conditionTask({ trigger: { type: 'CONDITION', condition: 'The price is below $800', watchUrl: 'https://example.com/captcha', checkIntervalMinutes: 15 } }), 'req_mock_captcha');
+
+  assert.equal(outcome.status, 'FAILED');
+  assert.equal(outcome.errorCode, 'BROWSER_HUMAN_VERIFICATION_REQUIRED');
+  assert.equal(outcome.conditionMet, false);
+  assert.deepEqual(executedCapabilities, ['browser.open', 'browser.navigate', 'browser.close']);
+});
+
+test('ConditionalWatchTaskRunner blocks unsafe URLs through Broker and surfaces BROWSER_UNSAFE_URL error code', async () => {
+  const executedCapabilities: string[] = [];
+  const mockBroker = {
+    execute: async (req: any) => {
+      executedCapabilities.push(req.capabilityId);
+      if (req.capabilityId === 'browser.open') {
+        return { status: 'EXECUTED', capabilityId: 'browser.open', result: { browserSessionId: 'ses_mock_unsafe' } };
+      }
+      if (req.capabilityId === 'browser.navigate') {
+        throw new NagexError({ code: 'BROWSER_UNSAFE_URL', category: 'POLICY', message: 'Unsafe URL blocked', request_id: req.requestId });
+      }
+      if (req.capabilityId === 'browser.close') {
+        return { status: 'EXECUTED', capabilityId: 'browser.close', result: { closed: true } };
+      }
+      throw new Error(`Unexpected capability: ${req.capabilityId}`);
+    },
+  } as any;
+
+  const aiService = buildMockAiService('MET: true\nREASON: unreachable');
+  const runner = new ConditionalWatchTaskRunner(mockBroker, aiService);
+
+  const outcome = await runner.run(conditionTask({ trigger: { type: 'CONDITION', condition: 'The price is below $800', watchUrl: 'http://169.254.169.254/latest', checkIntervalMinutes: 15 } }), 'req_mock_unsafe');
+
+  assert.equal(outcome.status, 'FAILED');
+  assert.equal(outcome.errorCode, 'BROWSER_UNSAFE_URL');
+  assert.equal(outcome.conditionMet, false);
+  assert.deepEqual(executedCapabilities, ['browser.open', 'browser.navigate', 'browser.close']);
+});
+

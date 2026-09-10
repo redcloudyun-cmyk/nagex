@@ -11,6 +11,7 @@ import path from 'node:path';
 export function resolveNagexDataDir(subdir: string, envVar: string, env: NodeJS.ProcessEnv = process.env): string {
   const override = env[envVar];
   if (override) return override;
+  if (path.isAbsolute(subdir)) return subdir;
   const base = '/var/lib/nagex';
   try {
     fs.accessSync(base, fs.constants.W_OK);
