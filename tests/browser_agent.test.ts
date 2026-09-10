@@ -7,7 +7,7 @@ import { ActionApprovalStore, hashCanonicalPayload } from '../src/governance/act
 import { AuditLogger } from '../src/governance/audit.logger.js';
 import { MemoryEngine } from '../src/context/memory.engine.js';
 import { BrowserSessionStore } from '../src/browser/browser-session.store.js';
-import { PlaywrightBrowserRuntime } from '../src/integrations/browser/browser.runtime.js';
+import { PlaywrightBrowserRuntime, type BrowserRuntime } from '../src/integrations/browser/browser.runtime.js';
 import { BrowserToolService, BROWSER_CLICK_TOOL_ID, classifyClickConsequence, detectsHumanVerification } from '../src/tools/browser.service.js';
 import { toolRegistry as sharedToolRegistry } from '../src/tools/tool-registry.js';
 import { handleApiRequest, handleAsyncApiRequest, actionApprovals as sharedActionApprovals } from '../src/server_web.js';
@@ -36,6 +36,10 @@ function startFixtureServer(): Promise<{ origin: string; close: () => Promise<vo
       res.end(`<!doctype html><html><head><title>Verify</title></head><body><p>Please verify you are human before continuing.</p></body></html>`);
     } else if (url.pathname === '/ambiguous') {
       res.end(`<!doctype html><html><head><title>Ambiguous</title></head><body><button class="dup-btn">One</button><button class="dup-btn">Two</button></body></html>`);
+    } else if (url.pathname === '/nav-click') {
+      res.end(`<!doctype html><html><head><title>Nav Test</title></head><body><button id="nav-btn" onclick="window.location.href='/about'">Navigate Away</button></body></html>`);
+    } else if (url.pathname === '/dynamic') {
+      res.end(`<!doctype html><html><head><title>Dynamic Test</title></head><body><button id="dynamic-btn">Original Text</button><button id="change-text-btn" onclick="document.getElementById('dynamic-btn').innerText = 'Changed Text'">Change</button></body></html>`);
     } else {
       res.statusCode = 404;
       res.end('not found');
@@ -64,17 +68,50 @@ let ownerCounter = 0;
 // disk (like SessionStore/TaskStore), so sharing an owner across tests would
 // let one test's leftover session state (e.g. a CAPTCHA-blocked session)
 // leak into an unrelated later test via getOrCreate's reuse.
-function buildHarness(isRuntimeAvailable?: () => boolean) {
+function buildHarness(
+  isRuntimeAvailableOrOpts?: (() => boolean) | { isRuntimeAvailable?: () => boolean; nowFn?: () => number; customRuntime?: BrowserRuntime },
+) {
+  const opts = typeof isRuntimeAvailableOrOpts === 'function'
+    ? { isRuntimeAvailable: isRuntimeAvailableOrOpts }
+    : isRuntimeAvailableOrOpts;
   ownerCounter += 1;
   const headers = { tenantId: 't1', ownerId: `usr_browser_test_${ownerCounter}`, requestId: 'req_1' };
   const sessions = new BrowserSessionStore();
-  const approvals = new ActionApprovalStore();
+  const approvals = new ActionApprovalStore(opts?.nowFn);
   const audit = new AuditLogger();
   const memory = new MemoryEngine();
-  const service = isRuntimeAvailable
-    ? new BrowserToolService(sharedRuntime, sessions, approvals, audit, memory, undefined, undefined, isRuntimeAvailable)
-    : new BrowserToolService(sharedRuntime, sessions, approvals, audit, memory);
-  return { runtime: sharedRuntime, sessions, approvals, audit, service, headers };
+  const runtime = opts?.customRuntime ?? sharedRuntime;
+  const service = new BrowserToolService(runtime, sessions, approvals, audit, memory, undefined, undefined, opts?.isRuntimeAvailable);
+  return { runtime, sessions, approvals, audit, service, headers };
+}
+
+function createSpyRuntime(baseRuntime: BrowserRuntime) {
+  let resolveSelectorCalls = 0;
+  let clickCalls = 0;
+  const spy = new Proxy(baseRuntime, {
+    get(target, prop, receiver) {
+      if (prop === 'resolveSelector') {
+        return async (...args: Parameters<BrowserRuntime['resolveSelector']>) => {
+          resolveSelectorCalls++;
+          return target.resolveSelector(...args);
+        };
+      }
+      if (prop === 'click') {
+        return async (...args: Parameters<BrowserRuntime['click']>) => {
+          clickCalls++;
+          return target.click(...args);
+        };
+      }
+      const val = Reflect.get(target, prop, receiver);
+      return typeof val === 'function' ? val.bind(target) : val;
+    },
+  });
+  return {
+    spyRuntime: spy,
+    get resolveSelectorCalls() { return resolveSelectorCalls; },
+    get clickCalls() { return clickCalls; },
+    resetCounts() { resolveSelectorCalls = 0; clickCalls = 0; },
+  };
 }
 
 // ── classifier unit tests (pure, no browser needed) ─────────────────────────
@@ -450,6 +487,213 @@ test('full flow through the real HTTP routes: open -> navigate -> click (approva
     assert.equal((replay.data as { error: { code: string } }).error.code, 'APPROVAL_ALREADY_CONSUMED');
 
     await handleAsyncApiRequest('POST', '/api/v1/tools/browser/close', { browserSessionId }, headers, undefined, {}, undefined, undefined, testService);
+  } finally {
+    await fixture.close();
+  }
+});
+
+// ── regression coverage for approval preflight resolution order ─────────────
+
+test('Regression A: consumed browser approval replay after first click navigates/removes selector throws APPROVAL_ALREADY_CONSUMED without calling resolveSelector', async () => {
+  const fixture = await startFixtureServer();
+  const spy = createSpyRuntime(sharedRuntime);
+  const { service, headers } = buildHarness({ customRuntime: spy.spyRuntime });
+
+  try {
+    const session = await service.open(headers);
+    await service.navigate({ ...headers, browserSessionId: session.browserSessionId, url: `${fixture.origin}/nav-click` });
+
+    const req = await service.click({ ...headers, browserSessionId: session.browserSessionId, selector: '#nav-btn', forceApproval: true });
+    if (req.status !== 'APPROVAL_REQUIRED') throw new Error('Expected APPROVAL_REQUIRED');
+
+    service.approve(req.approval.approvalId, headers.ownerId, 'req_app');
+
+    spy.resetCounts();
+    const executed = await service.executeApprovedClick({
+      approvalId: req.approval.approvalId,
+      browserSessionId: session.browserSessionId,
+      selector: '#nav-btn',
+      ...headers,
+      requestId: 'req_exec',
+    });
+    assert.equal(executed.status, 'EXECUTED');
+    assert.equal(executed.url, `${fixture.origin}/about`);
+    assert.equal(spy.resolveSelectorCalls, 1);
+
+    // Replay on page where selector #nav-btn no longer exists
+    spy.resetCounts();
+    await assert.rejects(
+      () => service.executeApprovedClick({
+        approvalId: req.approval.approvalId,
+        browserSessionId: session.browserSessionId,
+        selector: '#nav-btn',
+        ...headers,
+        requestId: 'req_replay',
+      }),
+      (err: unknown) => (err as { code: string }).code === 'APPROVAL_ALREADY_CONSUMED',
+    );
+    // Crucial check: resolveSelector must NOT have been called on replay
+    assert.equal(spy.resolveSelectorCalls, 0);
+
+    await service.close({ ...headers, browserSessionId: session.browserSessionId });
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('Regression B: first legitimate execution still re-resolves target before consume', async () => {
+  const fixture = await startFixtureServer();
+  const spy = createSpyRuntime(sharedRuntime);
+  const { service, headers } = buildHarness({ customRuntime: spy.spyRuntime });
+
+  try {
+    const session = await service.open(headers);
+    await service.navigate({ ...headers, browserSessionId: session.browserSessionId, url: fixture.origin });
+
+    const req = await service.click({ ...headers, browserSessionId: session.browserSessionId, selector: '#delete-btn' });
+    if (req.status !== 'APPROVAL_REQUIRED') throw new Error('Expected APPROVAL_REQUIRED');
+
+    service.approve(req.approval.approvalId, headers.ownerId, 'req_app');
+
+    spy.resetCounts();
+    const executed = await service.executeApprovedClick({
+      approvalId: req.approval.approvalId,
+      browserSessionId: session.browserSessionId,
+      selector: '#delete-btn',
+      ...headers,
+      requestId: 'req_exec',
+    });
+    assert.equal(executed.status, 'EXECUTED');
+    assert.equal(spy.resolveSelectorCalls, 1);
+
+    await service.close({ ...headers, browserSessionId: session.browserSessionId });
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('Regression C: changed target before first execution throws APPROVAL_PAYLOAD_MISMATCH and click is NOT executed', async () => {
+  const fixture = await startFixtureServer();
+  const spy = createSpyRuntime(sharedRuntime);
+  const { service, headers } = buildHarness({ customRuntime: spy.spyRuntime });
+
+  try {
+    const session = await service.open(headers);
+    await service.navigate({ ...headers, browserSessionId: session.browserSessionId, url: `${fixture.origin}/dynamic` });
+
+    const req = await service.click({ ...headers, browserSessionId: session.browserSessionId, selector: '#dynamic-btn', forceApproval: true });
+    if (req.status !== 'APPROVAL_REQUIRED') throw new Error('Expected APPROVAL_REQUIRED');
+
+    service.approve(req.approval.approvalId, headers.ownerId, 'req_app');
+
+    // Mutate target text on page before executing the approved click
+    await service.click({ ...headers, browserSessionId: session.browserSessionId, selector: '#change-text-btn' });
+
+    spy.resetCounts();
+    await assert.rejects(
+      () => service.executeApprovedClick({
+        approvalId: req.approval.approvalId,
+        browserSessionId: session.browserSessionId,
+        selector: '#dynamic-btn',
+        ...headers,
+        requestId: 'req_exec_changed',
+      }),
+      (err: unknown) => (err as { code: string }).code === 'APPROVAL_PAYLOAD_MISMATCH',
+    );
+
+    // Verify click was NOT executed on the browser
+    assert.equal(spy.clickCalls, 0);
+
+    await service.close({ ...headers, browserSessionId: session.browserSessionId });
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('Regression D: expired approved browser approval throws APPROVAL_EXPIRED before DOM lookup', async () => {
+  const fixture = await startFixtureServer();
+  let mockNow = Date.now();
+  const spy = createSpyRuntime(sharedRuntime);
+  const { service, headers } = buildHarness({ customRuntime: spy.spyRuntime, nowFn: () => mockNow });
+
+  try {
+    const session = await service.open(headers);
+    await service.navigate({ ...headers, browserSessionId: session.browserSessionId, url: fixture.origin });
+
+    const req = await service.click({ ...headers, browserSessionId: session.browserSessionId, selector: '#delete-btn' });
+    if (req.status !== 'APPROVAL_REQUIRED') throw new Error('Expected APPROVAL_REQUIRED');
+
+    service.approve(req.approval.approvalId, headers.ownerId, 'req_app');
+
+    // Fast-forward past TTL (default 15 minutes)
+    mockNow += 20 * 60 * 1000;
+
+    spy.resetCounts();
+    await assert.rejects(
+      () => service.executeApprovedClick({
+        approvalId: req.approval.approvalId,
+        browserSessionId: session.browserSessionId,
+        selector: '#delete-btn',
+        ...headers,
+        requestId: 'req_exec_expired',
+      }),
+      (err: unknown) => (err as { code: string }).code === 'APPROVAL_EXPIRED',
+    );
+
+    // Assert DOM resolution was skipped
+    assert.equal(spy.resolveSelectorCalls, 0);
+
+    await service.close({ ...headers, browserSessionId: session.browserSessionId });
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('Regression E: pending or rejected approval throws APPROVAL_NOT_GRANTED before DOM lookup', async () => {
+  const fixture = await startFixtureServer();
+  const spy = createSpyRuntime(sharedRuntime);
+  const { service, headers } = buildHarness({ customRuntime: spy.spyRuntime });
+
+  try {
+    const session = await service.open(headers);
+    await service.navigate({ ...headers, browserSessionId: session.browserSessionId, url: fixture.origin });
+
+    // 1. Pending approval test
+    const reqPending = await service.click({ ...headers, browserSessionId: session.browserSessionId, selector: '#delete-btn' });
+    if (reqPending.status !== 'APPROVAL_REQUIRED') throw new Error('Expected APPROVAL_REQUIRED');
+
+    spy.resetCounts();
+    await assert.rejects(
+      () => service.executeApprovedClick({
+        approvalId: reqPending.approval.approvalId,
+        browserSessionId: session.browserSessionId,
+        selector: '#delete-btn',
+        ...headers,
+        requestId: 'req_exec_pending',
+      }),
+      (err: unknown) => (err as { code: string }).code === 'APPROVAL_NOT_GRANTED',
+    );
+    assert.equal(spy.resolveSelectorCalls, 0);
+
+    // 2. Rejected approval test
+    const reqRejected = await service.click({ ...headers, browserSessionId: session.browserSessionId, selector: '#delete-btn' });
+    if (reqRejected.status !== 'APPROVAL_REQUIRED') throw new Error('Expected APPROVAL_REQUIRED');
+    service.reject(reqRejected.approval.approvalId, headers.ownerId, 'req_rej');
+
+    spy.resetCounts();
+    await assert.rejects(
+      () => service.executeApprovedClick({
+        approvalId: reqRejected.approval.approvalId,
+        browserSessionId: session.browserSessionId,
+        selector: '#delete-btn',
+        ...headers,
+        requestId: 'req_exec_rejected',
+      }),
+      (err: unknown) => (err as { code: string }).code === 'APPROVAL_NOT_GRANTED',
+    );
+    assert.equal(spy.resolveSelectorCalls, 0);
+
+    await service.close({ ...headers, browserSessionId: session.browserSessionId });
   } finally {
     await fixture.close();
   }

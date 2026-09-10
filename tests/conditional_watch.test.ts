@@ -22,6 +22,7 @@ import { UnifiedModelRouter } from '../src/model-gateway/unified-model-router.js
 import { PlanResolver } from '../src/planning/plan-resolver.js';
 import { skillRegistry } from '../src/skills/skill-registry.js';
 import { toolRegistry } from '../src/tools/tool-registry.js';
+import { CapabilityBroker } from '../src/capabilities/capability-broker.js';
 import { handleApiRequest, handleAsyncApiRequest } from '../src/server_web.js';
 
 function startFixtureServer(priceText: string): Promise<{ origin: string; close: () => Promise<void> }> {
@@ -46,6 +47,10 @@ after(async () => {
 
 function buildBrowserService() {
   return new BrowserToolService(sharedRuntime, new BrowserSessionStore(), new ActionApprovalStore(), new AuditLogger(), new MemoryEngine());
+}
+
+function buildCapabilityBroker(browserService: BrowserToolService = buildBrowserService()): CapabilityBroker {
+  return new CapabilityBroker(undefined as any, undefined as any, browserService, new AuditLogger());
 }
 
 // A mock model whose response is controlled per-test, and which records the
@@ -143,7 +148,7 @@ test('recordRunOutcome: condition met completes the task; unmet or failed stays 
 test('a misconfigured CONDITION trigger (missing condition/watchUrl) fails closed without ever touching the browser', async () => {
   const browserService = buildBrowserService();
   const aiService = buildMockAiService('MET: true\nREASON: n/a');
-  const runner = new ConditionalWatchTaskRunner(browserService, aiService);
+  const runner = new ConditionalWatchTaskRunner(buildCapabilityBroker(browserService), aiService);
   const outcome = await runner.run(conditionTask({ trigger: { type: 'CONDITION', condition: '', watchUrl: '' } }), 'req_1');
   assert.equal(outcome.status, 'FAILED');
   assert.equal(outcome.errorCode, 'CONDITION_WATCH_MISCONFIGURED');
@@ -156,7 +161,7 @@ test('unmet condition: real page content reaches the judgment prompt, and the ru
     const browserService = buildBrowserService();
     const capture = { lastPrompt: '' };
     const aiService = buildMockAiService('MET: false\nREASON: The price is still above $800.', capture);
-    const runner = new ConditionalWatchTaskRunner(browserService, aiService);
+    const runner = new ConditionalWatchTaskRunner(buildCapabilityBroker(browserService), aiService);
 
     const outcome = await runner.run(conditionTask({ trigger: { type: 'CONDITION', condition: 'The price is below $800', watchUrl: fixture.origin, checkIntervalMinutes: 15 } }), 'req_1');
 
@@ -174,7 +179,7 @@ test('met condition: the runner reports conditionMet=true with a grounded reason
   try {
     const browserService = buildBrowserService();
     const aiService = buildMockAiService('MET: true\nREASON: The listed price of $650 is below the $800 threshold.');
-    const runner = new ConditionalWatchTaskRunner(browserService, aiService);
+    const runner = new ConditionalWatchTaskRunner(buildCapabilityBroker(browserService), aiService);
 
     const outcome = await runner.run(conditionTask({ trigger: { type: 'CONDITION', condition: 'The price is below $800', watchUrl: fixture.origin, checkIntervalMinutes: 15 } }), 'req_1');
 
@@ -191,7 +196,7 @@ test('an ambiguous/unparseable model response defaults to NOT met (fail-safe, ne
   try {
     const browserService = buildBrowserService();
     const aiService = buildMockAiService('I am not sure what you mean.');
-    const runner = new ConditionalWatchTaskRunner(browserService, aiService);
+    const runner = new ConditionalWatchTaskRunner(buildCapabilityBroker(browserService), aiService);
     const outcome = await runner.run(conditionTask({ trigger: { type: 'CONDITION', condition: 'The price is below $800', watchUrl: fixture.origin, checkIntervalMinutes: 15 } }), 'req_1');
     assert.equal(outcome.conditionMet, false);
   } finally {
@@ -210,7 +215,7 @@ test('a page that requires human verification fails the check (never claims met)
     const sessions = new BrowserSessionStore();
     const browserService = new BrowserToolService(sharedRuntime, sessions, new ActionApprovalStore(), new AuditLogger(), new MemoryEngine());
     const aiService = buildMockAiService('MET: true\nREASON: should never be reached');
-    const runner = new ConditionalWatchTaskRunner(browserService, aiService);
+    const runner = new ConditionalWatchTaskRunner(buildCapabilityBroker(browserService), aiService);
 
     const outcome = await runner.run(conditionTask({ trigger: { type: 'CONDITION', condition: 'x', watchUrl: `http://127.0.0.1:${port}`, checkIntervalMinutes: 15 } }), 'req_1');
     assert.equal(outcome.status, 'FAILED');
@@ -253,7 +258,7 @@ test('full scheduler tick: an unmet condition stays WAITING with a rescheduled n
     const unmetAi = buildMockAiService('MET: false\nREASON: still too expensive');
     const composite = new CompositeTaskRunner(
       new PlanPreviewTaskRunner(unmetAi, new PlanResolver(skillRegistry, toolRegistry), () => []),
-      new ConditionalWatchTaskRunner(browserService, unmetAi),
+      new ConditionalWatchTaskRunner(buildCapabilityBroker(browserService), unmetAi),
     );
     const scheduler = new TaskScheduler(taskStore, taskRunStore, composite, audit);
 
@@ -279,7 +284,7 @@ test('full scheduler tick: an unmet condition stays WAITING with a rescheduled n
     const metAi = buildMockAiService('MET: true\nREASON: price dropped');
     const compositeMet = new CompositeTaskRunner(
       new PlanPreviewTaskRunner(metAi, new PlanResolver(skillRegistry, toolRegistry), () => []),
-      new ConditionalWatchTaskRunner(browserService, metAi),
+      new ConditionalWatchTaskRunner(buildCapabilityBroker(browserService), metAi),
     );
     const schedulerMet = new TaskScheduler(taskStore, taskRunStore, compositeMet, audit, () => new Date(new Date(afterUnmet.nextRunAt as string).getTime() + 1000));
     const finalRun = await schedulerMet.runOne(afterUnmet);

@@ -152,7 +152,7 @@ export const taskStore = new TaskStore();
 export const taskRunStore = new TaskRunStore();
 const taskRunner = new CompositeTaskRunner(
   new PlanPreviewTaskRunner(aiService, planResolver, (principalId, prompt) => getRelevantMemories(principalId, prompt)),
-  new ConditionalWatchTaskRunner(browserService, aiService),
+  new ConditionalWatchTaskRunner(capabilityBroker, aiService),
   new BackgroundTaskRunner(taskStore, aiService, planResolver, (principalId, prompt) => getRelevantMemories(principalId, prompt)),
 );
 
@@ -1154,7 +1154,7 @@ export async function handleAsyncApiRequest(
         taskRunStore,
         new CompositeTaskRunner(
           new PlanPreviewTaskRunner(service, planResolver, (principalId, prompt) => getRelevantMemories(principalId, prompt)),
-          new ConditionalWatchTaskRunner(browserApiService, service),
+          new ConditionalWatchTaskRunner(capabilityBroker, service),
           new BackgroundTaskRunner(taskStore, service, planResolver, (principalId, prompt) => getRelevantMemories(principalId, prompt)),
         ),
         auditLogger,

@@ -3,7 +3,7 @@ import type { PlanResolver, ResolvedPlan } from '../planning/plan-resolver.js';
 import type { MemoryRecord } from '../context/memory.engine.js';
 import { NagexError } from '../common/errors.js';
 import { getCurrentISOString } from '../common/utils.js';
-import type { BrowserToolService } from '../tools/browser.service.js';
+import type { CapabilityBroker } from '../capabilities/capability-broker.js';
 import type { TaskRecord, TaskStore } from './task.store.js';
 import type { TaskRunner, TaskRunOutcome } from './task.scheduler.js';
 
@@ -137,18 +137,11 @@ export class BackgroundTaskRunner implements TaskRunner {
 // cadence via trigger.checkIntervalMinutes), opens a fresh, read-only
 // Browser Agent session, navigates to trigger.watchUrl, and asks the model
 // whether trigger.condition is now true given the real page content —
-// never a fabricated judgment, and never anything beyond a plain read
-// (browser.open/navigate/snapshot are all no-approval, per the Browser
-// Agent's own policy). The session is always closed afterward so a
-// long-running watch never accumulates open browser contexts between
-// checks. AC-11 ("never notify while unmet") is enforced by
-// TaskStore.recordRunOutcome, not here — this runner's only job is to
-// report status + conditionMet honestly, including on failure (a page
-// that errors, requires CAPTCHA/MFA, or an ambiguous model judgment must
-// never be reported as met).
+// never a fabricated judgment, and never anything beyond a plain read.
+// All browser operations are routed through the CapabilityBroker for governance.
 export class ConditionalWatchTaskRunner implements TaskRunner {
   constructor(
-    private readonly browserService: BrowserToolService,
+    private readonly capabilityBroker: CapabilityBroker,
     private readonly aiService: AiService,
   ) {}
 
@@ -160,10 +153,44 @@ export class ConditionalWatchTaskRunner implements TaskRunner {
 
     let browserSessionId: string | null = null;
     try {
-      const session = await this.browserService.open({ tenantId: task.tenantId, ownerId: task.ownerId, requestId });
-      browserSessionId = session.browserSessionId;
-      await this.browserService.navigate({ tenantId: task.tenantId, ownerId: task.ownerId, requestId, browserSessionId, url: trigger.watchUrl });
-      const snapshot = await this.browserService.snapshot({ tenantId: task.tenantId, ownerId: task.ownerId, requestId, browserSessionId });
+      const openRes = await this.capabilityBroker.execute({
+        capabilityId: 'browser.open',
+        tenantId: task.tenantId,
+        principalId: task.ownerId,
+        requestId,
+        payload: {},
+        source: 'TASK',
+      });
+      if (openRes.status !== 'EXECUTED' || !openRes.result) {
+        throw new NagexError({ code: 'BROWSER_OPEN_FAILED', category: 'RUNTIME', message: 'Failed to open browser session via CapabilityBroker', request_id: requestId });
+      }
+      browserSessionId = (openRes.result as { browserSessionId: string }).browserSessionId;
+
+      const navRes = await this.capabilityBroker.execute({
+        capabilityId: 'browser.navigate',
+        tenantId: task.tenantId,
+        principalId: task.ownerId,
+        requestId,
+        payload: { browserSessionId, url: trigger.watchUrl },
+        source: 'TASK',
+      });
+      if (navRes.status !== 'EXECUTED') {
+        throw new NagexError({ code: 'BROWSER_NAVIGATE_FAILED', category: 'RUNTIME', message: 'Failed to navigate browser via CapabilityBroker', request_id: requestId });
+      }
+
+      const snapRes = await this.capabilityBroker.execute({
+        capabilityId: 'browser.snapshot',
+        tenantId: task.tenantId,
+        principalId: task.ownerId,
+        requestId,
+        payload: { browserSessionId },
+        source: 'TASK',
+      });
+      if (snapRes.status !== 'EXECUTED' || !snapRes.result) {
+        throw new NagexError({ code: 'BROWSER_SNAPSHOT_FAILED', category: 'RUNTIME', message: 'Failed to snapshot page via CapabilityBroker', request_id: requestId });
+      }
+
+      const snapshot = snapRes.result as { url: string; title: string; text: string };
       const judgment = await this.judge(trigger.condition, snapshot, requestId);
       return {
         status: 'SUCCEEDED',
@@ -175,7 +202,14 @@ export class ConditionalWatchTaskRunner implements TaskRunner {
       return { status: 'FAILED', errorCode: code, conditionMet: false };
     } finally {
       if (browserSessionId) {
-        await this.browserService.close({ tenantId: task.tenantId, ownerId: task.ownerId, requestId, browserSessionId }).catch(() => {});
+        await this.capabilityBroker.execute({
+          capabilityId: 'browser.close',
+          tenantId: task.tenantId,
+          principalId: task.ownerId,
+          requestId,
+          payload: { browserSessionId },
+          source: 'TASK',
+        }).catch(() => {});
       }
     }
   }

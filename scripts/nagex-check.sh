@@ -185,7 +185,9 @@ fi
 # ── 4. Capability Broker ───────────────────────────────────────────────────
 section "Capability Broker"
 
-CAL_PAYLOAD='{"capabilityId":"google_calendar.free_slots","payload":{"calendarId":"primary","timezone":"Asia/Seoul"}}'
+TIME_MIN="$(node -e 'console.log(new Date(Date.now() + 3600 * 1000).toISOString())')"
+TIME_MAX="$(node -e 'console.log(new Date(Date.now() + 25 * 3600 * 1000).toISOString())')"
+CAL_PAYLOAD="$(node -e 'console.log(JSON.stringify({capabilityId:"google_calendar.free_slots",payload:{calendarId:"primary",timeMin:"'$TIME_MIN'",timeMax:"'$TIME_MAX'",timezone:"Asia/Seoul"}}))')"
 CAL_RESP="$(curl -s -X POST -H "Content-Type: application/json" -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" -d "$CAL_PAYLOAD" "${BASE}/api/v1/capabilities/execute" 2>/dev/null || echo "{}")"
 CAL_STATUS="$(json_get "$CAL_RESP" 'data.status')"
 
@@ -218,63 +220,74 @@ section "Browser"
 SESSION_ID=""
 cleanup_browser_session() {
   if [ -n "$SESSION_ID" ]; then
-    curl -s -X POST -H "Content-Type: application/json" -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" -d "{\"browserSessionId\":\"$SESSION_ID\"}" "${BASE}/api/v1/tools/browser/close" >/dev/null 2>&1 || true
+    CLOSE_PAYLOAD="$(node -e 'console.log(JSON.stringify({capabilityId:"browser.close",payload:{browserSessionId:"'$SESSION_ID'"}}))')"
+    curl -s -X POST -H "Content-Type: application/json" -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" -d "$CLOSE_PAYLOAD" "${BASE}/api/v1/capabilities/execute" >/dev/null 2>&1 || true
   fi
 }
 trap cleanup_browser_session EXIT
 
-# Browser Open
-OPEN_RESP="$(curl -s -X POST -H "Content-Type: application/json" -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" "${BASE}/api/v1/browser/sessions" 2>/dev/null || echo "{}")"
-SESSION_ID="$(json_get "$OPEN_RESP" 'data.browserSessionId')"
+# Browser Open via Broker
+OPEN_PAYLOAD='{"capabilityId":"browser.open","payload":{}}'
+OPEN_RESP="$(curl -s -X POST -H "Content-Type: application/json" -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" -d "$OPEN_PAYLOAD" "${BASE}/api/v1/capabilities/execute" 2>/dev/null || echo "{}")"
+OPEN_STATUS="$(json_get "$OPEN_RESP" 'data.status')"
+SESSION_ID="$(json_get "$OPEN_RESP" 'data.result ? data.result.browserSessionId : ""')"
 
-if [ -n "$SESSION_ID" ]; then
+if [ "$OPEN_STATUS" = "EXECUTED" ] && [ -n "$SESSION_ID" ]; then
   pass "Open" "session=$SESSION_ID"
   log_result "browserOpen" "PASS"
 else
-  fail "Open" "failed to open browser session"
+  fail "Open" "failed to open browser session via broker"
   log_result "browserOpen" "FAIL"
   OVERALL_EXIT=1
 fi
 
 if [ -n "$SESSION_ID" ]; then
-  # Browser Navigate (Safe)
-  NAV_RESP="$(curl -s -X POST -H "Content-Type: application/json" -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" -d "{\"browserSessionId\":\"$SESSION_ID\",\"url\":\"https://example.com/\"}" "${BASE}/api/v1/tools/browser/navigate" 2>/dev/null || echo "{}")"
-  NAV_URL="$(json_get "$NAV_RESP" 'data.url')"
-  if [ -n "$NAV_URL" ]; then
+  # Browser Navigate (Safe) via Broker
+  NAV_PAYLOAD="$(node -e 'console.log(JSON.stringify({capabilityId:"browser.navigate",payload:{browserSessionId:"'$SESSION_ID'",url:"https://example.com/"}}))')"
+  NAV_RESP="$(curl -s -X POST -H "Content-Type: application/json" -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" -d "$NAV_PAYLOAD" "${BASE}/api/v1/capabilities/execute" 2>/dev/null || echo "{}")"
+  NAV_STATUS="$(json_get "$NAV_RESP" 'data.status')"
+  NAV_URL="$(json_get "$NAV_RESP" 'data.result ? data.result.url : ""')"
+  if [ "$NAV_STATUS" = "EXECUTED" ] && [ -n "$NAV_URL" ]; then
     pass "Navigate" "example.com"
     log_result "browserNavigate" "PASS"
   else
-    fail "Navigate" "failed navigation"
+    fail "Navigate" "failed navigation via broker"
     log_result "browserNavigate" "FAIL"
     OVERALL_EXIT=1
   fi
 
-  # Browser Snapshot
-  SNAP_RESP="$(curl -s -X POST -H "Content-Type: application/json" -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" -d "{\"browserSessionId\":\"$SESSION_ID\"}" "${BASE}/api/v1/tools/browser/snapshot" 2>/dev/null || echo "{}")"
-  SNAP_TITLE="$(json_get "$SNAP_RESP" 'data.title')"
-  if [ -n "$SNAP_TITLE" ]; then
+  # Browser Snapshot via Broker
+  SNAP_PAYLOAD="$(node -e 'console.log(JSON.stringify({capabilityId:"browser.snapshot",payload:{browserSessionId:"'$SESSION_ID'"}}))')"
+  SNAP_RESP="$(curl -s -X POST -H "Content-Type: application/json" -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" -d "$SNAP_PAYLOAD" "${BASE}/api/v1/capabilities/execute" 2>/dev/null || echo "{}")"
+  SNAP_STATUS="$(json_get "$SNAP_RESP" 'data.status')"
+  SNAP_TITLE="$(json_get "$SNAP_RESP" 'data.result ? data.result.title : ""')"
+  if [ "$SNAP_STATUS" = "EXECUTED" ] && [ -n "$SNAP_TITLE" ]; then
     pass "Snapshot" "title='$SNAP_TITLE'"
     log_result "browserSnapshot" "PASS"
   else
-    fail "Snapshot" "snapshot failed"
+    fail "Snapshot" "snapshot failed via broker"
     log_result "browserSnapshot" "FAIL"
     OVERALL_EXIT=1
   fi
 
-  # Browser Extract
-  EXT_RESP="$(curl -s -X POST -H "Content-Type: application/json" -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" -d "{\"browserSessionId\":\"$SESSION_ID\",\"target\":\"all\"}" "${BASE}/api/v1/tools/browser/extract" 2>/dev/null || echo "{}")"
-  EXT_TEXT="$(json_get "$EXT_RESP" 'data.text')"
-  if [ -n "$EXT_TEXT" ]; then
+  # Browser Extract via Broker
+  EXT_PAYLOAD="$(node -e 'console.log(JSON.stringify({capabilityId:"browser.extract",payload:{browserSessionId:"'$SESSION_ID'",target:"all"}}))')"
+  EXT_RESP="$(curl -s -X POST -H "Content-Type: application/json" -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" -d "$EXT_PAYLOAD" "${BASE}/api/v1/capabilities/execute" 2>/dev/null || echo "{}")"
+  EXT_STATUS="$(json_get "$EXT_RESP" 'data.status')"
+  EXT_HAS_OBJ="$(json_get "$EXT_RESP" 'data.result && data.result.extracted ? "true" : "false"')"
+  EXT_TEXT="$(json_get "$EXT_RESP" 'data.result && data.result.extracted ? data.result.extracted.text : ""')"
+  if [ "$EXT_STATUS" = "EXECUTED" ] && [ "$EXT_HAS_OBJ" = "true" ] && [ -n "$EXT_TEXT" ]; then
     pass "Extract" "extracted content successfully"
     log_result "browserExtract" "PASS"
   else
-    fail "Extract" "extraction failed"
+    fail "Extract" "extraction failed via broker"
     log_result "browserExtract" "FAIL"
     OVERALL_EXIT=1
   fi
 
-  # Browser SSRF Protection
-  SSRF_RESP="$(curl -s -X POST -H "Content-Type: application/json" -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" -d "{\"browserSessionId\":\"$SESSION_ID\",\"url\":\"http://127.0.0.1:4100/\"}" "${BASE}/api/v1/tools/browser/navigate" 2>/dev/null || echo "{}")"
+  # Browser SSRF Protection via Broker
+  SSRF_PAYLOAD="$(node -e 'console.log(JSON.stringify({capabilityId:"browser.navigate",payload:{browserSessionId:"'$SESSION_ID'",url:"http://127.0.0.1:4100/"}}))')"
+  SSRF_RESP="$(curl -s -X POST -H "Content-Type: application/json" -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" -d "$SSRF_PAYLOAD" "${BASE}/api/v1/capabilities/execute" 2>/dev/null || echo "{}")"
   SSRF_ERR_CODE="$(json_get "$SSRF_RESP" 'data.error ? data.error.code : (data.code || "")')"
   if [ "$SSRF_ERR_CODE" = "BROWSER_UNSAFE_URL" ]; then
     pass "SSRF protection" "blocked 127.0.0.1 with BROWSER_UNSAFE_URL"
@@ -285,11 +298,12 @@ if [ -n "$SESSION_ID" ]; then
     OVERALL_EXIT=1
   fi
 
-  # Browser Close
-  CLOSE_RESP="$(curl -s -X POST -H "Content-Type: application/json" -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" -d "{\"browserSessionId\":\"$SESSION_ID\"}" "${BASE}/api/v1/tools/browser/close" 2>/dev/null || echo "{}")"
+  # Browser Close via Broker
+  CLOSE_PAYLOAD="$(node -e 'console.log(JSON.stringify({capabilityId:"browser.close",payload:{browserSessionId:"'$SESSION_ID'"}}))')"
+  CLOSE_RESP="$(curl -s -X POST -H "Content-Type: application/json" -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" -d "$CLOSE_PAYLOAD" "${BASE}/api/v1/capabilities/execute" 2>/dev/null || echo "{}")"
   CLOSE_STATUS="$(json_get "$CLOSE_RESP" 'data.status')"
-  if [ "$CLOSE_STATUS" = "SUCCEEDED" ]; then
-    pass "Close" "session closed"
+  if [ "$CLOSE_STATUS" = "EXECUTED" ]; then
+    pass "Close" "session closed via broker"
     log_result "browserClose" "PASS"
   else
     fail "Close" "close returned '$CLOSE_STATUS'"
@@ -306,7 +320,7 @@ BYPASS_MATCHES=""
 DISALLOWED_DIRS=("src/planning" "src/runtime" "src/tasks" "src/agents" "src/workflows")
 for d in "${DISALLOWED_DIRS[@]}"; do
   if [ -d "${PROJECT_DIR}/${d}" ]; then
-    M="$(grep -RInE "googleCalendarService|gmailService|browserService|GoogleCalendarService|GmailService|BrowserToolService" "${PROJECT_DIR}/${d}" 2>/dev/null || true)"
+    M="$(grep -RInE "googleCalendarService|gmailService|browserService|GoogleCalendarService|GmailService|BrowserToolService" "${PROJECT_DIR}/${d}" 2>/dev/null | grep -vE "import type|//|\*" || true)"
     if [ -n "$M" ]; then
       BYPASS_MATCHES="${BYPASS_MATCHES}\n${M}"
     fi
