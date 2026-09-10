@@ -18,6 +18,15 @@
 
 set -euo pipefail
 
+VERIFY_FLAG=false
+for arg in "$@"; do
+  case "$arg" in
+    --verify)
+      VERIFY_FLAG=true
+      ;;
+  esac
+done
+
 log() {
   printf '\n[nagex-update] %s\n' "$1"
 }
@@ -146,11 +155,13 @@ else
 fi
 
 # ── Stage: post-deploy health check ─────────────────────────────────────────
-# NAgex does not currently document (or implement) a canonical health-check
-# endpoint (only tool/OAuth-scoped status endpoints exist — see
-# docs/MODEL-ROUTER.md and docs/DEPLOYMENT.md). Rather than invent one, this
-# step is intentionally left as a no-op until one is documented.
-log "Stage: post-deploy health check — skipped (no canonical health endpoint is documented yet)"
+log "Stage: post-deploy health check"
+if [ "${VERIFY_FLAG}" = "true" ]; then
+  log "Running nagex-check..."
+  "${SCRIPT_DIR}/nagex-check.sh"
+else
+  log "Skipped (run nagex-check to perform safe verification)"
+fi
 
 # ── Summary ──────────────────────────────────────────────────────────────
 log "Deployment summary"
@@ -161,3 +172,7 @@ echo "PLAYWRIGHT_BROWSER_LAUNCH=${BROWSER_LAUNCH_RESULT}"
 echo "PLAYWRIGHT_BROWSER_VERSION=${PLAYWRIGHT_BROWSER_VERSION:-unknown}"
 
 log "Update complete."
+echo ""
+echo "Next recommended step:"
+echo "  nagex-check"
+echo ""

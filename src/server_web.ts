@@ -2096,6 +2096,12 @@ export const server = http.createServer((req, res) => {
     return;
   }
 
+  if (pathname === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ status: 'UP', service: 'NAgex Personal AI Platform API', version: '0.1.0' }));
+    return;
+  }
+
   if (pathname.startsWith('/api/')) {
     const bodyChunks: Buffer[] = [];
     req.on('data', (chunk) => bodyChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
