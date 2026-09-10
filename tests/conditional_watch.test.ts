@@ -34,7 +34,15 @@ function startFixtureServer(priceText: string): Promise<{ origin: string; close:
   return new Promise((resolve) => {
     server.listen(0, '127.0.0.1', () => {
       const { port } = server.address() as AddressInfo;
-      resolve({ origin: `http://127.0.0.1:${port}`, close: () => new Promise((r) => server.close(() => r())) });
+      resolve({
+        origin: `http://127.0.0.1:${port}`,
+        close: () => new Promise((r) => {
+          if (typeof (server as any).closeAllConnections === 'function') {
+            (server as any).closeAllConnections();
+          }
+          server.close(() => r());
+        }),
+      });
     });
   });
 }
@@ -224,6 +232,9 @@ test('a page that requires human verification fails the check (never claims met)
     assert.equal(outcome.errorCode, 'BROWSER_HUMAN_VERIFICATION_REQUIRED');
     assert.equal(outcome.conditionMet, false);
   } finally {
+    if (typeof (server as any).closeAllConnections === 'function') {
+      (server as any).closeAllConnections();
+    }
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 });
@@ -463,5 +474,36 @@ test('ConditionalWatchTaskRunner blocks unsafe URLs through Broker and surfaces 
   assert.equal(outcome.errorCode, 'BROWSER_UNSAFE_URL');
   assert.equal(outcome.conditionMet, false);
   assert.deepEqual(executedCapabilities, ['browser.open', 'browser.navigate', 'browser.close']);
+});
+
+test('ConditionalWatchTaskRunner awaits browser.close in finally on a normal false (unmet condition) result', async () => {
+  const executedCapabilities: string[] = [];
+  const mockBroker = {
+    execute: async (req: any) => {
+      executedCapabilities.push(req.capabilityId);
+      if (req.capabilityId === 'browser.open') {
+        return { status: 'EXECUTED', capabilityId: 'browser.open', result: { browserSessionId: 'ses_mock_unmet' } };
+      }
+      if (req.capabilityId === 'browser.navigate') {
+        return { status: 'EXECUTED', capabilityId: 'browser.navigate', result: { url: req.payload.url } };
+      }
+      if (req.capabilityId === 'browser.snapshot') {
+        return { status: 'EXECUTED', capabilityId: 'browser.snapshot', result: { url: req.payload.url, title: 'Mock', text: 'Current price: $950' } };
+      }
+      if (req.capabilityId === 'browser.close') {
+        return { status: 'EXECUTED', capabilityId: 'browser.close', result: { closed: true } };
+      }
+      throw new Error(`Unexpected capability: ${req.capabilityId}`);
+    },
+  } as any;
+
+  const aiService = buildMockAiService('MET: false\nREASON: $950 is above $800 threshold');
+  const runner = new ConditionalWatchTaskRunner(mockBroker, aiService);
+
+  const outcome = await runner.run(conditionTask({ trigger: { type: 'CONDITION', condition: 'The price is below $800', watchUrl: 'https://example.com/item', checkIntervalMinutes: 15 } }), 'req_mock_unmet');
+
+  assert.equal(outcome.status, 'SUCCEEDED');
+  assert.equal(outcome.conditionMet, false);
+  assert.deepEqual(executedCapabilities, ['browser.open', 'browser.navigate', 'browser.snapshot', 'browser.close']);
 });
 
