@@ -187,10 +187,12 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
   }
 
   // Closes every remaining context and the shared Chromium process itself.
-  // Never called by a live server (the runtime is a process-lifetime
-  // singleton there), but essential for anything — tests above all — that
-  // constructs its own PlaywrightBrowserRuntime instance and must not leak
-  // a real browser process past that instance's lifetime.
+  // Called exactly once by a live server too, as the last step of
+  // server_web.ts's SIGTERM/SIGINT graceful shutdown (the runtime is a
+  // process-lifetime singleton there, so this only ever runs at process
+  // exit) — and by anything else, tests above all, that constructs its own
+  // PlaywrightBrowserRuntime instance and must not leak a real browser
+  // process past that instance's lifetime.
   public async shutdown(): Promise<void> {
     for (const context of this.contexts.values()) {
       await context.close().catch(() => {});

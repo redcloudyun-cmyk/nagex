@@ -2178,7 +2178,7 @@ export const server = http.createServer((req, res) => {
 
 if (require.main === module) {
   const HOST = process.env.HOST || '127.0.0.1';
-  server.listen(PORT, HOST, () => {
+  const serverInstance = server.listen(PORT, HOST, () => {
     console.log(`\n═══════════════════════════════════════════════════════`);
     console.log(`  NAgex Personal AI — Unified Platform Server`);
     console.log(`  Console:  http://${HOST}:${PORT}`);
@@ -2186,4 +2186,52 @@ if (require.main === module) {
     console.log(`  Engine:   Durable Runtime + Memory + PDP + Audit`);
     console.log(`═══════════════════════════════════════════════════════\n`);
   });
+
+  // Production graceful shutdown lifecycle. Playwright's own SIGTERM
+  // handling (registered when the browser launches) suppresses Node's
+  // default "no listeners -> exit" behavior, and without an
+  // application-owned shutdown path the live HTTP server + process-lifetime
+  // browserRuntime singleton stayed open indefinitely, forcing systemd to
+  // SIGKILL after its 90s TimeoutStopSec. This installs the real lifecycle:
+  // stop accepting new connections -> drain idle keep-alives -> await HTTP
+  // server closure -> await browserRuntime shutdown -> natural process exit.
+  // Idempotent via shuttingDown (systemd/an operator may send more than one
+  // signal). No process.exit() on this path — systemd's own
+  // TimeoutStopSec/KillSignal remains the sole final safety boundary.
+  let shuttingDown = false;
+
+  const closeHttpServer = (): Promise<void> =>
+    new Promise<void>((resolve) => {
+      serverInstance.close((err) => {
+        if (err) {
+          console.error('[server_web] HTTP shutdown error:', err);
+        }
+        resolve();
+      });
+
+      if (typeof serverInstance.closeIdleConnections === 'function') {
+        serverInstance.closeIdleConnections();
+      }
+    });
+
+  const performShutdown = async (signal: string) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`[server_web] Received ${signal}. Starting graceful shutdown...`);
+
+    try {
+      await closeHttpServer();
+      console.log('[server_web] HTTP server stopped accepting connections.');
+
+      await browserRuntime.shutdown();
+      console.log('[server_web] Browser runtime shut down cleanly.');
+    } catch (error) {
+      console.error('[server_web] Error during shutdown:', error);
+    } finally {
+      console.log('[server_web] Graceful shutdown complete.');
+    }
+  };
+
+  process.on('SIGTERM', () => void performShutdown('SIGTERM'));
+  process.on('SIGINT', () => void performShutdown('SIGINT'));
 }
