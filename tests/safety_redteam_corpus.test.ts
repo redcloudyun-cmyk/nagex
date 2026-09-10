@@ -2,15 +2,13 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { SafetyEngine } from '../src/governance/safety.engine.js';
 import { PreExecutionSafetyGate } from '../src/governance/action-safety.gate.js';
 import { PersistentSafetyStore } from '../src/governance/safety.store.js';
 
-function tmpDir(name: string): string {
-  const dir = path.join(process.cwd(), '.tmp_test', name);
-  if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
-  fs.mkdirSync(dir, { recursive: true });
-  return dir;
+function createTempDir(name: string): string {
+  return fs.mkdtempSync(path.join(os.tmpdir(), `nagex-safety-persistence-${name}-`));
 }
 
 test('1. TS Red-Team Corpus: Positive Harm Scenarios (Must Block R3/R4)', async () => {
@@ -51,37 +49,41 @@ test('2. TS Red-Team Corpus: Negative Dual-Use / Benign Scenarios (Must Allow R0
 });
 
 test('3. TS Persistence & Tenant Isolation: Safety Events & Status Survive Restart', async () => {
-  const dir = tmpDir('ts-persistence');
-  const storeA = new PersistentSafetyStore({ dir });
+  const dir = createTempDir('ts-persistence');
+  try {
+    const storeA = new PersistentSafetyStore({ dir });
 
-  await storeA.recordEvent({
-    eventId: 'sev_101',
-    tenantId: 'tenant_alpha',
-    userId: 'user_alpha',
-    decisionId: 'sdec_101',
-    eventType: 'safety.action.blocked',
-    riskLevel: 'R3',
-    categories: ['CYBER_ABUSE'],
-    reasonCodes: ['R3_CYBER_ATTACK_PHISHING'],
-    policyVersion: 'NAGEX_TS_POLICY_V1',
-    actionTaken: 'Blocked phishing attempt',
-    userFacingExplanation: 'Prohibited phishing action blocked.',
-    timestamp: new Date().toISOString(),
-  });
+    await storeA.recordEvent({
+      eventId: 'sev_101',
+      tenantId: 'tenant_alpha',
+      userId: 'user_alpha',
+      decisionId: 'sdec_101',
+      eventType: 'safety.action.blocked',
+      riskLevel: 'R3',
+      categories: ['CYBER_ABUSE'],
+      reasonCodes: ['R3_CYBER_ATTACK_PHISHING'],
+      policyVersion: 'NAGEX_TS_POLICY_V1',
+      actionTaken: 'Blocked phishing attempt',
+      userFacingExplanation: 'Prohibited phishing action blocked.',
+      timestamp: new Date().toISOString(),
+    });
 
-  // Simulated Restart: Instantiate fresh store pointing to same directory
-  const storeB = new PersistentSafetyStore({ dir });
-  const alphaEvents = await storeB.getEvents('tenant_alpha');
-  assert.strictEqual(alphaEvents.length, 1);
-  assert.strictEqual(alphaEvents[0].decisionId, 'sdec_101');
+    // Simulated Restart: Instantiate fresh store pointing to same directory
+    const storeB = new PersistentSafetyStore({ dir });
+    const alphaEvents = await storeB.getEvents('tenant_alpha');
+    assert.strictEqual(alphaEvents.length, 1);
+    assert.strictEqual(alphaEvents[0].decisionId, 'sdec_101');
 
-  // Tenant Isolation Check: tenant_beta must have 0 events
-  const betaEvents = await storeB.getEvents('tenant_beta');
-  assert.strictEqual(betaEvents.length, 0);
+    // Tenant Isolation Check: tenant_beta must have 0 events
+    const betaEvents = await storeB.getEvents('tenant_beta');
+    assert.strictEqual(betaEvents.length, 0);
 
-  const status = await storeB.getUserStatus('tenant_alpha', 'user_alpha');
-  assert.strictEqual(status.blockedCount, 1);
-  assert.strictEqual(status.warningCount, 1);
+    const status = await storeB.getUserStatus('tenant_alpha', 'user_alpha');
+    assert.strictEqual(status.blockedCount, 1);
+    assert.strictEqual(status.warningCount, 1);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('4. TS Compliance Audit: Assert Zero Autonomous Law-Enforcement Reporting Side-Effect', async () => {

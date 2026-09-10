@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { EnforcementLevel, SafetyEvent, SafetyRiskLevel } from './safety.types.js';
+import { resolveNagexDataDir } from './file-record.store.js';
 
 export interface UserSafetyStatus {
   tenantId: string;
@@ -18,8 +19,9 @@ export interface UserSafetyStatus {
 export class PersistentSafetyStore {
   private baseDir: string;
 
-  constructor(options?: { dir?: string }) {
-    this.baseDir = options?.dir || path.join(process.cwd(), '.nagex_data', 'safety');
+  constructor(options?: { dir?: string; env?: NodeJS.ProcessEnv }) {
+    const env = options?.env ?? process.env;
+    this.baseDir = options?.dir || resolveNagexDataDir('safety', 'NAGEX_SAFETY_DIR', env);
     if (!fs.existsSync(this.baseDir)) {
       fs.mkdirSync(this.baseDir, { recursive: true });
     }

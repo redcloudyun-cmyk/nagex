@@ -4,12 +4,18 @@ import type { AddressInfo } from 'node:net';
 import { server } from '../src/server_web.js';
 
 async function withServer(run: (origin: string) => Promise<void>): Promise<void> {
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const { port } = server.address() as AddressInfo;
+  let isOwner = false;
+  if (!server.listening) {
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    isOwner = true;
+  }
+  const addr = server.address() as AddressInfo;
   try {
-    await run(`http://127.0.0.1:${port}`);
+    await run(`http://127.0.0.1:${addr.port}`);
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    if (isOwner && server.listening) {
+      await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    }
   }
 }
 
