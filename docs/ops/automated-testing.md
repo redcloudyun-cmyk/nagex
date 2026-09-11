@@ -56,6 +56,8 @@ scripts/nagex-check.sh
    - Open session -> navigate `https://example.com/` -> snapshot -> extract -> SSRF block check (`http://127.0.0.1:4100/` blocked with `BROWSER_UNSAFE_URL`) -> close.
 6. **Architecture & Safety**:
    - Direct-call bypass static scan: Ensures planner/runtime/tasks/agents do not bypass Capability Broker by directly invoking service singletons.
+7. **Test Plan Injection** (V01a-R1):
+   - Probes `POST /api/v1/tasks/:id/run-with-fixed-plan` in normal mode and asserts HTTP 404 — proves the test-only fixed-plan injection route (see Section 4 below) stays disabled outside an explicit V01 harness run. Never inspects or reveals token state.
 
 ### Machine-Readable Logs
 Generates `/var/log/nagex/latest-check.json` (or `$HOME/.local/state/nagex/logs/latest-check.json`).
@@ -119,11 +121,30 @@ To declare Capability Broker as **FROZEN**, all verification items in `nagex-che
 
 ---
 
-## 4. Test-Only Deterministic Plan Injection (V01a)
+## 4. Test-Only Deterministic Plan Injection (V01a / V01a-R1)
 
 `POST /api/v1/tasks/:id/run-with-fixed-plan` lets a Task run be driven through the real `PlanResolver`/`ExecutingTaskRunner`/`CapabilityBroker` pipeline with a caller-supplied plan (`{ steps: [...] }`, the same raw shape `AiService.plan()` normally produces), instead of a real, variable-shape LLM call. It exists solely so `nagex-task-e2e-live` (V01, Durable Task Restart/Resume LIVE E2E) can exercise a deterministic multi-step Task run — no other consumer should ever call it.
 
-**Isolation:**
-- The route **does not exist** (falls through to the ordinary 404, indistinguishable from any unmatched path) unless the environment variable `NAGEX_ENABLE_TEST_PLAN_INJECTION` is exactly `'1'`, re-checked on every request — never cached, never assumed off after the first check.
-- **Never set this variable in the real production environment's persistent env.** Export it only in the shell session running a V01 harness invocation, for that invocation's duration.
+**Isolation — two independent gates, both required (V01a-R1):**
+- The route **does not exist** (falls through to the ordinary 404, indistinguishable from any unmatched path) unless **both** of the following hold, re-checked on every request — never cached, never assumed off after the first check:
+  1. the environment variable `NAGEX_ENABLE_TEST_PLAN_INJECTION` is exactly `'1'`;
+  2. the request's `X-NAgex-Test-Token` header exactly matches the environment variable `NAGEX_TEST_PLAN_INJECTION_TOKEN` (timing-safe comparison; an empty/unset server-side token is always invalid, never a match).
+- A missing flag, a missing/empty server-side token, a missing request header, and a wrong token all produce the **exact same** 404 — the response never reveals which gate failed, and the token is never logged or echoed back.
 - Only the planning LLM call is substituted — `PlanResolver.resolve()` and everything downstream (step execution, durable state, approval continuation, finalization) is the real, unmodified production path, writing to the same real stores a normal run would.
+
+**Never persist either variable in production's own environment.** `nagex.service` runs under systemd from a persistent unit/env file (e.g. `/etc/nagex/nagex.env`) — a shell `export` in an operator's terminal does **not** reach an already-running systemd-managed process, so that is never a valid way to enable this route against the real service. The only correct model for V01's temporary use:
+
+```text
+1. Write a runtime-only systemd drop-in under /run (never /etc/nagex/nagex.env,
+   never a persistent unit override, never a repository file) setting
+   NAGEX_ENABLE_TEST_PLAN_INJECTION=1 and a freshly generated, high-entropy
+   NAGEX_TEST_PLAN_INJECTION_TOKEN for that run only.
+2. systemctl daemon-reload && systemctl restart nagex.service.
+3. Run the V01 test scenario, sending the token in X-NAgex-Test-Token.
+4. Cleanup (always, PASS or FAIL): remove the /run drop-in, daemon-reload,
+   restart nagex.service again in normal mode.
+5. Verify the route returns 404 again post-cleanup before declaring the
+   run complete.
+```
+
+Never write the flag or the token to `/etc/nagex/nagex.env`, a persistent unit override, any repository file, or any log.

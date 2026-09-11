@@ -377,6 +377,21 @@ function getHeaderValue(headers: Record<string, string | string[] | undefined>, 
   return Array.isArray(value) ? value[0] : value;
 }
 
+// V01a-R1 — timing-safe token comparison for the test-only fixed-plan
+// injection route (see the route below). An empty expected token is
+// always invalid (never matches, regardless of what's provided) — this is
+// what makes NAGEX_TEST_PLAN_INJECTION_TOKEN being unset/empty a real,
+// independent gate, not just a formality. Length is checked before
+// timingSafeEqual, since it throws on a length mismatch rather than
+// returning false. Neither value is ever trimmed or otherwise transformed.
+function timingSafeTokenMatch(expectedToken: string, providedToken: string | undefined): boolean {
+  if (!expectedToken || !providedToken) return false;
+  const expectedBuf = Buffer.from(expectedToken, 'utf8');
+  const providedBuf = Buffer.from(providedToken, 'utf8');
+  if (expectedBuf.length !== providedBuf.length) return false;
+  return crypto.timingSafeEqual(expectedBuf, providedBuf);
+}
+
 // getRelevantMemories/MEMORY_RELEVANCE_STOPWORDS moved into
 // createNagexApplication() (see app.getRelevantMemories, destructured
 // above) — it is a genuine construction-time dependency of
@@ -1030,13 +1045,25 @@ export async function handleAsyncApiRequest(
     // execution/durable-state/approval path without depending on the real
     // planning LLM's variable output shape. This route does not exist
     // (falls through to the ordinary 404, indistinguishable from any other
-    // unmatched path) unless NAGEX_ENABLE_TEST_PLAN_INJECTION is exactly
-    // '1' — re-checked on every request, never cached. It only ever
-    // substitutes the planning LLM call: PlanResolver.resolve() and
-    // everything downstream (step execution, durable state, approval
+    // unmatched path) unless BOTH independent gates pass — re-checked on
+    // every request, never cached, and never distinguished from each other
+    // in the response (a missing flag, a missing/empty server-side token,
+    // a missing request header, and a wrong token all produce the exact
+    // same 404 fallthrough; V01a-R1 hardening, since the boolean flag
+    // alone left the route callable by any network client that could
+    // reach the server while it was enabled):
+    //   1. NAGEX_ENABLE_TEST_PLAN_INJECTION === '1'
+    //   2. X-NAgex-Test-Token exactly matches NAGEX_TEST_PLAN_INJECTION_TOKEN
+    //      (timing-safe comparison; see timingSafeTokenMatch above)
+    // It only ever substitutes the planning LLM call: PlanResolver.resolve()
+    // and everything downstream (step execution, durable state, approval
     // continuation, finalization) is the real, unmodified production path,
     // writing to the same real stores a normal run would.
-    if (pathname.startsWith('/api/v1/tasks/') && pathname.endsWith('/run-with-fixed-plan') && method === 'POST' && process.env.NAGEX_ENABLE_TEST_PLAN_INJECTION === '1') {
+    if (
+      pathname.startsWith('/api/v1/tasks/') && pathname.endsWith('/run-with-fixed-plan') && method === 'POST' &&
+      process.env.NAGEX_ENABLE_TEST_PLAN_INJECTION === '1' &&
+      timingSafeTokenMatch(process.env.NAGEX_TEST_PLAN_INJECTION_TOKEN ?? '', getHeaderValue(headers, 'x-nagex-test-token'))
+    ) {
       const taskId = pathname.slice('/api/v1/tasks/'.length, pathname.length - '/run-with-fixed-plan'.length);
       const requestId = getHeaderValue(headers, 'x-request-id') || `req_task_fixedplan_${crypto.randomUUID()}`;
       const task = taskStore.get(taskId);

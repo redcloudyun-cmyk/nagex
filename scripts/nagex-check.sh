@@ -336,6 +336,24 @@ else
   OVERALL_EXIT=1
 fi
 
+# ── 7. Test Plan Injection (V01a-R1 — must stay disabled in normal mode) ──
+section "Test Plan Injection"
+
+# Preferred robust probe: the fixed-plan route's flag+token gate is checked
+# before any task lookup, so a placeholder taskId is safe and makes no
+# mutation. This only proves the route is unreachable in normal mode — it
+# never inspects, prints, or otherwise reveals whether a token happens to
+# be configured server-side.
+FIXEDPLAN_PROBE_STATUS="$(curl -s -o /dev/null -w "%{http_code}" -X POST -H "Content-Type: application/json" -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" -d '{"steps":[]}' "${BASE}/api/v1/tasks/nagex-check-probe/run-with-fixed-plan" 2>/dev/null || echo "000")"
+if [ "$FIXEDPLAN_PROBE_STATUS" = "404" ]; then
+  pass "Test plan injection" "disabled (404)"
+  log_result "testPlanInjectionDisabled" "PASS"
+else
+  fail "Test plan injection" "expected 404 in normal mode, got HTTP $FIXEDPLAN_PROBE_STATUS"
+  log_result "testPlanInjectionDisabled" "FAIL"
+  OVERALL_EXIT=1
+fi
+
 # ── Result & Output ────────────────────────────────────────────────────────
 printf "\n==========================================\n"
 if [ "$OVERALL_EXIT" -eq 0 ]; then
@@ -376,7 +394,8 @@ cat <<EOF >"$JSON_LOG_FILE"
     "browserExtract": "${RESULTS[browserExtract]:-FAIL}",
     "browserSsrfProtection": "${RESULTS[browserSsrfProtection]:-FAIL}",
     "browserClose": "${RESULTS[browserClose]:-FAIL}",
-    "directCallBypassScan": "${RESULTS[directCallBypassScan]:-FAIL}"
+    "directCallBypassScan": "${RESULTS[directCallBypassScan]:-FAIL}",
+    "testPlanInjectionDisabled": "${RESULTS[testPlanInjectionDisabled]:-FAIL}"
   }
 }
 EOF
