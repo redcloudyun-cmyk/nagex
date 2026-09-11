@@ -28,6 +28,18 @@
 #     and the same file this script reads for its non-replay proof, so
 #     this is one read serving two purposes, not a new surface.
 #
+# V01-R1 — corrected after a real host run: two harness assertions were
+# too strict, not the durable runtime being wrong (core restart/resume/
+# non-replay behavior all passed on that run). (1) TaskContinuationCoordinator
+# resumes fire-and-forget from the /approve route, so the approve response
+# may legitimately already show CONSUMED (not just APPROVED) by the time
+# it's serialized — both are accepted, with the real proof being the
+# downstream TaskRun==SUCCEEDED check. (2) a replay re-calling /approve
+# itself hits ActionApprovalStore.approve()'s own APPROVAL_NOT_PENDING
+# guard, a distinct code from consume()'s APPROVAL_ALREADY_CONSUMED — both
+# are accepted as valid replay-protection evidence, via the shared,
+# envelope-shape-normalizing extract_error_code() helper.
+#
 
 set -euo pipefail
 
@@ -392,7 +404,7 @@ api_call_with_header POST "${BASE}/api/v1/tasks/nagex-task-e2e-gate-probe/run-wi
 # the token was accepted) — a route-not-found 404 and this 404 are
 # distinguishable by body only, never relied upon for the security gate
 # itself, only used here to prove the token was genuinely accepted.
-CORRECT_TOKEN_ERR_CODE="$(json_get "$API_CALL_BODY" 'data.error ? data.error.code : ""')"
+CORRECT_TOKEN_ERR_CODE="$(extract_error_code "$API_CALL_BODY")"
 if [ "$API_CALL_STATUS" = "404" ] && [ "$CORRECT_TOKEN_ERR_CODE" = "TASK_NOT_FOUND" ]; then
   pass "Correct-token gate" "reached TASK_NOT_FOUND (route active)"
   log_result "correctTokenGate" "PASS"
@@ -583,8 +595,17 @@ section "Resume"
 api_call POST "${BASE}/api/v1/approvals/${APPROVAL_ID}/approve" '{}'
 if [ "$API_CALL_STATUS" = "200" ]; then
   APPROVE_STATUS="$(json_get "$API_CALL_BODY" 'data.status')"
-  if [ "$APPROVE_STATUS" = "APPROVED" ]; then
-    pass "Approval granted" "approvalId=$APPROVAL_ID"
+  # V01-R1 — TaskContinuationCoordinator.onApproved() is triggered
+  # fire-and-forget from this exact route, immediately after approve()
+  # returns the record by reference. By the time this response body is
+  # serialized and read, the same underlying record may already have been
+  # mutated to CONSUMED by the resumed execution's own consume() call —
+  # that is CONSUMED being the stronger, later terminal state after a
+  # successful resume, not a failure. Accept either; the authoritative
+  # proof that resume actually worked is the downstream TaskRun ==
+  # SUCCEEDED + executedSoFar == 3 checks below, not this status string.
+  if [ "$APPROVE_STATUS" = "APPROVED" ] || [ "$APPROVE_STATUS" = "CONSUMED" ]; then
+    pass "Approval granted" "approvalId=$APPROVAL_ID status=$APPROVE_STATUS"
     log_result "approvalGranted" "PASS"
   else
     fail "Approval granted" "unexpected status '$APPROVE_STATUS'"
@@ -632,15 +653,26 @@ else
 fi
 
 # ── Replay Verification ──────────────────────────────────────────────
+# V01-R1 — this replay attempt re-calls /approve itself (not a direct
+# capabilities/execute replay like nagex-e2e-live.sh's checks), so it
+# exercises ActionApprovalStore.approve()'s OWN pending-state guard, which
+# throws APPROVAL_NOT_PENDING for an already-CONSUMED record — a distinct,
+# equally authoritative code from consume()'s own guard
+# (APPROVAL_ALREADY_CONSUMED). Both mean the same thing here: the store
+# correctly refused to reprocess a consumed approval. Accept either,
+# normalized across the real supported envelope shapes (see
+# extract_error_code() in the common lib) rather than assuming exactly one.
 REPLAY_RESP="$(curl -s -w '\n%{http_code}' -X POST -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" "${BASE}/api/v1/approvals/${APPROVAL_ID}/approve")"
 REPLAY_HTTP_CODE="$(printf '%s' "$REPLAY_RESP" | tail -n1)"
 REPLAY_BODY="$(printf '%s' "$REPLAY_RESP" | sed '$d')"
-REPLAY_ERR_CODE="$(json_get "$REPLAY_BODY" 'data.error ? data.error.code : (data.code || "")')"
-if [ "$REPLAY_HTTP_CODE" = "409" ] && [ "$REPLAY_ERR_CODE" = "APPROVAL_ALREADY_CONSUMED" ]; then
-  pass "Approval replay blocked" "HTTP 409 APPROVAL_ALREADY_CONSUMED"
+REPLAY_ERR_CODE="$(extract_error_code "$REPLAY_BODY")"
+# Sanitized diagnostic only: the normalized CODE, never the raw body.
+printf "  (diagnostic) replay error code observed: %s\n" "${REPLAY_ERR_CODE:-<none>}"
+if [ "$REPLAY_HTTP_CODE" = "409" ] && { [ "$REPLAY_ERR_CODE" = "APPROVAL_ALREADY_CONSUMED" ] || [ "$REPLAY_ERR_CODE" = "APPROVAL_NOT_PENDING" ]; }; then
+  pass "Approval replay blocked" "HTTP 409 $REPLAY_ERR_CODE"
   log_result "approvalReplayBlocked" "PASS"
 else
-  fail "Approval replay blocked" "expected 409 APPROVAL_ALREADY_CONSUMED, got HTTP $REPLAY_HTTP_CODE"
+  fail "Approval replay blocked" "expected 409 with APPROVAL_ALREADY_CONSUMED or APPROVAL_NOT_PENDING, got HTTP $REPLAY_HTTP_CODE code=${REPLAY_ERR_CODE:-<none>}"
   log_result "approvalReplayBlocked" "FAIL"
   OVERALL_EXIT=1
 fi

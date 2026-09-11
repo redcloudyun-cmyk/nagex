@@ -123,17 +123,29 @@ api_call() {
   API_CALL_BODY="$(printf '%s' "$raw" | sed '$d')"
 }
 
+# V01-R1 — normalizes an error code across the real response-envelope
+# shapes actually returned by this codebase: the structured
+# {error:{code}} shape every NagexError.toJSON() produces (the common
+# case), a legacy top-level string `error` field, or a bare top-level
+# `code`. A harness or diagnostic that only checks one shape can
+# misdiagnose a real, correctly-firing error as "the check failed to
+# recognize it" — this is shared so every script's error-code handling
+# stays in sync.
+extract_error_code() {
+  local json_data="$1"
+  json_get "$json_data" '(data.error && typeof data.error === "object") ? data.error.code : (typeof data.error === "string" ? data.error : (data.code || ""))'
+}
+
 # Extracts a sanitized error code/message from a response body for
-# diagnostic printing on failure. Deliberately prints only `.error.code` /
-# `.error.message` (or the legacy top-level `.code`) — never the raw body,
-# which could carry an OAuth access token, Gmail message content, or other
-# sensitive payload fields.
+# diagnostic printing on failure. Deliberately prints only the normalized
+# code / message — never the raw body, which could carry an OAuth access
+# token, Gmail message content, or other sensitive payload fields.
 api_error_summary() {
   local body="$1"
   local code
-  code="$(json_get "$body" 'data.error ? data.error.code : (data.code || "")')"
+  code="$(extract_error_code "$body")"
   local message
-  message="$(json_get "$body" 'data.error ? data.error.message : (data.message || "")')"
+  message="$(json_get "$body" '(data.error && typeof data.error === "object") ? data.error.message : (typeof data.error === "string" ? data.error : (data.message || ""))')"
   if [ -n "$code" ] || [ -n "$message" ]; then
     printf '%s: %s' "${code:-UNKNOWN}" "${message:-no message}"
   else
