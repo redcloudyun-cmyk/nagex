@@ -2085,19 +2085,20 @@ if (require.main === module) {
       });
     }),
     stop: () =>
-      new Promise<void>((resolve) => {
+      new Promise<void>((resolve, reject) => {
         serverInstance.close((err) => {
           if (err) {
             console.error('[server_web] HTTP shutdown error:', err);
+            reject(err);
+            return;
           }
+          console.log('[server_web] HTTP server stopped accepting connections.');
           resolve();
         });
 
         if (typeof serverInstance.closeIdleConnections === 'function') {
           serverInstance.closeIdleConnections();
         }
-      }).then(() => {
-        console.log('[server_web] HTTP server stopped accepting connections.');
       }),
   });
 

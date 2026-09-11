@@ -178,3 +178,53 @@ test('16. Two createNagexApplication() calls produce two independent LifecycleMa
   const appB = createNagexApplication();
   assert.notEqual(appA.lifecycle, appB.lifecycle);
 });
+
+// ─── HTTP lifecycle shutdown-failure propagation (fix: server_web.ts's
+// 'http-server' ManagedResource.stop() must reject when server.close()'s
+// callback receives an error, not always resolve) — reproduced here with
+// the exact same resource names and registration order server_web.ts
+// actually uses (browser-runtime, task-scheduler-interval, http-server),
+// so these tests exercise the real-world implication of the fix: since
+// stopAll() stops in reverse-registration order ([http-server,
+// task-scheduler-interval, browser-runtime]), an http-server stop()
+// rejection must not prevent the other two from still being stopped. ───
+
+test('17. An http-server-shaped resource whose stop() rejects propagates that rejection to LifecycleManager (stopAll() rejects)', async () => {
+  const lifecycle = new LifecycleManager();
+  lifecycle.register({ name: 'browser-runtime', stop: () => {} });
+  lifecycle.register({ name: 'task-scheduler-interval', stop: () => {} });
+  lifecycle.register({ name: 'http-server', stop: () => Promise.reject(new Error('server.close() failed')) });
+  await assert.rejects(() => lifecycle.stopAll());
+});
+
+test('18. Later resources (task-scheduler-interval, browser-runtime) still stop after the http-server resource\'s stop() rejects', async () => {
+  const lifecycle = new LifecycleManager();
+  const log: string[] = [];
+  lifecycle.register(recorder('browser-runtime', log));
+  lifecycle.register(recorder('task-scheduler-interval', log));
+  lifecycle.register({ name: 'http-server', stop: () => Promise.reject(new Error('server.close() failed')) });
+  await assert.rejects(() => lifecycle.stopAll());
+  // Stop order is reverse registration: http-server, task-scheduler-interval,
+  // browser-runtime — the first one rejects, but the other two must still
+  // have been attempted (this is the real bug the fix addresses: before it,
+  // an HTTP close failure would have silently resolved and never even
+  // reached this point as a rejection to test against).
+  assert.deepEqual(log, ['stop:task-scheduler-interval', 'stop:browser-runtime']);
+});
+
+test('19. The aggregate stop failure truthfully names the http-server resource', async () => {
+  const lifecycle = new LifecycleManager();
+  lifecycle.register({ name: 'browser-runtime', stop: () => {} });
+  lifecycle.register({ name: 'task-scheduler-interval', stop: () => {} });
+  lifecycle.register({ name: 'http-server', stop: () => Promise.reject(new Error('server.close() failed')) });
+  await assert.rejects(
+    () => lifecycle.stopAll(),
+    (err: unknown) => {
+      assert.ok(err instanceof LifecycleAggregateError);
+      assert.equal(err.phase, 'stop');
+      assert.deepEqual(err.failures.map((f) => f.name), ['http-server']);
+      assert.match(err.failures[0].error instanceof Error ? err.failures[0].error.message : '', /server\.close\(\) failed/);
+      return true;
+    },
+  );
+});
