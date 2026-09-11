@@ -10,9 +10,9 @@ import {
   CapabilityBrokerResult,
   CapabilityDefinition,
 } from './capability.types.js';
-import { GoogleCalendarService } from '../tools/google-calendar.service.js';
-import { GmailService } from '../tools/gmail.service.js';
-import { BrowserToolService } from '../tools/browser.service.js';
+import type { CalendarApprovalRequesterPort } from '../contracts/calendar.port.js';
+import type { GmailPort } from '../contracts/gmail.port.js';
+import type { BrowserPort } from '../contracts/browser.port.js';
 
 export interface CapabilityIdempotencyRecord {
   key: string;
@@ -50,9 +50,9 @@ export class CapabilityBroker {
   private readonly idempotencyStore: FileRecordStore<CapabilityIdempotencyRecord>;
 
   constructor(
-    private readonly calendarService: GoogleCalendarService,
-    private readonly gmailService: GmailService,
-    private readonly browserService: BrowserToolService,
+    private readonly calendarService: CalendarApprovalRequesterPort,
+    private readonly gmailService: GmailPort,
+    private readonly browserService: BrowserPort,
     private readonly auditLogger: AuditLogger,
     private readonly registry: CapabilityRegistry = capabilityRegistry,
     idempotencyDirName: string = 'capabilities_idempotency',

@@ -3,7 +3,7 @@ import type { PlanResolver, ResolvedPlan } from '../planning/plan-resolver.js';
 import type { MemoryRecord } from '../context/memory.engine.js';
 import { NagexError } from '../common/errors.js';
 import { getCurrentISOString } from '../common/utils.js';
-import type { CapabilityBroker } from '../capabilities/capability-broker.js';
+import type { CapabilityExecutorPort } from '../contracts/capability.port.js';
 import type { TaskRecord, TaskStore } from './task.store.js';
 import type { TaskRunner, TaskRunOutcome } from './task.scheduler.js';
 
@@ -141,7 +141,7 @@ export class BackgroundTaskRunner implements TaskRunner {
 // All browser operations are routed through the CapabilityBroker for governance.
 export class ConditionalWatchTaskRunner implements TaskRunner {
   constructor(
-    private readonly capabilityBroker: CapabilityBroker,
+    private readonly capabilityBroker: CapabilityExecutorPort,
     private readonly aiService: AiService,
   ) {}
 

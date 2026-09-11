@@ -42,7 +42,7 @@ import type { CaptureStore } from './capture.store.js';
 import type { TaskStore } from '../tasks/task.store.js';
 import type { MemoryEngine } from '../context/memory.engine.js';
 import type { KnowledgeEngine } from '../context/knowledge.engine.js';
-import type { GoogleCalendarService } from '../tools/google-calendar.service.js';
+import type { CalendarExecutionPort } from '../contracts/calendar.port.js';
 import type { ExecutionStore } from '../governance/execution.store.js';
 import type { AuditLogger } from '../governance/audit.logger.js';
 import type { ActivityStore, ActivityStatus } from '../governance/activity.store.js';
@@ -56,7 +56,7 @@ export interface CandidateActionResolverOptions {
   taskStore?: TaskStore;
   memoryEngine?: MemoryEngine;
   knowledgeEngine?: KnowledgeEngine;
-  calendarService?: GoogleCalendarService;
+  calendarService?: CalendarExecutionPort;
   executionStore?: ExecutionStore;
   auditLogger?: AuditLogger;
   // Phase 1 STEP 8 — the durable, tenant-isolated consumer Activity
