@@ -1,6 +1,9 @@
 import { FileRecordStore, resolveNagexDataDir } from '../governance/file-record.store.js';
 
-export type TaskRunStatus = 'RUNNING' | 'SUCCEEDED' | 'FAILED';
+// P02 — WAITING_APPROVAL: a run that reached a consequential step, has a
+// real pending ActionApprovalRecord, and is paused (not terminal) until a
+// human grants or rejects it — see task-continuation.store.ts.
+export type TaskRunStatus = 'RUNNING' | 'WAITING_APPROVAL' | 'SUCCEEDED' | 'FAILED';
 
 // A TaskRun is the execution record for one firing of a Task — the Tasks
 // analogue of governance/execution.store.ts's ExecutionRecord, so a Task's
@@ -63,6 +66,17 @@ export class TaskRunStore {
     const existing = this.fileStore.read(runId);
     if (!existing) return;
     this.fileStore.write(runId, { ...existing, status: 'FAILED', ...outcome });
+  }
+
+  // P02 — a non-terminal transition (RUNNING -> WAITING_APPROVAL):
+  // completedAt/errorCode stay null, exactly like a fresh RUNNING record —
+  // this run has not finished, it is paused. succeed()/fail() above already
+  // unconditionally overwrite status regardless of the run's current value,
+  // so resuming this same runId later needs no change to them.
+  public waitForApproval(runId: string): void {
+    const existing = this.fileStore.read(runId);
+    if (!existing) return;
+    this.fileStore.write(runId, { ...existing, status: 'WAITING_APPROVAL' });
   }
 
   public get(runId: string): TaskRunRecord | null {

@@ -18,7 +18,7 @@ export class BackgroundTaskRunner implements TaskRunner {
     private readonly getMemories: (principalId: string, prompt: string) => MemoryRecord[],
   ) {}
 
-  public async run(task: TaskRecord, requestId: string): Promise<TaskRunOutcome> {
+  public async run(task: TaskRecord, requestId: string, _runId?: string): Promise<TaskRunOutcome> {
     const steps = [
       { num: 1, name: 'Scanning & gathering context', percent: 25 },
       { num: 2, name: 'Resolving AI execution plan', percent: 50 },

@@ -91,7 +91,7 @@ test('3. CompositeTaskRunner routes BACKGROUND correctly', async () => {
   const background: TaskRunner = { run: async (): Promise<TaskRunOutcome> => { backgroundCalled = true; return { status: 'SUCCEEDED' }; } };
   const other: TaskRunner = { run: async (): Promise<TaskRunOutcome> => { throw new Error('must not be called'); } };
   const composite = new CompositeTaskRunner(other, other, background);
-  await composite.run(baseTask({ type: 'BACKGROUND' }), 'req_1');
+  await composite.run(baseTask({ type: 'BACKGROUND' }), 'req_1', 'run_1');
   assert.equal(backgroundCalled, true, 'a BACKGROUND task must route to the injected background runner');
 });
 
@@ -100,7 +100,7 @@ test('4. CompositeTaskRunner routes CONDITIONAL correctly', async () => {
   const watch: TaskRunner = { run: async (): Promise<TaskRunOutcome> => { watchCalled = true; return { status: 'SUCCEEDED', conditionMet: false }; } };
   const other: TaskRunner = { run: async (): Promise<TaskRunOutcome> => { throw new Error('must not be called'); } };
   const composite = new CompositeTaskRunner(other, watch);
-  await composite.run(baseTask({ type: 'CONDITIONAL', trigger: { type: 'CONDITION', condition: 'x', watchUrl: 'https://example.com', checkIntervalMinutes: 15 } }), 'req_2');
+  await composite.run(baseTask({ type: 'CONDITIONAL', trigger: { type: 'CONDITION', condition: 'x', watchUrl: 'https://example.com', checkIntervalMinutes: 15 } }), 'req_2', 'run_2');
   assert.equal(watchCalled, true, 'a CONDITIONAL task with a CONDITION trigger must route to the conditional watch runner');
 });
 
@@ -109,7 +109,7 @@ test('5. default path routes PlanPreview', async () => {
   const planPreview: TaskRunner = { run: async (): Promise<TaskRunOutcome> => { planPreviewCalled = true; return { status: 'SUCCEEDED' }; } };
   const other: TaskRunner = { run: async (): Promise<TaskRunOutcome> => { throw new Error('must not be called'); } };
   const composite = new CompositeTaskRunner(planPreview, other);
-  await composite.run(baseTask({ type: 'ONE_TIME' }), 'req_3');
+  await composite.run(baseTask({ type: 'ONE_TIME' }), 'req_3', 'run_3');
   assert.equal(planPreviewCalled, true, 'a non-BACKGROUND, non-CONDITIONAL task must route to the plan preview runner');
 });
 

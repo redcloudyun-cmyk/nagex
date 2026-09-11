@@ -249,12 +249,12 @@ test('CompositeTaskRunner routes a CONDITIONAL/CONDITION task to the watch runne
   const planRunner = { run: async () => { planCalled = true; return { status: 'SUCCEEDED' as const }; } };
   const composite = new CompositeTaskRunner(planRunner, watchRunner);
 
-  await composite.run(conditionTask(), 'req_1');
+  await composite.run(conditionTask(), 'req_1', 'run_1');
   assert.equal(watchCalled, true);
   assert.equal(planCalled, false);
 
   watchCalled = false;
-  await composite.run({ ...conditionTask(), type: 'RECURRING', trigger: { type: 'SCHEDULE', schedule: '0 8 * * *', timezone: 'UTC' } }, 'req_2');
+  await composite.run({ ...conditionTask(), type: 'RECURRING', trigger: { type: 'SCHEDULE', schedule: '0 8 * * *', timezone: 'UTC' } }, 'req_2', 'run_2');
   assert.equal(planCalled, true);
   assert.equal(watchCalled, false);
 });

@@ -18,7 +18,7 @@ export class ConditionalWatchTaskRunner implements TaskRunner {
     private readonly aiService: AiService,
   ) {}
 
-  public async run(task: TaskRecord, requestId: string): Promise<TaskRunOutcome> {
+  public async run(task: TaskRecord, requestId: string, _runId?: string): Promise<TaskRunOutcome> {
     const trigger = task.trigger;
     if (trigger.type !== 'CONDITION' || !trigger.condition?.trim() || !trigger.watchUrl?.trim()) {
       return { status: 'FAILED', errorCode: 'CONDITION_WATCH_MISCONFIGURED', conditionMet: false };

@@ -41,6 +41,8 @@ import { TaskStore } from '../tasks/task.store.js';
 import { TaskRunStore } from '../tasks/task-run.store.js';
 import { TaskScheduler } from '../tasks/task.scheduler.js';
 import { PlanPreviewTaskRunner, ConditionalWatchTaskRunner, BackgroundTaskRunner, CompositeTaskRunner, ExecutingTaskRunner } from '../tasks/task.runner.js';
+import { TaskContinuationStore } from '../tasks/task-continuation.store.js';
+import { TaskContinuationCoordinator } from '../tasks/task-continuation.coordinator.js';
 import { TelegramIdentityStore } from '../integrations/telegram/telegram-identity.store.js';
 import { TelegramBotClient } from '../integrations/telegram/telegram.client.js';
 import { TelegramService } from '../integrations/telegram/telegram.service.js';
@@ -182,11 +184,18 @@ export function createNagexApplication(): NagexApplication {
       .map(({ memory }) => memory);
   }
 
+  // P02 — one persisted continuation record per paused (WAITING_APPROVAL)
+  // step; the resume source of truth. executingTaskRunner is kept as its
+  // own local so the continuation coordinator (constructed further below,
+  // once notificationEngine exists) can resume through the exact same
+  // instance the app graph's taskRunner already uses.
+  const taskContinuations = new TaskContinuationStore();
+  const executingTaskRunner = new ExecutingTaskRunner(aiService, planResolver, capabilityBroker, (principalId, prompt) => getRelevantMemories(principalId, prompt), taskContinuations);
   const taskRunner = new CompositeTaskRunner(
     new PlanPreviewTaskRunner(aiService, planResolver, (principalId, prompt) => getRelevantMemories(principalId, prompt)),
     new ConditionalWatchTaskRunner(capabilityBroker, aiService),
     new BackgroundTaskRunner(taskStore, aiService, planResolver, (principalId, prompt) => getRelevantMemories(principalId, prompt)),
-    new ExecutingTaskRunner(aiService, planResolver, capabilityBroker, (principalId, prompt) => getRelevantMemories(principalId, prompt)),
+    executingTaskRunner,
   );
 
   // ─── MASTER.md Section 14 — Telegram Integration (Item 10) ───
@@ -239,6 +248,11 @@ export function createNagexApplication(): NagexApplication {
   });
 
   const taskScheduler = new TaskScheduler(taskStore, taskRunStore, taskRunner, auditLogger, undefined, notificationEngine);
+  // P02 — resumes a paused Task run once server_web.ts's approval
+  // grant/reject route reports a real approve()/reject(). Event-driven
+  // (no poller): a no-op whenever the given approvalId has no associated
+  // Task continuation.
+  const taskContinuationCoordinator = new TaskContinuationCoordinator(taskContinuations, executingTaskRunner, taskStore, taskRunStore, auditLogger, undefined, notificationEngine);
 
   const knowledgeEngine = new KnowledgeEngine();
   const storageProvider = createConfiguredStorageProvider();
@@ -294,6 +308,8 @@ export function createNagexApplication(): NagexApplication {
     taskRunStore,
     taskRunner,
     taskScheduler,
+    taskContinuations,
+    taskContinuationCoordinator,
     telegramIdentityStore,
     telegramBotClient,
     telegramService,

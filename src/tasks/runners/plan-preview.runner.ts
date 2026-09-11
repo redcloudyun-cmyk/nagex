@@ -20,7 +20,7 @@ export class PlanPreviewTaskRunner implements TaskRunner {
     private readonly getMemories: (principalId: string, prompt: string) => MemoryRecord[],
   ) {}
 
-  public async run(task: TaskRecord, requestId: string): Promise<TaskRunOutcome> {
+  public async run(task: TaskRecord, requestId: string, _runId?: string): Promise<TaskRunOutcome> {
     const planResponse = await this.aiService.plan({
       prompt: task.objective,
       memories: this.getMemories(task.ownerId, task.objective),

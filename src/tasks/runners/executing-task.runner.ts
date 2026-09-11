@@ -1,11 +1,13 @@
 import type { AiService } from '../../model-gateway/ai-service.js';
-import type { PlanResolver } from '../../planning/plan-resolver.js';
+import type { PlanResolver, ResolvedPlanStep } from '../../planning/plan-resolver.js';
 import type { MemoryRecord } from '../../context/memory.engine.js';
 import { NagexError } from '../../common/errors.js';
 import { getCurrentISOString } from '../../common/utils.js';
 import type { CapabilityExecutorPort } from '../../contracts/capability.port.js';
 import type { TaskRecord } from '../task.store.js';
 import type { TaskRunner, TaskRunOutcome } from '../task.scheduler.js';
+import type { StepExecutionResult, TaskContinuationRecord } from '../task-continuation.store.js';
+import { TaskContinuationStore } from '../task-continuation.store.js';
 
 // P01 — Generic Step Executor, first milestone.
 //
@@ -27,12 +29,22 @@ import type { TaskRunner, TaskRunOutcome } from '../task.scheduler.js';
 // real, working scope for this milestone.
 const EXECUTABLE_CAPABILITY_IDS = new Set(['gmail.search', 'gmail.read_thread', 'google_calendar.free_slots']);
 
-export interface StepExecutionResult {
-  step: number;
-  capabilityId: string;
-  status: 'EXECUTED';
-  result: unknown;
-}
+// P02 — the 7 consequential capabilities P02a taught CapabilityBroker to
+// execute once approved (mirrors capability-broker.ts's own
+// NATIVE_APPROVAL_CAPABILITIES minus browser.click, whose approval is
+// self-contained per-call and does not fit this pause-then-resume-later
+// pattern). A step resolving to APPROVAL_REQUIRED for anything outside
+// this set still fails closed with STEP_CAPABILITY_NOT_EXECUTABLE — P02
+// only knows how to pause and later resume exactly these.
+const NATIVE_APPROVAL_WRITE_CAPABILITY_IDS = new Set([
+  'google_calendar.create_event',
+  'google_calendar.update_event',
+  'google_calendar.cancel_event',
+  'google_calendar.respond_to_event',
+  'gmail.send_email',
+  'gmail.reply',
+  'gmail.create_draft',
+]);
 
 // Only ever constructed for a task whose approvalPolicy is explicitly
 // READ_ONLY_AUTO (see composite.runner.ts) — an ALWAYS_APPROVE task always
@@ -43,9 +55,10 @@ export class ExecutingTaskRunner implements TaskRunner {
     private readonly planResolver: PlanResolver,
     private readonly capabilityBroker: CapabilityExecutorPort,
     private readonly getMemories: (principalId: string, prompt: string) => MemoryRecord[],
+    private readonly continuations: TaskContinuationStore,
   ) {}
 
-  public async run(task: TaskRecord, requestId: string): Promise<TaskRunOutcome> {
+  public async run(task: TaskRecord, requestId: string, runId: string): Promise<TaskRunOutcome> {
     const planResponse = await this.aiService.plan({
       prompt: task.objective,
       memories: this.getMemories(task.ownerId, task.objective),
@@ -60,9 +73,57 @@ export class ExecutingTaskRunner implements TaskRunner {
       return { status: 'FAILED', errorCode: error instanceof Error ? error.message : 'TASK_PLAN_RESOLUTION_FAILED' };
     }
 
-    const executed: StepExecutionResult[] = [];
+    return this.executeSteps(task, requestId, runId, resolved.steps, 0, []);
+  }
 
-    for (const step of resolved.steps) {
+  // P02 — resumes a persisted continuation after a human granted its
+  // approval: executes the exact frozen capability + payload (never
+  // re-derived, never re-planned) with the real approvalId, then, on
+  // success, continues any remaining steps through the same shared loop a
+  // fresh run uses. The continuation record is the sole resume source of
+  // truth — this method never calls AiService.plan() or
+  // PlanResolver.resolve().
+  public async resumeFromApproval(continuation: TaskContinuationRecord, task: TaskRecord): Promise<TaskRunOutcome> {
+    const step = continuation.resolvedSteps[continuation.stepIndex];
+
+    let brokerResult;
+    try {
+      brokerResult = await this.capabilityBroker.execute({
+        capabilityId: continuation.capabilityId,
+        tenantId: continuation.tenantId,
+        principalId: continuation.ownerId,
+        requestId: continuation.executionRequestId,
+        payload: continuation.payload,
+        approvalId: continuation.approvalId,
+        source: 'TASK',
+      });
+    } catch (error) {
+      const code = error instanceof NagexError ? error.code : 'STEP_EXECUTION_FAILED';
+      return this.halted(continuation.executedSoFar, step.step, code, error instanceof Error ? error.message : `Resuming step ${step.step} failed.`);
+    }
+
+    if (brokerResult.status === 'APPROVAL_REQUIRED') {
+      // Should not happen — we just supplied the approvalId — but report
+      // truthfully rather than assume, exactly like the fresh-run path.
+      return this.halted(continuation.executedSoFar, step.step, 'STEP_APPROVAL_REQUIRED', `Step ${step.step} unexpectedly still required approval on resume.`);
+    }
+    if (brokerResult.status === 'BLOCKED') {
+      return this.halted(continuation.executedSoFar, step.step, brokerResult.reasonCode, `Step ${step.step} was blocked on resume: ${brokerResult.reasonCode}.`);
+    }
+
+    const executed: StepExecutionResult[] = [...continuation.executedSoFar, { step: step.step, capabilityId: continuation.capabilityId, status: 'EXECUTED', result: brokerResult.result }];
+    return this.executeSteps(task, continuation.runRequestId, continuation.runId, continuation.resolvedSteps, continuation.stepIndex + 1, executed);
+  }
+
+  // Shared by a fresh run (startIndex 0) and resumeFromApproval (starting
+  // just after the resumed step) — the one place that decides, per step,
+  // whether to execute immediately, pause for approval, or fail closed.
+  private async executeSteps(task: TaskRecord, runRequestId: string, runId: string, steps: ResolvedPlanStep[], startIndex: number, executedSoFar: StepExecutionResult[]): Promise<TaskRunOutcome> {
+    const executed = [...executedSoFar];
+
+    for (let i = startIndex; i < steps.length; i++) {
+      const step = steps[i];
+
       // An OPTIONAL step that isn't ready is a suggestion, not a
       // requirement — skip it rather than halting the whole run, mirroring
       // PlanResolver's own "only REQUIRED steps gate the plan" principle.
@@ -72,13 +133,69 @@ export class ExecutingTaskRunner implements TaskRunner {
         return this.halted(executed, step.step, 'STEP_BLOCKED', step.warnings.join(' ') || `Step ${step.step} is blocked and cannot be executed.`);
       }
 
-      // Never self-approve: surface truthfully and stop, exactly like a
-      // BLOCKED step — this Task run simply did not complete automatically.
+      const resolvedToolId = step.resolvedToolId;
+
       if (step.executionReadiness === 'APPROVAL_REQUIRED') {
-        return this.halted(executed, step.step, 'STEP_APPROVAL_REQUIRED', `Step ${step.step} ("${step.title}") requires human approval and cannot be auto-executed by a scheduled task.`);
+        if (!resolvedToolId || !NATIVE_APPROVAL_WRITE_CAPABILITY_IDS.has(resolvedToolId)) {
+          // Never self-approve, and never pause-and-hope for a capability
+          // P02a never taught the Broker to execute — fail closed exactly
+          // like an unsupported read-only capability.
+          return this.halted(executed, step.step, 'STEP_CAPABILITY_NOT_EXECUTABLE', `Capability "${resolvedToolId ?? step.tool}" is not yet supported for automatic scheduled execution.`);
+        }
+
+        const approvalRequestId = `${runRequestId}_step${step.step}`;
+        let brokerResult;
+        try {
+          brokerResult = await this.capabilityBroker.execute({
+            capabilityId: resolvedToolId,
+            tenantId: task.tenantId,
+            principalId: task.ownerId,
+            requestId: approvalRequestId,
+            payload: step.parameters ?? {},
+            source: 'TASK',
+          });
+        } catch (error) {
+          const code = error instanceof NagexError ? error.code : 'STEP_EXECUTION_FAILED';
+          return this.halted(executed, step.step, code, error instanceof Error ? error.message : `Step ${step.step} execution failed.`);
+        }
+
+        if (brokerResult.status === 'EXECUTED') {
+          // Real but unexpected (PlanResolver predicted approval-required
+          // for this step) — truthful either way: it genuinely executed.
+          executed.push({ step: step.step, capabilityId: resolvedToolId, status: 'EXECUTED', result: brokerResult.result });
+          continue;
+        }
+        if (brokerResult.status === 'BLOCKED') {
+          return this.halted(executed, step.step, brokerResult.reasonCode, `Step ${step.step} was blocked: ${brokerResult.reasonCode}.`);
+        }
+
+        // APPROVAL_REQUIRED with a real approvalId — persist a
+        // continuation and pause. Never self-approve; only a human
+        // granting it later (see task-continuation.coordinator.ts) can
+        // move this forward.
+        const approval = brokerResult.approval as { approvalId: string };
+        const executionRequestId = `${approvalRequestId}_resume`;
+        this.continuations.create({
+          taskId: task.taskId,
+          runId,
+          tenantId: task.tenantId,
+          ownerId: task.ownerId,
+          runRequestId,
+          resolvedSteps: steps,
+          stepIndex: i,
+          executedSoFar: executed,
+          capabilityId: resolvedToolId,
+          payload: step.parameters ?? {},
+          approvalId: approval.approvalId,
+          executionRequestId,
+        });
+
+        return {
+          status: 'WAITING_APPROVAL',
+          result: { kind: 'STEP_EXECUTION', completedSteps: executed, waitingAtStep: step.step, approvalId: approval.approvalId },
+        };
       }
 
-      const resolvedToolId = step.resolvedToolId;
       if (!resolvedToolId || !EXECUTABLE_CAPABILITY_IDS.has(resolvedToolId)) {
         return this.halted(executed, step.step, 'STEP_CAPABILITY_NOT_EXECUTABLE', `Capability "${resolvedToolId ?? step.tool}" is not yet supported for automatic scheduled execution.`);
       }
@@ -88,7 +205,7 @@ export class ExecutingTaskRunner implements TaskRunner {
       // capability in EXECUTABLE_CAPABILITY_IDS is read-only, so a
       // cross-retry duplicate (a fresh run gets a fresh requestId) is a
       // redundant read, never an accidental side effect.
-      const stepRequestId = `${requestId}_step${step.step}`;
+      const stepRequestId = `${runRequestId}_step${step.step}`;
       let brokerResult;
       try {
         brokerResult = await this.capabilityBroker.execute({

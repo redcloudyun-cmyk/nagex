@@ -27,6 +27,8 @@ import type { TaskStore } from '../tasks/task.store.js';
 import type { TaskRunStore } from '../tasks/task-run.store.js';
 import type { TaskScheduler } from '../tasks/task.scheduler.js';
 import type { CompositeTaskRunner } from '../tasks/task.runner.js';
+import type { TaskContinuationStore } from '../tasks/task-continuation.store.js';
+import type { TaskContinuationCoordinator } from '../tasks/task-continuation.coordinator.js';
 import type { TelegramIdentityStore } from '../integrations/telegram/telegram-identity.store.js';
 import type { TelegramBotClient } from '../integrations/telegram/telegram.client.js';
 import type { TelegramService } from '../integrations/telegram/telegram.service.js';
@@ -71,6 +73,11 @@ export interface NagexApplication {
   // see create-nagex-application.ts's comment at its construction site.
   taskRunner: CompositeTaskRunner;
   taskScheduler: TaskScheduler;
+  // P02 — the resume source of truth for a paused approval-waiting run,
+  // and the event-driven orchestrator server_web.ts's approval grant/
+  // reject route calls into.
+  taskContinuations: TaskContinuationStore;
+  taskContinuationCoordinator: TaskContinuationCoordinator;
   telegramIdentityStore: TelegramIdentityStore;
   telegramBotClient: TelegramBotClient;
   telegramService: TelegramService;

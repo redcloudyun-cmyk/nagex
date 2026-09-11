@@ -8,8 +8,12 @@
 // ALWAYS_APPROVE task keeps going to PlanPreviewTaskRunner unchanged.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { ExecutingTaskRunner } from '../src/tasks/runners/executing-task.runner.js';
 import { CompositeTaskRunner } from '../src/tasks/runners/composite.runner.js';
+import { TaskContinuationStore } from '../src/tasks/task-continuation.store.js';
 import { PlanResolver } from '../src/planning/plan-resolver.js';
 import { skillRegistry } from '../src/skills/skill-registry.js';
 import { ToolRegistry } from '../src/tools/tool-registry.js';
@@ -21,6 +25,14 @@ import type { CapabilityExecutorPort } from '../src/contracts/capability.port.js
 import type { CapabilityRequest, CapabilityBrokerResult } from '../src/capabilities/capability.types.js';
 import type { TaskRecord } from '../src/tasks/task.store.js';
 import type { TaskRunner, TaskRunOutcome } from '../src/tasks/task.scheduler.js';
+
+// Each test gets its own isolated, temp-dir-backed continuation store —
+// matching this repo's established per-test FileRecordStore isolation
+// pattern — so approvalId-keyed continuation records from one test can
+// never leak into another.
+function newContinuationStore(): TaskContinuationStore {
+  return new TaskContinuationStore({ dir: fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-test-continuations-')) });
+}
 
 // A ToolRegistry whose gmail.search/gmail.read_thread are LIVE/connected
 // (the real production registry reports them UNAVAILABLE without real
@@ -96,8 +108,8 @@ function fakeBroker(script: (request: CapabilityRequest) => CapabilityBrokerResu
 test('H01: the Calendar free-slots path — previously excluded by the ToolRegistry/CapabilityRegistry id mismatch — now executes through CapabilityExecutorPort with no Task-specific translation', async () => {
   const { broker, calls } = fakeBroker(() => ({ status: 'EXECUTED', capabilityId: 'google_calendar.free_slots', result: { slots: [{ start: '2026-10-01T09:00:00Z', end: '2026-10-01T10:00:00Z' }] } }));
   const aiService = aiServiceReturning(rawPlan([rawStep({ title: 'Check availability', skill: 'skill.scheduling', tool: 'google_calendar.free_slots', parameters: { timeMin: '2026-10-01T00:00:00Z', timeMax: '2026-10-01T23:59:59Z' } })]));
-  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => []);
-  const outcome = await runner.run(baseTask(), 'req_h01');
+  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => [], newContinuationStore());
+  const outcome = await runner.run(baseTask(), 'req_h01', 'req_h01_run');
   assert.equal(outcome.status, 'SUCCEEDED');
   assert.equal(calls.length, 1);
   assert.equal(calls[0].capabilityId, 'google_calendar.free_slots', 'resolvedToolId must reach the broker unchanged — no translation table in Task code');
@@ -107,8 +119,8 @@ test('H01: the Calendar free-slots path — previously excluded by the ToolRegis
 test('1. one read-only capability executes successfully', async () => {
   const { broker, calls } = fakeBroker(() => ({ status: 'EXECUTED', capabilityId: 'gmail.search', result: { threads: [{ threadId: 't1', snippet: 'Invoice #1' }] } }));
   const aiService = aiServiceReturning(rawPlan([rawStep({})]));
-  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => []);
-  const outcome = await runner.run(baseTask(), 'req_1');
+  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => [], newContinuationStore());
+  const outcome = await runner.run(baseTask(), 'req_1', 'req_1_run');
   assert.equal(outcome.status, 'SUCCEEDED');
   assert.equal(calls.length, 1);
   assert.equal(calls[0].capabilityId, 'gmail.search');
@@ -120,8 +132,8 @@ test('2. multiple independent read-only steps execute in order', async () => {
     rawStep({ tool: 'gmail.search', parameters: { query: 'invoice' } }),
     rawStep({ title: 'Read the thread', tool: 'gmail.read_thread', parameters: { threadId: 't1' }, dependsOn: [1] }),
   ]));
-  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => []);
-  const outcome = await runner.run(baseTask(), 'req_2');
+  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => [], newContinuationStore());
+  const outcome = await runner.run(baseTask(), 'req_2', 'req_2_run');
   assert.equal(outcome.status, 'SUCCEEDED');
   assert.deepEqual(calls.map((c) => c.capabilityId), ['gmail.search', 'gmail.read_thread'], 'steps must execute in resolved order');
 });
@@ -129,8 +141,8 @@ test('2. multiple independent read-only steps execute in order', async () => {
 test('3. step result is captured truthfully in TaskRunOutcome', async () => {
   const { broker } = fakeBroker(() => ({ status: 'EXECUTED', capabilityId: 'gmail.search', result: { threads: [{ threadId: 'abc', snippet: 'real snippet' }] } }));
   const aiService = aiServiceReturning(rawPlan([rawStep({})]));
-  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => []);
-  const outcome = await runner.run(baseTask(), 'req_3');
+  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => [], newContinuationStore());
+  const outcome = await runner.run(baseTask(), 'req_3', 'req_3_run');
   const result = outcome.result as { kind: string; steps: Array<{ step: number; capabilityId: string; result: unknown }> };
   assert.equal(result.kind, 'STEP_EXECUTION');
   assert.equal(result.steps.length, 1);
@@ -140,8 +152,8 @@ test('3. step result is captured truthfully in TaskRunOutcome', async () => {
 test('4a. a BLOCKED step (PlanResolver-level, unresolved tool) halts before any broker call', async () => {
   const { broker, calls } = fakeBroker(() => { throw new Error('must never be called'); });
   const aiService = aiServiceReturning(rawPlan([rawStep({ tool: 'totally.unknown.tool' })]));
-  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => []);
-  const outcome = await runner.run(baseTask(), 'req_4a');
+  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => [], newContinuationStore());
+  const outcome = await runner.run(baseTask(), 'req_4a', 'req_4a_run');
   assert.equal(outcome.status, 'FAILED');
   assert.equal(outcome.errorCode, 'STEP_BLOCKED');
   assert.equal(calls.length, 0, 'a BLOCKED step must never reach the broker');
@@ -153,28 +165,30 @@ test('4b. a BLOCKED step (broker-level) halts before later steps execute', async
     rawStep({ tool: 'gmail.search', parameters: { query: 'x' } }),
     rawStep({ title: 'Second step', tool: 'gmail.read_thread', parameters: { threadId: 't1' }, dependsOn: [1] }),
   ]));
-  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => []);
-  const outcome = await runner.run(baseTask(), 'req_4b');
+  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => [], newContinuationStore());
+  const outcome = await runner.run(baseTask(), 'req_4b', 'req_4b_run');
   assert.equal(outcome.status, 'FAILED');
   assert.equal(outcome.errorCode, 'CAPABILITY_POLICY_FAILED');
   assert.equal(calls.length, 1, 'the second step must never be dispatched once the first is BLOCKED');
 });
 
-test('5. APPROVAL_REQUIRED halts without ever auto-approving', async () => {
-  const { broker, calls } = fakeBroker(() => { throw new Error('must never be called — approval-required steps must never reach the broker'); });
+test('5. APPROVAL_REQUIRED pauses (WAITING_APPROVAL) without ever auto-approving — P02: a real approval is created via the Broker, but only the REQUEST path is ever called, never an execute-with-approvalId call', async () => {
+  const { broker, calls } = fakeBroker((req) => {
+    assert.equal(req.approvalId, undefined, 'the runner must never supply an approvalId itself — that would be self-approval');
+    return { status: 'APPROVAL_REQUIRED', capabilityId: req.capabilityId, approval: { approvalId: 'apr_test_5' } };
+  });
   const aiService = aiServiceReturning(rawPlan([rawStep({ title: 'Send an email', tool: 'gmail.send_email', requiresApproval: true, parameters: { to: ['x@example.com'] } })]));
-  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => []);
-  const outcome = await runner.run(baseTask(), 'req_5');
-  assert.equal(outcome.status, 'FAILED');
-  assert.equal(outcome.errorCode, 'STEP_APPROVAL_REQUIRED');
-  assert.equal(calls.length, 0);
+  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => [], newContinuationStore());
+  const outcome = await runner.run(baseTask(), 'req_5', 'req_5_run');
+  assert.equal(outcome.status, 'WAITING_APPROVAL');
+  assert.equal(calls.length, 1, 'the broker must be called exactly once, to create the real approval — never to execute it');
 });
 
 test('6. a capability error preserves the real error code', async () => {
   const { broker } = fakeBroker(() => { throw new NagexError({ code: 'GMAIL_DISCONNECTED', category: 'POLICY', message: 'Gmail is not connected.', request_id: 'req_6' }); });
   const aiService = aiServiceReturning(rawPlan([rawStep({})]));
-  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => []);
-  const outcome = await runner.run(baseTask(), 'req_6');
+  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => [], newContinuationStore());
+  const outcome = await runner.run(baseTask(), 'req_6', 'req_6_run');
   assert.equal(outcome.status, 'FAILED');
   assert.equal(outcome.errorCode, 'GMAIL_DISCONNECTED', 'the real capability error code must never be collapsed into a generic one');
 });
@@ -182,9 +196,9 @@ test('6. a capability error preserves the real error code', async () => {
 test('7-8. tenant/principal are propagated correctly and source remains TASK', async () => {
   const { broker, calls } = fakeBroker(() => ({ status: 'EXECUTED', capabilityId: 'gmail.search', result: {} }));
   const aiService = aiServiceReturning(rawPlan([rawStep({})]));
-  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => []);
+  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => [], newContinuationStore());
   const task = baseTask({ tenantId: 't_specific', ownerId: 'u_specific' });
-  await runner.run(task, 'req_7');
+  await runner.run(task, 'req_7', 'req_7_run');
   assert.equal(calls[0].tenantId, 't_specific');
   assert.equal(calls[0].principalId, 'u_specific');
   assert.equal(calls[0].source, 'TASK');
@@ -196,8 +210,8 @@ test('9. per-step request IDs are unique and deterministically derived from the 
     rawStep({ tool: 'gmail.search', parameters: { query: 'x' } }),
     rawStep({ title: 'Second', tool: 'gmail.read_thread', parameters: { threadId: 't1' }, dependsOn: [1] }),
   ]));
-  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => []);
-  await runner.run(baseTask(), 'req_9_fixed');
+  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => [], newContinuationStore());
+  await runner.run(baseTask(), 'req_9_fixed', 'req_9_fixed_run');
   assert.equal(calls[0].requestId, 'req_9_fixed_step1');
   assert.equal(calls[1].requestId, 'req_9_fixed_step2');
   assert.notEqual(calls[0].requestId, calls[1].requestId);
@@ -206,8 +220,8 @@ test('9. per-step request IDs are unique and deterministically derived from the 
 test('a capability not in the executable allowlist halts truthfully rather than being silently skipped or executed', async () => {
   const { broker, calls } = fakeBroker(() => { throw new Error('must never be called'); });
   const aiService = aiServiceReturning(rawPlan([rawStep({ title: 'List labels', tool: 'gmail.list_labels', parameters: {} })]));
-  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => []);
-  const outcome = await runner.run(baseTask(), 'req_allowlist');
+  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => [], newContinuationStore());
+  const outcome = await runner.run(baseTask(), 'req_allowlist', 'req_allowlist_run');
   assert.equal(outcome.status, 'FAILED');
   assert.equal(outcome.errorCode, 'STEP_CAPABILITY_NOT_EXECUTABLE');
   assert.equal(calls.length, 0);
@@ -220,7 +234,7 @@ test('CompositeTaskRunner routes a READ_ONLY_AUTO task to ExecutingTaskRunner', 
   const executing: TaskRunner = { run: async (): Promise<TaskRunOutcome> => { executingCalled = true; return { status: 'SUCCEEDED' }; } };
   const other: TaskRunner = { run: async (): Promise<TaskRunOutcome> => { throw new Error('must not be called'); } };
   const composite = new CompositeTaskRunner(other, other, undefined, executing);
-  await composite.run(baseTask({ type: 'ONE_TIME', approvalPolicy: 'READ_ONLY_AUTO' }), 'req_route_1');
+  await composite.run(baseTask({ type: 'ONE_TIME', approvalPolicy: 'READ_ONLY_AUTO' }), 'req_route_1', 'run_route_1');
   assert.equal(executingCalled, true);
 });
 
@@ -230,7 +244,7 @@ test('CompositeTaskRunner still routes an ALWAYS_APPROVE task to PlanPreviewTask
   const executing: TaskRunner = { run: async (): Promise<TaskRunOutcome> => { throw new Error('must not be called for an ALWAYS_APPROVE task'); } };
   const other: TaskRunner = { run: async (): Promise<TaskRunOutcome> => { throw new Error('must not be called'); } };
   const composite = new CompositeTaskRunner(planPreview, other, undefined, executing);
-  await composite.run(baseTask({ type: 'ONE_TIME', approvalPolicy: 'ALWAYS_APPROVE' }), 'req_route_2');
+  await composite.run(baseTask({ type: 'ONE_TIME', approvalPolicy: 'ALWAYS_APPROVE' }), 'req_route_2', 'run_route_2');
   assert.equal(planPreviewCalled, true, 'an ALWAYS_APPROVE task must keep going to PlanPreviewTaskRunner, exactly as before P01');
 });
 
@@ -239,6 +253,6 @@ test('CompositeTaskRunner still works with no ExecutingTaskRunner injected (back
   const planPreview: TaskRunner = { run: async (): Promise<TaskRunOutcome> => { planPreviewCalled = true; return { status: 'SUCCEEDED' }; } };
   const other: TaskRunner = { run: async (): Promise<TaskRunOutcome> => { throw new Error('must not be called'); } };
   const composite = new CompositeTaskRunner(planPreview, other);
-  await composite.run(baseTask({ type: 'ONE_TIME', approvalPolicy: 'READ_ONLY_AUTO' }), 'req_route_3');
+  await composite.run(baseTask({ type: 'ONE_TIME', approvalPolicy: 'READ_ONLY_AUTO' }), 'req_route_3', 'run_route_3');
   assert.equal(planPreviewCalled, true, 'without an injected ExecutingTaskRunner, a READ_ONLY_AUTO task must fall back to PlanPreviewTaskRunner rather than crashing');
 });

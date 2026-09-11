@@ -257,10 +257,22 @@ export class TaskStore {
   // not know cron/interval semantics.
   public recordRunOutcome(
     taskId: string,
-    outcome: { status: 'SUCCEEDED' | 'FAILED'; completedAt: string; nextRunAt: string | null; conditionMet?: boolean },
+    outcome: { status: 'WAITING_APPROVAL' | 'SUCCEEDED' | 'FAILED'; completedAt: string; nextRunAt: string | null; conditionMet?: boolean },
     requestId = 'task_run_outcome',
   ): TaskRecord {
     const record = this.require(taskId, requestId);
+    // P02 — WAITING_APPROVAL is not terminal: never touch
+    // lastRunAt/lastRunStatus (those describe the last *finished* run) or
+    // nextRunAt (resume is approval-event-triggered, never time-based).
+    // Reuses the existing WAITING TaskStatus — a task with an in-flight
+    // approval-waiting run is, at this record's level, the same "not
+    // running, not finished, waiting for something" category as a
+    // CONDITIONAL task between checks; the TaskRun/continuation records
+    // are the source of truth for *why* it's waiting.
+    if (outcome.status === 'WAITING_APPROVAL') {
+      record.status = 'WAITING';
+      return this.persist(record);
+    }
     record.lastRunAt = outcome.completedAt;
     record.lastRunStatus = outcome.status;
     if (record.type === 'RECURRING' && outcome.nextRunAt) {

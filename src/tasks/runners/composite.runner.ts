@@ -14,16 +14,16 @@ export class CompositeTaskRunner implements TaskRunner {
     private readonly executingTaskRunner?: TaskRunner,
   ) {}
 
-  public async run(task: TaskRecord, requestId: string): Promise<TaskRunOutcome> {
+  public async run(task: TaskRecord, requestId: string, runId: string): Promise<TaskRunOutcome> {
     if (task.type === 'BACKGROUND' && this.backgroundTaskRunner) {
-      return this.backgroundTaskRunner.run(task, requestId);
+      return this.backgroundTaskRunner.run(task, requestId, runId);
     }
     if (task.type === 'CONDITIONAL' && task.trigger.type === 'CONDITION') {
-      return this.conditionalWatchRunner.run(task, requestId);
+      return this.conditionalWatchRunner.run(task, requestId, runId);
     }
     if (task.approvalPolicy === 'READ_ONLY_AUTO' && this.executingTaskRunner) {
-      return this.executingTaskRunner.run(task, requestId);
+      return this.executingTaskRunner.run(task, requestId, runId);
     }
-    return this.planPreviewRunner.run(task, requestId);
+    return this.planPreviewRunner.run(task, requestId, runId);
   }
 }

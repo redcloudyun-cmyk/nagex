@@ -122,6 +122,8 @@ const {
   gmailService,
   browserService,
   taskRunner,
+  taskContinuations,
+  taskContinuationCoordinator,
   getRelevantMemories,
   pinnedMemories,
   lifecycle,
@@ -1012,7 +1014,7 @@ export async function handleAsyncApiRequest(
           new PlanPreviewTaskRunner(service, planResolver, (principalId, prompt) => getRelevantMemories(principalId, prompt)),
           new ConditionalWatchTaskRunner(capabilityBroker, service),
           new BackgroundTaskRunner(taskStore, service, planResolver, (principalId, prompt) => getRelevantMemories(principalId, prompt)),
-          new ExecutingTaskRunner(service, planResolver, capabilityBroker, (principalId, prompt) => getRelevantMemories(principalId, prompt)),
+          new ExecutingTaskRunner(service, planResolver, capabilityBroker, (principalId, prompt) => getRelevantMemories(principalId, prompt), taskContinuations),
         ),
         auditLogger,
       );
@@ -1671,6 +1673,12 @@ export function handleApiRequest(
       const record = isApprove
         ? googleCalendarService.approve(apprId, principal.id, requestId)
         : googleCalendarService.reject(apprId, principal.id, requestId);
+      // P02 — fire-and-forget: this route is synchronous and its response
+      // must not change (still 200 with the approval record) whether or
+      // not a Task continuation exists for this approvalId. A genuine
+      // no-op for every non-Task-originated approval.
+      if (isApprove) taskContinuationCoordinator.onApproved(apprId).catch(() => {});
+      else taskContinuationCoordinator.onRejected(apprId);
       return { status: 200, data: record };
     } catch (error) {
       return modelErrorResult(error);
@@ -1701,6 +1709,12 @@ export function handleApiRequest(
       const record = action === 'APPROVE'
         ? googleCalendarService.approve(apprId, principal.id, requestId)
         : googleCalendarService.reject(apprId, principal.id, requestId);
+      // P02 — same fire-and-forget continuation hook as the /approve
+      // /reject route above; this legacy /action endpoint shares the same
+      // underlying approval store, so a Task continuation may equally be
+      // waiting on an approvalId granted/rejected through this path.
+      if (action === 'APPROVE') taskContinuationCoordinator.onApproved(apprId).catch(() => {});
+      else taskContinuationCoordinator.onRejected(apprId);
       return { status: 200, data: record };
     } catch (error) {
       return modelErrorResult(error);
