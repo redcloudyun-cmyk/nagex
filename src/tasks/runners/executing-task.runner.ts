@@ -76,6 +76,16 @@ export class ExecutingTaskRunner implements TaskRunner {
       return { status: 'FAILED', errorCode: error instanceof Error ? error.message : 'TASK_PLAN_RESOLUTION_FAILED' };
     }
 
+    return this.runWithResolvedPlan(task, requestId, runId, resolved);
+  }
+
+  // V01a — extracted from run()'s tail so a resolved plan obtained any way
+  // (the real aiService.plan()+resolve() above, or — test-only, env-gated —
+  // server_web.ts's fixed-plan injection route) enters the exact same
+  // durable-state-freeze + step-execution path. Never called with a plan
+  // that skipped PlanResolver.resolve() itself — only the planning LLM call
+  // is ever substituted, nothing downstream of it.
+  public async runWithResolvedPlan(task: TaskRecord, requestId: string, runId: string, resolved: { steps: ResolvedPlanStep[] }): Promise<TaskRunOutcome> {
     // P03 — the plan is frozen into the durable run-state record exactly
     // once, here, before any step executes, and never re-derived
     // afterward — the resume/recovery source of truth for this runId from

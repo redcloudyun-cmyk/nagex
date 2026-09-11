@@ -42,7 +42,7 @@ import { buildGoogleAuthorizeUrl, exchangeGoogleAuthorizationCode, readGoogleOAu
 import { SessionStore } from './sessions/session.store.js';
 import { ConversationStore } from './conversations/conversation.store.js';
 import { ConversationContextService } from './conversations/conversation-context.service.js';
-import { TaskStore, type TaskType, type TaskTrigger, type TaskApprovalPolicy } from './tasks/task.store.js';
+import { TaskStore, type TaskType, type TaskTrigger, type TaskApprovalPolicy, type TaskRecord } from './tasks/task.store.js';
 import { TaskRunStore } from './tasks/task-run.store.js';
 import { TaskScheduler, computeNextRunAt } from './tasks/task.scheduler.js';
 import { PlanPreviewTaskRunner, ConditionalWatchTaskRunner, BackgroundTaskRunner, CompositeTaskRunner, ExecutingTaskRunner } from './tasks/task.runner.js';
@@ -1023,6 +1023,52 @@ export async function handleAsyncApiRequest(
       const run = await scheduler.runOne(task);
       return { status: 200, data: run };
     }
+
+    // V01a — test-only, env-gated deterministic plan injection. Exists
+    // solely so a LIVE E2E harness (scripts/nagex-task-e2e-live.sh) can
+    // drive a real Task run through ExecutingTaskRunner's real step-
+    // execution/durable-state/approval path without depending on the real
+    // planning LLM's variable output shape. This route does not exist
+    // (falls through to the ordinary 404, indistinguishable from any other
+    // unmatched path) unless NAGEX_ENABLE_TEST_PLAN_INJECTION is exactly
+    // '1' — re-checked on every request, never cached. It only ever
+    // substitutes the planning LLM call: PlanResolver.resolve() and
+    // everything downstream (step execution, durable state, approval
+    // continuation, finalization) is the real, unmodified production path,
+    // writing to the same real stores a normal run would.
+    if (pathname.startsWith('/api/v1/tasks/') && pathname.endsWith('/run-with-fixed-plan') && method === 'POST' && process.env.NAGEX_ENABLE_TEST_PLAN_INJECTION === '1') {
+      const taskId = pathname.slice('/api/v1/tasks/'.length, pathname.length - '/run-with-fixed-plan'.length);
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_task_fixedplan_${crypto.randomUUID()}`;
+      const task = taskStore.get(taskId);
+      if (!task) return { status: 404, data: { error: { code: 'TASK_NOT_FOUND', category: 'NOT_FOUND', message: `Task ${taskId} was not found.`, request_id: requestId } } };
+      const steps = Array.isArray(body?.steps) ? body.steps : [];
+      if (steps.length === 0) {
+        return { status: 400, data: { error: { code: 'FIXED_PLAN_STEPS_REQUIRED', category: 'VALIDATION', message: 'A non-empty steps array is required.', request_id: requestId } } };
+      }
+      let resolved;
+      try {
+        resolved = planResolver.resolve({ goal: task.objective, summary: 'V01a test-only fixed-plan injection.', reasoningSummary: 'V01a test-only fixed-plan injection.', suggestions: [], steps } as unknown as PlanPreview);
+      } catch (error) {
+        return modelErrorResult(error);
+      }
+      // A throwaway ExecutingTaskRunner wired to the exact same real
+      // capabilityBroker/taskContinuations/durableTaskRunState the
+      // production taskRunner uses — the instance is ephemeral, but every
+      // store it writes to is the real one, so restart-recovery inspection
+      // sees genuine data.
+      const fixedPlanRunner = new ExecutingTaskRunner(aiService, planResolver, capabilityBroker, (principalId, prompt) => getRelevantMemories(principalId, prompt), taskContinuations, durableTaskRunState);
+      const scheduler = new TaskScheduler(
+        taskStore,
+        taskRunStore,
+        { run: (t: TaskRecord, reqId: string, runId: string) => fixedPlanRunner.runWithResolvedPlan(t, reqId, runId, resolved) },
+        auditLogger,
+        undefined,
+        notificationEngine,
+      );
+      const run = await scheduler.runOne(task);
+      return { status: 200, data: run };
+    }
+
     if (pathname === '/api/v1/tools/google-calendar/free-slots' && method === 'POST') {
       const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
       const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;

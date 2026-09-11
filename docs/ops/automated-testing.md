@@ -116,3 +116,14 @@ To declare Capability Broker as **FROZEN**, all verification items in `nagex-che
 ### Operational Workflows
 - **Routine Deployment**: `nagex-update` followed by `nagex-check` (or `nagex-update --verify`).
 - **Release / Capability Broker Freeze**: `nagex-update` -> `nagex-check` -> `nagex-e2e-live`.
+
+---
+
+## 4. Test-Only Deterministic Plan Injection (V01a)
+
+`POST /api/v1/tasks/:id/run-with-fixed-plan` lets a Task run be driven through the real `PlanResolver`/`ExecutingTaskRunner`/`CapabilityBroker` pipeline with a caller-supplied plan (`{ steps: [...] }`, the same raw shape `AiService.plan()` normally produces), instead of a real, variable-shape LLM call. It exists solely so `nagex-task-e2e-live` (V01, Durable Task Restart/Resume LIVE E2E) can exercise a deterministic multi-step Task run — no other consumer should ever call it.
+
+**Isolation:**
+- The route **does not exist** (falls through to the ordinary 404, indistinguishable from any unmatched path) unless the environment variable `NAGEX_ENABLE_TEST_PLAN_INJECTION` is exactly `'1'`, re-checked on every request — never cached, never assumed off after the first check.
+- **Never set this variable in the real production environment's persistent env.** Export it only in the shell session running a V01 harness invocation, for that invocation's duration.
+- Only the planning LLM call is substituted — `PlanResolver.resolve()` and everything downstream (step execution, durable state, approval continuation, finalization) is the real, unmodified production path, writing to the same real stores a normal run would.

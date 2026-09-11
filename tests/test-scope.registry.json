@@ -62,7 +62,8 @@
       "tasks_ui",
       "generic_step_executor",
       "task_approval_continuation",
-      "durable_task_runtime"
+      "durable_task_runtime",
+      "fixed_plan_injection"
     ],
     "runtime": [
       "composition_root",
@@ -72,7 +73,8 @@
       "lifecycle_manager",
       "generic_step_executor",
       "task_approval_continuation",
-      "durable_task_runtime"
+      "durable_task_runtime",
+      "fixed_plan_injection"
     ]
   },
   "fullOnly": [
