@@ -9,3 +9,4 @@ export { PlanPreviewTaskRunner } from './runners/plan-preview.runner.js';
 export { BackgroundTaskRunner } from './runners/background.runner.js';
 export { ConditionalWatchTaskRunner } from './runners/conditional-watch.runner.js';
 export { CompositeTaskRunner } from './runners/composite.runner.js';
+export { ExecutingTaskRunner } from './runners/executing-task.runner.js';

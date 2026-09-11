@@ -44,7 +44,8 @@
       "plan_scope_policy",
       "retry_failure_handling",
       "state_propagation",
-      "capability_broker"
+      "capability_broker",
+      "generic_step_executor"
     ],
     "tasks": [
       "background_tasks",
@@ -53,14 +54,16 @@
       "task_scheduler",
       "task_store",
       "tasks_api",
-      "tasks_ui"
+      "tasks_ui",
+      "generic_step_executor"
     ],
     "runtime": [
       "composition_root",
       "conditional_watch",
       "capability_broker",
       "graceful_shutdown",
-      "lifecycle_manager"
+      "lifecycle_manager",
+      "generic_step_executor"
     ]
   },
   "fullOnly": [

@@ -45,7 +45,7 @@ import { ConversationContextService } from './conversations/conversation-context
 import { TaskStore, type TaskType, type TaskTrigger, type TaskApprovalPolicy } from './tasks/task.store.js';
 import { TaskRunStore } from './tasks/task-run.store.js';
 import { TaskScheduler, computeNextRunAt } from './tasks/task.scheduler.js';
-import { PlanPreviewTaskRunner, ConditionalWatchTaskRunner, BackgroundTaskRunner, CompositeTaskRunner } from './tasks/task.runner.js';
+import { PlanPreviewTaskRunner, ConditionalWatchTaskRunner, BackgroundTaskRunner, CompositeTaskRunner, ExecutingTaskRunner } from './tasks/task.runner.js';
 import { TelegramIdentityStore } from './integrations/telegram/telegram-identity.store.js';
 import { TelegramBotClient, type TelegramUpdate } from './integrations/telegram/telegram.client.js';
 import { TelegramService } from './integrations/telegram/telegram.service.js';
@@ -1012,6 +1012,7 @@ export async function handleAsyncApiRequest(
           new PlanPreviewTaskRunner(service, planResolver, (principalId, prompt) => getRelevantMemories(principalId, prompt)),
           new ConditionalWatchTaskRunner(capabilityBroker, service),
           new BackgroundTaskRunner(taskStore, service, planResolver, (principalId, prompt) => getRelevantMemories(principalId, prompt)),
+          new ExecutingTaskRunner(service, planResolver, capabilityBroker, (principalId, prompt) => getRelevantMemories(principalId, prompt)),
         ),
         auditLogger,
       );

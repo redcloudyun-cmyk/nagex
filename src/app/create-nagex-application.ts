@@ -40,7 +40,7 @@ import { ConversationContextService } from '../conversations/conversation-contex
 import { TaskStore } from '../tasks/task.store.js';
 import { TaskRunStore } from '../tasks/task-run.store.js';
 import { TaskScheduler } from '../tasks/task.scheduler.js';
-import { PlanPreviewTaskRunner, ConditionalWatchTaskRunner, BackgroundTaskRunner, CompositeTaskRunner } from '../tasks/task.runner.js';
+import { PlanPreviewTaskRunner, ConditionalWatchTaskRunner, BackgroundTaskRunner, CompositeTaskRunner, ExecutingTaskRunner } from '../tasks/task.runner.js';
 import { TelegramIdentityStore } from '../integrations/telegram/telegram-identity.store.js';
 import { TelegramBotClient } from '../integrations/telegram/telegram.client.js';
 import { TelegramService } from '../integrations/telegram/telegram.service.js';
@@ -186,6 +186,7 @@ export function createNagexApplication(): NagexApplication {
     new PlanPreviewTaskRunner(aiService, planResolver, (principalId, prompt) => getRelevantMemories(principalId, prompt)),
     new ConditionalWatchTaskRunner(capabilityBroker, aiService),
     new BackgroundTaskRunner(taskStore, aiService, planResolver, (principalId, prompt) => getRelevantMemories(principalId, prompt)),
+    new ExecutingTaskRunner(aiService, planResolver, capabilityBroker, (principalId, prompt) => getRelevantMemories(principalId, prompt)),
   );
 
   // ─── MASTER.md Section 14 — Telegram Integration (Item 10) ───

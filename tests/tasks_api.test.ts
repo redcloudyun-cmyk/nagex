@@ -140,7 +140,14 @@ function buildPlanningService(): AiService {
 }
 
 test('POST /api/v1/tasks/:id/run executes the task through the real scheduler/runner exactly once and records a run', async () => {
-  const created = await handleApiRequest('POST', '/api/v1/tasks', createTaskBody({ type: 'ONE_TIME', trigger: { type: 'MANUAL' } }), HEADERS);
+  // ALWAYS_APPROVE (not this file's READ_ONLY_AUTO default): this test is
+  // about scheduler/run-recording mechanics via PlanPreviewTaskRunner's
+  // always-succeeds preview behavior, not about P01's real step execution
+  // — the fake plan below references memory.search, which is a real
+  // planner-resolvable tool but not a CapabilityBroker-registered
+  // capability, so a READ_ONLY_AUTO task here would now (correctly) halt
+  // via ExecutingTaskRunner's STEP_CAPABILITY_NOT_EXECUTABLE instead.
+  const created = await handleApiRequest('POST', '/api/v1/tasks', createTaskBody({ type: 'ONE_TIME', trigger: { type: 'MANUAL' }, approvalPolicy: 'ALWAYS_APPROVE' }), HEADERS);
   const taskId = (created.data as { taskId: string }).taskId;
 
   const service = buildPlanningService();
