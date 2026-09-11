@@ -125,6 +125,7 @@ const {
   taskRunner,
   getRelevantMemories,
   pinnedMemories,
+  lifecycle,
 } = app;
 export const {
   actionApprovals,
@@ -157,17 +158,13 @@ let pendingGoogleOAuthState: string | null = null;
 
 
 // A real (not fake) background scheduler loop — only runs when this module
-// is the actual running server, never when imported by tests (see the
-// require.main guard at the bottom of this file, mirrored here so the
-// interval itself is never created under `npm test`).
+// is the actual running server, never when imported by tests. Phase 02:
+// the interval handle itself is now a lifecycle-managed resource (started
+// and explicitly cleared via app.lifecycle) instead of an unmanaged
+// .unref()'d timer — see the single require.main === module entrypoint
+// block below, which registers this alongside the HTTP server and
+// browserRuntime.
 const TASK_SCHEDULER_TICK_MS = Number(process.env.NAGEX_TASK_SCHEDULER_INTERVAL_MS) || 30_000;
-if (require.main === module) {
-  setInterval(() => {
-    taskScheduler.tick().catch((error) => {
-      console.error(JSON.stringify({ event: 'task_scheduler_tick_failed', message: error instanceof Error ? error.message : String(error) }));
-    });
-  }, TASK_SCHEDULER_TICK_MS).unref();
-}
 
 const INITIAL_CREDIT_GRANT = 10000;
 const seededTenants = new Set<string>();
@@ -2038,41 +2035,90 @@ export const server = http.createServer((req, res) => {
 
 if (require.main === module) {
   const HOST = process.env.HOST || '127.0.0.1';
-  const serverInstance = server.listen(PORT, HOST, () => {
-    console.log(`\n═══════════════════════════════════════════════════════`);
-    console.log(`  NAgex Personal AI — Unified Platform Server`);
-    console.log(`  Console:  http://${HOST}:${PORT}`);
-    console.log(`  API:      http://${HOST}:${PORT}/api/v1/health`);
-    console.log(`  Engine:   Durable Runtime + Memory + PDP + Audit`);
-    console.log(`═══════════════════════════════════════════════════════\n`);
+  let serverInstance: http.Server;
+  let schedulerIntervalHandle: NodeJS.Timeout | null = null;
+
+  // Phase 02 — every process-lifetime resource is registered with
+  // app.lifecycle instead of started/stopped by ad hoc inline code.
+  // Registration order (browser-runtime, task-scheduler-interval,
+  // http-server) is chosen so LifecycleManager's default reverse-order
+  // stopAll() reproduces the exact, already-Linux-verified stop order this
+  // block used before Phase 02: HTTP server closed and awaited first,
+  // then the scheduler interval cleared, then the browser runtime shut
+  // down — see the Phase 02 pre-flight report for the full rationale.
+  // Forward startAll() order (scheduler before HTTP listen) also matches
+  // this file's real pre-Phase-02 evaluation order.
+  lifecycle.register({
+    name: 'browser-runtime',
+    stop: async () => {
+      await browserRuntime.shutdown();
+      console.log('[server_web] Browser runtime shut down cleanly.');
+    },
   });
+
+  lifecycle.register({
+    name: 'task-scheduler-interval',
+    start: () => {
+      schedulerIntervalHandle = setInterval(() => {
+        taskScheduler.tick().catch((error) => {
+          console.error(JSON.stringify({ event: 'task_scheduler_tick_failed', message: error instanceof Error ? error.message : String(error) }));
+        });
+      }, TASK_SCHEDULER_TICK_MS);
+      schedulerIntervalHandle.unref();
+    },
+    stop: () => {
+      if (schedulerIntervalHandle) clearInterval(schedulerIntervalHandle);
+    },
+  });
+
+  lifecycle.register({
+    name: 'http-server',
+    start: () => new Promise<void>((resolve) => {
+      serverInstance = server.listen(PORT, HOST, () => {
+        console.log(`\n═══════════════════════════════════════════════════════`);
+        console.log(`  NAgex Personal AI — Unified Platform Server`);
+        console.log(`  Console:  http://${HOST}:${PORT}`);
+        console.log(`  API:      http://${HOST}:${PORT}/api/v1/health`);
+        console.log(`  Engine:   Durable Runtime + Memory + PDP + Audit`);
+        console.log(`═══════════════════════════════════════════════════════\n`);
+        resolve();
+      });
+    }),
+    stop: () =>
+      new Promise<void>((resolve) => {
+        serverInstance.close((err) => {
+          if (err) {
+            console.error('[server_web] HTTP shutdown error:', err);
+          }
+          resolve();
+        });
+
+        if (typeof serverInstance.closeIdleConnections === 'function') {
+          serverInstance.closeIdleConnections();
+        }
+      }).then(() => {
+        console.log('[server_web] HTTP server stopped accepting connections.');
+      }),
+  });
+
+  void lifecycle.startAll();
 
   // Production graceful shutdown lifecycle. Playwright's own SIGTERM
   // handling (registered when the browser launches) suppresses Node's
   // default "no listeners -> exit" behavior, and without an
   // application-owned shutdown path the live HTTP server + process-lifetime
   // browserRuntime singleton stayed open indefinitely, forcing systemd to
-  // SIGKILL after its 90s TimeoutStopSec. This installs the real lifecycle:
-  // stop accepting new connections -> drain idle keep-alives -> await HTTP
-  // server closure -> await browserRuntime shutdown -> natural process exit.
-  // Idempotent via shuttingDown (systemd/an operator may send more than one
-  // signal). No process.exit() on this path — systemd's own
-  // TimeoutStopSec/KillSignal remains the sole final safety boundary.
+  // SIGKILL after its 90s TimeoutStopSec. app.lifecycle.stopAll() now owns
+  // the deterministic stop order and guarantees every resource's stop() is
+  // attempted even if an earlier one fails (a real gap in the pre-Phase-02
+  // inline version, where one throw skipped all later cleanup). Idempotent
+  // via shuttingDown (systemd/an operator may send more than one signal —
+  // this guard is what keeps the "Received X" log line itself to exactly
+  // once; LifecycleManager.stopAll() is independently idempotent too, as
+  // defense in depth for any other future caller). No process.exit() on
+  // this path — systemd's own TimeoutStopSec/KillSignal remains the sole
+  // final safety boundary.
   let shuttingDown = false;
-
-  const closeHttpServer = (): Promise<void> =>
-    new Promise<void>((resolve) => {
-      serverInstance.close((err) => {
-        if (err) {
-          console.error('[server_web] HTTP shutdown error:', err);
-        }
-        resolve();
-      });
-
-      if (typeof serverInstance.closeIdleConnections === 'function') {
-        serverInstance.closeIdleConnections();
-      }
-    });
 
   const performShutdown = async (signal: string) => {
     if (shuttingDown) return;
@@ -2080,11 +2126,7 @@ if (require.main === module) {
     console.log(`[server_web] Received ${signal}. Starting graceful shutdown...`);
 
     try {
-      await closeHttpServer();
-      console.log('[server_web] HTTP server stopped accepting connections.');
-
-      await browserRuntime.shutdown();
-      console.log('[server_web] Browser runtime shut down cleanly.');
+      await lifecycle.stopAll();
     } catch (error) {
       console.error('[server_web] Error during shutdown:', error);
     } finally {

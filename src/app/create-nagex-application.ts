@@ -62,6 +62,7 @@ import { createConfiguredStorageProvider } from '../storage/s3-storage.provider.
 import { KnowledgeEngine } from '../context/knowledge.engine.js';
 import { CapabilityBroker, capabilityRegistry } from '../capabilities/index.js';
 import type { NagexApplication } from './nagex-application.js';
+import { LifecycleManager } from './lifecycle-manager.js';
 
 // Common words that would otherwise create spurious "relevance" matches
 // (e.g. a prompt's "and" matching a completely unrelated memory's "and").
@@ -270,6 +271,7 @@ export function createNagexApplication(): NagexApplication {
     activityStore,
   );
   const inputRouter = new InputRouter();
+  const lifecycle = new LifecycleManager();
 
   return {
     pdp,
@@ -309,6 +311,7 @@ export function createNagexApplication(): NagexApplication {
     candidateActionResolver,
     quickCaptureService,
     inputRouter,
+    lifecycle,
     getRelevantMemories,
     pinnedMemories,
   };

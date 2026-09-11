@@ -43,6 +43,7 @@ import type { ActivityStore } from '../governance/activity.store.js';
 import type { CandidateActionResolver } from '../workspace/action-resolver.js';
 import type { QuickCaptureService } from '../workspace/quick-capture.service.js';
 import type { InputRouter } from '../workspace/input-router.js';
+import type { LifecycleManager } from './lifecycle-manager.js';
 
 export interface NagexApplication {
   pdp: PolicyDecisionPoint;
@@ -93,4 +94,9 @@ export interface NagexApplication {
   // server_web.ts's route handlers read/write, not a private copy.
   getRelevantMemories: (principalId: string, prompt: string) => MemoryRecord[];
   pinnedMemories: Set<string>;
+  // Phase 02 — owns start/stop for process-lifetime resources (HTTP server,
+  // scheduler interval, browserRuntime). Constructed here, empty; the
+  // executable entrypoint (server_web.ts) registers the actual resources,
+  // since it alone knows their real start/stop implementations.
+  lifecycle: LifecycleManager;
 }
