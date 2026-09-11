@@ -3,6 +3,7 @@ import type { AuditLogger } from '../governance/audit.logger.js';
 import type { NotificationEngine } from '../notifications/notification.engine.js';
 import { TaskStore, type TaskRecord, type TaskTrigger } from './task.store.js';
 import { TaskRunStore, type TaskRunRecord } from './task-run.store.js';
+import { finalizeTaskRun } from './task-run-finalizer.js';
 
 // ── Cron (5-field: minute hour day-of-month month day-of-week) ─────────────
 // A deliberately small evaluator, not a full croniter port: supports `*`,
@@ -146,107 +147,13 @@ export interface TaskRunner {
   run(task: TaskRecord, requestId: string, runId: string): Promise<TaskRunOutcome>;
 }
 
-export interface TaskRunFinalizationDeps {
-  tasks: TaskStore;
-  runs: TaskRunStore;
-  audit: AuditLogger;
-  now: () => Date;
-  notificationEngine?: NotificationEngine;
-}
-
-// P02 — extracted from TaskScheduler.runOne() so the exact same
-// finalization (TaskRunStore write, audit, notification dispatch,
-// TaskStore.recordRunOutcome) can be reused by the continuation
-// coordinator when a paused run is later resumed to a real terminal
-// outcome — never duplicated between the two call sites.
-export function finalizeTaskRun(deps: TaskRunFinalizationDeps, task: TaskRecord, runId: string, requestId: string, outcome: TaskRunOutcome): TaskRunRecord {
-  const completedAt = getCurrentISOString();
-
-  if (outcome.status === 'WAITING_APPROVAL') {
-    deps.runs.waitForApproval(runId);
-    deps.audit.logEvent({
-      actor: { type: 'system', id: 'task-scheduler' },
-      tenant_id: task.tenantId,
-      action: 'execution.waiting_approval',
-      resource: { type: 'TaskRun', id: runId },
-      result: 'PENDING_APPROVAL',
-      request_id: requestId,
-    });
-    // Non-terminal: never notify (a waiting task is not completed, not
-    // failed, not a condition match), never reschedule by time — resume
-    // is approval-event-triggered, not tick-driven.
-    deps.tasks.recordRunOutcome(task.taskId, { status: 'WAITING_APPROVAL', completedAt, nextRunAt: null }, requestId);
-    return deps.runs.get(runId) as TaskRunRecord;
-  }
-
-  if (outcome.status === 'SUCCEEDED') {
-    deps.runs.succeed(runId, { result: outcome.result ?? null, completedAt });
-    deps.audit.logEvent({
-      actor: { type: 'system', id: 'task-scheduler' },
-      tenant_id: task.tenantId,
-      action: 'execution.succeeded',
-      resource: { type: 'TaskRun', id: runId },
-      result: 'SUCCESS',
-      request_id: requestId,
-    });
-
-    if (deps.notificationEngine) {
-      if (outcome.conditionMet) {
-        deps.notificationEngine.dispatch({
-          tenantId: task.tenantId,
-          principalId: task.ownerId,
-          type: 'CONDITION_MET',
-          title: `Condition Met: ${task.name}`,
-          body: `Watched condition for task "${task.name}" was fulfilled.`,
-          metadata: { taskId: task.taskId, runId },
-          requestId,
-        }).catch(() => {});
-      } else {
-        deps.notificationEngine.dispatch({
-          tenantId: task.tenantId,
-          principalId: task.ownerId,
-          type: 'TASK_COMPLETED',
-          title: `Task Completed: ${task.name}`,
-          body: `Task "${task.name}" completed successfully.`,
-          metadata: { taskId: task.taskId, runId },
-          requestId,
-        }).catch(() => {});
-      }
-    }
-  } else {
-    deps.runs.fail(runId, { errorCode: outcome.errorCode ?? 'TASK_RUN_FAILED', completedAt });
-    deps.audit.logEvent({
-      actor: { type: 'system', id: 'task-scheduler' },
-      tenant_id: task.tenantId,
-      action: 'execution.failed',
-      resource: { type: 'TaskRun', id: runId },
-      result: 'FAILED',
-      reason_code: outcome.errorCode ?? 'TASK_RUN_FAILED',
-      request_id: requestId,
-    });
-
-    if (deps.notificationEngine) {
-      deps.notificationEngine.dispatch({
-        tenantId: task.tenantId,
-        principalId: task.ownerId,
-        type: 'TASK_FAILED',
-        title: `Task Failed: ${task.name}`,
-        body: `Task "${task.name}" failed: ${outcome.errorCode ?? 'Execution error'}`,
-        metadata: { taskId: task.taskId, runId },
-        requestId,
-      }).catch(() => {});
-    }
-  }
-
-  const nextRun = computeNextRunAt(task.trigger, deps.now());
-  deps.tasks.recordRunOutcome(
-    task.taskId,
-    { status: outcome.status, completedAt, nextRunAt: nextRun ? nextRun.toISOString() : null, conditionMet: outcome.conditionMet },
-    requestId,
-  );
-
-  return deps.runs.get(runId) as TaskRunRecord;
-}
+// Phase 09 — finalizeTaskRun()/TaskRunFinalizationDeps moved to
+// task-run-finalizer.ts: by P03 it had a second real caller outside the
+// scheduler (DurableTaskRuntime's recovery path, alongside
+// TaskContinuationCoordinator's resume path), so it is shared Task Runtime
+// finalization infrastructure, not scheduler-triggering logic. TaskScheduler
+// (below) only triggers; import finalizeTaskRun from task-run-finalizer.js
+// directly, not from here.
 
 // Finds ACTIVE tasks whose nextRunAt has arrived, runs each exactly once
 // through the injected TaskRunner (never bypassing it — see MASTER.md

@@ -1,7 +1,8 @@
 import { NagexError } from '../common/errors.js';
 import type { AuditLogger } from '../governance/audit.logger.js';
 import type { NotificationEngine } from '../notifications/notification.engine.js';
-import { finalizeTaskRun, type TaskRunOutcome } from './task.scheduler.js';
+import type { TaskRunOutcome } from './task.scheduler.js';
+import { finalizeTaskRun } from './task-run-finalizer.js';
 import type { TaskStore } from './task.store.js';
 import type { TaskRunStore } from './task-run.store.js';
 import type { DurableTaskRunStateStore } from './durable-task-run-state.store.js';

@@ -274,6 +274,11 @@ const APPLICATION_GRAPH_CLASSES = [
   'SlackClient', 'SlackService', 'DesktopRuntimeEngine', 'NotificationStore', 'NotificationEngine',
   'KnowledgeEngine', 'CandidateStore', 'ActivityStore', 'CandidateActionResolver', 'QuickCaptureService',
   'InputRouter', 'LifecycleManager',
+  // Phase 09 — P02/P03 added these 5 real NagexApplication fields without
+  // ever adding them here; Composition-Root-only construction was silently
+  // unenforced for the whole Task continuation/durable-runtime subsystem.
+  'ExecutingTaskRunner', 'TaskContinuationStore', 'TaskContinuationCoordinator',
+  'DurableTaskRunStateStore', 'DurableTaskRuntime',
 ];
 
 const COMPOSITION_ROOT_PATH = 'src/app/create-nagex-application.ts';
@@ -451,6 +456,13 @@ test('negative: ARCH-007 fires on server_web.ts deep-importing a Calendar intern
 
 test('negative: ARCH-008 fires on a production singleton constructed outside the Composition Root', () => {
   const files = [fixture('src/workspace/fake.ts', `const rogue = new MemoryEngine();\n`)];
+  const violations = ruleCompositionRootOwnership(files);
+  assert.equal(violations.length, 1);
+  assert.equal(violations[0].rule, 'ARCH-008');
+});
+
+test('negative: ARCH-008 fires on a P02/P03 Task Runtime class (DurableTaskRunStateStore) constructed outside the Composition Root', () => {
+  const files = [fixture('src/workspace/fake.ts', `const rogue = new DurableTaskRunStateStore();\n`)];
   const violations = ruleCompositionRootOwnership(files);
   assert.equal(violations.length, 1);
   assert.equal(violations[0].rule, 'ARCH-008');
