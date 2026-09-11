@@ -8,7 +8,13 @@
     "start": "node dist/src/server_web.js",
     "desktop:dev": "tsc && electron .",
     "desktop:build": "tsc && electron-builder --win nsis",
-    "test": "tsc && node --require ./dist/tests/_setup.js --test dist/tests/*.test.js"
+    "test": "tsc && node --require ./dist/tests/_setup.js --test dist/tests/*.test.js",
+    "test:scope": "node scripts/nagex-test-scope.mjs",
+    "test:architecture": "npm run test:scope -- architecture",
+    "test:browser": "npm run test:scope -- browser",
+    "test:google": "npm run test:scope -- google",
+    "test:tasks": "npm run test:scope -- tasks",
+    "test:runtime": "npm run test:scope -- runtime"
   },
   "build": {
     "appId": "com.nagex.desktop",
