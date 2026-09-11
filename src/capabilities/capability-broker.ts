@@ -10,8 +10,8 @@ import {
   CapabilityBrokerResult,
   CapabilityDefinition,
 } from './capability.types.js';
-import type { CalendarApprovalRequesterPort } from '../contracts/calendar.port.js';
-import type { GmailPort } from '../contracts/gmail.port.js';
+import type { CalendarApprovalRequesterPort, CalendarWriteExecutionPort } from '../contracts/calendar.port.js';
+import type { GmailPort, GmailWriteExecutionPort } from '../contracts/gmail.port.js';
 import type { BrowserPort } from '../contracts/browser.port.js';
 
 export interface CapabilityIdempotencyRecord {
@@ -50,8 +50,8 @@ export class CapabilityBroker {
   private readonly idempotencyStore: FileRecordStore<CapabilityIdempotencyRecord>;
 
   constructor(
-    private readonly calendarService: CalendarApprovalRequesterPort,
-    private readonly gmailService: GmailPort,
+    private readonly calendarService: CalendarApprovalRequesterPort & CalendarWriteExecutionPort,
+    private readonly gmailService: GmailPort & GmailWriteExecutionPort,
     private readonly browserService: BrowserPort,
     private readonly auditLogger: AuditLogger,
     private readonly registry: CapabilityRegistry = capabilityRegistry,
@@ -263,6 +263,16 @@ export class CapabilityBroker {
     // Handle Google Calendar Capabilities
     if (def.provider === 'GOOGLE_CALENDAR') {
       if (request.capabilityId === 'google_calendar.create_event') {
+        if (request.approvalId) {
+          const result = await this.calendarService.executeCreateEvent({
+            approvalId: request.approvalId,
+            payload: request.payload,
+            tenantId: request.tenantId,
+            principalId: request.principalId,
+            requestId: request.requestId,
+          });
+          return { status: 'EXECUTED', capabilityId: request.capabilityId, result };
+        }
         const approval = this.calendarService.requestCreateEventApproval({
           tenantId: request.tenantId,
           principalId: request.principalId,
@@ -274,6 +284,16 @@ export class CapabilityBroker {
       }
 
       if (request.capabilityId === 'google_calendar.update_event') {
+        if (request.approvalId) {
+          const result = await this.calendarService.executeUpdateEvent({
+            approvalId: request.approvalId,
+            payload: request.payload,
+            tenantId: request.tenantId,
+            principalId: request.principalId,
+            requestId: request.requestId,
+          });
+          return { status: 'EXECUTED', capabilityId: request.capabilityId, result };
+        }
         const approval = this.calendarService.requestUpdateEventApproval({
           tenantId: request.tenantId,
           principalId: request.principalId,
@@ -285,6 +305,16 @@ export class CapabilityBroker {
       }
 
       if (request.capabilityId === 'google_calendar.cancel_event') {
+        if (request.approvalId) {
+          const result = await this.calendarService.executeCancelEvent({
+            approvalId: request.approvalId,
+            payload: request.payload,
+            tenantId: request.tenantId,
+            principalId: request.principalId,
+            requestId: request.requestId,
+          });
+          return { status: 'EXECUTED', capabilityId: request.capabilityId, result };
+        }
         const approval = this.calendarService.requestCancelEventApproval({
           tenantId: request.tenantId,
           principalId: request.principalId,
@@ -296,6 +326,16 @@ export class CapabilityBroker {
       }
 
       if (request.capabilityId === 'google_calendar.respond_to_event') {
+        if (request.approvalId) {
+          const result = await this.calendarService.executeRespondToEvent({
+            approvalId: request.approvalId,
+            payload: request.payload,
+            tenantId: request.tenantId,
+            principalId: request.principalId,
+            requestId: request.requestId,
+          });
+          return { status: 'EXECUTED', capabilityId: request.capabilityId, result };
+        }
         const approval = this.calendarService.requestRespondToEventApproval({
           tenantId: request.tenantId,
           principalId: request.principalId,
@@ -343,6 +383,16 @@ export class CapabilityBroker {
       }
 
       if (request.capabilityId === 'gmail.send_email') {
+        if (request.approvalId) {
+          const result = await this.gmailService.executeSendEmail({
+            approvalId: request.approvalId,
+            payload: request.payload,
+            tenantId: request.tenantId,
+            principalId: request.principalId,
+            requestId: request.requestId,
+          });
+          return { status: 'EXECUTED', capabilityId: request.capabilityId, result };
+        }
         const approval = this.gmailService.requestApproval({
           toolId: 'gmail.send_email',
           tenantId: request.tenantId,
@@ -355,6 +405,16 @@ export class CapabilityBroker {
       }
 
       if (request.capabilityId === 'gmail.reply') {
+        if (request.approvalId) {
+          const result = await this.gmailService.executeReply({
+            approvalId: request.approvalId,
+            payload: request.payload,
+            tenantId: request.tenantId,
+            principalId: request.principalId,
+            requestId: request.requestId,
+          });
+          return { status: 'EXECUTED', capabilityId: request.capabilityId, result };
+        }
         const approval = this.gmailService.requestApproval({
           toolId: 'gmail.reply',
           tenantId: request.tenantId,
@@ -367,6 +427,16 @@ export class CapabilityBroker {
       }
 
       if (request.capabilityId === 'gmail.create_draft') {
+        if (request.approvalId) {
+          const result = await this.gmailService.executeCreateDraft({
+            approvalId: request.approvalId,
+            payload: request.payload,
+            tenantId: request.tenantId,
+            principalId: request.principalId,
+            requestId: request.requestId,
+          });
+          return { status: 'EXECUTED', capabilityId: request.capabilityId, result };
+        }
         const approval = this.gmailService.requestApproval({
           toolId: 'gmail.create_draft',
           tenantId: request.tenantId,

@@ -30,6 +30,13 @@ export interface CapabilityRequest {
   sessionId?: string;
   safetyDecision?: SafetyDecision;
   idempotencyKey?: string;
+  // P02a — when present, and the capability natively supports approval
+  // continuation, the Broker executes the already-approved action
+  // (payload must hash-match exactly what was approved) instead of
+  // requesting a new approval. Top-level metadata, deliberately kept out
+  // of `payload` — payload is the approval-bound content and must never
+  // be mutated by anything added for the resume mechanism itself.
+  approvalId?: string;
 }
 
 export type CapabilityBrokerResult =

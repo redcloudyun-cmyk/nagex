@@ -27,8 +27,8 @@ import { createNagexApplication } from '../src/app/create-nagex-application.js';
 import type { AiService } from '../src/model-gateway/ai-service.js';
 import type { CapabilityExecutorPort } from '../src/contracts/capability.port.js';
 import type { BrowserPort } from '../src/contracts/browser.port.js';
-import type { CalendarApprovalRequesterPort, CalendarExecutionPort } from '../src/contracts/calendar.port.js';
-import type { GmailPort } from '../src/contracts/gmail.port.js';
+import type { CalendarApprovalRequesterPort, CalendarExecutionPort, CalendarWriteExecutionPort } from '../src/contracts/calendar.port.js';
+import type { GmailPort, GmailWriteExecutionPort } from '../src/contracts/gmail.port.js';
 import type { CapabilityRequest, CapabilityBrokerResult } from '../src/capabilities/capability.types.js';
 import type { CalendarCandidatePayload } from '../src/workspace/candidate.types.js';
 
@@ -88,17 +88,24 @@ test('4. CapabilityBroker can be used through CapabilityExecutorPort (the shape 
 
 test('5a. CapabilityBroker constructs and operates against fully fake Calendar/Gmail/Browser ports', async () => {
   const calls: string[] = [];
-  const fakeCalendar: CalendarApprovalRequesterPort = {
+  const fakeCalendar: CalendarApprovalRequesterPort & CalendarWriteExecutionPort = {
     getFreeSlots: async () => { calls.push('getFreeSlots'); return { slots: [], busy: [], calendarId: 'primary', timeMin: '', timeMax: '' }; },
     requestCreateEventApproval: () => { throw new Error('not exercised'); },
     requestUpdateEventApproval: () => { throw new Error('not exercised'); },
     requestCancelEventApproval: () => { throw new Error('not exercised'); },
     requestRespondToEventApproval: () => { throw new Error('not exercised'); },
+    executeCreateEvent: async () => { throw new Error('not exercised'); },
+    executeUpdateEvent: async () => { throw new Error('not exercised'); },
+    executeCancelEvent: async () => { throw new Error('not exercised'); },
+    executeRespondToEvent: async () => { throw new Error('not exercised'); },
   };
-  const fakeGmail: GmailPort = {
+  const fakeGmail: GmailPort & GmailWriteExecutionPort = {
     search: async () => { throw new Error('not exercised'); },
     readThread: async () => { throw new Error('not exercised'); },
     requestApproval: () => { throw new Error('not exercised'); },
+    executeSendEmail: async () => { throw new Error('not exercised'); },
+    executeReply: async () => { throw new Error('not exercised'); },
+    executeCreateDraft: async () => { throw new Error('not exercised'); },
   };
   const fakeBrowser: BrowserPort = {
     open: async () => { throw new Error('not exercised'); },

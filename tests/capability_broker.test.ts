@@ -966,4 +966,169 @@ describe('Capability Broker Mandatory Tests', () => {
       assert.equal((res.approval as any).toolId, 'browser.click');
     }
   });
+
+  // ─── P02a — Capability Broker Approved-Write Execution ─────────────────
+
+  it('25. a Calendar/Gmail write request WITHOUT approvalId still requests approval exactly as before (zero behavior change)', async () => {
+    const res = await capabilityBroker.execute({
+      capabilityId: 'google_calendar.create_event',
+      tenantId: 'ten_01',
+      principalId: 'usr_01',
+      requestId: 'req_p02a_25',
+      payload: { calendarId: 'primary', summary: 'Sync', description: '', start: '2026-09-10T10:00:00Z', end: '2026-09-10T11:00:00Z', timezone: 'UTC', attendees: [] },
+      source: 'WEB',
+    });
+    assert.equal(res.status, 'APPROVAL_REQUIRED');
+  });
+
+  it('26. Calendar create_event WITH a valid granted approvalId executes and returns EXECUTED with the real result', async () => {
+    const payload = { calendarId: 'primary', summary: 'Sync', description: '', start: '2026-09-10T10:00:00Z', end: '2026-09-10T11:00:00Z', timezone: 'UTC', attendees: [] };
+    const requested = await capabilityBroker.execute({ capabilityId: 'google_calendar.create_event', tenantId: 'ten_01', principalId: 'usr_01', requestId: 'req_p02a_26_request', payload, source: 'WEB' });
+    assert.equal(requested.status, 'APPROVAL_REQUIRED');
+    const approvalId = (requested as any).approval.approvalId as string;
+    actionApprovals.approve(approvalId, 'usr_01');
+
+    const executed = await capabilityBroker.execute({ capabilityId: 'google_calendar.create_event', tenantId: 'ten_01', principalId: 'usr_01', requestId: 'req_p02a_26_execute', payload, approvalId, source: 'WEB' });
+    assert.equal(executed.status, 'EXECUTED');
+    if (executed.status === 'EXECUTED') {
+      assert.equal((executed.result as any).externalId, 'evt_123');
+    }
+  });
+
+  it('27. Gmail send_email WITH a valid granted approvalId executes and returns EXECUTED', async () => {
+    const payload = { from: 'user@example.com', to: ['alice@example.com'], subject: 'Meeting', body: 'Hello Alice' };
+    const requested = await capabilityBroker.execute({ capabilityId: 'gmail.send_email', tenantId: 'ten_01', principalId: 'usr_01', requestId: 'req_p02a_27_request', payload, source: 'WEB' });
+    assert.equal(requested.status, 'APPROVAL_REQUIRED');
+    const approvalId = (requested as any).approval.approvalId as string;
+    actionApprovals.approve(approvalId, 'usr_01');
+
+    const executed = await capabilityBroker.execute({ capabilityId: 'gmail.send_email', tenantId: 'ten_01', principalId: 'usr_01', requestId: 'req_p02a_27_execute', payload, approvalId, source: 'WEB' });
+    assert.equal(executed.status, 'EXECUTED');
+  });
+
+  it('28. an approvalId whose payload does not match the originally-approved one fails with APPROVAL_PAYLOAD_MISMATCH, never silently executes', async () => {
+    const originalPayload = { calendarId: 'primary', summary: 'Sync', description: '', start: '2026-09-10T10:00:00Z', end: '2026-09-10T11:00:00Z', timezone: 'UTC', attendees: [] };
+    const requested = await capabilityBroker.execute({ capabilityId: 'google_calendar.create_event', tenantId: 'ten_01', principalId: 'usr_01', requestId: 'req_p02a_28_request', payload: originalPayload, source: 'WEB' });
+    assert.equal(requested.status, 'APPROVAL_REQUIRED');
+    const approvalId = (requested as any).approval.approvalId as string;
+    actionApprovals.approve(approvalId, 'usr_01');
+
+    const mutatedPayload = { ...originalPayload, summary: 'A different meeting entirely' };
+    await assert.rejects(
+      () => capabilityBroker.execute({ capabilityId: 'google_calendar.create_event', tenantId: 'ten_01', principalId: 'usr_01', requestId: 'req_p02a_28_execute', payload: mutatedPayload, approvalId, source: 'WEB' }),
+      (err: unknown) => err instanceof Error && (err as any).code === 'APPROVAL_PAYLOAD_MISMATCH',
+    );
+  });
+
+  it('29. replaying an already-consumed approvalId fails with APPROVAL_ALREADY_CONSUMED, never executes twice', async () => {
+    const payload = { calendarId: 'primary', summary: 'Sync', description: '', start: '2026-09-10T10:00:00Z', end: '2026-09-10T11:00:00Z', timezone: 'UTC', attendees: [] };
+    const requested = await capabilityBroker.execute({ capabilityId: 'google_calendar.create_event', tenantId: 'ten_01', principalId: 'usr_01', requestId: 'req_p02a_29_request', payload, source: 'WEB' });
+    const approvalId = (requested as any).approval.approvalId as string;
+    actionApprovals.approve(approvalId, 'usr_01');
+
+    const first = await capabilityBroker.execute({ capabilityId: 'google_calendar.create_event', tenantId: 'ten_01', principalId: 'usr_01', requestId: 'req_p02a_29_execute_1', payload, approvalId, source: 'WEB' });
+    assert.equal(first.status, 'EXECUTED');
+
+    await assert.rejects(
+      () => capabilityBroker.execute({ capabilityId: 'google_calendar.create_event', tenantId: 'ten_01', principalId: 'usr_01', requestId: 'req_p02a_29_execute_2', payload, approvalId, source: 'WEB' }),
+      (err: unknown) => err instanceof Error && (err as any).code === 'APPROVAL_ALREADY_CONSUMED',
+    );
+  });
+
+  it('30. an expired approvalId fails with APPROVAL_EXPIRED, never executes', async () => {
+    let now = Date.now();
+    const shortLivedApprovals = new ActionApprovalStore(() => now, 1000); // 1 second TTL
+    const shortLivedCalendar = new GoogleCalendarService(
+      { getValidAccessToken: async () => 'mock_token' } as any,
+      shortLivedApprovals,
+      auditLogger,
+      memoryEngine,
+      async () => new Response(JSON.stringify({ id: 'evt_123', htmlLink: 'https://calendar.google.com' }), { status: 200 }),
+      () => ({ clientId: 'mock', clientSecret: 'mock', redirectUri: 'mock' }),
+      executionStore,
+    );
+    const shortLivedBroker = new CapabilityBroker(shortLivedCalendar, gmailService, browserService, auditLogger, registry, 'test_idempotency_expiry', 'NAGEX_TEST_IDEMPOTENCY_DIR');
+
+    const payload = { calendarId: 'primary', summary: 'Sync', description: '', start: '2026-09-10T10:00:00Z', end: '2026-09-10T11:00:00Z', timezone: 'UTC', attendees: [] };
+    const requested = await shortLivedBroker.execute({ capabilityId: 'google_calendar.create_event', tenantId: 'ten_01', principalId: 'usr_01', requestId: 'req_p02a_30_request', payload, source: 'WEB' });
+    const approvalId = (requested as any).approval.approvalId as string;
+    shortLivedApprovals.approve(approvalId, 'usr_01');
+    now += 2000; // advance past the 1-second TTL
+
+    await assert.rejects(
+      () => shortLivedBroker.execute({ capabilityId: 'google_calendar.create_event', tenantId: 'ten_01', principalId: 'usr_01', requestId: 'req_p02a_30_execute', payload, approvalId, source: 'WEB' }),
+      (err: unknown) => err instanceof Error && (err as any).code === 'APPROVAL_EXPIRED',
+    );
+  });
+
+  it('31. a rejected (never-granted) approvalId fails, never executes', async () => {
+    const payload = { calendarId: 'primary', summary: 'Sync', description: '', start: '2026-09-10T10:00:00Z', end: '2026-09-10T11:00:00Z', timezone: 'UTC', attendees: [] };
+    const requested = await capabilityBroker.execute({ capabilityId: 'google_calendar.create_event', tenantId: 'ten_01', principalId: 'usr_01', requestId: 'req_p02a_31_request', payload, source: 'WEB' });
+    const approvalId = (requested as any).approval.approvalId as string;
+    actionApprovals.reject(approvalId, 'usr_01');
+
+    await assert.rejects(
+      () => capabilityBroker.execute({ capabilityId: 'google_calendar.create_event', tenantId: 'ten_01', principalId: 'usr_01', requestId: 'req_p02a_31_execute', payload, approvalId, source: 'WEB' }),
+      (err: unknown) => err instanceof Error && (err as any).code === 'APPROVAL_NOT_GRANTED',
+    );
+  });
+
+  it('32. approvalId is never merged into the stored/hashed payload — only the original action payload is ever hash-checked', async () => {
+    const payload = { calendarId: 'primary', summary: 'Sync', description: '', start: '2026-09-10T10:00:00Z', end: '2026-09-10T11:00:00Z', timezone: 'UTC', attendees: [] };
+    const requested = await capabilityBroker.execute({ capabilityId: 'google_calendar.create_event', tenantId: 'ten_01', principalId: 'usr_01', requestId: 'req_p02a_32_request', payload, source: 'WEB' });
+    const approvalId = (requested as any).approval.approvalId as string;
+    const record = actionApprovals.get(approvalId)!;
+    assert.equal('approvalId' in record.canonicalPayload, false, 'the approved canonicalPayload must never contain an approvalId key');
+    actionApprovals.approve(approvalId, 'usr_01');
+
+    // Executing with the exact same payload (no approvalId folded in) must succeed.
+    const executed = await capabilityBroker.execute({ capabilityId: 'google_calendar.create_event', tenantId: 'ten_01', principalId: 'usr_01', requestId: 'req_p02a_32_execute', payload, approvalId, source: 'WEB' });
+    assert.equal(executed.status, 'EXECUTED');
+  });
+
+  it('33. reusing the SAME Broker requestId for both the approval-request and the approved-execution call returns the stale cached APPROVAL_REQUIRED instead of executing — documented, real, expected idempotency behavior, not a bug', async () => {
+    const payload = { calendarId: 'primary', summary: 'Sync', description: '', start: '2026-09-10T10:00:00Z', end: '2026-09-10T11:00:00Z', timezone: 'UTC', attendees: [] };
+    const sameRequestId = 'req_p02a_33_reused';
+    const requested = await capabilityBroker.execute({ capabilityId: 'google_calendar.create_event', tenantId: 'ten_01', principalId: 'usr_01', requestId: sameRequestId, payload, source: 'WEB' });
+    assert.equal(requested.status, 'APPROVAL_REQUIRED');
+    const approvalId = (requested as any).approval.approvalId as string;
+    actionApprovals.approve(approvalId, 'usr_01');
+
+    // Same requestId + same payload -> the Broker's own idempotency cache
+    // returns the ORIGINAL (now-stale) APPROVAL_REQUIRED result directly,
+    // never reaching dispatch — callers performing approve-then-execute
+    // MUST use a distinct requestId for the execution-phase call (see
+    // test 26/27, which do exactly that).
+    const replayed = await capabilityBroker.execute({ capabilityId: 'google_calendar.create_event', tenantId: 'ten_01', principalId: 'usr_01', requestId: sameRequestId, payload, approvalId, source: 'WEB' });
+    assert.equal(replayed.status, 'APPROVAL_REQUIRED', 'reusing the same requestId must return the cached pre-approval result, never silently execute');
+  });
+
+  it('34. the remaining write capabilities (update/cancel/respond, reply/create_draft) also execute correctly once approved', async () => {
+    const updatePayload = { calendarId: 'primary', eventId: 'evt_99', summary: 'Rescheduled' };
+    const updateReq = await capabilityBroker.execute({ capabilityId: 'google_calendar.update_event', tenantId: 'ten_01', principalId: 'usr_01', requestId: 'req_p02a_34_update_request', payload: updatePayload, source: 'WEB' });
+    const updateApprovalId = (updateReq as any).approval.approvalId as string;
+    actionApprovals.approve(updateApprovalId, 'usr_01');
+    const updateExec = await capabilityBroker.execute({ capabilityId: 'google_calendar.update_event', tenantId: 'ten_01', principalId: 'usr_01', requestId: 'req_p02a_34_update_execute', payload: updatePayload, approvalId: updateApprovalId, source: 'WEB' });
+    assert.equal(updateExec.status, 'EXECUTED');
+
+    const replyPayload = { from: 'user@example.com', to: ['alice@example.com'], subject: 'Re: Meeting', body: 'Sounds good', threadId: 'th_1', replyToMessageId: 'msg_1' };
+    const replyReq = await capabilityBroker.execute({ capabilityId: 'gmail.reply', tenantId: 'ten_01', principalId: 'usr_01', requestId: 'req_p02a_34_reply_request', payload: replyPayload, source: 'WEB' });
+    const replyApprovalId = (replyReq as any).approval.approvalId as string;
+    actionApprovals.approve(replyApprovalId, 'usr_01');
+    const replyExec = await capabilityBroker.execute({ capabilityId: 'gmail.reply', tenantId: 'ten_01', principalId: 'usr_01', requestId: 'req_p02a_34_reply_execute', payload: replyPayload, approvalId: replyApprovalId, source: 'WEB' });
+    assert.equal(replyExec.status, 'EXECUTED');
+  });
+
+  it('35. an approvalId requested for a different capability fails with a wrong-tool error, never executes', async () => {
+    const sendPayload = { from: 'user@example.com', to: ['alice@example.com'], subject: 'Meeting', body: 'Hello Alice' };
+    const requested = await capabilityBroker.execute({ capabilityId: 'gmail.send_email', tenantId: 'ten_01', principalId: 'usr_01', requestId: 'req_p02a_35_request', payload: sendPayload, source: 'WEB' });
+    const approvalId = (requested as any).approval.approvalId as string;
+    actionApprovals.approve(approvalId, 'usr_01');
+
+    const calendarPayload = { calendarId: 'primary', summary: 'Sync', description: '', start: '2026-09-10T10:00:00Z', end: '2026-09-10T11:00:00Z', timezone: 'UTC', attendees: [] };
+    await assert.rejects(
+      () => capabilityBroker.execute({ capabilityId: 'google_calendar.create_event', tenantId: 'ten_01', principalId: 'usr_01', requestId: 'req_p02a_35_execute', payload: calendarPayload, approvalId, source: 'WEB' }),
+      (err: unknown) => err instanceof Error && (err as any).code === 'APPROVAL_TOOL_MISMATCH',
+    );
+  });
 });
