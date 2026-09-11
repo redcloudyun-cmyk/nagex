@@ -36,6 +36,9 @@ const liveToolRegistry = new ToolRegistry([
   // the "resolved fine, but not yet supported for auto-execution" path,
   // distinct from an unresolved/BLOCKED tool.
   { id: 'gmail.list_labels', name: 'Gmail List Labels', capability: 'email.labels.list', connectionStatus: 'connected', sideEffectLevel: 'READ_ONLY', requiresApproval: false, executionMode: 'live', aliases: [] },
+  // H01 — now the same id in both ToolRegistry and CapabilityRegistry (the
+  // real production registry still reports UNAVAILABLE without live OAuth).
+  { id: 'google_calendar.free_slots', name: 'Google Calendar Availability', capability: 'calendar.freebusy.query', connectionStatus: 'connected', sideEffectLevel: 'READ_ONLY', requiresApproval: false, executionMode: 'live', aliases: [] },
 ]);
 const resolver = new PlanResolver(skillRegistry, liveToolRegistry);
 
@@ -89,6 +92,17 @@ function fakeBroker(script: (request: CapabilityRequest) => CapabilityBrokerResu
     },
   };
 }
+
+test('H01: the Calendar free-slots path — previously excluded by the ToolRegistry/CapabilityRegistry id mismatch — now executes through CapabilityExecutorPort with no Task-specific translation', async () => {
+  const { broker, calls } = fakeBroker(() => ({ status: 'EXECUTED', capabilityId: 'google_calendar.free_slots', result: { slots: [{ start: '2026-10-01T09:00:00Z', end: '2026-10-01T10:00:00Z' }] } }));
+  const aiService = aiServiceReturning(rawPlan([rawStep({ title: 'Check availability', skill: 'skill.scheduling', tool: 'google_calendar.free_slots', parameters: { timeMin: '2026-10-01T00:00:00Z', timeMax: '2026-10-01T23:59:59Z' } })]));
+  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => []);
+  const outcome = await runner.run(baseTask(), 'req_h01');
+  assert.equal(outcome.status, 'SUCCEEDED');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].capabilityId, 'google_calendar.free_slots', 'resolvedToolId must reach the broker unchanged — no translation table in Task code');
+  assert.deepEqual(calls[0].payload, { timeMin: '2026-10-01T00:00:00Z', timeMax: '2026-10-01T23:59:59Z' });
+});
 
 test('1. one read-only capability executes successfully', async () => {
   const { broker, calls } = fakeBroker(() => ({ status: 'EXECUTED', capabilityId: 'gmail.search', result: { threads: [{ threadId: 't1', snippet: 'Invoice #1' }] } }));

@@ -17,19 +17,15 @@ import type { TaskRunner, TaskRunOutcome } from '../task.scheduler.js';
 // necessary). Expand this list only with the same evidence-based scrutiny
 // P01's pre-flight applied — never opportunistically.
 //
-// google_calendar.free_slots is deliberately excluded here even though the
-// original milestone scoping named it: ToolRegistry (what PlanResolver
-// resolves a step's tool against) registers the equivalent tool under the
-// id "google_calendar.find_free_slots", while CapabilityRegistry (what
-// CapabilityBroker actually dispatches on) registers it under
-// "google_calendar.free_slots" — two different ID spaces with no mapping
-// between them today. resolvedToolId would never equal the capability ID
-// for this one, so it would always (correctly) halt as
-// STEP_CAPABILITY_NOT_EXECUTABLE. Building a toolId->capabilityId
-// translation table is a real but separate piece of work — Gmail's two
-// capabilities happen to share identical IDs in both registries and need
-// no such mapping, so they remain this milestone's real, working scope.
-const EXECUTABLE_CAPABILITY_IDS = new Set(['gmail.search', 'gmail.read_thread']);
+// google_calendar.free_slots was excluded when this file was first written
+// (P01): ToolRegistry then registered the equivalent tool under the id
+// "google_calendar.find_free_slots", a different string from
+// CapabilityRegistry/CapabilityBroker's "google_calendar.free_slots", so
+// resolvedToolId could never equal the capability id. H01 canonicalized
+// ToolRegistry's id to match (the old id is now kept only as a backward-
+// compatible alias), so the two ID spaces agree and this capability is
+// real, working scope for this milestone.
+const EXECUTABLE_CAPABILITY_IDS = new Set(['gmail.search', 'gmail.read_thread', 'google_calendar.free_slots']);
 
 export interface StepExecutionResult {
   step: number;

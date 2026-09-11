@@ -218,14 +218,20 @@ export const toolRegistry = new ToolRegistry([
     getLiveStatus: googleCalendarLiveStatus,
   },
   {
-    id: 'google_calendar.find_free_slots',
+    // H01 — canonicalized to match CapabilityRegistry/Capability Broker's
+    // dispatch id exactly (google_calendar.free_slots), so
+    // ResolvedPlanStep.resolvedToolId is directly usable as
+    // CapabilityRequest.capabilityId with no Task-specific translation.
+    // The old id is kept as an alias for backward compatibility with any
+    // caller (model output, a saved plan) still using the old phrasing.
+    id: 'google_calendar.free_slots',
     name: 'Google Calendar Availability',
     capability: 'calendar.freebusy.query',
     connectionStatus: 'disconnected',
     sideEffectLevel: 'READ_ONLY',
     requiresApproval: false,
     executionMode: 'unavailable',
-    aliases: ['find free slots', 'check availability', 'google_calendar.freebusy', 'calendar availability'],
+    aliases: ['google_calendar.find_free_slots', 'find free slots', 'check availability', 'google_calendar.freebusy', 'calendar availability'],
     getLiveStatus: googleCalendarLiveStatus,
   },
   {

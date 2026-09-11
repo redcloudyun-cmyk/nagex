@@ -5,7 +5,8 @@
       "module_contracts",
       "browser_module_boundary",
       "google_modules_boundary",
-      "task_orchestration_boundary"
+      "task_orchestration_boundary",
+      "tool_capability_id_alignment"
     ],
     "browser": [
       "browser_agent",
@@ -19,7 +20,8 @@
       "approval_ttl_security",
       "retry_failure_handling",
       "module_contracts",
-      "capability_broker"
+      "capability_broker",
+      "tool_capability_id_alignment"
     ],
     "google": [
       "approval_execution_persistence",
@@ -45,7 +47,8 @@
       "retry_failure_handling",
       "state_propagation",
       "capability_broker",
-      "generic_step_executor"
+      "generic_step_executor",
+      "tool_capability_id_alignment"
     ],
     "tasks": [
       "background_tasks",
