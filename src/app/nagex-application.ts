@@ -29,6 +29,8 @@ import type { TaskScheduler } from '../tasks/task.scheduler.js';
 import type { CompositeTaskRunner } from '../tasks/task.runner.js';
 import type { TaskContinuationStore } from '../tasks/task-continuation.store.js';
 import type { TaskContinuationCoordinator } from '../tasks/task-continuation.coordinator.js';
+import type { DurableTaskRunStateStore } from '../tasks/durable-task-run-state.store.js';
+import type { DurableTaskRuntime } from '../tasks/durable-task-runtime.js';
 import type { TelegramIdentityStore } from '../integrations/telegram/telegram-identity.store.js';
 import type { TelegramBotClient } from '../integrations/telegram/telegram.client.js';
 import type { TelegramService } from '../integrations/telegram/telegram.service.js';
@@ -78,6 +80,11 @@ export interface NagexApplication {
   // reject route calls into.
   taskContinuations: TaskContinuationStore;
   taskContinuationCoordinator: TaskContinuationCoordinator;
+  // P03 — the single source of truth for resuming any ExecutingTaskRunner
+  // run (paused or not) after a process restart; durableTaskRuntime's
+  // recoverOnStartup() is registered as a LifecycleManager start hook.
+  durableTaskRunState: DurableTaskRunStateStore;
+  durableTaskRuntime: DurableTaskRuntime;
   telegramIdentityStore: TelegramIdentityStore;
   telegramBotClient: TelegramBotClient;
   telegramService: TelegramService;

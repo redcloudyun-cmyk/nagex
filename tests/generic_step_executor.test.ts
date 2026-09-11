@@ -14,6 +14,7 @@ import path from 'node:path';
 import { ExecutingTaskRunner } from '../src/tasks/runners/executing-task.runner.js';
 import { CompositeTaskRunner } from '../src/tasks/runners/composite.runner.js';
 import { TaskContinuationStore } from '../src/tasks/task-continuation.store.js';
+import { DurableTaskRunStateStore } from '../src/tasks/durable-task-run-state.store.js';
 import { PlanResolver } from '../src/planning/plan-resolver.js';
 import { skillRegistry } from '../src/skills/skill-registry.js';
 import { ToolRegistry } from '../src/tools/tool-registry.js';
@@ -32,6 +33,10 @@ import type { TaskRunner, TaskRunOutcome } from '../src/tasks/task.scheduler.js'
 // never leak into another.
 function newContinuationStore(): TaskContinuationStore {
   return new TaskContinuationStore({ dir: fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-test-continuations-')) });
+}
+
+function newDurableRunStateStore(): DurableTaskRunStateStore {
+  return new DurableTaskRunStateStore({ dir: fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-test-durable-runs-')) });
 }
 
 // A ToolRegistry whose gmail.search/gmail.read_thread are LIVE/connected
@@ -108,7 +113,7 @@ function fakeBroker(script: (request: CapabilityRequest) => CapabilityBrokerResu
 test('H01: the Calendar free-slots path — previously excluded by the ToolRegistry/CapabilityRegistry id mismatch — now executes through CapabilityExecutorPort with no Task-specific translation', async () => {
   const { broker, calls } = fakeBroker(() => ({ status: 'EXECUTED', capabilityId: 'google_calendar.free_slots', result: { slots: [{ start: '2026-10-01T09:00:00Z', end: '2026-10-01T10:00:00Z' }] } }));
   const aiService = aiServiceReturning(rawPlan([rawStep({ title: 'Check availability', skill: 'skill.scheduling', tool: 'google_calendar.free_slots', parameters: { timeMin: '2026-10-01T00:00:00Z', timeMax: '2026-10-01T23:59:59Z' } })]));
-  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => [], newContinuationStore());
+  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => [], newContinuationStore(), newDurableRunStateStore());
   const outcome = await runner.run(baseTask(), 'req_h01', 'req_h01_run');
   assert.equal(outcome.status, 'SUCCEEDED');
   assert.equal(calls.length, 1);
@@ -119,7 +124,7 @@ test('H01: the Calendar free-slots path — previously excluded by the ToolRegis
 test('1. one read-only capability executes successfully', async () => {
   const { broker, calls } = fakeBroker(() => ({ status: 'EXECUTED', capabilityId: 'gmail.search', result: { threads: [{ threadId: 't1', snippet: 'Invoice #1' }] } }));
   const aiService = aiServiceReturning(rawPlan([rawStep({})]));
-  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => [], newContinuationStore());
+  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => [], newContinuationStore(), newDurableRunStateStore());
   const outcome = await runner.run(baseTask(), 'req_1', 'req_1_run');
   assert.equal(outcome.status, 'SUCCEEDED');
   assert.equal(calls.length, 1);
@@ -132,7 +137,7 @@ test('2. multiple independent read-only steps execute in order', async () => {
     rawStep({ tool: 'gmail.search', parameters: { query: 'invoice' } }),
     rawStep({ title: 'Read the thread', tool: 'gmail.read_thread', parameters: { threadId: 't1' }, dependsOn: [1] }),
   ]));
-  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => [], newContinuationStore());
+  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => [], newContinuationStore(), newDurableRunStateStore());
   const outcome = await runner.run(baseTask(), 'req_2', 'req_2_run');
   assert.equal(outcome.status, 'SUCCEEDED');
   assert.deepEqual(calls.map((c) => c.capabilityId), ['gmail.search', 'gmail.read_thread'], 'steps must execute in resolved order');
@@ -141,7 +146,7 @@ test('2. multiple independent read-only steps execute in order', async () => {
 test('3. step result is captured truthfully in TaskRunOutcome', async () => {
   const { broker } = fakeBroker(() => ({ status: 'EXECUTED', capabilityId: 'gmail.search', result: { threads: [{ threadId: 'abc', snippet: 'real snippet' }] } }));
   const aiService = aiServiceReturning(rawPlan([rawStep({})]));
-  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => [], newContinuationStore());
+  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => [], newContinuationStore(), newDurableRunStateStore());
   const outcome = await runner.run(baseTask(), 'req_3', 'req_3_run');
   const result = outcome.result as { kind: string; steps: Array<{ step: number; capabilityId: string; result: unknown }> };
   assert.equal(result.kind, 'STEP_EXECUTION');
@@ -152,7 +157,7 @@ test('3. step result is captured truthfully in TaskRunOutcome', async () => {
 test('4a. a BLOCKED step (PlanResolver-level, unresolved tool) halts before any broker call', async () => {
   const { broker, calls } = fakeBroker(() => { throw new Error('must never be called'); });
   const aiService = aiServiceReturning(rawPlan([rawStep({ tool: 'totally.unknown.tool' })]));
-  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => [], newContinuationStore());
+  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => [], newContinuationStore(), newDurableRunStateStore());
   const outcome = await runner.run(baseTask(), 'req_4a', 'req_4a_run');
   assert.equal(outcome.status, 'FAILED');
   assert.equal(outcome.errorCode, 'STEP_BLOCKED');
@@ -165,7 +170,7 @@ test('4b. a BLOCKED step (broker-level) halts before later steps execute', async
     rawStep({ tool: 'gmail.search', parameters: { query: 'x' } }),
     rawStep({ title: 'Second step', tool: 'gmail.read_thread', parameters: { threadId: 't1' }, dependsOn: [1] }),
   ]));
-  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => [], newContinuationStore());
+  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => [], newContinuationStore(), newDurableRunStateStore());
   const outcome = await runner.run(baseTask(), 'req_4b', 'req_4b_run');
   assert.equal(outcome.status, 'FAILED');
   assert.equal(outcome.errorCode, 'CAPABILITY_POLICY_FAILED');
@@ -178,7 +183,7 @@ test('5. APPROVAL_REQUIRED pauses (WAITING_APPROVAL) without ever auto-approving
     return { status: 'APPROVAL_REQUIRED', capabilityId: req.capabilityId, approval: { approvalId: 'apr_test_5' } };
   });
   const aiService = aiServiceReturning(rawPlan([rawStep({ title: 'Send an email', tool: 'gmail.send_email', requiresApproval: true, parameters: { to: ['x@example.com'] } })]));
-  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => [], newContinuationStore());
+  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => [], newContinuationStore(), newDurableRunStateStore());
   const outcome = await runner.run(baseTask(), 'req_5', 'req_5_run');
   assert.equal(outcome.status, 'WAITING_APPROVAL');
   assert.equal(calls.length, 1, 'the broker must be called exactly once, to create the real approval — never to execute it');
@@ -187,7 +192,7 @@ test('5. APPROVAL_REQUIRED pauses (WAITING_APPROVAL) without ever auto-approving
 test('6. a capability error preserves the real error code', async () => {
   const { broker } = fakeBroker(() => { throw new NagexError({ code: 'GMAIL_DISCONNECTED', category: 'POLICY', message: 'Gmail is not connected.', request_id: 'req_6' }); });
   const aiService = aiServiceReturning(rawPlan([rawStep({})]));
-  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => [], newContinuationStore());
+  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => [], newContinuationStore(), newDurableRunStateStore());
   const outcome = await runner.run(baseTask(), 'req_6', 'req_6_run');
   assert.equal(outcome.status, 'FAILED');
   assert.equal(outcome.errorCode, 'GMAIL_DISCONNECTED', 'the real capability error code must never be collapsed into a generic one');
@@ -196,7 +201,7 @@ test('6. a capability error preserves the real error code', async () => {
 test('7-8. tenant/principal are propagated correctly and source remains TASK', async () => {
   const { broker, calls } = fakeBroker(() => ({ status: 'EXECUTED', capabilityId: 'gmail.search', result: {} }));
   const aiService = aiServiceReturning(rawPlan([rawStep({})]));
-  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => [], newContinuationStore());
+  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => [], newContinuationStore(), newDurableRunStateStore());
   const task = baseTask({ tenantId: 't_specific', ownerId: 'u_specific' });
   await runner.run(task, 'req_7', 'req_7_run');
   assert.equal(calls[0].tenantId, 't_specific');
@@ -210,7 +215,7 @@ test('9. per-step request IDs are unique and deterministically derived from the 
     rawStep({ tool: 'gmail.search', parameters: { query: 'x' } }),
     rawStep({ title: 'Second', tool: 'gmail.read_thread', parameters: { threadId: 't1' }, dependsOn: [1] }),
   ]));
-  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => [], newContinuationStore());
+  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => [], newContinuationStore(), newDurableRunStateStore());
   await runner.run(baseTask(), 'req_9_fixed', 'req_9_fixed_run');
   assert.equal(calls[0].requestId, 'req_9_fixed_step1');
   assert.equal(calls[1].requestId, 'req_9_fixed_step2');
@@ -220,7 +225,7 @@ test('9. per-step request IDs are unique and deterministically derived from the 
 test('a capability not in the executable allowlist halts truthfully rather than being silently skipped or executed', async () => {
   const { broker, calls } = fakeBroker(() => { throw new Error('must never be called'); });
   const aiService = aiServiceReturning(rawPlan([rawStep({ title: 'List labels', tool: 'gmail.list_labels', parameters: {} })]));
-  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => [], newContinuationStore());
+  const runner = new ExecutingTaskRunner(aiService, resolver, broker, () => [], newContinuationStore(), newDurableRunStateStore());
   const outcome = await runner.run(baseTask(), 'req_allowlist', 'req_allowlist_run');
   assert.equal(outcome.status, 'FAILED');
   assert.equal(outcome.errorCode, 'STEP_CAPABILITY_NOT_EXECUTABLE');

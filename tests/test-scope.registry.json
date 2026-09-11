@@ -49,7 +49,8 @@
       "capability_broker",
       "generic_step_executor",
       "tool_capability_id_alignment",
-      "task_approval_continuation"
+      "task_approval_continuation",
+      "durable_task_runtime"
     ],
     "tasks": [
       "background_tasks",
@@ -60,7 +61,8 @@
       "tasks_api",
       "tasks_ui",
       "generic_step_executor",
-      "task_approval_continuation"
+      "task_approval_continuation",
+      "durable_task_runtime"
     ],
     "runtime": [
       "composition_root",
@@ -69,7 +71,8 @@
       "graceful_shutdown",
       "lifecycle_manager",
       "generic_step_executor",
-      "task_approval_continuation"
+      "task_approval_continuation",
+      "durable_task_runtime"
     ]
   },
   "fullOnly": [

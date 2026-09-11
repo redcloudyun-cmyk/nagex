@@ -6,8 +6,10 @@ import { getCurrentISOString } from '../../common/utils.js';
 import type { CapabilityExecutorPort } from '../../contracts/capability.port.js';
 import type { TaskRecord } from '../task.store.js';
 import type { TaskRunner, TaskRunOutcome } from '../task.scheduler.js';
-import type { StepExecutionResult, TaskContinuationRecord } from '../task-continuation.store.js';
+import type { TaskContinuationRecord } from '../task-continuation.store.js';
 import { TaskContinuationStore } from '../task-continuation.store.js';
+import type { StepExecutionResult, DurableTaskRunStateRecord } from '../durable-task-run-state.store.js';
+import { DurableTaskRunStateStore } from '../durable-task-run-state.store.js';
 
 // P01 — Generic Step Executor, first milestone.
 //
@@ -56,6 +58,7 @@ export class ExecutingTaskRunner implements TaskRunner {
     private readonly capabilityBroker: CapabilityExecutorPort,
     private readonly getMemories: (principalId: string, prompt: string) => MemoryRecord[],
     private readonly continuations: TaskContinuationStore,
+    private readonly durableRunState: DurableTaskRunStateStore,
   ) {}
 
   public async run(task: TaskRecord, requestId: string, runId: string): Promise<TaskRunOutcome> {
@@ -73,7 +76,28 @@ export class ExecutingTaskRunner implements TaskRunner {
       return { status: 'FAILED', errorCode: error instanceof Error ? error.message : 'TASK_PLAN_RESOLUTION_FAILED' };
     }
 
+    // P03 — the plan is frozen into the durable run-state record exactly
+    // once, here, before any step executes, and never re-derived
+    // afterward — the resume/recovery source of truth for this runId from
+    // this point on.
+    this.durableRunState.create({ runId, taskId: task.taskId, tenantId: task.tenantId, ownerId: task.ownerId, runRequestId: requestId, resolvedSteps: resolved.steps });
+
     return this.executeSteps(task, requestId, runId, resolved.steps, 0, []);
+  }
+
+  // P03 — startup recovery: resumes a run that was genuinely mid-flight
+  // (DurableTaskRunStateStore status still RUNNING) when the process last
+  // stopped, re-entering the exact same sequential step loop at the exact
+  // step it had not yet completed. Reuses the run's own frozen resolvedSteps
+  // and the same deterministic per-step requestId scheme a fresh run would
+  // have used for that step — so if the step's real broker dispatch had
+  // already completed before the crash (the record's stepIndex just never
+  // advanced because the crash landed between dispatch and this store's own
+  // write), the retry lands on CapabilityBroker's own idempotency cache
+  // rather than re-executing a real side effect. See
+  // durable-task-runtime.ts for the full crash-window/recovery analysis.
+  public async resumeRunningState(record: DurableTaskRunStateRecord, task: TaskRecord): Promise<TaskRunOutcome> {
+    return this.executeSteps(task, record.runRequestId, record.runId, record.resolvedSteps, record.stepIndex, record.executedSoFar);
   }
 
   // P02 — resumes a persisted continuation after a human granted its
@@ -84,7 +108,24 @@ export class ExecutingTaskRunner implements TaskRunner {
   // truth — this method never calls AiService.plan() or
   // PlanResolver.resolve().
   public async resumeFromApproval(continuation: TaskContinuationRecord, task: TaskRecord): Promise<TaskRunOutcome> {
-    const step = continuation.resolvedSteps[continuation.stepIndex];
+    const runId = continuation.runId;
+    // P03 — the durable run-state record, not the continuation record, is
+    // now the sole source of the frozen resolvedSteps/stepIndex/
+    // executedSoFar snapshot (see task-continuation.store.ts's module
+    // comment).
+    const durable = this.durableRunState.get(runId);
+    if (!durable) {
+      // Should never happen — this continuation was created from a durable
+      // run-state record frozen moments before it — but report truthfully
+      // rather than guess at resumable state.
+      return { status: 'FAILED', errorCode: 'DURABLE_RUN_STATE_MISSING' };
+    }
+    const step = durable.resolvedSteps[durable.stepIndex];
+
+    // Reflects the pause -> resume transition. The real replay guard for
+    // "was this approval already resumed" is TaskContinuationStore's own
+    // claim()/markResumed(), already applied upstream of this call.
+    this.durableRunState.markResuming(runId);
 
     let brokerResult;
     try {
@@ -99,20 +140,25 @@ export class ExecutingTaskRunner implements TaskRunner {
       });
     } catch (error) {
       const code = error instanceof NagexError ? error.code : 'STEP_EXECUTION_FAILED';
-      return this.halted(continuation.executedSoFar, step.step, code, error instanceof Error ? error.message : `Resuming step ${step.step} failed.`);
+      this.durableRunState.markTerminal(runId, 'FAILED');
+      return this.halted(durable.executedSoFar, step.step, code, error instanceof Error ? error.message : `Resuming step ${step.step} failed.`);
     }
 
     if (brokerResult.status === 'APPROVAL_REQUIRED') {
       // Should not happen — we just supplied the approvalId — but report
       // truthfully rather than assume, exactly like the fresh-run path.
-      return this.halted(continuation.executedSoFar, step.step, 'STEP_APPROVAL_REQUIRED', `Step ${step.step} unexpectedly still required approval on resume.`);
+      this.durableRunState.markTerminal(runId, 'FAILED');
+      return this.halted(durable.executedSoFar, step.step, 'STEP_APPROVAL_REQUIRED', `Step ${step.step} unexpectedly still required approval on resume.`);
     }
     if (brokerResult.status === 'BLOCKED') {
-      return this.halted(continuation.executedSoFar, step.step, brokerResult.reasonCode, `Step ${step.step} was blocked on resume: ${brokerResult.reasonCode}.`);
+      this.durableRunState.markTerminal(runId, 'FAILED');
+      return this.halted(durable.executedSoFar, step.step, brokerResult.reasonCode, `Step ${step.step} was blocked on resume: ${brokerResult.reasonCode}.`);
     }
 
-    const executed: StepExecutionResult[] = [...continuation.executedSoFar, { step: step.step, capabilityId: continuation.capabilityId, status: 'EXECUTED', result: brokerResult.result }];
-    return this.executeSteps(task, continuation.runRequestId, continuation.runId, continuation.resolvedSteps, continuation.stepIndex + 1, executed);
+    const executedResult: StepExecutionResult = { step: step.step, capabilityId: continuation.capabilityId, status: 'EXECUTED', result: brokerResult.result };
+    this.durableRunState.recordStepExecuted(runId, executedResult, durable.stepIndex + 1);
+    const executed: StepExecutionResult[] = [...durable.executedSoFar, executedResult];
+    return this.executeSteps(task, continuation.runRequestId, runId, durable.resolvedSteps, durable.stepIndex + 1, executed);
   }
 
   // Shared by a fresh run (startIndex 0) and resumeFromApproval (starting
@@ -130,6 +176,7 @@ export class ExecutingTaskRunner implements TaskRunner {
       if (step.necessity === 'OPTIONAL' && step.executionReadiness !== 'EXECUTION_READY') continue;
 
       if (step.executionReadiness === 'BLOCKED') {
+        this.durableRunState.markTerminal(runId, 'FAILED');
         return this.halted(executed, step.step, 'STEP_BLOCKED', step.warnings.join(' ') || `Step ${step.step} is blocked and cannot be executed.`);
       }
 
@@ -140,6 +187,7 @@ export class ExecutingTaskRunner implements TaskRunner {
           // Never self-approve, and never pause-and-hope for a capability
           // P02a never taught the Broker to execute — fail closed exactly
           // like an unsupported read-only capability.
+          this.durableRunState.markTerminal(runId, 'FAILED');
           return this.halted(executed, step.step, 'STEP_CAPABILITY_NOT_EXECUTABLE', `Capability "${resolvedToolId ?? step.tool}" is not yet supported for automatic scheduled execution.`);
         }
 
@@ -156,16 +204,20 @@ export class ExecutingTaskRunner implements TaskRunner {
           });
         } catch (error) {
           const code = error instanceof NagexError ? error.code : 'STEP_EXECUTION_FAILED';
+          this.durableRunState.markTerminal(runId, 'FAILED');
           return this.halted(executed, step.step, code, error instanceof Error ? error.message : `Step ${step.step} execution failed.`);
         }
 
         if (brokerResult.status === 'EXECUTED') {
           // Real but unexpected (PlanResolver predicted approval-required
           // for this step) — truthful either way: it genuinely executed.
-          executed.push({ step: step.step, capabilityId: resolvedToolId, status: 'EXECUTED', result: brokerResult.result });
+          const result: StepExecutionResult = { step: step.step, capabilityId: resolvedToolId, status: 'EXECUTED', result: brokerResult.result };
+          executed.push(result);
+          this.durableRunState.recordStepExecuted(runId, result, i + 1);
           continue;
         }
         if (brokerResult.status === 'BLOCKED') {
+          this.durableRunState.markTerminal(runId, 'FAILED');
           return this.halted(executed, step.step, brokerResult.reasonCode, `Step ${step.step} was blocked: ${brokerResult.reasonCode}.`);
         }
 
@@ -181,14 +233,12 @@ export class ExecutingTaskRunner implements TaskRunner {
           tenantId: task.tenantId,
           ownerId: task.ownerId,
           runRequestId,
-          resolvedSteps: steps,
-          stepIndex: i,
-          executedSoFar: executed,
           capabilityId: resolvedToolId,
           payload: step.parameters ?? {},
           approvalId: approval.approvalId,
           executionRequestId,
         });
+        this.durableRunState.markWaitingApproval(runId, approval.approvalId);
 
         return {
           status: 'WAITING_APPROVAL',
@@ -197,6 +247,7 @@ export class ExecutingTaskRunner implements TaskRunner {
       }
 
       if (!resolvedToolId || !EXECUTABLE_CAPABILITY_IDS.has(resolvedToolId)) {
+        this.durableRunState.markTerminal(runId, 'FAILED');
         return this.halted(executed, step.step, 'STEP_CAPABILITY_NOT_EXECUTABLE', `Capability "${resolvedToolId ?? step.tool}" is not yet supported for automatic scheduled execution.`);
       }
 
@@ -218,19 +269,25 @@ export class ExecutingTaskRunner implements TaskRunner {
         });
       } catch (error) {
         const code = error instanceof NagexError ? error.code : 'STEP_EXECUTION_FAILED';
+        this.durableRunState.markTerminal(runId, 'FAILED');
         return this.halted(executed, step.step, code, error instanceof Error ? error.message : `Step ${step.step} execution failed.`);
       }
 
       if (brokerResult.status === 'APPROVAL_REQUIRED') {
+        this.durableRunState.markTerminal(runId, 'FAILED');
         return this.halted(executed, step.step, 'STEP_APPROVAL_REQUIRED', `Step ${step.step} unexpectedly required approval at execution time.`);
       }
       if (brokerResult.status === 'BLOCKED') {
+        this.durableRunState.markTerminal(runId, 'FAILED');
         return this.halted(executed, step.step, brokerResult.reasonCode, `Step ${step.step} was blocked: ${brokerResult.reasonCode}.`);
       }
 
-      executed.push({ step: step.step, capabilityId: resolvedToolId, status: 'EXECUTED', result: brokerResult.result });
+      const result: StepExecutionResult = { step: step.step, capabilityId: resolvedToolId, status: 'EXECUTED', result: brokerResult.result };
+      executed.push(result);
+      this.durableRunState.recordStepExecuted(runId, result, i + 1);
     }
 
+    this.durableRunState.markTerminal(runId, 'SUCCEEDED');
     return {
       status: 'SUCCEEDED',
       result: { kind: 'STEP_EXECUTION', completedAt: getCurrentISOString(), steps: executed },

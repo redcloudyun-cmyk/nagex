@@ -25,6 +25,7 @@ import { CapabilityRegistry } from '../src/capabilities/capability.registry.js';
 import { ExecutingTaskRunner } from '../src/tasks/runners/executing-task.runner.js';
 import { TaskContinuationStore } from '../src/tasks/task-continuation.store.js';
 import { TaskContinuationCoordinator } from '../src/tasks/task-continuation.coordinator.js';
+import { DurableTaskRunStateStore } from '../src/tasks/durable-task-run-state.store.js';
 import { TaskStore, type TaskRecord } from '../src/tasks/task.store.js';
 import { TaskRunStore } from '../src/tasks/task-run.store.js';
 import { TaskScheduler } from '../src/tasks/task.scheduler.js';
@@ -135,6 +136,7 @@ function buildStack(options: { ttlMs?: number; now?: () => number } = {}) {
   const taskRunStore = new TaskRunStore({ dir: tempDir('task-runs') });
   const continuationsDir = tempDir('continuations');
   const continuations = new TaskContinuationStore({ dir: continuationsDir });
+  const durableRunState = new DurableTaskRunStateStore({ dir: tempDir('durable-runs') });
 
   const planCalls = { count: 0 };
   const executingTaskRunner = new ExecutingTaskRunner(
@@ -143,11 +145,12 @@ function buildStack(options: { ttlMs?: number; now?: () => number } = {}) {
     capabilityBroker,
     () => [],
     continuations,
+    durableRunState,
   );
   const scheduler = new TaskScheduler(taskStore, taskRunStore, executingTaskRunner, auditLogger);
-  const coordinator = new TaskContinuationCoordinator(continuations, executingTaskRunner, taskStore, taskRunStore, auditLogger);
+  const coordinator = new TaskContinuationCoordinator(continuations, durableRunState, executingTaskRunner, taskStore, taskRunStore, auditLogger);
 
-  return { auditLogger, actionApprovals, taskStore, taskRunStore, continuations, continuationsDir, capabilityBroker, scheduler, coordinator, executingTaskRunner, planCalls, getGmailSendCount: () => gmailSendCount };
+  return { auditLogger, actionApprovals, taskStore, taskRunStore, continuations, continuationsDir, durableRunState, capabilityBroker, scheduler, coordinator, executingTaskRunner, planCalls, getGmailSendCount: () => gmailSendCount };
 }
 
 test('1/13. a consequential step yields a truthful WAITING_APPROVAL TaskRun, never SUCCEEDED/FAILED', async () => {
@@ -263,7 +266,7 @@ test('10. an expired approval never executes — resume attempt fails closed tru
 });
 
 test('11/12. later steps do not execute before approval, and do continue after a successful approved execution', async () => {
-  const { taskStore, actionApprovals, continuations, getGmailSendCount, taskRunStore, capabilityBroker } = buildStack();
+  const { taskStore, actionApprovals, continuations, durableRunState, getGmailSendCount, taskRunStore, capabilityBroker } = buildStack();
   const planCalls = { count: 0 };
   const mixedRunner = new ExecutingTaskRunner(
     aiServiceReturning(rawPlan([
@@ -271,7 +274,7 @@ test('11/12. later steps do not execute before approval, and do continue after a
       rawStep({ step: 2 }),
       rawStep({ step: 3, title: 'Search again', tool: 'gmail.search', requiresApproval: false, necessity: 'REQUIRED', dependsOn: [2], parameters: { query: 'receipt' } }),
     ]), planCalls),
-    planResolver, capabilityBroker, () => [], continuations,
+    planResolver, capabilityBroker, () => [], continuations, durableRunState,
   );
   const scheduler = new TaskScheduler(taskStore, taskRunStore, mixedRunner, new AuditLogger());
   const task = taskStore.create({ tenantId: 't_p02', ownerId: 'u_p02', name: 'Mixed', objective: 'x', type: 'ONE_TIME', trigger: { type: 'MANUAL' }, approvalPolicy: 'READ_ONLY_AUTO' });
@@ -280,10 +283,11 @@ test('11/12. later steps do not execute before approval, and do continue after a
   assert.equal(run.status, 'WAITING_APPROVAL');
   assert.equal(getGmailSendCount(), 0);
   const record = continuations.listForTask(task.taskId)[0];
-  assert.equal(record.stepIndex, 1, 'must pause at the second (index 1) step');
-  assert.equal(record.executedSoFar.length, 1, 'the first read-only step must have already executed before the pause');
+  const durable = durableRunState.get(record.runId);
+  assert.equal(durable?.stepIndex, 1, 'must pause at the second (index 1) step');
+  assert.equal(durable?.executedSoFar.length, 1, 'the first read-only step must have already executed before the pause');
 
-  const coordinator = new TaskContinuationCoordinator(continuations, mixedRunner, taskStore, taskRunStore, new AuditLogger());
+  const coordinator = new TaskContinuationCoordinator(continuations, durableRunState, mixedRunner, taskStore, taskRunStore, new AuditLogger());
   actionApprovals.approve(record.approvalId, 'u_p02');
   await coordinator.onApproved(record.approvalId);
 

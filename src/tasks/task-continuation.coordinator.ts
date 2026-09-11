@@ -5,6 +5,7 @@ import type { TaskStore, TaskRecord } from './task.store.js';
 import type { TaskRunStore } from './task-run.store.js';
 import { finalizeTaskRun, type TaskRunOutcome } from './task.scheduler.js';
 import type { TaskContinuationStore } from './task-continuation.store.js';
+import type { DurableTaskRunStateStore } from './durable-task-run-state.store.js';
 import type { ExecutingTaskRunner } from './runners/executing-task.runner.js';
 
 // P02 — Approval-aware Task Continuation.
@@ -26,6 +27,7 @@ import type { ExecutingTaskRunner } from './runners/executing-task.runner.js';
 export class TaskContinuationCoordinator {
   constructor(
     private readonly continuations: TaskContinuationStore,
+    private readonly durableRunState: DurableTaskRunStateStore,
     private readonly executingTaskRunner: ExecutingTaskRunner,
     private readonly tasks: TaskStore,
     private readonly runs: TaskRunStore,
@@ -62,7 +64,9 @@ export class TaskContinuationCoordinator {
     const task = this.tasks.get(continuation.taskId);
     if (!task) return;
 
-    this.finalize(task, continuation.runId, continuation.runRequestId, { status: 'FAILED', errorCode: 'APPROVAL_REJECTED', result: { kind: 'STEP_EXECUTION', completedSteps: continuation.executedSoFar, haltedAtStep: continuation.resolvedSteps[continuation.stepIndex]?.step, reason: 'The required approval was rejected.' } });
+    const durable = this.durableRunState.get(continuation.runId);
+    this.durableRunState.markTerminal(continuation.runId, 'FAILED');
+    this.finalize(task, continuation.runId, continuation.runRequestId, { status: 'FAILED', errorCode: 'APPROVAL_REJECTED', result: { kind: 'STEP_EXECUTION', completedSteps: durable?.executedSoFar ?? [], haltedAtStep: durable?.resolvedSteps[durable.stepIndex]?.step, reason: 'The required approval was rejected.' } });
   }
 
   // Marks the continuation RESUMED before doing anything async — no

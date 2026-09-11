@@ -124,6 +124,8 @@ const {
   taskRunner,
   taskContinuations,
   taskContinuationCoordinator,
+  durableTaskRunState,
+  durableTaskRuntime,
   getRelevantMemories,
   pinnedMemories,
   lifecycle,
@@ -1014,7 +1016,7 @@ export async function handleAsyncApiRequest(
           new PlanPreviewTaskRunner(service, planResolver, (principalId, prompt) => getRelevantMemories(principalId, prompt)),
           new ConditionalWatchTaskRunner(capabilityBroker, service),
           new BackgroundTaskRunner(taskStore, service, planResolver, (principalId, prompt) => getRelevantMemories(principalId, prompt)),
-          new ExecutingTaskRunner(service, planResolver, capabilityBroker, (principalId, prompt) => getRelevantMemories(principalId, prompt), taskContinuations),
+          new ExecutingTaskRunner(service, planResolver, capabilityBroker, (principalId, prompt) => getRelevantMemories(principalId, prompt), taskContinuations, durableTaskRunState),
         ),
         auditLogger,
       );
@@ -2068,6 +2070,23 @@ if (require.main === module) {
       await browserRuntime.shutdown();
       console.log('[server_web] Browser runtime shut down cleanly.');
     },
+  });
+
+  // P03 — runs once, before the scheduler interval starts ticking any new
+  // work, and resumes every run this process's previous life left
+  // genuinely mid-flight (status RUNNING in DurableTaskRunStateStore — a
+  // WAITING_APPROVAL run is untouched, it already has its own event-
+  // triggered resume path). See durable-task-runtime.ts for the full
+  // crash-window/delivery-guarantee analysis.
+  lifecycle.register({
+    name: 'durable-task-run-recovery',
+    start: async () => {
+      const { recovered, failed } = await durableTaskRuntime.recoverOnStartup();
+      if (recovered > 0 || failed > 0) {
+        console.log(JSON.stringify({ event: 'durable_task_run_recovery_completed', recovered, failed }));
+      }
+    },
+    stop: () => {}, // one-time startup action — nothing to tear down
   });
 
   lifecycle.register({

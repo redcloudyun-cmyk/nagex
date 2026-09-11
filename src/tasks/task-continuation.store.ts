@@ -1,22 +1,19 @@
 import { generateResourceId, getCurrentISOString } from '../common/utils.js';
 import { FileRecordStore, resolveNagexDataDir } from '../governance/file-record.store.js';
-import type { ResolvedPlanStep } from '../planning/plan-resolver.js';
 
 // P02 — Approval-aware Task Continuation.
 //
-// One authoritative persisted snapshot of exactly what's needed to resume
-// a Task run that paused at a consequential step: the frozen capability
-// call (never re-derived, never re-planned), which already-resolved plan
-// step to resume from, and what ran before the pause. This is the resume
-// source of truth — the coordinator never re-calls AiService.plan() or
-// PlanResolver.resolve() to reconstruct it.
-export interface StepExecutionResult {
-  step: number;
-  capabilityId: string;
-  status: 'EXECUTED';
-  result: unknown;
-}
-
+// The approval-side pointer for a Task run that paused at a consequential
+// step: which approval maps to which run, and the small denormalized
+// capability + payload that approval is bound to (frozen, reused
+// byte-for-byte on resume, never regenerated or mutated). The actual
+// resumable execution state (resolvedSteps/stepIndex/executedSoFar) is NOT
+// duplicated here as of P03 — it lives solely in
+// DurableTaskRunStateStore, addressed by this record's own runId, which is
+// the single source of truth for resuming any run, paused or not (see
+// durable-task-run-state.store.ts's module comment). The coordinator never
+// re-calls AiService.plan() or PlanResolver.resolve() to reconstruct any of
+// this.
 export type TaskContinuationStatus = 'WAITING' | 'RESUMED';
 
 export interface TaskContinuationRecord {
@@ -32,14 +29,6 @@ export interface TaskContinuationRecord {
   // The run's own requestId, needed to keep deriving further per-step
   // request identities the exact same way the original run did.
   runRequestId: string;
-  // The already-resolved plan this run is executing — a frozen snapshot,
-  // never re-resolved on resume.
-  resolvedSteps: ResolvedPlanStep[];
-  // Index into resolvedSteps of the step this continuation resumes.
-  stepIndex: number;
-  // Steps that already executed before this pause, so the final result
-  // can report the whole run's steps, not just the resumed tail.
-  executedSoFar: StepExecutionResult[];
   // The exact capability + payload that was approval-bound — frozen,
   // reused byte-for-byte on resume, never regenerated or mutated.
   capabilityId: string;
@@ -64,9 +53,6 @@ export function isTaskContinuationRecord(value: unknown): value is TaskContinuat
     typeof v.tenantId === 'string' &&
     typeof v.ownerId === 'string' &&
     typeof v.runRequestId === 'string' &&
-    Array.isArray(v.resolvedSteps) &&
-    typeof v.stepIndex === 'number' &&
-    Array.isArray(v.executedSoFar) &&
     typeof v.capabilityId === 'string' &&
     typeof v.executionRequestId === 'string' &&
     typeof v.status === 'string' &&
@@ -85,9 +71,6 @@ export interface CreateTaskContinuationInput {
   tenantId: string;
   ownerId: string;
   runRequestId: string;
-  resolvedSteps: ResolvedPlanStep[];
-  stepIndex: number;
-  executedSoFar: StepExecutionResult[];
   capabilityId: string;
   payload: unknown;
   approvalId: string;

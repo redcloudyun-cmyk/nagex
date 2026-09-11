@@ -43,6 +43,8 @@ import { TaskScheduler } from '../tasks/task.scheduler.js';
 import { PlanPreviewTaskRunner, ConditionalWatchTaskRunner, BackgroundTaskRunner, CompositeTaskRunner, ExecutingTaskRunner } from '../tasks/task.runner.js';
 import { TaskContinuationStore } from '../tasks/task-continuation.store.js';
 import { TaskContinuationCoordinator } from '../tasks/task-continuation.coordinator.js';
+import { DurableTaskRunStateStore } from '../tasks/durable-task-run-state.store.js';
+import { DurableTaskRuntime } from '../tasks/durable-task-runtime.js';
 import { TelegramIdentityStore } from '../integrations/telegram/telegram-identity.store.js';
 import { TelegramBotClient } from '../integrations/telegram/telegram.client.js';
 import { TelegramService } from '../integrations/telegram/telegram.service.js';
@@ -190,7 +192,11 @@ export function createNagexApplication(): NagexApplication {
   // once notificationEngine exists) can resume through the exact same
   // instance the app graph's taskRunner already uses.
   const taskContinuations = new TaskContinuationStore();
-  const executingTaskRunner = new ExecutingTaskRunner(aiService, planResolver, capabilityBroker, (principalId, prompt) => getRelevantMemories(principalId, prompt), taskContinuations);
+  // P03 — the single source of truth for resuming any run (paused or not)
+  // after a process restart. ExecutingTaskRunner writes to it every step;
+  // durableTaskRuntime (constructed further below) reads it once at boot.
+  const durableTaskRunState = new DurableTaskRunStateStore();
+  const executingTaskRunner = new ExecutingTaskRunner(aiService, planResolver, capabilityBroker, (principalId, prompt) => getRelevantMemories(principalId, prompt), taskContinuations, durableTaskRunState);
   const taskRunner = new CompositeTaskRunner(
     new PlanPreviewTaskRunner(aiService, planResolver, (principalId, prompt) => getRelevantMemories(principalId, prompt)),
     new ConditionalWatchTaskRunner(capabilityBroker, aiService),
@@ -252,7 +258,12 @@ export function createNagexApplication(): NagexApplication {
   // grant/reject route reports a real approve()/reject(). Event-driven
   // (no poller): a no-op whenever the given approvalId has no associated
   // Task continuation.
-  const taskContinuationCoordinator = new TaskContinuationCoordinator(taskContinuations, executingTaskRunner, taskStore, taskRunStore, auditLogger, undefined, notificationEngine);
+  const taskContinuationCoordinator = new TaskContinuationCoordinator(taskContinuations, durableTaskRunState, executingTaskRunner, taskStore, taskRunStore, auditLogger, undefined, notificationEngine);
+  // P03 — startup recovery: resumes any run this process's previous life
+  // left genuinely mid-flight (see durable-task-runtime.ts). server_web.ts
+  // registers recoverOnStartup() as a LifecycleManager start hook, run once
+  // before the task-scheduler interval begins ticking.
+  const durableTaskRuntime = new DurableTaskRuntime(durableTaskRunState, executingTaskRunner, taskStore, taskRunStore, auditLogger, undefined, notificationEngine);
 
   const knowledgeEngine = new KnowledgeEngine();
   const storageProvider = createConfiguredStorageProvider();
@@ -310,6 +321,8 @@ export function createNagexApplication(): NagexApplication {
     taskScheduler,
     taskContinuations,
     taskContinuationCoordinator,
+    durableTaskRunState,
+    durableTaskRuntime,
     telegramIdentityStore,
     telegramBotClient,
     telegramService,
