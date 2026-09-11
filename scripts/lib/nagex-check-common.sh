@@ -141,6 +141,27 @@ api_error_summary() {
   fi
 }
 
+# Like api_call, but sends one caller-supplied extra header. Added for
+# nagex-task-e2e-live.sh's fixed-plan injection route, which requires an
+# X-NAgex-Test-Token header the ordinary api_call() has no way to send —
+# additive only, api_call() itself is untouched so nagex-check.sh and
+# nagex-e2e-live.sh are unaffected.
+api_call_with_header() {
+  local method="$1"
+  local url="$2"
+  local payload="$3"
+  local header_name="$4"
+  local header_value="$5"
+  local raw
+  if [ -n "$payload" ]; then
+    raw="$(curl -s -w '\n%{http_code}' -X "$method" -H "Content-Type: application/json" -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" -H "${header_name}: ${header_value}" -d "$payload" "$url" 2>/dev/null || printf '\n000')"
+  else
+    raw="$(curl -s -w '\n%{http_code}' -X "$method" -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" -H "${header_name}: ${header_value}" "$url" 2>/dev/null || printf '\n000')"
+  fi
+  API_CALL_STATUS="$(printf '%s' "$raw" | tail -n1)"
+  API_CALL_BODY="$(printf '%s' "$raw" | sed '$d')"
+}
+
 resolve_log_dir() {
   local target="/var/log/nagex"
   if mkdir -p "$target" 2>/dev/null && [ -w "$target" ]; then
