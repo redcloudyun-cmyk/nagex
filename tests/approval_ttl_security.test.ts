@@ -14,10 +14,10 @@ import { MemoryEngine } from '../src/context/memory.engine.js';
 import { InMemoryGoogleOAuthTokenStore } from '../src/integrations/google/token.store.js';
 import { GoogleCalendarService, GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID } from '../src/tools/google-calendar.service.js';
 import { GmailService, GMAIL_SEND_EMAIL_TOOL_ID } from '../src/tools/gmail.service.js';
-import { BrowserToolService } from '../src/tools/browser.service.js';
-import { BrowserSessionStore } from '../src/browser/browser-session.store.js';
+import { BrowserToolService } from '../src/modules/browser/browser.service.js';
+import { BrowserSessionStore } from '../src/modules/browser/browser-session.store.js';
 import type { GoogleOAuthConfig } from '../src/integrations/google/oauth.client.js';
-import type { BrowserRuntime, BrowserSnapshot } from '../src/integrations/browser/browser.runtime.js';
+import type { BrowserRuntime, BrowserSnapshot } from '../src/modules/browser/browser.runtime.js';
 
 function tmpDir(label: string): string {
   return path.join(os.tmpdir(), `nagex-ttl-test-${label}-${crypto.randomBytes(6).toString('hex')}`);

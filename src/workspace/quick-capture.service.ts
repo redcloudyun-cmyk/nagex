@@ -12,7 +12,7 @@ import type { TaskStore } from '../tasks/task.store.js';
 import type { MemoryEngine } from '../context/memory.engine.js';
 import type { KnowledgeEngine } from '../context/knowledge.engine.js';
 import type { AiService } from '../model-gateway/ai-service.js';
-import type { BrowserToolService } from '../tools/browser.service.js';
+import type { BrowserRetrievalPort } from '../contracts/browser.port.js';
 import type { AuditLogger } from '../governance/audit.logger.js';
 import type { ActionApprovalStore } from '../governance/action-approval.store.js';
 import type { StorageProvider } from '../storage/storage-provider.js';
@@ -63,7 +63,7 @@ export class QuickCaptureService {
     private readonly memoryEngine?: MemoryEngine,
     private readonly knowledgeEngine?: KnowledgeEngine,
     private readonly aiService?: AiService,
-    private readonly browserService?: BrowserToolService,
+    private readonly browserService?: BrowserRetrievalPort,
     private readonly auditLogger?: AuditLogger,
     private readonly actionApprovals?: ActionApprovalStore,
     // Phase 1 STEP 5 — Canonical Candidate Model. Optional and appended last

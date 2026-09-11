@@ -13,9 +13,9 @@ import { ConditionalWatchTaskRunner, CompositeTaskRunner, PlanPreviewTaskRunner 
 import { AuditLogger } from '../src/governance/audit.logger.js';
 import { ActionApprovalStore } from '../src/governance/action-approval.store.js';
 import { MemoryEngine } from '../src/context/memory.engine.js';
-import { BrowserSessionStore } from '../src/browser/browser-session.store.js';
-import { PlaywrightBrowserRuntime, browserRuntime } from '../src/integrations/browser/browser.runtime.js';
-import { BrowserToolService } from '../src/tools/browser.service.js';
+import { BrowserSessionStore } from '../src/modules/browser/browser-session.store.js';
+import { PlaywrightBrowserRuntime, browserRuntime } from '../src/modules/browser/browser.runtime.js';
+import { BrowserToolService } from '../src/modules/browser/browser.service.js';
 import { AiService } from '../src/model-gateway/ai-service.js';
 import type { ModelProvider } from '../src/model-gateway/model-provider.js';
 import { UnifiedModelRouter } from '../src/model-gateway/unified-model-router.js';

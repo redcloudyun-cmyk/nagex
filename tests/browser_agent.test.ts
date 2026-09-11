@@ -6,9 +6,9 @@ import { URL } from 'node:url';
 import { ActionApprovalStore, hashCanonicalPayload } from '../src/governance/action-approval.store.js';
 import { AuditLogger } from '../src/governance/audit.logger.js';
 import { MemoryEngine } from '../src/context/memory.engine.js';
-import { BrowserSessionStore } from '../src/browser/browser-session.store.js';
-import { PlaywrightBrowserRuntime, type BrowserRuntime } from '../src/integrations/browser/browser.runtime.js';
-import { BrowserToolService, BROWSER_CLICK_TOOL_ID, classifyClickConsequence, detectsHumanVerification } from '../src/tools/browser.service.js';
+import { BrowserSessionStore } from '../src/modules/browser/browser-session.store.js';
+import { PlaywrightBrowserRuntime, type BrowserRuntime } from '../src/modules/browser/browser.runtime.js';
+import { BrowserToolService, BROWSER_CLICK_TOOL_ID, classifyClickConsequence, detectsHumanVerification } from '../src/modules/browser/browser.service.js';
 import { toolRegistry as sharedToolRegistry } from '../src/tools/tool-registry.js';
 import { handleApiRequest, handleAsyncApiRequest, actionApprovals as sharedActionApprovals } from '../src/server_web.js';
 

@@ -31,9 +31,7 @@ import { PersistentActionApprovalStore } from '../governance/action-approval.sto
 import { ExecutionStore } from '../governance/execution.store.js';
 import { GoogleCalendarService } from '../tools/google-calendar.service.js';
 import { GmailService } from '../tools/gmail.service.js';
-import { BrowserToolService } from '../tools/browser.service.js';
-import { browserRuntime } from '../integrations/browser/browser.runtime.js';
-import { browserSessionStore } from '../browser/browser-session.store.js';
+import { BrowserToolService, browserRuntime, browserSessionStore } from '../modules/browser/index.js';
 import { googleTokenStore } from '../integrations/google/token.store.js';
 import { readGoogleOAuthConfig } from '../integrations/google/oauth.client.js';
 import { SessionStore } from '../sessions/session.store.js';

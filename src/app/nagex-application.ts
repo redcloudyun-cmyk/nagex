@@ -18,7 +18,7 @@ import type { PersistentActionApprovalStore } from '../governance/action-approva
 import type { ExecutionStore } from '../governance/execution.store.js';
 import type { GoogleCalendarService } from '../tools/google-calendar.service.js';
 import type { GmailService } from '../tools/gmail.service.js';
-import type { BrowserToolService } from '../tools/browser.service.js';
+import type { BrowserToolService } from '../modules/browser/index.js';
 import type { CapabilityBroker } from '../capabilities/index.js';
 import type { SessionStore } from '../sessions/session.store.js';
 import type { ConversationStore } from '../conversations/conversation.store.js';

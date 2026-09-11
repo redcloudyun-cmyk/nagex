@@ -13,11 +13,11 @@ import type {
   WorkspaceCandidate,
 } from './workspace.types.js';
 import type { AiService, TextUnderstandingResult } from '../model-gateway/ai-service.js';
-import type { BrowserToolService } from '../tools/browser.service.js';
+import type { BrowserRetrievalPort } from '../contracts/browser.port.js';
 import type { AuditLogger } from '../governance/audit.logger.js';
 import type { StorageProvider } from '../storage/storage-provider.js';
 import type { KnowledgeEngine } from '../context/knowledge.engine.js';
-import { isUrlSafe } from '../browser/browser-url-validator.js';
+import { isUrlSafe } from '../modules/browser/index.js';
 import { extractPdfText, chunkText } from './pdf-extractor.js';
 import { CandidateStore, type UpsertCandidateInput } from './candidate.store.js';
 import type { ActivityStore } from '../governance/activity.store.js';
@@ -42,7 +42,7 @@ export class CaptureProcessor {
   constructor(
     private readonly store: CaptureStore,
     private readonly aiService?: AiService,
-    private readonly browserService?: BrowserToolService,
+    private readonly browserService?: BrowserRetrievalPort,
     private readonly auditLogger?: AuditLogger,
     private readonly storageProvider?: StorageProvider,
     private readonly knowledgeEngine?: KnowledgeEngine,

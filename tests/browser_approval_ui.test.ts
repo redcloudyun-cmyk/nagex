@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { hashCanonicalPayload, type ActionApprovalRecord } from '../src/governance/action-approval.store.js';
-import { BROWSER_CLICK_TOOL_ID } from '../src/tools/browser.service.js';
+import { BROWSER_CLICK_TOOL_ID } from '../src/modules/browser/browser.service.js';
 import { server } from '../src/server_web.js';
 
 // public/browser-approval-view.js is a dependency-free browser script (IIFE),

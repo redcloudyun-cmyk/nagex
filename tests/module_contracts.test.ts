@@ -22,7 +22,7 @@ import { CaptureStore } from '../src/workspace/capture.store.js';
 import { AuditLogger } from '../src/governance/audit.logger.js';
 import { GoogleCalendarService } from '../src/tools/google-calendar.service.js';
 import { GmailService } from '../src/tools/gmail.service.js';
-import { BrowserToolService } from '../src/tools/browser.service.js';
+import { BrowserToolService } from '../src/modules/browser/browser.service.js';
 import { createNagexApplication } from '../src/app/create-nagex-application.js';
 import type { AiService } from '../src/model-gateway/ai-service.js';
 import type { CapabilityExecutorPort } from '../src/contracts/capability.port.js';

@@ -33,7 +33,7 @@ import type { GoogleOAuthConfig } from '../src/integrations/google/oauth.client.
 import { NagexError } from '../src/common/errors.js';
 import { classifyFailure, computeNextRetryAt } from '../src/common/failure-taxonomy.js';
 import type { CalendarCandidatePayload } from '../src/workspace/candidate.types.js';
-import type { BrowserToolService } from '../src/tools/browser.service.js';
+import type { BrowserToolService } from '../src/modules/browser/browser.service.js';
 import { server } from '../src/server_web.js';
 import type { AddressInfo } from 'node:net';
 

@@ -1,19 +1,20 @@
-// Phase 03 — Module Contracts.
+// Phase 03 — Module Contracts. Phase 04 — Browser Module Extraction moved
+// the concrete implementation into src/modules/browser/ (path corrected
+// below); BrowserPort's own shape is untouched by that move.
 //
-// The only real consumer of Browser typed against this port in this phase
-// is CapabilityBroker (capability-broker.ts) — the full session lifecycle
-// + navigation + read + consequential-click surface it actually calls.
-// QuickCaptureService is not a consumer here: it never calls a browser
-// method itself, only passes the instance through to CaptureProcessor
-// (out of this phase's authorized file list) — see the Phase 03 pre-flight
-// report.
-import type { BrowserSessionRecord } from '../browser/browser-session.store.js';
-import type { FindResult, ExtractResult, StructuredBrowserSnapshot } from '../browser/browser.types.js';
+// The only real consumer of Browser typed against this port is
+// CapabilityBroker (capability-broker.ts) — the full session lifecycle +
+// navigation + read + consequential-click surface it actually calls.
+// QuickCaptureService/CaptureProcessor are not consumers of BrowserPort —
+// CaptureProcessor's real 4-method surface is narrower, see
+// BrowserRetrievalPort below (Phase 04, added on real evidence from the
+// QuickCaptureService -> CaptureProcessor -> Browser chain, not
+// speculatively).
+import type { BrowserSessionRecord, FindResult, ExtractResult, StructuredBrowserSnapshot } from '../modules/browser/index.js';
 import type { ActionApprovalRecord } from '../governance/action-approval.store.js';
 
-// Mirrors integrations/browser/browser.runtime.ts's BrowserSnapshot —
-// inlined rather than imported: contracts never import from integrations/,
-// and never leak a Playwright-backed type.
+// Mirrors modules/browser/browser.runtime.ts's BrowserSnapshot — inlined
+// rather than imported: contracts never leak a Playwright-backed type.
 export interface BrowserPageSnapshot {
   url: string;
   title: string;
@@ -23,7 +24,7 @@ export interface BrowserPageSnapshot {
   truncated: boolean;
 }
 
-// Mirrors tools/browser.service.ts's (unexported) BrowserActionInput.
+// Mirrors modules/browser/browser.service.ts's (unexported) BrowserActionInput.
 export interface BrowserActionRequest {
   tenantId: string;
   ownerId: string;
@@ -31,8 +32,9 @@ export interface BrowserActionRequest {
   browserSessionId: string;
 }
 
-// Mirrors tools/browser.service.ts's BrowserActionResult/BrowserClickResult
-// — inlined rather than imported from the concrete service file.
+// Mirrors modules/browser/browser.service.ts's BrowserActionResult/
+// BrowserClickResult — inlined rather than imported from the concrete
+// service file.
 export interface BrowserNavigationResult {
   url: string;
   title: string;
@@ -62,4 +64,18 @@ export interface BrowserPort {
   forward(input: BrowserActionRequest): Promise<BrowserNavigationResult>;
   reload(input: BrowserActionRequest): Promise<BrowserNavigationResult>;
   click(input: BrowserActionRequest & { selector: string; forceApproval?: boolean }): Promise<BrowserClickResult>;
+}
+
+// Phase 04 — added on real, confirmed evidence (not speculatively): tracing
+// the QuickCaptureService -> CaptureProcessor -> Browser chain found that
+// CaptureProcessor (workspace/capture-processor.ts) only ever calls 4 of
+// BrowserPort's 12 methods — open/navigate/snapshot/close, to retrieve a
+// URL's content. QuickCaptureService itself calls no Browser method at
+// all; it only passes this same narrower reference through to
+// CaptureProcessor.
+export interface BrowserRetrievalPort {
+  open(input: { tenantId: string; ownerId: string; requestId: string }): Promise<BrowserSessionRecord & { title: string }>;
+  navigate(input: BrowserActionRequest & { url: string }): Promise<BrowserNavigationResult>;
+  snapshot(input: BrowserActionRequest): Promise<BrowserPageSnapshot>;
+  close(input: BrowserActionRequest): Promise<void>;
 }

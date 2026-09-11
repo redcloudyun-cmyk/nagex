@@ -1,6 +1,6 @@
 import { googleTokenStore, DEFAULT_GOOGLE_TENANT_ID } from '../integrations/google/token.store.js';
 import { GMAIL_SCOPES } from '../integrations/google/oauth.client.js';
-import { isBrowserRuntimeAvailableSync } from '../integrations/browser/browser.runtime.js';
+import { isBrowserRuntimeAvailableSync } from '../modules/browser/index.js';
 
 export type SideEffectLevel = 'READ_ONLY' | 'REVERSIBLE_WRITE' | 'IRREVERSIBLE_WRITE';
 export type ToolExecutionMode = 'live' | 'mock' | 'unavailable';

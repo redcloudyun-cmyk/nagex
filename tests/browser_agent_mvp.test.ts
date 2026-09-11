@@ -4,13 +4,13 @@ import http from 'node:http';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { BrowserToolService } from '../src/tools/browser.service.js';
-import { PlaywrightBrowserRuntime, browserRuntime } from '../src/integrations/browser/browser.runtime.js';
-import { BrowserSessionStore } from '../src/browser/browser-session.store.js';
+import { BrowserToolService } from '../src/modules/browser/browser.service.js';
+import { PlaywrightBrowserRuntime, browserRuntime } from '../src/modules/browser/browser.runtime.js';
+import { BrowserSessionStore } from '../src/modules/browser/browser-session.store.js';
 import { ActionApprovalStore } from '../src/governance/action-approval.store.js';
 import { AuditLogger } from '../src/governance/audit.logger.js';
 import { MemoryEngine } from '../src/context/memory.engine.js';
-import { isUrlSafe, assertUrlSafe } from '../src/browser/browser-url-validator.js';
+import { isUrlSafe, assertUrlSafe } from '../src/modules/browser/browser-url-validator.js';
 import { handleAsyncApiRequest } from '../src/server_web.js';
 
 // The "REST API endpoints" test below goes through server_web.ts's default

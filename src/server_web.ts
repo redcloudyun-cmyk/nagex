@@ -34,9 +34,7 @@ import {
   GMAIL_REPLY_TOOL_ID,
   GMAIL_CREATE_DRAFT_TOOL_ID,
 } from './tools/gmail.service.js';
-import { BrowserToolService } from './tools/browser.service.js';
-import { browserRuntime } from './integrations/browser/browser.runtime.js';
-import { browserSessionStore } from './browser/browser-session.store.js';
+import { BrowserToolService, browserRuntime } from './modules/browser/index.js';
 import { googleTokenStore, DEFAULT_GOOGLE_TENANT_ID } from './integrations/google/token.store.js';
 import { buildGoogleAuthorizeUrl, exchangeGoogleAuthorizationCode, readGoogleOAuthConfig } from './integrations/google/oauth.client.js';
 import { queryFreeBusy, computeFreeSlots } from './integrations/google/calendar.client.js';

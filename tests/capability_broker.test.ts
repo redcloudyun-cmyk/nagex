@@ -9,13 +9,13 @@ import { ExecutionStore } from '../src/governance/execution.store.js';
 import { MemoryEngine } from '../src/context/memory.engine.js';
 import { GoogleCalendarService } from '../src/tools/google-calendar.service.js';
 import { GmailService } from '../src/tools/gmail.service.js';
-import { BrowserToolService } from '../src/tools/browser.service.js';
-import { BrowserSessionStore } from '../src/browser/browser-session.store.js';
+import { BrowserToolService } from '../src/modules/browser/browser.service.js';
+import { BrowserSessionStore } from '../src/modules/browser/browser-session.store.js';
 import { CapabilityBroker } from '../src/capabilities/capability-broker.js';
 import { CapabilityRegistry, capabilityRegistry } from '../src/capabilities/capability.registry.js';
 import { CapabilityPolicy } from '../src/capabilities/capability-policy.js';
 import { SafetyDecision } from '../src/governance/safety.types.js';
-import type { BrowserRuntime, BrowserSnapshot } from '../src/integrations/browser/browser.runtime.js';
+import type { BrowserRuntime, BrowserSnapshot } from '../src/modules/browser/browser.runtime.js';
 
 function createTempDir(prefix: string): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), `nagex_test_${prefix}_`));
