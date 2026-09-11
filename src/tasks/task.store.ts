@@ -18,7 +18,7 @@ export interface TaskTrigger {
   // INTERVAL: fire every N minutes from the last run.
   intervalMinutes?: number;
   // CONDITION: a free-text description of what is being watched for,
-  // evaluated by ConditionalWatchTaskRunner (src/tasks/conditional-watch.runner.ts)
+  // evaluated by ConditionalWatchTaskRunner (src/tasks/runners/conditional-watch.runner.ts)
   // against the real, live content of `watchUrl` — fetched read-only via
   // the Browser Agent (MASTER.md Section 14.5 item 07) on every
   // `checkIntervalMinutes` heartbeat. Never notifies while unmet (AC-11):
