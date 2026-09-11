@@ -1,5 +1,5 @@
-import { generateResourceId } from '../common/utils.js';
-import { FileRecordStore, resolveNagexDataDir } from '../governance/file-record.store.js';
+import { generateResourceId } from '../../common/utils.js';
+import { FileRecordStore, resolveNagexDataDir } from '../../governance/file-record.store.js';
 
 // Browser Agent MVP session model (MASTER.md Section 14.5 item 06, spec
 // item 8). One session per owner is enforced here for the MVP (item 14) —

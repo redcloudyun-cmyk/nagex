@@ -1,5 +1,5 @@
 import { URL } from 'node:url';
-import { NagexError } from '../common/errors.js';
+import { NagexError } from '../../common/errors.js';
 
 const DISALLOWED_SCHEMES = new Set(['file:', 'javascript:', 'data:', 'ftp:', 'gopher:', 'vbscript:']);
 

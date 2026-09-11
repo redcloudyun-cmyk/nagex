@@ -1,17 +1,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { NagexError } from '../common/errors.js';
-import { generateResourceId, getCurrentISOString } from '../common/utils.js';
-import { AuditLogger } from '../governance/audit.logger.js';
-import { ActionApprovalStore, type ActionApprovalRecord } from '../governance/action-approval.store.js';
-import { ExecutionStore } from '../governance/execution.store.js';
-import { MemoryEngine } from '../context/memory.engine.js';
-import { resolveNagexDataDir } from '../governance/file-record.store.js';
-import { BrowserSessionStore, type BrowserSessionRecord, generateEvidenceId } from '../browser/browser-session.store.js';
-import { isBrowserRuntimeAvailableSync, type BrowserRuntime, type BrowserSnapshot } from '../integrations/browser/browser.runtime.js';
-import { assertUrlSafe } from '../browser/browser-url-validator.js';
-import type { FindResult, ExtractResult, StructuredBrowserSnapshot } from '../browser/browser.types.js';
+import { NagexError } from '../../common/errors.js';
+import { generateResourceId, getCurrentISOString } from '../../common/utils.js';
+import { AuditLogger } from '../../governance/audit.logger.js';
+import { ActionApprovalStore, type ActionApprovalRecord } from '../../governance/action-approval.store.js';
+import { ExecutionStore } from '../../governance/execution.store.js';
+import { MemoryEngine } from '../../context/memory.engine.js';
+import { resolveNagexDataDir } from '../../governance/file-record.store.js';
+import { BrowserSessionStore, type BrowserSessionRecord, generateEvidenceId } from './browser-session.store.js';
+import { isBrowserRuntimeAvailableSync, type BrowserRuntime, type BrowserSnapshot } from './browser.runtime.js';
+import { assertUrlSafe } from './browser-url-validator.js';
+import type { FindResult, ExtractResult, StructuredBrowserSnapshot } from './browser.types.js';
 
 // Browser Agent MVP tool service (MASTER.md Section 14.5 item 06). Reuses
 // the exact same shared ActionApprovalStore/ExecutionStore/AuditLogger/

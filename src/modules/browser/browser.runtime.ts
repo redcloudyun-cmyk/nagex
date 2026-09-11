@@ -3,7 +3,7 @@ import path from 'node:path';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import { NagexError } from '../../common/errors.js';
 import { resolveNagexDataDir } from '../../governance/file-record.store.js';
-import type { StructuredBrowserSnapshot, FindResult, ExtractResult, ElementMatchCandidate, StructuredLink, StructuredButton, StructuredInput, StructuredForm } from '../../browser/browser.types.js';
+import type { StructuredBrowserSnapshot, FindResult, ExtractResult, ElementMatchCandidate, StructuredLink, StructuredButton, StructuredInput, StructuredForm } from './browser.types.js';
 
 // NAgex Browser Runtime — Phase B / Browser Agent MVP (MASTER.md Section
 // 14.5, item 06). This is the ONE concrete implementation of the
