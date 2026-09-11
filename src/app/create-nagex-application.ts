@@ -29,8 +29,8 @@ import { toolRegistry as canonicalToolRegistry } from '../tools/tool-registry.js
 import { PlanResolver } from '../planning/plan-resolver.js';
 import { PersistentActionApprovalStore } from '../governance/action-approval.store.js';
 import { ExecutionStore } from '../governance/execution.store.js';
-import { GoogleCalendarService } from '../tools/google-calendar.service.js';
-import { GmailService } from '../tools/gmail.service.js';
+import { GoogleCalendarService } from '../modules/calendar/index.js';
+import { GmailService } from '../modules/gmail/index.js';
 import { BrowserToolService, browserRuntime, browserSessionStore } from '../modules/browser/index.js';
 import { googleTokenStore } from '../integrations/google/token.store.js';
 import { readGoogleOAuthConfig } from '../integrations/google/oauth.client.js';

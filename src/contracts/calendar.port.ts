@@ -8,14 +8,14 @@
 // defines two narrow ports instead of one union.
 import type { ActionApprovalRecord } from '../governance/action-approval.store.js';
 
-// Mirrors integrations/google/calendar.client.ts's FreeBusyInterval —
+// Mirrors modules/calendar/calendar.client.ts's FreeBusyInterval —
 // inlined rather than imported: contracts never import from integrations/.
 export interface CalendarFreeBusyInterval {
   start: string;
   end: string;
 }
 
-// Mirrors tools/google-calendar.service.ts's NormalizedExecutionResult —
+// Mirrors modules/calendar/google-calendar.service.ts's NormalizedExecutionResult —
 // inlined rather than imported from the concrete service file, so this
 // contract does not depend on the implementation it exists to abstract.
 export interface CalendarExecutionResult {

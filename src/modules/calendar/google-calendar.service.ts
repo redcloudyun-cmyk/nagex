@@ -1,9 +1,9 @@
-import { NagexError } from '../common/errors.js';
-import { generateResourceId, getCurrentISOString } from '../common/utils.js';
-import { AuditLogger } from '../governance/audit.logger.js';
-import { ActionApprovalStore, type ActionApprovalRecord } from '../governance/action-approval.store.js';
-import { ExecutionStore } from '../governance/execution.store.js';
-import { MemoryEngine } from '../context/memory.engine.js';
+import { NagexError } from '../../common/errors.js';
+import { generateResourceId, getCurrentISOString } from '../../common/utils.js';
+import { AuditLogger } from '../../governance/audit.logger.js';
+import { ActionApprovalStore, type ActionApprovalRecord } from '../../governance/action-approval.store.js';
+import { ExecutionStore } from '../../governance/execution.store.js';
+import { MemoryEngine } from '../../context/memory.engine.js';
 import {
   createCalendarEvent,
   updateCalendarEvent,
@@ -15,9 +15,9 @@ import {
   type UpdateCalendarEventPayload,
   type CalendarRsvpResponseStatus,
   type FreeBusyInterval,
-} from '../integrations/google/calendar.client.js';
-import { readGoogleOAuthConfig, type GoogleOAuthConfig } from '../integrations/google/oauth.client.js';
-import type { GoogleOAuthTokenStore } from '../integrations/google/token.store.js';
+} from './calendar.client.js';
+import { readGoogleOAuthConfig, type GoogleOAuthConfig } from '../../integrations/google/oauth.client.js';
+import type { GoogleOAuthTokenStore } from '../../integrations/google/token.store.js';
 
 export const GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID = 'google_calendar.create_event';
 // E2E completion (MASTER.md Section 14.5, item 05): update / cancel / RSVP,

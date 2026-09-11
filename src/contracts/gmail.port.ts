@@ -9,7 +9,7 @@
 // per the directive's "do not add a port speculatively" instruction.
 import type { ActionApprovalRecord } from '../governance/action-approval.store.js';
 
-// Mirrors integrations/google/gmail.client.ts's shapes — inlined rather
+// Mirrors modules/gmail/gmail.client.ts's shapes — inlined rather
 // than imported: contracts never import from integrations/.
 export interface GmailThreadSummary {
   threadId: string;

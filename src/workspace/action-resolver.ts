@@ -46,7 +46,7 @@ import type { CalendarExecutionPort } from '../contracts/calendar.port.js';
 import type { ExecutionStore } from '../governance/execution.store.js';
 import type { AuditLogger } from '../governance/audit.logger.js';
 import type { ActivityStore, ActivityStatus } from '../governance/activity.store.js';
-import type { CalendarEventPayload } from '../integrations/google/calendar.client.js';
+import type { CalendarEventPayload } from '../modules/calendar/index.js';
 import { PreExecutionSafetyGate } from '../governance/action-safety.gate.js';
 import { PersistentSafetyStore } from '../governance/safety.store.js';
 

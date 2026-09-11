@@ -9,7 +9,7 @@ import { GOOGLE_CALENDAR_SCOPES, GMAIL_SCOPES, GOOGLE_OAUTH_SCOPES, type GoogleO
 import { ActionApprovalStore, hashCanonicalPayload } from '../src/governance/action-approval.store.js';
 import { AuditLogger } from '../src/governance/audit.logger.js';
 import { MemoryEngine } from '../src/context/memory.engine.js';
-import { GmailService, GMAIL_SEND_EMAIL_TOOL_ID, GMAIL_REPLY_TOOL_ID, GMAIL_CREATE_DRAFT_TOOL_ID } from '../src/tools/gmail.service.js';
+import { GmailService, GMAIL_SEND_EMAIL_TOOL_ID, GMAIL_REPLY_TOOL_ID, GMAIL_CREATE_DRAFT_TOOL_ID } from '../src/modules/gmail/index.js';
 import { PlanResolver } from '../src/planning/plan-resolver.js';
 import { skillRegistry } from '../src/skills/skill-registry.js';
 import { toolRegistry as sharedToolRegistry } from '../src/tools/tool-registry.js';

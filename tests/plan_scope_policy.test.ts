@@ -8,7 +8,7 @@ import { skillRegistry } from '../src/skills/skill-registry.js';
 import { toolRegistry as sharedToolRegistry } from '../src/tools/tool-registry.js';
 import { googleTokenStore as sharedGoogleTokenStore, DEFAULT_GOOGLE_TENANT_ID } from '../src/integrations/google/token.store.js';
 import { GOOGLE_CALENDAR_SCOPES } from '../src/integrations/google/oauth.client.js';
-import { GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID } from '../src/tools/google-calendar.service.js';
+import { GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID } from '../src/modules/calendar/index.js';
 import { handleAsyncApiRequest } from '../src/server_web.js';
 import type { MemoryRecord } from '../src/context/memory.engine.js';
 

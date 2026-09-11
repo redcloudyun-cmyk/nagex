@@ -1,9 +1,9 @@
-import { NagexError } from '../common/errors.js';
-import { generateResourceId, getCurrentISOString } from '../common/utils.js';
-import { AuditLogger } from '../governance/audit.logger.js';
-import { ActionApprovalStore, type ActionApprovalRecord } from '../governance/action-approval.store.js';
-import { ExecutionStore } from '../governance/execution.store.js';
-import { MemoryEngine } from '../context/memory.engine.js';
+import { NagexError } from '../../common/errors.js';
+import { generateResourceId, getCurrentISOString } from '../../common/utils.js';
+import { AuditLogger } from '../../governance/audit.logger.js';
+import { ActionApprovalStore, type ActionApprovalRecord } from '../../governance/action-approval.store.js';
+import { ExecutionStore } from '../../governance/execution.store.js';
+import { MemoryEngine } from '../../context/memory.engine.js';
 import {
   sendGmailMessage,
   createGmailDraft,
@@ -11,9 +11,9 @@ import {
   getGmailThread,
   type GmailComposePayload,
   type GmailAttachmentMetadata,
-} from '../integrations/google/gmail.client.js';
-import { readGoogleOAuthConfig, type GoogleOAuthConfig } from '../integrations/google/oauth.client.js';
-import type { GoogleOAuthTokenStore } from '../integrations/google/token.store.js';
+} from './gmail.client.js';
+import { readGoogleOAuthConfig, type GoogleOAuthConfig } from '../../integrations/google/oauth.client.js';
+import type { GoogleOAuthTokenStore } from '../../integrations/google/token.store.js';
 
 // Gmail as the second real external service, reusing the exact same
 // generic, hash-verified, replay-protected approval system already proven

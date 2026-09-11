@@ -8,7 +8,7 @@ import type { GoogleOAuthConfig } from '../src/integrations/google/oauth.client.
 import { ActionApprovalStore, hashCanonicalPayload, type ActionApprovalRecord } from '../src/governance/action-approval.store.js';
 import { AuditLogger } from '../src/governance/audit.logger.js';
 import { MemoryEngine } from '../src/context/memory.engine.js';
-import { GoogleCalendarService, GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID } from '../src/tools/google-calendar.service.js';
+import { GoogleCalendarService, GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID } from '../src/modules/calendar/index.js';
 import { handleAsyncApiRequest } from '../src/server_web.js';
 
 // public/calendar-approval-view.js is a dependency-free browser script (IIFE),

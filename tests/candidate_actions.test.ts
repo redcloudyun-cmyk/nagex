@@ -20,7 +20,7 @@ import { KnowledgeEngine } from '../src/context/knowledge.engine.js';
 import { ActionApprovalStore } from '../src/governance/action-approval.store.js';
 import { ExecutionStore } from '../src/governance/execution.store.js';
 import { AuditLogger } from '../src/governance/audit.logger.js';
-import { GoogleCalendarService } from '../src/tools/google-calendar.service.js';
+import { GoogleCalendarService } from '../src/modules/calendar/index.js';
 import { InMemoryGoogleOAuthTokenStore } from '../src/integrations/google/token.store.js';
 import type { GoogleOAuthConfig } from '../src/integrations/google/oauth.client.js';
 import { NagexError } from '../src/common/errors.js';

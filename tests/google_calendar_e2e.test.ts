@@ -15,7 +15,7 @@ import {
   GOOGLE_CALENDAR_UPDATE_EVENT_TOOL_ID,
   GOOGLE_CALENDAR_CANCEL_EVENT_TOOL_ID,
   GOOGLE_CALENDAR_RESPOND_EVENT_TOOL_ID,
-} from '../src/tools/google-calendar.service.js';
+} from '../src/modules/calendar/index.js';
 import { toolRegistry as sharedToolRegistry } from '../src/tools/tool-registry.js';
 import { handleApiRequest, handleAsyncApiRequest, actionApprovals as sharedActionApprovals } from '../src/server_web.js';
 import { AiService } from '../src/model-gateway/ai-service.js';

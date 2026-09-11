@@ -2,7 +2,7 @@ import { NagexError } from '../../common/errors.js';
 
 type FetchFn = typeof fetch;
 
-// ── Compose payload (frozen exactly as approved — see tools/gmail.service.ts) ──
+// ── Compose payload (frozen exactly as approved — see gmail.service.ts) ──
 
 export interface GmailAttachmentMetadata {
   filename: string;

@@ -27,17 +27,18 @@ import {
   GOOGLE_CALENDAR_UPDATE_EVENT_TOOL_ID,
   GOOGLE_CALENDAR_CANCEL_EVENT_TOOL_ID,
   GOOGLE_CALENDAR_RESPOND_EVENT_TOOL_ID,
-} from './tools/google-calendar.service.js';
+  queryFreeBusy,
+  computeFreeSlots,
+} from './modules/calendar/index.js';
 import {
   GmailService,
   GMAIL_SEND_EMAIL_TOOL_ID,
   GMAIL_REPLY_TOOL_ID,
   GMAIL_CREATE_DRAFT_TOOL_ID,
-} from './tools/gmail.service.js';
+} from './modules/gmail/index.js';
 import { BrowserToolService, browserRuntime } from './modules/browser/index.js';
 import { googleTokenStore, DEFAULT_GOOGLE_TENANT_ID } from './integrations/google/token.store.js';
 import { buildGoogleAuthorizeUrl, exchangeGoogleAuthorizationCode, readGoogleOAuthConfig } from './integrations/google/oauth.client.js';
-import { queryFreeBusy, computeFreeSlots } from './integrations/google/calendar.client.js';
 import { SessionStore } from './sessions/session.store.js';
 import { ConversationStore } from './conversations/conversation.store.js';
 import { ConversationContextService } from './conversations/conversation-context.service.js';

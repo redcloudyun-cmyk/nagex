@@ -7,8 +7,8 @@ import { AuditLogger, type AuditEventRecord } from '../src/governance/audit.logg
 import { ActionApprovalStore } from '../src/governance/action-approval.store.js';
 import { ExecutionStore } from '../src/governance/execution.store.js';
 import { MemoryEngine } from '../src/context/memory.engine.js';
-import { GoogleCalendarService } from '../src/tools/google-calendar.service.js';
-import { GmailService } from '../src/tools/gmail.service.js';
+import { GoogleCalendarService } from '../src/modules/calendar/index.js';
+import { GmailService } from '../src/modules/gmail/index.js';
 import { BrowserToolService } from '../src/modules/browser/browser.service.js';
 import { BrowserSessionStore } from '../src/modules/browser/browser-session.store.js';
 import { CapabilityBroker } from '../src/capabilities/capability-broker.js';

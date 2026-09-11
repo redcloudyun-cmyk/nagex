@@ -13,7 +13,7 @@ import { ExecutionStore } from '../src/governance/execution.store.js';
 import { AuditLogger } from '../src/governance/audit.logger.js';
 import { MemoryEngine } from '../src/context/memory.engine.js';
 import { InMemoryGoogleOAuthTokenStore } from '../src/integrations/google/token.store.js';
-import { GoogleCalendarService, GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID } from '../src/tools/google-calendar.service.js';
+import { GoogleCalendarService, GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID } from '../src/modules/calendar/index.js';
 import { handleApiRequest } from '../src/server_web.js';
 import type { GoogleOAuthConfig } from '../src/integrations/google/oauth.client.js';
 

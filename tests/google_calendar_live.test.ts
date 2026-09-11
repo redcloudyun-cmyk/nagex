@@ -13,11 +13,11 @@ import {
   GOOGLE_OAUTH_SCOPES,
   type GoogleOAuthConfig,
 } from '../src/integrations/google/oauth.client.js';
-import { queryFreeBusy, computeFreeSlots } from '../src/integrations/google/calendar.client.js';
+import { queryFreeBusy, computeFreeSlots } from '../src/modules/calendar/index.js';
 import { ActionApprovalStore, hashCanonicalPayload } from '../src/governance/action-approval.store.js';
 import { AuditLogger } from '../src/governance/audit.logger.js';
 import { MemoryEngine } from '../src/context/memory.engine.js';
-import { GoogleCalendarService, GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, type NormalizedExecutionResult } from '../src/tools/google-calendar.service.js';
+import { GoogleCalendarService, GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, type NormalizedExecutionResult } from '../src/modules/calendar/index.js';
 import { PlanResolver } from '../src/planning/plan-resolver.js';
 import { skillRegistry } from '../src/skills/skill-registry.js';
 import { toolRegistry as sharedToolRegistry } from '../src/tools/tool-registry.js';

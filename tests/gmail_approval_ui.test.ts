@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import fs from 'node:fs';
 import path from 'node:path';
 import { hashCanonicalPayload, type ActionApprovalRecord } from '../src/governance/action-approval.store.js';
-import { GMAIL_SEND_EMAIL_TOOL_ID, GMAIL_REPLY_TOOL_ID, GMAIL_CREATE_DRAFT_TOOL_ID } from '../src/tools/gmail.service.js';
+import { GMAIL_SEND_EMAIL_TOOL_ID, GMAIL_REPLY_TOOL_ID, GMAIL_CREATE_DRAFT_TOOL_ID } from '../src/modules/gmail/index.js';
 
 // public/gmail-approval-view.js is a dependency-free browser script (IIFE),
 // loaded the same way tests/calendar_approval_ui.test.ts loads

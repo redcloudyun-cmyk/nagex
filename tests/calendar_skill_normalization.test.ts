@@ -5,7 +5,7 @@ import { toolRegistry as sharedToolRegistry } from '../src/tools/tool-registry.j
 import { PlanResolver } from '../src/planning/plan-resolver.js';
 import { googleTokenStore as sharedGoogleTokenStore, DEFAULT_GOOGLE_TENANT_ID } from '../src/integrations/google/token.store.js';
 import { GOOGLE_CALENDAR_SCOPES } from '../src/integrations/google/oauth.client.js';
-import { GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID } from '../src/tools/google-calendar.service.js';
+import { GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID } from '../src/modules/calendar/index.js';
 import type { PlanPreview } from '../src/model-gateway/ai-service.js';
 
 const GRANTED_SCOPE_STRING = GOOGLE_CALENDAR_SCOPES.join(' ');
