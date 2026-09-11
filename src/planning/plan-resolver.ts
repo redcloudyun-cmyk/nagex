@@ -60,6 +60,11 @@ export class PlanResolver {
       if (!step || typeof step.title !== 'string' || typeof step.reasoning !== 'string' || typeof step.skill !== 'string' || (step.tool !== null && typeof step.tool !== 'string') || typeof step.requiresApproval !== 'boolean') {
         throw new NagexError({ code: 'INVALID_PLAN_STEP', category: 'VALIDATION', message: 'Every plan step must match the Plan Preview contract.', request_id: 'plan_resolve' });
       }
+      // P01a — structural only: a present `parameters` must be a plain
+      // object; its contents are never inspected here.
+      if (step.parameters !== undefined && (step.parameters === null || typeof step.parameters !== 'object' || Array.isArray(step.parameters))) {
+        throw new NagexError({ code: 'INVALID_PLAN_STEP', category: 'VALIDATION', message: 'A plan step\'s parameters must be an object when present.', request_id: 'plan_resolve' });
+      }
     }
 
     // Each step's own readiness (skill/tool/approval) is resolved completely

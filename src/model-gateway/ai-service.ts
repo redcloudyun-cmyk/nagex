@@ -17,6 +17,13 @@ export interface PlanStep {
   // remain valid; PlanResolver defaults a missing value to REQUIRED/[].
   necessity?: PlanStepNecessity;
   dependsOn?: number[];
+  // P01a — opaque, capability-owned concrete arguments for this step's tool
+  // (e.g. timeMin/timeMax for a calendar free-slots check, query for a
+  // Gmail search). Planning infrastructure never interprets its contents —
+  // it only validates that a *present* value is a plain object, and passes
+  // it through unchanged. Missing normalizes to {}; a present non-object
+  // (null/array/primitive) fails closed rather than being silently coerced.
+  parameters?: Record<string, unknown>;
 }
 
 export interface PlanPreview {
@@ -69,6 +76,17 @@ function normalizeSuggestions(value: unknown): string[] {
   return value.filter((v): v is string => typeof v === 'string' && v.trim().length > 0).map((v) => v.trim());
 }
 
+// missing -> {}; a valid plain object -> unchanged; a present but malformed
+// value (null/array/primitive) -> fail closed with INVALID_MODEL_RESPONSE,
+// never silently coerced to {}.
+function normalizeParameters(value: unknown, present: boolean, requestId: string, index: number): Record<string, unknown> {
+  if (!present) return {};
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new NagexError({ code: 'INVALID_MODEL_RESPONSE', category: 'PROVIDER', message: `Plan step ${index + 1} parameters must be an object.`, request_id: requestId });
+  }
+  return value as Record<string, unknown>;
+}
+
 function normalizePlan(text: string, requestId: string): PlanPreview {
   const raw = parseJsonObject(text, requestId);
   if (!Array.isArray(raw.steps) || raw.steps.length === 0) {
@@ -93,6 +111,7 @@ function normalizePlan(text: string, requestId: string): PlanPreview {
         requiresApproval: step.requiresApproval === true,
         necessity: normalizeNecessity(step.necessity),
         dependsOn: normalizeDependsOn(step.dependsOn),
+        parameters: normalizeParameters(step.parameters, 'parameters' in step, requestId, index),
       };
     }),
   };
@@ -342,10 +361,11 @@ export class AiService {
             'Prefer a tool that is already connected and LIVE when it exactly satisfies the request, over any other tool, mock, or manual alternative.',
             'Prefer canonical registered IDs for "skill" and "tool" whenever one exists, instead of an arbitrary free-text identifier. For creating a calendar event, use skill "skill.scheduling" and tool "google_calendar.create_event" exactly.',
             'Ranking for what informs a step: (1) the user\'s current explicit instruction, (2) the current conversation context, (3) memory the user\'s current request itself confirms as relevant, (4) general/background memory. Memory may enrich a step. Memory must never override, replace, or expand the user\'s explicit current instruction: do not attach an unrelated prior project, client, or company (e.g. from saved memory) to the current request unless the user\'s current request itself names it or the conversation has already confirmed it applies. When a generic request (e.g. "my next client meeting") does not itself name a specific client or company, use a neutral description like "the next client meeting" — never assert a specific company, attendee, meeting title, or purpose from weak memory relevance alone.',
-            'Never invent concrete scheduling details (date, time, duration, title, attendees) that are not present in the user\'s request or already-confirmed conversation context. If a calendar-creation step is required but a concrete detail is missing, do not fabricate it — say so in reasoningSummary and/or ask for it via "suggestions" instead of guessing.',
+            'Never invent concrete scheduling details (date, time, duration, title, attendees) that are not present in the user\'s request or already-confirmed conversation context. If a calendar-creation step is required but a concrete detail is missing, do not fabricate it — say so in reasoningSummary and/or ask for it via "suggestions" instead of guessing. This same rule applies to every step\'s "parameters" below: never invent a concrete argument value.',
             'Each step must declare "dependsOn": an array of the 1-based step numbers (from this same steps array) it strictly requires to have executed first, or [] when it has none. Only mark a real dependency (e.g. "send the invite" depending on "create the event"); never invent a dependency between unrelated steps.',
+            'Every tool-backed step must include "parameters": an object containing only the concrete arguments that tool needs which are explicitly available from the user\'s current request or already-confirmed conversation context (for example timeMin/timeMax for a calendar free-slots check, or query for a Gmail search). Never invent a missing concrete value — if a needed argument is not actually available, leave it out of "parameters" and explain or ask for it via reasoningSummary/"suggestions" instead of guessing. A step with no real arguments (or no tool) may use an empty object.',
             'Return JSON only with this exact shape:',
-            '{"goal":"string","summary":"string","reasoningSummary":"brief rationale without hidden chain-of-thought","suggestions":["string", ...],"steps":[{"title":"string","reasoning":"brief justification","skill":"string","tool":"string or null","requiresApproval":true,"necessity":"REQUIRED or OPTIONAL","dependsOn":[1,2]}]}',
+            '{"goal":"string","summary":"string","reasoningSummary":"brief rationale without hidden chain-of-thought","suggestions":["string", ...],"steps":[{"title":"string","reasoning":"brief justification","skill":"string","tool":"string or null","requiresApproval":true,"necessity":"REQUIRED or OPTIONAL","dependsOn":[1,2],"parameters":{}}]}',
             'Mark any consequential tool step as requiresApproval=true.',
           ].join('\n'),
         },
