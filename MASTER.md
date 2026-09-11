@@ -7,6 +7,16 @@
 **Project Type:** Independent hackathon project  
 **Target Event:** Nebius x NVIDIA Global AI Hackathon
 
+## 0. Canonical Product Vision — Personal AI Execution OS
+
+Adopted 2026-09-11 from the NAgex Canonical Product Vision directive (full text: `docs/NAgex_Canonical_Product_Vision_Personal_AI_Execution_OS.md`). This section sits above everything else in this document — it is the top-level product principle every section below, every future directive, and every architecture/roadmap decision must be evaluated against.
+
+> **NAgex is a Personal AI Execution Operating System that understands a user's intent, continuously plans across real-world services, requests human approval when necessary, executes actions on the user's behalf, and adapts the plan as circumstances change.**
+
+Canonical distinction from a generic personal-agent harness (e.g. OpenClaw-class systems): NAgex adds durable multi-step execution, Goal orchestration, capability governance, human approval, and situation-aware re-planning as first-class, permanent product principles — not optional extras.
+
+**Governance rule (applies to every future feature or architecture decision, technical phases included):** before it enters the roadmap, ask whether it helps NAgex *understand, plan, decide, execute, adapt, remember,* or *present* a user's real-world goal. If not, it should not automatically enter the roadmap. Technical phases (P01–P03, Architecture Phase 09, and everything after) are runtime foundations for this vision, never ends in themselves — see the full document for the complete Goal model, capability layers, payment/credential principles, and situation-aware replanning example.
+
 ## 1. Product Definition
 
 NAgex is a Personal AI and Agentic AI system designed to remember user context, reason about goals, use tools, execute real-world tasks, and keep meaningful actions under human control.
@@ -233,6 +243,8 @@ Legacy identifiers inherited from the bootstrap codebase must be migrated delibe
 ## 11. Source of Truth Priority
 
 ```text
+Canonical Product Vision (Section 0 / docs/NAgex_Canonical_Product_Vision_Personal_AI_Execution_OS.md)
+   ↓
 MASTER.md
    ↓
 AGENTS.md
