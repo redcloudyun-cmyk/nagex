@@ -58,6 +58,8 @@ import { captureStore } from '../workspace/capture.store.js';
 import { QuickCaptureService } from '../workspace/quick-capture.service.js';
 import { InputRouter } from '../workspace/input-router.js';
 import { CandidateStore } from '../workspace/candidate.store.js';
+import { WorkflowDefinitionStore } from '../workflows/workflow-definition.store.js';
+import { WorkflowDefinitionService } from '../workflows/workflow-definition.service.js';
 import { CandidateActionResolver } from '../workspace/action-resolver.js';
 import { ActivityStore } from '../governance/activity.store.js';
 import { createConfiguredStorageProvider } from '../storage/s3-storage.provider.js';
@@ -320,6 +322,8 @@ export function createNagexApplication(): NagexApplication {
     activityStore,
   );
   const inputRouter = new InputRouter();
+  const workflowDefinitionStore = new WorkflowDefinitionStore();
+  const workflowDefinitionService = new WorkflowDefinitionService({ store: workflowDefinitionStore, taskStore, planResolver, auditLogger });
   const lifecycle = new LifecycleManager();
 
   return {
@@ -367,6 +371,8 @@ export function createNagexApplication(): NagexApplication {
     candidateActionResolver,
     quickCaptureService,
     inputRouter,
+    workflowDefinitionStore,
+    workflowDefinitionService,
     lifecycle,
     getRelevantMemories,
     pinnedMemories,

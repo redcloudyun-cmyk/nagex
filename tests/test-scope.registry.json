@@ -66,7 +66,8 @@
       "task_approval_continuation",
       "durable_task_runtime",
       "fixed_plan_injection",
-      "notification_delivery"
+      "notification_delivery",
+      "workflow_definition"
     ],
     "runtime": [
       "composition_root",
@@ -79,7 +80,8 @@
       "durable_task_runtime",
       "fixed_plan_injection",
       "notification_delivery",
-      "persistent_memory"
+      "persistent_memory",
+      "workflow_definition"
     ]
   },
   "fullOnly": [

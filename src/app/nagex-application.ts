@@ -49,6 +49,8 @@ import type { QuickCaptureService } from '../workspace/quick-capture.service.js'
 import type { InputRouter } from '../workspace/input-router.js';
 import type { LifecycleManager } from './lifecycle-manager.js';
 import type { ModuleRegistry, ModuleStateStore, ModuleService } from '../modules/index.js';
+import type { WorkflowDefinitionStore } from '../workflows/workflow-definition.store.js';
+import type { WorkflowDefinitionService } from '../workflows/workflow-definition.service.js';
 
 export interface NagexApplication {
   pdp: PolicyDecisionPoint;
@@ -105,6 +107,10 @@ export interface NagexApplication {
   candidateActionResolver: CandidateActionResolver;
   quickCaptureService: QuickCaptureService;
   inputRouter: InputRouter;
+  // P07 — reusable workflow definitions, instantiated into the existing
+  // Task/Plan/Capability Broker/Approval/Durable Runtime path unchanged.
+  workflowDefinitionStore: WorkflowDefinitionStore;
+  workflowDefinitionService: WorkflowDefinitionService;
   // Construction-time dependency of taskRunner/telegramService/slackService
   // (each bakes it in as a closure) that is *also* live, mutable state read
   // and written by memory pin/unpin route handlers for the rest of the

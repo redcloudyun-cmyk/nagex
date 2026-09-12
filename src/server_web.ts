@@ -160,6 +160,8 @@ export const {
   candidateActionResolver,
   quickCaptureService,
   inputRouter,
+  workflowDefinitionStore,
+  workflowDefinitionService,
 } = app;
 let pendingGoogleOAuthState: string | null = null;
 
@@ -1047,6 +1049,43 @@ export async function handleAsyncApiRequest(
         auditLogger,
       );
       const run = await scheduler.runOne(task);
+      return { status: 200, data: run };
+    }
+
+    // P07 — Reusable Workflow Definition Foundation: instantiate bridge.
+    // Mirrors V01a's /run-with-fixed-plan bridge exactly (same ephemeral
+    // ExecutingTaskRunner + throwaway TaskScheduler pattern, wired to the
+    // real capabilityBroker/taskContinuations/durableTaskRunState/
+    // notificationEngine singletons) — the one place ARCH-008 already
+    // permits this ephemeral construction. WorkflowDefinitionService.
+    // prepareRun() only builds the ResolvedPlan and creates the Task; it
+    // never touches execution. Once resolved here, the plan is frozen into
+    // DurableTaskRunStateStore before step 1 runs — a later edit or delete
+    // of the WorkflowDefinition can never affect this run.
+    if (pathname.startsWith('/api/v1/workflows/') && pathname.endsWith('/run') && method === 'POST') {
+      const workflowId = pathname.slice('/api/v1/workflows/'.length, pathname.length - '/run'.length);
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_workflow_run_${crypto.randomUUID()}`;
+      const workflowTenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const workflowPrincipalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+
+      let prepared;
+      try {
+        prepared = workflowDefinitionService.prepareRun(workflowId, workflowTenantId, workflowPrincipalId, requestId);
+      } catch (error) {
+        return modelErrorResult(error);
+      }
+      const { resolved, task } = prepared;
+
+      const workflowRunner = new ExecutingTaskRunner(aiService, planResolver, capabilityBroker, (principalId, prompt) => getRelevantMemories(principalId, prompt), taskContinuations, durableTaskRunState);
+      const workflowScheduler = new TaskScheduler(
+        taskStore,
+        taskRunStore,
+        { run: (t: TaskRecord, reqId: string, runId: string) => workflowRunner.runWithResolvedPlan(t, reqId, runId, resolved) },
+        auditLogger,
+        undefined,
+        notificationEngine,
+      );
+      const run = await workflowScheduler.runOne(task);
       return { status: 200, data: run };
     }
 
@@ -2142,6 +2181,70 @@ export function handleApiRequest(
     const task = taskStore.get(taskId, tenantId, principal.id);
     if (!task) return { status: 404, data: { error: { code: 'TASK_NOT_FOUND', category: 'NOT_FOUND', message: `Task ${taskId} was not found.`, request_id: `req_task_${Date.now()}` } } };
     return { status: 200, data: task };
+  }
+
+  // ── P07 — Reusable Workflow Definition Foundation ──────────────────────
+  // A WorkflowDefinition is a reusable description/template only — never an
+  // execution engine. Ownership is tenantId + ownerPrincipalId everywhere;
+  // a mismatch is indistinguishable from a nonexistent workflowId. The
+  // actual instantiate/run bridge (POST .../run) lives in
+  // handleAsyncApiRequest below, since it must await the existing
+  // execution path.
+  if (pathname === '/api/v1/workflows' && method === 'POST') {
+    const requestId = `req_workflow_${Date.now()}`;
+    try {
+      const steps = Array.isArray(body?.steps) ? body.steps : [];
+      const workflow = workflowDefinitionService.create(tenantId, principal.id, {
+        tenantId,
+        ownerPrincipalId: principal.id,
+        name: typeof body?.name === 'string' ? body.name : '',
+        description: typeof body?.description === 'string' ? body.description : '',
+        enabled: typeof body?.enabled === 'boolean' ? body.enabled : true,
+        steps,
+      }, requestId);
+      return { status: 201, data: workflow };
+    } catch (error) {
+      return modelErrorResult(error);
+    }
+  }
+
+  if (pathname === '/api/v1/workflows' && method === 'GET') {
+    const workflows = workflowDefinitionService.list(tenantId, principal.id);
+    return { status: 200, data: { workflows, total: workflows.length } };
+  }
+
+  if (pathname.startsWith('/api/v1/workflows/') && method === 'PATCH') {
+    const workflowId = pathname.slice('/api/v1/workflows/'.length);
+    const requestId = `req_workflow_${Date.now()}`;
+    try {
+      const patch: Record<string, unknown> = {};
+      if (typeof body?.name === 'string') patch.name = body.name;
+      if (typeof body?.description === 'string') patch.description = body.description;
+      if (typeof body?.enabled === 'boolean') patch.enabled = body.enabled;
+      if (Array.isArray(body?.steps)) patch.steps = body.steps;
+      const workflow = workflowDefinitionService.update(workflowId, tenantId, principal.id, patch, requestId);
+      return { status: 200, data: workflow };
+    } catch (error) {
+      return modelErrorResult(error);
+    }
+  }
+
+  if (pathname.startsWith('/api/v1/workflows/') && method === 'DELETE') {
+    const workflowId = pathname.slice('/api/v1/workflows/'.length);
+    const requestId = `req_workflow_${Date.now()}`;
+    try {
+      workflowDefinitionService.delete(workflowId, tenantId, principal.id, requestId);
+      return { status: 200, data: { success: true, deleted_id: workflowId } };
+    } catch (error) {
+      return modelErrorResult(error);
+    }
+  }
+
+  if (pathname.startsWith('/api/v1/workflows/') && method === 'GET') {
+    const workflowId = pathname.slice('/api/v1/workflows/'.length);
+    const workflow = workflowDefinitionService.get(workflowId, tenantId, principal.id);
+    if (!workflow) return { status: 404, data: { error: { code: 'WORKFLOW_NOT_FOUND', category: 'NOT_FOUND', message: `Workflow ${workflowId} was not found.`, request_id: `req_workflow_${Date.now()}` } } };
+    return { status: 200, data: workflow };
   }
 
   return { status: 404, data: { error: 'ENDPOINT_NOT_FOUND', message: `${method} ${pathname}` } };

@@ -279,12 +279,21 @@ const APPLICATION_GRAPH_CLASSES = [
   // unenforced for the whole Task continuation/durable-runtime subsystem.
   'ExecutingTaskRunner', 'TaskContinuationStore', 'TaskContinuationCoordinator',
   'DurableTaskRunStateStore', 'DurableTaskRuntime',
+  // P07 — Reusable Workflow Definition Foundation.
+  'WorkflowDefinitionStore', 'WorkflowDefinitionService',
 ];
 
 const COMPOSITION_ROOT_PATH = 'src/app/create-nagex-application.ts';
 const ARCH_008_FILE_ALLOWLIST = new Set<string>([
   'src/modules/browser/browser.runtime.ts', // pre-existing module-owned browserRuntime singleton (Phase 01)
-  'src/server_web.ts', // ephemeral TaskScheduler/CompositeTaskRunner for alt-model test injection only
+  // Ephemeral TaskScheduler/ExecutingTaskRunner construction: the "test with
+  // an alternate model" DI override on /api/v1/tasks/:id/run, V01a's
+  // test-only fixed-plan bridge, and P07's real production workflow
+  // instantiate bridge (/api/v1/workflows/:id/run) all build a throwaway
+  // scheduler/runner pair here rather than reusing a Composition-Root
+  // singleton, since each needs to inject a resolved plan or an alternate
+  // model the shared production instances don't accept.
+  'src/server_web.ts',
 ]);
 
 function ruleCompositionRootOwnership(files: SourceFile[]): Violation[] {
@@ -463,6 +472,20 @@ test('negative: ARCH-008 fires on a production singleton constructed outside the
 
 test('negative: ARCH-008 fires on a P02/P03 Task Runtime class (DurableTaskRunStateStore) constructed outside the Composition Root', () => {
   const files = [fixture('src/workspace/fake.ts', `const rogue = new DurableTaskRunStateStore();\n`)];
+  const violations = ruleCompositionRootOwnership(files);
+  assert.equal(violations.length, 1);
+  assert.equal(violations[0].rule, 'ARCH-008');
+});
+
+test('negative: ARCH-008 fires on a P07 Workflow class (WorkflowDefinitionStore) constructed outside the Composition Root', () => {
+  const files = [fixture('src/workspace/fake.ts', `const rogue = new WorkflowDefinitionStore();\n`)];
+  const violations = ruleCompositionRootOwnership(files);
+  assert.equal(violations.length, 1);
+  assert.equal(violations[0].rule, 'ARCH-008');
+});
+
+test('negative: ARCH-008 fires on a P07 Workflow class (WorkflowDefinitionService) constructed outside the Composition Root', () => {
+  const files = [fixture('src/workspace/fake.ts', `const rogue = new WorkflowDefinitionService({} as any);\n`)];
   const violations = ruleCompositionRootOwnership(files);
   assert.equal(violations.length, 1);
   assert.equal(violations[0].rule, 'ARCH-008');

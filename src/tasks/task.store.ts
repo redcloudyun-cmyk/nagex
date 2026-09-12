@@ -59,6 +59,11 @@ export interface TaskRecord {
   // be reconciled by searching for it instead of guessing whether the task
   // was ever created.
   candidateId?: string;
+  // P07 — traceability-only: which WorkflowDefinition (if any) this Task was
+  // instantiated from (UI/audit/history/reconciliation). Never re-read to
+  // recompute or restore a running execution — the frozen resolved plan /
+  // durable run state is always the sole execution source once a run starts.
+  workflowDefinitionId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -92,6 +97,7 @@ export interface CreateTaskInput {
   approvalPolicy?: TaskApprovalPolicy;
   nextRunAt?: string | null;
   candidateId?: string;
+  workflowDefinitionId?: string;
 }
 
 export interface TaskStoreOptions {
@@ -151,6 +157,7 @@ export class TaskStore {
       lastRunAt: null,
       lastRunStatus: null,
       candidateId: input.candidateId,
+      workflowDefinitionId: input.workflowDefinitionId,
       createdAt: timestamp,
       updatedAt: timestamp,
     };
