@@ -22,6 +22,10 @@ export interface NotificationRecord {
   read: boolean;
   channelDeliveries: ChannelDelivery[];
   metadata?: Record<string, unknown>;
+  // P04 — a caller-supplied key that prevents the same logical event
+  // (e.g. taskId + runId + eventType) from producing duplicate notifications
+  // across restart, approval resume, or duplicate finalization triggers.
+  dedupeKey?: string;
   createdAt: string;
 }
 
@@ -76,12 +80,36 @@ export class NotificationStore {
       .slice(0, limit);
   }
 
-  public markAsRead(id: string): NotificationRecord | undefined {
+  // P04 — principal guard: the caller must own the notification to mark it
+  // read.  If principalId is omitted (backward compat for internal/system
+  // callers), the guard is bypassed — existing callers that don't pass it
+  // continue to work identically.
+  public markAsRead(id: string, principalId?: string): NotificationRecord | undefined {
     const record = this.records.get(id);
     if (!record) return undefined;
+    if (principalId && record.principalId !== principalId) return undefined;
     record.read = true;
     this.fileStore.write(id, record);
     return record;
+  }
+
+  // P04 — deduplication: returns true if any record with the given
+  // dedupeKey already exists.  O(n) scan is acceptable for the expected
+  // notification volume (hundreds, not millions).
+  public existsByDedupeKey(key: string): boolean {
+    for (const record of this.records.values()) {
+      if (record.dedupeKey === key) return true;
+    }
+    return false;
+  }
+
+  // P04 — returns the first record matching the given dedupeKey, or
+  // undefined if none exists.
+  public getByDedupeKey(key: string): NotificationRecord | undefined {
+    for (const record of this.records.values()) {
+      if (record.dedupeKey === key) return record;
+    }
+    return undefined;
   }
 
   public markAllAsRead(principalId: string): number {

@@ -33,6 +33,8 @@ MASTER.md
 | `SECURITY.md` | Permissions, human approval, secrets, audit, isolation |
 | `DEVELOPMENT.md` | Development workflow, implementation order, testing, release readiness |
 | `DEPLOYMENT.md` | Server setup and env vars for OAuth token persistence, restart-safety notes |
+| `HANDOVER.md` | Agent/developer transition documentation, recent major work, test benchmarks, operating rules |
+
 
 ## Documentation Status Rules
 

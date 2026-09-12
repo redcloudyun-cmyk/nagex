@@ -407,5 +407,5 @@ test('16. no false completion/failure notification for a run recovered into a fr
   durableRunState.recordStepExecuted(runId, { step: 1, capabilityId: 'gmail.search', status: 'EXECUTED', result: {} }, 1);
 
   await runtime.recoverOnStartup();
-  assert.deepEqual(dispatched, [], 'a recovered run that pauses again must never dispatch TASK_COMPLETED/TASK_FAILED');
+  assert.deepEqual(dispatched, ['APPROVAL_REQUEST'], 'a recovered run that pauses again must dispatch APPROVAL_REQUEST but never TASK_COMPLETED/TASK_FAILED');
 });

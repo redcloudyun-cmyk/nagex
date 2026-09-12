@@ -27,6 +27,34 @@ export interface TaskRunFinalizationDeps {
   notificationEngine?: NotificationEngine;
 }
 
+// P04 — builds a deterministic deduplication key for a notification event.
+// Prevents the same logical event (taskId + runId + eventType) from
+// producing duplicate notifications across restart recovery, approval
+// resume, duplicate finalization, or concurrent triggers.
+function buildDedupeKey(taskId: string, runId: string, eventType: string): string {
+  return `${taskId}:${runId}:${eventType}`;
+}
+
+// P04 — fire-and-log: dispatches a notification and logs errors instead of
+// silently swallowing them.  The NotificationEngine now uses persist-first
+// ordering (WEB record saved before optional channels), so by the time
+// this catch runs, the durable WEB notification is already persisted —
+// any error here is from optional channel attempts or audit logging, never
+// a silent WEB notification loss.
+function dispatchNotification(
+  engine: NotificationEngine,
+  opts: Parameters<NotificationEngine['dispatch']>[0],
+): void {
+  engine.dispatch(opts).catch((err) => {
+    console.error(JSON.stringify({
+      event: 'nagex_notification_dispatch_failed',
+      type: opts.type,
+      dedupeKey: opts.dedupeKey,
+      error: err instanceof Error ? err.message : String(err),
+    }));
+  });
+}
+
 export function finalizeTaskRun(deps: TaskRunFinalizationDeps, task: TaskRecord, runId: string, requestId: string, outcome: TaskRunOutcome): TaskRunRecord {
   const completedAt = getCurrentISOString();
 
@@ -40,9 +68,37 @@ export function finalizeTaskRun(deps: TaskRunFinalizationDeps, task: TaskRecord,
       result: 'PENDING_APPROVAL',
       request_id: requestId,
     });
-    // Non-terminal: never notify (a waiting task is not completed, not
-    // failed, not a condition match), never reschedule by time — resume
-    // is approval-event-triggered, not tick-driven.
+
+    // P04 — dispatch exactly one APPROVAL_REQUEST notification so the
+    // user has a durable, inspectable record that an action needs their
+    // approval.  The dedupeKey prevents a second notification if the
+    // same WAITING_APPROVAL transition is somehow triggered twice.
+    if (deps.notificationEngine) {
+      // Extract approvalId safely from the outcome result, when available.
+      const resultObj = outcome.result as Record<string, unknown> | undefined;
+      const approvalId = resultObj?.approvalId as string | undefined;
+      const waitingAtStep = resultObj?.waitingAtStep as number | undefined;
+
+      // Metadata: only safe, non-secret identifiers — never tokens,
+      // OAuth credentials, full payloads, or email contents.
+      const metadata: Record<string, unknown> = { taskId: task.taskId, runId };
+      if (approvalId) metadata.approvalId = approvalId;
+      if (waitingAtStep !== undefined) metadata.waitingAtStep = waitingAtStep;
+
+      dispatchNotification(deps.notificationEngine, {
+        tenantId: task.tenantId,
+        principalId: task.ownerId,
+        type: 'APPROVAL_REQUEST',
+        title: `Approval Required: ${task.name}`,
+        body: `Task "${task.name}" requires your approval to continue.`,
+        metadata,
+        requestId,
+        dedupeKey: buildDedupeKey(task.taskId, runId, 'APPROVAL_REQUEST'),
+      });
+    }
+
+    // Non-terminal: never reschedule by time — resume is
+    // approval-event-triggered, not tick-driven.
     deps.tasks.recordRunOutcome(task.taskId, { status: 'WAITING_APPROVAL', completedAt, nextRunAt: null }, requestId);
     return deps.runs.get(runId) as TaskRunRecord;
   }
@@ -60,7 +116,7 @@ export function finalizeTaskRun(deps: TaskRunFinalizationDeps, task: TaskRecord,
 
     if (deps.notificationEngine) {
       if (outcome.conditionMet) {
-        deps.notificationEngine.dispatch({
+        dispatchNotification(deps.notificationEngine, {
           tenantId: task.tenantId,
           principalId: task.ownerId,
           type: 'CONDITION_MET',
@@ -68,9 +124,10 @@ export function finalizeTaskRun(deps: TaskRunFinalizationDeps, task: TaskRecord,
           body: `Watched condition for task "${task.name}" was fulfilled.`,
           metadata: { taskId: task.taskId, runId },
           requestId,
-        }).catch(() => {});
+          dedupeKey: buildDedupeKey(task.taskId, runId, 'CONDITION_MET'),
+        });
       } else {
-        deps.notificationEngine.dispatch({
+        dispatchNotification(deps.notificationEngine, {
           tenantId: task.tenantId,
           principalId: task.ownerId,
           type: 'TASK_COMPLETED',
@@ -78,7 +135,8 @@ export function finalizeTaskRun(deps: TaskRunFinalizationDeps, task: TaskRecord,
           body: `Task "${task.name}" completed successfully.`,
           metadata: { taskId: task.taskId, runId },
           requestId,
-        }).catch(() => {});
+          dedupeKey: buildDedupeKey(task.taskId, runId, 'TASK_COMPLETED'),
+        });
       }
     }
   } else {
@@ -94,7 +152,7 @@ export function finalizeTaskRun(deps: TaskRunFinalizationDeps, task: TaskRecord,
     });
 
     if (deps.notificationEngine) {
-      deps.notificationEngine.dispatch({
+      dispatchNotification(deps.notificationEngine, {
         tenantId: task.tenantId,
         principalId: task.ownerId,
         type: 'TASK_FAILED',
@@ -102,7 +160,8 @@ export function finalizeTaskRun(deps: TaskRunFinalizationDeps, task: TaskRecord,
         body: `Task "${task.name}" failed: ${outcome.errorCode ?? 'Execution error'}`,
         metadata: { taskId: task.taskId, runId },
         requestId,
-      }).catch(() => {});
+        dedupeKey: buildDedupeKey(task.taskId, runId, 'TASK_FAILED'),
+      });
     }
   }
 
@@ -115,3 +174,4 @@ export function finalizeTaskRun(deps: TaskRunFinalizationDeps, task: TaskRecord,
 
   return deps.runs.get(runId) as TaskRunRecord;
 }
+

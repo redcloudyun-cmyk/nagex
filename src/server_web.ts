@@ -1221,8 +1221,9 @@ export async function handleAsyncApiRequest(
       return { status: 200, data: { success: true, updatedCount } };
     }
     if (pathname.startsWith('/api/v1/notifications/') && pathname.endsWith('/read') && method === 'POST') {
+      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
       const id = pathname.slice('/api/v1/notifications/'.length, pathname.length - '/read'.length);
-      const record = notificationApiService.markAsRead(id);
+      const record = notificationApiService.markAsRead(id, principalId);
       if (!record) {
         return { status: 404, data: { error: { code: 'NOTIFICATION_NOT_FOUND', category: 'NOT_FOUND', message: `Notification ${id} was not found.` } } };
       }

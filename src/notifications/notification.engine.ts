@@ -20,6 +20,10 @@ export interface DispatchNotificationOptions {
   body: string;
   metadata?: Record<string, unknown>;
   requestId?: string;
+  // P04 — caller-supplied deduplication key.  When provided, dispatch()
+  // returns the existing record if one with the same key already exists,
+  // guaranteeing exactly-one logical notification per event.
+  dedupeKey?: string;
 }
 
 export interface NotificationEngineOptions {
@@ -40,9 +44,37 @@ export class NotificationEngine {
     const now = new Date().toISOString();
     const requestId = opts.requestId || `req_notif_${Date.now()}`;
 
-    const deliveries: ChannelDelivery[] = [
-      { channel: 'WEB', status: 'DELIVERED', deliveredAt: now },
-    ];
+    // P04 — deduplication: if this logical event was already persisted
+    // (e.g. across restart recovery or duplicate finalization), return the
+    // existing record without creating a second notification.
+    if (opts.dedupeKey) {
+      const existing = this.options.store.getByDedupeKey(opts.dedupeKey);
+      if (existing) return existing;
+    }
+
+    // P04 — persist-first: save the WEB-only record to durable storage
+    // BEFORE attempting any optional external channels.  This guarantees
+    // the user always receives at least the WEB notification, even if an
+    // optional channel throws an unexpected error.
+    const record: NotificationRecord = {
+      id,
+      tenantId: opts.tenantId,
+      principalId: opts.principalId,
+      type: opts.type,
+      title: opts.title,
+      body: opts.body,
+      read: false,
+      channelDeliveries: [
+        { channel: 'WEB', status: 'DELIVERED', deliveredAt: now },
+      ],
+      metadata: opts.metadata,
+      dedupeKey: opts.dedupeKey,
+      createdAt: now,
+    };
+
+    this.options.store.save(record);
+
+    // ── Optional additive channels (failures never lose the WEB record) ──
 
     // 1. Telegram Multi-channel Dispatch
     if (this.options.telegramIdentityStore && this.options.telegramBotClient) {
@@ -56,14 +88,14 @@ export class NotificationEngine {
             chatId: tgIdentity.telegramUserId,
             text,
           });
-          deliveries.push({
+          record.channelDeliveries.push({
             channel: 'TELEGRAM',
             status: sent.ok ? 'DELIVERED' : 'FAILED',
             targetId: tgIdentity.telegramUserId,
             deliveredAt: sent.ok ? new Date().toISOString() : undefined,
           });
         } catch (err) {
-          deliveries.push({
+          record.channelDeliveries.push({
             channel: 'TELEGRAM',
             status: 'FAILED',
             targetId: tgIdentity.telegramUserId,
@@ -84,14 +116,14 @@ export class NotificationEngine {
             channel: slackIdentity.slackUserId,
             text,
           });
-          deliveries.push({
+          record.channelDeliveries.push({
             channel: 'SLACK',
             status: sent.ok ? 'DELIVERED' : 'FAILED',
             targetId: slackIdentity.slackUserId,
             deliveredAt: sent.ok ? new Date().toISOString() : undefined,
           });
         } catch (err) {
-          deliveries.push({
+          record.channelDeliveries.push({
             channel: 'SLACK',
             status: 'FAILED',
             targetId: slackIdentity.slackUserId,
@@ -110,14 +142,14 @@ export class NotificationEngine {
           body: opts.body,
           metadata: opts.metadata,
         });
-        deliveries.push({
+        record.channelDeliveries.push({
           channel: 'DESKTOP',
           status: desktopSent ? 'DELIVERED' : 'SKIPPED',
           targetId: opts.principalId,
           deliveredAt: desktopSent ? new Date().toISOString() : undefined,
         });
       } catch (err) {
-        deliveries.push({
+        record.channelDeliveries.push({
           channel: 'DESKTOP',
           status: 'FAILED',
           targetId: opts.principalId,
@@ -126,20 +158,12 @@ export class NotificationEngine {
       }
     }
 
-    const record: NotificationRecord = {
-      id,
-      tenantId: opts.tenantId,
-      principalId: opts.principalId,
-      type: opts.type,
-      title: opts.title,
-      body: opts.body,
-      read: false,
-      channelDeliveries: deliveries,
-      metadata: opts.metadata,
-      createdAt: now,
-    };
-
-    this.options.store.save(record);
+    // Update the persisted record with optional channel outcomes.
+    // If the update fails, the WEB-only record already persisted above
+    // remains — the user still has the core notification.
+    if (record.channelDeliveries.length > 1) {
+      this.options.store.save(record);
+    }
 
     this.options.auditLogger.logEvent({
       actor: { type: 'system', id: 'notification-engine' },
@@ -148,7 +172,7 @@ export class NotificationEngine {
       resource: { type: 'Notification', id },
       result: 'SUCCESS',
       request_id: requestId,
-      details: { type: opts.type, title: opts.title, deliveries: deliveries.map((d) => `${d.channel}:${d.status}`) },
+      details: { type: opts.type, title: opts.title, deliveries: record.channelDeliveries.map((d) => `${d.channel}:${d.status}`) },
     });
 
     return record;
@@ -162,8 +186,8 @@ export class NotificationEngine {
     return this.options.store.getUnreadCount(principalId);
   }
 
-  public markAsRead(id: string): NotificationRecord | undefined {
-    return this.options.store.markAsRead(id);
+  public markAsRead(id: string, principalId?: string): NotificationRecord | undefined {
+    return this.options.store.markAsRead(id, principalId);
   }
 
   public markAllAsRead(principalId: string): number {
@@ -174,3 +198,4 @@ export class NotificationEngine {
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 }
+

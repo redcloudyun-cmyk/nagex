@@ -298,7 +298,7 @@ test('11/12. later steps do not execute before approval, and do continue after a
   assert.equal(finalResult.steps.length, 3, 'all 3 steps (2 read-only + 1 approved write) must appear in the final result');
 });
 
-test('14. waiting never emits a false completion/failure notification', async () => {
+test('14. waiting emits exactly one APPROVAL_REQUEST but never a false completion/failure notification', async () => {
   const { taskStore, taskRunStore, executingTaskRunner } = buildStack();
   const notificationStore = new NotificationStore({ dir: tempDir('notifications') });
   const auditLogger = new AuditLogger();
@@ -309,7 +309,8 @@ test('14. waiting never emits a false completion/failure notification', async ()
   const scheduler = new TaskScheduler(taskStore, taskRunStore, executingTaskRunner, auditLogger, undefined, notificationEngine);
   const task = taskStore.create({ tenantId: 't_p02', ownerId: 'u_p02', name: 'Send', objective: 'x', type: 'ONE_TIME', trigger: { type: 'MANUAL' }, approvalPolicy: 'READ_ONLY_AUTO' });
   await scheduler.runOne(task);
-  assert.deepEqual(dispatched, [], 'a WAITING_APPROVAL run must never dispatch TASK_COMPLETED, TASK_FAILED, or CONDITION_MET');
+  // P04: WAITING_APPROVAL must dispatch exactly one APPROVAL_REQUEST
+  assert.deepEqual(dispatched, ['APPROVAL_REQUEST'], 'a WAITING_APPROVAL run must dispatch APPROVAL_REQUEST but never TASK_COMPLETED, TASK_FAILED, or CONDITION_MET');
 });
 
 test('15. a fresh TaskContinuationStore pointed at the same directory (simulating a restart) still finds the persisted continuation', async () => {

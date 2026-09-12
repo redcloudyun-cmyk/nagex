@@ -4,14 +4,22 @@ import type { AddressInfo } from 'node:net';
 import { server } from '../src/server_web.js';
 
 async function withServer(run: (origin: string) => Promise<void>): Promise<void> {
+  if (server.listening) {
+    const addr = server.address() as AddressInfo | null;
+    if (addr && addr.port) {
+      await run(`http://127.0.0.1:${addr.port}`);
+      return;
+    }
+  }
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const { port } = server.address() as AddressInfo;
   try {
     await run(`http://127.0.0.1:${port}`);
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 }
+
 
 // This repo has no jsdom/browser test harness (see tests/ambient_composer.test.ts's
 // note on the same limitation for Calendar). What is verified here, statically
