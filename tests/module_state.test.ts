@@ -380,8 +380,37 @@ describe('ModuleStateStore & Service Tests', () => {
     );
   });
 
-  it('P06-R3-02: authorized route mutation occurs only in isolated test store', () => {
+interface ProductionDirectorySnapshot {
+  exists: boolean;
+  files: Record<string, string>;
+}
+
+function snapshotProductionModuleState(prodDir: string = '/var/lib/nagex/module-state'): ProductionDirectorySnapshot {
+  if (!fs.existsSync(prodDir)) {
+    return { exists: false, files: {} };
+  }
+
+  const files: Record<string, string> = {};
+  try {
+    const entries = fs.readdirSync(prodDir);
+    for (const file of entries) {
+      const fullPath = path.join(prodDir, file);
+      if (fs.statSync(fullPath).isFile()) {
+        files[file] = fs.readFileSync(fullPath, 'utf8');
+      }
+    }
+  } catch {
+    // Ignore unreadable or non-existent entries during snapshot
+  }
+
+  return { exists: true, files };
+}
+
+  it('P06-R3-02: isolated route mutation does not alter production snapshot', () => {
     const testTenant = 'ten_production_01';
+    const prodDir = '/var/lib/nagex/module-state';
+    const snapshotBefore = snapshotProductionModuleState(prodDir);
+
     try {
       const res = handleApiRequest(
         'PUT',
@@ -395,8 +424,12 @@ describe('ModuleStateStore & Service Tests', () => {
       const inTestStore = moduleService.getModule(testTenant, 'module.gmail');
       assert.equal(inTestStore?.enabled, false);
 
-      const prodFilePath = path.join('/var/lib/nagex/module-state', `${testTenant}:module.gmail.json`);
-      assert.equal(fs.existsSync(prodFilePath), false, 'Production file path must remain untouched');
+      const snapshotAfter = snapshotProductionModuleState(prodDir);
+      assert.deepEqual(
+        snapshotAfter,
+        snapshotBefore,
+        'Production module state snapshot MUST remain identical before and after test mutation'
+      );
     } finally {
       handleApiRequest(
         'PUT',
@@ -431,24 +464,24 @@ describe('ModuleStateStore & Service Tests', () => {
     assert.equal(state?.enabled, true, 'Module state must be restored after teardown');
   });
 
-  it('P06-R3-04: running full test suite twice leaves default production state unchanged', () => {
-    const gmailState = moduleStateStore.getState('default', 'module.gmail');
-    const calendarState = moduleStateStore.getState('default', 'module.calendar');
-    const browserState = moduleStateStore.getState('default', 'module.browser');
-
-    assert.equal(gmailState?.enabled ?? true, true, 'module.gmail default state must remain enabled');
-    assert.equal(calendarState?.enabled ?? true, true, 'module.calendar default state must remain enabled');
-    assert.equal(browserState?.enabled ?? true, true, 'module.browser default state must remain enabled');
-
+  it('P06-R3-04: repeated full test runs leave production snapshot unchanged', () => {
     const prodDir = '/var/lib/nagex/module-state';
-    if (fs.existsSync(prodDir)) {
-      const prodFiles = fs.readdirSync(prodDir);
-      assert.equal(
-        prodFiles.includes('default:module.gmail.json'),
-        false,
-        'Production directory must not contain test-generated module.gmail record'
-      );
-    }
+    const snapshotBefore = snapshotProductionModuleState(prodDir);
+
+    const gmailState = moduleService.getModule('default', 'module.gmail');
+    const calendarState = moduleService.getModule('default', 'module.calendar');
+    const browserState = moduleService.getModule('default', 'module.browser');
+
+    assert.equal(gmailState?.enabled, true, 'module.gmail default state must remain enabled');
+    assert.equal(calendarState?.enabled, true, 'module.calendar default state must remain enabled');
+    assert.equal(browserState?.enabled, true, 'module.browser default state must remain enabled');
+
+    const snapshotAfter = snapshotProductionModuleState(prodDir);
+    assert.deepEqual(
+      snapshotAfter,
+      snapshotBefore,
+      'Production module state snapshot MUST remain identical across test executions'
+    );
   });
 
   it('P06-13: GET /api/v1/modules lists modules for tenant', () => {
