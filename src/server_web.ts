@@ -6,6 +6,7 @@ import { execFileSync } from 'node:child_process';
 
 // ─── NAgex Core Engine Imports ───
 import { PolicyDecisionPoint, describeDeniedDecision } from './identity/pdp.js';
+import { resolvePrincipalPermissions } from './identity/permission.registry.js';
 import { DurableRuntimeEngine } from './runtime/runtime.engine.js';
 import { AuditLogger } from './governance/audit.logger.js';
 import { BillingLedgerEngine } from './billing/billing.ledger.js';
@@ -1700,8 +1701,11 @@ export function handleApiRequest(
       };
     }
 
-    const headerPermissions = headers['x-principal-permissions'];
-    const permissions = (Array.isArray(headerPermissions) ? headerPermissions[0] : headerPermissions)?.split(',') || ['*'];
+    const targetTenantId = (typeof body?.tenantId === 'string' && body.tenantId.trim())
+      ? body.tenantId.trim()
+      : tenantId;
+
+    const permissions = resolvePrincipalPermissions(principal);
 
     const decision = pdp.evaluate({
       principal,
@@ -1709,7 +1713,7 @@ export function handleApiRequest(
       action: 'module:manage',
       resource_type: 'Module',
       resource_id: moduleId,
-      resource_tenant_id: tenantId,
+      resource_tenant_id: targetTenantId,
       principal_permissions: permissions,
     });
 
@@ -1731,7 +1735,7 @@ export function handleApiRequest(
     }
 
     try {
-      const updated = moduleService.setModuleState(tenantId, moduleId, body.enabled as boolean, principal.id);
+      const updated = moduleService.setModuleState(targetTenantId, moduleId, body.enabled as boolean, principal.id);
       return { status: 200, data: updated };
     } catch (error) {
       return modelErrorResult(error);

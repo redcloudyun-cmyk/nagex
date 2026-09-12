@@ -1,0 +1,9 @@
+# NAGEX Module Permission Definitions Registry
+# Schema Version: v1
+
+permissions:
+  - id: "module:manage"
+    domain: "module"
+    action: "manage"
+    risk: "HIGH"
+    description: "모듈 활성화/비활성화 및 런타임 상태를 관리합니다."

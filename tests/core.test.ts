@@ -17,13 +17,14 @@ test('1. Resource ID Generation & Prefix Validation', () => {
 
 test('1b. Permission Registry loads real risk classifications from specs/permissions/*.yaml', () => {
   // specs/permissions/core.permissions.yaml (6 entries) + agent.permissions.yaml
-  // (5 entries) = 11. This count check fails loudly if the YAML loader
-  // silently drops entries or falls back to a stale hardcoded set.
-  assert.strictEqual(Object.keys(PERMISSION_RISK).length, 11);
+  // (5 entries) + module.permissions.yaml (1 entry) = 12. This count check fails
+  // loudly if the YAML loader silently drops entries or falls back to a stale hardcoded set.
+  assert.strictEqual(Object.keys(PERMISSION_RISK).length, 12);
 
   assert.strictEqual(PERMISSION_RISK['tenant:delete'], 'CRITICAL');
   assert.strictEqual(PERMISSION_RISK['secret:manage'], 'CRITICAL');
   assert.strictEqual(PERMISSION_RISK['agent:execute'], 'HIGH');
+  assert.strictEqual(PERMISSION_RISK['module:manage'], 'HIGH');
   assert.strictEqual(PERMISSION_RISK['agent:read'], 'LOW');
 });
 

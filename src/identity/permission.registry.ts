@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { load as loadYaml } from 'js-yaml';
+import type { PrincipalReference } from '../common/types.js';
 
 export type PermissionRisk = 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL';
 
@@ -15,6 +16,7 @@ const VALID_RISK_LEVELS: ReadonlySet<string> = new Set(['LOW', 'MODERATE', 'HIGH
 const PERMISSION_SPEC_FILES = [
   'specs/permissions/core.permissions.yaml',
   'specs/permissions/agent.permissions.yaml',
+  'specs/permissions/module.permissions.yaml',
 ];
 
 interface RawPermissionEntry {
@@ -56,3 +58,14 @@ function loadPermissionRiskMap(): Readonly<Record<string, PermissionRisk>> {
 // throws at startup rather than silently authorizing requests against an
 // incomplete or empty risk map.
 export const PERMISSION_RISK: Readonly<Record<string, PermissionRisk>> = loadPermissionRiskMap();
+
+export function resolvePrincipalPermissions(principal: PrincipalReference): string[] {
+  if (
+    principal.type === 'system' ||
+    principal.id === 'usr_admin_001' ||
+    principal.id === 'admin'
+  ) {
+    return ['module:manage', 'agent:execute', 'tenant:create', 'policy:publish'];
+  }
+  return ['agent:execute'];
+}

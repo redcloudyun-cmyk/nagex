@@ -1,4 +1,4 @@
-// P06-06 ~ P06-22 & Amendment Tests: Module State Store, Service, CapabilityBroker Integration, PDP Authorization
+// P06-06 ~ P06-22 & P06-R1 Tests: Module State Store, Service, CapabilityBroker Integration, PDP Authorization
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -221,29 +221,89 @@ describe('ModuleStateStore & Service Tests', () => {
     fs.rmSync(tmpDirIdem, { recursive: true, force: true });
   });
 
-  it('P06-12 (PDP Authorization on HTTP API): PUT /api/v1/modules/:moduleId/state enforces PDP authorization', () => {
-    // 1. Without permission header (or when PDP returns DENY)
-    const resDenied = handleApiRequest(
+  it('P06-R1-01: no permission header does NOT grant wildcard access', () => {
+    const res = handleApiRequest(
       'PUT',
       '/api/v1/modules/module.gmail/state',
       { enabled: false },
-      { 'x-principal-permissions': 'memory:read' } // Missing module:manage or *
+      { 'x-principal-id': 'usr_unauthorized' }
     );
 
-    assert.equal(resDenied.status, 403);
-    assert.equal((resDenied.data as any).error, 'PERMISSION_DENIED');
+    assert.equal(res.status, 403);
+    assert.equal((res.data as any).error, 'PERMISSION_DENIED');
+  });
 
-    // 2. With wildcard / module:manage permission -> Allowed
-    const resAllowed = handleApiRequest(
+  it('P06-R1-02: caller-supplied x-principal-permissions:* cannot self-elevate', () => {
+    const res = handleApiRequest(
       'PUT',
       '/api/v1/modules/module.gmail/state',
       { enabled: false },
-      { 'x-principal-permissions': 'module:manage' }
+      { 'x-principal-id': 'usr_unauthorized', 'x-principal-permissions': '*' }
     );
 
-    assert.equal(resAllowed.status, 200);
-    assert.equal((resAllowed.data as any).enabled, false);
-    assert.equal((resAllowed.data as any).status, 'DISABLED');
+    assert.equal(res.status, 403);
+    assert.equal((res.data as any).error, 'PERMISSION_DENIED');
+  });
+
+  it('P06-R1-03: unauthorized principal cannot disable a module', () => {
+    const res = handleApiRequest(
+      'PUT',
+      '/api/v1/modules/module.calendar/state',
+      { enabled: false },
+      { 'x-principal-id': 'usr_unauthorized' }
+    );
+
+    assert.equal(res.status, 403);
+    assert.equal((res.data as any).error, 'PERMISSION_DENIED');
+  });
+
+  it('P06-R1-04: authorized principal can change module state', () => {
+    const res = handleApiRequest(
+      'PUT',
+      '/api/v1/modules/module.gmail/state',
+      { enabled: false },
+      { 'x-principal-id': 'usr_admin_001' }
+    );
+
+    assert.equal(res.status, 200);
+    assert.equal((res.data as any).enabled, false);
+    assert.equal((res.data as any).status, 'DISABLED');
+  });
+
+  it('P06-R1-05: cross-tenant module-state mutation is denied', () => {
+    const res = handleApiRequest(
+      'PUT',
+      '/api/v1/modules/module.gmail/state',
+      { enabled: false, tenantId: 'ten_beta' },
+      { 'x-nagex-tenant': 'ten_alpha', 'x-principal-id': 'usr_admin_001' }
+    );
+
+    assert.equal(res.status, 403);
+    assert.equal((res.data as any).error, 'PERMISSION_DENIED');
+    assert.equal((res.data as any).reason, 'CROSS_TENANT_ACCESS_DENIED');
+  });
+
+  it('P06-R1-06: denied mutation leaves durable state unchanged', () => {
+    const tmpDir = createTempDir('nagex_mod_state_r1_06_');
+    process.env.NAGEX_MODULE_STATE_DIR = tmpDir;
+
+    const stateStore = new ModuleStateStore('test-mod-state', 'NAGEX_MODULE_STATE_DIR');
+    const initialRecord = stateStore.getState('ten_beta', 'module.browser');
+    assert.equal(initialRecord?.enabled ?? true, true);
+
+    const res = handleApiRequest(
+      'PUT',
+      '/api/v1/modules/module.browser/state',
+      { enabled: false, tenantId: 'ten_beta' },
+      { 'x-nagex-tenant': 'ten_alpha', 'x-principal-id': 'usr_admin_001' }
+    );
+
+    assert.equal(res.status, 403);
+
+    const postRecord = stateStore.getState('ten_beta', 'module.browser');
+    assert.equal(postRecord?.enabled ?? true, true);
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
   it('P06-13: GET /api/v1/modules lists modules for tenant', () => {
