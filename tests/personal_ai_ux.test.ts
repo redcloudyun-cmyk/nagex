@@ -1,5 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { handleApiRequest, handleAsyncApiRequest } from '../src/server_web.js';
 import { MemoryEngine } from '../src/context/memory.engine.js';
 import { ToolInvoker } from '../src/agent/tool.invoker.js';
@@ -30,7 +33,7 @@ const planningProvider: ModelProvider = {
 const planningService = new AiService(new UnifiedModelRouter([planningProvider], { info: () => {}, warn: () => {} }));
 
 test('1. Personal AI: Memory CRUD Operations & State Lifecycles', () => {
-  const memEngine = new MemoryEngine();
+  const memEngine = new MemoryEngine({ dir: fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-ux-test-mem-')) });
 
   const rec = memEngine.proposeMemory('USER', 'usr_admin_001', {
     subject: 'Client Meeting Time',

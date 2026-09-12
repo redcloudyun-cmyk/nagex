@@ -10,6 +10,7 @@
 // phase and are shared across app instances by design.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createNagexApplication } from '../src/app/create-nagex-application.js';
@@ -137,9 +138,19 @@ test('7. Two createNagexApplication() calls produce two independent application 
 });
 
 test('8. Seed memory (mem1-4) and pinnedMemories are present and consistent per graph, without changing seed content', () => {
-  const app = createNagexApplication();
-  const active = app.memoryEngine.getActiveMemories('USER', 'usr_admin_001');
-  const subjects = active.map((m) => (m.content as { subject?: string }).subject).sort();
-  assert.deepEqual(subjects, ['Acme Corp Context', 'Preferred Tools', 'User Profile'].sort());
-  assert.equal(app.pinnedMemories.size, 2, 'exactly mem2 and mem3 are pinned, matching the original inline seed logic');
+  const oldDir = process.env.NAGEX_MEMORIES_DIR;
+  process.env.NAGEX_MEMORIES_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-root-seed-test-'));
+  try {
+    const app = createNagexApplication();
+    const active = app.memoryEngine.getActiveMemories('USER', 'usr_admin_001');
+    const subjects = active.map((m) => (m.content as { subject?: string }).subject).sort();
+    assert.deepEqual(subjects, ['Acme Corp Context', 'Preferred Tools', 'User Profile'].sort());
+    assert.equal(app.pinnedMemories.size, 2, 'exactly mem2 and mem3 are pinned, matching the original inline seed logic');
+  } finally {
+    if (oldDir !== undefined) {
+      process.env.NAGEX_MEMORIES_DIR = oldDir;
+    } else {
+      delete process.env.NAGEX_MEMORIES_DIR;
+    }
+  }
 });

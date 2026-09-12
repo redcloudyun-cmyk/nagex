@@ -32,3 +32,4 @@ process.env.NAGEX_NOTIFICATIONS_DIR ??= path.join(dataRoot, 'notifications');
 process.env.NAGEX_OBJECT_STORAGE_DIR ??= path.join(dataRoot, 'object-storage');
 process.env.NAGEX_TELEGRAM_DIR ??= path.join(dataRoot, 'telegram-identities');
 process.env.NAGEX_SLACK_DIR ??= path.join(dataRoot, 'slack-identities');
+process.env.NAGEX_MEMORIES_DIR ??= path.join(dataRoot, 'memories');

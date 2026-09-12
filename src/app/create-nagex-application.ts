@@ -20,7 +20,7 @@ import { DurableRuntimeEngine } from '../runtime/runtime.engine.js';
 import { AuditLogger } from '../governance/audit.logger.js';
 import { BillingLedgerEngine } from '../billing/billing.ledger.js';
 import { CreditEngine } from '../billing/credit.engine.js';
-import { MemoryEngine, type MemoryRecord } from '../context/memory.engine.js';
+import { MemoryEngine, type MemoryRecord, type MemoryScope } from '../context/memory.engine.js';
 import { AiService } from '../model-gateway/ai-service.js';
 import { createProviders } from '../model-gateway/providers.js';
 import { UnifiedModelRouter } from '../model-gateway/unified-model-router.js';
@@ -133,33 +133,50 @@ export function createNagexApplication(): NagexApplication {
   // life by memory pin/unpin route handlers in server_web.ts, which is why
   // both are exposed on the returned NagexApplication rather than kept
   // private here).
-  const mem1 = memoryEngine.proposeMemory('USER', 'usr_admin_001', {
+  function ensureSeedMemory(
+    scope: MemoryScope,
+    ownerId: string,
+    content: { subject: string; predicate: string; value: unknown },
+  ): MemoryRecord {
+    const existing = memoryEngine.findSeedMemory({
+      scope,
+      ownerId,
+      subject: content.subject,
+      predicate: content.predicate,
+    });
+    if (existing) {
+      if (existing.lifecycle !== 'ACTIVE') {
+        return memoryEngine.activateMemory(existing.id);
+      }
+      return existing;
+    }
+    const proposed = memoryEngine.proposeMemory(scope, ownerId, content);
+    return memoryEngine.activateMemory(proposed.id);
+  }
+
+  const mem1 = ensureSeedMemory('USER', 'usr_admin_001', {
     subject: 'User Profile',
     predicate: 'is',
     value: 'Jane Smith (Product Strategy Lead)',
   });
-  memoryEngine.activateMemory(mem1.id);
 
-  const mem2 = memoryEngine.proposeMemory('USER', 'usr_admin_001', {
+  const mem2 = ensureSeedMemory('USER', 'usr_admin_001', {
     subject: 'Acme Corp Context',
     predicate: 'memory_summary',
     value: "Preparing for quarterly business review with Acme Corp focusing on product adoption, renewal potential, and Q3 roadmap.",
   });
-  memoryEngine.activateMemory(mem2.id);
 
-  const mem3 = memoryEngine.proposeMemory('USER', 'usr_admin_001', {
+  const mem3 = ensureSeedMemory('USER', 'usr_admin_001', {
     subject: 'Preferred Tools',
     predicate: 'channel',
     value: 'Gmail, Google Calendar, Notion, Slack',
   });
-  memoryEngine.activateMemory(mem3.id);
 
-  const mem4 = memoryEngine.proposeMemory('SESSION', 'usr_admin_001', {
+  const mem4 = ensureSeedMemory('SESSION', 'usr_admin_001', {
     subject: 'Current Focus',
     predicate: 'active_plan',
     value: 'Prepare Client Meeting & Schedule Product Strategy Sync',
   });
-  memoryEngine.activateMemory(mem4.id);
 
   const pinnedMemories = new Set<string>([mem2.id, mem3.id]);
 

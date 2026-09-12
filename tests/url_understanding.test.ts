@@ -14,6 +14,7 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { URL } from 'node:url';
 import { CaptureStore } from '../src/workspace/capture.store.js';
+import { CandidateStore } from '../src/workspace/candidate.store.js';
 import { QuickCaptureService } from '../src/workspace/quick-capture.service.js';
 import { BrowserSessionStore } from '../src/modules/browser/browser-session.store.js';
 import { PlaywrightBrowserRuntime } from '../src/modules/browser/browser.runtime.js';
@@ -104,15 +105,16 @@ function buildHarness(aiService: AiService, isRuntimeAvailable?: () => boolean) 
   const ownerId = `usr_url_test_${ownerCounter}`;
   const dir = tempDir();
   const store = new CaptureStore(path.join(dir, 'captures'));
+  const candidateStore = new CandidateStore({ dir: path.join(dir, 'candidates') });
   const sessions = new BrowserSessionStore({ dir: path.join(dir, 'browser-sessions') });
   const approvals = new ActionApprovalStore();
   const audit = new AuditLogger();
-  const memory = new MemoryEngine();
+  const memory = new MemoryEngine({ dir: path.join(dir, 'memories') });
   const browserService = isRuntimeAvailable
     ? new BrowserToolService(sharedRuntime, sessions, approvals, audit, memory, undefined, undefined, isRuntimeAvailable)
     : new BrowserToolService(sharedRuntime, sessions, approvals, audit, memory);
-  const service = new QuickCaptureService(store, undefined, undefined, undefined, undefined, aiService, browserService);
-  return { store, sessions, service, ownerId, tenantId: 'ten_url_step3' };
+  const service = new QuickCaptureService(store, undefined, undefined, memory, undefined, aiService, browserService, undefined, undefined, candidateStore);
+  return { store, candidateStore, sessions, service, ownerId, tenantId: 'ten_url_step3' };
 }
 
 test('1. Normal public webpage: real browser retrieval, real extracted text, real structured understanding', async () => {

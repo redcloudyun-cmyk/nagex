@@ -1650,9 +1650,9 @@ export function handleApiRequest(
     const predicate = (body?.predicate as string) || 'note';
     const value = body?.value || '';
     const rec = memoryEngine.proposeMemory(scope, principal.id, { subject, predicate, value });
-    memoryEngine.activateMemory(rec.id);
-    if (body?.pinned) pinnedMemories.add(rec.id);
-    return { status: 201, data: { ...rec, pinned: pinnedMemories.has(rec.id) } };
+    const activated = memoryEngine.activateMemory(rec.id);
+    if (body?.pinned) pinnedMemories.add(activated.id);
+    return { status: 201, data: { ...activated, pinned: pinnedMemories.has(activated.id) } };
   }
 
   if (pathname.startsWith('/api/v1/memory/') && method === 'DELETE') {

@@ -49,7 +49,7 @@ function buildHarness(calendarFetchFn?: typeof fetch) {
   const candidateStore = new CandidateStore({ dir: path.join(dir, 'candidates') });
   const activityStore = new ActivityStore({ dir: path.join(dir, 'activity') });
   const taskStore = new TaskStore({ dir: path.join(dir, 'tasks') });
-  const memoryEngine = new MemoryEngine();
+  const memoryEngine = new MemoryEngine({ dir: path.join(dir, 'memories') });
   const knowledgeEngine = new KnowledgeEngine();
   const tokenStore = new InMemoryGoogleOAuthTokenStore();
   const approvals = new ActionApprovalStore();
