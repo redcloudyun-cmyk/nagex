@@ -133,6 +133,9 @@ const {
 export const {
   actionApprovals,
   executionStore,
+  moduleRegistry,
+  moduleStateStore,
+  moduleService,
   capabilityBroker,
   sessionStore,
   conversationStore,
@@ -1671,6 +1674,87 @@ export function handleApiRequest(
     if (pinnedMemories.has(memId)) pinnedMemories.delete(memId);
     else pinnedMemories.add(memId);
     return { status: 200, data: { success: true, pinned: pinnedMemories.has(memId) } };
+  }
+
+  if (pathname === '/api/v1/modules' && method === 'GET') {
+    const modules = moduleService.listModules(tenantId);
+    return { status: 200, data: { modules, total: modules.length } };
+  }
+
+  if (pathname.startsWith('/api/v1/modules/') && pathname.endsWith('/state') && method === 'PUT') {
+    const moduleId = pathname.slice('/api/v1/modules/'.length, pathname.length - '/state'.length);
+    const headerReqId = headers['x-request-id'] || headers['X-Request-Id'];
+    const requestId = (Array.isArray(headerReqId) ? headerReqId[0] : headerReqId) || `req_mod_${Date.now()}`;
+
+    if (typeof body?.enabled !== 'boolean') {
+      return {
+        status: 400,
+        data: {
+          error: {
+            code: 'INVALID_MODULE_STATE',
+            category: 'VALIDATION',
+            message: 'body.enabled must be a boolean.',
+            request_id: requestId,
+          },
+        },
+      };
+    }
+
+    const headerPermissions = headers['x-principal-permissions'];
+    const permissions = (Array.isArray(headerPermissions) ? headerPermissions[0] : headerPermissions)?.split(',') || ['*'];
+
+    const decision = pdp.evaluate({
+      principal,
+      tenant_context: tenantContext,
+      action: 'module:manage',
+      resource_type: 'Module',
+      resource_id: moduleId,
+      resource_tenant_id: tenantId,
+      principal_permissions: permissions,
+    });
+
+    if (decision.decision !== 'ALLOW') {
+      const outcome = describeDeniedDecision(decision);
+      auditLogger.logEvent({
+        actor: principal,
+        tenant_id: tenantId,
+        action: 'module.state_change_blocked',
+        resource: { type: 'Module', id: moduleId },
+        result: outcome.auditResult,
+        reason_code: decision.reason_code,
+        request_id: requestId,
+      });
+      return {
+        status: outcome.httpStatus,
+        data: { error: outcome.errorCode, reason: decision.reason_code, request_id: requestId },
+      };
+    }
+
+    try {
+      const updated = moduleService.setModuleState(tenantId, moduleId, body.enabled as boolean, principal.id);
+      return { status: 200, data: updated };
+    } catch (error) {
+      return modelErrorResult(error);
+    }
+  }
+
+  if (pathname.startsWith('/api/v1/modules/') && method === 'GET') {
+    const moduleId = pathname.slice('/api/v1/modules/'.length);
+    const moduleState = moduleService.getModule(tenantId, moduleId);
+    if (!moduleState) {
+      return {
+        status: 404,
+        data: {
+          error: {
+            code: 'MODULE_NOT_FOUND',
+            category: 'NOT_FOUND',
+            message: `Module "${moduleId}" was not found.`,
+            request_id: `req_mod_${Date.now()}`,
+          },
+        },
+      };
+    }
+    return { status: 200, data: moduleState };
   }
 
   if (pathname === '/api/v1/plans' && method === 'GET') {

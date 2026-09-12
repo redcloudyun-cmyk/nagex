@@ -46,6 +46,9 @@ const NATIVE_APPROVAL_CAPABILITIES = new Set([
   'browser.click',
 ]);
 
+import { ModuleRegistry, canonicalModuleRegistry } from '../modules/module.registry.js';
+import { ModuleStateStore } from '../modules/module-state.store.js';
+
 export class CapabilityBroker {
   private readonly idempotencyStore: FileRecordStore<CapabilityIdempotencyRecord>;
 
@@ -56,7 +59,9 @@ export class CapabilityBroker {
     private readonly auditLogger: AuditLogger,
     private readonly registry: CapabilityRegistry = capabilityRegistry,
     idempotencyDirName: string = 'capabilities_idempotency',
-    idempotencyEnvVar: string = 'NAGEX_CAPABILITIES_IDEMPOTENCY_DIR'
+    idempotencyEnvVar: string = 'NAGEX_CAPABILITIES_IDEMPOTENCY_DIR',
+    private readonly moduleRegistry: ModuleRegistry = canonicalModuleRegistry,
+    private readonly moduleStateStore?: ModuleStateStore
   ) {
     const dataDir = resolveNagexDataDir(idempotencyDirName, idempotencyEnvVar);
     this.idempotencyStore = new FileRecordStore<CapabilityIdempotencyRecord>(
@@ -84,6 +89,41 @@ export class CapabilityBroker {
         requestId: request.requestId,
       },
     });
+
+    // 1.5. Module Availability Check (BEFORE Idempotency Replay)
+    const targetModuleDef = this.moduleRegistry.getByCapability(request.capabilityId);
+    if (targetModuleDef) {
+      const stateRecord = this.moduleStateStore
+        ? this.moduleStateStore.getState(request.tenantId, targetModuleDef.moduleId)
+        : null;
+      const isModuleEnabled = stateRecord !== null ? stateRecord.enabled : targetModuleDef.enabledByDefault;
+
+      if (!isModuleEnabled) {
+        this.auditLogger.logEvent({
+          actor: { type: 'user', id: request.principalId || 'unknown' },
+          tenant_id: request.tenantId || 'unknown',
+          action: 'capability.blocked',
+          resource: { type: 'Capability', id: request.capabilityId },
+          result: 'DENIED',
+          reason_code: 'MODULE_DISABLED',
+          request_id: request.requestId,
+          details: {
+            capabilityId: request.capabilityId,
+            moduleId: targetModuleDef.moduleId,
+            provider: def?.provider,
+            risk: def?.risk,
+            source: request.source,
+            requestId: request.requestId,
+          },
+        });
+
+        return {
+          status: 'BLOCKED',
+          capabilityId: request.capabilityId,
+          reasonCode: 'MODULE_DISABLED',
+        };
+      }
+    }
 
     // 2. Idempotency Check
     const payloadHash = crypto

@@ -3,6 +3,8 @@
     "architecture": [
       "architecture_enforcement",
       "module_contracts",
+      "module_registry",
+      "module_state",
       "browser_module_boundary",
       "google_modules_boundary",
       "task_orchestration_boundary",
@@ -98,6 +100,8 @@
     "legal_pages",
     "modal_behavior",
     "model_provider_integration",
+    "module_registry",
+    "module_state",
     "navigation_redefinition",
     "notification_engine",
     "pdf_understanding",

@@ -48,6 +48,7 @@ import type { CandidateActionResolver } from '../workspace/action-resolver.js';
 import type { QuickCaptureService } from '../workspace/quick-capture.service.js';
 import type { InputRouter } from '../workspace/input-router.js';
 import type { LifecycleManager } from './lifecycle-manager.js';
+import type { ModuleRegistry, ModuleStateStore, ModuleService } from '../modules/index.js';
 
 export interface NagexApplication {
   pdp: PolicyDecisionPoint;
@@ -63,6 +64,9 @@ export interface NagexApplication {
   googleCalendarService: GoogleCalendarService;
   gmailService: GmailService;
   browserService: BrowserToolService;
+  moduleRegistry: ModuleRegistry;
+  moduleStateStore: ModuleStateStore;
+  moduleService: ModuleService;
   capabilityBroker: CapabilityBroker;
   sessionStore: SessionStore;
   conversationStore: ConversationStore;

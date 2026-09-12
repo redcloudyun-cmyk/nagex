@@ -63,6 +63,7 @@ import { ActivityStore } from '../governance/activity.store.js';
 import { createConfiguredStorageProvider } from '../storage/s3-storage.provider.js';
 import { KnowledgeEngine } from '../context/knowledge.engine.js';
 import { CapabilityBroker, capabilityRegistry } from '../capabilities/index.js';
+import { ModuleRegistry, ModuleStateStore, ModuleService } from '../modules/index.js';
 import type { NagexApplication } from './nagex-application.js';
 import { LifecycleManager } from './lifecycle-manager.js';
 
@@ -109,12 +110,19 @@ export function createNagexApplication(): NagexApplication {
   // — but it consumes the identical ActionApprovalStore, replay-protected the
   // same way, and GET/approve/reject need no route changes here either.
   const browserService = new BrowserToolService(browserRuntime, browserSessionStore, actionApprovals, auditLogger, memoryEngine, executionStore);
+  const moduleRegistry = new ModuleRegistry();
+  const moduleStateStore = new ModuleStateStore();
+  const moduleService = new ModuleService(moduleRegistry, moduleStateStore, auditLogger);
   const capabilityBroker = new CapabilityBroker(
     googleCalendarService,
     gmailService,
     browserService,
     auditLogger,
     capabilityRegistry,
+    'capabilities_idempotency',
+    'NAGEX_CAPABILITIES_IDEMPOTENCY_DIR',
+    moduleRegistry,
+    moduleStateStore,
   );
 
   // ─── MASTER.md Section 14 — Main Session + Tasks Foundation ───
@@ -328,6 +336,9 @@ export function createNagexApplication(): NagexApplication {
     googleCalendarService,
     gmailService,
     browserService,
+    moduleRegistry,
+    moduleStateStore,
+    moduleService,
     capabilityBroker,
     sessionStore,
     conversationStore,
