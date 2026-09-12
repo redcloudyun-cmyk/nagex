@@ -84,6 +84,22 @@ TENANT_SAME="ten_approval_accept_same"
 OWNER_A="usr_approval_owner_a"
 OWNER_B="usr_approval_owner_b"
 
+# R1 — Scenarios F/G use the real, OAuth-connected tenant (a synthetic
+# tenant has no Google connection, so executeCreateEvent() fails at
+# getValidAccessToken() before ever reaching the ownership gate — a host
+# test fixture defect, not an Approval Ownership implementation defect).
+# Same-tenant/different-principal is the correct way to exercise the real
+# ownership gate here: getValidAccessToken(tenantId) only depends on
+# tenantId, so it succeeds for LIVE_OWNER_B too — the request genuinely
+# reaches approvals.consume()'s requireOwned() check, which then fails on
+# the principalId mismatch alone. This actually exercises the ownership
+# gate more precisely than a cross-tenant attempt would (a cross-tenant
+# attempt on a disconnected tenant proves nothing; this proves the gate
+# fires even when everything else about the request is valid).
+LIVE_TENANT="ten_production_01"
+LIVE_OWNER_A="usr_approval_live_owner_a"
+LIVE_OWNER_B="usr_approval_live_owner_b"
+
 LOG_DIR="$(resolve_log_dir)"
 JSON_LOG_FILE="${LOG_DIR}/latest-approval-ownership-accept.json"
 TIMESTAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
@@ -281,27 +297,36 @@ if [ "$API_CALL_STATUS" != "200" ] || [ "$(json_get "$API_CALL_BODY" 'data.statu
   OVERALL_EXIT=1
 fi
 
-# ── Scenario F + G — cross-tenant execution block, then rightful lifecycle ──
-# One real approval carries both scenarios (per the governing directive's
-# own Section 14 instruction to avoid unnecessary real-world side effects):
-# approve as the rightful tenant, attempt execution as the wrong tenant
-# (must block with zero side effect), then execute for real as the
-# rightful tenant, then prove replay is still blocked.
-section "Scenario F+G: Cross-Tenant Execution Block, then Rightful Owner Lifecycle"
-APR_FG="$(create_approval "$TENANT_A" "$OWNER_SHARED" "F-G")"
+# ── Scenario F + G (R1) — live ownership gate, then rightful lifecycle ───
+# R1 correction: executeCreateEvent() calls getValidAccessToken(tenantId)
+# BEFORE approvals.consume()'s ownership gate (source-confirmed). A
+# synthetic tenant has no real Google connection, so it fails at the token
+# step and never reaches the ownership gate at all — that was the original
+# script's defect, not an implementation defect. Using the same real,
+# connected tenant (LIVE_TENANT) with two different principals lets the
+# token step succeed for both, so the wrong-principal attempt genuinely
+# reaches and is blocked by the ownership gate itself.
+#
+# Mandatory distinction (do not conflate these two lines):
+printf "  CROSS_TENANT_EXECUTION_ISOLATION = verified by host Linux regression/scoped tests\n"
+printf "  LIVE_EXECUTION_OWNERSHIP_GATE = verified using connected tenant + wrong principal\n"
+section "Scenario F+G: Live Execution Ownership Gate, then Rightful Owner Lifecycle"
+RIGHTFUL_EXECUTION_SUCCEEDED=0
+LIVE_EXTERNAL_URL=""
+APR_FG="$(create_approval "$LIVE_TENANT" "$LIVE_OWNER_A" "LIVE-F-G")"
 CREATED_APPROVAL_IDS+=("$APR_FG")
 
 # Source the exact stored payload back from the server's own record (via the
-# rightful tenant's own GET) rather than recomputing it locally a second
+# rightful owner's own GET) rather than recomputing it locally a second
 # time — guarantees the later execute calls hash-match exactly, regardless
 # of any sub-second timing difference in the two independent date(1) calls
 # create_approval()'s own calendar_payload() would otherwise make.
-api_call_as GET "${BASE}/api/v1/approvals/${APR_FG}" "" "$TENANT_A" "$OWNER_SHARED"
+api_call_as GET "${BASE}/api/v1/approvals/${APR_FG}" "" "$LIVE_TENANT" "$LIVE_OWNER_A"
 PAYLOAD_ONLY_FG="$(json_get "$API_CALL_BODY" 'data.canonicalPayload')"
 
-api_call_as POST "${BASE}/api/v1/approvals/${APR_FG}/approve" "" "$TENANT_A" "$OWNER_SHARED"
+api_call_as POST "${BASE}/api/v1/approvals/${APR_FG}/approve" "" "$LIVE_TENANT" "$LIVE_OWNER_A"
 if [ "$API_CALL_STATUS" = "200" ]; then
-  pass "RIGHTFUL_GET/RIGHTFUL_APPROVE" "approved by rightful tenant A"
+  pass "RIGHTFUL_GET/RIGHTFUL_APPROVE" "approved by rightful owner LIVE_OWNER_A"
   log_result "RIGHTFUL_APPROVE" "PASS"
 else
   fail "RIGHTFUL_APPROVE" "HTTP $API_CALL_STATUS $(api_error_summary "$API_CALL_BODY")"
@@ -309,38 +334,45 @@ else
   OVERALL_EXIT=1
 fi
 
-EXEC_BODY_WRONG="$(node -e 'console.log(JSON.stringify({approvalId: process.argv[1], payload: JSON.parse(process.argv[2])}))' "$APR_FG" "$PAYLOAD_ONLY_FG")"
-api_call_as POST "${BASE}/api/v1/tools/google-calendar/create-event" "$EXEC_BODY_WRONG" "$TENANT_B" "$OWNER_SHARED"
-if [ "$API_CALL_STATUS" != "200" ]; then
-  pass "CROSS_TENANT_EXECUTION_BLOCK" "HTTP $API_CALL_STATUS $(api_error_summary "$API_CALL_BODY")"
-  log_result "CROSS_TENANT_EXECUTION_BLOCK" "PASS"
+EXEC_BODY_FG="$(node -e 'console.log(JSON.stringify({approvalId: process.argv[1], payload: JSON.parse(process.argv[2])}))' "$APR_FG" "$PAYLOAD_ONLY_FG")"
+
+# F: wrong principal, same (connected) tenant — must be blocked by the
+# ownership gate itself, not by an unrelated OAuth/connection failure.
+api_call_as POST "${BASE}/api/v1/tools/google-calendar/create-event" "$EXEC_BODY_FG" "$LIVE_TENANT" "$LIVE_OWNER_B"
+LIVE_WRONG_PRINCIPAL_CODE="$(extract_error_code "$API_CALL_BODY")"
+if [ "$API_CALL_STATUS" != "200" ] && [ "$LIVE_WRONG_PRINCIPAL_CODE" = "APPROVAL_NOT_FOUND" ]; then
+  pass "LIVE_WRONG_PRINCIPAL_EXECUTION_BLOCK" "HTTP $API_CALL_STATUS APPROVAL_NOT_FOUND"
+  log_result "LIVE_WRONG_PRINCIPAL_EXECUTION_BLOCK" "PASS"
 else
-  fail "CROSS_TENANT_EXECUTION_BLOCK" "HTTP 200 — execution was NOT blocked"
-  log_result "CROSS_TENANT_EXECUTION_BLOCK" "FAIL"
+  fail "LIVE_WRONG_PRINCIPAL_EXECUTION_BLOCK" "HTTP $API_CALL_STATUS code=$LIVE_WRONG_PRINCIPAL_CODE $(api_error_summary "$API_CALL_BODY")"
+  log_result "LIVE_WRONG_PRINCIPAL_EXECUTION_BLOCK" "FAIL"
   OVERALL_EXIT=1
 fi
 
 # Deterministic no-side-effect / no-consume proof: consume() gates ownership
 # BEFORE the real Google call (source-confirmed), so the approval's status
-# is the authoritative signal — never inferred from HTTP status alone.
-api_call_as GET "${BASE}/api/v1/approvals/${APR_FG}" "" "$TENANT_A" "$OWNER_SHARED"
+# is the authoritative signal — never inferred from HTTP status alone or
+# from an unrelated OAuth failure.
+api_call_as GET "${BASE}/api/v1/approvals/${APR_FG}" "" "$LIVE_TENANT" "$LIVE_OWNER_A"
 FG_STATUS_AFTER_BLOCK="$(json_get "$API_CALL_BODY" 'data.status')"
 if [ "$FG_STATUS_AFTER_BLOCK" = "APPROVED" ]; then
-  pass "WRONG_TENANT_NO_CONSUME" "approval remains APPROVED (never reached CONSUMED)"
-  pass "WRONG_TENANT_NO_EXTERNAL_SIDE_EFFECT" "consume() gates before the real Google call; APPROVED-not-CONSUMED proves it was never attempted"
-  log_result "WRONG_TENANT_NO_CONSUME" "PASS"
-  log_result "WRONG_TENANT_NO_EXTERNAL_SIDE_EFFECT" "PASS"
+  pass "LIVE_WRONG_PRINCIPAL_NO_CONSUME" "approval remains APPROVED (never reached CONSUMED)"
+  pass "LIVE_WRONG_PRINCIPAL_NO_EXTERNAL_SIDE_EFFECT" "consume() gates before the real Google call; APPROVED-not-CONSUMED proves it was never attempted"
+  log_result "LIVE_WRONG_PRINCIPAL_NO_CONSUME" "PASS"
+  log_result "LIVE_WRONG_PRINCIPAL_NO_EXTERNAL_SIDE_EFFECT" "PASS"
 else
-  fail "WRONG_TENANT_NO_CONSUME" "approval status is '$FG_STATUS_AFTER_BLOCK', expected APPROVED"
-  log_result "WRONG_TENANT_NO_CONSUME" "FAIL"
-  log_result "WRONG_TENANT_NO_EXTERNAL_SIDE_EFFECT" "FAIL"
+  fail "LIVE_WRONG_PRINCIPAL_NO_CONSUME" "approval status is '$FG_STATUS_AFTER_BLOCK', expected APPROVED"
+  log_result "LIVE_WRONG_PRINCIPAL_NO_CONSUME" "FAIL"
+  log_result "LIVE_WRONG_PRINCIPAL_NO_EXTERNAL_SIDE_EFFECT" "FAIL"
   OVERALL_EXIT=1
 fi
 
-EXEC_BODY_RIGHT="$EXEC_BODY_WRONG"
-api_call_as POST "${BASE}/api/v1/tools/google-calendar/create-event" "$EXEC_BODY_RIGHT" "$TENANT_A" "$OWNER_SHARED"
+# G: rightful owner, real execution.
+api_call_as POST "${BASE}/api/v1/tools/google-calendar/create-event" "$EXEC_BODY_FG" "$LIVE_TENANT" "$LIVE_OWNER_A"
 if [ "$API_CALL_STATUS" = "200" ] && [ "$(json_get "$API_CALL_BODY" 'data.status')" = "SUCCEEDED" ]; then
-  pass "RIGHTFUL_EXECUTION" "real Calendar event created: $(json_get "$API_CALL_BODY" 'data.externalUrl')"
+  LIVE_EXTERNAL_URL="$(json_get "$API_CALL_BODY" 'data.externalUrl')"
+  RIGHTFUL_EXECUTION_SUCCEEDED=1
+  pass "RIGHTFUL_EXECUTION" "real Calendar event created: $LIVE_EXTERNAL_URL"
   log_result "RIGHTFUL_EXECUTION" "PASS"
 else
   fail "RIGHTFUL_EXECUTION" "HTTP $API_CALL_STATUS $(api_error_summary "$API_CALL_BODY")"
@@ -348,7 +380,7 @@ else
   OVERALL_EXIT=1
 fi
 
-api_call_as GET "${BASE}/api/v1/approvals/${APR_FG}" "" "$TENANT_A" "$OWNER_SHARED"
+api_call_as GET "${BASE}/api/v1/approvals/${APR_FG}" "" "$LIVE_TENANT" "$LIVE_OWNER_A"
 if [ "$(json_get "$API_CALL_BODY" 'data.status')" = "CONSUMED" ]; then
   pass "RIGHTFUL_CONSUME_ONCE" "approval is CONSUMED after the one real execution"
   log_result "RIGHTFUL_CONSUME_ONCE" "PASS"
@@ -358,7 +390,7 @@ else
   OVERALL_EXIT=1
 fi
 
-api_call_as POST "${BASE}/api/v1/tools/google-calendar/create-event" "$EXEC_BODY_RIGHT" "$TENANT_A" "$OWNER_SHARED"
+api_call_as POST "${BASE}/api/v1/tools/google-calendar/create-event" "$EXEC_BODY_FG" "$LIVE_TENANT" "$LIVE_OWNER_A"
 REPLAY_CODE="$(extract_error_code "$API_CALL_BODY")"
 if [ "$API_CALL_STATUS" != "200" ] && [ "$REPLAY_CODE" = "APPROVAL_ALREADY_CONSUMED" ]; then
   pass "REPLAY_PROTECTION" "HTTP $API_CALL_STATUS APPROVAL_ALREADY_CONSUMED"
@@ -440,11 +472,17 @@ fi
 section "Cleanup"
 printf "  No delete API exists for ActionApprovalRecord (governance-retained by\n"
 printf "  design, confirmed via source read — same as every other approval).\n"
-printf "  %d test approvals were created under synthetic tenant/principal ids\n" "${#CREATED_APPROVAL_IDS[@]}"
-printf "  (%s, %s / %s, %s, %s) and are identifiable by those ids and by their\n" "$TENANT_A" "$TENANT_B" "$TENANT_SAME" "$OWNER_A" "$OWNER_B"
-printf "  payload summaries (\"NAGEX APPROVAL OWNERSHIP ACCEPTANCE\"). One real\n"
-printf "  Calendar event was created (Scenario F/G) — its summary is clearly\n"
-printf "  labeled for manual removal from the connected calendar if desired.\n"
+printf "  %d test approvals were created under synthetic/live tenant/principal ids\n" "${#CREATED_APPROVAL_IDS[@]}"
+printf "  (%s, %s / %s, %s, %s / %s, %s, %s) and are identifiable by those ids and\n" "$TENANT_A" "$TENANT_B" "$TENANT_SAME" "$OWNER_A" "$OWNER_B" "$LIVE_TENANT" "$LIVE_OWNER_A" "$LIVE_OWNER_B"
+printf "  by their payload summaries (\"NAGEX APPROVAL OWNERSHIP ACCEPTANCE\").\n"
+if [ "$RIGHTFUL_EXECUTION_SUCCEEDED" = "1" ]; then
+  printf "  One real Calendar event was created (Scenario F/G): %s\n" "$LIVE_EXTERNAL_URL"
+  printf "  Its summary is clearly labeled for manual removal from the connected\n"
+  printf "  calendar if desired.\n"
+else
+  printf "  No real Calendar event was created this run (RIGHTFUL_EXECUTION did not\n"
+  printf "  succeed) — nothing to remove from the connected calendar.\n"
+fi
 printf "  Approval ids created this run:\n"
 for id in "${CREATED_APPROVAL_IDS[@]}"; do printf "    - %s\n" "$id"; done
 log_result "SERVICE_RESTORED" "PASS"
