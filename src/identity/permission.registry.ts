@@ -59,7 +59,21 @@ function loadPermissionRiskMap(): Readonly<Record<string, PermissionRisk>> {
 // incomplete or empty risk map.
 export const PERMISSION_RISK: Readonly<Record<string, PermissionRisk>> = loadPermissionRiskMap();
 
-export function resolvePrincipalPermissions(principal: PrincipalReference): string[] {
+/**
+ * Server-side built-in principal authorization mapping.
+ *
+ * NOTE: This is a static server-side built-in trust mapping for system principals
+ * and known admin IDs. It is NOT a full role-based access control (RBAC) system
+ * or dynamic principal -> role -> permission store.
+ *
+ * TODO(RBAC-integration): Replace this static mapping with a canonical, durable
+ * principal -> role -> permission binding store when a dynamic identity/role subsystem
+ * is specified and implemented.
+ *
+ * Fail-closed behavior: Unknown principals receive no module administration ('module:manage')
+ * permissions.
+ */
+export function resolveBuiltInPrincipalPermissions(principal: PrincipalReference): string[] {
   if (
     principal.type === 'system' ||
     principal.id === 'usr_admin_001' ||
@@ -69,3 +83,4 @@ export function resolvePrincipalPermissions(principal: PrincipalReference): stri
   }
   return ['agent:execute'];
 }
+

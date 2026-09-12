@@ -10,7 +10,8 @@ import { ModuleService } from '../src/modules/module.service.js';
 import { CapabilityBroker } from '../src/capabilities/capability-broker.js';
 import { CapabilityRegistry } from '../src/capabilities/capability.registry.js';
 import { AuditLogger } from '../src/governance/audit.logger.js';
-import { handleApiRequest } from '../src/server_web.js';
+import { handleApiRequest, moduleStateStore } from '../src/server_web.js';
+import { resolveBuiltInPrincipalPermissions } from '../src/identity/permission.registry.js';
 import type { CapabilityRequest } from '../src/capabilities/capability.types.js';
 
 function createTempDir(prefix: string): string {
@@ -221,43 +222,25 @@ describe('ModuleStateStore & Service Tests', () => {
     fs.rmSync(tmpDirIdem, { recursive: true, force: true });
   });
 
-  it('P06-R1-01: no permission header does NOT grant wildcard access', () => {
+  it('P06-R2-01: unknown principal gets no module:manage', () => {
+    const perms = resolveBuiltInPrincipalPermissions({ id: 'usr_unknown', type: 'user' });
+    assert.equal(perms.includes('module:manage'), false);
+
     const res = handleApiRequest(
       'PUT',
       '/api/v1/modules/module.gmail/state',
       { enabled: false },
-      { 'x-principal-id': 'usr_unauthorized' }
+      { 'x-principal-id': 'usr_unknown' }
     );
 
     assert.equal(res.status, 403);
     assert.equal((res.data as any).error, 'PERMISSION_DENIED');
   });
 
-  it('P06-R1-02: caller-supplied x-principal-permissions:* cannot self-elevate', () => {
-    const res = handleApiRequest(
-      'PUT',
-      '/api/v1/modules/module.gmail/state',
-      { enabled: false },
-      { 'x-principal-id': 'usr_unauthorized', 'x-principal-permissions': '*' }
-    );
+  it('P06-R2-02: usr_admin_001 gets module:manage', () => {
+    const perms = resolveBuiltInPrincipalPermissions({ id: 'usr_admin_001', type: 'user' });
+    assert.equal(perms.includes('module:manage'), true);
 
-    assert.equal(res.status, 403);
-    assert.equal((res.data as any).error, 'PERMISSION_DENIED');
-  });
-
-  it('P06-R1-03: unauthorized principal cannot disable a module', () => {
-    const res = handleApiRequest(
-      'PUT',
-      '/api/v1/modules/module.calendar/state',
-      { enabled: false },
-      { 'x-principal-id': 'usr_unauthorized' }
-    );
-
-    assert.equal(res.status, 403);
-    assert.equal((res.data as any).error, 'PERMISSION_DENIED');
-  });
-
-  it('P06-R1-04: authorized principal can change module state', () => {
     const res = handleApiRequest(
       'PUT',
       '/api/v1/modules/module.gmail/state',
@@ -270,7 +253,37 @@ describe('ModuleStateStore & Service Tests', () => {
     assert.equal((res.data as any).status, 'DISABLED');
   });
 
-  it('P06-R1-05: cross-tenant module-state mutation is denied', () => {
+  it('P06-R2-03: caller-controlled permission header remains ignored', () => {
+    const res = handleApiRequest(
+      'PUT',
+      '/api/v1/modules/module.gmail/state',
+      { enabled: false },
+      { 'x-principal-id': 'usr_user_123', 'x-principal-permissions': 'module:manage,*' }
+    );
+
+    assert.equal(res.status, 403);
+    assert.equal((res.data as any).error, 'PERMISSION_DENIED');
+  });
+
+  it('P06-R2-04: arbitrary principal id cannot gain module:manage', () => {
+    const arbitraryIds = ['usr_hacker', 'guest_99', 'arbitrary_id_999'];
+    for (const id of arbitraryIds) {
+      const perms = resolveBuiltInPrincipalPermissions({ id, type: 'user' });
+      assert.equal(perms.includes('module:manage'), false);
+
+      const res = handleApiRequest(
+        'PUT',
+        '/api/v1/modules/module.calendar/state',
+        { enabled: false },
+        { 'x-principal-id': id, 'x-principal-permissions': 'module:manage' }
+      );
+
+      assert.equal(res.status, 403);
+      assert.equal((res.data as any).error, 'PERMISSION_DENIED');
+    }
+  });
+
+  it('P06-R2-05: cross-tenant module-state mutation is denied', () => {
     const res = handleApiRequest(
       'PUT',
       '/api/v1/modules/module.gmail/state',
@@ -283,14 +296,12 @@ describe('ModuleStateStore & Service Tests', () => {
     assert.equal((res.data as any).reason, 'CROSS_TENANT_ACCESS_DENIED');
   });
 
-  it('P06-R1-06: denied mutation leaves durable state unchanged', () => {
-    const tmpDir = createTempDir('nagex_mod_state_r1_06_');
-    process.env.NAGEX_MODULE_STATE_DIR = tmpDir;
+  it('P06-R2-06: denied mutation leaves production durable state unchanged', () => {
+    // Check initial state directly from server_web's moduleStateStore instance
+    const initialRecord = moduleStateStore.getState('ten_beta', 'module.browser');
+    const initialEnabled = initialRecord?.enabled ?? true;
 
-    const stateStore = new ModuleStateStore('test-mod-state', 'NAGEX_MODULE_STATE_DIR');
-    const initialRecord = stateStore.getState('ten_beta', 'module.browser');
-    assert.equal(initialRecord?.enabled ?? true, true);
-
+    // Attempt cross-tenant mutation against server_web handleApiRequest
     const res = handleApiRequest(
       'PUT',
       '/api/v1/modules/module.browser/state',
@@ -299,12 +310,14 @@ describe('ModuleStateStore & Service Tests', () => {
     );
 
     assert.equal(res.status, 403);
+    assert.equal((res.data as any).error, 'PERMISSION_DENIED');
+    assert.equal((res.data as any).reason, 'CROSS_TENANT_ACCESS_DENIED');
 
-    const postRecord = stateStore.getState('ten_beta', 'module.browser');
-    assert.equal(postRecord?.enabled ?? true, true);
-
-    fs.rmSync(tmpDir, { recursive: true, force: true });
+    // Verify production moduleStateStore instance's state remains unchanged
+    const postRecord = moduleStateStore.getState('ten_beta', 'module.browser');
+    assert.equal(postRecord?.enabled ?? true, initialEnabled);
   });
+
 
   it('P06-13: GET /api/v1/modules lists modules for tenant', () => {
     const res = handleApiRequest('GET', '/api/v1/modules', null);

@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process';
 
 // ─── NAgex Core Engine Imports ───
 import { PolicyDecisionPoint, describeDeniedDecision } from './identity/pdp.js';
-import { resolvePrincipalPermissions } from './identity/permission.registry.js';
+import { resolveBuiltInPrincipalPermissions } from './identity/permission.registry.js';
 import { DurableRuntimeEngine } from './runtime/runtime.engine.js';
 import { AuditLogger } from './governance/audit.logger.js';
 import { BillingLedgerEngine } from './billing/billing.ledger.js';
@@ -1705,7 +1705,8 @@ export function handleApiRequest(
       ? body.tenantId.trim()
       : tenantId;
 
-    const permissions = resolvePrincipalPermissions(principal);
+    // Resolve server-side built-in permissions for principal (fail-closed for unknown principals)
+    const permissions = resolveBuiltInPrincipalPermissions(principal);
 
     const decision = pdp.evaluate({
       principal,
