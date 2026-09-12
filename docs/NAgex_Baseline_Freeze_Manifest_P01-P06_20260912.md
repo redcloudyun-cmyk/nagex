@@ -1,9 +1,10 @@
 # NAgex Baseline Freeze Manifest
 ## P01–P06 공식 동결 기준선
 
-**문서 버전:** 1.0
+**문서 버전:** 1.1 (정정판 — Repository HEAD / Functional Frozen Baseline 구분 명확화)
 **기준일:** 2026-09-12
-**현재 Repository Baseline HEAD:** `7c7c441735fc93aae89ff3a2c6864a97b5bdac5d`
+**현재 Repository HEAD:** `5dc848bad12d2e189b4adc05b0969154db0b7d2f` (governance/documentation-only, runtime/code contract 변경 없음)
+**Inherited Functional Frozen Baseline:** `7c7c441735fc93aae89ff3a2c6864a97b5bdac5d`
 **Repository:** `redcloudyun-cmyk/nagex`
 **Branch:** `main`
 
@@ -23,11 +24,13 @@
 → 검증 완료 전 기존 Frozen 상태를 임의 완료로 간주하지 않음
 ```
 
-현재 전체 repository의 통합 baseline HEAD는 다음과 같다.
+현재 repository의 Integrated Functional Frozen Baseline은 다음과 같다.
 
 ```text
 7c7c441735fc93aae89ff3a2c6864a97b5bdac5d
 ```
+
+이 문서 자체를 저장/정정하는 커밋(`5dc848b` 및 그 이후 정정 커밋)은 governance/documentation-only이며, 위 Functional Frozen Baseline이 가리키는 runtime/code contract를 변경하지 않는다. 즉 실제 repository HEAD와 Functional Frozen Baseline은 서로 다른 값을 가리킬 수 있으며, 후자만이 "코드 계약이 고정된 지점"을 의미한다.
 
 ---
 
@@ -54,20 +57,23 @@
 ## 3. Current Integrated Baseline
 
 ```text
-Branch       : main
-Baseline HEAD: 7c7c441735fc93aae89ff3a2c6864a97b5bdac5d
-Commit       : fix(notifications): P04-R1 enforce tenant notification isolation
+Branch                          : main
+Current Repository HEAD         : 5dc848bad12d2e189b4adc05b0969154db0b7d2f
+Current HEAD Commit             : docs(governance): adopt P01-P06 Baseline Freeze Manifest
+Inherited Functional Frozen
+Baseline                        : 7c7c441735fc93aae89ff3a2c6864a97b5bdac5d
+Functional Baseline Commit      : fix(notifications): P04-R1 enforce tenant notification isolation
 ```
 
-이 HEAD에는 P06까지의 구현과 P04-R1 보정이 포함되어 있다.
+Functional Frozen Baseline(`7c7c441`)에는 P06까지의 구현과 P04-R1 보정이 포함되어 있다. 이후 `5dc848b`를 포함해 이 manifest 자체를 저장/정정하는 커밋들은 documentation-only이므로 Functional Frozen Baseline을 이동시키지 않는다 — 즉 repository HEAD가 `7c7c441` 이후로 전진하더라도, 그 전진이 코드/runtime contract 변경을 포함하지 않는 한 Functional Frozen Baseline은 계속 `7c7c441`로 남는다.
 
-따라서 이후 신규 개발의 출발점은:
+따라서 이후 신규 개발(P07+)이 상속하는 계약상의 출발점은:
 
 ```text
-main @ 7c7c441735fc93aae89ff3a2c6864a97b5bdac5d
+Inherited Functional Frozen Baseline = 7c7c441735fc93aae89ff3a2c6864a97b5bdac5d
 ```
 
-로 고정한다.
+로 고정한다. P07은 이 위에서 실제로는 현재 repository HEAD(`5dc848b` 또는 그 이후 최신 documentation 커밋)로부터 브랜치하되, 코드/runtime 관점의 계약 기준선은 항상 `7c7c441`을 가리킨다.
 
 ---
 
@@ -352,8 +358,15 @@ P07은 반드시 다음 기준선 위에서 시작한다.
 ```text
 Repository : redcloudyun-cmyk/nagex
 Branch     : main
-Start HEAD : 7c7c441735fc93aae89ff3a2c6864a97b5bdac5d
+
+P07 Start Repository HEAD:
+5dc848bad12d2e189b4adc05b0969154db0b7d2f
+
+Inherited Functional Frozen Baseline:
+7c7c441735fc93aae89ff3a2c6864a97b5bdac5d
 ```
+
+P07 Start Repository HEAD는 실제로 branch를 시작하는 지점(이 manifest를 포함한 최신 documentation 상태)이며, Inherited Functional Frozen Baseline은 P07이 반드시 보존해야 하는 코드/runtime contract의 기준점이다. 두 값이 다르다는 사실 자체가 "이 사이의 차이는 documentation-only이며 frozen contract에 영향이 없다"는 것을 의미하므로, 향후 P07 Start Repository HEAD가 다시 전진하더라도(예: 추가 documentation 정정) 이 섹션과 Section 3만 갱신하면 되고 Inherited Functional Frozen Baseline은 실제 코드 계약이 재검증되기 전까지 임의로 이동시키지 않는다.
 
 P07 Preflight 문서 첫 부분에 반드시 다음 문구를 넣는다.
 
@@ -383,8 +396,12 @@ P04        FORMALLY FROZEN @ 7c7c441
 P05        FORMALLY FROZEN @ f681e66
 P06        FORMALLY FROZEN @ 4859b55
 
-Integrated Repository Baseline
+Integrated Functional Frozen Baseline
 = 7c7c441735fc93aae89ff3a2c6864a97b5bdac5d
+
+Current Repository HEAD
+= 5dc848bad12d2e189b4adc05b0969154db0b7d2f
+(governance/documentation-only, no runtime/code contract change)
 
 P01–P06 FREEZE CHAIN
 = RECONCILED
