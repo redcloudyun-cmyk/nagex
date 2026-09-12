@@ -44,11 +44,11 @@ export class NotificationEngine {
     const now = new Date().toISOString();
     const requestId = opts.requestId || `req_notif_${Date.now()}`;
 
-    // P04 — deduplication: if this logical event was already persisted
-    // (e.g. across restart recovery or duplicate finalization), return the
-    // existing record without creating a second notification.
+    // P04-R1 — deduplication identity is tenantId + principalId + dedupeKey,
+    // not the key alone: the same logical dedupeKey (taskId:runId:eventType)
+    // must never suppress a notification for a different tenant/principal.
     if (opts.dedupeKey) {
-      const existing = this.options.store.getByDedupeKey(opts.dedupeKey);
+      const existing = this.options.store.getByDedupeKey(opts.tenantId, opts.principalId, opts.dedupeKey);
       if (existing) return existing;
     }
 
@@ -178,20 +178,20 @@ export class NotificationEngine {
     return record;
   }
 
-  public list(principalId: string, limit = 50): NotificationRecord[] {
-    return this.options.store.list(principalId, limit);
+  public list(tenantId: string, principalId: string, limit = 50): NotificationRecord[] {
+    return this.options.store.list(tenantId, principalId, limit);
   }
 
-  public getUnreadCount(principalId: string): number {
-    return this.options.store.getUnreadCount(principalId);
+  public getUnreadCount(tenantId: string, principalId: string): number {
+    return this.options.store.getUnreadCount(tenantId, principalId);
   }
 
-  public markAsRead(id: string, principalId?: string): NotificationRecord | undefined {
-    return this.options.store.markAsRead(id, principalId);
+  public markAsRead(id: string, tenantId: string, principalId: string): NotificationRecord | undefined {
+    return this.options.store.markAsRead(id, tenantId, principalId);
   }
 
-  public markAllAsRead(principalId: string): number {
-    return this.options.store.markAllAsRead(principalId);
+  public markAllAsRead(tenantId: string, principalId: string): number {
+    return this.options.store.markAllAsRead(tenantId, principalId);
   }
 
   private escapeHtml(str: string): string {

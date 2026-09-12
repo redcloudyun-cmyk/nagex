@@ -159,7 +159,7 @@ test('P04-01: WAITING_APPROVAL creates one APPROVAL_REQUEST notification', async
   // Allow async notification dispatch to complete
   await new Promise((r) => setTimeout(r, 50));
 
-  const notifications = notificationStore.list('u_p04');
+  const notifications = notificationStore.list('t_p04', 'u_p04');
   const approvalNotifs = notifications.filter((n) => n.type === 'APPROVAL_REQUEST');
   assert.equal(approvalNotifs.length, 1, 'exactly one APPROVAL_REQUEST notification must exist');
   assert.equal(approvalNotifs[0].principalId, 'u_p04');
@@ -186,7 +186,7 @@ test('P04-02: duplicate wait transition does not duplicate APPROVAL_REQUEST noti
   finalizeTaskRun(deps, task, runId, 'req_2', outcome);
   await new Promise((r) => setTimeout(r, 50));
 
-  const notifications = notificationStore.list('u_p04');
+  const notifications = notificationStore.list('t_p04', 'u_p04');
   const approvalNotifs = notifications.filter((n) => n.type === 'APPROVAL_REQUEST');
   assert.equal(approvalNotifs.length, 1, 'deduplication must prevent a second APPROVAL_REQUEST');
 });
@@ -201,7 +201,7 @@ test('P04-03: success creates one TASK_COMPLETED notification', async () => {
   finalizeTaskRun(deps, task, runId, 'req_s', { status: 'SUCCEEDED', result: { done: true } });
   await new Promise((r) => setTimeout(r, 50));
 
-  const notifications = notificationStore.list('u_p04');
+  const notifications = notificationStore.list('t_p04', 'u_p04');
   assert.equal(notifications.filter((n) => n.type === 'TASK_COMPLETED').length, 1);
 });
 
@@ -215,7 +215,7 @@ test('P04-04: failure creates one TASK_FAILED notification', async () => {
   finalizeTaskRun(deps, task, runId, 'req_f', { status: 'FAILED', errorCode: 'TEST_FAILURE' });
   await new Promise((r) => setTimeout(r, 50));
 
-  const notifications = notificationStore.list('u_p04');
+  const notifications = notificationStore.list('t_p04', 'u_p04');
   assert.equal(notifications.filter((n) => n.type === 'TASK_FAILED').length, 1);
 });
 
@@ -229,7 +229,7 @@ test('P04-05: condition match creates one CONDITION_MET notification', async () 
   finalizeTaskRun(deps, task, runId, 'req_c', { status: 'SUCCEEDED', conditionMet: true, result: null });
   await new Promise((r) => setTimeout(r, 50));
 
-  const notifications = notificationStore.list('u_p04');
+  const notifications = notificationStore.list('t_p04', 'u_p04');
   assert.equal(notifications.filter((n) => n.type === 'CONDITION_MET').length, 1);
   assert.equal(notifications.filter((n) => n.type === 'TASK_COMPLETED').length, 0, 'CONDITION_MET must not also create TASK_COMPLETED');
 });
@@ -247,7 +247,7 @@ test('P04-06: duplicate terminal finalization does not duplicate notification (d
   finalizeTaskRun(deps, task, runId, 'req_t2', { status: 'SUCCEEDED', result: null });
   await new Promise((r) => setTimeout(r, 50));
 
-  const notifications = notificationStore.list('u_p04');
+  const notifications = notificationStore.list('t_p04', 'u_p04');
   assert.equal(notifications.filter((n) => n.type === 'TASK_COMPLETED').length, 1, 'deduplication must prevent a second TASK_COMPLETED');
 });
 
@@ -265,7 +265,7 @@ test('P04-07: approval resume does not duplicate terminal notification', async (
   finalizeTaskRun(deps, task, runId, 'req_r', { status: 'SUCCEEDED', result: null });
   await new Promise((r) => setTimeout(r, 50));
 
-  const notifications = notificationStore.list('u_p04');
+  const notifications = notificationStore.list('t_p04', 'u_p04');
   assert.equal(notifications.filter((n) => n.type === 'APPROVAL_REQUEST').length, 1);
   assert.equal(notifications.filter((n) => n.type === 'TASK_COMPLETED').length, 1);
   // Total should be exactly 2 (APPROVAL_REQUEST + TASK_COMPLETED)
@@ -285,10 +285,10 @@ test('P04-08: NotificationStore restart persistence', () => {
 
   // Fresh store instance simulating restart
   const store2 = new NotificationStore({ dir });
-  const recovered = store2.list('usr_1');
+  const recovered = store2.list('ten_1', 'usr_1');
   assert.equal(recovered.length, 1);
   assert.equal(recovered[0].dedupeKey, 'test:key:1', 'dedupeKey must survive restart');
-  assert.equal(store2.existsByDedupeKey('test:key:1'), true);
+  assert.equal(store2.existsByDedupeKey('ten_1', 'usr_1', 'test:key:1'), true);
 });
 
 test('P04-09: unread/read persistence', () => {
@@ -301,13 +301,13 @@ test('P04-09: unread/read persistence', () => {
     createdAt: new Date().toISOString(),
   });
 
-  assert.equal(store1.getUnreadCount('usr_1'), 1);
-  store1.markAsRead('notif_read_1');
-  assert.equal(store1.getUnreadCount('usr_1'), 0);
+  assert.equal(store1.getUnreadCount('ten_1', 'usr_1'), 1);
+  store1.markAsRead('notif_read_1', 'ten_1', 'usr_1');
+  assert.equal(store1.getUnreadCount('ten_1', 'usr_1'), 0);
 
   // Persist across restart
   const store2 = new NotificationStore({ dir });
-  assert.equal(store2.getUnreadCount('usr_1'), 0, 'read state must survive restart');
+  assert.equal(store2.getUnreadCount('ten_1', 'usr_1'), 0, 'read state must survive restart');
   const record = store2.get('notif_read_1');
   assert.equal(record?.read, true);
 });
@@ -329,19 +329,158 @@ test('P04-10: tenant/principal isolation', () => {
     createdAt: new Date().toISOString(),
   });
 
-  assert.equal(store.list('usr_a').length, 1);
-  assert.equal(store.list('usr_b').length, 1);
-  assert.equal(store.getUnreadCount('usr_a'), 1);
-  assert.equal(store.getUnreadCount('usr_b'), 1);
+  assert.equal(store.list('ten_a', 'usr_a').length, 1);
+  assert.equal(store.list('ten_b', 'usr_b').length, 1);
+  assert.equal(store.getUnreadCount('ten_a', 'usr_a'), 1);
+  assert.equal(store.getUnreadCount('ten_b', 'usr_b'), 1);
 
   // Principal guard: usr_a cannot mark usr_b's notification as read
-  const crossResult = store.markAsRead('notif_b', 'usr_a');
+  const crossResult = store.markAsRead('notif_b', 'ten_b', 'usr_a');
   assert.equal(crossResult, undefined, 'principal guard must prevent cross-principal read marking');
-  assert.equal(store.getUnreadCount('usr_b'), 1, 'usr_b notification must remain unread');
+  assert.equal(store.getUnreadCount('ten_b', 'usr_b'), 1, 'usr_b notification must remain unread');
 
   // Owner can still mark their own notification as read
-  const ownResult = store.markAsRead('notif_b', 'usr_b');
+  const ownResult = store.markAsRead('notif_b', 'ten_b', 'usr_b');
   assert.equal(ownResult?.read, true);
+});
+
+// ── P04-R1: Tenant isolation (Store level) ──────────────────────────────
+
+test('P04-R1-01: same principal, tenant A/B list isolation', () => {
+  const dir = tempDir('r1-list');
+  const store = new NotificationStore({ dir });
+  const sameId = 'usr_shared';
+
+  store.save({
+    id: 'notif_ta', tenantId: 'ten_a', principalId: sameId,
+    type: 'TASK_COMPLETED', title: 'A', body: 'A',
+    read: false, channelDeliveries: [{ channel: 'WEB', status: 'DELIVERED' }],
+    createdAt: new Date().toISOString(),
+  });
+  store.save({
+    id: 'notif_tb', tenantId: 'ten_b', principalId: sameId,
+    type: 'TASK_COMPLETED', title: 'B', body: 'B',
+    read: false, channelDeliveries: [{ channel: 'WEB', status: 'DELIVERED' }],
+    createdAt: new Date().toISOString(),
+  });
+
+  const listA = store.list('ten_a', sameId);
+  const listB = store.list('ten_b', sameId);
+  assert.equal(listA.length, 1);
+  assert.equal(listA[0].id, 'notif_ta');
+  assert.equal(listB.length, 1);
+  assert.equal(listB[0].id, 'notif_tb');
+});
+
+test('P04-R1-02: same principal, tenant A/B unread count isolation', () => {
+  const dir = tempDir('r1-unread');
+  const store = new NotificationStore({ dir });
+  const sameId = 'usr_shared';
+
+  store.save({
+    id: 'notif_ua', tenantId: 'ten_a', principalId: sameId,
+    type: 'TASK_COMPLETED', title: 'A', body: 'A',
+    read: false, channelDeliveries: [{ channel: 'WEB', status: 'DELIVERED' }],
+    createdAt: new Date().toISOString(),
+  });
+
+  assert.equal(store.getUnreadCount('ten_a', sameId), 1);
+  assert.equal(store.getUnreadCount('ten_b', sameId), 0, 'tenant B unread must not include tenant A record');
+});
+
+test('P04-R1-03: tenant A markAsRead cannot mutate tenant B notification (same principal)', () => {
+  const dir = tempDir('r1-markone');
+  const store = new NotificationStore({ dir });
+  const sameId = 'usr_shared';
+
+  store.save({
+    id: 'notif_mb', tenantId: 'ten_b', principalId: sameId,
+    type: 'TASK_COMPLETED', title: 'B', body: 'B',
+    read: false, channelDeliveries: [{ channel: 'WEB', status: 'DELIVERED' }],
+    createdAt: new Date().toISOString(),
+  });
+
+  const result = store.markAsRead('notif_mb', 'ten_a', sameId);
+  assert.equal(result, undefined, 'tenant A must not be able to mark tenant B notification as read');
+  assert.equal(store.getUnreadCount('ten_b', sameId), 1, 'tenant B notification must remain unread');
+});
+
+test('P04-R1-04: tenant A markAllAsRead leaves tenant B unread (same principal)', () => {
+  const dir = tempDir('r1-markall');
+  const store = new NotificationStore({ dir });
+  const sameId = 'usr_shared';
+
+  store.save({
+    id: 'notif_maa', tenantId: 'ten_a', principalId: sameId,
+    type: 'TASK_COMPLETED', title: 'A', body: 'A',
+    read: false, channelDeliveries: [{ channel: 'WEB', status: 'DELIVERED' }],
+    createdAt: new Date().toISOString(),
+  });
+  store.save({
+    id: 'notif_mab', tenantId: 'ten_b', principalId: sameId,
+    type: 'TASK_COMPLETED', title: 'B', body: 'B',
+    read: false, channelDeliveries: [{ channel: 'WEB', status: 'DELIVERED' }],
+    createdAt: new Date().toISOString(),
+  });
+
+  const count = store.markAllAsRead('ten_a', sameId);
+  assert.equal(count, 1, 'only tenant A notification should be marked');
+  assert.equal(store.getUnreadCount('ten_b', sameId), 1, 'tenant B notification must remain unread');
+});
+
+test('P04-R1-05: same tenant+principal+dedupeKey creates one record', () => {
+  const dir = tempDir('r1-dedupe-same');
+  const store = new NotificationStore({ dir });
+
+  store.save({
+    id: 'notif_d1', tenantId: 'ten_a', principalId: 'usr_x',
+    type: 'TASK_COMPLETED', title: 'X', body: 'X',
+    read: false, channelDeliveries: [{ channel: 'WEB', status: 'DELIVERED' }],
+    dedupeKey: 'shared:key', createdAt: new Date().toISOString(),
+  });
+
+  assert.equal(store.existsByDedupeKey('ten_a', 'usr_x', 'shared:key'), true);
+  assert.equal(store.getByDedupeKey('ten_a', 'usr_x', 'shared:key')?.id, 'notif_d1');
+});
+
+test('P04-R1-06: same principal + same dedupeKey across tenant A/B creates two records', async () => {
+  const dir = tempDir('r1-dedupe-tenant');
+  const store = new NotificationStore({ dir: path.join(dir, 'notifs') });
+  const auditLogger = new AuditLogger();
+  const engine = new NotificationEngine({ store, auditLogger });
+
+  const recA = await engine.dispatch({
+    tenantId: 'ten_a', principalId: 'usr_shared',
+    type: 'TASK_COMPLETED', title: 'A', body: 'A', dedupeKey: 'cross:tenant:key',
+  });
+  const recB = await engine.dispatch({
+    tenantId: 'ten_b', principalId: 'usr_shared',
+    type: 'TASK_COMPLETED', title: 'B', body: 'B', dedupeKey: 'cross:tenant:key',
+  });
+
+  assert.notEqual(recA.id, recB.id, 'different tenants with the same dedupeKey must not collapse into one record');
+  assert.equal(store.list('ten_a', 'usr_shared').length, 1);
+  assert.equal(store.list('ten_b', 'usr_shared').length, 1);
+});
+
+test('P04-R1-07: same tenant + same dedupeKey across principal X/Y creates two records', async () => {
+  const dir = tempDir('r1-dedupe-principal');
+  const store = new NotificationStore({ dir: path.join(dir, 'notifs') });
+  const auditLogger = new AuditLogger();
+  const engine = new NotificationEngine({ store, auditLogger });
+
+  const recX = await engine.dispatch({
+    tenantId: 'ten_shared', principalId: 'usr_x',
+    type: 'TASK_COMPLETED', title: 'X', body: 'X', dedupeKey: 'cross:principal:key',
+  });
+  const recY = await engine.dispatch({
+    tenantId: 'ten_shared', principalId: 'usr_y',
+    type: 'TASK_COMPLETED', title: 'Y', body: 'Y', dedupeKey: 'cross:principal:key',
+  });
+
+  assert.notEqual(recX.id, recY.id, 'different principals with the same dedupeKey must not collapse into one record');
+  assert.equal(store.list('ten_shared', 'usr_x').length, 1);
+  assert.equal(store.list('ten_shared', 'usr_y').length, 1);
 });
 
 test('P04-11: absent Telegram/Slack does not create false failure', async () => {
@@ -420,7 +559,7 @@ test('P04-14: metadata does not expose secret approval payload/token', async () 
   await scheduler.runOne(task);
   await new Promise((r) => setTimeout(r, 50));
 
-  const notifications = notificationStore.list('u_p04');
+  const notifications = notificationStore.list('t_p04', 'u_p04');
   for (const notif of notifications) {
     const metaStr = JSON.stringify(notif.metadata ?? {});
     // Must never contain secrets, tokens, credentials, full payloads
@@ -450,13 +589,13 @@ test('P04-15: dedupeKey persists and is queryable across store restart', () => {
     dedupeKey: 'task123:run456:TASK_COMPLETED', createdAt: new Date().toISOString(),
   });
 
-  assert.equal(store1.existsByDedupeKey('task123:run456:TASK_COMPLETED'), true);
-  assert.equal(store1.existsByDedupeKey('nonexistent:key'), false);
+  assert.equal(store1.existsByDedupeKey('ten_1', 'usr_1', 'task123:run456:TASK_COMPLETED'), true);
+  assert.equal(store1.existsByDedupeKey('ten_1', 'usr_1', 'nonexistent:key'), false);
 
   // After restart
   const store2 = new NotificationStore({ dir });
-  assert.equal(store2.existsByDedupeKey('task123:run456:TASK_COMPLETED'), true);
-  const found = store2.getByDedupeKey('task123:run456:TASK_COMPLETED');
+  assert.equal(store2.existsByDedupeKey('ten_1', 'usr_1', 'task123:run456:TASK_COMPLETED'), true);
+  const found = store2.getByDedupeKey('ten_1', 'usr_1', 'task123:run456:TASK_COMPLETED');
   assert.ok(found);
   assert.equal(found?.id, 'notif_dk');
 });
@@ -482,7 +621,7 @@ test('P04-16: NotificationEngine deduplication returns existing record without c
   // Must return the same record
   assert.equal(first.id, second.id, 'second dispatch with same dedupeKey must return existing record');
   assert.equal(first.title, 'First', 'returned record must be the original, not the duplicate');
-  assert.equal(store.list('usr_1').length, 1, 'only one notification must exist');
+  assert.equal(store.list('ten_1', 'usr_1').length, 1, 'only one notification must exist');
 });
 
 test('P04-17: persist-first ordering ensures WEB notification survives', async () => {
@@ -518,7 +657,7 @@ test('P04-17: persist-first ordering ensures WEB notification survives', async (
 
   // The record must be persisted on disk
   const store2 = new NotificationStore({ dir });
-  const recovered = store2.list('usr_1');
+  const recovered = store2.list('ten_1', 'usr_1');
   assert.equal(recovered.length, 1, 'notification must be persisted even when Telegram fails');
 });
 
@@ -539,8 +678,8 @@ test('P04-18: markAllAsRead scoped by principal', () => {
     createdAt: new Date().toISOString(),
   });
 
-  const count = store.markAllAsRead('usr_x');
+  const count = store.markAllAsRead('ten_1', 'usr_x');
   assert.equal(count, 1, 'only usr_x notifications should be marked');
-  assert.equal(store.getUnreadCount('usr_x'), 0);
-  assert.equal(store.getUnreadCount('usr_y'), 1, 'usr_y notifications must remain unread');
+  assert.equal(store.getUnreadCount('ten_1', 'usr_x'), 0);
+  assert.equal(store.getUnreadCount('ten_1', 'usr_y'), 1, 'usr_y notifications must remain unread');
 });

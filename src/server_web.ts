@@ -1213,21 +1213,26 @@ export async function handleAsyncApiRequest(
     }
 
     // ── Notification Engine (MASTER.md Section 14.5 item 12) ──────────────
+    // P04-R1 — every user-facing notification read/mutation is scoped by
+    // tenantId + principalId, never principalId alone.
     if (pathname === '/api/v1/notifications' && method === 'GET') {
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
       const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const notifications = notificationApiService.list(principalId);
-      const unreadCount = notificationApiService.getUnreadCount(principalId);
+      const notifications = notificationApiService.list(tenantId, principalId);
+      const unreadCount = notificationApiService.getUnreadCount(tenantId, principalId);
       return { status: 200, data: { notifications, unreadCount, total: notifications.length } };
     }
     if (pathname === '/api/v1/notifications/read-all' && method === 'POST') {
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
       const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const updatedCount = notificationApiService.markAllAsRead(principalId);
+      const updatedCount = notificationApiService.markAllAsRead(tenantId, principalId);
       return { status: 200, data: { success: true, updatedCount } };
     }
     if (pathname.startsWith('/api/v1/notifications/') && pathname.endsWith('/read') && method === 'POST') {
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
       const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
       const id = pathname.slice('/api/v1/notifications/'.length, pathname.length - '/read'.length);
-      const record = notificationApiService.markAsRead(id, principalId);
+      const record = notificationApiService.markAsRead(id, tenantId, principalId);
       if (!record) {
         return { status: 404, data: { error: { code: 'NOTIFICATION_NOT_FOUND', category: 'NOT_FOUND', message: `Notification ${id} was not found.` } } };
       }
