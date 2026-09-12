@@ -43,7 +43,7 @@ export class TaskContinuationCoordinator {
   public async onApproved(approvalId: string): Promise<void> {
     const continuation = this.claim(approvalId);
     if (!continuation) return;
-    const task = this.tasks.get(continuation.taskId);
+    const task = this.tasks.get(continuation.taskId, continuation.tenantId, continuation.ownerId);
     if (!task) return; // task deleted since it paused — nothing to resume into
 
     let outcome: TaskRunOutcome;
@@ -62,7 +62,7 @@ export class TaskContinuationCoordinator {
   public onRejected(approvalId: string): void {
     const continuation = this.claim(approvalId);
     if (!continuation) return;
-    const task = this.tasks.get(continuation.taskId);
+    const task = this.tasks.get(continuation.taskId, continuation.tenantId, continuation.ownerId);
     if (!task) return;
 
     const durable = this.durableRunState.get(continuation.runId);

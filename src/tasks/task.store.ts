@@ -167,10 +167,21 @@ export class TaskStore {
     return undefined;
   }
 
-  public get(taskId: string): TaskRecord | undefined {
-    return this.records.get(taskId);
+  // Task Isolation Correction — ownership-enforcing lookup. A tenant/owner
+  // mismatch returns undefined, the exact same response as a genuinely
+  // nonexistent taskId — never a distinguishing result, so a caller
+  // probing for another tenant's task ids learns nothing.
+  public get(taskId: string, tenantId: string, ownerId: string): TaskRecord | undefined {
+    const record = this.records.get(taskId);
+    if (!record || record.tenantId !== tenantId || record.ownerId !== ownerId) return undefined;
+    return record;
   }
 
+  // Existence-only lookup for internal, non-attacker-controlled lifecycle
+  // paths (markRunning/recordRunOutcome, called only by TaskScheduler with
+  // a taskId it already obtained itself via listDue()/runOne(task) — never
+  // from raw user input). Deliberately NOT used by any user-facing method
+  // below; those all go through requireOwned().
   private require(taskId: string, requestId: string): TaskRecord {
     const record = this.records.get(taskId);
     if (!record) {
@@ -179,9 +190,27 @@ export class TaskStore {
     return record;
   }
 
-  public list(ownerId: string): TaskRecord[] {
+  // Task Isolation Correction — the single centralized ownership check
+  // every user-facing mutator below uses. A tenant/owner mismatch throws
+  // the exact same TASK_NOT_FOUND error as a genuinely nonexistent taskId
+  // (never a distinguishing code/message), so cross-tenant/cross-owner
+  // existence is never disclosed. No optional ownership parameters and no
+  // bypass path exist — every caller of a mutator must supply real
+  // tenantId/ownerId.
+  private requireOwned(taskId: string, tenantId: string, ownerId: string, requestId: string): TaskRecord {
+    const record = this.require(taskId, requestId);
+    if (record.tenantId !== tenantId || record.ownerId !== ownerId) {
+      throw new NagexError({ code: 'TASK_NOT_FOUND', category: 'NOT_FOUND', message: `Task ${taskId} was not found.`, request_id: requestId });
+    }
+    return record;
+  }
+
+  // Task Isolation Correction — ownership is tenantId + ownerId, never
+  // ownerId alone: the same ownerId can exist under a different tenant, and
+  // a tenant-blind filter would let one tenant see another's tasks.
+  public list(tenantId: string, ownerId: string): TaskRecord[] {
     return [...this.records.values()]
-      .filter((t) => t.ownerId === ownerId)
+      .filter((t) => t.tenantId === tenantId && t.ownerId === ownerId)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
@@ -199,8 +228,8 @@ export class TaskStore {
     );
   }
 
-  public update(taskId: string, patch: Partial<Pick<TaskRecord, 'name' | 'objective' | 'trigger' | 'approvalPolicy' | 'nextRunAt'>>, requestId = 'task_update'): TaskRecord {
-    const record = this.require(taskId, requestId);
+  public update(taskId: string, tenantId: string, ownerId: string, patch: Partial<Pick<TaskRecord, 'name' | 'objective' | 'trigger' | 'approvalPolicy' | 'nextRunAt'>>, requestId = 'task_update'): TaskRecord {
+    const record = this.requireOwned(taskId, tenantId, ownerId, requestId);
     if (patch.name !== undefined) record.name = patch.name;
     if (patch.objective !== undefined) record.objective = patch.objective;
     if (patch.trigger !== undefined) record.trigger = patch.trigger;
@@ -215,8 +244,8 @@ export class TaskStore {
     return this.persist(record);
   }
 
-  public pause(taskId: string, requestId = 'task_pause'): TaskRecord {
-    const record = this.require(taskId, requestId);
+  public pause(taskId: string, tenantId: string, ownerId: string, requestId = 'task_pause'): TaskRecord {
+    const record = this.requireOwned(taskId, tenantId, ownerId, requestId);
     if (record.status !== 'ACTIVE' && record.status !== 'WAITING') {
       throw new NagexError({ code: 'TASK_NOT_PAUSABLE', category: 'CONFLICT', message: `Task ${taskId} is ${record.status}, not active.`, request_id: requestId });
     }
@@ -224,8 +253,8 @@ export class TaskStore {
     return this.persist(record);
   }
 
-  public resume(taskId: string, requestId = 'task_resume'): TaskRecord {
-    const record = this.require(taskId, requestId);
+  public resume(taskId: string, tenantId: string, ownerId: string, requestId = 'task_resume'): TaskRecord {
+    const record = this.requireOwned(taskId, tenantId, ownerId, requestId);
     if (record.status !== 'PAUSED') {
       throw new NagexError({ code: 'TASK_NOT_RESUMABLE', category: 'CONFLICT', message: `Task ${taskId} is ${record.status}, not paused.`, request_id: requestId });
     }
@@ -233,14 +262,14 @@ export class TaskStore {
     return this.persist(record);
   }
 
-  public cancel(taskId: string, requestId = 'task_cancel'): TaskRecord {
-    const record = this.require(taskId, requestId);
+  public cancel(taskId: string, tenantId: string, ownerId: string, requestId = 'task_cancel'): TaskRecord {
+    const record = this.requireOwned(taskId, tenantId, ownerId, requestId);
     record.status = 'CANCELLED';
     return this.persist(record);
   }
 
-  public delete(taskId: string, requestId = 'task_delete'): void {
-    this.require(taskId, requestId);
+  public delete(taskId: string, tenantId: string, ownerId: string, requestId = 'task_delete'): void {
+    this.requireOwned(taskId, tenantId, ownerId, requestId);
     this.records.delete(taskId);
     this.fileStore.remove(taskId);
   }

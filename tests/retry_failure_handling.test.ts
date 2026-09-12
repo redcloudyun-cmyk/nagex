@@ -371,7 +371,7 @@ test('21. reconcileCandidateAction(TASK) finds an existing linked Task and confi
   const { outcome, candidate } = resolver.reconcileCandidateAction(cand.candidateId, 't21', 'u21');
   assert.equal(outcome, 'CONFIRMED_SUCCESS');
   assert.equal(candidate.action?.status, 'SUCCEEDED');
-  assert.equal(taskStore.list('u21').length, 1, 'reconciliation must never create a second Task');
+  assert.equal(taskStore.list('t21', 'u21').length, 1, 'reconciliation must never create a second Task');
 });
 
 test('22. reconcileCandidateAction(TASK) with no linked Task confirms nothing was executed, without mutating an untouched candidate', async () => {
@@ -440,7 +440,7 @@ test('26. A RUNNING action older than the stale threshold is reconciled on next 
   assert.equal(result.action?.status, 'FAILED');
   assert.equal(result.action?.errorCode, 'CANDIDATE_ACTION_INTERRUPTED');
   assert.equal(result.action?.retryable, true, 'an interrupted action with no confirmed side effect must be safely retryable');
-  assert.equal(taskStore.list('u26').length, 0, 'no Task must ever be fabricated for a merely-reconciled interruption');
+  assert.equal(taskStore.list('t26', 'u26').length, 0, 'no Task must ever be fabricated for a merely-reconciled interruption');
 });
 
 test('27. A RUNNING action still within the stale threshold keeps reporting in-progress — never assumed done just because it is RUNNING', async () => {
@@ -464,7 +464,7 @@ test('28. After stale-RUNNING recovery, the resulting interrupted action can be 
 
   const retried = await resolver.retryCandidate(cand.candidateId, 't28', 'u28');
   assert.equal(retried.action?.status, 'SUCCEEDED');
-  assert.equal(taskStore.list('u28').length, 1);
+  assert.equal(taskStore.list('t28', 'u28').length, 1);
 });
 
 // ─── 29: Calendar EXPIRED approval is never a dead end ───

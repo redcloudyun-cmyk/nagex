@@ -59,7 +59,7 @@ test('Background Tasks (item 09): BackgroundTaskRunner updates step-by-step prog
     const run = await scheduler.runOne(task);
     assert.equal(run.status, 'SUCCEEDED');
 
-    const updatedTask = taskStore.get(task.taskId)!;
+    const updatedTask = taskStore.get(task.taskId, task.tenantId, task.ownerId)!;
     assert.ok(updatedTask.progress);
     assert.equal(updatedTask.progress.percent, 100);
     assert.equal(updatedTask.progress.completedSteps, 4);
@@ -102,14 +102,14 @@ test('Background Tasks (AC-12): Cancelling a background task halts execution and
     });
 
     // Mark task as CANCELLED before run
-    taskStore.cancel(task.taskId);
-    assert.equal(taskStore.get(task.taskId)?.status, 'CANCELLED');
+    taskStore.cancel(task.taskId, task.tenantId, task.ownerId);
+    assert.equal(taskStore.get(task.taskId, task.tenantId, task.ownerId)?.status, 'CANCELLED');
 
     const outcome = await bgRunner.run(task, 'req_cancel_test');
     assert.equal(outcome.status, 'FAILED');
     assert.equal(outcome.errorCode, 'TASK_CANCELLED');
 
-    const haltedTask = taskStore.get(task.taskId)!;
+    const haltedTask = taskStore.get(task.taskId, task.tenantId, task.ownerId)!;
     assert.ok(haltedTask.progress);
     assert.ok(haltedTask.progress.currentStep.includes('Halted'));
   } finally {

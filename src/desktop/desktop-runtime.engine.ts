@@ -167,7 +167,7 @@ export class DesktopRuntimeEngine {
 
       case 'ACTIVE_TASKS':
         this.restoreWindow();
-        const activeTasks = this.options.taskStore.list('usr_admin_001').filter((t) => t.status === 'ACTIVE' || t.status === 'RUNNING' || t.status === 'WAITING');
+        const activeTasks = this.options.taskStore.list('ten_production_01', 'usr_admin_001').filter((t) => t.status === 'ACTIVE' || t.status === 'RUNNING' || t.status === 'WAITING');
         return { action, status: 'TASKS_LISTED', result: activeTasks };
 
       case 'PAUSE_AUTOMATIONS':
@@ -185,11 +185,11 @@ export class DesktopRuntimeEngine {
   }
 
   public pauseAllAutomations(): number {
-    const tasks = this.options.taskStore.list('usr_admin_001');
+    const tasks = this.options.taskStore.list('ten_production_01', 'usr_admin_001');
     let count = 0;
     for (const t of tasks) {
       if (t.status === 'ACTIVE' || t.status === 'WAITING') {
-        this.options.taskStore.pause(t.taskId, 'req_pause_all');
+        this.options.taskStore.pause(t.taskId, t.tenantId, t.ownerId, 'req_pause_all');
         count++;
       }
     }

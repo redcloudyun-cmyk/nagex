@@ -289,7 +289,7 @@ test('full scheduler tick: an unmet condition stays WAITING with a rescheduled n
     const run = await scheduler.runOne(task);
     assert.equal(run.status, 'SUCCEEDED');
 
-    const afterUnmet = taskStore.get(task.taskId)!;
+    const afterUnmet = taskStore.get(task.taskId, task.tenantId, task.ownerId)!;
     assert.equal(afterUnmet.status, 'WAITING');
     assert.ok(afterUnmet.nextRunAt);
     assert.ok(new Date(afterUnmet.nextRunAt as string).getTime() > Date.now());
@@ -304,7 +304,7 @@ test('full scheduler tick: an unmet condition stays WAITING with a rescheduled n
     const finalRun = await schedulerMet.runOne(afterUnmet);
     assert.equal(finalRun.status, 'SUCCEEDED');
 
-    const finalTask = taskStore.get(task.taskId)!;
+    const finalTask = taskStore.get(task.taskId, task.tenantId, task.ownerId)!;
     assert.equal(finalTask.status, 'COMPLETED');
     assert.equal(finalTask.nextRunAt, null);
   } finally {

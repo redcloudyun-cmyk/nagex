@@ -317,7 +317,7 @@ test('14-17. Accepting a TASK/CALENDAR/MEMORY/KNOWLEDGE candidate never creates 
   // If any accept had executed anything, the poisoned dependency above would
   // have thrown synchronously during acceptCandidate() and failed this test
   // already. These are an additional, passive confirmation.
-  assert.equal(taskStore.list('usr_2').length, 0);
+  assert.equal(taskStore.list('ten_2', 'usr_2').length, 0);
   assert.equal(memoryEngine.getActiveMemories('USER', 'usr_2').length, 0);
   assert.equal(knowledgeEngine.retrieveCandidates('', ['PUBLIC', 'INTERNAL', 'CONFIDENTIAL', 'RESTRICTED']).length, 0);
   void actionApprovals; // present only to prove the poisoned instance was wired and never threw

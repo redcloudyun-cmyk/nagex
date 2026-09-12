@@ -114,7 +114,7 @@ test('1. ACCEPTED TASK candidate execute creates a real Task in TaskStore', asyn
   const result = await resolver.executeCandidate(cand.candidateId, 't1', 'u1');
   assert.equal(result.action?.status, 'SUCCEEDED');
   assert.equal(result.action?.targetType, 'TASK');
-  const task = taskStore.get(result.action!.targetId!);
+  const task = taskStore.get(result.action!.targetId!, 't1', 'u1');
   assert.ok(task);
   assert.equal(task!.name, 'Review budget proposal');
   assert.equal(task!.type, 'ONE_TIME');
@@ -129,7 +129,7 @@ test('2. A second execute on the same TASK candidate does not create a duplicate
   const first = await resolver.executeCandidate(cand.candidateId, 't2', 'u2');
   const second = await resolver.executeCandidate(cand.candidateId, 't2', 'u2');
   assert.equal(second.action?.targetId, first.action?.targetId);
-  assert.equal(taskStore.list('u2').length, 1);
+  assert.equal(taskStore.list('t2', 'u2').length, 1);
 });
 
 test('3. candidateId -> taskId linkage is persisted on the candidate record', async () => {
@@ -324,7 +324,7 @@ test('17. A FAILED action (e.g. missing dependency) can be safely retried once t
   const resolverWithTaskStore = new CandidateActionResolver({ candidateStore, captureStore, taskStore });
   const retried = await resolverWithTaskStore.retryCandidate(cand.candidateId, 't17', 'u17');
   assert.equal(retried.action?.status, 'SUCCEEDED');
-  assert.equal(taskStore.list('u17').length, 1);
+  assert.equal(taskStore.list('t17', 'u17').length, 1);
 });
 
 test('18. A SUCCEEDED action cannot execute twice (idempotent no-op, not an error)', async () => {
@@ -334,7 +334,7 @@ test('18. A SUCCEEDED action cannot execute twice (idempotent no-op, not an erro
   await resolver.executeCandidate(cand.candidateId, 't18', 'u18');
   const again = await resolver.executeCandidate(cand.candidateId, 't18', 'u18');
   assert.equal(again.action?.status, 'SUCCEEDED');
-  assert.equal(taskStore.list('u18').length, 1);
+  assert.equal(taskStore.list('t18', 'u18').length, 1);
   await assert.rejects(() => resolver.retryCandidate(cand.candidateId, 't18', 'u18'), (err: unknown) => err instanceof NagexError && err.code === 'CANDIDATE_ACTION_NOT_RETRYABLE');
 });
 
@@ -473,7 +473,7 @@ test('API: POST /api/v1/candidates/:id/execute creates a real Task via the produ
   assert.equal(res.status, 200);
   const record = res.data as { action?: { status: string; targetId?: string } };
   assert.equal(record.action?.status, 'SUCCEEDED');
-  const task = productionTaskStore.get(record.action!.targetId!);
+  const task = productionTaskStore.get(record.action!.targetId!, tenantId, ownerId);
   assert.ok(task);
   assert.equal(task!.name, 'API-executed task');
 

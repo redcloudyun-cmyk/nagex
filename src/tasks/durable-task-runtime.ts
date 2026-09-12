@@ -62,7 +62,7 @@ export class DurableTaskRuntime {
     let failed = 0;
 
     for (const record of stuck) {
-      const task = this.tasks.get(record.taskId);
+      const task = this.tasks.get(record.taskId, record.tenantId, record.ownerId);
       if (!task) {
         // The task was deleted since this run started — nothing to resume
         // into; mark the durable record terminal so it never gets rescanned.

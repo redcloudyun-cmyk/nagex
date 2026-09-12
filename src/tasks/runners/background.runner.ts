@@ -32,7 +32,7 @@ export class BackgroundTaskRunner implements TaskRunner {
       const step = steps[i];
 
       // AC-12 Cancellation check: verify task state in TaskStore
-      const currentTask = this.taskStore.get(task.taskId);
+      const currentTask = this.taskStore.get(task.taskId, task.tenantId, task.ownerId);
       if (currentTask && (currentTask.status === 'CANCELLED' || currentTask.status === 'PAUSED')) {
         logs.push(`[${getCurrentISOString()}] Background task halted due to status change: ${currentTask.status}`);
         this.taskStore.updateProgress(task.taskId, {

@@ -257,7 +257,7 @@ test('10. Understanding generation never itself creates a Task, Calendar event, 
   assert.equal(item.status, 'NEEDS_REVIEW');
   // No side effects from generation alone — only an explicit ACCEPT (a
   // later step's concern) may ever persist into these real systems.
-  assert.equal(taskStore.list('usr_step2_10').length, 0);
+  assert.equal(taskStore.list('ten_step2', 'usr_step2_10').length, 0);
   assert.equal(memoryEngine.getActiveMemories('USER', 'usr_step2_10').length, 0);
 });
 

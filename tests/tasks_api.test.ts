@@ -172,3 +172,92 @@ test('POST /api/v1/tasks/:id/run 404s for an unknown task, never silently no-opi
   const res = await handleAsyncApiRequest('POST', '/api/v1/tasks/tsk_does_not_exist/run', {}, HEADERS);
   assert.equal(res.status, 404);
 });
+
+// ── Task Isolation Correction: tenant/owner isolation (HTTP level) ─────
+
+const TENANT_A = { 'x-nagex-tenant': 'ten_isolation_a', 'x-principal-id': 'usr_isolation_shared' };
+const TENANT_B = { 'x-nagex-tenant': 'ten_isolation_b', 'x-principal-id': 'usr_isolation_shared' };
+const SAME_TENANT_OWNER_A = { 'x-nagex-tenant': 'ten_isolation_same', 'x-principal-id': 'usr_isolation_owner_a' };
+const SAME_TENANT_OWNER_B = { 'x-nagex-tenant': 'ten_isolation_same', 'x-principal-id': 'usr_isolation_owner_b' };
+
+function unknownTaskShape(res: { status: number; data: unknown }) {
+  return { status: res.status, code: (res.data as { error?: { code?: string } })?.error?.code };
+}
+
+test('list isolation: same principalId, tenant A vs B never mixes', async () => {
+  const a = await handleApiRequest('POST', '/api/v1/tasks', createTaskBody({ name: 'A-task' }), TENANT_A);
+  await handleApiRequest('POST', '/api/v1/tasks', createTaskBody({ name: 'B-task' }), TENANT_B);
+
+  const listA = await handleApiRequest('GET', '/api/v1/tasks', null, TENANT_A);
+  const tasksA = (listA.data as { tasks: Array<{ taskId: string; name: string }> }).tasks;
+  assert.ok(tasksA.some((t) => t.taskId === (a.data as { taskId: string }).taskId));
+  assert.ok(!tasksA.some((t) => t.name === 'B-task'));
+});
+
+test('list isolation: same tenant, principal A vs B never mixes', async () => {
+  await handleApiRequest('POST', '/api/v1/tasks', createTaskBody({ name: 'Owner-A-task' }), SAME_TENANT_OWNER_A);
+  await handleApiRequest('POST', '/api/v1/tasks', createTaskBody({ name: 'Owner-B-task' }), SAME_TENANT_OWNER_B);
+
+  const listA = await handleApiRequest('GET', '/api/v1/tasks', null, SAME_TENANT_OWNER_A);
+  const tasksA = (listA.data as { tasks: Array<{ name: string }> }).tasks;
+  assert.ok(!tasksA.some((t) => t.name === 'Owner-B-task'));
+});
+
+test('get/update/pause/resume/cancel/delete/run/:id/runs isolation: wrong tenant is indistinguishable from a nonexistent task', async () => {
+  const created = await handleApiRequest('POST', '/api/v1/tasks', createTaskBody({ name: 'Isolation target' }), TENANT_A);
+  const taskId = (created.data as { taskId: string }).taskId;
+
+  const notFound = await handleApiRequest('GET', '/api/v1/tasks/tsk_definitely_does_not_exist', null, TENANT_A);
+
+  const getRes = await handleApiRequest('GET', `/api/v1/tasks/${taskId}`, null, TENANT_B);
+  assert.equal(getRes.status, notFound.status);
+  assert.deepEqual(unknownTaskShape(getRes), unknownTaskShape(notFound));
+
+  const updateRes = await handleApiRequest('PATCH', `/api/v1/tasks/${taskId}`, { name: 'Hijacked' }, TENANT_B);
+  assert.equal(updateRes.status, notFound.status);
+  assert.deepEqual(unknownTaskShape(updateRes), unknownTaskShape(notFound));
+
+  const pauseRes = await handleApiRequest('POST', `/api/v1/tasks/${taskId}/pause`, null, TENANT_B);
+  assert.equal(pauseRes.status, notFound.status);
+  assert.deepEqual(unknownTaskShape(pauseRes), unknownTaskShape(notFound));
+
+  const resumeRes = await handleApiRequest('POST', `/api/v1/tasks/${taskId}/resume`, null, TENANT_B);
+  assert.equal(resumeRes.status, notFound.status);
+  assert.deepEqual(unknownTaskShape(resumeRes), unknownTaskShape(notFound));
+
+  const cancelRes = await handleApiRequest('POST', `/api/v1/tasks/${taskId}/cancel`, null, TENANT_B);
+  assert.equal(cancelRes.status, notFound.status);
+  assert.deepEqual(unknownTaskShape(cancelRes), unknownTaskShape(notFound));
+
+  const runsRes = await handleApiRequest('GET', `/api/v1/tasks/${taskId}/runs`, null, TENANT_B);
+  assert.equal(runsRes.status, notFound.status);
+  assert.deepEqual(unknownTaskShape(runsRes), unknownTaskShape(notFound));
+
+  const runRes = await handleAsyncApiRequest('POST', `/api/v1/tasks/${taskId}/run`, {}, TENANT_B);
+  assert.equal(runRes.status, notFound.status);
+  assert.deepEqual(unknownTaskShape(runRes), unknownTaskShape(notFound));
+
+  const deleteRes = await handleApiRequest('DELETE', `/api/v1/tasks/${taskId}`, null, TENANT_B);
+  assert.equal(deleteRes.status, notFound.status);
+  assert.deepEqual(unknownTaskShape(deleteRes), unknownTaskShape(notFound));
+
+  // The original task must remain completely unchanged after every blocked attempt.
+  const stillMine = await handleApiRequest('GET', `/api/v1/tasks/${taskId}`, null, TENANT_A);
+  assert.equal(stillMine.status, 200);
+  assert.equal((stillMine.data as { name: string; status: string }).name, 'Isolation target');
+  assert.equal((stillMine.data as { name: string; status: string }).status, 'ACTIVE');
+});
+
+test('cross-tenant /run attempt causes no execution side effect — zero TaskRuns created', async () => {
+  const created = await handleApiRequest('POST', '/api/v1/tasks', createTaskBody({ name: 'No side effect', type: 'ONE_TIME', trigger: { type: 'MANUAL' }, approvalPolicy: 'ALWAYS_APPROVE' }), TENANT_A);
+  const taskId = (created.data as { taskId: string }).taskId;
+
+  const runRes = await handleAsyncApiRequest('POST', `/api/v1/tasks/${taskId}/run`, {}, TENANT_B, buildPlanningService());
+  assert.equal(runRes.status, 404);
+
+  const runsAfter = await handleApiRequest('GET', `/api/v1/tasks/${taskId}/runs`, null, TENANT_A);
+  assert.equal((runsAfter.data as { runs: unknown[] }).runs.length, 0, 'a blocked cross-tenant /run must never create a TaskRun');
+
+  const taskAfter = await handleApiRequest('GET', `/api/v1/tasks/${taskId}`, null, TENANT_A);
+  assert.equal((taskAfter.data as { status: string }).status, 'ACTIVE', 'the task must still be un-run for its real owner');
+});

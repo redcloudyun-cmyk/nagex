@@ -141,7 +141,7 @@ test('runOne() records a TaskRun, reschedules a RECURRING task on success, and a
   assert.equal(run.status, 'SUCCEEDED');
   assert.deepEqual(run.result, { note: 'ok' });
 
-  const updatedTask = taskStore.get(task.taskId)!;
+  const updatedTask = taskStore.get(task.taskId, task.tenantId, task.ownerId)!;
   assert.equal(updatedTask.status, 'ACTIVE'); // RECURRING -> back to ACTIVE, rescheduled
   assert.equal(updatedTask.lastRunStatus, 'SUCCEEDED');
   assert.equal(updatedTask.nextRunAt, '2026-06-01T01:00:00.000Z'); // +60 minutes
@@ -163,7 +163,7 @@ test('runOne() marks the TaskRun and Task FAILED when the runner rejects, and au
   assert.equal(run.status, 'FAILED');
   assert.equal(run.errorCode, 'boom');
 
-  const updatedTask = taskStore.get(task.taskId)!;
+  const updatedTask = taskStore.get(task.taskId, task.tenantId, task.ownerId)!;
   assert.equal(updatedTask.status, 'FAILED');
 
   const actions = audit.getRecentLogs(10).map((e) => e.action).reverse();
@@ -180,7 +180,7 @@ test('a ONE_TIME task completes (not reschedules) after a successful run', async
   const task = taskStore.create(baseTaskInput({ type: 'ONE_TIME', trigger: { type: 'SCHEDULE', schedule: '0 8 * * *', timezone: 'UTC' } }));
   await scheduler.runOne(task);
 
-  const updatedTask = taskStore.get(task.taskId)!;
+  const updatedTask = taskStore.get(task.taskId, task.tenantId, task.ownerId)!;
   assert.equal(updatedTask.status, 'COMPLETED');
   assert.equal(updatedTask.nextRunAt, null);
 });

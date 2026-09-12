@@ -160,7 +160,7 @@ test('1/13. a consequential step yields a truthful WAITING_APPROVAL TaskRun, nev
   assert.equal(run.status, 'WAITING_APPROVAL');
   const stored = taskRunStore.get(run.runId);
   assert.equal(stored?.status, 'WAITING_APPROVAL');
-  const fetchedTask = taskStore.get(task.taskId);
+  const fetchedTask = taskStore.get(task.taskId, task.tenantId, task.ownerId);
   assert.equal(fetchedTask?.status, 'WAITING', 'the Task itself must also reflect waiting truthfully');
 });
 

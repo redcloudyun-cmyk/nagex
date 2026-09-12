@@ -321,7 +321,7 @@ test('11. an orphaned run whose task was deleted since it started is marked FAIL
   const runId = 'exe_recover_orphan';
   taskRunStore.start({ runId, taskId: task.taskId, tenantId: task.tenantId, startedAt: new Date().toISOString() });
   durableRunState.create({ runId, taskId: task.taskId, tenantId: task.tenantId, ownerId: task.ownerId, runRequestId: 'req_orphan', resolvedSteps: resolved.steps });
-  taskStore.delete(task.taskId);
+  taskStore.delete(task.taskId, task.tenantId, task.ownerId);
 
   const { recovered, failed } = await durableRuntime.recoverOnStartup();
   assert.equal(recovered, 0);
@@ -340,7 +340,7 @@ test('12. recoverOnStartup() returns an accurate summary across a mix of recover
   const doomedTask = taskStore.create({ tenantId: 't_p03', ownerId: 'u_p03', name: 'Doomed', objective: 'x', type: 'ONE_TIME', trigger: { type: 'MANUAL' }, approvalPolicy: 'READ_ONLY_AUTO' });
   taskRunStore.start({ runId: 'exe_mix_doomed', taskId: doomedTask.taskId, tenantId: doomedTask.tenantId, startedAt: new Date().toISOString() });
   durableRunState.create({ runId: 'exe_mix_doomed', taskId: doomedTask.taskId, tenantId: doomedTask.tenantId, ownerId: doomedTask.ownerId, runRequestId: 'req_mix_doomed', resolvedSteps: resolved.steps });
-  taskStore.delete(doomedTask.taskId);
+  taskStore.delete(doomedTask.taskId, doomedTask.tenantId, doomedTask.ownerId);
 
   const { recovered, failed } = await durableRuntime.recoverOnStartup();
   assert.equal(recovered, 1);

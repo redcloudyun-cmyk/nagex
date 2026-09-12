@@ -313,8 +313,8 @@ test('19-21. Task/Memory/Knowledge downstream views reflect the real canonical s
 
   const taskCand = acceptedTaskCandidate(candidateStore, 't1921', 'u1921', cap.captureId, 'h1', 'Downstream task');
   await resolver.executeCandidate(taskCand.candidateId, 't1921', 'u1921');
-  assert.equal(taskStore.list('u1921').length, 1);
-  assert.equal(taskStore.list('u1921')[0].name, 'Downstream task');
+  assert.equal(taskStore.list('t1921', 'u1921').length, 1);
+  assert.equal(taskStore.list('t1921', 'u1921')[0].name, 'Downstream task');
 
   const memCand = acceptedMemoryCandidate(candidateStore, 't1921', 'u1921', cap.captureId, 'h1', 'Downstream memory statement.');
   await resolver.executeCandidate(memCand.candidateId, 't1921', 'u1921');
@@ -452,7 +452,7 @@ test('API: GET /api/v1/activity reflects a real production Task action, isolated
   const otherActivities = (otherRes.data as { activities: Array<{ title: string }> }).activities;
   assert.ok(!otherActivities.some((a) => a.title === 'Created task "API activity task"'));
 
-  const directTask = productionTaskStore.list(ownerId).find((tsk) => tsk.name === 'API activity task');
+  const directTask = productionTaskStore.list(tenantId, ownerId).find((tsk) => tsk.name === 'API activity task');
   assert.ok(directTask, 'Task management view (real TaskStore) must reflect the created task');
   void productionActivityStore;
 });

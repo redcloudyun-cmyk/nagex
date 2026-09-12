@@ -1021,7 +1021,14 @@ export async function handleAsyncApiRequest(
     if (pathname.startsWith('/api/v1/tasks/') && pathname.endsWith('/run') && method === 'POST') {
       const taskId = pathname.slice('/api/v1/tasks/'.length, pathname.length - '/run'.length);
       const requestId = getHeaderValue(headers, 'x-request-id') || `req_task_run_${crypto.randomUUID()}`;
-      const task = taskStore.get(taskId);
+      // Task Isolation Correction — security-critical: without this check a
+      // caller from another tenant/owner could trigger execution (real
+      // Gmail/Calendar dispatch, approval creation, notifications) of a
+      // Task they do not own. Ownership mismatch is indistinguishable from
+      // a nonexistent task.
+      const runTenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const runPrincipalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const task = taskStore.get(taskId, runTenantId, runPrincipalId);
       if (!task) return { status: 404, data: { error: { code: 'TASK_NOT_FOUND', category: 'NOT_FOUND', message: `Task ${taskId} was not found.`, request_id: requestId } } };
       // Mirrors the `calendarService` DI pattern below: the shared
       // taskScheduler singleton (built on the real aiService) is used
@@ -1070,7 +1077,15 @@ export async function handleAsyncApiRequest(
     ) {
       const taskId = pathname.slice('/api/v1/tasks/'.length, pathname.length - '/run-with-fixed-plan'.length);
       const requestId = getHeaderValue(headers, 'x-request-id') || `req_task_fixedplan_${crypto.randomUUID()}`;
-      const task = taskStore.get(taskId);
+      // Mechanical update for the Task Isolation Correction's TaskStore.get()
+      // signature change — this route's own two independent security gates
+      // (env flag + timing-safe token, checked above) are untouched. The
+      // LIVE harness that calls this route already sends x-nagex-tenant/
+      // x-principal-id on every request, matching the same headers it used
+      // to create this exact task, so ownership naturally lines up.
+      const fixedPlanTenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const fixedPlanPrincipalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const task = taskStore.get(taskId, fixedPlanTenantId, fixedPlanPrincipalId);
       if (!task) return { status: 404, data: { error: { code: 'TASK_NOT_FOUND', category: 'NOT_FOUND', message: `Task ${taskId} was not found.`, request_id: requestId } } };
       const steps = Array.isArray(body?.steps) ? body.steps : [];
       if (steps.length === 0) {
@@ -1979,7 +1994,7 @@ export function handleApiRequest(
   }
 
   if (pathname === '/api/v1/tasks' && method === 'GET') {
-    const tasks = taskStore.list(principal.id);
+    const tasks = taskStore.list(tenantId, principal.id);
     return { status: 200, data: { tasks, total: tasks.length } };
   }
 
@@ -2042,8 +2057,14 @@ export function handleApiRequest(
     }
   }
 
+  // Task Isolation Correction — :id/runs is only ever reached through a
+  // taskId; ownership is enforced by requiring the parent Task first
+  // (TaskRunStore/TaskRunRecord themselves are untouched — see the
+  // governing directive's explicit scope limit).
   if (pathname.startsWith('/api/v1/tasks/') && pathname.endsWith('/runs') && method === 'GET') {
     const taskId = pathname.slice('/api/v1/tasks/'.length, pathname.length - '/runs'.length);
+    const parentTask = taskStore.get(taskId, tenantId, principal.id);
+    if (!parentTask) return { status: 404, data: { error: { code: 'TASK_NOT_FOUND', category: 'NOT_FOUND', message: `Task ${taskId} was not found.`, request_id: `req_task_${Date.now()}` } } };
     const runs = taskRunStore.listForTask(taskId);
     return { status: 200, data: { runs, total: runs.length } };
   }
@@ -2051,8 +2072,8 @@ export function handleApiRequest(
   if (pathname.startsWith('/api/v1/tasks/') && pathname.endsWith('/pause') && method === 'POST') {
     const taskId = pathname.slice('/api/v1/tasks/'.length, pathname.length - '/pause'.length);
     try {
-      const task = taskStore.pause(taskId);
-      auditLogger.logEvent({ actor: principal, tenant_id: tenantId, action: 'task.paused', resource: { type: 'Task', id: taskId }, result: 'SUCCESS', request_id: `req_task_${Date.now()}` });
+      const task = taskStore.pause(taskId, tenantId, principal.id);
+      auditLogger.logEvent({ actor: principal, tenant_id: task.tenantId, action: 'task.paused', resource: { type: 'Task', id: taskId }, result: 'SUCCESS', request_id: `req_task_${Date.now()}` });
       return { status: 200, data: task };
     } catch (error) {
       return modelErrorResult(error);
@@ -2062,8 +2083,8 @@ export function handleApiRequest(
   if (pathname.startsWith('/api/v1/tasks/') && pathname.endsWith('/resume') && method === 'POST') {
     const taskId = pathname.slice('/api/v1/tasks/'.length, pathname.length - '/resume'.length);
     try {
-      const task = taskStore.resume(taskId);
-      auditLogger.logEvent({ actor: principal, tenant_id: tenantId, action: 'task.resumed', resource: { type: 'Task', id: taskId }, result: 'SUCCESS', request_id: `req_task_${Date.now()}` });
+      const task = taskStore.resume(taskId, tenantId, principal.id);
+      auditLogger.logEvent({ actor: principal, tenant_id: task.tenantId, action: 'task.resumed', resource: { type: 'Task', id: taskId }, result: 'SUCCESS', request_id: `req_task_${Date.now()}` });
       return { status: 200, data: task };
     } catch (error) {
       return modelErrorResult(error);
@@ -2073,8 +2094,8 @@ export function handleApiRequest(
   if (pathname.startsWith('/api/v1/tasks/') && pathname.endsWith('/cancel') && method === 'POST') {
     const taskId = pathname.slice('/api/v1/tasks/'.length, pathname.length - '/cancel'.length);
     try {
-      const task = taskStore.cancel(taskId);
-      auditLogger.logEvent({ actor: principal, tenant_id: tenantId, action: 'task.cancelled', resource: { type: 'Task', id: taskId }, result: 'SUCCESS', request_id: `req_task_${Date.now()}` });
+      const task = taskStore.cancel(taskId, tenantId, principal.id);
+      auditLogger.logEvent({ actor: principal, tenant_id: task.tenantId, action: 'task.cancelled', resource: { type: 'Task', id: taskId }, result: 'SUCCESS', request_id: `req_task_${Date.now()}` });
       return { status: 200, data: task };
     } catch (error) {
       return modelErrorResult(error);
@@ -2084,8 +2105,12 @@ export function handleApiRequest(
   if (pathname.startsWith('/api/v1/tasks/') && method === 'DELETE') {
     const taskId = pathname.slice('/api/v1/tasks/'.length);
     try {
-      taskStore.delete(taskId);
-      auditLogger.logEvent({ actor: principal, tenant_id: tenantId, action: 'task.deleted', resource: { type: 'Task', id: taskId }, result: 'SUCCESS', request_id: `req_task_${Date.now()}` });
+      const task = taskStore.get(taskId, tenantId, principal.id);
+      if (!task) {
+        throw new NagexError({ code: 'TASK_NOT_FOUND', category: 'NOT_FOUND', message: `Task ${taskId} was not found.`, request_id: `req_task_${Date.now()}` });
+      }
+      taskStore.delete(taskId, tenantId, principal.id);
+      auditLogger.logEvent({ actor: principal, tenant_id: task.tenantId, action: 'task.deleted', resource: { type: 'Task', id: taskId }, result: 'SUCCESS', request_id: `req_task_${Date.now()}` });
       return { status: 200, data: { success: true, deleted_id: taskId } };
     } catch (error) {
       return modelErrorResult(error);
@@ -2104,8 +2129,8 @@ export function handleApiRequest(
         const nextRun = computeNextRunAt(body.trigger as unknown as TaskTrigger, new Date());
         patch.nextRunAt = nextRun ? nextRun.toISOString() : null;
       }
-      const task = taskStore.update(taskId, patch);
-      auditLogger.logEvent({ actor: principal, tenant_id: tenantId, action: 'task.updated', resource: { type: 'Task', id: taskId }, result: 'SUCCESS', request_id: `req_task_${Date.now()}` });
+      const task = taskStore.update(taskId, tenantId, principal.id, patch);
+      auditLogger.logEvent({ actor: principal, tenant_id: task.tenantId, action: 'task.updated', resource: { type: 'Task', id: taskId }, result: 'SUCCESS', request_id: `req_task_${Date.now()}` });
       return { status: 200, data: task };
     } catch (error) {
       return modelErrorResult(error);
@@ -2114,7 +2139,7 @@ export function handleApiRequest(
 
   if (pathname.startsWith('/api/v1/tasks/') && method === 'GET') {
     const taskId = pathname.slice('/api/v1/tasks/'.length);
-    const task = taskStore.get(taskId);
+    const task = taskStore.get(taskId, tenantId, principal.id);
     if (!task) return { status: 404, data: { error: { code: 'TASK_NOT_FOUND', category: 'NOT_FOUND', message: `Task ${taskId} was not found.`, request_id: `req_task_${Date.now()}` } } };
     return { status: 200, data: task };
   }
