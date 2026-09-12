@@ -190,7 +190,7 @@ export class MemoryEngine {
       lifecycle: 'DELETED',
       updated_at: getCurrentISOString(),
     };
-    this.fileStore.remove(id);
+    this.fileStore.removeOrThrow(id);
     this.memoryStore.delete(id);
     return deletedRecord;
   }

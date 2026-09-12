@@ -59,30 +59,9 @@ export class FileRecordStore<T> {
     } finally {
       fs.closeSync(fd);
     }
-    try {
-      fs.chmodSync(tmpPath, 0o600);
-    } catch {
-      /* best effort on platforms that do not support POSIX mode bits */
-    }
-    try {
-      fs.renameSync(tmpPath, this.filePath(id));
-    } catch (err: unknown) {
-      if (process.platform === 'win32' && (err as { code?: string }).code === 'EPERM') {
-        try {
-          fs.unlinkSync(this.filePath(id));
-        } catch {
-          /* ignore unlink error */
-        }
-        fs.renameSync(tmpPath, this.filePath(id));
-      } else {
-        throw err;
-      }
-    }
-    try {
-      fs.chmodSync(this.filePath(id), 0o600);
-    } catch {
-      /* best effort */
-    }
+    fs.chmodSync(tmpPath, 0o600);
+    fs.renameSync(tmpPath, this.filePath(id));
+    fs.chmodSync(this.filePath(id), 0o600);
   }
 
   public read(id: string): T | null {
@@ -122,5 +101,9 @@ export class FileRecordStore<T> {
     } catch {
       /* best effort */
     }
+  }
+
+  public removeOrThrow(id: string): void {
+    fs.rmSync(this.filePath(id));
   }
 }

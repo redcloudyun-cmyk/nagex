@@ -349,3 +349,64 @@ test('P05-16: existing relevance retrieval remains unchanged', async () => {
   assert.equal(active.length, 1);
   assert.equal(active[0].content.subject, 'Gmail');
 });
+
+test('P05-17a: propose write failure -> no in-memory record committed', async () => {
+  const dir = tempDir('p05_17a');
+  const engine = new MemoryEngine({ dir });
+
+  (engine as any).fileStore.writeOrThrow = () => {
+    throw new Error('Disk write failed');
+  };
+
+  assert.throws(
+    () => engine.proposeMemory('USER', 'usr_001', { subject: 'Test', predicate: 'is', value: 1 }),
+    /Disk write failed/,
+  );
+
+  const memories = engine.getActiveMemories('USER', 'usr_001');
+  assert.equal(memories.length, 0, 'failed propose write must not commit record to memoryStore');
+});
+
+test('P05-17b: activate write failure -> previous lifecycle remains unchanged', async () => {
+  const dir = tempDir('p05_17b');
+  const engine = new MemoryEngine({ dir });
+
+  const record = engine.proposeMemory('USER', 'usr_001', { subject: 'Test', predicate: 'is', value: 1 });
+  assert.equal(record.lifecycle, 'PROPOSED');
+
+  (engine as any).fileStore.writeOrThrow = () => {
+    throw new Error('Disk write failed during activate');
+  };
+
+  assert.throws(
+    () => engine.activateMemory(record.id),
+    /Disk write failed during activate/,
+  );
+
+  assert.equal(record.lifecycle, 'PROPOSED', 'failed activate write must leave lifecycle as PROPOSED');
+});
+
+test('P05-17c: delete failure -> record remains present in memory and on disk', async () => {
+  const dir = tempDir('p05_17c');
+  const engine = new MemoryEngine({ dir });
+
+  const record = engine.proposeMemory('USER', 'usr_001', { subject: 'Test', predicate: 'is', value: 1 });
+  engine.activateMemory(record.id);
+
+  const filePath = path.join(dir, `${record.id}.json`);
+  assert.ok(fs.existsSync(filePath), 'memory record file must exist');
+
+  (engine as any).fileStore.removeOrThrow = () => {
+    throw new Error('Disk delete failed');
+  };
+
+  assert.throws(
+    () => engine.deleteMemory(record.id),
+    /Disk delete failed/,
+  );
+
+  const active = engine.getActiveMemories('USER', 'usr_001');
+  assert.equal(active.length, 1, 'record must remain in memory on delete failure');
+  assert.equal(active[0].id, record.id);
+  assert.ok(fs.existsSync(filePath), 'record file must remain on disk on delete failure');
+});
