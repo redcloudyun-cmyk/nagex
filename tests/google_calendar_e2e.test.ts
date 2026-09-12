@@ -128,7 +128,7 @@ test('execution success: update PATCHes the event and returns the updated htmlLi
   tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
 
   const created = service.requestUpdateEventApproval({ tenantId: 't1', principalId: 'usr_1', payload: updatePayload(), requestId: 'req_1' });
-  service.approve(created.approvalId, 'usr_1', 'req_2');
+  service.approve(created.approvalId, 't1', 'usr_1', 'req_2');
   const result = await service.executeUpdateEvent({ approvalId: created.approvalId, payload: created.canonicalPayload, tenantId: 't1', principalId: 'usr_1', requestId: 'req_3' });
 
   assert.match(calledUrl, /\/calendar\/v3\/calendars\/primary\/events\/evt_123$/);
@@ -149,7 +149,7 @@ test('execution success: cancel DELETEs the event (no body returned) and still y
   tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
 
   const created = service.requestCancelEventApproval({ tenantId: 't1', principalId: 'usr_1', payload: cancelPayload(), requestId: 'req_1' });
-  service.approve(created.approvalId, 'usr_1', 'req_2');
+  service.approve(created.approvalId, 't1', 'usr_1', 'req_2');
   const result = await service.executeCancelEvent({ approvalId: created.approvalId, payload: created.canonicalPayload, tenantId: 't1', principalId: 'usr_1', requestId: 'req_3' });
 
   assert.equal(calledMethod, 'DELETE');
@@ -180,7 +180,7 @@ test('execution success: respond reads the event, updates only the self attendee
   tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
 
   const created = service.requestRespondToEventApproval({ tenantId: 't1', principalId: 'usr_1', payload: respondPayload({ responseStatus: 'declined' }), requestId: 'req_1' });
-  service.approve(created.approvalId, 'usr_1', 'req_2');
+  service.approve(created.approvalId, 't1', 'usr_1', 'req_2');
   const result = await service.executeRespondToEvent({ approvalId: created.approvalId, payload: created.canonicalPayload, tenantId: 't1', principalId: 'usr_1', requestId: 'req_3' });
 
   assert.equal(getCount, 1);
@@ -196,7 +196,7 @@ test('respond fails closed when the connected account is not an attendee on the 
   tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
 
   const created = service.requestRespondToEventApproval({ tenantId: 't1', principalId: 'usr_1', payload: respondPayload(), requestId: 'req_1' });
-  service.approve(created.approvalId, 'usr_1', 'req_2');
+  service.approve(created.approvalId, 't1', 'usr_1', 'req_2');
   await assert.rejects(
     () => service.executeRespondToEvent({ approvalId: created.approvalId, payload: created.canonicalPayload, tenantId: 't1', principalId: 'usr_1', requestId: 'req_3' }),
     (err: unknown) => (err as { code: string }).code === 'GOOGLE_CALENDAR_NOT_AN_ATTENDEE',
@@ -210,7 +210,7 @@ test('modified payload rejection: executing update with a changed field is rejec
   tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
 
   const created = service.requestUpdateEventApproval({ tenantId: 't1', principalId: 'usr_1', payload: updatePayload(), requestId: 'req_1' });
-  service.approve(created.approvalId, 'usr_1', 'req_2');
+  service.approve(created.approvalId, 't1', 'usr_1', 'req_2');
   const tampered = { ...created.canonicalPayload, summary: 'Something else entirely' };
   await assert.rejects(
     () => service.executeUpdateEvent({ approvalId: created.approvalId, payload: tampered, tenantId: 't1', principalId: 'usr_1', requestId: 'req_3' }),
@@ -223,14 +223,14 @@ test('expired approval rejection: an approval past its TTL cannot be approved', 
   const { service } = buildHarness(async () => { throw new Error('must not reach Google'); }, () => clock);
   const created = service.requestCancelEventApproval({ tenantId: 't1', principalId: 'usr_1', payload: cancelPayload(), requestId: 'req_1' });
   clock += 16 * 60 * 1000;
-  assert.throws(() => service.approve(created.approvalId, 'usr_1', 'req_2'), (err: unknown) => (err as { code: string }).code === 'APPROVAL_EXPIRED');
+  assert.throws(() => service.approve(created.approvalId, 't1', 'usr_1', 'req_2'), (err: unknown) => (err as { code: string }).code === 'APPROVAL_EXPIRED');
 });
 
 test('rejected approval rejection: a REJECTED approval can never be executed', async () => {
   const { tokenStore, service } = buildHarness(async () => { throw new Error('must not reach Google'); });
   tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
   const created = service.requestCancelEventApproval({ tenantId: 't1', principalId: 'usr_1', payload: cancelPayload(), requestId: 'req_1' });
-  service.reject(created.approvalId, 'usr_1', 'req_2');
+  service.reject(created.approvalId, 't1', 'usr_1', 'req_2');
   await assert.rejects(
     () => service.executeCancelEvent({ approvalId: created.approvalId, payload: created.canonicalPayload, tenantId: 't1', principalId: 'usr_1', requestId: 'req_3' }),
     (err: unknown) => (err as { code: string }).code === 'APPROVAL_NOT_GRANTED',
@@ -242,7 +242,7 @@ test('replay rejection: the same approval cannot cancel the event twice', async 
   const { tokenStore, service } = buildHarness(fetchFn);
   tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
   const created = service.requestCancelEventApproval({ tenantId: 't1', principalId: 'usr_1', payload: cancelPayload(), requestId: 'req_1' });
-  service.approve(created.approvalId, 'usr_1', 'req_2');
+  service.approve(created.approvalId, 't1', 'usr_1', 'req_2');
 
   const first = await service.executeCancelEvent({ approvalId: created.approvalId, payload: created.canonicalPayload, tenantId: 't1', principalId: 'usr_1', requestId: 'req_3' });
   assert.equal(first.status, 'SUCCEEDED');
@@ -257,7 +257,7 @@ test('wrong tool rejection: an update-approved record cannot execute a cancel, a
   const { tokenStore, service } = buildHarness(async () => { throw new Error('must not reach Google'); });
   tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
   const created = service.requestUpdateEventApproval({ tenantId: 't1', principalId: 'usr_1', payload: updatePayload(), requestId: 'req_1' });
-  service.approve(created.approvalId, 'usr_1', 'req_2');
+  service.approve(created.approvalId, 't1', 'usr_1', 'req_2');
   await assert.rejects(
     () => service.executeCancelEvent({ approvalId: created.approvalId, payload: cancelPayload(), tenantId: 't1', principalId: 'usr_1', requestId: 'req_3' }),
     (err: unknown) => (err as { code: string }).code === 'APPROVAL_TOOL_MISMATCH',
@@ -267,7 +267,7 @@ test('wrong tool rejection: an update-approved record cannot execute a cancel, a
 test('disconnected OAuth: execution is refused even with a valid, matching, approved payload', async () => {
   const { service } = buildHarness(async () => { throw new Error('must not reach Google when disconnected'); });
   const created = service.requestUpdateEventApproval({ tenantId: 't1', principalId: 'usr_1', payload: updatePayload(), requestId: 'req_1' });
-  service.approve(created.approvalId, 'usr_1', 'req_2');
+  service.approve(created.approvalId, 't1', 'usr_1', 'req_2');
   await assert.rejects(
     () => service.executeUpdateEvent({ approvalId: created.approvalId, payload: created.canonicalPayload, tenantId: 't1', principalId: 'usr_1', requestId: 'req_3' }),
     (err: unknown) => (err as { code: string }).code === 'GOOGLE_CALENDAR_DISCONNECTED',
@@ -282,7 +282,7 @@ test('audit: every stage of the approval + execution lifecycle is logged for upd
   tokenStore.save('t1', { accessToken: 'super-secret-token', refreshToken: 'super-secret-refresh', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
 
   const created = service.requestUpdateEventApproval({ tenantId: 't1', principalId: 'usr_1', payload: updatePayload(), requestId: 'req_1' });
-  service.approve(created.approvalId, 'usr_1', 'req_2');
+  service.approve(created.approvalId, 't1', 'usr_1', 'req_2');
   await service.executeUpdateEvent({ approvalId: created.approvalId, payload: created.canonicalPayload, tenantId: 't1', principalId: 'usr_1', requestId: 'req_3' });
 
   const actions = audit.getRecentLogs(10).map((e) => e.action).reverse();

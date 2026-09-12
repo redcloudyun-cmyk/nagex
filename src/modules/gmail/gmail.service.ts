@@ -139,12 +139,12 @@ export class GmailService {
     return record;
   }
 
-  public getApproval(approvalId: string): ActionApprovalRecord | undefined {
-    return this.approvals.get(approvalId);
+  public getApproval(approvalId: string, tenantId: string, principalId: string): ActionApprovalRecord | undefined {
+    return this.approvals.get(approvalId, tenantId, principalId);
   }
 
-  public approve(approvalId: string, principalId: string, requestId: string): ActionApprovalRecord {
-    const record = this.approvals.approve(approvalId, requestId);
+  public approve(approvalId: string, tenantId: string, principalId: string, requestId: string): ActionApprovalRecord {
+    const record = this.approvals.approve(approvalId, tenantId, principalId, requestId);
     this.audit.logEvent({
       actor: { type: 'user', id: principalId },
       tenant_id: record.tenantId,
@@ -156,8 +156,8 @@ export class GmailService {
     return record;
   }
 
-  public reject(approvalId: string, principalId: string, requestId: string): ActionApprovalRecord {
-    const record = this.approvals.reject(approvalId, requestId);
+  public reject(approvalId: string, tenantId: string, principalId: string, requestId: string): ActionApprovalRecord {
+    const record = this.approvals.reject(approvalId, tenantId, principalId, requestId);
     this.audit.logEvent({
       actor: { type: 'user', id: principalId },
       tenant_id: record.tenantId,
@@ -245,7 +245,7 @@ export class GmailService {
     // between checking and marking it CONSUMED — so a replayed or concurrent
     // execute request can never send twice.
     try {
-      this.approvals.consume(input.approvalId, toolId, payload as unknown as Record<string, unknown>, input.requestId, executionId);
+      this.approvals.consume(input.approvalId, input.tenantId, input.principalId, toolId, payload as unknown as Record<string, unknown>, input.requestId, executionId);
     } catch (error) {
       const code = error instanceof NagexError ? error.code : 'APPROVAL_VALIDATION_FAILED';
       this.audit.logEvent({

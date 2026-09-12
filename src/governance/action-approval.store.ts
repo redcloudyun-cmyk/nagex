@@ -124,8 +124,27 @@ export class ActionApprovalStore {
     return record;
   }
 
-  public approve(approvalId: string, requestId = 'apr_approve'): ActionApprovalRecord {
+  // Approval Ownership Isolation Correction — the single centralized
+  // ownership gate every user-triggerable operation below goes through.
+  // A tenant/principal mismatch throws the exact same APPROVAL_NOT_FOUND
+  // error as a genuinely nonexistent approvalId (never a distinguishing
+  // code/message), so cross-tenant/cross-principal existence is never
+  // disclosed. No optional ownership parameters and no bypass path exist.
+  private requireOwned(approvalId: string, tenantId: string, principalId: string, requestId: string): ActionApprovalRecord {
     const record = this.getLive(approvalId, requestId);
+    if (record.tenantId !== tenantId || record.principalId !== principalId) {
+      throw new NagexError({
+        code: 'APPROVAL_NOT_FOUND',
+        category: 'NOT_FOUND',
+        message: `Approval ${approvalId} was not found.`,
+        request_id: requestId,
+      });
+    }
+    return record;
+  }
+
+  public approve(approvalId: string, tenantId: string, principalId: string, requestId = 'apr_approve'): ActionApprovalRecord {
+    const record = this.requireOwned(approvalId, tenantId, principalId, requestId);
     if (record.status === 'EXPIRED') {
       throw new NagexError({ code: 'APPROVAL_EXPIRED', category: 'POLICY', message: `Approval ${approvalId} has expired.`, request_id: requestId });
     }
@@ -138,8 +157,8 @@ export class ActionApprovalStore {
     return record;
   }
 
-  public reject(approvalId: string, requestId = 'apr_reject'): ActionApprovalRecord {
-    const record = this.getLive(approvalId, requestId);
+  public reject(approvalId: string, tenantId: string, principalId: string, requestId = 'apr_reject'): ActionApprovalRecord {
+    const record = this.requireOwned(approvalId, tenantId, principalId, requestId);
     if (record.status !== 'PENDING') {
       throw new NagexError({ code: 'APPROVAL_NOT_PENDING', category: 'CONFLICT', message: `Approval ${approvalId} is ${record.status}, not pending.`, request_id: requestId });
     }
@@ -149,16 +168,17 @@ export class ActionApprovalStore {
     return record;
   }
 
-  public get(approvalId: string, requestId = 'apr_get'): ActionApprovalRecord | undefined {
-    if (!this.records.has(approvalId)) return undefined;
+  public get(approvalId: string, tenantId: string, principalId: string, requestId = 'apr_get'): ActionApprovalRecord | undefined {
+    const record = this.records.get(approvalId);
+    if (!record || record.tenantId !== tenantId || record.principalId !== principalId) return undefined;
     return this.getLive(approvalId, requestId);
   }
 
   // Performs a read-only preflight validation of approval state without mutating
   // or consuming the record. Validates toolId binding, expiration, one-time-use,
   // and APPROVED status. Throws appropriate NagexError for non-executable state.
-  public assertExecutable(approvalId: string, toolId: string, requestId: string): ActionApprovalRecord {
-    const record = this.getLive(approvalId, requestId);
+  public assertExecutable(approvalId: string, tenantId: string, principalId: string, toolId: string, requestId: string): ActionApprovalRecord {
+    const record = this.requireOwned(approvalId, tenantId, principalId, requestId);
 
     if (record.toolId !== toolId) {
       throw new NagexError({ code: 'APPROVAL_TOOL_MISMATCH', category: 'VALIDATION', message: `Approval ${approvalId} was not requested for tool ${toolId}.`, request_id: requestId });
@@ -181,8 +201,8 @@ export class ActionApprovalStore {
   // as the payload that was approved. On success, marks it consumed (usedAt
   // set, status CONSUMED, executionId linked) atomically so it can never be
   // replayed. Throws a distinct NagexError code for every failure mode.
-  public consume(approvalId: string, toolId: string, payload: Record<string, unknown>, requestId: string, executionId: string): ActionApprovalRecord {
-    const record = this.getLive(approvalId, requestId);
+  public consume(approvalId: string, tenantId: string, principalId: string, toolId: string, payload: Record<string, unknown>, requestId: string, executionId: string): ActionApprovalRecord {
+    const record = this.requireOwned(approvalId, tenantId, principalId, requestId);
 
     if (record.toolId !== toolId) {
       throw new NagexError({ code: 'APPROVAL_TOOL_MISMATCH', category: 'VALIDATION', message: `Approval ${approvalId} was not requested for tool ${toolId}.`, request_id: requestId });

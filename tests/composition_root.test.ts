@@ -61,7 +61,7 @@ test('2. shared approval store identity is preserved: an approval requested via 
     tenantId: 't_root_2', principalId: 'u_root_2', requestId,
     payload: validCalendarPayload() as unknown as CalendarCandidatePayload,
   });
-  const fromSharedStore = app.actionApprovals.get(approval.approvalId);
+  const fromSharedStore = app.actionApprovals.get(approval.approvalId, 't_root_2', 'u_root_2');
   assert.ok(fromSharedStore, 'the approval created via googleCalendarService must be visible through the shared actionApprovals instance, not a private copy');
   assert.equal(fromSharedStore!.approvalId, approval.approvalId);
 });
@@ -75,10 +75,12 @@ test('3. CapabilityBroker executes against the exact same googleCalendarService/
   // see the Composition Root pre-flight report) — every identifier here
   // must be unique per run to avoid a real, correctly-triggered
   // CAPABILITY_IDEMPOTENCY_CONFLICT against a stale prior-run record.
+  const tenantId3 = uniqueId('t_root_3');
+  const principalId3 = uniqueId('u_root_3');
   const result = await app.capabilityBroker.execute({
     capabilityId: 'google_calendar.create_event',
-    tenantId: uniqueId('t_root_3'),
-    principalId: uniqueId('u_root_3'),
+    tenantId: tenantId3,
+    principalId: principalId3,
     requestId: uniqueId('req_root_3'),
     payload: validCalendarPayload(),
     source: 'WEB',
@@ -87,7 +89,7 @@ test('3. CapabilityBroker executes against the exact same googleCalendarService/
   assert.equal(result.status, 'APPROVAL_REQUIRED');
   const approvalId = (result as { approval?: { approvalId: string } }).approval?.approvalId;
   assert.ok(approvalId, 'CapabilityBroker must return a real approvalId');
-  assert.ok(app.actionApprovals.get(approvalId!), 'CapabilityBroker must route through the same actionApprovals instance the app graph holds, not a private copy');
+  assert.ok(app.actionApprovals.get(approvalId!, tenantId3, principalId3), 'CapabilityBroker must route through the same actionApprovals instance the app graph holds, not a private copy');
 });
 
 test('4. taskRunner/notificationEngine are wired with the exact same shared local identifiers as everything else in the graph (source-level construction check)', () => {
@@ -134,7 +136,7 @@ test('7. Two createNagexApplication() calls produce two independent application 
     tenantId: 't_root_7', principalId: 'u_root_7', requestId: 'req_root_7',
     payload: validCalendarPayload() as unknown as CalendarCandidatePayload,
   });
-  assert.equal(appB.actionApprovals.get(approval.approvalId), undefined, 'two application graphs must never share approval state');
+  assert.equal(appB.actionApprovals.get(approval.approvalId, 't_root_7', 'u_root_7'), undefined, 'two application graphs must never share approval state');
 });
 
 test('8. Seed memory (mem1-4) and pinnedMemories are present and consistent per graph, without changing seed content', () => {

@@ -249,6 +249,6 @@ test('10. Shared instance identity is preserved through the new port typing: an 
   // Both approvals must be readable back through the same concrete
   // googleCalendarService.getApproval() — proving CapabilityBroker's
   // port-typed dependency is the exact same instance, not a copy.
-  assert.ok(app.googleCalendarService.getApproval(direct.approvalId));
-  assert.ok(app.googleCalendarService.getApproval(brokerApprovalId!));
+  assert.ok(app.googleCalendarService.getApproval(direct.approvalId, tenantId, principalId));
+  assert.ok(app.googleCalendarService.getApproval(brokerApprovalId!, tenantId, principalId));
 });

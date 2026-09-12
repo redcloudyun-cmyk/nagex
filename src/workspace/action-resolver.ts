@@ -240,7 +240,7 @@ export class CandidateActionResolver {
       if (!approvalId) {
         outcome = 'CONFIRMED_NOT_EXECUTED';
       } else {
-        const approval = this.deps.calendarService?.getApproval(approvalId);
+        const approval = this.deps.calendarService?.getApproval(approvalId, tenantId, principalId);
         if (!approval || approval.status === 'PENDING' || approval.status === 'REJECTED' || approval.status === 'EXPIRED') {
           outcome = 'CONFIRMED_NOT_EXECUTED';
         } else {
@@ -602,7 +602,7 @@ export class CandidateActionResolver {
     // Gate 2, step 2+: an Action Approval already exists for this candidate
     // — advance based on ITS real, live status. Never request a second one
     // while this one is still meaningful (item I: one attempt chain only).
-    const approval = this.deps.calendarService.getApproval(candidate.action.approvalId);
+    const approval = this.deps.calendarService.getApproval(candidate.action.approvalId, candidate.tenantId, candidate.principalId);
     if (!approval) return this.markFailed(candidate, 'CALENDAR_APPROVAL_NOT_FOUND', requestId);
 
     if (approval.status === 'PENDING') {

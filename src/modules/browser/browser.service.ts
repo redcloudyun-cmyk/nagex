@@ -361,18 +361,18 @@ export class BrowserToolService {
     return { status: 'APPROVAL_REQUIRED', approval };
   }
 
-  public getApproval(approvalId: string): ActionApprovalRecord | undefined {
-    return this.approvals.get(approvalId);
+  public getApproval(approvalId: string, tenantId: string, principalId: string): ActionApprovalRecord | undefined {
+    return this.approvals.get(approvalId, tenantId, principalId);
   }
 
-  public approve(approvalId: string, principalId: string, requestId: string): ActionApprovalRecord {
-    const record = this.approvals.approve(approvalId, requestId);
+  public approve(approvalId: string, tenantId: string, principalId: string, requestId: string): ActionApprovalRecord {
+    const record = this.approvals.approve(approvalId, tenantId, principalId, requestId);
     this.audit.logEvent({ actor: { type: 'user', id: principalId }, tenant_id: record.tenantId, action: 'approval.approved', resource: { type: 'ActionApproval', id: approvalId }, result: 'SUCCESS', request_id: requestId });
     return record;
   }
 
-  public reject(approvalId: string, principalId: string, requestId: string): ActionApprovalRecord {
-    const record = this.approvals.reject(approvalId, requestId);
+  public reject(approvalId: string, tenantId: string, principalId: string, requestId: string): ActionApprovalRecord {
+    const record = this.approvals.reject(approvalId, tenantId, principalId, requestId);
     this.audit.logEvent({ actor: { type: 'user', id: principalId }, tenant_id: record.tenantId, action: 'approval.rejected', resource: { type: 'ActionApproval', id: approvalId }, result: 'DENIED', request_id: requestId });
     return record;
   }
@@ -386,7 +386,7 @@ export class BrowserToolService {
     this.auditAction(BROWSER_CLICK_TOOL_ID, 'tool.execution.started', input, 'PENDING_APPROVAL', { approvalId: input.approvalId, selector: input.selector });
 
     try {
-      this.approvals.assertExecutable(input.approvalId, BROWSER_CLICK_TOOL_ID, input.requestId);
+      this.approvals.assertExecutable(input.approvalId, input.tenantId, input.ownerId, BROWSER_CLICK_TOOL_ID, input.requestId);
     } catch (error) {
       const code = error instanceof NagexError ? error.code : 'APPROVAL_VALIDATION_FAILED';
       this.auditAction(BROWSER_CLICK_TOOL_ID, 'tool.execution.failed', input, 'DENIED', { approvalId: input.approvalId }, code);
@@ -401,7 +401,7 @@ export class BrowserToolService {
     const payload = { browserSessionId: input.browserSessionId, selector: input.selector, targetText: match.text, url: record.currentUrl };
 
     try {
-      this.approvals.consume(input.approvalId, BROWSER_CLICK_TOOL_ID, payload, input.requestId, executionId);
+      this.approvals.consume(input.approvalId, input.tenantId, input.ownerId, BROWSER_CLICK_TOOL_ID, payload, input.requestId, executionId);
     } catch (error) {
       const code = error instanceof NagexError ? error.code : 'APPROVAL_VALIDATION_FAILED';
       this.auditAction(BROWSER_CLICK_TOOL_ID, 'tool.execution.failed', input, 'DENIED', { approvalId: input.approvalId }, code);

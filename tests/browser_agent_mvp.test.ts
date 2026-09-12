@@ -233,7 +233,7 @@ test('Consequential click action requires human approval and supports replay pro
       assert.equal(buyClick.approval.status, 'PENDING');
 
       // User approves
-      service.approve(approvalId, 'usr_admin_001', 'req_approve');
+      service.approve(approvalId, 'ten_test', 'usr_admin_001', 'req_approve');
 
       // Execute approved click once
       const execRes = await service.executeApprovedClick({

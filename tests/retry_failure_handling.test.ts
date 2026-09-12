@@ -388,8 +388,8 @@ test('23. reconcileCandidateAction(CALENDAR) confirms success when the consumed 
   const cap = seedCapture(captureStore, 't23', 'u23', 'h1');
   const cand = acceptedCalendarCandidate(candidateStore, 't23', 'u23', cap.captureId, 'h1');
   const approval = approvals.request({ toolId: 'google_calendar.create_event', tenantId: 't23', principalId: 'u23', payload: {} });
-  approvals.approve(approval.approvalId);
-  approvals.consume(approval.approvalId, 'google_calendar.create_event', {}, 'req_x', 'exe_23');
+  approvals.approve(approval.approvalId, 't23', 'u23');
+  approvals.consume(approval.approvalId, 't23', 'u23', 'google_calendar.create_event', {}, 'req_x', 'exe_23');
   executionStore.start({ executionId: 'exe_23', toolId: 'google_calendar.create_event', approvalId: approval.approvalId, tenantId: 't23', principalId: 'u23', startedAt: new Date().toISOString() });
   executionStore.succeed('exe_23', { externalId: 'gcal_evt_23', externalUrl: 'https://calendar.google.com/event?eid=23', completedAt: new Date().toISOString() });
   candidateStore.updateAction(cand.candidateId, 't23', 'u23', { approvalId: approval.approvalId, status: 'RUNNING', targetType: 'CALENDAR' });
@@ -405,8 +405,8 @@ test('24. reconcileCandidateAction(CALENDAR) reports AMBIGUOUS — never a guess
   const cap = seedCapture(captureStore, 't24', 'u24', 'h1');
   const cand = acceptedCalendarCandidate(candidateStore, 't24', 'u24', cap.captureId, 'h1');
   const approval = approvals.request({ toolId: 'google_calendar.create_event', tenantId: 't24', principalId: 'u24', payload: {} });
-  approvals.approve(approval.approvalId);
-  approvals.consume(approval.approvalId, 'google_calendar.create_event', {}, 'req_x', 'exe_24_missing');
+  approvals.approve(approval.approvalId, 't24', 'u24');
+  approvals.consume(approval.approvalId, 't24', 'u24', 'google_calendar.create_event', {}, 'req_x', 'exe_24_missing');
   candidateStore.updateAction(cand.candidateId, 't24', 'u24', { approvalId: approval.approvalId, status: 'RUNNING', targetType: 'CALENDAR' });
 
   const { outcome, candidate } = resolver.reconcileCandidateAction(cand.candidateId, 't24', 'u24');

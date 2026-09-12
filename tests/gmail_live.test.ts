@@ -228,14 +228,14 @@ test('execution success: send returns a normalized SUCCEEDED result and never fa
   tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: FULL_SCOPE_STRING });
 
   const created = service.requestApproval({ toolId: GMAIL_SEND_EMAIL_TOOL_ID, tenantId: 't1', principalId: 'usr_1', payload: validSendPayload(), requestId: 'req_1' });
-  service.approve(created.approvalId, 'usr_1', 'req_2');
+  service.approve(created.approvalId, 't1', 'usr_1', 'req_2');
 
   const result = await service.executeSendEmail({ approvalId: created.approvalId, payload: created.canonicalPayload, tenantId: 't1', principalId: 'usr_1', requestId: 'req_3' });
   assert.equal(calledSend, true);
   assert.equal(result.status, 'SUCCEEDED');
   assert.equal(result.externalId, 'msg_sent_1');
   assert.match(result.externalUrl, /mail\.google\.com/);
-  assert.equal(approvals.get(created.approvalId)?.status, 'CONSUMED');
+  assert.equal(approvals.get(created.approvalId, 't1', 'usr_1')?.status, 'CONSUMED');
 });
 
 test('execution provider error: a failing Gmail API call rejects and never returns a fake success', async () => {
@@ -244,7 +244,7 @@ test('execution provider error: a failing Gmail API call rejects and never retur
   tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: FULL_SCOPE_STRING });
 
   const created = service.requestApproval({ toolId: GMAIL_SEND_EMAIL_TOOL_ID, tenantId: 't1', principalId: 'usr_1', payload: validSendPayload(), requestId: 'req_1' });
-  service.approve(created.approvalId, 'usr_1', 'req_2');
+  service.approve(created.approvalId, 't1', 'usr_1', 'req_2');
 
   await assert.rejects(() => service.executeSendEmail({ approvalId: created.approvalId, payload: created.canonicalPayload, tenantId: 't1', principalId: 'usr_1', requestId: 'req_3' }));
 });
@@ -258,7 +258,7 @@ test('draft creation succeeds independently of send, and returns a Gmail drafts 
   tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: FULL_SCOPE_STRING });
 
   const created = service.requestApproval({ toolId: GMAIL_CREATE_DRAFT_TOOL_ID, tenantId: 't1', principalId: 'usr_1', payload: validSendPayload(), requestId: 'req_1' });
-  service.approve(created.approvalId, 'usr_1', 'req_2');
+  service.approve(created.approvalId, 't1', 'usr_1', 'req_2');
   const result = await service.executeCreateDraft({ approvalId: created.approvalId, payload: created.canonicalPayload, tenantId: 't1', principalId: 'usr_1', requestId: 'req_3' });
   assert.equal(result.status, 'SUCCEEDED');
   assert.equal(result.externalId, 'draft_1');
@@ -275,7 +275,7 @@ test('reply succeeds and includes the thread context in the outgoing message', a
   tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: FULL_SCOPE_STRING });
 
   const created = service.requestApproval({ toolId: GMAIL_REPLY_TOOL_ID, tenantId: 't1', principalId: 'usr_1', payload: validReplyPayload(), requestId: 'req_1' });
-  service.approve(created.approvalId, 'usr_1', 'req_2');
+  service.approve(created.approvalId, 't1', 'usr_1', 'req_2');
   const result = await service.executeReply({ approvalId: created.approvalId, payload: created.canonicalPayload, tenantId: 't1', principalId: 'usr_1', requestId: 'req_3' });
   assert.equal(result.status, 'SUCCEEDED');
   assert.match(capturedBody, /"threadId":"thread_123"/);
@@ -288,7 +288,7 @@ test('modified payload rejection: executing with a changed field is rejected eve
   tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: FULL_SCOPE_STRING });
 
   const created = service.requestApproval({ toolId: GMAIL_SEND_EMAIL_TOOL_ID, tenantId: 't1', principalId: 'usr_1', payload: validSendPayload(), requestId: 'req_1' });
-  service.approve(created.approvalId, 'usr_1', 'req_2');
+  service.approve(created.approvalId, 't1', 'usr_1', 'req_2');
 
   const tamperedPayload = { ...created.canonicalPayload, subject: 'Something else entirely' };
   await assert.rejects(
@@ -302,14 +302,14 @@ test('expired approval rejection: an approval past its TTL cannot be approved or
   const { service } = buildHarness(async () => { throw new Error('must not reach Gmail'); }, () => clock);
   const created = service.requestApproval({ toolId: GMAIL_SEND_EMAIL_TOOL_ID, tenantId: 't1', principalId: 'usr_1', payload: validSendPayload(), requestId: 'req_1' });
   clock += 16 * 60 * 1000; // past the default 15-minute TTL
-  assert.throws(() => service.approve(created.approvalId, 'usr_1', 'req_2'), (err: unknown) => (err as { code: string }).code === 'APPROVAL_EXPIRED');
+  assert.throws(() => service.approve(created.approvalId, 't1', 'usr_1', 'req_2'), (err: unknown) => (err as { code: string }).code === 'APPROVAL_EXPIRED');
 });
 
 test('rejected approval rejection: a REJECTED approval can never be executed', async () => {
   const { tokenStore, service } = buildHarness(async () => { throw new Error('must not reach Gmail'); });
   tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: FULL_SCOPE_STRING });
   const created = service.requestApproval({ toolId: GMAIL_SEND_EMAIL_TOOL_ID, tenantId: 't1', principalId: 'usr_1', payload: validSendPayload(), requestId: 'req_1' });
-  service.reject(created.approvalId, 'usr_1', 'req_2');
+  service.reject(created.approvalId, 't1', 'usr_1', 'req_2');
   await assert.rejects(
     () => service.executeSendEmail({ approvalId: created.approvalId, payload: created.canonicalPayload, tenantId: 't1', principalId: 'usr_1', requestId: 'req_3' }),
     (err: unknown) => (err as { code: string }).code === 'APPROVAL_NOT_GRANTED',
@@ -321,7 +321,7 @@ test('replay rejection: the same approval cannot send twice', async () => {
   const { tokenStore, service } = buildHarness(fetchFn);
   tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: FULL_SCOPE_STRING });
   const created = service.requestApproval({ toolId: GMAIL_SEND_EMAIL_TOOL_ID, tenantId: 't1', principalId: 'usr_1', payload: validSendPayload(), requestId: 'req_1' });
-  service.approve(created.approvalId, 'usr_1', 'req_2');
+  service.approve(created.approvalId, 't1', 'usr_1', 'req_2');
 
   const first = await service.executeSendEmail({ approvalId: created.approvalId, payload: created.canonicalPayload, tenantId: 't1', principalId: 'usr_1', requestId: 'req_3' });
   assert.equal(first.status, 'SUCCEEDED');
@@ -336,7 +336,7 @@ test('wrong tool rejection: a Calendar-approved record cannot execute a Gmail se
   const { tokenStore, service, approvals } = buildHarness(async () => { throw new Error('must not reach Gmail'); });
   tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: FULL_SCOPE_STRING });
   const calendarApproval = approvals.request({ toolId: 'google_calendar.create_event', tenantId: 't1', principalId: 'usr_1', payload: { summary: 'x' } });
-  approvals.approve(calendarApproval.approvalId, 'req_2');
+  approvals.approve(calendarApproval.approvalId, 't1', 'usr_1', 'req_2');
   await assert.rejects(
     () => service.executeSendEmail({ approvalId: calendarApproval.approvalId, payload: validSendPayload(), tenantId: 't1', principalId: 'usr_1', requestId: 'req_3' }),
     (err: unknown) => (err as { code: string }).code === 'APPROVAL_TOOL_MISMATCH',
@@ -346,7 +346,7 @@ test('wrong tool rejection: a Calendar-approved record cannot execute a Gmail se
 test('disconnected OAuth: execution is refused even with a valid, matching, approved payload', async () => {
   const { service } = buildHarness(async () => { throw new Error('must not reach Gmail when disconnected'); }); // tokenStore never connected
   const created = service.requestApproval({ toolId: GMAIL_SEND_EMAIL_TOOL_ID, tenantId: 't1', principalId: 'usr_1', payload: validSendPayload(), requestId: 'req_1' });
-  service.approve(created.approvalId, 'usr_1', 'req_2');
+  service.approve(created.approvalId, 't1', 'usr_1', 'req_2');
   await assert.rejects(
     () => service.executeSendEmail({ approvalId: created.approvalId, payload: created.canonicalPayload, tenantId: 't1', principalId: 'usr_1', requestId: 'req_3' }),
     (err: unknown) => (err as { code: string }).code === 'GMAIL_DISCONNECTED',
@@ -361,7 +361,7 @@ test('audit: every stage of the approval + execution lifecycle is logged, and no
   tokenStore.save('t1', { accessToken: 'super-secret-access-token', refreshToken: 'super-secret-refresh-token', expiresAt: Date.now() + 3600_000, scope: FULL_SCOPE_STRING });
 
   const created = service.requestApproval({ toolId: GMAIL_SEND_EMAIL_TOOL_ID, tenantId: 't1', principalId: 'usr_1', payload: validSendPayload(), requestId: 'req_1' });
-  service.approve(created.approvalId, 'usr_1', 'req_2');
+  service.approve(created.approvalId, 't1', 'usr_1', 'req_2');
   await service.executeSendEmail({ approvalId: created.approvalId, payload: created.canonicalPayload, tenantId: 't1', principalId: 'usr_1', requestId: 'req_3' });
 
   const actions = audit.getRecentLogs(10).map((e) => e.action).reverse();
@@ -376,10 +376,10 @@ test('audit failure path: a rejected approval logs approval.rejected, and a fail
   tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: FULL_SCOPE_STRING });
 
   const rejected = service.requestApproval({ toolId: GMAIL_SEND_EMAIL_TOOL_ID, tenantId: 't1', principalId: 'usr_1', payload: validSendPayload(), requestId: 'req_1' });
-  service.reject(rejected.approvalId, 'usr_1', 'req_2');
+  service.reject(rejected.approvalId, 't1', 'usr_1', 'req_2');
 
   const forFailure = service.requestApproval({ toolId: GMAIL_SEND_EMAIL_TOOL_ID, tenantId: 't1', principalId: 'usr_1', payload: validSendPayload(), requestId: 'req_3' });
-  service.approve(forFailure.approvalId, 'usr_1', 'req_4');
+  service.approve(forFailure.approvalId, 't1', 'usr_1', 'req_4');
   await assert.rejects(() => service.executeSendEmail({ approvalId: forFailure.approvalId, payload: forFailure.canonicalPayload, tenantId: 't1', principalId: 'usr_1', requestId: 'req_5' }));
 
   const actions = audit.getRecentLogs(20).map((e) => e.action);

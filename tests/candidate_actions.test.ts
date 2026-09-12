@@ -241,7 +241,7 @@ test('11. Once the Action Approval is granted, the real existing GoogleCalendarS
   assert.equal(pending.action?.status, 'PENDING_APPROVAL');
 
   // The separate Action Approval gate — a distinct control from Candidate Review.
-  approvals.approve(pending.action!.approvalId!);
+  approvals.approve(pending.action!.approvalId!, 't11', 'u11');
 
   const done = await resolver.executeCandidate(cand.candidateId, 't11', 'u11');
   assert.equal(calledCreateEvent, true);
@@ -262,7 +262,7 @@ test('12. Replaying execute after SUCCEEDED never creates a second external even
   const cand = acceptedCalendarCandidate(candidateStore, 't12', 'u12', cap.captureId, 'h1');
 
   const pending = await resolver.executeCandidate(cand.candidateId, 't12', 'u12');
-  approvals.approve(pending.action!.approvalId!);
+  approvals.approve(pending.action!.approvalId!, 't12', 'u12');
   const first = await resolver.executeCandidate(cand.candidateId, 't12', 'u12');
   const second = await resolver.executeCandidate(cand.candidateId, 't12', 'u12');
 
@@ -344,7 +344,7 @@ test('19. A failed calendar action does not flip the candidate to REJECTED — i
   const cap = seedCapture(captureStore, 't19', 'u19', 'h1');
   const cand = acceptedCalendarCandidate(candidateStore, 't19', 'u19', cap.captureId, 'h1');
   const pending = await resolver.executeCandidate(cand.candidateId, 't19', 'u19');
-  approvals.reject(pending.action!.approvalId!);
+  approvals.reject(pending.action!.approvalId!, 't19', 'u19');
   const result = await resolver.executeCandidate(cand.candidateId, 't19', 'u19');
   assert.equal(result.action?.status, 'FAILED');
   assert.equal(result.action?.errorCode, 'CALENDAR_APPROVAL_REJECTED');
@@ -392,13 +392,13 @@ test('22. No candidate action path bypasses the existing Action Approval consume
   const cand = acceptedCalendarCandidate(candidateStore, 't22', 'u22', cap.captureId, 'h1');
   const pending = await resolver.executeCandidate(cand.candidateId, 't22', 'u22');
   const approvalId = pending.action!.approvalId!;
-  approvals.approve(approvalId);
+  approvals.approve(approvalId, 't22', 'u22');
   await resolver.executeCandidate(cand.candidateId, 't22', 'u22');
   // The approval itself is now CONSUMED — attempting to consume it again
   // through the real ActionApprovalStore API directly (as any other tool
   // path would) is still rejected, proving the resolver went through the
   // real, unmodified approval gate rather than a shortcut.
-  assert.throws(() => approvals.consume(approvalId, 'google_calendar.create_event', {}, 'req_x', 'exe_x'),
+  assert.throws(() => approvals.consume(approvalId, 't22', 'u22', 'google_calendar.create_event', {}, 'req_x', 'exe_x'),
     (err: unknown) => err instanceof NagexError && err.code === 'APPROVAL_ALREADY_CONSUMED');
 });
 

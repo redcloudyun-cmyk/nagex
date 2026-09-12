@@ -204,7 +204,7 @@ test('type fills a real form field — verified end to end via a real form submi
     const clicked = await service.click({ ...headers, browserSessionId: session.browserSessionId, selector: '#submit-btn' });
     assert.equal(clicked.status, 'APPROVAL_REQUIRED');
     if (clicked.status !== 'APPROVAL_REQUIRED') throw new Error('unreachable');
-    service.approve(clicked.approval.approvalId, headers.ownerId, 'req_2');
+    service.approve(clicked.approval.approvalId, headers.tenantId, headers.ownerId, 'req_2');
     const executed = await service.executeApprovedClick({ approvalId: clicked.approval.approvalId, browserSessionId: session.browserSessionId, selector: '#submit-btn', ...headers, requestId: 'req_3' });
     assert.match(executed.url, /\/form-submitted\?name=NAgex(\+|%20)Test/);
 
@@ -270,7 +270,7 @@ test('an approved consequential click executes exactly once — replay is reject
     const requested = await service.click({ ...headers, browserSessionId: session.browserSessionId, selector: '#delete-btn' });
     assert.equal(requested.status, 'APPROVAL_REQUIRED');
     if (requested.status !== 'APPROVAL_REQUIRED') throw new Error('unreachable');
-    service.approve(requested.approval.approvalId, headers.ownerId, 'req_2');
+    service.approve(requested.approval.approvalId, headers.tenantId, headers.ownerId, 'req_2');
 
     const first = await service.executeApprovedClick({ approvalId: requested.approval.approvalId, browserSessionId: session.browserSessionId, selector: '#delete-btn', ...headers, requestId: 'req_3' });
     assert.equal(first.status, 'EXECUTED');
@@ -296,7 +296,7 @@ test('a rejected consequential click can never be executed', async () => {
     const requested = await service.click({ ...headers, browserSessionId: session.browserSessionId, selector: '#delete-btn' });
     assert.equal(requested.status, 'APPROVAL_REQUIRED');
     if (requested.status !== 'APPROVAL_REQUIRED') throw new Error('unreachable');
-    service.reject(requested.approval.approvalId, headers.ownerId, 'req_2');
+    service.reject(requested.approval.approvalId, headers.tenantId, headers.ownerId, 'req_2');
 
     await assert.rejects(
       () => service.executeApprovedClick({ approvalId: requested.approval.approvalId, browserSessionId: session.browserSessionId, selector: '#delete-btn', ...headers, requestId: 'req_3' }),
@@ -428,7 +428,7 @@ test('audit: every stage of a consequential click is logged, and typed text is n
 
     const requested = await service.click({ ...headers, browserSessionId: session.browserSessionId, selector: '#delete-btn' });
     if (requested.status !== 'APPROVAL_REQUIRED') throw new Error('unreachable');
-    service.approve(requested.approval.approvalId, headers.ownerId, 'req_2');
+    service.approve(requested.approval.approvalId, headers.tenantId, headers.ownerId, 'req_2');
     await service.executeApprovedClick({ approvalId: requested.approval.approvalId, browserSessionId: session.browserSessionId, selector: '#delete-btn', ...headers, requestId: 'req_3' });
 
     const actions = audit.getRecentLogs(30).map((e) => e.action);
@@ -506,7 +506,7 @@ test('Regression A: consumed browser approval replay after first click navigates
     const req = await service.click({ ...headers, browserSessionId: session.browserSessionId, selector: '#nav-btn', forceApproval: true });
     if (req.status !== 'APPROVAL_REQUIRED') throw new Error('Expected APPROVAL_REQUIRED');
 
-    service.approve(req.approval.approvalId, headers.ownerId, 'req_app');
+    service.approve(req.approval.approvalId, headers.tenantId, headers.ownerId, 'req_app');
 
     spy.resetCounts();
     const executed = await service.executeApprovedClick({
@@ -553,7 +553,7 @@ test('Regression B: first legitimate execution still re-resolves target before c
     const req = await service.click({ ...headers, browserSessionId: session.browserSessionId, selector: '#delete-btn' });
     if (req.status !== 'APPROVAL_REQUIRED') throw new Error('Expected APPROVAL_REQUIRED');
 
-    service.approve(req.approval.approvalId, headers.ownerId, 'req_app');
+    service.approve(req.approval.approvalId, headers.tenantId, headers.ownerId, 'req_app');
 
     spy.resetCounts();
     const executed = await service.executeApprovedClick({
@@ -584,7 +584,7 @@ test('Regression C: changed target before first execution throws APPROVAL_PAYLOA
     const req = await service.click({ ...headers, browserSessionId: session.browserSessionId, selector: '#dynamic-btn', forceApproval: true });
     if (req.status !== 'APPROVAL_REQUIRED') throw new Error('Expected APPROVAL_REQUIRED');
 
-    service.approve(req.approval.approvalId, headers.ownerId, 'req_app');
+    service.approve(req.approval.approvalId, headers.tenantId, headers.ownerId, 'req_app');
 
     // Mutate target text on page before executing the approved click
     await service.click({ ...headers, browserSessionId: session.browserSessionId, selector: '#change-text-btn' });
@@ -623,7 +623,7 @@ test('Regression D: expired approved browser approval throws APPROVAL_EXPIRED be
     const req = await service.click({ ...headers, browserSessionId: session.browserSessionId, selector: '#delete-btn' });
     if (req.status !== 'APPROVAL_REQUIRED') throw new Error('Expected APPROVAL_REQUIRED');
 
-    service.approve(req.approval.approvalId, headers.ownerId, 'req_app');
+    service.approve(req.approval.approvalId, headers.tenantId, headers.ownerId, 'req_app');
 
     // Fast-forward past TTL (default 15 minutes)
     mockNow += 20 * 60 * 1000;
@@ -678,7 +678,7 @@ test('Regression E: pending or rejected approval throws APPROVAL_NOT_GRANTED bef
     // 2. Rejected approval test
     const reqRejected = await service.click({ ...headers, browserSessionId: session.browserSessionId, selector: '#delete-btn' });
     if (reqRejected.status !== 'APPROVAL_REQUIRED') throw new Error('Expected APPROVAL_REQUIRED');
-    service.reject(reqRejected.approval.approvalId, headers.ownerId, 'req_rej');
+    service.reject(reqRejected.approval.approvalId, headers.tenantId, headers.ownerId, 'req_rej');
 
     spy.resetCounts();
     await assert.rejects(

@@ -104,5 +104,5 @@ export interface CalendarExecutionPort {
     principalId: string;
     requestId: string;
   }): Promise<CalendarExecutionResult>;
-  getApproval(approvalId: string): ActionApprovalRecord | undefined;
+  getApproval(approvalId: string, tenantId: string, principalId: string): ActionApprovalRecord | undefined;
 }

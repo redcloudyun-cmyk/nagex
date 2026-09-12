@@ -237,7 +237,7 @@ test('execution occurs only after approval: create-event fails while PENDING, th
   assert.equal(calledGoogle, false);
 
   // Step 6: approve, then execute — with the exact canonicalPayload the approval API returned.
-  const approved = service.approve(created.approvalId, 'usr_admin_001', 'req_2');
+  const approved = service.approve(created.approvalId, 'ten_production_01', 'usr_admin_001', 'req_2');
   assert.equal(approved.status, 'APPROVED');
 
   // Step 7 / payload-unchanged check: the payload used for execution hashes
@@ -282,7 +282,7 @@ test('rejected approval blocks execution end to end (Reject button flow)', async
   const { service } = buildIsolatedHarness(mockFetch);
 
   const created = service.requestCreateEventApproval({ tenantId: 'ten_production_01', principalId: 'usr_admin_001', payload: validPayload(), requestId: 'req_1' });
-  const rejected = service.reject(created.approvalId, 'usr_admin_001', 'req_2');
+  const rejected = service.reject(created.approvalId, 'ten_production_01', 'usr_admin_001', 'req_2');
   assert.equal(rejected.status, 'REJECTED');
   assert.equal(typeof rejected.rejectedAt, 'string');
 
@@ -307,7 +307,7 @@ test('expired approval blocks execution end to end (countdown reaching zero)', a
   const created = service.requestCreateEventApproval({ tenantId: 'ten_production_01', principalId: 'usr_admin_001', payload: validPayload(), requestId: 'req_1' });
   clock += 1000; // past the 50ms TTL
 
-  assert.throws(() => service.approve(created.approvalId, 'usr_admin_001', 'req_2'), /expired/i);
+  assert.throws(() => service.approve(created.approvalId, 'ten_production_01', 'usr_admin_001', 'req_2'), /expired/i);
 
   const executed = await handleAsyncApiRequest(
     'POST',

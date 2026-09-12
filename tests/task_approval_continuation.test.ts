@@ -191,7 +191,7 @@ test('4/6/7. grant resumes the exact persisted step through CapabilityExecutorPo
   const run = await scheduler.runOne(task);
   const record = continuations.listForTask(task.taskId)[0];
 
-  actionApprovals.approve(record.approvalId, 'u_p02');
+  actionApprovals.approve(record.approvalId, 't_p02', 'u_p02');
   await coordinator.onApproved(record.approvalId);
 
   assert.equal(getGmailSendCount(), 1, 'the real Gmail send must have been called exactly once');
@@ -205,7 +205,7 @@ test('5. no re-planning occurs on resume — AiService.plan() is called exactly 
   await scheduler.runOne(task);
   assert.equal(planCalls.count, 1);
   const record = continuations.listForTask(task.taskId)[0];
-  actionApprovals.approve(record.approvalId, 'u_p02');
+  actionApprovals.approve(record.approvalId, 't_p02', 'u_p02');
   await coordinator.onApproved(record.approvalId);
   assert.equal(planCalls.count, 1, 'resume must never call AiService.plan() again');
 });
@@ -215,7 +215,7 @@ test('8. a duplicate resume trigger is a safe no-op, and a direct replay against
   const task = taskStore.create({ tenantId: 't_p02', ownerId: 'u_p02', name: 'Send', objective: 'x', type: 'ONE_TIME', trigger: { type: 'MANUAL' }, approvalPolicy: 'READ_ONLY_AUTO' });
   await scheduler.runOne(task);
   const record = continuations.listForTask(task.taskId)[0];
-  actionApprovals.approve(record.approvalId, 'u_p02');
+  actionApprovals.approve(record.approvalId, 't_p02', 'u_p02');
 
   await coordinator.onApproved(record.approvalId);
   assert.equal(getGmailSendCount(), 1);
@@ -240,7 +240,7 @@ test('9. a rejected approval never executes — the run terminates FAILED, not S
   const run = await scheduler.runOne(task);
   const record = continuations.listForTask(task.taskId)[0];
 
-  actionApprovals.reject(record.approvalId, 'u_p02');
+  actionApprovals.reject(record.approvalId, 't_p02', 'u_p02');
   coordinator.onRejected(record.approvalId);
 
   assert.equal(getGmailSendCount(), 0, 'a rejected approval must never reach the real Gmail send');
@@ -255,7 +255,7 @@ test('10. an expired approval never executes — resume attempt fails closed tru
   const task = taskStore.create({ tenantId: 't_p02', ownerId: 'u_p02', name: 'Send', objective: 'x', type: 'ONE_TIME', trigger: { type: 'MANUAL' }, approvalPolicy: 'READ_ONLY_AUTO' });
   const run = await scheduler.runOne(task);
   const record = continuations.listForTask(task.taskId)[0];
-  actionApprovals.approve(record.approvalId, 'u_p02');
+  actionApprovals.approve(record.approvalId, 't_p02', 'u_p02');
   now += 2000; // advance past the 1-second TTL
 
   await coordinator.onApproved(record.approvalId);
@@ -288,7 +288,7 @@ test('11/12. later steps do not execute before approval, and do continue after a
   assert.equal(durable?.executedSoFar.length, 1, 'the first read-only step must have already executed before the pause');
 
   const coordinator = new TaskContinuationCoordinator(continuations, durableRunState, mixedRunner, taskStore, taskRunStore, new AuditLogger());
-  actionApprovals.approve(record.approvalId, 'u_p02');
+  actionApprovals.approve(record.approvalId, 't_p02', 'u_p02');
   await coordinator.onApproved(record.approvalId);
 
   assert.equal(getGmailSendCount(), 1);

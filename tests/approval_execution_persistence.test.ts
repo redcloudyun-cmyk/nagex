@@ -49,18 +49,18 @@ test('persistence across restart: an approval created before "restart" is restor
     const record = storeA.request({ toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, tenantId: 't1', principalId: 'u1', payload: validPayload() });
 
     const storeB = new PersistentActionApprovalStore({ dir }); // simulated restart
-    const restored = storeB.get(record.approvalId);
+    const restored = storeB.get(record.approvalId, 't1', 'u1');
     assert.ok(restored);
     assert.equal(restored?.status, 'PENDING');
     assert.equal(restored?.payloadHash, record.payloadHash);
     assert.deepEqual(restored?.canonicalPayload, record.canonicalPayload);
 
     // Approve after "restart" — proves the restored record is fully live, not read-only.
-    const approved = storeB.approve(record.approvalId);
+    const approved = storeB.approve(record.approvalId, 't1', 'u1');
     assert.equal(approved.status, 'APPROVED');
 
     const storeC = new PersistentActionApprovalStore({ dir }); // second restart
-    assert.equal(storeC.get(record.approvalId)?.status, 'APPROVED');
+    assert.equal(storeC.get(record.approvalId, 't1', 'u1')?.status, 'APPROVED');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -90,7 +90,7 @@ test('a corrupted approval file is skipped (fails closed), not thrown, on restor
   fs.writeFileSync(path.join(dir, 'apr_bad.json'), 'not valid json {{{');
   try {
     const store = new PersistentActionApprovalStore({ dir });
-    assert.equal(store.get('apr_bad'), undefined);
+    assert.equal(store.get('apr_bad', 't1', 'u1'), undefined);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -108,7 +108,7 @@ test('rejectedAt is set on reject and stays null otherwise', () => {
     const store = new PersistentActionApprovalStore({ dir });
     const record = store.request({ toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, tenantId: 't1', principalId: 'u1', payload: validPayload() });
     assert.equal(record.rejectedAt, null);
-    const rejected = store.reject(record.approvalId);
+    const rejected = store.reject(record.approvalId, 't1', 'u1');
     assert.equal(rejected.status, 'REJECTED');
     assert.equal(typeof rejected.rejectedAt, 'string');
     assert.equal(rejected.approvedAt, null);
@@ -126,9 +126,9 @@ test('approval.expired fires exactly once (on first detection), not on every sub
     const record = store.request({ toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, tenantId: 't1', principalId: 'u1', payload: validPayload() });
     clock += 16 * 60 * 1000; // past the 15-minute default TTL
 
-    store.get(record.approvalId);
-    store.get(record.approvalId);
-    assert.throws(() => store.approve(record.approvalId));
+    store.get(record.approvalId, 't1', 'u1');
+    store.get(record.approvalId, 't1', 'u1');
+    assert.throws(() => store.approve(record.approvalId, 't1', 'u1'));
 
     assert.equal(expiredCount, 1);
   } finally {
@@ -194,7 +194,7 @@ test('execution success is persisted with SUCCEEDED status, externalId, and exte
     const { tokenStore, approvals, service, executions } = buildHarness(fetchFn, dirs);
     tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: 'calendar.events' });
     const record = approvals.request({ toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, tenantId: 't1', principalId: 'u1', payload: validPayload() });
-    approvals.approve(record.approvalId);
+    approvals.approve(record.approvalId, 't1', 'u1');
 
     const result = await service.executeCreateEvent({ approvalId: record.approvalId, payload: validPayload(), tenantId: 't1', principalId: 'u1', requestId: 'req_1' });
 
@@ -207,7 +207,7 @@ test('execution success is persisted with SUCCEEDED status, externalId, and exte
     assert.equal(typeof persisted?.completedAt, 'string');
 
     // The approval itself links back to the execution it authorized.
-    assert.equal(approvals.get(record.approvalId)?.executionId, result.executionId);
+    assert.equal(approvals.get(record.approvalId, 't1', 'u1')?.executionId, result.executionId);
 
     // Survives a fresh ExecutionStore instance pointed at the same directory.
     const executionsAfterRestart = new ExecutionStore({ dir: dirs.executions });
@@ -225,7 +225,7 @@ test('execution failure is persisted with FAILED status and an errorCode, and th
     const { tokenStore, approvals, service, executions } = buildHarness(fetchFn, dirs);
     tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: 'calendar.events' });
     const record = approvals.request({ toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, tenantId: 't1', principalId: 'u1', payload: validPayload() });
-    approvals.approve(record.approvalId);
+    approvals.approve(record.approvalId, 't1', 'u1');
 
     await assert.rejects(() => service.executeCreateEvent({ approvalId: record.approvalId, payload: validPayload(), tenantId: 't1', principalId: 'u1', requestId: 'req_1' }));
 
@@ -236,7 +236,7 @@ test('execution failure is persisted with FAILED status and an errorCode, and th
 
     // The approval was consumed before the failed Google call and must not
     // become reusable just because the call failed.
-    assert.equal(approvals.get(record.approvalId)?.status, 'CONSUMED');
+    assert.equal(approvals.get(record.approvalId, 't1', 'u1')?.status, 'CONSUMED');
     await assert.rejects(
       () => service.executeCreateEvent({ approvalId: record.approvalId, payload: validPayload(), tenantId: 't1', principalId: 'u1', requestId: 'req_2' }),
       (error: any) => error.code === 'APPROVAL_ALREADY_CONSUMED',

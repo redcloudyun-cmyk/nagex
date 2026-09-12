@@ -367,9 +367,9 @@ test('approval hash stability: identical payloads (regardless of key order) hash
 test('modified payload rejection: consuming with a changed field is rejected even with a valid approval', () => {
   const approvals = new ActionApprovalStore();
   const record = approvals.request({ toolId: 'google_calendar.create_event', tenantId: 't1', principalId: 'u1', payload: validPayload() });
-  approvals.approve(record.approvalId);
+  approvals.approve(record.approvalId, 't1', 'u1');
   assert.throws(
-    () => approvals.consume(record.approvalId, 'google_calendar.create_event', validPayload({ summary: 'A different meeting title' }), 'req_1', 'exe_test'),
+    () => approvals.consume(record.approvalId, 't1', 'u1', 'google_calendar.create_event', validPayload({ summary: 'A different meeting title' }), 'req_1', 'exe_test'),
     (error: any) => error.code === 'APPROVAL_PAYLOAD_MISMATCH',
   );
 });
@@ -377,9 +377,9 @@ test('modified payload rejection: consuming with a changed field is rejected eve
 test('rejected approval rejection: a REJECTED approval can never be consumed', () => {
   const approvals = new ActionApprovalStore();
   const record = approvals.request({ toolId: 'google_calendar.create_event', tenantId: 't1', principalId: 'u1', payload: validPayload() });
-  approvals.reject(record.approvalId);
+  approvals.reject(record.approvalId, 't1', 'u1');
   assert.throws(
-    () => approvals.consume(record.approvalId, 'google_calendar.create_event', validPayload(), 'req_1', 'exe_test'),
+    () => approvals.consume(record.approvalId, 't1', 'u1', 'google_calendar.create_event', validPayload(), 'req_1', 'exe_test'),
     (error: any) => error.code === 'APPROVAL_NOT_GRANTED',
   );
 });
@@ -389,9 +389,9 @@ test('expired approval rejection: an approval past its TTL cannot be approved or
   const approvals = new ActionApprovalStore(() => clock, 60_000); // 60s TTL
   const record = approvals.request({ toolId: 'google_calendar.create_event', tenantId: 't1', principalId: 'u1', payload: validPayload() });
   clock += 61_000;
-  assert.throws(() => approvals.approve(record.approvalId), (error: any) => error.code === 'APPROVAL_EXPIRED');
+  assert.throws(() => approvals.approve(record.approvalId, 't1', 'u1'), (error: any) => error.code === 'APPROVAL_EXPIRED');
   assert.throws(
-    () => approvals.consume(record.approvalId, 'google_calendar.create_event', validPayload(), 'req_1', 'exe_test'),
+    () => approvals.consume(record.approvalId, 't1', 'u1', 'google_calendar.create_event', validPayload(), 'req_1', 'exe_test'),
     (error: any) => error.code === 'APPROVAL_EXPIRED',
   );
 });
@@ -399,10 +399,10 @@ test('expired approval rejection: an approval past its TTL cannot be approved or
 test('replay rejection: the same approval cannot be consumed twice', () => {
   const approvals = new ActionApprovalStore();
   const record = approvals.request({ toolId: 'google_calendar.create_event', tenantId: 't1', principalId: 'u1', payload: validPayload() });
-  approvals.approve(record.approvalId);
-  approvals.consume(record.approvalId, 'google_calendar.create_event', validPayload(), 'req_1', 'exe_test');
+  approvals.approve(record.approvalId, 't1', 'u1');
+  approvals.consume(record.approvalId, 't1', 'u1', 'google_calendar.create_event', validPayload(), 'req_1', 'exe_test');
   assert.throws(
-    () => approvals.consume(record.approvalId, 'google_calendar.create_event', validPayload(), 'req_2', 'exe_test_2'),
+    () => approvals.consume(record.approvalId, 't1', 'u1', 'google_calendar.create_event', validPayload(), 'req_2', 'exe_test_2'),
     (error: any) => error.code === 'APPROVAL_ALREADY_CONSUMED',
   );
 });
@@ -411,16 +411,16 @@ test('approval consumed exactly once: usedAt moves from null to a timestamp exac
   const approvals = new ActionApprovalStore();
   const record = approvals.request({ toolId: 'google_calendar.create_event', tenantId: 't1', principalId: 'u1', payload: validPayload() });
   assert.equal(record.usedAt, null);
-  approvals.approve(record.approvalId);
+  approvals.approve(record.approvalId, 't1', 'u1');
 
-  const consumed = approvals.consume(record.approvalId, 'google_calendar.create_event', validPayload(), 'req_1', 'exe_test');
+  const consumed = approvals.consume(record.approvalId, 't1', 'u1', 'google_calendar.create_event', validPayload(), 'req_1', 'exe_test');
   assert.equal(consumed.status, 'CONSUMED');
   assert.equal(typeof consumed.usedAt, 'string');
   const firstUsedAt = consumed.usedAt;
 
-  assert.throws(() => approvals.consume(record.approvalId, 'google_calendar.create_event', validPayload(), 'req_2', 'exe_test_2'));
+  assert.throws(() => approvals.consume(record.approvalId, 't1', 'u1', 'google_calendar.create_event', validPayload(), 'req_2', 'exe_test_2'));
   // usedAt must not move again on the rejected replay attempt.
-  assert.equal(approvals.get(record.approvalId)?.usedAt, firstUsedAt);
+  assert.equal(approvals.get(record.approvalId, 't1', 'u1')?.usedAt, firstUsedAt);
 });
 
 // ── execution success / provider error / disconnected ───────────────────────
@@ -437,7 +437,7 @@ test('execution success: returns a normalized SUCCEEDED result and never fakes s
   const { tokenStore, approvals, service } = buildHarness(fetchFn);
   tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
   const record = approvals.request({ toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, tenantId: 't1', principalId: 'u1', payload: validPayload() });
-  approvals.approve(record.approvalId);
+  approvals.approve(record.approvalId, 't1', 'u1');
 
   const result: NormalizedExecutionResult = await service.executeCreateEvent({ approvalId: record.approvalId, payload: validPayload(), tenantId: 't1', principalId: 'u1', requestId: 'req_exec_1' });
 
@@ -456,7 +456,7 @@ test('execution provider error (Google failure): a failing Google API call rejec
   const { tokenStore, approvals, service, audit } = buildHarness(fetchFn);
   tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
   const record = approvals.request({ toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, tenantId: 't1', principalId: 'u1', payload: validPayload() });
-  approvals.approve(record.approvalId);
+  approvals.approve(record.approvalId, 't1', 'u1');
 
   await assert.rejects(
     () => service.executeCreateEvent({ approvalId: record.approvalId, payload: validPayload(), tenantId: 't1', principalId: 'u1', requestId: 'req_exec_2' }),
@@ -472,7 +472,7 @@ test('reject disconnected OAuth: execution is refused even with a valid, matchin
   const fetchFn: typeof fetch = async () => { throw new Error('must not call Google when disconnected'); };
   const { approvals, service } = buildHarness(fetchFn); // tokenStore never connected
   const record = approvals.request({ toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, tenantId: 't1', principalId: 'u1', payload: validPayload() });
-  approvals.approve(record.approvalId);
+  approvals.approve(record.approvalId, 't1', 'u1');
 
   await assert.rejects(
     () => service.executeCreateEvent({ approvalId: record.approvalId, payload: validPayload(), tenantId: 't1', principalId: 'u1', requestId: 'req_exec_3' }),
@@ -492,7 +492,7 @@ test('unapproved execution attempts never reach Google: pending and rejected app
   );
 
   const rejected = approvals.request({ toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, tenantId: 't1', principalId: 'u1', payload: validPayload() });
-  approvals.reject(rejected.approvalId);
+  approvals.reject(rejected.approvalId, 't1', 'u1');
   await assert.rejects(
     () => service.executeCreateEvent({ approvalId: rejected.approvalId, payload: validPayload(), tenantId: 't1', principalId: 'u1', requestId: 'req_rejected' }),
     (error: any) => error.code === 'APPROVAL_NOT_GRANTED',
@@ -507,7 +507,7 @@ test('audit success/failure: every stage of the approval + execution lifecycle i
   tokenStore.save('t1', { accessToken: 'super-secret-access-token', refreshToken: 'super-secret-refresh-token', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
 
   const requested = service.requestCreateEventApproval({ tenantId: 't1', principalId: 'u1', payload: validPayload(), requestId: 'req_audit_1' });
-  service.approve(requested.approvalId, 'u1', 'req_audit_2');
+  service.approve(requested.approvalId, 't1', 'u1', 'req_audit_2');
   await service.executeCreateEvent({ approvalId: requested.approvalId, payload: validPayload(), tenantId: 't1', principalId: 'u1', requestId: 'req_audit_3' });
 
   const logs = audit.getRecentLogs(20);
@@ -531,10 +531,10 @@ test('audit failure path: a rejected approval logs approval.rejected, and a fail
   tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
 
   const requested = service.requestCreateEventApproval({ tenantId: 't1', principalId: 'u1', payload: validPayload(), requestId: 'req_af_1' });
-  service.reject(requested.approvalId, 'u1', 'req_af_2');
+  service.reject(requested.approvalId, 't1', 'u1', 'req_af_2');
 
   const approvedElsewhere = approvals.request({ toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, tenantId: 't1', principalId: 'u1', payload: validPayload({ summary: 'Other Event' }) });
-  approvals.approve(approvedElsewhere.approvalId);
+  approvals.approve(approvedElsewhere.approvalId, 't1', 'u1');
   await assert.rejects(() =>
     service.executeCreateEvent({ approvalId: approvedElsewhere.approvalId, payload: validPayload({ summary: 'Other Event' }), tenantId: 't1', principalId: 'u1', requestId: 'req_af_3' }),
   );
@@ -559,7 +559,7 @@ test('memory update after success: writes "Scheduled <summary> for <date/time>."
   const { tokenStore, approvals, service, memory } = buildHarness(fetchFn);
   tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
   const record = approvals.request({ toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, tenantId: 't1', principalId: 'usr_mem_test', payload: validPayload({ attendees: ['secret-attendee@example.com'] }) });
-  approvals.approve(record.approvalId);
+  approvals.approve(record.approvalId, 't1', 'usr_mem_test');
 
   await service.executeCreateEvent({ approvalId: record.approvalId, payload: validPayload({ attendees: ['secret-attendee@example.com'] }), tenantId: 't1', principalId: 'usr_mem_test', requestId: 'req_mem_1' });
 

@@ -1871,7 +1871,7 @@ export function handleApiRequest(
 
   if (pathname.startsWith('/api/v1/approvals/') && pathname !== '/api/v1/approvals/calendar-event' && method === 'GET') {
     const apprId = pathname.slice('/api/v1/approvals/'.length);
-    const record = googleCalendarService.getApproval(apprId);
+    const record = googleCalendarService.getApproval(apprId, tenantId, principal.id);
     if (!record) {
       return { status: 404, data: { error: 'APPROVAL_NOT_FOUND', message: `Approval ${apprId} was not found.` } };
     }
@@ -1895,8 +1895,8 @@ export function handleApiRequest(
     const requestId = `req_appr_${Date.now()}`;
     try {
       const record = isApprove
-        ? googleCalendarService.approve(apprId, principal.id, requestId)
-        : googleCalendarService.reject(apprId, principal.id, requestId);
+        ? googleCalendarService.approve(apprId, tenantId, principal.id, requestId)
+        : googleCalendarService.reject(apprId, tenantId, principal.id, requestId);
       // P02 — fire-and-forget: this route is synchronous and its response
       // must not change (still 200 with the approval record) whether or
       // not a Task continuation exists for this approvalId. A genuine
@@ -1931,8 +1931,8 @@ export function handleApiRequest(
     const requestId = `req_appr_${Date.now()}`;
     try {
       const record = action === 'APPROVE'
-        ? googleCalendarService.approve(apprId, principal.id, requestId)
-        : googleCalendarService.reject(apprId, principal.id, requestId);
+        ? googleCalendarService.approve(apprId, tenantId, principal.id, requestId)
+        : googleCalendarService.reject(apprId, tenantId, principal.id, requestId);
       // P02 — same fire-and-forget continuation hook as the /approve
       // /reject route above; this legacy /action endpoint shares the same
       // underlying approval store, so a Task continuation may equally be

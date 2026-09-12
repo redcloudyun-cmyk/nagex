@@ -145,7 +145,7 @@ test('4. Executing an ACCEPTED CALENDAR candidate creates a real PENDING Action 
   const cand = acceptedCalendarCandidate(candidateStore, 't4', 'u4', cap.captureId, 'h1');
   const result = await resolver.executeCandidate(cand.candidateId, 't4', 'u4');
   assert.equal(result.action?.status, 'PENDING_APPROVAL');
-  const approval = approvals.get(result.action!.approvalId!);
+  const approval = approvals.get(result.action!.approvalId!, 't4', 'u4');
   assert.equal(approval?.status, 'PENDING');
   // Candidate Review already happened (status ACCEPTED) — this is a
   // separate, later gate (Korean note: 후보 승인 ≠ 실행 승인).
@@ -159,10 +159,10 @@ test('5. Calendar success (approve + execute) resolves the pending approval — 
   const cap = seedCapture(captureStore, 't5', 'u5', 'h1');
   const cand = acceptedCalendarCandidate(candidateStore, 't5', 'u5', cap.captureId, 'h1');
   const pending = await resolver.executeCandidate(cand.candidateId, 't5', 'u5');
-  approvals.approve(pending.action!.approvalId!);
+  approvals.approve(pending.action!.approvalId!, 't5', 'u5');
   const done = await resolver.executeCandidate(cand.candidateId, 't5', 'u5');
   assert.equal(done.action?.status, 'SUCCEEDED');
-  assert.notEqual(approvals.get(pending.action!.approvalId!)?.status, 'PENDING');
+  assert.notEqual(approvals.get(pending.action!.approvalId!, 't5', 'u5')?.status, 'PENDING');
 });
 
 test('6. Calendar success creates exactly one Activity item, even after repeated execute calls', async () => {
@@ -172,7 +172,7 @@ test('6. Calendar success creates exactly one Activity item, even after repeated
   const cap = seedCapture(captureStore, 't6', 'u6', 'h1');
   const cand = acceptedCalendarCandidate(candidateStore, 't6', 'u6', cap.captureId, 'h1', { summary: 'Project meeting for Activity test' });
   const pending = await resolver.executeCandidate(cand.candidateId, 't6', 'u6');
-  approvals.approve(pending.action!.approvalId!);
+  approvals.approve(pending.action!.approvalId!, 't6', 'u6');
   await resolver.executeCandidate(cand.candidateId, 't6', 'u6');
   await resolver.executeCandidate(cand.candidateId, 't6', 'u6'); // repeated hydration/poll
   const items = activityStore.list('t6', 'u6').filter((a) => a.status === 'COMPLETED');

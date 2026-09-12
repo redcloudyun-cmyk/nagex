@@ -20,6 +20,7 @@
       "browser_snapshot_truncation",
       "url_understanding",
       "approval_ttl_security",
+      "approval_ownership_isolation",
       "retry_failure_handling",
       "module_contracts",
       "capability_broker",
@@ -28,6 +29,7 @@
     "google": [
       "approval_execution_persistence",
       "approval_ttl_security",
+      "approval_ownership_isolation",
       "calendar_approval_ui",
       "calendar_approval_ux",
       "calendar_intent_extraction",

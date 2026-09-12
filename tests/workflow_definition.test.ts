@@ -319,7 +319,7 @@ test('17. a consequential workflow step reaches WAITING_APPROVAL, and one-time a
   assert.ok(record);
   const approvalId = record.approvalId;
 
-  actionApprovals.approve(approvalId, 'u_wf2');
+  actionApprovals.approve(approvalId, 't_wf2', 'u_wf2');
   await coordinator.onApproved(approvalId);
 
   // Existing one-time consumption is untouched by P07: a direct replay
@@ -362,7 +362,7 @@ test('19. deleting a WorkflowDefinition after a run has started does not invalid
   assert.equal(workflowService.get(workflow.workflowId, 't_wf4', 'u_wf4'), undefined);
 
   const approvalId = continuations.listForTask(task.taskId)[0].approvalId;
-  actionApprovals.approve(approvalId, 'u_wf4');
+  actionApprovals.approve(approvalId, 't_wf4', 'u_wf4');
   await coordinator.onApproved(approvalId);
 
   const finishedRun = taskStore.get(task.taskId, 't_wf4', 'u_wf4');

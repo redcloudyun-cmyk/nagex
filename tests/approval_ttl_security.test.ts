@@ -46,11 +46,11 @@ test('TEST 1 — PENDING approval transitions to EXPIRED after expiresAt', () =>
   // Advance time past TTL (default 15 mins)
   clock += 16 * 60 * 1000;
 
-  const fetched = store.get(record.approvalId);
+  const fetched = store.get(record.approvalId, 'tenant_1', 'user_1');
   assert.equal(fetched?.status, 'EXPIRED');
 
   assert.throws(
-    () => store.approve(record.approvalId),
+    () => store.approve(record.approvalId, 'tenant_1', 'user_1'),
     (err: any) => err.code === 'APPROVAL_EXPIRED' && err.category === 'POLICY',
   );
 });
@@ -68,7 +68,7 @@ test('TEST 2 — APPROVED approval transitions to EXPIRED after expiresAt and bl
   });
 
   // Approved while within TTL
-  const approved = store.approve(record.approvalId);
+  const approved = store.approve(record.approvalId, 'tenant_1', 'user_1');
   assert.equal(approved.status, 'APPROVED');
 
   // Advance time past expiresAt
@@ -79,6 +79,8 @@ test('TEST 2 — APPROVED approval transitions to EXPIRED after expiresAt and bl
     () =>
       store.consume(
         record.approvalId,
+        'tenant_1',
+        'user_1',
         'test_tool',
         { action: 'delete_data' },
         'req_1',
@@ -88,7 +90,7 @@ test('TEST 2 — APPROVED approval transitions to EXPIRED after expiresAt and bl
   );
 
   // Status is now EXPIRED
-  const afterAttempt = store.get(record.approvalId);
+  const afterAttempt = store.get(record.approvalId, 'tenant_1', 'user_1');
   assert.equal(afterAttempt?.status, 'EXPIRED');
 });
 
@@ -104,13 +106,15 @@ test('TEST 3 — APPROVED approval executed within TTL successfully transitions 
     payload: { action: 'send' },
   });
 
-  store.approve(record.approvalId);
+  store.approve(record.approvalId, 'tenant_1', 'user_1');
 
   // Advance time within TTL (5 mins)
   clock += 5 * 60 * 1000;
 
   const consumed = store.consume(
     record.approvalId,
+    'tenant_1',
+    'user_1',
     'test_tool',
     { action: 'send' },
     'req_1',
@@ -134,9 +138,11 @@ test('TEST 4 — CONSUMED approval remains CONSUMED even after expiresAt', () =>
     payload: { action: 'send' },
   });
 
-  store.approve(record.approvalId);
+  store.approve(record.approvalId, 'tenant_1', 'user_1');
   store.consume(
     record.approvalId,
+    'tenant_1',
+    'user_1',
     'test_tool',
     { action: 'send' },
     'req_1',
@@ -146,7 +152,7 @@ test('TEST 4 — CONSUMED approval remains CONSUMED even after expiresAt', () =>
   // Advance time past expiresAt
   clock += 20 * 60 * 1000;
 
-  const fetched = store.get(record.approvalId);
+  const fetched = store.get(record.approvalId, 'tenant_1', 'user_1');
   assert.equal(fetched?.status, 'CONSUMED');
 });
 
@@ -162,9 +168,11 @@ test('TEST 5 — Replay of a CONSUMED approval is blocked with APPROVAL_ALREADY_
     payload: { action: 'pay' },
   });
 
-  store.approve(record.approvalId);
+  store.approve(record.approvalId, 'tenant_1', 'user_1');
   store.consume(
     record.approvalId,
+    'tenant_1',
+    'user_1',
     'test_tool',
     { action: 'pay' },
     'req_1',
@@ -178,6 +186,8 @@ test('TEST 5 — Replay of a CONSUMED approval is blocked with APPROVAL_ALREADY_
     () =>
       store.consume(
         record.approvalId,
+        'tenant_1',
+        'user_1',
         'test_tool',
         { action: 'pay' },
         'req_2',
@@ -200,12 +210,12 @@ test('TEST 6 — REJECTED approval remains REJECTED even after expiresAt', () =>
     payload: { action: 'transfer' },
   });
 
-  store.reject(record.approvalId);
+  store.reject(record.approvalId, 'tenant_1', 'user_1');
 
   // Advance time past expiresAt
   clock += 30 * 60 * 1000;
 
-  const fetched = store.get(record.approvalId);
+  const fetched = store.get(record.approvalId, 'tenant_1', 'user_1');
   assert.equal(fetched?.status, 'REJECTED');
 });
 
@@ -256,7 +266,7 @@ test('Service regression: GmailService execution blocked on expired APPROVED app
     requestId: 'req_req',
   });
 
-  gmailService.approve(record.approvalId, 'u1', 'req_appr');
+  gmailService.approve(record.approvalId, 't1', 'u1', 'req_appr');
 
   // Time advances past expiresAt
   clock += 20 * 60 * 1000;
@@ -325,7 +335,7 @@ test('Service regression: GoogleCalendarService execution blocked on expired APP
     requestId: 'req_req',
   });
 
-  calendarService.approve(record.approvalId, 'u1', 'req_appr');
+  calendarService.approve(record.approvalId, 't1', 'u1', 'req_appr');
 
   // Time advances past expiresAt
   clock += 20 * 60 * 1000;
@@ -433,7 +443,7 @@ test('Service regression: BrowserToolService click blocked on expired APPROVED a
   const approvalId = result.approval!.approvalId;
 
   // Approve it
-  browserService.approve(approvalId, 'u1', 'req_appr');
+  browserService.approve(approvalId, 't1', 'u1', 'req_appr');
 
   // Time advances past expiresAt
   clock += 20 * 60 * 1000;
@@ -470,14 +480,14 @@ test('Persistence test: restored APPROVED approval past expiresAt transitions to
     });
 
     const originalExpiresAt = record.expiresAt;
-    storeA.approve(record.approvalId);
+    storeA.approve(record.approvalId, 't1', 'u1');
 
     // Advance time past expiresAt
     clock += 20 * 60 * 1000;
 
     // Fresh store instance simulating app restart
     const storeB = new PersistentActionApprovalStore({ dir, now: () => clock });
-    const restored = storeB.get(record.approvalId);
+    const restored = storeB.get(record.approvalId, 't1', 'u1');
 
     assert.ok(restored);
     assert.equal(restored?.status, 'EXPIRED');
@@ -487,6 +497,8 @@ test('Persistence test: restored APPROVED approval past expiresAt transitions to
       () =>
         storeB.consume(
           record.approvalId,
+          't1',
+          'u1',
           'test_tool',
           { action: 'delete' },
           'req_b',
@@ -520,18 +532,18 @@ test('onExpired callback is invoked exactly once when APPROVED approval expires'
     payload: { action: 'write' },
   });
 
-  store.approve(record.approvalId);
+  store.approve(record.approvalId, 't1', 'u1');
 
   // Time advances past expiresAt
   clock += 16 * 60 * 1000;
 
   // First get() triggers expiry transition
-  const firstGet = store.get(record.approvalId);
+  const firstGet = store.get(record.approvalId, 't1', 'u1');
   assert.equal(firstGet?.status, 'EXPIRED');
   assert.equal(expiredCount, 1);
 
   // Second get() observes already EXPIRED, does not re-trigger callback
-  const secondGet = store.get(record.approvalId);
+  const secondGet = store.get(record.approvalId, 't1', 'u1');
   assert.equal(secondGet?.status, 'EXPIRED');
   assert.equal(expiredCount, 1, 'onExpired must not be called a second time');
 });
