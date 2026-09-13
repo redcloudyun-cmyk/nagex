@@ -227,11 +227,11 @@ test('9. Retry does not duplicate a candidate the user already decided on', asyn
 
   // The user accepts the suggestion before any retry happens.
   await service.actionCandidate({ captureId: item.captureId, candidateId, action: 'ACCEPT', ownerId: 'usr_step2_09', tenantId: 'ten_step2' });
-  assert.equal(store.getCapture(item.captureId)?.metadata.candidates?.[0].status, 'ACCEPTED');
+  assert.equal(store.getCapture(item.captureId, 'ten_step2', 'usr_step2_09')?.metadata.candidates?.[0].status, 'ACCEPTED');
 
   // Reprocessing (e.g. a manual Retry) must not add a second, duplicate
   // PROPOSED candidate for the exact same suggestion.
-  const retried = await service.retryCapture(item.captureId, 'usr_step2_09');
+  const retried = await service.retryCapture(item.captureId, 'ten_step2', 'usr_step2_09');
   const finalCandidates = retried?.metadata.candidates || [];
   assert.equal(finalCandidates.length, 1);
   assert.equal(finalCandidates[0].status, 'ACCEPTED');

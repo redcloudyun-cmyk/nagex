@@ -269,7 +269,7 @@ test('P05-13: candidate reconciliation does not duplicate Memory', async () => {
   const dir = tempDir('p05_13');
   const captureStore = new CaptureStore(tempDir('p05_13_cap'));
   const item = captureStore.createCapture({ ownerId: 'usr_p05', tenantId: 't_p05', type: 'TEXT', content: 'Prefers dark theme', metadata: {} });
-  const cap = captureStore.updateStatus(item.captureId, 'READY', { contentHash: 'hash_p05' })!;
+  const cap = captureStore.updateStatus(item.captureId, 't_p05', 'usr_p05', 'READY', { contentHash: 'hash_p05' })!;
 
   const candidateStore = new CandidateStore({ dir: tempDir('p05_13_cand') });
   const cand = candidateStore.upsert({

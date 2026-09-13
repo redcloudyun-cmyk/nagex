@@ -58,19 +58,19 @@ describe('PRODUCTION-GRADE PERSONAL CLOUD VAULT SMOKE TESTS', () => {
       assert.equal(remoteHead.sizeBytes, pdfHeader.length);
 
       // D. Signed URL works
-      const downloadUrl = await service.getDownloadUrl(completedItem.captureId, 'usr_admin_001');
+      const downloadUrl = await service.getDownloadUrl(completedItem.captureId, 'ten_production_01', 'usr_admin_001');
       assert.ok(downloadUrl);
       assert.ok(downloadUrl.includes('/api/v1/workspace/storage/download/'));
 
       // E & F. Restart service & verify item persists
       const restartedStore = new CaptureStore(path.join(tmpDir, 'captures'));
       const restartedService = new QuickCaptureService(restartedStore, storageProvider);
-      const retrieved = restartedStore.getCapture(completedItem.captureId);
+      const retrieved = restartedStore.getCapture(completedItem.captureId, 'ten_production_01', 'usr_admin_001');
       assert.ok(retrieved);
       assert.equal(retrieved.captureId, completedItem.captureId);
 
       // G & H. Delete item & verify object is actually gone
-      const deleted = await restartedService.deleteCaptureItem(completedItem.captureId, 'usr_admin_001');
+      const deleted = await restartedService.deleteCaptureItem(completedItem.captureId, 'ten_production_01', 'usr_admin_001');
       assert.equal(deleted, true);
 
       const remoteAfterDelete = await storageProvider.headObject(init.objectKey);
@@ -117,7 +117,7 @@ describe('PRODUCTION-GRADE PERSONAL CLOUD VAULT SMOKE TESTS', () => {
       assert.ok(item.metadata.candidates);
       assert.ok(item.metadata.candidates.length > 0);
 
-      const deleted = await service.deleteCaptureItem(item.captureId, 'usr_admin_001');
+      const deleted = await service.deleteCaptureItem(item.captureId, 'ten_production_01', 'usr_admin_001');
       assert.equal(deleted, true);
 
       const headAfterDelete = await storageProvider.headObject(init.objectKey);

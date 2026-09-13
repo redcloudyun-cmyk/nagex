@@ -352,9 +352,9 @@ test('14. Retrying the same PDF does not duplicate a candidate the user already 
   assert.ok(candidateId);
 
   await service.actionCandidate({ captureId: item.captureId, candidateId, action: 'ACCEPT', ownerId: 'usr_pdf_14', tenantId: 'ten_pdf' });
-  assert.equal(store.getCapture(item.captureId)?.metadata.candidates?.[0].status, 'ACCEPTED');
+  assert.equal(store.getCapture(item.captureId, 'ten_pdf', 'usr_pdf_14')?.metadata.candidates?.[0].status, 'ACCEPTED');
 
-  const retried = await service.retryCapture(item.captureId, 'usr_pdf_14');
+  const retried = await service.retryCapture(item.captureId, 'ten_pdf', 'usr_pdf_14');
   const finalCandidates = retried?.metadata.candidates || [];
   assert.equal(finalCandidates.length, 1);
   assert.equal(finalCandidates[0].status, 'ACCEPTED');

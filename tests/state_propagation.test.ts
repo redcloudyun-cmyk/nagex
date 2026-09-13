@@ -71,7 +71,7 @@ function connectCalendar(tokenStore: InMemoryGoogleOAuthTokenStore, tenantId: st
 
 function seedCapture(captureStore: CaptureStore, tenantId: string, ownerId: string, contentHash: string) {
   const item = captureStore.createCapture({ ownerId, tenantId, type: 'TEXT', content: 'Some source content.', metadata: {} });
-  return captureStore.updateStatus(item.captureId, 'READY', { contentHash })!;
+  return captureStore.updateStatus(item.captureId, tenantId, ownerId, 'READY', { contentHash })!;
 }
 
 function acceptedTaskCandidate(candidateStore: CandidateStore, tenantId: string, ownerId: string, captureId: string, contentHash: string, name = 'Review budget proposal') {
@@ -337,10 +337,10 @@ test('22. The source capture/vault artifact remains singular after multiple cand
   const memCand = acceptedMemoryCandidate(candidateStore, 't22', 'u22', cap.captureId, 'h1');
   await resolver.executeCandidate(memCand.candidateId, 't22', 'u22');
 
-  const reloaded = captureStore.getCapture(cap.captureId);
+  const reloaded = captureStore.getCapture(cap.captureId, 't22', 'u22');
   assert.ok(reloaded);
   assert.equal(reloaded!.captureId, cap.captureId);
-  assert.equal(captureStore.listCaptures('u22').filter((i) => i.captureId === cap.captureId).length, 1);
+  assert.equal(captureStore.listCaptures('t22', 'u22').filter((i) => i.captureId === cap.captureId).length, 1);
 });
 
 // ─── 23-24: NEEDS_HUMAN / capture failure propagation ───

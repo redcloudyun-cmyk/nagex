@@ -335,7 +335,7 @@ test('17. accepting a MEMORY candidate creates a Memory record whose tenant/owne
   const dir = tmpDir('17');
   const captureStore = new CaptureStore(tmpDir('17_cap'));
   const item = captureStore.createCapture({ ownerId: 'usr_cand_mem', tenantId: 'ten_cand_mem', type: 'TEXT', content: 'Prefers async updates', metadata: {} });
-  const cap = captureStore.updateStatus(item.captureId, 'READY', { contentHash: 'hash_cand_mem' })!;
+  const cap = captureStore.updateStatus(item.captureId, 'ten_cand_mem', 'usr_cand_mem', 'READY', { contentHash: 'hash_cand_mem' })!;
 
   const candidateStore = new CandidateStore({ dir: tmpDir('17_cand') });
   const cand = candidateStore.upsert({

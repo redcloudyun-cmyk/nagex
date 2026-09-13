@@ -213,7 +213,7 @@ test('8. Same understanding retried does not append a duplicate canonical candid
   const firstIds = candidateStore.listByCapture(item.captureId, 'usr_1', 'ten_1').map((c) => c.candidateId);
   assert.equal(firstIds.length, 1);
 
-  const retried = await service.retryCapture(item.captureId, 'usr_1');
+  const retried = await service.retryCapture(item.captureId, 'ten_1', 'usr_1');
   assert.ok(retried);
   const secondIds = candidateStore.listByCapture(item.captureId, 'usr_1', 'ten_1').map((c) => c.candidateId);
   assert.deepEqual(secondIds, firstIds, 'retry with unchanged content must reuse the same canonical candidateId, never mint a duplicate');
@@ -336,7 +336,7 @@ test('18. A rejected candidate does not reappear as a new duplicate on unchanged
   const [before] = candidateStore.listByCapture(item.captureId, 'usr_3', 'ten_3');
   service.rejectCandidate(before.candidateId, 'usr_3', 'ten_3');
 
-  await service.retryCapture(item.captureId, 'usr_3');
+  await service.retryCapture(item.captureId, 'ten_3', 'usr_3');
   const after = candidateStore.listByCapture(item.captureId, 'usr_3', 'ten_3');
   assert.equal(after.length, 1);
   assert.equal(after[0].candidateId, before.candidateId);

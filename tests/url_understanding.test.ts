@@ -292,7 +292,7 @@ test('10. Retry on unchanged content does not duplicate a candidate the user alr
     const candidateId = (item.metadata.candidates || [])[0].candidateId;
     await service.actionCandidate({ captureId: item.captureId, candidateId, action: 'ACCEPT', ownerId, tenantId });
 
-    const retried = await service.retryCapture(item.captureId, ownerId);
+    const retried = await service.retryCapture(item.captureId, tenantId, ownerId);
     const finalCandidates = retried?.metadata.candidates || [];
     assert.equal(finalCandidates.length, 1);
     assert.equal(finalCandidates[0].status, 'ACCEPTED');
@@ -323,7 +323,7 @@ test('11. Changed page content (changed contentHash) permits new understanding r
     assert.equal(first.status, 'READY');
     const firstHash = first.metadata.contentHash;
 
-    const retried = await service.retryCapture(first.captureId, ownerId);
+    const retried = await service.retryCapture(first.captureId, tenantId, ownerId);
     assert.notEqual(retried?.metadata.contentHash, firstHash);
     assert.equal(retried?.status, 'NEEDS_REVIEW');
     assert.equal((retried?.metadata.candidates || []).length, 1);

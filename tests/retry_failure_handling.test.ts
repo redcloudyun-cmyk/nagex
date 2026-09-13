@@ -79,7 +79,7 @@ function connectCalendar(tokenStore: InMemoryGoogleOAuthTokenStore, tenantId: st
 
 function seedCapture(captureStore: CaptureStore, tenantId: string, ownerId: string, contentHash: string) {
   const item = captureStore.createCapture({ ownerId, tenantId, type: 'TEXT', content: 'Some source content.', metadata: {} });
-  return captureStore.updateStatus(item.captureId, 'READY', { contentHash })!;
+  return captureStore.updateStatus(item.captureId, tenantId, ownerId, 'READY', { contentHash })!;
 }
 
 function acceptedTaskCandidate(candidateStore: CandidateStore, tenantId: string, ownerId: string, captureId: string, contentHash: string, name = 'Review budget proposal') {
@@ -250,7 +250,7 @@ test('12. retryAttemptCount increments across repeated failed attempts on the sa
   const item = captureStore.createCapture({ ownerId: 'u12', tenantId: 't12', type: 'LINK', content: 'https://example.com/x' });
   const first = await processor.process(item);
   assert.equal(first.metadata.retryAttemptCount, 1);
-  const requeued = captureStore.updateStatus(item.captureId, 'QUEUED', { errorCode: undefined, errorMessage: undefined })!;
+  const requeued = captureStore.updateStatus(item.captureId, 't12', 'u12', 'QUEUED', { errorCode: undefined, errorMessage: undefined })!;
   const second = await processor.process(requeued);
   assert.equal(second.metadata.retryAttemptCount, 2);
 });
@@ -279,9 +279,9 @@ function buildQuickCaptureHarness(browserService?: BrowserToolService) {
 test('14. retryCapture() is refused server-side for a TERMINAL/non-retryable failure — not merely hidden by the UI', async () => {
   const { captureStore, service } = buildQuickCaptureHarness(fakeBrowserService({}));
   const item = captureStore.createCapture({ ownerId: 'u14', tenantId: 't14', type: 'LINK', content: 'javascript:alert(1)' });
-  captureStore.updateStatus(item.captureId, 'FAILED', { errorCode: 'BROWSER_UNSAFE_URL', failureCategory: 'TERMINAL', retryable: false });
+  captureStore.updateStatus(item.captureId, 't14', 'u14', 'FAILED', { errorCode: 'BROWSER_UNSAFE_URL', failureCategory: 'TERMINAL', retryable: false });
   await assert.rejects(
-    () => service.retryCapture(item.captureId, 'u14'),
+    () => service.retryCapture(item.captureId, 't14', 'u14'),
     (err: unknown) => err instanceof NagexError && err.code === 'BROWSER_UNSAFE_URL',
   );
 });
@@ -289,8 +289,8 @@ test('14. retryCapture() is refused server-side for a TERMINAL/non-retryable fai
 test('15. retryCapture() proceeds for a RETRYABLE failure', async () => {
   const { captureStore, service } = buildQuickCaptureHarness(undefined);
   const item = captureStore.createCapture({ ownerId: 'u15', tenantId: 't15', type: 'LINK', content: 'https://example.com/x' });
-  captureStore.updateStatus(item.captureId, 'FAILED', { errorCode: 'BROWSER_UNAVAILABLE', failureCategory: 'RETRYABLE', retryable: true });
-  const result = await service.retryCapture(item.captureId, 'u15');
+  captureStore.updateStatus(item.captureId, 't15', 'u15', 'FAILED', { errorCode: 'BROWSER_UNAVAILABLE', failureCategory: 'RETRYABLE', retryable: true });
+  const result = await service.retryCapture(item.captureId, 't15', 'u15');
   assert.ok(result);
   assert.equal(result!.status, 'FAILED'); // still no browser configured, but the retry itself was allowed to run
 });
@@ -298,16 +298,16 @@ test('15. retryCapture() proceeds for a RETRYABLE failure', async () => {
 test('16. retryCapture() proceeds when no failure classification is recorded yet (legacy/pre-STEP-9 data) — never blocks on missing metadata', async () => {
   const { captureStore, service } = buildQuickCaptureHarness(undefined);
   const item = captureStore.createCapture({ ownerId: 'u16', tenantId: 't16', type: 'LINK', content: 'https://example.com/x' });
-  captureStore.updateStatus(item.captureId, 'FAILED', { errorCode: 'SOME_OLD_UNCLASSIFIED_CODE' }); // no failureCategory/retryable field at all
-  const result = await service.retryCapture(item.captureId, 'u16');
+  captureStore.updateStatus(item.captureId, 't16', 'u16', 'FAILED', { errorCode: 'SOME_OLD_UNCLASSIFIED_CODE' }); // no failureCategory/retryable field at all
+  const result = await service.retryCapture(item.captureId, 't16', 'u16');
   assert.ok(result, 'a capture with no recorded classification must still be retryable, not fail-closed');
 });
 
 test('17. retryCapture() emits capture.retry.requested/started/succeeded|failed audit events', async () => {
   const { captureStore, audit, service } = buildQuickCaptureHarness(undefined);
   const item = captureStore.createCapture({ ownerId: 'u17', tenantId: 't17', type: 'LINK', content: 'https://example.com/x' });
-  captureStore.updateStatus(item.captureId, 'FAILED', { errorCode: 'BROWSER_UNAVAILABLE', failureCategory: 'RETRYABLE', retryable: true });
-  await service.retryCapture(item.captureId, 'u17');
+  captureStore.updateStatus(item.captureId, 't17', 'u17', 'FAILED', { errorCode: 'BROWSER_UNAVAILABLE', failureCategory: 'RETRYABLE', retryable: true });
+  await service.retryCapture(item.captureId, 't17', 'u17');
   const logs = audit.getAuditLogs('t17');
   assert.ok(logs.some((l) => l.action === 'capture.retry.requested'));
   assert.ok(logs.some((l) => l.action === 'capture.retry.started'));
@@ -537,7 +537,7 @@ test('32. Capture failure classification/retry fields survive a restart (fresh C
   await processor.process(item);
 
   const reloadedStore = new CaptureStore(path.join(dir, 'captures'));
-  const reloaded = reloadedStore.getCapture(item.captureId);
+  const reloaded = reloadedStore.getCapture(item.captureId, 't32', 'u32');
   assert.equal(reloaded?.metadata.failureCategory, 'RETRYABLE');
   assert.equal(reloaded?.metadata.retryable, true);
   assert.equal(reloaded?.metadata.retryAttemptCount, 1);

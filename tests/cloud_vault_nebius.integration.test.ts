@@ -83,7 +83,7 @@ test('Real Nebius S3 Integration Test: validates complete live Nebius storage li
     assert.equal(completedPdf.status, 'READY');
 
     // E. Obtain signed GET URL
-    const getPdfUrl = await service.getDownloadUrl(completedPdf.captureId, ownerId);
+    const getPdfUrl = await service.getDownloadUrl(completedPdf.captureId, tenantId, ownerId);
     assert.ok(getPdfUrl, 'Obtained signed GET URL for PDF');
 
     // F. Download & checksum actual bytes
@@ -96,12 +96,12 @@ test('Real Nebius S3 Integration Test: validates complete live Nebius storage li
     // G. Persistence Test — restart store & service
     const storePersisted = new CaptureStore(tmpDir);
     const servicePersisted = new QuickCaptureService(storePersisted, s3Provider);
-    const pdfRecord = storePersisted.getCapture(completedPdf.captureId);
+    const pdfRecord = storePersisted.getCapture(completedPdf.captureId, tenantId, ownerId);
     assert.ok(pdfRecord, 'PDF capture item metadata persisted across service restart');
     assert.equal(pdfRecord.metadata.checksum, pdfChecksum);
 
     // H. Delete capture & confirm remote removal
-    const pdfDeleted = await servicePersisted.deleteCaptureItem(completedPdf.captureId, ownerId);
+    const pdfDeleted = await servicePersisted.deleteCaptureItem(completedPdf.captureId, tenantId, ownerId);
     assert.equal(pdfDeleted, true, 'deleteCaptureItem returned true');
     const headPdfAfterDelete = await s3Provider.headObject(initPdf.objectKey);
     assert.equal(headPdfAfterDelete, null, 'HEAD on remote deleted object confirmed 404/not found');
@@ -151,7 +151,7 @@ test('Real Nebius S3 Integration Test: validates complete live Nebius storage li
     assert.equal(completedAudio.status, 'READY');
 
     // E. Obtain signed GET URL & download
-    const getAudioUrl = await service.getDownloadUrl(completedAudio.captureId, ownerId);
+    const getAudioUrl = await service.getDownloadUrl(completedAudio.captureId, tenantId, ownerId);
     assert.ok(getAudioUrl);
     const getAudioRes = await fetch(getAudioUrl);
     assert.ok(getAudioRes.ok);
@@ -160,7 +160,7 @@ test('Real Nebius S3 Integration Test: validates complete live Nebius storage li
     assert.equal(downloadedAudioChecksum, webmChecksum, 'Downloaded audio checksum matches expected');
 
     // F. Delete audio capture & confirm remote 404
-    const audioDeleted = await service.deleteCaptureItem(completedAudio.captureId, ownerId);
+    const audioDeleted = await service.deleteCaptureItem(completedAudio.captureId, tenantId, ownerId);
     assert.equal(audioDeleted, true);
     const headAudioAfterDelete = await s3Provider.headObject(initAudio.objectKey);
     assert.equal(headAudioAfterDelete, null, 'HEAD on remote deleted audio object confirmed 404');

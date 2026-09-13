@@ -300,7 +300,7 @@ export class CandidateActionResolver {
       });
     }
     if (candidate.contentHash) {
-      const capture = this.deps.captureStore.getCapture(candidate.captureId);
+      const capture = this.deps.captureStore.getCapture(candidate.captureId, tenantId, principalId);
       if (!capture || capture.metadata.contentHash !== candidate.contentHash) {
         throw new NagexError({
           code: 'CANDIDATE_SOURCE_CHANGED',

@@ -149,7 +149,7 @@ export class QuickCaptureService {
       },
       vaultPath: `${vaultFolderFor(initType)}/${objectKey}`,
     });
-    this.store.updateStatus(captureId, 'UPLOADING');
+    this.store.updateStatus(captureId, params.tenantId, params.ownerId, 'UPLOADING');
 
     return {
       uploadId: captureId,
@@ -213,7 +213,7 @@ export class QuickCaptureService {
     }
 
 
-    let item = this.store.getCapture(params.captureId);
+    let item = this.store.getCapture(params.captureId, params.tenantId, params.ownerId);
     if (!item) {
       const completeType = (params.mimeType.startsWith('audio/') ? 'AUDIO' : 'FILE') as CaptureType;
       item = this.store.createCapture({
@@ -233,7 +233,7 @@ export class QuickCaptureService {
         vaultPath: `${vaultFolderFor(completeType)}/${params.objectKey}`,
       });
     } else {
-      this.store.updateStatus(params.captureId, 'QUEUED', {
+      this.store.updateStatus(params.captureId, params.tenantId, params.ownerId, 'QUEUED', {
         checksum: actualChecksum,
         sizeBytes: params.sizeBytes,
       });
@@ -325,9 +325,9 @@ export class QuickCaptureService {
    * Removes binary object, metadata, derived cache/transcripts, updates quota.
    * Preserves user-approved downstream Tasks/Calendar events.
    */
-  public async deleteCaptureItem(captureId: string, ownerId: string): Promise<boolean> {
-    const item = this.store.getCapture(captureId);
-    if (!item || item.ownerId !== ownerId) return false;
+  public async deleteCaptureItem(captureId: string, tenantId: string, ownerId: string): Promise<boolean> {
+    const item = this.store.getCapture(captureId, tenantId, ownerId);
+    if (!item) return false;
 
     // 1. Remove binary object from storage provider if exists
     if (item.metadata.objectKey) {
@@ -340,32 +340,32 @@ export class QuickCaptureService {
     }
 
     // 3. Delete Capture record & metadata sidecar
-    const deleted = this.store.deleteCapture(captureId);
+    const deleted = this.store.deleteCapture(captureId, tenantId, ownerId);
 
     // Note: User-approved Tasks, Calendar events, and Memory entries remain intact
     return deleted;
   }
 
-  public async getDownloadUrl(captureId: string, ownerId: string): Promise<string | null> {
-    const item = this.store.getCapture(captureId);
-    if (!item || item.ownerId !== ownerId || !item.metadata.objectKey) return null;
+  public async getDownloadUrl(captureId: string, tenantId: string, ownerId: string): Promise<string | null> {
+    const item = this.store.getCapture(captureId, tenantId, ownerId);
+    if (!item || !item.metadata.objectKey) return null;
 
     return await this.storageProvider.getSignedUrl(item.metadata.objectKey, 3600);
   }
 
-  public async getPreviewUrl(captureId: string, ownerId: string): Promise<string | null> {
-    return this.getDownloadUrl(captureId, ownerId);
+  public async getPreviewUrl(captureId: string, tenantId: string, ownerId: string): Promise<string | null> {
+    return this.getDownloadUrl(captureId, tenantId, ownerId);
   }
 
-  public getInboxSummary(ownerId: string): InboxSummary {
-    const items = this.store.listCaptures(ownerId);
+  public getInboxSummary(tenantId: string, ownerId: string): InboxSummary {
+    const items = this.store.listCaptures(tenantId, ownerId);
     const unreadCount = items.filter((i) => i.status === 'CAPTURED' || i.status === 'READY').length;
     const needsReviewCount = items.filter((i) => i.status === 'NEEDS_REVIEW').length;
     return { ownerId, unreadCount, needsReviewCount, items };
   }
 
-  public async getVaultSummary(ownerId: string): Promise<PersonalVaultSummary> {
-    const items = this.store.listCaptures(ownerId);
+  public async getVaultSummary(tenantId: string, ownerId: string): Promise<PersonalVaultSummary> {
+    const items = this.store.listCaptures(tenantId, ownerId);
     const quotaState = this.quotaEngine.getQuota(ownerId);
 
     const categoriesMap = new Map<string, { count: number; bytes: number; icon: string }>();
@@ -470,14 +470,12 @@ export class QuickCaptureService {
     };
   }
 
-  public async actionCapture(captureId: string, actionType: 'ACTIONED' | 'ARCHIVED'): Promise<CaptureItem | null> {
-    return this.store.updateStatus(captureId, actionType);
+  public async actionCapture(captureId: string, tenantId: string, ownerId: string, actionType: 'ACTIONED' | 'ARCHIVED'): Promise<CaptureItem | null> {
+    return this.store.updateStatus(captureId, tenantId, ownerId, actionType);
   }
 
-  public async getCaptureItem(captureId: string, ownerId: string): Promise<CaptureItem | null> {
-    const item = this.store.getCapture(captureId);
-    if (!item || item.ownerId !== ownerId) return null;
-    return item;
+  public async getCaptureItem(captureId: string, tenantId: string, ownerId: string): Promise<CaptureItem | null> {
+    return this.store.getCapture(captureId, tenantId, ownerId);
   }
 
   // Legacy embedded-array candidate action (Phase 1 STEP 1-4). Phase 1
@@ -495,8 +493,8 @@ export class QuickCaptureService {
     ownerId: string;
     tenantId: string;
   }): Promise<CaptureItem | null> {
-    const item = this.store.getCapture(params.captureId);
-    if (!item || item.ownerId !== params.ownerId) return null;
+    const item = this.store.getCapture(params.captureId, params.tenantId, params.ownerId);
+    if (!item) return null;
 
     const candidates = item.metadata.candidates || [];
     const candidate = candidates.find((c) => c.candidateId === params.candidateId);
@@ -538,7 +536,7 @@ export class QuickCaptureService {
     const allResolved = candidates.every((c) => c.status !== 'PROPOSED');
     const newStatus: CaptureStatus = allResolved ? 'ACTIONED' : item.status;
 
-    const updated = this.store.updateStatus(params.captureId, newStatus, {
+    const updated = this.store.updateStatus(params.captureId, params.tenantId, params.ownerId, newStatus, {
       candidates,
     });
 
@@ -666,9 +664,9 @@ export class QuickCaptureService {
     return this.requireActionResolver().getAction(candidateId, tenantId, ownerId);
   }
 
-  public async retryCapture(captureId: string, ownerId: string): Promise<CaptureItem | null> {
-    const item = this.store.getCapture(captureId);
-    if (!item || item.ownerId !== ownerId) return null;
+  public async retryCapture(captureId: string, tenantId: string, ownerId: string): Promise<CaptureItem | null> {
+    const item = this.store.getCapture(captureId, tenantId, ownerId);
+    if (!item) return null;
 
     // Phase 1 STEP 9, item R/S — only a capture whose recorded failure
     // classification says retryable=true (or has no classification yet,
@@ -698,7 +696,7 @@ export class QuickCaptureService {
 
     const existingCandidates = (item.metadata.candidates || []).filter((c) => c.status !== 'PROPOSED');
 
-    this.store.updateStatus(captureId, 'QUEUED', {
+    this.store.updateStatus(captureId, tenantId, ownerId, 'QUEUED', {
       processingStage: 'QUEUED',
       errorCode: undefined,
       errorMessage: undefined,
@@ -725,7 +723,7 @@ export class QuickCaptureService {
       });
     }
 
-    const retriedItem = this.store.getCapture(captureId) || item;
+    const retriedItem = this.store.getCapture(captureId, tenantId, ownerId) || item;
     const result = await this.processor.process(retriedItem, rawBuffer);
 
     if (this.auditLogger) {

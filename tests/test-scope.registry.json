@@ -96,6 +96,7 @@
     "ambient_run_button",
     "candidate_model",
     "candidate_review",
+    "capture_ownership_isolation",
     "cloud_vault_nebius.integration",
     "cloud_vault_smoke",
     "conversation_workspace",

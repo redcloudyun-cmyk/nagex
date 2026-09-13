@@ -65,7 +65,7 @@ function connectCalendar(tokenStore: InMemoryGoogleOAuthTokenStore, tenantId: st
 
 function seedCapture(captureStore: CaptureStore, tenantId: string, ownerId: string, contentHash: string) {
   const item = captureStore.createCapture({ ownerId, tenantId, type: 'TEXT', content: 'Some source content.', metadata: {} });
-  return captureStore.updateStatus(item.captureId, 'READY', { contentHash })!;
+  return captureStore.updateStatus(item.captureId, tenantId, ownerId, 'READY', { contentHash })!;
 }
 
 function acceptedTaskCandidate(candidateStore: CandidateStore, tenantId: string, ownerId: string, captureId: string, contentHash: string, name = 'Review budget proposal') {
@@ -302,7 +302,7 @@ test('16. A stale source (capture contentHash no longer matches the candidate) b
   const cap = seedCapture(captureStore, 't16', 'u16', 'h1');
   const cand = acceptedTaskCandidate(candidateStore, 't16', 'u16', cap.captureId, 'h1');
   // The source capture is reprocessed and its content genuinely changes.
-  captureStore.updateStatus(cap.captureId, 'READY', { contentHash: 'h2' });
+  captureStore.updateStatus(cap.captureId, 't16', 'u16', 'READY', { contentHash: 'h2' });
   await assert.rejects(() => resolver.executeCandidate(cand.candidateId, 't16', 'u16'), (err: unknown) => err instanceof NagexError && err.code === 'CANDIDATE_SOURCE_CHANGED');
 });
 

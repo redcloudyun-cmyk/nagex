@@ -39,6 +39,19 @@ export class CaptureStore {
     fs.writeFileSync(filePath, JSON.stringify(item, null, 2), { encoding: 'utf8', mode: 0o600 });
   }
 
+  // Capture Ownership Isolation Correction — the single centralized
+  // ownership gate every id-specific operation below goes through. A
+  // tenant or owner mismatch returns null, externally indistinguishable
+  // from a genuinely nonexistent captureId — never a distinguishing
+  // result/code. CaptureItem has carried both tenantId and ownerId since
+  // its original introduction (confirmed via source history), so this is
+  // a pure enforcement fix, not a schema/migration change.
+  private requireOwned(id: string, tenantId: string, ownerId: string): CaptureItem | null {
+    const item = this.items.get(id);
+    if (!item || item.tenantId !== tenantId || item.ownerId !== ownerId) return null;
+    return item;
+  }
+
   public createCapture(params: {
     ownerId: string;
     tenantId: string;
@@ -68,12 +81,12 @@ export class CaptureStore {
     return item;
   }
 
-  public getCapture(captureId: string): CaptureItem | null {
-    return this.items.get(captureId) ?? null;
+  public getCapture(captureId: string, tenantId: string, ownerId: string): CaptureItem | null {
+    return this.requireOwned(captureId, tenantId, ownerId);
   }
 
-  public updateStatus(captureId: string, status: CaptureStatus, metadataUpdates?: Partial<CaptureItem['metadata']>): CaptureItem | null {
-    const item = this.items.get(captureId);
+  public updateStatus(captureId: string, tenantId: string, ownerId: string, status: CaptureStatus, metadataUpdates?: Partial<CaptureItem['metadata']>): CaptureItem | null {
+    const item = this.requireOwned(captureId, tenantId, ownerId);
     if (!item) return null;
     item.status = status;
     item.updatedAt = new Date().toISOString();
@@ -84,10 +97,10 @@ export class CaptureStore {
     return item;
   }
 
-  public listCaptures(ownerId: string, filter?: { status?: CaptureStatus; type?: CaptureType }): CaptureItem[] {
+  public listCaptures(tenantId: string, ownerId: string, filter?: { status?: CaptureStatus; type?: CaptureType }): CaptureItem[] {
     const result: CaptureItem[] = [];
     for (const item of this.items.values()) {
-      if (item.ownerId !== ownerId) continue;
+      if (item.tenantId !== tenantId || item.ownerId !== ownerId) continue;
       if (filter?.status && item.status !== filter.status) continue;
       if (filter?.type && item.type !== filter.type) continue;
       result.push(item);
@@ -95,8 +108,8 @@ export class CaptureStore {
     return result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
 
-  public deleteCapture(captureId: string): boolean {
-    const existing = this.items.get(captureId);
+  public deleteCapture(captureId: string, tenantId: string, ownerId: string): boolean {
+    const existing = this.requireOwned(captureId, tenantId, ownerId);
     if (!existing) return false;
     this.items.delete(captureId);
     const filePath = path.join(this.dataDir, `${captureId}.json`);

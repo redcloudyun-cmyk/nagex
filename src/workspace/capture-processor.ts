@@ -112,12 +112,12 @@ export class CaptureProcessor {
         lastRetryAt: new Date().toISOString(),
       };
     }
-    return this.store.updateStatus(item.captureId, status, metadata);
+    return this.store.updateStatus(item.captureId, item.tenantId, item.ownerId, status, metadata);
   }
 
   public async process(item: CaptureItem, rawBuffer?: Buffer): Promise<CaptureItem> {
     const startedAt = new Date().toISOString();
-    this.store.updateStatus(item.captureId, 'PROCESSING', {
+    this.store.updateStatus(item.captureId, item.tenantId, item.ownerId, 'PROCESSING', {
       processingStage: 'PROCESSING',
       processingSubStage: 'Reading content...',
       processingStartedAt: startedAt,
@@ -225,7 +225,7 @@ export class CaptureProcessor {
    */
   private async processText(item: CaptureItem): Promise<CaptureItem> {
     const rawText = item.content;
-    this.store.updateStatus(item.captureId, 'PROCESSING', {
+    this.store.updateStatus(item.captureId, item.tenantId, item.ownerId, 'PROCESSING', {
       processingSubStage: 'Analyzing content...',
     });
 
@@ -274,7 +274,7 @@ export class CaptureProcessor {
       }
     }
 
-    const updated = this.store.updateStatus(item.captureId, nextStatus, {
+    const updated = this.store.updateStatus(item.captureId, item.tenantId, item.ownerId, nextStatus, {
       processingStage: 'UNDERSTOOD',
       processingCompletedAt: completedAt,
       extractedTitle: analysis.title || item.metadata.originalName || 'Quick Note',
@@ -323,7 +323,7 @@ export class CaptureProcessor {
    */
   private async processUrl(item: CaptureItem): Promise<CaptureItem> {
     const urlStr = item.content.trim();
-    this.store.updateStatus(item.captureId, 'PROCESSING', {
+    this.store.updateStatus(item.captureId, item.tenantId, item.ownerId, 'PROCESSING', {
       processingSubStage: 'Reading page...',
     });
 
@@ -502,7 +502,7 @@ export class CaptureProcessor {
     // PDFs, covering the entirety of whatever the Browser Agent returned —
     // never pretending a chunk pass covered more of the real page than the
     // Browser Agent actually supplied (STEP 3 final fix, item C).
-    this.store.updateStatus(item.captureId, 'PROCESSING', {
+    this.store.updateStatus(item.captureId, item.tenantId, item.ownerId, 'PROCESSING', {
       processingSubStage: 'Analyzing content...',
     });
 
@@ -569,7 +569,7 @@ export class CaptureProcessor {
       }
     }
 
-    const updated = this.store.updateStatus(item.captureId, nextStatus, {
+    const updated = this.store.updateStatus(item.captureId, item.tenantId, item.ownerId, nextStatus, {
       processingStage: 'UNDERSTOOD',
       processingCompletedAt: completedAt,
       extractedTitle: pageTitle || analysis.title,
@@ -611,7 +611,7 @@ export class CaptureProcessor {
    * Model Router (Phase 1 STEP 4).
    */
   private async processPdf(item: CaptureItem, rawBuffer?: Buffer): Promise<CaptureItem> {
-    this.store.updateStatus(item.captureId, 'PROCESSING', {
+    this.store.updateStatus(item.captureId, item.tenantId, item.ownerId, 'PROCESSING', {
       processingSubStage: 'Extracting PDF...',
     });
 
@@ -693,7 +693,7 @@ export class CaptureProcessor {
     const processedCharacters = chunks.length > 0 ? chunks[chunks.length - 1].characterEnd - chunks[0].characterStart : pdfResult.extractedCharacters;
 
     // 4. Model Analysis
-    this.store.updateStatus(item.captureId, 'PROCESSING', {
+    this.store.updateStatus(item.captureId, item.tenantId, item.ownerId, 'PROCESSING', {
       processingSubStage: 'Analyzing content...',
     });
 
@@ -750,7 +750,7 @@ export class CaptureProcessor {
       }
     }
 
-    const updated = this.store.updateStatus(item.captureId, nextStatus, {
+    const updated = this.store.updateStatus(item.captureId, item.tenantId, item.ownerId, nextStatus, {
       processingStage: 'UNDERSTOOD',
       processingCompletedAt: completedAt,
       pageCount: pdfResult.pageCount ?? undefined,
@@ -819,7 +819,7 @@ export class CaptureProcessor {
     ];
     const completedAt = new Date().toISOString();
 
-    const updated = this.store.updateStatus(item.captureId, 'READY', {
+    const updated = this.store.updateStatus(item.captureId, item.tenantId, item.ownerId, 'READY', {
       processingStage: 'UNDERSTOOD',
       processingCompletedAt: completedAt,
       extractedTitle: title,

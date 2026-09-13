@@ -108,10 +108,10 @@ test('QuickCaptureService: getInboxSummary and getVaultSummary aggregate items t
       source: 'MOBILE',
     });
 
-    const inbox = service.getInboxSummary('usr_test_04');
+    const inbox = service.getInboxSummary('ten_test_01', 'usr_test_04');
     assert.equal(inbox.items.length, 2);
 
-    const vault = await service.getVaultSummary('usr_test_04');
+    const vault = await service.getVaultSummary('ten_test_01', 'usr_test_04');
     assert.equal(vault.totalItems, 2);
     assert.ok(vault.totalSizeBytes > 0);
     assert.equal(vault.categories.length, 4);
