@@ -301,6 +301,7 @@
     else if (state.activeTab === 'tab-executions') renderActivity();
     else if (state.activeTab === 'tab-knowledge') renderKnowledge();
     else if (state.activeTab === 'tab-settings') renderSettings();
+    else if (state.activeTab === 'tab-my-space') renderMySpace();
   }
 
   async function loadAllData() {
@@ -1592,6 +1593,89 @@
       </div>`;
       })
       .join('');
+  }
+
+  // P08 — My Space Foundation. Thin frontend for the thin GET /api/v1/
+  // my-space composition — fetched lazily (only when the tab actually
+  // opens, unlike Home's eager loadAllData()), since Calendar's leg makes a
+  // real external call this app should not repeat on every 5s active-work
+  // poll for a view the user may never open. Every section renders (or
+  // empties/errors) independently — one section's data problem never blanks
+  // the rest of the page.
+  async function renderMySpace() {
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    const sections = {
+      activity: document.getElementById('myspace-activity-list'),
+      memory: document.getElementById('myspace-memory-list'),
+      tasks: document.getElementById('myspace-tasks-list'),
+      workflows: document.getElementById('myspace-workflows-list'),
+      calendar: document.getElementById('myspace-calendar-list'),
+      history: document.getElementById('myspace-history-list'),
+    };
+    const loadingText = `<p class="card-body-text">${escapeHtml(t('mySpace.loading'))}</p>`;
+    Object.values(sections).forEach((el) => { if (el) el.innerHTML = loadingText; });
+
+    const data = await apiFetch('/api/v1/my-space');
+    if (!data || data.error) {
+      const errorText = `<p class="card-body-text">${escapeHtml(t('mySpace.sectionError'))}</p>`;
+      Object.values(sections).forEach((el) => { if (el) el.innerHTML = errorText; });
+      return;
+    }
+
+    const listItem = (title, summary, badge) => `<div class="inbox-item-card">
+        <div class="inbox-item-main">
+          <span class="inbox-item-title">${escapeHtml(title)}</span>
+          <span class="inbox-item-summary">${escapeHtml(summary)}</span>
+        </div>
+        ${badge ? `<span class="badge-status">${escapeHtml(badge)}</span>` : ''}
+      </div>`;
+    const emptyText = (key) => `<p class="card-body-text">${escapeHtml(t(key))}</p>`;
+
+    if (sections.activity) {
+      const items = data.activity || [];
+      sections.activity.innerHTML = items.length
+        ? items.map((a) => listItem(a.title, new Date(a.occurredAt).toLocaleString(), a.status)).join('')
+        : emptyText('mySpace.noActivity');
+    }
+
+    if (sections.memory) {
+      const items = data.memory || [];
+      sections.memory.innerHTML = items.length
+        ? items.map((m) => listItem(m.content?.subject || 'Memory', String(m.content?.value ?? ''), null)).join('')
+        : emptyText('mySpace.noMemory');
+    }
+
+    if (sections.tasks) {
+      const items = data.tasks || [];
+      sections.tasks.innerHTML = items.length
+        ? items.map((task) => listItem(task.name, new Date(task.updatedAt).toLocaleString(), task.status)).join('')
+        : emptyText('mySpace.noTasks');
+    }
+
+    if (sections.workflows) {
+      const items = data.workflows || [];
+      sections.workflows.innerHTML = items.length
+        ? items.map((wf) => listItem(wf.name, wf.lastRunAt ? new Date(wf.lastRunAt).toLocaleString() : '', wf.lastRunStatus || (wf.enabled ? 'Enabled' : 'Disabled'))).join('')
+        : emptyText('mySpace.noWorkflows');
+    }
+
+    if (sections.calendar) {
+      const items = data.calendar || [];
+      if (data.calendarStatus === 'DISCONNECTED') {
+        sections.calendar.innerHTML = emptyText('mySpace.calendarDisconnected');
+      } else if (!items.length) {
+        sections.calendar.innerHTML = emptyText('mySpace.noCalendar');
+      } else {
+        sections.calendar.innerHTML = items.map((ev) => listItem(ev.title, new Date(ev.start).toLocaleString(), null)).join('');
+      }
+    }
+
+    if (sections.history) {
+      const items = data.history || [];
+      sections.history.innerHTML = items.length
+        ? items.map((h) => listItem(h.title, new Date(h.timestamp).toLocaleString(), h.status)).join('')
+        : emptyText('mySpace.noHistory');
+    }
   }
 
   function renderKnowledge() {

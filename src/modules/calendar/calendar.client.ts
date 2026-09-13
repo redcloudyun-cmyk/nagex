@@ -210,6 +210,58 @@ export interface FreeBusyInterval {
   end: string;
 }
 
+// Minimal, canonical shape My Space's read-only Calendar summary is allowed
+// to expose to the frontend — never the raw Google API response.
+export interface UpcomingCalendarEvent {
+  id: string;
+  title: string;
+  start: string;
+  end: string;
+  source?: string;
+}
+
+// A Google Calendar event's start/end is either a timed `dateTime` or an
+// all-day `date` (mutually exclusive per the real API) — normalized to a
+// single ISO-ish string here so callers never have to branch on shape.
+function normalizeEventTime(value: unknown): string {
+  if (!value || typeof value !== 'object') return '';
+  const v = value as Record<string, unknown>;
+  if (typeof v.dateTime === 'string') return v.dateTime;
+  if (typeof v.date === 'string') return v.date;
+  return '';
+}
+
+export async function listUpcomingCalendarEvents(
+  accessToken: string,
+  params: { calendarId: string; timeMin: string; timeMax: string; maxResults?: number },
+  fetchFn: FetchFn,
+  requestId: string,
+): Promise<UpcomingCalendarEvent[]> {
+  const calendarId = encodeURIComponent(params.calendarId || 'primary');
+  const query = new URLSearchParams({
+    timeMin: params.timeMin,
+    timeMax: params.timeMax,
+    singleEvents: 'true',
+    orderBy: 'startTime',
+    maxResults: String(params.maxResults ?? 10),
+  });
+  const url = `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events?${query.toString()}`;
+  const result = await googleApiRequest(url, 'GET', accessToken, null, fetchFn, requestId);
+  const items = Array.isArray(result.items) ? (result.items as Array<Record<string, unknown>>) : [];
+  return items
+    .filter((item) => typeof item.id === 'string')
+    .map((item) => ({
+      id: item.id as string,
+      // A real Google Calendar event can legitimately have no summary (an
+      // untitled event) — defaulted, never dropped, so My Space's Calendar
+      // summary never silently hides a real upcoming event.
+      title: typeof item.summary === 'string' && item.summary ? item.summary : '(No title)',
+      start: normalizeEventTime(item.start),
+      end: normalizeEventTime(item.end),
+      source: params.calendarId || 'primary',
+    }));
+}
+
 export async function queryFreeBusy(
   accessToken: string,
   params: { calendarId: string; timeMin: string; timeMax: string },

@@ -205,6 +205,18 @@
               <div class="card-body-list" id="list-recent-activity"></div>
             </div>
 
+            <!-- Card 5: My Space entry point (P08 — static navigation, always visible, not data-conditional like the cards above) -->
+            <div class="home-grid-card canvas-section-card">
+              <div class="card-title-row">
+                <div class="card-title-left">
+                  <span class="card-icon-blue">🧭</span>
+                  <h3 class="card-main-title" data-i18n="mySpace.navTitle">My Space</h3>
+                </div>
+                <a class="card-link-see-all" onclick="window.NAGEX.switchTab('tab-my-space')" data-i18n="mySpace.open">Open &gt;</a>
+              </div>
+              <p class="card-body-text" data-i18n="mySpace.navSubtitle">Your activity, memory, tasks, workflows, calendar, and history in one place.</p>
+            </div>
+
           </div>
 
           <!-- Bottom Footer Info -->
@@ -212,6 +224,83 @@
             <span>NAgex · Personal AI for the Next Age</span>
             <span data-i18n="brand.tagline">Intelligence for the Next Age.</span>
           </footer>
+        </div>
+
+        <!-- VIEW: MY SPACE (P08 — Personal Space Foundation, first slice).
+             Thin, read-only composition of already-frozen sources; no new
+             persistence, no new router. Reached only via Home's own "My
+             Space" card above (top nav is unchanged, per Section 4.1). -->
+        <div id="view-my-space" class="tab-view canvas-mode-doc">
+          <div class="view-header-bar">
+            <div>
+              <h2 data-i18n="mySpace.title">My Space</h2>
+              <p class="view-sub" data-i18n="mySpace.subtitle">Your activity, memory, tasks, workflows, calendar, and history — all in one place.</p>
+            </div>
+          </div>
+
+          <div class="home-canvas-sections">
+            <div class="canvas-section-card">
+              <div class="card-title-row">
+                <div class="card-title-left">
+                  <span class="card-icon-blue">🕒</span>
+                  <h3 class="card-main-title" data-i18n="mySpace.activity">Recent Activity</h3>
+                </div>
+              </div>
+              <div class="card-body-list" id="myspace-activity-list"></div>
+            </div>
+
+            <div class="canvas-section-card">
+              <div class="card-title-row">
+                <div class="card-title-left">
+                  <span class="card-icon-blue">🧠</span>
+                  <h3 class="card-main-title" data-i18n="mySpace.memory">Memory</h3>
+                </div>
+                <a class="card-link-see-all" onclick="window.NAGEX.switchTab('tab-memory')" data-i18n="home.seeAll">See all &gt;</a>
+              </div>
+              <div class="card-body-list" id="myspace-memory-list"></div>
+            </div>
+
+            <div class="canvas-section-card">
+              <div class="card-title-row">
+                <div class="card-title-left">
+                  <span class="card-icon-blue">✅</span>
+                  <h3 class="card-main-title" data-i18n="mySpace.tasks">Tasks</h3>
+                </div>
+                <a class="card-link-see-all" onclick="window.NAGEX.switchTab('tab-tasks')" data-i18n="home.seeAll">See all &gt;</a>
+              </div>
+              <div class="card-body-list" id="myspace-tasks-list"></div>
+            </div>
+
+            <div class="canvas-section-card">
+              <div class="card-title-row">
+                <div class="card-title-left">
+                  <span class="card-icon-blue">🔁</span>
+                  <h3 class="card-main-title" data-i18n="mySpace.workflows">Workflows</h3>
+                </div>
+              </div>
+              <div class="card-body-list" id="myspace-workflows-list"></div>
+            </div>
+
+            <div class="canvas-section-card">
+              <div class="card-title-row">
+                <div class="card-title-left">
+                  <span class="card-icon-blue">📅</span>
+                  <h3 class="card-main-title" data-i18n="mySpace.calendar">Upcoming Calendar</h3>
+                </div>
+              </div>
+              <div class="card-body-list" id="myspace-calendar-list"></div>
+            </div>
+
+            <div class="canvas-section-card">
+              <div class="card-title-row">
+                <div class="card-title-left">
+                  <span class="card-icon-blue">📜</span>
+                  <h3 class="card-main-title" data-i18n="mySpace.history">Recent History</h3>
+                </div>
+              </div>
+              <div class="card-body-list" id="myspace-history-list"></div>
+            </div>
+          </div>
         </div>
 
         <!-- VIEW: INBOX (NAGEX INBOX) -->

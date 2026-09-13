@@ -11,10 +11,12 @@ import {
   respondToCalendarEvent,
   queryFreeBusy,
   computeFreeSlots,
+  listUpcomingCalendarEvents,
   type CalendarEventPayload,
   type UpdateCalendarEventPayload,
   type CalendarRsvpResponseStatus,
   type FreeBusyInterval,
+  type UpcomingCalendarEvent,
 } from './calendar.client.js';
 import { readGoogleOAuthConfig, type GoogleOAuthConfig } from '../../integrations/google/oauth.client.js';
 import type { GoogleOAuthTokenStore } from '../../integrations/google/token.store.js';
@@ -218,6 +220,38 @@ export class GoogleCalendarService {
     const busy = await queryFreeBusy(accessToken, { calendarId, timeMin: input.timeMin, timeMax: input.timeMax }, this.fetchFn, input.requestId);
     const slots = computeFreeSlots(busy, input.timeMin, input.timeMax);
     return { slots, busy, calendarId, timeMin: input.timeMin, timeMax: input.timeMax };
+  }
+
+  // Read-only — My Space's Calendar summary. Reuses the exact same
+  // connect/token-resolution path as getFreeSlots above; never a new OAuth
+  // mechanism, never a new token store, never a direct/bypassing Google
+  // call from outside this module.
+  public async listUpcomingEvents(input: {
+    tenantId: string;
+    calendarId?: string;
+    timeMin: string;
+    timeMax: string;
+    maxResults?: number;
+    requestId: string;
+  }): Promise<UpcomingCalendarEvent[]> {
+    const config = this.getConfig();
+    const accessToken = config ? await this.tokenStore.getValidAccessToken(input.tenantId, config, this.fetchFn, input.requestId) : null;
+    if (!accessToken) {
+      throw new NagexError({
+        code: 'GOOGLE_CALENDAR_DISCONNECTED',
+        category: 'POLICY',
+        message: 'Google Calendar is not connected. Connect it before listing upcoming events.',
+        request_id: input.requestId,
+      });
+    }
+
+    const calendarId = input.calendarId || 'primary';
+    return listUpcomingCalendarEvents(
+      accessToken,
+      { calendarId, timeMin: input.timeMin, timeMax: input.timeMax, maxResults: input.maxResults },
+      this.fetchFn,
+      input.requestId,
+    );
   }
 
   public requestCreateEventApproval(input: { tenantId: string; principalId: string; payload: unknown; requestId: string }): ActionApprovalRecord {

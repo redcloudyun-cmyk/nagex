@@ -112,6 +112,7 @@
     "model_provider_integration",
     "module_registry",
     "module_state",
+    "my_space",
     "navigation_redefinition",
     "notification_engine",
     "pdf_understanding",
