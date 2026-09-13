@@ -85,7 +85,8 @@
       "fixed_plan_injection",
       "notification_delivery",
       "persistent_memory",
-      "workflow_definition"
+      "workflow_definition",
+      "audit_tenant_isolation"
     ]
   },
   "fullOnly": [

@@ -2022,7 +2022,10 @@ export function handleApiRequest(
     return { status: 200, data: { ...SUBSCRIPTION_INFO, total_credits: INITIAL_CREDIT_GRANT, used_credits: INITIAL_CREDIT_GRANT - account.credit_balance, remaining_credits: account.credit_balance } };
   }
   if (pathname === '/api/v1/billing/estimate' && method === 'POST') return { status: 200, data: { providerMode: 'NAGEX_MANAGED', estimatedCredits: computeCreditCost(MANAGED_AI_COST_BREAKDOWN), estimatedProviderCost: sumBreakdownUsd(MANAGED_AI_COST_BREAKDOWN), currency: 'USD' } };
-  if (pathname === '/api/v1/audit/logs' && method === 'GET') return { status: 200, data: { logs: auditLogger.getRecentLogs ? auditLogger.getRecentLogs(20) : [], total: auditLogger.getRecentLogs ? auditLogger.getRecentLogs(20).length : 0 } };
+  if (pathname === '/api/v1/audit/logs' && method === 'GET') {
+    const logs = auditLogger.getAuditLogs(tenantId, 20);
+    return { status: 200, data: { logs, total: logs.length } };
+  }
   if (pathname === '/api/v1/executions' && method === 'GET') return { status: 200, data: { executions: executionHistory, total: executionHistory.length } };
   // ─── MASTER.md Section 14.6 — Main Session + Tasks Foundation ───
   // NOTE: workspace/route-input, workspace/vault, workspace/inbox are handled

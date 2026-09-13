@@ -49,8 +49,18 @@ export class AuditLogger {
     return auditRecord;
   }
 
-  public getAuditLogs(tenantId: string): AuditEventRecord[] {
-    return this.auditStore.filter(log => log.tenant_id === tenantId);
+  // Audit Route Tenant Scoping Correction — `limit` is optional and
+  // backward-compatible: existing single-argument callers keep getting the
+  // tenant's entire history in original insertion order, unchanged. Only
+  // when a limit is supplied does this apply the same slice(-limit)
+  // .reverse() newest-first semantic getRecentLogs() uses — but AFTER
+  // filtering by tenant, never before, so another tenant's volume can
+  // never reduce or reorder this tenant's own latest-N result.
+  public getAuditLogs(tenantId: string, limit?: number): AuditEventRecord[] {
+    const filtered = this.auditStore.filter(log => log.tenant_id === tenantId);
+    if (limit === undefined) return filtered;
+    if (limit <= 0) return [];
+    return filtered.slice(-limit).reverse();
   }
 
   public getRecentLogs(limit: number): AuditEventRecord[] {
