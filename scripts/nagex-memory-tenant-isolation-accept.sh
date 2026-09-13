@@ -698,16 +698,33 @@ else
 fi
 
 # ── Scenario 8 — restart persistence ──────────────────────────────────────
+# R1 correction: the first real host run failed only here, on a harness
+# assertion, not a Memory correction defect. Confirmed source semantics —
+# pin state lives ONLY in server_web.ts's `pinnedMemories: Set<string>`,
+# never persisted onto MemoryRecord itself, and this correction explicitly
+# preserved that (Section 19 of its own directive: "Do NOT redesign pin
+# persistence in this correction... pinnedMemories may remain in-memory
+# Set<string>"). A reset to unpinned after a real process restart is
+# therefore correct, designed behavior — it must never fail tenant
+# isolation acceptance. This scenario now asserts only what the actual
+# tenant/owner isolation guarantee promises: the record and its tenantId
+# survive, and cross-tenant / cross-principal isolation both still hold —
+# reporting pin state informationally only, never as a pass/fail gate.
 section "Scenario 8: Restart Persistence"
 sudo systemctl restart "$SERVICE_NAME"
 if ! wait_for_health; then
   fail "Service restarted (still isolated mode)" "health check did not return within timeout"
   log_result "MEMORY_RESTART_PERSISTENCE" "FAIL"
+  log_result "MEMORY_CROSS_TENANT_ISOLATION_AFTER_RESTART" "FAIL"
+  log_result "MEMORY_CROSS_PRINCIPAL_ISOLATION_AFTER_RESTART" "FAIL"
+  log_result "MEMORY_ISOLATION_AFTER_RESTART" "FAIL"
   OVERALL_EXIT=1
 else
+  # Rightful owner: tenant A's memory still exists, tenantId preserved.
   api_call_as GET "${BASE}/api/v1/memory" "" "$TENANT_A" "$OWNER_SHARED"
   TENANT_A_TENANTID_AFTER_RESTART="$(field_of "$API_CALL_BODY" "$MEM_A" "tenantId")"
   RIGHTFUL_VISIBLE_AFTER_RESTART="$(list_contains "$API_CALL_BODY" 'only-visible-to-tenant-a')"
+  MEM_A_PIN_AFTER_RESTART="$(field_of "$API_CALL_BODY" "$MEM_A" "pinned")"
   if [ "$TENANT_A_TENANTID_AFTER_RESTART" = "$TENANT_A" ] && [ "$RIGHTFUL_VISIBLE_AFTER_RESTART" = "true" ]; then
     pass "MEMORY_RESTART_PERSISTENCE" "tenantId + rightful visibility survive restart"
     log_result "MEMORY_RESTART_PERSISTENCE" "PASS"
@@ -717,17 +734,47 @@ else
     OVERALL_EXIT=1
   fi
 
+  # Informational only — pin state is intentionally in-memory-only and is
+  # NOT part of this correction's tenant-isolation guarantee.
+  if [ "$MEM_A_PIN_AFTER_RESTART" = "true" ]; then
+    pass "PIN_STATE_AFTER_RESTART" "SURVIVED (not required, not a failure condition either way)"
+    log_result "PIN_STATE_AFTER_RESTART" "SURVIVED"
+  else
+    pass "PIN_STATE_AFTER_RESTART" "RESET_AS_DESIGNED (pinnedMemories is in-memory-only by design)"
+    log_result "PIN_STATE_AFTER_RESTART" "RESET_AS_DESIGNED"
+  fi
+
+  # Tenant B must still never see tenant A's memory after restart.
   api_call_as GET "${BASE}/api/v1/memory" "" "$TENANT_B" "$OWNER_SHARED"
-  CROSS_TENANT_STILL_ISOLATED="$(list_contains "$API_CALL_BODY" 'only-visible-to-tenant-a')"
-  api_call_as GET "${BASE}/api/v1/memory" "" "$TENANT_A" "$OWNER_SHARED"
-  MEM_A_PIN_AFTER_RESTART_RIGHTFUL="$(field_of "$API_CALL_BODY" "$MEM_A" "pinned")"
-  if [ "$CROSS_TENANT_STILL_ISOLATED" = "false" ] && [ "$MEM_A_PIN_AFTER_RESTART_RIGHTFUL" = "true" ]; then
-    pass "MEMORY_ISOLATION_AFTER_RESTART" "cross-tenant isolation and pin state both correct after restart"
+  TENANT_B_SEES_TENANT_A_SECRET="$(list_contains "$API_CALL_BODY" 'only-visible-to-tenant-a')"
+  if [ "$TENANT_B_SEES_TENANT_A_SECRET" = "false" ]; then
+    pass "MEMORY_CROSS_TENANT_ISOLATION_AFTER_RESTART" "tenant B still cannot see tenant A's memory"
+    log_result "MEMORY_CROSS_TENANT_ISOLATION_AFTER_RESTART" "PASS"
+  else
+    fail "MEMORY_CROSS_TENANT_ISOLATION_AFTER_RESTART" "tenant B unexpectedly sees tenant A's memory"
+    log_result "MEMORY_CROSS_TENANT_ISOLATION_AFTER_RESTART" "FAIL"
+    OVERALL_EXIT=1
+  fi
+
+  # Same-tenant wrong-principal (Scenario 6's MEM_SAME, survived its own
+  # blocked delete attempt) must still be blocked after restart too.
+  api_call_as GET "${BASE}/api/v1/memory" "" "$TENANT_SAME" "$OWNER_B"
+  OWNER_B_SEES_OWNER_A_SECRET="$(list_contains "$API_CALL_BODY" 'only-visible-to-owner-a')"
+  if [ "$OWNER_B_SEES_OWNER_A_SECRET" = "false" ]; then
+    pass "MEMORY_CROSS_PRINCIPAL_ISOLATION_AFTER_RESTART" "owner B still cannot see owner A's same-tenant memory"
+    log_result "MEMORY_CROSS_PRINCIPAL_ISOLATION_AFTER_RESTART" "PASS"
+  else
+    fail "MEMORY_CROSS_PRINCIPAL_ISOLATION_AFTER_RESTART" "owner B unexpectedly sees owner A's memory"
+    log_result "MEMORY_CROSS_PRINCIPAL_ISOLATION_AFTER_RESTART" "FAIL"
+    OVERALL_EXIT=1
+  fi
+
+  # Aggregate marker, retained for convenience — real isolation only,
+  # never gated on pin state.
+  if [ "$TENANT_B_SEES_TENANT_A_SECRET" = "false" ] && [ "$OWNER_B_SEES_OWNER_A_SECRET" = "false" ]; then
     log_result "MEMORY_ISOLATION_AFTER_RESTART" "PASS"
   else
-    fail "MEMORY_ISOLATION_AFTER_RESTART" "cross_tenant_isolated=$CROSS_TENANT_STILL_ISOLATED pinned=$MEM_A_PIN_AFTER_RESTART_RIGHTFUL"
     log_result "MEMORY_ISOLATION_AFTER_RESTART" "FAIL"
-    OVERALL_EXIT=1
   fi
 fi
 
