@@ -110,8 +110,13 @@ export class BrowserToolService {
     }
   }
 
-  private requireSession(browserSessionId: string, requestId: string): BrowserSessionRecord {
-    const record = this.sessions.get(browserSessionId);
+  // DC0 — a tenant/owner mismatch is now indistinguishable from a
+  // genuinely nonexistent session (BROWSER_SESSION_NOT_FOUND), never a
+  // distinguishing code — every caller already has tenantId/ownerId in
+  // scope on its own `input`, so this is a pure signature extension, no
+  // new identity source.
+  private requireSession(browserSessionId: string, tenantId: string, ownerId: string, requestId: string): BrowserSessionRecord {
+    const record = this.sessions.getOwned(browserSessionId, tenantId, ownerId);
     if (!record) {
       throw new NagexError({ code: 'BROWSER_SESSION_NOT_FOUND', category: 'NOT_FOUND', message: `Browser session ${browserSessionId} was not found.`, request_id: requestId });
     }
@@ -163,9 +168,13 @@ export class BrowserToolService {
   // permanently BLOCKED_NEEDS_HUMAN (Phase 1 STEP 3 — a caller finishing a
   // capture attempt on a CAPTCHA-blocked page must still be able to tear
   // it down) and including an already-CLOSED one (idempotent no-op, so a
-  // caller's cleanup path never itself needs special-casing).
+  // caller's cleanup path never itself needs special-casing). DC0: uses
+  // the same ownership-checked lookup as every other action, just not the
+  // status-gating rest of requireSession() — a wrong tenant/owner gets the
+  // identical BROWSER_SESSION_NOT_FOUND a real caller would for an unknown
+  // id, and the real session/browser context is never touched.
   public async close(input: BrowserActionInput): Promise<void> {
-    const record = this.sessions.get(input.browserSessionId);
+    const record = this.sessions.getOwned(input.browserSessionId, input.tenantId, input.ownerId);
     if (!record) {
       throw new NagexError({ code: 'BROWSER_SESSION_NOT_FOUND', category: 'NOT_FOUND', message: `Browser session ${input.browserSessionId} was not found.`, request_id: input.requestId });
     }
@@ -179,7 +188,7 @@ export class BrowserToolService {
 
   public async navigate(input: BrowserActionInput & { url: string }): Promise<BrowserActionResult> {
     this.requireAvailable(input.requestId);
-    const record = this.requireSession(input.browserSessionId, input.requestId);
+    const record = this.requireSession(input.browserSessionId, input.tenantId, input.ownerId, input.requestId);
     const safeUrl = assertUrlSafe(input.url, input.requestId);
     this.auditAction('browser.navigate', 'tool.execution.started', input, 'PENDING_APPROVAL', { url: safeUrl });
     try {
@@ -198,13 +207,13 @@ export class BrowserToolService {
 
   public async tabs(input: BrowserActionInput): Promise<Array<{ index: number; url: string; title: string }>> {
     this.requireAvailable(input.requestId);
-    const record = this.requireSession(input.browserSessionId, input.requestId);
+    const record = this.requireSession(input.browserSessionId, input.tenantId, input.ownerId, input.requestId);
     return this.runtime.listTabs(record.browserSessionId);
   }
 
   public async snapshot(input: BrowserActionInput): Promise<BrowserSnapshot> {
     this.requireAvailable(input.requestId);
-    const record = this.requireSession(input.browserSessionId, input.requestId);
+    const record = this.requireSession(input.browserSessionId, input.tenantId, input.ownerId, input.requestId);
     const snapshot = await this.runtime.snapshot(record.browserSessionId);
     this.auditAction('browser.snapshot', 'tool.execution.succeeded', input, 'SUCCESS', { url: snapshot.url });
     return snapshot;
@@ -212,7 +221,7 @@ export class BrowserToolService {
 
   public async structuredSnapshot(input: BrowserActionInput): Promise<StructuredBrowserSnapshot> {
     this.requireAvailable(input.requestId);
-    const record = this.requireSession(input.browserSessionId, input.requestId);
+    const record = this.requireSession(input.browserSessionId, input.tenantId, input.ownerId, input.requestId);
     const snapshot = await this.runtime.structuredSnapshot(record.browserSessionId);
     this.auditAction('browser.snapshot', 'tool.execution.succeeded', input, 'SUCCESS', { url: snapshot.url });
     return snapshot;
@@ -220,7 +229,7 @@ export class BrowserToolService {
 
   public async find(input: BrowserActionInput & { query: string }): Promise<FindResult> {
     this.requireAvailable(input.requestId);
-    const record = this.requireSession(input.browserSessionId, input.requestId);
+    const record = this.requireSession(input.browserSessionId, input.tenantId, input.ownerId, input.requestId);
     const result = await this.runtime.find(record.browserSessionId, input.query);
     this.auditAction('browser.find', 'tool.execution.succeeded', input, 'SUCCESS', { query: input.query, matchCount: result.candidates.length });
     return result;
@@ -228,7 +237,7 @@ export class BrowserToolService {
 
   public async extract(input: BrowserActionInput & { target?: 'text' | 'links' | 'buttons' | 'inputs' | 'all' }): Promise<ExtractResult> {
     this.requireAvailable(input.requestId);
-    const record = this.requireSession(input.browserSessionId, input.requestId);
+    const record = this.requireSession(input.browserSessionId, input.tenantId, input.ownerId, input.requestId);
     const result = await this.runtime.extract(record.browserSessionId, input.target);
     this.auditAction('browser.extract', 'tool.execution.succeeded', input, 'SUCCESS', { target: input.target || 'all' });
     return result;
@@ -236,7 +245,7 @@ export class BrowserToolService {
 
   public async back(input: BrowserActionInput): Promise<BrowserActionResult> {
     this.requireAvailable(input.requestId);
-    const record = this.requireSession(input.browserSessionId, input.requestId);
+    const record = this.requireSession(input.browserSessionId, input.tenantId, input.ownerId, input.requestId);
     const result = await this.runtime.back(record.browserSessionId);
     this.sessions.updateUrl(record.browserSessionId, result.url);
     this.auditAction('browser.back', 'tool.execution.succeeded', input, 'SUCCESS', { url: result.url });
@@ -245,7 +254,7 @@ export class BrowserToolService {
 
   public async forward(input: BrowserActionInput): Promise<BrowserActionResult> {
     this.requireAvailable(input.requestId);
-    const record = this.requireSession(input.browserSessionId, input.requestId);
+    const record = this.requireSession(input.browserSessionId, input.tenantId, input.ownerId, input.requestId);
     const result = await this.runtime.forward(record.browserSessionId);
     this.sessions.updateUrl(record.browserSessionId, result.url);
     this.auditAction('browser.forward', 'tool.execution.succeeded', input, 'SUCCESS', { url: result.url });
@@ -254,15 +263,24 @@ export class BrowserToolService {
 
   public async reload(input: BrowserActionInput): Promise<BrowserActionResult> {
     this.requireAvailable(input.requestId);
-    const record = this.requireSession(input.browserSessionId, input.requestId);
+    const record = this.requireSession(input.browserSessionId, input.tenantId, input.ownerId, input.requestId);
     const result = await this.runtime.reload(record.browserSessionId);
     this.sessions.updateUrl(record.browserSessionId, result.url);
     this.auditAction('browser.reload', 'tool.execution.succeeded', input, 'SUCCESS', { url: result.url });
     return result;
   }
 
+  // DC0: this method previously performed no session lookup or ownership
+  // check of any kind before clearing a persistent profile directory and
+  // closing the session — a real, undisclosed-by-the-Preflight gap found
+  // during implementation, fixed with the same centralized ownership gate
+  // as every other action.
   public async clearProfile(input: BrowserActionInput): Promise<void> {
     this.requireAvailable(input.requestId);
+    const record = this.sessions.getOwned(input.browserSessionId, input.tenantId, input.ownerId);
+    if (!record) {
+      throw new NagexError({ code: 'BROWSER_SESSION_NOT_FOUND', category: 'NOT_FOUND', message: `Browser session ${input.browserSessionId} was not found.`, request_id: input.requestId });
+    }
     await this.runtime.clearProfile(input.browserSessionId);
     this.sessions.close(input.browserSessionId);
     this.auditAction('browser.clearProfile', 'tool.execution.succeeded', input, 'SUCCESS');
@@ -270,7 +288,7 @@ export class BrowserToolService {
 
   public async screenshot(input: BrowserActionInput): Promise<BrowserEvidence> {
     this.requireAvailable(input.requestId);
-    const record = this.requireSession(input.browserSessionId, input.requestId);
+    const record = this.requireSession(input.browserSessionId, input.tenantId, input.ownerId, input.requestId);
     const bytes = await this.runtime.screenshot(record.browserSessionId);
     const evidenceId = generateEvidenceId();
     this.writeEvidence(evidenceId, bytes);
@@ -292,20 +310,20 @@ export class BrowserToolService {
 
   public async scroll(input: BrowserActionInput & { direction: 'up' | 'down'; amountPx?: number }): Promise<void> {
     this.requireAvailable(input.requestId);
-    const record = this.requireSession(input.browserSessionId, input.requestId);
+    const record = this.requireSession(input.browserSessionId, input.tenantId, input.ownerId, input.requestId);
     await this.runtime.scroll(record.browserSessionId, input.direction, input.amountPx ?? 400);
     this.auditAction('browser.scroll', 'tool.execution.succeeded', input, 'SUCCESS', { direction: input.direction });
   }
 
   public async wait(input: BrowserActionInput & { ms: number }): Promise<void> {
     this.requireAvailable(input.requestId);
-    const record = this.requireSession(input.browserSessionId, input.requestId);
+    const record = this.requireSession(input.browserSessionId, input.tenantId, input.ownerId, input.requestId);
     await this.runtime.wait(record.browserSessionId, input.ms);
   }
 
   public async type(input: BrowserActionInput & { selector: string; text: string }): Promise<void> {
     this.requireAvailable(input.requestId);
-    const record = this.requireSession(input.browserSessionId, input.requestId);
+    const record = this.requireSession(input.browserSessionId, input.tenantId, input.ownerId, input.requestId);
     const match = await this.runtime.resolveSelector(record.browserSessionId, input.selector);
     this.assertSelectorResolved(match, input, 'browser.type');
     await this.runtime.type(record.browserSessionId, input.selector, input.text);
@@ -316,7 +334,7 @@ export class BrowserToolService {
 
   public async select(input: BrowserActionInput & { selector: string; value: string }): Promise<void> {
     this.requireAvailable(input.requestId);
-    const record = this.requireSession(input.browserSessionId, input.requestId);
+    const record = this.requireSession(input.browserSessionId, input.tenantId, input.ownerId, input.requestId);
     const match = await this.runtime.resolveSelector(record.browserSessionId, input.selector);
     this.assertSelectorResolved(match, input, 'browser.select');
     await this.runtime.select(record.browserSessionId, input.selector, input.value);
@@ -338,7 +356,7 @@ export class BrowserToolService {
 
   public async click(input: BrowserActionInput & { selector: string; forceApproval?: boolean }): Promise<BrowserClickResult> {
     this.requireAvailable(input.requestId);
-    const record = this.requireSession(input.browserSessionId, input.requestId);
+    const record = this.requireSession(input.browserSessionId, input.tenantId, input.ownerId, input.requestId);
     const match = await this.runtime.resolveSelector(record.browserSessionId, input.selector);
     this.assertSelectorResolved(match, input);
 
@@ -379,7 +397,7 @@ export class BrowserToolService {
 
   public async executeApprovedClick(input: { approvalId: string; browserSessionId: string; selector: string; tenantId: string; ownerId: string; requestId: string }): Promise<BrowserClickExecuted> {
     this.requireAvailable(input.requestId);
-    const record = this.requireSession(input.browserSessionId, input.requestId);
+    const record = this.requireSession(input.browserSessionId, input.tenantId, input.ownerId, input.requestId);
     const executionId = generateResourceId('exe');
     const startedAt = getCurrentISOString();
 

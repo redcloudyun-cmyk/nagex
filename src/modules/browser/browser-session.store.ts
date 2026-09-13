@@ -85,6 +85,19 @@ export class BrowserSessionStore {
     return undefined;
   }
 
+  // DC0 — Browser Session Ownership Isolation Correction. The centralized
+  // ownership gate: a tenant/owner mismatch returns undefined, externally
+  // indistinguishable from a genuinely nonexistent session id — same
+  // requireOwned()-style contract already used by Task/Approval/Memory/
+  // Workflow/Capture. get() itself is left unchanged (internal callers
+  // within this file/service already operate on an id whose ownership was
+  // validated by the caller, not a fresh caller-supplied id).
+  public getOwned(browserSessionId: string, tenantId: string, ownerId: string): BrowserSessionRecord | undefined {
+    const record = this.get(browserSessionId);
+    if (!record || record.tenantId !== tenantId || record.ownerId !== ownerId) return undefined;
+    return record;
+  }
+
   public updateUrl(browserSessionId: string, url: string): void {
     const record = this.get(browserSessionId);
     if (!record) return;

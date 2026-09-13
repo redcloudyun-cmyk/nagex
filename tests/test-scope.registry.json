@@ -17,6 +17,7 @@
       "browser_approval_ui",
       "browser_i18n",
       "browser_module_boundary",
+      "browser_session_ownership_isolation",
       "browser_snapshot_truncation",
       "url_understanding",
       "approval_ttl_security",
