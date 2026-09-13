@@ -128,7 +128,7 @@ test('4. Durable preference produces a PROPOSED MemoryCandidate; nothing is writ
   assert.equal(candidates.length, 1);
   assert.equal(candidates[0].type, 'MEMORY');
   assert.equal(candidates[0].status, 'PROPOSED');
-  assert.equal(memoryEngine.getActiveMemories('USER', 'usr_step2_04').length, 0);
+  assert.equal(memoryEngine.getActiveMemories('USER', 'ten_step2', 'usr_step2_04').length, 0);
 });
 
 test('5. KnowledgeCandidate is proposed only when the model actually justifies it', async () => {
@@ -258,7 +258,7 @@ test('10. Understanding generation never itself creates a Task, Calendar event, 
   // No side effects from generation alone — only an explicit ACCEPT (a
   // later step's concern) may ever persist into these real systems.
   assert.equal(taskStore.list('ten_step2', 'usr_step2_10').length, 0);
-  assert.equal(memoryEngine.getActiveMemories('USER', 'usr_step2_10').length, 0);
+  assert.equal(memoryEngine.getActiveMemories('USER', 'ten_step2', 'usr_step2_10').length, 0);
 });
 
 test('11. Provider/model metadata is recorded truthfully on the capture', async () => {

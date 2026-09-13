@@ -15,7 +15,7 @@ export interface TelegramServiceOptions {
   sessionStore: SessionStore;
   aiService: AiService;
   planResolver: PlanResolver;
-  getMemories: (principalId: string, prompt: string) => MemoryRecord[];
+  getMemories: (tenantId: string, principalId: string, prompt: string) => MemoryRecord[];
   auditLogger: AuditLogger;
   conversationStore?: ConversationStore;
   conversationContextService?: ConversationContextService;
@@ -71,7 +71,7 @@ export class TelegramService {
     });
 
     // 2. Fetch Relevant Memory Context & Conversation Context
-    const memories = this.options.getMemories(principalId, text);
+    const memories = this.options.getMemories(tenantId, principalId, text);
     const conversation = this.options.conversationContextService?.buildContext({
       tenantId,
       principalId,

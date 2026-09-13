@@ -17,13 +17,13 @@ export class PlanPreviewTaskRunner implements TaskRunner {
   constructor(
     private readonly aiService: AiService,
     private readonly planResolver: PlanResolver,
-    private readonly getMemories: (principalId: string, prompt: string) => MemoryRecord[],
+    private readonly getMemories: (tenantId: string, principalId: string, prompt: string) => MemoryRecord[],
   ) {}
 
   public async run(task: TaskRecord, requestId: string, _runId?: string): Promise<TaskRunOutcome> {
     const planResponse = await this.aiService.plan({
       prompt: task.objective,
-      memories: this.getMemories(task.ownerId, task.objective),
+      memories: this.getMemories(task.tenantId, task.ownerId, task.objective),
       mode: 'auto',
       requestId,
     });

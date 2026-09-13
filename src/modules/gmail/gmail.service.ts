@@ -279,12 +279,12 @@ export class GmailService {
       });
 
       const recipients = payload.to.join(', ');
-      const memoryRecord = this.memory.proposeMemory('USER', input.principalId, {
+      const memoryRecord = this.memory.proposeMemory('USER', input.tenantId, input.principalId, {
         subject: 'Email',
         predicate: toolId === GMAIL_CREATE_DRAFT_TOOL_ID ? 'drafted' : 'sent',
         value: `${toolId === GMAIL_CREATE_DRAFT_TOOL_ID ? 'Drafted' : 'Sent'} "${payload.subject}" to ${recipients}.`,
       });
-      this.memory.activateMemory(memoryRecord.id);
+      this.memory.activateMemory(memoryRecord.id, input.tenantId, input.principalId);
 
       return { executionId, toolId, status: 'SUCCEEDED', externalId: created.externalId, externalUrl: created.externalUrl, startedAt, completedAt };
     } catch (error) {

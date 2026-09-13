@@ -419,8 +419,8 @@ export class BrowserToolService {
       this.executions.succeed(executionId, { externalId: executionId, externalUrl: page.url, completedAt });
       this.auditAction(BROWSER_CLICK_TOOL_ID, 'tool.execution.succeeded', input, 'SUCCESS', { selector: input.selector, consequential: true, url: page.url });
 
-      const memoryRecord = this.memory.proposeMemory('USER', input.ownerId, { subject: 'Browser Action', predicate: 'clicked', value: `Clicked "${match.text || input.selector}" on ${page.url}.` });
-      this.memory.activateMemory(memoryRecord.id);
+      const memoryRecord = this.memory.proposeMemory('USER', input.tenantId, input.ownerId, { subject: 'Browser Action', predicate: 'clicked', value: `Clicked "${match.text || input.selector}" on ${page.url}.` });
+      this.memory.activateMemory(memoryRecord.id, input.tenantId, input.ownerId);
 
       return { status: 'EXECUTED', url: page.url, title: page.title };
     } catch (error) {

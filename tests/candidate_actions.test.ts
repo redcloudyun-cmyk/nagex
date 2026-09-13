@@ -151,7 +151,7 @@ test('4. ACCEPTED MEMORY candidate execute writes a real active MemoryRecord', a
 
   const result = await resolver.executeCandidate(cand.candidateId, 't4', 'u4');
   assert.equal(result.action?.status, 'SUCCEEDED');
-  const active = memoryEngine.getActiveMemories('USER', 'u4');
+  const active = memoryEngine.getActiveMemories('USER', 't4', 'u4');
   assert.equal(active.length, 1);
   assert.equal(active[0].id, result.action?.targetId);
 });
@@ -163,7 +163,7 @@ test('5. A second execute on the same MEMORY candidate does not create a duplica
 
   await resolver.executeCandidate(cand.candidateId, 't5', 'u5');
   await resolver.executeCandidate(cand.candidateId, 't5', 'u5');
-  assert.equal(memoryEngine.getActiveMemories('USER', 'u5').length, 1);
+  assert.equal(memoryEngine.getActiveMemories('USER', 't5', 'u5').length, 1);
 });
 
 test('6. The exact reviewed statement is persisted verbatim — never re-derived or altered', async () => {
@@ -172,7 +172,7 @@ test('6. The exact reviewed statement is persisted verbatim — never re-derived
   const statement = 'The user explicitly prefers async written updates over meetings.';
   const cand = acceptedMemoryCandidate(candidateStore, 't6', 'u6', cap.captureId, 'h1', statement);
   await resolver.executeCandidate(cand.candidateId, 't6', 'u6');
-  const active = memoryEngine.getActiveMemories('USER', 'u6');
+  const active = memoryEngine.getActiveMemories('USER', 't6', 'u6');
   assert.equal(active[0].content.value, statement);
 });
 

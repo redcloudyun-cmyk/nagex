@@ -499,12 +499,12 @@ export class CandidateActionResolver {
       // Only the exact reviewed/modified statement is ever written — never
       // re-derived from the original understanding output, never merged
       // with unrelated memory, never rewritten.
-      const mem = this.deps.memoryEngine.proposeMemory('USER', candidate.principalId, {
+      const mem = this.deps.memoryEngine.proposeMemory('USER', candidate.tenantId, candidate.principalId, {
         subject: 'user',
         predicate: 'preference',
         value: payload.statement,
       }, candidate.candidateId);
-      this.deps.memoryEngine.activateMemory(mem.id);
+      this.deps.memoryEngine.activateMemory(mem.id, candidate.tenantId, candidate.principalId);
       const updated = this.markSucceeded(candidate, { targetType: 'MEMORY', targetId: mem.id }, requestId);
       this.activity(`Remembered: ${payload.statement.slice(0, 60)}`, candidate, requestId);
       this.recordActivity(updated, 'COMPLETED', `Remembered: ${payload.statement.slice(0, 60)}`);

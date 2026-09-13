@@ -143,46 +143,54 @@ export function createNagexApplication(): NagexApplication {
   // life by memory pin/unpin route handlers in server_web.ts, which is why
   // both are exposed on the returned NagexApplication rather than kept
   // private here).
+  // Memory Tenant Isolation Correction — every hardcoded demo seed is
+  // stamped with the same canonical default tenant used everywhere else in
+  // this codebase (see DEFAULT_GOOGLE_TENANT_ID in
+  // integrations/google/token.store.ts). Seeds are never created globally.
+  const SEED_TENANT_ID = 'ten_production_01';
+
   function ensureSeedMemory(
     scope: MemoryScope,
+    tenantId: string,
     ownerId: string,
     content: { subject: string; predicate: string; value: unknown },
   ): MemoryRecord {
     const existing = memoryEngine.findSeedMemory({
       scope,
+      tenantId,
       ownerId,
       subject: content.subject,
       predicate: content.predicate,
     });
     if (existing) {
       if (existing.lifecycle !== 'ACTIVE') {
-        return memoryEngine.activateMemory(existing.id);
+        return memoryEngine.activateMemory(existing.id, tenantId, ownerId);
       }
       return existing;
     }
-    const proposed = memoryEngine.proposeMemory(scope, ownerId, content);
-    return memoryEngine.activateMemory(proposed.id);
+    const proposed = memoryEngine.proposeMemory(scope, tenantId, ownerId, content);
+    return memoryEngine.activateMemory(proposed.id, tenantId, ownerId);
   }
 
-  const mem1 = ensureSeedMemory('USER', 'usr_admin_001', {
+  const mem1 = ensureSeedMemory('USER', SEED_TENANT_ID, 'usr_admin_001', {
     subject: 'User Profile',
     predicate: 'is',
     value: 'Jane Smith (Product Strategy Lead)',
   });
 
-  const mem2 = ensureSeedMemory('USER', 'usr_admin_001', {
+  const mem2 = ensureSeedMemory('USER', SEED_TENANT_ID, 'usr_admin_001', {
     subject: 'Acme Corp Context',
     predicate: 'memory_summary',
     value: "Preparing for quarterly business review with Acme Corp focusing on product adoption, renewal potential, and Q3 roadmap.",
   });
 
-  const mem3 = ensureSeedMemory('USER', 'usr_admin_001', {
+  const mem3 = ensureSeedMemory('USER', SEED_TENANT_ID, 'usr_admin_001', {
     subject: 'Preferred Tools',
     predicate: 'channel',
     value: 'Gmail, Google Calendar, Notion, Slack',
   });
 
-  const mem4 = ensureSeedMemory('SESSION', 'usr_admin_001', {
+  const mem4 = ensureSeedMemory('SESSION', SEED_TENANT_ID, 'usr_admin_001', {
     subject: 'Current Focus',
     predicate: 'active_plan',
     value: 'Prepare Client Meeting & Schedule Product Strategy Sync',
@@ -195,12 +203,12 @@ export function createNagexApplication(): NagexApplication {
   // a generic request must not drag in a strongly-pinned but otherwise
   // unrelated memory (e.g. a specific past client) just because it is pinned.
   // Pinning still nudges ranking among memories that are already relevant.
-  function getRelevantMemories(principalId: string, prompt: string): MemoryRecord[] {
+  function getRelevantMemories(tenantId: string, principalId: string, prompt: string): MemoryRecord[] {
     const memories = [
-      ...memoryEngine.getActiveMemories('USER', principalId),
-      ...memoryEngine.getActiveMemories('SESSION', principalId),
-      ...memoryEngine.getActiveMemories('AGENT', principalId),
-      ...memoryEngine.getActiveMemories('TENANT', principalId),
+      ...memoryEngine.getActiveMemories('USER', tenantId, principalId),
+      ...memoryEngine.getActiveMemories('SESSION', tenantId, principalId),
+      ...memoryEngine.getActiveMemories('AGENT', tenantId, principalId),
+      ...memoryEngine.getActiveMemories('TENANT', tenantId, principalId),
     ];
     const terms = new Set(
       prompt.toLowerCase().split(/[^a-z0-9]+/).filter((term) => term.length > 2 && !MEMORY_RELEVANCE_STOPWORDS.has(term)),
@@ -223,11 +231,11 @@ export function createNagexApplication(): NagexApplication {
   // after a process restart. ExecutingTaskRunner writes to it every step;
   // durableTaskRuntime (constructed further below) reads it once at boot.
   const durableTaskRunState = new DurableTaskRunStateStore();
-  const executingTaskRunner = new ExecutingTaskRunner(aiService, planResolver, capabilityBroker, (principalId, prompt) => getRelevantMemories(principalId, prompt), taskContinuations, durableTaskRunState);
+  const executingTaskRunner = new ExecutingTaskRunner(aiService, planResolver, capabilityBroker, (tenantId, principalId, prompt) => getRelevantMemories(tenantId, principalId, prompt), taskContinuations, durableTaskRunState);
   const taskRunner = new CompositeTaskRunner(
-    new PlanPreviewTaskRunner(aiService, planResolver, (principalId, prompt) => getRelevantMemories(principalId, prompt)),
+    new PlanPreviewTaskRunner(aiService, planResolver, (tenantId, principalId, prompt) => getRelevantMemories(tenantId, principalId, prompt)),
     new ConditionalWatchTaskRunner(capabilityBroker, aiService),
-    new BackgroundTaskRunner(taskStore, aiService, planResolver, (principalId, prompt) => getRelevantMemories(principalId, prompt)),
+    new BackgroundTaskRunner(taskStore, aiService, planResolver, (tenantId, principalId, prompt) => getRelevantMemories(tenantId, principalId, prompt)),
     executingTaskRunner,
   );
 
@@ -240,7 +248,7 @@ export function createNagexApplication(): NagexApplication {
     sessionStore,
     aiService,
     planResolver,
-    getMemories: (principalId, prompt) => getRelevantMemories(principalId, prompt),
+    getMemories: (tenantId, principalId, prompt) => getRelevantMemories(tenantId, principalId, prompt),
     auditLogger,
     conversationStore,
     conversationContextService,
@@ -255,7 +263,7 @@ export function createNagexApplication(): NagexApplication {
     sessionStore,
     aiService,
     planResolver,
-    getMemories: (principalId, prompt) => getRelevantMemories(principalId, prompt),
+    getMemories: (tenantId, principalId, prompt) => getRelevantMemories(tenantId, principalId, prompt),
     auditLogger,
     conversationStore,
     conversationContextService,

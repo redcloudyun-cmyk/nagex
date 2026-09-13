@@ -56,7 +56,7 @@ export class ExecutingTaskRunner implements TaskRunner {
     private readonly aiService: AiService,
     private readonly planResolver: PlanResolver,
     private readonly capabilityBroker: CapabilityExecutorPort,
-    private readonly getMemories: (principalId: string, prompt: string) => MemoryRecord[],
+    private readonly getMemories: (tenantId: string, principalId: string, prompt: string) => MemoryRecord[],
     private readonly continuations: TaskContinuationStore,
     private readonly durableRunState: DurableTaskRunStateStore,
   ) {}
@@ -64,7 +64,7 @@ export class ExecutingTaskRunner implements TaskRunner {
   public async run(task: TaskRecord, requestId: string, runId: string): Promise<TaskRunOutcome> {
     const planResponse = await this.aiService.plan({
       prompt: task.objective,
-      memories: this.getMemories(task.ownerId, task.objective),
+      memories: this.getMemories(task.tenantId, task.ownerId, task.objective),
       mode: 'auto',
       requestId,
     });

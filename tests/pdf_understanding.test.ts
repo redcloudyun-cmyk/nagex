@@ -397,7 +397,7 @@ test('16. Understanding generation never itself creates a Task, Calendar event, 
 
   assert.equal((item.metadata.candidates || []).length, 2);
   assert.equal(taskStore.list('ten_pdf', 'usr_pdf_16').length, 0);
-  assert.equal(memoryEngine.getActiveMemories('USER', 'usr_pdf_16').length, 0);
+  assert.equal(memoryEngine.getActiveMemories('USER', 'ten_pdf', 'usr_pdf_16').length, 0);
 });
 
 test('17. Provider/model provenance is recorded truthfully on the PDF capture', async () => {

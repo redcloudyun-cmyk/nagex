@@ -35,7 +35,7 @@ const planningService = new AiService(new UnifiedModelRouter([planningProvider],
 test('1. Personal AI: Memory CRUD Operations & State Lifecycles', () => {
   const memEngine = new MemoryEngine({ dir: fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-ux-test-mem-')) });
 
-  const rec = memEngine.proposeMemory('USER', 'usr_admin_001', {
+  const rec = memEngine.proposeMemory('USER', 'ten_ux_test', 'usr_admin_001', {
     subject: 'Client Meeting Time',
     predicate: 'preference',
     value: 'Morning slots preferred',
@@ -43,10 +43,10 @@ test('1. Personal AI: Memory CRUD Operations & State Lifecycles', () => {
   assert.strictEqual(rec.lifecycle, 'PROPOSED');
   assert.strictEqual(rec.scope, 'USER');
 
-  const activeRec = memEngine.activateMemory(rec.id);
+  const activeRec = memEngine.activateMemory(rec.id, 'ten_ux_test', 'usr_admin_001');
   assert.strictEqual(activeRec.lifecycle, 'ACTIVE');
 
-  const memories = memEngine.getActiveMemories('USER', 'usr_admin_001');
+  const memories = memEngine.getActiveMemories('USER', 'ten_ux_test', 'usr_admin_001');
   assert.strictEqual(memories.length, 1);
   assert.strictEqual(memories[0].id, rec.id);
 });

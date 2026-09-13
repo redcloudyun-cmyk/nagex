@@ -318,7 +318,7 @@ test('19-21. Task/Memory/Knowledge downstream views reflect the real canonical s
 
   const memCand = acceptedMemoryCandidate(candidateStore, 't1921', 'u1921', cap.captureId, 'h1', 'Downstream memory statement.');
   await resolver.executeCandidate(memCand.candidateId, 't1921', 'u1921');
-  assert.equal(memoryEngine.getActiveMemories('USER', 'u1921').length, 1);
+  assert.equal(memoryEngine.getActiveMemories('USER', 't1921', 'u1921').length, 1);
 
   const knowCand = acceptedKnowledgeCandidate(candidateStore, 't1921', 'u1921', cap.captureId, 'h1');
   await resolver.executeCandidate(knowCand.candidateId, 't1921', 'u1921');

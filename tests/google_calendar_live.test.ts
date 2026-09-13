@@ -563,7 +563,7 @@ test('memory update after success: writes "Scheduled <summary> for <date/time>."
 
   await service.executeCreateEvent({ approvalId: record.approvalId, payload: validPayload({ attendees: ['secret-attendee@example.com'] }), tenantId: 't1', principalId: 'usr_mem_test', requestId: 'req_mem_1' });
 
-  const memories = memory.getActiveMemories('USER', 'usr_mem_test');
+  const memories = memory.getActiveMemories('USER', 't1', 'usr_mem_test');
   assert.equal(memories.length, 1);
   assert.match(String(memories[0].content.value), /^Scheduled Client Strategy Sync for \d{4}-\d{2}-\d{2} \d{2}:\d{2}\.$/);
   assert.doesNotMatch(JSON.stringify(memories[0]), /secret-attendee@example\.com/);

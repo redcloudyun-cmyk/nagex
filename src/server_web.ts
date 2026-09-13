@@ -661,7 +661,7 @@ export async function handleAsyncApiRequest(
 
       const result = await service.plan({
         prompt,
-        memories: getRelevantMemories(principalId, prompt),
+        memories: getRelevantMemories(tenantId, principalId, prompt),
         conversation,
         mode: parseRoutingMode(body?.provider, process.env.NAGEX_MODEL_PROVIDER),
         requestId,
@@ -1041,10 +1041,10 @@ export async function handleAsyncApiRequest(
         taskStore,
         taskRunStore,
         new CompositeTaskRunner(
-          new PlanPreviewTaskRunner(service, planResolver, (principalId, prompt) => getRelevantMemories(principalId, prompt)),
+          new PlanPreviewTaskRunner(service, planResolver, (tenantId, principalId, prompt) => getRelevantMemories(tenantId, principalId, prompt)),
           new ConditionalWatchTaskRunner(capabilityBroker, service),
-          new BackgroundTaskRunner(taskStore, service, planResolver, (principalId, prompt) => getRelevantMemories(principalId, prompt)),
-          new ExecutingTaskRunner(service, planResolver, capabilityBroker, (principalId, prompt) => getRelevantMemories(principalId, prompt), taskContinuations, durableTaskRunState),
+          new BackgroundTaskRunner(taskStore, service, planResolver, (tenantId, principalId, prompt) => getRelevantMemories(tenantId, principalId, prompt)),
+          new ExecutingTaskRunner(service, planResolver, capabilityBroker, (tenantId, principalId, prompt) => getRelevantMemories(tenantId, principalId, prompt), taskContinuations, durableTaskRunState),
         ),
         auditLogger,
       );
@@ -1076,7 +1076,7 @@ export async function handleAsyncApiRequest(
       }
       const { resolved, task } = prepared;
 
-      const workflowRunner = new ExecutingTaskRunner(aiService, planResolver, capabilityBroker, (principalId, prompt) => getRelevantMemories(principalId, prompt), taskContinuations, durableTaskRunState);
+      const workflowRunner = new ExecutingTaskRunner(aiService, planResolver, capabilityBroker, (tenantId, principalId, prompt) => getRelevantMemories(tenantId, principalId, prompt), taskContinuations, durableTaskRunState);
       const workflowScheduler = new TaskScheduler(
         taskStore,
         taskRunStore,
@@ -1141,7 +1141,7 @@ export async function handleAsyncApiRequest(
       // production taskRunner uses — the instance is ephemeral, but every
       // store it writes to is the real one, so restart-recovery inspection
       // sees genuine data.
-      const fixedPlanRunner = new ExecutingTaskRunner(aiService, planResolver, capabilityBroker, (principalId, prompt) => getRelevantMemories(principalId, prompt), taskContinuations, durableTaskRunState);
+      const fixedPlanRunner = new ExecutingTaskRunner(aiService, planResolver, capabilityBroker, (tenantId, principalId, prompt) => getRelevantMemories(tenantId, principalId, prompt), taskContinuations, durableTaskRunState);
       const scheduler = new TaskScheduler(
         taskStore,
         taskRunStore,
@@ -1699,10 +1699,10 @@ export function handleApiRequest(
   }
 
   if (pathname === '/api/v1/memory' && method === 'GET') {
-    const activeUserMems = memoryEngine.getActiveMemories('USER', principal.id);
-    const activeSessionMems = memoryEngine.getActiveMemories('SESSION', principal.id);
-    const activeAgentMems = memoryEngine.getActiveMemories('AGENT', principal.id);
-    const activeTenantMems = memoryEngine.getActiveMemories('TENANT', principal.id);
+    const activeUserMems = memoryEngine.getActiveMemories('USER', tenantId, principal.id);
+    const activeSessionMems = memoryEngine.getActiveMemories('SESSION', tenantId, principal.id);
+    const activeAgentMems = memoryEngine.getActiveMemories('AGENT', tenantId, principal.id);
+    const activeTenantMems = memoryEngine.getActiveMemories('TENANT', tenantId, principal.id);
     const allMemories = [...activeUserMems, ...activeSessionMems, ...activeAgentMems, ...activeTenantMems].map((m) => ({ ...m, pinned: pinnedMemories.has(m.id) }));
     return { status: 200, data: { memories: allMemories, total: allMemories.length } };
   }
@@ -1712,8 +1712,8 @@ export function handleApiRequest(
     const subject = (body?.subject as string) || 'General';
     const predicate = (body?.predicate as string) || 'note';
     const value = body?.value || '';
-    const rec = memoryEngine.proposeMemory(scope, principal.id, { subject, predicate, value });
-    const activated = memoryEngine.activateMemory(rec.id);
+    const rec = memoryEngine.proposeMemory(scope, tenantId, principal.id, { subject, predicate, value });
+    const activated = memoryEngine.activateMemory(rec.id, tenantId, principal.id);
     if (body?.pinned) pinnedMemories.add(activated.id);
     return { status: 201, data: { ...activated, pinned: pinnedMemories.has(activated.id) } };
   }
@@ -1721,7 +1721,7 @@ export function handleApiRequest(
   if (pathname.startsWith('/api/v1/memory/') && method === 'DELETE') {
     const memId = pathname.replace('/api/v1/memory/', '');
     try {
-      memoryEngine.deleteMemory(memId);
+      memoryEngine.deleteMemory(memId, tenantId, principal.id);
     } catch (error) {
       return modelErrorResult(error);
     }
@@ -1731,6 +1731,9 @@ export function handleApiRequest(
 
   if (pathname.startsWith('/api/v1/memory/') && pathname.endsWith('/pin') && method === 'PUT') {
     const memId = pathname.replace('/api/v1/memory/', '').replace('/pin', '');
+    if (!memoryEngine.get(memId, tenantId, principal.id)) {
+      return { status: 404, data: { error: 'MEMORY_NOT_FOUND', message: `Memory ${memId} was not found.` } };
+    }
     if (pinnedMemories.has(memId)) pinnedMemories.delete(memId);
     else pinnedMemories.add(memId);
     return { status: 200, data: { success: true, pinned: pinnedMemories.has(memId) } };

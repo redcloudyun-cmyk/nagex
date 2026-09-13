@@ -144,7 +144,7 @@ test('8. Seed memory (mem1-4) and pinnedMemories are present and consistent per 
   process.env.NAGEX_MEMORIES_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-root-seed-test-'));
   try {
     const app = createNagexApplication();
-    const active = app.memoryEngine.getActiveMemories('USER', 'usr_admin_001');
+    const active = app.memoryEngine.getActiveMemories('USER', 'ten_production_01', 'usr_admin_001');
     const subjects = active.map((m) => (m.content as { subject?: string }).subject).sort();
     assert.deepEqual(subjects, ['Acme Corp Context', 'Preferred Tools', 'User Profile'].sort());
     assert.equal(app.pinnedMemories.size, 2, 'exactly mem2 and mem3 are pinned, matching the original inline seed logic');

@@ -116,7 +116,7 @@ export interface NagexApplication {
   // and written by memory pin/unpin route handlers for the rest of the
   // process's life — not seed-only, so it must be the same shared instance
   // server_web.ts's route handlers read/write, not a private copy.
-  getRelevantMemories: (principalId: string, prompt: string) => MemoryRecord[];
+  getRelevantMemories: (tenantId: string, principalId: string, prompt: string) => MemoryRecord[];
   pinnedMemories: Set<string>;
   // Phase 02 — owns start/stop for process-lifetime resources (HTTP server,
   // scheduler interval, browserRuntime). Constructed here, empty; the

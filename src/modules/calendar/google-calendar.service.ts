@@ -358,12 +358,12 @@ export class GoogleCalendarService {
       });
 
       const scheduledFor = formatScheduledFor(input.payload.start, input.payload.timezone);
-      const memoryRecord = this.memory.proposeMemory('USER', input.principalId, {
+      const memoryRecord = this.memory.proposeMemory('USER', input.tenantId, input.principalId, {
         subject: 'Calendar Event',
         predicate: 'scheduled',
         value: `Scheduled ${input.payload.summary} for ${scheduledFor}.`,
       });
-      this.memory.activateMemory(memoryRecord.id);
+      this.memory.activateMemory(memoryRecord.id, input.tenantId, input.principalId);
 
       return {
         executionId,
@@ -532,8 +532,8 @@ export class GoogleCalendarService {
       });
 
       const memoryFields = describeMemory(payload);
-      const memoryRecord = this.memory.proposeMemory('USER', input.principalId, memoryFields);
-      this.memory.activateMemory(memoryRecord.id);
+      const memoryRecord = this.memory.proposeMemory('USER', input.tenantId, input.principalId, memoryFields);
+      this.memory.activateMemory(memoryRecord.id, input.tenantId, input.principalId);
 
       return { executionId, toolId, status: 'SUCCEEDED', externalId: result.externalId, externalUrl: result.externalUrl, startedAt, completedAt };
     } catch (error) {

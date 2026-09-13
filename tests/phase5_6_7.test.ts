@@ -145,7 +145,7 @@ test('2b. Knowledge Engine Grounded Citation Check rejects fabricated references
 test('3. Memory Engine Lifecycle & Active Context Query', () => {
   const memEngine = new MemoryEngine();
 
-  const proposed = memEngine.proposeMemory('SESSION', 'usr_100', {
+  const proposed = memEngine.proposeMemory('SESSION', 'ten_100', 'usr_100', {
     subject: 'user_preference',
     predicate: 'theme',
     value: 'dark',
@@ -154,12 +154,12 @@ test('3. Memory Engine Lifecycle & Active Context Query', () => {
   assert.strictEqual(proposed.lifecycle, 'PROPOSED');
 
   // Proposed memory is not active yet
-  const beforeActive = memEngine.getActiveMemories('SESSION', 'usr_100');
+  const beforeActive = memEngine.getActiveMemories('SESSION', 'ten_100', 'usr_100');
   assert.strictEqual(beforeActive.length, 0);
 
   // Activate Memory
-  memEngine.activateMemory(proposed.id);
-  const afterActive = memEngine.getActiveMemories('SESSION', 'usr_100');
+  memEngine.activateMemory(proposed.id, 'ten_100', 'usr_100');
+  const afterActive = memEngine.getActiveMemories('SESSION', 'ten_100', 'usr_100');
   assert.strictEqual(afterActive.length, 1);
   assert.strictEqual(afterActive[0].content.value, 'dark');
 
@@ -167,7 +167,7 @@ test('3. Memory Engine Lifecycle & Active Context Query', () => {
   // newer fact) must not be silently resurrected by re-activation.
   (memEngine as any).memoryStore.get(proposed.id).lifecycle = 'SUPERSEDED';
   assert.throws(
-    () => memEngine.activateMemory(proposed.id),
+    () => memEngine.activateMemory(proposed.id, 'ten_100', 'usr_100'),
     (err: any) => err.code === 'MEMORY_ALREADY_TERMINAL'
   );
 });
