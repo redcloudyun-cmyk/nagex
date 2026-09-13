@@ -64,6 +64,37 @@
 # correction) is fully isolated either way, since NAGEX_CAPTURES_DIR
 # isolation is independent of the storage provider choice.
 #
+# R1 correction (storage fixture fix, applied on top of the 67c1719 script):
+# a real host run at 67c1719 failed only during synthetic upload creation for
+# the Download/Preview scenario (`HTTP 502 STORAGE_PROVIDER_ERROR: S3
+# putObject failed: fetch failed`) — every other scenario in this script
+# passed. Root cause, confirmed via direct read of
+# `src/storage/s3-storage.provider.ts`'s own `createConfiguredStorageProvider()`:
+# the host has `NAGEX_STORAGE_PROVIDER=s3` (or equivalent full S3 env config)
+# active, so this script's isolated run was still attempting a real S3
+# `putObject` against a host that could not reach it — an environment/
+# fixture defect in this script, not a Capture ownership correction defect
+# (the ownership gate itself was never reached). Fix: this script's
+# isolation drop-in now ALSO sets the real, existing, documented
+# `NAGEX_STORAGE_PROVIDER=local` env var (confirmed via source read — not
+# invented; `validateS3ConfigFromEnv()` already treats any non-"s3" value,
+# including this override, as "use Local") alongside the existing
+# `NAGEX_OBJECT_STORAGE_DIR` override, forcing `LocalStorageProvider` for
+# the duration of this isolated run only — a real, production-supported
+# provider, never a new hook, changing zero production source, fully
+# reverted in cleanup. The real `GET /api/v1/workspace/storage/status`
+# route (confirmed via source read to expose only `{provider, configured,
+# reachable, bucket, region, ...}` — no credentials) is used both to prove
+# the override took effect and to prove the original provider is restored
+# after cleanup, without ever touching or printing any S3 secret.
+# Additionally, `RIGHTFUL_CAPTURE_DOWNLOAD`/`RIGHTFUL_CAPTURE_PREVIEW` are
+# now their own explicit markers checked immediately after the synthetic
+# upload succeeds (previously this check lived only inside "Rightful Owner
+# Lifecycle", silently skipped whenever CAP_UPLOAD was empty — which is
+# exactly what made the 67c1719 host log look self-contradictory:
+# RIGHTFUL_CAPTURE_LIFECYCLE could PASS on its other checks alone while the
+# real download/preview path was never actually exercised at all).
+#
 # Failure classification (for interpreting any FAIL this script reports):
 #   A. harness defect              — this script's own assertion/logic is wrong
 #   B. environment defect          — host/systemd/permissions/network issue
@@ -109,9 +140,10 @@ done
 
 if [ "$AUTO_CONFIRM" = false ]; then
   printf "\n${COLOR_BOLD}This test will perform real, consequential actions:${COLOR_NC}\n\n"
-  printf "  - temporarily override NAGEX_CAPTURES_DIR (and NAGEX_OBJECT_STORAGE_DIR,\n"
-  printf "    if the LocalStorageProvider is active) on the running nagex.service\n"
-  printf "    (via a runtime-only /run systemd drop-in, removed in cleanup)\n"
+  printf "  - temporarily override NAGEX_CAPTURES_DIR, NAGEX_OBJECT_STORAGE_DIR, and\n"
+  printf "    NAGEX_STORAGE_PROVIDER (forced to the existing 'local' provider, for\n"
+  printf "    this isolated run only) on the running nagex.service (via a\n"
+  printf "    runtime-only /run systemd drop-in, removed in cleanup)\n"
   printf "  - restart nagex.service TWICE (once to enable isolated storage, once\n"
   printf "    mid-scenario as the actual restart-persistence check under test)\n"
   printf "  - restart nagex.service a THIRD time in cleanup to restore normal mode\n"
@@ -226,6 +258,17 @@ body_contains() {
   json_get "$body" "JSON.stringify(data).indexOf('${needle}') >= 0"
 }
 
+# GET /api/v1/workspace/storage/status carries no identity scoping (it is a
+# global provider-health probe) and exposes only {provider, configured,
+# reachable, bucket, region, ...} — confirmed via direct source read this
+# never includes accessKeyId/secretAccessKey. Used only to prove which
+# provider is active before/after isolation, never to touch credentials.
+storage_status_provider() {
+  local raw
+  raw="$(curl -s "${BASE}/api/v1/workspace/storage/status" 2>/dev/null || printf '{}')"
+  json_get "$raw" 'data.provider'
+}
+
 cleanup() {
   local cleanup_ok=true
   printf "\n${COLOR_BOLD}Cleanup${COLOR_NC}\n"
@@ -270,11 +313,21 @@ cleanup() {
       fail "Service restarted (normal mode)" "health check did not return within timeout"
       cleanup_ok=false
     fi
-    if service_env_has_var "NAGEX_CAPTURES_DIR" || service_env_has_var "NAGEX_OBJECT_STORAGE_DIR"; then
+    if service_env_has_var "NAGEX_CAPTURES_DIR" || service_env_has_var "NAGEX_OBJECT_STORAGE_DIR" || service_env_has_var "NAGEX_STORAGE_PROVIDER"; then
       fail "Isolated capture/storage overrides absent from service env" "still present"
       cleanup_ok=false
     else
       pass "Isolated capture/storage overrides absent from service env"
+    fi
+
+    PROD_STORAGE_PROVIDER_AFTER="$(storage_status_provider)"
+    if [ -n "$PROD_STORAGE_PROVIDER_BEFORE" ] && [ "$PROD_STORAGE_PROVIDER_AFTER" = "$PROD_STORAGE_PROVIDER_BEFORE" ]; then
+      pass "STORAGE_PROVIDER_RESTORED" "provider back to '$PROD_STORAGE_PROVIDER_AFTER'"
+      log_result "STORAGE_PROVIDER_RESTORED" "PASS"
+    else
+      fail "STORAGE_PROVIDER_RESTORED" "before='$PROD_STORAGE_PROVIDER_BEFORE' after='$PROD_STORAGE_PROVIDER_AFTER'"
+      log_result "STORAGE_PROVIDER_RESTORED" "FAIL"
+      cleanup_ok=false
     fi
   fi
 
@@ -331,6 +384,7 @@ cleanup() {
 
 ISOLATION_ACTIVE=false
 PROD_CAPTURES_COUNT_BEFORE=""
+PROD_STORAGE_PROVIDER_BEFORE=""
 CAP_A="" ; CAP_B="" ; CAP_C="" ; CAP_D="" ; CAP_UPLOAD=""
 
 trap cleanup EXIT INT TERM
@@ -339,6 +393,8 @@ trap cleanup EXIT INT TERM
 section "Baseline"
 PROD_CAPTURES_COUNT_BEFORE="$(sudo find "$PROD_CAPTURES_DIR" -maxdepth 1 -name '*.json' 2>/dev/null | wc -l | tr -d ' ')"
 printf "  Production captures file count before: %s\n" "$PROD_CAPTURES_COUNT_BEFORE"
+PROD_STORAGE_PROVIDER_BEFORE="$(storage_status_provider)"
+printf "  Production storage provider before: %s\n" "$PROD_STORAGE_PROVIDER_BEFORE"
 
 # ── Scenario: isolated startup ────────────────────────────────────────────
 section "Isolated Startup"
@@ -356,6 +412,7 @@ sudo mkdir -p "$DROPIN_DIR"
   printf '[Service]\n'
   printf 'Environment=NAGEX_CAPTURES_DIR=%s\n' "$ISOLATED_CAPTURES_DIR"
   printf 'Environment=NAGEX_OBJECT_STORAGE_DIR=%s\n' "$ISOLATED_STORAGE_DIR"
+  printf 'Environment=NAGEX_STORAGE_PROVIDER=local\n'
 } | sudo tee "$DROPIN_FILE" >/dev/null
 ISOLATION_ACTIVE=true
 sudo chmod 600 "$DROPIN_FILE"
@@ -366,6 +423,20 @@ if ! wait_for_health; then
   exit 1
 fi
 pass "Service started under isolated capture storage"
+
+# NAGEX_STORAGE_PROVIDER=local is a real, existing, documented provider
+# selector (confirmed via source read of createConfiguredStorageProvider())
+# — not an invented env var. Verified here (not assumed) via the real
+# storage/status route, which exposes no credentials.
+ACTIVE_STORAGE_PROVIDER="$(storage_status_provider)"
+if [ "$ACTIVE_STORAGE_PROVIDER" = "local" ]; then
+  pass "STORAGE_PROVIDER_OVERRIDE_ACTIVE" "NAGEX_STORAGE_PROVIDER=local honored (provider=local)"
+  log_result "STORAGE_PROVIDER_OVERRIDE_ACTIVE" "PASS"
+else
+  fail "STORAGE_PROVIDER_OVERRIDE_ACTIVE" "expected provider=local, got '$ACTIVE_STORAGE_PROVIDER'"
+  log_result "STORAGE_PROVIDER_OVERRIDE_ACTIVE" "FAIL"
+  OVERALL_EXIT=1
+fi
 
 # ── Scenario 4: rightful capture creation ────────────────────────────────
 section "Rightful Capture Creation"
@@ -573,17 +644,45 @@ else
 fi
 
 # ── Scenario 12: download / preview isolation ────────────────────────────
+# RIGHTFUL_CAPTURE_DOWNLOAD/RIGHTFUL_CAPTURE_PREVIEW are their own explicit
+# markers, checked immediately after the synthetic upload succeeds — kept
+# separate from "Rightful Owner Lifecycle" below so a PASS there can never
+# be read as having exercised this blob-backed path when it did not.
 section "Download / Preview Isolation"
 UPLOAD_BASE64="$(node -e 'console.log(Buffer.from([0x1a,0x45,0xdf,0xa3,0x99,0x88,0x77,0x66,0x55,0x44,0x33,0x22]).toString("base64"))')"
 UPLOAD_BODY="$(node -e 'console.log(JSON.stringify({filename:"memo.webm", mimeType:"audio/webm", type:"AUDIO", source:"WEB", base64: process.argv[1]}))' "$UPLOAD_BASE64")"
 api_call_as POST "${BASE}/api/v1/workspace/upload" "$UPLOAD_BODY" "$TENANT_A" "$OWNER_A"
 if [ "$API_CALL_STATUS" != "201" ]; then
   fail "synthetic upload for download/preview testing" "HTTP $API_CALL_STATUS $(api_error_summary "$API_CALL_BODY")"
+  log_result "RIGHTFUL_CAPTURE_DOWNLOAD" "FAIL"
+  log_result "RIGHTFUL_CAPTURE_PREVIEW" "FAIL"
   log_result "CAPTURE_DOWNLOAD_ISOLATION" "FAIL"
   log_result "CAPTURE_PREVIEW_ISOLATION" "FAIL"
   OVERALL_EXIT=1
 else
   CAP_UPLOAD="$(json_get "$API_CALL_BODY" 'data.captureId')"
+
+  api_call_as GET "${BASE}/api/v1/workspace/items/${CAP_UPLOAD}/download" "" "$TENANT_A" "$OWNER_A"
+  RIGHTFUL_DL_URL="$(json_get "$API_CALL_BODY" 'data.downloadUrl')"
+  if [ "$API_CALL_STATUS" = "200" ] && [ -n "$RIGHTFUL_DL_URL" ]; then
+    pass "RIGHTFUL_CAPTURE_DOWNLOAD" "rightful owner received a real downloadUrl"
+    log_result "RIGHTFUL_CAPTURE_DOWNLOAD" "PASS"
+  else
+    fail "RIGHTFUL_CAPTURE_DOWNLOAD" "HTTP $API_CALL_STATUS $(api_error_summary "$API_CALL_BODY")"
+    log_result "RIGHTFUL_CAPTURE_DOWNLOAD" "FAIL"
+    OVERALL_EXIT=1
+  fi
+
+  api_call_as GET "${BASE}/api/v1/workspace/items/${CAP_UPLOAD}/preview" "" "$TENANT_A" "$OWNER_A"
+  RIGHTFUL_PV_URL="$(json_get "$API_CALL_BODY" 'data.previewUrl')"
+  if [ "$API_CALL_STATUS" = "200" ] && [ -n "$RIGHTFUL_PV_URL" ]; then
+    pass "RIGHTFUL_CAPTURE_PREVIEW" "rightful owner received a real previewUrl"
+    log_result "RIGHTFUL_CAPTURE_PREVIEW" "PASS"
+  else
+    fail "RIGHTFUL_CAPTURE_PREVIEW" "HTTP $API_CALL_STATUS $(api_error_summary "$API_CALL_BODY")"
+    log_result "RIGHTFUL_CAPTURE_PREVIEW" "FAIL"
+    OVERALL_EXIT=1
+  fi
 
   api_call_as GET "${BASE}/api/v1/workspace/items/${CAP_UPLOAD}/download" "" "$TENANT_B" "$OWNER_A"
   DL_CT_CODE="$(extract_error_code "$API_CALL_BODY")"
@@ -615,6 +714,10 @@ else
 fi
 
 # ── Scenario 13: rightful owner lifecycle ────────────────────────────────
+# Deliberately covers only create/read/list/action here — download/preview
+# are their own separate RIGHTFUL_CAPTURE_DOWNLOAD/RIGHTFUL_CAPTURE_PREVIEW
+# markers above, checked at the point the blob-backed object actually
+# exists, so this PASS can never be misread as having covered that path.
 section "Rightful Owner Lifecycle"
 RIGHTFUL_OK=1
 
@@ -627,15 +730,8 @@ api_call_as GET "${BASE}/api/v1/workspace/inbox" "" "$TENANT_A" "$OWNER_A"
 api_call_as POST "${BASE}/api/v1/workspace/items/${CAP_A}/action" "$ACTION_BODY" "$TENANT_A" "$OWNER_A"
 [ "$API_CALL_STATUS" = "200" ] && [ "$(json_get "$API_CALL_BODY" 'data.status')" = "ARCHIVED" ] || RIGHTFUL_OK=0
 
-if [ -n "$CAP_UPLOAD" ]; then
-  api_call_as GET "${BASE}/api/v1/workspace/items/${CAP_UPLOAD}/download" "" "$TENANT_A" "$OWNER_A"
-  [ "$API_CALL_STATUS" = "200" ] && [ -n "$(json_get "$API_CALL_BODY" 'data.downloadUrl')" ] || RIGHTFUL_OK=0
-  api_call_as GET "${BASE}/api/v1/workspace/items/${CAP_UPLOAD}/preview" "" "$TENANT_A" "$OWNER_A"
-  [ "$API_CALL_STATUS" = "200" ] && [ -n "$(json_get "$API_CALL_BODY" 'data.previewUrl')" ] || RIGHTFUL_OK=0
-fi
-
 if [ "$RIGHTFUL_OK" = "1" ]; then
-  pass "RIGHTFUL_CAPTURE_LIFECYCLE" "create/read/list/action/download/preview all succeeded for the rightful owner"
+  pass "RIGHTFUL_CAPTURE_LIFECYCLE" "create/read/list/action all succeeded for the rightful owner"
   log_result "RIGHTFUL_CAPTURE_LIFECYCLE" "PASS"
 else
   fail "RIGHTFUL_CAPTURE_LIFECYCLE" "one or more rightful operations failed"
