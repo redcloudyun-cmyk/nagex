@@ -68,6 +68,27 @@
   // flight, regardless of which control tried to start it.
   const ambientRunGuard = window.NAGEX_SINGLE_FLIGHT ? window.NAGEX_SINGLE_FLIGHT.createSingleFlightGuard() : null;
 
+  // Bound on POST /api/v1/ambient/intent specifically — grounded in the
+  // real, evidence-backed worst case, not a guess: UnifiedModelRouter.
+  // generate() (src/model-gateway/unified-model-router.ts) retries through
+  // configured providers SEQUENTIALLY, and each provider's own HTTP call
+  // (src/model-gateway/providers.ts) is independently bounded at 30_000ms.
+  // With all 3 real providers configured (OpenAI/Gemini/Nebius), the
+  // endpoint can legitimately take up to ~90_000ms before it ever responds.
+  // 120_000ms sits comfortably above that real ceiling rather than a
+  // "typical latency" figure, since no such figure exists anywhere in this
+  // codebase — a tighter bound would risk aborting requests the server
+  // itself still considers in-flight and valid.
+  //
+  // `window.__NAGEX_TEST_AMBIENT_TIMEOUT_MS__` is a test-only override hook
+  // (analogous in spirit to the server's NAGEX_ENABLE_TEST_PLAN_INJECTION
+  // pattern) — inert in production, since nothing in this codebase ever
+  // sets it; a browser test can inject it via an init script so the
+  // stalled-request regression test doesn't have to wait 2 real minutes.
+  const AMBIENT_INTENT_TIMEOUT_MS = (typeof window !== 'undefined' && typeof window.__NAGEX_TEST_AMBIENT_TIMEOUT_MS__ === 'number')
+    ? window.__NAGEX_TEST_AMBIENT_TIMEOUT_MS__
+    : 120000;
+
   function updateFlowStage(stageLabel) {
     const el = document.getElementById('ambient-flow-stepper');
     const statusEl = document.getElementById('ambient-modal-status');
@@ -141,21 +162,46 @@
     list.appendChild(li);
   }
 
+  // `timeoutMs` is an opt-in, call-site-scoped extension: when a caller
+  // supplies it, this bounds the underlying fetch with an AbortController so
+  // the returned promise is guaranteed to settle even if the network/server
+  // never responds — a request with no bound at all can leave a caller's own
+  // `finally` (e.g. a busy/disabled-controls guard) waiting forever. Callers
+  // that omit it get byte-for-byte the same behavior as before this option
+  // existed (no AbortController is created, nothing about the request
+  // changes). A timed-out request reports back through the normal return
+  // contract (an `{error}` shape, same as any other failed call) rather than
+  // throwing, so existing `if (!res || res.error)`-style callers handle it
+  // automatically with zero branching changes.
   async function apiFetch(endpoint, options = {}) {
+    const { timeoutMs, ...fetchOptions } = options;
+    let controller = null;
+    let timeoutId = null;
+    if (typeof timeoutMs === 'number' && timeoutMs > 0) {
+      controller = new AbortController();
+      timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    }
     try {
       const res = await fetch(endpoint, {
         headers: {
           'Content-Type': 'application/json',
           'X-NAgex-Tenant': 'ten_production_01',
           'X-Principal-Id': 'usr_admin_001',
-          ...(options.headers || {}),
+          ...(fetchOptions.headers || {}),
         },
-        ...options,
+        ...fetchOptions,
+        ...(controller ? { signal: controller.signal } : {}),
       });
       return await res.json();
     } catch (err) {
+      if (controller && err && err.name === 'AbortError') {
+        console.error('API Timeout:', endpoint);
+        return { error: { code: 'REQUEST_TIMEOUT', message: 'The request took too long and was cancelled.' } };
+      }
       console.error('API Error:', endpoint, err);
       return null;
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
     }
   }
 
@@ -1914,6 +1960,7 @@
       const res = await apiFetch('/api/v1/ambient/intent', {
         method: 'POST',
         body: JSON.stringify({ prompt: promptText }),
+        timeoutMs: AMBIENT_INTENT_TIMEOUT_MS,
       });
 
       if (!res || res.error) {
