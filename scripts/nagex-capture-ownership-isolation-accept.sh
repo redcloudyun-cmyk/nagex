@@ -95,6 +95,51 @@
 # RIGHTFUL_CAPTURE_LIFECYCLE could PASS on its other checks alone while the
 # real download/preview path was never actually exercised at all).
 #
+# R2 correction (systemd environment override fix, applied on top of the
+# aba45cf script): a real host run at aba45cf proved the R1 fix
+# insufficient — `STORAGE_PROVIDER_OVERRIDE_ACTIVE` FAILed
+# (expected local, actual s3), meaning the drop-in's inline
+# `Environment=NAGEX_STORAGE_PROVIDER=local` line did not win against
+# whatever environment source the base `nagex.service` unit uses (most
+# likely its own `EnvironmentFile=` pointing at a real config that sets
+# `NAGEX_STORAGE_PROVIDER=s3`) — confirmed as a B. environment/fixture
+# defect in this script, not the Capture correction, since the ownership
+# gate was never reached at all. Fixed per this correction's own preferred
+# mechanism: a runtime-only `EnvironmentFile=` (never `/etc/nagex/nagex.env`
+# itself, never read or printed) at a `/run`-only path containing ONLY the
+# 3 test overrides (`NAGEX_STORAGE_PROVIDER=local`, `NAGEX_CAPTURES_DIR`,
+# `NAGEX_OBJECT_STORAGE_DIR`), referenced from a drop-in file deliberately
+# named to sort alphabetically after any base drop-in this host may have
+# (`zz-...` — systemd applies same-key assignments in the order their
+# directives are merged, main unit first then drop-ins in filename order,
+# last write wins). This script now also runs a purely diagnostic,
+# read-only inspection of the real effective systemd configuration before
+# touching anything (`systemctl cat`/`systemctl show -p EnvironmentFiles -p
+# DropInPaths`), with every `Environment=` line redacted before printing
+# and the underlying env file's contents never read — evidence only, never
+# a pass/fail gate by itself. The real gate remains the same as R1: the
+# credential-free `GET /api/v1/workspace/storage/status` route, checked
+# via the actual running application, never assumed from unit-file text.
+# Per this correction's own explicit instruction, if that real check does
+# not confirm `provider=local`, the Download/Preview section below is
+# skipped entirely (no upload attempted, no predictable second 502) rather
+# than proceeding — every other, storage-independent scenario in this
+# script still runs regardless, since none of them depend on which storage
+# provider is active. `ISOLATED_CAPTURE_STORAGE_ACTIVE`/
+# `ISOLATED_OBJECT_STORAGE_ACTIVE` now prove isolation via observable disk
+# behavior (a real capture/object file actually appearing under the
+# isolated directories), not just by having declared the override.
+# Finally, the old, ambiguous "Isolated capture/storage overrides absent
+# from service env" cleanup check (which only tested whether certain
+# variable NAMES appeared in `/proc/<pid>/environ` — a check that would
+# have falsely passed even if cleanup silently failed, since production
+# configuration may legitimately define those same names) is replaced with
+# `TEST_SYSTEMD_DROPIN_REMOVED`/`TEST_ENV_FILE_REMOVED` (the exact
+# test-only artifact files no longer exist) plus the existing
+# `STORAGE_PROVIDER_RESTORED` (the real effective value, not the name, is
+# back to its pre-test baseline) and a new `ISOLATED_STORAGE_RECORDS_
+# CLEARED` disk-level check before the isolated directories are removed.
+#
 # Failure classification (for interpreting any FAIL this script reports):
 #   A. harness defect              — this script's own assertion/logic is wrong
 #   B. environment defect          — host/systemd/permissions/network issue
@@ -140,10 +185,13 @@ done
 
 if [ "$AUTO_CONFIRM" = false ]; then
   printf "\n${COLOR_BOLD}This test will perform real, consequential actions:${COLOR_NC}\n\n"
+  printf "  - read-only diagnostics: systemctl cat/show for nagex.service (Environment=\n"
+  printf "    values redacted, no env file contents ever read)\n"
   printf "  - temporarily override NAGEX_CAPTURES_DIR, NAGEX_OBJECT_STORAGE_DIR, and\n"
   printf "    NAGEX_STORAGE_PROVIDER (forced to the existing 'local' provider, for\n"
-  printf "    this isolated run only) on the running nagex.service (via a\n"
-  printf "    runtime-only /run systemd drop-in, removed in cleanup)\n"
+  printf "    this isolated run only) via a runtime-only /run EnvironmentFile,\n"
+  printf "    referenced from a runtime-only /run systemd drop-in (both removed in\n"
+  printf "    cleanup) — never touching /etc/nagex/nagex.env\n"
   printf "  - restart nagex.service TWICE (once to enable isolated storage, once\n"
   printf "    mid-scenario as the actual restart-persistence check under test)\n"
   printf "  - restart nagex.service a THIRD time in cleanup to restore normal mode\n"
@@ -161,7 +209,18 @@ fi
 BASE="${NAGEX_BASE_URL:-http://127.0.0.1:4100}"
 SERVICE_NAME="${NAGEX_SERVICE_NAME:-nagex.service}"
 DROPIN_DIR="/run/systemd/system/${SERVICE_NAME}.d"
-DROPIN_FILE="${DROPIN_DIR}/90-nagex-capture-ownership-isolation-accept.conf"
+# Named to sort alphabetically after any conceivable base drop-in this host
+# may already have (numeric-prefixed or otherwise) — systemd merges the
+# main unit's own directives first, then drop-ins in filename order, with
+# the LAST assignment for a given key winning. R1 used a "90-" prefix,
+# which a real host run at aba45cf proved insufficient (something in this
+# host's effective config still applied NAGEX_STORAGE_PROVIDER=s3 after
+# it) — "zz-" is a stronger, still-not-absolute defense given this session
+# cannot inspect the real host's exact drop-in layout in advance.
+DROPIN_FILE="${DROPIN_DIR}/zz-nagex-capture-ownership-isolation-accept.conf"
+# Runtime-only EnvironmentFile (R2's preferred mechanism) — contains ONLY
+# this run's 3 test overrides, never touches or reads /etc/nagex/nagex.env.
+TEST_ENV_FILE="/run/nagex-capture-ownership-accept-$$.env"
 RUN_ID="$(date +%s)_$$"
 ISOLATED_CAPTURES_DIR="/var/lib/nagex/capture-ownership-accept-captures-${RUN_ID}"
 ISOLATED_STORAGE_DIR="/var/lib/nagex/capture-ownership-accept-storage-${RUN_ID}"
@@ -204,17 +263,6 @@ wait_for_health() {
     waited=$((waited + 2))
   done
   return 1
-}
-
-service_main_pid() {
-  systemctl show -p MainPID --value "$SERVICE_NAME" 2>/dev/null || echo "0"
-}
-
-service_env_has_var() {
-  local varname="$1" pid
-  pid="$(service_main_pid)"
-  if [ "$pid" = "0" ] || [ -z "$pid" ]; then return 1; fi
-  sudo cat "/proc/${pid}/environ" 2>/dev/null | tr '\0' '\n' | grep -q "^${varname}="
 }
 
 # Resolved dynamically (never guessed/hardcoded) so the isolated dirs are
@@ -269,6 +317,23 @@ storage_status_provider() {
   json_get "$raw" 'data.provider'
 }
 
+# Read-only diagnostic evidence of how systemd will actually resolve this
+# unit's environment (per this correction's own Section 1) — never a
+# pass/fail gate by itself, never prints an Environment= VALUE (only the
+# key is visible, the assignment itself is redacted), never reads the
+# contents of any EnvironmentFile (only its path, via -p EnvironmentFiles).
+print_environment_resolution_diagnostics() {
+  printf "  --- systemctl cat %s (Environment= assignments redacted) ---\n" "$SERVICE_NAME"
+  if ! sudo systemctl cat "$SERVICE_NAME" 2>/dev/null | sed -E 's/^([[:space:]]*Environment=).*/\1<REDACTED-FOR-SECRET-SAFETY>/'; then
+    printf "  (unable to read unit definition)\n"
+  fi
+  printf "  --- systemctl show -p EnvironmentFiles -p DropInPaths (paths only) ---\n"
+  if ! systemctl show "$SERVICE_NAME" -p EnvironmentFiles -p DropInPaths 2>/dev/null; then
+    printf "  (unable to read unit properties)\n"
+  fi
+  printf "  (EnvironmentFile contents are never read directly by this script)\n"
+}
+
 cleanup() {
   local cleanup_ok=true
   printf "\n${COLOR_BOLD}Cleanup${COLOR_NC}\n"
@@ -301,6 +366,7 @@ cleanup() {
 
   if [ "$ISOLATION_ACTIVE" = true ]; then
     sudo rm -f "$DROPIN_FILE" 2>/dev/null || cleanup_ok=false
+    sudo rm -f "$TEST_ENV_FILE" 2>/dev/null || cleanup_ok=false
     sudo rmdir "$DROPIN_DIR" 2>/dev/null || true
     if sudo systemctl daemon-reload 2>/dev/null && sudo systemctl restart "$SERVICE_NAME" 2>/dev/null; then
       :
@@ -313,11 +379,27 @@ cleanup() {
       fail "Service restarted (normal mode)" "health check did not return within timeout"
       cleanup_ok=false
     fi
-    if service_env_has_var "NAGEX_CAPTURES_DIR" || service_env_has_var "NAGEX_OBJECT_STORAGE_DIR" || service_env_has_var "NAGEX_STORAGE_PROVIDER"; then
-      fail "Isolated capture/storage overrides absent from service env" "still present"
+
+    # Per this correction's own Section 8: a variable-NAME-presence check
+    # is not sufficient proof of removal (production config may legitimately
+    # define the same names) — verify the actual test-only artifact files
+    # and the real effective value instead.
+    if sudo test -f "$DROPIN_FILE"; then
+      fail "TEST_SYSTEMD_DROPIN_REMOVED" "$DROPIN_FILE still exists"
+      log_result "TEST_SYSTEMD_DROPIN_REMOVED" "FAIL"
       cleanup_ok=false
     else
-      pass "Isolated capture/storage overrides absent from service env"
+      pass "TEST_SYSTEMD_DROPIN_REMOVED" "$DROPIN_FILE no longer exists"
+      log_result "TEST_SYSTEMD_DROPIN_REMOVED" "PASS"
+    fi
+
+    if sudo test -f "$TEST_ENV_FILE"; then
+      fail "TEST_ENV_FILE_REMOVED" "$TEST_ENV_FILE still exists"
+      log_result "TEST_ENV_FILE_REMOVED" "FAIL"
+      cleanup_ok=false
+    else
+      pass "TEST_ENV_FILE_REMOVED" "$TEST_ENV_FILE no longer exists"
+      log_result "TEST_ENV_FILE_REMOVED" "PASS"
     fi
 
     PROD_STORAGE_PROVIDER_AFTER="$(storage_status_provider)"
@@ -327,6 +409,23 @@ cleanup() {
     else
       fail "STORAGE_PROVIDER_RESTORED" "before='$PROD_STORAGE_PROVIDER_BEFORE' after='$PROD_STORAGE_PROVIDER_AFTER'"
       log_result "STORAGE_PROVIDER_RESTORED" "FAIL"
+      cleanup_ok=false
+    fi
+  fi
+
+  # Disk-level proof, not just the API-level marker checks above, that no
+  # synthetic test record survives in the isolated directories before they
+  # are removed.
+  if [ -d "$ISOLATED_CAPTURES_DIR" ] || [ -d "$ISOLATED_STORAGE_DIR" ]; then
+    local leftover_captures leftover_objects
+    leftover_captures="$(sudo find "$ISOLATED_CAPTURES_DIR" -maxdepth 1 -name '*.json' 2>/dev/null | wc -l | tr -d ' ' || true)"
+    leftover_objects="$(sudo find "$ISOLATED_STORAGE_DIR" -maxdepth 1 -name '*.bin' 2>/dev/null | wc -l | tr -d ' ' || true)"
+    if [ "${leftover_captures:-0}" = "0" ] && [ "${leftover_objects:-0}" = "0" ]; then
+      pass "ISOLATED_STORAGE_RECORDS_CLEARED" "no surviving synthetic records/objects in the isolated directories"
+      log_result "ISOLATED_STORAGE_RECORDS_CLEARED" "PASS"
+    else
+      fail "ISOLATED_STORAGE_RECORDS_CLEARED" "captures=$leftover_captures objects=$leftover_objects still present"
+      log_result "ISOLATED_STORAGE_RECORDS_CLEARED" "FAIL"
       cleanup_ok=false
     fi
   fi
@@ -385,6 +484,7 @@ cleanup() {
 ISOLATION_ACTIVE=false
 PROD_CAPTURES_COUNT_BEFORE=""
 PROD_STORAGE_PROVIDER_BEFORE=""
+STORAGE_OVERRIDE_OK=false
 CAP_A="" ; CAP_B="" ; CAP_C="" ; CAP_D="" ; CAP_UPLOAD=""
 
 trap cleanup EXIT INT TERM
@@ -395,6 +495,14 @@ PROD_CAPTURES_COUNT_BEFORE="$(sudo find "$PROD_CAPTURES_DIR" -maxdepth 1 -name '
 printf "  Production captures file count before: %s\n" "$PROD_CAPTURES_COUNT_BEFORE"
 PROD_STORAGE_PROVIDER_BEFORE="$(storage_status_provider)"
 printf "  Production storage provider before: %s\n" "$PROD_STORAGE_PROVIDER_BEFORE"
+
+# ── Scenario: diagnose effective environment resolution (read-only) ──────
+# Per this correction's own Section 1: inspect the real service definition
+# BEFORE changing anything, to understand why R1's inline Environment=
+# override lost. Evidence only — never a pass/fail gate by itself; the real
+# gate is the live API check further below.
+section "Diagnose Effective Environment Resolution"
+print_environment_resolution_diagnostics
 
 # ── Scenario: isolated startup ────────────────────────────────────────────
 section "Isolated Startup"
@@ -407,12 +515,22 @@ else
   pass "Isolated dirs left root-owned" "${SERVICE_NAME} has no User= override, runs as root"
 fi
 
+# R2's preferred mechanism: a runtime-only EnvironmentFile (never
+# /etc/nagex/nagex.env itself) containing only this run's 3 test overrides,
+# referenced from a drop-in named to sort after any base drop-in — see the
+# header comment for the full reasoning behind why R1's inline Environment=
+# lines were insufficient.
+{
+  printf 'NAGEX_CAPTURES_DIR=%s\n' "$ISOLATED_CAPTURES_DIR"
+  printf 'NAGEX_OBJECT_STORAGE_DIR=%s\n' "$ISOLATED_STORAGE_DIR"
+  printf 'NAGEX_STORAGE_PROVIDER=local\n'
+} | sudo tee "$TEST_ENV_FILE" >/dev/null
+sudo chmod 600 "$TEST_ENV_FILE"
+
 sudo mkdir -p "$DROPIN_DIR"
 {
   printf '[Service]\n'
-  printf 'Environment=NAGEX_CAPTURES_DIR=%s\n' "$ISOLATED_CAPTURES_DIR"
-  printf 'Environment=NAGEX_OBJECT_STORAGE_DIR=%s\n' "$ISOLATED_STORAGE_DIR"
-  printf 'Environment=NAGEX_STORAGE_PROVIDER=local\n'
+  printf 'EnvironmentFile=%s\n' "$TEST_ENV_FILE"
 } | sudo tee "$DROPIN_FILE" >/dev/null
 ISOLATION_ACTIVE=true
 sudo chmod 600 "$DROPIN_FILE"
@@ -426,15 +544,18 @@ pass "Service started under isolated capture storage"
 
 # NAGEX_STORAGE_PROVIDER=local is a real, existing, documented provider
 # selector (confirmed via source read of createConfiguredStorageProvider())
-# — not an invented env var. Verified here (not assumed) via the real
-# storage/status route, which exposes no credentials.
+# — not an invented env var. Verified here (not assumed, and not merely by
+# reading the systemd unit text) via the real, credential-free
+# storage/status route on the actually-running application.
 ACTIVE_STORAGE_PROVIDER="$(storage_status_provider)"
 if [ "$ACTIVE_STORAGE_PROVIDER" = "local" ]; then
   pass "STORAGE_PROVIDER_OVERRIDE_ACTIVE" "NAGEX_STORAGE_PROVIDER=local honored (provider=local)"
   log_result "STORAGE_PROVIDER_OVERRIDE_ACTIVE" "PASS"
+  STORAGE_OVERRIDE_OK=true
 else
-  fail "STORAGE_PROVIDER_OVERRIDE_ACTIVE" "expected provider=local, got '$ACTIVE_STORAGE_PROVIDER'"
+  fail "STORAGE_PROVIDER_OVERRIDE_ACTIVE" "expected provider=local, got '$ACTIVE_STORAGE_PROVIDER' — Download/Preview Isolation below will be skipped rather than attempting a predictable failed upload"
   log_result "STORAGE_PROVIDER_OVERRIDE_ACTIVE" "FAIL"
+  STORAGE_OVERRIDE_OK=false
   OVERALL_EXIT=1
 fi
 
@@ -449,6 +570,18 @@ if [ -n "$CAP_A" ] && [ -n "$CAP_B" ] && [ -n "$CAP_C" ]; then
 else
   fail "RIGHTFUL_CAPTURE_CREATE" "one or more creates failed"
   log_result "RIGHTFUL_CAPTURE_CREATE" "FAIL"
+  OVERALL_EXIT=1
+fi
+
+# Prove NAGEX_CAPTURES_DIR isolation via observable disk behavior, not
+# merely by having declared the override — the exact defect class this
+# whole correction exists to catch.
+if [ -n "$CAP_A" ] && sudo test -f "${ISOLATED_CAPTURES_DIR}/${CAP_A}.json"; then
+  pass "ISOLATED_CAPTURE_STORAGE_ACTIVE" "Capture A's record file found under the isolated captures directory"
+  log_result "ISOLATED_CAPTURE_STORAGE_ACTIVE" "PASS"
+else
+  fail "ISOLATED_CAPTURE_STORAGE_ACTIVE" "${ISOLATED_CAPTURES_DIR}/${CAP_A}.json not found"
+  log_result "ISOLATED_CAPTURE_STORAGE_ACTIVE" "FAIL"
   OVERALL_EXIT=1
 fi
 
@@ -648,68 +781,103 @@ fi
 # markers, checked immediately after the synthetic upload succeeds — kept
 # separate from "Rightful Owner Lifecycle" below so a PASS there can never
 # be read as having exercised this blob-backed path when it did not.
+#
+# Gated on STORAGE_OVERRIDE_OK: per this correction's own explicit
+# instruction, if the real check above did not confirm provider=local, do
+# not attempt the upload at all — that would just reproduce the same
+# predictable S3 502 already seen and root-caused at aba45cf.
 section "Download / Preview Isolation"
-UPLOAD_BASE64="$(node -e 'console.log(Buffer.from([0x1a,0x45,0xdf,0xa3,0x99,0x88,0x77,0x66,0x55,0x44,0x33,0x22]).toString("base64"))')"
-UPLOAD_BODY="$(node -e 'console.log(JSON.stringify({filename:"memo.webm", mimeType:"audio/webm", type:"AUDIO", source:"WEB", base64: process.argv[1]}))' "$UPLOAD_BASE64")"
-api_call_as POST "${BASE}/api/v1/workspace/upload" "$UPLOAD_BODY" "$TENANT_A" "$OWNER_A"
-if [ "$API_CALL_STATUS" != "201" ]; then
-  fail "synthetic upload for download/preview testing" "HTTP $API_CALL_STATUS $(api_error_summary "$API_CALL_BODY")"
-  log_result "RIGHTFUL_CAPTURE_DOWNLOAD" "FAIL"
-  log_result "RIGHTFUL_CAPTURE_PREVIEW" "FAIL"
-  log_result "CAPTURE_DOWNLOAD_ISOLATION" "FAIL"
-  log_result "CAPTURE_PREVIEW_ISOLATION" "FAIL"
+if [ "$STORAGE_OVERRIDE_OK" != true ]; then
+  fail "SYNTHETIC_UPLOAD_FIXTURE" "skipped — STORAGE_PROVIDER_OVERRIDE_ACTIVE did not confirm provider=local"
+  log_result "SYNTHETIC_UPLOAD_FIXTURE" "SKIPPED"
+  log_result "ISOLATED_OBJECT_STORAGE_ACTIVE" "SKIPPED"
+  log_result "RIGHTFUL_CAPTURE_DOWNLOAD" "SKIPPED"
+  log_result "RIGHTFUL_CAPTURE_PREVIEW" "SKIPPED"
+  log_result "CAPTURE_DOWNLOAD_ISOLATION" "SKIPPED"
+  log_result "CAPTURE_PREVIEW_ISOLATION" "SKIPPED"
   OVERALL_EXIT=1
 else
-  CAP_UPLOAD="$(json_get "$API_CALL_BODY" 'data.captureId')"
+  ISOLATED_STORAGE_OBJECT_COUNT_BEFORE="$(sudo find "$ISOLATED_STORAGE_DIR" -maxdepth 1 -name '*.bin' 2>/dev/null | wc -l | tr -d ' ' || true)"
 
-  api_call_as GET "${BASE}/api/v1/workspace/items/${CAP_UPLOAD}/download" "" "$TENANT_A" "$OWNER_A"
-  RIGHTFUL_DL_URL="$(json_get "$API_CALL_BODY" 'data.downloadUrl')"
-  if [ "$API_CALL_STATUS" = "200" ] && [ -n "$RIGHTFUL_DL_URL" ]; then
-    pass "RIGHTFUL_CAPTURE_DOWNLOAD" "rightful owner received a real downloadUrl"
-    log_result "RIGHTFUL_CAPTURE_DOWNLOAD" "PASS"
-  else
-    fail "RIGHTFUL_CAPTURE_DOWNLOAD" "HTTP $API_CALL_STATUS $(api_error_summary "$API_CALL_BODY")"
+  UPLOAD_BASE64="$(node -e 'console.log(Buffer.from([0x1a,0x45,0xdf,0xa3,0x99,0x88,0x77,0x66,0x55,0x44,0x33,0x22]).toString("base64"))')"
+  UPLOAD_BODY="$(node -e 'console.log(JSON.stringify({filename:"memo.webm", mimeType:"audio/webm", type:"AUDIO", source:"WEB", base64: process.argv[1]}))' "$UPLOAD_BASE64")"
+  api_call_as POST "${BASE}/api/v1/workspace/upload" "$UPLOAD_BODY" "$TENANT_A" "$OWNER_A"
+  if [ "$API_CALL_STATUS" != "201" ]; then
+    fail "SYNTHETIC_UPLOAD_FIXTURE" "HTTP $API_CALL_STATUS $(api_error_summary "$API_CALL_BODY")"
+    log_result "SYNTHETIC_UPLOAD_FIXTURE" "FAIL"
+    log_result "ISOLATED_OBJECT_STORAGE_ACTIVE" "FAIL"
     log_result "RIGHTFUL_CAPTURE_DOWNLOAD" "FAIL"
-    OVERALL_EXIT=1
-  fi
-
-  api_call_as GET "${BASE}/api/v1/workspace/items/${CAP_UPLOAD}/preview" "" "$TENANT_A" "$OWNER_A"
-  RIGHTFUL_PV_URL="$(json_get "$API_CALL_BODY" 'data.previewUrl')"
-  if [ "$API_CALL_STATUS" = "200" ] && [ -n "$RIGHTFUL_PV_URL" ]; then
-    pass "RIGHTFUL_CAPTURE_PREVIEW" "rightful owner received a real previewUrl"
-    log_result "RIGHTFUL_CAPTURE_PREVIEW" "PASS"
-  else
-    fail "RIGHTFUL_CAPTURE_PREVIEW" "HTTP $API_CALL_STATUS $(api_error_summary "$API_CALL_BODY")"
     log_result "RIGHTFUL_CAPTURE_PREVIEW" "FAIL"
-    OVERALL_EXIT=1
-  fi
-
-  api_call_as GET "${BASE}/api/v1/workspace/items/${CAP_UPLOAD}/download" "" "$TENANT_B" "$OWNER_A"
-  DL_CT_CODE="$(extract_error_code "$API_CALL_BODY")"
-  api_call_as GET "${BASE}/api/v1/workspace/items/${CAP_UPLOAD}/download" "" "$TENANT_A" "$OWNER_B"
-  DL_CO_CODE="$(extract_error_code "$API_CALL_BODY")"
-  DL_CO_URL="$(json_get "$API_CALL_BODY" 'data.downloadUrl')"
-  if [ "$DL_CT_CODE" = "ITEM_NOT_FOUND" ] && [ "$DL_CO_CODE" = "ITEM_NOT_FOUND" ] && [ -z "$DL_CO_URL" ]; then
-    pass "CAPTURE_DOWNLOAD_ISOLATION" "both wrong-tenant and wrong-owner blocked, no URL issued"
-    log_result "CAPTURE_DOWNLOAD_ISOLATION" "PASS"
-  else
-    fail "CAPTURE_DOWNLOAD_ISOLATION" "ct_code=$DL_CT_CODE co_code=$DL_CO_CODE url=$DL_CO_URL"
     log_result "CAPTURE_DOWNLOAD_ISOLATION" "FAIL"
-    OVERALL_EXIT=1
-  fi
-
-  api_call_as GET "${BASE}/api/v1/workspace/items/${CAP_UPLOAD}/preview" "" "$TENANT_B" "$OWNER_A"
-  PV_CT_CODE="$(extract_error_code "$API_CALL_BODY")"
-  api_call_as GET "${BASE}/api/v1/workspace/items/${CAP_UPLOAD}/preview" "" "$TENANT_A" "$OWNER_B"
-  PV_CO_CODE="$(extract_error_code "$API_CALL_BODY")"
-  PV_CO_URL="$(json_get "$API_CALL_BODY" 'data.previewUrl')"
-  if [ "$PV_CT_CODE" = "ITEM_NOT_FOUND" ] && [ "$PV_CO_CODE" = "ITEM_NOT_FOUND" ] && [ -z "$PV_CO_URL" ]; then
-    pass "CAPTURE_PREVIEW_ISOLATION" "both wrong-tenant and wrong-owner blocked, no URL issued"
-    log_result "CAPTURE_PREVIEW_ISOLATION" "PASS"
-  else
-    fail "CAPTURE_PREVIEW_ISOLATION" "ct_code=$PV_CT_CODE co_code=$PV_CO_CODE url=$PV_CO_URL"
     log_result "CAPTURE_PREVIEW_ISOLATION" "FAIL"
     OVERALL_EXIT=1
+  else
+    CAP_UPLOAD="$(json_get "$API_CALL_BODY" 'data.captureId')"
+    pass "SYNTHETIC_UPLOAD_FIXTURE" "captureId=$CAP_UPLOAD"
+    log_result "SYNTHETIC_UPLOAD_FIXTURE" "PASS"
+
+    # Prove NAGEX_OBJECT_STORAGE_DIR isolation via observable disk behavior
+    # (a new object file actually appearing under the isolated storage
+    # directory), not merely by having declared the override.
+    ISOLATED_STORAGE_OBJECT_COUNT_AFTER="$(sudo find "$ISOLATED_STORAGE_DIR" -maxdepth 1 -name '*.bin' 2>/dev/null | wc -l | tr -d ' ' || true)"
+    if [ "${ISOLATED_STORAGE_OBJECT_COUNT_AFTER:-0}" -gt "${ISOLATED_STORAGE_OBJECT_COUNT_BEFORE:-0}" ]; then
+      pass "ISOLATED_OBJECT_STORAGE_ACTIVE" "new object landed under the isolated storage directory (before=$ISOLATED_STORAGE_OBJECT_COUNT_BEFORE after=$ISOLATED_STORAGE_OBJECT_COUNT_AFTER)"
+      log_result "ISOLATED_OBJECT_STORAGE_ACTIVE" "PASS"
+    else
+      fail "ISOLATED_OBJECT_STORAGE_ACTIVE" "no new .bin file appeared under $ISOLATED_STORAGE_DIR (before=$ISOLATED_STORAGE_OBJECT_COUNT_BEFORE after=$ISOLATED_STORAGE_OBJECT_COUNT_AFTER)"
+      log_result "ISOLATED_OBJECT_STORAGE_ACTIVE" "FAIL"
+      OVERALL_EXIT=1
+    fi
+
+    api_call_as GET "${BASE}/api/v1/workspace/items/${CAP_UPLOAD}/download" "" "$TENANT_A" "$OWNER_A"
+    RIGHTFUL_DL_URL="$(json_get "$API_CALL_BODY" 'data.downloadUrl')"
+    if [ "$API_CALL_STATUS" = "200" ] && [ -n "$RIGHTFUL_DL_URL" ]; then
+      pass "RIGHTFUL_CAPTURE_DOWNLOAD" "rightful owner received a real downloadUrl"
+      log_result "RIGHTFUL_CAPTURE_DOWNLOAD" "PASS"
+    else
+      fail "RIGHTFUL_CAPTURE_DOWNLOAD" "HTTP $API_CALL_STATUS $(api_error_summary "$API_CALL_BODY")"
+      log_result "RIGHTFUL_CAPTURE_DOWNLOAD" "FAIL"
+      OVERALL_EXIT=1
+    fi
+
+    api_call_as GET "${BASE}/api/v1/workspace/items/${CAP_UPLOAD}/preview" "" "$TENANT_A" "$OWNER_A"
+    RIGHTFUL_PV_URL="$(json_get "$API_CALL_BODY" 'data.previewUrl')"
+    if [ "$API_CALL_STATUS" = "200" ] && [ -n "$RIGHTFUL_PV_URL" ]; then
+      pass "RIGHTFUL_CAPTURE_PREVIEW" "rightful owner received a real previewUrl"
+      log_result "RIGHTFUL_CAPTURE_PREVIEW" "PASS"
+    else
+      fail "RIGHTFUL_CAPTURE_PREVIEW" "HTTP $API_CALL_STATUS $(api_error_summary "$API_CALL_BODY")"
+      log_result "RIGHTFUL_CAPTURE_PREVIEW" "FAIL"
+      OVERALL_EXIT=1
+    fi
+
+    api_call_as GET "${BASE}/api/v1/workspace/items/${CAP_UPLOAD}/download" "" "$TENANT_B" "$OWNER_A"
+    DL_CT_CODE="$(extract_error_code "$API_CALL_BODY")"
+    api_call_as GET "${BASE}/api/v1/workspace/items/${CAP_UPLOAD}/download" "" "$TENANT_A" "$OWNER_B"
+    DL_CO_CODE="$(extract_error_code "$API_CALL_BODY")"
+    DL_CO_URL="$(json_get "$API_CALL_BODY" 'data.downloadUrl')"
+    if [ "$DL_CT_CODE" = "ITEM_NOT_FOUND" ] && [ "$DL_CO_CODE" = "ITEM_NOT_FOUND" ] && [ -z "$DL_CO_URL" ]; then
+      pass "CAPTURE_DOWNLOAD_ISOLATION" "both wrong-tenant and wrong-owner blocked, no URL issued"
+      log_result "CAPTURE_DOWNLOAD_ISOLATION" "PASS"
+    else
+      fail "CAPTURE_DOWNLOAD_ISOLATION" "ct_code=$DL_CT_CODE co_code=$DL_CO_CODE url=$DL_CO_URL"
+      log_result "CAPTURE_DOWNLOAD_ISOLATION" "FAIL"
+      OVERALL_EXIT=1
+    fi
+
+    api_call_as GET "${BASE}/api/v1/workspace/items/${CAP_UPLOAD}/preview" "" "$TENANT_B" "$OWNER_A"
+    PV_CT_CODE="$(extract_error_code "$API_CALL_BODY")"
+    api_call_as GET "${BASE}/api/v1/workspace/items/${CAP_UPLOAD}/preview" "" "$TENANT_A" "$OWNER_B"
+    PV_CO_CODE="$(extract_error_code "$API_CALL_BODY")"
+    PV_CO_URL="$(json_get "$API_CALL_BODY" 'data.previewUrl')"
+    if [ "$PV_CT_CODE" = "ITEM_NOT_FOUND" ] && [ "$PV_CO_CODE" = "ITEM_NOT_FOUND" ] && [ -z "$PV_CO_URL" ]; then
+      pass "CAPTURE_PREVIEW_ISOLATION" "both wrong-tenant and wrong-owner blocked, no URL issued"
+      log_result "CAPTURE_PREVIEW_ISOLATION" "PASS"
+    else
+      fail "CAPTURE_PREVIEW_ISOLATION" "ct_code=$PV_CT_CODE co_code=$PV_CO_CODE url=$PV_CO_URL"
+      log_result "CAPTURE_PREVIEW_ISOLATION" "FAIL"
+      OVERALL_EXIT=1
+    fi
   fi
 fi
 
