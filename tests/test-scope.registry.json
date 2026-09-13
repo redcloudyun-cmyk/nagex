@@ -100,6 +100,7 @@
     "capture_ownership_isolation",
     "cloud_vault_nebius.integration",
     "cloud_vault_smoke",
+    "composer_drop_zone",
     "conversation_workspace",
     "core",
     "desktop_native_shell",

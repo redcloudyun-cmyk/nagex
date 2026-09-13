@@ -1632,6 +1632,15 @@ body {
   text-align: center;
 }
 
+/* The "hidden" class name has no built-in browser meaning by itself (only
+   the HTML "hidden" attribute does) — a class needs its own rule. Scoped
+   to this element specifically, not a generic .hidden, since no inventory
+   of every other place a "hidden" class might already be relied upon for
+   different, unverified CSS was done as part of this narrow correction. */
+.composer-file-drop-zone.hidden {
+  display: none;
+}
+
 /* Home Canvas 4-Section Layout */
 .home-canvas-sections {
   display: grid;
