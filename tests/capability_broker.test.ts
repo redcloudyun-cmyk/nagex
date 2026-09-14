@@ -183,6 +183,7 @@ describe('Capability Broker Mandatory Tests', () => {
         };
       },
       click: async (id: string) => {},
+      keypress: async () => {},
     };
 
     browserService = new BrowserToolService(

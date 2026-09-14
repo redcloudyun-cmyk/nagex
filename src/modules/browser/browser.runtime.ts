@@ -72,6 +72,11 @@ export interface BrowserRuntime {
   select(sessionId: string, selector: string, value: string): Promise<void>;
   scroll(sessionId: string, direction: 'up' | 'down', amountPx: number): Promise<void>;
   wait(sessionId: string, ms: number): Promise<void>;
+  // DC1-8 — a single named key (e.g. "Enter", "Tab", "Escape") via
+  // Playwright's own key-name vocabulary, applied to the currently
+  // focused element (no selector — mirrors real keyboard input, which has
+  // no target of its own beyond whatever already has focus).
+  keypress(sessionId: string, key: string): Promise<void>;
   shutdown(): Promise<void>;
 }
 
@@ -408,6 +413,11 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
   public async wait(sessionId: string, ms: number): Promise<void> {
     const page = this.requirePage(sessionId);
     await page.waitForTimeout(Math.min(ms, MAX_WAIT_MS));
+  }
+
+  public async keypress(sessionId: string, key: string): Promise<void> {
+    const page = this.requirePage(sessionId);
+    await page.keyboard.press(key);
   }
 }
 

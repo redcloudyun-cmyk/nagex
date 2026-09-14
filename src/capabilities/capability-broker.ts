@@ -13,6 +13,7 @@ import {
 import type { CalendarApprovalRequesterPort, CalendarWriteExecutionPort } from '../contracts/calendar.port.js';
 import type { GmailPort, GmailWriteExecutionPort } from '../contracts/gmail.port.js';
 import type { BrowserPort } from '../contracts/browser.port.js';
+import type { DeviceControlService } from '../device-control/device-control.service.js';
 
 export interface CapabilityIdempotencyRecord {
   key: string;
@@ -44,6 +45,12 @@ const NATIVE_APPROVAL_CAPABILITIES = new Set([
   'gmail.reply',
   'gmail.create_draft',
   'browser.click',
+  // DC1 — device.browser.execute pauses/resumes through the exact same
+  // ActionApprovalStore-backed continuation browser.click already uses
+  // (indirectly, via BrowserToolService.click()/executeApprovedClick()) —
+  // it is its own native approval continuation, never a hard REQUIRED
+  // block on the whole capability.
+  'device.browser.execute',
 ]);
 
 import { ModuleRegistry, canonicalModuleRegistry } from '../modules/module.registry.js';
@@ -61,7 +68,13 @@ export class CapabilityBroker {
     idempotencyDirName: string = 'capabilities_idempotency',
     idempotencyEnvVar: string = 'NAGEX_CAPABILITIES_IDEMPOTENCY_DIR',
     private readonly moduleRegistry: ModuleRegistry = canonicalModuleRegistry,
-    private readonly moduleStateStore?: ModuleStateStore
+    private readonly moduleStateStore?: ModuleStateStore,
+    // DC1 — additive, optional, trailing: existing call sites that
+    // construct CapabilityBroker directly (several across the test suite)
+    // are unaffected. Absent, 'DEVICE' capabilities simply report
+    // unavailable via isProviderAvailable() below, the same graceful
+    // degradation every other provider already has.
+    private readonly deviceControlService?: DeviceControlService
   ) {
     const dataDir = resolveNagexDataDir(idempotencyDirName, idempotencyEnvVar);
     this.idempotencyStore = new FileRecordStore<CapabilityIdempotencyRecord>(
@@ -248,6 +261,7 @@ export class CapabilityBroker {
     if (provider === 'GOOGLE_CALENDAR') return Boolean(this.calendarService);
     if (provider === 'GMAIL') return Boolean(this.gmailService);
     if (provider === 'BROWSER') return Boolean(this.browserService);
+    if (provider === 'DEVICE') return Boolean(this.deviceControlService);
     return false;
   }
 
@@ -599,6 +613,43 @@ export class CapabilityBroker {
         }
 
         return { status: 'EXECUTED', capabilityId: request.capabilityId, result: clickRes };
+      }
+    }
+
+    // Handle Device Control Capabilities (DC1) — the single coarse entry
+    // point for the bounded visual-execution loop. `request.approvalId`
+    // resumes exactly like every other native-approval capability above;
+    // its absence starts a new session. Raw primitives (click/type/
+    // scroll/keypress) are never separately exposed here — see
+    // capability.registry.ts's own comment on device.browser.execute.
+    if (def.provider === 'DEVICE') {
+      if (request.capabilityId === 'device.browser.execute') {
+        const outcome = request.approvalId
+          ? await this.deviceControlService!.resumeSession({
+              tenantId: request.tenantId,
+              ownerId: request.principalId,
+              requestId: request.requestId,
+              deviceExecutionSessionId: payload.deviceExecutionSessionId,
+              approvalId: request.approvalId,
+            })
+          : await this.deviceControlService!.startSession({
+              tenantId: request.tenantId,
+              ownerId: request.principalId,
+              requestId: request.requestId,
+              goal: payload.goal,
+              allowedDomains: payload.allowedDomains || [],
+              allowedActions: payload.allowedActions,
+              maxSteps: payload.maxSteps,
+              maxDurationMs: payload.maxDurationMs,
+              taskId: payload.taskId ?? null,
+              taskRunId: payload.taskRunId ?? null,
+            });
+
+        if (outcome.kind === 'WAITING_APPROVAL') {
+          this.logApprovalRequired(request, def);
+          return { status: 'APPROVAL_REQUIRED', capabilityId: request.capabilityId, approval: outcome.approval };
+        }
+        return { status: 'EXECUTED', capabilityId: request.capabilityId, result: outcome };
       }
     }
 

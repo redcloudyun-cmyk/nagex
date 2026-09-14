@@ -36,6 +36,15 @@ export class CapabilityRegistry {
       { id: 'browser.forward', provider: 'BROWSER', risk: 'READ_ONLY', approval: 'NONE', enabled: true },
       { id: 'browser.reload', provider: 'BROWSER', risk: 'READ_ONLY', approval: 'NONE', enabled: true },
       { id: 'browser.click', provider: 'BROWSER', risk: 'DYNAMIC', approval: 'CONDITIONAL', enabled: true },
+
+      // Device Control (DC1) — the single coarse entry point for the
+      // bounded visual-execution loop. DYNAMIC/CONDITIONAL mirrors
+      // browser.click: most steps execute without a pause, but the loop
+      // can escalate mid-run (a CLICK step classified consequential) and
+      // must be able to pause for approval — never a hard REQUIRED gate on
+      // the whole capability, which would block even read-only OBSERVE-only
+      // runs.
+      { id: 'device.browser.execute', provider: 'DEVICE', risk: 'DYNAMIC', approval: 'CONDITIONAL', enabled: true },
     ];
 
     for (const def of defaults) {

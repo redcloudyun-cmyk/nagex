@@ -32,6 +32,7 @@ import { ExecutionStore } from '../governance/execution.store.js';
 import { GoogleCalendarService } from '../modules/calendar/index.js';
 import { GmailService } from '../modules/gmail/index.js';
 import { BrowserToolService, browserRuntime, browserSessionStore } from '../modules/browser/index.js';
+import { DeviceExecutionSessionStore } from '../device-control/device-execution-session.store.js';
 import { googleTokenStore } from '../integrations/google/token.store.js';
 import { readGoogleOAuthConfig } from '../integrations/google/oauth.client.js';
 import { SessionStore } from '../sessions/session.store.js';
@@ -112,6 +113,10 @@ export function createNagexApplication(): NagexApplication {
   // — but it consumes the identical ActionApprovalStore, replay-protected the
   // same way, and GET/approve/reject need no route changes here either.
   const browserService = new BrowserToolService(browserRuntime, browserSessionStore, actionApprovals, auditLogger, memoryEngine, executionStore);
+  // DC1 — durable Device Control session store, real from day one (see
+  // nagex-application.ts's own comment on this field for why no
+  // production deviceControlService/capabilityBroker wiring exists yet).
+  const deviceExecutionSessionStore = new DeviceExecutionSessionStore();
   const moduleRegistry = new ModuleRegistry();
   const moduleStateStore = new ModuleStateStore();
   const moduleService = new ModuleService(moduleRegistry, moduleStateStore, auditLogger);
@@ -381,6 +386,7 @@ export function createNagexApplication(): NagexApplication {
     inputRouter,
     workflowDefinitionStore,
     workflowDefinitionService,
+    deviceExecutionSessionStore,
     lifecycle,
     getRelevantMemories,
     pinnedMemories,

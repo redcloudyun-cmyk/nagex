@@ -31,7 +31,8 @@ export type ResourcePrefix =
   | 'cap'
   | 'cand'
   | 'msg'
-  | 'cont';
+  | 'cont'
+  | 'des';
 
 export function generateResourceId(prefix: ResourcePrefix): string {
   const opaqueId = crypto.randomBytes(8).toString('hex');

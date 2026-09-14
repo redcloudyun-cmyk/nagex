@@ -14,7 +14,11 @@ export type CapabilityApprovalMode =
 
 export interface CapabilityDefinition {
   id: string;
-  provider: 'GOOGLE_CALENDAR' | 'GMAIL' | 'BROWSER';
+  // DC1 — 'DEVICE' is additive: it is the Capability Broker's single
+  // coarse entry point for the bounded visual-execution loop
+  // (device.browser.execute), never a per-primitive surface — see
+  // device-control/device-control.service.ts.
+  provider: 'GOOGLE_CALENDAR' | 'GMAIL' | 'BROWSER' | 'DEVICE';
   risk: CapabilityRisk;
   approval: CapabilityApprovalMode;
   enabled: boolean;

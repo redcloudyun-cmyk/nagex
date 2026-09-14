@@ -409,6 +409,7 @@ test('Service regression: BrowserToolService click blocked on expired APPROVED a
     select: async () => {},
     scroll: async () => {},
     wait: async () => {},
+    keypress: async () => {},
     shutdown: async () => {},
   };
 

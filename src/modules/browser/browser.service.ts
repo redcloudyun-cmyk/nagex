@@ -321,6 +321,17 @@ export class BrowserToolService {
     await this.runtime.wait(record.browserSessionId, input.ms);
   }
 
+  // DC1-8 — the one new browser primitive this slice adds, following the
+  // exact requireAvailable/requireSession/runtime-call/audit shape every
+  // other action here already uses. No selector: a keypress acts on
+  // whatever element already has focus, exactly like real keyboard input.
+  public async keypress(input: BrowserActionInput & { key: string }): Promise<void> {
+    this.requireAvailable(input.requestId);
+    const record = this.requireSession(input.browserSessionId, input.tenantId, input.ownerId, input.requestId);
+    await this.runtime.keypress(record.browserSessionId, input.key);
+    this.auditAction('browser.keypress', 'tool.execution.succeeded', input, 'SUCCESS', { key: input.key });
+  }
+
   public async type(input: BrowserActionInput & { selector: string; text: string }): Promise<void> {
     this.requireAvailable(input.requestId);
     const record = this.requireSession(input.browserSessionId, input.tenantId, input.ownerId, input.requestId);
