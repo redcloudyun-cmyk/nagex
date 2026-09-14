@@ -183,6 +183,53 @@ test('CROSS_TENANT_BROWSER_TYPE_BLOCK / CROSS_OWNER_BROWSER_TYPE_BLOCK', async (
   }
 });
 
+// ── 8b: clearProfile isolation, dedicated (DC0-R1 — the live HTTP surface
+// has no clearProfile route, so this canonical repository test is the
+// sole ownership proof for it; previously only an incidental cross-owner
+// assertion existed inside BLOCKED_BROWSER_ACTION_NO_MUTATION below, with
+// no dedicated cross-tenant case and no rightful-succeeds case).
+// Uses a non-persistent runtime (matching this file's harness throughout),
+// under which clearProfile() still always closes the session regardless
+// of persistent-profile mode (browser.runtime.ts:361-369) — so "rightful
+// clearProfile succeeds" is meaningfully assertable without needing
+// NAGEX_BROWSER_PERSISTENT_PROFILE=1.
+
+test('CROSS_TENANT_BROWSER_CLEAR_PROFILE_BLOCK / CROSS_OWNER_BROWSER_CLEAR_PROFILE_BLOCK / RIGHTFUL_BROWSER_CLEAR_PROFILE', async () => {
+  const testServer = await createTestServer();
+  const { runtime, sessions, service } = await buildHarness();
+  try {
+    const session = await service.open({ tenantId: TENANT_A, ownerId: OWNER_X, requestId: 'req_open' });
+    await service.navigate({ tenantId: TENANT_A, ownerId: OWNER_X, requestId: 'req_nav', browserSessionId: session.browserSessionId, url: testServer.baseUrl });
+    const before = sessions.get(session.browserSessionId);
+    assert.ok(before);
+
+    await assertNotFound(
+      service.clearProfile({ tenantId: TENANT_B, ownerId: OWNER_X, requestId: 'req_cp_ct', browserSessionId: session.browserSessionId }),
+      'CROSS_TENANT_BROWSER_CLEAR_PROFILE_BLOCK',
+    );
+    await assertNotFound(
+      service.clearProfile({ tenantId: TENANT_A, ownerId: OWNER_Y, requestId: 'req_cp_co', browserSessionId: session.browserSessionId }),
+      'CROSS_OWNER_BROWSER_CLEAR_PROFILE_BLOCK',
+    );
+
+    // Neither blocked attempt may have closed the rightful session, mutated
+    // its state, or touched the real browser context.
+    const stillOpen = sessions.get(session.browserSessionId);
+    assert.equal(stillOpen?.status, 'OPEN');
+    assert.equal(stillOpen?.currentUrl, before?.currentUrl);
+
+    // Rightful clearProfile retains its existing semantics: it always
+    // closes the session (persistent-profile directory removal is
+    // additional and conditional on persistent mode, not exercised by this
+    // non-persistent harness — see browser.runtime.ts:361-369).
+    await service.clearProfile({ tenantId: TENANT_A, ownerId: OWNER_X, requestId: 'req_cp_rightful', browserSessionId: session.browserSessionId });
+    assert.equal(sessions.get(session.browserSessionId)?.status, 'CLOSED');
+  } finally {
+    await runtime.shutdown();
+    await testServer.close();
+  }
+});
+
 // ── 9: no-mutation proof across the full blocked-action set ─────────────
 
 test('BLOCKED_BROWSER_ACTION_NO_MUTATION: session status/currentUrl are unchanged after every blocked cross-identity attempt', async () => {
