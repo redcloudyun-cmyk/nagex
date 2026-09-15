@@ -91,6 +91,66 @@ async function withBrowserPage(origin: string, run: (page: Page) => Promise<void
   }
 }
 
+async function waitForComposerDisabledState(
+  page: Page,
+  expectedDisabled: boolean,
+  timeoutMs: number,
+  stepName: string
+): Promise<void> {
+  const pendingRequests: string[] = [];
+  const requestListener = (req: any) => pendingRequests.push(`${req.method()} ${req.url()}`);
+  const responseListener = (res: any) => {
+    const idx = pendingRequests.indexOf(`${res.request().method()} ${res.request().url()}`);
+    if (idx !== -1) pendingRequests.splice(idx, 1);
+  };
+  page.on('request', requestListener);
+  page.on('response', responseListener);
+
+  try {
+    await page.waitForFunction(
+      (target) => {
+        const input = document.getElementById('home-prompt-input') as HTMLTextAreaElement | null;
+        return input ? input.disabled === target : false;
+      },
+      expectedDisabled,
+      { timeout: timeoutMs }
+    );
+  } catch (err) {
+    const diag = await page.evaluate(() => {
+      const input = document.getElementById('home-prompt-input') as HTMLTextAreaElement | null;
+      const sendBtn = document.getElementById('btn-home-prompt-send') as HTMLButtonElement | null;
+      const quickActions = Array.from(document.querySelectorAll('.quick-action-chip')).map((el) => ({
+        text: (el as HTMLElement).innerText?.trim(),
+        disabled: (el as HTMLButtonElement).disabled,
+      }));
+      const resultCard = document.getElementById('ambient-result-card');
+      const ambientGuardState = (window as any).__NAGEX_AMBIENT_GUARD_BUSY__ ?? null;
+      const timeoutOverride = (window as any).__NAGEX_TEST_AMBIENT_TIMEOUT_MS__ ?? null;
+
+      return {
+        inputDisabled: input ? input.disabled : 'NOT_FOUND',
+        inputValue: input ? input.value : '',
+        sendDisabled: sendBtn ? sendBtn.disabled : 'NOT_FOUND',
+        quickActionsDisabledCount: quickActions.filter((q) => q.disabled).length,
+        quickActionsTotal: quickActions.length,
+        resultCardDisplay: resultCard ? resultCard.style.display : 'NOT_FOUND',
+        ambientGuardBusy: ambientGuardState,
+        testTimeoutOverrideMs: timeoutOverride,
+        activeElement: document.activeElement ? `${document.activeElement.tagName}#${document.activeElement.id}` : 'NONE',
+        currentUrl: window.location.href,
+      };
+    }).catch((evalErr) => ({ evalError: String(evalErr) }));
+
+    console.error(`\n[DIAGNOSTIC FAILURE - ${stepName}] Expected disabled === ${expectedDisabled}, timed out after ${timeoutMs}ms:`);
+    console.error(`  Pending HTTP requests in page: ${JSON.stringify(pendingRequests)}`);
+    console.error(`  Page DOM/State Diagnostics: ${JSON.stringify(diag, null, 2)}\n`);
+    throw err;
+  } finally {
+    page.off('request', requestListener);
+    page.off('response', responseListener);
+  }
+}
+
 test('a stalled ambient/intent request recovers: composer, Send, and Quick Actions all re-enable after the bounded timeout, and accept real input again', { timeout: 90000 }, async () => {
   await withServer(async (origin) => {
     await withBrowserPage(origin, async (page) => {
@@ -109,49 +169,26 @@ test('a stalled ambient/intent request recovers: composer, Send, and Quick Actio
       await page.click('#btn-home-prompt-send');
 
       // 6. Assert textarea becomes disabled while the request is active.
-      // Margin sized generously (not a precise timing assertion) so this
-      // stays reliable when many other real-browser tests in this suite
-      // are launching their own Chromium instances concurrently.
-      await page.waitForFunction(
-        () => (document.getElementById('home-prompt-input') as HTMLTextAreaElement).disabled === true,
-        null,
-        { timeout: 45000 }
-      );
+      await waitForComposerDisabledState(page, true, 45000, 'Test 1: Wait for disabled===true on submit');
+
       const sendDisabledWhileInFlight = await page.$eval('#btn-home-prompt-send', (el) => (el as HTMLButtonElement).disabled);
       assert.equal(sendDisabledWhileInFlight, true, 'Send control must be disabled while the request is in flight');
 
-      // 7-8. Wait for timeout + a real margin, then assert recovery — the
-      // actual regression proof: this is the fetch settling via the new
-      // bounded abort, not the request ever actually completing.
-      await page.waitForFunction(
-        () => (document.getElementById('home-prompt-input') as HTMLTextAreaElement).disabled === false,
-        null,
-        { timeout: TEST_TIMEOUT_MS + 45000 }
-      );
+      // 7-8. Wait for timeout + a real margin, then assert recovery.
+      await waitForComposerDisabledState(page, false, TEST_TIMEOUT_MS + 45000, 'Test 1: Wait for disabled===false after timeout');
+
       const sendDisabledAfterTimeout = await page.$eval('#btn-home-prompt-send', (el) => (el as HTMLButtonElement).disabled);
       assert.equal(sendDisabledAfterTimeout, false, 'Send control must recover once the request settles via timeout');
 
-      // Home Send routes ASK/COMMAND intents through the Ambient overlay by
-      // design (openAmbientOverlay() + runAmbientTask()) — this is real,
-      // pre-existing, intentional app behavior, not something this
-      // correction touches or redesigns. The overlay's own backdrop
-      // legitimately covers #home-prompt-input while open (confirmed via a
-      // real click-interception check), so the realistic next user action
-      // is dismissing it — exactly what closeAmbientOverlay()/btn-close-
-      // ambient already does — before returning to the Home composer.
       await page.click('#btn-close-ambient');
 
-      // 9-11. Focus textarea, type new text, assert it is actually present
-      // — proving the element is genuinely interactive again, not merely
-      // `disabled === false` in isolation.
+      // 9-11. Focus textarea, type new text, assert it is actually present.
       await page.click('#home-prompt-input');
       await page.keyboard.type('can I type now');
       const valueAfterRecovery = await page.$eval('#home-prompt-input', (el) => (el as HTMLTextAreaElement).value);
       assert.equal(valueAfterRecovery, 'can I type now');
 
-      // Quick Action controls must also be usable again — all four
-      // runAmbientTask() entry points share the same single-flight guard
-      // and disable/enable lifecycle, so recovery must not be Home-only.
+      // Quick Action controls must also be usable again.
       let secondAmbientRequestSeen = false;
       await page.unroute('**/api/v1/ambient/intent');
       await page.route('**/api/v1/ambient/intent', async (route) => {
@@ -200,24 +237,10 @@ test('a normal, responding ambient/intent request is unaffected by the new timeo
       await page.click('#btn-home-prompt-send');
 
       // Must disable promptly on submit (unchanged pre-existing behavior).
-      // Margin (not a precise timing assertion) sized generously so this
-      // stays reliable when the full suite runs many other real-browser
-      // tests back to back under load, not just in isolation.
-      await page.waitForFunction(
-        () => (document.getElementById('home-prompt-input') as HTMLTextAreaElement).disabled === true,
-        null,
-        { timeout: 45000 }
-      );
+      await waitForComposerDisabledState(page, true, 45000, 'Test 2: Wait for disabled===true on submit');
 
-      // And must re-enable promptly on completion — still far below the
-      // test-only TEST_TIMEOUT_MS window used by the stall scenario above
-      // — proving the timeout never interferes with a real, successful
-      // response, without asserting exact millisecond timing.
-      await page.waitForFunction(
-        () => (document.getElementById('home-prompt-input') as HTMLTextAreaElement).disabled === false,
-        null,
-        { timeout: 45000 }
-      );
+      // And must re-enable promptly on completion.
+      await waitForComposerDisabledState(page, false, 45000, 'Test 2: Wait for disabled===false on completion');
 
       const resultVisible = await page.$eval('#ambient-result-card', (el) => (el as HTMLElement).style.display !== 'none');
       assert.equal(resultVisible, true, 'the plan result card should render on a normal successful response');
