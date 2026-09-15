@@ -67,11 +67,19 @@ after(async () => {
 });
 
 async function withBrowserPage(origin: string, run: (page: Page) => Promise<void>): Promise<void> {
-  const page = await sharedBrowser.newPage();
+  const context = await sharedBrowser.newContext();
+  const page = await context.newPage();
   try {
     await page.addInitScript((ms) => {
       (window as unknown as Record<string, unknown>).__NAGEX_TEST_AMBIENT_TIMEOUT_MS__ = ms;
     }, TEST_TIMEOUT_MS);
+    await page.route('**/api/v1/workspace/route-input', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ status: 200, data: { primaryIntent: 'ASK' } }),
+      });
+    });
     const pageErrors: string[] = [];
     page.on('pageerror', (err) => pageErrors.push(err.message));
     await page.goto(origin, { waitUntil: 'networkidle' });
@@ -79,6 +87,7 @@ async function withBrowserPage(origin: string, run: (page: Page) => Promise<void
     assert.deepEqual(pageErrors, [], `expected no uncaught page errors, got: ${JSON.stringify(pageErrors)}`);
   } finally {
     await page.close();
+    await context.close();
   }
 }
 

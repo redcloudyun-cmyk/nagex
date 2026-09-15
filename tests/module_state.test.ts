@@ -415,8 +415,8 @@ function snapshotProductionModuleState(prodDir: string = '/var/lib/nagex/module-
       const res = handleApiRequest(
         'PUT',
         '/api/v1/modules/module.gmail/state',
-        { enabled: false },
-        { 'x-principal-id': 'usr_admin_001' }
+        { enabled: false, tenantId: testTenant },
+        { 'x-nagex-tenant': testTenant, 'x-principal-id': 'usr_admin_001' }
       );
       assert.equal(res.status, 200);
       assert.equal((res.data as any).enabled, false);
@@ -434,8 +434,8 @@ function snapshotProductionModuleState(prodDir: string = '/var/lib/nagex/module-
       handleApiRequest(
         'PUT',
         '/api/v1/modules/module.gmail/state',
-        { enabled: true },
-        { 'x-principal-id': 'usr_admin_001' }
+        { enabled: true, tenantId: testTenant },
+        { 'x-nagex-tenant': testTenant, 'x-principal-id': 'usr_admin_001' }
       );
     }
   });

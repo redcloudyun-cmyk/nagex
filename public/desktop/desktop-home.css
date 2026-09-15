@@ -1,704 +1,1002 @@
 /*
- * NAgex Desktop Home (UI-4) — layout/visual layer only.
+ * NAgex Desktop Home (UI-4-R3) — Exact Desktop Visual Clone Pass.
  *
- * Scoped entirely under .nagex-desktop-home (the #view-home root) plus a
- * handful of app-shell selectors (sidebar width, notification bell) that
- * are shared chrome, not Home-specific. Does not touch #view-my-space,
- * #view-approvals, #view-inbox, #view-vault, #view-settings, or the
- * ambient overlay/modal — those are unchanged by this file.
- *
- * Built entirely on public/shared/tokens.css + components.css values —
- * no new hardcoded colors/spacing here beyond what those files define.
+ * Scoped under .nagex-desktop-home (the #view-home root) and shared app-shell chrome.
+ * Replicates the reference mockup's visual presentation, proportions, visual depth,
+ * card system, timeline rail, command surface, and information density at 1680x945.
  */
 
-/* ── Sidebar — the mockup shows an always-expanded sidebar (icon +
-   visible label per item), not the existing hover-to-expand icon rail.
-   Two separate pre-existing legacy rules collapse it (found via real
-   computed-style inspection during UI-4 screenshot comparison, not
-   assumed): style.css:212 (width:60px, no !important) AND a second,
-   redundant style.css:1526 block (width:60px !important). Only a later
-   !important can beat an existing !important, hence matching it below
-   — not a stylistic choice, the only way to actually win this cascade.
-   Item count/order/labels are otherwise untouched — still the canonical
-   5, unaffected by any of this. ── */
-.sidebar-left {
-  width: var(--nagex-sidebar-width) !important;
-  padding: var(--nagex-spacing-5) var(--nagex-spacing-3) !important;
+/* ── 1. App Shell Chrome & Header ──────────────────────────────── */
+.app-header {
+  height: 72px !important;
+  min-height: 72px !important;
+  padding: 0 24px !important;
+  background: #ffffff !important;
+  border-bottom: 1px solid #e2e8f5 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
 }
+
+.app-header .brand-section {
+  width: 220px !important;
+  flex: 0 0 220px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+}
+
+.header-logo {
+  height: 28px !important;
+  width: auto !important;
+}
+
+.desktop-global-search {
+  height: 42px !important;
+  width: min(580px, 42vw) !important;
+  margin-right: auto !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 0 14px !important;
+  border: 1px solid #dfe8f5 !important;
+  border-radius: 12px !important;
+  background: #f8fafc !important;
+  color: #64748b !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02) !important;
+}
+
+.desktop-global-search-target {
+  flex: 1 !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: #334155 !important;
+  text-align: left !important;
+  font-size: 13px !important;
+  cursor: text !important;
+}
+
+.desktop-global-search kbd {
+  padding: 3px 8px !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 6px !important;
+  background: #ffffff !important;
+  color: #475569 !important;
+  font: 600 11px var(--font-sans) !important;
+}
+
+.header-right {
+  display: flex !important;
+  align-items: center !important;
+  gap: 16px !important;
+}
+
+.nagex-notif-bell {
+  position: relative !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 50% !important;
+  border: none !important;
+  background: transparent !important;
+  color: #475569 !important;
+  cursor: pointer !important;
+  transition: background-color 0.15s ease !important;
+}
+.nagex-notif-bell:hover { background: #f1f5f9 !important; }
+
+.nagex-notif-badge {
+  position: absolute !important;
+  top: 2px !important;
+  right: 2px !important;
+  min-width: 16px !important;
+  height: 16px !important;
+  padding: 0 4px !important;
+  border-radius: 999px !important;
+  background: #ef4444 !important;
+  color: #ffffff !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.user-pill-header {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  cursor: pointer !important;
+}
+
+.user-avatar-img {
+  width: 34px !important;
+  height: 34px !important;
+  border-radius: 50% !important;
+  background: #2563eb !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 14px !important;
+}
+
+.user-greeting-text {
+  font-size: 13px !important;
+  color: #475569 !important;
+}
+.user-greeting-text strong {
+  color: #0f172a !important;
+  font-weight: 600 !important;
+}
+
+.header-motto-script {
+  font-family: 'Brush Script MT', 'Caveat', cursive, sans-serif !important;
+  font-size: 18px !important;
+  color: #64748b !important;
+  margin-left: 8px !important;
+}
+
+/* ── 2. Sidebar Left ───────────────────────────────────────────── */
+.sidebar-left {
+  width: 240px !important;
+  padding: 20px 16px !important;
+  background: #ffffff !important;
+  border-right: 1px solid #e2e8f5 !important;
+}
+
 .sidebar-left .nav-header-divider,
 .sidebar-left .nav-link span {
   opacity: 1 !important;
   pointer-events: auto !important;
 }
 
-/* ── Notification bell (header) ─────────────────────────────────── */
-.nagex-notif-bell {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: var(--nagex-radius-pill);
-  border: none;
-  background: transparent;
-  color: var(--nagex-text-secondary);
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-}
-.nagex-notif-bell:hover { background: var(--nagex-surface-subtle); }
-.nagex-notif-bell:focus-visible { outline: 2px solid var(--nagex-border-active); outline-offset: 2px; }
-.nagex-notif-badge {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 3px;
-  border-radius: var(--nagex-radius-pill);
-  background: var(--nagex-danger);
-  color: #ffffff;
-  font-size: 10px;
-  font-weight: var(--nagex-font-weight-bold);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
+.nav-menu {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
 }
 
-/* ── Home content column width (mockup's centered, capped-width canvas) ── */
-.nagex-desktop-home {
-  max-width: var(--nagex-content-max-width);
+.nav-link {
+  min-height: 40px !important;
+  padding: 8px 12px !important;
+  border-radius: 10px !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  color: #475569 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  transition: all 0.15s ease !important;
 }
 
-/* ── Hero — larger scale matching the mockup's headline weight ────── */
-.nagex-desktop-home .home-hero-header {
-  margin-bottom: var(--nagex-spacing-6);
-}
-.nagex-desktop-home .personal-hero-title {
-  font-size: var(--nagex-font-size-hero);
-}
-
-/* ── Quick-action pills row — visual clone of the mockup's rounded chip
-   strip; underlying click behavior (composer prefill + send) is
-   app.js's existing, unchanged logic ── */
-.nagex-quick-actions {
-  gap: var(--nagex-spacing-3);
-  margin-bottom: var(--nagex-section-gap);
-}
-.nagex-quick-actions .nagex-pill {
-  min-height: 40px;
-}
-
-/* ── Two-column grid: wide left (Today + My Space), narrower right rail
-   (Working / Approvals / Memory) — matches the mockup's real proportions ── */
-.desktop-home-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-  gap: var(--nagex-card-gap);
-  align-items: start;
-}
-
-.desktop-home-col-main,
-.desktop-home-col-side {
-  display: flex;
-  flex-direction: column;
-  gap: var(--nagex-card-gap);
-  min-width: 0;
-}
-
-.desktop-today-panel,
-.desktop-memory-panel {
-  min-width: 0;
-}
-
-/* Narrower viewports (still desktop-class, e.g. a split-screen browser
-   window) collapse to one column rather than truncating content —
-   MobileHome (UI-5) is the real narrow-viewport experience, this is
-   just a safety fallback for the desktop tree specifically. */
-@media (max-width: 1024px) {
-  .desktop-home-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* ── Section link ("See all >", "Open >") reuses shared component
-   class — no per-instance styling needed here. Kept for legacy
-   .card-link-see-all compatibility on the untouched My Space entry card. ── */
-
-/* ════════════════════════════════════════════════════════════════════
-   UI-4-R1 — Desktop Visual Fidelity Correction.
-
-   Everything below tightens the clone against the supplied Desktop Home
-   mockup: hero scale/soft-blue treatment, a compact horizontal composer,
-   icon-card quick actions, a denser 3-column grid, restyled approval
-   cards (previously unstyled — .btn-primary/.btn-secondary/
-   .contextual-approval-card had no CSS rule anywhere in the app, browser
-   default button chrome was rendering), and restrained soft-blue
-   decorative surfaces. No data binding, route-input behavior, or backend
-   call changed — this file is layout/visual only, scoped to
-   .nagex-desktop-home (plus the shared sidebar chrome), same as the
-   rest of this file.
-   ════════════════════════════════════════════════════════════════════ */
-
-/* ── Page-level density — the mockup's sections sit much closer
-   together than our first pass. Tighten hero/composer/quick-action
-   vertical rhythm without touching unrelated tab-view spacing. ── */
-.nagex-desktop-home .home-hero-header {
-  margin-top: 0;
-  margin-bottom: var(--nagex-spacing-5);
-}
-.nagex-desktop-home .unified-capture-composer-card {
-  margin-bottom: var(--nagex-spacing-4);
-}
-.nagex-desktop-home .nagex-quick-actions-grid {
-  margin-bottom: var(--nagex-spacing-6);
-}
-.nagex-desktop-home.tab-view {
-  gap: 0;
-}
-
-/* ── Hero — larger scale + soft-blue decorative surface behind the
-   headline, matching the mockup's prominence. Greeting text stays
-   whatever renderGreeting() set (real time-of-day, no fabricated name). ── */
-.nagex-desktop-home .home-hero-header {
-  position: relative;
-  padding: var(--nagex-spacing-6) var(--nagex-spacing-7);
-  border-radius: var(--nagex-radius-xl);
-  overflow: hidden;
-  background:
-    radial-gradient(480px 260px at 88% 15%, rgba(191, 219, 254, 0.55) 0%, rgba(191, 219, 254, 0) 70%),
-    radial-gradient(360px 220px at 98% 55%, rgba(199, 210, 254, 0.4) 0%, rgba(199, 210, 254, 0) 70%),
-    var(--nagex-surface-elevated);
-  border: 1px solid var(--nagex-border-subtle);
-}
-.nagex-desktop-home .eyebrow-text {
-  margin-bottom: var(--nagex-spacing-2);
-}
-.nagex-desktop-home .personal-hero-title {
-  font-size: 2.75rem;
-  font-weight: 800;
-  line-height: 1.12;
-  letter-spacing: -0.02em;
-  max-width: 720px;
-}
-.nagex-desktop-home .personal-hero-subtitle {
-  font-size: var(--nagex-font-size-lg);
-  max-width: 560px;
-}
-
-/* ── Composer — compact horizontal command surface (mockup form)
-   instead of a tall textarea card. Route-input behavior is entirely
-   app.js's own unchanged onclick/onkeydown wiring. ── */
-.nagex-composer-compact {
-  min-height: 0;
-  padding: var(--nagex-spacing-3) var(--nagex-spacing-4);
-  border-radius: var(--nagex-radius-xl);
-  gap: var(--nagex-spacing-2);
-}
-.nagex-composer-input {
-  min-height: 0;
-  height: 28px;
-  font-size: var(--nagex-font-size-lg);
-  overflow: hidden;
-  resize: none;
-}
-.nagex-composer-compact .composer-bottom-bar {
-  margin-top: 0;
-  padding-top: var(--nagex-spacing-2);
-  border-top: 1px solid var(--nagex-border-subtle);
-}
-.affordance-btn-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--nagex-spacing-2);
-  background: var(--nagex-surface-primary);
-  border: 1px solid var(--nagex-border-default);
-  color: var(--nagex-text-secondary);
-  font-size: var(--nagex-font-size-sm);
-  font-weight: var(--nagex-font-weight-medium);
-  padding: 6px var(--nagex-spacing-3);
-  border-radius: var(--nagex-radius-pill);
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-.affordance-btn-pill:hover {
-  border-color: var(--nagex-accent-primary);
-  color: var(--nagex-accent-primary);
-  background: var(--nagex-accent-soft);
-}
-.affordance-btn-pill .svg-icon-sm { width: 15px; height: 15px; fill: currentColor; }
-
-/* ── Quick action cards — mockup's icon + title + subtitle + chevron
-   row, replacing the earlier pill-chip treatment. Same real 4 actions,
-   same .quick-action-chip/data-action click binding. ── */
-.nagex-sr-only {
-  position: absolute;
-  width: 1px; height: 1px;
-  padding: 0; margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-.nagex-quick-actions-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--nagex-spacing-3);
-}
-.nagex-quick-action-card {
-  display: flex;
-  align-items: center;
-  gap: var(--nagex-spacing-3);
-  background: var(--nagex-surface-elevated);
-  border: 1px solid var(--nagex-border-subtle);
-  border-radius: var(--nagex-radius-lg);
-  padding: var(--nagex-spacing-3) var(--nagex-spacing-4);
-  text-align: left;
-  cursor: pointer;
-  box-shadow: var(--nagex-shadow-card);
-  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
-}
-.nagex-quick-action-card:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--nagex-shadow-elevated);
-  border-color: var(--nagex-accent-primary);
-}
-.qa-icon {
-  flex-shrink: 0;
-  width: 36px; height: 36px;
-  border-radius: var(--nagex-radius-md);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 16px;
-}
-.qa-icon-blue   { background: #dbeafe; }
-.qa-icon-green  { background: #d1fae5; }
-.qa-icon-orange { background: #fef3c7; }
-.qa-icon-purple { background: #ede9fe; }
-.qa-text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  flex: 1;
-}
-.qa-title {
-  font-size: var(--nagex-font-size-md);
-  font-weight: var(--nagex-font-weight-semibold);
-  color: var(--nagex-text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.qa-desc {
-  font-size: var(--nagex-font-size-xs);
-  color: var(--nagex-text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.qa-chevron {
-  flex-shrink: 0;
-  width: 16px; height: 16px;
-  fill: var(--nagex-text-muted);
-}
-@media (max-width: 1280px) {
-  .nagex-quick-actions-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-
-/* ── Three-column grid — LEFT (My Space/Today + Recent), CENTER
-   (Working + Memories & Context), RIGHT (Approvals + activity
-   summary) — matching the mockup's overall composition. ── */
-.desktop-home-grid {
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1fr);
-}
-.desktop-home-col-center {
-  display: flex;
-  flex-direction: column;
-  gap: var(--nagex-card-gap);
-  min-width: 0;
-}
-@media (max-width: 1280px) {
-  .desktop-home-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  .desktop-home-col-main { grid-column: 1 / -1; }
-}
-@media (max-width: 1024px) {
-  .desktop-home-grid { grid-template-columns: 1fr; }
-  .desktop-home-col-main { grid-column: auto; }
-}
-
-/* ── Card system — slightly tighter padding for the denser mockup
-   layout, restyled section headings/badges. ── */
-.nagex-desktop-home .nagex-card {
-  padding: var(--nagex-spacing-4);
-}
-.nagex-desktop-home .nagex-section-heading {
-  margin-bottom: var(--nagex-spacing-3);
-}
-.nagex-desktop-home .nagex-section-heading h2 {
-  font-size: var(--nagex-font-size-md);
-  font-weight: var(--nagex-font-weight-bold);
-}
-#approvals-count-badge {
-  margin-left: var(--nagex-spacing-2);
-}
-
-/* ── Working / Recent / History rows — tighten the legacy
-   .inbox-item-card shell used inside DesktopWorking so it reads as a
-   compact list row, not a full bordered card per item (Home only —
-   Inbox tab's own use of .inbox-item-card is untouched). ── */
-.nagex-desktop-home .inbox-item-card {
-  padding: var(--nagex-spacing-2) 0;
-  margin-bottom: 0;
-  border: none;
-  border-bottom: 1px solid var(--nagex-border-subtle);
-  border-radius: 0;
-  background: transparent;
-}
-.nagex-desktop-home .inbox-item-card:last-child {
-  border-bottom: none;
-}
-.nagex-desktop-home .inbox-item-title {
-  font-size: var(--nagex-font-size-md);
-  font-weight: var(--nagex-font-weight-semibold);
-  color: var(--nagex-text-primary);
-}
-.nagex-desktop-home .inbox-item-summary {
-  font-size: var(--nagex-font-size-xs);
-  color: var(--nagex-text-muted);
-}
-.nagex-desktop-home .badge-status {
-  border-radius: var(--nagex-radius-pill);
-  font-weight: var(--nagex-font-weight-bold);
-  padding: 3px var(--nagex-spacing-2);
-}
-
-/* ── Approval cards — real restyle, not a cosmetic tweak: prior to
-   this, .btn-primary/.btn-secondary/.contextual-approval-card matched
-   no CSS rule anywhere in the app (verified against style.css), so
-   these were rendering as unstyled default browser buttons inside a
-   plain .inbox-item-card. Scoped to Home only — Inbox/Vault/Tasks tabs
-   reuse .btn-secondary elsewhere and are intentionally left untouched
-   by this pass. ── */
-.nagex-desktop-home .contextual-approval-card {
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--nagex-spacing-2);
-  padding: var(--nagex-spacing-3) var(--nagex-spacing-3);
-  border: 1px solid var(--nagex-border-subtle);
-  border-radius: var(--nagex-radius-md);
-  background: var(--nagex-surface-primary);
-  margin-bottom: var(--nagex-spacing-3);
-}
-.nagex-desktop-home .contextual-approval-card:last-child {
-  margin-bottom: 0;
-}
-.nagex-desktop-home .contextual-appr-btns {
-  margin-top: var(--nagex-spacing-2) !important;
-}
-.nagex-desktop-home .btn-primary,
-.nagex-desktop-home .btn-secondary {
-  font-family: var(--font-sans);
-  font-weight: var(--nagex-font-weight-semibold);
-  border-radius: var(--nagex-radius-sm);
-  border: 1px solid transparent;
-  cursor: pointer;
-  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-}
-.nagex-desktop-home .btn-primary {
-  background: var(--nagex-accent-primary);
-  color: #ffffff;
-}
-.nagex-desktop-home .btn-primary:hover {
-  background: var(--nagex-accent-hover);
-}
-.nagex-desktop-home .btn-secondary {
-  background: var(--nagex-surface-primary);
-  color: var(--nagex-text-primary);
-  border-color: var(--nagex-border-default);
-}
-.nagex-desktop-home .btn-secondary:hover {
-  background: var(--nagex-surface-subtle);
-}
-.nagex-desktop-home .btn-secondary.danger {
-  color: var(--nagex-danger);
-  border-color: #fecaca;
-}
-.nagex-desktop-home .btn-secondary.danger:hover {
-  background: #fef2f2;
-}
-
-/* ── Value / activity-summary panel — right-rail structural space,
-   kept truthful (no invented metrics). ── */
-.nagex-value-panel .nagex-empty-state {
-  padding: var(--nagex-spacing-5) var(--nagex-spacing-3);
-}
-
-/* ── Sidebar — restrained soft-blue decorative surface behind the
-   bottom promo/brand area, mirroring the mockup's lower gradient
-   treatment, and a stronger active-item pill (solid accent, white
-   icon/text) matching the mockup's filled Home state. ── */
-.sidebar-left {
-  position: relative;
-  overflow: hidden;
-}
-.sidebar-left::after {
-  content: '';
-  position: absolute;
-  left: 0; right: 0; bottom: 0;
-  height: 220px;
-  background: linear-gradient(180deg, rgba(224, 242, 254, 0) 0%, rgba(224, 242, 254, 0.55) 40%, rgba(186, 230, 253, 0.5) 100%);
-  pointer-events: none;
-  z-index: 0;
-}
-.sidebar-left > * {
-  position: relative;
-  z-index: 1;
-}
 .nav-item.active .nav-link {
-  background: var(--nagex-accent-primary) !important;
-  color: #ffffff !important;
-  box-shadow: 0 2px 8px -2px rgba(37, 99, 235, 0.4);
+  background: #eff6ff !important;
+  color: #1d4ed8 !important;
+  font-weight: 700 !important;
+  box-shadow: none !important;
 }
 .nav-item.active .nav-link .svg-icon {
-  fill: #ffffff;
+  fill: #1d4ed8 !important;
 }
 
-/* Final 1680×945 geometry pass against the supplied UI-4-R1 reference. */
-.app-header {
-  height: 76px;
-  min-height: 76px;
-  padding: 0 27px;
-  background: rgba(255, 255, 255, 0.96);
+.sidebar-device-card {
+  margin-top: auto !important;
+  padding: 12px 14px !important;
+  border: 1px solid #e2e8f5 !important;
+  border-radius: 14px !important;
+  background: linear-gradient(135deg, #ffffff, #f0f7ff) !important;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.04) !important;
+  color: #0f172a !important;
 }
-.app-header .brand-section {
-  width: 216px;
-  flex: 0 0 216px;
-}
-.header-logo {
-  width: 162px;
-  height: auto;
-}
-.desktop-global-search {
-  height: 44px;
-  width: min(610px, 44vw);
-  margin-right: auto;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 0 10px 0 15px;
-  border: 1px solid #dfe8f5;
-  border-radius: 13px;
-  background: #fff;
-  color: #6c82a9;
-  box-shadow: 0 4px 18px rgba(32, 82, 160, 0.04);
-}
-.desktop-global-search-target {
-  flex: 1;
-  border: 0;
-  background: transparent;
-  color: #7287ad;
-  text-align: left;
-  font: inherit;
-  cursor: text;
-}
-.desktop-global-search kbd {
-  padding: 7px 10px;
-  border: 0;
-  border-radius: 8px;
-  background: #f0f5fc;
-  color: #385481;
-  font: 600 12px var(--font-sans);
-}
-.quickwake-header-btn { display: none; }
-.header-right { gap: 14px; }
-.sidebar-left {
-  width: 243px !important;
-  padding: 29px 23px 20px !important;
-}
+.sidebar-device-heading { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; }
+.sidebar-device-icon { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; background: #dbeafe; color: #1d4ed8; }
+.sidebar-device-state { display: flex; align-items: center; gap: 7px; margin-top: 8px; font-size: 12px; font-weight: 600; }
+.sidebar-device-dot { width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; }
+.sidebar-device-card.is-connected .sidebar-device-dot { background: #10b981; }
+.sidebar-device-detail { margin-top: 4px; color: #64748b; font-size: 11px; }
+
+/* ── 3. Main Center Canvas & Layout ────────────────────────────── */
 .center-canvas {
-  padding: 0 27px 24px;
-  background: linear-gradient(180deg, #f3f8ff 0, #f8fbff 360px, #f4f8fc 100%);
+  padding: 20px 24px 28px !important;
+  background: #f8fafc !important;
 }
+
 .nagex-desktop-home {
-  max-width: none;
+  max-width: 1680px !important;
+  margin: 0 auto !important;
 }
+
+/* Top Section: Hero + Value Overview (3-to-1 split) */
+.desktop-home-top {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 320px !important;
+  gap: 14px !important;
+  margin-bottom: 14px !important;
+}
+
+.desktop-home-primary {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 14px !important;
+  min-width: 0 !important;
+}
+
+/* Hero Header */
 .nagex-desktop-home .home-hero-header {
-  min-height: 157px;
-  margin: 0 -27px -1px;
-  padding: 35px 42px 18px;
-  border: 0;
-  border-radius: 0;
-  background:
-    radial-gradient(290px 170px at 68% 30%, rgba(111, 168, 255, .34), transparent 72%),
-    linear-gradient(100deg, rgba(245,250,255,.92), rgba(255,255,255,.72));
+  position: relative !important;
+  min-height: 145px !important;
+  padding: 24px 32px !important;
+  border-radius: 16px !important;
+  border: 1px solid #e2e8f5 !important;
+  background: linear-gradient(120deg, #f0f7ff 0%, #ffffff 55%, #e0f2fe 100%) !important;
+  overflow: hidden !important;
 }
 .nagex-desktop-home .eyebrow-text {
-  font-size: 16px;
-  line-height: 20px;
-  letter-spacing: 0;
-  text-transform: none;
-  color: #4c6590;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  color: #475569 !important;
+  margin-bottom: 6px !important;
 }
 .nagex-desktop-home .personal-hero-title {
-  max-width: none;
-  font-size: 38px;
-  line-height: 1.08;
-  white-space: nowrap;
+  font-size: 32px !important;
+  font-weight: 800 !important;
+  line-height: 1.15 !important;
+  letter-spacing: -0.02em !important;
+  color: #0f172a !important;
+}
+.nagex-desktop-home .brand-blue {
+  color: #1d4ed8 !important;
 }
 .nagex-desktop-home .personal-hero-subtitle {
-  max-width: none;
-  margin-top: 8px;
-  font-size: 19px;
+  font-size: 15px !important;
+  color: #64748b !important;
+  margin-top: 6px !important;
+  max-width: 540px !important;
 }
-.nagex-desktop-home .unified-capture-composer-card {
-  min-height: 112px;
-  margin: 0 0 14px;
-  padding: 15px 20px 10px;
-  border-radius: 16px;
+.hero-visual {
+  position: absolute !important;
+  right: 20px !important;
+  top: 15px !important;
+  width: 260px !important;
+  height: 120px !important;
+  pointer-events: none !important;
 }
-.nagex-composer-input { height: 32px; }
+.hero-visual span {
+  position: absolute !important;
+  display: block !important;
+  border-radius: 20px !important;
+  transform: rotate(-20deg) !important;
+  background: linear-gradient(135deg, rgba(191, 219, 254, 0.65), rgba(59, 130, 246, 0.3)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.8) !important;
+  box-shadow: 0 12px 30px rgba(37, 99, 235, 0.12) !important;
+}
+.hero-visual span:first-child { width: 90px; height: 90px; right: 110px; top: -10px; }
+.hero-visual span:nth-child(2) { width: 70px; height: 70px; right: 65px; top: 40px; background: linear-gradient(135deg, rgba(224, 242, 254, 0.8), rgba(29, 78, 216, 0.25)) !important; }
+.hero-visual em {
+  position: absolute !important;
+  right: 15px !important;
+  bottom: 12px !important;
+  font-family: 'Brush Script MT', 'Caveat', cursive, sans-serif !important;
+  font-size: 20px !important;
+  color: #2563eb !important;
+  transform: rotate(-6deg) !important;
+  font-style: italic !important;
+}
+
+/* Top Right Value Overview Card */
+.desktop-value-overview {
+  background: linear-gradient(180deg, #ffffff 0%, #f0f7ff 100%) !important;
+  border: 1px solid #e2e8f5 !important;
+  border-radius: 16px !important;
+  padding: 20px 22px !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+.desktop-value-overview h2 {
+  font-size: 18px !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
+  line-height: 1.25 !important;
+  margin: 0 0 16px 0 !important;
+}
+.desktop-value-overview h2 span {
+  color: #1d4ed8 !important;
+}
+.value-metric-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  margin-bottom: 12px !important;
+}
+.value-metric-row:last-child {
+  margin-bottom: 0 !important;
+}
+.metric-icon {
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 14px !important;
+  flex-shrink: 0 !important;
+}
+.blue-clock { background: #dbeafe !important; color: #1d4ed8 !important; }
+.green-check { background: #d1fae5 !important; color: #059669 !important; }
+.blue-cal { background: #e0e7ff !important; color: #4f46e5 !important; }
+.star-gold { background: #fef3c7 !important; color: #d97706 !important; }
+.metric-body strong {
+  display: block !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
+}
+.metric-body small {
+  display: block !important;
+  font-size: 11px !important;
+  color: #64748b !important;
+}
+
+/* Composer Command Surface */
+.nagex-desktop-home .unified-capture-composer-card.nagex-composer-compact {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f5 !important;
+  border-radius: 16px !important;
+  padding: 14px 18px !important;
+  margin: 0 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03) !important;
+}
+
+.nagex-composer-input {
+  height: 36px !important;
+  font-size: 15px !important;
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  resize: none !important;
+  width: 100% !important;
+  color: #0f172a !important;
+}
+
 .nagex-composer-compact .composer-bottom-bar {
-  border-top: 0;
-  padding-top: 8px;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  border-top: 1px solid #f1f5f9 !important;
+  padding-top: 10px !important;
+  margin-top: 6px !important;
 }
+
+.composer-left-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex-wrap: wrap !important;
+}
+
+#btn-afford-plus {
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 50% !important;
+  background: #f1f5f9 !important;
+  border: 1px solid #e2e8f5 !important;
+  color: #475569 !important;
+  font-size: 16px !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.affordance-btn-pill.quick-action-chip {
+  height: 32px !important;
+  padding: 0 12px !important;
+  border-radius: 20px !important;
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f5 !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: #334155 !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  transition: all 0.15s ease !important;
+}
+.affordance-btn-pill.quick-action-chip:hover {
+  background: #eff6ff !important;
+  border-color: #bfdbfe !important;
+  color: #1d4ed8 !important;
+}
+
+.composer-right-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+.model-selector-chip {
+  height: 32px !important;
+  padding: 0 12px !important;
+  border-radius: 20px !important;
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f5 !important;
+  font-size: 13px !important;
+  color: #334155 !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+.btn-send-circle {
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 50% !important;
+  background: #1d4ed8 !important;
+  color: #ffffff !important;
+  border: none !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-shadow: 0 4px 12px rgba(29, 78, 216, 0.3) !important;
+}
+
+/* ── 4. Quick Actions 5-Card Grid ───────────────────────────────── */
 .nagex-desktop-home .nagex-quick-actions-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-  margin-bottom: 14px;
+  display: grid !important;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+  margin-bottom: 0 !important;
 }
+
 .nagex-quick-action-card {
-  min-height: 70px;
-  padding: 10px 12px;
-  border-radius: 13px;
+  background: #ffffff !important;
+  border: 1px solid #e2e8f5 !important;
+  border-radius: 14px !important;
+  padding: 10px 12px !important;
+  min-height: 64px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  text-align: left !important;
+  cursor: pointer !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02) !important;
+  transition: all 0.15s ease !important;
 }
-.desktop-home-grid { gap: 12px; }
+.nagex-quick-action-card:hover {
+  border-color: #93c5fd !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.08) !important;
+}
+
+.qa-icon {
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 10px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 16px !important;
+  flex-shrink: 0 !important;
+}
+.qa-icon-blue { background: #dbeafe !important; color: #1d4ed8 !important; }
+.qa-icon-green { background: #d1fae5 !important; color: #059669 !important; }
+.qa-icon-orange { background: #fef3c7 !important; color: #d97706 !important; }
+.qa-icon-purple { background: #e0e7ff !important; color: #4f46e5 !important; }
+
+.qa-text {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 !important;
+  min-width: 0 !important;
+}
+.qa-title {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: #0f172a !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+.qa-desc {
+  font-size: 11px !important;
+  color: #64748b !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  margin-top: 2px !important;
+}
+.qa-arrow {
+  color: #94a3b8 !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  flex-shrink: 0 !important;
+}
+
+/* ── 5. Three-Column Main Grid (36% : 36% : 28%) ────────────────── */
+.desktop-home-grid {
+  display: grid !important;
+  grid-template-columns: minmax(0, 36fr) minmax(0, 36fr) minmax(0, 28fr) !important;
+  gap: 14px !important;
+  align-items: start !important;
+}
+
 .desktop-home-col-main,
 .desktop-home-col-center,
-.desktop-home-col-side { gap: 12px; }
-.nagex-desktop-home .nagex-card { border-radius: 14px; }
-.home-canvas-footer { display: none; }
+.desktop-home-col-side {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 14px !important;
+  min-width: 0 !important;
+}
+
+/* Card System Baseline */
+.nagex-desktop-home .nagex-card {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f5 !important;
+  border-radius: 14px !important;
+  padding: 16px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02) !important;
+}
+
+.nagex-desktop-home .nagex-section-heading {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  margin-bottom: 12px !important;
+}
+
+.heading-title-group {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.card-icon-tile {
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 8px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 14px !important;
+}
+.blue-tile { background: #dbeafe !important; color: #1d4ed8 !important; }
+.red-tile { background: #fee2e2 !important; color: #ef4444 !important; }
+
+.nagex-desktop-home .nagex-section-heading h2 {
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
+  margin: 0 !important;
+}
+
+.nagex-section-link,
+.card-link-see-all {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: #1d4ed8 !important;
+  cursor: pointer !important;
+  text-decoration: none !important;
+}
+
+/* ── 6. My Space Timeline Panel ─────────────────────────────────── */
+.my-space-tabs {
+  display: grid !important;
+  grid-template-columns: repeat(3, 1fr) !important;
+  border-bottom: 1px solid #e2e8f5 !important;
+  margin-bottom: 12px !important;
+}
+.my-space-tabs span {
+  text-align: center !important;
+  padding: 8px 4px !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  color: #64748b !important;
+  cursor: pointer !important;
+}
+.my-space-tabs span.active {
+  color: #1d4ed8 !important;
+  font-weight: 700 !important;
+  border-bottom: 2px solid #1d4ed8 !important;
+  background: #eff6ff !important;
+}
+
+.today-date-header {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  margin-bottom: 12px !important;
+}
+.today-date-label {
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
+}
+.date-nav-btn {
+  width: 26px !important;
+  height: 26px !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 6px !important;
+  background: #ffffff !important;
+  color: #475569 !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+}
+
+/* Timeline Rail Layout */
+.timeline-container {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+}
+.timeline-row {
+  display: grid !important;
+  grid-template-columns: 55px 24px 1fr !important;
+  gap: 10px !important;
+  align-items: flex-start !important;
+  padding: 6px 0 !important;
+  position: relative !important;
+}
+.timeline-time {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: #64748b !important;
+  text-align: right !important;
+  padding-top: 2px !important;
+}
+.timeline-rail-col {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  height: 100% !important;
+  position: relative !important;
+}
+.timeline-node {
+  width: 22px !important;
+  height: 22px !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 11px !important;
+  z-index: 2 !important;
+  flex-shrink: 0 !important;
+}
+.node-green { background: #d1fae5 !important; color: #059669 !important; }
+.node-blue { background: #dbeafe !important; color: #1d4ed8 !important; }
+.node-grey { background: #f1f5f9 !important; color: #94a3b8 !important; border: 1px solid #cbd5e1 !important; }
+.node-green-fork { background: #d1fae5 !important; color: #059669 !important; }
+
+.timeline-line {
+  width: 2px !important;
+  background: #e2e8f5 !important;
+  position: absolute !important;
+  top: 22px !important;
+  bottom: -8px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  z-index: 1 !important;
+}
+.timeline-row:last-child .timeline-line {
+  display: none !important;
+}
+
+.timeline-content {
+  display: flex !important;
+  flex-direction: column !important;
+}
+.timeline-title {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: #0f172a !important;
+}
+.timeline-meta {
+  font-size: 11px !important;
+  color: #64748b !important;
+  margin-top: 2px !important;
+}
+
+/* ── 7. Recent Actions 2-Column Grid ────────────────────────────── */
+.card-title-row {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  margin-bottom: 10px !important;
+}
+.card-title-left {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+.card-main-title {
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
+  margin: 0 !important;
+}
+
+.recent-actions-grid {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 10px !important;
+}
+
+.recent-action-card {
+  background: #f8fafc !important;
+  border: 1px solid #f1f5f9 !important;
+  border-radius: 10px !important;
+  padding: 8px 10px !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 8px !important;
+}
+.recent-action-check {
+  width: 18px !important;
+  height: 18px !important;
+  border-radius: 50% !important;
+  background: #d1fae5 !important;
+  color: #059669 !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+}
+.recent-action-title {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: #0f172a !important;
+}
+.recent-action-meta {
+  font-size: 10px !important;
+  color: #64748b !important;
+  margin-top: 2px !important;
+}
+
+/* ── 8. Working & Attention Surface Styling ────────────────────── */
+.badge-live {
+  background: #d1fae5 !important;
+  color: #059669 !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  padding: 2px 8px !important;
+  border-radius: 12px !important;
+  margin-left: 8px !important;
+}
+
+.working-ready-state {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 14px 12px !important;
+  background: #f8fafc !important;
+  border: 1px solid #f1f5f9 !important;
+  border-radius: 12px !important;
+}
+.working-ready-icon {
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 50% !important;
+  background: #d1fae5 !important;
+  color: #059669 !important;
+  font-weight: 700 !important;
+  font-size: 16px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+}
+.working-ready-state strong {
+  display: block !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
+}
+.working-ready-state span {
+  display: block !important;
+  font-size: 11px !important;
+  color: #64748b !important;
+  margin-top: 2px !important;
+}
+.working-ready-link {
+  margin-left: auto !important;
+  padding: 6px 14px !important;
+  background: #eff6ff !important;
+  border: 1px solid #bfdbfe !important;
+  color: #1d4ed8 !important;
+  border-radius: 8px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+}
+
+/* ── 9. Approval Row Cards ──────────────────────────────────────── */
+.nagex-desktop-home .contextual-approval-card {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f5 !important;
+  border-radius: 12px !important;
+  padding: 12px 14px !important;
+  margin-bottom: 10px !important;
+  display: grid !important;
+  grid-template-columns: 36px 1fr !important;
+  gap: 8px 10px !important;
+}
+.nagex-desktop-home .contextual-approval-card:last-child {
+  margin-bottom: 0 !important;
+}
+
+.approval-row-icon {
+  grid-row: 1 / span 2 !important;
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 10px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 16px !important;
+  background: #dbeafe !important;
+  color: #1d4ed8 !important;
+  flex-shrink: 0 !important;
+}
+
+.nagex-desktop-home .inbox-item-title {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
+}
+
+.nagex-desktop-home .inbox-item-summary {
+  font-size: 11px !important;
+  color: #64748b !important;
+}
+
+.contextual-appr-btns {
+  grid-column: 2 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin-top: 4px !important;
+}
+
+.nagex-desktop-home .btn-primary {
+  background: #1d4ed8 !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 8px !important;
+  padding: 5px 14px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  box-shadow: 0 2px 6px rgba(29, 78, 216, 0.2) !important;
+}
+.nagex-desktop-home .btn-secondary {
+  background: #ffffff !important;
+  color: #334155 !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 8px !important;
+  padding: 5px 12px !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+}
+.nagex-desktop-home .btn-secondary.danger {
+  color: #ef4444 !important;
+  border-color: #fecaca !important;
+}
+
+/* ── 10. Memories & Context Card Row ────────────────────────────── */
+.memory-context-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 10px 0 !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+}
+.memory-context-row:last-child {
+  border-bottom: none !important;
+}
+
+.memory-context-icon {
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 8px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 14px !important;
+  flex-shrink: 0 !important;
+}
+.memory-icon-0 { background: #dbeafe !important; color: #1d4ed8 !important; }
+.memory-icon-1 { background: #ffe4e6 !important; color: #e11d48 !important; }
+.memory-icon-2 { background: #d1fae5 !important; color: #059669 !important; }
+.memory-icon-3 { background: #ede9fe !important; color: #7c3aed !important; }
+
+.memory-context-title {
+  display: block !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: #0f172a !important;
+}
+.memory-context-desc {
+  display: block !important;
+  font-size: 11px !important;
+  color: #64748b !important;
+  margin-top: 2px !important;
+}
+
+/* ── 11. Right-Side Value Anchor Landscape Card ─────────────────── */
+.nagex-value-panel {
+  background: linear-gradient(180deg, #ffffff 0%, #f0f7ff 100%) !important;
+  border: 1px solid #e2e8f5 !important;
+  border-radius: 14px !important;
+  overflow: hidden !important;
+  min-height: 180px !important;
+  position: relative !important;
+}
+
+.value-landscape-banner {
+  height: 65px !important;
+  background: linear-gradient(135deg, #bfdbfe 0%, #93c5fd 100%) !important;
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  padding-left: 16px !important;
+}
+
+.value-banner-text {
+  font-family: 'Brush Script MT', 'Caveat', cursive, sans-serif !important;
+  font-size: 20px !important;
+  color: #1e40af !important;
+  font-style: italic !important;
+}
+
+.desktop-value-message {
+  padding: 14px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+}
+.desktop-value-message strong {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
+  line-height: 1.35 !important;
+}
+
+.value-chips-row {
+  display: flex !important;
+  gap: 6px !important;
+  flex-wrap: wrap !important;
+  margin-top: 6px !important;
+}
+.value-chip {
+  padding: 4px 10px !important;
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 12px !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  color: #334155 !important;
+  cursor: pointer !important;
+}
+
+/* ── 12. Media Query Fallbacks for Smaller Desktop Viewports ─────── */
 @media (max-width: 1280px) {
-  .desktop-global-search { width: min(520px, 38vw); }
-  .nagex-desktop-home .personal-hero-title { white-space: normal; }
+  .desktop-home-top { grid-template-columns: 1fr !important; }
+  .desktop-value-overview { display: none !important; }
+  .nagex-desktop-home .nagex-quick-actions-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+  .desktop-home-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important; }
 }
 
-/* UI-4-R2 final polish */
-.sidebar-promo-card { display: none; }
-.sidebar-left .sidebar-bottom-user { opacity:1 !important; }
-.sidebar-device-card {
-  padding: 14px;
-  border: 1px solid #dbe8f8;
-  border-radius: 14px;
-  background: linear-gradient(145deg, rgba(255,255,255,.92), rgba(232,244,255,.94));
-  box-shadow: 0 10px 24px rgba(48, 111, 201, .08);
-  color: #18365f;
-}
-.sidebar-device-heading { display:flex; align-items:center; gap:8px; font-size:13px; font-weight:700; }
-.sidebar-device-icon { display:grid; place-items:center; width:26px; height:26px; border-radius:8px; background:#e0ecff; color:#1769ed; }
-.sidebar-device-state { display:flex; align-items:center; gap:7px; margin-top:10px; font-size:12px; font-weight:650; }
-.sidebar-device-dot { width:8px; height:8px; border-radius:50%; background:#94a3b8; box-shadow:0 0 0 4px rgba(148,163,184,.12); }
-.sidebar-device-card.is-connected .sidebar-device-dot { background:#13b981; box-shadow:0 0 0 4px rgba(19,185,129,.13); }
-.sidebar-device-detail { margin:5px 0 0 15px; color:#7588a8; font-size:11px; line-height:1.35; }
-
-.hero-visual { position:absolute; inset:0 0 0 auto; width:470px; pointer-events:none; }
-.hero-visual span { position:absolute; display:block; border-radius:24px; transform:rotate(-24deg); background:linear-gradient(145deg, rgba(255,255,255,.92), rgba(79,145,255,.42)); box-shadow:0 22px 55px rgba(61,125,225,.18); border:1px solid rgba(255,255,255,.75); }
-.hero-visual span:first-child { width:112px; height:112px; right:188px; top:-25px; }
-.hero-visual span:nth-child(2) { width:92px; height:92px; right:126px; top:52px; background:linear-gradient(145deg, rgba(221,238,255,.88), rgba(37,107,238,.32)); }
-.hero-visual em { position:absolute; right:30px; top:75px; width:132px; color:#7899d8; font:italic 18px/1.08 Georgia, serif; transform:rotate(-8deg); }
-.nagex-desktop-home .home-hero-header > :not(.hero-visual) { position:relative; z-index:1; }
-
-.nagex-composer-compact { box-shadow:0 10px 30px rgba(38,83,145,.07); }
-.composer-left-actions { gap:8px; }
-.composer-skill-chip { border-color:#dae6f5; color:#294c83; }
-.composer-chip-icon { color:#0876ff; font-size:16px; font-weight:800; }
-#btn-afford-file, #btn-afford-audio, #btn-afford-link { padding-inline:9px; }
-.btn-send-circle { box-shadow:0 8px 18px rgba(0,105,255,.25); }
-
-.nagex-desktop-home .nagex-quick-actions-grid { grid-template-columns:repeat(4, minmax(0, 198px)); justify-content:start; }
-.nagex-quick-action-card { min-height:62px; padding:8px 10px; gap:9px; }
-.qa-icon { width:34px; height:34px; }
-.qa-title { font-size:13px; }
-.qa-desc { font-size:10px; }
-
-.desktop-home-grid { grid-template-columns:minmax(0,36fr) minmax(0,36fr) minmax(0,28fr); }
-.working-ready-state { min-height:94px; display:grid; grid-template-columns:36px 1fr; align-items:center; gap:10px; padding:12px 2px; }
-.working-ready-icon { display:grid; place-items:center; width:34px; height:34px; border-radius:50%; background:#dcf8ed; color:#0faf78; font-weight:800; }
-.working-ready-state strong, .working-ready-state span { display:block; }
-.working-ready-state strong { color:#102654; font-size:13px; }
-.working-ready-state div span { margin-top:3px; color:#7185a7; font-size:11px; line-height:1.35; }
-.working-ready-link { grid-column:2; justify-self:start; border:0; background:transparent; color:#0669f7; font-size:11px; font-weight:700; cursor:pointer; padding:0; }
-
-.nagex-desktop-home .contextual-approval-card { display:grid; grid-template-columns:38px 1fr; padding:12px; background:linear-gradient(135deg,#fff,#fbfdff); }
-.approval-row-icon { grid-row:1 / span 2; display:grid; place-items:center; width:36px; height:36px; border-radius:12px; background:#fff0f3; color:#ff4d68; font-size:17px; font-weight:850; }
-.nagex-desktop-home .contextual-appr-btns { grid-column:2; }
-.nagex-desktop-home .btn-primary, .nagex-desktop-home .btn-secondary { min-height:28px; padding:5px 12px !important; border-radius:9px; }
-.nagex-desktop-home .btn-primary { box-shadow:0 5px 12px rgba(25,105,238,.18); }
-.nagex-desktop-home .inbox-item-title { line-height:1.25; }
-
-.memory-icon-0 { background:#fff0f3 !important; color:#ff5270 !important; }
-.memory-icon-1 { background:#eaf2ff !important; color:#2572f2 !important; }
-.memory-icon-2 { background:#e8fbf4 !important; color:#12b981 !important; }
-.memory-icon-3 { background:#f0edff !important; color:#7257ef !important; }
-.desktop-memory-panel .nagex-activity-desc { line-height:1.35; }
-
-.nagex-value-panel { min-height:160px; position:relative; overflow:hidden; background:linear-gradient(150deg,#fff 20%,#edf6ff 100%); }
-.nagex-value-panel::after { content:''; position:absolute; width:180px; height:85px; right:-32px; bottom:-35px; border-radius:50%; background:rgba(67,145,246,.12); }
-.nagex-value-panel .nagex-empty-state { padding:4px 2px; text-align:left; }
-.activity-summary-empty { min-height:95px; display:flex; flex-direction:column; align-items:flex-start; justify-content:center; }
-.activity-summary-empty > span { color:#1872f2; font-size:22px; }
-.activity-summary-empty strong { margin-top:4px; color:#16396c; font-size:13px; }
-.activity-summary-empty small { margin-top:5px; max-width:270px; color:#7186aa; line-height:1.4; }
-.activity-summary-real { display:grid; gap:8px; }
-.activity-summary-real > div { display:grid; grid-template-columns:28px 34px 1fr; align-items:center; min-height:34px; }
-.activity-summary-real strong { color:#102654; font-size:15px; }
-.activity-summary-real small { color:#6f84a8; }
-.summary-icon { display:grid; place-items:center; width:24px; height:24px; border-radius:50%; }
-.summary-icon-green { color:#0ba979; background:#dbf8ed; }
-.summary-icon-blue { color:#1472ef; background:#e7f0ff; }
-.summary-icon-orange { color:#e78a00; background:#fff2d5; }
-
-/* UI-4 final clone geometry: top-left workspace + fixed value rail. */
-.desktop-home-top { display:grid; grid-template-columns:minmax(0, 1fr) 326px; gap:16px; margin-bottom:16px; }
-.desktop-home-primary { min-width:0; }
-.desktop-home-primary .home-hero-header { margin:0; min-height:157px; padding-left:15px; }
-.desktop-home-primary .unified-capture-composer-card { margin:0 0 14px; }
-.desktop-home-primary .nagex-quick-actions-grid { margin-bottom:0; grid-template-columns:repeat(5,minmax(0,1fr)); gap:9px; }
-.desktop-value-overview { position:relative; min-height:354px; padding:25px 20px 18px !important; overflow:hidden; background:linear-gradient(180deg,#fff 0%,#f7fbff 100%); }
-.desktop-value-overview h2 { position:relative; z-index:2; margin:0; color:#0c2455; font-size:20px; line-height:1.12; }
-.desktop-value-overview h2 span { color:#075df0; }
-.desktop-value-landscape { position:absolute; inset:0 0 auto; height:126px; background:linear-gradient(145deg,rgba(255,255,255,.68),rgba(211,231,255,.3)),radial-gradient(ellipse at 92% 90%,#79a9e6 0 17%,transparent 18%),radial-gradient(ellipse at 75% 105%,#b6d2f2 0 30%,transparent 31%); }
-.desktop-value-overview #desktop-activity-summary { position:relative; z-index:2; margin-top:35px; }
-.desktop-value-overview .activity-summary-real { margin-top:6px; gap:13px; }
-.desktop-value-overview .activity-summary-real > div { grid-template-columns:36px 44px 1fr; min-height:42px; }
-.desktop-value-overview .summary-icon { width:32px; height:32px; }
-.desktop-value-overview .activity-summary-empty { padding-top:50px; }
-
-.nagex-desktop-home > .desktop-home-grid { grid-template-columns:minmax(0,34fr) minmax(0,33fr) minmax(0,33fr); }
-.my-space-tabs { display:grid; grid-template-columns:repeat(3,1fr); margin:-3px -16px 10px; border-bottom:1px solid #e6edf7; }
-.my-space-tabs span { padding:7px 4px; background:#f7faff; color:#7488aa; text-align:center; font-size:11px; }
-.my-space-tabs span.active { color:#0667f2; font-weight:700; border-bottom:2px solid #176ff2; background:#eef5ff; }
-.today-date-label { margin:8px 0 4px; color:#102654; font-size:15px; font-weight:750; }
-.desktop-today-panel { min-height:350px; }
-.nagex-card-compact { min-height:126px; }
-.desktop-home-col-center > .nagex-card:first-child { min-height:297px; }
-.desktop-memory-panel { min-height:184px; }
-.desktop-home-col-side > .nagex-card:first-child { min-height:297px; }
-.desktop-home-col-side .nagex-value-panel { min-height:184px; }
-.desktop-value-message { position:relative; z-index:2; min-height:120px; display:flex; flex-direction:column; justify-content:center; padding-left:36px; color:#0b56bd; }
-.desktop-value-spark { position:absolute; left:0; top:20px; font-size:26px; }
-.desktop-value-message strong { font-size:15px; line-height:1.35; }
-.desktop-value-message div { display:flex; gap:7px; margin-top:15px; }
-.desktop-value-message button { padding:6px 12px; border:1px solid #dce8f8; border-radius:999px; background:#fff; color:#24528e; font-size:11px; cursor:pointer; }
-.nav-menu { gap:2px; }
-.nav-link { min-height:38px; padding:8px 10px; font-size:14px; }
-.nav-separator { height:1px; margin:7px 11px; background:#d8e4f3; }
-.nav-item.active .nav-link { background:#e9f1ff !important; color:#065fe8 !important; box-shadow:none; }
-.nav-item.active .nav-link .svg-icon { fill:#065fe8; }
-.sidebar-top-group { gap:8px; }
-.sidebar-device-card { padding:11px; }
-.sidebar-footer-brand { display:none; }
-@media (max-width:1280px) {
-  .desktop-home-top { grid-template-columns:1fr; }
-  .desktop-value-overview { display:none; }
-  .desktop-home-primary .nagex-quick-actions-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+@media (max-width: 1024px) {
+  .desktop-home-grid { grid-template-columns: 1fr !important; }
+  .nagex-desktop-home .nagex-quick-actions-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
 }
