@@ -18,22 +18,61 @@
 // mechanism), graceful-only close (no kill affordance exposed anywhere in
 // this source).
 using System;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Interop;
 
 namespace NagexUiaTestHarnessWpf
 {
+    // DC3-B2-R1 — foreground-preservation investigation. Tests whether the
+    // WS_EX_NOACTIVATE extended window style (a real, documented Win32
+    // mechanism telling Windows "this window may never become the
+    // foreground/active window, no matter what") prevents the foreground
+    // change that plain UIA mutation was found to cause. This is
+    // investigation-only scaffolding on the dedicated test harness itself
+    // — not a production DesktopAutomationPort.
+    internal static class NoActivateInterop
+    {
+        private const int GWL_EXSTYLE = -20;
+        private const int WS_EX_NOACTIVATE = 0x08000000;
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+
+        public static void Apply(Window window)
+        {
+            var hwnd = new WindowInteropHelper(window).Handle;
+            int exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
+            SetWindowLong(hwnd, GWL_EXSTYLE, exStyle | WS_EX_NOACTIVATE);
+        }
+    }
+
     public class HarnessWindow : Window
     {
         private int clickCount = 0;
         private Label statusLabel;
+        private readonly bool noActivate;
 
-        public HarnessWindow(string instanceTag)
+        public HarnessWindow(string instanceTag, bool noActivate)
         {
+            this.noActivate = noActivate;
             Title = "NAgex UIA Test Harness [" + instanceTag + "]";
             Width = 420;
             Height = 460;
+            if (noActivate)
+            {
+                // ShowActivated=false stops WPF's own Show() from
+                // requesting activation; the real WS_EX_NOACTIVATE style is
+                // applied once the HWND exists (SourceInitialized), which
+                // is the mechanism actually being tested here.
+                ShowActivated = false;
+                SourceInitialized += (s, e) => NoActivateInterop.Apply(this);
+            }
             var panel = new StackPanel { Margin = new Thickness(10) };
 
             var textInput = new TextBox { Height = 24, Margin = new Thickness(0, 0, 0, 8) };
@@ -89,8 +128,9 @@ namespace NagexUiaTestHarnessWpf
         public static void Main(string[] args)
         {
             string tag = args.Length > 0 ? args[0] : "default";
+            bool noActivate = args.Length > 1 && args[1] == "-noactivate";
             var app = new Application();
-            app.Run(new HarnessWindow(tag));
+            app.Run(new HarnessWindow(tag, noActivate));
         }
     }
 }
