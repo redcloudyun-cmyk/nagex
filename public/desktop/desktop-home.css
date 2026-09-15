@@ -304,29 +304,73 @@
   border: 0 !important;
 }
 
+div#view-home.tab-view.active-view.nagex-desktop-home,
 #view-home.nagex-desktop-home,
 .nagex-desktop-home#view-home {
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 8px !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 280px !important;
+  gap: 14px !important;
+  align-items: start !important;
   padding: 0 !important;
 }
 
-/* Top Section: Hero + Value Overview (Decoupled row height) */
-.desktop-home-top {
-  display: grid !important;
-  grid-template-columns: minmax(0, 1fr) 280px !important;
+/* Left Main Stack — Hero -> Composer -> Quick Actions -> 2-Col Operational Grid */
+div#view-home.nagex-desktop-home .desktop-home-main-stack,
+.nagex-desktop-home .desktop-home-main-stack {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
   gap: 8px !important;
-  margin-bottom: 0 !important;
+  min-width: 0 !important;
+}
+
+div#view-home.nagex-desktop-home .desktop-home-grid-operational,
+.nagex-desktop-home .desktop-home-grid-operational {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+  gap: 12px !important;
   align-items: start !important;
 }
 
-.desktop-home-primary {
+div#view-home.nagex-desktop-home .desktop-home-col-main,
+div#view-home.nagex-desktop-home .desktop-home-col-center,
+.nagex-desktop-home .desktop-home-col-main,
+.nagex-desktop-home .desktop-home-col-center {
   display: flex !important;
   flex-direction: column !important;
-  gap: 6px !important;
-  margin: 0 !important;
+  gap: 8px !important;
   min-width: 0 !important;
+}
+
+/* Right Rail — Value Overview -> Approvals -> Lower Cards */
+div#view-home.nagex-desktop-home .desktop-home-right-rail,
+.nagex-desktop-home .desktop-home-right-rail {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+}
+
+.nagex-desktop-home .desktop-value-overview {
+  align-self: start !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  background: linear-gradient(180deg, #ffffff 0%, #f0f7ff 100%) !important;
+  border: 1px solid #e2e8f5 !important;
+  border-radius: 12px !important;
+  padding: 10px 14px !important;
+  position: relative !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+}
+
+.nagex-desktop-home .desktop-home-col-side {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
 }
 
 /* Hero Header */
