@@ -6,7 +6,10 @@
   <title>NAgex — Personal AI Control Center</title>
   <link rel="icon" type="image/png" href="assets/favicon.png">
   <link rel="apple-touch-icon" href="assets/nagex-app-icon.png">
+  <link rel="stylesheet" href="shared/tokens.css?v=__NAGEX_BUILD_VERSION__">
+  <link rel="stylesheet" href="shared/components.css?v=__NAGEX_BUILD_VERSION__">
   <link rel="stylesheet" href="style.css?v=__NAGEX_BUILD_VERSION__">
+  <link rel="stylesheet" href="desktop/desktop-home.css?v=__NAGEX_BUILD_VERSION__">
 </head>
 <body>
   <div class="app-wrapper">
@@ -27,6 +30,14 @@
           <span>Quick Wake (Alt+N)</span>
         </button>
         <button class="lang-toggle-btn" id="btn-lang-toggle" data-i18n-lang-toggle title="Switch language">KR</button>
+        <!-- Real data only: badge count is derived from state.activity
+             (RUNNING + NEEDS_ATTENTION items already loaded by
+             loadAllData()) by desktop-home.js — never a placeholder
+             number. Hidden entirely when there is nothing to show. -->
+        <button class="nagex-notif-bell" id="btn-notif-bell" aria-label="Notifications" data-i18n-aria-label="home.notificationsAria">
+          <svg class="svg-icon" viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+          <span class="nagex-notif-badge" id="notif-badge" hidden>0</span>
+        </button>
         <div class="user-pill-header">
           <div class="user-avatar-img">J</div>
         </div>
@@ -99,10 +110,15 @@
       <!-- Center Main View Container -->
       <main class="center-canvas">
 
-        <!-- VIEW 1: DESKTOP HOME (PERSONAL AI CANONICAL UX) -->
-        <div id="view-home" class="tab-view active-view canvas-mode-chat">
+        <!-- VIEW 1: DESKTOP HOME (PERSONAL AI CANONICAL UX) — UI-4 mockup
+             clone. Visual composition follows the supplied desktop
+             mockup; canonical 5-item nav is unchanged (see sidebar
+             above), and every data-bearing section below binds to real
+             NAgex state only (desktop-home.js), never mockup sample
+             content. -->
+        <div id="view-home" class="tab-view active-view canvas-mode-chat nagex-desktop-home">
           <div class="home-hero-header">
-            <span class="eyebrow-text" data-i18n="home.eyebrow">NAGEX</span>
+            <span class="eyebrow-text" id="desktop-hero-greeting" data-i18n="home.greetingMorning">Good morning</span>
             <h1 class="personal-hero-title"><span class="brand-blue">NAgex</span> — <span data-i18n="home.heroTitle">Personal AI for the Next Age</span></h1>
             <p class="personal-hero-subtitle" data-i18n="home.heroSubtitle">Intelligence that remembers, understands, and acts with you.</p>
           </div>
@@ -134,89 +150,95 @@
           </div>
 
           <!-- Suggestions Chips Row -->
-          <div class="suggestions-chips-row">
+          <div class="suggestions-chips-row nagex-quick-actions">
             <span class="try-label" data-i18n="home.trySomething">Try something like:</span>
-            <button class="suggestion-chip-pill quick-action-chip" data-action="summarize-notes">
+            <button class="suggestion-chip-pill nagex-pill quick-action-chip" data-action="summarize-notes">
               <span class="chip-icon">📄</span>
               <span data-i18n="home.actionSummarizeNotes">Summarize notes</span>
             </button>
-            <button class="suggestion-chip-pill quick-action-chip" data-action="plan-day">
+            <button class="suggestion-chip-pill nagex-pill quick-action-chip" data-action="plan-day">
               <span class="chip-icon">📅</span>
               <span data-i18n="home.actionPlanDay">Plan my day</span>
             </button>
-            <button class="suggestion-chip-pill quick-action-chip" data-action="research-topic">
+            <button class="suggestion-chip-pill nagex-pill quick-action-chip" data-action="research-topic">
               <span class="chip-icon">📊</span>
               <span data-i18n="home.actionResearchTopic">Research topic</span>
             </button>
-            <button class="suggestion-chip-pill quick-action-chip" data-action="prepare-meeting">
+            <button class="suggestion-chip-pill nagex-pill quick-action-chip" data-action="prepare-meeting">
               <span class="chip-icon">✨</span>
               <span data-i18n="home.actionPrepareMeeting">Prepare meeting</span>
             </button>
           </div>
 
-          <!-- Bottom Compact Contextual Strip (Rendered dynamically when live data exists) -->
-          <div class="home-bottom-cards-grid">
+          <!-- UI-4: two-column grid matching the mockup's My Space/Today
+               (wide, left) + Working/Approvals/Memory (right column)
+               composition. Every list below is populated by
+               desktop-home.js from real state only; each section stays
+               hidden (inline style/display:none) until real data exists,
+               per the "no fake data to fill the mockup" rule — never
+               populated with sample content client-side. -->
+          <div class="desktop-home-grid">
+            <div class="desktop-home-col-main">
 
-            <!-- Card 1: NAgex is Working -->
-            <div class="home-grid-card canvas-section-card" style="display:none;">
-              <div class="card-title-row">
-                <div class="card-title-left">
-                  <span class="card-icon-blue">⚡</span>
-                  <h3 class="card-main-title" data-i18n="workspace.working">Working</h3>
+              <!-- DesktopToday — real GET /api/v1/my-space (tasks + calendar/calendarStatus) -->
+              <section class="nagex-card desktop-today-panel">
+                <div class="nagex-section-heading">
+                  <h2 data-i18n="home.todayTitle">Today</h2>
+                  <a class="nagex-section-link" onclick="window.NAGEX.switchTab('tab-my-space')" data-i18n="mySpace.open">Open &gt;</a>
                 </div>
-                <a class="card-link-see-all" onclick="window.NAGEX.switchTab('tab-tasks')" data-i18n="home.seeAll">See all &gt;</a>
+                <div id="desktop-today-list">
+                  <div class="nagex-loading-row"></div>
+                  <div class="nagex-loading-row"></div>
+                </div>
+                <div class="nagex-section-heading" style="margin-top: var(--nagex-spacing-5);">
+                  <h2 style="font-size: var(--nagex-font-size-md);" data-i18n="mySpace.history">Recent History</h2>
+                </div>
+                <div id="desktop-recent-actions-list"></div>
+              </section>
+
+              <!-- My Space entry point (unchanged from prior Home — static navigation card, not data-conditional) -->
+              <div class="home-grid-card canvas-section-card nagex-card-compact">
+                <div class="card-title-row">
+                  <div class="card-title-left">
+                    <span class="card-icon-blue">🧭</span>
+                    <h3 class="card-main-title" data-i18n="mySpace.navTitle">My Space</h3>
+                  </div>
+                  <a class="card-link-see-all" onclick="window.NAGEX.switchTab('tab-my-space')" data-i18n="mySpace.open">Open &gt;</a>
+                </div>
+                <p class="card-body-text" data-i18n="mySpace.navSubtitle">Your activity, memory, tasks, workflows, calendar, and history in one place.</p>
               </div>
-              <div class="card-body-list" id="list-nagex-working"></div>
             </div>
 
-            <!-- Card 2: Needs Attention -->
-            <div class="home-grid-card canvas-section-card" style="display:none;">
-              <div class="card-title-row">
-                <div class="card-title-left">
-                  <span class="card-icon-blue">🛡️</span>
-                  <h3 class="card-main-title" data-i18n="workspace.attention">Needs your attention</h3>
-                </div>
-                <a class="card-link-see-all" onclick="window.NAGEX.switchTab('tab-approvals')" data-i18n="home.seeAll">See all &gt;</a>
-              </div>
-              <div class="card-body-list" id="list-needs-attention"></div>
-            </div>
+            <div class="desktop-home-col-side">
 
-            <!-- Card 3: Today -->
-            <div class="home-grid-card canvas-section-card" style="display:none;">
-              <div class="card-title-row">
-                <div class="card-title-left">
-                  <span class="card-icon-blue">📅</span>
-                  <h3 class="card-main-title" data-i18n="workspace.today">Today</h3>
+              <!-- DesktopWorking — real state.tasks (RUNNING) + state.inbox (PROCESSING) + state.candidates (RUNNING action), unchanged binding logic from renderHomeWorkspaceSections(), restyled shell -->
+              <section class="nagex-card canvas-section-card" style="display:none;">
+                <div class="nagex-section-heading">
+                  <h2 data-i18n="home.workingTitle">NAgex is working for you</h2>
+                  <a class="nagex-section-link" onclick="window.NAGEX.switchTab('tab-executions')" data-i18n="home.seeAll">See all &gt;</a>
                 </div>
-                <a class="card-link-see-all" onclick="window.NAGEX.switchTab('tab-tasks')" data-i18n="home.seeAll">See all &gt;</a>
-              </div>
-              <div class="card-body-list" id="list-today-summary"></div>
-            </div>
+                <div id="list-nagex-working"></div>
+              </section>
 
-            <!-- Card 4: Recent Activity -->
-            <div class="home-grid-card canvas-section-card" style="display:none;">
-              <div class="card-title-row">
-                <div class="card-title-left">
-                  <span class="card-icon-blue">🕒</span>
-                  <h3 class="card-main-title" data-i18n="workspace.recentActivity">Recent activity</h3>
+              <!-- DesktopApprovals — real state.approvals (PENDING) + candidate review/retry + needs-human captures, unchanged binding logic, restyled shell -->
+              <section class="nagex-card canvas-section-card" style="display:none;">
+                <div class="nagex-section-heading">
+                  <h2 data-i18n="home.approvalsTitle">Needs your approval</h2>
+                  <a class="nagex-section-link" onclick="window.NAGEX.switchTab('tab-approvals')" data-i18n="home.seeAll">See all &gt;</a>
                 </div>
-                <a class="card-link-see-all" onclick="window.NAGEX.switchTab('tab-executions')" data-i18n="home.seeAll">See all &gt;</a>
-              </div>
-              <div class="card-body-list" id="list-recent-activity"></div>
-            </div>
+                <div id="list-needs-attention"></div>
+              </section>
 
-            <!-- Card 5: My Space entry point (P08 — static navigation, always visible, not data-conditional like the cards above) -->
-            <div class="home-grid-card canvas-section-card">
-              <div class="card-title-row">
-                <div class="card-title-left">
-                  <span class="card-icon-blue">🧭</span>
-                  <h3 class="card-main-title" data-i18n="mySpace.navTitle">My Space</h3>
+              <!-- DesktopMemory — real GET /api/v1/my-space memory field -->
+              <section class="nagex-card desktop-memory-panel">
+                <div class="nagex-section-heading">
+                  <h2 data-i18n="home.memoryTitle">Memories &amp; context</h2>
                 </div>
-                <a class="card-link-see-all" onclick="window.NAGEX.switchTab('tab-my-space')" data-i18n="mySpace.open">Open &gt;</a>
-              </div>
-              <p class="card-body-text" data-i18n="mySpace.navSubtitle">Your activity, memory, tasks, workflows, calendar, and history in one place.</p>
+                <div id="desktop-memory-list">
+                  <div class="nagex-loading-row"></div>
+                </div>
+              </section>
             </div>
-
           </div>
 
           <!-- Bottom Footer Info -->
@@ -1084,5 +1106,6 @@
   <script src="timeline-dedupe.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="single-flight-guard.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="app.js?v=__NAGEX_BUILD_VERSION__"></script>
+  <script src="desktop/desktop-home.js?v=__NAGEX_BUILD_VERSION__"></script>
 </body>
 </html>

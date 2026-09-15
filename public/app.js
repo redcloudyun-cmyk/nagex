@@ -515,6 +515,12 @@
         }
       };
     }
+
+    // Desktop/Mobile Home modules (separate files) hook in here rather
+    // than duplicating this file's own render lifecycle — called every
+    // time Home actually re-renders (including after loadAllData()),
+    // never on a separate/parallel timer.
+    if (window.NAGEX.onHomeRender) window.NAGEX.onHomeRender();
   }
 
   async function renderHomeWorkspaceSections() {
@@ -528,7 +534,7 @@
       const card = elWorking.closest('.canvas-section-card');
       const runningTasks = (state.tasks || [])
         .filter((task) => task.status === 'RUNNING')
-        .map((task) => ({ title: task.name || 'Task in progress...', detail: task.lastRunAt ? `Started ${new Date(task.lastRunAt).toLocaleTimeString()}` : 'Started recently' }));
+        .map((task) => ({ title: task.name || 'Task in progress...', detail: task.lastRunAt ? `Started ${new Date(task.lastRunAt).toLocaleTimeString()}` : 'Started recently', taskId: task.taskId }));
       const processingCaptures = (state.inbox || [])
         .filter((i) => i.status === 'PROCESSING' || i.status === 'QUEUED' || i.status === 'UPLOADING')
         .map((i) => ({ title: i.metadata?.extractedTitle || i.content || 'Processing capture...', detail: i.metadata?.processingSubStage || i.status }));
@@ -538,12 +544,21 @@
       const workingItems = [...processingCaptures, ...runningTasks, ...runningActions].slice(0, 2);
       if (workingItems.length > 0) {
         if (card) card.style.display = 'block';
+        // A Stop control is only ever rendered for an item that carries a
+        // real, cancellable identifier (taskId -> POST /api/v1/tasks/:id/cancel,
+        // the real DC3-B2-integrated Task cancellation path) — never a
+        // local-only "looks stopped" toggle, and never shown for items
+        // with no real cancel handle (processing captures, candidate
+        // actions) rather than wiring a fake one.
         elWorking.innerHTML = workingItems.map((w) => `<div class="inbox-item-card">
             <div class="inbox-item-main">
               <span class="inbox-item-title">${escapeHtml(w.title)}</span>
               <span class="inbox-item-summary">${escapeHtml(w.detail)}</span>
             </div>
-            <span class="badge-status status-PROCESSING">${escapeHtml(t('workspace.working') || 'WORKING')}</span>
+            <div style="display:flex; align-items:center; gap:0.4rem;">
+              <span class="badge-status status-PROCESSING">${escapeHtml(t('workspace.working') || 'WORKING')}</span>
+              ${w.taskId ? `<button class="btn-small danger" onclick="window.NAGEX.cancelTask('${w.taskId}')" title="${escapeHtml(t('workspace.stop') || 'Stop')}">${escapeHtml(t('workspace.stop') || 'Stop')}</button>` : ''}
+            </div>
           </div>`).join('');
       } else {
         if (card) card.style.display = 'none';
@@ -3087,6 +3102,20 @@
       }
       await loadAllData();
     },
+    // Real DC3-B2-era Task cancellation — the same POST /api/v1/tasks/:id/cancel
+    // a running Task's own control surface uses. Never a local-only UI
+    // toggle: the button that calls this only ever renders when a real
+    // taskId is present (see renderHomeWorkspaceSections' Working section).
+    cancelTask: async (taskId) => {
+      await apiFetch(`/api/v1/tasks/${taskId}/cancel`, { method: 'POST' });
+      await loadAllData();
+    },
+    // Minimal, deliberate bridge for desktop/mobile Home modules (separate
+    // script files, per the Dual Experience directive) to reuse the exact
+    // same authenticated fetch wrapper and canonical in-memory state this
+    // file already owns — never a second, parallel data client.
+    apiFetch,
+    getState: () => state,
     toggleQuickWakeOpt: async (key, value) => {
       state.quickWakeConfig[key] = value;
       await apiFetch('/api/v1/quickwake/config', {

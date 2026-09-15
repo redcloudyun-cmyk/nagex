@@ -1,0 +1,187 @@
+/*
+ * NAgex Shared Component Primitives (UI-3).
+ *
+ * Built entirely on tokens.css — no hardcoded colors/spacing/radii here.
+ * Namespaced .nagex-* to avoid colliding with legacy classes still in
+ * use elsewhere in style.css (.btn-approve-blue, .badge-status,
+ * .inbox-item-card, .plan-item-card, etc.) — those are left untouched;
+ * DesktopHome/MobileHome use these primitives instead of the legacy
+ * ones, and legacy call sites migrate later, deliberately, not as a
+ * side effect of this file existing (see CSS_VALUES_TO_DEPRECATE in the
+ * UI-3 report).
+ *
+ * Used by both DesktopHome and MobileHome (shared components, per the
+ * Dual Experience directive: layout composition differs, primitives do
+ * not need to).
+ */
+
+/* ── Buttons ─────────────────────────────────────────────────────── */
+.nagex-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--nagex-spacing-2);
+  font-family: var(--font-sans);
+  font-size: var(--nagex-font-size-md);
+  font-weight: var(--nagex-font-weight-semibold);
+  padding: var(--nagex-spacing-3) var(--nagex-spacing-5);
+  border-radius: var(--nagex-radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  min-height: 44px; /* accessibility touch target */
+  transition: background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+.nagex-btn:disabled { opacity: 0.5; cursor: default; }
+.nagex-btn:focus-visible { outline: 2px solid var(--nagex-border-active); outline-offset: 2px; }
+
+.nagex-btn-primary { background: var(--nagex-accent-primary); color: #ffffff; }
+.nagex-btn-primary:hover:not(:disabled) { background: var(--nagex-accent-hover); }
+
+.nagex-btn-secondary { background: var(--nagex-surface-primary); color: var(--nagex-text-primary); border-color: var(--nagex-border-default); }
+.nagex-btn-secondary:hover:not(:disabled) { background: var(--nagex-surface-subtle); }
+
+.nagex-btn-danger { background: var(--nagex-surface-primary); color: var(--nagex-danger); border-color: #fecaca; }
+.nagex-btn-danger:hover:not(:disabled) { background: #fef2f2; }
+
+.nagex-btn-ghost { background: transparent; color: var(--nagex-text-secondary); }
+.nagex-btn-ghost:hover:not(:disabled) { background: var(--nagex-surface-subtle); color: var(--nagex-text-primary); }
+
+.nagex-btn-sm { font-size: var(--nagex-font-size-sm); padding: var(--nagex-spacing-2) var(--nagex-spacing-4); min-height: 36px; }
+
+/* ── Cards ───────────────────────────────────────────────────────── */
+.nagex-card {
+  background: var(--nagex-surface-elevated);
+  border: 1px solid var(--nagex-border-subtle);
+  border-radius: var(--nagex-radius-lg);
+  box-shadow: var(--nagex-shadow-card);
+  padding: var(--nagex-spacing-5);
+}
+.nagex-card-elevated { box-shadow: var(--nagex-shadow-elevated); }
+.nagex-card-compact { padding: var(--nagex-spacing-4); border-radius: var(--nagex-radius-md); }
+
+/* ── Pills / chips (quick actions, filter tabs) ─────────────────── */
+.nagex-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nagex-spacing-2);
+  font-size: var(--nagex-font-size-sm);
+  font-weight: var(--nagex-font-weight-medium);
+  padding: var(--nagex-spacing-2) var(--nagex-spacing-4);
+  border-radius: var(--nagex-radius-pill);
+  border: 1px solid var(--nagex-border-default);
+  background: var(--nagex-surface-primary);
+  color: var(--nagex-text-primary);
+  cursor: pointer;
+  min-height: 44px;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.nagex-pill:hover { background: var(--nagex-surface-subtle); }
+.nagex-pill-active { background: var(--nagex-accent-soft); border-color: var(--nagex-accent-primary); color: var(--nagex-accent-primary); }
+
+/* ── Status badges ──────────────────────────────────────────────── */
+.nagex-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--nagex-font-size-xs);
+  font-weight: var(--nagex-font-weight-bold);
+  padding: 2px var(--nagex-spacing-2);
+  border-radius: var(--nagex-radius-pill);
+  line-height: 1.4;
+}
+/* Maps the real ActivityStatus/ApprovalStatus enums directly — never an
+   arbitrary color choice per call site. */
+.nagex-badge-running   { background: var(--nagex-accent-soft); color: var(--nagex-accent-primary); }
+.nagex-badge-completed { background: #d1fae5; color: #047857; }
+.nagex-badge-failed    { background: #fee2e2; color: #b91c1c; }
+.nagex-badge-attention { background: #fef3c7; color: #b45309; }
+.nagex-badge-muted     { background: var(--nagex-surface-subtle); color: var(--nagex-text-secondary); }
+
+/* ── Activity row (used by DesktopWorking/MobileWorking/DoneForYou) ─ */
+.nagex-activity-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--nagex-spacing-3);
+  padding: var(--nagex-spacing-3) 0;
+  border-bottom: 1px solid var(--nagex-border-subtle);
+}
+.nagex-activity-row:last-child { border-bottom: none; }
+.nagex-activity-icon {
+  width: 36px; height: 36px; flex-shrink: 0;
+  border-radius: var(--nagex-radius-md);
+  display: flex; align-items: center; justify-content: center;
+  background: var(--nagex-surface-subtle);
+}
+.nagex-activity-body { flex: 1; min-width: 0; }
+.nagex-activity-title { font-size: var(--nagex-font-size-md); font-weight: var(--nagex-font-weight-semibold); color: var(--nagex-text-primary); }
+.nagex-activity-desc { font-size: var(--nagex-font-size-sm); color: var(--nagex-text-secondary); margin-top: 2px; }
+.nagex-activity-meta { font-size: var(--nagex-font-size-xs); color: var(--nagex-text-muted); white-space: nowrap; }
+.nagex-activity-progress {
+  height: 4px; border-radius: var(--nagex-radius-pill); background: var(--nagex-surface-subtle);
+  overflow: hidden; margin-top: var(--nagex-spacing-2);
+}
+.nagex-activity-progress > span { display: block; height: 100%; background: var(--nagex-accent-primary); }
+
+/* ── Approval card (visual shell only — real data/actions wired by
+   DesktopApprovals/MobileApprovals reusing the existing renderApprovals()
+   logic; this class replaces .plan-item-card's outer chrome, not its
+   binding logic) ─────────────────────────────────────────────────── */
+.nagex-approval-card {
+  background: var(--nagex-surface-elevated);
+  border: 1px solid var(--nagex-border-subtle);
+  border-radius: var(--nagex-radius-lg);
+  padding: var(--nagex-spacing-4);
+  display: flex; flex-direction: column; gap: var(--nagex-spacing-3);
+}
+.nagex-approval-header { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--nagex-spacing-3); }
+.nagex-approval-title { font-size: var(--nagex-font-size-md); font-weight: var(--nagex-font-weight-semibold); color: var(--nagex-text-primary); }
+.nagex-approval-detail { font-size: var(--nagex-font-size-sm); color: var(--nagex-text-secondary); }
+.nagex-approval-actions { display: flex; gap: var(--nagex-spacing-2); }
+.nagex-approval-actions .nagex-btn { flex: 1; }
+
+/* ── Section heading ─────────────────────────────────────────────── */
+.nagex-section-heading {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: var(--nagex-spacing-4);
+}
+.nagex-section-heading h2 {
+  display: flex; align-items: center; gap: var(--nagex-spacing-2);
+  font-family: var(--font-display);
+  font-size: var(--nagex-font-size-xl);
+  font-weight: var(--nagex-font-weight-semibold);
+  color: var(--nagex-text-primary);
+}
+.nagex-section-heading .nagex-section-link {
+  font-size: var(--nagex-font-size-sm);
+  font-weight: var(--nagex-font-weight-medium);
+  color: var(--nagex-accent-primary);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* ── Empty state ─────────────────────────────────────────────────── */
+.nagex-empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--nagex-spacing-2);
+  padding: var(--nagex-spacing-7) var(--nagex-spacing-4);
+  text-align: center;
+  color: var(--nagex-text-muted);
+  font-size: var(--nagex-font-size-sm);
+}
+.nagex-empty-state strong { color: var(--nagex-text-secondary); font-weight: var(--nagex-font-weight-medium); }
+
+/* ── Loading state ───────────────────────────────────────────────── */
+.nagex-loading-row {
+  height: 44px;
+  border-radius: var(--nagex-radius-md);
+  background: linear-gradient(90deg, var(--nagex-surface-subtle) 25%, var(--nagex-border-subtle) 50%, var(--nagex-surface-subtle) 75%);
+  background-size: 200% 100%;
+  animation: nagex-loading-shimmer 1.4s ease-in-out infinite;
+  margin-bottom: var(--nagex-spacing-2);
+}
+@keyframes nagex-loading-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nagex-loading-row { animation: none; }
+}

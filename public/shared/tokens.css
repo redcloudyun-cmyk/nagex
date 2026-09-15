@@ -1,0 +1,107 @@
+/*
+ * NAgex Shared Design Tokens (UI-3).
+ *
+ * Namespaced --nagex-* variables, extending — never duplicating or
+ * conflicting with — the existing brand palette already declared in
+ * :root inside style.css (--primary-blue, --border-light, --radius-md,
+ * --shadow-box, etc.). That existing palette already closely matches the
+ * provided mockups' look (soft blue #2563eb accent, 8/12/16/24px radii,
+ * soft shadows, Inter). Where a --nagex-* token has a direct legacy
+ * equivalent, it aliases that variable rather than restating its value,
+ * so there is exactly one source of truth for each real color/shape
+ * value. New tokens (spacing scale, pill radius, hero font size,
+ * elevated/subtle surfaces, soft accent tint, layout tokens) were not
+ * present before and are added here, with values read directly off the
+ * mockups' visual proportions (8px-based spacing rhythm, generous
+ * card padding, ~280px sidebar, ~1400px content width, pill-shaped quick
+ * actions/status chips).
+ *
+ * DesktopHome and MobileHome both load this file and share every value;
+ * they do not duplicate a second token set.
+ */
+:root {
+  /* ── Spacing — 8px-based scale read off the mockups' card/section
+     rhythm (quick-action gaps, card internal padding, section gaps) ── */
+  --nagex-spacing-1: 4px;
+  --nagex-spacing-2: 8px;
+  --nagex-spacing-3: 12px;
+  --nagex-spacing-4: 16px;
+  --nagex-spacing-5: 20px;
+  --nagex-spacing-6: 24px;
+  --nagex-spacing-7: 32px;
+  --nagex-spacing-8: 40px;
+
+  /* ── Radius — aliases the existing scale; adds pill for quick-action
+     chips / status pills, which the mockups use but style.css did not
+     previously name ── */
+  --nagex-radius-sm: var(--radius-sm, 8px);
+  --nagex-radius-md: var(--radius-md, 12px);
+  --nagex-radius-lg: var(--radius-lg, 16px);
+  --nagex-radius-xl: var(--radius-xl, 24px);
+  --nagex-radius-pill: 999px;
+
+  /* ── Surfaces — aliases existing bg-* tokens; "elevated" and "subtle"
+     are new names for two states the mockups clearly use (raised white
+     cards over a soft off-white page background; a slightly tinted
+     sub-surface for nested/secondary content) but that were previously
+     only reachable as one-off inline colors ── */
+  --nagex-surface-primary: var(--bg-surface, #ffffff);
+  --nagex-surface-secondary: var(--bg-app, #f8fafc);
+  --nagex-surface-elevated: #ffffff;
+  --nagex-surface-subtle: var(--bg-subtle, #f1f5f9);
+
+  /* ── Borders — aliases existing scale; "active" is new, for a
+     selected/focused card or nav item outline the mockups show as a
+     soft blue ring ── */
+  --nagex-border-default: var(--border-light, #e2e8f0);
+  --nagex-border-subtle: #eef2f7;
+  --nagex-border-active: var(--primary-blue, #2563eb);
+
+  /* ── Shadows — aliases existing scale; "modal" is new (the ambient
+     overlay / approval-detail sheet needs a stronger shadow than any
+     card) ── */
+  --nagex-shadow-card: var(--shadow-box, 0 4px 16px -2px rgba(15, 23, 42, 0.06));
+  --nagex-shadow-elevated: var(--shadow-card-hover, 0 8px 24px -6px rgba(37, 99, 235, 0.14));
+  --nagex-shadow-modal: var(--shadow-popover, 0 16px 36px -8px rgba(15, 23, 42, 0.18));
+
+  /* ── Typography — sizes read off the mockups' real type scale (hero
+     headline, card titles, body, meta/caption); weights alias the
+     Inter/Outfit weights already imported at the top of style.css ── */
+  --nagex-font-size-xs: 0.72rem;
+  --nagex-font-size-sm: 0.82rem;
+  --nagex-font-size-md: 0.92rem;
+  --nagex-font-size-lg: 1.05rem;
+  --nagex-font-size-xl: 1.35rem;
+  --nagex-font-size-hero: 2.1rem;
+
+  --nagex-font-weight-normal: 400;
+  --nagex-font-weight-medium: 500;
+  --nagex-font-weight-semibold: 600;
+  --nagex-font-weight-bold: 700;
+
+  /* ── Colors — aliases existing scale; "soft" accent tint and "info"
+     are new names for values the mockups use (light-blue chip/badge
+     backgrounds) that previously existed only as scattered inline hex
+     (#dbeafe, #eff6ff) in individual component rules ── */
+  --nagex-text-primary: var(--text-main, #0f172a);
+  --nagex-text-secondary: var(--text-muted, #64748b);
+  --nagex-text-muted: var(--text-light, #94a3b8);
+
+  --nagex-accent-primary: var(--primary-blue, #2563eb);
+  --nagex-accent-hover: #1d4ed8;
+  --nagex-accent-soft: var(--sidebar-active, #eff6ff);
+
+  --nagex-success: var(--status-success, #10b981);
+  --nagex-warning: var(--status-warning, #f59e0b);
+  --nagex-danger: var(--status-error, #ef4444);
+  --nagex-info: var(--status-info, #3b82f6);
+
+  /* ── Layout — read off the mockups' real proportions: ~280px left
+     sidebar, content column capping out well before ultra-wide
+     viewports, consistent card/section gaps matching the spacing
+     scale above ── */
+  --nagex-sidebar-width: 264px;
+  --nagex-content-max-width: 1400px;
+  --nagex-card-gap: var(--nagex-spacing-4);
+  --nagex-section-gap: var(--nagex-spacing-7);
+}

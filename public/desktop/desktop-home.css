@@ -1,0 +1,127 @@
+/*
+ * NAgex Desktop Home (UI-4) — layout/visual layer only.
+ *
+ * Scoped entirely under .nagex-desktop-home (the #view-home root) plus a
+ * handful of app-shell selectors (sidebar width, notification bell) that
+ * are shared chrome, not Home-specific. Does not touch #view-my-space,
+ * #view-approvals, #view-inbox, #view-vault, #view-settings, or the
+ * ambient overlay/modal — those are unchanged by this file.
+ *
+ * Built entirely on public/shared/tokens.css + components.css values —
+ * no new hardcoded colors/spacing here beyond what those files define.
+ */
+
+/* ── Sidebar — the mockup shows an always-expanded sidebar (icon +
+   visible label per item), not the existing hover-to-expand icon rail.
+   Two separate pre-existing legacy rules collapse it (found via real
+   computed-style inspection during UI-4 screenshot comparison, not
+   assumed): style.css:212 (width:60px, no !important) AND a second,
+   redundant style.css:1526 block (width:60px !important). Only a later
+   !important can beat an existing !important, hence matching it below
+   — not a stylistic choice, the only way to actually win this cascade.
+   Item count/order/labels are otherwise untouched — still the canonical
+   5, unaffected by any of this. ── */
+.sidebar-left {
+  width: var(--nagex-sidebar-width) !important;
+  padding: var(--nagex-spacing-5) var(--nagex-spacing-3) !important;
+}
+.sidebar-left .nav-header-divider,
+.sidebar-left .nav-link span {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+/* ── Notification bell (header) ─────────────────────────────────── */
+.nagex-notif-bell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--nagex-radius-pill);
+  border: none;
+  background: transparent;
+  color: var(--nagex-text-secondary);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.nagex-notif-bell:hover { background: var(--nagex-surface-subtle); }
+.nagex-notif-bell:focus-visible { outline: 2px solid var(--nagex-border-active); outline-offset: 2px; }
+.nagex-notif-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  border-radius: var(--nagex-radius-pill);
+  background: var(--nagex-danger);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: var(--nagex-font-weight-bold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+/* ── Home content column width (mockup's centered, capped-width canvas) ── */
+.nagex-desktop-home {
+  max-width: var(--nagex-content-max-width);
+}
+
+/* ── Hero — larger scale matching the mockup's headline weight ────── */
+.nagex-desktop-home .home-hero-header {
+  margin-bottom: var(--nagex-spacing-6);
+}
+.nagex-desktop-home .personal-hero-title {
+  font-size: var(--nagex-font-size-hero);
+}
+
+/* ── Quick-action pills row — visual clone of the mockup's rounded chip
+   strip; underlying click behavior (composer prefill + send) is
+   app.js's existing, unchanged logic ── */
+.nagex-quick-actions {
+  gap: var(--nagex-spacing-3);
+  margin-bottom: var(--nagex-section-gap);
+}
+.nagex-quick-actions .nagex-pill {
+  min-height: 40px;
+}
+
+/* ── Two-column grid: wide left (Today + My Space), narrower right rail
+   (Working / Approvals / Memory) — matches the mockup's real proportions ── */
+.desktop-home-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--nagex-card-gap);
+  align-items: start;
+}
+
+.desktop-home-col-main,
+.desktop-home-col-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nagex-card-gap);
+  min-width: 0;
+}
+
+.desktop-today-panel,
+.desktop-memory-panel {
+  min-width: 0;
+}
+
+/* Narrower viewports (still desktop-class, e.g. a split-screen browser
+   window) collapse to one column rather than truncating content —
+   MobileHome (UI-5) is the real narrow-viewport experience, this is
+   just a safety fallback for the desktop tree specifically. */
+@media (max-width: 1024px) {
+  .desktop-home-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Section link ("See all >", "Open >") reuses shared component
+   class — no per-instance styling needed here. Kept for legacy
+   .card-link-see-all compatibility on the untouched My Space entry card. ── */
