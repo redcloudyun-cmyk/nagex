@@ -393,13 +393,13 @@
     if (heroEyebrow) heroEyebrow.textContent = 'NAGEX';
     if (heroTitle) {
       heroTitle.innerHTML = isKr
-        ? '<span class="brand-blue">NAgex</span> — 다음 시대를 위한 Personal AI'
-        : '<span class="brand-blue">NAgex</span> — Personal AI for the Next Age';
+        ? '계획하고 실행하는 <span class="brand-blue">당신의 Personal AI.</span>'
+        : 'Your Personal AI That <span class="brand-blue">Plans and Executes.</span>';
     }
     if (heroSub) {
       heroSub.textContent = isKr
-        ? '당신과 함께 기억하고, 이해하며, 실행하는 지능.'
-        : 'Intelligence that remembers, understands, and acts with you.';
+        ? '원하는 것을 NAgex에 말하세요. 계획하고 실행하며, 통제권은 언제나 당신에게 있습니다.'
+        : 'Tell NAgex what you want. It plans, takes action, and keeps you in control.';
     }
 
     renderHomeWorkspaceSections();
@@ -542,8 +542,13 @@
         .filter((c) => c.action && c.action.status === 'RUNNING')
         .map((c) => ({ title: c.title, detail: `${c.type} action in progress` }));
       const workingItems = [...processingCaptures, ...runningTasks, ...runningActions].slice(0, 2);
+      // UI-4-R1: the mockup keeps this panel structurally present at all
+      // times (a "Live"-style working surface), so it is no longer hidden
+      // when idle — a truthful empty state replaces the old
+      // card.style.display='none' collapse. Real data/Stop binding is
+      // otherwise unchanged.
+      if (card) card.style.display = 'block';
       if (workingItems.length > 0) {
-        if (card) card.style.display = 'block';
         // A Stop control is only ever rendered for an item that carries a
         // real, cancellable identifier (taskId -> POST /api/v1/tasks/:id/cancel,
         // the real DC3-B2-integrated Task cancellation path) — never a
@@ -561,7 +566,7 @@
             </div>
           </div>`).join('');
       } else {
-        if (card) card.style.display = 'none';
+        elWorking.innerHTML = `<div class="nagex-empty-state">${escapeHtml(t('home.workingEmpty') || 'Nothing running right now.')}</div>`;
       }
     }
 
@@ -589,8 +594,12 @@
         ...needsHumanCaptures.map((i) => ({ kind: 'needs-human', item: i })),
       ].slice(0, 2);
 
+      // UI-4-R1: structurally always present (mockup's "Needs Your
+      // Approval" panel is a fixed grid position with a real count badge,
+      // not something that disappears at zero) — truthful empty state
+      // when nothing is pending, never a collapsed card.
+      if (card) card.style.display = 'block';
       if (attentionItems.length > 0) {
-        if (card) card.style.display = 'block';
         elAttention.innerHTML = attentionItems.map((entry) => {
           if (entry.kind === 'approval') {
             const a = entry.approval;
@@ -621,7 +630,7 @@
           return `<div class="inbox-item-card" onclick="window.NAGEX.switchTab('tab-inbox')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.NAGEX.switchTab('tab-inbox');}"><div class="inbox-item-main"><span class="inbox-item-title">${escapeHtml(title)}</span><span class="inbox-item-summary">${escapeHtml(t('workspace.needsHumanAttention') || 'Needs your attention')}</span></div><span class="badge-status status-NEEDS_REVIEW">${escapeHtml(t('workspace.needsHumanBadge') || 'HUMAN NEEDED')}</span></div>`;
         }).join('');
       } else {
-        if (card) card.style.display = 'none';
+        elAttention.innerHTML = `<div class="nagex-empty-state">${escapeHtml(t('home.approvalsEmpty') || 'Nothing needs your attention right now.')}</div>`;
       }
     }
 

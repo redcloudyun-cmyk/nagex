@@ -149,10 +149,29 @@
     }
   }
 
+  // ── Approvals count badge — UI-4-R1, derived only from the already-
+  // loaded real state.approvals (same PENDING filter renderHomeWorkspaceSections
+  // uses), never a placeholder number. Runs after app.js's own
+  // renderHomeWorkspaceSections (onHomeRender fires at the end of
+  // renderHome()), so state.approvals is already current. ──
+  function renderApprovalsCountBadge() {
+    const badge = document.getElementById('approvals-count-badge');
+    if (!badge || !window.NAGEX.getState) return;
+    const state = window.NAGEX.getState();
+    const count = (state.approvals || []).filter((a) => a.status === 'PENDING').length;
+    if (count > 0) {
+      badge.hidden = false;
+      badge.textContent = count > 9 ? '9+' : String(count);
+    } else {
+      badge.hidden = true;
+    }
+  }
+
   function renderDesktopHome() {
     if (!document.querySelector('.nagex-desktop-home')) return; // not on Home
     renderGreeting();
     renderNotificationBell();
+    renderApprovalsCountBadge();
     renderMemoryPanel();
     renderTodayPanel();
   }
@@ -160,6 +179,11 @@
   function init() {
     window.NAGEX = window.NAGEX || {};
     window.NAGEX.onHomeRender = renderDesktopHome;
+    const headerSearch = document.getElementById('btn-header-search');
+    const homePrompt = document.getElementById('home-prompt-input');
+    if (headerSearch && homePrompt) {
+      headerSearch.addEventListener('click', () => homePrompt.focus());
+    }
     // First paint: app.js's own initial loadAllData() may already have
     // fired before this script attaches the hook above, so render once
     // immediately too (idempotent — safe to call twice).
