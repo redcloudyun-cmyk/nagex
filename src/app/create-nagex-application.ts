@@ -33,6 +33,8 @@ import { GoogleCalendarService } from '../modules/calendar/index.js';
 import { GmailService } from '../modules/gmail/index.js';
 import { BrowserToolService, browserRuntime, browserSessionStore } from '../modules/browser/index.js';
 import { DeviceExecutionSessionStore } from '../device-control/device-execution-session.store.js';
+import { DeviceControlService } from '../device-control/device-control.service.js';
+import { AstraVisualExecutionModelAdapter } from '../device-control/astra-visual-execution-model.adapter.js';
 import { googleTokenStore } from '../integrations/google/token.store.js';
 import { readGoogleOAuthConfig } from '../integrations/google/oauth.client.js';
 import { SessionStore } from '../sessions/session.store.js';
@@ -113,10 +115,26 @@ export function createNagexApplication(): NagexApplication {
   // — but it consumes the identical ActionApprovalStore, replay-protected the
   // same way, and GET/approve/reject need no route changes here either.
   const browserService = new BrowserToolService(browserRuntime, browserSessionStore, actionApprovals, auditLogger, memoryEngine, executionStore);
-  // DC1 — durable Device Control session store, real from day one (see
-  // nagex-application.ts's own comment on this field for why no
-  // production deviceControlService/capabilityBroker wiring exists yet).
+  // DC1 — durable Device Control session store, real from day one.
   const deviceExecutionSessionStore = new DeviceExecutionSessionStore();
+  // DC2 — the real VisualExecutionModelPort adapter. Constructed
+  // unconditionally (cheap, no I/O at construction — mirrors
+  // HttpModelProvider's own pattern), but deviceControlService below is
+  // only constructed when it reports configured, so
+  // isProviderAvailable('DEVICE') stays truthful: unconfigured ->
+  // deviceControlService stays undefined -> DEVICE genuinely unavailable,
+  // never a silent fallback to the test-only FakeVisualExecutionModelAdapter.
+  const astraVisualExecutionModelAdapter = new AstraVisualExecutionModelAdapter({
+    apiKey: process.env.OPENAI_API_KEY,
+    model: process.env.NAGEX_ASTRA_MODEL,
+    auditLogger,
+    // Routes through the ownership-scoped read-back (DC1-R1) — never a
+    // bare evidenceId lookup.
+    readScreenshot: (evidenceId, tenantId, ownerId, requestId) => browserService.readEvidenceOwned(evidenceId, tenantId, ownerId, requestId),
+  });
+  const deviceControlService = astraVisualExecutionModelAdapter.status().configured
+    ? new DeviceControlService(deviceExecutionSessionStore, browserService, astraVisualExecutionModelAdapter)
+    : undefined;
   const moduleRegistry = new ModuleRegistry();
   const moduleStateStore = new ModuleStateStore();
   const moduleService = new ModuleService(moduleRegistry, moduleStateStore, auditLogger);
@@ -130,6 +148,7 @@ export function createNagexApplication(): NagexApplication {
     'NAGEX_CAPABILITIES_IDEMPOTENCY_DIR',
     moduleRegistry,
     moduleStateStore,
+    deviceControlService,
   );
 
   // ─── MASTER.md Section 14 — Main Session + Tasks Foundation ───
@@ -387,6 +406,7 @@ export function createNagexApplication(): NagexApplication {
     workflowDefinitionStore,
     workflowDefinitionService,
     deviceExecutionSessionStore,
+    deviceControlService,
     lifecycle,
     getRelevantMemories,
     pinnedMemories,

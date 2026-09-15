@@ -20,6 +20,7 @@
       "browser_session_ownership_isolation",
       "browser_snapshot_truncation",
       "device_control",
+      "astra_visual_execution_adapter",
       "url_understanding",
       "approval_ttl_security",
       "approval_ownership_isolation",

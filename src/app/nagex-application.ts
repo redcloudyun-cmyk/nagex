@@ -52,6 +52,7 @@ import type { ModuleRegistry, ModuleStateStore, ModuleService } from '../modules
 import type { WorkflowDefinitionStore } from '../workflows/workflow-definition.store.js';
 import type { WorkflowDefinitionService } from '../workflows/workflow-definition.service.js';
 import type { DeviceExecutionSessionStore } from '../device-control/device-execution-session.store.js';
+import type { DeviceControlService } from '../device-control/device-control.service.js';
 
 export interface NagexApplication {
   pdp: PolicyDecisionPoint;
@@ -112,18 +113,15 @@ export interface NagexApplication {
   // Task/Plan/Capability Broker/Approval/Durable Runtime path unchanged.
   workflowDefinitionStore: WorkflowDefinitionStore;
   workflowDefinitionService: WorkflowDefinitionService;
-  // DC1 — the durable Device Control session store, real from day one. No
-  // production `deviceControlService` field exists yet: DeviceControlService
-  // requires a VisualExecutionModelPort adapter, and the only one that
-  // exists so far (FakeVisualExecutionModelAdapter) is test-only by design
-  // (Section 6 — proven deterministic before any real/Astra provider is
-  // connected). Wiring a real deviceControlService into production, and
-  // therefore into capabilityBroker, is a follow-up directive's job once a
-  // real adapter exists — until then capabilityBroker's own
-  // deviceControlService constructor param stays undefined and
-  // 'device.browser.execute' correctly reports PROVIDER_UNAVAILABLE rather
-  // than silently running on a fake model.
+  // DC1 — the durable Device Control session store, real from day one.
   deviceExecutionSessionStore: DeviceExecutionSessionStore;
+  // DC2 — undefined whenever AstraVisualExecutionModelAdapter reports
+  // unconfigured (no OPENAI_API_KEY) — never a silent fallback to the
+  // test-only FakeVisualExecutionModelAdapter. capabilityBroker's own
+  // deviceControlService constructor param is this exact same value, so
+  // 'device.browser.execute' truthfully reports PROVIDER_UNAVAILABLE
+  // whenever this is undefined.
+  deviceControlService: DeviceControlService | undefined;
   // Construction-time dependency of taskRunner/telegramService/slackService
   // (each bakes it in as a closure) that is *also* live, mutable state read
   // and written by memory pin/unpin route handlers for the rest of the

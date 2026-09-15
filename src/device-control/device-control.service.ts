@@ -227,10 +227,16 @@ export class DeviceControlService {
       let proposed: ProposedDeviceAction;
       try {
         proposed = await this.model.proposeNextAction({
+          tenantId: current.tenantId,
+          ownerId: current.ownerPrincipalId,
           goal: current.goal,
           structuredSnapshot,
           screenshotRef: screenshot.evidenceId,
           allowedActions: current.allowedActions,
+          allowedDomains: current.allowedDomains,
+          riskCeiling: current.riskCeiling,
+          stepNumber: current.stepCount + 1,
+          remainingSteps: Math.max(current.maxSteps - current.stepCount, 0),
           priorActions,
           requestId,
         });

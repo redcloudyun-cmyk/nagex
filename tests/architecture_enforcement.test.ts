@@ -281,6 +281,11 @@ const APPLICATION_GRAPH_CLASSES = [
   'DurableTaskRunStateStore', 'DurableTaskRuntime',
   // P07 — Reusable Workflow Definition Foundation.
   'WorkflowDefinitionStore', 'WorkflowDefinitionService',
+  // DC1/DC2 — Device Control Foundation + the real Astra adapter, added
+  // now rather than left silently unenforced (the exact Phase 09 lesson
+  // above: DC1 itself added DeviceExecutionSessionStore without ever
+  // adding it here).
+  'DeviceExecutionSessionStore', 'DeviceControlService', 'AstraVisualExecutionModelAdapter',
 ];
 
 const COMPOSITION_ROOT_PATH = 'src/app/create-nagex-application.ts';
