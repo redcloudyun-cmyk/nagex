@@ -2498,7 +2498,24 @@ export const server = http.createServer((req, res) => {
   });
 });
 
-if (require.main === module) {
+// DC3-B1-R1-R1 — extracted from the require.main-only block below so an
+// embedder (desktop-app.ts's Electron main process) can start the real
+// server and genuinely AWAIT it actually listening, rather than relying
+// on `require.main === module` (which is false when this module is
+// imported as a dependency, not run directly — the real root cause of
+// the Quick Wake ERR_CONNECTION_REFUSED bug: `await import('../server_web.js')`
+// only evaluated this module, it never reached this block at all, so
+// nothing was ever listening). Idempotent: calling this twice in one
+// process throws rather than silently double-registering lifecycle hooks
+// or double-binding the port.
+let nagexServerStarted = false;
+
+export async function startNagexServer(): Promise<{ server: http.Server }> {
+  if (nagexServerStarted) {
+    throw new Error('startNagexServer() was already called once in this process.');
+  }
+  nagexServerStarted = true;
+
   const HOST = process.env.HOST || '127.0.0.1';
   let serverInstance: http.Server;
   let schedulerIntervalHandle: NodeJS.Timeout | null = null;
@@ -2555,7 +2572,13 @@ if (require.main === module) {
 
   lifecycle.register({
     name: 'http-server',
-    start: () => new Promise<void>((resolve) => {
+    // GATEWAY_LISTEN_ERROR_PROPAGATES — a real bind failure (e.g. the
+    // port already in use) previously had no error listener at all here:
+    // the promise would never resolve OR reject, hanging forever rather
+    // than surfacing the failure. `once('error', reject)` is what makes a
+    // real startup failure — via startNagexServer() — a caller can
+    // actually catch, instead of an indefinite silent hang.
+    start: () => new Promise<void>((resolve, reject) => {
       serverInstance = server.listen(PORT, HOST, () => {
         console.log(`\n═══════════════════════════════════════════════════════`);
         console.log(`  NAgex Personal AI — Unified Platform Server`);
@@ -2565,6 +2588,7 @@ if (require.main === module) {
         console.log(`═══════════════════════════════════════════════════════\n`);
         resolve();
       });
+      serverInstance.once('error', reject);
     }),
     stop: () =>
       new Promise<void>((resolve, reject) => {
@@ -2584,7 +2608,13 @@ if (require.main === module) {
       }),
   });
 
-  void lifecycle.startAll();
+  // The real fix: genuinely AWAITED. The http-server lifecycle hook's own
+  // start() only resolves once server.listen()'s callback actually fires
+  // (real "now listening" confirmation, not a guess) — awaiting
+  // lifecycle.startAll() here is what makes startNagexServer()'s own
+  // returned promise a trustworthy readiness signal for any caller,
+  // embedded or direct.
+  await lifecycle.startAll();
 
   // Production graceful shutdown lifecycle. Playwright's own SIGTERM
   // handling (registered when the browser launches) suppresses Node's
@@ -2619,4 +2649,17 @@ if (require.main === module) {
 
   process.on('SIGTERM', () => void performShutdown('SIGTERM'));
   process.on('SIGINT', () => void performShutdown('SIGINT'));
+
+  return { server: serverInstance! };
+}
+
+// Preserves the exact existing direct-run behavior (`node dist/src/server_web.js`,
+// the real systemd/production path) unchanged — fire-and-forget at this
+// call site, exactly as before; the only real difference is that
+// lifecycle.startAll() is now properly awaited INSIDE startNagexServer()
+// rather than fire-and-forget itself, which is strictly more correct
+// sequencing, never a behavior regression for this path (nothing here
+// ever depended on this expression's own promise).
+if (require.main === module) {
+  void startNagexServer();
 }
