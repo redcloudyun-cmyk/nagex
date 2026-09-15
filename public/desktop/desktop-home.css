@@ -656,3 +656,49 @@
 .summary-icon-green { color:#0ba979; background:#dbf8ed; }
 .summary-icon-blue { color:#1472ef; background:#e7f0ff; }
 .summary-icon-orange { color:#e78a00; background:#fff2d5; }
+
+/* UI-4 final clone geometry: top-left workspace + fixed value rail. */
+.desktop-home-top { display:grid; grid-template-columns:minmax(0, 1fr) 326px; gap:16px; margin-bottom:16px; }
+.desktop-home-primary { min-width:0; }
+.desktop-home-primary .home-hero-header { margin:0; min-height:157px; padding-left:15px; }
+.desktop-home-primary .unified-capture-composer-card { margin:0 0 14px; }
+.desktop-home-primary .nagex-quick-actions-grid { margin-bottom:0; grid-template-columns:repeat(5,minmax(0,1fr)); gap:9px; }
+.desktop-value-overview { position:relative; min-height:354px; padding:25px 20px 18px !important; overflow:hidden; background:linear-gradient(180deg,#fff 0%,#f7fbff 100%); }
+.desktop-value-overview h2 { position:relative; z-index:2; margin:0; color:#0c2455; font-size:20px; line-height:1.12; }
+.desktop-value-overview h2 span { color:#075df0; }
+.desktop-value-landscape { position:absolute; inset:0 0 auto; height:126px; background:linear-gradient(145deg,rgba(255,255,255,.68),rgba(211,231,255,.3)),radial-gradient(ellipse at 92% 90%,#79a9e6 0 17%,transparent 18%),radial-gradient(ellipse at 75% 105%,#b6d2f2 0 30%,transparent 31%); }
+.desktop-value-overview #desktop-activity-summary { position:relative; z-index:2; margin-top:35px; }
+.desktop-value-overview .activity-summary-real { margin-top:6px; gap:13px; }
+.desktop-value-overview .activity-summary-real > div { grid-template-columns:36px 44px 1fr; min-height:42px; }
+.desktop-value-overview .summary-icon { width:32px; height:32px; }
+.desktop-value-overview .activity-summary-empty { padding-top:50px; }
+
+.nagex-desktop-home > .desktop-home-grid { grid-template-columns:minmax(0,34fr) minmax(0,33fr) minmax(0,33fr); }
+.my-space-tabs { display:grid; grid-template-columns:repeat(3,1fr); margin:-3px -16px 10px; border-bottom:1px solid #e6edf7; }
+.my-space-tabs span { padding:7px 4px; background:#f7faff; color:#7488aa; text-align:center; font-size:11px; }
+.my-space-tabs span.active { color:#0667f2; font-weight:700; border-bottom:2px solid #176ff2; background:#eef5ff; }
+.today-date-label { margin:8px 0 4px; color:#102654; font-size:15px; font-weight:750; }
+.desktop-today-panel { min-height:350px; }
+.nagex-card-compact { min-height:126px; }
+.desktop-home-col-center > .nagex-card:first-child { min-height:297px; }
+.desktop-memory-panel { min-height:184px; }
+.desktop-home-col-side > .nagex-card:first-child { min-height:297px; }
+.desktop-home-col-side .nagex-value-panel { min-height:184px; }
+.desktop-value-message { position:relative; z-index:2; min-height:120px; display:flex; flex-direction:column; justify-content:center; padding-left:36px; color:#0b56bd; }
+.desktop-value-spark { position:absolute; left:0; top:20px; font-size:26px; }
+.desktop-value-message strong { font-size:15px; line-height:1.35; }
+.desktop-value-message div { display:flex; gap:7px; margin-top:15px; }
+.desktop-value-message button { padding:6px 12px; border:1px solid #dce8f8; border-radius:999px; background:#fff; color:#24528e; font-size:11px; cursor:pointer; }
+.nav-menu { gap:2px; }
+.nav-link { min-height:38px; padding:8px 10px; font-size:14px; }
+.nav-separator { height:1px; margin:7px 11px; background:#d8e4f3; }
+.nav-item.active .nav-link { background:#e9f1ff !important; color:#065fe8 !important; box-shadow:none; }
+.nav-item.active .nav-link .svg-icon { fill:#065fe8; }
+.sidebar-top-group { gap:8px; }
+.sidebar-device-card { padding:11px; }
+.sidebar-footer-brand { display:none; }
+@media (max-width:1280px) {
+  .desktop-home-top { grid-template-columns:1fr; }
+  .desktop-value-overview { display:none; }
+  .desktop-home-primary .nagex-quick-actions-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+}

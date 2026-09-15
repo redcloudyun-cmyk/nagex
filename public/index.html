@@ -128,6 +128,8 @@
              NAgex state only (desktop-home.js), never mockup sample
              content. -->
         <div id="view-home" class="tab-view active-view canvas-mode-chat nagex-desktop-home">
+          <div class="desktop-home-top">
+          <div class="desktop-home-primary">
           <div class="home-hero-header">
             <span class="eyebrow-text" id="desktop-hero-greeting" data-i18n="home.greetingMorning">Good morning</span>
             <h1 class="personal-hero-title">Your Personal AI That <span class="brand-blue">Plans and Executes.</span></h1>
@@ -212,6 +214,14 @@
               </span>
               <svg class="qa-chevron" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
             </button>
+            <button class="nagex-quick-action-card quick-action-chip" data-action="execute-task"><span class="qa-icon qa-icon-blue">✓</span><span class="qa-text"><span class="qa-title">Review a task</span><span class="qa-desc">Run a supported review</span></span><svg class="qa-chevron" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg></button>
+          </div>
+          </div>
+          <aside class="nagex-card desktop-value-overview">
+            <div class="desktop-value-landscape" aria-hidden="true"></div>
+            <h2>A more fulfilled you,<br>with <span>NAgex</span></h2>
+            <div id="desktop-activity-summary" class="nagex-empty-state">Your real NAgex activity will appear here.</div>
+          </aside>
           </div>
 
           <!-- UI-4-R1: three-column grid reproducing the mockup's overall
@@ -229,17 +239,15 @@
               <!-- DesktopToday — real GET /api/v1/my-space (tasks + calendar/calendarStatus) -->
               <section class="nagex-card desktop-today-panel">
                 <div class="nagex-section-heading">
-                  <h2 data-i18n="home.todayTitle">Today</h2>
+                  <h2>▰ &nbsp; My Space</h2>
                   <a class="nagex-section-link" onclick="window.NAGEX.switchTab('tab-my-space')" data-i18n="mySpace.open">Open &gt;</a>
                 </div>
+                <div class="my-space-tabs"><span class="active">Today</span><span>This Week</span><span>Upcoming</span></div>
+                <div class="today-date-label" id="desktop-today-date"></div>
                 <div id="desktop-today-list">
                   <div class="nagex-loading-row"></div>
                   <div class="nagex-loading-row"></div>
                 </div>
-                <div class="nagex-section-heading" style="margin-top: var(--nagex-spacing-5);">
-                  <h2 style="font-size: var(--nagex-font-size-md);" data-i18n="mySpace.history">Recent History</h2>
-                </div>
-                <div id="desktop-recent-actions-list"></div>
               </section>
 
               <!-- My Space entry point (unchanged from prior Home — static navigation card, not data-conditional) -->
@@ -247,11 +255,11 @@
                 <div class="card-title-row">
                   <div class="card-title-left">
                     <span class="card-icon-blue">🧭</span>
-                    <h3 class="card-main-title" data-i18n="mySpace.navTitle">My Space</h3>
+                    <h3 class="card-main-title">Recent Actions</h3>
                   </div>
                   <a class="card-link-see-all" onclick="window.NAGEX.switchTab('tab-my-space')" data-i18n="mySpace.open">Open &gt;</a>
                 </div>
-                <p class="card-body-text" data-i18n="mySpace.navSubtitle">Your activity, memory, tasks, workflows, calendar, and history in one place.</p>
+                <div id="desktop-recent-actions-list"></div>
               </div>
             </div>
 
@@ -301,7 +309,7 @@
                 <div class="nagex-section-heading">
                   <h2 data-i18n="home.valueTitle">Your activity summary</h2>
                 </div>
-                <div id="desktop-activity-summary" class="nagex-empty-state" data-i18n="home.valueEmpty">Your NAgex activity summary will appear here as NAgex handles work for you.</div>
+                <div class="desktop-value-message"><span class="desktop-value-spark">✦</span><strong>Let NAgex handle the details,<br>so you can focus on what matters.</strong><div><button class="quick-action-chip" data-action="plan-day">Plan</button><button class="quick-action-chip" data-action="prepare-meeting">Prepare</button><button class="quick-action-chip" data-action="research-topic">Research</button></div></div>
               </section>
             </div>
           </div>

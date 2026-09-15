@@ -120,6 +120,8 @@
     if (!listEl || !window.NAGEX.apiFetch || !window.NAGEX.getState) return;
 
     const state = window.NAGEX.getState();
+    const dateEl = document.getElementById('desktop-today-date');
+    if (dateEl) dateEl.textContent = new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }).format(new Date());
     const activeTasks = (state.tasks || []).filter((task) => task.status === 'ACTIVE' || task.status === 'RUNNING' || task.status === 'PAUSED').slice(0, 5);
 
     let data = null;
