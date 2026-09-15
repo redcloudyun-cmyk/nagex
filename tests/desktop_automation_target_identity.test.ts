@@ -164,22 +164,32 @@ test('UIA_UNSAVED_STATE_UNKNOWN_CLOSE_BLOCKED: an owned, unshared target with un
 });
 
 test('UIA_DEDICATED_TEST_HARNESS: a dedicated, isolated, no-user-data UIA test harness exists with deterministic AutomationIds and no force-kill affordance', () => {
-  const harnessPath = path.join(process.cwd(), 'tools', 'uia-test-harness', 'nagex-uia-test-harness.ps1');
-  assert.ok(fs.existsSync(harnessPath), 'the dedicated UIA test harness script must exist');
+  // WPF, not WinForms: real-host acceptance testing (DC3-B2 real Windows
+  // UIA harness acceptance) empirically found WinForms controls on the
+  // target host expose zero UIA control patterns at all (GetSupportedPatterns()
+  // returned empty; GetCurrentPattern threw "Unsupported Pattern" even for
+  // ValuePattern on a plain TextBox) while WPF's native, first-class UIA
+  // peers worked correctly for every required pattern. The harness was
+  // rebuilt on WPF for that reason — this is a real, disclosed platform
+  // finding, not a preference.
+  const harnessPath = path.join(process.cwd(), 'tools', 'uia-test-harness', 'NagexUiaTestHarnessWpf.cs');
+  assert.ok(fs.existsSync(harnessPath), 'the dedicated UIA test harness source must exist');
   const contents = fs.readFileSync(harnessPath, 'utf8');
 
-  const requiredAutomationIds = ['NagexTestTextInput', 'NagexTestButton', 'NagexTestCheckbox', 'NagexTestListBox', 'NagexTestScrollPanel', 'NagexTestCloseButton'];
+  const requiredAutomationIds = ['NagexTestTextInput', 'NagexTestButton', 'NagexTestCheckbox', 'NagexTestItemA', 'NagexTestItemB', 'NagexTestItemC', 'NagexTestScrollPanel', 'NagexTestCloseButton'];
   for (const id of requiredAutomationIds) {
     assert.ok(contents.includes(id), `harness must expose deterministic control: ${id}`);
   }
 
   const executableLines = contents
     .split('\n')
-    .filter((line) => !line.trim().startsWith('#'))
+    .filter((line) => !line.trim().startsWith('//'))
     .join('\n');
-  assert.ok(!/Stop-Process/i.test(executableLines), 'the harness must never actually invoke Stop-Process (mentioning it in a comment is fine)');
-  assert.ok(!/-Force/i.test(executableLines), 'the harness must never expose a -Force close path');
-  assert.ok(contents.includes('$form.Close()'), 'the only close path must be the graceful WinForms Form.Close()');
+  assert.ok(!/Stop-Process|Process\.Kill|\.Kill\(/i.test(executableLines), 'the harness must never actually force-terminate itself');
+  assert.ok(contents.includes('Close()'), 'the only close path must be the graceful WPF Window.Close()');
+
+  const buildScriptPath = path.join(process.cwd(), 'tools', 'uia-test-harness', 'build-harness.ps1');
+  assert.ok(fs.existsSync(buildScriptPath), 'a build script for the harness must exist (the compiled .exe is a build artifact, not committed)');
 });
 
 test('window-title-shaped evidence carried inside a TargetIdentity is redacted metadata, never the raw title (secret-adjacent titles never leak through target identity)', () => {

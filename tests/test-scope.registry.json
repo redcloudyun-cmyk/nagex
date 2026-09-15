@@ -19,6 +19,7 @@
       "desktop_gateway_startup_failure",
       "sensitive_text_redaction",
       "desktop_automation_target_identity",
+      "desktop_automation_activity_summary",
       "device_control",
       "astra_visual_execution_adapter",
       "astra_real_provider_acceptance",
