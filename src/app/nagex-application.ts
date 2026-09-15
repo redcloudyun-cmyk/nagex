@@ -56,6 +56,9 @@ import type { DeviceControlService } from '../device-control/device-control.serv
 import type { DeviceIdentityStore } from '../device-agent/device-identity.store.js';
 import type { DesktopExecutionSessionStore } from '../device-agent/desktop-execution-session.store.js';
 import type { DeviceTransportSecurity } from '../device-agent/device-transport-security.js';
+import type { DeviceConnectionStatusStore } from '../device-agent/device-connection-status.store.js';
+import type { DevicePendingCommandStore } from '../device-agent/device-pending-command.store.js';
+import type { DeviceAgentTransportEndpoint } from '../device-agent/device-agent-transport-endpoint.service.js';
 
 export interface NagexApplication {
   pdp: PolicyDecisionPoint;
@@ -132,6 +135,11 @@ export interface NagexApplication {
   deviceIdentityStore: DeviceIdentityStore;
   desktopExecutionSessionStore: DesktopExecutionSessionStore;
   deviceTransportSecurity: DeviceTransportSecurity;
+  // DC3-B1 — the real outbound transport endpoint (server side). Never
+  // touches CapabilityBroker — device.desktop.execute remains unadvertised.
+  deviceConnectionStatusStore: DeviceConnectionStatusStore;
+  devicePendingCommandStore: DevicePendingCommandStore;
+  deviceAgentTransportEndpoint: DeviceAgentTransportEndpoint;
   // Construction-time dependency of taskRunner/telegramService/slackService
   // (each bakes it in as a closure) that is *also* live, mutable state read
   // and written by memory pin/unpin route handlers for the rest of the

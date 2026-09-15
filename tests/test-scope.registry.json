@@ -12,6 +12,7 @@
     ],
     "device": [
       "device_agent_foundation",
+      "device_agent_transport",
       "device_control",
       "astra_visual_execution_adapter",
       "astra_real_provider_acceptance",

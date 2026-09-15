@@ -162,6 +162,8 @@ export const {
   inputRouter,
   workflowDefinitionStore,
   workflowDefinitionService,
+  deviceAgentTransportEndpoint,
+  deviceIdentityStore,
 } = app;
 let pendingGoogleOAuthState: string | null = null;
 
@@ -1791,6 +1793,26 @@ export async function handleAsyncApiRequest(
         status: 200,
         data: { activity, memory, tasks, workflows, calendar, calendarStatus, history },
       };
+    }
+
+    // DC3-B1 — the real outbound Local Device Agent transport endpoint.
+    // Deliberately does NOT trust x-nagex-tenant/x-principal-id headers
+    // the way every other route here does — a device's tenantId/ownerId
+    // are only ever accepted as authenticated here because they are
+    // cryptographically bound to an enrolled, ACTIVE device via
+    // DeviceTransportSecurity.verify()'s real Ed25519 signature check,
+    // never because a caller-controlled header said so. Never touches
+    // CapabilityBroker/CapabilityRegistry — device.desktop.execute is not
+    // reachable through this route at all.
+    if (pathname === '/api/v1/device-agent/message' && method === 'POST') {
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+      const envelope = body?.envelope as any;
+      const payload = body?.payload as any;
+      if (!envelope || typeof envelope !== 'object' || payload === undefined) {
+        throw new NagexError({ code: 'DEVICE_MESSAGE_MALFORMED', category: 'VALIDATION', message: 'A device message requires envelope and payload.', request_id: requestId });
+      }
+      const result = deviceAgentTransportEndpoint.handle({ envelope, payload }, requestId);
+      return { status: 200, data: result };
     }
 
     return handleApiRequest(method, pathname, body, headers);

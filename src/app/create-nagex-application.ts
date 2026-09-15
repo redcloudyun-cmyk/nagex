@@ -38,6 +38,9 @@ import { AstraVisualExecutionModelAdapter } from '../device-control/astra-visual
 import { DeviceIdentityStore } from '../device-agent/device-identity.store.js';
 import { DesktopExecutionSessionStore } from '../device-agent/desktop-execution-session.store.js';
 import { DeviceTransportSecurity } from '../device-agent/device-transport-security.js';
+import { DeviceConnectionStatusStore } from '../device-agent/device-connection-status.store.js';
+import { DevicePendingCommandStore } from '../device-agent/device-pending-command.store.js';
+import { DeviceAgentTransportEndpoint } from '../device-agent/device-agent-transport-endpoint.service.js';
 import { googleTokenStore } from '../integrations/google/token.store.js';
 import { readGoogleOAuthConfig } from '../integrations/google/oauth.client.js';
 import { SessionStore } from '../sessions/session.store.js';
@@ -139,12 +142,22 @@ export function createNagexApplication(): NagexApplication {
     ? new DeviceControlService(deviceExecutionSessionStore, browserService, astraVisualExecutionModelAdapter)
     : undefined;
   // DC3-A — Local Device Agent identity/session/transport foundation.
-  // Real from day one, matching DC1's own precedent — no consuming
-  // service/HTTP route exists yet (that is DC3-B's job); no desktop
-  // execution capability is advertised anywhere from this wiring alone.
   const deviceIdentityStore = new DeviceIdentityStore();
   const desktopExecutionSessionStore = new DesktopExecutionSessionStore();
   const deviceTransportSecurity = new DeviceTransportSecurity(deviceIdentityStore);
+  // DC3-B1 — the real outbound transport endpoint. Deliberately has no
+  // dependency on CapabilityBroker/CapabilityRegistry anywhere — this
+  // wiring alone never makes device.desktop.execute appear live; only
+  // "enrolled/connected/authenticated" are reachable from here.
+  const deviceConnectionStatusStore = new DeviceConnectionStatusStore();
+  const devicePendingCommandStore = new DevicePendingCommandStore();
+  const deviceAgentTransportEndpoint = new DeviceAgentTransportEndpoint(
+    deviceTransportSecurity,
+    deviceIdentityStore,
+    deviceConnectionStatusStore,
+    desktopExecutionSessionStore,
+    devicePendingCommandStore,
+  );
   const moduleRegistry = new ModuleRegistry();
   const moduleStateStore = new ModuleStateStore();
   const moduleService = new ModuleService(moduleRegistry, moduleStateStore, auditLogger);
@@ -420,6 +433,9 @@ export function createNagexApplication(): NagexApplication {
     deviceIdentityStore,
     desktopExecutionSessionStore,
     deviceTransportSecurity,
+    deviceConnectionStatusStore,
+    devicePendingCommandStore,
+    deviceAgentTransportEndpoint,
     lifecycle,
     getRelevantMemories,
     pinnedMemories,

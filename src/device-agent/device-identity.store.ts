@@ -137,4 +137,18 @@ export class DeviceIdentityStore {
     record.lastSeenAt = this.now();
     return this.persist(record);
   }
+
+  // DC3-B1 — additive only, no change to any existing method's behavior.
+  // Heartbeats may update exactly the fields Section 7 allows
+  // (lastSeenAt, agentVersion, capabilityInventory) — never status, never
+  // ownership — in one atomic write rather than three separate
+  // read-modify-write calls.
+  public recordHeartbeat(deviceId: string, tenantId: string, ownerId: string, update: { agentVersion?: string; capabilityInventory?: string[] } = {}): DeviceIdentityRecord | null {
+    const record = this.getOwned(deviceId, tenantId, ownerId);
+    if (!record) return null;
+    record.lastSeenAt = this.now();
+    if (update.agentVersion !== undefined) record.agentVersion = update.agentVersion;
+    if (update.capabilityInventory !== undefined) record.capabilityInventory = [...update.capabilityInventory];
+    return this.persist(record);
+  }
 }
