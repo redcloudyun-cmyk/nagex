@@ -286,6 +286,8 @@ const APPLICATION_GRAPH_CLASSES = [
   // above: DC1 itself added DeviceExecutionSessionStore without ever
   // adding it here).
   'DeviceExecutionSessionStore', 'DeviceControlService', 'AstraVisualExecutionModelAdapter',
+  // DC3-A — Local Device Agent identity/session/transport foundation.
+  'DeviceIdentityStore', 'DesktopExecutionSessionStore', 'DeviceTransportSecurity',
 ];
 
 const COMPOSITION_ROOT_PATH = 'src/app/create-nagex-application.ts';

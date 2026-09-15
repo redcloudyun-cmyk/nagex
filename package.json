@@ -14,7 +14,8 @@
     "test:browser": "npm run test:scope -- browser",
     "test:google": "npm run test:scope -- google",
     "test:tasks": "npm run test:scope -- tasks",
-    "test:runtime": "npm run test:scope -- runtime"
+    "test:runtime": "npm run test:scope -- runtime",
+    "test:device": "npm run test:scope -- device"
   },
   "build": {
     "appId": "com.nagex.desktop",

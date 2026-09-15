@@ -10,6 +10,13 @@
       "task_orchestration_boundary",
       "tool_capability_id_alignment"
     ],
+    "device": [
+      "device_agent_foundation",
+      "device_control",
+      "astra_visual_execution_adapter",
+      "astra_real_provider_acceptance",
+      "browser_session_ownership_isolation"
+    ],
     "browser": [
       "browser_agent",
       "browser_agent_mvp",

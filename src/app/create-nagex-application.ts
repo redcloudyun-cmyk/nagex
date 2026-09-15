@@ -35,6 +35,9 @@ import { BrowserToolService, browserRuntime, browserSessionStore } from '../modu
 import { DeviceExecutionSessionStore } from '../device-control/device-execution-session.store.js';
 import { DeviceControlService } from '../device-control/device-control.service.js';
 import { AstraVisualExecutionModelAdapter } from '../device-control/astra-visual-execution-model.adapter.js';
+import { DeviceIdentityStore } from '../device-agent/device-identity.store.js';
+import { DesktopExecutionSessionStore } from '../device-agent/desktop-execution-session.store.js';
+import { DeviceTransportSecurity } from '../device-agent/device-transport-security.js';
 import { googleTokenStore } from '../integrations/google/token.store.js';
 import { readGoogleOAuthConfig } from '../integrations/google/oauth.client.js';
 import { SessionStore } from '../sessions/session.store.js';
@@ -135,6 +138,13 @@ export function createNagexApplication(): NagexApplication {
   const deviceControlService = astraVisualExecutionModelAdapter.status().configured
     ? new DeviceControlService(deviceExecutionSessionStore, browserService, astraVisualExecutionModelAdapter)
     : undefined;
+  // DC3-A — Local Device Agent identity/session/transport foundation.
+  // Real from day one, matching DC1's own precedent — no consuming
+  // service/HTTP route exists yet (that is DC3-B's job); no desktop
+  // execution capability is advertised anywhere from this wiring alone.
+  const deviceIdentityStore = new DeviceIdentityStore();
+  const desktopExecutionSessionStore = new DesktopExecutionSessionStore();
+  const deviceTransportSecurity = new DeviceTransportSecurity(deviceIdentityStore);
   const moduleRegistry = new ModuleRegistry();
   const moduleStateStore = new ModuleStateStore();
   const moduleService = new ModuleService(moduleRegistry, moduleStateStore, auditLogger);
@@ -407,6 +417,9 @@ export function createNagexApplication(): NagexApplication {
     workflowDefinitionService,
     deviceExecutionSessionStore,
     deviceControlService,
+    deviceIdentityStore,
+    desktopExecutionSessionStore,
+    deviceTransportSecurity,
     lifecycle,
     getRelevantMemories,
     pinnedMemories,

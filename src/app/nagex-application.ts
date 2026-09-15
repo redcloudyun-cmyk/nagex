@@ -53,6 +53,9 @@ import type { WorkflowDefinitionStore } from '../workflows/workflow-definition.s
 import type { WorkflowDefinitionService } from '../workflows/workflow-definition.service.js';
 import type { DeviceExecutionSessionStore } from '../device-control/device-execution-session.store.js';
 import type { DeviceControlService } from '../device-control/device-control.service.js';
+import type { DeviceIdentityStore } from '../device-agent/device-identity.store.js';
+import type { DesktopExecutionSessionStore } from '../device-agent/desktop-execution-session.store.js';
+import type { DeviceTransportSecurity } from '../device-agent/device-transport-security.js';
 
 export interface NagexApplication {
   pdp: PolicyDecisionPoint;
@@ -122,6 +125,13 @@ export interface NagexApplication {
   // 'device.browser.execute' truthfully reports PROVIDER_UNAVAILABLE
   // whenever this is undefined.
   deviceControlService: DeviceControlService | undefined;
+  // DC3-A — Local Device Agent identity/session/transport foundation.
+  // Real from day one; no consuming service/HTTP route/capability exists
+  // yet — establishing identity/session/transport only, per this
+  // directive's own explicit scope limit.
+  deviceIdentityStore: DeviceIdentityStore;
+  desktopExecutionSessionStore: DesktopExecutionSessionStore;
+  deviceTransportSecurity: DeviceTransportSecurity;
   // Construction-time dependency of taskRunner/telegramService/slackService
   // (each bakes it in as a closure) that is *also* live, mutable state read
   // and written by memory pin/unpin route handlers for the rest of the
