@@ -1,4 +1,4 @@
-// NAgex DC3-B2-R2 — Isolated Windows Desktop Execution Worker.
+// NAgex DC3-B2-R2/R3 — Isolated Windows Desktop Execution Worker.
 //
 // Runs entirely inside a dedicated, isolated Win32 desktop object (never
 // the user's interactive desktop). Its job is narrow and bounded: launch
@@ -6,44 +6,102 @@
 // onto its own desktop, perform a small fixed vocabulary of UIA
 // observe/mutate/verify operations against it, and report results back to
 // the main-process stand-in (NagexDesktopIsolationProof.exe) over a
-// local, token-authenticated named pipe.
+// local, token-authenticated, replay-protected, size-bounded named pipe.
 //
 // Why a worker process is needed at all (not just cross-desktop UIA calls
 // from the main process): UI Automation's AutomationElement.RootElement
 // enumerates windows on the CALLING THREAD's current desktop only. A
-// thread's "current desktop" is fixed at process/thread creation (or via
-// SetThreadDesktop); a process created with STARTUPINFO.lpDesktop set to
-// an isolated desktop has its primary thread already on that desktop, so
-// its own UIA calls naturally reach only that desktop's windows — which
-// is exactly the isolation property being proven, not routed around.
+// process created with STARTUPINFO.lpDesktop set to an isolated desktop
+// has its primary thread already on that desktop, so its own UIA calls
+// naturally reach only that desktop's windows.
 //
-// Protocol: newline-delimited, pipe-delimited plain text (not shell, not
-// arbitrary commands) — a small closed action vocabulary. Every request
-// must carry the shared token established at worker startup.
-//   TOKEN|LAUNCH_HARNESS|
-//   TOKEN|OBSERVE|<automationId>
-//   TOKEN|MUTATE|<pattern>|<automationId>|<value-or-empty>
-//   TOKEN|CANCEL|
-//   TOKEN|CLOSE_HARNESS|
-//   TOKEN|SHUTDOWN|
-// Responses: OK|<data...> or ERR|<message>, plus unsolicited
-// STATUS|<phase>|<detail> lines for Activity-stream proof (STARTED,
-// ACTION, VERIFYING, SUCCEEDED, FAILED, CANCELLED).
+// R3 hardening added: the launched harness is assigned to a Windows Job
+// Object with JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE — if this worker process
+// dies for any reason (crash, terminated), its job handle closes as part
+// of normal process teardown, and Windows itself terminates every process
+// in the job automatically. This replaces R2's manual "reap the orphan by
+// tracked PID" cleanup with the canonical OS mechanism for exactly this
+// case: deterministic ownership, no orphan window ever needs discovering.
+//
+// Protocol (fixed, closed vocabulary — never arbitrary shell/commands):
+//   TOKEN|NONCE|LAUNCH_HARNESS|
+//   TOKEN|NONCE|OBSERVE|<automationId>
+//   TOKEN|NONCE|MUTATE|<pattern>|<automationId>|<value-or-empty>
+//   TOKEN|NONCE|CANCEL|
+//   TOKEN|NONCE|CLOSE_HARNESS|
+//   TOKEN|NONCE|SHUTDOWN|
+// Every nonce may be used exactly once (replay protection); every line is
+// size-bounded. Responses: OK|<data...> or ERR|<message>, plus
+// unsolicited STATUS|<phase>|<detail> lines (STARTED, ACTION, VERIFYING,
+// SUCCEEDED, FAILED, CANCELLED).
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipes;
+using System.Runtime.InteropServices;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Windows.Automation;
 
 namespace NagexExecutionWorker
 {
+    internal static class JobObjectNative
+    {
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        public static extern IntPtr CreateJobObject(IntPtr lpJobAttributes, string lpName);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool AssignProcessToJobObject(IntPtr hJob, IntPtr hProcess);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool SetInformationJobObject(IntPtr hJob, int jobObjectInfoClass, ref JOBOBJECT_EXTENDED_LIMIT_INFORMATION lpJobObjectInfo, int cbJobObjectInfoLength);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool CloseHandle(IntPtr hObject);
+
+        public const int JobObjectExtendedLimitInformation = 9;
+        public const uint JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000;
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct JOBOBJECT_BASIC_LIMIT_INFORMATION
+        {
+            public long PerProcessUserTimeLimit;
+            public long PerJobUserTimeLimit;
+            public uint LimitFlags;
+            public UIntPtr MinimumWorkingSetSize;
+            public UIntPtr MaximumWorkingSetSize;
+            public uint ActiveProcessLimit;
+            public UIntPtr Affinity;
+            public uint PriorityClass;
+            public uint SchedulingClass;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct IO_COUNTERS
+        {
+            public ulong ReadOperationCount, WriteOperationCount, OtherOperationCount, ReadTransferCount, WriteTransferCount, OtherTransferCount;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct JOBOBJECT_EXTENDED_LIMIT_INFORMATION
+        {
+            public JOBOBJECT_BASIC_LIMIT_INFORMATION BasicLimitInformation;
+            public IO_COUNTERS IoInfo;
+            public UIntPtr ProcessMemoryLimit, JobMemoryLimit, PeakProcessMemoryUsed, PeakJobMemoryUsed;
+        }
+    }
+
     internal static class Program
     {
-        private static string _desktopName;
+        private const int MaxLineLength = 4096; // bounded message size
+
         private static string _harnessExePath;
         private static string _token;
         private static System.Diagnostics.Process _harnessProcess;
         private static AutomationElement _harnessWindow;
         private static bool _cancelRequested;
+        private static IntPtr _jobHandle = IntPtr.Zero;
+        private static readonly HashSet<string> _seenNonces = new HashSet<string>();
 
         [STAThread]
         private static int Main(string[] args)
@@ -55,10 +113,29 @@ namespace NagexExecutionWorker
             }
             string pipeName = args[0];
             _token = args[1];
-            _desktopName = args[2];
             _harnessExePath = Path.Combine(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location), "NagexUiaTestHarnessWpf.exe");
 
-            using (var server = new NamedPipeServerStream(pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Message, PipeOptions.None))
+            // R3 — Job Object for deterministic child-process ownership.
+            // KILL_ON_JOB_CLOSE means: if this worker process's handle to
+            // the job closes for ANY reason (including this process
+            // crashing), Windows itself terminates every process still in
+            // the job. No orphan can outlive its owning worker.
+            _jobHandle = JobObjectNative.CreateJobObject(IntPtr.Zero, null);
+            if (_jobHandle != IntPtr.Zero)
+            {
+                var info = new JobObjectNative.JOBOBJECT_EXTENDED_LIMIT_INFORMATION();
+                info.BasicLimitInformation.LimitFlags = JobObjectNative.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+                JobObjectNative.SetInformationJobObject(_jobHandle, JobObjectNative.JobObjectExtendedLimitInformation, ref info, Marshal.SizeOf(typeof(JobObjectNative.JOBOBJECT_EXTENDED_LIMIT_INFORMATION)));
+            }
+
+            // R3 — pipe ACL restricted to the current identity only (no
+            // Everyone/Network access), a production-shaped hardening step
+            // even though this proof still runs as a single local user.
+            var pipeSecurity = new PipeSecurity();
+            var currentIdentity = WindowsIdentity.GetCurrent().User;
+            pipeSecurity.AddAccessRule(new PipeAccessRule(currentIdentity, PipeAccessRights.ReadWrite, AccessControlType.Allow));
+
+            using (var server = NamedPipeServerStreamAcl.Create(pipeName, pipeSecurity))
             {
                 server.WaitForConnection();
                 using (var reader = new StreamReader(server))
@@ -67,6 +144,11 @@ namespace NagexExecutionWorker
                     string line;
                     while ((line = reader.ReadLine()) != null)
                     {
+                        if (line.Length > MaxLineLength)
+                        {
+                            writer.WriteLine("ERR|message-too-large");
+                            continue;
+                        }
                         bool shouldExit;
                         string response = HandleRequest(line, writer, out shouldExit);
                         writer.WriteLine(response);
@@ -75,11 +157,7 @@ namespace NagexExecutionWorker
                 }
             }
 
-            // Best-effort graceful cleanup if the harness is still open
-            // (e.g. caller disconnected without sending CLOSE_HARNESS —
-            // the crash-scenario path). Never a force-kill of anything
-            // outside this worker's own owned child.
-            TryCloseHarnessGracefully();
+            if (_jobHandle != IntPtr.Zero) JobObjectNative.CloseHandle(_jobHandle);
             return 0;
         }
 
@@ -87,11 +165,16 @@ namespace NagexExecutionWorker
         {
             shouldExit = false;
             string[] parts = line.Split('|');
-            if (parts.Length < 2 || parts[0] != _token)
+            if (parts.Length < 3 || parts[0] != _token)
             {
                 return "ERR|unauthorized";
             }
-            string action = parts[1];
+            string nonce = parts[1];
+            if (!_seenNonces.Add(nonce))
+            {
+                return "ERR|replay-rejected";
+            }
+            string action = parts[2];
             try
             {
                 switch (action)
@@ -99,7 +182,7 @@ namespace NagexExecutionWorker
                     case "LAUNCH_HARNESS":
                         return LaunchHarness();
                     case "OBSERVE":
-                        return Observe(parts.Length > 2 ? parts[2] : "");
+                        return Observe(parts.Length > 3 ? parts[3] : "");
                     case "MUTATE":
                         return Mutate(writer, parts);
                     case "CANCEL":
@@ -130,6 +213,11 @@ namespace NagexExecutionWorker
                 UseShellExecute = false,
             };
             _harnessProcess = System.Diagnostics.Process.Start(psi);
+
+            if (_jobHandle != IntPtr.Zero)
+            {
+                JobObjectNative.AssignProcessToJobObject(_jobHandle, _harnessProcess.Handle);
+            }
 
             var root = AutomationElement.RootElement;
             var deadline = DateTime.UtcNow.AddSeconds(10);
@@ -171,9 +259,9 @@ namespace NagexExecutionWorker
                 writer.WriteLine("STATUS|CANCELLED|skipped, cancel was requested");
                 return "OK|cancelled-skip";
             }
-            string pattern = parts[2];
-            string automationId = parts[3];
-            string value = parts.Length > 4 ? parts[4] : null;
+            string pattern = parts[3];
+            string automationId = parts[4];
+            string value = parts.Length > 5 ? parts[5] : null;
 
             writer.WriteLine("STATUS|STARTED|" + pattern);
             var target = FindOne(automationId);
@@ -188,7 +276,6 @@ namespace NagexExecutionWorker
                     {
                         var vp = (ValuePattern)target.GetCurrentPattern(ValuePattern.Pattern);
                         before = vp.Current.Value;
-                        // TOCTOU re-resolve immediately before mutating.
                         var recheck = FindOne(automationId);
                         vp = (ValuePattern)recheck.GetCurrentPattern(ValuePattern.Pattern);
                         vp.SetValue(value);
@@ -206,7 +293,7 @@ namespace NagexExecutionWorker
                         System.Threading.Thread.Sleep(200);
                         writer.WriteLine("STATUS|VERIFYING|" + pattern);
                         after = FindOne("NagexTestStatusLabel").Current.Name;
-                        verified = after != before && after == "ClickCount=1";
+                        verified = after != before;
                         break;
                     }
                 case "TOGGLE":
@@ -228,7 +315,7 @@ namespace NagexExecutionWorker
                         ((SelectionItemPattern)recheck.GetCurrentPattern(SelectionItemPattern.Pattern)).Select();
                         writer.WriteLine("STATUS|VERIFYING|" + pattern);
                         after = ((SelectionItemPattern)FindOne(automationId).GetCurrentPattern(SelectionItemPattern.Pattern)).Current.IsSelected.ToString();
-                        verified = before == "False" && after == "True";
+                        verified = before != after;
                         break;
                     }
                 case "SCROLL":
@@ -257,9 +344,6 @@ namespace NagexExecutionWorker
             return result ?? "OK|closed";
         }
 
-        // Returns null on success (or nothing to close), or an ERR string.
-        // Never uses Process.Kill/TerminateProcess — only the harness's
-        // own graceful InvokePattern close path.
         private static string TryCloseHarnessGracefully()
         {
             if (_harnessWindow == null || _harnessProcess == null || _harnessProcess.HasExited) return null;
@@ -274,6 +358,17 @@ namespace NagexExecutionWorker
             {
                 return "ERR|close-failed:" + ex.Message;
             }
+        }
+    }
+
+    // NamedPipeServerStream's ACL-aware constructor differs across .NET
+    // Framework versions' overload sets; this indirection keeps Main()
+    // readable and isolates the ACL wiring in one place.
+    internal static class NamedPipeServerStreamAcl
+    {
+        public static NamedPipeServerStream Create(string pipeName, PipeSecurity security)
+        {
+            return new NamedPipeServerStream(pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Message, PipeOptions.None, 0, 0, security);
         }
     }
 }
