@@ -4,7 +4,24 @@ import vm from 'node:vm';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { AddressInfo } from 'node:net';
-import { server } from '../src/server_web.js';
+import { createServerInstance } from '../src/server_web.js';
+
+async function withServer(run: (origin: string) => Promise<void>): Promise<void> {
+  const instance = createServerInstance();
+  await new Promise<void>((resolve, reject) => {
+    instance.listen(0, '127.0.0.1', () => resolve());
+    instance.once('error', reject);
+  });
+  const addr = instance.address() as AddressInfo;
+  try {
+    await run(`http://127.0.0.1:${addr.port}`);
+  } finally {
+    if (typeof (instance as any).closeIdleConnections === 'function') {
+      (instance as any).closeIdleConnections();
+    }
+    await new Promise<void>((resolve) => instance.close(() => resolve()));
+  }
+}
 
 function loadSingleFlight(): {
   createSingleFlightGuard: () => { tryEnter: () => boolean; exit: () => void; isBusy: () => boolean };
@@ -28,21 +45,6 @@ function loadTimelineDedupe(): {
   return (sandbox.window as Record<string, unknown>).NAGEX_TIMELINE_DEDUPE as ReturnType<typeof loadTimelineDedupe>;
 }
 
-async function withServer(run: (origin: string) => Promise<void>): Promise<void> {
-  let isOwner = false;
-  if (!server.listening) {
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-    isOwner = true;
-  }
-  const addr = server.address() as AddressInfo;
-  try {
-    await run(`http://127.0.0.1:${addr.port}`);
-  } finally {
-    if (isOwner && server.listening) {
-      await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
-    }
-  }
-}
 
 function extractFunctionBody(source: string, functionSignature: string): string {
   const start = source.indexOf(functionSignature);

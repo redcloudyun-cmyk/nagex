@@ -2,7 +2,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import { chromium, type Browser, type Page } from 'playwright';
-import { server } from '../src/server_web.js';
+import { createServerInstance } from '../src/server_web.js';
 
 // This project's tsconfig deliberately has no "DOM" lib entry (it is a
 // Node-only server codebase) — these declarations are scoped to just this
@@ -19,34 +19,22 @@ type HTMLTextAreaElement = any;
 type HTMLButtonElement = any;
 type HTMLElement = any;
 
-// Real browser regression for the Home Composer permanent-disabled bug.
-// Root cause: runAmbientTask() -> setAmbientRunControlsDisabled(true) ->
-// POST /api/v1/ambient/intent via apiFetch(), which previously had no
-// bound on the underlying fetch. If that request never settled, the
-// function's own `finally` (which re-enables every control) never ran,
-// leaving #home-prompt-input (and every other control in that same
-// disable list) permanently un-typable. The fix adds a call-site-scoped
-// AbortController timeout to that one apiFetch() call — this test proves
-// the recovery, not just that a timeout constant exists.
-//
-// A short test-only override (window.__NAGEX_TEST_AMBIENT_TIMEOUT_MS__,
-// read by app.js) is injected so this test does not have to wait out the
-// real, evidence-grounded 120_000ms production value.
 const TEST_TIMEOUT_MS = 300;
 
 async function withServer(run: (origin: string) => Promise<void>): Promise<void> {
-  let isOwner = false;
-  if (!server.listening) {
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-    isOwner = true;
-  }
-  const addr = server.address() as AddressInfo;
+  const instance = createServerInstance();
+  await new Promise<void>((resolve, reject) => {
+    instance.listen(0, '127.0.0.1', () => resolve());
+    instance.once('error', reject);
+  });
+  const addr = instance.address() as AddressInfo;
   try {
     await run(`http://127.0.0.1:${addr.port}`);
   } finally {
-    if (isOwner && server.listening) {
-      await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    if (typeof (instance as any).closeIdleConnections === 'function') {
+      (instance as any).closeIdleConnections();
     }
+    await new Promise<void>((resolve) => instance.close(() => resolve()));
   }
 }
 

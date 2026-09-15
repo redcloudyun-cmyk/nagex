@@ -60,7 +60,22 @@ export class FileRecordStore<T> {
       fs.closeSync(fd);
     }
     fs.chmodSync(tmpPath, 0o600);
-    fs.renameSync(tmpPath, this.filePath(id));
+    let attempts = 0;
+    while (true) {
+      try {
+        fs.renameSync(tmpPath, this.filePath(id));
+        break;
+      } catch (err) {
+        attempts++;
+        const code = (err as NodeJS.ErrnoException).code;
+        if ((code === 'EPERM' || code === 'EBUSY') && attempts < 5) {
+          const end = Date.now() + 10 * attempts;
+          while (Date.now() < end) {}
+          continue;
+        }
+        throw err;
+      }
+    }
     fs.chmodSync(this.filePath(id), 0o600);
   }
 

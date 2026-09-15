@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { AddressInfo } from 'node:net';
-import { server } from '../src/server_web.js';
+import { createServerInstance } from '../src/server_web.js';
 
 function loadTimelineDedupe(): {
   createDeduper: () => { shouldLog: (lifecycleKey?: string | null) => boolean; reset: () => void };
@@ -18,12 +18,19 @@ function loadTimelineDedupe(): {
 }
 
 async function withServer(run: (origin: string) => Promise<void>): Promise<void> {
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const { port } = server.address() as AddressInfo;
+  const instance = createServerInstance();
+  await new Promise<void>((resolve, reject) => {
+    instance.listen(0, '127.0.0.1', () => resolve());
+    instance.once('error', reject);
+  });
+  const addr = instance.address() as AddressInfo;
   try {
-    await run(`http://127.0.0.1:${port}`);
+    await run(`http://127.0.0.1:${addr.port}`);
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    if (typeof (instance as any).closeIdleConnections === 'function') {
+      (instance as any).closeIdleConnections();
+    }
+    await new Promise<void>((resolve) => instance.close(() => resolve()));
   }
 }
 

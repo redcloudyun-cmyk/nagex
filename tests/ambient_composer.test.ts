@@ -1,21 +1,22 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
-import { server } from '../src/server_web.js';
+import { createServerInstance } from '../src/server_web.js';
 
 async function withServer(run: (origin: string) => Promise<void>): Promise<void> {
-  let isOwner = false;
-  if (!server.listening) {
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-    isOwner = true;
-  }
-  const addr = server.address() as AddressInfo;
+  const instance = createServerInstance();
+  await new Promise<void>((resolve, reject) => {
+    instance.listen(0, '127.0.0.1', () => resolve());
+    instance.once('error', reject);
+  });
+  const addr = instance.address() as AddressInfo;
   try {
     await run(`http://127.0.0.1:${addr.port}`);
   } finally {
-    if (isOwner && server.listening) {
-      await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    if (typeof (instance as any).closeIdleConnections === 'function') {
+      (instance as any).closeIdleConnections();
     }
+    await new Promise<void>((resolve) => instance.close(() => resolve()));
   }
 }
 

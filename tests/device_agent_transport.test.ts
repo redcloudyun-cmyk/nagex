@@ -13,7 +13,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { AddressInfo } from 'node:net';
-import { handleAsyncApiRequest, server, deviceIdentityStore as sharedDeviceIdentityStore } from '../src/server_web.js';
+import { handleAsyncApiRequest, createServerInstance, deviceIdentityStore as sharedDeviceIdentityStore } from '../src/server_web.js';
 import { DeviceIdentityStore } from '../src/device-agent/device-identity.store.js';
 import { DeviceTransportSecurity } from '../src/device-agent/device-transport-security.js';
 import { DeviceConnectionStatusStore } from '../src/device-agent/device-connection-status.store.js';
@@ -315,18 +315,19 @@ test('DEVICE_PRIVATE_KEY_NOT_SERVER_PERSISTED: after a real connect+heartbeat cy
 // ── 17: real, listening HTTP route end-to-end ─────────────────────────────
 
 async function withServer(run: (origin: string) => Promise<void>): Promise<void> {
-  let isOwner = false;
-  if (!server.listening) {
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-    isOwner = true;
-  }
-  const addr = server.address() as AddressInfo;
+  const instance = createServerInstance();
+  await new Promise<void>((resolve, reject) => {
+    instance.listen(0, '127.0.0.1', () => resolve());
+    instance.once('error', reject);
+  });
+  const addr = instance.address() as AddressInfo;
   try {
     await run(`http://127.0.0.1:${addr.port}`);
   } finally {
-    if (isOwner && server.listening) {
-      await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    if (typeof (instance as any).closeIdleConnections === 'function') {
+      (instance as any).closeIdleConnections();
     }
+    await new Promise<void>((resolve) => instance.close(() => resolve()));
   }
 }
 

@@ -27,7 +27,7 @@ import { NagexError } from '../src/common/errors.js';
 import { AiService, type TextUnderstandingResult } from '../src/model-gateway/ai-service.js';
 import { UnifiedModelRouter } from '../src/model-gateway/unified-model-router.js';
 import { createProviders } from '../src/model-gateway/providers.js';
-import { server, candidateStore as productionCandidateStore, handleAsyncApiRequest } from '../src/server_web.js';
+import { createServerInstance, candidateStore as productionCandidateStore, handleAsyncApiRequest } from '../src/server_web.js';
 
 function tempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-candidate-review-'));
@@ -80,12 +80,19 @@ function buildHarness(aiService?: AiService) {
 }
 
 async function withServer(run: (origin: string) => Promise<void>): Promise<void> {
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const { port } = server.address() as AddressInfo;
+  const instance = createServerInstance();
+  await new Promise<void>((resolve, reject) => {
+    instance.listen(0, '127.0.0.1', () => resolve());
+    instance.once('error', reject);
+  });
+  const addr = instance.address() as AddressInfo;
   try {
-    await run(`http://127.0.0.1:${port}`);
+    await run(`http://127.0.0.1:${addr.port}`);
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    if (typeof (instance as any).closeIdleConnections === 'function') {
+      (instance as any).closeIdleConnections();
+    }
+    await new Promise<void>((resolve) => instance.close(() => resolve()));
   }
 }
 

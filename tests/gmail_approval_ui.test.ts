@@ -199,9 +199,13 @@ test('an unrecognized error code falls back to null so the caller shows the serv
 // ── Ambient Assistant markup wiring ─────────────────────────────────────────
 
 test('the app serves the Gmail approval-card view module with no-cache headers, and its tool names are present in both locales via the shared /api/v1/tools + nav i18n system', async () => {
-  const { server } = await import('../src/server_web.js');
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const address = server.address();
+  const { createServerInstance } = await import('../src/server_web.js');
+  const testServer = createServerInstance();
+  await new Promise<void>((resolve, reject) => {
+    testServer.listen(0, '127.0.0.1', () => resolve());
+    testServer.once('error', reject);
+  });
+  const address = testServer.address();
   const port = typeof address === 'object' && address ? address.port : 0;
   try {
     const origin = `http://127.0.0.1:${port}`;
@@ -224,6 +228,9 @@ test('the app serves the Gmail approval-card view module with no-cache headers, 
     assert.ok(toolIds.includes(GMAIL_REPLY_TOOL_ID));
     assert.ok(toolIds.includes(GMAIL_CREATE_DRAFT_TOOL_ID));
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    if (typeof (testServer as any).closeIdleConnections === 'function') {
+      (testServer as any).closeIdleConnections();
+    }
+    await new Promise<void>((resolve) => testServer.close(() => resolve()));
   }
 });

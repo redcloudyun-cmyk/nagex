@@ -31,7 +31,7 @@ import { GoogleCalendarService } from '../src/modules/calendar/index.js';
 import { InMemoryGoogleOAuthTokenStore } from '../src/integrations/google/token.store.js';
 import type { GoogleOAuthConfig } from '../src/integrations/google/oauth.client.js';
 import type { CalendarCandidatePayload } from '../src/workspace/candidate.types.js';
-import { server, handleAsyncApiRequest, candidateStore as productionCandidateStore, activityStore as productionActivityStore, taskStore as productionTaskStore } from '../src/server_web.js';
+import { createServerInstance, handleAsyncApiRequest, candidateStore as productionCandidateStore, activityStore as productionActivityStore, taskStore as productionTaskStore } from '../src/server_web.js';
 
 function tempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-state-propagation-'));
@@ -458,11 +458,18 @@ test('API: GET /api/v1/activity reflects a real production Task action, isolated
 });
 
 async function withServer(run: (origin: string) => Promise<void>): Promise<void> {
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const { port } = server.address() as AddressInfo;
+  const instance = createServerInstance();
+  await new Promise<void>((resolve, reject) => {
+    instance.listen(0, '127.0.0.1', () => resolve());
+    instance.once('error', reject);
+  });
+  const addr = instance.address() as AddressInfo;
   try {
-    await run(`http://127.0.0.1:${port}`);
+    await run(`http://127.0.0.1:${addr.port}`);
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    if (typeof (instance as any).closeIdleConnections === 'function') {
+      (instance as any).closeIdleConnections();
+    }
+    await new Promise<void>((resolve) => instance.close(() => resolve()));
   }
 }

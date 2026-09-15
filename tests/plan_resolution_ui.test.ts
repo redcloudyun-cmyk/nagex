@@ -8,7 +8,7 @@ import { PlanResolver } from '../src/planning/plan-resolver.js';
 import { skillRegistry } from '../src/skills/skill-registry.js';
 import { toolRegistry, ToolRegistry } from '../src/tools/tool-registry.js';
 import type { PlanPreview } from '../src/model-gateway/ai-service.js';
-import { server } from '../src/server_web.js';
+import { createServerInstance } from '../src/server_web.js';
 
 // public/plan-resolution-view.js is a dependency-free browser script (IIFE) with no
 // build step of its own. Executing it in a vm sandbox lets us test its real logic
@@ -125,12 +125,19 @@ test('a plan with no warnings renders an empty warnings list', () => {
 });
 
 async function withServer(run: (origin: string) => Promise<void>): Promise<void> {
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const { port } = server.address() as AddressInfo;
+  const instance = createServerInstance();
+  await new Promise<void>((resolve, reject) => {
+    instance.listen(0, '127.0.0.1', () => resolve());
+    instance.once('error', reject);
+  });
+  const addr = instance.address() as AddressInfo;
   try {
-    await run(`http://127.0.0.1:${port}`);
+    await run(`http://127.0.0.1:${addr.port}`);
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    if (typeof (instance as any).closeIdleConnections === 'function') {
+      (instance as any).closeIdleConnections();
+    }
+    await new Promise<void>((resolve) => instance.close(() => resolve()));
   }
 }
 

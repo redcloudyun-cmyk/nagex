@@ -6,7 +6,7 @@ import path from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { hashCanonicalPayload, type ActionApprovalRecord } from '../src/governance/action-approval.store.js';
 import { BROWSER_CLICK_TOOL_ID } from '../src/modules/browser/browser.service.js';
-import { server } from '../src/server_web.js';
+import { createServerInstance } from '../src/server_web.js';
 
 // public/browser-approval-view.js is a dependency-free browser script (IIFE),
 // loaded the same way tests/gmail_approval_ui.test.ts loads
@@ -110,8 +110,12 @@ test('error codes specific to browser actions map to clear messages', () => {
 });
 
 test('the app serves browser-approval-view.js, no-cache', async () => {
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const { port } = server.address() as AddressInfo;
+  const testServer = createServerInstance();
+  await new Promise<void>((resolve, reject) => {
+    testServer.listen(0, '127.0.0.1', () => resolve());
+    testServer.once('error', reject);
+  });
+  const { port } = testServer.address() as AddressInfo;
   try {
     const origin = `http://127.0.0.1:${port}`;
     const html = await (await fetch(`${origin}/`)).text();
@@ -121,6 +125,9 @@ test('the app serves browser-approval-view.js, no-cache', async () => {
     assert.equal(body.length > 0, true);
     assert.equal(res.headers.get('cache-control'), 'no-store, no-cache, must-revalidate');
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    if (typeof (testServer as any).closeIdleConnections === 'function') {
+      (testServer as any).closeIdleConnections();
+    }
+    await new Promise<void>((resolve) => testServer.close(() => resolve()));
   }
 });

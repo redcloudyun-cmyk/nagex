@@ -25,7 +25,7 @@ import { InMemoryGoogleOAuthTokenStore } from '../src/integrations/google/token.
 import type { GoogleOAuthConfig } from '../src/integrations/google/oauth.client.js';
 import { NagexError } from '../src/common/errors.js';
 import type { CalendarCandidatePayload } from '../src/workspace/candidate.types.js';
-import { handleAsyncApiRequest, candidateStore as productionCandidateStore, taskStore as productionTaskStore, server } from '../src/server_web.js';
+import { handleAsyncApiRequest, candidateStore as productionCandidateStore, taskStore as productionTaskStore, createServerInstance } from '../src/server_web.js';
 import type { AddressInfo } from 'node:net';
 
 function tempDir(): string {
@@ -498,12 +498,19 @@ test('API: execute on a PROPOSED candidate is rejected (409), never silently suc
 // execution harness exists here).
 
 async function withServer(run: (origin: string) => Promise<void>): Promise<void> {
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const { port } = server.address() as AddressInfo;
+  const instance = createServerInstance();
+  await new Promise<void>((resolve, reject) => {
+    instance.listen(0, '127.0.0.1', () => resolve());
+    instance.once('error', reject);
+  });
+  const addr = instance.address() as AddressInfo;
   try {
-    await run(`http://127.0.0.1:${port}`);
+    await run(`http://127.0.0.1:${addr.port}`);
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    if (typeof (instance as any).closeIdleConnections === 'function') {
+      (instance as any).closeIdleConnections();
+    }
+    await new Promise<void>((resolve) => instance.close(() => resolve()));
   }
 }
 

@@ -2403,100 +2403,121 @@ export function handleApiRequest(
   return { status: 404, data: { error: 'ENDPOINT_NOT_FOUND', message: `${method} ${pathname}` } };
 }
 
-export const server = http.createServer((req, res) => {
-  const url = new URL(req.url || '/', `http://localhost:${PORT}`);
-  const pathname = url.pathname;
-  const method = (req.method || 'GET').toUpperCase();
+export function createServerInstance(): http.Server {
+  return http.createServer((req, res) => {
+    const url = new URL(req.url || '/', `http://localhost:${PORT}`);
+    const pathname = url.pathname;
+    const method = (req.method || 'GET').toUpperCase();
 
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-NAgex-Tenant, X-Principal-Id, X-Request-Id');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-NAgex-Tenant, X-Principal-Id, X-Request-Id');
 
-  if (method === 'OPTIONS') {
-    res.writeHead(204);
-    res.end();
-    return;
-  }
-
-  if (pathname === '/health') {
-    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-    res.end(JSON.stringify({ status: 'UP', service: 'NAgex Personal AI Platform API', version: '0.1.0' }));
-    return;
-  }
-
-  if (pathname.startsWith('/api/')) {
-    const bodyChunks: Buffer[] = [];
-    req.on('data', (chunk) => bodyChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
-    req.on('end', async () => {
-      let parsedBody: Record<string, unknown> | null = null;
-      const rawBuffer = Buffer.concat(bodyChunks);
-      const contentType = (req.headers['content-type'] || '').toLowerCase();
-      if (contentType.includes('application/json') || (!contentType && rawBuffer.length > 0 && (rawBuffer[0] === 0x7b || rawBuffer[0] === 0x5b))) {
-        try {
-          if (rawBuffer.length > 0) parsedBody = JSON.parse(rawBuffer.toString('utf8'));
-        } catch {
-          /* ignore */
-        }
-      } else if (rawBuffer.length > 0) {
-        const filename = (req.headers['x-filename'] as string) || url.searchParams.get('filename') || 'upload.bin';
-        parsedBody = {
-          filename,
-          mimeType: contentType || 'application/octet-stream',
-          data: rawBuffer,
-        };
-      }
-      const query = Object.fromEntries(url.searchParams);
-      const result = await handleAsyncApiRequest(method, pathname, parsedBody, req.headers, aiService, query);
-      if (result.redirectTo) {
-        res.writeHead(result.status, { Location: result.redirectTo });
-        res.end();
-        return;
-      }
-      res.writeHead(result.status, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify(result.data, null, 2));
-    });
-    return;
-  }
-
-  const relativePath = pathname === '/' ? 'index.html' : (CLEAN_URL_ALIASES[pathname] || pathname.replace(/^\/+/, ''));
-  const filePath = path.resolve(PUBLIC_DIR, relativePath);
-  if (filePath !== PUBLIC_DIR && !filePath.startsWith(`${PUBLIC_DIR}${path.sep}`)) {
-    res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8', ...NO_CACHE_HEADERS });
-    res.end('Forbidden');
-    return;
-  }
-  const extname = path.extname(filePath);
-  const contentType = mimeTypes[extname] || 'application/octet-stream';
-
-  fs.readFile(filePath, (error, content) => {
-    if (error) {
-      if (error.code === 'ENOENT') {
-        res.writeHead(404, { 'Content-Type': 'text/html' });
-        res.end('<h1>404 Not Found</h1>', 'utf-8');
-      } else {
-        res.writeHead(500);
-        res.end(`Server Error: ${error.code}`);
-      }
-    } else {
-      const headers: Record<string, string> = { 'Content-Type': contentType };
-      if (pathname === '/' || MUTABLE_FRONTEND_FILES.has(relativePath)) {
-        Object.assign(headers, NO_CACHE_HEADERS);
-      }
-
-      if (VERSIONED_HTML_FILES.has(relativePath)) {
-        const versionedHtml = content
-          .toString('utf8')
-          .replaceAll(BUILD_VERSION_PLACEHOLDER, FRONTEND_BUILD_VERSION);
-        res.writeHead(200, headers);
-        res.end(versionedHtml, 'utf-8');
-        return;
-      }
-
-      res.writeHead(200, headers);
-      res.end(content);
+    if (method === 'OPTIONS') {
+      res.writeHead(204);
+      res.end();
+      return;
     }
+
+    if (pathname === '/health') {
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ status: 'UP', service: 'NAgex Personal AI Platform API', version: '0.1.0' }));
+      return;
+    }
+
+    if (pathname.startsWith('/api/')) {
+      const bodyChunks: Buffer[] = [];
+      req.on('data', (chunk) => bodyChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+      req.on('end', async () => {
+        let parsedBody: Record<string, unknown> | null = null;
+        const rawBuffer = Buffer.concat(bodyChunks);
+        const contentType = (req.headers['content-type'] || '').toLowerCase();
+        if (contentType.includes('application/json') || (!contentType && rawBuffer.length > 0 && (rawBuffer[0] === 0x7b || rawBuffer[0] === 0x5b))) {
+          try {
+            if (rawBuffer.length > 0) parsedBody = JSON.parse(rawBuffer.toString('utf8'));
+          } catch {
+            /* ignore */
+          }
+        } else if (rawBuffer.length > 0) {
+          const filename = (req.headers['x-filename'] as string) || url.searchParams.get('filename') || 'upload.bin';
+          parsedBody = {
+            filename,
+            mimeType: contentType || 'application/octet-stream',
+            data: rawBuffer,
+          };
+        }
+        const query = Object.fromEntries(url.searchParams);
+        const result = await handleAsyncApiRequest(method, pathname, parsedBody, req.headers, aiService, query);
+        if (result.redirectTo) {
+          res.writeHead(result.status, { Location: result.redirectTo });
+          res.end();
+          return;
+        }
+        res.writeHead(result.status, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(result.data, null, 2));
+      });
+      return;
+    }
+
+    const relativePath = pathname === '/' ? 'index.html' : (CLEAN_URL_ALIASES[pathname] || pathname.replace(/^\/+/, ''));
+    const filePath = path.resolve(PUBLIC_DIR, relativePath);
+    if (filePath !== PUBLIC_DIR && !filePath.startsWith(`${PUBLIC_DIR}${path.sep}`)) {
+      res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8', ...NO_CACHE_HEADERS });
+      res.end('Forbidden');
+      return;
+    }
+    const extname = path.extname(filePath);
+    const contentType = mimeTypes[extname] || 'application/octet-stream';
+
+    fs.readFile(filePath, (error, content) => {
+      if (error) {
+        if (error.code === 'ENOENT') {
+          res.writeHead(404, { 'Content-Type': 'text/html' });
+          res.end('<h1>404 Not Found</h1>', 'utf-8');
+        } else {
+          res.writeHead(500);
+          res.end(`Server Error: ${error.code}`);
+        }
+      } else {
+        const headers: Record<string, string> = { 'Content-Type': contentType };
+        if (pathname === '/' || MUTABLE_FRONTEND_FILES.has(relativePath)) {
+          Object.assign(headers, NO_CACHE_HEADERS);
+        }
+
+        if (VERSIONED_HTML_FILES.has(relativePath)) {
+          const versionedHtml = content
+            .toString('utf8')
+            .replaceAll(BUILD_VERSION_PLACEHOLDER, FRONTEND_BUILD_VERSION);
+          res.writeHead(200, headers);
+          res.end(versionedHtml, 'utf-8');
+          return;
+        }
+
+        res.writeHead(200, headers);
+        res.end(content);
+      }
+    });
   });
-});
+}
+
+export const server = createServerInstance();
+
+export async function withTestServer(run: (origin: string) => Promise<void>): Promise<void> {
+  const instance = createServerInstance();
+  await new Promise<void>((resolve, reject) => {
+    instance.listen(0, '127.0.0.1', () => resolve());
+    instance.once('error', reject);
+  });
+  const addr = instance.address() as import('node:net').AddressInfo;
+  try {
+    await run(`http://127.0.0.1:${addr.port}`);
+  } finally {
+    if (typeof (instance as any).closeIdleConnections === 'function') {
+      (instance as any).closeIdleConnections();
+    }
+    await new Promise<void>((resolve) => instance.close(() => resolve()));
+  }
+}
 
 // DC3-B1-R1-R1 — extracted from the require.main-only block below so an
 // embedder (desktop-app.ts's Electron main process) can start the real

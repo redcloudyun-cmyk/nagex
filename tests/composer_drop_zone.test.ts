@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
-import { server } from '../src/server_web.js';
+import { createServerInstance } from '../src/server_web.js';
 
 // Cosmetic/UI-state regression for #composer-drop-zone: it carries
 // class="composer-file-drop-zone hidden" and app.js toggles exactly the
@@ -28,18 +28,19 @@ import { server } from '../src/server_web.js';
 // by asserting on the real served markup, CSS, and script text directly,
 // without launching another Chromium instance.
 async function withServer(run: (origin: string) => Promise<void>): Promise<void> {
-  let isOwner = false;
-  if (!server.listening) {
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-    isOwner = true;
-  }
-  const addr = server.address() as AddressInfo;
+  const instance = createServerInstance();
+  await new Promise<void>((resolve, reject) => {
+    instance.listen(0, '127.0.0.1', () => resolve());
+    instance.once('error', reject);
+  });
+  const addr = instance.address() as AddressInfo;
   try {
     await run(`http://127.0.0.1:${addr.port}`);
   } finally {
-    if (isOwner && server.listening) {
-      await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    if (typeof (instance as any).closeIdleConnections === 'function') {
+      (instance as any).closeIdleConnections();
     }
+    await new Promise<void>((resolve) => instance.close(() => resolve()));
   }
 }
 
