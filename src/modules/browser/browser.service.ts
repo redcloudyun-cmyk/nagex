@@ -7,7 +7,7 @@ import { AuditLogger } from '../../governance/audit.logger.js';
 import { ActionApprovalStore, type ActionApprovalRecord } from '../../governance/action-approval.store.js';
 import { ExecutionStore } from '../../governance/execution.store.js';
 import { MemoryEngine } from '../../context/memory.engine.js';
-import { resolveNagexDataDir } from '../../governance/file-record.store.js';
+import { FileRecordStore, resolveNagexDataDir } from '../../governance/file-record.store.js';
 import { BrowserSessionStore, type BrowserSessionRecord, generateEvidenceId } from './browser-session.store.js';
 import { isBrowserRuntimeAvailableSync, type BrowserRuntime, type BrowserSnapshot } from './browser.runtime.js';
 import { assertUrlSafe } from './browser-url-validator.js';
@@ -86,7 +86,40 @@ interface BrowserActionInput {
   browserSessionId: string;
 }
 
+// DC1-R1 — Browser Evidence Ownership Isolation Correction. Screenshot
+// evidence was previously stored as a bare {evidenceId}.png with zero
+// ownership metadata anywhere — isolation rested entirely on evidenceId
+// secrecy, the exact pre-DC0 pattern this codebase's own permanent rule
+// ("authorization, not identifier secrecy, is the security boundary")
+// forbids. This record, written alongside every PNG via the existing
+// FileRecordStore convention (atomic write, 0600 perms), is what
+// readEvidenceOwned() checks before ever touching the PNG bytes.
+export interface BrowserEvidenceMetadataRecord {
+  evidenceId: string;
+  tenantId: string;
+  ownerId: string;
+  capturedAt: string;
+}
+
+function isBrowserEvidenceMetadataRecord(value: unknown): value is BrowserEvidenceMetadataRecord {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.evidenceId === 'string' &&
+    typeof v.tenantId === 'string' &&
+    typeof v.ownerId === 'string' &&
+    typeof v.capturedAt === 'string'
+  );
+}
+
 export class BrowserToolService {
+  // Deliberately its own FileRecordStore instance pointed at the SAME
+  // evidenceDir as the raw PNG writes below — FileRecordStore.readAll()
+  // only ever globs *.json, so the two file kinds coexist in one directory
+  // without interference; this is the repo's own canonical
+  // atomic-write-JSON-record convention, not a bespoke sidecar scheme.
+  private readonly evidenceMetadataStore: FileRecordStore<BrowserEvidenceMetadataRecord>;
+
   constructor(
     private readonly runtime: BrowserRuntime,
     private readonly sessions: BrowserSessionStore,
@@ -100,7 +133,9 @@ export class BrowserToolService {
     // google-calendar.service.ts use for getConfig — never a mock of the
     // runtime itself, just this one availability check.
     private readonly isRuntimeAvailable: () => boolean = isBrowserRuntimeAvailableSync,
-  ) {}
+  ) {
+    this.evidenceMetadataStore = new FileRecordStore<BrowserEvidenceMetadataRecord>(this.evidenceDir, isBrowserEvidenceMetadataRecord);
+  }
 
   // ── availability / session lifecycle ────────────────────────────────────
 
@@ -291,13 +326,13 @@ export class BrowserToolService {
     const record = this.requireSession(input.browserSessionId, input.tenantId, input.ownerId, input.requestId);
     const bytes = await this.runtime.screenshot(record.browserSessionId);
     const evidenceId = generateEvidenceId();
-    this.writeEvidence(evidenceId, bytes);
     const capturedAt = getCurrentISOString();
+    this.writeEvidence(evidenceId, bytes, input.tenantId, input.ownerId, capturedAt);
     this.auditAction('browser.screenshot', 'tool.execution.succeeded', input, 'SUCCESS', { evidenceId, url: record.currentUrl });
     return { evidenceId, url: record.currentUrl || '', title: '', capturedAt };
   }
 
-  private writeEvidence(evidenceId: string, bytes: Buffer): void {
+  private writeEvidence(evidenceId: string, bytes: Buffer, tenantId: string, ownerId: string, capturedAt: string): void {
     try {
       fs.mkdirSync(this.evidenceDir, { recursive: true, mode: 0o700 });
       const tmpPath = path.join(this.evidenceDir, `.${evidenceId}.tmp-${process.pid}-${crypto.randomBytes(4).toString('hex')}`);
@@ -305,6 +340,33 @@ export class BrowserToolService {
       fs.renameSync(tmpPath, path.join(this.evidenceDir, `${evidenceId}.png`));
     } catch (error) {
       console.error(JSON.stringify({ event: 'nagex_browser_evidence_persist_failed', code: (error as NodeJS.ErrnoException).code ?? 'UNKNOWN' }));
+    }
+    // Best-effort, matching the PNG write above: a metadata-persist failure
+    // never fails the screenshot() call itself. If it never lands, the
+    // evidence simply becomes unreadable via readEvidenceOwned() below
+    // (no metadata -> BROWSER_EVIDENCE_NOT_FOUND) — fails closed, not open.
+    this.evidenceMetadataStore.write(evidenceId, { evidenceId, tenantId, ownerId, capturedAt });
+  }
+
+  // DC1-R1 — the ownership-scoped read-back DC2's Astra adapter (and any
+  // future consumer needing real screenshot bytes) must use instead of a
+  // bare evidenceId lookup. Every failure mode — wrong tenant, wrong
+  // owner, unknown evidenceId, and evidence written before this
+  // correction existed (no metadata record at all) — returns the
+  // identical BROWSER_EVIDENCE_NOT_FOUND, and none of them ever touch the
+  // PNG bytes unless the metadata check already passed: a single metadata
+  // lookup gates every path, so a wrong-identity attempt and a genuinely
+  // unknown id are indistinguishable in both response and file-system
+  // access pattern, not just in the thrown code.
+  public readEvidenceOwned(evidenceId: string, tenantId: string, ownerId: string, requestId: string): Buffer {
+    const meta = this.evidenceMetadataStore.read(evidenceId);
+    if (!meta || meta.tenantId !== tenantId || meta.ownerId !== ownerId) {
+      throw new NagexError({ code: 'BROWSER_EVIDENCE_NOT_FOUND', category: 'NOT_FOUND', message: `Screenshot evidence ${evidenceId} was not found.`, request_id: requestId });
+    }
+    try {
+      return fs.readFileSync(path.join(this.evidenceDir, `${evidenceId}.png`));
+    } catch {
+      throw new NagexError({ code: 'BROWSER_EVIDENCE_NOT_FOUND', category: 'NOT_FOUND', message: `Screenshot evidence ${evidenceId} was not found.`, request_id: requestId });
     }
   }
 

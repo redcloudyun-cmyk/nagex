@@ -66,8 +66,9 @@ async function buildHarness() {
   const approvals = new ActionApprovalStore();
   const audit = new AuditLogger();
   const memory = new MemoryEngine();
-  const service = new BrowserToolService(runtime, sessions, approvals, audit, memory);
-  return { runtime, sessions, service };
+  const evidenceDir = path.join(dir, 'evidence');
+  const service = new BrowserToolService(runtime, sessions, approvals, audit, memory, undefined, evidenceDir);
+  return { runtime, sessions, service, evidenceDir };
 }
 
 const TENANT_A = 'ten_dc0_a';
@@ -280,6 +281,150 @@ test('RIGHTFUL_BROWSER_SESSION_LIFECYCLE: open/navigate/snapshot/click/type/clos
 
     await service.close(sInput);
     assert.equal(sessions.get(session.browserSessionId)?.status, 'CLOSED');
+  } finally {
+    await runtime.shutdown();
+    await testServer.close();
+  }
+});
+
+// ── 11-16: DC1-R1 — Browser Evidence Ownership Isolation Correction ──────
+// Screenshot evidence previously had zero ownership metadata — a bare
+// {evidenceId}.png, isolation resting entirely on evidenceId secrecy, the
+// exact pre-DC0 pattern the "authorization, not identifier secrecy" rule
+// forbids. readEvidenceOwned() closes this the same way getOwned() did for
+// sessions: a mismatch is indistinguishable from a nonexistent id.
+
+const PNG_MAGIC_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+
+async function assertEvidenceNotFound(promise: Promise<unknown>, label: string): Promise<void> {
+  await assert.rejects(
+    promise,
+    (err: unknown) => {
+      assert.ok(err instanceof NagexError, `${label}: expected a NagexError`);
+      assert.equal((err as NagexError).code, 'BROWSER_EVIDENCE_NOT_FOUND', `${label}: expected BROWSER_EVIDENCE_NOT_FOUND`);
+      assert.equal((err as NagexError).category, 'NOT_FOUND', `${label}: expected NOT_FOUND category`);
+      return true;
+    },
+  );
+}
+
+test('EVIDENCE_RIGHTFUL_READ: the rightful tenant/owner reads back the real PNG bytes just captured', async () => {
+  const testServer = await createTestServer();
+  const { runtime, service } = await buildHarness();
+  try {
+    const session = await service.open({ tenantId: TENANT_A, ownerId: OWNER_X, requestId: 'req_open' });
+    const sInput = { tenantId: TENANT_A, ownerId: OWNER_X, requestId: 'req_nav', browserSessionId: session.browserSessionId };
+    await service.navigate({ ...sInput, url: testServer.baseUrl });
+    const evidence = await service.screenshot(sInput);
+
+    const bytes = service.readEvidenceOwned(evidence.evidenceId, TENANT_A, OWNER_X, 'req_read_rightful');
+    assert.ok(bytes.length > 0, 'rightful read must return real, non-empty bytes');
+    assert.deepEqual(bytes.subarray(0, 4), PNG_MAGIC_BYTES, 'returned bytes must be a real PNG, not a placeholder');
+  } finally {
+    await runtime.shutdown();
+    await testServer.close();
+  }
+});
+
+test('EVIDENCE_CROSS_TENANT_READ_BLOCK / EVIDENCE_CROSS_OWNER_READ_BLOCK: wrong identity against a real known evidenceId', async () => {
+  const testServer = await createTestServer();
+  const { runtime, service } = await buildHarness();
+  try {
+    const session = await service.open({ tenantId: TENANT_A, ownerId: OWNER_X, requestId: 'req_open' });
+    const sInput = { tenantId: TENANT_A, ownerId: OWNER_X, requestId: 'req_nav', browserSessionId: session.browserSessionId };
+    await service.navigate({ ...sInput, url: testServer.baseUrl });
+    const evidence = await service.screenshot(sInput);
+
+    await assertEvidenceNotFound(
+      Promise.resolve().then(() => service.readEvidenceOwned(evidence.evidenceId, TENANT_B, OWNER_X, 'req_ct')),
+      'EVIDENCE_CROSS_TENANT_READ_BLOCK',
+    );
+    await assertEvidenceNotFound(
+      Promise.resolve().then(() => service.readEvidenceOwned(evidence.evidenceId, TENANT_A, OWNER_Y, 'req_co')),
+      'EVIDENCE_CROSS_OWNER_READ_BLOCK',
+    );
+  } finally {
+    await runtime.shutdown();
+    await testServer.close();
+  }
+});
+
+test('EVIDENCE_UNKNOWN_ID_INDISTINGUISHABLE: a genuinely nonexistent evidenceId produces the identical error as a wrong-identity attempt', async () => {
+  const testServer = await createTestServer();
+  const { runtime, service } = await buildHarness();
+  try {
+    const session = await service.open({ tenantId: TENANT_A, ownerId: OWNER_X, requestId: 'req_open' });
+    const sInput = { tenantId: TENANT_A, ownerId: OWNER_X, requestId: 'req_nav', browserSessionId: session.browserSessionId };
+    await service.navigate({ ...sInput, url: testServer.baseUrl });
+    const evidence = await service.screenshot(sInput);
+
+    let unknownErr: NagexError | undefined;
+    let wrongOwnerErr: NagexError | undefined;
+    try {
+      service.readEvidenceOwned('bev_does_not_exist', TENANT_A, OWNER_X, 'req_unknown');
+    } catch (err) {
+      unknownErr = err as NagexError;
+    }
+    try {
+      service.readEvidenceOwned(evidence.evidenceId, TENANT_A, OWNER_Y, 'req_wrong_owner');
+    } catch (err) {
+      wrongOwnerErr = err as NagexError;
+    }
+    assert.ok(unknownErr instanceof NagexError);
+    assert.ok(wrongOwnerErr instanceof NagexError);
+    assert.equal(unknownErr!.code, wrongOwnerErr!.code, 'unknown-id and wrong-owner must throw the identical code');
+    assert.equal(unknownErr!.category, wrongOwnerErr!.category);
+    assert.equal(unknownErr!.code, 'BROWSER_EVIDENCE_NOT_FOUND');
+  } finally {
+    await runtime.shutdown();
+    await testServer.close();
+  }
+});
+
+test('EVIDENCE_LEGACY_NO_METADATA_BLOCK: a PNG written before this correction existed (no metadata sidecar) is blocked, not grandfathered in', async () => {
+  const { runtime, service, evidenceDir } = await buildHarness();
+  try {
+    // Simulates evidence captured before DC1-R1 — a bare {evidenceId}.png
+    // with no {evidenceId}.json metadata record ever written, via the raw
+    // filesystem directly rather than service.screenshot() (which always
+    // writes both now).
+    const legacyEvidenceId = 'bev_legacy_pre_r1_0001';
+    fs.mkdirSync(evidenceDir, { recursive: true });
+    fs.writeFileSync(path.join(evidenceDir, `${legacyEvidenceId}.png`), PNG_MAGIC_BYTES);
+    assert.ok(fs.existsSync(path.join(evidenceDir, `${legacyEvidenceId}.png`)), 'the legacy PNG must genuinely exist on disk');
+    assert.ok(!fs.existsSync(path.join(evidenceDir, `${legacyEvidenceId}.json`)), 'and genuinely have no metadata record');
+
+    await assertEvidenceNotFound(
+      Promise.resolve().then(() => service.readEvidenceOwned(legacyEvidenceId, TENANT_A, OWNER_X, 'req_legacy')),
+      'EVIDENCE_LEGACY_NO_METADATA_BLOCK',
+    );
+  } finally {
+    await runtime.shutdown();
+  }
+});
+
+test('EVIDENCE_BLOCKED_READ_NO_MUTATION: blocked cross-identity attempts never alter the evidence — the rightful owner reads identical bytes after', async () => {
+  const testServer = await createTestServer();
+  const { runtime, service } = await buildHarness();
+  try {
+    const session = await service.open({ tenantId: TENANT_A, ownerId: OWNER_X, requestId: 'req_open' });
+    const sInput = { tenantId: TENANT_A, ownerId: OWNER_X, requestId: 'req_nav', browserSessionId: session.browserSessionId };
+    await service.navigate({ ...sInput, url: testServer.baseUrl });
+    const evidence = await service.screenshot(sInput);
+
+    const before = service.readEvidenceOwned(evidence.evidenceId, TENANT_A, OWNER_X, 'req_before');
+
+    await assertEvidenceNotFound(
+      Promise.resolve().then(() => service.readEvidenceOwned(evidence.evidenceId, TENANT_B, OWNER_X, 'req_ct')),
+      'blocked cross-tenant attempt',
+    );
+    await assertEvidenceNotFound(
+      Promise.resolve().then(() => service.readEvidenceOwned(evidence.evidenceId, TENANT_A, OWNER_Y, 'req_co')),
+      'blocked cross-owner attempt',
+    );
+
+    const after = service.readEvidenceOwned(evidence.evidenceId, TENANT_A, OWNER_X, 'req_after');
+    assert.deepEqual(after, before, 'evidence bytes must be byte-for-byte unchanged after blocked attempts');
   } finally {
     await runtime.shutdown();
     await testServer.close();
