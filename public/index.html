@@ -31,22 +31,23 @@
       </div>
 
       <div class="header-right">
-        <button class="quickwake-header-btn" id="btn-header-quickwake" title="Quick Wake (Alt+N)">
-          <svg class="svg-icon" viewBox="0 0 24 24"><path d="M11 21h-1l1-7H7.5c-.88 0-.33-.75-.32-.78C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.49 0 .56.33.47.51C14.7 15.1 12.3 19.1 11 21z"/></svg>
-          <span>Quick Wake (Alt+N)</span>
+        <button class="quickwake-subdued-chip" id="btn-header-quickwake" title="Quick Wake (Alt+N)">
+          <svg class="svg-icon-xs" viewBox="0 0 24 24"><path d="M11 21h-1l1-7H7.5c-.88 0-.33-.75-.32-.78C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.49 0 .56.33.47.51C14.7 15.1 12.3 19.1 11 21z"/></svg>
+          <span>Quick Wake</span>
         </button>
-        <button class="lang-toggle-btn" id="btn-lang-toggle" data-i18n-lang-toggle title="Switch language">KR</button>
-        <!-- Real data only: badge count is derived from state.activity
-             (RUNNING + NEEDS_ATTENTION items already loaded by
-             loadAllData()) by desktop-home.js — never a placeholder
-             number. Hidden entirely when there is nothing to show. -->
+        <button class="lang-toggle-subdued" id="btn-lang-toggle" data-i18n-lang-toggle title="Switch language">KR</button>
         <button class="nagex-notif-bell" id="btn-notif-bell" aria-label="Notifications" data-i18n-aria-label="home.notificationsAria">
           <svg class="svg-icon" viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
           <span class="nagex-notif-badge" id="notif-badge" hidden>0</span>
         </button>
-        <div class="user-pill-header">
-          <div class="user-avatar-img">J</div>
+        <div class="user-pill-header" title="User Account">
+          <div class="user-avatar-img">U</div>
+          <div class="user-profile-meta">
+            <span class="user-greeting-sub" id="header-greeting-sub">Good evening,</span>
+            <span class="user-name">User <svg class="chevron-sm" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg></span>
+          </div>
         </div>
+        <div class="header-motto-script">More for What Matters</div>
       </div>
     </header>
 
@@ -169,44 +170,44 @@
               <span class="nagex-sr-only" data-i18n="home.trySomething">Try something like:</span>
               <div class="nagex-quick-actions-grid">
                 <button class="nagex-quick-action-card quick-action-chip" data-action="plan-day">
-                  <span class="qa-icon qa-icon-blue">✈</span>
+                  <span class="qa-icon qa-icon-blue"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3.5c-.5-.5-2.5 0-4 1.5L13 8.5 4.8 6.7c-.6-.1-1.2.1-1.5.6l-1 1.7c-.3.5-.2 1.2.3 1.6L8 15l-3 3-2.5-.5L1 19l3 3 1.5-1.5L5 18l3-3 3.4 5.4c.4.5 1.1.6 1.6.3l1.7-1c.5-.3.7-.9.6-1.5z"/></svg></span>
                   <span class="qa-text">
                     <span class="qa-title">Plan a Trip</span>
                     <span class="qa-desc">Find flights, hotels and build an itinerary</span>
                   </span>
-                  <span class="qa-arrow">&gt;</span>
+                  <svg class="qa-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
                 </button>
                 <button class="nagex-quick-action-card quick-action-chip" data-action="prepare-meeting">
-                  <span class="qa-icon qa-icon-green">🏋</span>
+                  <span class="qa-icon qa-icon-green"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg></span>
                   <span class="qa-text">
                     <span class="qa-title">Book a Sports Activity</span>
                     <span class="qa-desc">Reserve tennis, golf or fitness classes</span>
                   </span>
-                  <span class="qa-arrow">&gt;</span>
+                  <svg class="qa-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
                 </button>
                 <button class="nagex-quick-action-card quick-action-chip" data-action="research-topic">
-                  <span class="qa-icon qa-icon-orange">🍴</span>
+                  <span class="qa-icon qa-icon-orange"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2v20M6 2v6a4 4 0 0 0 4 4h0a4 4 0 0 0 4-4V2M10 12v10"/></svg></span>
                   <span class="qa-text">
                     <span class="qa-title">Reserve a Dinner</span>
                     <span class="qa-desc">Find and book the perfect restaurant</span>
                   </span>
-                  <span class="qa-arrow">&gt;</span>
+                  <svg class="qa-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
                 </button>
                 <button class="nagex-quick-action-card quick-action-chip" data-action="summarize-notes">
-                  <span class="qa-icon qa-icon-blue">📅</span>
+                  <span class="qa-icon qa-icon-blue"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
                   <span class="qa-text">
                     <span class="qa-title">Manage My Schedule</span>
                     <span class="qa-desc">Organize meetings and optimize my day</span>
                   </span>
-                  <span class="qa-arrow">&gt;</span>
+                  <svg class="qa-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
                 </button>
                 <button class="nagex-quick-action-card quick-action-chip" data-action="execute-task">
-                  <span class="qa-icon qa-icon-green">✓</span>
+                  <span class="qa-icon qa-icon-green"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
                   <span class="qa-text">
                     <span class="qa-title">Organize My Day</span>
                     <span class="qa-desc">Prioritize tasks and get things done</span>
                   </span>
-                  <span class="qa-arrow">&gt;</span>
+                  <svg class="qa-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
                 </button>
               </div>
             </div>
@@ -216,10 +217,10 @@
               <div class="desktop-value-landscape" aria-hidden="true"></div>
               <h2>A more fulfilled you,<br>with <span>NAgex</span></h2>
               <div id="desktop-activity-summary" class="nagex-empty-state">
-                <div class="value-metric-row"><span class="metric-icon blue-clock">🕒</span><div class="metric-body"><strong>12.5 hours</strong><small>Time saved this week</small></div></div>
-                <div class="value-metric-row"><span class="metric-icon green-check">✓</span><div class="metric-body"><strong>28 tasks</strong><small>Completed for you</small></div></div>
-                <div class="value-metric-row"><span class="metric-icon blue-cal">📅</span><div class="metric-body"><strong>6 bookings</strong><small>Managed automatically</small></div></div>
-                <div class="value-metric-row"><span class="metric-icon star-gold">⭐</span><div class="metric-body"><strong>A calmer, more focused you</strong><small>That's what matters</small></div></div>
+                <div class="value-metric-row"><span class="metric-icon blue-clock"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span><div class="metric-body"><strong>12.5 hours</strong><small>Time saved this week</small></div></div>
+                <div class="value-metric-row"><span class="metric-icon green-check"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span><div class="metric-body"><strong>28 tasks</strong><small>Completed for you</small></div></div>
+                <div class="value-metric-row"><span class="metric-icon blue-cal"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span><div class="metric-body"><strong>6 bookings</strong><small>Managed automatically</small></div></div>
+                <div class="value-metric-row"><span class="metric-icon star-gold"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span><div class="metric-body"><strong>A calmer, more focused you</strong><small>That's what matters</small></div></div>
               </div>
             </aside>
           </div>
@@ -232,7 +233,7 @@
               <section class="nagex-card desktop-today-panel">
                 <div class="nagex-section-heading">
                   <div class="heading-title-group">
-                    <span class="card-icon-tile blue-tile">🌌</span>
+                    <span class="card-icon-tile blue-tile"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></span>
                     <h2>My Space</h2>
                   </div>
                   <a class="nagex-section-link" onclick="window.NAGEX.switchTab('tab-my-space')" data-i18n="mySpace.open">View All &gt;</a>
@@ -251,7 +252,7 @@
               <div class="home-grid-card canvas-section-card nagex-card-compact">
                 <div class="card-title-row">
                   <div class="card-title-left">
-                    <span class="card-icon-tile blue-tile">🕒</span>
+                    <span class="card-icon-tile blue-tile"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
                     <h3 class="card-main-title">Recent Actions</h3>
                   </div>
                   <a class="card-link-see-all" onclick="window.NAGEX.switchTab('tab-my-space')" data-i18n="mySpace.open">View All &gt;</a>
@@ -266,7 +267,7 @@
               <section class="nagex-card canvas-section-card">
                 <div class="nagex-section-heading">
                   <div class="heading-title-group">
-                    <span class="card-icon-tile blue-tile">📶</span>
+                    <span class="card-icon-tile blue-tile"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12h3l3-9 4 18 3-9h4"/></svg></span>
                     <h2 data-i18n="home.workingTitle">NAgex is working for you</h2>
                     <span class="badge-live">● Live</span>
                   </div>
@@ -279,7 +280,7 @@
               <section class="nagex-card desktop-memory-panel">
                 <div class="nagex-section-heading">
                   <div class="heading-title-group">
-                    <span class="card-icon-tile blue-tile">📖</span>
+                    <span class="card-icon-tile blue-tile"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>
                     <h2 data-i18n="home.memoryTitle">Memories &amp; Context</h2>
                   </div>
                   <a class="nagex-section-link" onclick="window.NAGEX.switchTab('tab-memory')" data-i18n="home.seeAll">View All &gt;</a>
@@ -296,7 +297,7 @@
               <section class="nagex-card canvas-section-card">
                 <div class="nagex-section-heading">
                   <div class="heading-title-group">
-                    <span class="card-icon-tile red-tile">🔔</span>
+                    <span class="card-icon-tile red-tile"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
                     <h2 style="display:flex; align-items:center;">
                       <span data-i18n="home.approvalsTitle">Needs Your Approval</span>
                       <span class="nagex-badge nagex-badge-attention" id="approvals-count-badge" hidden>0</span>
@@ -315,10 +316,10 @@
                 <div class="desktop-value-message">
                   <strong>Let NAgex handle the details,<br>so you can focus on what matters.</strong>
                   <div class="value-chips-row">
-                    <button class="quick-action-chip value-chip" data-action="plan-day">📅 Plan</button>
-                    <button class="quick-action-chip value-chip" data-action="prepare-meeting">✈ Book</button>
-                    <button class="quick-action-chip value-chip" data-action="research-topic">☑ Manage</button>
-                    <button class="quick-action-chip value-chip" data-action="execute-task">⚡ Execute</button>
+                    <button class="quick-action-chip value-chip" data-action="plan-day"><svg class="svg-icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg> Plan</button>
+                    <button class="quick-action-chip value-chip" data-action="prepare-meeting"><svg class="svg-icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3.5c-.5-.5-2.5 0-4 1.5L13 8.5 4.8 6.7"/></svg> Book</button>
+                    <button class="quick-action-chip value-chip" data-action="research-topic"><svg class="svg-icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> Manage</button>
+                    <button class="quick-action-chip value-chip" data-action="execute-task"><svg class="svg-icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Execute</button>
                   </div>
                 </div>
               </section>

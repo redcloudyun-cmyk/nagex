@@ -566,7 +566,7 @@
             </div>
           </div>`).join('');
       } else {
-        elWorking.innerHTML = `<div class="working-ready-state"><span class="working-ready-icon">✓</span><div><strong>${escapeHtml(t('home.workingReadyTitle') || 'Ready when you are')}</strong><span>${escapeHtml(t('home.workingReadyBody') || 'Start a request above or review recent activity.')}</span></div><button class="working-ready-link" onclick="document.getElementById('home-prompt-input')?.focus()">${escapeHtml(t('home.startRequest') || 'Start a request')}</button></div>`;
+        elWorking.innerHTML = `<div class="working-ready-state"><span class="working-ready-icon"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span><div><strong>${escapeHtml(t('home.workingReadyTitle') || 'Ready when you are')}</strong><span>${escapeHtml(t('home.workingReadyBody') || 'Start a request above or review recent activity.')}</span></div><button class="working-ready-link" onclick="document.getElementById('home-prompt-input')?.focus()">${escapeHtml(t('home.startRequest') || 'Start a request')}</button></div>`;
       }
     }
 

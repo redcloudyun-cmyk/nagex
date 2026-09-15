@@ -1,16 +1,16 @@
 /*
- * NAgex Desktop Home (UI-4-R3) — Exact Desktop Visual Clone Pass.
+ * NAgex Desktop Home (UI-4-R4) — High Visual Fidelity Mockup Clone.
  *
  * Scoped under .nagex-desktop-home (the #view-home root) and shared app-shell chrome.
  * Replicates the reference mockup's visual presentation, proportions, visual depth,
- * card system, timeline rail, command surface, and information density at 1680x945.
+ * card system, timeline rail, command surface, and compact information density at 1680x945.
  */
 
 /* ── 1. App Shell Chrome & Header ──────────────────────────────── */
 .app-header {
-  height: 72px !important;
-  min-height: 72px !important;
-  padding: 0 24px !important;
+  height: 58px !important;
+  min-height: 58px !important;
+  padding: 0 20px !important;
   background: #ffffff !important;
   border-bottom: 1px solid #e2e8f5 !important;
   display: flex !important;
@@ -19,31 +19,31 @@
 }
 
 .app-header .brand-section {
-  width: 220px !important;
-  flex: 0 0 220px !important;
+  width: 200px !important;
+  flex: 0 0 200px !important;
   display: flex !important;
   align-items: center !important;
-  gap: 12px !important;
+  gap: 10px !important;
 }
 
 .header-logo {
-  height: 28px !important;
+  height: 24px !important;
   width: auto !important;
 }
 
 .desktop-global-search {
-  height: 42px !important;
-  width: min(580px, 42vw) !important;
+  height: 36px !important;
+  width: min(520px, 40vw) !important;
   margin-right: auto !important;
   display: flex !important;
   align-items: center !important;
-  gap: 10px !important;
-  padding: 0 14px !important;
+  gap: 8px !important;
+  padding: 0 12px !important;
   border: 1px solid #dfe8f5 !important;
-  border-radius: 12px !important;
+  border-radius: 10px !important;
   background: #f8fafc !important;
   color: #64748b !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02) !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.02) !important;
 }
 
 .desktop-global-search-target {
@@ -52,23 +52,66 @@
   background: transparent !important;
   color: #334155 !important;
   text-align: left !important;
-  font-size: 13px !important;
+  font-size: 12px !important;
   cursor: text !important;
 }
 
 .desktop-global-search kbd {
-  padding: 3px 8px !important;
+  padding: 2px 6px !important;
   border: 1px solid #cbd5e1 !important;
-  border-radius: 6px !important;
+  border-radius: 5px !important;
   background: #ffffff !important;
   color: #475569 !important;
-  font: 600 11px var(--font-sans) !important;
+  font: 600 10px var(--font-sans) !important;
 }
 
 .header-right {
   display: flex !important;
   align-items: center !important;
-  gap: 16px !important;
+  gap: 8px !important;
+}
+
+.quickwake-subdued-chip {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  padding: 3px 8px !important;
+  height: 26px !important;
+  border-radius: 13px !important;
+  border: 1px solid #cbd5e1 !important;
+  background: #f8fafc !important;
+  color: #475569 !important;
+  font-size: 10px !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+}
+.quickwake-subdued-chip:hover {
+  background: #f1f5f9 !important;
+  border-color: #94a3b8 !important;
+  color: #0f172a !important;
+}
+.quickwake-subdued-chip .svg-icon-xs {
+  width: 12px !important;
+  height: 12px !important;
+  fill: currentColor !important;
+}
+
+.lang-toggle-subdued {
+  height: 24px !important;
+  padding: 0 6px !important;
+  border-radius: 5px !important;
+  border: 1px solid #e2e8f0 !important;
+  background: transparent !important;
+  color: #64748b !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+}
+.lang-toggle-subdued:hover {
+  background: #f8fafc !important;
+  color: #0f172a !important;
 }
 
 .nagex-notif-bell {
@@ -76,74 +119,113 @@
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  width: 40px !important;
-  height: 40px !important;
+  width: 32px !important;
+  height: 32px !important;
   border-radius: 50% !important;
-  border: none !important;
-  background: transparent !important;
+  border: 1px solid #e2e8f0 !important;
+  background: #ffffff !important;
   color: #475569 !important;
   cursor: pointer !important;
-  transition: background-color 0.15s ease !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+  transition: all 0.15s ease !important;
 }
-.nagex-notif-bell:hover { background: #f1f5f9 !important; }
+.nagex-notif-bell:hover {
+  background: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
 
 .nagex-notif-badge {
   position: absolute !important;
-  top: 2px !important;
-  right: 2px !important;
-  min-width: 16px !important;
-  height: 16px !important;
-  padding: 0 4px !important;
+  top: -2px !important;
+  right: -2px !important;
+  min-width: 14px !important;
+  height: 14px !important;
+  padding: 0 3px !important;
   border-radius: 999px !important;
   background: #ef4444 !important;
   color: #ffffff !important;
-  font-size: 10px !important;
+  font-size: 9px !important;
   font-weight: 700 !important;
+  border: 2px solid #ffffff !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
+  box-sizing: content-box !important;
 }
 
 .user-pill-header {
   display: flex !important;
   align-items: center !important;
-  gap: 10px !important;
+  gap: 8px !important;
+  padding: 2px 8px 2px 2px !important;
+  border-radius: 18px !important;
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
   cursor: pointer !important;
+  transition: background 0.15s ease !important;
+}
+.user-pill-header:hover {
+  background: #f1f5f9 !important;
 }
 
 .user-avatar-img {
-  width: 34px !important;
-  height: 34px !important;
+  width: 28px !important;
+  height: 28px !important;
   border-radius: 50% !important;
-  background: #2563eb !important;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
   color: #ffffff !important;
   font-weight: 700 !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  font-size: 14px !important;
+  font-size: 12px !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
 }
 
-.user-greeting-text {
-  font-size: 13px !important;
-  color: #475569 !important;
+.user-profile-meta {
+  display: flex !important;
+  flex-direction: column !important;
+  line-height: 1.15 !important;
+  text-align: left !important;
 }
-.user-greeting-text strong {
-  color: #0f172a !important;
+
+.user-greeting-sub {
+  font-size: 9px !important;
+  color: #64748b !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.1px !important;
+}
+
+.user-name {
+  font-size: 11px !important;
   font-weight: 600 !important;
+  color: #0f172a !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 2px !important;
+}
+
+.chevron-sm {
+  width: 12px !important;
+  height: 12px !important;
+  fill: #64748b !important;
 }
 
 .header-motto-script {
   font-family: 'Brush Script MT', 'Caveat', cursive, sans-serif !important;
-  font-size: 18px !important;
+  font-size: 15px !important;
   color: #64748b !important;
-  margin-left: 8px !important;
+  font-style: italic !important;
+  white-space: nowrap !important;
+  opacity: 0.85 !important;
+  margin-left: 4px !important;
 }
 
 /* ── 2. Sidebar Left ───────────────────────────────────────────── */
 .sidebar-left {
-  width: 240px !important;
-  padding: 20px 16px !important;
+  width: 220px !important;
+  padding: 16px 12px !important;
   background: #ffffff !important;
   border-right: 1px solid #e2e8f5 !important;
 }
@@ -157,19 +239,19 @@
 .nav-menu {
   display: flex !important;
   flex-direction: column !important;
-  gap: 4px !important;
+  gap: 3px !important;
 }
 
 .nav-link {
-  min-height: 40px !important;
-  padding: 8px 12px !important;
-  border-radius: 10px !important;
-  font-size: 14px !important;
+  min-height: 36px !important;
+  padding: 6px 10px !important;
+  border-radius: 8px !important;
+  font-size: 13px !important;
   font-weight: 500 !important;
   color: #475569 !important;
   display: flex !important;
   align-items: center !important;
-  gap: 12px !important;
+  gap: 10px !important;
   transition: all 0.15s ease !important;
 }
 
@@ -185,23 +267,23 @@
 
 .sidebar-device-card {
   margin-top: auto !important;
-  padding: 12px 14px !important;
+  padding: 10px 12px !important;
   border: 1px solid #e2e8f5 !important;
-  border-radius: 14px !important;
+  border-radius: 12px !important;
   background: linear-gradient(135deg, #ffffff, #f0f7ff) !important;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.04) !important;
+  box-shadow: 0 3px 10px rgba(37, 99, 235, 0.03) !important;
   color: #0f172a !important;
 }
-.sidebar-device-heading { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; }
-.sidebar-device-icon { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; background: #dbeafe; color: #1d4ed8; }
-.sidebar-device-state { display: flex; align-items: center; gap: 7px; margin-top: 8px; font-size: 12px; font-weight: 600; }
-.sidebar-device-dot { width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; }
+.sidebar-device-heading { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; }
+.sidebar-device-icon { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: #dbeafe; color: #1d4ed8; }
+.sidebar-device-state { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 11px; font-weight: 600; }
+.sidebar-device-dot { width: 7px; height: 7px; border-radius: 50%; background: #94a3b8; }
 .sidebar-device-card.is-connected .sidebar-device-dot { background: #10b981; }
-.sidebar-device-detail { margin-top: 4px; color: #64748b; font-size: 11px; }
+.sidebar-device-detail { margin-top: 2px; color: #64748b; font-size: 10px; }
 
-/* ── 3. Main Center Canvas & Layout ────────────────────────────── */
+/* ── 3. Main Center Canvas & Compact Layout ────────────────────── */
 .center-canvas {
-  padding: 20px 24px 28px !important;
+  padding: 12px 18px 20px !important;
   background: #f8fafc !important;
 }
 
@@ -213,36 +295,38 @@
 /* Top Section: Hero + Value Overview (3-to-1 split) */
 .desktop-home-top {
   display: grid !important;
-  grid-template-columns: minmax(0, 1fr) 320px !important;
-  gap: 14px !important;
-  margin-bottom: 14px !important;
+  grid-template-columns: minmax(0, 1fr) 300px !important;
+  gap: 10px !important;
+  margin-bottom: 10px !important;
 }
 
 .desktop-home-primary {
   display: flex !important;
   flex-direction: column !important;
-  gap: 14px !important;
+  gap: 10px !important;
   min-width: 0 !important;
 }
 
 /* Hero Header */
 .nagex-desktop-home .home-hero-header {
   position: relative !important;
-  min-height: 145px !important;
-  padding: 24px 32px !important;
-  border-radius: 16px !important;
+  min-height: 110px !important;
+  padding: 18px 24px !important;
+  border-radius: 14px !important;
   border: 1px solid #e2e8f5 !important;
   background: linear-gradient(120deg, #f0f7ff 0%, #ffffff 55%, #e0f2fe 100%) !important;
   overflow: hidden !important;
 }
 .nagex-desktop-home .eyebrow-text {
-  font-size: 14px !important;
+  font-size: 12px !important;
   font-weight: 600 !important;
-  color: #475569 !important;
-  margin-bottom: 6px !important;
+  color: #64748b !important;
+  margin-bottom: 4px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
 }
 .nagex-desktop-home .personal-hero-title {
-  font-size: 32px !important;
+  font-size: 26px !important;
   font-weight: 800 !important;
   line-height: 1.15 !important;
   letter-spacing: -0.02em !important;
@@ -252,36 +336,36 @@
   color: #1d4ed8 !important;
 }
 .nagex-desktop-home .personal-hero-subtitle {
-  font-size: 15px !important;
+  font-size: 13px !important;
   color: #64748b !important;
-  margin-top: 6px !important;
-  max-width: 540px !important;
+  margin-top: 4px !important;
+  max-width: 500px !important;
 }
 .hero-visual {
   position: absolute !important;
-  right: 20px !important;
-  top: 15px !important;
-  width: 260px !important;
-  height: 120px !important;
+  right: 15px !important;
+  top: 10px !important;
+  width: 220px !important;
+  height: 100px !important;
   pointer-events: none !important;
 }
 .hero-visual span {
   position: absolute !important;
   display: block !important;
-  border-radius: 20px !important;
+  border-radius: 16px !important;
   transform: rotate(-20deg) !important;
   background: linear-gradient(135deg, rgba(191, 219, 254, 0.65), rgba(59, 130, 246, 0.3)) !important;
   border: 1px solid rgba(255, 255, 255, 0.8) !important;
-  box-shadow: 0 12px 30px rgba(37, 99, 235, 0.12) !important;
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.1) !important;
 }
-.hero-visual span:first-child { width: 90px; height: 90px; right: 110px; top: -10px; }
-.hero-visual span:nth-child(2) { width: 70px; height: 70px; right: 65px; top: 40px; background: linear-gradient(135deg, rgba(224, 242, 254, 0.8), rgba(29, 78, 216, 0.25)) !important; }
+.hero-visual span:first-child { width: 75px; height: 75px; right: 90px; top: -5px; }
+.hero-visual span:nth-child(2) { width: 55px; height: 55px; right: 50px; top: 35px; background: linear-gradient(135deg, rgba(224, 242, 254, 0.8), rgba(29, 78, 216, 0.25)) !important; }
 .hero-visual em {
   position: absolute !important;
-  right: 15px !important;
-  bottom: 12px !important;
+  right: 12px !important;
+  bottom: 8px !important;
   font-family: 'Brush Script MT', 'Caveat', cursive, sans-serif !important;
-  font-size: 20px !important;
+  font-size: 18px !important;
   color: #2563eb !important;
   transform: rotate(-6deg) !important;
   font-style: italic !important;
@@ -291,17 +375,17 @@
 .desktop-value-overview {
   background: linear-gradient(180deg, #ffffff 0%, #f0f7ff 100%) !important;
   border: 1px solid #e2e8f5 !important;
-  border-radius: 16px !important;
-  padding: 20px 22px !important;
+  border-radius: 14px !important;
+  padding: 16px 18px !important;
   position: relative !important;
   overflow: hidden !important;
 }
 .desktop-value-overview h2 {
-  font-size: 18px !important;
+  font-size: 15px !important;
   font-weight: 700 !important;
   color: #0f172a !important;
   line-height: 1.25 !important;
-  margin: 0 0 16px 0 !important;
+  margin: 0 0 12px 0 !important;
 }
 .desktop-value-overview h2 span {
   color: #1d4ed8 !important;
@@ -309,20 +393,20 @@
 .value-metric-row {
   display: flex !important;
   align-items: center !important;
-  gap: 12px !important;
-  margin-bottom: 12px !important;
+  gap: 10px !important;
+  margin-bottom: 8px !important;
 }
 .value-metric-row:last-child {
   margin-bottom: 0 !important;
 }
 .metric-icon {
-  width: 32px !important;
-  height: 32px !important;
+  width: 28px !important;
+  height: 28px !important;
   border-radius: 50% !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  font-size: 14px !important;
+  font-size: 12px !important;
   flex-shrink: 0 !important;
 }
 .blue-clock { background: #dbeafe !important; color: #1d4ed8 !important; }
@@ -331,29 +415,71 @@
 .star-gold { background: #fef3c7 !important; color: #d97706 !important; }
 .metric-body strong {
   display: block !important;
-  font-size: 13px !important;
+  font-size: 12px !important;
   font-weight: 700 !important;
   color: #0f172a !important;
 }
 .metric-body small {
   display: block !important;
-  font-size: 11px !important;
+  font-size: 10px !important;
   color: #64748b !important;
+}
+
+.activity-summary-empty-content {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  padding: 10px 12px !important;
+  background: #ffffff !important;
+  border-radius: 10px !important;
+  border: 1px dashed #cbd5e1 !important;
+  gap: 3px !important;
+}
+.activity-summary-empty-content .sparkle-icon-lg {
+  font-size: 14px !important;
+  color: #3b82f6 !important;
+  margin-bottom: 1px !important;
+}
+.activity-summary-empty-content strong {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
+}
+.activity-summary-empty-content small {
+  font-size: 10px !important;
+  color: #64748b !important;
+  line-height: 1.35 !important;
+}
+.activity-summary-empty-content .btn-view-activity {
+  margin-top: 6px !important;
+  padding: 3px 8px !important;
+  background: #f8fafc !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 5px !important;
+  color: #2563eb !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+}
+.activity-summary-empty-content .btn-view-activity:hover {
+  background: #eff6ff !important;
+  border-color: #93c5fd !important;
 }
 
 /* Composer Command Surface */
 .nagex-desktop-home .unified-capture-composer-card.nagex-composer-compact {
   background: #ffffff !important;
   border: 1px solid #e2e8f5 !important;
-  border-radius: 16px !important;
-  padding: 14px 18px !important;
+  border-radius: 12px !important;
+  padding: 10px 14px !important;
   margin: 0 !important;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03) !important;
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.02) !important;
 }
 
 .nagex-composer-input {
-  height: 36px !important;
-  font-size: 15px !important;
+  height: 30px !important;
+  font-size: 14px !important;
   border: none !important;
   outline: none !important;
   background: transparent !important;
@@ -367,25 +493,25 @@
   justify-content: space-between !important;
   align-items: center !important;
   border-top: 1px solid #f1f5f9 !important;
-  padding-top: 10px !important;
-  margin-top: 6px !important;
+  padding-top: 8px !important;
+  margin-top: 4px !important;
 }
 
 .composer-left-actions {
   display: flex !important;
   align-items: center !important;
-  gap: 8px !important;
+  gap: 6px !important;
   flex-wrap: wrap !important;
 }
 
 #btn-afford-plus {
-  width: 32px !important;
-  height: 32px !important;
+  width: 26px !important;
+  height: 26px !important;
   border-radius: 50% !important;
   background: #f1f5f9 !important;
   border: 1px solid #e2e8f5 !important;
   color: #475569 !important;
-  font-size: 16px !important;
+  font-size: 14px !important;
   cursor: pointer !important;
   display: flex !important;
   align-items: center !important;
@@ -393,18 +519,18 @@
 }
 
 .affordance-btn-pill.quick-action-chip {
-  height: 32px !important;
-  padding: 0 12px !important;
-  border-radius: 20px !important;
+  height: 26px !important;
+  padding: 0 10px !important;
+  border-radius: 13px !important;
   background: #f8fafc !important;
   border: 1px solid #e2e8f5 !important;
-  font-size: 13px !important;
+  font-size: 11px !important;
   font-weight: 500 !important;
   color: #334155 !important;
   cursor: pointer !important;
   display: inline-flex !important;
   align-items: center !important;
-  gap: 6px !important;
+  gap: 5px !important;
   transition: all 0.15s ease !important;
 }
 .affordance-btn-pill.quick-action-chip:hover {
@@ -416,26 +542,26 @@
 .composer-right-actions {
   display: flex !important;
   align-items: center !important;
-  gap: 10px !important;
+  gap: 8px !important;
 }
 
 .model-selector-chip {
-  height: 32px !important;
-  padding: 0 12px !important;
-  border-radius: 20px !important;
+  height: 26px !important;
+  padding: 0 10px !important;
+  border-radius: 13px !important;
   background: #f8fafc !important;
   border: 1px solid #e2e8f5 !important;
-  font-size: 13px !important;
+  font-size: 11px !important;
   color: #334155 !important;
   cursor: pointer !important;
   display: flex !important;
   align-items: center !important;
-  gap: 6px !important;
+  gap: 5px !important;
 }
 
 .btn-send-circle {
-  width: 36px !important;
-  height: 36px !important;
+  width: 32px !important;
+  height: 32px !important;
   border-radius: 50% !important;
   background: #1d4ed8 !important;
   color: #ffffff !important;
@@ -444,51 +570,51 @@
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  box-shadow: 0 4px 12px rgba(29, 78, 216, 0.3) !important;
+  box-shadow: 0 3px 10px rgba(29, 78, 216, 0.25) !important;
 }
 
 /* ── 4. Quick Actions 5-Card Grid ───────────────────────────────── */
 .nagex-desktop-home .nagex-quick-actions-grid {
   display: grid !important;
   grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-  gap: 10px !important;
+  gap: 8px !important;
   margin-bottom: 0 !important;
 }
 
 .nagex-quick-action-card {
   background: #ffffff !important;
   border: 1px solid #e2e8f5 !important;
-  border-radius: 14px !important;
-  padding: 10px 12px !important;
-  min-height: 64px !important;
+  border-radius: 12px !important;
+  padding: 8px 10px !important;
+  min-height: 52px !important;
   display: flex !important;
   align-items: center !important;
-  gap: 10px !important;
+  gap: 8px !important;
   text-align: left !important;
   cursor: pointer !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02) !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02) !important;
   transition: all 0.15s ease !important;
 }
 .nagex-quick-action-card:hover {
   border-color: #93c5fd !important;
   transform: translateY(-1px) !important;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.08) !important;
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.08) !important;
 }
 
 .qa-icon {
-  width: 36px !important;
-  height: 36px !important;
-  border-radius: 10px !important;
+  width: 30px !important;
+  height: 30px !important;
+  border-radius: 8px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  font-size: 16px !important;
+  font-size: 14px !important;
   flex-shrink: 0 !important;
 }
-.qa-icon-blue { background: #dbeafe !important; color: #1d4ed8 !important; }
-.qa-icon-green { background: #d1fae5 !important; color: #059669 !important; }
-.qa-icon-orange { background: #fef3c7 !important; color: #d97706 !important; }
-.qa-icon-purple { background: #e0e7ff !important; color: #4f46e5 !important; }
+.qa-icon-blue { background: #eff6ff !important; color: #2563eb !important; }
+.qa-icon-green { background: #ecfdf5 !important; color: #059669 !important; }
+.qa-icon-orange { background: #fff7ed !important; color: #ea580c !important; }
+.qa-icon-purple { background: #f3e8ff !important; color: #7c3aed !important; }
 
 .qa-text {
   display: flex !important;
@@ -497,7 +623,7 @@
   min-width: 0 !important;
 }
 .qa-title {
-  font-size: 13px !important;
+  font-size: 12px !important;
   font-weight: 600 !important;
   color: #0f172a !important;
   white-space: nowrap !important;
@@ -505,17 +631,17 @@
   text-overflow: ellipsis !important;
 }
 .qa-desc {
-  font-size: 11px !important;
+  font-size: 10px !important;
   color: #64748b !important;
   white-space: nowrap !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
-  margin-top: 2px !important;
+  margin-top: 1px !important;
 }
-.qa-arrow {
-  color: #94a3b8 !important;
-  font-size: 13px !important;
-  font-weight: 600 !important;
+.qa-chevron {
+  width: 14px !important;
+  height: 14px !important;
+  color: #cbd5e1 !important;
   flex-shrink: 0 !important;
 }
 
@@ -523,7 +649,7 @@
 .desktop-home-grid {
   display: grid !important;
   grid-template-columns: minmax(0, 36fr) minmax(0, 36fr) minmax(0, 28fr) !important;
-  gap: 14px !important;
+  gap: 10px !important;
   align-items: start !important;
 }
 
@@ -532,7 +658,7 @@
 .desktop-home-col-side {
   display: flex !important;
   flex-direction: column !important;
-  gap: 14px !important;
+  gap: 10px !important;
   min-width: 0 !important;
 }
 
@@ -540,38 +666,38 @@
 .nagex-desktop-home .nagex-card {
   background: #ffffff !important;
   border: 1px solid #e2e8f5 !important;
-  border-radius: 14px !important;
-  padding: 16px !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02) !important;
+  border-radius: 12px !important;
+  padding: 12px 14px !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02) !important;
 }
 
 .nagex-desktop-home .nagex-section-heading {
   display: flex !important;
   justify-content: space-between !important;
   align-items: center !important;
-  margin-bottom: 12px !important;
+  margin-bottom: 10px !important;
 }
 
 .heading-title-group {
   display: flex !important;
   align-items: center !important;
-  gap: 8px !important;
+  gap: 6px !important;
 }
 
 .card-icon-tile {
-  width: 28px !important;
-  height: 28px !important;
-  border-radius: 8px !important;
+  width: 24px !important;
+  height: 24px !important;
+  border-radius: 6px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  font-size: 14px !important;
+  font-size: 12px !important;
 }
 .blue-tile { background: #dbeafe !important; color: #1d4ed8 !important; }
 .red-tile { background: #fee2e2 !important; color: #ef4444 !important; }
 
 .nagex-desktop-home .nagex-section-heading h2 {
-  font-size: 15px !important;
+  font-size: 14px !important;
   font-weight: 700 !important;
   color: #0f172a !important;
   margin: 0 !important;
@@ -579,7 +705,7 @@
 
 .nagex-section-link,
 .card-link-see-all {
-  font-size: 12px !important;
+  font-size: 11px !important;
   font-weight: 600 !important;
   color: #1d4ed8 !important;
   cursor: pointer !important;
@@ -591,12 +717,12 @@
   display: grid !important;
   grid-template-columns: repeat(3, 1fr) !important;
   border-bottom: 1px solid #e2e8f5 !important;
-  margin-bottom: 12px !important;
+  margin-bottom: 10px !important;
 }
 .my-space-tabs span {
   text-align: center !important;
-  padding: 8px 4px !important;
-  font-size: 12px !important;
+  padding: 6px 4px !important;
+  font-size: 11px !important;
   font-weight: 500 !important;
   color: #64748b !important;
   cursor: pointer !important;
@@ -612,22 +738,23 @@
   display: flex !important;
   justify-content: space-between !important;
   align-items: center !important;
-  margin-bottom: 12px !important;
+  margin-bottom: 10px !important;
 }
 .today-date-label {
-  font-size: 14px !important;
+  font-size: 13px !important;
   font-weight: 700 !important;
   color: #0f172a !important;
 }
 .date-nav-btn {
-  width: 26px !important;
-  height: 26px !important;
+  width: 22px !important;
+  height: 22px !important;
   border: 1px solid #cbd5e1 !important;
-  border-radius: 6px !important;
+  border-radius: 5px !important;
   background: #ffffff !important;
   color: #475569 !important;
   font-weight: 600 !important;
   cursor: pointer !important;
+  font-size: 11px !important;
 }
 
 /* Timeline Rail Layout */
@@ -638,18 +765,18 @@
 }
 .timeline-row {
   display: grid !important;
-  grid-template-columns: 55px 24px 1fr !important;
-  gap: 10px !important;
+  grid-template-columns: 50px 20px 1fr !important;
+  gap: 8px !important;
   align-items: flex-start !important;
-  padding: 6px 0 !important;
+  padding: 4px 0 !important;
   position: relative !important;
 }
 .timeline-time {
-  font-size: 11px !important;
+  font-size: 10px !important;
   font-weight: 600 !important;
   color: #64748b !important;
   text-align: right !important;
-  padding-top: 2px !important;
+  padding-top: 1px !important;
 }
 .timeline-rail-col {
   display: flex !important;
@@ -659,13 +786,13 @@
   position: relative !important;
 }
 .timeline-node {
-  width: 22px !important;
-  height: 22px !important;
+  width: 18px !important;
+  height: 18px !important;
   border-radius: 50% !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  font-size: 11px !important;
+  font-size: 9px !important;
   z-index: 2 !important;
   flex-shrink: 0 !important;
 }
@@ -678,8 +805,8 @@
   width: 2px !important;
   background: #e2e8f5 !important;
   position: absolute !important;
-  top: 22px !important;
-  bottom: -8px !important;
+  top: 18px !important;
+  bottom: -6px !important;
   left: 50% !important;
   transform: translateX(-50%) !important;
   z-index: 1 !important;
@@ -693,14 +820,14 @@
   flex-direction: column !important;
 }
 .timeline-title {
-  font-size: 13px !important;
+  font-size: 12px !important;
   font-weight: 600 !important;
   color: #0f172a !important;
 }
 .timeline-meta {
-  font-size: 11px !important;
+  font-size: 10px !important;
   color: #64748b !important;
-  margin-top: 2px !important;
+  margin-top: 1px !important;
 }
 
 /* ── 7. Recent Actions 2-Column Grid ────────────────────────────── */
@@ -708,15 +835,15 @@
   display: flex !important;
   justify-content: space-between !important;
   align-items: center !important;
-  margin-bottom: 10px !important;
+  margin-bottom: 8px !important;
 }
 .card-title-left {
   display: flex !important;
   align-items: center !important;
-  gap: 8px !important;
+  gap: 6px !important;
 }
 .card-main-title {
-  font-size: 15px !important;
+  font-size: 14px !important;
   font-weight: 700 !important;
   color: #0f172a !important;
   margin: 0 !important;
@@ -725,25 +852,25 @@
 .recent-actions-grid {
   display: grid !important;
   grid-template-columns: 1fr 1fr !important;
-  gap: 10px !important;
+  gap: 8px !important;
 }
 
 .recent-action-card {
   background: #f8fafc !important;
   border: 1px solid #f1f5f9 !important;
-  border-radius: 10px !important;
-  padding: 8px 10px !important;
+  border-radius: 8px !important;
+  padding: 6px 8px !important;
   display: flex !important;
   align-items: flex-start !important;
-  gap: 8px !important;
+  gap: 6px !important;
 }
 .recent-action-check {
-  width: 18px !important;
-  height: 18px !important;
+  width: 16px !important;
+  height: 16px !important;
   border-radius: 50% !important;
   background: #d1fae5 !important;
   color: #059669 !important;
-  font-size: 10px !important;
+  font-size: 9px !important;
   font-weight: 700 !important;
   display: flex !important;
   align-items: center !important;
@@ -751,44 +878,44 @@
   flex-shrink: 0 !important;
 }
 .recent-action-title {
-  font-size: 12px !important;
+  font-size: 11px !important;
   font-weight: 600 !important;
   color: #0f172a !important;
 }
 .recent-action-meta {
-  font-size: 10px !important;
+  font-size: 9px !important;
   color: #64748b !important;
-  margin-top: 2px !important;
+  margin-top: 1px !important;
 }
 
 /* ── 8. Working & Attention Surface Styling ────────────────────── */
 .badge-live {
-  background: #d1fae5 !important;
+  background: #ecfdf5 !important;
   color: #059669 !important;
-  font-size: 11px !important;
+  font-size: 10px !important;
   font-weight: 600 !important;
-  padding: 2px 8px !important;
-  border-radius: 12px !important;
-  margin-left: 8px !important;
+  padding: 2px 6px !important;
+  border-radius: 10px !important;
+  margin-left: 6px !important;
 }
 
 .working-ready-state {
   display: flex !important;
   align-items: center !important;
-  gap: 12px !important;
-  padding: 14px 12px !important;
+  gap: 10px !important;
+  padding: 10px 12px !important;
   background: #f8fafc !important;
   border: 1px solid #f1f5f9 !important;
-  border-radius: 12px !important;
+  border-radius: 10px !important;
 }
 .working-ready-icon {
-  width: 36px !important;
-  height: 36px !important;
+  width: 28px !important;
+  height: 28px !important;
   border-radius: 50% !important;
   background: #d1fae5 !important;
   color: #059669 !important;
   font-weight: 700 !important;
-  font-size: 16px !important;
+  font-size: 13px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -796,24 +923,24 @@
 }
 .working-ready-state strong {
   display: block !important;
-  font-size: 13px !important;
+  font-size: 12px !important;
   font-weight: 700 !important;
   color: #0f172a !important;
 }
 .working-ready-state span {
   display: block !important;
-  font-size: 11px !important;
+  font-size: 10px !important;
   color: #64748b !important;
-  margin-top: 2px !important;
+  margin-top: 1px !important;
 }
 .working-ready-link {
   margin-left: auto !important;
-  padding: 6px 14px !important;
+  padding: 4px 10px !important;
   background: #eff6ff !important;
   border: 1px solid #bfdbfe !important;
   color: #1d4ed8 !important;
-  border-radius: 8px !important;
-  font-size: 12px !important;
+  border-radius: 6px !important;
+  font-size: 11px !important;
   font-weight: 600 !important;
   cursor: pointer !important;
 }
@@ -822,12 +949,12 @@
 .nagex-desktop-home .contextual-approval-card {
   background: #ffffff !important;
   border: 1px solid #e2e8f5 !important;
-  border-radius: 12px !important;
-  padding: 12px 14px !important;
-  margin-bottom: 10px !important;
+  border-radius: 10px !important;
+  padding: 10px 12px !important;
+  margin-bottom: 8px !important;
   display: grid !important;
-  grid-template-columns: 36px 1fr !important;
-  gap: 8px 10px !important;
+  grid-template-columns: 28px 1fr !important;
+  gap: 6px 8px !important;
 }
 .nagex-desktop-home .contextual-approval-card:last-child {
   margin-bottom: 0 !important;
@@ -835,26 +962,26 @@
 
 .approval-row-icon {
   grid-row: 1 / span 2 !important;
-  width: 36px !important;
-  height: 36px !important;
-  border-radius: 10px !important;
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 8px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  font-size: 16px !important;
+  font-size: 13px !important;
   background: #dbeafe !important;
   color: #1d4ed8 !important;
   flex-shrink: 0 !important;
 }
 
 .nagex-desktop-home .inbox-item-title {
-  font-size: 13px !important;
+  font-size: 12px !important;
   font-weight: 700 !important;
   color: #0f172a !important;
 }
 
 .nagex-desktop-home .inbox-item-summary {
-  font-size: 11px !important;
+  font-size: 10px !important;
   color: #64748b !important;
 }
 
@@ -862,28 +989,28 @@
   grid-column: 2 !important;
   display: flex !important;
   align-items: center !important;
-  gap: 8px !important;
-  margin-top: 4px !important;
+  gap: 6px !important;
+  margin-top: 3px !important;
 }
 
 .nagex-desktop-home .btn-primary {
   background: #1d4ed8 !important;
   color: #ffffff !important;
   border: none !important;
-  border-radius: 8px !important;
-  padding: 5px 14px !important;
-  font-size: 12px !important;
+  border-radius: 6px !important;
+  padding: 4px 10px !important;
+  font-size: 11px !important;
   font-weight: 600 !important;
   cursor: pointer !important;
-  box-shadow: 0 2px 6px rgba(29, 78, 216, 0.2) !important;
+  box-shadow: 0 2px 4px rgba(29, 78, 216, 0.15) !important;
 }
 .nagex-desktop-home .btn-secondary {
   background: #ffffff !important;
   color: #334155 !important;
   border: 1px solid #cbd5e1 !important;
-  border-radius: 8px !important;
-  padding: 5px 12px !important;
-  font-size: 12px !important;
+  border-radius: 6px !important;
+  padding: 4px 8px !important;
+  font-size: 11px !important;
   font-weight: 500 !important;
   cursor: pointer !important;
 }
@@ -896,8 +1023,8 @@
 .memory-context-row {
   display: flex !important;
   align-items: center !important;
-  gap: 12px !important;
-  padding: 10px 0 !important;
+  gap: 8px !important;
+  padding: 6px 0 !important;
   border-bottom: 1px solid #f1f5f9 !important;
 }
 .memory-context-row:last-child {
@@ -905,13 +1032,13 @@
 }
 
 .memory-context-icon {
-  width: 32px !important;
-  height: 32px !important;
-  border-radius: 8px !important;
+  width: 26px !important;
+  height: 26px !important;
+  border-radius: 6px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  font-size: 14px !important;
+  font-size: 12px !important;
   flex-shrink: 0 !important;
 }
 .memory-icon-0 { background: #dbeafe !important; color: #1d4ed8 !important; }
@@ -921,71 +1048,84 @@
 
 .memory-context-title {
   display: block !important;
-  font-size: 13px !important;
+  font-size: 12px !important;
   font-weight: 600 !important;
   color: #0f172a !important;
 }
 .memory-context-desc {
   display: block !important;
-  font-size: 11px !important;
+  font-size: 10px !important;
   color: #64748b !important;
-  margin-top: 2px !important;
+  margin-top: 1px !important;
 }
 
 /* ── 11. Right-Side Value Anchor Landscape Card ─────────────────── */
 .nagex-value-panel {
   background: linear-gradient(180deg, #ffffff 0%, #f0f7ff 100%) !important;
   border: 1px solid #e2e8f5 !important;
-  border-radius: 14px !important;
+  border-radius: 12px !important;
   overflow: hidden !important;
-  min-height: 180px !important;
+  min-height: 150px !important;
   position: relative !important;
 }
 
 .value-landscape-banner {
-  height: 65px !important;
+  height: 52px !important;
   background: linear-gradient(135deg, #bfdbfe 0%, #93c5fd 100%) !important;
   position: relative !important;
   display: flex !important;
   align-items: center !important;
-  padding-left: 16px !important;
+  padding-left: 14px !important;
 }
 
 .value-banner-text {
   font-family: 'Brush Script MT', 'Caveat', cursive, sans-serif !important;
-  font-size: 20px !important;
+  font-size: 17px !important;
   color: #1e40af !important;
   font-style: italic !important;
 }
 
 .desktop-value-message {
-  padding: 14px !important;
+  padding: 10px 12px !important;
   display: flex !important;
   flex-direction: column !important;
-  gap: 8px !important;
+  gap: 6px !important;
 }
 .desktop-value-message strong {
-  font-size: 13px !important;
+  font-size: 12px !important;
   font-weight: 700 !important;
   color: #0f172a !important;
-  line-height: 1.35 !important;
+  line-height: 1.3 !important;
 }
 
 .value-chips-row {
   display: flex !important;
-  gap: 6px !important;
+  gap: 4px !important;
   flex-wrap: wrap !important;
-  margin-top: 6px !important;
+  margin-top: 4px !important;
 }
 .value-chip {
-  padding: 4px 10px !important;
+  padding: 3px 8px !important;
   background: #ffffff !important;
   border: 1px solid #cbd5e1 !important;
-  border-radius: 12px !important;
-  font-size: 11px !important;
+  border-radius: 10px !important;
+  font-size: 10px !important;
   font-weight: 500 !important;
   color: #334155 !important;
   cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 3px !important;
+}
+
+/* SVG Helpers Utility Rules */
+.svg-icon-sm {
+  width: 14px !important;
+  height: 14px !important;
+}
+.svg-icon-xs {
+  width: 12px !important;
+  height: 12px !important;
 }
 
 /* ── 12. Media Query Fallbacks for Smaller Desktop Viewports ─────── */
