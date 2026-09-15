@@ -1,12 +1,21 @@
-import { app, BrowserWindow, globalShortcut, Tray, Menu, Notification, shell, ipcMain, screen } from 'electron';
+import { app, BrowserWindow, globalShortcut, Tray, Menu, Notification, shell, ipcMain, screen, safeStorage, powerMonitor } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
+import os from 'node:os';
 import { DesktopConfigStore } from './desktop-config.store.js';
+import { LocalDeviceCredentialStore, PlaintextLocalStorageFallback, type LocalSecureStorage } from '../device-agent/local-device-credential.store.js';
+import { LocalDeviceAgentRuntime, type LocalDeviceAgentConnectionState } from '../device-agent/local-device-agent-runtime.js';
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
 let configStore: DesktopConfigStore;
+// DC3-B1-R1 — at most one active LocalDeviceAgentClient per running
+// desktop host: exactly one module-level instance, constructed once in
+// app.whenReady(); start() is itself idempotent as a second layer of
+// protection against accidental double-construction.
+let deviceAgentRuntime: LocalDeviceAgentRuntime | null = null;
+let deviceAgentState: LocalDeviceAgentConnectionState = 'UNENROLLED';
 
 // Enforce single instance lock at the OS level
 const gotTheLock = app.requestSingleInstanceLock();
@@ -148,14 +157,32 @@ function registerGlobalHotkey() {
   }
 }
 
-function setupTrayIcon(gatewayUrl: string) {
-  const iconPath = path.join(__dirname, '../../public/assets/favicon.png');
-  const fallbackIcon = fs.existsSync(iconPath) ? iconPath : path.join(__dirname, '../../public/assets/nagex-app-icon.png');
+// DC3-B1-R1 — truthful, minimal local status label. Reuses the existing
+// Tray primitive only (Section 10) — no new IPC/renderer surface, and
+// deliberately never says anything resembling "NAgex is controlling this
+// device": no control occurs in this slice.
+function deviceAgentTrayLabel(state: LocalDeviceAgentConnectionState): string {
+  switch (state) {
+    case 'UNENROLLED':
+      return 'Device Agent: Enrollment required';
+    case 'CONNECTING':
+      return 'Device Agent: Connecting…';
+    case 'AUTHENTICATED':
+      return 'Device Agent: Connected';
+    case 'DISCONNECTED':
+      return 'Device Agent: Disconnected';
+    case 'DEGRADED':
+      return 'Device Agent: Connection degraded';
+    case 'REVOKED':
+      return 'Device Agent: Revoked';
+  }
+}
 
-  tray = new Tray(fallbackIcon);
-  tray.setToolTip('NAgex Quick Wake (Alt+N)');
-
+function rebuildTrayMenu(gatewayUrl: string): void {
+  if (!tray) return;
   const contextMenu = Menu.buildFromTemplate([
+    { label: deviceAgentTrayLabel(deviceAgentState), enabled: false },
+    { type: 'separator' },
     {
       label: 'Open NAgex Quick Wake',
       click: () => {
@@ -228,6 +255,15 @@ function setupTrayIcon(gatewayUrl: string) {
   ]);
 
   tray.setContextMenu(contextMenu);
+}
+
+function setupTrayIcon(gatewayUrl: string) {
+  const iconPath = path.join(__dirname, '../../public/assets/favicon.png');
+  const fallbackIcon = fs.existsSync(iconPath) ? iconPath : path.join(__dirname, '../../public/assets/nagex-app-icon.png');
+
+  tray = new Tray(fallbackIcon);
+  tray.setToolTip('NAgex Quick Wake (Alt+N)');
+  rebuildTrayMenu(gatewayUrl);
   tray.on('double-click', () => {
     if (mainWindow) {
       mainWindow.show();
@@ -318,6 +354,22 @@ function setupIpcHandlers(gatewayUrl: string) {
   });
 }
 
+// DC3-B1-R1 — real OS-protected storage when available (safeStorage,
+// backed by Windows DPAPI/Credential Manager); the disclosed plaintext
+// fallback (0600 file, no real encryption) only when the platform genuinely
+// has none configured — never silently claimed as encrypted otherwise.
+function buildLocalSecureStorage(): LocalSecureStorage {
+  if (safeStorage.isEncryptionAvailable()) {
+    return {
+      isAvailable: () => true,
+      encrypt: (plainText: string) => safeStorage.encryptString(plainText),
+      decrypt: (cipherBuffer: Buffer) => safeStorage.decryptString(cipherBuffer),
+    };
+  }
+  console.warn('[NAgex Desktop] OS-protected credential storage is unavailable on this machine — falling back to a permission-restricted, unencrypted local file for the device credential.');
+  return new PlaintextLocalStorageFallback();
+}
+
 app.whenReady().then(async () => {
   const gatewayUrl = await startWebServerIfNeeded();
   createWindow(gatewayUrl);
@@ -327,10 +379,46 @@ app.whenReady().then(async () => {
 
   const config = configStore.get();
   app.setLoginItemSettings({ openAtLogin: config.openAtLogin });
+
+  // DC3-B1-R1 — construct and start the one Local Device Agent runtime
+  // for this process. No hardcoded usr_admin_001/ten_production_01 here —
+  // identity comes only from the local enrolled credential, if one
+  // exists; if not, the runtime reports UNENROLLED and the desktop shell
+  // continues normally (no fallback identity is ever fabricated).
+  const credentialPath = path.join(os.homedir(), '.nagex', 'desktop', 'device-credential.enc');
+  const credentialStore = new LocalDeviceCredentialStore(credentialPath, buildLocalSecureStorage());
+  deviceAgentRuntime = new LocalDeviceAgentRuntime({
+    credentialStore,
+    serverBaseUrl: gatewayUrl,
+    agentVersion: app.getVersion(),
+    onStateChange: (state) => {
+      deviceAgentState = state;
+      rebuildTrayMenu(gatewayUrl);
+    },
+  });
+  await deviceAgentRuntime.start();
+
+  // Section 7/8 — never assume a connection survives sleep or a session
+  // boundary; every one of these fails safe (disconnect now) rather than
+  // letting a stale timer fire into a suspended/locked state.
+  powerMonitor.on('suspend', () => {
+    void deviceAgentRuntime?.suspend();
+  });
+  powerMonitor.on('resume', () => {
+    void deviceAgentRuntime?.resume();
+  });
+  powerMonitor.on('lock-screen', () => {
+    void deviceAgentRuntime?.onSessionLock();
+  });
 });
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
+  // Clears the heartbeat timer synchronously (before any async disconnect
+  // call, win or lose) — Section 6's "no hanging process because of
+  // transport timers" holds even if the process exits before the
+  // best-effort disconnect message completes.
+  void deviceAgentRuntime?.stop();
 });
 
 app.on('window-all-closed', () => {
