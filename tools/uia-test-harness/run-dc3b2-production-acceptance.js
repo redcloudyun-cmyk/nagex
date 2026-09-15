@@ -98,28 +98,52 @@ async function main() {
   log('FOREGROUND_DURING', fgDuring);
   log('WINDOWS_DC3B2_USER_COEXISTENCE', fgBefore === fgDuring ? 'PASS' : 'FAIL (fgBefore=' + fgBefore + ' fgDuring=' + fgDuring + '; verify the differing owner is unrelated to Worker/Controller/Target before treating this as a real regression)');
 
-  // Cancel semantics on a fresh proposed mutation: propose, then never
-  // approve/resume it, and confirm the target's state is genuinely
-  // unaffected (a black-box STOP proof).
-  const cancelStart = await capabilityBroker.execute({
+  // DC3-B2-R4 — real first-class CANCEL through the actual capability
+  // surface: request one more mutation, then CANCEL it through
+  // capabilityBroker.execute with action='CANCEL' — no approval, per the
+  // real production design (cancel is a user safety/control action, not
+  // a mutation). Cancel itself performs the full graceful teardown
+  // (close app + shut down the isolated desktop), so no separate
+  // CLOSE_APP call follows it.
+  const nextMutationProposed = await capabilityBroker.execute({
     capabilityId: 'device.desktop.execute',
     tenantId, principalId: ownerId, requestId: 'req_' + Math.random().toString(36).slice(2),
     payload: { appId: 'NAGEX_TEST_HARNESS', action: 'TOGGLE', target: 'NagexTestCheckbox', executionSessionId, deviceId },
   });
-  log('CANCEL_TEST_PROPOSE_STATUS', cancelStart.status);
-  const observeAfterNoResume = await capabilityBroker.execute({
-    capabilityId: 'device.desktop.execute', tenantId, principalId: ownerId, requestId: 'req_' + Math.random().toString(36).slice(2),
-    payload: { appId: 'NAGEX_TEST_HARNESS', action: 'OBSERVE', target: 'NagexTestCheckbox', executionSessionId },
-  });
-  log('CANCEL_PREVENTS_NEXT_MUTATION_PROXY', observeAfterNoResume.status);
+  log('NEXT_MUTATION_PROPOSE_STATUS', nextMutationProposed.status);
+  const nextMutationApprovalId = nextMutationProposed.approval?.approvalId;
 
-  const closeResult = await proposeApproveResume('CLOSE_APP', undefined, undefined, executionSessionId);
-  log('CLOSE_APP_STATUS', closeResult.result.kind);
+  const cancelResult = await capabilityBroker.execute({
+    capabilityId: 'device.desktop.execute',
+    tenantId, principalId: ownerId, requestId: 'req_' + Math.random().toString(36).slice(2),
+    payload: { appId: 'NAGEX_TEST_HARNESS', action: 'CANCEL', executionSessionId, deviceId },
+  });
+  log('CANCEL_STATUS', cancelResult.status);
+  log('CANCEL_OUTCOME_KIND', cancelResult.result?.kind);
+  log('WINDOWS_DC3B2_CANCEL_CAPABILITY', cancelResult.status === 'EXECUTED' && cancelResult.result?.kind === 'TERMINATED' && cancelResult.result?.status === 'CANCELLED' ? 'PASS' : 'FAIL');
+
+  // Prove the cancel actually prevents the previously-proposed mutation
+  // from ever resuming, even though its approval was never touched by
+  // cancel processing.
+  if (nextMutationApprovalId) {
+    actionApprovals.approve(nextMutationApprovalId, tenantId, ownerId);
+    const blockedResume = await capabilityBroker.execute({
+      capabilityId: 'device.desktop.execute',
+      tenantId, principalId: ownerId, requestId: 'req_' + Math.random().toString(36).slice(2),
+      approvalId: nextMutationApprovalId,
+      payload: { appId: 'NAGEX_TEST_HARNESS', action: 'TOGGLE', target: 'NagexTestCheckbox', executionSessionId, deviceId },
+    });
+    log('BLOCKED_RESUME_OUTCOME_KIND', blockedResume.result?.kind);
+    log('WINDOWS_DC3B2_CANCEL_PREVENTS_NEXT_MUTATION', blockedResume.result?.kind === 'TERMINATED' && blockedResume.result?.status !== 'COMPLETED' ? 'PASS' : 'FAIL');
+  } else {
+    log('WINDOWS_DC3B2_CANCEL_PREVENTS_NEXT_MUTATION', 'FAIL (no approval was proposed to test against)');
+  }
 
   const activityItems = activityStore.list(tenantId, ownerId, 50).filter((a) => a.type === 'desktop_execution');
   log('WINDOWS_DC3B2_ACTIVITY', activityItems.length > 0 ? 'PASS' : 'FAIL');
   log('ACTIVITY_ITEM_COUNT', activityItems.length);
   log('ACTIVITY_LAST_STATUS', activityItems[0]?.status);
+  log('WINDOWS_DC3B2_CANCEL_ACTIVITY', activityItems[0]?.status === 'FAILED' ? 'PASS' : 'FAIL'); // CANCELLED maps onto the real ActivityStatus enum's FAILED value
 
   await new Promise((r) => setTimeout(r, 1000));
   const fgAfter = getForegroundWindow();
@@ -131,6 +155,8 @@ async function main() {
 
   const residual = countResidualProcesses();
   log('WINDOWS_DC3B2_CLEANUP', residual === '0' ? 'PASS' : `FAIL (residual=${residual})`);
+  log('WINDOWS_DC3B2_CANCEL_CLEANUP', residual === '0' ? 'PASS' : `FAIL (residual=${residual})`);
+  log('WINDOWS_DC3B2_CANCEL_NO_RESIDUAL_PROCESS', residual === '0' ? 'PASS' : `FAIL (residual=${residual})`);
 
   console.log('=== ACCEPTANCE COMPLETE ===');
 }

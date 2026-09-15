@@ -27,7 +27,7 @@ import { DesktopExecutionSessionStore, type DesktopExecutionSessionRecord } from
 import { WindowsIsolatedDesktopController, type DesktopWorkerResult } from './windows-isolated-desktop-controller.js';
 import type { ActionKind } from './desktop-automation-activity-summary.js';
 
-export type DesktopActionType = 'OBSERVE' | 'OPEN_APP' | 'CLOSE_APP' | 'SET_VALUE' | 'INVOKE' | 'TOGGLE' | 'SELECT' | 'SCROLL';
+export type DesktopActionType = 'OBSERVE' | 'OPEN_APP' | 'CLOSE_APP' | 'SET_VALUE' | 'INVOKE' | 'TOGGLE' | 'SELECT' | 'SCROLL' | 'CANCEL';
 
 const MUTATION_ACTIONS: ReadonlySet<DesktopActionType> = new Set(['OPEN_APP', 'CLOSE_APP', 'SET_VALUE', 'INVOKE', 'TOGGLE', 'SELECT', 'SCROLL']);
 const TOOL_ID = 'device.desktop.execute';
@@ -97,6 +97,15 @@ export class DesktopControlService {
   }
 
   public async startSession(input: StartDesktopSessionInput): Promise<DesktopControlOutcome> {
+    // CANCEL is a user safety/control action, not a mutation — routed
+    // here (never through resumeSession/approval) because a cancel
+    // request must never itself require or wait on an approval. Human
+    // override wins: this always takes the startSession path regardless
+    // of whether an approval happens to be pending for this session.
+    if (input.action === 'CANCEL') {
+      return this.cancel(input.tenantId, input.ownerId, input.deviceId, input.executionSessionId ?? '', input.requestId);
+    }
+
     const resolution = this.allowlist.resolve(input.appId);
     if (resolution.status === 'APP_NOT_ALLOWED') {
       this.auditLogger.logEvent({
@@ -144,6 +153,17 @@ export class DesktopControlService {
       return { kind: 'TERMINATED', executionSessionId: input.executionSessionId ?? '', status: 'APP_NOT_ALLOWED', terminationReason: 'APP_NOT_ALLOWED' };
     }
 
+    // A session cancelled (or otherwise closed) since this mutation was
+    // proposed must never resume — checked BEFORE consuming the
+    // approval, so a stale continuation neither mutates anything nor
+    // wastefully burns a still-unused approval. Human override wins.
+    if (input.executionSessionId) {
+      const existing = this.sessions.getOwned(input.executionSessionId, input.tenantId, input.ownerId);
+      if (existing && existing.state !== 'ACTIVE') {
+        return { kind: 'TERMINATED', executionSessionId: input.executionSessionId, status: 'CANCELLED', terminationReason: 'DESKTOP_SESSION_NOT_ACTIVE' };
+      }
+    }
+
     const payload = { appId: input.appId, action: input.action, target: input.target ?? null, parameters: input.parameters ?? null, executionSessionId: input.executionSessionId ?? null, deviceId: input.deviceId };
     try {
       this.approvals.consume(input.approvalId, input.tenantId, input.ownerId, TOOL_ID, payload, input.requestId, input.requestId);
@@ -155,13 +175,63 @@ export class DesktopControlService {
     return this.execute(input.tenantId, input.ownerId, input.deviceId, input.requestId, input.executionSessionId, resolution.executablePath, input.appId, input.action, input.target, input.parameters);
   }
 
-  public async cancel(tenantId: string, ownerId: string, executionSessionId: string): Promise<void> {
-    const session = this.sessions.getOwned(executionSessionId, tenantId, ownerId);
-    if (!session) return;
-    if (this.controller.hasSession(executionSessionId)) {
-      await this.controller.cancel(executionSessionId);
+  // The single first-class cancel path — reachable both from
+  // startSession() (action: 'CANCEL', the real capability route) and
+  // directly (kept for callers that already hold a validated session
+  // reference). Idempotent: a session that is already non-ACTIVE (closed
+  // via a prior cancel, or via a normal completed CLOSE_APP) is a pure
+  // no-op — no duplicate worker calls, no duplicate Activity/Audit
+  // terminal events, and critically, a completed session's Activity is
+  // never rewritten as cancelled.
+  public async cancel(tenantId: string, ownerId: string, deviceId: string, executionSessionId: string, requestId: string): Promise<DesktopControlOutcome> {
+    if (!executionSessionId) {
+      return { kind: 'TERMINATED', executionSessionId: '', status: 'FAILED', terminationReason: 'DESKTOP_INVALID_SESSION' };
     }
+    const session = this.sessions.getOwned(executionSessionId, tenantId, ownerId);
+    if (!session) {
+      return { kind: 'TERMINATED', executionSessionId, status: 'FAILED', terminationReason: 'DESKTOP_INVALID_SESSION' };
+    }
+    if (session.deviceId !== deviceId) {
+      return { kind: 'TERMINATED', executionSessionId, status: 'FAILED', terminationReason: 'DESKTOP_WRONG_DEVICE' };
+    }
+
+    if (session.state !== 'ACTIVE') {
+      // Idempotent no-op — same truthful terminal status reported, no
+      // new side effects, no Activity/Audit rewrite.
+      return { kind: 'TERMINATED', executionSessionId, status: 'CANCELLED', terminationReason: 'ALREADY_TERMINAL' };
+    }
+
+    this.auditLogger.logEvent({
+      actor: { type: 'user', id: ownerId },
+      tenant_id: tenantId,
+      action: 'desktop.execute.cancel.requested',
+      resource: { type: 'DesktopExecutionSession', id: executionSessionId },
+      result: 'SUCCESS',
+      request_id: requestId,
+    });
+
+    if (this.controller.hasSession(executionSessionId)) {
+      // Worker acknowledges the cancel flag (no further mutation begins
+      // inside it), then graceful close — never a force-kill on this
+      // normal path. The Job Object remains crash/emergency cleanup
+      // only, untouched here.
+      await this.controller.cancel(executionSessionId).catch(() => undefined);
+      await this.controller.closeApp(executionSessionId).catch(() => undefined);
+      await this.controller.shutdown(executionSessionId).catch(() => undefined);
+    }
+    this.sessions.close(executionSessionId, tenantId, ownerId);
+
     this.activity.record({ tenantId, principalId: ownerId, executionSessionId, phase: 'CANCELLED', appLabel: '' });
+    this.auditLogger.logEvent({
+      actor: { type: 'user', id: ownerId },
+      tenant_id: tenantId,
+      action: 'desktop.execute.cancelled',
+      resource: { type: 'DesktopExecutionSession', id: executionSessionId },
+      result: 'SUCCESS',
+      request_id: requestId,
+    });
+
+    return { kind: 'TERMINATED', executionSessionId, status: 'CANCELLED', terminationReason: 'USER_CANCELLED' };
   }
 
   public async closeSession(tenantId: string, ownerId: string, executionSessionId: string): Promise<void> {
@@ -192,6 +262,11 @@ export class DesktopControlService {
       const existing = this.sessions.getOwned(executionSessionId, tenantId, ownerId);
       if (!existing) {
         return { kind: 'TERMINATED', executionSessionId: executionSessionId ?? '', status: 'FAILED', terminationReason: 'DESKTOP_INVALID_SESSION' };
+      }
+      if (existing.state !== 'ACTIVE') {
+        // Defense in depth: no mutation may begin against a session that
+        // has already been cancelled or closed, regardless of entry path.
+        return { kind: 'TERMINATED', executionSessionId, status: 'CANCELLED', terminationReason: 'DESKTOP_SESSION_NOT_ACTIVE' };
       }
       session = existing;
     } else {
@@ -234,11 +309,23 @@ export class DesktopControlService {
         // diagnose or retry against).
         if (result.status === 'OK') {
           await this.controller.shutdown(session.executionSessionId).catch(() => undefined);
+          // Found via DC3-B2-R4 testing: without this, the native
+          // controller session was torn down but the durable
+          // DesktopExecutionSessionStore record stayed 'ACTIVE' forever,
+          // so a later cancel on an already-completed session would not
+          // recognize it as terminal and would re-run cancel side
+          // effects instead of a clean idempotent no-op.
+          this.sessions.close(session.executionSessionId, tenantId, ownerId);
         }
         break;
       case 'OBSERVE':
         result = await this.controller.observe(session.executionSessionId, target ?? '');
         break;
+      case 'CANCEL':
+        // Structurally unreachable: startSession() routes CANCEL to
+        // cancel() before execute() is ever called, and CANCEL is never
+        // a mutation action, so resumeSession() never reaches it either.
+        return { kind: 'TERMINATED', executionSessionId: session.executionSessionId, status: 'FAILED', terminationReason: 'UNREACHABLE_CANCEL_IN_EXECUTE' };
       default:
         result = await this.controller.mutate(session.executionSessionId, action, target ?? '', parameters?.value);
         break;
