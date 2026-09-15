@@ -45,6 +45,13 @@ export class CapabilityRegistry {
       // the whole capability, which would block even read-only OBSERVE-only
       // runs.
       { id: 'device.browser.execute', provider: 'DEVICE', risk: 'DYNAMIC', approval: 'CONDITIONAL', enabled: true },
+
+      // Desktop Control (DC3-B2) — isolated-Win32-desktop background
+      // execution. DYNAMIC/CONDITIONAL mirrors device.browser.execute:
+      // OBSERVE runs without a pause, mutations (OPEN_APP/CLOSE_APP/
+      // SET_VALUE/INVOKE/TOGGLE/SELECT/SCROLL) propose and freeze an
+      // approval before ever reaching the isolated desktop.
+      { id: 'device.desktop.execute', provider: 'DEVICE_DESKTOP', risk: 'DYNAMIC', approval: 'CONDITIONAL', enabled: true },
     ];
 
     for (const def of defaults) {

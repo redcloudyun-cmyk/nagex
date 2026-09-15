@@ -18,7 +18,12 @@ export interface CapabilityDefinition {
   // coarse entry point for the bounded visual-execution loop
   // (device.browser.execute), never a per-primitive surface — see
   // device-control/device-control.service.ts.
-  provider: 'GOOGLE_CALENDAR' | 'GMAIL' | 'BROWSER' | 'DEVICE';
+  // DC3-B2 — 'DEVICE_DESKTOP' is a distinct provider from 'DEVICE' even
+  // though both are device-agent-owned: they gate on different service
+  // instances (deviceControlService vs desktopControlService), so a
+  // shared provider string would make isProviderAvailable() truthful for
+  // one when only the other is actually configured.
+  provider: 'GOOGLE_CALENDAR' | 'GMAIL' | 'BROWSER' | 'DEVICE' | 'DEVICE_DESKTOP';
   risk: CapabilityRisk;
   approval: CapabilityApprovalMode;
   enabled: boolean;

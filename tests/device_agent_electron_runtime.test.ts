@@ -314,21 +314,43 @@ test('ELECTRON_RENDERER_PRIVATE_KEY_INACCESSIBLE / ELECTRON_RENDERER_ARBITRARY_T
   assert.ok(!preloadSource.includes('signMessage') && !preloadSource.includes('sendDeviceMessage'), 'no arbitrary transport-send primitive is exposed to the renderer');
 });
 
-// ── 12-13: execution boundary still closed ─────────────────────────────
-
-test('DESKTOP_EXECUTION_STILL_UNAVAILABLE / NO_UI_AUTOMATION_PRESENT: no device-agent source file references UI Automation/COM/SendInput or capability execution', () => {
+// ── 12-13: execution boundary ───────────────────────────────────────────
+//
+// DC3-B2 deliberately supersedes the DC3-A/B1-era "execution still
+// unavailable" invariant this test originally asserted — isolated-desktop
+// UI Automation execution is now real, on purpose, via
+// windows-isolated-desktop-controller.ts spawning the native
+// native/windows-desktop-controller/*.exe helper. What must remain
+// permanently true, even now, is narrower and still load-bearing: no
+// device-agent .ts source file may call a global input-injection API
+// (SendInput/keybd_event/mouse_event/robotjs/nut-js — the class of API
+// that bypasses per-window targeting and would defeat the entire
+// isolated-desktop safety model), and no device-agent file may import
+// CapabilityBroker directly (device-agent must never become a second
+// authorization system — DesktopControlService is invoked BY the broker,
+// never the reverse).
+test('NO_GLOBAL_INPUT_INJECTION / DEVICE_AGENT_NEVER_IMPORTS_CAPABILITY_BROKER: no device-agent source file references SendInput/keybd_event/mouse_event/robotjs/nut-js, or imports CapabilityBroker directly', () => {
   const deviceAgentDir = path.join(process.cwd(), 'src', 'device-agent');
   const files = fs.readdirSync(deviceAgentDir).filter((f) => f.endsWith('.ts'));
   for (const file of files) {
     const contents = fs.readFileSync(path.join(deviceAgentDir, file), 'utf8');
-    assert.ok(!/UIAutomation|IUIAutomation|SendInput|robotjs|nut-js|ActiveXObject|new ActiveXObject/i.test(contents), `${file} must contain no UI Automation/COM/SendInput reference`);
+    // Executable code only — a comment explaining what is NOT used (e.g.
+    // "never uses SendInput") must not itself trip this check.
+    const executableLines = contents
+      .split('\n')
+      .filter((line) => !line.trim().startsWith('//'))
+      .join('\n');
+    assert.ok(!/SendInput|keybd_event|mouse_event|robotjs|nut-js|ActiveXObject/i.test(executableLines), `${file} must contain no global input-injection reference in executable code`);
     assert.ok(!/import[^;]*CapabilityBroker/.test(contents), `${file} must never import CapabilityBroker`);
   }
   // desktop-app.ts itself: confirm it constructs exactly one
   // LocalDeviceAgentRuntime (ELECTRON_AGENT_SINGLE_INSTANCE at the wiring
-  // level, not just the class's own idempotent start()).
+  // level, not just the class's own idempotent start()), and still
+  // contains no execution primitive of its own (execution lives in
+  // device-agent/desktop-control.service.ts + the native controller, not
+  // in the Electron host wiring).
   const desktopAppSource = fs.readFileSync(path.join(process.cwd(), 'src', 'desktop', 'desktop-app.ts'), 'utf8');
   const constructionCount = (desktopAppSource.match(/new LocalDeviceAgentRuntime\s*\(/g) ?? []).length;
   assert.equal(constructionCount, 1, 'desktop-app.ts must construct exactly one LocalDeviceAgentRuntime');
-  assert.ok(!/SendInput|robotjs|nut-js|IUIAutomation/i.test(desktopAppSource), 'desktop-app.ts must contain no execution primitive this slice');
+  assert.ok(!/SendInput|keybd_event|mouse_event|robotjs|nut-js/i.test(desktopAppSource), 'desktop-app.ts must contain no global input-injection primitive');
 });

@@ -41,6 +41,10 @@ import { DeviceTransportSecurity } from '../device-agent/device-transport-securi
 import { DeviceConnectionStatusStore } from '../device-agent/device-connection-status.store.js';
 import { DevicePendingCommandStore } from '../device-agent/device-pending-command.store.js';
 import { DeviceAgentTransportEndpoint } from '../device-agent/device-agent-transport-endpoint.service.js';
+import { DesktopAppAllowlist } from '../device-agent/desktop-app-allowlist.js';
+import { WindowsIsolatedDesktopController } from '../device-agent/windows-isolated-desktop-controller.js';
+import { DesktopActivityAdapter } from '../device-agent/desktop-activity-adapter.js';
+import { DesktopControlService } from '../device-agent/desktop-control.service.js';
 import { googleTokenStore } from '../integrations/google/token.store.js';
 import { readGoogleOAuthConfig } from '../integrations/google/oauth.client.js';
 import { SessionStore } from '../sessions/session.store.js';
@@ -161,6 +165,26 @@ export function createNagexApplication(): NagexApplication {
   const moduleRegistry = new ModuleRegistry();
   const moduleStateStore = new ModuleStateStore();
   const moduleService = new ModuleService(moduleRegistry, moduleStateStore, auditLogger);
+
+  // DC3-B2 — Isolated Windows desktop background execution. Constructed
+  // unconditionally (cheap — no I/O beyond a file-existence check), but
+  // desktopControlService.isReady() (checked inside isProviderAvailable())
+  // stays truthful: on non-Windows, or before the native controller has
+  // been built (native/windows-desktop-controller/build.ps1), 'DEVICE_DESKTOP'
+  // genuinely reports unavailable rather than silently no-opping.
+  const activityStore = new ActivityStore();
+  const desktopAppAllowlist = new DesktopAppAllowlist();
+  const windowsIsolatedDesktopController = new WindowsIsolatedDesktopController();
+  const desktopActivityAdapter = new DesktopActivityAdapter(activityStore);
+  const desktopControlService = new DesktopControlService(
+    desktopExecutionSessionStore,
+    windowsIsolatedDesktopController,
+    desktopAppAllowlist,
+    actionApprovals,
+    auditLogger,
+    desktopActivityAdapter,
+  );
+
   const capabilityBroker = new CapabilityBroker(
     googleCalendarService,
     gmailService,
@@ -172,6 +196,7 @@ export function createNagexApplication(): NagexApplication {
     moduleRegistry,
     moduleStateStore,
     deviceControlService,
+    desktopControlService,
   );
 
   // ─── MASTER.md Section 14 — Main Session + Tasks Foundation ───
@@ -350,7 +375,6 @@ export function createNagexApplication(): NagexApplication {
   const knowledgeEngine = new KnowledgeEngine();
   const storageProvider = createConfiguredStorageProvider();
   const candidateStore = new CandidateStore();
-  const activityStore = new ActivityStore();
   const candidateActionResolver = new CandidateActionResolver({
     candidateStore,
     captureStore,

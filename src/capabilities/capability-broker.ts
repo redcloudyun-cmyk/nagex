@@ -14,6 +14,7 @@ import type { CalendarApprovalRequesterPort, CalendarWriteExecutionPort } from '
 import type { GmailPort, GmailWriteExecutionPort } from '../contracts/gmail.port.js';
 import type { BrowserPort } from '../contracts/browser.port.js';
 import type { DeviceControlService } from '../device-control/device-control.service.js';
+import type { DesktopControlService } from '../device-agent/desktop-control.service.js';
 
 export interface CapabilityIdempotencyRecord {
   key: string;
@@ -51,6 +52,11 @@ const NATIVE_APPROVAL_CAPABILITIES = new Set([
   // it is its own native approval continuation, never a hard REQUIRED
   // block on the whole capability.
   'device.browser.execute',
+  // DC3-B2 — device.desktop.execute pauses/resumes through the same
+  // ActionApprovalStore-backed continuation, its own native approval
+  // flow (DesktopControlService.startSession/resumeSession), never a
+  // hard REQUIRED block that would also stop OBSERVE-only calls.
+  'device.desktop.execute',
 ]);
 
 import { ModuleRegistry, canonicalModuleRegistry } from '../modules/module.registry.js';
@@ -74,7 +80,11 @@ export class CapabilityBroker {
     // are unaffected. Absent, 'DEVICE' capabilities simply report
     // unavailable via isProviderAvailable() below, the same graceful
     // degradation every other provider already has.
-    private readonly deviceControlService?: DeviceControlService
+    private readonly deviceControlService?: DeviceControlService,
+    // DC3-B2 — additive, optional, trailing, same graceful-degradation
+    // pattern as deviceControlService: absent, 'DEVICE_DESKTOP'
+    // capabilities simply report unavailable via isProviderAvailable().
+    private readonly desktopControlService?: DesktopControlService
   ) {
     const dataDir = resolveNagexDataDir(idempotencyDirName, idempotencyEnvVar);
     this.idempotencyStore = new FileRecordStore<CapabilityIdempotencyRecord>(
@@ -262,6 +272,7 @@ export class CapabilityBroker {
     if (provider === 'GMAIL') return Boolean(this.gmailService);
     if (provider === 'BROWSER') return Boolean(this.browserService);
     if (provider === 'DEVICE') return Boolean(this.deviceControlService);
+    if (provider === 'DEVICE_DESKTOP') return Boolean(this.desktopControlService) && this.desktopControlService!.isReady();
     return false;
   }
 
@@ -643,6 +654,44 @@ export class CapabilityBroker {
               maxDurationMs: payload.maxDurationMs,
               taskId: payload.taskId ?? null,
               taskRunId: payload.taskRunId ?? null,
+            });
+
+        if (outcome.kind === 'WAITING_APPROVAL') {
+          this.logApprovalRequired(request, def);
+          return { status: 'APPROVAL_REQUIRED', capabilityId: request.capabilityId, approval: outcome.approval };
+        }
+        return { status: 'EXECUTED', capabilityId: request.capabilityId, result: outcome };
+      }
+    }
+
+    // Handle Desktop Control Capabilities (DC3-B2) — isolated Win32
+    // desktop background execution. Same approvalId-present ?
+    // resume : start pattern as every other native-approval capability.
+    if (def.provider === 'DEVICE_DESKTOP') {
+      if (request.capabilityId === 'device.desktop.execute') {
+        const outcome = request.approvalId
+          ? await this.desktopControlService!.resumeSession({
+              tenantId: request.tenantId,
+              ownerId: request.principalId,
+              requestId: request.requestId,
+              executionSessionId: payload.executionSessionId,
+              deviceId: payload.deviceId,
+              approvalId: request.approvalId,
+              appId: payload.appId,
+              action: payload.action,
+              target: payload.target,
+              parameters: payload.parameters,
+            })
+          : await this.desktopControlService!.startSession({
+              tenantId: request.tenantId,
+              ownerId: request.principalId,
+              deviceId: payload.deviceId,
+              requestId: request.requestId,
+              executionSessionId: payload.executionSessionId,
+              appId: payload.appId,
+              action: payload.action,
+              target: payload.target,
+              parameters: payload.parameters,
             });
 
         if (outcome.kind === 'WAITING_APPROVAL') {

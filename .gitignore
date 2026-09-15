@@ -27,3 +27,6 @@ npm-debug.log*
 
 # UIA test harness build artifact (compiled by tools/uia-test-harness/build-harness.ps1)
 tools/uia-test-harness/*.exe
+
+# DC3-B2 production isolated-desktop controller build artifacts (compiled by native/windows-desktop-controller/build.ps1)
+native/windows-desktop-controller/*.exe
