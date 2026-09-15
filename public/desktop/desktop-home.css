@@ -581,3 +581,78 @@
   .desktop-global-search { width: min(520px, 38vw); }
   .nagex-desktop-home .personal-hero-title { white-space: normal; }
 }
+
+/* UI-4-R2 final polish */
+.sidebar-promo-card { display: none; }
+.sidebar-left .sidebar-bottom-user { opacity:1 !important; }
+.sidebar-device-card {
+  padding: 14px;
+  border: 1px solid #dbe8f8;
+  border-radius: 14px;
+  background: linear-gradient(145deg, rgba(255,255,255,.92), rgba(232,244,255,.94));
+  box-shadow: 0 10px 24px rgba(48, 111, 201, .08);
+  color: #18365f;
+}
+.sidebar-device-heading { display:flex; align-items:center; gap:8px; font-size:13px; font-weight:700; }
+.sidebar-device-icon { display:grid; place-items:center; width:26px; height:26px; border-radius:8px; background:#e0ecff; color:#1769ed; }
+.sidebar-device-state { display:flex; align-items:center; gap:7px; margin-top:10px; font-size:12px; font-weight:650; }
+.sidebar-device-dot { width:8px; height:8px; border-radius:50%; background:#94a3b8; box-shadow:0 0 0 4px rgba(148,163,184,.12); }
+.sidebar-device-card.is-connected .sidebar-device-dot { background:#13b981; box-shadow:0 0 0 4px rgba(19,185,129,.13); }
+.sidebar-device-detail { margin:5px 0 0 15px; color:#7588a8; font-size:11px; line-height:1.35; }
+
+.hero-visual { position:absolute; inset:0 0 0 auto; width:470px; pointer-events:none; }
+.hero-visual span { position:absolute; display:block; border-radius:24px; transform:rotate(-24deg); background:linear-gradient(145deg, rgba(255,255,255,.92), rgba(79,145,255,.42)); box-shadow:0 22px 55px rgba(61,125,225,.18); border:1px solid rgba(255,255,255,.75); }
+.hero-visual span:first-child { width:112px; height:112px; right:188px; top:-25px; }
+.hero-visual span:nth-child(2) { width:92px; height:92px; right:126px; top:52px; background:linear-gradient(145deg, rgba(221,238,255,.88), rgba(37,107,238,.32)); }
+.hero-visual em { position:absolute; right:30px; top:75px; width:132px; color:#7899d8; font:italic 18px/1.08 Georgia, serif; transform:rotate(-8deg); }
+.nagex-desktop-home .home-hero-header > :not(.hero-visual) { position:relative; z-index:1; }
+
+.nagex-composer-compact { box-shadow:0 10px 30px rgba(38,83,145,.07); }
+.composer-left-actions { gap:8px; }
+.composer-skill-chip { border-color:#dae6f5; color:#294c83; }
+.composer-chip-icon { color:#0876ff; font-size:16px; font-weight:800; }
+#btn-afford-file, #btn-afford-audio, #btn-afford-link { padding-inline:9px; }
+.btn-send-circle { box-shadow:0 8px 18px rgba(0,105,255,.25); }
+
+.nagex-desktop-home .nagex-quick-actions-grid { grid-template-columns:repeat(4, minmax(0, 198px)); justify-content:start; }
+.nagex-quick-action-card { min-height:62px; padding:8px 10px; gap:9px; }
+.qa-icon { width:34px; height:34px; }
+.qa-title { font-size:13px; }
+.qa-desc { font-size:10px; }
+
+.desktop-home-grid { grid-template-columns:minmax(0,36fr) minmax(0,36fr) minmax(0,28fr); }
+.working-ready-state { min-height:94px; display:grid; grid-template-columns:36px 1fr; align-items:center; gap:10px; padding:12px 2px; }
+.working-ready-icon { display:grid; place-items:center; width:34px; height:34px; border-radius:50%; background:#dcf8ed; color:#0faf78; font-weight:800; }
+.working-ready-state strong, .working-ready-state span { display:block; }
+.working-ready-state strong { color:#102654; font-size:13px; }
+.working-ready-state div span { margin-top:3px; color:#7185a7; font-size:11px; line-height:1.35; }
+.working-ready-link { grid-column:2; justify-self:start; border:0; background:transparent; color:#0669f7; font-size:11px; font-weight:700; cursor:pointer; padding:0; }
+
+.nagex-desktop-home .contextual-approval-card { display:grid; grid-template-columns:38px 1fr; padding:12px; background:linear-gradient(135deg,#fff,#fbfdff); }
+.approval-row-icon { grid-row:1 / span 2; display:grid; place-items:center; width:36px; height:36px; border-radius:12px; background:#fff0f3; color:#ff4d68; font-size:17px; font-weight:850; }
+.nagex-desktop-home .contextual-appr-btns { grid-column:2; }
+.nagex-desktop-home .btn-primary, .nagex-desktop-home .btn-secondary { min-height:28px; padding:5px 12px !important; border-radius:9px; }
+.nagex-desktop-home .btn-primary { box-shadow:0 5px 12px rgba(25,105,238,.18); }
+.nagex-desktop-home .inbox-item-title { line-height:1.25; }
+
+.memory-icon-0 { background:#fff0f3 !important; color:#ff5270 !important; }
+.memory-icon-1 { background:#eaf2ff !important; color:#2572f2 !important; }
+.memory-icon-2 { background:#e8fbf4 !important; color:#12b981 !important; }
+.memory-icon-3 { background:#f0edff !important; color:#7257ef !important; }
+.desktop-memory-panel .nagex-activity-desc { line-height:1.35; }
+
+.nagex-value-panel { min-height:160px; position:relative; overflow:hidden; background:linear-gradient(150deg,#fff 20%,#edf6ff 100%); }
+.nagex-value-panel::after { content:''; position:absolute; width:180px; height:85px; right:-32px; bottom:-35px; border-radius:50%; background:rgba(67,145,246,.12); }
+.nagex-value-panel .nagex-empty-state { padding:4px 2px; text-align:left; }
+.activity-summary-empty { min-height:95px; display:flex; flex-direction:column; align-items:flex-start; justify-content:center; }
+.activity-summary-empty > span { color:#1872f2; font-size:22px; }
+.activity-summary-empty strong { margin-top:4px; color:#16396c; font-size:13px; }
+.activity-summary-empty small { margin-top:5px; max-width:270px; color:#7186aa; line-height:1.4; }
+.activity-summary-real { display:grid; gap:8px; }
+.activity-summary-real > div { display:grid; grid-template-columns:28px 34px 1fr; align-items:center; min-height:34px; }
+.activity-summary-real strong { color:#102654; font-size:15px; }
+.activity-summary-real small { color:#6f84a8; }
+.summary-icon { display:grid; place-items:center; width:24px; height:24px; border-radius:50%; }
+.summary-icon-green { color:#0ba979; background:#dbf8ed; }
+.summary-icon-blue { color:#1472ef; background:#e7f0ff; }
+.summary-icon-orange { color:#e78a00; background:#fff2d5; }

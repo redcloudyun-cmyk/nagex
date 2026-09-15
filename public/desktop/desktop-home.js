@@ -62,19 +62,51 @@
     const el = document.getElementById('desktop-memory-list');
     if (!el || !window.NAGEX.getState) return;
     const state = window.NAGEX.getState();
-    const items = (state.memories || []).slice(0, 4);
+    const items = (state.memories || [])
+      .filter((m) => m && m.lifecycle === 'ACTIVE' && (m.scope === 'USER' || m.scope === 'SESSION'))
+      .filter((m) => m.content && typeof m.content.subject === 'string' && m.content.subject.trim() && m.content.value != null && String(m.content.value).trim())
+      .filter((m) => !/^(calendar event|task|execution|workflow|plan)$/i.test(m.content.subject.trim()))
+      .slice(0, 4);
     if (items.length === 0) {
       el.innerHTML = emptyState(t('home.memoryEmpty', 'Nothing remembered yet.'));
       return;
     }
-    el.innerHTML = items.map((m) => `
+    el.innerHTML = items.map((m, index) => `
       <div class="nagex-activity-row">
-        <div class="nagex-activity-icon">🧠</div>
+        <div class="nagex-activity-icon memory-icon-${index % 4}">${index % 4 === 0 ? '♥' : index % 4 === 1 ? '✦' : index % 4 === 2 ? '●' : '◆'}</div>
         <div class="nagex-activity-body">
           <div class="nagex-activity-title">${escapeHtml(m.content?.subject || 'Memory')}</div>
           <div class="nagex-activity-desc">${escapeHtml(String(m.content?.value ?? ''))}</div>
         </div>
       </div>`).join('');
+  }
+
+  function renderActivitySummary() {
+    const el = document.getElementById('desktop-activity-summary');
+    if (!el || !window.NAGEX.getState) return;
+    const activity = window.NAGEX.getState().activity || [];
+    if (activity.length === 0) {
+      el.innerHTML = `<div class="activity-summary-empty"><span>✦</span><strong>${escapeHtml(t('home.valueReadyTitle', 'Ready to build your history'))}</strong><small>${escapeHtml(t('home.valueEmpty', 'Completed work and approvals will appear here.'))}</small></div>`;
+      return;
+    }
+    const completed = activity.filter((item) => item.status === 'COMPLETED' || item.status === 'SUCCEEDED').length;
+    const needsYou = activity.filter((item) => item.status === 'NEEDS_ATTENTION').length;
+    el.innerHTML = `<div class="activity-summary-real"><div><span class="summary-icon summary-icon-green">✓</span><strong>${completed}</strong><small>${escapeHtml(t('home.completedActivity', 'completed activities'))}</small></div><div><span class="summary-icon summary-icon-blue">→</span><strong>${activity.length}</strong><small>${escapeHtml(t('home.recordedActivity', 'recorded activities'))}</small></div>${needsYou ? `<div><span class="summary-icon summary-icon-orange">!</span><strong>${needsYou}</strong><small>${escapeHtml(t('home.needsAttentionActivity', 'need attention'))}</small></div>` : ''}</div>`;
+  }
+
+  let deviceStatusFetched = false;
+  async function renderDeviceStatus() {
+    if (deviceStatusFetched || !window.NAGEX.apiFetch) return;
+    deviceStatusFetched = true;
+    const card = document.getElementById('sidebar-device-card');
+    const stateEl = document.getElementById('sidebar-device-state');
+    const detailEl = document.getElementById('sidebar-device-detail');
+    const status = await window.NAGEX.apiFetch('/api/v1/desktop/quickwake/status');
+    if (!card || !stateEl || !detailEl) return;
+    const connected = Boolean(status && status.isRunning);
+    card.classList.toggle('is-connected', connected);
+    stateEl.textContent = connected ? t('home.deviceConnected', 'Connected') : t('home.deviceUnavailable', 'Not connected');
+    detailEl.textContent = connected ? t('home.deviceReady', 'Quick Wake is ready') : t('home.deviceUnavailableDetail', 'Desktop runtime is unavailable');
   }
 
   // ── DesktopToday — the one real, lazily-fetched GET /api/v1/my-space
@@ -173,6 +205,8 @@
     renderNotificationBell();
     renderApprovalsCountBadge();
     renderMemoryPanel();
+    renderActivitySummary();
+    renderDeviceStatus();
     renderTodayPanel();
   }
 

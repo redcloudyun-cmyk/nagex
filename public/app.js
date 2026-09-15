@@ -566,7 +566,7 @@
             </div>
           </div>`).join('');
       } else {
-        elWorking.innerHTML = `<div class="nagex-empty-state">${escapeHtml(t('home.workingEmpty') || 'Nothing running right now.')}</div>`;
+        elWorking.innerHTML = `<div class="working-ready-state"><span class="working-ready-icon">✓</span><div><strong>${escapeHtml(t('home.workingReadyTitle') || 'Ready when you are')}</strong><span>${escapeHtml(t('home.workingReadyBody') || 'Start a request above or review recent activity.')}</span></div><button class="working-ready-link" onclick="document.getElementById('home-prompt-input')?.focus()">${escapeHtml(t('home.startRequest') || 'Start a request')}</button></div>`;
       }
     }
 
@@ -605,6 +605,7 @@
             const a = entry.approval;
             const humanAction = a.intent || a.action || 'Approval Required';
             return `<div class="inbox-item-card contextual-approval-card">
+              <span class="approval-row-icon" aria-hidden="true">!</span>
               <div class="inbox-item-main">
                 <span class="inbox-item-title">${escapeHtml(t('workspace.actionApprovalLabel') || 'Approve')}: ${escapeHtml(humanAction)}</span>
                 <span class="inbox-item-summary">${escapeHtml(a.resource?.id || 'Action Approval')}</span>
