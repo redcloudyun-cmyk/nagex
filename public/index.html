@@ -225,11 +225,16 @@
                 <div class="daily-brief-icon">☀️</div>
                 <div class="daily-brief-summary-text">
                   <h3 data-i18n="dailyBrief.title">Today's Brief</h3>
-                  <p id="daily-brief-summary-line" class="daily-brief-summary-line"></p>
+                  <p id="daily-brief-summary" class="daily-brief-summary-line"></p>
+                  <p id="daily-brief-meta" class="daily-brief-meta-line"></p>
                 </div>
               </div>
               <div class="daily-brief-counts-row" id="daily-brief-counts"></div>
-              <button class="btn-secondary daily-brief-toggle" id="btn-daily-brief-toggle" data-i18n="dailyBrief.viewFull">View Full Brief</button>
+              <div class="daily-brief-actions-row">
+                <button class="btn-secondary daily-brief-toggle" id="daily-brief-toggle" data-i18n="dailyBrief.viewFull">View Full Brief</button>
+                <button class="btn-secondary" id="daily-brief-refresh" data-i18n="dailyBrief.refresh">Refresh</button>
+                <button class="btn-secondary" id="daily-brief-history-toggle" data-i18n="dailyBrief.viewHistory">History</button>
+              </div>
               <div class="daily-brief-detail" id="daily-brief-detail" hidden></div>
             </section>
 
@@ -1274,10 +1279,15 @@
           <div class="daily-brief-summary-text">
             <h3 data-i18n="dailyBrief.title">Today's Brief</h3>
             <p id="mh-daily-brief-summary" class="daily-brief-summary-line"></p>
+            <p id="mh-daily-brief-meta" class="daily-brief-meta-line"></p>
           </div>
         </div>
         <div class="daily-brief-counts-row" id="mh-daily-brief-counts"></div>
-        <button class="mh-btn-review daily-brief-toggle" id="mh-daily-brief-toggle" data-i18n="dailyBrief.viewFull">View Full Brief</button>
+        <div class="daily-brief-actions-row">
+          <button class="mh-btn-review daily-brief-toggle" id="mh-daily-brief-toggle" data-i18n="dailyBrief.viewFull">View Full Brief</button>
+          <button class="mh-btn-review" id="mh-daily-brief-refresh" data-i18n="dailyBrief.refresh">Refresh</button>
+          <button class="mh-btn-review" id="mh-daily-brief-history-toggle" data-i18n="dailyBrief.viewHistory">History</button>
+        </div>
         <div class="daily-brief-detail" id="mh-daily-brief-detail" hidden></div>
       </section>
 

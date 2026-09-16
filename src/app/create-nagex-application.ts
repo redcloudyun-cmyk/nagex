@@ -75,6 +75,7 @@ import { WorkflowDefinitionStore } from '../workflows/workflow-definition.store.
 import { WorkflowDefinitionService } from '../workflows/workflow-definition.service.js';
 import { CandidateActionResolver } from '../workspace/action-resolver.js';
 import { ActivityStore } from '../governance/activity.store.js';
+import { DailyBriefStore } from '../governance/daily-brief.store.js';
 import { createConfiguredStorageProvider } from '../storage/s3-storage.provider.js';
 import { KnowledgeEngine } from '../context/knowledge.engine.js';
 import { CapabilityBroker, capabilityRegistry } from '../capabilities/index.js';
@@ -173,6 +174,7 @@ export function createNagexApplication(): NagexApplication {
   // been built (native/windows-desktop-controller/build.ps1), 'DEVICE_DESKTOP'
   // genuinely reports unavailable rather than silently no-opping.
   const activityStore = new ActivityStore();
+  const dailyBriefStore = new DailyBriefStore();
   const desktopAppAllowlist = new DesktopAppAllowlist();
   const windowsIsolatedDesktopController = new WindowsIsolatedDesktopController();
   const desktopActivityAdapter = new DesktopActivityAdapter(activityStore);
@@ -447,6 +449,7 @@ export function createNagexApplication(): NagexApplication {
     storageProvider,
     candidateStore,
     activityStore,
+    dailyBriefStore,
     candidateActionResolver,
     quickCaptureService,
     inputRouter,

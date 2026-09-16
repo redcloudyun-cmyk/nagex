@@ -16,7 +16,11 @@ import { GmailService } from '../src/modules/gmail/gmail.service.js';
 import { AiService } from '../src/model-gateway/ai-service.js';
 import { UnifiedModelRouter } from '../src/model-gateway/unified-model-router.js';
 import type { ModelProvider, ModelRequest, ModelResponse, ProviderStatus } from '../src/model-gateway/model-provider.js';
-import { handleAsyncApiRequest, actionApprovals as sharedActionApprovals } from '../src/server_web.js';
+import { handleAsyncApiRequest, actionApprovals as sharedActionApprovals, dailyBriefStore as sharedDailyBriefStore } from '../src/server_web.js';
+import { DailyBriefStore, dailyBriefDateKey } from '../src/governance/daily-brief.store.js';
+import os from 'node:os';
+import path from 'node:path';
+import fs from 'node:fs';
 
 function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
@@ -71,14 +75,18 @@ function buildHarness(opts: {
   return { calendarService, gmailService, aiService, approvals };
 }
 
-// R8 test note: /api/v1/daily-brief's cache is keyed by tenantId::principalId
-// and is a real module-level singleton in server_web.ts (deliberately — see
-// §11), which persists across tests in this same process. Every test below
-// therefore uses its own unique principalId so no test's cached result can
-// leak into another's assertions; only the dedicated caching test reuses a
-// header set across calls on purpose.
+// R9 test note: dailyBriefStore is REAL file-backed persistence (§3), keyed
+// by tenantId::principalId::date, in the real module-level shared store —
+// not just in-memory-scoped to this process. A fixed principalId per test
+// name would collide with itself across separate `npm test` invocations run
+// on the same real UTC calendar day (a leftover file from an earlier run
+// would already exist for "today", so a later run's "first request of the
+// day" assumption would be false). RUN_ID makes every principalId here
+// unique per process run, so each `npm test` invocation gets a guaranteed-
+// empty starting state regardless of what an earlier run persisted.
+const RUN_ID = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 function headersFor(testName: string) {
-  return { 'x-nagex-tenant': 'ten_test', 'x-principal-id': `usr_${testName}` };
+  return { 'x-nagex-tenant': 'ten_test', 'x-principal-id': `usr_${testName}_${RUN_ID}` };
 }
 
 test('Calendar only: Gmail disconnected still yields a real partial brief grounded in real calendar events', async () => {
@@ -209,25 +217,135 @@ test('source grounding: a real pending approval is surfaced with its own real so
   assert.ok(data.approvals[0].sourceId);
 });
 
-test('caching: a second request within the TTL returns the cached brief marked cached=true, without re-calling Calendar/Gmail/the model', async () => {
-  const HEADERS = headersFor('caching');
+test('R9 persistence: a second GET the same day returns the persisted brief without re-calling Calendar/Gmail/the model', async () => {
+  const HEADERS = headersFor('persistence_same_day');
   let calendarCalls = 0;
   let modelCalls = 0;
   const calendarFetch: typeof fetch = async () => { calendarCalls++; return jsonResponse({ items: [] }); };
   const h = buildHarness({ calendarFetch, modelReply: () => { modelCalls++; return JSON.stringify({ summary: 'ok', actionItems: [] }); } });
   const first = await handleAsyncApiRequest('GET', '/api/v1/daily-brief', null, HEADERS, h.aiService, {}, h.calendarService, h.gmailService);
-  assert.equal((first.data as any).cached, false);
+  assert.equal((first.data as any).wasExplicitRefresh, false);
   assert.equal(calendarCalls, 1);
   assert.equal(modelCalls, 1);
 
   const second = await handleAsyncApiRequest('GET', '/api/v1/daily-brief', null, HEADERS, h.aiService, {}, h.calendarService, h.gmailService);
-  assert.equal((second.data as any).cached, true);
-  assert.equal(calendarCalls, 1, 'a cached read must not re-hit Calendar');
-  assert.equal(modelCalls, 1, 'a cached read must not re-hit the model');
+  assert.equal(calendarCalls, 1, 'a plain re-read of today must not re-hit Calendar');
+  assert.equal(modelCalls, 1, 'a plain re-read of today must not re-hit the model');
+  assert.equal((second.data as any).generatedAt, (first.data as any).generatedAt, 'the same persisted record must be served, not a new generation');
+});
 
-  const forced = await handleAsyncApiRequest('GET', '/api/v1/daily-brief', null, HEADERS, h.aiService, { refresh: 'true' }, h.calendarService, h.gmailService);
-  assert.equal((forced.data as any).cached, false);
-  assert.equal(calendarCalls, 2, '?refresh=true must force a real re-fetch');
+test('R9 refresh: POST /api/v1/daily-brief/refresh forces a real regeneration and updates the persisted record for today', async () => {
+  const HEADERS = headersFor('refresh_forces');
+  let calendarCalls = 0;
+  const calendarFetch: typeof fetch = async () => { calendarCalls++; return jsonResponse({ items: [] }); };
+  const h = buildHarness({ calendarFetch });
+  const first = await handleAsyncApiRequest('GET', '/api/v1/daily-brief', null, HEADERS, h.aiService, {}, h.calendarService, h.gmailService);
+  assert.equal(calendarCalls, 1);
+
+  const refreshed = await handleAsyncApiRequest('POST', '/api/v1/daily-brief/refresh', null, HEADERS, h.aiService, {}, h.calendarService, h.gmailService);
+  assert.equal(calendarCalls, 2, 'an explicit refresh must always re-hit Calendar');
+  assert.equal((refreshed.data as any).wasExplicitRefresh, true);
+  assert.ok((refreshed.data as any).generatedAt >= (first.data as any).generatedAt);
+
+  // the persisted record for today is now the refreshed one
+  const afterRefreshRead = await handleAsyncApiRequest('GET', '/api/v1/daily-brief', null, HEADERS, h.aiService, {}, h.calendarService, h.gmailService);
+  assert.equal(calendarCalls, 2, 'reading again after a refresh must not trigger yet another Calendar call');
+  assert.equal((afterRefreshRead.data as any).generatedAt, (refreshed.data as any).generatedAt);
+});
+
+test('R9 refresh failure: a failed refresh never overwrites the last known good persisted brief, and reports lastRefreshAttempt truthfully', async () => {
+  const HEADERS = headersFor('refresh_failure_keeps_previous');
+  let shouldFail = false;
+  const h = buildHarness({ modelReply: () => shouldFail ? new Error('down') : JSON.stringify({ summary: 'good brief', actionItems: [] }) });
+  const good = await handleAsyncApiRequest('GET', '/api/v1/daily-brief', null, HEADERS, h.aiService, {}, h.calendarService, h.gmailService);
+  assert.equal((good.data as any).status, 'OK');
+  assert.equal((good.data as any).summary, 'good brief');
+
+  shouldFail = true;
+  const failedRefresh = await handleAsyncApiRequest('POST', '/api/v1/daily-brief/refresh', null, HEADERS, h.aiService, {}, h.calendarService, h.gmailService);
+  const failedData = failedRefresh.data as any;
+  // the previous good summary/generatedAt must still be what's served —
+  // never silently replaced by the failed attempt, and never relabeled as
+  // freshly generated.
+  assert.equal(failedData.summary, 'good brief');
+  assert.equal(failedData.generatedAt, (good.data as any).generatedAt);
+  assert.ok(failedData.lastRefreshAttempt, 'the failed attempt must be reported, not hidden');
+  assert.equal(failedData.lastRefreshAttempt.status, 'UNAVAILABLE');
+});
+
+test('R9 duplicate-request guard: two concurrent refreshes for the same tenant+principal only trigger one real generation', async () => {
+  const HEADERS = headersFor('duplicate_guard');
+  let calendarCalls = 0;
+  const calendarFetch: typeof fetch = async () => { calendarCalls++; await new Promise((r) => setTimeout(r, 20)); return jsonResponse({ items: [] }); };
+  const h = buildHarness({ calendarFetch });
+  const [a, b] = await Promise.all([
+    handleAsyncApiRequest('GET', '/api/v1/daily-brief', null, HEADERS, h.aiService, {}, h.calendarService, h.gmailService),
+    handleAsyncApiRequest('GET', '/api/v1/daily-brief', null, HEADERS, h.aiService, {}, h.calendarService, h.gmailService),
+  ]);
+  assert.equal(calendarCalls, 1, 'two concurrent first-loads must share one real generation, not fire two');
+  assert.equal((a.data as any).generatedAt, (b.data as any).generatedAt);
+});
+
+test('R9 history: past days are isolated — refreshing today never changes a different date\'s persisted record', async () => {
+  const HEADERS = headersFor('history_isolation');
+  const h = buildHarness({ modelReply: () => JSON.stringify({ summary: 'today only', actionItems: [] }) });
+  await handleAsyncApiRequest('GET', '/api/v1/daily-brief', null, HEADERS, h.aiService, {}, h.calendarService, h.gmailService);
+  await handleAsyncApiRequest('POST', '/api/v1/daily-brief/refresh', null, HEADERS, h.aiService, {}, h.calendarService, h.gmailService);
+  const history = await handleAsyncApiRequest('GET', '/api/v1/daily-brief/history', null, HEADERS, h.aiService, {}, h.calendarService, h.gmailService);
+  const records = (history.data as any).history;
+  assert.equal(records.length, 1, 'refreshing today twice must still be exactly one history entry for today, not two');
+  assert.equal(records[0].summary, 'today only');
+  assert.ok(records[0].freshness === 'FRESH' || records[0].freshness === 'STALE');
+});
+
+test('R9 tenant isolation: history for one tenant/principal never includes another\'s briefs', async () => {
+  const HEADERS_A = headersFor('tenant_iso_a');
+  const HEADERS_B = { 'x-nagex-tenant': 'ten_other', 'x-principal-id': `usr_tenant_iso_b_${RUN_ID}` };
+  const h = buildHarness();
+  await handleAsyncApiRequest('GET', '/api/v1/daily-brief', null, HEADERS_A, h.aiService, {}, h.calendarService, h.gmailService);
+  await handleAsyncApiRequest('GET', '/api/v1/daily-brief', null, HEADERS_B, h.aiService, {}, h.calendarService, h.gmailService);
+  const historyA = await handleAsyncApiRequest('GET', '/api/v1/daily-brief/history', null, HEADERS_A, h.aiService, {}, h.calendarService, h.gmailService);
+  assert.equal((historyA.data as any).history.length, 1);
+  assert.equal((historyA.data as any).history[0].tenantId, 'ten_test');
+});
+
+test('R9 persistence: restart survives — a fresh DailyBriefStore instance pointed at the same directory reads back what an earlier instance wrote', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-daily-brief-test-'));
+  try {
+    const record = {
+      tenantId: 'ten_restart', principalId: 'usr_restart', date: '2026-01-01', generatedAt: '2026-01-01T09:00:00.000Z',
+      status: 'OK' as const, provider: 'nebius', model: 'test-model', latencyMs: 10, fallbackOccurred: false,
+      calendarStatus: 'CONNECTED' as const, gmailStatus: 'CONNECTED' as const, schedule: [], emails: [], summary: 'restart test', actionItems: [], requestId: 'req_restart',
+    };
+    const store1 = new DailyBriefStore({ dir });
+    store1.save(record);
+
+    // Simulates a process restart: a brand-new instance, same real
+    // directory, no in-memory state carried over.
+    const store2 = new DailyBriefStore({ dir });
+    const restored = store2.getForDate('ten_restart', 'usr_restart', '2026-01-01');
+    assert.ok(restored);
+    assert.equal(restored!.summary, 'restart test');
+    assert.equal(restored!.generatedAt, '2026-01-01T09:00:00.000Z');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('R9 stale detection: a persisted brief older than the freshness window is reported freshness=STALE, not silently treated as current', async () => {
+  const HEADERS = headersFor('stale_detection');
+  const oldRecord = {
+    tenantId: HEADERS['x-nagex-tenant'], principalId: HEADERS['x-principal-id'], date: dailyBriefDateKey(),
+    generatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2h old, past the 1h window
+    status: 'OK' as const, provider: 'nebius', model: 'test-model', latencyMs: 5, fallbackOccurred: false,
+    calendarStatus: 'CONNECTED' as const, gmailStatus: 'CONNECTED' as const, schedule: [], emails: [], summary: 'an old brief', actionItems: [], requestId: 'req_old',
+  };
+  sharedDailyBriefStore.save(oldRecord);
+  const h = buildHarness();
+  const res = await handleAsyncApiRequest('GET', '/api/v1/daily-brief', null, HEADERS, h.aiService, {}, h.calendarService, h.gmailService);
+  const data = res.data as any;
+  assert.equal(data.summary, 'an old brief', 'a plain GET must serve the already-persisted record for today, not regenerate');
+  assert.equal(data.freshness, 'STALE');
 });
 
 test('Activity trace: daily_brief.started and daily_brief.completed are both recorded with real, traceable identifiers', async () => {

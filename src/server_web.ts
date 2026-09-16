@@ -21,6 +21,7 @@ import { skillRegistry as canonicalSkillRegistry } from './skills/skill-registry
 import { toolRegistry as canonicalToolRegistry } from './tools/tool-registry.js';
 import { PlanResolver } from './planning/plan-resolver.js';
 import { PersistentActionApprovalStore } from './governance/action-approval.store.js';
+import { dailyBriefDateKey, type DailyBriefRecord } from './governance/daily-brief.store.js';
 import { ExecutionStore } from './governance/execution.store.js';
 import {
   GoogleCalendarService,
@@ -157,6 +158,7 @@ export const {
   storageProvider,
   candidateStore,
   activityStore,
+  dailyBriefStore,
   candidateActionResolver,
   quickCaptureService,
   inputRouter,
@@ -266,16 +268,65 @@ const planRegistry: Array<{
   },
 ];
 
-// R8 — Personal Daily Brief in-memory cache, keyed by tenantId::principalId.
-// Purely a repeat-call-within-a-few-minutes optimization (§11 — never
-// re-hits Calendar/Gmail/the model on every poll); never a substitute for
-// real data. generatedAt/refreshedAt on the response tell the caller
-// exactly how fresh the cached result is — a cached response is never
-// relabeled as freshly generated. A generation that ends UNAVAILABLE is
-// deliberately never cached, so the next request retries for real rather
-// than repeating a stale failure.
-const DAILY_BRIEF_CACHE_TTL_MS = 5 * 60 * 1000;
-const dailyBriefCache = new Map<string, { generatedAtMs: number; data: Record<string, unknown> }>();
+// R9 — Personal Daily Brief. dailyBriefStore now persists one durable
+// record per (tenantId, principalId, date) — see
+// src/governance/daily-brief.store.ts — replacing R8's in-memory-only
+// cache. dailyBriefGenerationInFlight is a real duplicate-request guard: a
+// second GET/refresh for the same tenant+principal while one generation is
+// already running shares that same in-flight promise instead of firing a
+// second real Calendar/Gmail/model round-trip. DAILY_BRIEF_STALE_MS is the
+// freshness window (§6) — a persisted brief older than this is reported
+// with freshness:'STALE' on read, never silently treated as current.
+const DAILY_BRIEF_STALE_MS = 60 * 60 * 1000;
+const dailyBriefGenerationInFlight = new Map<string, Promise<Omit<DailyBriefRecord, 'briefId'>>>();
+
+function computeBriefFreshness(generatedAt: string): 'FRESH' | 'STALE' {
+  return Date.now() - Date.parse(generatedAt) > DAILY_BRIEF_STALE_MS ? 'STALE' : 'FRESH';
+}
+
+function safeListPendingApprovals(tenantId: string, principalId: string, requestId: string) {
+  try {
+    return actionApprovals.listPending(tenantId, principalId, requestId);
+  } catch {
+    return [] as ReturnType<typeof actionApprovals.listPending>;
+  }
+}
+
+// §8 item traceability + freshness + lastRefreshAttempt truthfulness — the
+// single real response shape both the GET-serves-persisted path and the
+// explicit-refresh path return, so a client never has to special-case one
+// vs the other.
+function buildBriefResponse(
+  record: Omit<DailyBriefRecord, 'briefId'>,
+  approvals: ReturnType<typeof actionApprovals.listPending>,
+  wasExplicitRefresh: boolean,
+  lastRefreshAttempt: { attemptedAt: string; status: string; requestId: string } | null,
+) {
+  return {
+    date: record.date,
+    generatedAt: record.generatedAt,
+    freshness: computeBriefFreshness(record.generatedAt),
+    wasExplicitRefresh,
+    lastRefreshAttempt,
+    requestId: record.requestId,
+    status: record.status,
+    calendarStatus: record.calendarStatus,
+    gmailStatus: record.gmailStatus,
+    schedule: record.schedule,
+    emails: record.emails,
+    // §8/§5 — real, live-refetched pending approvals every single read
+    // (never persisted alongside the rest of the brief, so a consumed/
+    // rejected approval is reflected immediately on the very next read —
+    // §8's "Consumed는 Brief에도 즉시 반영" — without needing a refresh).
+    approvals: approvals.map((a) => ({ sourceType: 'APPROVAL' as const, sourceId: a.approvalId, toolId: a.toolId, status: a.status, createdAt: a.createdAt, capability: a.toolId })),
+    summary: record.summary,
+    actionItems: record.actionItems,
+    provider: record.provider,
+    model: record.model,
+    latencyMs: record.latencyMs,
+    fallbackOccurred: record.fallbackOccurred,
+  };
+}
 
 // Seed Approvals Queue (Exact match for Mockup Image 3)
 const approvalQueue: Array<{
@@ -1823,150 +1874,193 @@ export async function handleAsyncApiRequest(
       };
     }
 
-    // R8 — Personal Daily Brief. Combines real Calendar + Gmail + Tasks +
-    // Activity + model reasoning into one read-only synthesis. Never
-    // executes anything itself (§5): a consequential action the model
-    // recommends still has to go through the real Approval flow via its
-    // own normal entry point, never created or auto-approved here. Every
-    // section (calendar/gmail/tasks/approvals) is independently
-    // fault-isolated exactly like My Space above — one source failing
-    // never fails the whole brief, it just narrows it (§10 partial
-    // degradation), and if the model itself fails after real data was
-    // gathered, the response says so truthfully rather than wrapping raw
-    // capability results in a fake summary.
-    if (pathname === '/api/v1/daily-brief' && method === 'GET') {
+    // R8/R9 — Personal Daily Brief. Combines real Calendar + Gmail + Tasks +
+    // Activity + model reasoning into one read-only synthesis, persisted as
+    // a durable, date-scoped record (dailyBriefStore) rather than an
+    // in-memory-only cache. Never executes anything itself (§5): a
+    // consequential action the model recommends still has to go through
+    // the real Approval flow via its own normal entry point, never created
+    // or auto-approved here. Every section (calendar/gmail/tasks/approvals)
+    // is independently fault-isolated exactly like My Space above — one
+    // source failing never fails the whole brief, it just narrows it (§7
+    // partial degradation), and if the model itself fails after real data
+    // was gathered, the response says so truthfully rather than wrapping
+    // raw capability results in a fake summary.
+    if ((pathname === '/api/v1/daily-brief' && method === 'GET') || (pathname === '/api/v1/daily-brief/refresh' && method === 'POST')) {
       const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
       const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
       const requestId = getHeaderValue(headers, 'x-request-id') || `req_brief_${crypto.randomUUID()}`;
-      const forceRefresh = query.refresh === 'true';
-      const cacheKey = `${tenantId}::${principalId}`;
+      const isExplicitRefresh = pathname === '/api/v1/daily-brief/refresh';
+      const today = dailyBriefDateKey();
+      const guardKey = `${tenantId}::${principalId}`;
 
-      const cached = dailyBriefCache.get(cacheKey);
-      if (cached && !forceRefresh && Date.now() - cached.generatedAtMs < DAILY_BRIEF_CACHE_TTL_MS) {
-        return { status: 200, data: { ...cached.data, cached: true, refreshedAt: new Date().toISOString() } };
+      const existing = dailyBriefStore.getForDate(tenantId, principalId, today);
+
+      // R9 §2 — a plain GET never regenerates once today already has a
+      // persisted brief; only an explicit refresh (or today's very first
+      // request) triggers real Calendar/Gmail/model calls.
+      if (existing && !isExplicitRefresh) {
+        const approvals = safeListPendingApprovals(tenantId, principalId, requestId);
+        return { status: 200, data: buildBriefResponse(existing, approvals, false, null) };
       }
 
-      activityStore.record({
-        tenantId, principalId, type: 'daily_brief.started', title: 'Daily Brief generation started', status: 'RUNNING',
-        dedupeKey: `daily_brief:${requestId}:started`,
-      });
+      // R9 §2 duplicate-request guard.
+      let inFlight = dailyBriefGenerationInFlight.get(guardKey);
+      if (!inFlight) {
+        inFlight = (async () => {
+          activityStore.record({
+            tenantId, principalId, type: 'daily_brief.started', title: 'Daily Brief generation started', status: 'RUNNING',
+            dedupeKey: `daily_brief:${requestId}:started`,
+          });
 
-      // Calendar — today's window only (unlike My Space's 7-day upcoming
-      // window). DISCONNECTED (Google never connected) is reported
-      // distinctly from ERROR (a real failure) so the UI can tell the two
-      // apart, matching My Space's own convention.
-      let schedule: Awaited<ReturnType<typeof calendarService.listUpcomingEvents>> = [];
-      let calendarStatus: 'CONNECTED' | 'DISCONNECTED' | 'ERROR' = 'CONNECTED';
-      try {
-        const now = new Date();
-        const endOfDay = new Date(now);
-        endOfDay.setHours(23, 59, 59, 999);
-        schedule = await calendarService.listUpcomingEvents({ tenantId, timeMin: now.toISOString(), timeMax: endOfDay.toISOString(), maxResults: 20, requestId });
-      } catch (error) {
-        schedule = [];
-        calendarStatus = error instanceof NagexError && error.code === 'GOOGLE_CALENDAR_DISCONNECTED' ? 'DISCONNECTED' : 'ERROR';
+          // Calendar — today's window only (unlike My Space's 7-day
+          // upcoming window). DISCONNECTED (Google never connected) is
+          // reported distinctly from ERROR (a real failure) so the UI can
+          // tell the two apart, matching My Space's own convention.
+          let schedule: Awaited<ReturnType<typeof calendarService.listUpcomingEvents>> = [];
+          let calendarStatus: 'CONNECTED' | 'DISCONNECTED' | 'ERROR' = 'CONNECTED';
+          try {
+            const now = new Date();
+            const endOfDay = new Date(now);
+            endOfDay.setHours(23, 59, 59, 999);
+            schedule = await calendarService.listUpcomingEvents({ tenantId, timeMin: now.toISOString(), timeMax: endOfDay.toISOString(), maxResults: 20, requestId });
+          } catch (error) {
+            schedule = [];
+            calendarStatus = error instanceof NagexError && error.code === 'GOOGLE_CALENDAR_DISCONNECTED' ? 'DISCONNECTED' : 'ERROR';
+          }
+          if (calendarStatus === 'CONNECTED') {
+            activityStore.record({ tenantId, principalId, type: 'daily_brief.source_calendar_completed', title: 'Daily Brief: calendar read', status: 'COMPLETED', dedupeKey: `daily_brief:${requestId}:calendar` });
+          }
+
+          // Gmail — real unread-recent search only; gmail.client.ts's real
+          // message shape is snippet-only (no subject/from/date exist
+          // anywhere in this codebase's Gmail integration today), so that
+          // is exactly and only what gets shown — never a fabricated
+          // subject line.
+          let emails: Array<{ threadId: string; snippet: string }> = [];
+          let gmailStatus: 'CONNECTED' | 'DISCONNECTED' | 'ERROR' = 'CONNECTED';
+          try {
+            const result = await gmailApiService.search({ tenantId, query: 'is:unread newer_than:3d', requestId });
+            emails = result.threads.slice(0, 10);
+          } catch (error) {
+            emails = [];
+            gmailStatus = error instanceof NagexError && error.code === 'GMAIL_DISCONNECTED' ? 'DISCONNECTED' : 'ERROR';
+          }
+          if (gmailStatus === 'CONNECTED') {
+            activityStore.record({ tenantId, principalId, type: 'daily_brief.source_gmail_completed', title: 'Daily Brief: Gmail read', status: 'COMPLETED', dedupeKey: `daily_brief:${requestId}:gmail` });
+          }
+
+          let tasks: ReturnType<typeof taskStore.list> = [];
+          try {
+            tasks = taskStore.list(tenantId, principalId).filter((t) => t.status === 'ACTIVE' || t.status === 'RUNNING');
+          } catch {
+            tasks = [];
+          }
+
+          const scheduleDigest = schedule.map((e) => `- ${e.title} (${e.start} - ${e.end})`).join('\n');
+          const emailsDigest = emails.map((e) => `- ${e.snippet}`).join('\n');
+          const tasksDigest = tasks.map((t) => `- ${t.name} (${t.status})`).join('\n');
+
+          let summary: string | null = null;
+          let actionItems: BriefActionItem[] = [];
+          let provider: string | null = null;
+          let modelName: string | null = null;
+          let latencyMs: number | null = null;
+          let fallbackOccurred = false;
+          let briefStatus: 'OK' | 'PARTIAL' | 'UNAVAILABLE';
+
+          try {
+            const result = await service.brief({ scheduleDigest, emailsDigest, tasksDigest, mode: 'auto', requestId });
+            summary = result.data.summary;
+            actionItems = result.data.actionItems;
+            provider = result.provider;
+            modelName = result.model;
+            latencyMs = result.latencyMs;
+            const routing = service.activeProviderSummary();
+            fallbackOccurred = Boolean(routing.activeProvider) && routing.activeProvider !== provider;
+            briefStatus = calendarStatus === 'CONNECTED' && gmailStatus === 'CONNECTED' ? 'OK' : 'PARTIAL';
+          } catch {
+            // §7/§10 — every provider failed (or none configured): never
+            // wrap the raw calendar/gmail/task data already gathered above
+            // in a fake summary. The real, already-fetched schedule/emails
+            // below are still returned as-is (they're real, not model
+            // output); only the model-generated synthesis is explicitly
+            // unavailable.
+            briefStatus = 'UNAVAILABLE';
+          }
+
+          const eventType = briefStatus === 'UNAVAILABLE' ? 'daily_brief.failed' : briefStatus === 'PARTIAL' ? 'daily_brief.partial' : 'daily_brief.generated';
+          activityStore.record({
+            tenantId, principalId,
+            type: eventType,
+            title: briefStatus === 'UNAVAILABLE' ? 'Daily Brief generation failed' : briefStatus === 'PARTIAL' ? 'Daily Brief generated (partial)' : 'Daily Brief generated',
+            status: briefStatus === 'UNAVAILABLE' ? 'FAILED' : 'COMPLETED',
+            dedupeKey: `daily_brief:${requestId}:${eventType}`,
+            source: { executionId: requestId },
+          });
+          if (isExplicitRefresh) {
+            activityStore.record({
+              tenantId, principalId, type: 'daily_brief.refreshed', title: 'Daily Brief refreshed',
+              status: briefStatus === 'UNAVAILABLE' ? 'FAILED' : 'COMPLETED',
+              dedupeKey: `daily_brief:${requestId}:refreshed`,
+            });
+          }
+
+          return {
+            tenantId, principalId, date: today,
+            generatedAt: new Date().toISOString(),
+            status: briefStatus,
+            provider, model: modelName, latencyMs, fallbackOccurred,
+            calendarStatus, gmailStatus,
+            // §5/§8 — source-derived facts, untouched by the model, each
+            // with real provenance (sourceType/sourceId/capability/
+            // timestamp).
+            schedule: schedule.map((e) => ({ sourceType: 'CALENDAR' as const, sourceId: e.id, title: e.title, start: e.start, end: e.end, capability: 'google_calendar', timestamp: e.start })),
+            emails: emails.map((e) => ({ sourceType: 'GMAIL' as const, sourceId: e.threadId, snippet: e.snippet, capability: 'gmail', timestamp: null as string | null })),
+            // Model-generated text — kept in its own fields so a consumer
+            // can never confuse it with the source-derived arrays above.
+            summary, actionItems, requestId,
+          };
+        })().finally(() => dailyBriefGenerationInFlight.delete(guardKey));
+        dailyBriefGenerationInFlight.set(guardKey, inFlight);
       }
 
-      // Gmail — real unread-recent search only; gmail.client.ts's real
-      // message shape is snippet-only (no subject/from/date exist anywhere
-      // in this codebase's Gmail integration today), so that is exactly
-      // and only what gets shown — never a fabricated subject line.
-      let emails: Array<{ threadId: string; snippet: string }> = [];
-      let gmailStatus: 'CONNECTED' | 'DISCONNECTED' | 'ERROR' = 'CONNECTED';
-      try {
-        const result = await gmailApiService.search({ tenantId, query: 'is:unread newer_than:3d', requestId });
-        emails = result.threads.slice(0, 10);
-      } catch (error) {
-        emails = [];
-        gmailStatus = error instanceof NagexError && error.code === 'GMAIL_DISCONNECTED' ? 'DISCONNECTED' : 'ERROR';
+      const generated = await inFlight;
+
+      // R9 §2 — a failed refresh must never overwrite (or be reported as)
+      // the last known good brief; the previous persisted record — if any
+      // — keeps serving as "today's brief" for both reads and the UI's own
+      // freshness label, and the failed attempt is reported separately as
+      // a truthful lastRefreshAttempt instead.
+      const isUsable = generated.status !== 'UNAVAILABLE';
+      if (isUsable) {
+        dailyBriefStore.save(generated);
       }
-
-      let tasks: ReturnType<typeof taskStore.list> = [];
-      try {
-        tasks = taskStore.list(tenantId, principalId).filter((t) => t.status === 'ACTIVE' || t.status === 'RUNNING');
-      } catch {
-        tasks = [];
-      }
-
-      // Real, tenant/owner-scoped currently-pending approvals — never the
-      // separate legacy `approvalQueue` demo array (see action-approval.
-      // store.ts's listPending() for why).
-      let approvals: ReturnType<typeof actionApprovals.listPending> = [];
-      try {
-        approvals = actionApprovals.listPending(tenantId, principalId, requestId);
-      } catch {
-        approvals = [];
-      }
-
-      const scheduleDigest = schedule.map((e) => `- ${e.title} (${e.start} - ${e.end})`).join('\n');
-      const emailsDigest = emails.map((e) => `- ${e.snippet}`).join('\n');
-      const tasksDigest = tasks.map((t) => `- ${t.name} (${t.status})`).join('\n');
-
-      let summary: string | null = null;
-      let actionItems: BriefActionItem[] = [];
-      let provider: string | null = null;
-      let modelName: string | null = null;
-      let latencyMs: number | null = null;
-      let fallbackOccurred = false;
-      let briefStatus: 'OK' | 'PARTIAL' | 'UNAVAILABLE';
-
-      try {
-        const result = await service.brief({ scheduleDigest, emailsDigest, tasksDigest, mode: 'auto', requestId });
-        summary = result.data.summary;
-        actionItems = result.data.actionItems;
-        provider = result.provider;
-        modelName = result.model;
-        latencyMs = result.latencyMs;
-        const routing = service.activeProviderSummary();
-        fallbackOccurred = Boolean(routing.activeProvider) && routing.activeProvider !== provider;
-        briefStatus = calendarStatus === 'CONNECTED' && gmailStatus === 'CONNECTED' ? 'OK' : 'PARTIAL';
-      } catch {
-        // §10 — every provider failed (or none configured): never wrap the
-        // raw calendar/gmail/task data already gathered above in a fake
-        // summary. The real, already-fetched schedule/emails/approvals
-        // below are still returned as-is (they're real, not model output);
-        // only the model-generated synthesis is explicitly unavailable.
-        briefStatus = 'UNAVAILABLE';
-      }
-
-      activityStore.record({
-        tenantId, principalId,
-        type: briefStatus === 'UNAVAILABLE' ? 'daily_brief.failed' : 'daily_brief.completed',
-        title: briefStatus === 'UNAVAILABLE' ? 'Daily Brief generation failed' : 'Daily Brief generated',
-        status: briefStatus === 'UNAVAILABLE' ? 'FAILED' : 'COMPLETED',
-        dedupeKey: `daily_brief:${requestId}:completed`,
-        source: { executionId: requestId },
-      });
-
-      const generatedAt = new Date().toISOString();
-      const responseData = {
-        generatedAt,
-        refreshedAt: generatedAt,
-        cached: false,
-        requestId,
-        status: briefStatus,
-        calendarStatus,
-        gmailStatus,
-        // §8 — source-derived facts, untouched by the model, each with real
-        // provenance (sourceType/sourceId/capability/timestamp).
-        schedule: schedule.map((e) => ({ sourceType: 'CALENDAR' as const, sourceId: e.id, title: e.title, start: e.start, end: e.end, capability: 'google_calendar', timestamp: e.start })),
-        emails: emails.map((e) => ({ sourceType: 'GMAIL' as const, sourceId: e.threadId, snippet: e.snippet, capability: 'gmail', timestamp: null as string | null })),
-        approvals: approvals.map((a) => ({ sourceType: 'APPROVAL' as const, sourceId: a.approvalId, toolId: a.toolId, status: a.status, createdAt: a.createdAt, capability: a.toolId })),
-        // Model-generated text — kept in its own top-level fields so a
-        // consumer can never confuse it with the source-derived arrays above.
-        summary,
-        actionItems,
-        provider,
-        model: modelName,
-        latencyMs,
-        fallbackOccurred,
+      const current = isUsable ? generated : (existing ?? generated);
+      const approvals = safeListPendingApprovals(tenantId, principalId, requestId);
+      // lastRefreshAttempt only means something when there WAS a previous
+      // good brief that this attempt failed to improve on — a first-ever
+      // generation that fails has no "previous" to fall back to, so it
+      // must not be mislabeled as a refresh failure.
+      const lastRefreshAttempt = !isUsable && existing
+        ? { attemptedAt: generated.generatedAt, status: generated.status, requestId: generated.requestId }
+        : null;
+      return {
+        status: 200,
+        data: buildBriefResponse(current, approvals, isExplicitRefresh, lastRefreshAttempt),
       };
+    }
 
-      if (briefStatus !== 'UNAVAILABLE') {
-        dailyBriefCache.set(cacheKey, { generatedAtMs: Date.now(), data: responseData });
-      }
-
-      return { status: 200, data: responseData };
+    // R9 §4 — Daily Brief history: real persisted per-date records only,
+    // read-only (never triggers generation). Today's own entry, if already
+    // generated, is included like any other date.
+    if (pathname === '/api/v1/daily-brief/history' && method === 'GET') {
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const limitRaw = Number(query.days);
+      const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 30) : 7;
+      const history = dailyBriefStore.listHistory(tenantId, principalId, limit);
+      return { status: 200, data: { history: history.map((r) => ({ ...r, freshness: computeBriefFreshness(r.generatedAt) })) } };
     }
 
     // DC3-B1 — the real outbound Local Device Agent transport endpoint.
