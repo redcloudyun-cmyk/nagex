@@ -39,7 +39,7 @@
   // Settings in R3-R5 means adding their tab id here + a view element +
   // a dispatch branch below, nothing else in the shell-visibility
   // contract changes. ──
-  const MOBILE_NATIVE_TABS = new Set(['tab-home', 'tab-inbox']);
+  const MOBILE_NATIVE_TABS = new Set(['tab-home', 'tab-inbox', 'tab-executions']);
 
   function isMobileViewport() {
     return Boolean(mq && mq.matches);
@@ -85,13 +85,17 @@
     // more `viewX.hidden = nativeTab !== 'tab-x'` line each, same pattern.
     const viewHome = document.getElementById('mobile-view-home');
     const viewInbox = document.getElementById('mobile-view-inbox');
+    const viewActivity = document.getElementById('mobile-view-activity');
     if (viewHome) viewHome.hidden = nativeTab !== 'tab-home';
     if (viewInbox) viewInbox.hidden = nativeTab !== 'tab-inbox';
+    if (viewActivity) viewActivity.hidden = nativeTab !== 'tab-executions';
 
     if (nativeTab === 'tab-home') {
       renderMobileHome();
     } else if (nativeTab === 'tab-inbox' && typeof window.NAGEX.renderMobileInbox === 'function') {
       window.NAGEX.renderMobileInbox();
+    } else if (nativeTab === 'tab-executions' && typeof window.NAGEX.renderMobileActivity === 'function') {
+      window.NAGEX.renderMobileActivity();
     }
   }
 

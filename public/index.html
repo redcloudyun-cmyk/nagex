@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="desktop/desktop-home.css?v=__NAGEX_BUILD_VERSION__">
   <link rel="stylesheet" href="mobile/mobile-home.css?v=__NAGEX_BUILD_VERSION__">
   <link rel="stylesheet" href="mobile/mobile-inbox.css?v=__NAGEX_BUILD_VERSION__">
+  <link rel="stylesheet" href="mobile/mobile-activity.css?v=__NAGEX_BUILD_VERSION__">
 </head>
 <body>
   <div class="app-wrapper">
@@ -1376,6 +1377,35 @@
       <div class="mh-bottom-spacer" aria-hidden="true"></div>
     </div>
 
+    <!-- Mobile Activity native view (UI-5 R3). Real GET /api/v1/activity
+         only — see mobile/mobile-activity.js. Mutually exclusive with
+         #mobile-view-home/#mobile-view-inbox via [hidden], all three
+         managed only by mobile-home.js's updateShellVisibility(). -->
+    <div id="mobile-view-activity" class="mh-scroll" hidden>
+      <header class="mh-header">
+        <div class="mh-brand">
+          <span class="mh-activity-title" data-i18n="mobileActivity.title">Activity</span>
+          <span class="mh-activity-count" id="mh-activity-count" hidden>0</span>
+        </div>
+        <div class="mh-header-right">
+          <button class="mh-lang-toggle" id="mh-activity-lang-toggle" data-i18n-lang-toggle title="Switch language" data-i18n-title="header.switchLanguage">KR</button>
+        </div>
+      </header>
+
+      <!-- Real, taxonomy-grounded filter — no invented categories. -->
+      <div class="mh-activity-filter-row" id="mh-activity-filter-row">
+        <button class="mh-activity-filter-pill active" data-mh-filter="ALL" data-i18n="mobileActivity.filterAll">All</button>
+        <button class="mh-activity-filter-pill" data-mh-filter="TASKS" data-i18n="mobileActivity.filterTasks">Tasks</button>
+        <button class="mh-activity-filter-pill" data-mh-filter="CAPTURES" data-i18n="mobileActivity.filterCaptures">Captures</button>
+        <button class="mh-activity-filter-pill" data-mh-filter="DEVICE" data-i18n="mobileActivity.filterDevice">Device</button>
+        <button class="mh-activity-filter-pill" data-mh-filter="SUGGESTIONS" data-i18n="mobileActivity.filterSuggestions">Suggestions</button>
+      </div>
+
+      <div id="mh-activity-list"><div class="nagex-loading-row"></div></div>
+
+      <div class="mh-bottom-spacer" aria-hidden="true"></div>
+    </div>
+
     <!-- Fixed Bottom Navigation — exactly 5 canonical items (MASTER.md
          §14.12); My Space stays a contextual entry inside Today's card
          above, never a 6th item (directive §18/31). data-tab lets
@@ -1420,5 +1450,6 @@
   <script src="desktop/desktop-home.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="mobile/mobile-home.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="mobile/mobile-inbox.js?v=__NAGEX_BUILD_VERSION__"></script>
+  <script src="mobile/mobile-activity.js?v=__NAGEX_BUILD_VERSION__"></script>
 </body>
 </html>

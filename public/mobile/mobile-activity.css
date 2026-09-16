@@ -1,0 +1,113 @@
+/*
+ * NAgex Mobile Activity (UI-5 R3) — layout/visual layer only.
+ *
+ * Scoped entirely under #mobile-view-activity. Reuses shared mobile chrome
+ * directly from mobile-home.css (.mh-header, .mh-header-right,
+ * .mh-lang-toggle, .mh-scroll, .mh-bottom-spacer, .mh-row-icon/-body/
+ * -title/-detail) and shared/components.css (.nagex-badge-*,
+ * .nagex-empty-state, .nagex-loading-row) — never a second design system.
+ * Deliberately does NOT reuse mobile-inbox.css's Inbox-named classes
+ * (.mh-inbox-filter-row/.mh-filter-pill/.mh-inbox-card/etc.) even though
+ * several are visually identical here — this file defines its own
+ * .mh-activity-* equivalents so Activity never depends on mobile-inbox.css
+ * being loaded, and Activity-specific rules never accumulate into either
+ * of the other two view files (per the R3 directive).
+ */
+
+.mh-activity-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--nagex-text-primary);
+}
+#mobile-view-activity .mh-brand {
+  align-items: center;
+  gap: 8px;
+}
+.mh-activity-count {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--nagex-text-secondary);
+  background: var(--nagex-surface-subtle);
+  border-radius: var(--nagex-radius-pill);
+  padding: 2px 8px;
+}
+
+/* ── Filter row (real taxonomy only — see mobile-activity.js) ──────── */
+.mh-activity-filter-row {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 4px 0 var(--nagex-spacing-3);
+  scrollbar-width: none;
+}
+.mh-activity-filter-row::-webkit-scrollbar { display: none; }
+.mh-activity-filter-pill {
+  flex-shrink: 0;
+  background: #ffffff;
+  border: 1px solid var(--nagex-border-default);
+  border-radius: var(--nagex-radius-pill);
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--nagex-text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.mh-activity-filter-pill.active {
+  background: var(--nagex-accent-primary);
+  border-color: var(--nagex-accent-primary);
+  color: #ffffff;
+}
+
+/* ── Date group headings (Today / Yesterday / Older) ────────────────── */
+.mh-activity-group-heading {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--nagex-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin: var(--nagex-spacing-3) 0 var(--nagex-spacing-2);
+}
+.mh-activity-group-heading:first-child {
+  margin-top: 0;
+}
+
+/* ── Activity cards ──────────────────────────────────────────────── */
+.mh-activity-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  background: #ffffff;
+  border: 1px solid var(--nagex-border-subtle);
+  border-radius: var(--nagex-radius-md);
+  box-shadow: var(--nagex-shadow-card);
+  margin-bottom: var(--nagex-spacing-3);
+}
+.mh-activity-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.mh-activity-timestamp {
+  font-size: 10.5px;
+  color: var(--nagex-text-muted);
+}
+.mh-activity-card-action {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+.mh-activity-action-btn {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--nagex-accent-primary);
+  background: var(--nagex-accent-soft);
+  border: none;
+  border-radius: 7px;
+  padding: 6px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
