@@ -124,6 +124,7 @@
     "composer_drop_zone",
     "conversation_workspace",
     "core",
+    "daily_brief",
     "desktop_native_shell",
     "desktop_quickwake",
     "frontend_cache",

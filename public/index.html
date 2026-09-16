@@ -216,6 +216,23 @@
               </button>
             </div>
 
+            <!-- R8 — Personal Daily Brief. Real GET /api/v1/daily-brief only
+                 (see public/daily-brief.js) — never a hardcoded count.
+                 Compact by default; "View Full Brief" expands the 4 real
+                 sections in place, no separate modal. -->
+            <section class="nagex-card daily-brief-card" id="daily-brief-card" hidden>
+              <div class="daily-brief-summary-row">
+                <div class="daily-brief-icon">☀️</div>
+                <div class="daily-brief-summary-text">
+                  <h3 data-i18n="dailyBrief.title">Today's Brief</h3>
+                  <p id="daily-brief-summary-line" class="daily-brief-summary-line"></p>
+                </div>
+              </div>
+              <div class="daily-brief-counts-row" id="daily-brief-counts"></div>
+              <button class="btn-secondary daily-brief-toggle" id="btn-daily-brief-toggle" data-i18n="dailyBrief.viewFull">View Full Brief</button>
+              <div class="daily-brief-detail" id="daily-brief-detail" hidden></div>
+            </section>
+
             <!-- 2-Column Operational Grid (Col 1: My Space, Col 2: Working & Memories) -->
             <div class="desktop-home-grid-operational">
               <div class="desktop-home-col-main">
@@ -1249,6 +1266,21 @@
         </div>
       </section>
 
+      <!-- R8 — Personal Daily Brief (mobile). Real GET /api/v1/daily-brief
+           only, same shared public/daily-brief.js as Desktop. -->
+      <section class="mh-card daily-brief-card" id="mh-daily-brief-card" hidden>
+        <div class="daily-brief-summary-row">
+          <div class="daily-brief-icon">☀️</div>
+          <div class="daily-brief-summary-text">
+            <h3 data-i18n="dailyBrief.title">Today's Brief</h3>
+            <p id="mh-daily-brief-summary" class="daily-brief-summary-line"></p>
+          </div>
+        </div>
+        <div class="daily-brief-counts-row" id="mh-daily-brief-counts"></div>
+        <button class="mh-btn-review daily-brief-toggle" id="mh-daily-brief-toggle" data-i18n="dailyBrief.viewFull">View Full Brief</button>
+        <div class="daily-brief-detail" id="mh-daily-brief-detail" hidden></div>
+      </section>
+
       <!-- D. Background Task Status Banner — real count only, never
            hardcoded "N tasks running" (directive §11/27) -->
       <button class="mh-task-banner" id="mh-task-banner" onclick="window.NAGEX.switchTab('tab-executions')">
@@ -1553,6 +1585,7 @@
   <script src="modal-behavior.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="timeline-dedupe.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="single-flight-guard.js?v=__NAGEX_BUILD_VERSION__"></script>
+  <script src="daily-brief.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="app.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="desktop/desktop-home.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="mobile/mobile-home.js?v=__NAGEX_BUILD_VERSION__"></script>

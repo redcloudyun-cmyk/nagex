@@ -505,6 +505,20 @@
 /* R5 §4/§5 — visible busy state while handleApprovalAction()'s in-flight
    guard has this button disabled (rapid double-tap protection). */
 .mh-btn-approve:disabled { opacity: 0.55; cursor: default; }
+
+/* ── R8 — Personal Daily Brief (mobile card). Base look (radius/shadow/
+   padding) already comes free from .mh-card; only mobile-appropriate
+   sizing for the shared .db-*/.daily-brief-* rules (style.css) is added
+   here. ── */
+#mh-daily-brief-card .daily-brief-toggle {
+  width: 100%;
+  min-height: 34px;
+  text-align: center;
+}
+#mh-daily-brief-card .daily-brief-summary-text h3 { font-size: 14.5px; }
+#mh-daily-brief-card .daily-brief-summary-line { font-size: 12.5px; }
+#mh-daily-brief-card .db-count-pill { font-size: 11px; }
+#mh-daily-brief-card .db-row { font-size: 12.5px; }
 .mh-btn-review {
   flex: 1;
   min-height: 34px;

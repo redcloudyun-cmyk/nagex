@@ -427,6 +427,7 @@
     }
 
     renderHomeWorkspaceSections();
+    if (window.NAGEX.renderDailyBrief) window.NAGEX.renderDailyBrief('desktop');
 
     const btnSend = document.getElementById('btn-home-prompt-send');
     const homeInput = document.getElementById('home-prompt-input');

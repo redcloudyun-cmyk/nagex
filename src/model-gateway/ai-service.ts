@@ -117,6 +117,49 @@ function normalizePlan(text: string, requestId: string): PlanPreview {
   };
 }
 
+// ── R8 — Personal Daily Brief synthesis ─────────────────────────────────────
+// Deliberately narrow: the model NEVER receives or emits raw calendar/Gmail
+// items — those stay source-derived facts the route composes directly from
+// calendarService/gmailApiService and returns untouched (R8 §8's "model text
+// vs source-derived facts must be distinguishable" requirement). The model
+// only ever sees a plain-text digest of that already-real data and produces
+// a short synthesis + prioritized action items — never a new fact.
+export type BriefPriority = 'LOW' | 'MEDIUM' | 'HIGH'; // NAgex's existing priority vocabulary (TextUnderstandingTaskCandidate.priorityCandidate) — reused, not reinvented.
+
+export interface BriefActionItem {
+  title: string;
+  reasoning: string;
+  priority: BriefPriority;
+}
+
+export interface BriefResult {
+  summary: string;
+  actionItems: BriefActionItem[];
+}
+
+function normalizeBriefPriority(value: unknown): BriefPriority {
+  return value === 'HIGH' || value === 'LOW' ? value : 'MEDIUM';
+}
+
+function normalizeBrief(text: string, requestId: string): BriefResult {
+  const raw = parseJsonObject(text, requestId, 'daily brief');
+  const actionItemsRaw = Array.isArray(raw.actionItems) ? raw.actionItems : [];
+  return {
+    summary: requireString(raw.summary, 'summary', requestId),
+    actionItems: actionItemsRaw.map((value, index) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        throw new NagexError({ code: 'INVALID_MODEL_RESPONSE', category: 'PROVIDER', message: `Brief action item ${index + 1} is invalid.`, request_id: requestId });
+      }
+      const item = value as Record<string, unknown>;
+      return {
+        title: requireString(item.title, `actionItems[${index}].title`, requestId),
+        reasoning: requireString(item.reasoning, `actionItems[${index}].reasoning`, requestId),
+        priority: normalizeBriefPriority(item.priority),
+      };
+    }),
+  };
+}
+
 // ── Real Text Understanding (Phase 1 STEP 2) ────────────────────────────────
 // Structured, grounded understanding of a single piece of TEXT content.
 // Candidates here are proposals only (status PROPOSED is attached by the
@@ -326,6 +369,53 @@ export class AiService {
 
   public async healthCheck() {
     return this.router.healthCheck();
+  }
+
+  // R8 — Personal Daily Brief synthesis. scheduleDigest/emailsDigest/
+  // tasksDigest are plain-text summaries the CALLER already built from real
+  // calendarService/gmailApiService/taskStore data (never raw API objects
+  // handed to the model) — this method's only job is to turn that real
+  // digest into a short synthesis + prioritized action items, never to
+  // introduce a new fact. Same jsonMode:true + validate-throws-to-fallback
+  // pattern as plan()/understand().
+  public async brief(input: {
+    scheduleDigest: string;
+    emailsDigest: string;
+    tasksDigest: string;
+    mode: RoutingMode;
+    requestId?: string;
+  }): Promise<AiServiceResponse<BriefResult>> {
+    const requestId = input.requestId || `brief_${randomUUID()}`;
+    const response = await this.router.generate({
+      mode: input.mode,
+      requestId,
+      jsonMode: true,
+      validate: (text) => { normalizeBrief(text, requestId); },
+      messages: [
+        {
+          role: 'system',
+          content: [
+            'You are the NAgex Daily Brief model. You are given three real, already-fetched digests: today\'s calendar schedule, recent/important email snippets, and active tasks. You do not have and must not invent any other information.',
+            'Never invent a meeting, email, time, attendee, or task that is not present in the digests below. If a digest says there is nothing, say so plainly — do not fabricate content to fill the brief.',
+            'Never claim to have sent an email, created/changed a calendar event, or executed any action. You are producing a read-only summary and recommendations only.',
+            'For each recommended action item, ground it in a specific fact from one of the digests (reference the relevant meeting/email/task in your reasoning) — never a generic productivity tip disconnected from the real data given.',
+            'Priority must reflect real urgency signals actually present in the digests (e.g. a meeting starting soon, an email explicitly requesting a reply, a task already marked high priority) — never assign HIGH by default.',
+            'Return JSON only with this exact shape:',
+            '{"summary":"a short (2-4 sentence) natural-language synthesis of the day","actionItems":[{"title":"string","reasoning":"string grounded in a real digest fact","priority":"LOW or MEDIUM or HIGH"}]}',
+            'If there is genuinely nothing to summarize (all three digests are empty), return summary explaining that, and an empty actionItems array — never a fabricated action item just to have one.',
+          ].join('\n'),
+        },
+        {
+          role: 'user',
+          content: [
+            `Today's schedule:\n${input.scheduleDigest || '(none)'}`,
+            `Recent/important emails:\n${input.emailsDigest || '(none)'}`,
+            `Active tasks:\n${input.tasksDigest || '(none)'}`,
+          ].join('\n\n'),
+        },
+      ],
+    });
+    return { data: normalizeBrief(response.text, requestId), provider: response.provider, model: response.model, latencyMs: response.latencyMs, requestId: response.requestId };
   }
 
   public async chat(input: { message: string; mode: RoutingMode; requestId?: string; conversation?: Array<{ role: 'user' | 'assistant'; content: string }> }): Promise<AiServiceResponse<{ message: string }>> {

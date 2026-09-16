@@ -1846,3 +1846,28 @@ body {
   gap: 0.5rem;
   margin-top: 0.6rem;
 }
+
+/* ── R8 — Personal Daily Brief (shared base; Desktop-scaled by default,
+   .mh-card's own scope in mobile-home.css lightly restyles spacing for the
+   mobile card without duplicating these rules) ───────────────────────── */
+.daily-brief-card { display: flex; flex-direction: column; gap: 0.75rem; }
+.daily-brief-summary-row { display: flex; align-items: flex-start; gap: 0.75rem; }
+.daily-brief-icon { font-size: 1.5rem; line-height: 1; flex-shrink: 0; }
+.daily-brief-summary-text h3 { margin: 0 0 0.15rem; font-size: 1rem; font-weight: 700; color: var(--text-main); }
+.daily-brief-summary-line { margin: 0; font-size: 0.85rem; color: var(--text-muted); line-height: 1.4; }
+.daily-brief-counts-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.db-count-pill { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.78rem; color: var(--text-muted); background: var(--bg-subtle); border-radius: 999px; padding: 0.3rem 0.7rem; }
+.db-count-pill strong { color: var(--text-main); font-weight: 700; }
+.daily-brief-toggle { align-self: flex-start; }
+.daily-brief-detail { display: flex; flex-direction: column; gap: 0.9rem; padding-top: 0.5rem; border-top: 1px solid var(--border-light); }
+.db-section h4 { margin: 0 0 0.4rem; font-size: 0.82rem; font-weight: 700; color: var(--text-main); }
+.db-row { display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.3rem 0; font-size: 0.85rem; }
+.db-row-time { flex-shrink: 0; color: var(--text-muted); font-weight: 600; min-width: 52px; }
+.db-row-title { color: var(--text-main); font-weight: 500; }
+.db-row-detail { color: var(--text-muted); font-size: 0.78rem; margin-top: 0.1rem; }
+.db-action-row { align-items: flex-start; }
+.db-empty { color: var(--text-muted); font-size: 0.82rem; padding: 0.2rem 0; }
+.db-priority-dot { flex-shrink: 0; width: 9px; height: 9px; border-radius: 50%; margin-top: 0.35rem; }
+.db-priority-low { background: #94a3b8; }
+.db-priority-medium { background: #f59e0b; }
+.db-priority-high { background: #ef4444; }

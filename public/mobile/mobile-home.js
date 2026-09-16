@@ -504,6 +504,7 @@
     reorderPriority(approvalTotal || 0);
     renderToday();
     renderDoneForYou();
+    if (window.NAGEX.renderDailyBrief) window.NAGEX.renderDailyBrief('mobile');
   }
 
   function init() {

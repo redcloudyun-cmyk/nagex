@@ -14,7 +14,7 @@ import { CreditEngine, computeCreditCost, sumBreakdownUsd, type CreditCostBreakd
 import { MemoryEngine, type MemoryRecord, type MemoryScope } from './context/memory.engine.js';
 import { NagexError } from './common/errors.js';
 import type { TenantContext, PrincipalReference } from './common/types.js';
-import { AiService, parseRoutingMode, type PlanPreview } from './model-gateway/ai-service.js';
+import { AiService, parseRoutingMode, type PlanPreview, type BriefActionItem } from './model-gateway/ai-service.js';
 import { createProviders } from './model-gateway/providers.js';
 import { UnifiedModelRouter } from './model-gateway/unified-model-router.js';
 import { skillRegistry as canonicalSkillRegistry } from './skills/skill-registry.js';
@@ -265,6 +265,17 @@ const planRegistry: Array<{
     ],
   },
 ];
+
+// R8 — Personal Daily Brief in-memory cache, keyed by tenantId::principalId.
+// Purely a repeat-call-within-a-few-minutes optimization (§11 — never
+// re-hits Calendar/Gmail/the model on every poll); never a substitute for
+// real data. generatedAt/refreshedAt on the response tell the caller
+// exactly how fresh the cached result is — a cached response is never
+// relabeled as freshly generated. A generation that ends UNAVAILABLE is
+// deliberately never cached, so the next request retries for real rather
+// than repeating a stale failure.
+const DAILY_BRIEF_CACHE_TTL_MS = 5 * 60 * 1000;
+const dailyBriefCache = new Map<string, { generatedAtMs: number; data: Record<string, unknown> }>();
 
 // Seed Approvals Queue (Exact match for Mockup Image 3)
 const approvalQueue: Array<{
@@ -1810,6 +1821,152 @@ export async function handleAsyncApiRequest(
         status: 200,
         data: { activity, memory, tasks, workflows, calendar, calendarStatus, history },
       };
+    }
+
+    // R8 — Personal Daily Brief. Combines real Calendar + Gmail + Tasks +
+    // Activity + model reasoning into one read-only synthesis. Never
+    // executes anything itself (§5): a consequential action the model
+    // recommends still has to go through the real Approval flow via its
+    // own normal entry point, never created or auto-approved here. Every
+    // section (calendar/gmail/tasks/approvals) is independently
+    // fault-isolated exactly like My Space above — one source failing
+    // never fails the whole brief, it just narrows it (§10 partial
+    // degradation), and if the model itself fails after real data was
+    // gathered, the response says so truthfully rather than wrapping raw
+    // capability results in a fake summary.
+    if (pathname === '/api/v1/daily-brief' && method === 'GET') {
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_brief_${crypto.randomUUID()}`;
+      const forceRefresh = query.refresh === 'true';
+      const cacheKey = `${tenantId}::${principalId}`;
+
+      const cached = dailyBriefCache.get(cacheKey);
+      if (cached && !forceRefresh && Date.now() - cached.generatedAtMs < DAILY_BRIEF_CACHE_TTL_MS) {
+        return { status: 200, data: { ...cached.data, cached: true, refreshedAt: new Date().toISOString() } };
+      }
+
+      activityStore.record({
+        tenantId, principalId, type: 'daily_brief.started', title: 'Daily Brief generation started', status: 'RUNNING',
+        dedupeKey: `daily_brief:${requestId}:started`,
+      });
+
+      // Calendar — today's window only (unlike My Space's 7-day upcoming
+      // window). DISCONNECTED (Google never connected) is reported
+      // distinctly from ERROR (a real failure) so the UI can tell the two
+      // apart, matching My Space's own convention.
+      let schedule: Awaited<ReturnType<typeof calendarService.listUpcomingEvents>> = [];
+      let calendarStatus: 'CONNECTED' | 'DISCONNECTED' | 'ERROR' = 'CONNECTED';
+      try {
+        const now = new Date();
+        const endOfDay = new Date(now);
+        endOfDay.setHours(23, 59, 59, 999);
+        schedule = await calendarService.listUpcomingEvents({ tenantId, timeMin: now.toISOString(), timeMax: endOfDay.toISOString(), maxResults: 20, requestId });
+      } catch (error) {
+        schedule = [];
+        calendarStatus = error instanceof NagexError && error.code === 'GOOGLE_CALENDAR_DISCONNECTED' ? 'DISCONNECTED' : 'ERROR';
+      }
+
+      // Gmail — real unread-recent search only; gmail.client.ts's real
+      // message shape is snippet-only (no subject/from/date exist anywhere
+      // in this codebase's Gmail integration today), so that is exactly
+      // and only what gets shown — never a fabricated subject line.
+      let emails: Array<{ threadId: string; snippet: string }> = [];
+      let gmailStatus: 'CONNECTED' | 'DISCONNECTED' | 'ERROR' = 'CONNECTED';
+      try {
+        const result = await gmailApiService.search({ tenantId, query: 'is:unread newer_than:3d', requestId });
+        emails = result.threads.slice(0, 10);
+      } catch (error) {
+        emails = [];
+        gmailStatus = error instanceof NagexError && error.code === 'GMAIL_DISCONNECTED' ? 'DISCONNECTED' : 'ERROR';
+      }
+
+      let tasks: ReturnType<typeof taskStore.list> = [];
+      try {
+        tasks = taskStore.list(tenantId, principalId).filter((t) => t.status === 'ACTIVE' || t.status === 'RUNNING');
+      } catch {
+        tasks = [];
+      }
+
+      // Real, tenant/owner-scoped currently-pending approvals — never the
+      // separate legacy `approvalQueue` demo array (see action-approval.
+      // store.ts's listPending() for why).
+      let approvals: ReturnType<typeof actionApprovals.listPending> = [];
+      try {
+        approvals = actionApprovals.listPending(tenantId, principalId, requestId);
+      } catch {
+        approvals = [];
+      }
+
+      const scheduleDigest = schedule.map((e) => `- ${e.title} (${e.start} - ${e.end})`).join('\n');
+      const emailsDigest = emails.map((e) => `- ${e.snippet}`).join('\n');
+      const tasksDigest = tasks.map((t) => `- ${t.name} (${t.status})`).join('\n');
+
+      let summary: string | null = null;
+      let actionItems: BriefActionItem[] = [];
+      let provider: string | null = null;
+      let modelName: string | null = null;
+      let latencyMs: number | null = null;
+      let fallbackOccurred = false;
+      let briefStatus: 'OK' | 'PARTIAL' | 'UNAVAILABLE';
+
+      try {
+        const result = await service.brief({ scheduleDigest, emailsDigest, tasksDigest, mode: 'auto', requestId });
+        summary = result.data.summary;
+        actionItems = result.data.actionItems;
+        provider = result.provider;
+        modelName = result.model;
+        latencyMs = result.latencyMs;
+        const routing = service.activeProviderSummary();
+        fallbackOccurred = Boolean(routing.activeProvider) && routing.activeProvider !== provider;
+        briefStatus = calendarStatus === 'CONNECTED' && gmailStatus === 'CONNECTED' ? 'OK' : 'PARTIAL';
+      } catch {
+        // §10 — every provider failed (or none configured): never wrap the
+        // raw calendar/gmail/task data already gathered above in a fake
+        // summary. The real, already-fetched schedule/emails/approvals
+        // below are still returned as-is (they're real, not model output);
+        // only the model-generated synthesis is explicitly unavailable.
+        briefStatus = 'UNAVAILABLE';
+      }
+
+      activityStore.record({
+        tenantId, principalId,
+        type: briefStatus === 'UNAVAILABLE' ? 'daily_brief.failed' : 'daily_brief.completed',
+        title: briefStatus === 'UNAVAILABLE' ? 'Daily Brief generation failed' : 'Daily Brief generated',
+        status: briefStatus === 'UNAVAILABLE' ? 'FAILED' : 'COMPLETED',
+        dedupeKey: `daily_brief:${requestId}:completed`,
+        source: { executionId: requestId },
+      });
+
+      const generatedAt = new Date().toISOString();
+      const responseData = {
+        generatedAt,
+        refreshedAt: generatedAt,
+        cached: false,
+        requestId,
+        status: briefStatus,
+        calendarStatus,
+        gmailStatus,
+        // §8 — source-derived facts, untouched by the model, each with real
+        // provenance (sourceType/sourceId/capability/timestamp).
+        schedule: schedule.map((e) => ({ sourceType: 'CALENDAR' as const, sourceId: e.id, title: e.title, start: e.start, end: e.end, capability: 'google_calendar', timestamp: e.start })),
+        emails: emails.map((e) => ({ sourceType: 'GMAIL' as const, sourceId: e.threadId, snippet: e.snippet, capability: 'gmail', timestamp: null as string | null })),
+        approvals: approvals.map((a) => ({ sourceType: 'APPROVAL' as const, sourceId: a.approvalId, toolId: a.toolId, status: a.status, createdAt: a.createdAt, capability: a.toolId })),
+        // Model-generated text — kept in its own top-level fields so a
+        // consumer can never confuse it with the source-derived arrays above.
+        summary,
+        actionItems,
+        provider,
+        model: modelName,
+        latencyMs,
+        fallbackOccurred,
+      };
+
+      if (briefStatus !== 'UNAVAILABLE') {
+        dailyBriefCache.set(cacheKey, { generatedAtMs: Date.now(), data: responseData });
+      }
+
+      return { status: 200, data: responseData };
     }
 
     // DC3-B1 — the real outbound Local Device Agent transport endpoint.

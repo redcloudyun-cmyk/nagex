@@ -174,6 +174,23 @@ export class ActionApprovalStore {
     return this.getLive(approvalId, requestId);
   }
 
+  // R8 — real, tenant/owner-scoped read of currently-pending approvals (no
+  // filter/sort by consumer; every genuinely PENDING record for this
+  // tenant+principal). Added for Daily Brief's "Needs Your Approval"
+  // section, which must surface real ActionApprovalStore records — never
+  // the separate, hardcoded server_web.ts `approvalQueue` demo array (a
+  // pre-existing, unrelated mock seed that GET /api/v1/approvals happens
+  // to read from today; Daily Brief intentionally does not reuse it — see
+  // R8 delivery report). Reuses the same live-expiry transition every other
+  // read path here goes through (getLive), so a PENDING record whose TTL
+  // has actually passed is correctly excluded, not stale-reported.
+  public listPending(tenantId: string, principalId: string, requestId = 'apr_list_pending'): ActionApprovalRecord[] {
+    return [...this.records.values()]
+      .filter((record) => record.tenantId === tenantId && record.principalId === principalId && record.status === 'PENDING')
+      .map((record) => this.getLive(record.approvalId, requestId))
+      .filter((record) => record.status === 'PENDING');
+  }
+
   // Performs a read-only preflight validation of approval state without mutating
   // or consuming the record. Validates toolId binding, expiration, one-time-use,
   // and APPROVED status. Throws appropriate NagexError for non-executable state.
