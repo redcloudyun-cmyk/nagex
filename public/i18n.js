@@ -7,6 +7,7 @@
     en: {
       'page.title': 'NAgex — Personal AI Control Center',
       'header.langToggle': 'KR',
+      'header.switchLanguage': 'Switch language',
 
       // Navigation
       'nav.home': 'Home',
@@ -114,6 +115,12 @@
       'home.notificationsAria': 'Notifications',
       'home.valueTitle': 'Your activity summary',
       'home.valueEmpty': 'Your NAgex activity summary will appear here as NAgex handles work for you.',
+      'home.doneForYouTitle': 'What NAgex did for you',
+      'home.doneForYouEmpty': 'Nothing completed yet.',
+      'home.taskBannerActiveTitle': 'Background tasks active',
+      'home.taskBannerActiveSub': 'NAgex is working for you. You stay in control.',
+      'home.taskBannerCount': '{count} tasks running',
+      'home.reviewAction': 'Review',
       'home.workingReadyTitle': 'Ready when you are',
       'home.workingReadyBody': 'Start a request above or review recent activity.',
       'home.startRequest': 'Start a request',
@@ -424,6 +431,7 @@
     ko: {
       'page.title': 'NAgex — 개인용 AI 컨트롤 센터',
       'header.langToggle': 'EN',
+      'header.switchLanguage': '언어 전환',
 
       // Navigation
       'nav.home': '홈',
@@ -531,6 +539,12 @@
       'home.notificationsAria': '알림',
       'home.valueTitle': '활동 요약',
       'home.valueEmpty': 'NAgex가 작업을 처리하면 이곳에 활동 요약이 표시됩니다.',
+      'home.doneForYouTitle': 'NAgex가 처리한 일',
+      'home.doneForYouEmpty': '아직 완료된 작업이 없습니다.',
+      'home.taskBannerActiveTitle': '백그라운드 작업 진행 중',
+      'home.taskBannerActiveSub': 'NAgex가 작업을 처리하고 있습니다. 통제권은 항상 당신에게 있습니다.',
+      'home.taskBannerCount': '작업 {count}건 진행 중',
+      'home.reviewAction': '검토',
       'home.workingReadyTitle': '요청을 기다리고 있습니다',
       'home.workingReadyBody': '위에서 새 요청을 시작하거나 최근 활동을 확인하세요.',
       'home.startRequest': '요청 시작',

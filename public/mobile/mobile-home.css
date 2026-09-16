@@ -1,0 +1,530 @@
+/*
+ * NAgex Mobile Home (UI-5 R1) — layout/visual layer only.
+ *
+ * Scoped entirely under #mobile-app-shell — a genuinely separate DOM tree
+ * from .app-wrapper/#view-home (Desktop), never a CSS collapse of it (see
+ * mobile-home.js's shell-visibility rule). Does not touch any Desktop
+ * selector, and Desktop's own CSS is not modified by this file.
+ *
+ * Built on public/shared/tokens.css + components.css values — new
+ * mobile-specific values below are read directly off the supplied Mobile
+ * Home mockup's proportions at 390x844 (iPhone-class viewport), not
+ * invented, per the UI-5 R1 pixel-clone directive.
+ */
+
+#mobile-app-shell {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  flex-direction: column;
+  background: #f5f8ff;
+  font-family: var(--font-sans);
+}
+#mobile-app-shell:not([hidden]) {
+  display: flex;
+}
+
+.mh-scroll {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: env(safe-area-inset-top, 0px) var(--nagex-spacing-4) 0;
+}
+
+/* ── A. Header ──────────────────────────────────────────────────── */
+.mh-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--nagex-spacing-3) 0;
+  gap: var(--nagex-spacing-3);
+}
+.mh-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.mh-logo {
+  height: 24px;
+  width: auto;
+  flex-shrink: 0;
+}
+.mh-brand-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.mh-brand-name {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--nagex-text-primary);
+  line-height: 1.1;
+}
+.mh-brand-tagline {
+  font-size: 10px;
+  color: var(--nagex-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mh-header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--nagex-spacing-2);
+  flex-shrink: 0;
+}
+.mh-lang-toggle {
+  height: 28px;
+  padding: 0 9px;
+  border-radius: 7px;
+  border: 1px solid var(--nagex-border-default);
+  background: #ffffff;
+  color: var(--nagex-text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.mh-notif-bell {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--nagex-border-default);
+  background: #ffffff;
+  color: var(--nagex-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.mh-notif-dot {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--nagex-danger);
+  border: 1.5px solid #ffffff;
+}
+.mh-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--nagex-accent-primary), var(--nagex-accent-hover));
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── B. Hero + Command Surface — soft-blue gradient, mockup proportions ── */
+.mh-hero {
+  position: relative;
+  margin-top: var(--nagex-spacing-2);
+  padding: var(--nagex-spacing-5) var(--nagex-spacing-4) var(--nagex-spacing-4);
+  border-radius: var(--nagex-radius-xl);
+  overflow: hidden;
+  background:
+    radial-gradient(160px 140px at 92% 8%, rgba(191, 219, 254, 0.65) 0%, rgba(191, 219, 254, 0) 70%),
+    radial-gradient(220px 160px at 100% 60%, rgba(199, 210, 254, 0.45) 0%, rgba(199, 210, 254, 0) 70%),
+    linear-gradient(180deg, #eef4ff 0%, #f7faff 100%);
+  border: 1px solid var(--nagex-border-subtle);
+}
+.mh-hero-eyebrow {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--nagex-text-secondary);
+  margin-bottom: 4px;
+}
+.mh-hero-title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.18;
+  letter-spacing: -0.01em;
+  color: var(--nagex-text-primary);
+  max-width: 90%;
+}
+.mh-hero-title .brand-blue {
+  color: var(--nagex-accent-primary);
+}
+.mh-hero-sub {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--nagex-text-secondary);
+  max-width: 92%;
+}
+
+.mh-command-bar {
+  margin-top: var(--nagex-spacing-4);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  border-radius: var(--nagex-radius-pill);
+  padding: 6px 6px 6px 14px;
+  box-shadow: var(--nagex-shadow-card);
+  border: 1px solid var(--nagex-border-subtle);
+}
+.mh-command-icon {
+  flex-shrink: 0;
+  color: var(--nagex-accent-primary);
+  display: flex;
+}
+.mh-command-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  font-family: var(--font-sans);
+  color: var(--nagex-text-primary);
+  height: 32px;
+}
+.mh-command-input::placeholder {
+  color: var(--nagex-text-muted);
+}
+.mh-voice-btn {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: var(--nagex-surface-subtle);
+  color: var(--nagex-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.mh-voice-btn.mh-voice-recording {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+.mh-command-send {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: var(--nagex-accent-primary);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 10px -2px rgba(37, 99, 235, 0.35);
+}
+.mh-command-send:active {
+  transform: scale(0.96);
+}
+
+/* ── C. Quick action pills ──────────────────────────────────────── */
+.mh-quick-actions {
+  margin-top: var(--nagex-spacing-3);
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.mh-quick-actions::-webkit-scrollbar { display: none; }
+.mh-quick-pill {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  border: 1px solid var(--nagex-border-default);
+  border-radius: var(--nagex-radius-pill);
+  padding: 8px 14px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--nagex-text-primary);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.qa-icon-sm { font-size: 13px; }
+
+/* ── D. Background task banner ──────────────────────────────────── */
+.mh-task-banner {
+  margin-top: var(--nagex-spacing-4);
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--nagex-spacing-3);
+  background: #e9f9ef;
+  border: 1px solid #c7f0d5;
+  border-radius: var(--nagex-radius-lg);
+  padding: 12px 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.mh-task-banner-dot {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #94a3b8;
+}
+.mh-task-banner-dot-active {
+  background: var(--nagex-success);
+}
+.mh-task-banner-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.mh-task-banner-body strong {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #065f46;
+}
+.mh-task-banner-body small {
+  font-size: 11.5px;
+  color: #0f766e;
+}
+.mh-task-banner-count {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #047857;
+  white-space: nowrap;
+}
+.mh-chevron {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  fill: #64748b;
+}
+
+/* ── Cards (Working / Approvals / Today / Done) ─────────────────── */
+.mh-card {
+  margin-top: var(--nagex-spacing-4);
+  background: #ffffff;
+  border: 1px solid var(--nagex-border-subtle);
+  border-radius: var(--nagex-radius-lg);
+  box-shadow: var(--nagex-shadow-card);
+  padding: 14px;
+}
+.mh-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.mh-card-header h2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--nagex-text-primary);
+}
+.mh-card-header h2 svg {
+  width: 16px;
+  height: 16px;
+  color: var(--nagex-accent-primary);
+  stroke: var(--nagex-accent-primary);
+}
+.mh-icon-danger { fill: var(--nagex-danger); }
+.mh-view-all {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--nagex-accent-primary);
+  cursor: pointer;
+}
+
+/* ── Working rows ────────────────────────────────────────────────── */
+.mh-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--nagex-border-subtle);
+}
+.mh-row:last-child { border-bottom: none; }
+.mh-row-icon {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.mh-row-icon-blue { background: #dbeafe; color: #1d4ed8; }
+.mh-row-icon-danger { background: #fee2e2; color: #b91c1c; }
+.mh-row-icon-warning { background: #fef3c7; color: #b45309; }
+.mh-row-icon-success { background: #d1fae5; color: #047857; }
+.mh-row-body { flex: 1; min-width: 0; }
+.mh-row-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--nagex-text-primary);
+}
+.mh-row-detail {
+  font-size: 11.5px;
+  color: var(--nagex-text-muted);
+  margin-top: 1px;
+}
+.mh-row-trailing {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.mh-stop-btn {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--nagex-danger);
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  padding: 2px 7px;
+  cursor: pointer;
+}
+
+/* ── Approval cards ──────────────────────────────────────────────── */
+.mh-approval-card {
+  display: flex;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--nagex-border-subtle);
+}
+.mh-approval-card:last-child { border-bottom: none; }
+.mh-approval-body { flex: 1; min-width: 0; }
+.mh-approval-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.mh-btn-approve {
+  flex: 1;
+  min-height: 36px;
+  border-radius: 9px;
+  border: none;
+  background: var(--nagex-accent-primary);
+  color: #ffffff;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.mh-btn-approve:active { background: var(--nagex-accent-hover); }
+.mh-btn-review {
+  flex: 1;
+  min-height: 36px;
+  border-radius: 9px;
+  border: 1px solid var(--nagex-border-default);
+  background: #ffffff;
+  color: var(--nagex-text-primary);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ── G. Today — timeline ─────────────────────────────────────────── */
+.mh-timeline-row {
+  display: flex;
+  gap: 12px;
+}
+.mh-timeline-rail {
+  flex-shrink: 0;
+  width: 46px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+.mh-timeline-time {
+  font-size: 10.5px;
+  color: var(--nagex-text-muted);
+  white-space: nowrap;
+}
+.mh-timeline-dot {
+  margin-top: 4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--nagex-accent-primary);
+  background: #ffffff;
+  position: relative;
+}
+.mh-timeline-dot::after {
+  content: '';
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 1px;
+  height: 28px;
+  background: var(--nagex-border-default);
+}
+.mh-timeline-row:last-child .mh-timeline-dot::after { display: none; }
+.mh-timeline-dot-done { background: var(--nagex-accent-primary); }
+.mh-timeline-body {
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 18px;
+}
+
+.mh-bottom-spacer {
+  height: calc(72px + env(safe-area-inset-bottom, 0px));
+}
+
+/* ── I. Fixed bottom navigation — exactly 5 canonical items ─────── */
+.mh-bottom-nav {
+  flex-shrink: 0;
+  display: flex;
+  align-items: stretch;
+  background: #ffffff;
+  border-top: 1px solid var(--nagex-border-subtle);
+  padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+}
+.mh-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: none;
+  border: none;
+  padding: 4px 2px;
+  color: var(--nagex-text-muted);
+  cursor: pointer;
+}
+.mh-nav-item svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+}
+.mh-nav-item span {
+  font-size: 10px;
+  font-weight: 600;
+}
+.mh-nav-item.active {
+  color: var(--nagex-accent-primary);
+}
+
+/* ── Responsive fidelity — no horizontal overflow at any mockup
+   breakpoint (375 / 390 / 393 / 414 / 430) ── */
+@media (min-width: 431px) {
+  #mobile-app-shell .mh-scroll,
+  #mobile-app-shell .mh-bottom-nav {
+    max-width: 430px;
+    margin: 0 auto;
+    width: 100%;
+  }
+}

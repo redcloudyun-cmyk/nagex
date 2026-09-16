@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="shared/components.css?v=__NAGEX_BUILD_VERSION__">
   <link rel="stylesheet" href="style.css?v=__NAGEX_BUILD_VERSION__">
   <link rel="stylesheet" href="desktop/desktop-home.css?v=__NAGEX_BUILD_VERSION__">
+  <link rel="stylesheet" href="mobile/mobile-home.css?v=__NAGEX_BUILD_VERSION__">
 </head>
 <body>
   <div class="app-wrapper">
@@ -986,25 +987,34 @@
       </aside>
     </div>
 
-    <!-- Mobile Bottom Navigation Bar — mirrors the default consumer nav
-         (MASTER.md Section 14.12): Home, Inbox, Activity, Vault. Settings
-         stays reachable via the hamburger sidebar, same as desktop. -->
+    <!-- Legacy Mobile Bottom Navigation Bar — the pre-UI-5 CSS-collapse
+         fallback, still used for Inbox/Activity/Vault/Settings at mobile
+         widths until each gets its own UI-5 mobile-native slice (see
+         mobile/mobile-home.js's shell-visibility rule: this bar and
+         #mobile-app-shell are never both visible at once — UI-5 R1
+         directive §20). data-tab attributes added so switchTab()'s single
+         active-sync loop can manage this bar too (fixes the pre-existing
+         bug where this bar's .active state was never updated). -->
     <nav class="mobile-bottom-nav">
-      <button class="mob-nav-item active" onclick="window.NAGEX.switchTab('tab-home')">
+      <button class="mob-nav-item active" data-tab="tab-home" onclick="window.NAGEX.switchTab('tab-home')">
         <span class="icon">🏠</span>
         <span data-i18n="nav.home">Home</span>
       </button>
-      <button class="mob-nav-item" onclick="window.NAGEX.switchTab('tab-inbox')">
+      <button class="mob-nav-item" data-tab="tab-inbox" onclick="window.NAGEX.switchTab('tab-inbox')">
         <span class="icon">📥</span>
         <span data-i18n="nav.inbox">Inbox</span>
       </button>
-      <button class="mob-nav-item" onclick="window.NAGEX.switchTab('tab-executions')">
+      <button class="mob-nav-item" data-tab="tab-executions" onclick="window.NAGEX.switchTab('tab-executions')">
         <span class="icon">⚡</span>
         <span data-i18n="nav.activity">Activity</span>
       </button>
-      <button class="mob-nav-item" onclick="window.NAGEX.switchTab('tab-vault')">
+      <button class="mob-nav-item" data-tab="tab-vault" onclick="window.NAGEX.switchTab('tab-vault')">
         <span class="icon">🗄️</span>
         <span data-i18n="nav.vault">Vault</span>
+      </button>
+      <button class="mob-nav-item" data-tab="tab-settings" onclick="window.NAGEX.switchTab('tab-settings')">
+        <span class="icon">⚙️</span>
+        <span data-i18n="nav.settings">Settings</span>
       </button>
     </nav>
 
@@ -1179,6 +1189,181 @@
 
   </div>
 
+  <!-- ════════════════════════════════════════════════════════════════
+       UI-5 R1 — Mobile Home. A genuinely separate top-level DOM tree,
+       not a CSS-collapsed copy of .app-wrapper's #view-home (per the
+       UI-5 directive §3-4). Hidden by default; mobile/mobile-home.js
+       shows it only when BOTH matchMedia('(max-width: 768px)') is true
+       AND the active tab is Home — every other tab, at any viewport,
+       uses the existing .app-wrapper responsive tree. Every data-bearing
+       element below is populated from real state only
+       (window.NAGEX.getState()/apiFetch) by mobile-home.js — nothing
+       here is mockup sample content. ════════════════════════════════ -->
+  <div id="mobile-app-shell" class="mobile-app-shell" hidden>
+    <div class="mh-scroll">
+
+      <!-- A. Compact Header -->
+      <header class="mh-header">
+        <div class="mh-brand">
+          <img src="assets/nagex-compact-logo.png" alt="NAgex" class="mh-logo">
+          <div class="mh-brand-text">
+            <span class="mh-brand-name">NAgex</span>
+            <span class="mh-brand-tagline" data-i18n="brand.tagline">Intelligence for the Next Age.</span>
+          </div>
+        </div>
+        <div class="mh-header-right">
+          <!-- UI-5 R1 finalization — reuses the exact same real
+               window.NAGEX_I18N (toggleLocale/applyLocale/localStorage)
+               the Desktop #btn-lang-toggle already uses; no new locale
+               system. data-i18n-lang-toggle is already handled generically
+               by i18n.js's applyLocale() (it queries ALL matching
+               elements), so this button's label stays in sync with the
+               Desktop toggle for free. -->
+          <button class="mh-lang-toggle" id="mh-lang-toggle" data-i18n-lang-toggle title="Switch language" data-i18n-title="header.switchLanguage">KR</button>
+          <button class="mh-notif-bell" id="mh-notif-bell" aria-label="Notifications" data-i18n-aria-label="home.notificationsAria">
+            <svg class="svg-icon-sm" viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+            <span class="mh-notif-dot" id="mh-notif-dot" hidden></span>
+          </button>
+          <div class="mh-avatar" id="mh-avatar">N</div>
+        </div>
+      </header>
+
+      <!-- B. Hero / Primary Command Surface -->
+      <section class="mh-hero">
+        <span class="mh-hero-eyebrow" id="mh-hero-eyebrow" data-i18n="home.greetingMorning">Good morning</span>
+        <h1 class="mh-hero-title"><span class="brand-blue">NAgex</span> — <span data-i18n="home.heroTitle">Personal AI for the Next Age</span></h1>
+        <p class="mh-hero-sub" data-i18n="home.heroSubtitle">Intelligence that remembers, understands, and acts with you.</p>
+
+        <div class="mh-command-bar">
+          <span class="mh-command-icon" aria-hidden="true">
+            <svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+          </span>
+          <input type="text" id="mh-command-input" class="mh-command-input" data-i18n-placeholder="workspace.askOrDrop" placeholder="Ask, talk, paste, or drop anything here...">
+          <button class="mh-voice-btn" id="mh-voice-btn" title="Capture Voice / Audio" data-i18n-title="workspace.captureVoice">
+            <svg class="svg-icon-sm" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5zm6 6c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+          </button>
+          <button class="mh-command-send" id="mh-command-send" title="Send request" aria-label="Send">
+            <svg class="svg-icon-sm" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+          </button>
+        </div>
+
+        <!-- C. Quick actions — same 4 real prompts DesktopHome uses
+             (.quick-action-chip/data-action already bound generically by
+             app.js's initQuickActionChips(), no mobile-specific JS needed) -->
+        <div class="mh-quick-actions">
+          <button class="mh-quick-pill quick-action-chip" data-action="summarize-notes">
+            <span class="qa-icon-sm">📄</span>
+            <span data-i18n="home.actionSummarizeNotes">Summarize notes</span>
+          </button>
+          <button class="mh-quick-pill quick-action-chip" data-action="plan-day">
+            <span class="qa-icon-sm">📅</span>
+            <span data-i18n="home.actionPlanDay">Plan my day</span>
+          </button>
+          <button class="mh-quick-pill quick-action-chip" data-action="research-topic">
+            <span class="qa-icon-sm">📊</span>
+            <span data-i18n="home.actionResearchTopic">Research topic</span>
+          </button>
+          <button class="mh-quick-pill quick-action-chip" data-action="prepare-meeting">
+            <span class="qa-icon-sm">✨</span>
+            <span data-i18n="home.actionPrepareMeeting">Prepare meeting</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- D. Background Task Status Banner — real count only, never
+           hardcoded "N tasks running" (directive §11/27) -->
+      <button class="mh-task-banner" id="mh-task-banner" onclick="window.NAGEX.switchTab('tab-executions')">
+        <span class="mh-task-banner-dot" id="mh-task-banner-dot"></span>
+        <span class="mh-task-banner-body">
+          <strong id="mh-task-banner-title" data-i18n="home.workingReadyTitle">Ready when you are</strong>
+          <small id="mh-task-banner-sub" data-i18n="home.workingEmpty">Nothing is running right now.</small>
+        </span>
+        <span class="mh-task-banner-count" id="mh-task-banner-count" hidden></span>
+        <svg class="mh-chevron" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+      </button>
+
+      <!-- E. NAgex is Working -->
+      <section class="mh-card">
+        <div class="mh-card-header">
+          <h2>
+            <svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10v3M6 6v11M10 3v18M14 6v11M18 10v3M22 12h0"/></svg>
+            <span data-i18n="home.workingTitle">NAgex is working for you</span>
+          </h2>
+          <a class="mh-view-all" onclick="window.NAGEX.switchTab('tab-executions')" data-i18n="home.seeAll">See all &gt;</a>
+        </div>
+        <div id="mh-working-list"><div class="nagex-loading-row"></div></div>
+      </section>
+
+      <!-- F. Needs Your Approval -->
+      <section class="mh-card">
+        <div class="mh-card-header">
+          <h2>
+            <svg class="svg-icon-sm mh-icon-danger" viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+            <span data-i18n="home.approvalsTitle">Needs your approval</span>
+            <span class="nagex-badge nagex-badge-attention" id="mh-approvals-badge" hidden>0</span>
+          </h2>
+          <a class="mh-view-all" onclick="window.NAGEX.switchTab('tab-approvals')" data-i18n="home.seeAll">See all &gt;</a>
+        </div>
+        <div id="mh-approvals-list"><div class="nagex-loading-row"></div></div>
+      </section>
+
+      <!-- G. Today -->
+      <section class="mh-card">
+        <div class="mh-card-header">
+          <h2>
+            <svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <span data-i18n="home.todayTitle">Today</span>
+          </h2>
+          <a class="mh-view-all" onclick="window.NAGEX.switchTab('tab-my-space')" data-i18n="mySpace.open">Open &gt;</a>
+        </div>
+        <div id="mh-today-list"><div class="nagex-loading-row"></div></div>
+      </section>
+
+      <!-- What NAgex did for you — real completed Activity, human-readable
+           titles only (ActivityStore already guarantees this, never raw
+           audit event names — directive §17) -->
+      <section class="mh-card">
+        <div class="mh-card-header">
+          <h2>
+            <svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+            <span data-i18n="home.doneForYouTitle">What NAgex did for you</span>
+          </h2>
+          <a class="mh-view-all" onclick="window.NAGEX.switchTab('tab-executions')" data-i18n="home.seeAll">See all &gt;</a>
+        </div>
+        <div id="mh-history-list"><div class="nagex-loading-row"></div></div>
+      </section>
+
+      <div class="mh-bottom-spacer" aria-hidden="true"></div>
+    </div>
+
+    <!-- Fixed Bottom Navigation — exactly 5 canonical items (MASTER.md
+         §14.12); My Space stays a contextual entry inside Today's card
+         above, never a 6th item (directive §18/31). data-tab lets
+         switchTab()'s single active-sync loop manage this bar too. -->
+    <nav class="mh-bottom-nav">
+      <button class="mh-nav-item active" data-tab="tab-home" onclick="window.NAGEX.switchTab('tab-home')">
+        <svg class="svg-icon" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+        <span data-i18n="nav.home">Home</span>
+      </button>
+      <button class="mh-nav-item" data-tab="tab-inbox" onclick="window.NAGEX.switchTab('tab-inbox')">
+        <svg class="svg-icon" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5v-3h3.56c.69 1.19 1.97 2 3.44 2s2.75-.81 3.44-2H19v3zm0-5h-4.18c-.41 1.16-1.51 2-2.82 2s-2.41-.84-2.82-2H5V5h14v9z"/></svg>
+        <span data-i18n="nav.inbox">Inbox</span>
+      </button>
+      <button class="mh-nav-item" data-tab="tab-executions" onclick="window.NAGEX.switchTab('tab-executions')">
+        <svg class="svg-icon" viewBox="0 0 24 24"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+        <span data-i18n="nav.activity">Activity</span>
+      </button>
+      <button class="mh-nav-item" data-tab="tab-vault" onclick="window.NAGEX.switchTab('tab-vault')">
+        <svg class="svg-icon" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+        <span data-i18n="nav.vault">Vault</span>
+      </button>
+      <button class="mh-nav-item" data-tab="tab-settings" onclick="window.NAGEX.switchTab('tab-settings')">
+        <svg class="svg-icon" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+        <span data-i18n="nav.settings">Settings</span>
+      </button>
+    </nav>
+  </div>
+
   <script src="i18n.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="plan-resolution-view.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="calendar-approval-view.js?v=__NAGEX_BUILD_VERSION__"></script>
@@ -1193,5 +1378,6 @@
   <script src="single-flight-guard.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="app.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="desktop/desktop-home.js?v=__NAGEX_BUILD_VERSION__"></script>
+  <script src="mobile/mobile-home.js?v=__NAGEX_BUILD_VERSION__"></script>
 </body>
 </html>

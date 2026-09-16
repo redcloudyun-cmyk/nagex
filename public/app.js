@@ -274,7 +274,12 @@
 
   function switchTab(tabId) {
     state.activeTab = tabId;
-    document.querySelectorAll('.nav-menu .nav-item').forEach((el) => {
+    // UI-5: a single active-sync loop covers the desktop sidebar, the
+    // legacy responsive mobile-bottom-nav, and the new #mobile-app-shell
+    // bottom nav (mobile-home.js's own nav items) — fixes a pre-existing
+    // bug where the legacy mobile nav's .active state was never updated
+    // at all (only .nav-menu .nav-item was ever touched here).
+    document.querySelectorAll('.nav-menu .nav-item[data-tab], .mobile-bottom-nav .mob-nav-item[data-tab], #mobile-app-shell [data-tab]').forEach((el) => {
       if (el.getAttribute('data-tab') === tabId) el.classList.add('active');
       else el.classList.remove('active');
     });
@@ -286,6 +291,12 @@
     });
 
     renderActiveTab();
+
+    // mobile-home.js hooks this to decide whether #mobile-app-shell should
+    // be visible (mobile viewport AND Home active) — never fired on a
+    // separate timer, only on an actual tab change, same pattern as
+    // onHomeRender.
+    if (window.NAGEX.onTabChange) window.NAGEX.onTabChange(tabId);
   }
 
   function renderActiveTab() {
@@ -519,8 +530,11 @@
     // Desktop/Mobile Home modules (separate files) hook in here rather
     // than duplicating this file's own render lifecycle — called every
     // time Home actually re-renders (including after loadAllData()),
-    // never on a separate/parallel timer.
+    // never on a separate/parallel timer. Two distinct hook names
+    // (rather than one shared one) so desktop-home.js and mobile-home.js
+    // can both register without either overwriting the other.
     if (window.NAGEX.onHomeRender) window.NAGEX.onHomeRender();
+    if (window.NAGEX.onHomeRenderMobile) window.NAGEX.onHomeRenderMobile();
   }
 
   async function renderHomeWorkspaceSections() {
@@ -611,9 +625,9 @@
                 <span class="inbox-item-summary">${escapeHtml(a.resource?.id || 'Action Approval')}</span>
               </div>
               <div class="contextual-appr-btns" style="display: flex; gap: 0.35rem; margin-top: 0.25rem;">
-                <button class="btn-primary" style="font-size:0.75rem; padding:0.25rem 0.6rem;" onclick="window.NAGEX.handleApprovalAction('${a.approvalId}', 'APPROVE')">Approve</button>
+                <button class="btn-primary" style="font-size:0.75rem; padding:0.25rem 0.6rem;" onclick="window.NAGEX.handleApprovalAction('${a.id || a.approvalId}', 'APPROVE')">Approve</button>
                 <button class="btn-secondary" style="font-size:0.75rem; padding:0.25rem 0.6rem;" onclick="window.NAGEX.switchTab('tab-approvals')">Review</button>
-                <button class="btn-secondary danger" style="font-size:0.75rem; padding:0.25rem 0.6rem;" onclick="window.NAGEX.handleApprovalAction('${a.approvalId}', 'REJECT')">Reject</button>
+                <button class="btn-secondary danger" style="font-size:0.75rem; padding:0.25rem 0.6rem;" onclick="window.NAGEX.handleApprovalAction('${a.id || a.approvalId}', 'REJECT')">Reject</button>
               </div>
             </div>`;
           }
@@ -3126,6 +3140,38 @@
     // file already owns — never a second, parallel data client.
     apiFetch,
     getState: () => state,
+    // UI-5 — a second real entry point into the exact same route-input
+    // classification + dispatch logic the Home composer's own send button
+    // uses (real /api/v1/workspace/route-input call, real ambient
+    // task/capture dispatch). Deliberately a small, independent
+    // implementation rather than an extract-refactor of the existing
+    // btnSend.onclick handler in renderHome(): that handler's exact source
+    // text is pinned by tests/unified_capture_routing.test.ts (it string-
+    // matches the literal block between "if (btnSend && homeInput) {" and
+    // "if (btnLink && homeInput)"), so refactoring it to share code would
+    // risk that regression guard for no real benefit — both call sites end
+    // up invoking the same real apiFetch/openAmbientOverlay/runAmbientTask/
+    // switchTab functions either way.
+    submitPrompt: async (text) => {
+      const trimmed = (text || '').trim();
+      if (!trimmed) return;
+      const routeRes = await apiFetch('/api/v1/workspace/route-input', {
+        method: 'POST',
+        body: JSON.stringify({ text: trimmed }),
+      });
+      const intent = routeRes?.data?.primaryIntent || 'ASK';
+      if (intent === 'ASK' || intent === 'COMMAND') {
+        openAmbientOverlay();
+        runAmbientTask(trimmed);
+      } else if (intent === 'LINK_CAPTURE' || intent === 'CAPTURE') {
+        await apiFetch('/api/v1/workspace/capture', {
+          method: 'POST',
+          body: JSON.stringify({ type: intent === 'LINK_CAPTURE' ? 'LINK' : 'TEXT', content: trimmed, source: 'WEB' }),
+        });
+        renderInbox();
+        switchTab('tab-inbox');
+      }
+    },
     toggleQuickWakeOpt: async (key, value) => {
       state.quickWakeConfig[key] = value;
       await apiFetch('/api/v1/quickwake/config', {
