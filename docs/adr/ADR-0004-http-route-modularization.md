@@ -1,7 +1,7 @@
 # ADR-0004 — HTTP route modularization (incremental, first slice)
 
-**Status:** Accepted (partial implementation — see "Scope of this round")
-**Date:** 2026-09-16
+**Status:** Accepted (partial implementation — see "Scope of this round" and "Increment 2 update")
+**Date:** 2026-09-16 (Increment 1); updated 2026-09-17 (Increment 2)
 **Related:** R10.2-D (HTTP Route Modularization)
 
 ## Decision
@@ -53,3 +53,17 @@ The R10.2-D directive describes a full modularization of `server_web.ts`'s ~130 
 - `server_web.ts`: 3042 → 2982 lines (-2%, a real but small reduction, honestly reported as such — not inflated).
 
 This matches the directive's own §18 instruction ("Do not move 100 endpoints blindly in one mechanical rewrite... move one low-risk read-only domain, run tests, move another domain, move mutation-heavy domains after architecture guards exist") taken literally: this round establishes the contract, proves it on one read-only domain and one mutation-with-approval domain, and stops there rather than attempting an unverifiable big-bang rewrite of the remaining ~125 endpoints in a single pass. The remaining migration is registered as **DEBT-0004** in `docs/TECHNICAL_DEBT_REGISTRY.md`, not silently left undocumented, with the domain order already established by §19 of the directive as the intended continuation plan.
+
+## Increment 2 update (2026-09-17) — no architectural decision changed
+
+R10.2-D Increment 2 applied the exact same registrar/router pattern decided above to five more domains, without introducing any new pattern, helper abstraction, or deviation from the rules already stated in this ADR:
+
+- `memory.routes.ts` (GET/POST `/api/v1/memory`, DELETE `/api/v1/memory/:id`, PUT `/api/v1/memory/:id/pin`)
+- `modules.routes.ts` (GET `/api/v1/modules`, GET `/api/v1/modules/:id`, PUT `/api/v1/modules/:id/state` — the real PDP-authorized, fail-closed, audited mutation path, unchanged behavior)
+- `catalog.routes.ts` (GET `/api/v1/plans`, `/api/v1/skills`, `/api/v1/tools`, `/api/v1/agents`, `/api/v1/knowledge`; also relocates the `planRegistry`/`knowledgeBase` static data, each confirmed to have exactly one consumer)
+- `settings.routes.ts` (GET/POST `/api/v1/quickwake/config`, GET/POST `/api/v1/autonomy/config`)
+- `notifications.routes.ts` (GET `/api/v1/notifications`, POST `/api/v1/notifications/read-all`, POST `/api/v1/notifications/:id/read`, POST `/api/v1/notifications/dispatch`)
+
+No new ADR was created for this increment, per the governing directive's own instruction not to create ADR churn for repeated application of an already-accepted pattern — this section exists only to keep the "Scope of this round" numbers below from going stale, not to record a new decision.
+
+`server_web.ts`: 2982 → 2732 lines (-8.4%); imports 60 → 63 (net +3: five new registrar imports, two removed now-dead `canonicalSkillRegistry`/`canonicalToolRegistry` imports fully absorbed into `catalog.routes.ts`). Using a consistent `method === '<VERB>'` check-block count: 26/147 endpoints now migrated (~18%), 121 remaining — see **DEBT-0004**'s updated `progress` field for the full breakdown and counting methodology. This is still an incremental slice, not the full milestone; DEBT-0004 remains OPEN.

@@ -17,8 +17,6 @@ import type { TenantContext, PrincipalReference } from './common/types.js';
 import { AiService, parseRoutingMode, type PlanPreview, type BriefActionItem } from './model-gateway/ai-service.js';
 import { createProviders } from './model-gateway/providers.js';
 import { UnifiedModelRouter } from './model-gateway/unified-model-router.js';
-import { skillRegistry as canonicalSkillRegistry } from './skills/skill-registry.js';
-import { toolRegistry as canonicalToolRegistry } from './tools/tool-registry.js';
 import { PlanResolver } from './planning/plan-resolver.js';
 import { PersistentActionApprovalStore } from './governance/action-approval.store.js';
 import { dailyBriefDateKey, type DailyBriefRecord } from './governance/daily-brief.store.js';
@@ -26,6 +24,11 @@ import { generateDailyBriefOnce } from './assistant/daily-brief.pipeline.js';
 import { detectMeaningfulChanges, dispatchDetectedChanges } from './assistant/daily-brief-change-detection.js';
 import { generateProposalsFromChanges } from './assistant/action-proposal-generator.js';
 import { handleActionProposalsRoutes, type ActionProposalsRouteDeps } from './http/routes/action-proposals.routes.js';
+import { handleMemoryRoutes } from './http/routes/memory.routes.js';
+import { handleModulesRoutes } from './http/routes/modules.routes.js';
+import { handleCatalogRoutes } from './http/routes/catalog.routes.js';
+import { handleSettingsRoutes } from './http/routes/settings.routes.js';
+import { handleNotificationsRoutes } from './http/routes/notifications.routes.js';
 import { ExecutionStore } from './governance/execution.store.js';
 import {
   GoogleCalendarService,
@@ -213,65 +216,8 @@ const SUBSCRIPTION_INFO = {
 // merely seed-time artifacts.
 
 // Seed Plans (Exact match for Mockup Image 4)
-const planRegistry: Array<{
-  id: string;
-  goal: string;
-  description: string;
-  status: string;
-  tags: string[];
-  progress: number;
-  completed_steps: number;
-  total_steps: number;
-  created_at: string;
-  steps: Array<{
-    step: number;
-    title: string;
-    status: string;
-    skill: string;
-    tool: string;
-    approval: string;
-    due: string;
-    result: string;
-  }>;
-}> = [
-  {
-    id: 'plan_acme_meeting',
-    goal: 'Prepare Client Meeting',
-    description: 'Prepare for the Acme Corp. quarterly business review meeting.',
-    status: 'RUNNING',
-    tags: ['Client Meeting', 'Acme Corp', '🔥 High Priority'],
-    progress: 62,
-    completed_steps: 5,
-    total_steps: 8,
-    created_at: new Date(Date.now() - 3600000).toISOString(),
-    steps: [
-      { step: 1, title: 'Understand meeting context', status: 'Completed', skill: 'Memory Recall', tool: 'NAgex Memory', approval: '-', due: 'Apr 28, 9:00 AM', result: 'View' },
-      { step: 2, title: 'Research client and industry', status: 'Completed', skill: 'Web Research', tool: 'Perplexity', approval: '-', due: 'Apr 28, 11:00 AM', result: 'View' },
-      { step: 3, title: 'Summarize key talking points', status: 'Running', skill: 'Summarization', tool: 'Notion', approval: '-', due: 'Apr 29, 9:00 AM', result: '...' },
-      { step: 4, title: 'Draft meeting deck', status: 'Ready', skill: 'Content Creation', tool: 'Google Slides', approval: 'Required', due: 'Apr 29, 2:00 PM', result: '-' },
-      { step: 5, title: 'Get stakeholder review', status: 'Awaiting Approval', skill: 'Communication', tool: 'Gmail', approval: 'Required', due: 'Apr 29, 5:00 PM', result: '-' },
-      { step: 6, title: 'Schedule the meeting', status: 'Ready', skill: 'Scheduling', tool: 'Google Calendar', approval: '-', due: 'Apr 30, 9:00 AM', result: '-' },
-      { step: 7, title: 'Prepare Q&A responses', status: 'Ready', skill: 'Analysis', tool: 'ChatGPT', approval: '-', due: 'Apr 30, 11:00 AM', result: '-' },
-      { step: 8, title: 'Final review and checklist', status: 'Ready', skill: 'Project Management', tool: 'Notion', approval: '-', due: 'Apr 30, 3:00 PM', result: '-' },
-    ],
-  },
-  {
-    id: 'plan_002',
-    goal: 'Weekly Competitive Market Analysis',
-    description: 'Gather competitors intelligence and prepare executive deck.',
-    status: 'RUNNING',
-    tags: ['Market Research', 'Executive Summary'],
-    progress: 33,
-    completed_steps: 1,
-    total_steps: 3,
-    created_at: new Date(Date.now() - 1800000).toISOString(),
-    steps: [
-      { step: 1, title: 'Search latest market trends via Web Search', status: 'Completed', skill: 'Deep Research', tool: 'Web Search', approval: '-', due: 'Apr 29, 10:00 AM', result: 'View' },
-      { step: 2, title: 'Synthesize insights into Executive Brief', status: 'Running', skill: 'Document Summary', tool: 'Browser', approval: '-', due: 'Apr 29, 2:00 PM', result: '...' },
-      { step: 3, title: 'Distribute summary to Slack #executive channel', status: 'Ready', skill: 'Executive Update', tool: 'Slack', approval: 'Required', due: 'Apr 29, 4:00 PM', result: '-' },
-    ],
-  },
-];
+// R10.2-D — planRegistry moved to src/http/routes/catalog.routes.ts (its
+// only consumer, GET /api/v1/plans).
 
 // R9/R10 — Personal Daily Brief. dailyBriefStore persists one durable
 // record per (tenantId, principalId, date) — see
@@ -462,26 +408,9 @@ const executionHistory: Array<Record<string, unknown>> = [
   },
 ];
 
-const quickWakeConfig = {
-  floating_button: true,
-  quick_settings_tile: true,
-  lock_screen_shortcut: true,
-  voice_wake: false,
-  double_tap_shortcut: true,
-  headset_button: false,
-  accessibility_shortcut: false,
-  fingerprint_button: { supported: false, label: 'Not supported on this device' },
-};
-
-let autonomyConfig = {
-  level: 'L2',
-  description: 'Level 2 — Low-risk Actions with Human Approval Gate for Consequential Operations',
-};
-
-const knowledgeBase = [
-  { id: 'kb_001', name: 'Acme_QBR_Notes.pdf', classification: 'CONFIDENTIAL', size_bytes: 2516582, status: 'INDEXED', indexed_at: '2026-08-20T14:30:00Z', chunk_count: 142 },
-  { id: 'kb_002', name: 'Product_Strategy_2025.docx', classification: 'INTERNAL', size_bytes: 1153433, status: 'INDEXED', indexed_at: '2026-08-19T09:15:00Z', chunk_count: 87 },
-];
+// R10.2-D — quickWakeConfig/autonomyConfig moved to
+// src/http/routes/settings.routes.ts; knowledgeBase moved to
+// src/http/routes/catalog.routes.ts (each with its only consumer).
 
 // R10.2-D — health/vcs status moved to src/http/routes/health.routes.ts.
 const healthRouteDeps: HealthRouteDeps = { executionCount: () => executionHistory.length };
@@ -1398,51 +1327,9 @@ export async function handleAsyncApiRequest(
     // ── Notification Engine (MASTER.md Section 14.5 item 12) ──────────────
     // P04-R1 — every user-facing notification read/mutation is scoped by
     // tenantId + principalId, never principalId alone.
-    if (pathname === '/api/v1/notifications' && method === 'GET') {
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const notifications = notificationApiService.list(tenantId, principalId);
-      const unreadCount = notificationApiService.getUnreadCount(tenantId, principalId);
-      return { status: 200, data: { notifications, unreadCount, total: notifications.length } };
-    }
-    if (pathname === '/api/v1/notifications/read-all' && method === 'POST') {
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const updatedCount = notificationApiService.markAllAsRead(tenantId, principalId);
-      return { status: 200, data: { success: true, updatedCount } };
-    }
-    if (pathname.startsWith('/api/v1/notifications/') && pathname.endsWith('/read') && method === 'POST') {
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const id = pathname.slice('/api/v1/notifications/'.length, pathname.length - '/read'.length);
-      const record = notificationApiService.markAsRead(id, tenantId, principalId);
-      if (!record) {
-        return { status: 404, data: { error: { code: 'NOTIFICATION_NOT_FOUND', category: 'NOT_FOUND', message: `Notification ${id} was not found.` } } };
-      }
-      return { status: 200, data: record };
-    }
-    if (pathname === '/api/v1/notifications/dispatch' && method === 'POST') {
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_notif_disp_${crypto.randomUUID()}`;
-      const principalId = typeof body?.principalId === 'string' && body.principalId.trim() ? body.principalId.trim() : (getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001');
-      const tenantId = typeof body?.tenantId === 'string' && body.tenantId.trim() ? body.tenantId.trim() : (getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID);
-      const type = (typeof body?.type === 'string' ? body.type : 'SYSTEM_ALERT') as any;
-      const title = typeof body?.title === 'string' ? body.title.trim() : 'Notification';
-      const bodyText = typeof body?.body === 'string' ? body.body.trim() : '';
-
-      if (!bodyText) {
-        throw new NagexError({ code: 'NOTIFICATION_BODY_REQUIRED', category: 'VALIDATION', message: 'Notification body is required.', request_id: requestId });
-      }
-
-      const record = await notificationApiService.dispatch({
-        tenantId,
-        principalId,
-        type,
-        title,
-        body: bodyText,
-        metadata: body?.metadata && typeof body.metadata === 'object' ? (body.metadata as Record<string, unknown>) : undefined,
-        requestId,
-      });
-      return { status: 201, data: record };
+    {
+      const notificationsResult = await handleNotificationsRoutes(method, pathname, body, headers, query, { notificationEngine: notificationApiService });
+      if (notificationsResult) return notificationsResult;
     }
 
     // ─── Desktop Quick Wake Endpoints ───
@@ -2141,144 +2028,19 @@ export function handleApiRequest(
     if (healthResult) return healthResult;
   }
 
-  if (pathname === '/api/v1/memory' && method === 'GET') {
-    const activeUserMems = memoryEngine.getActiveMemories('USER', tenantId, principal.id);
-    const activeSessionMems = memoryEngine.getActiveMemories('SESSION', tenantId, principal.id);
-    const activeAgentMems = memoryEngine.getActiveMemories('AGENT', tenantId, principal.id);
-    const activeTenantMems = memoryEngine.getActiveMemories('TENANT', tenantId, principal.id);
-    const allMemories = [...activeUserMems, ...activeSessionMems, ...activeAgentMems, ...activeTenantMems].map((m) => ({ ...m, pinned: pinnedMemories.has(m.id) }));
-    return { status: 200, data: { memories: allMemories, total: allMemories.length } };
+  {
+    const memoryResult = handleMemoryRoutes(method, pathname, body, headers, {}, { memoryEngine, pinnedMemories, tenantId, principal, modelErrorResult });
+    if (memoryResult) return memoryResult;
   }
 
-  if (pathname === '/api/v1/memory' && method === 'POST') {
-    const scope = ((body?.scope as string) || 'USER') as MemoryScope;
-    const subject = (body?.subject as string) || 'General';
-    const predicate = (body?.predicate as string) || 'note';
-    const value = body?.value || '';
-    const rec = memoryEngine.proposeMemory(scope, tenantId, principal.id, { subject, predicate, value });
-    const activated = memoryEngine.activateMemory(rec.id, tenantId, principal.id);
-    if (body?.pinned) pinnedMemories.add(activated.id);
-    return { status: 201, data: { ...activated, pinned: pinnedMemories.has(activated.id) } };
+  {
+    const modulesResult = handleModulesRoutes(method, pathname, body, headers, {}, { moduleService, pdp, auditLogger, tenantId, tenantContext, principal, modelErrorResult });
+    if (modulesResult) return modulesResult;
   }
 
-  if (pathname.startsWith('/api/v1/memory/') && method === 'DELETE') {
-    const memId = pathname.replace('/api/v1/memory/', '');
-    try {
-      memoryEngine.deleteMemory(memId, tenantId, principal.id);
-    } catch (error) {
-      return modelErrorResult(error);
-    }
-    pinnedMemories.delete(memId);
-    return { status: 200, data: { success: true, deleted_id: memId } };
-  }
-
-  if (pathname.startsWith('/api/v1/memory/') && pathname.endsWith('/pin') && method === 'PUT') {
-    const memId = pathname.replace('/api/v1/memory/', '').replace('/pin', '');
-    if (!memoryEngine.get(memId, tenantId, principal.id)) {
-      return { status: 404, data: { error: 'MEMORY_NOT_FOUND', message: `Memory ${memId} was not found.` } };
-    }
-    if (pinnedMemories.has(memId)) pinnedMemories.delete(memId);
-    else pinnedMemories.add(memId);
-    return { status: 200, data: { success: true, pinned: pinnedMemories.has(memId) } };
-  }
-
-  if (pathname === '/api/v1/modules' && method === 'GET') {
-    const modules = moduleService.listModules(tenantId);
-    return { status: 200, data: { modules, total: modules.length } };
-  }
-
-  if (pathname.startsWith('/api/v1/modules/') && pathname.endsWith('/state') && method === 'PUT') {
-    const moduleId = pathname.slice('/api/v1/modules/'.length, pathname.length - '/state'.length);
-    const headerReqId = headers['x-request-id'] || headers['X-Request-Id'];
-    const requestId = (Array.isArray(headerReqId) ? headerReqId[0] : headerReqId) || `req_mod_${Date.now()}`;
-
-    if (typeof body?.enabled !== 'boolean') {
-      return {
-        status: 400,
-        data: {
-          error: {
-            code: 'INVALID_MODULE_STATE',
-            category: 'VALIDATION',
-            message: 'body.enabled must be a boolean.',
-            request_id: requestId,
-          },
-        },
-      };
-    }
-
-    const targetTenantId = (typeof body?.tenantId === 'string' && body.tenantId.trim())
-      ? body.tenantId.trim()
-      : tenantId;
-
-    // Resolve server-side built-in permissions for principal (fail-closed for unknown principals)
-    const permissions = resolveBuiltInPrincipalPermissions(principal);
-
-    const decision = pdp.evaluate({
-      principal,
-      tenant_context: tenantContext,
-      action: 'module:manage',
-      resource_type: 'Module',
-      resource_id: moduleId,
-      resource_tenant_id: targetTenantId,
-      principal_permissions: permissions,
-    });
-
-    if (decision.decision !== 'ALLOW') {
-      const outcome = describeDeniedDecision(decision);
-      auditLogger.logEvent({
-        actor: principal,
-        tenant_id: tenantId,
-        action: 'module.state_change_blocked',
-        resource: { type: 'Module', id: moduleId },
-        result: outcome.auditResult,
-        reason_code: decision.reason_code,
-        request_id: requestId,
-      });
-      return {
-        status: outcome.httpStatus,
-        data: { error: outcome.errorCode, reason: decision.reason_code, request_id: requestId },
-      };
-    }
-
-    try {
-      const updated = moduleService.setModuleState(targetTenantId, moduleId, body.enabled as boolean, principal.id);
-      return { status: 200, data: updated };
-    } catch (error) {
-      return modelErrorResult(error);
-    }
-  }
-
-  if (pathname.startsWith('/api/v1/modules/') && method === 'GET') {
-    const moduleId = pathname.slice('/api/v1/modules/'.length);
-    const moduleState = moduleService.getModule(tenantId, moduleId);
-    if (!moduleState) {
-      return {
-        status: 404,
-        data: {
-          error: {
-            code: 'MODULE_NOT_FOUND',
-            category: 'NOT_FOUND',
-            message: `Module "${moduleId}" was not found.`,
-            request_id: `req_mod_${Date.now()}`,
-          },
-        },
-      };
-    }
-    return { status: 200, data: moduleState };
-  }
-
-  if (pathname === '/api/v1/plans' && method === 'GET') {
-    return { status: 200, data: { plans: planRegistry, total: planRegistry.length } };
-  }
-
-  if (pathname === '/api/v1/skills' && method === 'GET') {
-    const skills = canonicalSkillRegistry.list();
-    return { status: 200, data: { skills, total: skills.length } };
-  }
-
-  if (pathname === '/api/v1/tools' && method === 'GET') {
-    const tools = canonicalToolRegistry.list();
-    return { status: 200, data: { tools, total: tools.length } };
+  {
+    const catalogResult = handleCatalogRoutes(method, pathname, body, headers, {}, {});
+    if (catalogResult) return catalogResult;
   }
 
   if (pathname === '/api/v1/approvals' && method === 'GET') {
@@ -2411,16 +2173,9 @@ export function handleApiRequest(
     return { status: 200, data: { authorizeUrl: buildGoogleAuthorizeUrl(config, pendingGoogleOAuthState) } };
   }
 
-  if (pathname === '/api/v1/quickwake/config' && method === 'GET') return { status: 200, data: quickWakeConfig };
-  if (pathname === '/api/v1/quickwake/config' && method === 'POST') {
-    if (body) Object.assign(quickWakeConfig, body);
-    return { status: 200, data: quickWakeConfig };
-  }
-
-  if (pathname === '/api/v1/autonomy/config' && method === 'GET') return { status: 200, data: autonomyConfig };
-  if (pathname === '/api/v1/autonomy/config' && method === 'POST') {
-    if (body?.level) autonomyConfig.level = body.level as string;
-    return { status: 200, data: autonomyConfig };
+  {
+    const settingsResult = handleSettingsRoutes(method, pathname, body, headers, {}, {});
+    if (settingsResult) return settingsResult;
   }
 
   if (pathname === '/api/v1/executions' && method === 'POST') {
@@ -2454,11 +2209,6 @@ export function handleApiRequest(
     return { status: 201, data: record };
   }
 
-  if (pathname === '/api/v1/agents' && method === 'GET') {
-    const agents = canonicalSkillRegistry.list();
-    return { status: 200, data: { agents, total: agents.length } };
-  }
-  if (pathname === '/api/v1/knowledge' && method === 'GET') return { status: 200, data: { documents: knowledgeBase, total: knowledgeBase.length } };
   if (pathname === '/api/v1/billing/usage' && method === 'GET') {
     ensureTenantSeeded(tenantId);
     const account = creditEngine.getOrCreateAccount(tenantId);
