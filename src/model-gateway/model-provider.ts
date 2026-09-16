@@ -56,6 +56,10 @@ export interface ModelProvider {
   readonly model: string | null;
   status(): ProviderStatus;
   generate(request: ModelRequest): Promise<ModelResponse>;
+  // R7.1 — optional so a future/custom adapter that doesn't implement one
+  // still satisfies this interface; the router's healthCheck() simply
+  // skips probing a provider that has none.
+  probe?(): Promise<void>;
 }
 
 export class ModelProviderError extends NagexError {

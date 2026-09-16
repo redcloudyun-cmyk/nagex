@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { NagexError } from '../common/errors.js';
-import { ModelProviderError, type ModelMessage, type ModelProvider, type ModelResponse, type ProviderStatus, type RoutingMode } from './model-provider.js';
+import { ModelProviderError, type ModelMessage, type ModelProvider, type ModelResponse, type ProviderRuntimeStatus, type ProviderStatus, type RoutingMode } from './model-provider.js';
 
 export interface RouterLogger {
   info(event: string, fields: Record<string, unknown>): void;
@@ -23,19 +23,41 @@ export class UnifiedModelRouter {
     return [...this.providers.values()].map((provider) => provider.status());
   }
 
-  // R7 §2/§3 — the "which one would a real request use right now" summary
-  // Settings needs. Derived purely from statuses() (registration/priority
-  // order, same order generate() itself tries), never a second source of
-  // truth: activeProvider is the first configured provider, fallbackProviders
-  // are every other configured one in the same real fallback order.
-  public activeProviderSummary(): { activeProvider: string | null; activeModel: string | null; fallbackProviders: string[] } {
+  // R7/R7.1 §2/§3 — "which provider a real request would try first" is a
+  // ROUTING fact (priority order among configured providers), which is NOT
+  // the same claim as "this provider is currently live". R7.1's root-cause
+  // fix: activeProvider must never be read as "the live provider" — it is
+  // the routing candidate. activeProviderStatus is returned alongside it
+  // specifically so a caller (Settings) can tell the difference and must
+  // never render a CONFIGURED-but-unprobed candidate as Connected/Live.
+  public activeProviderSummary(): {
+    activeProvider: string | null;
+    activeModel: string | null;
+    activeProviderStatus: ProviderRuntimeStatus | null;
+    fallbackProviders: string[];
+  } {
     const configured = [...this.providers.values()].map((provider) => provider.status()).filter((status) => status.configured);
     const [active, ...rest] = configured;
     return {
       activeProvider: active?.provider ?? null,
       activeModel: active?.model ?? null,
+      activeProviderStatus: active?.status ?? null,
       fallbackProviders: rest.map((status) => status.provider),
     };
+  }
+
+  // R7.1 — the explicit, bounded probe path: GET /providers/status stays a
+  // pure read (never triggers generation itself); this is the one real
+  // mechanism, alongside organic generate() traffic, that can move a
+  // provider from CONFIGURED to LIVE/DEGRADED. Probes every configured
+  // provider in parallel (each already individually bounded by its own
+  // provider-level timeoutMs — no additional retry layered on top here),
+  // and never throws: a probe failure is exactly what turns a provider
+  // DEGRADED, not a router-level error.
+  public async healthCheck(): Promise<ProviderStatus[]> {
+    const configured = [...this.providers.values()].filter((provider) => provider.status().configured);
+    await Promise.all(configured.map((provider) => provider.probe?.() ?? Promise.resolve()));
+    return this.statuses();
   }
 
   public async generate(input: { messages: ModelMessage[]; mode: RoutingMode; requestId?: string; jsonMode?: boolean; validate?: (text: string) => void }): Promise<ModelResponse> {

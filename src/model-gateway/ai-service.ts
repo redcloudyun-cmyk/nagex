@@ -324,6 +324,10 @@ export class AiService {
     return this.router.activeProviderSummary();
   }
 
+  public async healthCheck() {
+    return this.router.healthCheck();
+  }
+
   public async chat(input: { message: string; mode: RoutingMode; requestId?: string; conversation?: Array<{ role: 'user' | 'assistant'; content: string }> }): Promise<AiServiceResponse<{ message: string }>> {
     const requestId = input.requestId || `chat_${randomUUID()}`;
     const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [

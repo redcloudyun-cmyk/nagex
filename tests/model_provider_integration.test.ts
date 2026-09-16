@@ -136,12 +136,14 @@ test('status() is UNCONFIGURED with no key/model, never a fake LIVE', () => {
   assert.equal(status.lastCheckedAt, null);
 });
 
-test('status() is CONFIGURED (not LIVE) before any real call has been attempted — an API key alone is not evidence of a working connection', () => {
+test('status() is CONFIGURED (not LIVE) before any real call has been attempted — an API key alone is not evidence of a working connection, so available must be false', () => {
   const provider = new OpenAIProvider({ apiKey: 'a', model: 'oa' });
   const status = provider.status();
   assert.equal(status.status, 'CONFIGURED');
   assert.equal(status.configured, true);
-  assert.equal(status.available, true);
+  // R7.1 root-cause fix: configured=true must never by itself imply
+  // available=true. Only an observed LIVE call does.
+  assert.equal(status.available, false);
   assert.equal(status.lastCheckedAt, null);
 });
 
@@ -197,6 +199,131 @@ test('UnifiedModelRouter.activeProviderSummary() reflects real registration/prio
   assert.equal(summary.activeProvider, 'nebius');
   assert.equal(summary.activeModel, 'nm');
   assert.deepEqual(summary.fallbackProviders, ['gemini']);
+  // R7.1 — activeProvider is a routing candidate, not a liveness claim;
+  // activeProviderStatus must say CONFIGURED here (nothing has been probed
+  // or called yet), never LIVE.
+  assert.equal(summary.activeProviderStatus, 'CONFIGURED');
+});
+
+// ── R7.1 — full CONFIGURED → LIVE → DEGRADED → LIVE state-machine matrix,
+// exactly the four states/transitions the directive requires be tested ──
+test('R7.1 state matrix: initial state is CONFIGURED with available=false, lastCheckedAt=null', () => {
+  const provider = new OpenAIProvider({ apiKey: 'a', model: 'oa' });
+  const status = provider.status();
+  assert.equal(status.configured, true);
+  assert.equal(status.available, false);
+  assert.equal(status.status, 'CONFIGURED');
+  assert.equal(status.lastCheckedAt, null);
+});
+
+test('R7.1 state matrix: after a real/mocked successful call, available=true, status=LIVE, lastCheckedAt is a real timestamp', async () => {
+  const provider = new OpenAIProvider({ apiKey: 'a', model: 'oa', fetchFn: async () => jsonResponse({ output_text: 'pong' }) });
+  await provider.generate({ messages: [{ role: 'user', content: 'ping' }], requestId: 'req_matrix_live' });
+  const status = provider.status();
+  assert.equal(status.available, true);
+  assert.equal(status.status, 'LIVE');
+  assert.ok(status.lastCheckedAt && !Number.isNaN(Date.parse(status.lastCheckedAt)));
+  assert.equal(status.degradedReason, null);
+});
+
+test('R7.1 state matrix: after a failed call, available=false, status=DEGRADED, lastCheckedAt set, degradedReason sanitized (no raw provider body)', async () => {
+  const provider = new OpenAIProvider({ apiKey: 'a', model: 'oa', fetchFn: async () => jsonResponse({ error: { message: 'sk-verysecretkey123 is invalid' } }, 401) });
+  await assert.rejects(() => provider.generate({ messages: [{ role: 'user', content: 'ping' }], requestId: 'req_matrix_degraded' }));
+  const status = provider.status();
+  assert.equal(status.available, false);
+  assert.equal(status.status, 'DEGRADED');
+  assert.ok(status.lastCheckedAt);
+  assert.equal(status.degradedReason, 'PROVIDER_HTTP_401');
+  assert.doesNotMatch(status.degradedReason!, /sk-verysecretkey123/);
+});
+
+test('R7.1 state matrix: DEGRADED recovers to LIVE on the next successful call (never sticky)', async () => {
+  let fail = true;
+  const provider = new OpenAIProvider({ apiKey: 'a', model: 'oa', fetchFn: async () => fail ? jsonResponse({}, 500) : jsonResponse({ output_text: 'recovered' }) });
+  await assert.rejects(() => provider.generate({ messages: [{ role: 'user', content: 'ping' }], requestId: 'req_matrix_1' }));
+  assert.equal(provider.status().status, 'DEGRADED');
+  fail = false;
+  await provider.generate({ messages: [{ role: 'user', content: 'ping' }], requestId: 'req_matrix_2' });
+  const status = provider.status();
+  assert.equal(status.status, 'LIVE');
+  assert.equal(status.available, true);
+  assert.equal(status.degradedReason, null);
+});
+
+test('R7.1 state matrix: restart never carries LIVE/DEGRADED health forward — a fresh provider instance with the same real env is CONFIGURED, not a stale prior state', async () => {
+  const provider1 = new OpenAIProvider({ apiKey: 'a', model: 'oa', fetchFn: async () => jsonResponse({ output_text: 'pong' }) });
+  await provider1.generate({ messages: [{ role: 'user', content: 'ping' }], requestId: 'req_before_restart' });
+  assert.equal(provider1.status().status, 'LIVE');
+
+  // Simulates a process restart: a brand-new provider instance (in-memory
+  // health state is never persisted, by design — see providers.ts's
+  // HttpModelProvider fields, which are plain instance fields, not backed
+  // by any store).
+  const provider2 = new OpenAIProvider({ apiKey: 'a', model: 'oa' });
+  const status = provider2.status();
+  assert.equal(status.status, 'CONFIGURED');
+  assert.equal(status.available, false);
+  assert.equal(status.lastCheckedAt, null);
+});
+
+// ── R7.1 — explicit bounded health-check probe ──
+test('probe() causes a real generate() attempt and updates status() from CONFIGURED to LIVE', async () => {
+  let calls = 0;
+  const provider = new OpenAIProvider({ apiKey: 'a', model: 'oa', fetchFn: async () => { calls++; return jsonResponse({ output_text: 'pong' }); } });
+  assert.equal(provider.status().status, 'CONFIGURED');
+  await provider.probe();
+  assert.equal(calls, 1);
+  assert.equal(provider.status().status, 'LIVE');
+});
+
+test('probe() on an unconfigured provider is a real no-op — never calls fetch, stays UNCONFIGURED', async () => {
+  let called = false;
+  const provider = new OpenAIProvider({ fetchFn: async () => { called = true; return jsonResponse({}); } });
+  await provider.probe();
+  assert.equal(called, false);
+  assert.equal(provider.status().status, 'UNCONFIGURED');
+});
+
+test('probe() failure sets DEGRADED and never throws out of the probe call itself', async () => {
+  const provider = new OpenAIProvider({ apiKey: 'a', model: 'oa', fetchFn: async () => jsonResponse({}, 500) });
+  await provider.probe(); // must not reject
+  assert.equal(provider.status().status, 'DEGRADED');
+});
+
+test('UnifiedModelRouter.healthCheck() probes every configured provider in parallel and returns updated statuses, without GET /status itself ever calling it', async () => {
+  const providers = createProviders(
+    { OPENAI_API_KEY: 'a', NAGEX_OPENAI_MODEL: 'oa', GEMINI_API_KEY: 'g', NAGEX_GEMINI_MODEL: 'gm' },
+    async (url) => String(url).includes('openai.com') ? jsonResponse({ output_text: 'pong' }) : jsonResponse({ candidates: [{ content: { parts: [{ text: 'pong' }] } }] }),
+  );
+  const router = new UnifiedModelRouter(providers, { info: () => {}, warn: () => {} });
+  const configuredBefore = router.statuses().filter((s) => s.configured);
+  assert.equal(configuredBefore.length, 2);
+  assert.ok(configuredBefore.every((s) => s.status === 'CONFIGURED'));
+  const updated = await router.healthCheck();
+  assert.ok(updated.filter((s) => s.configured).every((s) => s.status === 'LIVE'));
+  assert.ok(updated.find((s) => s.provider === 'nebius')!.status === 'UNCONFIGURED');
+});
+
+test('POST /api/v1/providers/health-check probes real/mocked providers and GET /api/v1/providers/status never triggers a probe on its own', async () => {
+  let generateCalls = 0;
+  const providers = createProviders({ OPENAI_API_KEY: 'a', NAGEX_OPENAI_MODEL: 'oa' }, async () => { generateCalls++; return jsonResponse({ output_text: 'pong' }); });
+  const service = new AiService(new UnifiedModelRouter(providers, { info: () => {}, warn: () => {} }));
+
+  const findOpenai = (data: any) => (data.providers as any[]).find((p) => p.provider === 'openai');
+
+  const statusBefore = await handleAsyncApiRequest('GET', '/api/v1/providers/status', null, {}, service);
+  assert.equal(generateCalls, 0, 'a plain GET /status must never itself cause a generation');
+  assert.equal(findOpenai(statusBefore.data).status, 'CONFIGURED');
+
+  const healthCheck = await handleAsyncApiRequest('POST', '/api/v1/providers/health-check', null, {}, service);
+  assert.equal(healthCheck.status, 200);
+  assert.equal(generateCalls, 1);
+  assert.equal(findOpenai(healthCheck.data).status, 'LIVE');
+  assert.equal((healthCheck.data as any).activeProviderStatus, 'LIVE');
+
+  const statusAfter = await handleAsyncApiRequest('GET', '/api/v1/providers/status', null, {}, service);
+  assert.equal(generateCalls, 1, 'reading status again after a probe must still not cause another generation');
+  assert.equal(findOpenai(statusAfter.data).status, 'LIVE');
 });
 
 test('router accepts a future provider adapter without core routing changes', async () => {

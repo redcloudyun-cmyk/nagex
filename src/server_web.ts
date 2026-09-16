@@ -455,7 +455,19 @@ export async function handleAsyncApiRequest(
       // Never a hardcoded configured/connected value: both come straight
       // from UnifiedModelRouter's real registration-order + observed
       // per-provider state (see providers.ts's HttpModelProvider.status()).
+      // R7.1: a pure read — never triggers a generation itself. The only
+      // way this reflects LIVE/DEGRADED is real prior generate() traffic or
+      // an explicit POST /api/v1/providers/health-check probe (below).
       return { status: 200, data: { providers: service.statuses(), ...service.activeProviderSummary() } };
+    }
+    if (pathname === '/api/v1/providers/health-check' && method === 'POST') {
+      // R7.1 — the one real, explicit way to move a provider from
+      // CONFIGURED to LIVE/DEGRADED without waiting for organic traffic:
+      // a cheap, minimal, bounded probe per configured provider (each
+      // already individually timeout-bounded — see providers.ts), never
+      // an infinite retry, never a fabricated result.
+      const providers = await service.healthCheck();
+      return { status: 200, data: { providers, ...service.activeProviderSummary() } };
     }
     // Phase 2 Step 1 — Trust & Safety Layer Endpoints (TS-5, TS-6)
     if (pathname === '/api/v1/safety/evaluate' && method === 'POST') {

@@ -58,13 +58,37 @@ abstract class HttpModelProvider implements ModelProvider {
           : 'CONFIGURED';
     return {
       configured,
-      available: configured && status !== 'DEGRADED',
+      // R7.1 root-cause fix: `available` must mean "a real call has been
+      // observed to succeed", never "credentials are merely present".
+      // CONFIGURED (key present, never actually tried) and DEGRADED (key
+      // present, last real attempt failed) are BOTH available=false — only
+      // LIVE is available=true. Configured alone must never imply available.
+      available: status === 'LIVE',
       provider: this.name,
       model: this.model,
       status,
       lastCheckedAt: this.lastCheckedAt,
       degradedReason: status === 'DEGRADED' ? this.lastFailureReason : null,
     };
+  }
+
+  // R7.1 — a cheap, bounded, explicit probe so real health can be observed
+  // without waiting for organic user traffic, and without GET /status
+  // itself ever triggering a generation (directive: the status read must
+  // stay a pure read). Reuses this provider's own real generate() path
+  // (same auth/timeout/error-normalization/recordOutcome as a real
+  // request) with the smallest possible real prompt — not a fake ping that
+  // bypasses the actual API. A no-op for an unconfigured provider: nothing
+  // to probe, status() already reports UNCONFIGURED correctly on its own.
+  public async probe(): Promise<void> {
+    if (!this.apiKey || !this.model) return;
+    try {
+      await this.generate({ messages: [{ role: 'user', content: 'ping' }], requestId: `probe_${this.name}_${Date.now()}` });
+    } catch {
+      // generate() already called recordOutcome('failure', ...) internally
+      // (via postJson) before throwing — nothing further to do here; the
+      // probe's job is only to cause a real attempt, not to propagate it.
+    }
   }
 
   protected assertConfigured(requestId: string): { apiKey: string; model: string } {
