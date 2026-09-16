@@ -52,6 +52,7 @@ function startFixtureServer(priceText: string): Promise<{ origin: string; close:
 const sharedRuntime = new PlaywrightBrowserRuntime();
 after(async () => {
   await sharedRuntime.shutdown();
+  await browserRuntime.shutdown();
 });
 
 function buildBrowserService() {
