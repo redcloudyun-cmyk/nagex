@@ -371,6 +371,7 @@ export function createNagexApplication(): NagexApplication {
     { calendarService: googleCalendarService, gmailApiService: gmailService, aiService, taskStore, activityStore },
     dailyBriefStore,
     notificationEngine,
+    actionApprovals,
   );
   const taskRunner = new CompositeTaskRunner(
     new PlanPreviewTaskRunner(aiService, planResolver, (tenantId, principalId, prompt) => getRelevantMemories(tenantId, principalId, prompt)),

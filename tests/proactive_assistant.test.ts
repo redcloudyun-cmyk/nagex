@@ -245,6 +245,78 @@ test('end-to-end: TaskScheduler.runOne on a real due DAILY_BRIEF task calls fina
   assert.notEqual(updated!.nextRunAt, inOneMinute.toISOString(), 'nextRunAt must advance to the next real occurrence, not repeat the one just run');
 });
 
+test('R10.1: task.status is genuinely RUNNING while a scheduled generation is in flight (backs Home\'s "Generating" state)', async () => {
+  let resolveGenerate!: (text: string) => void;
+  const deferred = new Promise<string>((resolve) => { resolveGenerate = resolve; });
+  const h = buildHarness();
+  // Override with a provider whose generate() we control, so we can
+  // observe task.status mid-run before letting it complete.
+  const deferredProvider: ModelProvider = {
+    name: 'nebius', model: 'test-model',
+    status: (): ProviderStatus => ({ configured: true, available: true, provider: 'nebius', model: 'test-model', status: 'LIVE', lastCheckedAt: null, degradedReason: null }),
+    generate: async (request: ModelRequest): Promise<ModelResponse> => {
+      const text = await deferred;
+      return { text, provider: 'nebius', model: 'test-model', latencyMs: 1, requestId: request.requestId };
+    },
+  };
+  h.aiService = new AiService(new UnifiedModelRouter([deferredProvider], { info: () => {}, warn: () => {} }));
+
+  const runner = new DailyBriefTaskRunner(
+    { calendarService: h.calendarService, gmailApiService: h.gmailService, aiService: h.aiService, taskStore: h.taskStore, activityStore: h.activityStore },
+    h.dailyBriefStore,
+  );
+  const { TaskRunStore } = await import('../src/tasks/task-run.store.js');
+  const runStore = new TaskRunStore({ dir: fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-runs-test-')) });
+  const scheduler = new TaskScheduler(h.taskStore, runStore, runner, new AuditLogger());
+
+  const inOneMinute = new Date(Date.now() + 60_000);
+  const task = h.taskStore.create({
+    tenantId: 'ten_running', ownerId: 'usr_running', name: 'Daily Brief', objective: 'x',
+    type: 'RECURRING',
+    trigger: { type: 'SCHEDULE', schedule: `${inOneMinute.getUTCMinutes()} ${inOneMinute.getUTCHours()} * * *`, timezone: 'UTC' },
+    approvalPolicy: 'READ_ONLY_AUTO', automationKind: 'DAILY_BRIEF', notifyOnComplete: false,
+    nextRunAt: inOneMinute.toISOString(),
+  });
+
+  const runPromise = scheduler.runOne(task);
+  // markRunning() is synchronous and happens before any await inside
+  // runner.run() — the task really is RUNNING right now, not a guess.
+  await new Promise((r) => setTimeout(r, 0));
+  const midRun = h.taskStore.get(task.taskId, 'ten_running', 'usr_running');
+  assert.equal(midRun!.status, 'RUNNING');
+
+  resolveGenerate(JSON.stringify({ summary: 'done', actionItems: [] }));
+  await runPromise;
+  const afterRun = h.taskStore.get(task.taskId, 'ten_running', 'usr_running');
+  assert.equal(afterRun!.status, 'ACTIVE', 'must return to ACTIVE (not stay RUNNING) once the real generation completes');
+});
+
+test('R10.1: after a real scheduled failure, task returns to ACTIVE with lastRunStatus FAILED (backs Home\'s "Failed + Retry" state)', async () => {
+  const h = buildHarness(() => new Error('all providers down'));
+  const runner = new DailyBriefTaskRunner(
+    { calendarService: h.calendarService, gmailApiService: h.gmailService, aiService: h.aiService, taskStore: h.taskStore, activityStore: h.activityStore },
+    h.dailyBriefStore,
+  );
+  const { TaskRunStore } = await import('../src/tasks/task-run.store.js');
+  const runStore = new TaskRunStore({ dir: fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-runs-test-')) });
+  const scheduler = new TaskScheduler(h.taskStore, runStore, runner, new AuditLogger());
+
+  const inOneMinute = new Date(Date.now() + 60_000);
+  const task = h.taskStore.create({
+    tenantId: 'ten_running_fail', ownerId: 'usr_running_fail', name: 'Daily Brief', objective: 'x',
+    type: 'RECURRING',
+    trigger: { type: 'SCHEDULE', schedule: `${inOneMinute.getUTCMinutes()} ${inOneMinute.getUTCHours()} * * *`, timezone: 'UTC' },
+    approvalPolicy: 'READ_ONLY_AUTO', automationKind: 'DAILY_BRIEF', notifyOnComplete: false,
+    nextRunAt: inOneMinute.toISOString(),
+  });
+
+  const run = await scheduler.runOne(task);
+  assert.equal(run.status, 'FAILED');
+  const after = h.taskStore.get(task.taskId, 'ten_running_fail', 'usr_running_fail');
+  assert.equal(after!.status, 'ACTIVE', 'a failed run must not leave the automation stuck RUNNING');
+  assert.equal(after!.lastRunStatus, 'FAILED');
+});
+
 test('security: proactive-assistant config for one tenant/principal is never visible to another', async () => {
   const h = buildHarness();
   const HEADERS_A = headersFor('sec_a');

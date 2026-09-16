@@ -1,8 +1,10 @@
 import type { TaskRecord } from '../task.store.js';
 import type { TaskRunner, TaskRunOutcome } from '../task.scheduler.js';
-import type { DailyBriefStore } from '../../governance/daily-brief.store.js';
+import { dailyBriefDateKey, type DailyBriefStore } from '../../governance/daily-brief.store.js';
 import type { NotificationEngine } from '../../notifications/notification.engine.js';
+import type { ActionApprovalStore } from '../../governance/action-approval.store.js';
 import { generateDailyBriefOnce, type DailyBriefPipelineDeps } from '../../assistant/daily-brief.pipeline.js';
+import { detectMeaningfulChanges, dispatchDetectedChanges } from '../../assistant/daily-brief-change-detection.js';
 
 // R10 — the scheduled/automatic Daily Brief execution path. Routed here by
 // CompositeTaskRunner only for a RECURRING task with
@@ -18,19 +20,40 @@ export class DailyBriefTaskRunner implements TaskRunner {
     private readonly deps: DailyBriefPipelineDeps,
     private readonly dailyBriefStore: DailyBriefStore,
     private readonly notificationEngine?: NotificationEngine,
+    private readonly actionApprovals?: ActionApprovalStore,
   ) {}
 
   public async run(task: TaskRecord, requestId: string, runId: string): Promise<TaskRunOutcome> {
+    // Read the day's previously-persisted brief BEFORE generating/saving a
+    // new one — this is the real "last generation" baseline R10.1's change
+    // detection compares against; a fresh day with no prior brief yet
+    // correctly yields no baseline (see detectMeaningfulChanges).
+    const previous = this.dailyBriefStore.getForDate(task.tenantId, task.ownerId, dailyBriefDateKey());
+
     // isSourceRefresh=true: an automated scheduled run is, from the Activity
     // log's point of view, exactly the same kind of real re-generation a
     // manual [Refresh Brief] click is — both real, both reflected the same
     // way (daily_brief.refreshed), never a fabricated distinct event just
-    // to look different.
-    const generated = await generateDailyBriefOnce(this.deps, task.tenantId, task.ownerId, requestId, true);
+    // to look different. source='SCHEDULED': this generation really was
+    // triggered by the automation schedule, not a user click (§3 truthful
+    // Home state).
+    const generated = await generateDailyBriefOnce(this.deps, task.tenantId, task.ownerId, requestId, true, 'SCHEDULED');
     const isUsable = generated.status !== 'UNAVAILABLE';
 
     if (isUsable) {
       this.dailyBriefStore.save(generated);
+
+      // R10.1 §1/§2 — meaningful Calendar/Gmail/approval/action-item
+      // changes since the last real brief, using only data already fetched
+      // for this generation (no extra Calendar/Gmail call), dispatched as
+      // real, source-grounded, deduped IMPORTANT_CHANGE notifications.
+      const newApprovalsSincePrevious = previous && this.actionApprovals
+        ? this.actionApprovals.listPending(task.tenantId, task.ownerId, requestId)
+            .filter((a) => a.createdAt > previous.generatedAt)
+            .map((a) => ({ approvalId: a.approvalId, toolId: a.toolId, createdAt: a.createdAt }))
+        : [];
+      const changes = detectMeaningfulChanges({ previous, current: generated, newApprovalsSincePrevious });
+      await dispatchDetectedChanges(this.notificationEngine, task.tenantId, task.ownerId, generated.date, changes, requestId);
 
       // R10 §10 — DAILY_BRIEF_READY, dispatched only when the user
       // explicitly opted in (task.notifyOnComplete), and only for a real,

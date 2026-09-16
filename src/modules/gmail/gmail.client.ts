@@ -31,9 +31,14 @@ export interface SentGmailMessage {
   threadId: string;
 }
 
+// historyId (R10.1) is a real field Gmail's threads.list already returns —
+// added so change detection can tell "still the same unread thread" apart
+// from "genuinely new since the last brief" without a second Gmail call or
+// a full message-body diff.
 export interface GmailThreadSummary {
   threadId: string;
   snippet: string;
+  historyId: string | null;
 }
 
 export interface GmailMessageSummary {
@@ -153,7 +158,7 @@ export async function searchGmailThreads(accessToken: string, query: string, fet
   const threads = Array.isArray(result.threads) ? (result.threads as Array<Record<string, unknown>>) : [];
   return threads
     .filter((t) => typeof t.id === 'string')
-    .map((t) => ({ threadId: t.id as string, snippet: typeof t.snippet === 'string' ? t.snippet : '' }));
+    .map((t) => ({ threadId: t.id as string, snippet: typeof t.snippet === 'string' ? t.snippet : '', historyId: typeof t.historyId === 'string' ? t.historyId : null }));
 }
 
 export async function getGmailThread(accessToken: string, threadId: string, fetchFn: FetchFn, requestId: string): Promise<GmailThreadDetail> {

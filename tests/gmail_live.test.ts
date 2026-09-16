@@ -157,7 +157,7 @@ test('search: calls the Gmail threads.list API and returns normalized thread sum
   const { tokenStore, service } = buildHarness(fetchFn);
   tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: FULL_SCOPE_STRING });
   const result = await service.search({ tenantId: 't1', query: 'from:boss', requestId: 'req_1' });
-  assert.deepEqual(result.threads, [{ threadId: 'thread_1', snippet: 'Hi there' }]);
+  assert.deepEqual(result.threads, [{ threadId: 'thread_1', snippet: 'Hi there', historyId: null }]);
 });
 
 test('read thread: calls the Gmail threads.get API and returns normalized messages', async () => {

@@ -211,12 +211,18 @@ export interface FreeBusyInterval {
 }
 
 // Minimal, canonical shape My Space's read-only Calendar summary is allowed
-// to expose to the frontend — never the raw Google API response.
+// to expose to the frontend — never the raw Google API response. status/
+// updated (R10.1) are real Google fields, always present (null when Google
+// didn't return one), added so change detection can tell a moved/cancelled
+// event apart from a merely re-fetched, unchanged one without a second API
+// call or a full-payload diff.
 export interface UpcomingCalendarEvent {
   id: string;
   title: string;
   start: string;
   end: string;
+  status: string | null;
+  updated: string | null;
   source?: string;
 }
 
@@ -258,6 +264,8 @@ export async function listUpcomingCalendarEvents(
       title: typeof item.summary === 'string' && item.summary ? item.summary : '(No title)',
       start: normalizeEventTime(item.start),
       end: normalizeEventTime(item.end),
+      status: typeof item.status === 'string' ? item.status : null,
+      updated: typeof item.updated === 'string' ? item.updated : null,
       source: params.calendarId || 'primary',
     }));
 }

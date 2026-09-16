@@ -19,6 +19,12 @@ export interface DailyBriefScheduleItem {
   end: string;
   capability: string;
   timestamp: string;
+  // R10.1 — real Google Calendar metadata (never derived/guessed), kept
+  // only so a later generation can diff against this one for meaningful
+  // change detection (moved/cancelled) without a second Calendar call or a
+  // full-event diff. Absent on records persisted before R10.1.
+  status?: string | null;
+  updated?: string | null;
 }
 
 export interface DailyBriefEmailItem {
@@ -27,6 +33,9 @@ export interface DailyBriefEmailItem {
   snippet: string;
   capability: string;
   timestamp: string | null;
+  // R10.1 — real Gmail thread metadata, same change-detection purpose as
+  // DailyBriefScheduleItem.status/updated above.
+  historyId?: string | null;
 }
 
 export interface DailyBriefActionItem {
@@ -53,6 +62,12 @@ export interface DailyBriefRecord {
   summary: string | null;
   actionItems: DailyBriefActionItem[];
   requestId: string;
+  // R10.1 — which entry point actually produced this record: the scheduled
+  // Proactive Assistant automation, or a real user action (initial GET/
+  // manual Refresh click). Home's proactive-state line (§3) needs this to
+  // truthfully say "Generated automatically at HH:MM" only when that is
+  // actually true. Optional so records persisted before R10.1 still load.
+  source?: 'SCHEDULED' | 'MANUAL';
 }
 
 export function isDailyBriefRecord(value: unknown): value is DailyBriefRecord {

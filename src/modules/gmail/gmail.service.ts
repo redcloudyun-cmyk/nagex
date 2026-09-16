@@ -171,7 +171,7 @@ export class GmailService {
 
   // ── read-only (no approval) ─────────────────────────────────────────────
 
-  public async search(input: { tenantId: string; query: string; requestId: string }): Promise<{ threads: Array<{ threadId: string; snippet: string }> }> {
+  public async search(input: { tenantId: string; query: string; requestId: string }): Promise<{ threads: Array<{ threadId: string; snippet: string; historyId: string | null }> }> {
     const accessToken = await this.requireAccessToken(input.tenantId, input.requestId, GMAIL_SEARCH_TOOL_ID);
     const threads = await searchGmailThreads(accessToken, input.query, this.fetchFn, input.requestId);
     return { threads };

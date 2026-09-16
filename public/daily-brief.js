@@ -28,12 +28,21 @@
   let historyExpanded = false;
   let historyData = null;
   let refreshInFlight = false; // R9 §2 — client-side duplicate-refresh guard, mirrors the server's own in-flight guard
+  let proactiveConfig = null; // R10.1 §3 — Proactive Assistant config, lazily fetched once per Home visit, same pattern as briefData
+  let proactiveConfigFetched = false;
 
   async function fetchBrief() {
     if (!window.NAGEX.apiFetch) return null;
     const data = await window.NAGEX.apiFetch('/api/v1/daily-brief');
     if (data && !data.error) briefData = data;
     return briefData;
+  }
+
+  async function fetchProactiveConfig() {
+    if (!window.NAGEX.apiFetch) return null;
+    const data = await window.NAGEX.apiFetch('/api/v1/proactive-assistant/config');
+    if (data && !data.error) proactiveConfig = data;
+    return proactiveConfig;
   }
 
   async function refreshBrief() {
@@ -136,6 +145,34 @@
     return html;
   }
 
+  // R10.1 §3 — the Home Proactive Assistant state line. Truthful only:
+  // never shows "Ready" for a failed/partial-and-unusable generation, never
+  // shows "Scheduled"/"Generating" when automation is actually off. Returns
+  // null when there is nothing honest to say (automation off, or no
+  // schedule/brief data yet), in which case the line stays hidden.
+  function buildProactiveState(data, cfg) {
+    if (!cfg || !cfg.enabled) return null;
+    if (cfg.taskStatus === 'RUNNING') {
+      return { text: t('dailyBrief.proactiveGenerating', 'Generating your morning brief…'), cls: 'db-proactive-generating', retry: false };
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    const hasTodayBrief = Boolean(data && data.date === today && data.status !== 'UNAVAILABLE');
+    if (!hasTodayBrief && cfg.lastRunStatus === 'FAILED') {
+      return { text: t('dailyBrief.proactiveFailed', "Morning brief couldn't be generated."), cls: 'db-proactive-failed', retry: true };
+    }
+    if (hasTodayBrief && data.source === 'SCHEDULED') {
+      const time = cfg.localTime || '';
+      const label = data.status === 'PARTIAL'
+        ? `${t('dailyBrief.proactiveReady', 'Generated automatically at')} ${time} — ${t('dailyBrief.proactivePartial', 'partial')}`
+        : `${t('dailyBrief.proactiveReady', 'Generated automatically at')} ${time}`;
+      return { text: label, cls: 'db-proactive-ready', retry: false };
+    }
+    if (cfg.nextRunAt) {
+      return { text: `${t('dailyBrief.proactiveScheduled', 'Next automatic brief at')} ${formatTime(cfg.nextRunAt)}`, cls: 'db-proactive-scheduled', retry: false };
+    }
+    return null;
+  }
+
   function bindCommon(refreshBtnId, historyBtnId) {
     const refreshBtn = document.getElementById(refreshBtnId);
     if (refreshBtn && !refreshBtn.dataset.bound) {
@@ -164,6 +201,26 @@
     if (summaryLine) summaryLine.textContent = buildSummaryLine(data);
     const metaLine = document.getElementById(`${prefix}daily-brief-meta`);
     if (metaLine) metaLine.innerHTML = buildMetaLine(data);
+
+    const proactiveLine = document.getElementById(`${prefix}daily-brief-proactive-state`);
+    if (proactiveLine) {
+      const state = buildProactiveState(data, proactiveConfig);
+      if (!state) {
+        proactiveLine.hidden = true;
+      } else {
+        proactiveLine.hidden = false;
+        proactiveLine.textContent = state.text + (state.retry ? ` — ${t('dailyBrief.proactiveRetry', 'Retry')}` : '');
+        proactiveLine.className = `daily-brief-proactive-line ${state.cls}`;
+        proactiveLine.style.cursor = state.retry ? 'pointer' : '';
+        proactiveLine.dataset.retry = state.retry ? '1' : '';
+        if (state.retry && !proactiveLine.dataset.bound) {
+          proactiveLine.dataset.bound = '1';
+          proactiveLine.addEventListener('click', () => {
+            if (proactiveLine.dataset.retry === '1') refreshBrief();
+          });
+        }
+      }
+    }
 
     const counts = document.getElementById(`${prefix}daily-brief-counts`);
     if (counts) {
@@ -217,9 +274,18 @@
       briefFetched = true;
       await fetchBrief();
     }
+    if (!proactiveConfigFetched) {
+      proactiveConfigFetched = true;
+      await fetchProactiveConfig();
+    }
     renderAll();
   }
 
   window.NAGEX = window.NAGEX || {};
   window.NAGEX.renderDailyBrief = renderDailyBrief;
+  // Exposed purely so tests can exercise the real, unmodified state logic
+  // (no DOM needed — buildProactiveState only reads its two plain-object
+  // arguments plus window.NAGEX_I18N) instead of re-implementing it in the
+  // test file, matching the existing plan-resolution-view.js precedent.
+  window.NAGEX_DAILY_BRIEF_VIEW = { buildProactiveState };
 })();

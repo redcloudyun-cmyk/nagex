@@ -33,13 +33,17 @@ const dailyBriefGenerationInFlight = new Map<string, Promise<GeneratedDailyBrief
 
 // isSourceRefresh only affects which Activity event gets recorded
 // alongside the real started/completed lifecycle events (daily_brief.refreshed) —
-// it never changes what's fetched or generated.
+// it never changes what's fetched or generated. `source` (R10.1) records
+// which real entry point triggered this generation — the scheduled
+// Proactive Assistant automation, or a real user action — purely for
+// truthful Home-UI display (§3); it never changes what's fetched either.
 export async function generateDailyBriefOnce(
   deps: DailyBriefPipelineDeps,
   tenantId: string,
   principalId: string,
   requestId: string,
   isSourceRefresh: boolean,
+  source: 'SCHEDULED' | 'MANUAL' = 'MANUAL',
 ): Promise<GeneratedDailyBrief> {
   const guardKey = `${tenantId}::${principalId}`;
   const today = dailyBriefDateKey();
@@ -77,7 +81,7 @@ export async function generateDailyBriefOnce(
     // message shape is snippet-only (no subject/from/date exist anywhere
     // in this codebase's Gmail integration today), so that is exactly and
     // only what gets shown — never a fabricated subject line.
-    let emails: Array<{ threadId: string; snippet: string }> = [];
+    let emails: Array<{ threadId: string; snippet: string; historyId: string | null }> = [];
     let gmailStatus: 'CONNECTED' | 'DISCONNECTED' | 'ERROR' = 'CONNECTED';
     try {
       const result = await gmailApiService.search({ tenantId, query: 'is:unread newer_than:3d', requestId });
@@ -148,9 +152,9 @@ export async function generateDailyBriefOnce(
       status: briefStatus,
       provider, model: modelName, latencyMs, fallbackOccurred,
       calendarStatus, gmailStatus,
-      schedule: schedule.map((e) => ({ sourceType: 'CALENDAR' as const, sourceId: e.id, title: e.title, start: e.start, end: e.end, capability: 'google_calendar', timestamp: e.start })),
-      emails: emails.map((e) => ({ sourceType: 'GMAIL' as const, sourceId: e.threadId, snippet: e.snippet, capability: 'gmail', timestamp: null as string | null })),
-      summary, actionItems, requestId,
+      schedule: schedule.map((e) => ({ sourceType: 'CALENDAR' as const, sourceId: e.id, title: e.title, start: e.start, end: e.end, capability: 'google_calendar', timestamp: e.start, status: e.status, updated: e.updated })),
+      emails: emails.map((e) => ({ sourceType: 'GMAIL' as const, sourceId: e.threadId, snippet: e.snippet, capability: 'gmail', timestamp: null as string | null, historyId: e.historyId })),
+      summary, actionItems, requestId, source,
     };
   })().finally(() => dailyBriefGenerationInFlight.delete(guardKey));
 

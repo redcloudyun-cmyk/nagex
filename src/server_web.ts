@@ -23,6 +23,7 @@ import { PlanResolver } from './planning/plan-resolver.js';
 import { PersistentActionApprovalStore } from './governance/action-approval.store.js';
 import { dailyBriefDateKey, type DailyBriefRecord } from './governance/daily-brief.store.js';
 import { generateDailyBriefOnce } from './assistant/daily-brief.pipeline.js';
+import { detectMeaningfulChanges, dispatchDetectedChanges } from './assistant/daily-brief-change-detection.js';
 import { ExecutionStore } from './governance/execution.store.js';
 import {
   GoogleCalendarService,
@@ -288,13 +289,18 @@ const DAILY_BRIEF_STALE_MS = 60 * 60 * 1000;
 // exists.
 function serializeProactiveConfig(task: TaskRecord | undefined) {
   if (!task) {
-    return { enabled: false, localTime: null, timezone: null, weekdays: [] as number[], notifyOnComplete: true, nextRunAt: null, lastRunAt: null, lastRunStatus: null };
+    return { enabled: false, localTime: null, timezone: null, weekdays: [] as number[], notifyOnComplete: true, nextRunAt: null, lastRunAt: null, lastRunStatus: null, taskStatus: null as TaskRecord['status'] | null };
   }
   const cronParts = (task.trigger.schedule || '').trim().split(/\s+/);
   const localTime = cronParts.length === 5 ? `${cronParts[1].padStart(2, '0')}:${cronParts[0].padStart(2, '0')}` : null;
   const weekdays = cronParts.length === 5 ? cronParts[4].split(',').map(Number).filter((n) => Number.isInteger(n)) : [];
   return {
-    enabled: task.status === 'ACTIVE',
+    // RUNNING still counts as "the automation is on" (it's mid-run, not
+    // paused) — Home's proactive-state line (§3) uses the separate
+    // `taskStatus` field below to tell "on and idle" apart from "on and
+    // generating right now", rather than this route ever reporting a
+    // currently-executing automation as disabled.
+    enabled: task.status === 'ACTIVE' || task.status === 'RUNNING',
     localTime,
     timezone: task.trigger.timezone ?? null,
     weekdays,
@@ -302,6 +308,7 @@ function serializeProactiveConfig(task: TaskRecord | undefined) {
     nextRunAt: task.nextRunAt,
     lastRunAt: task.lastRunAt,
     lastRunStatus: task.lastRunStatus,
+    taskStatus: task.status,
   };
 }
 
@@ -1928,7 +1935,7 @@ export async function handleAsyncApiRequest(
 
       const generated = await generateDailyBriefOnce(
         { calendarService, gmailApiService, aiService: service, taskStore, activityStore },
-        tenantId, principalId, requestId, isExplicitRefresh,
+        tenantId, principalId, requestId, isExplicitRefresh, 'MANUAL',
       );
 
       // R9 §2 — a failed refresh must never overwrite (or be reported as)
@@ -1939,6 +1946,17 @@ export async function handleAsyncApiRequest(
       const isUsable = generated.status !== 'UNAVAILABLE';
       if (isUsable) {
         dailyBriefStore.save(generated);
+
+        // R10.1 §1/§2 — a real manual refresh is exactly as valid a
+        // change-detection trigger as a scheduled run; `existing` (already
+        // fetched above, pre-overwrite) is the real "last brief" baseline.
+        const newApprovalsSincePrevious = existing
+          ? actionApprovals.listPending(tenantId, principalId, requestId)
+              .filter((a) => a.createdAt > existing.generatedAt)
+              .map((a) => ({ approvalId: a.approvalId, toolId: a.toolId, createdAt: a.createdAt }))
+          : [];
+        const changes = detectMeaningfulChanges({ previous: existing, current: generated, newApprovalsSincePrevious });
+        await dispatchDetectedChanges(notificationEngine, tenantId, principalId, generated.date, changes, requestId);
       }
       const current = isUsable ? generated : (existing ?? generated);
       const approvals = safeListPendingApprovals(tenantId, principalId, requestId);

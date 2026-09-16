@@ -1878,6 +1878,13 @@ body {
 .db-priority-medium { background: #f59e0b; }
 .db-priority-high { background: #ef4444; }
 
+/* ── R10.1 — Daily Brief card: truthful Proactive Assistant state line ── */
+.daily-brief-proactive-line { margin: 0.25rem 0 0; font-size: 0.78rem; font-weight: 500; }
+.db-proactive-generating { color: #2563eb; }
+.db-proactive-ready { color: #059669; }
+.db-proactive-scheduled { color: var(--text-muted); }
+.db-proactive-failed { color: #dc2626; text-decoration: underline; }
+
 /* ── R10 — Proactive Assistant settings panel (shared Desktop+Mobile) ── */
 .pa-toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid var(--border-light); }
 .pa-toggle-row:last-of-type { border-bottom: none; }
