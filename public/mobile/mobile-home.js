@@ -171,6 +171,9 @@
       }
     }
 
+    const workingSection = document.getElementById('mh-section-working');
+    if (workingSection) workingSection.classList.toggle('mh-card-compact', items.length === 0);
+
     const listEl = document.getElementById('mh-working-list');
     if (!listEl) return;
     if (items.length === 0) {
@@ -202,7 +205,7 @@
   // Modify flow, per directive §15's own instruction to use only real
   // supported actions when the mockup's exact action isn't real. ──
   function renderApprovals() {
-    if (!window.NAGEX.getState) return;
+    if (!window.NAGEX.getState) return 0;
     const state = window.NAGEX.getState();
     const pending = (state.approvals || []).filter((a) => a.status === 'PENDING');
     const proposedCandidates = (state.candidates || []).filter((c) => c.status === 'PROPOSED');
@@ -210,6 +213,8 @@
 
     const badge = document.getElementById('mh-approvals-badge');
     const total = pending.length + proposedCandidates.length + needsHumanCaptures.length;
+    const approvalsSection = document.getElementById('mh-section-approvals');
+    if (approvalsSection) approvalsSection.classList.toggle('mh-card-compact', total === 0);
     if (badge) {
       if (total > 0) {
         badge.hidden = false;
@@ -220,7 +225,7 @@
     }
 
     const listEl = document.getElementById('mh-approvals-list');
-    if (!listEl) return;
+    if (!listEl) return total;
 
     const items = [
       ...pending.map((a) => ({ kind: 'approval', data: a })),
@@ -230,7 +235,7 @@
 
     if (items.length === 0) {
       listEl.innerHTML = emptyState(t('home.approvalsEmpty', "No approvals waiting. You're all caught up."));
-      return;
+      return total;
     }
 
     listEl.innerHTML = items.map((entry) => {
@@ -276,6 +281,25 @@
         </div>
       </div>`;
     }).join('');
+    return total;
+  }
+
+  // ── R2 §3 — priority ordering: whenever there is at least one pending
+  // approval, "Needs your approval" must render above "NAgex is working
+  // for you" (an approval-required state is the higher-priority one).
+  // With none pending, the original Working-first order holds. Reorders
+  // the real DOM nodes (not a CSS order hack) so this also holds for
+  // screen-reader/tab order, not just visual position. ──
+  function reorderPriority(approvalTotal) {
+    const scroll = document.getElementById('mobile-view-home');
+    const working = document.getElementById('mh-section-working');
+    const approvals = document.getElementById('mh-section-approvals');
+    if (!scroll || !working || !approvals) return;
+    if (approvalTotal > 0) {
+      if (working.previousElementSibling !== approvals) scroll.insertBefore(approvals, working);
+    } else if (approvals.previousElementSibling !== working) {
+      scroll.insertBefore(working, approvals);
+    }
   }
 
   // ── G. Today — real GET /api/v1/my-space (calendar/calendarStatus) +
@@ -476,7 +500,8 @@
     initLangToggle();
     renderHeader();
     renderTaskBannerAndWorking();
-    renderApprovals();
+    const approvalTotal = renderApprovals();
+    reorderPriority(approvalTotal || 0);
     renderToday();
     renderDoneForYou();
   }
