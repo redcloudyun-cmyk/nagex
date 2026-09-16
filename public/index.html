@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="style.css?v=__NAGEX_BUILD_VERSION__">
   <link rel="stylesheet" href="desktop/desktop-home.css?v=__NAGEX_BUILD_VERSION__">
   <link rel="stylesheet" href="mobile/mobile-home.css?v=__NAGEX_BUILD_VERSION__">
+  <link rel="stylesheet" href="mobile/mobile-inbox.css?v=__NAGEX_BUILD_VERSION__">
 </head>
 <body>
   <div class="app-wrapper">
@@ -1200,7 +1201,12 @@
        (window.NAGEX.getState()/apiFetch) by mobile-home.js — nothing
        here is mockup sample content. ════════════════════════════════ -->
   <div id="mobile-app-shell" class="mobile-app-shell" hidden>
-    <div class="mh-scroll">
+    <!-- UI-5 R2 — #mobile-app-shell is now the shared Mobile Native shell,
+         not a Home-only structure. mobile-home.js's updateShellVisibility()
+         is the single place that decides which one native view (if any) is
+         shown; #mobile-view-home and #mobile-view-inbox are mutually
+         exclusive via their own [hidden] attribute, never both visible. -->
+    <div id="mobile-view-home" class="mh-scroll">
 
       <!-- A. Compact Header -->
       <header class="mh-header">
@@ -1336,6 +1342,40 @@
       <div class="mh-bottom-spacer" aria-hidden="true"></div>
     </div>
 
+    <!-- Mobile Inbox native view (UI-5 R2). Real GET /api/v1/workspace/inbox
+         + GET /api/v1/candidates only — see mobile/mobile-inbox.js. Mutually
+         exclusive with #mobile-view-home via [hidden], both managed only by
+         mobile-home.js's updateShellVisibility(). -->
+    <div id="mobile-view-inbox" class="mh-scroll" hidden>
+      <header class="mh-header">
+        <div class="mh-brand">
+          <span class="mh-inbox-title" data-i18n="mobileInbox.title">Inbox</span>
+          <span class="nagex-badge nagex-badge-attention" id="mh-inbox-count-badge" hidden>0</span>
+        </div>
+        <div class="mh-header-right">
+          <button class="mh-lang-toggle" id="mh-inbox-lang-toggle" data-i18n-lang-toggle title="Switch language" data-i18n-title="header.switchLanguage">KR</button>
+        </div>
+      </header>
+
+      <!-- Real, working filter (unlike Desktop's dead .filter-pill row) —
+           client-side only, filters the already-fetched dataset, no refetch. -->
+      <div class="mh-inbox-filter-row" id="mh-inbox-filter-row">
+        <button class="mh-filter-pill active" data-mh-filter="ALL" data-i18n="mobileInbox.filterAll">All</button>
+        <button class="mh-filter-pill" data-mh-filter="NEEDS_REVIEW" data-i18n="mobileInbox.filterNeedsReview">Needs Review</button>
+        <button class="mh-filter-pill" data-mh-filter="READY" data-i18n="mobileInbox.filterReady">Ready</button>
+        <button class="mh-filter-pill" data-mh-filter="PROCESSING" data-i18n="mobileInbox.filterProcessing">Processing</button>
+      </div>
+
+      <div id="mh-inbox-items-list"><div class="nagex-loading-row"></div></div>
+
+      <div class="mh-section-heading-row">
+        <h2 data-i18n="workspace.candidatesTitle">Suggested (Candidates)</h2>
+      </div>
+      <div id="mh-inbox-candidates-list"></div>
+
+      <div class="mh-bottom-spacer" aria-hidden="true"></div>
+    </div>
+
     <!-- Fixed Bottom Navigation — exactly 5 canonical items (MASTER.md
          §14.12); My Space stays a contextual entry inside Today's card
          above, never a 6th item (directive §18/31). data-tab lets
@@ -1379,5 +1419,6 @@
   <script src="app.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="desktop/desktop-home.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="mobile/mobile-home.js?v=__NAGEX_BUILD_VERSION__"></script>
+  <script src="mobile/mobile-inbox.js?v=__NAGEX_BUILD_VERSION__"></script>
 </body>
 </html>

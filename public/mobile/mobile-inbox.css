@@ -1,0 +1,186 @@
+/*
+ * NAgex Mobile Inbox (UI-5 R2) — layout/visual layer only.
+ *
+ * Scoped entirely under #mobile-view-inbox. Reuses Mobile Home's existing
+ * visual language directly (color/spacing/radius/shadow/typography/button
+ * classes: .mh-header, .mh-header-right, .mh-lang-toggle, .mh-row*,
+ * .mh-approval-actions, .mh-btn-approve, .mh-btn-review, .nagex-badge-*)
+ * from mobile-home.css/shared tokens.css — never a second design system.
+ * Only genuinely new selectors (filter row, capture card meta row,
+ * candidate edit form, resolved-toggle) are defined here, per the R2
+ * directive's instruction not to keep accumulating Inbox-specific rules
+ * inside mobile-home.css.
+ */
+
+#mobile-view-inbox .mh-header {
+  padding-bottom: var(--nagex-spacing-2);
+}
+.mh-inbox-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--nagex-text-primary);
+}
+#mobile-view-inbox .mh-brand {
+  align-items: center;
+  gap: 8px;
+}
+#mobile-view-inbox #mh-inbox-count-badge {
+  position: relative;
+  top: -1px;
+}
+
+/* ── Real filter row (client-side only — see mobile-inbox.js) ──────── */
+.mh-inbox-filter-row {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 4px 0 var(--nagex-spacing-3);
+  scrollbar-width: none;
+}
+.mh-inbox-filter-row::-webkit-scrollbar { display: none; }
+.mh-filter-pill {
+  flex-shrink: 0;
+  background: #ffffff;
+  border: 1px solid var(--nagex-border-default);
+  border-radius: var(--nagex-radius-pill);
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--nagex-text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.mh-filter-pill.active {
+  background: var(--nagex-accent-primary);
+  border-color: var(--nagex-accent-primary);
+  color: #ffffff;
+}
+
+/* ── Capture cards ───────────────────────────────────────────────── */
+.mh-inbox-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  background: #ffffff;
+  border: 1px solid var(--nagex-border-subtle);
+  border-radius: var(--nagex-radius-md);
+  box-shadow: var(--nagex-shadow-card);
+  margin-bottom: var(--nagex-spacing-3);
+}
+.mh-inbox-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.mh-inbox-timestamp {
+  font-size: 10.5px;
+  color: var(--nagex-text-muted);
+}
+.mh-inbox-card-action {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+.mh-inbox-action-btn {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--nagex-accent-primary);
+  background: var(--nagex-accent-soft);
+  border: none;
+  border-radius: 7px;
+  padding: 6px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.mh-inbox-action-note {
+  font-size: 11.5px;
+  color: var(--nagex-text-muted);
+}
+.mh-inbox-action-note-danger {
+  color: var(--nagex-danger);
+}
+
+/* ── Section heading (Suggested / Candidates) ───────────────────── */
+.mh-section-heading-row {
+  margin: var(--nagex-spacing-2) 0 var(--nagex-spacing-2);
+}
+.mh-section-heading-row h2 {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--nagex-text-primary);
+}
+
+/* ── Candidate queue cards ──────────────────────────────────────── */
+.mh-inbox-candidate-card {
+  background: #ffffff;
+  border: 1px solid var(--nagex-border-subtle);
+  border-radius: var(--nagex-radius-md);
+  box-shadow: var(--nagex-shadow-card);
+  padding: 12px;
+  margin-bottom: var(--nagex-spacing-3);
+}
+.mh-inbox-candidate-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.mh-btn-reject {
+  flex: 1;
+  min-height: 36px;
+  border-radius: 9px;
+  border: 1px solid #fecaca;
+  background: #ffffff;
+  color: var(--nagex-danger);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.mh-btn-reject:active { background: #fef2f2; }
+.mh-inbox-resolved-toggle {
+  display: block;
+  margin-bottom: var(--nagex-spacing-2);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--nagex-text-secondary);
+  background: var(--nagex-surface-subtle);
+  border: none;
+  border-radius: 7px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+/* ── Modify (edit) form — no field additions, mobile-friendly stacked
+   layout only, no horizontal overflow at any mockup breakpoint ──────── */
+.mh-inbox-candidate-edit .mh-cand-edit-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0;
+}
+.mh-cand-edit-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--nagex-text-secondary);
+}
+.mh-cand-edit-input {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 13px;
+  font-family: var(--font-sans);
+  padding: 8px 10px;
+  border: 1px solid var(--nagex-border-default);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--nagex-text-primary);
+}
+textarea.mh-cand-edit-input {
+  resize: vertical;
+  min-height: 52px;
+}

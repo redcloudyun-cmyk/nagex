@@ -32,20 +32,33 @@
   }
 
   // ── Shell visibility — the one place viewport + activeTab are both
-  // checked together (directive §4/28: never viewport alone). ──
+  // checked together (directive §4/28: never viewport alone). UI-5 R2:
+  // #mobile-app-shell is now the shared Mobile Native shell (not a
+  // Home-only structure) — MOBILE_NATIVE_TABS is the single source of
+  // truth for which tabs have a native view. Adding Activity/Vault/
+  // Settings in R3-R5 means adding their tab id here + a view element +
+  // a dispatch branch below, nothing else in the shell-visibility
+  // contract changes. ──
+  const MOBILE_NATIVE_TABS = new Set(['tab-home', 'tab-inbox']);
+
   function isMobileViewport() {
     return Boolean(mq && mq.matches);
   }
 
-  function isHomeActive() {
-    return Boolean(window.NAGEX.getState && window.NAGEX.getState().activeTab === 'tab-home');
+  // Returns the active tab id only when it both is a real tab AND has a
+  // native mobile view — null otherwise (covers "not mobile viewport" by
+  // being checked alongside isMobileViewport() at the one call site).
+  function activeNativeTab() {
+    const tab = window.NAGEX.getState && window.NAGEX.getState().activeTab;
+    return tab && MOBILE_NATIVE_TABS.has(tab) ? tab : null;
   }
 
   function updateShellVisibility() {
     const shell = document.getElementById('mobile-app-shell');
     const desktopWrapper = document.querySelector('.app-wrapper');
     if (!shell) return;
-    const showMobileShell = isMobileViewport() && isHomeActive();
+    const nativeTab = isMobileViewport() ? activeNativeTab() : null;
+    const showMobileShell = Boolean(nativeTab);
 
     shell.hidden = !showMobileShell;
     if (desktopWrapper) {
@@ -67,7 +80,19 @@
       floatingQuickWake.style.display = showMobileShell ? 'none' : '';
     }
 
-    if (showMobileShell) renderMobileHome();
+    // Mutually exclusive native views — exactly one [hidden=false] (or
+    // none, when the shell itself is hidden) at any time. R3-R5 add one
+    // more `viewX.hidden = nativeTab !== 'tab-x'` line each, same pattern.
+    const viewHome = document.getElementById('mobile-view-home');
+    const viewInbox = document.getElementById('mobile-view-inbox');
+    if (viewHome) viewHome.hidden = nativeTab !== 'tab-home';
+    if (viewInbox) viewInbox.hidden = nativeTab !== 'tab-inbox';
+
+    if (nativeTab === 'tab-home') {
+      renderMobileHome();
+    } else if (nativeTab === 'tab-inbox' && typeof window.NAGEX.renderMobileInbox === 'function') {
+      window.NAGEX.renderMobileInbox();
+    }
   }
 
   // ── Header ── real time-of-day greeting (no fabricated name/photo),
@@ -338,11 +363,15 @@
   // button's own label included, via i18n.js's own generic
   // [data-i18n-lang-toggle] handling — no mobile-specific text logic
   // needed here). The extra switchTab() call re-runs the real render
-  // pipeline for this tab so JS-templated lists (approvals/working/today)
-  // pick up the new locale too, exactly mirroring what Desktop's own lang
-  // button handler already does with renderActiveTab(). ──
-  function initLangToggle() {
-    const btn = document.getElementById('mh-lang-toggle');
+  // pipeline for this tab so JS-templated lists (approvals/working/today,
+  // and — since R2 — the Inbox lists) pick up the new locale too, exactly
+  // mirroring what Desktop's own lang button handler already does with
+  // renderActiveTab(). UI-5 R2: generalized to accept any button id so
+  // both #mh-lang-toggle (Home) and #mh-inbox-lang-toggle (Inbox) — one
+  // per native view's own header, since only one view is ever visible at
+  // a time — share this one real implementation. ──
+  function bindLangToggle(btnId) {
+    const btn = document.getElementById(btnId);
     if (!btn || btn.dataset.bound) return;
     btn.dataset.bound = '1';
     btn.addEventListener('click', () => {
@@ -350,6 +379,10 @@
       window.NAGEX_I18N.toggleLocale();
       window.NAGEX.switchTab(window.NAGEX.getState().activeTab);
     });
+  }
+
+  function initLangToggle() {
+    bindLangToggle('mh-lang-toggle');
   }
 
   // ── B. Command bar — reuses window.NAGEX.submitPrompt, the exact same
@@ -441,8 +474,12 @@
     // Own hook name (never window.NAGEX.onHomeRender — that belongs to
     // desktop-home.js; a shared name would make whichever script loads
     // last silently overwrite the other's registration).
-    window.NAGEX.onHomeRenderMobile = () => { if (isMobileViewport() && isHomeActive()) renderMobileHome(); };
+    window.NAGEX.onHomeRenderMobile = () => { if (isMobileViewport() && activeNativeTab() === 'tab-home') renderMobileHome(); };
     window.NAGEX.onTabChange = updateShellVisibility;
+    // Shared real implementation other mobile-native view modules (e.g.
+    // mobile-inbox.js) reuse for their own view-local lang-toggle button,
+    // rather than each reimplementing the same window.NAGEX_I18N wiring.
+    window.NAGEX.bindMobileLangToggle = bindLangToggle;
     if (mq) {
       if (mq.addEventListener) mq.addEventListener('change', updateShellVisibility);
       else if (mq.addListener) mq.addListener(updateShellVisibility); // Safari <14 fallback

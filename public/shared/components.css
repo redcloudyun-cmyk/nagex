@@ -88,6 +88,16 @@
   border-radius: var(--nagex-radius-pill);
   line-height: 1.4;
 }
+/* Real bug fixed during UI-5 R2 QA: this rule's own `display: inline-flex`
+   was overriding the browser's default `[hidden]{display:none}` UA rule,
+   so any .nagex-badge toggled via the `hidden` property/attribute stayed
+   visible at count 0 — affecting every existing zero-count badge use
+   (Home's #approvals-count-badge, Mobile Home's #mh-approvals-badge), not
+   just Mobile Inbox's new one. Restores real hidden semantics everywhere
+   this class is used; changes no other visual state. */
+.nagex-badge[hidden] {
+  display: none;
+}
 /* Maps the real ActivityStatus/ApprovalStatus enums directly — never an
    arbitrary color choice per call site. */
 .nagex-badge-running   { background: var(--nagex-accent-soft); color: var(--nagex-accent-primary); }
