@@ -68,6 +68,17 @@
   // flight, regardless of which control tried to start it.
   const ambientRunGuard = window.NAGEX_SINGLE_FLIGHT ? window.NAGEX_SINGLE_FLIGHT.createSingleFlightGuard() : null;
 
+  // UI-5 R5 — per-approval-id re-entrancy guard: handleApprovalAction() had
+  // no client-side protection against a rapid double-tap (very plausible on
+  // a touchscreen) firing the same POST /api/v1/approvals/:id/action twice
+  // concurrently. The backend already fails the second request closed
+  // (APPROVAL_ALREADY_CONSUMED — see approval_ttl_security.test.ts), so
+  // nothing was ever double-executed, but the UI itself gave no busy
+  // feedback and could fire redundant network calls. Keyed by approval id
+  // (not a single global flag) since approving two different pending items
+  // concurrently is legitimate and must not block each other.
+  const inFlightApprovalIds = new Set();
+
   // Bound on POST /api/v1/ambient/intent specifically — grounded in the
   // real, evidence-backed worst case, not a guess: UnifiedModelRouter.
   // generate() (src/model-gateway/unified-model-router.ts) retries through
@@ -625,9 +636,9 @@
                 <span class="inbox-item-summary">${escapeHtml(a.resource?.id || 'Action Approval')}</span>
               </div>
               <div class="contextual-appr-btns" style="display: flex; gap: 0.35rem; margin-top: 0.25rem;">
-                <button class="btn-primary" style="font-size:0.75rem; padding:0.25rem 0.6rem;" onclick="window.NAGEX.handleApprovalAction('${a.id || a.approvalId}', 'APPROVE')">Approve</button>
+                <button class="btn-primary" style="font-size:0.75rem; padding:0.25rem 0.6rem;" onclick="window.NAGEX.handleApprovalAction('${a.id || a.approvalId}', 'APPROVE', event)">Approve</button>
                 <button class="btn-secondary" style="font-size:0.75rem; padding:0.25rem 0.6rem;" onclick="window.NAGEX.switchTab('tab-approvals')">Review</button>
-                <button class="btn-secondary danger" style="font-size:0.75rem; padding:0.25rem 0.6rem;" onclick="window.NAGEX.handleApprovalAction('${a.id || a.approvalId}', 'REJECT')">Reject</button>
+                <button class="btn-secondary danger" style="font-size:0.75rem; padding:0.25rem 0.6rem;" onclick="window.NAGEX.handleApprovalAction('${a.id || a.approvalId}', 'REJECT', event)">Reject</button>
               </div>
             </div>`;
           }
@@ -1589,8 +1600,8 @@
           a.status === 'PENDING'
             ? `
           <div class="card-footer-actions" style="margin-top:0.75rem;">
-            <button class="btn-small danger" onclick="window.NAGEX.handleApprovalAction('${a.id || a.approvalId}', 'REJECT')">Reject</button>
-            <button class="btn-primary" style="font-size:0.75rem; padding:0.25rem 0.6rem;" onclick="window.NAGEX.handleApprovalAction('${a.id || a.approvalId}', 'APPROVE')">Approve</button>
+            <button class="btn-small danger" onclick="window.NAGEX.handleApprovalAction('${a.id || a.approvalId}', 'REJECT', event)">Reject</button>
+            <button class="btn-primary" style="font-size:0.75rem; padding:0.25rem 0.6rem;" onclick="window.NAGEX.handleApprovalAction('${a.id || a.approvalId}', 'APPROVE', event)">Approve</button>
           </div>`
             : ''
         }
@@ -1898,20 +1909,6 @@
       });
     }
 
-    const btnModalApprove = document.getElementById('btn-modal-approve');
-    const btnModalReject = document.getElementById('btn-modal-reject');
-    if (btnModalApprove) {
-      btnModalApprove.onclick = async () => {
-        closeApprovalModal();
-        closeAmbientOverlay();
-      };
-    }
-    if (btnModalReject) {
-      btnModalReject.onclick = () => {
-        closeApprovalModal();
-        alert('Action execution rejected by user.');
-      };
-    }
   }
 
   // Shared by the send button and Enter keydown: reads the composer's
@@ -2012,26 +2009,6 @@
       ambientModalTriggerElement.focus();
     }
     ambientModalTriggerElement = null;
-  }
-
-  function openApprovalModal(appr) {
-    const backdrop = document.getElementById('approval-modal-backdrop');
-    const elAction = document.getElementById('appr-field-action');
-    const elRecip = document.getElementById('appr-field-recipient');
-    const elSubj = document.getElementById('appr-field-subject');
-    const elWhy = document.getElementById('appr-field-why');
-
-    if (elAction) elAction.textContent = appr.action;
-    if (elRecip) elRecip.textContent = appr.recipient;
-    if (elSubj) elSubj.textContent = appr.subject;
-    if (elWhy) elWhy.textContent = appr.why;
-
-    if (backdrop) backdrop.style.display = 'flex';
-  }
-
-  function closeApprovalModal() {
-    const backdrop = document.getElementById('approval-modal-backdrop');
-    if (backdrop) backdrop.style.display = 'none';
   }
 
   // Disables every real trigger surface for the duration of a generation —
@@ -3115,16 +3092,34 @@
     // manual page reload should be required after the same UI action"
     // holds for the whole approve -> execute -> Home/Inbox/Activity chain,
     // not just the approval record itself.
-    handleApprovalAction: async (id, action) => {
-      await apiFetch(`/api/v1/approvals/${id}/action`, {
-        method: 'POST',
-        body: JSON.stringify({ action }),
-      });
-      const linkedCandidate = (state.candidates || []).find((c) => c.action && c.action.approvalId === id);
-      if (linkedCandidate) {
-        await apiFetch(`/api/v1/candidates/${linkedCandidate.candidateId}/execute`, { method: 'POST', body: JSON.stringify({}) });
+    handleApprovalAction: async (id, action, sourceEvent) => {
+      // Exactly-once guard (UI-5 R5 §4): ignore a second APPROVE/REJECT for
+      // the same approval id while the first is still in flight, rather
+      // than relying solely on the backend's replay protection to absorb a
+      // redundant request.
+      if (inFlightApprovalIds.has(id)) return;
+      inFlightApprovalIds.add(id);
+      const btn = sourceEvent && sourceEvent.currentTarget;
+      if (btn) btn.disabled = true;
+      try {
+        await apiFetch(`/api/v1/approvals/${id}/action`, {
+          method: 'POST',
+          body: JSON.stringify({ action }),
+        });
+        const linkedCandidate = (state.candidates || []).find((c) => c.action && c.action.approvalId === id);
+        if (linkedCandidate) {
+          await apiFetch(`/api/v1/candidates/${linkedCandidate.candidateId}/execute`, { method: 'POST', body: JSON.stringify({}) });
+        }
+        await loadAllData();
+      } finally {
+        // loadAllData() above re-renders every approval list from fresh
+        // markup on success, which already clears any disabled state — this
+        // only matters as the recovery path if something above throws, so a
+        // failure never leaves the id permanently un-retryable or the
+        // original button permanently disabled.
+        inFlightApprovalIds.delete(id);
+        if (btn && document.contains(btn)) btn.disabled = false;
       }
-      await loadAllData();
     },
     // Real DC3-B2-era Task cancellation — the same POST /api/v1/tasks/:id/cancel
     // a running Task's own control surface uses. Never a local-only UI

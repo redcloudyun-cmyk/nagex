@@ -1128,6 +1128,11 @@ body {
 .btn-small:hover { background: var(--bg-hover); }
 .btn-small.danger { border-color: #fecaca; background: #fef2f2; color: #b91c1c; }
 .btn-small:disabled { opacity: 0.6; cursor: default; }
+/* UI-5 R5 §4/§5 — visible busy state for the Approve/Reject buttons while
+   handleApprovalAction()'s own in-flight guard has them disabled; .btn-small
+   already had this above, .btn-primary/.btn-secondary (used inline by the
+   same Approve/Reject call sites) did not. */
+.btn-primary:disabled, .btn-secondary:disabled { opacity: 0.6; cursor: default; }
 .tool-oauth-actions { margin-top: 0.6rem; }
 .btn-primary-blue-sm { font-size: 0.78rem; padding: 0.3rem 0.75rem; background: var(--primary-blue); color: #fff; border: none; border-radius: 6px; cursor: pointer; }
 
@@ -1485,6 +1490,11 @@ body {
   .ambient-close-btn { width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
   .btn-ambient-footer-close { min-height: 44px; }
   .ambient-esc-hint { display: none; }
+  /* R5 §8 — this sheet reaches the true bottom edge of the viewport on
+     mobile (align-items:flex-end above), so its footer needs real
+     safe-area padding or the Close button sits under a home-indicator/
+     gesture-bar area on notched devices. */
+  .ambient-sheet-footer { padding-bottom: calc(0.7rem + env(safe-area-inset-bottom, 0px)); }
 }
 
 /* Public Legal Pages (Privacy / Terms) */

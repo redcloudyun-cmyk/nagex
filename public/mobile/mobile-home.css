@@ -502,6 +502,9 @@
   cursor: pointer;
 }
 .mh-btn-approve:active { background: var(--nagex-accent-hover); }
+/* R5 §4/§5 — visible busy state while handleApprovalAction()'s in-flight
+   guard has this button disabled (rapid double-tap protection). */
+.mh-btn-approve:disabled { opacity: 0.55; cursor: default; }
 .mh-btn-review {
   flex: 1;
   min-height: 34px;

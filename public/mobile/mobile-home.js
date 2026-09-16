@@ -251,7 +251,7 @@
             <div class="mh-row-title">${escapeHtml(title)}</div>
             <div class="mh-row-detail">${escapeHtml(detail)}</div>
             <div class="mh-approval-actions">
-              <button class="mh-btn-approve" onclick="window.NAGEX.handleApprovalAction('${a.id || a.approvalId}', 'APPROVE')">${escapeHtml(t('ambient.approve', 'Approve'))}</button>
+              <button class="mh-btn-approve" onclick="window.NAGEX.handleApprovalAction('${a.id || a.approvalId}', 'APPROVE', event)">${escapeHtml(t('ambient.approve', 'Approve'))}</button>
               <button class="mh-btn-review" onclick="window.NAGEX.switchTab('tab-approvals')">${escapeHtml(t('home.reviewAction', 'Review'))}</button>
             </div>
           </div>
