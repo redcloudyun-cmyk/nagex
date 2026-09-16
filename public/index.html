@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="mobile/mobile-inbox.css?v=__NAGEX_BUILD_VERSION__">
   <link rel="stylesheet" href="mobile/mobile-activity.css?v=__NAGEX_BUILD_VERSION__">
   <link rel="stylesheet" href="mobile/mobile-vault.css?v=__NAGEX_BUILD_VERSION__">
+  <link rel="stylesheet" href="mobile/mobile-settings.css?v=__NAGEX_BUILD_VERSION__">
 </head>
 <body>
   <div class="app-wrapper">
@@ -1458,6 +1459,75 @@
       <div class="mh-bottom-spacer" aria-hidden="true"></div>
     </div>
 
+    <!-- Mobile Settings native view (UI-5 R5 — final native view;
+         MOBILE_NATIVE_TABS now covers all 5 canonical tabs). Real
+         state.quickWakeConfig/state.autonomyConfig/state.googleOAuth only
+         — see mobile/mobile-settings.js. No Model Gateway mock, no Dark
+         Mode, no notification prefs, no security/model-picker UI (none of
+         those are real anywhere in this app — see the R5 preflight).
+         Memory/Automations/Advanced are real navigation links that fall
+         through to the legacy responsive tree (those tabs have no native
+         view yet) — this is expected, not a bug. Mutually exclusive with
+         the other native views via [hidden], all managed only by
+         mobile-home.js's updateShellVisibility(). -->
+    <div id="mobile-view-settings" class="mh-scroll" hidden>
+      <header class="mh-header">
+        <div class="mh-brand">
+          <span class="mh-settings-title" data-i18n="nav.settings">Settings</span>
+        </div>
+        <div class="mh-header-right">
+          <button class="mh-lang-toggle" id="mh-settings-lang-toggle" data-i18n-lang-toggle title="Switch language" data-i18n-title="header.switchLanguage">KR</button>
+        </div>
+      </header>
+
+      <div class="mh-settings-section-heading" data-i18n="mobileSettings.sectionPreferences">Preferences</div>
+      <section class="mh-settings-card">
+        <h3 class="mh-settings-card-title" data-i18n="settings.quickWake">Quick Wake Invocation</h3>
+        <div id="mh-quickwake-list"></div>
+      </section>
+      <section class="mh-settings-card">
+        <h3 class="mh-settings-card-title" data-i18n="settings.autonomy">Autonomy Level</h3>
+        <div id="mh-autonomy-list"></div>
+      </section>
+
+      <div class="mh-settings-section-heading" data-i18n="mobileSettings.sectionConnections">Connections</div>
+      <section class="mh-settings-card">
+        <div id="mh-connections-row"></div>
+      </section>
+
+      <div class="mh-settings-section-heading" data-i18n="mobileSettings.sectionMore">More</div>
+      <section class="mh-settings-card mh-settings-nav-card">
+        <button class="mh-settings-nav-row" onclick="window.NAGEX.switchTab('tab-memory')">
+          <span class="mh-settings-nav-title" data-i18n="settings.memory">Memory</span>
+          <svg class="mh-settings-nav-chevron" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+        </button>
+        <button class="mh-settings-nav-row" onclick="window.NAGEX.switchTab('tab-tasks')">
+          <span class="mh-settings-nav-title" data-i18n="settings.automations">Automations</span>
+          <svg class="mh-settings-nav-chevron" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+        </button>
+        <button class="mh-settings-advanced-toggle" id="mh-settings-advanced-toggle" aria-expanded="false" aria-controls="mh-settings-advanced-list">
+          <span class="mh-settings-nav-title" data-i18n="settings.advanced">Advanced</span>
+          <svg class="mh-settings-nav-chevron mh-settings-advanced-caret" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+        </button>
+        <div class="mh-settings-advanced-list" id="mh-settings-advanced-list" hidden>
+          <button class="mh-settings-nav-row mh-settings-nav-row-indent" onclick="window.NAGEX.switchTab('tab-knowledge')">
+            <span class="mh-settings-nav-title" data-i18n="settings.knowledge">Knowledge</span>
+          </button>
+          <button class="mh-settings-nav-row mh-settings-nav-row-indent" onclick="window.NAGEX.switchTab('tab-approvals')">
+            <span class="mh-settings-nav-title" data-i18n="settings.approvals">Approvals</span>
+          </button>
+          <button class="mh-settings-nav-row mh-settings-nav-row-indent" onclick="window.NAGEX.switchTab('tab-skills')">
+            <span class="mh-settings-nav-title" data-i18n="settings.skills">Skills</span>
+          </button>
+          <button class="mh-settings-nav-row mh-settings-nav-row-indent" onclick="window.NAGEX.switchTab('tab-tools')">
+            <span class="mh-settings-nav-title" data-i18n="settings.tools">Tools</span>
+          </button>
+        </div>
+      </section>
+
+      <div class="mh-bottom-spacer" aria-hidden="true"></div>
+    </div>
+
     <!-- Fixed Bottom Navigation — exactly 5 canonical items (MASTER.md
          §14.12); My Space stays a contextual entry inside Today's card
          above, never a 6th item (directive §18/31). data-tab lets
@@ -1504,5 +1574,6 @@
   <script src="mobile/mobile-inbox.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="mobile/mobile-activity.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="mobile/mobile-vault.js?v=__NAGEX_BUILD_VERSION__"></script>
+  <script src="mobile/mobile-settings.js?v=__NAGEX_BUILD_VERSION__"></script>
 </body>
 </html>

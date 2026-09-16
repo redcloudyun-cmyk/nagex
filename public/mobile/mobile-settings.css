@@ -1,0 +1,204 @@
+/*
+ * NAgex Mobile Settings (UI-5 R5) — layout/visual layer only.
+ *
+ * Scoped entirely under #mobile-view-settings. Reuses shared mobile chrome
+ * directly from mobile-home.css (.mh-header, .mh-header-right,
+ * .mh-lang-toggle, .mh-scroll, .mh-bottom-spacer, .mh-row-detail) and
+ * shared/components.css (.nagex-badge-*, .nagex-empty-state) — never a
+ * second design system. Deliberately does NOT reuse mobile-inbox.css's/
+ * mobile-activity.css's/mobile-vault.css's own named classes even where
+ * visually similar — this file defines its own .mh-settings-* equivalents
+ * so Settings never depends on any of those files being loaded, and none
+ * of them accumulate Settings-specific selectors (same isolation
+ * discipline as R3/R4).
+ */
+
+.mh-settings-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--nagex-text-primary);
+}
+#mobile-view-settings .mh-brand {
+  align-items: center;
+  gap: 8px;
+}
+
+.mh-settings-section-heading {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--nagex-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin: var(--nagex-spacing-4) 0 var(--nagex-spacing-2);
+}
+.mh-settings-section-heading:first-of-type {
+  margin-top: var(--nagex-spacing-2);
+}
+
+.mh-settings-card {
+  background: #ffffff;
+  border: 1px solid var(--nagex-border-subtle);
+  border-radius: var(--nagex-radius-md);
+  box-shadow: var(--nagex-shadow-card);
+  padding: 12px;
+  margin-bottom: var(--nagex-spacing-3);
+}
+.mh-settings-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--nagex-text-primary);
+  margin-bottom: 8px;
+}
+
+/* ── Setting rows (Quick Wake, Connections) ─────────────────────── */
+.mh-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--nagex-border-subtle);
+}
+.mh-settings-row:last-child { border-bottom: none; }
+.mh-settings-row-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.mh-settings-row-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--nagex-text-primary);
+}
+.mh-settings-tag {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--nagex-text-muted);
+  background: var(--nagex-surface-subtle);
+  border-radius: var(--nagex-radius-pill);
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+/* ── Toggle switch (Quick Wake) ─────────────────────────────────── */
+.mh-toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 24px;
+  flex-shrink: 0;
+}
+.mh-toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.mh-toggle-slider {
+  position: absolute;
+  inset: 0;
+  background: var(--nagex-border-default);
+  border-radius: var(--nagex-radius-pill);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.mh-toggle-slider::before {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  left: 3px;
+  top: 3px;
+  background: #ffffff;
+  border-radius: 50%;
+  transition: transform 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+.mh-toggle-switch input:checked + .mh-toggle-slider {
+  background: var(--nagex-accent-primary);
+}
+.mh-toggle-switch input:checked + .mh-toggle-slider::before {
+  transform: translateX(16px);
+}
+
+/* ── Autonomy cards ──────────────────────────────────────────────── */
+.mh-autonomy-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  text-align: left;
+  background: #ffffff;
+  border: 1px solid var(--nagex-border-default);
+  border-radius: var(--nagex-radius-md);
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+.mh-autonomy-card:last-child { margin-bottom: 0; }
+.mh-autonomy-card.selected {
+  border-color: var(--nagex-accent-primary);
+  background: var(--nagex-accent-soft);
+}
+
+/* ── Action button (Connections) ────────────────────────────────── */
+.mh-settings-action-btn {
+  flex-shrink: 0;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--nagex-accent-primary);
+  background: var(--nagex-accent-soft);
+  border: none;
+  border-radius: 7px;
+  padding: 7px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.mh-settings-action-btn:disabled {
+  color: var(--nagex-text-muted);
+  background: var(--nagex-surface-subtle);
+  cursor: default;
+}
+
+/* ── Navigation rows (Memory/Automations/Advanced) ──────────────── */
+.mh-settings-nav-card {
+  padding: 4px 12px;
+}
+.mh-settings-nav-row,
+.mh-settings-advanced-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--nagex-border-subtle);
+  padding: 12px 0;
+  cursor: pointer;
+  text-align: left;
+}
+.mh-settings-nav-card > *:last-child,
+.mh-settings-nav-card .mh-settings-advanced-list > *:last-child {
+  border-bottom: none;
+}
+.mh-settings-nav-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--nagex-text-primary);
+}
+.mh-settings-nav-chevron {
+  width: 16px;
+  height: 16px;
+  fill: var(--nagex-text-muted);
+  flex-shrink: 0;
+}
+.mh-settings-advanced-caret {
+  transition: transform 0.15s ease;
+}
+.mh-settings-advanced-open .mh-settings-advanced-caret {
+  transform: rotate(90deg);
+}
+.mh-settings-nav-row-indent {
+  padding-left: 14px;
+}

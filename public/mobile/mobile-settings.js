@@ -1,0 +1,196 @@
+// NAgex Mobile Settings (UI-5 R5) — the fifth and final native view inside
+// the shared #mobile-app-shell (see mobile-home.js's updateShellVisibility(),
+// the ONLY place deciding when #mobile-view-settings is shown). Never
+// rendered while hidden — mobile-home.js only calls
+// window.NAGEX.renderMobileSettings() when the active tab really is
+// 'tab-settings' on a real mobile viewport.
+//
+// Exactly the real settings that exist today (verified in the R5
+// preflight, not assumed): Quick Wake (5 real toggles), Autonomy Level (4
+// real options), Google Calendar & Gmail connection, plus real navigation
+// shortcuts to Memory/Automations/Advanced (Knowledge/Approvals/Skills/
+// Tools) — none of which have a native mobile view yet, so tapping them
+// correctly falls through to the legacy responsive tree by the existing
+// shell-visibility contract. Deliberately NOT implemented (confirmed to
+// not exist anywhere in this app, not fabricated to "look like a real
+// app"): Model Gateway status (Desktop's own version is a static MOCK
+// with zero real backing endpoint — not reproduced here), Dark Mode,
+// notification preferences, any security/MFA/biometric control, any
+// model/provider picker, any API key input, any integration beyond
+// Google. No new backend endpoint, no invented field.
+(function () {
+  'use strict';
+
+  function escapeHtml(str) {
+    return String(str == null ? '' : str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  function t(key, fallback) {
+    return (window.NAGEX_I18N ? window.NAGEX_I18N.t(key) : null) || fallback || key;
+  }
+
+  // ── Quick Wake — exactly the 5 real options Desktop's own renderSettings()
+  // exposes (app.js:1744-1751). Real backend fields headset_button/
+  // accessibility_shortcut exist but are not surfaced in any UI today —
+  // not added here either (directive §6). ──
+  const QUICKWAKE_OPTIONS = [
+    { key: 'floating_button', labelKey: 'mobileSettings.qwFloatingButton', fallback: 'Floating NAgex Button' },
+    { key: 'quick_settings_tile', labelKey: 'mobileSettings.qwQuickSettingsTile', fallback: 'Quick Settings Tile (Android)' },
+    { key: 'lock_screen_shortcut', labelKey: 'mobileSettings.qwLockScreenShortcut', fallback: 'Lock Screen Shortcut' },
+    { key: 'voice_wake', labelKey: 'mobileSettings.qwVoiceWake', fallback: 'Voice Wake Command' },
+    { key: 'double_tap_shortcut', labelKey: 'mobileSettings.qwDoubleTapShortcut', fallback: 'Double-Tap Shortcut' },
+  ];
+
+  function renderQuickWake() {
+    const el = document.getElementById('mh-quickwake-list');
+    if (!el || !window.NAGEX.getState) return;
+    const config = window.NAGEX.getState().quickWakeConfig || {};
+
+    const rows = QUICKWAKE_OPTIONS.map((opt) => `
+      <div class="mh-settings-row">
+        <span class="mh-settings-row-title">${escapeHtml(t(opt.labelKey, opt.fallback))}</span>
+        <label class="mh-toggle-switch">
+          <input type="checkbox" ${config[opt.key] ? 'checked' : ''} data-qw-key="${opt.key}">
+          <span class="mh-toggle-slider"></span>
+        </label>
+      </div>`).join('');
+
+    const fingerprintRow = `
+      <div class="mh-settings-row">
+        <span class="mh-settings-row-title">${escapeHtml(t('mobileSettings.qwFingerprintButton', 'Fingerprint Sensor Button'))}</span>
+        <span class="mh-settings-tag">${escapeHtml(t('mobileSettings.qwFingerprintNotSupported', 'Not supported on this device'))}</span>
+      </div>`;
+
+    el.innerHTML = rows + fingerprintRow;
+
+    el.querySelectorAll('input[data-qw-key]').forEach((input) => {
+      input.addEventListener('change', async (e) => {
+        const key = e.target.getAttribute('data-qw-key');
+        const checked = e.target.checked;
+        // Reuses the exact real bridge (app.js) — same POST /api/v1/
+        // quickwake/config, same optimistic local mutation Desktop's own
+        // toggle already does. Then re-fetches the real, confirmed server
+        // state and re-renders from that — never trusting the optimistic
+        // mutation alone as "success" (directive §28: a failed change must
+        // not look like it stuck).
+        await window.NAGEX.toggleQuickWakeOpt(key, checked);
+        const fresh = await window.NAGEX.apiFetch('/api/v1/quickwake/config');
+        if (fresh) window.NAGEX.getState().quickWakeConfig = fresh;
+        renderQuickWake();
+      });
+    });
+  }
+
+  // ── Autonomy Level — exactly the 4 real levels Desktop exposes
+  // (app.js:1772-1777). Desktop's own titles/descriptions are hardcoded
+  // English never run through t() — Mobile does not repeat that gap, real
+  // i18n keys carrying the same real meaning are used instead (directive
+  // §9). ──
+  const AUTONOMY_LEVELS = [
+    { id: 'L0', titleKey: 'mobileSettings.autonomyL0Title', titleFallback: 'Level 0 — Ask Every Time', descKey: 'mobileSettings.autonomyL0Desc', descFallback: 'Require human approval for all actions.' },
+    { id: 'L1', titleKey: 'mobileSettings.autonomyL1Title', titleFallback: 'Level 1 — Read Only', descKey: 'mobileSettings.autonomyL1Desc', descFallback: 'Allow read-only queries autonomously; require approval for changes.' },
+    { id: 'L2', titleKey: 'mobileSettings.autonomyL2Title', titleFallback: 'Level 2 — Low-risk Actions', descKey: 'mobileSettings.autonomyL2Desc', descFallback: 'Execute low-risk task steps; require approval before external send/edits.' },
+    { id: 'L3', titleKey: 'mobileSettings.autonomyL3Title', titleFallback: 'Level 3 — Trusted Workflows', descKey: 'mobileSettings.autonomyL3Desc', descFallback: 'Autonomous execution for trusted workflows.' },
+  ];
+
+  function renderAutonomy() {
+    const el = document.getElementById('mh-autonomy-list');
+    if (!el || !window.NAGEX.getState) return;
+    const current = (window.NAGEX.getState().autonomyConfig || {}).level;
+
+    el.innerHTML = AUTONOMY_LEVELS.map((lvl) => `
+      <button class="mh-autonomy-card ${current === lvl.id ? 'selected' : ''}" data-autonomy-id="${lvl.id}">
+        <span class="mh-settings-row-title">${escapeHtml(t(lvl.titleKey, lvl.titleFallback))}</span>
+        <span class="mh-row-detail">${escapeHtml(t(lvl.descKey, lvl.descFallback))}</span>
+      </button>`).join('');
+
+    el.querySelectorAll('[data-autonomy-id]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const level = btn.getAttribute('data-autonomy-id');
+        // Same real bridge (app.js) as Desktop; same truthful re-fetch
+        // pattern as Quick Wake above.
+        await window.NAGEX.selectAutonomy(level);
+        const fresh = await window.NAGEX.apiFetch('/api/v1/autonomy/config');
+        if (fresh) window.NAGEX.getState().autonomyConfig = fresh;
+        renderAutonomy();
+      });
+    });
+  }
+
+  // ── Google Calendar & Gmail — the only real integration in this app
+  // (directive §10/§11). Connect is a real full-page redirect; Disconnect
+  // reuses the exact real POST + status-refetch Desktop's own handler
+  // already does (app.js:1819-1831) — not a new OAuth implementation. ──
+  function renderConnections() {
+    const el = document.getElementById('mh-connections-row');
+    if (!el || !window.NAGEX.getState) return;
+    const oauth = window.NAGEX.getState().googleOAuth || { configured: false, connected: false };
+
+    const statusLabel = oauth.connected
+      ? t('settings.connected', 'Connected')
+      : oauth.configured
+        ? t('settings.notConnected', 'Not connected')
+        : t('settings.notConfigured', 'Not configured on this server');
+
+    el.innerHTML = `
+      <div class="mh-settings-row">
+        <div class="mh-settings-row-body">
+          <span class="mh-settings-row-title">${escapeHtml(t('mobileSettings.googleService', 'Google Calendar & Gmail'))}</span>
+          <span class="mh-settings-tag">${escapeHtml(statusLabel)}</span>
+        </div>
+        <button class="mh-settings-action-btn" id="mh-google-toggle" ${!oauth.configured ? 'disabled' : ''}>
+          ${escapeHtml(oauth.connected ? t('settings.disconnect', 'Disconnect') : t('settings.connect', 'Connect'))}
+        </button>
+      </div>`;
+
+    const btn = document.getElementById('mh-google-toggle');
+    if (btn && oauth.configured) {
+      btn.onclick = async () => {
+        if (oauth.connected) {
+          await window.NAGEX.apiFetch('/api/v1/oauth/google/disconnect', { method: 'POST' });
+          const fresh = await window.NAGEX.apiFetch('/api/v1/oauth/google/status');
+          if (fresh) window.NAGEX.getState().googleOAuth = fresh;
+          renderConnections();
+        } else {
+          window.location.href = '/api/v1/oauth/google/start';
+        }
+      };
+    }
+  }
+
+  function initLangToggle() {
+    if (window.NAGEX.bindMobileLangToggle) window.NAGEX.bindMobileLangToggle('mh-settings-lang-toggle');
+  }
+
+  // ── Advanced — local, ephemeral expand/collapse only, same as Desktop's
+  // own wireSettingsAdvancedToggle() (app.js:1837-1849). No persistence
+  // needed or added. ──
+  function initAdvancedToggle() {
+    const toggle = document.getElementById('mh-settings-advanced-toggle');
+    const list = document.getElementById('mh-settings-advanced-list');
+    if (!toggle || !list || toggle.dataset.bound) return;
+    toggle.dataset.bound = '1';
+    toggle.addEventListener('click', () => {
+      const expanded = toggle.getAttribute('aria-expanded') === 'true';
+      toggle.setAttribute('aria-expanded', String(!expanded));
+      list.hidden = expanded;
+      toggle.classList.toggle('mh-settings-advanced-open', !expanded);
+    });
+  }
+
+  function renderMobileSettings() {
+    if (!document.getElementById('mobile-view-settings')) return;
+    initLangToggle();
+    initAdvancedToggle();
+    // No fetch of its own is needed — state.quickWakeConfig/autonomyConfig/
+    // googleOAuth are all already loaded at boot by app.js's loadAllData(),
+    // exactly matching Desktop's own renderSettings(), which also makes no
+    // fresh fetch (directive §28's "shared boot state" framing).
+    renderQuickWake();
+    renderAutonomy();
+    renderConnections();
+  }
+
+  window.NAGEX = window.NAGEX || {};
+  window.NAGEX.renderMobileSettings = renderMobileSettings;
+})();
