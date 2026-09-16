@@ -1803,6 +1803,7 @@
 
     renderSettingsConnections();
     renderSettingsAiModel();
+    if (window.NAGEX.renderProactiveAssistant) window.NAGEX.renderProactiveAssistant();
     wireSettingsAdvancedToggle();
   }
 

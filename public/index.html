@@ -961,6 +961,17 @@
               </div>
             </div>
 
+            <!-- R10 — Proactive Assistant. Real GET/PUT
+                 /api/v1/proactive-assistant/config only (public/proactive-
+                 assistant.js) — the underlying schedule is a real Task,
+                 never a fabricated automation state. Default is always
+                 disabled until the user explicitly turns it on. -->
+            <div class="settings-card">
+              <h3 data-i18n="proactiveAssistant.title">Proactive Assistant</h3>
+              <p class="setting-sub" data-i18n="proactiveAssistant.desc">Let NAgex prepare your Daily Brief automatically at a time you choose.</p>
+              <div id="proactive-assistant-panel"></div>
+            </div>
+
             <div class="settings-card">
               <h3 data-i18n="settings.quickWake">Quick Wake Invocation</h3>
               <div class="settings-options-group" id="quickwake-settings-options">
@@ -1517,6 +1528,13 @@
         <div id="mh-autonomy-list"></div>
       </section>
 
+      <!-- R10 — Proactive Assistant (mobile). Real GET/PUT
+           /api/v1/proactive-assistant/config only. -->
+      <div class="mh-settings-section-heading" data-i18n="proactiveAssistant.title">Proactive Assistant</div>
+      <section class="mh-settings-card">
+        <div id="mh-proactive-assistant-panel"></div>
+      </section>
+
       <div class="mh-settings-section-heading" data-i18n="mobileSettings.sectionQuickAccess">Quick Access</div>
       <section class="mh-settings-card">
         <div id="mh-quickwake-list"></div>
@@ -1596,6 +1614,7 @@
   <script src="timeline-dedupe.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="single-flight-guard.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="daily-brief.js?v=__NAGEX_BUILD_VERSION__"></script>
+  <script src="proactive-assistant.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="app.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="desktop/desktop-home.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="mobile/mobile-home.js?v=__NAGEX_BUILD_VERSION__"></script>

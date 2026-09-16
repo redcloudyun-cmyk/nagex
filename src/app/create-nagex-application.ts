@@ -53,7 +53,7 @@ import { ConversationContextService } from '../conversations/conversation-contex
 import { TaskStore } from '../tasks/task.store.js';
 import { TaskRunStore } from '../tasks/task-run.store.js';
 import { TaskScheduler } from '../tasks/task.scheduler.js';
-import { PlanPreviewTaskRunner, ConditionalWatchTaskRunner, BackgroundTaskRunner, CompositeTaskRunner, ExecutingTaskRunner } from '../tasks/task.runner.js';
+import { PlanPreviewTaskRunner, ConditionalWatchTaskRunner, BackgroundTaskRunner, CompositeTaskRunner, ExecutingTaskRunner, DailyBriefTaskRunner } from '../tasks/task.runner.js';
 import { TaskContinuationStore } from '../tasks/task-continuation.store.js';
 import { TaskContinuationCoordinator } from '../tasks/task-continuation.coordinator.js';
 import { DurableTaskRunStateStore } from '../tasks/durable-task-run-state.store.js';
@@ -306,12 +306,12 @@ export function createNagexApplication(): NagexApplication {
   // durableTaskRuntime (constructed further below) reads it once at boot.
   const durableTaskRunState = new DurableTaskRunStateStore();
   const executingTaskRunner = new ExecutingTaskRunner(aiService, planResolver, capabilityBroker, (tenantId, principalId, prompt) => getRelevantMemories(tenantId, principalId, prompt), taskContinuations, durableTaskRunState);
-  const taskRunner = new CompositeTaskRunner(
-    new PlanPreviewTaskRunner(aiService, planResolver, (tenantId, principalId, prompt) => getRelevantMemories(tenantId, principalId, prompt)),
-    new ConditionalWatchTaskRunner(capabilityBroker, aiService),
-    new BackgroundTaskRunner(taskStore, aiService, planResolver, (tenantId, principalId, prompt) => getRelevantMemories(tenantId, principalId, prompt)),
-    executingTaskRunner,
-  );
+  // R10 — taskRunner (CompositeTaskRunner) itself is constructed further
+  // below, right before taskScheduler, because DailyBriefTaskRunner needs
+  // notificationEngine (for DAILY_BRIEF_READY), which is not built until
+  // after the Telegram/Slack integration blocks. Nothing between here and
+  // there reads taskRunner early — see the R10 comment at its real
+  // construction site.
 
   // ─── MASTER.md Section 14 — Telegram Integration (Item 10) ───
   const telegramIdentityStore = new TelegramIdentityStore();
@@ -362,6 +362,23 @@ export function createNagexApplication(): NagexApplication {
     auditLogger,
   });
 
+  // R10 — Daily Brief automation runner: real Calendar/Gmail/AiService
+  // deps (the exact same services every other real route in this app
+  // uses), plus dailyBriefStore for persistence and notificationEngine for
+  // the DAILY_BRIEF_READY notification. Routed to only for a RECURRING
+  // task with automationKind:'DAILY_BRIEF' (see composite.runner.ts).
+  const dailyBriefTaskRunner = new DailyBriefTaskRunner(
+    { calendarService: googleCalendarService, gmailApiService: gmailService, aiService, taskStore, activityStore },
+    dailyBriefStore,
+    notificationEngine,
+  );
+  const taskRunner = new CompositeTaskRunner(
+    new PlanPreviewTaskRunner(aiService, planResolver, (tenantId, principalId, prompt) => getRelevantMemories(tenantId, principalId, prompt)),
+    new ConditionalWatchTaskRunner(capabilityBroker, aiService),
+    new BackgroundTaskRunner(taskStore, aiService, planResolver, (tenantId, principalId, prompt) => getRelevantMemories(tenantId, principalId, prompt)),
+    executingTaskRunner,
+    dailyBriefTaskRunner,
+  );
   const taskScheduler = new TaskScheduler(taskStore, taskRunStore, taskRunner, auditLogger, undefined, notificationEngine);
   // P02 — resumes a paused Task run once server_web.ts's approval
   // grant/reject route reports a real approve()/reject(). Event-driven

@@ -64,6 +64,17 @@ export interface TaskRecord {
   // recompute or restore a running execution — the frozen resolved plan /
   // durable run state is always the sole execution source once a run starts.
   workflowDefinitionId?: string;
+  // R10 — how CompositeTaskRunner routes a RECURRING task to a dedicated
+  // runner instead of the generic plan/execute pipeline (ExecutingTaskRunner
+  // would otherwise call AiService.plan() on `objective` fresh every run,
+  // which is not what a Daily Brief automation is). Same optional-
+  // discriminator pattern as candidateId/workflowDefinitionId above, not a
+  // second Task-like entity.
+  automationKind?: 'DAILY_BRIEF';
+  // R10 §3 — Daily Brief automation only: whether a DAILY_BRIEF_READY
+  // notification should be dispatched when a scheduled run succeeds.
+  // Irrelevant to any other task type.
+  notifyOnComplete?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -98,6 +109,8 @@ export interface CreateTaskInput {
   nextRunAt?: string | null;
   candidateId?: string;
   workflowDefinitionId?: string;
+  automationKind?: 'DAILY_BRIEF';
+  notifyOnComplete?: boolean;
 }
 
 export interface TaskStoreOptions {
@@ -158,6 +171,8 @@ export class TaskStore {
       lastRunStatus: null,
       candidateId: input.candidateId,
       workflowDefinitionId: input.workflowDefinitionId,
+      automationKind: input.automationKind,
+      notifyOnComplete: input.notifyOnComplete,
       createdAt: timestamp,
       updatedAt: timestamp,
     };
@@ -235,13 +250,14 @@ export class TaskStore {
     );
   }
 
-  public update(taskId: string, tenantId: string, ownerId: string, patch: Partial<Pick<TaskRecord, 'name' | 'objective' | 'trigger' | 'approvalPolicy' | 'nextRunAt'>>, requestId = 'task_update'): TaskRecord {
+  public update(taskId: string, tenantId: string, ownerId: string, patch: Partial<Pick<TaskRecord, 'name' | 'objective' | 'trigger' | 'approvalPolicy' | 'nextRunAt' | 'notifyOnComplete'>>, requestId = 'task_update'): TaskRecord {
     const record = this.requireOwned(taskId, tenantId, ownerId, requestId);
     if (patch.name !== undefined) record.name = patch.name;
     if (patch.objective !== undefined) record.objective = patch.objective;
     if (patch.trigger !== undefined) record.trigger = patch.trigger;
     if (patch.approvalPolicy !== undefined) record.approvalPolicy = patch.approvalPolicy;
     if (patch.nextRunAt !== undefined) record.nextRunAt = patch.nextRunAt;
+    if (patch.notifyOnComplete !== undefined) record.notifyOnComplete = patch.notifyOnComplete;
     return this.persist(record);
   }
 
