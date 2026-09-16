@@ -1024,6 +1024,20 @@
       <svg class="svg-icon" viewBox="0 0 24 24"><path d="M11 21h-1l1-7H7.5c-.88 0-.33-.75-.32-.78C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.49 0 .56.33.47.51C14.7 15.1 12.3 19.1 11 21z"/></svg>
     </button>
 
+  </div>
+
+  <!-- Ambient Assistant overlay + Approval Prompt modal — real body-level
+       siblings of .app-wrapper (UI-5 R4 E2E QA fix), not descendants of it.
+       openAmbientOverlay()/the approval-modal handlers can be triggered from
+       either shell (Desktop .app-wrapper or #mobile-app-shell), but
+       .app-wrapper is set to display:none while the native mobile shell is
+       active — nesting these modals inside .app-wrapper made them fully
+       invisible and unusable on mobile even though the real plan/approval
+       logic behind them ran correctly (confirmed via a live Playwright
+       check: the modal backdrop's own computed display stayed none, purely
+       from the display:none ancestor, never from its own inline style).
+       Same pattern mobile-home.js already documents for
+       .floating-quickwake-btn/.mobile-bottom-nav. -->
     <!-- AMBIENT ASSISTANT OVERLAY SHEET (MOCKUP IMAGE 1) -->
     <div class="ambient-overlay-backdrop" id="ambient-overlay-backdrop" style="display:none;">
       <div class="ambient-sheet-modal" id="ambient-sheet-modal" role="dialog" aria-modal="true" aria-labelledby="ambient-modal-title">
@@ -1187,8 +1201,6 @@
         </div>
       </div>
     </div>
-
-  </div>
 
   <!-- ════════════════════════════════════════════════════════════════
        UI-5 R1 — Mobile Home. A genuinely separate top-level DOM tree,
