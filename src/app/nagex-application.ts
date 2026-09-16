@@ -45,6 +45,7 @@ import type { StorageProvider } from '../storage/storage-provider.js';
 import type { CandidateStore } from '../workspace/candidate.store.js';
 import type { ActivityStore } from '../governance/activity.store.js';
 import type { DailyBriefStore } from '../governance/daily-brief.store.js';
+import type { ActionProposalStore } from '../assistant/action-proposal.store.js';
 import type { CandidateActionResolver } from '../workspace/action-resolver.js';
 import type { QuickCaptureService } from '../workspace/quick-capture.service.js';
 import type { InputRouter } from '../workspace/input-router.js';
@@ -114,6 +115,7 @@ export interface NagexApplication {
   candidateStore: CandidateStore;
   activityStore: ActivityStore;
   dailyBriefStore: DailyBriefStore;
+  actionProposalStore: ActionProposalStore;
   candidateActionResolver: CandidateActionResolver;
   quickCaptureService: QuickCaptureService;
   inputRouter: InputRouter;

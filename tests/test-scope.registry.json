@@ -111,6 +111,8 @@
     ]
   },
   "fullOnly": [
+    "action_proposals",
+    "action_proposals_safety",
     "action_safety_gate",
     "ambient_composer",
     "ambient_composer_recovery",

@@ -29,6 +29,11 @@ export interface DetectedChange {
   // identical change (e.g. two near-simultaneous generations comparing
   // against the same stale "previous") never produces two notifications.
   dedupeSuffix: string;
+  // R11 — the real, structured id of whatever this change is about
+  // (Calendar eventId / Gmail threadId / approvalId / action-item title).
+  // Added so downstream consumers (action-proposal-generator.ts) never have
+  // to string-parse dedupeSuffix to recover it.
+  sourceId: string;
 }
 
 // A grounded, keyword-based heuristic over the real snippet text already
@@ -82,6 +87,7 @@ export function detectMeaningfulChanges(input: {
           title: 'New event on your calendar',
           body: `"${ev.title}" was added to today's schedule.`,
           dedupeSuffix: `calendar:new:${id}:${ev.start}`,
+          sourceId: id,
         });
       } else if (prevEv.start !== ev.start || prevEv.end !== ev.end) {
         changes.push({
@@ -89,6 +95,7 @@ export function detectMeaningfulChanges(input: {
           title: 'A meeting time changed',
           body: `"${ev.title}" moved to ${ev.start}.`,
           dedupeSuffix: `calendar:moved:${id}:${ev.start}:${ev.end}`,
+          sourceId: id,
         });
       }
     }
@@ -101,6 +108,7 @@ export function detectMeaningfulChanges(input: {
           title: 'An event was cancelled',
           body: `"${ev.title}" is no longer on today's schedule.`,
           dedupeSuffix: `calendar:cancelled:${id}`,
+          sourceId: id,
         });
       }
     }
@@ -117,6 +125,7 @@ export function detectMeaningfulChanges(input: {
           title: 'Email needs your attention',
           body: email.snippet.slice(0, 160),
           dedupeSuffix: `gmail:action:${email.sourceId}`,
+          sourceId: email.sourceId,
         });
       } else {
         changes.push({
@@ -124,6 +133,7 @@ export function detectMeaningfulChanges(input: {
           title: 'New important email',
           body: email.snippet.slice(0, 160),
           dedupeSuffix: `gmail:new:${email.sourceId}`,
+          sourceId: email.sourceId,
         });
       }
     }
@@ -136,6 +146,7 @@ export function detectMeaningfulChanges(input: {
       title: 'New approval needed',
       body: `A new action (${approval.toolId}) is waiting for your approval.`,
       dedupeSuffix: `approval:new:${approval.approvalId}`,
+      sourceId: approval.approvalId,
     });
   }
 
@@ -148,6 +159,7 @@ export function detectMeaningfulChanges(input: {
         title: 'New high-priority action',
         body: item.title,
         dedupeSuffix: `action_item:high:${dateKey}:${item.title}`,
+        sourceId: item.title,
       });
     }
   }

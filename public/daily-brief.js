@@ -30,6 +30,9 @@
   let refreshInFlight = false; // R9 §2 — client-side duplicate-refresh guard, mirrors the server's own in-flight guard
   let proactiveConfig = null; // R10.1 §3 — Proactive Assistant config, lazily fetched once per Home visit, same pattern as briefData
   let proactiveConfigFetched = false;
+  let proposalsData = null; // R11 — fetched lazily only when "View Full Brief" is first expanded (same lazy pattern as historyData)
+  let proposalsFetched = false;
+  let proposalActionInFlight = null; // proposalId currently mid approve/reject/execute call, for per-card busy state
 
   async function fetchBrief() {
     if (!window.NAGEX.apiFetch) return null;
@@ -65,6 +68,29 @@
     return historyData;
   }
 
+  async function fetchProposals() {
+    if (!window.NAGEX.apiFetch) return null;
+    const data = await window.NAGEX.apiFetch('/api/v1/action-proposals');
+    if (data && Array.isArray(data.proposals)) proposalsData = data.proposals;
+    return proposalsData;
+  }
+
+  // §14 — the ONLY place this UI ever calls approve/reject/execute; always
+  // an explicit click, never automatic. Re-fetches the list afterward so
+  // status/result/failure reflect the real, just-persisted server state.
+  async function decideProposal(proposalId, action) {
+    if (!window.NAGEX.apiFetch || proposalActionInFlight) return;
+    proposalActionInFlight = proposalId;
+    renderAll();
+    try {
+      await window.NAGEX.apiFetch(`/api/v1/action-proposals/${encodeURIComponent(proposalId)}/${action}`, { method: 'POST' });
+      await fetchProposals();
+    } finally {
+      proposalActionInFlight = null;
+      renderAll();
+    }
+  }
+
   function formatTime(iso) {
     if (!iso) return '';
     const d = new Date(iso);
@@ -87,6 +113,67 @@
     return `<div class="db-row"><div><div class="db-row-title">${escapeHtml(item.toolId)}</div><div class="db-row-source">${escapeHtml(t('dailyBrief.fromApproval', 'From Approvals'))} · ${escapeHtml(item.status)}</div></div></div>`;
   }
 
+  const RISK_KEY = { LOW: 'dailyBrief.priorityLow', MEDIUM: 'dailyBrief.priorityMedium', HIGH: 'dailyBrief.priorityHigh' };
+  const SOURCE_LABEL_KEY = {
+    CALENDAR: ['dailyBrief.fromCalendar', 'From Calendar'],
+    GMAIL: ['dailyBrief.fromGmail', 'From Gmail'],
+    APPROVAL: ['dailyBrief.fromApproval', 'From Approvals'],
+    ACTION_ITEM: ['dailyBrief.recommended', 'Recommended Actions'],
+  };
+
+  // §6 — a proposal card is always honest about whether it can actually be
+  // executed: `executable:false` (e.g. EMAIL_REPLY_DRAFT/REVIEW_APPROVAL —
+  // no grounded recipient/subject, or nothing of its own to execute) never
+  // shows an Execute affordance, only Approve/Reject.
+  function proposalCardHtml(p) {
+    const busy = proposalActionInFlight === p.id;
+    const [srcKey, srcFallback] = SOURCE_LABEL_KEY[p.sourceType] || ['dailyBrief.fromCalendar', 'From Calendar'];
+    const riskLabel = t(RISK_KEY[p.riskLevel], p.riskLevel);
+    let actionsHtml = '';
+    let statusHtml = '';
+    if (p.status === 'PROPOSED') {
+      actionsHtml = `
+        <button type="button" class="btn-secondary db-proposal-approve" data-proposal-id="${escapeHtml(p.id)}" ${busy ? 'disabled' : ''}>${escapeHtml(t('dailyBrief.approve', 'Approve'))}</button>
+        <button type="button" class="btn-secondary db-proposal-reject" data-proposal-id="${escapeHtml(p.id)}" ${busy ? 'disabled' : ''}>${escapeHtml(t('dailyBrief.reject', 'Reject'))}</button>`;
+    } else if (p.status === 'APPROVED' && p.executable) {
+      actionsHtml = `<button type="button" class="btn-secondary db-proposal-execute" data-proposal-id="${escapeHtml(p.id)}" ${busy ? 'disabled' : ''}>${escapeHtml(t('dailyBrief.execute', 'Execute'))}</button>`;
+    } else if (p.status === 'APPROVED' && !p.executable) {
+      statusHtml = `<span class="db-proposal-status db-proposal-status-approved">${escapeHtml(t('dailyBrief.approvedReviewOnly', 'Approved — review only, no automatic action available'))}</span>`;
+    } else if (p.status === 'EXECUTING') {
+      statusHtml = `<span class="db-proposal-status db-proposal-status-executing">${escapeHtml(t('dailyBrief.proposalExecuting', 'Waiting on a separate approval…'))}</span>`;
+      actionsHtml = `<button type="button" class="btn-secondary db-proposal-execute" data-proposal-id="${escapeHtml(p.id)}" ${busy ? 'disabled' : ''}>${escapeHtml(t('dailyBrief.checkStatus', 'Check status'))}</button>`;
+    } else if (p.status === 'COMPLETED') {
+      statusHtml = `<span class="db-proposal-status db-proposal-status-completed">${escapeHtml(t('dailyBrief.proposalCompleted', 'Done'))}</span>`;
+    } else if (p.status === 'FAILED') {
+      const msg = (p.failure && p.failure.message) || '';
+      statusHtml = `<span class="db-proposal-status db-proposal-status-failed">${escapeHtml(t('dailyBrief.proposalFailed', 'Failed'))}${msg ? ': ' + escapeHtml(msg) : ''}</span>`;
+      if (p.failure && p.failure.retryable) {
+        actionsHtml = `<button type="button" class="btn-secondary db-proposal-execute" data-proposal-id="${escapeHtml(p.id)}" ${busy ? 'disabled' : ''}>${escapeHtml(t('dailyBrief.retry', 'Retry'))}</button>`;
+      }
+    } else if (p.status === 'REJECTED') {
+      statusHtml = `<span class="db-proposal-status db-proposal-status-rejected">${escapeHtml(t('dailyBrief.proposalRejected', 'Rejected'))}</span>`;
+    }
+    return `
+      <div class="db-proposal-card" data-proposal-id="${escapeHtml(p.id)}">
+        <div class="db-proposal-header">
+          <span class="db-proposal-title">${escapeHtml(p.title)}</span>
+          <span class="db-proposal-risk db-proposal-risk-${escapeHtml((p.riskLevel || 'LOW').toLowerCase())}">${escapeHtml(riskLabel)}</span>
+        </div>
+        <div class="db-proposal-source">${escapeHtml(t(srcKey, srcFallback))}</div>
+        <div class="db-proposal-rationale">${escapeHtml(p.rationale || p.summary || '')}</div>
+        <div class="db-proposal-approval-note">${p.approvalRequired ? escapeHtml(t('dailyBrief.approvalRequired', 'Approval required')) : ''}</div>
+        <div class="db-proposal-footer">${statusHtml}<div class="db-proposal-actions">${actionsHtml}</div></div>
+      </div>`;
+  }
+
+  function buildProposalsHtml() {
+    const list = proposalsData || [];
+    const body = list.length === 0
+      ? `<div class="db-empty">${escapeHtml(t('dailyBrief.noProposals', 'No suggested actions right now.'))}</div>`
+      : list.map(proposalCardHtml).join('');
+    return `<div class="db-section db-proposals-section"><h4>${escapeHtml(t('dailyBrief.suggestedActions', 'Suggested actions'))}</h4>${body}</div>`;
+  }
+
   function sectionHtml(titleKey, titleFallback, rows, emptyKey, emptyFallback, disconnectedMsg) {
     const body = disconnectedMsg
       ? `<div class="db-empty">${escapeHtml(disconnectedMsg)}</div>`
@@ -105,7 +192,7 @@
       sectionHtml('dailyBrief.recommended', 'Recommended Actions', (data.actionItems || []).map(actionRowHtml), 'dailyBrief.noActions', 'Nothing recommended right now.', null),
       sectionHtml('dailyBrief.approvals', 'Needs Your Approval', (data.approvals || []).map(approvalRowHtml), 'dailyBrief.noApprovals', 'Nothing waiting on your approval.', null),
     ];
-    return sections.join('') + buildHistoryHtml();
+    return sections.join('') + buildProposalsHtml() + buildHistoryHtml();
   }
 
   function historyRowHtml(record) {
@@ -224,18 +311,39 @@
 
     const counts = document.getElementById(`${prefix}daily-brief-counts`);
     if (counts) {
-      counts.innerHTML = [
+      const pills = [
         { key: 'dailyBrief.meetings', fallback: 'Meetings', n: (data.schedule || []).length },
         { key: 'dailyBrief.importantEmails', fallback: 'Important Emails', n: (data.emails || []).length },
         { key: 'dailyBrief.actionItems', fallback: 'Action Items', n: (data.actionItems || []).length },
         { key: 'dailyBrief.needsApproval', fallback: 'Needs Approval', n: (data.approvals || []).length },
-      ].map((c) => `<span class="db-count-pill"><strong>${c.n}</strong> ${escapeHtml(t(c.key, c.fallback))}</span>`).join('');
+      ];
+      // R11 §7 — real, persisted counts only (never inferred), shown only
+      // when actually > 0 so an ordinary quiet day never shows a "0
+      // suggested actions" pill.
+      if (typeof data.changeCount === 'number' && data.changeCount > 0) {
+        pills.push({ key: data.changeCount === 1 ? 'dailyBrief.changeSingular' : 'dailyBrief.changePlural', fallback: data.changeCount === 1 ? 'important change' : 'important changes', n: data.changeCount });
+      }
+      if (Array.isArray(data.proposalIds) && data.proposalIds.length > 0) {
+        pills.push({ key: data.proposalIds.length === 1 ? 'dailyBrief.actionSingular' : 'dailyBrief.actionPlural', fallback: data.proposalIds.length === 1 ? 'suggested action' : 'suggested actions', n: data.proposalIds.length });
+      }
+      counts.innerHTML = pills.map((c) => `<span class="db-count-pill"><strong>${c.n}</strong> ${escapeHtml(t(c.key, c.fallback))}</span>`).join('');
     }
 
     const detail = document.getElementById(`${prefix}daily-brief-detail`);
     if (detail) {
       detail.hidden = !briefExpanded;
-      if (briefExpanded) detail.innerHTML = buildDetailHtml(data);
+      if (briefExpanded) {
+        detail.innerHTML = buildDetailHtml(data);
+        detail.querySelectorAll('.db-proposal-approve').forEach((btn) => {
+          btn.addEventListener('click', () => decideProposal(btn.getAttribute('data-proposal-id'), 'approve'));
+        });
+        detail.querySelectorAll('.db-proposal-reject').forEach((btn) => {
+          btn.addEventListener('click', () => decideProposal(btn.getAttribute('data-proposal-id'), 'reject'));
+        });
+        detail.querySelectorAll('.db-proposal-execute').forEach((btn) => {
+          btn.addEventListener('click', () => decideProposal(btn.getAttribute('data-proposal-id'), 'execute'));
+        });
+      }
     }
     const toggle = document.getElementById(`${prefix}daily-brief-toggle`);
     if (toggle) toggle.textContent = briefExpanded ? t('dailyBrief.hideFull', 'Hide Full Brief') : t('dailyBrief.viewFull', 'View Full Brief');
@@ -253,8 +361,12 @@
     const toggle = document.getElementById(toggleId);
     if (!toggle || toggle.dataset.bound) return;
     toggle.dataset.bound = '1';
-    toggle.addEventListener('click', () => {
+    toggle.addEventListener('click', async () => {
       briefExpanded = !briefExpanded;
+      if (briefExpanded && !proposalsFetched) {
+        proposalsFetched = true;
+        await fetchProposals();
+      }
       renderAll();
     });
   }

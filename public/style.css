@@ -1878,6 +1878,26 @@ body {
 .db-priority-medium { background: #f59e0b; }
 .db-priority-high { background: #ef4444; }
 
+/* ── R11 — Daily Brief "Suggested actions" (Action Proposal) cards ── */
+.db-proposal-card { border: 1px solid var(--border-light); border-radius: 10px; padding: 0.65rem 0.75rem; margin-bottom: 0.5rem; background: #fff; }
+.db-proposal-header { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.db-proposal-title { font-size: 0.85rem; font-weight: 600; color: var(--text-main); }
+.db-proposal-risk { font-size: 0.68rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 999px; text-transform: uppercase; flex-shrink: 0; }
+.db-proposal-risk-low { background: #ecfdf5; color: #059669; }
+.db-proposal-risk-medium { background: #fffbeb; color: #b45309; }
+.db-proposal-risk-high { background: #fef2f2; color: #dc2626; }
+.db-proposal-source { font-size: 0.72rem; color: var(--text-muted); margin-top: 0.15rem; }
+.db-proposal-rationale { font-size: 0.8rem; color: var(--text-main); margin-top: 0.3rem; }
+.db-proposal-approval-note { font-size: 0.7rem; color: var(--text-muted); margin-top: 0.2rem; }
+.db-proposal-footer { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-top: 0.5rem; }
+.db-proposal-actions { display: flex; gap: 0.4rem; }
+.db-proposal-actions .btn-secondary { font-size: 0.75rem; padding: 0.25rem 0.6rem; }
+.db-proposal-status { font-size: 0.75rem; font-weight: 600; }
+.db-proposal-status-approved, .db-proposal-status-executing { color: #2563eb; }
+.db-proposal-status-completed { color: #059669; }
+.db-proposal-status-failed { color: #dc2626; }
+.db-proposal-status-rejected { color: var(--text-muted); }
+
 /* ── R10.1 — Daily Brief card: truthful Proactive Assistant state line ── */
 .daily-brief-proactive-line { margin: 0.25rem 0 0; font-size: 0.78rem; font-weight: 500; }
 .db-proactive-generating { color: #2563eb; }

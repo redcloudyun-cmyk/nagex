@@ -24,6 +24,8 @@ import { PersistentActionApprovalStore } from './governance/action-approval.stor
 import { dailyBriefDateKey, type DailyBriefRecord } from './governance/daily-brief.store.js';
 import { generateDailyBriefOnce } from './assistant/daily-brief.pipeline.js';
 import { detectMeaningfulChanges, dispatchDetectedChanges } from './assistant/daily-brief-change-detection.js';
+import { generateProposalsFromChanges } from './assistant/action-proposal-generator.js';
+import { executeActionProposal } from './assistant/action-proposal-executor.js';
 import { ExecutionStore } from './governance/execution.store.js';
 import {
   GoogleCalendarService,
@@ -161,6 +163,7 @@ export const {
   candidateStore,
   activityStore,
   dailyBriefStore,
+  actionProposalStore,
   candidateActionResolver,
   quickCaptureService,
   inputRouter,
@@ -312,6 +315,16 @@ function serializeProactiveConfig(task: TaskRecord | undefined) {
   };
 }
 
+// R11 §7 — real, persisted count only (never inferred): how many
+// IMPORTANT_CHANGE notifications were actually dispatched for this exact
+// brief date, read straight from the same NotificationStore/Engine every
+// other notification already goes through.
+function countImportantChangesForDate(tenantId: string, principalId: string, date: string): number {
+  return notificationEngine.list(tenantId, principalId, 200)
+    .filter((n) => n.type === 'IMPORTANT_CHANGE' && (n.metadata as { date?: string } | undefined)?.date === date)
+    .length;
+}
+
 function computeBriefFreshness(generatedAt: string): 'FRESH' | 'STALE' {
   return Date.now() - Date.parse(generatedAt) > DAILY_BRIEF_STALE_MS ? 'STALE' : 'FRESH';
 }
@@ -333,10 +346,17 @@ function buildBriefResponse(
   approvals: ReturnType<typeof actionApprovals.listPending>,
   wasExplicitRefresh: boolean,
   lastRefreshAttempt: { attemptedAt: string; status: string; requestId: string } | null,
+  proposals: ReturnType<typeof actionProposalStore.listForDate> = [],
+  changeCount = 0,
 ) {
   return {
     date: record.date,
     generatedAt: record.generatedAt,
+    // R10.1 §3 — which real entry point produced THIS specific record
+    // (SCHEDULED vs MANUAL); was previously computed and stored but never
+    // actually surfaced on this response, so Home's proactive-state line
+    // could never truthfully detect a scheduled generation. Fixed here.
+    source: record.source ?? null,
     freshness: computeBriefFreshness(record.generatedAt),
     wasExplicitRefresh,
     lastRefreshAttempt,
@@ -357,6 +377,14 @@ function buildBriefResponse(
     model: record.model,
     latencyMs: record.latencyMs,
     fallbackOccurred: record.fallbackOccurred,
+    // R11 §7/§8 — real counts only, never inferred: sourced directly from
+    // persisted ActionProposalStore records for this exact date, never a
+    // separate notification per proposal.
+    proposalCount: proposals.length,
+    proposalIds: proposals.map((p: { id: string }) => p.id),
+    // R11 §7 — real count of persisted IMPORTANT_CHANGE notifications for
+    // this exact brief date, never estimated/inferred.
+    changeCount,
   };
 }
 
@@ -1930,7 +1958,9 @@ export async function handleAsyncApiRequest(
       // request) triggers real Calendar/Gmail/model calls.
       if (existing && !isExplicitRefresh) {
         const approvals = safeListPendingApprovals(tenantId, principalId, requestId);
-        return { status: 200, data: buildBriefResponse(existing, approvals, false, null) };
+        const proposals = actionProposalStore.listForDate(tenantId, principalId, today);
+        const changeCount = countImportantChangesForDate(tenantId, principalId, today);
+        return { status: 200, data: buildBriefResponse(existing, approvals, false, null, proposals, changeCount) };
       }
 
       const generated = await generateDailyBriefOnce(
@@ -1957,15 +1987,27 @@ export async function handleAsyncApiRequest(
           : [];
         const changes = detectMeaningfulChanges({ previous: existing, current: generated, newApprovalsSincePrevious });
         await dispatchDetectedChanges(notificationEngine, tenantId, principalId, generated.date, changes, requestId);
+
+        // R11 — grounded, reviewable proposals from the same real changes,
+        // deduped per §9 so a re-refresh of the same day never creates a
+        // duplicate PROPOSED proposal for the same underlying change.
+        for (const draft of generateProposalsFromChanges(changes, generated)) {
+          const dedupeKey = actionProposalStore.buildDedupeKey(tenantId, principalId, generated.date, draft.sourceType, draft.sourceId, draft.proposalType);
+          if (!actionProposalStore.findByDedupeKey(tenantId, principalId, dedupeKey)) {
+            actionProposalStore.create({ ...draft, tenantId, principalId, date: generated.date });
+          }
+        }
       }
       const current = isUsable ? generated : (existing ?? generated);
       const approvals = safeListPendingApprovals(tenantId, principalId, requestId);
+      const proposals = actionProposalStore.listForDate(tenantId, principalId, current.date);
+      const changeCount = countImportantChangesForDate(tenantId, principalId, current.date);
       const lastRefreshAttempt = !isUsable && existing
         ? { attemptedAt: generated.generatedAt, status: generated.status, requestId: generated.requestId }
         : null;
       return {
         status: 200,
-        data: buildBriefResponse(current, approvals, isExplicitRefresh, lastRefreshAttempt),
+        data: buildBriefResponse(current, approvals, isExplicitRefresh, lastRefreshAttempt, proposals, changeCount),
       };
     }
 
@@ -1979,6 +2021,59 @@ export async function handleAsyncApiRequest(
       const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 30) : 7;
       const history = dailyBriefStore.listHistory(tenantId, principalId, limit);
       return { status: 200, data: { history: history.map((r) => ({ ...r, freshness: computeBriefFreshness(r.generatedAt) })) } };
+    }
+
+    // R11 — Action Proposals: grounded, reviewable suggestions generated
+    // from real Daily Brief changes (see action-proposal-generator.ts,
+    // hooked into both the manual refresh above and DailyBriefTaskRunner).
+    // DETECT -> PROPOSE -> HUMAN REVIEW -> APPROVE -> EXECUTE -> AUDIT.
+    // Never auto-executes anything: approve() only flips status; a
+    // completely separate, explicit execute() call is required to invoke
+    // real canonical runtime (§14 — no automatic mutation path).
+    if (pathname === '/api/v1/action-proposals' && method === 'GET') {
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const date = typeof query.date === 'string' && query.date ? query.date : dailyBriefDateKey();
+      return { status: 200, data: { proposals: actionProposalStore.listForDate(tenantId, principalId, date) } };
+    }
+
+    if (pathname.startsWith('/api/v1/action-proposals/') && (pathname.endsWith('/approve') || pathname.endsWith('/reject') || pathname.endsWith('/execute')) && method === 'POST') {
+      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const requestId = getHeaderValue(headers, 'x-request-id') || `req_proposal_${crypto.randomUUID()}`;
+      const action = pathname.endsWith('/approve') ? 'approve' : pathname.endsWith('/reject') ? 'reject' : 'execute';
+      const proposalId = pathname.slice('/api/v1/action-proposals/'.length, pathname.length - `/${action}`.length);
+      const proposal = actionProposalStore.get(proposalId, tenantId, principalId);
+      if (!proposal) {
+        throw new NagexError({ code: 'ACTION_PROPOSAL_NOT_FOUND', category: 'NOT_FOUND', message: `Action proposal ${proposalId} was not found.`, request_id: requestId });
+      }
+
+      if (action === 'approve') {
+        if (proposal.status !== 'PROPOSED') {
+          throw new NagexError({ code: 'ACTION_PROPOSAL_NOT_PENDING', category: 'CONFLICT', message: `Action proposal ${proposalId} is ${proposal.status}, not PROPOSED.`, request_id: requestId });
+        }
+        const updated = actionProposalStore.updateStatus(proposalId, tenantId, principalId, { status: 'APPROVED' }, requestId);
+        return { status: 200, data: updated };
+      }
+      if (action === 'reject') {
+        if (proposal.status !== 'PROPOSED') {
+          throw new NagexError({ code: 'ACTION_PROPOSAL_NOT_PENDING', category: 'CONFLICT', message: `Action proposal ${proposalId} is ${proposal.status}, not PROPOSED.`, request_id: requestId });
+        }
+        // §14 — a rejected proposal must never be executable afterward;
+        // there is no path from REJECTED to /execute (execute() itself
+        // also independently refuses anything but APPROVED/EXECUTING).
+        const updated = actionProposalStore.updateStatus(proposalId, tenantId, principalId, { status: 'REJECTED' }, requestId);
+        return { status: 200, data: updated };
+      }
+      // action === 'execute' — an explicit, human-triggered call only; the
+      // executor itself independently refuses to run for anything other
+      // than an already-APPROVED (or in-progress EXECUTING) proposal.
+      const executed = await executeActionProposal(
+        { taskStore, calendarService, activityStore, actionProposalStore },
+        proposal,
+        requestId,
+      );
+      return { status: 200, data: executed };
     }
 
     // R10 — Proactive Assistant settings: the Daily Brief automation

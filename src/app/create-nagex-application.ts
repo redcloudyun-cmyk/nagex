@@ -76,6 +76,7 @@ import { WorkflowDefinitionService } from '../workflows/workflow-definition.serv
 import { CandidateActionResolver } from '../workspace/action-resolver.js';
 import { ActivityStore } from '../governance/activity.store.js';
 import { DailyBriefStore } from '../governance/daily-brief.store.js';
+import { ActionProposalStore } from '../assistant/action-proposal.store.js';
 import { createConfiguredStorageProvider } from '../storage/s3-storage.provider.js';
 import { KnowledgeEngine } from '../context/knowledge.engine.js';
 import { CapabilityBroker, capabilityRegistry } from '../capabilities/index.js';
@@ -175,6 +176,7 @@ export function createNagexApplication(): NagexApplication {
   // genuinely reports unavailable rather than silently no-opping.
   const activityStore = new ActivityStore();
   const dailyBriefStore = new DailyBriefStore();
+  const actionProposalStore = new ActionProposalStore();
   const desktopAppAllowlist = new DesktopAppAllowlist();
   const windowsIsolatedDesktopController = new WindowsIsolatedDesktopController();
   const desktopActivityAdapter = new DesktopActivityAdapter(activityStore);
@@ -372,6 +374,7 @@ export function createNagexApplication(): NagexApplication {
     dailyBriefStore,
     notificationEngine,
     actionApprovals,
+    actionProposalStore,
   );
   const taskRunner = new CompositeTaskRunner(
     new PlanPreviewTaskRunner(aiService, planResolver, (tenantId, principalId, prompt) => getRelevantMemories(tenantId, principalId, prompt)),
@@ -468,6 +471,7 @@ export function createNagexApplication(): NagexApplication {
     candidateStore,
     activityStore,
     dailyBriefStore,
+    actionProposalStore,
     candidateActionResolver,
     quickCaptureService,
     inputRouter,

@@ -5,6 +5,8 @@ import type { NotificationEngine } from '../../notifications/notification.engine
 import type { ActionApprovalStore } from '../../governance/action-approval.store.js';
 import { generateDailyBriefOnce, type DailyBriefPipelineDeps } from '../../assistant/daily-brief.pipeline.js';
 import { detectMeaningfulChanges, dispatchDetectedChanges } from '../../assistant/daily-brief-change-detection.js';
+import { generateProposalsFromChanges } from '../../assistant/action-proposal-generator.js';
+import type { ActionProposalStore } from '../../assistant/action-proposal.store.js';
 
 // R10 — the scheduled/automatic Daily Brief execution path. Routed here by
 // CompositeTaskRunner only for a RECURRING task with
@@ -21,6 +23,7 @@ export class DailyBriefTaskRunner implements TaskRunner {
     private readonly dailyBriefStore: DailyBriefStore,
     private readonly notificationEngine?: NotificationEngine,
     private readonly actionApprovals?: ActionApprovalStore,
+    private readonly actionProposalStore?: ActionProposalStore,
   ) {}
 
   public async run(task: TaskRecord, requestId: string, runId: string): Promise<TaskRunOutcome> {
@@ -54,6 +57,19 @@ export class DailyBriefTaskRunner implements TaskRunner {
         : [];
       const changes = detectMeaningfulChanges({ previous, current: generated, newApprovalsSincePrevious });
       await dispatchDetectedChanges(this.notificationEngine, task.tenantId, task.ownerId, generated.date, changes, requestId);
+
+      // R11 — grounded, reviewable proposals from the same real changes
+      // (never a second notification per proposal — §8). Dedup via
+      // findByDedupeKey so a re-generation of the same day never creates a
+      // duplicate PROPOSED proposal for the same underlying change (§9).
+      if (this.actionProposalStore) {
+        for (const draft of generateProposalsFromChanges(changes, generated)) {
+          const dedupeKey = this.actionProposalStore.buildDedupeKey(task.tenantId, task.ownerId, generated.date, draft.sourceType, draft.sourceId, draft.proposalType);
+          if (!this.actionProposalStore.findByDedupeKey(task.tenantId, task.ownerId, dedupeKey)) {
+            this.actionProposalStore.create({ ...draft, tenantId: task.tenantId, principalId: task.ownerId, date: generated.date });
+          }
+        }
+      }
 
       // R10 §10 — DAILY_BRIEF_READY, dispatched only when the user
       // explicitly opted in (task.notifyOnComplete), and only for a real,
