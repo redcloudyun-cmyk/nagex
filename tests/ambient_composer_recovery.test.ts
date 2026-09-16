@@ -207,7 +207,20 @@ test('a stalled ambient/intent request recovers: composer, Send, and Quick Actio
 test('a normal, responding ambient/intent request is unaffected by the new timeout: disables during, re-enables and renders on completion', { timeout: 70000 }, async () => {
   await withServer(async (origin) => {
     await withBrowserPage(origin, async (page) => {
+      // The response is gated behind a promise the test controls, rather
+      // than resolving immediately, so the disabled===true observation
+      // below is deterministic — not a race against how fast route.fulfill
+      // happens to settle under whatever CPU/IO contention the full suite
+      // is under. Without this gate, a near-instant mocked response could
+      // transition disabled -> enabled before the assertion ever polled,
+      // producing a full-suite-only false timeout despite correct app
+      // behavior.
+      let releaseResponse: () => void = () => {};
+      const responseGate = new Promise<void>((resolve) => {
+        releaseResponse = resolve;
+      });
       await page.route('**/api/v1/ambient/intent', async (route) => {
+        await responseGate;
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -225,9 +238,12 @@ test('a normal, responding ambient/intent request is unaffected by the new timeo
       await page.click('#btn-home-prompt-send');
 
       // Must disable promptly on submit (unchanged pre-existing behavior).
+      // The mocked response is still being held open at this point, so
+      // there is no window in which it could have already re-enabled.
       await waitForComposerDisabledState(page, true, 45000, 'Test 2: Wait for disabled===true on submit');
 
-      // And must re-enable promptly on completion.
+      // Now let the held-open request resolve, and assert re-enable.
+      releaseResponse();
       await waitForComposerDisabledState(page, false, 45000, 'Test 2: Wait for disabled===false on completion');
 
       const resultVisible = await page.$eval('#ambient-result-card', (el) => (el as HTMLElement).style.display !== 'none');
