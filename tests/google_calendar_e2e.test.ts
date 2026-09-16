@@ -337,7 +337,7 @@ function buildCalendarPlanningService(): AiService {
   const provider: ModelProvider = {
     name: 'test',
     model: 'test-model',
-    status: () => ({ configured: true, available: true, provider: 'test', model: 'test-model' }),
+    status: () => ({ configured: true, available: true, provider: 'test', model: 'test-model', status: 'LIVE' as const, lastCheckedAt: null, degradedReason: null }),
     generate: async (request) => ({
       text: JSON.stringify({
         goal: 'Cancel the strategy sync',

@@ -13,7 +13,7 @@ import { UnifiedModelRouter } from '../src/model-gateway/unified-model-router.js
 const planningProvider: ModelProvider = {
   name: 'openai',
   model: 'test-openai-model',
-  status: () => ({ configured: true, available: true, provider: 'openai', model: 'test-openai-model' }),
+  status: () => ({ configured: true, available: true, provider: 'openai', model: 'test-openai-model', status: 'LIVE' as const, lastCheckedAt: null, degradedReason: null }),
   generate: async (request) => ({
     text: JSON.stringify({
       goal: 'Prepare my next client meeting and schedule it.',

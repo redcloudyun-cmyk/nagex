@@ -904,25 +904,30 @@
           </div>
 
           <div class="settings-sections-list">
+            <!-- Connections, Memory, Automations, and Advanced (MASTER.md
+                 Section 14.12) are reclassified here from former top-level
+                 sidebar items — same views/routes, reached from Settings
+                 instead of the default sidebar. R7 §3: Connected Apps now
+                 leads Settings (user-facing), with the real AI & Model
+                 status right after it and technical Advanced items pushed
+                 to the bottom. -->
             <div class="settings-card">
-              <h3 data-i18n="settings.providers">Nebius & NVIDIA Model Gateway</h3>
-              <div class="provider-status-row">
-                <div class="provider-box">
-                  <div class="provider-name">Nebius AI Cloud Runtime</div>
-                  <span class="badge-status green">Connected</span>
-                  <p class="setting-sub" style="margin-top:0.25rem;">Token Factory & High-throughput Agent Execution</p>
-                </div>
-                <div class="provider-box">
-                  <div class="provider-name">NVIDIA Nemotron Open Model</div>
-                  <span class="badge-status green">Active via Gateway</span>
-                  <p class="setting-sub" style="margin-top:0.25rem;">Reasoning, Planning & Structured Tool Dispatch</p>
-                </div>
+              <h3 data-i18n="settings.connections">Connections</h3>
+              <p class="setting-sub" data-i18n="settings.connectionsDesc">Services NAgex can act on with your approval.</p>
+              <div id="settings-connections-status">
+                <!-- Dynamically populated -->
               </div>
             </div>
 
+            <!-- R7 §2/§3 — real GET /api/v1/providers/status only; replaces
+                 a previous hardcoded "Connected"/"Active via Gateway" block
+                 that never reflected real provider state (a real bug this
+                 directive's audit found and fixed — see R7 delivery
+                 report). -->
             <div class="settings-card">
-              <h3 data-i18n="settings.quickWake">Quick Wake Invocation</h3>
-              <div class="settings-options-group" id="quickwake-settings-options">
+              <h3 data-i18n="settings.providers">AI & Model</h3>
+              <p class="setting-sub" data-i18n="settings.providersDesc">The real model provider currently serving requests, and any configured fallback.</p>
+              <div id="settings-ai-model-status">
                 <!-- Dynamically populated -->
               </div>
             </div>
@@ -934,14 +939,9 @@
               </div>
             </div>
 
-            <!-- Connections, Memory, Automations, and Advanced (MASTER.md
-                 Section 14.12) are reclassified here from former top-level
-                 sidebar items — same views/routes, reached from Settings
-                 instead of the default sidebar. -->
             <div class="settings-card">
-              <h3 data-i18n="settings.connections">Connections</h3>
-              <p class="setting-sub" data-i18n="settings.connectionsDesc">Services NAgex can act on with your approval.</p>
-              <div id="settings-connections-status">
+              <h3 data-i18n="settings.quickWake">Quick Wake Invocation</h3>
+              <div class="settings-options-group" id="quickwake-settings-options">
                 <!-- Dynamically populated -->
               </div>
             </div>
@@ -1462,6 +1462,12 @@
       <div class="mh-settings-section-heading" data-i18n="mobileSettings.sectionConnections">Connected Apps</div>
       <section class="mh-settings-card">
         <div id="mh-connections-row"></div>
+      </section>
+
+      <!-- R7 §2/§3 — real GET /api/v1/providers/status only. -->
+      <div class="mh-settings-section-heading" data-i18n="settings.providers">AI &amp; Model</div>
+      <section class="mh-settings-card">
+        <div id="mh-ai-model-status"></div>
       </section>
 
       <div class="mh-settings-section-heading" data-i18n="mobileSettings.sectionAutonomy">Autonomy &amp; Approval</div>

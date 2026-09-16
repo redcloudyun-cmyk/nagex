@@ -84,7 +84,11 @@ test('provider status exposes configuration metadata and never API keys', async 
   const serialized = JSON.stringify(result.data);
   assert.doesNotMatch(serialized, /top-secret|apiKey|OPENAI_API_KEY/);
   const status = (result.data as any).providers[0];
-  assert.deepEqual(Object.keys(status).sort(), ['available', 'configured', 'model', 'provider']);
+  assert.deepEqual(Object.keys(status).sort(), ['available', 'configured', 'degradedReason', 'lastCheckedAt', 'model', 'provider', 'status']);
+  // R7 §2/§3 — the active/fallback summary alongside the per-provider array.
+  assert.equal((result.data as any).activeProvider, 'openai');
+  assert.equal((result.data as any).activeModel, 'oa');
+  assert.deepEqual((result.data as any).fallbackProviders, []);
 });
 
 test('POST /api/v1/ai/chat returns normalized metadata from a mocked live provider response', async () => {
@@ -122,11 +126,84 @@ test('provider timeout is normalized and eligible for fallback', async () => {
   );
 });
 
+// ── R7 §4 — real (not fabricated) provider runtime status derivation ──
+test('status() is UNCONFIGURED with no key/model, never a fake LIVE', () => {
+  const provider = new OpenAIProvider({});
+  const status = provider.status();
+  assert.equal(status.status, 'UNCONFIGURED');
+  assert.equal(status.configured, false);
+  assert.equal(status.available, false);
+  assert.equal(status.lastCheckedAt, null);
+});
+
+test('status() is CONFIGURED (not LIVE) before any real call has been attempted — an API key alone is not evidence of a working connection', () => {
+  const provider = new OpenAIProvider({ apiKey: 'a', model: 'oa' });
+  const status = provider.status();
+  assert.equal(status.status, 'CONFIGURED');
+  assert.equal(status.configured, true);
+  assert.equal(status.available, true);
+  assert.equal(status.lastCheckedAt, null);
+});
+
+test('status() becomes LIVE only after a real generate() call actually succeeds', async () => {
+  const provider = new OpenAIProvider({ apiKey: 'a', model: 'oa', fetchFn: async () => jsonResponse({ output_text: 'hi' }) });
+  await provider.generate({ messages: [{ role: 'user', content: 'hello' }], requestId: 'req_live' });
+  const status = provider.status();
+  assert.equal(status.status, 'LIVE');
+  assert.equal(status.available, true);
+  assert.equal(status.degradedReason, null);
+  assert.ok(status.lastCheckedAt && !Number.isNaN(Date.parse(status.lastCheckedAt)));
+});
+
+test('status() becomes DEGRADED (not fake LIVE) after a real generate() call actually fails, and available flips false', async () => {
+  const provider = new OpenAIProvider({ apiKey: 'a', model: 'oa', fetchFn: async () => jsonResponse({ error: 'invalid key' }, 401) });
+  await assert.rejects(() => provider.generate({ messages: [{ role: 'user', content: 'hello' }], requestId: 'req_degraded' }));
+  const status = provider.status();
+  assert.equal(status.status, 'DEGRADED');
+  assert.equal(status.configured, true);
+  assert.equal(status.available, false);
+  assert.equal(status.degradedReason, 'PROVIDER_HTTP_401');
+});
+
+test('a provider that recovers after a failure flips back from DEGRADED to LIVE on the next real success — never sticky', async () => {
+  let fail = true;
+  const provider = new OpenAIProvider({ apiKey: 'a', model: 'oa', fetchFn: async () => fail ? jsonResponse({}, 500) : jsonResponse({ output_text: 'recovered' }) });
+  await assert.rejects(() => provider.generate({ messages: [{ role: 'user', content: 'hello' }], requestId: 'req_1' }));
+  assert.equal(provider.status().status, 'DEGRADED');
+  fail = false;
+  await provider.generate({ messages: [{ role: 'user', content: 'hello' }], requestId: 'req_2' });
+  assert.equal(provider.status().status, 'LIVE');
+});
+
+// ── R7 §10 — real token usage metadata only, never estimated ──
+test('OpenAIProvider passes through real usage metadata when the API returns it', async () => {
+  const provider = new OpenAIProvider({ apiKey: 'a', model: 'oa', fetchFn: async () => jsonResponse({ output_text: 'hi', usage: { input_tokens: 12, output_tokens: 34, total_tokens: 46 } }) });
+  const result = await provider.generate({ messages: [{ role: 'user', content: 'hello' }], requestId: 'req_usage' });
+  assert.deepEqual(result.usage, { inputTokens: 12, outputTokens: 34, totalTokens: 46 });
+});
+
+test('OpenAIProvider reports usage as null (never a guessed number) when the API response has no usage field', async () => {
+  const provider = new OpenAIProvider({ apiKey: 'a', model: 'oa', fetchFn: async () => jsonResponse({ output_text: 'hi' }) });
+  const result = await provider.generate({ messages: [{ role: 'user', content: 'hello' }], requestId: 'req_no_usage' });
+  assert.equal(result.usage, null);
+});
+
+test('UnifiedModelRouter.activeProviderSummary() reflects real registration/priority order and configured-only providers', () => {
+  const providers = createProviders({ GEMINI_API_KEY: 'g', NAGEX_GEMINI_MODEL: 'gm', NEBIUS_API_KEY: 'n', NAGEX_NEBIUS_MODEL: 'nm' });
+  const router = new UnifiedModelRouter(providers, { info: () => {}, warn: () => {} });
+  const summary = router.activeProviderSummary();
+  // default priority is nebius,openai,gemini — openai unconfigured here, so
+  // active must be nebius and fallback must be exactly [gemini].
+  assert.equal(summary.activeProvider, 'nebius');
+  assert.equal(summary.activeModel, 'nm');
+  assert.deepEqual(summary.fallbackProviders, ['gemini']);
+});
+
 test('router accepts a future provider adapter without core routing changes', async () => {
   const futureProvider = {
     name: 'future-llm',
     model: 'future-model-from-config',
-    status: () => ({ configured: true, available: true, provider: 'future-llm', model: 'future-model-from-config' }),
+    status: () => ({ configured: true, available: true, provider: 'future-llm', model: 'future-model-from-config', status: 'LIVE' as const, lastCheckedAt: null, degradedReason: null }),
     generate: async (request: ModelRequest) => ({ text: 'future response', provider: 'future-llm', model: 'future-model-from-config', latencyMs: 1, requestId: request.requestId }),
   };
   const router = new UnifiedModelRouter([futureProvider], { info: () => {}, warn: () => {} });

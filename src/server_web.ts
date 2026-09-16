@@ -450,7 +450,12 @@ export async function handleAsyncApiRequest(
 ): Promise<ApiResult> {
   try {
     if (pathname === '/api/v1/providers/status' && method === 'GET') {
-      return { status: 200, data: { providers: service.statuses() } };
+      // R7 §2/§3 — same real per-provider statuses() this already returned,
+      // plus the active/fallback summary Settings' AI & Model section needs.
+      // Never a hardcoded configured/connected value: both come straight
+      // from UnifiedModelRouter's real registration-order + observed
+      // per-provider state (see providers.ts's HttpModelProvider.status()).
+      return { status: 200, data: { providers: service.statuses(), ...service.activeProviderSummary() } };
     }
     // Phase 2 Step 1 — Trust & Safety Layer Endpoints (TS-5, TS-6)
     if (pathname === '/api/v1/safety/evaluate' && method === 'POST') {

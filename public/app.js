@@ -327,7 +327,7 @@
   }
 
   async function loadAllData() {
-    const [memData, planData, taskData, skillData, toolData, apprData, execData, knowData, qwData, autoData, oauthData, tgStatus, tgIdentities, slackStatus, slackIdentities, notifData, candData, activityData, inboxData, convData] = await Promise.all([
+    const [memData, planData, taskData, skillData, toolData, apprData, execData, knowData, qwData, autoData, oauthData, tgStatus, tgIdentities, slackStatus, slackIdentities, notifData, candData, activityData, inboxData, convData, providerStatusData] = await Promise.all([
       apiFetch('/api/v1/memory'),
       apiFetch('/api/v1/plans'),
       apiFetch('/api/v1/tasks'),
@@ -348,6 +348,7 @@
       apiFetch('/api/v1/activity'),
       apiFetch('/api/v1/workspace/inbox'),
       apiFetch('/api/v1/conversations/main'),
+      apiFetch('/api/v1/providers/status'),
     ]);
 
     if (memData) state.memories = memData.memories || [];
@@ -373,6 +374,7 @@
       state.notifications.items = notifData.notifications || [];
       state.notifications.unreadCount = typeof notifData.unreadCount === 'number' ? notifData.unreadCount : 0;
     }
+    if (providerStatusData) state.providerStatus = providerStatusData;
 
     renderActiveTab();
     scheduleActiveWorkPolling();
@@ -1799,7 +1801,55 @@
     }
 
     renderSettingsConnections();
+    renderSettingsAiModel();
     wireSettingsAdvancedToggle();
+  }
+
+  // R7 §2/§3 — real GET /api/v1/providers/status only (state.providerStatus,
+  // already fetched by loadAllData). Replaces the previous hardcoded
+  // "Connected"/"Active via Gateway" badges, which never reflected real
+  // provider state — read-only display, since no backend contract exists
+  // yet to let a user switch providers from here.
+  function renderSettingsAiModel() {
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    const el = document.getElementById('settings-ai-model-status');
+    if (!el) return;
+
+    const data = state.providerStatus;
+    const providers = (data && data.providers) || [];
+    const activeProvider = data && data.activeProvider;
+
+    if (providers.length === 0) {
+      el.innerHTML = `<p class="setting-sub">${escapeHtml(t('settings.providerNoneConfigured') || 'No model provider is configured on this server.')}</p>`;
+      return;
+    }
+
+    const statusLabelKey = {
+      UNCONFIGURED: 'settings.providerStatusUnconfigured',
+      CONFIGURED: 'settings.providerStatusConfigured',
+      LIVE: 'settings.providerStatusLive',
+      DEGRADED: 'settings.providerStatusDegraded',
+    };
+    const statusBadgeClass = { UNCONFIGURED: 'gray', CONFIGURED: 'blue', LIVE: 'green', DEGRADED: 'orange' };
+    const statusFallback = { UNCONFIGURED: 'Not configured', CONFIGURED: 'Configured — not yet used', LIVE: 'Live', DEGRADED: 'Degraded' };
+
+    el.innerHTML = providers
+      .filter((p) => p.status !== 'UNCONFIGURED')
+      .map((p) => {
+        const isActive = p.provider === activeProvider;
+        const roleLabel = isActive
+          ? (t('settings.providerActive') || 'Active')
+          : (t('settings.providerFallback') || 'Fallback');
+        return `
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-title">${escapeHtml(p.provider)}${p.model ? ` · ${escapeHtml(p.model)}` : ''}</span>
+            <span class="device-tag">${escapeHtml(roleLabel)}${p.lastCheckedAt ? ` · ${escapeHtml(t('settings.providerLastChecked') || 'Last checked')} ${escapeHtml(new Date(p.lastCheckedAt).toLocaleTimeString())}` : ''}</span>
+          </div>
+          <span class="badge-status ${statusBadgeClass[p.status] || 'gray'}">${escapeHtml(t(statusLabelKey[p.status]) || statusFallback[p.status] || p.status)}</span>
+        </div>`;
+      })
+      .join('') || `<p class="setting-sub">${escapeHtml(t('settings.providerNoneConfigured') || 'No model provider is configured on this server.')}</p>`;
   }
 
   // Real Google OAuth connection status (state.googleOAuth, already fetched

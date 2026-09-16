@@ -23,6 +23,21 @@ export class UnifiedModelRouter {
     return [...this.providers.values()].map((provider) => provider.status());
   }
 
+  // R7 §2/§3 — the "which one would a real request use right now" summary
+  // Settings needs. Derived purely from statuses() (registration/priority
+  // order, same order generate() itself tries), never a second source of
+  // truth: activeProvider is the first configured provider, fallbackProviders
+  // are every other configured one in the same real fallback order.
+  public activeProviderSummary(): { activeProvider: string | null; activeModel: string | null; fallbackProviders: string[] } {
+    const configured = [...this.providers.values()].map((provider) => provider.status()).filter((status) => status.configured);
+    const [active, ...rest] = configured;
+    return {
+      activeProvider: active?.provider ?? null,
+      activeModel: active?.model ?? null,
+      fallbackProviders: rest.map((status) => status.provider),
+    };
+  }
+
   public async generate(input: { messages: ModelMessage[]; mode: RoutingMode; requestId?: string; jsonMode?: boolean; validate?: (text: string) => void }): Promise<ModelResponse> {
     const requestId = input.requestId || `mdl_${randomUUID()}`;
     const registeredOrder = [...this.providers.keys()];

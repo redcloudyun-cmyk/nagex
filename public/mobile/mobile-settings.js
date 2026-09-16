@@ -187,6 +187,40 @@
     if (window.NAGEX.bindMobileLangToggle) window.NAGEX.bindMobileLangToggle('mh-settings-lang-toggle');
   }
 
+  // R7 §2/§3 — real GET /api/v1/providers/status only (state.providerStatus,
+  // already fetched once by app.js's loadAllData(); same shared state
+  // Desktop's renderSettingsAiModel() reads, no second fetch). Read-only:
+  // no provider-switching UI exists because no backend contract for that
+  // exists yet.
+  const STATUS_BADGE_TAG_CLASS = { UNCONFIGURED: 'mh-settings-tag-muted', CONFIGURED: '', LIVE: 'mh-settings-tag-ok', DEGRADED: 'mh-settings-tag-warn' };
+  const STATUS_LABEL_KEY = { UNCONFIGURED: 'settings.providerStatusUnconfigured', CONFIGURED: 'settings.providerStatusConfigured', LIVE: 'settings.providerStatusLive', DEGRADED: 'settings.providerStatusDegraded' };
+  const STATUS_LABEL_FALLBACK = { UNCONFIGURED: 'Not configured', CONFIGURED: 'Configured — not yet used', LIVE: 'Live', DEGRADED: 'Degraded' };
+
+  function renderAiModel() {
+    const el = document.getElementById('mh-ai-model-status');
+    if (!el || !window.NAGEX.getState) return;
+    const data = window.NAGEX.getState().providerStatus;
+    const providers = ((data && data.providers) || []).filter((p) => p.status !== 'UNCONFIGURED');
+
+    if (providers.length === 0) {
+      el.innerHTML = `<div class="mh-settings-row"><span class="mh-settings-row-title">${escapeHtml(t('settings.providerNoneConfigured', 'No model provider is configured on this server.'))}</span></div>`;
+      return;
+    }
+
+    el.innerHTML = providers.map((p) => {
+      const isActive = data.activeProvider === p.provider;
+      const roleLabel = isActive ? t('settings.providerActive', 'Active') : t('settings.providerFallback', 'Fallback');
+      return `
+      <div class="mh-settings-row">
+        <div class="mh-settings-row-body">
+          <span class="mh-settings-row-title">${escapeHtml(p.provider)}${p.model ? ` · ${escapeHtml(p.model)}` : ''}</span>
+          <span class="mh-settings-tag mh-settings-tag-muted">${escapeHtml(roleLabel)}</span>
+        </div>
+        <span class="mh-settings-tag ${STATUS_BADGE_TAG_CLASS[p.status] || ''}">${escapeHtml(t(STATUS_LABEL_KEY[p.status], STATUS_LABEL_FALLBACK[p.status] || p.status))}</span>
+      </div>`;
+    }).join('');
+  }
+
   // ── Advanced — local, ephemeral expand/collapse only, same as Desktop's
   // own wireSettingsAdvancedToggle() (app.js:1837-1849). No persistence
   // needed or added. ──
@@ -214,6 +248,7 @@
     renderQuickWake();
     renderAutonomy();
     renderConnections();
+    renderAiModel();
   }
 
   window.NAGEX = window.NAGEX || {};

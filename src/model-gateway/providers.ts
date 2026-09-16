@@ -3,7 +3,9 @@ import {
   type ModelProvider,
   type ModelRequest,
   type ModelResponse,
+  type ModelUsage,
   type ProviderId,
+  type ProviderRuntimeStatus,
   type ProviderStatus,
 } from './model-provider.js';
 
@@ -23,6 +25,15 @@ abstract class HttpModelProvider implements ModelProvider {
   protected readonly fetchFn: FetchFn;
   protected readonly timeoutMs: number;
 
+  // R7 §4 — real, observed last-outcome state. Never set optimistically:
+  // stays null until this instance has actually attempted a real
+  // generate() call, at which point recordOutcome() below sets it from
+  // that call's real success/failure, never from the mere presence of an
+  // API key.
+  private lastOutcome: 'success' | 'failure' | null = null;
+  private lastCheckedAt: string | null = null;
+  private lastFailureReason: string | null = null;
+
   constructor(options: ProviderOptions) {
     this.apiKey = options.apiKey?.trim() || null;
     this.model = options.model?.trim() || null;
@@ -30,9 +41,30 @@ abstract class HttpModelProvider implements ModelProvider {
     this.timeoutMs = options.timeoutMs ?? 30_000;
   }
 
+  protected recordOutcome(outcome: 'success' | 'failure', failureReason: string | null): void {
+    this.lastOutcome = outcome;
+    this.lastCheckedAt = new Date().toISOString();
+    this.lastFailureReason = outcome === 'success' ? null : failureReason;
+  }
+
   public status(): ProviderStatus {
     const configured = Boolean(this.apiKey && this.model);
-    return { configured, available: configured, provider: this.name, model: this.model };
+    const status: ProviderRuntimeStatus = !configured
+      ? 'UNCONFIGURED'
+      : this.lastOutcome === 'failure'
+        ? 'DEGRADED'
+        : this.lastOutcome === 'success'
+          ? 'LIVE'
+          : 'CONFIGURED';
+    return {
+      configured,
+      available: configured && status !== 'DEGRADED',
+      provider: this.name,
+      model: this.model,
+      status,
+      lastCheckedAt: this.lastCheckedAt,
+      degradedReason: status === 'DEGRADED' ? this.lastFailureReason : null,
+    };
   }
 
   protected assertConfigured(requestId: string): { apiKey: string; model: string } {
@@ -48,7 +80,22 @@ abstract class HttpModelProvider implements ModelProvider {
     return { apiKey: this.apiKey, model: this.model };
   }
 
+  // Thin wrapper around postJsonInner solely to record the real observed
+  // outcome (success/failure) of this actual network attempt — the single
+  // real signal status()'s LIVE/DEGRADED distinction is built on (R7 §4).
   protected async postJson(url: string, headers: Record<string, string>, body: unknown, requestId: string): Promise<unknown> {
+    try {
+      const result = await this.postJsonInner(url, headers, body, requestId);
+      this.recordOutcome('success', null);
+      return result;
+    } catch (error) {
+      const reason = error instanceof ModelProviderError ? error.code : 'PROVIDER_UNKNOWN_ERROR';
+      this.recordOutcome('failure', reason);
+      throw error;
+    }
+  }
+
+  private async postJsonInner(url: string, headers: Record<string, string>, body: unknown, requestId: string): Promise<unknown> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
@@ -100,11 +147,12 @@ abstract class HttpModelProvider implements ModelProvider {
 
   public abstract generate(request: ModelRequest): Promise<ModelResponse>;
 
-  protected response(text: string, startedAt: number, requestId: string): ModelResponse {
+  protected response(text: string, startedAt: number, requestId: string, usage?: ModelUsage | null): ModelResponse {
     if (!text.trim()) {
+      this.recordOutcome('failure', 'EMPTY_PROVIDER_RESPONSE');
       throw new ModelProviderError({ provider: this.name, code: 'EMPTY_PROVIDER_RESPONSE', message: `${this.name} returned no text.`, requestId, retryable: true });
     }
-    return { text, provider: this.name, model: this.model!, latencyMs: Date.now() - startedAt, requestId };
+    return { text, provider: this.name, model: this.model!, latencyMs: Date.now() - startedAt, requestId, usage: usage ?? null };
   }
 }
 
@@ -119,9 +167,12 @@ export class OpenAIProvider extends HttpModelProvider {
       { Authorization: `Bearer ${apiKey}` },
       { model, input: request.messages, store: false },
       request.requestId,
-    ) as { output_text?: string; output?: Array<{ content?: Array<{ type?: string; text?: string }> }> };
+    ) as { output_text?: string; output?: Array<{ content?: Array<{ type?: string; text?: string }> }>; usage?: { input_tokens?: number; output_tokens?: number; total_tokens?: number } };
     const text = payload.output_text ?? payload.output?.flatMap((item) => item.content ?? []).find((item) => item.type === 'output_text')?.text ?? '';
-    return this.response(text, startedAt, request.requestId);
+    const usage = payload.usage
+      ? { inputTokens: payload.usage.input_tokens ?? null, outputTokens: payload.usage.output_tokens ?? null, totalTokens: payload.usage.total_tokens ?? null }
+      : null;
+    return this.response(text, startedAt, request.requestId, usage);
   }
 }
 
@@ -145,9 +196,12 @@ export class GeminiProvider extends HttpModelProvider {
         ...(request.jsonMode ? { generationConfig: { responseMimeType: 'application/json' } } : {}),
       },
       request.requestId,
-    ) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
+    ) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>; usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number } };
     const text = payload.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('') ?? '';
-    return this.response(text, startedAt, request.requestId);
+    const usage = payload.usageMetadata
+      ? { inputTokens: payload.usageMetadata.promptTokenCount ?? null, outputTokens: payload.usageMetadata.candidatesTokenCount ?? null, totalTokens: payload.usageMetadata.totalTokenCount ?? null }
+      : null;
+    return this.response(text, startedAt, request.requestId, usage);
   }
 }
 
@@ -162,8 +216,11 @@ export class NebiusProvider extends HttpModelProvider {
       { Authorization: `Bearer ${apiKey}` },
       { model, messages: request.messages, ...(request.jsonMode ? { response_format: { type: 'json_object' } } : {}) },
       request.requestId,
-    ) as { choices?: Array<{ message?: { content?: string } }> };
-    return this.response(payload.choices?.[0]?.message?.content ?? '', startedAt, request.requestId);
+    ) as { choices?: Array<{ message?: { content?: string } }>; usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } };
+    const usage = payload.usage
+      ? { inputTokens: payload.usage.prompt_tokens ?? null, outputTokens: payload.usage.completion_tokens ?? null, totalTokens: payload.usage.total_tokens ?? null }
+      : null;
+    return this.response(payload.choices?.[0]?.message?.content ?? '', startedAt, request.requestId, usage);
   }
 }
 

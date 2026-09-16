@@ -14,19 +14,41 @@ export interface ModelRequest {
   jsonMode?: boolean;
 }
 
+// Real token counts only, taken directly from whatever usage object the
+// provider's own API response included (R7 §10) — never computed/estimated
+// locally, and never present at all for a provider whose API doesn't
+// return one.
+export interface ModelUsage {
+  inputTokens: number | null;
+  outputTokens: number | null;
+  totalTokens: number | null;
+}
+
 export interface ModelResponse {
   text: string;
   provider: ProviderId;
   model: string;
   latencyMs: number;
   requestId: string;
+  usage?: ModelUsage | null;
 }
+
+// R7 §4 — a provider's real runtime state, not just "an API key is
+// present": UNCONFIGURED (no key/model), CONFIGURED (key/model present but
+// no real call has been observed yet), LIVE (the most recent real call
+// succeeded), DEGRADED (the most recent real call failed). Never fabricated
+// — set only from an actually-observed generate() outcome (see
+// HttpModelProvider.recordOutcome in providers.ts).
+export type ProviderRuntimeStatus = 'UNCONFIGURED' | 'CONFIGURED' | 'LIVE' | 'DEGRADED';
 
 export interface ProviderStatus {
   configured: boolean;
   available: boolean;
   provider: ProviderId;
   model: string | null;
+  status: ProviderRuntimeStatus;
+  lastCheckedAt: string | null;
+  degradedReason: string | null;
 }
 
 export interface ModelProvider {

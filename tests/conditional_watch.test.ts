@@ -71,7 +71,7 @@ function buildMockAiService(responseText: string, capture?: { lastPrompt: string
   const provider: ModelProvider = {
     name: 'test',
     model: 'test-model',
-    status: () => ({ configured: true, available: true, provider: 'test', model: 'test-model' }),
+    status: () => ({ configured: true, available: true, provider: 'test', model: 'test-model', status: 'LIVE' as const, lastCheckedAt: null, degradedReason: null }),
     generate: async (request) => {
       if (capture) capture.lastPrompt = request.messages[request.messages.length - 1]?.content || '';
       return { text: responseText, provider: 'test', model: 'test-model', latencyMs: 1, requestId: request.requestId };
