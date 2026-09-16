@@ -1,15 +1,15 @@
 /*
- * NAgex Mobile Home (UI-5 R1) — layout/visual layer only.
- *
- * Scoped entirely under #mobile-app-shell — a genuinely separate DOM tree
- * from .app-wrapper/#view-home (Desktop), never a CSS collapse of it (see
- * mobile-home.js's shell-visibility rule). Does not touch any Desktop
+ * NAgex Mobile Home (UI-5 R1, visual-polish pass) — layout/visual layer
+ * only. Scoped entirely under #mobile-app-shell — a genuinely separate DOM
+ * tree from .app-wrapper/#view-home (Desktop), never a CSS collapse of it
+ * (see mobile-home.js's shell-visibility rule). Does not touch any Desktop
  * selector, and Desktop's own CSS is not modified by this file.
  *
- * Built on public/shared/tokens.css + components.css values — new
- * mobile-specific values below are read directly off the supplied Mobile
- * Home mockup's proportions at 390x844 (iPhone-class viewport), not
- * invented, per the UI-5 R1 pixel-clone directive.
+ * This pass re-aligns spacing/radius/shadow language to the supplied
+ * mobile mockup (soft gray-blue page background, large white floating
+ * cards, big rounded corners, airy spacing, softer shadow-led separation
+ * instead of hard borders) — real data/state bindings in mobile-home.js
+ * are unchanged.
  */
 
 #mobile-app-shell {
@@ -18,8 +18,17 @@
   inset: 0;
   z-index: 50;
   flex-direction: column;
-  background: #f5f8ff;
+  background: #f3f6fc;
   font-family: var(--font-sans);
+  /* Shared visual-language pass (directive §9): every native mobile view
+     (Inbox/Activity/Vault/Settings) still uses shared/tokens.css's
+     --nagex-radius-md / --nagex-shadow-card for its own row/card rules —
+     redefining them once here, scoped to this shell only, brings all of
+     them closer to the mockup's larger-radius/softer-shadow language
+     without editing each view's CSS file or touching Desktop (which reads
+     the un-overridden tokens.css values). */
+  --nagex-radius-md: 16px;
+  --nagex-shadow-card: 0 6px 18px -10px rgba(15, 23, 42, 0.16);
 }
 #mobile-app-shell:not([hidden]) {
   display: flex;
@@ -37,17 +46,17 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--nagex-spacing-3) 0;
+  padding: var(--nagex-spacing-4) 2px var(--nagex-spacing-2);
   gap: var(--nagex-spacing-3);
 }
 .mh-brand {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
   min-width: 0;
 }
 .mh-logo {
-  height: 24px;
+  height: 26px;
   width: auto;
   flex-shrink: 0;
 }
@@ -58,10 +67,10 @@
 }
 .mh-brand-name {
   font-family: var(--font-display);
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 800;
   color: var(--nagex-text-primary);
-  line-height: 1.1;
+  line-height: 1.15;
 }
 .mh-brand-tagline {
   font-size: 10px;
@@ -69,41 +78,44 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 34vw;
 }
 .mh-header-right {
   display: flex;
   align-items: center;
-  gap: var(--nagex-spacing-2);
+  gap: 8px;
   flex-shrink: 0;
 }
 .mh-lang-toggle {
-  height: 28px;
-  padding: 0 9px;
-  border-radius: 7px;
-  border: 1px solid var(--nagex-border-default);
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 9px;
+  border: none;
   background: #ffffff;
   color: var(--nagex-text-secondary);
   font-size: 11px;
   font-weight: 700;
   cursor: pointer;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
 }
 .mh-notif-bell {
   position: relative;
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
-  border: 1px solid var(--nagex-border-default);
+  border: none;
   background: #ffffff;
   color: var(--nagex-text-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
 }
 .mh-notif-dot {
   position: absolute;
-  top: 5px;
-  right: 6px;
+  top: 6px;
+  right: 7px;
   width: 8px;
   height: 8px;
   border-radius: 50%;
@@ -111,67 +123,104 @@
   border: 1.5px solid #ffffff;
 }
 .mh-avatar {
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   background: linear-gradient(135deg, var(--nagex-accent-primary), var(--nagex-accent-hover));
   color: #ffffff;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 2px 8px -1px rgba(37, 99, 235, 0.4);
 }
 
-/* ── B. Hero + Command Surface — soft-blue gradient, mockup proportions ── */
+/* ── B. Hero + Command Surface — larger, more premium card; soft blue
+   gradient with abstract decorative shapes echoing DesktopHome's own
+   .hero-visual treatment (no photographic asset invented) ── */
 .mh-hero {
   position: relative;
-  margin-top: var(--nagex-spacing-2);
-  padding: var(--nagex-spacing-5) var(--nagex-spacing-4) var(--nagex-spacing-4);
-  border-radius: var(--nagex-radius-xl);
+  margin-top: var(--nagex-spacing-3);
+  padding: 22px 20px 20px;
+  border-radius: 26px;
   overflow: hidden;
   background:
-    radial-gradient(160px 140px at 92% 8%, rgba(191, 219, 254, 0.65) 0%, rgba(191, 219, 254, 0) 70%),
-    radial-gradient(220px 160px at 100% 60%, rgba(199, 210, 254, 0.45) 0%, rgba(199, 210, 254, 0) 70%),
-    linear-gradient(180deg, #eef4ff 0%, #f7faff 100%);
-  border: 1px solid var(--nagex-border-subtle);
+    radial-gradient(220px 180px at 96% 0%, rgba(191, 219, 254, 0.7) 0%, rgba(191, 219, 254, 0) 68%),
+    radial-gradient(260px 200px at 108% 70%, rgba(199, 210, 254, 0.5) 0%, rgba(199, 210, 254, 0) 70%),
+    linear-gradient(165deg, #eaf1ff 0%, #f8fbff 65%);
+  border: 1px solid rgba(191, 219, 254, 0.55);
+  box-shadow: 0 10px 28px -12px rgba(37, 99, 235, 0.18);
+}
+.mh-hero-decor {
+  position: absolute;
+  right: 14px;
+  top: 12px;
+  width: 108px;
+  height: 66px;
+  pointer-events: none;
+}
+.mh-hero-decor span {
+  position: absolute;
+  display: block;
+  border-radius: 16px;
+  transform: rotate(-18deg);
+  background: linear-gradient(135deg, rgba(191, 219, 254, 0.75), rgba(59, 130, 246, 0.32));
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.1);
+}
+.mh-hero-decor span:first-child { width: 52px; height: 52px; right: 42px; top: -4px; }
+.mh-hero-decor span:nth-child(2) { width: 36px; height: 36px; right: 8px; top: 26px; background: linear-gradient(135deg, rgba(224, 242, 254, 0.85), rgba(29, 78, 216, 0.28)); }
+.mh-hero-decor em {
+  position: absolute;
+  right: 4px;
+  bottom: -2px;
+  font-family: 'Brush Script MT', 'Caveat', cursive, sans-serif;
+  font-size: 12px;
+  color: #2563eb;
+  transform: rotate(-6deg);
+  font-style: italic;
+  white-space: nowrap;
 }
 .mh-hero-eyebrow {
-  display: block;
-  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--nagex-text-secondary);
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 .mh-hero-title {
   font-family: var(--font-display);
   font-size: 24px;
   font-weight: 800;
-  line-height: 1.18;
+  line-height: 1.22;
   letter-spacing: -0.01em;
   color: var(--nagex-text-primary);
-  max-width: 90%;
+  max-width: 72%;
 }
 .mh-hero-title .brand-blue {
   color: var(--nagex-accent-primary);
 }
 .mh-hero-sub {
-  margin-top: 6px;
+  margin-top: 7px;
   font-size: 13px;
+  line-height: 1.45;
   color: var(--nagex-text-secondary);
-  max-width: 92%;
+  max-width: 88%;
 }
 
 .mh-command-bar {
-  margin-top: var(--nagex-spacing-4);
+  margin-top: 18px;
   display: flex;
   align-items: center;
   gap: 8px;
   background: #ffffff;
   border-radius: var(--nagex-radius-pill);
-  padding: 6px 6px 6px 14px;
-  box-shadow: var(--nagex-shadow-card);
-  border: 1px solid var(--nagex-border-subtle);
+  padding: 7px 7px 7px 16px;
+  box-shadow: 0 8px 20px -8px rgba(15, 23, 42, 0.16);
+  border: 1px solid rgba(226, 232, 240, 0.7);
 }
 .mh-command-icon {
   flex-shrink: 0;
@@ -187,15 +236,15 @@
   font-size: 14px;
   font-family: var(--font-sans);
   color: var(--nagex-text-primary);
-  height: 32px;
+  height: 34px;
 }
 .mh-command-input::placeholder {
   color: var(--nagex-text-muted);
 }
 .mh-voice-btn {
   flex-shrink: 0;
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   border: none;
   background: var(--nagex-surface-subtle);
@@ -212,8 +261,8 @@
 }
 .mh-command-send {
   flex-shrink: 0;
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   border: none;
   background: var(--nagex-accent-primary);
@@ -222,7 +271,7 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 4px 10px -2px rgba(37, 99, 235, 0.35);
+  box-shadow: 0 6px 14px -3px rgba(37, 99, 235, 0.45);
 }
 .mh-command-send:active {
   transform: scale(0.96);
@@ -230,7 +279,7 @@
 
 /* ── C. Quick action pills ──────────────────────────────────────── */
 .mh-quick-actions {
-  margin-top: var(--nagex-spacing-3);
+  margin-top: 14px;
   display: flex;
   gap: 8px;
   overflow-x: auto;
@@ -244,12 +293,12 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: #ffffff;
-  border: 1px solid var(--nagex-border-default);
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(226, 232, 240, 0.9);
   border-radius: var(--nagex-radius-pill);
   padding: 8px 14px;
   font-size: 12.5px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--nagex-text-primary);
   white-space: nowrap;
   cursor: pointer;
@@ -258,17 +307,18 @@
 
 /* ── D. Background task banner ──────────────────────────────────── */
 .mh-task-banner {
-  margin-top: var(--nagex-spacing-4);
+  margin-top: var(--nagex-spacing-5);
   width: 100%;
   display: flex;
   align-items: center;
   gap: var(--nagex-spacing-3);
   background: #e9f9ef;
-  border: 1px solid #c7f0d5;
-  border-radius: var(--nagex-radius-lg);
-  padding: 12px 14px;
+  border: none;
+  border-radius: 20px;
+  padding: 14px 16px;
   text-align: left;
   cursor: pointer;
+  box-shadow: 0 4px 14px -6px rgba(16, 185, 129, 0.28);
 }
 .mh-task-banner-dot {
   flex-shrink: 0;
@@ -279,6 +329,7 @@
 }
 .mh-task-banner-dot-active {
   background: var(--nagex-success);
+  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.18);
 }
 .mh-task-banner-body {
   flex: 1;
@@ -309,63 +360,70 @@
   fill: #64748b;
 }
 
-/* ── Cards (Working / Approvals / Today / Done) ─────────────────── */
+/* ── Cards (Working / Approvals / Today / Done) — large radius, soft
+   shadow-led separation, faint 1px outline instead of a hard border ── */
 .mh-card {
-  margin-top: var(--nagex-spacing-4);
+  margin-top: var(--nagex-spacing-5);
   background: #ffffff;
-  border: 1px solid var(--nagex-border-subtle);
-  border-radius: var(--nagex-radius-lg);
-  box-shadow: var(--nagex-shadow-card);
-  padding: 14px;
+  border: 1px solid rgba(226, 232, 240, 0.6);
+  border-radius: 22px;
+  box-shadow: 0 6px 20px -10px rgba(15, 23, 42, 0.12);
+  padding: 18px;
 }
 .mh-card-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 10px;
+  gap: 10px;
+  margin-bottom: 14px;
 }
 .mh-card-header h2 {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 14px;
+  gap: 7px;
+  font-size: 14.5px;
   font-weight: 700;
   color: var(--nagex-text-primary);
+  min-width: 0;
 }
 .mh-card-header h2 svg {
   width: 16px;
   height: 16px;
+  flex-shrink: 0;
   color: var(--nagex-accent-primary);
   stroke: var(--nagex-accent-primary);
 }
 .mh-icon-danger { fill: var(--nagex-danger); }
 .mh-view-all {
+  flex-shrink: 0;
   font-size: 12px;
   font-weight: 600;
   color: var(--nagex-accent-primary);
   cursor: pointer;
+  padding-top: 2px;
 }
 
 /* ── Working rows ────────────────────────────────────────────────── */
 .mh-row {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 8px 0;
+  gap: 11px;
+  padding: 10px 0;
   border-bottom: 1px solid var(--nagex-border-subtle);
 }
-.mh-row:last-child { border-bottom: none; }
+.mh-row:last-child { border-bottom: none; padding-bottom: 0; }
+.mh-row:first-child { padding-top: 0; }
 .mh-row-icon {
   flex-shrink: 0;
-  width: 32px;
-  height: 32px;
-  border-radius: 9px;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 .mh-row-icon-blue { background: #dbeafe; color: #1d4ed8; }
-.mh-row-icon-danger { background: #fee2e2; color: #b91c1c; }
+.mh-row-icon-danger { background: #fef3c7; color: #b45309; }
 .mh-row-icon-warning { background: #fef3c7; color: #b45309; }
 .mh-row-icon-success { background: #d1fae5; color: #047857; }
 .mh-row-body { flex: 1; min-width: 0; }
@@ -377,7 +435,7 @@
 .mh-row-detail {
   font-size: 11.5px;
   color: var(--nagex-text-muted);
-  margin-top: 1px;
+  margin-top: 2px;
 }
 .mh-row-trailing {
   flex-shrink: 0;
@@ -391,30 +449,35 @@
   font-weight: 600;
   color: var(--nagex-danger);
   background: #fef2f2;
-  border: 1px solid #fecaca;
-  border-radius: 6px;
-  padding: 2px 7px;
+  border: none;
+  border-radius: 7px;
+  padding: 3px 8px;
   cursor: pointer;
 }
 
-/* ── Approval cards ──────────────────────────────────────────────── */
+/* ── Approval cards — tighter, more compact rows per mockup fidelity;
+   the icon square now uses a soft amber "needs attention" tint rather
+   than solid red (a full alarm-red tint on every approval read as
+   alarm-heavy against the mockup's calmer look, and approval-pending is
+   not itself an error state) ── */
 .mh-approval-card {
   display: flex;
   gap: 10px;
-  padding: 10px 0;
+  padding: 11px 0;
   border-bottom: 1px solid var(--nagex-border-subtle);
 }
-.mh-approval-card:last-child { border-bottom: none; }
+.mh-approval-card:last-child { border-bottom: none; padding-bottom: 0; }
+.mh-approval-card:first-child { padding-top: 0; }
 .mh-approval-body { flex: 1; min-width: 0; }
 .mh-approval-actions {
   display: flex;
   gap: 8px;
-  margin-top: 8px;
+  margin-top: 9px;
 }
 .mh-btn-approve {
   flex: 1;
-  min-height: 36px;
-  border-radius: 9px;
+  min-height: 34px;
+  border-radius: 10px;
   border: none;
   background: var(--nagex-accent-primary);
   color: #ffffff;
@@ -425,38 +488,39 @@
 .mh-btn-approve:active { background: var(--nagex-accent-hover); }
 .mh-btn-review {
   flex: 1;
-  min-height: 36px;
-  border-radius: 9px;
+  min-height: 34px;
+  border-radius: 10px;
   border: 1px solid var(--nagex-border-default);
   background: #ffffff;
-  color: var(--nagex-text-primary);
+  color: var(--nagex-text-secondary);
   font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
 }
 
-/* ── G. Today — timeline ─────────────────────────────────────────── */
+/* ── G. Today — timeline, tighter rail + clearer type hierarchy ──── */
 .mh-timeline-row {
   display: flex;
   gap: 12px;
 }
 .mh-timeline-rail {
   flex-shrink: 0;
-  width: 46px;
+  width: 44px;
   display: flex;
   flex-direction: column;
   align-items: center;
   position: relative;
 }
 .mh-timeline-time {
-  font-size: 10.5px;
+  font-size: 10px;
+  font-weight: 600;
   color: var(--nagex-text-muted);
   white-space: nowrap;
 }
 .mh-timeline-dot {
-  margin-top: 4px;
-  width: 10px;
-  height: 10px;
+  margin-top: 5px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   border: 2px solid var(--nagex-accent-primary);
   background: #ffffff;
@@ -465,11 +529,11 @@
 .mh-timeline-dot::after {
   content: '';
   position: absolute;
-  top: 12px;
+  top: 11px;
   left: 50%;
   transform: translateX(-50%);
   width: 1px;
-  height: 28px;
+  height: 24px;
   background: var(--nagex-border-default);
 }
 .mh-timeline-row:last-child .mh-timeline-dot::after { display: none; }
@@ -477,33 +541,38 @@
 .mh-timeline-body {
   flex: 1;
   min-width: 0;
-  padding-bottom: 18px;
+  padding-bottom: 16px;
 }
 
 .mh-bottom-spacer {
-  height: calc(72px + env(safe-area-inset-bottom, 0px));
+  height: calc(76px + env(safe-area-inset-bottom, 0px));
 }
 
-/* ── I. Fixed bottom navigation — exactly 5 canonical items ─────── */
+/* ── I. Fixed bottom navigation — rounded top corners, soft elevation
+   shadow instead of a hard 1px top border, exactly 5 canonical items ── */
 .mh-bottom-nav {
   flex-shrink: 0;
   display: flex;
   align-items: stretch;
   background: #ffffff;
-  border-top: 1px solid var(--nagex-border-subtle);
-  padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+  border-top: none;
+  border-radius: 22px 22px 0 0;
+  box-shadow: 0 -8px 24px -10px rgba(15, 23, 42, 0.14);
+  padding: 10px 6px calc(8px + env(safe-area-inset-bottom, 0px));
 }
 .mh-nav-item {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 3px;
   background: none;
   border: none;
-  padding: 4px 2px;
+  padding: 5px 2px;
+  border-radius: 14px;
   color: var(--nagex-text-muted);
   cursor: pointer;
+  transition: color 0.15s ease, background-color 0.15s ease;
 }
 .mh-nav-item svg {
   width: 22px;
@@ -516,6 +585,7 @@
 }
 .mh-nav-item.active {
   color: var(--nagex-accent-primary);
+  background: var(--nagex-accent-soft);
 }
 
 /* ── Responsive fidelity — no horizontal overflow at any mockup

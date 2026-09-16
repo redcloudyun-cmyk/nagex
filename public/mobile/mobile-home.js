@@ -135,13 +135,13 @@
   function getWorkingItems(state) {
     const runningTasks = (state.tasks || [])
       .filter((task) => task.status === 'RUNNING')
-      .map((task) => ({ title: task.name || 'Task in progress...', detail: task.lastRunAt ? `Started ${new Date(task.lastRunAt).toLocaleTimeString()}` : 'Started recently', taskId: task.taskId }));
+      .map((task) => ({ title: task.name || t('home.taskInProgressFallback', 'Task in progress...'), detail: task.lastRunAt ? `${t('home.startedRecently', 'Started')} ${new Date(task.lastRunAt).toLocaleTimeString()}` : t('home.startedRecently', 'Started recently'), taskId: task.taskId }));
     const processingCaptures = (state.inbox || [])
       .filter((i) => i.status === 'PROCESSING' || i.status === 'QUEUED' || i.status === 'UPLOADING')
-      .map((i) => ({ title: i.metadata?.extractedTitle || i.content || 'Processing capture...', detail: i.metadata?.processingSubStage || i.status }));
+      .map((i) => ({ title: i.metadata?.extractedTitle || i.content || t('home.processingCaptureFallback', 'Processing capture...'), detail: i.metadata?.processingSubStage || i.status }));
     const runningActions = (state.candidates || [])
       .filter((c) => c.action && c.action.status === 'RUNNING')
-      .map((c) => ({ title: c.title, detail: `${c.type} action in progress` }));
+      .map((c) => ({ title: c.title, detail: t('home.candidateActionInProgress', '{type} action in progress').replace('{type}', c.type) }));
     return [...runningTasks, ...processingCaptures, ...runningActions];
   }
 
@@ -236,8 +236,8 @@
     listEl.innerHTML = items.map((entry) => {
       if (entry.kind === 'approval') {
         const a = entry.data;
-        const title = a.intent || a.action || 'Approval Required';
-        const detail = a.resource?.id || 'Action Approval';
+        const title = a.intent || a.action || t('home.approvalRequiredFallback', 'Approval Required');
+        const detail = a.resource?.id || t('home.actionApprovalFallback', 'Action Approval');
         return `<div class="mh-approval-card">
           <div class="mh-row-icon mh-row-icon-danger">
             <svg class="svg-icon-sm" viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
@@ -265,7 +265,7 @@
         </div>`;
       }
       const i = entry.data;
-      const title = i.metadata?.extractedTitle || i.content || 'A page';
+      const title = i.metadata?.extractedTitle || i.content || t('home.pageFallback', 'A page');
       return `<div class="mh-approval-card" onclick="window.NAGEX.switchTab('tab-inbox')" role="button" tabindex="0">
         <div class="mh-row-icon mh-row-icon-warning">
           <svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -314,7 +314,7 @@
             const time = ev.start ? new Date(ev.start.dateTime || ev.start.date || ev.start) : null;
             rows.push({
               time: time ? time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-              title: ev.summary || ev.title || 'Event',
+              title: ev.summary || ev.title || t('home.eventFallback', 'Event'),
               detail: '',
               done: false,
             });
@@ -322,7 +322,7 @@
         }
       }
       activeTasks.forEach((task) => {
-        rows.push({ time: '', title: task.name || 'Task', detail: task.status, done: task.status === 'PAUSED' ? null : false });
+        rows.push({ time: '', title: task.name || t('home.taskFallback', 'Task'), detail: task.status, done: task.status === 'PAUSED' ? null : false });
       });
 
       listEl.innerHTML = rows.length === 0
