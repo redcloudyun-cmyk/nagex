@@ -110,6 +110,47 @@ owner: NAGEX
 status: OPEN
 ```
 
+```yaml
+id: DEBT-0003
+area: workspace/capture-processor
+description: >
+  CaptureProcessor.processAudioFallback() has a genuinely different
+  completion contract than processText()/processUrl()/processPdf(): it
+  always sets the capture's final status to READY, even though it always
+  proposes exactly one PROPOSED TaskCandidate ("Review voice memo: ...") —
+  the other three types would compute NEEDS_REVIEW whenever any candidate
+  is still PROPOSED. It also never emits capture.analyzed or
+  candidate.proposed audit events, unlike the other three. This means a
+  captured voice memo's PROPOSED review-task candidate is not visibly
+  flagged for review the way a text/URL/PDF-derived PROPOSED candidate is
+  (the Inbox's own status-based filtering may therefore treat it
+  differently), and its audit trail is comparatively thin.
+severity: low
+introduced: pre-R10.2-C (STT/audio fallback was added before the
+  finalizeCaptureAnalysis extraction existed to compare against); first
+  FORMALLY REGISTERED during R10.2-C, which surfaced it while designing
+  the shared finalizer and deliberately did NOT route audio through it
+  (see ADR-0003) rather than silently changing observable behavior.
+reason: >
+  No real speech-to-text provider is wired yet (a separate, disclosed,
+  pre-existing scope limit — see the "No real STT provider" comment in
+  capture-processor.ts), so the audio path was written as a minimal,
+  always-succeeds placeholder rather than a fully-analyzed capture type.
+  Unifying it with the other three now would be a real behavior change
+  (new audit events, a different final status) requiring its own tests
+  and product sign-off — out of scope for a structure-only refactor.
+risk: Low — the capture item itself is always truthfully labeled (its
+  summary/transcript never fabricates spoken content), and the review
+  task candidate IS still created and visible in the capture's own
+  metadata.candidates; the gap is limited to status-consistency and audit
+  completeness, not correctness or safety.
+target: unscheduled — revisit together with wiring a real STT provider,
+  at which point audio capture's candidate/status/audit behavior should
+  be reconciled with the other three types deliberately, with tests.
+owner: NAGEX
+status: OPEN
+```
+
 ---
 
 ## Explicitly classified as NON-GOAL, not debt

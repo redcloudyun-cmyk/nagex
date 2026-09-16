@@ -114,6 +114,7 @@
     "action_proposals",
     "action_proposals_safety",
     "action_safety_gate",
+    "capture_analysis_finalizer",
     "google_capability_execution_pipeline",
     "ambient_composer",
     "ambient_composer_recovery",

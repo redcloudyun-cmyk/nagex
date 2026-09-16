@@ -19,11 +19,12 @@ import type { StorageProvider } from '../storage/storage-provider.js';
 import type { KnowledgeEngine } from '../context/knowledge.engine.js';
 import { isUrlSafe } from '../modules/browser/index.js';
 import { extractPdfText, chunkText } from './pdf-extractor.js';
-import { CandidateStore, type UpsertCandidateInput } from './candidate.store.js';
+import { CandidateStore } from './candidate.store.js';
 import type { ActivityStore } from '../governance/activity.store.js';
 import { classifyFailure } from '../common/failure-taxonomy.js';
 import { SafetyEngine } from '../governance/safety.engine.js';
 import { PersistentSafetyStore } from '../governance/safety.store.js';
+import { finalizeCaptureAnalysis, type FinalizeCaptureAnalysisDeps } from './capture-analysis-finalizer.js';
 
 // The internal analysis shape used throughout this file is exactly
 // AiService's real understanding output — see ai-service.ts. Kept as a local
@@ -59,6 +60,13 @@ export class CaptureProcessor {
     // needs your attention", never raw AuditLogger events.
     private readonly activityStore?: ActivityStore,
   ) {}
+
+  // R10.2-C — the shared dependency bundle capture-analysis-finalizer.ts's
+  // finalizeCaptureAnalysis() needs; built once per call so the finalizer
+  // never has to know CaptureProcessor's own constructor shape.
+  private get finalizerDeps(): FinalizeCaptureAnalysisDeps {
+    return { store: this.store, candidateStore: this.candidateStore, auditLogger: this.auditLogger };
+  }
 
   // Phase 1 STEP 8, item G/R/S — a single place both the success and
   // failure paths of process() report through, so every capture type
@@ -231,15 +239,10 @@ export class CaptureProcessor {
 
     const { analysis, provenance } = await this.analyzeContentWithModel(rawText, 'TEXT');
     const freshCandidates = this.buildCandidatesFromAnalysis(item.captureId, analysis);
-    const candidates = this.mergeCandidates(item.metadata.candidates, freshCandidates);
     // Phase 1 STEP 5 — even TEXT captures need a real contentHash so the
     // canonical CandidateStore can tell "same content, retried" apart from
     // "content genuinely changed" (item G).
     const contentHash = crypto.createHash('sha256').update(rawText).digest('hex');
-    const candidateIds = this.upsertCanonicalCandidates(item, freshCandidates, contentHash);
-
-    const completedAt = new Date().toISOString();
-    const nextStatus: CaptureStatus = candidates.some((c) => c.status === 'PROPOSED') ? 'NEEDS_REVIEW' : 'READY';
 
     if (this.auditLogger) {
       this.auditLogger.logEvent({
@@ -251,54 +254,17 @@ export class CaptureProcessor {
         request_id: `req_text_ext_${Date.now()}`,
         details: { characterCount: rawText.length },
       });
-      this.auditLogger.logEvent({
-        actor: { type: 'system', id: 'capture-processor' },
-        tenant_id: item.tenantId,
-        action: 'capture.analyzed',
-        resource: { type: 'CaptureItem', id: item.captureId },
-        result: 'SUCCESS',
-        request_id: `req_text_anz_${Date.now()}`,
-        details: { candidateCount: freshCandidates.length, topics: analysis.topics, modelProvider: provenance?.provider, modelName: provenance?.model },
-      });
-
-      for (const cand of freshCandidates) {
-        this.auditLogger.logEvent({
-          actor: { type: 'system', id: 'capture-processor' },
-          tenant_id: item.tenantId,
-          action: 'candidate.proposed',
-          resource: { type: 'Candidate', id: cand.candidateId },
-          result: 'SUCCESS',
-          request_id: `req_cand_prop_${Date.now()}`,
-          details: { captureId: item.captureId, candidateType: cand.type, title: cand.title },
-        });
-      }
     }
 
-    const updated = this.store.updateStatus(item.captureId, item.tenantId, item.ownerId, nextStatus, {
-      processingStage: 'UNDERSTOOD',
-      processingCompletedAt: completedAt,
-      extractedTitle: analysis.title || item.metadata.originalName || 'Quick Note',
-      extractedSummary: analysis.summary,
-      extractedContent: rawText,
-      contentHash,
-      topics: analysis.topics,
-      entities: analysis.entities,
-      dates: analysis.dates,
-      actionItems: analysis.actionItems,
-      candidates,
-      candidateIds,
-      modelProvider: provenance?.provider,
-      modelName: provenance?.model,
-      modelRequestId: provenance?.requestId,
-      modelLatencyMs: provenance?.latencyMs,
-      suggestedAction: freshCandidates.length > 0 ? {
-        type: freshCandidates[0].type,
-        title: freshCandidates[0].title,
-        detail: analysis.summary,
-      } : undefined,
+    return finalizeCaptureAnalysis(this.finalizerDeps, {
+      item, analysis, provenance, freshCandidates, contentHash,
+      auditRequestPrefix: 'text',
+      extraAnalyzedAuditDetails: { topics: analysis.topics },
+      extraMetadata: {
+        extractedTitle: analysis.title || item.metadata.originalName || 'Quick Note',
+        extractedContent: rawText,
+      },
     });
-
-    return updated ?? item;
   }
 
   // Best-effort session teardown (Phase 1 STEP 3, item C: "session lifecycle
@@ -539,71 +505,25 @@ export class CaptureProcessor {
     // never claim full-page understanding when either happened.
     const truncated = browserTruncated || modelInputTruncated;
 
-    const candidates = this.mergeCandidates(item.metadata.candidates, freshCandidates);
-    const candidateIds = this.upsertCanonicalCandidates(item, freshCandidates, contentHash);
-
-    const completedAt = new Date().toISOString();
-    const nextStatus: CaptureStatus = candidates.some((c) => c.status === 'PROPOSED') ? 'NEEDS_REVIEW' : 'READY';
-
-    if (this.auditLogger) {
-      this.auditLogger.logEvent({
-        actor: { type: 'system', id: 'capture-processor' },
-        tenant_id: item.tenantId,
-        action: 'capture.analyzed',
-        resource: { type: 'CaptureItem', id: item.captureId },
-        result: 'SUCCESS',
-        request_id: `req_url_anz_${Date.now()}`,
-        details: { candidateCount: freshCandidates.length, topics: analysis.topics, modelProvider: provenance?.provider, modelName: provenance?.model },
-      });
-
-      for (const cand of freshCandidates) {
-        this.auditLogger.logEvent({
-          actor: { type: 'system', id: 'capture-processor' },
-          tenant_id: item.tenantId,
-          action: 'candidate.proposed',
-          resource: { type: 'Candidate', id: cand.candidateId },
-          result: 'SUCCESS',
-          request_id: `req_cand_prop_${Date.now()}`,
-          details: { captureId: item.captureId, candidateType: cand.type, title: cand.title },
-        });
-      }
-    }
-
-    const updated = this.store.updateStatus(item.captureId, item.tenantId, item.ownerId, nextStatus, {
-      processingStage: 'UNDERSTOOD',
-      processingCompletedAt: completedAt,
-      extractedTitle: pageTitle || analysis.title,
-      extractedSummary: analysis.summary,
-      extractedContent: contentText,
-      sourceUrl: urlStr,
-      finalUrl,
-      pageTitle,
-      retrievedAt,
-      contentText,
-      contentHash,
-      characterCount: totalCharacters,
-      browserSessionId,
-      truncated,
-      processedCharacters,
-      totalCharacters,
-      topics: analysis.topics,
-      entities: analysis.entities,
-      dates: analysis.dates,
-      actionItems: analysis.actionItems,
-      candidates,
-      candidateIds,
-      modelProvider: provenance?.provider,
-      modelName: provenance?.model,
-      modelRequestId: provenance?.requestId,
-      modelLatencyMs: provenance?.latencyMs,
-      suggestedAction: freshCandidates.length > 0 ? {
-        type: freshCandidates[0].type,
-        title: freshCandidates[0].title,
-        detail: analysis.summary,
-      } : undefined,
+    return finalizeCaptureAnalysis(this.finalizerDeps, {
+      item, analysis, provenance, freshCandidates, contentHash,
+      auditRequestPrefix: 'url',
+      extraAnalyzedAuditDetails: { topics: analysis.topics },
+      extraMetadata: {
+        extractedTitle: pageTitle || analysis.title,
+        extractedContent: contentText,
+        sourceUrl: urlStr,
+        finalUrl,
+        pageTitle,
+        retrievedAt,
+        contentText,
+        characterCount: totalCharacters,
+        browserSessionId,
+        truncated,
+        processedCharacters,
+        totalCharacters,
+      },
     });
-
-    return updated ?? item;
   }
 
   /**
@@ -713,80 +633,27 @@ export class CaptureProcessor {
       freshCandidates = this.buildCandidatesFromAnalysis(item.captureId, analysis, sourceRefs);
     }
 
-    const candidates = this.mergeCandidates(item.metadata.candidates, freshCandidates);
-    const candidateIds = this.upsertCanonicalCandidates(item, freshCandidates, contentHash);
-
-    const completedAt = new Date().toISOString();
-    const nextStatus: CaptureStatus = candidates.some((c) => c.status === 'PROPOSED') ? 'NEEDS_REVIEW' : 'READY';
-
-    if (this.auditLogger) {
-      this.auditLogger.logEvent({
-        actor: { type: 'system', id: 'capture-processor' },
-        tenant_id: item.tenantId,
-        action: 'capture.analyzed',
-        resource: { type: 'CaptureItem', id: item.captureId },
-        result: 'SUCCESS',
-        request_id: `req_pdf_anz_${Date.now()}`,
-        details: {
-          candidateCount: freshCandidates.length,
-          totalChunks: allChunks.length,
-          processedChunks: chunks.length,
-          truncated: pdfTruncated,
-          modelProvider: provenance?.provider,
-          modelName: provenance?.model,
-        },
-      });
-
-      for (const cand of freshCandidates) {
-        this.auditLogger.logEvent({
-          actor: { type: 'system', id: 'capture-processor' },
-          tenant_id: item.tenantId,
-          action: 'candidate.proposed',
-          resource: { type: 'Candidate', id: cand.candidateId },
-          result: 'SUCCESS',
-          request_id: `req_cand_prop_${Date.now()}`,
-          details: { captureId: item.captureId, candidateType: cand.type, title: cand.title },
-        });
-      }
-    }
-
-    const updated = this.store.updateStatus(item.captureId, item.tenantId, item.ownerId, nextStatus, {
-      processingStage: 'UNDERSTOOD',
-      processingCompletedAt: completedAt,
-      pageCount: pdfResult.pageCount ?? undefined,
-      characterCount: pdfResult.extractedCharacters,
-      extractedCharacters: pdfResult.extractedCharacters,
-      hasText: pdfResult.hasText,
-      extractionMethod: pdfResult.extractionMethod,
-      extractionWarnings: pdfResult.extractionWarnings,
-      extractedTitle: docTitle,
-      extractedSummary: analysis.summary,
-      extractedContent: pdfResult.text,
-      contentHash,
-      chunks,
-      totalChunks: allChunks.length,
-      processedChunks: chunks.length,
-      truncated: pdfTruncated,
-      processedCharacters,
-      totalCharacters: pdfResult.extractedCharacters,
-      topics: analysis.topics,
-      entities: analysis.entities,
-      dates: analysis.dates,
-      actionItems: analysis.actionItems,
-      candidates,
-      candidateIds,
-      modelProvider: provenance?.provider,
-      modelName: provenance?.model,
-      modelRequestId: provenance?.requestId,
-      modelLatencyMs: provenance?.latencyMs,
-      suggestedAction: freshCandidates.length > 0 ? {
-        type: freshCandidates[0].type,
-        title: freshCandidates[0].title,
-        detail: analysis.summary,
-      } : undefined,
+    return finalizeCaptureAnalysis(this.finalizerDeps, {
+      item, analysis, provenance, freshCandidates, contentHash,
+      auditRequestPrefix: 'pdf',
+      extraAnalyzedAuditDetails: { totalChunks: allChunks.length, processedChunks: chunks.length, truncated: pdfTruncated },
+      extraMetadata: {
+        pageCount: pdfResult.pageCount ?? undefined,
+        characterCount: pdfResult.extractedCharacters,
+        extractedCharacters: pdfResult.extractedCharacters,
+        hasText: pdfResult.hasText,
+        extractionMethod: pdfResult.extractionMethod,
+        extractionWarnings: pdfResult.extractionWarnings,
+        extractedTitle: docTitle,
+        extractedContent: pdfResult.text,
+        chunks,
+        totalChunks: allChunks.length,
+        processedChunks: chunks.length,
+        truncated: pdfTruncated,
+        processedCharacters,
+        totalCharacters: pdfResult.extractedCharacters,
+      },
     });
-
-    return updated ?? item;
   }
 
   /**
@@ -929,74 +796,6 @@ export class CaptureProcessor {
     }
 
     return { analysis: this.fallbackStructuredAnalysis(cleanContent, defaultTitle) };
-  }
-
-  // Idempotency (Phase 1 STEP 2 item H): a retry must not append duplicate
-  // PROPOSED candidates for content that hasn't changed. `existing` is the
-  // item's current candidate list (retryCapture() already strips PROPOSED
-  // ones from it before reprocessing, but this filters defensively too);
-  // a freshly generated candidate is skipped if an existing candidate of the
-  // same type already carries the same identity (title, or statement for
-  // MEMORY, or summary for KNOWLEDGE).
-  private mergeCandidates(existing: WorkspaceCandidate[] | undefined, fresh: WorkspaceCandidate[]): WorkspaceCandidate[] {
-    const preserved = (existing || []).filter((c) => c.status !== 'PROPOSED');
-    const identity = (c: WorkspaceCandidate): string => {
-      const key = c.type === 'MEMORY' ? c.statement : c.type === 'KNOWLEDGE' ? c.summary : c.title;
-      return `${c.type}:${key.trim().toLowerCase()}`;
-    };
-    const preservedIdentities = new Set(preserved.map(identity));
-    const dedupedFresh = fresh.filter((c) => !preservedIdentities.has(identity(c)));
-    return [...preserved, ...dedupedFresh];
-  }
-
-  // Phase 1 STEP 5 — converts one understanding-derived WorkspaceCandidate
-  // into the canonical CandidateStore's typed, discriminated upsert input.
-  // sourceRefs are plain reference strings (item H): a real chunkId when the
-  // suggestion is grounded in one, else a `capture:<captureId>` reference —
-  // always something the model was genuinely shown, never fabricated.
-  private toCanonicalUpsertInput(item: CaptureItem, wc: WorkspaceCandidate, contentHash: string | undefined): UpsertCandidateInput {
-    const sourceRefs = wc.sourceRefs.length > 0
-      ? wc.sourceRefs.map((r) => r.chunkId || `capture:${item.captureId}`)
-      : [`capture:${item.captureId}`];
-    const base = {
-      tenantId: item.tenantId,
-      principalId: item.ownerId,
-      captureId: item.captureId,
-      contentHash,
-      sourceRefs,
-      confidence: wc.confidence,
-      title: wc.title,
-      summary: wc.reason,
-    };
-    if (wc.type === 'TASK') {
-      return { ...base, type: 'TASK', payload: { name: wc.title, objective: wc.description, dueAt: wc.dueDateCandidate ?? null } };
-    }
-    if (wc.type === 'CALENDAR') {
-      return { ...base, type: 'CALENDAR', payload: { summary: wc.title, start: wc.startCandidate ?? null, end: wc.endCandidate ?? null, timezone: wc.timezone ?? null, attendees: [] } };
-    }
-    if (wc.type === 'MEMORY') {
-      return { ...base, type: 'MEMORY', payload: { statement: wc.statement, category: wc.memoryType } };
-    }
-    return { ...base, type: 'KNOWLEDGE', payload: { title: wc.title, summary: wc.summary, sourceCaptureId: item.captureId } };
-  }
-
-  // Phase 1 STEP 5 — upserts this pass's understanding-derived candidates
-  // into the durable CandidateStore (idempotent: item F) and expires any
-  // still-PROPOSED canonical candidate for this capture whose contentHash no
-  // longer matches (item G). Returns the full, deduplicated set of
-  // candidateIds this capture should reference (item P) — a no-op that
-  // returns the existing references unchanged when no CandidateStore is
-  // wired, so offline/unit-test harnesses are unaffected.
-  private upsertCanonicalCandidates(item: CaptureItem, freshCandidates: WorkspaceCandidate[], contentHash: string | undefined): string[] {
-    if (!this.candidateStore) return item.metadata.candidateIds || [];
-    this.candidateStore.expireStaleForCapture(item.captureId, item.tenantId, item.ownerId, contentHash);
-
-    const merged = new Set<string>(item.metadata.candidateIds || []);
-    for (const wc of freshCandidates) {
-      const record = this.candidateStore.upsert(this.toCanonicalUpsertInput(item, wc, contentHash));
-      merged.add(record.candidateId);
-    }
-    return [...merged];
   }
 
   /**
