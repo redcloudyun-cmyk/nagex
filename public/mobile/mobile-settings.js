@@ -120,11 +120,20 @@
   // ── Google Calendar & Gmail — the only real integration in this app
   // (directive §10/§11). Connect is a real full-page redirect; Disconnect
   // reuses the exact real POST + status-refetch Desktop's own handler
-  // already does (app.js:1819-1831) — not a new OAuth implementation. ──
+  // already does (app.js:1819-1831) — not a new OAuth implementation.
+  //
+  // R3 §7: the two per-product scope rows below are derived entirely from
+  // the real `scopes` array GET /api/v1/oauth/google/status already
+  // returns (token.store.ts's getStatus(), scope string split on space) —
+  // never a hardcoded connected=true. A scope string containing
+  // "calendar"/"gmail" is a real granted-scope substring match against the
+  // exact URLs this app requests (oauth.client.ts's GOOGLE_CALENDAR_SCOPES/
+  // GMAIL_SCOPES), not an invented status. ──
   function renderConnections() {
     const el = document.getElementById('mh-connections-row');
     if (!el || !window.NAGEX.getState) return;
-    const oauth = window.NAGEX.getState().googleOAuth || { configured: false, connected: false };
+    const oauth = window.NAGEX.getState().googleOAuth || { configured: false, connected: false, scopes: [] };
+    const scopes = oauth.scopes || [];
 
     const statusLabel = oauth.connected
       ? t('settings.connected', 'Connected')
@@ -132,16 +141,32 @@
         ? t('settings.notConnected', 'Not connected')
         : t('settings.notConfigured', 'Not configured on this server');
 
+    function scopeRow(labelKey, labelFallback, matchSubstr) {
+      const has = scopes.some((s) => s.includes(matchSubstr));
+      const scopeLabel = !oauth.connected
+        ? t('mobileSettings.scopeNotConnected', 'Not connected')
+        : has
+          ? t('mobileSettings.scopeOk', 'Connected · Scope OK')
+          : t('mobileSettings.scopeMissing', 'Reconnect needed');
+      const tagClass = !oauth.connected ? 'mh-settings-tag-muted' : has ? 'mh-settings-tag-ok' : 'mh-settings-tag-warn';
+      return `
+      <div class="mh-settings-row mh-settings-row-indent">
+        <span class="mh-settings-row-title">${escapeHtml(t(labelKey, labelFallback))}</span>
+        <span class="mh-settings-tag ${tagClass}">${escapeHtml(scopeLabel)}</span>
+      </div>`;
+    }
+
     el.innerHTML = `
       <div class="mh-settings-row">
         <div class="mh-settings-row-body">
           <span class="mh-settings-row-title">${escapeHtml(t('mobileSettings.googleService', 'Google Calendar & Gmail'))}</span>
-          <span class="mh-settings-tag">${escapeHtml(statusLabel)}</span>
+          <span class="mh-settings-tag ${oauth.connected ? 'mh-settings-tag-ok' : ''}">${escapeHtml(statusLabel)}</span>
         </div>
         <button class="mh-settings-action-btn" id="mh-google-toggle" ${!oauth.configured ? 'disabled' : ''}>
           ${escapeHtml(oauth.connected ? t('settings.disconnect', 'Disconnect') : t('settings.connect', 'Connect'))}
         </button>
-      </div>`;
+      </div>
+      ${oauth.configured ? scopeRow('mobileSettings.googleCalendarScope', 'Calendar', 'calendar') + scopeRow('mobileSettings.googleGmailScope', 'Gmail', 'gmail') : ''}`;
 
     const btn = document.getElementById('mh-google-toggle');
     if (btn && oauth.configured) {
