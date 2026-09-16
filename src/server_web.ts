@@ -29,6 +29,9 @@ import { handleModulesRoutes } from './http/routes/modules.routes.js';
 import { handleCatalogRoutes } from './http/routes/catalog.routes.js';
 import { handleSettingsRoutes } from './http/routes/settings.routes.js';
 import { handleNotificationsRoutes } from './http/routes/notifications.routes.js';
+import { handleTasksRoutes, handleTasksRunRoutes } from './http/routes/tasks.routes.js';
+import { handleAutomationsRoutes, handleAutomationsRunRoutes } from './http/routes/automations.routes.js';
+import { handleWorkspaceRoutes } from './http/routes/workspace.routes.js';
 import { ExecutionStore } from './governance/execution.store.js';
 import {
   GoogleCalendarService,
@@ -51,10 +54,8 @@ import { buildGoogleAuthorizeUrl, exchangeGoogleAuthorizationCode, readGoogleOAu
 import { SessionStore } from './sessions/session.store.js';
 import { ConversationStore } from './conversations/conversation.store.js';
 import { ConversationContextService } from './conversations/conversation-context.service.js';
-import { TaskStore, type TaskType, type TaskTrigger, type TaskApprovalPolicy, type TaskRecord } from './tasks/task.store.js';
-import { TaskRunStore } from './tasks/task-run.store.js';
-import { TaskScheduler, computeNextRunAt } from './tasks/task.scheduler.js';
-import { PlanPreviewTaskRunner, ConditionalWatchTaskRunner, BackgroundTaskRunner, CompositeTaskRunner, ExecutingTaskRunner } from './tasks/task.runner.js';
+import type { TaskTrigger, TaskRecord } from './tasks/task.store.js';
+import { computeNextRunAt } from './tasks/task.scheduler.js';
 import { TelegramIdentityStore } from './integrations/telegram/telegram-identity.store.js';
 import { TelegramBotClient, type TelegramUpdate } from './integrations/telegram/telegram.client.js';
 import { TelegramService } from './integrations/telegram/telegram.service.js';
@@ -67,10 +68,7 @@ import { NotificationStore } from './notifications/notification.store.js';
 import { NotificationEngine } from './notifications/notification.engine.js';
 import { DesktopRuntimeEngine } from './desktop/desktop-runtime.engine.js';
 import { captureStore } from './workspace/capture.store.js';
-import { QuickCaptureService } from './workspace/quick-capture.service.js';
-import { InputRouter } from './workspace/input-router.js';
 import { CandidateStore } from './workspace/candidate.store.js';
-import type { CandidateStatus, CandidateType } from './workspace/candidate.types.js';
 import { CandidateActionResolver } from './workspace/action-resolver.js';
 import { ActivityStore } from './governance/activity.store.js';
 import { createConfiguredStorageProvider } from './storage/s3-storage.provider.js';
@@ -422,19 +420,8 @@ function getHeaderValue(headers: Record<string, string | string[] | undefined>, 
 }
 
 // V01a-R1 — timing-safe token comparison for the test-only fixed-plan
-// injection route (see the route below). An empty expected token is
-// always invalid (never matches, regardless of what's provided) — this is
-// what makes NAGEX_TEST_PLAN_INJECTION_TOKEN being unset/empty a real,
-// independent gate, not just a formality. Length is checked before
-// timingSafeEqual, since it throws on a length mismatch rather than
-// returning false. Neither value is ever trimmed or otherwise transformed.
-function timingSafeTokenMatch(expectedToken: string, providedToken: string | undefined): boolean {
-  if (!expectedToken || !providedToken) return false;
-  const expectedBuf = Buffer.from(expectedToken, 'utf8');
-  const providedBuf = Buffer.from(providedToken, 'utf8');
-  if (expectedBuf.length !== providedBuf.length) return false;
-  return crypto.timingSafeEqual(expectedBuf, providedBuf);
-}
+// injection route moved to src/http/routes/tasks.routes.ts (its only
+// consumer, POST /api/v1/tasks/:id/run-with-fixed-plan).
 
 // getRelevantMemories/MEMORY_RELEVANCE_STOPWORDS moved into
 // createNagexApplication() (see app.getRelevantMemories, destructured
@@ -792,30 +779,17 @@ export async function handleAsyncApiRequest(
       auditLogger.logEvent({ actor: { type: 'user', id: principalId }, tenant_id: tid, action: 'oauth:google_disconnected', resource: { type: 'OAuthConnection', id: 'google_calendar' }, result: 'SUCCESS', request_id: requestId });
       return { status: 200, data: googleTokenStore.getStatus(tid) };
     }
-    // NOTE: upload/capture/capture-PATCH are handled in the canonical Phase 2
-    // Personal Workspace section below (~line 1131) — this is the async path,
-    // so the Promise-returning summary/health routes belong here instead.
-    if (pathname === '/api/v1/workspace/route-input' && method === 'POST') {
-      const text = typeof body?.text === 'string' ? body.text : '';
-      const hasFile = Boolean(body?.hasFile);
-      const hasAudio = Boolean(body?.hasAudio);
-      const mimeType = typeof body?.mimeType === 'string' ? body.mimeType : undefined;
-      const classification = InputRouter.classify({ text, hasFile, hasAudio, mimeType });
-      return { status: 200, data: classification };
-    }
-    if (pathname === '/api/v1/workspace/storage/status' && method === 'GET') {
-      const status = await quickCaptureService.getStorageHealth();
-      return { status: 200, data: status };
-    }
-    if (pathname === '/api/v1/workspace/inbox' && method === 'GET') {
-      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'ten_production_01';
-      return { status: 200, data: quickCaptureService.getInboxSummary(tenantId, ownerId) };
-    }
-    if (pathname === '/api/v1/workspace/vault' && method === 'GET') {
-      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'ten_production_01';
-      return { status: 200, data: await quickCaptureService.getVaultSummary(tenantId, ownerId) };
+    // R10.2-D Increment 3 — all Workspace/Capture/Candidate/Activity routes
+    // (route-input, storage/status, inbox, vault, uploads, captures, items,
+    // candidates, activity) now resolve through one registrar call. This
+    // covers both the routes that used to sit here AND the ones that used
+    // to sit further down near tools/browser (uploads/captures/items/
+    // candidates/activity) — none of those pathnames collide with anything
+    // in between, so consolidating the check here changes nothing
+    // observable, only where the code physically lives.
+    {
+      const workspaceResult = await handleWorkspaceRoutes(method, pathname, body, headers, query, { quickCaptureService });
+      if (workspaceResult) return workspaceResult;
     }
     if (pathname === '/api/v1/plans/resolve' && method === 'POST') {
       const candidate = body?.plan && typeof body.plan === 'object' ? body.plan : body;
@@ -1078,138 +1052,26 @@ export async function handleAsyncApiRequest(
       return { status: 200, data: result };
     }
 
-    if (pathname.startsWith('/api/v1/tasks/') && pathname.endsWith('/run') && method === 'POST') {
-      const taskId = pathname.slice('/api/v1/tasks/'.length, pathname.length - '/run'.length);
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_task_run_${crypto.randomUUID()}`;
-      // Task Isolation Correction — security-critical: without this check a
-      // caller from another tenant/owner could trigger execution (real
-      // Gmail/Calendar dispatch, approval creation, notifications) of a
-      // Task they do not own. Ownership mismatch is indistinguishable from
-      // a nonexistent task.
-      const runTenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const runPrincipalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const task = taskStore.get(taskId, runTenantId, runPrincipalId);
-      if (!task) return { status: 404, data: { error: { code: 'TASK_NOT_FOUND', category: 'NOT_FOUND', message: `Task ${taskId} was not found.`, request_id: requestId } } };
-      // Mirrors the `calendarService` DI pattern below: the shared
-      // taskScheduler singleton (built on the real aiService) is used
-      // unless a test injects a different `service`, in which case a
-      // throwaway scheduler wraps that same injected model so a real
-      // network call is never made from a test.
-      const scheduler = service === aiService ? taskScheduler : new TaskScheduler(
-        taskStore,
-        taskRunStore,
-        new CompositeTaskRunner(
-          new PlanPreviewTaskRunner(service, planResolver, (tenantId, principalId, prompt) => getRelevantMemories(tenantId, principalId, prompt)),
-          new ConditionalWatchTaskRunner(capabilityBroker, service),
-          new BackgroundTaskRunner(taskStore, service, planResolver, (tenantId, principalId, prompt) => getRelevantMemories(tenantId, principalId, prompt)),
-          new ExecutingTaskRunner(service, planResolver, capabilityBroker, (tenantId, principalId, prompt) => getRelevantMemories(tenantId, principalId, prompt), taskContinuations, durableTaskRunState),
-        ),
-        auditLogger,
-      );
-      const run = await scheduler.runOne(task);
-      return { status: 200, data: run };
+    // R10.2-D Increment 3 — Task /run + test-only /run-with-fixed-plan.
+    // SCHEDULER_MUTATION: drives a real TaskScheduler.runOne(), which can
+    // itself reach EXTERNAL_MUTATION/APPROVAL_GATED capability execution
+    // downstream (untouched by this move).
+    {
+      const tasksRunResult = await handleTasksRunRoutes(method, pathname, body, headers, query, {
+        taskStore, taskRunStore, taskScheduler, service, aiService, planResolver, capabilityBroker,
+        getRelevantMemories, taskContinuations, durableTaskRunState, auditLogger, notificationEngine, modelErrorResult,
+      });
+      if (tasksRunResult) return tasksRunResult;
     }
 
-    // P07 — Reusable Workflow Definition Foundation: instantiate bridge.
-    // Mirrors V01a's /run-with-fixed-plan bridge exactly (same ephemeral
-    // ExecutingTaskRunner + throwaway TaskScheduler pattern, wired to the
-    // real capabilityBroker/taskContinuations/durableTaskRunState/
-    // notificationEngine singletons) — the one place ARCH-008 already
-    // permits this ephemeral construction. WorkflowDefinitionService.
-    // prepareRun() only builds the ResolvedPlan and creates the Task; it
-    // never touches execution. Once resolved here, the plan is frozen into
-    // DurableTaskRunStateStore before step 1 runs — a later edit or delete
-    // of the WorkflowDefinition can never affect this run.
-    if (pathname.startsWith('/api/v1/workflows/') && pathname.endsWith('/run') && method === 'POST') {
-      const workflowId = pathname.slice('/api/v1/workflows/'.length, pathname.length - '/run'.length);
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_workflow_run_${crypto.randomUUID()}`;
-      const workflowTenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const workflowPrincipalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-
-      let prepared;
-      try {
-        prepared = workflowDefinitionService.prepareRun(workflowId, workflowTenantId, workflowPrincipalId, requestId);
-      } catch (error) {
-        return modelErrorResult(error);
-      }
-      const { resolved, task } = prepared;
-
-      const workflowRunner = new ExecutingTaskRunner(aiService, planResolver, capabilityBroker, (tenantId, principalId, prompt) => getRelevantMemories(tenantId, principalId, prompt), taskContinuations, durableTaskRunState);
-      const workflowScheduler = new TaskScheduler(
-        taskStore,
-        taskRunStore,
-        { run: (t: TaskRecord, reqId: string, runId: string) => workflowRunner.runWithResolvedPlan(t, reqId, runId, resolved) },
-        auditLogger,
-        undefined,
-        notificationEngine,
-      );
-      const run = await workflowScheduler.runOne(task);
-      return { status: 200, data: run };
-    }
-
-    // V01a — test-only, env-gated deterministic plan injection. Exists
-    // solely so a LIVE E2E harness (scripts/nagex-task-e2e-live.sh) can
-    // drive a real Task run through ExecutingTaskRunner's real step-
-    // execution/durable-state/approval path without depending on the real
-    // planning LLM's variable output shape. This route does not exist
-    // (falls through to the ordinary 404, indistinguishable from any other
-    // unmatched path) unless BOTH independent gates pass — re-checked on
-    // every request, never cached, and never distinguished from each other
-    // in the response (a missing flag, a missing/empty server-side token,
-    // a missing request header, and a wrong token all produce the exact
-    // same 404 fallthrough; V01a-R1 hardening, since the boolean flag
-    // alone left the route callable by any network client that could
-    // reach the server while it was enabled):
-    //   1. NAGEX_ENABLE_TEST_PLAN_INJECTION === '1'
-    //   2. X-NAgex-Test-Token exactly matches NAGEX_TEST_PLAN_INJECTION_TOKEN
-    //      (timing-safe comparison; see timingSafeTokenMatch above)
-    // It only ever substitutes the planning LLM call: PlanResolver.resolve()
-    // and everything downstream (step execution, durable state, approval
-    // continuation, finalization) is the real, unmodified production path,
-    // writing to the same real stores a normal run would.
-    if (
-      pathname.startsWith('/api/v1/tasks/') && pathname.endsWith('/run-with-fixed-plan') && method === 'POST' &&
-      process.env.NAGEX_ENABLE_TEST_PLAN_INJECTION === '1' &&
-      timingSafeTokenMatch(process.env.NAGEX_TEST_PLAN_INJECTION_TOKEN ?? '', getHeaderValue(headers, 'x-nagex-test-token'))
-    ) {
-      const taskId = pathname.slice('/api/v1/tasks/'.length, pathname.length - '/run-with-fixed-plan'.length);
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_task_fixedplan_${crypto.randomUUID()}`;
-      // Mechanical update for the Task Isolation Correction's TaskStore.get()
-      // signature change — this route's own two independent security gates
-      // (env flag + timing-safe token, checked above) are untouched. The
-      // LIVE harness that calls this route already sends x-nagex-tenant/
-      // x-principal-id on every request, matching the same headers it used
-      // to create this exact task, so ownership naturally lines up.
-      const fixedPlanTenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const fixedPlanPrincipalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const task = taskStore.get(taskId, fixedPlanTenantId, fixedPlanPrincipalId);
-      if (!task) return { status: 404, data: { error: { code: 'TASK_NOT_FOUND', category: 'NOT_FOUND', message: `Task ${taskId} was not found.`, request_id: requestId } } };
-      const steps = Array.isArray(body?.steps) ? body.steps : [];
-      if (steps.length === 0) {
-        return { status: 400, data: { error: { code: 'FIXED_PLAN_STEPS_REQUIRED', category: 'VALIDATION', message: 'A non-empty steps array is required.', request_id: requestId } } };
-      }
-      let resolved;
-      try {
-        resolved = planResolver.resolve({ goal: task.objective, summary: 'V01a test-only fixed-plan injection.', reasoningSummary: 'V01a test-only fixed-plan injection.', suggestions: [], steps } as unknown as PlanPreview);
-      } catch (error) {
-        return modelErrorResult(error);
-      }
-      // A throwaway ExecutingTaskRunner wired to the exact same real
-      // capabilityBroker/taskContinuations/durableTaskRunState the
-      // production taskRunner uses — the instance is ephemeral, but every
-      // store it writes to is the real one, so restart-recovery inspection
-      // sees genuine data.
-      const fixedPlanRunner = new ExecutingTaskRunner(aiService, planResolver, capabilityBroker, (tenantId, principalId, prompt) => getRelevantMemories(tenantId, principalId, prompt), taskContinuations, durableTaskRunState);
-      const scheduler = new TaskScheduler(
-        taskStore,
-        taskRunStore,
-        { run: (t: TaskRecord, reqId: string, runId: string) => fixedPlanRunner.runWithResolvedPlan(t, reqId, runId, resolved) },
-        auditLogger,
-        undefined,
-        notificationEngine,
-      );
-      const run = await scheduler.runOne(task);
-      return { status: 200, data: run };
+    // R10.2-D Increment 3 — Automation (WorkflowDefinition) /run.
+    // SCHEDULER_MUTATION, same category as Task /run above.
+    {
+      const automationsRunResult = await handleAutomationsRunRoutes(method, pathname, body, headers, query, {
+        workflowDefinitionService, taskStore, taskRunStore, aiService, planResolver, capabilityBroker,
+        getRelevantMemories, taskContinuations, durableTaskRunState, auditLogger, notificationEngine, modelErrorResult,
+      });
+      if (automationsRunResult) return automationsRunResult;
     }
 
     if (pathname === '/api/v1/tools/google-calendar/free-slots' && method === 'POST') {
@@ -1349,296 +1211,6 @@ export async function handleAsyncApiRequest(
       }
       const result = desktopRuntimeEngine.handleTrayAction(action as any, requestId);
       return { status: 200, data: result };
-    }
-
-    // ─── Personal Workspace Async API Routes ───
-    if (pathname === '/api/v1/workspace/uploads/init' && method === 'POST') {
-      const filename = (body?.filename as string) || 'upload.bin';
-      const mimeType = (body?.mimeType as string) || 'application/octet-stream';
-      const sizeBytes = Number(body?.sizeBytes || 0);
-      const intent = body?.intent as any;
-      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'ten_production_01';
-      const initResult = await quickCaptureService.initUpload({
-        ownerId: principalId,
-        tenantId,
-        filename,
-        mimeType,
-        sizeBytes,
-        intent,
-      });
-      return { status: 201, data: initResult };
-    }
-
-    if (pathname === '/api/v1/workspace/uploads/complete' && method === 'POST') {
-      const captureId = (body?.captureId as string) || '';
-      const objectKey = (body?.objectKey as string) || '';
-      const mimeType = (body?.mimeType as string) || 'application/octet-stream';
-      const checksum = (body?.checksum as string) || '';
-      const sizeBytes = Number(body?.sizeBytes || 0);
-      const originalFilename = (body?.originalFilename as string) || 'upload.bin';
-      const rawData = body?.data ? Buffer.from(body.data as any) : undefined;
-      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'ten_production_01';
-      const item = await quickCaptureService.completeUpload({
-        captureId,
-        ownerId: principalId,
-        tenantId,
-        objectKey,
-        mimeType,
-        checksum,
-        sizeBytes,
-        originalFilename,
-        data: rawData,
-      });
-      return { status: 200, data: item };
-    }
-
-    if (pathname === '/api/v1/workspace/upload' && method === 'POST') {
-      const filename = (body?.filename as string) || 'upload.bin';
-      const mimeType = (body?.mimeType as string) || 'application/octet-stream';
-      const type = (body?.type as any) || (mimeType.startsWith('audio/') ? 'AUDIO' : 'FILE');
-      const source = (body?.source as any) || 'WEB';
-      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'ten_production_01';
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
-      // Accept body.base64 (from frontend audio/file recorder), body.data (binary stream),
-      // or body.content (plain text fallback). Reject empty payloads.
-      let rawData: Buffer;
-      if (typeof body?.base64 === 'string' && body.base64.length > 0) {
-        rawData = Buffer.from(body.base64, 'base64');
-      } else if (body?.data) {
-        rawData = typeof body.data === 'string' ? Buffer.from(body.data, 'base64') : Buffer.from(body.data as any);
-      } else if (typeof body?.content === 'string' && body.content.length > 0) {
-        rawData = Buffer.from(body.content, 'utf8');
-      } else {
-        throw new NagexError({ code: 'EMPTY_FILE_PAYLOAD', category: 'VALIDATION', message: 'Binary payload data is required (base64, data, or content).', request_id: requestId });
-      }
-      if (rawData.length > 50 * 1024 * 1024) {
-        throw new NagexError({ code: 'FILE_TOO_LARGE', category: 'VALIDATION', message: 'File size exceeds maximum allowed limit of 50 MB.', request_id: requestId });
-      }
-      const item = await quickCaptureService.uploadBinaryObject({
-        ownerId: principalId,
-        tenantId,
-        type,
-        filename,
-        mimeType,
-        data: rawData,
-        source,
-      });
-      return { status: 201, data: item };
-    }
-
-    if ((pathname === '/api/v1/workspace/captures' || pathname === '/api/v1/workspace/capture') && method === 'POST') {
-      const type = (body?.type as any) || 'TEXT';
-      const content = (body?.content as string) || '';
-      const source = (body?.source as any) || 'WEB';
-      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'ten_production_01';
-      const item = await quickCaptureService.captureTextOrLink({
-        ownerId: principalId,
-        tenantId,
-        type,
-        content,
-        source,
-      });
-      return { status: 201, data: item };
-    }
-
-    if (pathname.startsWith('/api/v1/workspace/capture/') && (method === 'PATCH' || method === 'POST')) {
-      const captureId = pathname.slice('/api/v1/workspace/capture/'.length);
-      const action = (body?.status as any) || (body?.action as any) || 'ACTIONED';
-      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'ten_production_01';
-      const item = await quickCaptureService.actionCapture(captureId, tenantId, principalId, action);
-      if (!item) {
-        return { status: 404, data: { error: 'ITEM_NOT_FOUND', message: `Capture item ${captureId} not found.` } };
-      }
-      return { status: 200, data: item };
-    }
-
-    if (pathname.startsWith('/api/v1/workspace/items/') && pathname.endsWith('/download') && method === 'GET') {
-      const captureId = pathname.slice('/api/v1/workspace/items/'.length, pathname.length - '/download'.length);
-      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'ten_production_01';
-      const downloadUrl = await quickCaptureService.getDownloadUrl(captureId, tenantId, principalId);
-      if (!downloadUrl) {
-        return { status: 404, data: { error: 'ITEM_NOT_FOUND', message: `Capture item ${captureId} not found or no object attached.` } };
-      }
-      return { status: 200, data: { captureId, downloadUrl } };
-    }
-
-    if (pathname.startsWith('/api/v1/workspace/items/') && pathname.endsWith('/preview') && method === 'GET') {
-      const captureId = pathname.slice('/api/v1/workspace/items/'.length, pathname.length - '/preview'.length);
-      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'ten_production_01';
-      const previewUrl = await quickCaptureService.getPreviewUrl(captureId, tenantId, principalId);
-      if (!previewUrl) {
-        return { status: 404, data: { error: 'ITEM_NOT_FOUND', message: `Capture item ${captureId} not found or no object attached.` } };
-      }
-      return { status: 200, data: { captureId, previewUrl } };
-    }
-
-    if (pathname.startsWith('/api/v1/workspace/items/') && pathname.endsWith('/action') && method === 'POST') {
-      const captureId = pathname.slice('/api/v1/workspace/items/'.length, pathname.length - '/action'.length);
-      const action = (body?.action as any) || 'ACTIONED';
-      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'ten_production_01';
-      const item = await quickCaptureService.actionCapture(captureId, tenantId, principalId, action);
-      if (!item) {
-        return { status: 404, data: { error: 'ITEM_NOT_FOUND', message: `Capture item ${captureId} not found.` } };
-      }
-      return { status: 200, data: item };
-    }
-
-    if (pathname.startsWith('/api/v1/workspace/items/') && pathname.includes('/candidates/') && pathname.endsWith('/action') && method === 'POST') {
-      const parts = pathname.slice('/api/v1/workspace/items/'.length).split('/candidates/');
-      const captureId = parts[0];
-      const candidateId = parts[1] ? parts[1].replace(/\/action$/, '') : '';
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const action = body?.action === 'ACCEPT' ? 'ACCEPT' : 'REJECT';
-
-      const updated = await quickCaptureService.actionCandidate({
-        captureId,
-        candidateId,
-        action,
-        ownerId,
-        tenantId,
-      });
-
-      if (!updated) {
-        return { status: 404, data: { error: 'CANDIDATE_NOT_FOUND', message: `Candidate ${candidateId} or capture ${captureId} not found.` } };
-      }
-      return { status: 200, data: updated };
-    }
-
-    // ─── Phase 1 STEP 5 — Canonical Candidate Model API ───
-    // Accept/reject here ONLY change the candidate's own status — they never
-    // create a Task, request a Calendar approval, write Memory, or index
-    // Knowledge (item J). Real execution is a later, separate Action phase.
-    if (pathname === '/api/v1/candidates' && method === 'GET') {
-      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const statusFilter = query.status as CandidateStatus | undefined;
-      const typeFilter = query.type as CandidateType | undefined;
-      const candidates = quickCaptureService.listCandidates(ownerId, tenantId, {
-        status: statusFilter,
-        type: typeFilter,
-      });
-      return { status: 200, data: { candidates } };
-    }
-
-    // ─── Phase 1 STEP 8 — Consumer Activity Projection ───
-    // Tenant/principal-isolated, durable, human-readable (item F/H/I) —
-    // never the raw AuditLogger and never the legacy non-tenant-isolated
-    // executionHistory array.
-    if (pathname === '/api/v1/activity' && method === 'GET') {
-      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const limitRaw = Number(query.limit);
-      const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 200) : 50;
-      const activities = quickCaptureService.listActivity(ownerId, tenantId, limit);
-      return { status: 200, data: { activities } };
-    }
-
-    if (pathname.startsWith('/api/v1/candidates/') && pathname.endsWith('/accept') && method === 'POST') {
-      const candidateId = pathname.slice('/api/v1/candidates/'.length, pathname.length - '/accept'.length);
-      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const record = quickCaptureService.acceptCandidate(candidateId, ownerId, tenantId);
-      return { status: 200, data: record };
-    }
-
-    if (pathname.startsWith('/api/v1/candidates/') && pathname.endsWith('/reject') && method === 'POST') {
-      const candidateId = pathname.slice('/api/v1/candidates/'.length, pathname.length - '/reject'.length);
-      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const record = quickCaptureService.rejectCandidate(candidateId, ownerId, tenantId);
-      return { status: 200, data: record };
-    }
-
-    // ─── Phase 1 STEP 7 — Real Actions ───
-    // Execute/retry ONLY ever advance a candidate's own `action` sub-state —
-    // Candidate Review (accept/reject above) is a separate operation from
-    // Action execution, and for CALENDAR specifically this first call only
-    // ever requests the existing Action Approval; the real Google write
-    // still requires that approval to be separately granted via the
-    // unchanged /api/v1/approvals/:id/approve endpoint.
-    if (pathname.startsWith('/api/v1/candidates/') && pathname.endsWith('/execute') && method === 'POST') {
-      const candidateId = pathname.slice('/api/v1/candidates/'.length, pathname.length - '/execute'.length);
-      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const record = await quickCaptureService.executeCandidateAction(candidateId, ownerId, tenantId);
-      return { status: 200, data: record };
-    }
-
-    if (pathname.startsWith('/api/v1/candidates/') && pathname.endsWith('/retry') && method === 'POST') {
-      const candidateId = pathname.slice('/api/v1/candidates/'.length, pathname.length - '/retry'.length);
-      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const record = await quickCaptureService.retryCandidateAction(candidateId, ownerId, tenantId);
-      return { status: 200, data: record };
-    }
-
-    if (pathname.startsWith('/api/v1/candidates/') && pathname.endsWith('/action') && method === 'GET') {
-      const candidateId = pathname.slice('/api/v1/candidates/'.length, pathname.length - '/action'.length);
-      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const action = quickCaptureService.getCandidateAction(candidateId, ownerId, tenantId);
-      return { status: 200, data: { candidateId, action } };
-    }
-
-    if (pathname.startsWith('/api/v1/candidates/') && method === 'PATCH') {
-      const candidateId = pathname.slice('/api/v1/candidates/'.length);
-      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const record = quickCaptureService.modifyCandidate(candidateId, ownerId, tenantId, {
-        title: typeof body?.title === 'string' ? body.title : undefined,
-        payload: (body?.payload && typeof body.payload === 'object') ? body.payload as Record<string, unknown> : undefined,
-      });
-      return { status: 200, data: record };
-    }
-
-    if (pathname.startsWith('/api/v1/candidates/') && method === 'GET') {
-      const candidateId = pathname.slice('/api/v1/candidates/'.length);
-      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const record = quickCaptureService.getCandidate(candidateId, ownerId, tenantId);
-      if (!record) {
-        return { status: 404, data: { error: 'CANDIDATE_NOT_FOUND', message: `Candidate ${candidateId} not found.` } };
-      }
-      return { status: 200, data: record };
-    }
-
-    if (pathname.startsWith('/api/v1/workspace/items/') && pathname.endsWith('/retry') && method === 'POST') {
-      const captureId = pathname.slice('/api/v1/workspace/items/'.length, pathname.length - '/retry'.length);
-      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'ten_production_01';
-      const retried = await quickCaptureService.retryCapture(captureId, tenantId, ownerId);
-      if (!retried) {
-        return { status: 404, data: { error: 'ITEM_NOT_FOUND', message: `Capture item ${captureId} not found.` } };
-      }
-      return { status: 200, data: retried };
-    }
-
-    if (pathname.startsWith('/api/v1/workspace/items/') && !pathname.endsWith('/download') && !pathname.endsWith('/preview') && !pathname.endsWith('/action') && !pathname.endsWith('/retry') && !pathname.includes('/candidates/') && method === 'GET') {
-      const captureId = pathname.slice('/api/v1/workspace/items/'.length);
-      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'ten_production_01';
-      const item = await quickCaptureService.getCaptureItem(captureId, tenantId, ownerId);
-      if (!item) {
-        return { status: 404, data: { error: 'ITEM_NOT_FOUND', message: `Capture item ${captureId} not found.` } };
-      }
-      return { status: 200, data: item };
-    }
-
-    if (pathname.startsWith('/api/v1/workspace/items/') && method === 'DELETE') {
-      const captureId = pathname.slice('/api/v1/workspace/items/'.length);
-      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'ten_production_01';
-      const deleted = await quickCaptureService.deleteCaptureItem(captureId, tenantId, principalId);
-      return { status: 200, data: { success: deleted, captureId } };
     }
 
     if (pathname === '/api/v1/capabilities/execute' && method === 'POST') {
@@ -2231,219 +1803,23 @@ export function handleApiRequest(
     return { status: 200, data: session };
   }
 
-  if (pathname === '/api/v1/tasks' && method === 'GET') {
-    const tasks = taskStore.list(tenantId, principal.id);
-    return { status: 200, data: { tasks, total: tasks.length } };
+  // R10.2-D Increment 3 — Task CRUD/lifecycle (list/create/runs/pause/
+  // resume/cancel/delete/patch/get). /run itself is SCHEDULER_MUTATION and
+  // stays in handleAsyncApiRequest (see handleTasksRunRoutes above), since
+  // it must await a real TaskScheduler.runOne().
+  {
+    const tasksResult = handleTasksRoutes(method, pathname, body, headers, {}, { taskStore, taskRunStore, sessionStore, auditLogger, tenantId, principal, modelErrorResult });
+    if (tasksResult) return tasksResult;
   }
 
-  if (pathname === '/api/v1/tasks' && method === 'POST') {
-    const requestId = `req_task_${Date.now()}`;
-    try {
-      const VALID_TASK_TYPES: readonly string[] = ['ONE_TIME', 'RECURRING', 'CONDITIONAL', 'BACKGROUND', 'WAITING', 'STANDING_INTENT'];
-      const VALID_TRIGGER_TYPES: readonly string[] = ['SCHEDULE', 'INTERVAL', 'CONDITION', 'WEBHOOK', 'EMAIL_EVENT', 'CALENDAR_EVENT', 'FILE_EVENT', 'MANUAL', 'SYSTEM_EVENT', 'AGENT_EVENT'];
-      const typeRaw = body?.type;
-      if (typeof typeRaw !== 'string' || !VALID_TASK_TYPES.includes(typeRaw)) {
-        throw new NagexError({ code: 'INVALID_TASK_TYPE', category: 'VALIDATION', message: `type must be one of ${VALID_TASK_TYPES.join(', ')}.`, request_id: requestId });
-      }
-      const type = typeRaw as TaskType;
-      const triggerRaw = (body?.trigger && typeof body.trigger === 'object' ? body.trigger : { type: 'MANUAL' }) as Record<string, unknown>;
-      if (typeof triggerRaw.type !== 'string' || !VALID_TRIGGER_TYPES.includes(triggerRaw.type)) {
-        throw new NagexError({ code: 'INVALID_TASK_TRIGGER_TYPE', category: 'VALIDATION', message: `trigger.type must be one of ${VALID_TRIGGER_TYPES.join(', ')}.`, request_id: requestId });
-      }
-      const trigger = triggerRaw as unknown as TaskTrigger;
-      if (type === 'CONDITIONAL') {
-        if (trigger.type !== 'CONDITION') {
-          throw new NagexError({ code: 'CONDITIONAL_TASK_REQUIRES_CONDITION_TRIGGER', category: 'VALIDATION', message: 'A CONDITIONAL task requires trigger.type "CONDITION".', request_id: requestId });
-        }
-        if (!trigger.condition?.trim()) {
-          throw new NagexError({ code: 'CONDITION_REQUIRED', category: 'VALIDATION', message: 'trigger.condition (what to watch for) is required for a CONDITIONAL task.', request_id: requestId });
-        }
-        if (!trigger.watchUrl?.trim() || !/^https?:\/\//i.test(trigger.watchUrl)) {
-          throw new NagexError({ code: 'WATCH_URL_REQUIRED', category: 'VALIDATION', message: 'trigger.watchUrl (a real http(s) URL to check) is required for a CONDITIONAL task — NAgex never invents a page to watch.', request_id: requestId });
-        }
-        // A sensible default cadence, not a guess at the condition itself —
-        // the same category of default INTERVAL/SCHEDULE tasks already
-        // require the caller to state explicitly for themselves.
-        if (!trigger.checkIntervalMinutes || trigger.checkIntervalMinutes <= 0) trigger.checkIntervalMinutes = 15;
-      }
-      const now = new Date();
-      const initialNextRunAt = computeNextRunAt(trigger, now);
-      const session = sessionStore.getOrCreateMain(tenantId, principal.id);
-      const task = taskStore.create({
-        tenantId,
-        ownerId: principal.id,
-        name: (body?.name as string) || '',
-        objective: (body?.objective as string) || '',
-        type,
-        sourceSessionId: session.sessionId,
-        trigger,
-        approvalPolicy: (body?.approvalPolicy as TaskApprovalPolicy) || 'ALWAYS_APPROVE',
-        nextRunAt: initialNextRunAt ? initialNextRunAt.toISOString() : null,
-      });
-      auditLogger.logEvent({
-        actor: principal,
-        tenant_id: tenantId,
-        action: 'task.created',
-        resource: { type: 'Task', id: task.taskId },
-        result: 'SUCCESS',
-        request_id: requestId,
-        details: { type: task.type, triggerType: task.trigger.type },
-      });
-      return { status: 201, data: task };
-    } catch (error) {
-      return modelErrorResult(error);
-    }
-  }
-
-  // Task Isolation Correction — :id/runs is only ever reached through a
-  // taskId; ownership is enforced by requiring the parent Task first
-  // (TaskRunStore/TaskRunRecord themselves are untouched — see the
-  // governing directive's explicit scope limit).
-  if (pathname.startsWith('/api/v1/tasks/') && pathname.endsWith('/runs') && method === 'GET') {
-    const taskId = pathname.slice('/api/v1/tasks/'.length, pathname.length - '/runs'.length);
-    const parentTask = taskStore.get(taskId, tenantId, principal.id);
-    if (!parentTask) return { status: 404, data: { error: { code: 'TASK_NOT_FOUND', category: 'NOT_FOUND', message: `Task ${taskId} was not found.`, request_id: `req_task_${Date.now()}` } } };
-    const runs = taskRunStore.listForTask(taskId);
-    return { status: 200, data: { runs, total: runs.length } };
-  }
-
-  if (pathname.startsWith('/api/v1/tasks/') && pathname.endsWith('/pause') && method === 'POST') {
-    const taskId = pathname.slice('/api/v1/tasks/'.length, pathname.length - '/pause'.length);
-    try {
-      const task = taskStore.pause(taskId, tenantId, principal.id);
-      auditLogger.logEvent({ actor: principal, tenant_id: task.tenantId, action: 'task.paused', resource: { type: 'Task', id: taskId }, result: 'SUCCESS', request_id: `req_task_${Date.now()}` });
-      return { status: 200, data: task };
-    } catch (error) {
-      return modelErrorResult(error);
-    }
-  }
-
-  if (pathname.startsWith('/api/v1/tasks/') && pathname.endsWith('/resume') && method === 'POST') {
-    const taskId = pathname.slice('/api/v1/tasks/'.length, pathname.length - '/resume'.length);
-    try {
-      const task = taskStore.resume(taskId, tenantId, principal.id);
-      auditLogger.logEvent({ actor: principal, tenant_id: task.tenantId, action: 'task.resumed', resource: { type: 'Task', id: taskId }, result: 'SUCCESS', request_id: `req_task_${Date.now()}` });
-      return { status: 200, data: task };
-    } catch (error) {
-      return modelErrorResult(error);
-    }
-  }
-
-  if (pathname.startsWith('/api/v1/tasks/') && pathname.endsWith('/cancel') && method === 'POST') {
-    const taskId = pathname.slice('/api/v1/tasks/'.length, pathname.length - '/cancel'.length);
-    try {
-      const task = taskStore.cancel(taskId, tenantId, principal.id);
-      auditLogger.logEvent({ actor: principal, tenant_id: task.tenantId, action: 'task.cancelled', resource: { type: 'Task', id: taskId }, result: 'SUCCESS', request_id: `req_task_${Date.now()}` });
-      return { status: 200, data: task };
-    } catch (error) {
-      return modelErrorResult(error);
-    }
-  }
-
-  if (pathname.startsWith('/api/v1/tasks/') && method === 'DELETE') {
-    const taskId = pathname.slice('/api/v1/tasks/'.length);
-    try {
-      const task = taskStore.get(taskId, tenantId, principal.id);
-      if (!task) {
-        throw new NagexError({ code: 'TASK_NOT_FOUND', category: 'NOT_FOUND', message: `Task ${taskId} was not found.`, request_id: `req_task_${Date.now()}` });
-      }
-      taskStore.delete(taskId, tenantId, principal.id);
-      auditLogger.logEvent({ actor: principal, tenant_id: task.tenantId, action: 'task.deleted', resource: { type: 'Task', id: taskId }, result: 'SUCCESS', request_id: `req_task_${Date.now()}` });
-      return { status: 200, data: { success: true, deleted_id: taskId } };
-    } catch (error) {
-      return modelErrorResult(error);
-    }
-  }
-
-  if (pathname.startsWith('/api/v1/tasks/') && method === 'PATCH') {
-    const taskId = pathname.slice('/api/v1/tasks/'.length);
-    try {
-      const patch: Record<string, unknown> = {};
-      if (typeof body?.name === 'string') patch.name = body.name;
-      if (typeof body?.objective === 'string') patch.objective = body.objective;
-      if (typeof body?.approvalPolicy === 'string') patch.approvalPolicy = body.approvalPolicy;
-      if (body?.trigger && typeof body.trigger === 'object') {
-        patch.trigger = body.trigger;
-        const nextRun = computeNextRunAt(body.trigger as unknown as TaskTrigger, new Date());
-        patch.nextRunAt = nextRun ? nextRun.toISOString() : null;
-      }
-      const task = taskStore.update(taskId, tenantId, principal.id, patch);
-      auditLogger.logEvent({ actor: principal, tenant_id: task.tenantId, action: 'task.updated', resource: { type: 'Task', id: taskId }, result: 'SUCCESS', request_id: `req_task_${Date.now()}` });
-      return { status: 200, data: task };
-    } catch (error) {
-      return modelErrorResult(error);
-    }
-  }
-
-  if (pathname.startsWith('/api/v1/tasks/') && method === 'GET') {
-    const taskId = pathname.slice('/api/v1/tasks/'.length);
-    const task = taskStore.get(taskId, tenantId, principal.id);
-    if (!task) return { status: 404, data: { error: { code: 'TASK_NOT_FOUND', category: 'NOT_FOUND', message: `Task ${taskId} was not found.`, request_id: `req_task_${Date.now()}` } } };
-    return { status: 200, data: task };
-  }
-
-  // ── P07 — Reusable Workflow Definition Foundation ──────────────────────
-  // A WorkflowDefinition is a reusable description/template only — never an
-  // execution engine. Ownership is tenantId + ownerPrincipalId everywhere;
-  // a mismatch is indistinguishable from a nonexistent workflowId. The
-  // actual instantiate/run bridge (POST .../run) lives in
-  // handleAsyncApiRequest below, since it must await the existing
-  // execution path.
-  if (pathname === '/api/v1/workflows' && method === 'POST') {
-    const requestId = `req_workflow_${Date.now()}`;
-    try {
-      const steps = Array.isArray(body?.steps) ? body.steps : [];
-      const workflow = workflowDefinitionService.create(tenantId, principal.id, {
-        tenantId,
-        ownerPrincipalId: principal.id,
-        name: typeof body?.name === 'string' ? body.name : '',
-        description: typeof body?.description === 'string' ? body.description : '',
-        enabled: typeof body?.enabled === 'boolean' ? body.enabled : true,
-        steps,
-      }, requestId);
-      return { status: 201, data: workflow };
-    } catch (error) {
-      return modelErrorResult(error);
-    }
-  }
-
-  if (pathname === '/api/v1/workflows' && method === 'GET') {
-    const workflows = workflowDefinitionService.list(tenantId, principal.id);
-    return { status: 200, data: { workflows, total: workflows.length } };
-  }
-
-  if (pathname.startsWith('/api/v1/workflows/') && method === 'PATCH') {
-    const workflowId = pathname.slice('/api/v1/workflows/'.length);
-    const requestId = `req_workflow_${Date.now()}`;
-    try {
-      const patch: Record<string, unknown> = {};
-      if (typeof body?.name === 'string') patch.name = body.name;
-      if (typeof body?.description === 'string') patch.description = body.description;
-      if (typeof body?.enabled === 'boolean') patch.enabled = body.enabled;
-      if (Array.isArray(body?.steps)) patch.steps = body.steps;
-      const workflow = workflowDefinitionService.update(workflowId, tenantId, principal.id, patch, requestId);
-      return { status: 200, data: workflow };
-    } catch (error) {
-      return modelErrorResult(error);
-    }
-  }
-
-  if (pathname.startsWith('/api/v1/workflows/') && method === 'DELETE') {
-    const workflowId = pathname.slice('/api/v1/workflows/'.length);
-    const requestId = `req_workflow_${Date.now()}`;
-    try {
-      workflowDefinitionService.delete(workflowId, tenantId, principal.id, requestId);
-      return { status: 200, data: { success: true, deleted_id: workflowId } };
-    } catch (error) {
-      return modelErrorResult(error);
-    }
-  }
-
-  if (pathname.startsWith('/api/v1/workflows/') && method === 'GET') {
-    const workflowId = pathname.slice('/api/v1/workflows/'.length);
-    const workflow = workflowDefinitionService.get(workflowId, tenantId, principal.id);
-    if (!workflow) return { status: 404, data: { error: { code: 'WORKFLOW_NOT_FOUND', category: 'NOT_FOUND', message: `Workflow ${workflowId} was not found.`, request_id: `req_workflow_${Date.now()}` } } };
-    return { status: 200, data: workflow };
+  // R10.2-D Increment 3 — Automation (WorkflowDefinition) CRUD. A
+  // WorkflowDefinition is a reusable description/template only — never an
+  // execution engine. /run itself stays in handleAsyncApiRequest (see
+  // handleAutomationsRunRoutes above), since it must await the real
+  // instantiate/run bridge.
+  {
+    const automationsResult = handleAutomationsRoutes(method, pathname, body, headers, {}, { workflowDefinitionService, tenantId, principal, modelErrorResult });
+    if (automationsResult) return automationsResult;
   }
 
   return { status: 404, data: { error: 'ENDPOINT_NOT_FOUND', message: `${method} ${pathname}` } };

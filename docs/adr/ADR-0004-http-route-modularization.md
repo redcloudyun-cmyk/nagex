@@ -1,7 +1,7 @@
 # ADR-0004 — HTTP route modularization (incremental, first slice)
 
-**Status:** Accepted (partial implementation — see "Scope of this round" and "Increment 2 update")
-**Date:** 2026-09-16 (Increment 1); updated 2026-09-17 (Increment 2)
+**Status:** Accepted (partial implementation — see "Scope of this round", "Increment 2 update", and "Increment 3 update")
+**Date:** 2026-09-16 (Increment 1); updated 2026-09-17 (Increment 2, Increment 3)
 **Related:** R10.2-D (HTTP Route Modularization)
 
 ## Decision
@@ -67,3 +67,15 @@ R10.2-D Increment 2 applied the exact same registrar/router pattern decided abov
 No new ADR was created for this increment, per the governing directive's own instruction not to create ADR churn for repeated application of an already-accepted pattern — this section exists only to keep the "Scope of this round" numbers below from going stale, not to record a new decision.
 
 `server_web.ts`: 2982 → 2732 lines (-8.4%); imports 60 → 63 (net +3: five new registrar imports, two removed now-dead `canonicalSkillRegistry`/`canonicalToolRegistry` imports fully absorbed into `catalog.routes.ts`). Using a consistent `method === '<VERB>'` check-block count: 26/147 endpoints now migrated (~18%), 121 remaining — see **DEBT-0004**'s updated `progress` field for the full breakdown and counting methodology. This is still an incremental slice, not the full milestone; DEBT-0004 remains OPEN.
+
+## Increment 3 update (2026-09-17) — no architectural decision changed, one file-allowlist relocation
+
+R10.2-D Increment 3 applied the same registrar/router pattern to the three medium-risk operational domains named in the directive's own roadmap:
+
+- `tasks.routes.ts` — `handleTasksRoutes` (sync: list/create/runs/pause/resume/cancel/delete/patch/get, wired into `handleApiRequest`) and `handleTasksRunRoutes` (async: `/run` and the test-only-gated `/run-with-fixed-plan`, wired into `handleAsyncApiRequest`, since both genuinely `await scheduler.runOne()`). Risk classification: CRUD/lifecycle is READ_ONLY/LOCAL_MUTATION; `/run` and `/run-with-fixed-plan` are SCHEDULER_MUTATION.
+- `automations.routes.ts` — `handleAutomationsRoutes` (sync CRUD for WorkflowDefinition) and `handleAutomationsRunRoutes` (async `/run`, the real production instantiate/run bridge). Same SCHEDULER_MUTATION classification as Tasks `/run`.
+- `workspace.routes.ts` — all Workspace/Capture/Candidate/Activity routes (route-input, storage/status, inbox, vault, uploads, captures, items, candidates, activity), all funneled through the single canonical `QuickCaptureService` — this module never reimplements capture/candidate business logic, only translates HTTP <-> that one service, preserving R10.2-C's shared finalization architecture untouched.
+
+**One real static-architecture-guard update was required, not merely cosmetic**: `tests/architecture_enforcement.test.ts`'s ARCH-008 (Composition Root Ownership) previously allowlisted `src/server_web.ts` as the one file permitted to construct an ephemeral `TaskScheduler`/`CompositeTaskRunner`/`ExecutingTaskRunner` pair (for the DI-test-override on `/run` and the real workflow-run bridge). Moving that exact same, unchanged construction pattern into `tasks.routes.ts`/`automations.routes.ts` is not a new architectural decision — it is the same named exception the ADR already documents, now living in the files that actually use it — so the allowlist was updated to follow the code rather than left to falsely fail. No new exception was added; the exception's own justification (throwaway scheduler needed to inject a resolved plan or an alternate model) is identical to before.
+
+`server_web.ts`: 2732 → 2108 lines (-22.8%, inside the directive's own <2100 directional target); imports 63 → 61 (net -2: ten task/workflow/workspace-only imports removed — `TaskStore`, `TaskRunStore`, `TaskType`, `TaskApprovalPolicy`, `TaskScheduler`, the four task-runner classes, `InputRouter`, `CandidateStatus`/`CandidateType` — against three new registrar imports added). `TaskTrigger`/`TaskRecord`/`computeNextRunAt` remain imported since they're still genuinely used by the unrelated, out-of-scope Daily Brief/Proactive Assistant automation config route. Using the same `method === '<VERB>'` check-block count: 69/147 endpoints now migrated (~47%), 78 remaining — see **DEBT-0004**'s updated `progress` field. jscpd moved from 780→822 duplicated lines (2.81%→2.94%), a small, expected increase proportional to the ~1,450 lines of route-module code added (each route repeats the same `getHeaderValue`/tenant-default-extraction shape the original inline code already had) — not a new duplication pattern introduced by this increment. DEBT-0004 remains OPEN; Increment 4 (Gmail/Calendar/Approvals + remaining mutation-heavy domains, plus final Composition Root cleanup) is next.

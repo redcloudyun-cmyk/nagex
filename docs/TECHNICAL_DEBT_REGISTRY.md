@@ -157,23 +157,25 @@ area: http/server_web
 description: >
   R10.2-D (HTTP Route Modularization) delivered the router/registrar
   infrastructure (src/http/http-types.ts, router.ts) and has so far
-  migrated seven domains out of server_web.ts across two increments:
+  migrated ten domains out of server_web.ts across three increments:
   Increment 1 — health/vcs (src/http/routes/health.routes.ts) and R11's
   Action Proposals (src/http/routes/action-proposals.routes.ts);
-  Increment 2 — memory (src/http/routes/memory.routes.ts), modules
-  (src/http/routes/modules.routes.ts, including the real PDP-authorized
-  PUT .../state route), catalog (src/http/routes/catalog.routes.ts —
-  plans/skills/tools/agents/knowledge), settings (src/http/routes/
-  settings.routes.ts — quickwake/autonomy config), and notifications
-  (src/http/routes/notifications.routes.ts). Using a consistent
-  method-check-block count, server_web.ts still directly implements
-  121 remaining inline endpoint checks: providers/safety/conversations/
-  ai-chat/ambient, oauth, workspace (route-input/storage/inbox/vault/
-  uploads/captures/items), Calendar/Gmail tool routes, ~20 Browser tool
-  routes, tasks/workflows CRUD+run, telegram/slack integrations, desktop/
-  quickwake-adjacent device routes, candidates, activity,
-  capabilities/execute, my-space, daily-brief/proactive-assistant,
-  device-agent, approvals lifecycle, and static file serving.
+  Increment 2 — memory, modules (including the real PDP-authorized PUT
+  .../state route), catalog (plans/skills/tools/agents/knowledge),
+  settings (quickwake/autonomy config), and notifications; Increment 3 —
+  tasks (src/http/routes/tasks.routes.ts — CRUD/lifecycle plus the
+  SCHEDULER_MUTATION /run and test-only /run-with-fixed-plan bridges),
+  automations (src/http/routes/automations.routes.ts — WorkflowDefinition
+  CRUD plus the real production instantiate/run bridge), and workspace
+  (src/http/routes/workspace.routes.ts — capture/upload/candidate/activity,
+  all funneled through the single canonical QuickCaptureService). Using a
+  consistent method-check-block count, server_web.ts still directly
+  implements 78 remaining inline endpoint checks: providers/safety/
+  conversations/ai-chat/ambient, oauth, Calendar/Gmail tool routes, ~20
+  Browser tool routes, telegram/slack integrations, desktop/quickwake-
+  adjacent device routes, capabilities/execute, my-space, daily-brief/
+  proactive-assistant, device-agent, approvals lifecycle, billing/audit/
+  executions, sessions/main, and static file serving.
 severity: low
 introduced: R10.2-D (deliberate, documented scope decision — see ADR-0004
   "Scope of this round" — not a shortcut taken silently)
@@ -182,31 +184,29 @@ reason: >
   endpoints in one mechanical rewrite, recommending instead: establish the
   registrar contract, move one low-risk read-only domain, run tests, move
   another domain (chosen to prove mutation/approval safety), then continue
-  incrementally. Increment 1 did exactly that. Increment 2 continued the
-  same incremental sequence with five more low-to-medium-risk domains
-  (read-only catalog/settings, tenant-scoped memory, the PDP-authorized
-  modules toggle, and the unapproved notifications domain), again stopping
-  at a safely verified, fully-tested checkpoint rather than attempting an
-  unverifiable single-pass migration of the remaining domains.
+  incrementally. Increment 1 did exactly that. Increment 2 continued with
+  five more low-to-medium-risk domains. Increment 3 took on the two
+  named medium-risk operational domains (Tasks, Automation) plus Workspace/
+  Capture — each stopped at a safely verified, fully-tested checkpoint
+  rather than attempting an unverifiable single-pass migration.
 risk: Low — server_web.ts's remaining inline routes are unchanged
   behavior, still covered by their existing test suites, and the
-  established registrar pattern (proven now on read-only, tenant-scoped,
-  PDP-authorized, and approval-adjacent domains) is ready to apply to the
-  remaining Gmail/Calendar/workspace/tasks domains without further
-  architectural decisions.
+  established registrar pattern (now proven on read-only, tenant-scoped,
+  PDP-authorized, approval-adjacent, and SCHEDULER_MUTATION domains) is
+  ready to apply to the remaining Gmail/Calendar-mutation-heavy domains
+  without further architectural decisions.
 progress: >
-  Increment 1: 6/~147 endpoint checks migrated (health/vcs=2,
-  action-proposals GET+approve+reject+execute=4). Increment 2: +20
-  migrated (memory=4, modules=3, catalog=5, settings=4, notifications=4)
-  → 26/147 migrated total (~18%), 121 remaining. Endpoint counting
-  methodology: count of distinct `method === '<VERB>'` check blocks,
-  applied consistently to both server_web.ts and the route modules
-  (supersedes the earlier informal "~130 total / ~125 remaining"
-  estimate from Increment 1 with an exact, reproducible count).
-target: R10.2-D continuation (Increment 3, per the directive's own
-  roadmap) — Tasks/Automation/Workspace domains next, then Increment 4
-  covers the Gmail/Calendar mutation-heavy domains plus final composition
-  cleanup, closing this debt and unblocking R10.2-E.
+  Increment 1: 6/147 endpoint checks migrated. Increment 2: +20 migrated
+  → 26/147 (~18%). Increment 3: +43 migrated (tasks=11, automations=6,
+  workspace=26) → 69/147 migrated total (~47%), 78 remaining. Endpoint
+  counting methodology unchanged from Increment 2: count of distinct
+  `method === '<VERB>'` check blocks, applied consistently to both
+  server_web.ts and the route modules.
+target: R10.2-D Increment 4 (per the directive's own roadmap) —
+  Gmail/Calendar/Approvals + the remaining mutation-heavy domains, plus
+  final Composition Root cleanup (server_web.ts reduced to bootstrap/
+  composition/route-registration/global-error-boundary/server-lifecycle
+  only). That closes this debt and unblocks R10.2-E.
 owner: NAGEX
 status: OPEN
 ```

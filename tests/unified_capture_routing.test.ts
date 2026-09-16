@@ -15,8 +15,11 @@ function readSrc(relPath: string): string {
   return fs.readFileSync(path.join(process.cwd(), relPath), 'utf8');
 }
 
-test('server_web.ts defines exactly one handler for each capture-routing endpoint (no duplicate/missing routes)', () => {
-  const src = readSrc('src/server_web.ts');
+test('the workspace route registrar defines exactly one handler for each capture-routing endpoint (no duplicate/missing routes)', () => {
+  // R10.2-D Increment 3 moved these routes out of server_web.ts into
+  // src/http/routes/workspace.routes.ts (their only home now) — this test
+  // follows the code, not the file it used to live in.
+  const src = readSrc('src/http/routes/workspace.routes.ts');
   const countMatches = (pattern: RegExp) => (src.match(pattern) || []).length;
 
   // Each of these was found completely missing (404) after a prior

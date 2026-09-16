@@ -256,15 +256,20 @@ function ruleServerWebBoundary(files: SourceFile[], moduleNames: string[]): Viol
 
 // ARCH-008 — Composition Root Ownership. Every class that is a field type
 // on NagexApplication (the full application graph) may only be constructed
-// (`new ClassName(`) inside src/app/create-nagex-application.ts, with two
+// (`new ClassName(`) inside src/app/create-nagex-application.ts, with three
 // evidence-based, named exceptions: browserRuntime (a pre-existing,
-// Phase-01-documented module-owned singleton) and server_web.ts's one
-// ephemeral, request-scoped TaskScheduler/CompositeTaskRunner pair (used
-// only to support injecting an alternate model in a test, never a
-// persistent singleton). The ExecutionStore-as-default-parameter pattern in
-// the three service files is a structural exception (a default parameter
-// value, not a module-level singleton), matched by pattern rather than file
-// allowlist so it stays valid if those files move again.
+// Phase-01-documented module-owned singleton) and the ephemeral,
+// request-scoped TaskScheduler/CompositeTaskRunner/ExecutingTaskRunner
+// construction (used only to support injecting an alternate model in a
+// test, or P07's real production workflow instantiate bridge — never a
+// persistent singleton). R10.2-D Increment 3 relocated that construction
+// out of server_web.ts into src/http/routes/tasks.routes.ts and
+// automations.routes.ts (the routes that actually use it) — the exception
+// itself is unchanged, only its file moved, so the allowlist follows it.
+// The ExecutionStore-as-default-parameter pattern in the three service
+// files is a structural exception (a default parameter value, not a
+// module-level singleton), matched by pattern rather than file allowlist
+// so it stays valid if those files move again.
 const APPLICATION_GRAPH_CLASSES = [
   'PolicyDecisionPoint', 'DurableRuntimeEngine', 'AuditLogger', 'BillingLedgerEngine', 'CreditEngine',
   'MemoryEngine', 'AiService', 'PlanResolver', 'PersistentActionApprovalStore', 'ExecutionStore',
@@ -296,13 +301,18 @@ const COMPOSITION_ROOT_PATH = 'src/app/create-nagex-application.ts';
 const ARCH_008_FILE_ALLOWLIST = new Set<string>([
   'src/modules/browser/browser.runtime.ts', // pre-existing module-owned browserRuntime singleton (Phase 01)
   // Ephemeral TaskScheduler/ExecutingTaskRunner construction: the "test with
-  // an alternate model" DI override on /api/v1/tasks/:id/run, V01a's
-  // test-only fixed-plan bridge, and P07's real production workflow
-  // instantiate bridge (/api/v1/workflows/:id/run) all build a throwaway
-  // scheduler/runner pair here rather than reusing a Composition-Root
-  // singleton, since each needs to inject a resolved plan or an alternate
-  // model the shared production instances don't accept.
-  'src/server_web.ts',
+  // an alternate model" DI override on /api/v1/tasks/:id/run and V01a's
+  // test-only fixed-plan bridge build a throwaway scheduler/runner pair
+  // here rather than reusing a Composition-Root singleton, since each needs
+  // to inject a resolved plan or an alternate model the shared production
+  // instances don't accept. R10.2-D Increment 3 moved this out of
+  // server_web.ts (its original home) into its own route module.
+  'src/http/routes/tasks.routes.ts',
+  // P07's real production workflow instantiate bridge
+  // (/api/v1/workflows/:id/run) builds its own throwaway scheduler/runner
+  // pair for the same reason (it must inject the frozen ResolvedPlan).
+  // Also relocated out of server_web.ts by R10.2-D Increment 3.
+  'src/http/routes/automations.routes.ts',
 ]);
 
 function ruleCompositionRootOwnership(files: SourceFile[]): Violation[] {

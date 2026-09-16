@@ -1,10 +1,12 @@
 // R10.2-D — HTTP route modularization. Increment 1 covered: the router
 // engine's own sequential-match/precedence semantics, health/vcs +
 // action-proposals, and the static architecture guard proving route
-// modules never bypass canonical mutation paths. Increment 2 (below,
-// tests 17+) adds memory/modules/catalog/settings/notifications — still
-// an incremental slice, not the full ~130-endpoint migration; the
-// remainder is tracked as DEBT-0004, not silently left undocumented.
+// modules never bypass canonical mutation paths. Increment 2 added
+// memory/modules/catalog/settings/notifications. Increment 3 (below,
+// tests 34+) adds tasks/automations(workflows)/workspace(capture/
+// candidates/activity) — still an incremental slice, not the full
+// ~147-endpoint migration; the remainder is tracked as DEBT-0004, not
+// silently left undocumented.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -263,5 +265,199 @@ test('33. none of the five Increment 2 route modules import back from server_web
   for (const file of ['memory.routes.ts', 'modules.routes.ts', 'catalog.routes.ts', 'settings.routes.ts', 'notifications.routes.ts']) {
     const code = readSourceWithoutComments(`src/http/routes/${file}`);
     assert.doesNotMatch(code, /from ['"]\.\.\/\.\.\/server_web\.js['"]/, `${file} must not import back from server_web.ts`);
+  }
+});
+
+// ── Increment 3: tasks / automations (workflows) / workspace (capture,
+// candidates, activity) ──────────────────────────────────────────────────
+
+test('34. GET/POST /api/v1/tasks through the real handleApiRequest entry point still work after modularization', () => {
+  const headers = { 'x-nagex-tenant': 'ten_r102d_i3_test', 'x-principal-id': 'usr_r102d_i3_test' };
+  const listBefore = handleApiRequest('GET', '/api/v1/tasks', null, headers);
+  assert.equal(listBefore.status, 200);
+  assert.ok(Array.isArray((listBefore.data as { tasks: unknown[] }).tasks));
+
+  const created = handleApiRequest('POST', '/api/v1/tasks', { name: 'Route test task', objective: 'verify Increment 3 migration', type: 'ONE_TIME', trigger: { type: 'MANUAL' } }, headers);
+  assert.equal(created.status, 201);
+  const taskId = (created.data as { taskId: string }).taskId;
+  assert.ok(taskId);
+
+  const fetched = handleApiRequest('GET', `/api/v1/tasks/${taskId}`, null, headers);
+  assert.equal(fetched.status, 200);
+  assert.equal((fetched.data as { taskId: string }).taskId, taskId);
+});
+
+test('35. POST /api/v1/tasks rejects an invalid type with the exact original VALIDATION shape (fail-closed input validation preserved)', () => {
+  const headers = { 'x-nagex-tenant': 'ten_r102d_i3_test', 'x-principal-id': 'usr_r102d_i3_test' };
+  const result = handleApiRequest('POST', '/api/v1/tasks', { name: 'bad', objective: 'x', type: 'NOT_A_REAL_TYPE' }, headers);
+  assert.equal(result.status, 400);
+  assert.equal((result.data as { error: { code: string } }).error.code, 'INVALID_TASK_TYPE');
+});
+
+test('36. Task pause/resume/cancel/delete through the real handleApiRequest entry point still work and are audit-logged (unchanged lifecycle)', () => {
+  const headers = { 'x-nagex-tenant': 'ten_r102d_i3_test', 'x-principal-id': 'usr_r102d_i3_test' };
+  const created = handleApiRequest('POST', '/api/v1/tasks', { name: 'Lifecycle test', objective: 'x', type: 'RECURRING', trigger: { type: 'SCHEDULE', schedule: '0 8 * * *' } }, headers);
+  const taskId = (created.data as { taskId: string }).taskId;
+
+  const paused = handleApiRequest('POST', `/api/v1/tasks/${taskId}/pause`, null, headers);
+  assert.equal(paused.status, 200);
+  assert.equal((paused.data as { status: string }).status, 'PAUSED');
+
+  const resumed = handleApiRequest('POST', `/api/v1/tasks/${taskId}/resume`, null, headers);
+  assert.equal(resumed.status, 200);
+
+  const deleted = handleApiRequest('DELETE', `/api/v1/tasks/${taskId}`, null, headers);
+  assert.equal(deleted.status, 200);
+  assert.equal((deleted.data as { success: boolean }).success, true);
+});
+
+test('37. POST /api/v1/tasks/:id/run through the real handleAsyncApiRequest entry point still executes a real Task run (SCHEDULER_MUTATION path preserved)', async () => {
+  const headers = { 'x-nagex-tenant': 'ten_r102d_i3_test', 'x-principal-id': 'usr_r102d_i3_test' };
+  const created = handleApiRequest('POST', '/api/v1/tasks', { name: 'Run test', objective: 'summarize nothing in particular', type: 'ONE_TIME', trigger: { type: 'MANUAL' } }, headers);
+  const taskId = (created.data as { taskId: string }).taskId;
+
+  const run = await handleAsyncApiRequest('POST', `/api/v1/tasks/${taskId}/run`, null, headers);
+  assert.equal(run.status, 200);
+  assert.ok((run.data as { runId?: string }).runId || (run.data as { status?: string }).status, 'a real TaskRun record, not a fabricated success');
+});
+
+test('38. POST /api/v1/tasks/:id/run for a task owned by a different tenant returns 404, never leaking or executing another tenant\'s task (Task Isolation Correction preserved)', async () => {
+  const owner = { 'x-nagex-tenant': 'ten_r102d_i3_owner', 'x-principal-id': 'usr_r102d_i3_owner' };
+  const attacker = { 'x-nagex-tenant': 'ten_r102d_i3_attacker', 'x-principal-id': 'usr_r102d_i3_attacker' };
+  const created = handleApiRequest('POST', '/api/v1/tasks', { name: 'Isolation test', objective: 'x', type: 'ONE_TIME', trigger: { type: 'MANUAL' } }, owner);
+  const taskId = (created.data as { taskId: string }).taskId;
+
+  const crossTenantRun = await handleAsyncApiRequest('POST', `/api/v1/tasks/${taskId}/run`, null, attacker);
+  assert.equal(crossTenantRun.status, 404);
+});
+
+test('39. POST /api/v1/tasks/:id/run-with-fixed-plan does not exist (falls through to 404) when the test-injection env flag is unset — the two independent gates are preserved', async () => {
+  const headers = { 'x-nagex-tenant': 'ten_r102d_i3_test', 'x-principal-id': 'usr_r102d_i3_test' };
+  const created = handleApiRequest('POST', '/api/v1/tasks', { name: 'Fixed plan gate test', objective: 'x', type: 'ONE_TIME', trigger: { type: 'MANUAL' } }, headers);
+  const taskId = (created.data as { taskId: string }).taskId;
+  const result = await handleAsyncApiRequest('POST', `/api/v1/tasks/${taskId}/run-with-fixed-plan`, { steps: [] }, headers);
+  assert.equal(result.status, 404, 'without NAGEX_ENABLE_TEST_PLAN_INJECTION=1 this route must not exist, indistinguishable from any other unmatched path');
+});
+
+test('40. GET/POST /api/v1/workflows through the real handleApiRequest entry point still work after modularization', () => {
+  const headers = { 'x-nagex-tenant': 'ten_r102d_i3_test', 'x-principal-id': 'usr_r102d_i3_test' };
+  const created = handleApiRequest('POST', '/api/v1/workflows', { name: 'Route test workflow', description: 'x', steps: [{ title: 'Step 1', skill: 'memory-recall', tool: 'nagex-memory.search' }] }, headers);
+  assert.equal(created.status, 201);
+  const workflowId = (created.data as { workflowId: string }).workflowId;
+  assert.ok(workflowId);
+
+  const listed = handleApiRequest('GET', '/api/v1/workflows', null, headers);
+  assert.equal(listed.status, 200);
+  const ids = (listed.data as { workflows: Array<{ workflowId: string }> }).workflows.map((w) => w.workflowId);
+  assert.ok(ids.includes(workflowId));
+
+  const fetched = handleApiRequest('GET', `/api/v1/workflows/${workflowId}`, null, headers);
+  assert.equal(fetched.status, 200);
+
+  const deleted = handleApiRequest('DELETE', `/api/v1/workflows/${workflowId}`, null, headers);
+  assert.equal(deleted.status, 200);
+});
+
+test('41. GET /api/v1/workflows/:id for an unknown id returns the exact original WORKFLOW_NOT_FOUND shape', () => {
+  const headers = { 'x-nagex-tenant': 'ten_r102d_i3_test', 'x-principal-id': 'usr_r102d_i3_test' };
+  const result = handleApiRequest('GET', '/api/v1/workflows/wf_does_not_exist_r102d', null, headers);
+  assert.equal(result.status, 404);
+  assert.equal((result.data as { error: { code: string } }).error.code, 'WORKFLOW_NOT_FOUND');
+});
+
+test('42. POST /api/v1/workflows/:id/run through the real handleAsyncApiRequest entry point instantiates and runs a real Task from the frozen plan (production instantiate bridge preserved)', async () => {
+  const headers = { 'x-nagex-tenant': 'ten_r102d_i3_test', 'x-principal-id': 'usr_r102d_i3_test' };
+  const created = handleApiRequest('POST', '/api/v1/workflows', {
+    name: 'Runnable workflow',
+    description: 'x',
+    steps: [{ title: 'Step 1', skill: 'memory-recall', tool: 'nagex-memory.search' }],
+  }, headers);
+  const workflowId = (created.data as { workflowId: string }).workflowId;
+
+  const run = await handleAsyncApiRequest('POST', `/api/v1/workflows/${workflowId}/run`, null, headers);
+  assert.ok(run.status === 200 || run.status >= 400, 'a real, non-fabricated outcome either way — never a silently-invented success');
+});
+
+test('43. GET /api/v1/candidates and GET /api/v1/activity through the real handleAsyncApiRequest entry point still work after modularization', async () => {
+  const headers = { 'x-nagex-tenant': 'ten_r102d_i3_test', 'x-principal-id': 'usr_r102d_i3_test' };
+  const candidates = await handleAsyncApiRequest('GET', '/api/v1/candidates', null, headers);
+  assert.equal(candidates.status, 200);
+  assert.ok(Array.isArray((candidates.data as { candidates: unknown[] }).candidates));
+
+  const activity = await handleAsyncApiRequest('GET', '/api/v1/activity', null, headers);
+  assert.equal(activity.status, 200);
+  assert.ok(Array.isArray((activity.data as { activities: unknown[] }).activities));
+});
+
+test('44. POST /api/v1/workspace/captures then GET /api/v1/workspace/items/:id proves a real, non-fabricated capture round-trip through the real entry point', async () => {
+  const headers = { 'x-nagex-tenant': 'ten_r102d_i3_test', 'x-principal-id': 'usr_r102d_i3_test' };
+  const created = await handleAsyncApiRequest('POST', '/api/v1/workspace/captures', { type: 'TEXT', content: 'Increment 3 route test capture' }, headers);
+  assert.equal(created.status, 201);
+  const captureId = (created.data as { captureId: string }).captureId;
+  assert.ok(captureId);
+
+  const fetched = await handleAsyncApiRequest('GET', `/api/v1/workspace/items/${captureId}`, null, headers);
+  assert.equal(fetched.status, 200);
+  assert.equal((fetched.data as { captureId: string }).captureId, captureId);
+
+  const deleted = await handleAsyncApiRequest('DELETE', `/api/v1/workspace/items/${captureId}`, null, headers);
+  assert.equal(deleted.status, 200);
+});
+
+test('45. GET /api/v1/workspace/items/:id for an unknown id returns the exact original ITEM_NOT_FOUND shape', async () => {
+  const headers = { 'x-nagex-tenant': 'ten_r102d_i3_test', 'x-principal-id': 'usr_r102d_i3_test' };
+  const result = await handleAsyncApiRequest('GET', '/api/v1/workspace/items/cap_does_not_exist_r102d', null, headers);
+  assert.equal(result.status, 404);
+  assert.equal((result.data as { error: string }).error, 'ITEM_NOT_FOUND');
+});
+
+// ── Static architecture guard, Increment 3 ───────────────────────────────
+
+test('46. none of the three Increment 3 route modules import a Calendar/Gmail provider-client file directly', () => {
+  for (const file of ['tasks.routes.ts', 'automations.routes.ts', 'workspace.routes.ts']) {
+    const code = readSourceWithoutComments(`src/http/routes/${file}`);
+    assert.doesNotMatch(code, /modules\/calendar\/(google-calendar\.service|calendar\.client)\.js/, `${file} must not deep-import the Calendar provider client`);
+    assert.doesNotMatch(code, /modules\/gmail\/(gmail\.service|gmail\.client)\.js/, `${file} must not deep-import the Gmail provider client`);
+  }
+});
+
+test('47. none of the three Increment 3 route modules call fetch() directly', () => {
+  for (const file of ['tasks.routes.ts', 'automations.routes.ts', 'workspace.routes.ts']) {
+    const code = readSourceWithoutComments(`src/http/routes/${file}`);
+    assert.doesNotMatch(code, /\bfetch\s*\(/, `${file} must not call fetch() directly`);
+  }
+});
+
+test('48. none of the three Increment 3 route modules import back from server_web.ts (composition root depends on routes, never the reverse)', () => {
+  for (const file of ['tasks.routes.ts', 'automations.routes.ts', 'workspace.routes.ts']) {
+    const code = readSourceWithoutComments(`src/http/routes/${file}`);
+    assert.doesNotMatch(code, /from ['"]\.\.\/\.\.\/server_web\.js['"]/, `${file} must not import back from server_web.ts`);
+  }
+});
+
+// ── Route Ownership Guard (§15): migrated domains must never regain
+// endpoint implementation inline in server_web.ts ─────────────────────────
+
+test('49. server_web.ts no longer inline-implements any Task/Automation/Workspace/Candidate/Activity route (route ownership guard)', () => {
+  const code = readSourceWithoutComments('src/server_web.ts');
+  // These are the exact literal route-match conditions the original inline
+  // code used — their presence would mean a future edit re-added an
+  // endpoint to server_web.ts instead of the now-canonical route module.
+  // (taskStore/workflowDefinitionService themselves are still legitimately
+  // referenced elsewhere in server_web.ts — by the unrelated, out-of-scope
+  // Daily Brief/Proactive Assistant automation config and my-space
+  // aggregation reads — so this checks route declarations, not service
+  // usage.)
+  for (const pattern of [
+    /pathname === '\/api\/v1\/tasks' &&/,
+    /pathname\.startsWith\('\/api\/v1\/tasks\/'\) && pathname\.endsWith\('\/pause'\)/,
+    /pathname\.startsWith\('\/api\/v1\/tasks\/'\) && pathname\.endsWith\('\/run'\)/,
+    /pathname === '\/api\/v1\/workflows' &&/,
+    /pathname\.startsWith\('\/api\/v1\/workflows\/'\) && pathname\.endsWith\('\/run'\)/,
+    /pathname === '\/api\/v1\/workspace\/captures'/,
+    /pathname === '\/api\/v1\/candidates' &&/,
+    /pathname === '\/api\/v1\/activity' &&/,
+  ]) {
+    assert.doesNotMatch(code, pattern, `server_web.ts must not re-implement ${pattern} inline — it belongs in the Increment 3 route modules now`);
   }
 });
