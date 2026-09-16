@@ -56,14 +56,19 @@
   min-width: 0;
 }
 .mh-logo {
-  height: 26px;
+  height: 30px;
   width: auto;
   flex-shrink: 0;
 }
+/* Brand dedup — the logo asset (nagex-compact-logo.png) already renders
+   the full "NAgex" wordmark, so the adjacent name+tagline text block
+   duplicated the brand right next to it ("NAgex" ... "NAgex — tagline").
+   This markup only exists in the mobile Home header (Inbox/Activity/
+   Vault/Settings headers use a plain view title, no logo+text pair), so
+   hiding it here is scoped to exactly the one place the duplication
+   happened — Desktop's own header is a separate, untouched element tree. */
 .mh-brand-text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
+  display: none;
 }
 .mh-brand-name {
   font-family: var(--font-display);
@@ -531,7 +536,12 @@
   cursor: pointer;
 }
 
-/* ── G. Today — timeline, tighter rail + clearer type hierarchy ──── */
+/* ── G. Today — clean list, no dot marker/connecting line. The time
+   itself already distinguishes each entry, so the circular
+   .mh-timeline-dot marker and its ::after connecting line (a real
+   timeline-style rail) were redundant visual noise; both are removed
+   below (display:none — the JS-rendered markup is unchanged, so this
+   stays purely presentational). ──────────────────────────────────── */
 .mh-timeline-row {
   display: flex;
   gap: 12px;
@@ -551,30 +561,12 @@
   white-space: nowrap;
 }
 .mh-timeline-dot {
-  margin-top: 5px;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  border: 2px solid var(--nagex-accent-primary);
-  background: #ffffff;
-  position: relative;
+  display: none;
 }
-.mh-timeline-dot::after {
-  content: '';
-  position: absolute;
-  top: 11px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 1px;
-  height: 24px;
-  background: var(--nagex-border-default);
-}
-.mh-timeline-row:last-child .mh-timeline-dot::after { display: none; }
-.mh-timeline-dot-done { background: var(--nagex-accent-primary); }
 .mh-timeline-body {
   flex: 1;
   min-width: 0;
-  padding-bottom: 16px;
+  padding-bottom: 18px;
 }
 
 .mh-bottom-spacer {
