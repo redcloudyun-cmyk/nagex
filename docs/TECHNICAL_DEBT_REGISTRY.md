@@ -151,6 +151,52 @@ owner: NAGEX
 status: OPEN
 ```
 
+```yaml
+id: DEBT-0004
+area: http/server_web
+description: >
+  R10.2-D (HTTP Route Modularization) delivered the router/registrar
+  infrastructure (src/http/http-types.ts, router.ts) and migrated exactly
+  two domains out of server_web.ts: health/vcs (src/http/routes/
+  health.routes.ts) and R11's Action Proposals (src/http/routes/
+  action-proposals.routes.ts). server_web.ts still directly implements
+  the remaining ~125 of its ~130 HTTP endpoints inline: providers/safety/
+  conversations/ai-chat/ambient, oauth, workspace (route-input/storage/
+  inbox/vault/uploads/captures/items), plans, Calendar/Gmail tool routes,
+  ~20 Browser tool routes, tasks/workflows run, telegram/slack
+  integrations, notifications, desktop/quickwake, candidates, activity,
+  capabilities/execute, my-space, daily-brief/proactive-assistant,
+  device-agent, memory, modules, approvals lifecycle, tasks/workflows
+  CRUD, and static file serving.
+severity: low
+introduced: R10.2-D (deliberate, documented scope decision — see ADR-0004
+  "Scope of this round" — not a shortcut taken silently)
+reason: >
+  The R10.2-D directive's own §18 explicitly instructs against moving 100+
+  endpoints in one mechanical rewrite, recommending instead: establish the
+  registrar contract, move one low-risk read-only domain, run tests, move
+  another domain (chosen to prove mutation/approval safety), then continue
+  incrementally. This round did exactly that and stopped at a safely
+  verified, fully-tested checkpoint rather than attempting an unverifiable
+  single-pass migration of the remaining domains.
+risk: Low — server_web.ts's remaining inline routes are unchanged
+  behavior, still covered by their existing test suites, and the
+  established registrar pattern (proven on both a read-only and a
+  mutation-with-approval domain) is ready to apply to them without
+  further architectural decisions.
+target: R10.2-D continuation (or a renumbered follow-up round) — the
+  directive's own §19 domain order (settings/read-only → workspace reads
+  → task reads → Gmail/Calendar reads → remaining Gmail/Calendar
+  mutations → automation/task mutations → the rest) is the intended
+  continuation sequence.
+owner: NAGEX
+status: OPEN
+```
+
+Per explicit instruction: DEBT-0003 (processAudioFallback's status/audit
+inconsistency, registered during R10.2-C) is NOT addressed by R10.2-D and
+remains unchanged/OPEN — it is unrelated to HTTP route organization.
+
 ---
 
 ## Explicitly classified as NON-GOAL, not debt

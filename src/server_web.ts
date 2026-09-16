@@ -2,7 +2,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { handleHealthRoutes, type HealthRouteDeps } from './http/routes/health.routes.js';
 
 // ─── NAgex Core Engine Imports ───
 import { PolicyDecisionPoint, describeDeniedDecision } from './identity/pdp.js';
@@ -25,7 +25,7 @@ import { dailyBriefDateKey, type DailyBriefRecord } from './governance/daily-bri
 import { generateDailyBriefOnce } from './assistant/daily-brief.pipeline.js';
 import { detectMeaningfulChanges, dispatchDetectedChanges } from './assistant/daily-brief-change-detection.js';
 import { generateProposalsFromChanges } from './assistant/action-proposal-generator.js';
-import { executeActionProposal } from './assistant/action-proposal-executor.js';
+import { handleActionProposalsRoutes, type ActionProposalsRouteDeps } from './http/routes/action-proposals.routes.js';
 import { ExecutionStore } from './governance/execution.store.js';
 import {
   GoogleCalendarService,
@@ -483,23 +483,8 @@ const knowledgeBase = [
   { id: 'kb_002', name: 'Product_Strategy_2025.docx', classification: 'INTERNAL', size_bytes: 1153433, status: 'INDEXED', indexed_at: '2026-08-19T09:15:00Z', chunk_count: 87 },
 ];
 
-interface VcsFileChange { path: string; status: string; }
-interface VcsCommit { hash: string; author: string; date: string; message: string; }
-interface VcsStatus { available: boolean; branch: string | null; changed_files: VcsFileChange[]; commits: VcsCommit[]; error?: string; }
-
-function getVcsStatus(): VcsStatus {
-  const cwd = process.cwd();
-  try {
-    const branch = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd, encoding: 'utf8' }).trim();
-    const statusRaw = execFileSync('git', ['-c', 'core.quotepath=false', 'status', '--porcelain=v1'], { cwd, encoding: 'utf8' });
-    const changed_files: VcsFileChange[] = statusRaw.split('\n').filter((l) => l.trim().length > 0).map((l) => ({ status: l.slice(0, 2).trim() || '?', path: l.slice(3) }));
-    const logRaw = execFileSync('git', ['log', '-20', '--pretty=format:%h%x1f%an%x1f%ad%x1f%s', '--date=iso-strict'], { cwd, encoding: 'utf8' });
-    const commits: VcsCommit[] = logRaw.split('\n').filter((l) => l.trim().length > 0).map((l) => { const [hash, author, date, message] = l.split('\x1f'); return { hash, author, date, message }; });
-    return { available: true, branch, changed_files, commits };
-  } catch (err) {
-    return { available: false, branch: null, changed_files: [], commits: [], error: err instanceof Error ? err.message : String(err) };
-  }
-}
+// R10.2-D — health/vcs status moved to src/http/routes/health.routes.ts.
+const healthRouteDeps: HealthRouteDeps = { executionCount: () => executionHistory.length };
 
 // ─── API Router ───
 function getHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
@@ -618,8 +603,9 @@ export async function handleAsyncApiRequest(
       const userStatus = await safetyStore.getUserStatus(tenantId, principalId);
       return { status: 200, data: userStatus };
     }
-    if (pathname === '/api/v1/vcs/status' && method === 'GET') {
-      return { status: 200, data: getVcsStatus() };
+    {
+      const healthResult = handleHealthRoutes(method, pathname, body, headers, query, healthRouteDeps);
+      if (healthResult) return healthResult;
     }
     if (pathname === '/api/v1/conversations/main' && method === 'GET') {
       const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
@@ -2023,57 +2009,14 @@ export async function handleAsyncApiRequest(
       return { status: 200, data: { history: history.map((r) => ({ ...r, freshness: computeBriefFreshness(r.generatedAt) })) } };
     }
 
-    // R11 — Action Proposals: grounded, reviewable suggestions generated
-    // from real Daily Brief changes (see action-proposal-generator.ts,
-    // hooked into both the manual refresh above and DailyBriefTaskRunner).
-    // DETECT -> PROPOSE -> HUMAN REVIEW -> APPROVE -> EXECUTE -> AUDIT.
-    // Never auto-executes anything: approve() only flips status; a
-    // completely separate, explicit execute() call is required to invoke
-    // real canonical runtime (§14 — no automatic mutation path).
-    if (pathname === '/api/v1/action-proposals' && method === 'GET') {
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const date = typeof query.date === 'string' && query.date ? query.date : dailyBriefDateKey();
-      return { status: 200, data: { proposals: actionProposalStore.listForDate(tenantId, principalId, date) } };
-    }
-
-    if (pathname.startsWith('/api/v1/action-proposals/') && (pathname.endsWith('/approve') || pathname.endsWith('/reject') || pathname.endsWith('/execute')) && method === 'POST') {
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_proposal_${crypto.randomUUID()}`;
-      const action = pathname.endsWith('/approve') ? 'approve' : pathname.endsWith('/reject') ? 'reject' : 'execute';
-      const proposalId = pathname.slice('/api/v1/action-proposals/'.length, pathname.length - `/${action}`.length);
-      const proposal = actionProposalStore.get(proposalId, tenantId, principalId);
-      if (!proposal) {
-        throw new NagexError({ code: 'ACTION_PROPOSAL_NOT_FOUND', category: 'NOT_FOUND', message: `Action proposal ${proposalId} was not found.`, request_id: requestId });
-      }
-
-      if (action === 'approve') {
-        if (proposal.status !== 'PROPOSED') {
-          throw new NagexError({ code: 'ACTION_PROPOSAL_NOT_PENDING', category: 'CONFLICT', message: `Action proposal ${proposalId} is ${proposal.status}, not PROPOSED.`, request_id: requestId });
-        }
-        const updated = actionProposalStore.updateStatus(proposalId, tenantId, principalId, { status: 'APPROVED' }, requestId);
-        return { status: 200, data: updated };
-      }
-      if (action === 'reject') {
-        if (proposal.status !== 'PROPOSED') {
-          throw new NagexError({ code: 'ACTION_PROPOSAL_NOT_PENDING', category: 'CONFLICT', message: `Action proposal ${proposalId} is ${proposal.status}, not PROPOSED.`, request_id: requestId });
-        }
-        // §14 — a rejected proposal must never be executable afterward;
-        // there is no path from REJECTED to /execute (execute() itself
-        // also independently refuses anything but APPROVED/EXECUTING).
-        const updated = actionProposalStore.updateStatus(proposalId, tenantId, principalId, { status: 'REJECTED' }, requestId);
-        return { status: 200, data: updated };
-      }
-      // action === 'execute' — an explicit, human-triggered call only; the
-      // executor itself independently refuses to run for anything other
-      // than an already-APPROVED (or in-progress EXECUTING) proposal.
-      const executed = await executeActionProposal(
-        { taskStore, calendarService, activityStore, actionProposalStore },
-        proposal,
-        requestId,
-      );
-      return { status: 200, data: executed };
+    // R11 — Action Proposals (moved to src/http/routes/action-proposals.routes.ts,
+    // R10.2-D). Deps built fresh per call — calendarService is this
+    // function's own overridable param (test callers pass a fake one), so
+    // it must never be captured from module scope.
+    {
+      const proposalsDeps: ActionProposalsRouteDeps = { actionProposalStore, taskStore, calendarService, activityStore };
+      const proposalsResult = await handleActionProposalsRoutes(method, pathname, body, headers, query, proposalsDeps);
+      if (proposalsResult) return proposalsResult;
     }
 
     // R10 — Proactive Assistant settings: the Daily Brief automation
@@ -2193,12 +2136,9 @@ export function handleApiRequest(
   const tenantContext: TenantContext = { tenant_id: tenantId, scope_type: 'TENANT' };
   const principal: PrincipalReference = { type: 'user', id: (Array.isArray(headerPrincipal) ? headerPrincipal[0] : headerPrincipal) || 'usr_admin_001' };
 
-  if (pathname === '/api/v1/health' && method === 'GET') {
-    return { status: 200, data: { status: 'UP', service: 'NAgex Personal AI Platform API', version: '0.1.0', runtime_active: true, active_executions: executionHistory.length, uptime_seconds: Math.floor(process.uptime()) } };
-  }
-
-  if (pathname === '/api/v1/vcs/status' && method === 'GET') {
-    return { status: 200, data: getVcsStatus() };
+  {
+    const healthResult = handleHealthRoutes(method, pathname, body, headers, {}, healthRouteDeps);
+    if (healthResult) return healthResult;
   }
 
   if (pathname === '/api/v1/memory' && method === 'GET') {

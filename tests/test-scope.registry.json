@@ -116,6 +116,7 @@
     "action_safety_gate",
     "capture_analysis_finalizer",
     "google_capability_execution_pipeline",
+    "http_route_modularization",
     "ambient_composer",
     "ambient_composer_recovery",
     "ambient_modal_wiring",
