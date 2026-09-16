@@ -156,26 +156,26 @@ id: DEBT-0004
 area: http/server_web
 description: >
   R10.2-D (HTTP Route Modularization) delivered the router/registrar
-  infrastructure (src/http/http-types.ts, router.ts) and has so far
-  migrated ten domains out of server_web.ts across three increments:
-  Increment 1 — health/vcs (src/http/routes/health.routes.ts) and R11's
-  Action Proposals (src/http/routes/action-proposals.routes.ts);
-  Increment 2 — memory, modules (including the real PDP-authorized PUT
-  .../state route), catalog (plans/skills/tools/agents/knowledge),
-  settings (quickwake/autonomy config), and notifications; Increment 3 —
-  tasks (src/http/routes/tasks.routes.ts — CRUD/lifecycle plus the
-  SCHEDULER_MUTATION /run and test-only /run-with-fixed-plan bridges),
-  automations (src/http/routes/automations.routes.ts — WorkflowDefinition
-  CRUD plus the real production instantiate/run bridge), and workspace
-  (src/http/routes/workspace.routes.ts — capture/upload/candidate/activity,
-  all funneled through the single canonical QuickCaptureService). Using a
-  consistent method-check-block count, server_web.ts still directly
-  implements 78 remaining inline endpoint checks: providers/safety/
-  conversations/ai-chat/ambient, oauth, Calendar/Gmail tool routes, ~20
-  Browser tool routes, telegram/slack integrations, desktop/quickwake-
-  adjacent device routes, capabilities/execute, my-space, daily-brief/
-  proactive-assistant, device-agent, approvals lifecycle, billing/audit/
-  executions, sessions/main, and static file serving.
+  infrastructure (src/http/http-types.ts, router.ts) and has migrated
+  nineteen domains out of server_web.ts across four increments: Increment
+  1 — health/vcs, Action Proposals; Increment 2 — memory, modules, catalog,
+  settings, notifications; Increment 3 — tasks, automations, workspace;
+  Increment 4 — gmail (src/http/routes/gmail.routes.ts), calendar
+  (src/http/routes/calendar.routes.ts, including the free-slots read),
+  approvals (src/http/routes/approvals.routes.ts — list/request/get/
+  legacy-alias/approve-reject/legacy-action), browser (src/http/routes/
+  browser.routes.ts — all 17 Browser Agent routes), google-oauth
+  (src/http/routes/google-oauth.routes.ts — start/start-url/callback/
+  status/disconnect), telegram, slack, desktop (quickwake), and
+  governance (src/http/routes/governance.routes.ts — executions/billing/
+  audit). Using a consistent method-check-block count, server_web.ts still
+  directly implements 22 remaining inline endpoint checks: providers
+  (status/health-check), safety (evaluate/events/status), conversations
+  (main GET/messages POST/main DELETE), ai/chat, ambient/intent, plans/
+  resolve, capabilities/execute, my-space, daily-brief (GET/refresh/
+  history), proactive-assistant/config (GET/PUT), device-agent/message,
+  sessions/main — plus CORS OPTIONS preflight and static file serving
+  (infrastructure, not domain endpoints).
 severity: low
 introduced: R10.2-D (deliberate, documented scope decision — see ADR-0004
   "Scope of this round" — not a shortcut taken silently)
@@ -184,29 +184,41 @@ reason: >
   endpoints in one mechanical rewrite, recommending instead: establish the
   registrar contract, move one low-risk read-only domain, run tests, move
   another domain (chosen to prove mutation/approval safety), then continue
-  incrementally. Increment 1 did exactly that. Increment 2 continued with
-  five more low-to-medium-risk domains. Increment 3 took on the two
-  named medium-risk operational domains (Tasks, Automation) plus Workspace/
-  Capture — each stopped at a safely verified, fully-tested checkpoint
-  rather than attempting an unverifiable single-pass migration.
+  incrementally. Increments 1-3 did exactly that. Increment 4 took on the
+  three directive-named mutation-heavy domains (Gmail, Calendar,
+  Approvals) plus every other clearly-owned domain reachable without
+  touching the Main Session / conversational core — each stopped at a
+  safely verified, fully-tested checkpoint. The 22 remaining inline
+  checks are deliberately NOT migrated this round: they are the Main
+  Session / conversational core (conversations, ai/chat, ambient/intent,
+  plans/resolve, sessions/main) and the Daily Brief / Proactive Assistant
+  automation surface (daily-brief x3, proactive-assistant/config), plus
+  Safety/Providers/Capabilities-Execute/My-Space/Device-Agent — a
+  distinct, deeply-coupled (aiService/conversationStore/memoryEngine/
+  actionProposalStore) domain that deserves its own focused increment
+  rather than a rushed migration inside an already-large one.
 risk: Low — server_web.ts's remaining inline routes are unchanged
   behavior, still covered by their existing test suites, and the
   established registrar pattern (now proven on read-only, tenant-scoped,
-  PDP-authorized, approval-adjacent, and SCHEDULER_MUTATION domains) is
-  ready to apply to the remaining Gmail/Calendar-mutation-heavy domains
-  without further architectural decisions.
+  PDP-authorized, approval-adjacent, SCHEDULER_MUTATION, and
+  APPROVAL_GATED-external-mutation domains) is ready to apply to the
+  remaining Main-Session/Daily-Brief surface without further
+  architectural decisions.
 progress: >
-  Increment 1: 6/147 endpoint checks migrated. Increment 2: +20 migrated
-  → 26/147 (~18%). Increment 3: +43 migrated (tasks=11, automations=6,
-  workspace=26) → 69/147 migrated total (~47%), 78 remaining. Endpoint
-  counting methodology unchanged from Increment 2: count of distinct
+  Increment 1: 6/147 migrated. Increment 2: +20 → 26/147 (18%).
+  Increment 3: +43 → 69/147 (47%). Increment 4: +56 (gmail=5, calendar=5,
+  approvals=6, browser=17, google-oauth=5, telegram=5, slack=5, desktop=3,
+  governance=5) → 125/147 migrated total (85.0%), 22 remaining. Endpoint
+  counting methodology unchanged since Increment 2: count of distinct
   `method === '<VERB>'` check blocks, applied consistently to both
   server_web.ts and the route modules.
-target: R10.2-D Increment 4 (per the directive's own roadmap) —
-  Gmail/Calendar/Approvals + the remaining mutation-heavy domains, plus
-  final Composition Root cleanup (server_web.ts reduced to bootstrap/
-  composition/route-registration/global-error-boundary/server-lifecycle
-  only). That closes this debt and unblocks R10.2-E.
+target: R10.2-D Increment 5 (final slice) — Main Session / conversational
+  core (conversations, ai/chat, ambient/intent, plans/resolve,
+  sessions/main) and Daily Brief / Proactive Assistant automation, plus
+  Safety/Providers/Capabilities-Execute/My-Space/Device-Agent, plus final
+  Composition Root cleanup. That closes this debt. R10.2-E (test harness/
+  duplication/architecture-guard cleanup, per the user's own stated
+  roadmap) follows only after DEBT-0004 closes.
 owner: NAGEX
 status: OPEN
 ```

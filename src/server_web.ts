@@ -5,20 +5,9 @@ import crypto from 'node:crypto';
 import { handleHealthRoutes, type HealthRouteDeps } from './http/routes/health.routes.js';
 
 // ─── NAgex Core Engine Imports ───
-import { PolicyDecisionPoint, describeDeniedDecision } from './identity/pdp.js';
-import { resolveBuiltInPrincipalPermissions } from './identity/permission.registry.js';
-import { DurableRuntimeEngine } from './runtime/runtime.engine.js';
-import { AuditLogger } from './governance/audit.logger.js';
-import { BillingLedgerEngine } from './billing/billing.ledger.js';
-import { CreditEngine, computeCreditCost, sumBreakdownUsd, type CreditCostBreakdown } from './billing/credit.engine.js';
-import { MemoryEngine, type MemoryRecord, type MemoryScope } from './context/memory.engine.js';
 import { NagexError } from './common/errors.js';
 import type { TenantContext, PrincipalReference } from './common/types.js';
 import { AiService, parseRoutingMode, type PlanPreview, type BriefActionItem } from './model-gateway/ai-service.js';
-import { createProviders } from './model-gateway/providers.js';
-import { UnifiedModelRouter } from './model-gateway/unified-model-router.js';
-import { PlanResolver } from './planning/plan-resolver.js';
-import { PersistentActionApprovalStore } from './governance/action-approval.store.js';
 import { dailyBriefDateKey, type DailyBriefRecord } from './governance/daily-brief.store.js';
 import { generateDailyBriefOnce } from './assistant/daily-brief.pipeline.js';
 import { detectMeaningfulChanges, dispatchDetectedChanges } from './assistant/daily-brief-change-detection.js';
@@ -32,47 +21,28 @@ import { handleNotificationsRoutes } from './http/routes/notifications.routes.js
 import { handleTasksRoutes, handleTasksRunRoutes } from './http/routes/tasks.routes.js';
 import { handleAutomationsRoutes, handleAutomationsRunRoutes } from './http/routes/automations.routes.js';
 import { handleWorkspaceRoutes } from './http/routes/workspace.routes.js';
-import { ExecutionStore } from './governance/execution.store.js';
-import {
-  GoogleCalendarService,
-  GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID,
-  GOOGLE_CALENDAR_UPDATE_EVENT_TOOL_ID,
-  GOOGLE_CALENDAR_CANCEL_EVENT_TOOL_ID,
-  GOOGLE_CALENDAR_RESPOND_EVENT_TOOL_ID,
-  queryFreeBusy,
-  computeFreeSlots,
-} from './modules/calendar/index.js';
-import {
-  GmailService,
-  GMAIL_SEND_EMAIL_TOOL_ID,
-  GMAIL_REPLY_TOOL_ID,
-  GMAIL_CREATE_DRAFT_TOOL_ID,
-} from './modules/gmail/index.js';
+import { handleGmailRoutes } from './http/routes/gmail.routes.js';
+import { handleCalendarRoutes } from './http/routes/calendar.routes.js';
+import { handleApprovalsRoutes } from './http/routes/approvals.routes.js';
+import { handleBrowserRoutes } from './http/routes/browser.routes.js';
+import { handleGoogleOAuthStartRoutes, handleGoogleOAuthCallbackRoutes } from './http/routes/google-oauth.routes.js';
+import { handleTelegramRoutes } from './http/routes/telegram.routes.js';
+import { handleSlackRoutes } from './http/routes/slack.routes.js';
+import { handleDesktopRoutes } from './http/routes/desktop.routes.js';
+import { handleGovernanceRoutes, executionHistory } from './http/routes/governance.routes.js';
+import type { GoogleCalendarService } from './modules/calendar/index.js';
+import type { GmailService } from './modules/gmail/index.js';
 import { BrowserToolService, browserRuntime } from './modules/browser/index.js';
-import { googleTokenStore, DEFAULT_GOOGLE_TENANT_ID } from './integrations/google/token.store.js';
-import { buildGoogleAuthorizeUrl, exchangeGoogleAuthorizationCode, readGoogleOAuthConfig } from './integrations/google/oauth.client.js';
-import { SessionStore } from './sessions/session.store.js';
-import { ConversationStore } from './conversations/conversation.store.js';
-import { ConversationContextService } from './conversations/conversation-context.service.js';
+import { DEFAULT_GOOGLE_TENANT_ID } from './integrations/google/token.store.js';
+import type { ConversationStore } from './conversations/conversation.store.js';
+import type { ConversationContextService } from './conversations/conversation-context.service.js';
 import type { TaskTrigger, TaskRecord } from './tasks/task.store.js';
 import { computeNextRunAt } from './tasks/task.scheduler.js';
-import { TelegramIdentityStore } from './integrations/telegram/telegram-identity.store.js';
-import { TelegramBotClient, type TelegramUpdate } from './integrations/telegram/telegram.client.js';
-import { TelegramService } from './integrations/telegram/telegram.service.js';
+import type { TelegramService } from './integrations/telegram/telegram.service.js';
 import { SafetyEngine } from './governance/safety.engine.js';
 import { PersistentSafetyStore } from './governance/safety.store.js';
-import { SlackIdentityStore } from './integrations/slack/slack-identity.store.js';
-import { SlackClient, type SlackEventPayload } from './integrations/slack/slack.client.js';
-import { SlackService } from './integrations/slack/slack.service.js';
-import { NotificationStore } from './notifications/notification.store.js';
+import type { SlackService } from './integrations/slack/slack.service.js';
 import { NotificationEngine } from './notifications/notification.engine.js';
-import { DesktopRuntimeEngine } from './desktop/desktop-runtime.engine.js';
-import { captureStore } from './workspace/capture.store.js';
-import { CandidateStore } from './workspace/candidate.store.js';
-import { CandidateActionResolver } from './workspace/action-resolver.js';
-import { ActivityStore } from './governance/activity.store.js';
-import { createConfiguredStorageProvider } from './storage/s3-storage.provider.js';
-import { CapabilityBroker, capabilityRegistry } from './capabilities/index.js';
 import { createNagexApplication } from './app/create-nagex-application.js';
 
 const PORT = Number(process.env.PORT || 8085);
@@ -173,8 +143,6 @@ export const {
   deviceAgentTransportEndpoint,
   deviceIdentityStore,
 } = app;
-let pendingGoogleOAuthState: string | null = null;
-
 
 // A real (not fake) background scheduler loop — only runs when this module
 // is the actual running server, never when imported by tests. Phase 02:
@@ -185,27 +153,10 @@ let pendingGoogleOAuthState: string | null = null;
 // browserRuntime.
 const TASK_SCHEDULER_TICK_MS = Number(process.env.NAGEX_TASK_SCHEDULER_INTERVAL_MS) || 30_000;
 
-const INITIAL_CREDIT_GRANT = 10000;
-const seededTenants = new Set<string>();
-function ensureTenantSeeded(tenantId: string): void {
-  if (!seededTenants.has(tenantId)) {
-    creditEngine.grantCredits(tenantId, INITIAL_CREDIT_GRANT, 'Initial account seed');
-    seededTenants.add(tenantId);
-  }
-}
-
-const MANAGED_AI_COST_BREAKDOWN: CreditCostBreakdown = {
-  llm_cost_unit: 0.04,
-  rag_unit: 0.004,
-  tool_unit: 0.005,
-  runtime_unit: 0.011,
-};
-
-const SUBSCRIPTION_INFO = {
-  plan: 'Business Pro',
-  monthly_price: 120.0,
-  next_renewal: '2026-09-01',
-};
+// R10.2-D Increment 4 — pendingGoogleOAuthState/INITIAL_CREDIT_GRANT/
+// ensureTenantSeeded/MANAGED_AI_COST_BREAKDOWN/SUBSCRIPTION_INFO moved to
+// src/http/routes/google-oauth.routes.ts and governance.routes.ts (each
+// with its only remaining consumers).
 
 // Personal AI seed memory (mem1-4) + pinnedMemories moved into
 // createNagexApplication() — see app.pinnedMemories, destructured above —
@@ -332,83 +283,13 @@ function buildBriefResponse(
   };
 }
 
-// Seed Approvals Queue (Exact match for Mockup Image 3)
-const approvalQueue: Array<{
-  id: string;
-  action: string;
-  tool: string;
-  event_name: string;
-  event_time: string;
-  recipient: string;
-  subject: string;
-  impact: string;
-  data_involved: string[];
-  why: string;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED';
-  requested_at: string;
-  plan_id?: string;
-}> = [
-  {
-    id: 'appr_gcal_sync',
-    action: 'Create Google Calendar event',
-    tool: 'Google Calendar',
-    event_name: 'Product Strategy Sync',
-    event_time: 'Tue, Apr 29, 2025 11:00 AM – 12:00 PM (1 hour)',
-    recipient: 'Sarah Kim, James Park, Alex Chen (3 guests)',
-    subject: 'Product Strategy Sync',
-    impact: 'Adds a calendar event and sends invitations to 3 people.',
-    data_involved: ['Your Google Calendar', 'guest emails', 'meeting title and agenda'],
-    why: 'You asked me to schedule a follow-up meeting after the product review.',
-    status: 'PENDING',
-    requested_at: new Date(Date.now() - 120000).toISOString(),
-    plan_id: 'plan_acme_meeting',
-  },
-  {
-    id: 'appr_stakeholder_email',
-    action: 'Get stakeholder review',
-    tool: 'Gmail',
-    event_name: 'Acme QBR Deck Review',
-    event_time: 'Apr 29, 5:00 PM',
-    recipient: 'stakeholders@acme.corp',
-    subject: 'QBR Presentation Draft Review',
-    impact: 'Dispatches external review email with presentation draft to 4 stakeholders.',
-    data_involved: ['Acme-QBR-Deck-Draft.pdf', 'stakeholder emails'],
-    why: 'Step 5 of plan "Prepare Client Meeting" requires approval before dispatch.',
-    status: 'PENDING',
-    requested_at: new Date(Date.now() - 300000).toISOString(),
-    plan_id: 'plan_acme_meeting',
-  },
-];
-
-// In-memory Execution History
-const executionHistory: Array<Record<string, unknown>> = [
-  {
-    execution_id: 'exec_meeting_prep_001',
-    agent_id: 'agt_personal_ai',
-    agent_name: 'NAgex Personal AI',
-    objective: 'Prepare my next client meeting and schedule it.',
-    status: 'COMPLETED',
-    tenant_id: 'ten_production_01',
-    created_at: new Date(Date.now() - 600000).toISOString(),
-    checkpoint: 'COMPLETED',
-    steps_log: [
-      'Goal received: Prepare client meeting and schedule it',
-      'Memory loaded: Relevant context retrieved (12 memories)',
-      'Plan created: 8 steps generated by NAgex',
-      'Skill selected: Meeting Preparation',
-      'Tool selected: Google Calendar & Gmail',
-      'Approval requested: Step 5 - Get stakeholder review',
-      'Approval granted by user',
-      'Tool executed: Research completed with Perplexity',
-      'Result verified: Calendar event registered',
-      'Memory updated: Saved meeting briefing preference',
-    ],
-  },
-];
-
-// R10.2-D — quickWakeConfig/autonomyConfig moved to
-// src/http/routes/settings.routes.ts; knowledgeBase moved to
-// src/http/routes/catalog.routes.ts (each with its only consumer).
+// R10.2-D Increment 4 — approvalQueue moved to
+// src/http/routes/approvals.routes.ts; executionHistory moved to
+// src/http/routes/governance.routes.ts (imported above — health.routes.ts
+// still legitimately needs its length for executionCount, below).
+// quickWakeConfig/autonomyConfig moved to src/http/routes/settings.routes.ts;
+// knowledgeBase moved to src/http/routes/catalog.routes.ts (each with its
+// only consumer).
 
 // R10.2-D — health/vcs status moved to src/http/routes/health.routes.ts.
 const healthRouteDeps: HealthRouteDeps = { executionCount: () => executionHistory.length };
@@ -734,50 +615,10 @@ export async function handleAsyncApiRequest(
 
       return { status: 200, data: { status: 'PLAN_PREVIEW', message: 'Plan generated. Review it before any tools are executed.', plan: result.data, provider: result.provider, model: result.model, latencyMs: result.latencyMs, requestId: result.requestId } };
     }
-    if (pathname === '/api/v1/oauth/google/callback' && method === 'GET') {
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const requestId = `req_oauth_${crypto.randomUUID()}`;
-      const expectedState = pendingGoogleOAuthState;
-      pendingGoogleOAuthState = null; // one-time use, prevents callback replay
-
-      if (query.error) {
-        return { status: 302, data: null, redirectTo: '/?oauth=google&status=error' };
-      }
-      if (!query.state || !expectedState || query.state !== expectedState || !query.code) {
-        return { status: 302, data: null, redirectTo: '/?oauth=google&status=error' };
-      }
-      const config = readGoogleOAuthConfig();
-      if (!config) {
-        return { status: 302, data: null, redirectTo: '/?oauth=google&status=error' };
-      }
-      try {
-        const token = await exchangeGoogleAuthorizationCode(config, query.code, fetch, requestId);
-        googleTokenStore.save(tenantId, token);
-        auditLogger.logEvent({ actor: { type: 'user', id: 'usr_admin_001' }, tenant_id: tenantId, action: 'oauth:google_connected', resource: { type: 'OAuthConnection', id: 'google_calendar' }, result: 'SUCCESS', request_id: requestId });
-        return { status: 302, data: null, redirectTo: '/?oauth=google&status=connected' };
-      } catch {
-        return { status: 302, data: null, redirectTo: '/?oauth=google&status=error' };
-      }
-    }
-    if (pathname === '/api/v1/oauth/google/status' && method === 'GET') {
-      const tid = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_oauth_${crypto.randomUUID()}`;
-      const config = readGoogleOAuthConfig();
-      if (config) {
-        // Touches (and transparently refreshes + persists) the token if it's
-        // expired, so "connected" reflects real usability, not stale state.
-        await googleTokenStore.getValidAccessToken(tid, config, fetch, requestId);
-      }
-      const status = googleTokenStore.getStatus(tid);
-      return { status: 200, data: { configured: Boolean(config), ...status } };
-    }
-    if (pathname === '/api/v1/oauth/google/disconnect' && method === 'POST') {
-      const tid = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_oauth_${crypto.randomUUID()}`;
-      await googleTokenStore.revoke(tid, fetch, requestId);
-      auditLogger.logEvent({ actor: { type: 'user', id: principalId }, tenant_id: tid, action: 'oauth:google_disconnected', resource: { type: 'OAuthConnection', id: 'google_calendar' }, result: 'SUCCESS', request_id: requestId });
-      return { status: 200, data: googleTokenStore.getStatus(tid) };
+    // R10.2-D Increment 4 — Google OAuth callback/status/disconnect.
+    {
+      const googleOAuthResult = await handleGoogleOAuthCallbackRoutes(method, pathname, body, headers, query, { auditLogger });
+      if (googleOAuthResult) return googleOAuthResult;
     }
     // R10.2-D Increment 3 — all Workspace/Capture/Candidate/Activity routes
     // (route-input, storage/status, inbox, vault, uploads, captures, items,
@@ -795,261 +636,26 @@ export async function handleAsyncApiRequest(
       const candidate = body?.plan && typeof body.plan === 'object' ? body.plan : body;
       return { status: 200, data: planResolver.resolve(candidate as unknown as PlanPreview) };
     }
-    if (pathname === '/api/v1/tools/google-calendar/create-event' && method === 'POST') {
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
-      const approvalId = typeof body?.approvalId === 'string' ? body.approvalId : '';
-      if (!approvalId) throw new NagexError({ code: 'APPROVAL_ID_REQUIRED', category: 'VALIDATION', message: 'approvalId is required.', request_id: requestId });
-      const result = await calendarService.executeCreateEvent({ approvalId, payload: body?.payload, tenantId, principalId, requestId });
-      return { status: 200, data: result };
+    // R10.2-D Increment 4 — Google Calendar mutation/read routes. Every
+    // mutation still requires a pre-existing approvalId and calls
+    // GoogleCalendarService.executeXxx(), built on R10.2-B's
+    // GoogleCapabilityExecutionPipeline — unchanged.
+    {
+      const calendarResult = await handleCalendarRoutes(method, pathname, body, headers, query, { calendarService });
+      if (calendarResult) return calendarResult;
     }
-    if (pathname === '/api/v1/tools/google-calendar/update-event' && method === 'POST') {
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
-      const approvalId = typeof body?.approvalId === 'string' ? body.approvalId : '';
-      if (!approvalId) throw new NagexError({ code: 'APPROVAL_ID_REQUIRED', category: 'VALIDATION', message: 'approvalId is required.', request_id: requestId });
-      const result = await calendarService.executeUpdateEvent({ approvalId, payload: body?.payload, tenantId, principalId, requestId });
-      return { status: 200, data: result };
-    }
-    if (pathname === '/api/v1/tools/google-calendar/cancel-event' && method === 'POST') {
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
-      const approvalId = typeof body?.approvalId === 'string' ? body.approvalId : '';
-      if (!approvalId) throw new NagexError({ code: 'APPROVAL_ID_REQUIRED', category: 'VALIDATION', message: 'approvalId is required.', request_id: requestId });
-      const result = await calendarService.executeCancelEvent({ approvalId, payload: body?.payload, tenantId, principalId, requestId });
-      return { status: 200, data: result };
-    }
-    if (pathname === '/api/v1/tools/google-calendar/respond-to-event' && method === 'POST') {
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
-      const approvalId = typeof body?.approvalId === 'string' ? body.approvalId : '';
-      if (!approvalId) throw new NagexError({ code: 'APPROVAL_ID_REQUIRED', category: 'VALIDATION', message: 'approvalId is required.', request_id: requestId });
-      const result = await calendarService.executeRespondToEvent({ approvalId, payload: body?.payload, tenantId, principalId, requestId });
-      return { status: 200, data: result };
-    }
-    if (pathname === '/api/v1/tools/gmail/send-email' && method === 'POST') {
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
-      const approvalId = typeof body?.approvalId === 'string' ? body.approvalId : '';
-      if (!approvalId) throw new NagexError({ code: 'APPROVAL_ID_REQUIRED', category: 'VALIDATION', message: 'approvalId is required.', request_id: requestId });
-      const result = await gmailApiService.executeSendEmail({ approvalId, payload: body?.payload, tenantId, principalId, requestId });
-      return { status: 200, data: result };
-    }
-    if (pathname === '/api/v1/tools/gmail/reply' && method === 'POST') {
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
-      const approvalId = typeof body?.approvalId === 'string' ? body.approvalId : '';
-      if (!approvalId) throw new NagexError({ code: 'APPROVAL_ID_REQUIRED', category: 'VALIDATION', message: 'approvalId is required.', request_id: requestId });
-      const result = await gmailApiService.executeReply({ approvalId, payload: body?.payload, tenantId, principalId, requestId });
-      return { status: 200, data: result };
-    }
-    if (pathname === '/api/v1/tools/gmail/create-draft' && method === 'POST') {
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
-      const approvalId = typeof body?.approvalId === 'string' ? body.approvalId : '';
-      if (!approvalId) throw new NagexError({ code: 'APPROVAL_ID_REQUIRED', category: 'VALIDATION', message: 'approvalId is required.', request_id: requestId });
-      const result = await gmailApiService.executeCreateDraft({ approvalId, payload: body?.payload, tenantId, principalId, requestId });
-      return { status: 200, data: result };
-    }
-    if (pathname === '/api/v1/tools/gmail/search' && method === 'POST') {
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
-      const query = typeof body?.query === 'string' ? body.query : '';
-      const result = await gmailApiService.search({ tenantId, query, requestId });
-      return { status: 200, data: result };
-    }
-    if (pathname === '/api/v1/tools/gmail/read-thread' && method === 'POST') {
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
-      const threadId = typeof body?.threadId === 'string' ? body.threadId : '';
-      if (!threadId) throw new NagexError({ code: 'THREAD_ID_REQUIRED', category: 'VALIDATION', message: 'threadId is required.', request_id: requestId });
-      const result = await gmailApiService.readThread({ tenantId, threadId, requestId });
-      return { status: 200, data: result };
+
+    // R10.2-D Increment 4 — Gmail mutation/read routes. Same approval-gated
+    // GmailService.executeXxx() -> GoogleCapabilityExecutionPipeline path.
+    {
+      const gmailResult = await handleGmailRoutes(method, pathname, body, headers, query, { gmailApiService });
+      if (gmailResult) return gmailResult;
     }
 
     // ── Browser Agent MVP (MASTER.md Section 14.5 item 06) ─────────────────
-    if (pathname === '/api/v1/browser/sessions' && method === 'POST') {
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
-      const result = await browserApiService.open({ tenantId, ownerId, requestId });
-      return { status: 201, data: result };
-    }
-    if (pathname === '/api/v1/tools/browser/navigate' && method === 'POST') {
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
-      const browserSessionId = typeof body?.browserSessionId === 'string' ? body.browserSessionId : '';
-      const url = typeof body?.url === 'string' ? body.url : '';
-      if (!browserSessionId) throw new NagexError({ code: 'BROWSER_SESSION_ID_REQUIRED', category: 'VALIDATION', message: 'browserSessionId is required.', request_id: requestId });
-      if (!url) throw new NagexError({ code: 'BROWSER_URL_REQUIRED', category: 'VALIDATION', message: 'url is required.', request_id: requestId });
-      const result = await browserApiService.navigate({ tenantId, ownerId, requestId, browserSessionId, url });
-      return { status: 200, data: result };
-    }
-    if (pathname === '/api/v1/tools/browser/tabs' && method === 'POST') {
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
-      const browserSessionId = typeof body?.browserSessionId === 'string' ? body.browserSessionId : '';
-      if (!browserSessionId) throw new NagexError({ code: 'BROWSER_SESSION_ID_REQUIRED', category: 'VALIDATION', message: 'browserSessionId is required.', request_id: requestId });
-      const result = await browserApiService.tabs({ tenantId, ownerId, requestId, browserSessionId });
-      return { status: 200, data: { tabs: result } };
-    }
-    if (pathname === '/api/v1/tools/browser/snapshot' && method === 'POST') {
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
-      const browserSessionId = typeof body?.browserSessionId === 'string' ? body.browserSessionId : '';
-      if (!browserSessionId) throw new NagexError({ code: 'BROWSER_SESSION_ID_REQUIRED', category: 'VALIDATION', message: 'browserSessionId is required.', request_id: requestId });
-      const result = await browserApiService.snapshot({ tenantId, ownerId, requestId, browserSessionId });
-      return { status: 200, data: result };
-    }
-    if (pathname === '/api/v1/tools/browser/screenshot' && method === 'POST') {
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
-      const browserSessionId = typeof body?.browserSessionId === 'string' ? body.browserSessionId : '';
-      if (!browserSessionId) throw new NagexError({ code: 'BROWSER_SESSION_ID_REQUIRED', category: 'VALIDATION', message: 'browserSessionId is required.', request_id: requestId });
-      const result = await browserApiService.screenshot({ tenantId, ownerId, requestId, browserSessionId });
-      return { status: 200, data: result };
-    }
-    if (pathname === '/api/v1/tools/browser/scroll' && method === 'POST') {
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
-      const browserSessionId = typeof body?.browserSessionId === 'string' ? body.browserSessionId : '';
-      const direction = body?.direction === 'up' ? 'up' : 'down';
-      if (!browserSessionId) throw new NagexError({ code: 'BROWSER_SESSION_ID_REQUIRED', category: 'VALIDATION', message: 'browserSessionId is required.', request_id: requestId });
-      await browserApiService.scroll({ tenantId, ownerId, requestId, browserSessionId, direction, amountPx: typeof body?.amountPx === 'number' ? body.amountPx : undefined });
-      return { status: 200, data: { status: 'SUCCEEDED' } };
-    }
-    if (pathname === '/api/v1/tools/browser/wait' && method === 'POST') {
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
-      const browserSessionId = typeof body?.browserSessionId === 'string' ? body.browserSessionId : '';
-      const ms = typeof body?.ms === 'number' ? body.ms : 1000;
-      if (!browserSessionId) throw new NagexError({ code: 'BROWSER_SESSION_ID_REQUIRED', category: 'VALIDATION', message: 'browserSessionId is required.', request_id: requestId });
-      await browserApiService.wait({ tenantId, ownerId, requestId, browserSessionId, ms });
-      return { status: 200, data: { status: 'SUCCEEDED' } };
-    }
-    if (pathname === '/api/v1/tools/browser/type' && method === 'POST') {
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
-      const browserSessionId = typeof body?.browserSessionId === 'string' ? body.browserSessionId : '';
-      const selector = typeof body?.selector === 'string' ? body.selector : '';
-      const text = typeof body?.text === 'string' ? body.text : '';
-      if (!browserSessionId || !selector) throw new NagexError({ code: 'BROWSER_SELECTOR_REQUIRED', category: 'VALIDATION', message: 'browserSessionId and selector are required.', request_id: requestId });
-      await browserApiService.type({ tenantId, ownerId, requestId, browserSessionId, selector, text });
-      return { status: 200, data: { status: 'SUCCEEDED' } };
-    }
-    if (pathname === '/api/v1/tools/browser/select' && method === 'POST') {
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
-      const browserSessionId = typeof body?.browserSessionId === 'string' ? body.browserSessionId : '';
-      const selector = typeof body?.selector === 'string' ? body.selector : '';
-      const value = typeof body?.value === 'string' ? body.value : '';
-      if (!browserSessionId || !selector) throw new NagexError({ code: 'BROWSER_SELECTOR_REQUIRED', category: 'VALIDATION', message: 'browserSessionId and selector are required.', request_id: requestId });
-      await browserApiService.select({ tenantId, ownerId, requestId, browserSessionId, selector, value });
-      return { status: 200, data: { status: 'SUCCEEDED' } };
-    }
-    // The one entry point a client calls to click — the server resolves the
-    // real target element live and decides whether this is a harmless
-    // navigation click (executes immediately) or a consequential one
-    // (Submit/Buy/Pay/Delete/...), in which case it returns an
-    // APPROVAL_REQUIRED result with a real ActionApprovalRecord instead of
-    // executing. This is genuinely different from Gmail/Calendar's
-    // "client composes payload -> POST /api/v1/approvals" shape because
-    // only the live page (not the client) knows what a selector resolves
-    // to — see browser.service.ts's click() for the full reasoning.
-    if (pathname === '/api/v1/tools/browser/click' && method === 'POST') {
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
-      const browserSessionId = typeof body?.browserSessionId === 'string' ? body.browserSessionId : '';
-      const selector = typeof body?.selector === 'string' ? body.selector : '';
-      if (!browserSessionId || !selector) throw new NagexError({ code: 'BROWSER_SELECTOR_REQUIRED', category: 'VALIDATION', message: 'browserSessionId and selector are required.', request_id: requestId });
-      const result = await browserApiService.click({ tenantId, ownerId, requestId, browserSessionId, selector });
-      return { status: result.status === 'APPROVAL_REQUIRED' ? 201 : 200, data: result };
-    }
-    // Called only after the approval returned above has been approved via
-    // the existing, unchanged, tool-agnostic POST /api/v1/approvals/:id/approve.
-    if (pathname === '/api/v1/tools/browser/click/execute' && method === 'POST') {
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
-      const approvalId = typeof body?.approvalId === 'string' ? body.approvalId : '';
-      const browserSessionId = typeof body?.browserSessionId === 'string' ? body.browserSessionId : '';
-      const selector = typeof body?.selector === 'string' ? body.selector : '';
-      if (!approvalId) throw new NagexError({ code: 'APPROVAL_ID_REQUIRED', category: 'VALIDATION', message: 'approvalId is required.', request_id: requestId });
-      if (!browserSessionId || !selector) throw new NagexError({ code: 'BROWSER_SELECTOR_REQUIRED', category: 'VALIDATION', message: 'browserSessionId and selector are required.', request_id: requestId });
-      const result = await browserApiService.executeApprovedClick({ approvalId, browserSessionId, selector, tenantId, ownerId, requestId });
-      return { status: 200, data: result };
-    }
-    if (pathname === '/api/v1/tools/browser/close' && method === 'POST') {
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
-      const browserSessionId = typeof body?.browserSessionId === 'string' ? body.browserSessionId : '';
-      if (!browserSessionId) throw new NagexError({ code: 'BROWSER_SESSION_ID_REQUIRED', category: 'VALIDATION', message: 'browserSessionId is required.', request_id: requestId });
-      await browserApiService.close({ tenantId, ownerId, requestId, browserSessionId });
-      return { status: 200, data: { status: 'SUCCEEDED' } };
-    }
-    if (pathname === '/api/v1/tools/browser/find' && method === 'POST') {
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
-      const browserSessionId = typeof body?.browserSessionId === 'string' ? body.browserSessionId : '';
-      const query = typeof body?.query === 'string' ? body.query : '';
-      if (!browserSessionId || !query) throw new NagexError({ code: 'BROWSER_QUERY_REQUIRED', category: 'VALIDATION', message: 'browserSessionId and query are required.', request_id: requestId });
-      const result = await browserApiService.find({ tenantId, ownerId, requestId, browserSessionId, query });
-      return { status: 200, data: result };
-    }
-    if (pathname === '/api/v1/tools/browser/extract' && method === 'POST') {
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
-      const browserSessionId = typeof body?.browserSessionId === 'string' ? body.browserSessionId : '';
-      const target = (typeof body?.target === 'string' ? body.target : 'all') as any;
-      if (!browserSessionId) throw new NagexError({ code: 'BROWSER_SESSION_ID_REQUIRED', category: 'VALIDATION', message: 'browserSessionId is required.', request_id: requestId });
-      const result = await browserApiService.extract({ tenantId, ownerId, requestId, browserSessionId, target });
-      return { status: 200, data: result };
-    }
-    if (pathname === '/api/v1/tools/browser/back' && method === 'POST') {
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
-      const browserSessionId = typeof body?.browserSessionId === 'string' ? body.browserSessionId : '';
-      if (!browserSessionId) throw new NagexError({ code: 'BROWSER_SESSION_ID_REQUIRED', category: 'VALIDATION', message: 'browserSessionId is required.', request_id: requestId });
-      const result = await browserApiService.back({ tenantId, ownerId, requestId, browserSessionId });
-      return { status: 200, data: result };
-    }
-    if (pathname === '/api/v1/tools/browser/forward' && method === 'POST') {
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
-      const browserSessionId = typeof body?.browserSessionId === 'string' ? body.browserSessionId : '';
-      if (!browserSessionId) throw new NagexError({ code: 'BROWSER_SESSION_ID_REQUIRED', category: 'VALIDATION', message: 'browserSessionId is required.', request_id: requestId });
-      const result = await browserApiService.forward({ tenantId, ownerId, requestId, browserSessionId });
-      return { status: 200, data: result };
-    }
-    if (pathname === '/api/v1/tools/browser/reload' && method === 'POST') {
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
-      const browserSessionId = typeof body?.browserSessionId === 'string' ? body.browserSessionId : '';
-      if (!browserSessionId) throw new NagexError({ code: 'BROWSER_SESSION_ID_REQUIRED', category: 'VALIDATION', message: 'browserSessionId is required.', request_id: requestId });
-      const result = await browserApiService.reload({ tenantId, ownerId, requestId, browserSessionId });
-      return { status: 200, data: result };
+    {
+      const browserResult = await handleBrowserRoutes(method, pathname, body, headers, query, { browserApiService });
+      if (browserResult) return browserResult;
     }
 
     // R10.2-D Increment 3 — Task /run + test-only /run-with-fixed-plan.
@@ -1074,116 +680,16 @@ export async function handleAsyncApiRequest(
       if (automationsRunResult) return automationsRunResult;
     }
 
-    if (pathname === '/api/v1/tools/google-calendar/free-slots' && method === 'POST') {
-      const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
-      const config = readGoogleOAuthConfig();
-      const accessToken = config ? await googleTokenStore.getValidAccessToken(tenantId, config, fetch, requestId) : null;
-      if (!accessToken) throw new NagexError({ code: 'GOOGLE_CALENDAR_DISCONNECTED', category: 'POLICY', message: 'Google Calendar is not connected.', request_id: requestId });
-      const calendarId = (typeof body?.calendarId === 'string' && body.calendarId) || 'primary';
-      const timeMin = typeof body?.timeMin === 'string' ? body.timeMin : new Date().toISOString();
-      const timeMax = typeof body?.timeMax === 'string' ? body.timeMax : new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
-      const busy = await queryFreeBusy(accessToken, { calendarId, timeMin, timeMax }, fetch, requestId);
-      return { status: 200, data: { busy, freeSlots: computeFreeSlots(busy, timeMin, timeMax) } };
+    // R10.2-D Increment 4 — Telegram integration (MASTER.md Section 14.5 item 10).
+    {
+      const telegramResult = await handleTelegramRoutes(method, pathname, body, headers, query, { telegramBotClient, telegramApiService, telegramIdentityStore, auditLogger });
+      if (telegramResult) return telegramResult;
     }
 
-    // ── Telegram Integration (MASTER.md Section 14.5 item 10) ─────────────
-    if (pathname === '/api/v1/integrations/telegram/status' && method === 'GET') {
-      return { status: 200, data: telegramBotClient.getStatus() };
-    }
-    if (pathname === '/api/v1/integrations/telegram/webhook' && method === 'POST') {
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_tg_wh_${crypto.randomUUID()}`;
-      const update = (body || {}) as unknown as TelegramUpdate;
-      const result = await telegramApiService.processUpdate(update, requestId);
-      return { status: 200, data: { status: 'ok', handled: result !== null, result } };
-    }
-    if (pathname === '/api/v1/integrations/telegram/send' && method === 'POST') {
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_tg_send_${crypto.randomUUID()}`;
-      const chatId = body?.chatId ? (typeof body.chatId === 'number' || typeof body.chatId === 'string' ? body.chatId : '') : '';
-      const text = typeof body?.text === 'string' ? body.text.trim() : '';
-      if (!chatId || !text) {
-        throw new NagexError({ code: 'INVALID_TELEGRAM_SEND_PAYLOAD', category: 'VALIDATION', message: 'chatId and text are required.', request_id: requestId });
-      }
-      const sent = await telegramBotClient.sendMessage({ chatId, text });
-      return { status: 200, data: { success: sent } };
-    }
-    if (pathname === '/api/v1/integrations/telegram/identity/link' && method === 'POST') {
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_tg_link_${crypto.randomUUID()}`;
-      const telegramUserId = String(body?.telegramUserId || '').trim();
-      const principalId = typeof body?.principalId === 'string' && body.principalId.trim() ? body.principalId.trim() : (getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001');
-      const tenantId = typeof body?.tenantId === 'string' && body.tenantId.trim() ? body.tenantId.trim() : (getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID);
-      const username = typeof body?.username === 'string' ? body.username.trim() : undefined;
-
-      if (!telegramUserId) {
-        throw new NagexError({ code: 'TELEGRAM_USER_ID_REQUIRED', category: 'VALIDATION', message: 'telegramUserId is required.', request_id: requestId });
-      }
-      const record = telegramIdentityStore.link(telegramUserId, principalId, tenantId, username);
-      auditLogger.logEvent({
-        actor: { type: 'user', id: principalId },
-        tenant_id: tenantId,
-        action: 'channel:telegram_identity_linked',
-        resource: { type: 'TelegramIdentityLink', id: telegramUserId },
-        result: 'SUCCESS',
-        request_id: requestId,
-        details: { telegramUserId, principalId, tenantId, username },
-      });
-      return { status: 200, data: record };
-    }
-    if (pathname === '/api/v1/integrations/telegram/identities' && method === 'GET') {
-      const identities = telegramIdentityStore.list();
-      return { status: 200, data: { identities, total: identities.length } };
-    }
-
-    // ── Slack Integration (MASTER.md Section 14.5 item 11) ────────────────
-    if (pathname === '/api/v1/integrations/slack/status' && method === 'GET') {
-      return { status: 200, data: slackClient.getStatus() };
-    }
-    if (pathname === '/api/v1/integrations/slack/events' && method === 'POST') {
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_slack_evt_${crypto.randomUUID()}`;
-      const payload = (body || {}) as unknown as SlackEventPayload;
-      if (payload.type === 'url_verification' && payload.challenge) {
-        return { status: 200, data: { challenge: payload.challenge } };
-      }
-      const result = await slackApiService.processEvent(payload, requestId);
-      return { status: 200, data: { status: 'ok', handled: result !== null, result } };
-    }
-    if (pathname === '/api/v1/integrations/slack/send' && method === 'POST') {
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_slack_send_${crypto.randomUUID()}`;
-      const channel = typeof body?.channel === 'string' ? body.channel.trim() : '';
-      const text = typeof body?.text === 'string' ? body.text.trim() : '';
-      const threadTs = typeof body?.threadTs === 'string' ? body.threadTs.trim() : undefined;
-      if (!channel || !text) {
-        throw new NagexError({ code: 'INVALID_SLACK_SEND_PAYLOAD', category: 'VALIDATION', message: 'channel and text are required.', request_id: requestId });
-      }
-      const sent = await slackClient.postMessage({ channel, text, threadTs });
-      return { status: 200, data: { success: sent } };
-    }
-    if (pathname === '/api/v1/integrations/slack/identity/link' && method === 'POST') {
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_slack_link_${crypto.randomUUID()}`;
-      const slackUserId = String(body?.slackUserId || '').trim();
-      const principalId = typeof body?.principalId === 'string' && body.principalId.trim() ? body.principalId.trim() : (getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001');
-      const tenantId = typeof body?.tenantId === 'string' && body.tenantId.trim() ? body.tenantId.trim() : (getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID);
-      const slackTeamId = typeof body?.slackTeamId === 'string' ? body.slackTeamId.trim() : undefined;
-      const username = typeof body?.username === 'string' ? body.username.trim() : undefined;
-
-      if (!slackUserId) {
-        throw new NagexError({ code: 'SLACK_USER_ID_REQUIRED', category: 'VALIDATION', message: 'slackUserId is required.', request_id: requestId });
-      }
-      const record = slackIdentityStore.link(slackUserId, principalId, tenantId, slackTeamId, username);
-      auditLogger.logEvent({
-        actor: { type: 'user', id: principalId },
-        tenant_id: tenantId,
-        action: 'channel:slack_identity_linked',
-        resource: { type: 'SlackIdentityLink', id: slackUserId },
-        result: 'SUCCESS',
-        request_id: requestId,
-        details: { slackUserId, principalId, tenantId, slackTeamId, username },
-      });
-      return { status: 200, data: record };
-    }
-    if (pathname === '/api/v1/integrations/slack/identities' && method === 'GET') {
-      const identities = slackIdentityStore.list();
-      return { status: 200, data: { identities, total: identities.length } };
+    // R10.2-D Increment 4 — Slack integration (MASTER.md Section 14.5 item 11).
+    {
+      const slackResult = await handleSlackRoutes(method, pathname, body, headers, query, { slackClient, slackApiService, slackIdentityStore, auditLogger });
+      if (slackResult) return slackResult;
     }
 
     // ── Notification Engine (MASTER.md Section 14.5 item 12) ──────────────
@@ -1194,23 +700,10 @@ export async function handleAsyncApiRequest(
       if (notificationsResult) return notificationsResult;
     }
 
-    // ─── Desktop Quick Wake Endpoints ───
-    if (pathname === '/api/v1/desktop/quickwake/status' && method === 'GET') {
-      return { status: 200, data: { hotkey: desktopRuntimeEngine.getHotkey(), windowState: desktopRuntimeEngine.getWindowState(), isRunning: desktopRuntimeEngine.isRunning() } };
-    }
-    if (pathname === '/api/v1/desktop/quickwake/toggle' && method === 'POST') {
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_hk_toggle_${crypto.randomUUID()}`;
-      const state = desktopRuntimeEngine.triggerGlobalHotkey(requestId);
-      return { status: 200, data: { hotkey: desktopRuntimeEngine.getHotkey(), windowState: state, isRunning: desktopRuntimeEngine.isRunning() } };
-    }
-    if (pathname === '/api/v1/desktop/quickwake/tray/action' && method === 'POST') {
-      const requestId = getHeaderValue(headers, 'x-request-id') || `req_tray_act_${crypto.randomUUID()}`;
-      const action = typeof body?.action === 'string' ? body.action.trim() : '';
-      if (!action) {
-        throw new NagexError({ code: 'INVALID_TRAY_ACTION', category: 'VALIDATION', message: 'Tray action string is required.', request_id: requestId });
-      }
-      const result = desktopRuntimeEngine.handleTrayAction(action as any, requestId);
-      return { status: 200, data: result };
+    // R10.2-D Increment 4 — Desktop Quick Wake Endpoints.
+    {
+      const desktopResult = await handleDesktopRoutes(method, pathname, body, headers, query, { desktopRuntimeEngine });
+      if (desktopResult) return desktopResult;
     }
 
     if (pathname === '/api/v1/capabilities/execute' && method === 'POST') {
@@ -1615,134 +1108,22 @@ export function handleApiRequest(
     if (catalogResult) return catalogResult;
   }
 
-  if (pathname === '/api/v1/approvals' && method === 'GET') {
-    return { status: 200, data: { approvals: approvalQueue, total: approvalQueue.length } };
+  // R10.2-D Increment 4 — Approval lifecycle (list/request/get/legacy
+  // calendar-event alias/approve/reject/legacy action). Approval status is
+  // a separate concept from provider-mutation permission — approve/reject
+  // only ever update the approval record; the canonical
+  // GoogleCapabilityExecutionPipeline re-validates everything downstream.
+  {
+    const approvalsResult = handleApprovalsRoutes(method, pathname, body, headers, {}, { googleCalendarService, gmailService, auditLogger, taskContinuationCoordinator, tenantId, principal, modelErrorResult });
+    if (approvalsResult) return approvalsResult;
   }
 
-  if (pathname === '/api/v1/approvals' && method === 'POST') {
-    const requestId = `req_appr_${Date.now()}`;
-    const toolId = typeof body?.toolId === 'string' ? body.toolId : '';
-    try {
-      if (toolId === GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID) {
-        const record = googleCalendarService.requestCreateEventApproval({ tenantId, principalId: principal.id, payload: body?.payload, requestId });
-        return { status: 201, data: record };
-      }
-      if (toolId === GOOGLE_CALENDAR_UPDATE_EVENT_TOOL_ID) {
-        const record = googleCalendarService.requestUpdateEventApproval({ tenantId, principalId: principal.id, payload: body?.payload, requestId });
-        return { status: 201, data: record };
-      }
-      if (toolId === GOOGLE_CALENDAR_CANCEL_EVENT_TOOL_ID) {
-        const record = googleCalendarService.requestCancelEventApproval({ tenantId, principalId: principal.id, payload: body?.payload, requestId });
-        return { status: 201, data: record };
-      }
-      if (toolId === GOOGLE_CALENDAR_RESPOND_EVENT_TOOL_ID) {
-        const record = googleCalendarService.requestRespondToEventApproval({ tenantId, principalId: principal.id, payload: body?.payload, requestId });
-        return { status: 201, data: record };
-      }
-      if (toolId === GMAIL_SEND_EMAIL_TOOL_ID || toolId === GMAIL_REPLY_TOOL_ID || toolId === GMAIL_CREATE_DRAFT_TOOL_ID) {
-        const record = gmailService.requestApproval({ toolId, tenantId, principalId: principal.id, payload: body?.payload, requestId });
-        return { status: 201, data: record };
-      }
-      throw new NagexError({ code: 'UNSUPPORTED_APPROVAL_TOOL', category: 'VALIDATION', message: `No approval-gated execution is registered for toolId "${toolId}".`, request_id: requestId });
-    } catch (error) {
-      return modelErrorResult(error);
-    }
-  }
-
-  if (pathname.startsWith('/api/v1/approvals/') && pathname !== '/api/v1/approvals/calendar-event' && method === 'GET') {
-    const apprId = pathname.slice('/api/v1/approvals/'.length);
-    const record = googleCalendarService.getApproval(apprId, tenantId, principal.id);
-    if (!record) {
-      return { status: 404, data: { error: 'APPROVAL_NOT_FOUND', message: `Approval ${apprId} was not found.` } };
-    }
-    return { status: 200, data: record };
-  }
-
-  if (pathname === '/api/v1/approvals/calendar-event' && method === 'POST') {
-    const requestId = `req_appr_${Date.now()}`;
-    try {
-      const record = googleCalendarService.requestCreateEventApproval({ tenantId, principalId: principal.id, payload: body?.payload, requestId });
-      return { status: 201, data: record };
-    } catch (error) {
-      return modelErrorResult(error);
-    }
-  }
-
-  if (pathname.startsWith('/api/v1/approvals/') && (pathname.endsWith('/approve') || pathname.endsWith('/reject')) && method === 'POST') {
-    const isApprove = pathname.endsWith('/approve');
-    const suffix = isApprove ? '/approve' : '/reject';
-    const apprId = pathname.slice('/api/v1/approvals/'.length, pathname.length - suffix.length);
-    const requestId = `req_appr_${Date.now()}`;
-    try {
-      const record = isApprove
-        ? googleCalendarService.approve(apprId, tenantId, principal.id, requestId)
-        : googleCalendarService.reject(apprId, tenantId, principal.id, requestId);
-      // P02 — fire-and-forget: this route is synchronous and its response
-      // must not change (still 200 with the approval record) whether or
-      // not a Task continuation exists for this approvalId. A genuine
-      // no-op for every non-Task-originated approval.
-      if (isApprove) taskContinuationCoordinator.onApproved(apprId).catch(() => {});
-      else taskContinuationCoordinator.onRejected(apprId);
-      return { status: 200, data: record };
-    } catch (error) {
-      return modelErrorResult(error);
-    }
-  }
-
-  if (pathname.startsWith('/api/v1/approvals/') && method === 'POST') {
-    const apprId = pathname.replace('/api/v1/approvals/', '').replace('/action', '');
-    const action = (body?.action as string) || 'APPROVE';
-    const item = approvalQueue.find((a) => a.id === apprId);
-    if (item) {
-      item.status = action === 'APPROVE' ? 'APPROVED' : 'REJECTED';
-      auditLogger.logEvent({
-        actor: principal,
-        tenant_id: tenantId,
-        action: action === 'APPROVE' ? 'approval:granted' : 'approval:rejected',
-        resource: { type: 'Approval', id: apprId },
-        result: 'SUCCESS',
-        request_id: `req_appr_${Date.now()}`,
-      });
-      return { status: 200, data: item };
-    }
-
-    // Not a legacy demo approval — try the real, hash-verified action approvals
-    // (e.g. Google Calendar create-event requests) sharing this same endpoint.
-    const requestId = `req_appr_${Date.now()}`;
-    try {
-      const record = action === 'APPROVE'
-        ? googleCalendarService.approve(apprId, tenantId, principal.id, requestId)
-        : googleCalendarService.reject(apprId, tenantId, principal.id, requestId);
-      // P02 — same fire-and-forget continuation hook as the /approve
-      // /reject route above; this legacy /action endpoint shares the same
-      // underlying approval store, so a Task continuation may equally be
-      // waiting on an approvalId granted/rejected through this path.
-      if (action === 'APPROVE') taskContinuationCoordinator.onApproved(apprId).catch(() => {});
-      else taskContinuationCoordinator.onRejected(apprId);
-      return { status: 200, data: record };
-    } catch (error) {
-      return modelErrorResult(error);
-    }
-  }
-
-  if (pathname === '/api/v1/oauth/google/start' && method === 'GET') {
-    const config = readGoogleOAuthConfig();
-    if (!config) {
-      return { status: 503, data: { error: 'GOOGLE_OAUTH_NOT_CONFIGURED', message: 'GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI must be set.' } };
-    }
-    pendingGoogleOAuthState = crypto.randomUUID();
-    // Real browser navigation: redirect straight to Google, never hand back
-    // the authorize URL as a JSON body for this endpoint.
-    return { status: 302, data: null, redirectTo: buildGoogleAuthorizeUrl(config, pendingGoogleOAuthState) };
-  }
-
-  if (pathname === '/api/v1/oauth/google/start-url' && method === 'GET') {
-    const config = readGoogleOAuthConfig();
-    if (!config) {
-      return { status: 503, data: { error: 'GOOGLE_OAUTH_NOT_CONFIGURED', message: 'GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI must be set.' } };
-    }
-    pendingGoogleOAuthState = crypto.randomUUID();
-    return { status: 200, data: { authorizeUrl: buildGoogleAuthorizeUrl(config, pendingGoogleOAuthState) } };
+  // R10.2-D Increment 4 — Google OAuth start/start-url (browser-redirect
+  // and JSON-URL variants). /callback, /status, /disconnect stay in
+  // handleAsyncApiRequest (see handleGoogleOAuthCallbackRoutes above).
+  {
+    const googleOAuthStartResult = handleGoogleOAuthStartRoutes(method, pathname, body, headers, {}, {});
+    if (googleOAuthStartResult) return googleOAuthStartResult;
   }
 
   {
@@ -1750,48 +1131,13 @@ export function handleApiRequest(
     if (settingsResult) return settingsResult;
   }
 
-  if (pathname === '/api/v1/executions' && method === 'POST') {
-    const taskObjective = (body?.objective as string) || 'Unnamed task';
-    const agentId = (body?.agent_id as string) || 'agt_personal_ai';
-    const headerRequestId = headers['x-request-id'] || headers['X-Request-Id'];
-    const requestId = (Array.isArray(headerRequestId) ? headerRequestId[0] : headerRequestId) || `req_${Date.now()}`;
-
-    const decision = pdp.evaluate({ principal, tenant_context: tenantContext, action: 'agent:execute', resource_type: 'Agent', resource_id: agentId, principal_permissions: ['agent:execute'] });
-    if (decision.decision !== 'ALLOW') {
-      const outcome = describeDeniedDecision(decision);
-      auditLogger.logEvent({ actor: principal, tenant_id: tenantId, action: 'agent:execute', resource: { type: 'Agent', id: agentId }, result: outcome.auditResult, reason_code: decision.reason_code, request_id: requestId });
-      return { status: outcome.httpStatus, data: { error: outcome.errorCode, reason: decision.reason_code, request_id: requestId } };
-    }
-
-    ensureTenantSeeded(tenantId);
-    try {
-      creditEngine.chargeCredits(tenantId, MANAGED_AI_COST_BREAKDOWN, `pending_${requestId}`);
-    } catch (err) {
-      if (err instanceof NagexError && err.code === 'BILLING_INSUFFICIENT_CREDIT') {
-        return { status: 402, data: { error: err.code, message: err.message, request_id: requestId } };
-      }
-      throw err;
-    }
-
-    const execution = runtime.createExecution(tenantContext, agentId);
-    auditLogger.logEvent({ actor: principal, tenant_id: tenantId, action: 'agent:execute', resource: { type: 'Execution', id: execution.id }, result: 'SUCCESS', request_id: requestId });
-
-    const record = { execution_id: execution.id, agent_id: agentId, agent_name: 'NAgex Personal AI', objective: taskObjective, status: execution.state, tenant_id: tenantId, created_at: new Date().toISOString(), checkpoint: 'INITIAL', request_id: requestId };
-    executionHistory.unshift(record);
-    return { status: 201, data: record };
+  // R10.2-D Increment 4 — Governance/billing (executions, billing, audit
+  // logs). executions POST is the one real ADMIN/SYSTEM mutation here
+  // (PDP-authorized agent execution + credit charge).
+  {
+    const governanceResult = handleGovernanceRoutes(method, pathname, body, headers, {}, { pdp, runtime, auditLogger, creditEngine, tenantId, tenantContext, principal });
+    if (governanceResult) return governanceResult;
   }
-
-  if (pathname === '/api/v1/billing/usage' && method === 'GET') {
-    ensureTenantSeeded(tenantId);
-    const account = creditEngine.getOrCreateAccount(tenantId);
-    return { status: 200, data: { ...SUBSCRIPTION_INFO, total_credits: INITIAL_CREDIT_GRANT, used_credits: INITIAL_CREDIT_GRANT - account.credit_balance, remaining_credits: account.credit_balance } };
-  }
-  if (pathname === '/api/v1/billing/estimate' && method === 'POST') return { status: 200, data: { providerMode: 'NAGEX_MANAGED', estimatedCredits: computeCreditCost(MANAGED_AI_COST_BREAKDOWN), estimatedProviderCost: sumBreakdownUsd(MANAGED_AI_COST_BREAKDOWN), currency: 'USD' } };
-  if (pathname === '/api/v1/audit/logs' && method === 'GET') {
-    const logs = auditLogger.getAuditLogs(tenantId, 20);
-    return { status: 200, data: { logs, total: logs.length } };
-  }
-  if (pathname === '/api/v1/executions' && method === 'GET') return { status: 200, data: { executions: executionHistory, total: executionHistory.length } };
   // ─── MASTER.md Section 14.6 — Main Session + Tasks Foundation ───
   // NOTE: workspace/route-input, workspace/vault, workspace/inbox are handled
   // in handleAsyncApiRequest (async). They cannot appear here (sync fallback)

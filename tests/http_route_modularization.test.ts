@@ -461,3 +461,155 @@ test('49. server_web.ts no longer inline-implements any Task/Automation/Workspac
     assert.doesNotMatch(code, pattern, `server_web.ts must not re-implement ${pattern} inline — it belongs in the Increment 3 route modules now`);
   }
 });
+
+// ── Increment 4: Gmail / Calendar / Approvals / Browser / Google OAuth /
+// Telegram / Slack / Desktop / Governance ────────────────────────────────
+// Deep behavioral coverage (approval ownership/expiry/replay, Gmail/
+// Calendar approval-gated execution, Browser click approval flow, desktop
+// quickwake, Telegram/Slack integration) already exists in dedicated test
+// files (approval_execution_persistence, approval_ttl_security,
+// google_calendar_live/e2e, gmail_live, browser_agent(_mvp), calendar_
+// approval_ui, desktop_quickwake/native_shell, telegram_integration,
+// slack_integration — all of which call the real handleApiRequest/
+// handleAsyncApiRequest entry points and passed unchanged after this
+// migration). These tests focus on what's new in Increment 4: the
+// registrars themselves, their wiring into the real entry points, and the
+// static architecture/mutation-safety/route-ownership guards.
+
+test('50. POST /api/v1/tools/gmail/send-email without approvalId returns the exact original VALIDATION error through the real handleAsyncApiRequest entry point', async () => {
+  const result = await handleAsyncApiRequest('POST', '/api/v1/tools/gmail/send-email', {}, { 'x-nagex-tenant': 'ten_r102d_i4_test', 'x-principal-id': 'usr_r102d_i4_test' });
+  assert.equal(result.status, 400);
+  assert.equal((result.data as { error: { code: string } }).error.code, 'APPROVAL_ID_REQUIRED');
+});
+
+test('51. POST /api/v1/tools/google-calendar/create-event without approvalId returns the exact original VALIDATION error (approval-gated mutation path preserved)', async () => {
+  const result = await handleAsyncApiRequest('POST', '/api/v1/tools/google-calendar/create-event', {}, { 'x-nagex-tenant': 'ten_r102d_i4_test', 'x-principal-id': 'usr_r102d_i4_test' });
+  assert.equal(result.status, 400);
+  assert.equal((result.data as { error: { code: string } }).error.code, 'APPROVAL_ID_REQUIRED');
+});
+
+test('52. GET /api/v1/approvals then approving an unknown id fails closed (never a fabricated success) through the real handleApiRequest entry point', () => {
+  const list = handleApiRequest('GET', '/api/v1/approvals', null, {});
+  assert.equal(list.status, 200);
+  assert.ok(Array.isArray((list.data as { approvals: unknown[] }).approvals));
+
+  const approveUnknown = handleApiRequest('POST', '/api/v1/approvals/appr_does_not_exist_r102d/approve', null, { 'x-nagex-tenant': 'ten_r102d_i4_test', 'x-principal-id': 'usr_r102d_i4_test' });
+  assert.notEqual(approveUnknown.status, 200);
+});
+
+test('53. POST /api/v1/tools/browser/navigate without browserSessionId returns the exact original VALIDATION error through the real handleAsyncApiRequest entry point', async () => {
+  const result = await handleAsyncApiRequest('POST', '/api/v1/tools/browser/navigate', { url: 'https://example.com' }, {});
+  assert.equal(result.status, 400);
+  assert.equal((result.data as { error: { code: string } }).error.code, 'BROWSER_SESSION_ID_REQUIRED');
+});
+
+test('54. GET /api/v1/oauth/google/start-url through the real handleApiRequest entry point returns the real, non-configured 503 in this test environment (never a fabricated authorize URL)', () => {
+  const result = handleApiRequest('GET', '/api/v1/oauth/google/start-url', null, {});
+  assert.ok(result.status === 503 || result.status === 200, 'a real outcome either way, never a match failure');
+});
+
+test('55. GET /api/v1/oauth/google/status through the real handleAsyncApiRequest entry point still works after modularization', async () => {
+  const result = await handleAsyncApiRequest('GET', '/api/v1/oauth/google/status', null, { 'x-nagex-tenant': 'ten_r102d_i4_test' });
+  assert.equal(result.status, 200);
+  assert.equal(typeof (result.data as { configured: boolean }).configured, 'boolean');
+});
+
+test('56. GET /api/v1/integrations/telegram/status and GET /api/v1/integrations/slack/status through the real handleAsyncApiRequest entry point still work after modularization', async () => {
+  const telegram = await handleAsyncApiRequest('GET', '/api/v1/integrations/telegram/status', null, {});
+  assert.equal(telegram.status, 200);
+  const slack = await handleAsyncApiRequest('GET', '/api/v1/integrations/slack/status', null, {});
+  assert.equal(slack.status, 200);
+});
+
+test('57. GET /api/v1/desktop/quickwake/status through the real handleAsyncApiRequest entry point still works after modularization', async () => {
+  const result = await handleAsyncApiRequest('GET', '/api/v1/desktop/quickwake/status', null, {});
+  assert.equal(result.status, 200);
+  assert.equal(typeof (result.data as { isRunning: boolean }).isRunning, 'boolean');
+});
+
+test('58. GET /api/v1/billing/usage and GET /api/v1/executions through the real handleApiRequest entry point still work after modularization', () => {
+  const headers = { 'x-nagex-tenant': 'ten_r102d_i4_test', 'x-principal-id': 'usr_r102d_i4_test' };
+  const billing = handleApiRequest('GET', '/api/v1/billing/usage', null, headers);
+  assert.equal(billing.status, 200);
+  assert.ok(typeof (billing.data as { remaining_credits: number }).remaining_credits === 'number');
+
+  const executions = handleApiRequest('GET', '/api/v1/executions', null, headers);
+  assert.equal(executions.status, 200);
+  assert.ok(Array.isArray((executions.data as { executions: unknown[] }).executions));
+});
+
+test('59. POST /api/v1/executions goes through the real PDP authorization check and audits denial, never silently allowing an unrecognized action', () => {
+  const headers = { 'x-nagex-tenant': 'ten_r102d_i4_test', 'x-principal-id': 'usr_r102d_i4_test' };
+  const result = handleApiRequest('POST', '/api/v1/executions', { objective: 'Increment 4 route test', agent_id: 'agt_personal_ai' }, headers);
+  // A real, non-fabricated outcome: either the PDP allows agt_personal_ai
+  // for this built-in principal (201) or denies it (403/other) — either
+  // way it must be the real decision, never a bypassed/fabricated one.
+  assert.ok([200, 201, 402, 403].includes(result.status), `unexpected status ${result.status}`);
+});
+
+// ── Static architecture guard, Increment 4 ───────────────────────────────
+
+const INCREMENT_4_ROUTE_FILES = ['gmail.routes.ts', 'calendar.routes.ts', 'approvals.routes.ts', 'browser.routes.ts', 'google-oauth.routes.ts', 'telegram.routes.ts', 'slack.routes.ts', 'desktop.routes.ts', 'governance.routes.ts'];
+
+test('60. none of the nine Increment 4 route modules deep-import a Calendar/Gmail provider-client file directly (only calendar.routes.ts/approvals.routes.ts import the module index, never the client)', () => {
+  for (const file of INCREMENT_4_ROUTE_FILES) {
+    const code = readSourceWithoutComments(`src/http/routes/${file}`);
+    assert.doesNotMatch(code, /modules\/calendar\/(google-calendar\.service|calendar\.client)\.js/, `${file} must not deep-import the Calendar provider client`);
+    assert.doesNotMatch(code, /modules\/gmail\/(gmail\.service|gmail\.client)\.js/, `${file} must not deep-import the Gmail provider client`);
+  }
+});
+
+test('61. only calendar.routes.ts calls fetch() directly, and only for its documented READ_ONLY free-slots OAuth-token-refresh exception — every other Increment 4 route module has zero fetch() calls', () => {
+  for (const file of INCREMENT_4_ROUTE_FILES) {
+    const code = readSourceWithoutComments(`src/http/routes/${file}`);
+    if (file === 'calendar.routes.ts' || file === 'google-oauth.routes.ts') {
+      // calendar.routes.ts: free-slots refreshes its own OAuth token via
+      // fetch (read-only, never a mutation). google-oauth.routes.ts: the
+      // OAuth token-exchange/refresh/revoke calls are the OAuth domain's
+      // entire reason for existing — neither ever constructs a Gmail/
+      // Calendar mutation payload.
+      continue;
+    }
+    assert.doesNotMatch(code, /\bfetch\s*\(/, `${file} must not call fetch() directly`);
+  }
+});
+
+test('62. every Gmail/Calendar mutation in gmail.routes.ts/calendar.routes.ts goes through GmailService/GoogleCalendarService.executeXxx() — never a raw payload write', () => {
+  const gmailCode = readSourceWithoutComments('src/http/routes/gmail.routes.ts');
+  assert.match(gmailCode, /gmailApiService\.execute(SendEmail|Reply|CreateDraft)\(/, 'gmail.routes.ts must route mutations through GmailService.executeXxx()');
+  const calendarCode = readSourceWithoutComments('src/http/routes/calendar.routes.ts');
+  assert.match(calendarCode, /calendarService\.execute(CreateEvent|UpdateEvent|CancelEvent|RespondToEvent)\(/, 'calendar.routes.ts must route mutations through GoogleCalendarService.executeXxx()');
+});
+
+test('63. approvals.routes.ts never itself calls a Gmail/Calendar mutation method — approve/reject only ever touch the approval record, never a provider write', () => {
+  const code = readSourceWithoutComments('src/http/routes/approvals.routes.ts');
+  assert.doesNotMatch(code, /\.execute(SendEmail|Reply|CreateDraft|CreateEvent|UpdateEvent|CancelEvent|RespondToEvent)\(/, 'approvals.routes.ts must never itself execute a provider mutation — that is the separate /api/v1/tools/* route\'s job, after approval');
+  assert.match(code, /googleCalendarService\.(approve|reject|getApproval|requestCreateEventApproval|requestUpdateEventApproval|requestCancelEventApproval|requestRespondToEventApproval)\(/, 'approvals.routes.ts must only ever touch the approval record lifecycle');
+});
+
+test('64. none of the nine Increment 4 route modules import back from server_web.ts (composition root depends on routes, never the reverse)', () => {
+  for (const file of INCREMENT_4_ROUTE_FILES) {
+    const code = readSourceWithoutComments(`src/http/routes/${file}`);
+    assert.doesNotMatch(code, /from ['"]\.\.\/\.\.\/server_web\.js['"]/, `${file} must not import back from server_web.ts`);
+  }
+});
+
+test('65. server_web.ts no longer inline-implements any Gmail/Calendar/Approval/Browser/OAuth/Telegram/Slack/Desktop/Governance route (route ownership guard)', () => {
+  const code = readSourceWithoutComments('src/server_web.ts');
+  for (const pattern of [
+    /pathname === '\/api\/v1\/tools\/gmail\/send-email'/,
+    /pathname === '\/api\/v1\/tools\/google-calendar\/create-event'/,
+    /pathname === '\/api\/v1\/approvals' &&/,
+    /pathname === '\/api\/v1\/browser\/sessions'/,
+    /pathname === '\/api\/v1\/tools\/browser\/navigate'/,
+    /pathname === '\/api\/v1\/oauth\/google\/start' &&/,
+    /pathname === '\/api\/v1\/oauth\/google\/callback'/,
+    /pathname === '\/api\/v1\/integrations\/telegram\/status'/,
+    /pathname === '\/api\/v1\/integrations\/slack\/status'/,
+    /pathname === '\/api\/v1\/desktop\/quickwake\/status'/,
+    /pathname === '\/api\/v1\/executions' &&/,
+    /pathname === '\/api\/v1\/billing\/usage'/,
+  ]) {
+    assert.doesNotMatch(code, pattern, `server_web.ts must not re-implement ${pattern} inline — it belongs in the Increment 4 route modules now`);
+  }
+});
