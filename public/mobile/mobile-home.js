@@ -39,7 +39,7 @@
   // Settings in R3-R5 means adding their tab id here + a view element +
   // a dispatch branch below, nothing else in the shell-visibility
   // contract changes. ──
-  const MOBILE_NATIVE_TABS = new Set(['tab-home', 'tab-inbox', 'tab-executions']);
+  const MOBILE_NATIVE_TABS = new Set(['tab-home', 'tab-inbox', 'tab-executions', 'tab-vault']);
 
   function isMobileViewport() {
     return Boolean(mq && mq.matches);
@@ -86,9 +86,11 @@
     const viewHome = document.getElementById('mobile-view-home');
     const viewInbox = document.getElementById('mobile-view-inbox');
     const viewActivity = document.getElementById('mobile-view-activity');
+    const viewVault = document.getElementById('mobile-view-vault');
     if (viewHome) viewHome.hidden = nativeTab !== 'tab-home';
     if (viewInbox) viewInbox.hidden = nativeTab !== 'tab-inbox';
     if (viewActivity) viewActivity.hidden = nativeTab !== 'tab-executions';
+    if (viewVault) viewVault.hidden = nativeTab !== 'tab-vault';
 
     if (nativeTab === 'tab-home') {
       renderMobileHome();
@@ -96,6 +98,8 @@
       window.NAGEX.renderMobileInbox();
     } else if (nativeTab === 'tab-executions' && typeof window.NAGEX.renderMobileActivity === 'function') {
       window.NAGEX.renderMobileActivity();
+    } else if (nativeTab === 'tab-vault' && typeof window.NAGEX.renderMobileVault === 'function') {
+      window.NAGEX.renderMobileVault();
     }
   }
 

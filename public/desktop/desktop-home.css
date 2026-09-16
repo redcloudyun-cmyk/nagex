@@ -304,9 +304,7 @@
   border: 0 !important;
 }
 
-div#view-home.tab-view.active-view.nagex-desktop-home,
-#view-home.nagex-desktop-home,
-.nagex-desktop-home#view-home {
+div#view-home.tab-view.active-view.nagex-desktop-home {
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) 280px !important;
   gap: 14px !important;

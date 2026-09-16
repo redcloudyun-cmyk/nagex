@@ -1,0 +1,143 @@
+/*
+ * NAgex Mobile Vault (UI-5 R4) — layout/visual layer only.
+ *
+ * Scoped entirely under #mobile-view-vault. Reuses shared mobile chrome
+ * directly from mobile-home.css (.mh-header, .mh-header-right,
+ * .mh-lang-toggle, .mh-scroll, .mh-bottom-spacer, .mh-row-icon/-body/
+ * -title/-detail) and shared/components.css (.nagex-badge-*,
+ * .nagex-empty-state, .nagex-loading-row) — never a second design system.
+ * Deliberately does NOT reuse mobile-inbox.css's or mobile-activity.css's
+ * own named classes (.mh-inbox-card/.mh-activity-card/etc.) even where
+ * visually identical — this file defines its own .mh-vault-* equivalents
+ * so Vault never depends on either of those files being loaded, and
+ * neither of them accumulates Vault-specific selectors (per the R4
+ * directive, same isolation discipline as R3).
+ */
+
+.mh-vault-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--nagex-text-primary);
+}
+#mobile-view-vault .mh-brand {
+  align-items: center;
+  gap: 8px;
+}
+.mh-vault-count {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--nagex-text-secondary);
+  background: var(--nagex-surface-subtle);
+  border-radius: var(--nagex-radius-pill);
+  padding: 2px 8px;
+}
+
+/* ── Storage summary — real quota/provider truthfulness, never hidden ── */
+.mh-vault-storage-card {
+  background: #ffffff;
+  border: 1px solid var(--nagex-border-subtle);
+  border-radius: var(--nagex-radius-md);
+  box-shadow: var(--nagex-shadow-card);
+  padding: 12px;
+  margin-bottom: var(--nagex-spacing-3);
+}
+.mh-vault-storage-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.mh-vault-storage-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--nagex-text-primary);
+}
+.mh-vault-quota-text {
+  font-size: 11px;
+  color: var(--nagex-text-muted);
+  white-space: nowrap;
+}
+.mh-vault-quota-track {
+  height: 6px;
+  border-radius: var(--nagex-radius-pill);
+  background: var(--nagex-surface-subtle);
+  overflow: hidden;
+}
+.mh-vault-quota-fill {
+  height: 100%;
+  background: var(--nagex-accent-primary);
+  border-radius: var(--nagex-radius-pill);
+  transition: width 0.2s ease;
+}
+
+/* ── Search ──────────────────────────────────────────────────────── */
+.mh-vault-search-row {
+  margin-bottom: var(--nagex-spacing-3);
+}
+.mh-vault-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--nagex-border-default);
+  border-radius: var(--nagex-radius-pill);
+  background: #ffffff;
+  font-size: 13px;
+  font-family: var(--font-sans);
+  color: var(--nagex-text-primary);
+}
+.mh-vault-search-input::placeholder {
+  color: var(--nagex-text-muted);
+}
+
+/* ── Filter row ──────────────────────────────────────────────────── */
+.mh-vault-filter-row {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 4px 0 var(--nagex-spacing-3);
+  scrollbar-width: none;
+}
+.mh-vault-filter-row::-webkit-scrollbar { display: none; }
+.mh-vault-filter-pill {
+  flex-shrink: 0;
+  background: #ffffff;
+  border: 1px solid var(--nagex-border-default);
+  border-radius: var(--nagex-radius-pill);
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--nagex-text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.mh-vault-filter-pill.active {
+  background: var(--nagex-accent-primary);
+  border-color: var(--nagex-accent-primary);
+  color: #ffffff;
+}
+
+/* ── Vault item cards ────────────────────────────────────────────── */
+.mh-vault-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  background: #ffffff;
+  border: 1px solid var(--nagex-border-subtle);
+  border-radius: var(--nagex-radius-md);
+  box-shadow: var(--nagex-shadow-card);
+  margin-bottom: var(--nagex-spacing-3);
+}
+.mh-vault-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.mh-vault-timestamp {
+  font-size: 10.5px;
+  color: var(--nagex-text-muted);
+}
