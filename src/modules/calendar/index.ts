@@ -16,6 +16,9 @@ export {
   GOOGLE_CALENDAR_UPDATE_EVENT_TOOL_ID,
   GOOGLE_CALENDAR_CANCEL_EVENT_TOOL_ID,
   GOOGLE_CALENDAR_RESPOND_EVENT_TOOL_ID,
+  // R10.2-B (DEBT-0001) — the canonical Calendar mutation-capability
+  // definitions, consumed only by src/capabilities/google-mutation-registry.ts.
+  CALENDAR_MUTATION_DEFINITIONS,
 } from './google-calendar.service.js';
 export { queryFreeBusy, computeFreeSlots } from './calendar.client.js';
 

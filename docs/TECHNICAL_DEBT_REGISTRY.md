@@ -44,7 +44,39 @@ target: R10.2-B (Google Capability Execution Pipeline) — already the
   planned refactor for routing Calendar/Gmail writes through a single
   canonical CapabilityBroker path.
 owner: NAGEX
-status: OPEN
+status: CLOSED
+closed_in: R10.2-B (2026-09-16)
+closure_basis: >
+  All Google mutation paths (GoogleCalendarService.execute{CreateEvent,
+  UpdateEvent,CancelEvent,RespondToEvent}, GmailService.execute{SendEmail,
+  Reply,CreateDraft}) now traverse ONE canonical chokepoint —
+  GoogleCapabilityExecutionPipeline (src/capabilities/
+  google-capability-execution-pipeline.ts), composed (not inherited) into
+  both services — replacing the two near-identical, independently-
+  maintained request/consume/execute/audit implementations
+  (executeWrite()/executeCreateEvent() in google-calendar.service.ts,
+  executeCompose() in gmail.service.ts) that existed before. Every
+  registered mutation is declared in one MutationCapabilityDefinition
+  registry (src/capabilities/mutation-registry.ts +
+  google-mutation-registry.ts), asserted to contain exactly the 7 known
+  toolIds with no duplicates (tests/google_capability_execution_pipeline.
+  test.ts test 1-3). Direct-mutation-bypass, approval-integrity, and
+  fail-closed contract tests all pass (see the R10.2-B Safety Harness
+  report). Closure is NOT based on line-count/jscpd reduction alone
+  (jscpd is reported separately, as required) — it is based on: (1) one
+  canonical boundary exists and both services use it, (2) direct bypass
+  tests pass, (3) approval integrity tests pass, (4) fail-closed tests
+  pass, (5) no known bypass path remains for a Google mutation
+  specifically.
+  This CLOSES the "duplicated safety-critical logic" finding. It does
+  NOT close, and never claimed to close, the separate observation that no
+  Google mutation path (old or new) routes through CapabilityBroker/
+  PolicyDecisionPoint — see ADR-0002's "What remains open" section, which
+  documents this honestly as a still-open architectural characteristic,
+  not hidden by this closure. If a future milestone decides that gap
+  itself needs a dedicated DEBT entry, it should be filed as a NEW item
+  distinct from DEBT-0001, since DEBT-0001 was specifically about
+  duplicated approval/execution lifecycle logic, which is now resolved.
 ```
 
 ```yaml

@@ -8,6 +8,9 @@ export {
   GMAIL_SEND_EMAIL_TOOL_ID,
   GMAIL_REPLY_TOOL_ID,
   GMAIL_CREATE_DRAFT_TOOL_ID,
+  // R10.2-B (DEBT-0001) — the canonical Gmail mutation-capability
+  // definitions, consumed only by src/capabilities/google-mutation-registry.ts.
+  GMAIL_MUTATION_DEFINITIONS,
 } from './gmail.service.js';
 
 export type { NormalizedGmailExecutionResult } from './gmail.service.js';

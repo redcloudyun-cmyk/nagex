@@ -1,5 +1,4 @@
 import { NagexError } from '../../common/errors.js';
-import { generateResourceId, getCurrentISOString } from '../../common/utils.js';
 import { AuditLogger } from '../../governance/audit.logger.js';
 import { ActionApprovalStore, type ActionApprovalRecord } from '../../governance/action-approval.store.js';
 import { ExecutionStore } from '../../governance/execution.store.js';
@@ -20,6 +19,8 @@ import {
 } from './calendar.client.js';
 import { readGoogleOAuthConfig, type GoogleOAuthConfig } from '../../integrations/google/oauth.client.js';
 import type { GoogleOAuthTokenStore } from '../../integrations/google/token.store.js';
+import { GoogleCapabilityExecutionPipeline, type NormalizedMutationResult } from '../../capabilities/google-capability-execution-pipeline.js';
+import type { MutationCapabilityDefinition } from '../../capabilities/mutation-registry.js';
 
 export const GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID = 'google_calendar.create_event';
 // E2E completion (MASTER.md Section 14.5, item 05): update / cancel / RSVP,
@@ -28,8 +29,6 @@ export const GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID = 'google_calendar.create_even
 export const GOOGLE_CALENDAR_UPDATE_EVENT_TOOL_ID = 'google_calendar.update_event';
 export const GOOGLE_CALENDAR_CANCEL_EVENT_TOOL_ID = 'google_calendar.cancel_event';
 export const GOOGLE_CALENDAR_RESPOND_EVENT_TOOL_ID = 'google_calendar.respond_to_event';
-
-const WRITE_TOOL_IDS = new Set([GOOGLE_CALENDAR_UPDATE_EVENT_TOOL_ID, GOOGLE_CALENDAR_CANCEL_EVENT_TOOL_ID, GOOGLE_CALENDAR_RESPOND_EVENT_TOOL_ID]);
 
 export interface UpdateEventApprovalPayload extends UpdateCalendarEventPayload {}
 
@@ -50,6 +49,68 @@ export interface RespondToEventApprovalPayload {
 }
 
 const RSVP_STATUSES = new Set<CalendarRsvpResponseStatus>(['accepted', 'declined', 'tentative']);
+const GOOGLE_CALENDAR_DISCONNECTED_MESSAGE_QUERY = 'Google Calendar is not connected. Connect it before querying free slots.';
+const GOOGLE_CALENDAR_DISCONNECTED_MESSAGE_LIST = 'Google Calendar is not connected. Connect it before listing upcoming events.';
+const GOOGLE_CALENDAR_DISCONNECTED_MESSAGE_EXECUTE = 'Google Calendar is not connected. Connect it before this action can execute.';
+
+function isValidIsoDateTime(value: string): boolean {
+  return !Number.isNaN(new Date(value).getTime());
+}
+
+function isValidTimezone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Structural + semantic validation (malformed datetime, invalid timezone) —
+// approvalId/OAuth/payload-hash gating happens inside the shared
+// GoogleCapabilityExecutionPipeline (request/consume), which is where
+// "fail closed" for tampering matters. Capability-specific validation
+// rules stay capability-specific (R10.2-B §8) — never moved into the
+// generic pipeline.
+function assertValidPayload(payload: unknown, requestId: string): asserts payload is CalendarEventPayload {
+  const p = payload as Partial<CalendarEventPayload> | null;
+  const structurallyValid = Boolean(
+    p &&
+    typeof p.calendarId === 'string' && p.calendarId &&
+    typeof p.summary === 'string' && p.summary.trim() &&
+    typeof p.description === 'string' &&
+    typeof p.start === 'string' && p.start &&
+    typeof p.end === 'string' && p.end &&
+    typeof p.timezone === 'string' && p.timezone &&
+    Array.isArray(p.attendees) && p.attendees.every((email) => typeof email === 'string') &&
+    (p.conferenceData === undefined || typeof p.conferenceData === 'boolean'),
+  );
+  if (!structurallyValid) {
+    throw new NagexError({
+      code: 'INVALID_CALENDAR_EVENT_PAYLOAD',
+      category: 'VALIDATION',
+      message: 'A calendar event approval payload must include calendarId, summary, description, start, end, timezone, and attendees (conferenceData is optional, defaulting to no meeting link).',
+      request_id: requestId,
+    });
+  }
+  const valid = p as CalendarEventPayload;
+  if (!isValidIsoDateTime(valid.start) || !isValidIsoDateTime(valid.end)) {
+    throw new NagexError({
+      code: 'INVALID_CALENDAR_EVENT_DATETIME',
+      category: 'VALIDATION',
+      message: 'start and end must be valid date-time strings.',
+      request_id: requestId,
+    });
+  }
+  if (!isValidTimezone(valid.timezone)) {
+    throw new NagexError({
+      code: 'INVALID_CALENDAR_EVENT_TIMEZONE',
+      category: 'VALIDATION',
+      message: `"${valid.timezone}" is not a recognized IANA timezone.`,
+      request_id: requestId,
+    });
+  }
+}
 
 function assertValidUpdatePayload(payload: unknown, requestId: string): asserts payload is UpdateEventApprovalPayload {
   const p = payload as Partial<UpdateEventApprovalPayload> | null;
@@ -106,73 +167,9 @@ function assertValidRespondPayload(payload: unknown, requestId: string): asserts
   }
 }
 
-export interface NormalizedExecutionResult {
-  executionId: string;
-  toolId: string;
-  status: 'SUCCEEDED';
-  externalId: string;
-  externalUrl: string;
-  startedAt: string;
-  completedAt: string;
-}
+export type { NormalizedMutationResult as NormalizedExecutionResult };
 
 type FetchFn = typeof fetch;
-
-function isValidIsoDateTime(value: string): boolean {
-  return !Number.isNaN(new Date(value).getTime());
-}
-
-function isValidTimezone(value: string): boolean {
-  try {
-    new Intl.DateTimeFormat('en-US', { timeZone: value });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-// Structural + semantic validation (malformed datetime, invalid timezone) —
-// approvalId/OAuth/payload-hash gating happens in requestApproval/
-// executeCreateEvent, which is where "fail closed" for tampering matters.
-function assertValidPayload(payload: unknown, requestId: string): asserts payload is CalendarEventPayload {
-  const p = payload as Partial<CalendarEventPayload> | null;
-  const structurallyValid = Boolean(
-    p &&
-    typeof p.calendarId === 'string' && p.calendarId &&
-    typeof p.summary === 'string' && p.summary.trim() &&
-    typeof p.description === 'string' &&
-    typeof p.start === 'string' && p.start &&
-    typeof p.end === 'string' && p.end &&
-    typeof p.timezone === 'string' && p.timezone &&
-    Array.isArray(p.attendees) && p.attendees.every((email) => typeof email === 'string') &&
-    (p.conferenceData === undefined || typeof p.conferenceData === 'boolean'),
-  );
-  if (!structurallyValid) {
-    throw new NagexError({
-      code: 'INVALID_CALENDAR_EVENT_PAYLOAD',
-      category: 'VALIDATION',
-      message: 'A calendar event approval payload must include calendarId, summary, description, start, end, timezone, and attendees (conferenceData is optional, defaulting to no meeting link).',
-      request_id: requestId,
-    });
-  }
-  const valid = p as CalendarEventPayload;
-  if (!isValidIsoDateTime(valid.start) || !isValidIsoDateTime(valid.end)) {
-    throw new NagexError({
-      code: 'INVALID_CALENDAR_EVENT_DATETIME',
-      category: 'VALIDATION',
-      message: 'start and end must be valid date-time strings.',
-      request_id: requestId,
-    });
-  }
-  if (!isValidTimezone(valid.timezone)) {
-    throw new NagexError({
-      code: 'INVALID_CALENDAR_EVENT_TIMEZONE',
-      category: 'VALIDATION',
-      message: `"${valid.timezone}" is not a recognized IANA timezone.`,
-      request_id: requestId,
-    });
-  }
-}
 
 function formatScheduledFor(isoDateTime: string, timezone: string): string {
   // "YYYY-MM-DD HH:mm" — the sv-SE locale happens to format this way by default.
@@ -187,7 +184,44 @@ function formatScheduledFor(isoDateTime: string, timezone: string): string {
   }).format(new Date(isoDateTime));
 }
 
+// R10.2-B (DEBT-0001) — the canonical, exported mutation-capability
+// definitions for Calendar, assembled (alongside Gmail's) into one
+// registry by src/capabilities/google-mutation-registry.ts. Kept here,
+// not in the generic pipeline module, because the validators they
+// reference are capability-specific (§8) and this module already owns
+// the module-private payload types they close over.
+export const CALENDAR_MUTATION_DEFINITIONS: MutationCapabilityDefinition[] = [
+  {
+    toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, provider: 'GOOGLE', service: 'CALENDAR', mutation: true, approvalRequired: true,
+    failureMode: 'FAIL_CLOSED', timeoutBehavior: 'ABORT', unknownStateBehavior: 'DENY',
+    disconnectedErrorCode: 'GOOGLE_CALENDAR_DISCONNECTED', disconnectedMessage: GOOGLE_CALENDAR_DISCONNECTED_MESSAGE_EXECUTE, successExternalIdAuditKey: 'externalEventId',
+    validatePayload: (payload, requestId) => { assertValidPayload(payload, requestId); return payload; },
+  },
+  {
+    toolId: GOOGLE_CALENDAR_UPDATE_EVENT_TOOL_ID, provider: 'GOOGLE', service: 'CALENDAR', mutation: true, approvalRequired: true,
+    failureMode: 'FAIL_CLOSED', timeoutBehavior: 'ABORT', unknownStateBehavior: 'DENY',
+    disconnectedErrorCode: 'GOOGLE_CALENDAR_DISCONNECTED', disconnectedMessage: GOOGLE_CALENDAR_DISCONNECTED_MESSAGE_EXECUTE, successExternalIdAuditKey: 'externalEventId',
+    validatePayload: (payload, requestId) => { assertValidUpdatePayload(payload, requestId); return payload; },
+  },
+  {
+    toolId: GOOGLE_CALENDAR_CANCEL_EVENT_TOOL_ID, provider: 'GOOGLE', service: 'CALENDAR', mutation: true, approvalRequired: true,
+    failureMode: 'FAIL_CLOSED', timeoutBehavior: 'ABORT', unknownStateBehavior: 'DENY',
+    disconnectedErrorCode: 'GOOGLE_CALENDAR_DISCONNECTED', disconnectedMessage: GOOGLE_CALENDAR_DISCONNECTED_MESSAGE_EXECUTE, successExternalIdAuditKey: 'externalEventId',
+    validatePayload: (payload, requestId) => { assertValidCancelPayload(payload, requestId); return payload; },
+  },
+  {
+    toolId: GOOGLE_CALENDAR_RESPOND_EVENT_TOOL_ID, provider: 'GOOGLE', service: 'CALENDAR', mutation: true, approvalRequired: true,
+    failureMode: 'FAIL_CLOSED', timeoutBehavior: 'ABORT', unknownStateBehavior: 'DENY',
+    disconnectedErrorCode: 'GOOGLE_CALENDAR_DISCONNECTED', disconnectedMessage: GOOGLE_CALENDAR_DISCONNECTED_MESSAGE_EXECUTE, successExternalIdAuditKey: 'externalEventId',
+    validatePayload: (payload, requestId) => { assertValidRespondPayload(payload, requestId); return payload; },
+  },
+];
+
+const CALENDAR_MUTATION_BY_TOOL_ID = new Map(CALENDAR_MUTATION_DEFINITIONS.map((d) => [d.toolId, d]));
+
 export class GoogleCalendarService {
+  private readonly pipeline: GoogleCapabilityExecutionPipeline;
+
   constructor(
     private readonly tokenStore: GoogleOAuthTokenStore,
     private readonly approvals: ActionApprovalStore,
@@ -196,7 +230,12 @@ export class GoogleCalendarService {
     private readonly fetchFn: FetchFn = fetch,
     private readonly getConfig: (env?: NodeJS.ProcessEnv) => GoogleOAuthConfig | null = readGoogleOAuthConfig,
     private readonly executions: ExecutionStore = new ExecutionStore(),
-  ) {}
+  ) {
+    this.pipeline = new GoogleCapabilityExecutionPipeline({
+      tokenStore: this.tokenStore, approvals: this.approvals, audit: this.audit,
+      executions: this.executions, getConfig: this.getConfig, fetchFn: this.fetchFn,
+    });
+  }
 
   public async getFreeSlots(input: {
     tenantId: string;
@@ -205,17 +244,7 @@ export class GoogleCalendarService {
     timeMax: string;
     requestId: string;
   }): Promise<{ slots: FreeBusyInterval[]; busy: FreeBusyInterval[]; calendarId: string; timeMin: string; timeMax: string }> {
-    const config = this.getConfig();
-    const accessToken = config ? await this.tokenStore.getValidAccessToken(input.tenantId, config, this.fetchFn, input.requestId) : null;
-    if (!accessToken) {
-      throw new NagexError({
-        code: 'GOOGLE_CALENDAR_DISCONNECTED',
-        category: 'POLICY',
-        message: 'Google Calendar is not connected. Connect it before querying free slots.',
-        request_id: input.requestId,
-      });
-    }
-
+    const accessToken = await this.pipeline.resolveAccessToken(input.tenantId, input.requestId, 'GOOGLE_CALENDAR_DISCONNECTED', GOOGLE_CALENDAR_DISCONNECTED_MESSAGE_QUERY);
     const calendarId = input.calendarId || 'primary';
     const busy = await queryFreeBusy(accessToken, { calendarId, timeMin: input.timeMin, timeMax: input.timeMax }, this.fetchFn, input.requestId);
     const slots = computeFreeSlots(busy, input.timeMin, input.timeMax);
@@ -225,7 +254,8 @@ export class GoogleCalendarService {
   // Read-only — My Space's Calendar summary. Reuses the exact same
   // connect/token-resolution path as getFreeSlots above; never a new OAuth
   // mechanism, never a new token store, never a direct/bypassing Google
-  // call from outside this module.
+  // call from outside this module. Read capabilities never go through the
+  // mutation pipeline's approval gate (R10.2-B §13).
   public async listUpcomingEvents(input: {
     tenantId: string;
     calendarId?: string;
@@ -234,17 +264,7 @@ export class GoogleCalendarService {
     maxResults?: number;
     requestId: string;
   }): Promise<UpcomingCalendarEvent[]> {
-    const config = this.getConfig();
-    const accessToken = config ? await this.tokenStore.getValidAccessToken(input.tenantId, config, this.fetchFn, input.requestId) : null;
-    if (!accessToken) {
-      throw new NagexError({
-        code: 'GOOGLE_CALENDAR_DISCONNECTED',
-        category: 'POLICY',
-        message: 'Google Calendar is not connected. Connect it before listing upcoming events.',
-        request_id: input.requestId,
-      });
-    }
-
+    const accessToken = await this.pipeline.resolveAccessToken(input.tenantId, input.requestId, 'GOOGLE_CALENDAR_DISCONNECTED', GOOGLE_CALENDAR_DISCONNECTED_MESSAGE_LIST);
     const calendarId = input.calendarId || 'primary';
     return listUpcomingCalendarEvents(
       accessToken,
@@ -255,53 +275,21 @@ export class GoogleCalendarService {
   }
 
   public requestCreateEventApproval(input: { tenantId: string; principalId: string; payload: unknown; requestId: string }): ActionApprovalRecord {
-    assertValidPayload(input.payload, input.requestId);
-    const record = this.approvals.request({
-      toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID,
-      tenantId: input.tenantId,
-      principalId: input.principalId,
-      payload: input.payload as unknown as Record<string, unknown>,
-    });
-    this.audit.logEvent({
-      actor: { type: 'user', id: input.principalId },
-      tenant_id: input.tenantId,
-      action: 'approval.requested',
-      resource: { type: 'ActionApproval', id: record.approvalId },
-      result: 'PENDING_APPROVAL',
-      request_id: input.requestId,
-      details: { toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, summary: input.payload.summary },
-    });
-    return record;
+    const definition = CALENDAR_MUTATION_BY_TOOL_ID.get(GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID)!;
+    const payload = definition.validatePayload(input.payload, input.requestId) as CalendarEventPayload;
+    return this.pipeline.requestApproval(definition, input.tenantId, input.principalId, payload as unknown as Record<string, unknown>, input.requestId, { summary: payload.summary });
   }
 
   public getApproval(approvalId: string, tenantId: string, principalId: string): ActionApprovalRecord | undefined {
-    return this.approvals.get(approvalId, tenantId, principalId);
+    return this.pipeline.getApproval(approvalId, tenantId, principalId);
   }
 
   public approve(approvalId: string, tenantId: string, principalId: string, requestId: string): ActionApprovalRecord {
-    const record = this.approvals.approve(approvalId, tenantId, principalId, requestId);
-    this.audit.logEvent({
-      actor: { type: 'user', id: principalId },
-      tenant_id: record.tenantId,
-      action: 'approval.approved',
-      resource: { type: 'ActionApproval', id: approvalId },
-      result: 'SUCCESS',
-      request_id: requestId,
-    });
-    return record;
+    return this.pipeline.approve(approvalId, tenantId, principalId, requestId);
   }
 
   public reject(approvalId: string, tenantId: string, principalId: string, requestId: string): ActionApprovalRecord {
-    const record = this.approvals.reject(approvalId, tenantId, principalId, requestId);
-    this.audit.logEvent({
-      actor: { type: 'user', id: principalId },
-      tenant_id: record.tenantId,
-      action: 'approval.rejected',
-      resource: { type: 'ActionApproval', id: approvalId },
-      result: 'DENIED',
-      request_id: requestId,
-    });
-    return record;
+    return this.pipeline.reject(approvalId, tenantId, principalId, requestId);
   }
 
   public async executeCreateEvent(input: {
@@ -310,281 +298,77 @@ export class GoogleCalendarService {
     tenantId: string;
     principalId: string;
     requestId: string;
-  }): Promise<NormalizedExecutionResult> {
-    assertValidPayload(input.payload, input.requestId);
-    const startedAt = getCurrentISOString();
-    const executionId = generateResourceId('exe');
-
-    this.audit.logEvent({
-      actor: { type: 'user', id: input.principalId },
-      tenant_id: input.tenantId,
-      action: 'tool.execution.started',
-      resource: { type: 'ToolExecution', id: executionId },
-      result: 'PENDING_APPROVAL',
-      request_id: input.requestId,
-      details: { toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, approvalId: input.approvalId },
+  }): Promise<NormalizedMutationResult> {
+    return this.pipeline.execute({
+      definition: CALENDAR_MUTATION_BY_TOOL_ID.get(GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID)! as MutationCapabilityDefinition<CalendarEventPayload>,
+      context: { tenantId: input.tenantId, principalId: input.principalId, toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, approvalId: input.approvalId, payload: input.payload, requestId: input.requestId },
+      executeProvider: (accessToken, payload: CalendarEventPayload, requestId) => createCalendarEvent(accessToken, payload, this.fetchFn, requestId),
+      afterSuccess: (payload: CalendarEventPayload) => {
+        const scheduledFor = formatScheduledFor(payload.start, payload.timezone);
+        const memoryRecord = this.memory.proposeMemory('USER', input.tenantId, input.principalId, {
+          subject: 'Calendar Event', predicate: 'scheduled', value: `Scheduled ${payload.summary} for ${scheduledFor}.`,
+        });
+        this.memory.activateMemory(memoryRecord.id, input.tenantId, input.principalId);
+      },
     });
-
-    const config = this.getConfig();
-    const accessToken = config ? await this.tokenStore.getValidAccessToken(input.tenantId, config, this.fetchFn, input.requestId) : null;
-    if (!accessToken) {
-      this.audit.logEvent({
-        actor: { type: 'user', id: input.principalId },
-        tenant_id: input.tenantId,
-        action: 'tool.execution.failed',
-        resource: { type: 'ToolExecution', id: executionId },
-        result: 'FAILED',
-        reason_code: 'GOOGLE_CALENDAR_DISCONNECTED',
-        request_id: input.requestId,
-        details: { toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID },
-      });
-      throw new NagexError({
-        code: 'GOOGLE_CALENDAR_DISCONNECTED',
-        category: 'POLICY',
-        message: 'Google Calendar is not connected. Connect it before this action can execute.',
-        request_id: input.requestId,
-      });
-    }
-
-    // Consuming the approval (hash-checked, one-time-use) happens before the
-    // real Google call, and atomically with respect to this event loop — no
-    // await occurs between checking and marking it CONSUMED — so a replayed
-    // or concurrent execute request can never reach Google twice.
-    try {
-      this.approvals.consume(input.approvalId, input.tenantId, input.principalId, GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, input.payload as unknown as Record<string, unknown>, input.requestId, executionId);
-    } catch (error) {
-      const code = error instanceof NagexError ? error.code : 'APPROVAL_VALIDATION_FAILED';
-      this.audit.logEvent({
-        actor: { type: 'user', id: input.principalId },
-        tenant_id: input.tenantId,
-        action: 'tool.execution.failed',
-        resource: { type: 'ToolExecution', id: executionId },
-        result: 'DENIED',
-        reason_code: code,
-        request_id: input.requestId,
-        details: { toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, approvalId: input.approvalId },
-      });
-      throw error;
-    }
-
-    this.executions.start({
-      executionId,
-      toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID,
-      approvalId: input.approvalId,
-      tenantId: input.tenantId,
-      principalId: input.principalId,
-      startedAt,
-    });
-
-    try {
-      const created = await createCalendarEvent(accessToken, input.payload, this.fetchFn, input.requestId);
-      const completedAt = getCurrentISOString();
-      this.executions.succeed(executionId, { externalId: created.externalId, externalUrl: created.externalUrl, completedAt });
-
-      this.audit.logEvent({
-        actor: { type: 'user', id: input.principalId },
-        tenant_id: input.tenantId,
-        action: 'tool.execution.succeeded',
-        resource: { type: 'ToolExecution', id: executionId },
-        result: 'SUCCESS',
-        request_id: input.requestId,
-        details: { toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, externalEventId: created.externalId },
-      });
-
-      const scheduledFor = formatScheduledFor(input.payload.start, input.payload.timezone);
-      const memoryRecord = this.memory.proposeMemory('USER', input.tenantId, input.principalId, {
-        subject: 'Calendar Event',
-        predicate: 'scheduled',
-        value: `Scheduled ${input.payload.summary} for ${scheduledFor}.`,
-      });
-      this.memory.activateMemory(memoryRecord.id, input.tenantId, input.principalId);
-
-      return {
-        executionId,
-        toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID,
-        status: 'SUCCEEDED',
-        externalId: created.externalId,
-        externalUrl: created.externalUrl,
-        startedAt,
-        completedAt,
-      };
-    } catch (error) {
-      const code = error instanceof NagexError ? error.code : 'GOOGLE_CALENDAR_EXECUTION_FAILED';
-      const completedAt = getCurrentISOString();
-      this.executions.fail(executionId, { errorCode: code, completedAt });
-      this.audit.logEvent({
-        actor: { type: 'user', id: input.principalId },
-        tenant_id: input.tenantId,
-        action: 'tool.execution.failed',
-        resource: { type: 'ToolExecution', id: executionId },
-        result: 'FAILED',
-        reason_code: code,
-        request_id: input.requestId,
-        details: { toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID },
-      });
-      throw error;
-    }
   }
 
   // ── E2E completion: update / cancel / RSVP ──────────────────────────────
-  // Reuses the exact same shared ActionApprovalStore/ExecutionStore singletons
-  // as executeCreateEvent above (untouched) and Gmail — one generic write
-  // path parameterized by toolId, payload validator, and the real API call.
+  // Reuses the exact same shared pipeline/ActionApprovalStore/
+  // ExecutionStore as executeCreateEvent above and Gmail — one canonical
+  // write path parameterized by toolId/definition/executeProvider.
 
   public requestUpdateEventApproval(input: { tenantId: string; principalId: string; payload: unknown; requestId: string }): ActionApprovalRecord {
-    assertValidUpdatePayload(input.payload, input.requestId);
-    return this.requestWriteApproval(GOOGLE_CALENDAR_UPDATE_EVENT_TOOL_ID, input, { eventId: input.payload.eventId });
+    const definition = CALENDAR_MUTATION_BY_TOOL_ID.get(GOOGLE_CALENDAR_UPDATE_EVENT_TOOL_ID)!;
+    const payload = definition.validatePayload(input.payload, input.requestId) as UpdateEventApprovalPayload;
+    return this.pipeline.requestApproval(definition, input.tenantId, input.principalId, payload as unknown as Record<string, unknown>, input.requestId, { eventId: payload.eventId });
   }
 
   public requestCancelEventApproval(input: { tenantId: string; principalId: string; payload: unknown; requestId: string }): ActionApprovalRecord {
-    assertValidCancelPayload(input.payload, input.requestId);
-    return this.requestWriteApproval(GOOGLE_CALENDAR_CANCEL_EVENT_TOOL_ID, input, { eventId: input.payload.eventId, summary: input.payload.summary });
+    const definition = CALENDAR_MUTATION_BY_TOOL_ID.get(GOOGLE_CALENDAR_CANCEL_EVENT_TOOL_ID)!;
+    const payload = definition.validatePayload(input.payload, input.requestId) as CancelEventApprovalPayload;
+    return this.pipeline.requestApproval(definition, input.tenantId, input.principalId, payload as unknown as Record<string, unknown>, input.requestId, { eventId: payload.eventId, summary: payload.summary });
   }
 
   public requestRespondToEventApproval(input: { tenantId: string; principalId: string; payload: unknown; requestId: string }): ActionApprovalRecord {
-    assertValidRespondPayload(input.payload, input.requestId);
-    return this.requestWriteApproval(GOOGLE_CALENDAR_RESPOND_EVENT_TOOL_ID, input, { eventId: input.payload.eventId, responseStatus: input.payload.responseStatus });
+    const definition = CALENDAR_MUTATION_BY_TOOL_ID.get(GOOGLE_CALENDAR_RESPOND_EVENT_TOOL_ID)!;
+    const payload = definition.validatePayload(input.payload, input.requestId) as RespondToEventApprovalPayload;
+    return this.pipeline.requestApproval(definition, input.tenantId, input.principalId, payload as unknown as Record<string, unknown>, input.requestId, { eventId: payload.eventId, responseStatus: payload.responseStatus });
   }
 
-  private requestWriteApproval(toolId: string, input: { tenantId: string; principalId: string; payload: unknown; requestId: string }, auditDetails: Record<string, unknown>): ActionApprovalRecord {
-    if (!WRITE_TOOL_IDS.has(toolId)) {
-      throw new NagexError({ code: 'UNSUPPORTED_APPROVAL_TOOL', category: 'VALIDATION', message: `Google Calendar has no approval-gated action for toolId "${toolId}".`, request_id: input.requestId });
-    }
-    const record = this.approvals.request({ toolId, tenantId: input.tenantId, principalId: input.principalId, payload: input.payload as unknown as Record<string, unknown> });
-    this.audit.logEvent({
-      actor: { type: 'user', id: input.principalId },
-      tenant_id: input.tenantId,
-      action: 'approval.requested',
-      resource: { type: 'ActionApproval', id: record.approvalId },
-      result: 'PENDING_APPROVAL',
-      request_id: input.requestId,
-      details: { toolId, ...auditDetails },
+  public async executeUpdateEvent(input: { approvalId: string; payload: unknown; tenantId: string; principalId: string; requestId: string }): Promise<NormalizedMutationResult> {
+    return this.pipeline.execute({
+      definition: CALENDAR_MUTATION_BY_TOOL_ID.get(GOOGLE_CALENDAR_UPDATE_EVENT_TOOL_ID)! as MutationCapabilityDefinition<UpdateEventApprovalPayload>,
+      context: { tenantId: input.tenantId, principalId: input.principalId, toolId: GOOGLE_CALENDAR_UPDATE_EVENT_TOOL_ID, approvalId: input.approvalId, payload: input.payload, requestId: input.requestId },
+      executeProvider: (accessToken, payload: UpdateEventApprovalPayload, requestId) => updateCalendarEvent(accessToken, payload, this.fetchFn, requestId),
+      afterSuccess: (payload: UpdateEventApprovalPayload) => {
+        const memoryRecord = this.memory.proposeMemory('USER', input.tenantId, input.principalId, { subject: 'Calendar Event', predicate: 'updated', value: `Updated "${payload.summary || payload.eventId}" on the calendar.` });
+        this.memory.activateMemory(memoryRecord.id, input.tenantId, input.principalId);
+      },
     });
-    return record;
   }
 
-  public async executeUpdateEvent(input: { approvalId: string; payload: unknown; tenantId: string; principalId: string; requestId: string }): Promise<NormalizedExecutionResult> {
-    return this.executeWrite(
-      GOOGLE_CALENDAR_UPDATE_EVENT_TOOL_ID,
-      input,
-      assertValidUpdatePayload,
-      (accessToken, payload, requestId) => updateCalendarEvent(accessToken, payload, this.fetchFn, requestId),
-      (payload) => ({ subject: 'Calendar Event', predicate: 'updated', value: `Updated "${payload.summary || payload.eventId}" on the calendar.` }),
-    );
-  }
-
-  public async executeCancelEvent(input: { approvalId: string; payload: unknown; tenantId: string; principalId: string; requestId: string }): Promise<NormalizedExecutionResult> {
-    return this.executeWrite(
-      GOOGLE_CALENDAR_CANCEL_EVENT_TOOL_ID,
-      input,
-      assertValidCancelPayload,
-      (accessToken, payload, requestId) => cancelCalendarEvent(accessToken, payload, this.fetchFn, requestId),
-      (payload) => ({ subject: 'Calendar Event', predicate: 'cancelled', value: `Cancelled "${payload.summary}".` }),
-    );
-  }
-
-  public async executeRespondToEvent(input: { approvalId: string; payload: unknown; tenantId: string; principalId: string; requestId: string }): Promise<NormalizedExecutionResult> {
-    return this.executeWrite(
-      GOOGLE_CALENDAR_RESPOND_EVENT_TOOL_ID,
-      input,
-      assertValidRespondPayload,
-      (accessToken, payload, requestId) => respondToCalendarEvent(accessToken, payload, this.fetchFn, requestId),
-      (payload) => ({ subject: 'Calendar Event', predicate: 'responded', value: `Responded "${payload.responseStatus}" to "${payload.summary}".` }),
-    );
-  }
-
-  private async executeWrite<P extends { eventId: string }>(
-    toolId: string,
-    input: { approvalId: string; payload: unknown; tenantId: string; principalId: string; requestId: string },
-    validate: (payload: unknown, requestId: string) => asserts payload is P,
-    call: (accessToken: string, payload: P, requestId: string) => Promise<{ externalId: string; externalUrl: string }>,
-    describeMemory: (payload: P) => { subject: string; predicate: string; value: string },
-  ): Promise<NormalizedExecutionResult> {
-    validate(input.payload, input.requestId);
-    const payload = input.payload as P;
-    const startedAt = getCurrentISOString();
-    const executionId = generateResourceId('exe');
-
-    this.audit.logEvent({
-      actor: { type: 'user', id: input.principalId },
-      tenant_id: input.tenantId,
-      action: 'tool.execution.started',
-      resource: { type: 'ToolExecution', id: executionId },
-      result: 'PENDING_APPROVAL',
-      request_id: input.requestId,
-      details: { toolId, approvalId: input.approvalId },
+  public async executeCancelEvent(input: { approvalId: string; payload: unknown; tenantId: string; principalId: string; requestId: string }): Promise<NormalizedMutationResult> {
+    return this.pipeline.execute({
+      definition: CALENDAR_MUTATION_BY_TOOL_ID.get(GOOGLE_CALENDAR_CANCEL_EVENT_TOOL_ID)! as MutationCapabilityDefinition<CancelEventApprovalPayload>,
+      context: { tenantId: input.tenantId, principalId: input.principalId, toolId: GOOGLE_CALENDAR_CANCEL_EVENT_TOOL_ID, approvalId: input.approvalId, payload: input.payload, requestId: input.requestId },
+      executeProvider: (accessToken, payload: CancelEventApprovalPayload, requestId) => cancelCalendarEvent(accessToken, payload, this.fetchFn, requestId),
+      afterSuccess: (payload: CancelEventApprovalPayload) => {
+        const memoryRecord = this.memory.proposeMemory('USER', input.tenantId, input.principalId, { subject: 'Calendar Event', predicate: 'cancelled', value: `Cancelled "${payload.summary}".` });
+        this.memory.activateMemory(memoryRecord.id, input.tenantId, input.principalId);
+      },
     });
+  }
 
-    const config = this.getConfig();
-    const accessToken = config ? await this.tokenStore.getValidAccessToken(input.tenantId, config, this.fetchFn, input.requestId) : null;
-    if (!accessToken) {
-      this.audit.logEvent({
-        actor: { type: 'user', id: input.principalId },
-        tenant_id: input.tenantId,
-        action: 'tool.execution.failed',
-        resource: { type: 'ToolExecution', id: executionId },
-        result: 'FAILED',
-        reason_code: 'GOOGLE_CALENDAR_DISCONNECTED',
-        request_id: input.requestId,
-        details: { toolId },
-      });
-      throw new NagexError({ code: 'GOOGLE_CALENDAR_DISCONNECTED', category: 'POLICY', message: 'Google Calendar is not connected. Connect it before this action can execute.', request_id: input.requestId });
-    }
-
-    try {
-      this.approvals.consume(input.approvalId, input.tenantId, input.principalId, toolId, payload as unknown as Record<string, unknown>, input.requestId, executionId);
-    } catch (error) {
-      const code = error instanceof NagexError ? error.code : 'APPROVAL_VALIDATION_FAILED';
-      this.audit.logEvent({
-        actor: { type: 'user', id: input.principalId },
-        tenant_id: input.tenantId,
-        action: 'tool.execution.failed',
-        resource: { type: 'ToolExecution', id: executionId },
-        result: 'DENIED',
-        reason_code: code,
-        request_id: input.requestId,
-        details: { toolId, approvalId: input.approvalId },
-      });
-      throw error;
-    }
-
-    this.executions.start({ executionId, toolId, approvalId: input.approvalId, tenantId: input.tenantId, principalId: input.principalId, startedAt });
-
-    try {
-      const result = await call(accessToken, payload, input.requestId);
-      const completedAt = getCurrentISOString();
-      this.executions.succeed(executionId, { externalId: result.externalId, externalUrl: result.externalUrl, completedAt });
-
-      this.audit.logEvent({
-        actor: { type: 'user', id: input.principalId },
-        tenant_id: input.tenantId,
-        action: 'tool.execution.succeeded',
-        resource: { type: 'ToolExecution', id: executionId },
-        result: 'SUCCESS',
-        request_id: input.requestId,
-        details: { toolId, externalEventId: result.externalId },
-      });
-
-      const memoryFields = describeMemory(payload);
-      const memoryRecord = this.memory.proposeMemory('USER', input.tenantId, input.principalId, memoryFields);
-      this.memory.activateMemory(memoryRecord.id, input.tenantId, input.principalId);
-
-      return { executionId, toolId, status: 'SUCCEEDED', externalId: result.externalId, externalUrl: result.externalUrl, startedAt, completedAt };
-    } catch (error) {
-      const code = error instanceof NagexError ? error.code : 'GOOGLE_CALENDAR_EXECUTION_FAILED';
-      const completedAt = getCurrentISOString();
-      this.executions.fail(executionId, { errorCode: code, completedAt });
-      this.audit.logEvent({
-        actor: { type: 'user', id: input.principalId },
-        tenant_id: input.tenantId,
-        action: 'tool.execution.failed',
-        resource: { type: 'ToolExecution', id: executionId },
-        result: 'FAILED',
-        reason_code: code,
-        request_id: input.requestId,
-        details: { toolId },
-      });
-      throw error;
-    }
+  public async executeRespondToEvent(input: { approvalId: string; payload: unknown; tenantId: string; principalId: string; requestId: string }): Promise<NormalizedMutationResult> {
+    return this.pipeline.execute({
+      definition: CALENDAR_MUTATION_BY_TOOL_ID.get(GOOGLE_CALENDAR_RESPOND_EVENT_TOOL_ID)! as MutationCapabilityDefinition<RespondToEventApprovalPayload>,
+      context: { tenantId: input.tenantId, principalId: input.principalId, toolId: GOOGLE_CALENDAR_RESPOND_EVENT_TOOL_ID, approvalId: input.approvalId, payload: input.payload, requestId: input.requestId },
+      executeProvider: (accessToken, payload: RespondToEventApprovalPayload, requestId) => respondToCalendarEvent(accessToken, payload, this.fetchFn, requestId),
+      afterSuccess: (payload: RespondToEventApprovalPayload) => {
+        const memoryRecord = this.memory.proposeMemory('USER', input.tenantId, input.principalId, { subject: 'Calendar Event', predicate: 'responded', value: `Responded "${payload.responseStatus}" to "${payload.summary}".` });
+        this.memory.activateMemory(memoryRecord.id, input.tenantId, input.principalId);
+      },
+    });
   }
 }
