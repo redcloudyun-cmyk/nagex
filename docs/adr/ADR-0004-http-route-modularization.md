@@ -1,7 +1,7 @@
-# ADR-0004 — HTTP route modularization (incremental, first slice)
+# ADR-0004 — HTTP route modularization (complete)
 
-**Status:** Accepted (partial implementation — see "Scope of this round", "Increment 2 update", "Increment 3 update", and "Increment 4 update")
-**Date:** 2026-09-16 (Increment 1); updated 2026-09-17 (Increment 2, Increment 3, Increment 4)
+**Status:** Accepted — FINAL (R10.2-D complete, DEBT-0004 closed — see "Increment 5 update / final" for the closing summary; "Scope of this round" and the Increment 2-4 updates are kept below as the historical record)
+**Date:** 2026-09-16 (Increment 1); updated 2026-09-17 (Increments 2, 3, 4, 5 — final)
 **Related:** R10.2-D (HTTP Route Modularization)
 
 ## Decision
@@ -112,3 +112,66 @@ Every route capable of a real external side effect — Calendar, Gmail, Browser 
 ### Future-domain extension rule (unchanged from Increment 1's "Extension rule for future domains")
 
 Increment 5's Main Session / Daily Brief route modules must follow the same four rules already stated above: export a `SyncRouteRegistrar`/`AsyncRouteRegistrar`, define a narrow deps interface, never deep-import a provider client, and register at the exact same relative dispatch position — verified by extending `tests/http_route_modularization.test.ts`'s real-entry-point and route-ownership-guard tests, the same pattern used in every increment so far.
+
+## Increment 5 update / final (2026-09-17) — R10.2-D complete, DEBT-0004 CLOSED
+
+R10.2-D Increment 5 migrated the last 22 endpoints — the Main Session / conversational core and Daily Brief / Proactive Assistant automation surface, plus every remaining smaller domain — completing the full 147-endpoint migration:
+
+- `providers.routes.ts` — `/api/v1/providers/status`, `/api/v1/providers/health-check`. Existing HTTP behavior only; does not implement the future Model Gateway milestone (no new providers, routing policy, credential pooling, billing, or fallback logic).
+- `safety.routes.ts` — `/api/v1/safety/evaluate`, `/events`, `/status`. `SafetyEngine.getInstance()`/`PersistentSafetyStore` unchanged.
+- `conversation.routes.ts` — two registrars: `handleConversationRoutes` (async: conversations/main GET/POST-messages/DELETE, ai/chat, ambient/intent, plans/resolve) and `handleSessionRoutes` (sync: sessions/main GET). Neither absorbs planning, memory, model-routing, or conversation-state logic — all of that still lives entirely in `SessionStore`/`ConversationStore`/`ConversationContextService`/`AiService`/`PlanResolver`/`MemoryEngine`, exactly as before. No new clarification/intent logic was introduced (explicitly out of scope per the governing directive) — this is a routing/composition move only.
+- `daily-brief.routes.ts` — daily-brief GET/refresh, history, proactive-assistant/config GET/PUT, plus the five helper functions that only this domain used (`buildBriefResponse`, `computeBriefFreshness`, `safeListPendingApprovals`, `countImportantChangesForDate`, `serializeProactiveConfig`). Generation itself is untouched: still `generateDailyBriefOnce()` / `detectMeaningfulChanges()` / `dispatchDetectedChanges()` / `generateProposalsFromChanges()`, the same single real pipeline the scheduled automation path also uses. The Proactive Assistant schedule is still modeled as a real Task (RECURRING + SCHEDULE trigger) via plain `TaskStore` CRUD calls — this module never constructs a `TaskScheduler`/task runner itself (verified by test 78).
+- `capabilities.routes.ts` — `/api/v1/capabilities/execute`, unchanged: HTTP -> `CapabilityBroker.execute()`, the one and only canonical execution boundary. No direct tool/provider call was ever introduced here.
+- `my-space.routes.ts` — `/api/v1/my-space`, a thin, read-only, independently-fault-tolerant aggregation of already tenant/owner-scoped sources (Activity, Memory, Tasks, Workflows, Calendar, TaskRun history). No new store, no new persistence.
+- `device-agent.routes.ts` — `/api/v1/device-agent/message`. Still deliberately does not trust `x-nagex-tenant`/`x-principal-id` headers; authentication is entirely `DeviceTransportSecurity`'s Ed25519 signature check inside `deviceAgentTransportEndpoint.handle()`, unchanged.
+
+**No new architectural decision was made** — every one of these modules follows the exact registrar/router/narrow-deps pattern this ADR has described since Increment 1.
+
+### Final composition-root state
+
+`server_web.ts`: 1454 → 775 lines (-46.7%); imports 44 → 42 (net -2 after removing now-fully-dead `DEFAULT_GOOGLE_TENANT_ID`/`parseRoutingMode`/`PlanPreview`/etc. re-exports that moved with their consumers, against seven new registrar imports). Using the same `method === '<VERB>'` check-block count: **147/147 endpoints migrated (100%), 0 remaining inline domain endpoints** — the file's only remaining `method === '<VERB>'` check is the generic CORS `OPTIONS` preflight in `createServerInstance()`, structurally verified by `tests/http_route_modularization.test.ts` test 80 (which asserts this exact invariant and that zero `pathname === '/api/v1/...'` literals remain anywhere in the file). jscpd moved from 875→909 duplicated lines (3.09%→3.18%), proportional to the ~1,050 lines of route-module code added in this final increment — no new duplication pattern.
+
+`server_web.ts` now contains exactly what Section 3/13 of the governing directive asked for:
+
+```text
+imports (core engine types + 26 route-registrar functions)
+composition root construction (createNagexApplication())
+shared error boundary (modelErrorResult / ERROR_CATEGORY_STATUS)
+handleAsyncApiRequest — a pure sequential chain of registrar calls
+handleApiRequest       — a pure sequential chain of registrar calls
+createServerInstance() — real HTTP server, request body parsing,
+                          CORS preflight, /health, static frontend
+                          file serving, process lifecycle
+```
+
+No domain business logic, no planning/memory/model-routing logic, no scheduler internals, and no direct provider/tool calls remain in `server_web.ts` itself.
+
+### Final registrar structure
+
+26 route modules under `src/http/routes/`: `health`, `action-proposals`, `memory`, `modules`, `catalog`, `settings`, `notifications`, `tasks`, `automations`, `workspace`, `gmail`, `calendar`, `approvals`, `browser`, `google-oauth`, `telegram`, `slack`, `desktop`, `governance`, `providers`, `safety`, `conversation`, `daily-brief`, `capabilities`, `my-space`, `device-agent`. Every module exports one or two `SyncRouteRegistrar`/`AsyncRouteRegistrar` functions plus a narrow `XRouteDeps` interface — no module has ever accepted "the whole application" as a dependency.
+
+### Allowed residual inline route categories (final)
+
+Only three things may legitimately remain inline in `server_web.ts`, and nothing else:
+
+1. The generic CORS `OPTIONS` preflight response in `createServerInstance()`.
+2. The `/health` liveness endpoint and the `/api/` request-body-parsing dispatch wrapper (both pure server-lifecycle/transport plumbing, never business logic).
+3. Static frontend file serving (`MUTABLE_FRONTEND_FILES`, `CLEAN_URL_ALIASES`, cache-header logic).
+
+Any future `pathname === '/api/v1/...'` check added directly to `server_web.ts` is a regression and must be caught by `tests/http_route_modularization.test.ts` test 80 (the file's final route-ownership guard) failing.
+
+### New-domain extension rule (final, unchanged in substance since Increment 1)
+
+Any future HTTP domain must: export a `SyncRouteRegistrar<TDeps>`/`AsyncRouteRegistrar<TDeps>` matching whichever real dispatch entry point it needs; define its own narrow `XRouteDeps` interface (never accept the whole application); never import a provider client file directly, only that provider's public module `index.ts`; and be registered from `server_web.ts` via a single `{ const xResult = await/handleXRoutes(...); if (xResult) return xResult; }` block at a specific, intentional position in the sequential chain — verified by adding real-entry-point-pass-through tests and extending test 80's route-ownership assertion.
+
+### Route dependency rule (final)
+
+A registrar's deps interface names only the services that domain's routes genuinely call. If a future domain interface would need more than ~10-12 fields, that is a signal the domain boundary itself is wrong (should split), not a reason to pass a god object — `tasks.routes.ts`'s `TasksRunRouteDeps` (12 fields, all task-execution-specific, documented inline) is the one deliberate, disclosed exception, justified by needing to reconstruct the exact DI-test-override scheduler the original inline code already had.
+
+### Mutation safety rule (final, proven across every mutation-capable domain now migrated)
+
+Every route capable of a real external side effect (Calendar, Gmail, Browser click, Capability Broker execution, Task/Workflow `/run`) continues to resolve through its domain's one canonical execution boundary (`GoogleCalendarService`, `GmailService`, `BrowserToolService`, `CapabilityBroker.execute()`, `TaskScheduler.runOne()`), never a raw provider/tool call from the route layer itself. No route module has ever imported `calendar.client.ts`/`gmail.client.ts` directly — verified structurally by `tests/google_modules_boundary.test.ts` test 11 (repo-wide) and by the domain-specific static guards added in every increment of `tests/http_route_modularization.test.ts`.
+
+### R10.2-D disposition
+
+**R10.2-D is complete.** DEBT-0004 is CLOSED (see `docs/TECHNICAL_DEBT_REGISTRY.md` for the full eight-condition closure verification). Per the user's own stated roadmap, R10.2-E (test harness / duplication / architecture-guard cleanup) may now begin.

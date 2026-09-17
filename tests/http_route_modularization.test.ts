@@ -613,3 +613,149 @@ test('65. server_web.ts no longer inline-implements any Gmail/Calendar/Approval/
     assert.doesNotMatch(code, pattern, `server_web.ts must not re-implement ${pattern} inline — it belongs in the Increment 4 route modules now`);
   }
 });
+
+// ── Increment 5: Main Session / conversational core, Daily Brief /
+// Proactive Assistant, Providers, Safety, Capabilities, My Space, Device
+// Agent — the final slice of R10.2-D ─────────────────────────────────────
+// Deep behavioral coverage (conversation/session persistence, ai/chat and
+// ambient/intent AI-reasoning flows, Daily Brief generation/change-
+// detection/proposal-dedup, Proactive Assistant scheduling, Capability
+// Broker execution, device-agent transport/signature verification)
+// already exists in dedicated test files (conversation_workspace,
+// daily_brief, proactive_assistant(_change_detection), capability_broker,
+// device_agent_foundation/transport/electron_runtime — all of which call
+// the real handleApiRequest/handleAsyncApiRequest entry points and passed
+// unchanged after this migration). These tests focus on what's new: the
+// registrars themselves, their wiring into the real entry points, the
+// static architecture/mutation-safety guards, and the final proof that
+// server_web.ts no longer owns any domain endpoint at all.
+
+test('66. GET /api/v1/providers/status and GET /api/v1/safety/status through the real handleAsyncApiRequest entry point still work after modularization', async () => {
+  const providers = await handleAsyncApiRequest('GET', '/api/v1/providers/status', null, {});
+  assert.equal(providers.status, 200);
+  assert.ok(Array.isArray((providers.data as { providers: unknown[] }).providers));
+
+  const safety = await handleAsyncApiRequest('GET', '/api/v1/safety/status', null, { 'x-nagex-tenant': 'ten_r102d_i5_test', 'x-principal-id': 'usr_r102d_i5_test' });
+  assert.equal(safety.status, 200);
+});
+
+test('67. GET/POST /api/v1/conversations/main round-trips a real message through the real handleAsyncApiRequest entry point', async () => {
+  const headers = { 'x-nagex-tenant': 'ten_r102d_i5_test', 'x-principal-id': 'usr_r102d_i5_test' };
+  const before = await handleAsyncApiRequest('GET', '/api/v1/conversations/main', null, headers);
+  assert.equal(before.status, 200);
+  assert.ok(Array.isArray((before.data as { messages: unknown[] }).messages));
+
+  const posted = await handleAsyncApiRequest('POST', '/api/v1/conversations/main/messages', { content: 'Increment 5 route test message' }, headers);
+  assert.equal(posted.status, 201);
+
+  const after = await handleAsyncApiRequest('GET', '/api/v1/conversations/main', null, headers);
+  const ids = (after.data as { messages: Array<{ messageId: string }> }).messages.map((m) => m.messageId);
+  assert.ok(ids.includes((posted.data as { messageId: string }).messageId));
+});
+
+test('68. POST /api/v1/ai/chat and POST /api/v1/ambient/intent without a required field return the exact original VALIDATION errors, never silently accepted', async () => {
+  const chat = await handleAsyncApiRequest('POST', '/api/v1/ai/chat', {}, {});
+  assert.equal(chat.status, 400);
+  assert.equal((chat.data as { error: { code: string } }).error.code, 'MESSAGE_REQUIRED');
+
+  const ambient = await handleAsyncApiRequest('POST', '/api/v1/ambient/intent', {}, {});
+  assert.equal(ambient.status, 400);
+  assert.equal((ambient.data as { error: { code: string } }).error.code, 'PROMPT_REQUIRED');
+});
+
+test('69. POST /api/v1/plans/resolve through the real handleAsyncApiRequest entry point still works after modularization', async () => {
+  const plan = {
+    goal: 'Increment 5 route test',
+    summary: 'A minimal, valid Plan Preview for a route-contract test.',
+    reasoningSummary: 'Single trivial step, no approval required.',
+    suggestions: [],
+    steps: [{ title: 'Step 1', reasoning: 'Trivial step.', skill: 'memory-recall', tool: null, requiresApproval: false }],
+  };
+  const result = await handleAsyncApiRequest('POST', '/api/v1/plans/resolve', { plan }, {});
+  assert.equal(result.status, 200);
+});
+
+test('70. GET /api/v1/sessions/main through the real handleApiRequest entry point still works after modularization (the sync half of conversation.routes.ts)', () => {
+  const result = handleApiRequest('GET', '/api/v1/sessions/main', null, { 'x-nagex-tenant': 'ten_r102d_i5_test', 'x-principal-id': 'usr_r102d_i5_test' });
+  assert.equal(result.status, 200);
+  assert.ok((result.data as { sessionId: string }).sessionId);
+});
+
+test('71. POST /api/v1/capabilities/execute for an unknown capabilityId fails closed with 404, never a fabricated success (canonical execution boundary preserved)', async () => {
+  const result = await handleAsyncApiRequest('POST', '/api/v1/capabilities/execute', { capabilityId: 'nagex.does-not-exist.r102d' }, {});
+  assert.equal(result.status, 404);
+});
+
+test('72. GET /api/v1/my-space through the real handleAsyncApiRequest entry point still works after modularization, and never fails the whole response when Calendar is disconnected', async () => {
+  const result = await handleAsyncApiRequest('GET', '/api/v1/my-space', null, { 'x-nagex-tenant': 'ten_r102d_i5_test', 'x-principal-id': 'usr_r102d_i5_test' });
+  assert.equal(result.status, 200);
+  const data = result.data as { activity: unknown[]; tasks: unknown[]; calendarStatus: string };
+  assert.ok(Array.isArray(data.activity));
+  assert.ok(Array.isArray(data.tasks));
+  assert.ok(['CONNECTED', 'DISCONNECTED', 'ERROR'].includes(data.calendarStatus));
+});
+
+test('73. GET /api/v1/daily-brief and GET /api/v1/daily-brief/history through the real handleAsyncApiRequest entry point still work after modularization', async () => {
+  const headers = { 'x-nagex-tenant': 'ten_r102d_i5_test', 'x-principal-id': 'usr_r102d_i5_test' };
+  const brief = await handleAsyncApiRequest('GET', '/api/v1/daily-brief', null, headers);
+  assert.equal(brief.status, 200);
+  assert.ok((brief.data as { date: string }).date);
+
+  const history = await handleAsyncApiRequest('GET', '/api/v1/daily-brief/history', null, headers);
+  assert.equal(history.status, 200);
+  assert.ok(Array.isArray((history.data as { history: unknown[] }).history));
+});
+
+test('74. GET /api/v1/proactive-assistant/config through the real handleAsyncApiRequest entry point returns the real, unconfigured-by-default state (never fabricated enabled=true)', async () => {
+  const result = await handleAsyncApiRequest('GET', '/api/v1/proactive-assistant/config', null, { 'x-nagex-tenant': 'ten_r102d_i5_fresh_test', 'x-principal-id': 'usr_r102d_i5_fresh_test' });
+  assert.equal(result.status, 200);
+  assert.equal((result.data as { enabled: boolean }).enabled, false);
+});
+
+test('75. POST /api/v1/device-agent/message with a malformed payload returns the exact original VALIDATION error through the real handleAsyncApiRequest entry point (never bypasses Ed25519 signature verification)', async () => {
+  const result = await handleAsyncApiRequest('POST', '/api/v1/device-agent/message', { envelope: null, payload: {} }, {});
+  assert.equal(result.status, 400);
+  assert.equal((result.data as { error: { code: string } }).error.code, 'DEVICE_MESSAGE_MALFORMED');
+});
+
+// ── Static architecture guard, Increment 5 ───────────────────────────────
+
+const INCREMENT_5_ROUTE_FILES = ['providers.routes.ts', 'safety.routes.ts', 'conversation.routes.ts', 'daily-brief.routes.ts', 'capabilities.routes.ts', 'my-space.routes.ts', 'device-agent.routes.ts'];
+
+test('76. none of the seven Increment 5 route modules deep-import a Calendar/Gmail provider-client file directly', () => {
+  for (const file of INCREMENT_5_ROUTE_FILES) {
+    const code = readSourceWithoutComments(`src/http/routes/${file}`);
+    assert.doesNotMatch(code, /modules\/calendar\/(google-calendar\.service|calendar\.client)\.js/, `${file} must not deep-import the Calendar provider client`);
+    assert.doesNotMatch(code, /modules\/gmail\/(gmail\.service|gmail\.client)\.js/, `${file} must not deep-import the Gmail provider client`);
+  }
+});
+
+test('77. none of the seven Increment 5 route modules call fetch() or bypass CapabilityBroker/canonical execution directly', () => {
+  for (const file of INCREMENT_5_ROUTE_FILES) {
+    const code = readSourceWithoutComments(`src/http/routes/${file}`);
+    assert.doesNotMatch(code, /\bfetch\s*\(/, `${file} must not call fetch() directly`);
+  }
+  const capabilitiesCode = readSourceWithoutComments('src/http/routes/capabilities.routes.ts');
+  assert.match(capabilitiesCode, /capabilityBroker\.execute\(/, 'capabilities.routes.ts must route execution only through CapabilityBroker.execute()');
+});
+
+test('78. daily-brief.routes.ts never directly mutates scheduler internals — it only calls TaskStore CRUD methods (create/update/pause/resume), never constructs a TaskScheduler/TaskRunner itself', () => {
+  const code = readSourceWithoutComments('src/http/routes/daily-brief.routes.ts');
+  assert.doesNotMatch(code, /new TaskScheduler\(/, 'daily-brief.routes.ts must not construct a TaskScheduler — that stays in the Composition Root / tasks.routes.ts SCHEDULER_MUTATION exception');
+  assert.doesNotMatch(code, /new (CompositeTaskRunner|ExecutingTaskRunner|PlanPreviewTaskRunner|ConditionalWatchTaskRunner|BackgroundTaskRunner)\(/, 'daily-brief.routes.ts must not construct a task runner directly');
+});
+
+test('79. none of the seven Increment 5 route modules import back from server_web.ts (composition root depends on routes, never the reverse)', () => {
+  for (const file of INCREMENT_5_ROUTE_FILES) {
+    const code = readSourceWithoutComments(`src/http/routes/${file}`);
+    assert.doesNotMatch(code, /from ['"]\.\.\/\.\.\/server_web\.js['"]/, `${file} must not import back from server_web.ts`);
+  }
+});
+
+test('80. server_web.ts no longer inline-implements ANY domain endpoint — the only remaining "method ===" check is the CORS OPTIONS preflight (final route ownership / composition-root guard)', () => {
+  const code = readSourceWithoutComments('src/server_web.ts');
+  const methodChecks = code.match(/method === '[A-Z]+'/g) || [];
+  assert.deepEqual(methodChecks, ["method === 'OPTIONS'"], `server_web.ts should contain exactly one method check (CORS preflight) and zero domain route checks; found: ${JSON.stringify(methodChecks)}`);
+  // And no leftover domain-specific pathname literal checks either.
+  assert.doesNotMatch(code, /pathname === '\/api\/v1\//, 'server_web.ts must not contain any inline /api/v1/* pathname check — every domain now lives in its own route module');
+});

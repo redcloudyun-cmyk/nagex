@@ -156,71 +156,89 @@ id: DEBT-0004
 area: http/server_web
 description: >
   R10.2-D (HTTP Route Modularization) delivered the router/registrar
-  infrastructure (src/http/http-types.ts, router.ts) and has migrated
-  nineteen domains out of server_web.ts across four increments: Increment
-  1 — health/vcs, Action Proposals; Increment 2 — memory, modules, catalog,
+  infrastructure (src/http/http-types.ts, router.ts) and migrated all 147
+  HTTP endpoints out of server_web.ts across five increments: Increment 1
+  — health/vcs, Action Proposals; Increment 2 — memory, modules, catalog,
   settings, notifications; Increment 3 — tasks, automations, workspace;
-  Increment 4 — gmail (src/http/routes/gmail.routes.ts), calendar
-  (src/http/routes/calendar.routes.ts, including the free-slots read),
-  approvals (src/http/routes/approvals.routes.ts — list/request/get/
-  legacy-alias/approve-reject/legacy-action), browser (src/http/routes/
-  browser.routes.ts — all 17 Browser Agent routes), google-oauth
-  (src/http/routes/google-oauth.routes.ts — start/start-url/callback/
-  status/disconnect), telegram, slack, desktop (quickwake), and
-  governance (src/http/routes/governance.routes.ts — executions/billing/
-  audit). Using a consistent method-check-block count, server_web.ts still
-  directly implements 22 remaining inline endpoint checks: providers
-  (status/health-check), safety (evaluate/events/status), conversations
-  (main GET/messages POST/main DELETE), ai/chat, ambient/intent, plans/
-  resolve, capabilities/execute, my-space, daily-brief (GET/refresh/
-  history), proactive-assistant/config (GET/PUT), device-agent/message,
-  sessions/main — plus CORS OPTIONS preflight and static file serving
-  (infrastructure, not domain endpoints).
-severity: low
+  Increment 4 — gmail, calendar, approvals, browser, google-oauth,
+  telegram, slack, desktop, governance; Increment 5 (final) — providers
+  (src/http/routes/providers.routes.ts), safety (src/http/routes/
+  safety.routes.ts), the Main Session / conversational core
+  (src/http/routes/conversation.routes.ts — conversations/main GET/POST-
+  messages/DELETE, ai/chat, ambient/intent, plans/resolve, plus the sync
+  sessions/main registrar), Daily Brief / Proactive Assistant
+  (src/http/routes/daily-brief.routes.ts, including its
+  buildBriefResponse/computeBriefFreshness/safeListPendingApprovals/
+  countImportantChangesForDate/serializeProactiveConfig helpers),
+  capabilities/execute (src/http/routes/capabilities.routes.ts), My Space
+  (src/http/routes/my-space.routes.ts), and the Device Agent transport
+  route (src/http/routes/device-agent.routes.ts). server_web.ts now
+  contains zero inline `/api/v1/*` domain route checks — the only
+  remaining `method === '<VERB>'` check in the entire file is the generic
+  CORS OPTIONS preflight in createServerInstance(), plus `/health` and
+  static frontend file serving (all three genuine server-lifecycle/
+  bootstrap/cross-cutting infrastructure, never domain business logic).
+severity: low (historical — retained for audit trail after closure)
 introduced: R10.2-D (deliberate, documented scope decision — see ADR-0004
   "Scope of this round" — not a shortcut taken silently)
 reason: >
-  The R10.2-D directive's own §18 explicitly instructs against moving 100+
-  endpoints in one mechanical rewrite, recommending instead: establish the
-  registrar contract, move one low-risk read-only domain, run tests, move
-  another domain (chosen to prove mutation/approval safety), then continue
-  incrementally. Increments 1-3 did exactly that. Increment 4 took on the
-  three directive-named mutation-heavy domains (Gmail, Calendar,
-  Approvals) plus every other clearly-owned domain reachable without
-  touching the Main Session / conversational core — each stopped at a
-  safely verified, fully-tested checkpoint. The 22 remaining inline
-  checks are deliberately NOT migrated this round: they are the Main
-  Session / conversational core (conversations, ai/chat, ambient/intent,
-  plans/resolve, sessions/main) and the Daily Brief / Proactive Assistant
-  automation surface (daily-brief x3, proactive-assistant/config), plus
-  Safety/Providers/Capabilities-Execute/My-Space/Device-Agent — a
-  distinct, deeply-coupled (aiService/conversationStore/memoryEngine/
-  actionProposalStore) domain that deserves its own focused increment
-  rather than a rushed migration inside an already-large one.
-risk: Low — server_web.ts's remaining inline routes are unchanged
-  behavior, still covered by their existing test suites, and the
-  established registrar pattern (now proven on read-only, tenant-scoped,
-  PDP-authorized, approval-adjacent, SCHEDULER_MUTATION, and
-  APPROVAL_GATED-external-mutation domains) is ready to apply to the
-  remaining Main-Session/Daily-Brief surface without further
-  architectural decisions.
+  The R10.2-D directive's own §18 explicitly instructed against moving
+  100+ endpoints in one mechanical rewrite, recommending instead:
+  establish the registrar contract, move one low-risk read-only domain,
+  run tests, move another domain (chosen to prove mutation/approval
+  safety), then continue incrementally until the whole surface is
+  migrated. All five increments followed that sequence, each stopping at
+  a safely verified, fully-tested checkpoint — this debt entry tracked
+  that intentional, disclosed incompleteness between increments. It is
+  now closed because the completion conditions below are all genuinely
+  satisfied, not merely because the LOC/endpoint counters hit a target.
 progress: >
   Increment 1: 6/147 migrated. Increment 2: +20 → 26/147 (18%).
-  Increment 3: +43 → 69/147 (47%). Increment 4: +56 (gmail=5, calendar=5,
-  approvals=6, browser=17, google-oauth=5, telegram=5, slack=5, desktop=3,
-  governance=5) → 125/147 migrated total (85.0%), 22 remaining. Endpoint
-  counting methodology unchanged since Increment 2: count of distinct
-  `method === '<VERB>'` check blocks, applied consistently to both
-  server_web.ts and the route modules.
-target: R10.2-D Increment 5 (final slice) — Main Session / conversational
-  core (conversations, ai/chat, ambient/intent, plans/resolve,
-  sessions/main) and Daily Brief / Proactive Assistant automation, plus
-  Safety/Providers/Capabilities-Execute/My-Space/Device-Agent, plus final
-  Composition Root cleanup. That closes this debt. R10.2-E (test harness/
-  duplication/architecture-guard cleanup, per the user's own stated
-  roadmap) follows only after DEBT-0004 closes.
+  Increment 3: +43 → 69/147 (47%). Increment 4: +56 → 125/147 (85.0%).
+  Increment 5: +22 (providers=2, safety=3, conversation=7, daily-brief=6,
+  capabilities=1, my-space=1, device-agent=1) → 147/147 migrated (100%),
+  0 remaining inline domain endpoints. Endpoint counting methodology
+  unchanged since Increment 2: count of distinct `method === '<VERB>'`
+  check blocks, applied consistently to both server_web.ts and the route
+  modules across all five increments.
+closure_verification: >
+  All eight R10.2-D Increment 5 completion conditions verified before
+  closing: (1) server_web.ts no longer materially owns domain
+  handlers — confirmed structurally by
+  tests/http_route_modularization.test.ts test 80, which asserts the
+  file's only remaining `method === '<VERB>'` check is CORS OPTIONS and
+  that no `/api/v1/*` pathname literal remains; (2) remaining inline
+  "endpoints" (/health, CORS OPTIONS, static file serving) are true
+  infrastructure/system residuals, explicitly listed above, never left
+  "because inconvenient"; (3) all residuals are explicitly justified in
+  this entry; (4) route re-entry guards pass (tests 33/48/64/79 across
+  Increments 2-5, plus the final test 80); (5) mutation/capability safety
+  passes — Gmail/Calendar mutations still resolve only through
+  GmailService/GoogleCalendarService.executeXxx() ->
+  GoogleCapabilityExecutionPipeline (tests 62-63), capabilities/execute
+  still resolves only through CapabilityBroker.execute() (test 77), and
+  daily-brief.routes.ts never constructs a TaskScheduler/TaskRunner
+  itself (test 78); (6) the Composition Root is clear — server_web.ts
+  (775 lines, 42 imports) now contains only: core-engine/registrar
+  imports, the composition-root construction (createNagexApplication()),
+  the modelErrorResult/ERROR_CATEGORY_STATUS error boundary, the two
+  dispatch entry points (now pure sequential registrar-call chains), and
+  createServerInstance()'s real HTTP server + body parsing + static file
+  serving + process lifecycle; (7) the full 147-endpoint route inventory
+  is preserved — every route contract test from every prior increment
+  still passes unchanged; (8) the full official test harness passes (see
+  below). All eight conditions hold, so DEBT-0004 is CLOSED, not left
+  OPEN on partial credit.
+resolution: >
+  Closed by R10.2-D Increment 5 (BASE_SHA=1841087). 26 route modules now
+  exist under src/http/routes/, each with a narrow XRouteDeps interface —
+  no god-dependency object was ever introduced. See ADR-0004's final
+  update for the finalized registrar architecture, composition-root
+  boundary, allowed-residual-inline-route categories, and the
+  new-domain/mutation-safety/dependency rules that now govern any future
+  route addition.
 owner: NAGEX
-status: OPEN
+status: CLOSED
 ```
 
 Per explicit instruction: DEBT-0003 (processAudioFallback's status/audit
