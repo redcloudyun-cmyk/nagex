@@ -37,6 +37,8 @@ import { handleAuthRoutes } from './http/routes/auth.routes.js';
 import { handleAccountRoutes } from './http/routes/account.routes.js';
 import { handleOrganizationRoutes } from './http/routes/organization.routes.js';
 import { handleRbacRoutes } from './http/routes/rbac.routes.js';
+import { handleEnterpriseIdentityRoutes } from './http/routes/enterprise-identity.routes.js';
+import { handleScimRoutes } from './http/routes/scim.routes.js';
 import type { GoogleCalendarService } from './modules/calendar/index.js';
 import type { GmailService } from './modules/gmail/index.js';
 import { BrowserToolService, browserRuntime } from './modules/browser/index.js';
@@ -52,6 +54,8 @@ import type { SessionStore } from './sessions/session.store.js';
 import type { OrganizationStore } from './organizations/organization.store.js';
 import type { RbacStore } from './rbac/rbac.store.js';
 import type { RbacService } from './rbac/rbac.service.js';
+import type { EnterpriseIdentityStore } from './enterprise-identity/enterprise-identity.store.js';
+import type { SsoFlowStore } from './enterprise-identity/sso-flow.store.js';
 import { createNagexApplication } from './app/create-nagex-application.js';
 
 const PORT = Number(process.env.PORT || 8085);
@@ -61,14 +65,14 @@ const NO_CACHE_HEADERS = {
   Pragma: 'no-cache',
   Expires: '0',
 } as const;
-const MUTABLE_FRONTEND_FILES = new Set(['index.html', 'style.css', 'app.js', 'i18n.js', 'auth-ui.js', 'org-ui.js', 'rbac-ui.js', 'intent-interaction-state.js', 'plan-resolution-view.js', 'calendar-approval-view.js', 'calendar-intent-extraction.js', 'calendar-payload-validation.js', 'gmail-approval-view.js', 'gmail-intent-extraction.js', 'browser-approval-view.js', 'browser-intent-extraction.js', 'modal-behavior.js', 'timeline-dedupe.js', 'single-flight-guard.js', 'legal.js', 'privacy.html', 'terms.html', 'desktop-quickwake.html', 'desktop-quickwake.css', 'desktop-quickwake.js', 'shared/tokens.css', 'shared/components.css', 'desktop/desktop-home.css', 'desktop/desktop-home.js', 'mobile/mobile-home.css', 'mobile/mobile-home.js', 'mobile/mobile-inbox.css', 'mobile/mobile-inbox.js', 'mobile/mobile-activity.css', 'mobile/mobile-activity.js', 'mobile/mobile-vault.css', 'mobile/mobile-vault.js', 'mobile/mobile-settings.css', 'mobile/mobile-settings.js']);
+const MUTABLE_FRONTEND_FILES = new Set(['index.html', 'style.css', 'app.js', 'i18n.js', 'auth-ui.js', 'org-ui.js', 'rbac-ui.js', 'enterprise-identity-ui.js', 'intent-interaction-state.js', 'plan-resolution-view.js', 'calendar-approval-view.js', 'calendar-intent-extraction.js', 'calendar-payload-validation.js', 'gmail-approval-view.js', 'gmail-intent-extraction.js', 'browser-approval-view.js', 'browser-intent-extraction.js', 'modal-behavior.js', 'timeline-dedupe.js', 'single-flight-guard.js', 'legal.js', 'privacy.html', 'terms.html', 'desktop-quickwake.html', 'desktop-quickwake.css', 'desktop-quickwake.js', 'shared/tokens.css', 'shared/components.css', 'desktop/desktop-home.css', 'desktop/desktop-home.js', 'mobile/mobile-home.css', 'mobile/mobile-home.js', 'mobile/mobile-inbox.css', 'mobile/mobile-inbox.js', 'mobile/mobile-activity.css', 'mobile/mobile-activity.js', 'mobile/mobile-vault.css', 'mobile/mobile-vault.js', 'mobile/mobile-settings.css', 'mobile/mobile-settings.js']);
 const VERSIONED_HTML_FILES = new Set(['index.html', 'privacy.html', 'terms.html', 'desktop-quickwake.html']);
 const CLEAN_URL_ALIASES: Record<string, string> = { '/privacy': 'privacy.html', '/terms': 'terms.html', '/quickwake': 'desktop-quickwake.html' };
 const BUILD_VERSION_PLACEHOLDER = '__NAGEX_BUILD_VERSION__';
 
 function createBuildVersion(): string {
   const hash = crypto.createHash('sha256');
-  for (const filename of ['style.css', 'i18n.js', 'auth-ui.js', 'org-ui.js', 'rbac-ui.js', 'intent-interaction-state.js', 'plan-resolution-view.js', 'calendar-approval-view.js', 'calendar-intent-extraction.js', 'calendar-payload-validation.js', 'gmail-approval-view.js', 'gmail-intent-extraction.js', 'browser-approval-view.js', 'browser-intent-extraction.js', 'modal-behavior.js', 'timeline-dedupe.js', 'single-flight-guard.js', 'legal.js', 'app.js', 'shared/tokens.css', 'shared/components.css', 'desktop/desktop-home.css', 'desktop/desktop-home.js', 'mobile/mobile-home.css', 'mobile/mobile-home.js', 'mobile/mobile-inbox.css', 'mobile/mobile-inbox.js', 'mobile/mobile-activity.css', 'mobile/mobile-activity.js', 'mobile/mobile-vault.css', 'mobile/mobile-vault.js', 'mobile/mobile-settings.css', 'mobile/mobile-settings.js']) {
+  for (const filename of ['style.css', 'i18n.js', 'auth-ui.js', 'org-ui.js', 'rbac-ui.js', 'enterprise-identity-ui.js', 'intent-interaction-state.js', 'plan-resolution-view.js', 'calendar-approval-view.js', 'calendar-intent-extraction.js', 'calendar-payload-validation.js', 'gmail-approval-view.js', 'gmail-intent-extraction.js', 'browser-approval-view.js', 'browser-intent-extraction.js', 'modal-behavior.js', 'timeline-dedupe.js', 'single-flight-guard.js', 'legal.js', 'app.js', 'shared/tokens.css', 'shared/components.css', 'desktop/desktop-home.css', 'desktop/desktop-home.js', 'mobile/mobile-home.css', 'mobile/mobile-home.js', 'mobile/mobile-inbox.css', 'mobile/mobile-inbox.js', 'mobile/mobile-activity.css', 'mobile/mobile-activity.js', 'mobile/mobile-vault.css', 'mobile/mobile-vault.js', 'mobile/mobile-settings.css', 'mobile/mobile-settings.js']) {
     hash.update(filename);
     hash.update(fs.readFileSync(path.join(PUBLIC_DIR, filename)));
   }
@@ -123,6 +127,8 @@ export const {
   organizationStore,
   rbacStore,
   rbacService,
+  enterpriseIdentityStore,
+  ssoFlowStore,
   actionApprovals,
   executionStore,
   moduleRegistry,
@@ -262,6 +268,8 @@ export async function handleAsyncApiRequest(
     organizationStore?: OrganizationStore;
     rbacStore?: RbacStore;
     rbacService?: RbacService;
+    enterpriseIdentityStore?: EnterpriseIdentityStore;
+    ssoFlowStore?: SsoFlowStore;
   }
 ): Promise<ApiResult> {
   try {
@@ -301,6 +309,38 @@ export async function handleAsyncApiRequest(
         sessionStore: customDeps?.sessionStore ?? sessionStore,
       });
       if (rbacResult) return rbacResult;
+    }
+    {
+      // R16 — publicBaseUrl is derived per-request from the Host header
+      // (never a fixed constant) since every test spins up its own
+      // in-process server on an OS-assigned ephemeral port, and OIDC
+      // redirect_uri / SAML ACS URL / entityId must exactly match the
+      // origin the browser is actually talking to.
+      const hostHeader = Array.isArray(headers['host']) ? headers['host'][0] : headers['host'];
+      const publicBaseUrl = `http://${hostHeader ?? '127.0.0.1'}`;
+      const enterpriseIdentityResult = await handleEnterpriseIdentityRoutes(method, pathname, body, headers, query, {
+        rbacService: customDeps?.rbacService ?? rbacService,
+        organizationStore: customDeps?.organizationStore ?? organizationStore,
+        identityStore: customDeps?.identityStore ?? identityStore,
+        sessionStore: customDeps?.sessionStore ?? sessionStore,
+        rbacStore: customDeps?.rbacStore ?? rbacStore,
+        enterpriseIdentityStore: customDeps?.enterpriseIdentityStore ?? enterpriseIdentityStore,
+        ssoFlowStore: customDeps?.ssoFlowStore ?? ssoFlowStore,
+        auditLogger,
+        fetchFn: fetch,
+        publicBaseUrl,
+      });
+      if (enterpriseIdentityResult) return enterpriseIdentityResult;
+
+      const scimResult = await handleScimRoutes(method, pathname, body, headers, query, {
+        identityStore: customDeps?.identityStore ?? identityStore,
+        organizationStore: customDeps?.organizationStore ?? organizationStore,
+        sessionStore: customDeps?.sessionStore ?? sessionStore,
+        rbacStore: customDeps?.rbacStore ?? rbacStore,
+        enterpriseIdentityStore: customDeps?.enterpriseIdentityStore ?? enterpriseIdentityStore,
+        auditLogger,
+      });
+      if (scimResult) return scimResult;
     }
 
     // R10.2-D Increment 5 — Model provider status/health-check routes.
@@ -586,7 +626,12 @@ export function createServerInstance(opts?: {
       return;
     }
 
-    if (pathname.startsWith('/api/')) {
+    // R16 — SCIM 2.0 routes (/scim/v2/Users, /scim/v2/Groups) deliberately
+    // live outside /api/ per the SCIM protocol convention (a SCIM client is
+    // configured with a base URL, not an app-specific API prefix). Without
+    // this second prefix, those routes were structurally unreachable —
+    // every request fell through to the static file server and 404'd.
+    if (pathname.startsWith('/api/') || pathname.startsWith('/scim/')) {
       const bodyChunks: Buffer[] = [];
       req.on('data', (chunk) => bodyChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
       req.on('end', async () => {
@@ -626,7 +671,14 @@ export function createServerInstance(opts?: {
           opts
         );
         if (result.redirectTo) {
-          res.writeHead(result.status, { Location: result.redirectTo });
+          // R16 — found while wiring the OIDC/SAML login callbacks, which
+          // are the first callers to ever combine a redirect with a
+          // Set-Cookie header (e.g. Google OAuth's own redirect-only
+          // callback never sets a session cookie on the redirect itself).
+          // result.headers must be honored here exactly like the non-
+          // redirect branch below already does, or any future redirect+
+          // cookie response silently drops the cookie.
+          res.writeHead(result.status, { Location: result.redirectTo, ...(result.headers || {}) });
           res.end();
           return;
         }

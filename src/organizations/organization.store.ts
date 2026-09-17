@@ -508,6 +508,18 @@ export class OrganizationStore {
     return mem ? { ...mem } : null;
   }
 
+  // R16 — regardless of status, including REMOVED/SUSPENDED. Needed so
+  // JIT provisioning (which only ever sees getMembership() return null
+  // for a REMOVED membership) can tell "never was a member" apart from
+  // "was explicitly removed/deprovisioned" and refuse to silently
+  // resurrect the latter via an SSO login alone.
+  public getMembershipAnyStatus(orgId: string, userId: string): MembershipRecord | null {
+    const mem = Array.from(this.memberships.values()).find(
+      (m) => m.organizationId === orgId && m.userId === userId
+    );
+    return mem ? { ...mem } : null;
+  }
+
   public addMember(orgId: string, userId: string, role: MembershipRole = 'MEMBER'): MembershipRecord {
     const timestamp = this.now();
     const membership: MembershipRecord = {

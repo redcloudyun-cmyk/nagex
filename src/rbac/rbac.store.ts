@@ -52,24 +52,31 @@ export class RbacStore {
     this.seedBuiltInRoles();
   }
 
+  // R16 — builtin (isSystem) role definitions must stay in sync with code,
+  // not just seeded once. A builtin role's permission set is never
+  // user-customized (only custom roles are), so it is always safe — and,
+  // as of R16 adding new permissions to OWNER/ADMIN, necessary — to
+  // refresh name/description/permissions on every construction rather
+  // than only writing the record the first time it's ever seen. Without
+  // this, a permission added to BUILTIN_ROLE_DEFINITIONS in code would
+  // silently never apply on any data dir where the role file already
+  // existed on disk from an earlier version.
   private seedBuiltInRoles(): void {
     const now = new Date().toISOString();
     for (const [key, def] of Object.entries(BUILTIN_ROLE_DEFINITIONS)) {
       const roleId = BUILTIN_ROLE_IDS[key as BuiltInRole];
       const existing = this.rolesStore.read(roleId);
-      if (!existing) {
-        this.rolesStore.write(roleId, {
-          roleId,
-          organizationId: null, // System-wide
-          name: def.name,
-          description: def.description,
-          isSystem: true,
-          permissions: def.permissions,
-          createdByUserId: 'system',
-          createdAt: now,
-          updatedAt: now,
-        });
-      }
+      this.rolesStore.write(roleId, {
+        roleId,
+        organizationId: null, // System-wide
+        name: def.name,
+        description: def.description,
+        isSystem: true,
+        permissions: def.permissions,
+        createdByUserId: 'system',
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
+      });
     }
   }
 

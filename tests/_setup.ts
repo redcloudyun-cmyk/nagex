@@ -93,5 +93,24 @@ process.env.NAGEX_MEMORIES_DIR ??= path.join(dataRoot, 'memories');
 process.env.NAGEX_MODULE_STATE_DIR ??= path.join(dataRoot, 'module-state');
 process.env.NAGEX_WORKFLOW_DEFINITIONS_DIR ??= path.join(dataRoot, 'workflows');
 process.env.NAGEX_CAPABILITIES_IDEMPOTENCY_DIR ??= path.join(dataRoot, 'capabilities_idempotency');
+// R16 — found while debugging the real-browser certification test: these
+// four were NEVER redirected here, a gap predating R16 (IdentityStore/
+// IdentityTokenStore/IdentityAuditStore are R13, OrganizationStore is
+// R14). Every test that constructs a real server via createServerInstance()
+// (which builds these with zero-arg `new XStore()`, i.e. no dir override)
+// has therefore always read/written the REAL persistent dev data
+// directory for identities and organizations, not an isolated temp one.
+// This went unnoticed because most real-browser tests already use
+// timestamp-suffixed emails/org names per run, making collisions
+// improbable rather than impossible — R16's own real-browser test used a
+// fixed literal test email and hit exactly this collision on a second
+// run, which is what surfaced it. Fixed at the root here rather than by
+// making every future test remember to suffix its test data.
+process.env.NAGEX_IDENTITY_DIR ??= path.join(dataRoot, 'identity');
+process.env.NAGEX_IDENTITY_TOKENS_DIR ??= path.join(dataRoot, 'identity-tokens');
+process.env.NAGEX_IDENTITY_AUDIT_DIR ??= path.join(dataRoot, 'identity-audit');
+process.env.NAGEX_ORGANIZATION_DIR ??= path.join(dataRoot, 'organizations');
+process.env.NAGEX_ENTERPRISE_IDENTITY_DIR ??= path.join(dataRoot, 'enterprise-identity');
+process.env.NAGEX_SSO_FLOW_DIR ??= path.join(dataRoot, 'sso-flow');
 
 

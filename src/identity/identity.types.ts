@@ -14,11 +14,20 @@ export type AccountState =
 
 export type VerificationStatus = 'UNVERIFIED' | 'VERIFIED';
 
+// R16 — 'oidc'/'saml' mark an account whose ORIGINAL creation was via
+// enterprise federation (JIT-provisioned); 'scim' marks one created by an
+// IdP's SCIM provisioning client. None of these three ever carry a usable
+// local password (passwordHash is empty on creation) — local login
+// remains possible only if the organization's local-login policy allows
+// it AND the user separately sets a password, which never happens
+// automatically. This is a display/provenance field only, never used as
+// an authorization decision by itself — see EnterpriseIdentityLinkStore
+// for the actual provider/subject binding RBAC-adjacent code relies on.
 export interface IdentityRecord {
   userId: string;               // UUID immutable identifier (e.g. user_550e8400-e29b-41d4-a716-446655440000)
   email: string;                // Normalized, lowercase email
-  passwordHash: string;         // Salted password hash (crypto.scrypt)
-  authProvider: 'local';
+  passwordHash: string;         // Salted password hash (crypto.scrypt); empty for enterprise/SCIM-provisioned accounts
+  authProvider: 'local' | 'oidc' | 'saml' | 'scim';
   verificationStatus: VerificationStatus;
   accountState: AccountState;
   createdAt: string;            // ISO date string

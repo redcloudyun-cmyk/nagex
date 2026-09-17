@@ -179,6 +179,10 @@
     "organization_lifecycle",
     "organization_real_browser",
     "rbac_lifecycle",
-    "rbac_real_browser"
+    "rbac_real_browser",
+    "enterprise_identity_lifecycle",
+    "enterprise_identity_oidc_security",
+    "enterprise_identity_saml_security",
+    "enterprise_identity_real_browser"
   ]
 }

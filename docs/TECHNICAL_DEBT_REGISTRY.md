@@ -437,6 +437,70 @@ status: CLOSED
 
 ---
 
+```yaml
+id: DEBT-0007
+area: enterprise-identity/saml
+description: >
+  src/enterprise-identity/saml.service.ts's SAML 2.0 Response verifier
+  (verifySamlResponse, extractBlock/extractText/extractAttr) is a
+  hand-rolled, narrow ALLOWLIST XML extractor, not a general XML parser,
+  XPath engine, or a conformant XML-DSig/C14N (Canonical XML)
+  implementation. It recognizes exactly the fixed set of tags/attributes a
+  SAML Response/Assertion/Signature from this codebase's supported IdP
+  shapes uses, handles both self-closing and open/close element forms for
+  those tags specifically, and computes the signed digest by string-level
+  removal of the <Signature> block from the assertion text rather than by
+  performing real Canonical XML (C14N) transformation per the XML-DSig
+  spec. No XML/SAML library exists anywhere in this codebase's
+  dependencies (confirmed via the R16 architecture survey), so this was
+  written from scratch using only node:crypto, following this codebase's
+  established "hand-roll with node:crypto" convention (the same one
+  src/enterprise-identity/oidc.service.ts's RS256 JWT verification uses).
+severity: medium
+introduced: R16 (2026-09-17)
+reason: >
+  R16's scope required real (non-mocked) SAML 2.0 signature verification
+  and explicit XML Signature Wrapping (XSW) attack defense on a hard
+  deadline, with no XML/XML-DSig dependency available or introducible
+  mid-milestone without its own review. The chosen design deliberately
+  narrows scope to what can be verified correctly and defended
+  adversarially with a small, auditable extractor rather than attempting
+  a general-purpose, spec-complete XML-DSig/C14N implementation by hand
+  (a much larger and more failure-prone undertaking). The primary XSW
+  defense — rejecting any Response that does not contain EXACTLY one
+  <Assertion> and EXACTLY one <Signature> anywhere in the document — does
+  not depend on full C14N conformance and is verified against two
+  distinct real XSW payload variants in
+  tests/enterprise_identity_saml_security.test.ts.
+risk: >
+  Medium. The exactly-one-Assertion/exactly-one-Signature guard, real
+  RSA-SHA256 signature verification against the administrator-configured
+  certificate (never an embedded KeyInfo cert), and real SHA-256 digest
+  comparison together close the specific attack classes R16 §53 required
+  (unsigned, wrong issuer/audience/recipient, expired, not-yet-valid,
+  InResponseTo mismatch, replay, foreign-tenant-cert, tampered digest,
+  tampered signature, two XSW variants, Reference-URI mismatch, missing
+  Conditions — all 16 covered by passing tests). The residual risk is
+  against IdPs that emit SAML Responses using XML constructs this
+  extractor's allowlist does not anticipate (e.g. XML namespace prefix
+  variations beyond what was tested, comments/CDATA used to hide content
+  from the extractor but not from a real XML parser, or non-C14N-exempt
+  whitespace/attribute-ordering differences that would matter to a fully
+  spec-conformant verifier). This codebase's own test IdP
+  (tests/_enterprise_identity_test_idp.ts) and the real IdPs this was
+  validated against during R16 use a fixed, known XML shape, so this gap
+  is real but has not been exercised as a live vulnerability.
+target: unscheduled — revisit if/when NAgex adds a real XML/XML-DSig
+  dependency (e.g. for a different feature requiring general XML
+  processing), at which point saml.service.ts's verification should be
+  migrated onto it rather than continuing to extend the hand-rolled
+  extractor's allowlist ad hoc.
+owner: NAGEX
+status: OPEN
+```
+
+---
+
 ## Explicitly classified as NON-GOAL, not debt
 
 Per the R11 directive's own explicit instruction not to silently call every disclosed limitation "debt":

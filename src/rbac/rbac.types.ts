@@ -26,6 +26,16 @@ export const PERMISSIONS = {
   WORKSPACE_UPDATE: 'workspace.update',
   WORKSPACE_ARCHIVE: 'workspace.archive',
   WORKSPACE_DELETE: 'workspace.delete',
+
+  // R16 — Enterprise Identity Federation & Provisioning (Organization scope only)
+  IDENTITY_PROVIDER_READ: 'identity_provider.read',
+  IDENTITY_PROVIDER_MANAGE: 'identity_provider.manage',
+  DOMAIN_READ: 'domain.read',
+  DOMAIN_MANAGE: 'domain.manage',
+  PROVISIONING_READ: 'provisioning.read',
+  PROVISIONING_MANAGE: 'provisioning.manage',
+  SSO_POLICY_READ: 'sso_policy.read',
+  SSO_POLICY_MANAGE: 'sso_policy.manage',
 } as const;
 
 export type PermissionKey = typeof PERMISSIONS[keyof typeof PERMISSIONS];
@@ -93,6 +103,15 @@ export const BUILTIN_ROLE_DEFINITIONS: Record<BuiltInRole, { name: string; descr
       { permissionKey: PERMISSIONS.WORKSPACE_UPDATE, scope: 'WORKSPACE' },
       { permissionKey: PERMISSIONS.WORKSPACE_ARCHIVE, scope: 'WORKSPACE' },
       { permissionKey: PERMISSIONS.WORKSPACE_DELETE, scope: 'WORKSPACE' },
+      // R16 — OWNER holds every enterprise identity permission.
+      { permissionKey: PERMISSIONS.IDENTITY_PROVIDER_READ, scope: 'ORGANIZATION' },
+      { permissionKey: PERMISSIONS.IDENTITY_PROVIDER_MANAGE, scope: 'ORGANIZATION' },
+      { permissionKey: PERMISSIONS.DOMAIN_READ, scope: 'ORGANIZATION' },
+      { permissionKey: PERMISSIONS.DOMAIN_MANAGE, scope: 'ORGANIZATION' },
+      { permissionKey: PERMISSIONS.PROVISIONING_READ, scope: 'ORGANIZATION' },
+      { permissionKey: PERMISSIONS.PROVISIONING_MANAGE, scope: 'ORGANIZATION' },
+      { permissionKey: PERMISSIONS.SSO_POLICY_READ, scope: 'ORGANIZATION' },
+      { permissionKey: PERMISSIONS.SSO_POLICY_MANAGE, scope: 'ORGANIZATION' },
     ],
   },
   ADMIN: {
@@ -111,6 +130,21 @@ export const BUILTIN_ROLE_DEFINITIONS: Record<BuiltInRole, { name: string; descr
       { permissionKey: PERMISSIONS.WORKSPACE_CREATE, scope: 'WORKSPACE' },
       { permissionKey: PERMISSIONS.WORKSPACE_UPDATE, scope: 'WORKSPACE' },
       { permissionKey: PERMISSIONS.WORKSPACE_ARCHIVE, scope: 'WORKSPACE' },
+      // R16 — ADMIN gets read on every enterprise identity area, plus
+      // "limited manage" per §41: it may operate day-to-day identity
+      // provider / domain / provisioning configuration, but NEVER
+      // sso_policy.manage (SSO_REQUIRED toggle, local-login policy) — §42
+      // names "ADMIN turns off SSO_REQUIRED" as exactly the privilege-
+      // escalation-adjacent action that must stay OWNER-only, since
+      // disabling enforcement is itself a security-boundary change, not
+      // routine identity administration.
+      { permissionKey: PERMISSIONS.IDENTITY_PROVIDER_READ, scope: 'ORGANIZATION' },
+      { permissionKey: PERMISSIONS.IDENTITY_PROVIDER_MANAGE, scope: 'ORGANIZATION' },
+      { permissionKey: PERMISSIONS.DOMAIN_READ, scope: 'ORGANIZATION' },
+      { permissionKey: PERMISSIONS.DOMAIN_MANAGE, scope: 'ORGANIZATION' },
+      { permissionKey: PERMISSIONS.PROVISIONING_READ, scope: 'ORGANIZATION' },
+      { permissionKey: PERMISSIONS.PROVISIONING_MANAGE, scope: 'ORGANIZATION' },
+      { permissionKey: PERMISSIONS.SSO_POLICY_READ, scope: 'ORGANIZATION' },
     ],
   },
   MEMBER: {

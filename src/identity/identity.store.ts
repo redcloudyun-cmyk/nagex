@@ -135,6 +135,72 @@ export class IdentityStore {
     return { identity, profile };
   }
 
+  // R16 — creates an identity for a user whose FIRST authentication ever
+  // was a verified enterprise IdP (JIT) or a SCIM provisioning call, never
+  // a local signup form. accountState starts ACTIVE (not
+  // PENDING_VERIFICATION) because a successful signature-verified IdP
+  // login/SCIM-authenticated create IS the verification — there is no
+  // separate email-link step to wait on, and gating it behind one would
+  // block the very SSO flow that just proved the user's identity.
+  // passwordHash is deliberately empty: verifyPassword() can never match
+  // an empty combined-hash string, so this account structurally cannot
+  // log in via the local password form until/unless a real password is
+  // set through the normal password-change flow.
+  public createEnterpriseAccount(email: string, authProvider: 'oidc' | 'saml' | 'scim'): { identity: IdentityRecord; profile: ProfileRecord } {
+    const normEmail = this.normalizeEmail(email);
+    // R16 §24 — deliberately NOT "return existing if found": an existing
+    // identity at this email (local or otherwise) must never be silently
+    // reused/merged just because a new IdP login happens to share the
+    // address. Callers (the JIT provisioning service) are responsible for
+    // checking getByEmail() themselves BEFORE calling this and routing to
+    // the explicit, authenticated account-linking flow (§25) instead when
+    // a collision exists — this method only ever creates a brand new
+    // identity, exactly like createAccount() does for local signups.
+    if (this.getByEmail(normEmail)) {
+      throw new NagexError({
+        code: 'AUTH_EMAIL_ALREADY_EXISTS',
+        category: 'VALIDATION',
+        message: 'An account with this email address already exists.',
+        request_id: `req_id_create_${Date.now()}`,
+      });
+    }
+
+    const userId = generateResourceId('usr');
+    const createdAt = this.now();
+
+    const identity: IdentityRecord = {
+      userId,
+      email: normEmail,
+      passwordHash: '',
+      authProvider,
+      verificationStatus: 'VERIFIED',
+      accountState: 'ACTIVE',
+      createdAt,
+      lastLoginAt: null,
+      passwordChangedAt: null,
+      disabledAt: null,
+      deletionRequestedAt: null,
+      scheduledPurgeAt: null,
+    };
+
+    const displayName = normEmail.split('@')[0] || 'User';
+    const profile: ProfileRecord = {
+      userId,
+      displayName,
+      avatarUrl: null,
+      locale: 'en',
+      timezone: 'UTC',
+      updatedAt: createdAt,
+    };
+
+    this.identities.set(userId, identity);
+    this.profiles.set(userId, profile);
+    this.identityFileStore.write(userId, identity);
+    this.profileFileStore.write(userId, profile);
+
+    return { identity, profile };
+  }
+
   public transitionState(userId: string, targetState: AccountState): IdentityRecord {
     const identity = this.identities.get(userId);
     if (!identity) {

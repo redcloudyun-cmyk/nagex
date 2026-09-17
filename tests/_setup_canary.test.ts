@@ -37,6 +37,12 @@ const REQUIRED_ISOLATION_VARS = [
   'NAGEX_CONVERSATIONS_DIR',
   'NAGEX_MODULE_STATE_DIR',
   'NAGEX_WORKFLOW_DEFINITIONS_DIR',
+  'NAGEX_ENTERPRISE_IDENTITY_DIR',
+  'NAGEX_SSO_FLOW_DIR',
+  'NAGEX_IDENTITY_DIR',
+  'NAGEX_IDENTITY_TOKENS_DIR',
+  'NAGEX_IDENTITY_AUDIT_DIR',
+  'NAGEX_ORGANIZATION_DIR',
 ] as const;
 
 test('SETUP-CANARY: this process was started with --require ./dist/tests/_setup.js (the only certified test entry point)', () => {

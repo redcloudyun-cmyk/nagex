@@ -68,6 +68,8 @@ import type { IdentityAuditStore } from '../identity/identity.audit.js';
 import type { OrganizationStore } from '../organizations/organization.store.js';
 import type { RbacStore } from '../rbac/rbac.store.js';
 import type { RbacService } from '../rbac/rbac.service.js';
+import type { EnterpriseIdentityStore } from '../enterprise-identity/enterprise-identity.store.js';
+import type { SsoFlowStore } from '../enterprise-identity/sso-flow.store.js';
 
 export interface NagexApplication {
   identityStore: IdentityStore;
@@ -76,6 +78,8 @@ export interface NagexApplication {
   organizationStore: OrganizationStore;
   rbacStore: RbacStore;
   rbacService: RbacService;
+  enterpriseIdentityStore: EnterpriseIdentityStore;
+  ssoFlowStore: SsoFlowStore;
   pdp: PolicyDecisionPoint;
   runtime: DurableRuntimeEngine;
   auditLogger: AuditLogger;

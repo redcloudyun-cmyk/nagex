@@ -359,6 +359,7 @@
           <button class="subnav-btn ${orgState.activeTab === 'general' ? 'active' : ''}" data-org-tab="general">${escapeHtml(t('org.generalTab', 'General'))}</button>
           <button class="subnav-btn ${orgState.activeTab === 'members' ? 'active' : ''}" data-org-tab="members">${escapeHtml(t('org.membersTab', 'Members'))}</button>
           <button class="subnav-btn ${orgState.activeTab === 'roles' ? 'active' : ''}" data-org-tab="roles">${escapeHtml(t('org.rolesTab', 'Roles & Permissions'))}</button>
+          <button class="subnav-btn ${orgState.activeTab === 'enterprise-identity' ? 'active' : ''}" data-org-tab="enterprise-identity">${escapeHtml(t('org.enterpriseIdentityTab', 'Enterprise Identity'))}</button>
           <button class="subnav-btn ${orgState.activeTab === 'invitations' ? 'active' : ''}" data-org-tab="invitations">${escapeHtml(t('org.invitationsTab', 'Invitations'))}</button>
           <button class="subnav-btn ${orgState.activeTab === 'workspaces' ? 'active' : ''}" data-org-tab="workspaces">${escapeHtml(t('org.workspacesTab', 'Workspaces'))}</button>
           <button class="subnav-btn ${orgState.activeTab === 'danger' ? 'active' : ''}" data-org-tab="danger">${escapeHtml(t('org.dangerZoneTab', 'Danger Zone'))}</button>
@@ -423,6 +424,12 @@
           msgArea.innerHTML = `<p class="form-error">Update failed.</p>`;
         }
       });
+    } else if (tab === 'enterprise-identity') {
+      if (window.NAGEX_ENTERPRISE_IDENTITY_UI) {
+        window.NAGEX_ENTERPRISE_IDENTITY_UI.renderTab(content, orgId);
+      } else {
+        content.innerHTML = 'Loading...';
+      }
     } else if (tab === 'roles') {
       if (window.NAGEX_RBAC_UI) {
         window.NAGEX_RBAC_UI.renderRolesTab(content, orgId);

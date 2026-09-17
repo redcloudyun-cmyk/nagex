@@ -88,6 +88,8 @@ import { IdentityAuditStore } from '../identity/identity.audit.js';
 import { OrganizationStore } from '../organizations/organization.store.js';
 import { RbacStore } from '../rbac/rbac.store.js';
 import { RbacService } from '../rbac/rbac.service.js';
+import { EnterpriseIdentityStore } from '../enterprise-identity/enterprise-identity.store.js';
+import { SsoFlowStore } from '../enterprise-identity/sso-flow.store.js';
 import { LifecycleManager } from './lifecycle-manager.js';
 
 // Common words that would otherwise create spurious "relevance" matches
@@ -109,6 +111,9 @@ export function createNagexApplication(): NagexApplication {
   const rbacStore = new RbacStore();
   const auditLogger = new AuditLogger();
   const rbacService = new RbacService(rbacStore, organizationStore, auditLogger);
+  // R16 — Enterprise Identity Federation & Provisioning stores.
+  const enterpriseIdentityStore = new EnterpriseIdentityStore();
+  const ssoFlowStore = new SsoFlowStore();
   const pdp = new PolicyDecisionPoint();
   const runtime = new DurableRuntimeEngine();
   const billing = new BillingLedgerEngine();
@@ -447,6 +452,8 @@ export function createNagexApplication(): NagexApplication {
     organizationStore,
     rbacStore,
     rbacService,
+    enterpriseIdentityStore,
+    ssoFlowStore,
     pdp,
     runtime,
     auditLogger,
