@@ -43,7 +43,7 @@ test('6. DEBT-0005: Browser History API pushState & popstate integrated for Back
 
 test('7. DEBT-0005: Re-selecting active tab prevents duplicate history entries', async () => {
   const appJs = fs.readFileSync(path.join(process.cwd(), 'public', 'app.js'), 'utf-8');
-  assert.match(appJs, /if \(currentHash !== targetHash \|\| prevTab !== tabId \|\| !hasState\)/);
+  assert.match(appJs, /alreadyPushed = st && st\.tabId === tabId/);
 });
 
 test('8. DEBT-0005: Location hash does not leak sensitive prompts or tokens', async () => {

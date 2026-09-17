@@ -351,7 +351,7 @@
     const prevTab = state.activeTab;
     state.activeTab = tabId;
 
-    document.querySelectorAll('.nav-menu .nav-item[data-tab], .mobile-bottom-nav .mob-nav-item[data-tab], #mobile-app-shell [data-tab]').forEach((el) => {
+    document.querySelectorAll('.nav-menu .nav-item[data-tab], .mobile-bottom-nav .mob-nav-item[data-tab], #mobile-app-shell [data-tab], .mh-bottom-nav [data-tab], .mh-nav-item[data-tab]').forEach((el) => {
       if (el.getAttribute('data-tab') === tabId) el.classList.add('active');
       else el.classList.remove('active');
     });
@@ -370,10 +370,10 @@
     if (!isNavigatingFromPopState && pushHistory && typeof window !== 'undefined' && window.history && window.history.pushState) {
       const catKey = tabId === 'tab-settings' ? (state.activeSettingsCat || 'connections') : null;
       const targetHash = getHashForTab(tabId, catKey);
-      const currentHash = window.location.hash;
-      const hasState = Boolean(window.history.state && window.history.state.tabId);
+      const st = window.history.state;
+      const alreadyPushed = st && st.tabId === tabId && st.settingsCat === catKey && window.location.hash === targetHash;
 
-      if (currentHash !== targetHash || prevTab !== tabId || !hasState) {
+      if (!alreadyPushed) {
         window.history.pushState({ tabId, settingsCat: catKey }, '', targetHash);
       }
     }
@@ -2276,7 +2276,9 @@
 
     if (!isNavigatingFromPopState && pushHistory && state.activeTab === 'tab-settings' && typeof window !== 'undefined' && window.history && window.history.pushState) {
       const targetHash = `#settings/${catKey}`;
-      if (window.location.hash !== targetHash) {
+      const st = window.history.state;
+      const alreadyPushed = st && st.tabId === 'tab-settings' && st.settingsCat === catKey && window.location.hash === targetHash;
+      if (!alreadyPushed) {
         window.history.pushState({ tabId: 'tab-settings', settingsCat: catKey }, '', targetHash);
       }
     }
