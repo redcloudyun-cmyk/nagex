@@ -8,7 +8,8 @@ import type {
   WorkspaceRecord,
   MembershipRecord,
   InvitationRecord,
-} from './organization.types.ts';
+  MembershipRole,
+} from './organization.types.js';
 
 export function isOrganizationRecord(value: unknown): value is OrganizationRecord {
   if (!value || typeof value !== 'object') return false;
@@ -506,6 +507,23 @@ export class OrganizationStore {
     );
     return mem ? { ...mem } : null;
   }
+
+  public addMember(orgId: string, userId: string, role: MembershipRole = 'MEMBER'): MembershipRecord {
+    const timestamp = this.now();
+    const membership: MembershipRecord = {
+      membershipId: generateResourceId('mbr'),
+      organizationId: orgId,
+      userId,
+      role,
+      status: 'ACTIVE',
+      joinedAt: timestamp,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    this.saveMembership(membership);
+    return { ...membership };
+  }
+
 
   public removeMember(orgId: string, targetUserId: string, _requestingUserId: string): MembershipRecord {
     const mem = Array.from(this.memberships.values()).find(

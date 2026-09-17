@@ -36,6 +36,7 @@ import { handleDeviceAgentRoutes } from './http/routes/device-agent.routes.js';
 import { handleAuthRoutes } from './http/routes/auth.routes.js';
 import { handleAccountRoutes } from './http/routes/account.routes.js';
 import { handleOrganizationRoutes } from './http/routes/organization.routes.js';
+import { handleRbacRoutes } from './http/routes/rbac.routes.js';
 import type { GoogleCalendarService } from './modules/calendar/index.js';
 import type { GmailService } from './modules/gmail/index.js';
 import { BrowserToolService, browserRuntime } from './modules/browser/index.js';
@@ -44,6 +45,13 @@ import type { ConversationContextService } from './conversations/conversation-co
 import type { TelegramService } from './integrations/telegram/telegram.service.js';
 import type { SlackService } from './integrations/slack/slack.service.js';
 import { NotificationEngine } from './notifications/notification.engine.js';
+import type { IdentityStore } from './identity/identity.store.js';
+import type { IdentityTokenStore } from './identity/identity.tokens.js';
+import type { IdentityAuditStore } from './identity/identity.audit.js';
+import type { SessionStore } from './sessions/session.store.js';
+import type { OrganizationStore } from './organizations/organization.store.js';
+import type { RbacStore } from './rbac/rbac.store.js';
+import type { RbacService } from './rbac/rbac.service.js';
 import { createNagexApplication } from './app/create-nagex-application.js';
 
 const PORT = Number(process.env.PORT || 8085);
@@ -53,14 +61,14 @@ const NO_CACHE_HEADERS = {
   Pragma: 'no-cache',
   Expires: '0',
 } as const;
-const MUTABLE_FRONTEND_FILES = new Set(['index.html', 'style.css', 'app.js', 'i18n.js', 'auth-ui.js', 'org-ui.js', 'intent-interaction-state.js', 'plan-resolution-view.js', 'calendar-approval-view.js', 'calendar-intent-extraction.js', 'calendar-payload-validation.js', 'gmail-approval-view.js', 'gmail-intent-extraction.js', 'browser-approval-view.js', 'browser-intent-extraction.js', 'modal-behavior.js', 'timeline-dedupe.js', 'single-flight-guard.js', 'legal.js', 'privacy.html', 'terms.html', 'desktop-quickwake.html', 'desktop-quickwake.css', 'desktop-quickwake.js', 'shared/tokens.css', 'shared/components.css', 'desktop/desktop-home.css', 'desktop/desktop-home.js', 'mobile/mobile-home.css', 'mobile/mobile-home.js', 'mobile/mobile-inbox.css', 'mobile/mobile-inbox.js', 'mobile/mobile-activity.css', 'mobile/mobile-activity.js', 'mobile/mobile-vault.css', 'mobile/mobile-vault.js', 'mobile/mobile-settings.css', 'mobile/mobile-settings.js']);
+const MUTABLE_FRONTEND_FILES = new Set(['index.html', 'style.css', 'app.js', 'i18n.js', 'auth-ui.js', 'org-ui.js', 'rbac-ui.js', 'intent-interaction-state.js', 'plan-resolution-view.js', 'calendar-approval-view.js', 'calendar-intent-extraction.js', 'calendar-payload-validation.js', 'gmail-approval-view.js', 'gmail-intent-extraction.js', 'browser-approval-view.js', 'browser-intent-extraction.js', 'modal-behavior.js', 'timeline-dedupe.js', 'single-flight-guard.js', 'legal.js', 'privacy.html', 'terms.html', 'desktop-quickwake.html', 'desktop-quickwake.css', 'desktop-quickwake.js', 'shared/tokens.css', 'shared/components.css', 'desktop/desktop-home.css', 'desktop/desktop-home.js', 'mobile/mobile-home.css', 'mobile/mobile-home.js', 'mobile/mobile-inbox.css', 'mobile/mobile-inbox.js', 'mobile/mobile-activity.css', 'mobile/mobile-activity.js', 'mobile/mobile-vault.css', 'mobile/mobile-vault.js', 'mobile/mobile-settings.css', 'mobile/mobile-settings.js']);
 const VERSIONED_HTML_FILES = new Set(['index.html', 'privacy.html', 'terms.html', 'desktop-quickwake.html']);
 const CLEAN_URL_ALIASES: Record<string, string> = { '/privacy': 'privacy.html', '/terms': 'terms.html', '/quickwake': 'desktop-quickwake.html' };
 const BUILD_VERSION_PLACEHOLDER = '__NAGEX_BUILD_VERSION__';
 
 function createBuildVersion(): string {
   const hash = crypto.createHash('sha256');
-  for (const filename of ['style.css', 'i18n.js', 'auth-ui.js', 'intent-interaction-state.js', 'plan-resolution-view.js', 'calendar-approval-view.js', 'calendar-intent-extraction.js', 'calendar-payload-validation.js', 'gmail-approval-view.js', 'gmail-intent-extraction.js', 'browser-approval-view.js', 'browser-intent-extraction.js', 'modal-behavior.js', 'timeline-dedupe.js', 'single-flight-guard.js', 'legal.js', 'app.js', 'shared/tokens.css', 'shared/components.css', 'desktop/desktop-home.css', 'desktop/desktop-home.js', 'mobile/mobile-home.css', 'mobile/mobile-home.js', 'mobile/mobile-inbox.css', 'mobile/mobile-inbox.js', 'mobile/mobile-activity.css', 'mobile/mobile-activity.js', 'mobile/mobile-vault.css', 'mobile/mobile-vault.js', 'mobile/mobile-settings.css', 'mobile/mobile-settings.js']) {
+  for (const filename of ['style.css', 'i18n.js', 'auth-ui.js', 'org-ui.js', 'rbac-ui.js', 'intent-interaction-state.js', 'plan-resolution-view.js', 'calendar-approval-view.js', 'calendar-intent-extraction.js', 'calendar-payload-validation.js', 'gmail-approval-view.js', 'gmail-intent-extraction.js', 'browser-approval-view.js', 'browser-intent-extraction.js', 'modal-behavior.js', 'timeline-dedupe.js', 'single-flight-guard.js', 'legal.js', 'app.js', 'shared/tokens.css', 'shared/components.css', 'desktop/desktop-home.css', 'desktop/desktop-home.js', 'mobile/mobile-home.css', 'mobile/mobile-home.js', 'mobile/mobile-inbox.css', 'mobile/mobile-inbox.js', 'mobile/mobile-activity.css', 'mobile/mobile-activity.js', 'mobile/mobile-vault.css', 'mobile/mobile-vault.js', 'mobile/mobile-settings.css', 'mobile/mobile-settings.js']) {
     hash.update(filename);
     hash.update(fs.readFileSync(path.join(PUBLIC_DIR, filename)));
   }
@@ -113,6 +121,8 @@ export const {
   identityTokenStore,
   identityAuditStore,
   organizationStore,
+  rbacStore,
+  rbacService,
   actionApprovals,
   executionStore,
   moduleRegistry,
@@ -244,35 +254,53 @@ export async function handleAsyncApiRequest(
   notificationApiService: NotificationEngine = notificationEngine,
   convStore: ConversationStore = conversationStore,
   convContextService: ConversationContextService = conversationContextService,
+  customDeps?: {
+    identityStore?: IdentityStore;
+    identityTokenStore?: IdentityTokenStore;
+    identityAuditStore?: IdentityAuditStore;
+    sessionStore?: SessionStore;
+    organizationStore?: OrganizationStore;
+    rbacStore?: RbacStore;
+    rbacService?: RbacService;
+  }
 ): Promise<ApiResult> {
   try {
     // R13 Identity & Account Lifecycle routes
     {
       const authResult = await handleAuthRoutes(method, pathname, body, headers, query, {
-        identityStore,
-        identityTokenStore,
-        identityAuditStore,
-        sessionStore,
+        identityStore: customDeps?.identityStore ?? identityStore,
+        identityTokenStore: customDeps?.identityTokenStore ?? identityTokenStore,
+        identityAuditStore: customDeps?.identityAuditStore ?? identityAuditStore,
+        sessionStore: customDeps?.sessionStore ?? sessionStore,
       });
       if (authResult) return authResult;
     }
     {
       const accountResult = await handleAccountRoutes(method, pathname, body, headers, query, {
-        identityStore,
-        identityTokenStore,
-        identityAuditStore,
-        sessionStore,
+        identityStore: customDeps?.identityStore ?? identityStore,
+        identityTokenStore: customDeps?.identityTokenStore ?? identityTokenStore,
+        identityAuditStore: customDeps?.identityAuditStore ?? identityAuditStore,
+        sessionStore: customDeps?.sessionStore ?? sessionStore,
       });
       if (accountResult) return accountResult;
     }
     {
       const orgResult = await handleOrganizationRoutes(method, pathname, body, headers, query, {
-        organizationStore,
-        identityStore,
-        identityAuditStore,
-        sessionStore,
+        organizationStore: customDeps?.organizationStore ?? organizationStore,
+        identityStore: customDeps?.identityStore ?? identityStore,
+        identityAuditStore: customDeps?.identityAuditStore ?? identityAuditStore,
+        sessionStore: customDeps?.sessionStore ?? sessionStore,
       });
       if (orgResult) return orgResult;
+    }
+    {
+      const rbacResult = await handleRbacRoutes(method, pathname, body, headers, query, {
+        rbacService: customDeps?.rbacService ?? rbacService,
+        organizationStore: customDeps?.organizationStore ?? organizationStore,
+        identityStore: customDeps?.identityStore ?? identityStore,
+        sessionStore: customDeps?.sessionStore ?? sessionStore,
+      });
+      if (rbacResult) return rbacResult;
     }
 
     // R10.2-D Increment 5 — Model provider status/health-check routes.
@@ -528,7 +556,15 @@ export function handleApiRequest(
   return { status: 404, data: { error: 'ENDPOINT_NOT_FOUND', message: `${method} ${pathname}` } };
 }
 
-export function createServerInstance(): http.Server {
+export function createServerInstance(opts?: {
+  identityStore?: IdentityStore;
+  identityTokenStore?: IdentityTokenStore;
+  identityAuditStore?: IdentityAuditStore;
+  sessionStore?: SessionStore;
+  organizationStore?: OrganizationStore;
+  rbacStore?: RbacStore;
+  rbacService?: RbacService;
+}): http.Server {
   return http.createServer((req, res) => {
     const url = new URL(req.url || '/', `http://localhost:${PORT}`);
     const pathname = url.pathname;
@@ -572,7 +608,23 @@ export function createServerInstance(): http.Server {
           };
         }
         const query = Object.fromEntries(url.searchParams);
-        const result = await handleAsyncApiRequest(method, pathname, parsedBody, req.headers, aiService, query);
+        const result = await handleAsyncApiRequest(
+          method,
+          pathname,
+          parsedBody,
+          req.headers,
+          aiService,
+          query,
+          googleCalendarService,
+          gmailService,
+          browserService,
+          telegramService,
+          slackService,
+          notificationEngine,
+          conversationStore,
+          conversationContextService,
+          opts
+        );
         if (result.redirectTo) {
           res.writeHead(result.status, { Location: result.redirectTo });
           res.end();

@@ -66,12 +66,16 @@ import type { IdentityStore } from '../identity/identity.store.js';
 import type { IdentityTokenStore } from '../identity/identity.tokens.js';
 import type { IdentityAuditStore } from '../identity/identity.audit.js';
 import type { OrganizationStore } from '../organizations/organization.store.js';
+import type { RbacStore } from '../rbac/rbac.store.js';
+import type { RbacService } from '../rbac/rbac.service.js';
 
 export interface NagexApplication {
   identityStore: IdentityStore;
   identityTokenStore: IdentityTokenStore;
   identityAuditStore: IdentityAuditStore;
   organizationStore: OrganizationStore;
+  rbacStore: RbacStore;
+  rbacService: RbacService;
   pdp: PolicyDecisionPoint;
   runtime: DurableRuntimeEngine;
   auditLogger: AuditLogger;

@@ -997,6 +997,9 @@
             <button class="settings-cat-tab" data-cat="devices" id="cat-tab-devices" role="tab" aria-selected="false" aria-controls="cat-panel-devices" onclick="window.NAGEX.switchSettingsCategory('devices')">
               <span data-i18n="settings.catDevices">Devices</span>
             </button>
+            <button class="settings-cat-tab" data-cat="organization" id="cat-tab-organization" role="tab" aria-selected="false" aria-controls="cat-panel-organization" onclick="window.NAGEX.switchSettingsCategory('organization')">
+              <span data-i18n="settings.catOrganization">Organization</span>
+            </button>
           </div>
 
           <div id="settings-save-feedback" class="settings-save-toast" hidden></div>
@@ -1079,6 +1082,11 @@
               <div id="settings-devices-list" style="margin-top: 1rem;">
                 <!-- Dynamically populated -->
               </div>
+            </div>
+
+            <!-- 7. ORGANIZATION -->
+            <div class="settings-card cat-panel" id="cat-panel-organization" role="tabpanel" aria-labelledby="cat-tab-organization" hidden>
+              <div id="desktop-org-settings-content"></div>
             </div>
 
             <!-- ADVANCED (Collapsible Drawer for Internal Architecture Links) -->
@@ -1627,6 +1635,11 @@
         <div id="mh-account-panel"></div>
       </section>
 
+      <div class="mh-settings-section-heading" data-i18n="settings.catOrganization">Organization</div>
+      <section class="mh-settings-card">
+        <div id="mh-org-settings-content"></div>
+      </section>
+
       <div class="mh-settings-section-heading" data-i18n="mobileSettings.sectionConnections">Connected Apps</div>
       <section class="mh-settings-card">
         <div id="mh-connections-row"></div>
@@ -1740,6 +1753,7 @@
   <script src="mobile/mobile-vault.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="auth-ui.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="org-ui.js?v=__NAGEX_BUILD_VERSION__"></script>
+  <script src="rbac-ui.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="mobile/mobile-settings.js?v=__NAGEX_BUILD_VERSION__"></script>
 </body>
 </html>

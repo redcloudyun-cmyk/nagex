@@ -2365,6 +2365,14 @@
     renderSettingsAiModel();
     renderSettingsDevices();
     if (window.NAGEX.renderProactiveAssistant) window.NAGEX.renderProactiveAssistant();
+    // R15 — Settings is reachable via a same-document hash navigation
+    // (switchTab never triggers a full page reload), so org/workspace/
+    // role context must be refreshed here rather than only once at
+    // initial page load. Without this, a membership change that happened
+    // out of band (e.g. accepting an invitation) would show as "No
+    // Organization Selected" until the next hard refresh, even though the
+    // real membership already exists.
+    if (window.NAGEX_ORG_UI && window.NAGEX_ORG_UI.loadOrgContext) window.NAGEX_ORG_UI.loadOrgContext();
     wireSettingsAdvancedToggle();
   }
 
@@ -3941,4 +3949,7 @@
       await loadAllData();
     },
   });
+
+  initRouter();
+  loadAllData();
 })();

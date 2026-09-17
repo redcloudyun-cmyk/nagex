@@ -177,6 +177,8 @@
     "identity_lifecycle",
     "identity_real_browser",
     "organization_lifecycle",
-    "organization_real_browser"
+    "organization_real_browser",
+    "rbac_lifecycle",
+    "rbac_real_browser"
   ]
 }

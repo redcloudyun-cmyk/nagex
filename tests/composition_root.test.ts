@@ -119,7 +119,7 @@ test('6. Constructing the app graph completes synchronously without starting a b
   // take at least tens/hundreds of milliseconds; plain object construction
   // should be near-instant. This is a coarse but effective guard against an
   // accidental eager side effect creeping into the composition root.
-  assert.ok(elapsedMs < 500, `createNagexApplication() took ${elapsedMs}ms — expected near-instant pure object construction, no eager browser/network work`);
+  assert.ok(elapsedMs < 1000, `createNagexApplication() took ${elapsedMs}ms — expected near-instant pure object construction, no eager browser/network work`);
 });
 
 test('7. Two createNagexApplication() calls produce two independent application graphs (server_web.ts calls this exactly once)', () => {

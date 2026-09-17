@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { handleAsyncApiRequest } from '../src/server_web.js';
 import { ActionApprovalStore } from '../src/governance/action-approval.store.js';
@@ -100,7 +101,7 @@ test('11. Raw audit events are not primary Activity rows', async () => {
 });
 
 test('12. Completed state requires real canonical completion', async () => {
-  const store = new ActivityStore({ dir: path.join(process.cwd(), 'tmp', 'act_comp_' + Date.now()) });
+  const store = new ActivityStore({ dir: fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-act-comp-')) });
   const act = store.record({
     tenantId: 't_comp',
     principalId: 'u_comp',
