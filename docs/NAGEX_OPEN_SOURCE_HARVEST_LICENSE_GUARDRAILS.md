@@ -5,6 +5,42 @@
 
 ---
 
+## 0. Prime Directive — First Principle
+
+> **NAGEX MUST NOT copy, adapt, vendor, embed, or depend on any external source code if there is any meaningful possibility of license conflict, commercial-use restriction, source-disclosure obligation, branding obligation, trial restriction, field-of-use restriction, redistribution restriction, or unclear provenance.**
+
+This is the **first and overriding rule** of the NAGEX Open Source Harvest program.
+
+Development-time reduction is always secondary to license certainty.
+
+If there is any doubt, ambiguity, mixed licensing, unclear ownership, uncertain file provenance, uncertain dependency licensing, or a need for legal interpretation beyond straightforward permissive use, the source is **REJECTED for COPY / ADAPT / DEPENDENCY**.
+
+When uncertainty remains:
+
+- do not copy the code
+- do not adapt the code
+- do not vendor the code
+- do not add it as a production dependency
+- do not use trial or source-available rights as a substitute for open-source rights
+- do not assume a repository-level license covers every subdirectory or file
+- use **REFERENCE ONLY** only when no source code is copied or derived from the implementation
+- otherwise reimplement independently from public behavior, standards, interfaces, or specifications
+
+The decision order is therefore:
+
+```text
+1. LICENSE / PROVENANCE CERTAINTY
+2. COMMERCIAL USE SAFETY
+3. MODIFICATION / REDISTRIBUTION SAFETY
+4. SECURITY / ARCHITECTURE COMPATIBILITY
+5. CODE QUALITY / MAINTENANCE CONFIDENCE
+6. DEVELOPMENT-TIME SAVINGS
+```
+
+If step 1, 2, or 3 is not a clear PASS, the Harvest candidate is rejected regardless of engineering value.
+
+---
+
 ## 1. Governing Rule
 
 Repository-level licensing is never sufficient by itself.
