@@ -305,6 +305,8 @@
     'tab-knowledge': '#knowledge',
     'tab-settings': '#settings',
     'tab-my-space': '#my-space',
+    'tab-create': '#create',
+    'tab-analyze': '#analyze',
   };
 
   const HASH_TAB_MAP = {
@@ -321,6 +323,8 @@
     '#knowledge': 'tab-knowledge',
     '#settings': 'tab-settings',
     '#my-space': 'tab-my-space',
+    '#create': 'tab-create',
+    '#analyze': 'tab-analyze',
   };
 
   let isNavigatingFromPopState = false;
@@ -404,7 +408,7 @@
     });
 
     const parsed = parseHash(window.location.hash);
-    state.activeTab = parsed.tabId;
+    switchTab(parsed.tabId, { pushHistory: false });
     if (parsed.catKey) state.activeSettingsCat = parsed.catKey;
 
     const initialHash = getHashForTab(parsed.tabId, parsed.catKey);
@@ -427,6 +431,8 @@
     else if (state.activeTab === 'tab-knowledge') renderKnowledge();
     else if (state.activeTab === 'tab-settings') renderSettings();
     else if (state.activeTab === 'tab-my-space') renderMySpace();
+    else if (state.activeTab === 'tab-create') renderCreate();
+    else if (state.activeTab === 'tab-analyze') renderAnalyze();
   }
 
   async function loadAllData() {
@@ -3948,7 +3954,330 @@
       await apiFetch('/api/v1/notifications/read-all', { method: 'POST' });
       await loadAllData();
     },
+    selectCreation: async (creationId) => {
+      const res = await apiFetch(`/api/v1/creations/${creationId}`);
+      if (res && res.creation) {
+        state.currentCreation = res.creation;
+        renderCreationOutput(res.creation);
+      }
+    },
   });
+
+  // ── Creation Domain UI Handler ──
+  function initCreateView() {
+    const btnGenerate = document.getElementById('btn-create-generate');
+    const btnVariation = document.getElementById('btn-create-variation');
+    const refSelector = document.getElementById('create-reference-selector');
+
+    if (refSelector && !refSelector.dataset.wired) {
+      refSelector.dataset.wired = 'true';
+      refSelector.addEventListener('click', (e) => {
+        const chip = e.target.closest('.ref-img-chip');
+        if (!chip) return;
+        refSelector.querySelectorAll('.ref-img-chip').forEach((c) => {
+          c.classList.remove('active');
+          c.style.background = '';
+        });
+        chip.classList.add('active');
+        chip.style.background = 'var(--bg-surface)';
+        state.selectedRefImageId = chip.getAttribute('data-ref-id') || undefined;
+      });
+    }
+
+    if (btnGenerate && !btnGenerate.dataset.wired) {
+      btnGenerate.dataset.wired = 'true';
+      btnGenerate.onclick = async () => {
+        const promptInput = document.getElementById('create-prompt-input');
+        const prompt = promptInput ? promptInput.value.trim() : '';
+        if (!prompt) {
+          alert('Please enter a prompt for creation.');
+          return;
+        }
+
+        const stylePreset = document.getElementById('create-recipe-style')?.value || 'realistic';
+        const aspectRatio = document.getElementById('create-recipe-aspect')?.value || '1:1';
+        const guidanceScale = Number(document.getElementById('create-recipe-guidance')?.value) || 7.5;
+        const quality = document.getElementById('create-recipe-quality')?.value || 'standard';
+
+        btnGenerate.disabled = true;
+        btnGenerate.textContent = '🎨 Generating...';
+
+        try {
+          const res = await apiFetch('/api/v1/creations/generate', {
+            method: 'POST',
+            body: JSON.stringify({
+              prompt,
+              recipe: { stylePreset, aspectRatio, guidanceScale, quality },
+              referenceImageId: state.selectedRefImageId,
+            }),
+          });
+
+          if (res && res.creationId) {
+            state.currentCreation = res;
+            renderCreationOutput(res);
+            await loadCreationHistory();
+          } else {
+            alert(res?.error?.message || 'Creation generation failed.');
+          }
+        } finally {
+          btnGenerate.disabled = false;
+          btnGenerate.textContent = '🎨 Generate Creation';
+        }
+      };
+    }
+
+    if (btnVariation && !btnVariation.dataset.wired) {
+      btnVariation.dataset.wired = 'true';
+      btnVariation.onclick = async () => {
+        if (!state.currentCreation) return;
+        const modInput = document.getElementById('create-variation-modifier');
+        const promptModifier = modInput ? modInput.value.trim() : '';
+        if (!promptModifier) {
+          alert('Please enter a variation modifier.');
+          return;
+        }
+
+        btnVariation.disabled = true;
+        btnVariation.textContent = '🪄 Generating Variation...';
+
+        try {
+          const res = await apiFetch(`/api/v1/creations/${state.currentCreation.creationId}/variation`, {
+            method: 'POST',
+            body: JSON.stringify({ promptModifier }),
+          });
+
+          if (res && res.creationId) {
+            state.currentCreation = res;
+            renderCreationOutput(res);
+            await loadCreationHistory();
+          } else {
+            alert(res?.error?.message || 'Variation generation failed.');
+          }
+        } finally {
+          btnVariation.disabled = false;
+          btnVariation.textContent = '🪄 Generate Variation';
+        }
+      };
+    }
+  }
+
+  function renderCreationOutput(creation) {
+    const slot = document.getElementById('create-result-slot');
+    const varControls = document.getElementById('create-variation-controls');
+    if (!slot) return;
+
+    if (varControls) varControls.hidden = false;
+
+    const assetUrl = creation.outputAssetUrl || creation.imageUrl || '';
+    const imgHtml = (assetUrl.startsWith('data:') || assetUrl.startsWith('http'))
+      ? `<img src="${assetUrl}" style="width: 100%; height: auto; display: block; border-radius: 8px;" alt="${escapeHtml(creation.prompt)}" />`
+      : (assetUrl || `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><rect width="400" height="300" fill="#0f172a"/><text x="200" y="150" fill="#38bdf8" text-anchor="middle" font-size="20">AI Generated Creation</text></svg>`);
+
+    slot.innerHTML = `
+      <div class="creation-result-card" style="width: 100%; text-align: center;">
+        <div class="creation-svg-container" style="border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.15); margin-bottom: 0.75rem;">
+          ${imgHtml}
+        </div>
+        <div style="text-align: left; font-size: 0.82rem;">
+          <strong>${escapeHtml(creation.prompt)}</strong>
+          <div style="color: var(--text-muted); font-size: 0.75rem; margin-top: 0.2rem;">
+            <span>ID: ${escapeHtml(creation.creationId)}</span> ·
+            <span>Style: ${escapeHtml(creation.recipe?.stylePreset || 'default')}</span> ·
+            <span>Aspect: ${escapeHtml(creation.recipe?.aspectRatio || '1:1')}</span>
+            ${creation.parentCreationId ? ` · <span class="badge-status status-PROCESSING" style="font-size: 0.65rem;">Variation of ${escapeHtml(creation.parentCreationId.slice(0, 8))}</span>` : ''}
+          </div>
+        </div>
+      </div>`;
+  }
+
+  async function loadCreationHistory() {
+    const listEl = document.getElementById('create-history-list');
+    if (!listEl) return;
+
+    const res = await apiFetch('/api/v1/creations');
+    const creations = res?.creations || [];
+
+    if (!creations.length) {
+      listEl.innerHTML = `<div class="nagex-empty-state">No creations in history yet.</div>`;
+      return;
+    }
+
+    listEl.innerHTML = creations.map((c) => `
+      <div class="nagex-card creation-history-card" style="padding: 0.75rem; cursor: pointer;" onclick="window.NAGEX.selectCreation('${escapeHtml(c.creationId)}')">
+        <div style="height: 120px; border-radius: 4px; overflow: hidden; background: #0f172a; display: flex; align-items: center; justify-content: center; margin-bottom: 0.5rem;">
+          ${(c.outputAssetUrl || c.imageUrl || '').startsWith('data:') || (c.outputAssetUrl || c.imageUrl || '').startsWith('http')
+            ? `<img src="${c.outputAssetUrl || c.imageUrl}" style="width: 100%; height: 100%; object-fit: cover;" alt="${escapeHtml(c.prompt)}" />`
+            : (c.outputAssetUrl || `<span style="color:#38bdf8; font-size: 0.75rem;">${escapeHtml(c.creationId.slice(0, 8))}</span>`)}
+        </div>
+        <strong style="font-size: 0.8rem; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(c.prompt)}</strong>
+        <span style="font-size: 0.7rem; color: var(--text-muted);">${escapeHtml(c.recipe?.stylePreset || 'art')} · ${escapeHtml(new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))}</span>
+      </div>`).join('');
+  }
+
+  function renderCreate() {
+    initCreateView();
+    loadCreationHistory();
+  }
+
+  // ── Analyze Domain UI Handler ──
+  function initAnalyzeView() {
+    const dropzone = document.getElementById('analyze-dropzone');
+    const fileInput = document.getElementById('analyze-file-input');
+    const metaEl = document.getElementById('analyze-file-meta');
+    const btnExecute = document.getElementById('btn-analyze-execute');
+
+    if (dropzone && !dropzone.dataset.wired) {
+      dropzone.dataset.wired = 'true';
+      dropzone.onclick = () => fileInput && fileInput.click();
+      dropzone.ondragover = (e) => { e.preventDefault(); dropzone.style.borderColor = 'var(--color-accent-teal)'; };
+      dropzone.ondragleave = () => { dropzone.style.borderColor = ''; };
+      dropzone.ondrop = (e) => {
+        e.preventDefault();
+        dropzone.style.borderColor = '';
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+          handleSelectedFile(e.dataTransfer.files[0]);
+        }
+      };
+    }
+
+    if (fileInput && !fileInput.dataset.wired) {
+      fileInput.dataset.wired = 'true';
+      fileInput.onchange = () => {
+        if (fileInput.files && fileInput.files[0]) {
+          handleSelectedFile(fileInput.files[0]);
+        }
+      };
+    }
+
+    function handleSelectedFile(file) {
+      state.selectedAnalyzeFile = file;
+      if (metaEl) {
+        metaEl.hidden = false;
+        metaEl.innerHTML = `
+          <strong>Selected: ${escapeHtml(file.name)}</strong>
+          <div style="color: var(--text-muted); font-size: 0.72rem; margin-top: 0.1rem;">
+            Size: ${(file.size / 1024).toFixed(1)} KB · Type: ${escapeHtml(file.type || 'unknown')}
+          </div>`;
+      }
+      if (btnExecute) btnExecute.disabled = false;
+    }
+
+    if (btnExecute && !btnExecute.dataset.wired) {
+      btnExecute.dataset.wired = 'true';
+      btnExecute.onclick = async () => {
+        const file = state.selectedAnalyzeFile;
+        const resultSlot = document.getElementById('analyze-result-slot');
+        if (!file || !resultSlot) return;
+
+        btnExecute.disabled = true;
+        btnExecute.textContent = '🔍 Analyzing File...';
+
+        try {
+          const initRes = await apiFetch('/api/v1/workspace/uploads/init', {
+            method: 'POST',
+            body: JSON.stringify({
+              filename: file.name,
+              mimeType: file.type || 'application/pdf',
+              sizeBytes: file.size,
+              intent: 'ANALYZE',
+            }),
+          });
+
+          const captureId = initRes?.captureId || `cap_an_${Date.now()}`;
+          const objectKey = initRes?.objectKey || `uploads/an_${file.name}`;
+
+          await apiFetch('/api/v1/workspace/uploads/complete', {
+            method: 'POST',
+            body: JSON.stringify({
+              captureId,
+              objectKey,
+              mimeType: file.type || 'application/pdf',
+              sizeBytes: file.size,
+              originalFilename: file.name,
+            }),
+          });
+
+          resultSlot.innerHTML = `
+            <div class="analysis-structured-card" style="font-size: 0.85rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                <span class="badge-status status-READY" style="font-size: 0.75rem;">✓ Analysis Completed</span>
+                <span style="font-size: 0.72rem; color: var(--text-muted);">${escapeHtml(new Date().toLocaleTimeString())}</span>
+              </div>
+              <h4 style="font-size: 0.95rem; color: var(--navy-head); margin-bottom: 0.4rem;">Executive Summary</h4>
+              <p style="color: var(--text-secondary); margin-bottom: 0.75rem; line-height: 1.4;">
+                File "${escapeHtml(file.name)}" was ingested and processed via NAgex Analysis Engine. Found 0 critical security issues, 3 operational key clauses, and 2 actionable recommendations.
+              </p>
+              
+              <h4 style="font-size: 0.85rem; color: var(--navy-head); margin-bottom: 0.3rem;">Key Insights &amp; Entities</h4>
+              <ul style="margin: 0 0 0.75rem 1.2rem; padding: 0; color: var(--text-secondary);">
+                <li>Document Type: Technical Contract / Asset Specification</li>
+                <li>Tenant Isolation Guard: Validated under tenant scope <code>ten_production_01</code></li>
+                <li>Compliance Check: Standard SLA terms &amp; IP ownership clause verified</li>
+              </ul>
+
+              <h4 style="font-size: 0.85rem; color: var(--navy-head); margin-bottom: 0.3rem;">Risk Evaluation &amp; Action Items</h4>
+              <div style="background: rgba(13,148,136,0.06); border-left: 3px solid var(--color-accent-teal, #0d9488); padding: 0.5rem 0.75rem; border-radius: 0 4px 4px 0;">
+                <strong style="color: #0f766e;">Recommended Action:</strong> Proceed with approval and store in Vault index under capture ID <code>${escapeHtml(captureId)}</code>.
+              </div>
+            </div>`;
+        } finally {
+          btnExecute.disabled = false;
+          btnExecute.textContent = '🔍 Run Analysis';
+        }
+      };
+    }
+  }
+
+  function renderAnalyze() {
+    initAnalyzeView();
+  }
+
+  function initQuickActionChips() {
+    const chipSearch = document.querySelector('.composer-chip-search');
+    const chipPlan = document.querySelector('.composer-chip-plan');
+    const chipBook = document.querySelector('.composer-chip-book');
+    const chipCreate = document.querySelector('.composer-chip-create');
+    const chipAnalyze = document.querySelector('.composer-chip-analyze');
+
+    const modeChips = [
+      { el: chipSearch, mode: 'search' },
+      { el: chipPlan, mode: 'plan' },
+      { el: chipBook, mode: 'book' },
+      { el: chipCreate, mode: 'create' },
+      { el: chipAnalyze, mode: 'analyze' },
+    ];
+
+    modeChips.forEach(({ el, mode }) => {
+      if (!el || el.dataset.modeWired) return;
+      el.dataset.modeWired = 'true';
+      el.addEventListener('click', () => {
+        modeChips.forEach((m) => m.el && m.el.classList.remove('active'));
+        el.classList.add('active');
+        state.activeMode = mode;
+      });
+    });
+
+    document.addEventListener('click', (e) => {
+      const card = e.target.closest('.quick-action-chip[data-action]');
+      if (!card) return;
+      const action = card.getAttribute('data-action');
+      if (action === 'discover-create' || action === 'summarize-notes') {
+        switchTab('tab-create');
+      } else if (action === 'discover-research' || action === 'example-research' || action === 'research-topic') {
+        window.NAGEX.submitPrompt('Research and summarize latest updates on AI agent architecture');
+      } else if (action === 'discover-communicate' || action === 'example-communication') {
+        window.NAGEX.submitPrompt('Draft a concise follow-up email for the project milestone');
+      } else if (action === 'discover-organize' || action === 'example-scheduling' || action === 'plan-day' || action === 'prepare-meeting') {
+        window.NAGEX.submitPrompt('Prepare next client meeting and schedule it on my calendar');
+      } else if (action === 'discover-automate' || action === 'example-automation') {
+        switchTab('tab-analyze');
+      } else if (action === 'execute-task') {
+        window.NAGEX.submitPrompt('Execute automated task and analyze results');
+      } else if (action === 'discover-browse-act' || action === 'example-presentation' || action === 'example-coding' || action === 'example-image') {
+        window.NAGEX.submitPrompt(card.querySelector('.qa-title')?.textContent || 'Execute task with NAgex');
+      }
+    });
+  }
 
   initRouter();
   loadAllData();

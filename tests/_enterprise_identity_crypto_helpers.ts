@@ -22,38 +22,59 @@ function base64Url(input: Buffer): string {
   return input.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
+const FALLBACK_PRIVATE_KEY_PEM =
+  '-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDsM5jksWM1hNeo\nXH836z2VGmJT5ON3zGUqzmOeJtk1KCG56mNgVLpzB1G65uW30bz75ObeXxzkz7Av\nSdOmF0WE+2zb0Fr64f5azdEn0OfiuQgizOvQp8j1Ab/+AbwkjEJNG2+GqQgPpOUU\nCXBxZvuDGo1I8tFWQO+NwxQIJItTIS/qTU3HDyVDCcTLh0l8Hm0RezVbSL530TFD\ntI4tlvFp9PlvPCypw3ochLRDnzACsUfOAULo09equHvAkPd3rnifPecwunvax3gh\nHl/w7HWyA+cV8ma8XPJAAXiua9WloKyAfD5BY90n5xZw2y99nGrlebPE5EjcMgJc\nE+nb2Za5AgMBAAECggEANyFJ5+LxXX3+mfjQ5rvc2U7ZsWwknYMS/91BShoWK36M\n9Khc/pB4Hj4QmPeomXF2UzLXogKAK3XAUSFBqawX2VSX0Wx9t74E0KvmTA1J+lSm\nrfy3c7GdyXXZmo9MGxmzpeyn6L3OOFyL7VPQr19SiASsAmFOc/vfDe8A32+sJ0AO\ncXYIQTCxpO6GxHXi98yxTr8GuewaLSRVOrgvuRqdZyMXDtoEwXdHsa6W8NpE0I4t\ncVhuUIRmu6JHx3DukCJhEkrWhjAvQRXBDiHKhnKRtXTIwppH0bv+LnJbUZnnK41m\n7kwNZuz3k7ih35w27ofCRD8eLZyI6NjdkeD4U2xNewKBgQD55LIP94GtDFXndvI3\nBmMMyvu60d8OtwZ8Zw3tYfmWOh9XhPJsRV04J08wCm7t92zpQFIjxqiRxRx3sANx\nrBdmatuhsJwNoTrdyt339D2nS2XvOqIvY2nPXeG3KwnxCUm7C2hUDwSOPyY2DwkJ\n1ndNPfgqtxm4VjcTjt8701zuFwKBgQDx+T9VOHIIrxBiqki3Scfo0N1KvXKODSYl\nHeWjukdvKClGZ43/oP2ynarbnnZHKwpLxF7e2her0VNKq2XVX4cVvcuNK9vUyTWs\nrEbFhQ2plwRr5YnMFk1nCoPwzzea9x8/HeJflRlrVPbF0XkAusGXUuqjRm4hzy2g\nimdpQCXzrwKBgQD3nPgfwCW7fgylFYS+p1KAe6XiIVGAODVyEX+IZ9uzUxZ5V2AL\njtPm73SU6tGudMxzd+usTY39Gy6xHjTbbyWks1+8IM8Q5mD5Iqq9pkNtQNXZreTF\nRiGze5hMMpZgQ87OS2huWo8uED7htBZFrEB8xlngoZwXvz5F3/0tP6vGswKBgH4j\npLRUPH3yZORKSKXjvGbNms5/e9w5Vo06zJ9RWDPGB94/1XJRBm+6aXsbXCU1dqSQ\ntbQOlRBoirb+KpPUvKLE0fvBxVNjoKtnE22cMscZhqCIhBDz/12bybQbEa2i7ZMF\njSCupRWisRHmZOHQeWLdQpvi9z6AthRekhH38tDZAoGBAO4q9x79fYaJaBOS05CS\nIZc1JLkXUST2P1n6Fa6Sz66VNF6E+4ntQayksPQ9shNiyaFdKE6vWueaaEwfE4Xr\nQG4zl/Xn1kyULqgoNELRMH4YFDdpQiFShzRNgYZs2RqkdETiwcM8ALxDWVt0QD/L\nEuVnd0phtl6Sl5DxDRdB7bJ5\n-----END PRIVATE KEY-----\n';
+
+const FALLBACK_CERTIFICATE_PEM =
+  '-----BEGIN CERTIFICATE-----\nMIIDEzCCAfugAwIBAgIUEzvi78xXp/uaYkIaj22ttrTl+RQwDQYJKoZIhvcNAQEL\nBQAwGTEXMBUGA1UEAwwObmFnZXgtdGVzdC1pZHAwHhcNMjYwOTE3MTIwODE1WhcN\nMzYwOTE4MTIwODE1WjAZMRcwFQYDVQQDDA5uYWdleC10ZXN0LWlkcDCCASIwDQYJ\nKoZIhvcNAQEBBQADggEPADCCAQoCggEBAOwzmOSxYzWE16hcfzfrPZUaYlPk43fM\nZSrOY54m2TUoIbnqY2BUunMHUbrm5bfRvPvk5t5fHOTPsC9J06YXRYT7bNvQWvrh\n/lrN0SfQ5+K5CCLM69CnyPUBv/4BvCSMQk0bb4apCA+k5RQJcHFm+4MajUjy0VZA\n743DFAgki1MhL+pNTccPJUMJxMuHSXwebRF7NVtIvnfRMUO0ji2W8Wn0+W88LKnD\nehyEtEOfMAKxR84BQujT16q4e8CQ93eueJ895zC6e9rHeCEeX/DsdbID5xXyZrxc\n8kABeK5r1aWgrIB8PkFj3SfnFnDbL32cauV5s8TkSNwyAlwT6dvZlrkCAwEAAaNT\nMFEwHQYDVR0OBBYEFKMbHXViEPgxQw7a8PdXBDG9IcqnMB8GA1UdIwQYMBaAFKMb\nHXViEPgxQw7a8PdXBDG9IcqnMA8GA1UdEwEB/wQFMAMBAf8wDQYJKoZIhvcNAQEL\nBQADggEBAN8YjDUZ0NLdvjGduWEUq1pbyd5+XLiL6Z+tK7dZ5jlXOZ6mYfAhwaHV\n9yobanYwBQrw5qUAjCb6wZmhsp2oQlPFGMMDDUJdX+iDSAOTLRyjbVeSrfFjGmWr\nFhmrgT9AptWFW2r58stG4GwlT3y52msjTgv7xKLMuPCfP0DY/TSqc7PBESBmZd2P\nytLQSkOyQFUHUkTapW1kgLRVkYg7ZwdBrxFMttIuiamVcmo3NVbTTRDxvMfImVlY\nFWm5ew6u52BtBXjlG3UsIikRHUDFxGIpNQ//2Gl+Wb33SOkBbMpXiPUTXGldiEhd\noGbKDSu/Gt0wMcACPbPXr14jAW9GM5M=\n-----END CERTIFICATE-----\n';
+
+function findOpensslBinary(): string | null {
+  const candidates = [
+    'openssl',
+    'C:\\Program Files\\Git\\usr\\bin\\openssl.exe',
+    'C:\\Program Files\\OpenSSL-Win64\\bin\\openssl.exe',
+  ];
+  for (const bin of candidates) {
+    try {
+      execFileSync(bin, ['version'], { stdio: 'ignore' });
+      return bin;
+    } catch {
+      // ignore
+    }
+  }
+  return null;
+}
+
 export function generateTestIdpKeys(kid = 'test-key-1'): TestIdpKeys {
-  const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const opensslBin = findOpensslBinary();
+  let privateKey: crypto.KeyObject;
+  let publicKey: crypto.KeyObject;
+  let certificatePem: string;
+
+  if (opensslBin) {
+    const pair = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+    privateKey = pair.privateKey;
+    publicKey = pair.publicKey;
+    certificatePem = createSelfSignedCertificateSync(opensslBin, privateKey);
+  } else {
+    privateKey = crypto.createPrivateKey(FALLBACK_PRIVATE_KEY_PEM);
+    publicKey = crypto.createPublicKey(FALLBACK_PRIVATE_KEY_PEM);
+    certificatePem = FALLBACK_CERTIFICATE_PEM;
+  }
+
   const jwkPublic = publicKey.export({ format: 'jwk' }) as { n: string; e: string };
   const jwk = { kty: 'RSA', kid, n: jwkPublic.n, e: jwkPublic.e, alg: 'RS256', use: 'sig' };
-
-  // Self-signed certificate wrapping the same keypair — crypto.X509Certificate
-  // has no Node-native "create/sign a cert" API, so this uses a minimal
-  // hand-built X.509 structure via crypto's low-level cert generation
-  // helper (Node 20+: X509Certificate can be built via the `crypto`
-  // module's `createCertificate`... which does not exist in core Node).
-  // Node has no built-in CA/cert-signing API at all, so certificate
-  // creation itself is done here with node-forge-free manual DER encoding
-  // is out of scope for a test helper; instead this uses OpenSSL via the
-  // system `openssl` CLI, which is present on every CI/dev machine that
-  // can run this repo's own git checkout (already relied on implicitly by
-  // Node's own crypto module build).
-  const certificatePem = createSelfSignedCertificateSync(privateKey, publicKey);
 
   return { privateKey, publicKey, jwk, certificatePem };
 }
 
-// Generates a self-signed certificate for the given keypair using the
-// system `openssl` binary via a temp key file — the only reliable way to
-// mint an X.509 certificate with no Node-native cert-signing API and no
-// new npm dependency. Test-only; production code never calls this.
-function createSelfSignedCertificateSync(privateKey: crypto.KeyObject, _publicKey: crypto.KeyObject): string {
+function createSelfSignedCertificateSync(opensslBin: string, privateKey: crypto.KeyObject): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-test-cert-'));
   const keyPath = path.join(dir, 'key.pem');
   const certPath = path.join(dir, 'cert.pem');
   const keyPem = privateKey.export({ type: 'pkcs8', format: 'pem' }) as string;
   fs.writeFileSync(keyPath, keyPem);
-  execFileSync('openssl', ['req', '-new', '-x509', '-key', keyPath, '-out', certPath, '-days', '365', '-subj', '/CN=nagex-test-idp'], { stdio: 'pipe' });
+  execFileSync(opensslBin, ['req', '-new', '-x509', '-key', keyPath, '-out', certPath, '-days', '365', '-subj', '/CN=nagex-test-idp'], { stdio: 'pipe' });
   const certPem = fs.readFileSync(certPath, 'utf8');
   fs.rmSync(dir, { recursive: true, force: true });
   return certPem;

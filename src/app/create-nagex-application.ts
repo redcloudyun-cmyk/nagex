@@ -73,6 +73,8 @@ import { InputRouter } from '../workspace/input-router.js';
 import { CandidateStore } from '../workspace/candidate.store.js';
 import { WorkflowDefinitionStore } from '../workflows/workflow-definition.store.js';
 import { WorkflowDefinitionService } from '../workflows/workflow-definition.service.js';
+import { CreationStore } from '../creation/creation.store.js';
+import { CreationService } from '../creation/creation.service.js';
 import { CandidateActionResolver } from '../workspace/action-resolver.js';
 import { ActivityStore } from '../governance/activity.store.js';
 import { DailyBriefStore } from '../governance/daily-brief.store.js';
@@ -205,6 +207,9 @@ export function createNagexApplication(): NagexApplication {
     auditLogger,
     desktopActivityAdapter,
   );
+
+  const creationStore = new CreationStore();
+  const creationService = new CreationService(creationStore, auditLogger);
 
   const capabilityBroker = new CapabilityBroker(
     googleCalendarService,
@@ -502,6 +507,8 @@ export function createNagexApplication(): NagexApplication {
     inputRouter,
     workflowDefinitionStore,
     workflowDefinitionService,
+    creationStore,
+    creationService,
     deviceExecutionSessionStore,
     deviceControlService,
     deviceIdentityStore,

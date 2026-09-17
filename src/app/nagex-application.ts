@@ -53,6 +53,8 @@ import type { LifecycleManager } from './lifecycle-manager.js';
 import type { ModuleRegistry, ModuleStateStore, ModuleService } from '../modules/index.js';
 import type { WorkflowDefinitionStore } from '../workflows/workflow-definition.store.js';
 import type { WorkflowDefinitionService } from '../workflows/workflow-definition.service.js';
+import type { CreationStore } from '../creation/creation.store.js';
+import type { CreationService } from '../creation/creation.service.js';
 import type { DeviceExecutionSessionStore } from '../device-control/device-execution-session.store.js';
 import type { DeviceControlService } from '../device-control/device-control.service.js';
 import type { DeviceIdentityStore } from '../device-agent/device-identity.store.js';
@@ -140,6 +142,8 @@ export interface NagexApplication {
   // Task/Plan/Capability Broker/Approval/Durable Runtime path unchanged.
   workflowDefinitionStore: WorkflowDefinitionStore;
   workflowDefinitionService: WorkflowDefinitionService;
+  creationStore: CreationStore;
+  creationService: CreationService;
   // DC1 — the durable Device Control session store, real from day one.
   deviceExecutionSessionStore: DeviceExecutionSessionStore;
   // DC2 — undefined whenever AstraVisualExecutionModelAdapter reports

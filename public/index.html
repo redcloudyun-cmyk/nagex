@@ -1106,6 +1106,129 @@
           </div>
         </div>
 
+        <!-- VIEW: CREATE (AI CREATION STUDIO) -->
+        <div id="view-create" class="tab-view canvas-mode-doc">
+          <div class="view-header-bar" style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <h2 data-i18n="create.title">AI Creation Studio</h2>
+              <p class="view-sub" data-i18n="create.subtitle">Generate images, art, and visual assets with AI prompt recipes &amp; reference images.</p>
+            </div>
+          </div>
+
+          <div class="create-container" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1rem;">
+            <!-- Left Column: Prompt, Recipe & Reference Image Controls -->
+            <div class="nagex-card" style="padding: 1.25rem;">
+              <h3 style="font-size: 1rem; color: var(--navy-head); margin-bottom: 0.75rem;" data-i18n="create.recipeTitle">Creation Prompt &amp; Recipe</h3>
+              <label style="display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 0.25rem;" data-i18n="create.promptLabel">Prompt</label>
+              <textarea id="create-prompt-input" rows="3" class="unified-prompt-textarea" style="width: 100%; font-size: 0.9rem; padding: 0.5rem; border: 1px solid var(--border-subtle); border-radius: 6px;" placeholder="Describe what you want to create (e.g. Futuristic glass skyscraper in sunset glow)..."></textarea>
+              
+              <div class="recipe-controls-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 1rem;">
+                <div>
+                  <label style="display: block; font-size: 0.8rem; font-weight: 500; margin-bottom: 0.2rem;" data-i18n="create.styleLabel">Style Preset</label>
+                  <select id="create-recipe-style" style="width: 100%; padding: 0.4rem; border-radius: 4px; border: 1px solid var(--border-subtle);">
+                    <option value="realistic">Realistic Photo</option>
+                    <option value="vector">Vector Illustration</option>
+                    <option value="cinematic">Cinematic Art</option>
+                    <option value="minimalist">Minimalist Design</option>
+                    <option value="cyberpunk">Cyberpunk Neo-Tokyo</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="display: block; font-size: 0.8rem; font-weight: 500; margin-bottom: 0.2rem;" data-i18n="create.aspectLabel">Aspect Ratio</label>
+                  <select id="create-recipe-aspect" style="width: 100%; padding: 0.4rem; border-radius: 4px; border: 1px solid var(--border-subtle);">
+                    <option value="1:1">1:1 Square</option>
+                    <option value="16:9">16:9 Landscape</option>
+                    <option value="9:16">9:16 Story/Mobile</option>
+                    <option value="4:3">4:3 Desktop</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="display: block; font-size: 0.8rem; font-weight: 500; margin-bottom: 0.2rem;"><span data-i18n="create.guidanceLabel">Guidance Scale:</span> <span id="create-guidance-val">7.5</span></label>
+                  <input type="range" id="create-recipe-guidance" min="1" max="20" step="0.5" value="7.5" style="width: 100%;" oninput="document.getElementById('create-guidance-val').textContent=this.value">
+                </div>
+                <div>
+                  <label style="display: block; font-size: 0.8rem; font-weight: 500; margin-bottom: 0.2rem;" data-i18n="create.qualityLabel">Quality</label>
+                  <select id="create-recipe-quality" style="width: 100%; padding: 0.4rem; border-radius: 4px; border: 1px solid var(--border-subtle);">
+                    <option value="standard">Standard</option>
+                    <option value="hd">HD Ultra</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Reference Image Section -->
+              <div style="margin-top: 1rem;">
+                <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 0.3rem;" data-i18n="create.referenceLabel">Reference Image (Optional)</label>
+                <div id="create-reference-selector" style="display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.3rem;">
+                  <button type="button" class="ref-img-chip active" data-ref-id="" style="padding: 0.3rem 0.6rem; border-radius: 4px; border: 1px solid var(--border-subtle); font-size: 0.75rem; background: var(--bg-surface);">None</button>
+                  <button type="button" class="ref-img-chip" data-ref-id="ref_img_neon_city" style="padding: 0.3rem 0.6rem; border-radius: 4px; border: 1px solid var(--border-subtle); font-size: 0.75rem;">🖼️ Neon City Ref</button>
+                  <button type="button" class="ref-img-chip" data-ref-id="ref_img_portrait_sketch" style="padding: 0.3rem 0.6rem; border-radius: 4px; border: 1px solid var(--border-subtle); font-size: 0.75rem;">🖼️ Portrait Ref</button>
+                </div>
+              </div>
+
+              <button id="btn-create-generate" class="btn-primary" style="width: 100%; margin-top: 1.25rem; padding: 0.6rem; font-weight: 600;" data-i18n="create.btnGenerate">🎨 Generate Creation</button>
+            </div>
+
+            <!-- Right Column: Result Output & Variation Control -->
+            <div class="nagex-card" style="padding: 1.25rem;">
+              <h3 style="font-size: 1rem; color: var(--navy-head); margin-bottom: 0.75rem;" data-i18n="create.outputTitle">Creation Output</h3>
+              <div id="create-result-slot" style="min-height: 250px; background: rgba(0,0,0,0.02); border: 1px dashed var(--border-subtle); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-direction: column; padding: 1rem;">
+                <p style="color: var(--text-muted); font-size: 0.85rem;" data-i18n="create.emptyOutput">No creation generated yet. Enter a prompt and click Generate.</p>
+              </div>
+
+              <!-- Edit / Variation Controls (Hidden until generated) -->
+              <div id="create-variation-controls" hidden style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px dashed var(--border-subtle);">
+                <h4 style="font-size: 0.85rem; font-weight: 600; margin-bottom: 0.3rem;" data-i18n="create.variationTitle">Edit &amp; Generate Variation</h4>
+                <input type="text" id="create-variation-modifier" placeholder="Add variation instruction (e.g. Add glowing aurora in sky)..." style="width: 100%; padding: 0.4rem; font-size: 0.8rem; border: 1px solid var(--border-subtle); border-radius: 4px; margin-bottom: 0.5rem;">
+                <button id="btn-create-variation" class="btn-secondary" style="width: 100%; font-size: 0.8rem; padding: 0.4rem;" data-i18n="create.btnVariation">🪄 Generate Variation</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Creation History Lineage Section -->
+          <div style="margin-top: 1.5rem;">
+            <h3 style="font-size: 0.95rem; color: var(--navy-head); margin-bottom: 0.5rem;" data-i18n="create.historyTitle">Creation History &amp; Lineage</h3>
+            <div id="create-history-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem;">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </div>
+
+        <!-- VIEW: ANALYZE (FILE & DATA ANALYSIS STUDIO) -->
+        <div id="view-analyze" class="tab-view canvas-mode-doc">
+          <div class="view-header-bar" style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <h2 data-i18n="analyze.title">File &amp; Data Analysis Studio</h2>
+              <p class="view-sub" data-i18n="analyze.subtitle">Upload documents, code, or datasets for AI structured analysis, risk evaluation, and key insights.</p>
+            </div>
+          </div>
+
+          <div class="analyze-container" style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 1.5rem; margin-top: 1rem;">
+            <!-- Left Column: File Dropzone & Upload Button -->
+            <div class="nagex-card" style="padding: 1.25rem;">
+              <h3 style="font-size: 1rem; color: var(--navy-head); margin-bottom: 0.75rem;" data-i18n="analyze.uploadTitle">Upload Target File</h3>
+              <input type="file" id="analyze-file-input" style="display: none;">
+              <div id="analyze-dropzone" class="composer-file-drop-zone" style="display: block; border: 2px dashed var(--color-accent-teal, #0d9488); border-radius: 8px; padding: 2rem 1rem; text-align: center; cursor: pointer; background: rgba(13, 148, 136, 0.03);">
+                <div style="font-size: 2rem; margin-bottom: 0.5rem;">📄</div>
+                <strong style="display: block; font-size: 0.9rem; color: var(--text-navy);" data-i18n="analyze.dragDrop">Drag &amp; Drop file here</strong>
+                <span style="font-size: 0.75rem; color: var(--text-muted);" data-i18n="analyze.clickBrowse">or click to browse PDF, TXT, CSV, JSON, PNG</span>
+              </div>
+
+              <div id="analyze-file-meta" hidden style="margin-top: 0.75rem; padding: 0.5rem; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 4px; font-size: 0.8rem;">
+                <!-- File details shown here -->
+              </div>
+
+              <button id="btn-analyze-execute" class="btn-primary" style="width: 100%; margin-top: 1rem; padding: 0.6rem; font-weight: 600;" disabled data-i18n="analyze.btnRun">🔍 Run Analysis</button>
+            </div>
+
+            <!-- Right Column: Structured Result Display -->
+            <div class="nagex-card" style="padding: 1.25rem;">
+              <h3 style="font-size: 1rem; color: var(--navy-head); margin-bottom: 0.75rem;" data-i18n="analyze.outputTitle">Structured Analysis Result</h3>
+              <div id="analyze-result-slot" style="min-height: 250px; background: rgba(0,0,0,0.02); border: 1px dashed var(--border-subtle); border-radius: 8px; padding: 1rem;">
+                <p style="color: var(--text-muted); font-size: 0.85rem;" data-i18n="analyze.emptyOutput">Upload a file and click "Run Analysis" to view structured insights.</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </main>
 
       <!-- Right Context Drawer (Closed by default, opened contextually) -->

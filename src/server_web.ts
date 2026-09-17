@@ -39,6 +39,7 @@ import { handleOrganizationRoutes } from './http/routes/organization.routes.js';
 import { handleRbacRoutes } from './http/routes/rbac.routes.js';
 import { handleEnterpriseIdentityRoutes } from './http/routes/enterprise-identity.routes.js';
 import { handleScimRoutes } from './http/routes/scim.routes.js';
+import { handleCreationRoutes } from './http/routes/creation.routes.js';
 import type { GoogleCalendarService } from './modules/calendar/index.js';
 import type { GmailService } from './modules/gmail/index.js';
 import { BrowserToolService, browserRuntime } from './modules/browser/index.js';
@@ -161,6 +162,8 @@ export const {
   inputRouter,
   workflowDefinitionStore,
   workflowDefinitionService,
+  creationStore,
+  creationService,
   deviceAgentTransportEndpoint,
   deviceIdentityStore,
 } = app;
@@ -487,6 +490,12 @@ export async function handleAsyncApiRequest(
     {
       const deviceAgentResult = await handleDeviceAgentRoutes(method, pathname, body, headers, query, { deviceAgentTransportEndpoint });
       if (deviceAgentResult) return deviceAgentResult;
+    }
+
+    // R17 — Creation Routes (generate, variation, list, get)
+    {
+      const creationResult = await handleCreationRoutes(method, pathname, body, headers, query, { creationService });
+      if (creationResult) return creationResult;
     }
 
     return handleApiRequest(method, pathname, body, headers);

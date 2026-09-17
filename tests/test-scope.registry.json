@@ -183,6 +183,10 @@
     "enterprise_identity_lifecycle",
     "enterprise_identity_oidc_security",
     "enterprise_identity_saml_security",
-    "enterprise_identity_real_browser"
+    "enterprise_identity_real_browser",
+    "core_product_wiring",
+    "core_product_wiring_real_browser",
+    "r17_final_completion",
+    "r17_final_completion_real_browser"
   ]
 }
