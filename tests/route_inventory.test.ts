@@ -50,8 +50,10 @@ function listRouteModuleFiles(): string[] {
 // route module gaining or losing an endpoint must update this table in
 // the same commit, or these tests fail.
 const EXPECTED_ROUTE_MODULE_COUNTS: Record<string, number> = {
+  'account.routes.ts': 11,
   'action-proposals.routes.ts': 2,
   'approvals.routes.ts': 6,
+  'auth.routes.ts': 9,
   'automations.routes.ts': 6,
   'browser.routes.ts': 17,
   'calendar.routes.ts': 5,
@@ -98,8 +100,8 @@ test('ROUTE-INV-002: every route module\'s method-check-block count exactly matc
   assert.deepEqual(mismatches, [], `Route module endpoint-count drift detected:\n${mismatches.join('\n')}`);
 });
 
-test('ROUTE-INV-003: the total domain endpoint count across all route modules is exactly 144 (the verified R10.2-E baseline) — any change requires an intentional manifest update', () => {
-  assert.equal(TOTAL_DOMAIN_ENDPOINTS, 144);
+test('ROUTE-INV-003: the total domain endpoint count across all route modules is exactly 164 (the verified R13 baseline) — any change requires an intentional manifest update', () => {
+  assert.equal(TOTAL_DOMAIN_ENDPOINTS, 164);
   let actualTotal = 0;
   for (const file of listRouteModuleFiles()) {
     actualTotal += countMethodChecks(readSourceWithoutComments(path.join(ROUTES_DIR, file)));

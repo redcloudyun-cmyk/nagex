@@ -249,6 +249,7 @@
     renderAutonomy();
     renderConnections();
     renderAiModel();
+    if (window.NAGEX.renderAccountSettings) window.NAGEX.renderAccountSettings();
     if (window.NAGEX.renderProactiveAssistant) window.NAGEX.renderProactiveAssistant();
   }
 

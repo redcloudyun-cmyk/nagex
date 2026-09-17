@@ -82,6 +82,9 @@ import { KnowledgeEngine } from '../context/knowledge.engine.js';
 import { CapabilityBroker, capabilityRegistry } from '../capabilities/index.js';
 import { ModuleRegistry, ModuleStateStore, ModuleService } from '../modules/index.js';
 import type { NagexApplication } from './nagex-application.js';
+import { IdentityStore } from '../identity/identity.store.js';
+import { IdentityTokenStore } from '../identity/identity.tokens.js';
+import { IdentityAuditStore } from '../identity/identity.audit.js';
 import { LifecycleManager } from './lifecycle-manager.js';
 
 // Common words that would otherwise create spurious "relevance" matches
@@ -96,6 +99,9 @@ const MEMORY_RELEVANCE_STOPWORDS = new Set([
 
 export function createNagexApplication(): NagexApplication {
   // ─── Boot NAgex Core Engine ───
+  const identityStore = new IdentityStore();
+  const identityTokenStore = new IdentityTokenStore();
+  const identityAuditStore = new IdentityAuditStore();
   const pdp = new PolicyDecisionPoint();
   const runtime = new DurableRuntimeEngine();
   const auditLogger = new AuditLogger();
@@ -429,6 +435,9 @@ export function createNagexApplication(): NagexApplication {
   const lifecycle = new LifecycleManager();
 
   return {
+    identityStore,
+    identityTokenStore,
+    identityAuditStore,
     pdp,
     runtime,
     auditLogger,

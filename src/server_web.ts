@@ -33,6 +33,8 @@ import { handleDailyBriefRoutes } from './http/routes/daily-brief.routes.js';
 import { handleCapabilitiesRoutes } from './http/routes/capabilities.routes.js';
 import { handleMySpaceRoutes } from './http/routes/my-space.routes.js';
 import { handleDeviceAgentRoutes } from './http/routes/device-agent.routes.js';
+import { handleAuthRoutes } from './http/routes/auth.routes.js';
+import { handleAccountRoutes } from './http/routes/account.routes.js';
 import type { GoogleCalendarService } from './modules/calendar/index.js';
 import type { GmailService } from './modules/gmail/index.js';
 import { BrowserToolService, browserRuntime } from './modules/browser/index.js';
@@ -50,14 +52,14 @@ const NO_CACHE_HEADERS = {
   Pragma: 'no-cache',
   Expires: '0',
 } as const;
-const MUTABLE_FRONTEND_FILES = new Set(['index.html', 'style.css', 'app.js', 'i18n.js', 'intent-interaction-state.js', 'plan-resolution-view.js', 'calendar-approval-view.js', 'calendar-intent-extraction.js', 'calendar-payload-validation.js', 'gmail-approval-view.js', 'gmail-intent-extraction.js', 'browser-approval-view.js', 'browser-intent-extraction.js', 'modal-behavior.js', 'timeline-dedupe.js', 'single-flight-guard.js', 'legal.js', 'privacy.html', 'terms.html', 'desktop-quickwake.html', 'desktop-quickwake.css', 'desktop-quickwake.js', 'shared/tokens.css', 'shared/components.css', 'desktop/desktop-home.css', 'desktop/desktop-home.js', 'mobile/mobile-home.css', 'mobile/mobile-home.js', 'mobile/mobile-inbox.css', 'mobile/mobile-inbox.js', 'mobile/mobile-activity.css', 'mobile/mobile-activity.js', 'mobile/mobile-vault.css', 'mobile/mobile-vault.js', 'mobile/mobile-settings.css', 'mobile/mobile-settings.js']);
+const MUTABLE_FRONTEND_FILES = new Set(['index.html', 'style.css', 'app.js', 'i18n.js', 'auth-ui.js', 'intent-interaction-state.js', 'plan-resolution-view.js', 'calendar-approval-view.js', 'calendar-intent-extraction.js', 'calendar-payload-validation.js', 'gmail-approval-view.js', 'gmail-intent-extraction.js', 'browser-approval-view.js', 'browser-intent-extraction.js', 'modal-behavior.js', 'timeline-dedupe.js', 'single-flight-guard.js', 'legal.js', 'privacy.html', 'terms.html', 'desktop-quickwake.html', 'desktop-quickwake.css', 'desktop-quickwake.js', 'shared/tokens.css', 'shared/components.css', 'desktop/desktop-home.css', 'desktop/desktop-home.js', 'mobile/mobile-home.css', 'mobile/mobile-home.js', 'mobile/mobile-inbox.css', 'mobile/mobile-inbox.js', 'mobile/mobile-activity.css', 'mobile/mobile-activity.js', 'mobile/mobile-vault.css', 'mobile/mobile-vault.js', 'mobile/mobile-settings.css', 'mobile/mobile-settings.js']);
 const VERSIONED_HTML_FILES = new Set(['index.html', 'privacy.html', 'terms.html', 'desktop-quickwake.html']);
 const CLEAN_URL_ALIASES: Record<string, string> = { '/privacy': 'privacy.html', '/terms': 'terms.html', '/quickwake': 'desktop-quickwake.html' };
 const BUILD_VERSION_PLACEHOLDER = '__NAGEX_BUILD_VERSION__';
 
 function createBuildVersion(): string {
   const hash = crypto.createHash('sha256');
-  for (const filename of ['style.css', 'i18n.js', 'intent-interaction-state.js', 'plan-resolution-view.js', 'calendar-approval-view.js', 'calendar-intent-extraction.js', 'calendar-payload-validation.js', 'gmail-approval-view.js', 'gmail-intent-extraction.js', 'browser-approval-view.js', 'browser-intent-extraction.js', 'modal-behavior.js', 'timeline-dedupe.js', 'single-flight-guard.js', 'legal.js', 'app.js', 'shared/tokens.css', 'shared/components.css', 'desktop/desktop-home.css', 'desktop/desktop-home.js', 'mobile/mobile-home.css', 'mobile/mobile-home.js', 'mobile/mobile-inbox.css', 'mobile/mobile-inbox.js', 'mobile/mobile-activity.css', 'mobile/mobile-activity.js', 'mobile/mobile-vault.css', 'mobile/mobile-vault.js', 'mobile/mobile-settings.css', 'mobile/mobile-settings.js']) {
+  for (const filename of ['style.css', 'i18n.js', 'auth-ui.js', 'intent-interaction-state.js', 'plan-resolution-view.js', 'calendar-approval-view.js', 'calendar-intent-extraction.js', 'calendar-payload-validation.js', 'gmail-approval-view.js', 'gmail-intent-extraction.js', 'browser-approval-view.js', 'browser-intent-extraction.js', 'modal-behavior.js', 'timeline-dedupe.js', 'single-flight-guard.js', 'legal.js', 'app.js', 'shared/tokens.css', 'shared/components.css', 'desktop/desktop-home.css', 'desktop/desktop-home.js', 'mobile/mobile-home.css', 'mobile/mobile-home.js', 'mobile/mobile-inbox.css', 'mobile/mobile-inbox.js', 'mobile/mobile-activity.css', 'mobile/mobile-activity.js', 'mobile/mobile-vault.css', 'mobile/mobile-vault.js', 'mobile/mobile-settings.css', 'mobile/mobile-settings.js']) {
     hash.update(filename);
     hash.update(fs.readFileSync(path.join(PUBLIC_DIR, filename)));
   }
@@ -106,6 +108,9 @@ const {
   lifecycle,
 } = app;
 export const {
+  identityStore,
+  identityTokenStore,
+  identityAuditStore,
   actionApprovals,
   executionStore,
   moduleRegistry,
@@ -195,7 +200,7 @@ const healthRouteDeps: HealthRouteDeps = { executionCount: () => executionHistor
 // above) — it is a genuine construction-time dependency of
 // taskRunner/telegramService/slackService there.
 
-type ApiResult = { status: number; data: unknown; redirectTo?: string };
+type ApiResult = { status: number; data: unknown; redirectTo?: string; headers?: Record<string, string> };
 
 const ERROR_CATEGORY_STATUS: Record<string, number> = {
   VALIDATION: 400,
@@ -239,6 +244,26 @@ export async function handleAsyncApiRequest(
   convContextService: ConversationContextService = conversationContextService,
 ): Promise<ApiResult> {
   try {
+    // R13 Identity & Account Lifecycle routes
+    {
+      const authResult = await handleAuthRoutes(method, pathname, body, headers, query, {
+        identityStore,
+        identityTokenStore,
+        identityAuditStore,
+        sessionStore,
+      });
+      if (authResult) return authResult;
+    }
+    {
+      const accountResult = await handleAccountRoutes(method, pathname, body, headers, query, {
+        identityStore,
+        identityTokenStore,
+        identityAuditStore,
+        sessionStore,
+      });
+      if (accountResult) return accountResult;
+    }
+
     // R10.2-D Increment 5 — Model provider status/health-check routes.
     {
       const providersResult = await handleProvidersRoutes(method, pathname, body, headers, query, { service });
@@ -542,7 +567,11 @@ export function createServerInstance(): http.Server {
           res.end();
           return;
         }
-        res.writeHead(result.status, { 'Content-Type': 'application/json; charset=utf-8' });
+        const outHeaders: Record<string, string> = { 'Content-Type': 'application/json; charset=utf-8' };
+        if (result.headers) {
+          Object.assign(outHeaders, result.headers);
+        }
+        res.writeHead(result.status, outHeaders);
         res.end(JSON.stringify(result.data, null, 2));
       });
       return;

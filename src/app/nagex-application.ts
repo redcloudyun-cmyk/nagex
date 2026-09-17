@@ -62,7 +62,14 @@ import type { DeviceConnectionStatusStore } from '../device-agent/device-connect
 import type { DevicePendingCommandStore } from '../device-agent/device-pending-command.store.js';
 import type { DeviceAgentTransportEndpoint } from '../device-agent/device-agent-transport-endpoint.service.js';
 
+import type { IdentityStore } from '../identity/identity.store.js';
+import type { IdentityTokenStore } from '../identity/identity.tokens.js';
+import type { IdentityAuditStore } from '../identity/identity.audit.js';
+
 export interface NagexApplication {
+  identityStore: IdentityStore;
+  identityTokenStore: IdentityTokenStore;
+  identityAuditStore: IdentityAuditStore;
   pdp: PolicyDecisionPoint;
   runtime: DurableRuntimeEngine;
   auditLogger: AuditLogger;

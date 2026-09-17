@@ -173,6 +173,8 @@
     "inbox_activity_ux",
     "settings_ux",
     "mobile_ux_debt0005",
-    "mobile_ux_real_browser"
+    "mobile_ux_real_browser",
+    "identity_lifecycle",
+    "identity_real_browser"
   ]
 }

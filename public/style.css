@@ -1956,3 +1956,50 @@ body {
 .pa-status-row strong { color: var(--text-main); font-weight: 600; }
 .pa-status-on { color: #059669 !important; }
 .pa-status-off { color: var(--text-muted) !important; }
+
+/* ── R13 — Identity & Auth Modal CSS ── */
+#auth-modal.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(4px);
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  box-sizing: border-box;
+}
+#auth-modal[hidden] {
+  display: none !important;
+}
+.auth-modal-card {
+  background: #ffffff;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  padding: 1.5rem;
+  box-sizing: border-box;
+}
+.auth-form { display: flex; flex-direction: column; gap: 1rem; margin-top: 1rem; }
+.form-group { display: flex; flex-direction: column; gap: 0.35rem; }
+.form-group label { font-size: 0.85rem; font-weight: 600; color: #1e293b; }
+.form-control { font-size: 0.9rem; padding: 0.55rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; width: 100%; box-sizing: border-box; }
+.form-actions { margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.auth-links { display: flex; justify-content: space-between; font-size: 0.8rem; margin-top: 0.5rem; }
+.auth-links a { color: #2563eb; text-decoration: none; font-weight: 500; }
+.auth-links a:hover { text-decoration: underline; }
+.form-error { color: #dc2626; font-size: 0.82rem; margin-top: 0.5rem; font-weight: 500; }
+.form-success { color: #16a34a; font-size: 0.82rem; margin-top: 0.5rem; font-weight: 500; }
+.mh-settings-subheading { font-size: 0.95rem; font-weight: 700; color: #1e293b; margin: 1rem 0 0.5rem 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.35rem; }
+.mh-subheading-danger { color: #dc2626; }
+.mh-settings-form-row { display: flex; flex-direction: column; gap: 0.25rem; width: 100%; }
+.mh-settings-form-row label { font-size: 0.8rem; font-weight: 600; color: #475569; }
+.mh-input, .mh-select { font-size: 0.85rem; padding: 0.45rem 0.6rem; border: 1px solid #cbd5e1; border-radius: 6px; width: 100%; box-sizing: border-box; }
+.mh-btn-danger { background: #dc2626 !important; color: #fff !important; border-color: #b91c1c !important; }
+.mh-btn-danger:hover { background: #b91c1c !important; }
+

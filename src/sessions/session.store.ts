@@ -14,6 +14,11 @@ export interface SessionRecord {
   type: SessionType;
   createdAt: string;
   lastActiveAt: string;
+  expiresAt: string;
+  revokedAt: string | null;
+  userAgent: string | null;
+  ipAddress: string | null;
+  deviceMetadata: string | null;
 }
 
 export function isSessionRecord(value: unknown): value is SessionRecord {
@@ -35,10 +40,8 @@ export interface SessionStoreOptions {
   now?: () => string;
 }
 
-// One stable session per (tenant, principal, type) — in particular, exactly
-// one MAIN session per user, persisted so it survives a restart and so
-// every entry point resolves to the same session, memory, and task history
-// rather than minting a new one on every request.
+const DEFAULT_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
 export class SessionStore {
   private readonly records = new Map<string, SessionRecord>();
   private readonly fileStore: FileRecordStore<SessionRecord>;
@@ -50,36 +53,126 @@ export class SessionStore {
     this.fileStore = new FileRecordStore<SessionRecord>(dir, isSessionRecord);
     this.now = options.now ?? (() => new Date().toISOString());
     for (const record of this.fileStore.readAll()) {
-      this.records.set(this.key(record.tenantId, record.principalId, record.type), record);
+      this.records.set(record.sessionId, record);
     }
   }
 
-  private key(tenantId: string, principalId: string, type: SessionType): string {
-    return `${tenantId}::${principalId}::${type}`;
+  public getSession(sessionId: string): SessionRecord | null {
+    const record = this.records.get(sessionId);
+    if (!record) return null;
+    if (record.revokedAt != null) return null; // revoked
+    if (new Date(this.now()).getTime() > new Date(record.expiresAt).getTime()) return null; // expired
+
+    // touch lastActiveAt
+    record.lastActiveAt = this.now();
+    this.fileStore.write(record.sessionId, record);
+    return record;
   }
 
-  public getOrCreateMain(tenantId: string, principalId: string): SessionRecord {
-    return this.getOrCreate(tenantId, principalId, 'MAIN');
-  }
+  public createAuthSession(
+    tenantId: string,
+    principalId: string,
+    type: SessionType = 'MAIN',
+    meta: { userAgent?: string | null; ipAddress?: string | null; deviceMetadata?: string | null; ttlMs?: number } = {}
+  ): SessionRecord {
+    const createdAt = this.now();
+    const ttlMs = meta.ttlMs ?? DEFAULT_SESSION_TTL_MS;
+    const expiresAt = new Date(new Date(createdAt).getTime() + ttlMs).toISOString();
 
-  public getOrCreate(tenantId: string, principalId: string, type: SessionType): SessionRecord {
-    const key = this.key(tenantId, principalId, type);
-    const existing = this.records.get(key);
-    if (existing) {
-      existing.lastActiveAt = this.now();
-      this.fileStore.write(existing.sessionId, existing);
-      return existing;
-    }
     const record: SessionRecord = {
       sessionId: generateResourceId('sess'),
       tenantId,
       principalId,
       type,
-      createdAt: this.now(),
-      lastActiveAt: this.now(),
+      createdAt,
+      lastActiveAt: createdAt,
+      expiresAt,
+      revokedAt: null,
+      userAgent: meta.userAgent || null,
+      ipAddress: meta.ipAddress || null,
+      deviceMetadata: meta.deviceMetadata || null,
     };
-    this.records.set(key, record);
+
+    this.records.set(record.sessionId, record);
     this.fileStore.write(record.sessionId, record);
     return record;
+  }
+
+  public rotateSession(
+    oldSessionId: string,
+    tenantId: string,
+    principalId: string,
+    meta: { userAgent?: string | null; ipAddress?: string | null; deviceMetadata?: string | null } = {}
+  ): SessionRecord {
+    if (oldSessionId) {
+      this.revokeSession(oldSessionId);
+    }
+    return this.createAuthSession(tenantId, principalId, 'MAIN', meta);
+  }
+
+  public revokeSession(sessionId: string): boolean {
+    const record = this.records.get(sessionId);
+    if (!record || record.revokedAt != null) return false;
+    record.revokedAt = this.now();
+    this.fileStore.write(record.sessionId, record);
+    return true;
+  }
+
+  public revokeAllUserSessions(tenantId: string, principalId: string, exceptSessionId?: string): number {
+    let count = 0;
+    const nowIso = this.now();
+    for (const record of this.records.values()) {
+      if (
+        record.tenantId === tenantId &&
+        record.principalId === principalId &&
+        record.revokedAt == null &&
+        record.sessionId !== exceptSessionId
+      ) {
+        record.revokedAt = nowIso;
+        this.fileStore.write(record.sessionId, record);
+        count++;
+      }
+    }
+    return count;
+  }
+
+  public listUserSessions(tenantId: string, principalId: string): SessionRecord[] {
+    const nowIso = this.now();
+    const nowMs = new Date(nowIso).getTime();
+    const list: SessionRecord[] = [];
+
+    for (const record of this.records.values()) {
+      if (
+        record.tenantId === tenantId &&
+        record.principalId === principalId &&
+        record.revokedAt == null &&
+        new Date(record.expiresAt).getTime() > nowMs
+      ) {
+        list.push(record);
+      }
+    }
+
+    return list.sort((a, b) => b.lastActiveAt.localeCompare(a.lastActiveAt));
+  }
+
+  // Legacy helper compatibility
+  public getOrCreateMain(tenantId: string, principalId: string): SessionRecord {
+    const active = this.listUserSessions(tenantId, principalId).find((s) => s.type === 'MAIN');
+    if (active) {
+      active.lastActiveAt = this.now();
+      this.fileStore.write(active.sessionId, active);
+      return active;
+    }
+    return this.createAuthSession(tenantId, principalId, 'MAIN');
+  }
+
+  public getOrCreate(tenantId: string, principalId: string, type: SessionType): SessionRecord {
+    const active = this.listUserSessions(tenantId, principalId).find((s) => s.type === type);
+    if (active) {
+      active.lastActiveAt = this.now();
+      this.fileStore.write(active.sessionId, active);
+      return active;
+    }
+    return this.createAuthSession(tenantId, principalId, type);
   }
 }

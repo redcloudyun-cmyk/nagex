@@ -4,7 +4,7 @@
 // exported with their exact pre-existing signatures — many existing tests
 // call them directly). This is only the shape a "domain route registrar"
 // returns, so server_web.ts's own dispatch loop can try one after another.
-export type ApiResult = { status: number; data: unknown; redirectTo?: string };
+export type ApiResult = { status: number; data: unknown; redirectTo?: string; headers?: Record<string, string> };
 
 // A registrar handles zero or more routes for one domain. Returning
 // `undefined` means "not one of mine — try the next registrar", exactly
