@@ -436,34 +436,62 @@
     const btnAudio = document.getElementById('btn-afford-audio');
 
     if (btnSend && homeInput) {
+      // R12.1 Increment 1 — Universal Intent Input busy-state contract:
+      // the composer must block duplicate submission (disabled the moment
+      // classification starts, not only once the ambient run guard takes
+      // over) and must never lose the user's text on a failed/timed-out
+      // request — the original code cleared the input unconditionally
+      // before even knowing whether classification succeeded, so a
+      // network failure silently discarded what the user typed. Ownership
+      // of the disabled state hands off to setAmbientRunControlsDisabled()
+      // (which already re-enables in its own finally) once an ASK/COMMAND
+      // intent is dispatched to runAmbientTask — handedOff below prevents
+      // this handler's own finally from re-enabling too early and racing
+      // that handoff.
       btnSend.onclick = async () => {
+        if (btnSend.disabled) return;
         const text = homeInput.value.trim();
         if (!text) return;
-        homeInput.value = '';
-
-        // 1. Run InputRouter classification
-        const routeRes = await apiFetch('/api/v1/workspace/route-input', {
-          method: 'POST',
-          body: JSON.stringify({ text }),
-        });
-
-        const intent = routeRes?.data?.primaryIntent || 'ASK';
-
-        // 2. Dispatch to single primary path
-        if (intent === 'ASK' || intent === 'COMMAND') {
-          openAmbientOverlay();
-          runAmbientTask(text);
-        } else if (intent === 'LINK_CAPTURE' || intent === 'CAPTURE') {
-          await apiFetch('/api/v1/workspace/capture', {
+        btnSend.disabled = true;
+        homeInput.disabled = true;
+        let handedOff = false;
+        try {
+          const routeRes = await apiFetch('/api/v1/workspace/route-input', {
             method: 'POST',
-            body: JSON.stringify({
-              type: intent === 'LINK_CAPTURE' ? 'LINK' : 'TEXT',
-              content: text,
-              source: 'WEB',
-            }),
+            body: JSON.stringify({ text }),
           });
-          renderInbox();
-          switchTab('tab-inbox');
+          if (!routeRes || routeRes.error) {
+            // Truthful recovery (§18): never a fake success, and the
+            // user's original text is preserved for retry, not discarded.
+            return;
+          }
+
+          const intent = routeRes?.data?.primaryIntent || 'ASK';
+
+          if (intent === 'ASK' || intent === 'COMMAND') {
+            homeInput.value = '';
+            handedOff = true;
+            openAmbientOverlay();
+            runAmbientTask(text);
+          } else if (intent === 'LINK_CAPTURE' || intent === 'CAPTURE') {
+            const captureRes = await apiFetch('/api/v1/workspace/capture', {
+              method: 'POST',
+              body: JSON.stringify({
+                type: intent === 'LINK_CAPTURE' ? 'LINK' : 'TEXT',
+                content: text,
+                source: 'WEB',
+              }),
+            });
+            if (!captureRes || captureRes.error) return;
+            homeInput.value = '';
+            renderInbox();
+            switchTab('tab-inbox');
+          }
+        } finally {
+          if (!handedOff) {
+            btnSend.disabled = false;
+            homeInput.disabled = false;
+          }
         }
       };
     }
@@ -1088,6 +1116,16 @@
   }
 
   window.NAGEX = window.NAGEX || {};
+  // R12.1 Increment 1 — canonical "logo returns Home" behavior (required
+  // from every main product screen, plus the ambient overlay). Closing an
+  // already-closed overlay is a safe no-op (closeAmbientOverlay only ever
+  // resets display/scroll-lock/listeners that may already be at rest), so
+  // this is safe to wire unconditionally to every logo instance regardless
+  // of whether the overlay happens to be open.
+  window.NAGEX.goHome = () => {
+    closeAmbientOverlay();
+    switchTab('tab-home');
+  };
   window.NAGEX.toggleResolvedCandidates = () => {
     candidatesShowResolved = !candidatesShowResolved;
     renderCandidateReviewQueue();
@@ -2086,6 +2124,43 @@
     }
   }
 
+  // R12.1 Increment 1 — §6/§12: internal execution detail (provider/model/
+  // latency/request id) lives behind a collapsed-by-default "What NAgex is
+  // doing" disclosure, never in the primary working-state text. Wired once
+  // (dataset.wired guard, same pattern as wireSettingsAdvancedToggle) so a
+  // re-render never loses whatever open/closed state the user left it in.
+  function wireAmbientActivityToggle() {
+    const toggle = document.getElementById('btn-ambient-activity-toggle');
+    const body = document.getElementById('ambient-activity-detail-body');
+    if (!toggle || !body || toggle.dataset.wired) return;
+    toggle.dataset.wired = '1';
+    toggle.onclick = () => {
+      const expanded = toggle.getAttribute('aria-expanded') === 'true';
+      toggle.setAttribute('aria-expanded', String(!expanded));
+      body.hidden = expanded;
+    };
+  }
+
+  function renderAmbientActivityDetail({ provider, model, latencyMs, requestId }) {
+    const container = document.getElementById('ambient-activity-detail');
+    const body = document.getElementById('ambient-activity-detail-body');
+    if (!container || !body) return;
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    const rows = [
+      [t('ambient.activityProvider'), provider],
+      [t('ambient.activityModel'), model],
+      [t('ambient.activityLatency'), typeof latencyMs === 'number' ? `${latencyMs}ms` : null],
+      [t('ambient.activityRequestId'), requestId],
+    ].filter(([, value]) => value);
+    if (rows.length === 0) {
+      container.style.display = 'none';
+      return;
+    }
+    body.innerHTML = rows.map(([label, value]) => `<div>${escapeHtml(label)}: ${escapeHtml(String(value))}</div>`).join('');
+    container.style.display = 'block';
+    wireAmbientActivityToggle();
+  }
+
   async function runAmbientTask(promptText) {
     // Single-flight: while one generation is in flight, ignore any further
     // trigger rather than starting a second, legitimately-different plan
@@ -2093,6 +2168,7 @@
     if (ambientRunGuard && !ambientRunGuard.tryEnter()) return;
     setAmbientRunControlsDisabled(true);
     try {
+      const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
       const progress = document.getElementById('ambient-progress-container');
       const fill = document.getElementById('ambient-progress-fill');
       const text = document.getElementById('ambient-progress-text');
@@ -2100,14 +2176,19 @@
       const planSteps = document.getElementById('ambient-plan-steps');
       const resultCard = document.getElementById('ambient-result-card');
       const resultText = document.getElementById('ambient-result-text');
+      const activityDetail = document.getElementById('ambient-activity-detail');
+      if (activityDetail) activityDetail.style.display = 'none';
 
+      // R12.1 Increment 1 — §6 Working state: outcome-oriented text only.
+      // Internal jargon (provider/model/latency) moves to the progressive-
+      // disclosure "What NAgex is doing" panel below, never the primary text.
       updateFlowStage('User message');
       if (progress) progress.style.display = 'flex';
       if (fill) fill.style.width = '20%';
-      if (text) text.textContent = 'Understanding request & recalling memory...';
+      if (text) text.textContent = t('ambient.progress.understanding');
 
       if (fill) fill.style.width = '50%';
-      if (text) text.textContent = 'Routing to the best available model & creating a plan...';
+      if (text) text.textContent = t('ambient.progress.planning');
 
       const res = await apiFetch('/api/v1/ambient/intent', {
         method: 'POST',
@@ -2116,12 +2197,15 @@
       });
 
       if (!res || res.error) {
-        if (text) text.textContent = res?.error?.message || 'Unable to generate a plan.';
+        // §18 — truthful failure, never a fake success; the composer's own
+        // controls are re-enabled by this function's finally block below.
+        if (text) text.textContent = res?.error?.message || t('ambient.unableToGeneratePlan');
         return;
       }
 
       if (fill) fill.style.width = '100%';
-      if (text) text.textContent = `Plan ready via ${res.provider} · ${res.model} · ${res.latencyMs}ms`;
+      if (text) text.textContent = t('ambient.progress.planReady');
+      renderAmbientActivityDetail({ provider: res.provider, model: res.model, latencyMs: res.latencyMs, requestId: res.requestId });
 
       updateFlowStage('Plan Preview');
       addTimelineEntry('Plan created', `plan:${res.requestId}:created`, 'runAmbientTask');
@@ -2434,6 +2518,7 @@
   const BROWSER_READ_TOOL_IDS = new Set([BROWSER_OPEN_TOOL_ID, BROWSER_NAVIGATE_TOOL_ID]);
 
   function renderCalendarApprovalCard(slot, approval, view) {
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
     const vmView = view.buildCardViewModel(approval, Date.now());
     const f = vmView.fields;
     slot.innerHTML = `
@@ -2452,8 +2537,8 @@
         <p class="calendar-approval-status" id="calendar-approval-status">${escapeHtml(vmView.statusLabel)}</p>
         <p class="calendar-approval-expiry" id="calendar-approval-expiry">${vmView.countdownLabel ? escapeHtml(vmView.countdownLabel) : ''}</p>
         <div class="calendar-preview-actions">
-          <button class="btn-reject-outline" id="btn-calendar-reject" ${vmView.rejectDisabled ? 'disabled' : ''}>Reject</button>
-          <button class="btn-plan-action plan-status-ready" id="btn-calendar-approve" ${vmView.approveDisabled ? 'disabled' : ''}>Approve & Create</button>
+          <button class="btn-reject-outline" id="btn-calendar-reject" ${vmView.rejectDisabled ? 'disabled' : ''}>${escapeHtml(t('calendar.reject'))}</button>
+          <button class="btn-plan-action plan-status-ready" id="btn-calendar-approve" ${vmView.approveDisabled ? 'disabled' : ''}>${escapeHtml(t('calendar.approveAndCreateEvent'))}</button>
         </div>
       </div>`;
     return vmView;

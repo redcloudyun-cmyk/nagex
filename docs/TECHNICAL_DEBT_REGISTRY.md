@@ -262,6 +262,54 @@ remains unchanged/OPEN — it is unrelated to HTTP route organization.
 
 ---
 
+```yaml
+id: DEBT-0005
+area: intent-first-ux
+description: >
+  R12.1 Increment 1 (Universal Intent Interaction Foundation) implemented a
+  focused, load-bearing subset of its 23-section directive: the
+  presentation-state contract (public/intent-interaction-state.js), logo-
+  to-Home navigation on all 3 logo surfaces, Home composer busy-state/
+  duplicate-submission-guard/failure-recovery truthfulness, a progressive-
+  disclosure "What NAgex is doing" panel for ambient working state, and a
+  consequence-specific/i18n'd Calendar approval CTA. Five directive items
+  were not addressed this pass: (1) capability-neutral onboarding examples
+  (§13); (2) explicit Back/Forward + selected-state regression tests for
+  Inbox/Activity/Settings beyond the logo-click path (§11); (3) aria-live
+  regions for Working/Result states (§15); (4) real mobile-viewport
+  rendering verification beyond a static CSS no-fixed-width source check —
+  this repo has no real-browser rendering harness, only fetch-and-assert-
+  on-source-text (§14); (5) the ambient "Review Plan"/"Run" button's own
+  CTA-genericness, the exact example named in §9, was not audited or
+  normalized this pass (only Calendar's approve/reject buttons were).
+severity: low
+introduced: R12.1 Increment 1 (2026-09-17)
+reason: >
+  The directive itself frames Increment 1 as creating "the reusable
+  interaction foundation" that later Home/Inbox/Activity/Settings
+  increments will build on (§20), not a full redesign of those screens.
+  The five gaps above are screen-specific or infrastructure-specific work
+  that depends on screens not yet redesigned (Home/Inbox/Activity/
+  Settings, R12.1 Increments 2-4) or tooling this repo does not have
+  (a real browser rendering harness for mobile verification).
+risk: >
+  Low. None of the five gaps affect approval semantics, mutation safety,
+  or truthfulness — all Safety Harness checks (H1-H6) pass. The risk is
+  UX-completeness drift if a later increment assumes these were already
+  covered; flagging them here prevents that assumption.
+resolution: >
+  Open. Expected to close incrementally as R12.1 Increment 2 (Home UX),
+  Increment 3 (Inbox+Activity), and Increment 4 (Settings) redesign each
+  screen and can apply real Back/Forward/aria-live/CTA-normalization
+  passes against concrete, finished markup. The ambient Review-Plan CTA
+  (item 5) can be fixed independently and should be picked up opportun-
+  istically in the next increment that touches the ambient composer.
+owner: NAGEX
+status: OPEN
+```
+
+---
+
 ## Explicitly classified as NON-GOAL, not debt
 
 Per the R11 directive's own explicit instruction not to silently call every disclosed limitation "debt":

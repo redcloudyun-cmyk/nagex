@@ -1847,6 +1847,38 @@ body {
   margin-top: 0.6rem;
 }
 
+/* R12.1 Increment 1 — progressive disclosure of internal Agent activity
+   (provider/model/latency/request id). Same collapsed-by-default toggle
+   shape as .settings-advanced-toggle, scoped to the ambient modal. */
+.ambient-activity-detail { margin-top: 0.5rem; }
+.ambient-activity-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.ambient-activity-toggle::before {
+  content: '▸';
+  font-size: 0.7rem;
+  transition: transform 0.15s ease;
+}
+.ambient-activity-toggle[aria-expanded="true"]::before { transform: rotate(90deg); }
+.ambient-activity-detail-body {
+  margin-top: 0.4rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 6px;
+  background: var(--bg-subtle);
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
 /* ── R8 — Personal Daily Brief (shared base; Desktop-scaled by default,
    .mh-card's own scope in mobile-home.css lightly restyles spacing for the
    mobile card without duplicating these rules) ───────────────────────── */

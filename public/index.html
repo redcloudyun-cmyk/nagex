@@ -24,7 +24,7 @@
         <button class="hamburger-btn" id="btn-hamburger" aria-label="Toggle Menu">
           <svg class="svg-icon" viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
         </button>
-        <div class="brand-logo-group" title="NAgex — Personal AI for the Next Age">
+        <div class="brand-logo-group" title="NAgex — Personal AI for the Next Age" role="button" tabindex="0" aria-label="Go to Home" data-i18n-aria-label="nav.logoHomeAria" onclick="window.NAGEX.goHome()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.NAGEX.goHome();}">
           <img src="assets/nagex-compact-logo.png" alt="NAgex" class="nagex-compact-logo header-logo">
         </div>
       </div>
@@ -1077,7 +1077,7 @@
       <div class="ambient-sheet-modal" id="ambient-sheet-modal" role="dialog" aria-modal="true" aria-labelledby="ambient-modal-title">
         <div class="ambient-sheet-header">
           <div class="ambient-brand-title">
-            <img src="assets/nagex-compact-logo.png" alt="NAgex" class="nagex-compact-logo ambient-logo">
+            <img src="assets/nagex-compact-logo.png" alt="NAgex" class="nagex-compact-logo ambient-logo" role="button" tabindex="0" aria-label="Go to Home" data-i18n-aria-label="nav.logoHomeAria" onclick="window.NAGEX.goHome()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.NAGEX.goHome();}">
             <h2 class="ambient-modal-title" id="ambient-modal-title" data-i18n="ambient.modalTitle">Plan Preview</h2>
             <span class="ambient-modal-status" id="ambient-modal-status"></span>
           </div>
@@ -1164,6 +1164,16 @@
             <div class="progress-track"><div class="progress-fill" id="ambient-progress-fill" style="width: 20%;"></div></div>
           </div>
 
+          <!-- R12.1 Increment 1 — progressive disclosure (MASTER.md 14.9 §5):
+               internal execution detail (provider/model/latency/request id)
+               is available on demand, never shown as primary UX text. Hidden
+               and collapsed by default; only appears once there is real
+               detail to show. -->
+          <div class="ambient-activity-detail" id="ambient-activity-detail" style="display:none;">
+            <button class="ambient-activity-toggle" id="btn-ambient-activity-toggle" aria-expanded="false" aria-controls="ambient-activity-detail-body" data-i18n="ambient.activityToggle">What NAgex is doing</button>
+            <div class="ambient-activity-detail-body" id="ambient-activity-detail-body" hidden></div>
+          </div>
+
           <section class="ambient-generated-plan" id="ambient-plan-preview" style="display:none;" aria-live="polite">
             <h3>Generated Plan Preview</h3>
             <div class="plan-step-list" id="ambient-plan-steps"></div>
@@ -1217,7 +1227,7 @@
       <!-- A. Compact Header -->
       <header class="mh-header">
         <div class="mh-brand">
-          <img src="assets/nagex-compact-logo.png" alt="NAgex" class="mh-logo">
+          <img src="assets/nagex-compact-logo.png" alt="NAgex" class="mh-logo" role="button" tabindex="0" aria-label="Go to Home" data-i18n-aria-label="nav.logoHomeAria" onclick="window.NAGEX.goHome()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.NAGEX.goHome();}">
           <div class="mh-brand-text">
             <span class="mh-brand-name">NAgex</span>
             <span class="mh-brand-tagline" data-i18n="brand.tagline">Intelligence for the Next Age.</span>
@@ -1604,6 +1614,7 @@
   </div>
 
   <script src="i18n.js?v=__NAGEX_BUILD_VERSION__"></script>
+  <script src="intent-interaction-state.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="plan-resolution-view.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="calendar-approval-view.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="calendar-intent-extraction.js?v=__NAGEX_BUILD_VERSION__"></script>

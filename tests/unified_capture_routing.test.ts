@@ -82,15 +82,25 @@ test('Home composer dispatches to exactly one primary path — ambient chat OR c
   assert.equal((body.match(/apiFetch\('\/api\/v1\/workspace\/capture'/g) || []).length, 1);
 });
 
-test('Home composer submit clears the input synchronously before any await, so a rapid double-click cannot dispatch the same text twice', () => {
+test('Home composer submit disables itself synchronously before any await, so a rapid double-click cannot dispatch the same text twice', () => {
+  // R12.1 Increment 1 — superseded the original "clear the input
+  // synchronously" guard with an explicit disabled-state guard
+  // (btnSend.disabled/homeInput.disabled) checked at the very top of the
+  // handler. This is strictly stronger: it still makes a rapid double-click
+  // structurally impossible (the second click's onclick body returns
+  // immediately), AND it no longer discards the user's text before knowing
+  // whether the request will even succeed (see the companion "failed
+  // request restores composer" test).
   const src = readSrc('public/app.js');
   const start = src.indexOf('if (btnSend && homeInput) {');
   const end = src.indexOf('if (btnLink && homeInput)', start);
   const body = src.slice(start, end);
 
+  const reentryGuardIdx = body.indexOf('if (btnSend.disabled) return;');
   const textReadIdx = body.indexOf('const text = homeInput.value.trim();');
-  const clearIdx = body.indexOf("homeInput.value = '';");
+  const disableIdx = body.indexOf('btnSend.disabled = true;');
   const firstAwaitIdx = body.indexOf('await ');
-  assert.ok(textReadIdx >= 0 && clearIdx >= 0 && firstAwaitIdx >= 0);
-  assert.ok(textReadIdx < clearIdx && clearIdx < firstAwaitIdx, 'input must be cleared before the first await, not after');
+  assert.ok(reentryGuardIdx >= 0 && textReadIdx >= 0 && disableIdx >= 0 && firstAwaitIdx >= 0);
+  assert.ok(reentryGuardIdx < textReadIdx, 're-entry guard must be checked before reading the input');
+  assert.ok(textReadIdx < disableIdx && disableIdx < firstAwaitIdx, 'btnSend must be disabled before the first await, not after');
 });
