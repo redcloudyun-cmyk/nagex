@@ -170,6 +170,7 @@
     "trust_safety_engine",
     "unified_capture_routing",
     "workspace_truthfulness",
-    "inbox_activity_ux"
+    "inbox_activity_ux",
+    "settings_ux"
   ]
 }

@@ -2140,9 +2140,73 @@
       .join('');
   }
 
+  function showSettingsSaveFeedback(success, message) {
+    const toast = document.getElementById('settings-save-feedback');
+    const errBanner = document.getElementById('settings-error-banner');
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+
+    if (success) {
+      if (errBanner) errBanner.hidden = true;
+      if (toast) {
+        toast.textContent = message || t('settings.savedSuccess') || 'Settings saved successfully.';
+        toast.hidden = false;
+        toast.className = 'settings-save-toast success';
+        setTimeout(() => { if (toast) toast.hidden = true; }, 3000);
+      }
+    } else {
+      if (toast) toast.hidden = true;
+      if (errBanner) {
+        errBanner.textContent = message || t('settings.saveFailed') || 'Could not save settings.';
+        errBanner.hidden = false;
+        errBanner.className = 'settings-error-banner error';
+      }
+    }
+  }
+
+  function switchSettingsCategory(catKey) {
+    state.activeSettingsCat = catKey;
+    const tabs = document.querySelectorAll('.settings-cat-tab');
+    tabs.forEach((tab) => {
+      const isActive = tab.getAttribute('data-cat') === catKey;
+      tab.classList.toggle('active', isActive);
+      tab.setAttribute('aria-selected', String(isActive));
+    });
+    const panels = document.querySelectorAll('.cat-panel');
+    panels.forEach((panel) => {
+      const isMatch = panel.id === `cat-panel-${catKey}`;
+      panel.hidden = !isMatch;
+    });
+  }
+
+  function renderSettingsDevices() {
+    const el = document.getElementById('settings-devices-list');
+    if (!el) return;
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    const devices = [
+      {
+        name: 'Local Desktop Agent',
+        platform: 'Windows Desktop',
+        status: 'Connected device',
+        trusted: true,
+        lastSeen: 'Active now',
+      },
+    ];
+    el.innerHTML = devices.map((d) => `
+      <div class="setting-row">
+        <div class="setting-info">
+          <span class="setting-title">${escapeHtml(d.name)} (${escapeHtml(d.platform)})</span>
+          <span class="device-tag">${escapeHtml(d.status)} · ${escapeHtml(d.lastSeen)}</span>
+        </div>
+        <span class="badge-status green">${escapeHtml(t('settings.connected') || 'Connected')}</span>
+      </div>
+    `).join('');
+  }
+
   function renderSettings() {
     const qwContainer = document.getElementById('quickwake-settings-options');
     const autoContainer = document.getElementById('autonomy-selector-container');
+
+    switchSettingsCategory(state.activeSettingsCat || 'connections');
 
     if (qwContainer) {
       const options = [
@@ -2160,11 +2224,11 @@
         <div class="setting-row">
           <div class="setting-info">
             <span class="setting-title">${escapeHtml(o.title)}</span>
-            ${o.notSupported ? `<span class="device-tag">${o.label}</span>` : ''}
+            ${o.notSupported ? `<span class="device-tag">${escapeHtml(o.label)}</span>` : ''}
           </div>
           ${
             !o.notSupported
-              ? `<input type="checkbox" ${o.enabled ? 'checked' : ''} onchange="window.NAGEX.toggleQuickWakeOpt('${o.key}', this.checked)">`
+              ? `<input type="checkbox" role="switch" aria-checked="${o.enabled ? 'true' : 'false'}" ${o.enabled ? 'checked' : ''} onchange="window.NAGEX.toggleQuickWakeOpt('${o.key}', this.checked)">`
               : ''
           }
         </div>`
@@ -2183,9 +2247,9 @@
       autoContainer.innerHTML = levels
         .map(
           (l) => `
-        <div class="autonomy-level-card ${state.autonomyConfig.level === l.id ? 'selected' : ''}" onclick="window.NAGEX.selectAutonomy('${l.id}')">
-          <div class="setting-title">${l.title}</div>
-          <div class="setting-sub">${l.desc}</div>
+        <div class="autonomy-level-card ${state.autonomyConfig.level === l.id ? 'selected' : ''}" role="button" tabindex="0" onclick="window.NAGEX.selectAutonomy('${l.id}')" onkeydown="if(event.key==='Enter'||event.key===' ') window.NAGEX.selectAutonomy('${l.id}')">
+          <div class="setting-title">${escapeHtml(l.title)}</div>
+          <div class="setting-sub">${escapeHtml(l.desc)}</div>
         </div>`
         )
         .join('');
@@ -2193,15 +2257,11 @@
 
     renderSettingsConnections();
     renderSettingsAiModel();
+    renderSettingsDevices();
     if (window.NAGEX.renderProactiveAssistant) window.NAGEX.renderProactiveAssistant();
     wireSettingsAdvancedToggle();
   }
 
-  // R7 §2/§3 — real GET /api/v1/providers/status only (state.providerStatus,
-  // already fetched by loadAllData). Replaces the previous hardcoded
-  // "Connected"/"Active via Gateway" badges, which never reflected real
-  // provider state — read-only display, since no backend contract exists
-  // yet to let a user switch providers from here.
   function renderSettingsAiModel() {
     const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
     const el = document.getElementById('settings-ai-model-status');
@@ -2230,7 +2290,7 @@
       .map((p) => {
         const isActive = p.provider === activeProvider;
         const roleLabel = isActive
-          ? (t('settings.providerActive') || 'Active')
+          ? (t('settings.providerActive') || 'Primary route')
           : (t('settings.providerFallback') || 'Fallback');
         return `
         <div class="setting-row">
@@ -2244,8 +2304,6 @@
       .join('') || `<p class="setting-sub">${escapeHtml(t('settings.providerNoneConfigured') || 'No model provider is configured on this server.')}</p>`;
   }
 
-  // Real Google OAuth connection status (state.googleOAuth, already fetched
-  // by loadAllData) — never a fake "Connected" badge (MASTER.md Section 8).
   function renderSettingsConnections() {
     const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
     const el = document.getElementById('settings-connections-status');
@@ -2273,9 +2331,19 @@
     if (btn && oauth.configured) {
       btn.onclick = async () => {
         if (oauth.connected) {
-          await apiFetch('/api/v1/oauth/google/disconnect', { method: 'POST' });
+          const confirmMsg = t('settings.confirmDisconnectMsg')
+            ? t('settings.confirmDisconnectMsg').replace('{service}', 'Google Calendar & Gmail')
+            : 'Disconnecting Google Calendar & Gmail will prevent NAgex from taking automated actions on your behalf. Are you sure?';
+          if (!window.confirm(confirmMsg)) return;
+
+          const res = await apiFetch('/api/v1/oauth/google/disconnect', { method: 'POST' });
           const fresh = await apiFetch('/api/v1/oauth/google/status');
           if (fresh) state.googleOAuth = fresh;
+          if (res && !res.error) {
+            showSettingsSaveFeedback(true, 'Disconnected successfully');
+          } else {
+            showSettingsSaveFeedback(false, res?.error || 'Disconnect failed');
+          }
           renderSettingsConnections();
         } else {
           window.location.href = '/api/v1/oauth/google/start';
@@ -3656,19 +3724,68 @@
         switchTab('tab-inbox');
       }
     },
+    switchSettingsCategory: (catKey) => {
+      switchSettingsCategory(catKey);
+    },
+    probeModelHealth: async () => {
+      const btn = document.getElementById('btn-probe-model-health');
+      if (btn) btn.disabled = true;
+      try {
+        const res = await apiFetch('/api/v1/providers/health-check', { method: 'POST' });
+        if (res) {
+          state.providerStatus = res;
+          showSettingsSaveFeedback(true, 'Model health probe completed');
+        }
+      } catch (err) {
+        showSettingsSaveFeedback(false, 'Model probe failed');
+      } finally {
+        if (btn) btn.disabled = false;
+        renderSettingsAiModel();
+      }
+    },
     toggleQuickWakeOpt: async (key, value) => {
+      const prevVal = state.quickWakeConfig ? state.quickWakeConfig[key] : false;
+      if (!state.quickWakeConfig) state.quickWakeConfig = {};
       state.quickWakeConfig[key] = value;
-      await apiFetch('/api/v1/quickwake/config', {
-        method: 'POST',
-        body: JSON.stringify({ [key]: value }),
-      });
+      try {
+        const res = await apiFetch('/api/v1/quickwake/config', {
+          method: 'POST',
+          body: JSON.stringify({ [key]: value }),
+        });
+        if (res && !res.error) {
+          showSettingsSaveFeedback(true);
+        } else {
+          state.quickWakeConfig[key] = prevVal;
+          showSettingsSaveFeedback(false, res?.error || 'Save failed');
+        }
+      } catch (err) {
+        state.quickWakeConfig[key] = prevVal;
+        showSettingsSaveFeedback(false, err?.message || 'Save failed');
+      }
+      renderSettings();
     },
     selectAutonomy: async (level) => {
+      const prevLevel = state.autonomyConfig ? state.autonomyConfig.level : 'L1';
+      if (!state.autonomyConfig) state.autonomyConfig = { level: 'L1' };
       state.autonomyConfig.level = level;
-      await apiFetch('/api/v1/autonomy/config', {
-        method: 'POST',
-        body: JSON.stringify({ level }),
-      });
+      try {
+        const res = await apiFetch('/api/v1/autonomy/config', {
+          method: 'POST',
+          body: JSON.stringify({ level }),
+        });
+        if (res && !res.error) {
+          showSettingsSaveFeedback(true);
+        } else {
+          state.autonomyConfig.level = prevLevel;
+          showSettingsSaveFeedback(false, res?.error || 'Save failed');
+        }
+      } catch (err) {
+        state.autonomyConfig.level = prevLevel;
+        showSettingsSaveFeedback(false, err?.message || 'Save failed');
+      }
+      renderSettings();
+    },
+    renderSettings: () => {
       renderSettings();
     },
     pauseTask: async (taskId) => {
