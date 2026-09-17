@@ -241,6 +241,7 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     initNavigation();
+    initRouter();
     initQuickWake();
     initPrimaryScenario();
     initQuickActionChips();
@@ -290,13 +291,66 @@
     }
   }
 
-  function switchTab(tabId) {
+  const TAB_HASH_MAP = {
+    'tab-home': '#home',
+    'tab-inbox': '#inbox',
+    'tab-executions': '#activity',
+    'tab-vault': '#vault',
+    'tab-memory': '#memory',
+    'tab-plans': '#plans',
+    'tab-tasks': '#tasks',
+    'tab-skills': '#skills',
+    'tab-tools': '#tools',
+    'tab-approvals': '#approvals',
+    'tab-knowledge': '#knowledge',
+    'tab-settings': '#settings',
+    'tab-my-space': '#my-space',
+  };
+
+  const HASH_TAB_MAP = {
+    '#home': 'tab-home',
+    '#inbox': 'tab-inbox',
+    '#activity': 'tab-executions',
+    '#vault': 'tab-vault',
+    '#memory': 'tab-memory',
+    '#plans': 'tab-plans',
+    '#tasks': 'tab-tasks',
+    '#skills': 'tab-skills',
+    '#tools': 'tab-tools',
+    '#approvals': 'tab-approvals',
+    '#knowledge': 'tab-knowledge',
+    '#settings': 'tab-settings',
+    '#my-space': 'tab-my-space',
+  };
+
+  let isNavigatingFromPopState = false;
+
+  function getHashForTab(tabId, settingsCat) {
+    if (tabId === 'tab-settings' && settingsCat) {
+      return `#settings/${settingsCat}`;
+    }
+    return TAB_HASH_MAP[tabId] || '#home';
+  }
+
+  function parseHash(rawHash) {
+    const raw = (rawHash || (typeof window !== 'undefined' ? window.location.hash : '') || '').trim();
+    if (!raw) return { tabId: 'tab-home', catKey: null };
+
+    if (raw.startsWith('#settings/')) {
+      const catKey = raw.replace('#settings/', '');
+      return { tabId: 'tab-settings', catKey };
+    }
+
+    const cleanHash = raw.split('?')[0];
+    const tabId = HASH_TAB_MAP[cleanHash] || 'tab-home';
+    return { tabId, catKey: null };
+  }
+
+  function switchTab(tabId, options) {
+    const pushHistory = !options || options.pushHistory !== false;
+    const prevTab = state.activeTab;
     state.activeTab = tabId;
-    // UI-5: a single active-sync loop covers the desktop sidebar, the
-    // legacy responsive mobile-bottom-nav, and the new #mobile-app-shell
-    // bottom nav (mobile-home.js's own nav items) — fixes a pre-existing
-    // bug where the legacy mobile nav's .active state was never updated
-    // at all (only .nav-menu .nav-item was ever touched here).
+
     document.querySelectorAll('.nav-menu .nav-item[data-tab], .mobile-bottom-nav .mob-nav-item[data-tab], #mobile-app-shell [data-tab]').forEach((el) => {
       if (el.getAttribute('data-tab') === tabId) el.classList.add('active');
       else el.classList.remove('active');
@@ -310,11 +364,53 @@
 
     renderActiveTab();
 
-    // mobile-home.js hooks this to decide whether #mobile-app-shell should
-    // be visible (mobile viewport AND Home active) — never fired on a
-    // separate timer, only on an actual tab change, same pattern as
-    // onHomeRender.
     if (window.NAGEX.onTabChange) window.NAGEX.onTabChange(tabId);
+
+    // DEBT-0005 History API Integration
+    if (!isNavigatingFromPopState && pushHistory && typeof window !== 'undefined' && window.history && window.history.pushState) {
+      const catKey = tabId === 'tab-settings' ? (state.activeSettingsCat || 'connections') : null;
+      const targetHash = getHashForTab(tabId, catKey);
+      const currentHash = window.location.hash;
+      const hasState = Boolean(window.history.state && window.history.state.tabId);
+
+      if (currentHash !== targetHash || prevTab !== tabId || !hasState) {
+        window.history.pushState({ tabId, settingsCat: catKey }, '', targetHash);
+      }
+    }
+  }
+
+  function initRouter() {
+    if (typeof window === 'undefined' || !window.history) return;
+
+    window.addEventListener('popstate', (e) => {
+      isNavigatingFromPopState = true;
+      try {
+        const stateData = e.state;
+        if (stateData && stateData.tabId) {
+          switchTab(stateData.tabId, { pushHistory: false });
+          if (stateData.tabId === 'tab-settings' && stateData.settingsCat) {
+            switchSettingsCategory(stateData.settingsCat, { pushHistory: false });
+          }
+        } else {
+          const parsed = parseHash(window.location.hash);
+          switchTab(parsed.tabId, { pushHistory: false });
+          if (parsed.catKey) {
+            switchSettingsCategory(parsed.catKey, { pushHistory: false });
+          }
+        }
+      } finally {
+        isNavigatingFromPopState = false;
+      }
+    });
+
+    const parsed = parseHash(window.location.hash);
+    state.activeTab = parsed.tabId;
+    if (parsed.catKey) state.activeSettingsCat = parsed.catKey;
+
+    const initialHash = getHashForTab(parsed.tabId, parsed.catKey);
+    if (window.history.replaceState) {
+      window.history.replaceState({ tabId: parsed.tabId, settingsCat: parsed.catKey }, '', initialHash);
+    }
   }
 
   function renderActiveTab() {
@@ -2163,7 +2259,8 @@
     }
   }
 
-  function switchSettingsCategory(catKey) {
+  function switchSettingsCategory(catKey, options) {
+    const pushHistory = !options || options.pushHistory !== false;
     state.activeSettingsCat = catKey;
     const tabs = document.querySelectorAll('.settings-cat-tab');
     tabs.forEach((tab) => {
@@ -2176,6 +2273,13 @@
       const isMatch = panel.id === `cat-panel-${catKey}`;
       panel.hidden = !isMatch;
     });
+
+    if (!isNavigatingFromPopState && pushHistory && state.activeTab === 'tab-settings' && typeof window !== 'undefined' && window.history && window.history.pushState) {
+      const targetHash = `#settings/${catKey}`;
+      if (window.location.hash !== targetHash) {
+        window.history.pushState({ tabId: 'tab-settings', settingsCat: catKey }, '', targetHash);
+      }
+    }
   }
 
   function renderSettingsDevices() {

@@ -246,26 +246,21 @@ test('16. Logo->Home wiring from Increment 1 is unmodified by the Home redesign 
 test('17. switchTab correctly sets/clears the "active" nav state for Home/Inbox/Activity/Settings (single source of truth, no second router)', async () => {
   await withServer(async (origin) => {
     const appJs = await (await fetch(`${origin}/app.js`)).text();
-    const fnMatch = appJs.match(/function switchTab\(tabId\) \{[\s\S]*?\n  \}/);
+    const fnMatch = appJs.match(/function switchTab\(tabId(?:,\s*options)?\) \{[\s\S]*?\n  \}/);
     assert.ok(fnMatch);
     assert.match(fnMatch![0], /el\.getAttribute\('data-tab'\) === tabId\) el\.classList\.add\('active'\)/);
     assert.match(fnMatch![0], /else el\.classList\.remove\('active'\)/);
   });
 });
 
-// ─── 18: Back/Forward — declared limitation, not faked ───
+// ─── 18: Back/Forward — DEBT-0005 resolved with real History API ───
 
-test('18. Browser Back/Forward across tabs is a declared architectural limitation (no pushState/popstate exists) — not silently faked as supported', async () => {
+test('18. Browser Back/Forward across tabs uses History API pushState/popstate (DEBT-0005 resolved)', async () => {
   await withServer(async (origin) => {
     const appJs = await (await fetch(`${origin}/app.js`)).text();
-    // The only window.history usage in the whole file is the pre-existing
-    // OAuth-redirect query-string cleanup (replaceState), never pushState,
-    // and there is no popstate/hashchange listener anywhere — Back/Forward
-    // through tabs is not wired. See DEBT-0005 for the explicit disclosure.
-    assert.doesNotMatch(appJs, /window\.history\.pushState/);
-    assert.doesNotMatch(appJs, /addEventListener\('popstate'/);
-    assert.doesNotMatch(appJs, /addEventListener\('hashchange'/);
-    assert.match(appJs, /window\.history\.replaceState\(\{\}, '', cleanUrl\)/);
+    assert.match(appJs, /window\.history\.pushState/);
+    assert.match(appJs, /addEventListener\('popstate'/);
+    assert.match(appJs, /initRouter\(\)/);
   });
 });
 
