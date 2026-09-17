@@ -137,10 +137,9 @@
           <!-- Left Main Stack (Hero -> Composer -> Quick Actions -> 2-Col Operational Grid) -->
           <div class="desktop-home-main-stack">
             <div class="home-hero-header">
-              <span class="eyebrow-text" id="desktop-hero-greeting" data-i18n="home.greetingMorning">Good morning, Jenny ☀️</span>
-              <h1 class="personal-hero-title">Your Personal AI That <span class="brand-blue">Plans and Executes.</span></h1>
-              <p class="personal-hero-subtitle">Tell NAgex what you want. It plans, takes action, and keeps you in control.</p>
-              <div class="hero-visual" aria-hidden="true"><span></span><span></span><em>Turn Ideas into Action</em></div>
+              <span class="eyebrow-text" id="desktop-hero-greeting" data-i18n="home.greetingMorning">Good morning</span>
+              <h1 class="personal-hero-title" data-i18n="home.heroTitle">What do you want to accomplish?</h1>
+              <p class="personal-hero-subtitle" data-i18n="home.heroSubtitle">Tell NAgex what you need. It plans, takes action, and keeps you in control.</p>
             </div>
 
             <!-- Unified Composer Card -->
@@ -171,46 +170,61 @@
               </div>
             </div>
 
-            <!-- Quick action cards — 5 horizontal cards matching reference -->
+            <!-- Capability-neutral examples — R12.1 Increment 2 §5/§6. Spans
+                 7 distinct capability classes (research, document,
+                 coding, communication, image, scheduling, automation) so
+                 Home never reads as calendar/task-dominant. Each card
+                 submits through the same canonical intent path as typed
+                 input (runAmbientTask) — never a separate hidden
+                 execution route. See DEBT-0005 (closed by this change). -->
             <span class="nagex-sr-only" data-i18n="home.trySomething">Try something like:</span>
-            <div class="nagex-quick-actions-grid">
-              <button class="nagex-quick-action-card quick-action-chip" data-action="plan-day">
-                <span class="qa-icon qa-icon-blue"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3.5c-.5-.5-2.5 0-4 1.5L13 8.5 4.8 6.7c-.6-.1-1.2.1-1.5.6l-1 1.7c-.3.5-.2 1.2.3 1.6L8 15l-3 3-2.5-.5L1 19l3 3 1.5-1.5L5 18l3-3 3.4 5.4c.4.5 1.1.6 1.6.3l1.7-1c.5-.3.7-.9.6-1.5z"/></svg></span>
+            <div class="nagex-quick-actions-grid" id="home-examples-grid">
+              <button class="nagex-quick-action-card quick-action-chip" data-action="example-research">
+                <span class="qa-icon qa-icon-orange"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
                 <span class="qa-text">
-                  <span class="qa-title">Plan a Trip</span>
-                  <span class="qa-desc">Find flights, hotels and build an itinerary</span>
+                  <span class="qa-title" data-i18n="home.example.research">Find risky clauses in this contract</span>
                 </span>
                 <svg class="qa-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
               </button>
-              <button class="nagex-quick-action-card quick-action-chip" data-action="prepare-meeting">
-                <span class="qa-icon qa-icon-green"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg></span>
-                <span class="qa-text">
-                  <span class="qa-title">Book a Sports Activity</span>
-                  <span class="qa-desc">Reserve tennis, golf or fitness classes</span>
-                </span>
-                <svg class="qa-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-              </button>
-              <button class="nagex-quick-action-card quick-action-chip" data-action="research-topic">
-                <span class="qa-icon qa-icon-orange"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2v20M6 2v6a4 4 0 0 0 4 4h0a4 4 0 0 0 4-4V2M10 12v10"/></svg></span>
-                <span class="qa-text">
-                  <span class="qa-title">Reserve a Dinner</span>
-                  <span class="qa-desc">Find and book the perfect restaurant</span>
-                </span>
-                <svg class="qa-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-              </button>
-              <button class="nagex-quick-action-card quick-action-chip" data-action="summarize-notes">
+              <button class="nagex-quick-action-card quick-action-chip" data-action="example-presentation">
                 <span class="qa-icon qa-icon-blue"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
                 <span class="qa-text">
-                  <span class="qa-title">Manage My Schedule</span>
-                  <span class="qa-desc">Organize meetings and optimize my day</span>
+                  <span class="qa-title" data-i18n="home.example.presentation">Turn this document into a 10-slide deck</span>
                 </span>
                 <svg class="qa-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
               </button>
-              <button class="nagex-quick-action-card quick-action-chip" data-action="execute-task">
-                <span class="qa-icon qa-icon-green"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+              <button class="nagex-quick-action-card quick-action-chip" data-action="example-coding">
+                <span class="qa-icon qa-icon-green"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span>
                 <span class="qa-text">
-                  <span class="qa-title">Organize My Day</span>
-                  <span class="qa-desc">Prioritize tasks and get things done</span>
+                  <span class="qa-title" data-i18n="home.example.coding">Fix this error and run the tests</span>
+                </span>
+                <svg class="qa-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+              <button class="nagex-quick-action-card quick-action-chip" data-action="example-communication">
+                <span class="qa-icon qa-icon-blue"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z" opacity="0"/><path d="m22 6-10 7L2 6"/><rect x="2" y="4" width="20" height="16" rx="2"/></svg></span>
+                <span class="qa-text">
+                  <span class="qa-title" data-i18n="home.example.communication">Draft a reply to my last client email</span>
+                </span>
+                <svg class="qa-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+              <button class="nagex-quick-action-card quick-action-chip" data-action="example-image">
+                <span class="qa-icon qa-icon-orange"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg></span>
+                <span class="qa-text">
+                  <span class="qa-title" data-i18n="home.example.image">Change the background of this photo</span>
+                </span>
+                <svg class="qa-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+              <button class="nagex-quick-action-card quick-action-chip" data-action="example-scheduling">
+                <span class="qa-icon qa-icon-green"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
+                <span class="qa-text">
+                  <span class="qa-title" data-i18n="home.example.scheduling">Compare hotels for my Seoul trip</span>
+                </span>
+                <svg class="qa-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+              <button class="nagex-quick-action-card quick-action-chip" data-action="example-automation">
+                <span class="qa-icon qa-icon-blue"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
+                <span class="qa-text">
+                  <span class="qa-title" data-i18n="home.example.automation">Watch for competitor pricing changes weekly</span>
                 </span>
                 <svg class="qa-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
               </button>
@@ -254,7 +268,7 @@
                   </div>
                   <div class="my-space-tabs"><span class="active">Today</span><span>This Week</span><span>Upcoming</span></div>
                   <div class="today-date-header">
-                    <span class="today-date-label" id="desktop-today-date">Mon, Dec 16, 2024</span>
+                    <span class="today-date-label" id="desktop-today-date"></span>
                     <div class="date-nav-btns"><button class="date-nav-btn">&lt;</button><button class="date-nav-btn">&gt;</button></div>
                   </div>
                   <div id="desktop-today-list" class="timeline-container">
@@ -277,6 +291,22 @@
 
               <div class="desktop-home-col-center">
 
+              <!-- Important for you — R12.1 Increment 2 §7. Proactive
+                   information only (candidate suggestions, retryable
+                   failures, pages needing human review). Structurally
+                   separate from "Needs Approval": nothing here can
+                   authorize a mutation. -->
+              <section class="nagex-card canvas-section-card">
+                <div class="nagex-section-heading">
+                  <div class="heading-title-group">
+                    <span class="card-icon-tile orange-tile"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></span>
+                    <h2 data-i18n="home.importantTitle">Important for you</h2>
+                  </div>
+                  <a class="nagex-section-link" onclick="window.NAGEX.switchTab('tab-inbox')" data-i18n="home.seeAll">View All &gt;</a>
+                </div>
+                <div id="list-important-for-you" aria-live="polite"></div>
+              </section>
+
               <!-- NAgex is working for you Panel -->
               <section class="nagex-card canvas-section-card">
                 <div class="nagex-section-heading">
@@ -287,7 +317,7 @@
                   </div>
                   <a class="nagex-section-link" onclick="window.NAGEX.switchTab('tab-executions')" data-i18n="home.seeAll">View All &gt;</a>
                 </div>
-                <div id="list-nagex-working"></div>
+                <div id="list-nagex-working" aria-live="polite"></div>
               </section>
 
               <!-- Memories & Context Panel -->
@@ -307,20 +337,8 @@
           </div>
         </div>
 
-        <!-- Right Rail (Value Overview Card -> Approval Panel -> Lower Cards) -->
+        <!-- Right Rail (Approval Panel) -->
         <div class="desktop-home-right-rail">
-            <!-- Value overview card (top right) -->
-            <aside class="nagex-card desktop-value-overview">
-              <div class="desktop-value-landscape" aria-hidden="true"></div>
-              <h2>A more fulfilled you,<br>with <span>NAgex</span></h2>
-              <div id="desktop-activity-summary" class="nagex-empty-state">
-                <div class="value-metric-row"><span class="metric-icon blue-clock"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span><div class="metric-body"><strong>12.5 hours</strong><small>Time saved this week</small></div></div>
-                <div class="value-metric-row"><span class="metric-icon green-check"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span><div class="metric-body"><strong>28 tasks</strong><small>Completed for you</small></div></div>
-                <div class="value-metric-row"><span class="metric-icon blue-cal"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span><div class="metric-body"><strong>6 bookings</strong><small>Managed automatically</small></div></div>
-                <div class="value-metric-row"><span class="metric-icon star-gold"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span><div class="metric-body"><strong>A calmer, more focused you</strong><small>That's what matters</small></div></div>
-              </div>
-            </aside>
-
             <div class="desktop-home-col-side">
               <!-- Needs Your Approval Panel -->
               <section class="nagex-card canvas-section-card">
@@ -334,26 +352,49 @@
                   </div>
                   <a class="nagex-section-link" onclick="window.NAGEX.switchTab('tab-approvals')" data-i18n="home.seeAll">View All &gt;</a>
                 </div>
-                <div id="list-needs-attention"></div>
-              </section>
-
-              <!-- Right-Side Value Anchor Card -->
-              <section class="nagex-card nagex-value-panel">
-                <div class="value-landscape-banner">
-                  <div class="value-banner-text">A Brighter Tomorrow, Together</div>
-                </div>
-                <div class="desktop-value-message">
-                  <strong>Let NAgex handle the details,<br>so you can focus on what matters.</strong>
-                  <div class="value-chips-row">
-                    <button class="quick-action-chip value-chip" data-action="plan-day"><svg class="svg-icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg> Plan</button>
-                    <button class="quick-action-chip value-chip" data-action="prepare-meeting"><svg class="svg-icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3.5c-.5-.5-2.5 0-4 1.5L13 8.5 4.8 6.7"/></svg> Book</button>
-                    <button class="quick-action-chip value-chip" data-action="research-topic"><svg class="svg-icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> Manage</button>
-                    <button class="quick-action-chip value-chip" data-action="execute-task"><svg class="svg-icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Execute</button>
-                  </div>
-                </div>
+                <div id="list-needs-attention" aria-live="polite"></div>
               </section>
             </div>
           </div>
+
+          <!-- Explore what NAgex can do — R12.1 Increment 2 §12. Secondary,
+               outcome-grouped discovery surface (not internal module
+               names). Each item submits through the same canonical intent
+               path as the composer/examples above, never a hidden route. -->
+          <section class="nagex-card canvas-section-card home-discover-section">
+            <div class="nagex-section-heading">
+              <div class="heading-title-group">
+                <span class="card-icon-tile blue-tile"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span>
+                <h2 data-i18n="home.discoverTitle">Explore what NAgex can do</h2>
+              </div>
+            </div>
+            <div class="home-discover-grid">
+              <button class="home-discover-chip quick-action-chip" data-action="discover-create">
+                <strong data-i18n="home.discover.create">Create</strong>
+                <span data-i18n="home.discover.createDesc">Documents, slides, images, drafts</span>
+              </button>
+              <button class="home-discover-chip quick-action-chip" data-action="discover-research">
+                <strong data-i18n="home.discover.research">Research</strong>
+                <span data-i18n="home.discover.researchDesc">Summaries, comparisons, deep analysis</span>
+              </button>
+              <button class="home-discover-chip quick-action-chip" data-action="discover-communicate">
+                <strong data-i18n="home.discover.communicate">Communicate</strong>
+                <span data-i18n="home.discover.communicateDesc">Emails, replies, messages</span>
+              </button>
+              <button class="home-discover-chip quick-action-chip" data-action="discover-organize">
+                <strong data-i18n="home.discover.organize">Organize</strong>
+                <span data-i18n="home.discover.organizeDesc">Schedules, reservations, notes</span>
+              </button>
+              <button class="home-discover-chip quick-action-chip" data-action="discover-automate">
+                <strong data-i18n="home.discover.automate">Automate</strong>
+                <span data-i18n="home.discover.automateDesc">Recurring checks, monitoring, alerts</span>
+              </button>
+              <button class="home-discover-chip quick-action-chip" data-action="discover-browse-act">
+                <strong data-i18n="home.discover.browseAct">Browse &amp; Act</strong>
+                <span data-i18n="home.discover.browseActDesc">Web research, bookings, real actions</span>
+              </button>
+            </div>
+          </section>
 
           <!-- Bottom Footer Info -->
           <footer class="home-canvas-footer">
@@ -1148,7 +1189,6 @@
                     <div><strong>Create calendar event</strong><br><small>Add the meeting with agenda and send invites</small></div>
                   </div>
                   <div class="mini-plan-btns">
-                    <button class="btn-review-plan-outline" id="btn-review-plan">Review Plan</button>
                     <button class="btn-run-blue-primary" id="btn-run-ambient-plan" type="button">▶ <span id="btn-run-ambient-plan-label" data-i18n="ambient.run">Run</span></button>
                   </div>
                 </div>
@@ -1252,10 +1292,9 @@
 
       <!-- B. Hero / Primary Command Surface -->
       <section class="mh-hero">
-        <div class="mh-hero-decor" aria-hidden="true"><span></span><span></span><em data-i18n="home.heroFlourish">Turn Ideas into Action</em></div>
         <span class="mh-hero-eyebrow" id="mh-hero-eyebrow" data-i18n="home.greetingMorning">Good morning</span>
-        <h1 class="mh-hero-title"><span class="brand-blue">NAgex</span> — <span data-i18n="home.heroTitle">Personal AI for the Next Age</span></h1>
-        <p class="mh-hero-sub" data-i18n="home.heroSubtitle">Intelligence that remembers, understands, and acts with you.</p>
+        <h1 class="mh-hero-title" data-i18n="home.heroTitle">What do you want to accomplish?</h1>
+        <p class="mh-hero-sub" data-i18n="home.heroSubtitle">Tell NAgex what you need. It plans, takes action, and keeps you in control.</p>
 
         <div class="mh-command-bar">
           <span class="mh-command-icon" aria-hidden="true">

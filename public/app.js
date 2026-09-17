@@ -409,23 +409,11 @@
   let realAudioChunks = [];
 
   function renderHome() {
-    const isKr = window.NAGEX_I18N && window.NAGEX_I18N.currentLocale === 'kr';
-    const heroEyebrow = document.querySelector('.eyebrow-text');
-    const heroTitle = document.querySelector('.personal-hero-title');
-    const heroSub = document.querySelector('.personal-hero-subtitle');
-
-    if (heroEyebrow) heroEyebrow.textContent = 'NAGEX';
-    if (heroTitle) {
-      heroTitle.innerHTML = isKr
-        ? '계획하고 실행하는 <span class="brand-blue">당신의 Personal AI.</span>'
-        : 'Your Personal AI That <span class="brand-blue">Plans and Executes.</span>';
-    }
-    if (heroSub) {
-      heroSub.textContent = isKr
-        ? '원하는 것을 NAgex에 말하세요. 계획하고 실행하며, 통제권은 언제나 당신에게 있습니다.'
-        : 'Tell NAgex what you want. It plans, takes action, and keeps you in control.';
-    }
-
+    // R12.1 Increment 2 — hero title/subtitle are now plain data-i18n
+    // markup (applyLocale() keeps them current on every locale switch);
+    // this function no longer overrides them with hardcoded copy. The
+    // eyebrow greeting stays owned exclusively by desktop-home.js's
+    // renderGreeting() (real time-of-day text), never a fabricated name.
     renderHomeWorkspaceSections();
     if (window.NAGEX.renderDailyBrief) window.NAGEX.renderDailyBrief('desktop');
 
@@ -579,6 +567,35 @@
     if (window.NAGEX.onHomeRenderMobile) window.NAGEX.onHomeRenderMobile();
   }
 
+  // See the DEBT-0006 comment inside renderHomeWorkspaceSections for why
+  // these two specific ids (the legacy demo/seed approvalQueue entries)
+  // are excluded from Home's real "Needs Approval" surface.
+  const LEGACY_DEMO_APPROVAL_IDS = new Set(['appr_gcal_sync', 'appr_stakeholder_email']);
+
+  // Consequence-specific approval CTA (R12.1 Increment 2 §9/§10) — never a
+  // bare "Run"/"Execute"/"Continue"/"OK". Derived from the approval's own
+  // toolId when present (the reliable signal), falling back to its
+  // action/tool text, and only using a still-specific generic label
+  // ("Approve request") if neither identifies a known consequence.
+  function homeApprovalActionLabel(a, t) {
+    const toolId = String(a.toolId || '').toUpperCase();
+    const action = String(a.action || a.intent || '').toLowerCase();
+    const tool = String(a.tool || '').toLowerCase();
+    if (toolId.includes('CALENDAR_CREATE') || (action.includes('create') && (action.includes('calendar') || action.includes('event') || tool.includes('calendar')))) {
+      return t('home.approveAndCreateEvent') || 'Approve and create event';
+    }
+    if (toolId.includes('GMAIL_SEND') || toolId.includes('GMAIL_REPLY') || action.includes('send') || action.includes('email') || tool.includes('gmail')) {
+      return t('home.approveAndSend') || 'Approve and send';
+    }
+    if (toolId.includes('CANCEL') || action.includes('delete') || action.includes('cancel')) {
+      return t('home.approveAndDelete') || 'Approve and delete';
+    }
+    if (action.includes('submit')) {
+      return t('home.approveAndSubmit') || 'Approve and submit';
+    }
+    return t('home.approveGeneric') || 'Approve request';
+  }
+
   async function renderHomeWorkspaceSections() {
     const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
 
@@ -626,16 +643,15 @@
       }
     }
 
-    // 2. Needs your attention (max 2 items total, item C). Four distinct,
-    // real, canonical-state-derived sources — never fake demo cards, never
-    // a stale ACCEPTED/SUCCEEDED candidate shown as needing attention.
-    // Candidate Review ("Review suggested ...") and Action Approval
-    // ("Approve ...") use visibly different copy (item C/M) — they are not
-    // the same control.
-    const elAttention = document.getElementById('list-needs-attention');
-    if (elAttention) {
-      const card = elAttention.closest('.canvas-section-card');
-      const pendingApprs = state.approvals.filter((a) => a.status === 'PENDING');
+    // 2a. Important for you (max 2 items, R12.1 Increment 2 §7) — proactive
+    // information only, structurally separate from real approvals: proposed
+    // candidates awaiting review and retryable failed candidate actions and
+    // pages that need a human. Nothing rendered here can authorize a
+    // mutation — clicking through always lands on Inbox for the real
+    // review/accept/reject action.
+    const elImportant = document.getElementById('list-important-for-you');
+    if (elImportant) {
+      const card = elImportant.closest('.canvas-section-card');
       const proposedCandidates = (state.candidates || []).filter((c) => c.status === 'PROPOSED');
       const failedActionCandidates = (state.candidates || []).filter((c) => c.status === 'ACCEPTED' && c.action && c.action.status === 'FAILED');
       const needsHumanCaptures = (state.inbox || []).filter((i) => i.status === 'NEEDS_REVIEW' && i.metadata?.errorCode === 'BLOCKED_NEEDS_HUMAN');
@@ -643,36 +659,15 @@
       const CANDIDATE_REVIEW_LABEL = { TASK: 'Review suggested task', CALENDAR: 'Review suggested calendar event', MEMORY: 'Review suggested memory', KNOWLEDGE: 'Review suggested knowledge item' };
       const ACTION_RETRY_LABEL = { TASK: 'Task action failed', CALENDAR: 'Calendar action failed', MEMORY: 'Memory action failed', KNOWLEDGE: 'Knowledge action failed' };
 
-      const attentionItems = [
-        ...pendingApprs.map((a) => ({ kind: 'approval', approval: a })),
+      const importantItems = [
         ...proposedCandidates.map((c) => ({ kind: 'candidate-review', candidate: c })),
         ...failedActionCandidates.map((c) => ({ kind: 'candidate-retry', candidate: c })),
         ...needsHumanCaptures.map((i) => ({ kind: 'needs-human', item: i })),
       ].slice(0, 2);
 
-      // UI-4-R1: structurally always present (mockup's "Needs Your
-      // Approval" panel is a fixed grid position with a real count badge,
-      // not something that disappears at zero) — truthful empty state
-      // when nothing is pending, never a collapsed card.
       if (card) card.style.display = 'block';
-      if (attentionItems.length > 0) {
-        elAttention.innerHTML = attentionItems.map((entry) => {
-          if (entry.kind === 'approval') {
-            const a = entry.approval;
-            const humanAction = a.intent || a.action || 'Approval Required';
-            return `<div class="inbox-item-card contextual-approval-card">
-              <span class="approval-row-icon" aria-hidden="true">!</span>
-              <div class="inbox-item-main">
-                <span class="inbox-item-title">${escapeHtml(t('workspace.actionApprovalLabel') || 'Approve')}: ${escapeHtml(humanAction)}</span>
-                <span class="inbox-item-summary">${escapeHtml(a.resource?.id || 'Action Approval')}</span>
-              </div>
-              <div class="contextual-appr-btns" style="display: flex; gap: 0.35rem; margin-top: 0.25rem;">
-                <button class="btn-primary" style="font-size:0.75rem; padding:0.25rem 0.6rem;" onclick="window.NAGEX.handleApprovalAction('${a.id || a.approvalId}', 'APPROVE', event)">Approve</button>
-                <button class="btn-secondary" style="font-size:0.75rem; padding:0.25rem 0.6rem;" onclick="window.NAGEX.switchTab('tab-approvals')">Review</button>
-                <button class="btn-secondary danger" style="font-size:0.75rem; padding:0.25rem 0.6rem;" onclick="window.NAGEX.handleApprovalAction('${a.id || a.approvalId}', 'REJECT', event)">Reject</button>
-              </div>
-            </div>`;
-          }
+      if (importantItems.length > 0) {
+        elImportant.innerHTML = importantItems.map((entry) => {
           if (entry.kind === 'candidate-review') {
             const c = entry.candidate;
             return `<div class="inbox-item-card" onclick="window.NAGEX.switchTab('tab-inbox')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.NAGEX.switchTab('tab-inbox');}"><div class="inbox-item-main"><span class="inbox-item-title">${escapeHtml(CANDIDATE_REVIEW_LABEL[c.type] || 'Review suggestion')}</span><span class="inbox-item-summary">${escapeHtml(c.title)}</span></div><span class="badge-status status-PROPOSED">${escapeHtml(t('workspace.candidateStatusProposed') || 'Suggested')}</span></div>`;
@@ -687,39 +682,63 @@
           return `<div class="inbox-item-card" onclick="window.NAGEX.switchTab('tab-inbox')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.NAGEX.switchTab('tab-inbox');}"><div class="inbox-item-main"><span class="inbox-item-title">${escapeHtml(title)}</span><span class="inbox-item-summary">${escapeHtml(t('workspace.needsHumanAttention') || 'Needs your attention')}</span></div><span class="badge-status status-NEEDS_REVIEW">${escapeHtml(t('workspace.needsHumanBadge') || 'HUMAN NEEDED')}</span></div>`;
         }).join('');
       } else {
-        elAttention.innerHTML = `<div class="nagex-empty-state">${escapeHtml(t('home.approvalsEmpty') || 'Nothing needs your attention right now.')}</div>`;
+        elImportant.innerHTML = `<div class="nagex-empty-state">${escapeHtml(t('home.importantEmpty') || 'Nothing important to flag right now.')}</div>`;
       }
     }
 
-    // 3. Today summary (max 2 items)
-    const elToday = document.getElementById('list-today-summary');
-    if (elToday) {
-      const card = elToday.closest('.canvas-section-card');
-      if (card) {
-        const hasAgenda = elToday.children && elToday.children.length > 0 && !elToday.querySelector('.empty-state-text');
-        card.style.display = hasAgenda ? 'block' : 'none';
-      }
-    }
+    // 2b. Needs Approval (max 2 items) — real consequential actions
+    // awaiting explicit user approval, structurally separate from the
+    // proactive "Important for you" section above. CTAs are
+    // consequence-specific (never a bare "Run"/"OK"), derived from the
+    // approval's own toolId/action, per R12.1 Increment 2 §9.
+    //
+    // TRUTHFULNESS NOTE (DEBT-0006): GET /api/v1/approvals is a legacy
+    // demo/seed endpoint (2 fixed fictional entries, appr_gcal_sync /
+    // appr_stakeholder_email) that never reflects real Calendar/Gmail
+    // approval-store state — there is currently no real aggregate
+    // "list pending approvals" endpoint for those services (each only
+    // supports point lookup by a specific approvalId during an in-progress
+    // plan-resolution flow, which already renders its own approval card
+    // inline in the ambient modal). Showing those two fixed fictional
+    // entries here would misrepresent them as the user's real pending
+    // approvals, so they are excluded by id. This is a data-source gap,
+    // not a UI gap — see DEBT-0006 for why a real fix needs a dedicated
+    // backend aggregation pass rather than a Home-only change.
+    const elApprovals = document.getElementById('list-needs-attention');
+    if (elApprovals) {
+      const card = elApprovals.closest('.canvas-section-card');
+      const pendingApprs = state.approvals.filter((a) => a.status === 'PENDING' && !LEGACY_DEMO_APPROVAL_IDS.has(a.id)).slice(0, 2);
 
-    // 4. Recent (max 2 items, item E) — real completed outcomes from the
-    // canonical Activity projection (state.activity), never the legacy
-    // non-tenant-isolated /api/v1/executions demo feed and never a generic
-    // completion placeholder. Hidden entirely when there is no real
-    // completed event yet — never filled for visual balance (item W).
-    const elRecent = document.getElementById('list-recent-activity');
-    if (elRecent) {
-      const card = elRecent.closest('.canvas-section-card');
-      const recentCompleted = (state.activity || []).filter((a) => a.status === 'COMPLETED').slice(0, 2);
-      if (recentCompleted.length > 0) {
-        if (card) card.style.display = 'block';
-        elRecent.innerHTML = recentCompleted.map((a) => {
-          const time = new Date(a.occurredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-          return `<div class="inbox-item-card"><div class="inbox-item-main"><span class="inbox-item-title">${escapeHtml(a.title)}</span><span class="inbox-item-summary">${time}</span></div><span class="badge-status status-READY">${escapeHtml(t('workspace.activityDone') || 'Done')}</span></div>`;
+      if (card) card.style.display = 'block';
+      if (pendingApprs.length > 0) {
+        elApprovals.innerHTML = pendingApprs.map((a) => {
+          const humanAction = a.intent || a.action || 'Approval Required';
+          return `<div class="inbox-item-card contextual-approval-card">
+              <span class="approval-row-icon" aria-hidden="true">!</span>
+              <div class="inbox-item-main">
+                <span class="inbox-item-title">${escapeHtml(humanAction)}</span>
+                <span class="inbox-item-summary">${escapeHtml(a.resource?.id || 'Action Approval')}</span>
+              </div>
+              <div class="contextual-appr-btns" style="display: flex; gap: 0.35rem; margin-top: 0.25rem;">
+                <button class="btn-primary" style="font-size:0.75rem; padding:0.25rem 0.6rem;" onclick="window.NAGEX.handleApprovalAction('${a.id || a.approvalId}', 'APPROVE', event)">${escapeHtml(homeApprovalActionLabel(a, t))}</button>
+                <button class="btn-secondary" style="font-size:0.75rem; padding:0.25rem 0.6rem;" onclick="window.NAGEX.switchTab('tab-approvals')">${escapeHtml(t('home.reviewDetails') || 'Review')}</button>
+                <button class="btn-secondary danger" style="font-size:0.75rem; padding:0.25rem 0.6rem;" onclick="window.NAGEX.handleApprovalAction('${a.id || a.approvalId}', 'REJECT', event)">${escapeHtml(t('calendar.reject') || 'Reject')}</button>
+              </div>
+            </div>`;
         }).join('');
       } else {
-        if (card) card.style.display = 'none';
+        elApprovals.innerHTML = `<div class="nagex-empty-state">${escapeHtml(t('home.approvalsEmpty') || 'No approvals needed.')}</div>`;
       }
     }
+
+    // Recent Results — real completed outcomes. Owned by desktop-home.js's
+    // renderTodayPanel() (#desktop-recent-actions-list, sourced from real
+    // GET /api/v1/my-space history) since that is the panel actually
+    // present in current Home markup; the #list-today-summary /
+    // #list-recent-activity ids this block used to target no longer exist
+    // in index.html (superseded by #desktop-today-list /
+    // #desktop-recent-actions-list) — removed as dead code rather than
+    // left silently no-op-ing against a target that was never real.
   }
 
   async function renderInbox() {
@@ -1291,16 +1310,51 @@
     renderInbox();
   };
 
+  // Capability-neutral example prompts (R12.1 Increment 2 §5) — clicking
+  // one submits through the exact same canonical intent path as typed
+  // input (runAmbientTask), never a separate hidden execution route.
+  const HOME_EXAMPLE_PROMPTS = {
+    'example-research': 'Find risky clauses in this contract.',
+    'example-presentation': 'Turn this document into a 10-slide deck.',
+    'example-coding': 'Fix this error and run the tests.',
+    'example-communication': 'Draft a reply to my last client email.',
+    'example-image': 'Change the background of this photo.',
+    'example-scheduling': 'Compare hotels for my Seoul trip.',
+    'example-automation': 'Watch for competitor pricing changes weekly.',
+  };
+  // Capability Discovery chips (§12) populate the composer instead of
+  // auto-submitting — a browsing aid, not a shortcut, per §6's "one
+  // canonical user-intent path" rule (the user still reviews/edits before
+  // sending, same as if they had typed it themselves).
+  const HOME_DISCOVER_PROMPTS = {
+    'discover-create': 'Create ',
+    'discover-research': 'Research ',
+    'discover-communicate': 'Write a message to ',
+    'discover-organize': 'Organize ',
+    'discover-automate': 'Automate checking for ',
+    'discover-browse-act': 'Go to ',
+  };
+
   function initQuickActionChips() {
     const chips = document.querySelectorAll('.quick-action-chip');
     chips.forEach((chip) => {
       chip.onclick = () => {
         const action = chip.getAttribute('data-action');
-        let promptText = 'Plan my day';
+        if (action in HOME_DISCOVER_PROMPTS) {
+          const homeInput = document.getElementById('home-prompt-input');
+          if (homeInput) {
+            homeInput.value = HOME_DISCOVER_PROMPTS[action];
+            homeInput.focus();
+            homeInput.setSelectionRange(homeInput.value.length, homeInput.value.length);
+          }
+          return;
+        }
+        let promptText = HOME_EXAMPLE_PROMPTS[action] || 'Plan my day';
         if (action === 'summarize-notes') promptText = 'Summarize my recent notes and action items.';
         else if (action === 'prepare-meeting') promptText = 'Prepare my next client meeting and schedule it.';
         else if (action === 'research-topic') promptText = 'Perform deep research on current AI Agent market trends.';
         else if (action === 'execute-task') promptText = 'Run automated code security review on active repository.';
+        else if (action === 'plan-day') promptText = 'Plan my day.';
         openAmbientOverlay();
         runAmbientTask(promptText);
       };

@@ -372,17 +372,29 @@ test('20. Inbox review queue sorts PROPOSED candidates before resolved ones, new
   });
 });
 
-test('21. Home "Needs your attention" caps at 2 unresolved items shared with Action Approvals', async () => {
+test('21. Home "Important for you" caps at 2 unresolved proactive items, structurally separate from real Approvals', async () => {
+  // R12.1 Increment 2 §7/§9 deliberately UN-shared this pool: proactive
+  // candidate/needs-human items ("Important for you") and real
+  // consequential-action approvals ("Needs Approval") are now two
+  // structurally distinct sections, each capped independently at 2 —
+  // nothing in "Important for you" can authorize a mutation. This test
+  // replaces the old Phase 1 STEP 8 "shared pool" assertion, which no
+  // longer reflects intended behavior.
   await withServer(async (origin) => {
     const appJs = await (await fetch(`${origin}/app.js`)).text();
-    const sectionMatch = appJs.match(/\/\/ 2\. Needs your attention[\s\S]*?\n    }\n/);
-    assert.ok(sectionMatch, 'Needs your attention section not found');
-    const body = sectionMatch![0];
-    assert.match(body, /proposedCandidates = \(state\.candidates \|\| \[\]\)\.filter\(\(c\) => c\.status === 'PROPOSED'\)/);
-    // Phase 1 STEP 8 combined this with FAILED-action/NEEDS_HUMAN sources
-    // into one fairly-pooled list, capped once at the end (item C).
-    assert.match(body, /attentionItems = \[/);
-    assert.match(body, /\]\.slice\(0, 2\)/);
+    const importantSection = appJs.match(/\/\/ 2a\. Important for you[\s\S]*?\n    }\n/);
+    assert.ok(importantSection, 'Important for you section not found');
+    const importantBody = importantSection![0];
+    assert.match(importantBody, /proposedCandidates = \(state\.candidates \|\| \[\]\)\.filter\(\(c\) => c\.status === 'PROPOSED'\)/);
+    assert.match(importantBody, /importantItems = \[/);
+    assert.match(importantBody, /\]\.slice\(0, 2\)/);
+    // Approvals are never pooled into this section's own item array.
+    assert.doesNotMatch(importantBody, /pendingApprs/);
+
+    const approvalsSection = appJs.match(/\/\/ 2b\. Needs Approval[\s\S]*?\n    }\n/);
+    assert.ok(approvalsSection, 'Needs Approval section not found');
+    assert.match(approvalsSection![0], /pendingApprs = state\.approvals\.filter/);
+    assert.match(approvalsSection![0], /\.slice\(0, 2\)/);
   });
 });
 

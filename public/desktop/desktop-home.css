@@ -793,6 +793,32 @@ div#view-home.nagex-desktop-home .desktop-home-right-rail,
 }
 .blue-tile { background: #dbeafe !important; color: #1d4ed8 !important; }
 .red-tile { background: #fee2e2 !important; color: #ef4444 !important; }
+.orange-tile { background: #fff7ed !important; color: #ea580c !important; }
+
+/* R12.1 Increment 2 — Capability Discovery (§12). Responsive grid, no
+   fixed pixel widths, so it reflows correctly at mobile breakpoints. */
+.home-discover-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)) !important;
+  gap: 0.6rem !important;
+  padding: 0.25rem 0 !important;
+}
+.home-discover-chip {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  gap: 0.2rem !important;
+  padding: 0.75rem 0.9rem !important;
+  border-radius: 10px !important;
+  border: 1px solid var(--border-color, #e2e8f0) !important;
+  background: var(--bg-subtle, #f8fafc) !important;
+  cursor: pointer !important;
+  text-align: left !important;
+  min-height: 44px !important;
+}
+.home-discover-chip:hover { background: #eff6ff !important; }
+.home-discover-chip strong { font-size: 0.82rem !important; }
+.home-discover-chip span { font-size: 0.72rem !important; color: var(--text-secondary, #64748b) !important; }
 
 .nagex-desktop-home .nagex-section-heading h2 {
   font-size: 13px !important;

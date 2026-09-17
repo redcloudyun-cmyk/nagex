@@ -119,10 +119,14 @@ test('1. A PROPOSED candidate appears in canonical listing (Inbox source of trut
   assert.ok(list.some((r) => r.candidateId === c.candidateId));
 });
 
-test('2. Home "Needs your attention" sources PROPOSED candidates from canonical state (served app.js)', async () => {
+test('2. Home "Important for you" sources PROPOSED candidates from canonical state (served app.js)', async () => {
+  // R12.1 Increment 2 split the old merged "Needs your attention" section
+  // into "Important for you" (proactive, this section) and "Needs
+  // Approval" (real approvals only) — this test follows the code, not the
+  // comment text it used to match.
   await withServer(async (origin) => {
     const appJs = await (await fetch(`${origin}/app.js`)).text();
-    const sectionMatch = appJs.match(/\/\/ 2\. Needs your attention[\s\S]*?\n    }\n/);
+    const sectionMatch = appJs.match(/\/\/ 2a\. Important for you[\s\S]*?\n    }\n/);
     assert.ok(sectionMatch);
     assert.match(sectionMatch![0], /proposedCandidates = \(state\.candidates \|\| \[\]\)\.filter\(\(c\) => c\.status === 'PROPOSED'\)/);
   });
@@ -348,7 +352,7 @@ test('22. The source capture/vault artifact remains singular after multiple cand
 test('23. NEEDS_HUMAN capture state is reflected in Home\'s eligible-attention filter (served app.js)', async () => {
   await withServer(async (origin) => {
     const appJs = await (await fetch(`${origin}/app.js`)).text();
-    const sectionMatch = appJs.match(/\/\/ 2\. Needs your attention[\s\S]*?\n    }\n/);
+    const sectionMatch = appJs.match(/\/\/ 2a\. Important for you[\s\S]*?\n    }\n/);
     assert.ok(sectionMatch);
     assert.match(sectionMatch![0], /needsHumanCaptures = \(state\.inbox \|\| \[\]\)\.filter\(\(i\) => i\.status === 'NEEDS_REVIEW' && i\.metadata\?\.errorCode === 'BLOCKED_NEEDS_HUMAN'\)/);
   });
@@ -377,12 +381,12 @@ test('25. No generic fake "Activity completed" placeholder remains anywhere in t
 // ─── 26: Home max 2 enforced (functional confirmation alongside the
 // source-level check already in candidate_review.test.ts) ───
 
-test('26. Home Needs Attention pooling caps at 2 across all eligible sources combined', async () => {
+test('26. Home Important-for-you pooling caps at 2 across all eligible sources combined', async () => {
   await withServer(async (origin) => {
     const appJs = await (await fetch(`${origin}/app.js`)).text();
-    const sectionMatch = appJs.match(/\/\/ 2\. Needs your attention[\s\S]*?\n    }\n/);
+    const sectionMatch = appJs.match(/\/\/ 2a\. Important for you[\s\S]*?\n    }\n/);
     assert.ok(sectionMatch);
-    assert.match(sectionMatch![0], /attentionItems = \[/);
+    assert.match(sectionMatch![0], /importantItems = \[/);
     assert.match(sectionMatch![0], /\]\.slice\(0, 2\)/);
   });
 });

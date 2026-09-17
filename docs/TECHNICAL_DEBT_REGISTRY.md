@@ -266,44 +266,133 @@ remains unchanged/OPEN — it is unrelated to HTTP route organization.
 id: DEBT-0005
 area: intent-first-ux
 description: >
-  R12.1 Increment 1 (Universal Intent Interaction Foundation) implemented a
-  focused, load-bearing subset of its 23-section directive: the
-  presentation-state contract (public/intent-interaction-state.js), logo-
-  to-Home navigation on all 3 logo surfaces, Home composer busy-state/
-  duplicate-submission-guard/failure-recovery truthfulness, a progressive-
-  disclosure "What NAgex is doing" panel for ambient working state, and a
-  consequence-specific/i18n'd Calendar approval CTA. Five directive items
-  were not addressed this pass: (1) capability-neutral onboarding examples
-  (§13); (2) explicit Back/Forward + selected-state regression tests for
-  Inbox/Activity/Settings beyond the logo-click path (§11); (3) aria-live
-  regions for Working/Result states (§15); (4) real mobile-viewport
-  rendering verification beyond a static CSS no-fixed-width source check —
-  this repo has no real-browser rendering harness, only fetch-and-assert-
-  on-source-text (§14); (5) the ambient "Review Plan"/"Run" button's own
-  CTA-genericness, the exact example named in §9, was not audited or
-  normalized this pass (only Calendar's approve/reject buttons were).
+  Tracks the specific sub-items from R12.1 Increment 1's 23-section
+  directive that were deferred to later increments, with per-item status
+  (per the R12.1 Increment 2 directive §28's explicit instruction not to
+  close this entry wholesale just because most items are done).
+
+  §13 capability-neutral onboarding examples — CLOSED by Increment 2. Home's
+  example grid now spans 7 distinct capability classes (research,
+  presentation, coding, communication, image, scheduling, automation),
+  replacing the old 5/5 calendar-or-travel-dominant set. See
+  tests/home_intent_first_ux.test.ts tests 3-4.
+
+  §11 Home-specific nav selected-state — CLOSED by Increment 2. Verified:
+  switchTab() remains the single source of truth for active-state
+  add/remove across Home/Inbox/Activity/Settings (no second router
+  introduced). See tests/home_intent_first_ux.test.ts test 17.
+
+  §11 Back/Forward — REMAINS OPEN, now with an explicit regression test
+  instead of an undocumented gap. Increment 2 confirmed (again) there is no
+  pushState/popstate/hashchange wiring anywhere in app.js — Back/Forward
+  across tabs is architecturally unsupported, not silently faked as
+  supported. See tests/home_intent_first_ux.test.ts test 18. A real fix
+  needs a dedicated history/routing pass, out of scope for a Home content
+  redesign.
+
+  §15 Home aria-live — CLOSED for Home's three live-updating sections
+  (Working/Important/Approvals, all aria-live="polite", never "assertive").
+  See tests/home_intent_first_ux.test.ts test 21. Ambient/ Inbox/Activity
+  live regions remain unaudited (different screens, later increments).
+
+  Ambient "Review Plan"/"Run" CTA — CLOSED. The dead, unwired "Review Plan"
+  button (btn-review-plan) inside the static onboarding example card was
+  removed rather than wired to a no-op; the remaining "Run" button already
+  went through the canonical composer submit path and needed no CTA-text
+  change. See tests/home_intent_first_ux.test.ts test 11.
+
+  §14 real mobile-viewport rendering — REMAINS OPEN. Increment 2 added a
+  static CSS-source check (no fixed-width grid columns in new markup) but
+  this repo still has no real-browser rendering harness to verify actual
+  360/390/430px layout, per the R12.1 directive's own acknowledgment that
+  this may remain open until R12.2.
 severity: low
 introduced: R12.1 Increment 1 (2026-09-17)
 reason: >
   The directive itself frames Increment 1 as creating "the reusable
   interaction foundation" that later Home/Inbox/Activity/Settings
   increments will build on (§20), not a full redesign of those screens.
-  The five gaps above are screen-specific or infrastructure-specific work
-  that depends on screens not yet redesigned (Home/Inbox/Activity/
-  Settings, R12.1 Increments 2-4) or tooling this repo does not have
-  (a real browser rendering harness for mobile verification).
+  Increment 2 (Home UX) closed the Home-specific portions once real,
+  finished Home markup existed to test against; Back/Forward and real
+  mobile-browser verification remain open because they need
+  infrastructure (a router, a browser harness) this repo does not have
+  yet, not because Home wasn't touched.
 risk: >
-  Low. None of the five gaps affect approval semantics, mutation safety,
-  or truthfulness — all Safety Harness checks (H1-H6) pass. The risk is
-  UX-completeness drift if a later increment assumes these were already
-  covered; flagging them here prevents that assumption.
+  Low. None of the remaining open items affect approval semantics,
+  mutation safety, or truthfulness — all Safety Harness checks pass in
+  both Increment 1 and Increment 2. The risk is UX-completeness drift if
+  a later increment assumes Back/Forward or real mobile rendering are
+  already verified; flagging them here (with an explicit regression test
+  for the Back/Forward gap) prevents that assumption.
 resolution: >
-  Open. Expected to close incrementally as R12.1 Increment 2 (Home UX),
-  Increment 3 (Inbox+Activity), and Increment 4 (Settings) redesign each
-  screen and can apply real Back/Forward/aria-live/CTA-normalization
-  passes against concrete, finished markup. The ambient Review-Plan CTA
-  (item 5) can be fixed independently and should be picked up opportun-
-  istically in the next increment that touches the ambient composer.
+  Partially closed. §13, the Home portion of §11, Home's §15 aria-live,
+  and the ambient Review-Plan CTA are closed as of R12.1 Increment 2
+  (2026-09-17). Back/Forward and real mobile-browser verification remain
+  open, expected to close only once a routing/history mechanism and a
+  browser test harness exist respectively — tracked here rather than
+  re-opened as new debt each increment.
+owner: NAGEX
+status: OPEN
+```
+
+---
+
+```yaml
+id: DEBT-0006
+area: approvals-data-truthfulness
+description: >
+  GET /api/v1/approvals (src/http/routes/approvals.routes.ts) is a legacy
+  demo/seed endpoint: its backing array (approvalQueue) is permanently
+  seeded with 2 fixed fictional entries (appr_gcal_sync — a fake "Product
+  Strategy Sync" meeting with invented guests Sarah Kim/James Park/Alex
+  Chen; appr_stakeholder_email — a fake stakeholder review email) and never
+  reflects real GoogleCalendarService/GmailService approval-store state.
+  Those two services each only support point lookup of one approval by a
+  specific approvalId during an in-progress plan-resolution flow (which
+  already renders its own real approval card inline in the ambient modal)
+  — there is no real "list all pending approvals" aggregation endpoint for
+  either service. Home's "Needs Approval" section (and the mobile
+  equivalent) would otherwise have displayed these 2 fictional entries as
+  if they were the user's real pending approvals.
+severity: medium
+introduced: pre-R12.1 (approvalQueue itself predates this work; first
+  FORMALLY REGISTERED during R12.1 Increment 2, 2026-09-17, while building
+  Home's real "Needs Approval" section)
+reason: >
+  Discovered while implementing R12.1 Increment 2 §9 (consequence-specific
+  Approval CTAs) — sourcing Home's approval list from state.approvals
+  would have shown two fabricated fictional approval requests as if real,
+  violating MASTER.md's "no misleading mock behavior" rule and this
+  increment's own §24/§25 truthfulness requirements. Per the Increment 2
+  directive §26 ("No backend architecture churn... any real architecture
+  gap discovered: document separately"), this is exactly that case — a
+  real fix needs a dedicated backend aggregation pass (a genuine "list
+  pending real approvals across Calendar/Gmail" endpoint), not a
+  Home-content-only change, and rewriting the approval pipeline inside a
+  UX increment would be exactly the kind of unreviewed architecture churn
+  the directive prohibits.
+risk: >
+  Medium. The approval STATE MACHINE itself (approve/reject/status
+  transitions) is real and already covered by
+  tests/personal_ai_ux.test.ts tests 7-8 — this is a data-source gap
+  (fictional seed content), not a broken safety boundary. The mitigation
+  applied this increment (excluding the 2 known legacy ids by id, on the
+  frontend only, in both desktop and mobile Home) is a targeted, low-risk
+  fix that does not touch the backend, the approval pipeline, or those
+  existing tests. Risk is medium rather than low because "no real
+  aggregate list of pending approvals exists at all" is a genuine product
+  gap for any future scenario needing to show more than one in-flight
+  approval discovered outside an active plan-resolution flow.
+resolution: >
+  Open. Frontend mitigation applied in R12.1 Increment 2: app.js's Home
+  approval renderer and desktop-home.js's/mobile-home.js's approval-count
+  badges all exclude LEGACY_DEMO_APPROVAL_IDS
+  (appr_gcal_sync/appr_stakeholder_email) by id. See
+  tests/home_intent_first_ux.test.ts test 10. A real fix requires a
+  dedicated backend pass: either a genuine list-pending-approvals
+  aggregation across GoogleCalendarService/GmailService's approval stores,
+  or retiring the legacy approvalQueue array entirely in favor of that
+  real source — out of scope for a Home UX increment.
 owner: NAGEX
 status: OPEN
 ```

@@ -136,6 +136,7 @@
     "desktop_native_shell",
     "desktop_quickwake",
     "frontend_cache",
+    "home_intent_first_ux",
     "i18n_strings",
     "legal_pages",
     "modal_behavior",

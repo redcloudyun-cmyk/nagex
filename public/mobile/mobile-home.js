@@ -204,10 +204,37 @@
   // action (opens the full Approvals view) rather than fabricating a
   // Modify flow, per directive §15's own instruction to use only real
   // supported actions when the mockup's exact action isn't real. ──
+  // Same DEBT-0006 truthfulness exclusion as desktop-home.js /
+  // app.js's Home approval list: these 2 ids are the legacy demo/seed
+  // approvalQueue entries, never real pending user approvals.
+  const LEGACY_DEMO_APPROVAL_IDS = new Set(['appr_gcal_sync', 'appr_stakeholder_email']);
+
+  // Consequence-specific approval CTA (R12.1 Increment 2 §9/§10) — mirrors
+  // app.js's homeApprovalActionLabel so desktop and mobile Home never
+  // disagree on what a given approval's button says.
+  function approvalActionLabel(a) {
+    const toolId = String(a.toolId || '').toUpperCase();
+    const action = String(a.action || a.intent || '').toLowerCase();
+    const tool = String(a.tool || '').toLowerCase();
+    if (toolId.includes('CALENDAR_CREATE') || (action.includes('create') && (action.includes('calendar') || action.includes('event') || tool.includes('calendar')))) {
+      return t('home.approveAndCreateEvent', 'Approve and create event');
+    }
+    if (toolId.includes('GMAIL_SEND') || toolId.includes('GMAIL_REPLY') || action.includes('send') || action.includes('email') || tool.includes('gmail')) {
+      return t('home.approveAndSend', 'Approve and send');
+    }
+    if (toolId.includes('CANCEL') || action.includes('delete') || action.includes('cancel')) {
+      return t('home.approveAndDelete', 'Approve and delete');
+    }
+    if (action.includes('submit')) {
+      return t('home.approveAndSubmit', 'Approve and submit');
+    }
+    return t('home.approveGeneric', 'Approve request');
+  }
+
   function renderApprovals() {
     if (!window.NAGEX.getState) return 0;
     const state = window.NAGEX.getState();
-    const pending = (state.approvals || []).filter((a) => a.status === 'PENDING');
+    const pending = (state.approvals || []).filter((a) => a.status === 'PENDING' && !LEGACY_DEMO_APPROVAL_IDS.has(a.id));
     const proposedCandidates = (state.candidates || []).filter((c) => c.status === 'PROPOSED');
     const needsHumanCaptures = (state.inbox || []).filter((i) => i.status === 'NEEDS_REVIEW' && i.metadata?.errorCode === 'BLOCKED_NEEDS_HUMAN');
 
@@ -251,7 +278,7 @@
             <div class="mh-row-title">${escapeHtml(title)}</div>
             <div class="mh-row-detail">${escapeHtml(detail)}</div>
             <div class="mh-approval-actions">
-              <button class="mh-btn-approve" onclick="window.NAGEX.handleApprovalAction('${a.id || a.approvalId}', 'APPROVE', event)">${escapeHtml(t('ambient.approve', 'Approve'))}</button>
+              <button class="mh-btn-approve" onclick="window.NAGEX.handleApprovalAction('${a.id || a.approvalId}', 'APPROVE', event)">${escapeHtml(approvalActionLabel(a))}</button>
               <button class="mh-btn-review" onclick="window.NAGEX.switchTab('tab-approvals')">${escapeHtml(t('home.reviewAction', 'Review'))}</button>
             </div>
           </div>

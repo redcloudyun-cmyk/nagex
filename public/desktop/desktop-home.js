@@ -77,7 +77,12 @@
     sparkles: `<svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>`
   };
 
-  // ── DesktopMemory — reuses state.memories, filtered to human personal context ──
+  // ── DesktopMemory — reuses state.memories, filtered to human personal
+  // context. R12.1 Increment 2 — the previous fallback here fabricated a
+  // handful of fictional personal-preference entries and displayed them
+  // as if NAgex had actually remembered them, which it never had.
+  // Truthful empty state only, per §24/§25 and MASTER.md's "no
+  // misleading mock behavior" rule. ──
   function renderMemoryPanel() {
     const el = document.getElementById('desktop-memory-list');
     if (!el || !window.NAGEX.getState) return;
@@ -89,24 +94,7 @@
       .slice(0, 4);
 
     if (items.length === 0) {
-      el.innerHTML = `
-        <div class="memory-context-row">
-          <span class="memory-context-icon icon-plane">${SVGS.plane}</span>
-          <div class="memory-context-body"><strong>Prefers window seats</strong><small>Saved from past trips</small></div>
-        </div>
-        <div class="memory-context-row">
-          <span class="memory-context-icon icon-heart">${SVGS.heart}</span>
-          <div class="memory-context-body"><strong>Loves Japanese cuisine</strong><small>Noted from your conversations</small></div>
-        </div>
-        <div class="memory-context-row">
-          <span class="memory-context-icon icon-lightning">${SVGS.zap}</span>
-          <div class="memory-context-body"><strong>Focuses best in the morning</strong><small>Typically schedules deep work before 12 PM</small></div>
-        </div>
-        <div class="memory-context-row">
-          <span class="memory-context-icon icon-globe">${SVGS.globe}</span>
-          <div class="memory-context-body"><strong>Traveling to Tokyo next month</strong><small>Dec 28, 2024 - Jan 5, 2025</small></div>
-        </div>
-      `;
+      el.innerHTML = emptyState(t('home.memoryEmpty', 'NAgex hasn’t remembered anything yet.'));
       return;
     }
     const memorySvgs = [SVGS.plane, SVGS.heart, SVGS.zap, SVGS.globe];
@@ -118,37 +106,6 @@
           <small class="memory-context-desc">${escapeHtml(String(m.content?.value ?? ''))}</small>
         </div>
       </div>`).join('');
-  }
-
-  function renderActivitySummary() {
-    const el = document.getElementById('desktop-activity-summary');
-    if (!el || !window.NAGEX.getState) return;
-    const activity = window.NAGEX.getState().activity || [];
-    const completedItems = activity.filter((item) => item.status === 'COMPLETED' || item.status === 'SUCCEEDED');
-    const completedCount = completedItems.length;
-    const totalCount = activity.length;
-
-    if (totalCount === 0 && completedCount === 0) {
-      el.className = 'nagex-empty-state activity-summary-empty';
-      el.innerHTML = `
-        <div class="activity-summary-empty-content">
-          <span class="sparkle-icon-lg">${SVGS.sparkles}</span>
-          <strong>Ready to build your history</strong>
-          <small>Your activity summary will appear here as NAgex handles work for you.</small>
-          <button type="button" class="btn-view-activity" onclick="window.NAGEX.switchTab('tab-executions')">View activity &gt;</button>
-        </div>
-      `;
-      return;
-    }
-
-    const savedHours = (completedCount * 0.45).toFixed(1);
-    el.className = 'nagex-empty-state activity-summary-real';
-    el.innerHTML = `
-      <div class="value-metric-row"><span class="metric-icon blue-clock">${SVGS.clock}</span><div class="metric-body"><strong>${savedHours} hours</strong><small>Time saved this week</small></div></div>
-      <div class="value-metric-row"><span class="metric-icon green-check">${SVGS.check}</span><div class="metric-body"><strong>${completedCount} tasks</strong><small>Completed for you</small></div></div>
-      <div class="value-metric-row"><span class="metric-icon blue-cal">${SVGS.calendar}</span><div class="metric-body"><strong>${totalCount} bookings</strong><small>Managed automatically</small></div></div>
-      <div class="value-metric-row"><span class="metric-icon star-gold">${SVGS.star}</span><div class="metric-body"><strong>A calmer, more focused you</strong><small>That's what matters</small></div></div>
-    `;
   }
 
   let deviceStatusFetched = false;
@@ -166,7 +123,16 @@
     detailEl.textContent = connected ? t('home.deviceReady', 'Quick Wake is ready') : t('home.deviceUnavailableDetail', 'Desktop runtime is unavailable');
   }
 
+  // R12.1 Increment 2 — the previous version of this function fell back to
+  // a fully fabricated demo agenda of invented calendar/reservation events
+  // and a hardcoded fake date whenever there was no real calendar/task
+  // data, presenting them as if they were the user's actual schedule.
+  // Replaced with the real current date and a truthful empty state
+  // (§18/§19/§24/§25). A my-space fetch failure is now also distinguished
+  // from "genuinely nothing scheduled" (§19) rather than silently
+  // rendering as an empty state either way.
   let mySpaceFetched = false;
+  let mySpaceFetchFailed = false;
   async function renderTodayPanel() {
     const listEl = document.getElementById('desktop-today-list');
     const historyEl = document.getElementById('desktop-recent-actions-list');
@@ -174,13 +140,16 @@
 
     const state = window.NAGEX.getState();
     const dateEl = document.getElementById('desktop-today-date');
-    if (dateEl) dateEl.textContent = 'Mon, Dec 16, 2024';
+    if (dateEl) {
+      dateEl.textContent = new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    }
     const activeTasks = (state.tasks || []).filter((task) => task.status === 'ACTIVE' || task.status === 'RUNNING' || task.status === 'PAUSED').slice(0, 5);
 
     let data = null;
     if (!mySpaceFetched) {
       mySpaceFetched = true;
       data = await window.NAGEX.apiFetch('/api/v1/my-space');
+      mySpaceFetchFailed = !data;
     }
 
     const timelineRows = [];
@@ -225,41 +194,12 @@
     }
 
     if (timelineRows.length === 0) {
-      timelineRows.push(`
-        <div class="timeline-row">
-          <div class="timeline-time">8:00 AM</div>
-          <div class="timeline-rail-col"><div class="timeline-node node-green">${SVGS.check}</div><div class="timeline-line"></div></div>
-          <div class="timeline-content"><strong class="timeline-title">Morning workout</strong><span class="timeline-meta">Confirmed · Equinox Downtown</span></div>
-        </div>
-        <div class="timeline-row">
-          <div class="timeline-time">9:00 AM</div>
-          <div class="timeline-rail-col"><div class="timeline-node node-blue">${SVGS.screen}</div><div class="timeline-line"></div></div>
-          <div class="timeline-content"><strong class="timeline-title">Product team standup</strong><span class="timeline-meta">In 10 min · Zoom</span></div>
-        </div>
-        <div class="timeline-row">
-          <div class="timeline-time">10:00 AM</div>
-          <div class="timeline-rail-col"><div class="timeline-node node-grey">${SVGS.circle}</div><div class="timeline-line"></div></div>
-          <div class="timeline-content"><strong class="timeline-title">Review Q4 deck</strong><span class="timeline-meta">Focus time</span></div>
-        </div>
-        <div class="timeline-row">
-          <div class="timeline-time">12:30 PM</div>
-          <div class="timeline-rail-col"><div class="timeline-node node-green-fork">${SVGS.fork}</div><div class="timeline-line"></div></div>
-          <div class="timeline-content"><strong class="timeline-title">Lunch with Sarah</strong><span class="timeline-meta">Confirmed · Nari (Reservation)</span></div>
-        </div>
-        <div class="timeline-row">
-          <div class="timeline-time">3:00 PM</div>
-          <div class="timeline-rail-col"><div class="timeline-node node-blue">${SVGS.screen}</div><div class="timeline-line"></div></div>
-          <div class="timeline-content"><strong class="timeline-title">Client proposal review</strong><span class="timeline-meta">Online meeting</span></div>
-        </div>
-        <div class="timeline-row">
-          <div class="timeline-time">6:30 PM</div>
-          <div class="timeline-rail-col"><div class="timeline-node node-green-fork">${SVGS.fork}</div><div class="timeline-line"></div></div>
-          <div class="timeline-content"><strong class="timeline-title">Dinner reservation</strong><span class="timeline-meta">Confirmed · Le Bernardin</span></div>
-        </div>
-      `);
+      listEl.innerHTML = mySpaceFetchFailed
+        ? emptyState(t('home.todayLoadError', "Today's schedule could not be loaded."))
+        : emptyState(t('home.todayEmpty', 'Nothing scheduled right now.'));
+    } else {
+      listEl.innerHTML = timelineRows.join('');
     }
-
-    listEl.innerHTML = timelineRows.join('');
 
     if (historyEl) {
       const history = data && data.history ? data.history.slice(0, 4) : [];
@@ -274,24 +214,7 @@
           </div>
         `).join('');
       } else {
-        historyEl.innerHTML = `
-          <div class="recent-action-card">
-            <span class="recent-action-check">${SVGS.check}</span>
-            <div class="recent-action-body"><strong class="recent-action-title">Reserved tennis lesson</strong><small class="recent-action-meta">Bay Club · Dec 14, 4:00 PM</small></div>
-          </div>
-          <div class="recent-action-card">
-            <span class="recent-action-check">${SVGS.check}</span>
-            <div class="recent-action-body"><strong class="recent-action-title">Updated your calendar</strong><small class="recent-action-meta">3 events added · 5 hours ago</small></div>
-          </div>
-          <div class="recent-action-card">
-            <span class="recent-action-check">${SVGS.check}</span>
-            <div class="recent-action-body"><strong class="recent-action-title">Booked lunch meeting</strong><small class="recent-action-meta">Nari · Dec 16, 12:30 PM</small></div>
-          </div>
-          <div class="recent-action-card">
-            <span class="recent-action-check">${SVGS.check}</span>
-            <div class="recent-action-body"><strong class="recent-action-title">Found 12 new job opportunities</strong><small class="recent-action-meta">Based on your preferences · Yesterday</small></div>
-          </div>
-        `;
+        historyEl.innerHTML = emptyState(t('home.recentActionsEmpty', 'No recent results yet.'));
       }
     }
   }
@@ -300,12 +223,16 @@
   // loaded real state.approvals (same PENDING filter renderHomeWorkspaceSections
   // uses), never a placeholder number. Runs after app.js's own
   // renderHomeWorkspaceSections (onHomeRender fires at the end of
-  // renderHome()), so state.approvals is already current. ──
+  // renderHome()), so state.approvals is already current.
+  // Excludes the same 2 legacy demo/seed ids app.js's Home approval list
+  // excludes (DEBT-0006) so the badge count never implies more real
+  // pending approvals exist than actually do. ──
+  const LEGACY_DEMO_APPROVAL_IDS = new Set(['appr_gcal_sync', 'appr_stakeholder_email']);
   function renderApprovalsCountBadge() {
     const badge = document.getElementById('approvals-count-badge');
     if (!badge || !window.NAGEX.getState) return;
     const state = window.NAGEX.getState();
-    const count = (state.approvals || []).filter((a) => a.status === 'PENDING').length;
+    const count = (state.approvals || []).filter((a) => a.status === 'PENDING' && !LEGACY_DEMO_APPROVAL_IDS.has(a.id)).length;
     if (count > 0) {
       badge.hidden = false;
       badge.textContent = count > 9 ? '9+' : String(count);
@@ -320,7 +247,6 @@
     renderNotificationBell();
     renderApprovalsCountBadge();
     renderMemoryPanel();
-    renderActivitySummary();
     renderDeviceStatus();
     renderTodayPanel();
   }
