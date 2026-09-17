@@ -2,6 +2,7 @@
   "scopes": {
     "architecture": [
       "architecture_enforcement",
+      "route_inventory",
       "module_contracts",
       "module_registry",
       "module_state",
@@ -111,6 +112,7 @@
     ]
   },
   "fullOnly": [
+    "_setup_canary",
     "action_proposals",
     "action_proposals_safety",
     "action_safety_gate",

@@ -237,6 +237,21 @@ resolution: >
   boundary, allowed-residual-inline-route categories, and the
   new-domain/mutation-safety/dependency rules that now govern any future
   route addition.
+r10_2_e_reconciliation: >
+  R10.2-E's baseline measurement pass (2026-09-17) re-verified the
+  endpoint count with a fresh, tool-generated extraction instead of
+  reusing the carried-forward figure, and found the true, current count
+  to be 144 domain method-check blocks (not the 147 this entry and
+  ADR-0004 had been citing since an early Increment 1/2 informal
+  estimate) — a 3-endpoint reporting drift, not a functional regression;
+  no route was lost, duplicated, or silently reverted to inline. 144 is
+  now the codified, test-enforced baseline (see
+  tests/route_inventory.test.ts, ROUTE-INV-001 through ROUTE-INV-007,
+  which derive the count directly from source on every test run and fail
+  on any future drift). This is exactly the kind of "route count drift
+  without explicit change" R10.2-E's own mandate (§4.2) existed to catch;
+  it is recorded here rather than silently corrected, per this project's
+  standing rule against quietly overwriting a prior round's numbers.
 owner: NAGEX
 status: CLOSED
 ```
