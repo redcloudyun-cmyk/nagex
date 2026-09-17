@@ -155,7 +155,10 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
 
   private async ensureBrowser(): Promise<Browser> {
     if (!this.browser) {
-      this.browser = await chromium.launch({ headless: true });
+      this.browser = await chromium.launch({
+        headless: true,
+        args: ['--explicitly-allowed-ports=6697,6665,6666,6667,6668,6669'],
+      });
     }
     return this.browser;
   }
@@ -168,7 +171,10 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
     let page: Page;
     if (this.persistent) {
       fs.mkdirSync(path.join(this.profileDir, sessionId), { recursive: true, mode: 0o700 });
-      const context = await chromium.launchPersistentContext(path.join(this.profileDir, sessionId), { headless: true });
+      const context = await chromium.launchPersistentContext(path.join(this.profileDir, sessionId), {
+        headless: true,
+        args: ['--explicitly-allowed-ports=6697,6665,6666,6667,6668,6669'],
+      });
       this.contexts.set(sessionId, context);
       page = context.pages()[0] ?? (await context.newPage());
     } else {

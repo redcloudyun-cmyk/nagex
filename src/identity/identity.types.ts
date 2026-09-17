@@ -55,7 +55,24 @@ export type IdentityAuditEventType =
   | 'account.deletion.requested'
   | 'account.deletion.cancelled'
   | 'account.deleted'
-  | 'session.revoked';
+  | 'session.revoked'
+  | 'organization.created'
+  | 'organization.updated'
+  | 'organization.deletion.requested'
+  | 'organization.deletion.cancelled'
+  | 'organization.deleted'
+  | 'workspace.created'
+  | 'workspace.updated'
+  | 'workspace.archived'
+  | 'workspace.restored'
+  | 'workspace.deletion.requested'
+  | 'invitation.created'
+  | 'invitation.accepted'
+  | 'invitation.revoked'
+  | 'member.joined'
+  | 'member.removed'
+  | 'member.left'
+  | 'owner.transferred';
 
 export interface IdentityAuditEvent {
   eventId: string;

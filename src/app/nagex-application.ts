@@ -65,11 +65,13 @@ import type { DeviceAgentTransportEndpoint } from '../device-agent/device-agent-
 import type { IdentityStore } from '../identity/identity.store.js';
 import type { IdentityTokenStore } from '../identity/identity.tokens.js';
 import type { IdentityAuditStore } from '../identity/identity.audit.js';
+import type { OrganizationStore } from '../organizations/organization.store.js';
 
 export interface NagexApplication {
   identityStore: IdentityStore;
   identityTokenStore: IdentityTokenStore;
   identityAuditStore: IdentityAuditStore;
+  organizationStore: OrganizationStore;
   pdp: PolicyDecisionPoint;
   runtime: DurableRuntimeEngine;
   auditLogger: AuditLogger;

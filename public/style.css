@@ -1957,8 +1957,8 @@ body {
 .pa-status-on { color: #059669 !important; }
 .pa-status-off { color: var(--text-muted) !important; }
 
-/* ── R13 — Identity & Auth Modal CSS ── */
-#auth-modal.modal-backdrop {
+/* ── R13 & R14 — Identity & Org Modal CSS ── */
+.modal-backdrop {
   position: fixed;
   top: 0;
   left: 0;
@@ -1973,17 +1973,36 @@ body {
   padding: 1rem;
   box-sizing: border-box;
 }
-#auth-modal[hidden] {
+.modal-backdrop[hidden] {
   display: none !important;
 }
-.auth-modal-card {
+.modal-card, .auth-modal-card {
   background: #ffffff;
   border-radius: 12px;
   width: 100%;
-  max-width: 400px;
+  max-width: 440px;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
   padding: 1.5rem;
   box-sizing: border-box;
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #0f172a;
+}
+.modal-close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  color: #64748b;
 }
 .auth-form { display: flex; flex-direction: column; gap: 1rem; margin-top: 1rem; }
 .form-group { display: flex; flex-direction: column; gap: 0.35rem; }
@@ -2002,4 +2021,164 @@ body {
 .mh-input, .mh-select { font-size: 0.85rem; padding: 0.45rem 0.6rem; border: 1px solid #cbd5e1; border-radius: 6px; width: 100%; box-sizing: border-box; }
 .mh-btn-danger { background: #dc2626 !important; color: #fff !important; border-color: #b91c1c !important; }
 .mh-btn-danger:hover { background: #b91c1c !important; }
+
+/* ── R14 — Organization & Workspace CSS ── */
+.header-switchers-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: 0.75rem;
+  position: relative;
+}
+.switcher-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #1e293b;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.switcher-btn:hover {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+}
+.switcher-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 0.35rem;
+  min-width: 210px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+  z-index: 9999;
+  overflow: hidden;
+  padding: 0.35rem 0;
+}
+.dropdown-header {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #64748b;
+  padding: 0.4rem 0.75rem;
+  letter-spacing: 0.05em;
+}
+.dropdown-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+  color: #334155;
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+}
+.dropdown-item:hover {
+  background: #f8fafc;
+  color: #0f172a;
+}
+.dropdown-item.active {
+  font-weight: 700;
+  color: #2563eb;
+  background: #eff6ff;
+}
+.dropdown-divider {
+  height: 1px;
+  background: #e2e8f0;
+  margin: 0.25rem 0;
+}
+.dropdown-action {
+  color: #2563eb;
+  font-weight: 600;
+}
+.settings-subnav {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+}
+.subnav-btn {
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.4rem 0.75rem;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #64748b;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.subnav-btn:hover {
+  color: #1e293b;
+}
+.subnav-btn.active {
+  color: #2563eb;
+  border-bottom-color: #2563eb;
+}
+.members-cards-container, .workspaces-list, .invitations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+.member-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.member-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.member-name {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+.member-email {
+  font-size: 0.82rem;
+  color: #64748b;
+}
+.member-card-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+.tab-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+.danger-zone-box {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.danger-zone-box h4 {
+  color: #991b1b;
+  margin: 0;
+}
+
 

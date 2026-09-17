@@ -175,6 +175,8 @@
     "mobile_ux_debt0005",
     "mobile_ux_real_browser",
     "identity_lifecycle",
-    "identity_real_browser"
+    "identity_real_browser",
+    "organization_lifecycle",
+    "organization_real_browser"
   ]
 }

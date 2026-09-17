@@ -36,7 +36,10 @@ export type ResourcePrefix =
   | 'dev'
   | 'dxs'
   | 'cmd'
-  | 'prop';
+  | 'prop'
+  | 'org'
+  | 'ws'
+  | 'inv';
 
 export function generateResourceId(prefix: ResourcePrefix): string {
   const opaqueId = crypto.randomBytes(8).toString('hex');

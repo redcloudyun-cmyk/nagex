@@ -250,6 +250,7 @@
     renderConnections();
     renderAiModel();
     if (window.NAGEX.renderAccountSettings) window.NAGEX.renderAccountSettings();
+    if (window.NAGEX_ORG_UI && window.NAGEX_ORG_UI.renderOrgSettingsPanel) window.NAGEX_ORG_UI.renderOrgSettingsPanel();
     if (window.NAGEX.renderProactiveAssistant) window.NAGEX.renderProactiveAssistant();
   }
 

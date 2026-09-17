@@ -29,6 +29,17 @@
         </div>
       </div>
 
+      <div class="header-switchers-group" id="header-switchers-group">
+        <button class="switcher-btn btn-org-switcher" id="btn-org-switcher" title="Organization Switcher">
+          <span class="switcher-label">Organization</span>
+          <svg class="chevron-sm" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>
+        </button>
+        <button class="switcher-btn btn-workspace-switcher" id="btn-workspace-switcher" title="Workspace Switcher">
+          <span class="switcher-label">Workspace</span>
+          <svg class="chevron-sm" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>
+        </button>
+      </div>
+
       <div class="desktop-global-search" role="search">
         <svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 3a6.5 6.5 0 1 0 3.98 11.64L19.85 21 21 19.85l-6.36-6.37A6.5 6.5 0 0 0 9.5 3zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9z"/></svg>
         <button type="button" id="btn-header-search" class="desktop-global-search-target">Search anything or ask NAgex...</button>
@@ -1311,6 +1322,16 @@
             <span class="mh-brand-tagline" data-i18n="brand.tagline">Intelligence for the Next Age.</span>
           </div>
         </div>
+        <div class="header-switchers-group" id="mh-header-switchers-group">
+          <button class="switcher-btn btn-org-switcher" id="mh-btn-org-switcher" title="Organization Switcher">
+            <span class="switcher-label">Organization</span>
+            <svg class="chevron-sm" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>
+          </button>
+          <button class="switcher-btn btn-workspace-switcher" id="mh-btn-workspace-switcher" title="Workspace Switcher">
+            <span class="switcher-label">Workspace</span>
+            <svg class="chevron-sm" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>
+          </button>
+        </div>
         <div class="mh-header-right">
           <!-- UI-5 R1 finalization — reuses the exact same real
                window.NAGEX_I18N (toggleLocale/applyLocale/localStorage)
@@ -1717,6 +1738,8 @@
   <script src="mobile/mobile-inbox.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="mobile/mobile-activity.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="mobile/mobile-vault.js?v=__NAGEX_BUILD_VERSION__"></script>
+  <script src="auth-ui.js?v=__NAGEX_BUILD_VERSION__"></script>
+  <script src="org-ui.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="mobile/mobile-settings.js?v=__NAGEX_BUILD_VERSION__"></script>
 </body>
 </html>

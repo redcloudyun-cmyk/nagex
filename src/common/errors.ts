@@ -16,7 +16,7 @@ export interface NagexErrorDetails {
   code: string;
   category: ErrorCategory;
   message: string;
-  request_id: string;
+  request_id?: string;
   correlation_id?: string | null;
   details?: Record<string, unknown>;
 }
@@ -33,7 +33,7 @@ export class NagexError extends Error {
     this.name = 'NagexError';
     this.code = payload.code;
     this.category = payload.category;
-    this.requestId = payload.request_id;
+    this.requestId = payload.request_id || `req_${Date.now()}`;
     this.correlationId = payload.correlation_id;
     this.details = payload.details;
   }

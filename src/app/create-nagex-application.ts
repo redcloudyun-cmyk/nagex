@@ -85,6 +85,7 @@ import type { NagexApplication } from './nagex-application.js';
 import { IdentityStore } from '../identity/identity.store.js';
 import { IdentityTokenStore } from '../identity/identity.tokens.js';
 import { IdentityAuditStore } from '../identity/identity.audit.js';
+import { OrganizationStore } from '../organizations/organization.store.js';
 import { LifecycleManager } from './lifecycle-manager.js';
 
 // Common words that would otherwise create spurious "relevance" matches
@@ -102,6 +103,7 @@ export function createNagexApplication(): NagexApplication {
   const identityStore = new IdentityStore();
   const identityTokenStore = new IdentityTokenStore();
   const identityAuditStore = new IdentityAuditStore();
+  const organizationStore = new OrganizationStore();
   const pdp = new PolicyDecisionPoint();
   const runtime = new DurableRuntimeEngine();
   const auditLogger = new AuditLogger();
@@ -438,6 +440,7 @@ export function createNagexApplication(): NagexApplication {
     identityStore,
     identityTokenStore,
     identityAuditStore,
+    organizationStore,
     pdp,
     runtime,
     auditLogger,

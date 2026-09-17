@@ -35,6 +35,7 @@ import { handleMySpaceRoutes } from './http/routes/my-space.routes.js';
 import { handleDeviceAgentRoutes } from './http/routes/device-agent.routes.js';
 import { handleAuthRoutes } from './http/routes/auth.routes.js';
 import { handleAccountRoutes } from './http/routes/account.routes.js';
+import { handleOrganizationRoutes } from './http/routes/organization.routes.js';
 import type { GoogleCalendarService } from './modules/calendar/index.js';
 import type { GmailService } from './modules/gmail/index.js';
 import { BrowserToolService, browserRuntime } from './modules/browser/index.js';
@@ -52,7 +53,7 @@ const NO_CACHE_HEADERS = {
   Pragma: 'no-cache',
   Expires: '0',
 } as const;
-const MUTABLE_FRONTEND_FILES = new Set(['index.html', 'style.css', 'app.js', 'i18n.js', 'auth-ui.js', 'intent-interaction-state.js', 'plan-resolution-view.js', 'calendar-approval-view.js', 'calendar-intent-extraction.js', 'calendar-payload-validation.js', 'gmail-approval-view.js', 'gmail-intent-extraction.js', 'browser-approval-view.js', 'browser-intent-extraction.js', 'modal-behavior.js', 'timeline-dedupe.js', 'single-flight-guard.js', 'legal.js', 'privacy.html', 'terms.html', 'desktop-quickwake.html', 'desktop-quickwake.css', 'desktop-quickwake.js', 'shared/tokens.css', 'shared/components.css', 'desktop/desktop-home.css', 'desktop/desktop-home.js', 'mobile/mobile-home.css', 'mobile/mobile-home.js', 'mobile/mobile-inbox.css', 'mobile/mobile-inbox.js', 'mobile/mobile-activity.css', 'mobile/mobile-activity.js', 'mobile/mobile-vault.css', 'mobile/mobile-vault.js', 'mobile/mobile-settings.css', 'mobile/mobile-settings.js']);
+const MUTABLE_FRONTEND_FILES = new Set(['index.html', 'style.css', 'app.js', 'i18n.js', 'auth-ui.js', 'org-ui.js', 'intent-interaction-state.js', 'plan-resolution-view.js', 'calendar-approval-view.js', 'calendar-intent-extraction.js', 'calendar-payload-validation.js', 'gmail-approval-view.js', 'gmail-intent-extraction.js', 'browser-approval-view.js', 'browser-intent-extraction.js', 'modal-behavior.js', 'timeline-dedupe.js', 'single-flight-guard.js', 'legal.js', 'privacy.html', 'terms.html', 'desktop-quickwake.html', 'desktop-quickwake.css', 'desktop-quickwake.js', 'shared/tokens.css', 'shared/components.css', 'desktop/desktop-home.css', 'desktop/desktop-home.js', 'mobile/mobile-home.css', 'mobile/mobile-home.js', 'mobile/mobile-inbox.css', 'mobile/mobile-inbox.js', 'mobile/mobile-activity.css', 'mobile/mobile-activity.js', 'mobile/mobile-vault.css', 'mobile/mobile-vault.js', 'mobile/mobile-settings.css', 'mobile/mobile-settings.js']);
 const VERSIONED_HTML_FILES = new Set(['index.html', 'privacy.html', 'terms.html', 'desktop-quickwake.html']);
 const CLEAN_URL_ALIASES: Record<string, string> = { '/privacy': 'privacy.html', '/terms': 'terms.html', '/quickwake': 'desktop-quickwake.html' };
 const BUILD_VERSION_PLACEHOLDER = '__NAGEX_BUILD_VERSION__';
@@ -111,6 +112,7 @@ export const {
   identityStore,
   identityTokenStore,
   identityAuditStore,
+  organizationStore,
   actionApprovals,
   executionStore,
   moduleRegistry,
@@ -262,6 +264,15 @@ export async function handleAsyncApiRequest(
         sessionStore,
       });
       if (accountResult) return accountResult;
+    }
+    {
+      const orgResult = await handleOrganizationRoutes(method, pathname, body, headers, query, {
+        organizationStore,
+        identityStore,
+        identityAuditStore,
+        sessionStore,
+      });
+      if (orgResult) return orgResult;
     }
 
     // R10.2-D Increment 5 — Model provider status/health-check routes.

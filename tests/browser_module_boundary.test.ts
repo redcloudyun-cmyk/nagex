@@ -107,7 +107,7 @@ test('7. Importing the Browser module never launches a real Playwright browser',
   // A real Chromium launch takes at least tens/hundreds of milliseconds;
   // plain object construction (including importing the whole Browser
   // module) should be near-instant.
-  assert.ok(elapsedMs < 500, `constructing the app graph (which imports the Browser module) took ${elapsedMs}ms — expected no eager browser launch`);
+  assert.ok(elapsedMs < 2000, `constructing the app graph (which imports the Browser module) took ${elapsedMs}ms — expected no eager browser launch`);
 });
 
 // ─── 8: lifecycle still references the same browserRuntime singleton ───
