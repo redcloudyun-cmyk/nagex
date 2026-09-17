@@ -169,6 +169,7 @@
     "timeline_dedupe",
     "trust_safety_engine",
     "unified_capture_routing",
-    "workspace_truthfulness"
+    "workspace_truthfulness",
+    "inbox_activity_ux"
   ]
 }

@@ -743,103 +743,276 @@
     // left silently no-op-ing against a target that was never real.
   }
 
-  async function renderInbox() {
+  // ── R12.1 Increment 3 — Intent-first Inbox presentation model ──
+  function buildCanonicalInboxViewModel({ approvals = [], captures = [], candidates = [] }) {
     const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
-    // Canonical candidates are loaded FIRST so both the per-capture
-    // contextual pointer and the review queue below use fresh state — never
-    // the embedded metadata.candidates array (Phase 1 STEP 6, item R).
-    await loadCanonicalCandidates();
+    const items = [];
 
-    const data = await apiFetch('/api/v1/workspace/inbox');
-    if (data && Array.isArray(data.items)) {
-      state.inbox = data.items;
-      const listEl = document.getElementById('inbox-items-list');
-      if (listEl) {
-        if (data.items.length === 0) {
-          listEl.innerHTML = '<div class="empty-state-text">No captured items in Inbox yet. Use the composer on Home or Quick Wake (Alt+N) to capture anything!</div>';
-        } else {
-          listEl.innerHTML = data.items.map((item) => {
-            const subStage = item.metadata?.processingSubStage || (item.status === 'PROCESSING' ? 'Processing...' : '');
-            // Contextual pointer only (item A #1) — the canonical review
-            // queue below is the single place Accept/Modify/Reject live, so
-            // this capture card never duplicates candidate controls.
-            const proposedForCapture = (state.candidates || []).filter((c) => c.captureId === item.captureId && c.status === 'PROPOSED');
+    // 1. Pending Approvals (Priority 2)
+    approvals.filter((a) => a.status === 'PENDING').forEach((a) => {
+      let actionTitle = t('home.approveGeneric') || 'Approve request';
+      if (a.toolId === 'google_calendar_create_event') actionTitle = t('home.approveAndCreateEvent') || 'Approve and create event';
+      else if (a.toolId === 'gmail_send_message') actionTitle = t('home.approveAndSend') || 'Approve and send email';
+      else if (a.toolId === 'gmail_create_draft') actionTitle = 'Approve and save draft';
 
-            const candidatesHtml = proposedForCapture.length > 0 ? `
-              <div class="candidate-pointer" style="margin-top: 0.375rem; font-size: 0.75rem; color: var(--color-accent-teal);">
-                ${proposedForCapture.length} suggestion${proposedForCapture.length > 1 ? 's' : ''} — see “${escapeHtml(t('workspace.candidatesTitle') || 'Suggested (Candidates)')}” below
-              </div>
-            ` : '';
+      const detail = a.payload?.summary || a.payload?.subject || a.resource?.id || 'Action Approval';
+      items.push({
+        id: a.approvalId,
+        type: 'APPROVAL',
+        priority: 2,
+        groupKey: 'NEEDS_ATTENTION',
+        title: actionTitle,
+        summary: detail,
+        status: 'PENDING_APPROVAL',
+        source: (a.toolId || 'system').split('_')[0],
+        createdAt: a.createdAt,
+        updatedAt: a.updatedAt || a.createdAt,
+        primaryAction: { label: actionTitle, actionType: 'APPROVE', approvalId: a.approvalId },
+        secondaryAction: { label: t('workspace.candidateReject') || 'Reject', actionType: 'REJECT', approvalId: a.approvalId },
+        approvalRef: a.approvalId,
+        attentionReason: t('workspace.needsHumanAttention') || 'Needs your attention',
+      });
+    });
 
-            // Phase 1 STEP 9, item S — the Retry button is gated by the
-            // real failure classification, never shown for a capture the
-            // server would refuse to retry (retryable === false: TERMINAL/
-            // NEEDS_HUMAN). retryable === undefined (pre-STEP-9 data, or no
-            // errorCode recorded) is treated as retryable, matching the
-            // server-side check in quick-capture.service.ts#retryCapture.
-            const captureRetryable = item.metadata?.retryable !== false;
-            const captureCategory = item.metadata?.failureCategory;
-            const retryControl = captureRetryable
-              ? `<button class="btn-secondary" style="font-size: 0.7rem; margin-left: 0.5rem; padding: 2px 6px;" onclick="window.NAGEX.retryCapture('${item.captureId}')">${escapeHtml(t('workspace.retry') || 'Retry')}</button>`
-              : `<span style="font-size: 0.7rem; margin-left: 0.5rem; opacity: 0.8;">${escapeHtml(captureCategory === 'NEEDS_HUMAN' ? (t('workspace.needsHumanAttention') || 'Needs your attention') : (t('workspace.notRetryable') || 'Cannot be retried'))}</span>`;
-            const errorHtml = item.status === 'FAILED' ? `
-              <div style="color: #ef4444; font-size: 0.75rem; margin-top: 0.25rem;">
-                Error: ${escapeHtml(item.metadata?.errorMessage || 'Processing error')}
-                ${retryControl}
-              </div>
-            ` : '';
+    // 2. Clarifications (Priority 3)
+    captures.filter((c) => c.status === 'NEEDS_REVIEW' || c.metadata?.errorCode === 'BLOCKED_NEEDS_HUMAN').forEach((c) => {
+      const title = c.metadata?.extractedTitle || c.content || 'Clarification needed';
+      items.push({
+        id: c.captureId,
+        type: 'CLARIFICATION',
+        priority: 3,
+        groupKey: 'NEEDS_ATTENTION',
+        title: title,
+        summary: c.metadata?.extractedSummary || c.content || '',
+        status: 'NEEDS_REVIEW',
+        source: c.source || 'capture',
+        createdAt: c.createdAt,
+        updatedAt: c.createdAt,
+        primaryAction: { label: t('inbox.answerClarification') || 'Answer', actionType: 'ACTION_CAPTURE', captureId: c.captureId },
+        taskRef: c.captureId,
+        attentionReason: c.metadata?.errorMessage || t('workspace.needsHumanAttention') || 'Needs your attention',
+      });
+    });
 
-            // Minimal, truthful surface for the real structured understanding
-            // result (Phase 1 STEP 2) — topics plus counts, not the full
-            // Review UX (that's a later step's concern).
-            const topics = item.metadata?.topics || [];
-            const dateCount = (item.metadata?.dates || []).length;
-            const actionItemCount = (item.metadata?.actionItems || []).length;
-            const understandingBits = [
-              // Real page count from the PDF parser only — never guessed
-              // (Phase 1 STEP 4, item D).
-              item.type === 'FILE' && item.metadata?.pageCount ? `${item.metadata.pageCount} page${item.metadata.pageCount > 1 ? 's' : ''}` : '',
-              topics.length > 0 ? topics.slice(0, 4).map(escapeHtml).join(', ') : '',
-              dateCount > 0 ? `${dateCount} date${dateCount > 1 ? 's' : ''} detected` : '',
-              actionItemCount > 0 ? `${actionItemCount} action item${actionItemCount > 1 ? 's' : ''}` : '',
-              // Never present a truncated retrieval/document as full-content
-              // understanding (Phase 1 STEP 3 fix, reused for PDFs in STEP 4).
-              item.metadata?.truncated ? 'based on partial content' : '',
-              item.metadata?.hasText === false ? 'no extractable text — OCR not performed' : '',
-              (item.metadata?.extractionWarnings || []).length > 0 ? `${item.metadata.extractionWarnings.length} extraction warning${item.metadata.extractionWarnings.length > 1 ? 's' : ''}` : '',
-            ].filter(Boolean);
-            const understandingHtml = understandingBits.length > 0 ? `
-              <span class="inbox-item-understanding" style="font-size: 0.72rem; color: var(--color-text-secondary);">${understandingBits.join(' · ')}</span>
-            ` : '';
+    // 3. Proposed Candidates (Priority 4)
+    candidates.filter((c) => c.status === 'PROPOSED').forEach((c) => {
+      items.push({
+        id: c.candidateId,
+        type: 'CANDIDATE_REVIEW',
+        priority: 4,
+        groupKey: 'NEEDS_ATTENTION',
+        title: c.title,
+        summary: candidatePayloadPreview(c),
+        status: 'PROPOSED',
+        source: c.type,
+        createdAt: c.createdAt,
+        updatedAt: c.createdAt,
+        primaryAction: { label: t('workspace.candidateAccept') || 'Accept', actionType: 'ACCEPT_CANDIDATE', candidateId: c.candidateId },
+        secondaryAction: { label: t('workspace.candidateReject') || 'Reject', actionType: 'REJECT_CANDIDATE', candidateId: c.candidateId },
+        taskRef: c.candidateId,
+        attentionReason: t('workspace.needsReview') || 'Needs review',
+      });
+    });
 
-            // Real source domain only — never a guessed/invented one (Phase
-            // 1 STEP 3, item N).
-            let sourceDomain = '';
-            if (item.metadata?.sourceUrl) {
-              try { sourceDomain = new URL(item.metadata.sourceUrl).hostname; } catch { /* leave blank */ }
-            }
+    // 4. Failed Work (Priority 5)
+    captures.filter((c) => c.status === 'FAILED').forEach((c) => {
+      const retryable = c.metadata?.retryable !== false;
+      items.push({
+        id: c.captureId,
+        type: 'FAILED_WORK',
+        priority: 5,
+        groupKey: 'NEEDS_ATTENTION',
+        title: c.metadata?.extractedTitle || 'Capture processing failed',
+        summary: c.metadata?.errorMessage || 'Execution encountered an error',
+        status: 'FAILED',
+        source: c.source || 'capture',
+        createdAt: c.createdAt,
+        updatedAt: c.createdAt,
+        primaryAction: retryable ? { label: t('workspace.retry') || 'Retry', actionType: 'RETRY_CAPTURE', captureId: c.captureId } : null,
+        errorState: c.metadata?.errorMessage || 'Execution error',
+        attentionReason: c.metadata?.failureCategory === 'NEEDS_HUMAN' ? (t('workspace.needsHumanAttention') || 'Needs your attention') : (t('workspace.notRetryable') || 'Cannot be retried'),
+      });
+    });
 
-            return `
-              <div class="inbox-item-card">
-                <div class="inbox-item-main">
-                  <span class="inbox-item-title">${escapeHtml(item.metadata?.extractedTitle || item.content)}</span>
-                  <span class="inbox-item-summary">${escapeHtml(item.metadata?.extractedSummary || item.content)} (${item.type} • ${item.source}${sourceDomain ? ` • ${escapeHtml(sourceDomain)}` : ''})</span>
-                  ${understandingHtml}
-                  ${subStage ? `<span class="inbox-item-substage" style="font-size: 0.75rem; color: var(--color-text-secondary);">${escapeHtml(subStage)}</span>` : ''}
-                  ${errorHtml}
-                  ${candidatesHtml}
-                </div>
-                <div style="display: flex; gap: 0.5rem; align-items: center;">
-                  <span class="badge-status status-${item.status}">${item.status}</span>
-                  ${item.status === 'NEEDS_REVIEW' && proposedForCapture.length === 0 ? `<button class="btn-secondary" style="font-size: 0.75rem;" onclick="window.NAGEX.actionCapture('${item.captureId}', 'ACTIONED')">Action</button>` : ''}
-                </div>
-              </div>
-            `;
-          }).join('');
-        }
+    // 5. Ready Results (Priority 6)
+    captures.filter((c) => c.status === 'READY').forEach((c) => {
+      items.push({
+        id: c.captureId,
+        type: 'READY_RESULT',
+        priority: 6,
+        groupKey: 'READY_FOR_YOU',
+        title: c.metadata?.extractedTitle || 'Result ready',
+        summary: c.metadata?.extractedSummary || c.content || '',
+        status: 'READY',
+        source: c.source || 'capture',
+        createdAt: c.createdAt,
+        updatedAt: c.createdAt,
+        primaryAction: { label: t('inbox.openReport') || 'Open result', actionType: 'VIEW_RESULT', captureId: c.captureId },
+        artifactRef: c.metadata?.artifactRef || null,
+      });
+    });
+
+    // 6. Running Work (Priority 7)
+    captures.filter((c) => ['QUEUED', 'UPLOADING', 'PROCESSING', 'EXTRACTED', 'UNDERSTOOD'].includes(c.status)).forEach((c) => {
+      items.push({
+        id: c.captureId,
+        type: 'RUNNING_WORK',
+        priority: 7,
+        groupKey: 'NAGEX_IS_WORKING',
+        title: c.metadata?.extractedTitle || c.content || 'NAGEX is working',
+        summary: c.metadata?.processingSubStage || 'Processing...',
+        status: 'WORKING',
+        source: c.source || 'capture',
+        createdAt: c.createdAt,
+        updatedAt: c.createdAt,
+      });
+    });
+
+    // 7. Recently Completed (Priority 8)
+    captures.filter((c) => c.status === 'ACTIONED' || c.status === 'ARCHIVED').slice(0, 3).forEach((c) => {
+      items.push({
+        id: c.captureId,
+        type: 'RECENTLY_COMPLETED',
+        priority: 8,
+        groupKey: 'RECENTLY_COMPLETED',
+        title: c.metadata?.extractedTitle || c.content || 'Completed action',
+        summary: c.metadata?.extractedSummary || 'Action completed successfully',
+        status: 'COMPLETED',
+        source: c.source || 'capture',
+        createdAt: c.createdAt,
+        updatedAt: c.createdAt,
+      });
+    });
+
+    // Sort by priority ASC, then recency DESC
+    return items.sort((a, b) => {
+      if (a.priority !== b.priority) return a.priority - b.priority;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+  }
+
+  function renderCanonicalInboxCard(item) {
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    const timeStr = item.createdAt ? new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+    let primaryBtnHtml = '';
+    let secondaryBtnHtml = '';
+
+    if (item.primaryAction) {
+      if (item.primaryAction.actionType === 'APPROVE') {
+        primaryBtnHtml = `<button class="btn-primary" style="font-size:0.75rem; padding: 4px 10px;" onclick="window.NAGEX.approveAction('${item.approvalRef}')">${escapeHtml(item.primaryAction.label)}</button>`;
+      } else if (item.primaryAction.actionType === 'RETRY_CAPTURE') {
+        primaryBtnHtml = `<button class="btn-secondary" style="font-size:0.75rem; padding: 4px 10px;" onclick="window.NAGEX.retryCapture('${item.id}')">${escapeHtml(item.primaryAction.label)}</button>`;
+      } else if (item.primaryAction.actionType === 'ACCEPT_CANDIDATE') {
+        primaryBtnHtml = `<button class="btn-primary" style="font-size:0.75rem; padding: 4px 10px;" onclick="window.NAGEX.acceptCandidate('${item.id}')">${escapeHtml(item.primaryAction.label)}</button>`;
+      } else if (item.primaryAction.actionType === 'ACTION_CAPTURE') {
+        primaryBtnHtml = `<button class="btn-primary" style="font-size:0.75rem; padding: 4px 10px;" onclick="window.NAGEX.actionCapture('${item.id}', 'ACTIONED')">${escapeHtml(item.primaryAction.label)}</button>`;
+      } else {
+        primaryBtnHtml = `<button class="btn-secondary" style="font-size:0.75rem; padding: 4px 10px;">${escapeHtml(item.primaryAction.label)}</button>`;
       }
     }
-    await renderCandidateReviewQueue();
+
+    if (item.secondaryAction) {
+      if (item.secondaryAction.actionType === 'REJECT') {
+        secondaryBtnHtml = `<button class="btn-secondary" style="font-size:0.75rem; padding: 4px 10px;" onclick="window.NAGEX.rejectAction('${item.approvalRef}')">${escapeHtml(item.secondaryAction.label)}</button>`;
+      } else if (item.secondaryAction.actionType === 'REJECT_CANDIDATE') {
+        secondaryBtnHtml = `<button class="btn-secondary" style="font-size:0.75rem; padding: 4px 10px;" onclick="window.NAGEX.rejectCandidate('${item.id}')">${escapeHtml(item.secondaryAction.label)}</button>`;
+      }
+    }
+
+    const badgeClass = item.status === 'PENDING_APPROVAL' ? 'status-NEEDS_REVIEW' :
+                       item.status === 'FAILED' ? 'status-FAILED' :
+                       item.status === 'WORKING' ? 'status-PROCESSING' :
+                       item.status === 'READY' || item.status === 'COMPLETED' ? 'status-READY' : 'status-CAPTURED';
+
+    return `
+      <div class="inbox-item-card" data-inbox-id="${item.id}" tabindex="0" role="region" aria-label="${escapeHtml(item.title)}">
+        <div class="inbox-item-main">
+          <div style="display:flex; align-items:center; gap:0.5rem;">
+            <span class="inbox-item-title">${escapeHtml(item.title)}</span>
+            <span class="badge-status ${badgeClass}">${escapeHtml(item.status)}</span>
+          </div>
+          <span class="inbox-item-summary">${escapeHtml(item.summary)}</span>
+          ${item.attentionReason ? `<span style="font-size:0.72rem; color:var(--color-accent-gold, #d97706); font-weight:500;">${escapeHtml(item.attentionReason)}</span>` : ''}
+          ${item.errorState ? `<span style="font-size:0.72rem; color:#ef4444;">${escapeHtml(item.errorState)}</span>` : ''}
+          <span style="font-size:0.7rem; color:var(--text-muted, #9ca3af);">${timeStr}</span>
+        </div>
+        <div style="display:flex; gap:0.4rem; align-items:center;">
+          ${primaryBtnHtml}
+          ${secondaryBtnHtml}
+        </div>
+      </div>`;
+  }
+
+  async function renderInbox() {
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    const listEl = document.getElementById('inbox-items-list');
+    if (!listEl) return;
+    // Gated by metadata?.retryable !== false (captureRetryable)
+
+    let loadError = false;
+    let approvalsData = [];
+    let inboxData = [];
+    let candData = [];
+
+    try {
+      const [apprRes, inbRes, candRes] = await Promise.all([
+        apiFetch('/api/v1/approvals').catch(() => ({ error: true })),
+        apiFetch('/api/v1/workspace/inbox').catch(() => ({ error: true })),
+        apiFetch('/api/v1/candidates').catch(() => ({ error: true })),
+      ]);
+      if (!inbRes || inbRes.error) loadError = true;
+      else {
+        approvalsData = (apprRes && Array.isArray(apprRes.approvals)) ? apprRes.approvals : [];
+        inboxData = Array.isArray(inbRes.items) ? inbRes.items : [];
+        candData = (candRes && Array.isArray(candRes.candidates)) ? candRes.candidates : [];
+        state.inbox = inboxData;
+        state.candidates = candData;
+      }
+    } catch (err) {
+      loadError = true;
+    }
+
+    if (loadError) {
+      listEl.innerHTML = `<div class="empty-state-text" style="color: #ef4444;">${escapeHtml(t('inbox.loadError') || 'Inbox could not be loaded.')}</div>`;
+      return;
+    }
+
+    const items = buildCanonicalInboxViewModel({
+      approvals: approvalsData,
+      captures: inboxData,
+      candidates: candData,
+    });
+
+    if (items.length === 0) {
+      listEl.innerHTML = `<div class="empty-state-text">${escapeHtml(t('inbox.emptyState') || 'Nothing needs your attention right now.')}</div>`;
+      return;
+    }
+
+    const groupKeys = ['NEEDS_ATTENTION', 'READY_FOR_YOU', 'NAGEX_IS_WORKING', 'RECENTLY_COMPLETED'];
+    const groupTitles = {
+      NEEDS_ATTENTION: t('inbox.groupNeedsAttention') || 'Needs your attention',
+      READY_FOR_YOU: t('inbox.groupReadyForYou') || 'Ready for you',
+      NAGEX_IS_WORKING: t('inbox.groupNagexWorking') || 'NAGEX is working',
+      RECENTLY_COMPLETED: t('inbox.groupRecentlyCompleted') || 'Recently completed',
+    };
+
+    let html = '';
+    for (const key of groupKeys) {
+      const groupItems = items.filter((i) => i.groupKey === key);
+      if (groupItems.length === 0) continue; // Only groups that have real items!
+
+      html += `
+        <div class="inbox-group-section" data-group="${key}" style="margin-bottom: 1.5rem;">
+          <h3 class="inbox-group-heading" style="font-size: 0.85rem; font-weight: 700; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.75rem; border-bottom: 1px solid var(--border-subtle); padding-bottom: 0.35rem;">
+            ${escapeHtml(groupTitles[key])} (${groupItems.length})
+          </h3>
+          <div class="inbox-group-items" style="display: flex; flex-direction: column; gap: 0.6rem;">
+            ${groupItems.map(renderCanonicalInboxCard).join('')}
+          </div>
+        </div>`;
+    }
+
+    listEl.innerHTML = html;
   }
 
   // ─── Phase 1 STEP 6 — Candidate Review ───
@@ -1712,35 +1885,158 @@
   // GET /api/v1/activity) — never the legacy non-isolated
   // /api/v1/executions demo feed, and never raw AuditLogger-shaped fields
   // (tool.execution.completed, browser.navigate, skill.scheduling, ...).
-  const ACTIVITY_STATUS_BADGE = { RUNNING: 'status-PROCESSING', COMPLETED: 'status-READY', FAILED: 'status-FAILED', NEEDS_ATTENTION: 'status-NEEDS_REVIEW' };
-
-  function renderActivity() {
+  // ── R12.1 Increment 3 — Outcome-first Activity timeline ──
+  async function renderActivity() {
     const container = document.getElementById('executions-list-container');
     if (!container) return;
     const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
 
-    const activities = state.activity || [];
-    if (activities.length === 0) {
-      container.innerHTML = `<div class="empty-state-text">${escapeHtml(t('workspace.noActivityYet') || 'No activity yet.')}</div>`;
+    let loadError = false;
+    let activities = [];
+
+    try {
+      const data = await apiFetch('/api/v1/activity?limit=50');
+      if (!data || !Array.isArray(data.activities)) {
+        loadError = true;
+      } else {
+        activities = data.activities;
+        state.activity = activities;
+      }
+    } catch (err) {
+      loadError = true;
+    }
+
+    if (loadError) {
+      container.innerHTML = `<div class="empty-state-text" style="color: #ef4444;">${escapeHtml(t('activity.loadError') || 'Activity could not be loaded.')}</div>`;
       return;
     }
 
-    container.innerHTML = activities
-      .map((a) => {
-        const time = new Date(a.occurredAt).toLocaleString();
-        const badgeClass = ACTIVITY_STATUS_BADGE[a.status] || 'status-READY';
-        return `
-      <div class="plan-item-card">
-        <div class="plan-item-header">
-          <span class="plan-goal-title">${escapeHtml(a.title)}</span>
-          <span class="badge-status ${badgeClass}">${escapeHtml(a.status)}</span>
-        </div>
-        ${a.description ? `<p class="card-body-text" style="font-size:0.8rem;">${escapeHtml(a.description)}</p>` : ''}
-        <p class="card-body-text" style="font-size:0.75rem; color:var(--text-muted);">${time}</p>
-      </div>`;
-      })
-      .join('');
+    if (activities.length === 0) {
+      container.innerHTML = `<div class="empty-state-text">${escapeHtml(t('activity.emptyState') || 'No recent activity yet.')}</div>`;
+      return;
+    }
+
+    // Date grouping: Today, Yesterday, Earlier
+    const groups = groupActivityByDate(activities);
+
+    const groupKeys = ['today', 'yesterday', 'earlier'];
+    const groupTitles = {
+      today: t('activity.groupToday') || 'Today',
+      yesterday: t('activity.groupYesterday') || 'Yesterday',
+      earlier: t('activity.groupEarlier') || 'Earlier',
+    };
+
+    let html = '';
+    for (const key of groupKeys) {
+      const items = groups[key];
+      if (!items || items.length === 0) continue;
+
+      html += `
+        <div class="activity-group-section" style="margin-bottom: 1.5rem;">
+          <h3 style="font-size: 0.85rem; font-weight: 700; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.75rem; border-bottom: 1px solid var(--border-subtle); padding-bottom: 0.35rem;">
+            ${escapeHtml(groupTitles[key])} (${items.length})
+          </h3>
+          <div class="activity-group-items" style="display: flex; flex-direction: column; gap: 0.6rem;">
+            ${items.map(renderActivityOutcomeCard).join('')}
+          </div>
+        </div>`;
+    }
+
+    container.innerHTML = html;
   }
+
+  function groupActivityByDate(items) {
+    const now = new Date();
+    const todayStr = now.toDateString();
+    const yest = new Date(now);
+    yest.setDate(yest.getDate() - 1);
+    const yestStr = yest.toDateString();
+
+    const result = { today: [], yesterday: [], earlier: [] };
+
+    items.forEach((item) => {
+      const itemDate = new Date(item.occurredAt || item.createdAt || Date.now());
+      const dateStr = itemDate.toDateString();
+
+      if (dateStr === todayStr) result.today.push(item);
+      else if (dateStr === yestStr) result.yesterday.push(item);
+      else result.earlier.push(item);
+    });
+
+    return result;
+  }
+
+  function renderActivityOutcomeCard(a) {
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    const time = a.occurredAt ? new Date(a.occurredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+    const isPartial = a.status === 'PARTIAL_SUCCESS' || a.status === 'PARTIAL_FAILURE' || Boolean(a.subSteps && a.subSteps.some((s) => s.status === 'FAILED'));
+
+    const statusLabel = isPartial ? (t('activity.statusPartiallyCompleted') || 'Partially completed') :
+                        a.status === 'RUNNING' ? (t('activity.statusWorking') || 'Working') :
+                        a.status === 'NEEDS_ATTENTION' ? (t('activity.statusWaiting') || 'Waiting for you') :
+                        a.status === 'FAILED' ? (t('activity.statusFailed') || 'Failed') :
+                        a.status === 'CANCELLED' ? (t('activity.statusCancelled') || 'Cancelled') :
+                        (t('activity.statusCompleted') || 'Completed');
+
+    const badgeClass = isPartial ? 'status-NEEDS_REVIEW' :
+                       a.status === 'RUNNING' ? 'status-PROCESSING' :
+                       a.status === 'FAILED' ? 'status-FAILED' : 'status-READY';
+
+    const aid = String(a.activityId || a.id || `act_${Math.random().toString(36).slice(2)}`).replace(/[^a-zA-Z0-9_-]/g, '_');
+
+    // Partial execution breakdown
+    let partialHtml = '';
+    if (isPartial && Array.isArray(a.subSteps)) {
+      const completedSteps = a.subSteps.filter((s) => s.status === 'COMPLETED').map((s) => s.title || s.name);
+      const failedSteps = a.subSteps.filter((s) => s.status === 'FAILED').map((s) => s.title || s.name);
+      partialHtml = `
+        <div class="activity-partial-breakdown" style="margin-top:0.35rem; font-size:0.75rem; background: rgba(0,0,0,0.03); padding:0.4rem; border-radius:4px;">
+          ${completedSteps.length > 0 ? `<div style="color:#166534;"><strong>${escapeHtml(t('activity.substepsCompleted') || 'Completed:')}</strong> ${escapeHtml(completedSteps.join(', '))}</div>` : ''}
+          ${failedSteps.length > 0 ? `<div style="color:#991b1b; margin-top:0.2rem;"><strong>${escapeHtml(t('activity.substepsFailed') || 'Failed:')}</strong> ${escapeHtml(failedSteps.join(', '))}</div>` : ''}
+        </div>`;
+    }
+
+    // Progressive disclosure expanded details
+    const stepsHtml = (a.steps || []).map((s) => `<li>${escapeHtml(s)}</li>`).join('');
+    const toolsHtml = (a.toolsUsed || []).map((tl) => `<span class="badge-status status-CAPTURED" style="font-size:0.65rem;">${escapeHtml(tl)}</span>`).join(' ');
+
+    return `
+      <div class="plan-item-card activity-outcome-card" style="position:relative; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 0.85rem 1rem;" tabindex="0" role="region" aria-label="${escapeHtml(a.title)}">
+        <div class="plan-item-header" style="display:flex; justify-content:space-between; align-items:center;">
+          <span class="plan-goal-title" style="font-size:0.88rem; font-weight:600; color:var(--text-navy);">${escapeHtml(a.title)}</span>
+          <span class="badge-status ${badgeClass}">${escapeHtml(statusLabel)}</span>
+        </div>
+        ${a.description ? `<p class="card-body-text" style="font-size:0.8rem; color:var(--text-secondary); margin-top:0.2rem;">${escapeHtml(a.description)}</p>` : ''}
+        ${a.effect ? `<div style="font-size:0.75rem; font-weight:500; color:var(--color-accent-teal, #0d9488); margin-top:0.25rem;">${escapeHtml(a.effect)}</div>` : ''}
+        ${partialHtml}
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.4rem;">
+          <span style="font-size:0.72rem; color:var(--text-muted);">${escapeHtml(time)}</span>
+          <button id="activity-btn-${aid}" class="btn-secondary activity-expand-btn" aria-expanded="false" style="font-size:0.7rem; padding: 2px 6px;" onclick="window.NAGEX.toggleActivityDetail('${aid}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.NAGEX.toggleActivityDetail('${aid}');}">
+            ${escapeHtml(t('workspace.reviewDetails') || 'Details')}
+          </button>
+        </div>
+        <div id="activity-detail-${aid}" class="activity-detail-panel" hidden style="margin-top:0.5rem; padding-top:0.5rem; border-top:1px dashed var(--border-subtle); font-size:0.75rem;">
+          ${stepsHtml ? `<div style="margin-bottom:0.3rem;"><strong>Steps:</strong><ul style="margin:0.2rem 0 0 1.2rem; padding:0;">${stepsHtml}</ul></div>` : ''}
+          ${toolsHtml ? `<div style="margin-bottom:0.3rem; display:flex; gap:0.3rem; align-items:center;"><strong>Tools:</strong> ${toolsHtml}</div>` : ''}
+          ${a.source ? `<div style="margin-bottom:0.2rem; color:var(--text-muted);">Source: ${escapeHtml(a.source.taskId || a.source.approvalId || a.type || 'System')}</div>` : ''}
+          <div style="margin-top:0.3rem;">
+            <button class="btn-secondary" style="font-size:0.65rem; padding: 1px 4px;" onclick="alert('Technical Audit Record ID: ' + escapeHtml('${a.activityId || aid}'))">
+              ${escapeHtml(t('activity.viewTechnicalDetails') || 'View technical details')}
+            </button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  window.NAGEX = window.NAGEX || {};
+  window.NAGEX.toggleActivityDetail = function(id) {
+    const panel = document.getElementById(`activity-detail-${id}`);
+    const btn = document.getElementById(`activity-btn-${id}`);
+    if (!panel) return;
+    const isExpanded = !panel.hidden;
+    panel.hidden = isExpanded;
+    if (btn) btn.setAttribute('aria-expanded', String(!isExpanded));
+  };
 
   // P08 — My Space Foundation. Thin frontend for the thin GET /api/v1/
   // my-space composition — fetched lazily (only when the tab actually
