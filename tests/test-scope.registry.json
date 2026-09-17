@@ -124,6 +124,7 @@
     "ambient_modal_wiring",
     "intent_interaction_foundation",
     "ambient_run_button",
+    "approval_truth_source",
     "candidate_model",
     "candidate_review",
     "capture_ownership_isolation",

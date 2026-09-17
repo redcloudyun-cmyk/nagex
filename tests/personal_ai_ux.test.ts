@@ -9,6 +9,21 @@ import { ToolInvoker } from '../src/agent/tool.invoker.js';
 import { AiService } from '../src/model-gateway/ai-service.js';
 import type { ModelProvider } from '../src/model-gateway/model-provider.js';
 import { UnifiedModelRouter } from '../src/model-gateway/unified-model-router.js';
+import { GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID } from '../src/modules/calendar/index.js';
+
+function validCalendarPayload(overrides: Record<string, unknown> = {}) {
+  return {
+    calendarId: 'primary',
+    summary: 'Client Strategy Sync',
+    description: 'Quarterly strategy discussion.',
+    start: '2026-10-01T17:00:00.000Z',
+    end: '2026-10-01T17:30:00.000Z',
+    timezone: 'America/Los_Angeles',
+    attendees: ['client@example.com'],
+    conferenceData: false,
+    ...overrides,
+  };
+}
 
 const planningProvider: ModelProvider = {
   name: 'openai',
@@ -138,18 +153,37 @@ test('6. Personal AI: Ambient Intent never accepts an approval shortcut or execu
   assert.strictEqual(data.memory_updated, undefined);
 });
 
+// R12.1 Increment 2.5 (DEBT-0006 closure) — these two tests used to hit a
+// hardcoded demo/seed approval queue (appr_gcal_sync/appr_stakeholder_email)
+// that never reflected real Calendar/Gmail state. That array is gone;
+// /api/v1/approvals/:id/action now only ever operates on real
+// ActionApprovalStore records, so each test creates one first.
 test('7. Personal AI: Approval Queue Handling (Approve Action)', async () => {
-  const res = await handleApiRequest('POST', '/api/v1/approvals/appr_gcal_sync/action', { action: 'APPROVE' });
+  const created = await handleApiRequest('POST', '/api/v1/approvals', {
+    toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID,
+    payload: validCalendarPayload(),
+  });
+  assert.strictEqual(created.status, 201);
+  const approvalId = (created.data as { approvalId: string }).approvalId;
+
+  const res = await handleApiRequest('POST', `/api/v1/approvals/${approvalId}/action`, { action: 'APPROVE' });
   assert.strictEqual(res.status, 200);
-  const data = res.data as { id: string; status: string };
-  assert.strictEqual(data.id, 'appr_gcal_sync');
+  const data = res.data as { approvalId: string; status: string };
+  assert.strictEqual(data.approvalId, approvalId);
   assert.strictEqual(data.status, 'APPROVED');
 });
 
 test('8. Personal AI: Approval Queue Handling (Reject Action)', async () => {
-  const res = await handleApiRequest('POST', '/api/v1/approvals/appr_stakeholder_email/action', { action: 'REJECT' });
+  const created = await handleApiRequest('POST', '/api/v1/approvals', {
+    toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID,
+    payload: validCalendarPayload({ summary: 'Stakeholder Review' }),
+  });
+  assert.strictEqual(created.status, 201);
+  const approvalId = (created.data as { approvalId: string }).approvalId;
+
+  const res = await handleApiRequest('POST', `/api/v1/approvals/${approvalId}/action`, { action: 'REJECT' });
   assert.strictEqual(res.status, 200);
-  const data = res.data as { id: string; status: string };
+  const data = res.data as { approvalId: string; status: string };
   assert.strictEqual(data.status, 'REJECTED');
 });
 

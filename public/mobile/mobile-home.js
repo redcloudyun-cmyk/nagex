@@ -203,11 +203,11 @@
   // real) — the mockup's second button is mapped to the real "Review"
   // action (opens the full Approvals view) rather than fabricating a
   // Modify flow, per directive §15's own instruction to use only real
-  // supported actions when the mockup's exact action isn't real. ──
-  // Same DEBT-0006 truthfulness exclusion as desktop-home.js /
-  // app.js's Home approval list: these 2 ids are the legacy demo/seed
-  // approvalQueue entries, never real pending user approvals.
-  const LEGACY_DEMO_APPROVAL_IDS = new Set(['appr_gcal_sync', 'appr_stakeholder_email']);
+  // supported actions when the mockup's exact action isn't real.
+  //
+  // R12.1 Increment 2.5 (DEBT-0006 closure) — GET /api/v1/approvals is
+  // now a real, tenant/principal-scoped source, so the legacy demo/seed
+  // id exclusion that used to live here is gone. ──
 
   // Consequence-specific approval CTA (R12.1 Increment 2 §9/§10) — mirrors
   // app.js's homeApprovalActionLabel so desktop and mobile Home never
@@ -234,7 +234,7 @@
   function renderApprovals() {
     if (!window.NAGEX.getState) return 0;
     const state = window.NAGEX.getState();
-    const pending = (state.approvals || []).filter((a) => a.status === 'PENDING' && !LEGACY_DEMO_APPROVAL_IDS.has(a.id));
+    const pending = state.approvalsLoadFailed ? [] : (state.approvals || []).filter((a) => a.status === 'PENDING');
     const proposedCandidates = (state.candidates || []).filter((c) => c.status === 'PROPOSED');
     const needsHumanCaptures = (state.inbox || []).filter((i) => i.status === 'NEEDS_REVIEW' && i.metadata?.errorCode === 'BLOCKED_NEEDS_HUMAN');
 
@@ -261,7 +261,13 @@
     ].slice(0, 2);
 
     if (items.length === 0) {
-      listEl.innerHTML = emptyState(t('home.approvalsEmpty', "No approvals waiting. You're all caught up."));
+      // Fail-closed (§8): a genuinely empty pool only renders "No approvals
+      // waiting" when the approvals fetch itself succeeded — never when it
+      // failed (which would otherwise silently look identical to "you're
+      // all caught up").
+      listEl.innerHTML = state.approvalsLoadFailed
+        ? emptyState(t('home.approvalsLoadError', 'Approvals could not be loaded.'))
+        : emptyState(t('home.approvalsEmpty', "No approvals waiting. You're all caught up."));
       return total;
     }
 

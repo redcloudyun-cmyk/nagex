@@ -12,15 +12,20 @@
 // GoogleCalendarService/GmailService's own approve()/reject()/getApproval()
 // methods, which already are that same canonical pipeline's front door.
 //
-// approvalQueue is the legacy demo/seed approval list (2 real entries),
-// moved here since grep confirmed it has no other consumer — the real,
-// hash-verified action approvals (Calendar/Gmail) never touch this array,
-// they live entirely in GoogleCalendarService/PersistentActionApprovalStore.
+// R12.1 Increment 2.5 (DEBT-0006 closure) — GET /api/v1/approvals used to
+// return a hardcoded, permanently-seeded array of 2 fictional demo
+// approval records, never real Calendar/Gmail approval state. That array
+// is removed entirely. The real, tenant/principal-scoped "list pending
+// approvals" primitive (ActionApprovalStore.listPending — already used by
+// Daily Brief's own "Needs Your Approval" section) is now this endpoint's
+// only data source. Production default: no fictional approvals can ever
+// be returned.
 import type { PrincipalReference } from '../../common/types.js';
 import type { AuditLogger } from '../../governance/audit.logger.js';
 import type { TaskContinuationCoordinator } from '../../tasks/task-continuation.coordinator.js';
 import type { GoogleCalendarService } from '../../modules/calendar/index.js';
 import type { GmailService } from '../../modules/gmail/index.js';
+import type { ActionApprovalStore, ActionApprovalRecord } from '../../governance/action-approval.store.js';
 import {
   GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID,
   GOOGLE_CALENDAR_UPDATE_EVENT_TOOL_ID,
@@ -35,56 +40,49 @@ import {
 import { NagexError } from '../../common/errors.js';
 import type { ApiResult, SyncRouteRegistrar } from '../http-types.js';
 
-const approvalQueue: Array<{
-  id: string;
-  action: string;
-  tool: string;
-  event_name: string;
-  event_time: string;
-  recipient: string;
-  subject: string;
-  impact: string;
-  data_involved: string[];
-  why: string;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED';
-  requested_at: string;
-  plan_id?: string;
-}> = [
-  {
-    id: 'appr_gcal_sync',
-    action: 'Create Google Calendar event',
-    tool: 'Google Calendar',
-    event_name: 'Product Strategy Sync',
-    event_time: 'Tue, Apr 29, 2025 11:00 AM – 12:00 PM (1 hour)',
-    recipient: 'Sarah Kim, James Park, Alex Chen (3 guests)',
-    subject: 'Product Strategy Sync',
-    impact: 'Adds a calendar event and sends invitations to 3 people.',
-    data_involved: ['Your Google Calendar', 'guest emails', 'meeting title and agenda'],
-    why: 'You asked me to schedule a follow-up meeting after the product review.',
-    status: 'PENDING',
-    requested_at: new Date(Date.now() - 120000).toISOString(),
-    plan_id: 'plan_acme_meeting',
-  },
-  {
-    id: 'appr_stakeholder_email',
-    action: 'Get stakeholder review',
-    tool: 'Gmail',
-    event_name: 'Acme QBR Deck Review',
-    event_time: 'Apr 29, 5:00 PM',
-    recipient: 'stakeholders@acme.corp',
-    subject: 'QBR Presentation Draft Review',
-    impact: 'Dispatches external review email with presentation draft to 4 stakeholders.',
-    data_involved: ['Acme-QBR-Deck-Draft.pdf', 'stakeholder emails'],
-    why: 'Step 5 of plan "Prepare Client Meeting" requires approval before dispatch.',
-    status: 'PENDING',
-    requested_at: new Date(Date.now() - 300000).toISOString(),
-    plan_id: 'plan_acme_meeting',
-  },
-];
+// Human-readable action label derived only from the record's own toolId —
+// never from a hardcoded demo string. Unknown/future toolIds fall back to
+// a still-honest generic label rather than guessing.
+const TOOL_ID_ACTION_LABELS: Record<string, string> = {
+  [GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID]: 'Create Google Calendar event',
+  [GOOGLE_CALENDAR_UPDATE_EVENT_TOOL_ID]: 'Update Google Calendar event',
+  [GOOGLE_CALENDAR_CANCEL_EVENT_TOOL_ID]: 'Cancel Google Calendar event',
+  [GOOGLE_CALENDAR_RESPOND_EVENT_TOOL_ID]: 'Respond to Google Calendar event',
+  [GMAIL_SEND_EMAIL_TOOL_ID]: 'Send Gmail message',
+  [GMAIL_REPLY_TOOL_ID]: 'Reply to Gmail message',
+  [GMAIL_CREATE_DRAFT_TOOL_ID]: 'Create Gmail draft',
+};
+
+function humanActionLabelForToolId(toolId: string): string {
+  return TOOL_ID_ACTION_LABELS[toolId] || 'Approval required';
+}
+
+function resourceIdForRecord(record: ActionApprovalRecord): string {
+  const payload = record.canonicalPayload || {};
+  const candidate = (payload.summary || payload.subject || payload.title || payload.to) as unknown;
+  return typeof candidate === 'string' && candidate.trim() ? candidate : record.toolId;
+}
+
+// Maps a real ActionApprovalRecord to the shape Home/Inbox/mobile already
+// render (id/approvalId/toolId/action/resource/status/timestamps) — no
+// frontend rendering change required, only the data source underneath it.
+function toApprovalSummary(record: ActionApprovalRecord): Record<string, unknown> {
+  return {
+    id: record.approvalId,
+    approvalId: record.approvalId,
+    toolId: record.toolId,
+    action: humanActionLabelForToolId(record.toolId),
+    resource: { id: resourceIdForRecord(record) },
+    status: record.status,
+    createdAt: record.createdAt,
+    expiresAt: record.expiresAt,
+  };
+}
 
 export interface ApprovalsRouteDeps {
   googleCalendarService: GoogleCalendarService;
   gmailService: GmailService;
+  actionApprovals: ActionApprovalStore;
   auditLogger: AuditLogger;
   taskContinuationCoordinator: TaskContinuationCoordinator;
   tenantId: string;
@@ -93,10 +91,23 @@ export interface ApprovalsRouteDeps {
 }
 
 export const handleApprovalsRoutes: SyncRouteRegistrar<ApprovalsRouteDeps> = (method, pathname, body, _headers, _query, deps): ApiResult | undefined => {
-  const { googleCalendarService, gmailService, auditLogger, taskContinuationCoordinator, tenantId, principal, modelErrorResult } = deps;
+  const { googleCalendarService, gmailService, actionApprovals, taskContinuationCoordinator, tenantId, principal, modelErrorResult } = deps;
 
   if (pathname === '/api/v1/approvals' && method === 'GET') {
-    return { status: 200, data: { approvals: approvalQueue, total: approvalQueue.length } };
+    // Fail closed (R12.1 Increment 2.5 §8): a thrown error here must
+    // surface as a real error response, never silently degrade into an
+    // empty-looking 200 that the frontend could mistake for "zero pending
+    // approvals". listPending() is a synchronous in-memory read and does
+    // not normally throw, but this keeps the contract explicit rather than
+    // relying on that being true forever.
+    try {
+      const requestId = `req_appr_list_${Date.now()}`;
+      const pending = actionApprovals.listPending(tenantId, principal.id, requestId);
+      const approvals = pending.map(toApprovalSummary);
+      return { status: 200, data: { approvals, total: approvals.length } };
+    } catch (error) {
+      return modelErrorResult(error);
+    }
   }
 
   if (pathname === '/api/v1/approvals' && method === 'POST') {
@@ -172,31 +183,16 @@ export const handleApprovalsRoutes: SyncRouteRegistrar<ApprovalsRouteDeps> = (me
   if (pathname.startsWith('/api/v1/approvals/') && method === 'POST') {
     const apprId = pathname.replace('/api/v1/approvals/', '').replace('/action', '');
     const action = (body?.action as string) || 'APPROVE';
-    const item = approvalQueue.find((a) => a.id === apprId);
-    if (item) {
-      item.status = action === 'APPROVE' ? 'APPROVED' : 'REJECTED';
-      auditLogger.logEvent({
-        actor: principal,
-        tenant_id: tenantId,
-        action: action === 'APPROVE' ? 'approval:granted' : 'approval:rejected',
-        resource: { type: 'Approval', id: apprId },
-        result: 'SUCCESS',
-        request_id: `req_appr_${Date.now()}`,
-      });
-      return { status: 200, data: item };
-    }
 
-    // Not a legacy demo approval — try the real, hash-verified action approvals
-    // (e.g. Google Calendar create-event requests) sharing this same endpoint.
+    // Real, hash-verified action approvals (e.g. Google Calendar
+    // create-event requests) — the only approval source this endpoint has
+    // ever needed; the legacy demo-array branch that used to sit here was
+    // removed in R12.1 Increment 2.5 (DEBT-0006 closure).
     const requestId = `req_appr_${Date.now()}`;
     try {
       const record = action === 'APPROVE'
         ? googleCalendarService.approve(apprId, tenantId, principal.id, requestId)
         : googleCalendarService.reject(apprId, tenantId, principal.id, requestId);
-      // P02 — same fire-and-forget continuation hook as the /approve
-      // /reject route above; this legacy /action endpoint shares the same
-      // underlying approval store, so a Task continuation may equally be
-      // waiting on an approvalId granted/rejected through this path.
       if (action === 'APPROVE') taskContinuationCoordinator.onApproved(apprId).catch(() => {});
       else taskContinuationCoordinator.onRejected(apprId);
       return { status: 200, data: record };

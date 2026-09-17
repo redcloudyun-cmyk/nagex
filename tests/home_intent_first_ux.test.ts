@@ -152,13 +152,29 @@ test('9. Needs Approval renders consequence-specific CTAs, never a bare Run/Exec
   });
 });
 
-test('10. Needs Approval excludes the legacy demo/seed approval entries (DEBT-0006) so fictional approvals are never shown as real', async () => {
+test('10. Needs Approval has no frontend seed-ID filtering — the backend itself never returns fictional approvals (DEBT-0006 closed)', async () => {
+  // R12.1 Increment 2.5 closed DEBT-0006 at the source: GET /api/v1/approvals
+  // now reads ActionApprovalStore.listPending() (real, tenant/principal-
+  // scoped), so app.js no longer needs to know about, or filter out, any
+  // specific demo/seed approval ids.
   await withServer(async (origin) => {
     const appJs = await (await fetch(`${origin}/app.js`)).text();
-    assert.match(appJs, /LEGACY_DEMO_APPROVAL_IDS = new Set\(\['appr_gcal_sync', 'appr_stakeholder_email'\]\)/);
+    assert.doesNotMatch(appJs, /LEGACY_DEMO_APPROVAL_IDS/);
+    assert.doesNotMatch(appJs, /appr_gcal_sync|appr_stakeholder_email/);
     const approvalsSection = appJs.match(/\/\/ 2b\. Needs Approval[\s\S]*?\n    }\n/);
     assert.ok(approvalsSection);
-    assert.match(approvalsSection![0], /!LEGACY_DEMO_APPROVAL_IDS\.has\(a\.id\)/);
+    assert.match(approvalsSection![0], /state\.approvals\.filter\(\(a\) => a\.status === 'PENDING'\)/);
+  });
+});
+
+test('10b. Needs Approval fails closed: a failed fetch renders a distinct "could not be loaded" message, never a false "no approvals" empty state', async () => {
+  await withServer(async (origin) => {
+    const appJs = await (await fetch(`${origin}/app.js`)).text();
+    assert.match(appJs, /state\.approvalsLoadFailed = !apprData \|\| Boolean\(apprData\.error\)/);
+    const approvalsSection = appJs.match(/\/\/ 2b\. Needs Approval[\s\S]*?\n    }\n/);
+    assert.ok(approvalsSection);
+    assert.match(approvalsSection![0], /if \(state\.approvalsLoadFailed\) \{/);
+    assert.match(approvalsSection![0], /home\.approvalsLoadError/);
   });
 });
 

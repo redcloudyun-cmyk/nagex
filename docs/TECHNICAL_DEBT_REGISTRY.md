@@ -384,17 +384,55 @@ risk: >
   gap for any future scenario needing to show more than one in-flight
   approval discovered outside an active plan-resolution flow.
 resolution: >
-  Open. Frontend mitigation applied in R12.1 Increment 2: app.js's Home
-  approval renderer and desktop-home.js's/mobile-home.js's approval-count
-  badges all exclude LEGACY_DEMO_APPROVAL_IDS
-  (appr_gcal_sync/appr_stakeholder_email) by id. See
-  tests/home_intent_first_ux.test.ts test 10. A real fix requires a
-  dedicated backend pass: either a genuine list-pending-approvals
-  aggregation across GoogleCalendarService/GmailService's approval stores,
-  or retiring the legacy approvalQueue array entirely in favor of that
-  real source — out of scope for a Home UX increment.
+  CLOSED by R12.1 Increment 2.5 (Approval Truth Source pass,
+  BASE_SHA=f3da251, 2026-09-17). Investigation found the "no real
+  aggregation endpoint exists" premise in this entry's own description
+  was stale: ActionApprovalStore.listPending(tenantId, principalId)
+  already existed (src/governance/action-approval.store.ts) and was
+  already used by Daily Brief's own "Needs Your Approval" section — the
+  actual gap was narrower than described: approvals.routes.ts's
+  GET /api/v1/approvals simply never called it.
+
+  Fix applied: the legacy approvalQueue array (and its 2 fictional
+  entries) was deleted entirely from src/http/routes/approvals.routes.ts,
+  not moved behind a demo-mode flag — no demo/compatibility need for it
+  was found (grep confirmed no other consumer). GET /api/v1/approvals now
+  maps ActionApprovalStore.listPending()'s real, tenant/principal-scoped,
+  live-expiry-checked records into the same response shape the frontend
+  already rendered (id/approvalId/toolId/action/resource/status), so no
+  frontend rendering logic needed to change — only its data source did.
+  The POST /api/v1/approvals/:id/action catch-all's legacy-array branch
+  was removed the same way; it now only ever operates on real records.
+
+  The frontend LEGACY_DEMO_APPROVAL_IDS id-exclusion workaround (added as
+  this entry's original mitigation) is fully removed from app.js,
+  desktop-home.js, and mobile-home.js — presentation code no longer knows
+  any backend demo id. A fail-closed distinction was also added
+  (state.approvalsLoadFailed, both desktop and mobile) so a genuine fetch
+  failure renders "Approvals could not be loaded." rather than being
+  indistinguishable from "No approvals needed." — this was not previously
+  handled correctly (an API-error response was silently treated as an
+  empty list).
+
+  Approval semantics are unchanged: payload binding (payloadHash),
+  tenant/principal ownership (requireOwned), expiry (getLive), one-time
+  consumption (consume), and replay prevention were not touched — only
+  GET /api/v1/approvals's data source and the POST .../action catch-all's
+  legacy branch were. Verified by tests/approval_truth_source.test.ts (16
+  tests: no fictional records in production output, real
+  pending/approved/rejected/expired/consumed lifecycle reflected
+  correctly, tenant/principal isolation, payload-hash binding unchanged,
+  fail-closed error surfacing, both Calendar and Gmail visible through the
+  one canonical source) plus updated tests/personal_ai_ux.test.ts (7-8)
+  and tests/google_calendar_live.test.ts, all passing against real
+  ActionApprovalStore records instead of the removed demo queue.
+
+  DEBT-0005's Home-relevant items (§11 Back/Forward, §14 real
+  mobile-browser rendering) were intentionally NOT touched by this pass,
+  per this directive's own explicit instruction — they remain open,
+  tracked separately in DEBT-0005.
 owner: NAGEX
-status: OPEN
+status: CLOSED
 ```
 
 ---

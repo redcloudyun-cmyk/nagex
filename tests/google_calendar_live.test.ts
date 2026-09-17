@@ -593,10 +593,18 @@ test('POST /api/v1/approvals/calendar-event then /api/v1/approvals/:id/action th
   }
 });
 
-test('the legacy demo /api/v1/approvals/:id/action queue still works unchanged', () => {
-  const approved = handleApiRequest('POST', '/api/v1/approvals/appr_gcal_sync/action', { action: 'APPROVE' });
+test('POST /api/v1/approvals/:id/action approves a real ActionApprovalStore record (R12.1 Increment 2.5 — the legacy demo/seed queue this endpoint used to fall back to is gone)', () => {
+  const created = handleApiRequest('POST', '/api/v1/approvals', {
+    toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID,
+    payload: validPayload({ attendees: [] }),
+  });
+  assert.equal(created.status, 201);
+  const approvalId = (created.data as Record<string, unknown>).approvalId as string;
+
+  const approved = handleApiRequest('POST', `/api/v1/approvals/${approvalId}/action`, { action: 'APPROVE' });
   assert.equal(approved.status, 200);
-  assert.equal((approved.data as Record<string, unknown>).id, 'appr_gcal_sync');
+  assert.equal((approved.data as Record<string, unknown>).approvalId, approvalId);
+  assert.equal((approved.data as Record<string, unknown>).status, 'APPROVED');
 });
 
 // ── generic POST /api/v1/approvals + dedicated /approve, /reject verbs ──────

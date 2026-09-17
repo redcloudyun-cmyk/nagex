@@ -224,15 +224,17 @@
   // uses), never a placeholder number. Runs after app.js's own
   // renderHomeWorkspaceSections (onHomeRender fires at the end of
   // renderHome()), so state.approvals is already current.
-  // Excludes the same 2 legacy demo/seed ids app.js's Home approval list
-  // excludes (DEBT-0006) so the badge count never implies more real
-  // pending approvals exist than actually do. ──
-  const LEGACY_DEMO_APPROVAL_IDS = new Set(['appr_gcal_sync', 'appr_stakeholder_email']);
+  // R12.1 Increment 2.5 (DEBT-0006 closure) — GET /api/v1/approvals is now
+  // a real, tenant/principal-scoped source (ActionApprovalStore.
+  // listPending()), so no id-based demo/seed filtering is needed here
+  // anymore. On a load failure the badge simply shows nothing (0), rather
+  // than a false count — the approval section itself (not this badge)
+  // carries the truthful "could not be loaded" message. ──
   function renderApprovalsCountBadge() {
     const badge = document.getElementById('approvals-count-badge');
     if (!badge || !window.NAGEX.getState) return;
     const state = window.NAGEX.getState();
-    const count = (state.approvals || []).filter((a) => a.status === 'PENDING' && !LEGACY_DEMO_APPROVAL_IDS.has(a.id)).length;
+    const count = state.approvalsLoadFailed ? 0 : (state.approvals || []).filter((a) => a.status === 'PENDING').length;
     if (count > 0) {
       badge.hidden = false;
       badge.textContent = count > 9 ? '9+' : String(count);

@@ -10,6 +10,13 @@
     skills: [],
     tools: [],
     approvals: [],
+    // R12.1 Increment 2.5 §8 — fail-closed contract: true only when the
+    // real GET /api/v1/approvals fetch itself failed (network error or a
+    // structured API error), never set just because the real canonical
+    // source returned zero pending approvals. Render code must show
+    // "Approvals could not be loaded." on true, and "No approvals needed."
+    // only when this is false AND the list is genuinely empty.
+    approvalsLoadFailed: false,
     executions: [],
     knowledge: [],
     quickWakeConfig: {},
@@ -356,7 +363,8 @@
     if (taskData) state.tasks = taskData.tasks || [];
     if (skillData) state.skills = skillData.skills || [];
     if (toolData) state.tools = toolData.tools || [];
-    if (apprData) state.approvals = apprData.approvals || [];
+    state.approvalsLoadFailed = !apprData || Boolean(apprData.error);
+    if (apprData && !apprData.error) state.approvals = apprData.approvals || [];
     if (execData) state.executions = execData.executions || [];
     if (knowData) state.knowledge = knowData.documents || [];
     if (candData) state.candidates = candData.candidates || [];
@@ -567,11 +575,6 @@
     if (window.NAGEX.onHomeRenderMobile) window.NAGEX.onHomeRenderMobile();
   }
 
-  // See the DEBT-0006 comment inside renderHomeWorkspaceSections for why
-  // these two specific ids (the legacy demo/seed approvalQueue entries)
-  // are excluded from Home's real "Needs Approval" surface.
-  const LEGACY_DEMO_APPROVAL_IDS = new Set(['appr_gcal_sync', 'appr_stakeholder_email']);
-
   // Consequence-specific approval CTA (R12.1 Increment 2 §9/§10) — never a
   // bare "Run"/"Execute"/"Continue"/"OK". Derived from the approval's own
   // toolId when present (the reliable signal), falling back to its
@@ -692,25 +695,24 @@
     // consequence-specific (never a bare "Run"/"OK"), derived from the
     // approval's own toolId/action, per R12.1 Increment 2 §9.
     //
-    // TRUTHFULNESS NOTE (DEBT-0006): GET /api/v1/approvals is a legacy
-    // demo/seed endpoint (2 fixed fictional entries, appr_gcal_sync /
-    // appr_stakeholder_email) that never reflects real Calendar/Gmail
-    // approval-store state — there is currently no real aggregate
-    // "list pending approvals" endpoint for those services (each only
-    // supports point lookup by a specific approvalId during an in-progress
-    // plan-resolution flow, which already renders its own approval card
-    // inline in the ambient modal). Showing those two fixed fictional
-    // entries here would misrepresent them as the user's real pending
-    // approvals, so they are excluded by id. This is a data-source gap,
-    // not a UI gap — see DEBT-0006 for why a real fix needs a dedicated
-    // backend aggregation pass rather than a Home-only change.
+    // DEBT-0006 CLOSED (R12.1 Increment 2.5) — GET /api/v1/approvals now
+    // sources this list from the real, tenant/principal-scoped
+    // ActionApprovalStore.listPending() (the same primitive Daily Brief's
+    // own "Needs Your Approval" section already used), never a hardcoded
+    // demo/seed array. No frontend id-filtering is needed or present.
+    //
+    // Fail-closed (§8): state.approvalsLoadFailed distinguishes "the
+    // fetch itself failed" from "the real source returned zero pending
+    // approvals" — only the latter may render as "No approvals needed."
     const elApprovals = document.getElementById('list-needs-attention');
     if (elApprovals) {
       const card = elApprovals.closest('.canvas-section-card');
-      const pendingApprs = state.approvals.filter((a) => a.status === 'PENDING' && !LEGACY_DEMO_APPROVAL_IDS.has(a.id)).slice(0, 2);
-
       if (card) card.style.display = 'block';
-      if (pendingApprs.length > 0) {
+      const pendingApprs = state.approvals.filter((a) => a.status === 'PENDING').slice(0, 2);
+
+      if (state.approvalsLoadFailed) {
+        elApprovals.innerHTML = `<div class="nagex-empty-state">${escapeHtml(t('home.approvalsLoadError') || 'Approvals could not be loaded.')}</div>`;
+      } else if (pendingApprs.length > 0) {
         elApprovals.innerHTML = pendingApprs.map((a) => {
           const humanAction = a.intent || a.action || 'Approval Required';
           return `<div class="inbox-item-card contextual-approval-card">
