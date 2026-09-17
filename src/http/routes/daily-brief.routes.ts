@@ -151,7 +151,10 @@ export const handleDailyBriefRoutes: AsyncRouteRegistrar<DailyBriefRouteDeps> = 
   // executes anything itself (§5): a consequential action the model
   // recommends still has to go through the real Approval flow via its own
   // normal entry point, never created or auto-approved here.
-  if ((pathname === '/api/v1/daily-brief' && method === 'GET') || (pathname === '/api/v1/daily-brief/refresh' && method === 'POST')) {
+  if (
+    ((pathname === '/api/v1/daily-brief' || pathname === '/api/v1/brief/today') && method === 'GET') ||
+    (pathname === '/api/v1/daily-brief/refresh' && method === 'POST')
+  ) {
     const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
     const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_brief_${crypto.randomUUID()}`;

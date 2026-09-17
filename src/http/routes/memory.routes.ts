@@ -21,20 +21,42 @@ export const handleMemoryRoutes: SyncRouteRegistrar<MemoryRouteDeps> = (method, 
   const { memoryEngine, pinnedMemories, tenantId, principal, modelErrorResult } = deps;
 
   if (pathname === '/api/v1/memory' && method === 'GET') {
-    const activeUserMems = memoryEngine.getActiveMemories('USER', tenantId, principal.id);
-    const activeSessionMems = memoryEngine.getActiveMemories('SESSION', tenantId, principal.id);
-    const activeAgentMems = memoryEngine.getActiveMemories('AGENT', tenantId, principal.id);
-    const activeTenantMems = memoryEngine.getActiveMemories('TENANT', tenantId, principal.id);
-    const allMemories = [...activeUserMems, ...activeSessionMems, ...activeAgentMems, ...activeTenantMems].map((m) => ({ ...m, pinned: pinnedMemories.has(m.id) }));
+    const scopes: MemoryScope[] = ['PERSONAL', 'ORGANIZATION', 'WORKSPACE', 'USER', 'SESSION', 'AGENT', 'TENANT'];
+    const allMemories = scopes
+      .flatMap((s) => memoryEngine.getActiveMemories(s, tenantId, principal.id))
+      .map((m) => ({ ...m, pinned: pinnedMemories.has(m.id) }));
     return { status: 200, data: { memories: allMemories, total: allMemories.length } };
+  }
+
+  if (pathname.startsWith('/api/v1/memory/') && !pathname.endsWith('/pin') && method === 'GET') {
+    const memId = pathname.slice('/api/v1/memory/'.length);
+    try {
+      const rec = memoryEngine.get(memId, tenantId, principal.id);
+      if (!rec) {
+        return { status: 404, data: { error: 'MEMORY_NOT_FOUND', message: `Memory ${memId} not found.` } };
+      }
+      return { status: 200, data: { ...rec, pinned: pinnedMemories.has(rec.id) } };
+    } catch (error) {
+      return modelErrorResult(error);
+    }
   }
 
   if (pathname === '/api/v1/memory' && method === 'POST') {
     const scope = ((body?.scope as string) || 'USER') as MemoryScope;
-    const subject = (body?.subject as string) || 'General';
-    const predicate = (body?.predicate as string) || 'note';
-    const value = body?.value || '';
-    const rec = memoryEngine.proposeMemory(scope, tenantId, principal.id, { subject, predicate, value });
+    const type = body?.type as any;
+    const sourceRef = (body?.sourceRef as string) || (body?.source_ref as string);
+    const confidence = typeof body?.confidence === 'number' ? body.confidence : undefined;
+    const subject = (body?.subject as string) || 'User Preference';
+    const predicate = (body?.predicate as string) || 'preference';
+    const value = body?.value || body?.content || '';
+    const rec = memoryEngine.proposeMemory(
+      scope,
+      tenantId,
+      principal.id,
+      { subject, predicate, value },
+      undefined,
+      { type, sourceRef, confidence }
+    );
     const activated = memoryEngine.activateMemory(rec.id, tenantId, principal.id);
     if (body?.pinned) pinnedMemories.add(activated.id);
     return { status: 201, data: { ...activated, pinned: pinnedMemories.has(activated.id) } };
@@ -59,6 +81,39 @@ export const handleMemoryRoutes: SyncRouteRegistrar<MemoryRouteDeps> = (method, 
     if (pinnedMemories.has(memId)) pinnedMemories.delete(memId);
     else pinnedMemories.add(memId);
     return { status: 200, data: { success: true, pinned: pinnedMemories.has(memId) } };
+  }
+
+  if (pathname.startsWith('/api/v1/memory/') && method === 'PATCH') {
+    const memId = pathname.slice('/api/v1/memory/'.length);
+    try {
+      const subject = typeof body?.subject === 'string' ? body.subject : undefined;
+      const predicate = typeof body?.predicate === 'string' ? body.predicate : undefined;
+      const value = body?.value !== undefined ? body.value : body?.content !== undefined ? body.content : undefined;
+      const scope = typeof body?.scope === 'string' ? (body.scope as MemoryScope) : undefined;
+      const type = typeof body?.type === 'string' ? (body.type as any) : undefined;
+      const sourceRef = typeof body?.sourceRef === 'string' ? body.sourceRef : undefined;
+
+      const existing = memoryEngine.get(memId, tenantId, principal.id);
+      if (!existing) {
+        return { status: 404, data: { error: 'MEMORY_NOT_FOUND', message: `Memory ${memId} was not found.` } };
+      }
+
+      const content = {
+        subject: subject || existing.content.subject,
+        predicate: predicate || existing.content.predicate,
+        value: value !== undefined ? value : existing.content.value,
+      };
+
+      const updated = memoryEngine.updateMemory(memId, tenantId, principal.id, {
+        scope,
+        type,
+        content,
+        sourceRef,
+      });
+      return { status: 200, data: { ...updated, pinned: pinnedMemories.has(updated.id) } };
+    } catch (error) {
+      return modelErrorResult(error);
+    }
   }
 
   return undefined;

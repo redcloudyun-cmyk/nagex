@@ -40,6 +40,9 @@ import { handleRbacRoutes } from './http/routes/rbac.routes.js';
 import { handleEnterpriseIdentityRoutes } from './http/routes/enterprise-identity.routes.js';
 import { handleScimRoutes } from './http/routes/scim.routes.js';
 import { handleCreationRoutes } from './http/routes/creation.routes.js';
+import { handleInboxRoutes } from './http/routes/inbox.routes.js';
+import { handleVaultRoutes } from './http/routes/vault.routes.js';
+import { handleConnectionsRoutes } from './http/routes/connections.routes.js';
 import type { GoogleCalendarService } from './modules/calendar/index.js';
 import type { GmailService } from './modules/gmail/index.js';
 import { BrowserToolService, browserRuntime } from './modules/browser/index.js';
@@ -164,6 +167,9 @@ export const {
   workflowDefinitionService,
   creationStore,
   creationService,
+  inboxStore,
+  vaultStore,
+  connectionStore,
   deviceAgentTransportEndpoint,
   deviceIdentityStore,
 } = app;
@@ -496,6 +502,24 @@ export async function handleAsyncApiRequest(
     {
       const creationResult = await handleCreationRoutes(method, pathname, body, headers, query, { creationService });
       if (creationResult) return creationResult;
+    }
+
+    // R18 — Inbox Routes
+    {
+      const inboxResult = await handleInboxRoutes(method, pathname, body, headers, query, { inboxStore, vaultStore });
+      if (inboxResult) return inboxResult;
+    }
+
+    // R18 — Vault Routes
+    {
+      const vaultResult = await handleVaultRoutes(method, pathname, body, headers, query, { vaultStore });
+      if (vaultResult) return vaultResult;
+    }
+
+    // R18 — Connected Apps / Connections Routes
+    {
+      const connectionsResult = await handleConnectionsRoutes(method, pathname, body, headers, query, { connectionStore });
+      if (connectionsResult) return connectionsResult;
     }
 
     return handleApiRequest(method, pathname, body, headers);

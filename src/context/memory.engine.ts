@@ -2,10 +2,11 @@ import { generateResourceId, getCurrentISOString } from '../common/utils.js';
 import { NagexError } from '../common/errors.js';
 import { FileRecordStore, resolveNagexDataDir } from '../governance/file-record.store.js';
 
-export type MemoryScope = 'EXECUTION' | 'SESSION' | 'AGENT' | 'USER' | 'TENANT';
+export type MemoryScope = 'EXECUTION' | 'SESSION' | 'AGENT' | 'USER' | 'TENANT' | 'PERSONAL' | 'ORGANIZATION' | 'WORKSPACE';
+export type MemoryType = 'PREFERENCE' | 'FACT' | 'RELATIONSHIP' | 'PROJECT_CONTEXT' | 'DECISION' | 'WORKING_CONTEXT';
 export type MemoryLifecycle = 'PROPOSED' | 'VALIDATING' | 'ACTIVE' | 'CONFLICTED' | 'SUPERSEDED' | 'EXPIRED' | 'DELETED';
 
-const VALID_SCOPES: ReadonlySet<string> = new Set(['EXECUTION', 'SESSION', 'AGENT', 'USER', 'TENANT']);
+const VALID_SCOPES: ReadonlySet<string> = new Set(['EXECUTION', 'SESSION', 'AGENT', 'USER', 'TENANT', 'PERSONAL', 'ORGANIZATION', 'WORKSPACE']);
 const VALID_LIFECYCLES: ReadonlySet<string> = new Set([
   'PROPOSED',
   'VALIDATING',
@@ -35,6 +36,7 @@ const LEGACY_BACKFILL_TENANT_ID = 'ten_production_01';
 export interface MemoryRecord {
   id: string;
   scope: MemoryScope;
+  type?: MemoryType;
   // Memory Tenant Isolation Correction — optional only so a pre-existing
   // on-disk record (written before this field existed) can still pass
   // isMemoryRecord() and load; every record entering the in-memory store
@@ -43,18 +45,22 @@ export interface MemoryRecord {
   // "tenant is optional" for any ownership decision downstream.
   tenantId?: string;
   owner_id: string;
+  workspaceId?: string;
   lifecycle: MemoryLifecycle;
   content: {
     subject: string;
     predicate: string;
     value: unknown;
   };
+  sourceRef?: string;
+  confidence?: number;
   // Phase 1 STEP 9, item K — traceability back to the canonical Candidate
   // this memory was written from, so a lost/crashed action-linkage write
   // can be reconciled instead of writing a second memory.
   candidateId?: string;
   created_at: string;
   updated_at: string;
+  last_used_at?: string;
 }
 
 export function isMemoryRecord(value: unknown): value is MemoryRecord {
@@ -133,6 +139,7 @@ export class MemoryEngine {
     ownerId: string,
     content: { subject: string; predicate: string; value: unknown },
     candidateId?: string,
+    options?: { type?: MemoryType; sourceRef?: string; confidence?: number; workspaceId?: string },
   ): MemoryRecord {
     const id = generateResourceId('mem');
     const now = getCurrentISOString();
@@ -140,10 +147,14 @@ export class MemoryEngine {
     const record: MemoryRecord = {
       id,
       scope,
+      type: options?.type,
       tenantId,
       owner_id: ownerId,
+      workspaceId: options?.workspaceId,
       lifecycle: 'PROPOSED',
       content,
+      sourceRef: options?.sourceRef,
+      confidence: options?.confidence,
       candidateId,
       created_at: now,
       updated_at: now,
@@ -247,5 +258,96 @@ export class MemoryEngine {
     this.fileStore.removeOrThrow(id);
     this.memoryStore.delete(id);
     return deletedRecord;
+  }
+
+  public createMemory(params: {
+    scope: MemoryScope;
+    type?: MemoryType;
+    tenantId: string;
+    ownerId: string;
+    workspaceId?: string;
+    content: { subject: string; predicate: string; value: unknown };
+    sourceRef?: string;
+    confidence?: number;
+    candidateId?: string;
+  }): MemoryRecord {
+    const id = generateResourceId('mem');
+    const now = getCurrentISOString();
+
+    const record: MemoryRecord = {
+      id,
+      scope: params.scope,
+      type: params.type || 'FACT',
+      tenantId: params.tenantId,
+      owner_id: params.ownerId,
+      workspaceId: params.workspaceId || 'ws_default_01',
+      lifecycle: 'ACTIVE',
+      content: params.content,
+      sourceRef: params.sourceRef,
+      confidence: params.confidence ?? 1.0,
+      candidateId: params.candidateId,
+      created_at: now,
+      updated_at: now,
+      last_used_at: now,
+    };
+
+    this.fileStore.writeOrThrow(id, record);
+    this.memoryStore.set(id, record);
+    return record;
+  }
+
+  public updateMemory(
+    id: string,
+    tenantId: string,
+    ownerId: string,
+    updates: Partial<{
+      scope: MemoryScope;
+      type: MemoryType;
+      content: { subject: string; predicate: string; value: unknown };
+      sourceRef: string;
+      confidence: number;
+    }>
+  ): MemoryRecord {
+    const record = this.requireOwned(id, tenantId, ownerId);
+    const now = getCurrentISOString();
+
+    const updated: MemoryRecord = {
+      ...record,
+      ...updates,
+      updated_at: now,
+    };
+
+    this.fileStore.writeOrThrow(id, updated);
+    this.memoryStore.set(id, updated);
+    return updated;
+  }
+
+  public listMemories(tenantId: string, ownerId: string, scope?: MemoryScope, workspaceId?: string): MemoryRecord[] {
+    const results: MemoryRecord[] = [];
+    for (const record of this.memoryStore.values()) {
+      if (record.tenantId === tenantId && record.owner_id === ownerId && !TERMINAL_MEMORY_STATES.has(record.lifecycle)) {
+        if (!scope || record.scope === scope) {
+          if (!workspaceId || record.workspaceId === workspaceId || record.scope === 'PERSONAL' || record.scope === 'USER') {
+            results.push(record);
+          }
+        }
+      }
+    }
+    return results.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }
+
+  public searchMemories(tenantId: string, ownerId: string, query: string, scope?: MemoryScope, workspaceId?: string): MemoryRecord[] {
+    const q = query.toLowerCase().trim();
+    const list = this.listMemories(tenantId, ownerId, scope, workspaceId);
+    if (!q) return list;
+
+    return list.filter((r) => {
+      const subj = (r.content?.subject || '').toLowerCase();
+      const pred = (r.content?.predicate || '').toLowerCase();
+      const val = typeof r.content?.value === 'string' ? r.content.value.toLowerCase() : JSON.stringify(r.content?.value || '').toLowerCase();
+      const src = (r.sourceRef || '').toLowerCase();
+      const type = (r.type || '').toLowerCase();
+      return subj.includes(q) || pred.includes(q) || val.includes(q) || src.includes(q) || type.includes(q);
+    });
   }
 }

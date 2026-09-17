@@ -85,5 +85,23 @@ export const handleCalendarRoutes: AsyncRouteRegistrar<CalendarRouteDeps> = asyn
     return { status: 200, data: { busy, freeSlots: computeFreeSlots(busy, timeMin, timeMax) } };
   }
 
+  if (pathname === '/api/v1/calendar/upcoming' && method === 'GET') {
+    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+    const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+    try {
+      const config = readGoogleOAuthConfig();
+      const accessToken = config ? await googleTokenStore.getValidAccessToken(tenantId, config, fetch, requestId) : null;
+      if (!accessToken) {
+        return { status: 200, data: { events: [], connected: false, message: 'No upcoming events.' } };
+      }
+      const timeMin = new Date().toISOString();
+      const timeMax = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
+      const busy = await queryFreeBusy(accessToken, { calendarId: 'primary', timeMin, timeMax }, fetch, requestId);
+      return { status: 200, data: { events: busy, connected: true, message: busy.length ? null : 'No upcoming events.' } };
+    } catch {
+      return { status: 200, data: { events: [], connected: false, message: 'No upcoming events.' } };
+    }
+  }
+
   return undefined;
 };

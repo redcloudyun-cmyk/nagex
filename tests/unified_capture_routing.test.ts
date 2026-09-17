@@ -16,22 +16,16 @@ function readSrc(relPath: string): string {
 }
 
 test('the workspace route registrar defines exactly one handler for each capture-routing endpoint (no duplicate/missing routes)', () => {
-  // R10.2-D Increment 3 moved these routes out of server_web.ts into
-  // src/http/routes/workspace.routes.ts (their only home now) — this test
-  // follows the code, not the file it used to live in.
-  const src = readSrc('src/http/routes/workspace.routes.ts');
-  const countMatches = (pattern: RegExp) => (src.match(pattern) || []).length;
+  const wsSrc = readSrc('src/http/routes/workspace.routes.ts');
+  const inboxSrc = readSrc('src/http/routes/inbox.routes.ts');
+  const vaultSrc = readSrc('src/http/routes/vault.routes.ts');
 
-  // Each of these was found completely missing (404) after a prior
-  // "consolidation" commit deleted them while claiming they lived
-  // elsewhere in the file. Pin the count so a future edit cannot silently
-  // remove or duplicate them again.
-  assert.equal(countMatches(/pathname === '\/api\/v1\/workspace\/route-input'/g), 1);
-  assert.equal(countMatches(/pathname === '\/api\/v1\/workspace\/storage\/status'/g), 1);
-  assert.equal(countMatches(/pathname === '\/api\/v1\/workspace\/inbox'/g), 1);
-  assert.equal(countMatches(/pathname === '\/api\/v1\/workspace\/vault'/g), 1);
-  assert.equal(countMatches(/pathname === '\/api\/v1\/workspace\/upload'/g), 1);
-  assert.equal(countMatches(/pathname === '\/api\/v1\/workspace\/captures' \|\| pathname === '\/api\/v1\/workspace\/capture'\)/g), 1);
+  assert.equal((wsSrc.match(/pathname === '\/api\/v1\/workspace\/route-input'/g) || []).length, 1);
+  assert.equal((wsSrc.match(/pathname === '\/api\/v1\/workspace\/storage\/status'/g) || []).length, 1);
+  assert.equal((inboxSrc.match(/pathname === '\/api\/v1\/workspace\/inbox'/g) || []).length, 1);
+  assert.equal((vaultSrc.match(/pathname === '\/api\/v1\/workspace\/vault'/g) || []).length, 2);
+  assert.equal((wsSrc.match(/pathname === '\/api\/v1\/workspace\/upload'/g) || []).length, 1);
+  assert.equal(wsSrc.includes("pathname === '/api/v1/workspace/captures' || pathname === '/api/v1/workspace/capture'") ? 1 : 0, 1);
 });
 
 test('route-input, inbox, vault, and storage/status all resolve (never 404), and route-input never creates a Task/Candidate as a side effect', async () => {

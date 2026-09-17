@@ -33,7 +33,7 @@ export interface MySpaceRouteDeps {
 export const handleMySpaceRoutes: AsyncRouteRegistrar<MySpaceRouteDeps> = async (method, pathname, _body, headers, _query, deps): Promise<ApiResult | undefined> => {
   const { activityStore, memoryEngine, taskStore, taskRunStore, workflowDefinitionService, calendarService } = deps;
 
-  if (pathname === '/api/v1/my-space' && method === 'GET') {
+  if ((pathname === '/api/v1/my-space' || pathname === '/api/v1/workspace/my-space') && method === 'GET') {
     const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
     const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_myspace_${crypto.randomUUID()}`;

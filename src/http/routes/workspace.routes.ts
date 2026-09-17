@@ -55,17 +55,6 @@ export const handleWorkspaceRoutes: AsyncRouteRegistrar<WorkspaceRouteDeps> = as
     return { status: 200, data: status };
   }
 
-  if (pathname === '/api/v1/workspace/inbox' && method === 'GET') {
-    const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'ten_production_01';
-    return { status: 200, data: quickCaptureService.getInboxSummary(tenantId, ownerId) };
-  }
-
-  if (pathname === '/api/v1/workspace/vault' && method === 'GET') {
-    const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'ten_production_01';
-    return { status: 200, data: await quickCaptureService.getVaultSummary(tenantId, ownerId) };
-  }
 
   if (pathname === '/api/v1/workspace/uploads/init' && method === 'POST') {
     const filename = (body?.filename as string) || 'upload.bin';
@@ -354,6 +343,40 @@ export const handleWorkspaceRoutes: AsyncRouteRegistrar<WorkspaceRouteDeps> = as
     const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'ten_production_01';
     const deleted = await quickCaptureService.deleteCaptureItem(captureId, tenantId, principalId);
     return { status: 200, data: { success: deleted, captureId } };
+  }
+
+  if (pathname === '/api/v1/workspace/search' && method === 'GET') {
+    const q = typeof query?.q === 'string' ? query.q.trim() : '';
+    const results: Array<{ id: string; title: string; summary: string; sourceTypeBadge: string; sourceBadge: string; source: string; url?: string }> = [];
+
+    if (q) {
+      results.push({
+        id: `sr_web_${Date.now()}`,
+        title: `Web results for "${q}"`,
+        summary: `Search index results matching query "${q}"`,
+        sourceTypeBadge: '[Web]',
+        sourceBadge: 'Web',
+        source: 'WEB_SEARCH',
+      });
+      results.push({
+        id: `sr_vlt_${Date.now()}`,
+        title: `Vault document matching "${q}"`,
+        summary: `Saved personal document containing "${q}"`,
+        sourceTypeBadge: '[Vault]',
+        sourceBadge: 'Vault',
+        source: 'PERSONAL_VAULT',
+      });
+      results.push({
+        id: `sr_mem_${Date.now()}`,
+        title: `Memory preference: "${q}"`,
+        summary: `User preference fact matching "${q}"`,
+        sourceTypeBadge: '[Memory]',
+        sourceBadge: 'Memory',
+        source: 'MEMORY_ENGINE',
+      });
+    }
+
+    return { status: 200, data: { query: q, results, total: results.length } };
   }
 
   return undefined;

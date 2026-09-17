@@ -187,6 +187,8 @@
     "core_product_wiring",
     "core_product_wiring_real_browser",
     "r17_final_completion",
-    "r17_final_completion_real_browser"
+    "r17_final_completion_real_browser",
+    "r18_personal_workspace",
+    "r18_personal_workspace_real_browser"
   ]
 }
