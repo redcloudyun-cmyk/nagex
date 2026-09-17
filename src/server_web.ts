@@ -43,6 +43,7 @@ import { handleCreationRoutes } from './http/routes/creation.routes.js';
 import { handleInboxRoutes } from './http/routes/inbox.routes.js';
 import { handleVaultRoutes } from './http/routes/vault.routes.js';
 import { handleConnectionsRoutes } from './http/routes/connections.routes.js';
+import { handleActionsRoutes } from './http/routes/actions.routes.js';
 import type { GoogleCalendarService } from './modules/calendar/index.js';
 import type { GmailService } from './modules/gmail/index.js';
 import { BrowserToolService, browserRuntime } from './modules/browser/index.js';
@@ -170,6 +171,8 @@ export const {
   inboxStore,
   vaultStore,
   connectionStore,
+  actionStore,
+  actionEngine,
   deviceAgentTransportEndpoint,
   deviceIdentityStore,
 } = app;
@@ -520,6 +523,12 @@ export async function handleAsyncApiRequest(
     {
       const connectionsResult = await handleConnectionsRoutes(method, pathname, body, headers, query, { connectionStore });
       if (connectionsResult) return connectionsResult;
+    }
+
+    // R19 — Action & Approval Integration Routes
+    {
+      const actionsResult = await handleActionsRoutes(method, pathname, body, headers, query, { actionStore, actionEngine });
+      if (actionsResult) return actionsResult;
     }
 
     return handleApiRequest(method, pathname, body, headers);

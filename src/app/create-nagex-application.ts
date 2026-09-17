@@ -78,6 +78,8 @@ import { CreationService } from '../creation/creation.service.js';
 import { InboxStore } from '../workspace/inbox.store.js';
 import { VaultStore } from '../workspace/vault.store.js';
 import { ConnectionStore } from '../workspace/connections.store.js';
+import { ActionStore } from '../workspace/action.store.js';
+import { ActionExecutionEngine } from '../actions/action-execution.engine.js';
 import { CandidateActionResolver } from '../workspace/action-resolver.js';
 import { ActivityStore } from '../governance/activity.store.js';
 import { DailyBriefStore } from '../governance/daily-brief.store.js';
@@ -216,6 +218,15 @@ export function createNagexApplication(): NagexApplication {
   const inboxStore = new InboxStore();
   const vaultStore = new VaultStore();
   const connectionStore = new ConnectionStore();
+  const actionStore = new ActionStore();
+  const actionEngine = new ActionExecutionEngine({
+    actionStore,
+    actionApprovals,
+    auditLogger,
+    activityStore,
+    googleCalendarService,
+    gmailService,
+  });
 
   const capabilityBroker = new CapabilityBroker(
     googleCalendarService,
@@ -518,6 +529,8 @@ export function createNagexApplication(): NagexApplication {
     inboxStore,
     vaultStore,
     connectionStore,
+    actionStore,
+    actionEngine,
     deviceExecutionSessionStore,
     deviceControlService,
     deviceIdentityStore,

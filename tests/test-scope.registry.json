@@ -189,6 +189,8 @@
     "r17_final_completion",
     "r17_final_completion_real_browser",
     "r18_personal_workspace",
-    "r18_personal_workspace_real_browser"
+    "r18_personal_workspace_real_browser",
+    "r19_action_approval",
+    "r19_action_approval_real_browser"
   ]
 }

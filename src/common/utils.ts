@@ -47,7 +47,9 @@ export type ResourcePrefix =
   | 'dom'
   | 'sct'
   | 'grp'
-  | 'flw';
+  | 'flw'
+  | 'act'
+  | 'appr';
 
 export function generateResourceId(prefix: ResourcePrefix): string {
   const opaqueId = crypto.randomBytes(8).toString('hex');

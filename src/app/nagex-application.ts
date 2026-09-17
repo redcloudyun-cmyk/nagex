@@ -58,6 +58,8 @@ import type { CreationService } from '../creation/creation.service.js';
 import type { InboxStore } from '../workspace/inbox.store.js';
 import type { VaultStore } from '../workspace/vault.store.js';
 import type { ConnectionStore } from '../workspace/connections.store.js';
+import type { ActionStore } from '../workspace/action.store.js';
+import type { ActionExecutionEngine } from '../actions/action-execution.engine.js';
 import type { DeviceExecutionSessionStore } from '../device-control/device-execution-session.store.js';
 import type { DeviceControlService } from '../device-control/device-control.service.js';
 import type { DeviceIdentityStore } from '../device-agent/device-identity.store.js';
@@ -150,6 +152,8 @@ export interface NagexApplication {
   inboxStore: InboxStore;
   vaultStore: VaultStore;
   connectionStore: ConnectionStore;
+  actionStore: ActionStore;
+  actionEngine: ActionExecutionEngine;
   // DC1 — the durable Device Control session store, real from day one.
   deviceExecutionSessionStore: DeviceExecutionSessionStore;
   // DC2 — undefined whenever AstraVisualExecutionModelAdapter reports
