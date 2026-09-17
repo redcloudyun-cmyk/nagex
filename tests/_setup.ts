@@ -9,6 +9,63 @@
 // depth.
 import os from 'node:os';
 import path from 'node:path';
+import net from 'node:net';
+
+// R15 stabilization — dozens of test files call `instance.listen(0, '127.0.0.1', cb)`
+// to get an OS-assigned ephemeral port for a real in-process HTTP server,
+// then immediately `fetch()` it or drive a real Chromium browser against
+// it. Both Node's undici (fetch) and Chromium independently refuse to
+// connect to a small, well-known set of "unsafe"/"bad" ports (mirroring
+// each other — see the Fetch spec's bad port list / Chromium's
+// net/base/port_util.cc), and the OS's ephemeral range can occasionally
+// hand one of them back. That produced two distinct, previously
+// "environmental" flake signatures across this suite: `TypeError: fetch
+// failed` / `Error: bad port` from undici, and `page.goto: net::
+// ERR_UNSAFE_PORT` from Playwright. Rather than patch every call site
+// individually, every ephemeral listen() in every test file is
+// transparently retried here — before any test file even runs — until it
+// lands on a port neither fetch() nor Chromium will refuse. This is a
+// process-wide fix for a process-wide (test-harness-only) problem, not a
+// change to any production code path.
+const UNSAFE_EPHEMERAL_PORTS = new Set([
+  1, 7, 9, 11, 13, 15, 17, 19, 20, 21, 22, 23, 25, 37, 42, 43, 53, 69, 77, 79,
+  87, 95, 101, 102, 103, 104, 109, 110, 111, 113, 115, 117, 119, 123, 135,
+  137, 139, 143, 161, 179, 389, 427, 465, 512, 513, 514, 515, 526, 530, 531,
+  532, 540, 548, 554, 556, 563, 587, 601, 636, 989, 990, 993, 995, 1719,
+  1720, 1723, 2049, 3659, 4045, 5060, 5061, 6000, 6566, 6665, 6666, 6667,
+  6668, 6669, 6697, 10080,
+]);
+
+const originalListen: (this: net.Server, ...args: any[]) => net.Server = net.Server.prototype.listen as any;
+net.Server.prototype.listen = function patchedListen(this: net.Server, ...args: any[]): net.Server {
+  // Only the ephemeral-port pattern (port 0) can land on an unsafe port;
+  // fixed-port and pipe/handle listen() calls are never touched.
+  if (args[0] !== 0) {
+    return originalListen.apply(this, args);
+  }
+  const host = typeof args[1] === 'string' ? (args[1] as string) : undefined;
+  const userCallback = typeof args[args.length - 1] === 'function' ? (args[args.length - 1] as () => void) : undefined;
+  const server = this;
+  let attempts = 0;
+
+  const tryListen = () => {
+    attempts += 1;
+    const onListening = () => {
+      const address = server.address();
+      const port = address && typeof address === 'object' ? address.port : null;
+      if (port !== null && UNSAFE_EPHEMERAL_PORTS.has(port) && attempts < 10) {
+        server.close(() => tryListen());
+        return;
+      }
+      if (userCallback) userCallback();
+    };
+    server.once('listening', onListening);
+    if (host) originalListen.call(server, 0, host);
+    else originalListen.call(server, 0);
+  };
+  tryListen();
+  return this;
+} as any;
 
 const dataRoot = path.join(os.tmpdir(), 'nagex-test-data', `${process.pid}-${Date.now()}`);
 

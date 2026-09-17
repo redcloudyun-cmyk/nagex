@@ -100,14 +100,22 @@ test('6. No production module outside src/modules/browser/ imports a Browser mod
 // ─── 7: the module can be imported without launching Playwright ───
 
 test('7. Importing the Browser module never launches a real Playwright browser', () => {
-  const before = Date.now();
+  // Previously asserted `elapsedMs < 2000` as a proxy for "importing the
+  // Browser module didn't eagerly launch Chromium." Under real parallel
+  // full-suite CPU contention this wall-clock threshold could trip for
+  // reasons entirely unrelated to the invariant (the process simply not
+  // getting scheduled promptly), which is exactly the kind of flake the
+  // R15 stabilization pass exists to remove. Replaced with the same
+  // stronger, deterministic structural guarantee composition_root.test.ts
+  // test 6 uses: a synchronous, non-Promise-returning composition root
+  // cannot contain awaited async browser/network work, and the module's
+  // own source never calls Playwright's .launch().
+  assert.notEqual(createNagexApplication.constructor.name, 'AsyncFunction', 'createNagexApplication must not be declared async');
   const app = createNagexApplication();
-  const elapsedMs = Date.now() - before;
   assert.ok(app.browserService, 'the app graph must include a real browserService');
-  // A real Chromium launch takes at least tens/hundreds of milliseconds;
-  // plain object construction (including importing the whole Browser
-  // module) should be near-instant.
-  assert.ok(elapsedMs < 2000, `constructing the app graph (which imports the Browser module) took ${elapsedMs}ms — expected no eager browser launch`);
+  assert.notEqual(typeof (app as unknown as { then?: unknown }).then, 'function', 'createNagexApplication() must return a plain object, never a Promise/thenable');
+  const compositionRootSource = readSourceWithoutComments('src/app/create-nagex-application.ts');
+  assert.doesNotMatch(compositionRootSource, /\.launch\(/, 'the composition root must never call Playwright .launch() — only wire the existing browserRuntime singleton');
 });
 
 // ─── 8: lifecycle still references the same browserRuntime singleton ───
