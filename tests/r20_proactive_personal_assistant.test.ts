@@ -253,6 +253,7 @@ test('R20/R21 P1 Personal Proactive Assistant Test Suite', async (t) => {
 
   await t.test('5. Personal Watch trigger & deduplication, now evaluated against real brief data', async () => {
     const engine = buildEngine();
+    (engine as any).isQuietHours = () => false;
     const watch = engine.createPersonalWatch({
       user_id: userIdA,
       tenant_id: tenantId,
@@ -278,7 +279,31 @@ test('R20/R21 P1 Personal Proactive Assistant Test Suite', async (t) => {
     assert.equal(res3.length, 0);
   });
 
-  await t.test('6. Routine candidate proposal & explicit user confirmation', () => {
+  await t.test('6. Quiet Hours boundary evaluation is deterministic', () => {
+    const engine = buildEngine();
+
+    assert.equal(
+      engine.isQuietHours(new Date(2026, 0, 1, 21, 0, 0)),
+      false
+    );
+
+    assert.equal(
+      engine.isQuietHours(new Date(2026, 0, 1, 22, 0, 0)),
+      true
+    );
+
+    assert.equal(
+      engine.isQuietHours(new Date(2026, 0, 2, 6, 59, 0)),
+      true
+    );
+
+    assert.equal(
+      engine.isQuietHours(new Date(2026, 0, 2, 7, 0, 0)),
+      false
+    );
+  });
+
+  await t.test('7. Routine candidate proposal & explicit user confirmation', () => {
     const engine = new PersonalAssistantEngine({ reminderStore, notificationStore });
     const candidate = engine.proposeRoutineCandidate({
       user_id: userIdA,
