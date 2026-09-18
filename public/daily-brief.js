@@ -161,7 +161,7 @@
         </div>
         <div class="db-proposal-source">${escapeHtml(t(srcKey, srcFallback))}</div>
         <div class="db-proposal-rationale">${escapeHtml(p.rationale || p.summary || '')}</div>
-        <div class="db-proposal-approval-note">${p.approvalRequired ? escapeHtml(t('dailyBrief.approvalRequired', 'Approval required')) : ''}</div>
+        <div class="db-proposal-approval-note">${p.approvalRequired ? escapeHtml(t('dailyBrief.approvalRequired', 'Ready for review')) : ''}</div>
         <div class="db-proposal-footer">${statusHtml}<div class="db-proposal-actions">${actionsHtml}</div></div>
       </div>`;
   }

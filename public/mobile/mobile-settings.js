@@ -87,10 +87,10 @@
   // i18n keys carrying the same real meaning are used instead (directive
   // §9). ──
   const AUTONOMY_LEVELS = [
-    { id: 'L0', titleKey: 'mobileSettings.autonomyL0Title', titleFallback: 'Level 0 — Ask Every Time', descKey: 'mobileSettings.autonomyL0Desc', descFallback: 'Require human approval for all actions.' },
-    { id: 'L1', titleKey: 'mobileSettings.autonomyL1Title', titleFallback: 'Level 1 — Read Only', descKey: 'mobileSettings.autonomyL1Desc', descFallback: 'Allow read-only queries autonomously; require approval for changes.' },
-    { id: 'L2', titleKey: 'mobileSettings.autonomyL2Title', titleFallback: 'Level 2 — Low-risk Actions', descKey: 'mobileSettings.autonomyL2Desc', descFallback: 'Execute low-risk task steps; require approval before external send/edits.' },
-    { id: 'L3', titleKey: 'mobileSettings.autonomyL3Title', titleFallback: 'Level 3 — Trusted Workflows', descKey: 'mobileSettings.autonomyL3Desc', descFallback: 'Autonomous execution for trusted workflows.' },
+    { id: 'L0', titleKey: 'mobileSettings.autonomyL0Title', titleFallback: 'Always ask', descKey: 'mobileSettings.autonomyL0Desc', descFallback: 'Check with you before making any change.' },
+    { id: 'L1', titleKey: 'mobileSettings.autonomyL1Title', titleFallback: 'Read and suggest', descKey: 'mobileSettings.autonomyL1Desc', descFallback: 'Find information and suggest next steps without making changes.' },
+    { id: 'L2', titleKey: 'mobileSettings.autonomyL2Title', titleFallback: 'Help with routine tasks', descKey: 'mobileSettings.autonomyL2Desc', descFallback: 'Check with you before sending or changing anything important.' },
+    { id: 'L3', titleKey: 'mobileSettings.autonomyL3Title', titleFallback: 'Use trusted routines', descKey: 'mobileSettings.autonomyL3Desc', descFallback: 'Run routines you have already reviewed and allowed.' },
   ];
 
   function renderAutonomy() {

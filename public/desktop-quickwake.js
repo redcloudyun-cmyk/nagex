@@ -194,7 +194,7 @@
     if (sessData) {
       state.mainSession = sessData;
       const badge = document.getElementById('qw-session-badge');
-      if (badge) badge.textContent = `Session: ${sessData.sessionId || 'sess_main_001'}`;
+      if (badge) badge.textContent = t('desktop.ready', 'Ready');
     }
     if (memData) state.memories = memData.memories || [];
     if (taskData) {
@@ -224,7 +224,7 @@
       // 2. NAgex Thinking Bubble
       const nagexBubble = document.createElement('div');
       nagexBubble.className = 'qw-bubble nagex';
-      nagexBubble.innerHTML = '⚡ <em>NAgex is thinking & planning...</em>';
+      nagexBubble.innerHTML = '<em>' + escapeHtml(t('desktop.working', 'Working on it...')) + '</em>';
       stream.appendChild(nagexBubble);
 
       stream.scrollTop = stream.scrollHeight;
@@ -264,22 +264,22 @@
 
       if (res && res.plan) {
         let stepsHtml = res.plan.steps
-          .map((s, idx) => `<div>${idx + 1}. <strong>${escapeHtml(s.title)}</strong> (${escapeHtml(s.tool || 'System')})</div>`)
+          .map((s, idx) => `<div>${idx + 1}. <strong>${escapeHtml(s.title)}</strong></div>`)
           .join('');
 
         nagexBubble.innerHTML = `
-          <strong>Plan generated for:</strong> ${escapeHtml(res.plan.goal)}
+          <strong>${escapeHtml(t('desktop.readyToContinue', "Here's what I'll do:"))}</strong> ${escapeHtml(res.plan.goal)}
           <div style="margin-top:0.4rem; font-size:0.8rem; background:#0d1117; padding:0.4rem; border-radius:6px;">
             ${stepsHtml}
           </div>
           <div style="margin-top:0.5rem; text-align:right;">
-            <button class="qw-icon-btn" onclick="window.NAGEX_DESKTOP.executePlan('${res.plan.goal}')">▶ Execute Plan</button>
+            <button class="qw-icon-btn" onclick="window.NAGEX_DESKTOP.executePlan('${res.plan.goal}')">${escapeHtml(t('desktop.continue', 'Continue'))}</button>
           </div>
         `;
       } else if (res && res.message) {
         nagexBubble.textContent = res.message;
       } else {
-        nagexBubble.textContent = 'I processed your request in your Main Session.';
+        nagexBubble.textContent = t('desktop.done', 'Done.');
       }
 
       stream.scrollTop = stream.scrollHeight;
@@ -295,13 +295,13 @@
     if (!container) return;
 
     if (!state.tasks.length) {
-      container.innerHTML = '<p class="qw-empty-text">No active tasks found in your Main Session.</p>';
+      container.innerHTML = '<p class="qw-empty-text">' + escapeHtml(t('desktop.noTasks', 'Nothing needs your attention right now.')) + '</p>';
       return;
     }
 
     container.innerHTML = state.tasks
       .map((t) => {
-        const nextRun = t.nextRunAt ? new Date(t.nextRunAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Standing';
+        const nextRun = t.nextRunAt ? new Date(t.nextRunAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Watching';
         return `
         <div style="background:#0d1117; border:1px solid #30363d; border-radius:6px; padding:0.6rem; margin-bottom:0.5rem;">
           <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -389,7 +389,7 @@
     },
 
     executePlan: async (goal) => {
-      submitPrompt(`Execute plan: ${goal}`);
+      submitPrompt(goal);
     },
   };
 

@@ -774,10 +774,10 @@
       const card = elWorking.closest('.canvas-section-card');
       const runningTasks = (state.tasks || [])
         .filter((task) => task.status === 'RUNNING')
-        .map((task) => ({ title: task.name || 'Task in progress...', detail: task.lastRunAt ? `Started ${new Date(task.lastRunAt).toLocaleTimeString()}` : 'Started recently', taskId: task.taskId }));
+        .map((task) => ({ title: task.name || 'Working on it...', detail: task.lastRunAt ? `Started ${new Date(task.lastRunAt).toLocaleTimeString()}` : 'Started recently', taskId: task.taskId }));
       const processingCaptures = (state.inbox || [])
         .filter((i) => i.status === 'PROCESSING' || i.status === 'QUEUED' || i.status === 'UPLOADING')
-        .map((i) => ({ title: i.metadata?.extractedTitle || i.content || 'Processing capture...', detail: i.metadata?.processingSubStage || i.status }));
+        .map((i) => ({ title: i.metadata?.extractedTitle || i.content || 'Saving...', detail: i.metadata?.processingSubStage || '' }));
       const runningActions = (state.candidates || [])
         .filter((c) => c.action && c.action.status === 'RUNNING')
         .map((c) => ({ title: c.title, detail: `${c.type} action in progress` }));
@@ -846,7 +846,7 @@
           // needs-human
           const i = entry.item;
           const title = i.metadata?.extractedTitle || i.content || 'A page';
-          return `<div class="inbox-item-card" onclick="window.NAGEX.switchTab('tab-inbox')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.NAGEX.switchTab('tab-inbox');}"><div class="inbox-item-main"><span class="inbox-item-title">${escapeHtml(title)}</span><span class="inbox-item-summary">${escapeHtml(t('workspace.needsHumanAttention') || 'Needs your attention')}</span></div><span class="badge-status status-NEEDS_REVIEW">${escapeHtml(t('workspace.needsHumanBadge') || 'HUMAN NEEDED')}</span></div>`;
+          return `<div class="inbox-item-card" onclick="window.NAGEX.switchTab('tab-inbox')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.NAGEX.switchTab('tab-inbox');}"><div class="inbox-item-main"><span class="inbox-item-title">${escapeHtml(title)}</span><span class="inbox-item-summary">${escapeHtml(t('workspace.needsHumanAttention') || 'Needs your attention')}</span></div><span class="badge-status status-NEEDS_REVIEW">${escapeHtml(t('workspace.needsHumanBadge') || 'Review')}</span></div>`;
         }).join('');
       } else {
         elImportant.innerHTML = `<div class="nagex-empty-state">${escapeHtml(t('home.importantEmpty') || 'Nothing important to flag right now.')}</div>`;
@@ -878,12 +878,12 @@
         elApprovals.innerHTML = `<div class="nagex-empty-state">${escapeHtml(t('home.approvalsLoadError') || 'Approvals could not be loaded.')}</div>`;
       } else if (pendingApprs.length > 0) {
         elApprovals.innerHTML = pendingApprs.map((a) => {
-          const humanAction = a.intent || a.action || 'Approval Required';
+          const humanAction = a.intent || a.action || 'Ready for review';
           return `<div class="inbox-item-card contextual-approval-card">
               <span class="approval-row-icon" aria-hidden="true">!</span>
               <div class="inbox-item-main">
                 <span class="inbox-item-title">${escapeHtml(humanAction)}</span>
-                <span class="inbox-item-summary">${escapeHtml(a.resource?.id || 'Action Approval')}</span>
+                <span class="inbox-item-summary">${escapeHtml(a.resource?.id || 'Review the details')}</span>
               </div>
               <div class="contextual-appr-btns" style="display: flex; gap: 0.35rem; margin-top: 0.25rem;">
                 <button class="btn-primary" style="font-size:0.75rem; padding:0.25rem 0.6rem;" onclick="window.NAGEX.handleApprovalAction('${a.id || a.approvalId}', 'APPROVE', event)">${escapeHtml(homeApprovalActionLabel(a, t))}</button>
@@ -919,7 +919,7 @@
       else if (a.toolId === 'gmail_send_message') actionTitle = t('home.approveAndSend') || 'Approve and send email';
       else if (a.toolId === 'gmail_create_draft') actionTitle = 'Approve and save draft';
 
-      const detail = a.payload?.summary || a.payload?.subject || a.resource?.id || 'Action Approval';
+      const detail = a.payload?.summary || a.payload?.subject || a.resource?.id || 'Review the details';
       items.push({
         id: a.approvalId,
         type: 'APPROVAL',
@@ -1040,7 +1040,7 @@
         priority: 8,
         groupKey: 'RECENTLY_COMPLETED',
         title: c.metadata?.extractedTitle || c.content || 'Completed action',
-        summary: c.metadata?.extractedSummary || 'Action completed successfully',
+        summary: c.metadata?.extractedSummary || 'Done',
         status: 'COMPLETED',
         source: c.source || 'capture',
         createdAt: c.createdAt,
@@ -1987,7 +1987,7 @@
     const btnTgLink = document.getElementById('btn-telegram-link-identity');
     if (btnTgLink) {
       btnTgLink.onclick = async () => {
-        const tgUserId = prompt('Enter Telegram User ID to link to your NAgex Main Session (e.g. 12345678):');
+        const tgUserId = prompt('Enter your Telegram user ID to connect Telegram (for example, 12345678):');
         if (tgUserId && tgUserId.trim()) {
           const username = prompt('Optional: Telegram Username (e.g. janesmith):') || undefined;
           await window.NAGEX.linkTelegramIdentity(tgUserId.trim(), 'usr_admin_001', username);
@@ -1997,7 +1997,7 @@
     const btnSlackLink = document.getElementById('btn-slack-link-identity');
     if (btnSlackLink) {
       btnSlackLink.onclick = async () => {
-        const slackUserId = prompt('Enter Slack User ID to link to your NAgex Main Session (e.g. U1234567):');
+        const slackUserId = prompt('Enter your Slack user ID to connect Slack (for example, U1234567):');
         if (slackUserId && slackUserId.trim()) {
           const username = prompt('Optional: Slack Username (e.g. janesmith):') || undefined;
           await window.NAGEX.linkSlackIdentity(slackUserId.trim(), 'usr_admin_001', undefined, username);
@@ -2312,7 +2312,7 @@
     if (success) {
       if (errBanner) errBanner.hidden = true;
       if (toast) {
-        toast.textContent = message || t('settings.savedSuccess') || 'Settings saved successfully.';
+        toast.textContent = message || t('settings.savedSuccess') || 'Saved.';
         toast.hidden = false;
         toast.className = 'settings-save-toast success';
         setTimeout(() => { if (toast) toast.hidden = true; }, 3000);
@@ -2412,10 +2412,10 @@
 
     if (autoContainer) {
       const levels = [
-        { id: 'L0', title: 'Level 0 — Ask Every Time', desc: 'Require human approval for all actions.' },
-        { id: 'L1', title: 'Level 1 — Read Only', desc: 'Allow read-only queries autonomously; require approval for changes.' },
-        { id: 'L2', title: 'Level 2 — Low-risk Actions', desc: 'Execute low-risk task steps; require approval before external send/edits.' },
-        { id: 'L3', title: 'Level 3 — Trusted Workflows', desc: 'Autonomous execution for trusted workflows.' },
+        { id: 'L0', title: 'Always ask', desc: 'Check with you before making any change.' },
+        { id: 'L1', title: 'Read and suggest', desc: 'Find information and suggest next steps without making changes.' },
+        { id: 'L2', title: 'Help with routine tasks', desc: 'Handle routine steps and check with you before sending or changing anything important.' },
+        { id: 'L3', title: 'Use trusted routines', desc: 'Run routines you have already reviewed and allowed.' },
       ];
 
       autoContainer.innerHTML = levels
@@ -2522,7 +2522,7 @@
           const fresh = await apiFetch('/api/v1/oauth/google/status');
           if (fresh) state.googleOAuth = fresh;
           if (res && !res.error) {
-            showSettingsSaveFeedback(true, 'Disconnected successfully');
+            showSettingsSaveFeedback(true, 'Disconnected.');
           } else {
             showSettingsSaveFeedback(false, res?.error || 'Disconnect failed');
           }
@@ -2830,7 +2830,7 @@
         planSteps.innerHTML = res.plan.steps
           .map((s) => `<div class="step-row">
             <span class="step-num">${s.step}.</span>
-            <span class="step-name"><strong>${escapeHtml(s.title)}</strong><br><small>${escapeHtml(s.reasoning)} · Skill: ${escapeHtml(s.skill)}${s.tool ? ` · Tool: ${escapeHtml(s.tool)}` : ''}${s.requiresApproval ? ' · Approval required' : ''}</small></span>
+            <span class="step-name"><strong>${escapeHtml(s.title)}</strong><br><small>${escapeHtml(s.reasoning)}${s.requiresApproval ? ' · Ready for review' : ''}</small></span>
           </div>`)
           .join('');
       }
@@ -3695,7 +3695,7 @@
     const f = vmView.fields;
     slot.innerHTML = `
       <div class="calendar-approval-card">
-        <h4>Approval required</h4>
+        <h4>Ready for review</h4>
         <dl class="calendar-approval-fields">
           <div><dt>Title</dt><dd>${escapeHtml(f.title)}</dd></div>
           <div><dt>Description</dt><dd>${escapeHtml(f.description) || '—'}</dd></div>
