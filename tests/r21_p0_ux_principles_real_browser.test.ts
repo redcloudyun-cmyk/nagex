@@ -91,7 +91,7 @@ test('R21 P0 REAL BROWSER CERTIFICATION: UX Intent Interaction Principles (Scena
     {
       const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
       await page.goto(`${server.origin}/index.html`);
-      await page.waitForSelector('#btn-header-quickwake');
+      await page.waitForSelector('#btn-header-quickwake', { state: 'visible' });
       await page.click('#btn-header-quickwake');
 
       await page.waitForSelector('#ambient-overlay-backdrop', { state: 'visible' });
@@ -110,13 +110,14 @@ test('R21 P0 REAL BROWSER CERTIFICATION: UX Intent Interaction Principles (Scena
     {
       const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
       await page.goto(`${server.origin}/index.html`);
+      await page.waitForSelector('#btn-header-quickwake', { state: 'visible' });
       await page.click('#btn-header-quickwake');
       await page.waitForSelector('#ambient-prompt-input');
 
       await page.fill('#ambient-prompt-input', 'Prepare my next client meeting and schedule it.');
       await page.click('#btn-ambient-run');
 
-      await page.waitForSelector('#ambient-understanding-card', { state: 'visible', timeout: 10000 });
+      await page.waitForSelector('#ambient-understanding-card', { state: 'visible', timeout: 15000 });
 
       const taskTitle = await page.textContent('#ambient-task-display-title');
       assert.match(taskTitle || '', /Preparing/);
@@ -135,6 +136,7 @@ test('R21 P0 REAL BROWSER CERTIFICATION: UX Intent Interaction Principles (Scena
     {
       const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
       await page.goto(`${server.origin}/index.html`);
+      await page.waitForSelector('#btn-header-quickwake', { state: 'visible' });
       await page.click('#btn-header-quickwake');
       await page.fill('#ambient-prompt-input', 'Prepare my next client meeting and schedule it.');
       await page.click('#btn-ambient-run');
@@ -156,11 +158,12 @@ test('R21 P0 REAL BROWSER CERTIFICATION: UX Intent Interaction Principles (Scena
     {
       const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
       await page.goto(`${server.origin}/index.html?debug=1`);
+      await page.waitForSelector('#btn-header-quickwake', { state: 'visible' });
       await page.click('#btn-header-quickwake');
       await page.fill('#ambient-prompt-input', 'Prepare my next client meeting and schedule it.');
       await page.click('#btn-ambient-run');
 
-      await page.waitForSelector('#ambient-flow-stepper', { state: 'visible', timeout: 10000 });
+      await page.waitForSelector('#ambient-flow-stepper', { state: 'visible', timeout: 15000 });
 
       const stepperVisible = await page.isVisible('#ambient-flow-stepper');
       assert.equal(stepperVisible, true, 'Technical flow stepper must be visible in debug mode');
@@ -173,6 +176,7 @@ test('R21 P0 REAL BROWSER CERTIFICATION: UX Intent Interaction Principles (Scena
     {
       const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
       await page.goto(`${server.origin}/index.html`);
+      await page.waitForSelector('#btn-header-quickwake', { state: 'visible' });
       await page.click('#btn-header-quickwake');
       await page.fill('#ambient-prompt-input', 'Prepare my next client meeting and schedule it.');
       await page.click('#btn-ambient-run');

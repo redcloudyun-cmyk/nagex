@@ -108,7 +108,7 @@ test('R14 REAL BROWSER CERTIFICATION: Playwright Chromium Scenarios A through F 
     // ── SCENARIO B: Create Org A & Org B -> Switch Organizations (360x800 EN) ──
     {
       const page = await browser.newPage({ viewport: { width: 360, height: 800 } });
-      await page.goto(`${server.origin}/#home`, { waitUntil: 'domcontentloaded' });
+      await page.goto(`${server.origin}/index.html?enterprise=1#home`, { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(150);
 
       // Sign In as Owner
@@ -142,7 +142,7 @@ test('R14 REAL BROWSER CERTIFICATION: Playwright Chromium Scenarios A through F 
     // ── SCENARIO C: Invite Member & Accept Invitation (390x844 KR) ──
     {
       const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
-      await page.goto(`${server.origin}/#settings`, { waitUntil: 'domcontentloaded' });
+      await page.goto(`${server.origin}/index.html?enterprise=1#settings`, { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(150);
 
       // Switch language to KR
@@ -164,7 +164,7 @@ test('R14 REAL BROWSER CERTIFICATION: Playwright Chromium Scenarios A through F 
     // ── SCENARIO D: Workspace Manager (430x932 EN) ──
     {
       const page = await browser.newPage({ viewport: { width: 430, height: 932 } });
-      await page.goto(`${server.origin}/#settings`, { waitUntil: 'domcontentloaded' });
+      await page.goto(`${server.origin}/index.html?enterprise=1#settings`, { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(150);
 
       // Save screenshot 4: 430x932_workspace_manager_en.png

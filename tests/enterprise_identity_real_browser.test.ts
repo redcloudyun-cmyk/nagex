@@ -85,7 +85,7 @@ test('R16 REAL BROWSER CERTIFICATION: Playwright Chromium Scenarios A through H 
 
     // ── SCENARIO A: Owner signup -> Create org -> Add OIDC provider -> Enable (360x800 EN) ──
     const page = await browser.newPage({ viewport: { width: 360, height: 800 } });
-    await page.goto(`${server.origin}/#home`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${server.origin}/index.html?enterprise=1#home`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(200);
 
     await page.click('#mh-avatar');
@@ -118,7 +118,7 @@ test('R16 REAL BROWSER CERTIFICATION: Playwright Chromium Scenarios A through H 
     const orgsData = (await orgsRes.json()) as any;
     const organizationId = orgsData.organizations[0].organizationId;
 
-    await page.goto(`${server.origin}/#settings`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${server.origin}/index.html?enterprise=1#settings`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#mh-org-settings-content', { state: 'visible' });
     await page.click('button.subnav-btn[data-org-tab="enterprise-identity"]');
     await page.waitForSelector('#ei-tab-content', { state: 'visible' });
@@ -261,7 +261,7 @@ test('R16 REAL BROWSER CERTIFICATION: Playwright Chromium Scenarios A through H 
     // ── SCENARIO D: SSO_REQUIRED organization blocks local login, enterprise login still succeeds (390x844 KR) ──
     const page3 = await browser.newPage({ viewport: { width: 390, height: 844 } });
     const localOnlyEmail = `local_only_${runId}@example.com`;
-    await page3.goto(`${server.origin}/#home`, { waitUntil: 'domcontentloaded' });
+    await page3.goto(`${server.origin}/index.html?enterprise=1#home`, { waitUntil: 'domcontentloaded' });
     await page3.click('#mh-avatar');
     await page3.waitForSelector('#auth-modal-body', { state: 'visible' });
     await page3.click('#link-goto-signup');

@@ -136,10 +136,10 @@ test('R21 P0.2 REAL BROWSER CERTIFICATION: Personal UI Repositioning (Scenarios 
     {
       const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
       await page.goto(`${origin}/index.html`);
-      await page.waitForSelector('.app-header');
+      await page.waitForSelector('#mobile-app-shell', { state: 'visible' });
 
-      const switchersVisible = await page.isVisible('#header-switchers-group');
-      assert.equal(switchersVisible, false, 'Header switchers must remain hidden on mobile');
+      const switchersVisible = await page.isVisible('#mh-header-switchers-group');
+      assert.equal(switchersVisible, false, 'Mobile header switchers must remain hidden in Personal mode');
 
       await page.close();
     }

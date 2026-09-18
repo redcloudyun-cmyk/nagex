@@ -25,5 +25,23 @@
     "timezone": "Asia/Seoul",
     "status": "ACTIVE",
     "created_at": "2026-09-18T01:38:29.706Z"
+  },
+  {
+    "reminder_id": "rem_1789695660292_ypt85",
+    "user_id": "usr_admin_001",
+    "title": "김대표에게 전화",
+    "scheduled_at": "2026-09-18T02:11:00.275Z",
+    "timezone": "Asia/Seoul",
+    "status": "ACTIVE",
+    "created_at": "2026-09-18T01:41:00.292Z"
+  },
+  {
+    "reminder_id": "rem_1789695807957_p97w7",
+    "user_id": "usr_admin_001",
+    "title": "김대표에게 전화",
+    "scheduled_at": "2026-09-18T02:13:27.930Z",
+    "timezone": "Asia/Seoul",
+    "status": "ACTIVE",
+    "created_at": "2026-09-18T01:43:27.957Z"
   }
 ]

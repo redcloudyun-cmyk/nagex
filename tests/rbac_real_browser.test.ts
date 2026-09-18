@@ -79,7 +79,7 @@ test('R15 REAL BROWSER CERTIFICATION: Playwright Chromium Scenarios A through F 
     // ── SCENARIO A: Owner Signup -> Create Org -> Create Custom Role (360x800 & 390x844 EN) ──
     {
       const page = await browser.newPage({ viewport: { width: 360, height: 800 } });
-      await page.goto(`${server.origin}/#home`, { waitUntil: 'domcontentloaded' });
+      await page.goto(`${server.origin}/index.html?enterprise=1#home`, { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(200);
 
       // Sign Up Owner
@@ -132,7 +132,7 @@ test('R15 REAL BROWSER CERTIFICATION: Playwright Chromium Scenarios A through F 
       } catch (e) {}
 
       // Go to Settings view -> Roles & Permissions tab
-      await page.goto(`${server.origin}/#settings`, { waitUntil: 'domcontentloaded' });
+      await page.goto(`${server.origin}/index.html?enterprise=1#settings`, { waitUntil: 'domcontentloaded' });
       await page.waitForSelector('#mh-org-settings-content', { state: 'visible' });
       await page.click('button.subnav-btn[data-org-tab="roles"]');
       await page.waitForSelector('#org-tab-content', { state: 'visible' });
@@ -172,7 +172,7 @@ test('R15 REAL BROWSER CERTIFICATION: Playwright Chromium Scenarios A through F 
     // ── SCENARIO B & C: Member Roles & Permission Denied (390x844 KR) ──
     {
       const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
-      await page.goto(`${server.origin}/#home`, { waitUntil: 'domcontentloaded' });
+      await page.goto(`${server.origin}/index.html?enterprise=1#home`, { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(200);
 
       // Switch language to KR
@@ -218,7 +218,7 @@ test('R15 REAL BROWSER CERTIFICATION: Playwright Chromium Scenarios A through F 
 
       // Member opens Settings -> Members tab
       // Reload first to refresh org context after invitation acceptance
-      await page.goto(`${server.origin}/#settings`, { waitUntil: 'domcontentloaded' });
+      await page.goto(`${server.origin}/index.html?enterprise=1#settings`, { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(500); // Allow loadOrgContext() to complete
       await page.waitForSelector('#mh-org-settings-content', { state: 'visible' });
       // Wait for subnav buttons to render (indicates orgState.currentOrg is loaded)
@@ -251,7 +251,7 @@ test('R15 REAL BROWSER CERTIFICATION: Playwright Chromium Scenarios A through F 
     // ── SCENARIO D & E: Workspace Roles & Effective Permissions (430x932 & 390x844 EN) ──
     {
       const page = await browser.newPage({ viewport: { width: 430, height: 932 } });
-      await page.goto(`${server.origin}/#home`, { waitUntil: 'domcontentloaded' });
+      await page.goto(`${server.origin}/index.html?enterprise=1#home`, { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(200);
 
       // Sign back in as Owner
@@ -263,7 +263,7 @@ test('R15 REAL BROWSER CERTIFICATION: Playwright Chromium Scenarios A through F 
       await page.waitForTimeout(250);
 
       // Go to Settings -> Workspaces tab
-      await page.goto(`${server.origin}/#settings`, { waitUntil: 'domcontentloaded' });
+      await page.goto(`${server.origin}/index.html?enterprise=1#settings`, { waitUntil: 'domcontentloaded' });
       await page.waitForSelector('#mh-org-settings-content', { state: 'visible' });
       await page.click('button.subnav-btn[data-org-tab="workspaces"]');
       await page.waitForSelector('#org-tab-content', { state: 'visible' });
