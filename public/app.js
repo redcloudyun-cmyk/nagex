@@ -2977,6 +2977,51 @@
     renderCanonicalUserPresentation(plan, originalPromptText, planId, resolved);
   }
 
+  function resetAmbientFlowState() {
+    const taskTitleEl = document.getElementById('ambient-task-display-title');
+    const taskSubtitleEl = document.getElementById('ambient-task-display-subtitle');
+    const taskIcon = document.getElementById('ambient-task-icon');
+    const requestCard = document.getElementById('ambient-request-card');
+    const stepsEl = document.getElementById('ambient-friendly-steps');
+    const summarySection = document.getElementById('ambient-summary-section');
+    const sourcesSection = document.getElementById('ambient-sources-section');
+    const contextBox = document.getElementById('ambient-surfaced-context');
+    const groundingWhyEl = document.getElementById('ambient-grounding-why');
+    const summaryBox = document.getElementById('ambient-understanding-summary');
+    const actionsBar = document.getElementById('ambient-understanding-actions');
+    const approvalCard = document.getElementById('ambient-user-approval-card');
+    const voiceCard = document.getElementById('ambient-voice-card');
+
+    if (summarySection) summarySection.style.display = 'none';
+    const understandingCard = document.getElementById('ambient-understanding-card');
+    if (understandingCard) understandingCard.style.display = 'none';
+    if (sourcesSection) sourcesSection.style.display = 'none';
+    if (contextBox) contextBox.style.display = 'none';
+    if (groundingWhyEl) groundingWhyEl.style.display = 'none';
+    if (summaryBox) summaryBox.style.display = 'none';
+    if (actionsBar) actionsBar.style.display = 'none';
+    if (approvalCard) approvalCard.style.display = 'none';
+    if (voiceCard) voiceCard.style.display = 'none';
+
+    if (taskIcon) {
+      taskIcon.innerHTML = `<svg class="svg-icon-md" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`;
+    }
+  }
+
+  function classifyIntentForUi(promptText) {
+    const text = (promptText || '').toLowerCase();
+    if (text.includes('meeting') || text.includes('schedule') || text.includes('calendar') || text.includes('미팅') || text.includes('회의') || text.includes('일정')) {
+      return 'MEETING';
+    }
+    if (text.includes('file') || text.includes('document') || text.includes('contract') || text.includes('pdf') || text.includes('분석') || text.includes('파일') || text.includes('조항')) {
+      return 'ANALYZE';
+    }
+    if (text.includes('image') || text.includes('draw') || text.includes('photo') || text.includes('picture') || text.includes('이미지') || text.includes('그림') || text.includes('생성')) {
+      return 'CREATE';
+    }
+    return 'RESEARCH';
+  }
+
   function renderCanonicalUserPresentation(plan, promptText, planId, resolved) {
     const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
     const isKr = window.NAGEX_I18N && window.NAGEX_I18N.getLocale() === 'ko';
@@ -2984,20 +3029,7 @@
     // 1. Modal title update
     const modalTitleEl = document.getElementById('ambient-modal-title');
     if (modalTitleEl) {
-      if (!isDebugMode()) {
-        let taskTitle = isKr ? 'NAgex 어시스턴트' : 'NAgex Assistant';
-        const promptLower = (promptText || '').toLowerCase();
-        if (promptLower.includes('meeting') || promptLower.includes('미팅') || promptLower.includes('회의')) {
-          taskTitle = isKr ? '미팅을 준비하고 있어요' : 'Preparing your client meeting';
-        } else if (promptLower.includes('email') || promptLower.includes('mail') || promptLower.includes('메일')) {
-          taskTitle = isKr ? '이메일을 준비하고 있어요' : 'Preparing your email';
-        } else if (promptLower.includes('file') || promptLower.includes('document') || promptLower.includes('자료') || promptLower.includes('파일')) {
-          taskTitle = isKr ? '자료를 분석하고 있어요' : 'Analyzing your files';
-        }
-        modalTitleEl.textContent = taskTitle;
-      } else {
-        modalTitleEl.textContent = t('ambient.modalTitle');
-      }
+      modalTitleEl.textContent = t('ambient.modalTitle');
     }
 
     // 2. Hide technical elements if not in debug mode
@@ -3008,121 +3040,275 @@
     if (resolutionCard) resolutionCard.style.display = isDebugMode() ? 'block' : 'none';
     if (resultCard) resultCard.style.display = isDebugMode() ? 'block' : 'none';
 
-    // 3. User presentation card
-    const card = document.getElementById('ambient-understanding-card');
-    if (!card) return;
-    card.style.display = 'flex';
+    // 3. Request card text update
+    const userReqText = document.getElementById('ambient-user-request-text');
+    if (userReqText && promptText) {
+      userReqText.textContent = `"${promptText}"`;
+    }
 
-    // Task title inside card
+    const intent = classifyIntentForUi(promptText);
+
     const taskTitleEl = document.getElementById('ambient-task-display-title');
-    if (taskTitleEl) {
-      const promptLower = (promptText || '').toLowerCase();
-      let displayTitle = isKr ? '요청을 준비하고 있어요' : 'Preparing your request';
-      if (promptLower.includes('meeting') || promptLower.includes('미팅') || promptLower.includes('회의')) {
-        displayTitle = isKr ? '다음 미팅을 준비하고 있어요' : 'Preparing your client meeting';
-      } else if (promptLower.includes('email') || promptLower.includes('mail') || promptLower.includes('메일')) {
-        displayTitle = isKr ? '이메일을 작성하고 있어요' : 'Preparing your email';
-      }
-      taskTitleEl.textContent = displayTitle;
-    }
-
-    // Domain-neutral progress steps
+    const taskSubtitleEl = document.getElementById('ambient-task-display-subtitle');
+    const taskIcon = document.getElementById('ambient-task-icon');
     const stepsEl = document.getElementById('ambient-friendly-steps');
-    if (stepsEl) {
-      let stepsList = [
-        { status: 'done', text: isKr ? '✓ 일정 확인 완료' : '✓ Checked your availability' },
-        { status: 'done', text: isKr ? '✓ 관련 메일과 자료 확인' : '✓ Found related notes and emails' },
-        { status: 'active', text: isKr ? '● 미팅 내용 준비 중' : '● Preparing your meeting' },
-        { status: 'upcoming', text: isKr ? '○ 일정 추가 준비' : '○ Getting the calendar action ready' }
-      ];
-      const promptLower = (promptText || '').toLowerCase();
-      if (promptLower.includes('email') || promptLower.includes('mail') || promptLower.includes('메일')) {
-        stepsList = [
-          { status: 'done', text: isKr ? '✓ 수신자 및 대화 내역 확인' : '✓ Checked recipient details' },
-          { status: 'done', text: isKr ? '✓ 관련 정보 수집 완료' : '✓ Gathered context notes' },
-          { status: 'active', text: isKr ? '● 초안 작성 중' : '● Drafting follow-up email' },
-          { status: 'upcoming', text: isKr ? '○ 전송 승인 준비' : '○ Ready for send approval' }
-        ];
-      }
-      stepsEl.innerHTML = stepsList.map(s => `
-        <div class="user-friendly-step-item ${s.status}">
-          ${escapeHtml(s.text)}
-        </div>
-      `).join('');
-    }
-
-    // Surfaced Context
+    const summarySection = document.getElementById('ambient-understanding-card') || document.getElementById('ambient-summary-section');
+    const summarySectionAlias = document.getElementById('ambient-summary-section');
+    const summaryList = document.getElementById('ambient-summary-list');
+    const sourcesSection = document.getElementById('ambient-sources-section');
+    const sourcesList = document.getElementById('ambient-sources-list');
     const contextBox = document.getElementById('ambient-surfaced-context');
-    if (contextBox) {
-      contextBox.style.display = 'block';
-      const items = isKr ? [
-        '지난 미팅 메모',
-        '제안서 v3',
-        '최근 이메일'
-      ] : [
-        'Last meeting notes',
-        'Proposal v3',
-        'Recent email'
-      ];
-      contextBox.innerHTML = `
-        <strong>${t('ambient.context.found').replace('{count}', String(items.length))}</strong>
-        <ul>
-          ${items.map(it => `<li>${escapeHtml(it)}</li>`).join('')}
-        </ul>
-      `;
-    }
-
-    // Grounding Why Notice
     const groundingWhyEl = document.getElementById('ambient-grounding-why');
-    if (groundingWhyEl) {
-      groundingWhyEl.style.display = 'block';
-      groundingWhyEl.innerHTML = `💡 <strong>${isKr ? '추론 이유:' : 'Why this appeared:'}</strong> ${
-        isKr ? '30분 뒤 미팅이 있어서 관련 자료를 미리 준비했어요.' : 'You have a client meeting coming up soon, so relevant materials were gathered.'
-      }`;
-    }
-
-    // Understanding Summary Box
-    const summaryBox = document.getElementById('ambient-understanding-summary');
-    if (summaryBox) {
-      summaryBox.style.display = 'block';
-      summaryBox.innerHTML = `
-        <p><strong>${t('ambient.understanding.title')}</strong></p>
-        <ul>
-          <li><strong>${isKr ? '목적:' : 'Goal:'}</strong> ${escapeHtml(plan ? plan.summary : (promptText || ''))}</li>
-          <li><strong>${isKr ? '상태:' : 'Status:'}</strong> ${isKr ? '준비 완료 (외부 수정 조치 전)' : 'Ready (No external mutations applied)'}</li>
-        </ul>
-      `;
-    }
-
-    // Actions Bar: One Clear Next Action [Continue] & [Edit]
     const actionsBar = document.getElementById('ambient-understanding-actions');
-    if (actionsBar) {
-      actionsBar.innerHTML = `
-        <button class="btn-action-secondary" id="btn-ambient-understanding-edit" type="button">${t('ambient.understanding.edit')}</button>
-        <button class="btn-action-primary" id="btn-ambient-understanding-continue" type="button">${t('ambient.understanding.continue')}</button>
-      `;
-      const btnContinue = document.getElementById('btn-ambient-understanding-continue');
-      const btnEdit = document.getElementById('btn-ambient-understanding-edit');
+    const footerActions = document.getElementById('ambient-mockup-actions');
 
-      if (btnEdit) {
-        btnEdit.onclick = () => {
-          const input = document.getElementById('ambient-prompt-input');
-          if (input) {
-            input.focus();
-          }
-        };
+    if (intent === 'RESEARCH') {
+      if (taskTitleEl) taskTitleEl.textContent = t('ambient.taskResearching');
+      if (taskSubtitleEl) taskSubtitleEl.textContent = t('ambient.taskResearchingSub');
+      if (taskIcon) {
+        taskIcon.innerHTML = `<svg class="svg-icon-md" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`;
       }
 
-      if (btnContinue) {
-        btnContinue.onclick = () => {
-          // Plan acceptance does NOT execute external mutations (Calendar/Email).
-          // Update steps to show plan accepted and render Approval Card if mutation step exists.
-          btnContinue.disabled = true;
-          btnContinue.textContent = isKr ? '진행됨 ✓' : 'Accepted ✓';
+      // Progress Steps (Single Progress Surface)
+      if (stepsEl) {
+        const steps = [
+          { status: 'done', text: isKr ? '✓ 신뢰할 수 있는 출처 검색 완료' : '✓ Searching trusted sources' },
+          { status: 'done', text: isKr ? '✓ 최신 업데이트 및 자료 분석 완료' : '✓ Reading recent updates' },
+          { status: 'active', text: isKr ? '● 핵심 요약 정리 완료' : '● Preparing a concise summary' },
+          { status: 'upcoming', text: isKr ? '○ 결과 정리 완료' : '○ Finalizing results' }
+        ];
+        stepsEl.innerHTML = steps.map(s => `<div class="user-friendly-step-item ${s.status}">${escapeHtml(s.text)}</div>`).join('');
+      }
 
-          // Render user approval card if an external mutation step (e.g. calendar/email) exists
-          renderUserApprovalCard(resolved, promptText);
-        };
+      // Summary Section (Result-First)
+      if (summarySection && summaryList) {
+        summarySection.style.display = 'block';
+        if (summarySectionAlias) summarySectionAlias.style.display = 'block';
+        const summaryTitleText = t('ambient.understanding.title');
+        const findings = isKr ? [
+          '메모리 아키텍처가 점차 영속적이고 맥락 인지적으로 발전하고 있습니다.',
+          '도구 사용의 신뢰성 및 검증 루프에 대한 관심이 급증하고 있습니다.',
+          '멀티 에이전트 오케스트레이션이 실제 연구 및 워크플로우에 적용되는 중입니다.',
+          '브라우저/액션 에이전트 성능이 향상되는 가운데 승인 경계 정책이 중요하게 다뤄집니다.'
+        ] : [
+          'Memory architectures are becoming more persistent and context-aware.',
+          'Tool-use reliability and verification loops are getting more attention.',
+          'Multi-agent orchestration is being applied to research and workflows.',
+          'Browser/action agents are improving, but approval boundaries remain important.'
+        ];
+        summaryList.innerHTML = findings.map((f, idx) => `
+          <div class="finding-item-row">
+            <span class="finding-num-badge">${idx + 1}</span>
+            <span class="finding-text">${escapeHtml(f)}</span>
+          </div>
+        `).join('');
+      }
+
+      // Sources Section
+      if (sourcesSection && sourcesList) {
+        sourcesSection.style.display = 'block';
+        const sources = [
+          { title: 'The next wave of AI agent architecture', publisher: 'Tech Insights', date: 'Sep 16, 2025', icon: '📄' },
+          { title: 'Building reliable tool-using agents', publisher: 'AI Research Digest', date: 'Sep 14, 2025', icon: '⚛️' },
+          { title: 'Multi-agent systems in real-world applications', publisher: 'Product & AI Blog', date: 'Sep 12, 2025', icon: '📖' },
+          { title: 'Browser agents: progress and open challenges', publisher: 'The AI Report', date: 'Sep 10, 2025', icon: '🌐' }
+        ];
+        sourcesList.innerHTML = sources.map(s => `
+          <div class="source-item-row">
+            <div class="source-item-left">
+              <span class="source-icon">${s.icon}</span>
+              <div class="source-meta">
+                <span class="source-title">${escapeHtml(s.title)}</span>
+                <span class="source-publisher">${escapeHtml(s.publisher)}</span>
+              </div>
+            </div>
+            <span class="source-date">${escapeHtml(s.date)}</span>
+          </div>
+        `).join('');
+      }
+
+      // Hide Meeting-specific boxes
+      if (contextBox) contextBox.style.display = 'none';
+      if (groundingWhyEl) groundingWhyEl.style.display = 'none';
+      if (actionsBar) actionsBar.style.display = 'none';
+
+      // Footer Primary Actions: Ask a follow-up + Save to Vault
+      if (footerActions) {
+        footerActions.style.display = 'flex';
+        footerActions.innerHTML = `
+          <button class="btn-mockup-secondary" id="btn-ask-followup" type="button">
+            <span class="btn-icon">💬</span>
+            <span>${t('ambient.ctaFollowUp')}</span>
+          </button>
+          <button class="btn-mockup-primary" id="btn-save-vault" type="button">
+            <span class="btn-icon">🔖</span>
+            <span>${t('ambient.ctaSaveVault')}</span>
+          </button>
+        `;
+        const btnVault = document.getElementById('btn-save-vault');
+        if (btnVault) {
+          btnVault.onclick = () => {
+            btnVault.disabled = true;
+            btnVault.textContent = isKr ? '저장됨 ✓' : 'Saved ✓';
+          };
+        }
+      }
+    } else if (intent === 'MEETING') {
+      if (taskTitleEl) taskTitleEl.textContent = t('ambient.taskMeeting');
+      if (taskSubtitleEl) taskSubtitleEl.textContent = t('ambient.taskMeetingSub');
+      if (taskIcon) {
+        taskIcon.innerHTML = `<svg class="svg-icon-md" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>`;
+      }
+
+      // Hide Research sections
+      if (summarySection) summarySection.style.display = 'none';
+      if (sourcesSection) sourcesSection.style.display = 'none';
+
+      // Meeting Progress Steps
+      if (stepsEl) {
+        const steps = [
+          { status: 'done', text: isKr ? '✓ 일정 확인 완료' : '✓ Checked your availability' },
+          { status: 'done', text: isKr ? '✓ 관련 메모 및 이메일 수집' : '✓ Found related notes and emails' },
+          { status: 'active', text: isKr ? '● 미팅 상세내용 준비 중' : '● Preparing meeting details' },
+          { status: 'upcoming', text: isKr ? '○ 캘린더 등록 준비' : '○ Getting the calendar action ready' }
+        ];
+        stepsEl.innerHTML = steps.map(s => `<div class="user-friendly-step-item ${s.status}">${escapeHtml(s.text)}</div>`).join('');
+      }
+
+      // Surfaced Context (Meeting notes, proposal, email)
+      if (contextBox) {
+        contextBox.style.display = 'block';
+        const items = isKr ? ['지난 미팅 메모', '제안서 v3', '최근 이메일'] : ['Last meeting notes', 'Proposal v3', 'Recent email'];
+        contextBox.innerHTML = `
+          <strong>${t('ambient.context.found').replace('{count}', String(items.length))}</strong>
+          <ul>
+            ${items.map(it => `<li>${escapeHtml(it)}</li>`).join('')}
+          </ul>
+        `;
+      }
+
+      // Grounding Why / Schedule recommendation
+      if (groundingWhyEl) {
+        groundingWhyEl.style.display = 'block';
+        groundingWhyEl.innerHTML = `📅 <strong>${isKr ? '추천 일정:' : 'Proposed Schedule:'}</strong> ${
+          isKr ? '내일 · 오후 3:00–4:00 (충돌 없음)' : 'Tomorrow · 3:00–4:00 PM (No conflicts found)'
+        }`;
+      }
+
+      // One Clear Next Action: [Continue] & [Edit]
+      if (actionsBar) {
+        actionsBar.style.display = 'flex';
+        actionsBar.innerHTML = `
+          <button class="btn-action-secondary" id="btn-ambient-understanding-edit" type="button">${t('ambient.understanding.edit')}</button>
+          <button class="btn-action-primary" id="btn-ambient-understanding-continue" type="button">${t('ambient.understanding.continue')}</button>
+        `;
+        const btnContinue = document.getElementById('btn-ambient-understanding-continue');
+        const btnEdit = document.getElementById('btn-ambient-understanding-edit');
+        if (btnEdit) {
+          btnEdit.onclick = () => {
+            const input = document.getElementById('ambient-prompt-input');
+            if (input) input.focus();
+          };
+        }
+        if (btnContinue) {
+          btnContinue.onclick = () => {
+            btnContinue.disabled = true;
+            btnContinue.textContent = isKr ? '진행됨 ✓' : 'Accepted ✓';
+            renderUserApprovalCard(resolved, promptText);
+          };
+        }
+      }
+
+      if (footerActions) footerActions.style.display = 'none';
+    } else if (intent === 'ANALYZE') {
+      if (taskTitleEl) taskTitleEl.textContent = t('ambient.taskAnalyze');
+      if (taskSubtitleEl) taskSubtitleEl.textContent = t('ambient.taskAnalyzeSub');
+      if (taskIcon) {
+        taskIcon.innerHTML = `<svg class="svg-icon-md" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`;
+      }
+
+      if (stepsEl) {
+        const steps = [
+          { status: 'done', text: isKr ? '✓ 문서 구조 파악 완료' : '✓ Examined document structure' },
+          { status: 'done', text: isKr ? '✓ 핵심 조항 추출 완료' : '✓ Extracted key clauses' },
+          { status: 'active', text: isKr ? '● 리스크 요소 평가 중' : '● Evaluating risk factors' },
+          { status: 'upcoming', text: isKr ? '○ 레포트 생성 마무리' : '○ Finalizing report' }
+        ];
+        stepsEl.innerHTML = steps.map(s => `<div class="user-friendly-step-item ${s.status}">${escapeHtml(s.text)}</div>`).join('');
+      }
+
+      if (summarySection && summaryList) {
+        summarySection.style.display = 'block';
+        const findings = isKr ? [
+          '계약서 내 위험 요소 및 책임 면책 조항 2건 발견',
+          '자동 갱신 주기 30일 사전 통지 조건 명시 확인',
+          '분쟁 해결 관할 법원이 본사 거점지로 지정됨'
+        ] : [
+          'Found 2 potential liability limitation clauses requiring review',
+          'Automatic renewal notice requirement specified as 30 days prior',
+          'Dispute resolution venue designated at headquarters location'
+        ];
+        summaryList.innerHTML = findings.map((f, idx) => `
+          <div class="finding-item-row">
+            <span class="finding-num-badge">${idx + 1}</span>
+            <span class="finding-text">${escapeHtml(f)}</span>
+          </div>
+        `).join('');
+      }
+
+      if (sourcesSection) sourcesSection.style.display = 'none';
+      if (contextBox) contextBox.style.display = 'none';
+      if (groundingWhyEl) groundingWhyEl.style.display = 'none';
+      if (actionsBar) actionsBar.style.display = 'none';
+
+      if (footerActions) {
+        footerActions.style.display = 'flex';
+        footerActions.innerHTML = `
+          <button class="btn-mockup-secondary" id="btn-ask-followup" type="button">
+            <span class="btn-icon">💬</span>
+            <span>${t('ambient.ctaFollowUp')}</span>
+          </button>
+          <button class="btn-mockup-primary" id="btn-save-vault" type="button">
+            <span class="btn-icon">🔖</span>
+            <span>${t('ambient.ctaSaveVault')}</span>
+          </button>
+        `;
+      }
+    } else {
+      // CREATE Intent
+      if (taskTitleEl) taskTitleEl.textContent = t('ambient.taskCreate');
+      if (taskSubtitleEl) taskSubtitleEl.textContent = t('ambient.taskCreateSub');
+      if (taskIcon) {
+        taskIcon.innerHTML = `<svg class="svg-icon-md" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>`;
+      }
+
+      if (stepsEl) {
+        const steps = [
+          { status: 'done', text: isKr ? '✓ 프롬프트 레시피 분석 완료' : '✓ Analyzed prompt recipe' },
+          { status: 'done', text: isKr ? '✓ 스타일 프리셋 적용 완료' : '✓ Applied style preset' },
+          { status: 'active', text: isKr ? '● 비주얼 에셋 생성 중' : '● Generating visual asset' },
+          { status: 'upcoming', text: isKr ? '○ 해상도 최적화 마무리' : '○ Finalizing output resolution' }
+        ];
+        stepsEl.innerHTML = steps.map(s => `<div class="user-friendly-step-item ${s.status}">${escapeHtml(s.text)}</div>`).join('');
+      }
+
+      if (sourcesSection) sourcesSection.style.display = 'none';
+      if (contextBox) contextBox.style.display = 'none';
+      if (groundingWhyEl) groundingWhyEl.style.display = 'none';
+      if (actionsBar) actionsBar.style.display = 'none';
+
+      if (footerActions) {
+        footerActions.style.display = 'flex';
+        footerActions.innerHTML = `
+          <button class="btn-mockup-secondary" id="btn-ask-followup" type="button">
+            <span class="btn-icon">💬</span>
+            <span>${t('ambient.ctaFollowUp')}</span>
+          </button>
+          <button class="btn-mockup-primary" id="btn-save-vault" type="button">
+            <span class="btn-icon">🔖</span>
+            <span>${t('ambient.ctaSaveVault')}</span>
+          </button>
+        `;
       }
     }
   }
@@ -3142,17 +3328,28 @@
 
     approvalCard.style.display = 'block';
 
-    if (hasCalendar) {
-      headingEl.textContent = t('ambient.approval.readyCalendar');
+    if (hasCalendar || (promptText && (promptText.toLowerCase().includes('meeting') || promptText.includes('미팅')))) {
+      headingEl.textContent = isKr ? '캘린더에 추가할 준비가 됐어요' : 'Ready to add to your calendar';
       detailsEl.innerHTML = `
-        <div><strong>${isKr ? '클라이언트 미팅' : 'Client meeting'}</strong></div>
-        <div>${isKr ? '내일 · 오후 3:00–4:00' : 'Tomorrow · 3:00–4:00 PM'}</div>
-        <div>${isKr ? '참석자: 김대진' : 'Guests: Kim Dae-jin'}</div>
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 0.85rem; margin-top: 0.5rem;">
+          <strong style="display: block; font-size: 0.95rem; color: #0f172a; margin-bottom: 0.3rem;">${isKr ? '클라이언트 미팅' : 'Client meeting'}</strong>
+          <div style="font-size: 0.85rem; color: #475569; margin-bottom: 0.2rem;">${isKr ? '내일 · 오후 3:00–4:00' : 'Tomorrow · 3:00–4:00 PM'}</div>
+          <div style="font-size: 0.85rem; color: #475569; margin-bottom: 0.4rem;">${isKr ? '참석자: 김대진' : 'Attendee: Kim Dae-jin'}</div>
+          <div style="font-size: 0.8rem; color: #64748b; border-top: 1px dashed #cbd5e1; padding-top: 0.4rem; margin-top: 0.4rem;">
+            <strong>Agenda:</strong>
+            <ul style="margin: 0.2rem 0 0 1.2rem; padding: 0;">
+              <li>Pricing discussion</li>
+              <li>Project schedule</li>
+            </ul>
+          </div>
+        </div>
       `;
       actionsEl.innerHTML = `
-        <button class="btn-action-primary" id="btn-ambient-approve-mutation">${t('ambient.approval.addToCalendar')}</button>
-        <button class="btn-action-secondary" id="btn-ambient-edit-mutation">${t('ambient.understanding.edit')}</button>
-        <button class="btn-action-secondary" id="btn-ambient-notnow-mutation">${t('ambient.approval.notNow')}</button>
+        <div style="display: flex; align-items: center; gap: 0.6rem; margin-top: 0.85rem;">
+          <button class="btn-mockup-primary" id="btn-ambient-approve-mutation" type="button">${isKr ? '캘린더에 추가' : 'Add to calendar'}</button>
+          <button class="btn-mockup-secondary" id="btn-ambient-edit-mutation" type="button">${isKr ? '수정' : 'Edit'}</button>
+          <button class="btn-action-text" id="btn-ambient-reject-mutation" type="button" style="background:none; border:none; color:#64748b; font-size:0.85rem; cursor:pointer; padding:0.4rem 0.8rem;">${isKr ? '나중에' : 'Not now'}</button>
+        </div>
       `;
     } else if (hasGmail) {
       headingEl.textContent = t('ambient.approval.readyEmail');
@@ -3161,36 +3358,36 @@
         <div><strong>Subject:</strong> ${isKr ? '미팅 후속 공유건' : 'Meeting follow-up'}</div>
       `;
       actionsEl.innerHTML = `
-        <button class="btn-action-primary" id="btn-ambient-approve-mutation">${t('ambient.approval.sendEmail')}</button>
-        <button class="btn-action-secondary" id="btn-ambient-edit-mutation">${t('ambient.understanding.edit')}</button>
-        <button class="btn-action-secondary" id="btn-ambient-notnow-mutation">${t('ambient.approval.notNow')}</button>
+        <button class="btn-mockup-primary" id="btn-ambient-approve-mutation" type="button">${t('ambient.approval.sendEmail')}</button>
+        <button class="btn-mockup-secondary" id="btn-ambient-edit-mutation" type="button">${t('ambient.understanding.edit')}</button>
+        <button class="btn-action-text" id="btn-ambient-reject-mutation" type="button">${t('ambient.approval.notNow')}</button>
       `;
     } else {
       headingEl.textContent = isKr ? '실행 승인 준비 완료' : 'Ready for your approval';
       detailsEl.innerHTML = `<div>${escapeHtml(promptText || 'Requested action')}</div>`;
       actionsEl.innerHTML = `
-        <button class="btn-action-primary" id="btn-ambient-approve-mutation">${t('ambient.approve')}</button>
-        <button class="btn-action-secondary" id="btn-ambient-notnow-mutation">${t('ambient.approval.notNow')}</button>
+        <button class="btn-mockup-primary" id="btn-ambient-approve-mutation" type="button">${t('ambient.approve')}</button>
+        <button class="btn-action-text" id="btn-ambient-reject-mutation" type="button">${t('ambient.approval.notNow')}</button>
       `;
     }
 
     const btnApprove = document.getElementById('btn-ambient-approve-mutation');
-    const btnNotNow = document.getElementById('btn-ambient-notnow-mutation');
+    const btnReject = document.getElementById('btn-ambient-reject-mutation');
 
     if (btnApprove) {
       btnApprove.onclick = () => {
         btnApprove.disabled = true;
-        btnApprove.textContent = isKr ? '처리 중...' : 'Processing...';
+        btnApprove.textContent = isKr ? '추가됨 ✓' : 'Added to calendar ✓';
         setTimeout(() => {
           headingEl.textContent = isKr ? '✓ 작업이 완료되었습니다' : '✓ Action completed successfully';
           detailsEl.innerHTML = `<div style="color:#059669; font-weight:600;">${isKr ? '요청하신 작업이 성공적으로 실행되었습니다.' : 'The requested action has been executed.'}</div>`;
           actionsEl.innerHTML = '';
-        }, 600);
+        }, 500);
       };
     }
 
-    if (btnNotNow) {
-      btnNotNow.onclick = () => {
+    if (btnReject) {
+      btnReject.onclick = () => {
         approvalCard.style.display = 'none';
       };
     }
@@ -4558,6 +4755,7 @@
   window.NAGEX.isDebugMode = isDebugMode;
   window.NAGEX.isEnterpriseUiMode = isEnterpriseUiMode;
   window.NAGEX.applyEnterpriseUiGate = applyEnterpriseUiGate;
+  window.NAGEX.openAmbientOverlay = openAmbientOverlay;
 
   initRouter();
   loadAllData();

@@ -41,10 +41,18 @@ test('Plan Preview modal is an accessible dialog with a visible close control', 
     // The X button: an aria-label (it has no visible text) driven by i18n.
     assert.match(html, /id="btn-close-ambient"[^>]*data-i18n-aria-label="ambient\.close"/);
 
-    // Sticky footer: secondary "Close" button + an Esc hint, both i18n-driven.
-    assert.match(html, /class="ambient-sheet-footer"/);
+    // Sticky footer. R21 P0.1C added a second "mockup-footer" class
+    // alongside the original one (the sticky footer now also hosts the
+    // approved mockup's primary actions) — tolerate any additional classes
+    // rather than requiring an exact match. The legacy Close button is kept
+    // (hidden) for backward compatibility, still i18n-driven; the old
+    // "Press Esc to close" hint text was intentionally dropped from the
+    // approved mockup footer design (not present in
+    // tests/r21_p0_1c_clone_mockup.test.ts's own footer assertions either)
+    // — Escape-to-close itself still works (see the Escape handler test
+    // below), only its inline text hint was removed.
+    assert.match(html, /class="ambient-sheet-footer[^"]*"/);
     assert.match(html, /id="btn-ambient-cancel"[^>]*data-i18n="ambient\.close"/);
-    assert.match(html, /data-i18n="ambient\.pressEscToClose"/);
 
     assert.match(html, /src="modal-behavior\.js\?v=/);
   });

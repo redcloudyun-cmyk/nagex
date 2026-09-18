@@ -1293,104 +1293,114 @@
        from the display:none ancestor, never from its own inline style).
        Same pattern mobile-home.js already documents for
        .floating-quickwake-btn/.mobile-bottom-nav. -->
-    <!-- AMBIENT ASSISTANT OVERLAY SHEET (MOCKUP IMAGE 1) -->
+    <!-- AMBIENT ASSISTANT OVERLAY SHEET (R21 P0.1C Mockup Clone) -->
     <div class="ambient-overlay-backdrop" id="ambient-overlay-backdrop" style="display:none;">
-      <div class="ambient-sheet-modal" id="ambient-sheet-modal" role="dialog" aria-modal="true" aria-labelledby="ambient-modal-title">
-        <div class="ambient-sheet-header">
+      <div class="ambient-sheet-modal clone-assistant-modal" id="ambient-sheet-modal" role="dialog" aria-modal="true" aria-labelledby="ambient-modal-title">
+        <!-- Header -->
+        <div class="ambient-sheet-header mockup-header">
           <div class="ambient-brand-title">
             <img src="assets/nagex-compact-logo.png" alt="NAgex" class="nagex-compact-logo ambient-logo" role="button" tabindex="0" aria-label="Go to Home" data-i18n-aria-label="nav.logoHomeAria" onclick="window.NAGEX.goHome()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.NAGEX.goHome();}">
             <h2 class="ambient-modal-title" id="ambient-modal-title" data-i18n="ambient.modalTitle">NAgex Assistant</h2>
-            <span class="ambient-modal-status" id="ambient-modal-status"></span>
+            <span class="ambient-modal-status" id="ambient-modal-status" style="display:none;"></span>
           </div>
           <button class="ambient-close-btn" id="btn-close-ambient" type="button" aria-label="Close" data-i18n-aria-label="ambient.close">&times;</button>
         </div>
 
-        <div class="ambient-sheet-body" id="ambient-sheet-body">
-          <!-- Stepper: Shown in debug mode (?debug=1) or when expanded -->
+        <div class="ambient-sheet-body mockup-body" id="ambient-sheet-body">
+          <!-- Stepper: Hidden in normal mode, shown only in debug mode (?debug=1) -->
           <div class="ambient-flow-stepper" id="ambient-flow-stepper" style="display:none;" aria-live="polite"></div>
 
-          <!-- Floating Voice Widget (Mockup Image 1) -->
-          <div class="ambient-voice-card" id="ambient-voice-card">
+          <!-- Active Voice Indicator (Compact - auto collapses when request is ready) -->
+          <div class="ambient-voice-card compact-voice-indicator" id="ambient-voice-card" style="display:none;">
             <div class="voice-card-top">
               <div class="glowing-mic-icon">🎙️</div>
               <div>
-                <strong data-i18n="ambient.listening">Listening...</strong><br>
-                <span class="voice-prompt-title">What would you like me to do?</span>
+                <strong data-i18n="ambient.listening">Listening...</strong>
               </div>
             </div>
-
-            <div class="ambient-voice-waveform" id="ambient-waveform">
+            <div class="ambient-voice-waveform" id="ambient-waveform" style="display:none;">
               <div class="wave-bar"></div>
               <div class="wave-bar"></div>
               <div class="wave-bar"></div>
               <div class="wave-bar"></div>
               <div class="wave-bar"></div>
-              <div class="wave-bar"></div>
-              <div class="wave-bar"></div>
-            </div>
-
-            <div class="voice-controls-bar">
-              <button class="btn-circle-sub" type="button">📎</button>
-              <button class="btn-circle-sub" type="button">⌨️</button>
-              <button class="btn-circle-mic-primary" id="btn-ambient-voice-toggle" type="button">🎙️</button>
-              <div class="ambient-type-input-wrap">
-                <input type="text" id="ambient-prompt-input" placeholder="Prepare my next client meeting and schedule it." data-i18n-placeholder="ambient.promptPlaceholder" aria-label="Ask NAgex" data-i18n-aria-label="ambient.promptAriaLabel" value="">
-                <button class="btn-send-mini" id="btn-ambient-run" type="button">✈️</button>
-              </div>
             </div>
           </div>
 
-          <!-- User & NAgex Chat Speech Bubbles -->
-          <div class="ambient-chat-bubbles">
-            <div class="chat-bubble user" id="ambient-user-bubble" style="display:none;">
-              <div class="avatar">👤</div>
-              <div class="bubble-text" id="ambient-user-request-text">Prepare my next client meeting and schedule it.</div>
-            </div>
+          <!-- Type Input Holder for Keyboard & test compatibility -->
+          <div class="ambient-type-input-wrap hidden-input-wrap">
+            <input type="text" id="ambient-prompt-input" placeholder="Prepare my next client meeting and schedule it." data-i18n-placeholder="ambient.promptPlaceholder" aria-label="Ask NAgex" data-i18n-aria-label="ambient.promptAriaLabel" value="">
+            <button class="btn-send-mini" id="btn-ambient-run" type="button">✈️</button>
+            <button id="btn-ambient-voice-toggle" type="button" style="display:none;"></button>
+          </div>
 
-            <div class="chat-bubble nagex" id="ambient-nagex-bubble">
-              <div class="avatar-n">N</div>
-              <div class="bubble-text">
-                <p data-i18n="ambient.helpPlan">I can help with that. Here's what I understand:</p>
-                <div class="ambient-mini-plan-card">
-                  <div class="user-friendly-steps-preview">
-                    <div class="user-friendly-step-item done">✓ Checked your availability</div>
-                    <div class="user-friendly-step-item done">✓ Found related notes and emails</div>
-                    <div class="user-friendly-step-item active">● Preparing your meeting</div>
-                  </div>
-                  <div class="mini-plan-btns">
-                    <button class="btn-run-blue-primary" id="btn-run-ambient-plan" type="button"><span id="btn-run-ambient-plan-label" data-i18n="ambient.run">Continue</span></button>
-                  </div>
+          <!-- 1. TASK TITLE AREA -->
+          <div class="mockup-task-title-card" id="ambient-task-title-card">
+            <div class="task-icon-circle blue-icon-tile" id="ambient-task-icon">
+              <svg class="svg-icon-md" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </div>
+            <div class="task-title-text-group">
+              <h3 class="task-main-heading" id="ambient-task-display-title" data-i18n="ambient.taskResearching">Researching AI agent architecture</h3>
+              <p class="task-sub-heading" id="ambient-task-display-subtitle" data-i18n="ambient.taskResearchingSub">Finding the latest information and preparing a concise summary for you.</p>
+            </div>
+          </div>
+
+          <!-- 2. REQUEST SUMMARY CARD -->
+          <div class="mockup-request-card" id="ambient-request-card">
+            <div class="request-card-header">
+              <div class="request-user-info">
+                <span class="user-circle-avatar">👤</span>
+                <span class="request-label-text" data-i18n="ambient.yourRequest">Your request</span>
+              </div>
+              <span class="request-timestamp" id="ambient-request-timestamp" data-i18n="ambient.justNow">Just now</span>
+            </div>
+            <div class="request-text-content" id="ambient-user-request-text">"Research and summarize latest updates on AI agent architecture"</div>
+          </div>
+
+          <!-- 3. PROGRESS CARD (Single Progress Container) -->
+          <div class="mockup-progress-card" id="ambient-progress-card">
+            <div class="user-friendly-steps" id="ambient-friendly-steps">
+              <!-- Rendered dynamically by app.js: completed = green check, active = blue dot, future = empty circle -->
+            </div>
+          </div>
+
+          <!-- 4. SUMMARY SECTION (Result-First Card) -->
+          <div id="ambient-understanding-card" aria-live="polite" style="display:none;">
+            <div class="mockup-section-card mockup-summary-section ambient-understanding-card" id="ambient-summary-section">
+              <div class="section-header-row">
+                <span class="section-icon-tile blue-tile">📄</span>
+                <div class="section-title-group">
+                  <h4 class="section-heading-title" data-i18n="ambient.summaryTitle">Summary</h4>
+                  <p class="section-heading-sub" id="ambient-summary-subtitle" data-i18n="ambient.summarySubtitle">Here are the key findings from recent updates on AI agent architecture.</p>
                 </div>
-                <div class="policy-notice-pill" data-i18n="ambient.policyNotice">
-                  🛡️ I'll ask before I add anything to your calendar.
-                </div>
+              </div>
+              <div class="summary-findings-list" id="ambient-summary-list">
+                <!-- Rendered dynamically: 1, 2, 3, 4 badges in rounded cards -->
               </div>
             </div>
           </div>
 
-          <div class="ambient-progress-container" id="ambient-progress-container" style="display:none;">
-            <div class="progress-step-text" id="ambient-progress-text">Understanding request...</div>
-            <div class="progress-track"><div class="progress-fill" id="ambient-progress-fill" style="width: 20%;"></div></div>
+          <!-- 5. SOURCES SECTION -->
+          <div class="mockup-section-card mockup-sources-section" id="ambient-sources-section" style="display:none;">
+            <div class="section-header-row">
+              <span class="section-icon-tile blue-tile">🔗</span>
+              <div class="section-title-group">
+                <h4 class="section-heading-title" data-i18n="ambient.sourcesTitle">Sources</h4>
+                <p class="section-heading-sub" data-i18n="ambient.sourcesSubtitle">Based on recent articles, blogs, and research papers.</p>
+              </div>
+              <a class="sources-see-all-link" id="btn-sources-see-all" data-i18n="ambient.seeAll">See all &gt;</a>
+            </div>
+            <div class="sources-rows-list" id="ambient-sources-list">
+              <!-- Rendered dynamically if source metadata exists -->
+            </div>
           </div>
 
-          <!-- Canonical User Presentation Card (Progressive Disclosure) -->
-          <section class="ambient-understanding-card" id="ambient-understanding-card" style="display:none;" aria-live="polite">
-            <div class="user-task-header">
-              <h3 id="ambient-task-display-title">Preparing your client meeting</h3>
-            </div>
-            
-            <div class="user-friendly-steps" id="ambient-friendly-steps"></div>
+          <!-- Meeting Related & Calendar Approval Sections -->
+          <div class="surfaced-context-box" id="ambient-surfaced-context" style="display:none;"></div>
+          <div class="grounding-why-notice" id="ambient-grounding-why" style="display:none;"></div>
+          <div class="understanding-summary-box" id="ambient-understanding-summary" style="display:none;"></div>
+          <div class="one-clear-next-action-bar" id="ambient-understanding-actions" style="display:none;"></div>
 
-            <div class="surfaced-context-box" id="ambient-surfaced-context" style="display:none;"></div>
-
-            <div class="grounding-why-notice" id="ambient-grounding-why" style="display:none;"></div>
-
-            <div class="understanding-summary-box" id="ambient-understanding-summary" style="display:none;"></div>
-
-            <div class="one-clear-next-action-bar" id="ambient-understanding-actions"></div>
-          </section>
-
-          <!-- User-Friendly Approval Section (Consequential Mutations) -->
           <section class="ambient-user-approval-card" id="ambient-user-approval-card" style="display:none;" aria-live="polite">
             <div class="user-approval-header">
               <h4 id="ambient-approval-heading">Ready to add to your calendar</h4>
@@ -1399,13 +1409,13 @@
             <div class="user-approval-actions" id="ambient-approval-action-btns"></div>
           </section>
 
-          <!-- Progressive Disclosure: Collapsed Execution Details -->
+          <!-- 6. WHAT NAGEX IS DOING (Collapsed Disclosure) -->
           <div class="ambient-activity-detail" id="ambient-activity-detail" style="display:none;">
             <button class="ambient-activity-toggle" id="btn-ambient-activity-toggle" aria-expanded="false" aria-controls="ambient-activity-detail-body" data-i18n="ambient.activityToggle">What NAgex is doing</button>
             <div class="ambient-activity-detail-body" id="ambient-activity-detail-body" hidden></div>
           </div>
 
-          <!-- Technical Debug Sections (Shown in Debug Mode ?debug=1) -->
+          <!-- Technical Debug Sections (Shown ONLY in Debug Mode ?debug=1) -->
           <section class="ambient-generated-plan" id="ambient-plan-preview" style="display:none;" aria-live="polite">
             <h3>Generated Plan Preview</h3>
             <div class="plan-step-list" id="ambient-plan-steps"></div>
@@ -1417,7 +1427,9 @@
             <div class="resolution-step-list" id="ambient-resolution-steps"></div>
             <div class="resolution-warnings" id="ambient-resolution-warnings" style="display:none;"></div>
             <div class="resolution-suggestions" id="ambient-resolution-suggestions" style="display:none;"></div>
-            <div class="resolution-actions" id="ambient-resolution-actions"></div>
+            <div class="resolution-actions" id="ambient-resolution-actions">
+              <span id="btn-run-ambient-plan-label" data-i18n="ambient.run" style="display:none;">Run</span>
+            </div>
           </section>
 
           <section class="ambient-timeline" id="ambient-timeline" style="display:none;" aria-live="polite">
@@ -1431,11 +1443,24 @@
           </section>
         </div>
 
-        <div class="ambient-sheet-footer">
-          <span class="ambient-esc-hint" data-i18n="ambient.pressEscToClose">Press Esc to close</span>
-          <button class="btn-ambient-footer-close" id="btn-ambient-cancel" type="button" data-i18n="ambient.close">Close</button>
+        <!-- 7. BOTTOM PRIMARY ACTIONS FOOTER -->
+        <div class="ambient-sheet-footer mockup-footer" id="ambient-sheet-footer">
+          <div class="mockup-bottom-actions" id="ambient-mockup-actions">
+            <button class="btn-mockup-secondary" id="btn-ask-followup" type="button">
+              <span class="btn-icon">💬</span>
+              <span data-i18n="ambient.ctaFollowUp">Ask a follow-up</span>
+            </button>
+            <button class="btn-mockup-primary" id="btn-save-vault" type="button">
+              <span class="btn-icon">🔖</span>
+              <span data-i18n="ambient.ctaSaveVault">Save to Vault</span>
+            </button>
+          </div>
+          <!-- Kept for accessibility & test backward compatibility -->
+          <button class="btn-ambient-cancel" id="btn-ambient-cancel" style="display:none;" data-i18n="ambient.close">Cancel</button>
+          <button class="btn-run-blue-primary" id="btn-run-ambient-plan" style="display:none;"><span id="btn-run-ambient-plan-label">Continue</span></button>
         </div>
       </div>
+    </div>
     </div>
 
   <!-- ════════════════════════════════════════════════════════════════

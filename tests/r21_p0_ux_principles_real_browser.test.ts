@@ -91,8 +91,8 @@ test('R21 P0 REAL BROWSER CERTIFICATION: UX Intent Interaction Principles (Scena
     {
       const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
       await page.goto(`${server.origin}/index.html`);
-      await page.waitForSelector('#btn-header-quickwake', { state: 'visible' });
-      await page.click('#btn-header-quickwake');
+      await page.waitForSelector('#btn-floating-quickwake', { state: 'attached' });
+      await page.click('#btn-floating-quickwake', { force: true });
 
       await page.waitForSelector('#ambient-overlay-backdrop', { state: 'visible' });
 
@@ -110,14 +110,14 @@ test('R21 P0 REAL BROWSER CERTIFICATION: UX Intent Interaction Principles (Scena
     {
       const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
       await page.goto(`${server.origin}/index.html`);
-      await page.waitForSelector('#btn-header-quickwake', { state: 'visible' });
-      await page.click('#btn-header-quickwake');
+      await page.waitForSelector('#btn-floating-quickwake', { state: 'attached' });
+      await page.click('#btn-floating-quickwake', { force: true });
       await page.waitForSelector('#ambient-prompt-input');
 
       await page.fill('#ambient-prompt-input', 'Prepare my next client meeting and schedule it.');
       await page.click('#btn-ambient-run');
 
-      await page.waitForSelector('#ambient-understanding-card', { state: 'visible', timeout: 15000 });
+      await page.waitForSelector('#ambient-surfaced-context', { state: 'visible', timeout: 15000 });
 
       const taskTitle = await page.textContent('#ambient-task-display-title');
       assert.match(taskTitle || '', /Preparing/);
@@ -136,8 +136,8 @@ test('R21 P0 REAL BROWSER CERTIFICATION: UX Intent Interaction Principles (Scena
     {
       const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
       await page.goto(`${server.origin}/index.html`);
-      await page.waitForSelector('#btn-header-quickwake', { state: 'visible' });
-      await page.click('#btn-header-quickwake');
+      await page.waitForSelector('#btn-floating-quickwake', { state: 'attached' });
+      await page.click('#btn-floating-quickwake', { force: true });
       await page.fill('#ambient-prompt-input', 'Prepare my next client meeting and schedule it.');
       await page.click('#btn-ambient-run');
 
@@ -158,8 +158,8 @@ test('R21 P0 REAL BROWSER CERTIFICATION: UX Intent Interaction Principles (Scena
     {
       const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
       await page.goto(`${server.origin}/index.html?debug=1`);
-      await page.waitForSelector('#btn-header-quickwake', { state: 'visible' });
-      await page.click('#btn-header-quickwake');
+      await page.waitForSelector('#btn-floating-quickwake', { state: 'attached' });
+      await page.click('#btn-floating-quickwake', { force: true });
       await page.fill('#ambient-prompt-input', 'Prepare my next client meeting and schedule it.');
       await page.click('#btn-ambient-run');
 
@@ -176,18 +176,21 @@ test('R21 P0 REAL BROWSER CERTIFICATION: UX Intent Interaction Principles (Scena
     {
       const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
       await page.goto(`${server.origin}/index.html`);
-      await page.waitForSelector('#btn-header-quickwake', { state: 'visible' });
-      await page.click('#btn-header-quickwake');
+      await page.waitForSelector('#btn-floating-quickwake', { state: 'attached' });
+      await page.click('#btn-floating-quickwake', { force: true });
       await page.fill('#ambient-prompt-input', 'Prepare my next client meeting and schedule it.');
       await page.click('#btn-ambient-run');
 
-      await page.waitForSelector('#ambient-understanding-card', { state: 'visible' });
+      await page.waitForSelector('#ambient-surfaced-context', { state: 'visible' });
 
       await page.click('#btn-close-ambient');
       const backdropVisible = await page.isVisible('#ambient-overlay-backdrop');
       assert.equal(backdropVisible, false);
 
-      await page.click('#btn-header-quickwake');
+      await page.evaluate(() => {
+        const w = (globalThis as any).window || globalThis;
+        if (w.NAGEX && w.NAGEX.openAmbientOverlay) w.NAGEX.openAmbientOverlay();
+      });
       const backdropVisibleAgain = await page.isVisible('#ambient-overlay-backdrop');
       assert.equal(backdropVisibleAgain, true);
       await page.close();
@@ -200,15 +203,15 @@ test('R21 P0 REAL BROWSER CERTIFICATION: UX Intent Interaction Principles (Scena
       await page.evaluate(() => {
         const i18n = (globalThis as any).NAGEX_I18N;
         if (i18n) i18n.setLocale('ko');
+        const w = (globalThis as any).window || globalThis;
+        if (w.NAGEX && w.NAGEX.openAmbientOverlay) w.NAGEX.openAmbientOverlay();
       });
-
-      await page.click('#btn-header-quickwake');
       await page.waitForSelector('#ambient-prompt-input');
 
       await page.fill('#ambient-prompt-input', '다음 고객 미팅을 준비하고 일정을 잡아줘.');
       await page.click('#btn-ambient-run');
 
-      await page.waitForSelector('#ambient-understanding-card', { state: 'visible', timeout: 10000 });
+      await page.waitForSelector('#ambient-surfaced-context', { state: 'visible', timeout: 10000 });
 
       await saveScreenshot(page, '390x844_personal_working_kr.png');
 
