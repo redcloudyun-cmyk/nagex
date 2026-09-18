@@ -290,7 +290,7 @@ export async function handleAsyncApiRequest(
     const demoHeader = headers['x-nagex-demo'] ?? headers['X-NAgex-Demo'];
     const demoEnabled = (Array.isArray(demoHeader) ? demoHeader[0] : demoHeader) === '1';
     if (demoEnabled) {
-      const demoResult = app.demoScenarioService.handle(method, pathname, body);
+      const demoResult = app.demoScenarioService.handle(method, pathname, body, headers);
       if (demoResult) return demoResult;
     }
     // R13 Identity & Account Lifecycle routes
