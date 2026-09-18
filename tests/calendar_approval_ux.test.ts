@@ -109,10 +109,15 @@ test('item 6: the activity timeline is wired for the full expected order, includ
     assert.match(appJs, /addTimelineEntry\('Calendar event created', `execution:\$\{result\.executionId\}:succeeded`/);
 
     // Approved must be logged before Execution started, which must be
-    // logged before the create-event call.
+    // logged before the create-event call, within requestCalendarApproval
+    // specifically. R21 P1 added a second, independent real
+    // create-event call site (the ambient overlay's own real approval
+    // card) earlier in the file — searching from executionIdx onward
+    // keeps this assertion scoped to requestCalendarApproval's own
+    // sequence rather than picking up that unrelated earlier occurrence.
     const approvedIdx = appJs.indexOf("addTimelineEntry('Approved', `approval:${approval.approvalId}:approved`");
     const executionIdx = appJs.indexOf("addTimelineEntry('Execution started', `execution:${approval.approvalId}:started`");
-    const createEventIdx = appJs.indexOf("apiFetch('/api/v1/tools/google-calendar/create-event'");
+    const createEventIdx = appJs.indexOf("apiFetch('/api/v1/tools/google-calendar/create-event'", executionIdx);
     assert.ok(approvedIdx > 0 && executionIdx > approvedIdx && createEventIdx > executionIdx, 'expected Approved -> Execution started -> create-event call, in that source order');
   });
 });

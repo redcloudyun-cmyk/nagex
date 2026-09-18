@@ -295,7 +295,7 @@ test('11. Calendar: raw Google event fields never leak, only the canonical {id,t
 
   assert.equal(events.length, 2);
   for (const ev of events) {
-    assert.deepEqual(Object.keys(ev).sort(), ['end', 'id', 'source', 'start', 'status', 'title', 'updated'].sort());
+    assert.deepEqual(Object.keys(ev).sort(), ['attendees', 'end', 'id', 'source', 'start', 'status', 'title', 'updated'].sort());
   }
   assert.equal(events[0].id, 'evt_1');
   assert.equal(events[0].title, 'Team sync');

@@ -153,6 +153,12 @@
               <p class="personal-hero-subtitle" data-i18n="home.heroSubtitle">Tell NAgex what you need. It plans, takes action, and keeps you in control.</p>
             </div>
 
+            <!-- R21 P1 — "Most important" hero card. Real
+                 GET /api/v1/personal/morning-brief only (public/hero-brief.js);
+                 hidden until real data (or a real empty/disconnected state)
+                 is fetched — never a placeholder shown as real. -->
+            <section class="nagex-card hero-brief-card" id="hero-brief-card" hidden></section>
+
             <!-- Unified Composer Card -->
             <div class="unified-capture-composer-card nagex-composer-compact" id="unified-composer">
               <textarea id="home-prompt-input" class="unified-prompt-textarea nagex-composer-input" placeholder="Ask NAgex to do anything..." data-i18n-placeholder="workspace.askOrDrop" rows="1"></textarea>
@@ -1905,8 +1911,10 @@
   <script src="single-flight-guard.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="daily-brief.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="proactive-assistant.js?v=__NAGEX_BUILD_VERSION__"></script>
+  <script src="meeting-prep-view.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="app.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="desktop/desktop-home.js?v=__NAGEX_BUILD_VERSION__"></script>
+  <script src="hero-brief.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="mobile/mobile-home.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="mobile/mobile-inbox.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="mobile/mobile-activity.js?v=__NAGEX_BUILD_VERSION__"></script>

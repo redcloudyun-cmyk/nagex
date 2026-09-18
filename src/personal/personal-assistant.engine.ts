@@ -1,9 +1,17 @@
-import { PersonalReminderStore, PersonalReminder } from './personal-reminder.store.js';
+import crypto from 'node:crypto';
+import { PersonalReminderStore } from './personal-reminder.store.js';
 import { NotificationStore } from '../notifications/notification.store.js';
 import { InboxStore } from '../workspace/inbox.store.js';
 import { VaultStore } from '../workspace/vault.store.js';
 import { CandidateStore } from '../workspace/candidate.store.js';
 import { ActionStore } from '../workspace/action.store.js';
+import type { GoogleCalendarService } from '../modules/calendar/index.js';
+import type { GmailService } from '../modules/gmail/index.js';
+import type { TaskStore } from '../tasks/task.store.js';
+import type { ActionApprovalStore } from '../governance/action-approval.store.js';
+import type { MemoryEngine } from '../context/memory.engine.js';
+import type { AiService } from '../model-gateway/ai-service.js';
+import { NagexError } from '../common/errors.js';
 
 export interface PersonalWatchCondition {
   watch_id: string;
@@ -22,11 +30,23 @@ export interface PersonalWatchCondition {
 export interface QuickWakeResult {
   right_now: {
     upcoming_meetings: Array<{ event_id: string; title: string; start_time: string; prep_suggested: boolean }>;
-    unreplied_emails: Array<{ email_id: string; subject: string; sender: string; received_at: string }>;
-    due_tasks: Array<{ task_id: string; title: string; due_date: string; is_overdue: boolean }>;
+    unreplied_emails: Array<{ email_id: string; snippet: string }>;
+    active_tasks: Array<{ task_id: string; title: string; status: string }>;
     pending_approvals: Array<{ approval_id: string; action_type: string; description: string }>;
     active_reminders: Array<{ reminder_id: string; title: string; scheduled_at: string }>;
   };
+  // R21 P1 — a proactive suggestion is only ever populated when it is
+  // GROUNDED (a real related email or Vault document was actually found
+  // for the nearest upcoming meeting's attendees) — never surfaced on
+  // proximity alone. null means "nothing grounded enough to suggest
+  // proactively right now", not "no data available".
+  proactive_suggestion: {
+    event_id: string;
+    event_title: string;
+    minutes_until: number;
+    reason: string;
+    grounded_on: Array<{ type: 'EMAIL' | 'VAULT'; id: string; label: string }>;
+  } | null;
   summary_items: string[];
   summary_text: string;
 }
@@ -37,22 +57,24 @@ export interface GroundedMorningBrief {
   tenant_id: string;
   generated_at: string;
   greeting: string;
+  calendarStatus: 'CONNECTED' | 'DISCONNECTED' | 'ERROR';
+  gmailStatus: 'CONNECTED' | 'DISCONNECTED' | 'ERROR';
   schedule_summary: {
     event_count: number;
-    events: Array<{ id: string; title: string; start_time: string; end_time: string; location?: string }>;
+    events: Array<{ id: string; title: string; start_time: string; end_time: string; attendees: string[] }>;
   };
   attention_items: {
     unreplied_emails_count: number;
-    unreplied_emails: Array<{ id: string; subject: string; sender: string }>;
-    due_tasks_count: number;
-    due_tasks: Array<{ id: string; title: string; due_date: string; is_overdue: boolean }>;
+    unreplied_emails: Array<{ id: string; snippet: string }>;
+    active_tasks_count: number;
+    active_tasks: Array<{ id: string; title: string; status: string }>;
     pending_approvals_count: number;
     pending_approvals: Array<{ id: string; action_type: string; description: string }>;
   };
   recommendation?: {
     suggestion_id: string;
     title: string;
-    reason: string; // Grounded reason ("Because: You have a meeting in 30 minutes with Kim")
+    reason: string; // Grounded reason, e.g. "Because: You have a meeting with Sarah at 15:00."
     action_type?: string;
     target_id?: string;
   };
@@ -68,7 +90,8 @@ export interface ContextualMeetingPrepCard {
   minutes_until: number;
   attendees: string[];
   related_materials: Array<{ type: 'VAULT' | 'EMAIL' | 'MEMORY'; id: string; title: string; summary: string }>;
-  past_discussions: string[];
+  key_points: string[];
+  suggested_agenda: string[];
   suggested_action?: {
     action_id: string;
     label: string;
@@ -107,6 +130,16 @@ export class PersonalAssistantEngine {
   private vaultStore?: VaultStore;
   private candidateStore?: CandidateStore;
   private actionStore?: ActionStore;
+  // R21 P1 — real data sources. All optional so any pre-existing minimal
+  // construction (reminder-only usage) keeps working; when a given
+  // dependency is not supplied, the corresponding brief/prep section is
+  // honestly reported as unavailable rather than fabricated.
+  private calendarService?: GoogleCalendarService;
+  private gmailApiService?: GmailService;
+  private taskStore?: TaskStore;
+  private actionApprovals?: ActionApprovalStore;
+  private memoryEngine?: MemoryEngine;
+  private aiService?: AiService;
 
   private watches: Map<string, PersonalWatchCondition> = new Map();
   private routines: Map<string, RoutineCandidate> = new Map();
@@ -120,6 +153,12 @@ export class PersonalAssistantEngine {
     vaultStore?: VaultStore;
     candidateStore?: CandidateStore;
     actionStore?: ActionStore;
+    calendarService?: GoogleCalendarService;
+    gmailApiService?: GmailService;
+    taskStore?: TaskStore;
+    actionApprovals?: ActionApprovalStore;
+    memoryEngine?: MemoryEngine;
+    aiService?: AiService;
   }) {
     this.reminderStore = options.reminderStore;
     this.notificationStore = options.notificationStore;
@@ -127,6 +166,12 @@ export class PersonalAssistantEngine {
     this.vaultStore = options.vaultStore;
     this.candidateStore = options.candidateStore;
     this.actionStore = options.actionStore;
+    this.calendarService = options.calendarService;
+    this.gmailApiService = options.gmailApiService;
+    this.taskStore = options.taskStore;
+    this.actionApprovals = options.actionApprovals;
+    this.memoryEngine = options.memoryEngine;
+    this.aiService = options.aiService;
   }
 
   public isQuietHours(now: Date = new Date()): boolean {
@@ -200,130 +245,178 @@ export class PersonalAssistantEngine {
     };
   }
 
-  public generateMorningBrief(userId: string, tenantId: string = 'default'): GroundedMorningBrief {
-    const brief_id = `brief_${Date.now()}`;
+  // R21 P1 — real, grounded Morning Brief. Replaces the previous entirely
+  // hardcoded implementation (fixed Korean event titles/fake email/fake
+  // tasks) with real Calendar/Gmail/Task/Approval reads, following the
+  // exact same CONNECTED/DISCONNECTED/ERROR convention and "never fabricate
+  // when a source is unavailable" discipline as
+  // src/assistant/daily-brief.pipeline.ts. Every dependency is optional so
+  // a partial construction degrades honestly instead of throwing.
+  public async generateMorningBrief(userId: string, tenantId: string = 'default', requestId?: string): Promise<GroundedMorningBrief> {
+    const brief_id = `brief_${crypto.randomUUID()}`;
     const now = new Date();
+    const reqId = requestId || `brief_${crypto.randomUUID()}`;
     const source_traces: GroundedMorningBrief['source_traces'] = [];
 
-    // 1. Gather Calendar Events
-    const events: GroundedMorningBrief['schedule_summary']['events'] = [
-      {
-        id: 'evt_100',
-        title: '프로젝트 미팅',
-        start_time: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 10, 0).toISOString(),
-        end_time: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 11, 0).toISOString(),
-        location: 'Meeting Room A',
-      },
-      {
-        id: 'evt_140',
-        title: '김대표 미팅',
-        start_time: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 14, 0).toISOString(),
-        end_time: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 15, 0).toISOString(),
-        location: 'Zoom',
-      },
-      {
-        id: 'evt_163',
-        title: '개발 검토',
-        start_time: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 16, 30).toISOString(),
-        end_time: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 17, 30).toISOString(),
-      },
-    ];
+    let events: GroundedMorningBrief['schedule_summary']['events'] = [];
+    let calendarStatus: 'CONNECTED' | 'DISCONNECTED' | 'ERROR' = 'CONNECTED';
+    if (this.calendarService) {
+      try {
+        const endOfDay = new Date(now);
+        endOfDay.setHours(23, 59, 59, 999);
+        const raw = await this.calendarService.listUpcomingEvents({ tenantId, timeMin: now.toISOString(), timeMax: endOfDay.toISOString(), maxResults: 20, requestId: reqId });
+        events = raw.map((e) => ({ id: e.id, title: e.title, start_time: e.start, end_time: e.end, attendees: e.attendees }));
+      } catch (error) {
+        events = [];
+        calendarStatus = error instanceof NagexError && error.code === 'GOOGLE_CALENDAR_DISCONNECTED' ? 'DISCONNECTED' : 'ERROR';
+      }
+    } else {
+      calendarStatus = 'DISCONNECTED';
+    }
+    for (const evt of events) source_traces.push({ type: 'CALENDAR', id: evt.id, label: `Event: ${evt.title}` });
 
-    for (const evt of events) {
-      source_traces.push({ type: 'CALENDAR', id: evt.id, label: `일정: ${evt.title}` });
+    let unreplied_emails: GroundedMorningBrief['attention_items']['unreplied_emails'] = [];
+    let gmailStatus: 'CONNECTED' | 'DISCONNECTED' | 'ERROR' = 'CONNECTED';
+    if (this.gmailApiService) {
+      try {
+        const result = await this.gmailApiService.search({ tenantId, query: 'is:unread newer_than:3d', requestId: reqId });
+        unreplied_emails = result.threads.slice(0, 10).map((t) => ({ id: t.threadId, snippet: t.snippet }));
+      } catch (error) {
+        unreplied_emails = [];
+        gmailStatus = error instanceof NagexError && error.code === 'GMAIL_DISCONNECTED' ? 'DISCONNECTED' : 'ERROR';
+      }
+    } else {
+      gmailStatus = 'DISCONNECTED';
+    }
+    for (const eml of unreplied_emails) source_traces.push({ type: 'EMAIL', id: eml.id, label: `Email: ${eml.snippet.slice(0, 60)}` });
+
+    let active_tasks: GroundedMorningBrief['attention_items']['active_tasks'] = [];
+    if (this.taskStore) {
+      try {
+        active_tasks = this.taskStore.list(tenantId, userId)
+          .filter((t) => t.status === 'ACTIVE' || t.status === 'RUNNING')
+          .map((t) => ({ id: t.taskId, title: t.name, status: t.status }));
+      } catch {
+        active_tasks = [];
+      }
+    }
+    for (const tsk of active_tasks) source_traces.push({ type: 'TASK', id: tsk.id, label: `Task: ${tsk.title}` });
+
+    let pending_approvals: GroundedMorningBrief['attention_items']['pending_approvals'] = [];
+    if (this.actionApprovals) {
+      try {
+        pending_approvals = this.actionApprovals.listPending(tenantId, userId, reqId).map((a) => ({ id: a.approvalId, action_type: a.toolId, description: `Approval needed: ${a.toolId}` }));
+      } catch {
+        pending_approvals = [];
+      }
+    }
+    for (const app of pending_approvals) source_traces.push({ type: 'APPROVAL', id: app.id, label: `Pending approval: ${app.description}` });
+
+    // Recommendation: the nearest upcoming event today, if any — grounded
+    // purely in the real calendar fact itself (deeper "found a related
+    // email/document" grounding belongs to the dedicated Meeting Prep
+    // pipeline, called separately once the user asks to prepare).
+    let recommendation: GroundedMorningBrief['recommendation'];
+    const upcoming = events
+      .filter((e) => new Date(e.start_time).getTime() > now.getTime())
+      .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())[0];
+    if (upcoming) {
+      recommendation = {
+        suggestion_id: `sug_${crypto.randomUUID()}`,
+        title: `Prepare for ${upcoming.title}`,
+        reason: `Because: You have "${upcoming.title}" coming up at ${new Date(upcoming.start_time).toLocaleTimeString()}.`,
+        action_type: 'MEETING_PREP',
+        target_id: upcoming.id,
+      };
     }
 
-    // 2. Gather Unreplied Emails
-    const unreplied_emails: GroundedMorningBrief['attention_items']['unreplied_emails'] = [
-      {
-        id: 'eml_kim_01',
-        subject: '가격 제안 수정 요청건 건',
-        sender: '김대표 <kim@partner.com>',
-      },
-    ];
-    for (const eml of unreplied_emails) {
-      source_traces.push({ type: 'EMAIL', id: eml.id, label: `이메일: ${eml.subject}` });
-    }
-
-    // 3. Gather Due Tasks
-    const due_tasks: GroundedMorningBrief['attention_items']['due_tasks'] = [
-      {
-        id: 'tsk_01',
-        title: '계약서 1차 검토 완료',
-        due_date: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 18, 0).toISOString(),
-        is_overdue: false,
-      },
-      {
-        id: 'tsk_02',
-        title: '주간 보고서 제출',
-        due_date: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 17, 0).toISOString(),
-        is_overdue: false,
-      },
-    ];
-    for (const tsk of due_tasks) {
-      source_traces.push({ type: 'TASK', id: tsk.id, label: `Task: ${tsk.title}` });
-    }
-
-    // 4. Gather Pending Approvals
-    const pending_approvals: GroundedMorningBrief['attention_items']['pending_approvals'] = [
-      {
-        id: 'app_01',
-        action_type: 'EMAIL_SEND',
-        description: '김대표 제안서 수정본 답장 이메일 발송',
-      },
-    ];
-    for (const app of pending_approvals) {
-      source_traces.push({ type: 'APPROVAL', id: app.id, label: `승인대기: ${app.description}` });
-    }
-
-    const brief: GroundedMorningBrief = {
+    return {
       brief_id,
       user_id: userId,
       tenant_id: tenantId,
       generated_at: now.toISOString(),
       greeting: 'Good morning.',
-      schedule_summary: {
-        event_count: events.length,
-        events,
-      },
+      calendarStatus,
+      gmailStatus,
+      schedule_summary: { event_count: events.length, events },
       attention_items: {
         unreplied_emails_count: unreplied_emails.length,
         unreplied_emails,
-        due_tasks_count: due_tasks.length,
-        due_tasks,
+        active_tasks_count: active_tasks.length,
+        active_tasks,
         pending_approvals_count: pending_approvals.length,
         pending_approvals,
       },
-      recommendation: {
-        suggestion_id: 'sug_brief_prep',
-        title: '14시 미팅 준비 추천',
-        reason: 'Because: You have a meeting with 김대표 at 14:00 and an unreplied proposal email.',
-        action_type: 'MEETING_PREP',
-        target_id: 'evt_140',
-      },
+      recommendation,
       source_traces,
     };
-
-    return brief;
   }
 
-  public executeQuickWake(userId: string, tenantId: string = 'default'): QuickWakeResult {
-    const brief = this.generateMorningBrief(userId, tenantId);
+  // R21 P1 — real, grounded Quick Wake. A proactive_suggestion is only ever
+  // populated when the nearest upcoming meeting (within 2 hours) has at
+  // least one real, actually-found related email or Vault document — never
+  // on proximity alone (explicit anti-pattern from the product directive:
+  // "no suggestion without grounding").
+  public async executeQuickWake(userId: string, tenantId: string = 'default', requestId?: string): Promise<QuickWakeResult> {
+    const reqId = requestId || `qw_${crypto.randomUUID()}`;
+    const brief = await this.generateMorningBrief(userId, tenantId, reqId);
     const reminders = this.reminderStore.listReminders(userId, 'ACTIVE');
+
+    const now = Date.now();
+    const nearest = brief.schedule_summary.events
+      .filter((e) => new Date(e.start_time).getTime() > now && new Date(e.start_time).getTime() - now <= 2 * 60 * 60 * 1000)
+      .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())[0];
+
+    let proactive_suggestion: QuickWakeResult['proactive_suggestion'] = null;
+    if (nearest) {
+      const grounded_on: Array<{ type: 'EMAIL' | 'VAULT'; id: string; label: string }> = [];
+      if (this.gmailApiService && nearest.attendees.length > 0) {
+        try {
+          const attendeeQuery = nearest.attendees.map((a) => `from:${a} OR to:${a}`).join(' OR ');
+          const result = await this.gmailApiService.search({ tenantId, query: attendeeQuery, requestId: reqId });
+          for (const thread of result.threads.slice(0, 3)) {
+            grounded_on.push({ type: 'EMAIL', id: thread.threadId, label: thread.snippet.slice(0, 60) });
+          }
+        } catch {
+          // Gmail unavailable — grounding check simply finds nothing; never fabricated.
+        }
+      }
+      if (this.vaultStore) {
+        try {
+          const nameHint = nearest.attendees[0]?.split('@')[0] || nearest.title;
+          const vaultHits = this.vaultStore.searchItems(tenantId, userId, nameHint);
+          for (const item of vaultHits.slice(0, 3)) {
+            grounded_on.push({ type: 'VAULT', id: item.vaultItemId, label: item.title });
+          }
+        } catch {
+          // no-op — grounding check only, never throws the whole Quick Wake.
+        }
+      }
+      if (grounded_on.length > 0) {
+        const minutesUntil = Math.round((new Date(nearest.start_time).getTime() - now) / 60000);
+        proactive_suggestion = {
+          event_id: nearest.id,
+          event_title: nearest.title,
+          minutes_until: minutesUntil,
+          reason: `Your "${nearest.title}" meeting is in ${minutesUntil} minutes, and I found ${grounded_on.length} related item${grounded_on.length === 1 ? '' : 's'}.`,
+          grounded_on,
+        };
+      }
+    }
 
     const summary_items: string[] = [];
     if (brief.schedule_summary.events.length > 0) {
       const nextEvt = brief.schedule_summary.events[0];
-      summary_items.push(`• 10:00에 ${nextEvt.title} 일정이 있습니다.`);
+      summary_items.push(`You have "${nextEvt.title}" at ${new Date(nextEvt.start_time).toLocaleTimeString()}.`);
     }
     if (brief.attention_items.unreplied_emails_count > 0) {
-      summary_items.push(`• 답장하지 않은 중요 메일이 ${brief.attention_items.unreplied_emails_count}건 있습니다 (${brief.attention_items.unreplied_emails[0].subject}).`);
+      summary_items.push(`${brief.attention_items.unreplied_emails_count} unread email(s) from the last few days.`);
     }
-    if (brief.attention_items.due_tasks_count > 0) {
-      summary_items.push(`• 오늘 마감 Task가 ${brief.attention_items.due_tasks_count}개 남았습니다.`);
+    if (brief.attention_items.active_tasks_count > 0) {
+      summary_items.push(`${brief.attention_items.active_tasks_count} active task(s).`);
     }
     if (reminders.length > 0) {
-      summary_items.push(`• 활성 Reminder가 ${reminders.length}개 설정되어 있습니다.`);
+      summary_items.push(`${reminders.length} active reminder(s).`);
     }
 
     return {
@@ -332,78 +425,127 @@ export class PersonalAssistantEngine {
           event_id: e.id,
           title: e.title,
           start_time: e.start_time,
-          prep_suggested: e.title.includes('김대표'),
+          prep_suggested: proactive_suggestion?.event_id === e.id,
         })),
-        unreplied_emails: brief.attention_items.unreplied_emails.map((e) => ({
-          email_id: e.id,
-          subject: e.subject,
-          sender: e.sender,
-          received_at: new Date(Date.now() - 3600000).toISOString(),
-        })),
-        due_tasks: brief.attention_items.due_tasks.map((t) => ({
-          task_id: t.id,
-          title: t.title,
-          due_date: t.due_date,
-          is_overdue: t.is_overdue,
-        })),
-        pending_approvals: brief.attention_items.pending_approvals.map((a) => ({
-          approval_id: a.id,
-          action_type: a.action_type,
-          description: a.description,
-        })),
-        active_reminders: reminders.map((r) => ({
-          reminder_id: r.reminder_id,
-          title: r.title,
-          scheduled_at: r.scheduled_at,
-        })),
+        unreplied_emails: brief.attention_items.unreplied_emails.map((e) => ({ email_id: e.id, snippet: e.snippet })),
+        active_tasks: brief.attention_items.active_tasks.map((t) => ({ task_id: t.id, title: t.title, status: t.status })),
+        pending_approvals: brief.attention_items.pending_approvals.map((a) => ({ approval_id: a.id, action_type: a.action_type, description: a.description })),
+        active_reminders: reminders.map((r) => ({ reminder_id: r.reminder_id, title: r.title, scheduled_at: r.scheduled_at })),
       },
+      proactive_suggestion,
       summary_items,
       summary_text: summary_items.join('\n'),
     };
   }
 
-  public generateMeetingPrepCard(userId: string, eventId: string, tenantId: string = 'default'): ContextualMeetingPrepCard {
-    const card: ContextualMeetingPrepCard = {
-      card_id: `prep_${Date.now()}`,
-      user_id: userId,
-      event_id: eventId,
-      event_title: '14:00 김대표 미팅',
-      meeting_time: '14:00',
-      minutes_until: 30,
-      attendees: ['Kim Dae-jin (김대표)', 'You'],
-      related_materials: [
-        {
-          type: 'VAULT',
-          id: 'doc_proposal_v3',
-          title: 'proposal-v3.pdf',
-          summary: '최신 가격 제안 및 서비스 범위 요약 문서',
-        },
-        {
-          type: 'EMAIL',
-          id: 'eml_kim_01',
-          title: '김대표 최근 이메일: 가격 제안 수정 요청건',
-          summary: '단가 10% 인하 요청 및 일정 1주일 단축 여부 문의',
-        },
-        {
-          type: 'MEMORY',
-          id: 'mem_prev_meeting',
-          title: '지난 회의 메모 (2026-09-10)',
-          summary: '예산 범위 확정 필요성 및 2차 검토 약속',
-        },
-      ],
-      past_discussions: [
-        '가격 제안 수정 요청 (단가 10% 인하)',
-        '일정 재협의 필요 (10월 초 착수 목표)',
-      ],
-      suggested_action: {
-        action_id: 'act_draft_revised_proposal',
-        label: '수정 제안서 답장 초안 작성',
-        requires_approval: true,
-      },
-      reason: 'Because: You have a meeting in 30 minutes with Kim Dae-jin regarding price negotiation.',
-    };
+  // R21 P1 — real, grounded Meeting Prep. Resolves the target event from
+  // real calendar data (by eventId, or the nearest upcoming event when
+  // omitted/not found), searches Gmail by real attendee emails, searches
+  // Vault/Memory by attendee/event-title keywords, and — only if an
+  // aiService is configured — asks the model to synthesize key points and
+  // a suggested agenda strictly grounded in what was actually found. When
+  // no aiService is configured, returns the real related_materials with
+  // empty key_points/suggested_agenda rather than fabricating either.
+  public async generateMeetingPrepCard(userId: string, eventId: string | undefined, tenantId: string = 'default', requestId?: string): Promise<ContextualMeetingPrepCard> {
+    const reqId = requestId || `prep_${crypto.randomUUID()}`;
+    const brief = await this.generateMorningBrief(userId, tenantId, reqId);
+    const now = Date.now();
 
-    return card;
+    let event = eventId ? brief.schedule_summary.events.find((e) => e.id === eventId) : undefined;
+    if (!event) {
+      event = brief.schedule_summary.events
+        .filter((e) => new Date(e.start_time).getTime() > now)
+        .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())[0];
+    }
+
+    if (!event) {
+      throw new NagexError({
+        code: 'MEETING_PREP_NO_EVENT',
+        category: 'NOT_FOUND',
+        message: 'No matching upcoming calendar event was found to prepare for.',
+        request_id: reqId,
+      });
+    }
+
+    const related_materials: ContextualMeetingPrepCard['related_materials'] = [];
+    let emailsDigest = '';
+    if (this.gmailApiService && event.attendees.length > 0) {
+      try {
+        const attendeeQuery = event.attendees.map((a) => `from:${a} OR to:${a}`).join(' OR ');
+        const result = await this.gmailApiService.search({ tenantId, query: attendeeQuery, requestId: reqId });
+        for (const thread of result.threads.slice(0, 5)) {
+          related_materials.push({ type: 'EMAIL', id: thread.threadId, title: 'Related email', summary: thread.snippet });
+        }
+        emailsDigest = result.threads.map((t) => `- ${t.snippet}`).join('\n');
+      } catch {
+        // Gmail unavailable — no email materials, never fabricated.
+      }
+    }
+
+    let vaultDigest = '';
+    if (this.vaultStore) {
+      try {
+        const nameHint = event.attendees[0]?.split('@')[0] || event.title;
+        const vaultHits = this.vaultStore.searchItems(tenantId, userId, nameHint);
+        for (const item of vaultHits.slice(0, 5)) {
+          // VaultItem has no content/body field (R18) — only title/type are
+          // real; never fabricate a document summary.
+          related_materials.push({ type: 'VAULT', id: item.vaultItemId, title: item.title, summary: item.type });
+        }
+        vaultDigest = vaultHits.map((i) => `- ${i.title} (${i.type})`).join('\n');
+      } catch {
+        // no-op
+      }
+    }
+
+    let memoryDigest = '';
+    if (this.memoryEngine) {
+      try {
+        const nameHint = event.attendees[0]?.split('@')[0] || event.title;
+        const memHits = this.memoryEngine.searchMemories(tenantId, userId, nameHint);
+        for (const mem of memHits.slice(0, 5)) {
+          related_materials.push({ type: 'MEMORY', id: mem.id, title: mem.content.subject, summary: `${mem.content.predicate}: ${String(mem.content.value)}` });
+        }
+        memoryDigest = memHits.map((m) => `- ${m.content.subject} ${m.content.predicate} ${String(m.content.value)}`).join('\n');
+      } catch {
+        // no-op
+      }
+    }
+
+    let key_points: string[] = [];
+    let suggested_agenda: string[] = [];
+    if (this.aiService) {
+      try {
+        const eventDigest = `${event.title} at ${event.start_time}${event.attendees.length > 0 ? `, attendees: ${event.attendees.join(', ')}` : ''}`;
+        const result = await this.aiService.meetingPrep({ eventDigest, emailsDigest, vaultDigest, memoryDigest, mode: 'auto', requestId: reqId });
+        key_points = result.data.keyPoints;
+        suggested_agenda = result.data.suggestedAgenda;
+      } catch {
+        // Model unavailable — real materials are still returned; key
+        // points/agenda simply stay empty rather than fabricated.
+        key_points = [];
+        suggested_agenda = [];
+      }
+    }
+
+    const minutesUntil = Math.max(0, Math.round((new Date(event.start_time).getTime() - now) / 60000));
+
+    return {
+      card_id: `prep_${crypto.randomUUID()}`,
+      user_id: userId,
+      event_id: event.id,
+      event_title: event.title,
+      meeting_time: event.start_time,
+      minutes_until: minutesUntil,
+      attendees: event.attendees,
+      related_materials,
+      key_points,
+      suggested_agenda,
+      suggested_action: related_materials.length > 0 || emailsDigest
+        ? { action_id: `act_followup_${event.id}`, label: 'Draft a follow-up', requires_approval: true }
+        : undefined,
+      reason: `Because: You have "${event.title}" in ${minutesUntil} minute${minutesUntil === 1 ? '' : 's'}.`,
+    };
   }
 
   public createPersonalWatch(params: {
@@ -442,11 +584,15 @@ export class PersonalAssistantEngine {
     return w;
   }
 
-  public evaluatePersonalWatches(userId: string, tenantId: string = 'default'): Array<{ watch: PersonalWatchCondition; triggered: boolean; notificationCreated: boolean }> {
+  // R21 P1 — now evaluates against the same real Morning Brief every other
+  // caller uses (previously called the hardcoded-fake generateMorningBrief,
+  // meaning Personal Watch triggers had never actually reflected real
+  // calendar/email/task state since R20).
+  public async evaluatePersonalWatches(userId: string, tenantId: string = 'default'): Promise<Array<{ watch: PersonalWatchCondition; triggered: boolean; notificationCreated: boolean }>> {
     const userWatches = this.listPersonalWatches(userId).filter((w) => w.status === 'ACTIVE');
     const results: Array<{ watch: PersonalWatchCondition; triggered: boolean; notificationCreated: boolean }> = [];
 
-    const brief = this.generateMorningBrief(userId, tenantId);
+    const brief = await this.generateMorningBrief(userId, tenantId);
 
     for (const watch of userWatches) {
       let triggered = false;
@@ -458,20 +604,20 @@ export class PersonalAssistantEngine {
         triggered = true;
         const eml = brief.attention_items.unreplied_emails[0];
         itemId = eml.id;
-        title = `[Watch Alert] 중요 이메일 감지`;
-        body = `답장하지 않은 이메일: ${eml.subject} (${eml.sender})`;
+        title = `Important email detected`;
+        body = `Unreplied email: ${eml.snippet}`;
       } else if (watch.condition_type === 'APPROVAL' && brief.attention_items.pending_approvals_count > 0) {
         triggered = true;
         const app = brief.attention_items.pending_approvals[0];
         itemId = app.id;
-        title = `[Watch Alert] 승인 대기 작업 감지`;
-        body = `승인 필요: ${app.description}`;
-      } else if (watch.condition_type === 'TASK' && brief.attention_items.due_tasks_count > 0) {
+        title = `Approval waiting`;
+        body = `Needs your approval: ${app.description}`;
+      } else if (watch.condition_type === 'TASK' && brief.attention_items.active_tasks_count > 0) {
         triggered = true;
-        const tsk = brief.attention_items.due_tasks[0];
+        const tsk = brief.attention_items.active_tasks[0];
         itemId = tsk.id;
-        title = `[Watch Alert] 마감 임박 작업`;
-        body = `오늘 마감 Task: ${tsk.title}`;
+        title = `Active task`;
+        body = `Task: ${tsk.title}`;
       }
 
       let notificationCreated = false;

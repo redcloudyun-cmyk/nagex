@@ -141,6 +141,27 @@ function normalizeBriefPriority(value: unknown): BriefPriority {
   return value === 'HIGH' || value === 'LOW' ? value : 'MEDIUM';
 }
 
+// ── R21 P1 — Meeting Prep synthesis ─────────────────────────────────────────
+// Same narrow contract as BriefResult above: the model only ever sees a
+// plain-text digest of already-real, already-fetched Calendar/Gmail/Vault/
+// Memory data (built by the CALLER, never raw provider objects), and
+// produces only a short "key things to know" list + a suggested agenda —
+// never a new fact, never a claim that any action was taken.
+export interface MeetingPrepResult {
+  keyPoints: string[];
+  suggestedAgenda: string[];
+}
+
+function normalizeMeetingPrep(text: string, requestId: string): MeetingPrepResult {
+  const raw = parseJsonObject(text, requestId, 'meeting prep');
+  const keyPointsRaw = Array.isArray(raw.keyPoints) ? raw.keyPoints : [];
+  const agendaRaw = Array.isArray(raw.suggestedAgenda) ? raw.suggestedAgenda : [];
+  return {
+    keyPoints: keyPointsRaw.filter((v): v is string => typeof v === 'string' && v.trim().length > 0).map((v) => v.trim()),
+    suggestedAgenda: agendaRaw.filter((v): v is string => typeof v === 'string' && v.trim().length > 0).map((v) => v.trim()),
+  };
+}
+
 function normalizeBrief(text: string, requestId: string): BriefResult {
   const raw = parseJsonObject(text, requestId, 'daily brief');
   const actionItemsRaw = Array.isArray(raw.actionItems) ? raw.actionItems : [];
@@ -416,6 +437,52 @@ export class AiService {
       ],
     });
     return { data: normalizeBrief(response.text, requestId), provider: response.provider, model: response.model, latencyMs: response.latencyMs, requestId: response.requestId };
+  }
+
+  // R21 P1 — Meeting Prep synthesis. eventDigest/emailsDigest/vaultDigest/
+  // memoryDigest are plain-text summaries the CALLER already built from real
+  // calendarService/gmailApiService/vaultStore/memoryEngine data (same
+  // "digest, never raw provider objects" convention as brief() above).
+  public async meetingPrep(input: {
+    eventDigest: string;
+    emailsDigest: string;
+    vaultDigest: string;
+    memoryDigest: string;
+    mode: RoutingMode;
+    requestId?: string;
+  }): Promise<AiServiceResponse<MeetingPrepResult>> {
+    const requestId = input.requestId || `meetingprep_${randomUUID()}`;
+    const response = await this.router.generate({
+      mode: input.mode,
+      requestId,
+      jsonMode: true,
+      validate: (text) => { normalizeMeetingPrep(text, requestId); },
+      messages: [
+        {
+          role: 'system',
+          content: [
+            'You are the NAgex Meeting Prep model. You are given four real, already-fetched digests for one specific upcoming meeting: the calendar event itself, recent email snippets involving the attendees, related Vault document titles, and related memory notes. You do not have and must not invent any other information.',
+            'Never invent a fact, a person, an email content, a past discussion, or a document that is not present in the digests below. If a digest says there is nothing, do not fabricate content to fill that gap.',
+            'Never claim to have sent an email, created/changed a calendar event, or executed any action. You are producing a read-only preparation summary only.',
+            'Each key point must be grounded in a specific fact from one of the digests (reference the relevant email/document/memory in the point itself) — never a generic meeting-prep platitude disconnected from the real data given.',
+            'The suggested agenda must be a short, practical list of topics to raise, each traceable to something real in the digests (an open question from a prior email, a topic from a related document, etc.) — never invented small talk or generic agenda filler.',
+            'Return JSON only with this exact shape:',
+            '{"keyPoints":["string grounded in a real digest fact", ...],"suggestedAgenda":["string", ...]}',
+            'If there is genuinely nothing groundable (all four digests are empty), return an empty keyPoints array and a minimal suggestedAgenda (e.g. just confirming the meeting purpose) — never fabricate content just to have some.',
+          ].join('\n'),
+        },
+        {
+          role: 'user',
+          content: [
+            `The meeting:\n${input.eventDigest || '(no details available)'}`,
+            `Related recent emails:\n${input.emailsDigest || '(none found)'}`,
+            `Related Vault documents:\n${input.vaultDigest || '(none found)'}`,
+            `Related memory notes:\n${input.memoryDigest || '(none found)'}`,
+          ].join('\n\n'),
+        },
+      ],
+    });
+    return { data: normalizeMeetingPrep(response.text, requestId), provider: response.provider, model: response.model, latencyMs: response.latencyMs, requestId: response.requestId };
   }
 
   public async chat(input: { message: string; mode: RoutingMode; requestId?: string; conversation?: Array<{ role: 'user' | 'assistant'; content: string }> }): Promise<AiServiceResponse<{ message: string }>> {

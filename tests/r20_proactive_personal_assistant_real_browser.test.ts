@@ -1,9 +1,38 @@
 process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY || 'test_openai_key';
 process.env.NAGEX_OPENAI_MODEL = process.env.NAGEX_OPENAI_MODEL || 'gpt-4o';
+// R21 P1 — required for GoogleCalendarService/GmailService to resolve a
+// config at all (readGoogleOAuthConfig returns null, hence real
+// DISCONNECTED, without these three set). Real Calendar/Gmail reads are
+// exercised below with fetch mocked at the transport layer only, matching
+// tests/daily_brief.test.ts's own convention — never a hand-rolled stand-in
+// for PersonalAssistantEngine's real logic, which is what's under test.
+process.env.GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || 'test_google_client_id';
+process.env.GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || 'test_google_client_secret';
+process.env.GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'https://nagex-test.agex.site/api/v1/oauth/google/callback';
+
+const MEETING_ATTENDEE = 'sarah@client.example.com';
+const MEETING_START = new Date(Date.now() + 45 * 60 * 1000);
+const MEETING_END = new Date(MEETING_START.getTime() + 30 * 60 * 1000);
 
 const origFetch = globalThis.fetch;
 globalThis.fetch = async function (input: any, init?: any) {
   const url = typeof input === 'string' ? input : input?.url || '';
+  if (url.includes('www.googleapis.com/calendar') && url.includes('/events?')) {
+    return new Response(JSON.stringify({
+      items: [{
+        id: 'evt_client_sync',
+        summary: 'Client strategy meeting',
+        start: { dateTime: MEETING_START.toISOString() },
+        end: { dateTime: MEETING_END.toISOString() },
+        attendees: [{ email: MEETING_ATTENDEE }],
+      }],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  }
+  if (url.includes('gmail.googleapis.com') && url.includes('/threads?')) {
+    return new Response(JSON.stringify({
+      threads: [{ id: 'thr_1', snippet: 'Following up on pricing flexibility for the proposal.' }],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  }
   if (url.includes('api.openai.com') || url.includes('api.nebius.ai') || url.includes('generativelanguage.googleapis.com') || url.includes('googleapis.com')) {
     return new Response(
       JSON.stringify({
@@ -29,6 +58,17 @@ import path from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { chromium, type Browser, type Page } from 'playwright';
 import { createServerInstance } from '../src/server_web.js';
+import { googleTokenStore, DEFAULT_GOOGLE_TENANT_ID } from '../src/integrations/google/token.store.js';
+import { GOOGLE_CALENDAR_SCOPES, GMAIL_SCOPES } from '../src/integrations/google/oauth.client.js';
+
+// Real (transport-mocked) Calendar+Gmail connection for the one shared
+// tenant every scenario below uses — so Morning Brief/Quick Wake/Meeting
+// Prep/Personal Watch all have real, grounded data to reflect, the same as
+// tests/r20_proactive_personal_assistant.test.ts's unit-level harness.
+// One shared token entry (Calendar and Gmail resolve access through the
+// same tenant-keyed store — see create-nagex-application.ts) covering both
+// scopes; getValidAccessToken never gates on scope, only existence/expiry.
+googleTokenStore.save(DEFAULT_GOOGLE_TENANT_ID, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: [...GOOGLE_CALENDAR_SCOPES, ...GMAIL_SCOPES].join(' ') });
 
 const ARTIFACT_DIR = 'C:/Users/redcl/.gemini/antigravity-ide/brain/d79b0b2e-f730-4ba8-bd1c-583d9b3ec8d8/screenshots';
 const LOCAL_SCREENSHOT_DIR = path.resolve('artifacts/screenshots');
@@ -90,7 +130,12 @@ test('R20 REAL BROWSER CERTIFICATION: Personal Proactive Assistant Scenarios (A-
     assert.equal(resp.status(), 200);
     const data = await resp.json();
     assert.equal(data.greeting, 'Good morning.');
-    assert.ok(data.source_traces.length >= 7);
+    assert.equal(data.calendarStatus, 'CONNECTED');
+    assert.equal(data.gmailStatus, 'CONNECTED');
+    // Real, grounded source traces: 1 calendar event + 1 email — never a
+    // fixed count independent of what was actually fetched.
+    assert.ok(data.source_traces.some((tr: any) => tr.type === 'CALENDAR' && tr.label.includes('Client strategy meeting')));
+    assert.ok(data.source_traces.some((tr: any) => tr.type === 'EMAIL'));
 
     // Open UI
     await page.goto(`${server.origin}/index.html`);
@@ -126,12 +171,13 @@ test('R20 REAL BROWSER CERTIFICATION: Personal Proactive Assistant Scenarios (A-
 
     const resp = await page.request.post(`${server.origin}/api/v1/personal/meeting-prep`, {
       headers: { 'x-principal-id': 'usr_admin_001', 'x-nagex-tenant': 'ten_production_01', 'Content-Type': 'application/json' },
-      data: { eventId: 'evt_140' },
+      data: { eventId: 'evt_client_sync' },
     });
     assert.equal(resp.status(), 200);
     const cardData = await resp.json();
-    assert.equal(cardData.event_title, '14:00 김대표 미팅');
-    assert.equal(cardData.related_materials.length, 3);
+    assert.equal(cardData.event_title, 'Client strategy meeting');
+    assert.deepEqual(cardData.attendees, ['sarah@client.example.com']);
+    assert.ok(cardData.related_materials.some((m: any) => m.type === 'EMAIL' && m.summary.includes('pricing flexibility')));
 
     await page.goto(`${server.origin}/index.html`);
     await page.waitForLoadState('domcontentloaded');

@@ -476,6 +476,17 @@ export function createNagexApplication(): NagexApplication {
     vaultStore,
     candidateStore,
     actionStore,
+    // R21 P1 — real Calendar/Gmail/Task/Approval/Memory/AI deps, the exact
+    // same already-real service instances every other route in this app
+    // uses (see dailyBriefTaskRunner above), so Morning Brief/Quick Wake/
+    // Meeting Prep/Personal Watch all reflect real data instead of the
+    // previous hardcoded fixture.
+    calendarService: googleCalendarService,
+    gmailApiService: gmailService,
+    taskStore,
+    actionApprovals,
+    memoryEngine,
+    aiService,
   });
 
   return {

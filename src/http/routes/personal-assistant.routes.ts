@@ -134,20 +134,22 @@ export const handlePersonalAssistantRoutes: AsyncRouteRegistrar<PersonalAssistan
 
   // 4. Quick Wake
   if (pathname === '/api/v1/personal/quick-wake' && method === 'GET') {
-    const result = assistantEngine.executeQuickWake(principalId, tenantId);
+    const result = await assistantEngine.executeQuickWake(principalId, tenantId, requestId);
     return { status: 200, data: result };
   }
 
   // 5. Grounded Morning Brief
   if (pathname === '/api/v1/personal/morning-brief' && method === 'GET') {
-    const brief = assistantEngine.generateMorningBrief(principalId, tenantId);
+    const brief = await assistantEngine.generateMorningBrief(principalId, tenantId, requestId);
     return { status: 200, data: brief };
   }
 
-  // 6. Contextual Meeting Prep Card
+  // 6. Contextual Meeting Prep Card. eventId is optional — when omitted,
+  // the pipeline resolves the nearest real upcoming event itself (never a
+  // hardcoded fallback id).
   if (pathname === '/api/v1/personal/meeting-prep' && method === 'POST') {
-    const eventId = typeof body?.eventId === 'string' ? body.eventId : 'evt_140';
-    const prepCard = assistantEngine.generateMeetingPrepCard(principalId, eventId, tenantId);
+    const eventId = typeof body?.eventId === 'string' ? body.eventId : undefined;
+    const prepCard = await assistantEngine.generateMeetingPrepCard(principalId, eventId, tenantId, requestId);
     return { status: 200, data: prepCard };
   }
 
@@ -176,7 +178,7 @@ export const handlePersonalAssistantRoutes: AsyncRouteRegistrar<PersonalAssistan
   }
 
   if (pathname === '/api/v1/personal/watches/evaluate' && method === 'POST') {
-    const results = assistantEngine.evaluatePersonalWatches(principalId, tenantId);
+    const results = await assistantEngine.evaluatePersonalWatches(principalId, tenantId);
     return { status: 200, data: { results } };
   }
 

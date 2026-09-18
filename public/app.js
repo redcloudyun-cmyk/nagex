@@ -3211,10 +3211,10 @@
           };
         }
         if (btnContinue) {
-          btnContinue.onclick = () => {
+          btnContinue.onclick = async () => {
             btnContinue.disabled = true;
             btnContinue.textContent = isKr ? '진행됨 ✓' : 'Accepted ✓';
-            renderUserApprovalCard(resolved, promptText);
+            await renderUserApprovalCard(resolved, promptText);
           };
         }
       }
@@ -3313,7 +3313,22 @@
     }
   }
 
-  function renderUserApprovalCard(resolved, promptText) {
+  // R21 P1 — this card previously ended in a fake setTimeout("Added to
+  // calendar ✓") that never called any real API — a false-success bug (the
+  // opposite of a silent failure, but just as untrustworthy: the user is
+  // told a real Google Calendar event now exists when none does). The
+  // calendar path below now performs the exact same real
+  // POST /api/v1/approvals -> approve -> POST /api/v1/tools/google-
+  // calendar/create-event sequence app.js's older requestCalendarApproval()
+  // uses, using whatever concrete fields the real resolved plan step
+  // already extracted (never fabricated) and falling back to a real
+  // free-slots lookup only for a genuinely missing time — never inventing
+  // a title or attendee. The Gmail/generic branches are not yet wired to a
+  // real execution path here (real Gmail grounding for an arbitrary
+  // ambient request needs more context than this card has); rather than
+  // fake success for those, they now honestly route to the real Approvals
+  // surface instead of claiming a real send/action happened.
+  async function renderUserApprovalCard(resolved, promptText) {
     const approvalCard = document.getElementById('ambient-user-approval-card');
     const headingEl = document.getElementById('ambient-approval-heading');
     const detailsEl = document.getElementById('ambient-approval-details-body');
@@ -3323,73 +3338,123 @@
     const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
     const isKr = window.NAGEX_I18N && window.NAGEX_I18N.getLocale() === 'ko';
 
-    const hasCalendar = resolved && (resolved.steps || []).some(s => s.resolvedToolId === 'google_calendar.create_event');
+    const calendarStep = resolved && (resolved.steps || []).find(s => s.resolvedToolId === GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID);
     const hasGmail = resolved && (resolved.steps || []).some(s => GMAIL_WRITE_TOOL_IDS.has(s.resolvedToolId));
 
     approvalCard.style.display = 'block';
 
-    if (hasCalendar || (promptText && (promptText.toLowerCase().includes('meeting') || promptText.includes('미팅')))) {
+    if (calendarStep || (promptText && (promptText.toLowerCase().includes('meeting') || promptText.includes('미팅')))) {
+      headingEl.textContent = isKr ? '준비 중...' : 'Preparing...';
+      detailsEl.innerHTML = `<p>${escapeHtml(isKr ? '캘린더를 확인하는 중입니다...' : 'Checking your calendar...')}</p>`;
+      actionsEl.innerHTML = '';
+
+      // Real params only: prefer whatever the real plan already extracted
+      // (AiService.plan() never invents a concrete date/time/attendee —
+      // see its system prompt); look up a real free slot only for
+      // whatever is genuinely still missing.
+      const params = (calendarStep && calendarStep.parameters) || {};
+      const summary = params.summary || promptText || (isKr ? '새 일정' : 'New event');
+      const attendees = Array.isArray(params.attendees) ? params.attendees : [];
+      let start = params.start || null;
+      let end = params.end || null;
+
+      if (!start || !end) {
+        const timeMin = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+        const timeMax = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
+        const freeSlotsRes = await apiFetch('/api/v1/tools/google-calendar/free-slots', { method: 'POST', body: JSON.stringify({ timeMin, timeMax }) });
+        const slot = freeSlotsRes && Array.isArray(freeSlotsRes.freeSlots) && freeSlotsRes.freeSlots.length > 0 ? freeSlotsRes.freeSlots[0] : null;
+        if (slot) { start = slot.start; end = slot.end; }
+      }
+
+      if (!start || !end) {
+        headingEl.textContent = isKr ? '캘린더를 연결해 주세요' : 'Connect your calendar to continue';
+        detailsEl.innerHTML = `<p>${escapeHtml(isKr ? 'Google Calendar가 연결되어 있지 않거나 여유 시간을 찾지 못했습니다.' : 'Google Calendar is not connected, or no open time could be found.')}</p>`;
+        return;
+      }
+
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+      const payload = { calendarId: 'primary', summary, description: promptText || '', start, end, timezone, attendees };
+      const startDate = new Date(start);
+      const endDate = new Date(end);
+
       headingEl.textContent = isKr ? '캘린더에 추가할 준비가 됐어요' : 'Ready to add to your calendar';
       detailsEl.innerHTML = `
         <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 0.85rem; margin-top: 0.5rem;">
-          <strong style="display: block; font-size: 0.95rem; color: #0f172a; margin-bottom: 0.3rem;">${isKr ? '클라이언트 미팅' : 'Client meeting'}</strong>
-          <div style="font-size: 0.85rem; color: #475569; margin-bottom: 0.2rem;">${isKr ? '내일 · 오후 3:00–4:00' : 'Tomorrow · 3:00–4:00 PM'}</div>
-          <div style="font-size: 0.85rem; color: #475569; margin-bottom: 0.4rem;">${isKr ? '참석자: 김대진' : 'Attendee: Kim Dae-jin'}</div>
-          <div style="font-size: 0.8rem; color: #64748b; border-top: 1px dashed #cbd5e1; padding-top: 0.4rem; margin-top: 0.4rem;">
-            <strong>Agenda:</strong>
-            <ul style="margin: 0.2rem 0 0 1.2rem; padding: 0;">
-              <li>Pricing discussion</li>
-              <li>Project schedule</li>
-            </ul>
-          </div>
+          <strong style="display: block; font-size: 0.95rem; color: #0f172a; margin-bottom: 0.3rem;">${escapeHtml(summary)}</strong>
+          <div style="font-size: 0.85rem; color: #475569; margin-bottom: 0.2rem;">${escapeHtml(startDate.toLocaleString())} – ${escapeHtml(endDate.toLocaleTimeString())}</div>
+          ${attendees.length ? `<div style="font-size: 0.85rem; color: #475569;">${isKr ? '참석자' : 'Attendees'}: ${escapeHtml(attendees.join(', '))}</div>` : ''}
         </div>
       `;
       actionsEl.innerHTML = `
         <div style="display: flex; align-items: center; gap: 0.6rem; margin-top: 0.85rem;">
           <button class="btn-mockup-primary" id="btn-ambient-approve-mutation" type="button">${isKr ? '캘린더에 추가' : 'Add to calendar'}</button>
-          <button class="btn-mockup-secondary" id="btn-ambient-edit-mutation" type="button">${isKr ? '수정' : 'Edit'}</button>
           <button class="btn-action-text" id="btn-ambient-reject-mutation" type="button" style="background:none; border:none; color:#64748b; font-size:0.85rem; cursor:pointer; padding:0.4rem 0.8rem;">${isKr ? '나중에' : 'Not now'}</button>
         </div>
       `;
+
+      const btnApprove = document.getElementById('btn-ambient-approve-mutation');
+      const btnReject = document.getElementById('btn-ambient-reject-mutation');
+      if (btnReject) btnReject.onclick = () => { approvalCard.style.display = 'none'; };
+      if (btnApprove) {
+        btnApprove.onclick = async () => {
+          btnApprove.disabled = true;
+          if (btnReject) btnReject.disabled = true;
+          btnApprove.textContent = isKr ? '요청 중...' : 'Requesting approval...';
+
+          const approval = await apiFetch('/api/v1/approvals', { method: 'POST', body: JSON.stringify({ toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, payload }) });
+          if (!approval || approval.error || !approval.approvalId) {
+            headingEl.textContent = isKr ? '완료하지 못했어요' : "I couldn't complete that";
+            detailsEl.innerHTML = `<div style="color:#991b1b;">${escapeHtml((approval && approval.error && approval.error.message) || (isKr ? '잠시 후 다시 시도해 주세요.' : 'Please try again in a moment.'))}</div>`;
+            actionsEl.innerHTML = '';
+            return;
+          }
+
+          btnApprove.textContent = isKr ? '추가하는 중...' : 'Adding to calendar...';
+          const approved = await apiFetch(`/api/v1/approvals/${approval.approvalId}/approve`, { method: 'POST' });
+          if (!approved || approved.error) {
+            headingEl.textContent = isKr ? '완료하지 못했어요' : "I couldn't complete that";
+            detailsEl.innerHTML = `<div style="color:#991b1b;">${escapeHtml(isKr ? '잠시 후 다시 시도해 주세요.' : 'Please try again in a moment.')}</div>`;
+            actionsEl.innerHTML = '';
+            return;
+          }
+
+          const result = await apiFetch('/api/v1/tools/google-calendar/create-event', { method: 'POST', body: JSON.stringify({ approvalId: approval.approvalId, payload: approved.canonicalPayload }) });
+          if (result && result.status === 'SUCCEEDED') {
+            headingEl.textContent = isKr ? '✓ 캘린더에 추가되었습니다' : '✓ Added to your calendar';
+            detailsEl.innerHTML = `
+              <div style="color:#059669; font-weight:600;">${escapeHtml(summary)}</div>
+              <div style="font-size:0.85rem; color:#475569;">${escapeHtml(startDate.toLocaleString())}</div>
+              ${result.externalUrl ? `<a href="${encodeURI(result.externalUrl)}" target="_blank" rel="noopener" style="font-size:0.85rem;">${isKr ? 'Google Calendar에서 열기' : 'Open in Google Calendar'} →</a>` : ''}
+            `;
+          } else {
+            headingEl.textContent = isKr ? '완료하지 못했어요' : "I couldn't complete that";
+            detailsEl.innerHTML = `<div style="color:#991b1b;">${escapeHtml(isKr ? '잠시 후 다시 시도해 주세요.' : 'Please try again in a moment.')}</div>`;
+          }
+          actionsEl.innerHTML = '';
+        };
+      }
     } else if (hasGmail) {
       headingEl.textContent = t('ambient.approval.readyEmail');
-      detailsEl.innerHTML = `
-        <div><strong>To:</strong> kim@example.com</div>
-        <div><strong>Subject:</strong> ${isKr ? '미팅 후속 공유건' : 'Meeting follow-up'}</div>
-      `;
+      detailsEl.innerHTML = `<div>${escapeHtml(isKr ? '이 초안의 실제 수신자/제목은 아직 준비되지 않았습니다. Approvals에서 이어서 진행해 주세요.' : "This draft's real recipient/subject isn't ready here yet — continue from Approvals.")}</div>`;
       actionsEl.innerHTML = `
-        <button class="btn-mockup-primary" id="btn-ambient-approve-mutation" type="button">${t('ambient.approval.sendEmail')}</button>
-        <button class="btn-mockup-secondary" id="btn-ambient-edit-mutation" type="button">${t('ambient.understanding.edit')}</button>
+        <button class="btn-mockup-secondary" id="btn-ambient-goto-approvals" type="button">${isKr ? 'Approvals로 이동' : 'Go to Approvals'}</button>
         <button class="btn-action-text" id="btn-ambient-reject-mutation" type="button">${t('ambient.approval.notNow')}</button>
       `;
+      const btnGoto = document.getElementById('btn-ambient-goto-approvals');
+      if (btnGoto) btnGoto.onclick = () => { closeAmbientOverlay(); switchTab('tab-approvals'); };
+      const btnReject = document.getElementById('btn-ambient-reject-mutation');
+      if (btnReject) btnReject.onclick = () => { approvalCard.style.display = 'none'; };
     } else {
       headingEl.textContent = isKr ? '실행 승인 준비 완료' : 'Ready for your approval';
-      detailsEl.innerHTML = `<div>${escapeHtml(promptText || 'Requested action')}</div>`;
+      detailsEl.innerHTML = `<div>${escapeHtml(promptText || 'Requested action')}</div><div style="font-size:0.8rem; color:#64748b; margin-top:0.4rem;">${escapeHtml(isKr ? 'Approvals에서 이 작업을 검토하고 실행할 수 있습니다.' : 'Review and run this from Approvals.')}</div>`;
       actionsEl.innerHTML = `
-        <button class="btn-mockup-primary" id="btn-ambient-approve-mutation" type="button">${t('ambient.approve')}</button>
+        <button class="btn-mockup-secondary" id="btn-ambient-goto-approvals" type="button">${isKr ? 'Approvals로 이동' : 'Go to Approvals'}</button>
         <button class="btn-action-text" id="btn-ambient-reject-mutation" type="button">${t('ambient.approval.notNow')}</button>
       `;
-    }
-
-    const btnApprove = document.getElementById('btn-ambient-approve-mutation');
-    const btnReject = document.getElementById('btn-ambient-reject-mutation');
-
-    if (btnApprove) {
-      btnApprove.onclick = () => {
-        btnApprove.disabled = true;
-        btnApprove.textContent = isKr ? '추가됨 ✓' : 'Added to calendar ✓';
-        setTimeout(() => {
-          headingEl.textContent = isKr ? '✓ 작업이 완료되었습니다' : '✓ Action completed successfully';
-          detailsEl.innerHTML = `<div style="color:#059669; font-weight:600;">${isKr ? '요청하신 작업이 성공적으로 실행되었습니다.' : 'The requested action has been executed.'}</div>`;
-          actionsEl.innerHTML = '';
-        }, 500);
-      };
-    }
-
-    if (btnReject) {
-      btnReject.onclick = () => {
-        approvalCard.style.display = 'none';
-      };
+      const btnGoto = document.getElementById('btn-ambient-goto-approvals');
+      if (btnGoto) btnGoto.onclick = () => { closeAmbientOverlay(); switchTab('tab-approvals'); };
+      const btnReject = document.getElementById('btn-ambient-reject-mutation');
+      if (btnReject) btnReject.onclick = () => { approvalCard.style.display = 'none'; };
     }
   }
 

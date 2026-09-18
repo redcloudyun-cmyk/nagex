@@ -1,9 +1,28 @@
 process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY || 'test_openai_key';
 process.env.NAGEX_OPENAI_MODEL = process.env.NAGEX_OPENAI_MODEL || 'gpt-4o';
+// R21 P1 — required for GoogleCalendarService to resolve a config at all
+// (readGoogleOAuthConfig returns null without these three set); the
+// Scenario 4 calendar-approval flow now performs a real free-slots lookup
+// (see app.js renderUserApprovalCard) rather than showing a hardcoded
+// fake schedule, so this test needs a real (transport-mocked) connection.
+process.env.GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || 'test_google_client_id';
+process.env.GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || 'test_google_client_secret';
+process.env.GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'https://nagex-test.agex.site/api/v1/oauth/google/callback';
 
 const origFetch = globalThis.fetch;
 globalThis.fetch = async function (input: any, init?: any) {
   const url = typeof input === 'string' ? input : input?.url || '';
+  // Real Google Calendar API shapes: freeBusy (empty busy -> whole window
+  // free) and event creation (must return a real-shaped id/htmlLink, or
+  // GoogleCalendarService's own real parsing throws GOOGLE_CALENDAR_
+  // MALFORMED_RESPONSE — never assume the generic model-shaped mock below
+  // covers Calendar's own distinct response contract).
+  if (url.includes('www.googleapis.com/calendar/v3/freeBusy')) {
+    return new Response(JSON.stringify({ calendars: { primary: { busy: [] } } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  }
+  if (url.includes('www.googleapis.com/calendar/v3') && url.includes('/events') && (init?.method === 'POST' || init?.method === 'PATCH')) {
+    return new Response(JSON.stringify({ id: 'evt_test_r21p0_1c', htmlLink: 'https://calendar.google.com/calendar/event?eid=evt_test_r21p0_1c' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  }
   if (url.includes('api.openai.com') || url.includes('api.nebius.ai') || url.includes('generativelanguage.googleapis.com') || url.includes('googleapis.com')) {
     const payloadObj = {
       goal: 'Research AI agent architecture',
@@ -46,6 +65,19 @@ import path from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { chromium, type Browser, type Page } from 'playwright';
 import { createServerInstance } from '../src/server_web.js';
+import { googleTokenStore, DEFAULT_GOOGLE_TENANT_ID } from '../src/integrations/google/token.store.js';
+import { GOOGLE_CALENDAR_SCOPES } from '../src/integrations/google/oauth.client.js';
+
+// This project's tsconfig deliberately has no "DOM" lib entry — this
+// declaration is scoped to just this file, only ever referenced inside a
+// Playwright page.waitForFunction callback, which actually executes in the
+// real browser, not in this TS-compiled Node process.
+declare const document: any;
+
+// Real (transport-mocked) Calendar connection for the default tenant every
+// scenario below runs as (app.js's apiFetch sends x-nagex-tenant:
+// ten_production_01 / x-principal-id: usr_admin_001 by default).
+googleTokenStore.save(DEFAULT_GOOGLE_TENANT_ID, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GOOGLE_CALENDAR_SCOPES.join(' ') });
 
 const ARTIFACT_DIR = 'C:/Users/redcl/.gemini/antigravity-ide/brain/0c158dbd-56ec-400e-8cb7-91fef63699dd';
 const LOCAL_SCREENSHOT_DIR = path.resolve('artifacts/screenshots');
@@ -172,10 +204,32 @@ test('R21 P0.1C REAL BROWSER CERTIFICATION: Clone Assistant Mockup Scenarios & V
       await page.click('#btn-ambient-understanding-continue');
 
       await page.waitForSelector('#ambient-user-approval-card', { state: 'visible' });
+      // The card now performs a real free-slots lookup before rendering
+      // "Ready to add to your calendar" — wait for the real Approve button
+      // (only rendered once that lookup resolves), not just card visibility.
+      await page.waitForSelector('#btn-ambient-approve-mutation', { state: 'visible', timeout: 10000 });
       const approvalHeading = await page.textContent('#ambient-approval-heading');
       assert.equal(approvalHeading?.trim(), 'Ready to add to your calendar');
 
       await saveScreenshot(page, 'desktop_calendar_approval_en.png');
+
+      // R21 P1 — this used to be a fake setTimeout("Added to calendar ✓")
+      // that never called any real API. Clicking Add to calendar must now
+      // perform a real approve -> execute round trip and land on a real
+      // success state with a real Google Calendar link — never a
+      // client-side-only "done" state.
+      await page.click('#btn-ambient-approve-mutation');
+      await page.waitForSelector('#ambient-approval-heading', { state: 'visible' });
+      await page.waitForFunction(
+        () => document.getElementById('ambient-approval-heading')?.textContent?.includes('Added to your calendar'),
+        undefined,
+        { timeout: 10000 },
+      );
+      const doneHeading = await page.textContent('#ambient-approval-heading');
+      assert.ok(doneHeading?.includes('Added to your calendar'));
+      const calendarLink = await page.$('#ambient-approval-details-body a[href*="calendar.google.com"]');
+      assert.ok(calendarLink, 'expected a real Google Calendar link in the success state, not a fabricated one');
+
       await page.close();
     }
 

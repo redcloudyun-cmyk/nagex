@@ -1,9 +1,23 @@
 process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY || 'test_openai_key';
 process.env.NAGEX_OPENAI_MODEL = process.env.NAGEX_OPENAI_MODEL || 'gpt-4o';
+// R21 P1 — required for GoogleCalendarService to resolve a config at all;
+// the calendar-approval card now performs a real free-slots lookup and a
+// real event-creation call (see app.js renderUserApprovalCard) rather than
+// showing hardcoded fake content, so this test needs a real
+// (transport-mocked) connection.
+process.env.GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || 'test_google_client_id';
+process.env.GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || 'test_google_client_secret';
+process.env.GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'https://nagex-test.agex.site/api/v1/oauth/google/callback';
 
 const origFetch = globalThis.fetch;
 globalThis.fetch = async function (input: any, init?: any) {
   const url = typeof input === 'string' ? input : input?.url || '';
+  if (url.includes('www.googleapis.com/calendar/v3/freeBusy')) {
+    return new Response(JSON.stringify({ calendars: { primary: { busy: [] } } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  }
+  if (url.includes('www.googleapis.com/calendar/v3') && url.includes('/events') && (init?.method === 'POST' || init?.method === 'PATCH')) {
+    return new Response(JSON.stringify({ id: 'evt_test_p0ux', htmlLink: 'https://calendar.google.com/calendar/event?eid=evt_test_p0ux' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  }
   if (url.includes('api.openai.com') || url.includes('api.nebius.ai') || url.includes('generativelanguage.googleapis.com') || url.includes('googleapis.com')) {
     const payloadObj = {
       goal: 'Prepare client meeting',
@@ -45,6 +59,10 @@ import path from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { chromium, type Browser, type Page } from 'playwright';
 import { createServerInstance } from '../src/server_web.js';
+import { googleTokenStore, DEFAULT_GOOGLE_TENANT_ID } from '../src/integrations/google/token.store.js';
+import { GOOGLE_CALENDAR_SCOPES } from '../src/integrations/google/oauth.client.js';
+
+googleTokenStore.save(DEFAULT_GOOGLE_TENANT_ID, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GOOGLE_CALENDAR_SCOPES.join(' ') });
 
 const ARTIFACT_DIR = 'C:/Users/redcl/.gemini/antigravity-ide/brain/d79b0b2e-f730-4ba8-bd1c-583d9b3ec8d8/screenshots';
 const LOCAL_SCREENSHOT_DIR = path.resolve('artifacts/screenshots');
@@ -145,6 +163,10 @@ test('R21 P0 REAL BROWSER CERTIFICATION: UX Intent Interaction Principles (Scena
 
       await page.click('#btn-ambient-understanding-continue');
       await page.waitForSelector('#ambient-user-approval-card', { state: 'visible' });
+      // The card now performs a real free-slots lookup before rendering
+      // "Ready to add to your calendar" — wait for the real Approve button
+      // (only rendered once that lookup resolves), not just card visibility.
+      await page.waitForSelector('#btn-ambient-approve-mutation', { state: 'visible', timeout: 10000 });
 
       const heading = await page.textContent('#ambient-approval-heading');
       assert.match(heading || '', /Ready to add to your calendar/);

@@ -224,6 +224,11 @@ export interface UpcomingCalendarEvent {
   status: string | null;
   updated: string | null;
   source?: string;
+  // R21 P1 — real Google attendee emails, needed to ground Meeting Prep's
+  // Gmail/Vault/Memory search in the actual people on the invite rather
+  // than guessing from the event title. Defaults to [] (never fabricated)
+  // when Google returns no attendees array (e.g. a solo event).
+  attendees: string[];
 }
 
 // A Google Calendar event's start/end is either a timed `dateTime` or an
@@ -267,6 +272,11 @@ export async function listUpcomingCalendarEvents(
       status: typeof item.status === 'string' ? item.status : null,
       updated: typeof item.updated === 'string' ? item.updated : null,
       source: params.calendarId || 'primary',
+      attendees: Array.isArray(item.attendees)
+        ? (item.attendees as Array<Record<string, unknown>>)
+            .map((a) => (typeof a.email === 'string' ? a.email : null))
+            .filter((email): email is string => email !== null)
+        : [],
     }));
 }
 

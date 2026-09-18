@@ -1,3 +1,12 @@
+// R20 Personal Proactive Assistant — rewritten under R21 P1 after
+// PersonalAssistantEngine's Morning Brief / Quick Wake / Meeting Prep
+// trio was found to be entirely hardcoded fictional data (never reachable
+// from any real frontend, and silently used by Personal Watch's real
+// trigger evaluation). These now call the exact real GoogleCalendarService/
+// GmailService/TaskStore/ActionApprovalStore/VaultStore/MemoryEngine/
+// AiService instances (fetch/model transport mocked, same pattern as
+// tests/daily_brief.test.ts), never a hand-rolled stand-in for the engine
+// logic actually under test.
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as fs from 'node:fs';
@@ -5,8 +14,41 @@ import * as path from 'node:path';
 import { PersonalReminderStore } from '../src/personal/personal-reminder.store.js';
 import { PersonalAssistantEngine } from '../src/personal/personal-assistant.engine.js';
 import { NotificationStore } from '../src/notifications/notification.store.js';
+import { InMemoryGoogleOAuthTokenStore } from '../src/integrations/google/token.store.js';
+import { GOOGLE_CALENDAR_SCOPES, GMAIL_SCOPES, type GoogleOAuthConfig } from '../src/integrations/google/oauth.client.js';
+import { ActionApprovalStore } from '../src/governance/action-approval.store.js';
+import { AuditLogger } from '../src/governance/audit.logger.js';
+import { MemoryEngine } from '../src/context/memory.engine.js';
+import { VaultStore } from '../src/workspace/vault.store.js';
+import { TaskStore } from '../src/tasks/task.store.js';
+import { GoogleCalendarService } from '../src/modules/calendar/index.js';
+import { GmailService } from '../src/modules/gmail/gmail.service.js';
+import { AiService } from '../src/model-gateway/ai-service.js';
+import { UnifiedModelRouter } from '../src/model-gateway/unified-model-router.js';
+import type { ModelProvider, ModelRequest, ModelResponse, ProviderStatus } from '../src/model-gateway/model-provider.js';
 
-test('R20 Personal Proactive Assistant Test Suite', async (t) => {
+function jsonResponse(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
+}
+
+const config: GoogleOAuthConfig = { clientId: 'cid', clientSecret: 'csecret', redirectUri: 'https://nagex-test.agex.site/api/v1/oauth/google/callback' };
+const CAL_SCOPE = GOOGLE_CALENDAR_SCOPES.join(' ');
+const GMAIL_SCOPE = GMAIL_SCOPES.join(' ');
+
+function fakeModelProvider(reply: () => string | Error, name = 'nebius'): ModelProvider {
+  return {
+    name,
+    model: 'test-model',
+    status: (): ProviderStatus => ({ configured: true, available: true, provider: name, model: 'test-model', status: 'LIVE', lastCheckedAt: null, degradedReason: null }),
+    generate: async (request: ModelRequest): Promise<ModelResponse> => {
+      const result = reply();
+      if (result instanceof Error) throw result;
+      return { text: result, provider: name, model: 'test-model', latencyMs: 1, requestId: request.requestId };
+    },
+  };
+}
+
+test('R20/R21 P1 Personal Proactive Assistant Test Suite', async (t) => {
   const tmpDir = path.join(process.cwd(), '.nagex_test_r20_' + Date.now());
   if (!fs.existsSync(tmpDir)) {
     fs.mkdirSync(tmpDir, { recursive: true });
@@ -20,22 +62,87 @@ test('R20 Personal Proactive Assistant Test Suite', async (t) => {
 
   const reminderStore = new PersonalReminderStore(tmpDir);
   const notificationStore = new NotificationStore({ dir: path.join(tmpDir, 'notifications') });
-  const assistantEngine = new PersonalAssistantEngine({
-    reminderStore,
-    notificationStore,
-  });
 
   const userIdA = 'usr_alice_01';
   const userIdB = 'usr_bob_02';
   const tenantId = 'ten_production_01';
+  const attendeeEmail = 'sarah@client.example.com';
+
+  // Real event window: "now + 45 minutes" so both the Morning Brief and
+  // the 2h Quick Wake proximity threshold pick it up deterministically
+  // regardless of when in the day this test runs.
+  const meetingStart = new Date(Date.now() + 45 * 60 * 1000);
+  const meetingEnd = new Date(meetingStart.getTime() + 30 * 60 * 1000);
+
+  function buildEngine(opts: { modelReply?: () => string | Error } = {}) {
+    const calendarTokenStore = new InMemoryGoogleOAuthTokenStore();
+    const gmailTokenStore = new InMemoryGoogleOAuthTokenStore();
+    const approvals = new ActionApprovalStore();
+    const audit = new AuditLogger();
+    const memoryEngine = new MemoryEngine({ dir: path.join(tmpDir, 'memories') });
+    const vaultStore = new VaultStore();
+    const taskStore = new TaskStore({ dir: path.join(tmpDir, 'tasks') });
+
+    calendarTokenStore.save(tenantId, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: CAL_SCOPE });
+    gmailTokenStore.save(tenantId, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GMAIL_SCOPE });
+
+    const calendarFetch: typeof fetch = async () => jsonResponse({
+      items: [{
+        id: 'evt_client_sync',
+        summary: 'Client strategy meeting',
+        start: { dateTime: meetingStart.toISOString() },
+        end: { dateTime: meetingEnd.toISOString() },
+        attendees: [{ email: attendeeEmail }],
+      }],
+    });
+    const gmailFetch: typeof fetch = async (url: any) => {
+      const u = String(url);
+      if (u.includes('/threads?')) {
+        return jsonResponse({ threads: [{ id: 'thr_1', snippet: 'Following up on pricing flexibility for the proposal.' }] });
+      }
+      return jsonResponse({ threads: [] });
+    };
+
+    const calendarService = new GoogleCalendarService(calendarTokenStore, approvals, audit, memoryEngine, calendarFetch, () => config);
+    const gmailApiService = new GmailService(gmailTokenStore, approvals, audit, memoryEngine, gmailFetch, () => config);
+
+    const modelProvider = fakeModelProvider(opts.modelReply ?? (() => JSON.stringify({
+      keyPoints: ['The client asked about pricing flexibility in a recent email.'],
+      suggestedAgenda: ['Confirm timeline', 'Discuss pricing'],
+    })));
+    const aiService = new AiService(new UnifiedModelRouter([modelProvider], { info: () => {}, warn: () => {} }));
+
+    // A real Vault item and a real Memory record so related_materials has
+    // genuine, non-fabricated content to assert against.
+    vaultStore.saveItem({ tenantId, userId: userIdA, type: 'DOCUMENT', title: 'Proposal v3', storageRef: 'ref_1', sourceRef: 'sarah' });
+    memoryEngine.proposeMemory('PERSONAL', tenantId, userIdA, { subject: 'sarah', predicate: 'prefers', value: 'concise meeting briefs' });
+    for (const m of memoryEngine.listMemories(tenantId, userIdA)) memoryEngine.activateMemory(m.id, tenantId, userIdA);
+
+    // A real ONE_TIME task and a real pending approval, matching daily-
+    // brief.pipeline.ts's own "ACTIVE/RUNNING" definition of an active task.
+    taskStore.create({ tenantId, ownerId: userIdA, name: 'Send follow-up after client meeting', objective: 'Send a follow-up email after the client meeting', type: 'ONE_TIME', trigger: { type: 'MANUAL' } });
+    approvals.request({ toolId: 'gmail.send_email', tenantId, principalId: userIdA, payload: { to: attendeeEmail, subject: 'Follow-up' } });
+
+    const engine = new PersonalAssistantEngine({
+      reminderStore,
+      notificationStore,
+      vaultStore,
+      calendarService,
+      gmailApiService,
+      taskStore,
+      actionApprovals: approvals,
+      memoryEngine,
+      aiService,
+    });
+    return engine;
+  }
 
   await t.test('1. Reminder create, parse, fire, cancel & restart persistence', () => {
-    // Natural language parse
-    const parsed = assistantEngine.parseNaturalLanguageReminder('30분 뒤에 김대표에게 전화하라고 알려줘');
+    const bareEngine = new PersonalAssistantEngine({ reminderStore, notificationStore });
+    const parsed = bareEngine.parseNaturalLanguageReminder('30분 뒤에 김대표에게 전화하라고 알려줘');
     assert.equal(parsed.title, '김대표에게 전화');
     assert.ok(parsed.scheduled_at);
 
-    // Create persistent reminder
     const rem = reminderStore.createReminder({
       user_id: userIdA,
       title: parsed.title,
@@ -46,112 +153,134 @@ test('R20 Personal Proactive Assistant Test Suite', async (t) => {
     assert.ok(rem.reminder_id.startsWith('rem_'));
     assert.equal(rem.status, 'ACTIVE');
 
-    // List reminders
     const activeList = reminderStore.listReminders(userIdA, 'ACTIVE');
     assert.equal(activeList.length, 1);
     assert.equal(activeList[0].title, '김대표에게 전화');
 
-    // Due reminders check with future time
     const future = new Date(Date.now() + 40 * 60 * 1000);
     const dueReminders = reminderStore.getDueReminders(future);
     assert.equal(dueReminders.length, 1);
     assert.equal(dueReminders[0].reminder_id, rem.reminder_id);
 
-    // Cancel reminder
     const updated = reminderStore.updateStatus(rem.reminder_id, userIdA, 'CANCELLED');
     assert.equal(updated?.status, 'CANCELLED');
     assert.equal(reminderStore.listReminders(userIdA, 'ACTIVE').length, 0);
 
-    // Restart persistence test
     const freshStore = new PersonalReminderStore(tmpDir);
     const reloaded = freshStore.getReminder(rem.reminder_id);
     assert.ok(reloaded);
     assert.equal(reloaded?.status, 'CANCELLED');
   });
 
-  await t.test('2. Grounded Morning Brief & Source Traceability', () => {
-    const brief = assistantEngine.generateMorningBrief(userIdA, tenantId);
+  await t.test('2. Grounded Morning Brief reflects real Calendar/Gmail/Task/Approval data, never fabricated content', async () => {
+    const engine = buildEngine();
+    const brief = await engine.generateMorningBrief(userIdA, tenantId);
 
     assert.equal(brief.user_id, userIdA);
-    assert.equal(brief.greeting, 'Good morning.');
-    assert.equal(brief.schedule_summary.event_count, 3);
+    assert.equal(brief.calendarStatus, 'CONNECTED');
+    assert.equal(brief.gmailStatus, 'CONNECTED');
+    assert.equal(brief.schedule_summary.event_count, 1);
+    assert.equal(brief.schedule_summary.events[0].title, 'Client strategy meeting');
+    assert.deepEqual(brief.schedule_summary.events[0].attendees, [attendeeEmail]);
     assert.equal(brief.attention_items.unreplied_emails_count, 1);
-    assert.equal(brief.attention_items.due_tasks_count, 2);
+    assert.ok(brief.attention_items.unreplied_emails[0].snippet.includes('pricing flexibility'));
+    assert.equal(brief.attention_items.active_tasks_count, 1);
+    assert.equal(brief.attention_items.active_tasks[0].title, 'Send follow-up after client meeting');
     assert.equal(brief.attention_items.pending_approvals_count, 1);
 
-    // Verify grounding and source traces
-    assert.ok(brief.source_traces.length >= 7);
-    const calTrace = brief.source_traces.find((t) => t.type === 'CALENDAR');
-    assert.ok(calTrace);
-    assert.ok(calTrace?.label.includes('프로젝트 미팅'));
+    const calTrace = brief.source_traces.find((tr) => tr.type === 'CALENDAR');
+    assert.ok(calTrace?.label.includes('Client strategy meeting'));
 
-    // Grounded recommendation explainability
     assert.ok(brief.recommendation);
     assert.ok(brief.recommendation?.reason.startsWith('Because:'));
+    assert.ok(brief.recommendation?.reason.includes('Client strategy meeting'));
   });
 
-  await t.test('3. Quick Wake real context query', () => {
-    const qw = assistantEngine.executeQuickWake(userIdA, tenantId);
+  await t.test('3. Quick Wake surfaces a proactive suggestion only when genuinely grounded', async () => {
+    const engine = buildEngine();
+    const qw = await engine.executeQuickWake(userIdA, tenantId);
 
     assert.ok(qw.right_now.upcoming_meetings.length > 0);
     assert.ok(qw.right_now.unreplied_emails.length > 0);
-    assert.ok(qw.right_now.due_tasks.length > 0);
+    assert.ok(qw.right_now.active_tasks.length > 0);
     assert.ok(qw.summary_items.length > 0);
-    assert.ok(qw.summary_text.includes('일정이 있습니다'));
+
+    // Grounded: the meeting is within 2h AND a real related email was found.
+    assert.ok(qw.proactive_suggestion);
+    assert.equal(qw.proactive_suggestion?.event_id, 'evt_client_sync');
+    assert.ok(qw.proactive_suggestion!.grounded_on.length > 0);
+    assert.ok(qw.proactive_suggestion!.grounded_on.some((g) => g.type === 'EMAIL'));
+
+    // Not grounded: no calendar/gmail configured at all -> no suggestion,
+    // never fabricated on proximity/absence alone.
+    const bareEngine = new PersonalAssistantEngine({ reminderStore, notificationStore });
+    const bareQw = await bareEngine.executeQuickWake(userIdA, tenantId);
+    assert.equal(bareQw.proactive_suggestion, null);
   });
 
-  await t.test('4. Contextual Meeting Preparation Card & Vault/Email retrieval', () => {
-    const card = assistantEngine.generateMeetingPrepCard(userIdA, 'evt_140', tenantId);
+  await t.test('4. Contextual Meeting Prep Card — real Vault/Email/Memory retrieval and AI-grounded synthesis', async () => {
+    const engine = buildEngine();
+    const card = await engine.generateMeetingPrepCard(userIdA, 'evt_client_sync', tenantId);
 
-    assert.equal(card.event_title, '14:00 김대표 미팅');
-    assert.equal(card.minutes_until, 30);
-    assert.equal(card.related_materials.length, 3);
+    assert.equal(card.event_title, 'Client strategy meeting');
+    assert.deepEqual(card.attendees, [attendeeEmail]);
+    assert.ok(card.minutes_until <= 45 && card.minutes_until >= 0);
 
     const vaultMat = card.related_materials.find((m) => m.type === 'VAULT');
-    assert.equal(vaultMat?.title, 'proposal-v3.pdf');
+    assert.equal(vaultMat?.title, 'Proposal v3');
 
     const emailMat = card.related_materials.find((m) => m.type === 'EMAIL');
-    assert.ok(emailMat?.title.includes('가격 제안 수정 요청건'));
+    assert.ok(emailMat?.summary.includes('pricing flexibility'));
 
     const memoryMat = card.related_materials.find((m) => m.type === 'MEMORY');
-    assert.ok(memoryMat?.title.includes('지난 회의 메모'));
+    assert.ok(memoryMat);
+
+    assert.deepEqual(card.key_points, ['The client asked about pricing flexibility in a recent email.']);
+    assert.deepEqual(card.suggested_agenda, ['Confirm timeline', 'Discuss pricing']);
 
     assert.ok(card.suggested_action);
     assert.equal(card.suggested_action?.requires_approval, true);
     assert.ok(card.reason.startsWith('Because:'));
+
+    // No matching event id and no upcoming event at all -> real NOT_FOUND,
+    // never a fabricated card.
+    const emptyEngine = new PersonalAssistantEngine({ reminderStore, notificationStore });
+    await assert.rejects(
+      () => emptyEngine.generateMeetingPrepCard(userIdA, undefined, tenantId),
+      (error: any) => error.code === 'MEETING_PREP_NO_EVENT',
+    );
   });
 
-  await t.test('5. Personal Watch trigger & deduplication', () => {
-    const watch = assistantEngine.createPersonalWatch({
+  await t.test('5. Personal Watch trigger & deduplication, now evaluated against real brief data', async () => {
+    const engine = buildEngine();
+    const watch = engine.createPersonalWatch({
       user_id: userIdA,
       tenant_id: tenantId,
-      title: '중요 메일 감시 Watch',
+      title: 'Important email watch',
       condition_type: 'EMAIL',
       criteria: 'unreplied',
     });
 
     assert.equal(watch.status, 'ACTIVE');
 
-    // First evaluation: condition true -> notification created
-    const res1 = assistantEngine.evaluatePersonalWatches(userIdA, tenantId);
+    const res1 = await engine.evaluatePersonalWatches(userIdA, tenantId);
     assert.equal(res1.length, 1);
     assert.equal(res1[0].triggered, true);
     assert.equal(res1[0].notificationCreated, true);
 
-    // Second evaluation on SAME condition & SAME item: deduped (no new notification)
-    const res2 = assistantEngine.evaluatePersonalWatches(userIdA, tenantId);
+    const res2 = await engine.evaluatePersonalWatches(userIdA, tenantId);
     assert.equal(res2.length, 1);
     assert.equal(res2[0].triggered, true);
-    assert.equal(res2[0].notificationCreated, false); // DEDUPED!
+    assert.equal(res2[0].notificationCreated, false); // DEDUPED
 
-    // Pause watch test
-    assistantEngine.toggleWatchStatus(watch.watch_id, userIdA, 'PAUSED');
-    const res3 = assistantEngine.evaluatePersonalWatches(userIdA, tenantId);
-    assert.equal(res3.length, 0); // No active watches evaluated
+    engine.toggleWatchStatus(watch.watch_id, userIdA, 'PAUSED');
+    const res3 = await engine.evaluatePersonalWatches(userIdA, tenantId);
+    assert.equal(res3.length, 0);
   });
 
   await t.test('6. Routine candidate proposal & explicit user confirmation', () => {
-    const candidate = assistantEngine.proposeRoutineCandidate({
+    const engine = new PersonalAssistantEngine({ reminderStore, notificationStore });
+    const candidate = engine.proposeRoutineCandidate({
       user_id: userIdA,
       tenant_id: tenantId,
       title: '오전 미팅 준비 Routine',
@@ -166,12 +295,10 @@ test('R20 Personal Proactive Assistant Test Suite', async (t) => {
     assert.equal(candidate.status, 'PROPOSED');
     assert.equal(candidate.confidence, 0.95);
 
-    // User confirms candidate
-    const confirmed = assistantEngine.confirmRoutineCandidate(userIdA, candidate.routine_id, true);
+    const confirmed = engine.confirmRoutineCandidate(userIdA, candidate.routine_id, true);
     assert.equal(confirmed?.status, 'CONFIRMED');
 
-    // Confirm candidate for user B isolation test
-    const bobCandidate = assistantEngine.proposeRoutineCandidate({
+    const bobCandidate = engine.proposeRoutineCandidate({
       user_id: userIdB,
       tenant_id: tenantId,
       title: 'Bob Routine',
@@ -183,12 +310,11 @@ test('R20 Personal Proactive Assistant Test Suite', async (t) => {
       source_memory_ids: ['mem_bob_01'],
     });
 
-    assert.equal(assistantEngine.listRoutineCandidates(userIdA).length, 1);
-    assert.equal(assistantEngine.listRoutineCandidates(userIdB).length, 1);
-    assert.equal(assistantEngine.listRoutineCandidates(userIdB)[0].routine_id, bobCandidate.routine_id);
+    assert.equal(engine.listRoutineCandidates(userIdA).length, 1);
+    assert.equal(engine.listRoutineCandidates(userIdB).length, 1);
+    assert.equal(engine.listRoutineCandidates(userIdB)[0].routine_id, bobCandidate.routine_id);
 
-    // Cross-user confirmation access attempt fails
-    const illegalConfirm = assistantEngine.confirmRoutineCandidate(userIdA, bobCandidate.routine_id, true);
+    const illegalConfirm = engine.confirmRoutineCandidate(userIdA, bobCandidate.routine_id, true);
     assert.equal(illegalConfirm, null);
   });
 });
