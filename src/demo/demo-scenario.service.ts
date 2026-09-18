@@ -152,7 +152,19 @@ export class DemoScenarioService {
       state.mutationCount += 1;
       const event = { ...approval.canonicalPayload, id: `demo_evt_followup_${state.mutationCount}`, summary: approval.canonicalPayload.summary, start: { dateTime: approval.canonicalPayload.start }, dataSource: 'DEMO' };
       state.addedEvents.push(event);
-      return { status: 200, data: { status: 'SUCCEEDED', externalId: event.id, externalUrl: `https://calendar.example.test/demo/${event.id}`, completedAt: new Date().toISOString(), dataSource: 'DEMO' } };
+      return {
+        status: 200,
+        data: {
+          status: 'SUCCEEDED',
+          executionMode: 'DEMO',
+          providerVerified: false,
+          provider: 'DEMO',
+          dataSource: 'DEMO',
+          externalId: event.id,
+          externalUrl: '',
+          completedAt: new Date().toISOString()
+        }
+      };
     }
     return undefined;
   }

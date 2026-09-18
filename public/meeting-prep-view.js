@@ -225,12 +225,16 @@
       if (result && result.status === 'SUCCEEDED') {
         window.NAGEX_METRICS = window.NAGEX_METRICS || {};
         window.NAGEX_METRICS.APPROVAL_TO_RESULT_MS = Math.max(0, Math.round(performance.now() - approvalStartedAt));
+        const isDemo = result.executionMode === 'DEMO' || result.providerVerified === false || result.dataSource === 'DEMO';
+        const titleText = isDemo
+          ? t('meetingPrep.demoCompleted', 'Demo completed · No real Google Calendar event was created.')
+          : t('meetingPrep.addedToCalendar', 'Added to your calendar');
         cont.innerHTML =
           '<div class="meeting-prep-done-card">' +
-          '<h4>' + escapeHtml(t('meetingPrep.addedToCalendar', 'Added to your calendar')) + '</h4>' +
+          '<h4>' + escapeHtml(titleText) + '</h4>' +
           '<p><strong>' + escapeHtml(p.summary || '') + '</strong></p>' +
           '<p>' + escapeHtml(new Date(p.start).toLocaleString()) + '</p>' +
-          (result.externalUrl ? '<a href="' + encodeURI(result.externalUrl) + '" target="_blank" rel="noopener" class="btn-plan-action plan-status-ready">' + escapeHtml(t('meetingPrep.viewEvent', 'View event')) + ' →</a>' : '') +
+          (!isDemo && result.externalUrl ? '<a href="' + encodeURI(result.externalUrl) + '" target="_blank" rel="noopener" class="btn-plan-action plan-status-ready">' + escapeHtml(t('meetingPrep.viewEvent', 'View event')) + ' →</a>' : '') +
           '</div>';
       } else {
         cont.innerHTML = '<p class="resolution-warnings">' + escapeHtml(t('meetingPrep.couldNotComplete', "I couldn't finish this task right now.")) + '</p>';

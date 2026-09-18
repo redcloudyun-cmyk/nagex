@@ -290,8 +290,32 @@ export async function handleAsyncApiRequest(
     const demoHeader = headers['x-nagex-demo'] ?? headers['X-NAgex-Demo'];
     const demoEnabled = (Array.isArray(demoHeader) ? demoHeader[0] : demoHeader) === '1';
     if (demoEnabled) {
-      const demoResult = app.demoScenarioService.handle(method, pathname, body, headers);
-      if (demoResult) return demoResult;
+      let sessionCookie: string | undefined;
+      const cookieHeader = headers['cookie'] ?? headers['Cookie'];
+      const rawCookie = Array.isArray(cookieHeader) ? cookieHeader[0] : cookieHeader;
+      if (rawCookie) {
+        const match = rawCookie.match(/(?:^|;\s*)nagex_demo_session=([^;]+)/);
+        if (match) sessionCookie = decodeURIComponent(match[1]);
+      }
+      const headerSession = headers['x-nagex-demo-session'] ?? headers['X-NAgex-Demo-Session'] ?? headers['x-demo-session'];
+      const rawHeaderSession = Array.isArray(headerSession) ? headerSession[0] : headerSession;
+      let effectiveSession = rawHeaderSession || sessionCookie;
+      let newCookieSet = false;
+      if (!effectiveSession) {
+        effectiveSession = `demo_sess_${crypto.randomUUID()}`;
+        newCookieSet = true;
+      }
+      const reqHeaders = { ...headers, 'x-nagex-demo-session': effectiveSession };
+      const demoResult = app.demoScenarioService.handle(method, pathname, body, reqHeaders);
+      if (demoResult) {
+        if (newCookieSet) {
+          demoResult.headers = {
+            ...(demoResult.headers || {}),
+            'Set-Cookie': `nagex_demo_session=${encodeURIComponent(effectiveSession)}; Path=/; SameSite=Lax`
+          };
+        }
+        return demoResult;
+      }
     }
     // R13 Identity & Account Lifecycle routes
     {

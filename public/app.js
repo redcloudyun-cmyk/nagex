@@ -232,6 +232,22 @@
   // contract (an `{error}` shape, same as any other failed call) rather than
   // throwing, so existing `if (!res || res.error)`-style callers handle it
   // automatically with zero branching changes.
+  function getDemoSessionId() {
+    let session = null;
+    try { session = sessionStorage.getItem('nagex_demo_session'); } catch (e) {}
+    if (!session) {
+      const match = document.cookie.match(/(?:^|;\s*)nagex_demo_session=([^;]+)/);
+      if (match) {
+        session = decodeURIComponent(match[1]);
+      } else {
+        session = 'demo_sess_' + (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2));
+      }
+      try { sessionStorage.setItem('nagex_demo_session', session); } catch (e) {}
+      try { document.cookie = 'nagex_demo_session=' + encodeURIComponent(session) + '; path=/; SameSite=Lax'; } catch (e) {}
+    }
+    return session;
+  }
+
   async function apiFetch(endpoint, options = {}) {
     const { timeoutMs, ...fetchOptions } = options;
     let controller = null;
@@ -241,12 +257,13 @@
       timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     }
     try {
+      const isDemoMode = new URLSearchParams(window.location.search).get('demo') === '1';
       const res = await fetch(endpoint, {
         headers: {
           'Content-Type': 'application/json',
-          'X-NAgex-Tenant': new URLSearchParams(window.location.search).get('demo') === '1' ? 'ten_demo_hackathon' : 'ten_production_01',
-          'X-Principal-Id': new URLSearchParams(window.location.search).get('demo') === '1' ? 'usr_demo_alex' : 'usr_admin_001',
-          ...(new URLSearchParams(window.location.search).get('demo') === '1' ? { 'X-NAgex-Demo': '1' } : {}),
+          'X-NAgex-Tenant': isDemoMode ? 'ten_demo_hackathon' : 'ten_production_01',
+          'X-Principal-Id': isDemoMode ? 'usr_demo_alex' : 'usr_admin_001',
+          ...(isDemoMode ? { 'X-NAgex-Demo': '1', 'X-NAgex-Demo-Session': getDemoSessionId() } : {}),
           ...(fetchOptions.headers || {}),
         },
         ...fetchOptions,
@@ -1381,13 +1398,16 @@
       return `<span style="font-size:0.72rem; color:var(--color-text-secondary);">${escapeHtml(t('workspace.candidateRunning') || 'Working...')}</span>`;
     }
     if (action.status === 'SUCCEEDED') {
-      const successText = {
-        TASK: t('workspace.candidateSuccessTask') || 'Task created',
-        CALENDAR: t('workspace.candidateSuccessCalendar') || 'Added to Google Calendar',
-        MEMORY: t('workspace.candidateSuccessMemory') || 'Remembered',
-        KNOWLEDGE: t('workspace.candidateSuccessKnowledge') || 'Added to knowledge',
-      }[candidate.type];
-      const openLink = candidate.type === 'CALENDAR' && action.externalUrl
+      const isDemo = action.executionMode === 'DEMO' || action.providerVerified === false || action.dataSource === 'DEMO';
+      const successText = candidate.type === 'CALENDAR' && isDemo
+        ? (t('workspace.candidateSuccessDemo') || 'Demo completed (no calendar event created)')
+        : ({
+            TASK: t('workspace.candidateSuccessTask') || 'Task created',
+            CALENDAR: t('workspace.candidateSuccessCalendar') || 'Added to Google Calendar',
+            MEMORY: t('workspace.candidateSuccessMemory') || 'Remembered',
+            KNOWLEDGE: t('workspace.candidateSuccessKnowledge') || 'Added to knowledge',
+          }[candidate.type]);
+      const openLink = candidate.type === 'CALENDAR' && !isDemo && action.externalUrl
         ? `<a href="${escapeHtml(action.externalUrl)}" target="_blank" rel="noopener noreferrer" class="btn-secondary" style="font-size:0.72rem; padding:2px 8px; text-decoration:none;">${escapeHtml(t('workspace.candidateOpenCalendar') || 'Open in Google Calendar')}</a>`
         : '';
       return `<span class="badge-status status-READY" style="font-size:0.72rem;">${escapeHtml(successText)}</span>${openLink}`;
@@ -3568,11 +3588,14 @@
 
           const result = await apiFetch('/api/v1/tools/google-calendar/create-event', { method: 'POST', body: JSON.stringify({ approvalId: approval.approvalId, payload: approved.canonicalPayload }) });
           if (result && result.status === 'SUCCEEDED') {
-            headingEl.textContent = isKr ? '✓ 캘린더에 추가되었습니다' : '✓ Added to your calendar';
+            const isDemo = result.executionMode === 'DEMO' || result.providerVerified === false || result.dataSource === 'DEMO';
+            headingEl.textContent = isDemo
+              ? (isKr ? '데모 실행 완료 · 실제 Google Calendar 이벤트는 생성되지 않았습니다' : 'Demo completed · No real Google Calendar event was created.')
+              : (isKr ? '✓ 캘린더에 추가되었습니다' : '✓ Added to your calendar');
             detailsEl.innerHTML = `
               <div style="color:#059669; font-weight:600;">${escapeHtml(summary)}</div>
               <div style="font-size:0.85rem; color:#475569;">${escapeHtml(startDate.toLocaleString())}</div>
-              ${result.externalUrl ? `<a href="${encodeURI(result.externalUrl)}" target="_blank" rel="noopener" style="font-size:0.85rem;">${isKr ? 'Google Calendar에서 열기' : 'Open in Google Calendar'} →</a>` : ''}
+              ${!isDemo && result.externalUrl ? `<a href="${encodeURI(result.externalUrl)}" target="_blank" rel="noopener" style="font-size:0.85rem;">${isKr ? 'Google Calendar에서 열기' : 'Open in Google Calendar'} →</a>` : ''}
             `;
           } else {
             headingEl.textContent = isKr ? '완료하지 못했어요' : "I couldn't complete that";
@@ -3771,13 +3794,15 @@
 
   function renderCalendarSuccessCard(slot, approval, result, view) {
     const successVm = view.buildSuccessViewModel(approval.canonicalPayload, result);
+    const isDemo = result && (result.executionMode === 'DEMO' || result.providerVerified === false || result.dataSource === 'DEMO');
+    const headingText = isDemo ? 'Demo completed · No real Google Calendar event was created.' : 'Calendar event created';
     slot.innerHTML = `
       <div class="calendar-preview-card">
-        <h4>Calendar event created</h4>
+        <h4>${escapeHtml(headingText)}</h4>
         <p><strong>${escapeHtml(successVm.title)}</strong></p>
         <p>${escapeHtml(successVm.date)} ${escapeHtml(successVm.startTime)}–${escapeHtml(successVm.endTime)} (${escapeHtml(successVm.timezone)})</p>
-        <p>Execution ID: ${escapeHtml(successVm.executionId)}</p>
-        <a class="btn-plan-action plan-status-ready" href="${encodeURI(successVm.externalUrl)}" target="_blank" rel="noopener">Open in Google Calendar →</a>
+        <p>Execution ID: ${escapeHtml(successVm.executionId || '')}</p>
+        ${!isDemo && successVm.externalUrl ? `<a class="btn-plan-action plan-status-ready" href="${encodeURI(successVm.externalUrl)}" target="_blank" rel="noopener">Open in Google Calendar →</a>` : ''}
       </div>`;
   }
 

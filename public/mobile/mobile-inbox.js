@@ -279,13 +279,16 @@
       return `<span class="mh-inbox-action-note">${escapeHtml(t('workspace.candidateRunning', 'Working...'))}</span>`;
     }
     if (action.status === 'SUCCEEDED') {
-      const successText = {
-        TASK: t('workspace.candidateSuccessTask', 'Task created'),
-        CALENDAR: t('workspace.candidateSuccessCalendar', 'Added to Google Calendar'),
-        MEMORY: t('workspace.candidateSuccessMemory', 'Remembered'),
-        KNOWLEDGE: t('workspace.candidateSuccessKnowledge', 'Added to knowledge'),
-      }[candidate.type];
-      const openLink = candidate.type === 'CALENDAR' && action.externalUrl
+      const isDemo = action.executionMode === 'DEMO' || action.providerVerified === false || action.dataSource === 'DEMO';
+      const successText = candidate.type === 'CALENDAR' && isDemo
+        ? t('workspace.candidateSuccessDemo', 'Demo completed (no calendar event created)')
+        : {
+            TASK: t('workspace.candidateSuccessTask', 'Task created'),
+            CALENDAR: t('workspace.candidateSuccessCalendar', 'Added to Google Calendar'),
+            MEMORY: t('workspace.candidateSuccessMemory', 'Remembered'),
+            KNOWLEDGE: t('workspace.candidateSuccessKnowledge', 'Added to knowledge'),
+          }[candidate.type];
+      const openLink = candidate.type === 'CALENDAR' && !isDemo && action.externalUrl
         ? `<a href="${escapeHtml(action.externalUrl)}" target="_blank" rel="noopener noreferrer" class="mh-btn-review">${escapeHtml(t('workspace.candidateOpenCalendar', 'Open in Google Calendar'))}</a>`
         : '';
       return `<span class="nagex-badge nagex-badge-completed">${escapeHtml(successText)}</span>${openLink}`;

@@ -91,7 +91,10 @@ test('R21 P1 A-J semantic certification and visual QA capture', async () => {
     await shot(page, 'desktop_calendar_approval_en.png');
 
     await page.click('#meeting-prep-confirm-add');
-    await page.waitForFunction(() => document.querySelector('#meeting-prep-continuation')?.textContent?.includes('Added to your calendar'));
+    await page.waitForFunction(() => document.querySelector('#meeting-prep-continuation')?.textContent?.includes('Demo completed'));
+    const continuationText = await page.locator('#meeting-prep-continuation').innerText();
+    assert.match(continuationText, /Demo completed/);
+    assert.doesNotMatch(continuationText, /Added to your calendar/);
     state = await (await fetch(`${server.origin}/api/v1/demo/state`, { headers: DEMO_HEADERS })).json() as any;
     assert.equal(state.mutationCount, 1);
     assert.equal(state.addedEvents.length, 1);
@@ -151,5 +154,60 @@ test('R21 P1 A-J semantic certification and visual QA capture', async () => {
     await browser.close();
     await server.close();
     globalThis.fetch = originalFetch;
+  }
+});
+
+test('J - Browser Context State Isolation between independent browser contexts', async () => {
+  const server = await startServer();
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const contextA = await browser.newContext();
+    const contextB = await browser.newContext();
+
+    const pageA = await contextA.newPage();
+    const pageB = await contextB.newPage();
+
+    await pageA.goto(`${server.origin}/?demo=1`);
+    await pageB.goto(`${server.origin}/?demo=1`);
+
+    await pageA.waitForSelector('#hero-brief-card');
+    await pageB.waitForSelector('#hero-brief-card');
+
+    await pageA.evaluate(async () => {
+      await fetch('/api/v1/workspace/vault', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-NAgex-Demo': '1', 'X-NAgex-Tenant': 'ten_demo_hackathon', 'X-Principal-Id': 'usr_demo_alex' },
+        body: JSON.stringify({ title: 'Context A Note', content: 'Private note from A' })
+      });
+    });
+
+    const stateA = await pageA.evaluate(async () => {
+      const res = await fetch('/api/v1/workspace/vault', {
+        headers: { 'X-NAgex-Demo': '1', 'X-NAgex-Tenant': 'ten_demo_hackathon', 'X-Principal-Id': 'usr_demo_alex' }
+      });
+      return await res.json();
+    });
+    assert.equal((stateA as any).data.items.some((i: any) => i.title === 'Context A Note'), true);
+
+    const stateB = await pageB.evaluate(async () => {
+      const res = await fetch('/api/v1/workspace/vault', {
+        headers: { 'X-NAgex-Demo': '1', 'X-NAgex-Tenant': 'ten_demo_hackathon', 'X-Principal-Id': 'usr_demo_alex' }
+      });
+      return await res.json();
+    });
+    assert.equal((stateB as any).data.items.some((i: any) => i.title === 'Context A Note'), false, 'CROSS_SESSION_LEAK must be 0');
+
+    await pageA.evaluate(async () => {
+      await fetch('/api/v1/demo/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-NAgex-Demo': '1', 'X-NAgex-Tenant': 'ten_demo_hackathon', 'X-Principal-Id': 'usr_demo_alex' }
+      });
+    });
+
+    await contextA.close();
+    await contextB.close();
+  } finally {
+    await browser.close();
+    await server.close();
   }
 });
