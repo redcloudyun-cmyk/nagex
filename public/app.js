@@ -116,6 +116,33 @@
     }
   }
 
+  function isEnterpriseUiMode() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('enterprise') === '1' || params.get('enterprise') === 'true' || state.enterpriseUiMode === true || (typeof window !== 'undefined' && window.NAGEX_ENTERPRISE_UI === true);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function applyEnterpriseUiGate() {
+    const isEnt = isEnterpriseUiMode();
+    const switchersGroup = document.getElementById('header-switchers-group');
+    if (switchersGroup) switchersGroup.style.display = isEnt ? 'flex' : 'none';
+
+    const mhSwitchersGroup = document.getElementById('mh-header-switchers-group');
+    if (mhSwitchersGroup) mhSwitchersGroup.style.display = isEnt ? 'flex' : 'none';
+
+    const catTabOrg = document.getElementById('cat-tab-organization');
+    if (catTabOrg) catTabOrg.style.display = isEnt ? 'inline-block' : 'none';
+
+    const mhOrgBtn = document.getElementById('mh-btn-org-switcher');
+    if (mhOrgBtn) mhOrgBtn.style.display = isEnt ? 'inline-flex' : 'none';
+
+    const mhWsBtn = document.getElementById('mh-btn-workspace-switcher');
+    if (mhWsBtn) mhWsBtn.style.display = isEnt ? 'inline-flex' : 'none';
+  }
+
   function updateFlowStage(stageLabel) {
     const el = document.getElementById('ambient-flow-stepper');
     const statusEl = document.getElementById('ambient-modal-status');
@@ -4527,6 +4554,11 @@
     });
   }
 
+  window.NAGEX = window.NAGEX || {};
+  window.NAGEX.isEnterpriseUiMode = isEnterpriseUiMode;
+  window.NAGEX.applyEnterpriseUiGate = applyEnterpriseUiGate;
+
   initRouter();
   loadAllData();
+  applyEnterpriseUiGate();
 })();

@@ -125,7 +125,7 @@ test('R21 P0 REAL BROWSER CERTIFICATION: UX Intent Interaction Principles (Scena
       assert.match(friendlySteps || '', /Checked your availability/);
 
       const contextText = await page.textContent('#ambient-surfaced-context');
-      assert.match(contextText || '', /Found \d+ useful items/);
+      assert.match(contextText || '', /Related to this meeting/);
 
       await saveScreenshot(page, 'desktop_context_review_en.png');
       await page.close();

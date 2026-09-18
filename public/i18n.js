@@ -1814,7 +1814,7 @@
       'ambient.run': '다음 진행',
       'ambient.running': '작업 진행 중...',
       'ambient.close': '닫기',
-      'ambient.pressEscToClose': 'Esc 키를 누르면 닫힙니다',
+      'ambient.pressEscToClose': 'Esc 키를 눌러 닫기',
       'ambient.policyNotice': '일정에 추가하기 전에 먼저 확인받겠습니다.',
       'ambient.activityToggle': 'NAgex가 진행 중인 작업 상세',
       'ambient.activityProvider': '제공자',

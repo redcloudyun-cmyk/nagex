@@ -46,8 +46,8 @@ test('EN is the default locale and returns the canonical Plan Preview modal stri
   assert.equal(i18n.t('ambient.pressEscToClose'), 'Press Esc to close');
   assert.equal(i18n.t('ambient.promptPlaceholder'), 'Prepare my next client meeting and schedule it.');
   assert.equal(i18n.t('ambient.promptAriaLabel'), 'Ask NAgex');
-  assert.equal(i18n.t('ambient.run'), 'Run');
-  assert.equal(i18n.t('ambient.running'), 'Running...');
+  assert.equal(i18n.t('ambient.run'), 'Continue');
+  assert.equal(i18n.t('ambient.running'), 'Working...');
 });
 
 test('switching to KR returns the Korean Plan Preview modal strings', () => {
@@ -59,8 +59,8 @@ test('switching to KR returns the Korean Plan Preview modal strings', () => {
   assert.equal(i18n.t('ambient.pressEscToClose'), 'Esc 키를 눌러 닫기');
   assert.equal(i18n.t('ambient.promptPlaceholder'), '다음 고객 미팅을 준비하고 일정을 잡아줘.');
   assert.equal(i18n.t('ambient.promptAriaLabel'), 'NAgex에게 요청하기');
-  assert.equal(i18n.t('ambient.run'), '실행');
-  assert.equal(i18n.t('ambient.running'), '실행 중...');
+  assert.equal(i18n.t('ambient.run'), '다음 진행');
+  assert.equal(i18n.t('ambient.running'), '작업 진행 중...');
 });
 
 test('toggleLocale flips between EN and KR and back', () => {

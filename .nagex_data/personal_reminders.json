@@ -16,5 +16,14 @@
     "timezone": "Asia/Seoul",
     "status": "ACTIVE",
     "created_at": "2026-09-18T00:40:03.342Z"
+  },
+  {
+    "reminder_id": "rem_1789695509706_6hpoi",
+    "user_id": "usr_admin_001",
+    "title": "김대표에게 전화",
+    "scheduled_at": "2026-09-18T02:08:29.688Z",
+    "timezone": "Asia/Seoul",
+    "status": "ACTIVE",
+    "created_at": "2026-09-18T01:38:29.706Z"
   }
 ]

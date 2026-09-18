@@ -55,7 +55,7 @@ test('R14 REAL BROWSER CERTIFICATION: Playwright Chromium Scenarios A through F 
     // ── SCENARIO A: Signup -> Create Organization -> Default Workspace (390x844 EN) ──
     {
       const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
-      await page.goto(`${server.origin}/#home`, { waitUntil: 'domcontentloaded' });
+      await page.goto(`${server.origin}/index.html?enterprise=1#home`, { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(150);
 
       // Sign Up Owner
