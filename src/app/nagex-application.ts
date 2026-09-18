@@ -78,7 +78,12 @@ import type { RbacService } from '../rbac/rbac.service.js';
 import type { EnterpriseIdentityStore } from '../enterprise-identity/enterprise-identity.store.js';
 import type { SsoFlowStore } from '../enterprise-identity/sso-flow.store.js';
 
+import type { PersonalReminderStore } from '../personal/personal-reminder.store.js';
+import type { PersonalAssistantEngine } from '../personal/personal-assistant.engine.js';
+
 export interface NagexApplication {
+  personalReminderStore: PersonalReminderStore;
+  personalAssistantEngine: PersonalAssistantEngine;
   identityStore: IdentityStore;
   identityTokenStore: IdentityTokenStore;
   identityAuditStore: IdentityAuditStore;

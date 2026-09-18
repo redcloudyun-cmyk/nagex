@@ -97,6 +97,8 @@ import { RbacStore } from '../rbac/rbac.store.js';
 import { RbacService } from '../rbac/rbac.service.js';
 import { EnterpriseIdentityStore } from '../enterprise-identity/enterprise-identity.store.js';
 import { SsoFlowStore } from '../enterprise-identity/sso-flow.store.js';
+import { PersonalReminderStore } from '../personal/personal-reminder.store.js';
+import { PersonalAssistantEngine } from '../personal/personal-assistant.engine.js';
 import { LifecycleManager } from './lifecycle-manager.js';
 
 // Common words that would otherwise create spurious "relevance" matches
@@ -466,8 +468,19 @@ export function createNagexApplication(): NagexApplication {
   const workflowDefinitionStore = new WorkflowDefinitionStore();
   const workflowDefinitionService = new WorkflowDefinitionService({ store: workflowDefinitionStore, taskStore, planResolver, auditLogger });
   const lifecycle = new LifecycleManager();
+  const personalReminderStore = new PersonalReminderStore();
+  const personalAssistantEngine = new PersonalAssistantEngine({
+    reminderStore: personalReminderStore,
+    notificationStore,
+    inboxStore,
+    vaultStore,
+    candidateStore,
+    actionStore,
+  });
 
   return {
+    personalReminderStore,
+    personalAssistantEngine,
     identityStore,
     identityTokenStore,
     identityAuditStore,

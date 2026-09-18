@@ -1,6 +1,21 @@
 import { FileRecordStore, resolveNagexDataDir } from '../governance/file-record.store.js';
 
-export type NotificationType = 'APPROVAL_REQUEST' | 'TASK_COMPLETED' | 'TASK_FAILED' | 'CONDITION_MET' | 'SYSTEM_ALERT' | 'DAILY_BRIEF_READY' | 'IMPORTANT_CHANGE';
+export type NotificationType =
+  | 'APPROVAL_REQUEST'
+  | 'TASK_COMPLETED'
+  | 'TASK_FAILED'
+  | 'CONDITION_MET'
+  | 'SYSTEM_ALERT'
+  | 'DAILY_BRIEF_READY'
+  | 'IMPORTANT_CHANGE'
+  | 'REMINDER'
+  | 'MORNING_BRIEF'
+  | 'MEETING_PREP'
+  | 'EMAIL_ATTENTION'
+  | 'TASK_DUE'
+  | 'APPROVAL_REQUIRED'
+  | 'ACTION_COMPLETED'
+  | 'WATCH_TRIGGERED';
 
 export type DeliveryStatus = 'PENDING' | 'DELIVERED' | 'FAILED' | 'SKIPPED';
 

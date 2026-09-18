@@ -30,6 +30,7 @@ import { handleProvidersRoutes } from './http/routes/providers.routes.js';
 import { handleSafetyRoutes } from './http/routes/safety.routes.js';
 import { handleConversationRoutes, handleSessionRoutes } from './http/routes/conversation.routes.js';
 import { handleDailyBriefRoutes } from './http/routes/daily-brief.routes.js';
+import { handlePersonalAssistantRoutes } from './http/routes/personal-assistant.routes.js';
 import { handleCapabilitiesRoutes } from './http/routes/capabilities.routes.js';
 import { handleMySpaceRoutes } from './http/routes/my-space.routes.js';
 import { handleDeviceAgentRoutes } from './http/routes/device-agent.routes.js';
@@ -483,6 +484,14 @@ export async function handleAsyncApiRequest(
     {
       const dailyBriefResult = await handleDailyBriefRoutes(method, pathname, body, headers, query, { service, calendarService, gmailApiService, dailyBriefStore, actionProposalStore, actionApprovals, activityStore, notificationEngine, taskStore });
       if (dailyBriefResult) return dailyBriefResult;
+    }
+
+    {
+      const personalAssistantResult = await handlePersonalAssistantRoutes(method, pathname, body, headers, query, {
+        reminderStore: app.personalReminderStore,
+        assistantEngine: app.personalAssistantEngine,
+      });
+      if (personalAssistantResult) return personalAssistantResult;
     }
 
     // R11 — Action Proposals (moved to src/http/routes/action-proposals.routes.ts,
