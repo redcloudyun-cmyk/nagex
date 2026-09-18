@@ -2736,6 +2736,16 @@
       const activityDetail = document.getElementById('ambient-activity-detail');
       if (activityDetail) activityDetail.style.display = 'none';
 
+      const wave = document.getElementById('ambient-waveform');
+      if (wave) wave.style.display = 'none';
+
+      const userBubble = document.getElementById('ambient-user-bubble');
+      const userReqText = document.getElementById('ambient-user-request-text');
+      if (userBubble && userReqText) {
+        userReqText.textContent = promptText;
+        userBubble.style.display = 'flex';
+      }
+
       // R12.1 Increment 1 — §6 Working state: outcome-oriented text only.
       // Internal jargon (provider/model/latency) moves to the progressive-
       // disclosure "What NAgex is doing" panel below, never the primary text.
@@ -2810,7 +2820,7 @@
       body: JSON.stringify({ plan }),
     });
 
-    card.style.display = 'block';
+    card.style.display = isDebugMode() ? 'block' : 'none';
 
     if (!resolved || resolved.error) {
       statusEl.innerHTML = `<span class="plan-status-badge plan-status-blocked">Cannot Execute</span>`;

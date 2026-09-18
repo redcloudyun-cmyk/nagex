@@ -133,7 +133,31 @@ test('EN_KR: Bilingual dictionaries exist for all new R21 P0 keys', () => {
   assert.match(i18n, /'ambient\.understanding\.continue': 'Continue'/);
   // KR
   assert.match(i18n, /'ambient\.modalTitle': 'NAgex 어시스턴트'/);
-  assert.match(i18n, /'ambient\.understanding\.continue': '진행하기'/);
+  assert.match(i18n, /'ambient\.understanding\.continue': '다음 진행'/);
+});
+
+test('RAW_I18N_KEY_VISIBLE_CHECK: No raw translation keys leak in HTML markup or i18n dictionary', () => {
+  const html = fs.readFileSync(path.join(process.cwd(), 'public', 'index.html'), 'utf8');
+  const i18n = fs.readFileSync(path.join(process.cwd(), 'public', 'i18n.js'), 'utf8');
+
+  // Find all data-i18n attributes in index.html
+  const matches = [...html.matchAll(/data-i18n="([^"]+)"/g)].map((m) => m[1]);
+  assert.ok(matches.length > 0, 'Should find data-i18n keys in index.html');
+
+  for (const key of matches) {
+    // Assert key exists in i18n.js
+    assert.equal(i18n.includes(`'${key}'`), true, `Key '${key}' must be defined in i18n.js`);
+  }
+});
+
+test('NO_GENERIC_RUN_FOR_CONSEQUENTIAL_ACTIONS: Generic Run button is replaced by Continue / explicit CTAs', () => {
+  const html = fs.readFileSync(path.join(process.cwd(), 'public', 'index.html'), 'utf8');
+  assert.doesNotMatch(html, />▶\s*<span[^>]*>Run<\/span></, 'Normal UI must not use generic ▶ Run button for consequential plans');
+});
+
+test('PLAN_RESOLUTION_HIDDEN_IN_NORMAL_MODE: Plan resolution card display is gated by isDebugMode()', () => {
+  const appJs = fs.readFileSync(path.join(process.cwd(), 'public', 'app.js'), 'utf8');
+  assert.match(appJs, /card\.style\.display\s*=\s*isDebugMode\(\)\s*\?\s*'block'\s*:\s*'none';/);
 });
 
 test('MOBILE_360_390_430: Responsive modal styles handle mobile viewports cleanly', () => {
