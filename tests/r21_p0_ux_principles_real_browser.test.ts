@@ -198,7 +198,7 @@ test('R21 P0 REAL BROWSER CERTIFICATION: UX Intent Interaction Principles (Scena
         if (i18n) i18n.setLocale('ko');
       });
 
-      await page.click('#btn-floating-quickwake');
+      await page.click('#btn-header-quickwake');
       await page.waitForSelector('#ambient-prompt-input');
 
       await page.fill('#ambient-prompt-input', '다음 고객 미팅을 준비하고 일정을 잡아줘.');
