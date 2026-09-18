@@ -3127,6 +3127,18 @@
         `).join('');
       }
 
+      // The current ambient endpoint resolves a plan; it does not return
+      // executed research evidence. Do not present sample findings/sources
+      // as a completed real result.
+      if (summarySection && summaryList) {
+        summarySection.style.display = 'block';
+        summaryList.innerHTML = `<div class="nagex-empty-state">${escapeHtml(isKr ? '조사 계획이 준비됐어요. 실제 출처를 확인한 뒤 결과를 표시합니다.' : 'Your research plan is ready. Results will appear after the sources are actually checked.')}</div>`;
+      }
+      if (sourcesSection && sourcesList) {
+        sourcesSection.style.display = 'block';
+        sourcesList.innerHTML = `<div class="nagex-empty-state">${escapeHtml(isKr ? '확인된 출처가 아직 없어요.' : 'No verified sources yet.')}</div>`;
+      }
+
       // Hide Meeting-specific boxes
       if (contextBox) contextBox.style.display = 'none';
       if (groundingWhyEl) groundingWhyEl.style.display = 'none';
@@ -3153,6 +3165,25 @@
           };
         }
       }
+      // The legacy click handler above changed copy only. Replace it with a
+      // real Vault mutation and show success only after a persisted item id.
+      const realVaultButton = document.getElementById('btn-save-vault');
+      if (realVaultButton) {
+        realVaultButton.onclick = async () => {
+          realVaultButton.disabled = true;
+          realVaultButton.textContent = isKr ? '저장 중...' : 'Saving...';
+          const saved = await apiFetch('/api/v1/workspace/vault', {
+            method: 'POST',
+            body: JSON.stringify({ type: 'SAVED_ANALYSIS', title: (plan && plan.goal) || promptText || 'Saved result', storageRef: `ambient:${planId}`, source: 'AMBIENT_RESULT', sourceRef: planId, metadata: { prompt: promptText, savedAt: new Date().toISOString() } }),
+          });
+          if (saved && saved.vaultItemId && !saved.error) {
+            realVaultButton.textContent = isKr ? 'Vault에 저장됨' : 'Saved to Vault';
+          } else {
+            realVaultButton.disabled = false;
+            realVaultButton.textContent = isKr ? '저장하지 못했어요. 다시 시도' : "Couldn't save. Try again";
+          }
+        };
+      }
     } else if (intent === 'MEETING') {
       if (taskTitleEl) taskTitleEl.textContent = t('ambient.taskMeeting');
       if (taskSubtitleEl) taskSubtitleEl.textContent = t('ambient.taskMeetingSub');
@@ -3162,6 +3193,12 @@
 
       // Hide Research sections
       if (summarySection) summarySection.style.display = 'none';
+      // Plan resolution is not document analysis execution. Never show the
+      // legacy sample clauses as if they came from a user's document.
+      if (summarySection && summaryList) {
+        summarySection.style.display = 'block';
+        summaryList.innerHTML = `<div class="nagex-empty-state">${escapeHtml(isKr ? '분석할 실제 문서가 필요해요.' : 'Add the document you want me to analyze.')}</div>`;
+      }
       if (sourcesSection) sourcesSection.style.display = 'none';
 
       // Meeting Progress Steps
@@ -3187,6 +3224,12 @@
         `;
       }
 
+      // Replace the legacy placeholder immediately; real content is loaded
+      // after resolution and an unavailable source remains an honest state.
+      if (contextBox) {
+        contextBox.innerHTML = `<p>${escapeHtml(isKr ? '관련 자료를 확인하고 있어요.' : 'Checking for related context...')}</p>`;
+      }
+
       // Grounding Why / Schedule recommendation
       if (groundingWhyEl) {
         groundingWhyEl.style.display = 'block';
@@ -3194,6 +3237,11 @@
           isKr ? '내일 · 오후 3:00–4:00 (충돌 없음)' : 'Tomorrow · 3:00–4:00 PM (No conflicts found)'
         }`;
       }
+
+      if (groundingWhyEl) {
+        groundingWhyEl.innerHTML = `<span>${escapeHtml(isKr ? '실제 일정과 관련 자료를 바탕으로 준비합니다.' : 'Preparing from your real calendar and related materials.')}</span>`;
+      }
+      if (resolved) renderGroundedMeetingContext(resolved, contextBox, groundingWhyEl, isKr);
 
       // One Clear Next Action: [Continue] & [Edit]
       if (actionsBar) {
@@ -3256,6 +3304,10 @@
         `).join('');
       }
 
+      if (summarySection && summaryList) {
+        summarySection.style.display = 'block';
+        summaryList.innerHTML = `<div class="nagex-empty-state">${escapeHtml(isKr ? '생성 요청이 준비됐어요. 실제 결과가 생성되면 여기에 표시합니다.' : 'Your creation request is ready. The result will appear here after it is generated.')}</div>`;
+      }
       if (sourcesSection) sourcesSection.style.display = 'none';
       if (contextBox) contextBox.style.display = 'none';
       if (groundingWhyEl) groundingWhyEl.style.display = 'none';
@@ -3328,6 +3380,28 @@
   // ambient request needs more context than this card has); rather than
   // fake success for those, they now honestly route to the real Approvals
   // surface instead of claiming a real send/action happened.
+  async function renderGroundedMeetingContext(resolved, contextBox, groundingWhyEl, isKr) {
+    const eventStep = (resolved.steps || []).find((step) => step && step.parameters && step.parameters.eventId);
+    const eventId = eventStep && eventStep.parameters.eventId;
+    const prep = await apiFetch('/api/v1/personal/meeting-prep', {
+      method: 'POST',
+      body: JSON.stringify(eventId ? { eventId } : {}),
+    });
+    if (!contextBox || !groundingWhyEl) return;
+    if (!prep || prep.error) {
+      contextBox.innerHTML = `<strong>${escapeHtml(isKr ? '이 회의와 관련된 자료' : 'Related to this meeting')}</strong><p>${escapeHtml(isKr ? '관련 자료를 불러오지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요.' : "I couldn't load related context. Check your connections and try again.")}</p>`;
+      groundingWhyEl.style.display = 'none';
+      return;
+    }
+    const materials = Array.isArray(prep.related_materials) ? prep.related_materials : [];
+    contextBox.innerHTML = materials.length
+      ? `<strong>${escapeHtml(isKr ? `${materials.length}개의 관련 자료를 찾았어요` : `I found ${materials.length} related item${materials.length === 1 ? '' : 's'}`)}</strong><ul>${materials.map((item) => `<li>${escapeHtml(item.title || item.label || item.type)}</li>`).join('')}</ul>`
+      : `<p>${escapeHtml(isKr ? '관련 자료는 찾지 못했지만 실제 일정으로 준비를 계속할 수 있어요.' : 'No related materials found. You can still prepare from the calendar event.')}</p>`;
+    const title = prep.title || prep.event_title;
+    groundingWhyEl.style.display = 'block';
+    groundingWhyEl.innerHTML = `<strong>${escapeHtml(isKr ? '준비 대상' : 'Preparing for')}</strong>${title ? `: ${escapeHtml(title)}` : ''}`;
+  }
+
   async function renderUserApprovalCard(resolved, promptText) {
     const approvalCard = document.getElementById('ambient-user-approval-card');
     const headingEl = document.getElementById('ambient-approval-heading');

@@ -10,6 +10,7 @@
     tasks: [],
     approvals: [],
     desktopStatus: null,
+    quickWake: null,
     isSubmitting: false,
   };
 
@@ -49,6 +50,43 @@
     setupLangButton();
 
     await loadData();
+    await loadQuickWake();
+  }
+
+  async function loadQuickWake() {
+    const card = document.getElementById('qw-proactive-card');
+    if (!card) return;
+    card.hidden = false;
+    card.innerHTML = '<p class="qw-empty-text">Checking what needs your attention...</p>';
+    const startedAt = performance.now();
+    state.quickWake = await apiFetch('/api/v1/personal/quick-wake');
+    renderQuickWake();
+    window.NAGEX_METRICS = window.NAGEX_METRICS || {};
+    window.NAGEX_METRICS.QUICK_WAKE_RESPONSE_MS = Math.max(0, Math.round(performance.now() - startedAt));
+  }
+
+  function renderQuickWake() {
+    const card = document.getElementById('qw-proactive-card');
+    const suggestion = state.quickWake && state.quickWake.proactive_suggestion;
+    if (!card || !suggestion) {
+      if (card) { card.hidden = true; card.innerHTML = ''; }
+      return;
+    }
+    const grounded = Array.isArray(suggestion.grounded_on) ? suggestion.grounded_on : [];
+    card.hidden = false;
+    card.innerHTML = `
+      <div class="qw-proactive-label">Needs your attention</div>
+      <strong class="qw-proactive-title">${escapeHtml(suggestion.title || suggestion.message || 'Your next meeting is coming up.')}</strong>
+      ${suggestion.reason ? `<p>${escapeHtml(suggestion.reason)}</p>` : ''}
+      ${grounded.length ? `<p class="qw-proactive-found">I found:</p><ul>${grounded.map((item) => `<li>${escapeHtml(item.label)}</li>`).join('')}</ul>` : ''}
+      <div class="qw-proactive-actions"><button class="qw-send-btn" id="qw-prepare-me" type="button">Prepare me</button><button class="qw-icon-btn" id="qw-not-now" type="button">Not now</button></div>`;
+    const prepare = document.getElementById('qw-prepare-me');
+    const dismiss = document.getElementById('qw-not-now');
+    if (prepare) prepare.onclick = () => {
+      const eventId = suggestion.target_id || suggestion.event_id;
+      if (window.NAGEX_MEETING_PREP) window.NAGEX_MEETING_PREP.open(eventId);
+    };
+    if (dismiss) dismiss.onclick = () => { card.hidden = true; card.innerHTML = ''; };
   }
 
   function setupTabNav() {

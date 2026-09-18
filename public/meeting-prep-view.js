@@ -212,6 +212,7 @@
       cont.innerHTML = '';
     });
     if (confirmBtn) confirmBtn.addEventListener('click', async () => {
+      const approvalStartedAt = performance.now();
       cont.innerHTML = '<p>' + escapeHtml(t('meetingPrep.addingToCalendar', 'Adding to your calendar...')) + '</p>';
       const approved = await apiFetch('/api/v1/approvals/' + approval.approvalId + '/approve', { method: 'POST' });
       if (!approved || approved.error) {
@@ -220,6 +221,8 @@
       }
       const result = await apiFetch('/api/v1/tools/google-calendar/create-event', { method: 'POST', body: JSON.stringify({ approvalId: approval.approvalId, payload: approved.canonicalPayload }) });
       if (result && result.status === 'SUCCEEDED') {
+        window.NAGEX_METRICS = window.NAGEX_METRICS || {};
+        window.NAGEX_METRICS.APPROVAL_TO_RESULT_MS = Math.max(0, Math.round(performance.now() - approvalStartedAt));
         cont.innerHTML =
           '<div class="meeting-prep-done-card">' +
           '<h4>' + escapeHtml(t('meetingPrep.addedToCalendar', 'Added to your calendar')) + '</h4>' +
@@ -284,9 +287,11 @@
   }
 
   async function openMeetingPrep(eventId) {
+    const startedAt = performance.now();
     openModal();
     renderProgress(0);
-    await new Promise((r) => setTimeout(r, 250));
+    window.NAGEX_METRICS = window.NAGEX_METRICS || {};
+    window.NAGEX_METRICS.MEETING_PREP_FIRST_FEEDBACK_MS = Math.max(0, Math.round(performance.now() - startedAt));
     renderProgress(1);
     let card = null;
     let errorMessage = null;
@@ -303,13 +308,13 @@
       errorMessage = t('meetingPrep.genericError', "I couldn't complete that. Please try again.");
     }
     renderProgress(2);
-    await new Promise((r) => setTimeout(r, 150));
     if (!card) {
       const body = document.getElementById('meeting-prep-body');
       if (body) body.innerHTML = '<p class="resolution-warnings">' + escapeHtml(errorMessage || t('meetingPrep.genericError', "I couldn't complete that. Please try again.")) + '</p>';
       return;
     }
     renderResult(card);
+    window.NAGEX_METRICS.MEETING_PREP_RESULT_MS = Math.max(0, Math.round(performance.now() - startedAt));
   }
 
   window.NAGEX_MEETING_PREP = { open: openMeetingPrep, close: closeModal };

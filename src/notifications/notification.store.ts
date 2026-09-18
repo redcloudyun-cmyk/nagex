@@ -41,6 +41,8 @@ export interface NotificationRecord {
   // (e.g. taskId + runId + eventType) from producing duplicate notifications
   // across restart, approval resume, or duplicate finalization triggers.
   dedupeKey?: string;
+  /** Time the notification is about; distinct from when it was created. */
+  relatesAt?: string;
   createdAt: string;
 }
 

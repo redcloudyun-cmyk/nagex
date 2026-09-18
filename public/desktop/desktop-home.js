@@ -52,14 +52,44 @@
     const badge = document.getElementById('notif-badge');
     if (!badge || !window.NAGEX.getState) return;
     const state = window.NAGEX.getState();
-    const activity = state.activity || [];
-    const count = activity.filter((a) => a.status === 'RUNNING' || a.status === 'NEEDS_ATTENTION').length;
+    const notifications = (state.notifications && state.notifications.items) || [];
+    const count = notifications.filter((item) => !item.read).length;
     if (count > 0) {
       badge.hidden = false;
       badge.textContent = count > 9 ? '9+' : String(count);
     } else {
       badge.hidden = true;
     }
+    renderAttentionQueue(notifications);
+  }
+
+  function renderAttentionQueue(notifications) {
+    const popover = document.getElementById('attention-popover');
+    const bell = document.getElementById('btn-notif-bell');
+    if (!popover || !bell) return;
+    const now = new Date();
+    const endOfToday = new Date(now); endOfToday.setHours(23, 59, 59, 999);
+    const groups = { Now: [], Today: [], Later: [] };
+    notifications.forEach((item) => {
+      const relatesAt = item.relatesAt || (item.metadata && item.metadata.relatesAt) || item.createdAt;
+      const when = new Date(relatesAt);
+      if (Number.isNaN(when.getTime()) || when <= new Date(now.getTime() + 2 * 60 * 60 * 1000)) groups.Now.push(item);
+      else if (when <= endOfToday) groups.Today.push(item);
+      else groups.Later.push(item);
+    });
+    const body = Object.entries(groups).map(([label, items]) => `
+      <section class="attention-group"><h3>${label}</h3>${items.length
+        ? items.map((item) => `<button type="button" class="attention-item" data-notification-id="${escapeHtml(item.id)}"><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.body)}</span></button>`).join('')
+        : `<p>${escapeHtml(label === 'Now' ? 'Nothing needs your attention right now.' : 'Nothing scheduled here.')}</p>`}</section>`).join('');
+    popover.innerHTML = `<header><strong>For your attention</strong><span>Updates that may need you</span></header>${body}`;
+    if (!bell.dataset.attentionWired) {
+      bell.dataset.attentionWired = 'true';
+      bell.addEventListener('click', () => { popover.hidden = !popover.hidden; });
+    }
+    popover.querySelectorAll('[data-notification-id]').forEach((button) => button.addEventListener('click', async () => {
+      const id = button.getAttribute('data-notification-id');
+      if (id && window.NAGEX.markNotificationRead) await window.NAGEX.markNotificationRead(id);
+    }));
   }
 
   const SVGS = {

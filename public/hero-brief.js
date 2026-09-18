@@ -17,6 +17,12 @@
 
   let fetched = false;
   let briefData = null;
+  const homeStartedAt = performance.now();
+
+  function recordMetric(name, startedAt) {
+    window.NAGEX_METRICS = window.NAGEX_METRICS || {};
+    window.NAGEX_METRICS[name] = Math.max(0, Math.round(performance.now() - startedAt));
+  }
 
   function formatTime(iso) {
     try {
@@ -79,9 +85,12 @@
   async function fetchAndRender() {
     if (fetched || !window.NAGEX || typeof window.NAGEX.apiFetch !== 'function') return;
     fetched = true;
+    const startedAt = performance.now();
     const data = await window.NAGEX.apiFetch('/api/v1/personal/morning-brief');
     if (data && !data.error) briefData = data;
     render();
+    recordMetric('MORNING_BRIEF_RENDER_MS', startedAt);
+    if (window.NAGEX_METRICS.HOME_INITIAL_RENDER_MS == null) recordMetric('HOME_INITIAL_RENDER_MS', homeStartedAt);
   }
 
   function init() {

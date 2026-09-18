@@ -270,3 +270,11 @@ html, body.desktop-quickwake-body {
   text-align: center;
   padding: 2rem 0;
 }
+.qw-proactive-card { margin: .75rem 0; padding: .9rem; border: 1px solid #334155; border-radius: 10px; background: #111827; color: #e5e7eb; }
+.qw-proactive-card[hidden] { display: none; }
+.qw-proactive-label { color: #93c5fd; font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.qw-proactive-title { display: block; margin-top: .35rem; }
+.qw-proactive-card p, .qw-proactive-card ul { margin: .45rem 0; font-size: .82rem; color: #cbd5e1; }
+.qw-proactive-card ul { padding-left: 1.15rem; }
+.qw-proactive-found { font-weight: 600; }
+.qw-proactive-actions { display: flex; gap: .5rem; margin-top: .75rem; }
