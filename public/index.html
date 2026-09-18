@@ -1299,19 +1299,18 @@
         <div class="ambient-sheet-header">
           <div class="ambient-brand-title">
             <img src="assets/nagex-compact-logo.png" alt="NAgex" class="nagex-compact-logo ambient-logo" role="button" tabindex="0" aria-label="Go to Home" data-i18n-aria-label="nav.logoHomeAria" onclick="window.NAGEX.goHome()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.NAGEX.goHome();}">
-            <h2 class="ambient-modal-title" id="ambient-modal-title" data-i18n="ambient.modalTitle">Plan Preview</h2>
+            <h2 class="ambient-modal-title" id="ambient-modal-title" data-i18n="ambient.modalTitle">NAgex Assistant</h2>
             <span class="ambient-modal-status" id="ambient-modal-status"></span>
           </div>
           <button class="ambient-close-btn" id="btn-close-ambient" type="button" aria-label="Close" data-i18n-aria-label="ambient.close">&times;</button>
         </div>
 
         <div class="ambient-sheet-body" id="ambient-sheet-body">
-          <!-- Ambient Assistant flow stepper: User message -> Plan Preview ->
-               Plan Resolution -> Approval Card -> Human Approval -> Execution -> Result -->
-          <div class="ambient-flow-stepper" id="ambient-flow-stepper" aria-live="polite"></div>
+          <!-- Stepper: Shown in debug mode (?debug=1) or when expanded -->
+          <div class="ambient-flow-stepper" id="ambient-flow-stepper" style="display:none;" aria-live="polite"></div>
 
           <!-- Floating Voice Widget (Mockup Image 1) -->
-          <div class="ambient-voice-card">
+          <div class="ambient-voice-card" id="ambient-voice-card">
             <div class="voice-card-top">
               <div class="glowing-mic-icon">🎙️</div>
               <div>
@@ -1331,27 +1330,27 @@
             </div>
 
             <div class="voice-controls-bar">
-              <button class="btn-circle-sub">📎</button>
-              <button class="btn-circle-sub">⌨️</button>
-              <button class="btn-circle-mic-primary">🎙️</button>
+              <button class="btn-circle-sub" type="button">📎</button>
+              <button class="btn-circle-sub" type="button">⌨️</button>
+              <button class="btn-circle-mic-primary" id="btn-ambient-voice-toggle" type="button">🎙️</button>
               <div class="ambient-type-input-wrap">
                 <input type="text" id="ambient-prompt-input" placeholder="Prepare my next client meeting and schedule it." data-i18n-placeholder="ambient.promptPlaceholder" aria-label="Ask NAgex" data-i18n-aria-label="ambient.promptAriaLabel" value="">
-                <button class="btn-send-mini" id="btn-ambient-run">✈️</button>
+                <button class="btn-send-mini" id="btn-ambient-run" type="button">✈️</button>
               </div>
             </div>
           </div>
 
           <!-- User & NAgex Chat Speech Bubbles -->
           <div class="ambient-chat-bubbles">
-            <div class="chat-bubble user">
+            <div class="chat-bubble user" id="ambient-user-bubble" style="display:none;">
               <div class="avatar">👤</div>
-              <div class="bubble-text">Prepare my next client meeting and schedule it.</div>
+              <div class="bubble-text" id="ambient-user-request-text">Prepare my next client meeting and schedule it.</div>
             </div>
 
-            <div class="chat-bubble nagex">
+            <div class="chat-bubble nagex" id="ambient-nagex-bubble">
               <div class="avatar-n">N</div>
               <div class="bubble-text">
-                <p>I can help with that. Here's my plan:</p>
+                <p data-i18n="ambient.helpPlan">I can help with that. Here's what I understand:</p>
                 <div class="ambient-mini-plan-card">
                   <div class="mini-step">
                     <span class="icon">📅</span>
@@ -1384,16 +1383,39 @@
             <div class="progress-track"><div class="progress-fill" id="ambient-progress-fill" style="width: 20%;"></div></div>
           </div>
 
-          <!-- R12.1 Increment 1 — progressive disclosure (MASTER.md 14.9 §5):
-               internal execution detail (provider/model/latency/request id)
-               is available on demand, never shown as primary UX text. Hidden
-               and collapsed by default; only appears once there is real
-               detail to show. -->
+          <!-- Canonical User Presentation Card (Progressive Disclosure) -->
+          <section class="ambient-understanding-card" id="ambient-understanding-card" style="display:none;" aria-live="polite">
+            <div class="user-task-header">
+              <h3 id="ambient-task-display-title">Preparing your client meeting</h3>
+            </div>
+            
+            <div class="user-friendly-steps" id="ambient-friendly-steps"></div>
+
+            <div class="surfaced-context-box" id="ambient-surfaced-context" style="display:none;"></div>
+
+            <div class="grounding-why-notice" id="ambient-grounding-why" style="display:none;"></div>
+
+            <div class="understanding-summary-box" id="ambient-understanding-summary" style="display:none;"></div>
+
+            <div class="one-clear-next-action-bar" id="ambient-understanding-actions"></div>
+          </section>
+
+          <!-- User-Friendly Approval Section (Consequential Mutations) -->
+          <section class="ambient-user-approval-card" id="ambient-user-approval-card" style="display:none;" aria-live="polite">
+            <div class="user-approval-header">
+              <h4 id="ambient-approval-heading">Ready to add to your calendar</h4>
+            </div>
+            <div class="user-approval-details" id="ambient-approval-details-body"></div>
+            <div class="user-approval-actions" id="ambient-approval-action-btns"></div>
+          </section>
+
+          <!-- Progressive Disclosure: Collapsed Execution Details -->
           <div class="ambient-activity-detail" id="ambient-activity-detail" style="display:none;">
             <button class="ambient-activity-toggle" id="btn-ambient-activity-toggle" aria-expanded="false" aria-controls="ambient-activity-detail-body" data-i18n="ambient.activityToggle">What NAgex is doing</button>
             <div class="ambient-activity-detail-body" id="ambient-activity-detail-body" hidden></div>
           </div>
 
+          <!-- Technical Debug Sections (Shown in Debug Mode ?debug=1) -->
           <section class="ambient-generated-plan" id="ambient-plan-preview" style="display:none;" aria-live="polite">
             <h3>Generated Plan Preview</h3>
             <div class="plan-step-list" id="ambient-plan-steps"></div>
@@ -1414,7 +1436,7 @@
           </section>
 
           <section class="ambient-result-card" id="ambient-result-card" style="display:none;" aria-live="polite">
-            <strong>Model response</strong>
+            <strong data-i18n="ambient.result.title">Result</strong>
             <p id="ambient-result-text"></p>
           </section>
         </div>

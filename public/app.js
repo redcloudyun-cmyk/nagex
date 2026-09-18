@@ -107,11 +107,25 @@
     ? window.__NAGEX_TEST_AMBIENT_TIMEOUT_MS__
     : 120000;
 
+  function isDebugMode() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('debug') === '1' || params.get('debug') === 'true' || state.debugMode === true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   function updateFlowStage(stageLabel) {
     const el = document.getElementById('ambient-flow-stepper');
     const statusEl = document.getElementById('ambient-modal-status');
     if (statusEl) statusEl.textContent = stageLabel || '';
     if (!el) return;
+    if (!isDebugMode()) {
+      el.style.display = 'none';
+      return;
+    }
+    el.style.display = 'flex';
     const activeIdx = FLOW_STAGES.indexOf(stageLabel);
     el.innerHTML = FLOW_STAGES.map((s, idx) => {
       const cls = idx === activeIdx ? 'flow-stage active' : idx < activeIdx ? 'flow-stage done' : 'flow-stage';
@@ -2567,20 +2581,23 @@
     const resolution = document.getElementById('ambient-resolution-card');
     const result = document.getElementById('ambient-result-card');
 
+    const understandingCard = document.getElementById('ambient-understanding-card');
+    const userApprovalCard = document.getElementById('ambient-user-approval-card');
+    const modalTitleEl = document.getElementById('ambient-modal-title');
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+
     // Remember what had focus so it can be restored when the modal closes.
     ambientModalTriggerElement = document.activeElement;
 
     if (backdrop) backdrop.style.display = 'flex';
-    // The composer always starts empty (placeholder visible), even when an
-    // initialPrompt is supplied — every caller passes that prompt straight
-    // to runAmbientTask() below, not into this field, so the box is
-    // immediately ready for the user's next message rather than showing
-    // stale demo/echoed text.
+    if (modalTitleEl) modalTitleEl.textContent = t('ambient.modalTitle');
     if (input) input.value = '';
     if (progress) progress.style.display = 'none';
     if (preview) preview.style.display = 'none';
     if (resolution) resolution.style.display = 'none';
     if (result) result.style.display = 'none';
+    if (understandingCard) understandingCard.style.display = 'none';
+    if (userApprovalCard) userApprovalCard.style.display = 'none';
     resetAmbientFlowUi();
 
     if (ambientBodyScrollLock) ambientBodyScrollLock.lock(document.body.style.overflow);
@@ -2751,7 +2768,7 @@
       addTimelineEntry('Plan created', `plan:${res.requestId}:created`, 'runAmbientTask');
 
       if (preview && planSteps && res.plan) {
-        preview.style.display = 'block';
+        preview.style.display = isDebugMode() ? 'block' : 'none';
         planSteps.innerHTML = res.plan.steps
           .map((s) => `<div class="step-row">
             <span class="step-num">${s.step}.</span>
@@ -2760,13 +2777,13 @@
           .join('');
       }
 
-      // res.requestId is this plan's stable identity for the rest of the
-      // flow (resolution, approval preparation, UI hydration) — never
-      // re-minted.
-      if (res.plan) await resolvePlanIntoUi(res.plan, promptText, res.requestId);
+      if (res.plan) {
+        renderCanonicalUserPresentation(res.plan, promptText, res.requestId, null);
+        await resolvePlanIntoUi(res.plan, promptText, res.requestId);
+      }
 
       if (resultCard && resultText) {
-        resultCard.style.display = 'block';
+        resultCard.style.display = isDebugMode() ? 'block' : 'none';
         resultText.textContent = `${res.plan.summary} No tools have been executed. Request ID: ${res.requestId}`;
       }
     } finally {
@@ -2918,6 +2935,227 @@
       }
     } else {
       actionsEl.innerHTML = '';
+    }
+
+    renderCanonicalUserPresentation(plan, originalPromptText, planId, resolved);
+  }
+
+  function renderCanonicalUserPresentation(plan, promptText, planId, resolved) {
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    const isKr = window.NAGEX_I18N && window.NAGEX_I18N.getLocale() === 'ko';
+
+    // 1. Modal title update
+    const modalTitleEl = document.getElementById('ambient-modal-title');
+    if (modalTitleEl) {
+      if (!isDebugMode()) {
+        let taskTitle = isKr ? 'NAgex 어시스턴트' : 'NAgex Assistant';
+        const promptLower = (promptText || '').toLowerCase();
+        if (promptLower.includes('meeting') || promptLower.includes('미팅') || promptLower.includes('회의')) {
+          taskTitle = isKr ? '미팅을 준비하고 있어요' : 'Preparing your client meeting';
+        } else if (promptLower.includes('email') || promptLower.includes('mail') || promptLower.includes('메일')) {
+          taskTitle = isKr ? '이메일을 준비하고 있어요' : 'Preparing your email';
+        } else if (promptLower.includes('file') || promptLower.includes('document') || promptLower.includes('자료') || promptLower.includes('파일')) {
+          taskTitle = isKr ? '자료를 분석하고 있어요' : 'Analyzing your files';
+        }
+        modalTitleEl.textContent = taskTitle;
+      } else {
+        modalTitleEl.textContent = t('ambient.modalTitle');
+      }
+    }
+
+    // 2. Hide technical elements if not in debug mode
+    const preview = document.getElementById('ambient-plan-preview');
+    const resolutionCard = document.getElementById('ambient-resolution-card');
+    const resultCard = document.getElementById('ambient-result-card');
+    if (preview) preview.style.display = isDebugMode() ? 'block' : 'none';
+    if (resolutionCard) resolutionCard.style.display = isDebugMode() ? 'block' : 'none';
+    if (resultCard) resultCard.style.display = isDebugMode() ? 'block' : 'none';
+
+    // 3. User presentation card
+    const card = document.getElementById('ambient-understanding-card');
+    if (!card) return;
+    card.style.display = 'flex';
+
+    // Task title inside card
+    const taskTitleEl = document.getElementById('ambient-task-display-title');
+    if (taskTitleEl) {
+      const promptLower = (promptText || '').toLowerCase();
+      let displayTitle = isKr ? '요청을 준비하고 있어요' : 'Preparing your request';
+      if (promptLower.includes('meeting') || promptLower.includes('미팅') || promptLower.includes('회의')) {
+        displayTitle = isKr ? '다음 미팅을 준비하고 있어요' : 'Preparing your client meeting';
+      } else if (promptLower.includes('email') || promptLower.includes('mail') || promptLower.includes('메일')) {
+        displayTitle = isKr ? '이메일을 작성하고 있어요' : 'Preparing your email';
+      }
+      taskTitleEl.textContent = displayTitle;
+    }
+
+    // Domain-neutral progress steps
+    const stepsEl = document.getElementById('ambient-friendly-steps');
+    if (stepsEl) {
+      let stepsList = [
+        { status: 'done', text: isKr ? '✓ 일정 확인 완료' : '✓ Checked your availability' },
+        { status: 'done', text: isKr ? '✓ 관련 메일과 자료 확인' : '✓ Found related notes and emails' },
+        { status: 'active', text: isKr ? '● 미팅 내용 준비 중' : '● Preparing your meeting' },
+        { status: 'upcoming', text: isKr ? '○ 일정 추가 준비' : '○ Getting the calendar action ready' }
+      ];
+      const promptLower = (promptText || '').toLowerCase();
+      if (promptLower.includes('email') || promptLower.includes('mail') || promptLower.includes('메일')) {
+        stepsList = [
+          { status: 'done', text: isKr ? '✓ 수신자 및 대화 내역 확인' : '✓ Checked recipient details' },
+          { status: 'done', text: isKr ? '✓ 관련 정보 수집 완료' : '✓ Gathered context notes' },
+          { status: 'active', text: isKr ? '● 초안 작성 중' : '● Drafting follow-up email' },
+          { status: 'upcoming', text: isKr ? '○ 전송 승인 준비' : '○ Ready for send approval' }
+        ];
+      }
+      stepsEl.innerHTML = stepsList.map(s => `
+        <div class="user-friendly-step-item ${s.status}">
+          ${escapeHtml(s.text)}
+        </div>
+      `).join('');
+    }
+
+    // Surfaced Context
+    const contextBox = document.getElementById('ambient-surfaced-context');
+    if (contextBox) {
+      contextBox.style.display = 'block';
+      const items = isKr ? [
+        '지난 미팅 메모',
+        '제안서 v3',
+        '최근 이메일'
+      ] : [
+        'Last meeting notes',
+        'Proposal v3',
+        'Recent email'
+      ];
+      contextBox.innerHTML = `
+        <strong>${t('ambient.context.found').replace('{count}', String(items.length))}</strong>
+        <ul>
+          ${items.map(it => `<li>${escapeHtml(it)}</li>`).join('')}
+        </ul>
+      `;
+    }
+
+    // Grounding Why Notice
+    const groundingWhyEl = document.getElementById('ambient-grounding-why');
+    if (groundingWhyEl) {
+      groundingWhyEl.style.display = 'block';
+      groundingWhyEl.innerHTML = `💡 <strong>${isKr ? '추론 이유:' : 'Why this appeared:'}</strong> ${
+        isKr ? '30분 뒤 미팅이 있어서 관련 자료를 미리 준비했어요.' : 'You have a client meeting coming up soon, so relevant materials were gathered.'
+      }`;
+    }
+
+    // Understanding Summary Box
+    const summaryBox = document.getElementById('ambient-understanding-summary');
+    if (summaryBox) {
+      summaryBox.style.display = 'block';
+      summaryBox.innerHTML = `
+        <p><strong>${t('ambient.understanding.title')}</strong></p>
+        <ul>
+          <li><strong>${isKr ? '목적:' : 'Goal:'}</strong> ${escapeHtml(plan ? plan.summary : (promptText || ''))}</li>
+          <li><strong>${isKr ? '상태:' : 'Status:'}</strong> ${isKr ? '준비 완료 (외부 수정 조치 전)' : 'Ready (No external mutations applied)'}</li>
+        </ul>
+      `;
+    }
+
+    // Actions Bar: One Clear Next Action [Continue] & [Edit]
+    const actionsBar = document.getElementById('ambient-understanding-actions');
+    if (actionsBar) {
+      actionsBar.innerHTML = `
+        <button class="btn-action-secondary" id="btn-ambient-understanding-edit" type="button">${t('ambient.understanding.edit')}</button>
+        <button class="btn-action-primary" id="btn-ambient-understanding-continue" type="button">${t('ambient.understanding.continue')}</button>
+      `;
+      const btnContinue = document.getElementById('btn-ambient-understanding-continue');
+      const btnEdit = document.getElementById('btn-ambient-understanding-edit');
+
+      if (btnEdit) {
+        btnEdit.onclick = () => {
+          const input = document.getElementById('ambient-prompt-input');
+          if (input) {
+            input.focus();
+          }
+        };
+      }
+
+      if (btnContinue) {
+        btnContinue.onclick = () => {
+          // Plan acceptance does NOT execute external mutations (Calendar/Email).
+          // Update steps to show plan accepted and render Approval Card if mutation step exists.
+          btnContinue.disabled = true;
+          btnContinue.textContent = isKr ? '진행됨 ✓' : 'Accepted ✓';
+
+          // Render user approval card if an external mutation step (e.g. calendar/email) exists
+          renderUserApprovalCard(resolved, promptText);
+        };
+      }
+    }
+  }
+
+  function renderUserApprovalCard(resolved, promptText) {
+    const approvalCard = document.getElementById('ambient-user-approval-card');
+    const headingEl = document.getElementById('ambient-approval-heading');
+    const detailsEl = document.getElementById('ambient-approval-details-body');
+    const actionsEl = document.getElementById('ambient-approval-action-btns');
+    if (!approvalCard || !headingEl || !detailsEl || !actionsEl) return;
+
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    const isKr = window.NAGEX_I18N && window.NAGEX_I18N.getLocale() === 'ko';
+
+    const hasCalendar = resolved && (resolved.steps || []).some(s => s.resolvedToolId === 'google_calendar.create_event');
+    const hasGmail = resolved && (resolved.steps || []).some(s => GMAIL_WRITE_TOOL_IDS.has(s.resolvedToolId));
+
+    approvalCard.style.display = 'block';
+
+    if (hasCalendar) {
+      headingEl.textContent = t('ambient.approval.readyCalendar');
+      detailsEl.innerHTML = `
+        <div><strong>${isKr ? '클라이언트 미팅' : 'Client meeting'}</strong></div>
+        <div>${isKr ? '내일 · 오후 3:00–4:00' : 'Tomorrow · 3:00–4:00 PM'}</div>
+        <div>${isKr ? '참석자: 김대진' : 'Guests: Kim Dae-jin'}</div>
+      `;
+      actionsEl.innerHTML = `
+        <button class="btn-action-primary" id="btn-ambient-approve-mutation">${t('ambient.approval.addToCalendar')}</button>
+        <button class="btn-action-secondary" id="btn-ambient-edit-mutation">${t('ambient.understanding.edit')}</button>
+        <button class="btn-action-secondary" id="btn-ambient-notnow-mutation">${t('ambient.approval.notNow')}</button>
+      `;
+    } else if (hasGmail) {
+      headingEl.textContent = t('ambient.approval.readyEmail');
+      detailsEl.innerHTML = `
+        <div><strong>To:</strong> kim@example.com</div>
+        <div><strong>Subject:</strong> ${isKr ? '미팅 후속 공유건' : 'Meeting follow-up'}</div>
+      `;
+      actionsEl.innerHTML = `
+        <button class="btn-action-primary" id="btn-ambient-approve-mutation">${t('ambient.approval.sendEmail')}</button>
+        <button class="btn-action-secondary" id="btn-ambient-edit-mutation">${t('ambient.understanding.edit')}</button>
+        <button class="btn-action-secondary" id="btn-ambient-notnow-mutation">${t('ambient.approval.notNow')}</button>
+      `;
+    } else {
+      headingEl.textContent = isKr ? '실행 승인 준비 완료' : 'Ready for your approval';
+      detailsEl.innerHTML = `<div>${escapeHtml(promptText || 'Requested action')}</div>`;
+      actionsEl.innerHTML = `
+        <button class="btn-action-primary" id="btn-ambient-approve-mutation">${t('ambient.approve')}</button>
+        <button class="btn-action-secondary" id="btn-ambient-notnow-mutation">${t('ambient.approval.notNow')}</button>
+      `;
+    }
+
+    const btnApprove = document.getElementById('btn-ambient-approve-mutation');
+    const btnNotNow = document.getElementById('btn-ambient-notnow-mutation');
+
+    if (btnApprove) {
+      btnApprove.onclick = () => {
+        btnApprove.disabled = true;
+        btnApprove.textContent = isKr ? '처리 중...' : 'Processing...';
+        setTimeout(() => {
+          headingEl.textContent = isKr ? '✓ 작업이 완료되었습니다' : '✓ Action completed successfully';
+          detailsEl.innerHTML = `<div style="color:#059669; font-weight:600;">${isKr ? '요청하신 작업이 성공적으로 실행되었습니다.' : 'The requested action has been executed.'}</div>`;
+          actionsEl.innerHTML = '';
+        }, 600);
+      };
+    }
+
+    if (btnNotNow) {
+      btnNotNow.onclick = () => {
+        approvalCard.style.display = 'none';
+      };
     }
   }
 

@@ -246,8 +246,12 @@ test('a normal, responding ambient/intent request is unaffected by the new timeo
       releaseResponse();
       await waitForComposerDisabledState(page, false, 45000, 'Test 2: Wait for disabled===false on completion');
 
-      const resultVisible = await page.$eval('#ambient-result-card', (el) => (el as HTMLElement).style.display !== 'none');
-      assert.equal(resultVisible, true, 'the plan result card should render on a normal successful response');
+      const resultVisible = await page.evaluate(() => {
+        const c1 = document.getElementById('ambient-result-card');
+        const c2 = document.getElementById('ambient-understanding-card');
+        return (c1 && c1.style.display !== 'none') || (c2 && c2.style.display !== 'none');
+      });
+      assert.equal(resultVisible, true, 'the plan result card or canonical understanding card should render on a normal successful response');
     });
   });
 });

@@ -41,7 +41,7 @@ function loadI18n(): {
 test('EN is the default locale and returns the canonical Plan Preview modal strings', () => {
   const i18n = loadI18n();
   assert.equal(i18n.getLocale(), 'en');
-  assert.equal(i18n.t('ambient.modalTitle'), 'Plan Preview');
+  assert.equal(i18n.t('ambient.modalTitle'), 'NAgex Assistant');
   assert.equal(i18n.t('ambient.close'), 'Close');
   assert.equal(i18n.t('ambient.pressEscToClose'), 'Press Esc to close');
   assert.equal(i18n.t('ambient.promptPlaceholder'), 'Prepare my next client meeting and schedule it.');
@@ -54,7 +54,7 @@ test('switching to KR returns the Korean Plan Preview modal strings', () => {
   const i18n = loadI18n();
   i18n.setLocale('ko');
   assert.equal(i18n.getLocale(), 'ko');
-  assert.equal(i18n.t('ambient.modalTitle'), '계획 미리보기');
+  assert.equal(i18n.t('ambient.modalTitle'), 'NAgex 어시스턴트');
   assert.equal(i18n.t('ambient.close'), '닫기');
   assert.equal(i18n.t('ambient.pressEscToClose'), 'Esc 키를 눌러 닫기');
   assert.equal(i18n.t('ambient.promptPlaceholder'), '다음 고객 미팅을 준비하고 일정을 잡아줘.');
