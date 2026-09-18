@@ -191,6 +191,8 @@
     "r18_personal_workspace",
     "r18_personal_workspace_real_browser",
     "r19_action_approval",
-    "r19_action_approval_real_browser"
+    "r19_action_approval_real_browser",
+    "r20_proactive_personal_assistant",
+    "r20_proactive_personal_assistant_real_browser"
   ]
 }

@@ -1,0 +1,20 @@
+[
+  {
+    "reminder_id": "rem_1789691959254_9nt38",
+    "user_id": "usr_admin_001",
+    "title": "김대표에게 전화",
+    "scheduled_at": "2026-09-18T01:09:19.244Z",
+    "timezone": "Asia/Seoul",
+    "status": "ACTIVE",
+    "created_at": "2026-09-18T00:39:19.254Z"
+  },
+  {
+    "reminder_id": "rem_1789692003342_kbjyd",
+    "user_id": "usr_admin_001",
+    "title": "김대표에게 전화",
+    "scheduled_at": "2026-09-18T01:10:03.322Z",
+    "timezone": "Asia/Seoul",
+    "status": "ACTIVE",
+    "created_at": "2026-09-18T00:40:03.342Z"
+  }
+]
