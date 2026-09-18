@@ -745,8 +745,10 @@
     // 2a. Important for you
     const elImportant = document.getElementById('list-important-for-you');
     if (elImportant) {
+      const proposedCandidates = (state.candidates || []).filter((c) => c.status === 'PROPOSED');
       const needsHumanCaptures = (state.inbox || []).filter((i) => i.status === 'NEEDS_REVIEW' && i.metadata?.errorCode === 'BLOCKED_NEEDS_HUMAN');
       const importantItems = [
+        ...proposedCandidates,
         ...needsHumanCaptures,
       ].slice(0, 2);
     }
