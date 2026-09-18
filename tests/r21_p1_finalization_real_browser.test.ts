@@ -37,6 +37,20 @@ async function shot(page: Page, name: string): Promise<void> {
   await page.screenshot({ path: path.join(SCREENSHOTS, name), fullPage: true });
 }
 
+async function getDemoState(page: Page): Promise<any> {
+  return page.evaluate(async () => {
+    const res = await fetch('/api/v1/demo/state', {
+      headers: {
+        'X-NAgex-Demo': '1',
+        'X-NAgex-Tenant': 'ten_demo_hackathon',
+        'X-Principal-Id': 'usr_demo_alex'
+      }
+    });
+    const body: any = await res.json();
+    return body.data || body;
+  });
+}
+
 async function reset(origin: string): Promise<void> {
   const response = await fetch(`${origin}/api/v1/demo/reset`, { method: 'POST', headers: DEMO_HEADERS, body: '{}' });
   assert.equal(response.status, 200);
@@ -80,7 +94,7 @@ test('R21 P1 A-J semantic certification and visual QA capture', async () => {
 
     await page.click('#meeting-prep-find-time');
     await page.waitForSelector('#meeting-prep-add-to-calendar');
-    let state = await (await fetch(`${server.origin}/api/v1/demo/state`, { headers: DEMO_HEADERS })).json() as any;
+    let state = await getDemoState(page);
     assert.equal(state.mutationCount, 0, 'Scenario D preparation must not mutate');
     await page.click('#meeting-prep-add-to-calendar');
     await page.waitForSelector('#meeting-prep-confirm-add');
@@ -95,7 +109,7 @@ test('R21 P1 A-J semantic certification and visual QA capture', async () => {
     const continuationText = await page.locator('#meeting-prep-continuation').innerText();
     assert.match(continuationText, /Demo completed/);
     assert.doesNotMatch(continuationText, /Added to your calendar/);
-    state = await (await fetch(`${server.origin}/api/v1/demo/state`, { headers: DEMO_HEADERS })).json() as any;
+    state = await getDemoState(page);
     assert.equal(state.mutationCount, 1);
     assert.equal(state.addedEvents.length, 1);
     await shot(page, 'desktop_action_done_en.png');
@@ -185,17 +199,19 @@ test('J - Browser Context State Isolation between independent browser contexts',
       const res = await fetch('/api/v1/workspace/vault', {
         headers: { 'X-NAgex-Demo': '1', 'X-NAgex-Tenant': 'ten_demo_hackathon', 'X-Principal-Id': 'usr_demo_alex' }
       });
-      return await res.json();
+      const body: any = await res.json();
+      return body.data || body;
     });
-    assert.equal((stateA as any).data.items.some((i: any) => i.title === 'Context A Note'), true);
+    assert.equal((stateA as any).items.some((i: any) => i.title === 'Context A Note'), true);
 
     const stateB = await pageB.evaluate(async () => {
       const res = await fetch('/api/v1/workspace/vault', {
         headers: { 'X-NAgex-Demo': '1', 'X-NAgex-Tenant': 'ten_demo_hackathon', 'X-Principal-Id': 'usr_demo_alex' }
       });
-      return await res.json();
+      const body: any = await res.json();
+      return body.data || body;
     });
-    assert.equal((stateB as any).data.items.some((i: any) => i.title === 'Context A Note'), false, 'CROSS_SESSION_LEAK must be 0');
+    assert.equal((stateB as any).items.some((i: any) => i.title === 'Context A Note'), false, 'CROSS_SESSION_LEAK must be 0');
 
     await pageA.evaluate(async () => {
       await fetch('/api/v1/demo/reset', {
