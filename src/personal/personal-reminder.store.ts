@@ -26,7 +26,7 @@ export class PersonalReminderStore {
   private filePath: string;
 
   constructor(storageDir?: string) {
-    const dir = storageDir || path.join(process.cwd(), '.nagex_data');
+    const dir = storageDir || process.env.NAGEX_PERSONAL_REMINDERS_DIR || path.join(process.cwd(), '.nagex_data', 'runtime');
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }

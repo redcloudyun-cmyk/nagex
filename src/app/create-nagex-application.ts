@@ -99,6 +99,8 @@ import { EnterpriseIdentityStore } from '../enterprise-identity/enterprise-ident
 import { SsoFlowStore } from '../enterprise-identity/sso-flow.store.js';
 import { PersonalReminderStore } from '../personal/personal-reminder.store.js';
 import { PersonalAssistantEngine } from '../personal/personal-assistant.engine.js';
+import { DemoScenarioService } from '../demo/demo-scenario.service.js';
+import { SocialIdentityStore } from '../identity/social-identity.store.js';
 import { LifecycleManager } from './lifecycle-manager.js';
 
 // Common words that would otherwise create spurious "relevance" matches
@@ -112,6 +114,8 @@ const MEMORY_RELEVANCE_STOPWORDS = new Set([
 ]);
 
 export function createNagexApplication(): NagexApplication {
+  const demoScenarioService = new DemoScenarioService();
+  const socialIdentityStore = new SocialIdentityStore();
   // ─── Boot NAgex Core Engine ───
   const identityStore = new IdentityStore();
   const identityTokenStore = new IdentityTokenStore();
@@ -490,6 +494,8 @@ export function createNagexApplication(): NagexApplication {
   });
 
   return {
+    demoScenarioService,
+    socialIdentityStore,
     personalReminderStore,
     personalAssistantEngine,
     identityStore,

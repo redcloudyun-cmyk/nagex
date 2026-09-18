@@ -244,8 +244,9 @@
       const res = await fetch(endpoint, {
         headers: {
           'Content-Type': 'application/json',
-          'X-NAgex-Tenant': 'ten_production_01',
-          'X-Principal-Id': 'usr_admin_001',
+          'X-NAgex-Tenant': new URLSearchParams(window.location.search).get('demo') === '1' ? 'ten_demo_hackathon' : 'ten_production_01',
+          'X-Principal-Id': new URLSearchParams(window.location.search).get('demo') === '1' ? 'usr_demo_alex' : 'usr_admin_001',
+          ...(new URLSearchParams(window.location.search).get('demo') === '1' ? { 'X-NAgex-Demo': '1' } : {}),
           ...(fetchOptions.headers || {}),
         },
         ...fetchOptions,
@@ -281,6 +282,7 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
+    if (new URLSearchParams(window.location.search).get('demo') === '1') setupDemoReset();
     initNavigation();
     initRouter();
     initQuickWake();
@@ -298,6 +300,25 @@
 
     if (window.NAGEX_I18N) window.NAGEX_I18N.applyLocale();
   });
+
+  function setupDemoReset() {
+    const panel = document.getElementById('cat-panel-general') || document.getElementById('cat-panel-notifications');
+    if (!panel || document.getElementById('demo-reset-card')) return;
+    const card = document.createElement('div');
+    card.id = 'demo-reset-card';
+    card.className = 'settings-card';
+    card.innerHTML = '<h3>Demo</h3><p>Restore the canonical Alex Kim hero scenario.</p><button type="button" class="btn-secondary" id="btn-demo-reset">Reset Demo</button><p id="demo-reset-feedback" aria-live="polite"></p>';
+    panel.appendChild(card);
+    card.querySelector('#btn-demo-reset').addEventListener('click', async () => {
+      if (!window.confirm('Reset the NAgex demo to its original state?')) return;
+      const result = await apiFetch('/api/v1/demo/reset', { method: 'POST', body: '{}' });
+      const feedback = card.querySelector('#demo-reset-feedback');
+      if (result && result.success) {
+        feedback.textContent = 'Demo reset complete.';
+        window.setTimeout(() => window.location.assign('/?demo=1'), 300);
+      } else feedback.textContent = "I couldn't reset the demo right now.";
+    });
+  }
 
   function initNavigation() {
     const navItems = document.querySelectorAll('.nav-menu .nav-item');
@@ -3215,7 +3236,7 @@
       // Surfaced Context (Meeting notes, proposal, email)
       if (contextBox) {
         contextBox.style.display = 'block';
-        const items = isKr ? ['지난 미팅 메모', '제안서 v3', '최근 이메일'] : ['Last meeting notes', 'Proposal v3', 'Recent email'];
+        const items = [];
         contextBox.innerHTML = `
           <strong>${t('ambient.context.found').replace('{count}', String(items.length))}</strong>
           <ul>
@@ -3234,7 +3255,7 @@
       if (groundingWhyEl) {
         groundingWhyEl.style.display = 'block';
         groundingWhyEl.innerHTML = `📅 <strong>${isKr ? '추천 일정:' : 'Proposed Schedule:'}</strong> ${
-          isKr ? '내일 · 오후 3:00–4:00 (충돌 없음)' : 'Tomorrow · 3:00–4:00 PM (No conflicts found)'
+          isKr ? '실제 일정을 확인하는 중...' : 'Checking your calendar...'
         }`;
       }
 

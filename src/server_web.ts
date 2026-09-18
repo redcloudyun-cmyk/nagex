@@ -35,6 +35,7 @@ import { handleCapabilitiesRoutes } from './http/routes/capabilities.routes.js';
 import { handleMySpaceRoutes } from './http/routes/my-space.routes.js';
 import { handleDeviceAgentRoutes } from './http/routes/device-agent.routes.js';
 import { handleAuthRoutes } from './http/routes/auth.routes.js';
+import { handleSocialAuthRoutes } from './http/routes/social-auth.routes.js';
 import { handleAccountRoutes } from './http/routes/account.routes.js';
 import { handleOrganizationRoutes } from './http/routes/organization.routes.js';
 import { handleRbacRoutes } from './http/routes/rbac.routes.js';
@@ -286,7 +287,17 @@ export async function handleAsyncApiRequest(
   }
 ): Promise<ApiResult> {
   try {
+    const demoHeader = headers['x-nagex-demo'] ?? headers['X-NAgex-Demo'];
+    const demoEnabled = (Array.isArray(demoHeader) ? demoHeader[0] : demoHeader) === '1';
+    if (demoEnabled) {
+      const demoResult = app.demoScenarioService.handle(method, pathname, body);
+      if (demoResult) return demoResult;
+    }
     // R13 Identity & Account Lifecycle routes
+    {
+      const socialAuthResult = await handleSocialAuthRoutes(method, pathname, body, headers, query, { identityStore: customDeps?.identityStore ?? identityStore, socialIdentityStore: app.socialIdentityStore, sessionStore: customDeps?.sessionStore ?? sessionStore });
+      if (socialAuthResult) return socialAuthResult;
+    }
     {
       const authResult = await handleAuthRoutes(method, pathname, body, headers, query, {
         identityStore: customDeps?.identityStore ?? identityStore,

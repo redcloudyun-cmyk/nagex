@@ -90,6 +90,7 @@ process.env.NAGEX_OBJECT_STORAGE_DIR ??= path.join(dataRoot, 'object-storage');
 process.env.NAGEX_TELEGRAM_DIR ??= path.join(dataRoot, 'telegram-identities');
 process.env.NAGEX_SLACK_DIR ??= path.join(dataRoot, 'slack-identities');
 process.env.NAGEX_MEMORIES_DIR ??= path.join(dataRoot, 'memories');
+process.env.NAGEX_PERSONAL_REMINDERS_DIR ??= path.join(dataRoot, 'personal-reminders');
 process.env.NAGEX_MODULE_STATE_DIR ??= path.join(dataRoot, 'module-state');
 process.env.NAGEX_WORKFLOW_DEFINITIONS_DIR ??= path.join(dataRoot, 'workflows');
 process.env.NAGEX_CAPABILITIES_IDEMPOTENCY_DIR ??= path.join(dataRoot, 'capabilities_idempotency');
@@ -111,6 +112,5 @@ process.env.NAGEX_IDENTITY_TOKENS_DIR ??= path.join(dataRoot, 'identity-tokens')
 process.env.NAGEX_IDENTITY_AUDIT_DIR ??= path.join(dataRoot, 'identity-audit');
 process.env.NAGEX_ORGANIZATION_DIR ??= path.join(dataRoot, 'organizations');
 process.env.NAGEX_ENTERPRISE_IDENTITY_DIR ??= path.join(dataRoot, 'enterprise-identity');
+process.env.NAGEX_SOCIAL_IDENTITY_DIR ??= path.join(dataRoot, 'social-identities');
 process.env.NAGEX_SSO_FLOW_DIR ??= path.join(dataRoot, 'sso-flow');
-
-

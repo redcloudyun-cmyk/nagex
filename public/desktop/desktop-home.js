@@ -39,7 +39,8 @@
     const fallback = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
     const textVal = t(key, fallback);
     if (el) {
-      el.textContent = textVal;
+      const demoMode = new URLSearchParams(window.location.search).get('demo') === '1';
+      el.textContent = demoMode ? `${textVal}, Alex` : textVal;
       el.setAttribute('data-i18n', key);
     }
     if (headerSub) {

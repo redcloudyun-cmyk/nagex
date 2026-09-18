@@ -636,3 +636,6 @@
     width: 100%;
   }
 }
+.mh-hero-brief-card { margin: 0 16px 14px; }
+.mh-hero-brief-card .hero-brief-title { font-size: 17px; }
+.mh-hero-brief-card .btn-plan-action { width: 100%; min-height: 44px; margin-top: 10px; }

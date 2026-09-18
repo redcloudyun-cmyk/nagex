@@ -27,7 +27,7 @@ export interface IdentityRecord {
   userId: string;               // UUID immutable identifier (e.g. user_550e8400-e29b-41d4-a716-446655440000)
   email: string;                // Normalized, lowercase email
   passwordHash: string;         // Salted password hash (crypto.scrypt); empty for enterprise/SCIM-provisioned accounts
-  authProvider: 'local' | 'oidc' | 'saml' | 'scim';
+  authProvider: 'local' | 'google' | 'microsoft' | 'oidc' | 'saml' | 'scim';
   verificationStatus: VerificationStatus;
   accountState: AccountState;
   createdAt: string;            // ISO date string

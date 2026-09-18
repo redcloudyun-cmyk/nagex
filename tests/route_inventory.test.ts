@@ -84,6 +84,7 @@ const EXPECTED_ROUTE_MODULE_COUNTS: Record<string, number> = {
   'safety.routes.ts': 3,
   'settings.routes.ts': 4,
   'slack.routes.ts': 5,
+  'social-auth.routes.ts': 1,
   'tasks.routes.ts': 11,
   'telegram.routes.ts': 5,
   'vault.routes.ts': 4,
@@ -110,8 +111,8 @@ test('ROUTE-INV-002: every route module\'s method-check-block count exactly matc
   assert.deepEqual(mismatches, [], `Route module endpoint-count drift detected:\n${mismatches.join('\n')}`);
 });
 
-test('ROUTE-INV-003: the total domain endpoint count across all route modules is exactly 269 (the verified R20 baseline) — any change requires an intentional manifest update', () => {
-  assert.equal(TOTAL_DOMAIN_ENDPOINTS, 269);
+test('ROUTE-INV-003: the total domain endpoint count across all route modules is exactly 270 (including R21 social auth) — any change requires an intentional manifest update', () => {
+  assert.equal(TOTAL_DOMAIN_ENDPOINTS, 270);
   let actualTotal = 0;
   for (const file of listRouteModuleFiles()) {
     actualTotal += countMethodChecks(readSourceWithoutComments(path.join(ROUTES_DIR, file)));

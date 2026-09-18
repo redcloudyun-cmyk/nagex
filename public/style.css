@@ -2378,6 +2378,21 @@ body {
    .mh-card's own scope in mobile-home.css lightly restyles spacing for the
    mobile card without duplicating these rules) ───────────────────────── */
 .daily-brief-card { display: flex; flex-direction: column; gap: 0.75rem; }
+.demo-mode .daily-brief-card { display: none !important; }
+.hero-brief-card { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(210px, .8fr); gap: 22px; padding: 22px; border: 1px solid #dbeafe; background: linear-gradient(135deg, #fff 0%, #f6faff 100%); }
+.hero-brief-demo-summary { grid-column: 1 / -1; margin: 0; color: #475569; font-size: .88rem; font-weight: 600; }
+.hero-brief-most-important { min-width: 0; }
+.hero-brief-label { display: block; margin-bottom: 6px; color: #2563eb; font-size: .72rem; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
+.hero-brief-title { margin: 0; color: #0f172a; font-size: 1.25rem; font-weight: 750; line-height: 1.3; }
+.hero-brief-reason { margin: 7px 0 15px; color: #475569; line-height: 1.45; }
+.hero-brief-also-today { padding-left: 20px; border-left: 1px solid #dbeafe; }
+.hero-brief-also-today ul { margin: 0; padding: 0; list-style: none; }
+.hero-brief-also-today li { display: grid; grid-template-columns: 68px minmax(0, 1fr); gap: 8px; margin: 8px 0; color: #334155; font-size: .86rem; }
+.hero-brief-time { color: #64748b; font-variant-numeric: tabular-nums; }
+@media (max-width: 700px) {
+  .hero-brief-card { grid-template-columns: 1fr; gap: 18px; padding: 18px; }
+  .hero-brief-also-today { padding: 16px 0 0; border-top: 1px solid #dbeafe; border-left: 0; }
+}
 .daily-brief-summary-row { display: flex; align-items: flex-start; gap: 0.75rem; }
 .daily-brief-icon { font-size: 1.5rem; line-height: 1; flex-shrink: 0; }
 .daily-brief-summary-text h3 { margin: 0 0 0.15rem; font-size: 1rem; font-weight: 700; color: var(--text-main); }
@@ -2875,3 +2890,34 @@ body {
 .attention-group h3 { margin: 0 0 6px; color: #475569; font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; }
 .attention-item { display: flex; width: 100%; flex-direction: column; gap: 3px; margin: 5px 0; padding: 10px; border: 0; border-radius: 9px; background: #f8fafc; color: #0f172a; text-align: left; cursor: pointer; }
 .attention-item span { color: #64748b; font-size: .78rem; }
+.meeting-prep-backdrop { position: fixed; inset: 0; z-index: 100000; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(15,23,42,.5); backdrop-filter: blur(4px); }
+.meeting-prep-backdrop.hidden { display: none; }
+.meeting-prep-modal { position: relative; width: min(680px, 100%); max-height: calc(100vh - 32px); overflow: auto; padding: 24px; border-radius: 20px; background: #fff; box-shadow: 0 24px 70px rgba(15,23,42,.28); }
+.meeting-prep-modal h3 { margin: 0 36px 4px 0; font-size: 1.35rem; line-height: 1.3; }
+.meeting-prep-modal h4 { margin: 18px 0 8px; }
+.meeting-prep-related, .meeting-prep-keypoints, .meeting-prep-agenda { margin: 0; padding-left: 22px; }
+.meeting-prep-related li, .meeting-prep-keypoints li, .meeting-prep-agenda li { margin: 7px 0; line-height: 1.45; }
+.meeting-prep-actions, .meeting-prep-confirm-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.meeting-prep-actions button, .meeting-prep-confirm-actions button { min-height: 42px; padding: 9px 14px; }
+@media (max-width: 600px) {
+  .meeting-prep-backdrop { align-items: flex-end; padding: 0; }
+  .meeting-prep-modal { max-height: 88vh; border-radius: 20px 20px 0 0; padding: 20px 16px 28px; }
+  .meeting-prep-modal h3 { font-size: 1.2rem; }
+  .meeting-prep-actions, .meeting-prep-confirm-actions { display: grid; grid-template-columns: 1fr; }
+  .meeting-prep-actions button, .meeting-prep-confirm-actions button { width: 100%; }
+}
+.auth-modal-card { width: min(440px, calc(100vw - 24px)); }
+.auth-provider-first { display: grid; gap: 10px; }
+.auth-subtitle { margin: 0 0 8px; color: #64748b; text-align: center; }
+.auth-provider-btn { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 46px; border: 1px solid #cbd5e1; border-radius: 10px; background: #fff; color: #0f172a; font: inherit; font-weight: 600; cursor: pointer; }
+.auth-provider-btn:hover { background: #f8fafc; border-color: #94a3b8; }
+.auth-provider-btn:focus-visible { outline: 3px solid rgba(37,99,235,.25); outline-offset: 2px; }
+.auth-provider-btn:disabled { opacity: .65; cursor: wait; }
+.provider-mark { display: inline-grid; place-items: center; width: 22px; height: 22px; font-weight: 700; }
+.provider-google { color: #4285f4; }
+.provider-microsoft { color: #2563eb; font-size: 22px; }
+.auth-divider { display: flex; align-items: center; gap: 10px; color: #94a3b8; font-size: 13px; }
+.auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: #e2e8f0; }
+.auth-email-first { margin-top: 10px; }
+.auth-legal { display: flex; justify-content: center; gap: 8px; margin-top: 18px; font-size: 12px; color: #64748b; }
+.auth-legal a { color: inherit; }

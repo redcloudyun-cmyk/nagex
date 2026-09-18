@@ -15,11 +15,13 @@
   };
 
   async function apiFetch(url, options = {}) {
+    const demoMode = new URLSearchParams(window.location.search).get('demo') === '1';
     const opts = { ...options };
     opts.headers = {
       'Content-Type': 'application/json',
-      'x-nagex-tenant': 'ten_production_01',
-      'x-principal-id': 'usr_admin_001',
+      'x-nagex-tenant': demoMode ? 'ten_demo_hackathon' : 'ten_production_01',
+      'x-principal-id': demoMode ? 'usr_demo_alex' : 'usr_admin_001',
+      ...(demoMode ? { 'x-nagex-demo': '1' } : {}),
       ...(options.headers || {}),
     };
     try {
@@ -41,6 +43,11 @@
       .replace(/"/g, '&quot;');
   }
 
+  function t(key, fallback) {
+    const resolved = window.NAGEX_I18N ? window.NAGEX_I18N.t(key) : null;
+    return resolved && resolved !== key ? resolved : fallback;
+  }
+
   // ── Init & Event Wiring ──────────────────────────────────────────────────
   async function init() {
     setupTabNav();
@@ -57,7 +64,7 @@
     const card = document.getElementById('qw-proactive-card');
     if (!card) return;
     card.hidden = false;
-    card.innerHTML = '<p class="qw-empty-text">Checking what needs your attention...</p>';
+    card.innerHTML = '<p class="qw-empty-text">' + escapeHtml(t('quickWake.checking', 'Checking what needs your attention...')) + '</p>';
     const startedAt = performance.now();
     state.quickWake = await apiFetch('/api/v1/personal/quick-wake');
     renderQuickWake();
@@ -75,11 +82,11 @@
     const grounded = Array.isArray(suggestion.grounded_on) ? suggestion.grounded_on : [];
     card.hidden = false;
     card.innerHTML = `
-      <div class="qw-proactive-label">Needs your attention</div>
+      <div class="qw-proactive-label">${escapeHtml(t('quickWake.needsAttention', 'Needs your attention'))}</div>
       <strong class="qw-proactive-title">${escapeHtml(suggestion.title || suggestion.message || 'Your next meeting is coming up.')}</strong>
       ${suggestion.reason ? `<p>${escapeHtml(suggestion.reason)}</p>` : ''}
-      ${grounded.length ? `<p class="qw-proactive-found">I found:</p><ul>${grounded.map((item) => `<li>${escapeHtml(item.label)}</li>`).join('')}</ul>` : ''}
-      <div class="qw-proactive-actions"><button class="qw-send-btn" id="qw-prepare-me" type="button">Prepare me</button><button class="qw-icon-btn" id="qw-not-now" type="button">Not now</button></div>`;
+      ${grounded.length ? `<p class="qw-proactive-found">${escapeHtml(t('quickWake.found', 'I found:'))}</p><ul>${grounded.map((item) => `<li>${escapeHtml(item.label)}</li>`).join('')}</ul>` : ''}
+      <div class="qw-proactive-actions"><button class="qw-send-btn" id="qw-prepare-me" type="button">${escapeHtml(t('quickWake.prepareMe', 'Prepare me'))}</button><button class="qw-icon-btn" id="qw-not-now" type="button">${escapeHtml(t('quickWake.notNow', 'Not now'))}</button></div>`;
     const prepare = document.getElementById('qw-prepare-me');
     const dismiss = document.getElementById('qw-not-now');
     if (prepare) prepare.onclick = () => {
@@ -169,6 +176,7 @@
         window.NAGEX_I18N.toggleLocale();
         btn.textContent = window.NAGEX_I18N.getLocale() === 'ko' ? 'EN' : 'KR';
         renderTasks();
+        renderQuickWake();
       };
     }
   }

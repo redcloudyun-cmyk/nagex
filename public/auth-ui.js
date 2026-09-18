@@ -7,7 +7,8 @@
   }
 
   function t(key, fallback) {
-    return (window.NAGEX_I18N ? window.NAGEX_I18N.t(key) : null) || fallback || key;
+    const resolved = window.NAGEX_I18N ? window.NAGEX_I18N.t(key) : null;
+    return resolved && resolved !== key ? resolved : (fallback || key);
   }
 
   let currentUserState = {
@@ -88,26 +89,41 @@
     modal.hidden = false;
 
     if (view === 'signin') {
-      title.textContent = t('auth.signIn', 'Sign In');
+      title.textContent = t('auth.welcome', 'Welcome to NAgex');
       body.innerHTML = `
-        <form id="auth-form-signin" class="auth-form">
+        <div class="auth-provider-first">
+          <p class="auth-subtitle">${escapeHtml(t('auth.subtitle', 'Your personal AI for getting things done.'))}</p>
+          <button type="button" class="auth-provider-btn auth-provider-google" id="btn-auth-google"><span aria-hidden="true" class="provider-mark provider-google">G</span>${escapeHtml(t('auth.continueGoogle', 'Continue with Google'))}</button>
+          <button type="button" class="auth-provider-btn auth-provider-microsoft" id="btn-auth-microsoft"><span aria-hidden="true" class="provider-mark provider-microsoft">⊞</span>${escapeHtml(t('auth.continueMicrosoft', 'Continue with Microsoft'))}</button>
+          <div class="auth-divider"><span>${escapeHtml(t('auth.or', 'or'))}</span></div>
+        </div>
+        <form id="auth-form-signin" class="auth-form auth-email-first">
           <div class="form-group">
             <label for="signin-email">${escapeHtml(t('auth.email', 'Email address'))}</label>
             <input type="email" id="signin-email" class="form-control" required autocomplete="email" value="${escapeHtml(params.email || '')}">
           </div>
-          <div class="form-group">
+          <div class="form-group" id="signin-password-group" hidden>
             <label for="signin-password">${escapeHtml(t('auth.password', 'Password'))}</label>
-            <input type="password" id="signin-password" class="form-control" required autocomplete="current-password">
+            <input type="password" id="signin-password" class="form-control" autocomplete="current-password">
           </div>
           <div class="form-actions">
-            <button type="submit" class="btn btn-primary" id="btn-submit-signin">${escapeHtml(t('auth.signIn', 'Sign In'))}</button>
+            <button type="submit" class="btn btn-primary" id="btn-submit-signin">${escapeHtml(t('auth.continueEmail', 'Continue with email'))}</button>
           </div>
           <div class="auth-msg-area" id="auth-msg-area"></div>
           <div class="auth-links">
-            <a href="#" id="link-forgot-password">${escapeHtml(t('auth.forgotPassword', 'Forgot password?'))}</a>
-            <a href="#" id="link-goto-signup">${escapeHtml(t('auth.needAccount', "Don't have an account? Sign up"))}</a>
+            <a href="#" id="link-forgot-password" hidden>${escapeHtml(t('auth.forgotPassword', 'Forgot password?'))}</a>
+            <span>${escapeHtml(t('auth.newToNagex', 'New to NAgex?'))} <a href="#" id="link-goto-signup">${escapeHtml(t('auth.createAccount', 'Create an account'))}</a></span>
           </div>
-        </form>`;
+        </form>
+        <div class="auth-legal"><a href="privacy.html">${escapeHtml(t('auth.privacy', 'Privacy'))}</a><span>·</span><a href="terms.html">${escapeHtml(t('auth.terms', 'Terms'))}</a></div>`;
+
+      const beginProvider = (provider) => {
+        const button = document.getElementById(`btn-auth-${provider}`);
+        if (button) { button.disabled = true; button.textContent = t('auth.redirecting', 'Opening secure sign-in...'); }
+        window.location.assign(`/api/v1/auth/oauth/${provider}/start`);
+      };
+      document.getElementById('btn-auth-google')?.addEventListener('click', () => beginProvider('google'));
+      document.getElementById('btn-auth-microsoft')?.addEventListener('click', () => beginProvider('microsoft'));
 
       document.getElementById('link-forgot-password')?.addEventListener('click', (e) => { e.preventDefault(); showAuthModal('forgot'); });
       document.getElementById('link-goto-signup')?.addEventListener('click', (e) => { e.preventDefault(); showAuthModal('signup'); });
@@ -115,7 +131,17 @@
       document.getElementById('auth-form-signin')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const email = document.getElementById('signin-email').value;
-        const password = document.getElementById('signin-password').value;
+        const passwordGroup = document.getElementById('signin-password-group');
+        const passwordInput = document.getElementById('signin-password');
+        if (passwordGroup.hidden && !passwordInput.value) {
+          passwordGroup.hidden = false;
+          passwordInput.required = true;
+          document.getElementById('link-forgot-password').hidden = false;
+          document.getElementById('btn-submit-signin').textContent = t('auth.signIn', 'Sign in');
+          passwordInput.focus();
+          return;
+        }
+        const password = passwordInput.value;
         const msgArea = document.getElementById('auth-msg-area');
 
         try {
@@ -516,6 +542,22 @@
   // Initialize header pill click handlers
   document.addEventListener('DOMContentLoaded', () => {
     checkSession();
+
+    const authParams = new URLSearchParams(window.location.search);
+    if (authParams.get('auth') === 'provider') {
+      const status = authParams.get('status');
+      showAuthModal('signin');
+      const msgArea = document.getElementById('auth-msg-area');
+      if (msgArea) {
+        const message = status === 'link-required'
+          ? t('auth.linkRequired', 'That email is already in use. Sign in first to connect this account.')
+          : status === 'unavailable'
+            ? t('auth.providerUnavailable', 'That sign-in option is not available right now. Try email instead.')
+            : t('auth.providerFailed', "We couldn't sign you in. Please try again.");
+        msgArea.innerHTML = `<p class="form-error" role="alert">${escapeHtml(message)}</p>`;
+      }
+      window.history.replaceState({}, '', window.location.pathname + window.location.hash);
+    }
 
     const triggers = document.querySelectorAll('.user-pill-header, #mh-avatar');
     triggers.forEach((trigger) => {

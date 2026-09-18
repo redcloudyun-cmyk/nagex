@@ -17,13 +17,15 @@
   }
 
   function t(key, fallback) {
-    return (window.NAGEX_I18N ? window.NAGEX_I18N.t(key) : null) || fallback || key;
+    const resolved = window.NAGEX_I18N ? window.NAGEX_I18N.t(key) : null;
+    return resolved && resolved !== key ? resolved : (fallback || key);
   }
 
   async function apiFetch(url, opts) {
     if (window.NAGEX && typeof window.NAGEX.apiFetch === 'function') return window.NAGEX.apiFetch(url, opts);
     try {
-      const res = await fetch(url, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts));
+      const demoMode = new URLSearchParams(window.location.search).get('demo') === '1';
+      const res = await fetch(url, Object.assign({ headers: { 'Content-Type': 'application/json', ...(demoMode ? { 'X-NAgex-Demo': '1', 'X-NAgex-Tenant': 'ten_demo_hackathon', 'X-Principal-Id': 'usr_demo_alex' } : {}) } }, opts));
       return await res.json();
     } catch {
       return null;
@@ -179,7 +181,7 @@
     cont.innerHTML = '<p>' + escapeHtml(t('meetingPrep.requestingApproval', 'Requesting approval...')) + '</p>';
     const payload = {
       calendarId: 'primary',
-      summary: 'Follow-up: ' + card.event_title,
+      summary: 'Client follow-up',
       description: 'Follow-up meeting scheduled by NAgex.',
       start: slot.start,
       end: slot.end,

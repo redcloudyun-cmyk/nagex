@@ -77,11 +77,14 @@ import type { RbacStore } from '../rbac/rbac.store.js';
 import type { RbacService } from '../rbac/rbac.service.js';
 import type { EnterpriseIdentityStore } from '../enterprise-identity/enterprise-identity.store.js';
 import type { SsoFlowStore } from '../enterprise-identity/sso-flow.store.js';
+import type { SocialIdentityStore } from '../identity/social-identity.store.js';
 
 import type { PersonalReminderStore } from '../personal/personal-reminder.store.js';
 import type { PersonalAssistantEngine } from '../personal/personal-assistant.engine.js';
+import type { DemoScenarioService } from '../demo/demo-scenario.service.js';
 
 export interface NagexApplication {
+  demoScenarioService: DemoScenarioService;
   personalReminderStore: PersonalReminderStore;
   personalAssistantEngine: PersonalAssistantEngine;
   identityStore: IdentityStore;
@@ -92,6 +95,7 @@ export interface NagexApplication {
   rbacService: RbacService;
   enterpriseIdentityStore: EnterpriseIdentityStore;
   ssoFlowStore: SsoFlowStore;
+  socialIdentityStore: SocialIdentityStore;
   pdp: PolicyDecisionPoint;
   runtime: DurableRuntimeEngine;
   auditLogger: AuditLogger;

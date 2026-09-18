@@ -1,0 +1,155 @@
+process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY || 'test_openai_key';
+process.env.NAGEX_OPENAI_MODEL = process.env.NAGEX_OPENAI_MODEL || 'gpt-4o';
+
+const originalFetch = globalThis.fetch;
+globalThis.fetch = async (input: any, init?: any) => {
+  const url = typeof input === 'string' ? input : input?.url || '';
+  if (url.includes('api.openai.com') || url.includes('api.nebius.ai')) {
+    const plan = { goal: 'Research AI agent architecture', summary: 'Research and summarize latest developments in AI agent architecture', reasoningSummary: 'Check current evidence and summarize what matters for NAgex', suggestions: [], steps: [{ step: 1, title: 'Searching trusted sources', skill: 'skill.research', tool: 'web_search', reasoning: 'Find current evidence' }, { step: 2, title: 'Reading recent updates', skill: 'skill.research', reasoning: 'Extract relevant context' }, { step: 3, title: 'Preparing a concise summary', skill: 'skill.research', reasoning: 'Create a project-focused summary' }] };
+    const text = JSON.stringify(plan);
+    return new Response(JSON.stringify({ choices: [{ message: { content: text } }], output_text: text, items: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  }
+  return originalFetch(input, init);
+};
+
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import type { AddressInfo } from 'node:net';
+import { test } from 'node:test';
+import { chromium, type Page } from 'playwright';
+import { createServerInstance } from '../src/server_web.js';
+
+declare const document: any;
+
+const SCREENSHOTS = path.resolve('artifacts/screenshots');
+const DEMO_HEADERS = { 'X-NAgex-Demo': '1', 'X-NAgex-Tenant': 'ten_demo_hackathon', 'X-Principal-Id': 'usr_demo_alex', 'Content-Type': 'application/json' };
+
+async function startServer(): Promise<{ origin: string; close: () => Promise<void> }> {
+  const server = createServerInstance();
+  await new Promise<void>((resolve, reject) => { server.listen(0, '127.0.0.1', resolve); server.once('error', reject); });
+  const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  return { origin, close: async () => { if ((server as any).closeIdleConnections) (server as any).closeIdleConnections(); await new Promise<void>((resolve) => server.close(() => resolve())); } };
+}
+
+async function shot(page: Page, name: string): Promise<void> {
+  fs.mkdirSync(SCREENSHOTS, { recursive: true });
+  await page.screenshot({ path: path.join(SCREENSHOTS, name), fullPage: true });
+}
+
+async function reset(origin: string): Promise<void> {
+  const response = await fetch(`${origin}/api/v1/demo/reset`, { method: 'POST', headers: DEMO_HEADERS, body: '{}' });
+  assert.equal(response.status, 200);
+}
+
+test('R21 P1 A-J semantic certification and visual QA capture', async () => {
+  const server = await startServer();
+  const browser = await chromium.launch({ headless: true });
+  try {
+    await reset(server.origin);
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.goto(`${server.origin}/?demo=1`);
+    await page.waitForFunction(() => document.querySelector('#hero-brief-card')?.textContent?.includes('Client strategy meeting'));
+    const homeText = await page.locator('body').innerText();
+    assert.match(homeText, /Good (morning|afternoon|evening), Alex/i);
+    assert.match(homeText, /3 meetings · 1 important email · 1 task due today/);
+    assert.match(homeText, /Client strategy meeting · 3:00 PM/);
+    await shot(page, 'desktop_personal_home_en.png');
+
+    const quick = await browser.newPage({ viewport: { width: 520, height: 720 } });
+    await quick.goto(`${server.origin}/desktop-quickwake.html?demo=1`);
+    await quick.waitForFunction(() => document.querySelector('#qw-proactive-card')?.textContent?.includes('Proposal v3'));
+    const quickText = await quick.locator('#qw-proactive-card').innerText();
+    assert.match(quickText, /Your client meeting is coming up/);
+    assert.match(quickText, /Last meeting notes/);
+    assert.match(quickText, /Proposal v3/);
+    assert.match(quickText, /Recent email from Sarah/);
+    assert.doesNotMatch(quickText, /Product research sync|Q3 report/);
+    await shot(quick, 'desktop_quick_wake_en.png');
+    const quickMetrics = await quick.evaluate(() => (globalThis as any).window.NAGEX_METRICS || {});
+    await quick.close();
+
+    await page.click('#hero-brief-prepare-btn');
+    await page.waitForFunction(() => document.querySelector('#meeting-prep-body')?.textContent?.includes('Key things to know'));
+    const prepText = await page.locator('#meeting-prep-body').innerText();
+    assert.match(prepText, /pricing flexibility/i);
+    assert.match(prepText, /delivery date/i);
+    assert.match(prepText, /timeline unresolved/i);
+    assert.match(prepText, /Confirm the delivery timeline/i);
+    await shot(page, 'desktop_meeting_prep_en.png');
+
+    await page.click('#meeting-prep-find-time');
+    await page.waitForSelector('#meeting-prep-add-to-calendar');
+    let state = await (await fetch(`${server.origin}/api/v1/demo/state`, { headers: DEMO_HEADERS })).json() as any;
+    assert.equal(state.mutationCount, 0, 'Scenario D preparation must not mutate');
+    await page.click('#meeting-prep-add-to-calendar');
+    await page.waitForSelector('#meeting-prep-confirm-add');
+    const approvalText = await page.locator('#meeting-prep-continuation').innerText();
+    assert.match(approvalText, /Ready to add to your calendar/);
+    assert.match(approvalText, /Client follow-up/);
+    assert.doesNotMatch(approvalText, /\b(Run|Execute|Human Approval)\b/);
+    await shot(page, 'desktop_calendar_approval_en.png');
+
+    await page.click('#meeting-prep-confirm-add');
+    await page.waitForFunction(() => document.querySelector('#meeting-prep-continuation')?.textContent?.includes('Added to your calendar'));
+    state = await (await fetch(`${server.origin}/api/v1/demo/state`, { headers: DEMO_HEADERS })).json() as any;
+    assert.equal(state.mutationCount, 1);
+    assert.equal(state.addedEvents.length, 1);
+    await shot(page, 'desktop_action_done_en.png');
+    const actionMetrics = await page.evaluate(() => (globalThis as any).window.NAGEX_METRICS || {});
+
+    await page.click('#meeting-prep-close');
+    await page.reload();
+    await page.waitForFunction(() => document.querySelector('#desktop-today-list')?.textContent?.includes('Client follow-up'));
+    assert.match(await page.locator('#desktop-today-list').innerText(), /Client follow-up/);
+
+    const metrics = await page.evaluate(() => (globalThis as any).window.NAGEX_METRICS || {});
+    for (const key of ['HOME_INITIAL_RENDER_MS', 'MORNING_BRIEF_RENDER_MS']) assert.equal(typeof metrics[key], 'number');
+
+    await page.evaluate(() => (globalThis as any).window.NAGEX.openAmbientOverlay());
+    await page.fill('#ambient-prompt-input', 'Research the latest developments in AI agent architecture and summarize what matters for my project.');
+    await page.click('#btn-ambient-run');
+    await page.waitForSelector('#ambient-summary-section', { state: 'visible' });
+    const research = await page.locator('#ambient-overlay-backdrop').innerText();
+    assert.match(research, /research/i);
+    assert.doesNotMatch(research, /Sarah|Proposal v3|Last meeting notes|Ready to add to your calendar/);
+    await page.click('#btn-save-vault');
+    await page.waitForFunction(() => document.querySelector('#btn-save-vault')?.textContent?.includes('Saved to Vault'));
+    await shot(page, 'desktop_research_result_en.png');
+
+    const mobile = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await reset(server.origin);
+    await mobile.goto(`${server.origin}/?demo=1`);
+    await mobile.evaluate(() => (globalThis as any).window.NAGEX_I18N?.setLocale('ko'));
+    await mobile.reload();
+    await mobile.waitForFunction(() => document.querySelector('#hero-brief-card')?.textContent?.includes('Client strategy meeting'));
+    assert.equal(await mobile.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
+    fs.writeFileSync(path.resolve('artifacts/r21_p1_latency.json'), JSON.stringify({ ...metrics, ...quickMetrics, ...actionMetrics }, null, 2));
+    await shot(mobile, '390x844_home_kr.png');
+
+    const mobileQuick = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await mobileQuick.addInitScript(() => localStorage.setItem('nagex_locale', 'ko'));
+    await mobileQuick.goto(`${server.origin}/desktop-quickwake.html?demo=1`);
+    await mobileQuick.waitForSelector('#qw-proactive-card:not([hidden])');
+    await shot(mobileQuick, '390x844_quick_wake_kr.png');
+    await mobileQuick.close();
+
+    await mobile.click('#mh-hero-brief-prepare-btn');
+    await mobile.waitForSelector('#meeting-prep-body .meeting-prep-keypoints');
+    await shot(mobile, '390x844_meeting_prep_kr.png');
+    await mobile.click('#meeting-prep-find-time');
+    await mobile.click('#meeting-prep-add-to-calendar');
+    await mobile.waitForSelector('#meeting-prep-confirm-add');
+    await shot(mobile, '390x844_calendar_approval_kr.png');
+    await mobile.click('#meeting-prep-confirm-add');
+    await mobile.waitForSelector('#meeting-prep-continuation .meeting-prep-done-card');
+    await shot(mobile, '390x844_action_done_kr.png');
+    assert.equal(await mobile.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
+    await mobile.close();
+    await page.close();
+  } finally {
+    await browser.close();
+    await server.close();
+    globalThis.fetch = originalFetch;
+  }
+});

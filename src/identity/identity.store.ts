@@ -201,6 +201,16 @@ export class IdentityStore {
     return { identity, profile };
   }
 
+  public createSocialAccount(email: string, authProvider: 'google' | 'microsoft'): { identity: IdentityRecord; profile: ProfileRecord } {
+    const normEmail = this.normalizeEmail(email);
+    if (this.getByEmail(normEmail)) throw new NagexError({ code: 'AUTH_EMAIL_ALREADY_EXISTS', category: 'VALIDATION', message: 'An account with this email address already exists.', request_id: `req_social_${Date.now()}` });
+    const userId = generateResourceId('usr'); const createdAt = this.now();
+    const identity: IdentityRecord = { userId, email: normEmail, passwordHash: '', authProvider, verificationStatus: 'VERIFIED', accountState: 'ACTIVE', createdAt, lastLoginAt: null, passwordChangedAt: null, disabledAt: null, deletionRequestedAt: null, scheduledPurgeAt: null };
+    const profile: ProfileRecord = { userId, displayName: normEmail.split('@')[0] || 'User', avatarUrl: null, locale: 'en', timezone: 'UTC', updatedAt: createdAt };
+    this.identities.set(userId, identity); this.profiles.set(userId, profile); this.identityFileStore.write(userId, identity); this.profileFileStore.write(userId, profile);
+    return { identity, profile };
+  }
+
   public transitionState(userId: string, targetState: AccountState): IdentityRecord {
     const identity = this.identities.get(userId);
     if (!identity) {

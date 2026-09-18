@@ -1,0 +1,14 @@
+{
+  "persona": { "name": "Alex Kim", "locale": "en", "profile": "Independent consultant and founder", "preference": "Prefers concise meeting briefs" },
+  "events": [
+    { "id": "demo_evt_q3", "time": "09:00", "title": "Review Q3 report draft", "attendees": [] },
+    { "id": "demo_evt_research", "time": "11:30", "title": "Product research sync", "attendees": ["research@example.test"] },
+    { "id": "demo_evt_client", "time": "15:00", "title": "Client strategy meeting", "attendees": ["sarah.chen@example.test"] }
+  ],
+  "email": { "id": "demo_email_sarah", "from": "Sarah Chen", "subject": "Pricing and timeline for next phase", "summary": "Sarah asks whether pricing can be adjusted and whether delivery can move earlier." },
+  "vault": [
+    { "id": "demo_vault_proposal", "title": "Proposal v3", "content": "Current pricing is $48,000. Delivery is October 18. Scope covers strategy, implementation, and launch support. Open decision: whether to include the analytics add-on." },
+    { "id": "demo_vault_notes", "title": "Last meeting notes", "content": "Pricing flexibility was discussed. The delivery timeline remains unresolved. Follow up after the client meeting." }
+  ],
+  "task": { "id": "demo_task_followup", "title": "Send follow-up after client meeting" }
+}
