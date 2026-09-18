@@ -110,7 +110,7 @@
   function isDebugMode() {
     try {
       const params = new URLSearchParams(window.location.search);
-      return params.get('debug') === '1' || params.get('debug') === 'true' || state.debugMode === true;
+      return params.get('debug') === '1' || params.get('debug') === 'true' || state.debugMode === true || (typeof window !== 'undefined' && window.NAGEX_DEBUG === true);
     } catch (e) {
       return false;
     }
@@ -4555,6 +4555,7 @@
   }
 
   window.NAGEX = window.NAGEX || {};
+  window.NAGEX.isDebugMode = isDebugMode;
   window.NAGEX.isEnterpriseUiMode = isEnterpriseUiMode;
   window.NAGEX.applyEnterpriseUiGate = applyEnterpriseUiGate;
 
