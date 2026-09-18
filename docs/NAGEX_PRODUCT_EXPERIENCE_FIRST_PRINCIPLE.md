@@ -17,7 +17,6 @@ NAgex의 최우선 기준은 항상 다음 순서다.
 
 기술 구현은 위 사용자 경험을 실현하기 위한 수단이다.
 
-
 # 1. User Efficacy — 사용자가 실제로 얻는 효능감
 
 모든 기능을 만들기 전에 먼저 다음을 묻는다.
@@ -37,7 +36,6 @@ NAgex의 최우선 기준은 항상 다음 순서다.
 > NAgex가 있어서 일이 훨씬 쉬워졌다.
 
 > 이건 다음에도 다시 NAgex에게 맡기고 싶다.
-
 
 # 2. Emotional Experience — 사용자가 느끼는 감정
 
@@ -63,7 +61,6 @@ NAgex는 차가운 자동화 도구가 아니라 Personal AI다.
 - 개발자용 화면 같다.
 - AI가 마음대로 행동할 것 같다.
 
-
 # 3. Global User Perspective — 글로벌 사용자의 관점
 
 NAgex의 UX는 특정 국가, 특정 기업문화, 특정 개발자, 특정 관리자 관점에 종속되지 않아야 한다.
@@ -87,7 +84,6 @@ NAgex의 UX는 특정 국가, 특정 기업문화, 특정 개발자, 특정 관�
 - 지금 제대로 진행되고 있는가?
 - 결과가 유용한가?
 - 다음에 무엇을 하면 되는가?
-
 
 # 4. Expectation Before Result — 결과가 나오기 전의 기대감
 
@@ -122,7 +118,6 @@ NAgex의 UX는 특정 국가, 특정 기업문화, 특정 개발자, 특정 관�
 
 진행 상태는 기술을 설명하기 위한 것이 아니라 사용자의 불확실성을 줄이기 위한 것이다.
 
-
 # 5. Result Satisfaction — 결과 만족도
 
 NAgex의 결과는 단순히 “완료됨” 상태가 아니다.
@@ -145,7 +140,6 @@ Result
 ```
 
 긴 설명보다 실제 활용 가능한 결과를 우선한다.
-
 
 # 6. One Clear Next Action — 다음 행동은 명확해야 한다
 
@@ -174,7 +168,6 @@ Result
 단, `Continue`는 사용자의 의도 확인이나 plan acceptance처럼 의미가 명확한 경우에만 제한적으로 사용할 수 있다.
 
 외부 상태를 실제로 변경하는 버튼은 반드시 결과를 직접 설명해야 한다.
-
 
 # 7. Internal Complexity Must Stay Behind — 내부 복잡성은 뒤에 둔다
 
@@ -205,7 +198,6 @@ What NAgex is doing ▾
 기본값은 접힘 상태다.
 
 개발자/디버그 모드는 별도로 제공한다.
-
 
 # 8. Personal AI First — 개인 사용자 우선
 
@@ -240,7 +232,6 @@ Enterprise 기능은 향후 별도 확장 영역으로 유지한다.
 - Proactive Assistance
 - Human-approved Actions
 
-
 # 9. Personality AI — “나를 안다”는 느낌
 
 NAgex는 단순히 질문에 답하는 AI가 아니다.
@@ -267,7 +258,6 @@ Memory는 항상 가능한 한 다음을 가져야 한다.
 - recency
 
 사용자가 수정하거나 삭제한 Memory를 다시 사용하면 안 된다.
-
 
 # 10. Proactive Assistance — 먼저 돕되, 통제권은 사용자에게
 
@@ -299,7 +289,6 @@ Suggestion != Action
 - Book
 - Purchase
 
-
 # 11. Global Tone & Attitude — 서비스의 태도
 
 NAgex의 태도는 다음과 같아야 한다.
@@ -317,7 +306,6 @@ NAgex의 태도는 다음과 같아야 한다.
 
 사용자는 NAgex를 “도구”가 아니라 “믿고 일을 맡길 수 있는 개인 AI”로 느껴야 한다.
 
-
 # 12. Result Expectation Loop — 기대와 만족의 순환
 
 좋은 NAgex 경험은 다음 순환을 만든다.
@@ -333,7 +321,6 @@ User request
 ```
 
 이 순환이 반복되면서 제품 가치가 커져야 한다.
-
 
 # 13. Product Review Questions — 모든 기능 리뷰 전에 묻는 질문
 
@@ -364,7 +351,6 @@ User request
 - NAgex가 사용자를 이해하고 있다는 느낌을 주는가?
 - 단순 챗봇과 차별화되는가?
 
-
 # 14. UX Failure Conditions — 다음 반응이 예상되면 미완성
 
 다음 사용자 반응이 예상되면 기능이 동작해도 완료가 아니다.
@@ -377,7 +363,6 @@ User request
 - AI가 지금 무엇을 하는지 모르겠다.
 - 내가 요청한 것과 결과가 다르다.
 - 이걸 다시 쓰고 싶지 않다.
-
 
 # 15. Desired User Reaction — 목표 반응
 
@@ -397,7 +382,6 @@ NAgex가 만들어야 하는 최종 반응은 다음이다.
 
 > 다음에도 이걸 NAgex에게 시켜야겠다.
 
-
 # 16. Development Priority Order
 
 앞으로 NAgex의 기능과 UI는 다음 순서로 판단한다.
@@ -413,7 +397,6 @@ NAgex가 만들어야 하는 최종 반응은 다음이다.
 ```
 
 기술 구현이 위 순서를 역전시키면 안 된다.
-
 
 # 17. Final Principle
 
