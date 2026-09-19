@@ -2,12 +2,12 @@ import type { SensitivityLevel } from './memory.engine.js';
 
 // Secret detection regex (S3)
 const S3_SECRET_PATTERNS = [
-  /sk-[a-zA-Z0-9]{20,}/i,
+  /sk-[a-zA-Z0-9\-_]{20,}/i,
   /bearer\s+[a-zA-Z0-9\._\-]{20,}/i,
   /aws_secret_access_key\s*=/i,
   /-----BEGIN\s+(RSA|EC|PRIVATE)\s+KEY-----/i,
   /\b(api[_-]?key|access[_-]?token|secret[_-]?key|password)\s*[:=]\s*['"]?[a-zA-Z0-9\-_]{8,}['"]?/i,
-  /sec_[a-zA-Z0-9]{16,}/i,
+  /sec_[a-zA-Z0-9\-_]{16,}/i,
   /token[_-]?secret/i,
 ];
 
