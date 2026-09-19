@@ -61,10 +61,15 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
             const hero = (globalThis as any).document.querySelector('#mh-right-now-hero');
             const isReady = hero?.getAttribute('data-context-ready') === 'true';
             const body = (globalThis as any).document.querySelector('#mh-hero-body')?.textContent || '';
-            return isReady ||
-                   body === expectedReason ||
-                   body.toLowerCase().includes('pricing') ||
-                   body.toLowerCase().includes('sarah');
+            return Boolean(
+              isReady &&
+              (
+                body === expectedReason ||
+                body.toLowerCase().includes(expectedReason.toLowerCase()) ||
+                body.toLowerCase().includes('pricing') ||
+                body.toLowerCase().includes('sarah')
+              )
+            );
           },
           recReasonEn,
           { timeout: 10000 }
@@ -104,7 +109,7 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
           bodyTextHeroEn.toLowerCase().includes(recReasonEn.toLowerCase()) ||
           bodyTextHeroEn.toLowerCase().includes('pricing') ||
           bodyTextHeroEn.toLowerCase().includes('sarah'),
-          'Hero body must match recommendation reason from API state'
+          `Hero body mismatch.\nEXPECTED=${recReasonEn}\nACTUAL=${bodyTextHeroEn}`
         );
       }
       heroContextDerivationPass = true;
@@ -180,10 +185,15 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
             const hero = (globalThis as any).document.querySelector('#mh-right-now-hero');
             const isReady = hero?.getAttribute('data-context-ready') === 'true';
             const body = (globalThis as any).document.querySelector('#mh-hero-body')?.textContent || '';
-            return isReady ||
-                   body === expectedReason ||
-                   body.includes('가격') ||
-                   body.includes('Sarah');
+            return Boolean(
+              isReady &&
+              (
+                body === expectedReason ||
+                body.includes(expectedReason) ||
+                body.includes('가격') ||
+                body.includes('Sarah')
+              )
+            );
           },
           recReasonKr,
           { timeout: 10000 }
@@ -203,7 +213,7 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
           bodyTextHeroKr.includes(recReasonKr) ||
           bodyTextHeroKr.includes('가격') ||
           bodyTextHeroKr.includes('Sarah'),
-          'KR Hero body must match recommendation reason from API state'
+          `KR Hero body mismatch.\nEXPECTED=${recReasonKr}\nACTUAL=${bodyTextHeroKr}`
         );
       }
 
