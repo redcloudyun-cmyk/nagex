@@ -178,7 +178,7 @@ async function captureFailureEvidence(page: Page, viewport: string, locale: stri
       locale: (globalThis as any).window.NAGEX_I18N ? (globalThis as any).window.NAGEX_I18N.getLocale() : 'unknown',
       visibleSections: viewEl ? !viewEl.hidden : false,
       itemCount: items.length,
-      firstItemTitle: items[0] ? (items[0] as HTMLElement).querySelector('.mh-row-title')?.textContent : null,
+      firstItemTitle: items[0] ? (items[0] as any).querySelector('.mh-row-title')?.textContent : null,
       rawHtml: listEl ? listEl.innerHTML.slice(0, 500) : '',
     };
   }, view).catch(() => ({ view }));
