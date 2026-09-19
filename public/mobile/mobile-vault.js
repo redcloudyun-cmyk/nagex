@@ -203,8 +203,6 @@
     const safeSummary = (item.metadata && typeof item.metadata.summary === 'string' ? item.metadata.summary : '') ||
                         (item.metadata && typeof item.metadata.description === 'string' ? item.metadata.description : '');
 
-    const hasPreview = item.storageRef && (item.storageRef.startsWith('http://') || item.storageRef.startsWith('https://'));
-
     modal.innerHTML = `
       <div class="mh-detail-modal-card">
         <div class="mh-detail-modal-header">
@@ -214,25 +212,24 @@
         <div class="mh-detail-modal-body">
           ${safeSummary ? `<p class="mh-detail-desc">${escapeHtml(safeSummary)}</p>` : ''}
           <div class="mh-detail-meta-row">
-            <span class="mh-detail-label">Type:</span>
+            <span class="mh-detail-label">${escapeHtml(t('mobileCommon.type', 'Type:'))}</span>
             <span class="nagex-badge nagex-badge-muted">${escapeHtml(typeLabel(item.type))}</span>
           </div>
           <div class="mh-detail-meta-row">
-            <span class="mh-detail-label">Source:</span>
+            <span class="mh-detail-label">${escapeHtml(t('mobileCommon.source', 'Source:'))}</span>
             <span>${escapeHtml(sourceProvenanceLabel(item.source))}</span>
           </div>
           <div class="mh-detail-meta-row">
-            <span class="mh-detail-label">Created:</span>
+            <span class="mh-detail-label">${escapeHtml(t('mobileCommon.created', 'Created:'))}</span>
             <span>${escapeHtml(created)}</span>
           </div>
           ${updated ? `
           <div class="mh-detail-meta-row">
-            <span class="mh-detail-label">Updated:</span>
+            <span class="mh-detail-label">${escapeHtml(t('mobileCommon.updated', 'Updated:'))}</span>
             <span>${escapeHtml(updated)}</span>
           </div>` : ''}
         </div>
         <div class="mh-detail-modal-footer">
-          ${hasPreview ? `<a href="${escapeHtml(item.storageRef)}" target="_blank" rel="noopener" class="mh-activity-action-btn">Open Preview</a>` : ''}
           <button class="mh-activity-action-btn secondary" onclick="document.getElementById('mh-vault-detail-modal').style.display='none'">${escapeHtml(t('mobileVault.close', 'Close'))}</button>
         </div>
       </div>`;

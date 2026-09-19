@@ -233,6 +233,13 @@
       'mobileActivity.details': 'Details',
       'mobileActivity.close': 'Close',
 
+      'mobileCommon.status': 'Status:',
+      'mobileCommon.time': 'Time:',
+      'mobileCommon.source': 'Source:',
+      'mobileCommon.type': 'Type:',
+      'mobileCommon.created': 'Created:',
+      'mobileCommon.updated': 'Updated:',
+
       'mobileVault.title': 'Vault',
       'mobileVault.empty': 'Nothing saved yet.',
       'mobileVault.noResults': 'No items match your search or filter.',
@@ -1297,6 +1304,13 @@
       'mobileVault.categoryLink': '링크',
       'mobileVault.details': '세부사항',
       'mobileVault.close': '닫기',
+
+      'mobileCommon.status': '상태:',
+      'mobileCommon.time': '시간:',
+      'mobileCommon.source': '출처:',
+      'mobileCommon.type': '유형:',
+      'mobileCommon.created': '생성일:',
+      'mobileCommon.updated': '수정일:',
       'mobileSettings.sectionPreferences': '환경설정',
       'mobileSettings.sectionConnections': '연결된 앱',
       'mobileSettings.sectionAutonomy': '자율 실행 & 승인',

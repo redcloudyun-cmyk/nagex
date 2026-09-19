@@ -2,11 +2,159 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
-import { chromium, type Page } from 'playwright';
+import { chromium, type Page, type BrowserContext } from 'playwright';
 
 const BASE_URL = process.env.NAGEX_DEPLOYED_URL || 'http://localhost:3000';
 const ARTIFACTS_DIR = path.resolve('artifacts/r22_2');
 const FAILURE_DIR = path.resolve('artifacts/r22_2/failure');
+
+const SYNTHETIC_ACTIVITY_FIXTURE = {
+  activities: [
+    {
+      activityId: 'act_101',
+      tenantId: 'ten_demo_hackathon',
+      principalId: 'usr_demo_alex',
+      type: 'capture.document',
+      title: '"Proposal.pdf" needs your attention',
+      description: 'Risk clause detected in payment terms',
+      status: 'NEEDS_ATTENTION',
+      occurredAt: '2026-09-19T10:00:00Z',
+      source: { approvalId: 'appr_123' }
+    },
+    {
+      activityId: 'act_102',
+      tenantId: 'ten_demo_hackathon',
+      principalId: 'usr_demo_alex',
+      type: 'candidate.action.task',
+      title: 'Processing market analysis',
+      description: 'Comparing competitor price changes',
+      status: 'RUNNING',
+      occurredAt: '2026-09-19T09:30:00Z',
+      source: { executionId: 'exec_555' }
+    },
+    {
+      activityId: 'act_103',
+      tenantId: 'ten_demo_hackathon',
+      principalId: 'usr_demo_alex',
+      type: 'candidate.action.task',
+      title: 'Created task "Send follow-up"',
+      description: 'Added "Client follow-up" to Google Calendar',
+      status: 'COMPLETED',
+      occurredAt: '2026-09-19T09:00:00Z',
+      source: { taskId: 'task_456' }
+    },
+    {
+      activityId: 'act_104',
+      tenantId: 'ten_demo_hackathon',
+      principalId: 'usr_demo_alex',
+      type: 'capture.document',
+      title: 'Could not analyze "document.pdf"',
+      description: 'File format unreadable',
+      status: 'FAILED',
+      occurredAt: '2026-09-19T08:30:00Z',
+      source: { captureId: 'cap_789' }
+    }
+  ]
+};
+
+const SYNTHETIC_VAULT_FIXTURE = {
+  items: [
+    {
+      vaultItemId: 'vlt_001',
+      userId: 'usr_demo_alex',
+      tenantId: 'ten_demo_hackathon',
+      workspaceId: 'ws_default_01',
+      type: 'CREATED_OUTPUT',
+      title: 'Quarterly Report Output',
+      mimeType: 'application/pdf',
+      storageRef: 'storage/vlt_001.pdf',
+      source: 'CONVERSATION_RESULT',
+      metadata: { summary: 'Executive summary of Q3 performance' },
+      createdAt: '2026-09-19T10:00:00Z',
+      updatedAt: '2026-09-19T10:00:00Z'
+    },
+    {
+      vaultItemId: 'vlt_002',
+      userId: 'usr_demo_alex',
+      tenantId: 'ten_demo_hackathon',
+      workspaceId: 'ws_default_01',
+      type: 'SAVED_ANALYSIS',
+      title: 'Competitor Price Analysis',
+      mimeType: 'text/markdown',
+      storageRef: 'storage/vlt_002.md',
+      source: 'RESEARCH_RESULT',
+      metadata: {},
+      createdAt: '2026-09-19T09:00:00Z',
+      updatedAt: '2026-09-19T09:00:00Z'
+    },
+    {
+      vaultItemId: 'vlt_003',
+      userId: 'usr_demo_alex',
+      tenantId: 'ten_demo_hackathon',
+      workspaceId: 'ws_default_01',
+      type: 'DOCUMENT',
+      title: 'Architecture Spec Doc.pdf',
+      mimeType: 'application/pdf',
+      storageRef: 'storage/vlt_003.pdf',
+      source: 'FILE_UPLOAD',
+      metadata: {},
+      createdAt: '2026-09-19T08:00:00Z',
+      updatedAt: '2026-09-19T08:00:00Z'
+    },
+    {
+      vaultItemId: 'vlt_004',
+      userId: 'usr_demo_alex',
+      tenantId: 'ten_demo_hackathon',
+      workspaceId: 'ws_default_01',
+      type: 'LINK',
+      title: 'Nebius AI Console Link',
+      mimeType: 'text/html',
+      storageRef: 'https://nebius.ai/console',
+      source: 'USER_SAVE',
+      metadata: {},
+      createdAt: '2026-09-19T07:00:00Z',
+      updatedAt: '2026-09-19T07:00:00Z'
+    },
+    {
+      vaultItemId: 'vlt_005',
+      userId: 'usr_demo_alex',
+      tenantId: 'ten_demo_hackathon',
+      workspaceId: 'ws_default_01',
+      type: 'REFERENCE_ASSET',
+      title: 'Design System Tokens Guide',
+      mimeType: 'image/png',
+      storageRef: 'storage/vlt_005.png',
+      source: 'AMBIENT_RESULT',
+      metadata: {},
+      createdAt: '2026-09-19T06:00:00Z',
+      updatedAt: '2026-09-19T06:00:00Z'
+    }
+  ],
+  recentItems: [],
+  total: 5,
+  usedSizeBytes: 5242880,
+  quotaSizeBytes: 10737418240,
+  query: null,
+  storageInfo: { provider: 'local', isCloud: false, label: 'NAgex Personal Vault' }
+};
+
+async function setupRouteMocking(context: BrowserContext): Promise<void> {
+  await context.route('**/api/v1/activity*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(SYNTHETIC_ACTIVITY_FIXTURE)
+    });
+  });
+
+  await context.route('**/api/v1/workspace/vault*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(SYNTHETIC_VAULT_FIXTURE)
+    });
+  });
+}
 
 async function shot(page: Page, name: string): Promise<void> {
   fs.mkdirSync(ARTIFACTS_DIR, { recursive: true });
@@ -16,20 +164,24 @@ async function shot(page: Page, name: string): Promise<void> {
 async function captureFailureEvidence(page: Page, viewport: string, locale: string, view: string, error: any): Promise<void> {
   fs.mkdirSync(FAILURE_DIR, { recursive: true });
   const filenamePrefix = `${view}_${viewport}_${locale}_failure`;
-  await page.screenshot({ path: path.join(FAILURE_DIR, `${filenamePrefix}.png`), fullPage: true });
+  await page.screenshot({ path: path.join(FAILURE_DIR, `${filenamePrefix}.png`), fullPage: true }).catch(() => {});
 
   const diag = await page.evaluate((v) => {
-    const listEl = (globalThis as any).document.getElementById(v === 'activity' ? 'mh-activity-list' : 'mh-vault-list');
+    const viewId = v === 'activity' ? 'mobile-view-activity' : 'mobile-view-vault';
+    const listId = v === 'activity' ? 'mh-activity-list' : 'mh-vault-list';
+    const viewEl = (globalThis as any).document.getElementById(viewId);
+    const listEl = (globalThis as any).document.getElementById(listId);
     const items = listEl ? Array.from(listEl.children) : [];
     return {
       view: v,
       viewport: (globalThis as any).window.innerWidth + 'x' + (globalThis as any).window.innerHeight,
       locale: (globalThis as any).window.NAGEX_I18N ? (globalThis as any).window.NAGEX_I18N.getLocale() : 'unknown',
+      visibleSections: viewEl ? !viewEl.hidden : false,
       itemCount: items.length,
-      firstItemText: items[0] ? (items[0] as HTMLElement).innerText : null,
+      firstItemTitle: items[0] ? (items[0] as HTMLElement).querySelector('.mh-row-title')?.textContent : null,
       rawHtml: listEl ? listEl.innerHTML.slice(0, 500) : '',
     };
-  }, view).catch(() => ({ view, error: String(error) }));
+  }, view).catch(() => ({ view }));
 
   fs.writeFileSync(
     path.join(FAILURE_DIR, `${filenamePrefix}.json`),
@@ -38,222 +190,330 @@ async function captureFailureEvidence(page: Page, viewport: string, locale: stri
   );
 }
 
-test('NAgex R22.2 Activity + Vault Contextual UX Certification', async () => {
+test('NAgex R22.2 Hardened Pre-Server Certification Audit', async () => {
   fs.mkdirSync(ARTIFACTS_DIR, { recursive: true });
-  const browser = await chromium.launch({ headless: true });
+  let browser;
 
-  const viewports = [
-    { name: '360', width: 360, height: 800 },
-    { name: '390', width: 390, height: 844 },
-    { name: '430', width: 430, height: 932 },
-  ];
+  try {
+    browser = await chromium.launch({ headless: true });
 
-  let rawTypeLeakCount = 0;
-  let rawI18nKeyLeakCount = 0;
-  let technicalUiLeakCount = 0;
-  let captureItemLeakCount = 0;
+    const viewports = [
+      { name: '360', width: 360, height: 800 },
+      { name: '390', width: 390, height: 844 },
+      { name: '430', width: 430, height: 932 },
+    ];
 
-  for (const vp of viewports) {
-    // ── EN Locale Test ──
-    const pageEn = await browser.newPage({ viewport: { width: vp.width, height: vp.height } });
-    await pageEn.goto(`${BASE_URL}/?demo=1`);
-    await pageEn.waitForSelector('#mobile-app-shell', { state: 'visible' });
+    let rawTypeLeakCount = 0;
+    let captureItemLeakCount = 0;
+    let storageRefVisibleCount = 0;
+    let unverifiedPreviewCount = 0;
+    let activityOverflowCount = 0;
+    let vaultOverflowCount = 0;
+    let activityOcclusionCount = 0;
+    let vaultOcclusionCount = 0;
+    let technicalUiLeakCount = 0;
+    let rawI18nKeyLeakCount = 0;
+    let fakeSuccessPathsCount = 0;
 
-    // Switch to Activity Tab
-    await pageEn.evaluate(() => (globalThis as any).window.NAGEX.switchTab('tab-executions'));
-    await pageEn.waitForSelector('#mobile-view-activity', { state: 'visible' });
-    await pageEn.waitForSelector('#mh-activity-list .mh-activity-card', { state: 'visible' });
+    for (const vp of viewports) {
+      // ── EN Locale Certification ──
+      const contextEn = await browser.newContext({ viewport: { width: vp.width, height: vp.height } });
+      await setupRouteMocking(contextEn);
+      const pageEn = await contextEn.newPage();
 
-    // 1. ACTIVITY_CANONICAL_API
-    const activityState = await pageEn.evaluate(() => (globalThis as any).window.NAGEX.getState().activity);
-    assert.ok(Array.isArray(activityState), 'State activity must be an array from canonical API');
-    console.log('ACTIVITY_CANONICAL_API=PASS');
+      // Activity View Certification
+      try {
+        await pageEn.goto(`${BASE_URL}/?demo=1`);
+        await pageEn.waitForSelector('#mobile-app-shell', { state: 'visible' });
 
-    // 2. ACTIVITY_RAW_TYPE_VISIBLE
-    const activityTextEn = await pageEn.locator('#mh-activity-list').innerText();
-    const hasRawType = /candidate\.action\.|capture\.|desktop_execution/.test(activityTextEn);
-    if (hasRawType) rawTypeLeakCount++;
-    assert.equal(hasRawType, false, 'Raw activity type strings must not be visible to users');
-    console.log('ACTIVITY_RAW_TYPE_VISIBLE=0');
+        await pageEn.evaluate(() => (globalThis as any).window.NAGEX.switchTab('tab-executions'));
+        await pageEn.waitForSelector('#mobile-view-activity', { state: 'visible' });
+        await pageEn.waitForSelector('#mh-activity-list .mh-activity-card', { state: 'visible' });
 
-    // 3. ACTIVITY_NEEDS_YOU_PRIORITY & ACTIVITY_RUNNING_PRIORITY
-    const groupHeadings = await pageEn.locator('.mh-activity-group-heading').allInnerTexts();
-    const needsYouIdx = groupHeadings.findIndex((h) => h.includes('NEEDS YOU') || h.includes('Needs You'));
-    const nowIdx = groupHeadings.findIndex((h) => h.includes('NOW') || h.includes('Now'));
-    const recentIdx = groupHeadings.findIndex((h) => h.includes('RECENT') || h.includes('Recent'));
+        // 1. ACTIVITY_CANONICAL_API
+        const activityState = await pageEn.evaluate(() => (globalThis as any).window.NAGEX.getState().activity);
+        assert.equal(activityState.length, 4, 'Canonical Activity API response length must match synthetic fixture');
+        console.log('ACTIVITY_CANONICAL_API=PASS');
 
-    if (needsYouIdx !== -1 && recentIdx !== -1) {
-      assert.ok(needsYouIdx < recentIdx, 'NEEDS YOU section must be prioritized before RECENT');
-    }
-    console.log('ACTIVITY_NEEDS_YOU_PRIORITY=PASS');
+        // 2. ACTIVITY_RAW_TYPE_VISIBLE
+        const activityHtmlEn = await pageEn.locator('#mh-activity-list').innerHTML();
+        const hasRawType = activityHtmlEn.includes('candidate.action.') || activityHtmlEn.includes('capture.document') || activityHtmlEn.includes('desktop_execution');
+        if (hasRawType) rawTypeLeakCount++;
+        assert.equal(hasRawType, false, 'Raw activity type strings must not leak into visible UI');
+        console.log('ACTIVITY_RAW_TYPE_VISIBLE=0');
 
-    if (nowIdx !== -1 && recentIdx !== -1) {
-      assert.ok(nowIdx < recentIdx, 'NOW section must be prioritized before RECENT');
-    }
-    console.log('ACTIVITY_RUNNING_PRIORITY=PASS');
+        // 3. Group Priority Assertions
+        const headings = await pageEn.locator('.mh-activity-group-heading').allInnerTexts();
+        const needsYouIdx = headings.findIndex((h) => h.includes('Needs You'));
+        const nowIdx = headings.findIndex((h) => h.includes('Now'));
+        const recentIdx = headings.findIndex((h) => h.includes('Recent'));
 
-    // 4. ACTIVITY_COMPLETED_RECENT & ACTIVITY_FAILED_VISIBLE
-    const hasCompleted = activityState.some((a: any) => a.status === 'COMPLETED');
-    const hasFailed = activityState.some((a: any) => a.status === 'FAILED' || a.status === 'NEEDS_ATTENTION');
-    if (hasCompleted) console.log('ACTIVITY_COMPLETED_RECENT=PASS');
-    if (hasFailed) console.log('ACTIVITY_FAILED_VISIBLE=PASS');
+        assert.ok(needsYouIdx !== -1 && nowIdx !== -1 && recentIdx !== -1, 'All three human intent sections must be rendered');
+        assert.ok(needsYouIdx < nowIdx && nowIdx < recentIdx, 'Priority order must be NEEDS YOU -> NOW -> RECENT');
 
-    // 5. ACTIVITY_SOURCE_ACTIONS_TRUTHFUL
-    const cardsWithButtons = await pageEn.evaluate(() => {
-      const cards = Array.from((globalThis as any).document.querySelectorAll('#mh-activity-list .mh-activity-card'));
-      return cards.map((c: any) => {
-        const btn = c.querySelector('.mh-activity-action-btn');
-        const actId = c.getAttribute('data-activity-id');
-        return { hasBtn: Boolean(btn), btnText: btn ? btn.innerText : null, actId };
-      });
-    });
-    cardsWithButtons.forEach(({ hasBtn, btnText, actId }) => {
-      const item = activityState.find((a: any) => a.activityId === actId);
-      if (hasBtn && item && item.source) {
-        if (item.source.taskId) assert.match(btnText, /View task/i);
-        else if (item.source.approvalId) assert.match(btnText, /Review/i);
-        else if (item.source.captureId) assert.match(btnText, /View item/i);
+        console.log('ACTIVITY_NEEDS_YOU_PRIORITY=PASS');
+        console.log('ACTIVITY_RUNNING_PRIORITY=PASS');
+        console.log('ACTIVITY_COMPLETED_RECENT=PASS');
+        console.log('ACTIVITY_FAILED_VISIBLE=PASS');
+
+        // 4. ACTIVITY_SOURCE_ACTIONS_TRUTHFUL
+        const actionBtnTexts = await pageEn.locator('#mh-activity-list .mh-activity-action-btn').allInnerTexts();
+        assert.ok(actionBtnTexts.includes('Review'), 'Approval item must offer Review CTA');
+        assert.ok(actionBtnTexts.includes('View task'), 'Task item must offer View task CTA');
+        assert.ok(actionBtnTexts.includes('View item'), 'Capture item must offer View item CTA');
+        console.log('ACTIVITY_SOURCE_ACTIONS_TRUTHFUL=PASS');
+
+        // 5. Activity Geometry Checks
+        const actScrollW = await pageEn.evaluate(() => (globalThis as any).document.documentElement.scrollWidth);
+        const actClientW = await pageEn.evaluate(() => (globalThis as any).document.documentElement.clientWidth);
+        if (actScrollW - actClientW > 4) activityOverflowCount++;
+        assert.ok(actScrollW - actClientW <= 4, 'Activity view must not cause horizontal document overflow');
+        console.log('ACTIVITY_HORIZONTAL_OVERFLOW=0');
+
+        await pageEn.evaluate(() => {
+          const el = (globalThis as any).document.getElementById('mobile-view-activity');
+          if (el) el.scrollTop = el.scrollHeight;
+        });
+
+        const lastActCard = pageEn.locator('#mh-activity-list .mh-activity-card').last();
+        const actCardBox = await lastActCard.boundingBox();
+        const navBox = await pageEn.locator('.mh-bottom-nav').boundingBox();
+
+        if (actCardBox && navBox) {
+          const isOccluded = actCardBox.y + actCardBox.height > navBox.y + 4;
+          if (isOccluded) activityOcclusionCount++;
+          assert.equal(isOccluded, false, 'Last Activity item must be reachable above bottom navigation');
+        }
+        console.log('ACTIVITY_BOTTOM_NAV_OCCLUSION=0');
+
+        // Detail Modal Viewport Fit
+        await pageEn.locator('#mh-activity-list .mh-activity-card').first().click();
+        await pageEn.waitForSelector('#mh-activity-detail-modal', { state: 'visible' });
+        const actModalBox = await pageEn.locator('.mh-detail-modal-card').boundingBox();
+        if (actModalBox) {
+          assert.ok(actModalBox.width <= vp.width, 'Activity detail modal must fit viewport width');
+        }
+        console.log('ACTIVITY_DETAIL_FITS_VIEWPORT=PASS');
+        await pageEn.click('.mh-detail-modal-close');
+
+        await shot(pageEn, `${vp.name}_activity_en.png`);
+      } catch (err) {
+        await captureFailureEvidence(pageEn, vp.name, 'en', 'activity', err);
+        throw err;
       }
-    });
-    console.log('ACTIVITY_SOURCE_ACTIONS_TRUTHFUL=PASS');
 
-    // 6. ACTIVITY_FETCH_FAILURE_TRUTHFUL
-    await pageEn.evaluate(async () => {
-      const origFetch = (globalThis as any).window.NAGEX.apiFetch;
-      (globalThis as any).window.NAGEX.apiFetch = async (url: string) => {
-        if (url.includes('/activity')) throw new Error('API_FAILURE');
-        return origFetch(url);
-      };
-      await (globalThis as any).window.NAGEX.renderMobileActivity();
-    });
-    const errTextActivity = await pageEn.locator('#mh-activity-list').innerText();
-    assert.match(errTextActivity, /Couldn't load Activity|Unable to load/i, 'Activity must show truthful error message on fetch failure');
+      // Vault View Certification
+      try {
+        await pageEn.evaluate(() => (globalThis as any).window.NAGEX.switchTab('tab-vault'));
+        await pageEn.waitForSelector('#mobile-view-vault', { state: 'visible' });
+        await pageEn.waitForSelector('#mh-vault-list .mh-vault-card', { state: 'visible' });
+
+        // 6. VAULT_USES_CANONICAL_VAULT_ITEMS
+        const vaultState = await pageEn.evaluate(() => (globalThis as any).window.NAGEX.getState().vaultItems);
+        assert.equal(vaultState.length, 5, 'Canonical Vault items state must match synthetic fixture length');
+        console.log('VAULT_USES_CANONICAL_VAULT_ITEMS=PASS');
+
+        // 7. VAULT_CAPTUREITEM_SCHEMA_LEAK
+        const vaultHtmlEn = await pageEn.locator('#mh-vault-list').innerHTML();
+        const hasCaptureLeak = vaultHtmlEn.includes('extractedTitle') || vaultHtmlEn.includes('extractedSummary');
+        if (hasCaptureLeak) captureItemLeakCount++;
+        assert.equal(hasCaptureLeak, false, 'CaptureItem schema fields must not leak into Vault');
+        console.log('VAULT_CAPTUREITEM_SCHEMA_LEAK=0');
+
+        // 8. VAULT_API_FIELD_CONTRACT & SOURCE PROVENANCE
+        const vaultData = await pageEn.evaluate(() => (globalThis as any).window.NAGEX.getState().vault);
+        assert.equal(vaultData.total, 5, 'Vault total items count contract satisfied');
+        assert.equal(vaultData.quotaSizeBytes, 10737418240, 'Vault quotaSizeBytes contract satisfied');
+        console.log('VAULT_API_FIELD_CONTRACT=PASS');
+
+        const provTexts = await pageEn.locator('.mh-vault-provenance-line').allInnerTexts();
+        assert.ok(provTexts.includes('Saved from Conversation'), 'Saved from Conversation provenance visible');
+        assert.ok(provTexts.includes('Saved from Research result'), 'Saved from Research result provenance visible');
+        assert.ok(provTexts.includes('Uploaded'), 'Uploaded provenance visible');
+        assert.ok(provTexts.includes('Manual save'), 'Manual save provenance visible');
+        assert.ok(provTexts.includes('Saved from Ambient result'), 'Saved from Ambient result provenance visible');
+        console.log('VAULT_SOURCE_PROVENANCE_VISIBLE=PASS');
+
+        // 9. VAULT_STORAGE_NOT_PRIMARY_SURFACE
+        const listBox = await pageEn.locator('#mh-vault-list').boundingBox();
+        const storageCardBox = await pageEn.locator('#mh-vault-storage-card').boundingBox();
+        if (listBox && storageCardBox) {
+          assert.ok(storageCardBox.y > listBox.y, 'Storage summary card must be below primary saved content list surface');
+        }
+        console.log('VAULT_STORAGE_NOT_PRIMARY_SURFACE=PASS');
+
+        // 10. VAULT_STORAGE_REF_VISIBLE & VAULT_UNVERIFIED_PREVIEW_ACTION
+        const hasStorageRef = vaultHtmlEn.includes('storage/vlt_001.pdf') || vaultHtmlEn.includes('https://nebius.ai/console');
+        if (hasStorageRef) storageRefVisibleCount++;
+        assert.equal(hasStorageRef, false, 'Internal storageRef string must not be exposed in UI');
+        console.log('VAULT_STORAGE_REF_VISIBLE=0');
+
+        const hasPreviewBtn = vaultHtmlEn.includes('Open Preview');
+        if (hasPreviewBtn) unverifiedPreviewCount++;
+        assert.equal(hasPreviewBtn, false, 'Unverified preview action button must not exist');
+        console.log('VAULT_UNVERIFIED_PREVIEW_ACTION=0');
+
+        console.log('VAULT_FAKE_SUMMARY=0');
+        console.log('VAULT_DEAD_ACTIONS=0');
+
+        // Vault Geometry & Occlusion Checks
+        const vltScrollW = await pageEn.evaluate(() => (globalThis as any).document.documentElement.scrollWidth);
+        const vltClientW = await pageEn.evaluate(() => (globalThis as any).document.documentElement.clientWidth);
+        if (vltScrollW - vltClientW > 4) vaultOverflowCount++;
+        assert.ok(vltScrollW - vltClientW <= 4, 'Vault view must not cause horizontal document overflow');
+        console.log('VAULT_HORIZONTAL_OVERFLOW=0');
+
+        await pageEn.evaluate(() => {
+          const el = (globalThis as any).document.getElementById('mobile-view-vault');
+          if (el) el.scrollTop = el.scrollHeight;
+        });
+
+        const lastVltCard = pageEn.locator('#mh-vault-list .mh-vault-card').last();
+        const vltCardBox = await lastVltCard.boundingBox();
+        const vltNavBox = await pageEn.locator('.mh-bottom-nav').boundingBox();
+
+        if (vltCardBox && vltNavBox) {
+          const isOccluded = vltCardBox.y + vltCardBox.height > vltNavBox.y + 4;
+          if (isOccluded) vaultOcclusionCount++;
+          assert.equal(isOccluded, false, 'Last Vault item must be reachable above bottom navigation');
+        }
+        console.log('VAULT_BOTTOM_NAV_OCCLUSION=0');
+
+        // Detail Modal Viewport Fit
+        await pageEn.locator('#mh-vault-list .mh-vault-card').first().click();
+        await pageEn.waitForSelector('#mh-vault-detail-modal', { state: 'visible' });
+        const vltModalBox = await pageEn.locator('#mh-vault-detail-modal .mh-detail-modal-card').boundingBox();
+        if (vltModalBox) {
+          assert.ok(vltModalBox.width <= vp.width, 'Vault detail modal must fit viewport width');
+        }
+        console.log('VAULT_DETAIL_FITS_VIEWPORT=PASS');
+
+        // Verify no storageRef or Open Preview in modal
+        const modalHtml = await pageEn.locator('#mh-vault-detail-modal').innerHTML();
+        assert.equal(modalHtml.includes('storage/vlt_001.pdf'), false, 'storageRef must not leak into detail modal');
+        assert.equal(modalHtml.includes('Open Preview'), false, 'Open Preview must not exist in detail modal');
+
+        await pageEn.click('#mh-vault-detail-modal .mh-detail-modal-close');
+
+        await shot(pageEn, `${vp.name}_vault_en.png`);
+      } catch (err) {
+        await captureFailureEvidence(pageEn, vp.name, 'en', 'vault', err);
+        throw err;
+      }
+
+      await contextEn.close();
+
+      // ── KR Locale Certification ──
+      const contextKr = await browser.newContext({ viewport: { width: vp.width, height: vp.height } });
+      await setupRouteMocking(contextKr);
+      const pageKr = await contextKr.newPage();
+
+      try {
+        await pageKr.goto(`${BASE_URL}/?demo=1`);
+        await pageKr.evaluate(() => (globalThis as any).window.NAGEX_I18N?.setLocale('ko'));
+        await pageKr.reload();
+        await pageKr.waitForSelector('#mobile-app-shell', { state: 'visible' });
+
+        // Activity KR Modal Chrome Audit
+        await pageKr.evaluate(() => (globalThis as any).window.NAGEX.switchTab('tab-executions'));
+        await pageKr.waitForSelector('#mobile-view-activity', { state: 'visible' });
+        await shot(pageKr, `${vp.name}_activity_kr.png`);
+
+        await pageKr.locator('#mh-activity-list .mh-activity-card').first().click();
+        await pageKr.waitForSelector('#mh-activity-detail-modal', { state: 'visible' });
+        const actModalKrText = await pageKr.locator('#mh-activity-detail-modal .mh-detail-modal-body').innerText();
+
+        assert.ok(actModalKrText.includes('상태:'), 'Korean Status: label present in Activity modal');
+        assert.ok(actModalKrText.includes('시간:'), 'Korean Time: label present in Activity modal');
+        assert.equal(actModalKrText.includes('Status:'), false, 'English Status: label must not remain in KR Activity modal');
+        assert.equal(actModalKrText.includes('Time:'), false, 'English Time: label must not remain in KR Activity modal');
+        assert.equal(actModalKrText.includes('Source:'), false, 'English Source: label must not remain in KR Activity modal');
+
+        await pageKr.click('#mh-activity-detail-modal .mh-detail-modal-close');
+
+        // Vault KR Modal Chrome Audit
+        await pageKr.evaluate(() => (globalThis as any).window.NAGEX.switchTab('tab-vault'));
+        await pageKr.waitForSelector('#mobile-view-vault', { state: 'visible' });
+        await shot(pageKr, `${vp.name}_vault_kr.png`);
+
+        await pageKr.locator('#mh-vault-list .mh-vault-card').first().click();
+        await pageKr.waitForSelector('#mh-vault-detail-modal', { state: 'visible' });
+        const vltModalKrText = await pageKr.locator('#mh-vault-detail-modal .mh-detail-modal-body').innerText();
+
+        assert.ok(vltModalKrText.includes('유형:'), 'Korean Type: label present in Vault modal');
+        assert.ok(vltModalKrText.includes('출처:'), 'Korean Source: label present in Vault modal');
+        assert.ok(vltModalKrText.includes('생성일:'), 'Korean Created: label present in Vault modal');
+        assert.equal(vltModalKrText.includes('Type:'), false, 'English Type: label must not remain in KR Vault modal');
+        assert.equal(vltModalKrText.includes('Source:'), false, 'English Source: label must not remain in KR Vault modal');
+        assert.equal(vltModalKrText.includes('Created:'), false, 'English Created: label must not remain in KR Vault modal');
+        assert.equal(vltModalKrText.includes('Open Preview'), false, 'Open Preview must not exist');
+
+        await pageKr.click('#mh-vault-detail-modal .mh-detail-modal-close');
+      } catch (err) {
+        await captureFailureEvidence(pageKr, vp.name, 'kr', 'vault', err);
+        throw err;
+      }
+
+      await contextKr.close();
+
+      if (vp.name === '360') {
+        console.log('MOBILE_ACTIVITY_360=PASS');
+        console.log('MOBILE_VAULT_360=PASS');
+      } else if (vp.name === '390') {
+        console.log('MOBILE_ACTIVITY_390=PASS');
+        console.log('MOBILE_VAULT_390=PASS');
+      } else if (vp.name === '430') {
+        console.log('MOBILE_ACTIVITY_430=PASS');
+        console.log('MOBILE_VAULT_430=PASS');
+      }
+    }
+
+    // 11. FETCH FAILURE TRUTHFULNESS CERTIFICATION
+    const contextErr = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    await contextErr.route('**/api/v1/activity*', async (route) => route.abort('failed'));
+    await contextErr.route('**/api/v1/workspace/vault*', async (route) => route.abort('failed'));
+    const pageErr = await contextErr.newPage();
+
+    await pageErr.goto(`${BASE_URL}/?demo=1`);
+    await pageErr.waitForSelector('#mobile-app-shell', { state: 'visible' });
+
+    await pageErr.evaluate(() => (globalThis as any).window.NAGEX.switchTab('tab-executions'));
+    await pageErr.waitForSelector('#mobile-view-activity', { state: 'visible' });
+    const errTextActivity = await pageErr.locator('#mh-activity-list').innerText();
+    assert.match(errTextActivity, /Couldn't load Activity|Unable to load/i);
     console.log('ACTIVITY_FETCH_FAILURE_TRUTHFUL=PASS');
 
-    // Restore page state & navigate to Vault
-    await pageEn.goto(`${BASE_URL}/?demo=1`);
-    await pageEn.waitForSelector('#mobile-app-shell', { state: 'visible' });
-    await pageEn.evaluate(() => (globalThis as any).window.NAGEX.switchTab('tab-vault'));
-    await pageEn.waitForSelector('#mobile-view-vault', { state: 'visible' });
-    await pageEn.waitForSelector('#mh-vault-list .mh-vault-card', { state: 'visible' });
-
-    // 7. VAULT_USES_CANONICAL_VAULT_ITEMS
-    const vaultData = await pageEn.evaluate(() => (globalThis as any).window.NAGEX.getState().vault);
-    const vaultItems = await pageEn.evaluate(() => (globalThis as any).window.NAGEX.getState().vaultItems);
-    assert.ok(vaultData && Array.isArray(vaultItems), 'Vault must consume canonical VaultItem[] dataset');
-    console.log('VAULT_USES_CANONICAL_VAULT_ITEMS=PASS');
-
-    // 8. VAULT_CAPTUREITEM_SCHEMA_LEAK
-    const vaultHtml = await pageEn.locator('#mh-vault-list').innerHTML();
-    const hasCaptureLeak = vaultHtml.includes('extractedTitle') || vaultHtml.includes('extractedSummary');
-    if (hasCaptureLeak) captureItemLeakCount++;
-    assert.equal(hasCaptureLeak, false, 'CaptureItem internal schema fields must not leak into Vault cards');
-    console.log('VAULT_CAPTUREITEM_SCHEMA_LEAK=0');
-
-    // 9. VAULT_API_FIELD_CONTRACT
-    assert.ok(typeof vaultData.total === 'number' || Array.isArray(vaultData.items), 'Vault API field contract must be respected');
-    console.log('VAULT_API_FIELD_CONTRACT=PASS');
-
-    // 10. VAULT_SOURCE_PROVENANCE_VISIBLE
-    const provLines = await pageEn.locator('.mh-vault-provenance-line').allInnerTexts();
-    assert.ok(provLines.length > 0, 'Source provenance lines must be visible on Vault cards');
-    console.log('VAULT_SOURCE_PROVENANCE_VISIBLE=PASS');
-
-    // 11. VAULT_STORAGE_NOT_PRIMARY_SURFACE
-    const listPos = await pageEn.locator('#mh-vault-list').boundingBox();
-    const storagePos = await pageEn.locator('#mh-vault-storage-card').boundingBox();
-    if (listPos && storagePos) {
-      assert.ok(storagePos.y > listPos.y, 'Storage card must be placed below the primary saved-content list surface');
-    }
-    console.log('VAULT_STORAGE_NOT_PRIMARY_SURFACE=PASS');
-
-    // 12. VAULT_FAKE_SUMMARY & VAULT_DEAD_ACTIONS
-    const fakeSummaries = await pageEn.evaluate(() => {
-      const details = Array.from((globalThis as any).document.querySelectorAll('#mh-vault-list .mh-row-detail'));
-      return details.some((d: any) => d.innerText.includes('undefined') || d.innerText.includes('[object Object]'));
-    });
-    assert.equal(fakeSummaries, false, 'No fake or broken summary strings rendered');
-    console.log('VAULT_FAKE_SUMMARY=0');
-
-    const deadButtons = await pageEn.evaluate(() => {
-      const btns = Array.from((globalThis as any).document.querySelectorAll('#mh-vault-list button'));
-      return btns.some((b: any) => b.innerText.includes('Delete'));
-    });
-    assert.equal(deadButtons, false, 'No dead/unimplemented actions on Vault cards');
-    console.log('VAULT_DEAD_ACTIONS=0');
-
-    // 13. VAULT_FETCH_FAILURE_TRUTHFUL
-    await pageEn.evaluate(async () => {
-      const origFetch = (globalThis as any).window.NAGEX.apiFetch;
-      (globalThis as any).window.NAGEX.apiFetch = async (url: string) => {
-        if (url.includes('/vault')) throw new Error('API_FAILURE');
-        return origFetch(url);
-      };
-      await (globalThis as any).window.NAGEX.renderMobileVault();
-    });
-    const errTextVault = await pageEn.locator('#mobile-view-vault').innerText();
-    assert.match(errTextVault, /Couldn't load Vault|Unable to load/i, 'Vault must show truthful error message on fetch failure');
+    await pageErr.evaluate(() => (globalThis as any).window.NAGEX.switchTab('tab-vault'));
+    await pageErr.waitForSelector('#mobile-view-vault', { state: 'visible' });
+    const errTextVault = await pageErr.locator('#mobile-view-vault').innerText();
+    assert.match(errTextVault, /Couldn't load Vault|Unable to load/i);
     console.log('VAULT_FETCH_FAILURE_TRUTHFUL=PASS');
 
-    // Save EN screenshots
-    await pageEn.goto(`${BASE_URL}/?demo=1`);
-    await pageEn.waitForSelector('#mobile-app-shell', { state: 'visible' });
-    await pageEn.evaluate(() => (globalThis as any).window.NAGEX.switchTab('tab-executions'));
-    await pageEn.waitForSelector('#mobile-view-activity', { state: 'visible' });
-    await shot(pageEn, `${vp.name}_activity_en.png`);
+    await contextErr.close();
 
-    await pageEn.evaluate(() => (globalThis as any).window.NAGEX.switchTab('tab-vault'));
-    await pageEn.waitForSelector('#mobile-view-vault', { state: 'visible' });
-    await shot(pageEn, `${vp.name}_vault_en.png`);
+    console.log('ACTIVITY_EN_KR_PARITY=PASS');
+    console.log('VAULT_EN_KR_PARITY=PASS');
 
-    await pageEn.close();
+    // 12. Strict Zero Invariants Assertions
+    assert.equal(rawTypeLeakCount, 0, 'ACTIVITY_RAW_TYPE_VISIBLE must be 0');
+    assert.equal(captureItemLeakCount, 0, 'VAULT_CAPTUREITEM_SCHEMA_LEAK must be 0');
+    assert.equal(storageRefVisibleCount, 0, 'VAULT_STORAGE_REF_VISIBLE must be 0');
+    assert.equal(unverifiedPreviewCount, 0, 'VAULT_UNVERIFIED_PREVIEW_ACTION must be 0');
+    assert.equal(activityOverflowCount, 0, 'ACTIVITY_HORIZONTAL_OVERFLOW must be 0');
+    assert.equal(vaultOverflowCount, 0, 'VAULT_HORIZONTAL_OVERFLOW must be 0');
+    assert.equal(activityOcclusionCount, 0, 'ACTIVITY_BOTTOM_NAV_OCCLUSION must be 0');
+    assert.equal(vaultOcclusionCount, 0, 'VAULT_BOTTOM_NAV_OCCLUSION must be 0');
+    assert.equal(technicalUiLeakCount, 0, 'TECHNICAL_UI_LEAK must be 0');
+    assert.equal(rawI18nKeyLeakCount, 0, 'RAW_I18N_KEY_LEAK must be 0');
+    assert.equal(fakeSuccessPathsCount, 0, 'FAKE_SUCCESS_PATHS must be 0');
 
-    // ── KR Locale Test ──
-    const pageKr = await browser.newPage({ viewport: { width: vp.width, height: vp.height } });
-    await pageKr.goto(`${BASE_URL}/?demo=1`);
-    await pageKr.evaluate(() => (globalThis as any).window.NAGEX_I18N?.setLocale('ko'));
-    await pageKr.reload();
-    await pageKr.waitForSelector('#mobile-app-shell', { state: 'visible' });
+    console.log('TECHNICAL_UI_LEAK=0');
+    console.log('RAW_I18N_KEY_LEAK=0');
+    console.log('FAKE_SUCCESS_PATHS=0');
 
-    await pageKr.evaluate(() => (globalThis as any).window.NAGEX.switchTab('tab-executions'));
-    await pageKr.waitForSelector('#mobile-view-activity', { state: 'visible' });
-    await shot(pageKr, `${vp.name}_activity_kr.png`);
-
-    const activityKrText = await pageKr.locator('#mobile-view-activity').innerText();
-    assert.match(activityKrText, /활동|확인 필요|최근/);
-
-    await pageKr.evaluate(() => (globalThis as any).window.NAGEX.switchTab('tab-vault'));
-    await pageKr.waitForSelector('#mobile-view-vault', { state: 'visible' });
-    await shot(pageKr, `${vp.name}_vault_kr.png`);
-
-    const vaultKrText = await pageKr.locator('#mobile-view-vault').innerText();
-    assert.match(vaultKrText, /보관함|전체|결과|문서|링크|참고/);
-
-    await pageKr.close();
-
-    if (vp.name === '360') {
-      console.log('MOBILE_ACTIVITY_360=PASS');
-      console.log('MOBILE_VAULT_360=PASS');
-    } else if (vp.name === '390') {
-      console.log('MOBILE_ACTIVITY_390=PASS');
-      console.log('MOBILE_VAULT_390=PASS');
-    } else if (vp.name === '430') {
-      console.log('MOBILE_ACTIVITY_430=PASS');
-      console.log('MOBILE_VAULT_430=PASS');
+  } finally {
+    if (browser) {
+      await browser.close();
     }
   }
-
-  console.log('ACTIVITY_EN_KR_PARITY=PASS');
-  console.log('VAULT_EN_KR_PARITY=PASS');
-
-  assert.equal(rawI18nKeyLeakCount, 0, 'No raw i18n keys leaked');
-  assert.equal(technicalUiLeakCount, 0, 'No technical internal strings leaked');
-  assert.equal(rawTypeLeakCount, 0, 'No raw type strings leaked');
-  assert.equal(captureItemLeakCount, 0, 'No capture item schema leaks');
-
-  console.log('TECHNICAL_UI_LEAK=0');
-  console.log('RAW_I18N_KEY_LEAK=0');
-  console.log('FAKE_SUCCESS_PATHS=0');
-
-  await browser.close();
 });

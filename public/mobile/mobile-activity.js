@@ -187,16 +187,16 @@
         <div class="mh-detail-modal-body">
           ${item.description ? `<p class="mh-detail-desc">${escapeHtml(item.description)}</p>` : ''}
           <div class="mh-detail-meta-row">
-            <span class="mh-detail-label">Status:</span>
+            <span class="mh-detail-label">${escapeHtml(t('mobileCommon.status', 'Status:'))}</span>
             <span class="nagex-badge nagex-badge-${statusBadgeVariant(item.status)}">${escapeHtml(statusLabel(item.status))}</span>
           </div>
           <div class="mh-detail-meta-row">
-            <span class="mh-detail-label">Time:</span>
+            <span class="mh-detail-label">${escapeHtml(t('mobileCommon.time', 'Time:'))}</span>
             <span>${escapeHtml(time)}</span>
           </div>
           ${sourceTypeLabel ? `
           <div class="mh-detail-meta-row">
-            <span class="mh-detail-label">Source:</span>
+            <span class="mh-detail-label">${escapeHtml(t('mobileCommon.source', 'Source:'))}</span>
             <span>${escapeHtml(sourceTypeLabel)}</span>
           </div>` : ''}
         </div>
