@@ -37,17 +37,22 @@ export const handleResearchRoutes: AsyncRouteRegistrar<ResearchRouteDeps> = asyn
 
     try {
       const memories = getRelevantMemories ? getRelevantMemories(tenantId, principalId, query) : [];
-      const evidencePack = await evidencePackService.buildEvidencePack(query, { requestId });
+      // Directive B: Explicit research endpoint MUST force search execution
+      const evidencePack = await evidencePackService.buildEvidencePack(query, { forceSearch: true, requestId });
 
-      // Truthful failure when search is required but search capability is unavailable
-      if (evidencePack.freshnessRequirement === 'REQUIRED' && !evidencePackService.isWebSearchAvailable()) {
+      // Directive B & A: Truthful failure when evidence retrieval returns 0 sources or non-SUCCESS status
+      if (evidencePack.status !== 'SUCCESS' || evidencePack.sources.length === 0) {
+        const notAvailMsg = evidencePack.status === 'UNAVAILABLE'
+          ? "Could not complete research because live web search capability is unavailable."
+          : `Could not complete research because no verified evidence sources were found (${evidencePack.status}).`;
         return {
           status: 200,
           data: {
             query,
             freshness: evidencePack.freshnessRequirement,
             category: evidencePack.category,
-            answer: "I can't verify current information right now because live web search is unavailable.",
+            status: evidencePack.status,
+            answer: notAvailMsg,
             evidencePackId: evidencePack.evidencePackId,
             sources: [],
           },

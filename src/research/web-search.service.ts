@@ -1,5 +1,7 @@
 import { HttpWebSearchProvider } from './providers/http-web-search.provider.js';
-import type { SearchQueryInput, SearchResult, WebSearchProviderPort } from './web-search-provider.port.js';
+import { TavilyWebSearchProvider } from './providers/tavily-web-search.provider.js';
+import type { SearchQueryInput, SearchQueryResult, SearchResult, WebSearchProviderPort } from './web-search-provider.port.js';
+import { sanitizeTextForSearchQuery } from '../context/sensitivity.detector.js';
 
 export type SearchCapabilityStatus = 'AVAILABLE' | 'UNAVAILABLE' | 'DEGRADED';
 
@@ -7,7 +9,20 @@ export class WebSearchService {
   private readonly provider: WebSearchProviderPort;
 
   constructor(provider?: WebSearchProviderPort) {
-    this.provider = provider || new HttpWebSearchProvider();
+    if (provider) {
+      this.provider = provider;
+    } else {
+      const providerType = (process.env.NAGEX_WEB_SEARCH_PROVIDER || '').toLowerCase();
+      if (providerType === 'tavily' || Boolean(process.env.NAGEX_TAVILY_API_KEY)) {
+        this.provider = new TavilyWebSearchProvider();
+      } else {
+        this.provider = new HttpWebSearchProvider();
+      }
+    }
+  }
+
+  public getProviderName(): string {
+    return this.provider.name;
   }
 
   public isAvailable(): boolean {
@@ -18,51 +33,43 @@ export class WebSearchService {
     return this.isAvailable() ? 'AVAILABLE' : 'UNAVAILABLE';
   }
 
-  public status(): { configured: boolean; status: SearchCapabilityStatus } {
+  public status(): { configured: boolean; status: SearchCapabilityStatus; provider: string } {
     const configured = this.isAvailable();
     return {
       configured,
       status: configured ? 'AVAILABLE' : 'UNAVAILABLE',
+      provider: this.provider.name,
     };
   }
 
   public sanitizeQuery(query: string): string {
-    return this.sanitizeSearchQuery(query);
+    return sanitizeTextForSearchQuery(query);
   }
 
-  public async search(input: SearchQueryInput): Promise<SearchResult[]> {
+  public async search(input: SearchQueryInput): Promise<SearchQueryResult> {
     if (!this.isAvailable()) {
-      return [];
+      return {
+        status: 'UNAVAILABLE',
+        results: [],
+        error: 'Web search provider is not configured or unavailable.',
+        provider: this.provider.name,
+      };
     }
 
-    // Security: sanitize query to ensure S2/S3 secret markers or personal sensitive markers are never sent to external search providers
-    const sanitizedQuery = this.sanitizeSearchQuery(input.query);
+    // Directive F: Re-use canonical sensitivity detector to strip S2/S3 secret markers or personal sensitive data before sending query
+    const sanitizedQuery = this.sanitizeQuery(input.query);
     if (!sanitizedQuery.trim()) {
-      return [];
+      return {
+        status: 'NO_RESULTS',
+        results: [],
+        error: 'Query became empty after sensitivity sanitization.',
+        provider: this.provider.name,
+      };
     }
 
     return this.provider.search({
       ...input,
       query: sanitizedQuery,
     });
-  }
-
-  private sanitizeSearchQuery(query: string): string {
-    let q = query || '';
-    // Strip S3 secret keys sk-...
-    q = q.replace(/sk-[a-zA-Z0-9\-_]{20,}/gi, '');
-    // Strip Bearer tokens
-    q = q.replace(/bearer\s+[a-zA-Z0-9\._\-]{20,}/gi, '');
-    // Strip API keys / secret parameters
-    q = q.replace(/(?:api_key|apikey|secret|key)\s*[:=]?\s*[a-zA-Z0-9\-_]+/gi, '');
-    // Strip S2 personal emails
-    q = q.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '');
-    // Strip phone numbers
-    q = q.replace(/01[016789]-?\d{3,4}-?\d{4}/g, '');
-    // Strip SSN
-    q = q.replace(/\d{3}-\d{2}-\d{4}/g, '');
-    // Strip S2 personal context user markers e.g. "for user Jane Smith", "User Profile: Jane Smith"
-    q = q.replace(/(?:for\s+user|user\s+profile:?|user)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?/gi, '');
-    return q.replace(/\s+/g, ' ').trim();
   }
 }

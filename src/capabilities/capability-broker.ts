@@ -16,6 +16,7 @@ import type { BrowserPort } from '../contracts/browser.port.js';
 import type { DeviceControlService } from '../device-control/device-control.service.js';
 import type { DesktopControlService } from '../device-agent/desktop-control.service.js';
 import type { WebSearchService } from '../research/web-search.service.js';
+import type { EvidencePackService } from '../research/evidence-pack.service.js';
 
 export interface CapabilityIdempotencyRecord {
   key: string;
@@ -86,7 +87,8 @@ export class CapabilityBroker {
     // pattern as deviceControlService: absent, 'DEVICE_DESKTOP'
     // capabilities simply report unavailable via isProviderAvailable().
     private readonly desktopControlService?: DesktopControlService,
-    private readonly webSearchService?: WebSearchService
+    private readonly webSearchService?: WebSearchService,
+    private readonly evidencePackService?: EvidencePackService,
   ) {
     const dataDir = resolveNagexDataDir(idempotencyDirName, idempotencyEnvVar);
     this.idempotencyStore = new FileRecordStore<CapabilityIdempotencyRecord>(
@@ -709,12 +711,40 @@ export class CapabilityBroker {
       if (request.capabilityId === 'web.search') {
         const query = typeof payload.query === 'string' ? payload.query : '';
         const maxResults = typeof payload.maxResults === 'number' ? payload.maxResults : 5;
-        const results = await this.webSearchService!.search({
+
+        // Directive G: Route web.search through EvidencePackService for canonical safety normalization & URL validation
+        if (this.evidencePackService) {
+          const pack = await this.evidencePackService.buildEvidencePack(query, {
+            forceSearch: true,
+            maxSources: maxResults,
+            requestId: request.requestId,
+          });
+          return {
+            status: 'EXECUTED',
+            capabilityId: request.capabilityId,
+            result: {
+              status: pack.status,
+              query: pack.query,
+              evidencePackId: pack.evidencePackId,
+              results: pack.sources,
+            },
+          };
+        }
+
+        const searchOutcome = await this.webSearchService!.search({
           query,
           maxResults,
           requestId: request.requestId,
         });
-        return { status: 'EXECUTED', capabilityId: request.capabilityId, result: { results } };
+
+        return {
+          status: 'EXECUTED',
+          capabilityId: request.capabilityId,
+          result: {
+            status: searchOutcome.status,
+            results: searchOutcome.results,
+          },
+        };
       }
     }
 

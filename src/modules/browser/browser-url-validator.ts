@@ -1,11 +1,11 @@
 import { URL } from 'node:url';
 import { NagexError } from '../../common/errors.js';
 
-const DISALLOWED_SCHEMES = new Set(['file:', 'javascript:', 'data:', 'ftp:', 'gopher:', 'vbscript:']);
+const DISALLOWED_SCHEMES = new Set(['file:', 'javascript:', 'data:', 'blob:', 'ftp:', 'gopher:', 'vbscript:']);
 
-const BLOCKED_HOSTNAMES = new Set(['localhost', '127.0.0.1', '0.0.0.0', '[::1]']);
+const BLOCKED_HOSTNAMES = new Set(['localhost', '127.0.0.1', '0.0.0.0', '[::1]', '::1']);
 
-// RFC1918 + Cloud Metadata Ranges (169.254.169.254)
+// RFC1918 + Cloud Metadata Ranges (169.254.169.254) + IPv6 Link-Local / Unique Local / Mapped IPv4
 const BLOCKED_IP_REGEXES = [
   /^127\./,
   /^10\./,
@@ -13,7 +13,14 @@ const BLOCKED_IP_REGEXES = [
   /^192\.168\./,
   /^169\.254\./,
   /^0\./,
+  /^::1$/,
+  /^fe80:/i,
+  /^fc00:/i,
+  /^fd[0-9a-f]{2}:/i,
+  /^::ffff:(127\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.|169\.254\.|0\.)/i,
 ];
+
+const BLOCKED_INTERNAL_TLDS = [/\.local$/i, /\.internal$/i, /\.lan$/i, /\.localhost$/i];
 
 export interface UrlValidationOptions {
   allowLocalhostInTests?: boolean;
@@ -41,6 +48,11 @@ export function isUrlSafe(inputUrl: string, options: UrlValidationOptions = {}):
     return { safe: false, reason: `Unsafe scheme '${protocol}'. Only http: and https: are allowed.` };
   }
 
+  // Username/Password in URL check
+  if (parsed.username || parsed.password) {
+    return { safe: false, reason: 'URL with embedded credentials (user:pass) is blocked by security policy.' };
+  }
+
   const hostname = parsed.hostname.toLowerCase();
 
   // Allow localhost for deterministic local unit/integration tests when enabled
@@ -53,6 +65,11 @@ export function isUrlSafe(inputUrl: string, options: UrlValidationOptions = {}):
     for (const regex of BLOCKED_IP_REGEXES) {
       if (regex.test(hostname)) {
         return { safe: false, reason: `Access to private/metadata IP '${hostname}' is blocked by security policy.` };
+      }
+    }
+    for (const regex of BLOCKED_INTERNAL_TLDS) {
+      if (regex.test(hostname)) {
+        return { safe: false, reason: `Access to internal domain '${hostname}' is blocked by security policy.` };
       }
     }
   }

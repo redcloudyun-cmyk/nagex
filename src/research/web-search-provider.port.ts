@@ -19,8 +19,26 @@ export interface SearchResult {
   provider: string;
 }
 
+export type SearchProviderResultStatus =
+  | 'SUCCESS'
+  | 'NO_RESULTS'
+  | 'UNAVAILABLE'
+  | 'AUTH_FAILED'
+  | 'RATE_LIMITED'
+  | 'TIMEOUT'
+  | 'PROVIDER_ERROR'
+  | 'INVALID_RESPONSE'
+  | 'FAILED';
+
+export interface SearchQueryResult {
+  status: SearchProviderResultStatus;
+  results: SearchResult[];
+  error?: string;
+  provider?: string;
+}
+
 export interface WebSearchProviderPort {
   readonly name: string;
   isConfigured(): boolean;
-  search(input: SearchQueryInput): Promise<SearchResult[]>;
+  search(input: SearchQueryInput): Promise<SearchQueryResult>;
 }

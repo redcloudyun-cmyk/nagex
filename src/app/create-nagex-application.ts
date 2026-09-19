@@ -248,6 +248,7 @@ export function createNagexApplication(): NagexApplication {
     deviceControlService,
     desktopControlService,
     webSearchService,
+    evidencePackService,
   );
 
   // ─── MASTER.md Section 14 — Main Session + Tasks Foundation ───

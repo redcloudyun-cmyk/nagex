@@ -1,6 +1,18 @@
 import type { FreshnessRequirement } from './question-classification.service.js';
 
-export type SourceFreshnessStatus = 'CURRENT' | 'RECENT' | 'UNDATED' | 'STALE' | 'UNKNOWN';
+export type SourceFreshnessStatus = 'CURRENT' | 'RECENT' | 'UNDATED' | 'STALE' | 'UNKNOWN' | 'SUSPICIOUS';
+
+export type EvidencePackStatus =
+  | 'NOT_REQUIRED'
+  | 'SUCCESS'
+  | 'NO_RESULTS'
+  | 'UNAVAILABLE'
+  | 'DEGRADED'
+  | 'AUTH_FAILED'
+  | 'RATE_LIMITED'
+  | 'TIMEOUT'
+  | 'PROVIDER_ERROR'
+  | 'FAILED';
 
 export interface EvidenceSource {
   sourceId: string;
@@ -20,7 +32,9 @@ export interface EvidencePack {
   generatedAt: string;
   freshnessRequirement: FreshnessRequirement;
   category: string;
+  status: EvidencePackStatus;
   sources: EvidenceSource[];
+  error?: string;
 }
 
 export interface ResearchResult {

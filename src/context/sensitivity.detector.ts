@@ -13,6 +13,7 @@ const S3_SECRET_PATTERNS = [
 
 // Sensitive detection regex (S2)
 const S2_SENSITIVE_PATTERNS = [
+  /\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b/, // Email
   /\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b/, // Credit card
   /\b\d{3}-\d{2}-\d{4}\b/, // SSN
   /\b01[016789]-?\d{3,4}-?\d{4}\b/, // KR Mobile
@@ -22,6 +23,21 @@ const S2_SENSITIVE_PATTERNS = [
   /계좌번호/i,
   /신용카드/i,
 ];
+
+export function sanitizeTextForSearchQuery(query: string): string {
+  let q = query || '';
+  // Strip S3 secrets
+  for (const pattern of S3_SECRET_PATTERNS) {
+    q = q.replace(new RegExp(pattern.source, pattern.flags + 'g'), '');
+  }
+  // Strip S2 sensitive items (emails, phone numbers, SSNs, credit cards)
+  for (const pattern of S2_SENSITIVE_PATTERNS) {
+    q = q.replace(new RegExp(pattern.source, pattern.flags + 'g'), '');
+  }
+  // Strip explicit S2 user markers e.g. "for user Jane Smith", "User Profile: Jane Smith"
+  q = q.replace(/(?:for\s+user|user\s+profile:?|user)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?/gi, '');
+  return q.replace(/\s+/g, ' ').trim();
+}
 
 export function detectContentSensitivity(content: unknown): SensitivityLevel {
   const text = typeof content === 'string'

@@ -182,8 +182,10 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
     let evidencePack: EvidencePack | undefined;
     if (deps.evidencePackService) {
       evidencePack = await deps.evidencePackService.buildEvidencePack(message, { requestId });
-      if (evidencePack.freshnessRequirement === 'REQUIRED' && !deps.evidencePackService.isWebSearchAvailable()) {
-        const notAvailMsg = "I can't verify current information right now because live web search is unavailable.";
+      if (evidencePack.freshnessRequirement === 'REQUIRED' && (evidencePack.status !== 'SUCCESS' || evidencePack.sources.length === 0)) {
+        const notAvailMsg = evidencePack.status === 'UNAVAILABLE'
+          ? "I can't verify current information right now because live web search is unavailable."
+          : `I can't verify current information right now because live web search returned no verified sources (${evidencePack.status}).`;
         const botMsgRecord = convStore.append({
           tenantId,
           principalId,
