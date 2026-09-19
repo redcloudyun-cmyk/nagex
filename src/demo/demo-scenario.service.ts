@@ -120,6 +120,45 @@ export class DemoScenarioService {
     };
   }
 
+  private vaultItems(state: ScopeState, isKo = false): Array<Record<string, unknown>> {
+    const seeded: Array<Record<string, unknown>> = this.fixture.vault.map((item) => {
+      let title = item.title;
+      let summary = item.content;
+      let type: string = 'DOCUMENT';
+
+      if (item.id === 'demo_vault_notes') {
+        type = 'SAVED_ANALYSIS';
+        if (isKo) {
+          title = '지난 미팅 노트';
+          summary = '가격 조율 논의; 일정 미확정. 클라이언트 미팅 후 팔로업 필요.';
+        }
+      } else if (item.id === 'demo_vault_proposal') {
+        type = 'DOCUMENT';
+        if (isKo) {
+          summary = '현재 가격 $48,000. 납품일 10월 18일. 범위: 전략, 구현, 런칭 지원. 미결정: 애널리틱스 옵션 포함 여부.';
+        }
+      }
+
+      return {
+        vaultItemId: item.id,
+        userId: 'usr_demo_alex',
+        tenantId: 'ten_demo_hackathon',
+        workspaceId: 'ws_demo_01',
+        type,
+        title,
+        mimeType: type === 'SAVED_ANALYSIS' ? 'text/markdown' : 'application/pdf',
+        storageRef: `demo://vault/${item.id}`,
+        source: 'DEMO_SEED',
+        sourceRef: undefined,
+        metadata: { summary, sizeBytes: 1024 },
+        createdAt: item.id === 'demo_vault_proposal' ? '2026-09-05T09:00:00.000Z' : '2026-09-05T08:30:00.000Z',
+        updatedAt: item.id === 'demo_vault_proposal' ? '2026-09-05T09:00:00.000Z' : '2026-09-05T08:30:00.000Z'
+      };
+    });
+
+    return [...seeded, ...state.savedVault];
+  }
+
   private meetingPrep(isKo = false): Record<string, unknown> {
     const event = this.fixture.events.find((item) => item.id === 'demo_evt_client')!;
     const title = isKo ? '클라이언트 전략 미팅' : event.title;
@@ -237,9 +276,55 @@ export class DemoScenarioService {
         }
       };
     }
-    if (pathname === '/api/v1/workspace/vault' && method === 'GET') return { status: 200, data: { items: [...this.fixture.vault, ...state.savedVault], recentItems: [...this.fixture.vault, ...state.savedVault], total: this.fixture.vault.length + state.savedVault.length } };
+    if (pathname === '/api/v1/workspace/vault' && method === 'GET') {
+      const items = this.vaultItems(state, isKo);
+      const usedSizeBytes = items.reduce((acc, i) => acc + (typeof (i.metadata as any)?.sizeBytes === 'number' ? (i.metadata as any).sizeBytes : 1024), 0);
+      return {
+        status: 200,
+        data: {
+          items,
+          recentItems: items,
+          total: items.length,
+          usedSizeBytes,
+          quotaSizeBytes: 10737418240,
+          query: null,
+          storageInfo: {
+            provider: 'local',
+            isCloud: false,
+            label: 'NAgex Personal Vault'
+          }
+        }
+      };
+    }
     if (pathname === '/api/v1/workspace/vault' && method === 'POST') {
-      const item = { ...body, vaultItemId: `demo_vault_saved_${state.savedVault.length + 1}`, createdAt: new Date().toISOString(), dataSource: 'DEMO' };
+      const now = new Date().toISOString();
+      const idNum = state.savedVault.length + 1;
+      const vaultItemId = `demo_vault_saved_${idNum}`;
+      const title = typeof body?.title === 'string' ? body.title : 'Saved Vault Item';
+      const type = typeof body?.type === 'string' ? body.type : 'DOCUMENT';
+      const mimeType = typeof body?.mimeType === 'string' ? body.mimeType : 'application/octet-stream';
+      const storageRef = typeof body?.storageRef === 'string' ? body.storageRef : `demo://vault/saved_${idNum}`;
+      const source = typeof body?.source === 'string' ? body.source : 'MANUAL_SAVE';
+      const sourceRef = typeof body?.sourceRef === 'string' ? body.sourceRef : undefined;
+      const metadata = body?.metadata && typeof body.metadata === 'object' ? (body.metadata as Record<string, unknown>) : {};
+
+      const item: Record<string, unknown> = {
+        vaultItemId,
+        userId: 'usr_demo_alex',
+        tenantId: 'ten_demo_hackathon',
+        workspaceId: 'ws_demo_01',
+        type,
+        title,
+        mimeType,
+        storageRef,
+        source,
+        sourceRef,
+        metadata,
+        createdAt: now,
+        updatedAt: now,
+        dataSource: 'DEMO'
+      };
+
       state.savedVault.push(item);
       return { status: 201, data: item };
     }
