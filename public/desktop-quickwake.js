@@ -16,11 +16,14 @@
 
   async function apiFetch(url, options = {}) {
     const demoMode = new URLSearchParams(window.location.search).get('demo') === '1';
+    const currentLocale = window.NAGEX_I18N ? window.NAGEX_I18N.getLocale() : (localStorage.getItem('nagex_locale') || 'en');
     const opts = { ...options };
     opts.headers = {
       'Content-Type': 'application/json',
       'x-nagex-tenant': demoMode ? 'ten_demo_hackathon' : 'ten_production_01',
       'x-principal-id': demoMode ? 'usr_demo_alex' : 'usr_admin_001',
+      'x-nagex-locale': currentLocale,
+      'accept-language': currentLocale === 'ko' ? 'ko-KR,ko;q=0.9,en;q=0.8' : 'en-US,en;q=0.9',
       ...(demoMode ? { 'x-nagex-demo': '1' } : {}),
       ...(options.headers || {}),
     };
@@ -50,6 +53,9 @@
 
   // ── Init & Event Wiring ──────────────────────────────────────────────────
   async function init() {
+    if (window.NAGEX_I18N && typeof window.NAGEX_I18N.applyLocale === 'function') {
+      window.NAGEX_I18N.applyLocale();
+    }
     setupTabNav();
     setupChips();
     setupComposer();

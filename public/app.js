@@ -258,11 +258,14 @@
     }
     try {
       const isDemoMode = new URLSearchParams(window.location.search).get('demo') === '1';
+      const currentLocale = window.NAGEX_I18N ? window.NAGEX_I18N.getLocale() : (localStorage.getItem('nagex_locale') || 'en');
       const res = await fetch(endpoint, {
         headers: {
           'Content-Type': 'application/json',
           'X-NAgex-Tenant': isDemoMode ? 'ten_demo_hackathon' : 'ten_production_01',
           'X-Principal-Id': isDemoMode ? 'usr_demo_alex' : 'usr_admin_001',
+          'X-NAgex-Locale': currentLocale,
+          'Accept-Language': currentLocale === 'ko' ? 'ko-KR,ko;q=0.9,en;q=0.8' : 'en-US,en;q=0.9',
           ...(isDemoMode ? { 'X-NAgex-Demo': '1', 'X-NAgex-Demo-Session': getDemoSessionId() } : {}),
           ...(fetchOptions.headers || {}),
         },

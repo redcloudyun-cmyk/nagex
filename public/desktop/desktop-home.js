@@ -171,8 +171,9 @@
 
     const state = window.NAGEX.getState();
     const dateEl = document.getElementById('desktop-today-date');
+    const loc = (window.NAGEX_I18N && window.NAGEX_I18N.getLocale() === 'ko') ? 'ko-KR' : 'en-US';
     if (dateEl) {
-      dateEl.textContent = new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+      dateEl.textContent = new Date().toLocaleDateString(loc, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
     }
     const activeTasks = (state.tasks || []).filter((task) => task.status === 'ACTIVE' || task.status === 'RUNNING' || task.status === 'PAUSED').slice(0, 5);
 
@@ -187,7 +188,7 @@
 
     if (data && data.calendarStatus !== 'DISCONNECTED' && (data.calendar || []).length > 0) {
       data.calendar.slice(0, 4).forEach((ev, idx) => {
-        const startTime = ev.start ? new Date(ev.start.dateTime || ev.start.date || ev.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '9:00 AM';
+        const startTime = ev.start ? new Date(ev.start.dateTime || ev.start.date || ev.start).toLocaleTimeString(loc, { hour: 'numeric', minute: '2-digit' }) : '9:00 AM';
         const iconSvg = idx % 3 === 0 ? SVGS.check : idx % 3 === 1 ? SVGS.screen : SVGS.fork;
         const iconClass = idx % 3 === 0 ? 'node-green' : idx % 3 === 1 ? 'node-blue' : 'node-green-fork';
         timelineRows.push(`

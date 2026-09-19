@@ -532,7 +532,7 @@
       'ambient.result.dismiss': 'Dismiss',
 
       // Home View
-      'home.greeting': 'Hello, Jane',
+      'home.greeting': 'Hello, Alex',
       'home.subtitle': 'What would you like to do today?',
       'home.promptPlaceholder': 'Ask NAgex anything...',
       'home.runDemoBtn': 'Run Primary Scenario: Prepare Client Meeting',
@@ -1532,9 +1532,9 @@
       'ambient.result.dismiss': '닫기',
 
       // Home View
-      'home.greeting': '안녕하세요, Jane님',
+      'home.greeting': '안녕하세요, Alex님',
       'home.subtitle': '오늘 NAgex가 어떤 작업을 도와드릴까요?',
-      'home.promptPlaceholder': 'Ask NAgex anything...',
+      'home.promptPlaceholder': 'NAgex에게 무엇이든 물어보세요...',
       'home.runDemoBtn': '주요 시나리오 실행: 미팅 준비 및 일정 등록',
       'home.quickActions': '빠른 액션',
       'home.actionPlanDay': '하루 일정 계획',
@@ -2162,4 +2162,10 @@
   }
 
   window.NAGEX_I18N = { t, getLocale, setLocale, toggleLocale, applyLocale, getMissingKeys: () => Array.from(missingKeys) };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', applyLocale);
+  } else {
+    applyLocale();
+  }
 })();

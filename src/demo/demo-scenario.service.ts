@@ -28,6 +28,17 @@ export class DemoScenarioService {
     this.fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as Fixture;
   }
 
+  private getLocale(headers?: Record<string, string | string[] | undefined>): 'ko' | 'en' {
+    if (!headers) return 'en';
+    const get = (key: string) => {
+      const v = headers[key] ?? headers[key.toLowerCase()] ?? headers[key.toUpperCase()];
+      return Array.isArray(v) ? v[0] : v;
+    };
+    const loc = get('x-nagex-locale') || get('accept-language') || get('x-locale') || get('cookie');
+    if (loc && (loc.toLowerCase().includes('ko') || loc.includes('nagex_locale=ko'))) return 'ko';
+    return 'en';
+  }
+
   private getScopeKey(headers?: Record<string, string | string[] | undefined>): string {
     if (!headers) return 'default';
     const get = (key: string) => {
@@ -72,35 +83,86 @@ export class DemoScenarioService {
     return value.toISOString();
   }
 
-  private events(state: ScopeState): Array<Record<string, unknown>> {
-    const seeded: Array<Record<string, unknown>> = this.fixture.events.map((event) => ({ ...event, start_time: this.todayAt(event.time), start: { dateTime: this.todayAt(event.time) }, summary: event.title }));
+  private events(state: ScopeState, isKo = false): Array<Record<string, unknown>> {
+    const seeded: Array<Record<string, unknown>> = this.fixture.events.map((event) => {
+      let title = event.title;
+      if (isKo) {
+        if (event.id === 'demo_evt_q3') title = 'Q3 보고서 초안 검토';
+        else if (event.id === 'demo_evt_research') title = '제품 리서치 싱크';
+        else if (event.id === 'demo_evt_client') title = '클라이언트 전략 미팅';
+      }
+      return {
+        ...event,
+        title,
+        summary: title,
+        start_time: this.todayAt(event.time),
+        start: { dateTime: this.todayAt(event.time) }
+      };
+    });
     return [...seeded, ...state.addedEvents];
   }
 
-  private meetingPrep(): Record<string, unknown> {
+  private email(isKo = false) {
+    if (!isKo) return this.fixture.email;
+    return {
+      id: this.fixture.email.id,
+      from: 'Sarah Chen',
+      subject: '다음 단계를 위한 가격 정책 및 일정 문의',
+      summary: 'Sarah가 가격 조정 및 납품 일정 조기 조율이 가능한지 문의했습니다.'
+    };
+  }
+
+  private task(isKo = false) {
+    if (!isKo) return this.fixture.task;
+    return {
+      id: this.fixture.task.id,
+      title: '클라이언트 미팅 후 팔로업 작성'
+    };
+  }
+
+  private meetingPrep(isKo = false): Record<string, unknown> {
     const event = this.fixture.events.find((item) => item.id === 'demo_evt_client')!;
+    const title = isKo ? '클라이언트 전략 미팅' : event.title;
     return {
       event_id: event.id,
-      event_title: event.title,
-      title: event.title,
+      event_title: title,
+      title: title,
       starts_at: this.todayAt(event.time),
       attendees: event.attendees,
-      reason: 'Pricing and delivery timing need a decision.',
+      reason: isKo ? '가격 정책 및 일정 조율 결정이 필요합니다.' : 'Pricing and delivery timing need a decision.',
       related_materials: [
-        { type: 'VAULT', id: 'demo_vault_notes', title: 'Last meeting notes', summary: 'Pricing flexibility discussed; timeline unresolved.' },
-        { type: 'VAULT', id: 'demo_vault_proposal', title: 'Proposal v3', summary: 'Pricing, delivery date, scope, and one open decision.' },
-        { type: 'EMAIL', id: this.fixture.email.id, title: `Recent email from ${this.fixture.email.from}`, summary: this.fixture.email.summary },
-        { type: 'MEMORY', id: 'demo_memory_brief', title: this.fixture.persona.preference },
-        { type: 'TASK', id: this.fixture.task.id, title: this.fixture.task.title }
+        { type: 'VAULT', id: 'demo_vault_notes', title: isKo ? '지난 미팅 노트' : 'Last meeting notes', summary: isKo ? '가격 조율 논의; 일정 미확정.' : 'Pricing flexibility discussed; timeline unresolved.' },
+        { type: 'VAULT', id: 'demo_vault_proposal', title: 'Proposal v3', summary: isKo ? '가격, 납품일, 범위 및 미결정 항목.' : 'Pricing, delivery date, scope, and one open decision.' },
+        { type: 'EMAIL', id: this.fixture.email.id, title: isKo ? 'Sarah Chen의 최근 이메일' : `Recent email from ${this.fixture.email.from}`, summary: isKo ? 'Sarah가 가격 조정 및 납품 일정 조기 조율이 가능한지 문의했습니다.' : this.fixture.email.summary },
+        { type: 'MEMORY', id: 'demo_memory_brief', title: isKo ? '간결한 미팅 브리핑 선호' : this.fixture.persona.preference },
+        { type: 'TASK', id: this.fixture.task.id, title: isKo ? '클라이언트 미팅 후 팔로업 작성' : this.fixture.task.title }
       ],
-      key_points: ['The client asked about pricing flexibility.', 'An earlier delivery date is under discussion.', 'The previous meeting left the timeline unresolved.'],
-      suggested_agenda: ['Confirm the delivery timeline', 'Discuss pricing options', 'Resolve the analytics add-on decision']
+      key_points: isKo ? [
+        '클라이언트가 가격 정책 유연성을 문의했습니다.',
+        '조기 납품 일정 조율이 논의 중입니다.',
+        '이전 미팅에서 전체 일정이 확정되지 않았습니다.'
+      ] : [
+        'The client asked about pricing flexibility.',
+        'An earlier delivery date is under discussion.',
+        'The previous meeting left the timeline unresolved.'
+      ],
+      suggested_agenda: isKo ? [
+        '납품 일정 확정',
+        '가격 옵션 논의',
+        '애널리틱스 옵션 추가 결정'
+      ] : [
+        'Confirm the delivery timeline',
+        'Discuss pricing options',
+        'Resolve the analytics add-on decision'
+      ]
     };
   }
 
   public handle(method: string, pathname: string, body: Record<string, unknown> | null, headers?: Record<string, string | string[] | undefined>): ApiResult | undefined {
     const scopeKey = this.getScopeKey(headers);
     const state = this.getState(scopeKey);
+    const loc = this.getLocale(headers);
+    const isKo = loc === 'ko';
 
     if (pathname === '/api/v1/demo/reset' && method === 'POST') {
       this.reset(scopeKey);
@@ -110,16 +172,71 @@ export class DemoScenarioService {
       return { status: 200, data: { persona: this.fixture.persona, mutationCount: state.mutationCount, addedEvents: state.addedEvents, approvalCount: state.approvals.size } };
     }
     if (pathname === '/api/v1/personal/morning-brief' && method === 'GET') {
-      return { status: 200, data: { dataSource: 'DEMO', persona: this.fixture.persona, calendarStatus: 'CONNECTED', gmailStatus: 'CONNECTED', schedule_summary: { count: this.events(state).length, events: this.events(state) }, email_summary: { important_count: 1, emails: [this.fixture.email] }, task_summary: { due_today: 1, tasks: [this.fixture.task] }, recommendation: { title: 'Client strategy meeting · 3:00 PM', reason: 'Pricing and delivery timing need your attention.', action_type: 'MEETING_PREP', target_id: 'demo_evt_client' } } };
+      return {
+        status: 200,
+        data: {
+          dataSource: 'DEMO',
+          persona: this.fixture.persona,
+          calendarStatus: 'CONNECTED',
+          gmailStatus: 'CONNECTED',
+          schedule_summary: { count: this.events(state, isKo).length, events: this.events(state, isKo) },
+          email_summary: { important_count: 1, emails: [this.email(isKo)] },
+          task_summary: { due_today: 1, tasks: [this.task(isKo)] },
+          recommendation: {
+            title: isKo ? '클라이언트 전략 미팅 · 오후 3:00' : 'Client strategy meeting · 3:00 PM',
+            reason: isKo ? '가격 정책 및 일정 조율 검토가 필요합니다.' : 'Pricing and delivery timing need your attention.',
+            action_type: 'MEETING_PREP',
+            target_id: 'demo_evt_client'
+          }
+        }
+      };
     }
     if (pathname === '/api/v1/personal/quick-wake' && method === 'GET') {
-      return { status: 200, data: { dataSource: 'DEMO', proactive_suggestion: { title: 'Your client meeting is coming up.', reason: 'You have related context ready.', target_id: 'demo_evt_client', grounded_on: [{ type: 'VAULT', id: 'demo_vault_notes', label: 'Last meeting notes' }, { type: 'VAULT', id: 'demo_vault_proposal', label: 'Proposal v3' }, { type: 'EMAIL', id: this.fixture.email.id, label: 'Recent email from Sarah' }] } } };
+      return {
+        status: 200,
+        data: {
+          dataSource: 'DEMO',
+          proactive_suggestion: {
+            title: isKo ? '클라이언트 미팅 일정이 다가오고 있습니다.' : 'Your client meeting is coming up.',
+            reason: isKo ? '관련 컨텍스트가 준비되었습니다.' : 'You have related context ready.',
+            target_id: 'demo_evt_client',
+            grounded_on: [
+              { type: 'VAULT', id: 'demo_vault_notes', label: isKo ? '지난 미팅 노트' : 'Last meeting notes' },
+              { type: 'VAULT', id: 'demo_vault_proposal', label: 'Proposal v3' },
+              { type: 'EMAIL', id: this.fixture.email.id, label: isKo ? 'Sarah Chen의 최근 이메일' : 'Recent email from Sarah' }
+            ]
+          }
+        }
+      };
     }
-    if (pathname === '/api/v1/personal/meeting-prep' && method === 'POST') return { status: 200, data: this.meetingPrep() };
-    if (pathname === '/api/v1/my-space' && method === 'GET') return { status: 200, data: { calendarStatus: 'CONNECTED', calendar: this.events(state), history: [] } };
-    if (pathname === '/api/v1/tasks' && method === 'GET') return { status: 200, data: { tasks: [{ taskId: this.fixture.task.id, name: this.fixture.task.title, objective: this.fixture.task.title, status: 'ACTIVE', nextRunAt: this.todayAt('16:30') }] } };
-    if (pathname === '/api/v1/memory' && method === 'GET') return { status: 200, data: { memories: [{ id: 'demo_memory_brief', scope: 'USER', lifecycle: 'ACTIVE', content: { subject: 'Meeting brief preference', predicate: 'prefers', value: this.fixture.persona.preference } }] } };
-    if (pathname === '/api/v1/notifications' && method === 'GET') return { status: 200, data: { unreadCount: 1, notifications: [{ id: 'demo_notification_client', type: 'MEETING_PREP', title: 'Client strategy meeting approaching', body: 'Pricing and timeline context is ready.', read: false, relatesAt: this.todayAt('15:00'), createdAt: this.todayAt('13:00'), channelDeliveries: [{ channel: 'WEB', status: 'DELIVERED' }] }] } };
+    if (pathname === '/api/v1/personal/meeting-prep' && method === 'POST') return { status: 200, data: this.meetingPrep(isKo) };
+    if (pathname === '/api/v1/my-space' && method === 'GET') return { status: 200, data: { calendarStatus: 'CONNECTED', calendar: this.events(state, isKo), history: [] } };
+    if (pathname === '/api/v1/tasks' && method === 'GET') {
+      const taskObj = this.task(isKo);
+      return { status: 200, data: { tasks: [{ taskId: taskObj.id, name: taskObj.title, objective: taskObj.title, status: 'ACTIVE', nextRunAt: this.todayAt('16:30') }] } };
+    }
+    if (pathname === '/api/v1/memory' && method === 'GET') {
+      const prefValue = isKo ? '간결한 미팅 브리핑 선호' : this.fixture.persona.preference;
+      return { status: 200, data: { memories: [{ id: 'demo_memory_brief', scope: 'USER', lifecycle: 'ACTIVE', content: { subject: 'Meeting brief preference', predicate: 'prefers', value: prefValue } }] } };
+    }
+    if (pathname === '/api/v1/notifications' && method === 'GET') {
+      return {
+        status: 200,
+        data: {
+          unreadCount: 1,
+          notifications: [{
+            id: 'demo_notification_client',
+            type: 'MEETING_PREP',
+            title: isKo ? '클라이언트 전략 미팅 임두' : 'Client strategy meeting approaching',
+            body: isKo ? '가격 및 일정 컨텍스트 준비 완료.' : 'Pricing and timeline context is ready.',
+            read: false,
+            relatesAt: this.todayAt('15:00'),
+            createdAt: this.todayAt('13:00'),
+            channelDeliveries: [{ channel: 'WEB', status: 'DELIVERED' }]
+          }]
+        }
+      };
+    }
     if (pathname === '/api/v1/workspace/vault' && method === 'GET') return { status: 200, data: { items: [...this.fixture.vault, ...state.savedVault], recentItems: [...this.fixture.vault, ...state.savedVault], total: this.fixture.vault.length + state.savedVault.length } };
     if (pathname === '/api/v1/workspace/vault' && method === 'POST') {
       const item = { ...body, vaultItemId: `demo_vault_saved_${state.savedVault.length + 1}`, createdAt: new Date().toISOString(), dataSource: 'DEMO' };

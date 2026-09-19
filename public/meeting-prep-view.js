@@ -196,17 +196,36 @@
     renderCalendarConfirm(cont, approval, card);
   }
 
+  function formatDateTime(iso) {
+    try {
+      const loc = (window.NAGEX_I18N && window.NAGEX_I18N.getLocale() === 'ko') ? 'ko-KR' : 'en-US';
+      return new Date(iso).toLocaleString(loc, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+    } catch {
+      return String(iso || '');
+    }
+  }
+
+  function scrollToTopOrContinuation() {
+    const modal = document.querySelector('.meeting-prep-modal');
+    if (modal) modal.scrollTop = 0;
+    const cont = document.getElementById('meeting-prep-continuation');
+    if (cont && cont.innerHTML.trim().length > 0) {
+      cont.scrollIntoView({ behavior: 'instant', block: 'start' });
+    }
+  }
+
   function renderCalendarConfirm(cont, approval, card) {
     const p = approval.canonicalPayload || {};
     cont.innerHTML =
       '<div class="meeting-prep-confirm-card">' +
       '<h4>' + escapeHtml(t('meetingPrep.readyToAdd', 'Ready to add to your calendar')) + '</h4>' +
       '<p><strong>' + escapeHtml(p.summary || '') + '</strong></p>' +
-      '<p>' + escapeHtml(new Date(p.start).toLocaleString()) + '</p>' +
+      '<p>' + escapeHtml(formatDateTime(p.start)) + '</p>' +
       '<div class="meeting-prep-confirm-actions">' +
       '<button class="btn-reject-outline" id="meeting-prep-cancel-add">' + escapeHtml(t('meetingPrep.notNow', 'Not now')) + '</button>' +
       '<button class="btn-plan-action plan-status-ready" id="meeting-prep-confirm-add">' + escapeHtml(t('meetingPrep.addToCalendar', 'Add to calendar')) + '</button>' +
       '</div></div>';
+    scrollToTopOrContinuation();
     const cancelBtn = document.getElementById('meeting-prep-cancel-add');
     const confirmBtn = document.getElementById('meeting-prep-confirm-add');
     if (cancelBtn) cancelBtn.addEventListener('click', async () => {
@@ -233,9 +252,10 @@
           '<div class="meeting-prep-done-card">' +
           '<h4>' + escapeHtml(titleText) + '</h4>' +
           '<p><strong>' + escapeHtml(p.summary || '') + '</strong></p>' +
-          '<p>' + escapeHtml(new Date(p.start).toLocaleString()) + '</p>' +
+          '<p>' + escapeHtml(formatDateTime(p.start)) + '</p>' +
           (!isDemo && result.externalUrl ? '<a href="' + encodeURI(result.externalUrl) + '" target="_blank" rel="noopener" class="btn-plan-action plan-status-ready">' + escapeHtml(t('meetingPrep.viewEvent', 'View event')) + ' →</a>' : '') +
           '</div>';
+        scrollToTopOrContinuation();
       } else {
         cont.innerHTML = '<p class="resolution-warnings">' + escapeHtml(t('meetingPrep.couldNotComplete', "I couldn't finish this task right now.")) + '</p>';
       }
