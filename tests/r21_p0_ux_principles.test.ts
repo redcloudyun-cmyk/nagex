@@ -175,3 +175,13 @@ test('ACCESSIBILITY: Modal has role=dialog, aria-modal=true, and polite aria-liv
   assert.match(html, /id="ambient-understanding-card"[^>]*aria-live="polite"/);
   assert.match(html, /id="ambient-user-approval-card"[^>]*aria-live="polite"/);
 });
+
+test('PUBLIC_I18N_JS_SYNTAX: public/i18n.js is syntactically valid JavaScript', () => {
+  const i18nPath = path.join(process.cwd(), 'public', 'i18n.js');
+  assert.equal(fs.existsSync(i18nPath), true);
+  const code = fs.readFileSync(i18nPath, 'utf8');
+  assert.doesNotThrow(() => {
+    new Function(code);
+  }, 'public/i18n.js must be syntactically valid JavaScript');
+});
+

@@ -2153,7 +2153,7 @@
     'memory.sensitive': '민감한 정보 — 확인 후 저장하세요',
     'memory.whyRemembered': '저장 이유',
     'memory.whereFrom': '출처',
-  };
+  });
 
   function detectLocale() {
     const saved = localStorage.getItem(STORAGE_KEY);
