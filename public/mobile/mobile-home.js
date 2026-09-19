@@ -127,7 +127,23 @@
     }
   }
 
-  function deriveRightNowHeroInfo(morningBrief, mySpaceData, state) {
+  function unwrapApiData(value) {
+    return value && value.data ? value.data : value;
+  }
+
+  function hasUsableHeroContext(rawBrief, rawMySpace) {
+    const brief = unwrapApiData(rawBrief);
+    const mySpace = unwrapApiData(rawMySpace);
+    return Boolean(
+      brief?.recommendation ||
+      brief?.schedule_summary?.events?.length ||
+      mySpace?.calendar?.length
+    );
+  }
+
+  function deriveRightNowHeroInfo(rawMorningBrief, rawMySpaceData, state) {
+    const morningBrief = unwrapApiData(rawMorningBrief);
+    const mySpaceData = unwrapApiData(rawMySpaceData);
     const isKo = window.NAGEX_I18N && window.NAGEX_I18N.getLocale() === 'ko';
 
     // A. Personal Morning Brief recommendation
@@ -280,8 +296,8 @@
         window.NAGEX.apiFetch('/api/v1/personal/morning-brief', { headers }),
         window.NAGEX.apiFetch('/api/v1/my-space', { headers })
       ]);
-      if (mb && !mb.error) heroBriefData = mb;
-      if (ms && !ms.error) heroMySpaceData = ms;
+      if (mb && !mb.error) heroBriefData = unwrapApiData(mb);
+      if (ms && !ms.error) heroMySpaceData = unwrapApiData(ms);
     } catch (e) {
       // Ignore API fetch errors in offline fallback
     }
@@ -318,16 +334,15 @@
       heroMySpaceData = null;
     }
 
-    heroSection.setAttribute('data-context-ready', heroBriefData ? 'true' : 'false');
-
     const state = window.NAGEX.getState ? window.NAGEX.getState() : {};
 
     let info = deriveRightNowHeroInfo(heroBriefData, heroMySpaceData, state);
     applyHeroInfoToDOM(info);
 
-    if (heroBriefData) {
-      heroSection.setAttribute('data-context-ready', 'true');
-    }
+    heroSection.setAttribute(
+      'data-context-ready',
+      hasUsableHeroContext(heroBriefData, heroMySpaceData) ? 'true' : 'false'
+    );
 
     if (!heroBriefData && !heroContextFetching) {
       heroContextFetching = true;
@@ -335,9 +350,10 @@
       heroContextFetching = false;
       info = deriveRightNowHeroInfo(heroBriefData, heroMySpaceData, state);
       applyHeroInfoToDOM(info);
-      if (heroBriefData) {
-        heroSection.setAttribute('data-context-ready', 'true');
-      }
+      heroSection.setAttribute(
+        'data-context-ready',
+        hasUsableHeroContext(heroBriefData, heroMySpaceData) ? 'true' : 'false'
+      );
     }
   }
 
