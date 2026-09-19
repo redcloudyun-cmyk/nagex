@@ -517,20 +517,57 @@
     const listEl = document.getElementById('mh-prepared-list');
     if (!listEl) return;
 
-    const cards = [
-      {
-        title: t('home.meetingBriefTitle', 'Client meeting brief'),
-        desc: t('home.meetingBriefDesc', "Last meeting notes, Proposal v3 and Sarah's latest email are ready."),
+    const brief = unwrapApiData(heroBriefData);
+    const mySpace = unwrapApiData(heroMySpaceData);
+    const rec = brief?.recommendation;
+    const rawEvents = (brief?.schedule_summary?.events) || (mySpace?.calendar) || [];
+    const events = sortEventsChronologically(rawEvents);
+
+    let meetingTarget = null;
+    if (rec && rec.target_id) {
+      meetingTarget = events.find((e) => (e.id || e.event_id) === rec.target_id);
+    }
+    if (!meetingTarget && rec && rec.action_type === 'MEETING_PREP') {
+      meetingTarget = events.find((e) => e.id || e.event_id);
+    }
+    if (!meetingTarget && events.length > 0) {
+      const validEv = events.find(isEventValidForHero);
+      if (validEv) meetingTarget = validEv;
+    }
+
+    const cards = [];
+
+    // Meeting brief card — only when a real target event/recommendation exists with a valid target_id
+    if (meetingTarget && (meetingTarget.id || meetingTarget.event_id || rec?.target_id)) {
+      const targetId = rec?.target_id || meetingTarget.id || meetingTarget.event_id;
+      const title = meetingTarget.title || meetingTarget.summary || rec?.title || t('home.meetingBriefTitle', 'Client meeting brief');
+      const desc = rec?.reason || meetingTarget.description || t('home.meetingBriefDesc', 'Meeting notes and key context prepared.');
+
+      cards.push({
+        title,
+        desc,
         action: t('home.openAction', 'Open'),
-        onClick: "if(window.NAGEX_MEETING_PREP)window.NAGEX_MEETING_PREP.open('evt_demo_client_strategy')"
-      },
-      {
+        onClick: `if(window.NAGEX_MEETING_PREP)window.NAGEX_MEETING_PREP.open('${targetId}')`
+      });
+    }
+
+    // Research Plan card — only when an actual prepared research plan/result state exists in window.NAGEX.getState()
+    const state = window.NAGEX.getState ? window.NAGEX.getState() : {};
+    const hasResearchPlan = Boolean(state.researchPlan || state.researchResult || state.ambientResearch);
+    if (hasResearchPlan) {
+      cards.push({
         title: t('home.researchPlanTitle', 'Research plan'),
-        desc: t('home.researchPlanDesc', "I've prepared how to investigate the latest AI-agent architecture."),
+        desc: state.researchPlan?.title || t('home.researchPlanDesc', 'Research plan is ready for review.'),
         action: t('home.reviewPlanAction', 'Review plan'),
         onClick: "if(window.NAGEX&&window.NAGEX.openAmbientOverlay)window.NAGEX.openAmbientOverlay()"
-      }
-    ];
+      });
+    }
+
+    if (cards.length === 0) {
+      const isKo = window.NAGEX_I18N && window.NAGEX_I18N.getLocale() === 'ko';
+      listEl.innerHTML = `<div class="mh-prepared-empty">${escapeHtml(isKo ? '준비된 항목이 없습니다' : 'No prepared items right now')}</div>`;
+      return;
+    }
 
     listEl.innerHTML = cards.map((c) => `
       <div class="mh-prepared-card">
@@ -543,41 +580,62 @@
     `).join('');
   }
 
-  // ── E. Today — Compact schedule (3-4 items, next item highlighted) ──
-  let mySpaceFetched = false;
+  // ── E. Today — Compact schedule derived from normalized /api/v1/my-space ──
   async function renderToday() {
     const listEl = document.getElementById('mh-today-list');
-    if (!listEl || !window.NAGEX.apiFetch || !window.NAGEX.getState) return;
+    if (!listEl || !window.NAGEX.apiFetch) return;
 
-    const state = window.NAGEX.getState();
-    let data = null;
-    if (!mySpaceFetched) {
-      mySpaceFetched = true;
-      data = await window.NAGEX.apiFetch('/api/v1/my-space');
+    const isKo = window.NAGEX_I18N && window.NAGEX_I18N.getLocale() === 'ko';
+    let rawData = null;
+    try {
+      rawData = await window.NAGEX.apiFetch('/api/v1/my-space');
+    } catch (err) {
+      rawData = null;
     }
 
-    const items = [];
-    if (data && Array.isArray(data.calendar) && data.calendar.length > 0) {
-      data.calendar.slice(0, 4).forEach((ev, idx) => {
-        const timeStr = ev.start ? new Date(ev.start.dateTime || ev.start.date || ev.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-        items.push({
-          time: timeStr || (idx === 0 ? '09:00' : idx === 1 ? '11:30' : '15:00'),
-          title: ev.summary || ev.title || 'Meeting',
-          isNext: idx === 2 || String(ev.summary || '').includes('Client strategy'),
-        });
+    const data = unwrapApiData(rawData);
+    const events = (data && Array.isArray(data.calendar)) ? data.calendar : (data?.schedule_summary?.events || []);
+
+    if (!rawData || (rawData.error && !events.length)) {
+      listEl.innerHTML = `<div class="mh-today-empty">${escapeHtml(isKo ? '일정을 불러올 수 없습니다' : "Couldn't load today's schedule")}</div>`;
+      return;
+    }
+
+    if (events.length === 0) {
+      listEl.innerHTML = `<div class="mh-today-empty">${escapeHtml(isKo ? '오늘 남은 일정이 없습니다' : 'No more events today')}</div>`;
+      return;
+    }
+
+    // Time-based next event selection
+    const now = Date.now();
+    let nextEventIndex = -1;
+
+    // 1. Check for active current event (start <= now <= end)
+    nextEventIndex = events.findIndex((ev) => {
+      const startTime = new Date(ev.start_time || ev.start?.dateTime || ev.start || 0).getTime();
+      const endTime = new Date(ev.end_time || ev.end?.dateTime || ev.end || 0).getTime();
+      return startTime && endTime && now >= startTime && now <= endTime;
+    });
+
+    // 2. If no active current event, find earliest future event (start >= now)
+    if (nextEventIndex === -1) {
+      nextEventIndex = events.findIndex((ev) => {
+        const startTime = new Date(ev.start_time || ev.start?.dateTime || ev.start || 0).getTime();
+        return startTime && startTime >= now;
       });
     }
 
-    if (items.length === 0) {
-      const isKo = window.NAGEX_I18N && window.NAGEX_I18N.getLocale() === 'ko';
-      items.push(
-        { time: '09:00', title: isKo ? 'Q3 보고서 검토' : 'Review Q3 report', isNext: false },
-        { time: '11:30', title: isKo ? '제품 리서치 동기화' : 'Product research sync', isNext: false },
-        { time: '15:00', title: isKo ? '클라이언트 전략 미팅' : 'Client strategy meeting', isNext: true }
-      );
-    }
+    const items = events.slice(0, 4).map((ev, idx) => {
+      const startRaw = ev.start_time || ev.start?.dateTime || ev.start;
+      const timeStr = startRaw ? new Date(startRaw).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+      return {
+        time: timeStr || '09:00',
+        title: ev.title || ev.summary || (isKo ? '미팅' : 'Meeting'),
+        isNext: idx === nextEventIndex
+      };
+    });
 
-    listEl.innerHTML = `<div class="mh-today-timeline">${items.slice(0, 4).map((r) => `
+    listEl.innerHTML = `<div class="mh-today-timeline">${items.map((r) => `
       <div class="mh-today-row ${r.isNext ? 'mh-today-row-next' : ''}">
         <span class="mh-today-time">${escapeHtml(r.time)}</span>
         <div class="mh-today-body">

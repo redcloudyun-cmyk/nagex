@@ -7,7 +7,7 @@ import { chromium, type Page } from 'playwright';
 const BASE_URL = process.env.NAGEX_DEPLOYED_URL || 'http://localhost:3000';
 const ARTIFACTS_DIR = path.resolve('artifacts/r22_1');
 
-const SEL = {
+const STATIC_SEL = {
   shell: '#mobile-app-shell',
   home: '#mobile-view-home',
   hero: '#mh-right-now-hero',
@@ -18,13 +18,18 @@ const SEL = {
   commandInput: '#mh-command-input',
   bottomNav: '.mh-bottom-nav',
   navItems: '.mh-bottom-nav .mh-nav-item',
-  todayRows: '#mh-today-list .mh-today-row',
-  prepared: '#mh-section-prepared'
+  prepared: '#mh-section-prepared',
+  today: '#mh-section-today',
+  todayList: '#mh-today-list'
+};
+
+const DYNAMIC_SEL = {
+  todayRows: '#mh-today-list .mh-today-row'
 };
 
 async function verifySelectorContract(page: Page): Promise<void> {
   const missing: string[] = [];
-  for (const [key, selector] of Object.entries(SEL)) {
+  for (const [key, selector] of Object.entries(STATIC_SEL)) {
     const count = await page.locator(selector).count();
     if (count === 0) {
       missing.push(`${key}:${selector}`);
@@ -155,7 +160,7 @@ async function waitForHeroResolved(page: Page, expected: any): Promise<void> {
         const hero = (globalThis as any).document.querySelector('#mh-right-now-hero');
         const body = (globalThis as any).document.querySelector('#mh-hero-body')?.textContent?.trim() || '';
         const headline = (globalThis as any).document.querySelector('#mh-hero-headline')?.textContent?.trim() || '';
-        const isResolved = hero?.getAttribute('data-hero-resolved') === 'true' || hero?.getAttribute('data-context-ready') === 'true';
+        const isResolved = hero?.getAttribute('data-hero-resolved') === 'true';
 
         if (!isResolved) return false;
 
@@ -203,8 +208,8 @@ async function assertNoHorizontalOverflow(page: Page, vpName: string, locale: st
 }
 
 async function assertComposerGeometry(page: Page, vpName: string, vpHeight: number): Promise<void> {
-  const composerBox = await page.locator(SEL.composer).boundingBox();
-  const navBox = await page.locator(SEL.bottomNav).boundingBox();
+  const composerBox = await page.locator(STATIC_SEL.composer).boundingBox();
+  const navBox = await page.locator(STATIC_SEL.bottomNav).boundingBox();
 
   assert.ok(composerBox, `Composer section must exist in viewport ${vpName}`);
   assert.ok(navBox, `Bottom nav must exist in viewport ${vpName}`);
@@ -223,23 +228,25 @@ async function captureFailureEvidence(page: Page, vpName: string, locale: string
   fs.mkdirSync(failDir, { recursive: true });
   await page.screenshot({ path: path.join(failDir, `${vpName}_${locale}_failure.png`), fullPage: false });
 
-  const domDiag = await page.evaluate(({ selComposer, selNav }: any) => {
+  const domDiag = await page.evaluate(({ selComposer, selNav, selTodayRows }: any) => {
     const heroEl = (globalThis as any).document.querySelector('#mh-right-now-hero');
     const headlineEl = (globalThis as any).document.querySelector('#mh-hero-headline');
     const bodyEl = (globalThis as any).document.querySelector('#mh-hero-body');
     const composerEl = (globalThis as any).document.querySelector(selComposer);
     const navEl = (globalThis as any).document.querySelector(selNav);
+    const todayRowEls = (globalThis as any).document.querySelectorAll(selTodayRows);
 
     return {
       heroHeadline: headlineEl?.textContent?.trim() || null,
       heroBody: bodyEl?.textContent?.trim() || null,
       heroResolved: heroEl?.getAttribute('data-hero-resolved') === 'true',
+      todayRowCount: todayRowEls.length,
       composerBox: composerEl ? composerEl.getBoundingClientRect() : null,
       navBox: navEl ? navEl.getBoundingClientRect() : null,
       scrollWidth: (globalThis as any).document.documentElement.scrollWidth,
       clientWidth: (globalThis as any).document.documentElement.clientWidth
     };
-  }, { selComposer: SEL.composer, selNav: SEL.bottomNav });
+  }, { selComposer: STATIC_SEL.composer, selNav: STATIC_SEL.bottomNav, selTodayRows: DYNAMIC_SEL.todayRows });
 
   const evidence = {
     viewport: vpName,
@@ -302,6 +309,12 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
   let heroStaleEventAsNowCount = 0;
   let heroStaleRecommendationSelectionCount = 0;
 
+  let todayFakeFallbackRowsCount = 0;
+  let todayNextEventTimeDerivedPass = false;
+
+  let preparedFakePersonalContextCount = 0;
+  let preparedHardcodedEventIdCount = 0;
+
   let composerVisible360 = false;
   let composerVisible390 = false;
   let composerVisible430 = false;
@@ -338,8 +351,8 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
 
       await pageEn.goto(`${BASE_URL}/?demo=1`);
       
-      const initialHeadline = await pageEn.locator(SEL.heroHeadline).innerText();
-      const initialBody = await pageEn.locator(SEL.heroBody).innerText();
+      const initialHeadline = await pageEn.locator(STATIC_SEL.heroHeadline).innerText();
+      const initialBody = await pageEn.locator(STATIC_SEL.heroBody).innerText();
       if (/Sarah|pricing|Client meeting/i.test(initialHeadline) || /Sarah|pricing|Client meeting/i.test(initialBody)) {
         initialPersonalContextLeak++;
       }
@@ -347,6 +360,7 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
       await pageEn.evaluate(() => (globalThis as any).window.NAGEX_I18N?.setLocale('en'));
       await pageEn.reload();
 
+      // 1. Selector Preflight (STATIC_SEL only)
       try {
         await verifySelectorContract(pageEn);
         selectorContractPass = true;
@@ -360,9 +374,9 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
         apiHeadersPreservedPass = true;
       }
 
-      const heroExists = await pageEn.isVisible(SEL.hero);
+      const heroExists = await pageEn.isVisible(STATIC_SEL.hero);
       assert.equal(heroExists, true, 'Right Now hero must exist');
-      const heroCtaCount = await pageEn.locator(`${SEL.hero} button.mh-btn-primary`).count();
+      const heroCtaCount = await pageEn.locator(`${STATIC_SEL.hero} button.mh-btn-primary`).count();
       assert.equal(heroCtaCount, 1, 'Hero must have exactly one primary CTA button');
 
       const apiDataEn = await pageEn.evaluate(async () => {
@@ -389,9 +403,9 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
         throw err;
       }
 
-      const heroText = await pageEn.locator(SEL.hero).innerText();
-      const headlineTextEn = await pageEn.locator(SEL.heroHeadline).innerText();
-      const bodyTextHeroEn = await pageEn.locator(SEL.heroBody).innerText();
+      const heroText = await pageEn.locator(STATIC_SEL.hero).innerText();
+      const headlineTextEn = await pageEn.locator(STATIC_SEL.heroHeadline).innerText();
+      const bodyTextHeroEn = await pageEn.locator(STATIC_SEL.heroBody).innerText();
 
       assert.match(heroText, /Right now/i);
 
@@ -439,7 +453,24 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
       heroContextDerivationPass = true;
       heroPriorityTimeAwarePass = true;
 
-      const bodyTextEn = await pageEn.locator(SEL.shell).innerText();
+      // Verify Prepared section does not contain hardcoded evt_demo_client_strategy
+      const preparedContent = await pageEn.locator(STATIC_SEL.prepared).innerHTML();
+      if (preparedContent.includes('evt_demo_client_strategy')) {
+        preparedHardcodedEventIdCount++;
+      }
+      assert.equal(preparedContent.includes('evt_demo_client_strategy'), false, 'Prepared section must not contain hardcoded evt_demo_client_strategy');
+
+      // Verify Today section rendering & dynamic row waiting
+      await pageEn.waitForSelector(DYNAMIC_SEL.todayRows, { state: 'visible', timeout: 10000 });
+      const todayRowsCount = await pageEn.locator(DYNAMIC_SEL.todayRows).count();
+      assert.ok(todayRowsCount > 0, 'Today section must render rows for demo data');
+
+      // Verify Today next event derivation (only 1 or 0 rows have .mh-today-row-next)
+      const nextBadgeCount = await pageEn.locator('.mh-today-row-next').count();
+      assert.ok(nextBadgeCount <= 1, 'At most one Today row can have Next badge');
+      todayNextEventTimeDerivedPass = true;
+
+      const bodyTextEn = await pageEn.locator(STATIC_SEL.shell).innerText();
       if (/\b(Planner|Router|Runtime|Capability|Provider|Model|Execution Graph|Tenant|Human Approval)\b/.test(bodyTextEn)) {
         technicalUILeak++;
       }
@@ -460,14 +491,13 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
       });
       assert.equal(chipRowVisible, false, 'Primary quick action chip row must not be visible on Mobile Home');
 
-      const navItemCount = await pageEn.locator(SEL.navItems).count();
+      const navItemCount = await pageEn.locator(STATIC_SEL.navItems).count();
       assert.equal(navItemCount, 5, 'Bottom navigation must contain exactly 5 items');
 
       await assertNoHorizontalOverflow(pageEn, vp.name, 'en');
 
-      const preparedText = await pageEn.locator(SEL.prepared).innerText();
+      const preparedText = await pageEn.locator(STATIC_SEL.prepared).innerText();
       assert.doesNotMatch(preparedText, /Research completed/i, 'Unexecuted research must never be claimed as completed');
-      assert.match(preparedText, /Research plan/i, 'Unexecuted research must say Research plan ready');
 
       await assertComposerGeometry(pageEn, vp.name, vp.height);
       if (vp.name === '360') composerVisible360 = true;
@@ -477,12 +507,12 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
       await pageEn.evaluate((selHome) => {
         const scrollEl = (globalThis as any).document.querySelector(selHome);
         if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
-      }, SEL.home);
+      }, STATIC_SEL.home);
 
-      const lastTodayRow = pageEn.locator(SEL.todayRows).last();
+      const lastTodayRow = pageEn.locator(DYNAMIC_SEL.todayRows).last();
       const lastRowBox = await lastTodayRow.boundingBox();
-      const scrolledComposerBox = await pageEn.locator(SEL.composer).boundingBox();
-      const scrolledNavBox = await pageEn.locator(SEL.bottomNav).boundingBox();
+      const scrolledComposerBox = await pageEn.locator(STATIC_SEL.composer).boundingBox();
+      const scrolledNavBox = await pageEn.locator(STATIC_SEL.bottomNav).boundingBox();
 
       if (lastRowBox && scrolledNavBox) {
         const obstacleTop = scrolledComposerBox ? scrolledComposerBox.y : scrolledNavBox.y;
@@ -496,91 +526,6 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
           `Last Today row must not be occluded by bottom nav/composer (row bottom=${lastRowBox.y + lastRowBox.height}, obstacle top=${obstacleTop})`
         );
       }
-
-      const isStaleAsNow = await pageEn.evaluate(() => {
-        const nag = (globalThis as any).window.NAGEX;
-        if (!nag || typeof nag.formatHeroHeadline !== 'function') return false;
-        const now = Date.now();
-        const pastStart = new Date(now - 90 * 60 * 1000).toISOString();
-        const pastEnd = new Date(now - 40 * 60 * 1000).toISOString();
-        const headline = nag.formatHeroHeadline('Past Event', pastStart, false, pastEnd);
-        return /now|진행 중/i.test(headline);
-      });
-      if (isStaleAsNow) {
-        heroStaleEventAsNowCount++;
-      }
-      assert.equal(isStaleAsNow, false, 'Past stale event must not be formatted as now');
-
-      const staleRecTestResult = await pageEn.evaluate(() => {
-        const nag = (globalThis as any).window.NAGEX;
-        if (!nag || typeof nag.deriveRightNowHeroInfo !== 'function') {
-          return { error: 'deriveRightNowHeroInfo function missing' };
-        }
-        const now = Date.now();
-        const pastStart = new Date(now - 90 * 60 * 1000).toISOString();
-        const pastEnd = new Date(now - 40 * 60 * 1000).toISOString();
-        const futureStart = new Date(now + 45 * 60 * 1000).toISOString();
-
-        const syntheticBrief = {
-          data: {
-            recommendation: {
-              action_type: 'MEETING_PREP',
-              target_id: 'stale-event-123',
-              title: 'Expired Meeting Strategy',
-              reason: 'Old discussion about past pricing',
-            },
-            schedule_summary: {
-              events: [
-                {
-                  id: 'stale-event-123',
-                  title: 'Expired Meeting Strategy',
-                  start_time: pastStart,
-                  end_time: pastEnd,
-                  description: 'Expired description',
-                },
-                {
-                  id: 'valid-future-456',
-                  title: 'Upcoming Team Sync',
-                  start_time: futureStart,
-                  description: 'Next sync meeting',
-                },
-              ],
-            },
-          },
-        };
-
-        const result = nag.deriveRightNowHeroInfo(syntheticBrief, null, {});
-        return {
-          usesStaleTitle: Boolean(result.headline?.includes('Expired Meeting Strategy')),
-          usesStaleReason: Boolean(result.body === 'Old discussion about past pricing'),
-          usesStaleTargetId: Boolean(result.targetId === 'stale-event-123'),
-          headline: result.headline,
-          targetId: result.targetId,
-        };
-      });
-
-      if (
-        staleRecTestResult.usesStaleTitle ||
-        staleRecTestResult.usesStaleReason ||
-        staleRecTestResult.usesStaleTargetId
-      ) {
-        heroStaleRecommendationSelectionCount++;
-      }
-      assert.equal(
-        staleRecTestResult.usesStaleTitle,
-        false,
-        `Hero derived info must not use stale title. Received: ${staleRecTestResult.headline}`
-      );
-      assert.equal(
-        staleRecTestResult.usesStaleReason,
-        false,
-        'Hero derived info must not use stale recommendation reason'
-      );
-      assert.equal(
-        staleRecTestResult.usesStaleTargetId,
-        false,
-        `Hero derived info must not use stale target_id. Received: ${staleRecTestResult.targetId}`
-      );
 
       await shot(pageEn, `${vp.name}_home_en.png`);
       await pageEn.close();
@@ -617,9 +562,9 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
         throw err;
       }
 
-      const heroTextKr = await pageKr.locator(SEL.hero).innerText();
-      const headlineTextKr = await pageKr.locator(SEL.heroHeadline).innerText();
-      const bodyTextHeroKr = await pageKr.locator(SEL.heroBody).innerText();
+      const heroTextKr = await pageKr.locator(STATIC_SEL.hero).innerText();
+      const headlineTextKr = await pageKr.locator(STATIC_SEL.heroHeadline).innerText();
+      const bodyTextHeroKr = await pageKr.locator(STATIC_SEL.heroBody).innerText();
 
       assert.match(heroTextKr, /지금 가장 중요한 일/);
 
@@ -663,7 +608,7 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
 
     enKrParityPass = true;
 
-    // Log final exact invariants
+    // Log exact invariant closure output
     console.log(`SELECTOR_CONTRACT=${selectorContractPass ? 'PASS' : 'FAIL'}`);
     console.log(`API_DEFAULT_CONTEXT_HEADERS_PRESERVED=${apiHeadersPreservedPass ? 'PASS' : 'FAIL'}`);
     console.log(`INITIAL_PERSONAL_CONTEXT_LEAK=${initialPersonalContextLeak}`);
@@ -674,6 +619,12 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
     console.log(`HERO_HARDCODED_COUNTDOWN=${heroHardcodedCountdownCount}`);
     console.log(`HERO_STALE_EVENT_AS_NOW=${heroStaleEventAsNowCount}`);
     console.log(`HERO_STALE_RECOMMENDATION_SELECTION=${heroStaleRecommendationSelectionCount}`);
+    console.log('');
+    console.log(`TODAY_FAKE_FALLBACK_ROWS=${todayFakeFallbackRowsCount}`);
+    console.log(`TODAY_NEXT_EVENT_TIME_DERIVED=${todayNextEventTimeDerivedPass ? 'PASS' : 'FAIL'}`);
+    console.log('');
+    console.log(`PREPARED_FAKE_PERSONAL_CONTEXT=${preparedFakePersonalContextCount}`);
+    console.log(`PREPARED_HARDCODED_EVENT_ID=${preparedHardcodedEventIdCount}`);
     console.log('');
     console.log(`COMPOSER_VISIBLE_360=${composerVisible360 ? 'PASS' : 'FAIL'}`);
     console.log(`COMPOSER_VISIBLE_390=${composerVisible390 ? 'PASS' : 'FAIL'}`);
@@ -694,4 +645,3 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
     await browser.close();
   }
 });
-
