@@ -12,6 +12,8 @@ import type { AuditLogger } from '../governance/audit.logger.js';
 import type { BillingLedgerEngine } from '../billing/billing.ledger.js';
 import type { CreditEngine } from '../billing/credit.engine.js';
 import type { MemoryEngine, MemoryRecord } from '../context/memory.engine.js';
+import type { PersonalContextService } from '../context/personal-context.service.js';
+import type { ConversationMemoryExtractor } from '../context/conversation-memory-extractor.js';
 import type { AiService } from '../model-gateway/ai-service.js';
 import type { PlanResolver } from '../planning/plan-resolver.js';
 import type { PersistentActionApprovalStore } from '../governance/action-approval.store.js';
@@ -102,6 +104,8 @@ export interface NagexApplication {
   billing: BillingLedgerEngine;
   creditEngine: CreditEngine;
   memoryEngine: MemoryEngine;
+  personalContextService: PersonalContextService;
+  conversationMemoryExtractor: ConversationMemoryExtractor;
   aiService: AiService;
   planResolver: PlanResolver;
   actionApprovals: PersistentActionApprovalStore;
@@ -118,20 +122,10 @@ export interface NagexApplication {
   conversationContextService: ConversationContextService;
   taskStore: TaskStore;
   taskRunStore: TaskRunStore;
-  // Not in server_web.ts's export list, but a genuine current dependency: a
-  // route handler (task run-one, "test with an alternate model" path) builds
-  // a throwaway TaskScheduler wrapping the same taskRunner-shaped pieces —
-  // see create-nagex-application.ts's comment at its construction site.
   taskRunner: CompositeTaskRunner;
   taskScheduler: TaskScheduler;
-  // P02 — the resume source of truth for a paused approval-waiting run,
-  // and the event-driven orchestrator server_web.ts's approval grant/
-  // reject route calls into.
   taskContinuations: TaskContinuationStore;
   taskContinuationCoordinator: TaskContinuationCoordinator;
-  // P03 — the single source of truth for resuming any ExecutingTaskRunner
-  // run (paused or not) after a process restart; durableTaskRuntime's
-  // recoverOnStartup() is registered as a LifecycleManager start hook.
   durableTaskRunState: DurableTaskRunStateStore;
   durableTaskRuntime: DurableTaskRuntime;
   telegramIdentityStore: TelegramIdentityStore;
@@ -152,8 +146,6 @@ export interface NagexApplication {
   candidateActionResolver: CandidateActionResolver;
   quickCaptureService: QuickCaptureService;
   inputRouter: InputRouter;
-  // P07 — reusable workflow definitions, instantiated into the existing
-  // Task/Plan/Capability Broker/Approval/Durable Runtime path unchanged.
   workflowDefinitionStore: WorkflowDefinitionStore;
   workflowDefinitionService: WorkflowDefinitionService;
   creationStore: CreationStore;
@@ -163,37 +155,15 @@ export interface NagexApplication {
   connectionStore: ConnectionStore;
   actionStore: ActionStore;
   actionEngine: ActionExecutionEngine;
-  // DC1 — the durable Device Control session store, real from day one.
   deviceExecutionSessionStore: DeviceExecutionSessionStore;
-  // DC2 — undefined whenever AstraVisualExecutionModelAdapter reports
-  // unconfigured (no OPENAI_API_KEY) — never a silent fallback to the
-  // test-only FakeVisualExecutionModelAdapter. capabilityBroker's own
-  // deviceControlService constructor param is this exact same value, so
-  // 'device.browser.execute' truthfully reports PROVIDER_UNAVAILABLE
-  // whenever this is undefined.
   deviceControlService: DeviceControlService | undefined;
-  // DC3-A — Local Device Agent identity/session/transport foundation.
-  // Real from day one; no consuming service/HTTP route/capability exists
-  // yet — establishing identity/session/transport only, per this
-  // directive's own explicit scope limit.
   deviceIdentityStore: DeviceIdentityStore;
   desktopExecutionSessionStore: DesktopExecutionSessionStore;
   deviceTransportSecurity: DeviceTransportSecurity;
-  // DC3-B1 — the real outbound transport endpoint (server side). Never
-  // touches CapabilityBroker — device.desktop.execute remains unadvertised.
   deviceConnectionStatusStore: DeviceConnectionStatusStore;
   devicePendingCommandStore: DevicePendingCommandStore;
   deviceAgentTransportEndpoint: DeviceAgentTransportEndpoint;
-  // Construction-time dependency of taskRunner/telegramService/slackService
-  // (each bakes it in as a closure) that is *also* live, mutable state read
-  // and written by memory pin/unpin route handlers for the rest of the
-  // process's life — not seed-only, so it must be the same shared instance
-  // server_web.ts's route handlers read/write, not a private copy.
   getRelevantMemories: (tenantId: string, principalId: string, prompt: string) => MemoryRecord[];
   pinnedMemories: Set<string>;
-  // Phase 02 — owns start/stop for process-lifetime resources (HTTP server,
-  // scheduler interval, browserRuntime). Constructed here, empty; the
-  // executable entrypoint (server_web.ts) registers the actual resources,
-  // since it alone knows their real start/stop implementations.
   lifecycle: LifecycleManager;
 }

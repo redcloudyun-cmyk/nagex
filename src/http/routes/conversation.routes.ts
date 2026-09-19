@@ -32,6 +32,8 @@ function getHeaderValue(headers: Record<string, string | string[] | undefined>, 
   return Array.isArray(value) ? value[0] : value;
 }
 
+import type { ConversationMemoryExtractor } from '../../context/conversation-memory-extractor.js';
+
 export interface ConversationRouteDeps {
   service: AiService;
   planResolver: PlanResolver;
@@ -40,6 +42,7 @@ export interface ConversationRouteDeps {
   convContextService: ConversationContextService;
   auditLogger: AuditLogger;
   getRelevantMemories: (tenantId: string, principalId: string, prompt: string) => MemoryRecord[];
+  memoryExtractor?: ConversationMemoryExtractor;
 }
 
 export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps> = async (method, pathname, body, headers, _query, deps): Promise<ApiResult | undefined> => {
@@ -159,12 +162,27 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
       sessionId: session.sessionId,
     });
 
+    const memories = getRelevantMemories(tenantId, principalId, message);
+
     const result = await service.chat({
       message,
       conversation,
+      memories,
       mode: parseRoutingMode(body?.provider, process.env.NAGEX_MODEL_PROVIDER),
       requestId,
     });
+
+    if (deps.memoryExtractor) {
+      deps.memoryExtractor.processMessage({
+        tenantId,
+        principalId,
+        sessionId: session.sessionId,
+        messageId: userMsgRecord.messageId,
+        content: message,
+        modelProvider: result.provider,
+        modelName: result.model,
+      });
+    }
 
     // Section 6: Persist ASSISTANT message AFTER successful AI response
     const assistantMsgRecord = convStore.append({

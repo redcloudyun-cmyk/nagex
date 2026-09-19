@@ -6,6 +6,57 @@ export type MemoryScope = 'EXECUTION' | 'SESSION' | 'AGENT' | 'USER' | 'TENANT' 
 export type MemoryType = 'PREFERENCE' | 'FACT' | 'RELATIONSHIP' | 'PROJECT_CONTEXT' | 'DECISION' | 'WORKING_CONTEXT';
 export type MemoryLifecycle = 'PROPOSED' | 'VALIDATING' | 'ACTIVE' | 'CONFLICTED' | 'SUPERSEDED' | 'EXPIRED' | 'DELETED';
 
+export type MemorySourceType =
+  | 'CONVERSATION'
+  | 'CALL'
+  | 'EMAIL'
+  | 'CALENDAR'
+  | 'MESSAGE'
+  | 'FILE'
+  | 'BROWSER'
+  | 'MANUAL'
+  | 'ACTION_OUTCOME'
+  | 'SYSTEM';
+
+export type SensitivityLevel = 'S0' | 'S1' | 'S2' | 'S3';
+
+export type MemoryOrigin =
+  | 'EXPLICIT_USER'
+  | 'SUGGESTED'
+  | 'SYSTEM_DERIVED'
+  | 'ACTION_OUTCOME'
+  | 'LEGACY';
+
+export interface MemoryProvenance {
+  sourceType: MemorySourceType;
+  sourceId?: string;
+  sourceRef?: string;
+  sessionId?: string;
+  messageId?: string;
+  extractedAt: string;
+  extractor:
+    | 'USER_EXPLICIT'
+    | 'RULE_BASED'
+    | 'MODEL_ASSISTED'
+    | 'ACTION_OUTCOME'
+    | 'MANUAL';
+  modelProvider?: string;
+  modelName?: string;
+  confidence?: number;
+  originalAvailable?: boolean;
+}
+
+export interface MemoryContextRefs {
+  workspaceId?: string;
+  projectId?: string;
+  personIds?: string[];
+}
+
+export interface MemoryUserSettings {
+  memoryCaptureEnabled: boolean;
+  memoryUseEnabled: boolean;
+}
+
 const VALID_SCOPES: ReadonlySet<string> = new Set(['EXECUTION', 'SESSION', 'AGENT', 'USER', 'TENANT', 'PERSONAL', 'ORGANIZATION', 'WORKSPACE']);
 const VALID_LIFECYCLES: ReadonlySet<string> = new Set([
   'PROPOSED',
@@ -24,25 +75,12 @@ const TERMINAL_MEMORY_STATES: ReadonlySet<MemoryLifecycle> = new Set([
   'DELETED',
 ]);
 
-// Memory Tenant Isolation Correction — the one canonical default tenant
-// already used everywhere else in this codebase (see
-// DEFAULT_GOOGLE_TENANT_ID in integrations/google/token.store.ts) is
-// duplicated here as a literal rather than imported, to avoid giving the
-// context/ module a new dependency on integrations/google/ for a single
-// constant. Used ONLY to durably backfill legacy records that predate
-// tenantId — never used to stamp a newly created record.
 const LEGACY_BACKFILL_TENANT_ID = 'ten_production_01';
 
 export interface MemoryRecord {
   id: string;
   scope: MemoryScope;
   type?: MemoryType;
-  // Memory Tenant Isolation Correction — optional only so a pre-existing
-  // on-disk record (written before this field existed) can still pass
-  // isMemoryRecord() and load; every record entering the in-memory store
-  // is durably backfilled to a real tenantId in the constructor below, and
-  // every newly created record always has one set. Never treat this as
-  // "tenant is optional" for any ownership decision downstream.
   tenantId?: string;
   owner_id: string;
   workspaceId?: string;
@@ -54,10 +92,13 @@ export interface MemoryRecord {
   };
   sourceRef?: string;
   confidence?: number;
-  // Phase 1 STEP 9, item K — traceability back to the canonical Candidate
-  // this memory was written from, so a lost/crashed action-linkage write
-  // can be reconciled instead of writing a second memory.
   candidateId?: string;
+  sensitivity?: SensitivityLevel;
+  provenance?: MemoryProvenance;
+  memoryOrigin?: MemoryOrigin;
+  userConfirmed?: boolean;
+  contextRefs?: MemoryContextRefs;
+  pinned?: boolean;
   created_at: string;
   updated_at: string;
   last_used_at?: string;
@@ -89,37 +130,39 @@ export interface MemoryEngineOptions {
 export class MemoryEngine {
   private readonly fileStore: FileRecordStore<MemoryRecord>;
   private readonly memoryStore: Map<string, MemoryRecord> = new Map();
+  private readonly settingsStore: Map<string, MemoryUserSettings> = new Map();
 
   constructor(options?: MemoryEngineOptions) {
     const dir = options?.dir ?? resolveNagexDataDir('memories', 'NAGEX_MEMORIES_DIR', options?.env);
     this.fileStore = new FileRecordStore<MemoryRecord>(dir, isMemoryRecord);
     for (const record of this.fileStore.readAll()) {
-      if (record.tenantId === undefined) {
-        // One-time legacy backfill, atomic per record: build the upgraded
-        // copy, durably write it FIRST, and only replace the canonical
-        // in-memory record once that write has actually succeeded — never
-        // mutate `record` in place and write second, which could leave the
-        // in-memory state "upgraded" while the disk write behind it never
-        // landed. writeOrThrow() throws synchronously on failure, and that
-        // throw is intentionally allowed to propagate out of this
-        // constructor: a legacy record that cannot be safely backfilled
-        // must stop startup, not silently run with partially-upgraded
-        // memory state.
-        const upgraded: MemoryRecord = { ...record, tenantId: LEGACY_BACKFILL_TENANT_ID };
-        this.fileStore.writeOrThrow(upgraded.id, upgraded);
-        this.memoryStore.set(upgraded.id, upgraded);
-      } else {
-        this.memoryStore.set(record.id, record);
+      let updatedRecord = record;
+      let needsWrite = false;
+
+      if (updatedRecord.tenantId === undefined) {
+        updatedRecord = { ...updatedRecord, tenantId: LEGACY_BACKFILL_TENANT_ID };
+        needsWrite = true;
       }
+      if (updatedRecord.sensitivity === undefined) {
+        updatedRecord = { ...updatedRecord, sensitivity: 'S1' };
+        needsWrite = true;
+      }
+      if (updatedRecord.userConfirmed === undefined) {
+        updatedRecord = { ...updatedRecord, userConfirmed: true };
+        needsWrite = true;
+      }
+      if (updatedRecord.memoryOrigin === undefined) {
+        updatedRecord = { ...updatedRecord, memoryOrigin: 'LEGACY' };
+        needsWrite = true;
+      }
+
+      if (needsWrite) {
+        this.fileStore.writeOrThrow(updatedRecord.id, updatedRecord);
+      }
+      this.memoryStore.set(updatedRecord.id, updatedRecord);
     }
   }
 
-  // Centralized ownership gate — mirrors the exact requireOwned() pattern
-  // already used by TaskStore/CandidateStore/WorkflowDefinitionStore/
-  // ActionApprovalStore. A tenant or owner mismatch is externally
-  // indistinguishable from a genuinely nonexistent id: both throw the same
-  // MEMORY_NOT_FOUND, never a distinguishing MEMORY_WRONG_TENANT/
-  // MEMORY_WRONG_OWNER code.
   private requireOwned(id: string, tenantId: string, ownerId: string): MemoryRecord {
     const record = this.memoryStore.get(id);
     if (!record || record.tenantId !== tenantId || record.owner_id !== ownerId) {
@@ -133,16 +176,101 @@ export class MemoryEngine {
     return record;
   }
 
+  public getSettings(tenantId: string, ownerId: string): MemoryUserSettings {
+    const key = `${tenantId}:${ownerId}`;
+    return this.settingsStore.get(key) || { memoryCaptureEnabled: true, memoryUseEnabled: true };
+  }
+
+  public updateSettings(tenantId: string, ownerId: string, updates: Partial<MemoryUserSettings>): MemoryUserSettings {
+    const current = this.getSettings(tenantId, ownerId);
+    const updated: MemoryUserSettings = {
+      ...current,
+      ...updates,
+    };
+    const key = `${tenantId}:${ownerId}`;
+    this.settingsStore.set(key, updated);
+    return updated;
+  }
+
+  public findMatchingMemory(
+    tenantId: string,
+    ownerId: string,
+    type: MemoryType | undefined,
+    subject: string,
+    predicate: string
+  ): MemoryRecord | undefined {
+    const normSubj = subject.toLowerCase().trim();
+    const normPred = predicate.toLowerCase().trim();
+
+    for (const record of this.memoryStore.values()) {
+      if (
+        record.tenantId === tenantId &&
+        record.owner_id === ownerId &&
+        record.lifecycle === 'ACTIVE' &&
+        (!type || record.type === type)
+      ) {
+        const rSubj = record.content.subject.toLowerCase().trim();
+        const rPred = record.content.predicate.toLowerCase().trim();
+        if (rSubj === normSubj && rPred === normPred) {
+          return record;
+        }
+      }
+    }
+    return undefined;
+  }
+
   public proposeMemory(
     scope: MemoryScope,
     tenantId: string,
     ownerId: string,
     content: { subject: string; predicate: string; value: unknown },
     candidateId?: string,
-    options?: { type?: MemoryType; sourceRef?: string; confidence?: number; workspaceId?: string },
+    options?: {
+      type?: MemoryType;
+      sourceRef?: string;
+      confidence?: number;
+      workspaceId?: string;
+      sensitivity?: SensitivityLevel;
+      provenance?: MemoryProvenance;
+      memoryOrigin?: MemoryOrigin;
+      userConfirmed?: boolean;
+      contextRefs?: MemoryContextRefs;
+    },
   ): MemoryRecord {
+    const sensitivity = options?.sensitivity || 'S1';
+    if (sensitivity === 'S3') {
+      throw new NagexError({
+        code: 'SECRET_MEMORY_REJECTED',
+        category: 'POLICY',
+        message: 'Secret context (S3) must not be persisted as durable memory.',
+        request_id: 'mem_req',
+      });
+    }
+
+    const existingActive = this.findMatchingMemory(tenantId, ownerId, options?.type, content.subject, content.predicate);
+    if (existingActive) {
+      const existingValStr = JSON.stringify(existingActive.content.value);
+      const newValStr = JSON.stringify(content.value);
+      if (existingValStr === newValStr) {
+        const now = getCurrentISOString();
+        const refreshed: MemoryRecord = {
+          ...existingActive,
+          updated_at: now,
+          last_used_at: now,
+        };
+        this.fileStore.writeOrThrow(existingActive.id, refreshed);
+        this.memoryStore.set(existingActive.id, refreshed);
+        return refreshed;
+      }
+    }
+
     const id = generateResourceId('mem');
     const now = getCurrentISOString();
+
+    const isS2 = sensitivity === 'S2';
+    const lifecycle: MemoryLifecycle = isS2 ? 'PROPOSED' : (existingActive ? 'CONFLICTED' : (options?.userConfirmed ? 'ACTIVE' : 'PROPOSED'));
+    const userConfirmed = isS2 ? false : (options?.userConfirmed ?? (lifecycle === 'ACTIVE'));
+    const memoryOrigin = options?.memoryOrigin || (options?.userConfirmed ? 'EXPLICIT_USER' : 'SUGGESTED');
 
     const record: MemoryRecord = {
       id,
@@ -151,11 +279,16 @@ export class MemoryEngine {
       tenantId,
       owner_id: ownerId,
       workspaceId: options?.workspaceId,
-      lifecycle: 'PROPOSED',
+      lifecycle,
       content,
-      sourceRef: options?.sourceRef,
-      confidence: options?.confidence,
+      sourceRef: options?.sourceRef || options?.provenance?.sourceRef,
+      confidence: options?.confidence ?? options?.provenance?.confidence,
       candidateId,
+      sensitivity,
+      provenance: options?.provenance,
+      memoryOrigin,
+      userConfirmed,
+      contextRefs: options?.contextRefs,
       created_at: now,
       updated_at: now,
     };
@@ -165,12 +298,6 @@ export class MemoryEngine {
     return record;
   }
 
-  // Phase 1 STEP 9 — reconciliation lookup, mirrors TaskStore.findByCandidateId.
-  // Deliberately NOT tenant-scoped — unchanged by this correction. It is
-  // only ever called with a candidateId already resolved through a
-  // tenant/owner-checked Candidate lookup (see action-resolver.ts), so the
-  // caller has already authenticated ownership before this runs; scoping
-  // candidate reconciliation itself is a separate, not-yet-needed concern.
   public findByCandidateId(candidateId: string): MemoryRecord | undefined {
     for (const record of this.memoryStore.values()) {
       if (record.candidateId === candidateId) return record;
@@ -178,7 +305,6 @@ export class MemoryEngine {
     return undefined;
   }
 
-  // Seed memory initialization helper to prevent duplicate seed creation on process restart.
   public findSeedMemory(criteria: {
     scope: MemoryScope;
     tenantId: string;
@@ -217,14 +343,53 @@ export class MemoryEngine {
     const updatedRecord: MemoryRecord = {
       ...record,
       lifecycle: 'ACTIVE',
+      userConfirmed: true,
       updated_at: now,
     };
 
     this.fileStore.writeOrThrow(id, updatedRecord);
-    record.lifecycle = 'ACTIVE';
-    record.updated_at = now;
-    this.memoryStore.set(id, record);
-    return record;
+    this.memoryStore.set(id, updatedRecord);
+    return updatedRecord;
+  }
+
+  public confirmMemory(id: string, tenantId: string, ownerId: string): MemoryRecord {
+    const record = this.requireOwned(id, tenantId, ownerId);
+
+    if (record.lifecycle === 'DELETED' || record.lifecycle === 'EXPIRED') {
+      throw new NagexError({
+        code: 'MEMORY_ALREADY_TERMINAL',
+        category: 'CONFLICT',
+        message: `Memory ID ${id} is in terminal state ${record.lifecycle} and cannot be confirmed.`,
+        request_id: 'mem_req',
+      });
+    }
+
+    const now = getCurrentISOString();
+    const confirmedRecord: MemoryRecord = {
+      ...record,
+      lifecycle: 'ACTIVE',
+      userConfirmed: true,
+      updated_at: now,
+    };
+
+    this.fileStore.writeOrThrow(id, confirmedRecord);
+    this.memoryStore.set(id, confirmedRecord);
+    return confirmedRecord;
+  }
+
+  public rejectMemory(id: string, tenantId: string, ownerId: string): MemoryRecord {
+    const record = this.requireOwned(id, tenantId, ownerId);
+    const now = getCurrentISOString();
+
+    const rejectedRecord: MemoryRecord = {
+      ...record,
+      lifecycle: 'DELETED',
+      updated_at: now,
+    };
+
+    this.fileStore.removeOrThrow(id);
+    this.memoryStore.delete(id);
+    return rejectedRecord;
   }
 
   public getActiveMemories(scope: MemoryScope, tenantId: string, ownerId: string): MemoryRecord[] {
@@ -237,17 +402,22 @@ export class MemoryEngine {
     return active;
   }
 
-  // By-id ownership-checked lookup (new — Memory Tenant Isolation
-  // Correction). Returns undefined for a nonexistent id, a wrong tenant, or
-  // a wrong owner alike — never distinguishable from each other.
+  public getProposedCandidates(tenantId: string, ownerId: string): MemoryRecord[] {
+    const proposed: MemoryRecord[] = [];
+    for (const record of this.memoryStore.values()) {
+      if (record.tenantId === tenantId && record.owner_id === ownerId && record.lifecycle === 'PROPOSED') {
+        proposed.push(record);
+      }
+    }
+    return proposed.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }
+
   public get(id: string, tenantId: string, ownerId: string): MemoryRecord | undefined {
     const record = this.memoryStore.get(id);
     if (!record || record.tenantId !== tenantId || record.owner_id !== ownerId) return undefined;
     return record;
   }
 
-  // Memory must be controllable and deletable (MASTER.md Safety Principle 9):
-  // this permanently removes the record, not merely unpins it.
   public deleteMemory(id: string, tenantId: string, ownerId: string): MemoryRecord {
     const record = this.requireOwned(id, tenantId, ownerId);
     const deletedRecord: MemoryRecord = {
@@ -270,9 +440,46 @@ export class MemoryEngine {
     sourceRef?: string;
     confidence?: number;
     candidateId?: string;
+    sensitivity?: SensitivityLevel;
+    provenance?: MemoryProvenance;
+    memoryOrigin?: MemoryOrigin;
+    userConfirmed?: boolean;
+    contextRefs?: MemoryContextRefs;
   }): MemoryRecord {
+    const sensitivity = params.sensitivity || 'S1';
+    if (sensitivity === 'S3') {
+      throw new NagexError({
+        code: 'SECRET_MEMORY_REJECTED',
+        category: 'POLICY',
+        message: 'Secret context (S3) must not be persisted as durable memory.',
+        request_id: 'mem_req',
+      });
+    }
+
+    const existingActive = this.findMatchingMemory(params.tenantId, params.ownerId, params.type, params.content.subject, params.content.predicate);
+    if (existingActive) {
+      const existingValStr = JSON.stringify(existingActive.content.value);
+      const newValStr = JSON.stringify(params.content.value);
+      if (existingValStr === newValStr) {
+        const now = getCurrentISOString();
+        const refreshed: MemoryRecord = {
+          ...existingActive,
+          updated_at: now,
+          last_used_at: now,
+        };
+        this.fileStore.writeOrThrow(existingActive.id, refreshed);
+        this.memoryStore.set(existingActive.id, refreshed);
+        return refreshed;
+      }
+    }
+
     const id = generateResourceId('mem');
     const now = getCurrentISOString();
+
+    const isS2 = sensitivity === 'S2';
+    const lifecycle: MemoryLifecycle = isS2 ? 'PROPOSED' : (existingActive ? 'CONFLICTED' : (params.userConfirmed !== false ? 'ACTIVE' : 'PROPOSED'));
+    const userConfirmed = isS2 ? false : (params.userConfirmed ?? (lifecycle === 'ACTIVE'));
+    const memoryOrigin = params.memoryOrigin || (userConfirmed ? 'EXPLICIT_USER' : 'SUGGESTED');
 
     const record: MemoryRecord = {
       id,
@@ -281,11 +488,16 @@ export class MemoryEngine {
       tenantId: params.tenantId,
       owner_id: params.ownerId,
       workspaceId: params.workspaceId || 'ws_default_01',
-      lifecycle: 'ACTIVE',
+      lifecycle,
       content: params.content,
-      sourceRef: params.sourceRef,
-      confidence: params.confidence ?? 1.0,
+      sourceRef: params.sourceRef || params.provenance?.sourceRef,
+      confidence: params.confidence ?? params.provenance?.confidence ?? 1.0,
       candidateId: params.candidateId,
+      sensitivity,
+      provenance: params.provenance,
+      memoryOrigin,
+      userConfirmed,
+      contextRefs: params.contextRefs,
       created_at: now,
       updated_at: now,
       last_used_at: now,
@@ -306,9 +518,19 @@ export class MemoryEngine {
       content: { subject: string; predicate: string; value: unknown };
       sourceRef: string;
       confidence: number;
+      sensitivity: SensitivityLevel;
+      userConfirmed: boolean;
     }>
   ): MemoryRecord {
     const record = this.requireOwned(id, tenantId, ownerId);
+    if (updates.sensitivity === 'S3') {
+      throw new NagexError({
+        code: 'SECRET_MEMORY_REJECTED',
+        category: 'POLICY',
+        message: 'Secret context (S3) must not be persisted as durable memory.',
+        request_id: 'mem_req',
+      });
+    }
     const now = getCurrentISOString();
 
     const updated: MemoryRecord = {
@@ -351,3 +573,4 @@ export class MemoryEngine {
     });
   }
 }
+

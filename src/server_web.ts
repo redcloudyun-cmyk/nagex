@@ -410,7 +410,7 @@ export async function handleAsyncApiRequest(
     // (conversations/main GET/POST-messages/DELETE, ai/chat, ambient/
     // intent, plans/resolve).
     {
-      const conversationResult = await handleConversationRoutes(method, pathname, body, headers, query, { service, planResolver, sessionStore, convStore, convContextService, auditLogger, getRelevantMemories });
+      const conversationResult = await handleConversationRoutes(method, pathname, body, headers, query, { service, planResolver, sessionStore, convStore, convContextService, auditLogger, getRelevantMemories, memoryExtractor: app.conversationMemoryExtractor });
       if (conversationResult) return conversationResult;
     }
     // R10.2-D Increment 4 — Google OAuth callback/status/disconnect.

@@ -1,13 +1,7 @@
-// R10.2-D Increment 2 — Memory routes, extracted verbatim from
-// server_web.ts's handleApiRequest. Read/propose/activate/delete/pin —
-// no approval gate (Memory has never required one; this file changes
-// nothing about that), tenant/principal-scoped throughout via the
-// tenantId/principal already resolved by the caller (identity extraction
-// itself is NOT duplicated here — this module trusts the caller's already-
-// computed identity, exactly like the pre-refactor inline code did).
-import type { MemoryEngine, MemoryScope } from '../../context/memory.engine.js';
+import type { MemoryEngine, MemoryScope, MemoryType } from '../../context/memory.engine.js';
 import type { PrincipalReference } from '../../common/types.js';
 import type { ApiResult, SyncRouteRegistrar } from '../http-types.js';
+import { getCurrentISOString } from '../../common/utils.js';
 
 export interface MemoryRouteDeps {
   memoryEngine: MemoryEngine;
@@ -20,12 +14,91 @@ export interface MemoryRouteDeps {
 export const handleMemoryRoutes: SyncRouteRegistrar<MemoryRouteDeps> = (method, pathname, body, _headers, _query, deps): ApiResult | undefined => {
   const { memoryEngine, pinnedMemories, tenantId, principal, modelErrorResult } = deps;
 
+  if (pathname === '/api/v1/memory/settings' && method === 'GET') {
+    const settings = memoryEngine.getSettings(tenantId, principal.id);
+    return { status: 200, data: settings };
+  }
+
+  if (pathname === '/api/v1/memory/settings' && (method === 'POST' || method === 'PATCH')) {
+    const memoryCaptureEnabled = typeof body?.memoryCaptureEnabled === 'boolean' ? body.memoryCaptureEnabled : undefined;
+    const memoryUseEnabled = typeof body?.memoryUseEnabled === 'boolean' ? body.memoryUseEnabled : undefined;
+    const updated = memoryEngine.updateSettings(tenantId, principal.id, {
+      memoryCaptureEnabled,
+      memoryUseEnabled,
+    });
+    return { status: 200, data: updated };
+  }
+
+  if (pathname === '/api/v1/memory/candidates' && method === 'GET') {
+    const candidates = memoryEngine.getProposedCandidates(tenantId, principal.id)
+      .map((m) => ({ ...m, pinned: pinnedMemories.has(m.id) }));
+    return { status: 200, data: { candidates, total: candidates.length } };
+  }
+
+  if (pathname === '/api/v1/memory/remember' && method === 'POST') {
+    try {
+      const scope = ((body?.scope as string) || 'USER') as MemoryScope;
+      const type = typeof body?.type === 'string' ? (body.type as MemoryType) : 'FACT';
+      const subject = (body?.subject as string) || 'User Preference';
+      const predicate = (body?.predicate as string) || 'preference';
+      const value = body?.value || body?.content || '';
+      const workspaceId = typeof body?.workspaceId === 'string' ? body.workspaceId : undefined;
+      const sourceType = typeof body?.sourceType === 'string' ? (body.sourceType as any) : 'MANUAL';
+      const sourceId = typeof body?.sourceId === 'string' ? body.sourceId : undefined;
+      const sensitivity = typeof body?.sensitivity === 'string' ? (body.sensitivity as any) : 'S1';
+
+      const record = memoryEngine.createMemory({
+        scope,
+        type,
+        tenantId,
+        ownerId: principal.id,
+        workspaceId,
+        content: { subject, predicate, value },
+        userConfirmed: true,
+        memoryOrigin: 'EXPLICIT_USER',
+        sensitivity,
+        provenance: {
+          sourceType,
+          sourceId,
+          extractedAt: getCurrentISOString(),
+          extractor: 'USER_EXPLICIT',
+        },
+      });
+
+      if (body?.pinned) pinnedMemories.add(record.id);
+      return { status: 201, data: { ...record, pinned: pinnedMemories.has(record.id) } };
+    } catch (error) {
+      return modelErrorResult(error);
+    }
+  }
+
   if (pathname === '/api/v1/memory' && method === 'GET') {
     const scopes: MemoryScope[] = ['PERSONAL', 'ORGANIZATION', 'WORKSPACE', 'USER', 'SESSION', 'AGENT', 'TENANT'];
     const allMemories = scopes
       .flatMap((s) => memoryEngine.getActiveMemories(s, tenantId, principal.id))
       .map((m) => ({ ...m, pinned: pinnedMemories.has(m.id) }));
     return { status: 200, data: { memories: allMemories, total: allMemories.length } };
+  }
+
+  if (pathname.startsWith('/api/v1/memory/') && pathname.endsWith('/confirm') && method === 'POST') {
+    const memId = pathname.slice('/api/v1/memory/'.length, -'/confirm'.length);
+    try {
+      const confirmed = memoryEngine.confirmMemory(memId, tenantId, principal.id);
+      return { status: 200, data: { ...confirmed, pinned: pinnedMemories.has(confirmed.id) } };
+    } catch (error) {
+      return modelErrorResult(error);
+    }
+  }
+
+  if (pathname.startsWith('/api/v1/memory/') && pathname.endsWith('/reject') && method === 'POST') {
+    const memId = pathname.slice('/api/v1/memory/'.length, -'/reject'.length);
+    try {
+      const rejected = memoryEngine.rejectMemory(memId, tenantId, principal.id);
+      pinnedMemories.delete(memId);
+      return { status: 200, data: { ...rejected, pinned: false } };
+    } catch (error) {
+      return modelErrorResult(error);
+    }
   }
 
   if (pathname.startsWith('/api/v1/memory/') && !pathname.endsWith('/pin') && method === 'GET') {
@@ -118,3 +191,4 @@ export const handleMemoryRoutes: SyncRouteRegistrar<MemoryRouteDeps> = (method, 
 
   return undefined;
 };
+

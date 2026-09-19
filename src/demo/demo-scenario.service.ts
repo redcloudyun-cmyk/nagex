@@ -256,7 +256,7 @@ export class DemoScenarioService {
     }
     if (pathname === '/api/v1/memory' && method === 'GET') {
       const prefValue = isKo ? '간결한 미팅 브리핑 선호' : this.fixture.persona.preference;
-      return { status: 200, data: { memories: [{ id: 'demo_memory_brief', scope: 'USER', lifecycle: 'ACTIVE', content: { subject: 'Meeting brief preference', predicate: 'prefers', value: prefValue } }] } };
+      return { status: 200, data: { memories: [{ id: 'demo_memory_brief', scope: 'USER', lifecycle: 'ACTIVE', content: { subject: 'Meeting brief preference', predicate: 'prefers', value: prefValue }, sensitivity: 'S1', userConfirmed: true, memoryOrigin: 'EXPLICIT_USER' }] } };
     }
     if (pathname === '/api/v1/notifications' && method === 'GET') {
       return {

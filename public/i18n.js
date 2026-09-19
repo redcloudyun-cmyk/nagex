@@ -989,6 +989,17 @@
       'meetingPrep.demoNotice': 'No real Google Calendar event was created.',
       'meetingPrep.approvalImpact': 'Adds a follow-up meeting event to your Google Calendar.',
       'meetingPrep.clientFollowup': 'Client follow-up',
+
+      'memory.remembered': 'Remembered',
+      'memory.suggested': 'Suggested',
+      'memory.forget': 'Forget',
+      'memory.confirm': 'Confirm suggestion',
+      'memory.reject': 'Reject suggestion',
+      'memory.captureOn': 'Memory capture ON',
+      'memory.captureOff': 'Memory capture OFF',
+      'memory.sensitive': 'Sensitive — review before remembering',
+      'memory.whyRemembered': 'Why remembered?',
+      'memory.whereFrom': 'Where from?',
     },
     ko: {
       'page.title': 'NAgex — 개인용 AI 컨트롤 센터',
@@ -2131,7 +2142,18 @@
     'meetingPrep.demoNotice': '실제 Google Calendar 이벤트는 생성되지 않았습니다.',
     'meetingPrep.approvalImpact': 'Google Calendar에 새로운 후속 미팅 일정이 추가됩니다.',
     'meetingPrep.clientFollowup': '클라이언트 후속 미팅',
-  });
+
+    'memory.remembered': '기억함',
+    'memory.suggested': '추천됨',
+    'memory.forget': '잊기',
+    'memory.confirm': '기억 승인',
+    'memory.reject': '거절',
+    'memory.captureOn': '메모리 수집 켜짐',
+    'memory.captureOff': '메모리 수집 꺼짐',
+    'memory.sensitive': '민감한 정보 — 확인 후 저장하세요',
+    'memory.whyRemembered': '저장 이유',
+    'memory.whereFrom': '출처',
+  };
 
   function detectLocale() {
     const saved = localStorage.getItem(STORAGE_KEY);

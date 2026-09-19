@@ -485,10 +485,25 @@ export class AiService {
     return { data: normalizeMeetingPrep(response.text, requestId), provider: response.provider, model: response.model, latencyMs: response.latencyMs, requestId: response.requestId };
   }
 
-  public async chat(input: { message: string; mode: RoutingMode; requestId?: string; conversation?: Array<{ role: 'user' | 'assistant'; content: string }> }): Promise<AiServiceResponse<{ message: string }>> {
+  public async chat(input: {
+    message: string;
+    mode: RoutingMode;
+    requestId?: string;
+    conversation?: Array<{ role: 'user' | 'assistant'; content: string }>;
+    memories?: MemoryRecord[];
+  }): Promise<AiServiceResponse<{ message: string }>> {
     const requestId = input.requestId || `chat_${randomUUID()}`;
+    const systemContent = [
+      'You are NAgex, a personal AI assistant. Be concise and do not claim that tools were executed.',
+      input.memories && input.memories.length > 0
+        ? `Relevant personal memory:\n${summarizeMemories(input.memories)}`
+        : null,
+    ]
+      .filter((line): line is string => line !== null)
+      .join('\n\n');
+
     const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
-      { role: 'system', content: 'You are NAgex, a personal AI assistant. Be concise and do not claim that tools were executed.' },
+      { role: 'system', content: systemContent },
     ];
     if (input.conversation && input.conversation.length > 0) {
       for (const item of input.conversation) {

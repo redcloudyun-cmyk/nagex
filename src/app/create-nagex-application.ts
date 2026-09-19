@@ -21,6 +21,8 @@ import { AuditLogger } from '../governance/audit.logger.js';
 import { BillingLedgerEngine } from '../billing/billing.ledger.js';
 import { CreditEngine } from '../billing/credit.engine.js';
 import { MemoryEngine, type MemoryRecord, type MemoryScope } from '../context/memory.engine.js';
+import { PersonalContextService } from '../context/personal-context.service.js';
+import { ConversationMemoryExtractor } from '../context/conversation-memory-extractor.js';
 import { AiService } from '../model-gateway/ai-service.js';
 import { createProviders } from '../model-gateway/providers.js';
 import { UnifiedModelRouter } from '../model-gateway/unified-model-router.js';
@@ -132,6 +134,8 @@ export function createNagexApplication(): NagexApplication {
   const billing = new BillingLedgerEngine();
   const creditEngine = new CreditEngine(billing);
   const memoryEngine = new MemoryEngine();
+  const personalContextService = new PersonalContextService(memoryEngine);
+  const conversationMemoryExtractor = new ConversationMemoryExtractor(memoryEngine);
   const aiService = new AiService(new UnifiedModelRouter(createProviders()));
   const planResolver = new PlanResolver(canonicalSkillRegistry, canonicalToolRegistry);
   const actionApprovals = new PersistentActionApprovalStore({
@@ -325,21 +329,7 @@ export function createNagexApplication(): NagexApplication {
   // unrelated memory (e.g. a specific past client) just because it is pinned.
   // Pinning still nudges ranking among memories that are already relevant.
   function getRelevantMemories(tenantId: string, principalId: string, prompt: string): MemoryRecord[] {
-    const memories = [
-      ...memoryEngine.getActiveMemories('USER', tenantId, principalId),
-      ...memoryEngine.getActiveMemories('SESSION', tenantId, principalId),
-      ...memoryEngine.getActiveMemories('AGENT', tenantId, principalId),
-      ...memoryEngine.getActiveMemories('TENANT', tenantId, principalId),
-    ];
-    const terms = new Set(
-      prompt.toLowerCase().split(/[^a-z0-9]+/).filter((term) => term.length > 2 && !MEMORY_RELEVANCE_STOPWORDS.has(term)),
-    );
-    return memories
-      .map((memory) => ({ memory, score: [...terms].filter((term) => JSON.stringify(memory.content).toLowerCase().includes(term)).length }))
-      .filter(({ score }) => score > 0)
-      .sort((a, b) => (b.score + (pinnedMemories.has(b.memory.id) ? 0.5 : 0)) - (a.score + (pinnedMemories.has(a.memory.id) ? 0.5 : 0)))
-      .slice(0, 8)
-      .map(({ memory }) => memory);
+    return personalContextService.getRelevantMemories(tenantId, principalId, prompt);
   }
 
   // P02 — one persisted continuation record per paused (WAITING_APPROVAL)
@@ -569,6 +559,8 @@ export function createNagexApplication(): NagexApplication {
     deviceConnectionStatusStore,
     devicePendingCommandStore,
     deviceAgentTransportEndpoint,
+    personalContextService,
+    conversationMemoryExtractor,
     lifecycle,
     getRelevantMemories,
     pinnedMemories,
