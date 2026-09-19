@@ -12,6 +12,7 @@ export type EvidencePackStatus =
   | 'RATE_LIMITED'
   | 'TIMEOUT'
   | 'PROVIDER_ERROR'
+  | 'INVALID_RESPONSE'
   | 'FAILED';
 
 export interface EvidenceSource {

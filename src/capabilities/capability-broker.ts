@@ -277,7 +277,7 @@ export class CapabilityBroker {
     if (provider === 'BROWSER') return Boolean(this.browserService);
     if (provider === 'DEVICE') return Boolean(this.deviceControlService);
     if (provider === 'DEVICE_DESKTOP') return Boolean(this.desktopControlService) && this.desktopControlService!.isReady();
-    if (provider === 'WEB_SEARCH') return Boolean(this.webSearchService) && this.webSearchService!.isAvailable();
+    if (provider === 'WEB_SEARCH') return Boolean(this.evidencePackService) && this.evidencePackService!.isWebSearchAvailable();
     return false;
   }
 
@@ -709,40 +709,30 @@ export class CapabilityBroker {
 
     if (def.provider === 'WEB_SEARCH') {
       if (request.capabilityId === 'web.search') {
-        const query = typeof payload.query === 'string' ? payload.query : '';
-        const maxResults = typeof payload.maxResults === 'number' ? payload.maxResults : 5;
-
-        // Directive G: Route web.search through EvidencePackService for canonical safety normalization & URL validation
-        if (this.evidencePackService) {
-          const pack = await this.evidencePackService.buildEvidencePack(query, {
-            forceSearch: true,
-            maxSources: maxResults,
-            requestId: request.requestId,
-          });
+        if (!this.evidencePackService) {
           return {
-            status: 'EXECUTED',
+            status: 'BLOCKED',
             capabilityId: request.capabilityId,
-            result: {
-              status: pack.status,
-              query: pack.query,
-              evidencePackId: pack.evidencePackId,
-              results: pack.sources,
-            },
+            reasonCode: 'EVIDENCE_SERVICE_REQUIRED',
           };
         }
 
-        const searchOutcome = await this.webSearchService!.search({
-          query,
-          maxResults,
+        const query = typeof payload.query === 'string' ? payload.query : '';
+        const maxResults = typeof payload.maxResults === 'number' ? payload.maxResults : 5;
+
+        const pack = await this.evidencePackService.buildEvidencePack(query, {
+          forceSearch: true,
+          maxSources: maxResults,
           requestId: request.requestId,
         });
-
         return {
           status: 'EXECUTED',
           capabilityId: request.capabilityId,
           result: {
-            status: searchOutcome.status,
-            results: searchOutcome.results,
+            status: pack.status,
+            query: pack.query,
+            evidencePackId: pack.evidencePackId,
+            results: pack.sources,
           },
         };
       }

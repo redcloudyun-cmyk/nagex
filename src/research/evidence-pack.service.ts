@@ -7,6 +7,22 @@ import type { EvidencePack, EvidenceSource, EvidencePackStatus } from './evidenc
 import type { SearchResult } from './web-search-provider.port.js';
 import { isUrlSafe } from '../modules/browser/browser-url-validator.js';
 
+export function mapSearchStatusToEvidenceStatus(status: string): EvidencePackStatus {
+  switch (status) {
+    case 'SUCCESS': return 'SUCCESS';
+    case 'NO_RESULTS': return 'NO_RESULTS';
+    case 'UNAVAILABLE': return 'UNAVAILABLE';
+    case 'DEGRADED': return 'DEGRADED';
+    case 'AUTH_FAILED': return 'AUTH_FAILED';
+    case 'RATE_LIMITED': return 'RATE_LIMITED';
+    case 'TIMEOUT': return 'TIMEOUT';
+    case 'PROVIDER_ERROR': return 'PROVIDER_ERROR';
+    case 'INVALID_RESPONSE': return 'INVALID_RESPONSE';
+    case 'FAILED': return 'FAILED';
+    default: return 'FAILED';
+  }
+}
+
 export class EvidencePackService {
   constructor(
     private readonly classifier: QuestionClassificationService = new QuestionClassificationService(),
@@ -59,7 +75,7 @@ export class EvidencePackService {
     });
 
     if (searchOutcome.status !== 'SUCCESS') {
-      const mappedStatus: EvidencePackStatus = searchOutcome.status as EvidencePackStatus;
+      const mappedStatus = mapSearchStatusToEvidenceStatus(searchOutcome.status);
       return {
         evidencePackId,
         query,

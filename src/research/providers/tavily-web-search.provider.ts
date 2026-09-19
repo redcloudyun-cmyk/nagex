@@ -42,14 +42,15 @@ export class TavilyWebSearchProvider implements WebSearchProviderPort {
       const response = await this.fetchFn(this.endpoint, {
         method: 'POST',
         headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          api_key: this.apiKey,
           query: input.query,
           max_results: input.maxResults || 5,
           search_depth: 'basic',
           include_answer: false,
+          include_published_date: true,
         }),
         signal: controller.signal,
       }).finally(() => clearTimeout(timeoutId));

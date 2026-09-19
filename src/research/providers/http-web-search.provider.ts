@@ -22,8 +22,7 @@ export class HttpWebSearchProvider implements WebSearchProviderPort {
   }
 
   public isConfigured(): boolean {
-    // Directive D: provider must have explicit API key or endpoint configured to be truthful AVAILABLE
-    return Boolean(this.apiKey && this.apiKey.trim().length > 0) || Boolean(this.endpoint && this.endpoint.trim().length > 0);
+    return Boolean(this.endpoint && this.endpoint.trim().length > 0);
   }
 
   public async search(input: SearchQueryInput): Promise<SearchQueryResult> {
