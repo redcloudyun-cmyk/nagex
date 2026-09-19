@@ -260,6 +260,37 @@ async function captureFailureEvidence(page: Page, vpName: string, locale: string
   fs.writeFileSync(path.join(failDir, `${vpName}_${locale}_dom.json`), JSON.stringify(evidence, null, 2));
 }
 
+async function verifyInitialHeroStaticHtml(): Promise<number> {
+  const res = await fetch(`${BASE_URL}/?demo=1`);
+  const html = await res.text();
+
+  const heroMatch = html.match(/<section[^>]*id=["']mh-right-now-hero["'][^>]*>([\s\S]*?)<\/section>/i);
+  const heroHtml = heroMatch ? heroMatch[0] : html;
+
+  let leaks = 0;
+  const prohibited = [
+    'Sarah',
+    'Pricing and delivery timing',
+    'Client strategy meeting',
+    'Proposal v3',
+    'Last meeting notes',
+    'demo_evt_client',
+    'evt_demo_client_strategy'
+  ];
+
+  for (const term of prohibited) {
+    if (heroHtml.includes(term)) {
+      leaks++;
+    }
+  }
+
+  assert.match(heroHtml, /data-hero-resolved=["']false["']/i, 'Static hero must have data-hero-resolved="false"');
+  assert.match(heroHtml, /aria-busy=["']true["']/i, 'Static hero must have aria-busy="true"');
+  assert.match(heroHtml, /disabled/i, 'Static hero CTA must be disabled');
+
+  return leaks;
+}
+
 async function verifyApiDefaultContextHeadersPreserved(page: Page): Promise<boolean> {
   return await page.evaluate(async () => {
     let capturedHeaders: Record<string, string> = {};
@@ -301,7 +332,7 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
 
   let selectorContractPass = false;
   let apiHeadersPreservedPass = false;
-  let initialPersonalContextLeak = 0;
+  let initialPersonalContextLeak = await verifyInitialHeroStaticHtml();
   let heroContextDerivationPass = false;
   let heroPriorityTimeAwarePass = false;
   let heroTimeTruthfulnessPass = false;
@@ -340,23 +371,8 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
     for (const vp of viewports) {
       // ── EN Locale Test ──
       const pageEn = await browser.newPage({ viewport: { width: vp.width, height: vp.height } });
-      
-      await pageEn.route('**/*', async (route) => {
-        const url = route.request().url();
-        if (url.includes('/api/v1/personal/morning-brief') || url.includes('/api/v1/my-space')) {
-          await new Promise(r => setTimeout(r, 1500));
-        }
-        await route.continue();
-      });
 
       await pageEn.goto(`${BASE_URL}/?demo=1`);
-      
-      const initialHeadline = await pageEn.locator(STATIC_SEL.heroHeadline).innerText();
-      const initialBody = await pageEn.locator(STATIC_SEL.heroBody).innerText();
-      if (/Sarah|pricing|Client meeting/i.test(initialHeadline) || /Sarah|pricing|Client meeting/i.test(initialBody)) {
-        initialPersonalContextLeak++;
-      }
-
       await pageEn.evaluate(() => (globalThis as any).window.NAGEX_I18N?.setLocale('en'));
       await pageEn.reload();
 
@@ -607,6 +623,19 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
     }
 
     enKrParityPass = true;
+
+    // Strict assertions on all zero-count invariants
+    assert.equal(initialPersonalContextLeak, 0, 'INITIAL_PERSONAL_CONTEXT_LEAK must be 0');
+    assert.equal(todayFakeFallbackRowsCount, 0, 'TODAY_FAKE_FALLBACK_ROWS must be 0');
+    assert.equal(preparedFakePersonalContextCount, 0, 'PREPARED_FAKE_PERSONAL_CONTEXT must be 0');
+    assert.equal(preparedHardcodedEventIdCount, 0, 'PREPARED_HARDCODED_EVENT_ID must be 0');
+    assert.equal(bottomNavOcclusionCount, 0, 'BOTTOM_NAV_OCCLUSION must be 0');
+    assert.equal(modelPickerPrimaryUI, 0, 'MODEL_PICKER_PRIMARY_UI must be 0');
+    assert.equal(technicalUILeak, 0, 'TECHNICAL_UI_LEAK must be 0');
+    assert.equal(rawI18nKeyLeak, 0, 'RAW_I18N_KEY_LEAK must be 0');
+    assert.equal(fakeSuccessPaths, 0, 'FAKE_SUCCESS_PATHS must be 0');
+    assert.equal(heroStaleEventAsNowCount, 0, 'HERO_STALE_EVENT_AS_NOW must be 0');
+    assert.equal(heroStaleRecommendationSelectionCount, 0, 'HERO_STALE_RECOMMENDATION_SELECTION must be 0');
 
     // Log exact invariant closure output
     console.log(`SELECTOR_CONTRACT=${selectorContractPass ? 'PASS' : 'FAIL'}`);
