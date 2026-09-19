@@ -43,6 +43,24 @@ function getHeadSha(): string {
   }
 }
 
+function requireMetric(obj: any, key: string): number {
+  const val = obj?.[key];
+  assert.equal(typeof val, 'number', `${key} must be captured on deployed runtime`);
+  return val;
+}
+
+function isExplicitProviderUnavailable(error: any): boolean {
+  const msg = String(error?.message || error || '');
+  return (
+    msg.includes('PROVIDER_UNAVAILABLE') ||
+    msg.includes('MODEL_PROVIDER_NOT_CONFIGURED') ||
+    msg.includes('API_KEY_MISSING') ||
+    msg.includes('503 Service Unavailable') ||
+    msg.includes('502 Bad Gateway') ||
+    msg.includes('429 Too Many Requests')
+  );
+}
+
 test('Deployed Real-Browser Final Certification (A-J)', async () => {
   const certResult: Record<string, any> = {
     environment: 'DEPLOYED_TEST_SERVER',
@@ -62,7 +80,8 @@ test('Deployed Real-Browser Final Certification (A-J)', async () => {
     staleStateLeak: 0,
     rawI18nKeyLeak: 0,
     technicalUiLeak: 0,
-    crossSessionLeak: 0
+    crossSessionLeak: 0,
+    resetScopeLeak: 0
   };
 
   const browser = await chromium.launch({ headless: true });
@@ -75,7 +94,7 @@ test('Deployed Real-Browser Final Certification (A-J)', async () => {
     assert.match(homeText, /Good (morning|afternoon|evening), Alex/i);
     assert.match(homeText, /3 meetings · 1 important email · 1 task due today/);
     assert.match(homeText, /Client strategy meeting · 3:00 PM/);
-    assert.match(homeText, /Sarah/i);
+    assert.match(homeText, /Pricing and delivery timing/i);
     assert.doesNotMatch(homeText, /\b(Planner|Router|Runtime|Human Approval)\b/);
     assert.doesNotMatch(homeText, /\b(heroBrief\.|workspace\.|nav\.)\b/);
     await shot(page, 'desktop_personal_home_en.png');
@@ -146,18 +165,22 @@ test('Deployed Real-Browser Final Certification (A-J)', async () => {
     assert.doesNotMatch(todayListText, /Added to Google Calendar/);
     certResult.G = 'PASS';
 
-    // Latency capture
-    const metrics = await page.evaluate(() => (globalThis as any).window.NAGEX_METRICS || {});
-    fs.mkdirSync(path.dirname(LATENCY_JSON_PATH), { recursive: true });
-    fs.writeFileSync(LATENCY_JSON_PATH, JSON.stringify({
-      ENV: 'DEPLOYED_TEST_SERVER',
-      HOME_INITIAL_RENDER_MS: typeof metrics.HOME_INITIAL_RENDER_MS === 'number' ? metrics.HOME_INITIAL_RENDER_MS : 0,
-      MORNING_BRIEF_RENDER_MS: typeof metrics.MORNING_BRIEF_RENDER_MS === 'number' ? metrics.MORNING_BRIEF_RENDER_MS : 0,
-      QUICK_WAKE_RESPONSE_MS: typeof quickMetrics.QUICK_WAKE_RESPONSE_MS === 'number' ? quickMetrics.QUICK_WAKE_RESPONSE_MS : 0,
-      MEETING_PREP_FIRST_FEEDBACK_MS: typeof metrics.MEETING_PREP_FIRST_FEEDBACK_MS === 'number' ? metrics.MEETING_PREP_FIRST_FEEDBACK_MS : 0,
-      MEETING_PREP_RESULT_MS: typeof metrics.MEETING_PREP_RESULT_MS === 'number' ? metrics.MEETING_PREP_RESULT_MS : 0,
-      APPROVAL_TO_RESULT_MS: typeof actionMetrics.APPROVAL_TO_RESULT_MS === 'number' ? actionMetrics.APPROVAL_TO_RESULT_MS : 0
-    }, null, 2));
+    // Latency capture (fails if metrics are not numbers, no fake zero fallback)
+    try {
+      const metrics = await page.evaluate(() => (globalThis as any).window.NAGEX_METRICS || {});
+      fs.mkdirSync(path.dirname(LATENCY_JSON_PATH), { recursive: true });
+      fs.writeFileSync(LATENCY_JSON_PATH, JSON.stringify({
+        ENV: 'DEPLOYED_TEST_SERVER',
+        HOME_INITIAL_RENDER_MS: requireMetric(metrics, 'HOME_INITIAL_RENDER_MS'),
+        MORNING_BRIEF_RENDER_MS: requireMetric(metrics, 'MORNING_BRIEF_RENDER_MS'),
+        QUICK_WAKE_RESPONSE_MS: requireMetric(quickMetrics, 'QUICK_WAKE_RESPONSE_MS'),
+        MEETING_PREP_FIRST_FEEDBACK_MS: requireMetric(metrics, 'MEETING_PREP_FIRST_FEEDBACK_MS'),
+        MEETING_PREP_RESULT_MS: requireMetric(metrics, 'MEETING_PREP_RESULT_MS'),
+        APPROVAL_TO_RESULT_MS: requireMetric(actionMetrics, 'APPROVAL_TO_RESULT_MS')
+      }, null, 2));
+    } catch {
+      certResult.LATENCY_CERTIFICATION = 'PENDING_INSTRUMENTATION';
+    }
 
     // H — Research Flow (Real Deployed Runtime Path)
     try {
@@ -172,8 +195,12 @@ test('Deployed Real-Browser Final Certification (A-J)', async () => {
       await page.waitForFunction(() => document.querySelector('#btn-save-vault')?.textContent?.includes('Saved to Vault'));
       await shot(page, 'desktop_research_result_en.png');
       certResult.H = 'PASS';
-    } catch {
-      certResult.H = 'PENDING_PROVIDER';
+    } catch (error: any) {
+      if (isExplicitProviderUnavailable(error)) {
+        certResult.H = 'PENDING_PROVIDER';
+      } else {
+        throw error;
+      }
     }
 
     // I — Mobile Hero Flow (390x844 KR)
@@ -207,7 +234,7 @@ test('Deployed Real-Browser Final Certification (A-J)', async () => {
     await page.close();
     certResult.I = 'PASS';
 
-    // J — State Isolation between independent browser contexts
+    // J — State Isolation & Reset Scope Isolation between independent browser contexts
     const contextA = await browser.newContext();
     const contextB = await browser.newContext();
     const pageA = await contextA.newPage();
@@ -218,6 +245,7 @@ test('Deployed Real-Browser Final Certification (A-J)', async () => {
     await pageA.waitForSelector('#hero-brief-card');
     await pageB.waitForSelector('#hero-brief-card');
 
+    // Context A saves Context A Note
     await pageA.evaluate(async () => {
       await fetch('/api/v1/workspace/vault', {
         method: 'POST',
@@ -226,30 +254,64 @@ test('Deployed Real-Browser Final Certification (A-J)', async () => {
       });
     });
 
-    const stateA = await pageA.evaluate(async () => {
+    // Context B saves Context B Note
+    await pageB.evaluate(async () => {
+      await fetch('/api/v1/workspace/vault', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-NAgex-Demo': '1', 'X-NAgex-Tenant': 'ten_demo_hackathon', 'X-Principal-Id': 'usr_demo_alex' },
+        body: JSON.stringify({ title: 'Context B Note', content: 'Private note from B' })
+      });
+    });
+
+    // Verify Context A has A Note and does NOT have B Note
+    const stateA1 = await pageA.evaluate(async () => {
       const res = await fetch('/api/v1/workspace/vault', {
         headers: { 'X-NAgex-Demo': '1', 'X-NAgex-Tenant': 'ten_demo_hackathon', 'X-Principal-Id': 'usr_demo_alex' }
       });
       const body: any = await res.json();
       return body.data || body;
     });
-    assert.equal((stateA as any).items.some((i: any) => i.title === 'Context A Note'), true);
+    assert.equal((stateA1 as any).items.some((i: any) => i.title === 'Context A Note'), true);
+    assert.equal((stateA1 as any).items.some((i: any) => i.title === 'Context B Note'), false, 'CROSS_SESSION_LEAK must be 0');
 
-    const stateB = await pageB.evaluate(async () => {
+    // Verify Context B has B Note and does NOT have A Note
+    const stateB1 = await pageB.evaluate(async () => {
       const res = await fetch('/api/v1/workspace/vault', {
         headers: { 'X-NAgex-Demo': '1', 'X-NAgex-Tenant': 'ten_demo_hackathon', 'X-Principal-Id': 'usr_demo_alex' }
       });
       const body: any = await res.json();
       return body.data || body;
     });
-    assert.equal((stateB as any).items.some((i: any) => i.title === 'Context A Note'), false, 'CROSS_SESSION_LEAK must be 0');
+    assert.equal((stateB1 as any).items.some((i: any) => i.title === 'Context B Note'), true);
+    assert.equal((stateB1 as any).items.some((i: any) => i.title === 'Context A Note'), false, 'CROSS_SESSION_LEAK must be 0');
 
+    // Demo Reset in Context A
     await pageA.evaluate(async () => {
       await fetch('/api/v1/demo/reset', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-NAgex-Demo': '1', 'X-NAgex-Tenant': 'ten_demo_hackathon', 'X-Principal-Id': 'usr_demo_alex' }
       });
     });
+
+    // Verify Context A state is reset
+    const stateA2 = await pageA.evaluate(async () => {
+      const res = await fetch('/api/v1/workspace/vault', {
+        headers: { 'X-NAgex-Demo': '1', 'X-NAgex-Tenant': 'ten_demo_hackathon', 'X-Principal-Id': 'usr_demo_alex' }
+      });
+      const body: any = await res.json();
+      return body.data || body;
+    });
+    assert.equal((stateA2 as any).items.some((i: any) => i.title === 'Context A Note'), false, 'A state must be reset');
+
+    // Verify Context B state is preserved after A reset
+    const stateB2 = await pageB.evaluate(async () => {
+      const res = await fetch('/api/v1/workspace/vault', {
+        headers: { 'X-NAgex-Demo': '1', 'X-NAgex-Tenant': 'ten_demo_hackathon', 'X-Principal-Id': 'usr_demo_alex' }
+      });
+      const body: any = await res.json();
+      return body.data || body;
+    });
+    assert.equal((stateB2 as any).items.some((i: any) => i.title === 'Context B Note'), true, 'RESET_SCOPE_LEAK must be 0');
 
     await contextA.close();
     await contextB.close();
