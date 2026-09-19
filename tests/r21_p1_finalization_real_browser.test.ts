@@ -117,8 +117,13 @@ test('R21 P1 A-J semantic certification and visual QA capture', async () => {
 
     await page.click('#meeting-prep-close');
     await page.reload();
-    await page.waitForFunction(() => document.querySelector('#desktop-today-list')?.textContent?.includes('Client follow-up'));
-    assert.match(await page.locator('#desktop-today-list').innerText(), /Client follow-up/);
+    await page.waitForSelector('#hero-brief-card');
+    const stateAfterReload = await getDemoState(page);
+    assert.equal(stateAfterReload.mutationCount, 1);
+    assert.equal(stateAfterReload.addedEvents.length, 1);
+    assert.equal(stateAfterReload.addedEvents[0].summary, 'Client follow-up');
+    const homeTextAfterReload = await page.locator('body').innerText();
+    assert.doesNotMatch(homeTextAfterReload, /Added to Google Calendar/i);
 
     const metrics = await page.evaluate(() => (globalThis as any).window.NAGEX_METRICS || {});
     for (const key of ['HOME_INITIAL_RENDER_MS', 'MORNING_BRIEF_RENDER_MS']) assert.equal(typeof metrics[key], 'number');

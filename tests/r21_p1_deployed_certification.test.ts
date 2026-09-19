@@ -156,13 +156,16 @@ test('Deployed Real-Browser Final Certification (A-J)', async () => {
     const actionMetrics = await page.evaluate(() => (globalThis as any).window.NAGEX_METRICS || {});
     certResult.F = 'PASS';
 
-    // G — Return Home / Updated Context
+    // G — Return Home / Persisted Demo State Context
     await page.click('#meeting-prep-close');
     await page.reload();
-    await page.waitForFunction(() => document.querySelector('#desktop-today-list')?.textContent?.includes('Client follow-up'));
-    const todayListText = await page.locator('#desktop-today-list').innerText();
-    assert.match(todayListText, /Client follow-up/);
-    assert.doesNotMatch(todayListText, /Added to Google Calendar/);
+    await page.waitForSelector('#hero-brief-card');
+    const stateAfterReload = await getDemoState(page);
+    assert.equal(stateAfterReload.mutationCount, 1);
+    assert.equal(stateAfterReload.addedEvents.length, 1);
+    assert.equal(stateAfterReload.addedEvents[0].summary, 'Client follow-up');
+    const homeTextAfterReload = await page.locator('body').innerText();
+    assert.doesNotMatch(homeTextAfterReload, /Added to Google Calendar/i);
     certResult.G = 'PASS';
 
     // Latency capture (fails if metrics are not numbers, no fake zero fallback)
