@@ -242,14 +242,41 @@ test('NAgex R22.2 Hardened Pre-Server Certification Audit', async () => {
         assert.equal(hasRawType, false, 'Raw activity type strings must not leak into visible UI');
         console.log('ACTIVITY_RAW_TYPE_VISIBLE=0');
 
-        // 3. Group Priority Assertions
+        // 3. Group Priority & Placement Assertions
         const headings = await pageEn.locator('.mh-activity-group-heading').allInnerTexts();
-        const needsYouIdx = headings.findIndex((h) => h.includes('Needs You'));
-        const nowIdx = headings.findIndex((h) => h.includes('Now'));
-        const recentIdx = headings.findIndex((h) => h.includes('Recent'));
+        const normalizedHeadings = headings.map((h) => h.trim().toLowerCase());
+        const needsYouIdx = normalizedHeadings.findIndex((h) => h.includes('needs you'));
+        const nowIdx = normalizedHeadings.findIndex((h) => h === 'now' || h.includes('now'));
+        const recentIdx = normalizedHeadings.findIndex((h) => h.includes('recent'));
 
         assert.ok(needsYouIdx !== -1 && nowIdx !== -1 && recentIdx !== -1, 'All three human intent sections must be rendered');
         assert.ok(needsYouIdx < nowIdx && nowIdx < recentIdx, 'Priority order must be NEEDS YOU -> NOW -> RECENT');
+
+        const sectionPlacement = await pageEn.evaluate(() => {
+          const container = (globalThis as any).document.getElementById('mh-activity-list');
+          if (!container) return null;
+          const children = Array.from(container.children) as any[];
+
+          let currentSection = '';
+          const itemSections: Record<string, string> = {};
+
+          children.forEach((child) => {
+            if (child.classList.contains('mh-activity-group-heading')) {
+              currentSection = child.innerText.trim().toLowerCase();
+            } else if (child.classList.contains('mh-activity-card')) {
+              const actId = child.getAttribute('data-activity-id');
+              if (actId) itemSections[actId] = currentSection;
+            }
+          });
+
+          return itemSections;
+        });
+
+        assert.ok(sectionPlacement, 'sectionPlacement must be computed');
+        assert.ok(sectionPlacement['act_101']?.includes('needs you'), 'act_101 (NEEDS_ATTENTION) must be placed in NEEDS YOU section');
+        assert.ok(sectionPlacement['act_104']?.includes('needs you'), 'act_104 (FAILED) must be placed in NEEDS YOU section');
+        assert.ok(sectionPlacement['act_102']?.includes('now'), 'act_102 (RUNNING) must be placed in NOW section');
+        assert.ok(sectionPlacement['act_103']?.includes('recent'), 'act_103 (COMPLETED) must be placed in RECENT section');
 
         console.log('ACTIVITY_NEEDS_YOU_PRIORITY=PASS');
         console.log('ACTIVITY_RUNNING_PRIORITY=PASS');
