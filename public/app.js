@@ -3565,6 +3565,7 @@
       if (btnReject) btnReject.onclick = () => { approvalCard.style.display = 'none'; };
       if (btnApprove) {
         btnApprove.onclick = async () => {
+          const approvalStartedAt = performance.now();
           btnApprove.disabled = true;
           if (btnReject) btnReject.disabled = true;
           btnApprove.textContent = isKr ? '요청 중...' : 'Requesting approval...';
@@ -3588,6 +3589,8 @@
 
           const result = await apiFetch('/api/v1/tools/google-calendar/create-event', { method: 'POST', body: JSON.stringify({ approvalId: approval.approvalId, payload: approved.canonicalPayload }) });
           if (result && result.status === 'SUCCEEDED') {
+            window.NAGEX_METRICS = window.NAGEX_METRICS || {};
+            window.NAGEX_METRICS.APPROVAL_TO_RESULT_MS = Math.max(0, Math.round(performance.now() - approvalStartedAt));
             const isDemo = result.executionMode === 'DEMO' || result.providerVerified === false || result.dataSource === 'DEMO';
             headingEl.textContent = isDemo
               ? (isKr ? '데모 실행 완료 · 실제 Google Calendar 이벤트는 생성되지 않았습니다' : 'Demo completed · No real Google Calendar event was created.')
