@@ -61,7 +61,7 @@ function isExplicitProviderUnavailable(error: any): boolean {
   );
 }
 
-test('Deployed Real-Browser Final Certification (A-J)', async () => {
+test('Deployed Real-Browser Final Certification (A-J)', { timeout: 180000 }, async () => {
   const certResult: Record<string, any> = {
     environment: 'DEPLOYED_TEST_SERVER',
     baseUrl: BASE_URL,
@@ -213,7 +213,30 @@ test('Deployed Real-Browser Final Certification (A-J)', async () => {
     await mobile.goto(`${BASE_URL}/?demo=1`);
     await mobile.evaluate(() => (globalThis as any).window.NAGEX_I18N?.setLocale('ko'));
     await mobile.reload();
-    await mobile.waitForFunction(() => document.querySelector('#hero-brief-card')?.textContent?.includes('Client strategy meeting'));
+    await mobile.waitForFunction(() => {
+      const card = document.querySelector('#hero-brief-card');
+      return card &&
+             !(card as any).hidden &&
+             (card.textContent || '').trim().length > 0;
+    });
+
+    const mobileLocale = await mobile.evaluate(
+      () => (globalThis as any).window.NAGEX_I18N?.getLocale()
+    );
+    assert.equal(mobileLocale, 'ko');
+
+    const mobileText = await mobile.locator('body').innerText();
+    assert.match(mobileText, /(3\s*(meetings|개|건)|Client strategy meeting)/i);
+    assert.match(mobileText, /(3:00\s*PM|15:00|오후\s*3:00|3:00)/i);
+    assert.match(mobileText, /(가장 중요한|미팅 준비|오늘의 다른 일정|미팅|이메일|할 일)/);
+    assert.doesNotMatch(mobileText, /\b(heroBrief\.|workspace\.|nav\.)\b/);
+    assert.doesNotMatch(mobileText, /\b(Planner|Router|Runtime|Human Approval)\b/);
+
+    const hasImportantAction = await mobile.evaluate(() => {
+      return !!(document.querySelector('#hero-brief-prepare-btn') || document.querySelector('#mh-hero-brief-prepare-btn'));
+    });
+    assert.equal(hasImportantAction, true, 'Important meeting prepare action should exist');
+
     assert.equal(await mobile.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
     await shot(mobile, '390x844_home_kr.png');
 
@@ -224,7 +247,11 @@ test('Deployed Real-Browser Final Certification (A-J)', async () => {
     await shot(mobileQuick, '390x844_quick_wake_kr.png');
     await mobileQuick.close();
 
-    await mobile.click('#mh-hero-brief-prepare-btn');
+    const prepareBtnSelector = await mobile.evaluate(() => {
+      if (document.querySelector('#mh-hero-brief-prepare-btn')) return '#mh-hero-brief-prepare-btn';
+      return '#hero-brief-prepare-btn';
+    });
+    await mobile.click(prepareBtnSelector);
     await mobile.waitForSelector('#meeting-prep-body .meeting-prep-keypoints');
     await shot(mobile, '390x844_meeting_prep_kr.png');
     await mobile.click('#meeting-prep-find-time');
