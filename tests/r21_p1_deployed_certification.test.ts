@@ -153,7 +153,9 @@ test('Deployed Real-Browser Final Certification (A-J)', async () => {
     assert.equal(state.mutationCount, 1);
     assert.equal(state.addedEvents.length, 1);
     await shot(page, 'desktop_action_done_en.png');
-    const actionMetrics = await page.evaluate(() => (globalThis as any).window.NAGEX_METRICS || {});
+    const interactionMetrics = await page.evaluate(
+      () => (globalThis as any).window.NAGEX_METRICS || {}
+    );
     certResult.F = 'PASS';
 
     // G — Return Home / Persisted Demo State Context
@@ -170,17 +172,17 @@ test('Deployed Real-Browser Final Certification (A-J)', async () => {
 
     // Latency capture (fails if metrics are not numbers, no fake zero fallback)
     try {
-      const metrics = await page.evaluate(() => (globalThis as any).window.NAGEX_METRICS || {});
       fs.mkdirSync(path.dirname(LATENCY_JSON_PATH), { recursive: true });
       fs.writeFileSync(LATENCY_JSON_PATH, JSON.stringify({
         ENV: 'DEPLOYED_TEST_SERVER',
-        HOME_INITIAL_RENDER_MS: requireMetric(metrics, 'HOME_INITIAL_RENDER_MS'),
-        MORNING_BRIEF_RENDER_MS: requireMetric(metrics, 'MORNING_BRIEF_RENDER_MS'),
+        HOME_INITIAL_RENDER_MS: requireMetric(interactionMetrics, 'HOME_INITIAL_RENDER_MS'),
+        MORNING_BRIEF_RENDER_MS: requireMetric(interactionMetrics, 'MORNING_BRIEF_RENDER_MS'),
         QUICK_WAKE_RESPONSE_MS: requireMetric(quickMetrics, 'QUICK_WAKE_RESPONSE_MS'),
-        MEETING_PREP_FIRST_FEEDBACK_MS: requireMetric(metrics, 'MEETING_PREP_FIRST_FEEDBACK_MS'),
-        MEETING_PREP_RESULT_MS: requireMetric(metrics, 'MEETING_PREP_RESULT_MS'),
-        APPROVAL_TO_RESULT_MS: requireMetric(actionMetrics, 'APPROVAL_TO_RESULT_MS')
+        MEETING_PREP_FIRST_FEEDBACK_MS: requireMetric(interactionMetrics, 'MEETING_PREP_FIRST_FEEDBACK_MS'),
+        MEETING_PREP_RESULT_MS: requireMetric(interactionMetrics, 'MEETING_PREP_RESULT_MS'),
+        APPROVAL_TO_RESULT_MS: requireMetric(interactionMetrics, 'APPROVAL_TO_RESULT_MS')
       }, null, 2));
+      certResult.LATENCY_CERTIFICATION = 'PASS';
     } catch {
       certResult.LATENCY_CERTIFICATION = 'PENDING_INSTRUMENTATION';
     }
