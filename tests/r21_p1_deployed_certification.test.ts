@@ -196,16 +196,68 @@ test('Deployed Real-Browser Final Certification (A-J)', { timeout: 180000 }, asy
       const research = await page.locator('#ambient-overlay-backdrop').innerText();
       assert.match(research, /research/i);
       assert.doesNotMatch(research, /Sarah|Proposal v3|Last meeting notes|Ready to add to your calendar/);
-      await page.click('#btn-save-vault');
-      await page.waitForFunction(() => document.querySelector('#btn-save-vault')?.textContent?.includes('Saved to Vault'));
-      await shot(page, 'desktop_research_result_en.png');
-      certResult.H = 'PASS';
     } catch (error: any) {
       if (isExplicitProviderUnavailable(error)) {
         certResult.H = 'PENDING_PROVIDER';
       } else {
         throw error;
       }
+    }
+
+    if (certResult.H !== 'PENDING_PROVIDER') {
+      const vaultBefore = await page.evaluate(async () => {
+        const res = await fetch('/api/v1/workspace/vault', {
+          headers: {
+            'X-NAgex-Demo': '1',
+            'X-NAgex-Tenant': 'ten_demo_hackathon',
+            'X-Principal-Id': 'usr_demo_alex'
+          }
+        });
+        const body: any = await res.json();
+        return body.data || body;
+      });
+
+      await page.click('#btn-save-vault');
+
+      await page.waitForFunction(async (beforeTotal) => {
+        const res = await fetch('/api/v1/workspace/vault', {
+          headers: {
+            'X-NAgex-Demo': '1',
+            'X-NAgex-Tenant': 'ten_demo_hackathon',
+            'X-Principal-Id': 'usr_demo_alex'
+          }
+        });
+        const body: any = await res.json();
+        const data = body.data || body;
+        return Number(data.total) === Number(beforeTotal) + 1;
+      }, vaultBefore.total);
+
+      const vaultAfter = await page.evaluate(async () => {
+        const res = await fetch('/api/v1/workspace/vault', {
+          headers: {
+            'X-NAgex-Demo': '1',
+            'X-NAgex-Tenant': 'ten_demo_hackathon',
+            'X-Principal-Id': 'usr_demo_alex'
+          }
+        });
+        const body: any = await res.json();
+        return body.data || body;
+      });
+
+      assert.equal(Number(vaultAfter.total), Number(vaultBefore.total) + 1);
+      assert.equal(
+        (vaultAfter.items || []).some((item: any) =>
+          item.vaultItemId && (item.source === 'AMBIENT_RESULT' || item.dataSource === 'DEMO')
+        ),
+        true,
+        'Persisted vault item must have valid vaultItemId and source/dataSource'
+      );
+
+      const saveButtonText = await page.locator('#btn-save-vault').innerText();
+      assert.match(saveButtonText, /Saved to Vault|Saved/i);
+
+      await shot(page, 'desktop_research_result_en.png');
+      certResult.H = 'PASS';
     }
 
     // I — Mobile Hero Flow (390x844 KR)
