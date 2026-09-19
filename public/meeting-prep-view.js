@@ -179,10 +179,12 @@
     const cont = document.getElementById('meeting-prep-continuation');
     if (!cont) return;
     cont.innerHTML = '<p>' + escapeHtml(t('meetingPrep.requestingApproval', 'Requesting approval...')) + '</p>';
+    const isKo = window.NAGEX_I18N && window.NAGEX_I18N.getLocale() === 'ko';
+    const summary = isKo ? '클라이언트 후속 미팅' : 'Client follow-up';
     const payload = {
       calendarId: 'primary',
-      summary: 'Client follow-up',
-      description: 'Follow-up meeting scheduled by NAgex.',
+      summary: summary,
+      description: isKo ? 'NAgex가 예약한 후속 미팅입니다.' : 'Follow-up meeting scheduled by NAgex.',
       start: slot.start,
       end: slot.end,
       timezone: (Intl.DateTimeFormat().resolvedOptions().timeZone) || 'UTC',
@@ -208,29 +210,34 @@
   function scrollToTopOrContinuation() {
     const modal = document.querySelector('.meeting-prep-modal');
     if (modal) modal.scrollTop = 0;
-    const cont = document.getElementById('meeting-prep-continuation');
-    if (cont && cont.innerHTML.trim().length > 0) {
-      cont.scrollIntoView({ behavior: 'instant', block: 'start' });
-    }
   }
 
   function renderCalendarConfirm(cont, approval, card) {
     const p = approval.canonicalPayload || {};
+    const isKo = window.NAGEX_I18N && window.NAGEX_I18N.getLocale() === 'ko';
+    const summary = (isKo && (p.summary === 'Client follow-up' || !p.summary)) ? '클라이언트 후속 미팅' : (p.summary || (isKo ? '클라이언트 후속 미팅' : 'Client follow-up'));
+    const body = document.getElementById('meeting-prep-body');
+    if (body && cont.parentNode === body) {
+      body.insertBefore(cont, body.firstChild);
+    }
     cont.innerHTML =
       '<div class="meeting-prep-confirm-card">' +
       '<h4>' + escapeHtml(t('meetingPrep.readyToAdd', 'Ready to add to your calendar')) + '</h4>' +
-      '<p><strong>' + escapeHtml(p.summary || '') + '</strong></p>' +
-      '<p>' + escapeHtml(formatDateTime(p.start)) + '</p>' +
+      '<p class="meeting-prep-impact">' + escapeHtml(t('meetingPrep.approvalImpact', 'Adds a follow-up meeting event to your Google Calendar.')) + '</p>' +
+      '<p class="meeting-prep-summary"><strong>' + escapeHtml(summary) + '</strong></p>' +
+      '<p class="meeting-prep-time">' + escapeHtml(formatDateTime(p.start)) + '</p>' +
       '<div class="meeting-prep-confirm-actions">' +
       '<button class="btn-reject-outline" id="meeting-prep-cancel-add">' + escapeHtml(t('meetingPrep.notNow', 'Not now')) + '</button>' +
       '<button class="btn-plan-action plan-status-ready" id="meeting-prep-confirm-add">' + escapeHtml(t('meetingPrep.addToCalendar', 'Add to calendar')) + '</button>' +
       '</div></div>';
-    scrollToTopOrContinuation();
+    const modal = document.querySelector('.meeting-prep-modal');
+    if (modal) modal.scrollTop = 0;
     const cancelBtn = document.getElementById('meeting-prep-cancel-add');
     const confirmBtn = document.getElementById('meeting-prep-confirm-add');
     if (cancelBtn) cancelBtn.addEventListener('click', async () => {
       await apiFetch('/api/v1/approvals/' + approval.approvalId + '/reject', { method: 'POST' });
       cont.innerHTML = '';
+      if (body) body.appendChild(cont);
     });
     if (confirmBtn) confirmBtn.addEventListener('click', async () => {
       const approvalStartedAt = performance.now();
@@ -245,17 +252,28 @@
         window.NAGEX_METRICS = window.NAGEX_METRICS || {};
         window.NAGEX_METRICS.APPROVAL_TO_RESULT_MS = Math.max(0, Math.round(performance.now() - approvalStartedAt));
         const isDemo = result.executionMode === 'DEMO' || result.providerVerified === false || result.dataSource === 'DEMO';
-        const titleText = isDemo
-          ? t('meetingPrep.demoCompleted', 'Demo completed · No real Google Calendar event was created.')
-          : t('meetingPrep.addedToCalendar', 'Added to your calendar');
-        cont.innerHTML =
-          '<div class="meeting-prep-done-card">' +
-          '<h4>' + escapeHtml(titleText) + '</h4>' +
-          '<p><strong>' + escapeHtml(p.summary || '') + '</strong></p>' +
-          '<p>' + escapeHtml(formatDateTime(p.start)) + '</p>' +
-          (!isDemo && result.externalUrl ? '<a href="' + encodeURI(result.externalUrl) + '" target="_blank" rel="noopener" class="btn-plan-action plan-status-ready">' + escapeHtml(t('meetingPrep.viewEvent', 'View event')) + ' →</a>' : '') +
-          '</div>';
-        scrollToTopOrContinuation();
+        const updatedIsKo = window.NAGEX_I18N && window.NAGEX_I18N.getLocale() === 'ko';
+        const finalSummary = (updatedIsKo && (p.summary === 'Client follow-up' || !p.summary)) ? '클라이언트 후속 미팅' : (p.summary || (updatedIsKo ? '클라이언트 후속 미팅' : 'Client follow-up'));
+        if (isDemo) {
+          const mainTitle = updatedIsKo ? '데모 완료' : 'Demo completed';
+          const subNotice = updatedIsKo ? '실제 Google Calendar 이벤트는 생성되지 않았습니다.' : 'No real Google Calendar event was created.';
+          cont.innerHTML =
+            '<div class="meeting-prep-done-card">' +
+            '<h4>' + escapeHtml(mainTitle) + '</h4>' +
+            '<p class="meeting-prep-done-notice">' + escapeHtml(subNotice) + '</p>' +
+            '<p class="meeting-prep-done-summary"><strong>' + escapeHtml(finalSummary) + '</strong></p>' +
+            '<p class="meeting-prep-done-time">' + escapeHtml(formatDateTime(p.start)) + '</p>' +
+            '</div>';
+        } else {
+          cont.innerHTML =
+            '<div class="meeting-prep-done-card">' +
+            '<h4>' + escapeHtml(t('meetingPrep.addedToCalendar', 'Added to your calendar')) + '</h4>' +
+            '<p class="meeting-prep-done-summary"><strong>' + escapeHtml(finalSummary) + '</strong></p>' +
+            '<p class="meeting-prep-done-time">' + escapeHtml(formatDateTime(p.start)) + '</p>' +
+            (result.externalUrl ? '<a href="' + encodeURI(result.externalUrl) + '" target="_blank" rel="noopener" class="btn-plan-action plan-status-ready">' + escapeHtml(t('meetingPrep.viewEvent', 'View event')) + ' →</a>' : '') +
+            '</div>';
+        }
+        if (modal) modal.scrollTop = 0;
       } else {
         cont.innerHTML = '<p class="resolution-warnings">' + escapeHtml(t('meetingPrep.couldNotComplete', "I couldn't finish this task right now.")) + '</p>';
       }

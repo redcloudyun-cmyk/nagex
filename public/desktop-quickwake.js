@@ -178,6 +178,7 @@
   function setupLangButton() {
     const btn = document.getElementById('qw-btn-lang');
     if (btn && window.NAGEX_I18N) {
+      btn.textContent = window.NAGEX_I18N.getLocale() === 'ko' ? 'EN' : 'KR';
       btn.onclick = () => {
         window.NAGEX_I18N.toggleLocale();
         btn.textContent = window.NAGEX_I18N.getLocale() === 'ko' ? 'EN' : 'KR';

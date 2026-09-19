@@ -1004,6 +1004,11 @@
       'analyze.btnRun': 'Analyze File',
       'analyze.outputTitle': 'Analysis Insights',
       'analyze.emptyOutput': 'Analysis results will appear here.',
+      'meetingPrep.demoCompleted': 'Demo completed · No real Google Calendar event was created.',
+      'meetingPrep.demoTitle': 'Demo completed',
+      'meetingPrep.demoNotice': 'No real Google Calendar event was created.',
+      'meetingPrep.approvalImpact': 'Adds a follow-up meeting event to your Google Calendar.',
+      'meetingPrep.clientFollowup': 'Client follow-up',
     },
     ko: {
       'page.title': 'NAgex — 개인용 AI 컨트롤 센터',
@@ -2101,6 +2106,11 @@
     'meetingPrep.viewEvent': '일정 보기',
     'meetingPrep.couldNotComplete': '지금은 이 작업을 완료하지 못했어요.',
     'meetingPrep.genericError': '완료하지 못했어요. 다시 시도해 주세요.',
+    'meetingPrep.demoCompleted': '데모 완료 · 실제 Google Calendar 이벤트는 생성되지 않았습니다.',
+    'meetingPrep.demoTitle': '데모 완료',
+    'meetingPrep.demoNotice': '실제 Google Calendar 이벤트는 생성되지 않았습니다.',
+    'meetingPrep.approvalImpact': 'Google Calendar에 새로운 후속 미팅 일정이 추가됩니다.',
+    'meetingPrep.clientFollowup': '클라이언트 후속 미팅',
   });
 
   function detectLocale() {
