@@ -3329,6 +3329,7 @@
       // as a completed real result.
       if (summarySection && summaryList) {
         summarySection.style.display = 'block';
+        if (summarySectionAlias) summarySectionAlias.style.display = 'block';
         summaryList.innerHTML = `<div class="nagex-empty-state">${escapeHtml(isKr ? '조사 계획이 준비됐어요. 실제 출처를 확인한 뒤 결과를 표시합니다.' : 'Your research plan is ready. Results will appear after the sources are actually checked.')}</div>`;
       }
       if (sourcesSection && sourcesList) {

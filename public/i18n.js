@@ -689,6 +689,7 @@
 
       // Settings View
       'settings.title': 'Personal AI & Provider Settings',
+      'settings.catOrganization': 'Organization',
       'settings.subtitle': 'Configure Quick Wake invocation triggers, autonomy levels, connected tools, and Nebius / NVIDIA runtime integrations.',
       'settings.quickWake': 'Quick Wake Invocation',
       'settings.autonomy': 'Autonomy Level',
@@ -1268,6 +1269,7 @@
       'activity.effectUpdated': '업데이트됨:',
 
       // R12.1 Increment 4 — Settings UX
+      'settings.catOrganization': '조직',
       'settings.catConnections': '연결',
       'settings.catModels': 'AI 및 모델',
       'settings.catAutonomy': '자율성 수준',

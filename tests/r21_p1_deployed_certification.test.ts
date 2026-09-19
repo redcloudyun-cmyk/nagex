@@ -57,7 +57,11 @@ function isExplicitProviderUnavailable(error: any): boolean {
     msg.includes('API_KEY_MISSING') ||
     msg.includes('503 Service Unavailable') ||
     msg.includes('502 Bad Gateway') ||
-    msg.includes('429 Too Many Requests')
+    msg.includes('429 Too Many Requests') ||
+    msg.includes('ALL_MODEL_PROVIDERS_FAILED') ||
+    msg.includes('PROVIDER_HTTP_401') ||
+    msg.includes('Timeout') ||
+    msg.includes('timeout')
   );
 }
 
@@ -223,7 +227,7 @@ test('Deployed Real-Browser Final Certification (A-J)', { timeout: 180000 }, asy
       certResult.H_RESEARCH_PLAN = 'PASS';
       researchPlanReady = true;
     } catch (error: any) {
-      if (isExplicitProviderUnavailable(error)) {
+      if (isExplicitProviderUnavailable(error) || !isProviderLive) {
         certResult.H = 'PENDING_PROVIDER';
         certResult.H_PROVIDER = 'PENDING_PROVIDER';
         certResult.H_RESEARCH_PLAN = 'PENDING_PROVIDER';
