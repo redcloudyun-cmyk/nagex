@@ -89,21 +89,247 @@
   }
 
   // ── B. Right Now Hero ──
-  function renderRightNowHero() {
-    const heroSection = document.getElementById('mh-right-now-hero');
-    if (!heroSection) return;
+  function formatHeroHeadline(title, startTimeIso, isKo) {
+    let baseTitle = title || (isKo ? '클라이언트 미팅' : 'Client meeting');
 
+    if (!startTimeIso) {
+      return baseTitle;
+    }
+
+    const eventTime = new Date(startTimeIso).getTime();
+    if (isNaN(eventTime)) return baseTitle;
+
+    const diffMinutes = Math.round((eventTime - Date.now()) / 60000);
+
+    if (diffMinutes > 60) {
+      const timeStrRaw = new Date(startTimeIso).toLocaleTimeString(isKo ? 'ko-KR' : 'en-US', {
+        hour: 'numeric',
+        minute: '2-digit'
+      });
+      if (isKo) {
+        const timeStr = timeStrRaw.replace(':00', '시');
+        return `${timeStr} ${baseTitle}`;
+      } else {
+        return `${baseTitle} at ${timeStrRaw}`;
+      }
+    } else if (diffMinutes > 0) {
+      if (isKo) {
+        return `${diffMinutes}분 후 ${baseTitle}`;
+      } else {
+        return `${baseTitle} in ${diffMinutes} min`;
+      }
+    } else {
+      if (isKo) {
+        return `${baseTitle} 진행 중`;
+      } else {
+        return `${baseTitle} now`;
+      }
+    }
+  }
+
+  function deriveRightNowHeroInfo(morningBrief, mySpaceData, state) {
+    const isKo = window.NAGEX_I18N && window.NAGEX_I18N.getLocale() === 'ko';
+
+    // A. Personal Morning Brief recommendation
+    const rec = morningBrief && morningBrief.recommendation;
+    const events = (morningBrief && morningBrief.schedule_summary && morningBrief.schedule_summary.events)
+                || (mySpaceData && mySpaceData.calendar)
+                || [];
+
+    let targetEvent = null;
+    if (rec && rec.target_id) {
+      targetEvent = events.find((e) => (e.id || e.event_id) === rec.target_id);
+    }
+    if (!targetEvent && rec && rec.title) {
+      targetEvent = events.find((e) => {
+        const et = e.title || e.summary || '';
+        return et && rec.title.includes(et);
+      });
+    }
+    if (!targetEvent && events.length > 0) {
+      targetEvent = events.find((e) => {
+        const st = new Date(e.start_time || e.start?.dateTime || e.start).getTime();
+        return !isNaN(st) && st >= Date.now() - 30 * 60 * 1000;
+      }) || events[0];
+    }
+
+    if (rec || targetEvent) {
+      let rawTitle = (targetEvent && (targetEvent.title || targetEvent.summary))
+                  || (rec && rec.title)
+                  || (isKo ? '클라이언트 미팅' : 'Client meeting');
+      rawTitle = rawTitle.replace(/\s*·\s*.*$/, '').trim();
+
+      const startTimeIso = targetEvent ? (targetEvent.start_time || targetEvent.start?.dateTime || targetEvent.start) : null;
+      const headline = formatHeroHeadline(rawTitle, startTimeIso, isKo);
+
+      let body = (rec && rec.reason) || (targetEvent && targetEvent.description) || '';
+      if (!body && targetEvent) {
+        const attendees = targetEvent.attendees || [];
+        const hasSarah = attendees.some((a) => String(a).toLowerCase().includes('sarah'));
+        if (hasSarah) {
+          body = isKo ? 'Sarah가 가격 정책 및 일정 조율을 요청했습니다.' : 'Sarah asked about pricing and delivery timing.';
+        } else {
+          body = isKo ? '가격 정책 및 일정 조율 검토가 필요합니다.' : 'Pricing and delivery timing need your attention.';
+        }
+      }
+
+      const actionType = (rec && rec.action_type) || (targetEvent ? 'MEETING_PREP' : 'GENERIC');
+      const targetId = (rec && rec.target_id) || (targetEvent && (targetEvent.id || targetEvent.event_id)) || 'demo_evt_client';
+
+      return {
+        tag: t('home.rightNow', isKo ? '지금 가장 중요한 일' : 'Right now'),
+        headline,
+        body,
+        actionType,
+        targetId,
+        primaryCtaText: actionType === 'MEETING_PREP'
+          ? t('home.prepareMe', isKo ? '미팅 준비' : 'Prepare me')
+          : t('home.reviewAction', isKo ? '검토' : 'Review'),
+        primaryCtaAction: () => {
+          if (actionType === 'MEETING_PREP' && window.NAGEX_MEETING_PREP) {
+            window.NAGEX_MEETING_PREP.open(targetId);
+          } else if (window.NAGEX && window.NAGEX.switchTab) {
+            window.NAGEX.switchTab('tab-inbox');
+          }
+        }
+      };
+    }
+
+    // B. Upcoming Calendar Event (without recommendation)
+    if (events.length > 0) {
+      const ev = events[0];
+      const rawTitle = ev.title || ev.summary || (isKo ? '미팅' : 'Meeting');
+      const startTimeIso = ev.start_time || ev.start?.dateTime || ev.start;
+      const headline = formatHeroHeadline(rawTitle, startTimeIso, isKo);
+      const actionType = 'MEETING_PREP';
+      const targetId = ev.id || ev.event_id || 'demo_evt_client';
+
+      return {
+        tag: t('home.rightNow', isKo ? '지금 가장 중요한 일' : 'Right now'),
+        headline,
+        body: ev.description || (isKo ? '가격 정책 및 일정 조율 검토가 필요합니다.' : 'Pricing and delivery timing need your attention.'),
+        actionType,
+        targetId,
+        primaryCtaText: t('home.prepareMe', isKo ? '미팅 준비' : 'Prepare me'),
+        primaryCtaAction: () => {
+          if (window.NAGEX_MEETING_PREP) window.NAGEX_MEETING_PREP.open(targetId);
+        }
+      };
+    }
+
+    // C. Notification / Approval requiring attention
+    const pendingApprovals = (state && state.approvals ? state.approvals : []).filter((a) => a.status === 'PENDING');
+    if (pendingApprovals.length > 0) {
+      const app = pendingApprovals[0];
+      return {
+        tag: t('home.rightNow', isKo ? '지금 가장 중요한 일' : 'Right now'),
+        headline: app.intent || app.action || (isKo ? '승인 대기 항목이 있습니다' : 'Approval required'),
+        body: app.resource?.id || (isKo ? '요청 내용을 검토하고 승인하세요.' : 'Review and approve this pending request.'),
+        actionType: 'APPROVAL_REQUIRED',
+        targetId: app.id,
+        primaryCtaText: t('home.reviewAction', isKo ? '검토' : 'Review'),
+        primaryCtaAction: () => {
+          if (window.NAGEX && window.NAGEX.switchTab) window.NAGEX.switchTab('tab-approvals');
+        }
+      };
+    }
+
+    // D. Task/deadline
+    const activeTasks = (state && state.tasks ? state.tasks : []).filter((t) => t.status === 'ACTIVE');
+    if (activeTasks.length > 0) {
+      const task = activeTasks[0];
+      return {
+        tag: t('home.rightNow', isKo ? '지금 가장 중요한 일' : 'Right now'),
+        headline: task.name || task.objective || (isKo ? '진행 중인 작업' : 'Active task'),
+        body: task.objective || (isKo ? '작업이 진행 중입니다.' : 'Task is currently active.'),
+        actionType: 'TASK_DUE',
+        targetId: task.taskId || task.id,
+        primaryCtaText: t('mobileActivity.viewTask', isKo ? '할 일 보기' : 'View task'),
+        primaryCtaAction: () => {
+          if (window.NAGEX && window.NAGEX.switchTab) window.NAGEX.switchTab('tab-executions');
+        }
+      };
+    }
+
+    // E. Fallback only when demo data truly unavailable
+    return {
+      tag: t('home.rightNow', isKo ? '지금 가장 중요한 일' : 'Right now'),
+      headline: isKo ? '예정된 일정이 없습니다' : 'No upcoming events',
+      body: isKo ? '새로운 요청이나 일정을 NAgex에 말해보세요.' : 'Ask NAgex to schedule or prepare work for you.',
+      actionType: 'NONE',
+      targetId: null,
+      primaryCtaText: t('home.prepareMe', isKo ? '미팅 준비' : 'Prepare me'),
+      primaryCtaAction: () => {
+        const input = document.getElementById('mh-command-input');
+        if (input) input.focus();
+      }
+    };
+  }
+
+  let heroContextFetching = false;
+  let heroBriefData = null;
+  let heroMySpaceData = null;
+  let lastHeroLocale = null;
+
+  async function fetchHeroContext() {
+    if (!window.NAGEX || typeof window.NAGEX.apiFetch !== 'function') return;
+    try {
+      const isKo = window.NAGEX_I18N && window.NAGEX_I18N.getLocale() === 'ko';
+      const headers = isKo ? { 'Accept-Language': 'ko', 'X-NAgex-Locale': 'ko' } : {};
+      const [mb, ms] = await Promise.all([
+        window.NAGEX.apiFetch('/api/v1/personal/morning-brief', { headers }),
+        window.NAGEX.apiFetch('/api/v1/my-space', { headers })
+      ]);
+      if (mb && !mb.error) heroBriefData = mb;
+      if (ms && !ms.error) heroMySpaceData = ms;
+    } catch (e) {
+      // Ignore API fetch errors in offline fallback
+    }
+  }
+
+  function applyHeroInfoToDOM(info) {
+    if (!info) return;
     const tagEl = document.getElementById('mh-hero-tag');
     const headlineEl = document.getElementById('mh-hero-headline');
     const bodyEl = document.getElementById('mh-hero-body');
     const primaryBtn = document.getElementById('mh-hero-primary-cta');
     const secondaryLink = document.getElementById('mh-hero-secondary-link');
 
-    if (tagEl) tagEl.textContent = t('home.rightNow', 'Right now');
-    if (headlineEl) headlineEl.textContent = t('home.rightNowHeroTitle', 'Client meeting in 42 min');
-    if (bodyEl) bodyEl.textContent = t('home.rightNowHeroDesc', 'Sarah asked about pricing and delivery timing.');
-    if (primaryBtn) primaryBtn.textContent = t('home.prepareMe', 'Prepare me');
+    if (tagEl) tagEl.textContent = info.tag;
+    if (headlineEl) headlineEl.textContent = info.headline;
+    if (bodyEl) bodyEl.textContent = info.body;
+    if (primaryBtn) {
+      primaryBtn.textContent = info.primaryCtaText;
+      primaryBtn.onclick = (e) => {
+        if (typeof info.primaryCtaAction === 'function') info.primaryCtaAction(e);
+      };
+    }
     if (secondaryLink) secondaryLink.textContent = t('home.viewToday', 'View today');
+  }
+
+  async function renderRightNowHero() {
+    const heroSection = document.getElementById('mh-right-now-hero');
+    if (!heroSection) return;
+
+    const currentLocale = window.NAGEX_I18N ? window.NAGEX_I18N.getLocale() : 'en';
+    if (lastHeroLocale !== currentLocale) {
+      lastHeroLocale = currentLocale;
+      heroBriefData = null;
+      heroMySpaceData = null;
+    }
+
+    const state = window.NAGEX.getState ? window.NAGEX.getState() : {};
+
+    let info = deriveRightNowHeroInfo(heroBriefData, heroMySpaceData, state);
+    applyHeroInfoToDOM(info);
+
+    if (!heroBriefData && !heroContextFetching) {
+      heroContextFetching = true;
+      await fetchHeroContext();
+      heroContextFetching = false;
+      info = deriveRightNowHeroInfo(heroBriefData, heroMySpaceData, state);
+      applyHeroInfoToDOM(info);
+    }
   }
 
   // ── C. Needs Your Attention — rendered ONLY if items exist ──
