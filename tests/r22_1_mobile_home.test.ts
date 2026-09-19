@@ -12,11 +12,116 @@ async function shot(page: Page, name: string): Promise<void> {
   await page.screenshot({ path: path.join(ARTIFACTS_DIR, name), fullPage: false });
 }
 
+function isEventValidForHeroTest(e: any): boolean {
+  if (!e) return false;
+  const startTimeIso = e.start_time || e.start?.dateTime || e.start;
+  if (!startTimeIso) return true;
+  const eventTime = new Date(startTimeIso).getTime();
+  if (isNaN(eventTime)) return true;
+
+  const now = Date.now();
+  const endTimeIso = e.end_time || e.end?.dateTime || e.end;
+  if (endTimeIso) {
+    const endTime = new Date(endTimeIso).getTime();
+    if (!isNaN(endTime)) {
+      return now <= endTime;
+    }
+  }
+
+  const diffMinutes = Math.round((eventTime - now) / 60000);
+  return diffMinutes >= -30;
+}
+
+function getExpectedHeroContext(morningBriefRaw: any, mySpaceDataRaw: any, state: any, isKo: boolean) {
+  const brief = morningBriefRaw?.data || morningBriefRaw;
+  const mySpace = mySpaceDataRaw?.data || mySpaceDataRaw;
+  const rec = brief?.recommendation;
+  const events = brief?.schedule_summary?.events || mySpace?.calendar || [];
+
+  let targetEvent: any = null;
+  if (rec && rec.target_id) {
+    targetEvent = events.find((e: any) => (e.id || e.event_id) === rec.target_id);
+  }
+  if (!targetEvent && rec && rec.title) {
+    targetEvent = events.find((e: any) => {
+      const et = e.title || e.summary || '';
+      return et && rec.title.includes(et);
+    });
+  }
+
+  let recommendationUsable = Boolean(rec);
+  if (rec && rec.target_id) {
+    const recTargetEvent = events.find((e: any) => (e.id || e.event_id) === rec.target_id);
+    if (!recTargetEvent || !isEventValidForHeroTest(recTargetEvent)) {
+      recommendationUsable = false;
+    }
+  }
+
+  if (targetEvent && !isEventValidForHeroTest(targetEvent)) {
+    targetEvent = null;
+  }
+  if (!targetEvent && events.length > 0) {
+    targetEvent = events.find((e: any) => isEventValidForHeroTest(e)) || null;
+  }
+
+  if (recommendationUsable || targetEvent) {
+    const effectiveRec = recommendationUsable ? rec : null;
+    let expectedReason = (effectiveRec && effectiveRec.reason) || (targetEvent && targetEvent.description) || '';
+    if (!expectedReason && targetEvent) {
+      const attendees = targetEvent.attendees || [];
+      const hasSarah = attendees.some((a: any) => String(a).toLowerCase().includes('sarah'));
+      if (hasSarah) {
+        expectedReason = isKo ? 'Sarah가 가격 정책 및 일정 조율을 요청했습니다.' : 'Sarah asked about pricing and delivery timing.';
+      } else {
+        expectedReason = isKo ? '가격 정책 및 일정 조율 검토가 필요합니다.' : 'Pricing and delivery timing need your attention.';
+      }
+    }
+    const rawTitle = (targetEvent && (targetEvent.title || targetEvent.summary))
+                  || (effectiveRec && effectiveRec.title)
+                  || (isKo ? '클라이언트 미팅' : 'Client meeting');
+    return {
+      kind: 'MEETING',
+      recommendationUsable,
+      targetEvent,
+      expectedReason,
+      expectedTitlePart: rawTitle.replace(/\s*·\s*.*$/, '').trim(),
+      startTimeIso: targetEvent ? (targetEvent.start_time || targetEvent.start?.dateTime || targetEvent.start) : null,
+    };
+  }
+
+  const pendingApprovals = (state && state.approvals ? state.approvals : []).filter((a: any) => a.status === 'PENDING');
+  if (pendingApprovals.length > 0) {
+    const app = pendingApprovals[0];
+    return {
+      kind: 'APPROVAL',
+      expectedHeadline: app.intent || app.action || (isKo ? '승인 대기 항목이 있습니다' : 'Approval required'),
+      expectedReason: app.resource?.id || (isKo ? '요청 내용을 검토하고 승인하세요.' : 'Review and approve this pending request.'),
+    };
+  }
+
+  const activeTasks = (state && state.tasks ? state.tasks : []).filter((t: any) => t.status === 'ACTIVE');
+  if (activeTasks.length > 0) {
+    const task = activeTasks[0];
+    return {
+      kind: 'TASK',
+      expectedHeadline: task.name || task.objective || (isKo ? '진행 중인 작업' : 'Active task'),
+      expectedReason: task.objective || (isKo ? '작업이 진행 중입니다.' : 'Task is currently active.'),
+    };
+  }
+
+  return {
+    kind: 'FALLBACK',
+    expectedHeadline: isKo ? '예정된 일정이 없습니다' : 'No upcoming events',
+    expectedReason: isKo ? '새로운 요청이나 일정을 NAgex에 말해보세요.' : 'Ask NAgex to schedule or prepare work for you.',
+  };
+}
+
 test('R22.1 Mobile Home Decision Surface Certification', async () => {
   const browser = await chromium.launch({ headless: true });
 
   let heroContextDerivationPass = false;
   let heroTimeTruthfulnessPass = false;
+  let heroPriorityTimeAwarePass = false;
   let composerVisible360 = false;
   let composerVisible390 = false;
   let composerVisible430 = false;
@@ -49,95 +154,113 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
       const heroCtaCount = await pageEn.locator('#mh-right-now-hero button.mh-btn-primary').count();
       assert.equal(heroCtaCount, 1, 'Hero must have exactly one primary CTA button');
 
-      // C. Meaningful personal context derived from state/APIs using the app's apiFetch
+      // C. Meaningful personal context derived from state/APIs using the app's apiFetch & getState
       const apiDataEn: any = await pageEn.evaluate(async () => {
         return await (globalThis as any).window.NAGEX.apiFetch('/api/v1/personal/morning-brief');
       });
-      const briefEn = apiDataEn?.data || apiDataEn;
-      const recEn = briefEn?.recommendation;
-      const recReasonEn = recEn?.reason;
-      const eventsEn = briefEn?.schedule_summary?.events || [];
+      const mySpaceDataEn: any = await pageEn.evaluate(async () => {
+        return await (globalThis as any).window.NAGEX.apiFetch('/api/v1/my-space');
+      });
+      const stateEn: any = await pageEn.evaluate(() => {
+        return (globalThis as any).window.NAGEX.getState ? (globalThis as any).window.NAGEX.getState() : {};
+      });
 
-      // Wait until the rendered hero reflects the API-derived context from the same session
-      if (recReasonEn) {
-        try {
-          await pageEn.waitForFunction(
-            (expectedReason: string) => {
-              const hero = (globalThis as any).document.querySelector('#mh-right-now-hero');
-              const body = (globalThis as any).document.querySelector('#mh-hero-body')?.textContent?.trim() || '';
-              return (
-                hero?.getAttribute('data-context-ready') === 'true' &&
-                (
-                  body === expectedReason ||
-                  body.toLowerCase().includes(expectedReason.toLowerCase())
-                )
-              );
-            },
-            recReasonEn,
-            { timeout: 10000 }
-          );
-        } catch (err: any) {
-          const diag = await pageEn.evaluate(() => {
+      const expectedEn = getExpectedHeroContext(apiDataEn, mySpaceDataEn, stateEn, false);
+
+      // Wait until the rendered hero reflects the expected time-aware context
+      try {
+        await pageEn.waitForFunction(
+          (exp: any) => {
             const hero = (globalThis as any).document.querySelector('#mh-right-now-hero');
-            return {
-              body: (globalThis as any).document.querySelector('#mh-hero-body')?.textContent?.trim() || '',
-              ready: hero?.getAttribute('data-context-ready')
-            };
-          });
-          assert.fail(
-            `Hero EN wait timeout.\nEXPECTED_REASON=${recReasonEn}\nACTUAL_BODY=${diag.body}\nCONTEXT_READY=${diag.ready}\nTARGET_EVENT=${JSON.stringify(recEn)}`
-          );
-        }
-      }
+            const body = (globalThis as any).document.querySelector('#mh-hero-body')?.textContent?.trim() || '';
+            const headline = (globalThis as any).document.querySelector('#mh-hero-headline')?.textContent?.trim() || '';
+            const ready = hero?.getAttribute('data-context-ready') === 'true';
 
-      // Target event selection matching product semantics
-      let targetEventEn: any = null;
-      if (recEn && recEn.target_id) {
-        targetEventEn = eventsEn.find((e: any) => (e.id || e.event_id) === recEn.target_id);
-      }
-      if (!targetEventEn && recEn && recEn.title) {
-        targetEventEn = eventsEn.find((e: any) => {
-          const et = e.title || e.summary || '';
-          return et && recEn.title.includes(et);
+            if (!ready) return false;
+
+            if (exp.kind === 'MEETING') {
+              if (exp.recommendationUsable && exp.expectedReason) {
+                return body === exp.expectedReason || body.toLowerCase().includes(exp.expectedReason.toLowerCase());
+              }
+              if (exp.expectedTitlePart) {
+                return headline.toLowerCase().includes(exp.expectedTitlePart.toLowerCase());
+              }
+              return true;
+            }
+            if (exp.expectedReason) {
+              return body === exp.expectedReason || body.toLowerCase().includes(exp.expectedReason.toLowerCase());
+            }
+            if (exp.expectedHeadline) {
+              return headline === exp.expectedHeadline || headline.toLowerCase().includes(exp.expectedHeadline.toLowerCase());
+            }
+            return true;
+          },
+          expectedEn,
+          { timeout: 10000 }
+        );
+      } catch (err: any) {
+        const diag = await pageEn.evaluate(() => {
+          const hero = (globalThis as any).document.querySelector('#mh-right-now-hero');
+          return {
+            headline: (globalThis as any).document.querySelector('#mh-hero-headline')?.textContent?.trim() || '',
+            body: (globalThis as any).document.querySelector('#mh-hero-body')?.textContent?.trim() || '',
+            ready: hero?.getAttribute('data-context-ready')
+          };
         });
+        assert.fail(
+          `Hero EN wait timeout.\nEXPECTED=${JSON.stringify(expectedEn)}\nACTUAL_HEADLINE=${diag.headline}\nACTUAL_BODY=${diag.body}\nCONTEXT_READY=${diag.ready}`
+        );
       }
-      if (!targetEventEn && eventsEn.length > 0) {
-        targetEventEn = eventsEn.find((e: any) => {
-          const st = new Date(e.start_time || e.start?.dateTime || e.start).getTime();
-          return !isNaN(st) && st >= Date.now() - 30 * 60 * 1000;
-        }) || eventsEn[0];
-      }
-      const startTimeIsoEn = targetEventEn ? (targetEventEn.start_time || targetEventEn.start?.dateTime || targetEventEn.start) : null;
 
       const heroText = await pageEn.locator('#mh-right-now-hero').innerText();
       const headlineTextEn = await pageEn.locator('#mh-hero-headline').innerText();
       const bodyTextHeroEn = await pageEn.locator('#mh-hero-body').innerText();
 
       assert.match(heroText, /Right now/i);
-      assert.match(headlineTextEn, /Client/i);
 
-      // Verify recommendation reason matches actual API/state value
-      if (recReasonEn) {
-        assert.ok(
-          bodyTextHeroEn === recReasonEn ||
-          bodyTextHeroEn.toLowerCase().includes(recReasonEn.toLowerCase()),
-          `Hero body mismatch.\nEXPECTED_REASON=${recReasonEn}\nACTUAL_BODY=${bodyTextHeroEn}\nCONTEXT_READY=${await pageEn.getAttribute('#mh-right-now-hero', 'data-context-ready')}\nTARGET_EVENT=${targetEventEn?.title || 'none'}`
-        );
-      }
-      heroContextDerivationPass = true;
-
-      // Verify time truthfulness: computed remaining time matches startTimeIso of selected event
-      if (startTimeIsoEn) {
-        const diffMinutes = Math.round((new Date(startTimeIsoEn).getTime() - Date.now()) / 60000);
-        if (diffMinutes > 60) {
-          assert.match(headlineTextEn, /at|AM|PM|:\d\d/i);
-        } else if (diffMinutes > 0) {
-          assert.match(headlineTextEn, /in\s+\d+\s+min/i);
-        } else {
-          assert.match(headlineTextEn, /now/i);
+      if (expectedEn.kind === 'MEETING') {
+        if (expectedEn.recommendationUsable && expectedEn.expectedReason) {
+          assert.ok(
+            bodyTextHeroEn === expectedEn.expectedReason ||
+            bodyTextHeroEn.toLowerCase().includes(expectedEn.expectedReason.toLowerCase()),
+            `Hero body mismatch.\nEXPECTED_REASON=${expectedEn.expectedReason}\nACTUAL_BODY=${bodyTextHeroEn}`
+          );
+        }
+        if (expectedEn.expectedTitlePart) {
+          assert.ok(
+            headlineTextEn.toLowerCase().includes(expectedEn.expectedTitlePart.toLowerCase()),
+            `Hero headline mismatch.\nEXPECTED_TITLE=${expectedEn.expectedTitlePart}\nACTUAL_HEADLINE=${headlineTextEn}`
+          );
+        }
+        if (expectedEn.startTimeIso) {
+          const diffMinutes = Math.round((new Date(expectedEn.startTimeIso).getTime() - Date.now()) / 60000);
+          if (diffMinutes > 60) {
+            assert.match(headlineTextEn, /at|AM|PM|:\d\d/i);
+          } else if (diffMinutes > 0) {
+            assert.match(headlineTextEn, /in\s+\d+\s+min/i);
+          } else {
+            assert.match(headlineTextEn, /now/i);
+          }
+          heroTimeTruthfulnessPass = true;
+        }
+      } else {
+        if (expectedEn.expectedHeadline) {
+          assert.ok(
+            headlineTextEn.toLowerCase().includes(expectedEn.expectedHeadline.toLowerCase()),
+            `Hero headline mismatch for ${expectedEn.kind}.\nEXPECTED=${expectedEn.expectedHeadline}\nACTUAL=${headlineTextEn}`
+          );
+        }
+        if (expectedEn.expectedReason) {
+          assert.ok(
+            bodyTextHeroEn.toLowerCase().includes(expectedEn.expectedReason.toLowerCase()),
+            `Hero body mismatch for ${expectedEn.kind}.\nEXPECTED=${expectedEn.expectedReason}\nACTUAL=${bodyTextHeroEn}`
+          );
         }
         heroTimeTruthfulnessPass = true;
       }
+
+      heroContextDerivationPass = true;
+      heroPriorityTimeAwarePass = true;
 
       // D. No technical terms
       const bodyTextEn = await pageEn.locator('#mobile-app-shell').innerText();
@@ -312,61 +435,61 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
       await pageKr.waitForSelector('#mobile-app-shell', { state: 'attached' });
       await pageKr.waitForSelector('#mh-right-now-hero', { state: 'visible' });
 
-      // H. EN/KR Parity check using the app's apiFetch
+      // H. EN/KR Parity check using the app's apiFetch & getState
       const apiDataKr: any = await pageKr.evaluate(async () => {
         return await (globalThis as any).window.NAGEX.apiFetch('/api/v1/personal/morning-brief');
       });
-      const briefKr = apiDataKr?.data || apiDataKr;
-      const recKr = briefKr?.recommendation;
-      const recReasonKr = recKr?.reason;
-      const eventsKr = briefKr?.schedule_summary?.events || [];
+      const mySpaceDataKr: any = await pageKr.evaluate(async () => {
+        return await (globalThis as any).window.NAGEX.apiFetch('/api/v1/my-space');
+      });
+      const stateKr: any = await pageKr.evaluate(() => {
+        return (globalThis as any).window.NAGEX.getState ? (globalThis as any).window.NAGEX.getState() : {};
+      });
 
-      if (recReasonKr) {
-        try {
-          await pageKr.waitForFunction(
-            (expectedReason: string) => {
-              const hero = (globalThis as any).document.querySelector('#mh-right-now-hero');
-              const body = (globalThis as any).document.querySelector('#mh-hero-body')?.textContent?.trim() || '';
-              return (
-                hero?.getAttribute('data-context-ready') === 'true' &&
-                (
-                  body === expectedReason ||
-                  body.includes(expectedReason)
-                )
-              );
-            },
-            recReasonKr,
-            { timeout: 10000 }
-          );
-        } catch (err: any) {
-          const diag = await pageKr.evaluate(() => {
+      const expectedKr = getExpectedHeroContext(apiDataKr, mySpaceDataKr, stateKr, true);
+
+      try {
+        await pageKr.waitForFunction(
+          (exp: any) => {
             const hero = (globalThis as any).document.querySelector('#mh-right-now-hero');
-            return {
-              body: (globalThis as any).document.querySelector('#mh-hero-body')?.textContent?.trim() || '',
-              ready: hero?.getAttribute('data-context-ready')
-            };
-          });
-          assert.fail(
-            `Hero KR wait timeout.\nEXPECTED_REASON=${recReasonKr}\nACTUAL_BODY=${diag.body}\nCONTEXT_READY=${diag.ready}\nTARGET_EVENT=${JSON.stringify(recKr)}`
-          );
-        }
-      }
+            const body = (globalThis as any).document.querySelector('#mh-hero-body')?.textContent?.trim() || '';
+            const headline = (globalThis as any).document.querySelector('#mh-hero-headline')?.textContent?.trim() || '';
+            const ready = hero?.getAttribute('data-context-ready') === 'true';
 
-      let targetEventKr: any = null;
-      if (recKr && recKr.target_id) {
-        targetEventKr = eventsKr.find((e: any) => (e.id || e.event_id) === recKr.target_id);
-      }
-      if (!targetEventKr && recKr && recKr.title) {
-        targetEventKr = eventsKr.find((e: any) => {
-          const et = e.title || e.summary || '';
-          return et && recKr.title.includes(et);
+            if (!ready) return false;
+
+            if (exp.kind === 'MEETING') {
+              if (exp.recommendationUsable && exp.expectedReason) {
+                return body === exp.expectedReason || body.includes(exp.expectedReason);
+              }
+              if (exp.expectedTitlePart) {
+                return headline.includes(exp.expectedTitlePart);
+              }
+              return true;
+            }
+            if (exp.expectedReason) {
+              return body === exp.expectedReason || body.includes(exp.expectedReason);
+            }
+            if (exp.expectedHeadline) {
+              return headline === exp.expectedHeadline || headline.includes(exp.expectedHeadline);
+            }
+            return true;
+          },
+          expectedKr,
+          { timeout: 10000 }
+        );
+      } catch (err: any) {
+        const diag = await pageKr.evaluate(() => {
+          const hero = (globalThis as any).document.querySelector('#mh-right-now-hero');
+          return {
+            headline: (globalThis as any).document.querySelector('#mh-hero-headline')?.textContent?.trim() || '',
+            body: (globalThis as any).document.querySelector('#mh-hero-body')?.textContent?.trim() || '',
+            ready: hero?.getAttribute('data-context-ready')
+          };
         });
-      }
-      if (!targetEventKr && eventsKr.length > 0) {
-        targetEventKr = eventsKr.find((e: any) => {
-          const st = new Date(e.start_time || e.start?.dateTime || e.start).getTime();
-          return !isNaN(st) && st >= Date.now() - 30 * 60 * 1000;
-        }) || eventsKr[0];
+        assert.fail(
+          `Hero KR wait timeout.\nEXPECTED=${JSON.stringify(expectedKr)}\nACTUAL_HEADLINE=${diag.headline}\nACTUAL_BODY=${diag.body}\nCONTEXT_READY=${diag.ready}`
+        );
       }
 
       const heroTextKr = await pageKr.locator('#mh-right-now-hero').innerText();
@@ -374,14 +497,34 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
       const bodyTextHeroKr = await pageKr.locator('#mh-hero-body').innerText();
 
       assert.match(heroTextKr, /지금 가장 중요한 일/);
-      assert.match(headlineTextKr, /클라이언트/);
 
-      if (recReasonKr) {
-        assert.ok(
-          bodyTextHeroKr === recReasonKr ||
-          bodyTextHeroKr.includes(recReasonKr),
-          `KR Hero body mismatch.\nEXPECTED_REASON=${recReasonKr}\nACTUAL_BODY=${bodyTextHeroKr}\nCONTEXT_READY=${await pageKr.getAttribute('#mh-right-now-hero', 'data-context-ready')}\nTARGET_EVENT=${targetEventKr?.title || 'none'}`
-        );
+      if (expectedKr.kind === 'MEETING') {
+        if (expectedKr.recommendationUsable && expectedKr.expectedReason) {
+          assert.ok(
+            bodyTextHeroKr === expectedKr.expectedReason ||
+            bodyTextHeroKr.includes(expectedKr.expectedReason),
+            `KR Hero body mismatch.\nEXPECTED_REASON=${expectedKr.expectedReason}\nACTUAL_BODY=${bodyTextHeroKr}`
+          );
+        }
+        if (expectedKr.expectedTitlePart) {
+          assert.ok(
+            headlineTextKr.includes(expectedKr.expectedTitlePart),
+            `KR Hero headline mismatch.\nEXPECTED_TITLE=${expectedKr.expectedTitlePart}\nACTUAL_HEADLINE=${headlineTextKr}`
+          );
+        }
+      } else {
+        if (expectedKr.expectedHeadline) {
+          assert.ok(
+            headlineTextKr.includes(expectedKr.expectedHeadline),
+            `KR Hero headline mismatch for ${expectedKr.kind}.\nEXPECTED=${expectedKr.expectedHeadline}\nACTUAL=${headlineTextKr}`
+          );
+        }
+        if (expectedKr.expectedReason) {
+          assert.ok(
+            bodyTextHeroKr.includes(expectedKr.expectedReason),
+            `KR Hero body mismatch for ${expectedKr.kind}.\nEXPECTED=${expectedKr.expectedReason}\nACTUAL=${bodyTextHeroKr}`
+          );
+        }
       }
 
       const bodyTextKr = await pageKr.locator('#mobile-app-shell').innerText();
@@ -403,6 +546,7 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
     console.log(`BOTTOM_NAV_OCCLUSION=${bottomNavOcclusionCount}`);
     console.log(`HERO_STALE_RECOMMENDATION_SELECTION=${heroStaleRecommendationSelectionCount}`);
     console.log(`HERO_STALE_EVENT_AS_NOW=${heroStaleEventAsNowCount}`);
+    console.log(`HERO_PRIORITY_TIME_AWARE=${heroPriorityTimeAwarePass ? 'PASS' : 'FAIL'}`);
     console.log('HERO_CONTEXT_DERIVATION=PASS');
     console.log('HERO_TIME_TRUTHFULNESS=PASS');
     console.log('HERO_HARDCODED_COUNTDOWN=0');
