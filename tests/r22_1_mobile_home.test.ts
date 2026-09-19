@@ -22,6 +22,7 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
   let composerVisible430 = false;
   let bottomNavOcclusionCount = 0;
   let heroStaleEventAsNowCount = 0;
+  let heroStaleRecommendationSelectionCount = 0;
 
   try {
     const viewports = [
@@ -227,6 +228,78 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
       }
       assert.equal(isStaleAsNow, false, 'Past stale event must not be formatted as now');
 
+      // N. Stale Recommendation Selection Test (testing real derivation logic)
+      const staleRecTestResult = await pageEn.evaluate(() => {
+        const nag = (globalThis as any).window.NAGEX;
+        if (!nag || typeof nag.deriveRightNowHeroInfo !== 'function') {
+          return { error: 'deriveRightNowHeroInfo function missing' };
+        }
+        const now = Date.now();
+        const pastStart = new Date(now - 90 * 60 * 1000).toISOString();
+        const pastEnd = new Date(now - 40 * 60 * 1000).toISOString();
+        const futureStart = new Date(now + 45 * 60 * 1000).toISOString();
+
+        const syntheticBrief = {
+          data: {
+            recommendation: {
+              action_type: 'MEETING_PREP',
+              target_id: 'stale-event-123',
+              title: 'Expired Meeting Strategy',
+              reason: 'Old discussion about past pricing',
+            },
+            schedule_summary: {
+              events: [
+                {
+                  id: 'stale-event-123',
+                  title: 'Expired Meeting Strategy',
+                  start_time: pastStart,
+                  end_time: pastEnd,
+                  description: 'Expired description',
+                },
+                {
+                  id: 'valid-future-456',
+                  title: 'Upcoming Team Sync',
+                  start_time: futureStart,
+                  description: 'Next sync meeting',
+                },
+              ],
+            },
+          },
+        };
+
+        const result = nag.deriveRightNowHeroInfo(syntheticBrief, null, {});
+        return {
+          usesStaleTitle: Boolean(result.headline?.includes('Expired Meeting Strategy')),
+          usesStaleReason: Boolean(result.body === 'Old discussion about past pricing'),
+          usesStaleTargetId: Boolean(result.targetId === 'stale-event-123'),
+          headline: result.headline,
+          targetId: result.targetId,
+        };
+      });
+
+      if (
+        staleRecTestResult.usesStaleTitle ||
+        staleRecTestResult.usesStaleReason ||
+        staleRecTestResult.usesStaleTargetId
+      ) {
+        heroStaleRecommendationSelectionCount++;
+      }
+      assert.equal(
+        staleRecTestResult.usesStaleTitle,
+        false,
+        `Hero derived info must not use stale title. Received: ${staleRecTestResult.headline}`
+      );
+      assert.equal(
+        staleRecTestResult.usesStaleReason,
+        false,
+        'Hero derived info must not use stale recommendation reason'
+      );
+      assert.equal(
+        staleRecTestResult.usesStaleTargetId,
+        false,
+        `Hero derived info must not use stale target_id. Received: ${staleRecTestResult.targetId}`
+      );
+
       await shot(pageEn, `${vp.name}_home_en.png`);
       await pageEn.close();
 
@@ -328,6 +401,7 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
     console.log(`COMPOSER_VISIBLE_390=${composerVisible390 ? 'PASS' : 'FAIL'}`);
     console.log(`COMPOSER_VISIBLE_430=${composerVisible430 ? 'PASS' : 'FAIL'}`);
     console.log(`BOTTOM_NAV_OCCLUSION=${bottomNavOcclusionCount}`);
+    console.log(`HERO_STALE_RECOMMENDATION_SELECTION=${heroStaleRecommendationSelectionCount}`);
     console.log(`HERO_STALE_EVENT_AS_NOW=${heroStaleEventAsNowCount}`);
     console.log('HERO_CONTEXT_DERIVATION=PASS');
     console.log('HERO_TIME_TRUTHFULNESS=PASS');

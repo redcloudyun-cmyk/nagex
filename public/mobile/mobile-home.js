@@ -198,6 +198,16 @@
         return et && rec.title.includes(et);
       });
     }
+    let recommendationUsable = Boolean(rec);
+    if (rec && rec.action_type === 'MEETING_PREP' && rec.target_id) {
+      recommendationUsable = Boolean(targetEvent && isEventValidForHero(targetEvent));
+    } else if (rec && rec.target_id) {
+      const recTargetEvent = events.find((e) => (e.id || e.event_id) === rec.target_id);
+      if (recTargetEvent && !isEventValidForHero(recTargetEvent)) {
+        recommendationUsable = false;
+      }
+    }
+
     if (targetEvent && !isEventValidForHero(targetEvent)) {
       targetEvent = null;
     }
@@ -205,9 +215,11 @@
       targetEvent = events.find((e) => isEventValidForHero(e)) || null;
     }
 
-    if (rec || targetEvent) {
+    if (recommendationUsable || targetEvent) {
+      const effectiveRec = recommendationUsable ? rec : null;
+
       let rawTitle = (targetEvent && (targetEvent.title || targetEvent.summary))
-                  || (rec && rec.title)
+                  || (effectiveRec && effectiveRec.title)
                   || (isKo ? '클라이언트 미팅' : 'Client meeting');
       rawTitle = rawTitle.replace(/\s*·\s*.*$/, '').trim();
 
@@ -215,7 +227,7 @@
       const endTimeIso = targetEvent ? (targetEvent.end_time || targetEvent.end?.dateTime || targetEvent.end) : null;
       const headline = formatHeroHeadline(rawTitle, startTimeIso, isKo, endTimeIso);
 
-      let body = (rec && rec.reason) || (targetEvent && targetEvent.description) || '';
+      let body = (effectiveRec && effectiveRec.reason) || (targetEvent && targetEvent.description) || '';
       if (!body && targetEvent) {
         const attendees = targetEvent.attendees || [];
         const hasSarah = attendees.some((a) => String(a).toLowerCase().includes('sarah'));
@@ -226,8 +238,8 @@
         }
       }
 
-      const actionType = (rec && rec.action_type) || (targetEvent ? 'MEETING_PREP' : 'GENERIC');
-      const targetId = (rec && rec.target_id) || (targetEvent && (targetEvent.id || targetEvent.event_id)) || 'demo_evt_client';
+      const actionType = (effectiveRec && effectiveRec.action_type) || (targetEvent ? 'MEETING_PREP' : 'GENERIC');
+      const targetId = (effectiveRec && effectiveRec.target_id) || (targetEvent && (targetEvent.id || targetEvent.event_id)) || 'demo_evt_client';
 
       return {
         tag: t('home.rightNow', isKo ? '지금 가장 중요한 일' : 'Right now'),
