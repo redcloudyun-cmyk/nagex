@@ -73,7 +73,7 @@ test('Deployed Real-Browser Final Certification (A-J)', { timeout: 180000 }, asy
     E: 'FAIL',
     F: 'FAIL',
     G: 'FAIL',
-    H: 'PENDING_PROVIDER',
+    H: 'FAIL',
     I: 'FAIL',
     J: 'FAIL',
     fakeSuccessPaths: 0,
@@ -189,6 +189,7 @@ test('Deployed Real-Browser Final Certification (A-J)', { timeout: 180000 }, asy
 
     // H — Research Flow (Real Deployed Runtime Path)
     let isProviderLive = false;
+    let researchPlanReady = false;
     try {
       const providerRes = await page.evaluate(async () => {
         const res = await fetch('/api/v1/providers/status', {
@@ -220,6 +221,7 @@ test('Deployed Real-Browser Final Certification (A-J)', { timeout: 180000 }, asy
       assert.doesNotMatch(researchText, /Sarah|Proposal v3|Last meeting notes|Ready to add to your calendar/);
       certResult.H_PROVIDER = 'PASS';
       certResult.H_RESEARCH_PLAN = 'PASS';
+      researchPlanReady = true;
     } catch (error: any) {
       if (isExplicitProviderUnavailable(error)) {
         certResult.H = 'PENDING_PROVIDER';
@@ -230,7 +232,7 @@ test('Deployed Real-Browser Final Certification (A-J)', { timeout: 180000 }, asy
       }
     }
 
-    if (certResult.H !== 'PENDING_PROVIDER') {
+    if (researchPlanReady) {
       const capabilities = await page.evaluate(async () => {
         const res = await fetch('/api/v1/capabilities/status', {
           headers: {
