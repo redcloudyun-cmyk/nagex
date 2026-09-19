@@ -249,7 +249,7 @@
   }
 
   async function apiFetch(endpoint, options = {}) {
-    const { timeoutMs, ...fetchOptions } = options;
+    const { timeoutMs, headers: customHeaders, ...restOptions } = options;
     let controller = null;
     let timeoutId = null;
     if (typeof timeoutMs === 'number' && timeoutMs > 0) {
@@ -260,6 +260,7 @@
       const isDemoMode = new URLSearchParams(window.location.search).get('demo') === '1';
       const currentLocale = window.NAGEX_I18N ? window.NAGEX_I18N.getLocale() : (localStorage.getItem('nagex_locale') || 'en');
       const res = await fetch(endpoint, {
+        ...restOptions,
         headers: {
           'Content-Type': 'application/json',
           'X-NAgex-Tenant': isDemoMode ? 'ten_demo_hackathon' : 'ten_production_01',
@@ -267,9 +268,8 @@
           'X-NAgex-Locale': currentLocale,
           'Accept-Language': currentLocale === 'ko' ? 'ko-KR,ko;q=0.9,en;q=0.8' : 'en-US,en;q=0.9',
           ...(isDemoMode ? { 'X-NAgex-Demo': '1', 'X-NAgex-Demo-Session': getDemoSessionId() } : {}),
-          ...(fetchOptions.headers || {}),
+          ...(customHeaders || {}),
         },
-        ...fetchOptions,
         ...(controller ? { signal: controller.signal } : {}),
       });
       return await res.json();

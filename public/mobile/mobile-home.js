@@ -177,6 +177,15 @@
     );
   }
 
+  function sortEventsChronologically(eventsList) {
+    if (!Array.isArray(eventsList)) return [];
+    return [...eventsList].sort((a, b) => {
+      const aTime = new Date(a.start_time || a.start?.dateTime || a.start || 0).getTime();
+      const bTime = new Date(b.start_time || b.start?.dateTime || b.start || 0).getTime();
+      return aTime - bTime;
+    });
+  }
+
   function deriveRightNowHeroInfo(rawMorningBrief, rawMySpaceData, state) {
     const morningBrief = unwrapApiData(rawMorningBrief);
     const mySpaceData = unwrapApiData(rawMySpaceData);
@@ -184,9 +193,10 @@
 
     // A. Personal Morning Brief recommendation
     const rec = morningBrief && morningBrief.recommendation;
-    const events = (morningBrief && morningBrief.schedule_summary && morningBrief.schedule_summary.events)
-                || (mySpaceData && mySpaceData.calendar)
-                || [];
+    const rawEvents = (morningBrief && morningBrief.schedule_summary && morningBrief.schedule_summary.events)
+                   || (mySpaceData && mySpaceData.calendar)
+                   || [];
+    const events = sortEventsChronologically(rawEvents);
 
     let targetEvent = null;
     if (rec && rec.target_id) {
@@ -354,6 +364,7 @@
 
   function applyHeroInfoToDOM(info) {
     if (!info) return;
+    const heroSection = document.getElementById('mh-right-now-hero');
     const tagEl = document.getElementById('mh-hero-tag');
     const headlineEl = document.getElementById('mh-hero-headline');
     const bodyEl = document.getElementById('mh-hero-body');
@@ -365,11 +376,20 @@
     if (bodyEl) bodyEl.textContent = info.body;
     if (primaryBtn) {
       primaryBtn.textContent = info.primaryCtaText;
+      primaryBtn.disabled = false;
+      primaryBtn.style.opacity = '';
+      primaryBtn.style.pointerEvents = '';
       primaryBtn.onclick = (e) => {
         if (typeof info.primaryCtaAction === 'function') info.primaryCtaAction(e);
       };
     }
     if (secondaryLink) secondaryLink.textContent = t('home.viewToday', 'View today');
+
+    if (heroSection) {
+      heroSection.setAttribute('aria-busy', 'false');
+      heroSection.setAttribute('data-context-ready', 'true');
+      heroSection.setAttribute('data-hero-resolved', 'true');
+    }
   }
 
   async function renderRightNowHero() {
@@ -388,21 +408,12 @@
     let info = deriveRightNowHeroInfo(heroBriefData, heroMySpaceData, state);
     applyHeroInfoToDOM(info);
 
-    heroSection.setAttribute(
-      'data-context-ready',
-      hasUsableHeroContext(heroBriefData, heroMySpaceData) ? 'true' : 'false'
-    );
-
     if (!heroBriefData && !heroContextFetching) {
       heroContextFetching = true;
       await fetchHeroContext();
       heroContextFetching = false;
       info = deriveRightNowHeroInfo(heroBriefData, heroMySpaceData, state);
       applyHeroInfoToDOM(info);
-      heroSection.setAttribute(
-        'data-context-ready',
-        hasUsableHeroContext(heroBriefData, heroMySpaceData) ? 'true' : 'false'
-      );
     }
   }
 

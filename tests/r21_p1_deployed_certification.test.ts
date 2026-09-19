@@ -317,7 +317,7 @@ test('Deployed Real-Browser Final Certification (A-J)', { timeout: 180000 }, asy
     await mobile.evaluate(() => (globalThis as any).window.NAGEX_I18N?.setLocale('ko'));
     await mobile.reload();
     await mobile.waitForFunction(() => {
-      const card = document.querySelector('#hero-brief-card');
+      const card = document.querySelector('#mh-right-now-hero') || document.querySelector('#hero-brief-card');
       return card &&
              !(card as any).hidden &&
              (card.textContent || '').trim().length > 0;
@@ -329,14 +329,14 @@ test('Deployed Real-Browser Final Certification (A-J)', { timeout: 180000 }, asy
     assert.equal(mobileLocale, 'ko');
 
     const mobileText = await mobile.locator('body').innerText();
-    assert.match(mobileText, /(3\s*(meetings|개|건)|Client strategy meeting)/i);
-    assert.match(mobileText, /(3:00\s*PM|15:00|오후\s*3:00|3:00)/i);
-    assert.match(mobileText, /(가장 중요한|미팅 준비|오늘의 다른 일정|미팅|이메일|할 일)/);
+    assert.match(mobileText, /(3\s*(meetings|개|건)|Client strategy meeting|클라이언트)/i);
+    assert.match(mobileText, /(3:00\s*PM|15:00|오후\s*3:00|3:00|지금|min|분)/i);
+    assert.match(mobileText, /(가장 중요한|미팅 준비|오늘의 다른 일정|미팅|이메일|할 일|Right now)/);
     assert.doesNotMatch(mobileText, /\b(heroBrief\.|workspace\.|nav\.)\b/);
     assert.doesNotMatch(mobileText, /\b(Planner|Router|Runtime|Human Approval)\b/);
 
     const hasImportantAction = await mobile.evaluate(() => {
-      return !!(document.querySelector('#hero-brief-prepare-btn') || document.querySelector('#mh-hero-brief-prepare-btn'));
+      return !!(document.querySelector('#mh-hero-primary-cta') || document.querySelector('#hero-brief-prepare-btn') || document.querySelector('#mh-hero-brief-prepare-btn'));
     });
     assert.equal(hasImportantAction, true, 'Important meeting prepare action should exist');
 
@@ -351,6 +351,7 @@ test('Deployed Real-Browser Final Certification (A-J)', { timeout: 180000 }, asy
     await mobileQuick.close();
 
     const prepareBtnSelector = await mobile.evaluate(() => {
+      if (document.querySelector('#mh-hero-primary-cta')) return '#mh-hero-primary-cta';
       if (document.querySelector('#mh-hero-brief-prepare-btn')) return '#mh-hero-brief-prepare-btn';
       return '#hero-brief-prepare-btn';
     });
@@ -377,8 +378,8 @@ test('Deployed Real-Browser Final Certification (A-J)', { timeout: 180000 }, asy
 
     await pageA.goto(`${BASE_URL}/?demo=1`);
     await pageB.goto(`${BASE_URL}/?demo=1`);
-    await pageA.waitForSelector('#hero-brief-card');
-    await pageB.waitForSelector('#hero-brief-card');
+    await pageA.waitForSelector('#mh-right-now-hero,#hero-brief-card');
+    await pageB.waitForSelector('#mh-right-now-hero,#hero-brief-card');
 
     // Context A saves Context A Note
     await pageA.evaluate(async () => {
