@@ -33,6 +33,8 @@ function getHeaderValue(headers: Record<string, string | string[] | undefined>, 
 }
 
 import type { ConversationMemoryExtractor } from '../../context/conversation-memory-extractor.js';
+import type { EvidencePackService } from '../../research/evidence-pack.service.js';
+import type { EvidencePack } from '../../research/evidence-pack.types.js';
 
 export interface ConversationRouteDeps {
   service: AiService;
@@ -43,6 +45,7 @@ export interface ConversationRouteDeps {
   auditLogger: AuditLogger;
   getRelevantMemories: (tenantId: string, principalId: string, prompt: string) => MemoryRecord[];
   memoryExtractor?: ConversationMemoryExtractor;
+  evidencePackService?: EvidencePackService;
 }
 
 export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps> = async (method, pathname, body, headers, _query, deps): Promise<ApiResult | undefined> => {
@@ -128,7 +131,8 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
     return { status: 200, data: { clearedCount } };
   }
   if (pathname === '/api/v1/ai/chat' && method === 'POST') {
-    const message = typeof body?.message === 'string' ? body.message.trim() : '';
+    const rawInput = body?.message ?? body?.prompt;
+    const message = typeof rawInput === 'string' ? rawInput.trim() : '';
     if (!message) throw new NagexError({ code: 'MESSAGE_REQUIRED', category: 'VALIDATION', message: 'message is required.', request_id: `req_${crypto.randomUUID()}` });
     const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
     const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
@@ -175,10 +179,50 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
 
     const memories = getRelevantMemories(tenantId, principalId, message);
 
+    let evidencePack: EvidencePack | undefined;
+    if (deps.evidencePackService) {
+      evidencePack = await deps.evidencePackService.buildEvidencePack(message, { requestId });
+      if (evidencePack.freshnessRequirement === 'REQUIRED' && !deps.evidencePackService.isWebSearchAvailable()) {
+        const notAvailMsg = "I can't verify current information right now because live web search is unavailable.";
+        const botMsgRecord = convStore.append({
+          tenantId,
+          principalId,
+          sessionId: session.sessionId,
+          role: 'ASSISTANT',
+          source: 'SYSTEM',
+          content: notAvailMsg,
+          requestId,
+        });
+
+        auditLogger.logEvent({
+          actor: { type: 'user', id: principalId },
+          tenant_id: tenantId,
+          action: 'conversation.message.created',
+          resource: { type: 'ConversationMessage', id: botMsgRecord.messageId },
+          result: 'SUCCESS',
+          request_id: requestId,
+          details: { sessionId: session.sessionId, messageId: botMsgRecord.messageId, role: 'ASSISTANT', source: 'SYSTEM' },
+        });
+
+        return {
+          status: 200,
+          data: {
+            message: notAvailMsg,
+            messageId: botMsgRecord.messageId,
+            sessionId: session.sessionId,
+            freshness: evidencePack.freshnessRequirement,
+            evidencePack,
+            sources: [],
+          },
+        };
+      }
+    }
+
     const result = await service.chat({
       message,
       conversation,
       memories,
+      evidencePack,
       mode: parseRoutingMode(body?.provider, process.env.NAGEX_MODEL_PROVIDER),
       requestId,
     });

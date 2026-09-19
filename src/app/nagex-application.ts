@@ -84,8 +84,14 @@ import type { SocialIdentityStore } from '../identity/social-identity.store.js';
 import type { PersonalReminderStore } from '../personal/personal-reminder.store.js';
 import type { PersonalAssistantEngine } from '../personal/personal-assistant.engine.js';
 import type { DemoScenarioService } from '../demo/demo-scenario.service.js';
+import type { QuestionClassificationService } from '../research/question-classification.service.js';
+import type { WebSearchService } from '../research/web-search.service.js';
+import type { EvidencePackService } from '../research/evidence-pack.service.js';
 
 export interface NagexApplication {
+  questionClassificationService: QuestionClassificationService;
+  webSearchService: WebSearchService;
+  evidencePackService: EvidencePackService;
   demoScenarioService: DemoScenarioService;
   personalReminderStore: PersonalReminderStore;
   personalAssistantEngine: PersonalAssistantEngine;

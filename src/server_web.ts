@@ -29,6 +29,7 @@ import { handleGovernanceRoutes, executionHistory } from './http/routes/governan
 import { handleProvidersRoutes } from './http/routes/providers.routes.js';
 import { handleSafetyRoutes } from './http/routes/safety.routes.js';
 import { handleConversationRoutes, handleSessionRoutes } from './http/routes/conversation.routes.js';
+import { handleResearchRoutes } from './http/routes/research.routes.js';
 import { handleDailyBriefRoutes } from './http/routes/daily-brief.routes.js';
 import { handlePersonalAssistantRoutes } from './http/routes/personal-assistant.routes.js';
 import { handleCapabilitiesRoutes } from './http/routes/capabilities.routes.js';
@@ -410,8 +411,13 @@ export async function handleAsyncApiRequest(
     // (conversations/main GET/POST-messages/DELETE, ai/chat, ambient/
     // intent, plans/resolve).
     {
-      const conversationResult = await handleConversationRoutes(method, pathname, body, headers, query, { service, planResolver, sessionStore, convStore, convContextService, auditLogger, getRelevantMemories, memoryExtractor: app.conversationMemoryExtractor });
+      const conversationResult = await handleConversationRoutes(method, pathname, body, headers, query, { service, planResolver, sessionStore, convStore, convContextService, auditLogger, getRelevantMemories, memoryExtractor: app.conversationMemoryExtractor, evidencePackService: app.evidencePackService });
       if (conversationResult) return conversationResult;
+    }
+    // R22.4 — Live Research Endpoint (POST /api/v1/research)
+    {
+      const researchResult = await handleResearchRoutes(method, pathname, body, headers, query, { evidencePackService: app.evidencePackService, aiService: service, modelErrorResult, getRelevantMemories });
+      if (researchResult) return researchResult;
     }
     // R10.2-D Increment 4 — Google OAuth callback/status/disconnect.
     {

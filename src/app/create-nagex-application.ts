@@ -104,6 +104,9 @@ import { PersonalAssistantEngine } from '../personal/personal-assistant.engine.j
 import { DemoScenarioService } from '../demo/demo-scenario.service.js';
 import { SocialIdentityStore } from '../identity/social-identity.store.js';
 import { LifecycleManager } from './lifecycle-manager.js';
+import { QuestionClassificationService } from '../research/question-classification.service.js';
+import { WebSearchService } from '../research/web-search.service.js';
+import { EvidencePackService } from '../research/evidence-pack.service.js';
 
 export function createNagexApplication(): NagexApplication {
   const demoScenarioService = new DemoScenarioService();
@@ -228,6 +231,10 @@ export function createNagexApplication(): NagexApplication {
     gmailService,
   });
 
+  const questionClassificationService = new QuestionClassificationService();
+  const webSearchService = new WebSearchService();
+  const evidencePackService = new EvidencePackService(questionClassificationService, webSearchService);
+
   const capabilityBroker = new CapabilityBroker(
     googleCalendarService,
     gmailService,
@@ -240,6 +247,7 @@ export function createNagexApplication(): NagexApplication {
     moduleStateStore,
     deviceControlService,
     desktopControlService,
+    webSearchService,
   );
 
   // ─── MASTER.md Section 14 — Main Session + Tasks Foundation ───
@@ -474,6 +482,9 @@ export function createNagexApplication(): NagexApplication {
   });
 
   return {
+    questionClassificationService,
+    webSearchService,
+    evidencePackService,
     demoScenarioService,
     socialIdentityStore,
     personalReminderStore,

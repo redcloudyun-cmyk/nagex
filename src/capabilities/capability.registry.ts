@@ -52,6 +52,9 @@ export class CapabilityRegistry {
       // SET_VALUE/INVOKE/TOGGLE/SELECT/SCROLL) propose and freeze an
       // approval before ever reaching the isolated desktop.
       { id: 'device.desktop.execute', provider: 'DEVICE_DESKTOP', risk: 'DYNAMIC', approval: 'CONDITIONAL', enabled: true },
+
+      // Web Search (R22.4) — Evidence-first research foundation
+      { id: 'web.search', provider: 'WEB_SEARCH', risk: 'READ_ONLY', approval: 'NONE', enabled: true },
     ];
 
     for (const def of defaults) {

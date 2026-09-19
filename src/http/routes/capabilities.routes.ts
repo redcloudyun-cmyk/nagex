@@ -6,15 +6,32 @@
 // direct tool/provider call is introduced.
 import { NagexError } from '../../common/errors.js';
 import type { CapabilityBroker } from '../../capabilities/index.js';
+import type { WebSearchService } from '../../research/web-search.service.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
 
 export interface CapabilitiesRouteDeps {
   capabilityBroker: CapabilityBroker;
   modelErrorResult: (error: unknown) => ApiResult;
+  webSearchService?: WebSearchService;
 }
 
 export const handleCapabilitiesRoutes: AsyncRouteRegistrar<CapabilitiesRouteDeps> = async (method, pathname, body, headers, _query, deps): Promise<ApiResult | undefined> => {
-  const { capabilityBroker, modelErrorResult } = deps;
+  const { capabilityBroker, modelErrorResult, webSearchService } = deps;
+
+  if (pathname === '/api/v1/capabilities/status' && method === 'GET') {
+    const isAvailable = webSearchService ? webSearchService.isAvailable() : capabilityBroker.isProviderAvailable('WEB_SEARCH');
+    const status = isAvailable ? 'AVAILABLE' : 'UNAVAILABLE';
+    return {
+      status: 200,
+      data: {
+        webSearch: status,
+        'web.search': status,
+        capabilities: {
+          'web.search': status,
+        },
+      },
+    };
+  }
 
   if (pathname === '/api/v1/capabilities/execute' && method === 'POST') {
     const tenantId = (Array.isArray(headers['x-nagex-tenant']) ? headers['x-nagex-tenant'][0] : headers['x-nagex-tenant']) || 'ten_production_01';

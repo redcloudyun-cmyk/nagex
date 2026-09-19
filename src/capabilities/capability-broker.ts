@@ -15,6 +15,7 @@ import type { GmailPort, GmailWriteExecutionPort } from '../contracts/gmail.port
 import type { BrowserPort } from '../contracts/browser.port.js';
 import type { DeviceControlService } from '../device-control/device-control.service.js';
 import type { DesktopControlService } from '../device-agent/desktop-control.service.js';
+import type { WebSearchService } from '../research/web-search.service.js';
 
 export interface CapabilityIdempotencyRecord {
   key: string;
@@ -84,7 +85,8 @@ export class CapabilityBroker {
     // DC3-B2 — additive, optional, trailing, same graceful-degradation
     // pattern as deviceControlService: absent, 'DEVICE_DESKTOP'
     // capabilities simply report unavailable via isProviderAvailable().
-    private readonly desktopControlService?: DesktopControlService
+    private readonly desktopControlService?: DesktopControlService,
+    private readonly webSearchService?: WebSearchService
   ) {
     const dataDir = resolveNagexDataDir(idempotencyDirName, idempotencyEnvVar);
     this.idempotencyStore = new FileRecordStore<CapabilityIdempotencyRecord>(
@@ -266,13 +268,14 @@ export class CapabilityBroker {
     return result;
   }
 
-  private isProviderAvailable(provider?: string): boolean {
+  public isProviderAvailable(provider?: string): boolean {
     if (!provider) return false;
     if (provider === 'GOOGLE_CALENDAR') return Boolean(this.calendarService);
     if (provider === 'GMAIL') return Boolean(this.gmailService);
     if (provider === 'BROWSER') return Boolean(this.browserService);
     if (provider === 'DEVICE') return Boolean(this.deviceControlService);
     if (provider === 'DEVICE_DESKTOP') return Boolean(this.desktopControlService) && this.desktopControlService!.isReady();
+    if (provider === 'WEB_SEARCH') return Boolean(this.webSearchService) && this.webSearchService!.isAvailable();
     return false;
   }
 
@@ -699,6 +702,19 @@ export class CapabilityBroker {
           return { status: 'APPROVAL_REQUIRED', capabilityId: request.capabilityId, approval: outcome.approval };
         }
         return { status: 'EXECUTED', capabilityId: request.capabilityId, result: outcome };
+      }
+    }
+
+    if (def.provider === 'WEB_SEARCH') {
+      if (request.capabilityId === 'web.search') {
+        const query = typeof payload.query === 'string' ? payload.query : '';
+        const maxResults = typeof payload.maxResults === 'number' ? payload.maxResults : 5;
+        const results = await this.webSearchService!.search({
+          query,
+          maxResults,
+          requestId: request.requestId,
+        });
+        return { status: 'EXECUTED', capabilityId: request.capabilityId, result: { results } };
       }
     }
 

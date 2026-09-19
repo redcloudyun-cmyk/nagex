@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { NagexError } from '../common/errors.js';
 import type { MemoryRecord } from '../context/memory.engine.js';
+import type { EvidencePack, EvidenceSource } from '../research/evidence-pack.types.js';
 import type { RoutingMode } from './model-provider.js';
 import { UnifiedModelRouter } from './unified-model-router.js';
 
@@ -377,6 +378,15 @@ function summarizeConversation(conversation?: Array<{ role: 'user' | 'assistant'
   return conversation.map((msg) => `${msg.role.toUpperCase()}: ${msg.content}`).join('\n');
 }
 
+function summarizeEvidencePack(pack?: EvidencePack): string {
+  if (!pack || !pack.sources || pack.sources.length === 0) {
+    return '(No external evidence retrieved)';
+  }
+  return pack.sources
+    .map((s) => `[${s.sourceId}] Title: ${s.title}\nURL: ${s.url}\nSnippet: ${s.snippet || '(no snippet)'}\nPublished: ${s.publishedAt || 'UNDATED'} (Status: ${s.freshnessStatus})`)
+    .join('\n\n');
+}
+
 export class AiService {
   constructor(private readonly router: UnifiedModelRouter) {}
 
@@ -491,12 +501,16 @@ export class AiService {
     requestId?: string;
     conversation?: Array<{ role: 'user' | 'assistant'; content: string }>;
     memories?: MemoryRecord[];
-  }): Promise<AiServiceResponse<{ message: string }>> {
+    evidencePack?: EvidencePack;
+  }): Promise<AiServiceResponse<{ message: string; evidencePackId?: string; sources?: EvidenceSource[] }>> {
     const requestId = input.requestId || `chat_${randomUUID()}`;
     const systemContent = [
       'You are NAgex, a personal AI assistant. Be concise and do not claim that tools were executed.',
       input.memories && input.memories.length > 0
         ? `Relevant personal memory:\n${summarizeMemories(input.memories)}`
+        : null,
+      input.evidencePack && input.evidencePack.sources.length > 0
+        ? `Retrieved External Evidence Pack (ID: ${input.evidencePack.evidencePackId}):\n${summarizeEvidencePack(input.evidencePack)}\n\nInstructions for Evidence: Distinguish supported facts from inference. Refer to source IDs (e.g. [src_1]). Do not fabricate citations or URLs not present in the Evidence Pack.`
         : null,
     ]
       .filter((line): line is string => line !== null)
@@ -519,7 +533,59 @@ export class AiService {
       requestId,
       messages,
     });
-    return { data: { message: response.text }, provider: response.provider, model: response.model, latencyMs: response.latencyMs, requestId: response.requestId };
+    return {
+      data: {
+        message: response.text,
+        evidencePackId: input.evidencePack?.evidencePackId,
+        sources: input.evidencePack?.sources,
+      },
+      provider: response.provider,
+      model: response.model,
+      latencyMs: response.latencyMs,
+      requestId: response.requestId,
+    };
+  }
+
+  public async research(input: {
+    query: string;
+    evidencePack: EvidencePack;
+    memories?: MemoryRecord[];
+    mode?: RoutingMode;
+    requestId?: string;
+  }): Promise<AiServiceResponse<{ answer: string; evidencePackId: string; sources: EvidenceSource[] }>> {
+    const requestId = input.requestId || `research_${randomUUID()}`;
+    const mode = input.mode || 'auto';
+
+    const systemContent = [
+      'You are NAgex, an evidence-grounded research assistant.',
+      'Always base your findings on the provided External Evidence Pack. Distinguish supported facts from inference. Acknowledge evidence gaps when evidence is insufficient.',
+      'Never fabricate source URLs or publication dates. Refer to evidence source IDs in your answer.',
+      input.memories && input.memories.length > 0 ? `Relevant personal memory:\n${summarizeMemories(input.memories)}` : null,
+      `External Evidence Pack (ID: ${input.evidencePack.evidencePackId}):\n${summarizeEvidencePack(input.evidencePack)}`,
+    ]
+      .filter((line): line is string => line !== null)
+      .join('\n\n');
+
+    const response = await this.router.generate({
+      mode,
+      requestId,
+      messages: [
+        { role: 'system', content: systemContent },
+        { role: 'user', content: `Research query: ${input.query}` },
+      ],
+    });
+
+    return {
+      data: {
+        answer: response.text,
+        evidencePackId: input.evidencePack.evidencePackId,
+        sources: input.evidencePack.sources,
+      },
+      provider: response.provider,
+      model: response.model,
+      latencyMs: response.latencyMs,
+      requestId: response.requestId,
+    };
   }
 
   public async plan(input: { prompt: string; memories: MemoryRecord[]; mode: RoutingMode; requestId?: string; conversation?: Array<{ role: 'user' | 'assistant'; content: string }> }): Promise<AiServiceResponse<PlanPreview>> {
