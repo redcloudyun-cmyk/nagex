@@ -290,11 +290,9 @@
   async function fetchHeroContext() {
     if (!window.NAGEX || typeof window.NAGEX.apiFetch !== 'function') return;
     try {
-      const isKo = window.NAGEX_I18N && window.NAGEX_I18N.getLocale() === 'ko';
-      const headers = isKo ? { 'Accept-Language': 'ko', 'X-NAgex-Locale': 'ko' } : {};
       const [mb, ms] = await Promise.all([
-        window.NAGEX.apiFetch('/api/v1/personal/morning-brief', { headers }),
-        window.NAGEX.apiFetch('/api/v1/my-space', { headers })
+        window.NAGEX.apiFetch('/api/v1/personal/morning-brief'),
+        window.NAGEX.apiFetch('/api/v1/my-space')
       ]);
       if (mb && !mb.error) heroBriefData = unwrapApiData(mb);
       if (ms && !ms.error) heroMySpaceData = unwrapApiData(ms);
