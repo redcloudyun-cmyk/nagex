@@ -89,7 +89,27 @@
   }
 
   // ── B. Right Now Hero ──
-  function formatHeroHeadline(title, startTimeIso, isKo) {
+  function isEventValidForHero(e) {
+    if (!e) return false;
+    const startTimeIso = e.start_time || e.start?.dateTime || e.start;
+    if (!startTimeIso) return true;
+    const eventTime = new Date(startTimeIso).getTime();
+    if (isNaN(eventTime)) return true;
+
+    const now = Date.now();
+    const endTimeIso = e.end_time || e.end?.dateTime || e.end;
+    if (endTimeIso) {
+      const endTime = new Date(endTimeIso).getTime();
+      if (!isNaN(endTime)) {
+        return now <= endTime;
+      }
+    }
+
+    const diffMinutes = Math.round((eventTime - now) / 60000);
+    return diffMinutes >= -30;
+  }
+
+  function formatHeroHeadline(title, startTimeIso, isKo, endTimeIso) {
     let baseTitle = title || (isKo ? '클라이언트 미팅' : 'Client meeting');
 
     if (!startTimeIso) {
@@ -99,7 +119,8 @@
     const eventTime = new Date(startTimeIso).getTime();
     if (isNaN(eventTime)) return baseTitle;
 
-    const diffMinutes = Math.round((eventTime - Date.now()) / 60000);
+    const now = Date.now();
+    const diffMinutes = Math.round((eventTime - now) / 60000);
 
     if (diffMinutes > 60) {
       const timeStrRaw = new Date(startTimeIso).toLocaleTimeString(isKo ? 'ko-KR' : 'en-US', {
@@ -119,10 +140,25 @@
         return `${baseTitle} in ${diffMinutes} min`;
       }
     } else {
-      if (isKo) {
-        return `${baseTitle} 진행 중`;
+      let isNow = false;
+      if (endTimeIso) {
+        const endTime = new Date(endTimeIso).getTime();
+        if (!isNaN(endTime)) {
+          isNow = now >= eventTime && now <= endTime;
+        }
+      }
+      if (!endTimeIso || isNaN(new Date(endTimeIso).getTime())) {
+        isNow = diffMinutes >= -30;
+      }
+
+      if (isNow) {
+        if (isKo) {
+          return `${baseTitle} 진행 중`;
+        } else {
+          return `${baseTitle} now`;
+        }
       } else {
-        return `${baseTitle} now`;
+        return baseTitle;
       }
     }
   }
@@ -162,11 +198,11 @@
         return et && rec.title.includes(et);
       });
     }
+    if (targetEvent && !isEventValidForHero(targetEvent)) {
+      targetEvent = null;
+    }
     if (!targetEvent && events.length > 0) {
-      targetEvent = events.find((e) => {
-        const st = new Date(e.start_time || e.start?.dateTime || e.start).getTime();
-        return !isNaN(st) && st >= Date.now() - 30 * 60 * 1000;
-      }) || events[0];
+      targetEvent = events.find((e) => isEventValidForHero(e)) || null;
     }
 
     if (rec || targetEvent) {
@@ -176,7 +212,8 @@
       rawTitle = rawTitle.replace(/\s*·\s*.*$/, '').trim();
 
       const startTimeIso = targetEvent ? (targetEvent.start_time || targetEvent.start?.dateTime || targetEvent.start) : null;
-      const headline = formatHeroHeadline(rawTitle, startTimeIso, isKo);
+      const endTimeIso = targetEvent ? (targetEvent.end_time || targetEvent.end?.dateTime || targetEvent.end) : null;
+      const headline = formatHeroHeadline(rawTitle, startTimeIso, isKo, endTimeIso);
 
       let body = (rec && rec.reason) || (targetEvent && targetEvent.description) || '';
       if (!body && targetEvent) {
@@ -212,11 +249,13 @@
     }
 
     // B. Upcoming Calendar Event (without recommendation)
-    if (events.length > 0) {
-      const ev = events[0];
+    const validUpcomingEvents = events.filter(isEventValidForHero);
+    if (validUpcomingEvents.length > 0) {
+      const ev = validUpcomingEvents[0];
       const rawTitle = ev.title || ev.summary || (isKo ? '미팅' : 'Meeting');
       const startTimeIso = ev.start_time || ev.start?.dateTime || ev.start;
-      const headline = formatHeroHeadline(rawTitle, startTimeIso, isKo);
+      const endTimeIso = ev.end_time || ev.end?.dateTime || ev.end;
+      const headline = formatHeroHeadline(rawTitle, startTimeIso, isKo, endTimeIso);
       const actionType = 'MEETING_PREP';
       const targetId = ev.id || ev.event_id || 'demo_evt_client';
 
@@ -636,6 +675,8 @@
 
   function init() {
     window.NAGEX = window.NAGEX || {};
+    window.NAGEX.deriveRightNowHeroInfo = deriveRightNowHeroInfo;
+    window.NAGEX.formatHeroHeadline = formatHeroHeadline;
     window.NAGEX.onHomeRenderMobile = () => { if (isMobileViewport() && activeNativeTab() === 'tab-home') renderMobileHome(); };
     window.NAGEX.onTabChange = updateShellVisibility;
     window.NAGEX.bindMobileLangToggle = bindLangToggle;

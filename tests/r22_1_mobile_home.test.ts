@@ -17,6 +17,11 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
 
   let heroContextDerivationPass = false;
   let heroTimeTruthfulnessPass = false;
+  let composerVisible360 = false;
+  let composerVisible390 = false;
+  let composerVisible430 = false;
+  let bottomNavOcclusionCount = 0;
+  let heroStaleEventAsNowCount = 0;
 
   try {
     const viewports = [
@@ -164,6 +169,64 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
       assert.doesNotMatch(preparedText, /Research completed/i, 'Unexecuted research must never be claimed as completed');
       assert.match(preparedText, /Research plan/i, 'Unexecuted research must say Research plan ready');
 
+      // K. Composer Visibility Check in initial viewport above bottom nav
+      const composerBox = await pageEn.locator('#mh-command-bar').boundingBox();
+      const navBox = await pageEn.locator('.mh-bottom-nav').boundingBox();
+
+      assert.ok(composerBox, `Composer command bar must exist in viewport ${vp.name}`);
+      assert.ok(navBox, `Bottom nav must exist in viewport ${vp.name}`);
+      assert.ok(
+        composerBox.y >= 0 && composerBox.y + composerBox.height <= vp.height + 1,
+        `Composer must be accessible within viewport ${vp.name} (composer y=${composerBox.y}, height=${composerBox.height}, viewport=${vp.height})`
+      );
+      assert.ok(
+        composerBox.y + composerBox.height <= navBox.y + 2,
+        `Composer must not overlap bottom nav in viewport ${vp.name} (composer bottom=${composerBox.y + composerBox.height}, nav top=${navBox.y})`
+      );
+
+      if (vp.name === '360') composerVisible360 = true;
+      if (vp.name === '390') composerVisible390 = true;
+      if (vp.name === '430') composerVisible430 = true;
+
+      // L. Bottom Nav Content Occlusion Check
+      await pageEn.evaluate(() => {
+        const scrollEl = (globalThis as any).document.querySelector('#mobile-view-home');
+        if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
+      });
+
+      const lastTodayRow = pageEn.locator('#mh-today-list .mh-today-row').last();
+      const lastRowBox = await lastTodayRow.boundingBox();
+      const scrolledComposerBox = await pageEn.locator('#mh-command-bar').boundingBox();
+      const scrolledNavBox = await pageEn.locator('.mh-bottom-nav').boundingBox();
+
+      if (lastRowBox && scrolledNavBox) {
+        const obstacleTop = scrolledComposerBox ? scrolledComposerBox.y : scrolledNavBox.y;
+        const isOccluded = lastRowBox.y + lastRowBox.height > obstacleTop + 2;
+        if (isOccluded) {
+          bottomNavOcclusionCount++;
+        }
+        assert.equal(
+          isOccluded,
+          false,
+          `Last Today row must not be occluded by bottom nav/composer (row bottom=${lastRowBox.y + lastRowBox.height}, obstacle top=${obstacleTop})`
+        );
+      }
+
+      // M. Stale Event As Now Check
+      const isStaleAsNow = await pageEn.evaluate(() => {
+        const nag = (globalThis as any).window.NAGEX;
+        if (!nag || typeof nag.formatHeroHeadline !== 'function') return false;
+        const now = Date.now();
+        const pastStart = new Date(now - 90 * 60 * 1000).toISOString();
+        const pastEnd = new Date(now - 40 * 60 * 1000).toISOString();
+        const headline = nag.formatHeroHeadline('Past Event', pastStart, false, pastEnd);
+        return /now|진행 중/i.test(headline);
+      });
+      if (isStaleAsNow) {
+        heroStaleEventAsNowCount++;
+      }
+      assert.equal(isStaleAsNow, false, 'Past stale event must not be formatted as now');
+
       await shot(pageEn, `${vp.name}_home_en.png`);
       await pageEn.close();
 
@@ -261,6 +324,11 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
     assert.equal(heroContextDerivationPass, true, 'HERO_CONTEXT_DERIVATION must pass');
     assert.equal(heroTimeTruthfulnessPass, true, 'HERO_TIME_TRUTHFULNESS must pass');
 
+    console.log(`COMPOSER_VISIBLE_360=${composerVisible360 ? 'PASS' : 'FAIL'}`);
+    console.log(`COMPOSER_VISIBLE_390=${composerVisible390 ? 'PASS' : 'FAIL'}`);
+    console.log(`COMPOSER_VISIBLE_430=${composerVisible430 ? 'PASS' : 'FAIL'}`);
+    console.log(`BOTTOM_NAV_OCCLUSION=${bottomNavOcclusionCount}`);
+    console.log(`HERO_STALE_EVENT_AS_NOW=${heroStaleEventAsNowCount}`);
     console.log('HERO_CONTEXT_DERIVATION=PASS');
     console.log('HERO_TIME_TRUTHFULNESS=PASS');
     console.log('HERO_HARDCODED_COUNTDOWN=0');
