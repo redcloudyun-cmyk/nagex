@@ -1635,13 +1635,12 @@
         </div>
       </header>
 
-      <!-- Real, taxonomy-grounded filter — no invented categories. -->
+      <!-- Human-intent activity filters (R22.2). -->
       <div class="mh-activity-filter-row" id="mh-activity-filter-row">
         <button class="mh-activity-filter-pill active" data-mh-filter="ALL" data-i18n="mobileActivity.filterAll">All</button>
-        <button class="mh-activity-filter-pill" data-mh-filter="TASKS" data-i18n="mobileActivity.filterTasks">Tasks</button>
-        <button class="mh-activity-filter-pill" data-mh-filter="CAPTURES" data-i18n="mobileActivity.filterCaptures">Captures</button>
-        <button class="mh-activity-filter-pill" data-mh-filter="DEVICE" data-i18n="mobileActivity.filterDevice">Device</button>
-        <button class="mh-activity-filter-pill" data-mh-filter="SUGGESTIONS" data-i18n="mobileActivity.filterSuggestions">Suggestions</button>
+        <button class="mh-activity-filter-pill" data-mh-filter="NEEDS_YOU" data-i18n="mobileActivity.filterNeedsYou">Needs you</button>
+        <button class="mh-activity-filter-pill" data-mh-filter="COMPLETED" data-i18n="mobileActivity.filterCompleted">Completed</button>
+        <button class="mh-activity-filter-pill" data-mh-filter="FAILED" data-i18n="mobileActivity.filterFailed">Failed</button>
       </div>
 
       <div id="mh-activity-list"><div class="nagex-loading-row"></div></div>
@@ -1649,13 +1648,9 @@
       <div class="mh-bottom-spacer" aria-hidden="true"></div>
     </div>
 
-    <!-- Mobile Vault native view (UI-5 R4). Real GET /api/v1/workspace/vault
-         (quota/category/storage summary only) + window.NAGEX.getState().inbox
-         (the real, uncapped CaptureItem[] — /vault's own recentItems is
-         hard-capped at 10 server-side) — see mobile/mobile-vault.js.
-         Vault/CaptureItem only: never Memory, never Knowledge. Mutually
-         exclusive with the other native views via [hidden], all managed
-         only by mobile-home.js's updateShellVisibility(). -->
+    <!-- Mobile Vault native view (R22.2 Contextual UX). Real GET /api/v1/workspace/vault
+         rendering canonical VaultItem[] items array.
+         Mutually exclusive with the other native views via [hidden]. -->
     <div id="mobile-view-vault" class="mh-scroll" hidden>
       <header class="mh-header">
         <div class="mh-brand">
@@ -1667,8 +1662,24 @@
         </div>
       </header>
 
-      <!-- Real storage summary — same truthful provider/quota logic as
-           Desktop's renderVault(), never hidden/simplified away. -->
+      <!-- Client-side substring search over canonical VaultItem dataset. -->
+      <div class="mh-vault-search-row">
+        <input type="search" id="mh-vault-search-input" class="mh-vault-search-input" data-i18n-placeholder="mobileVault.searchPlaceholder" placeholder="Search Vault...">
+      </div>
+
+      <!-- VaultItem-grounded filters (R22.2). -->
+      <div class="mh-vault-filter-row" id="mh-vault-filter-row">
+        <button class="mh-vault-filter-pill active" data-mh-filter="ALL" data-i18n="mobileVault.filterAll">All</button>
+        <button class="mh-vault-filter-pill" data-mh-filter="RESULTS" data-i18n="mobileVault.filterResults">Results</button>
+        <button class="mh-vault-filter-pill" data-mh-filter="DOCUMENTS" data-i18n="mobileVault.filterDocuments">Documents</button>
+        <button class="mh-vault-filter-pill" data-mh-filter="LINKS" data-i18n="mobileVault.filterLinks">Links</button>
+        <button class="mh-vault-filter-pill" data-mh-filter="REFERENCES" data-i18n="mobileVault.filterReferences">References</button>
+      </div>
+
+      <!-- Primary saved content list (R22.2) -->
+      <div id="mh-vault-list"><div class="nagex-loading-row"></div></div>
+
+      <!-- Secondary storage summary card placed BELOW main content list (R22.2 §10) -->
       <div class="mh-vault-storage-card" id="mh-vault-storage-card">
         <div class="mh-vault-storage-row">
           <span class="mh-vault-storage-label" id="mh-vault-storage-label">Local Development Vault</span>
@@ -1678,24 +1689,6 @@
           <div class="mh-vault-quota-fill" id="mh-vault-quota-fill" style="width: 0%;"></div>
         </div>
       </div>
-
-      <!-- Real, client-side-only substring search over already-loaded
-           CaptureItem[] — no refetch per keystroke. -->
-      <div class="mh-vault-search-row">
-        <input type="search" id="mh-vault-search-input" class="mh-vault-search-input" data-i18n-placeholder="mobileVault.searchPlaceholder" placeholder="Search Vault...">
-      </div>
-
-      <!-- Real, taxonomy-grounded filter (Files/Links/Audio/Notes = real
-           CaptureType values) — combinable with search, both client-side. -->
-      <div class="mh-vault-filter-row" id="mh-vault-filter-row">
-        <button class="mh-vault-filter-pill active" data-mh-filter="ALL" data-i18n="mobileVault.filterAll">All</button>
-        <button class="mh-vault-filter-pill" data-mh-filter="FILE" data-i18n="mobileVault.filterFiles">Files</button>
-        <button class="mh-vault-filter-pill" data-mh-filter="LINK" data-i18n="mobileVault.filterLinks">Links</button>
-        <button class="mh-vault-filter-pill" data-mh-filter="AUDIO" data-i18n="mobileVault.filterAudio">Audio</button>
-        <button class="mh-vault-filter-pill" data-mh-filter="TEXT" data-i18n="mobileVault.filterNotes">Notes</button>
-      </div>
-
-      <div id="mh-vault-list"><div class="nagex-loading-row"></div></div>
 
       <div class="mh-bottom-spacer" aria-hidden="true"></div>
     </div>

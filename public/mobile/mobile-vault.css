@@ -137,6 +137,12 @@
   gap: 8px;
   margin-top: 6px;
 }
+.mh-vault-provenance-line {
+  font-size: 11px;
+  color: var(--nagex-text-muted);
+  margin-top: 3px;
+  font-weight: 500;
+}
 .mh-vault-timestamp {
   font-size: 10.5px;
   color: var(--nagex-text-muted);

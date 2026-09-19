@@ -1,21 +1,5 @@
-// NAgex Mobile Activity (UI-5 R3) — a native view inside the shared
-// #mobile-app-shell (see mobile-home.js's updateShellVisibility(), the
-// ONLY place deciding when #mobile-view-activity is shown). Never
-// rendered while hidden — mobile-home.js only calls
-// window.NAGEX.renderMobileActivity() when the active tab really is
-// 'tab-executions' on a real mobile viewport.
-//
-// Data: real GET /api/v1/activity?limit=30 only — the same ActivityStore
-// projection Desktop's renderActivity() (public/app.js) already reads,
-// just with a smaller limit sized for a phone screen. No new backend
-// endpoint, no invented field (no actor/category/metadata/success/
-// failure/actionable/priority/score — see the R3 preflight for the
-// verified real ActivityItem shape). a.title/a.description are already
-// real, human-authored content written at record time (see
-// src/workspace/capture-processor.ts, action-resolver.ts,
-// desktop-activity-adapter.ts) — never re-summarized, rewritten, or run
-// through any LLM here. Only the status badge is translated, because
-// that is UI chrome (an enum), not user data.
+// NAgex Mobile Activity (R22.2 Contextual UX)
+// Human-intent grouping (NEEDS YOU, NOW, RECENT) and progressive disclosure.
 (function () {
   'use strict';
 
@@ -36,15 +20,17 @@
     return s.length > max ? `${s.slice(0, max)}…` : s;
   }
 
-  // ── Real, taxonomy-grounded filter mapping (R3 directive §8) — no
-  // invented Approval/System/Agent category, since no real ActivityItem
-  // type backs any of those today (verified in the R3 preflight). ──
+  function unwrapApiData(res) {
+    if (!res) return null;
+    return res.data !== undefined ? res.data : res;
+  }
+
+  // Real statuses: RUNNING, COMPLETED, FAILED, NEEDS_ATTENTION
   function matchesFilter(item, filter) {
     if (filter === 'ALL') return true;
-    if (filter === 'TASKS') return item.type === 'candidate.action.task';
-    if (filter === 'CAPTURES') return item.type.indexOf('capture.') === 0;
-    if (filter === 'DEVICE') return item.type === 'desktop_execution';
-    if (filter === 'SUGGESTIONS') return item.type.indexOf('candidate.action.') === 0 && item.type !== 'candidate.action.task';
+    if (filter === 'NEEDS_YOU') return item.status === 'NEEDS_ATTENTION' || item.status === 'FAILED';
+    if (filter === 'COMPLETED') return item.status === 'COMPLETED';
+    if (filter === 'FAILED') return item.status === 'FAILED';
     return true;
   }
 
@@ -54,25 +40,19 @@
     capture: `<svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>`,
   };
 
-  // Icon family from the real type string only — desktop_execution /
-  // candidate.action.* / capture.* — never a per-exact-type icon set
-  // (directive §10: only the three real families).
   function typeIcon(type) {
     if (type === 'desktop_execution') return ICONS.device;
-    if (type.indexOf('candidate.action.') === 0) return ICONS.action;
-    if (type.indexOf('capture.') === 0) return ICONS.capture;
+    if (type && type.indexOf('candidate.action.') === 0) return ICONS.action;
+    if (type && type.indexOf('capture.') === 0) return ICONS.capture;
     return ICONS.action;
   }
 
   function typeIconVariant(type) {
     if (type === 'desktop_execution') return 'mh-row-icon-blue';
-    if (type.indexOf('capture.') === 0) return 'mh-row-icon-warning';
+    if (type && type.indexOf('capture.') === 0) return 'mh-row-icon-warning';
     return 'mh-row-icon-success';
   }
 
-  // ── Status: real enum → translated human label + real badge variant.
-  // Never the raw enum text (directive §11 — Desktop's own view still
-  // shows it raw; not fixed there, fixed here). ──
   function statusLabel(status) {
     const map = {
       RUNNING: t('mobileActivity.statusRunning', 'Running'),
@@ -88,53 +68,54 @@
     return map[status] || 'muted';
   }
 
-  // ── Date grouping — deterministic from real occurredAt only, local
-  // calendar-day comparison (directive §7). Order within/between groups
-  // stays exactly the server's own occurredAt DESC — grouping never
-  // re-sorts. ──
-  function dayKey(dateStr) {
-    const d = new Date(dateStr);
-    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-  }
+  // Primary human intent grouping (R22.2 Section 1 & 7):
+  // 1. NEEDS YOU: status === NEEDS_ATTENTION or FAILED
+  // 2. NOW: status === RUNNING
+  // 3. RECENT: COMPLETED and remaining items
+  function groupItemsByIntent(items) {
+    const needsYou = [];
+    const now = [];
+    const recent = [];
 
-  function groupByDate(items) {
-    const now = new Date();
-    const todayKey = dayKey(now.toISOString());
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayKey = dayKey(yesterday.toISOString());
-
-    const groups = { today: [], yesterday: [], older: [] };
     items.forEach((item) => {
-      const key = dayKey(item.occurredAt);
-      if (key === todayKey) groups.today.push(item);
-      else if (key === yesterdayKey) groups.yesterday.push(item);
-      else groups.older.push(item);
+      if (item.status === 'NEEDS_ATTENTION' || item.status === 'FAILED') {
+        needsYou.push(item);
+      } else if (item.status === 'RUNNING') {
+        now.push(item);
+      } else {
+        recent.push(item);
+      }
     });
-    return groups;
+
+    const sortByDate = (a, b) => new Date(b.occurredAt || 0).getTime() - new Date(a.occurredAt || 0).getTime();
+    needsYou.sort(sortByDate);
+    now.sort(sortByDate);
+    recent.sort(sortByDate);
+
+    return { needsYou, now, recent };
   }
 
   let mhActivityFilter = 'ALL';
   let mhActivityLoadError = false;
   let mhActivityLoading = false;
 
-  // ── Real data refresh — GET /api/v1/activity?limit=30, mutating the
-  // shared state.activity (same reference window.NAGEX.getState() already
-  // returns, per the established R1/R2 pattern) so Desktop's own
-  // renderActivity() stays consistent too if the user later switches to
-  // desktop. Desktop's own render path/behavior is NOT touched (directive
-  // §5/§18). ──
   async function refreshActivityData() {
     if (!window.NAGEX.apiFetch || !window.NAGEX.getState) return;
     mhActivityLoading = true;
     mhActivityLoadError = false;
-    const data = await window.NAGEX.apiFetch('/api/v1/activity?limit=30');
-    mhActivityLoading = false;
-    if (!data || !Array.isArray(data.activities)) {
+    try {
+      const res = await window.NAGEX.apiFetch('/api/v1/activity?limit=30');
+      mhActivityLoading = false;
+      const data = unwrapApiData(res);
+      if (!data || !Array.isArray(data.activities)) {
+        mhActivityLoadError = true;
+        return;
+      }
+      window.NAGEX.getState().activity = data.activities;
+    } catch (err) {
+      mhActivityLoading = false;
       mhActivityLoadError = true;
-      return;
     }
-    window.NAGEX.getState().activity = data.activities;
   }
 
   function initFilterRow() {
@@ -146,7 +127,7 @@
       if (!btn) return;
       mhActivityFilter = btn.getAttribute('data-mh-filter');
       row.querySelectorAll('.mh-activity-filter-pill').forEach((p) => p.classList.toggle('active', p === btn));
-      renderActivityList(); // client-side only — no refetch
+      renderActivityList();
     });
   }
 
@@ -166,26 +147,71 @@
     }
   }
 
-  // ── Related entity tap-through — real source.taskId/approvalId only,
-  // never a guessed id, never shown when absent, never the whole card
-  // (directive §12: an explicit affordance only). Navigates to the real
-  // canonical tab-tasks/tab-approvals screen — no per-item deep link
-  // exists anywhere in NAgex today, so none is invented here. ──
+  // Related entity tap-through — only real source IDs (R22.2 Section 4)
   function relatedActionHtml(item) {
     const source = item.source || {};
     if (source.taskId) {
-      return `<button class="mh-activity-action-btn" onclick="window.NAGEX.switchTab('tab-tasks')">${escapeHtml(t('mobileActivity.viewTask', 'View task'))}</button>`;
+      return `<button class="mh-activity-action-btn" onclick="event.stopPropagation(); window.NAGEX.switchTab('tab-tasks')">${escapeHtml(t('mobileActivity.viewTask', 'View task'))}</button>`;
     }
     if (source.approvalId) {
-      return `<button class="mh-activity-action-btn" onclick="window.NAGEX.switchTab('tab-approvals')">${escapeHtml(t('mobileActivity.viewApproval', 'View approval'))}</button>`;
+      return `<button class="mh-activity-action-btn" onclick="event.stopPropagation(); window.NAGEX.switchTab('tab-approvals')">${escapeHtml(t('home.reviewAction', 'Review'))}</button>`;
+    }
+    if (source.captureId) {
+      return `<button class="mh-activity-action-btn" onclick="event.stopPropagation(); window.NAGEX.switchTab('tab-inbox')">${escapeHtml(t('mobileActivity.viewItem', 'View item'))}</button>`;
     }
     return '';
+  }
+
+  function showActivityDetailModal(item) {
+    let modal = document.getElementById('mh-activity-detail-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'mh-activity-detail-modal';
+      modal.className = 'mh-detail-modal-overlay';
+      document.body.appendChild(modal);
+    }
+
+    const time = item.occurredAt ? new Date(item.occurredAt).toLocaleString() : '';
+    const source = item.source || {};
+    let sourceTypeLabel = '';
+    if (source.taskId) sourceTypeLabel = t('home.taskFallback', 'Task');
+    else if (source.approvalId) sourceTypeLabel = t('nav.approvals', 'Approval');
+    else if (source.captureId) sourceTypeLabel = t('nav.inbox', 'Inbox Item');
+
+    modal.innerHTML = `
+      <div class="mh-detail-modal-card">
+        <div class="mh-detail-modal-header">
+          <h3>${escapeHtml(item.title)}</h3>
+          <button class="mh-detail-modal-close" onclick="document.getElementById('mh-activity-detail-modal').style.display='none'">&times;</button>
+        </div>
+        <div class="mh-detail-modal-body">
+          ${item.description ? `<p class="mh-detail-desc">${escapeHtml(item.description)}</p>` : ''}
+          <div class="mh-detail-meta-row">
+            <span class="mh-detail-label">Status:</span>
+            <span class="nagex-badge nagex-badge-${statusBadgeVariant(item.status)}">${escapeHtml(statusLabel(item.status))}</span>
+          </div>
+          <div class="mh-detail-meta-row">
+            <span class="mh-detail-label">Time:</span>
+            <span>${escapeHtml(time)}</span>
+          </div>
+          ${sourceTypeLabel ? `
+          <div class="mh-detail-meta-row">
+            <span class="mh-detail-label">Source:</span>
+            <span>${escapeHtml(sourceTypeLabel)}</span>
+          </div>` : ''}
+        </div>
+        <div class="mh-detail-modal-footer">
+          ${relatedActionHtml(item)}
+          <button class="mh-activity-action-btn secondary" onclick="document.getElementById('mh-activity-detail-modal').style.display='none'">${escapeHtml(t('mobileActivity.close', 'Close'))}</button>
+        </div>
+      </div>`;
+    modal.style.display = 'flex';
   }
 
   function renderActivityRow(item) {
     const time = item.occurredAt ? new Date(item.occurredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
     return `
-      <div class="mh-activity-card">
+      <div class="mh-activity-card" data-activity-id="${escapeHtml(item.activityId)}">
         <div class="mh-row-icon ${typeIconVariant(item.type)}">${typeIcon(item.type)}</div>
         <div class="mh-row-body">
           <div class="mh-row-title">${escapeHtml(truncate(item.title, 90))}</div>
@@ -200,10 +226,24 @@
   }
 
   function renderGroup(labelKey, labelFallback, items) {
-    if (items.length === 0) return '';
+    if (!items || items.length === 0) return '';
     return `
       <div class="mh-activity-group-heading">${escapeHtml(t(labelKey, labelFallback))}</div>
       ${items.map(renderActivityRow).join('')}`;
+  }
+
+  function bindCardClickHandlers() {
+    const listEl = document.getElementById('mh-activity-list');
+    if (!listEl || listEl.dataset.cardBound) return;
+    listEl.dataset.cardBound = '1';
+    listEl.addEventListener('click', (e) => {
+      const card = e.target.closest('.mh-activity-card');
+      if (!card || e.target.closest('button')) return;
+      const actId = card.getAttribute('data-activity-id');
+      const all = (window.NAGEX.getState && window.NAGEX.getState().activity) || [];
+      const item = all.find((a) => a.activityId === actId);
+      if (item) showActivityDetailModal(item);
+    });
   }
 
   function renderActivityList() {
@@ -211,7 +251,7 @@
     if (!listEl || !window.NAGEX.getState) return;
 
     if (mhActivityLoadError) {
-      listEl.innerHTML = emptyState(t('mobileActivity.loadError', 'Unable to load Activity. Reopen to try again.'));
+      listEl.innerHTML = emptyState(t('mobileActivity.loadError', "Couldn't load Activity."));
       return;
     }
     if (mhActivityLoading) {
@@ -231,14 +271,14 @@
       return;
     }
 
-    // Grouping never re-sorts — filtered retains the server's own
-    // occurredAt DESC order throughout (directive §7).
-    const groups = groupByDate(filtered);
+    const groups = groupItemsByIntent(filtered);
     listEl.innerHTML = [
-      renderGroup('mobileActivity.groupToday', 'Today', groups.today),
-      renderGroup('mobileActivity.groupYesterday', 'Yesterday', groups.yesterday),
-      renderGroup('mobileActivity.groupOlder', 'Older', groups.older),
+      renderGroup('mobileActivity.groupNeedsYou', 'Needs You', groups.needsYou),
+      renderGroup('mobileActivity.groupNow', 'Now', groups.now),
+      renderGroup('mobileActivity.groupRecent', 'Recent', groups.recent),
     ].join('');
+
+    bindCardClickHandlers();
   }
 
   function renderMobileActivity() {
@@ -248,8 +288,6 @@
     renderHeaderCount();
     renderActivityList();
     refreshActivityData().then(() => {
-      // Guard: don't paint a stale fetch result over a view the user has
-      // since navigated away from.
       if (document.getElementById('mobile-view-activity') && !document.getElementById('mobile-view-activity').hidden) {
         renderHeaderCount();
         renderActivityList();
