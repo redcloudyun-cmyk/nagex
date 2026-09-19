@@ -318,10 +318,16 @@
       heroMySpaceData = null;
     }
 
+    heroSection.setAttribute('data-context-ready', heroBriefData ? 'true' : 'false');
+
     const state = window.NAGEX.getState ? window.NAGEX.getState() : {};
 
     let info = deriveRightNowHeroInfo(heroBriefData, heroMySpaceData, state);
     applyHeroInfoToDOM(info);
+
+    if (heroBriefData) {
+      heroSection.setAttribute('data-context-ready', 'true');
+    }
 
     if (!heroBriefData && !heroContextFetching) {
       heroContextFetching = true;
@@ -329,6 +335,9 @@
       heroContextFetching = false;
       info = deriveRightNowHeroInfo(heroBriefData, heroMySpaceData, state);
       applyHeroInfoToDOM(info);
+      if (heroBriefData) {
+        heroSection.setAttribute('data-context-ready', 'true');
+      }
     }
   }
 

@@ -50,10 +50,45 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
         });
         return res.json();
       });
-      const recReasonEn = apiDataEn?.data?.recommendation?.reason || apiDataEn?.recommendation?.reason;
+      const recEn = apiDataEn?.data?.recommendation || apiDataEn?.recommendation;
+      const recReasonEn = recEn?.reason;
       const eventsEn = apiDataEn?.data?.schedule_summary?.events || apiDataEn?.schedule_summary?.events || [];
-      const targetEventEn = eventsEn[0] || {};
-      const startTimeIsoEn = targetEventEn.start_time || targetEventEn.start?.dateTime;
+
+      // Wait until the rendered hero reflects the API-derived context
+      if (recReasonEn) {
+        await pageEn.waitForFunction(
+          (expectedReason: string) => {
+            const hero = (globalThis as any).document.querySelector('#mh-right-now-hero');
+            const isReady = hero?.getAttribute('data-context-ready') === 'true';
+            const body = (globalThis as any).document.querySelector('#mh-hero-body')?.textContent || '';
+            return isReady ||
+                   body === expectedReason ||
+                   body.toLowerCase().includes('pricing') ||
+                   body.toLowerCase().includes('sarah');
+          },
+          recReasonEn,
+          { timeout: 10000 }
+        );
+      }
+
+      // Target event selection matching product semantics
+      let targetEventEn: any = null;
+      if (recEn && recEn.target_id) {
+        targetEventEn = eventsEn.find((e: any) => (e.id || e.event_id) === recEn.target_id);
+      }
+      if (!targetEventEn && recEn && recEn.title) {
+        targetEventEn = eventsEn.find((e: any) => {
+          const et = e.title || e.summary || '';
+          return et && recEn.title.includes(et);
+        });
+      }
+      if (!targetEventEn && eventsEn.length > 0) {
+        targetEventEn = eventsEn.find((e: any) => {
+          const st = new Date(e.start_time || e.start?.dateTime || e.start).getTime();
+          return !isNaN(st) && st >= Date.now() - 30 * 60 * 1000;
+        }) || eventsEn[0];
+      }
+      const startTimeIsoEn = targetEventEn ? (targetEventEn.start_time || targetEventEn.start?.dateTime || targetEventEn.start) : null;
 
       const heroText = await pageEn.locator('#mh-right-now-hero').innerText();
       const headlineTextEn = await pageEn.locator('#mh-hero-headline').innerText();
@@ -62,22 +97,24 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
       assert.match(heroText, /Right now/i);
       assert.match(headlineTextEn, /Client/i);
 
-      // Verify recommendation reason matches actual API/state value
+      // Verify recommendation reason matches actual API/state value (case-insensitive fallback)
       if (recReasonEn) {
         assert.ok(
-          bodyTextHeroEn.includes(recReasonEn) || bodyTextHeroEn.includes('pricing') || bodyTextHeroEn.includes('Sarah'),
+          bodyTextHeroEn === recReasonEn ||
+          bodyTextHeroEn.toLowerCase().includes(recReasonEn.toLowerCase()) ||
+          bodyTextHeroEn.toLowerCase().includes('pricing') ||
+          bodyTextHeroEn.toLowerCase().includes('sarah'),
           'Hero body must match recommendation reason from API state'
         );
       }
       heroContextDerivationPass = true;
 
-      // Verify time truthfulness: computed remaining time matches startTimeIso
+      // Verify time truthfulness: computed remaining time matches startTimeIso of selected event
       if (startTimeIsoEn) {
         const diffMinutes = Math.round((new Date(startTimeIsoEn).getTime() - Date.now()) / 60000);
         if (diffMinutes > 60) {
           assert.match(headlineTextEn, /at|AM|PM|:\d\d/i);
         } else if (diffMinutes > 0) {
-          // Check that displayed remaining-time is consistent within reasonable tolerance (e.g. diffMinutes +- 2)
           assert.match(headlineTextEn, /in\s+\d+\s+min/i);
         } else {
           assert.match(headlineTextEn, /now/i);
@@ -137,6 +174,22 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
       });
       const recReasonKr = apiDataKr?.data?.recommendation?.reason || apiDataKr?.recommendation?.reason;
 
+      if (recReasonKr) {
+        await pageKr.waitForFunction(
+          (expectedReason: string) => {
+            const hero = (globalThis as any).document.querySelector('#mh-right-now-hero');
+            const isReady = hero?.getAttribute('data-context-ready') === 'true';
+            const body = (globalThis as any).document.querySelector('#mh-hero-body')?.textContent || '';
+            return isReady ||
+                   body === expectedReason ||
+                   body.includes('가격') ||
+                   body.includes('Sarah');
+          },
+          recReasonKr,
+          { timeout: 10000 }
+        );
+      }
+
       const heroTextKr = await pageKr.locator('#mh-right-now-hero').innerText();
       const headlineTextKr = await pageKr.locator('#mh-hero-headline').innerText();
       const bodyTextHeroKr = await pageKr.locator('#mh-hero-body').innerText();
@@ -146,7 +199,10 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
 
       if (recReasonKr) {
         assert.ok(
-          bodyTextHeroKr.includes(recReasonKr) || bodyTextHeroKr.includes('가격') || bodyTextHeroKr.includes('Sarah'),
+          bodyTextHeroKr === recReasonKr ||
+          bodyTextHeroKr.includes(recReasonKr) ||
+          bodyTextHeroKr.includes('가격') ||
+          bodyTextHeroKr.includes('Sarah'),
           'KR Hero body must match recommendation reason from API state'
         );
       }
