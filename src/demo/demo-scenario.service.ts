@@ -256,7 +256,27 @@ export class DemoScenarioService {
     }
     if (pathname === '/api/v1/memory' && method === 'GET') {
       const prefValue = isKo ? '간결한 미팅 브리핑 선호' : this.fixture.persona.preference;
-      return { status: 200, data: { memories: [{ id: 'demo_memory_brief', scope: 'USER', lifecycle: 'ACTIVE', content: { subject: 'Meeting brief preference', predicate: 'prefers', value: prefValue }, sensitivity: 'S1', userConfirmed: true, memoryOrigin: 'EXPLICIT_USER' }] } };
+      const memRecord = {
+        id: 'demo_memory_brief',
+        scope: 'USER',
+        type: 'PREFERENCE',
+        lifecycle: 'ACTIVE',
+        tenantId: 'ten_demo_hackathon',
+        owner_id: 'usr_demo_alex',
+        content: { subject: 'Meeting brief preference', predicate: 'prefers', value: prefValue },
+        sensitivity: 'S1',
+        userConfirmed: true,
+        memoryOrigin: 'EXPLICIT_USER',
+        provenance: {
+          sourceType: 'MANUAL',
+          extractedAt: '2026-09-05T08:00:00.000Z',
+          extractor: 'USER_EXPLICIT',
+        },
+        pinned: false,
+        created_at: '2026-09-05T08:00:00.000Z',
+        updated_at: '2026-09-05T08:00:00.000Z',
+      };
+      return { status: 200, data: { memories: [memRecord], total: 1 } };
     }
     if (pathname === '/api/v1/notifications' && method === 'GET') {
       return {

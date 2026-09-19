@@ -156,6 +156,17 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
       details: { sessionId: session.sessionId, messageId: userMsgRecord.messageId, role: 'USER', source: 'WEB' },
     });
 
+    // P0 R22.3 Closure: Run deterministic memory extraction IMMEDIATELY after USER message persistence and before model call
+    if (deps.memoryExtractor) {
+      deps.memoryExtractor.processMessage({
+        tenantId,
+        principalId,
+        sessionId: session.sessionId,
+        messageId: userMsgRecord.messageId,
+        content: message,
+      });
+    }
+
     const conversation = convContextService.buildContext({
       tenantId,
       principalId,
@@ -171,18 +182,6 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
       mode: parseRoutingMode(body?.provider, process.env.NAGEX_MODEL_PROVIDER),
       requestId,
     });
-
-    if (deps.memoryExtractor) {
-      deps.memoryExtractor.processMessage({
-        tenantId,
-        principalId,
-        sessionId: session.sessionId,
-        messageId: userMsgRecord.messageId,
-        content: message,
-        modelProvider: result.provider,
-        modelName: result.model,
-      });
-    }
 
     // Section 6: Persist ASSISTANT message AFTER successful AI response
     const assistantMsgRecord = convStore.append({

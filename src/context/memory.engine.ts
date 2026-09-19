@@ -1,6 +1,7 @@
 import { generateResourceId, getCurrentISOString } from '../common/utils.js';
 import { NagexError } from '../common/errors.js';
 import { FileRecordStore, resolveNagexDataDir } from '../governance/file-record.store.js';
+import { resolveEffectiveSensitivity } from './sensitivity.detector.js';
 
 export type MemoryScope = 'EXECUTION' | 'SESSION' | 'AGENT' | 'USER' | 'TENANT' | 'PERSONAL' | 'ORGANIZATION' | 'WORKSPACE';
 export type MemoryType = 'PREFERENCE' | 'FACT' | 'RELATIONSHIP' | 'PROJECT_CONTEXT' | 'DECISION' | 'WORKING_CONTEXT';
@@ -55,6 +56,26 @@ export interface MemoryContextRefs {
 export interface MemoryUserSettings {
   memoryCaptureEnabled: boolean;
   memoryUseEnabled: boolean;
+}
+
+export interface MemoryUserSettingsRecord extends MemoryUserSettings {
+  id: string; // `${tenantId}:${ownerId}`
+  tenantId: string;
+  ownerId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function isMemoryUserSettingsRecord(value: unknown): value is MemoryUserSettingsRecord {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.id === 'string' &&
+    typeof v.tenantId === 'string' &&
+    typeof v.ownerId === 'string' &&
+    typeof v.memoryCaptureEnabled === 'boolean' &&
+    typeof v.memoryUseEnabled === 'boolean'
+  );
 }
 
 const VALID_SCOPES: ReadonlySet<string> = new Set(['EXECUTION', 'SESSION', 'AGENT', 'USER', 'TENANT', 'PERSONAL', 'ORGANIZATION', 'WORKSPACE']);
@@ -124,17 +145,23 @@ export function isMemoryRecord(value: unknown): value is MemoryRecord {
 
 export interface MemoryEngineOptions {
   dir?: string;
+  settingsDir?: string;
   env?: NodeJS.ProcessEnv;
 }
 
 export class MemoryEngine {
   private readonly fileStore: FileRecordStore<MemoryRecord>;
   private readonly memoryStore: Map<string, MemoryRecord> = new Map();
-  private readonly settingsStore: Map<string, MemoryUserSettings> = new Map();
+  private readonly settingsFileStore: FileRecordStore<MemoryUserSettingsRecord>;
+  private readonly settingsMap: Map<string, MemoryUserSettingsRecord> = new Map();
 
   constructor(options?: MemoryEngineOptions) {
     const dir = options?.dir ?? resolveNagexDataDir('memories', 'NAGEX_MEMORIES_DIR', options?.env);
     this.fileStore = new FileRecordStore<MemoryRecord>(dir, isMemoryRecord);
+
+    const settingsDir = options?.settingsDir ?? resolveNagexDataDir('memory-settings', 'NAGEX_MEMORY_SETTINGS_DIR', options?.env);
+    this.settingsFileStore = new FileRecordStore<MemoryUserSettingsRecord>(settingsDir, isMemoryUserSettingsRecord);
+
     for (const record of this.fileStore.readAll()) {
       let updatedRecord = record;
       let needsWrite = false;
@@ -161,6 +188,10 @@ export class MemoryEngine {
       }
       this.memoryStore.set(updatedRecord.id, updatedRecord);
     }
+
+    for (const setting of this.settingsFileStore.readAll()) {
+      this.settingsMap.set(setting.id, setting);
+    }
   }
 
   private requireOwned(id: string, tenantId: string, ownerId: string): MemoryRecord {
@@ -176,19 +207,39 @@ export class MemoryEngine {
     return record;
   }
 
-  public getSettings(tenantId: string, ownerId: string): MemoryUserSettings {
+  public getSettings(tenantId: string, ownerId: string): MemoryUserSettingsRecord {
     const key = `${tenantId}:${ownerId}`;
-    return this.settingsStore.get(key) || { memoryCaptureEnabled: true, memoryUseEnabled: true };
+    const existing = this.settingsMap.get(key);
+    if (existing) return existing;
+
+    const now = getCurrentISOString();
+    return {
+      id: key,
+      tenantId,
+      ownerId,
+      memoryCaptureEnabled: true,
+      memoryUseEnabled: true,
+      createdAt: now,
+      updatedAt: now,
+    };
   }
 
-  public updateSettings(tenantId: string, ownerId: string, updates: Partial<MemoryUserSettings>): MemoryUserSettings {
+  public updateSettings(tenantId: string, ownerId: string, updates: Partial<MemoryUserSettings>): MemoryUserSettingsRecord {
     const current = this.getSettings(tenantId, ownerId);
-    const updated: MemoryUserSettings = {
-      ...current,
-      ...updates,
+    const now = getCurrentISOString();
+
+    const updated: MemoryUserSettingsRecord = {
+      id: current.id,
+      tenantId,
+      ownerId,
+      memoryCaptureEnabled: updates.memoryCaptureEnabled !== undefined ? updates.memoryCaptureEnabled : current.memoryCaptureEnabled,
+      memoryUseEnabled: updates.memoryUseEnabled !== undefined ? updates.memoryUseEnabled : current.memoryUseEnabled,
+      createdAt: current.createdAt || now,
+      updatedAt: now,
     };
-    const key = `${tenantId}:${ownerId}`;
-    this.settingsStore.set(key, updated);
+
+    this.settingsFileStore.writeOrThrow(updated.id, updated);
+    this.settingsMap.set(updated.id, updated);
     return updated;
   }
 
@@ -237,7 +288,7 @@ export class MemoryEngine {
       contextRefs?: MemoryContextRefs;
     },
   ): MemoryRecord {
-    const sensitivity = options?.sensitivity || 'S1';
+    const sensitivity = resolveEffectiveSensitivity(content, options?.sensitivity);
     if (sensitivity === 'S3') {
       throw new NagexError({
         code: 'SECRET_MEMORY_REJECTED',
@@ -272,6 +323,12 @@ export class MemoryEngine {
     const userConfirmed = isS2 ? false : (options?.userConfirmed ?? (lifecycle === 'ACTIVE'));
     const memoryOrigin = options?.memoryOrigin || (options?.userConfirmed ? 'EXPLICIT_USER' : 'SUGGESTED');
 
+    const provenance: MemoryProvenance = options?.provenance || {
+      sourceType: options?.sourceRef ? 'SYSTEM' : 'MANUAL',
+      extractedAt: now,
+      extractor: 'MANUAL',
+    };
+
     const record: MemoryRecord = {
       id,
       scope,
@@ -281,11 +338,11 @@ export class MemoryEngine {
       workspaceId: options?.workspaceId,
       lifecycle,
       content,
-      sourceRef: options?.sourceRef || options?.provenance?.sourceRef,
-      confidence: options?.confidence ?? options?.provenance?.confidence,
+      sourceRef: options?.sourceRef || provenance.sourceRef,
+      confidence: options?.confidence ?? provenance.confidence,
       candidateId,
       sensitivity,
-      provenance: options?.provenance,
+      provenance,
       memoryOrigin,
       userConfirmed,
       contextRefs: options?.contextRefs,
@@ -339,6 +396,15 @@ export class MemoryEngine {
       });
     }
 
+    if (record.sensitivity === 'S2') {
+      throw new NagexError({
+        code: 'S2_CONFIRMATION_REQUIRED',
+        category: 'POLICY',
+        message: `Sensitive memory ID ${id} (S2) requires explicit user confirmation via confirm endpoint.`,
+        request_id: 'mem_req',
+      });
+    }
+
     const now = getCurrentISOString();
     const updatedRecord: MemoryRecord = {
       ...record,
@@ -355,11 +421,19 @@ export class MemoryEngine {
   public confirmMemory(id: string, tenantId: string, ownerId: string): MemoryRecord {
     const record = this.requireOwned(id, tenantId, ownerId);
 
-    if (record.lifecycle === 'DELETED' || record.lifecycle === 'EXPIRED') {
+    if (record.lifecycle === 'ACTIVE') {
+      const now = getCurrentISOString();
+      const updated: MemoryRecord = { ...record, userConfirmed: true, updated_at: now };
+      this.fileStore.writeOrThrow(id, updated);
+      this.memoryStore.set(id, updated);
+      return updated;
+    }
+
+    if (record.lifecycle !== 'PROPOSED') {
       throw new NagexError({
-        code: 'MEMORY_ALREADY_TERMINAL',
+        code: 'MEMORY_INVALID_REACTIVATION',
         category: 'CONFLICT',
-        message: `Memory ID ${id} is in terminal state ${record.lifecycle} and cannot be confirmed.`,
+        message: `Memory ID ${id} is in lifecycle state ${record.lifecycle} and cannot be reactivated or confirmed.`,
         request_id: 'mem_req',
       });
     }
@@ -446,7 +520,7 @@ export class MemoryEngine {
     userConfirmed?: boolean;
     contextRefs?: MemoryContextRefs;
   }): MemoryRecord {
-    const sensitivity = params.sensitivity || 'S1';
+    const sensitivity = resolveEffectiveSensitivity(params.content, params.sensitivity);
     if (sensitivity === 'S3') {
       throw new NagexError({
         code: 'SECRET_MEMORY_REJECTED',
@@ -481,6 +555,12 @@ export class MemoryEngine {
     const userConfirmed = isS2 ? false : (params.userConfirmed ?? (lifecycle === 'ACTIVE'));
     const memoryOrigin = params.memoryOrigin || (userConfirmed ? 'EXPLICIT_USER' : 'SUGGESTED');
 
+    const provenance: MemoryProvenance = params.provenance || {
+      sourceType: params.sourceRef ? 'SYSTEM' : 'MANUAL',
+      extractedAt: now,
+      extractor: 'MANUAL',
+    };
+
     const record: MemoryRecord = {
       id,
       scope: params.scope,
@@ -490,11 +570,11 @@ export class MemoryEngine {
       workspaceId: params.workspaceId || 'ws_default_01',
       lifecycle,
       content: params.content,
-      sourceRef: params.sourceRef || params.provenance?.sourceRef,
-      confidence: params.confidence ?? params.provenance?.confidence ?? 1.0,
+      sourceRef: params.sourceRef || provenance.sourceRef,
+      confidence: params.confidence ?? provenance.confidence ?? 1.0,
       candidateId: params.candidateId,
       sensitivity,
-      provenance: params.provenance,
+      provenance,
       memoryOrigin,
       userConfirmed,
       contextRefs: params.contextRefs,
@@ -523,7 +603,10 @@ export class MemoryEngine {
     }>
   ): MemoryRecord {
     const record = this.requireOwned(id, tenantId, ownerId);
-    if (updates.sensitivity === 'S3') {
+    const newContent = updates.content || record.content;
+    const effectiveSensitivity = resolveEffectiveSensitivity(newContent, updates.sensitivity || record.sensitivity);
+
+    if (effectiveSensitivity === 'S3') {
       throw new NagexError({
         code: 'SECRET_MEMORY_REJECTED',
         category: 'POLICY',
@@ -531,11 +614,23 @@ export class MemoryEngine {
         request_id: 'mem_req',
       });
     }
+
     const now = getCurrentISOString();
+    let lifecycle = record.lifecycle;
+    let userConfirmed = updates.userConfirmed !== undefined ? updates.userConfirmed : record.userConfirmed;
+
+    // PATCH sensitivity reclassification rule: If content becomes S2 and was ACTIVE, demote to PROPOSED
+    if (effectiveSensitivity === 'S2' && record.lifecycle === 'ACTIVE') {
+      lifecycle = 'PROPOSED';
+      userConfirmed = false;
+    }
 
     const updated: MemoryRecord = {
       ...record,
       ...updates,
+      sensitivity: effectiveSensitivity,
+      lifecycle,
+      userConfirmed,
       updated_at: now,
     };
 
@@ -573,4 +668,5 @@ export class MemoryEngine {
     });
   }
 }
+
 

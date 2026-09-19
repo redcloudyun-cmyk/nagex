@@ -134,7 +134,7 @@ export function createNagexApplication(): NagexApplication {
   const billing = new BillingLedgerEngine();
   const creditEngine = new CreditEngine(billing);
   const memoryEngine = new MemoryEngine();
-  const personalContextService = new PersonalContextService(memoryEngine);
+  const personalContextService = new PersonalContextService(memoryEngine, (id: string) => pinnedMemories.has(id));
   const conversationMemoryExtractor = new ConversationMemoryExtractor(memoryEngine);
   const aiService = new AiService(new UnifiedModelRouter(createProviders()));
   const planResolver = new PlanResolver(canonicalSkillRegistry, canonicalToolRegistry);
