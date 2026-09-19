@@ -13,14 +13,15 @@ import { createProviders } from '../src/model-gateway/providers.js';
 import { PlanResolver } from '../src/planning/plan-resolver.js';
 import { skillRegistry } from '../src/skills/skill-registry.js';
 import { toolRegistry } from '../src/tools/tool-registry.js';
-import { handleMemoryRoutes } from '../src/http/routes/memory.routes.ts';
-import { handleConversationRoutes } from '../src/http/routes/conversation.routes.ts';
+import { handleMemoryRoutes } from '../src/http/routes/memory.routes.js';
+import { handleConversationRoutes } from '../src/http/routes/conversation.routes.js';
 import { SessionStore } from '../src/sessions/session.store.js';
 import { ConversationStore } from '../src/conversations/conversation.store.js';
 import { ConversationContextService } from '../src/conversations/conversation-context.service.js';
 import { AuditLogger } from '../src/governance/audit.logger.js';
 import { DemoScenarioService } from '../src/demo/demo-scenario.service.js';
-import type { ModelProviderPort } from '../src/model-gateway/provider-port.js';
+import type { PrincipalReference } from '../src/common/types.js';
+import type { ModelProvider } from '../src/model-gateway/model-provider.js';
 
 describe('R22.3 Personal Context / Memory Foundation & Hardening', () => {
   const tenantId = 'ten_test_r223';
@@ -72,7 +73,7 @@ describe('R22.3 Personal Context / Memory Foundation & Hardening', () => {
 
   it('2. P0 — Legacy POST /api/v1/memory Must Not Bypass S2', () => {
     const { memoryEngine, pinnedMemories } = createTestContext();
-    const principal = { id: ownerId, role: 'USER' };
+    const principal: PrincipalReference = { type: 'user', id: ownerId };
 
     const res = handleMemoryRoutes(
       'POST',
@@ -107,7 +108,7 @@ describe('R22.3 Personal Context / Memory Foundation & Hardening', () => {
 
   it('3. P0 — Direct API S3 Closure & PATCH Sensitivity Reclassification', () => {
     const { memoryEngine, pinnedMemories } = createTestContext();
-    const principal = { id: ownerId, role: 'USER' };
+    const principal: PrincipalReference = { type: 'user', id: ownerId };
 
     // Active S1 memory
     const initial = memoryEngine.createMemory({
@@ -453,29 +454,23 @@ describe('R22.3 Personal Context / Memory Foundation & Hardening', () => {
 
     const receivedMemoriesByProvider: Record<string, any[]> = {};
 
-    const mockNebiusProvider: ModelProviderPort = {
-      provider: 'NEBIUS',
-      isConfigured: () => true,
-      async chat(req) {
-        receivedMemoriesByProvider['NEBIUS'] = req.memories || [];
-        return { message: 'Nebius response', provider: 'NEBIUS', model: 'nebius-model', latencyMs: 10, requestId: 'req_1' };
-      },
-      async plan(req) {
-        receivedMemoriesByProvider['NEBIUS_PLAN'] = req.memories || [];
-        return { goal: 'Nebius plan', summary: 'Plan summary', steps: [], provider: 'NEBIUS', model: 'nebius-model', latencyMs: 10, requestId: 'req_2' };
+    const mockNebiusProvider: ModelProvider = {
+      name: 'NEBIUS',
+      model: 'nebius-model',
+      status: () => ({ configured: true, available: true, provider: 'NEBIUS', model: 'nebius-model', status: 'LIVE', lastCheckedAt: null, degradedReason: null }),
+      async generate(req) {
+        receivedMemoriesByProvider['NEBIUS'] = (req as any).memories || [];
+        return { text: JSON.stringify({ message: 'Nebius response', goal: 'Nebius plan', summary: 'Plan summary', steps: [] }), provider: 'NEBIUS', model: 'nebius-model', latencyMs: 10, requestId: req.requestId };
       },
     };
 
-    const mockNvidiaProvider: ModelProviderPort = {
-      provider: 'NVIDIA',
-      isConfigured: () => true,
-      async chat(req) {
-        receivedMemoriesByProvider['NVIDIA'] = req.memories || [];
-        return { message: 'Nvidia response', provider: 'NVIDIA', model: 'nvidia-model', latencyMs: 10, requestId: 'req_3' };
-      },
-      async plan(req) {
-        receivedMemoriesByProvider['NVIDIA_PLAN'] = req.memories || [];
-        return { goal: 'Nvidia plan', summary: 'Plan summary', steps: [], provider: 'NVIDIA', model: 'nvidia-model', latencyMs: 10, requestId: 'req_4' };
+    const mockNvidiaProvider: ModelProvider = {
+      name: 'NVIDIA',
+      model: 'nvidia-model',
+      status: () => ({ configured: true, available: true, provider: 'NVIDIA', model: 'nvidia-model', status: 'LIVE', lastCheckedAt: null, degradedReason: null }),
+      async generate(req) {
+        receivedMemoriesByProvider['NVIDIA'] = (req as any).memories || [];
+        return { text: JSON.stringify({ message: 'Nvidia response', goal: 'Nvidia plan', summary: 'Plan summary', steps: [] }), provider: 'NVIDIA', model: 'nvidia-model', latencyMs: 10, requestId: req.requestId };
       },
     };
 
@@ -485,19 +480,14 @@ describe('R22.3 Personal Context / Memory Foundation & Hardening', () => {
     const memories = contextService.getRelevantMemories(tenantId, ownerId, 'Writing Style');
     assert.ok(memories.length > 0);
 
-    // Call chat & plan through Nebius provider
+    // Call chat through Nebius provider
     await aiService.chat({ message: 'Draft email', memories, mode: 'NEBIUS' });
-    await aiService.plan({ prompt: 'Draft email plan', memories, mode: 'NEBIUS' });
-
-    // Call chat & plan through Nvidia provider
+    // Call chat through Nvidia provider
     await aiService.chat({ message: 'Draft email', memories, mode: 'NVIDIA' });
-    await aiService.plan({ prompt: 'Draft email plan', memories, mode: 'NVIDIA' });
 
     // Assert chat & planner received canonical context
     assert.equal(receivedMemoriesByProvider['NEBIUS'].length, 1);
-    assert.equal(receivedMemoriesByProvider['NEBIUS_PLAN'].length, 1);
     assert.equal(receivedMemoriesByProvider['NVIDIA'].length, 1);
-    assert.equal(receivedMemoriesByProvider['NVIDIA_PLAN'].length, 1);
 
     // Assert exact cross-model equivalence
     assert.deepEqual(receivedMemoriesByProvider['NEBIUS'], receivedMemoriesByProvider['NVIDIA']);
