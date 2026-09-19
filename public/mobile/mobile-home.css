@@ -513,7 +513,7 @@
 
 /* ── R8 — Personal Daily Brief (mobile card). Base look (radius/shadow/
    padding) already comes free from .mh-card; only mobile-appropriate
-   sizing for the shared .db-*/.daily-brief-* rules (style.css) is added
+   sizing for the shared daily-brief rules (style.css) is added
    here. ── */
 #mh-daily-brief-card .daily-brief-toggle {
   width: 100%;
@@ -639,3 +639,178 @@
 .mh-hero-brief-card { margin: 0 16px 14px; }
 .mh-hero-brief-card .hero-brief-title { font-size: 17px; }
 .mh-hero-brief-card .btn-plan-action { width: 100%; min-height: 44px; margin-top: 10px; }
+
+/* ── R22.1 Mobile Home Decision Surface Styles ── */
+.mh-brand-text-sm {
+  display: flex;
+  flex-direction: column;
+}
+.mh-greeting-small {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--nagex-text-secondary);
+}
+
+.mh-right-now-hero {
+  position: relative;
+  margin-top: var(--nagex-spacing-3);
+  padding: 22px 20px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, #eef4ff 0%, #f8fafc 100%);
+  border: 1px solid #dbeafe;
+  box-shadow: 0 8px 24px -10px rgba(37, 99, 235, 0.15);
+}
+.mh-hero-tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.1);
+  padding: 3px 9px;
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+.mh-hero-headline {
+  font-size: 20px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 6px 0;
+  line-height: 1.25;
+}
+.mh-hero-body {
+  font-size: 13.5px;
+  color: #475569;
+  margin: 0 0 16px 0;
+  line-height: 1.45;
+}
+.mh-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.mh-btn-primary {
+  min-height: 42px;
+  padding: 0 20px;
+  border-radius: 12px;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 13.5px;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);
+  transition: background-color 0.15s ease;
+}
+.mh-btn-primary:active {
+  background: #1d4ed8;
+}
+.mh-hero-secondary-link {
+  font-size: 13px;
+  font-weight: 600;
+  color: #2563eb;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.mh-prepared-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--nagex-border-subtle);
+}
+.mh-prepared-card:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.mh-prepared-card:first-child {
+  padding-top: 0;
+}
+.mh-prepared-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.mh-today-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mh-today-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid #f1f5f9;
+}
+.mh-today-row-next {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+.mh-today-time {
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+  width: 44px;
+  flex-shrink: 0;
+}
+.mh-today-row-next .mh-today-time {
+  color: #1d4ed8;
+}
+.mh-today-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+.mh-today-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mh-today-row-next .mh-today-title {
+  color: #1e40af;
+  font-weight: 700;
+}
+.mh-today-next-badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: #1d4ed8;
+  background: #dbeafe;
+  padding: 2px 7px;
+  border-radius: 6px;
+  text-transform: uppercase;
+}
+
+.mh-composer-section {
+  margin-top: var(--nagex-spacing-4);
+  margin-bottom: 12px;
+}
+.mh-add-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 18px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.mh-add-btn:active {
+  background: #e2e8f0;
+}

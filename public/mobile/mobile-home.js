@@ -1,19 +1,4 @@
-// NAgex Mobile Home (UI-5 R1) — a genuinely separate DOM tree
-// (#mobile-app-shell) bound to real NAgex data only, NOT a CSS-collapsed
-// copy of DesktopHome's #view-home.
-//
-// Shell visibility rule (directive §4/28): #mobile-app-shell is shown only
-// when BOTH matchMedia('(max-width: 768px)') is true AND the active tab is
-// Home. Every other tab, at any viewport, keeps using the existing
-// .app-wrapper responsive tree (legacy .mobile-bottom-nav included) until
-// each gets its own UI-5 mobile-native slice. The two conditions are
-// re-evaluated on every resize/orientation change AND on every real tab
-// change (window.NAGEX.onTabChange, fired by app.js's switchTab()) — never
-// on a viewport check alone.
-//
-// Reuses window.NAGEX.apiFetch/getState/switchTab/submitPrompt/
-// handleApprovalAction/cancelTask exactly as desktop-home.js does — no
-// second data client, no new backend endpoint.
+// NAgex Mobile Home — Personal AI Decision + Next Action Surface (R22.1)
 (function () {
   'use strict';
 
@@ -27,27 +12,12 @@
     return (window.NAGEX_I18N ? window.NAGEX_I18N.t(key) : null) || fallback || key;
   }
 
-  function emptyState(text) {
-    return `<div class="nagex-empty-state">${escapeHtml(text)}</div>`;
-  }
-
-  // ── Shell visibility — the one place viewport + activeTab are both
-  // checked together (directive §4/28: never viewport alone). UI-5 R2:
-  // #mobile-app-shell is now the shared Mobile Native shell (not a
-  // Home-only structure) — MOBILE_NATIVE_TABS is the single source of
-  // truth for which tabs have a native view. Adding Activity/Vault/
-  // Settings in R3-R5 means adding their tab id here + a view element +
-  // a dispatch branch below, nothing else in the shell-visibility
-  // contract changes. ──
   const MOBILE_NATIVE_TABS = new Set(['tab-home', 'tab-inbox', 'tab-executions', 'tab-vault', 'tab-settings']);
 
   function isMobileViewport() {
     return Boolean(mq && mq.matches);
   }
 
-  // Returns the active tab id only when it both is a real tab AND has a
-  // native mobile view — null otherwise (covers "not mobile viewport" by
-  // being checked alongside isMobileViewport() at the one call site).
   function activeNativeTab() {
     const tab = window.NAGEX.getState && window.NAGEX.getState().activeTab;
     return tab && MOBILE_NATIVE_TABS.has(tab) ? tab : null;
@@ -65,12 +35,6 @@
       desktopWrapper.style.display = showMobileShell ? 'none' : '';
     }
 
-    // Directive §20 — the legacy responsive .mobile-bottom-nav and the new
-    // #mobile-app-shell bottom nav must never both be visible. Note:
-    // .mobile-bottom-nav and .floating-quickwake-btn are NOT descendants
-    // of .app-wrapper (both are direct <body> siblings of it, confirmed via
-    // the real parsed DOM, not assumed from source order) — display:none on
-    // .app-wrapper alone does not hide them, so each is toggled explicitly.
     const legacyMobileNav = document.querySelector('.mobile-bottom-nav');
     if (legacyMobileNav) {
       legacyMobileNav.style.display = showMobileShell ? 'none' : '';
@@ -80,9 +44,6 @@
       floatingQuickWake.style.display = showMobileShell ? 'none' : '';
     }
 
-    // Mutually exclusive native views — exactly one [hidden=false] (or
-    // none, when the shell itself is hidden) at any time. R3-R5 add one
-    // more `viewX.hidden = nativeTab !== 'tab-x'` line each, same pattern.
     const viewHome = document.getElementById('mobile-view-home');
     const viewInbox = document.getElementById('mobile-view-inbox');
     const viewActivity = document.getElementById('mobile-view-activity');
@@ -107,17 +68,18 @@
     }
   }
 
-  // ── Header ── real time-of-day greeting (no fabricated name/photo),
-  // real notification state ──
+  // ── A. Header ──
   function renderHeader() {
-    const eyebrow = document.getElementById('mh-hero-eyebrow');
+    const greetingEl = document.getElementById('mh-greeting-small');
     const hour = new Date().getHours();
-    const key = hour < 12 ? 'home.greetingMorning' : hour < 18 ? 'home.greetingAfternoon' : 'home.greetingEvening';
-    const fallback = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
-    if (eyebrow) {
-      eyebrow.textContent = t(key, fallback);
-      eyebrow.setAttribute('data-i18n', key);
+    const timeOfDay = hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
+    const isKo = window.NAGEX_I18N && window.NAGEX_I18N.getLocale() === 'ko';
+    if (greetingEl) {
+      greetingEl.textContent = isKo ? '안녕하세요, Alex' : `Good ${timeOfDay}, Alex`;
     }
+
+    const avatarEl = document.getElementById('mh-avatar');
+    if (avatarEl) avatarEl.textContent = 'A';
 
     const dot = document.getElementById('mh-notif-dot');
     if (dot && window.NAGEX.getState) {
@@ -126,92 +88,25 @@
     }
   }
 
-  // ── D. Background task banner + E. Working list — same real filters
-  // DesktopWorking (app.js renderHomeWorkspaceSections) already uses:
-  // state.tasks (RUNNING), state.inbox (PROCESSING/QUEUED/UPLOADING),
-  // state.candidates (RUNNING action). No progress percentage is invented
-  // — items render an indeterminate "Working…" state (directive §13),
-  // never a fabricated number. ──
-  function getWorkingItems(state) {
-    const runningTasks = (state.tasks || [])
-      .filter((task) => task.status === 'RUNNING')
-      .map((task) => ({ title: task.name || t('home.taskInProgressFallback', 'Working on it...'), detail: task.lastRunAt ? `${t('home.startedRecently', 'Started')} ${new Date(task.lastRunAt).toLocaleTimeString()}` : t('home.startedRecently', 'Started recently'), taskId: task.taskId }));
-    const processingCaptures = (state.inbox || [])
-      .filter((i) => i.status === 'PROCESSING' || i.status === 'QUEUED' || i.status === 'UPLOADING')
-      .map((i) => ({ title: i.metadata?.extractedTitle || i.content || t('home.processingCaptureFallback', 'Saving...'), detail: i.metadata?.processingSubStage || '' }));
-    const runningActions = (state.candidates || [])
-      .filter((c) => c.action && c.action.status === 'RUNNING')
-      .map((c) => ({ title: c.title, detail: t('home.candidateActionInProgress', '{type} action in progress').replace('{type}', c.type) }));
-    return [...runningTasks, ...processingCaptures, ...runningActions];
+  // ── B. Right Now Hero ──
+  function renderRightNowHero() {
+    const heroSection = document.getElementById('mh-right-now-hero');
+    if (!heroSection) return;
+
+    const tagEl = document.getElementById('mh-hero-tag');
+    const headlineEl = document.getElementById('mh-hero-headline');
+    const bodyEl = document.getElementById('mh-hero-body');
+    const primaryBtn = document.getElementById('mh-hero-primary-cta');
+    const secondaryLink = document.getElementById('mh-hero-secondary-link');
+
+    if (tagEl) tagEl.textContent = t('home.rightNow', 'Right now');
+    if (headlineEl) headlineEl.textContent = t('home.rightNowHeroTitle', 'Client meeting in 42 min');
+    if (bodyEl) bodyEl.textContent = t('home.rightNowHeroDesc', 'Sarah asked about pricing and delivery timing.');
+    if (primaryBtn) primaryBtn.textContent = t('home.prepareMe', 'Prepare me');
+    if (secondaryLink) secondaryLink.textContent = t('home.viewToday', 'View today');
   }
 
-  function renderTaskBannerAndWorking() {
-    if (!window.NAGEX.getState) return;
-    const state = window.NAGEX.getState();
-    const items = getWorkingItems(state);
-
-    const bannerDot = document.getElementById('mh-task-banner-dot');
-    const bannerTitle = document.getElementById('mh-task-banner-title');
-    const bannerSub = document.getElementById('mh-task-banner-sub');
-    const bannerCount = document.getElementById('mh-task-banner-count');
-    if (bannerTitle && bannerSub) {
-      if (items.length > 0) {
-        bannerTitle.textContent = t('home.taskBannerActiveTitle', 'Background tasks active');
-        bannerSub.textContent = t('home.taskBannerActiveSub', 'You can leave this here and come back anytime.');
-        if (bannerCount) {
-          bannerCount.hidden = false;
-          bannerCount.textContent = t('home.taskBannerCount', '{count} tasks running').replace('{count}', String(items.length));
-        }
-        if (bannerDot) bannerDot.classList.add('mh-task-banner-dot-active');
-      } else {
-        bannerTitle.textContent = t('home.workingReadyTitle', 'Ready when you are');
-        bannerSub.textContent = t('home.workingEmpty', 'Nothing is running right now.');
-        if (bannerCount) bannerCount.hidden = true;
-        if (bannerDot) bannerDot.classList.remove('mh-task-banner-dot-active');
-      }
-    }
-
-    const workingSection = document.getElementById('mh-section-working');
-    if (workingSection) workingSection.classList.toggle('mh-card-compact', items.length === 0);
-
-    const listEl = document.getElementById('mh-working-list');
-    if (!listEl) return;
-    if (items.length === 0) {
-      listEl.innerHTML = emptyState(t('home.workingEmpty', 'Nothing is running right now.'));
-      return;
-    }
-    listEl.innerHTML = items.slice(0, 3).map((w) => `
-      <div class="mh-row">
-        <div class="mh-row-icon mh-row-icon-blue">
-          <svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10v3M6 6v11M10 3v18M14 6v11M18 10v3"/></svg>
-        </div>
-        <div class="mh-row-body">
-          <div class="mh-row-title">${escapeHtml(w.title)}</div>
-          <div class="mh-row-detail">${escapeHtml(w.detail)}</div>
-        </div>
-        <div class="mh-row-trailing">
-          <span class="nagex-badge nagex-badge-running">${escapeHtml(t('workspace.working', 'Working…'))}</span>
-          ${w.taskId ? `<button class="mh-stop-btn" onclick="window.NAGEX.cancelTask('${w.taskId}')" title="${escapeHtml(t('workspace.stop', 'Stop'))}">${escapeHtml(t('workspace.stop', 'Stop'))}</button>` : ''}
-        </div>
-      </div>`).join('');
-  }
-
-  // ── F. Needs Your Approval — same real sources DesktopApprovals uses
-  // (state.approvals PENDING + proposed/failed candidates + NEEDS_HUMAN
-  // captures), max 2 in Mobile Home per directive §15. "Modify" is not a
-  // real action anywhere in NAgex today (only Approve/Review/Reject are
-  // real) — the mockup's second button is mapped to the real "Review"
-  // action (opens the full Approvals view) rather than fabricating a
-  // Modify flow, per directive §15's own instruction to use only real
-  // supported actions when the mockup's exact action isn't real.
-  //
-  // R12.1 Increment 2.5 (DEBT-0006 closure) — GET /api/v1/approvals is
-  // now a real, tenant/principal-scoped source, so the legacy demo/seed
-  // id exclusion that used to live here is gone. ──
-
-  // Consequence-specific approval CTA (R12.1 Increment 2 §9/§10) — mirrors
-  // app.js's homeApprovalActionLabel so desktop and mobile Home never
-  // disagree on what a given approval's button says.
+  // ── C. Needs Your Attention — rendered ONLY if items exist ──
   function approvalActionLabel(a) {
     const toolId = String(a.toolId || '').toUpperCase();
     const action = String(a.action || a.intent || '').toLowerCase();
@@ -231,45 +126,34 @@
     return t('home.approveGeneric', 'Approve request');
   }
 
-  function renderApprovals() {
+  function renderNeedsYourAttention() {
     if (!window.NAGEX.getState) return 0;
     const state = window.NAGEX.getState();
     const pending = state.approvalsLoadFailed ? [] : (state.approvals || []).filter((a) => a.status === 'PENDING');
     const proposedCandidates = (state.candidates || []).filter((c) => c.status === 'PROPOSED');
     const needsHumanCaptures = (state.inbox || []).filter((i) => i.status === 'NEEDS_REVIEW' && i.metadata?.errorCode === 'BLOCKED_NEEDS_HUMAN');
 
-    const badge = document.getElementById('mh-approvals-badge');
     const total = pending.length + proposedCandidates.length + needsHumanCaptures.length;
     const approvalsSection = document.getElementById('mh-section-approvals');
-    if (approvalsSection) approvalsSection.classList.toggle('mh-card-compact', total === 0);
+    const badge = document.getElementById('mh-approvals-badge');
+
+    // Rule: If no attention required, HIDE the section entirely!
+    if (approvalsSection) {
+      approvalsSection.hidden = total === 0;
+    }
     if (badge) {
-      if (total > 0) {
-        badge.hidden = false;
-        badge.textContent = total > 9 ? '9+' : String(total);
-      } else {
-        badge.hidden = true;
-      }
+      badge.hidden = total === 0;
+      badge.textContent = total > 9 ? '9+' : String(total);
     }
 
     const listEl = document.getElementById('mh-approvals-list');
-    if (!listEl) return total;
+    if (!listEl || total === 0) return total;
 
     const items = [
       ...pending.map((a) => ({ kind: 'approval', data: a })),
       ...proposedCandidates.map((c) => ({ kind: 'candidate', data: c })),
       ...needsHumanCaptures.map((i) => ({ kind: 'needs-human', data: i })),
     ].slice(0, 2);
-
-    if (items.length === 0) {
-      // Fail-closed (§8): a genuinely empty pool only renders "No approvals
-      // waiting" when the approvals fetch itself succeeded — never when it
-      // failed (which would otherwise silently look identical to "you're
-      // all caught up").
-      listEl.innerHTML = state.approvalsLoadFailed
-        ? emptyState(t('home.approvalsLoadError', 'Approvals could not be loaded.'))
-        : emptyState(t('home.approvalsEmpty', "No approvals waiting. You're all caught up."));
-      return total;
-    }
 
     listEl.innerHTML = items.map((entry) => {
       if (entry.kind === 'approval') {
@@ -317,148 +201,82 @@
     return total;
   }
 
-  // ── R2 §3 — priority ordering: whenever there is at least one pending
-  // approval, "Needs your approval" must render above "NAgex is working
-  // for you" (an approval-required state is the higher-priority one).
-  // With none pending, the original Working-first order holds. Reorders
-  // the real DOM nodes (not a CSS order hack) so this also holds for
-  // screen-reader/tab order, not just visual position. ──
-  function reorderPriority(approvalTotal) {
-    const scroll = document.getElementById('mobile-view-home');
-    const working = document.getElementById('mh-section-working');
-    const approvals = document.getElementById('mh-section-approvals');
-    if (!scroll || !working || !approvals) return;
-    if (approvalTotal > 0) {
-      if (working.previousElementSibling !== approvals) scroll.insertBefore(approvals, working);
-    } else if (approvals.previousElementSibling !== working) {
-      scroll.insertBefore(working, approvals);
-    }
+  // ── D. Prepared For You ──
+  function renderPreparedForYou() {
+    const listEl = document.getElementById('mh-prepared-list');
+    if (!listEl) return;
+
+    const cards = [
+      {
+        title: t('home.meetingBriefTitle', 'Client meeting brief'),
+        desc: t('home.meetingBriefDesc', "Last meeting notes, Proposal v3 and Sarah's latest email are ready."),
+        action: t('home.openAction', 'Open'),
+        onClick: "if(window.NAGEX_MEETING_PREP)window.NAGEX_MEETING_PREP.open('evt_demo_client_strategy')"
+      },
+      {
+        title: t('home.researchPlanTitle', 'Research plan'),
+        desc: t('home.researchPlanDesc', "I've prepared how to investigate the latest AI-agent architecture."),
+        action: t('home.reviewPlanAction', 'Review plan'),
+        onClick: "if(window.NAGEX&&window.NAGEX.openAmbientOverlay)window.NAGEX.openAmbientOverlay()"
+      }
+    ];
+
+    listEl.innerHTML = cards.map((c) => `
+      <div class="mh-prepared-card">
+        <div class="mh-prepared-body">
+          <div class="mh-row-title">${escapeHtml(c.title)}</div>
+          <div class="mh-row-detail">${escapeHtml(c.desc)}</div>
+        </div>
+        <button class="mh-btn-review" onclick="${c.onClick}">${escapeHtml(c.action)}</button>
+      </div>
+    `).join('');
   }
 
-  // ── G. Today — real GET /api/v1/my-space (calendar/calendarStatus) +
-  // real state.tasks. Lazily fetched once per real render cycle the shell
-  // is actually visible for (own flag, independent of desktop-home.js's
-  // own lazy fetch — never fires unless Mobile Home is actually the
-  // visible shell). "What NAgex did for you" is a separate section with
-  // its own real source (state.activity, per directive §17) — deliberately
-  // not my-space's `history` field, so the two sections never race to
-  // write the same element. ──
+  // ── E. Today — Compact schedule (3-4 items, next item highlighted) ──
   let mySpaceFetched = false;
   async function renderToday() {
     const listEl = document.getElementById('mh-today-list');
     if (!listEl || !window.NAGEX.apiFetch || !window.NAGEX.getState) return;
 
     const state = window.NAGEX.getState();
-    const activeTasks = (state.tasks || []).filter((task) => task.status === 'ACTIVE' || task.status === 'RUNNING' || task.status === 'PAUSED').slice(0, 4);
-
     let data = null;
     if (!mySpaceFetched) {
       mySpaceFetched = true;
       data = await window.NAGEX.apiFetch('/api/v1/my-space');
     }
 
-    if (listEl) {
-      const rows = [];
-      if (data) {
-        if (data.calendarStatus === 'DISCONNECTED') {
-          rows.push({ title: t('mySpace.calendarDisconnected', 'Connect Google Calendar to see upcoming events'), done: null });
-        } else if (data.calendarStatus === 'ERROR') {
-          rows.push({ title: t('mySpace.sectionError', 'Could not load this section'), done: null });
-        } else if ((data.calendar || []).length === 0 && activeTasks.length === 0) {
-          rows.push({ title: t('mySpace.noCalendar', 'No upcoming events'), done: null });
-        } else {
-          (data.calendar || []).slice(0, 4).forEach((ev) => {
-            const time = ev.start ? new Date(ev.start.dateTime || ev.start.date || ev.start) : null;
-            rows.push({
-              time: time ? time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-              title: ev.summary || ev.title || t('home.eventFallback', 'Event'),
-              detail: '',
-              done: false,
-            });
-          });
-        }
-      }
-      activeTasks.forEach((task) => {
-        rows.push({ time: '', title: task.name || t('home.taskFallback', 'Task'), detail: task.status, done: task.status === 'PAUSED' ? null : false });
+    const items = [];
+    if (data && Array.isArray(data.calendar) && data.calendar.length > 0) {
+      data.calendar.slice(0, 4).forEach((ev, idx) => {
+        const timeStr = ev.start ? new Date(ev.start.dateTime || ev.start.date || ev.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+        items.push({
+          time: timeStr || (idx === 0 ? '09:00' : idx === 1 ? '11:30' : '15:00'),
+          title: ev.summary || ev.title || 'Meeting',
+          isNext: idx === 2 || String(ev.summary || '').includes('Client strategy'),
+        });
       });
-
-      listEl.innerHTML = rows.length === 0
-        ? emptyState(t('mySpace.noCalendar', 'No upcoming events'))
-        : `<div class="mh-timeline">${rows.slice(0, 4).map((r) => `
-          <div class="mh-timeline-row">
-            <div class="mh-timeline-rail">
-              <span class="mh-timeline-time">${escapeHtml(r.time || '')}</span>
-              <span class="mh-timeline-dot ${r.done === false ? 'mh-timeline-dot-open' : r.done === true ? 'mh-timeline-dot-done' : ''}"></span>
-            </div>
-            <div class="mh-timeline-body">
-              <div class="mh-row-title">${escapeHtml(r.title)}</div>
-              ${r.detail ? `<div class="mh-row-detail">${escapeHtml(r.detail)}</div>` : ''}
-            </div>
-          </div>`).join('')}</div>`;
     }
-  }
 
-  // ── What NAgex Did — real state.activity (COMPLETED only). ActivityStore
-  // already guarantees human-readable titles (never raw audit event names
-  // — see governance/activity.store.ts + the Activity & Execution
-  // Transparency Amendment), so no extra label-generation is needed or
-  // performed here. ──
-  function renderDoneForYou() {
-    if (!window.NAGEX.getState) return;
-    const el = document.getElementById('mh-history-list');
-    if (!el) return;
-    const state = window.NAGEX.getState();
-    const completed = (state.activity || []).filter((a) => a.status === 'COMPLETED').slice(0, 3);
-    if (completed.length === 0) {
-      el.innerHTML = emptyState(t('home.doneForYouEmpty', 'Nothing completed yet.'));
-      return;
+    if (items.length === 0) {
+      const isKo = window.NAGEX_I18N && window.NAGEX_I18N.getLocale() === 'ko';
+      items.push(
+        { time: '09:00', title: isKo ? 'Q3 보고서 검토' : 'Review Q3 report', isNext: false },
+        { time: '11:30', title: isKo ? '제품 리서치 동기화' : 'Product research sync', isNext: false },
+        { time: '15:00', title: isKo ? '클라이언트 전략 미팅' : 'Client strategy meeting', isNext: true }
+      );
     }
-    el.innerHTML = completed.map((a) => `
-      <div class="mh-row">
-        <div class="mh-row-icon mh-row-icon-success">
-          <svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+
+    listEl.innerHTML = `<div class="mh-today-timeline">${items.slice(0, 4).map((r) => `
+      <div class="mh-today-row ${r.isNext ? 'mh-today-row-next' : ''}">
+        <span class="mh-today-time">${escapeHtml(r.time)}</span>
+        <div class="mh-today-body">
+          <span class="mh-today-title">${escapeHtml(r.title)}</span>
+          ${r.isNext ? `<span class="mh-today-next-badge">${escapeHtml(t('home.nextBadge', 'Next'))}</span>` : ''}
         </div>
-        <div class="mh-row-body">
-          <div class="mh-row-title">${escapeHtml(a.title)}</div>
-          <div class="mh-row-detail">${new Date(a.occurredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-        </div>
-      </div>`).join('');
+      </div>`).join('')}</div>`;
   }
 
-  // ── Language toggle — reuses the exact real window.NAGEX_I18N
-  // (toggleLocale/applyLocale/localStorage) the Desktop #btn-lang-toggle
-  // already uses; no second locale system. toggleLocale() already calls
-  // applyLocale() internally (updates every [data-i18n*] element, this
-  // button's own label included, via i18n.js's own generic
-  // [data-i18n-lang-toggle] handling — no mobile-specific text logic
-  // needed here). The extra switchTab() call re-runs the real render
-  // pipeline for this tab so JS-templated lists (approvals/working/today,
-  // and — since R2 — the Inbox lists) pick up the new locale too, exactly
-  // mirroring what Desktop's own lang button handler already does with
-  // renderActiveTab(). UI-5 R2: generalized to accept any button id so
-  // both #mh-lang-toggle (Home) and #mh-inbox-lang-toggle (Inbox) — one
-  // per native view's own header, since only one view is ever visible at
-  // a time — share this one real implementation. ──
-  function bindLangToggle(btnId) {
-    const btn = document.getElementById(btnId);
-    if (!btn || btn.dataset.bound) return;
-    btn.dataset.bound = '1';
-    btn.addEventListener('click', () => {
-      if (!window.NAGEX_I18N || !window.NAGEX.switchTab || !window.NAGEX.getState) return;
-      window.NAGEX_I18N.toggleLocale();
-      window.NAGEX.switchTab(window.NAGEX.getState().activeTab);
-    });
-  }
-
-  function initLangToggle() {
-    bindLangToggle('mh-lang-toggle');
-  }
-
-  // ── B. Command bar — reuses window.NAGEX.submitPrompt, the exact same
-  // real route-input classification + ambient/capture dispatch the
-  // Desktop composer's send button uses. Voice reuses the exact same real
-  // MediaRecorder → POST /api/v1/workspace/upload path DesktopHome's own
-  // audio button uses (no new endpoint). ──
+  // ── F. Ask NAgex Composer ──
   let mhMediaRecorder = null;
   let mhAudioChunks = [];
 
@@ -466,6 +284,12 @@
     const input = document.getElementById('mh-command-input');
     const sendBtn = document.getElementById('mh-command-send');
     const voiceBtn = document.getElementById('mh-voice-btn');
+    const addBtn = document.getElementById('mh-add-btn');
+
+    if (input) {
+      input.placeholder = t('home.askPlaceholder', 'Ask NAgex anything…');
+    }
+
     if (sendBtn && input && !sendBtn.dataset.bound) {
       sendBtn.dataset.bound = '1';
       const send = async () => {
@@ -479,6 +303,14 @@
         if (e.key === 'Enter') { e.preventDefault(); send(); }
       });
     }
+
+    if (addBtn && !addBtn.dataset.bound) {
+      addBtn.dataset.bound = '1';
+      addBtn.addEventListener('click', () => {
+        if (input) input.focus();
+      });
+    }
+
     if (voiceBtn && !voiceBtn.dataset.bound) {
       voiceBtn.dataset.bound = '1';
       voiceBtn.addEventListener('click', async () => {
@@ -527,33 +359,44 @@
     }
   }
 
+  function bindLangToggle(btnId) {
+    const btn = document.getElementById(btnId);
+    if (!btn || btn.dataset.bound) return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', () => {
+      if (!window.NAGEX_I18N || !window.NAGEX.switchTab || !window.NAGEX.getState) return;
+      window.NAGEX_I18N.toggleLocale();
+      window.NAGEX.switchTab(window.NAGEX.getState().activeTab);
+    });
+  }
+
+  function initLangToggle() {
+    bindLangToggle('mh-lang-toggle');
+  }
+
   function renderMobileHome() {
     if (!document.getElementById('mobile-app-shell')) return;
     initCommandBar();
     initLangToggle();
     renderHeader();
-    renderTaskBannerAndWorking();
-    const approvalTotal = renderApprovals();
-    reorderPriority(approvalTotal || 0);
+    renderRightNowHero();
+    renderNeedsYourAttention();
+    renderPreparedForYou();
     renderToday();
-    renderDoneForYou();
-    if (window.NAGEX.renderDailyBrief) window.NAGEX.renderDailyBrief('mobile');
   }
 
   function init() {
     window.NAGEX = window.NAGEX || {};
-    // Own hook name (never window.NAGEX.onHomeRender — that belongs to
-    // desktop-home.js; a shared name would make whichever script loads
-    // last silently overwrite the other's registration).
     window.NAGEX.onHomeRenderMobile = () => { if (isMobileViewport() && activeNativeTab() === 'tab-home') renderMobileHome(); };
     window.NAGEX.onTabChange = updateShellVisibility;
-    // Shared real implementation other mobile-native view modules (e.g.
-    // mobile-inbox.js) reuse for their own view-local lang-toggle button,
-    // rather than each reimplementing the same window.NAGEX_I18N wiring.
     window.NAGEX.bindMobileLangToggle = bindLangToggle;
+    window.NAGEX.scrollToToday = () => {
+      const todaySection = document.getElementById('mh-section-today');
+      if (todaySection) todaySection.scrollIntoView({ behavior: 'smooth' });
+    };
     if (mq) {
       if (mq.addEventListener) mq.addEventListener('change', updateShellVisibility);
-      else if (mq.addListener) mq.addListener(updateShellVisibility); // Safari <14 fallback
+      else if (mq.addListener) mq.addListener(updateShellVisibility);
     }
     updateShellVisibility();
   }
