@@ -509,6 +509,88 @@ describe('R22.3 Personal Context / Memory Foundation & Hardening', () => {
 
     console.log('TECHNICAL_UI_LEAK=0');
     console.log('RAW_I18N_KEY_LEAK=0');
+  });
+
+  it('17. Personal Context Relevance Gate Regression Fix Assertions', () => {
+    const { memoryEngine, contextService, pinnedMemories } = createTestContext();
+
+    // Seed Acme Corp memory (pinned, confirmed)
+    const acmeMem = memoryEngine.createMemory({
+      scope: 'USER',
+      tenantId,
+      ownerId,
+      content: {
+        subject: 'Acme Corp Context',
+        predicate: 'memory_summary',
+        value: 'Preparing for quarterly business review with Acme Corp focusing on product adoption, renewal potential, and Q3 roadmap.',
+      },
+      userConfirmed: true,
+    });
+    pinnedMemories.add(acmeMem.id);
+
+    // Seed User Profile (confirmed, recent)
+    const profileMem = memoryEngine.createMemory({
+      scope: 'USER',
+      tenantId,
+      ownerId,
+      content: { subject: 'User Profile', predicate: 'is', value: 'Jane Smith (Product Strategy Lead)' },
+      userConfirmed: true,
+    });
+
+    // Seed Preferred Tools (confirmed, recent)
+    const toolsMem = memoryEngine.createMemory({
+      scope: 'USER',
+      tenantId,
+      ownerId,
+      content: { subject: 'Preferred Tools', predicate: 'channel', value: 'Gmail, Google Calendar, Notion, Slack' },
+      userConfirmed: true,
+    });
+
+    // Seed Workspace memory
+    const wsMem = memoryEngine.createMemory({
+      scope: 'WORKSPACE',
+      tenantId,
+      ownerId,
+      workspaceId: 'ws_test_01',
+      content: { subject: 'Internal Roadmap', predicate: 'goal', value: 'Complete R22 architecture' },
+      userConfirmed: true,
+    });
+
+    // 1. Generic client meeting prompt -> MUST NOT surface Acme Corp memory or Jane Smith profile
+    const genericMeetingRes = contextService.getRelevantMemories(tenantId, ownerId, 'Prepare my next client meeting and schedule it.');
+    assert.equal(genericMeetingRes.some((m) => m.id === acmeMem.id), false);
+    assert.equal(genericMeetingRes.some((m) => m.id === profileMem.id), false);
+    console.log('PERSONAL_CONTEXT_GENERIC_ACME_LEAK=0');
+
+    // 2. Exact live regression prompt -> MUST NOT surface Acme Corp memory
+    const livePromptRes = contextService.getRelevantMemories(tenantId, ownerId, "Schedule a meeting tomorrow at 2 PM for 30 minutes titled 'NAgex UI Calendar Test'.");
+    assert.equal(livePromptRes.some((m) => m.id === acmeMem.id), false);
+    assert.equal(livePromptRes.some((m) => m.id === profileMem.id), false);
+    assert.equal(livePromptRes.some((m) => m.id === toolsMem.id), false);
+    console.log('PERSONAL_CONTEXT_LIVE_PROMPT_ACME_LEAK=0');
+
+    // 3. Unrelated prompt -> Pinned, Confirmed, Recent, and Workspace matches MUST NOT leak
+    const unrelatedRes = contextService.getRelevantMemories(tenantId, ownerId, 'quantum physics research', 'ws_test_01');
+    assert.equal(unrelatedRes.length, 0);
+    console.log('UNRELATED_PIN_CONTEXT_LEAK=0');
+    console.log('UNRELATED_CONFIRMED_MEMORY_LEAK=0');
+    console.log('UNRELATED_RECENT_MEMORY_LEAK=0');
+    console.log('WORKSPACE_BOOST_CANNOT_CREATE_RELEVANCE=PASS');
+    console.log('RANKING_BOOST_CANNOT_CREATE_RELEVANCE=PASS');
+
+    // 4. Exact relevant prompt -> Surface Acme Corp memory and apply pin & confirmed ranking boosts
+    const acmeRes = contextService.getRelevantMemories(tenantId, ownerId, 'Schedule the Acme Corp QBR.');
+    assert.ok(acmeRes.length > 0);
+    assert.equal(acmeRes[0].id, acmeMem.id);
+    console.log('RELATED_PIN_RANKING=PASS');
+    console.log('RELATED_CONFIRMED_RANKING=PASS');
+    console.log('RELATED_MEMORY_RETRIEVAL=PASS');
+
+    // 5. Empty prompt (general context mode) -> Returns active memories
+    const generalRes = contextService.getRelevantMemories(tenantId, ownerId, '');
+    assert.ok(generalRes.length > 0);
+
+    console.log('MEMORY_RELEVANCE_LEGACY_CONTRACT=PASS');
     console.log('PRODUCT_REGRESSIONS=0');
     console.log('BUILD_PENDING_SERVER=1');
     console.log('FAILURES=0');

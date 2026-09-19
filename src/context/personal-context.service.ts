@@ -18,6 +18,13 @@ export interface GetContextOptions {
   allowS2?: boolean;
 }
 
+export const MEMORY_RELEVANCE_STOPWORDS = new Set([
+  'and', 'the', 'for', 'with', 'to', 'of', 'in', 'on', 'my', 'a', 'an', 'is', 'it', 'this', 'that',
+  'are', 'was', 'were', 'be', 'been', 'will', 'can', 'you', 'your', 'me', 'we', 'our', 'they', 'them',
+  'but', 'or', 'if', 'not', 'no', 'do', 'does', 'did', 'have', 'has', 'had', 'from', 'as', 'at', 'by',
+  '그리고', '및', '를', '을', '에', '에서', '으로', '로', '와', '과', '한', '하는', '해줘', '해', '달라', '있는', '있습니다', '합니다', '니다'
+]);
+
 export class PersonalContextService {
   constructor(
     private readonly memoryEngine: MemoryEngine,
@@ -54,13 +61,21 @@ export class PersonalContextService {
 
     if (validActive.length === 0) return [];
 
-    const queryTokens = prompt
-      .toLowerCase()
-      .split(/[\s,._\-:;!?]+/)
-      .filter((t) => t.length > 1);
+    const trimmedPrompt = (prompt || '').trim();
+    const isPromptMode = trimmedPrompt.length > 0;
+
+    let meaningfulTokens: string[] = [];
+    if (isPromptMode) {
+      const rawTokens = trimmedPrompt
+        .toLowerCase()
+        .split(/[\s,._\-:;!?'"()\[\]{}]+/)
+        .map((t) => t.trim())
+        .filter((t) => t.length > 1);
+
+      meaningfulTokens = rawTokens.filter((t) => !MEMORY_RELEVANCE_STOPWORDS.has(t));
+    }
 
     const scored = validActive.map((mem) => {
-      let score = 0;
       const subj = (mem.content?.subject || '').toLowerCase();
       const pred = (mem.content?.predicate || '').toLowerCase();
       const val =
@@ -69,55 +84,60 @@ export class PersonalContextService {
           : JSON.stringify(mem.content?.value || '').toLowerCase();
 
       let matchCount = 0;
-      for (const token of queryTokens) {
-        if (subj.includes(token) || pred.includes(token) || val.includes(token)) {
-          matchCount++;
+      let isRelevant = false;
+
+      if (isPromptMode) {
+        if (meaningfulTokens.length > 0) {
+          for (const token of meaningfulTokens) {
+            if (subj.includes(token) || pred.includes(token) || val.includes(token)) {
+              matchCount++;
+            }
+          }
+          isRelevant = matchCount > 0;
+        } else {
+          // Prompt contained only stopwords, so no memory is relevant
+          isRelevant = false;
         }
+      } else {
+        // General-context mode (empty prompt): all valid active memories are eligible
+        isRelevant = true;
       }
 
-      if (queryTokens.length === 0) {
-        // No query provided: default general relevance ranking
-        score += 1;
-      } else {
-        score += matchCount * 10;
+      // HARD INVARIANT: RANKING_BOOST_CANNOT_CREATE_RELEVANCE=TRUE
+      // If prompt-bearing and not relevant, EXCLUDE immediately.
+      if (isPromptMode && !isRelevant) {
+        return { mem, score: 0, isRelevant: false };
       }
+
+      let score = isPromptMode ? matchCount * 10 : 1;
 
       const isPinned = Boolean(mem.pinned) || (this.pinResolver ? this.pinResolver(mem.id) : false);
-
-      // Hard rule: Pinned memory is NOT automatically relevant!
-      // An unrelated pinned memory must not leak into a prompt.
-      // Only reward pin if there is at least one match or no query!
-      if (isPinned && (matchCount > 0 || queryTokens.length === 0)) {
+      if (isPinned) {
         score += 2;
-      } else if (isPinned && matchCount === 0 && queryTokens.length > 0) {
-        // Unrelated pinned memory with specific query gets 0 score so it won't leak!
-        score = 0;
-      }
-
-      if (workspaceId && mem.workspaceId === workspaceId) {
-        score += 5;
       }
 
       if (mem.userConfirmed) {
         score += 3;
       }
 
-      // Recency boost (up to +3 points for items created within last 7 days)
+      if (workspaceId && mem.workspaceId === workspaceId) {
+        score += 5;
+      }
+
       const ageMs = Date.now() - new Date(mem.created_at).getTime();
       const ageDays = ageMs / (1000 * 60 * 60 * 24);
       if (ageDays < 7) {
         score += Math.max(0, 3 - ageDays * 0.4);
       }
 
-      return { mem, score };
+      return { mem, score, isRelevant: true };
     });
 
-    // Filter out items with 0 score when a query prompt is supplied
-    const filtered = queryTokens.length > 0 ? scored.filter((item) => item.score > 0) : scored;
+    const eligible = scored.filter((item) => item.isRelevant && item.score > 0);
 
-    filtered.sort((a, b) => b.score - a.score);
+    eligible.sort((a, b) => b.score - a.score);
 
-    return filtered.slice(0, maxMemories).map((item) => item.mem);
+    return eligible.slice(0, maxMemories).map((item) => item.mem);
   }
 
   public getPersonalContextBundle(options: GetContextOptions): PersonalContextBundle {

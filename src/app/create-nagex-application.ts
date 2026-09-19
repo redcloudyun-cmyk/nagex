@@ -105,16 +105,6 @@ import { DemoScenarioService } from '../demo/demo-scenario.service.js';
 import { SocialIdentityStore } from '../identity/social-identity.store.js';
 import { LifecycleManager } from './lifecycle-manager.js';
 
-// Common words that would otherwise create spurious "relevance" matches
-// (e.g. a prompt's "and" matching a completely unrelated memory's "and").
-// Deliberately small/explicit, not a general stopword library — this only
-// needs to keep the memory-relevance signal from tripping on noise words.
-const MEMORY_RELEVANCE_STOPWORDS = new Set([
-  'and', 'the', 'for', 'with', 'to', 'of', 'in', 'on', 'my', 'a', 'an', 'is', 'it', 'this', 'that',
-  'are', 'was', 'were', 'be', 'been', 'will', 'can', 'you', 'your', 'me', 'we', 'our', 'they', 'them',
-  'but', 'or', 'if', 'not', 'no', 'do', 'does', 'did', 'have', 'has', 'had', 'from', 'as', 'at', 'by',
-]);
-
 export function createNagexApplication(): NagexApplication {
   const demoScenarioService = new DemoScenarioService();
   const socialIdentityStore = new SocialIdentityStore();
