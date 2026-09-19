@@ -43,37 +43,45 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
       const heroCtaCount = await pageEn.locator('#mh-right-now-hero button.mh-btn-primary').count();
       assert.equal(heroCtaCount, 1, 'Hero must have exactly one primary CTA button');
 
-      // C. Meaningful personal context derived from state/APIs
+      // C. Meaningful personal context derived from state/APIs using the app's apiFetch
       const apiDataEn: any = await pageEn.evaluate(async () => {
-        const res = await fetch('/api/v1/personal/morning-brief', {
-          headers: { 'X-NAgex-Demo': '1', 'Accept-Language': 'en' }
-        });
-        return res.json();
+        return await (globalThis as any).window.NAGEX.apiFetch('/api/v1/personal/morning-brief');
       });
-      const recEn = apiDataEn?.data?.recommendation || apiDataEn?.recommendation;
+      const briefEn = apiDataEn?.data || apiDataEn;
+      const recEn = briefEn?.recommendation;
       const recReasonEn = recEn?.reason;
-      const eventsEn = apiDataEn?.data?.schedule_summary?.events || apiDataEn?.schedule_summary?.events || [];
+      const eventsEn = briefEn?.schedule_summary?.events || [];
 
-      // Wait until the rendered hero reflects the API-derived context
+      // Wait until the rendered hero reflects the API-derived context from the same session
       if (recReasonEn) {
-        await pageEn.waitForFunction(
-          (expectedReason: string) => {
+        try {
+          await pageEn.waitForFunction(
+            (expectedReason: string) => {
+              const hero = (globalThis as any).document.querySelector('#mh-right-now-hero');
+              const body = (globalThis as any).document.querySelector('#mh-hero-body')?.textContent?.trim() || '';
+              return (
+                hero?.getAttribute('data-context-ready') === 'true' &&
+                (
+                  body === expectedReason ||
+                  body.toLowerCase().includes(expectedReason.toLowerCase())
+                )
+              );
+            },
+            recReasonEn,
+            { timeout: 10000 }
+          );
+        } catch (err: any) {
+          const diag = await pageEn.evaluate(() => {
             const hero = (globalThis as any).document.querySelector('#mh-right-now-hero');
-            const isReady = hero?.getAttribute('data-context-ready') === 'true';
-            const body = (globalThis as any).document.querySelector('#mh-hero-body')?.textContent || '';
-            return Boolean(
-              isReady &&
-              (
-                body === expectedReason ||
-                body.toLowerCase().includes(expectedReason.toLowerCase()) ||
-                body.toLowerCase().includes('pricing') ||
-                body.toLowerCase().includes('sarah')
-              )
-            );
-          },
-          recReasonEn,
-          { timeout: 10000 }
-        );
+            return {
+              body: (globalThis as any).document.querySelector('#mh-hero-body')?.textContent?.trim() || '',
+              ready: hero?.getAttribute('data-context-ready')
+            };
+          });
+          assert.fail(
+            `Hero EN wait timeout.\nEXPECTED_REASON=${recReasonEn}\nACTUAL_BODY=${diag.body}\nCONTEXT_READY=${diag.ready}\nTARGET_EVENT=${JSON.stringify(recEn)}`
+          );
+        }
       }
 
       // Target event selection matching product semantics
@@ -102,14 +110,12 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
       assert.match(heroText, /Right now/i);
       assert.match(headlineTextEn, /Client/i);
 
-      // Verify recommendation reason matches actual API/state value (case-insensitive fallback)
+      // Verify recommendation reason matches actual API/state value
       if (recReasonEn) {
         assert.ok(
           bodyTextHeroEn === recReasonEn ||
-          bodyTextHeroEn.toLowerCase().includes(recReasonEn.toLowerCase()) ||
-          bodyTextHeroEn.toLowerCase().includes('pricing') ||
-          bodyTextHeroEn.toLowerCase().includes('sarah'),
-          `Hero body mismatch.\nEXPECTED=${recReasonEn}\nACTUAL=${bodyTextHeroEn}`
+          bodyTextHeroEn.toLowerCase().includes(recReasonEn.toLowerCase()),
+          `Hero body mismatch.\nEXPECTED_REASON=${recReasonEn}\nACTUAL_BODY=${bodyTextHeroEn}\nCONTEXT_READY=${await pageEn.getAttribute('#mh-right-now-hero', 'data-context-ready')}\nTARGET_EVENT=${targetEventEn?.title || 'none'}`
         );
       }
       heroContextDerivationPass = true;
@@ -170,34 +176,61 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
       await pageKr.waitForSelector('#mobile-app-shell', { state: 'attached' });
       await pageKr.waitForSelector('#mh-right-now-hero', { state: 'visible' });
 
-      // H. EN/KR Parity check
+      // H. EN/KR Parity check using the app's apiFetch
       const apiDataKr: any = await pageKr.evaluate(async () => {
-        const res = await fetch('/api/v1/personal/morning-brief', {
-          headers: { 'X-NAgex-Demo': '1', 'Accept-Language': 'ko', 'X-NAgex-Locale': 'ko' }
-        });
-        return res.json();
+        return await (globalThis as any).window.NAGEX.apiFetch('/api/v1/personal/morning-brief');
       });
-      const recReasonKr = apiDataKr?.data?.recommendation?.reason || apiDataKr?.recommendation?.reason;
+      const briefKr = apiDataKr?.data || apiDataKr;
+      const recKr = briefKr?.recommendation;
+      const recReasonKr = recKr?.reason;
+      const eventsKr = briefKr?.schedule_summary?.events || [];
 
       if (recReasonKr) {
-        await pageKr.waitForFunction(
-          (expectedReason: string) => {
+        try {
+          await pageKr.waitForFunction(
+            (expectedReason: string) => {
+              const hero = (globalThis as any).document.querySelector('#mh-right-now-hero');
+              const body = (globalThis as any).document.querySelector('#mh-hero-body')?.textContent?.trim() || '';
+              return (
+                hero?.getAttribute('data-context-ready') === 'true' &&
+                (
+                  body === expectedReason ||
+                  body.includes(expectedReason)
+                )
+              );
+            },
+            recReasonKr,
+            { timeout: 10000 }
+          );
+        } catch (err: any) {
+          const diag = await pageKr.evaluate(() => {
             const hero = (globalThis as any).document.querySelector('#mh-right-now-hero');
-            const isReady = hero?.getAttribute('data-context-ready') === 'true';
-            const body = (globalThis as any).document.querySelector('#mh-hero-body')?.textContent || '';
-            return Boolean(
-              isReady &&
-              (
-                body === expectedReason ||
-                body.includes(expectedReason) ||
-                body.includes('가격') ||
-                body.includes('Sarah')
-              )
-            );
-          },
-          recReasonKr,
-          { timeout: 10000 }
-        );
+            return {
+              body: (globalThis as any).document.querySelector('#mh-hero-body')?.textContent?.trim() || '',
+              ready: hero?.getAttribute('data-context-ready')
+            };
+          });
+          assert.fail(
+            `Hero KR wait timeout.\nEXPECTED_REASON=${recReasonKr}\nACTUAL_BODY=${diag.body}\nCONTEXT_READY=${diag.ready}\nTARGET_EVENT=${JSON.stringify(recKr)}`
+          );
+        }
+      }
+
+      let targetEventKr: any = null;
+      if (recKr && recKr.target_id) {
+        targetEventKr = eventsKr.find((e: any) => (e.id || e.event_id) === recKr.target_id);
+      }
+      if (!targetEventKr && recKr && recKr.title) {
+        targetEventKr = eventsKr.find((e: any) => {
+          const et = e.title || e.summary || '';
+          return et && recKr.title.includes(et);
+        });
+      }
+      if (!targetEventKr && eventsKr.length > 0) {
+        targetEventKr = eventsKr.find((e: any) => {
+          const st = new Date(e.start_time || e.start?.dateTime || e.start).getTime();
+          return !isNaN(st) && st >= Date.now() - 30 * 60 * 1000;
+        }) || eventsKr[0];
       }
 
       const heroTextKr = await pageKr.locator('#mh-right-now-hero').innerText();
@@ -210,10 +243,8 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
       if (recReasonKr) {
         assert.ok(
           bodyTextHeroKr === recReasonKr ||
-          bodyTextHeroKr.includes(recReasonKr) ||
-          bodyTextHeroKr.includes('가격') ||
-          bodyTextHeroKr.includes('Sarah'),
-          `KR Hero body mismatch.\nEXPECTED=${recReasonKr}\nACTUAL=${bodyTextHeroKr}`
+          bodyTextHeroKr.includes(recReasonKr),
+          `KR Hero body mismatch.\nEXPECTED_REASON=${recReasonKr}\nACTUAL_BODY=${bodyTextHeroKr}\nCONTEXT_READY=${await pageKr.getAttribute('#mh-right-now-hero', 'data-context-ready')}\nTARGET_EVENT=${targetEventKr?.title || 'none'}`
         );
       }
 
