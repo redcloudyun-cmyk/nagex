@@ -51,9 +51,12 @@ export interface ProviderStatus {
   degradedReason: string | null;
 }
 
+import type { ModelProviderCapabilities } from './model-routing.types.js';
+
 export interface ModelProvider {
   readonly name: ProviderId;
   readonly model: string | null;
+  readonly capabilities?: ModelProviderCapabilities;
   status(): ProviderStatus;
   generate(request: ModelRequest): Promise<ModelResponse>;
   // R7.1 — optional so a future/custom adapter that doesn't implement one

@@ -1,3 +1,4 @@
+import type { ModelProviderCapabilities } from './model-routing.types.js';
 import {
   ModelProviderError,
   type ModelProvider,
@@ -24,6 +25,15 @@ abstract class HttpModelProvider implements ModelProvider {
   protected readonly apiKey: string | null;
   protected readonly fetchFn: FetchFn;
   protected readonly timeoutMs: number;
+
+  public get capabilities(): ModelProviderCapabilities {
+    return {
+      provider: this.name,
+      supportsJsonMode: true,
+      supportsGeneralChat: true,
+      supportsStructuredExtraction: true,
+    };
+  }
 
   // R7 §4 — real, observed last-outcome state. Never set optimistically:
   // stays null until this instance has actually attempted a real

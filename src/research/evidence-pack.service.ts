@@ -169,7 +169,7 @@ export class EvidencePackService {
   }
 
   public isValidPublicUrl(urlString: string): boolean {
-    const res = isUrlSafe(urlString);
+    const res = isUrlSafe(urlString, { allowLocalhostInTests: false });
     return res.safe;
   }
 

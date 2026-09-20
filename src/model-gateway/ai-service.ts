@@ -421,6 +421,11 @@ export class AiService {
       mode: input.mode,
       requestId,
       jsonMode: true,
+      routingContext: {
+        taskKind: 'DAILY_BRIEF',
+        requiresJson: true,
+        requestId,
+      },
       validate: (text) => { normalizeBrief(text, requestId); },
       messages: [
         {
@@ -466,6 +471,11 @@ export class AiService {
       mode: input.mode,
       requestId,
       jsonMode: true,
+      routingContext: {
+        taskKind: 'MEETING_PREP',
+        requiresJson: true,
+        requestId,
+      },
       validate: (text) => { normalizeMeetingPrep(text, requestId); },
       messages: [
         {
@@ -531,6 +541,12 @@ export class AiService {
     const response = await this.router.generate({
       mode: input.mode,
       requestId,
+      routingContext: {
+        taskKind: 'CHAT',
+        requiresJson: false,
+        requiresEvidenceGrounding: Boolean(input.evidencePack && input.evidencePack.sources.length > 0),
+        requestId,
+      },
       messages,
     });
     return {
@@ -569,6 +585,12 @@ export class AiService {
     const response = await this.router.generate({
       mode,
       requestId,
+      routingContext: {
+        taskKind: 'RESEARCH_SYNTHESIS',
+        requiresJson: false,
+        requiresEvidenceGrounding: true,
+        requestId,
+      },
       messages: [
         { role: 'system', content: systemContent },
         { role: 'user', content: `Research query: ${input.query}` },
@@ -594,6 +616,11 @@ export class AiService {
       mode: input.mode,
       requestId,
       jsonMode: true,
+      routingContext: {
+        taskKind: 'PLAN',
+        requiresJson: true,
+        requestId,
+      },
       validate: (text) => { normalizePlan(text, requestId); },
       messages: [
         {
@@ -638,6 +665,11 @@ export class AiService {
       mode: input.mode || 'auto',
       requestId,
       jsonMode: true,
+      routingContext: {
+        taskKind: 'STRUCTURED_EXTRACTION',
+        requiresJson: true,
+        requestId,
+      },
       validate: (text) => { normalizeUnderstanding(text, requestId); },
       messages: [
         { role: 'system', content: TEXT_UNDERSTANDING_SYSTEM_PROMPT },

@@ -14,6 +14,7 @@ import { MemoryEngine } from '../src/context/memory.engine.js';
 import { handleResearchRoutes } from '../src/http/routes/research.routes.js';
 import { handleConversationRoutes } from '../src/http/routes/conversation.routes.js';
 import { handleCapabilitiesRoutes } from '../src/http/routes/capabilities.routes.js';
+import { canonicalModuleRegistry } from '../src/modules/module.registry.js';
 import { CapabilityBroker, capabilityRegistry } from '../src/capabilities/index.js';
 import { SessionStore } from '../src/sessions/session.store.js';
 import { ConversationStore } from '../src/conversations/conversation.store.js';
@@ -179,7 +180,7 @@ describe('R22.4 Evidence Pack & Live Web Search Foundation', () => {
       capabilityRegistry,
       'capabilities_idempotency_test',
       'NAGEX_CAPABILITIES_IDEMPOTENCY_DIR_TEST',
-      undefined,
+      canonicalModuleRegistry,
       undefined,
       undefined,
       undefined,
@@ -214,7 +215,7 @@ describe('R22.4 Evidence Pack & Live Web Search Foundation', () => {
       capabilityRegistry,
       'capabilities_idempotency_test2',
       'NAGEX_CAPABILITIES_IDEMPOTENCY_DIR_TEST2',
-      undefined,
+      canonicalModuleRegistry,
       undefined,
       undefined,
       undefined,

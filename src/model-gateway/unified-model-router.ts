@@ -1,6 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import { NagexError } from '../common/errors.js';
-import { ModelProviderError, type ModelMessage, type ModelProvider, type ModelResponse, type ProviderRuntimeStatus, type ProviderStatus, type RoutingMode } from './model-provider.js';
+import {
+  ModelProviderError,
+  type ModelMessage,
+  type ModelProvider,
+  type ModelResponse,
+  type ProviderRuntimeStatus,
+  type ProviderStatus,
+  type RoutingMode,
+} from './model-provider.js';
+import { ModelRoutingPolicy } from './model-routing-policy.js';
+import type { ModelRoutingContext, ModelRoutingDecision } from './model-routing.types.js';
 
 export interface RouterLogger {
   info(event: string, fields: Record<string, unknown>): void;
@@ -12,11 +22,28 @@ const safeLogger: RouterLogger = {
   warn: (event, fields) => console.warn(JSON.stringify({ event, ...fields })),
 };
 
+export interface GenerateInput {
+  messages: ModelMessage[];
+  mode: RoutingMode;
+  requestId?: string;
+  jsonMode?: boolean;
+  routingContext?: ModelRoutingContext;
+  validate?: (text: string) => void;
+}
+
 export class UnifiedModelRouter {
   private readonly providers: Map<string, ModelProvider>;
+  private readonly configuredPriority: string[];
+  private readonly routingPolicy: ModelRoutingPolicy;
 
-  constructor(providers: ModelProvider[], private readonly logger: RouterLogger = safeLogger) {
+  constructor(
+    providers: ModelProvider[],
+    private readonly logger: RouterLogger = safeLogger,
+    routingPolicy?: ModelRoutingPolicy
+  ) {
     this.providers = new Map(providers.map((provider) => [provider.name, provider]));
+    this.configuredPriority = providers.map((p) => p.name);
+    this.routingPolicy = routingPolicy ?? new ModelRoutingPolicy();
   }
 
   public statuses(): ProviderStatus[] {
@@ -36,7 +63,9 @@ export class UnifiedModelRouter {
     activeProviderStatus: ProviderRuntimeStatus | null;
     fallbackProviders: string[];
   } {
-    const configured = [...this.providers.values()].map((provider) => provider.status()).filter((status) => status.configured);
+    const configured = [...this.providers.values()]
+      .map((provider) => provider.status())
+      .filter((status) => status.configured);
     const [active, ...rest] = configured;
     return {
       activeProvider: active?.provider ?? null,
@@ -60,19 +89,43 @@ export class UnifiedModelRouter {
     return this.statuses();
   }
 
-  public async generate(input: { messages: ModelMessage[]; mode: RoutingMode; requestId?: string; jsonMode?: boolean; validate?: (text: string) => void }): Promise<ModelResponse> {
-    const requestId = input.requestId || `mdl_${randomUUID()}`;
-    const registeredOrder = [...this.providers.keys()];
-    if (input.mode !== 'auto' && !this.providers.has(input.mode)) {
-      throw new NagexError({ code: 'MODEL_PROVIDER_NOT_REGISTERED', category: 'VALIDATION', message: `Model provider is not registered: ${input.mode}.`, request_id: requestId });
-    }
-    const order = input.mode === 'auto'
-      ? registeredOrder
-      : [input.mode, ...registeredOrder.filter((name) => name !== input.mode)];
-    const candidates = order.map((name) => this.providers.get(name)).filter((provider): provider is ModelProvider => Boolean(provider?.status().configured));
+  public async generate(input: GenerateInput): Promise<ModelResponse> {
+    const requestId = input.requestId || input.routingContext?.requestId || `mdl_${randomUUID()}`;
+
+    const context: ModelRoutingContext = input.routingContext || {
+      taskKind: input.jsonMode ? 'STRUCTURED_EXTRACTION' : 'CHAT',
+      requiresJson: Boolean(input.jsonMode),
+      requestId,
+    };
+
+    const decision: ModelRoutingDecision = this.routingPolicy.select(
+      input.mode,
+      context,
+      [...this.providers.values()],
+      this.configuredPriority
+    );
+
+    // Logging model_routing_decision event — STRICT PRIVACY: zero prompt, memory, or evidence content
+    this.logger.info('model_routing_decision', {
+      requestId: context.requestId,
+      taskKind: decision.taskKind,
+      selectedProvider: decision.selectedProvider,
+      fallbackProviders: decision.fallbackProviders,
+      reasonCodes: decision.reasonCodes,
+    });
+
+    const candidateOrder = [decision.selectedProvider, ...decision.fallbackProviders];
+    const candidates = candidateOrder
+      .map((name) => this.providers.get(name))
+      .filter((provider): provider is ModelProvider => Boolean(provider?.status().configured));
 
     if (candidates.length === 0) {
-      throw new NagexError({ code: 'NO_MODEL_PROVIDER_CONFIGURED', category: 'PROVIDER', message: 'No model provider is configured.', request_id: requestId });
+      throw new NagexError({
+        code: 'NO_MODEL_PROVIDER_CONFIGURED',
+        category: 'PROVIDER',
+        message: 'No model provider is configured.',
+        request_id: requestId,
+      });
     }
 
     const failures: Array<{ provider: string; code: string }> = [];
@@ -80,7 +133,13 @@ export class UnifiedModelRouter {
       try {
         const result = await provider.generate({ messages: input.messages, requestId, jsonMode: input.jsonMode });
         input.validate?.(result.text);
-        this.logger.info('model_request_succeeded', { requestId, provider: result.provider, model: result.model, latencyMs: result.latencyMs, fallbackUsed: provider.name !== order[0] });
+        this.logger.info('model_request_succeeded', {
+          requestId,
+          provider: result.provider,
+          model: result.model,
+          latencyMs: result.latencyMs,
+          fallbackUsed: provider.name !== candidateOrder[0],
+        });
         return result;
       } catch (error) {
         const normalized = error instanceof ModelProviderError
@@ -89,10 +148,22 @@ export class UnifiedModelRouter {
             ? new ModelProviderError({ provider: provider.name, code: error.code, message: error.message, requestId, retryable: true })
             : new ModelProviderError({ provider: provider.name, code: 'PROVIDER_UNKNOWN_ERROR', message: `${provider.name} request failed.`, requestId, retryable: true });
         failures.push({ provider: provider.name, code: normalized.code });
-        this.logger.warn('model_request_failed', { requestId, provider: provider.name, model: provider.model, code: normalized.code, retryable: normalized.retryable });
+        this.logger.warn('model_request_failed', {
+          requestId,
+          provider: provider.name,
+          model: provider.model,
+          code: normalized.code,
+          retryable: normalized.retryable,
+        });
       }
     }
 
-    throw new NagexError({ code: 'ALL_MODEL_PROVIDERS_FAILED', category: 'PROVIDER', message: 'All configured model providers failed.', request_id: requestId, details: { failures } });
+    throw new NagexError({
+      code: 'ALL_MODEL_PROVIDERS_FAILED',
+      category: 'PROVIDER',
+      message: 'All configured model providers failed.',
+      request_id: requestId,
+      details: { failures },
+    });
   }
 }
