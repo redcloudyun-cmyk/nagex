@@ -1,5 +1,7 @@
 process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY || 'test_openai_key';
 process.env.NAGEX_OPENAI_MODEL = process.env.NAGEX_OPENAI_MODEL || 'gpt-4o';
+process.env.GEMINI_API_KEY = 'test_gemini_key';
+process.env.NAGEX_GEMINI_MODEL = 'gemini-test-model';
 process.env.NAGEX_WEB_SEARCH_PROVIDER = 'tavily';
 process.env.NAGEX_TAVILY_API_KEY = 'test_tavily_key';
 
@@ -21,7 +23,7 @@ globalThis.fetch = async (input: any, init?: any) => {
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     );
   }
-  if (url.includes('api.openai.com') || url.includes('api.nebius.ai')) {
+  if (url.includes('api.openai.com') || url.includes('api.nebius.ai') || url.includes('generativelanguage.googleapis.com')) {
     const plan = { goal: 'Research AI agent architecture', summary: 'Research and summarize latest developments in AI agent architecture', reasoningSummary: 'Check current evidence and summarize what matters for NAgex', suggestions: [], steps: [{ step: 1, title: 'Searching trusted sources', skill: 'skill.research', tool: 'web_search', reasoning: 'Find current evidence' }, { step: 2, title: 'Reading recent updates', skill: 'skill.research', reasoning: 'Extract relevant context' }, { step: 3, title: 'Preparing a concise summary', skill: 'skill.research', reasoning: 'Create a project-focused summary' }] };
     const text = JSON.stringify(plan);
     return new Response(JSON.stringify({ choices: [{ message: { content: text } }], output_text: text, items: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
@@ -164,7 +166,7 @@ test('R21 P1 A-J semantic certification and visual QA capture', async () => {
     await mobile.waitForFunction(() => {
       const el = document.querySelector('#mh-hero-brief-card') || document.querySelector('#hero-brief-card');
       const text = el?.textContent || '';
-      return text.includes('Client strategy meeting') || text.includes('클라이언트 전략 미팅') || text.includes('고객 전략 미팅');
+      return text.includes('Client strategy meeting') || text.includes('?�라?�언???�략 미팅') || text.includes('고객 ?�략 미팅');
     });
     assert.equal(await mobile.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
     fs.writeFileSync(path.resolve('artifacts/r21_p1_latency.json'), JSON.stringify({ ...metrics, ...quickMetrics, ...actionMetrics }, null, 2));
