@@ -28,6 +28,7 @@ import { createProviders } from '../model-gateway/providers.js';
 import { UnifiedModelRouter } from '../model-gateway/unified-model-router.js';
 import { PerspectiveCompareService } from '../model-gateway/perspective-compare.service.js';
 import { ForecastCompareService } from '../model-gateway/forecast-compare.service.js';
+import { PersonalHomeService } from '../home/personal-home.service.js';
 import { skillRegistry as canonicalSkillRegistry } from '../skills/skill-registry.js';
 import { toolRegistry as canonicalToolRegistry } from '../tools/tool-registry.js';
 import { PlanResolver } from '../planning/plan-resolver.js';
@@ -487,6 +488,18 @@ export function createNagexApplication(): NagexApplication {
     aiService,
   });
 
+  const personalHomeService = new PersonalHomeService({
+    actionApprovals,
+    dailyBriefStore,
+    taskStore,
+    activityStore,
+    actionProposalStore,
+    inboxStore,
+    creationStore,
+    googleCalendarService,
+    gmailService,
+  });
+
   return {
     questionClassificationService,
     webSearchService,
@@ -495,6 +508,7 @@ export function createNagexApplication(): NagexApplication {
     socialIdentityStore,
     personalReminderStore,
     personalAssistantEngine,
+    personalHomeService,
     identityStore,
     identityTokenStore,
     identityAuditStore,

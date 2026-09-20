@@ -33,6 +33,7 @@ import { handleResearchRoutes } from './http/routes/research.routes.js';
 import { handlePerspectiveCompareRoutes } from './http/routes/perspective-compare.routes.js';
 import { handleForecastCompareRoutes } from './http/routes/forecast-compare.routes.js';
 import { handleDailyBriefRoutes } from './http/routes/daily-brief.routes.js';
+import { handlePersonalHomeRoutes } from './http/routes/personal-home.routes.js';
 import { handlePersonalAssistantRoutes } from './http/routes/personal-assistant.routes.js';
 import { handleCapabilitiesRoutes } from './http/routes/capabilities.routes.js';
 import { handleMySpaceRoutes } from './http/routes/my-space.routes.js';
@@ -537,6 +538,11 @@ export async function handleAsyncApiRequest(
     {
       const dailyBriefResult = await handleDailyBriefRoutes(method, pathname, body, headers, query, { service, calendarService, gmailApiService, dailyBriefStore, actionProposalStore, actionApprovals, activityStore, notificationEngine, taskStore });
       if (dailyBriefResult) return dailyBriefResult;
+    }
+    // R22.8 — Personal AI Home Aggregation Route
+    {
+      const personalHomeResult = await handlePersonalHomeRoutes(method, pathname, body, headers, query, { personalHomeService: app.personalHomeService, modelErrorResult });
+      if (personalHomeResult) return personalHomeResult;
     }
 
     {

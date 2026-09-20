@@ -175,4 +175,5 @@ export interface NagexApplication {
   modelRouter: import('../model-gateway/unified-model-router.js').UnifiedModelRouter;
   perspectiveCompareService: import('../model-gateway/perspective-compare.service.js').PerspectiveCompareService;
   forecastCompareService: import('../model-gateway/forecast-compare.service.js').ForecastCompareService;
+  personalHomeService: import('../home/personal-home.service.js').PersonalHomeService;
 }
