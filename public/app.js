@@ -259,7 +259,16 @@
       timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     }
     try {
-      const isDemoMode = Boolean(state.demoMode || (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('demo') === '1'));
+      if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('demo') === '1') {
+        try { sessionStorage.setItem('nagex_demo_mode', '1'); } catch (e) {}
+      }
+      const isDemoMode = Boolean(
+        state.demoMode ||
+        (typeof window !== 'undefined' && (
+          new URLSearchParams(window.location.search).get('demo') === '1' ||
+          sessionStorage.getItem('nagex_demo_mode') === '1'
+        ))
+      );
       const currentLocale = window.NAGEX_I18N ? window.NAGEX_I18N.getLocale() : (localStorage.getItem('nagex_locale') || 'en');
       const res = await fetch(endpoint, {
         ...restOptions,
