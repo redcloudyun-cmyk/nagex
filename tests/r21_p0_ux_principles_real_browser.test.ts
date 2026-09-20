@@ -1,5 +1,7 @@
 process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY || 'test_openai_key';
 process.env.NAGEX_OPENAI_MODEL = process.env.NAGEX_OPENAI_MODEL || 'gpt-4o';
+process.env.GEMINI_API_KEY = 'test_gemini_key';
+process.env.NAGEX_GEMINI_MODEL = 'gemini-test-model';
 // R21 P1 — required for GoogleCalendarService to resolve a config at all;
 // the calendar-approval card now performs a real free-slots lookup and a
 // real event-creation call (see app.js renderUserApprovalCard) rather than
