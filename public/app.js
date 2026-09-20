@@ -2,9 +2,16 @@
 (function () {
   'use strict';
 
+  if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('demo') === '1') {
+    try { sessionStorage.setItem('nagex_demo_mode', '1'); } catch (e) {}
+  }
+
   const state = {
     activeTab: 'tab-home',
-    demoMode: typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('demo') === '1',
+    demoMode: typeof window !== 'undefined' && (
+      new URLSearchParams(window.location.search).get('demo') === '1' ||
+      sessionStorage.getItem('nagex_demo_mode') === '1'
+    ),
     memories: [],
     plans: [],
     tasks: [],
@@ -1763,35 +1770,7 @@
 
 
 
-  window.NAGEX = window.NAGEX || {};
-  window.NAGEX.renderMemory = renderMemory;
-  window.NAGEX.toggleMemorySetting = async (key, value) => {
-    if (window.NAGEX.apiFetch) {
-      await window.NAGEX.apiFetch('/api/v1/memory/settings', {
-        method: 'PATCH',
-        body: JSON.stringify({ [key]: value }),
-      });
-    }
-    renderMemory();
-  };
-  window.NAGEX.confirmMemory = async (id) => {
-    if (window.NAGEX.apiFetch) {
-      await window.NAGEX.apiFetch(`/api/v1/memory/${id}/confirm`, { method: 'POST' });
-    }
-    renderMemory();
-  };
-  window.NAGEX.rejectMemory = async (id) => {
-    if (window.NAGEX.apiFetch) {
-      await window.NAGEX.apiFetch(`/api/v1/memory/${id}/reject`, { method: 'POST' });
-    }
-    renderMemory();
-  };
-  window.NAGEX.deleteMemory = async (id) => {
-    if (window.NAGEX.apiFetch) {
-      await window.NAGEX.apiFetch(`/api/v1/memory/${id}`, { method: 'DELETE' });
-    }
-    renderMemory();
-  };
+
 
   function renderPlans() {
     const container = document.getElementById('plans-list-container');
