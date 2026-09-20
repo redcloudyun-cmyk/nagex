@@ -107,14 +107,19 @@
       const res = await window.NAGEX.apiFetch('/api/v1/activity?limit=30');
       mhActivityLoading = false;
       const data = unwrapApiData(res);
-      if (!data || !Array.isArray(data.activities)) {
+      if (!data || data.error || !Array.isArray(data.activities)) {
         mhActivityLoadError = true;
+        if (window.NAGEX.getState()) window.NAGEX.getState().activityLoadFailed = true;
         return;
       }
-      window.NAGEX.getState().activity = data.activities;
+      if (window.NAGEX.getState()) {
+        window.NAGEX.getState().activity = data.activities;
+        window.NAGEX.getState().activityLoadFailed = false;
+      }
     } catch (err) {
       mhActivityLoading = false;
       mhActivityLoadError = true;
+      if (window.NAGEX.getState()) window.NAGEX.getState().activityLoadFailed = true;
     }
   }
 
@@ -250,16 +255,20 @@
     const listEl = document.getElementById('mh-activity-list');
     if (!listEl || !window.NAGEX.getState) return;
 
-    if (mhActivityLoadError) {
-      listEl.innerHTML = emptyState(t('mobileActivity.loadError', "Couldn't load Activity."));
-      return;
-    }
     if (mhActivityLoading) {
       listEl.innerHTML = '<div class="nagex-loading-row"></div><div class="nagex-loading-row"></div>';
       return;
     }
 
-    const all = window.NAGEX.getState().activity || [];
+    const state = window.NAGEX.getState();
+    const isLoadFailed = mhActivityLoadError || (state && state.activityLoadFailed);
+
+    if (isLoadFailed) {
+      listEl.innerHTML = emptyState(t('mobileActivity.loadError', "Couldn't load Activity."));
+      return;
+    }
+
+    const all = (state && state.activity) || [];
     if (all.length === 0) {
       listEl.innerHTML = emptyState(t('mobileActivity.empty', 'No activity yet.'));
       return;

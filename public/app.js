@@ -44,6 +44,7 @@
     // read only this — never the legacy non-isolated /api/v1/executions
     // demo array.
     activity: [],
+    activityLoadFailed: false,
   };
 
   var FLOW_STAGES = ['User message', 'Plan Preview', 'Plan Resolution', 'Approval Card', 'Human Approval', 'Execution', 'Result'];
@@ -552,7 +553,8 @@
     if (execData) state.executions = execData.executions || [];
     if (knowData) state.knowledge = knowData.documents || [];
     if (candData) state.candidates = candData.candidates || [];
-    if (activityData) state.activity = activityData.activities || [];
+    state.activityLoadFailed = !activityData || Boolean(activityData.error) || !Array.isArray(activityData.activities);
+    if (activityData && !activityData.error && Array.isArray(activityData.activities)) state.activity = activityData.activities;
     if (inboxData && Array.isArray(inboxData.items)) state.inbox = inboxData.items;
     if (convData) state.mainConversation = convData;
     if (qwData) state.quickWakeConfig = qwData;
@@ -2236,14 +2238,17 @@
 
     try {
       const data = await apiFetch('/api/v1/activity?limit=50');
-      if (!data || !Array.isArray(data.activities)) {
+      if (!data || data.error || !Array.isArray(data.activities)) {
         loadError = true;
+        state.activityLoadFailed = true;
       } else {
         activities = data.activities;
         state.activity = activities;
+        state.activityLoadFailed = false;
       }
     } catch (err) {
       loadError = true;
+      state.activityLoadFailed = true;
     }
 
     if (loadError) {
