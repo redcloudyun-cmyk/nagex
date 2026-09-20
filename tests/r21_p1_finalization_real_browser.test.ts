@@ -26,7 +26,7 @@ globalThis.fetch = async (input: any, init?: any) => {
   if (url.includes('api.openai.com') || url.includes('api.nebius.ai') || url.includes('generativelanguage.googleapis.com')) {
     const plan = { goal: 'Research AI agent architecture', summary: 'Research and summarize latest developments in AI agent architecture', reasoningSummary: 'Check current evidence and summarize what matters for NAgex', suggestions: [], steps: [{ step: 1, title: 'Searching trusted sources', skill: 'skill.research', tool: 'web_search', reasoning: 'Find current evidence' }, { step: 2, title: 'Reading recent updates', skill: 'skill.research', reasoning: 'Extract relevant context' }, { step: 3, title: 'Preparing a concise summary', skill: 'skill.research', reasoning: 'Create a project-focused summary' }] };
     const text = JSON.stringify(plan);
-    return new Response(JSON.stringify({ choices: [{ message: { content: text } }], output_text: text, items: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ choices: [{ message: { content: text } }], candidates: [{ content: { parts: [{ text }] } }], output_text: text, items: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   }
   return originalFetch(input, init);
 };

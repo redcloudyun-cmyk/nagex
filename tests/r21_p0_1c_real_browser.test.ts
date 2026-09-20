@@ -51,6 +51,13 @@ globalThis.fetch = async function (input: any, init?: any) {
             finish_reason: 'stop',
           }
         ],
+        candidates: [
+          {
+            content: {
+              parts: [{ text: jsonText }]
+            }
+          }
+        ],
         items: [],
         output_text: jsonText,
       }),
