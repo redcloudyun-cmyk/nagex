@@ -5677,9 +5677,15 @@
   }
 
   async function deletePersonalContext(id) {
+    const backup = state.memories;
     state.memories = (state.memories || []).filter((m) => m.id !== id);
     renderMemory();
-    await apiFetch(`/api/v1/memory/${id}`, { method: 'DELETE' });
+    const res = await apiFetch(`/api/v1/memory/${id}`, { method: 'DELETE' });
+    if (!res || res.error || (typeof res.success === 'boolean' && !res.success)) {
+      state.memories = backup;
+      renderMemory();
+      console.error('Delete failed:', res?.error);
+    }
   }
 
   async function openLinkCaptureModal(rawUrl) {
@@ -5712,7 +5718,7 @@
       if (loading) loading.hidden = true;
       if (errEl) {
         errEl.hidden = false;
-        errEl.textContent = res?.error || t('linkCapture.fetchFailed') || "I couldn't fetch that page.";
+        errEl.textContent = typeof res?.error === 'string' ? res.error : (res?.error?.message || t('linkCapture.fetchFailed') || "I couldn't fetch that page.");
       }
       return;
     }
@@ -5747,12 +5753,13 @@
     if (!state.activeLinkCapture) return;
     const { source, preview } = state.activeLinkCapture;
     const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    const errEl = document.getElementById('link-capture-status-error');
 
     if (destination === 'VAULT') {
       const btnVault = document.getElementById('btn-capture-save-vault');
       if (btnVault) btnVault.textContent = t('linkCapture.savingToVault') || 'Saving...';
 
-      await apiFetch('/api/v1/workspace/vault', {
+      const res = await apiFetch('/api/v1/workspace/vault', {
         method: 'POST',
         body: JSON.stringify({
           title: source?.title || 'Saved Page',
@@ -5770,13 +5777,21 @@
         }),
       });
 
-      if (btnVault) btnVault.textContent = t('linkCapture.savedToVault') || 'Saved to Vault';
-      setTimeout(() => closeLinkCaptureModal(), 1000);
+      if (res && !res.error && res.status !== 'ERROR') {
+        if (btnVault) btnVault.textContent = t('linkCapture.savedToVault') || 'Saved to Vault';
+        setTimeout(() => closeLinkCaptureModal(), 1000);
+      } else {
+        if (btnVault) btnVault.textContent = t('linkCapture.saveVault') || 'Save to Vault';
+        if (errEl) {
+          errEl.hidden = false;
+          errEl.textContent = typeof res?.error === 'string' ? res.error : (res?.error?.message || t('linkCapture.saveFailed') || 'Save failed');
+        }
+      }
     } else if (destination === 'INBOX') {
       const btnInbox = document.getElementById('btn-capture-add-inbox');
       if (btnInbox) btnInbox.textContent = t('linkCapture.addingToInbox') || 'Adding...';
 
-      await apiFetch('/api/v1/workspace/inbox/capture', {
+      const res = await apiFetch('/api/v1/workspace/inbox/capture', {
         method: 'POST',
         body: JSON.stringify({
           title: source?.title || 'Saved Link',
@@ -5786,8 +5801,16 @@
         }),
       });
 
-      if (btnInbox) btnInbox.textContent = t('linkCapture.addedToInbox') || 'Added to Inbox';
-      setTimeout(() => closeLinkCaptureModal(), 1000);
+      if (res && !res.error && res.status !== 'ERROR') {
+        if (btnInbox) btnInbox.textContent = t('linkCapture.addedToInbox') || 'Added to Inbox';
+        setTimeout(() => closeLinkCaptureModal(), 1000);
+      } else {
+        if (btnInbox) btnInbox.textContent = t('linkCapture.addInbox') || 'Add to Inbox';
+        if (errEl) {
+          errEl.hidden = false;
+          errEl.textContent = typeof res?.error === 'string' ? res.error : (res?.error?.message || t('linkCapture.saveFailed') || 'Save failed');
+        }
+      }
     } else if (destination === 'MEMORY') {
       const memoryEditor = document.getElementById('link-capture-memory-editor');
       const memoryText = document.getElementById('link-capture-memory-text');
@@ -5804,7 +5827,7 @@
 
       if (btnRemember) btnRemember.textContent = t('linkCapture.remembering') || 'Saving...';
 
-      await apiFetch('/api/v1/memory/remember', {
+      const res = await apiFetch('/api/v1/memory/remember', {
         method: 'POST',
         body: JSON.stringify({
           scope: 'USER',
@@ -5817,8 +5840,16 @@
         }),
       });
 
-      if (btnRemember) btnRemember.textContent = t('linkCapture.remembered') || 'Saved to Personal Context';
-      setTimeout(() => closeLinkCaptureModal(), 1000);
+      if (res && !res.error && res.status !== 'ERROR') {
+        if (btnRemember) btnRemember.textContent = t('linkCapture.remembered') || 'Saved to Personal Context';
+        setTimeout(() => closeLinkCaptureModal(), 1000);
+      } else {
+        if (btnRemember) btnRemember.textContent = t('linkCapture.remember') || 'Remember';
+        if (errEl) {
+          errEl.hidden = false;
+          errEl.textContent = typeof res?.error === 'string' ? res.error : (res?.error?.message || t('linkCapture.saveFailed') || 'Save failed');
+        }
+      }
     }
   }
 

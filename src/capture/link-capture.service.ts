@@ -2,6 +2,7 @@ import dns from 'node:dns/promises';
 import http from 'node:http';
 import https from 'node:https';
 import { URL } from 'node:url';
+import { isIPv4, isIPv6 } from 'node:net';
 
 export interface LinkCaptureSource {
   url: string;
@@ -42,13 +43,13 @@ function ipToLong(ip: string): number {
   return ip.split('.').reduce((acc, octet) => (acc << 8) + parseInt(octet, 10), 0) >>> 0;
 }
 
-function isPrivateIPv4(ip: string): boolean {
+export function isPrivateIPv4(ip: string): boolean {
   if (!/^(?:\d{1,3}\.){3}\d{1,3}$/.test(ip)) return false;
   const longIp = ipToLong(ip);
   return PRIVATE_IPV4_RANGES.some((range) => longIp >= range.start && longIp <= range.end);
 }
 
-function isPrivateIPv6(ip: string): boolean {
+export function isPrivateIPv6(ip: string): boolean {
   const normalized = ip.toLowerCase();
   if (normalized === '::1' || normalized === '::') return true;
   if (normalized.startsWith('fe80:') || normalized.startsWith('fc00:') || normalized.startsWith('fd00:')) return true;
@@ -59,7 +60,13 @@ function isPrivateIPv6(ip: string): boolean {
   return false;
 }
 
-export async function validateUrlForSsrf(urlStr: string): Promise<{ valid: boolean; reason?: string; parsedUrl?: URL }> {
+export type CustomDnsResolver = (hostname: string) => Promise<{ address: string; family: number }[]>;
+
+export async function validateUrlForSsrf(
+  urlStr: string,
+  customResolver?: CustomDnsResolver,
+  allowTestFixture?: boolean
+): Promise<{ valid: boolean; reason?: string; parsedUrl?: URL; resolvedIp?: string; resolvedFamily?: 4 | 6 }> {
   try {
     const parsed = new URL(urlStr);
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
@@ -67,33 +74,47 @@ export async function validateUrlForSsrf(urlStr: string): Promise<{ valid: boole
     }
 
     const hostname = parsed.hostname.toLowerCase();
-    if (
-      hostname === 'localhost' ||
-      hostname === '127.0.0.1' ||
-      hostname === '::1' ||
-      hostname === '0.0.0.0' ||
-      hostname.endsWith('.local') ||
-      hostname.endsWith('.internal')
-    ) {
-      return { valid: false, reason: 'Access to localhost / local domains is blocked.' };
-    }
-
-    if (isPrivateIPv4(hostname) || isPrivateIPv6(hostname)) {
-      return { valid: false, reason: 'Access to private network IP addresses is blocked.' };
-    }
-
-    try {
-      const ips = await dns.lookup(hostname, { all: true });
-      for (const entry of ips) {
-        if (isPrivateIPv4(entry.address) || isPrivateIPv6(entry.address)) {
-          return { valid: false, reason: `Resolved IP ${entry.address} is in private network range.` };
-        }
+    if (!allowTestFixture) {
+      if (
+        hostname === 'localhost' ||
+        hostname === '127.0.0.1' ||
+        hostname === '::1' ||
+        hostname === '0.0.0.0' ||
+        hostname.endsWith('.local') ||
+        hostname.endsWith('.internal')
+      ) {
+        return { valid: false, reason: 'Access to localhost / local domains is blocked.' };
       }
-    } catch {
-      // If DNS lookup fails, let HTTP fetch attempt or reject if hostname is unresolvable
+
+      if (isPrivateIPv4(hostname) || isPrivateIPv6(hostname)) {
+        return { valid: false, reason: 'Access to private network IP addresses is blocked.' };
+      }
     }
 
-    return { valid: true, parsedUrl: parsed };
+    let resolvedIp = hostname;
+    let resolvedFamily: 4 | 6 = 4;
+
+    if (!isIPv4(hostname) && !isIPv6(hostname)) {
+      try {
+        const lookupFn = customResolver || (async (h) => dns.lookup(h, { all: true }));
+        const ips = await lookupFn(hostname);
+        for (const entry of ips) {
+          if (!allowTestFixture && (isPrivateIPv4(entry.address) || isPrivateIPv6(entry.address))) {
+            return { valid: false, reason: `Resolved IP ${entry.address} is in private network range.` };
+          }
+        }
+        if (ips.length > 0) {
+          resolvedIp = ips[0].address;
+          resolvedFamily = ips[0].family === 6 ? 6 : 4;
+        }
+      } catch {
+        return { valid: false, reason: 'DNS resolution failed.' };
+      }
+    } else {
+      resolvedFamily = isPrivateIPv6(hostname) || hostname.includes(':') ? 6 : 4;
+    }
+
+    return { valid: true, parsedUrl: parsed, resolvedIp, resolvedFamily };
   } catch {
     return { valid: false, reason: 'Invalid URL format.' };
   }
@@ -103,10 +124,17 @@ export class LinkCaptureService {
   private readonly timeoutMs: number = 5000;
   private readonly maxResponseSizeBytes: number = 1024 * 1024; // 1MB
   private readonly maxRedirects: number = 3;
+  private readonly customResolver?: CustomDnsResolver;
+  private readonly allowTestFixture?: boolean;
+
+  constructor(options?: { customResolver?: CustomDnsResolver; allowTestFixture?: boolean }) {
+    this.customResolver = options?.customResolver;
+    this.allowTestFixture = options?.allowTestFixture;
+  }
 
   public async captureLink(rawUrl: string): Promise<LinkCaptureResult> {
-    const validation = await validateUrlForSsrf(rawUrl);
-    if (!validation.valid || !validation.parsedUrl) {
+    const validation = await validateUrlForSsrf(rawUrl, this.customResolver, this.allowTestFixture);
+    if (!validation.valid || !validation.parsedUrl || !validation.resolvedIp) {
       return {
         status: 'UNAVAILABLE',
         error: validation.reason || 'Invalid URL or private network destination.',
@@ -114,7 +142,7 @@ export class LinkCaptureService {
     }
 
     try {
-      const fetched = await this.fetchWithRedirectValidation(validation.parsedUrl, 0);
+      const fetched = await this.fetchWithRedirectValidation(validation.parsedUrl, validation.resolvedIp, validation.resolvedFamily || 4, 0);
       if (!fetched.success || !fetched.body) {
         return {
           status: 'UNAVAILABLE',
@@ -130,6 +158,10 @@ export class LinkCaptureService {
         return this.parseJsonContent(rawUrl, fetched.finalUrl, bodyText, retrievedAt);
       }
 
+      if (contentType.includes('text/plain')) {
+        return this.parseTextContent(rawUrl, fetched.finalUrl, bodyText, contentType, retrievedAt);
+      }
+
       return this.parseHtmlContent(rawUrl, fetched.finalUrl, bodyText, contentType, retrievedAt);
     } catch (err) {
       return {
@@ -141,15 +173,12 @@ export class LinkCaptureService {
 
   private async fetchWithRedirectValidation(
     targetUrl: URL,
+    resolvedIp: string,
+    resolvedFamily: 4 | 6,
     redirectCount: number
   ): Promise<{ success: boolean; body?: string; finalUrl: string; contentType?: string; error?: string }> {
     if (redirectCount > this.maxRedirects) {
       return { success: false, finalUrl: targetUrl.href, error: 'Too many redirects.' };
-    }
-
-    const validation = await validateUrlForSsrf(targetUrl.href);
-    if (!validation.valid) {
-      return { success: false, finalUrl: targetUrl.href, error: validation.reason || 'Redirect destination blocked.' };
     }
 
     return new Promise((resolve) => {
@@ -161,18 +190,58 @@ export class LinkCaptureService {
           headers: {
             'User-Agent': 'NAgex-LinkCapture/1.0',
             Accept: 'text/html,text/plain,application/json;q=0.9',
+            Host: targetUrl.host,
           },
           timeout: this.timeoutMs,
+          // DNS_REBINDING_BYPASS=0: Direct socket connection to the exact IP address validated
+          lookup: (hostname: string, options: any, callback?: any) => {
+            const cb = typeof options === 'function' ? options : callback;
+            if (typeof cb !== 'function') return;
+
+            const handleResult = (ip: string, fam: 4 | 6) => {
+              if ((!this.allowTestFixture || ip !== resolvedIp) && (isPrivateIPv4(ip) || isPrivateIPv6(ip))) {
+                cb(new Error(`DNS Rebinding detected: Host ${hostname} resolved to private IP ${ip}`));
+                return;
+              }
+              if (options && typeof options === 'object' && options.all) {
+                cb(null, [{ address: ip, family: fam }]);
+              } else {
+                cb(null, ip, fam);
+              }
+            };
+
+            if (this.customResolver) {
+              this.customResolver(hostname).then((ips) => {
+                if (ips.length > 0) {
+                  handleResult(ips[0].address, ips[0].family === 6 ? 6 : 4);
+                } else {
+                  handleResult(resolvedIp, resolvedFamily);
+                }
+              }).catch(() => {
+                handleResult(resolvedIp, resolvedFamily);
+              });
+            } else {
+              handleResult(resolvedIp, resolvedFamily);
+            }
+          },
         },
         (res) => {
           const statusCode = res.statusCode || 500;
 
-          // Handle Redirects
+          // Handle Redirects with fresh DNS resolve + SSRF re-validation on target IP
           if ([301, 302, 303, 307, 308].includes(statusCode) && res.headers.location) {
             req.destroy();
             try {
               const redirectUrl = new URL(res.headers.location, targetUrl);
-              resolve(this.fetchWithRedirectValidation(redirectUrl, redirectCount + 1));
+              validateUrlForSsrf(redirectUrl.href, this.customResolver, false).then((redirVal) => {
+                if (!redirVal.valid || !redirVal.parsedUrl || !redirVal.resolvedIp) {
+                  resolve({ success: false, finalUrl: redirectUrl.href, error: redirVal.reason || 'Redirect destination blocked.' });
+                  return;
+                }
+                resolve(this.fetchWithRedirectValidation(redirVal.parsedUrl, redirVal.resolvedIp, redirVal.resolvedFamily || 4, redirectCount + 1));
+              }).catch(() => {
+                resolve({ success: false, finalUrl: redirectUrl.href, error: 'Redirect SSRF validation failed.' });
+              });
               return;
             } catch {
               resolve({ success: false, finalUrl: targetUrl.href, error: 'Invalid redirect location.' });
@@ -252,7 +321,6 @@ export class LinkCaptureService {
     const dateMatch = html.match(/<meta[^>]+property=["']article:published_time["'][^>]+content=["']([^"']+)["']/i);
     const publishedAt = dateMatch ? dateMatch[1].trim() : undefined;
 
-    // Clean HTML content for excerpt & headings
     let clean = html
       .replace(/<script[\s\S]*?<\/script>/gi, ' ')
       .replace(/<style[\s\S]*?<\/style>/gi, ' ')
@@ -295,6 +363,29 @@ export class LinkCaptureService {
         summary,
         excerpt,
         headings,
+      },
+    };
+  }
+
+  private parseTextContent(url: string, finalUrl: string, text: string, contentType: string, retrievedAt: string): LinkCaptureResult {
+    const title = new URL(finalUrl).hostname;
+    const excerpt = text.length > 300 ? text.slice(0, 300) + '...' : text;
+
+    return {
+      status: 'READY',
+      source: {
+        url,
+        finalUrl,
+        title,
+        siteName: new URL(finalUrl).hostname,
+        retrievedAt,
+        contentType,
+        contentLength: text.length,
+      },
+      preview: {
+        summary: excerpt,
+        excerpt,
+        headings: [],
       },
     };
   }
