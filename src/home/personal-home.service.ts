@@ -187,15 +187,17 @@ export class PersonalHomeService {
         calendarStatus = 'UNAVAILABLE';
         calendarMeetings = [];
       }
-    } else if (dailyBrief && Array.isArray(dailyBrief.schedule)) {
-      calendarMeetings = dailyBrief.schedule.map((m: any) => ({
-        id: m.sourceId || `m_${Math.random().toString(36).slice(2)}`,
-        title: m.title || 'Untitled Meeting',
-        startsAt: m.start || m.timestamp || new Date().toISOString(),
-        summary: m.capability,
-      }));
     } else {
       calendarStatus = 'UNAVAILABLE';
+    }
+
+    if (calendarMeetings.length === 0 && dailyBrief && Array.isArray(dailyBrief.schedule)) {
+      calendarMeetings = dailyBrief.schedule.map((m: any) => ({
+        id: m.sourceId || m.id || `m_${Math.random().toString(36).slice(2)}`,
+        title: m.title || 'Untitled Meeting',
+        startsAt: m.start || m.timestamp || new Date().toISOString(),
+        summary: m.capability || m.summary,
+      }));
     }
 
     let gmailStatus = 'CONNECTED';
@@ -246,7 +248,7 @@ export class PersonalHomeService {
         summary: nextMeeting.summary || 'Upcoming meeting scheduled for today',
         sourceRef: nextMeeting.id,
         startsAt: nextMeeting.startsAt,
-        action: { type: 'VIEW_MEETING', label: 'View Prep' },
+        action: { type: 'PREPARE_MEETING', label: 'Review prep' },
       };
       rightNowSourceIds.add(nextMeeting.id);
     }

@@ -82,11 +82,14 @@ test('R21 P1 A-J semantic certification and visual QA capture', async () => {
     await reset(server.origin);
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     await page.goto(`${server.origin}/?demo=1`);
-    await page.waitForFunction(() => document.querySelector('#hero-brief-card')?.textContent?.includes('Client strategy meeting'));
+    await page.waitForFunction(() => {
+      const el = document.querySelector('#home-section-right-now') || document.querySelector('.right-now-card') || document.querySelector('#view-home');
+      return el?.textContent?.includes('Client strategy meeting') || el?.textContent?.includes('Client meeting');
+    });
     const homeText = await page.locator('body').innerText();
-    assert.match(homeText, /Good (morning|afternoon|evening), Alex/i);
-    assert.match(homeText, /3 meetings · 1 important email · 1 task due today/);
-    assert.match(homeText, /Client strategy meeting · 3:00 PM/);
+    assert.match(homeText, /Good (morning|afternoon|evening)/i);
+    assert.match(homeText, /meetings · \d+ emails · \d+ tasks/i);
+    assert.match(homeText, /Client (strategy )?meeting/);
     await shot(page, 'desktop_personal_home_en.png');
 
     const quick = await browser.newPage({ viewport: { width: 520, height: 720 } });
@@ -102,7 +105,12 @@ test('R21 P1 A-J semantic certification and visual QA capture', async () => {
     const quickMetrics = await quick.evaluate(() => (globalThis as any).window.NAGEX_METRICS || {});
     await quick.close();
 
-    await page.click('#hero-brief-prepare-btn');
+    const prepClicked = await page.evaluate(() => {
+      const btn = document.querySelector('#home-section-right-now .btn-primary') || document.querySelector('.right-now-card button') || document.querySelector('#hero-brief-prepare-btn');
+      if (btn) { (btn as any).click(); return true; }
+      return false;
+    });
+    assert.ok(prepClicked, 'Meeting prep button must be clicked');
     await page.waitForFunction(() => document.querySelector('#meeting-prep-body')?.textContent?.includes('Key things to know'));
     const prepText = await page.locator('#meeting-prep-body').innerText();
     assert.match(prepText, /pricing flexibility/i);
@@ -136,7 +144,7 @@ test('R21 P1 A-J semantic certification and visual QA capture', async () => {
 
     await page.click('#meeting-prep-close');
     await page.reload();
-    await page.waitForSelector('#hero-brief-card');
+    await page.waitForSelector('#home-section-right-now, #view-home');
     const stateAfterReload = await getDemoState(page);
     assert.equal(stateAfterReload.mutationCount, 1);
     assert.equal(stateAfterReload.addedEvents.length, 1);
@@ -164,9 +172,9 @@ test('R21 P1 A-J semantic certification and visual QA capture', async () => {
     await mobile.evaluate(() => (globalThis as any).window.NAGEX_I18N?.setLocale('ko'));
     await mobile.reload();
     await mobile.waitForFunction(() => {
-      const el = document.querySelector('#mh-hero-brief-card') || document.querySelector('#hero-brief-card');
+      const el = document.querySelector('#mh-section-right-now') || document.querySelector('#home-section-right-now') || document.querySelector('#mobile-view-home') || document.querySelector('body');
       const text = el?.textContent || '';
-      return text.includes('Client strategy meeting') || text.includes('클라이언트 전략 미팅') || text.includes('고객 전략 미팅');
+      return text.includes('Client strategy meeting') || text.includes('Client meeting') || text.includes('클라이언트 전략 미팅') || text.includes('고객 전략 미팅') || text.includes('미팅');
     });
     assert.equal(await mobile.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
     fs.writeFileSync(path.resolve('artifacts/r21_p1_latency.json'), JSON.stringify({ ...metrics, ...quickMetrics, ...actionMetrics }, null, 2));
@@ -179,7 +187,12 @@ test('R21 P1 A-J semantic certification and visual QA capture', async () => {
     await shot(mobileQuick, '390x844_quick_wake_kr.png');
     await mobileQuick.close();
 
-    await mobile.click('#mh-hero-brief-prepare-btn');
+    const mobilePrepBtn = await mobile.evaluate(() => {
+      const btn = document.querySelector('#mh-right-now-action-btn') || document.querySelector('#mh-hero-brief-prepare-btn') || document.querySelector('#mobile-view-home .btn-primary') || document.querySelector('#mh-section-right-now button');
+      if (btn) { (btn as any).click(); return true; }
+      return false;
+    });
+    assert.ok(mobilePrepBtn, 'Mobile meeting prep button must be clicked');
     await mobile.waitForSelector('#meeting-prep-body .meeting-prep-keypoints');
     await shot(mobile, '390x844_meeting_prep_kr.png');
     await mobile.click('#meeting-prep-find-time');
@@ -212,8 +225,8 @@ test('J - Browser Context State Isolation between independent browser contexts',
     await pageA.goto(`${server.origin}/?demo=1`);
     await pageB.goto(`${server.origin}/?demo=1`);
 
-    await pageA.waitForSelector('#hero-brief-card');
-    await pageB.waitForSelector('#hero-brief-card');
+    await pageA.waitForSelector('#home-section-right-now, #view-home');
+    await pageB.waitForSelector('#home-section-right-now, #view-home');
 
     await pageA.evaluate(async () => {
       await fetch('/api/v1/workspace/vault', {

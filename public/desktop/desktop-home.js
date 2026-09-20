@@ -226,8 +226,12 @@
         if (window.NAGEX.switchTab) window.NAGEX.switchTab('tab-approvals');
       } else if (upperType.includes('TASK')) {
         if (window.NAGEX.switchTab) window.NAGEX.switchTab('tab-executions');
-      } else if (upperType.includes('CALENDAR') || upperType.includes('MEETING')) {
-        if (window.NAGEX.switchTab) window.NAGEX.switchTab('tab-my-space');
+      } else if (upperType.includes('PREPARE') || upperType.includes('MEETING') || upperType.includes('CALENDAR')) {
+        if (window.NAGEX_MEETING_PREP && typeof window.NAGEX_MEETING_PREP.open === 'function') {
+          window.NAGEX_MEETING_PREP.open(sourceRef);
+        } else if (window.NAGEX.switchTab) {
+          window.NAGEX.switchTab('tab-my-space');
+        }
       } else {
         if (window.NAGEX.switchTab) window.NAGEX.switchTab('tab-inbox');
       }
