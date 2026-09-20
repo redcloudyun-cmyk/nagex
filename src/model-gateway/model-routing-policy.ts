@@ -23,6 +23,25 @@ export class ModelRoutingPolicy {
       reasonCodes.push('JSON_MODE_REQUIRED');
     }
 
+    // Helper function to check if a provider satisfies context capability requirements
+    const satisfiesCapabilities = (provider: ModelProvider): boolean => {
+      const caps = provider.capabilities;
+      if (!caps) {
+        // Unknown capability ≠ Supported capability (No fail-open)
+        return false;
+      }
+      if (context.requiresJson && !caps.supportsJsonMode) {
+        return false;
+      }
+      if (context.taskKind === 'STRUCTURED_EXTRACTION' && !caps.supportsStructuredExtraction) {
+        return false;
+      }
+      if (context.taskKind === 'CHAT' && !caps.supportsGeneralChat) {
+        return false;
+      }
+      return true;
+    };
+
     // 1. Explicit Provider Override
     if (mode !== 'auto') {
       const explicit = providerMap.get(mode);
@@ -35,11 +54,21 @@ export class ModelRoutingPolicy {
         });
       }
 
+      // Explicit override cannot bypass required capability incompatibility
+      if (!satisfiesCapabilities(explicit)) {
+        throw new NagexError({
+          code: 'MODEL_PROVIDER_CAPABILITY_UNSUPPORTED',
+          category: 'VALIDATION',
+          message: `Explicitly selected model provider '${mode}' does not support required capabilities for task ${context.taskKind}.`,
+          request_id: context.requestId,
+        });
+      }
+
       reasonCodes.push('EXPLICIT_OVERRIDE');
 
-      // Remaining configured providers in fallback order
+      // Remaining configured providers in fallback order that ALSO satisfy capabilities
       const remainingCandidates = providers.filter(
-        (p) => p.name !== mode && p.status().configured
+        (p) => p.name !== mode && p.status().configured && satisfiesCapabilities(p)
       );
 
       return {
@@ -61,22 +90,8 @@ export class ModelRoutingPolicy {
       });
     }
 
-    // 3. Filter by required capabilities
-    const eligibleProviders = configuredProviders.filter((provider) => {
-      const caps = provider.capabilities;
-      if (!caps) return true; // Default fallback if no caps object present
-
-      if (context.requiresJson && !caps.supportsJsonMode) {
-        return false;
-      }
-      if (context.taskKind === 'STRUCTURED_EXTRACTION' && !caps.supportsStructuredExtraction) {
-        return false;
-      }
-      if (context.taskKind === 'CHAT' && !caps.supportsGeneralChat) {
-        return false;
-      }
-      return true;
-    });
+    // 3. Filter by required capabilities (No fail-open)
+    const eligibleProviders = configuredProviders.filter((p) => satisfiesCapabilities(p));
 
     if (eligibleProviders.length === 0) {
       throw new NagexError({

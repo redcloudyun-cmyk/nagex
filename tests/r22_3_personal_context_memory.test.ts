@@ -523,6 +523,7 @@ describe('R22.3 Personal Context / Memory Foundation & Hardening', () => {
     const mockNebiusProvider: ModelProvider = {
       name: 'NEBIUS',
       model: 'nebius-model',
+      capabilities: { provider: 'NEBIUS', supportsJsonMode: true, supportsGeneralChat: true, supportsStructuredExtraction: true },
       status: () => ({ configured: true, available: true, provider: 'NEBIUS', model: 'nebius-model', status: 'LIVE', lastCheckedAt: null, degradedReason: null }),
       async generate(req) {
         const sysMsg = req.messages.find((m) => m.role === 'system')?.content || '';
@@ -539,6 +540,7 @@ describe('R22.3 Personal Context / Memory Foundation & Hardening', () => {
     const mockNvidiaProvider: ModelProvider = {
       name: 'NVIDIA',
       model: 'nvidia-model',
+      capabilities: { provider: 'NVIDIA', supportsJsonMode: true, supportsGeneralChat: true, supportsStructuredExtraction: true },
       status: () => ({ configured: true, available: true, provider: 'NVIDIA', model: 'nvidia-model', status: 'LIVE', lastCheckedAt: null, degradedReason: null }),
       async generate(req) {
         const sysMsg = req.messages.find((m) => m.role === 'system')?.content || '';

@@ -193,6 +193,15 @@ abstract class HttpModelProvider implements ModelProvider {
 export class OpenAIProvider extends HttpModelProvider {
   public readonly name = 'openai' as const;
 
+  public get capabilities(): ModelProviderCapabilities {
+    return {
+      provider: this.name,
+      supportsJsonMode: false,
+      supportsGeneralChat: true,
+      supportsStructuredExtraction: false,
+    };
+  }
+
   public async generate(request: ModelRequest): Promise<ModelResponse> {
     const { apiKey, model } = this.assertConfigured(request.requestId);
     const startedAt = Date.now();
@@ -212,6 +221,15 @@ export class OpenAIProvider extends HttpModelProvider {
 
 export class GeminiProvider extends HttpModelProvider {
   public readonly name = 'gemini' as const;
+
+  public get capabilities(): ModelProviderCapabilities {
+    return {
+      provider: this.name,
+      supportsJsonMode: true,
+      supportsGeneralChat: true,
+      supportsStructuredExtraction: true,
+    };
+  }
 
   public async generate(request: ModelRequest): Promise<ModelResponse> {
     const { apiKey, model } = this.assertConfigured(request.requestId);
@@ -241,6 +259,15 @@ export class GeminiProvider extends HttpModelProvider {
 
 export class NebiusProvider extends HttpModelProvider {
   public readonly name = 'nebius' as const;
+
+  public get capabilities(): ModelProviderCapabilities {
+    return {
+      provider: this.name,
+      supportsJsonMode: true,
+      supportsGeneralChat: true,
+      supportsStructuredExtraction: true,
+    };
+  }
 
   public async generate(request: ModelRequest): Promise<ModelResponse> {
     const { apiKey, model } = this.assertConfigured(request.requestId);
