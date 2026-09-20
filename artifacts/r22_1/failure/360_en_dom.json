@@ -1,0 +1,33 @@
+{
+  "viewport": "360",
+  "locale": "en",
+  "heroHeadline": "Client strategy meeting",
+  "heroBody": "Pricing and delivery timing need your attention.",
+  "heroResolved": true,
+  "todayRowCount": 3,
+  "composerBox": {
+    "x": 16,
+    "y": 658,
+    "width": 328,
+    "height": 86,
+    "top": 658,
+    "right": 344,
+    "bottom": 744,
+    "left": 16
+  },
+  "navBox": {
+    "x": 0,
+    "y": 744,
+    "width": 360,
+    "height": 56,
+    "top": 744,
+    "right": 360,
+    "bottom": 800,
+    "left": 0
+  },
+  "scrollWidth": 360,
+  "clientWidth": 360,
+  "expectedHeroKind": "TASK",
+  "expectedTitle": "Send follow-up after client meeting",
+  "expectedReason": "Send follow-up after client meeting"
+}
