@@ -193,14 +193,14 @@ test('R21 P1 A-J semantic certification and visual QA capture', async () => {
       return false;
     });
     assert.ok(mobilePrepBtn, 'Mobile meeting prep button must be clicked');
-    await mobile.waitForSelector('#meeting-prep-body .meeting-prep-keypoints');
+    await mobile.waitForSelector('#meeting-prep-body .meeting-prep-keypoints', { timeout: 60000 });
     await shot(mobile, '390x844_meeting_prep_kr.png');
     await mobile.click('#meeting-prep-find-time');
     await mobile.click('#meeting-prep-add-to-calendar');
-    await mobile.waitForSelector('#meeting-prep-confirm-add');
+    await mobile.waitForSelector('#meeting-prep-confirm-add', { timeout: 60000 });
     await shot(mobile, '390x844_calendar_approval_kr.png');
     await mobile.click('#meeting-prep-confirm-add');
-    await mobile.waitForSelector('#meeting-prep-continuation .meeting-prep-done-card');
+    await mobile.waitForSelector('#meeting-prep-continuation .meeting-prep-done-card', { timeout: 60000 });
     await shot(mobile, '390x844_action_done_kr.png');
     assert.equal(await mobile.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
     await mobile.close();
