@@ -48,6 +48,8 @@ export const handleForecastCompareRoutes: AsyncRouteRegistrar<ForecastCompareRou
         data: {
           status: result.status,
           specification: result.specification,
+          informationalMessage: result.informationalMessage ?? null,
+          clarificationMessage: result.clarificationMessage ?? null,
           probability: result.synthesis?.probability ?? null,
           probabilityRange: result.synthesis?.probabilityRange ?? null,
           summary: result.synthesis?.summary || '',

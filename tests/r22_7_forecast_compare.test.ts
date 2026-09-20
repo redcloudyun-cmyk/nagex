@@ -5,7 +5,7 @@ import { chromium, type Browser } from 'playwright';
 import { NagexError } from '../src/common/errors.js';
 import type { ModelProvider, ModelRequest, ModelResponse, ProviderStatus } from '../src/model-gateway/model-provider.js';
 import { UnifiedModelRouter } from '../src/model-gateway/unified-model-router.js';
-import { ForecastCompareService, parseIndependentForecastJson, parseForecastSynthesisJson } from '../src/model-gateway/forecast-compare.service.js';
+import { ForecastCompareService, parseIndependentForecastJson, parseForecastSynthesisJson, parseHorizonEnd } from '../src/model-gateway/forecast-compare.service.js';
 import { EvidencePackService } from '../src/research/evidence-pack.service.js';
 import type { EvidencePack } from '../src/research/evidence-pack.types.js';
 import { createServerInstance } from '../src/server_web.js';
@@ -110,6 +110,26 @@ class MockForecastModelProvider implements ModelProvider {
   }
 }
 
+test('NAgex R22.7 — Forecast Horizon Parsing & Specification Hardening', () => {
+  const fixedNow = new Date('2026-09-20T15:00:00+09:00');
+
+  // Exact Horizon Parsing Verification
+  const d1 = parseHorizonEnd('Will this project launch before December 2026?', fixedNow);
+  assert.equal(d1, '2026-11-30T23:59:59+09:00');
+
+  const d2 = parseHorizonEnd('Will this project launch by December 15, 2026?', fixedNow);
+  assert.equal(d2, '2026-12-15T23:59:59+09:00');
+
+  const d3 = parseHorizonEnd('Will this project launch by 2026-11-30?', fixedNow);
+  assert.equal(d3, '2026-11-30T23:59:59+09:00');
+
+  const d4 = parseHorizonEnd('이번 달 안에 완료될까?', fixedNow);
+  assert.equal(d4, '2026-09-30T23:59:59+09:00');
+
+  const d5 = parseHorizonEnd('10월까지 성공할까?', fixedNow);
+  assert.equal(d5, '2026-10-31T23:59:59+09:00');
+});
+
 test('NAgex R22.7 — Forecast Compare Logic Suite', async () => {
   const p1 = new MockForecastModelProvider('Gemini', 'gemini-2.5-flash', true, true, false, 0.65);
   const p2 = new MockForecastModelProvider('Nebius', 'meta-llama/Meta-Llama-3.1-70B-Instruct', true, true, false, 0.58);
@@ -139,10 +159,24 @@ test('NAgex R22.7 — Forecast Compare Logic Suite', async () => {
 
   const service = new ForecastCompareService(router, mockEvidencePackService);
 
-  // 1. Ambiguity Fail-Closed
-  const ambiguousRes = await service.compare({ query: 'Will it succeed?' });
-  assert.equal(ambiguousRes.status, 'NEEDS_CLARIFICATION');
-  assert.ok(ambiguousRes.clarificationMessage);
+  // 1. Ambiguity Fail-Closed (AMBIGUOUS_FORECAST_GUESS=0)
+  const ambiguousQueries = [
+    'Will this project launch?',
+    'Will it be successful?',
+    'Will revenue increase?',
+    '이 프로젝트 성공할까?',
+    '출시할 수 있을까?',
+    'Will sales increase?',
+    'Will we finish this?',
+    '성공할 가능성은?',
+  ];
+
+  for (const q of ambiguousQueries) {
+    const res = await service.compare({ query: q });
+    assert.equal(res.status, 'NEEDS_CLARIFICATION', `Query "${q}" without explicit horizon MUST return NEEDS_CLARIFICATION`);
+    assert.equal(res.specification, null);
+    assert.ok(res.clarificationMessage);
+  }
 
   // 2. Clear specification derivation & execution
   acquireCallCount = 0;
@@ -152,8 +186,8 @@ test('NAgex R22.7 — Forecast Compare Logic Suite', async () => {
   assert.ok(validRes.specification);
   assert.equal(validRes.specification.outcomeType, 'BINARY');
   assert.ok(validRes.specification.target);
-  assert.ok(validRes.specification.horizonEnd);
-  assert.ok(validRes.specification.resolutionCriteria);
+  assert.equal(validRes.specification.horizonEnd, '2026-11-30T23:59:59+09:00', 'horizonEnd MUST match calculated deadline');
+  assert.ok(validRes.specification.resolutionCriteria.includes('2026-11-30T23:59:59+09:00'));
 
   assert.equal(validRes.forecastsAttempted, 3);
   assert.equal(validRes.forecastsSucceeded, 3);
@@ -193,15 +227,16 @@ test('NAgex R22.7 — Forecast Compare Logic Suite', async () => {
 
   // 4. Fallback Policy DISALLOW check — provider failure truthful handling
   p2.setShouldFail(true);
-  const partialRes = await service.compare({ query: 'Will this project launch before December 2026?' });
-  assert.equal(partialRes.status, 'SUCCESS'); // 2 of 3 succeeded -> SUCCESS distribution
-  assert.equal(partialRes.forecastsAttempted, 3);
-  assert.equal(partialRes.forecastsSucceeded, 2);
+  const partial2Res = await service.compare({ query: 'Will this project launch before December 2026?' });
+  assert.equal(partial2Res.status, 'SUCCESS'); // 2 of 3 succeeded -> SUCCESS distribution
+  assert.equal(partial2Res.forecastsAttempted, 3);
+  assert.equal(partial2Res.forecastsSucceeded, 2);
 
   p3.setShouldFail(true);
   const singleRes = await service.compare({ query: 'Will this project launch before December 2026?' });
   assert.equal(singleRes.status, 'PARTIAL'); // only 1 success -> PARTIAL status
   assert.equal(singleRes.forecastsSucceeded, 1);
+  assert.equal(singleRes.synthesis, null, 'Single forecast MUST NOT fabricate synthesis or range');
 
   p1.setShouldFail(true);
   const unavailableRes = await service.compare({ query: 'Will this project launch before December 2026?' });
@@ -236,10 +271,13 @@ test('NAgex R22.7 — Forecast Compare Logic Suite', async () => {
 
   // 6. Elections Guard Policy
   const electionRes = await service.compare({ query: 'Who will win the upcoming presidential election?' });
-  assert.equal(electionRes.status, 'SUCCESS');
-  assert.ok(electionRes.synthesis);
-  assert.ok(electionRes.synthesis.summary.toLowerCase().includes('election'));
+  assert.equal(electionRes.status, 'INFORMATIONAL');
+  assert.equal(electionRes.specification, null);
+  assert.equal(electionRes.synthesis, null);
   assert.equal(electionRes.forecastsAttempted, 0, 'Elections queries do not invoke proprietary model probability forecasting');
+  assert.equal(electionRes.forecastsSucceeded, 0);
+  assert.ok(electionRes.informationalMessage);
+  assert.ok(electionRes.informationalMessage.includes('polling'));
 });
 
 test('NAgex R22.7 — Real Browser Certification & UI Verification', async () => {
@@ -260,12 +298,30 @@ test('NAgex R22.7 — Real Browser Certification & UI Verification', async () =>
     const page = await browser.newPage();
 
     let apiCalled = false;
-    let requestPayload: any = null;
 
     await page.route('**/api/v1/ai/forecast-compare', async (route) => {
       apiCalled = true;
       const req = route.request();
-      requestPayload = JSON.parse(req.postData() || '{}');
+      const requestPayload = JSON.parse(req.postData() || '{}');
+      const q = (requestPayload.query || '').toLowerCase();
+
+      if (q.includes('election') || q.includes('선거') || q.includes('대선')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            requestId: 'req_test_fc_elec',
+            status: 'INFORMATIONAL',
+            specification: null,
+            forecastsAttempted: 0,
+            forecastsSucceeded: 0,
+            distribution: null,
+            synthesis: null,
+            informationalMessage: 'NAgex does not generate proprietary election outcome forecasts. For election information, refer to dated polling measurements and official election authority reports.',
+          }),
+        });
+        return;
+      }
 
       await route.fulfill({
         status: 200,
@@ -304,7 +360,7 @@ test('NAgex R22.7 — Real Browser Certification & UI Verification', async () =>
     await page.goto(`${baseUrl}/?demo=1`);
     await page.waitForLoadState('networkidle');
 
-    // Test EN Forecast Flow
+    // 1. Standard Forecast Flow
     const homeInput = page.locator('#home-prompt-input');
     await homeInput.fill('forecast will this project launch before December 2026');
     await page.click('#btn-home-prompt-send');
@@ -321,7 +377,25 @@ test('NAgex R22.7 — Real Browser Certification & UI Verification', async () =>
     assert.ok(!enText.includes('OpenAI'), 'Primary UI must NOT reveal OpenAI brand name');
     assert.ok(!enText.includes('forecast.likelihood'), 'Primary UI must NOT leak raw i18n keys');
 
-    // Test KR Forecast Flow Localization Parity
+    // 2. Election Certification UI Flow (ELECTION_PROBABILITY_UI=0, ELECTION_RANGE_UI=0, ELECTION_INFORMATIONAL_UI=PASS)
+    const closeBtn = page.locator('#btn-close-ambient');
+    if (await closeBtn.isVisible()) {
+      await closeBtn.click();
+    }
+
+    await homeInput.fill('Who will win the presidential election?');
+    await page.click('#btn-home-prompt-send');
+
+    await page.waitForSelector('[data-testid="forecast-compare-result"]', { timeout: 15000 });
+    const electionUiText = await page.locator('[data-testid="forecast-compare-result"]').innerText();
+
+    assert.ok(electionUiText.includes('NAgex does not generate proprietary election outcome forecasts'), 'Election UI must display informational text');
+    assert.ok(!electionUiText.includes('%'), 'Election UI must NOT display probability percentage');
+    assert.ok(!electionUiText.includes('50%'), 'Election UI must NOT display 50% probability fallback');
+    assert.ok(!electionUiText.includes('50–50%'), 'Election UI must NOT display 50-50 range');
+    assert.ok(!electionUiText.includes('Estimated likelihood'), 'Election UI must NOT display likelihood metrics section');
+
+    // 3. Korean Localization Parity
     await page.evaluate(() => {
       if (window.i18n && typeof window.i18n.setLocale === 'function') {
         window.i18n.setLocale('ko');
@@ -332,7 +406,6 @@ test('NAgex R22.7 — Real Browser Certification & UI Verification', async () =>
       localStorage.setItem('nagex_locale', 'ko');
     });
 
-    const closeBtn = page.locator('#btn-close-ambient');
     if (await closeBtn.isVisible()) {
       await closeBtn.click();
     }

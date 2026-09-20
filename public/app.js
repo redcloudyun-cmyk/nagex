@@ -2969,6 +2969,11 @@
       'will it',
       'forecast',
       'predict',
+      'election',
+      'presidential election',
+      'who will win',
+      '대선',
+      '선거',
     ];
     return triggers.some((t) => text.includes(t));
   }
@@ -5356,13 +5361,24 @@
       return window.NAGEX_I18N ? window.NAGEX_I18N.t(key, lang) : key;
     };
 
-    if (!result) {
+    const resData = (result && result.data) ? result.data : result;
+
+    if (!resData) {
       container.innerHTML = '<div class="forecast-result-error" data-testid="forecast-compare-result">' + esc(lang === 'ko' ? '예측 서비스를 이용할 수 없습니다.' : 'Forecast service unavailable.') + '</div>';
       return;
     }
 
-    if (result.status === 'NEEDS_CLARIFICATION') {
-      const msg = result.clarificationMessage || t('forecast.needsClarification') || (lang === 'ko' ? '예측 대상이나 시점이 명확하지 않습니다. 명확한 시점과 조건으로 질문해주세요.' : 'Forecast target or horizon is ambiguous. Please specify clear criteria.');
+    if (resData.status === 'INFORMATIONAL') {
+      const msg = resData.informationalMessage || (lang === 'ko' ? 'NAgex는 독자적인 선거 결과 예측 확률을 생성하지 않습니다. 대신 일자별 지지율 조사 및 공식 선거 기관의 발표 자료를 참고하시기 바랍니다.' : 'NAgex does not generate proprietary election outcome forecasts. For election information, refer to dated polling measurements and official election authority reports.');
+      container.innerHTML = '<div class="forecast-result-informational" data-testid="forecast-compare-result">' +
+        '<h3 class="forecast-title">' + esc(t('forecast.title') || (lang === 'ko' ? '예측' : 'Forecast')) + '</h3>' +
+        '<p class="forecast-informational-text">' + esc(msg) + '</p>' +
+        '</div>';
+      return;
+    }
+
+    if (resData.status === 'NEEDS_CLARIFICATION') {
+      const msg = resData.clarificationMessage || t('forecast.needsClarification') || (lang === 'ko' ? '예측 대상이나 시점이 명확하지 않습니다. 명확한 시점과 조건으로 질문해주세요.' : 'Forecast target or horizon is ambiguous. Please specify clear criteria.');
       container.innerHTML = '<div class="forecast-result-clarification" data-testid="forecast-compare-result">' +
         '<h3 class="forecast-title">' + esc(t('forecast.title') || (lang === 'ko' ? '예측' : 'Forecast')) + '</h3>' +
         '<p class="forecast-clarification-text">' + esc(msg) + '</p>' +
@@ -5370,9 +5386,23 @@
       return;
     }
 
-    const synthesis = result.synthesis;
-    if (!synthesis || result.status === 'UNAVAILABLE') {
-      let rawMsg = (result.error && (typeof result.error === 'string' ? result.error : result.error.message)) || (lang === 'ko' ? '예측 분석 서비스를 이용할 수 없습니다.' : 'Forecast unavailable.');
+    if (resData.status === 'PARTIAL') {
+      const partialBanner = lang === 'ko' ? '하나의 독립 예측만 완료되어 NAgex가 신뢰할 수 있는 다중 예측 합성을 생성할 수 없습니다.' : 'Only one independent forecast completed, so NAgex could not produce a reliable multi-forecast synthesis.';
+      let html = '<div class="forecast-compare-result" data-testid="forecast-compare-result">';
+      html += '<div class="forecast-banner forecast-banner-partial" data-testid="forecast-partial-banner">' + esc(partialBanner) + '</div>';
+      html += '<div class="forecast-header-section"><h3 class="forecast-title">' + esc(t('forecast.title') || (lang === 'ko' ? '예측' : 'Forecast')) + '</h3></div>';
+      const singleFct = (resData.forecasts || []).find(f => f.status === 'SUCCESS');
+      if (singleFct && singleFct.rationale) {
+        html += '<div class="forecast-section"><p class="forecast-summary-text">' + esc(singleFct.rationale) + '</p></div>';
+      }
+      html += '</div>';
+      container.innerHTML = html;
+      return;
+    }
+
+    const synthesis = resData.synthesis;
+    if (!synthesis || resData.status === 'UNAVAILABLE') {
+      let rawMsg = (resData.error && (typeof resData.error === 'string' ? resData.error : resData.error.message)) || (lang === 'ko' ? '예측 분석 서비스를 이용할 수 없습니다.' : 'Forecast unavailable.');
       rawMsg = String(rawMsg)
         .replace(/FORECAST_SYNTHESIS_FAILED/g, lang === 'ko' ? '예측 결과를 합성하지 못했습니다.' : 'Forecast synthesis unavailable.')
         .replace(/ALL_MODEL_PROVIDERS_FAILED/g, lang === 'ko' ? '모든 모델 응답에 실패했습니다.' : 'Model services unavailable.');

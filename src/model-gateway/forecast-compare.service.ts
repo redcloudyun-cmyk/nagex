@@ -51,9 +51,16 @@ export interface ForecastSynthesis {
   whatWouldChangeTheForecast: string[];
 }
 
+export type ForecastCompareStatus =
+  | 'SUCCESS'
+  | 'PARTIAL'
+  | 'UNAVAILABLE'
+  | 'NEEDS_CLARIFICATION'
+  | 'INFORMATIONAL';
+
 export interface ForecastCompareResult {
   requestId: string;
-  status: 'SUCCESS' | 'PARTIAL' | 'UNAVAILABLE' | 'NEEDS_CLARIFICATION';
+  status: ForecastCompareStatus;
   specification: ForecastSpecification | null;
   forecastsAttempted: number;
   forecastsSucceeded: number;
@@ -63,6 +70,7 @@ export interface ForecastCompareResult {
   evidencePackId?: string;
   sources?: EvidenceSource[];
   clarificationMessage?: string;
+  informationalMessage?: string;
 }
 
 export interface ForecastCompareOptions {
@@ -96,6 +104,123 @@ function summarizeEvidencePack(pack?: EvidencePack): string {
   return pack.sources
     .map((s) => `[${s.sourceId}] Title: ${s.title}\nURL: ${s.url}\nSnippet: ${s.snippet || '(no snippet)'}\nPublished: ${s.publishedAt || 'UNDATED'}`)
     .join('\n\n');
+}
+
+export function parseHorizonEnd(query: string, now: Date = new Date('2026-09-20T15:00:00+09:00')): string | null {
+  const q = query.trim();
+  const lower = q.toLowerCase();
+
+  // 1. Explicit ISO date in query: e.g. "by 2026-11-30", "2026-12-15"
+  const isoMatch = q.match(/(\d{4}-\d{2}-\d{2})/);
+  if (isoMatch) {
+    const [_, ymd] = isoMatch;
+    return `${ymd}T23:59:59+09:00`;
+  }
+
+  const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+
+  // Pattern: "before December 15, 2026" or "by December 15, 2026"
+  const monthDayYearMatch = lower.match(/(?:before|by|until)\s+([a-z]+)\s+(\d{1,2})(?:\s*,\s*|\s+)(\d{4})/i);
+  if (monthDayYearMatch) {
+    const mIdx = monthNames.indexOf(monthDayYearMatch[1].toLowerCase());
+    if (mIdx !== -1) {
+      const year = parseInt(monthDayYearMatch[3], 10);
+      const day = parseInt(monthDayYearMatch[2], 10);
+      const mm = String(mIdx + 1).padStart(2, '0');
+      const dd = String(day).padStart(2, '0');
+      return `${year}-${mm}-${dd}T23:59:59+09:00`;
+    }
+  }
+
+  // Pattern: "before December 2026" / "before December" / "by December 2026" / "by December"
+  const monthYearMatch = lower.match(/(?:before|by|until)\s+([a-z]+)(?:\s+(\d{4}))?/i);
+  if (monthYearMatch) {
+    const mIdx = monthNames.indexOf(monthYearMatch[1].toLowerCase());
+    if (mIdx !== -1) {
+      const year = monthYearMatch[2] ? parseInt(monthYearMatch[2], 10) : now.getFullYear();
+      if (lower.includes('before')) {
+        // "before December" means before Dec 1 -> last day of November
+        const lastOfPrevMonthDay = new Date(year, mIdx, 0).getDate();
+        const prevMonth = mIdx === 0 ? 12 : mIdx;
+        const prevYear = mIdx === 0 ? year - 1 : year;
+        const mm = String(prevMonth).padStart(2, '0');
+        const dd = String(lastOfPrevMonthDay).padStart(2, '0');
+        return `${prevYear}-${mm}-${dd}T23:59:59+09:00`;
+      } else {
+        // "by December" means by end of December -> last day of December
+        const lastDay = new Date(year, mIdx + 1, 0).getDate();
+        const mm = String(mIdx + 1).padStart(2, '0');
+        const dd = String(lastDay).padStart(2, '0');
+        return `${year}-${mm}-${dd}T23:59:59+09:00`;
+      }
+    }
+  }
+
+  // Korean month / duration patterns:
+  // "이번 달 안에" -> end of current month
+  if (q.includes('이번 달') || q.includes('이번달')) {
+    const y = now.getFullYear();
+    const m = now.getMonth();
+    const lastDay = new Date(y, m + 1, 0).getDate();
+    const mm = String(m + 1).padStart(2, '0');
+    const dd = String(lastDay).padStart(2, '0');
+    return `${y}-${mm}-${dd}T23:59:59+09:00`;
+  }
+
+  // "10월까지" / "10월 안에" / "10월 전까지"
+  const krMonthMatch = q.match(/(\d{1,2})월\s*(?:안에|까지|전까지)?/);
+  if (krMonthMatch) {
+    const targetMonth = parseInt(krMonthMatch[1], 10); // 1-12
+    const currentMonth = now.getMonth() + 1;
+    let year = now.getFullYear();
+    if (targetMonth < currentMonth) {
+      year += 1;
+    }
+    const lastDay = new Date(year, targetMonth, 0).getDate();
+    const mm = String(targetMonth).padStart(2, '0');
+    const dd = String(lastDay).padStart(2, '0');
+    return `${year}-${mm}-${dd}T23:59:59+09:00`;
+  }
+
+  // Relative English: "within two weeks", "in 2 weeks", "by Friday"
+  const weeksMatch = lower.match(/(?:within|in)\s+(\d+|two|three|four)\s+weeks?/i);
+  if (weeksMatch) {
+    let numWeeks = 2;
+    if (weeksMatch[1] === 'one') numWeeks = 1;
+    if (weeksMatch[1] === 'two') numWeeks = 2;
+    if (weeksMatch[1] === 'three') numWeeks = 3;
+    if (weeksMatch[1] === 'four') numWeeks = 4;
+    if (!isNaN(parseInt(weeksMatch[1], 10))) numWeeks = parseInt(weeksMatch[1], 10);
+    const targetDate = new Date(now.getTime() + numWeeks * 7 * 24 * 60 * 60 * 1000);
+    const y = targetDate.getFullYear();
+    const m = String(targetDate.getMonth() + 1).padStart(2, '0');
+    const d = String(targetDate.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}T23:59:59+09:00`;
+  }
+
+  // Check for standalone English month name without "before" / "by"
+  for (let idx = 0; idx < monthNames.length; idx++) {
+    const monthName = monthNames[idx];
+    if (lower.includes(monthName)) {
+      const yearMatch = lower.match(/\b(20\d{2})\b/);
+      const year = yearMatch ? parseInt(yearMatch[1], 10) : now.getFullYear();
+      if (lower.includes('before')) {
+        const lastOfPrevMonthDay = new Date(year, idx, 0).getDate();
+        const prevMonth = idx === 0 ? 12 : idx;
+        const prevYear = idx === 0 ? year - 1 : year;
+        const mm = String(prevMonth).padStart(2, '0');
+        const dd = String(lastOfPrevMonthDay).padStart(2, '0');
+        return `${prevYear}-${mm}-${dd}T23:59:59+09:00`;
+      } else {
+        const lastDay = new Date(year, idx + 1, 0).getDate();
+        const mm = String(idx + 1).padStart(2, '0');
+        const dd = String(lastDay).padStart(2, '0');
+        return `${year}-${mm}-${dd}T23:59:59+09:00`;
+      }
+    }
+  }
+
+  return null;
 }
 
 export function parseIndependentForecastJson(text: string, requestId: string): {
@@ -146,17 +271,8 @@ export function parseIndependentForecastJson(text: string, requestId: string): {
     });
   }
 
-  if (typeof parsed.rationale !== 'string' || !parsed.rationale.trim()) {
-    throw new NagexError({
-      code: 'FORECAST_SCHEMA_FAIL_CLOSED',
-      category: 'PROVIDER',
-      message: 'Independent forecast rationale is required.',
-      request_id: requestId,
-    });
-  }
-
-  const parseArrayOfStrings = (field: any, name: string): string[] => {
-    if (!Array.isArray(field)) {
+  const parseStringArray = (arr: any, name: string): string[] => {
+    if (!Array.isArray(arr)) {
       throw new NagexError({
         code: 'FORECAST_SCHEMA_FAIL_CLOSED',
         category: 'PROVIDER',
@@ -164,12 +280,12 @@ export function parseIndependentForecastJson(text: string, requestId: string): {
         request_id: requestId,
       });
     }
-    return field.map((item) => {
+    return arr.map((item) => {
       if (typeof item !== 'string') {
         throw new NagexError({
           code: 'FORECAST_SCHEMA_FAIL_CLOSED',
           category: 'PROVIDER',
-          message: `Elements in ${name} must be strings.`,
+          message: `Elements of ${name} must be strings.`,
           request_id: requestId,
         });
       }
@@ -179,11 +295,11 @@ export function parseIndependentForecastJson(text: string, requestId: string): {
 
   return {
     probability: parsed.probability,
-    rationale: parsed.rationale.trim(),
-    supportingFactors: parseArrayOfStrings(parsed.supportingFactors, 'supportingFactors'),
-    opposingFactors: parseArrayOfStrings(parsed.opposingFactors, 'opposingFactors'),
-    keyAssumptions: parseArrayOfStrings(parsed.keyAssumptions, 'keyAssumptions'),
-    uncertaintyDrivers: parseArrayOfStrings(parsed.uncertaintyDrivers, 'uncertaintyDrivers'),
+    rationale: typeof parsed.rationale === 'string' ? parsed.rationale.trim() : 'No explicit rationale provided.',
+    supportingFactors: parseStringArray(parsed.supportingFactors || [], 'supportingFactors'),
+    opposingFactors: parseStringArray(parsed.opposingFactors || [], 'opposingFactors'),
+    keyAssumptions: parseStringArray(parsed.keyAssumptions || [], 'keyAssumptions'),
+    uncertaintyDrivers: parseStringArray(parsed.uncertaintyDrivers || [], 'uncertaintyDrivers'),
   };
 }
 
@@ -270,7 +386,7 @@ export function parseForecastSynthesisJson(text: string, requestId: string): For
       throw new NagexError({
         code: 'FORECAST_SYNTHESIS_FAILED',
         category: 'PROVIDER',
-        message: `Synthesis field ${name} must be an array of strings.`,
+        message: `Field ${name} in synthesis must be an array of strings.`,
         request_id: requestId,
       });
     }
@@ -279,7 +395,7 @@ export function parseForecastSynthesisJson(text: string, requestId: string): For
         throw new NagexError({
           code: 'FORECAST_SYNTHESIS_FAILED',
           category: 'PROVIDER',
-          message: `Synthesis field ${name} elements must be strings.`,
+          message: `Elements of ${name} in synthesis must be strings.`,
           request_id: requestId,
         });
       }
@@ -315,60 +431,27 @@ export class ForecastCompareService {
 
   public deriveSpecification(query: string, optionsSpec?: ForecastSpecification): ForecastSpecification | null {
     if (optionsSpec) {
-      if (!optionsSpec.target || !optionsSpec.resolutionCriteria) return null;
+      if (!optionsSpec.target || !optionsSpec.resolutionCriteria || !optionsSpec.horizonEnd) return null;
       return optionsSpec;
     }
 
     const q = query.trim();
-    const lower = q.toLowerCase();
 
-    // Check for ambiguous / unresolvable forecast questions without context
-    const ambiguousPatterns = [
-      /^will it succeed\??$/i,
-      /^will sales improve\??$/i,
-      /^will this be done soon\??$/i,
-      /^is it going to happen\??$/i,
-      /^성공할까\??$/i,
-      /^매출이 오를까\??$/i,
-      /^곧 끝날까\??$/i,
-    ];
-
-    if (ambiguousPatterns.some((p) => p.test(q))) {
+    // Parse real date horizon — NO synthetic 90-day guessing
+    const horizonEnd = parseHorizonEnd(q);
+    if (!horizonEnd) {
       return null;
     }
 
-    // Attempt target and horizon extraction
-    let target = q;
-    let horizonStart = new Date().toISOString();
-    let horizonEnd = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
-    let resolutionCriteria = `YES if the specified event occurs as stated in: "${q}"; otherwise NO.`;
+    const horizonStart = new Date().toISOString();
+    let target = q.replace(/^(will|can|is|what are the chances|how likely is it that|likely to|이게|이번|성공할|분석해줘|예측해줘|확률을|추정해줘)\s*/i, '').trim();
+    if (!target) target = q;
 
-    // English date horizon extraction
-    const byMatchEn = q.match(/by\s+([A-Za-z]+(?:\s+\d{1,2})?(?:\s*,\s*\d{4})?|\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{4})/i);
-    const beforeMatchEn = q.match(/before\s+([A-Za-z]+(?:\s+\d{1,2})?(?:\s*,\s*\d{4})?|\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{4})/i);
-
-    // Korean date horizon extraction
-    const krMonthMatch = q.match(/(\d{1,2})월\s*(?:안에|까지|전까지)?/);
-    const krEndMatch = q.match(/(이번\s*달|다음\s*달|금년|내년|올해)/);
-
-    if (byMatchEn || beforeMatchEn || krMonthMatch || krEndMatch || lower.includes('december') || lower.includes('friday') || lower.includes('within') || lower.includes('launch')) {
-      target = q.replace(/^(will|can|is|what are the chances|how likely is it that|likely to|이게|이번|성공할|분석해줘|예측해줘|확률을|추정해줘)\s*/i, '').trim();
-      if (byMatchEn || beforeMatchEn) {
-        const timeStr = (byMatchEn ? byMatchEn[1] : beforeMatchEn![1]).trim();
-        resolutionCriteria = `YES if ${target || 'the specified target event'} is verified complete before ${timeStr}; otherwise NO.`;
-      } else if (krMonthMatch) {
-        resolutionCriteria = `YES if ${target} is verified complete before the end of month ${krMonthMatch[1]}; otherwise NO.`;
-      }
-    } else {
-      // If query has no target/horizon indicators and is extremely short / vague
-      if (q.split(/\s+/).length < 4 && !lower.includes('launch') && !lower.includes('finish') && !lower.includes('complete')) {
-        return null;
-      }
-    }
+    const resolutionCriteria = `YES if ${target} is verified complete before ${horizonEnd}; otherwise NO.`;
 
     return {
       question: q,
-      target: target || q,
+      target,
       outcomeType: 'BINARY',
       horizonStart,
       horizonEnd,
@@ -424,29 +507,22 @@ export class ForecastCompareService {
 
     // Political Election Prediction Policy Guard (§33)
     if (this.isElectionQuery(query)) {
-      this.logger.warn('forecast_compare_completed', {
+      this.logger.info('forecast_compare_completed', {
         requestId,
         taskKind: 'FORECAST_ANALYSIS',
-        status: 'SUCCESS',
+        status: 'INFORMATIONAL',
         attemptedCount: 0,
         successCount: 0,
       });
       return {
         requestId,
-        status: 'SUCCESS',
+        status: 'INFORMATIONAL',
         specification: null,
         forecastsAttempted: 0,
         forecastsSucceeded: 0,
         distribution: null,
-        synthesis: {
-          probability: 0.5,
-          probabilityRange: { low: 0.5, high: 0.5 },
-          summary: 'Election outcomes are subject to polling methodologies, margins of error, and population sampling. NAgex provides neutral factual reporting rather than proprietary election predictions.',
-          keyDrivers: ['Documented poll measurements', 'Official election authority notices'],
-          counterSignals: ['Polling margin of error'],
-          uncertainties: ['Voter turnout variability'],
-          whatWouldChangeTheForecast: ['Official certified election results'],
-        },
+        synthesis: null,
+        informationalMessage: 'NAgex does not generate proprietary election outcome forecasts. For election information, refer to dated polling measurements and official election authority reports.',
       };
     }
 
@@ -485,7 +561,8 @@ export class ForecastCompareService {
 
     // 2. Shared Evidence Pack
     let evidencePack: EvidencePack | undefined = options.evidencePack;
-    if (!evidencePack && options.requiresEvidenceGrounding !== false) {
+    const requiresEvidence = options.requiresEvidenceGrounding !== false;
+    if (!evidencePack && requiresEvidence) {
       try {
         evidencePack = await this.evidencePackService.buildEvidencePack(query, {
           forceSearch: true,
@@ -511,7 +588,7 @@ export class ForecastCompareService {
       }
     }
 
-    if (evidencePack && evidencePack.status !== 'SUCCESS' && evidencePack.status !== 'NOT_REQUIRED') {
+    if (requiresEvidence && evidencePack && evidencePack.status !== 'SUCCESS' && evidencePack.status !== 'NOT_REQUIRED') {
       this.logger.warn('forecast_compare_completed', {
         requestId,
         taskKind: 'FORECAST_ANALYSIS',
@@ -534,8 +611,8 @@ export class ForecastCompareService {
     }
 
     // 3. Eligible Provider Selection
-    const eligibleProviderNames = this.selectEligibleProviders(requestId);
-    if (eligibleProviderNames.length === 0) {
+    const eligibleProviders = this.selectEligibleProviders(requestId);
+    if (eligibleProviders.length === 0) {
       this.logger.warn('forecast_compare_completed', {
         requestId,
         taskKind: 'FORECAST_ANALYSIS',
@@ -552,42 +629,24 @@ export class ForecastCompareService {
         distribution: null,
         synthesis: null,
         evidencePackId: evidencePack?.evidencePackId,
-        sources: evidencePack?.sources,
+        sources: evidencePack?.sources || [],
       };
     }
 
-    // 4. Independent Provider Execution
-    const memorySummary = summarizeMemories(options.memories);
-    const evidenceSummary = summarizeEvidencePack(evidencePack);
-
-    const independentPrompt = `=== FORECAST SPECIFICATION ===
+    // 4. Independent Parallel Execution with fallbackPolicy: 'DISALLOW'
+    const specPrompt = `=== CANONICAL FORECAST SPECIFICATION ===
 Question: ${spec.question}
 Target: ${spec.target}
 Outcome Type: ${spec.outcomeType}
-Resolution Horizon: ${spec.horizonStart} to ${spec.horizonEnd}
-Resolution Criteria: ${spec.resolutionCriteria}
+Horizon Start: ${spec.horizonStart}
+Horizon End: ${spec.horizonEnd}
+Resolution Criteria: ${spec.resolutionCriteria}`;
 
-=== PERSONAL CONTEXT (Not External Web Evidence) ===
-${memorySummary}
+    const evidenceSummary = summarizeEvidencePack(evidencePack);
+    const personalSummary = summarizeMemories(options.memories);
 
-=== EVIDENCE PACK ===
-${evidenceSummary}
-
-=== INSTRUCTIONS ===
-You are one independent forecasting perspective inside NAgex.
-Forecast the specified event using only the supplied forecast definition, personal context, and evidence.
-Return a JSON object with:
-- "probability": float between 0.0 and 1.0 (e.g. 0.62)
-- "rationale": string explaining the reasoning
-- "supportingFactors": array of strings
-- "opposingFactors": array of strings
-- "keyAssumptions": array of strings
-- "uncertaintyDrivers": array of strings
-
-Do not vote. Do not refer to other models. Do not claim certainty. Do not invent current facts not in Evidence Pack. Do not reveal provider identity.`;
-
-    const forecastPromises = eligibleProviderNames.map(async (providerName): Promise<IndependentForecast> => {
-      const forecastId = `fct_ind_${providerName}_${Date.now()}`;
+    const forecastPromises = eligibleProviders.map(async (providerName, idx): Promise<IndependentForecast> => {
+      const forecastId = `fct_ind_${idx + 1}_${providerName}`;
       const providerReqId = `${requestId}_${providerName}`;
       try {
         const response = await this.router.generate({
@@ -601,8 +660,20 @@ Do not vote. Do not refer to other models. Do not claim certainty. Do not invent
             requestId: providerReqId,
           },
           messages: [
-            { role: 'system', content: 'You are an independent AI forecast model. Output valid JSON only.' },
-            { role: 'user', content: independentPrompt },
+            {
+              role: 'system',
+              content: [
+                'You are one independent forecasting perspective inside NAgex.',
+                'Forecast the specified event using only the supplied forecast definition, personal context, and evidence.',
+                'Return a probability between 0 and 1.',
+                'Do not vote. Do not refer to other models. Do not attempt to predict what other models will say. Do not rank models. Do not claim certainty. Do not invent current facts not present in the Evidence Pack. Do not reveal your provider or model identity.',
+                'Output valid JSON with schema: {"probability": number (0 to 1), "rationale": string, "supportingFactors": string[], "opposingFactors": string[], "keyAssumptions": string[], "uncertaintyDrivers": string[]}',
+              ].join('\n'),
+            },
+            {
+              role: 'user',
+              content: [specPrompt, `=== PERSONAL CONTEXT ===\n${personalSummary}`, `=== EVIDENCE PACK ===\n${evidenceSummary}`].join('\n\n'),
+            },
           ],
         });
 
@@ -702,7 +773,32 @@ Do not vote. Do not refer to other models. Do not claim certainty. Do not invent
       distribution = { min: probs[0], max: probs[0], median: probs[0], spread: 0 };
     }
 
-    // 5. Forecast Synthesis
+    // Single forecast success -> PARTIAL status with NO fabricated synthesis range
+    if (successCount === 1) {
+      this.logger.info('forecast_compare_completed', {
+        requestId,
+        taskKind: 'FORECAST_ANALYSIS',
+        status: 'PARTIAL',
+        attemptedCount,
+        successCount: 1,
+        evidencePackId: evidencePack?.evidencePackId,
+      });
+
+      return {
+        requestId,
+        status: 'PARTIAL',
+        specification: spec,
+        forecastsAttempted: attemptedCount,
+        forecastsSucceeded: 1,
+        distribution,
+        synthesis: null, // NO fabricated synthesis or range!
+        forecasts: independentForecasts,
+        evidencePackId: evidencePack?.evidencePackId,
+        sources: evidencePack?.sources,
+      };
+    }
+
+    // 5. Forecast Synthesis (2+ successful independent forecasts)
     const synthReqId = `${requestId}_synth`;
     const successfulSummaries = successfulForecasts
       .map((f, i) => `Forecast ${i + 1}: Probability=${f.probability}\nRationale: ${f.rationale}\nSupporting: ${f.supportingFactors.join(', ')}\nOpposing: ${f.opposingFactors.join(', ')}`)
@@ -768,32 +864,30 @@ Constraint: 0 <= low <= probability <= high <= 1.`;
         errorCode: err?.code || 'FORECAST_SYNTHESIS_FAILED',
       });
 
-      // Fallback synthesis from single/partial if schema failed or synthesis model error
-      if (successCount === 1) {
-        const f = successfulForecasts[0];
-        const p = f.probability!;
-        const low = Math.max(0, p - 0.1);
-        const high = Math.min(1, p + 0.1);
-        synthesis = {
-          probability: p,
-          probabilityRange: { low, high },
-          summary: f.rationale || 'Single independent forecast obtained.',
-          keyDrivers: f.supportingFactors,
-          counterSignals: f.opposingFactors,
-          uncertainties: f.uncertaintyDrivers,
-          whatWouldChangeTheForecast: f.keyAssumptions,
-        };
-      } else {
-        throw new NagexError({
-          code: 'FORECAST_SYNTHESIS_FAILED',
-          category: 'PROVIDER',
-          message: 'Forecast synthesis failed.',
-          request_id: requestId,
-        });
-      }
+      // Truthful degradation on synthesis failure — NEVER fabricate a ±0.1 range
+      this.logger.warn('forecast_compare_completed', {
+        requestId,
+        taskKind: 'FORECAST_ANALYSIS',
+        status: 'UNAVAILABLE',
+        attemptedCount,
+        successCount,
+      });
+
+      return {
+        requestId,
+        status: 'UNAVAILABLE',
+        specification: spec,
+        forecastsAttempted: attemptedCount,
+        forecastsSucceeded: successCount,
+        distribution,
+        synthesis: null,
+        forecasts: independentForecasts,
+        evidencePackId: evidencePack?.evidencePackId,
+        sources: evidencePack?.sources,
+      };
     }
 
-    const finalStatus: 'SUCCESS' | 'PARTIAL' = successCount >= 2 ? 'SUCCESS' : 'PARTIAL';
+    const finalStatus: ForecastCompareStatus = 'SUCCESS';
 
     this.logger.info('forecast_compare_completed', {
       requestId,
