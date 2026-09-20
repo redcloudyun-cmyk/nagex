@@ -569,8 +569,7 @@ export class ForecastCompareService {
 
     // 2. Shared Evidence Pack
     let evidencePack: EvidencePack | undefined = options.evidencePack;
-    const requiresEvidence = true;
-    if (!evidencePack && requiresEvidence) {
+    if (!evidencePack) {
       try {
         evidencePack = await this.evidencePackService.buildEvidencePack(query, {
           forceSearch: true,
@@ -596,15 +595,21 @@ export class ForecastCompareService {
       }
     }
 
-    if (requiresEvidence && evidencePack && evidencePack.status !== 'SUCCESS' && evidencePack.status !== 'NOT_REQUIRED') {
+    if (
+      !evidencePack ||
+      evidencePack.status !== 'SUCCESS' ||
+      !Array.isArray(evidencePack.sources) ||
+      evidencePack.sources.length === 0
+    ) {
       this.logger.warn('forecast_compare_completed', {
         requestId,
         taskKind: 'FORECAST_ANALYSIS',
         status: 'UNAVAILABLE',
         attemptedCount: 0,
         successCount: 0,
-        evidencePackId: evidencePack.evidencePackId,
+        evidencePackId: evidencePack?.evidencePackId,
       });
+
       return {
         requestId,
         status: 'UNAVAILABLE',
@@ -613,8 +618,8 @@ export class ForecastCompareService {
         forecastsSucceeded: 0,
         distribution: null,
         synthesis: null,
-        evidencePackId: evidencePack.evidencePackId,
-        sources: evidencePack.sources || [],
+        evidencePackId: evidencePack?.evidencePackId,
+        sources: evidencePack?.sources || [],
       };
     }
 

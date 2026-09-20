@@ -278,7 +278,66 @@ test('NAgex R22.7 — Forecast Compare Logic Suite', async () => {
   p2.setShouldFail(false);
   p3.setShouldFail(false);
 
-  // 5. Evidence Failure Truthful Handling
+  // 5. Evidence Failure & Fresh Evidence Invariant Tests
+  // Test A — Injected NOT_REQUIRED pack (INJECTED_NOT_REQUIRED_EVIDENCE_BYPASS=0)
+  const notRequiredEvidencePack = {
+    evidencePackId: 'ep_not_required',
+    query: 'Will this project launch before December 2026?',
+    generatedAt: new Date().toISOString(),
+    freshnessRequirement: 'NONE',
+    category: 'GENERAL',
+    status: 'NOT_REQUIRED',
+    sources: [],
+  } as EvidencePack;
+
+  const notRequiredRes = await service.compare({
+    query: 'Will this project launch before December 2026?',
+    evidencePack: notRequiredEvidencePack,
+  });
+
+  assert.equal(notRequiredRes.status, 'UNAVAILABLE');
+  assert.equal(notRequiredRes.forecastsAttempted, 0);
+  assert.equal(notRequiredRes.forecastsSucceeded, 0);
+  assert.equal(notRequiredRes.synthesis, null);
+
+  // Test B — SUCCESS with empty sources (EMPTY_SUCCESS_EVIDENCE_BYPASS=0)
+  const emptySuccessEvidencePack = {
+    evidencePackId: 'ep_empty_success',
+    query: 'Will this project launch before December 2026?',
+    generatedAt: new Date().toISOString(),
+    freshnessRequirement: 'REQUIRED',
+    category: 'GENERAL',
+    status: 'SUCCESS',
+    sources: [],
+  } as EvidencePack;
+
+  const emptySuccessRes = await service.compare({
+    query: 'Will this project launch before December 2026?',
+    evidencePack: emptySuccessEvidencePack,
+  });
+
+  assert.equal(emptySuccessRes.status, 'UNAVAILABLE');
+  assert.equal(emptySuccessRes.forecastsAttempted, 0);
+
+  // Test C — Valid SUCCESS pack still works (VALID_FRESH_EVIDENCE_FORECAST=PASS)
+  const validFreshEvidencePack = {
+    evidencePackId: 'ep_valid_fresh',
+    query: 'Will this project launch before December 2026?',
+    generatedAt: new Date().toISOString(),
+    freshnessRequirement: 'REQUIRED',
+    category: 'GENERAL',
+    status: 'SUCCESS',
+    sources: [{ sourceId: 's1', title: 'Official Launch Update', url: 'https://example.com' }],
+  } as EvidencePack;
+
+  const validFreshRes = await service.compare({
+    query: 'Will this project launch before December 2026?',
+    evidencePack: validFreshEvidencePack,
+  });
+
+  assert.equal(validFreshRes.status, 'SUCCESS');
+  assert.ok(validFreshRes.forecastsAttempted > 0);
+
   const failEvidenceService = {
     async buildEvidencePack(query: string) {
       return {
