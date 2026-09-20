@@ -29,6 +29,7 @@ export interface GenerateInput {
   jsonMode?: boolean;
   routingContext?: ModelRoutingContext;
   validate?: (text: string) => void;
+  fallbackPolicy?: 'ALLOW' | 'DISALLOW';
 }
 
 export class UnifiedModelRouter {
@@ -105,16 +106,19 @@ export class UnifiedModelRouter {
       this.configuredPriority
     );
 
+    const fallbackPolicy = input.fallbackPolicy ?? 'ALLOW';
+    const effectiveFallbacks = fallbackPolicy === 'DISALLOW' ? [] : decision.fallbackProviders;
+
     // Logging model_routing_decision event — STRICT PRIVACY: zero prompt, memory, or evidence content
     this.logger.info('model_routing_decision', {
       requestId: context.requestId,
       taskKind: decision.taskKind,
       selectedProvider: decision.selectedProvider,
-      fallbackProviders: decision.fallbackProviders,
+      fallbackProviders: effectiveFallbacks,
       reasonCodes: decision.reasonCodes,
     });
 
-    const candidateOrder = [decision.selectedProvider, ...decision.fallbackProviders];
+    const candidateOrder = [decision.selectedProvider, ...effectiveFallbacks];
     const candidates = candidateOrder
       .map((name) => this.providers.get(name))
       .filter((provider): provider is ModelProvider => Boolean(provider?.status().configured));

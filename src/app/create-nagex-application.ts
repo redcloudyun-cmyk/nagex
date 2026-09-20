@@ -26,6 +26,7 @@ import { ConversationMemoryExtractor } from '../context/conversation-memory-extr
 import { AiService } from '../model-gateway/ai-service.js';
 import { createProviders } from '../model-gateway/providers.js';
 import { UnifiedModelRouter } from '../model-gateway/unified-model-router.js';
+import { PerspectiveCompareService } from '../model-gateway/perspective-compare.service.js';
 import { skillRegistry as canonicalSkillRegistry } from '../skills/skill-registry.js';
 import { toolRegistry as canonicalToolRegistry } from '../tools/tool-registry.js';
 import { PlanResolver } from '../planning/plan-resolver.js';
@@ -129,7 +130,8 @@ export function createNagexApplication(): NagexApplication {
   const memoryEngine = new MemoryEngine();
   const personalContextService = new PersonalContextService(memoryEngine, (id: string) => pinnedMemories.has(id));
   const conversationMemoryExtractor = new ConversationMemoryExtractor(memoryEngine);
-  const aiService = new AiService(new UnifiedModelRouter(createProviders()));
+  const modelRouter = new UnifiedModelRouter(createProviders());
+  const aiService = new AiService(modelRouter);
   const planResolver = new PlanResolver(canonicalSkillRegistry, canonicalToolRegistry);
   const actionApprovals = new PersistentActionApprovalStore({
     onExpired: (record) => auditLogger.logEvent({
@@ -234,6 +236,7 @@ export function createNagexApplication(): NagexApplication {
   const questionClassificationService = new QuestionClassificationService();
   const webSearchService = new WebSearchService();
   const evidencePackService = new EvidencePackService(questionClassificationService, webSearchService);
+  const perspectiveCompareService = new PerspectiveCompareService(modelRouter, evidencePackService);
 
   const capabilityBroker = new CapabilityBroker(
     googleCalendarService,
@@ -566,5 +569,7 @@ export function createNagexApplication(): NagexApplication {
     lifecycle,
     getRelevantMemories,
     pinnedMemories,
+    modelRouter,
+    perspectiveCompareService,
   };
 }

@@ -4,7 +4,9 @@ export type ModelTaskKind =
   | 'PLAN'
   | 'STRUCTURED_EXTRACTION'
   | 'DAILY_BRIEF'
-  | 'MEETING_PREP';
+  | 'MEETING_PREP'
+  | 'PERSPECTIVE_ANALYSIS'
+  | 'PERSPECTIVE_SYNTHESIS';
 
 export interface ModelRoutingContext {
   taskKind: ModelTaskKind;

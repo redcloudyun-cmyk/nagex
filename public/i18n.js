@@ -1001,11 +1001,19 @@
       'memory.sensitive': 'Sensitive — review before remembering',
       'memory.whyRemembered': 'Why remembered?',
       'memory.whereFrom': 'Where from?',
+      'perspective.commonGround': 'What the perspectives agree on',
+      'perspective.differing': 'Other ways to look at this',
+      'perspective.uncertainties': 'What remains uncertain',
+      'perspective.sources': 'Sources',
     },
     ko: {
       'page.title': 'NAgex — 개인용 AI 컨트롤 센터',
       'header.langToggle': 'EN',
       'header.switchLanguage': '언어 전환',
+      'perspective.commonGround': '공통적으로 확인되는 점',
+      'perspective.differing': '다르게 볼 수 있는 관점',
+      'perspective.uncertainties': '아직 불확실한 점',
+      'perspective.sources': '출처',
 
       // Navigation
       'nav.home': '홈',

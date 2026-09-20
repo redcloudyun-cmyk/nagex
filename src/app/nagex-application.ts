@@ -172,4 +172,6 @@ export interface NagexApplication {
   getRelevantMemories: (tenantId: string, principalId: string, prompt: string) => MemoryRecord[];
   pinnedMemories: Set<string>;
   lifecycle: LifecycleManager;
+  modelRouter: import('../model-gateway/unified-model-router.js').UnifiedModelRouter;
+  perspectiveCompareService: import('../model-gateway/perspective-compare.service.js').PerspectiveCompareService;
 }
