@@ -209,7 +209,8 @@ test('R21 P0 REAL BROWSER CERTIFICATION: UX Intent Interaction Principles (Scena
       await page.goto(`${server.origin}/index.html`);
       await page.waitForSelector('#btn-floating-quickwake', { state: 'attached' });
       await page.click('#btn-floating-quickwake', { force: true });
-      await page.fill('#ambient-prompt-input', 'Prepare my next client meeting and schedule it.');
+      await page.waitForSelector('#ambient-prompt-input', { state: 'attached' });
+      await page.fill('#ambient-prompt-input', 'Prepare my next client meeting and schedule it.', { force: true });
       await page.click('#btn-ambient-run');
 
       await page.waitForSelector('#ambient-surfaced-context', { state: 'visible' });

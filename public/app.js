@@ -2822,6 +2822,11 @@
     if (result) result.style.display = 'none';
     if (understandingCard) understandingCard.style.display = 'none';
     if (userApprovalCard) userApprovalCard.style.display = 'none';
+    const perspectiveCard = document.getElementById('ambient-perspective-card');
+    if (perspectiveCard) {
+      perspectiveCard.style.display = 'none';
+      perspectiveCard.innerHTML = '';
+    }
     resetAmbientFlowUi();
 
     if (ambientBodyScrollLock) ambientBodyScrollLock.lock(document.body.style.overflow);
@@ -2942,6 +2947,22 @@
     wireAmbientActivityToggle();
   }
 
+  function isPerspectiveCompareIntent(promptText) {
+    if (!promptText || typeof promptText !== 'string') return false;
+    const text = promptText.toLowerCase();
+    const triggers = [
+      '여러 관점에서 검토',
+      '다른 시각도 같이',
+      '여러 관점으로 분석',
+      'compare perspectives',
+      'different perspectives',
+      'multiple perspectives',
+      '여러 관점',
+      '다른 시각',
+    ];
+    return triggers.some((t) => text.includes(t));
+  }
+
   async function runAmbientTask(promptText) {
     // Single-flight: while one generation is in flight, ignore any further
     // trigger rather than starting a second, legitimately-different plan
@@ -2977,6 +2998,67 @@
       if (progress) progress.style.display = 'flex';
       if (fill) fill.style.width = '20%';
       if (text) text.textContent = t('ambient.progress.understanding');
+
+      if (isPerspectiveCompareIntent(promptText)) {
+        if (fill) fill.style.width = '40%';
+        const lang = window.NAGEX_I18N ? window.NAGEX_I18N.getLocale() : (localStorage.getItem('nagex_locale') || 'en');
+        if (text) text.textContent = lang === 'ko' ? '다각적 관점에서 분석하는 중...' : 'Comparing perspectives...';
+
+        const compareRes = await apiFetch('/api/v1/ai/perspective-compare', {
+          method: 'POST',
+          body: JSON.stringify({ query: promptText }),
+          timeoutMs: AMBIENT_INTENT_TIMEOUT_MS,
+        });
+
+        if (fill) fill.style.width = '100%';
+        if (text) text.textContent = lang === 'ko' ? '관점 분석 완료' : 'Perspective analysis complete';
+
+        updateFlowStage('Result');
+
+        let cardContainer = document.getElementById('ambient-perspective-card');
+        if (!cardContainer) {
+          const sheetBody = document.getElementById('ambient-sheet-body');
+          cardContainer = document.createElement('div');
+          cardContainer.id = 'ambient-perspective-card';
+          cardContainer.className = 'ambient-perspective-card';
+          cardContainer.setAttribute('data-testid', 'ambient-perspective-card');
+          if (sheetBody) {
+            sheetBody.appendChild(cardContainer);
+          } else {
+            document.body.appendChild(cardContainer);
+          }
+        }
+        cardContainer.style.display = 'block';
+
+        const dataObj = (compareRes && compareRes.data) ? compareRes.data : compareRes;
+        let formattedResult;
+
+        if (!compareRes || compareRes.error || (dataObj && dataObj.error) || (compareRes.status && compareRes.status !== 200 && compareRes.status !== 'COMPLETED' && compareRes.status !== 'PARTIAL')) {
+          const errPayload = (compareRes && compareRes.error) || (dataObj && dataObj.error);
+          let rawMsg = (typeof errPayload === 'string' ? errPayload : errPayload?.message) || (lang === 'ko' ? '다각적 관점 분석 서비스를 이용할 수 없습니다.' : 'Perspective comparison unavailable.');
+          rawMsg = String(rawMsg)
+            .replace(/PERSPECTIVE_SYNTHESIS_FAILED/g, lang === 'ko' ? '분석 결과를 합성하지 못했습니다.' : 'Synthesis unavailable.')
+            .replace(/ALL_MODEL_PROVIDERS_FAILED/g, lang === 'ko' ? '모든 모델 응답에 실패했습니다.' : 'Model services unavailable.');
+          formattedResult = {
+            status: 'UNAVAILABLE',
+            error: { message: rawMsg }
+          };
+        } else {
+          formattedResult = {
+            status: dataObj.status || 'COMPLETED',
+            synthesis: {
+              answer: dataObj.answer || (dataObj.synthesis && dataObj.synthesis.answer) || '',
+              commonGround: dataObj.commonGround || (dataObj.synthesis && dataObj.synthesis.commonGround) || [],
+              differingPerspectives: dataObj.differingPerspectives || (dataObj.synthesis && dataObj.synthesis.differingPerspectives) || [],
+              uncertainties: dataObj.uncertainties || (dataObj.synthesis && dataObj.synthesis.uncertainties) || [],
+            },
+            sources: dataObj.sources || (dataObj.synthesis && dataObj.synthesis.sources) || (dataObj.evidencePack && dataObj.evidencePack.sources) || [],
+          };
+        }
+
+        renderPerspectiveCompareResult(cardContainer, formattedResult, lang);
+        return;
+      }
 
       if (fill) fill.style.width = '50%';
       if (text) text.textContent = t('ambient.progress.planning');
@@ -5096,16 +5178,6 @@
     });
   }
 
-  function escapeHtml(str) {
-    if (typeof str !== 'string') return '';
-    return str
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
-  }
-
   function renderPerspectiveCompareResult(container, result, locale) {
     if (!container || !result) return;
     function esc(s) {
@@ -5124,8 +5196,12 @@
     };
 
     const synthesis = result.synthesis;
-    if (!synthesis) {
-      container.innerHTML = '<div class="perspective-result-error">' + esc((result.error && result.error.message) || 'Perspective comparison unavailable.') + '</div>';
+    if (!synthesis || result.status === 'UNAVAILABLE') {
+      let rawMsg = (result.error && (typeof result.error === 'string' ? result.error : result.error.message)) || (lang === 'ko' ? '다각적 관점 분석 서비스를 이용할 수 없습니다.' : 'Perspective comparison unavailable.');
+      rawMsg = String(rawMsg)
+        .replace(/PERSPECTIVE_SYNTHESIS_FAILED/g, lang === 'ko' ? '분석 결과를 합성하지 못했습니다.' : 'Synthesis unavailable.')
+        .replace(/ALL_MODEL_PROVIDERS_FAILED/g, lang === 'ko' ? '모든 모델 응답에 실패했습니다.' : 'Model services unavailable.');
+      container.innerHTML = '<div class="perspective-result-error" data-testid="perspective-compare-result">' + esc(rawMsg) + '</div>';
       return;
     }
 
@@ -5135,6 +5211,11 @@
     const sourcesTitle = t('perspective.sources') || (lang === 'ko' ? '출처' : 'Sources');
 
     let html = '<div class="perspective-compare-result" data-testid="perspective-compare-result">';
+
+    if (result.status === 'PARTIAL') {
+      const partialBanner = lang === 'ko' ? '일부 관점 분석 결과만 반영되었습니다.' : 'Partial perspective analysis provided.';
+      html += '<div class="perspective-banner perspective-banner-partial" data-testid="perspective-partial-banner">' + esc(partialBanner) + '</div>';
+    }
 
     if (synthesis.answer) {
       html += '<div class="perspective-answer-section"><p class="perspective-answer-text">' + esc(synthesis.answer) + '</p></div>';

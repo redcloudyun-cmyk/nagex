@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import type { AddressInfo } from 'node:net';
+import { chromium, type Browser } from 'playwright';
 import { NagexError } from '../src/common/errors.js';
 import type { ModelProvider, ModelRequest, ModelResponse, ProviderStatus } from '../src/model-gateway/model-provider.js';
 import { UnifiedModelRouter } from '../src/model-gateway/unified-model-router.js';
@@ -8,6 +10,9 @@ import { PerspectiveCompareService } from '../src/model-gateway/perspective-comp
 import { EvidencePackService } from '../src/research/evidence-pack.service.js';
 import type { EvidencePack } from '../src/research/evidence-pack.types.js';
 import type { MemoryRecord } from '../src/context/memory.engine.js';
+import { createServerInstance } from '../src/server_web.js';
+
+declare const window: any;
 
 class MockModelProvider implements ModelProvider {
   public readonly name: string;
@@ -409,6 +414,82 @@ test('NAgex R22.6 — Perspective Compare Foundation Suite', async () => {
   metrics.PERSPECTIVE_RESULT_RENDER = 'PASS';
   metrics.PERSPECTIVE_EN_KR_PARITY = 'PASS';
 
+  const globalEscapeMatches = appJsText.match(/function\s+escapeHtml\b/g);
+  const globalEscapeCount = globalEscapeMatches ? globalEscapeMatches.length : 0;
+  assert.equal(globalEscapeCount, 1, 'GLOBAL_ESCAPE_HTML_DECLARATIONS must be 1');
+  metrics.GLOBAL_ESCAPE_HTML_DECLARATIONS = globalEscapeCount;
+
+  // Real browser certification test (UI -> API -> Render)
+  let serverInstance: any = null;
+  let browserInstance: Browser | null = null;
+  try {
+    const server = createServerInstance();
+    await new Promise<void>((resolve, reject) => {
+      server.listen(0, '127.0.0.1', resolve);
+      server.once('error', reject);
+    });
+    serverInstance = server;
+    const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+
+    browserInstance = await chromium.launch({ headless: true });
+    const page = await browserInstance.newPage({ viewport: { width: 1280, height: 900 } });
+
+    let apiCalled = false;
+    page.on('request', (req) => {
+      if (req.url().includes('/api/v1/ai/perspective-compare') && req.method() === 'POST') {
+        apiCalled = true;
+      }
+    });
+
+    await page.goto(`${origin}/?demo=1`);
+    await page.waitForLoadState('networkidle');
+
+    // Test English prompt
+    const homeInput = page.locator('#home-prompt-input');
+    await homeInput.fill('look at this from different perspectives');
+    await page.click('#btn-home-prompt-send');
+
+    await page.waitForSelector('[data-testid="perspective-compare-result"]', { timeout: 15000 });
+    const enText = await page.locator('[data-testid="perspective-compare-result"]').innerText();
+
+    assert.ok(apiCalled, 'POST /api/v1/ai/perspective-compare must be called');
+    assert.ok(enText.length > 0, 'Perspective result rendered non-empty content');
+
+    metrics.PERSPECTIVE_API_CALLED = 'PASS';
+
+    // Test Korean prompt
+    await page.evaluate(() => {
+      if (window.i18n && typeof window.i18n.setLocale === 'function') {
+        window.i18n.setLocale('ko');
+      }
+      localStorage.setItem('nagex_locale', 'ko');
+    });
+
+    const closeBtn = page.locator('#btn-close-ambient');
+    if (await closeBtn.isVisible()) {
+      await closeBtn.click();
+    }
+
+    await homeInput.fill('여러 관점에서 검토해줘');
+    await page.click('#btn-home-prompt-send');
+
+    await page.waitForSelector('[data-testid="perspective-compare-result"]', { timeout: 15000 });
+    const krText = await page.locator('[data-testid="perspective-compare-result"]').innerText();
+    assert.ok(krText.length > 0, 'KR Perspective result rendered non-empty content');
+
+    metrics.PERSPECTIVE_RESULT_RENDER = 'PASS';
+    metrics.PERSPECTIVE_EN_KR_PARITY = 'PASS';
+  } catch (err) {
+    console.error('Real browser test error in r22_6:', err);
+    throw err;
+  } finally {
+    if (browserInstance) await browserInstance.close();
+    if (serverInstance) {
+      if (serverInstance.closeIdleConnections) serverInstance.closeIdleConnections();
+      await new Promise<void>((resolve) => serverInstance.close(() => resolve()));
+    }
+  }
+
   const indexHtml = fs.readFileSync('public/index.html', 'utf8');
 
   assert.doesNotMatch(indexHtml, /<select[^>]*id="model-picker"/i);
@@ -433,10 +514,12 @@ test('NAgex R22.6 — Perspective Compare Foundation Suite', async () => {
   console.log('R22.6 Perspective Compare Metrics Report:', JSON.stringify(metrics, null, 2));
 
   assert.equal(metrics.R22_6_TARGET, 'PASS');
-  assert.equal(metrics.SYNTHESIS_SCHEMA_FAIL_CLOSED, 'PASS');
-  assert.equal(metrics.INCOMPATIBLE_PROVIDER_ATTEMPTED, 0);
+  assert.equal(metrics.GLOBAL_ESCAPE_HTML_DECLARATIONS, 1);
+  assert.equal(metrics.PERSPECTIVE_API_CALLED, 'PASS');
   assert.equal(metrics.PERSPECTIVE_RESULT_RENDER, 'PASS');
   assert.equal(metrics.PERSPECTIVE_EN_KR_PARITY, 'PASS');
+  assert.equal(metrics.SYNTHESIS_SCHEMA_FAIL_CLOSED, 'PASS');
+  assert.equal(metrics.INCOMPATIBLE_PROVIDER_ATTEMPTED, 0);
   assert.equal(metrics.ONE_EVIDENCE_PACK_PER_COMPARE, 1);
   assert.equal(metrics.SHARED_EVIDENCE_PACK, 'PASS');
   assert.equal(metrics.PERSPECTIVE_COMPARE_SUCCESS, 'PASS');
