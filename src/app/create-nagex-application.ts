@@ -27,6 +27,7 @@ import { AiService } from '../model-gateway/ai-service.js';
 import { createProviders } from '../model-gateway/providers.js';
 import { UnifiedModelRouter } from '../model-gateway/unified-model-router.js';
 import { PerspectiveCompareService } from '../model-gateway/perspective-compare.service.js';
+import { ForecastCompareService } from '../model-gateway/forecast-compare.service.js';
 import { skillRegistry as canonicalSkillRegistry } from '../skills/skill-registry.js';
 import { toolRegistry as canonicalToolRegistry } from '../tools/tool-registry.js';
 import { PlanResolver } from '../planning/plan-resolver.js';
@@ -237,6 +238,7 @@ export function createNagexApplication(): NagexApplication {
   const webSearchService = new WebSearchService();
   const evidencePackService = new EvidencePackService(questionClassificationService, webSearchService);
   const perspectiveCompareService = new PerspectiveCompareService(modelRouter, evidencePackService);
+  const forecastCompareService = new ForecastCompareService(modelRouter, evidencePackService);
 
   const capabilityBroker = new CapabilityBroker(
     googleCalendarService,
@@ -571,5 +573,6 @@ export function createNagexApplication(): NagexApplication {
     pinnedMemories,
     modelRouter,
     perspectiveCompareService,
+    forecastCompareService,
   };
 }

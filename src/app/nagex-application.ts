@@ -174,4 +174,5 @@ export interface NagexApplication {
   lifecycle: LifecycleManager;
   modelRouter: import('../model-gateway/unified-model-router.js').UnifiedModelRouter;
   perspectiveCompareService: import('../model-gateway/perspective-compare.service.js').PerspectiveCompareService;
+  forecastCompareService: import('../model-gateway/forecast-compare.service.js').ForecastCompareService;
 }

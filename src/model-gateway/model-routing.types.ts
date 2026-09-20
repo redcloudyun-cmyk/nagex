@@ -6,7 +6,9 @@ export type ModelTaskKind =
   | 'DAILY_BRIEF'
   | 'MEETING_PREP'
   | 'PERSPECTIVE_ANALYSIS'
-  | 'PERSPECTIVE_SYNTHESIS';
+  | 'PERSPECTIVE_SYNTHESIS'
+  | 'FORECAST_ANALYSIS'
+  | 'FORECAST_SYNTHESIS';
 
 export interface ModelRoutingContext {
   taskKind: ModelTaskKind;

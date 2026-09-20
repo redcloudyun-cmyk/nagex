@@ -31,6 +31,7 @@ import { handleSafetyRoutes } from './http/routes/safety.routes.js';
 import { handleConversationRoutes, handleSessionRoutes } from './http/routes/conversation.routes.js';
 import { handleResearchRoutes } from './http/routes/research.routes.js';
 import { handlePerspectiveCompareRoutes } from './http/routes/perspective-compare.routes.js';
+import { handleForecastCompareRoutes } from './http/routes/forecast-compare.routes.js';
 import { handleDailyBriefRoutes } from './http/routes/daily-brief.routes.js';
 import { handlePersonalAssistantRoutes } from './http/routes/personal-assistant.routes.js';
 import { handleCapabilitiesRoutes } from './http/routes/capabilities.routes.js';
@@ -424,6 +425,11 @@ export async function handleAsyncApiRequest(
     {
       const perspectiveCompareResult = await handlePerspectiveCompareRoutes(method, pathname, body, headers, query, { perspectiveCompareService: app.perspectiveCompareService, getRelevantMemories, modelErrorResult });
       if (perspectiveCompareResult) return perspectiveCompareResult;
+    }
+    // R22.7 — Forecast Compare Endpoint (POST /api/v1/ai/forecast-compare)
+    {
+      const forecastCompareResult = await handleForecastCompareRoutes(method, pathname, body, headers, query, { forecastCompareService: app.forecastCompareService, getRelevantMemories, modelErrorResult });
+      if (forecastCompareResult) return forecastCompareResult;
     }
     // R10.2-D Increment 4 — Google OAuth callback/status/disconnect.
     {

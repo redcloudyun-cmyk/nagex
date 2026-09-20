@@ -2947,6 +2947,32 @@
     wireAmbientActivityToggle();
   }
 
+  function isForecastCompareIntent(promptText) {
+    if (!promptText || typeof promptText !== 'string') return false;
+    const text = promptText.toLowerCase();
+    const triggers = [
+      '일어날 가능성을 예측',
+      '성공할 가능성',
+      '끝날 가능성',
+      '예측해줘',
+      '확률을 추정',
+      '가능성을 예측',
+      '가능성이 얼마나',
+      '확률이 얼마나',
+      'forecast this',
+      'how likely is this',
+      'what are the chances',
+      'estimate the probability',
+      'will this happen by',
+      'will this project launch',
+      'will this',
+      'will it',
+      'forecast',
+      'predict',
+    ];
+    return triggers.some((t) => text.includes(t));
+  }
+
   function isPerspectiveCompareIntent(promptText) {
     if (!promptText || typeof promptText !== 'string') return false;
     const text = promptText.toLowerCase();
@@ -2998,6 +3024,41 @@
       if (progress) progress.style.display = 'flex';
       if (fill) fill.style.width = '20%';
       if (text) text.textContent = t('ambient.progress.understanding');
+
+      if (isForecastCompareIntent(promptText)) {
+        if (fill) fill.style.width = '40%';
+        const lang = window.NAGEX_I18N ? window.NAGEX_I18N.getLocale() : (localStorage.getItem('nagex_locale') || 'en');
+        if (text) text.textContent = lang === 'ko' ? '미래 결과를 예측 분석하는 중...' : 'Analyzing forecast...';
+
+        const forecastRes = await apiFetch('/api/v1/ai/forecast-compare', {
+          method: 'POST',
+          body: JSON.stringify({ query: promptText }),
+          timeoutMs: AMBIENT_INTENT_TIMEOUT_MS,
+        });
+
+        if (fill) fill.style.width = '100%';
+        if (text) text.textContent = lang === 'ko' ? '예측 분석 완료' : 'Forecast analysis complete';
+
+        updateFlowStage('Result');
+
+        let cardContainer = document.getElementById('ambient-forecast-card');
+        if (!cardContainer) {
+          const sheetBody = document.getElementById('ambient-sheet-body');
+          cardContainer = document.createElement('div');
+          cardContainer.id = 'ambient-forecast-card';
+          cardContainer.className = 'ambient-forecast-card';
+          cardContainer.setAttribute('data-testid', 'ambient-forecast-card');
+          if (sheetBody) {
+            sheetBody.appendChild(cardContainer);
+          } else {
+            document.body.appendChild(cardContainer);
+          }
+        }
+
+        renderForecastCompareResult(cardContainer, forecastRes, lang);
+        if (progress) progress.style.display = 'none';
+        return;
+      }
 
       if (isPerspectiveCompareIntent(promptText)) {
         if (fill) fill.style.width = '40%';
@@ -5278,12 +5339,150 @@
     container.innerHTML = html;
   }
 
+  function renderForecastCompareResult(container, result, locale) {
+    if (!container) return;
+    function esc(s) {
+      if (s === null || s === undefined) return '';
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    const lang = locale || (window.NAGEX_I18N ? window.NAGEX_I18N.getLocale() : 'en');
+    const t = function (key) {
+      return window.NAGEX_I18N ? window.NAGEX_I18N.t(key, lang) : key;
+    };
+
+    if (!result) {
+      container.innerHTML = '<div class="forecast-result-error" data-testid="forecast-compare-result">' + esc(lang === 'ko' ? '예측 서비스를 이용할 수 없습니다.' : 'Forecast service unavailable.') + '</div>';
+      return;
+    }
+
+    if (result.status === 'NEEDS_CLARIFICATION') {
+      const msg = result.clarificationMessage || t('forecast.needsClarification') || (lang === 'ko' ? '예측 대상이나 시점이 명확하지 않습니다. 명확한 시점과 조건으로 질문해주세요.' : 'Forecast target or horizon is ambiguous. Please specify clear criteria.');
+      container.innerHTML = '<div class="forecast-result-clarification" data-testid="forecast-compare-result">' +
+        '<h3 class="forecast-title">' + esc(t('forecast.title') || (lang === 'ko' ? '예측' : 'Forecast')) + '</h3>' +
+        '<p class="forecast-clarification-text">' + esc(msg) + '</p>' +
+        '</div>';
+      return;
+    }
+
+    const synthesis = result.synthesis;
+    if (!synthesis || result.status === 'UNAVAILABLE') {
+      let rawMsg = (result.error && (typeof result.error === 'string' ? result.error : result.error.message)) || (lang === 'ko' ? '예측 분석 서비스를 이용할 수 없습니다.' : 'Forecast unavailable.');
+      rawMsg = String(rawMsg)
+        .replace(/FORECAST_SYNTHESIS_FAILED/g, lang === 'ko' ? '예측 결과를 합성하지 못했습니다.' : 'Forecast synthesis unavailable.')
+        .replace(/ALL_MODEL_PROVIDERS_FAILED/g, lang === 'ko' ? '모든 모델 응답에 실패했습니다.' : 'Model services unavailable.');
+      container.innerHTML = '<div class="forecast-result-error" data-testid="forecast-compare-result">' + esc(rawMsg) + '</div>';
+      return;
+    }
+
+    const forecastTitle = t('forecast.title') || (lang === 'ko' ? '예측' : 'Forecast');
+    const likelihoodTitle = t('forecast.likelihood') || (lang === 'ko' ? '예상 가능성' : 'Estimated likelihood');
+    const rangeTitle = t('forecast.range') || (lang === 'ko' ? '가능성 범위' : 'Likely range');
+    const whyTitle = t('forecast.why') || (lang === 'ko' ? '현재 이렇게 보는 이유' : 'Why this is the current estimate');
+    const supportingTitle = t('forecast.supporting') || (lang === 'ko' ? '가능성을 높이는 신호' : 'Signals supporting this');
+    const opposingTitle = t('forecast.opposing') || (lang === 'ko' ? '가능성을 낮추는 신호' : 'Signals against this');
+    const whatWouldChangeTitle = t('forecast.whatWouldChange') || (lang === 'ko' ? '예측을 바꿀 수 있는 요인' : 'What could change the forecast');
+    const uncertaintiesTitle = t('forecast.uncertainties') || (lang === 'ko' ? '아직 불확실한 점' : 'What remains uncertain');
+    const sourcesTitle = t('forecast.sources') || (lang === 'ko' ? '출처' : 'Sources');
+
+    // No Fake Precision formatting: round to whole percentage
+    const probPct = Math.round(synthesis.probability * 100);
+    const lowPct = synthesis.probabilityRange ? Math.round(synthesis.probabilityRange.low * 100) : probPct;
+    const highPct = synthesis.probabilityRange ? Math.round(synthesis.probabilityRange.high * 100) : probPct;
+
+    const probLabel = lang === 'ko' ? `약 ${probPct}%` : `About ${probPct}%`;
+    const rangeLabel = `${lowPct}–${highPct}%`;
+
+    let html = '<div class="forecast-compare-result" data-testid="forecast-compare-result">';
+
+    if (result.status === 'PARTIAL') {
+      const partialBanner = lang === 'ko' ? '하나의 독립 예측만 완료되어 예측 비교를 수행할 수 없습니다.' : "I could complete only one independent forecast, so I can't reliably compare forecasts.";
+      html += '<div class="forecast-banner forecast-banner-partial" data-testid="forecast-partial-banner">' + esc(partialBanner) + '</div>';
+    }
+
+    html += '<div class="forecast-header-section">';
+    html += '<h3 class="forecast-title">' + esc(forecastTitle) + '</h3>';
+    html += '<div class="forecast-metrics">';
+    html += '<div class="forecast-metric"><span class="forecast-metric-label">' + esc(likelihoodTitle) + ':</span> <strong class="forecast-metric-value">' + esc(probLabel) + '</strong></div>';
+    html += '<div class="forecast-metric"><span class="forecast-metric-label">' + esc(rangeTitle) + ':</span> <span class="forecast-metric-value">' + esc(rangeLabel) + '</span></div>';
+    html += '</div>';
+    html += '</div>';
+
+    if (synthesis.summary) {
+      html += '<div class="forecast-section">';
+      html += '<h4 class="forecast-section-title">' + esc(whyTitle) + '</h4>';
+      html += '<p class="forecast-summary-text">' + esc(synthesis.summary) + '</p>';
+      html += '</div>';
+    }
+
+    if (Array.isArray(synthesis.keyDrivers) && synthesis.keyDrivers.length > 0) {
+      html += '<div class="forecast-section">';
+      html += '<h4 class="forecast-section-title">' + esc(supportingTitle) + '</h4>';
+      html += '<ul class="forecast-list">';
+      synthesis.keyDrivers.forEach(function (item) {
+        html += '<li>' + esc(item) + '</li>';
+      });
+      html += '</ul></div>';
+    }
+
+    if (Array.isArray(synthesis.counterSignals) && synthesis.counterSignals.length > 0) {
+      html += '<div class="forecast-section">';
+      html += '<h4 class="forecast-section-title">' + esc(opposingTitle) + '</h4>';
+      html += '<ul class="forecast-list">';
+      synthesis.counterSignals.forEach(function (item) {
+        html += '<li>' + esc(item) + '</li>';
+      });
+      html += '</ul></div>';
+    }
+
+    if (Array.isArray(synthesis.whatWouldChangeTheForecast) && synthesis.whatWouldChangeTheForecast.length > 0) {
+      html += '<div class="forecast-section">';
+      html += '<h4 class="forecast-section-title">' + esc(whatWouldChangeTitle) + '</h4>';
+      html += '<ul class="forecast-list">';
+      synthesis.whatWouldChangeTheForecast.forEach(function (item) {
+        html += '<li>' + esc(item) + '</li>';
+      });
+      html += '</ul></div>';
+    }
+
+    if (Array.isArray(synthesis.uncertainties) && synthesis.uncertainties.length > 0) {
+      html += '<div class="forecast-section">';
+      html += '<h4 class="forecast-section-title">' + esc(uncertaintiesTitle) + '</h4>';
+      html += '<ul class="forecast-list">';
+      synthesis.uncertainties.forEach(function (item) {
+        html += '<li>' + esc(item) + '</li>';
+      });
+      html += '</ul></div>';
+    }
+
+    const sourcesList = result.sources || (result.evidencePack && result.evidencePack.sources);
+    if (Array.isArray(sourcesList) && sourcesList.length > 0) {
+      html += '<div class="forecast-section">';
+      html += '<h4 class="forecast-section-title">' + esc(sourcesTitle) + '</h4>';
+      html += '<ul class="forecast-sources-list">';
+      sourcesList.forEach(function (src) {
+        const title = src.title || src.url;
+        html += '<li><a href="' + esc(src.url) + '" target="_blank" rel="noopener">' + esc(title) + '</a></li>';
+      });
+      html += '</ul></div>';
+    }
+
+    html += '</div>';
+    container.innerHTML = html;
+  }
+
   window.NAGEX = window.NAGEX || {};
   window.NAGEX.isDebugMode = isDebugMode;
   window.NAGEX.isEnterpriseUiMode = isEnterpriseUiMode;
   window.NAGEX.applyEnterpriseUiGate = applyEnterpriseUiGate;
   window.NAGEX.openAmbientOverlay = openAmbientOverlay;
   window.NAGEX.renderPerspectiveCompareResult = renderPerspectiveCompareResult;
+  window.NAGEX.renderForecastCompareResult = renderForecastCompareResult;
 
   initRouter();
   loadAllData();
