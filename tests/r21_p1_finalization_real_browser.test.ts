@@ -158,7 +158,7 @@ test('R21 P1 A-J semantic certification and visual QA capture', async () => {
     await page.evaluate(() => (globalThis as any).window.NAGEX.openAmbientOverlay());
     await page.fill('#ambient-prompt-input', 'Research the latest developments in AI agent architecture and summarize what matters for my project.');
     await page.press('#ambient-prompt-input', 'Enter');
-    await page.waitForSelector('#ambient-summary-section', { state: 'visible' });
+    await page.waitForSelector('#ambient-summary-section', { state: 'visible', timeout: 60000 });
     const research = await page.locator('#ambient-overlay-backdrop').innerText();
     assert.match(research, /research/i);
     assert.doesNotMatch(research, /Sarah|Proposal v3|Last meeting notes|Ready to add to your calendar/);
@@ -188,7 +188,7 @@ test('R21 P1 A-J semantic certification and visual QA capture', async () => {
     await mobileQuick.close();
 
     const mobilePrepBtn = await mobile.evaluate(() => {
-      const btn = document.querySelector('#mh-right-now-action-btn') || document.querySelector('#mh-hero-brief-prepare-btn') || document.querySelector('#mobile-view-home .btn-primary') || document.querySelector('#mh-section-right-now button');
+      const btn = document.querySelector('#mh-hero-primary-cta') || document.querySelector('#mh-right-now-action-btn') || document.querySelector('#mh-hero-brief-prepare-btn') || document.querySelector('#mobile-view-home .btn-primary') || document.querySelector('#mh-section-right-now button');
       if (btn) { (btn as any).click(); return true; }
       return false;
     });

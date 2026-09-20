@@ -159,7 +159,7 @@ test('R22.8 - Real Browser Certification & Visual Hierarchy', async (t) => {
       extraHTTPHeaders: locale === 'KR' ? { 'Accept-Language': 'ko-KR,ko' } : { 'Accept-Language': 'en-US,en' }
     });
 
-    await page.goto(`${baseUrl}/`);
+    await page.goto(`${baseUrl}/?demo=1`);
     await page.waitForLoadState('domcontentloaded');
     const targetSelector = viewport.width <= 768 ? '#mobile-view-home' : '#view-home';
     await page.waitForSelector(targetSelector, { state: 'attached', timeout: 10000 });

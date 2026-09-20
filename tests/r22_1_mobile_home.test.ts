@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import type { AddressInfo } from 'node:net';
 import { test } from 'node:test';
 import { chromium, type Page } from 'playwright';
 import { createServerInstance } from '../src/server_web.js';
 
-const BASE_URL = process.env.NAGEX_DEPLOYED_URL || 'http://localhost:3000';
 const ARTIFACTS_DIR = path.resolve('artifacts/r22_1');
 
 const STATIC_SEL = {
@@ -261,8 +261,8 @@ async function captureFailureEvidence(page: Page, vpName: string, locale: string
   fs.writeFileSync(path.join(failDir, `${vpName}_${locale}_dom.json`), JSON.stringify(evidence, null, 2));
 }
 
-async function verifyInitialHeroStaticHtml(): Promise<number> {
-  const res = await fetch(`${BASE_URL}/?demo=1`);
+async function verifyInitialHeroStaticHtml(baseUrl: string): Promise<number> {
+  const res = await fetch(`${baseUrl}/?demo=1`);
   const html = await res.text();
 
   const heroMatch = html.match(/<section[^>]*id=["']mh-right-now-hero["'][^>]*>([\s\S]*?)<\/section>/i);
@@ -332,20 +332,20 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
   let localServer: any;
   let browser: any;
 
-  const health = await fetch(`${BASE_URL}/api/v1/health`).catch(() => null);
-  if (!health || !health.ok) {
-    const server = createServerInstance();
-    await new Promise<void>((resolve, reject) => {
-      server.listen(3000, '127.0.0.1', resolve);
-      server.once('error', reject);
-    });
-    localServer = server;
-  }
+  const server = createServerInstance();
+  await new Promise<void>((resolve, reject) => {
+    server.listen(0, '127.0.0.1', resolve);
+    server.once('error', reject);
+  });
+  const address = server.address() as AddressInfo;
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+  localServer = server;
+
   browser = await chromium.launch({ headless: true });
 
   let selectorContractPass = false;
   let apiHeadersPreservedPass = false;
-  let initialPersonalContextLeak = await verifyInitialHeroStaticHtml();
+  let initialPersonalContextLeak = await verifyInitialHeroStaticHtml(baseUrl);
   let heroContextDerivationPass = false;
   let heroPriorityTimeAwarePass = false;
   let heroTimeTruthfulnessPass = false;
@@ -385,7 +385,7 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
       // ── EN Locale Test ──
       const pageEn = await browser.newPage({ viewport: { width: vp.width, height: vp.height } });
 
-      await pageEn.goto(`${BASE_URL}/?demo=1`);
+      await pageEn.goto(`${baseUrl}/?demo=1`);
       await pageEn.evaluate(() => (globalThis as any).window.NAGEX_I18N?.setLocale('en'));
       await pageEn.reload();
 
@@ -561,7 +561,7 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
 
       // ── KR Locale Test ──
       const pageKr = await browser.newPage({ viewport: { width: vp.width, height: vp.height } });
-      await pageKr.goto(`${BASE_URL}/?demo=1`);
+      await pageKr.goto(`${baseUrl}/?demo=1`);
       await pageKr.evaluate(() => (globalThis as any).window.NAGEX_I18N?.setLocale('ko'));
       await pageKr.reload();
 

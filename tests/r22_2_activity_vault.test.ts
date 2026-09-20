@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import type { AddressInfo } from 'node:net';
 import { test } from 'node:test';
 import { chromium, type Page, type BrowserContext } from 'playwright';
 import { createServerInstance } from '../src/server_web.js';
 
-const BASE_URL = process.env.NAGEX_DEPLOYED_URL || 'http://localhost:3000';
 const ARTIFACTS_DIR = path.resolve('artifacts/r22_2');
 const FAILURE_DIR = path.resolve('artifacts/r22_2/failure');
 
@@ -196,15 +196,15 @@ test('NAgex R22.2 Hardened Pre-Server Certification Audit', async () => {
   let localServer: any;
   let browser: any;
   try {
-    const health = await fetch(`${BASE_URL}/api/v1/health`).catch(() => null);
-    if (!health || !health.ok) {
-      const server = createServerInstance();
-      await new Promise<void>((resolve, reject) => {
-        server.listen(3000, '127.0.0.1', resolve);
-        server.once('error', reject);
-      });
-      localServer = server;
-    }
+    const server = createServerInstance();
+    await new Promise<void>((resolve, reject) => {
+      server.listen(0, '127.0.0.1', resolve);
+      server.once('error', reject);
+    });
+    const address = server.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${address.port}`;
+    localServer = server;
+
     browser = await chromium.launch({ headless: true });
 
     const viewports = [
@@ -233,7 +233,7 @@ test('NAgex R22.2 Hardened Pre-Server Certification Audit', async () => {
 
       // Activity View Certification
       try {
-        await pageEn.goto(`${BASE_URL}/?demo=1`);
+        await pageEn.goto(`${baseUrl}/?demo=1`);
         await pageEn.waitForSelector('#mobile-app-shell', { state: 'visible' });
 
         await pageEn.evaluate(() => (globalThis as any).window.NAGEX.switchTab('tab-executions'));
@@ -446,7 +446,7 @@ test('NAgex R22.2 Hardened Pre-Server Certification Audit', async () => {
       const pageKr = await contextKr.newPage();
 
       try {
-        await pageKr.goto(`${BASE_URL}/?demo=1`);
+        await pageKr.goto(`${baseUrl}/?demo=1`);
         await pageKr.evaluate(() => (globalThis as any).window.NAGEX_I18N?.setLocale('ko'));
         await pageKr.reload();
         await pageKr.waitForSelector('#mobile-app-shell', { state: 'visible' });
@@ -511,7 +511,7 @@ test('NAgex R22.2 Hardened Pre-Server Certification Audit', async () => {
     await contextErr.route('**/api/v1/workspace/vault*', async (route: any) => route.abort('failed'));
     const pageErr = await contextErr.newPage();
 
-    await pageErr.goto(`${BASE_URL}/?demo=1`);
+    await pageErr.goto(`${baseUrl}/?demo=1`);
     await pageErr.waitForSelector('#mobile-app-shell', { state: 'visible' });
 
     await pageErr.evaluate(() => (globalThis as any).window.NAGEX.switchTab('tab-executions'));

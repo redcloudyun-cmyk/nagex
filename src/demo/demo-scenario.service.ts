@@ -210,6 +210,136 @@ export class DemoScenarioService {
     if (pathname === '/api/v1/demo/state' && method === 'GET') {
       return { status: 200, data: { persona: this.fixture.persona, mutationCount: state.mutationCount, addedEvents: state.addedEvents, approvalCount: state.approvals.size } };
     }
+    if (pathname === '/api/v1/personal/home' && method === 'GET') {
+      const pendingApprovals = [...state.approvals.values()].filter((item) => item.status === 'PENDING');
+      let rightNow: Record<string, unknown> | null = null;
+      const rightNowSourceIds = new Set<string>();
+
+      if (pendingApprovals.length > 0) {
+        const topApr = pendingApprovals[0];
+        const aprPayload = (topApr.canonicalPayload || {}) as any;
+        const aprTitle = aprPayload.summary || topApr.approvalId;
+        rightNow = {
+          type: 'APPROVAL',
+          title: isKo ? `승인 필요: ${aprTitle}` : `Approval Required: ${aprTitle}`,
+          summary: isKo ? '작업 실행 전 사용자 승인이 필요합니다.' : 'Action requires human authorization before proceeding.',
+          sourceRef: topApr.approvalId,
+          action: { type: 'REVIEW_APPROVAL', label: isKo ? '검토' : 'Review' },
+          occurredAt: new Date().toISOString(),
+        };
+        rightNowSourceIds.add(topApr.approvalId);
+      } else {
+        const meetingTitle = isKo ? '클라이언트 전략 미팅' : 'Client strategy meeting';
+        rightNow = {
+          type: 'MEETING',
+          title: meetingTitle,
+          summary: isKo ? '가격 정책 및 일정 조율 검토가 필요합니다.' : 'Pricing and delivery timing need your attention.',
+          sourceRef: 'demo_evt_client',
+          startsAt: this.todayAt('15:00'),
+          action: {
+            type: 'PREPARE_MEETING',
+            label: isKo ? '미팅 준비' : 'Review prep'
+          }
+        };
+        rightNowSourceIds.add('demo_evt_client');
+      }
+
+      const allEvents = this.events(state, isKo);
+      const meetings = allEvents.map((e: any) => ({
+        id: e.id,
+        title: e.title,
+        startsAt: e.start_time || e.start?.dateTime || this.todayAt('15:00'),
+        summary: e.title,
+      }));
+
+      const todayTaskObj = this.task(isKo);
+      const todayEmailObj = this.email(isKo);
+
+      const today = {
+        briefStatus: 'AVAILABLE',
+        freshness: 'FRESH',
+        summary: isKo
+          ? '오늘 3개의 주요 일정이 있습니다. 클라이언트 미팅을 포함한 최신 컨텍스트가 준비되었습니다.'
+          : 'You have 3 scheduled events today. Client strategy meeting context is ready.',
+        meetings,
+        counts: {
+          meetings: meetings.length,
+          emails: 1,
+          tasks: 1,
+          approvals: pendingApprovals.length,
+        },
+      };
+
+      const needsAttention: Array<Record<string, unknown>> = [];
+      for (const apr of pendingApprovals) {
+        if (rightNowSourceIds.has(apr.approvalId)) continue;
+        needsAttention.push({
+          id: `attn_${apr.approvalId}`,
+          type: 'APPROVAL',
+          title: `Approval Required`,
+          summary: `Action requires human confirmation`,
+          sourceType: 'APPROVAL',
+          sourceId: apr.approvalId,
+          action: { type: 'REVIEW_APPROVAL', label: isKo ? '검토' : 'Review' },
+        });
+      }
+
+      const preparedForYou: Array<Record<string, unknown>> = [
+        {
+          id: 'prep_demo_proposal',
+          type: 'PROPOSAL',
+          title: isKo ? 'Proposal v3 검토 준비' : 'Proposal v3 ready for review',
+          summary: isKo ? '가격 $48,000 및 납품 일정 조율안.' : 'Pricing $48,000 and timeline options.',
+          sourceType: 'PROPOSAL',
+          sourceId: 'demo_vault_proposal',
+          action: { type: 'VIEW_PREPARATION', label: isKo ? '초안 검토' : 'Review Draft' },
+        }
+      ];
+
+      const workingForYou: Array<Record<string, unknown>> = [
+        {
+          id: 'wrk_demo_task',
+          type: 'TASK',
+          title: todayTaskObj.title,
+          summary: todayTaskObj.title,
+          sourceType: 'TASK',
+          sourceId: todayTaskObj.id,
+        }
+      ];
+
+      const vaultItemsList = this.vaultItems(state, isKo);
+      const recentResults: Array<Record<string, unknown>> = vaultItemsList.slice(0, 3).map((v: any) => ({
+        id: `res_${v.vaultItemId}`,
+        type: 'DOCUMENT',
+        title: v.title,
+        summary: (v.metadata as any)?.summary || v.title,
+        sourceType: 'ACTIVITY',
+        sourceId: v.vaultItemId,
+        createdAt: v.createdAt,
+      }));
+
+      return {
+        status: 200,
+        data: {
+          generatedAt: new Date().toISOString(),
+          rightNow,
+          today,
+          needsAttention,
+          preparedForYou,
+          workingForYou,
+          recentResults,
+          sourceStatus: {
+            calendar: 'CONNECTED',
+            gmail: 'CONNECTED',
+            activity: 'OK',
+            tasks: 'OK',
+          },
+          userProfile: {
+            name: this.fixture.persona.name || 'Alex'
+          }
+        }
+      };
+    }
     if (pathname === '/api/v1/personal/morning-brief' && method === 'GET') {
       return {
         status: 200,
