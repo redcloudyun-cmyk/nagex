@@ -450,25 +450,36 @@
           </div>
         </div>
 
-        <!-- VIEW 2: MEMORY -->
+        <!-- VIEW 2: MEMORY (PERSONAL CONTEXT) -->
         <div id="view-memory" class="tab-view">
           <button class="settings-back-link" data-tab="tab-settings" onclick="window.NAGEX.switchTab('tab-settings')">‹ <span data-i18n="settings.backToSettings">Back to Settings</span></button>
           <div class="view-header">
             <div>
-              <h2 data-i18n="memory.title">Personal Memory</h2>
-              <p class="view-subtitle" data-i18n="memory.subtitle">NAgex remembers preferences, session context, and task history across interactions. Fully inspectable and controllable.</p>
+              <h2 data-i18n="personalContext.title">What NAgex Knows</h2>
+              <p class="view-subtitle" data-i18n="personalContext.subtitle">NAgex remembers preferences, session context, and task history across interactions. Fully inspectable and controllable.</p>
             </div>
             <div class="header-btns-row">
               <button class="btn-secondary" id="btn-clear-session-mem" data-i18n="memory.btnClearSession">Clear Session Memory</button>
             </div>
           </div>
 
+          <div class="personal-context-search-bar" style="margin-bottom: 1rem;">
+            <input type="text" id="personal-context-search-input" class="form-input" placeholder="Search context..." data-i18n-placeholder="personalContext.searchPlaceholder" style="width: 100%; max-width: 400px; padding: 0.5rem 0.8rem; border-radius: 8px; border: 1px solid var(--border-subtle, #cbd5e1);" />
+          </div>
+
           <div class="memory-categories-tabs">
-            <button class="mem-tab-btn active" data-mem-scope="ALL">All Memory</button>
-            <button class="mem-tab-btn" data-mem-scope="USER" data-i18n="memory.catProfile">Profile & Preferences</button>
-            <button class="mem-tab-btn" data-mem-scope="SESSION" data-i18n="memory.catSession">Session Memory</button>
-            <button class="mem-tab-btn" data-mem-scope="AGENT" data-i18n="memory.catTaskHistory">Task History</button>
-            <button class="mem-tab-btn" data-mem-scope="TENANT" data-i18n="memory.catGoals">Goals & Tool Prefs</button>
+            <button class="mem-tab-btn active" data-mem-filter="ALL">All Context</button>
+            <button class="mem-tab-btn" data-mem-filter="PREFERENCE" data-i18n="personalContext.category.PREFERENCE">Preferences</button>
+            <button class="mem-tab-btn" data-mem-filter="FACT" data-i18n="personalContext.category.FACT">About you</button>
+            <button class="mem-tab-btn" data-mem-filter="RELATIONSHIP" data-i18n="personalContext.category.RELATIONSHIP">People &amp; relationships</button>
+            <button class="mem-tab-btn" data-mem-filter="PROJECT_CONTEXT" data-i18n="personalContext.category.PROJECT_CONTEXT">Projects</button>
+            <button class="mem-tab-btn" data-mem-filter="DECISION" data-i18n="personalContext.category.DECISION">Important decisions</button>
+            <button class="mem-tab-btn" data-mem-filter="WORKING_CONTEXT" data-i18n="personalContext.category.WORKING_CONTEXT">Current context</button>
+          </div>
+
+          <div id="pinned-context-section" style="margin-bottom: 1.5rem;" hidden>
+            <h3 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--navy-head);" data-i18n="personalContext.pinnedTitle">Pinned context</h3>
+            <div class="memory-grid" id="pinned-memory-cards-container"></div>
           </div>
 
           <div class="memory-grid" id="memory-cards-container">
@@ -1709,6 +1720,39 @@
         <span data-i18n="nav.settings">Settings</span></span>
       </button>
     </nav>
+  </div>
+
+  <!-- Link Capture Preview Modal -->
+  <div id="link-capture-modal-backdrop" class="ambient-overlay-backdrop" style="display: none;">
+    <div id="link-capture-modal" class="ambient-sheet-modal" style="max-width: 520px; width: 90%; background: var(--bg-card, #ffffff); border-radius: 12px; padding: 1.25rem;">
+      <div class="ambient-modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-subtle, #e2e8f0); padding-bottom: 0.75rem;">
+        <h3 id="link-capture-modal-title" style="margin: 0; font-size: 1.1rem; font-weight: 600; color: var(--navy-head);" data-i18n="linkCapture.modalTitle">Link Preview</h3>
+        <button type="button" class="btn-icon-close" id="btn-close-link-capture" onclick="window.NAGEX.closeLinkCaptureModal()">&times;</button>
+      </div>
+      <div class="ambient-modal-body" style="padding: 1rem 0;">
+        <div id="link-capture-status-loading" style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-secondary);">
+          <div class="nagex-spinner" style="width:16px; height:16px; border:2px solid var(--border-subtle); border-top-color:var(--color-accent-teal); border-radius:50%; animation:spin 1s linear infinite;"></div>
+          <span id="link-capture-loading-text" data-i18n="linkCapture.readingPage">Reading the page...</span>
+        </div>
+        <div id="link-capture-status-error" hidden style="color: #ef4444; font-size: 0.9rem; padding: 0.5rem 0;"></div>
+        <div id="link-capture-preview-card" hidden style="display: flex; flex-direction: column; gap: 0.5rem;">
+          <div style="font-size: 0.78rem; color: var(--text-muted);" id="link-capture-domain"></div>
+          <h4 style="margin: 0; font-size: 1rem; font-weight: 600; color: var(--navy-head);" id="link-capture-title"></h4>
+          <p style="margin: 0; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4;" id="link-capture-summary"></p>
+          <div id="link-capture-headings" style="font-size: 0.78rem; color: var(--text-muted); font-style: italic;"></div>
+        </div>
+        <div id="link-capture-memory-editor" hidden style="margin-top: 0.75rem; border-top: 1px dashed var(--border-subtle); padding-top: 0.75rem;">
+          <label style="font-size: 0.8rem; font-weight: 600; color: var(--navy-head); display: block; margin-bottom: 0.25rem;">Fact to remember:</label>
+          <textarea id="link-capture-memory-text" class="form-input" rows="2" style="width: 100%; font-size: 0.85rem; padding: 0.4rem; border-radius: 6px; border: 1px solid var(--border-subtle);"></textarea>
+        </div>
+      </div>
+      <div class="ambient-modal-footer" id="link-capture-actions" hidden style="display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: flex-end; border-top: 1px solid var(--border-subtle, #e2e8f0); padding-top: 0.75rem;">
+        <button type="button" class="btn-secondary" onclick="window.NAGEX.closeLinkCaptureModal()" data-i18n="linkCapture.cancel">Cancel</button>
+        <button type="button" class="btn-secondary" id="btn-capture-save-vault" onclick="window.NAGEX.saveLinkDestination('VAULT')" data-i18n="linkCapture.saveToVault">Save to Vault</button>
+        <button type="button" class="btn-secondary" id="btn-capture-add-inbox" onclick="window.NAGEX.saveLinkDestination('INBOX')" data-i18n="linkCapture.addToInbox">Add to Inbox</button>
+        <button type="button" class="btn-primary" id="btn-capture-remember" onclick="window.NAGEX.saveLinkDestination('MEMORY')" data-i18n="linkCapture.rememberFromThis">Remember something from this</button>
+      </div>
+    </div>
   </div>
 
   <script src="i18n.js?v=__NAGEX_BUILD_VERSION__"></script>

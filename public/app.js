@@ -3035,6 +3035,13 @@
       if (fill) fill.style.width = '20%';
       if (text) text.textContent = t('ambient.progress.understanding');
 
+      const urlMatch = promptText.match(/https?:\/\/[^\s<"']+/i);
+      if (urlMatch && (promptText.trim() === urlMatch[0] || promptText.toLowerCase().includes('save') || promptText.toLowerCase().includes('remember') || promptText.toLowerCase().includes('keep') || promptText.toLowerCase().includes('inbox') || promptText.toLowerCase().includes('vault') || promptText.toLowerCase().includes('link') || promptText.toLowerCase().includes('page'))) {
+        if (progress) progress.style.display = 'none';
+        openLinkCaptureModal(urlMatch[0]);
+        return;
+      }
+
       if (isForecastCompareIntent(promptText)) {
         if (fill) fill.style.width = '40%';
         const lang = window.NAGEX_I18N ? window.NAGEX_I18N.getLocale() : (localStorage.getItem('nagex_locale') || 'en');
@@ -5518,6 +5525,302 @@
   window.NAGEX.openAmbientOverlay = openAmbientOverlay;
   window.NAGEX.renderPerspectiveCompareResult = renderPerspectiveCompareResult;
   window.NAGEX.renderForecastCompareResult = renderForecastCompareResult;
+  window.NAGEX.renderMemory = renderMemory;
+  window.NAGEX.confirmPersonalContext = confirmPersonalContext;
+  window.NAGEX.editPersonalContext = editPersonalContext;
+  window.NAGEX.togglePinPersonalContext = togglePinPersonalContext;
+  window.NAGEX.deletePersonalContext = deletePersonalContext;
+  window.NAGEX.openLinkCaptureModal = openLinkCaptureModal;
+  window.NAGEX.closeLinkCaptureModal = closeLinkCaptureModal;
+  window.NAGEX.saveLinkDestination = saveLinkDestination;
+
+  async function renderMemory() {
+    const container = document.getElementById('memory-cards-container');
+    const pinnedContainer = document.getElementById('pinned-memory-cards-container');
+    const pinnedSection = document.getElementById('pinned-context-section');
+    const searchInput = document.getElementById('personal-context-search-input');
+    if (!container) return;
+
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+
+    const res = await apiFetch('/api/v1/memory');
+    if (res && Array.isArray(res.memories)) {
+      state.memories = res.memories;
+    }
+
+    const memories = state.memories || [];
+    const searchQuery = (searchInput ? searchInput.value : '').toLowerCase().trim();
+    const activeFilterBtn = document.querySelector('.memory-categories-tabs .mem-tab-btn.active');
+    const activeType = activeFilterBtn ? activeFilterBtn.getAttribute('data-mem-filter') : 'ALL';
+
+    const filtered = memories.filter((m) => {
+      if (m.lifecycle === 'DELETED') return false;
+      if (activeType && activeType !== 'ALL' && m.type !== activeType) return false;
+      if (searchQuery) {
+        const valStr = typeof m.content?.value === 'object' ? JSON.stringify(m.content.value) : String(m.content?.value || '');
+        const text = [
+          m.content?.subject || '',
+          m.content?.predicate || '',
+          valStr,
+          m.type || '',
+          m.provenance?.sourceType || ''
+        ].join(' ').toLowerCase();
+        if (!text.includes(searchQuery)) return false;
+      }
+      return true;
+    });
+
+    const categoryLabels = {
+      PREFERENCE: t('personalContext.category.PREFERENCE') || 'Preferences',
+      FACT: t('personalContext.category.FACT') || 'About you',
+      RELATIONSHIP: t('personalContext.category.RELATIONSHIP') || 'People & relationships',
+      PROJECT_CONTEXT: t('personalContext.category.PROJECT_CONTEXT') || 'Projects',
+      DECISION: t('personalContext.category.DECISION') || 'Important decisions',
+      WORKING_CONTEXT: t('personalContext.category.WORKING_CONTEXT') || 'Current context',
+    };
+
+    function renderCard(m) {
+      const isPinned = Boolean(m.pinned);
+      const isConfirmed = Boolean(m.userConfirmed);
+      const typeLabel = categoryLabels[m.type] || m.type || 'Context';
+      const valStr = m.content?.value !== undefined
+        ? (typeof m.content.value === 'object' ? JSON.stringify(m.content.value) : String(m.content.value))
+        : `${m.content?.subject || ''} ${m.content?.predicate || ''}`;
+
+      const sourceLabel = m.provenance?.sourceType
+        ? (m.provenance.sourceType === 'CONVERSATION' ? 'Conversation' : m.provenance.sourceType === 'MANUAL' ? 'Manual entry' : m.provenance.sourceType === 'LINK' ? 'Saved page' : m.provenance.sourceType)
+        : 'Learned context';
+
+      const updatedTime = m.updatedAt ? new Date(m.updatedAt).toLocaleDateString() : '';
+
+      return `
+        <div class="personal-context-card nagex-card" id="mem-card-${m.id}" style="border: 1px solid var(--border-subtle); padding: 1rem; border-radius: 10px; background: var(--bg-card); margin-bottom: 0.75rem;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+            <span class="badge-status status-READY" style="font-size: 0.75rem; font-weight: 600;">${escapeHtml(typeLabel)}</span>
+            <div style="display: flex; gap: 0.4rem; align-items: center;">
+              ${isPinned ? `<span class="badge-status" style="background: rgba(13,148,136,0.15); color: #0d9488; font-size: 0.7rem;">📌 Pinned</span>` : ''}
+              ${isConfirmed ? `<span class="badge-status" style="background: rgba(34,197,94,0.15); color: #16a34a; font-size: 0.7rem;">✓ Confirmed</span>` : ''}
+            </div>
+          </div>
+          <div style="font-size: 0.95rem; font-weight: 600; color: var(--navy-head); margin-bottom: 0.4rem;" id="mem-val-${m.id}">
+            ${escapeHtml(valStr)}
+          </div>
+          <div style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+            <span>${escapeHtml(t('personalContext.learnedFrom') || 'Learned from:')} ${escapeHtml(sourceLabel)}</span>
+            ${updatedTime ? ` · ${updatedTime}` : ''}
+          </div>
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; border-top: 1px dashed var(--border-subtle); padding-top: 0.5rem;">
+            ${!isConfirmed ? `<button type="button" class="btn-secondary" style="font-size: 0.72rem; padding: 2px 8px;" onclick="window.NAGEX.confirmPersonalContext('${m.id}')">${escapeHtml(t('personalContext.confirm') || 'Confirm')}</button>` : ''}
+            <button type="button" class="btn-secondary" style="font-size: 0.72rem; padding: 2px 8px;" onclick="window.NAGEX.editPersonalContext('${m.id}')">${escapeHtml(t('personalContext.edit') || 'Edit')}</button>
+            <button type="button" class="btn-secondary" style="font-size: 0.72rem; padding: 2px 8px;" onclick="window.NAGEX.togglePinPersonalContext('${m.id}')">${isPinned ? escapeHtml(t('personalContext.unpin') || 'Unpin') : escapeHtml(t('personalContext.pin') || 'Pin')}</button>
+            <button type="button" class="btn-secondary danger" style="font-size: 0.72rem; padding: 2px 8px;" onclick="window.NAGEX.deletePersonalContext('${m.id}')">${escapeHtml(t('personalContext.delete') || 'Delete')}</button>
+          </div>
+        </div>`;
+    }
+
+    const pinnedMemories = filtered.filter((m) => m.pinned);
+    const unpinnedMemories = filtered.filter((m) => !m.pinned);
+
+    if (pinnedMemories.length > 0 && pinnedContainer && pinnedSection) {
+      pinnedSection.hidden = false;
+      pinnedContainer.innerHTML = pinnedMemories.map(renderCard).join('');
+    } else if (pinnedSection) {
+      pinnedSection.hidden = true;
+    }
+
+    if (unpinnedMemories.length === 0 && pinnedMemories.length === 0) {
+      container.innerHTML = `<p class="card-body-text" style="color: var(--text-muted); font-size: 0.88rem;">${escapeHtml(t('personalContext.noContext') || 'No personal context recorded yet.')}</p>`;
+    } else {
+      container.innerHTML = unpinnedMemories.map(renderCard).join('');
+    }
+
+    document.querySelectorAll('.memory-categories-tabs .mem-tab-btn').forEach((btn) => {
+      if (!btn.dataset.wired) {
+        btn.dataset.wired = 'true';
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.memory-categories-tabs .mem-tab-btn').forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          renderMemory();
+        });
+      }
+    });
+
+    if (searchInput && !searchInput.dataset.wired) {
+      searchInput.dataset.wired = 'true';
+      searchInput.addEventListener('input', () => {
+        renderMemory();
+      });
+    }
+  }
+
+  async function confirmPersonalContext(id) {
+    await apiFetch(`/api/v1/memory/${id}/confirm`, { method: 'POST' });
+    renderMemory();
+  }
+
+  async function editPersonalContext(id) {
+    const mem = (state.memories || []).find((m) => m.id === id);
+    if (!mem) return;
+    const currentVal = typeof mem.content?.value === 'object' ? JSON.stringify(mem.content.value) : String(mem.content?.value || '');
+    const newVal = window.prompt('Edit context value:', currentVal);
+    if (newVal === null || newVal.trim() === currentVal) return;
+    await apiFetch(`/api/v1/memory/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ value: newVal.trim() }),
+    });
+    renderMemory();
+  }
+
+  async function togglePinPersonalContext(id) {
+    await apiFetch(`/api/v1/memory/${id}/pin`, { method: 'PUT' });
+    renderMemory();
+  }
+
+  async function deletePersonalContext(id) {
+    state.memories = (state.memories || []).filter((m) => m.id !== id);
+    renderMemory();
+    await apiFetch(`/api/v1/memory/${id}`, { method: 'DELETE' });
+  }
+
+  async function openLinkCaptureModal(rawUrl) {
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    const backdrop = document.getElementById('link-capture-modal-backdrop');
+    const loading = document.getElementById('link-capture-status-loading');
+    const loadingText = document.getElementById('link-capture-loading-text');
+    const errEl = document.getElementById('link-capture-status-error');
+    const previewCard = document.getElementById('link-capture-preview-card');
+    const actions = document.getElementById('link-capture-actions');
+    const memoryEditor = document.getElementById('link-capture-memory-editor');
+
+    if (!backdrop) return;
+    backdrop.style.display = 'flex';
+    if (loading) loading.hidden = false;
+    if (loadingText) loadingText.textContent = t('linkCapture.readingPage') || 'Reading the page...';
+    if (errEl) errEl.hidden = true;
+    if (previewCard) previewCard.hidden = true;
+    if (actions) actions.hidden = true;
+    if (memoryEditor) memoryEditor.hidden = true;
+
+    state.activeLinkCapture = null;
+
+    const res = await apiFetch('/api/v1/capture/link', {
+      method: 'POST',
+      body: JSON.stringify({ url: rawUrl }),
+    });
+
+    if (!res || res.status === 'UNAVAILABLE' || res.error) {
+      if (loading) loading.hidden = true;
+      if (errEl) {
+        errEl.hidden = false;
+        errEl.textContent = res?.error || t('linkCapture.fetchFailed') || "I couldn't fetch that page.";
+      }
+      return;
+    }
+
+    state.activeLinkCapture = res.data || res;
+    const source = state.activeLinkCapture.source || {};
+    const preview = state.activeLinkCapture.preview || {};
+
+    if (loading) loading.hidden = true;
+
+    const domainEl = document.getElementById('link-capture-domain');
+    const titleEl = document.getElementById('link-capture-title');
+    const summaryEl = document.getElementById('link-capture-summary');
+    const headingsEl = document.getElementById('link-capture-headings');
+
+    if (domainEl) domainEl.textContent = source.siteName || source.finalUrl || source.url || '';
+    if (titleEl) titleEl.textContent = source.title || 'Untitled Page';
+    if (summaryEl) summaryEl.textContent = preview.summary || preview.excerpt || '';
+    if (headingsEl) headingsEl.textContent = (preview.headings || []).join(' · ');
+
+    if (previewCard) previewCard.hidden = false;
+    if (actions) actions.hidden = false;
+  }
+
+  function closeLinkCaptureModal() {
+    const backdrop = document.getElementById('link-capture-modal-backdrop');
+    if (backdrop) backdrop.style.display = 'none';
+    state.activeLinkCapture = null;
+  }
+
+  async function saveLinkDestination(destination) {
+    if (!state.activeLinkCapture) return;
+    const { source, preview } = state.activeLinkCapture;
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+
+    if (destination === 'VAULT') {
+      const btnVault = document.getElementById('btn-capture-save-vault');
+      if (btnVault) btnVault.textContent = t('linkCapture.savingToVault') || 'Saving...';
+
+      await apiFetch('/api/v1/workspace/vault', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: source?.title || 'Saved Page',
+          type: 'LINK',
+          storageRef: source?.url || source?.finalUrl,
+          source: 'LINK_CAPTURE',
+          sourceRef: source?.url,
+          metadata: {
+            url: source?.url,
+            retrievedAt: source?.retrievedAt,
+            siteName: source?.siteName,
+            author: source?.author,
+            description: source?.description,
+          },
+        }),
+      });
+
+      if (btnVault) btnVault.textContent = t('linkCapture.savedToVault') || 'Saved to Vault';
+      setTimeout(() => closeLinkCaptureModal(), 1000);
+    } else if (destination === 'INBOX') {
+      const btnInbox = document.getElementById('btn-capture-add-inbox');
+      if (btnInbox) btnInbox.textContent = t('linkCapture.addingToInbox') || 'Adding...';
+
+      await apiFetch('/api/v1/workspace/inbox/capture', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: source?.title || 'Saved Link',
+          sourceType: 'WEB_LINK',
+          summary: preview?.summary || preview?.excerpt || source?.title,
+          contentRef: source?.url || source?.finalUrl,
+        }),
+      });
+
+      if (btnInbox) btnInbox.textContent = t('linkCapture.addedToInbox') || 'Added to Inbox';
+      setTimeout(() => closeLinkCaptureModal(), 1000);
+    } else if (destination === 'MEMORY') {
+      const memoryEditor = document.getElementById('link-capture-memory-editor');
+      const memoryText = document.getElementById('link-capture-memory-text');
+      const btnRemember = document.getElementById('btn-capture-remember');
+
+      if (memoryEditor && memoryEditor.hidden) {
+        memoryEditor.hidden = false;
+        if (memoryText) memoryText.value = preview?.summary || source?.title || '';
+        return;
+      }
+
+      const textToRemember = memoryText ? memoryText.value.trim() : (preview?.summary || source?.title || '');
+      if (!textToRemember) return;
+
+      if (btnRemember) btnRemember.textContent = t('linkCapture.remembering') || 'Saving...';
+
+      await apiFetch('/api/v1/memory/remember', {
+        method: 'POST',
+        body: JSON.stringify({
+          scope: 'USER',
+          type: 'FACT',
+          subject: source?.title || 'Saved Link',
+          predicate: 'fact',
+          value: textToRemember,
+          sourceType: 'LINK',
+          sourceId: source?.url,
+        }),
+      });
+
+      if (btnRemember) btnRemember.textContent = t('linkCapture.remembered') || 'Saved to Personal Context';
+      setTimeout(() => closeLinkCaptureModal(), 1000);
+    }
+  }
 
   initRouter();
   loadAllData();

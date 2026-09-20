@@ -17,7 +17,10 @@ export type MemorySourceType =
   | 'BROWSER'
   | 'MANUAL'
   | 'ACTION_OUTCOME'
-  | 'SYSTEM';
+  | 'SYSTEM'
+  | 'LINK'
+  | 'VAULT'
+  | 'INBOX';
 
 export type SensitivityLevel = 'S0' | 'S1' | 'S2' | 'S3';
 

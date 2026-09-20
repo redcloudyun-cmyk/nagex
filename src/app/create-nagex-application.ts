@@ -80,6 +80,7 @@ import { WorkflowDefinitionStore } from '../workflows/workflow-definition.store.
 import { WorkflowDefinitionService } from '../workflows/workflow-definition.service.js';
 import { CreationStore } from '../creation/creation.store.js';
 import { CreationService } from '../creation/creation.service.js';
+import { LinkCaptureService } from '../capture/link-capture.service.js';
 import { InboxStore } from '../workspace/inbox.store.js';
 import { VaultStore } from '../workspace/vault.store.js';
 import { ConnectionStore } from '../workspace/connections.store.js';
@@ -222,6 +223,7 @@ export function createNagexApplication(): NagexApplication {
 
   const creationStore = new CreationStore();
   const creationService = new CreationService(creationStore, auditLogger);
+  const linkCaptureService = new LinkCaptureService();
   const inboxStore = new InboxStore();
   const vaultStore = new VaultStore();
   const connectionStore = new ConnectionStore();
@@ -567,6 +569,7 @@ export function createNagexApplication(): NagexApplication {
     workflowDefinitionService,
     creationStore,
     creationService,
+    linkCaptureService,
     inboxStore,
     vaultStore,
     connectionStore,

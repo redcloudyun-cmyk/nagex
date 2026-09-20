@@ -57,6 +57,7 @@ import type { WorkflowDefinitionStore } from '../workflows/workflow-definition.s
 import type { WorkflowDefinitionService } from '../workflows/workflow-definition.service.js';
 import type { CreationStore } from '../creation/creation.store.js';
 import type { CreationService } from '../creation/creation.service.js';
+import type { LinkCaptureService } from '../capture/link-capture.service.js';
 import type { InboxStore } from '../workspace/inbox.store.js';
 import type { VaultStore } from '../workspace/vault.store.js';
 import type { ConnectionStore } from '../workspace/connections.store.js';
@@ -156,6 +157,7 @@ export interface NagexApplication {
   workflowDefinitionService: WorkflowDefinitionService;
   creationStore: CreationStore;
   creationService: CreationService;
+  linkCaptureService: LinkCaptureService;
   inboxStore: InboxStore;
   vaultStore: VaultStore;
   connectionStore: ConnectionStore;

@@ -13,7 +13,7 @@ export interface MemoryRouteDeps {
 
 const VALID_SCOPES = new Set(['PERSONAL', 'USER', 'ORGANIZATION', 'WORKSPACE', 'SESSION', 'AGENT', 'TENANT']);
 const VALID_TYPES = new Set(['PREFERENCE', 'FACT', 'RELATIONSHIP', 'PROJECT_CONTEXT', 'SYSTEM_RULE', 'USER_GOAL', 'TEMPORARY_CONTEXT']);
-const VALID_SOURCE_TYPES = new Set(['CONVERSATION', 'MANUAL', 'SYSTEM', 'DOCUMENT', 'TOOL_RESULT']);
+const VALID_SOURCE_TYPES = new Set(['CONVERSATION', 'MANUAL', 'SYSTEM', 'DOCUMENT', 'TOOL_RESULT', 'LINK', 'VAULT', 'INBOX', 'BROWSER']);
 const VALID_SENSITIVITIES = new Set(['S0', 'S1', 'S2', 'S3']);
 
 export const handleMemoryRoutes: SyncRouteRegistrar<MemoryRouteDeps> = (method, pathname, body, _headers, _query, deps): ApiResult | undefined => {

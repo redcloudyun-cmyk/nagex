@@ -46,6 +46,7 @@ import { handleRbacRoutes } from './http/routes/rbac.routes.js';
 import { handleEnterpriseIdentityRoutes } from './http/routes/enterprise-identity.routes.js';
 import { handleScimRoutes } from './http/routes/scim.routes.js';
 import { handleCreationRoutes } from './http/routes/creation.routes.js';
+import { handleCaptureRoutes } from './http/routes/capture.routes.js';
 import { handleInboxRoutes } from './http/routes/inbox.routes.js';
 import { handleVaultRoutes } from './http/routes/vault.routes.js';
 import { handleConnectionsRoutes } from './http/routes/connections.routes.js';
@@ -174,6 +175,7 @@ export const {
   workflowDefinitionService,
   creationStore,
   creationService,
+  linkCaptureService,
   inboxStore,
   vaultStore,
   connectionStore,
@@ -573,6 +575,12 @@ export async function handleAsyncApiRequest(
     {
       const creationResult = await handleCreationRoutes(method, pathname, body, headers, query, { creationService });
       if (creationResult) return creationResult;
+    }
+
+    // R22.9 — Browser-Link Capture Preview Route
+    {
+      const captureResult = await handleCaptureRoutes(method, pathname, body, headers, query, { linkCaptureService });
+      if (captureResult) return captureResult;
     }
 
     // R18 — Inbox Routes

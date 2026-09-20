@@ -147,7 +147,7 @@ test('R22.8 - Real Browser Certification & Visual Hierarchy', async (t) => {
 
   let browser: Browser;
   try {
-    browser = await chromium.launch({ headless: true });
+    browser = await chromium.launch({ headless: true, args: [`--explicitly-allowed-ports=${address.port}`] });
   } catch {
     server.close();
     return;
