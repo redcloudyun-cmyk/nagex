@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { chromium, type Page, type BrowserContext } from 'playwright';
+import { createServerInstance } from '../src/server_web.js';
 
 const BASE_URL = process.env.NAGEX_DEPLOYED_URL || 'http://localhost:3000';
 const ARTIFACTS_DIR = path.resolve('artifacts/r22_2');
@@ -192,9 +193,18 @@ async function captureFailureEvidence(page: Page, viewport: string, locale: stri
 
 test('NAgex R22.2 Hardened Pre-Server Certification Audit', async () => {
   fs.mkdirSync(ARTIFACTS_DIR, { recursive: true });
-  let browser;
-
+  let localServer: any;
+  let browser: any;
   try {
+    const health = await fetch(`${BASE_URL}/api/v1/health`).catch(() => null);
+    if (!health || !health.ok) {
+      const server = createServerInstance();
+      await new Promise<void>((resolve, reject) => {
+        server.listen(3000, '127.0.0.1', resolve);
+        server.once('error', reject);
+      });
+      localServer = server;
+    }
     browser = await chromium.launch({ headless: true });
 
     const viewports = [
@@ -244,10 +254,10 @@ test('NAgex R22.2 Hardened Pre-Server Certification Audit', async () => {
 
         // 3. Group Priority & Placement Assertions
         const headings = await pageEn.locator('.mh-activity-group-heading').allInnerTexts();
-        const normalizedHeadings = headings.map((h) => h.trim().toLowerCase());
-        const needsYouIdx = normalizedHeadings.findIndex((h) => h.includes('needs you'));
-        const nowIdx = normalizedHeadings.findIndex((h) => h === 'now' || h.includes('now'));
-        const recentIdx = normalizedHeadings.findIndex((h) => h.includes('recent'));
+        const normalizedHeadings = headings.map((h: string) => h.trim().toLowerCase());
+        const needsYouIdx = normalizedHeadings.findIndex((h: string) => h.includes('needs you'));
+        const nowIdx = normalizedHeadings.findIndex((h: string) => h === 'now' || h.includes('now'));
+        const recentIdx = normalizedHeadings.findIndex((h: string) => h.includes('recent'));
 
         assert.ok(needsYouIdx !== -1 && nowIdx !== -1 && recentIdx !== -1, 'All three human intent sections must be rendered');
         assert.ok(needsYouIdx < nowIdx && nowIdx < recentIdx, 'Priority order must be NEEDS YOU -> NOW -> RECENT');
@@ -497,8 +507,8 @@ test('NAgex R22.2 Hardened Pre-Server Certification Audit', async () => {
 
     // 11. FETCH FAILURE TRUTHFULNESS CERTIFICATION
     const contextErr = await browser.newContext({ viewport: { width: 390, height: 844 } });
-    await contextErr.route('**/api/v1/activity*', async (route) => route.abort('failed'));
-    await contextErr.route('**/api/v1/workspace/vault*', async (route) => route.abort('failed'));
+    await contextErr.route('**/api/v1/activity*', async (route: any) => route.abort('failed'));
+    await contextErr.route('**/api/v1/workspace/vault*', async (route: any) => route.abort('failed'));
     const pageErr = await contextErr.newPage();
 
     await pageErr.goto(`${BASE_URL}/?demo=1`);
@@ -541,6 +551,10 @@ test('NAgex R22.2 Hardened Pre-Server Certification Audit', async () => {
   } finally {
     if (browser) {
       await browser.close();
+    }
+    if (localServer) {
+      if (typeof localServer.closeIdleConnections === 'function') localServer.closeIdleConnections();
+      await new Promise<void>((resolve) => localServer.close(() => resolve()));
     }
   }
 });

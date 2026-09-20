@@ -6,8 +6,6 @@ import type { ModelProvider, ModelRequest, ModelResponse, ProviderStatus } from 
 import { UnifiedModelRouter } from '../src/model-gateway/unified-model-router.js';
 import { PerspectiveCompareService } from '../src/model-gateway/perspective-compare.service.js';
 import { EvidencePackService } from '../src/research/evidence-pack.service.js';
-import { QuestionClassificationService } from '../src/research/question-classification.service.js';
-import { WebSearchService } from '../src/research/web-search.service.js';
 import type { EvidencePack } from '../src/research/evidence-pack.types.js';
 import type { MemoryRecord } from '../src/context/memory.engine.js';
 
@@ -19,14 +17,15 @@ class MockModelProvider implements ModelProvider {
   private isLive: boolean;
   private shouldFail: boolean;
   public lastReceivedRequest?: ModelRequest;
+  public attemptCount = 0;
 
-  constructor(name: string, model: string, isConfigured = true, isLive = true, shouldFail = false) {
+  constructor(name: string, model: string, isConfigured = true, isLive = true, shouldFail = false, caps?: any) {
     this.name = name;
     this.model = model;
     this.isConfigured = isConfigured;
     this.isLive = isLive;
     this.shouldFail = shouldFail;
-    this.capabilities = {
+    this.capabilities = caps || {
       provider: name,
       supportsJsonMode: true,
       supportsGeneralChat: true,
@@ -51,6 +50,7 @@ class MockModelProvider implements ModelProvider {
   }
 
   public async generate(request: ModelRequest): Promise<ModelResponse> {
+    this.attemptCount++;
     this.lastReceivedRequest = request;
     if (this.shouldFail) {
       throw new NagexError({
@@ -164,9 +164,7 @@ test('NAgex R22.6 — Perspective Compare Foundation Suite', async () => {
     requiresEvidenceGrounding: false,
   });
 
-  // Since Nebius failed, perspective for Nebius has status: FAILED.
-  // Gemini and OpenAI succeed => 2 succeeded perspectives out of 3.
-  assert.equal(resultB.status, 'PARTIAL'); // 2 out of 3 succeeded => PARTIAL status with multi-perspective synthesis
+  assert.equal(resultB.status, 'PARTIAL');
   assert.equal(resultB.perspectivesAttempted, 3);
   assert.equal(resultB.perspectivesSucceeded, 2);
 
@@ -227,7 +225,57 @@ test('NAgex R22.6 — Perspective Compare Foundation Suite', async () => {
   assert.ok(synthErrCaught);
   metrics.SYNTHESIS_FAILURE_TRUTHFUL = 'PASS';
 
-  // G. No Voting / Winner / Score in contract or logic
+  // G. Fix synthesis fail-closed validation negative tests
+  const negSchemaCases = [
+    '{"answer":"x","commonGround":"wrong","differingPerspectives":[],"uncertainties":[]}',
+    '{"answer":"x","commonGround":[],"differingPerspectives":[{"topic":"x","views":"wrong"}],"uncertainties":[]}',
+    '{"answer":"x","commonGround":[],"differingPerspectives":{},"uncertainties":[]}',
+  ];
+
+  let schemaFailClosedPassCount = 0;
+  for (const negText of negSchemaCases) {
+    const negProvider = new MockModelProvider('nebius', 'neg-model');
+    negProvider.generate = async (req: ModelRequest) => {
+      if (req.jsonMode) {
+        return { text: negText, provider: 'nebius', model: 'neg-model', latencyMs: 5, requestId: req.requestId };
+      }
+      return { text: 'Perspective text', provider: 'nebius', model: 'neg-model', latencyMs: 5, requestId: req.requestId };
+    };
+    const negRouter = new UnifiedModelRouter([negProvider, pGemini]);
+    const negService = new PerspectiveCompareService(negRouter, mockEvidencePackService);
+    try {
+      await negService.compare({ query: 'Schema negative test' });
+    } catch (err: any) {
+      if (err?.code === 'PERSPECTIVE_SYNTHESIS_FAILED') {
+        schemaFailClosedPassCount++;
+      }
+    }
+  }
+
+  assert.equal(schemaFailClosedPassCount, negSchemaCases.length);
+  metrics.SYNTHESIS_SCHEMA_FAIL_CLOSED = 'PASS';
+
+  // H. Provider capability eligibility test (supportsGeneralChat: false)
+  const pIncompatible = new MockModelProvider(
+    'incompatible-provider',
+    'inc-model',
+    true,
+    true,
+    false,
+    { provider: 'incompatible-provider', supportsGeneralChat: false, supportsJsonMode: true }
+  );
+  const capRouter = new UnifiedModelRouter([pNebius, pGemini, pOpenAI, pIncompatible], testLogger as any);
+  const capService = new PerspectiveCompareService(capRouter, mockEvidencePackService, testLogger as any);
+
+  const eligibleCapNames = capService.selectEligibleProviders();
+  assert.equal(eligibleCapNames.includes('incompatible-provider'), false);
+
+  const capResult = await capService.compare({ query: 'Capability test query' });
+  assert.equal(capResult.perspectivesAttempted, 3);
+  assert.equal(pIncompatible.attemptCount, 0);
+  metrics.INCOMPATIBLE_PROVIDER_ATTEMPTED = pIncompatible.attemptCount;
+
+  // I. No Voting / Winner / Score in contract or logic
   const jsonStrResult = JSON.stringify(resultA);
   assert.equal(jsonStrResult.includes('voting'), false);
   assert.equal(jsonStrResult.includes('winner'), false);
@@ -236,7 +284,7 @@ test('NAgex R22.6 — Perspective Compare Foundation Suite', async () => {
   metrics.MODEL_WINNER = 0;
   metrics.MODEL_SCORE = 0;
 
-  // H. Personal Memory vs Evidence Layer Separation
+  // J. Personal Memory vs Evidence Layer Separation
   const secretPrompt = 'COMPARE_TEST_PROMPT_SECRET_111';
   const secretMemory = 'COMPARE_TEST_MEMORY_SECRET_222';
   const secretEvidence = 'COMPARE_TEST_EVIDENCE_SECRET_333';
@@ -291,13 +339,13 @@ test('NAgex R22.6 — Perspective Compare Foundation Suite', async () => {
     memories: [testMemory],
   });
 
-  // Verify memory prompt structure contains PERSONAL CONTEXT header, NOT EVIDENCE PACK
   const lastReq = pNebius.lastReceivedRequest;
   const userMsgText = lastReq?.messages.find((m) => m.role === 'user')?.content || '';
   assert.ok(userMsgText.includes('=== PERSONAL CONTEXT ==='));
   assert.ok(userMsgText.includes(secretMemory));
   assert.ok(userMsgText.includes('=== EVIDENCE PACK ==='));
   assert.ok(userMsgText.includes(secretEvidence));
+
   metrics.MEMORY_AS_EVIDENCE = 0;
 
   // Verify Privacy Logging: Logs must contain NONE of the secret markers
@@ -308,13 +356,72 @@ test('NAgex R22.6 — Perspective Compare Foundation Suite', async () => {
   assert.equal(privacyLogText.includes(secretApiKey), false);
   metrics.ROUTING_LOG_PRIVACY = 'PASS';
 
-  // I. Primary UI assertions (No raw provider names or model pickers exposed in primary UX)
-  const appJs = fs.readFileSync('public/app.js', 'utf8');
+  // K. UI presentation rendering assertions
+  const containerEN: any = { innerHTML: '' };
+  const containerKR: any = { innerHTML: '' };
+
+  const appJsText = fs.readFileSync('public/app.js', 'utf8');
+  const startIdx = appJsText.indexOf('function renderPerspectiveCompareResult(');
+  const endIdx = appJsText.indexOf('window.NAGEX = window.NAGEX || {};', startIdx);
+  const renderFn = new Function(
+    'container', 'result', 'locale',
+    `
+      const window = {
+        i18n: {
+          getLocale: () => locale,
+          t: (key, loc) => {
+            const dict = {
+              en: {
+                'perspective.commonGround': 'What the perspectives agree on',
+                'perspective.differing': 'Other ways to look at this',
+                'perspective.uncertainties': 'What remains uncertain',
+                'perspective.sources': 'Sources',
+              },
+              ko: {
+                'perspective.commonGround': '공통적으로 확인되는 점',
+                'perspective.differing': '다르게 볼 수 있는 관점',
+                'perspective.uncertainties': '아직 불확실한 점',
+                'perspective.sources': '출처',
+              }
+            };
+            return (dict[loc] && dict[loc][key]) || key;
+          }
+        }
+      };
+      ${appJsText.substring(startIdx, endIdx)}
+      return renderPerspectiveCompareResult(container, result, locale);
+    `
+  );
+
+  renderFn(containerEN, resultA, 'en');
+  renderFn(containerKR, resultA, 'ko');
+
+  assert.ok(containerEN.innerHTML.includes('What the perspectives agree on'));
+  assert.ok(containerEN.innerHTML.includes('Other ways to look at this'));
+  assert.ok(containerEN.innerHTML.includes('What remains uncertain'));
+  assert.ok(containerEN.innerHTML.includes('Sources'));
+
+  assert.ok(containerKR.innerHTML.includes('공통적으로 확인되는 점'));
+  assert.ok(containerKR.innerHTML.includes('다르게 볼 수 있는 관점'));
+  assert.ok(containerKR.innerHTML.includes('아직 불확실한 점'));
+  assert.ok(containerKR.innerHTML.includes('출처'));
+
+  metrics.PERSPECTIVE_RESULT_RENDER = 'PASS';
+  metrics.PERSPECTIVE_EN_KR_PARITY = 'PASS';
+
   const indexHtml = fs.readFileSync('public/index.html', 'utf8');
 
   assert.doesNotMatch(indexHtml, /<select[^>]*id="model-picker"/i);
-  assert.doesNotMatch(appJs, /renderPrimaryModelPicker/i);
-  assert.doesNotMatch(appJs, /"ALL_MODEL_PROVIDERS_FAILED"/);
+  assert.doesNotMatch(appJsText, /renderPrimaryModelPicker/i);
+  assert.doesNotMatch(appJsText, /"ALL_MODEL_PROVIDERS_FAILED"/);
+
+  assert.equal(containerEN.innerHTML.includes('nebius'), false);
+  assert.equal(containerEN.innerHTML.includes('gemini'), false);
+  assert.equal(containerEN.innerHTML.includes('openai'), false);
+  assert.equal(containerKR.innerHTML.includes('nebius'), false);
+  assert.equal(containerKR.innerHTML.includes('gemini'), false);
+  assert.equal(containerKR.innerHTML.includes('openai'), false);
+
   metrics.RAW_PROVIDER_NAME_PRIMARY_UI = 0;
   metrics.MODEL_PICKER_PRIMARY_UI = 0;
   metrics.TECHNICAL_UI_LEAK = 0;
@@ -326,6 +433,10 @@ test('NAgex R22.6 — Perspective Compare Foundation Suite', async () => {
   console.log('R22.6 Perspective Compare Metrics Report:', JSON.stringify(metrics, null, 2));
 
   assert.equal(metrics.R22_6_TARGET, 'PASS');
+  assert.equal(metrics.SYNTHESIS_SCHEMA_FAIL_CLOSED, 'PASS');
+  assert.equal(metrics.INCOMPATIBLE_PROVIDER_ATTEMPTED, 0);
+  assert.equal(metrics.PERSPECTIVE_RESULT_RENDER, 'PASS');
+  assert.equal(metrics.PERSPECTIVE_EN_KR_PARITY, 'PASS');
   assert.equal(metrics.ONE_EVIDENCE_PACK_PER_COMPARE, 1);
   assert.equal(metrics.SHARED_EVIDENCE_PACK, 'PASS');
   assert.equal(metrics.PERSPECTIVE_COMPARE_SUCCESS, 'PASS');
@@ -341,5 +452,6 @@ test('NAgex R22.6 — Perspective Compare Foundation Suite', async () => {
   assert.equal(metrics.MEMORY_AS_EVIDENCE, 0);
   assert.equal(metrics.RAW_PROVIDER_NAME_PRIMARY_UI, 0);
   assert.equal(metrics.MODEL_PICKER_PRIMARY_UI, 0);
+  assert.equal(metrics.TECHNICAL_UI_LEAK, 0);
   assert.equal(metrics.ROUTING_LOG_PRIVACY, 'PASS');
 });

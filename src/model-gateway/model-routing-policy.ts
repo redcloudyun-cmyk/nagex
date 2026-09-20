@@ -10,6 +10,48 @@ const STATUS_RANK: Record<string, number> = {
 };
 
 export class ModelRoutingPolicy {
+  public satisfiesCapabilities(provider: ModelProvider, context: ModelRoutingContext): boolean {
+    const caps = provider.capabilities;
+    if (!caps) {
+      // Unknown capability ≠ Supported capability (No fail-open)
+      return false;
+    }
+    if (context.requiresJson && !caps.supportsJsonMode) {
+      return false;
+    }
+    if (context.taskKind === 'STRUCTURED_EXTRACTION' && !caps.supportsStructuredExtraction) {
+      return false;
+    }
+    if ((context.taskKind === 'CHAT' || context.taskKind === 'PERSPECTIVE_ANALYSIS') && !caps.supportsGeneralChat) {
+      return false;
+    }
+    return true;
+  }
+
+  public getEligibleProviders(
+    context: ModelRoutingContext,
+    providers: ModelProvider[],
+    configuredPriority: string[] = []
+  ): ModelProvider[] {
+    const configuredProviders = providers.filter((p) => p.status().configured);
+    const eligible = configuredProviders.filter((p) => this.satisfiesCapabilities(p, context));
+
+    const priorityIndexMap = new Map<string, number>();
+    configuredPriority.forEach((name, idx) => priorityIndexMap.set(name, idx));
+
+    return [...eligible].sort((a, b) => {
+      const statusA = STATUS_RANK[a.status().status] ?? 3;
+      const statusB = STATUS_RANK[b.status().status] ?? 3;
+      if (statusA !== statusB) {
+        return statusA - statusB;
+      }
+
+      const rankA = priorityIndexMap.has(a.name) ? priorityIndexMap.get(a.name)! : 999;
+      const rankB = priorityIndexMap.has(b.name) ? priorityIndexMap.get(b.name)! : 999;
+      return rankA - rankB;
+    });
+  }
+
   public select(
     mode: RoutingMode,
     context: ModelRoutingContext,
@@ -23,24 +65,7 @@ export class ModelRoutingPolicy {
       reasonCodes.push('JSON_MODE_REQUIRED');
     }
 
-    // Helper function to check if a provider satisfies context capability requirements
-    const satisfiesCapabilities = (provider: ModelProvider): boolean => {
-      const caps = provider.capabilities;
-      if (!caps) {
-        // Unknown capability ≠ Supported capability (No fail-open)
-        return false;
-      }
-      if (context.requiresJson && !caps.supportsJsonMode) {
-        return false;
-      }
-      if (context.taskKind === 'STRUCTURED_EXTRACTION' && !caps.supportsStructuredExtraction) {
-        return false;
-      }
-      if (context.taskKind === 'CHAT' && !caps.supportsGeneralChat) {
-        return false;
-      }
-      return true;
-    };
+    const satisfiesCapabilities = (provider: ModelProvider): boolean => this.satisfiesCapabilities(provider, context);
 
     // 1. Explicit Provider Override
     if (mode !== 'auto') {

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { chromium, type Page } from 'playwright';
+import { createServerInstance } from '../src/server_web.js';
 
 const BASE_URL = process.env.NAGEX_DEPLOYED_URL || 'http://localhost:3000';
 const ARTIFACTS_DIR = path.resolve('artifacts/r22_1');
@@ -328,7 +329,19 @@ async function shot(page: Page, name: string): Promise<void> {
 }
 
 test('R22.1 Mobile Home Decision Surface Certification', async () => {
-  const browser = await chromium.launch({ headless: true });
+  let localServer: any;
+  let browser: any;
+
+  const health = await fetch(`${BASE_URL}/api/v1/health`).catch(() => null);
+  if (!health || !health.ok) {
+    const server = createServerInstance();
+    await new Promise<void>((resolve, reject) => {
+      server.listen(3000, '127.0.0.1', resolve);
+      server.once('error', reject);
+    });
+    localServer = server;
+  }
+  browser = await chromium.launch({ headless: true });
 
   let selectorContractPass = false;
   let apiHeadersPreservedPass = false;
@@ -520,7 +533,7 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
       if (vp.name === '390') composerVisible390 = true;
       if (vp.name === '430') composerVisible430 = true;
 
-      await pageEn.evaluate((selHome) => {
+      await pageEn.evaluate((selHome: string) => {
         const scrollEl = (globalThis as any).document.querySelector(selHome);
         if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
       }, STATIC_SEL.home);
@@ -671,6 +684,12 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
     console.log(`FAKE_SUCCESS_PATHS=${fakeSuccessPaths}`);
 
   } finally {
-    await browser.close();
+    if (browser) {
+      await browser.close();
+    }
+    if (localServer) {
+      if (typeof localServer.closeIdleConnections === 'function') localServer.closeIdleConnections();
+      await new Promise<void>((resolve) => localServer.close(() => resolve()));
+    }
   }
 });

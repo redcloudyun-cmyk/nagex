@@ -5096,11 +5096,113 @@
     });
   }
 
+  function escapeHtml(str) {
+    if (typeof str !== 'string') return '';
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  function renderPerspectiveCompareResult(container, result, locale) {
+    if (!container || !result) return;
+    function esc(s) {
+      if (typeof s !== 'string') return '';
+      return s
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    const lang = locale || (window.i18n ? window.i18n.getLocale() : 'en');
+    const t = function (key) {
+      return window.i18n ? window.i18n.t(key, lang) : key;
+    };
+
+    const synthesis = result.synthesis;
+    if (!synthesis) {
+      container.innerHTML = '<div class="perspective-result-error">' + esc((result.error && result.error.message) || 'Perspective comparison unavailable.') + '</div>';
+      return;
+    }
+
+    const commonGroundTitle = t('perspective.commonGround') || (lang === 'ko' ? '공통적으로 확인되는 점' : 'What the perspectives agree on');
+    const differingTitle = t('perspective.differing') || (lang === 'ko' ? '다르게 볼 수 있는 관점' : 'Other ways to look at this');
+    const uncertaintiesTitle = t('perspective.uncertainties') || (lang === 'ko' ? '아직 불확실한 점' : 'What remains uncertain');
+    const sourcesTitle = t('perspective.sources') || (lang === 'ko' ? '출처' : 'Sources');
+
+    let html = '<div class="perspective-compare-result" data-testid="perspective-compare-result">';
+
+    if (synthesis.answer) {
+      html += '<div class="perspective-answer-section"><p class="perspective-answer-text">' + esc(synthesis.answer) + '</p></div>';
+    }
+
+    if (Array.isArray(synthesis.commonGround) && synthesis.commonGround.length > 0) {
+      html += '<div class="perspective-section">';
+      html += '<h4 class="perspective-section-title">' + esc(commonGroundTitle) + '</h4>';
+      html += '<ul class="perspective-list">';
+      synthesis.commonGround.forEach(function (item) {
+        html += '<li>' + esc(item) + '</li>';
+      });
+      html += '</ul></div>';
+    }
+
+    if (Array.isArray(synthesis.differingPerspectives) && synthesis.differingPerspectives.length > 0) {
+      html += '<div class="perspective-section">';
+      html += '<h4 class="perspective-section-title">' + esc(differingTitle) + '</h4>';
+      html += '<div class="perspective-differing-list">';
+      synthesis.differingPerspectives.forEach(function (dp) {
+        html += '<div class="perspective-differing-item">';
+        if (dp.topic) {
+          html += '<strong class="perspective-topic">' + esc(dp.topic) + '</strong>';
+        }
+        if (Array.isArray(dp.views) && dp.views.length > 0) {
+          html += '<ul class="perspective-views-list">';
+          dp.views.forEach(function (v) {
+            html += '<li>' + esc(v) + '</li>';
+          });
+          html += '</ul>';
+        }
+        html += '</div>';
+      });
+      html += '</div></div>';
+    }
+
+    if (Array.isArray(synthesis.uncertainties) && synthesis.uncertainties.length > 0) {
+      html += '<div class="perspective-section">';
+      html += '<h4 class="perspective-section-title">' + esc(uncertaintiesTitle) + '</h4>';
+      html += '<ul class="perspective-list">';
+      synthesis.uncertainties.forEach(function (item) {
+        html += '<li>' + esc(item) + '</li>';
+      });
+      html += '</ul></div>';
+    }
+
+    const sourcesList = result.sources || (result.evidencePack && result.evidencePack.sources);
+    if (Array.isArray(sourcesList) && sourcesList.length > 0) {
+      html += '<div class="perspective-section">';
+      html += '<h4 class="perspective-section-title">' + esc(sourcesTitle) + '</h4>';
+      html += '<ul class="perspective-sources-list">';
+      sourcesList.forEach(function (src) {
+        const title = src.title || src.url;
+        html += '<li><a href="' + esc(src.url) + '" target="_blank" rel="noopener">' + esc(title) + '</a></li>';
+      });
+      html += '</ul></div>';
+    }
+
+    html += '</div>';
+    container.innerHTML = html;
+  }
+
   window.NAGEX = window.NAGEX || {};
   window.NAGEX.isDebugMode = isDebugMode;
   window.NAGEX.isEnterpriseUiMode = isEnterpriseUiMode;
   window.NAGEX.applyEnterpriseUiGate = applyEnterpriseUiGate;
   window.NAGEX.openAmbientOverlay = openAmbientOverlay;
+  window.NAGEX.renderPerspectiveCompareResult = renderPerspectiveCompareResult;
 
   initRouter();
   loadAllData();

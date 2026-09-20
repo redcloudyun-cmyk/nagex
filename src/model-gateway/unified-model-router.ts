@@ -90,6 +90,15 @@ export class UnifiedModelRouter {
     return this.statuses();
   }
 
+  public eligibleProviders(context: ModelRoutingContext): string[] {
+    const eligible = this.routingPolicy.getEligibleProviders(
+      context,
+      [...this.providers.values()],
+      this.configuredPriority
+    );
+    return [...new Set(eligible.map((p) => p.name))];
+  }
+
   public async generate(input: GenerateInput): Promise<ModelResponse> {
     const requestId = input.requestId || input.routingContext?.requestId || `mdl_${randomUUID()}`;
 

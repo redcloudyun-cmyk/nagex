@@ -101,30 +101,68 @@ function parseSynthesisJson(text: string, requestId: string): PerspectiveSynthes
     });
   }
 
-  const commonGround = Array.isArray(parsed.commonGround)
-    ? parsed.commonGround.filter((item: unknown): item is string => typeof item === 'string' && Boolean(item.trim())).map((item: string) => item.trim())
-    : [];
+  if (!Array.isArray(parsed.commonGround) || !parsed.commonGround.every((x: any) => typeof x === 'string')) {
+    throw new NagexError({
+      code: 'PERSPECTIVE_SYNTHESIS_FAILED',
+      category: 'PROVIDER',
+      message: 'commonGround must be an array of strings.',
+      request_id: requestId,
+    });
+  }
 
-  const uncertainties = Array.isArray(parsed.uncertainties)
-    ? parsed.uncertainties.filter((item: unknown): item is string => typeof item === 'string' && Boolean(item.trim())).map((item: string) => item.trim())
-    : [];
+  if (!Array.isArray(parsed.uncertainties) || !parsed.uncertainties.every((x: any) => typeof x === 'string')) {
+    throw new NagexError({
+      code: 'PERSPECTIVE_SYNTHESIS_FAILED',
+      category: 'PROVIDER',
+      message: 'uncertainties must be an array of strings.',
+      request_id: requestId,
+    });
+  }
 
-  const differingPerspectives = Array.isArray(parsed.differingPerspectives)
-    ? parsed.differingPerspectives
-        .filter((item: any) => item && typeof item === 'object' && typeof item.topic === 'string')
-        .map((item: any) => ({
-          topic: String(item.topic).trim(),
-          views: Array.isArray(item.views)
-            ? item.views.filter((v: unknown): v is string => typeof v === 'string' && Boolean(v.trim())).map((v: string) => v.trim())
-            : [],
-        }))
-    : [];
+  if (!Array.isArray(parsed.differingPerspectives)) {
+    throw new NagexError({
+      code: 'PERSPECTIVE_SYNTHESIS_FAILED',
+      category: 'PROVIDER',
+      message: 'differingPerspectives must be an array.',
+      request_id: requestId,
+    });
+  }
+
+  for (const item of parsed.differingPerspectives) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      throw new NagexError({
+        code: 'PERSPECTIVE_SYNTHESIS_FAILED',
+        category: 'PROVIDER',
+        message: 'differingPerspectives item must be an object.',
+        request_id: requestId,
+      });
+    }
+    if (typeof item.topic !== 'string' || !item.topic.trim()) {
+      throw new NagexError({
+        code: 'PERSPECTIVE_SYNTHESIS_FAILED',
+        category: 'PROVIDER',
+        message: 'differingPerspectives item topic must be a non-empty string.',
+        request_id: requestId,
+      });
+    }
+    if (!Array.isArray(item.views) || !item.views.every((v: any) => typeof v === 'string')) {
+      throw new NagexError({
+        code: 'PERSPECTIVE_SYNTHESIS_FAILED',
+        category: 'PROVIDER',
+        message: 'differingPerspectives item views must be an array of strings.',
+        request_id: requestId,
+      });
+    }
+  }
 
   return {
     answer: parsed.answer.trim(),
-    commonGround,
-    differingPerspectives,
-    uncertainties,
+    commonGround: parsed.commonGround.map((s: string) => s.trim()),
+    differingPerspectives: parsed.differingPerspectives.map((item: any) => ({
+      topic: item.topic.trim(),
+      views: item.views.map((v: string) => v.trim()),
+    })),
+    uncertainties: parsed.uncertainties.map((s: string) => s.trim()),
   };
 }
 
@@ -135,29 +173,12 @@ export class PerspectiveCompareService {
     private readonly logger: RouterLogger = safeLogger
   ) {}
 
-  public selectEligibleProviders(): string[] {
-    const statuses = this.router.statuses();
-    const configured = statuses.filter((s) => s.configured);
-
-    const rankMap: Record<string, number> = {
-      LIVE: 0,
-      CONFIGURED: 1,
-      DEGRADED: 2,
-      UNCONFIGURED: 3,
-    };
-
-    // Filter out providers that do not have capability declarations or do not support general chat
-    const activeProviders = configured.filter((status) => status.available || status.configured);
-
-    const sorted = [...activeProviders].sort((a, b) => {
-      const rA = rankMap[a.status] ?? 3;
-      const rB = rankMap[b.status] ?? 3;
-      if (rA !== rB) return rA - rB;
-      return 0; // preserve priority order
-    });
-
-    const uniqueNames = [...new Set(sorted.map((s) => s.provider))];
-    return uniqueNames.slice(0, 3);
+  public selectEligibleProviders(requestId: string = 'req_eligible'): string[] {
+    return this.router.eligibleProviders({
+      taskKind: 'PERSPECTIVE_ANALYSIS',
+      requiresJson: false,
+      requestId,
+    }).slice(0, 3);
   }
 
   public async compare(options: PerspectiveCompareOptions): Promise<PerspectiveCompareResult> {
