@@ -418,7 +418,7 @@ test('R22.9 — Browser Behavioral Certification (Real Clicks: Confirm, Edit, Pi
     assert.ok(memId);
 
     // Refresh memory UI
-    await page.evaluate('window.NAGEX.switchTab("tab-memory"); document.querySelectorAll(".memory-categories-tabs .mem-tab-btn").forEach(b => { if (b.getAttribute("data-mem-filter") === "ALL") b.classList.add("active"); else b.classList.remove("active"); }); const input = document.getElementById("personal-context-search-input"); if (input) input.value = ""; window.NAGEX.renderMemory();');
+    await page.evaluate('window.NAGEX.switchTab("tab-memory"); document.querySelectorAll(".memory-categories-tabs .mem-tab-btn").forEach(b => { if (b.getAttribute("data-mem-filter") === "ALL") b.classList.add("active"); else b.classList.remove("active"); }); const input = document.getElementById("personal-context-search-input"); if (input) input.value = ""; return window.NAGEX.renderMemory();');
     await page.waitForSelector(`#mem-card-${unconfirmedId}`);
     await page.waitForSelector(`#mem-card-${memId}`);
 
@@ -603,7 +603,7 @@ test('R22.9 — Browser Behavioral Certification (Real Clicks: Confirm, Edit, Pi
     const createdItem = (await createRes.json()) as any;
     const memId = createdItem.id;
 
-    await page.evaluate('window.NAGEX.switchTab("tab-memory"); document.querySelectorAll(".memory-categories-tabs .mem-tab-btn").forEach(b => { if (b.getAttribute("data-mem-filter") === "ALL") b.classList.add("active"); else b.classList.remove("active"); }); const input = document.getElementById("personal-context-search-input"); if (input) input.value = ""; window.NAGEX.renderMemory();');
+    await page.evaluate('window.NAGEX.switchTab("tab-memory"); document.querySelectorAll(".memory-categories-tabs .mem-tab-btn").forEach(b => { if (b.getAttribute("data-mem-filter") === "ALL") b.classList.add("active"); else b.classList.remove("active"); }); const input = document.getElementById("personal-context-search-input"); if (input) input.value = ""; return window.NAGEX.renderMemory();');
     await page.waitForSelector(`#mem-card-${memId}`);
 
     // Click delete on item, which will fail with HTTP 500
