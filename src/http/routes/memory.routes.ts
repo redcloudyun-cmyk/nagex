@@ -1,4 +1,4 @@
-import type { MemoryEngine, MemoryScope, MemoryType } from '../../context/memory.engine.js';
+import type { MemoryEngine, MemoryRecord, MemoryScope, MemoryType } from '../../context/memory.engine.js';
 import type { PrincipalReference } from '../../common/types.js';
 import type { ApiResult, SyncRouteRegistrar } from '../http-types.js';
 import { getCurrentISOString } from '../../common/utils.js';
@@ -12,7 +12,7 @@ export interface MemoryRouteDeps {
 }
 
 const VALID_SCOPES = new Set(['PERSONAL', 'USER', 'ORGANIZATION', 'WORKSPACE', 'SESSION', 'AGENT', 'TENANT']);
-const VALID_TYPES = new Set(['PREFERENCE', 'FACT', 'RELATIONSHIP', 'PROJECT_CONTEXT', 'DECISION', 'WORKING_CONTEXT', 'SYSTEM_RULE', 'USER_GOAL', 'TEMPORARY_CONTEXT']);
+const VALID_TYPES = new Set(['PREFERENCE', 'FACT', 'RELATIONSHIP', 'PROJECT_CONTEXT', 'DECISION', 'WORKING_CONTEXT']);
 const VALID_SOURCE_TYPES = new Set(['CONVERSATION', 'MANUAL', 'SYSTEM', 'DOCUMENT', 'TOOL_RESULT', 'LINK', 'VAULT', 'INBOX', 'BROWSER']);
 const VALID_SENSITIVITIES = new Set(['S0', 'S1', 'S2', 'S3']);
 
@@ -72,7 +72,7 @@ export const handleMemoryRoutes: SyncRouteRegistrar<MemoryRouteDeps> = (method, 
         ownerId: principal.id,
         workspaceId,
         content: { subject, predicate, value },
-        userConfirmed: true,
+        userConfirmed: typeof body?.userConfirmed === 'boolean' ? body.userConfirmed : true,
         memoryOrigin: 'EXPLICIT_USER',
         sensitivity,
         provenance: {
@@ -92,9 +92,13 @@ export const handleMemoryRoutes: SyncRouteRegistrar<MemoryRouteDeps> = (method, 
 
   if (pathname === '/api/v1/memory' && method === 'GET') {
     const scopes: MemoryScope[] = ['PERSONAL', 'ORGANIZATION', 'WORKSPACE', 'USER', 'SESSION', 'AGENT', 'TENANT'];
-    const allMemories = scopes
-      .flatMap((s) => memoryEngine.getActiveMemories(s, tenantId, principal.id))
-      .map((m) => ({ ...m, pinned: pinnedMemories.has(m.id) }));
+    const activeMemories = scopes.flatMap((s) => memoryEngine.getActiveMemories(s, tenantId, principal.id));
+    const proposedMemories = memoryEngine.getProposedCandidates(tenantId, principal.id);
+    const combinedMap = new Map<string, MemoryRecord>();
+    for (const m of [...activeMemories, ...proposedMemories]) {
+      combinedMap.set(m.id, m);
+    }
+    const allMemories = Array.from(combinedMap.values()).map((m) => ({ ...m, pinned: pinnedMemories.has(m.id) }));
     return { status: 200, data: { memories: allMemories, total: allMemories.length } };
   }
 

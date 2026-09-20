@@ -4,6 +4,7 @@
 
   const state = {
     activeTab: 'tab-home',
+    demoMode: typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('demo') === '1',
     memories: [],
     plans: [],
     tasks: [],
@@ -258,7 +259,7 @@
       timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     }
     try {
-      const isDemoMode = new URLSearchParams(window.location.search).get('demo') === '1';
+      const isDemoMode = Boolean(state.demoMode || (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('demo') === '1'));
       const currentLocale = window.NAGEX_I18N ? window.NAGEX_I18N.getLocale() : (localStorage.getItem('nagex_locale') || 'en');
       const res = await fetch(endpoint, {
         ...restOptions,
@@ -1751,113 +1752,7 @@
     });
   }
 
-  async function renderMemory() {
-    const container = document.getElementById('memory-cards-container');
-    if (!container) return;
-    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k, f) => f || k;
 
-    const [memoriesRes, candidatesRes, settingsRes] = await Promise.all([
-      window.NAGEX.apiFetch ? window.NAGEX.apiFetch('/api/v1/memory') : Promise.resolve(null),
-      window.NAGEX.apiFetch ? window.NAGEX.apiFetch('/api/v1/memory/candidates') : Promise.resolve(null),
-      window.NAGEX.apiFetch ? window.NAGEX.apiFetch('/api/v1/memory/settings') : Promise.resolve(null),
-    ]);
-
-    const memories = (memoriesRes && memoriesRes.memories) || state.memories || [];
-    const candidates = (candidatesRes && candidatesRes.candidates) || [];
-    const settings = settingsRes || { memoryCaptureEnabled: true, memoryUseEnabled: true };
-
-    let html = '';
-
-    // Settings Toggle Bar
-    html += `
-      <div class="memory-settings-bar" style="width:100%; display:flex; gap:1.5rem; align-items:center; background:var(--bg-card, #1e293b); padding:0.75rem 1rem; border-radius:8px; margin-bottom:1rem;">
-        <label class="toggle-switch-label" style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-weight:500;">
-          <input type="checkbox" id="chk-memory-capture" ${settings.memoryCaptureEnabled ? 'checked' : ''} onchange="window.NAGEX.toggleMemorySetting('memoryCaptureEnabled', this.checked)">
-          <span>${settings.memoryCaptureEnabled ? escapeHtml(t('memory.captureOn', 'Memory capture ON')) : escapeHtml(t('memory.captureOff', 'Memory capture OFF'))}</span>
-        </label>
-        <label class="toggle-switch-label" style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-weight:500;">
-          <input type="checkbox" id="chk-memory-use" ${settings.memoryUseEnabled ? 'checked' : ''} onchange="window.NAGEX.toggleMemorySetting('memoryUseEnabled', this.checked)">
-          <span>${escapeHtml(t('settings.memoryUseToggle', 'Use memory for context'))}</span>
-        </label>
-      </div>
-    `;
-
-    // 1. Suggested Section
-    if (candidates.length > 0) {
-      html += `<div style="width:100%; margin-bottom:1.5rem;">
-        <h3 style="font-size:1.1rem; margin-bottom:0.75rem; color:var(--text-primary, #f8fafc);">${escapeHtml(t('memory.suggested', 'Suggested'))}</h3>
-        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:1rem;">
-      `;
-
-      for (const c of candidates) {
-        const subj = c.content ? c.content.subject : 'Memory Suggestion';
-        const val = c.content ? String(c.content.value) : '';
-        const sourceName = c.provenance?.sourceType === 'CONVERSATION' ? 'Conversation' : c.provenance?.sourceType === 'DOCUMENT' ? 'Document' : 'Manual';
-        const whyText = c.memoryOrigin === 'EXPLICIT_USER' ? 'User explicit request' : 'Extracted during discussion';
-        const isS2 = c.sensitivity === 'S2';
-
-        html += `
-          <div class="mem-card suggested-card" style="border: 1px solid var(--border-subtle, #334155); background:var(--bg-card, #1e293b); padding:1rem; border-radius:8px;">
-            <div class="card-header-row" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
-              <span class="card-title" style="font-weight:600;">${escapeHtml(subj)}</span>
-              ${isS2 ? `<span class="badge-s2" style="background:#ef444422; color:#ef4444; padding:0.25rem 0.5rem; border-radius:4px; font-size:0.75rem; font-weight:600;">${escapeHtml(t('memory.sensitive', 'Sensitive — review before remembering'))}</span>` : ''}
-            </div>
-            <p class="card-body-text" style="margin-bottom:0.5rem;">${escapeHtml(val)}</p>
-            <p class="card-body-text" style="font-size:0.75rem; color:var(--text-secondary, #94a3b8); margin-bottom:0.25rem;"><strong>${escapeHtml(t('memory.whyRemembered', 'Why remembered?'))}</strong> ${escapeHtml(whyText)}</p>
-            <p class="card-body-text" style="font-size:0.75rem; color:var(--text-secondary, #94a3b8); margin-bottom:0.75rem;"><strong>${escapeHtml(t('memory.whereFrom', 'Where from?'))}</strong> ${escapeHtml(sourceName)}</p>
-            <div class="card-footer-actions" style="display:flex; gap:0.5rem;">
-              <button class="btn-small btn-primary" onclick="window.NAGEX.confirmMemory('${c.id}')">${escapeHtml(t('memory.confirm', 'Confirm suggestion'))}</button>
-              <button class="btn-small danger" onclick="window.NAGEX.rejectMemory('${c.id}')">${escapeHtml(t('memory.reject', 'Reject suggestion'))}</button>
-            </div>
-          </div>
-        `;
-      }
-      html += `</div></div>`;
-    }
-
-    // 2. Remembered Section
-    html += `<div style="width:100%;">
-      <h3 style="font-size:1.1rem; margin-bottom:0.75rem; color:var(--text-primary, #f8fafc);">${escapeHtml(t('memory.remembered', 'Remembered'))}</h3>
-      <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:1rem;">
-    `;
-
-    if (memories.length === 0) {
-      html += `<p class="empty-state-text">${escapeHtml(t('home.memoryEmpty', 'Nothing remembered yet.'))}</p>`;
-    } else {
-      for (const m of memories) {
-        const subj = m.content ? m.content.subject : 'Memory Item';
-        const val = m.content ? String(m.content.value) : '';
-        const sourceName = m.provenance?.sourceType === 'CONVERSATION' ? 'Conversation' : m.provenance?.sourceType === 'DOCUMENT' ? 'Document' : 'Manual';
-        const whyText = m.memoryOrigin === 'EXPLICIT_USER' ? 'User preference & explicit instruction' : 'Saved from task & interaction context';
-
-        html += `
-          <div class="mem-card" style="border: 1px solid var(--border-subtle, #334155); background:var(--bg-card, #1e293b); padding:1rem; border-radius:8px;">
-            <div class="card-header-row" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
-              <span class="card-title" style="font-weight:600;">${escapeHtml(subj)}</span>
-              <button class="btn-small-icon" onclick="window.NAGEX.togglePinMemory('${m.id}')" title="Pin">${m.pinned ? '📌' : '📍'}</button>
-            </div>
-            <p class="card-body-text" style="margin-bottom:0.5rem;">${escapeHtml(val)}</p>
-            <p class="card-body-text" style="font-size:0.75rem; color:var(--text-secondary, #94a3b8); margin-bottom:0.25rem;"><strong>${escapeHtml(t('memory.whyRemembered', 'Why remembered?'))}</strong> ${escapeHtml(whyText)}</p>
-            <p class="card-body-text" style="font-size:0.75rem; color:var(--text-secondary, #94a3b8); margin-bottom:0.75rem;"><strong>${escapeHtml(t('memory.whereFrom', 'Where from?'))}</strong> ${escapeHtml(sourceName)}</p>
-            <div class="card-footer-actions">
-              <button class="btn-small danger" onclick="window.NAGEX.deleteMemory('${m.id}')">${escapeHtml(t('memory.forget', 'Forget'))}</button>
-            </div>
-          </div>
-        `;
-      }
-    }
-    html += `</div></div>`;
-
-    container.innerHTML = html;
-
-    const btnClear = document.getElementById('btn-clear-session-mem');
-    if (btnClear) {
-      btnClear.onclick = async () => {
-        state.memories = state.memories.filter((m) => m.scope !== 'SESSION');
-        renderMemory();
-      };
-    }
-  }
 
   window.NAGEX = window.NAGEX || {};
   window.NAGEX.renderMemory = renderMemory;
