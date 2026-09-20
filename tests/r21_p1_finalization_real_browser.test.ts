@@ -187,6 +187,7 @@ test('R21 P1 A-J semantic certification and visual QA capture', async () => {
     await shot(mobileQuick, '390x844_quick_wake_kr.png');
     await mobileQuick.close();
 
+    await mobile.waitForSelector('#mh-right-now-hero[data-hero-resolved="true"]');
     const mobilePrepBtn = await mobile.evaluate(() => {
       const btn = document.querySelector('#mh-hero-primary-cta') || document.querySelector('#mh-right-now-action-btn') || document.querySelector('#mh-hero-brief-prepare-btn') || document.querySelector('#mobile-view-home .btn-primary') || document.querySelector('#mh-section-right-now button');
       if (btn) { (btn as any).click(); return true; }
