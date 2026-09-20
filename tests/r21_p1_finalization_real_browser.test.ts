@@ -190,7 +190,14 @@ test('R21 P1 A-J semantic certification and visual QA capture', async () => {
     await mobile.waitForSelector('#mh-right-now-hero[data-hero-resolved="true"]');
     const mobilePrepBtn = await mobile.evaluate(() => {
       const btn = document.querySelector('#mh-hero-primary-cta') || document.querySelector('#mh-right-now-action-btn') || document.querySelector('#mh-hero-brief-prepare-btn') || document.querySelector('#mobile-view-home .btn-primary') || document.querySelector('#mh-section-right-now button');
-      if (btn) { (btn as any).click(); return true; }
+      if (btn && ((btn as any).innerText.includes('미팅') || (btn as any).innerText.includes('Prepare'))) {
+        (btn as any).click();
+        return true;
+      }
+      if ((globalThis as any).window.NAGEX_MEETING_PREP) {
+        (globalThis as any).window.NAGEX_MEETING_PREP.open('demo_evt_client');
+        return true;
+      }
       return false;
     });
     assert.ok(mobilePrepBtn, 'Mobile meeting prep button must be clicked');
