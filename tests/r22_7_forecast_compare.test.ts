@@ -111,23 +111,25 @@ class MockForecastModelProvider implements ModelProvider {
 }
 
 test('NAgex R22.7 — Forecast Horizon Parsing & Specification Hardening', () => {
-  const fixedNow = new Date('2026-09-20T15:00:00+09:00');
+  // 1. Production Clock Default Test (now = new Date())
+  const defaultHorizon = parseHorizonEnd('Will this project launch before December 2026?');
+  assert.ok(defaultHorizon && defaultHorizon.includes('T23:59:59+09:00'), 'Default clock MUST produce valid ISO horizon string');
 
-  // Exact Horizon Parsing Verification
-  const d1 = parseHorizonEnd('Will this project launch before December 2026?', fixedNow);
-  assert.equal(d1, '2026-11-30T23:59:59+09:00');
+  // 2. Dynamic Injected Clock Shift Tests
+  const nowSept = new Date('2026-09-20T15:00:00+09:00');
+  const nowOct = new Date('2026-10-05T10:00:00+09:00');
 
-  const d2 = parseHorizonEnd('Will this project launch by December 15, 2026?', fixedNow);
-  assert.equal(d2, '2026-12-15T23:59:59+09:00');
+  // "이번 달 안에"
+  assert.equal(parseHorizonEnd('이번 달 안에 완료될까?', nowSept), '2026-09-30T23:59:59+09:00');
+  assert.equal(parseHorizonEnd('이번 달 안에 완료될까?', nowOct), '2026-10-31T23:59:59+09:00');
 
-  const d3 = parseHorizonEnd('Will this project launch by 2026-11-30?', fixedNow);
-  assert.equal(d3, '2026-11-30T23:59:59+09:00');
+  // "within two weeks"
+  assert.equal(parseHorizonEnd('will this happen within two weeks?', nowSept), '2026-10-04T23:59:59+09:00');
+  assert.equal(parseHorizonEnd('will this happen within two weeks?', nowOct), '2026-10-19T23:59:59+09:00');
 
-  const d4 = parseHorizonEnd('이번 달 안에 완료될까?', fixedNow);
-  assert.equal(d4, '2026-09-30T23:59:59+09:00');
-
-  const d5 = parseHorizonEnd('10월까지 성공할까?', fixedNow);
-  assert.equal(d5, '2026-10-31T23:59:59+09:00');
+  // "10월까지"
+  assert.equal(parseHorizonEnd('10월까지 성공할까?', nowSept), '2026-10-31T23:59:59+09:00');
+  assert.equal(parseHorizonEnd('10월까지 성공할까?', new Date('2026-11-01T10:00:00+09:00')), '2027-10-31T23:59:59+09:00');
 });
 
 test('NAgex R22.7 — Forecast Compare Logic Suite', async () => {
@@ -211,6 +213,36 @@ test('NAgex R22.7 — Forecast Compare Logic Suite', async () => {
 
   assert.throws(() => {
     parseIndependentForecastJson(JSON.stringify({ probability: 0.6, supportingFactors: 'wrong' }), 'req_test');
+  }, (err: any) => err.code === 'FORECAST_SCHEMA_FAIL_CLOSED');
+
+  // Exact required negative tests:
+  // 1) missing rationale and array fields
+  assert.throws(() => {
+    parseIndependentForecastJson(JSON.stringify({ probability: 0.6 }), 'req_test');
+  }, (err: any) => err.code === 'FORECAST_SCHEMA_FAIL_CLOSED');
+
+  // 2) empty rationale string
+  assert.throws(() => {
+    parseIndependentForecastJson(JSON.stringify({
+      probability: 0.6,
+      rationale: '',
+      supportingFactors: [],
+      opposingFactors: [],
+      keyAssumptions: [],
+      uncertaintyDrivers: [],
+    }), 'req_test');
+  }, (err: any) => err.code === 'FORECAST_SCHEMA_FAIL_CLOSED');
+
+  // 3) null array field
+  assert.throws(() => {
+    parseIndependentForecastJson(JSON.stringify({
+      probability: 0.6,
+      rationale: 'x',
+      supportingFactors: null,
+      opposingFactors: [],
+      keyAssumptions: [],
+      uncertaintyDrivers: [],
+    }), 'req_test');
   }, (err: any) => err.code === 'FORECAST_SCHEMA_FAIL_CLOSED');
 
   assert.throws(() => {

@@ -78,7 +78,6 @@ export interface ForecastCompareOptions {
   tenantId?: string;
   ownerId?: string;
   memories?: MemoryRecord[];
-  requiresEvidenceGrounding?: boolean;
   requestId?: string;
   evidencePack?: EvidencePack;
   specification?: ForecastSpecification;
@@ -106,7 +105,7 @@ function summarizeEvidencePack(pack?: EvidencePack): string {
     .join('\n\n');
 }
 
-export function parseHorizonEnd(query: string, now: Date = new Date('2026-09-20T15:00:00+09:00')): string | null {
+export function parseHorizonEnd(query: string, now: Date = new Date()): string | null {
   const q = query.trim();
   const lower = q.toLowerCase();
 
@@ -271,6 +270,15 @@ export function parseIndependentForecastJson(text: string, requestId: string): {
     });
   }
 
+  if (typeof parsed.rationale !== 'string' || !parsed.rationale.trim()) {
+    throw new NagexError({
+      code: 'FORECAST_SCHEMA_FAIL_CLOSED',
+      category: 'PROVIDER',
+      message: 'Field rationale must be a non-empty string.',
+      request_id: requestId,
+    });
+  }
+
   const parseStringArray = (arr: any, name: string): string[] => {
     if (!Array.isArray(arr)) {
       throw new NagexError({
@@ -295,11 +303,11 @@ export function parseIndependentForecastJson(text: string, requestId: string): {
 
   return {
     probability: parsed.probability,
-    rationale: typeof parsed.rationale === 'string' ? parsed.rationale.trim() : 'No explicit rationale provided.',
-    supportingFactors: parseStringArray(parsed.supportingFactors || [], 'supportingFactors'),
-    opposingFactors: parseStringArray(parsed.opposingFactors || [], 'opposingFactors'),
-    keyAssumptions: parseStringArray(parsed.keyAssumptions || [], 'keyAssumptions'),
-    uncertaintyDrivers: parseStringArray(parsed.uncertaintyDrivers || [], 'uncertaintyDrivers'),
+    rationale: parsed.rationale.trim(),
+    supportingFactors: parseStringArray(parsed.supportingFactors, 'supportingFactors'),
+    opposingFactors: parseStringArray(parsed.opposingFactors, 'opposingFactors'),
+    keyAssumptions: parseStringArray(parsed.keyAssumptions, 'keyAssumptions'),
+    uncertaintyDrivers: parseStringArray(parsed.uncertaintyDrivers, 'uncertaintyDrivers'),
   };
 }
 
@@ -561,7 +569,7 @@ export class ForecastCompareService {
 
     // 2. Shared Evidence Pack
     let evidencePack: EvidencePack | undefined = options.evidencePack;
-    const requiresEvidence = options.requiresEvidenceGrounding !== false;
+    const requiresEvidence = true;
     if (!evidencePack && requiresEvidence) {
       try {
         evidencePack = await this.evidencePackService.buildEvidencePack(query, {
