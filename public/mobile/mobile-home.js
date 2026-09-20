@@ -91,7 +91,6 @@
   // ── B. Right Now Hero ──
   function isEventValidForHero(e) {
     if (!e) return false;
-    if (e.id && String(e.id).startsWith('demo_evt_')) return true;
     const startTimeIso = e.start_time || e.start?.dateTime || e.start;
     if (!startTimeIso) return true;
     const eventTime = new Date(startTimeIso).getTime();

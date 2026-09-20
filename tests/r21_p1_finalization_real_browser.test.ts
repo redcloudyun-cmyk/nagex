@@ -80,7 +80,32 @@ test('R21 P1 A-J semantic certification and visual QA capture', async () => {
   const browser = await chromium.launch({ headless: true });
   try {
     await reset(server.origin);
-    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    const fixedTime = new Date();
+    fixedTime.setHours(14, 0, 0, 0);
+    const fixedTimeMs = fixedTime.getTime();
+
+    const newTimePage = async (viewport?: { width: number; height: number }) => {
+      const ctx = await browser.newContext(viewport ? { viewport } : undefined);
+      await ctx.addInitScript((timeMs) => {
+        const OrigDate = Date;
+        class DeterministicDate extends OrigDate {
+          constructor(...args: any[]) {
+            if (args.length === 0) {
+              super(timeMs);
+            } else {
+              super(...(args as [any]));
+            }
+          }
+          static override now() {
+            return timeMs;
+          }
+        }
+        (globalThis as any).Date = DeterministicDate;
+      }, fixedTimeMs);
+      return ctx.newPage();
+    };
+
+    const page = await newTimePage({ width: 1280, height: 900 });
     await page.goto(`${server.origin}/?demo=1`);
     await page.waitForFunction(() => {
       const el = document.querySelector('#home-section-right-now') || document.querySelector('.right-now-card') || document.querySelector('#view-home');
@@ -92,7 +117,7 @@ test('R21 P1 A-J semantic certification and visual QA capture', async () => {
     assert.match(homeText, /Client (strategy )?meeting/);
     await shot(page, 'desktop_personal_home_en.png');
 
-    const quick = await browser.newPage({ viewport: { width: 520, height: 720 } });
+    const quick = await newTimePage({ width: 520, height: 720 });
     await quick.goto(`${server.origin}/desktop-quickwake.html?demo=1`);
     await quick.waitForFunction(() => document.querySelector('#qw-proactive-card')?.textContent?.includes('Proposal v3'));
     const quickText = await quick.locator('#qw-proactive-card').innerText();
@@ -166,7 +191,7 @@ test('R21 P1 A-J semantic certification and visual QA capture', async () => {
     await page.waitForFunction(() => document.querySelector('#btn-save-vault')?.textContent?.includes('Saved to Vault'));
     await shot(page, 'desktop_research_result_en.png');
 
-    const mobile = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    const mobile = await newTimePage({ width: 390, height: 844 });
     await reset(server.origin);
     await mobile.goto(`${server.origin}/?demo=1`);
     await mobile.evaluate(() => (globalThis as any).window.NAGEX_I18N?.setLocale('ko'));
@@ -180,7 +205,7 @@ test('R21 P1 A-J semantic certification and visual QA capture', async () => {
     fs.writeFileSync(path.resolve('artifacts/r21_p1_latency.json'), JSON.stringify({ ...metrics, ...quickMetrics, ...actionMetrics }, null, 2));
     await shot(mobile, '390x844_home_kr.png');
 
-    const mobileQuick = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    const mobileQuick = await newTimePage({ width: 390, height: 844 });
     await mobileQuick.addInitScript(() => localStorage.setItem('nagex_locale', 'ko'));
     await mobileQuick.goto(`${server.origin}/desktop-quickwake.html?demo=1`);
     await mobileQuick.waitForSelector('#qw-proactive-card:not([hidden])');
