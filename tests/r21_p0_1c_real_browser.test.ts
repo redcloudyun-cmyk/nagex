@@ -1,8 +1,6 @@
 process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY || 'test_openai_key';
 process.env.NAGEX_OPENAI_MODEL = process.env.NAGEX_OPENAI_MODEL || 'gpt-4o';
-process.env.GEMINI_API_KEY = 'test_gemini_key';
-process.env.NAGEX_GEMINI_MODEL = 'gemini-test-model';
-// R21 P1 ??required for GoogleCalendarService to resolve a config at all
+// R21 P1 — required for GoogleCalendarService to resolve a config at all
 // (readGoogleOAuthConfig returns null without these three set); the
 // Scenario 4 calendar-approval flow now performs a real free-slots lookup
 // (see app.js renderUserApprovalCard) rather than showing a hardcoded
@@ -17,7 +15,7 @@ globalThis.fetch = async function (input: any, init?: any) {
   // Real Google Calendar API shapes: freeBusy (empty busy -> whole window
   // free) and event creation (must return a real-shaped id/htmlLink, or
   // GoogleCalendarService's own real parsing throws GOOGLE_CALENDAR_
-  // MALFORMED_RESPONSE ??never assume the generic model-shaped mock below
+  // MALFORMED_RESPONSE — never assume the generic model-shaped mock below
   // covers Calendar's own distinct response contract).
   if (url.includes('www.googleapis.com/calendar/v3/freeBusy')) {
     return new Response(JSON.stringify({ calendars: { primary: { busy: [] } } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
@@ -70,7 +68,7 @@ import { createServerInstance } from '../src/server_web.js';
 import { googleTokenStore, DEFAULT_GOOGLE_TENANT_ID } from '../src/integrations/google/token.store.js';
 import { GOOGLE_CALENDAR_SCOPES } from '../src/integrations/google/oauth.client.js';
 
-// This project's tsconfig deliberately has no "DOM" lib entry ??this
+// This project's tsconfig deliberately has no "DOM" lib entry — this
 // declaration is scoped to just this file, only ever referenced inside a
 // Playwright page.waitForFunction callback, which actually executes in the
 // real browser, not in this TS-compiled Node process.
@@ -207,7 +205,7 @@ test('R21 P0.1C REAL BROWSER CERTIFICATION: Clone Assistant Mockup Scenarios & V
 
       await page.waitForSelector('#ambient-user-approval-card', { state: 'visible' });
       // The card now performs a real free-slots lookup before rendering
-      // "Ready to add to your calendar" ??wait for the real Approve button
+      // "Ready to add to your calendar" — wait for the real Approve button
       // (only rendered once that lookup resolves), not just card visibility.
       await page.waitForSelector('#btn-ambient-approve-mutation', { state: 'visible', timeout: 10000 });
       const approvalHeading = await page.textContent('#ambient-approval-heading');
@@ -215,10 +213,10 @@ test('R21 P0.1C REAL BROWSER CERTIFICATION: Clone Assistant Mockup Scenarios & V
 
       await saveScreenshot(page, 'desktop_calendar_approval_en.png');
 
-      // R21 P1 ??this used to be a fake setTimeout("Added to calendar ??)
+      // R21 P1 — this used to be a fake setTimeout("Added to calendar ✓")
       // that never called any real API. Clicking Add to calendar must now
       // perform a real approve -> execute round trip and land on a real
-      // success state with a real Google Calendar link ??never a
+      // success state with a real Google Calendar link — never a
       // client-side-only "done" state.
       await page.click('#btn-ambient-approve-mutation');
       await page.waitForSelector('#ambient-approval-heading', { state: 'visible' });
@@ -256,7 +254,7 @@ test('R21 P0.1C REAL BROWSER CERTIFICATION: Clone Assistant Mockup Scenarios & V
       });
       await page.waitForSelector('#ambient-prompt-input', { state: 'attached' });
 
-      await page.fill('#ambient-prompt-input', 'AI ?�이?�트 ?�키?�처 최신 ?�향??조사?�고 ?�약?�줘');
+      await page.fill('#ambient-prompt-input', 'AI 에이전트 아키텍처 최신 동향을 조사하고 요약해줘');
       await page.click('#btn-ambient-run');
 
       await page.waitForSelector('#ambient-summary-section', { state: 'visible', timeout: 15000 });
@@ -285,7 +283,7 @@ test('R21 P0.1C REAL BROWSER CERTIFICATION: Clone Assistant Mockup Scenarios & V
       });
       await page.waitForSelector('#ambient-prompt-input', { state: 'attached' });
 
-      await page.fill('#ambient-prompt-input', '?�음 고객 미팅??준비하�??�정???�아�?');
+      await page.fill('#ambient-prompt-input', '다음 고객 미팅을 준비하고 일정을 잡아줘.');
       await page.click('#btn-ambient-run');
 
       await page.waitForSelector('#ambient-surfaced-context', { state: 'visible', timeout: 15000 });

@@ -1,8 +1,6 @@
 process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY || 'test_openai_key';
 process.env.NAGEX_OPENAI_MODEL = process.env.NAGEX_OPENAI_MODEL || 'gpt-4o';
-process.env.GEMINI_API_KEY = 'test_gemini_key';
-process.env.NAGEX_GEMINI_MODEL = 'gemini-test-model';
-// R21 P1 ??required for GoogleCalendarService to resolve a config at all;
+// R21 P1 — required for GoogleCalendarService to resolve a config at all;
 // the calendar-approval card now performs a real free-slots lookup and a
 // real event-creation call (see app.js renderUserApprovalCard) rather than
 // showing hardcoded fake content, so this test needs a real
@@ -107,7 +105,7 @@ test('R21 P0 REAL BROWSER CERTIFICATION: UX Intent Interaction Principles (Scena
   const browser: Browser = await chromium.launch({ headless: true });
 
   try {
-    // Scenario A ??Normal user modal experience
+    // Scenario A — Normal user modal experience
     {
       const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
       await page.goto(`${server.origin}/index.html`);
@@ -126,7 +124,7 @@ test('R21 P0 REAL BROWSER CERTIFICATION: UX Intent Interaction Principles (Scena
       await page.close();
     }
 
-    // Scenario B ??Meeting request surfaces context and friendly progress
+    // Scenario B — Meeting request surfaces context and friendly progress
     {
       const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
       await page.goto(`${server.origin}/index.html`);
@@ -152,7 +150,7 @@ test('R21 P0 REAL BROWSER CERTIFICATION: UX Intent Interaction Principles (Scena
       await page.close();
     }
 
-    // Scenario C ??Approval separation (Plan acceptance != Action Approval)
+    // Scenario C — Approval separation (Plan acceptance != Action Approval)
     {
       const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
       await page.goto(`${server.origin}/index.html`);
@@ -166,7 +164,7 @@ test('R21 P0 REAL BROWSER CERTIFICATION: UX Intent Interaction Principles (Scena
       await page.click('#btn-ambient-understanding-continue');
       await page.waitForSelector('#ambient-user-approval-card', { state: 'visible' });
       // The card now performs a real free-slots lookup before rendering
-      // "Ready to add to your calendar" ??wait for the real Approve button
+      // "Ready to add to your calendar" — wait for the real Approve button
       // (only rendered once that lookup resolves), not just card visibility.
       await page.waitForSelector('#btn-ambient-approve-mutation', { state: 'visible', timeout: 10000 });
 
@@ -178,7 +176,7 @@ test('R21 P0 REAL BROWSER CERTIFICATION: UX Intent Interaction Principles (Scena
       await page.close();
     }
 
-    // Scenario D ??Debug mode (?debug=1) exposes execution details
+    // Scenario D — Debug mode (?debug=1) exposes execution details
     {
       const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
       await page.goto(`${server.origin}/index.html?debug=1`);
@@ -196,7 +194,7 @@ test('R21 P0 REAL BROWSER CERTIFICATION: UX Intent Interaction Principles (Scena
       await page.close();
     }
 
-    // Scenario E ??Close and reopen preserves background task state
+    // Scenario E — Close and reopen preserves background task state
     {
       const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
       await page.goto(`${server.origin}/index.html`);
@@ -220,7 +218,7 @@ test('R21 P0 REAL BROWSER CERTIFICATION: UX Intent Interaction Principles (Scena
       await page.close();
     }
 
-    // Scenario F ??Mobile 390x844 Korean approval and personal working view
+    // Scenario F — Mobile 390x844 Korean approval and personal working view
     {
       const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
       await page.goto(`${server.origin}/index.html`);
@@ -232,7 +230,7 @@ test('R21 P0 REAL BROWSER CERTIFICATION: UX Intent Interaction Principles (Scena
       });
       await page.waitForSelector('#ambient-prompt-input');
 
-      await page.fill('#ambient-prompt-input', '?�음 고객 미팅??준비하�??�정???�아�?');
+      await page.fill('#ambient-prompt-input', '다음 고객 미팅을 준비하고 일정을 잡아줘.');
       await page.click('#btn-ambient-run');
 
       await page.waitForSelector('#ambient-surfaced-context', { state: 'visible', timeout: 10000 });
