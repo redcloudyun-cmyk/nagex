@@ -368,6 +368,37 @@ test('R22.9 — Browser Behavioral Certification (Real Clicks: Confirm, Edit, Pi
   await t.test('Real Clicks - Context Actions (Confirm, Edit, Pin, Unpin, Delete)', async () => {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     page.on('console', (msg) => console.log('PAGE LOG:', msg.text()));
+
+    // § 3 — HTTP failure diagnostics: log any 4xx/5xx response from the browser
+    page.on('response', async (response) => {
+      if (response.status() >= 400) {
+        console.log(
+          'R22_9_HTTP_FAILURE',
+          response.status(),
+          response.request().method(),
+          response.url()
+        );
+      }
+    });
+
+    // § 5 — Memory request header diagnostics (safe metadata only — no cookies/secrets)
+    page.on('request', (request) => {
+      if (request.url().includes('/api/v1/memory')) {
+        const headers = request.headers();
+        console.log(
+          'R22_9_MEMORY_REQUEST',
+          JSON.stringify({
+            method: request.method(),
+            url: request.url(),
+            tenant: headers['x-nagex-tenant'],
+            principal: headers['x-principal-id'],
+            demo: headers['x-nagex-demo'],
+            hasDemoSession: Boolean(headers['x-nagex-demo-session']),
+          })
+        );
+      }
+    });
+
     await page.goto(`${baseUrl}/?demo=1`);
     await page.waitForLoadState('networkidle');
 
@@ -396,6 +427,21 @@ test('R22.9 — Browser Behavioral Certification (Real Clicks: Confirm, Edit, Pi
     const unconfirmedId = unconfirmedItem.id;
     assert.ok(unconfirmedId);
 
+    // § 6 — Node-side creation scope verification for unconfirmedId
+    {
+      const verifyRes = await fetch(
+        `${baseUrl}/api/v1/memory/${unconfirmedId}`,
+        {
+          headers: {
+            'X-NAgex-Tenant': 'ten_demo_hackathon',
+            'X-Principal-Id': 'usr_demo_alex',
+          },
+        }
+      );
+      console.log('R22_9_NODE_MEMORY_VERIFY', verifyRes.status, unconfirmedId);
+      assert.equal(verifyRes.status, 200);
+    }
+
     // Create a confirmed memory item for Edit, Pin, Unpin, Delete tests
     const createRes = await fetch(`${baseUrl}/api/v1/memory/remember`, {
       method: 'POST',
@@ -417,8 +463,52 @@ test('R22.9 — Browser Behavioral Certification (Real Clicks: Confirm, Edit, Pi
     const memId = createdItem.id;
     assert.ok(memId);
 
+    // § 6 — Node-side creation scope verification for memId
+    {
+      const verifyRes = await fetch(
+        `${baseUrl}/api/v1/memory/${memId}`,
+        {
+          headers: {
+            'X-NAgex-Tenant': 'ten_demo_hackathon',
+            'X-Principal-Id': 'usr_demo_alex',
+          },
+        }
+      );
+      console.log('R22_9_NODE_MEMORY_VERIFY', verifyRes.status, memId);
+      assert.equal(verifyRes.status, 200);
+    }
+
     // Refresh memory UI
     await page.evaluate('(async () => { window.NAGEX.switchTab("tab-memory"); document.querySelectorAll(".memory-categories-tabs .mem-tab-btn").forEach(b => { if (b.getAttribute("data-mem-filter") === "ALL") b.classList.add("active"); else b.classList.remove("active"); }); const input = document.getElementById("personal-context-search-input"); if (input) input.value = ""; await window.NAGEX.renderMemory(); })()');
+
+    // § 4 — Memory API + DOM diagnostic snapshot (after renderMemory, before waitForSelector)
+    {
+      const diag = await page.evaluate(
+        async ({ unconfirmedId, memId }: { unconfirmedId: string; memId: string }) => {
+          const g = globalThis as any;
+          const apiResult = await g.NAGEX.apiFetch('/api/v1/memory');
+          const memoryIds = Array.isArray(apiResult?.memories)
+            ? apiResult.memories.map((m: any) => m.id)
+            : [];
+          return {
+            href: g.location.href,
+            demoParam: new URLSearchParams(g.location.search).get('demo'),
+            demoSessionFlag: g.sessionStorage.getItem('nagex_demo_mode'),
+            apiHasError: Boolean(apiResult?.error),
+            apiError: apiResult?.error || null,
+            memoryIds,
+            wantedIds: { unconfirmedId, memId },
+            unconfirmedInApi: memoryIds.includes(unconfirmedId),
+            memInApi: memoryIds.includes(memId),
+            unconfirmedCardExists: Boolean(g.document.getElementById(`mem-card-${unconfirmedId}`)),
+            memCardExists: Boolean(g.document.getElementById(`mem-card-${memId}`)),
+          };
+        },
+        { unconfirmedId, memId }
+      );
+      console.log('R22_9_MEMORY_DIAG', JSON.stringify(diag));
+    }
+
     await page.waitForSelector(`#mem-card-${unconfirmedId}`);
     await page.waitForSelector(`#mem-card-${memId}`);
 
@@ -527,6 +617,36 @@ test('R22.9 — Browser Behavioral Certification (Real Clicks: Confirm, Edit, Pi
   await t.test('Forced Failure Truthfulness (Save failure -> no success text, Delete failure -> item restored)', async () => {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 
+    // § 3 — HTTP failure diagnostics: log any 4xx/5xx response from the browser
+    page.on('response', async (response) => {
+      if (response.status() >= 400) {
+        console.log(
+          'R22_9_HTTP_FAILURE',
+          response.status(),
+          response.request().method(),
+          response.url()
+        );
+      }
+    });
+
+    // § 5 — Memory request header diagnostics (safe metadata only — no cookies/secrets)
+    page.on('request', (request) => {
+      if (request.url().includes('/api/v1/memory')) {
+        const headers = request.headers();
+        console.log(
+          'R22_9_MEMORY_REQUEST',
+          JSON.stringify({
+            method: request.method(),
+            url: request.url(),
+            tenant: headers['x-nagex-tenant'],
+            principal: headers['x-principal-id'],
+            demo: headers['x-nagex-demo'],
+            hasDemoSession: Boolean(headers['x-nagex-demo-session']),
+          })
+        );
+      }
+    });
+
     // Route /api/v1/capture/link for valid preview
     await page.route('**/api/v1/capture/link', (route) => {
       route.fulfill({
@@ -603,7 +723,49 @@ test('R22.9 — Browser Behavioral Certification (Real Clicks: Confirm, Edit, Pi
     const createdItem = (await createRes.json()) as any;
     const memId = createdItem.id;
 
+    // § 6 — Node-side creation scope verification for memId (Forced Failure scenario)
+    {
+      const verifyRes = await fetch(
+        `${baseUrl}/api/v1/memory/${memId}`,
+        {
+          headers: {
+            'X-NAgex-Tenant': 'ten_demo_hackathon',
+            'X-Principal-Id': 'usr_demo_alex',
+          },
+        }
+      );
+      console.log('R22_9_NODE_MEMORY_VERIFY', verifyRes.status, memId);
+      assert.equal(verifyRes.status, 200);
+    }
+
     await page.evaluate('(async () => { window.NAGEX.switchTab("tab-memory"); document.querySelectorAll(".memory-categories-tabs .mem-tab-btn").forEach(b => { if (b.getAttribute("data-mem-filter") === "ALL") b.classList.add("active"); else b.classList.remove("active"); }); const input = document.getElementById("personal-context-search-input"); if (input) input.value = ""; await window.NAGEX.renderMemory(); })()');
+
+    // § 4 — Memory API + DOM diagnostic snapshot (after renderMemory, before waitForSelector)
+    {
+      const diag = await page.evaluate(
+        async ({ memId }: { memId: string }) => {
+          const g = globalThis as any;
+          const apiResult = await g.NAGEX.apiFetch('/api/v1/memory');
+          const memoryIds = Array.isArray(apiResult?.memories)
+            ? apiResult.memories.map((m: any) => m.id)
+            : [];
+          return {
+            href: g.location.href,
+            demoParam: new URLSearchParams(g.location.search).get('demo'),
+            demoSessionFlag: g.sessionStorage.getItem('nagex_demo_mode'),
+            apiHasError: Boolean(apiResult?.error),
+            apiError: apiResult?.error || null,
+            memoryIds,
+            wantedIds: { memId },
+            memInApi: memoryIds.includes(memId),
+            memCardExists: Boolean(g.document.getElementById(`mem-card-${memId}`)),
+          };
+        },
+        { memId }
+      );
+      console.log('R22_9_MEMORY_DIAG', JSON.stringify(diag));
+    }
+
     await page.waitForSelector(`#mem-card-${memId}`);
 
     // Click delete on item, which will fail with HTTP 500

@@ -628,9 +628,18 @@ export class MemoryEngine {
       userConfirmed = false;
     }
 
+    // Only overlay fields the caller actually supplied — spreading `updates`
+    // wholesale would overwrite record.scope/type/sourceRef with `undefined`
+    // whenever a caller (e.g. the PATCH route) passes those keys unset, which
+    // silently drops the record from GET /api/v1/memory (scope-filtered) and
+    // from the UI's type label.
     const updated: MemoryRecord = {
       ...record,
-      ...updates,
+      ...(updates.scope !== undefined ? { scope: updates.scope } : {}),
+      ...(updates.type !== undefined ? { type: updates.type } : {}),
+      ...(updates.content !== undefined ? { content: updates.content } : {}),
+      ...(updates.sourceRef !== undefined ? { sourceRef: updates.sourceRef } : {}),
+      ...(updates.confidence !== undefined ? { confidence: updates.confidence } : {}),
       sensitivity: effectiveSensitivity,
       lifecycle,
       userConfirmed,

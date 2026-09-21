@@ -5408,6 +5408,7 @@
   window.NAGEX.openAmbientOverlay = openAmbientOverlay;
   window.NAGEX.renderPerspectiveCompareResult = renderPerspectiveCompareResult;
   window.NAGEX.renderForecastCompareResult = renderForecastCompareResult;
+  window.NAGEX.apiFetch = apiFetch;
   window.NAGEX.renderMemory = renderMemory;
   window.NAGEX.confirmPersonalContext = confirmPersonalContext;
   window.NAGEX.editPersonalContext = editPersonalContext;
@@ -5507,8 +5508,9 @@
     if (pinnedMemories.length > 0 && pinnedContainer && pinnedSection) {
       pinnedSection.hidden = false;
       pinnedContainer.innerHTML = pinnedMemories.map(renderCard).join('');
-    } else if (pinnedSection) {
-      pinnedSection.hidden = true;
+    } else {
+      if (pinnedSection) pinnedSection.hidden = true;
+      if (pinnedContainer) pinnedContainer.innerHTML = '';
     }
 
     if (unpinnedMemories.length === 0 && pinnedMemories.length === 0) {
@@ -5538,7 +5540,7 @@
 
   async function confirmPersonalContext(id) {
     await apiFetch(`/api/v1/memory/${id}/confirm`, { method: 'POST' });
-    renderMemory();
+    await renderMemory();
   }
 
   async function editPersonalContext(id) {
@@ -5551,22 +5553,26 @@
       method: 'PATCH',
       body: JSON.stringify({ value: newVal.trim() }),
     });
-    renderMemory();
+    await renderMemory();
   }
 
   async function togglePinPersonalContext(id) {
     await apiFetch(`/api/v1/memory/${id}/pin`, { method: 'PUT' });
-    renderMemory();
+    await renderMemory();
   }
 
   async function deletePersonalContext(id) {
     const backup = state.memories;
     state.memories = (state.memories || []).filter((m) => m.id !== id);
-    renderMemory();
+    // Remove the card node(s) directly rather than calling renderMemory(),
+    // which re-fetches /api/v1/memory and, since the DELETE below hasn't
+    // reached the server yet, would repaint the card right back in from the
+    // still-current server response.
+    document.querySelectorAll(`#mem-card-${id}`).forEach((el) => el.remove());
     const res = await apiFetch(`/api/v1/memory/${id}`, { method: 'DELETE' });
     if (!res || res.error || (typeof res.success === 'boolean' && !res.success)) {
       state.memories = backup;
-      renderMemory();
+      await renderMemory();
       console.error('Delete failed:', res?.error);
     }
   }
