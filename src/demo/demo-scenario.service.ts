@@ -384,30 +384,6 @@ export class DemoScenarioService {
       const taskObj = this.task(isKo);
       return { status: 200, data: { tasks: [{ taskId: taskObj.id, name: taskObj.title, objective: taskObj.title, status: 'ACTIVE', nextRunAt: this.todayAt('16:30') }] } };
     }
-    if (pathname === '/api/v1/memory' && method === 'GET') {
-      const prefValue = isKo ? '간결한 미팅 브리핑 선호' : this.fixture.persona.preference;
-      const memRecord = {
-        id: 'demo_memory_brief',
-        scope: 'USER',
-        type: 'PREFERENCE',
-        lifecycle: 'ACTIVE',
-        tenantId: 'ten_demo_hackathon',
-        owner_id: 'usr_demo_alex',
-        content: { subject: 'Meeting brief preference', predicate: 'prefers', value: prefValue },
-        sensitivity: 'S1',
-        userConfirmed: true,
-        memoryOrigin: 'EXPLICIT_USER',
-        provenance: {
-          sourceType: 'MANUAL',
-          extractedAt: '2026-09-05T08:00:00.000Z',
-          extractor: 'USER_EXPLICIT',
-        },
-        pinned: false,
-        created_at: '2026-09-05T08:00:00.000Z',
-        updated_at: '2026-09-05T08:00:00.000Z',
-      };
-      return { status: 200, data: { memories: [memRecord], total: 1 } };
-    }
     if (pathname === '/api/v1/notifications' && method === 'GET') {
       return {
         status: 200,

@@ -328,6 +328,26 @@ export function createNagexApplication(): NagexApplication {
     value: 'Prepare Client Meeting & Schedule Product Strategy Sync',
   });
 
+  // Demo persona seed — the canonical Alex Kim meeting-brief preference.
+  // This record must live in the real MemoryEngine (not only in the demo
+  // service's static interceptor) so that GET /api/v1/memory served by
+  // handleMemoryRoutes returns it alongside any dynamically created records
+  // during browser tests and in the real demo flow.
+  const DEMO_TENANT_ID = 'ten_demo_hackathon';
+  const DEMO_OWNER_ID  = 'usr_demo_alex';
+  const DEMO_SEED_CONTENT = {
+    subject: 'Meeting brief preference',
+    predicate: 'prefers',
+    value: 'Prefers concise meeting briefs',
+  } as const;
+
+  function seedDemoMemory(): void {
+    ensureSeedMemory('USER', DEMO_TENANT_ID, DEMO_OWNER_ID, DEMO_SEED_CONTENT);
+  }
+
+  // Seed on construction so the record is immediately present.
+  seedDemoMemory();
+
   const pinnedMemories = new Set<string>([mem2.id, mem3.id]);
 
   // Only ever surfaces memory that shares real content words with the current
@@ -591,5 +611,6 @@ export function createNagexApplication(): NagexApplication {
     modelRouter,
     perspectiveCompareService,
     forecastCompareService,
+    seedDemoMemory,
   };
 }

@@ -178,4 +178,6 @@ export interface NagexApplication {
   perspectiveCompareService: import('../model-gateway/perspective-compare.service.js').PerspectiveCompareService;
   forecastCompareService: import('../model-gateway/forecast-compare.service.js').ForecastCompareService;
   personalHomeService: import('../home/personal-home.service.js').PersonalHomeService;
+  /** Re-seeds the canonical demo persona memory into the real MemoryEngine. Call after demo reset. */
+  seedDemoMemory(): void;
 }
