@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import http from 'node:http';
+import crypto from 'node:crypto';
 import { chromium, type Browser } from 'playwright';
 import { LinkCaptureService, validateUrlForSsrf, type CustomDnsResolver } from '../src/capture/link-capture.service.js';
 import { createServerInstance } from '../src/server_web.js';
@@ -366,6 +367,7 @@ test('R22.9 — Browser Behavioral Certification (Real Clicks: Confirm, Edit, Pi
   }
 
   await t.test('Real Clicks - Context Actions (Confirm, Edit, Pin, Unpin, Delete)', async () => {
+    const testRunId = crypto.randomUUID();
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     page.on('console', (msg) => console.log('PAGE LOG:', msg.text()));
 
@@ -416,9 +418,9 @@ test('R22.9 — Browser Behavioral Certification (Real Clicks: Confirm, Edit, Pi
       body: JSON.stringify({
         scope: 'USER',
         type: 'FACT',
-        subject: 'Unconfirmed Subject',
+        subject: `Unconfirmed Subject ${testRunId}`,
         predicate: 'needsConfirmation',
-        value: 'Pending confirmation',
+        value: `Pending confirmation ${testRunId}`,
         userConfirmed: false,
       }),
     });
@@ -426,6 +428,8 @@ test('R22.9 — Browser Behavioral Certification (Real Clicks: Confirm, Edit, Pi
     const unconfirmedItem = (await createUnconfirmedRes.json()) as any;
     const unconfirmedId = unconfirmedItem.id;
     assert.ok(unconfirmedId);
+    assert.equal(unconfirmedItem.userConfirmed, false, 'Fixture must be unconfirmed (PROPOSED)');
+    assert.equal(unconfirmedItem.lifecycle, 'PROPOSED', 'Fixture lifecycle must be PROPOSED — if ACTIVE a previous run already confirmed this record (dedup collision)');
 
     // § 6 — Node-side creation scope verification for unconfirmedId
     {
@@ -453,9 +457,9 @@ test('R22.9 — Browser Behavioral Certification (Real Clicks: Confirm, Edit, Pi
       body: JSON.stringify({
         scope: 'USER',
         type: 'FACT',
-        subject: 'Browser Click Subject',
+        subject: `Browser Click Subject ${testRunId}`,
         predicate: 'isTesting',
-        value: 'Initial Click Value',
+        value: `Initial Click Value ${testRunId}`,
       }),
     });
     assert.equal(createRes.status, 201);
@@ -615,6 +619,7 @@ test('R22.9 — Browser Behavioral Certification (Real Clicks: Confirm, Edit, Pi
   });
 
   await t.test('Forced Failure Truthfulness (Save failure -> no success text, Delete failure -> item restored)', async () => {
+    const failureRunId = crypto.randomUUID();
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 
     // § 3 — HTTP failure diagnostics: log any 4xx/5xx response from the browser
@@ -715,9 +720,9 @@ test('R22.9 — Browser Behavioral Certification (Real Clicks: Confirm, Edit, Pi
       body: JSON.stringify({
         scope: 'USER',
         type: 'FACT',
-        subject: 'Rollback Test Item',
+        subject: `Rollback Test Item ${failureRunId}`,
         predicate: 'isTesting',
-        value: 'Rollback Value',
+        value: `Rollback Value ${failureRunId}`,
       }),
     });
     const createdItem = (await createRes.json()) as any;

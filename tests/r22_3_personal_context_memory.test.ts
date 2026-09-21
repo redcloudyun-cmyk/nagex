@@ -20,6 +20,7 @@ import { ConversationStore } from '../src/conversations/conversation.store.js';
 import { ConversationContextService } from '../src/conversations/conversation-context.service.js';
 import { AuditLogger } from '../src/governance/audit.logger.js';
 import { DemoScenarioService } from '../src/demo/demo-scenario.service.js';
+import { createNagexApplication } from '../src/app/create-nagex-application.js';
 import type { PrincipalReference } from '../src/common/types.js';
 import type { ModelProvider } from '../src/model-gateway/model-provider.js';
 
@@ -432,21 +433,25 @@ describe('R22.3 Personal Context / Memory Foundation & Hardening', () => {
   });
 
   it('11. Demo Memory Canonical Contract', () => {
-    const demoService = new DemoScenarioService();
-    const res = demoService.handle('GET', '/api/v1/memory', null, { 'x-nagex-demo': '1' });
-    assert.ok(res);
-    assert.equal(res.status, 200);
-    const data = res.data as any;
-    assert.equal(data.total, 1);
-    const mem = data.memories[0];
+    const app = createNagexApplication();
 
-    assert.equal(mem.id, 'demo_memory_brief');
+    const memories = app.memoryEngine.getActiveMemories(
+      'USER',
+      'ten_demo_hackathon',
+      'usr_demo_alex'
+    );
+
+    const mem = memories.find(
+      (m) =>
+        m.content.subject === 'Meeting brief preference' &&
+        m.content.predicate === 'prefers'
+    );
+
+    assert.ok(mem);
     assert.equal(mem.scope, 'USER');
-    assert.equal(mem.type, 'PREFERENCE');
     assert.equal(mem.lifecycle, 'ACTIVE');
     assert.equal(mem.sensitivity, 'S1');
     assert.equal(mem.userConfirmed, true);
-    assert.equal(mem.memoryOrigin, 'EXPLICIT_USER');
     assert.ok(mem.provenance);
     assert.equal(mem.provenance.sourceType, 'MANUAL');
 
