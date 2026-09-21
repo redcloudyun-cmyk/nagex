@@ -286,6 +286,11 @@ export function createNagexApplication(): NagexApplication {
     tenantId: string,
     ownerId: string,
     content: { subject: string; predicate: string; value: unknown },
+    seedOptions?: {
+      type?: import('../context/memory.engine.js').MemoryType;
+      memoryOrigin?: import('../context/memory.engine.js').MemoryOrigin;
+      provenance?: import('../context/memory.engine.js').MemoryProvenance;
+    },
   ): MemoryRecord {
     const existing = memoryEngine.findSeedMemory({
       scope,
@@ -295,12 +300,38 @@ export function createNagexApplication(): NagexApplication {
       predicate: content.predicate,
     });
     if (existing) {
+      // Check whether the persisted record already satisfies all required
+      // seed metadata. If any canonical field is missing or wrong, patch it
+      // in-place so the live record and file both reflect the contract.
+      const needsMetaPatch =
+        seedOptions &&
+        (
+          (seedOptions.type !== undefined && existing.type !== seedOptions.type) ||
+          (seedOptions.memoryOrigin !== undefined && existing.memoryOrigin !== seedOptions.memoryOrigin) ||
+          (seedOptions.provenance !== undefined && existing.provenance?.sourceType !== seedOptions.provenance.sourceType)
+        );
+
+      let record = existing;
       if (existing.lifecycle !== 'ACTIVE') {
-        return memoryEngine.activateMemory(existing.id, tenantId, ownerId);
+        record = memoryEngine.activateMemory(existing.id, tenantId, ownerId);
       }
-      return existing;
+
+      if (needsMetaPatch) {
+        record = memoryEngine.patchSeedRecord(record.id, tenantId, ownerId, {
+          type: seedOptions?.type,
+          memoryOrigin: seedOptions?.memoryOrigin,
+          provenance: seedOptions?.provenance,
+        });
+      }
+
+      return record;
     }
-    const proposed = memoryEngine.proposeMemory(scope, tenantId, ownerId, content);
+    const proposed = memoryEngine.proposeMemory(scope, tenantId, ownerId, content, undefined, {
+      type: seedOptions?.type,
+      memoryOrigin: seedOptions?.memoryOrigin,
+      provenance: seedOptions?.provenance,
+      userConfirmed: true,
+    });
     return memoryEngine.activateMemory(proposed.id, tenantId, ownerId);
   }
 
@@ -341,8 +372,18 @@ export function createNagexApplication(): NagexApplication {
     value: 'Prefers concise meeting briefs',
   } as const;
 
+  const DEMO_SEED_OPTIONS = {
+    type: 'PREFERENCE' as const,
+    memoryOrigin: 'EXPLICIT_USER' as const,
+    provenance: {
+      sourceType: 'MANUAL' as const,
+      extractedAt: new Date().toISOString(),
+      extractor: 'MANUAL' as const,
+    },
+  };
+
   function seedDemoMemory(): void {
-    ensureSeedMemory('USER', DEMO_TENANT_ID, DEMO_OWNER_ID, DEMO_SEED_CONTENT);
+    ensureSeedMemory('USER', DEMO_TENANT_ID, DEMO_OWNER_ID, DEMO_SEED_CONTENT, DEMO_SEED_OPTIONS);
   }
 
   // Seed on construction so the record is immediately present.

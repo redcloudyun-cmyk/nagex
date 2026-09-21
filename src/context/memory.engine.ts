@@ -421,6 +421,37 @@ export class MemoryEngine {
     return updatedRecord;
   }
 
+  /**
+   * Patches seed-only metadata fields (type, memoryOrigin, provenance) on an
+   * existing record. Scoped to the owning tenant/owner — does not touch
+   * content, lifecycle, sensitivity, or userConfirmed. Intended exclusively
+   * for ensureSeedMemory to migrate legacy seed records to the canonical
+   * contract values on startup.
+   */
+  public patchSeedRecord(
+    id: string,
+    tenantId: string,
+    ownerId: string,
+    patch: {
+      type?: MemoryType;
+      memoryOrigin?: MemoryOrigin;
+      provenance?: MemoryProvenance;
+    },
+  ): MemoryRecord {
+    const record = this.requireOwned(id, tenantId, ownerId);
+    const now = getCurrentISOString();
+    const updated: MemoryRecord = {
+      ...record,
+      ...(patch.type !== undefined ? { type: patch.type } : {}),
+      ...(patch.memoryOrigin !== undefined ? { memoryOrigin: patch.memoryOrigin } : {}),
+      ...(patch.provenance !== undefined ? { provenance: patch.provenance } : {}),
+      updated_at: now,
+    };
+    this.fileStore.writeOrThrow(id, updated);
+    this.memoryStore.set(id, updated);
+    return updated;
+  }
+
   public confirmMemory(id: string, tenantId: string, ownerId: string): MemoryRecord {
     const record = this.requireOwned(id, tenantId, ownerId);
 

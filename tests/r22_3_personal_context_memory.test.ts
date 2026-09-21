@@ -449,9 +449,11 @@ describe('R22.3 Personal Context / Memory Foundation & Hardening', () => {
 
     assert.ok(mem);
     assert.equal(mem.scope, 'USER');
+    assert.equal(mem.type, 'PREFERENCE');
     assert.equal(mem.lifecycle, 'ACTIVE');
     assert.equal(mem.sensitivity, 'S1');
     assert.equal(mem.userConfirmed, true);
+    assert.equal(mem.memoryOrigin, 'EXPLICIT_USER');
     assert.ok(mem.provenance);
     assert.equal(mem.provenance.sourceType, 'MANUAL');
 
