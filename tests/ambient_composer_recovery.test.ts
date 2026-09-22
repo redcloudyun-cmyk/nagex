@@ -321,3 +321,84 @@ test('composer file button click makes the real #composer-drop-zone visible, and
     });
   });
 });
+
+// R22.D1 — public/app.js previously declared both renderInbox and
+// renderCandidateActionControls TWICE at the same top-level scope. Under
+// standard JS function-declaration hoisting the SECOND declaration of each
+// silently won at runtime: a no-op boolean stub for renderInbox (the real
+// implementation — which actually fetches /approvals, /workspace/inbox,
+// /candidates and writes #inbox-items-list — never ran), and a broken
+// stub for renderCandidateActionControls (expects a bare `action` object
+// but the one real call site passes the whole `candidate`, and its Retry
+// button has no onclick at all). Both dead duplicates have been removed,
+// leaving only the real implementations. This proves the canonical
+// functions now genuinely perform the interactions the rest of the suite
+// already assumed they did.
+test('canonical renderInbox and renderCandidateActionControls actually render real content (no dead-duplicate shadowing)', { timeout: 30000 }, async () => {
+  await withServer(async (origin) => {
+    await withBrowserPage(origin, async (page) => {
+      await page.route('**/api/v1/approvals', async (route) => {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ approvals: [] }) });
+      });
+      await page.route('**/api/v1/workspace/inbox', async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            items: [{
+              captureId: 'cap_test_d1',
+              status: 'FAILED',
+              source: 'WEB',
+              createdAt: new Date().toISOString(),
+              metadata: { extractedTitle: 'D1 regression capture', errorMessage: 'Simulated failure for D1 test', retryable: true },
+            }],
+          }),
+        });
+      });
+      await page.route('**/api/v1/candidates', async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            candidates: [{
+              candidateId: 'cand_test_d1',
+              type: 'TASK',
+              status: 'ACCEPTED',
+              title: 'D1 regression candidate',
+              action: { status: 'NOT_STARTED' },
+              createdAt: new Date().toISOString(),
+            }],
+          }),
+        });
+      });
+
+      await page.evaluate(() => window.NAGEX.switchTab('tab-inbox'));
+      await page.waitForFunction(
+        () => (document.getElementById('inbox-items-list')?.textContent || '').includes('D1 regression capture'),
+        undefined,
+        { timeout: 10000 },
+      );
+
+      // renderInbox (canonical, 1245) must have actually written real,
+      // fetched content into the DOM — not the dead stub's no-op.
+      const itemsListText = await page.$eval('#inbox-items-list', (el) => el.textContent || '');
+      assert.match(itemsListText, /D1 regression capture/, 'the real capture title must be rendered, proving renderInbox actually fetched and wrote content');
+      assert.match(itemsListText, /Simulated failure for D1 test/, 'the real error message must be rendered');
+
+      // renderCandidateActionControls (canonical, 1467) is reached through
+      // renderCandidateReviewQueue -> renderCandidateReviewCard, whose only
+      // real triggers are the toggle/modify handlers — exercise the real
+      // toggleResolvedCandidates handler (a PROPOSED candidate is visible
+      // regardless of the toggle's own on/off state) rather than calling
+      // an internal render function directly.
+      await page.evaluate(() => window.NAGEX.toggleResolvedCandidates());
+
+      const candidateButton = await page.$eval('#inbox-candidates-list', (el) => {
+        const btn = el.querySelector('button[onclick*="executeCandidateAction"]');
+        return btn ? { text: btn.textContent, onclick: btn.getAttribute('onclick') } : null;
+      });
+      assert.ok(candidateButton, 'expected a real Apply button wired via executeCandidateAction — the dead stub never rendered a working button at all');
+      assert.ok(candidateButton!.onclick!.includes('cand_test_d1'), 'the button must be wired to the real candidateId, proving renderCandidateActionControls received the real candidate object');
+    });
+  });
+});

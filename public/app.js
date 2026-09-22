@@ -2027,22 +2027,6 @@
     return (t && typeof t === 'function' ? t('home.approveGeneric') : null) || 'Approve action';
   }
 
-  // Phase 1 STEP 6 — Candidate Review
-  function renderCandidateActionControls(action) {
-    if (!action) return '';
-    if (action.retryable === true) return '<button class="btn-retry">Retry</button>';
-    if (action.status === 'AMBIGUOUS') return (window.NAGEX_I18N ? window.NAGEX_I18N.t('candidateActionAmbiguous') : 'Needs clarification');
-    if (action.status === 'NEEDS_HUMAN') return (window.NAGEX_I18N ? window.NAGEX_I18N.t('candidateActionNeedsHuman') : 'Needs human decision');
-    return '';
-  }
-
-  async function renderInbox() {
-    const items = state.inbox || [];
-    const captureRetryable = items.some((i) => i.metadata?.retryable !== false);
-    return captureRetryable;
-  }
-
-
   function renderSkills() {
     const container = document.getElementById('skills-grid-container');
     if (!container) return;
