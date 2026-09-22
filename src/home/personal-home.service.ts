@@ -1,13 +1,10 @@
-import type { ActionApprovalStore, ActionApprovalRecord } from '../governance/action-approval.store.js';
 import type { DailyBriefStore, DailyBriefRecord } from '../governance/daily-brief.store.js';
-import type { TaskStore, TaskRecord } from '../tasks/task.store.js';
 import type { ActivityStore, ActivityItem } from '../governance/activity.store.js';
 import type { ActionProposalStore, ActionProposalRecord } from '../assistant/action-proposal.store.js';
 import type { InboxStore } from '../workspace/inbox.store.js';
 import type { CreationStore } from '../creation/creation.store.js';
-import type { GoogleCalendarService } from '../modules/calendar/index.js';
-import type { GmailService } from '../modules/gmail/index.js';
 import type { IdentityStore } from '../identity/identity.store.js';
+import type { CurrentPersonalContextService, ContextApproval, ContextTask, ContextEvent } from '../personal/current-personal-context.service.js';
 
 export interface HomeCalendarItem {
   id: string;
@@ -94,15 +91,16 @@ export interface GetPersonalHomeParams {
 export class PersonalHomeService {
   constructor(
     private readonly deps: {
-      actionApprovals?: ActionApprovalStore;
+      // R23.1 — Calendar/Task/Approval aggregation now flows exclusively
+      // through this one canonical pipeline (CONTEXT_AGGREGATION_PIPELINE_
+      // COUNT=1) instead of PersonalHomeService querying GoogleCalendarService/
+      // TaskStore/ActionApprovalStore itself.
+      currentPersonalContextService?: CurrentPersonalContextService;
       dailyBriefStore?: DailyBriefStore;
-      taskStore?: TaskStore;
       activityStore?: ActivityStore;
       actionProposalStore?: ActionProposalStore;
       inboxStore?: InboxStore;
       creationStore?: CreationStore;
-      googleCalendarService?: GoogleCalendarService;
-      gmailService?: GmailService;
       identityStore?: IdentityStore;
     }
   ) {}
@@ -112,15 +110,35 @@ export class PersonalHomeService {
     const now = new Date();
     const todayDateKey = dateKey || now.toISOString().slice(0, 10);
 
-    // 1. Fetch pending approvals
-    let pendingApprovals: ActionApprovalRecord[] = [];
-    if (this.deps.actionApprovals) {
+    // 1-3, 6. Calendar/tasks/approvals/their source status — one call into
+    // the canonical R23.1 aggregator, never queried directly here.
+    let pendingApprovals: ContextApproval[] = [];
+    let userTasks: ContextTask[] = [];
+    let calendarEvents: ContextEvent[] = [];
+    let calendarStatus = 'CONNECTED';
+    let gmailStatus = 'CONNECTED';
+    if (this.deps.currentPersonalContextService) {
       try {
-        pendingApprovals = this.deps.actionApprovals.listPending(tenantId, principalId);
+        const context = await this.deps.currentPersonalContextService.buildCurrentContext({ tenantId, userId: principalId, now, requestId });
+        pendingApprovals = context.rightNow.pendingApprovals;
+        userTasks = context.today.tasks;
+        calendarEvents = context.today.events;
+        calendarStatus = context.sourceStatus.calendar === 'OK' ? 'CONNECTED' : 'UNAVAILABLE';
+        gmailStatus = context.sourceStatus.gmail === 'OK' ? 'CONNECTED' : 'UNAVAILABLE';
       } catch {
-        pendingApprovals = [];
+        calendarStatus = 'UNAVAILABLE';
+        gmailStatus = 'UNAVAILABLE';
       }
+    } else {
+      calendarStatus = 'UNAVAILABLE';
+      gmailStatus = 'UNAVAILABLE';
     }
+    let calendarMeetings: HomeCalendarItem[] = calendarEvents.map((e) => ({
+      id: e.id,
+      title: e.title,
+      startsAt: e.startsAt,
+      endsAt: e.endsAt,
+    }));
 
     // 2. Fetch daily brief
     let dailyBrief: DailyBriefRecord | null = null;
@@ -129,16 +147,6 @@ export class PersonalHomeService {
         dailyBrief = this.deps.dailyBriefStore.getForDate(tenantId, principalId, todayDateKey);
       } catch {
         dailyBrief = null;
-      }
-    }
-
-    // 3. Fetch tasks
-    let userTasks: TaskRecord[] = [];
-    if (this.deps.taskStore) {
-      try {
-        userTasks = this.deps.taskStore.list(tenantId, principalId);
-      } catch {
-        userTasks = [];
       }
     }
 
@@ -162,35 +170,8 @@ export class PersonalHomeService {
       }
     }
 
-    // 6. Calendar & Gmail Source Status
-    let calendarStatus = 'CONNECTED';
-    let calendarMeetings: HomeCalendarItem[] = [];
-    if (this.deps.googleCalendarService) {
-      try {
-        const timeMin = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).toISOString();
-        const timeMax = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
-        const events = await this.deps.googleCalendarService.listUpcomingEvents({
-          tenantId,
-          timeMin,
-          timeMax,
-          maxResults: 10,
-          requestId,
-        });
-        calendarMeetings = (events || []).map((e: any) => ({
-          id: e.id || e.eventId || `evt_${Math.random().toString(36).slice(2)}`,
-          title: e.summary || e.title || 'Untitled Meeting',
-          startsAt: e.start?.dateTime || e.start?.date || e.startsAt || new Date().toISOString(),
-          endsAt: e.end?.dateTime || e.end?.date || e.endsAt,
-          summary: e.description || e.summary,
-        }));
-      } catch {
-        calendarStatus = 'UNAVAILABLE';
-        calendarMeetings = [];
-      }
-    } else {
-      calendarStatus = 'UNAVAILABLE';
-    }
-
+    // Calendar unavailable but a persisted Daily Brief still has a schedule
+    // — a DailyBrief-specific fallback, unrelated to the R23.1 aggregator.
     if (calendarMeetings.length === 0 && dailyBrief && Array.isArray(dailyBrief.schedule)) {
       calendarMeetings = dailyBrief.schedule.map((m: any) => ({
         id: m.sourceId || m.id || `m_${Math.random().toString(36).slice(2)}`,
@@ -198,11 +179,6 @@ export class PersonalHomeService {
         startsAt: m.start || m.timestamp || new Date().toISOString(),
         summary: m.capability || m.summary,
       }));
-    }
-
-    let gmailStatus = 'CONNECTED';
-    if (!this.deps.gmailService) {
-      gmailStatus = 'UNAVAILABLE';
     }
 
     // 7. Resolve RIGHT NOW (Deterministic Priority Resolver)
@@ -216,11 +192,11 @@ export class PersonalHomeService {
         type: 'APPROVAL',
         title: `Approval Required: ${topApproval.toolId}`,
         summary: `Action requires human authorization before proceeding.`,
-        sourceRef: topApproval.approvalId,
+        sourceRef: topApproval.id,
         action: { type: 'REVIEW_APPROVAL', label: 'Review' },
         occurredAt: topApproval.createdAt,
       };
-      rightNowSourceIds.add(topApproval.approvalId);
+      rightNowSourceIds.add(topApproval.id);
     }
 
     // Priority 2: Failed/blocked task needing user input
@@ -231,11 +207,11 @@ export class PersonalHomeService {
           type: 'BLOCKED_TASK',
           title: `Task Requires Attention: ${failedTask.name}`,
           summary: failedTask.objective,
-          sourceRef: failedTask.taskId,
+          sourceRef: failedTask.id,
           action: { type: 'INSPECT_TASK', label: 'Inspect' },
           occurredAt: failedTask.updatedAt || failedTask.createdAt,
         };
-        rightNowSourceIds.add(failedTask.taskId);
+        rightNowSourceIds.add(failedTask.id);
       }
     }
 
@@ -295,14 +271,14 @@ export class PersonalHomeService {
     // 9. Build NEEDS YOUR ATTENTION section (max 5)
     const needsAttention: HomeItem[] = [];
     for (const apr of pendingApprovals) {
-      if (rightNowSourceIds.has(apr.approvalId)) continue;
+      if (rightNowSourceIds.has(apr.id)) continue;
       needsAttention.push({
-        id: `attn_${apr.approvalId}`,
+        id: `attn_${apr.id}`,
         type: 'APPROVAL',
         title: `Approval Required: ${apr.toolId}`,
         summary: `Action requires human confirmation`,
         sourceType: 'APPROVAL',
-        sourceId: apr.approvalId,
+        sourceId: apr.id,
         createdAt: apr.createdAt,
         action: { type: 'REVIEW_APPROVAL', label: 'Review' },
       });
@@ -311,14 +287,14 @@ export class PersonalHomeService {
     for (const task of userTasks) {
       if (needsAttention.length >= 5) break;
       if (task.status === 'FAILED' || task.status === 'WAITING') {
-        if (rightNowSourceIds.has(task.taskId)) continue;
+        if (rightNowSourceIds.has(task.id)) continue;
         needsAttention.push({
-          id: `attn_${task.taskId}`,
+          id: `attn_${task.id}`,
           type: 'BLOCKED_TASK',
           title: `Task Blocked: ${task.name}`,
           summary: task.objective,
           sourceType: 'TASK',
-          sourceId: task.taskId,
+          sourceId: task.id,
           createdAt: task.createdAt,
           action: { type: 'INSPECT_TASK', label: 'Inspect' },
         });
@@ -389,14 +365,13 @@ export class PersonalHomeService {
       if (workingForYou.length >= 5) break;
       if (task.status === 'RUNNING' || task.status === 'ACTIVE') {
         workingForYou.push({
-          id: `wrk_${task.taskId}`,
+          id: `wrk_${task.id}`,
           type: 'TASK',
           title: task.name,
           summary: task.objective,
           sourceType: 'TASK',
-          sourceId: task.taskId,
+          sourceId: task.id,
           createdAt: task.createdAt,
-          dueAt: task.trigger?.schedule,
         });
       }
     }

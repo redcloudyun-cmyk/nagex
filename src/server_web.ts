@@ -34,6 +34,7 @@ import { handlePerspectiveCompareRoutes } from './http/routes/perspective-compar
 import { handleForecastCompareRoutes } from './http/routes/forecast-compare.routes.js';
 import { handleDailyBriefRoutes } from './http/routes/daily-brief.routes.js';
 import { handlePersonalHomeRoutes } from './http/routes/personal-home.routes.js';
+import { handlePersonalContextRoutes } from './http/routes/personal-context.routes.js';
 import { handlePersonalAssistantRoutes } from './http/routes/personal-assistant.routes.js';
 import { handleCapabilitiesRoutes } from './http/routes/capabilities.routes.js';
 import { handleMySpaceRoutes } from './http/routes/my-space.routes.js';
@@ -545,6 +546,11 @@ export async function handleAsyncApiRequest(
     {
       const personalHomeResult = await handlePersonalHomeRoutes(method, pathname, body, headers, query, { personalHomeService: app.personalHomeService, modelErrorResult });
       if (personalHomeResult) return personalHomeResult;
+    }
+    // R23.1 — Personal Context Aggregation Route (read-only)
+    {
+      const personalContextResult = await handlePersonalContextRoutes(method, pathname, body, headers, query, { currentPersonalContextService: app.currentPersonalContextService, modelErrorResult });
+      if (personalContextResult) return personalContextResult;
     }
 
     {

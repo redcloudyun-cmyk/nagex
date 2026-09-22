@@ -124,6 +124,13 @@
     ],
     "mobile": [
       "r22_1_mobile_home"
+    ],
+    "personal-context": [
+      "r23_1_personal_context",
+      "r22_8_personal_home",
+      "memory_tenant_isolation",
+      "memory_relevance",
+      "r22_3_personal_context_memory"
     ]
   },
   "fullOnly": [

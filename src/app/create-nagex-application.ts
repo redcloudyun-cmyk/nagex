@@ -29,6 +29,7 @@ import { UnifiedModelRouter } from '../model-gateway/unified-model-router.js';
 import { PerspectiveCompareService } from '../model-gateway/perspective-compare.service.js';
 import { ForecastCompareService } from '../model-gateway/forecast-compare.service.js';
 import { PersonalHomeService } from '../home/personal-home.service.js';
+import { CurrentPersonalContextService } from '../personal/current-personal-context.service.js';
 import { skillRegistry as canonicalSkillRegistry } from '../skills/skill-registry.js';
 import { toolRegistry as canonicalToolRegistry } from '../tools/tool-registry.js';
 import { PlanResolver } from '../planning/plan-resolver.js';
@@ -551,16 +552,29 @@ export function createNagexApplication(): NagexApplication {
     aiService,
   });
 
-  const personalHomeService = new PersonalHomeService({
-    actionApprovals,
-    dailyBriefStore,
+  // R23.1 — the one canonical Calendar/Task/Reminder/Approval/Inbox/Vault/
+  // Memory aggregation pipeline (CONTEXT_AGGREGATION_PIPELINE_COUNT=1).
+  // PersonalHomeService below consumes this for those sources instead of
+  // querying them itself, rather than the two services maintaining
+  // parallel aggregation logic over the same stores.
+  const currentPersonalContextService = new CurrentPersonalContextService({
+    googleCalendarService,
+    gmailService,
     taskStore,
+    personalReminderStore,
+    actionApprovals,
+    captureStore,
+    vaultStore,
+    personalContextService,
+  });
+
+  const personalHomeService = new PersonalHomeService({
+    currentPersonalContextService,
+    dailyBriefStore,
     activityStore,
     actionProposalStore,
     inboxStore,
     creationStore,
-    googleCalendarService,
-    gmailService,
   });
 
   return {
@@ -572,6 +586,7 @@ export function createNagexApplication(): NagexApplication {
     personalReminderStore,
     personalAssistantEngine,
     personalHomeService,
+    currentPersonalContextService,
     identityStore,
     identityTokenStore,
     identityAuditStore,

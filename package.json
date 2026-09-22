@@ -27,7 +27,8 @@
     "test:memory-context": "npm run test:scope -- memory-context",
     "test:capture": "npm run test:scope -- capture",
     "test:model-routing": "npm run test:scope -- model-routing",
-    "test:mobile": "npm run test:scope -- mobile"
+    "test:mobile": "npm run test:scope -- mobile",
+    "test:personal-context": "npm run test:scope -- personal-context"
   },
   "build": {
     "appId": "com.nagex.desktop",

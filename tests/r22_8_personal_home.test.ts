@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import { chromium, type Browser } from 'playwright';
 import { PersonalHomeService } from '../src/home/personal-home.service.js';
+import { CurrentPersonalContextService } from '../src/personal/current-personal-context.service.js';
 import { PersistentActionApprovalStore } from '../src/governance/action-approval.store.js';
 import { DailyBriefStore } from '../src/governance/daily-brief.store.js';
 import { TaskStore } from '../src/tasks/task.store.js';
@@ -35,24 +36,30 @@ test('R22.8 - PersonalHomeService Priority Resolver & Aggregation Logic', async 
   const inboxStore = new InboxStore();
   const creationStore = new CreationStore();
 
+  // R23.1 — real UpcomingCalendarEvent shape (id/title/start/end/attendees),
+  // not the loose partial fixture the old direct-fetch code tolerated —
+  // PersonalHomeService now only ever sees calendar data by way of
+  // CurrentPersonalContextService's real, typed mapping.
   const mockCalendar = {
     listUpcomingEvents: async () => [
-      { id: 'evt_1', title: 'Team Sync', start: new Date(Date.now() + 15 * 60 * 1000).toISOString() }
+      { id: 'evt_1', title: 'Team Sync', start: new Date(Date.now() + 15 * 60 * 1000).toISOString(), end: new Date(Date.now() + 45 * 60 * 1000).toISOString(), status: 'confirmed', updated: null, attendees: [] }
     ]
   } as unknown as GoogleCalendarService;
 
   const mockGmail = {} as unknown as GmailService;
 
   const homeService = new PersonalHomeService({
-    actionApprovals,
+    currentPersonalContextService: new CurrentPersonalContextService({
+      googleCalendarService: mockCalendar,
+      gmailService: mockGmail,
+      taskStore,
+      actionApprovals,
+    }),
     dailyBriefStore,
-    taskStore,
     activityStore,
     actionProposalStore,
     inboxStore,
     creationStore,
-    googleCalendarService: mockCalendar,
-    gmailService: mockGmail,
   });
 
   await t.test('Scenario B - Zero Data / Empty State', async () => {
@@ -61,15 +68,17 @@ test('R22.8 - PersonalHomeService Priority Resolver & Aggregation Logic', async 
     } as unknown as GoogleCalendarService;
 
     const emptyService = new PersonalHomeService({
-      actionApprovals: new PersistentActionApprovalStore({ dir: path.join(createTempDir('empty-appr-'), 'approvals') }),
+      currentPersonalContextService: new CurrentPersonalContextService({
+        googleCalendarService: zeroCalendar,
+        gmailService: mockGmail,
+        taskStore: new TaskStore({ dir: path.join(createTempDir('empty-tsk-'), 'tasks') }),
+        actionApprovals: new PersistentActionApprovalStore({ dir: path.join(createTempDir('empty-appr-'), 'approvals') }),
+      }),
       dailyBriefStore: new DailyBriefStore({ dir: path.join(createTempDir('empty-brief-'), 'briefs') }),
-      taskStore: new TaskStore({ dir: path.join(createTempDir('empty-tsk-'), 'tasks') }),
       activityStore: new ActivityStore({ dir: path.join(createTempDir('empty-act-'), 'activity') }),
       actionProposalStore: new ActionProposalStore({ dir: path.join(createTempDir('empty-prop-'), 'proposals') }),
       inboxStore: new InboxStore(),
       creationStore: new CreationStore({ dir: path.join(createTempDir('empty-cr-'), 'creations') }),
-      googleCalendarService: zeroCalendar,
-      gmailService: mockGmail,
     });
 
     const res = await emptyService.getPersonalHome({ tenantId, principalId });
@@ -108,15 +117,17 @@ test('R22.8 - PersonalHomeService Priority Resolver & Aggregation Logic', async 
     } as unknown as GoogleCalendarService;
 
     const degradedService = new PersonalHomeService({
-      actionApprovals,
+      currentPersonalContextService: new CurrentPersonalContextService({
+        googleCalendarService: failingCalendar,
+        gmailService: mockGmail,
+        taskStore,
+        actionApprovals,
+      }),
       dailyBriefStore,
-      taskStore,
       activityStore,
       actionProposalStore,
       inboxStore,
       creationStore,
-      googleCalendarService: failingCalendar,
-      gmailService: mockGmail,
     });
 
     const res = await degradedService.getPersonalHome({ tenantId, principalId });

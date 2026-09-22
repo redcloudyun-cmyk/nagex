@@ -107,10 +107,13 @@
       "classification": "REAL_BROWSER_CERT",
       "canonical": true,
       "scopes": [
+        "approvals",
         "browser",
         "capture",
         "memory-context",
         "model-routing",
+        "runtime",
+        "tasks",
         "ux"
       ],
       "externalDependencies": [],
@@ -1745,6 +1748,7 @@
         "integrations",
         "memory-context",
         "model-routing",
+        "runtime",
         "ux"
       ],
       "externalDependencies": [],
@@ -1872,6 +1876,7 @@
         "model-routing",
         "runtime",
         "security",
+        "tasks",
         "ux"
       ],
       "externalDependencies": [],
@@ -2939,6 +2944,28 @@
       "notes": "Runs observable UI behavior in a real Playwright Chromium browser.",
       "writesRepositoryArtifacts": false
     },
+    "r23_1_personal_context": {
+      "milestone": "R23.1",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "capture",
+        "integrations",
+        "memory-context",
+        "personal-home",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
     "rbac_lifecycle": {
       "milestone": "Cross-cutting",
       "classification": "CANONICAL_BEHAVIOR",
@@ -3052,6 +3079,7 @@
         "browser",
         "identity-access",
         "integrations",
+        "model-routing",
         "runtime",
         "security",
         "tasks",
