@@ -60,10 +60,13 @@ const liveToolRegistry = new ToolRegistry([
 ]);
 const planResolver = new PlanResolver(skillRegistry, liveToolRegistry);
 
+// Plan generation is structured/JSON-returning execution planning; Nebius
+// (not OpenAI, whose real capability declaration correctly lacks JSON/
+// structured support) is the real provider that satisfies it.
 function aiServiceReturning(rawPlan: unknown): AiService {
   const providers = createProviders(
-    { OPENAI_API_KEY: 'test-key', NAGEX_OPENAI_MODEL: 'test-p04-model' },
-    async () => jsonResponse({ output_text: JSON.stringify(rawPlan) }),
+    { NEBIUS_API_KEY: 'test-key', NAGEX_NEBIUS_MODEL: 'test-p04-model', NAGEX_PROVIDER_PRIORITY: 'nebius' },
+    async () => jsonResponse({ choices: [{ message: { content: JSON.stringify(rawPlan) } }] }),
   );
   return new AiService(new UnifiedModelRouter(providers, { info: () => {}, warn: () => {} }));
 }

@@ -28,6 +28,12 @@ function validCalendarPayload(overrides: Record<string, unknown> = {}) {
 const planningProvider: ModelProvider = {
   name: 'openai',
   model: 'test-openai-model',
+  // This fixture returns a structured JSON plan regardless of its 'openai'
+  // name — it is a fake provider, not the real OpenAIProvider (whose actual
+  // capability declaration in src/model-gateway/providers.ts is untouched
+  // and correctly false for JSON/structured), so its capabilities must
+  // truthfully reflect what it actually does: structured plan generation.
+  capabilities: { provider: 'openai', supportsJsonMode: true, supportsGeneralChat: true, supportsStructuredExtraction: true },
   status: () => ({ configured: true, available: true, provider: 'openai', model: 'test-openai-model', status: 'LIVE' as const, lastCheckedAt: null, degradedReason: null }),
   generate: async (request) => ({
     text: JSON.stringify({

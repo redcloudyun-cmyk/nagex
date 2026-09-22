@@ -71,6 +71,8 @@ function buildMockAiService(responseText: string, capture?: { lastPrompt: string
   const provider: ModelProvider = {
     name: 'test',
     model: 'test-model',
+    // Conditional Watch's judgment call is structured/JSON-returning.
+    capabilities: { provider: 'test', supportsJsonMode: true, supportsGeneralChat: true, supportsStructuredExtraction: true },
     status: () => ({ configured: true, available: true, provider: 'test', model: 'test-model', status: 'LIVE' as const, lastCheckedAt: null, degradedReason: null }),
     generate: async (request) => {
       if (capture) capture.lastPrompt = request.messages[request.messages.length - 1]?.content || '';

@@ -7,16 +7,26 @@
 // 4. Approval Gate (/api/v1/approvals & /api/v1/candidates/:id/execute)
 // 5. Activity Projection (/api/v1/activity)
 // 6. Vault & Inbox State (/api/v1/workspace/vault & /api/v1/workspace/inbox)
-process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY || 'test_openai_key';
-process.env.NAGEX_OPENAI_MODEL = process.env.NAGEX_OPENAI_MODEL || 'gpt-4o';
+// Ambient intent / plan resolution is structured/JSON-returning execution
+// planning, which OpenAI's real capability declaration correctly does not
+// support (see src/model-gateway/providers.ts) — Nebius is the real
+// provider that does, so this fixture is configured and shaped for it
+// (real endpoint, real chat-completions response contract), not OpenAI.
+const origOpenAiKey = process.env.OPENAI_API_KEY;
+const origNebiusKey = process.env.NEBIUS_API_KEY;
+const origNebiusModel = process.env.NAGEX_NEBIUS_MODEL;
+const origProviderPriority = process.env.NAGEX_PROVIDER_PRIORITY;
+process.env.NEBIUS_API_KEY = process.env.NEBIUS_API_KEY || 'test_nebius_key';
+process.env.NAGEX_NEBIUS_MODEL = process.env.NAGEX_NEBIUS_MODEL || 'test-model';
+process.env.NAGEX_PROVIDER_PRIORITY = process.env.NAGEX_PROVIDER_PRIORITY || 'nebius';
 
 const origFetch = globalThis.fetch;
 globalThis.fetch = async function (input: any, init?: any) {
   const url = typeof input === 'string' ? input : input?.url || '';
-  if (url.includes('api.openai.com') || url.includes('api.nebius.ai') || url.includes('generativelanguage.googleapis.com')) {
+  if (url.includes('tokenfactory.nebius.com') || url.includes('api.openai.com') || url.includes('generativelanguage.googleapis.com')) {
     return new Response(
       JSON.stringify({
-        output_text: JSON.stringify({
+        choices: [{ message: { content: JSON.stringify({
           goal: 'Schedule team sync',
           summary: 'Schedule team meeting tomorrow at 3pm',
           reasoningSummary: 'Creating calendar event',
@@ -33,7 +43,7 @@ globalThis.fetch = async function (input: any, init?: any) {
               parameters: {},
             },
           ],
-        }),
+        }) } }],
       }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     );
@@ -41,10 +51,22 @@ globalThis.fetch = async function (input: any, init?: any) {
   return origFetch(input, init);
 };
 
-import { test } from 'node:test';
+import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import { createServerInstance } from '../src/server_web.js';
+
+// This file mutates process-wide globals (globalThis.fetch, process.env) at
+// module load time, which — run as part of the full regression suite in one
+// shared node process — would otherwise silently leak into every test file
+// loaded afterward. Restore them once this file's own tests are done.
+after(() => {
+  globalThis.fetch = origFetch;
+  if (origOpenAiKey === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = origOpenAiKey;
+  if (origNebiusKey === undefined) delete process.env.NEBIUS_API_KEY; else process.env.NEBIUS_API_KEY = origNebiusKey;
+  if (origNebiusModel === undefined) delete process.env.NAGEX_NEBIUS_MODEL; else process.env.NAGEX_NEBIUS_MODEL = origNebiusModel;
+  if (origProviderPriority === undefined) delete process.env.NAGEX_PROVIDER_PRIORITY; else process.env.NAGEX_PROVIDER_PRIORITY = origProviderPriority;
+});
 
 async function withServer(run: (origin: string) => Promise<void>): Promise<void> {
   const instance = createServerInstance();

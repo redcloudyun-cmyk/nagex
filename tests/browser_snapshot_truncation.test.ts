@@ -73,8 +73,8 @@ function buildMockAiService(payload: Partial<TextUnderstandingResult> & { title:
     ...payload,
   };
   const providers = createProviders(
-    { OPENAI_API_KEY: 'test-key', NAGEX_OPENAI_MODEL: 'test-truncation-model' },
-    async () => jsonResponse({ output_text: JSON.stringify(full) }),
+    { NEBIUS_API_KEY: 'test-key', NAGEX_NEBIUS_MODEL: 'test-truncation-model', NAGEX_PROVIDER_PRIORITY: 'nebius' },
+    async () => jsonResponse({ choices: [{ message: { content: JSON.stringify(full) } }] }),
   );
   return new AiService(new UnifiedModelRouter(providers, { info: () => {}, warn: () => {} }));
 }

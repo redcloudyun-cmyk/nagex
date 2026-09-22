@@ -19,7 +19,7 @@ import { GoogleCalendarService } from '../src/modules/calendar/index.js';
 import { GmailService } from '../src/modules/gmail/gmail.service.js';
 import { AiService } from '../src/model-gateway/ai-service.js';
 import { UnifiedModelRouter } from '../src/model-gateway/unified-model-router.js';
-import type { ModelProvider, ModelRequest, ModelResponse, ProviderStatus } from '../src/model-gateway/model-provider.js';
+import { createStructuredModelProvider, createDeferredStructuredProvider } from './_model_provider_fixtures.js';
 import { TaskStore } from '../src/tasks/task.store.js';
 import { ActivityStore } from '../src/governance/activity.store.js';
 import { DailyBriefStore } from '../src/governance/daily-brief.store.js';
@@ -35,18 +35,8 @@ function jsonResponse(data: unknown, status = 200): Response {
 
 const config: GoogleOAuthConfig = { clientId: 'cid', clientSecret: 'csecret', redirectUri: 'https://nagex-test.agex.site/api/v1/oauth/google/callback' };
 
-function fakeModelProvider(reply: () => string | Error): ModelProvider {
-  return {
-    name: 'nebius',
-    model: 'test-model',
-    status: (): ProviderStatus => ({ configured: true, available: true, provider: 'nebius', model: 'test-model', status: 'LIVE', lastCheckedAt: null, degradedReason: null }),
-    generate: async (request: ModelRequest): Promise<ModelResponse> => {
-      const result = reply();
-      if (result instanceof Error) throw result;
-      return { text: result, provider: 'nebius', model: 'test-model', latencyMs: 1, requestId: request.requestId };
-    },
-  };
-}
+// DAILY_BRIEF generation is structured/JSON output (summary + actionItems).
+const fakeModelProvider = createStructuredModelProvider;
 
 function buildHarness(modelReply: () => string | Error = () => JSON.stringify({ summary: 'ok', actionItems: [] })) {
   const calendarTokenStore = new InMemoryGoogleOAuthTokenStore();
@@ -246,19 +236,10 @@ test('end-to-end: TaskScheduler.runOne on a real due DAILY_BRIEF task calls fina
 });
 
 test('R10.1: task.status is genuinely RUNNING while a scheduled generation is in flight (backs Home\'s "Generating" state)', async () => {
-  let resolveGenerate!: (text: string) => void;
-  const deferred = new Promise<string>((resolve) => { resolveGenerate = resolve; });
   const h = buildHarness();
   // Override with a provider whose generate() we control, so we can
   // observe task.status mid-run before letting it complete.
-  const deferredProvider: ModelProvider = {
-    name: 'nebius', model: 'test-model',
-    status: (): ProviderStatus => ({ configured: true, available: true, provider: 'nebius', model: 'test-model', status: 'LIVE', lastCheckedAt: null, degradedReason: null }),
-    generate: async (request: ModelRequest): Promise<ModelResponse> => {
-      const text = await deferred;
-      return { text, provider: 'nebius', model: 'test-model', latencyMs: 1, requestId: request.requestId };
-    },
-  };
+  const { provider: deferredProvider, resolve: resolveGenerate } = createDeferredStructuredProvider();
   h.aiService = new AiService(new UnifiedModelRouter([deferredProvider], { info: () => {}, warn: () => {} }));
 
   const runner = new DailyBriefTaskRunner(

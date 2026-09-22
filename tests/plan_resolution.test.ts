@@ -109,10 +109,13 @@ function jsonResponse(data: unknown, status = 200): Response {
 // A single-provider AiService whose one provider always returns exactly
 // `rawPlan` as the model's JSON text — mirrors this repo's established
 // mock-model pattern (see tests/candidate_model.test.ts's buildMockAiService).
+// Plan generation is structured/JSON-returning; Nebius (not OpenAI, whose
+// real capability declaration correctly lacks JSON/structured support) is
+// the real provider that satisfies it.
 function aiServiceReturning(rawPlan: unknown): AiService {
   const providers = createProviders(
-    { OPENAI_API_KEY: 'test-key', NAGEX_OPENAI_MODEL: 'test-plan-model' },
-    async () => jsonResponse({ output_text: JSON.stringify(rawPlan) }),
+    { NEBIUS_API_KEY: 'test-key', NAGEX_NEBIUS_MODEL: 'test-plan-model', NAGEX_PROVIDER_PRIORITY: 'nebius' },
+    async () => jsonResponse({ choices: [{ message: { content: JSON.stringify(rawPlan) } }] }),
   );
   return new AiService(new UnifiedModelRouter(providers, { info: () => {}, warn: () => {} }));
 }

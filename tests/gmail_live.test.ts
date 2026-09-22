@@ -444,6 +444,8 @@ function buildGmailPlanningService(): AiService {
   const provider: ModelProvider = {
     name: 'test',
     model: 'test-model',
+    // Plan generation is structured/JSON-returning execution planning.
+    capabilities: { provider: 'test', supportsJsonMode: true, supportsGeneralChat: true, supportsStructuredExtraction: true },
     status: () => ({ configured: true, available: true, provider: 'test', model: 'test-model', status: 'LIVE' as const, lastCheckedAt: null, degradedReason: null }),
     generate: async (request) => ({
       text: JSON.stringify({

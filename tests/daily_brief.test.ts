@@ -15,7 +15,8 @@ import { GoogleCalendarService } from '../src/modules/calendar/index.js';
 import { GmailService } from '../src/modules/gmail/gmail.service.js';
 import { AiService } from '../src/model-gateway/ai-service.js';
 import { UnifiedModelRouter } from '../src/model-gateway/unified-model-router.js';
-import type { ModelProvider, ModelRequest, ModelResponse, ProviderStatus } from '../src/model-gateway/model-provider.js';
+import type { ModelProvider } from '../src/model-gateway/model-provider.js';
+import { createStructuredModelProvider } from './_model_provider_fixtures.js';
 import { handleAsyncApiRequest, actionApprovals as sharedActionApprovals, dailyBriefStore as sharedDailyBriefStore } from '../src/server_web.js';
 import { DailyBriefStore, dailyBriefDateKey } from '../src/governance/daily-brief.store.js';
 import os from 'node:os';
@@ -32,18 +33,10 @@ const GMAIL_SCOPE = GMAIL_SCOPES.join(' ');
 
 // A fully scriptable fake ModelProvider — full control over the brief JSON
 // without needing to route through a real provider HTTP shape (that's
-// already covered by model_provider_integration.test.ts).
+// already covered by model_provider_integration.test.ts). Daily brief
+// synthesis is structured/JSON output (summary + actionItems).
 function fakeModelProvider(reply: () => string | Error, name = 'nebius'): ModelProvider {
-  return {
-    name,
-    model: 'test-model',
-    status: (): ProviderStatus => ({ configured: true, available: true, provider: name, model: 'test-model', status: 'LIVE', lastCheckedAt: null, degradedReason: null }),
-    generate: async (request: ModelRequest): Promise<ModelResponse> => {
-      const result = reply();
-      if (result instanceof Error) throw result;
-      return { text: result, provider: name, model: 'test-model', latencyMs: 1, requestId: request.requestId };
-    },
-  };
+  return createStructuredModelProvider(reply, { name, model: 'test-model' });
 }
 
 function buildHarness(opts: {

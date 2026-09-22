@@ -63,10 +63,13 @@ function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
+// Plan generation is structured/JSON-returning execution planning, which
+// OpenAI's real capability declaration correctly does not support (see
+// src/model-gateway/providers.ts) — Nebius is the real provider that does.
 function aiServiceReturning(rawPlan: unknown): AiService {
   const providers = createProviders(
-    { OPENAI_API_KEY: 'test-key', NAGEX_OPENAI_MODEL: 'test-step-executor-model' },
-    async () => jsonResponse({ output_text: JSON.stringify(rawPlan) }),
+    { NEBIUS_API_KEY: 'test-key', NAGEX_NEBIUS_MODEL: 'test-step-executor-model', NAGEX_PROVIDER_PRIORITY: 'nebius' },
+    async () => jsonResponse({ choices: [{ message: { content: JSON.stringify(rawPlan) } }] }),
   );
   return new AiService(new UnifiedModelRouter(providers, { info: () => {}, warn: () => {} }));
 }

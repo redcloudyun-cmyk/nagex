@@ -330,6 +330,10 @@ test('router accepts a future provider adapter without core routing changes', as
   const futureProvider = {
     name: 'future-llm',
     model: 'future-model-from-config',
+    // This test's point is router/adapter extensibility, not capability
+    // filtering — the fixture truthfully declares full support since it's
+    // a hypothetical future adapter, not standing in for any real provider.
+    capabilities: { provider: 'future-llm', supportsJsonMode: true, supportsGeneralChat: true, supportsStructuredExtraction: true },
     status: () => ({ configured: true, available: true, provider: 'future-llm', model: 'future-model-from-config', status: 'LIVE' as const, lastCheckedAt: null, degradedReason: null }),
     generate: async (request: ModelRequest) => ({ text: 'future response', provider: 'future-llm', model: 'future-model-from-config', latencyMs: 1, requestId: request.requestId }),
   };

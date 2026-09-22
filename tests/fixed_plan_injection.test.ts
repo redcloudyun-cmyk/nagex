@@ -76,10 +76,13 @@ function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
+// Plan generation is structured/JSON-returning execution planning; Nebius
+// (not OpenAI, whose real capability declaration correctly lacks JSON/
+// structured support) is the real provider that satisfies it.
 function aiServiceReturning(rawSteps: Array<Record<string, unknown>>): AiService {
   const providers = createProviders(
-    { OPENAI_API_KEY: 'test-key', NAGEX_OPENAI_MODEL: 'test-v01a-model' },
-    async () => jsonResponse({ output_text: JSON.stringify(rawPlan(rawSteps)) }),
+    { NEBIUS_API_KEY: 'test-key', NAGEX_NEBIUS_MODEL: 'test-v01a-model', NAGEX_PROVIDER_PRIORITY: 'nebius' },
+    async () => jsonResponse({ choices: [{ message: { content: JSON.stringify(rawPlan(rawSteps)) } }] }),
   );
   return new AiService(new UnifiedModelRouter(providers, { info: () => {}, warn: () => {} }));
 }
