@@ -69,8 +69,6 @@ globalThis.fetch = async function (input: any, init?: any) {
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { chromium, type Browser, type Page } from 'playwright';
 import { createServerInstance } from '../src/server_web.js';
@@ -88,20 +86,14 @@ declare const document: any;
 // ten_production_01 / x-principal-id: usr_admin_001 by default).
 googleTokenStore.save(DEFAULT_GOOGLE_TENANT_ID, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GOOGLE_CALENDAR_SCOPES.join(' ') });
 
-const ARTIFACT_DIR = 'C:/Users/redcl/.gemini/antigravity-ide/brain/0c158dbd-56ec-400e-8cb7-91fef63699dd';
-const LOCAL_SCREENSHOT_DIR = path.resolve('artifacts/screenshots');
-
-function ensureDirectoriesExist(): void {
-  fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
-  fs.mkdirSync(LOCAL_SCREENSHOT_DIR, { recursive: true });
-}
-
-async function saveScreenshot(page: Page, filename: string): Promise<void> {
-  const p1 = path.join(ARTIFACT_DIR, filename);
-  const p2 = path.join(LOCAL_SCREENSHOT_DIR, filename);
+// Screenshot evidence stays in memory only — this test never creates or
+// modifies anything under artifacts/. Capturing the real rendered bytes
+// (and asserting they're non-trivial) is what proves the scenario actually
+// rendered, without persisting a file anywhere.
+async function captureScreenshotEvidence(page: Page): Promise<Buffer> {
   const buffer = await page.screenshot({ fullPage: true });
-  fs.writeFileSync(p1, buffer);
-  fs.writeFileSync(p2, buffer);
+  assert.ok(buffer.length > 1000, 'expected a real, non-trivial rendered screenshot');
+  return buffer;
 }
 
 async function startServer(): Promise<{ origin: string; close: () => Promise<void> }> {
@@ -123,13 +115,12 @@ async function startServer(): Promise<{ origin: string; close: () => Promise<voi
   };
 }
 
-test('R21 P0.1C REAL BROWSER CERTIFICATION: Clone Assistant Mockup Scenarios & Visual QA Screenshots', async () => {
-  ensureDirectoriesExist();
+test('R21 P0.1C real browser: ambient assistant research/meeting/calendar-approval flows render and execute end-to-end', async () => {
   const server = await startServer();
   const browser: Browser = await chromium.launch({ headless: true });
 
   try {
-    // 1. Desktop Research Working EN -> desktop_research_working_en.png
+    // 1. Desktop Research Working EN
     {
       const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
       await page.goto(`${server.origin}/index.html`);
@@ -141,11 +132,11 @@ test('R21 P0.1C REAL BROWSER CERTIFICATION: Clone Assistant Mockup Scenarios & V
       });
       await page.waitForSelector('#ambient-overlay-backdrop', { state: 'visible' });
 
-      await saveScreenshot(page, 'desktop_research_working_en.png');
+      await captureScreenshotEvidence(page);
       await page.close();
     }
 
-    // 2. Desktop Research Result EN -> desktop_research_result_en.png
+    // 2. Desktop Research Result EN
     {
       const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
       await page.goto(`${server.origin}/index.html`);
@@ -166,11 +157,11 @@ test('R21 P0.1C REAL BROWSER CERTIFICATION: Clone Assistant Mockup Scenarios & V
       const summaryTitle = await page.textContent('#ambient-summary-section .section-heading-title');
       assert.equal(summaryTitle?.trim(), 'Summary');
 
-      await saveScreenshot(page, 'desktop_research_result_en.png');
+      await captureScreenshotEvidence(page);
       await page.close();
     }
 
-    // 3. Desktop Meeting Working EN -> desktop_meeting_working_en.png
+    // 3. Desktop Meeting Working EN
     {
       const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
       await page.goto(`${server.origin}/index.html`);
@@ -190,11 +181,11 @@ test('R21 P0.1C REAL BROWSER CERTIFICATION: Clone Assistant Mockup Scenarios & V
       const taskTitle = await page.textContent('#ambient-task-display-title');
       assert.equal(taskTitle?.trim(), 'Preparing your client meeting');
 
-      await saveScreenshot(page, 'desktop_meeting_working_en.png');
+      await captureScreenshotEvidence(page);
       await page.close();
     }
 
-    // 4. Desktop Calendar Approval EN -> desktop_calendar_approval_en.png
+    // 4. Desktop Calendar Approval EN
     {
       const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
       await page.goto(`${server.origin}/index.html`);
@@ -220,7 +211,7 @@ test('R21 P0.1C REAL BROWSER CERTIFICATION: Clone Assistant Mockup Scenarios & V
       const approvalHeading = await page.textContent('#ambient-approval-heading');
       assert.equal(approvalHeading?.trim(), 'Ready to add to your calendar');
 
-      await saveScreenshot(page, 'desktop_calendar_approval_en.png');
+      await captureScreenshotEvidence(page);
 
       // R21 P1 — this used to be a fake setTimeout("Added to calendar ✓")
       // that never called any real API. Clicking Add to calendar must now
@@ -242,7 +233,7 @@ test('R21 P0.1C REAL BROWSER CERTIFICATION: Clone Assistant Mockup Scenarios & V
       await page.close();
     }
 
-    // 5. Mobile 390x844 Research Result KR -> 390x844_research_result_kr.png
+    // 5. Mobile 390x844 Research Result KR
     {
       const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
       await page.goto(`${server.origin}/index.html`);
@@ -268,11 +259,11 @@ test('R21 P0.1C REAL BROWSER CERTIFICATION: Clone Assistant Mockup Scenarios & V
 
       await page.waitForSelector('#ambient-summary-section', { state: 'visible', timeout: 15000 });
 
-      await saveScreenshot(page, '390x844_research_result_kr.png');
+      await captureScreenshotEvidence(page);
       await page.close();
     }
 
-    // 6. Mobile 390x844 Meeting Working KR -> 390x844_meeting_working_kr.png
+    // 6. Mobile 390x844 Meeting Working KR
     {
       const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
       await page.goto(`${server.origin}/index.html`);
@@ -297,7 +288,7 @@ test('R21 P0.1C REAL BROWSER CERTIFICATION: Clone Assistant Mockup Scenarios & V
 
       await page.waitForSelector('#ambient-surfaced-context', { state: 'visible', timeout: 15000 });
 
-      await saveScreenshot(page, '390x844_meeting_working_kr.png');
+      await captureScreenshotEvidence(page);
       await page.close();
     }
   } finally {

@@ -41,8 +41,8 @@ function fullResult(payload: Partial<TextUnderstandingResult> & { title: string;
 function buildMockAiService(payload: Partial<TextUnderstandingResult> & { title: string; summary: string }): AiService {
   const full = fullResult(payload);
   const providers = createProviders(
-    { OPENAI_API_KEY: 'test-key', NAGEX_OPENAI_MODEL: 'test-pdf-model' },
-    async () => jsonResponse({ output_text: JSON.stringify(full) }),
+    { NEBIUS_API_KEY: 'test-key', NAGEX_NEBIUS_MODEL: 'test-pdf-model', NAGEX_PROVIDER_PRIORITY: 'nebius' },
+    async () => jsonResponse({ choices: [{ message: { content: JSON.stringify(full) } }] }),
   );
   return new AiService(new UnifiedModelRouter(providers, { info: () => {}, warn: () => {} }));
 }
@@ -51,7 +51,7 @@ function buildMockAiService(payload: Partial<TextUnderstandingResult> & { title:
 // proves understanding is never attempted on a failed/zero-text extraction.
 function buildPoisonAiService(): AiService {
   const providers = createProviders(
-    { OPENAI_API_KEY: 'test-key', NAGEX_OPENAI_MODEL: 'test-pdf-model' },
+    { NEBIUS_API_KEY: 'test-key', NAGEX_NEBIUS_MODEL: 'test-pdf-model', NAGEX_PROVIDER_PRIORITY: 'nebius' },
     async () => { throw new Error('AiService must not be called for this capture.'); },
   );
   return new AiService(new UnifiedModelRouter(providers, { info: () => {}, warn: () => {} }));
@@ -67,10 +67,10 @@ const ACTION_MARKER = 'ACTION_ITEM_MARKER';
 // chunk rather than a guessed "first few chunks" reference.
 function buildChunkAwareAiService(): AiService {
   const providers = createProviders(
-    { OPENAI_API_KEY: 'test-key', NAGEX_OPENAI_MODEL: 'test-pdf-model' },
+    { NEBIUS_API_KEY: 'test-key', NAGEX_NEBIUS_MODEL: 'test-pdf-model', NAGEX_PROVIDER_PRIORITY: 'nebius' },
     async (_url, init) => {
       const body = JSON.parse(String((init as RequestInit).body));
-      const messages = body.input as Array<{ role: string; content: string }>;
+      const messages = body.messages as Array<{ role: string; content: string }>;
       const userContent = messages.find((m) => m.role === 'user')?.content || '';
 
       let result: TextUnderstandingResult;
@@ -97,7 +97,7 @@ function buildChunkAwareAiService(): AiService {
       } else {
         result = fullResult({ title: 'Background', summary: 'General background content about distributed systems and consensus protocols.', topics: ['Distributed Systems'] });
       }
-      return jsonResponse({ output_text: JSON.stringify(result) });
+      return jsonResponse({ choices: [{ message: { content: JSON.stringify(result) } }] });
     },
   );
   return new AiService(new UnifiedModelRouter(providers, { info: () => {}, warn: () => {} }));
@@ -304,10 +304,10 @@ test('11. A zero-byte PDF is refused outright — never processed as READY', asy
 
 test('12. Invalid JSON from one provider triggers real fallback to the next provider', async () => {
   const validPayload = fullResult({ title: 'Fallback-sourced PDF understanding', summary: 'Understood via the fallback provider.' });
-  const fetchFn: typeof fetch = async (url) => String(url).includes('openai.com')
-    ? jsonResponse({ output_text: 'this is not JSON at all' })
+  const fetchFn: typeof fetch = async (url) => String(url).includes('tokenfactory.nebius.com')
+    ? jsonResponse({ choices: [{ message: { content: 'this is not JSON at all' } }] })
     : jsonResponse({ candidates: [{ content: { parts: [{ text: JSON.stringify(validPayload) }] } }] });
-  const providers = createProviders({ OPENAI_API_KEY: 'a', NAGEX_OPENAI_MODEL: 'oa', GEMINI_API_KEY: 'g', NAGEX_GEMINI_MODEL: 'gm' }, fetchFn);
+  const providers = createProviders({ NEBIUS_API_KEY: 'n', NAGEX_NEBIUS_MODEL: 'nb', GEMINI_API_KEY: 'g', NAGEX_GEMINI_MODEL: 'gm', NAGEX_PROVIDER_PRIORITY: 'nebius,gemini' }, fetchFn);
   const aiService = new AiService(new UnifiedModelRouter(providers, { info: () => {}, warn: () => {} }));
   const { service } = buildHarness(aiService);
   const pdf = await generateTextPdf(['Short document content for provider fallback testing.']);
@@ -323,7 +323,7 @@ test('12. Invalid JSON from one provider triggers real fallback to the next prov
 
 test('13. When every provider fails, the PDF capture becomes FAILED — never a fake READY', async () => {
   const allFail = new AiService(new UnifiedModelRouter(
-    createProviders({ OPENAI_API_KEY: 'a', NAGEX_OPENAI_MODEL: 'oa' }, async () => jsonResponse({ error: 'server error' }, 500)),
+    createProviders({ NEBIUS_API_KEY: 'n', NAGEX_NEBIUS_MODEL: 'nb', NAGEX_PROVIDER_PRIORITY: 'nebius' }, async () => jsonResponse({ error: 'server error' }, 500)),
     { info: () => {}, warn: () => {} },
   ));
   const { service } = buildHarness(allFail);
@@ -409,7 +409,7 @@ test('17. Provider/model provenance is recorded truthfully on the PDF capture', 
     ownerId: 'usr_pdf_17', tenantId: 'ten_pdf', type: 'FILE', filename: 'provenance.pdf', mimeType: 'application/pdf', data: pdf, source: 'WEB',
   });
 
-  assert.equal(item.metadata.modelProvider, 'openai');
+  assert.equal(item.metadata.modelProvider, 'nebius');
   assert.equal(item.metadata.modelName, 'test-pdf-model');
   assert.ok(item.metadata.modelRequestId);
   assert.equal(typeof item.metadata.modelLatencyMs, 'number');

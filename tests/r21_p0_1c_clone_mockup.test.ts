@@ -3,14 +3,18 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-// R21 P0.1C — Clone the Approved NAgex Assistant Mockup Unit Test Suite
-// Verifies visual fidelity invariants, request isolation, result-first research UI,
-// progress step indicators, sources, bottom CTAs, and collapsed execution details.
+// R21 P0.1C — NAgex Assistant Ambient Sheet Unit Test Suite
+// Verifies request isolation, result-first research UI, progress step
+// indicators, sources, bottom CTAs, and collapsed execution details as
+// durable architecture contracts — keyed to the stable ids/keys the runtime
+// actually binds to via getElementById/i18n, not to clone-sourced CSS class
+// names or internal helper/variable names (see r21_p0_1c_real_browser.test.ts
+// for the corresponding real-DOM behavioral coverage).
 
-test('APPROVED_MOCKUP_CLONED: Assistant modal structure matches approved mockup hierarchy', () => {
+test('ASSISTANT_MODAL_STRUCTURE: Assistant modal exposes the stable ids the runtime binds to', () => {
   const html = fs.readFileSync(path.join(process.cwd(), 'public', 'index.html'), 'utf8');
 
-  assert.match(html, /class="ambient-sheet-modal clone-assistant-modal"/);
+  assert.match(html, /id="ambient-sheet-modal"/);
   assert.match(html, /id="ambient-task-title-card"/);
   assert.match(html, /id="ambient-request-card"/);
   assert.match(html, /id="ambient-progress-card"/);
@@ -24,17 +28,20 @@ test('APPROVED_MOCKUP_CLONED: Assistant modal structure matches approved mockup 
 test('SEARCH_REQUEST_SHOWS_RESEARCH_UI & DOES_NOT_SHOW_MEETING_UI: Search request renders research view without meeting leaks', () => {
   const appJs = fs.readFileSync(path.join(process.cwd(), 'public', 'app.js'), 'utf8');
 
-  assert.match(appJs, /function classifyIntentForUi/);
+  // Durable contract: a RESEARCH-classified request hides the meeting
+  // context box and its "why this meeting" grounding explanation, no
+  // matter which internal function performs the classification/reset.
   assert.match(appJs, /intent === 'RESEARCH'/);
-  // Meeting context box is explicitly hidden for research intents
   assert.match(appJs, /if \(contextBox\) contextBox\.style\.display = 'none';/);
   assert.match(appJs, /if \(groundingWhyEl\) groundingWhyEl\.style\.display = 'none';/);
 });
 
-test('REQUEST_STATE_ISOLATION & STALE_CONTEXT_LEAK: State reset function resets UI on every new request', () => {
+test('REQUEST_STATE_ISOLATION & STALE_CONTEXT_LEAK: Prior summary/sources are cleared before a new request renders', () => {
   const appJs = fs.readFileSync(path.join(process.cwd(), 'public', 'app.js'), 'utf8');
 
-  assert.match(appJs, /function resetAmbientFlowState\(\)/);
+  // Durable contract: summary and sources sections are hidden as part of
+  // resetting flow state, preventing a stale result from a prior request
+  // leaking into the next one — independent of the reset helper's name.
   assert.match(appJs, /if \(summarySection\) summarySection\.style\.display = 'none';/);
   assert.match(appJs, /if \(sourcesSection\) sourcesSection\.style\.display = 'none';/);
 });
@@ -42,7 +49,7 @@ test('REQUEST_STATE_ISOLATION & STALE_CONTEXT_LEAK: State reset function resets 
 test('TECHNICAL_HEADER_LABELS: Header in normal mode contains only logo, modal title, and close button', () => {
   const html = fs.readFileSync(path.join(process.cwd(), 'public', 'index.html'), 'utf8');
 
-  assert.match(html, /class="ambient-sheet-header mockup-header"/);
+  assert.match(html, /class="ambient-sheet-header\b/);
   assert.match(html, /id="ambient-modal-title"/);
   assert.match(html, /id="btn-close-ambient"/);
   // Lifecycle status span has display:none by default in normal mode
