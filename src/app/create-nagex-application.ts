@@ -113,7 +113,6 @@ import { WebSearchService } from '../research/web-search.service.js';
 import { EvidencePackService } from '../research/evidence-pack.service.js';
 
 export function createNagexApplication(): NagexApplication {
-  const demoScenarioService = new DemoScenarioService();
   const socialIdentityStore = new SocialIdentityStore();
   // ─── Boot NAgex Core Engine ───
   const identityStore = new IdentityStore();
@@ -388,6 +387,7 @@ export function createNagexApplication(): NagexApplication {
 
   // Seed on construction so the record is immediately present.
   seedDemoMemory();
+  const demoScenarioService = new DemoScenarioService(undefined, seedDemoMemory);
 
   const pinnedMemories = new Set<string>([mem2.id, mem3.id]);
 

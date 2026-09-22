@@ -58,7 +58,8 @@ const EXPECTED_ROUTE_MODULE_COUNTS: Record<string, number> = {
   'automations.routes.ts': 6,
   'browser.routes.ts': 17,
   'calendar.routes.ts': 6,
-  'capabilities.routes.ts': 1,
+  'capabilities.routes.ts': 2,
+  'capture.routes.ts': 1,
   'catalog.routes.ts': 5,
   'connections.routes.ts': 3,
   'conversation.routes.ts': 7,
@@ -66,20 +67,24 @@ const EXPECTED_ROUTE_MODULE_COUNTS: Record<string, number> = {
   'daily-brief.routes.ts': 6,
   'desktop.routes.ts': 3,
   'device-agent.routes.ts': 1,
+  'forecast-compare.routes.ts': 1,
   'gmail.routes.ts': 5,
   'google-oauth.routes.ts': 5,
   'governance.routes.ts': 5,
   'health.routes.ts': 2,
   'inbox.routes.ts': 6,
-  'memory.routes.ts': 6,
+  'memory.routes.ts': 13,
   'modules.routes.ts': 3,
   'my-space.routes.ts': 1,
   'notifications.routes.ts': 4,
   'organization.routes.ts': 20,
   'personal-assistant.routes.ts': 16,
+  'personal-home.routes.ts': 1,
+  'perspective-compare.routes.ts': 1,
   'providers.routes.ts': 2,
   'rbac.routes.ts': 9,
   'enterprise-identity.routes.ts': 25,
+  'research.routes.ts': 1,
   'scim.routes.ts': 9,
   'safety.routes.ts': 3,
   'settings.routes.ts': 4,
@@ -111,8 +116,8 @@ test('ROUTE-INV-002: every route module\'s method-check-block count exactly matc
   assert.deepEqual(mismatches, [], `Route module endpoint-count drift detected:\n${mismatches.join('\n')}`);
 });
 
-test('ROUTE-INV-003: the total domain endpoint count across all route modules is exactly 270 (including R21 social auth) — any change requires an intentional manifest update', () => {
-  assert.equal(TOTAL_DOMAIN_ENDPOINTS, 270);
+test('ROUTE-INV-003: the total domain endpoint count across all route modules is exactly 283 — any change requires an intentional manifest update', () => {
+  assert.equal(TOTAL_DOMAIN_ENDPOINTS, 283);
   let actualTotal = 0;
   for (const file of listRouteModuleFiles()) {
     actualTotal += countMethodChecks(readSourceWithoutComments(path.join(ROUTES_DIR, file)));

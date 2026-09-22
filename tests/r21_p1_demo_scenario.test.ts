@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { DemoScenarioService } from '../src/demo/demo-scenario.service.js';
+import { createNagexApplication } from '../src/app/create-nagex-application.js';
 
 test('Demo Reset restores canonical Alex Kim state without touching production stores', () => {
   const demo = new DemoScenarioService();
@@ -41,6 +42,36 @@ test('Quick Wake and Meeting Prep are derived from the canonical demo fixture', 
   assert.deepEqual(prep.related_materials.map((item: any) => item.type), ['VAULT', 'VAULT', 'EMAIL', 'MEMORY', 'TASK']);
   console.log('DEMO_MEETING_PREP_VAULT_REFERENCES_VALID=PASS');
   console.log('R21_P1_DEMO_SCENARIO=PASS');
+});
+
+test('Demo reset reseeds the canonical MemoryEngine record through the demo-domain owner', () => {
+  const app = createNagexApplication();
+  const tenantId = 'ten_demo_hackathon';
+  const ownerId = 'usr_demo_alex';
+  const findDemoMemory = () => app.memoryEngine.getActiveMemories('USER', tenantId, ownerId).find(
+    (memory) => memory.content.subject === 'Meeting brief preference' && memory.content.predicate === 'prefers',
+  );
+
+  const seeded = findDemoMemory();
+  assert.ok(seeded);
+  app.memoryEngine.deleteMemory(seeded.id, tenantId, ownerId);
+  assert.equal(findDemoMemory(), undefined);
+
+  const reset = app.demoScenarioService.handle('POST', '/api/v1/demo/reset', {}, {
+    'x-nagex-tenant': tenantId,
+    'x-principal-id': ownerId,
+  });
+  assert.equal(reset?.status, 200);
+
+  const reseeded = findDemoMemory();
+  assert.ok(reseeded);
+  assert.equal(reseeded.scope, 'USER');
+  assert.equal(reseeded.type, 'PREFERENCE');
+  assert.equal(reseeded.lifecycle, 'ACTIVE');
+  assert.equal(reseeded.sensitivity, 'S1');
+  assert.equal(reseeded.userConfirmed, true);
+  assert.equal(reseeded.memoryOrigin, 'EXPLICIT_USER');
+  assert.equal(reseeded.provenance?.sourceType, 'MANUAL');
 });
 
 test('Demo Vault scenario aligns strictly with canonical VaultItem public contract', () => {

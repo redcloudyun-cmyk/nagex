@@ -314,12 +314,6 @@ export async function handleAsyncApiRequest(
       const reqHeaders = { ...headers, 'x-nagex-demo-session': effectiveSession };
       const demoResult = app.demoScenarioService.handle(method, pathname, body, reqHeaders);
       if (demoResult) {
-        // After a demo reset the real MemoryEngine must be re-seeded with the
-        // canonical demo persona record so GET /api/v1/memory (now served by
-        // handleMemoryRoutes rather than the interceptor) returns it.
-        if (pathname === '/api/v1/demo/reset' && method === 'POST') {
-          app.seedDemoMemory();
-        }
         if (newCookieSet) {
           demoResult.headers = {
             ...(demoResult.headers || {}),

@@ -24,7 +24,10 @@ export class DemoScenarioService {
   private readonly fixture: Fixture;
   private scopes = new Map<string, ScopeState>();
 
-  constructor(fixturePath = path.join(process.cwd(), 'demo', 'seed', 'canonical-persona.json')) {
+  constructor(
+    fixturePath = path.join(process.cwd(), 'demo', 'seed', 'canonical-persona.json'),
+    private readonly reseedCanonicalMemory: () => void = () => {},
+  ) {
     this.fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as Fixture;
   }
 
@@ -205,6 +208,7 @@ export class DemoScenarioService {
 
     if (pathname === '/api/v1/demo/reset' && method === 'POST') {
       this.reset(scopeKey);
+      this.reseedCanonicalMemory();
       return { status: 200, data: { success: true, message: 'Demo reset complete.' } };
     }
     if (pathname === '/api/v1/demo/state' && method === 'GET') {
