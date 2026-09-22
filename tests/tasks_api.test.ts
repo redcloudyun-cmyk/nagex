@@ -121,6 +121,12 @@ function buildPlanningService(): AiService {
   const provider: ModelProvider = {
     name: 'test',
     model: 'test-model',
+    capabilities: {
+      provider: 'test',
+      supportsJsonMode: true,
+      supportsGeneralChat: true,
+      supportsStructuredExtraction: true,
+    },
     status: () => ({ configured: true, available: true, provider: 'test', model: 'test-model', status: 'LIVE' as const, lastCheckedAt: null, degradedReason: null }),
     generate: async (request) => ({
       text: JSON.stringify({

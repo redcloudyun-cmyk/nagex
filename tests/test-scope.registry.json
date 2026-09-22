@@ -143,6 +143,7 @@
     "modal_behavior",
     "model_provider_integration",
     "model_provider_live",
+    "model_capability_contract",
     "module_registry",
     "module_state",
     "my_space",
@@ -203,6 +204,16 @@
     "r21_p1_ux_integration",
     "r21_p1_demo_scenario",
     "r21_p1_finalization_real_browser",
-    "r21_p1_social_auth"
+    "r21_p1_social_auth",
+    "r21_p1_deployed_certification",
+    "r22_1_mobile_home",
+    "r22_2_activity_vault",
+    "r22_3_personal_context_memory",
+    "r22_4_evidence_pack_web_search",
+    "r22_5_task_aware_model_routing",
+    "r22_6_perspective_compare",
+    "r22_7_forecast_compare",
+    "r22_8_personal_home",
+    "r22_9_personal_context_link_capture"
   ]
 }

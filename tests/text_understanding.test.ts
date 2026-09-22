@@ -29,7 +29,7 @@ function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
-// Builds a real AiService backed by a single "openai" provider whose HTTP
+// Builds a real AiService backed by a single "nebius" provider whose HTTP
 // call is mocked to return the given understanding payload — genuinely
 // exercises AiService.understand() -> UnifiedModelRouter.generate() ->
 // schema validation, not a bypass.
@@ -47,8 +47,8 @@ function buildMockAiService(payload: Partial<TextUnderstandingResult> & { title:
     ...payload,
   };
   const providers = createProviders(
-    { OPENAI_API_KEY: 'test-key', NAGEX_OPENAI_MODEL: 'test-understanding-model' },
-    async () => jsonResponse({ output_text: JSON.stringify(full) }),
+    { NEBIUS_API_KEY: 'test-key', NAGEX_NEBIUS_MODEL: 'test-understanding-model' },
+    async () => jsonResponse({ choices: [{ message: { content: JSON.stringify(full) } }] }),
   );
   return new AiService(new UnifiedModelRouter(providers, { info: () => {}, warn: () => {} }));
 }
@@ -173,10 +173,10 @@ test('7. Invalid JSON from one provider triggers real fallback to the next — n
     title: 'Fallback-sourced note', summary: 'Understood via the fallback provider.', contentType: 'note',
     topics: [], entities: [], dates: [], actionItems: [], taskCandidates: [], calendarCandidates: [], memoryCandidates: [], knowledgeCandidates: [],
   };
-  const fetchFn: typeof fetch = async (url) => String(url).includes('openai.com')
-    ? jsonResponse({ output_text: 'this is not JSON at all' })
+  const fetchFn: typeof fetch = async (url) => String(url).includes('tokenfactory.nebius.com')
+    ? jsonResponse({ choices: [{ message: { content: 'this is not JSON at all' } }] })
     : jsonResponse({ candidates: [{ content: { parts: [{ text: JSON.stringify(validPayload) }] } }] });
-  const providers = createProviders({ OPENAI_API_KEY: 'a', NAGEX_OPENAI_MODEL: 'oa', GEMINI_API_KEY: 'g', NAGEX_GEMINI_MODEL: 'gm' }, fetchFn);
+  const providers = createProviders({ NEBIUS_API_KEY: 'n', NAGEX_NEBIUS_MODEL: 'nb', GEMINI_API_KEY: 'g', NAGEX_GEMINI_MODEL: 'gm' }, fetchFn);
   const aiService = new AiService(new UnifiedModelRouter(providers, { info: () => {}, warn: () => {} }));
   const { service } = buildHarness(aiService);
 
@@ -201,7 +201,7 @@ test('8. When no provider succeeds, the capture becomes FAILED — never a fake 
 
   // 8b. A provider is configured but every call fails.
   const allFail = new AiService(new UnifiedModelRouter(
-    createProviders({ OPENAI_API_KEY: 'a', NAGEX_OPENAI_MODEL: 'oa' }, async () => jsonResponse({ error: 'server error' }, 500)),
+    createProviders({ NEBIUS_API_KEY: 'n', NAGEX_NEBIUS_MODEL: 'nb' }, async () => jsonResponse({ error: 'server error' }, 500)),
     { info: () => {}, warn: () => {} },
   ));
   const { service: svcB } = buildHarness(allFail);
@@ -269,7 +269,7 @@ test('11. Provider/model metadata is recorded truthfully on the capture', async 
     ownerId: 'usr_step2_11', tenantId: 'ten_step2', type: 'TEXT', content: 'A plain note.', source: 'WEB',
   });
 
-  assert.equal(item.metadata.modelProvider, 'openai');
+  assert.equal(item.metadata.modelProvider, 'nebius');
   assert.equal(item.metadata.modelName, 'test-understanding-model');
   assert.equal(typeof item.metadata.modelRequestId, 'string');
   assert.ok((item.metadata.modelRequestId || '').length > 0);

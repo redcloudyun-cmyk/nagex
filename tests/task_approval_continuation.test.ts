@@ -60,8 +60,8 @@ const planResolver = new PlanResolver(skillRegistry, liveToolRegistry);
 
 function aiServiceReturning(rawPlan: unknown, calls: { count: number }): AiService {
   const providers = createProviders(
-    { OPENAI_API_KEY: 'test-key', NAGEX_OPENAI_MODEL: 'test-p02-model' },
-    async () => { calls.count++; return jsonResponse({ output_text: JSON.stringify(rawPlan) }); },
+    { NEBIUS_API_KEY: 'test-key', NAGEX_NEBIUS_MODEL: 'test-p02-model' },
+    async () => { calls.count++; return jsonResponse({ choices: [{ message: { content: JSON.stringify(rawPlan) } }] }); },
   );
   return new AiService(new UnifiedModelRouter(providers, { info: () => {}, warn: () => {} }));
 }

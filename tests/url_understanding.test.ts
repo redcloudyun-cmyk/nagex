@@ -29,8 +29,15 @@ import { createProviders } from '../src/model-gateway/providers.js';
 // One real Chromium process for this whole file (never one per test — see
 // the Phase B process-leak lesson in browser_agent.test.ts).
 const sharedRuntime = new PlaywrightBrowserRuntime();
+const previousAllowLocalTestUrls = process.env.NAGEX_ALLOW_LOCAL_TEST_URLS;
+process.env.NAGEX_ALLOW_LOCAL_TEST_URLS = '1';
 after(async () => {
-  await sharedRuntime.shutdown();
+  try {
+    await sharedRuntime.shutdown();
+  } finally {
+    if (previousAllowLocalTestUrls === undefined) delete process.env.NAGEX_ALLOW_LOCAL_TEST_URLS;
+    else process.env.NAGEX_ALLOW_LOCAL_TEST_URLS = previousAllowLocalTestUrls;
+  }
 });
 
 let changingCounter = 0;
@@ -83,8 +90,8 @@ function buildMockAiService(payload: Partial<TextUnderstandingResult> & { title:
     ...payload,
   };
   const providers = createProviders(
-    { OPENAI_API_KEY: 'test-key', NAGEX_OPENAI_MODEL: 'test-url-model' },
-    async () => jsonResponse({ output_text: JSON.stringify(full) }),
+    { NEBIUS_API_KEY: 'test-key', NAGEX_NEBIUS_MODEL: 'test-url-model' },
+    async () => jsonResponse({ choices: [{ message: { content: JSON.stringify(full) } }] }),
   );
   return new AiService(new UnifiedModelRouter(providers, { info: () => {}, warn: () => {} }));
 }
@@ -93,7 +100,7 @@ function buildMockAiService(payload: Partial<TextUnderstandingResult> & { title:
 // empty retrieval never reaches "understanding" at all.
 function buildPoisonAiService(): AiService {
   const providers = createProviders(
-    { OPENAI_API_KEY: 'test-key', NAGEX_OPENAI_MODEL: 'test-url-model' },
+    { NEBIUS_API_KEY: 'test-key', NAGEX_NEBIUS_MODEL: 'test-url-model' },
     async () => { throw new Error('AiService must never be called for this retrieval outcome'); },
   );
   return new AiService(new UnifiedModelRouter(providers, { info: () => {}, warn: () => {} }));
@@ -262,10 +269,10 @@ test('9. Invalid JSON from one provider triggers real fallback, never a fake res
       title: 'Weekend Hiking Trails', summary: 'Understood via the fallback provider.', contentType: 'article',
       topics: [], entities: [], dates: [], actionItems: [], taskCandidates: [], calendarCandidates: [], memoryCandidates: [], knowledgeCandidates: [],
     };
-    const fetchFn: typeof fetch = async (url) => String(url).includes('openai.com')
-      ? jsonResponse({ output_text: 'not json at all' })
+    const fetchFn: typeof fetch = async (url) => String(url).includes('tokenfactory.nebius.com')
+      ? jsonResponse({ choices: [{ message: { content: 'not json at all' } }] })
       : jsonResponse({ candidates: [{ content: { parts: [{ text: JSON.stringify(validPayload) }] } }] });
-    const providers = createProviders({ OPENAI_API_KEY: 'a', NAGEX_OPENAI_MODEL: 'oa', GEMINI_API_KEY: 'g', NAGEX_GEMINI_MODEL: 'gm' }, fetchFn);
+    const providers = createProviders({ NEBIUS_API_KEY: 'n', NAGEX_NEBIUS_MODEL: 'nb', GEMINI_API_KEY: 'g', NAGEX_GEMINI_MODEL: 'gm' }, fetchFn);
     const aiService = new AiService(new UnifiedModelRouter(providers, { info: () => {}, warn: () => {} }));
     const { service, ownerId, tenantId } = buildHarness(aiService);
 
@@ -307,13 +314,13 @@ test('11. Changed page content (changed contentHash) permits new understanding r
     changingCounter = 0;
     let callCount = 0;
     const providers = createProviders(
-      { OPENAI_API_KEY: 'a', NAGEX_OPENAI_MODEL: 'oa' },
+      { NEBIUS_API_KEY: 'n', NAGEX_NEBIUS_MODEL: 'nb' },
       async () => {
         callCount += 1;
         const payload: TextUnderstandingResult = callCount === 1
           ? { title: 'Changing Page', summary: 'Nothing urgent today.', contentType: 'note', topics: [], entities: [], dates: [], actionItems: [], taskCandidates: [], calendarCandidates: [], memoryCandidates: [], knowledgeCandidates: [] }
           : { title: 'Changing Page', summary: 'New deadline: submit the report by Friday.', contentType: 'note', topics: [], entities: [], dates: [], actionItems: [], taskCandidates: [{ title: 'Submit the report', confidence: 0.9 }], calendarCandidates: [], memoryCandidates: [], knowledgeCandidates: [] };
-        return jsonResponse({ output_text: JSON.stringify(payload) });
+        return jsonResponse({ choices: [{ message: { content: JSON.stringify(payload) } }] });
       },
     );
     const aiService = new AiService(new UnifiedModelRouter(providers, { info: () => {}, warn: () => {} }));

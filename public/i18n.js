@@ -750,6 +750,9 @@
 
       // Settings View
       'settings.title': 'Personal AI & Provider Settings',
+      'settings.catConnections': 'Connections',
+      'settings.catModels': 'Models',
+      'settings.loadError': 'Settings could not be loaded.',
       'settings.catOrganization': 'Organization',
       'settings.subtitle': 'Configure Quick Wake invocation triggers, autonomy levels, connected tools, and Nebius / NVIDIA runtime integrations.',
       'settings.quickWake': 'Quick Wake Invocation',
