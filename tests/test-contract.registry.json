@@ -1,0 +1,3471 @@
+{
+  "schemaVersion": 1,
+  "generatedFrom": "Evidence audit of tests/*.test.ts",
+  "tests": {
+    "_setup_canary": {
+      "milestone": "Cross-cutting",
+      "classification": "TEST_HARNESS",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "identity-access",
+        "runtime",
+        "security",
+        "tasks",
+        "test-harness",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Validates test execution, registry coverage, or harness behavior."
+    },
+    "action_proposals": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "personal-home",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "action_proposals_safety": {
+      "milestone": "Cross-cutting",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "approvals",
+        "identity-access",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "genuine security invariant expressed through source checks",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "action_safety_gate": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "browser",
+        "integrations",
+        "runtime",
+        "security",
+        "tasks"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "ambient_composer": {
+      "milestone": "Cross-cutting",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "browser",
+        "capture",
+        "runtime",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "ambient_composer_recovery": {
+      "milestone": "Cross-cutting",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "capture",
+        "memory-context",
+        "model-routing",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "user-visible browser behavior",
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+    },
+    "ambient_modal_wiring": {
+      "milestone": "Cross-cutting",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "approvals",
+        "browser",
+        "mobile",
+        "runtime",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "ambient_run_button": {
+      "milestone": "Cross-cutting",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "browser",
+        "memory-context",
+        "runtime",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "approval_execution_persistence": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "integrations",
+        "memory-context",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "approval_ownership_isolation": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "browser",
+        "capture",
+        "integrations",
+        "memory-context",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "approval_truth_source": {
+      "milestone": "Cross-cutting",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "approvals",
+        "integrations",
+        "mobile",
+        "personal-home",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "genuine security invariant expressed through source checks",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "approval_ttl_security": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "browser",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "architecture_enforcement": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_ARCHITECTURE",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "architecture",
+        "browser",
+        "capture",
+        "device",
+        "identity-access",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "genuine architecture invariant",
+      "notes": "Enforces an intentional module, route, or composition boundary."
+    },
+    "astra_real_provider_acceptance": {
+      "milestone": "Cross-cutting",
+      "classification": "LIVE_EXTERNAL",
+      "canonical": false,
+      "scopes": [
+        "approvals",
+        "browser",
+        "capture",
+        "device",
+        "identity-access",
+        "memory-context",
+        "model-routing",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [
+        "OpenAI API",
+        "internet",
+        "Chromium"
+      ],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": false,
+      "assertionIntent": "live integration acceptance",
+      "notes": "Credential- or deployment-gated live acceptance; not a deterministic local regression."
+    },
+    "astra_visual_execution_adapter": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "browser",
+        "capture",
+        "device",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "audit_tenant_isolation": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "integrations",
+        "runtime",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "background_tasks": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "model-routing",
+        "runtime",
+        "security",
+        "tasks"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "browser_agent": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "browser",
+        "capture",
+        "identity-access",
+        "memory-context",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "browser_agent_mvp": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "browser",
+        "memory-context",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "browser_ambient_wiring": {
+      "milestone": "Cross-cutting",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "approvals",
+        "browser",
+        "integrations",
+        "memory-context",
+        "runtime",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "browser_approval_ui": {
+      "milestone": "Cross-cutting",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "approvals",
+        "browser",
+        "identity-access",
+        "integrations",
+        "memory-context",
+        "runtime",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "browser_i18n": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "browser",
+        "memory-context",
+        "runtime",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "browser_module_boundary": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_ARCHITECTURE",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "architecture",
+        "browser",
+        "capture",
+        "memory-context",
+        "runtime",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "genuine architecture invariant",
+      "notes": "Enforces an intentional module, route, or composition boundary."
+    },
+    "browser_session_ownership_isolation": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "browser",
+        "capture",
+        "identity-access",
+        "memory-context",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "browser_snapshot_truncation": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "browser",
+        "capture",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "runtime",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "calendar_approval_ui": {
+      "milestone": "Cross-cutting",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "approvals",
+        "browser",
+        "integrations",
+        "memory-context",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "calendar_approval_ux": {
+      "milestone": "Cross-cutting",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "approvals",
+        "browser",
+        "identity-access",
+        "integrations",
+        "runtime",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "calendar_intent_extraction": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "browser",
+        "identity-access",
+        "integrations",
+        "memory-context",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "calendar_payload_validation": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "browser",
+        "identity-access",
+        "integrations",
+        "memory-context",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "calendar_skill_normalization": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "integrations",
+        "model-routing",
+        "runtime",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "candidate_actions": {
+      "milestone": "Cross-cutting",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "approvals",
+        "capture",
+        "identity-access",
+        "integrations",
+        "memory-context",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "candidate_model": {
+      "milestone": "Cross-cutting",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "approvals",
+        "capture",
+        "identity-access",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "candidate_review": {
+      "milestone": "Cross-cutting",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "approvals",
+        "browser",
+        "capture",
+        "identity-access",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "personal-home",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "capability_broker": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "browser",
+        "capture",
+        "integrations",
+        "memory-context",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "capture_analysis_finalizer": {
+      "milestone": "Cross-cutting",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "architecture",
+        "browser",
+        "capture",
+        "identity-access",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "runtime",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "capture_ownership_isolation": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "capture",
+        "model-routing",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "cloud_vault_nebius.integration": {
+      "milestone": "Cross-cutting",
+      "classification": "LIVE_EXTERNAL",
+      "canonical": false,
+      "scopes": [
+        "capture",
+        "integrations",
+        "model-routing",
+        "runtime",
+        "ux"
+      ],
+      "externalDependencies": [
+        "Nebius S3",
+        "internet",
+        "S3 credentials"
+      ],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": false,
+      "assertionIntent": "live integration acceptance",
+      "notes": "Credential- or deployment-gated live acceptance; not a deterministic local regression."
+    },
+    "cloud_vault_smoke": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "capture",
+        "integrations",
+        "model-routing",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "composer_drop_zone": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "composition_root": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_ARCHITECTURE",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "architecture",
+        "browser",
+        "capture",
+        "device",
+        "identity-access",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "runtime",
+        "tasks",
+        "test-harness",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "genuine architecture invariant",
+      "notes": "Enforces an intentional module, route, or composition boundary."
+    },
+    "conditional_watch": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "browser",
+        "capture",
+        "memory-context",
+        "model-routing",
+        "runtime",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "conversation_workspace": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "capture",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "core": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "identity-access",
+        "memory-context",
+        "model-routing",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "core_product_wiring": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "architecture",
+        "capture",
+        "integrations",
+        "model-routing",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "core_product_wiring_real_browser": {
+      "milestone": "Cross-cutting",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "device",
+        "mobile",
+        "personal-home",
+        "runtime",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "user-visible browser behavior",
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+    },
+    "daily_brief": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "capture",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "personal-home",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "desktop_app_allowlist": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "device",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "desktop_asset_resolution": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "device",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "desktop_automation_activity_summary": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "device",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "desktop_automation_target_identity": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "device",
+        "identity-access",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "desktop_control_service": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "device",
+        "identity-access",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "desktop_gateway_startup_failure": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "device",
+        "runtime",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "desktop_gateway_startup_success": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "device",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "desktop_native_shell": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "device",
+        "memory-context",
+        "runtime"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "desktop_quickwake": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "capture",
+        "device",
+        "personal-home",
+        "runtime",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "device_agent_electron_runtime": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "architecture",
+        "device",
+        "identity-access",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "device_agent_foundation": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "capture",
+        "device",
+        "identity-access",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "device_agent_transport": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "capture",
+        "device",
+        "identity-access",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "device_control": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "browser",
+        "device",
+        "memory-context",
+        "model-routing",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "durable_task_runtime": {
+      "milestone": "Cross-cutting",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "approvals",
+        "browser",
+        "capture",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "enterprise_identity_lifecycle": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "capture",
+        "identity-access",
+        "model-routing",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "enterprise_identity_oidc_security": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "identity-access",
+        "model-routing",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "enterprise_identity_real_browser": {
+      "milestone": "Cross-cutting",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "identity-access",
+        "memory-context",
+        "mobile",
+        "model-routing",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "user-visible browser behavior",
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+    },
+    "enterprise_identity_saml_security": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "identity-access",
+        "model-routing",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "fixed_plan_injection": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "capture",
+        "integrations",
+        "model-routing",
+        "runtime",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "frontend_cache": {
+      "milestone": "Cross-cutting",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "generic_step_executor": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "capture",
+        "integrations",
+        "model-routing",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "gmail_ambient_wiring": {
+      "milestone": "Cross-cutting",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "approvals",
+        "browser",
+        "identity-access",
+        "integrations",
+        "runtime",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "gmail_approval_ui": {
+      "milestone": "Cross-cutting",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "approvals",
+        "browser",
+        "integrations",
+        "memory-context",
+        "runtime",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "gmail_i18n": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "identity-access",
+        "integrations",
+        "memory-context",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "gmail_intent_extraction": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "integrations",
+        "memory-context",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "gmail_live": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "capture",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "google_calendar_e2e": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "identity-access",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "google_calendar_live": {
+      "milestone": "Cross-cutting",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "approvals",
+        "browser",
+        "capture",
+        "identity-access",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "google_capability_execution_pipeline": {
+      "milestone": "Cross-cutting",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "approvals",
+        "architecture",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "genuine security invariant expressed through source checks",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "google_modules_boundary": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_ARCHITECTURE",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "architecture",
+        "browser",
+        "capture",
+        "integrations",
+        "runtime",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "genuine architecture invariant",
+      "notes": "Enforces an intentional module, route, or composition boundary."
+    },
+    "google_oauth_persistence": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "capture",
+        "integrations",
+        "memory-context",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "graceful_shutdown": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "home_intent_first_ux": {
+      "milestone": "Cross-cutting",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "approvals",
+        "browser",
+        "capture",
+        "device",
+        "integrations",
+        "memory-context",
+        "mobile",
+        "model-routing",
+        "personal-home",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "http_route_modularization": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_ARCHITECTURE",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "architecture",
+        "browser",
+        "capture",
+        "device",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "personal-home",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "genuine architecture invariant",
+      "notes": "Enforces an intentional module, route, or composition boundary."
+    },
+    "i18n_strings": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "memory-context",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "identity_lifecycle": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "identity-access",
+        "runtime"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "identity_real_browser": {
+      "milestone": "Cross-cutting",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "identity-access",
+        "mobile",
+        "runtime",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "user-visible browser behavior",
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+    },
+    "inbox_activity_ux": {
+      "milestone": "Cross-cutting",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "approvals",
+        "capture",
+        "integrations",
+        "mobile",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "intent_interaction_foundation": {
+      "milestone": "Cross-cutting",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "approvals",
+        "browser",
+        "capture",
+        "device",
+        "integrations",
+        "memory-context",
+        "mobile",
+        "model-routing",
+        "runtime",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "legal_pages": {
+      "milestone": "Cross-cutting",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "approvals",
+        "browser",
+        "integrations",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "UI copy contract expressed through source checks",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "lifecycle_manager": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "runtime",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "memory_relevance": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "capture",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "memory_tenant_isolation": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "browser",
+        "capture",
+        "identity-access",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "mobile_ux_debt0005": {
+      "milestone": "Cross-cutting",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "approvals",
+        "architecture",
+        "browser",
+        "capture",
+        "device",
+        "identity-access",
+        "memory-context",
+        "mobile",
+        "model-routing",
+        "personal-home",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "mobile_ux_real_browser": {
+      "milestone": "Cross-cutting",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "capture",
+        "integrations",
+        "mobile",
+        "personal-home",
+        "runtime",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "user-visible browser behavior",
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+    },
+    "modal_behavior": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "memory-context",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "model_capability_contract": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "model_provider_integration": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "capture",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "model_provider_live": {
+      "milestone": "Cross-cutting",
+      "classification": "LIVE_EXTERNAL",
+      "canonical": false,
+      "scopes": [
+        "integrations",
+        "model-routing"
+      ],
+      "externalDependencies": [
+        "OpenAI, Gemini, or Nebius API",
+        "internet",
+        "provider credentials"
+      ],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": false,
+      "assertionIntent": "live integration acceptance",
+      "notes": "Credential- or deployment-gated live acceptance; not a deterministic local regression."
+    },
+    "module_contracts": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_ARCHITECTURE",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "architecture",
+        "browser",
+        "capture",
+        "identity-access",
+        "integrations",
+        "model-routing",
+        "runtime",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "genuine architecture invariant",
+      "notes": "Enforces an intentional module, route, or composition boundary."
+    },
+    "module_registry": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "integrations",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "module_state": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "browser",
+        "identity-access",
+        "integrations",
+        "memory-context",
+        "runtime",
+        "security",
+        "test-harness",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "my_space": {
+      "milestone": "Cross-cutting",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "approvals",
+        "capture",
+        "identity-access",
+        "integrations",
+        "memory-context",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "navigation_redefinition": {
+      "milestone": "Cross-cutting",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "approvals",
+        "capture",
+        "memory-context",
+        "mobile",
+        "runtime",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "UI copy contract expressed through source checks",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "notification_delivery": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "browser",
+        "device",
+        "identity-access",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "notification_engine": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "identity-access",
+        "integrations",
+        "model-routing",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "organization_lifecycle": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "capture",
+        "identity-access",
+        "mobile",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "organization_real_browser": {
+      "milestone": "Cross-cutting",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "capture",
+        "identity-access",
+        "mobile",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "user-visible browser behavior",
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+    },
+    "pdf_understanding": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "architecture",
+        "capture",
+        "identity-access",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "persistent_memory": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "capture",
+        "integrations",
+        "memory-context",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "personal_ai_ux": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "personal-home",
+        "runtime",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "personal_workspace": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "architecture",
+        "capture",
+        "device",
+        "integrations",
+        "mobile",
+        "runtime",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "phase2_3_4": {
+      "milestone": "Phase 2/3/4",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "architecture",
+        "identity-access",
+        "memory-context",
+        "model-routing",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "phase5_6_7": {
+      "milestone": "Phase 5/6/7",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "architecture",
+        "integrations",
+        "memory-context",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "phase8_9_10": {
+      "milestone": "Phase 8/9/10",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "identity-access",
+        "memory-context",
+        "model-routing",
+        "personal-home",
+        "runtime",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "plan_lifecycle_timeline": {
+      "milestone": "Cross-cutting",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "approvals",
+        "browser",
+        "identity-access",
+        "integrations",
+        "memory-context",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "plan_resolution": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "capture",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "runtime",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "plan_resolution_ui": {
+      "milestone": "Cross-cutting",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "approvals",
+        "browser",
+        "capture",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "runtime",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "plan_scope_policy": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "capture",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "proactive_assistant": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "personal-home",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "proactive_assistant_change_detection": {
+      "milestone": "Cross-cutting",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "approvals",
+        "browser",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "personal-home",
+        "runtime",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "r17_final_completion": {
+      "milestone": "R17",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "capture",
+        "integrations",
+        "memory-context",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "r17_final_completion_real_browser": {
+      "milestone": "R17",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "browser",
+        "mobile",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "user-visible browser behavior",
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+    },
+    "r18_personal_workspace": {
+      "milestone": "R18",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "architecture",
+        "capture",
+        "identity-access",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "r18_personal_workspace_real_browser": {
+      "milestone": "R18",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "capture",
+        "integrations",
+        "memory-context",
+        "mobile",
+        "runtime",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "user-visible browser behavior",
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+    },
+    "r19_action_approval": {
+      "milestone": "R19",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "capture",
+        "identity-access",
+        "integrations",
+        "model-routing",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "r19_action_approval_real_browser": {
+      "milestone": "R19",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "browser",
+        "integrations",
+        "memory-context",
+        "mobile",
+        "runtime"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "user-visible browser behavior",
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+    },
+    "r20_proactive_personal_assistant": {
+      "milestone": "R20",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "architecture",
+        "capture",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "personal-home",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "r20_proactive_personal_assistant_real_browser": {
+      "milestone": "R20",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "integrations",
+        "memory-context",
+        "mobile",
+        "personal-home",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "user-visible browser behavior",
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+    },
+    "r21_p0_1c_clone_mockup": {
+      "milestone": "R21.P0",
+      "classification": "SUPERSEDED_CONTRACT",
+      "canonical": false,
+      "scopes": [
+        "capture",
+        "memory-context",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "obsolete implementation snapshot",
+      "notes": "R21 approved-mockup source snapshot was replaced by R22 mobile-first and Personal Home contracts; retain for historical conversion review.",
+      "supersededBy": "R22.1/R22.8"
+    },
+    "r21_p0_1c_real_browser": {
+      "milestone": "R21.P0",
+      "classification": "SUPERSEDED_CONTRACT",
+      "canonical": false,
+      "scopes": [
+        "approvals",
+        "architecture",
+        "browser",
+        "device",
+        "integrations",
+        "memory-context",
+        "mobile",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "user-visible browser behavior",
+      "notes": "R21 clone-layout browser certification was replaced by R22 mobile and canonical Personal Home browser certification.",
+      "supersededBy": "R22.1/R22.8"
+    },
+    "r21_p0_2_personal_ui": {
+      "milestone": "R21.P0",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "browser",
+        "capture",
+        "identity-access",
+        "memory-context",
+        "mobile",
+        "model-routing",
+        "personal-home",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "r21_p0_2_personal_ui_real_browser": {
+      "milestone": "R21.P0",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "capture",
+        "identity-access",
+        "mobile",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "user-visible browser behavior",
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+    },
+    "r21_p0_ux_principles": {
+      "milestone": "R21.P0",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "approvals",
+        "integrations",
+        "memory-context",
+        "mobile",
+        "personal-home",
+        "runtime",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "r21_p0_ux_principles_real_browser": {
+      "milestone": "R21.P0",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "browser",
+        "device",
+        "integrations",
+        "memory-context",
+        "mobile",
+        "personal-home",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "user-visible browser behavior",
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+    },
+    "r21_p1_demo_scenario": {
+      "milestone": "R21.P1",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "capture",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "personal-home",
+        "runtime",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Demo scenario remains useful, while canonical Home aggregation and Memory ownership now live in R22 services.",
+      "supersededBy": "R22.8/R22.9"
+    },
+    "r21_p1_deployed_certification": {
+      "milestone": "R21.P1",
+      "classification": "LIVE_EXTERNAL",
+      "canonical": false,
+      "scopes": [
+        "approvals",
+        "architecture",
+        "browser",
+        "capture",
+        "device",
+        "integrations",
+        "memory-context",
+        "mobile",
+        "model-routing",
+        "personal-home",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [
+        "deployed NAgex URL",
+        "internet",
+        "Chromium"
+      ],
+      "realBrowser": true,
+      "sourceImplementationAssertions": true,
+      "deterministic": false,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Credential- or deployment-gated live acceptance; not a deterministic local regression."
+    },
+    "r21_p1_finalization_real_browser": {
+      "milestone": "R21.P1",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "architecture",
+        "browser",
+        "capture",
+        "device",
+        "integrations",
+        "memory-context",
+        "mobile",
+        "model-routing",
+        "personal-home",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+    },
+    "r21_p1_social_auth": {
+      "milestone": "R21.P1",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "identity-access",
+        "integrations",
+        "model-routing",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "r21_p1_ux_integration": {
+      "milestone": "R21.P1",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "approvals",
+        "capture",
+        "device",
+        "memory-context",
+        "personal-home",
+        "runtime",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Mixed source-level UX contracts; legacy frontend Home aggregation was replaced by PersonalHomeService and the assertion has been reconciled.",
+      "supersededBy": "R22.8"
+    },
+    "r22_1_mobile_home": {
+      "milestone": "R22.1",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "mobile",
+        "personal-home",
+        "browser"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+    },
+    "r22_2_activity_vault": {
+      "milestone": "R22.2",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "mobile",
+        "capture",
+        "runtime",
+        "browser"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "user-visible browser behavior",
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+    },
+    "r22_3_personal_context_memory": {
+      "milestone": "R22.3",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "memory-context",
+        "security",
+        "model-routing"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "r22_4_evidence_pack_web_search": {
+      "milestone": "R22.4",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "model-routing",
+        "integrations",
+        "runtime"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "r22_5_task_aware_model_routing": {
+      "milestone": "R22.5",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "model-routing",
+        "tasks"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "r22_6_perspective_compare": {
+      "milestone": "R22.6",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "model-routing",
+        "browser"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+    },
+    "r22_7_forecast_compare": {
+      "milestone": "R22.7",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "model-routing",
+        "browser"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "user-visible browser behavior",
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+    },
+    "r22_8_personal_home": {
+      "milestone": "R22.8",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "personal-home",
+        "browser"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "user-visible browser behavior",
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+    },
+    "r22_9_personal_context_link_capture": {
+      "milestone": "R22.9",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "capture",
+        "browser",
+        "memory-context",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "user-visible browser behavior",
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+    },
+    "rbac_lifecycle": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "capture",
+        "identity-access",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "rbac_real_browser": {
+      "milestone": "Cross-cutting",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "capture",
+        "identity-access",
+        "memory-context",
+        "mobile",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "user-visible browser behavior",
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+    },
+    "retry_failure_handling": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "browser",
+        "capture",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "route_inventory": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_ARCHITECTURE",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "architecture",
+        "browser",
+        "capture",
+        "device",
+        "identity-access",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "genuine architecture invariant",
+      "notes": "Enforces an intentional module, route, or composition boundary."
+    },
+    "safety_redteam_corpus": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "scoped_test_system": {
+      "milestone": "Cross-cutting",
+      "classification": "TEST_HARNESS",
+      "canonical": true,
+      "scopes": [
+        "architecture",
+        "browser",
+        "identity-access",
+        "integrations",
+        "runtime",
+        "security",
+        "tasks",
+        "test-harness",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Validates test execution, registry coverage, or harness behavior."
+    },
+    "sensitive_text_redaction": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "architecture",
+        "device",
+        "integrations",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "session_store": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "settings_ux": {
+      "milestone": "Cross-cutting",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "approvals",
+        "device",
+        "integrations",
+        "mobile",
+        "model-routing",
+        "personal-home",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "UI copy contract expressed through source checks",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "single_flight_guard": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "memory-context",
+        "runtime",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "slack_integration": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "identity-access",
+        "integrations",
+        "model-routing",
+        "runtime",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "state_propagation": {
+      "milestone": "Cross-cutting",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "approvals",
+        "browser",
+        "capture",
+        "identity-access",
+        "integrations",
+        "memory-context",
+        "personal-home",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "task_approval_continuation": {
+      "milestone": "Cross-cutting",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "approvals",
+        "architecture",
+        "browser",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "genuine security invariant expressed through source checks",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "task_orchestration_boundary": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_ARCHITECTURE",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "architecture",
+        "browser",
+        "integrations",
+        "model-routing",
+        "runtime",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "genuine architecture invariant",
+      "notes": "Enforces an intentional module, route, or composition boundary."
+    },
+    "task_scheduler": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "integrations",
+        "runtime",
+        "tasks"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "task_store": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "integrations",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "tasks_api": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "tasks_ui": {
+      "milestone": "Cross-cutting",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "telegram_integration": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "identity-access",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "runtime",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "test_contract_registry": {
+      "milestone": "Cross-cutting",
+      "classification": "TEST_HARNESS",
+      "canonical": true,
+      "scopes": [
+        "architecture",
+        "browser",
+        "test-harness",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Validates test execution, registry coverage, or harness behavior."
+    },
+    "text_understanding": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "architecture",
+        "capture",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "timeline_dedupe": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "browser",
+        "memory-context",
+        "runtime",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "tool_capability_id_alignment": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_ARCHITECTURE",
+      "canonical": true,
+      "scopes": [
+        "architecture",
+        "browser",
+        "capture",
+        "integrations",
+        "memory-context",
+        "runtime",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "genuine architecture invariant",
+      "notes": "Enforces an intentional module, route, or composition boundary."
+    },
+    "trust_safety_engine": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "identity-access",
+        "memory-context",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "unified_capture_routing": {
+      "milestone": "Cross-cutting",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "capture",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "implementation snapshot",
+      "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "url_understanding": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "browser",
+        "capture",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "runtime",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "workflow_definition": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "architecture",
+        "browser",
+        "capture",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    },
+    "workspace_truthfulness": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "architecture",
+        "capture",
+        "integrations",
+        "model-routing",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Observable deterministic product/service contract."
+    }
+  }
+}

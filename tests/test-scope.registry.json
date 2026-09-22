@@ -166,6 +166,7 @@
     "single_flight_guard",
     "slack_integration",
     "telegram_integration",
+    "test_contract_registry",
     "text_understanding",
     "timeline_dedupe",
     "trust_safety_engine",
