@@ -95,6 +95,29 @@
   // concurrently is legitimate and must not block each other.
   const inFlightApprovalIds = new Set();
 
+  // Link Capture delayed-close lifecycle. A timer belongs to the modal
+  // generation that scheduled it; opening or explicitly closing the modal
+  // invalidates all prior generations so stale async completions cannot
+  // close or mutate a newer modal instance.
+  let linkCaptureCloseTimer = null;
+  let linkCaptureModalGeneration = 0;
+
+  function clearLinkCaptureCloseTimer() {
+    if (linkCaptureCloseTimer !== null) {
+      clearTimeout(linkCaptureCloseTimer);
+      linkCaptureCloseTimer = null;
+    }
+  }
+
+  function scheduleLinkCaptureClose(generation) {
+    clearLinkCaptureCloseTimer();
+    linkCaptureCloseTimer = setTimeout(() => {
+      linkCaptureCloseTimer = null;
+      if (generation !== linkCaptureModalGeneration) return;
+      closeLinkCaptureModal();
+    }, 1000);
+  }
+
   // Bound on POST /api/v1/ambient/intent specifically — grounded in the
   // real, evidence-backed worst case, not a guess: UnifiedModelRouter.
   // generate() (src/model-gateway/unified-model-router.ts) retries through
@@ -5578,6 +5601,8 @@
   }
 
   async function openLinkCaptureModal(rawUrl) {
+    clearLinkCaptureCloseTimer();
+    const generation = ++linkCaptureModalGeneration;
     const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
     const backdrop = document.getElementById('link-capture-modal-backdrop');
     const loading = document.getElementById('link-capture-status-loading');
@@ -5602,6 +5627,8 @@
       method: 'POST',
       body: JSON.stringify({ url: rawUrl }),
     });
+
+    if (generation !== linkCaptureModalGeneration) return;
 
     if (!res || res.status === 'UNAVAILABLE' || res.error) {
       if (loading) loading.hidden = true;
@@ -5633,6 +5660,8 @@
   }
 
   function closeLinkCaptureModal() {
+    clearLinkCaptureCloseTimer();
+    linkCaptureModalGeneration += 1;
     const backdrop = document.getElementById('link-capture-modal-backdrop');
     if (backdrop) backdrop.style.display = 'none';
     state.activeLinkCapture = null;
@@ -5640,6 +5669,7 @@
 
   async function saveLinkDestination(destination) {
     if (!state.activeLinkCapture) return;
+    const generation = linkCaptureModalGeneration;
     const { source, preview } = state.activeLinkCapture;
     const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
     const errEl = document.getElementById('link-capture-status-error');
@@ -5666,9 +5696,11 @@
         }),
       });
 
+      if (generation !== linkCaptureModalGeneration) return;
+
       if (res && !res.error && res.status !== 'ERROR') {
         if (btnVault) btnVault.textContent = t('linkCapture.savedToVault') || 'Saved to Vault';
-        setTimeout(() => closeLinkCaptureModal(), 1000);
+        scheduleLinkCaptureClose(generation);
       } else {
         if (btnVault) btnVault.textContent = t('linkCapture.saveVault') || 'Save to Vault';
         if (errEl) {
@@ -5690,9 +5722,11 @@
         }),
       });
 
+      if (generation !== linkCaptureModalGeneration) return;
+
       if (res && !res.error && res.status !== 'ERROR') {
         if (btnInbox) btnInbox.textContent = t('linkCapture.addedToInbox') || 'Added to Inbox';
-        setTimeout(() => closeLinkCaptureModal(), 1000);
+        scheduleLinkCaptureClose(generation);
       } else {
         if (btnInbox) btnInbox.textContent = t('linkCapture.addInbox') || 'Add to Inbox';
         if (errEl) {
@@ -5729,9 +5763,11 @@
         }),
       });
 
+      if (generation !== linkCaptureModalGeneration) return;
+
       if (res && !res.error && res.status !== 'ERROR') {
         if (btnRemember) btnRemember.textContent = t('linkCapture.remembered') || 'Saved to Personal Context';
-        setTimeout(() => closeLinkCaptureModal(), 1000);
+        scheduleLinkCaptureClose(generation);
       } else {
         if (btnRemember) btnRemember.textContent = t('linkCapture.remember') || 'Remember';
         if (errEl) {

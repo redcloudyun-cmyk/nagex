@@ -553,6 +553,7 @@ test('R22.9 — Browser Behavioral Certification (Real Clicks: Confirm, Edit, Pi
 
   await t.test('Real Clicks - Link Capture Modal Actions (URL Preview, Save Vault, Add Inbox, Remember)', async () => {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    await page.clock.install();
 
     // Route /api/v1/capture/link to return controlled fixture in Playwright
     await page.route('**/api/v1/capture/link', (route) => {
@@ -598,6 +599,12 @@ test('R22.9 — Browser Behavioral Certification (Real Clicks: Confirm, Edit, Pi
     // Re-open modal for Add to Inbox check
     await page.evaluate(`window.NAGEX.openLinkCaptureModal('https://example.com/article');`);
     await page.waitForSelector('#link-capture-preview-card:not([hidden])');
+
+    // Cross the previous modal generation's delayed-close deadline without
+    // a real sleep. Its stale timer must not hide this newly opened modal.
+    await page.clock.fastForward(1100);
+    await page.locator('#link-capture-modal-backdrop').waitFor({ state: 'visible' });
+    await page.locator('#btn-capture-add-inbox').waitFor({ state: 'visible' });
 
     // 8. Add to Inbox via click
     const inboxBtn = page.locator('#btn-capture-add-inbox');
