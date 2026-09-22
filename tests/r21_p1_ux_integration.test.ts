@@ -29,11 +29,19 @@ test('MEETING_PREP: ambient context comes from the real backend and has an hones
   assert.match(app, /I couldn't load related context/);
 });
 
-test('NOTIFICATION_GROUPING: personal attention is grouped Now Today Later from real notifications', () => {
+test('PERSONAL_HOME_ATTENTION: Needs Attention is rendered from canonical PersonalHomeService aggregation', () => {
   const home = read('public/desktop/desktop-home.js');
-  assert.match(home, /const groups = \{ Now: \[\], Today: \[\], Later: \[\] \}/);
-  assert.match(home, /state\.notifications && state\.notifications\.items/);
+  assert.match(home, /api\/v1\/personal\/home/);
+  assert.match(home, /renderNeedsAttentionSection\(data\.needsAttention\)/);
   assert.doesNotMatch(home, /const count = activity\.filter/);
+  assert.doesNotMatch(home, /const groups = \{ Now: \[\], Today: \[\], Later: \[\] \}/);
+  assert.doesNotMatch(home, /renderNeedsAttentionSection\((?:state\.)?(?:notifications|activity|fakeData)/);
+});
+
+test('NOTIFICATION_BELL: unread count remains a separate notification concern', () => {
+  const home = read('public/desktop/desktop-home.js');
+  assert.match(home, /const notifications = \(state\.notifications && state\.notifications\.items\) \|\| \[\]/);
+  assert.match(home, /const count = notifications\.filter\(\(item\) => !item\.read\)\.length/);
 });
 
 test('LATENCY_MEASURED: required hero metrics are recorded from performance timestamps', () => {
