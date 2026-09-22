@@ -579,12 +579,27 @@ async function withServer(run: (origin: string) => Promise<void>): Promise<void>
   }
 }
 
+// B4/B5 — the static detection was stale in two independent ways: (1) it
+// hardcoded a bare "\n" line ending, which never matches this file's real
+// CRLF ("\r\n") line endings; (2) app.js declares each of these function
+// names TWICE at the same top-level scope (a real, separate observation —
+// not something this narrow test-fixture pass touches — see the
+// duplicate-declaration note below), and per standard JS function-
+// declaration hoisting the LAST declaration in source order is the one
+// actually bound and executed, so the check must target that one, not
+// whichever textually comes first. Both declarations happen to satisfy the
+// same assertions here, but asserting against the live one is what keeps
+// this test honest about what the browser actually runs.
+function lastFunctionBody(source: string, functionSignaturePattern: string): string {
+  const matches = [...source.matchAll(new RegExp(`${functionSignaturePattern}[\\s\\S]*?\\r?\\n  \\}\\r?\\n`, 'g'))];
+  return matches.length > 0 ? matches[matches.length - 1][0] : '';
+}
+
 test('UI: candidate action Retry is gated by action.retryable, with distinct AMBIGUOUS/NEEDS_HUMAN copy — never a blind Retry for either', async () => {
   await withServer(async (origin) => {
     const appJs = await (await fetch(`${origin}/app.js`)).text();
-    const fnMatch = appJs.match(/function renderCandidateActionControls[\s\S]*?\n  }\n/);
-    assert.ok(fnMatch, 'renderCandidateActionControls not found');
-    const body = fnMatch![0];
+    const body = lastFunctionBody(appJs, 'function renderCandidateActionControls');
+    assert.ok(body, 'renderCandidateActionControls not found');
     assert.match(body, /action\.retryable === true/);
     assert.match(body, /candidateActionAmbiguous/);
     assert.match(body, /candidateActionNeedsHuman/);
@@ -594,9 +609,8 @@ test('UI: candidate action Retry is gated by action.retryable, with distinct AMB
 test('UI: capture Retry button in the Inbox is gated by metadata.retryable !== false, never unconditionally rendered', async () => {
   await withServer(async (origin) => {
     const appJs = await (await fetch(`${origin}/app.js`)).text();
-    const fnMatch = appJs.match(/async function renderInbox\(\)[\s\S]*?\n  }\n/);
-    assert.ok(fnMatch, 'renderInbox not found');
-    const body = fnMatch![0];
+    const body = lastFunctionBody(appJs, 'async function renderInbox\\(\\)');
+    assert.ok(body, 'renderInbox not found');
     assert.match(body, /captureRetryable/);
     assert.match(body, /metadata\?\.retryable !== false/);
   });

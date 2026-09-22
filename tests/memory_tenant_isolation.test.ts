@@ -292,11 +292,27 @@ test('15. GmailService writes the created Memory under the real request tenant',
 
   const requested = service.requestApproval({ toolId: GMAIL_SEND_EMAIL_TOOL_ID, tenantId: 'ten_live_gmail', principalId: 'usr_live_gmail', payload: gmailPayload(), requestId: 'req_1' });
   service.approve(requested.approvalId, 'ten_live_gmail', 'usr_live_gmail', 'req_2');
-  await service.executeSendEmail({ approvalId: requested.approvalId, payload: gmailPayload(), tenantId: 'ten_live_gmail', principalId: 'usr_live_gmail', requestId: 'req_3' });
+  const executed = await service.executeSendEmail({ approvalId: requested.approvalId, payload: gmailPayload(), tenantId: 'ten_live_gmail', principalId: 'usr_live_gmail', requestId: 'req_3' });
 
-  const memories = memory.getActiveMemories('USER', 'ten_live_gmail', 'usr_live_gmail');
+  // The send itself must succeed regardless of memory confirmation state —
+  // a pending memory confirmation must never turn a successful Gmail action
+  // into a failure.
+  assert.equal(executed.status, 'SUCCEEDED');
+
+  // The memory value embeds the recipient's real email address, which the
+  // canonical sensitivity detector (src/context/sensitivity.detector.ts)
+  // correctly classifies as S2. R22.3's centralized sensitivity/lifecycle
+  // enforcement means an S2 memory is never force-activated — it is
+  // genuinely proposed (real provenance, real tenant, not lost) and stays
+  // PROPOSED pending the real confirm endpoint, never auto-promoted to
+  // ACTIVE just because the triggering Gmail action succeeded.
+  const memories = memory.listMemories('ten_live_gmail', 'usr_live_gmail', 'USER');
   assert.equal(memories.length, 1);
   assert.equal(memories[0].tenantId, 'ten_live_gmail');
+  assert.equal(memories[0].sensitivity, 'S2');
+  assert.equal(memories[0].lifecycle, 'PROPOSED');
+  assert.equal(memories[0].userConfirmed, false);
+  assert.equal(memory.getActiveMemories('USER', 'ten_live_gmail', 'usr_live_gmail').length, 0, 'a pending S2 memory must never appear as ACTIVE before real user confirmation');
 });
 
 test('16. BrowserToolService writes the created Memory under the real request tenant', async () => {

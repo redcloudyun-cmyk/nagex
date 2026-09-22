@@ -405,10 +405,18 @@ test('Runtime / AI: USER message persisted before AI call, ASSISTANT message per
     'x-principal-id': 'usr_test',
   };
 
+  // B3 — this test's intent is conversation persistence/ordering, not
+  // web-search routing: "What is the weather today?" now legitimately
+  // triggers current-information/evidence-pack routing (see
+  // src/http/routes/conversation.routes.ts + src/research/
+  // question-classification.service.ts), which short-circuits before ever
+  // calling the injected mock AiService. A prompt with no freshness
+  // requirement exercises the exact same persistence/ordering behavior
+  // without disabling that legitimate routing.
   const res = await handleAsyncApiRequest(
     'POST',
     '/api/v1/ai/chat',
-    { message: 'What is the weather today?' },
+    { message: 'Summarize the project note I just gave you.' },
     headers,
     mockAiService,
     undefined,

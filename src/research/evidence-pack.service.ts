@@ -5,7 +5,7 @@ import { WebSearchService } from './web-search.service.js';
 import { SourceFreshnessValidator } from './source-freshness.validator.js';
 import type { EvidencePack, EvidenceSource, EvidencePackStatus } from './evidence-pack.types.js';
 import type { SearchResult } from './web-search-provider.port.js';
-import { isUrlSafe } from '../modules/browser/browser-url-validator.js';
+import { isUrlSafe } from '../modules/browser/index.js';
 
 export function mapSearchStatusToEvidenceStatus(status: string): EvidencePackStatus {
   switch (status) {

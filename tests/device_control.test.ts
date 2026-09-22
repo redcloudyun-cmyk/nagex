@@ -61,7 +61,12 @@ async function buildHarness() {
   const browserSessions = new BrowserSessionStore({ dir: path.join(dir, 'browser-sessions') });
   const approvals = new ActionApprovalStore();
   const audit = new AuditLogger();
-  const memory = new MemoryEngine();
+  // D1 — must not share the process-default memory store: this file's own
+  // unique temp dir (tempDir()) already isolates every other store built
+  // here (browser sessions, device sessions), but MemoryEngine was the one
+  // exception, silently falling back to the shared default directory and
+  // risking cross-test id collisions within the same node --test process.
+  const memory = new MemoryEngine({ dir: path.join(dir, 'memories') });
   const browserService = new BrowserToolService(runtime, browserSessions, approvals, audit, memory);
   const deviceSessionsDir = path.join(dir, 'device-sessions');
   const deviceSessions = new DeviceExecutionSessionStore({ dir: deviceSessionsDir });

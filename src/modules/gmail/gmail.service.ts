@@ -200,7 +200,18 @@ export class GmailService {
           predicate: toolId === GMAIL_CREATE_DRAFT_TOOL_ID ? 'drafted' : 'sent',
           value: `${toolId === GMAIL_CREATE_DRAFT_TOOL_ID ? 'Drafted' : 'Sent'} "${payload.subject}" to ${recipients}.`,
         });
-        this.memory.activateMemory(memoryRecord.id, input.tenantId, input.principalId);
+        // R22.3 centralizes sensitivity/lifecycle enforcement: an S2
+        // (sensitive) memory must obey the canonical confirmation
+        // lifecycle, never be force-activated here. proposeMemory() already
+        // leaves S2 content PROPOSED with real provenance; activateMemory()
+        // correctly refuses to bypass that (S2_CONFIRMATION_REQUIRED) — the
+        // successful Gmail action itself is unaffected either way, and the
+        // proposed memory is never lost, only left pending the real confirm
+        // endpoint. Non-sensitive content is still auto-activated, matching
+        // prior behavior.
+        if (memoryRecord.sensitivity !== 'S2') {
+          this.memory.activateMemory(memoryRecord.id, input.tenantId, input.principalId);
+        }
       },
     });
   }

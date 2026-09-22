@@ -739,6 +739,53 @@
       };
     }
 
+    // Composer file drop zone — click-to-browse and drag&drop, wired the
+    // same way initAnalyzeView() wires #analyze-dropzone, uploading through
+    // the same real capture pipeline the voice-memo recorder already uses
+    // (POST /api/v1/workspace/upload with base64 file data) rather than a
+    // new/parallel upload path.
+    (function initComposerDropZone() {
+      const composerDropZone = document.getElementById('composer-drop-zone');
+      const composerFileInput = document.getElementById('composer-file-input');
+      if (!composerDropZone || composerFileInput.dataset.wired) return;
+      composerFileInput.dataset.wired = 'true';
+
+      const uploadComposerFile = (file) => {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          const base64Data = (reader.result || '').toString().split(',')[1];
+          if (!base64Data) return;
+          await apiFetch('/api/v1/workspace/upload', {
+            method: 'POST',
+            body: JSON.stringify({
+              type: 'FILE',
+              filename: file.name,
+              mimeType: file.type || 'application/octet-stream',
+              base64: base64Data,
+              source: 'WEB',
+            }),
+          });
+          composerDropZone.classList.add('hidden');
+          renderInbox();
+          switchTab('tab-inbox');
+        };
+        reader.readAsDataURL(file);
+      };
+
+      composerDropZone.onclick = () => composerFileInput.click();
+      composerDropZone.ondragover = (e) => { e.preventDefault(); composerDropZone.style.borderColor = 'var(--accent-blue)'; };
+      composerDropZone.ondragleave = () => { composerDropZone.style.borderColor = ''; };
+      composerDropZone.ondrop = (e) => {
+        e.preventDefault();
+        composerDropZone.style.borderColor = '';
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) uploadComposerFile(e.dataTransfer.files[0]);
+      };
+      composerFileInput.onchange = () => {
+        if (composerFileInput.files && composerFileInput.files[0]) uploadComposerFile(composerFileInput.files[0]);
+      };
+    })();
+
     if (btnAudio) {
       btnAudio.onclick = async () => {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {

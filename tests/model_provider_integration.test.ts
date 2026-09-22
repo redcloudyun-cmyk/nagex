@@ -54,24 +54,71 @@ test('UnifiedModelRouter falls back after a normalized provider HTTP failure', a
     ? jsonResponse({ error: 'rate limited' }, 429)
     : jsonResponse({ candidates: [{ content: { parts: [{ text: 'fallback success' }] } }] });
   const providers = createProviders({ OPENAI_API_KEY: 'a', NAGEX_OPENAI_MODEL: 'oa', GEMINI_API_KEY: 'g', NAGEX_GEMINI_MODEL: 'gm' }, fetchFn);
-  const events: Array<Record<string, unknown>> = [];
-  const router = new UnifiedModelRouter(providers, { info: (_event, fields) => events.push(fields), warn: (_event, fields) => events.push(fields) });
+  const events: Array<{ name: string; fields: Record<string, unknown> }> = [];
+  const router = new UnifiedModelRouter(providers, {
+    info: (name, fields) => events.push({ name, fields }),
+    warn: (name, fields) => events.push({ name, fields }),
+  });
   const result = await router.generate({ mode: 'openai', messages: [{ role: 'user', content: 'hello' }] });
   assert.equal(result.provider, 'gemini');
-  assert.equal(events.length, 2);
-  assert.ok(events.every((event) => !JSON.stringify(event).includes('secret')));
+
+  // R22.5 added model_routing_decision as its own transparency event
+  // alongside the pre-existing failure/success events — assert the
+  // required events are present by name/shape, not a brittle exact total
+  // count that breaks every time observability logging legitimately grows.
+  const decisionEvent = events.find((e) => e.name === 'model_routing_decision');
+  assert.ok(decisionEvent, 'expected a model_routing_decision event');
+  assert.equal(decisionEvent!.fields.selectedProvider, 'openai');
+  assert.deepEqual(decisionEvent!.fields.fallbackProviders, ['gemini']);
+
+  const failedEvent = events.find((e) => e.name === 'model_request_failed');
+  assert.ok(failedEvent, 'expected a model_request_failed event for the openai rate-limit failure');
+  assert.equal(failedEvent!.fields.provider, 'openai');
+
+  const succeededEvent = events.find((e) => e.name === 'model_request_succeeded');
+  assert.ok(succeededEvent, 'expected a model_request_succeeded event for the gemini fallback success');
+  assert.equal(succeededEvent!.fields.provider, 'gemini');
+  assert.equal(succeededEvent!.fields.fallbackUsed, true);
+
+  assert.ok(events.every((event) => !JSON.stringify(event.fields).includes('secret')));
 });
 
-test('structured plan routing falls back when a provider returns invalid JSON', async () => {
-  const fetchFn: typeof fetch = async (url) => String(url).includes('openai.com')
-    ? jsonResponse({ output_text: 'not json' })
+// C1 — superseded: R22.5 made "explicit provider override cannot bypass a
+// required capability" a first-class invariant (see
+// tests/r22_5_task_aware_model_routing.test.ts's
+// EXPLICIT_OVERRIDE_CANNOT_BYPASS_REQUIRED_CAPABILITY coverage). OpenAI's
+// real, canonical capability declaration correctly lacks JSON/structured
+// support (src/model-gateway/providers.ts, untouched here), so an explicit
+// 'openai' override for a PLAN task must now fail closed with the
+// canonical capability-unsupported error BEFORE any generation is
+// attempted — it must never reach a provider call, let alone fall back
+// after an "invalid JSON" response that never happens.
+test('explicit openai override for a structured PLAN task fails closed with MODEL_PROVIDER_CAPABILITY_UNSUPPORTED, never a provider call', async () => {
+  const fetchFn: typeof fetch = async () => { throw new Error('must not call any provider — capability rejection happens before generation'); };
+  const providers = createProviders({ OPENAI_API_KEY: 'a', NAGEX_OPENAI_MODEL: 'oa', GEMINI_API_KEY: 'g', NAGEX_GEMINI_MODEL: 'gm' }, fetchFn);
+  const service = new AiService(new UnifiedModelRouter(providers, { info: () => {}, warn: () => {} }));
+  await assert.rejects(
+    () => service.plan({ prompt: 'Make a plan', memories: [], mode: 'openai', requestId: 'req_explicit_incompatible' }),
+    (error: any) => error.code === 'MODEL_PROVIDER_CAPABILITY_UNSUPPORTED' && error.category === 'VALIDATION',
+  );
+});
+
+// Separate, still-needed coverage: structured plan routing genuinely falls
+// back after an invalid-JSON response, using a provider that actually
+// supports the required capability (auto-routing, not an explicit
+// incompatible override) — this is the real-world case the old test's
+// premise was meant to protect, kept alive with a provider combination
+// that can legitimately reach generation at all.
+test('structured plan routing falls back when a capable provider returns invalid JSON', async () => {
+  const fetchFn: typeof fetch = async (url) => String(url).includes('tokenfactory.nebius.com')
+    ? jsonResponse({ choices: [{ message: { content: 'not json' } }] })
     : jsonResponse({ candidates: [{ content: { parts: [{ text: JSON.stringify({
       goal: 'Goal', summary: 'Summary', reasoningSummary: 'Rationale',
       steps: [{ title: 'Review', reasoning: 'Prepare safely', skill: 'Planning', tool: null, requiresApproval: false }],
     }) }] } }] });
-  const providers = createProviders({ OPENAI_API_KEY: 'a', NAGEX_OPENAI_MODEL: 'oa', GEMINI_API_KEY: 'g', NAGEX_GEMINI_MODEL: 'gm' }, fetchFn);
+  const providers = createProviders({ NEBIUS_API_KEY: 'n', NAGEX_NEBIUS_MODEL: 'nm', GEMINI_API_KEY: 'g', NAGEX_GEMINI_MODEL: 'gm', NAGEX_PROVIDER_PRIORITY: 'nebius,gemini' }, fetchFn);
   const service = new AiService(new UnifiedModelRouter(providers, { info: () => {}, warn: () => {} }));
-  const result = await service.plan({ prompt: 'Make a plan', memories: [], mode: 'openai', requestId: 'req_invalid_fallback' });
+  const result = await service.plan({ prompt: 'Make a plan', memories: [], mode: 'nebius', requestId: 'req_invalid_fallback' });
   assert.equal(result.provider, 'gemini');
   assert.equal(result.data.steps.length, 1);
 });
@@ -105,14 +152,18 @@ test('POST /api/v1/ai/chat returns normalized metadata from a mocked live provid
     service,
   );
   assert.equal(result.status, 200);
-  assert.deepEqual(result.data, {
-    data: { message: 'A real provider-shaped response.' },
-    provider: 'openai',
-    model: 'env-chat-model',
-    latencyMs: (result.data as any).latencyMs,
-    requestId: 'req_chat_endpoint',
-  });
-  assert.equal(typeof (result.data as any).latencyMs, 'number');
+  // R22.4 legitimately added evidencePackId/sources to the chat response
+  // contract (see the Evidence Pack / web-search grounding work) — assert
+  // the required fields rather than an exact shape that would break every
+  // time the metadata envelope grows.
+  const data = result.data as any;
+  assert.equal(data.data.message, 'A real provider-shaped response.');
+  assert.equal(data.provider, 'openai');
+  assert.equal(data.model, 'env-chat-model');
+  assert.equal(data.requestId, 'req_chat_endpoint');
+  assert.equal(typeof data.latencyMs, 'number');
+  assert.equal(typeof data.data.evidencePackId, 'string');
+  assert.ok(Array.isArray(data.data.sources));
 });
 
 test('provider timeout is normalized and eligible for fallback', async () => {

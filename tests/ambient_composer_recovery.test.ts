@@ -255,3 +255,69 @@ test('a normal, responding ambient/intent request is unaffected by the new timeo
     });
   });
 });
+
+// A2 — #composer-drop-zone previously didn't exist in the served markup at
+// all (a real drift: the toggle handler and CSS rule both still referenced
+// it, but getElementById returned null, making the file button's click a
+// silent no-op). This proves the real, current DOM element genuinely
+// changes visibility on a real click (the file-affordance button is a
+// currently-unreachable "hidden-affordance" control per its own markup —
+// see public/index.html — so the click is dispatched directly on the
+// button element itself, exactly as a future "reveal hidden affordances"
+// entry point would, rather than depending on that separate, out-of-scope
+// feature existing yet), and that selecting a real file through it drives
+// the same real upload pipeline the voice-memo recorder already uses.
+test('composer file button click makes the real #composer-drop-zone visible, and selecting a file uploads through the real capture pipeline', { timeout: 30000 }, async () => {
+  await withServer(async (origin) => {
+    await withBrowserPage(origin, async (page) => {
+      const isHiddenAndInvisible = async () => page.evaluate(() => {
+        const el = document.getElementById('composer-drop-zone');
+        if (!el) return null;
+        return el.classList.contains('hidden') && window.getComputedStyle(el).display === 'none';
+      });
+      const isVisible = async () => page.evaluate(() => {
+        const el = document.getElementById('composer-drop-zone');
+        if (!el) return false;
+        return !el.classList.contains('hidden') && window.getComputedStyle(el).display !== 'none';
+      });
+
+      assert.equal(await isHiddenAndInvisible(), true, 'the drop zone must start hidden-by-default, both by class and by real computed style');
+
+      await page.evaluate(() => document.getElementById('btn-afford-file').click());
+      assert.equal(await isVisible(), true, 'a real click on the file button must make the real drop zone visible, not just toggle an inert class');
+
+      let uploadRequestBody: any = null;
+      await page.route('**/api/v1/workspace/upload', async (route) => {
+        uploadRequestBody = JSON.parse(route.request().postData() || '{}');
+        await route.fulfill({
+          status: 201,
+          contentType: 'application/json',
+          body: JSON.stringify({ captureId: 'cap_test_composer_file', status: 'READY' }),
+        });
+      });
+
+      await page.setInputFiles('#composer-file-input', {
+        name: 'note.txt',
+        mimeType: 'text/plain',
+        buffer: Buffer.from('a real composer file upload'),
+      });
+      await page.waitForFunction(
+        () => document.getElementById('composer-drop-zone')?.classList.contains('hidden') === true,
+        undefined,
+        { timeout: 5000 },
+      );
+
+      assert.ok(uploadRequestBody, 'selecting a file must actually call the real upload endpoint, not a fake/parallel path');
+      assert.equal(uploadRequestBody.type, 'FILE');
+      assert.equal(uploadRequestBody.filename, 'note.txt');
+      assert.ok(typeof uploadRequestBody.base64 === 'string' && uploadRequestBody.base64.length > 0, 'the real file content must be sent, not a stub');
+
+      assert.equal(await isHiddenAndInvisible(), true, 'the drop zone must hide itself again once the upload completes');
+
+      const inboxTabActive = await page.evaluate(() => document.getElementById('view-home')?.classList.contains('active-view') === false);
+      assert.equal(inboxTabActive, true, 'a successful upload must hand off to the Inbox, matching the existing voice-memo capture behavior');
+
+      await page.evaluate(() => document.getElementById('btn-afford-file').click());
+    });
+  });
+});
