@@ -14,7 +14,12 @@ const liveExternal = new Map([
   ['astra_real_provider_acceptance', ['OpenAI API', 'internet', 'Chromium']],
   ['cloud_vault_nebius.integration', ['Nebius S3', 'internet', 'S3 credentials']],
   ['model_provider_live', ['OpenAI, Gemini, or Nebius API', 'internet', 'provider credentials']],
-  ['r21_p1_deployed_certification', ['deployed NAgex URL', 'internet', 'Chromium']],
+]);
+// R22.S — deployed certification is its own classification, not LIVE_EXTERNAL,
+// so the "deployed" gate (scripts/nagex-test-gate.mjs) can select it by
+// classification alone without also pulling it into the "live" gate.
+const deployedCert = new Map([
+  ['r21_p1_deployed_certification', { deps: ['deployed NAgex URL', 'internet', 'Chromium'], requiresEnv: ['NAGEX_DEPLOYED_URL'] }],
 ]);
 const superseded = new Map([
   ['r21_p0_1c_clone_mockup', { by: 'R22.1/R22.8', note: 'R21 approved-mockup source snapshot was replaced by R22 mobile-first and Personal Home contracts; retain for historical conversion review.' }],
@@ -94,6 +99,10 @@ for (const filename of files) {
   if (harnessTests.has(name)) {
     classification = 'TEST_HARNESS';
     note = 'Validates test execution, registry coverage, or harness behavior.';
+  } else if (deployedCert.has(name)) {
+    classification = 'DEPLOYED_CERT';
+    canonical = false;
+    note = 'Deployment-gated live acceptance against a real deployed NAgex URL; never runs as part of regression or browser-cert.';
   } else if (liveExternal.has(name)) {
     classification = 'LIVE_EXTERNAL';
     canonical = false;
@@ -116,18 +125,27 @@ for (const filename of files) {
     classification = 'CANONICAL_BEHAVIOR';
   }
 
+  // Repository artifact writes: fs.writeFileSync(...) or Playwright
+  // page.screenshot({ path: ... }) — only meaningful for REAL_BROWSER_CERT
+  // entries (see tests/test_contract_registry.test.ts), which the "browser"
+  // gate must be able to exclude pending remediation without re-scanning
+  // source itself.
+  const writesRepositoryArtifacts = /writeFileSync|screenshot\(\{[^}]*path/.test(content);
+
   const entry = {
     milestone: milestone(name),
     classification,
     canonical,
     scopes: scopesFor(name, content),
-    externalDependencies: liveExternal.get(name) ?? [],
+    externalDependencies: liveExternal.get(name) ?? deployedCert.get(name)?.deps ?? [],
     realBrowser: launchesBrowser,
     sourceImplementationAssertions: implementationAssertions,
-    deterministic: !liveExternal.has(name),
+    deterministic: !liveExternal.has(name) && !deployedCert.has(name),
     assertionIntent: assertionIntentFor(name, content, classification, launchesBrowser, implementationAssertions),
     notes: note,
   };
+  if (launchesBrowser) entry.writesRepositoryArtifacts = writesRepositoryArtifacts;
+  if (deployedCert.has(name)) entry.requiresEnv = deployedCert.get(name).requiresEnv;
   if (superseded.has(name)) entry.supersededBy = superseded.get(name).by;
   if (name === 'r21_p1_ux_integration') {
     entry.supersededBy = 'R22.8';

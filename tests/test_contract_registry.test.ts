@@ -12,6 +12,7 @@ const allowedClassifications = new Set([
   'REAL_BROWSER_CERT',
   'TEST_HARNESS',
   'LIVE_EXTERNAL',
+  'DEPLOYED_CERT',
   'SUPERSEDED_CONTRACT',
 ]);
 
@@ -23,6 +24,8 @@ type RegistryEntry = {
   supersededBy?: unknown;
   externalDependencies?: unknown;
   realBrowser?: unknown;
+  writesRepositoryArtifacts?: unknown;
+  requiresEnv?: unknown;
 };
 
 function testBasenames(): string[] {
@@ -53,8 +56,22 @@ test('test-contract registry classifies every real test exactly once with valid 
     if (entry.classification === 'LIVE_EXTERNAL') {
       assert.ok(Array.isArray(entry.externalDependencies) && entry.externalDependencies.length > 0, `${name}: live external dependencies must be explicit`);
     }
+    if (entry.classification === 'DEPLOYED_CERT') {
+      // Deployed certification is a distinct classification from LIVE_EXTERNAL
+      // specifically so the "deployed" gate can select it by classification
+      // alone (see scripts/nagex-test-gate.mjs) without also being pulled
+      // into the "live" gate — it still declares its external dependencies
+      // and required env the same way LIVE_EXTERNAL does.
+      assert.ok(Array.isArray(entry.externalDependencies) && entry.externalDependencies.length > 0, `${name}: deployed certification dependencies must be explicit`);
+      assert.ok(Array.isArray(entry.requiresEnv) && entry.requiresEnv.length > 0, `${name}: deployed certification must declare its required env var(s)`);
+    }
     if (entry.classification === 'REAL_BROWSER_CERT') {
       assert.equal(entry.realBrowser, true, `${name}: real browser certification must declare realBrowser=true`);
+      // R22.S — the browser gate must be able to tell, from the registry
+      // alone, which REAL_BROWSER_CERT tests still write to the repository
+      // (artifacts/) so it can exclude them pending remediation instead of
+      // silently modifying artifacts when the gate runs.
+      assert.equal(typeof entry.writesRepositoryArtifacts, 'boolean', `${name}: real browser certification must declare writesRepositoryArtifacts`);
     }
   }
 });

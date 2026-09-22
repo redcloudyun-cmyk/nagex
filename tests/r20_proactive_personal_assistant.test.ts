@@ -35,10 +35,21 @@ const config: GoogleOAuthConfig = { clientId: 'cid', clientSecret: 'csecret', re
 const CAL_SCOPE = GOOGLE_CALENDAR_SCOPES.join(' ');
 const GMAIL_SCOPE = GMAIL_SCOPES.join(' ');
 
+// R22.5 ModelRoutingPolicy.satisfiesCapabilities() fails closed when a
+// provider declares no capabilities at all ("unknown capability != supported
+// capability", never fail-open) — this fake must truthfully declare the
+// canonical ModelProviderCapabilities contract for the JSON/Meeting-Prep
+// role it plays in this suite, exactly like a real provider would.
 function fakeModelProvider(reply: () => string | Error, name = 'nebius'): ModelProvider {
   return {
     name,
     model: 'test-model',
+    capabilities: {
+      provider: name,
+      supportsJsonMode: true,
+      supportsGeneralChat: true,
+      supportsStructuredExtraction: true,
+    },
     status: (): ProviderStatus => ({ configured: true, available: true, provider: name, model: 'test-model', status: 'LIVE', lastCheckedAt: null, degradedReason: null }),
     generate: async (request: ModelRequest): Promise<ModelResponse> => {
       const result = reply();

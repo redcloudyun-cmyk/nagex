@@ -118,7 +118,8 @@
       "sourceImplementationAssertions": false,
       "deterministic": true,
       "assertionIntent": "user-visible browser behavior",
-      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser.",
+      "writesRepositoryArtifacts": false
     },
     "ambient_modal_wiring": {
       "milestone": "Cross-cutting",
@@ -924,7 +925,8 @@
       "sourceImplementationAssertions": false,
       "deterministic": true,
       "assertionIntent": "user-visible browser behavior",
-      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser.",
+      "writesRepositoryArtifacts": true
     },
     "daily_brief": {
       "milestone": "Cross-cutting",
@@ -1259,7 +1261,8 @@
       "sourceImplementationAssertions": false,
       "deterministic": true,
       "assertionIntent": "user-visible browser behavior",
-      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser.",
+      "writesRepositoryArtifacts": true
     },
     "enterprise_identity_saml_security": {
       "milestone": "Cross-cutting",
@@ -1651,7 +1654,8 @@
       "sourceImplementationAssertions": false,
       "deterministic": true,
       "assertionIntent": "user-visible browser behavior",
-      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser.",
+      "writesRepositoryArtifacts": true
     },
     "inbox_activity_ux": {
       "milestone": "Cross-cutting",
@@ -1818,7 +1822,8 @@
       "sourceImplementationAssertions": false,
       "deterministic": true,
       "assertionIntent": "user-visible browser behavior",
-      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser.",
+      "writesRepositoryArtifacts": true
     },
     "modal_behavior": {
       "milestone": "Cross-cutting",
@@ -2077,7 +2082,8 @@
       "sourceImplementationAssertions": false,
       "deterministic": true,
       "assertionIntent": "user-visible browser behavior",
-      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser.",
+      "writesRepositoryArtifacts": true
     },
     "pdf_understanding": {
       "milestone": "Cross-cutting",
@@ -2390,7 +2396,8 @@
       "sourceImplementationAssertions": false,
       "deterministic": true,
       "assertionIntent": "user-visible browser behavior",
-      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser.",
+      "writesRepositoryArtifacts": true
     },
     "r18_personal_workspace": {
       "milestone": "R18",
@@ -2433,7 +2440,8 @@
       "sourceImplementationAssertions": false,
       "deterministic": true,
       "assertionIntent": "user-visible browser behavior",
-      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser.",
+      "writesRepositoryArtifacts": true
     },
     "r19_action_approval": {
       "milestone": "R19",
@@ -2473,7 +2481,8 @@
       "sourceImplementationAssertions": false,
       "deterministic": true,
       "assertionIntent": "user-visible browser behavior",
-      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser.",
+      "writesRepositoryArtifacts": true
     },
     "r20_proactive_personal_assistant": {
       "milestone": "R20",
@@ -2518,13 +2527,16 @@
       "sourceImplementationAssertions": false,
       "deterministic": true,
       "assertionIntent": "user-visible browser behavior",
-      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser.",
+      "writesRepositoryArtifacts": true
     },
     "r21_p0_1c_clone_mockup": {
       "milestone": "R21.P0",
       "classification": "SUPERSEDED_CONTRACT",
       "canonical": false,
       "scopes": [
+        "architecture",
+        "browser",
         "capture",
         "memory-context",
         "runtime",
@@ -2548,6 +2560,7 @@
         "approvals",
         "architecture",
         "browser",
+        "capture",
         "device",
         "integrations",
         "memory-context",
@@ -2562,6 +2575,7 @@
       "deterministic": true,
       "assertionIntent": "user-visible browser behavior",
       "notes": "R21 clone-layout browser certification was replaced by R22 mobile and canonical Personal Home browser certification.",
+      "writesRepositoryArtifacts": false,
       "supersededBy": "R22.1/R22.8"
     },
     "r21_p0_2_personal_ui": {
@@ -2602,7 +2616,8 @@
       "sourceImplementationAssertions": false,
       "deterministic": true,
       "assertionIntent": "user-visible browser behavior",
-      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser.",
+      "writesRepositoryArtifacts": false
     },
     "r21_p0_ux_principles": {
       "milestone": "R21.P0",
@@ -2647,7 +2662,8 @@
       "sourceImplementationAssertions": false,
       "deterministic": true,
       "assertionIntent": "user-visible browser behavior",
-      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser.",
+      "writesRepositoryArtifacts": true
     },
     "r21_p1_demo_scenario": {
       "milestone": "R21.P1",
@@ -2674,7 +2690,7 @@
     },
     "r21_p1_deployed_certification": {
       "milestone": "R21.P1",
-      "classification": "LIVE_EXTERNAL",
+      "classification": "DEPLOYED_CERT",
       "canonical": false,
       "scopes": [
         "approvals",
@@ -2701,7 +2717,11 @@
       "sourceImplementationAssertions": true,
       "deterministic": false,
       "assertionIntent": "implementation snapshot",
-      "notes": "Credential- or deployment-gated live acceptance; not a deterministic local regression."
+      "notes": "Deployment-gated live acceptance against a real deployed NAgex URL; never runs as part of regression or browser-cert.",
+      "writesRepositoryArtifacts": true,
+      "requiresEnv": [
+        "NAGEX_DEPLOYED_URL"
+      ]
     },
     "r21_p1_finalization_real_browser": {
       "milestone": "R21.P1",
@@ -2728,7 +2748,8 @@
       "sourceImplementationAssertions": true,
       "deterministic": true,
       "assertionIntent": "implementation snapshot",
-      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser.",
+      "writesRepositoryArtifacts": true
     },
     "r21_p1_social_auth": {
       "milestone": "R21.P1",
@@ -2784,7 +2805,8 @@
       "sourceImplementationAssertions": true,
       "deterministic": true,
       "assertionIntent": "implementation snapshot",
-      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser.",
+      "writesRepositoryArtifacts": true
     },
     "r22_2_activity_vault": {
       "milestone": "R22.2",
@@ -2801,7 +2823,8 @@
       "sourceImplementationAssertions": false,
       "deterministic": true,
       "assertionIntent": "user-visible browser behavior",
-      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser.",
+      "writesRepositoryArtifacts": true
     },
     "r22_3_personal_context_memory": {
       "milestone": "R22.3",
@@ -2863,7 +2886,8 @@
       "sourceImplementationAssertions": true,
       "deterministic": true,
       "assertionIntent": "implementation snapshot",
-      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser.",
+      "writesRepositoryArtifacts": false
     },
     "r22_7_forecast_compare": {
       "milestone": "R22.7",
@@ -2878,7 +2902,8 @@
       "sourceImplementationAssertions": false,
       "deterministic": true,
       "assertionIntent": "user-visible browser behavior",
-      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser.",
+      "writesRepositoryArtifacts": false
     },
     "r22_8_personal_home": {
       "milestone": "R22.8",
@@ -2893,7 +2918,8 @@
       "sourceImplementationAssertions": false,
       "deterministic": true,
       "assertionIntent": "user-visible browser behavior",
-      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser.",
+      "writesRepositoryArtifacts": false
     },
     "r22_9_personal_context_link_capture": {
       "milestone": "R22.9",
@@ -2910,7 +2936,8 @@
       "sourceImplementationAssertions": false,
       "deterministic": true,
       "assertionIntent": "user-visible browser behavior",
-      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser.",
+      "writesRepositoryArtifacts": false
     },
     "rbac_lifecycle": {
       "milestone": "Cross-cutting",
@@ -2948,7 +2975,8 @@
       "sourceImplementationAssertions": false,
       "deterministic": true,
       "assertionIntent": "user-visible browser behavior",
-      "notes": "Runs observable UI behavior in a real Playwright Chromium browser."
+      "notes": "Runs observable UI behavior in a real Playwright Chromium browser.",
+      "writesRepositoryArtifacts": true
     },
     "retry_failure_handling": {
       "milestone": "Cross-cutting",

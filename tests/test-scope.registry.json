@@ -109,6 +109,21 @@
       "persistent_memory",
       "workflow_definition",
       "audit_tenant_isolation"
+    ],
+    "personal-home": [
+      "r22_8_personal_home"
+    ],
+    "memory-context": [
+      "r22_3_personal_context_memory"
+    ],
+    "capture": [
+      "r22_9_personal_context_link_capture"
+    ],
+    "model-routing": [
+      "r22_5_task_aware_model_routing"
+    ],
+    "mobile": [
+      "r22_1_mobile_home"
     ]
   },
   "fullOnly": [
@@ -207,14 +222,9 @@
     "r21_p1_finalization_real_browser",
     "r21_p1_social_auth",
     "r21_p1_deployed_certification",
-    "r22_1_mobile_home",
     "r22_2_activity_vault",
-    "r22_3_personal_context_memory",
     "r22_4_evidence_pack_web_search",
-    "r22_5_task_aware_model_routing",
     "r22_6_perspective_compare",
-    "r22_7_forecast_compare",
-    "r22_8_personal_home",
-    "r22_9_personal_context_link_capture"
+    "r22_7_forecast_compare"
   ]
 }

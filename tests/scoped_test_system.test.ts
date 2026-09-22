@@ -114,11 +114,27 @@ test('10. runtime scope includes lifecycle/composition coverage', () => {
   assert.ok(registry.scopes.runtime?.includes('composition_root'));
 });
 
-// ─── 11: npm test command remains full wildcard suite ──────────────────
+// ─── 11: npm test is the R22.S deterministic regression gate ───────────
+//
+// R22.S superseded the old contract this test enforced ("npm test remains
+// the untouched full-wildcard suite"): the wildcard mixed deterministic
+// canonical regression with implementation-coupled legacy tests, superseded
+// contracts, local browser certification, deployed-server certification,
+// and live external-provider tests into one undifferentiated pass/fail
+// signal. `npm test` is now the deterministic `test:regression` gate (see
+// scripts/nagex-test-gate.mjs and tests/test-contract.registry.json); the
+// historical full wildcard still exists, unhidden, as `npm run
+// test:all-legacy`.
 
-test('11. package.json\'s "test" script remains the untouched full-wildcard suite with the canonical preload', () => {
+test('11. package.json\'s "test" script is the deterministic regression gate, not the historical full wildcard', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-  assert.equal(pkg.scripts.test, 'tsc && node --require ./dist/tests/_setup.js --test dist/tests/*.test.js');
+  assert.equal(pkg.scripts.test, 'npm run test:regression');
+  assert.equal(pkg.scripts['test:regression'], 'node scripts/nagex-test-gate.mjs regression');
+});
+
+test('11b. the historical full-wildcard suite remains available, undisguised, as "test:all-legacy"', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  assert.equal(pkg.scripts['test:all-legacy'], 'tsc && node --require ./dist/tests/_setup.js --test dist/tests/*.test.js');
 });
 
 // ─── 12: scoped runner does not mutate production files ────────────────
