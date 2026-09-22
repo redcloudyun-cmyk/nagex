@@ -106,7 +106,7 @@ test('16. EN and KR translations present and resolve properly across Settings', 
   const i18nJs = fs.readFileSync(path.join(process.cwd(), 'public', 'i18n.js'), 'utf-8');
   assert.match(i18nJs, /'settings\.catConnections':\s*'Connections'/);
   assert.match(i18nJs, /'settings\.catConnections':\s*'연결'/);
-  assert.match(i18nJs, /'settings\.catModels':\s*'AI & Models'/);
+  assert.match(i18nJs, /'settings\.catModels':\s*'Models'/);
   assert.match(i18nJs, /'settings\.catModels':\s*'AI 및 모델'/);
 });
 
