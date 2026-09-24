@@ -58,7 +58,6 @@ import type { WorkflowDefinitionService } from '../workflows/workflow-definition
 import type { CreationStore } from '../creation/creation.store.js';
 import type { CreationService } from '../creation/creation.service.js';
 import type { LinkCaptureService } from '../capture/link-capture.service.js';
-import type { InboxStore } from '../workspace/inbox.store.js';
 import type { VaultStore } from '../workspace/vault.store.js';
 import type { ConnectionStore } from '../workspace/connections.store.js';
 import type { ActionStore } from '../workspace/action.store.js';
@@ -158,7 +157,6 @@ export interface NagexApplication {
   creationStore: CreationStore;
   creationService: CreationService;
   linkCaptureService: LinkCaptureService;
-  inboxStore: InboxStore;
   vaultStore: VaultStore;
   connectionStore: ConnectionStore;
   actionStore: ActionStore;
@@ -179,6 +177,7 @@ export interface NagexApplication {
   forecastCompareService: import('../model-gateway/forecast-compare.service.js').ForecastCompareService;
   personalHomeService: import('../home/personal-home.service.js').PersonalHomeService;
   currentPersonalContextService: import('../personal/current-personal-context.service.js').CurrentPersonalContextService;
+  rightNowIntelligenceService: import('../personal/right-now-intelligence.service.js').RightNowIntelligenceService;
   /** Re-seeds the canonical demo persona memory into the real MemoryEngine. Call after demo reset. */
   seedDemoMemory(): void;
 }

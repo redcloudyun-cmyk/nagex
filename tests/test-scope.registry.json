@@ -130,7 +130,25 @@
       "r22_8_personal_home",
       "memory_tenant_isolation",
       "memory_relevance",
-      "r22_3_personal_context_memory"
+      "r22_3_personal_context_memory",
+      "personal_reminder_tenant_isolation"
+    ],
+    "right-now": [
+      "r23_2_right_now_intelligence",
+      "r23_2d_demo_canonicalization",
+      "r23_1_personal_context",
+      "r22_8_personal_home",
+      "personal_reminder_tenant_isolation",
+      "memory_relevance"
+    ],
+    "proactive-suggestions": [
+      "r23_3_proactive_suggestions",
+      "r23_2_right_now_intelligence",
+      "r23_2d_demo_canonicalization",
+      "r22_8_personal_home",
+      "approval_ownership_isolation",
+      "memory_tenant_isolation",
+      "memory_relevance"
     ]
   },
   "fullOnly": [

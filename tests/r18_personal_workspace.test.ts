@@ -51,6 +51,14 @@ const defaultHeaders = {
   'X-NAgex-Workspace': 'ws_default_01',
 };
 
+// R23.1H — the Inbox route is now canonically backed by CaptureStore (the
+// Unified Capture pipeline), not the retired standalone InboxStore, so the
+// UI (renderInbox()) and CurrentPersonalContextService (R23.1) agree on
+// one canonical Inbox (CANONICAL_USER_INBOX_PIPELINE_COUNT=1). Field names
+// and the initial status accordingly follow CaptureItem's real contract
+// (captureId, status READY on this route's own immediate/pre-understood
+// creation) rather than the retired InboxItem shape — the flow itself
+// (capture -> list -> save to Vault -> archive) is unchanged.
 test('1. Inbox E2E — real capture, list, archive, save to Vault', async () => {
   await withServer(async (origin) => {
     // 1a. Ingress via Capture
@@ -59,16 +67,14 @@ test('1. Inbox E2E — real capture, list, archive, save to Vault', async () => 
       headers: defaultHeaders,
       body: JSON.stringify({
         sourceType: 'UPLOAD',
-        sourceRef: 'file_quarterly_report.pdf',
         title: 'Q3 Financial Quarter Analysis',
         summary: 'Uploaded PDF regarding Q3 sales revenue',
-        priority: 'HIGH',
       }),
     });
     assert.equal(captureRes.status, 201);
     const item = (await captureRes.json()) as any;
-    assert.ok(item.inboxItemId);
-    assert.equal(item.status, 'NEW');
+    assert.ok(item.captureId);
+    assert.equal(item.status, 'READY');
 
     // 1b. List Inbox
     const listRes = await fetch(`${origin}/api/v1/workspace/inbox`, {
@@ -77,10 +83,10 @@ test('1. Inbox E2E — real capture, list, archive, save to Vault', async () => 
     assert.equal(listRes.status, 200);
     const list = (await listRes.json()) as any;
     assert.ok(Array.isArray(list.items));
-    assert.ok(list.items.some((i: any) => i.inboxItemId === item.inboxItemId));
+    assert.ok(list.items.some((i: any) => i.captureId === item.captureId));
 
     // 1c. Save to Vault
-    const saveRes = await fetch(`${origin}/api/v1/workspace/inbox/${item.inboxItemId}/save-to-vault`, {
+    const saveRes = await fetch(`${origin}/api/v1/workspace/inbox/${item.captureId}/save-to-vault`, {
       method: 'POST',
       headers: defaultHeaders,
     });
@@ -91,7 +97,7 @@ test('1. Inbox E2E — real capture, list, archive, save to Vault', async () => 
     assert.equal(vaultItem.title, 'Q3 Financial Quarter Analysis');
 
     // Verify inbox item marked ACTIONED
-    const getItemRes = await fetch(`${origin}/api/v1/workspace/inbox/${item.inboxItemId}`, {
+    const getItemRes = await fetch(`${origin}/api/v1/workspace/inbox/${item.captureId}`, {
       headers: defaultHeaders,
     });
     assert.equal(getItemRes.status, 200);
@@ -99,7 +105,7 @@ test('1. Inbox E2E — real capture, list, archive, save to Vault', async () => 
     assert.equal(updatedItem.status, 'ACTIONED');
 
     // 1d. Archive Inbox Item
-    const archiveRes = await fetch(`${origin}/api/v1/workspace/inbox/${item.inboxItemId}/archive`, {
+    const archiveRes = await fetch(`${origin}/api/v1/workspace/inbox/${item.captureId}/archive`, {
       method: 'POST',
       headers: defaultHeaders,
     });

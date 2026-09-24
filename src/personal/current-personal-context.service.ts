@@ -14,8 +14,7 @@
 // personal-context.service.ts), which is narrowly the R22.3 memory-
 // relevance gate — this service *uses* that one for its own memory section
 // rather than duplicating its (already-hardened) relevance logic.
-import type { GoogleCalendarService } from '../modules/calendar/index.js';
-import type { GmailService } from '../modules/gmail/index.js';
+import type { UpcomingCalendarEvent } from '../modules/calendar/index.js';
 import type { TaskStore, TaskRecord, TaskStatus } from '../tasks/task.store.js';
 import type { PersonalReminderStore, PersonalReminder } from './personal-reminder.store.js';
 import type { ActionApprovalStore, ActionApprovalRecord } from '../governance/action-approval.store.js';
@@ -27,6 +26,31 @@ import type { MemoryRecord } from '../context/memory.engine.js';
 import type { PersonalContextService } from '../context/personal-context.service.js';
 
 export type ContextSourceType = 'CALENDAR' | 'GMAIL' | 'TASK' | 'REMINDER' | 'APPROVAL' | 'INBOX' | 'VAULT' | 'MEMORY';
+
+// R23.2D — narrow structural interfaces instead of the concrete
+// GoogleCalendarService/GmailService classes. This service's own logic
+// never changes based on which implementation is behind these — only the
+// composition root decides, per tenant, whether a real provider or the
+// canonical demo seed source answers a call (DEMO_PARALLEL_INTELLIGENCE_
+// PIPELINE=0: one aggregation pipeline, one set of ranking rules, for both).
+// The real GoogleCalendarService/GmailService classes already satisfy
+// these structurally — no cast needed at any real call site.
+export interface CalendarEventsSource {
+  listUpcomingEvents(input: {
+    tenantId: string;
+    calendarId?: string;
+    timeMin: string;
+    timeMax: string;
+    maxResults?: number;
+    requestId: string;
+  }): Promise<UpcomingCalendarEvent[]>;
+}
+
+export interface GmailSearchSource {
+  search(input: { tenantId: string; query: string; requestId: string }): Promise<{
+    threads: Array<{ threadId: string; snippet: string; historyId: string | null }>;
+  }>;
+}
 
 export interface ContextSourceTrace {
   type: ContextSourceType;
@@ -106,7 +130,13 @@ export interface ContextAttentionItem {
   sourceRef: { type: ContextSourceType; id: string };
 }
 
-export type SourceAvailability = 'OK' | 'UNAVAILABLE';
+// 'UNAVAILABLE' = source not configured/connected (no dependency wired —
+// e.g. the user hasn't connected Google, or this deployment omits a store).
+// 'ERROR' = source is configured but the live call itself failed. Both are
+// degraded-but-truthful states distinct from 'OK'; callers that only need a
+// binary connected/not-connected view (e.g. PersonalHomeService) may still
+// collapse ERROR into UNAVAILABLE, but the two are never conflated here.
+export type SourceAvailability = 'OK' | 'UNAVAILABLE' | 'ERROR';
 
 export interface ContextSourceStatus {
   calendar: SourceAvailability;
@@ -165,8 +195,8 @@ const UPCOMING_MEETING_ATTENTION_WINDOW_MS = 60 * 60 * 1000;
 export class CurrentPersonalContextService {
   constructor(
     private readonly deps: {
-      googleCalendarService?: GoogleCalendarService;
-      gmailService?: GmailService;
+      googleCalendarService?: CalendarEventsSource;
+      gmailService?: GmailSearchSource;
       taskStore?: TaskStore;
       personalReminderStore?: PersonalReminderStore;
       actionApprovals?: ActionApprovalStore;
@@ -207,7 +237,7 @@ export class CurrentPersonalContextService {
           }))
           .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
       } catch {
-        sourceStatus.calendar = 'UNAVAILABLE';
+        sourceStatus.calendar = 'ERROR';
         todaysEvents = [];
       }
     } else {
@@ -224,7 +254,7 @@ export class CurrentPersonalContextService {
       try {
         allTasks = this.deps.taskStore.list(tenantId, userId);
       } catch {
-        sourceStatus.tasks = 'UNAVAILABLE';
+        sourceStatus.tasks = 'ERROR';
         allTasks = [];
       }
     } else {
@@ -249,9 +279,9 @@ export class CurrentPersonalContextService {
     let activeReminders: PersonalReminder[] = [];
     if (this.deps.personalReminderStore) {
       try {
-        activeReminders = this.deps.personalReminderStore.listReminders(userId, 'ACTIVE');
+        activeReminders = this.deps.personalReminderStore.listReminders(tenantId, userId, 'ACTIVE');
       } catch {
-        sourceStatus.reminders = 'UNAVAILABLE';
+        sourceStatus.reminders = 'ERROR';
         activeReminders = [];
       }
     } else {
@@ -275,7 +305,7 @@ export class CurrentPersonalContextService {
       try {
         pendingApprovalRecords = this.deps.actionApprovals.listPending(tenantId, userId);
       } catch {
-        sourceStatus.approvals = 'UNAVAILABLE';
+        sourceStatus.approvals = 'ERROR';
         pendingApprovalRecords = [];
       }
     } else {
@@ -295,7 +325,7 @@ export class CurrentPersonalContextService {
       try {
         allCaptures = this.deps.captureStore.listCaptures(tenantId, userId);
       } catch {
-        sourceStatus.inbox = 'UNAVAILABLE';
+        sourceStatus.inbox = 'ERROR';
         allCaptures = [];
       }
     } else {
@@ -337,7 +367,7 @@ export class CurrentPersonalContextService {
             });
           }
         } catch {
-          sourceStatus.gmail = 'UNAVAILABLE';
+          sourceStatus.gmail = 'ERROR';
         }
       } else if (!this.deps.gmailService) {
         sourceStatus.gmail = 'UNAVAILABLE';
@@ -358,7 +388,7 @@ export class CurrentPersonalContextService {
             });
           }
         } catch {
-          sourceStatus.vault = 'UNAVAILABLE';
+          sourceStatus.vault = 'ERROR';
         }
       } else {
         sourceStatus.vault = 'UNAVAILABLE';
@@ -400,7 +430,7 @@ export class CurrentPersonalContextService {
           }
         }
       } catch {
-        sourceStatus.memory = 'UNAVAILABLE';
+        sourceStatus.memory = 'ERROR';
       }
     } else {
       sourceStatus.memory = 'UNAVAILABLE';

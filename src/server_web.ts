@@ -55,6 +55,7 @@ import { handleActionsRoutes } from './http/routes/actions.routes.js';
 import type { GoogleCalendarService } from './modules/calendar/index.js';
 import type { GmailService } from './modules/gmail/index.js';
 import { BrowserToolService, browserRuntime } from './modules/browser/index.js';
+import { captureStore } from './workspace/capture.store.js';
 import type { ConversationStore } from './conversations/conversation.store.js';
 import type { ConversationContextService } from './conversations/conversation-context.service.js';
 import type { TelegramService } from './integrations/telegram/telegram.service.js';
@@ -177,7 +178,6 @@ export const {
   creationStore,
   creationService,
   linkCaptureService,
-  inboxStore,
   vaultStore,
   connectionStore,
   actionStore,
@@ -549,7 +549,7 @@ export async function handleAsyncApiRequest(
     }
     // R23.1 — Personal Context Aggregation Route (read-only)
     {
-      const personalContextResult = await handlePersonalContextRoutes(method, pathname, body, headers, query, { currentPersonalContextService: app.currentPersonalContextService, modelErrorResult });
+      const personalContextResult = await handlePersonalContextRoutes(method, pathname, body, headers, query, { currentPersonalContextService: app.currentPersonalContextService, rightNowIntelligenceService: app.rightNowIntelligenceService, modelErrorResult });
       if (personalContextResult) return personalContextResult;
     }
 
@@ -591,7 +591,7 @@ export async function handleAsyncApiRequest(
 
     // R18 — Inbox Routes
     {
-      const inboxResult = await handleInboxRoutes(method, pathname, body, headers, query, { inboxStore, vaultStore });
+      const inboxResult = await handleInboxRoutes(method, pathname, body, headers, query, { captureStore, vaultStore });
       if (inboxResult) return inboxResult;
     }
 

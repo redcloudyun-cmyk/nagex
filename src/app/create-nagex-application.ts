@@ -30,6 +30,8 @@ import { PerspectiveCompareService } from '../model-gateway/perspective-compare.
 import { ForecastCompareService } from '../model-gateway/forecast-compare.service.js';
 import { PersonalHomeService } from '../home/personal-home.service.js';
 import { CurrentPersonalContextService } from '../personal/current-personal-context.service.js';
+import { RightNowIntelligenceService } from '../personal/right-now-intelligence.service.js';
+import { ProactiveSuggestionService } from '../personal/proactive-suggestion.service.js';
 import { skillRegistry as canonicalSkillRegistry } from '../skills/skill-registry.js';
 import { toolRegistry as canonicalToolRegistry } from '../tools/tool-registry.js';
 import { PlanResolver } from '../planning/plan-resolver.js';
@@ -82,7 +84,6 @@ import { WorkflowDefinitionService } from '../workflows/workflow-definition.serv
 import { CreationStore } from '../creation/creation.store.js';
 import { CreationService } from '../creation/creation.service.js';
 import { LinkCaptureService } from '../capture/link-capture.service.js';
-import { InboxStore } from '../workspace/inbox.store.js';
 import { VaultStore } from '../workspace/vault.store.js';
 import { ConnectionStore } from '../workspace/connections.store.js';
 import { ActionStore } from '../workspace/action.store.js';
@@ -107,6 +108,8 @@ import { SsoFlowStore } from '../enterprise-identity/sso-flow.store.js';
 import { PersonalReminderStore } from '../personal/personal-reminder.store.js';
 import { PersonalAssistantEngine } from '../personal/personal-assistant.engine.js';
 import { DemoScenarioService } from '../demo/demo-scenario.service.js';
+import { DemoCanonicalSeedService } from '../demo/demo-canonical-seed.service.js';
+import { DemoCalendarSource, DemoGmailSource, TenantBranchingCalendarSource, TenantBranchingGmailSource } from '../demo/demo-personal-data-source.js';
 import { SocialIdentityStore } from '../identity/social-identity.store.js';
 import { LifecycleManager } from './lifecycle-manager.js';
 import { QuestionClassificationService } from '../research/question-classification.service.js';
@@ -224,7 +227,6 @@ export function createNagexApplication(): NagexApplication {
   const creationStore = new CreationStore();
   const creationService = new CreationService(creationStore, auditLogger);
   const linkCaptureService = new LinkCaptureService();
-  const inboxStore = new InboxStore();
   const vaultStore = new VaultStore();
   const connectionStore = new ConnectionStore();
   const actionStore = new ActionStore();
@@ -386,9 +388,27 @@ export function createNagexApplication(): NagexApplication {
     ensureSeedMemory('USER', DEMO_TENANT_ID, DEMO_OWNER_ID, DEMO_SEED_CONTENT, DEMO_SEED_OPTIONS);
   }
 
-  // Seed on construction so the record is immediately present.
+  // R23.2D — Demo Canonicalization: Task/Vault/Approval demo records now
+  // live in the real stores (Memory already did, above), read back out
+  // through the exact same CurrentPersonalContextService/
+  // RightNowIntelligenceService/PersonalHomeService pipeline every other
+  // tenant uses (DEMO_FAKE_PERSONAL_HOME=0, DEMO_FAKE_RIGHT_NOW=0,
+  // DEMO_PARALLEL_INTELLIGENCE_PIPELINE=0) — DemoScenarioService itself no
+  // longer builds a Home/Right Now response shape (see its own reduced
+  // handle()). Idempotent — safe on every server start, same as
+  // seedDemoMemory above.
+  const demoCanonicalSeedService = new DemoCanonicalSeedService({
+    taskStore,
+    vaultStore,
+    actionApprovals,
+    tenantId: DEMO_TENANT_ID,
+    ownerId: DEMO_OWNER_ID,
+  });
+
+  // Seed on construction so the records are immediately present.
   seedDemoMemory();
-  const demoScenarioService = new DemoScenarioService(undefined, seedDemoMemory);
+  demoCanonicalSeedService.seed();
+  const demoScenarioService = new DemoScenarioService(undefined, seedDemoMemory, () => demoCanonicalSeedService.reset());
 
   const pinnedMemories = new Set<string>([mem2.id, mem3.id]);
 
@@ -532,34 +552,28 @@ export function createNagexApplication(): NagexApplication {
   const workflowDefinitionService = new WorkflowDefinitionService({ store: workflowDefinitionStore, taskStore, planResolver, auditLogger });
   const lifecycle = new LifecycleManager();
   const personalReminderStore = new PersonalReminderStore();
-  const personalAssistantEngine = new PersonalAssistantEngine({
-    reminderStore: personalReminderStore,
-    notificationStore,
-    inboxStore,
-    vaultStore,
-    candidateStore,
-    actionStore,
-    // R21 P1 — real Calendar/Gmail/Task/Approval/Memory/AI deps, the exact
-    // same already-real service instances every other route in this app
-    // uses (see dailyBriefTaskRunner above), so Morning Brief/Quick Wake/
-    // Meeting Prep/Personal Watch all reflect real data instead of the
-    // previous hardcoded fixture.
-    calendarService: googleCalendarService,
-    gmailApiService: gmailService,
-    taskStore,
-    actionApprovals,
-    memoryEngine,
-    aiService,
-  });
-
   // R23.1 — the one canonical Calendar/Task/Reminder/Approval/Inbox/Vault/
   // Memory aggregation pipeline (CONTEXT_AGGREGATION_PIPELINE_COUNT=1).
   // PersonalHomeService below consumes this for those sources instead of
   // querying them itself, rather than the two services maintaining
   // parallel aggregation logic over the same stores.
+  // R23.2D — the demo tenant's Calendar/Gmail data is computed from the
+  // canonical persona fixture rather than a real Google account (there is
+  // none for the demo tenant), but flows through the exact same
+  // CalendarEventsSource/GmailSearchSource interface and the exact same
+  // CurrentPersonalContextService logic as every real tenant — only the
+  // data source differs, selected once here, never inside the service
+  // itself (DEMO_PARALLEL_INTELLIGENCE_PIPELINE=0). R23.3 — PersonalAssistant
+  // Engine's own direct Calendar/Gmail reads (below) reuse these exact same
+  // wrapped sources, so Morning Brief/Quick Wake/Meeting Prep see the same
+  // demo-vs-real data split as Personal Home/Right Now, never a second
+  // demo/real branching decision.
+  const demoCalendarSourceForContext = new TenantBranchingCalendarSource(googleCalendarService, new DemoCalendarSource(), DEMO_TENANT_ID);
+  const demoGmailSourceForContext = new TenantBranchingGmailSource(gmailService, new DemoGmailSource(), DEMO_TENANT_ID);
+
   const currentPersonalContextService = new CurrentPersonalContextService({
-    googleCalendarService,
-    gmailService,
+    googleCalendarService: demoCalendarSourceForContext,
+    gmailService: demoGmailSourceForContext,
     taskStore,
     personalReminderStore,
     actionApprovals,
@@ -568,13 +582,52 @@ export function createNagexApplication(): NagexApplication {
     personalContextService,
   });
 
+  // R23.2 — the one canonical prioritization pipeline over the R23.1
+  // snapshot (RIGHT_NOW_INTELLIGENCE_PIPELINE_COUNT=1). Stateless — no
+  // deps of its own beyond the context service, so it is safe to share
+  // this single instance across the HTTP route and PersonalHomeService.
+  // R23.3 — internally delegates all suggestion-building to
+  // ProactiveSuggestionService (PROACTIVE_SUGGESTION_PIPELINE_COUNT=1);
+  // the same shared instance is also handed to PersonalAssistantEngine
+  // below so Morning Brief/Quick Wake consume it too, never a second
+  // suggestion engine.
+  const proactiveSuggestionService = new ProactiveSuggestionService();
+  const rightNowIntelligenceService = new RightNowIntelligenceService({ currentPersonalContextService, proactiveSuggestionService });
+
   const personalHomeService = new PersonalHomeService({
     currentPersonalContextService,
+    rightNowIntelligenceService,
     dailyBriefStore,
     activityStore,
     actionProposalStore,
-    inboxStore,
     creationStore,
+  });
+
+  const personalAssistantEngine = new PersonalAssistantEngine({
+    reminderStore: personalReminderStore,
+    notificationStore,
+    vaultStore,
+    candidateStore,
+    actionStore,
+    // R21 P1 — real Calendar/Gmail/Task/Approval/Memory/AI deps, the exact
+    // same already-real service instances every other route in this app
+    // uses (see dailyBriefTaskRunner above), so Morning Brief/Quick Wake/
+    // Meeting Prep/Personal Watch all reflect real data instead of the
+    // previous hardcoded fixture. R23.2D — these are the demo-tenant-aware
+    // wrapped sources (see above), the same ones CurrentPersonalContextService
+    // uses, so the demo tenant sees the same real seeded/fixture data here
+    // too. R23.3 — currentPersonalContextService/rightNowIntelligenceService
+    // let generateMorningBrief/executeQuickWake canonicalize their
+    // recommendation/proactive_suggestion fields onto ProactiveSuggestionService
+    // instead of computing their own (see the engine's own header comment).
+    calendarService: demoCalendarSourceForContext,
+    gmailApiService: demoGmailSourceForContext,
+    taskStore,
+    actionApprovals,
+    memoryEngine,
+    aiService,
+    currentPersonalContextService,
+    rightNowIntelligenceService,
   });
 
   return {
@@ -587,6 +640,7 @@ export function createNagexApplication(): NagexApplication {
     personalAssistantEngine,
     personalHomeService,
     currentPersonalContextService,
+    rightNowIntelligenceService,
     identityStore,
     identityTokenStore,
     identityAuditStore,
@@ -646,7 +700,6 @@ export function createNagexApplication(): NagexApplication {
     creationStore,
     creationService,
     linkCaptureService,
-    inboxStore,
     vaultStore,
     connectionStore,
     actionStore,

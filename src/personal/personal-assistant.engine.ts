@@ -1,17 +1,20 @@
 import crypto from 'node:crypto';
 import { PersonalReminderStore } from './personal-reminder.store.js';
 import { NotificationStore } from '../notifications/notification.store.js';
-import { InboxStore } from '../workspace/inbox.store.js';
 import { VaultStore } from '../workspace/vault.store.js';
 import { CandidateStore } from '../workspace/candidate.store.js';
 import { ActionStore } from '../workspace/action.store.js';
-import type { GoogleCalendarService } from '../modules/calendar/index.js';
-import type { GmailService } from '../modules/gmail/index.js';
 import type { TaskStore } from '../tasks/task.store.js';
 import type { ActionApprovalStore } from '../governance/action-approval.store.js';
 import type { MemoryEngine } from '../context/memory.engine.js';
 import type { AiService } from '../model-gateway/ai-service.js';
 import { NagexError } from '../common/errors.js';
+// R23.3 — narrow structural interfaces, not the concrete GoogleCalendarService/
+// GmailService classes (same R23.2D pattern as CurrentPersonalContextService)
+// so this engine can be handed the exact same tenant-branching demo-aware
+// sources the canonical context pipeline uses, without a cast.
+import type { CalendarEventsSource, GmailSearchSource, CurrentPersonalContextService } from './current-personal-context.service.js';
+import type { RightNowIntelligenceService } from './right-now-intelligence.service.js';
 
 export interface PersonalWatchCondition {
   watch_id: string;
@@ -126,7 +129,6 @@ export interface ParsedReminderConfirmation {
 export class PersonalAssistantEngine {
   private reminderStore: PersonalReminderStore;
   private notificationStore?: NotificationStore;
-  private inboxStore?: InboxStore;
   private vaultStore?: VaultStore;
   private candidateStore?: CandidateStore;
   private actionStore?: ActionStore;
@@ -134,12 +136,20 @@ export class PersonalAssistantEngine {
   // construction (reminder-only usage) keeps working; when a given
   // dependency is not supplied, the corresponding brief/prep section is
   // honestly reported as unavailable rather than fabricated.
-  private calendarService?: GoogleCalendarService;
-  private gmailApiService?: GmailService;
+  private calendarService?: CalendarEventsSource;
+  private gmailApiService?: GmailSearchSource;
   private taskStore?: TaskStore;
   private actionApprovals?: ActionApprovalStore;
   private memoryEngine?: MemoryEngine;
   private aiService?: AiService;
+  // R23.3 — when provided, generateMorningBrief's `recommendation` and
+  // executeQuickWake's `proactive_suggestion` are computed by the one
+  // canonical ProactiveSuggestionService (via rightNowIntelligenceService)
+  // instead of this engine's own R21 P1 nearest-event/grounding-check
+  // logic. Optional so existing minimal construction keeps working; when
+  // absent, the pre-existing R21 P1 logic is used unchanged.
+  private currentPersonalContextService?: CurrentPersonalContextService;
+  private rightNowIntelligenceService?: RightNowIntelligenceService;
 
   private watches: Map<string, PersonalWatchCondition> = new Map();
   private routines: Map<string, RoutineCandidate> = new Map();
@@ -149,20 +159,20 @@ export class PersonalAssistantEngine {
   constructor(options: {
     reminderStore: PersonalReminderStore;
     notificationStore?: NotificationStore;
-    inboxStore?: InboxStore;
     vaultStore?: VaultStore;
     candidateStore?: CandidateStore;
     actionStore?: ActionStore;
-    calendarService?: GoogleCalendarService;
-    gmailApiService?: GmailService;
+    calendarService?: CalendarEventsSource;
+    gmailApiService?: GmailSearchSource;
     taskStore?: TaskStore;
     actionApprovals?: ActionApprovalStore;
     memoryEngine?: MemoryEngine;
     aiService?: AiService;
+    currentPersonalContextService?: CurrentPersonalContextService;
+    rightNowIntelligenceService?: RightNowIntelligenceService;
   }) {
     this.reminderStore = options.reminderStore;
     this.notificationStore = options.notificationStore;
-    this.inboxStore = options.inboxStore;
     this.vaultStore = options.vaultStore;
     this.candidateStore = options.candidateStore;
     this.actionStore = options.actionStore;
@@ -172,6 +182,8 @@ export class PersonalAssistantEngine {
     this.actionApprovals = options.actionApprovals;
     this.memoryEngine = options.memoryEngine;
     this.aiService = options.aiService;
+    this.currentPersonalContextService = options.currentPersonalContextService;
+    this.rightNowIntelligenceService = options.rightNowIntelligenceService;
   }
 
   public isQuietHours(now: Date = new Date()): boolean {
@@ -312,22 +324,30 @@ export class PersonalAssistantEngine {
     }
     for (const app of pending_approvals) source_traces.push({ type: 'APPROVAL', id: app.id, label: `Pending approval: ${app.description}` });
 
-    // Recommendation: the nearest upcoming event today, if any — grounded
-    // purely in the real calendar fact itself (deeper "found a related
-    // email/document" grounding belongs to the dedicated Meeting Prep
-    // pipeline, called separately once the user asks to prepare).
+    // R23.3 — Recommendation is now the top canonical ProactiveSuggestion
+    // (via RightNowIntelligenceService, over the exact same
+    // CurrentPersonalContextService snapshot every other surface uses) —
+    // this engine no longer computes its own "nearest event" recommendation
+    // rule (PROACTIVE_SUGGESTION_PIPELINE_COUNT=1). A recommendation is
+    // populated only when the canonical engine actually produced a real,
+    // grounded suggestion — never invented from calendar proximity alone.
     let recommendation: GroundedMorningBrief['recommendation'];
-    const upcoming = events
-      .filter((e) => new Date(e.start_time).getTime() > now.getTime())
-      .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())[0];
-    if (upcoming) {
-      recommendation = {
-        suggestion_id: `sug_${crypto.randomUUID()}`,
-        title: `Prepare for ${upcoming.title}`,
-        reason: `Because: You have "${upcoming.title}" coming up at ${new Date(upcoming.start_time).toLocaleTimeString()}.`,
-        action_type: 'MEETING_PREP',
-        target_id: upcoming.id,
-      };
+    if (this.rightNowIntelligenceService) {
+      try {
+        const intel = await this.rightNowIntelligenceService.buildRightNow({ tenantId, userId, requestId: reqId });
+        const top = intel.suggestions.find((s) => s.kind === 'MEETING_PREP') ?? intel.suggestions[0];
+        if (top) {
+          recommendation = {
+            suggestion_id: top.id,
+            title: top.title,
+            reason: top.reason,
+            action_type: top.action.type,
+            target_id: top.sourceRefs[0]?.id,
+          };
+        }
+      } catch {
+        recommendation = undefined;
+      }
     }
 
     return {
@@ -360,47 +380,36 @@ export class PersonalAssistantEngine {
   public async executeQuickWake(userId: string, tenantId: string = 'default', requestId?: string): Promise<QuickWakeResult> {
     const reqId = requestId || `qw_${crypto.randomUUID()}`;
     const brief = await this.generateMorningBrief(userId, tenantId, reqId);
-    const reminders = this.reminderStore.listReminders(userId, 'ACTIVE');
+    const reminders = this.reminderStore.listReminders(tenantId, userId, 'ACTIVE');
 
-    const now = Date.now();
-    const nearest = brief.schedule_summary.events
-      .filter((e) => new Date(e.start_time).getTime() > now && new Date(e.start_time).getTime() - now <= 2 * 60 * 60 * 1000)
-      .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())[0];
-
+    // R23.3 — proactive_suggestion is now the canonical MEETING_PREP
+    // ProactiveSuggestion (same engine/pipeline as generateMorningBrief's
+    // recommendation, Personal Home, and Right Now) — this engine no
+    // longer runs its own nearest-event/attendee-query/vault-search
+    // grounding check (PROACTIVE_SUGGESTION_PIPELINE_COUNT=1).
     let proactive_suggestion: QuickWakeResult['proactive_suggestion'] = null;
-    if (nearest) {
-      const grounded_on: Array<{ type: 'EMAIL' | 'VAULT'; id: string; label: string }> = [];
-      if (this.gmailApiService && nearest.attendees.length > 0) {
-        try {
-          const attendeeQuery = nearest.attendees.map((a) => `from:${a} OR to:${a}`).join(' OR ');
-          const result = await this.gmailApiService.search({ tenantId, query: attendeeQuery, requestId: reqId });
-          for (const thread of result.threads.slice(0, 3)) {
-            grounded_on.push({ type: 'EMAIL', id: thread.threadId, label: thread.snippet.slice(0, 60) });
-          }
-        } catch {
-          // Gmail unavailable — grounding check simply finds nothing; never fabricated.
+    if (this.rightNowIntelligenceService) {
+      try {
+        const intel = await this.rightNowIntelligenceService.buildRightNow({ tenantId, userId, requestId: reqId });
+        const top = intel.suggestions.find((s) => s.kind === 'MEETING_PREP');
+        if (top) {
+          const calendarRef = top.sourceRefs.find((r) => r.type === 'CALENDAR');
+          const meetingItem = [intel.primary, ...intel.upcoming].find(
+            (item) => item && item.kind === 'MEETING' && item.sourceRef.id === calendarRef?.id
+          );
+          const minutesMatch = top.reason.match(/(\d+)\s*minute/);
+          proactive_suggestion = {
+            event_id: calendarRef?.id || '',
+            event_title: meetingItem?.title || '',
+            minutes_until: minutesMatch ? Number(minutesMatch[1]) : 0,
+            reason: top.reason,
+            grounded_on: top.sourceRefs
+              .filter((r) => r.type === 'GMAIL' || r.type === 'VAULT')
+              .map((r) => ({ type: (r.type === 'GMAIL' ? 'EMAIL' : 'VAULT') as 'EMAIL' | 'VAULT', id: r.id, label: r.label || r.id })),
+          };
         }
-      }
-      if (this.vaultStore) {
-        try {
-          const nameHint = nearest.attendees[0]?.split('@')[0] || nearest.title;
-          const vaultHits = this.vaultStore.searchItems(tenantId, userId, nameHint);
-          for (const item of vaultHits.slice(0, 3)) {
-            grounded_on.push({ type: 'VAULT', id: item.vaultItemId, label: item.title });
-          }
-        } catch {
-          // no-op — grounding check only, never throws the whole Quick Wake.
-        }
-      }
-      if (grounded_on.length > 0) {
-        const minutesUntil = Math.round((new Date(nearest.start_time).getTime() - now) / 60000);
-        proactive_suggestion = {
-          event_id: nearest.id,
-          event_title: nearest.title,
-          minutes_until: minutesUntil,
-          reason: `Your "${nearest.title}" meeting is in ${minutesUntil} minutes, and I found ${grounded_on.length} related item${grounded_on.length === 1 ? '' : 's'}.`,
-          grounded_on,
-        };
+      } catch {
+        proactive_suggestion = null;
       }
     }
 

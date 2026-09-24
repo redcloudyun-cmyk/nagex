@@ -2151,6 +2151,24 @@
       "assertionIntent": "observable behavior",
       "notes": "Observable deterministic product/service contract."
     },
+    "personal_reminder_tenant_isolation": {
+      "milestone": "R23.1H",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "personal-context",
+        "personal-home",
+        "runtime",
+        "security",
+        "tasks"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "REMINDER_CROSS_TENANT_LEAK=0: PersonalReminderStore tenant isolation, wrong-tenant mutation refusal, indistinguishable cross-tenant/nonexistent lookup, tenant-scoped due-reminder scanning, legacy tenant_id-less record backfill."
+    },
     "personal_workspace": {
       "milestone": "Cross-cutting",
       "classification": "CANONICAL_BEHAVIOR",
@@ -2943,6 +2961,72 @@
       "assertionIntent": "user-visible browser behavior",
       "notes": "Runs observable UI behavior in a real Playwright Chromium browser.",
       "writesRepositoryArtifacts": false
+    },
+    "r23_3_proactive_suggestions": {
+      "milestone": "R23.3",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "capture",
+        "integrations",
+        "memory-context",
+        "personal-home",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "ProactiveSuggestionService: deterministic eligibility for MEETING_PREP/REPLY_PREP/REVIEW_APPROVAL/REVIEW_INBOX/REMINDER/TASK_CONTINUE, PROACTIVE_SUGGESTION_PIPELINE_COUNT=1 (morning-brief/quick-wake/meeting-prep/demo all consume the same engine), no fabricated person/event/reason, approval-gated consequential actions, tenant/user isolation."
+    },
+    "r23_2d_demo_canonicalization": {
+      "milestone": "R23.2D",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "capture",
+        "integrations",
+        "memory-context",
+        "personal-home",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "DEMO_FAKE_PERSONAL_HOME=0, DEMO_FAKE_RIGHT_NOW=0, DEMO_PARALLEL_INTELLIGENCE_PIPELINE=0: demo tenant reads flow through the exact same PersonalHomeService/RightNowIntelligenceService/CurrentPersonalContextService pipeline as any real tenant; DemoScenarioService seed/reset only; reset is deterministic."
+    },
+    "r23_2_right_now_intelligence": {
+      "milestone": "R23.2",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "capture",
+        "integrations",
+        "memory-context",
+        "personal-home",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "RightNowIntelligenceService deterministic priority-class ranking (P0/P1/P2), tie-break ordering, suggestion eligibility, FABRICATED_URGENCY=0, and CROSS_TENANT_LEAK=0/CROSS_USER_LEAK=0 over the R23.1 canonical context snapshot."
     },
     "r23_1_personal_context": {
       "milestone": "R23.1",

@@ -13,6 +13,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { PersonalReminderStore } from '../src/personal/personal-reminder.store.js';
 import { PersonalAssistantEngine } from '../src/personal/personal-assistant.engine.js';
+import { CurrentPersonalContextService } from '../src/personal/current-personal-context.service.js';
+import { RightNowIntelligenceService } from '../src/personal/right-now-intelligence.service.js';
 import { NotificationStore } from '../src/notifications/notification.store.js';
 import { InMemoryGoogleOAuthTokenStore } from '../src/integrations/google/token.store.js';
 import { GOOGLE_CALENDAR_SCOPES, GMAIL_SCOPES, type GoogleOAuthConfig } from '../src/integrations/google/oauth.client.js';
@@ -134,6 +136,22 @@ test('R20/R21 P1 Personal Proactive Assistant Test Suite', async (t) => {
     taskStore.create({ tenantId, ownerId: userIdA, name: 'Send follow-up after client meeting', objective: 'Send a follow-up email after the client meeting', type: 'ONE_TIME', trigger: { type: 'MANUAL' } });
     approvals.request({ toolId: 'gmail.send_email', tenantId, principalId: userIdA, payload: { to: attendeeEmail, subject: 'Follow-up' } });
 
+    // R23.3 — the exact same canonical CurrentPersonalContextService/
+    // RightNowIntelligenceService pipeline wired to these same real
+    // Calendar/Gmail/Task/Approval/Vault instances, so
+    // generateMorningBrief's recommendation and executeQuickWake's
+    // proactive_suggestion are produced by ProactiveSuggestionService —
+    // never this engine's own (now-removed) grounding-check logic.
+    const currentPersonalContextService = new CurrentPersonalContextService({
+      googleCalendarService: calendarService,
+      gmailService: gmailApiService,
+      taskStore,
+      personalReminderStore: reminderStore,
+      actionApprovals: approvals,
+      vaultStore,
+    });
+    const rightNowIntelligenceService = new RightNowIntelligenceService({ currentPersonalContextService });
+
     const engine = new PersonalAssistantEngine({
       reminderStore,
       notificationStore,
@@ -144,6 +162,8 @@ test('R20/R21 P1 Personal Proactive Assistant Test Suite', async (t) => {
       actionApprovals: approvals,
       memoryEngine,
       aiService,
+      currentPersonalContextService,
+      rightNowIntelligenceService,
     });
     return engine;
   }
@@ -155,6 +175,7 @@ test('R20/R21 P1 Personal Proactive Assistant Test Suite', async (t) => {
     assert.ok(parsed.scheduled_at);
 
     const rem = reminderStore.createReminder({
+      tenant_id: tenantId,
       user_id: userIdA,
       title: parsed.title,
       scheduled_at: parsed.scheduled_at,
@@ -164,7 +185,7 @@ test('R20/R21 P1 Personal Proactive Assistant Test Suite', async (t) => {
     assert.ok(rem.reminder_id.startsWith('rem_'));
     assert.equal(rem.status, 'ACTIVE');
 
-    const activeList = reminderStore.listReminders(userIdA, 'ACTIVE');
+    const activeList = reminderStore.listReminders(tenantId, userIdA, 'ACTIVE');
     assert.equal(activeList.length, 1);
     assert.equal(activeList[0].title, '김대표에게 전화');
 
@@ -172,13 +193,14 @@ test('R20/R21 P1 Personal Proactive Assistant Test Suite', async (t) => {
     const dueReminders = reminderStore.getDueReminders(future);
     assert.equal(dueReminders.length, 1);
     assert.equal(dueReminders[0].reminder_id, rem.reminder_id);
+    assert.equal(dueReminders[0].tenant_id, tenantId, 'due-reminder scanning must preserve real tenant ownership');
 
-    const updated = reminderStore.updateStatus(rem.reminder_id, userIdA, 'CANCELLED');
+    const updated = reminderStore.updateStatus(rem.reminder_id, tenantId, userIdA, 'CANCELLED');
     assert.equal(updated?.status, 'CANCELLED');
-    assert.equal(reminderStore.listReminders(userIdA, 'ACTIVE').length, 0);
+    assert.equal(reminderStore.listReminders(tenantId, userIdA, 'ACTIVE').length, 0);
 
     const freshStore = new PersonalReminderStore(tmpDir);
-    const reloaded = freshStore.getReminder(rem.reminder_id);
+    const reloaded = freshStore.getReminder(rem.reminder_id, tenantId, userIdA);
     assert.ok(reloaded);
     assert.equal(reloaded?.status, 'CANCELLED');
   });
@@ -202,9 +224,13 @@ test('R20/R21 P1 Personal Proactive Assistant Test Suite', async (t) => {
     const calTrace = brief.source_traces.find((tr) => tr.type === 'CALENDAR');
     assert.ok(calTrace?.label.includes('Client strategy meeting'));
 
+    // R23.3 — recommendation is now the canonical ProactiveSuggestionService
+    // MEETING_PREP suggestion (via RightNowIntelligenceService), not this
+    // engine's own former nearest-event-only rule.
     assert.ok(brief.recommendation);
-    assert.ok(brief.recommendation?.reason.startsWith('Because:'));
-    assert.ok(brief.recommendation?.reason.includes('Client strategy meeting'));
+    assert.equal(brief.recommendation?.title, 'Prepare for Client strategy meeting');
+    assert.match(brief.recommendation?.reason || '', /related item/);
+    assert.equal(brief.recommendation?.action_type, 'MEETING_PREP');
   });
 
   await t.test('3. Quick Wake surfaces a proactive suggestion only when genuinely grounded', async () => {
