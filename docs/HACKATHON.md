@@ -65,9 +65,9 @@ R23.2D  Demo Canonicalization                    CLOSED
    ↓
 R23.3T  Permission / Approval Hardening         CLOSED
    ↓
-R23.4V  Credential Broker / Inject-only Vault   CURRENT
+R23.4V  Credential Broker / Inject-only Vault   CLOSED
    ↓
-R23.5B  Browser Untrusted-Content Boundary
+R23.5B  Browser Untrusted-Content Boundary       CURRENT
    ↓
 R23.6E  One complete real E2E agent scenario
    ↓
@@ -82,7 +82,7 @@ Payment/tokenized virtual-card work is P2 and is not part of the critical submis
 
 The dependency order matters more than the milestone labels.
 
-Jev is an optional advisory POC only and must not interrupt R23.4V. Wissly-style evidence UX, Microsoft connector expansion, reservation scenarios, and local/private model expansion are retained as planned inputs but are scheduled according to dependency and hackathon value. Payment/tokenized virtual-card work remains P2.
+Jev is an optional advisory POC only and must not interrupt the current critical path. Wissly-style evidence UX, Microsoft connector expansion, reservation scenarios, and local/private model expansion are retained as planned inputs but are scheduled according to dependency and hackathon value. Payment/tokenized virtual-card work remains P2.
 
 ## 5. Hackathon Trust Invariants
 
