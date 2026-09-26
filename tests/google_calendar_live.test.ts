@@ -181,7 +181,7 @@ test('token refresh: an expired access token is transparently refreshed using th
 
   assert.equal(refreshCalls, 1);
   assert.equal(accessToken, 'refreshed-access-token');
-  const status = tokenStore.getStatus('t1');
+  const status = tokenStore.getStatusForPrincipal('t1', 'usr_1');
   assert.equal(status.connected, true);
   assert.ok(new Date(status.expiresAt as string).getTime() > clock);
 });
