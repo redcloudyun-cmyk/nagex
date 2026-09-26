@@ -106,7 +106,7 @@ export const handleGoogleOAuthCallbackRoutes: AsyncRouteRegistrar<GoogleOAuthCal
     }
     try {
       const token = await exchangeGoogleAuthorizationCode(config, query.code, fetch, requestId);
-      googleTokenStore.save(tenantId, token);
+      googleTokenStore.saveForPrincipal(tenantId, principalId, token);
       auditLogger.logEvent({ actor: { type: 'user', id: principalId }, tenant_id: tenantId, action: 'oauth:google_connected', resource: { type: 'OAuthConnection', id: 'google_calendar' }, result: 'SUCCESS', request_id: requestId });
       return { status: 302, data: null, redirectTo: '/?oauth=google&status=connected' };
     } catch {
@@ -115,23 +115,24 @@ export const handleGoogleOAuthCallbackRoutes: AsyncRouteRegistrar<GoogleOAuthCal
   }
   if (pathname === '/api/v1/oauth/google/status' && method === 'GET') {
     const tid = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_oauth_${crypto.randomUUID()}`;
     const config = readGoogleOAuthConfig();
     if (config) {
-      // Touches (and transparently refreshes + persists) the token if it's
-      // expired, so "connected" reflects real usability, not stale state.
-      await googleTokenStore.getValidAccessToken(tid, config, fetch, requestId);
+      // Touches only the current principal's credential; another user in the
+      // same tenant can never make this status endpoint borrow their token.
+      await googleTokenStore.getValidAccessTokenForPrincipal(tid, principalId, config, fetch, requestId);
     }
-    const status = googleTokenStore.getStatus(tid);
+    const status = googleTokenStore.getStatusForPrincipal(tid, principalId);
     return { status: 200, data: { configured: Boolean(config), ...status } };
   }
   if (pathname === '/api/v1/oauth/google/disconnect' && method === 'POST') {
     const tid = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
     const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_oauth_${crypto.randomUUID()}`;
-    await googleTokenStore.revoke(tid, fetch, requestId);
+    await googleTokenStore.revokeForPrincipal(tid, principalId, fetch, requestId);
     auditLogger.logEvent({ actor: { type: 'user', id: principalId }, tenant_id: tid, action: 'oauth:google_disconnected', resource: { type: 'OAuthConnection', id: 'google_calendar' }, result: 'SUCCESS', request_id: requestId });
-    return { status: 200, data: googleTokenStore.getStatus(tid) };
+    return { status: 200, data: googleTokenStore.getStatusForPrincipal(tid, principalId) };
   }
 
   return undefined;
