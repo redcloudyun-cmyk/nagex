@@ -325,8 +325,15 @@ test('R23.2H - Right Now UI Certification (Desktop/Mobile, EN/KR)', async (t) =>
 
       if (isMobile) {
         await page.waitForSelector('#mobile-view-home', { state: 'attached', timeout: 10000 });
+        // data-hero-resolved is also set by the truthful initial empty render
+        // before fetchHeroContext() completes. A populated certification must
+        // wait for the seeded approval itself, otherwise fast runs can sample
+        // that transient empty state and become viewport/timing flaky.
         await page.waitForFunction(
-          () => (globalThis as any).document.getElementById('mh-right-now-hero')?.getAttribute('data-hero-resolved') === 'true',
+          () => {
+            const el = (globalThis as any).document.getElementById('mh-right-now-hero');
+            return Boolean(el && /GMAIL_SEND/.test(el.innerText || ''));
+          },
           { timeout: 10000 }
         );
       } else {
