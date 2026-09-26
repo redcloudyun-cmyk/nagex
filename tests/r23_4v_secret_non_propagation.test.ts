@@ -116,3 +116,65 @@ test('R23.4V Phase D injected Google credential never appears in approval, audit
     assert.doesNotMatch(JSON.stringify(surface), new RegExp(CANARY));
   }
 });
+
+
+test('R23.4V Phase D provider transport failure does not echo injected credential through error or audit', async () => {
+  const tokenStore = new InMemoryGoogleOAuthTokenStore();
+  const approvals = new ActionApprovalStore();
+  const audit = new AuditLogger();
+  const memory = new MemoryEngine();
+  const tenantId = 'ten_phase_d_error';
+  const principalId = 'usr_phase_d_error';
+
+  tokenStore.saveForPrincipal(tenantId, principalId, {
+    accessToken: CANARY,
+    refreshToken: CANARY,
+    expiresAt: Date.now() + 60_000,
+    scope: GMAIL_SCOPES.join(' '),
+  });
+
+  const service = new GmailService(
+    tokenStore,
+    approvals,
+    audit,
+    memory,
+    async () => { throw new Error('transport failed: ' + CANARY); },
+    () => ({ clientId: 'cid', clientSecret: 'csecret', redirectUri: 'http://localhost/callback' }),
+  );
+  const payload = {
+    from: 'me',
+    to: ['recipient@example.com'],
+    cc: [],
+    bcc: [],
+    subject: 'Phase D error',
+    body: 'Credential error boundary check',
+    attachments: [],
+    threadId: null,
+    replyToMessageId: null,
+  };
+  const approval = service.requestApproval({
+    toolId: GMAIL_SEND_EMAIL_TOOL_ID,
+    tenantId,
+    principalId,
+    payload,
+    requestId: 'req_phase_d_err_1',
+  });
+  service.approve(approval.approvalId, tenantId, principalId, 'req_phase_d_err_2');
+
+  let caught: unknown;
+  try {
+    await service.executeSendEmail({
+      approvalId: approval.approvalId,
+      payload: approval.canonicalPayload,
+      tenantId,
+      principalId,
+      requestId: 'req_phase_d_err_3',
+    });
+  } catch (error) {
+    caught = error;
+  }
+
+  assert.ok(caught instanceof Error);
+  assert.doesNotMatch(String((caught as Error).message), new RegExp(CANARY));
+  assert.doesNotMatch(JSON.stringify(audit.getAuditLogs(tenantId)), new RegExp(CANARY));
+});
