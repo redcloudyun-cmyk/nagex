@@ -4,7 +4,7 @@ import { getCurrentISOString } from '../common/utils.js';
 import { AuditLogger } from '../governance/audit.logger.js';
 import { FileRecordStore, resolveNagexDataDir } from '../governance/file-record.store.js';
 import { CapabilityRegistry, capabilityRegistry } from './capability.registry.js';
-import { CapabilityPolicy } from './capability-policy.js';
+import { PermissionDecisionService } from '../governance/permission/index.js';
 import {
   CapabilityRequest,
   CapabilityBrokerResult,
@@ -66,6 +66,7 @@ import { ModuleStateStore } from '../modules/module-state.store.js';
 
 export class CapabilityBroker {
   private readonly idempotencyStore: FileRecordStore<CapabilityIdempotencyRecord>;
+  private readonly permissionDecisionService: PermissionDecisionService;
 
   constructor(
     private readonly calendarService: CalendarApprovalRequesterPort & CalendarWriteExecutionPort,
@@ -89,7 +90,9 @@ export class CapabilityBroker {
     private readonly desktopControlService?: DesktopControlService,
     private readonly webSearchService?: WebSearchService,
     private readonly evidencePackService?: EvidencePackService,
+    permissionDecisionService?: PermissionDecisionService,
   ) {
+    this.permissionDecisionService = permissionDecisionService ?? new PermissionDecisionService(this.auditLogger);
     const dataDir = resolveNagexDataDir(idempotencyDirName, idempotencyEnvVar);
     this.idempotencyStore = new FileRecordStore<CapabilityIdempotencyRecord>(
       dataDir,
@@ -178,18 +181,20 @@ export class CapabilityBroker {
       }
     }
 
-    // 3. Evaluate Policy
+    // 3. Evaluate the single canonical Permission Authority. CapabilityPolicy
+    // remains an internal hard-policy helper inside PermissionDecisionService;
+    // callers and agent/model output never grant themselves permission.
     const providerAvailable = this.isProviderAvailable(def?.provider);
-    const policyResult = CapabilityPolicy.evaluate(request, def, providerAvailable);
+    const permissionDecision = this.permissionDecisionService.evaluate({ request, definition: def, providerAvailable });
 
-    if (!policyResult.allowed) {
+    if (permissionDecision.disposition === 'BLOCK') {
       this.auditLogger.logEvent({
         actor: { type: 'user', id: request.principalId || 'unknown' },
         tenant_id: request.tenantId || 'unknown',
         action: 'capability.blocked',
         resource: { type: 'Capability', id: request.capabilityId },
         result: 'DENIED',
-        reason_code: policyResult.reasonCode,
+        reason_code: permissionDecision.reasonCodes[0],
         request_id: request.requestId,
         details: {
           capabilityId: request.capabilityId,
@@ -203,7 +208,7 @@ export class CapabilityBroker {
       const blockedResult: CapabilityBrokerResult = {
         status: 'BLOCKED',
         capabilityId: request.capabilityId,
-        reasonCode: policyResult.reasonCode || 'CAPABILITY_POLICY_FAILED',
+        reasonCode: permissionDecision.reasonCodes[0] || 'CAPABILITY_POLICY_FAILED',
       };
 
       if (idempotencyKey) {
@@ -249,7 +254,7 @@ export class CapabilityBroker {
     // 4. Dispatch Execution or Approval
     let result: CapabilityBrokerResult;
     try {
-      result = await this.dispatch(request, def!, policyResult.effectiveApproval);
+      result = await this.dispatch(request, def!, permissionDecision.effectiveApproval);
     } catch (err) {
       if (err instanceof NagexError) {
         throw err;

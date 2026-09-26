@@ -26,7 +26,8 @@
       "device_control",
       "astra_visual_execution_adapter",
       "astra_real_provider_acceptance",
-      "browser_session_ownership_isolation"
+      "browser_session_ownership_isolation",
+      "r23_3t_permission_approval_hardening"
     ],
     "browser": [
       "browser_agent",
@@ -47,7 +48,8 @@
       "retry_failure_handling",
       "module_contracts",
       "capability_broker",
-      "tool_capability_id_alignment"
+      "tool_capability_id_alignment",
+      "r23_3t_permission_approval_hardening"
     ],
     "google": [
       "approval_execution_persistence",
@@ -108,7 +110,8 @@
       "notification_delivery",
       "persistent_memory",
       "workflow_definition",
-      "audit_tenant_isolation"
+      "audit_tenant_isolation",
+      "r23_3t_permission_approval_hardening"
     ],
     "personal-home": [
       "r22_8_personal_home"
@@ -149,6 +152,16 @@
       "approval_ownership_isolation",
       "memory_tenant_isolation",
       "memory_relevance"
+    ],
+    "permission-approval-hardening": [
+      "r23_3t_permission_approval_hardening",
+      "approval_ownership_isolation",
+      "approval_ttl_security",
+      "approval_execution_persistence",
+      "capability_broker",
+      "google_capability_execution_pipeline",
+      "device_control",
+      "desktop_control_service"
     ]
   },
   "fullOnly": [

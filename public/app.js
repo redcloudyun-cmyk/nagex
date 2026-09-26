@@ -3769,6 +3769,7 @@
           const approvalStartedAt = performance.now();
           btnApprove.disabled = true;
           if (btnReject) btnReject.disabled = true;
+          if (btnEdit) btnEdit.disabled = true;
           btnApprove.textContent = isKr ? '요청 중...' : 'Requesting approval...';
 
           const approval = await apiFetch('/api/v1/approvals', { method: 'POST', body: JSON.stringify({ toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, payload }) });
@@ -3990,6 +3991,7 @@
         <p class="calendar-approval-expiry" id="calendar-approval-expiry">${vmView.countdownLabel ? escapeHtml(vmView.countdownLabel) : ''}</p>
         <div class="calendar-preview-actions">
           <button class="btn-reject-outline" id="btn-calendar-reject" ${vmView.rejectDisabled ? 'disabled' : ''}>${escapeHtml(t('calendar.reject'))}</button>
+          <button class="btn-secondary" id="btn-calendar-edit" ${vmView.approveDisabled ? 'disabled' : ''}>${escapeHtml((window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale() === 'ko') ? '수정' : 'Edit')}</button>
           <button class="btn-plan-action plan-status-ready" id="btn-calendar-approve" ${vmView.approveDisabled ? 'disabled' : ''}>${escapeHtml(t('calendar.approveAndCreateEvent'))}</button>
         </div>
       </div>`;
@@ -4044,13 +4046,39 @@
 
     function wireButtons() {
       const btnReject = document.getElementById('btn-calendar-reject');
+      const btnEdit = document.getElementById('btn-calendar-edit');
       const btnApprove = document.getElementById('btn-calendar-approve');
       const statusEl = () => document.getElementById('calendar-approval-status');
+
+      if (btnEdit) {
+        btnEdit.onclick = async () => {
+          stopCountdown();
+          btnEdit.disabled = true;
+          if (btnReject) btnReject.disabled = true;
+          if (btnApprove) btnApprove.disabled = true;
+
+          // R23.3T: editing a consequential action invalidates the prior
+          // approval. The user returns to the compose form and any later
+          // submit creates a fresh approval id/hash for the edited payload.
+          const rejected = await apiFetch(`/api/v1/approvals/${approval.approvalId}/reject`, { method: 'POST' });
+          if (!rejected || rejected.error || rejected.status !== 'REJECTED') {
+            const el = statusEl();
+            if (el) el.textContent = (rejected && rejected.error && rejected.error.message) || 'This approval could not be invalidated for editing.';
+            return;
+          }
+          approval.status = 'REJECTED';
+          addTimelineEntry('Approval invalidated for edit', `approval:${approval.approvalId}:edit-invalidated`, 'btnEdit.onclick');
+          slot.innerHTML = '';
+          if (form) form.style.display = '';
+          updateFlowStage('Plan Resolution');
+        };
+      }
 
       if (btnReject) {
         btnReject.onclick = async () => {
           stopCountdown();
           btnReject.disabled = true;
+          if (btnEdit) btnEdit.disabled = true;
           if (btnApprove) btnApprove.disabled = true;
           const rejected = await apiFetch(`/api/v1/approvals/${approval.approvalId}/reject`, { method: 'POST' });
           updateFlowStage('Result');
@@ -4310,6 +4338,7 @@
         <p class="calendar-approval-expiry" id="gmail-approval-expiry">${vmView.countdownLabel ? escapeHtml(vmView.countdownLabel) : ''}</p>
         <div class="calendar-preview-actions">
           <button class="btn-reject-outline" id="btn-gmail-reject" ${vmView.rejectDisabled ? 'disabled' : ''}>${escapeHtml(t('gmail.reject'))}</button>
+          <button class="btn-secondary" id="btn-gmail-edit" ${vmView.approveDisabled ? 'disabled' : ''}>${escapeHtml((window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale() === 'ko') ? '수정' : 'Edit')}</button>
           <button class="btn-plan-action plan-status-ready" id="btn-gmail-approve" ${vmView.approveDisabled ? 'disabled' : ''}>${escapeHtml(t(gmailApproveButtonLabelKey(approval.toolId)))}</button>
         </div>
       </div>`;
@@ -4364,13 +4393,36 @@
 
     function wireButtons() {
       const btnReject = document.getElementById('btn-gmail-reject');
+      const btnEdit = document.getElementById('btn-gmail-edit');
       const btnApprove = document.getElementById('btn-gmail-approve');
       const statusEl = () => document.getElementById('gmail-approval-status');
+
+      if (btnEdit) {
+        btnEdit.onclick = async () => {
+          stopCountdown();
+          btnEdit.disabled = true;
+          if (btnReject) btnReject.disabled = true;
+          if (btnApprove) btnApprove.disabled = true;
+
+          const rejected = await apiFetch(`/api/v1/approvals/${approval.approvalId}/reject`, { method: 'POST' });
+          if (!rejected || rejected.error || rejected.status !== 'REJECTED') {
+            const el = statusEl();
+            if (el) el.textContent = (rejected && rejected.error && rejected.error.message) || 'This approval could not be invalidated for editing.';
+            return;
+          }
+          approval.status = 'REJECTED';
+          addTimelineEntry('Approval invalidated for edit', `approval:${approval.approvalId}:edit-invalidated`, 'btnGmailEdit.onclick');
+          slot.innerHTML = '';
+          if (form) form.style.display = '';
+          updateFlowStage('Plan Resolution');
+        };
+      }
 
       if (btnReject) {
         btnReject.onclick = async () => {
           stopCountdown();
           btnReject.disabled = true;
+          if (btnEdit) btnEdit.disabled = true;
           if (btnApprove) btnApprove.disabled = true;
           const rejected = await apiFetch(`/api/v1/approvals/${approval.approvalId}/reject`, { method: 'POST' });
           updateFlowStage('Result');
@@ -4396,6 +4448,7 @@
           stopCountdown();
           btnApprove.disabled = true;
           if (btnReject) btnReject.disabled = true;
+          if (btnEdit) btnEdit.disabled = true;
           updateFlowStage('Execution');
           const elBusy = statusEl();
           if (elBusy) elBusy.textContent = t(gmailExecutingLabelKey(toolId));

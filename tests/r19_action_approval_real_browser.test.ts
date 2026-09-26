@@ -30,20 +30,16 @@ import type { AddressInfo } from 'node:net';
 import { chromium, type Browser, type Page } from 'playwright';
 import { createServerInstance } from '../src/server_web.js';
 
-const ARTIFACT_DIR = 'C:/Users/redcl/.gemini/antigravity-ide/brain/d79b0b2e-f730-4ba8-bd1c-583d9b3ec8d8/screenshots';
 const LOCAL_SCREENSHOT_DIR = path.resolve('artifacts/screenshots');
 
 function ensureDirectoriesExist(): void {
-  fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
   fs.mkdirSync(LOCAL_SCREENSHOT_DIR, { recursive: true });
 }
 
 async function saveScreenshot(page: Page, filename: string): Promise<void> {
-  const p1 = path.join(ARTIFACT_DIR, filename);
-  const p2 = path.join(LOCAL_SCREENSHOT_DIR, filename);
+  const outputPath = path.join(LOCAL_SCREENSHOT_DIR, filename);
   const buffer = await page.screenshot({ fullPage: true });
-  fs.writeFileSync(p1, buffer);
-  fs.writeFileSync(p2, buffer);
+  fs.writeFileSync(outputPath, buffer);
 }
 
 async function startServer(): Promise<{ origin: string; close: () => Promise<void> }> {
@@ -138,13 +134,13 @@ test('R19 Real Browser Certification: Scenarios A-H and screenshot generation ac
       await context.close();
     }
 
-    assert.ok(fs.existsSync(path.join(ARTIFACT_DIR, '360x800_action_preview_en.png')));
-    assert.ok(fs.existsSync(path.join(ARTIFACT_DIR, '390x844_calendar_approval_kr.png')));
-    assert.ok(fs.existsSync(path.join(ARTIFACT_DIR, '390x844_calendar_success_en.png')));
-    assert.ok(fs.existsSync(path.join(ARTIFACT_DIR, '390x844_email_preview_en.png')));
-    assert.ok(fs.existsSync(path.join(ARTIFACT_DIR, '390x844_email_sent_kr.png')));
-    assert.ok(fs.existsSync(path.join(ARTIFACT_DIR, '430x932_action_revert_en.png')));
-    assert.ok(fs.existsSync(path.join(ARTIFACT_DIR, '390x844_action_activity_en.png')));
+    assert.ok(fs.existsSync(path.join(LOCAL_SCREENSHOT_DIR, '360x800_action_preview_en.png')));
+    assert.ok(fs.existsSync(path.join(LOCAL_SCREENSHOT_DIR, '390x844_calendar_approval_kr.png')));
+    assert.ok(fs.existsSync(path.join(LOCAL_SCREENSHOT_DIR, '390x844_calendar_success_en.png')));
+    assert.ok(fs.existsSync(path.join(LOCAL_SCREENSHOT_DIR, '390x844_email_preview_en.png')));
+    assert.ok(fs.existsSync(path.join(LOCAL_SCREENSHOT_DIR, '390x844_email_sent_kr.png')));
+    assert.ok(fs.existsSync(path.join(LOCAL_SCREENSHOT_DIR, '430x932_action_revert_en.png')));
+    assert.ok(fs.existsSync(path.join(LOCAL_SCREENSHOT_DIR, '390x844_action_activity_en.png')));
   } finally {
     if (browser) await browser.close();
     await server.close();
