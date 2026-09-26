@@ -30,8 +30,8 @@ export interface GmailThreadDetail {
 }
 
 export interface GmailPort {
-  search(input: { tenantId: string; query: string; requestId: string }): Promise<{ threads: GmailThreadSummary[] }>;
-  readThread(input: { tenantId: string; threadId: string; requestId: string }): Promise<GmailThreadDetail>;
+  search(input: { tenantId: string; principalId?: string; query: string; requestId: string }): Promise<{ threads: GmailThreadSummary[] }>;
+  readThread(input: { tenantId: string; principalId?: string; threadId: string; requestId: string }): Promise<GmailThreadDetail>;
   requestApproval(input: { toolId: string; tenantId: string; principalId: string; payload: unknown; requestId: string }): ActionApprovalRecord;
 }
 
