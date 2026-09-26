@@ -49,7 +49,7 @@ export const handlePersonalAssistantRoutes: AsyncRouteRegistrar<PersonalAssistan
   if (pathname === '/api/v1/personal/reminders') {
     if (method === 'GET') {
       const status = typeof query?.status === 'string' ? (query.status as ReminderStatus) : undefined;
-      const reminders = reminderStore.listReminders(principalId, status);
+      const reminders = reminderStore.listReminders(tenantId, principalId, status);
       return { status: 200, data: { reminders } };
     }
 
@@ -80,6 +80,7 @@ export const handlePersonalAssistantRoutes: AsyncRouteRegistrar<PersonalAssistan
       const source_context = body?.source_context && typeof body.source_context === 'object' ? (body.source_context as any) : undefined;
 
       const reminder = reminderStore.createReminder({
+        tenant_id: tenantId,
         user_id: principalId,
         title,
         instruction,
@@ -98,8 +99,8 @@ export const handlePersonalAssistantRoutes: AsyncRouteRegistrar<PersonalAssistan
     const reminderId = pathname.replace('/api/v1/personal/reminders/', '');
     if (reminderId && !reminderId.includes('/')) {
       if (method === 'GET') {
-        const r = reminderStore.getReminder(reminderId);
-        if (!r || r.user_id !== principalId) {
+        const r = reminderStore.getReminder(reminderId, tenantId, principalId);
+        if (!r) {
           return { status: 404, data: { error: 'Reminder not found' } };
         }
         return { status: 200, data: r };
@@ -115,7 +116,7 @@ export const handlePersonalAssistantRoutes: AsyncRouteRegistrar<PersonalAssistan
             request_id: requestId,
           });
         }
-        const updated = reminderStore.updateStatus(reminderId, principalId, status);
+        const updated = reminderStore.updateStatus(reminderId, tenantId, principalId, status);
         if (!updated) {
           return { status: 404, data: { error: 'Reminder not found' } };
         }
@@ -123,7 +124,7 @@ export const handlePersonalAssistantRoutes: AsyncRouteRegistrar<PersonalAssistan
       }
 
       if (method === 'DELETE') {
-        const deleted = reminderStore.deleteReminder(reminderId, principalId);
+        const deleted = reminderStore.deleteReminder(reminderId, tenantId, principalId);
         if (!deleted) {
           return { status: 404, data: { error: 'Reminder not found' } };
         }

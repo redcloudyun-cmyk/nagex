@@ -27,6 +27,9 @@ export class DemoScenarioService {
   constructor(
     fixturePath = path.join(process.cwd(), 'demo', 'seed', 'canonical-persona.json'),
     private readonly reseedCanonicalMemory: () => void = () => {},
+    // R23.2D — resets the real Task/Vault/Approval demo records this
+    // service no longer owns itself (see DemoCanonicalSeedService).
+    private readonly reseedCanonicalStores: () => void = () => {},
   ) {
     this.fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as Fixture;
   }
@@ -105,16 +108,6 @@ export class DemoScenarioService {
     return [...seeded, ...state.addedEvents];
   }
 
-  private email(isKo = false) {
-    if (!isKo) return this.fixture.email;
-    return {
-      id: this.fixture.email.id,
-      from: 'Sarah Chen',
-      subject: '다음 단계를 위한 가격 정책 및 일정 문의',
-      summary: 'Sarah가 가격 조정 및 납품 일정 조기 조율이 가능한지 문의했습니다.'
-    };
-  }
-
   private task(isKo = false) {
     if (!isKo) return this.fixture.task;
     return {
@@ -162,44 +155,6 @@ export class DemoScenarioService {
     return [...seeded, ...state.savedVault];
   }
 
-  private meetingPrep(isKo = false): Record<string, unknown> {
-    const event = this.fixture.events.find((item) => item.id === 'demo_evt_client')!;
-    const title = isKo ? '클라이언트 전략 미팅' : event.title;
-    return {
-      event_id: event.id,
-      event_title: title,
-      title: title,
-      starts_at: this.todayAt(event.time),
-      attendees: event.attendees,
-      reason: isKo ? '가격 정책 및 일정 조율 결정이 필요합니다.' : 'Pricing and delivery timing need a decision.',
-      related_materials: [
-        { type: 'VAULT', id: 'demo_vault_notes', title: isKo ? '지난 미팅 노트' : 'Last meeting notes', summary: isKo ? '가격 조율 논의; 일정 미확정.' : 'Pricing flexibility discussed; timeline unresolved.' },
-        { type: 'VAULT', id: 'demo_vault_proposal', title: 'Proposal v3', summary: isKo ? '가격, 납품일, 범위 및 미결정 항목.' : 'Pricing, delivery date, scope, and one open decision.' },
-        { type: 'EMAIL', id: this.fixture.email.id, title: isKo ? 'Sarah Chen의 최근 이메일' : `Recent email from ${this.fixture.email.from}`, summary: isKo ? 'Sarah가 가격 조정 및 납품 일정 조기 조율이 가능한지 문의했습니다.' : this.fixture.email.summary },
-        { type: 'MEMORY', id: 'demo_memory_brief', title: isKo ? '간결한 미팅 브리핑 선호' : this.fixture.persona.preference },
-        { type: 'TASK', id: this.fixture.task.id, title: isKo ? '클라이언트 미팅 후 팔로업 작성' : this.fixture.task.title }
-      ],
-      key_points: isKo ? [
-        '클라이언트가 가격 정책 유연성을 문의했습니다.',
-        '조기 납품 일정 조율이 논의 중입니다.',
-        '이전 미팅에서 전체 일정이 확정되지 않았습니다.'
-      ] : [
-        'The client asked about pricing flexibility.',
-        'An earlier delivery date is under discussion.',
-        'The previous meeting left the timeline unresolved.'
-      ],
-      suggested_agenda: isKo ? [
-        '납품 일정 확정',
-        '가격 옵션 논의',
-        '애널리틱스 옵션 추가 결정'
-      ] : [
-        'Confirm the delivery timeline',
-        'Discuss pricing options',
-        'Resolve the analytics add-on decision'
-      ]
-    };
-  }
-
   public handle(method: string, pathname: string, body: Record<string, unknown> | null, headers?: Record<string, string | string[] | undefined>): ApiResult | undefined {
     const scopeKey = this.getScopeKey(headers);
     const state = this.getState(scopeKey);
@@ -209,180 +164,41 @@ export class DemoScenarioService {
     if (pathname === '/api/v1/demo/reset' && method === 'POST') {
       this.reset(scopeKey);
       this.reseedCanonicalMemory();
+      this.reseedCanonicalStores();
       return { status: 200, data: { success: true, message: 'Demo reset complete.' } };
     }
     if (pathname === '/api/v1/demo/state' && method === 'GET') {
       return { status: 200, data: { persona: this.fixture.persona, mutationCount: state.mutationCount, addedEvents: state.addedEvents, approvalCount: state.approvals.size } };
     }
-    if (pathname === '/api/v1/personal/home' && method === 'GET') {
-      const pendingApprovals = [...state.approvals.values()].filter((item) => item.status === 'PENDING');
-      let rightNow: Record<string, unknown> | null = null;
-      const rightNowSourceIds = new Set<string>();
-
-      if (pendingApprovals.length > 0) {
-        const topApr = pendingApprovals[0];
-        const aprPayload = (topApr.canonicalPayload || {}) as any;
-        const aprTitle = aprPayload.summary || topApr.approvalId;
-        rightNow = {
-          type: 'APPROVAL',
-          title: isKo ? `승인 필요: ${aprTitle}` : `Approval Required: ${aprTitle}`,
-          summary: isKo ? '작업 실행 전 사용자 승인이 필요합니다.' : 'Action requires human authorization before proceeding.',
-          sourceRef: topApr.approvalId,
-          action: { type: 'REVIEW_APPROVAL', label: isKo ? '검토' : 'Review' },
-          occurredAt: new Date().toISOString(),
-        };
-        rightNowSourceIds.add(topApr.approvalId);
-      } else {
-        const meetingTitle = isKo ? '클라이언트 전략 미팅' : 'Client strategy meeting';
-        rightNow = {
-          type: 'MEETING',
-          title: meetingTitle,
-          summary: isKo ? '가격 정책 및 일정 조율 검토가 필요합니다.' : 'Pricing and delivery timing need your attention.',
-          sourceRef: 'demo_evt_client',
-          startsAt: this.todayAt('15:00'),
-          action: {
-            type: 'PREPARE_MEETING',
-            label: isKo ? '미팅 준비' : 'Review prep'
-          }
-        };
-        rightNowSourceIds.add('demo_evt_client');
-      }
-
-      const allEvents = this.events(state, isKo);
-      const meetings = allEvents.map((e: any) => ({
-        id: e.id,
-        title: e.title,
-        startsAt: e.start_time || e.start?.dateTime || this.todayAt('15:00'),
-        summary: e.title,
-      }));
-
-      const todayTaskObj = this.task(isKo);
-      const todayEmailObj = this.email(isKo);
-
-      const today = {
-        briefStatus: 'AVAILABLE',
-        freshness: 'FRESH',
-        summary: isKo
-          ? '오늘 3개의 주요 일정이 있습니다. 클라이언트 미팅을 포함한 최신 컨텍스트가 준비되었습니다.'
-          : 'You have 3 scheduled events today. Client strategy meeting context is ready.',
-        meetings,
-        counts: {
-          meetings: meetings.length,
-          emails: 1,
-          tasks: 1,
-          approvals: pendingApprovals.length,
-        },
-      };
-
-      const needsAttention: Array<Record<string, unknown>> = [];
-      for (const apr of pendingApprovals) {
-        if (rightNowSourceIds.has(apr.approvalId)) continue;
-        needsAttention.push({
-          id: `attn_${apr.approvalId}`,
-          type: 'APPROVAL',
-          title: `Approval Required`,
-          summary: `Action requires human confirmation`,
-          sourceType: 'APPROVAL',
-          sourceId: apr.approvalId,
-          action: { type: 'REVIEW_APPROVAL', label: isKo ? '검토' : 'Review' },
-        });
-      }
-
-      const preparedForYou: Array<Record<string, unknown>> = [
-        {
-          id: 'prep_demo_proposal',
-          type: 'PROPOSAL',
-          title: isKo ? 'Proposal v3 검토 준비' : 'Proposal v3 ready for review',
-          summary: isKo ? '가격 $48,000 및 납품 일정 조율안.' : 'Pricing $48,000 and timeline options.',
-          sourceType: 'PROPOSAL',
-          sourceId: 'demo_vault_proposal',
-          action: { type: 'VIEW_PREPARATION', label: isKo ? '초안 검토' : 'Review Draft' },
-        }
-      ];
-
-      const workingForYou: Array<Record<string, unknown>> = [
-        {
-          id: 'wrk_demo_task',
-          type: 'TASK',
-          title: todayTaskObj.title,
-          summary: todayTaskObj.title,
-          sourceType: 'TASK',
-          sourceId: todayTaskObj.id,
-        }
-      ];
-
-      const vaultItemsList = this.vaultItems(state, isKo);
-      const recentResults: Array<Record<string, unknown>> = vaultItemsList.slice(0, 3).map((v: any) => ({
-        id: `res_${v.vaultItemId}`,
-        type: 'DOCUMENT',
-        title: v.title,
-        summary: (v.metadata as any)?.summary || v.title,
-        sourceType: 'ACTIVITY',
-        sourceId: v.vaultItemId,
-        createdAt: v.createdAt,
-      }));
-
-      return {
-        status: 200,
-        data: {
-          generatedAt: new Date().toISOString(),
-          rightNow,
-          today,
-          needsAttention,
-          preparedForYou,
-          workingForYou,
-          recentResults,
-          sourceStatus: {
-            calendar: 'CONNECTED',
-            gmail: 'CONNECTED',
-            activity: 'OK',
-            tasks: 'OK',
-          },
-          userProfile: {
-            name: this.fixture.persona.name || 'Alex'
-          }
-        }
-      };
-    }
-    if (pathname === '/api/v1/personal/morning-brief' && method === 'GET') {
-      return {
-        status: 200,
-        data: {
-          dataSource: 'DEMO',
-          persona: this.fixture.persona,
-          calendarStatus: 'CONNECTED',
-          gmailStatus: 'CONNECTED',
-          schedule_summary: { count: this.events(state, isKo).length, events: this.events(state, isKo) },
-          email_summary: { important_count: 1, emails: [this.email(isKo)] },
-          task_summary: { due_today: 1, tasks: [this.task(isKo)] },
-          recommendation: {
-            title: isKo ? '클라이언트 전략 미팅 · 오후 3:00' : 'Client strategy meeting · 3:00 PM',
-            reason: isKo ? '가격 정책 및 일정 조율 검토가 필요합니다.' : 'Pricing and delivery timing need your attention.',
-            action_type: 'MEETING_PREP',
-            target_id: 'demo_evt_client'
-          }
-        }
-      };
-    }
-    if (pathname === '/api/v1/personal/quick-wake' && method === 'GET') {
-      return {
-        status: 200,
-        data: {
-          dataSource: 'DEMO',
-          proactive_suggestion: {
-            title: isKo ? '클라이언트 미팅 일정이 다가오고 있습니다.' : 'Your client meeting is coming up.',
-            reason: isKo ? '관련 컨텍스트가 준비되었습니다.' : 'You have related context ready.',
-            target_id: 'demo_evt_client',
-            grounded_on: [
-              { type: 'VAULT', id: 'demo_vault_notes', label: isKo ? '지난 미팅 노트' : 'Last meeting notes' },
-              { type: 'VAULT', id: 'demo_vault_proposal', label: 'Proposal v3' },
-              { type: 'EMAIL', id: this.fixture.email.id, label: isKo ? 'Sarah Chen의 최근 이메일' : 'Recent email from Sarah' }
-            ]
-          }
-        }
-      };
-    }
-    if (pathname === '/api/v1/personal/meeting-prep' && method === 'POST') return { status: 200, data: this.meetingPrep(isKo) };
+    // R23.2D — Demo Canonicalization: GET /api/v1/personal/home is
+    // DELIBERATELY not handled here anymore. It used to return a fully
+    // hardcoded response shape (including fabricated fallback text like
+    // "Client strategy meeting" / "Pricing and delivery timing need your
+    // attention.") that never reached PersonalHomeService/
+    // RightNowIntelligenceService/CurrentPersonalContextService at all
+    // (DEMO_FAKE_PERSONAL_HOME=0 now). Returning undefined here lets
+    // server_web.ts's normal dispatch fall through to the real
+    // handlePersonalHomeRoutes, which reads the same demo-tenant records
+    // DemoCanonicalSeedService seeds into the real Task/Vault/Approval/
+    // Memory stores (see create-nagex-application.ts) — the demo and real
+    // paths now differ only in data source, never in service logic
+    // (DEMO_PARALLEL_INTELLIGENCE_PIPELINE=0). GET /api/v1/personal/
+    // right-now was never intercepted here in the first place and already
+    // reached the real RightNowIntelligenceService pipeline.
+    // R23.3 — GET /api/v1/personal/morning-brief, GET .../quick-wake, and
+    // POST .../meeting-prep are DELIBERATELY not handled here anymore, for
+    // the exact same reason /api/v1/personal/home stopped being handled
+    // here in R23.2D: they used to return fully hardcoded content
+    // ("Client strategy meeting · 3:00 PM", "Pricing and delivery timing
+    // need your attention.", "Your client meeting is coming up.", "Recent
+    // email from Sarah") that never reached PersonalAssistantEngine at
+    // all. Returning undefined here lets server_web.ts's normal dispatch
+    // fall through to the real personal-assistant.routes.ts handlers,
+    // which call generateMorningBrief/executeQuickWake/
+    // generateMeetingPrepCard — now wired (see create-nagex-application.ts)
+    // to the same demo-tenant-aware Calendar/Gmail sources and the same
+    // ProactiveSuggestionService every real tenant uses
+    // (DEMO_PROACTIVE_PARALLEL_PATH=0, DEMO_SUGGESTION_ENGINE_COUNT=1).
     if (pathname === '/api/v1/my-space' && method === 'GET') return { status: 200, data: { calendarStatus: 'CONNECTED', calendar: this.events(state, isKo), history: [] } };
     if (pathname === '/api/v1/tasks' && method === 'GET') {
       const taskObj = this.task(isKo);

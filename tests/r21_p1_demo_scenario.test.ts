@@ -5,11 +5,12 @@ import { createNagexApplication } from '../src/app/create-nagex-application.js';
 
 test('Demo Reset restores canonical Alex Kim state without touching production stores', () => {
   const demo = new DemoScenarioService();
-  const brief = demo.handle('GET', '/api/v1/personal/morning-brief', null)!;
-  assert.equal((brief.data as any).persona.name, 'Alex Kim');
-  assert.equal((brief.data as any).schedule_summary.count, 3);
-  assert.equal((brief.data as any).email_summary.important_count, 1);
-  assert.equal((brief.data as any).task_summary.due_today, 1);
+  // R23.3 — morning-brief is no longer served by DemoScenarioService (see
+  // its own handle()'s header comment); /api/v1/demo/state is still its
+  // own real seed/reset/state responsibility and still carries the
+  // canonical persona.
+  const state0 = demo.handle('GET', '/api/v1/demo/state', null)!;
+  assert.equal((state0.data as any).persona.name, 'Alex Kim');
 
   const slots = demo.handle('POST', '/api/v1/tools/google-calendar/free-slots', {})!;
   const slot = (slots.data as any).freeSlots[0];
@@ -31,16 +32,28 @@ test('Demo Reset restores canonical Alex Kim state without touching production s
   assert.equal((reset.data as any).approvalCount, 0);
 });
 
-test('Quick Wake and Meeting Prep are derived from the canonical demo fixture', () => {
-  const demo = new DemoScenarioService();
-  const quickWake = demo.handle('GET', '/api/v1/personal/quick-wake', null)!.data as any;
-  assert.deepEqual(quickWake.proactive_suggestion.grounded_on.map((item: any) => item.label), ['Last meeting notes', 'Proposal v3', 'Recent email from Sarah']);
-  const prep = demo.handle('POST', '/api/v1/personal/meeting-prep', { eventId: 'demo_evt_client' })!.data as any;
-  assert.match(prep.key_points.join(' '), /pricing flexibility/i);
-  assert.match(prep.key_points.join(' '), /delivery date/i);
-  assert.match(prep.key_points.join(' '), /timeline unresolved/i);
-  assert.deepEqual(prep.related_materials.map((item: any) => item.type), ['VAULT', 'VAULT', 'EMAIL', 'MEMORY', 'TASK']);
-  console.log('DEMO_MEETING_PREP_VAULT_REFERENCES_VALID=PASS');
+// R23.3 — Quick Wake and Meeting Prep are no longer served by
+// DemoScenarioService at all (see its own handle()'s header comment) —
+// they now reach the real PersonalAssistantEngine, wired to the same
+// demo-tenant-aware Calendar/Gmail sources and real seeded Vault/Approval
+// records DemoCanonicalSeedService creates (DEMO_PROACTIVE_PARALLEL_PATH=0).
+test('Quick Wake and Meeting Prep for the demo tenant use the real canonical PersonalAssistantEngine pipeline', async () => {
+  const demoTenantId = 'ten_demo_hackathon';
+  const demoOwnerId = 'usr_demo_alex';
+  const app = createNagexApplication();
+
+  const quickWake = await app.personalAssistantEngine.executeQuickWake(demoOwnerId, demoTenantId);
+  // The demo client meeting is always in progress right now (R23.2D's
+  // relative-offset design), so a real grounded suggestion always exists.
+  assert.ok(quickWake.proactive_suggestion, 'a real grounded proactive suggestion must be produced for the demo tenant');
+  assert.equal(quickWake.proactive_suggestion?.event_id, 'demo_evt_client');
+  assert.ok(quickWake.proactive_suggestion!.grounded_on.length > 0);
+
+  const prep = await app.personalAssistantEngine.generateMeetingPrepCard(demoOwnerId, 'demo_evt_client', demoTenantId);
+  assert.equal(prep.event_id, 'demo_evt_client');
+  assert.ok(prep.related_materials.some((m) => m.type === 'VAULT'), 'the real seeded Vault items must be found');
+  assert.ok(prep.related_materials.some((m) => m.type === 'EMAIL'), 'the real demo Gmail thread must be found');
+  console.log('DEMO_PROACTIVE_CANONICAL_PIPELINE=PASS');
   console.log('R21_P1_DEMO_SCENARIO=PASS');
 });
 

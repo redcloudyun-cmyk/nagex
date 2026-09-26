@@ -24,3 +24,8 @@ export { queryFreeBusy, computeFreeSlots } from './calendar.client.js';
 
 export type { NormalizedExecutionResult } from './google-calendar.service.js';
 export type { CalendarEventPayload } from './calendar.client.js';
+// R23.2D — CurrentPersonalContextService's CalendarEventsSource interface
+// (and the demo-mode implementation that satisfies it) is typed against
+// this real shape rather than duplicating it, exactly like
+// CalendarEventPayload above.
+export type { UpcomingCalendarEvent } from './calendar.client.js';
