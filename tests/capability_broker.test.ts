@@ -873,7 +873,20 @@ describe('Capability Broker Mandatory Tests', () => {
 
   it('22. google_calendar.free_slots fails when disconnected', async () => {
     const disconnectedTokenStore: any = {
+      getStatusForPrincipal: () => ({
+        configured: true,
+        connected: false,
+        scopes: [],
+        expiresAt: null,
+      }),
+      getValidAccessTokenForPrincipal: async () => null,
       getValidAccessToken: async () => null,
+      getStatus: () => ({
+        configured: true,
+        connected: false,
+        scopes: [],
+        expiresAt: null,
+      }),
     };
     const discCalService = new GoogleCalendarService(
       disconnectedTokenStore,
