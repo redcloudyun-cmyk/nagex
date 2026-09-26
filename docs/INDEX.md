@@ -31,7 +31,7 @@ MASTER.md
 | `NAgex_Meta_Muse_Benchmark_Revised_Development_Directive_v2_20260923.md` | Muse-benchmarked hackathon roadmap amendment: demo canonicalization, permission authority, credential isolation, browser trust boundary, E2E priority |
 | `NAgex_External_Benchmark_and_Integration_Guidance_20260926.md` | Consolidated guidance for Muse, Jev, Wissly, WebMCP, model providers, local LLM, developer tools, BYOK, reservation, payment, and future external references |
 | `NAgex_R23.3T_Permission_Approval_Hardening_Development_Directive_20260926.md` | R23.3T permission/approval hardening directive; milestone closed after test-server certification |
-| `NAgex_R23.4V_Credential_Broker_Inject_Only_Vault_Development_Directive_20260926.md` | Current R23.4V implementation directive: credential references, inject-only secret use, Google migration, BYOK/browser-ready boundaries |
+| `NAgex_R23.4V_Credential_Broker_Inject_Only_Vault_Development_Directive_20260926.md` | R23.4V credential broker directive; milestone closed after full regression, browser certification, server verification, and encrypted persistence configuration |
 | `PERSONAL-AI.md` | Persistent memory, personalization, context, and user control |
 | `MODEL-ROUTER.md` | Model Gateway, routing policy, NVIDIA Nemotron, Nebius integration |
 | `SECURITY.md` | Permissions, human approval, secrets, audit, isolation |
