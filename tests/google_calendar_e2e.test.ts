@@ -125,7 +125,7 @@ test('execution success: update PATCHes the event and returns the updated htmlLi
     return jsonResponse({ id: 'evt_123', htmlLink: 'https://calendar.google.com/event?eid=updated' });
   };
   const { tokenStore, service } = buildHarness(fetchFn);
-  tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
+  tokenStore.saveForPrincipal('t1', 'usr_1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
 
   const created = service.requestUpdateEventApproval({ tenantId: 't1', principalId: 'usr_1', payload: updatePayload(), requestId: 'req_1' });
   service.approve(created.approvalId, 't1', 'usr_1', 'req_2');
@@ -146,7 +146,7 @@ test('execution success: cancel DELETEs the event (no body returned) and still y
     return new Response(null, { status: 204 });
   };
   const { tokenStore, service } = buildHarness(fetchFn);
-  tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
+  tokenStore.saveForPrincipal('t1', 'usr_1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
 
   const created = service.requestCancelEventApproval({ tenantId: 't1', principalId: 'usr_1', payload: cancelPayload(), requestId: 'req_1' });
   service.approve(created.approvalId, 't1', 'usr_1', 'req_2');
@@ -177,7 +177,7 @@ test('execution success: respond reads the event, updates only the self attendee
     return jsonResponse({ id: 'evt_123', htmlLink: 'https://calendar.google.com/event?eid=rsvp' });
   };
   const { tokenStore, service } = buildHarness(fetchFn);
-  tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
+  tokenStore.saveForPrincipal('t1', 'usr_1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
 
   const created = service.requestRespondToEventApproval({ tenantId: 't1', principalId: 'usr_1', payload: respondPayload({ responseStatus: 'declined' }), requestId: 'req_1' });
   service.approve(created.approvalId, 't1', 'usr_1', 'req_2');
@@ -193,7 +193,7 @@ test('execution success: respond reads the event, updates only the self attendee
 test('respond fails closed when the connected account is not an attendee on the event', async () => {
   const fetchFn: typeof fetch = async () => jsonResponse({ id: 'evt_123', attendees: [{ email: 'someone-else@example.com', self: false, responseStatus: 'accepted' }] });
   const { tokenStore, service } = buildHarness(fetchFn);
-  tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
+  tokenStore.saveForPrincipal('t1', 'usr_1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
 
   const created = service.requestRespondToEventApproval({ tenantId: 't1', principalId: 'usr_1', payload: respondPayload(), requestId: 'req_1' });
   service.approve(created.approvalId, 't1', 'usr_1', 'req_2');
@@ -207,7 +207,7 @@ test('respond fails closed when the connected account is not an attendee on the 
 
 test('modified payload rejection: executing update with a changed field is rejected even with a valid approval', async () => {
   const { tokenStore, service } = buildHarness(async () => { throw new Error('must not reach Google with a tampered payload'); });
-  tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
+  tokenStore.saveForPrincipal('t1', 'usr_1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
 
   const created = service.requestUpdateEventApproval({ tenantId: 't1', principalId: 'usr_1', payload: updatePayload(), requestId: 'req_1' });
   service.approve(created.approvalId, 't1', 'usr_1', 'req_2');
@@ -228,7 +228,7 @@ test('expired approval rejection: an approval past its TTL cannot be approved', 
 
 test('rejected approval rejection: a REJECTED approval can never be executed', async () => {
   const { tokenStore, service } = buildHarness(async () => { throw new Error('must not reach Google'); });
-  tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
+  tokenStore.saveForPrincipal('t1', 'usr_1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
   const created = service.requestCancelEventApproval({ tenantId: 't1', principalId: 'usr_1', payload: cancelPayload(), requestId: 'req_1' });
   service.reject(created.approvalId, 't1', 'usr_1', 'req_2');
   await assert.rejects(
@@ -240,7 +240,7 @@ test('rejected approval rejection: a REJECTED approval can never be executed', a
 test('replay rejection: the same approval cannot cancel the event twice', async () => {
   const fetchFn: typeof fetch = async () => new Response(null, { status: 204 });
   const { tokenStore, service } = buildHarness(fetchFn);
-  tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
+  tokenStore.saveForPrincipal('t1', 'usr_1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
   const created = service.requestCancelEventApproval({ tenantId: 't1', principalId: 'usr_1', payload: cancelPayload(), requestId: 'req_1' });
   service.approve(created.approvalId, 't1', 'usr_1', 'req_2');
 
@@ -255,7 +255,7 @@ test('replay rejection: the same approval cannot cancel the event twice', async 
 
 test('wrong tool rejection: an update-approved record cannot execute a cancel, and vice versa', async () => {
   const { tokenStore, service } = buildHarness(async () => { throw new Error('must not reach Google'); });
-  tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
+  tokenStore.saveForPrincipal('t1', 'usr_1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
   const created = service.requestUpdateEventApproval({ tenantId: 't1', principalId: 'usr_1', payload: updatePayload(), requestId: 'req_1' });
   service.approve(created.approvalId, 't1', 'usr_1', 'req_2');
   await assert.rejects(
@@ -279,7 +279,7 @@ test('disconnected OAuth: execution is refused even with a valid, matching, appr
 test('audit: every stage of the approval + execution lifecycle is logged for update_event', async () => {
   const fetchFn: typeof fetch = async () => jsonResponse({ id: 'evt_123', htmlLink: 'https://calendar.google.com/event?eid=audit' });
   const { tokenStore, service, audit } = buildHarness(fetchFn);
-  tokenStore.save('t1', { accessToken: 'super-secret-token', refreshToken: 'super-secret-refresh', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
+  tokenStore.saveForPrincipal('t1', 'usr_1', { accessToken: 'super-secret-token', refreshToken: 'super-secret-refresh', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
 
   const created = service.requestUpdateEventApproval({ tenantId: 't1', principalId: 'usr_1', payload: updatePayload(), requestId: 'req_1' });
   service.approve(created.approvalId, 't1', 'usr_1', 'req_2');
