@@ -27,6 +27,8 @@ import type { AuditLogger } from '../governance/audit.logger.js';
 import type { ActionApprovalStore, ActionApprovalRecord } from '../governance/action-approval.store.js';
 import type { ExecutionStore } from '../governance/execution.store.js';
 import type { MutationCapabilityDefinition, MutationExecutionContext } from './mutation-registry.js';
+import type { GoogleCredentialAccessService } from '../security/credentials/google-credential-access.service.js';
+import { GMAIL_SCOPES, GOOGLE_CALENDAR_SCOPES } from '../integrations/google/oauth.client.js';
 
 type FetchFn = typeof fetch;
 
@@ -42,6 +44,7 @@ export interface GoogleOAuthTokenStoreLike {
 
 export interface GoogleCapabilityExecutionPipelineDeps {
   tokenStore: GoogleOAuthTokenStoreLike;
+  credentialAccess: GoogleCredentialAccessService;
   approvals: ActionApprovalStore;
   audit: AuditLogger;
   executions: ExecutionStore;
@@ -127,18 +130,39 @@ export class GoogleCapabilityExecutionPipeline {
     return record;
   }
 
-  // ── shared token resolution (§10) — read-only-safe: no audit, no
-  //    execution record, just a fail-closed resolve-or-throw. Used
-  //    directly by read-only capabilities (Calendar free/busy, upcoming
-  //    events; Gmail search, read thread) and internally by execute()
-  //    below for mutations (which layers its own audit around it).
-  public async resolveAccessToken(tenantId: string, requestId: string, disconnectedErrorCode: string, disconnectedMessage: string): Promise<string> {
-    const config = this.deps.getConfig();
-    const accessToken = config ? await this.deps.tokenStore.getValidAccessToken(tenantId, config, this.deps.fetchFn, requestId) : null;
-    if (!accessToken) {
-      throw new NagexError({ code: disconnectedErrorCode, category: 'POLICY', message: disconnectedMessage, request_id: requestId });
+  // ── R23.4V inject-only Google credential boundary ─────────────────────
+  public async withAccessToken<TResult>(
+    input: {
+      tenantId: string;
+      principalId: string;
+      requestId: string;
+      capabilityId: string;
+      service: 'GMAIL' | 'CALENDAR';
+      purpose: string;
+      disconnectedErrorCode: string;
+      disconnectedMessage: string;
+    },
+    use: (accessToken: string) => Promise<TResult>,
+  ): Promise<TResult> {
+    const requiredScopes = input.service === 'GMAIL' ? [...GMAIL_SCOPES] : [...GOOGLE_CALENDAR_SCOPES];
+    const result = await this.deps.credentialAccess.withAccessToken({
+      tenantId: input.tenantId,
+      principalId: input.principalId,
+      requiredScopes,
+      purpose: input.purpose,
+      requestId: input.requestId,
+      capabilityId: input.capabilityId,
+    }, use);
+
+    if (result === null) {
+      throw new NagexError({
+        code: input.disconnectedErrorCode,
+        category: 'POLICY',
+        message: input.disconnectedMessage,
+        request_id: input.requestId,
+      });
     }
-    return accessToken;
+    return result;
   }
 
   // ── the canonical mutation execution chokepoint (§6) ────────────────────
@@ -174,66 +198,74 @@ export class GoogleCapabilityExecutionPipeline {
       details: { toolId: definition.toolId, approvalId: context.approvalId },
     });
 
-    let accessToken: string;
-    try {
-      accessToken = await this.resolveAccessToken(context.tenantId, context.requestId, definition.disconnectedErrorCode, definition.disconnectedMessage);
-    } catch (error) {
-      const code = error instanceof NagexError ? error.code : definition.disconnectedErrorCode;
-      this.deps.audit.logEvent({
-        actor: { type: 'user', id: context.principalId },
-        tenant_id: context.tenantId,
-        action: 'tool.execution.failed',
-        resource: { type: 'ToolExecution', id: executionId },
-        result: 'FAILED',
-        reason_code: code,
-        request_id: context.requestId,
-        details: { toolId: definition.toolId },
-      });
-      throw error;
-    }
-
-    // Consuming the approval (hash-checked, one-time-use) happens before
-    // the real provider call, and atomically with respect to this event
-    // loop — no await between checking and marking it CONSUMED — so a
-    // replayed or concurrent execute request can never reach the provider
-    // twice for the same approval (§6 — "CONSUMED approval -> cannot
-    // execute again").
-    try {
-      this.deps.approvals.consume(context.approvalId, context.tenantId, context.principalId, definition.toolId, payload as unknown as Record<string, unknown>, context.requestId, executionId);
-    } catch (error) {
-      const code = error instanceof NagexError ? error.code : 'APPROVAL_VALIDATION_FAILED';
-      this.deps.audit.logEvent({
-        actor: { type: 'user', id: context.principalId },
-        tenant_id: context.tenantId,
-        action: 'tool.execution.failed',
-        resource: { type: 'ToolExecution', id: executionId },
-        result: 'DENIED',
-        reason_code: code,
-        request_id: context.requestId,
-        details: { toolId: definition.toolId, approvalId: context.approvalId },
-      });
-      throw error;
-    }
-
-    this.deps.executions.start({ executionId, toolId: definition.toolId, approvalId: context.approvalId, tenantId: context.tenantId, principalId: context.principalId, startedAt });
-
     let result: TProviderResult;
     try {
-      result = await executeProvider(accessToken, payload, context.requestId);
-    } catch (error) {
-      const code = error instanceof NagexError ? error.code : `${definition.service}_EXECUTION_FAILED`;
-      const completedAt = getCurrentISOString();
-      this.deps.executions.fail(executionId, { errorCode: code, completedAt });
-      this.deps.audit.logEvent({
-        actor: { type: 'user', id: context.principalId },
-        tenant_id: context.tenantId,
-        action: 'tool.execution.failed',
-        resource: { type: 'ToolExecution', id: executionId },
-        result: 'FAILED',
-        reason_code: code,
-        request_id: context.requestId,
-        details: { toolId: definition.toolId },
+      result = await this.withAccessToken({
+        tenantId: context.tenantId,
+        principalId: context.principalId,
+        requestId: context.requestId,
+        capabilityId: definition.toolId,
+        service: definition.service,
+        purpose: `execute:${definition.toolId}`,
+        disconnectedErrorCode: definition.disconnectedErrorCode,
+        disconnectedMessage: definition.disconnectedMessage,
+      }, async (accessToken) => {
+        // The secret exists only inside this privileged callback. Approval
+        // consumption stays immediately before the provider mutation, with no
+        // await between consume and provider invocation.
+        try {
+          this.deps.approvals.consume(context.approvalId, context.tenantId, context.principalId, definition.toolId, payload as unknown as Record<string, unknown>, context.requestId, executionId);
+        } catch (error) {
+          const code = error instanceof NagexError ? error.code : 'APPROVAL_VALIDATION_FAILED';
+          this.deps.audit.logEvent({
+            actor: { type: 'user', id: context.principalId },
+            tenant_id: context.tenantId,
+            action: 'tool.execution.failed',
+            resource: { type: 'ToolExecution', id: executionId },
+            result: 'DENIED',
+            reason_code: code,
+            request_id: context.requestId,
+            details: { toolId: definition.toolId, approvalId: context.approvalId },
+          });
+          throw error;
+        }
+
+        this.deps.executions.start({ executionId, toolId: definition.toolId, approvalId: context.approvalId, tenantId: context.tenantId, principalId: context.principalId, startedAt });
+
+        try {
+          return await executeProvider(accessToken, payload, context.requestId);
+        } catch (error) {
+          const code = error instanceof NagexError ? error.code : `${definition.service}_EXECUTION_FAILED`;
+          const completedAt = getCurrentISOString();
+          this.deps.executions.fail(executionId, { errorCode: code, completedAt });
+          this.deps.audit.logEvent({
+            actor: { type: 'user', id: context.principalId },
+            tenant_id: context.tenantId,
+            action: 'tool.execution.failed',
+            resource: { type: 'ToolExecution', id: executionId },
+            result: 'FAILED',
+            reason_code: code,
+            request_id: context.requestId,
+            details: { toolId: definition.toolId },
+          });
+          throw error;
+        }
       });
+    } catch (error) {
+      // Credential-resolution failures occur before approval consumption.
+      if (this.deps.approvals.get(context.approvalId, context.tenantId, context.principalId)?.status !== 'CONSUMED') {
+        const code = error instanceof NagexError ? error.code : definition.disconnectedErrorCode;
+        this.deps.audit.logEvent({
+          actor: { type: 'user', id: context.principalId },
+          tenant_id: context.tenantId,
+          action: 'tool.execution.failed',
+          resource: { type: 'ToolExecution', id: executionId },
+          result: 'FAILED',
+          reason_code: code,
+          request_id: context.requestId,
+          details: { toolId: definition.toolId },
+        });
+      }
       throw error;
     }
 
