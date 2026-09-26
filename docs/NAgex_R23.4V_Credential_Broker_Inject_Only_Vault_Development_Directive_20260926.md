@@ -728,3 +728,62 @@ BLOCKED
 ~~~
 
 Only after SAFE TO IMPLEMENT should Phase B begin.
+
+
+---
+
+## Implementation Status — 2026-09-27
+
+### Completed and locally targeted-certified
+
+- Phase A — Credential inventory
+- Phase B1 — CredentialReference / CredentialBroker contract
+- Phase B2 — tenant + principal ownership and OAuth continuation binding
+- Phase C — Gmail / Calendar canonical broker migration
+- Phase D — Secret Non-Propagation Hardening
+
+Latest completed local evidence supplied by the developer workstation:
+
+~~~text
+credential-broker scope
+tests 171
+pass 171
+fail 0
+~~~
+
+### Phase E — implemented, pending final local targeted certification
+
+Implemented contract:
+
+~~~text
+CredentialReference
+  allowedOrigins?
+  allowedCapabilities?
+
+CredentialUseRequest
+  origin?
+  capabilityId?
+
+CredentialLease
+  provider
+  scopes
+  capabilityId?
+  origin?
+  expiresAt
+~~~
+
+Policy:
+
+- origin mismatch fails closed before secret resolution
+- capability mismatch fails closed before secret resolution
+- lease contains metadata only, never plaintext credential material
+- browser runtime injection is intentionally not enabled in R23.4V
+- R23.5B must establish the untrusted-content/site boundary before browser credential injection is connected
+- future BYOK provider adapters should consume the same broker/reference/lease contract instead of introducing a parallel secret path
+
+R23.4V remains OPEN until:
+
+1. Phase E targeted scope passes with fail 0
+2. deterministic regression passes
+3. affected browser certification passes
+4. test-server build/restart/health/working-tree verification passes
