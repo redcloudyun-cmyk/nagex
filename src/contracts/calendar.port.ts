@@ -48,6 +48,7 @@ export interface CalendarApprovalRequestInput {
 export interface CalendarApprovalRequesterPort {
   getFreeSlots(input: {
     tenantId: string;
+    principalId?: string;
     calendarId?: string;
     timeMin: string;
     timeMax: string;
