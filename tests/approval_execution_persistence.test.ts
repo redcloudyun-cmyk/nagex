@@ -15,7 +15,7 @@ import { MemoryEngine } from '../src/context/memory.engine.js';
 import { InMemoryGoogleOAuthTokenStore } from '../src/integrations/google/token.store.js';
 import { GoogleCalendarService, GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID } from '../src/modules/calendar/index.js';
 import { handleApiRequest } from '../src/server_web.js';
-import type { GoogleOAuthConfig } from '../src/integrations/google/oauth.client.js';
+import { GOOGLE_CALENDAR_SCOPES, type GoogleOAuthConfig } from '../src/integrations/google/oauth.client.js';
 
 function tmpDir(label: string): string {
   return path.join(os.tmpdir(), `nagex-${label}-${crypto.randomBytes(6).toString('hex')}`);
@@ -192,7 +192,7 @@ test('execution success is persisted with SUCCEEDED status, externalId, and exte
   try {
     const fetchFn: typeof fetch = async () => jsonResponse({ id: 'gcal_evt_persist', htmlLink: 'https://calendar.google.com/event?eid=persist' });
     const { tokenStore, approvals, service, executions } = buildHarness(fetchFn, dirs);
-    tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: 'calendar.events' });
+    tokenStore.saveForPrincipal('t1', 'u1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GOOGLE_CALENDAR_SCOPES.join(' ') });
     const record = approvals.request({ toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, tenantId: 't1', principalId: 'u1', payload: validPayload() });
     approvals.approve(record.approvalId, 't1', 'u1');
 
@@ -223,7 +223,7 @@ test('execution failure is persisted with FAILED status and an errorCode, and th
   try {
     const fetchFn: typeof fetch = async () => jsonResponse({ error: { message: 'boom' } }, 500);
     const { tokenStore, approvals, service, executions } = buildHarness(fetchFn, dirs);
-    tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: 'calendar.events' });
+    tokenStore.saveForPrincipal('t1', 'u1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GOOGLE_CALENDAR_SCOPES.join(' ') });
     const record = approvals.request({ toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, tenantId: 't1', principalId: 'u1', payload: validPayload() });
     approvals.approve(record.approvalId, 't1', 'u1');
 
