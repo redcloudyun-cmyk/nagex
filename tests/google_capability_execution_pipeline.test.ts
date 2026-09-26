@@ -54,7 +54,13 @@ function buildPipelineHarness(opts: { connected?: boolean } = {}) {
   const audit = new AuditLogger();
   const executions = new ExecutionStore({ dir: fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-exec-pipeline-test-')) });
   const tokenStore = { getValidAccessToken: async () => (opts.connected === false ? null : 'fake-token') };
-  const pipeline = new GoogleCapabilityExecutionPipeline({ tokenStore, approvals, audit, executions, getConfig: () => ({ clientId: 'c', clientSecret: 's', redirectUri: 'r' }), fetchFn: fetch });
+  const credentialAccess = {
+    withAccessToken: async <T>(_input: unknown, use: (accessToken: string) => Promise<T>): Promise<T | null> => {
+      if (opts.connected === false) return null;
+      return use('fake-token');
+    },
+  };
+  const pipeline = new GoogleCapabilityExecutionPipeline({ tokenStore, credentialAccess, approvals, audit, executions, getConfig: () => ({ clientId: 'c', clientSecret: 's', redirectUri: 'r' }), fetchFn: fetch });
   return { approvals, audit, executions, pipeline };
 }
 
