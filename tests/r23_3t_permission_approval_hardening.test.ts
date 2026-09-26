@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import fs from 'node:fs';
+import path from 'node:path';
 import { AuditLogger } from '../src/governance/audit.logger.js';
 import { PermissionDecisionService, PERMISSION_POLICY_VERSION } from '../src/governance/permission/index.js';
 import { ActionApprovalStore } from '../src/governance/action-approval.store.js';
@@ -295,4 +297,34 @@ test('R23.3T Approval binding — existing canonical store remains fail-closed',
 
     assert.equal(store.get(approval.approvalId, tenantId, principalId)?.status, 'APPROVED');
   });
+});
+
+
+test('R23.3T Approval UX contract — edit invalidates approval and browser artifacts stay portable', () => {
+  const appSource = fs.readFileSync(path.join(process.cwd(), 'public', 'app.js'), 'utf8');
+  const r19BrowserSource = fs.readFileSync(path.join(process.cwd(), 'tests', 'r19_action_approval_real_browser.test.ts'), 'utf8');
+
+  // Calendar and Gmail approval cards both expose Edit.
+  assert.match(appSource, /id="btn-calendar-edit"/);
+  assert.match(appSource, /id="btn-gmail-edit"/);
+
+  // Edit does not mutate the approved payload in place. It first rejects
+  // the old approval, then returns to the compose form; resubmission must
+  // therefore mint a new approval id/hash through POST /api/v1/approvals.
+  const calendarEditStart = appSource.indexOf("const btnEdit = document.getElementById('btn-calendar-edit')");
+  const gmailEditStart = appSource.indexOf("const btnEdit = document.getElementById('btn-gmail-edit')");
+  assert.ok(calendarEditStart >= 0);
+  assert.ok(gmailEditStart >= 0);
+
+  const calendarEditBlock = appSource.slice(calendarEditStart, calendarEditStart + 2600);
+  const gmailEditBlock = appSource.slice(gmailEditStart, gmailEditStart + 2600);
+  assert.match(calendarEditBlock, /\/api\/v1\/approvals\/\$\{approval\.approvalId\}\/reject/);
+  assert.match(calendarEditBlock, /form\.style\.display = ''/);
+  assert.match(gmailEditBlock, /\/api\/v1\/approvals\/\$\{approval\.approvalId\}\/reject/);
+  assert.match(gmailEditBlock, /form\.style\.display = ''/);
+
+  // Linux/test-server browser certification must never recreate a literal
+  // Windows C:/Users/... path inside the repository.
+  assert.doesNotMatch(r19BrowserSource, /C:\/Users\//);
+  assert.match(r19BrowserSource, /artifacts\/screenshots/);
 });
