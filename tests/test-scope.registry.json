@@ -172,7 +172,8 @@
       "google_calendar_e2e",
       "r23_3t_permission_approval_hardening",
       "audit_tenant_isolation",
-      "google_capability_execution_pipeline"
+      "google_capability_execution_pipeline",
+      "r23_4v_secret_non_propagation"
     ]
   },
   "fullOnly": [
