@@ -166,9 +166,19 @@ export class GmailService {
   // ── read-only (no approval) ─────────────────────────────────────────────
 
   public async search(input: { tenantId: string; principalId?: string; query: string; requestId: string }): Promise<{ threads: Array<{ threadId: string; snippet: string; historyId: string | null }> }> {
-    const accessToken = await this.pipeline.resolveAccessToken(input.tenantId, input.requestId, 'GMAIL_DISCONNECTED', 'Gmail is not connected. Connect Google Calendar/Gmail before this action can execute.');
-    const threads = await searchGmailThreads(accessToken, input.query, this.fetchFn, input.requestId);
-    return { threads };
+    return this.pipeline.withAccessToken({
+      tenantId: input.tenantId,
+      principalId: input.principalId ?? DEFAULT_GOOGLE_PRINCIPAL_ID,
+      requestId: input.requestId,
+      capabilityId: GMAIL_SEARCH_TOOL_ID,
+      service: 'GMAIL',
+      purpose: 'read:gmail.search',
+      disconnectedErrorCode: 'GMAIL_DISCONNECTED',
+      disconnectedMessage: 'Gmail is not connected. Connect Google Calendar/Gmail before this action can execute.',
+    }, async (accessToken) => {
+      const threads = await searchGmailThreads(accessToken, input.query, this.fetchFn, input.requestId);
+      return { threads };
+    });
   }
 
   public async readThread(input: { tenantId: string; principalId?: string; threadId: string; requestId: string }) {
