@@ -7,7 +7,7 @@ import {
   handleGoogleOAuthStartRoutes,
   handleGoogleOAuthCallbackRoutes,
 } from '../src/http/routes/google-oauth.routes.js';
-import { googleTokenStore } from '../src/integrations/google/token.store.js';
+import { googleTokenStore, InMemoryGoogleOAuthTokenStore } from '../src/integrations/google/token.store.js';
 
 const CANARY_SECRET = 'R23_4V_CANARY_SECRET_7f4d2c11';
 
@@ -312,10 +312,47 @@ test('R23.4V Google OAuth state is bound to the initiating tenant and principal'
     assert.equal(replay?.status, 302);
     assert.match(String(replay?.redirectTo), /status=error/);
   } finally {
-    googleTokenStore.clear(tenantId);
+    googleTokenStore.clearForPrincipal(tenantId, principalId);
     globalThis.fetch = originalFetch;
     if (oldEnv.GOOGLE_CLIENT_ID === undefined) delete process.env.GOOGLE_CLIENT_ID; else process.env.GOOGLE_CLIENT_ID = oldEnv.GOOGLE_CLIENT_ID;
     if (oldEnv.GOOGLE_CLIENT_SECRET === undefined) delete process.env.GOOGLE_CLIENT_SECRET; else process.env.GOOGLE_CLIENT_SECRET = oldEnv.GOOGLE_CLIENT_SECRET;
     if (oldEnv.GOOGLE_REDIRECT_URI === undefined) delete process.env.GOOGLE_REDIRECT_URI; else process.env.GOOGLE_REDIRECT_URI = oldEnv.GOOGLE_REDIRECT_URI;
   }
+});
+
+
+test('R23.4V Google token backend — same tenant remains principal-isolated', async () => {
+  const store = new InMemoryGoogleOAuthTokenStore();
+  const config = { clientId: 'cid', clientSecret: 'secret', redirectUri: 'http://localhost/callback' };
+  const noRefresh: typeof fetch = async () => { throw new Error('refresh must not be called'); };
+
+  store.saveForPrincipal('ten_shared', 'usr_a', {
+    accessToken: 'access-a',
+    refreshToken: 'refresh-a',
+    expiresAt: Date.now() + 60_000,
+    scope: 'scope.a',
+  });
+  store.saveForPrincipal('ten_shared', 'usr_b', {
+    accessToken: 'access-b',
+    refreshToken: 'refresh-b',
+    expiresAt: Date.now() + 60_000,
+    scope: 'scope.b',
+  });
+
+  assert.equal(store.getStatusForPrincipal('ten_shared', 'usr_a').connected, true);
+  assert.deepEqual(store.getStatusForPrincipal('ten_shared', 'usr_a').scopes, ['scope.a']);
+  assert.deepEqual(store.getStatusForPrincipal('ten_shared', 'usr_b').scopes, ['scope.b']);
+
+  assert.equal(
+    await store.getValidAccessTokenForPrincipal('ten_shared', 'usr_a', config, noRefresh, 'req_a'),
+    'access-a',
+  );
+  assert.equal(
+    await store.getValidAccessTokenForPrincipal('ten_shared', 'usr_b', config, noRefresh, 'req_b'),
+    'access-b',
+  );
+
+  store.clearForPrincipal('ten_shared', 'usr_a');
+  assert.equal(store.isConnectedForPrincipal('ten_shared', 'usr_a'), false);
+  assert.equal(store.isConnectedForPrincipal('ten_shared', 'usr_b'), true);
 });
