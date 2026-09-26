@@ -67,50 +67,90 @@ net.Server.prototype.listen = function patchedListen(this: net.Server, ...args: 
   return this;
 } as any;
 
-const dataRoot = path.join(os.tmpdir(), 'nagex-test-data', `${process.pid}-${Date.now()}`);
+// R23.3H — TEST_HARNESS_DEFECT root-cause fix.
+//
+// Every one of the vars below used `??=` on the theory that "the first
+// process through this file wins, and every process computes its own
+// unique dataRoot from its own pid+timestamp, so this is safe." That
+// theory is wrong for exactly one real, reproduced case: when a single
+// `node --require _setup.js --test file1.js file2.js ...` invocation is
+// used (this is exactly what scripts/nagex-test-scope.mjs and
+// scripts/nagex-test-gate.mjs do for every scope/gate), the PARENT CLI
+// process itself runs this file first (setting these vars in its OWN
+// process.env from its OWN pid), and Node's test runner then spawns one
+// CHILD OS process per test file. Each child inherits the parent's
+// process.env by normal OS process-spawn semantics — including the
+// already-set NAGEX_*_DIR values — so every `??=` below is a no-op in
+// every child, and EVERY test file in that invocation silently shares one
+// dataRoot (the parent's), even though each child is a genuinely separate
+// process with its own distinct pid. Reproduced directly: a minimal
+// `node --require setup.js --test a.js b.js` shows the parent's SETUP_RAN
+// log line, then each child's OWN SETUP_RAN log line with the child's own
+// (different) pid but the PARENT's inherited value, because `??=` saw the
+// var already set and skipped. This is the exact, confirmed mechanism
+// behind R23.2D/R23.3's previously-unproven "TEST_HARNESS_DEFECT" —
+// TEST_DATA_ROOT_SHARED_ACROSS_FILES=1 before this fix.
+//
+// Fix: track which pid last actually computed dataRoot
+// (NAGEX_TEST_DATA_ROOT_OWNER_PID). If the current process's own pid does
+// not match that marker — true both for a fresh top-level invocation
+// (marker unset) and for every spawned child (marker holds the parent's
+// pid, never the child's own) — dataRoot is recomputed from THIS
+// process's own pid+timestamp and every derived var is unconditionally
+// overwritten (never `??=`, since staleness is now decided once here, not
+// per-var). A process that re-requires this file redundantly within
+// itself (marker already matches its own pid) leaves everything as-is.
+const alreadyOwnedByThisProcess = process.env.NAGEX_TEST_DATA_ROOT_OWNER_PID === String(process.pid);
+const dataRoot = alreadyOwnedByThisProcess && process.env.NAGEX_TEST_DATA_ROOT
+  ? process.env.NAGEX_TEST_DATA_ROOT
+  : path.join(os.tmpdir(), 'nagex-test-data', `${process.pid}-${Date.now()}`);
+
+if (!alreadyOwnedByThisProcess) {
+  process.env.NAGEX_TEST_DATA_ROOT_OWNER_PID = String(process.pid);
+  process.env.NAGEX_TEST_DATA_ROOT = dataRoot;
+  process.env.NAGEX_APPROVALS_DIR = path.join(dataRoot, 'approvals');
+  process.env.NAGEX_EXECUTIONS_DIR = path.join(dataRoot, 'executions');
+  process.env.NAGEX_GOOGLE_TOKEN_STORE_PATH = path.join(dataRoot, 'google-oauth.json');
+  process.env.NAGEX_SESSIONS_DIR = path.join(dataRoot, 'sessions');
+  process.env.NAGEX_TASKS_DIR = path.join(dataRoot, 'tasks');
+  process.env.NAGEX_TASK_RUNS_DIR = path.join(dataRoot, 'task-runs');
+  process.env.NAGEX_BROWSER_SESSIONS_DIR = path.join(dataRoot, 'browser-sessions');
+  process.env.NAGEX_BROWSER_PROFILE_DIR = path.join(dataRoot, 'browser-profile');
+  process.env.NAGEX_BROWSER_EVIDENCE_DIR = path.join(dataRoot, 'browser-evidence');
+  process.env.NAGEX_SAFETY_DIR = path.join(dataRoot, 'safety');
+  process.env.NAGEX_ACTIVITY_DIR = path.join(dataRoot, 'activity');
+  process.env.NAGEX_CAPTURES_DIR = path.join(dataRoot, 'workspace-captures');
+  process.env.NAGEX_CANDIDATES_DIR = path.join(dataRoot, 'candidates');
+  process.env.NAGEX_CONVERSATIONS_DIR = path.join(dataRoot, 'conversations');
+  process.env.NAGEX_NOTIFICATIONS_DIR = path.join(dataRoot, 'notifications');
+  process.env.NAGEX_OBJECT_STORAGE_DIR = path.join(dataRoot, 'object-storage');
+  process.env.NAGEX_TELEGRAM_DIR = path.join(dataRoot, 'telegram-identities');
+  process.env.NAGEX_SLACK_DIR = path.join(dataRoot, 'slack-identities');
+  process.env.NAGEX_MEMORIES_DIR = path.join(dataRoot, 'memories');
+  process.env.NAGEX_PERSONAL_REMINDERS_DIR = path.join(dataRoot, 'personal-reminders');
+  process.env.NAGEX_MODULE_STATE_DIR = path.join(dataRoot, 'module-state');
+  process.env.NAGEX_WORKFLOW_DEFINITIONS_DIR = path.join(dataRoot, 'workflows');
+  process.env.NAGEX_CAPABILITIES_IDEMPOTENCY_DIR = path.join(dataRoot, 'capabilities_idempotency');
+  // R16 — IdentityStore/IdentityTokenStore/IdentityAuditStore/
+  // OrganizationStore/EnterpriseIdentityStore/SocialIdentityStore/
+  // SsoFlowStore's dirs were never redirected here until R16 — a gap
+  // predating it. Every test that constructs a real server via
+  // createServerInstance() (zero-arg `new XStore()`, no dir override) had
+  // therefore always read/written the REAL persistent dev data directory
+  // for identities and organizations, not an isolated temp one. This went
+  // unnoticed because most real-browser tests already use timestamp-
+  // suffixed emails/org names per run, making collisions improbable
+  // rather than impossible — R16's own real-browser test used a fixed
+  // literal test email and hit exactly this collision on a second run,
+  // which is what surfaced it.
+  process.env.NAGEX_IDENTITY_DIR = path.join(dataRoot, 'identity');
+  process.env.NAGEX_IDENTITY_TOKENS_DIR = path.join(dataRoot, 'identity-tokens');
+  process.env.NAGEX_IDENTITY_AUDIT_DIR = path.join(dataRoot, 'identity-audit');
+  process.env.NAGEX_ORGANIZATION_DIR = path.join(dataRoot, 'organizations');
+  process.env.NAGEX_ENTERPRISE_IDENTITY_DIR = path.join(dataRoot, 'enterprise-identity');
+  process.env.NAGEX_SOCIAL_IDENTITY_DIR = path.join(dataRoot, 'social-identities');
+  process.env.NAGEX_SSO_FLOW_DIR = path.join(dataRoot, 'sso-flow');
+}
 
 process.env.NODE_ENV ??= 'test';
 process.env.NAGEX_ALLOW_LOCAL_TEST_URLS ??= '1';
-process.env.NAGEX_APPROVALS_DIR ??= path.join(dataRoot, 'approvals');
-process.env.NAGEX_EXECUTIONS_DIR ??= path.join(dataRoot, 'executions');
-process.env.NAGEX_GOOGLE_TOKEN_STORE_PATH ??= path.join(dataRoot, 'google-oauth.json');
-process.env.NAGEX_SESSIONS_DIR ??= path.join(dataRoot, 'sessions');
-process.env.NAGEX_TASKS_DIR ??= path.join(dataRoot, 'tasks');
-process.env.NAGEX_TASK_RUNS_DIR ??= path.join(dataRoot, 'task-runs');
-process.env.NAGEX_BROWSER_SESSIONS_DIR ??= path.join(dataRoot, 'browser-sessions');
-process.env.NAGEX_BROWSER_PROFILE_DIR ??= path.join(dataRoot, 'browser-profile');
-process.env.NAGEX_BROWSER_EVIDENCE_DIR ??= path.join(dataRoot, 'browser-evidence');
-process.env.NAGEX_SAFETY_DIR ??= path.join(dataRoot, 'safety');
-process.env.NAGEX_ACTIVITY_DIR ??= path.join(dataRoot, 'activity');
-process.env.NAGEX_CAPTURES_DIR ??= path.join(dataRoot, 'workspace-captures');
-process.env.NAGEX_CANDIDATES_DIR ??= path.join(dataRoot, 'candidates');
-process.env.NAGEX_CONVERSATIONS_DIR ??= path.join(dataRoot, 'conversations');
-process.env.NAGEX_NOTIFICATIONS_DIR ??= path.join(dataRoot, 'notifications');
-process.env.NAGEX_OBJECT_STORAGE_DIR ??= path.join(dataRoot, 'object-storage');
-process.env.NAGEX_TELEGRAM_DIR ??= path.join(dataRoot, 'telegram-identities');
-process.env.NAGEX_SLACK_DIR ??= path.join(dataRoot, 'slack-identities');
-process.env.NAGEX_MEMORIES_DIR ??= path.join(dataRoot, 'memories');
-process.env.NAGEX_PERSONAL_REMINDERS_DIR ??= path.join(dataRoot, 'personal-reminders');
-process.env.NAGEX_MODULE_STATE_DIR ??= path.join(dataRoot, 'module-state');
-process.env.NAGEX_WORKFLOW_DEFINITIONS_DIR ??= path.join(dataRoot, 'workflows');
-process.env.NAGEX_CAPABILITIES_IDEMPOTENCY_DIR ??= path.join(dataRoot, 'capabilities_idempotency');
-// R16 — found while debugging the real-browser certification test: these
-// four were NEVER redirected here, a gap predating R16 (IdentityStore/
-// IdentityTokenStore/IdentityAuditStore are R13, OrganizationStore is
-// R14). Every test that constructs a real server via createServerInstance()
-// (which builds these with zero-arg `new XStore()`, i.e. no dir override)
-// has therefore always read/written the REAL persistent dev data
-// directory for identities and organizations, not an isolated temp one.
-// This went unnoticed because most real-browser tests already use
-// timestamp-suffixed emails/org names per run, making collisions
-// improbable rather than impossible — R16's own real-browser test used a
-// fixed literal test email and hit exactly this collision on a second
-// run, which is what surfaced it. Fixed at the root here rather than by
-// making every future test remember to suffix its test data.
-process.env.NAGEX_IDENTITY_DIR ??= path.join(dataRoot, 'identity');
-process.env.NAGEX_IDENTITY_TOKENS_DIR ??= path.join(dataRoot, 'identity-tokens');
-process.env.NAGEX_IDENTITY_AUDIT_DIR ??= path.join(dataRoot, 'identity-audit');
-process.env.NAGEX_ORGANIZATION_DIR ??= path.join(dataRoot, 'organizations');
-process.env.NAGEX_ENTERPRISE_IDENTITY_DIR ??= path.join(dataRoot, 'enterprise-identity');
-process.env.NAGEX_SOCIAL_IDENTITY_DIR ??= path.join(dataRoot, 'social-identities');
-process.env.NAGEX_SSO_FLOW_DIR ??= path.join(dataRoot, 'sso-flow');

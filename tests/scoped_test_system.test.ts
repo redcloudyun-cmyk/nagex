@@ -187,29 +187,147 @@ test('the runner exits non-zero and never spawns a test process when a scope res
 });
 
 // ─── Missing compiled test guard — genuinely exercised with a real,
-// disposable source file that intentionally has no compiled counterpart ──
+// disposable source file that intentionally has no compiled counterpart.
+//
+// R23.2H: this fixture previously lived directly under the real tests/
+// directory (deleted in a `finally` block). Under parallel `node --test`
+// execution across files, test_contract_registry.test.ts's own live
+// `tests/*.test.ts` filesystem scan could observe the fixture mid-existence
+// — a real, reproducible TEST_HARNESS_DEFECT race, not a product issue
+// (confirmed by three consecutive `npm run test:regression` runs before
+// this fix: pass/fail/fail, all on the exact same commit). The runner's
+// NAGEX_TEST_SCOPE_SOURCE_DIR/NAGEX_TEST_SCOPE_DIST_DIR overrides let this
+// test point source/compiled resolution entirely at an isolated temp
+// directory instead — the fixture never touches tests/ or dist/tests/ at
+// all, removing the root cause rather than serializing the whole gate. ──
 
 test('the runner exits non-zero when a mapped source test file exists but was never compiled to dist/tests', () => {
-  const fixtureName = `_scoped_fixture_missing_compiled_${Date.now()}`;
-  const fixtureSourcePath = path.join(ROOT, 'tests', `${fixtureName}.test.ts`);
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-scoped-fixture-'));
+  const isolatedTestsDir = path.join(tmpDir, 'tests');
+  const isolatedDistTestsDir = path.join(tmpDir, 'dist-tests');
+  fs.mkdirSync(isolatedTestsDir);
+  fs.mkdirSync(isolatedDistTestsDir);
+  const fixtureName = '_scoped_fixture_missing_compiled';
+  const fixtureSourcePath = path.join(isolatedTestsDir, `${fixtureName}.test.ts`);
   const tmpRegistryPath = path.join(tmpDir, 'missing-compiled.registry.json');
   try {
     // A real, valid, throwaway test file — deliberately never compiled
-    // (the guard is checked with --no-build so dist/tests/<fixtureName>.test.js
-    // can never come to exist during this test).
+    // (isolatedDistTestsDir is left empty, and --no-build guarantees it
+    // stays empty for the duration of this test).
     fs.writeFileSync(fixtureSourcePath, "import { test } from 'node:test';\ntest('fixture', () => {});\n");
     fs.writeFileSync(tmpRegistryPath, JSON.stringify({ scopes: { missingCompiled: [fixtureName] }, fullOnly: [] }));
     const result = spawnSync(process.execPath, [RUNNER_PATH, 'missingCompiled', '--no-build'], {
       cwd: ROOT,
       encoding: 'utf8',
-      env: { ...process.env, NAGEX_TEST_SCOPE_REGISTRY: tmpRegistryPath },
+      env: {
+        ...process.env,
+        NAGEX_TEST_SCOPE_REGISTRY: tmpRegistryPath,
+        NAGEX_TEST_SCOPE_SOURCE_DIR: isolatedTestsDir,
+        NAGEX_TEST_SCOPE_DIST_DIR: isolatedDistTestsDir,
+      },
     });
     assert.notEqual(result.status, 0, 'a mapped test with no compiled output must fail, never silently skip');
     assert.match(result.stderr, /missing after build/i);
     assert.match(result.stderr, new RegExp(fixtureName));
   } finally {
-    fs.rmSync(fixtureSourcePath, { force: true });
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+// ─── R23.3H regression protection — dist/tests/_setup.js must give every
+// spawned test-file child its OWN NAGEX_TEST_DATA_ROOT, never the parent
+// CLI process's inherited one (TEST_DATA_ROOT_SHARED_ACROSS_FILES=0).
+//
+// This exercises the REAL compiled setup script via the REAL
+// `node --require dist/tests/_setup.js --test a.js b.js` invocation shape —
+// the exact shape scripts/nagex-test-scope.mjs and nagex-test-gate.mjs use,
+// and the exact shape that reproduced the original bug (the parent process
+// runs _setup.js first and sets NAGEX_TEST_DATA_ROOT_OWNER_PID/
+// NAGEX_TEST_DATA_ROOT in its OWN env; every spawned test-file child then
+// inherits that env by normal OS process-spawn semantics). Each fixture
+// file behaviorally proves its own isolation by actually creating its
+// approvals directory and writing a marker file into it (never a
+// regex/static assertion), so this test also proves that deleting one
+// fixture's entire data root afterward cannot remove the other's already-
+// written state. ──
+
+test('R23.3H — two sibling test files spawned from one node --test invocation get distinct, non-inherited data roots (TEST_DATA_ROOT_SHARED_ACROSS_FILES=0)', () => {
+  const SETUP_PATH = path.join(ROOT, 'dist', 'tests', '_setup.js');
+  assert.ok(fs.existsSync(SETUP_PATH), 'dist/tests/_setup.js must be built before this test runs (npm run build)');
+
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-dataroot-isolation-'));
+  const markerAPath = path.join(tmpDir, 'marker-a.json');
+  const markerBPath = path.join(tmpDir, 'marker-b.json');
+  const fixtureAPath = path.join(tmpDir, 'fixture-a.test.js');
+  const fixtureBPath = path.join(tmpDir, 'fixture-b.test.js');
+
+  const fixtureSource = (markerPath: string) => `
+const fs = require('node:fs');
+const path = require('node:path');
+const { test } = require('node:test');
+test('record own data root', () => {
+  const dataRoot = process.env.NAGEX_TEST_DATA_ROOT;
+  const approvalsDir = process.env.NAGEX_APPROVALS_DIR;
+  if (!dataRoot || !approvalsDir) throw new Error('NAGEX_TEST_DATA_ROOT/NAGEX_APPROVALS_DIR must be set by _setup.js');
+  fs.mkdirSync(approvalsDir, { recursive: true });
+  fs.writeFileSync(path.join(approvalsDir, 'marker.txt'), 'present');
+  fs.writeFileSync(${JSON.stringify(markerPath)}, JSON.stringify({
+    pid: process.pid,
+    dataRoot,
+    approvalsDir,
+    ownerPid: process.env.NAGEX_TEST_DATA_ROOT_OWNER_PID,
+  }));
+});
+`;
+
+  try {
+    fs.writeFileSync(fixtureAPath, fixtureSource(markerAPath));
+    fs.writeFileSync(fixtureBPath, fixtureSource(markerBPath));
+
+    // This test file is itself normally run inside `node --test`, which sets
+    // NODE_TEST_CONTEXT/NODE_TEST_WORKER_ID in its own process.env. Those
+    // leak into this spawnSync call by ordinary env inheritance and make
+    // Node's own recursive-test-run guard silently skip the nested
+    // invocation ("run() is being called recursively... skipping running
+    // files") — a harness-nesting artifact unrelated to the dataRoot bug
+    // this test exists to guard, so it is stripped here rather than worked
+    // around by disabling the guard globally.
+    const spawnEnv = { ...process.env };
+    delete spawnEnv.NODE_TEST_CONTEXT;
+    delete spawnEnv.NODE_TEST_WORKER_ID;
+
+    const result = spawnSync(process.execPath, ['--require', SETUP_PATH, '--test', fixtureAPath, fixtureBPath], {
+      cwd: ROOT,
+      encoding: 'utf8',
+      env: spawnEnv,
+    });
+    assert.equal(result.status, 0, `both fixture files must pass:\n${result.stdout}\n${result.stderr}`);
+
+    const markerA = JSON.parse(fs.readFileSync(markerAPath, 'utf8'));
+    const markerB = JSON.parse(fs.readFileSync(markerBPath, 'utf8'));
+
+    // The structural bug reproduced: two genuinely separate child processes
+    // (proven by distinct pids) previously shared ONE inherited dataRoot.
+    assert.notEqual(markerA.pid, markerB.pid, 'the two spawned test files must run in distinct OS processes');
+    assert.notEqual(markerA.dataRoot, markerB.dataRoot, 'sibling test-file processes must never share one inherited NAGEX_TEST_DATA_ROOT');
+    assert.notEqual(markerA.approvalsDir, markerB.approvalsDir);
+
+    // Module-level singleton does not escape the isolation boundary: each
+    // child must own its own marker, never the parent's.
+    assert.equal(markerA.ownerPid, String(markerA.pid), "fixture A's NAGEX_TEST_DATA_ROOT_OWNER_PID must be its own pid, never an inherited ancestor's");
+    assert.equal(markerB.ownerPid, String(markerB.pid), "fixture B's NAGEX_TEST_DATA_ROOT_OWNER_PID must be its own pid, never an inherited ancestor's");
+
+    // Behavioral proof both approvals dirs were genuinely, independently
+    // created and populated.
+    assert.ok(fs.existsSync(path.join(markerA.approvalsDir, 'marker.txt')));
+    assert.ok(fs.existsSync(path.join(markerB.approvalsDir, 'marker.txt')));
+
+    // Cleanup of one data root must never remove the other's state.
+    fs.rmSync(markerA.dataRoot, { recursive: true, force: true });
+    assert.ok(!fs.existsSync(markerA.approvalsDir), "fixture A's own data root must actually be removable");
+    assert.ok(fs.existsSync(path.join(markerB.approvalsDir, 'marker.txt')), "cleaning up fixture A's data root must never remove fixture B's state");
+    fs.rmSync(markerB.dataRoot, { recursive: true, force: true });
+  } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 });

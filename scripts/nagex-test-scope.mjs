@@ -31,6 +31,20 @@ const ROOT = path.resolve(__dirname, '..');
 const REGISTRY_PATH = process.env.NAGEX_TEST_SCOPE_REGISTRY
   ? path.resolve(process.env.NAGEX_TEST_SCOPE_REGISTRY)
   : path.join(ROOT, 'tests', 'test-scope.registry.json');
+// R23.2H — test-support overrides only, same pattern as
+// NAGEX_TEST_SCOPE_REGISTRY above (see tests/scoped_test_system.test.ts).
+// Letting the self-test suite point source/compiled resolution at an
+// isolated temp directory means its disposable "missing compiled" fixture
+// never has to exist under the real tests/ or dist/tests/ — the exact
+// directories test_contract_registry.test.ts's own live filesystem scan
+// watches — eliminating a real cross-file race under parallel `node --test`
+// (TEST_HARNESS_DEFECT, not a product issue). Never set outside a test run.
+const TESTS_DIR = process.env.NAGEX_TEST_SCOPE_SOURCE_DIR
+  ? path.resolve(process.env.NAGEX_TEST_SCOPE_SOURCE_DIR)
+  : path.join(ROOT, 'tests');
+const DIST_TESTS_DIR = process.env.NAGEX_TEST_SCOPE_DIST_DIR
+  ? path.resolve(process.env.NAGEX_TEST_SCOPE_DIST_DIR)
+  : path.join(ROOT, 'dist', 'tests');
 const SETUP_PATH = path.join(ROOT, 'dist', 'tests', '_setup.js');
 const TSC_PATH = path.join(ROOT, 'node_modules', 'typescript', 'bin', 'tsc');
 
@@ -52,11 +66,11 @@ function resolveScope(registry, scope) {
 }
 
 function compiledTestPath(baseName) {
-  return path.join(ROOT, 'dist', 'tests', `${baseName}.test.js`);
+  return path.join(DIST_TESTS_DIR, `${baseName}.test.js`);
 }
 
 function sourceTestPath(baseName) {
-  return path.join(ROOT, 'tests', `${baseName}.test.ts`);
+  return path.join(TESTS_DIR, `${baseName}.test.ts`);
 }
 
 function printUsageAndScopes(registry) {
