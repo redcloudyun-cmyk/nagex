@@ -145,14 +145,27 @@ export class GoogleCapabilityExecutionPipeline {
     use: (accessToken: string) => Promise<TResult>,
   ): Promise<TResult> {
     const requiredScopes = input.service === 'GMAIL' ? [...GMAIL_SCOPES] : [...GOOGLE_CALENDAR_SCOPES];
-    const result = await this.deps.credentialAccess.withAccessToken({
-      tenantId: input.tenantId,
-      principalId: input.principalId,
-      requiredScopes,
-      purpose: input.purpose,
-      requestId: input.requestId,
-      capabilityId: input.capabilityId,
-    }, use);
+    let result: TResult | null;
+    try {
+      result = await this.deps.credentialAccess.withAccessToken({
+        tenantId: input.tenantId,
+        principalId: input.principalId,
+        requiredScopes,
+        purpose: input.purpose,
+        requestId: input.requestId,
+        capabilityId: input.capabilityId,
+      }, use);
+    } catch (error) {
+      if (error instanceof NagexError && error.code.startsWith('CREDENTIAL_')) {
+        throw new NagexError({
+          code: input.disconnectedErrorCode,
+          category: 'POLICY',
+          message: input.disconnectedMessage,
+          request_id: input.requestId,
+        });
+      }
+      throw error;
+    }
 
     if (result === null) {
       throw new NagexError({
