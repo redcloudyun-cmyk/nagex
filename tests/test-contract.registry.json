@@ -3627,6 +3627,24 @@
       "deterministic": true,
       "assertionIntent": "observable behavior",
       "notes": "Canonical PermissionDecisionService hard-policy boundary: deterministic ALLOW/REQUIRE_APPROVAL/BLOCK, fail-closed identity/capability/safety behavior, no sensitive payload audit leakage, and no downgrade of required approval."
+    },
+    "r23_4v_credential_broker": {
+      "milestone": "R23.4V",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "security",
+        "integrations",
+        "runtime",
+        "audit",
+        "identity"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Credential references are metadata-only; use is tenant/user/provider/scope bound; plaintext is injected only inside a privileged callback; OAuth continuation is bound to the initiating identity; canary secrets must not leak to audit/reference/error surfaces."
     }
   }
 }
