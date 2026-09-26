@@ -162,7 +162,7 @@ export class InMemoryGoogleOAuthTokenStore implements GoogleOAuthTokenStore {
     } catch {
       // Refresh failed (commonly: authorization revoked) — fail closed and
       // drop the now-invalid credential rather than keep retrying with it.
-      this.clear(tenantId);
+      this.clearForPrincipal(tenantId, principalId);
       return null;
     }
   }
