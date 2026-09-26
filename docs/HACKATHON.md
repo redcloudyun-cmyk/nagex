@@ -18,6 +18,20 @@ The strongest submission should demonstrate more than a branded assistant UI.
 
 It should show a real agent loop that uses NVIDIA and Nebius technologies in a substantive execution path.
 
+Current competitive positioning:
+
+> **NAgex is a governed personal AI that remembers your context, helps decide what matters now, prepares and executes useful actions, and keeps you in control of memory, permissions, credentials, and consequential actions.**
+
+Supporting line:
+
+> **Many models behind. One personal AI in front.**
+
+The current benchmark amendment is:
+
+- `docs/NAgex_Meta_Muse_Benchmark_Revised_Development_Directive_v2_20260923.md`
+
+It is subordinate to `MASTER.md` and frozen architecture invariants, but defines the current hackathon priority sequence.
+
 ## 3. Required Technical Direction
 
 Target stack:
@@ -31,7 +45,69 @@ Target stack:
 - Human Approval
 - Auditable execution
 
-## 4. Integration Truthfulness
+Trust-critical direction added after the Meta Muse benchmark:
+
+- independent permission authority,
+- credential broker / inject-only secret handling,
+- browser untrusted-content boundary,
+- prompt-injection resistance at the policy boundary,
+- API-first / site-policy-aware browser automation,
+- no parallel demo-only execution path.
+
+## 4. Current Hackathon Priority Sequence
+
+As of 2026-09-23:
+
+```text
+R23.2D  Demo Canonicalization
+   ↓
+R23.3T  Permission / Approval Hardening
+   ↓
+R23.4V  Credential Broker / Vault MVP
+   ↓
+R23.5B  Browser Untrusted-Content Boundary
+   ↓
+R23.6E  One complete real E2E agent scenario
+   ↓
+R23.7G  Background Runtime Certification
+   ↓
+R23.8P  Governed Personality / Trust UX
+   ↓
+R23.9C  Final Hackathon Certification
+```
+
+Payment/tokenized virtual-card work is P2 and is not part of the critical submission path unless all preceding gates close early.
+
+The dependency order matters more than the milestone labels.
+
+## 5. Hackathon Trust Invariants
+
+The submission path must preserve:
+
+```text
+FAKE_SUCCESS_PATHS=0
+DEMO_PARALLEL_INTELLIGENCE_PIPELINE=0
+
+AGENT_SELF_APPROVAL=0
+APPROVAL_BYPASS=0
+REJECT_MUTATION=0
+APPROVAL_ONE_TIME_CONSUME=1
+
+PLAINTEXT_CREDENTIAL_TO_LLM=0
+PLAINTEXT_CREDENTIAL_TO_LOG=0
+AGENT_CREDENTIAL_READ=0
+
+WEB_CONTENT_TRUSTED=0
+WEB_PAGE_CAN_GRANT_PERMISSION=0
+PROMPT_INJECTION_CAN_BYPASS_APPROVAL=0
+
+CROSS_TENANT_LEAK=0
+CROSS_USER_LEAK=0
+```
+
+A browser page, email, document, model output, or agent-generated tool instruction is never a permission authority.
+
+## 6. Integration Truthfulness
 
 Every hackathon-facing feature must be marked accurately:
 
@@ -47,28 +123,55 @@ Do not claim:
 - a model is live when mocked,
 - Nebius is used when only documented,
 - a tool executed when the result was static,
-- persistent memory when only session state exists.
+- persistent memory when only session state exists,
+- a demo response represents the canonical runtime when it bypasses the real runtime,
+- a credential is protected if plaintext can enter model context or logs.
 
-## 5. Recommended Demo Story
+## 7. Required Demo Story
 
-A compact demo should demonstrate one coherent user goal.
+The submission should prioritize **one complete real path** rather than many partial cards.
 
-Example structure:
+Recommended scenario:
+
+> Monitor a competitor's pricing, summarize what changed, and email me the report.
+
+Required structure:
 
 ```text
 1. User provides a goal
-2. NAgex retrieves relevant memory/context
-3. NAgex plans the task
-4. NVIDIA/Nebius reasoning is visibly used
-5. NAgex chooses a Skill / Tool
-6. A consequential action triggers approval
-7. User approves
-8. NAgex executes the action
-9. Result and audit trail are displayed
-10. Useful outcome is retained in memory
+2. NAgex retrieves relevant personal context/memory
+3. NAgex plans or resolves the task
+4. NVIDIA/Nebius reasoning is substantively used
+5. NAgex uses API/browser tools under site policy
+6. External content remains untrusted
+7. Result is grounded in real evidence
+8. Email draft is prepared
+9. Consequential send triggers Needs your attention
+10. User reviews and approves
+11. NAgex performs the real Gmail action
+12. Activity/audit shows what happened
+13. Any retained memory goes through canonical memory policy
 ```
 
-## 6. Submission Readiness
+The demo must not use a static success response or a parallel demo-only execution pipeline.
+
+## 8. Closure Definition
+
+A hackathon-facing capability is not complete merely because a backend class or API exists.
+
+Closure requires, where applicable:
+
+```text
+Backend contract
++ canonical runtime path
++ real user-facing UI path
++ deterministic regression
++ affected browser certification
++ test-server verification
++ no mock/parallel demo path
+```
+
+## 9. Submission Readiness
 
 Before submission verify:
 
@@ -81,9 +184,13 @@ Before submission verify:
 - README distinguishes implemented vs planned,
 - project-origin disclosure is accurate,
 - architecture diagram matches actual implementation,
+- credential handling claims match real boundaries,
+- consequential actions cannot bypass approval,
+- demo mode uses canonical product logic,
+- browser automation policy is explicit,
 - video remains within event limits.
 
-## 7. Development Evidence
+## 10. Development Evidence
 
 Hackathon-period work should be easy to identify in Git history.
 
@@ -95,13 +202,18 @@ Meaningful updates should include:
 - personal-memory implementation,
 - skills/tools,
 - approval flow,
+- credential isolation,
+- browser trust/security boundaries,
+- demo canonicalization,
 - demo-specific UX,
 - tests and documentation.
 
-## 8. Submission Positioning
+## 11. Submission Positioning
 
 Preferred positioning:
 
-> NAgex is a new hackathon project created during the submission period and bootstrapped from an entrant-owned internal experimental codebase. The hackathon work establishes a new product identity and implements the Personal AI, NVIDIA/Nebius, memory, agent-planning, tool-execution, and human-approval direction.
+> NAgex is a new hackathon project created during the submission period and bootstrapped from an entrant-owned internal experimental codebase. The hackathon work establishes a new product identity and implements the Personal AI, NVIDIA/Nebius, memory, governed tool execution, credential isolation, browser safety, and human-control direction.
 
 Avoid describing the bootstrap source as a previous commercial NAgex product.
+
+Do not position NAgex as "Muse but smaller." The benchmark informs architecture and priorities; it does not define NAgex's identity.

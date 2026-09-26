@@ -28,6 +28,7 @@ MASTER.md
 | `PRODUCT.md` | Product definition, user value, UX principles, product boundaries |
 | `ARCHITECTURE.md` | System architecture and runtime boundaries |
 | `HACKATHON.md` | Nebius x NVIDIA hackathon implementation and submission requirements |
+| `NAgex_Meta_Muse_Benchmark_Revised_Development_Directive_v2_20260923.md` | Current Muse-benchmarked hackathon roadmap amendment: demo canonicalization, permission authority, credential isolation, browser trust boundary, E2E priority |
 | `PERSONAL-AI.md` | Persistent memory, personalization, context, and user control |
 | `MODEL-ROUTER.md` | Model Gateway, routing policy, NVIDIA Nemotron, Nebius integration |
 | `SECURITY.md` | Permissions, human approval, secrets, audit, isolation |
@@ -35,6 +36,19 @@ MASTER.md
 | `DEPLOYMENT.md` | Server setup and env vars for OAuth token persistence, restart-safety notes |
 | `HANDOVER.md` | Agent/developer transition documentation, recent major work, test benchmarks, operating rules |
 
+## Current Hackathon Amendment
+
+For work on the 2026-10-29 internal hackathon target, read:
+
+```text
+MASTER.md
+→ docs/HACKATHON.md
+→ docs/NAgex_Meta_Muse_Benchmark_Revised_Development_Directive_v2_20260923.md
+→ relevant security/product domain docs
+→ implementation
+```
+
+The Muse benchmark amendment does not override frozen architecture invariants. It sets the current hackathon dependency order and trust priorities.
 
 ## Documentation Status Rules
 
