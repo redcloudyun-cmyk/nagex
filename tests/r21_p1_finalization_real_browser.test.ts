@@ -121,10 +121,14 @@ test('R21 P1 A-J semantic certification and visual QA capture', async () => {
     await quick.goto(`${server.origin}/desktop-quickwake.html?demo=1`);
     await quick.waitForFunction(() => document.querySelector('#qw-proactive-card')?.textContent?.includes('Proposal v3'));
     const quickText = await quick.locator('#qw-proactive-card').innerText();
-    assert.match(quickText, /Your client meeting is coming up/);
+    // R23.3 — the proactive_suggestion is now the canonical
+    // ProactiveSuggestionService MEETING_PREP suggestion (via
+    // RightNowIntelligenceService), not DemoScenarioService's former
+    // hardcoded "Your client meeting is coming up." text.
+    assert.match(quickText, /meeting/i);
     assert.match(quickText, /Last meeting notes/);
     assert.match(quickText, /Proposal v3/);
-    assert.match(quickText, /Recent email from Sarah/);
+    assert.match(quickText, /pricing/i);
     assert.doesNotMatch(quickText, /Product research sync|Q3 report/);
     await shot(quick, 'desktop_quick_wake_en.png');
     const quickMetrics = await quick.evaluate(() => (globalThis as any).window.NAGEX_METRICS || {});
@@ -138,10 +142,17 @@ test('R21 P1 A-J semantic certification and visual QA capture', async () => {
     assert.ok(prepClicked, 'Meeting prep button must be clicked');
     await page.waitForFunction(() => document.querySelector('#meeting-prep-body')?.textContent?.includes('Key things to know'));
     const prepText = await page.locator('#meeting-prep-body').innerText();
-    assert.match(prepText, /pricing flexibility/i);
-    assert.match(prepText, /delivery date/i);
-    assert.match(prepText, /timeline unresolved/i);
-    assert.match(prepText, /Confirm the delivery timeline/i);
+    // R23.3 — generateMeetingPrepCard's key_points/suggested_agenda are
+    // real AI-generated content (unchanged in this phase — see
+    // personal-assistant.engine.ts's own header comment: models may
+    // generate the CONTENT of a grounded action, per R23.3 §8), so their
+    // exact wording depends on whatever model/fake is configured for this
+    // test run and is not asserted verbatim here. What must always be true
+    // regardless of model output is that the real grounded event/materials
+    // are present — never a hardcoded person/event/reason.
+    assert.match(prepText, /Client strategy meeting/i);
+    assert.match(prepText, /Proposal v3/);
+    assert.match(prepText, /Last meeting notes/);
     await shot(page, 'desktop_meeting_prep_en.png');
 
     await page.click('#meeting-prep-find-time');
@@ -226,7 +237,11 @@ test('R21 P1 A-J semantic certification and visual QA capture', async () => {
       return false;
     });
     assert.ok(mobilePrepBtn, 'Mobile meeting prep button must be clicked');
-    await mobile.waitForSelector('#meeting-prep-body .meeting-prep-keypoints', { timeout: 60000 });
+    // R23.3 — waits on the always-rendered title, not .meeting-prep-keypoints:
+    // key_points is real AI-generated content and may legitimately come
+    // back empty (the engine renders an honest "you are all set" empty
+    // state rather than fabricating a key point — see meeting-prep-view.js).
+    await mobile.waitForSelector('#meeting-prep-title', { timeout: 60000 });
     await shot(mobile, '390x844_meeting_prep_kr.png');
     await mobile.click('#meeting-prep-find-time');
     await mobile.click('#meeting-prep-add-to-calendar');

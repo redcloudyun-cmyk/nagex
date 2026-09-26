@@ -1429,10 +1429,25 @@
         <span class="mh-hero-tag" id="mh-hero-tag" data-i18n="home.rightNow">Right now</span>
         <h2 class="mh-hero-headline" id="mh-hero-headline">...</h2>
         <p class="mh-hero-body" id="mh-hero-body">...</p>
+        <!-- R23.2H — grounded "related material" note (e.g. a Vault doc or
+             email tied to the primary meeting). Real text from
+             GET /api/v1/personal/right-now only; hidden entirely, never a
+             filler sentence, when no such related item exists. -->
+        <p class="mh-hero-related" id="mh-hero-related" hidden></p>
         <div class="mh-hero-actions">
           <button class="mh-btn-primary" id="mh-hero-primary-cta" disabled style="opacity: 0.65; pointer-events: none;">...</button>
           <a class="mh-hero-secondary-link" id="mh-hero-secondary-link" onclick="window.NAGEX.scrollToToday()" data-i18n="home.viewToday">View today</a>
         </div>
+      </section>
+
+      <!-- R23.3 — Suggested for you: the canonical ProactiveSuggestion list
+           (GET /api/v1/personal/right-now's `suggestions`), rendered as-is
+           — hidden entirely (never a filler card) when there are none. -->
+      <section class="mh-card mh-suggestions-section" id="mh-section-suggestions" hidden>
+        <div class="mh-card-header">
+          <h2><span data-i18n="home.suggestedForYouHeader">Suggested for you</span></h2>
+        </div>
+        <div id="mh-suggestions-list"></div>
       </section>
 
       <!-- C. Needs Your Attention (rendered ONLY if items exist) -->

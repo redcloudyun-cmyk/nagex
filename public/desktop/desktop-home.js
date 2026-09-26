@@ -45,15 +45,74 @@
     }
   }
 
-  function renderRightNowSection(rightNow) {
+  // R23.2H — finds the grounded "related material" note for the primary
+  // item, purely by matching sourceRef ids RightNowIntelligenceService
+  // already tied together (a MEETING_PREP-style suggestion). No relevance
+  // judgment happens here — UI_AGGREGATION_LOGIC=0, UI_FABRICATED_REASON=0.
+  function findRelatedNote(rightNow, intel) {
+    if (!rightNow || !intel || !Array.isArray(intel.suggestions)) return '';
+    const suggestion = intel.suggestions.find(
+      (s) => Array.isArray(s.sourceRefs) && s.sourceRefs.some((r) => r && r.id === rightNow.sourceRef)
+    );
+    return suggestion ? suggestion.reason : '';
+  }
+
+  // "Next": the remaining ranked candidates RightNowIntelligenceService
+  // already computed (intel.upcoming), rendered as-is — no re-ranking, no
+  // re-fetch of Calendar/Task/Reminder data here.
+  function renderNextList(upcoming) {
+    const items = (Array.isArray(upcoming) ? upcoming : []).slice(0, 3);
+    if (items.length === 0) return '';
+    return `
+      <div class="right-now-next" style="margin-top:0.75rem; padding-top:0.75rem; border-top:1px solid rgba(255,255,255,0.08);">
+        <div style="font-size:0.72rem; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; color:var(--color-text-secondary); margin-bottom:0.4rem;" data-i18n="home.nextHeader">${escapeHtml(t('home.nextHeader', 'Next'))}</div>
+        ${items.map((it) => `
+          <div style="display:flex; justify-content:space-between; gap:0.5rem; padding:0.25rem 0; font-size:0.8rem;">
+            <span style="color:var(--color-text-primary);">${escapeHtml(it.title)}</span>
+            <span style="color:var(--color-text-secondary); white-space:nowrap;">${escapeHtml(it.reason)}</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  // R23.3 — "Suggested for you": the canonical ProactiveSuggestion list
+  // (intel.suggestions), rendered as-is — no priority/relevance logic here
+  // (UI_PRIORITY_LOGIC=0, UI_RELEVANCE_LOGIC=0). Internal fields
+  // (priorityClass, sourceRef, kind) are deliberately never shown to the
+  // user — only title/reason/CTA, per R23.3 §18.
+  function renderSuggestionsList(suggestions, primarySourceId) {
+    const items = (Array.isArray(suggestions) ? suggestions : []).filter((s) => !(s.sourceRefs && s.sourceRefs.some((r) => r.id === primarySourceId))).slice(0, 3);
+    if (items.length === 0) return '';
+    return `
+      <div class="right-now-suggestions" style="margin-top:0.75rem; padding-top:0.75rem; border-top:1px solid rgba(255,255,255,0.08);">
+        <div style="font-size:0.72rem; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; color:var(--color-text-secondary); margin-bottom:0.4rem;" data-i18n="home.suggestedForYouHeader">${escapeHtml(t('home.suggestedForYouHeader', 'Suggested for you'))}</div>
+        ${items.map((s) => `
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; padding:0.35rem 0; font-size:0.8rem;">
+            <span>
+              <span style="color:var(--color-text-primary); display:block;">${escapeHtml(s.title)}</span>
+              <span style="color:var(--color-text-secondary); font-size:0.72rem;">${escapeHtml(s.reason)}</span>
+            </span>
+            <button class="btn-secondary" style="font-size:0.72rem; padding:2px 8px; white-space:nowrap;" onclick="window.NAGEX.handleHomeItemAction('${escapeHtml((s.sourceRefs && s.sourceRefs[0] && s.sourceRefs[0].type) || '')}', '${escapeHtml((s.sourceRefs && s.sourceRefs[0] && s.sourceRefs[0].id) || '')}')">${escapeHtml(s.action && s.action.label || 'View')}</button>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  function renderRightNowSection(rightNow, intel) {
     const section = document.getElementById('home-section-right-now');
     if (!section) return;
 
     if (!rightNow) {
+      // Truthful empty state — the section disappears entirely rather than
+      // showing an invented meeting/task/suggestion.
       section.hidden = true;
       section.innerHTML = '';
       return;
     }
+
+    const relatedNote = findRelatedNote(rightNow, intel);
 
     section.hidden = false;
     section.innerHTML = `
@@ -66,7 +125,10 @@
       <div class="right-now-card" style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 8px; padding: 1rem;">
         <strong style="font-size: 1rem; display: block; color: var(--color-text-primary); margin-bottom: 0.35rem;">${escapeHtml(rightNow.title)}</strong>
         <p style="font-size: 0.85rem; color: var(--color-text-secondary); margin: 0 0 0.75rem 0;">${escapeHtml(rightNow.summary)}</p>
+        ${relatedNote ? `<p style="font-size: 0.78rem; color: var(--color-text-secondary); margin: -0.4rem 0 0.75rem 0;">${escapeHtml(relatedNote)}</p>` : ''}
         ${rightNow.action ? `<button class="btn-primary" onclick="window.NAGEX.handleHomeItemAction('${escapeHtml(rightNow.type)}', '${escapeHtml(rightNow.sourceRef)}')">${escapeHtml(rightNow.action.label)}</button>` : ''}
+        ${renderNextList(intel && intel.upcoming)}
+        ${renderSuggestionsList(intel && intel.suggestions, rightNow.sourceRef)}
       </div>
     `;
   }
@@ -205,10 +267,15 @@
 
     if (!window.NAGEX || typeof window.NAGEX.apiFetch !== 'function') return;
 
+    // R23.3 v1.1 — a single GET /api/v1/personal/home fetch now carries
+    // rightNow/upcoming/suggestions together (all computed from the same
+    // one buildCurrentContext() call server-side) — no separate
+    // GET /api/v1/personal/right-now fetch here anymore
+    // (CONTEXT_BUILD_COUNT_PER_COMPOSITE_HOME_REQUEST=1).
     const data = await window.NAGEX.apiFetch('/api/v1/personal/home');
     if (!data) return;
 
-    renderRightNowSection(data.rightNow);
+    renderRightNowSection(data.rightNow, { upcoming: data.upcoming, suggestions: data.suggestions });
     renderTodaySection(data.today, data.sourceStatus);
     renderNeedsAttentionSection(data.needsAttention);
     renderPreparedForYouSection(data.preparedForYou);

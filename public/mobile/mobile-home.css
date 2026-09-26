@@ -682,8 +682,14 @@
 .mh-hero-body {
   font-size: 13.5px;
   color: #475569;
-  margin: 0 0 16px 0;
+  margin: 0 0 6px 0;
   line-height: 1.45;
+}
+.mh-hero-related {
+  font-size: 12.5px;
+  color: #64748b;
+  margin: 0 0 16px 0;
+  line-height: 1.4;
 }
 .mh-hero-actions {
   display: flex;

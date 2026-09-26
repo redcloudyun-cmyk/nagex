@@ -89,6 +89,29 @@
   }
 
   // ── B. Right Now Hero ──
+  //
+  // R23.2H — this hero previously computed its own priority ladder over
+  // /api/v1/personal/morning-brief + /api/v1/my-space and, on the fallback
+  // paths, rendered hardcoded fabricated text ("Sarah asked about pricing
+  // and delivery timing.", a generic "Pricing and delivery timing need
+  // your attention.") that had no connection to real data — a direct
+  // UI_FABRICATED_REASON violation. It now only renders the same canonical
+  // GET /api/v1/personal/home `rightNow` (RightNowIntelligenceService's
+  // deterministic primary item, mapped by PersonalHomeService — the exact
+  // same source desktop-home.js's renderRightNowSection() already uses,
+  // satisfying "Desktop and Mobile use the same canonical endpoint") plus
+  // GET /api/v1/personal/right-now purely to find a real, grounded related-
+  // material note for that same primary item. No priority recomputation,
+  // no Calendar/Gmail combination, and no relevance judgment happen here
+  // (UI_AGGREGATION_LOGIC=0, UI_PRIORITY_LOGIC=0) — this function only maps
+  // fields already computed by the backend onto DOM text.
+  function unwrapApiData(value) {
+    return value && value.data ? value.data : value;
+  }
+
+  // Kept for renderPreparedForYou() below only (untouched by R23.2H) —
+  // the Right Now Hero itself no longer computes event validity/ordering,
+  // that now comes pre-ranked from RightNowIntelligenceService.
   function isEventValidForHero(e) {
     if (!e) return false;
     const startTimeIso = e.start_time || e.start?.dateTime || e.start;
@@ -109,74 +132,6 @@
     return diffMinutes >= -30;
   }
 
-  function formatHeroHeadline(title, startTimeIso, isKo, endTimeIso) {
-    let baseTitle = title || (isKo ? '클라이언트 미팅' : 'Client meeting');
-
-    if (!startTimeIso) {
-      return baseTitle;
-    }
-
-    const eventTime = new Date(startTimeIso).getTime();
-    if (isNaN(eventTime)) return baseTitle;
-
-    const now = Date.now();
-    const diffMinutes = Math.round((eventTime - now) / 60000);
-
-    if (diffMinutes > 60) {
-      const timeStrRaw = new Date(startTimeIso).toLocaleTimeString(isKo ? 'ko-KR' : 'en-US', {
-        hour: 'numeric',
-        minute: '2-digit'
-      });
-      if (isKo) {
-        const timeStr = timeStrRaw.replace(':00', '시');
-        return `${timeStr} ${baseTitle}`;
-      } else {
-        return `${baseTitle} at ${timeStrRaw}`;
-      }
-    } else if (diffMinutes > 0) {
-      if (isKo) {
-        return `${diffMinutes}분 후 ${baseTitle}`;
-      } else {
-        return `${baseTitle} in ${diffMinutes} min`;
-      }
-    } else {
-      let isNow = false;
-      if (endTimeIso) {
-        const endTime = new Date(endTimeIso).getTime();
-        if (!isNaN(endTime)) {
-          isNow = now >= eventTime && now <= endTime;
-        }
-      }
-      if (!endTimeIso || isNaN(new Date(endTimeIso).getTime())) {
-        isNow = diffMinutes >= -30;
-      }
-
-      if (isNow) {
-        if (isKo) {
-          return `${baseTitle} 진행 중`;
-        } else {
-          return `${baseTitle} now`;
-        }
-      } else {
-        return baseTitle;
-      }
-    }
-  }
-
-  function unwrapApiData(value) {
-    return value && value.data ? value.data : value;
-  }
-
-  function hasUsableHeroContext(rawBrief, rawMySpace) {
-    const brief = unwrapApiData(rawBrief);
-    const mySpace = unwrapApiData(rawMySpace);
-    return Boolean(
-      brief?.recommendation ||
-      brief?.schedule_summary?.events?.length ||
-      mySpace?.calendar?.length
-    );
-  }
-
   function sortEventsChronologically(eventsList) {
     if (!Array.isArray(eventsList)) return [];
     return [...eventsList].sort((a, b) => {
@@ -186,164 +141,54 @@
     });
   }
 
-  function deriveRightNowHeroInfo(rawMorningBrief, rawMySpaceData, state) {
-    const morningBrief = unwrapApiData(rawMorningBrief);
-    const mySpaceData = unwrapApiData(rawMySpaceData);
-    const isKo = window.NAGEX_I18N && window.NAGEX_I18N.getLocale() === 'ko';
+  // A real Vault/Gmail item is "related" to the primary item only when
+  // RightNowIntelligenceService itself already said so (a MEETING_PREP-
+  // style suggestion whose sourceRefs include the primary's own
+  // sourceRef) — never inferred here.
+  function findRelatedNote(rightNow, intel) {
+    if (!rightNow || !intel || !Array.isArray(intel.suggestions)) return '';
+    const suggestion = intel.suggestions.find(
+      (s) => Array.isArray(s.sourceRefs) && s.sourceRefs.some((r) => r && r.id === rightNow.sourceRef)
+    );
+    return suggestion ? suggestion.reason : '';
+  }
 
-    // A. Personal Morning Brief recommendation
-    const rec = morningBrief && morningBrief.recommendation;
-    const rawEvents = (morningBrief && morningBrief.schedule_summary && morningBrief.schedule_summary.events)
-                   || (mySpaceData && mySpaceData.calendar)
-                   || [];
-    const events = sortEventsChronologically(rawEvents);
-
-    let targetEvent = null;
-    if (rec && rec.target_id) {
-      targetEvent = events.find((e) => (e.id || e.event_id) === rec.target_id);
-    }
-    if (!targetEvent && rec && rec.title) {
-      targetEvent = events.find((e) => {
-        const et = e.title || e.summary || '';
-        return et && rec.title.includes(et);
-      });
-    }
-    let recommendationUsable = Boolean(rec);
-    if (rec && rec.action_type === 'MEETING_PREP' && rec.target_id) {
-      recommendationUsable = Boolean(targetEvent && isEventValidForHero(targetEvent));
-    } else if (rec && rec.target_id) {
-      const recTargetEvent = events.find((e) => (e.id || e.event_id) === rec.target_id);
-      if (recTargetEvent && !isEventValidForHero(recTargetEvent)) {
-        recommendationUsable = false;
-      }
-    }
-
-    if (targetEvent && !isEventValidForHero(targetEvent)) {
-      targetEvent = null;
-    }
-    if (!targetEvent && events.length > 0) {
-      targetEvent = events.find((e) => isEventValidForHero(e)) || null;
-    }
-
-    if (recommendationUsable || targetEvent) {
-      const effectiveRec = recommendationUsable ? rec : null;
-
-      let rawTitle = (targetEvent && (targetEvent.title || targetEvent.summary))
-                  || (effectiveRec && effectiveRec.title)
-                  || (isKo ? '클라이언트 미팅' : 'Client meeting');
-      rawTitle = rawTitle.replace(/\s*·\s*.*$/, '').trim();
-
-      const startTimeIso = targetEvent ? (targetEvent.start_time || targetEvent.start?.dateTime || targetEvent.start) : null;
-      const endTimeIso = targetEvent ? (targetEvent.end_time || targetEvent.end?.dateTime || targetEvent.end) : null;
-      const headline = formatHeroHeadline(rawTitle, startTimeIso, isKo, endTimeIso);
-
-      let body = (effectiveRec && effectiveRec.reason) || (targetEvent && targetEvent.description) || '';
-      if (!body && targetEvent) {
-        const attendees = targetEvent.attendees || [];
-        const hasSarah = attendees.some((a) => String(a).toLowerCase().includes('sarah'));
-        if (hasSarah) {
-          body = isKo ? 'Sarah가 가격 정책 및 일정 조율을 요청했습니다.' : 'Sarah asked about pricing and delivery timing.';
-        } else {
-          body = isKo ? '가격 정책 및 일정 조율 검토가 필요합니다.' : 'Pricing and delivery timing need your attention.';
-        }
-      }
-
-      const actionType = (effectiveRec && effectiveRec.action_type) || (targetEvent ? 'MEETING_PREP' : 'GENERIC');
-      const targetId = (effectiveRec && effectiveRec.target_id) || (targetEvent && (targetEvent.id || targetEvent.event_id)) || 'demo_evt_client';
-
+  function deriveRightNowHeroInfo(home, intel, isKo) {
+    const rightNow = home && home.rightNow;
+    if (!rightNow) {
+      // Truthful empty state — no invented meeting/task/suggestion.
       return {
+        empty: true,
         tag: t('home.rightNow', isKo ? '지금 가장 중요한 일' : 'Right now'),
-        headline,
-        body,
-        actionType,
-        targetId,
-        primaryCtaText: actionType === 'MEETING_PREP'
-          ? t('home.prepareMe', isKo ? '미팅 준비' : 'Prepare me')
-          : t('home.reviewAction', isKo ? '검토' : 'Review'),
-        primaryCtaAction: () => {
-          if (actionType === 'MEETING_PREP' && window.NAGEX_MEETING_PREP) {
-            window.NAGEX_MEETING_PREP.open(targetId);
-          } else if (window.NAGEX && window.NAGEX.switchTab) {
-            window.NAGEX.switchTab('tab-inbox');
-          }
-        }
+        emptyText: t('inbox.emptyState', isKo ? '지금은 확인할 항목이 없습니다.' : 'Nothing needs your attention right now.'),
+        secondaryCtaText: t('home.askAnything', isKo ? 'NAgex에게 무엇이든 물어보세요' : 'Ask NAgex anything'),
       };
     }
 
-    // B. Upcoming Calendar Event (without recommendation)
-    const validUpcomingEvents = events.filter(isEventValidForHero);
-    if (validUpcomingEvents.length > 0) {
-      const ev = validUpcomingEvents[0];
-      const rawTitle = ev.title || ev.summary || (isKo ? '미팅' : 'Meeting');
-      const startTimeIso = ev.start_time || ev.start?.dateTime || ev.start;
-      const endTimeIso = ev.end_time || ev.end?.dateTime || ev.end;
-      const headline = formatHeroHeadline(rawTitle, startTimeIso, isKo, endTimeIso);
-      const actionType = 'MEETING_PREP';
-      const targetId = ev.id || ev.event_id || 'demo_evt_client';
-
-      return {
-        tag: t('home.rightNow', isKo ? '지금 가장 중요한 일' : 'Right now'),
-        headline,
-        body: ev.description || (isKo ? '가격 정책 및 일정 조율 검토가 필요합니다.' : 'Pricing and delivery timing need your attention.'),
-        actionType,
-        targetId,
-        primaryCtaText: t('home.prepareMe', isKo ? '미팅 준비' : 'Prepare me'),
-        primaryCtaAction: () => {
-          if (window.NAGEX_MEETING_PREP) window.NAGEX_MEETING_PREP.open(targetId);
-        }
-      };
-    }
-
-    // C. Notification / Approval requiring attention
-    const pendingApprovals = (state && state.approvals ? state.approvals : []).filter((a) => a.status === 'PENDING');
-    if (pendingApprovals.length > 0) {
-      const app = pendingApprovals[0];
-      return {
-        tag: t('home.rightNow', isKo ? '지금 가장 중요한 일' : 'Right now'),
-        headline: app.intent || app.action || (isKo ? '승인 대기 항목이 있습니다' : 'Approval required'),
-        body: app.resource?.id || (isKo ? '요청 내용을 검토하고 승인하세요.' : 'Review and approve this pending request.'),
-        actionType: 'APPROVAL_REQUIRED',
-        targetId: app.id,
-        primaryCtaText: t('home.reviewAction', isKo ? '검토' : 'Review'),
-        primaryCtaAction: () => {
-          if (window.NAGEX && window.NAGEX.switchTab) window.NAGEX.switchTab('tab-approvals');
-        }
-      };
-    }
-
-    // D. Task/deadline
-    const activeTasks = (state && state.tasks ? state.tasks : []).filter((t) => t.status === 'ACTIVE');
-    if (activeTasks.length > 0) {
-      const task = activeTasks[0];
-      return {
-        tag: t('home.rightNow', isKo ? '지금 가장 중요한 일' : 'Right now'),
-        headline: task.name || task.objective || (isKo ? '진행 중인 작업' : 'Active task'),
-        body: task.objective || (isKo ? '작업이 진행 중입니다.' : 'Task is currently active.'),
-        actionType: 'TASK_DUE',
-        targetId: task.taskId || task.id,
-        primaryCtaText: t('mobileActivity.viewTask', isKo ? '할 일 보기' : 'View task'),
-        primaryCtaAction: () => {
-          if (window.NAGEX && window.NAGEX.switchTab) window.NAGEX.switchTab('tab-executions');
-        }
-      };
-    }
-
-    // E. Fallback only when demo data truly unavailable
     return {
+      empty: false,
       tag: t('home.rightNow', isKo ? '지금 가장 중요한 일' : 'Right now'),
-      headline: isKo ? '예정된 일정이 없습니다' : 'No upcoming events',
-      body: isKo ? '새로운 요청이나 일정을 NAgex에 말해보세요.' : 'Ask NAgex to schedule or prepare work for you.',
-      actionType: 'NONE',
-      targetId: null,
-      primaryCtaText: t('home.prepareMe', isKo ? '미팅 준비' : 'Prepare me'),
+      headline: rightNow.title,
+      // rightNow.summary is already the grounded reason text computed by
+      // RightNowIntelligenceService (e.g. "Starts in 42 minutes",
+      // "Overdue by 5 minutes", "Requires your approval") — rendered as-is.
+      body: rightNow.summary,
+      relatedNote: findRelatedNote(rightNow, intel),
+      primaryCtaText: (rightNow.action && rightNow.action.label) || t('home.reviewAction', isKo ? '검토' : 'Review'),
       primaryCtaAction: () => {
-        const input = document.getElementById('mh-command-input');
-        if (input) input.focus();
-      }
+        if (window.NAGEX && window.NAGEX.handleHomeItemAction) {
+          window.NAGEX.handleHomeItemAction(rightNow.type, rightNow.sourceRef);
+        }
+      },
     };
   }
 
   let heroContextFetching = false;
+  let heroHomeData = null;
+  // heroBriefData/heroMySpaceData are unrelated to the Right Now Hero — they
+  // back renderPreparedForYou() below only (untouched by R23.2H), still
+  // fetched alongside in the same batch purely to keep one shared
+  // fetch/locale-invalidation cycle rather than two independent ones.
   let heroBriefData = null;
   let heroMySpaceData = null;
   let lastHeroLocale = null;
@@ -351,10 +196,17 @@
   async function fetchHeroContext() {
     if (!window.NAGEX || typeof window.NAGEX.apiFetch !== 'function') return;
     try {
-      const [mb, ms] = await Promise.all([
+      // R23.3 v1.1 — GET /api/v1/personal/home alone now carries
+      // rightNow/upcoming/suggestions together (one buildCurrentContext()
+      // call server-side) — no separate GET /api/v1/personal/right-now
+      // fetch here anymore (CONTEXT_BUILD_COUNT_PER_COMPOSITE_HOME_
+      // REQUEST=1).
+      const [home, mb, ms] = await Promise.all([
+        window.NAGEX.apiFetch('/api/v1/personal/home'),
         window.NAGEX.apiFetch('/api/v1/personal/morning-brief'),
-        window.NAGEX.apiFetch('/api/v1/my-space')
+        window.NAGEX.apiFetch('/api/v1/my-space'),
       ]);
+      if (home && !home.error) heroHomeData = unwrapApiData(home);
       if (mb && !mb.error) heroBriefData = unwrapApiData(mb);
       if (ms && !ms.error) heroMySpaceData = unwrapApiData(ms);
     } catch (e) {
@@ -368,20 +220,47 @@
     const tagEl = document.getElementById('mh-hero-tag');
     const headlineEl = document.getElementById('mh-hero-headline');
     const bodyEl = document.getElementById('mh-hero-body');
+    const relatedEl = document.getElementById('mh-hero-related');
     const primaryBtn = document.getElementById('mh-hero-primary-cta');
     const secondaryLink = document.getElementById('mh-hero-secondary-link');
 
     if (tagEl) tagEl.textContent = info.tag;
-    if (headlineEl) headlineEl.textContent = info.headline;
-    if (bodyEl) bodyEl.textContent = info.body;
-    if (primaryBtn) {
-      primaryBtn.textContent = info.primaryCtaText;
-      primaryBtn.disabled = false;
-      primaryBtn.style.opacity = '';
-      primaryBtn.style.pointerEvents = '';
-      primaryBtn.onclick = (e) => {
-        if (typeof info.primaryCtaAction === 'function') info.primaryCtaAction(e);
-      };
+
+    if (info.empty) {
+      if (headlineEl) headlineEl.textContent = info.emptyText;
+      if (bodyEl) bodyEl.textContent = '';
+      if (relatedEl) { relatedEl.hidden = true; relatedEl.textContent = ''; }
+      if (primaryBtn) {
+        primaryBtn.textContent = info.secondaryCtaText;
+        primaryBtn.disabled = false;
+        primaryBtn.style.opacity = '';
+        primaryBtn.style.pointerEvents = '';
+        primaryBtn.onclick = () => {
+          const input = document.getElementById('mh-command-input');
+          if (input) input.focus();
+        };
+      }
+    } else {
+      if (headlineEl) headlineEl.textContent = info.headline;
+      if (bodyEl) bodyEl.textContent = info.body;
+      if (relatedEl) {
+        if (info.relatedNote) {
+          relatedEl.hidden = false;
+          relatedEl.textContent = info.relatedNote;
+        } else {
+          relatedEl.hidden = true;
+          relatedEl.textContent = '';
+        }
+      }
+      if (primaryBtn) {
+        primaryBtn.textContent = info.primaryCtaText;
+        primaryBtn.disabled = false;
+        primaryBtn.style.opacity = '';
+        primaryBtn.style.pointerEvents = '';
+        primaryBtn.onclick = (e) => {
+          if (typeof info.primaryCtaAction === 'function') info.primaryCtaAction(e);
+        };
+      }
     }
     if (secondaryLink) secondaryLink.textContent = t('home.viewToday', 'View today');
 
@@ -397,24 +276,62 @@
     if (!heroSection) return;
 
     const currentLocale = window.NAGEX_I18N ? window.NAGEX_I18N.getLocale() : 'en';
+    const isKo = currentLocale === 'ko';
     if (lastHeroLocale !== currentLocale) {
       lastHeroLocale = currentLocale;
+      heroHomeData = null;
       heroBriefData = null;
       heroMySpaceData = null;
     }
 
-    const state = window.NAGEX.getState ? window.NAGEX.getState() : {};
-
-    let info = deriveRightNowHeroInfo(heroBriefData, heroMySpaceData, state);
+    let info = deriveRightNowHeroInfo(heroHomeData, heroHomeData, isKo);
     applyHeroInfoToDOM(info);
 
-    if (!heroBriefData && !heroContextFetching) {
+    if (!heroHomeData && !heroContextFetching) {
       heroContextFetching = true;
       await fetchHeroContext();
       heroContextFetching = false;
-      info = deriveRightNowHeroInfo(heroBriefData, heroMySpaceData, state);
+      info = deriveRightNowHeroInfo(heroHomeData, heroHomeData, isKo);
       applyHeroInfoToDOM(info);
     }
+
+    renderSuggestions();
+  }
+
+  // R23.3 v1.1 — "Suggested for you": the canonical ProactiveSuggestion
+  // list, embedded in the same GET /api/v1/personal/home response already
+  // fetched above (heroHomeData.suggestions) — no separate fetch, no
+  // priority/relevance logic here (UI_PRIORITY_LOGIC=0,
+  // UI_RELEVANCE_LOGIC=0). Hidden entirely when there are none, never a
+  // filler card.
+  function renderSuggestions() {
+    const section = document.getElementById('mh-section-suggestions');
+    const listEl = document.getElementById('mh-suggestions-list');
+    if (!section || !listEl) return;
+
+    const primaryId = heroHomeData && heroHomeData.rightNow ? heroHomeData.rightNow.sourceRef : null;
+    const items = ((heroHomeData && heroHomeData.suggestions) || [])
+      .filter((s) => !(s.sourceRefs && s.sourceRefs.some((r) => r.id === primaryId)))
+      .slice(0, 3);
+
+    if (items.length === 0) {
+      section.hidden = true;
+      listEl.innerHTML = '';
+      return;
+    }
+
+    section.hidden = false;
+    listEl.innerHTML = items.map((s) => `
+      <div class="mh-approval-card">
+        <div class="mh-approval-body">
+          <div class="mh-row-title">${escapeHtml(s.title)}</div>
+          <div class="mh-row-detail">${escapeHtml(s.reason)}</div>
+          <div class="mh-approval-actions">
+            <button class="mh-btn-review" onclick="window.NAGEX.handleHomeItemAction('${escapeHtml((s.sourceRefs && s.sourceRefs[0] && s.sourceRefs[0].type) || '')}', '${escapeHtml((s.sourceRefs && s.sourceRefs[0] && s.sourceRefs[0].id) || '')}')">${escapeHtml((s.action && s.action.label) || 'View')}</button>
+          </div>
+        </div>
+      </div>
+    `).join('');
   }
 
   // ── C. Needs Your Attention — rendered ONLY if items exist ──
@@ -757,7 +674,6 @@
   function init() {
     window.NAGEX = window.NAGEX || {};
     window.NAGEX.deriveRightNowHeroInfo = deriveRightNowHeroInfo;
-    window.NAGEX.formatHeroHeadline = formatHeroHeadline;
     window.NAGEX.onHomeRenderMobile = () => { if (isMobileViewport() && activeNativeTab() === 'tab-home') renderMobileHome(); };
     window.NAGEX.onTabChange = updateShellVisibility;
     window.NAGEX.bindMobileLangToggle = bindLangToggle;
