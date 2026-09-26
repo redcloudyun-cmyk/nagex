@@ -26,11 +26,13 @@ Supporting line:
 
 > **Many models behind. One personal AI in front.**
 
-The current benchmark amendment is:
+The current benchmark and implementation guidance is:
 
 - `docs/NAgex_Meta_Muse_Benchmark_Revised_Development_Directive_v2_20260923.md`
+- `docs/NAgex_External_Benchmark_and_Integration_Guidance_20260926.md`
+- `docs/NAgex_R23.4V_Credential_Broker_Inject_Only_Vault_Development_Directive_20260926.md`
 
-It is subordinate to `MASTER.md` and frozen architecture invariants, but defines the current hackathon priority sequence.
+These are subordinate to `MASTER.md` and frozen architecture invariants. The consolidated guidance classifies previously reviewed references such as Muse, Jev, Wissly, WebMCP, model providers, local/private inference, BYOK, reservation, and payment so optional experiments do not interrupt the critical path.
 
 ## 3. Required Technical Direction
 
@@ -56,14 +58,14 @@ Trust-critical direction added after the Meta Muse benchmark:
 
 ## 4. Current Hackathon Priority Sequence
 
-As of 2026-09-23:
+As of 2026-09-26:
 
 ```text
-R23.2D  Demo Canonicalization
+R23.2D  Demo Canonicalization                    CLOSED
    ↓
-R23.3T  Permission / Approval Hardening
+R23.3T  Permission / Approval Hardening         CLOSED
    ↓
-R23.4V  Credential Broker / Vault MVP
+R23.4V  Credential Broker / Inject-only Vault   CURRENT
    ↓
 R23.5B  Browser Untrusted-Content Boundary
    ↓
@@ -79,6 +81,8 @@ R23.9C  Final Hackathon Certification
 Payment/tokenized virtual-card work is P2 and is not part of the critical submission path unless all preceding gates close early.
 
 The dependency order matters more than the milestone labels.
+
+Jev is an optional advisory POC only and must not interrupt R23.4V. Wissly-style evidence UX, Microsoft connector expansion, reservation scenarios, and local/private model expansion are retained as planned inputs but are scheduled according to dependency and hackathon value. Payment/tokenized virtual-card work remains P2.
 
 ## 5. Hackathon Trust Invariants
 
