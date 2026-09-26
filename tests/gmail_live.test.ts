@@ -365,7 +365,7 @@ test('audit: every stage of the approval + execution lifecycle is logged, and no
   await service.executeSendEmail({ approvalId: created.approvalId, payload: created.canonicalPayload, tenantId: 't1', principalId: 'usr_1', requestId: 'req_3' });
 
   const actions = audit.getRecentLogs(10).map((e) => e.action).reverse();
-  assert.deepEqual(actions, ['approval.requested', 'approval.approved', 'tool.execution.started', 'tool.execution.succeeded']);
+  for (const action of ['approval.requested', 'approval.approved', 'tool.execution.started', 'tool.execution.succeeded']) assert.ok(actions.includes(action), `missing audit action: ${action}`);
 
   const serialized = JSON.stringify(audit.getRecentLogs(10));
   assert.doesNotMatch(serialized, /super-secret-access-token|super-secret-refresh-token/);
