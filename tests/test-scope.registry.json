@@ -166,11 +166,12 @@
     "credential-broker": [
       "r23_4v_credential_broker",
       "google_oauth_persistence",
-      "google_oauth",
-      "gmail",
-      "calendar",
-      "permission-approval-hardening",
-      "audit"
+      "gmail_live",
+      "gmail_approval_ui",
+      "google_calendar_live",
+      "google_calendar_e2e",
+      "r23_3t_permission_approval_hardening",
+      "audit_tenant_isolation"
     ]
   },
   "fullOnly": [
