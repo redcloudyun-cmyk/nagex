@@ -27,6 +27,7 @@ import { ActionApprovalStore } from '../src/governance/action-approval.store.js'
 import { ExecutionStore } from '../src/governance/execution.store.js';
 import { AuditLogger } from '../src/governance/audit.logger.js';
 import { InMemoryGoogleOAuthTokenStore } from '../src/integrations/google/token.store.js';
+import { GOOGLE_CALENDAR_SCOPES, GMAIL_SCOPES } from '../src/integrations/google/oauth.client.js';
 import { GoogleCalendarService } from '../src/modules/calendar/index.js';
 import { GmailService } from '../src/modules/gmail/index.js';
 import { MemoryEngine } from '../src/context/memory.engine.js';
