@@ -3627,6 +3627,44 @@
       "deterministic": true,
       "assertionIntent": "observable behavior",
       "notes": "Canonical PermissionDecisionService hard-policy boundary: deterministic ALLOW/REQUIRE_APPROVAL/BLOCK, fail-closed identity/capability/safety behavior, no sensitive payload audit leakage, and no downgrade of required approval."
+    },
+    "r23_4v_credential_broker": {
+      "milestone": "R23.4V",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "security",
+        "integrations",
+        "runtime",
+        "audit",
+        "identity"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Credential references are metadata-only; use is tenant/user/provider/scope bound; optional capability/origin constraints fail closed before secret resolution; lease metadata contains no plaintext; OAuth continuation is bound to the initiating identity; canary secrets must not leak to audit/reference/error surfaces."
+    },
+    "r23_4v_secret_non_propagation": {
+      "milestone": "R23.4V",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "security",
+        "audit",
+        "credentials",
+        "memory",
+        "model-boundary",
+        "activity-boundary",
+        "http-error"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "credential secret non-propagation",
+      "notes": "Injected Google credential material may exist only inside the privileged provider callback. Tests prove it is absent from approval, audit, memory, execution result, model/activity/approval dependency paths, and normalized external error surfaces."
     }
   }
 }

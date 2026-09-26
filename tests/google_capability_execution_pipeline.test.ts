@@ -27,6 +27,7 @@ import { ActionApprovalStore } from '../src/governance/action-approval.store.js'
 import { ExecutionStore } from '../src/governance/execution.store.js';
 import { AuditLogger } from '../src/governance/audit.logger.js';
 import { InMemoryGoogleOAuthTokenStore } from '../src/integrations/google/token.store.js';
+import { GOOGLE_CALENDAR_SCOPES, GMAIL_SCOPES } from '../src/integrations/google/oauth.client.js';
 import { GoogleCalendarService } from '../src/modules/calendar/index.js';
 import { GmailService } from '../src/modules/gmail/index.js';
 import { MemoryEngine } from '../src/context/memory.engine.js';
@@ -54,7 +55,13 @@ function buildPipelineHarness(opts: { connected?: boolean } = {}) {
   const audit = new AuditLogger();
   const executions = new ExecutionStore({ dir: fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-exec-pipeline-test-')) });
   const tokenStore = { getValidAccessToken: async () => (opts.connected === false ? null : 'fake-token') };
-  const pipeline = new GoogleCapabilityExecutionPipeline({ tokenStore, approvals, audit, executions, getConfig: () => ({ clientId: 'c', clientSecret: 's', redirectUri: 'r' }), fetchFn: fetch });
+  const credentialAccess = {
+    withAccessToken: async <T>(_input: unknown, use: (accessToken: string) => Promise<T>): Promise<T | null> => {
+      if (opts.connected === false) return null;
+      return use('fake-token');
+    },
+  };
+  const pipeline = new GoogleCapabilityExecutionPipeline({ tokenStore, credentialAccess, approvals, audit, executions, getConfig: () => ({ clientId: 'c', clientSecret: 's', redirectUri: 'r' }), fetchFn: fetch });
   return { approvals, audit, executions, pipeline };
 }
 
@@ -235,7 +242,7 @@ test('13. GoogleCalendarService.executeCreateEvent genuinely routes through the 
   const approvals = new ActionApprovalStore();
   const audit = new AuditLogger();
   const executions = new ExecutionStore({ dir: fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-exec-cal-e2e-')) });
-  tokenStore.save('t13', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: 'https://www.googleapis.com/auth/calendar' });
+  tokenStore.saveForPrincipal('t13', 'u13', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GOOGLE_CALENDAR_SCOPES.join(' ') });
   const fetchFn = (async () => jsonResponse({ id: 'evt13', htmlLink: 'https://calendar.google.com/e13' })) as unknown as typeof fetch;
   const service = new GoogleCalendarService(tokenStore, approvals, audit, new MemoryEngine(), fetchFn, () => config, executions);
   const payload = { calendarId: 'primary', summary: 'Pipeline check', description: '', start: '2026-09-20T10:00:00Z', end: '2026-09-20T10:30:00Z', timezone: 'UTC', attendees: [] };
@@ -253,7 +260,7 @@ test('14. GmailService.executeSendEmail genuinely routes through the shared pipe
   const approvals = new ActionApprovalStore();
   const audit = new AuditLogger();
   const executions = new ExecutionStore({ dir: fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-exec-gmail-e2e-')) });
-  tokenStore.save('t14', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: 'https://www.googleapis.com/auth/gmail.send' });
+  tokenStore.saveForPrincipal('t14', 'u14', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GMAIL_SCOPES.join(' ') });
   const fetchFn = (async () => jsonResponse({ id: 'msg14', threadId: 'th14' })) as unknown as typeof fetch;
   const service = new GmailService(tokenStore, approvals, audit, new MemoryEngine(), fetchFn, () => config, executions);
   const payload = { from: 'me', to: ['a@example.com'], subject: 'Hi', body: 'Pipeline check' };

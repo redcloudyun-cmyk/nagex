@@ -27,12 +27,25 @@ type FetchFn = typeof fetch;
 // this same interface can replace it without touching any caller (ToolRegistry,
 // GoogleCalendarService, or the OAuth routes).
 export interface GoogleOAuthTokenStore {
+  // Legacy/default-principal compatibility methods.
   save(tenantId: string, token: GoogleTokenResponse): void;
+  saveForPrincipal(tenantId: string, principalId: string, token: GoogleTokenResponse): void;
   clear(tenantId: string): void;
+  clearForPrincipal(tenantId: string, principalId: string): void;
   isConnected(tenantId: string): boolean;
+  isConnectedForPrincipal(tenantId: string, principalId: string): boolean;
   getStatus(tenantId: string): GoogleConnectionStatus;
+  getStatusForPrincipal(tenantId: string, principalId: string): GoogleConnectionStatus;
   getValidAccessToken(
     tenantId: string,
+    config: GoogleOAuthConfig,
+    fetchFn: FetchFn,
+    requestId: string,
+    now?: () => number,
+  ): Promise<string | null>;
+  getValidAccessTokenForPrincipal(
+    tenantId: string,
+    principalId: string,
     config: GoogleOAuthConfig,
     fetchFn: FetchFn,
     requestId: string,
@@ -41,6 +54,7 @@ export interface GoogleOAuthTokenStore {
   // Best-effort revokes with Google (never throws) then always clears local
   // state, persisted or otherwise — used by POST .../oauth/google/disconnect.
   revoke(tenantId: string, fetchFn: FetchFn, requestId: string): Promise<void>;
+  revokeForPrincipal(tenantId: string, principalId: string, fetchFn: FetchFn, requestId: string): Promise<void>;
 }
 
 function isValidStoredToken(value: unknown): value is StoredGoogleToken {
@@ -59,11 +73,16 @@ function isValidStoredToken(value: unknown): value is StoredGoogleToken {
 // In-memory only — used directly in tests as a lightweight harness, and as the
 // base behavior PersistentGoogleOAuthTokenStore adds disk persistence on top of.
 export class InMemoryGoogleOAuthTokenStore implements GoogleOAuthTokenStore {
-  protected readonly tokensByTenant = new Map<string, StoredGoogleToken>();
+  protected readonly tokensByOwner = new Map<string, StoredGoogleToken>();
 
   public save(tenantId: string, token: GoogleTokenResponse): void {
-    const existing = this.tokensByTenant.get(tenantId);
-    this.tokensByTenant.set(tenantId, {
+    this.saveForPrincipal(tenantId, DEFAULT_GOOGLE_PRINCIPAL_ID, token);
+  }
+
+  public saveForPrincipal(tenantId: string, principalId: string, token: GoogleTokenResponse): void {
+    const key = ownerKey(tenantId, principalId);
+    const existing = this.tokensByOwner.get(key);
+    this.tokensByOwner.set(key, {
       accessToken: token.accessToken,
       // Google does not resend a refresh_token on every grant (e.g. a
       // reconnect that doesn't force a fresh consent) — never overwrite a
@@ -78,16 +97,28 @@ export class InMemoryGoogleOAuthTokenStore implements GoogleOAuthTokenStore {
   }
 
   public clear(tenantId: string): void {
-    this.tokensByTenant.delete(tenantId);
+    this.clearForPrincipal(tenantId, DEFAULT_GOOGLE_PRINCIPAL_ID);
+  }
+
+  public clearForPrincipal(tenantId: string, principalId: string): void {
+    this.tokensByOwner.delete(ownerKey(tenantId, principalId));
     this.onChange();
   }
 
   public isConnected(tenantId: string): boolean {
-    return this.tokensByTenant.has(tenantId);
+    return this.isConnectedForPrincipal(tenantId, DEFAULT_GOOGLE_PRINCIPAL_ID);
+  }
+
+  public isConnectedForPrincipal(tenantId: string, principalId: string): boolean {
+    return this.tokensByOwner.has(ownerKey(tenantId, principalId));
   }
 
   public getStatus(tenantId: string): GoogleConnectionStatus {
-    const token = this.tokensByTenant.get(tenantId);
+    return this.getStatusForPrincipal(tenantId, DEFAULT_GOOGLE_PRINCIPAL_ID);
+  }
+
+  public getStatusForPrincipal(tenantId: string, principalId: string): GoogleConnectionStatus {
+    const token = this.tokensByOwner.get(ownerKey(tenantId, principalId));
     if (!token) return { connected: false, scopes: [], expiresAt: null };
     return {
       connected: true,
@@ -106,29 +137,44 @@ export class InMemoryGoogleOAuthTokenStore implements GoogleOAuthTokenStore {
     requestId: string,
     now: () => number = Date.now,
   ): Promise<string | null> {
-    const token = this.tokensByTenant.get(tenantId);
+    return this.getValidAccessTokenForPrincipal(tenantId, DEFAULT_GOOGLE_PRINCIPAL_ID, config, fetchFn, requestId, now);
+  }
+
+  public async getValidAccessTokenForPrincipal(
+    tenantId: string,
+    principalId: string,
+    config: GoogleOAuthConfig,
+    fetchFn: FetchFn,
+    requestId: string,
+    now: () => number = Date.now,
+  ): Promise<string | null> {
+    const token = this.tokensByOwner.get(ownerKey(tenantId, principalId));
     if (!token) return null;
     if (token.expiresAt > now()) return token.accessToken;
     if (!token.refreshToken) {
-      this.clear(tenantId);
+      this.clearForPrincipal(tenantId, principalId);
       return null;
     }
     try {
       const refreshed = await refreshGoogleAccessToken(config, token.refreshToken, fetchFn, requestId, now);
-      this.save(tenantId, refreshed);
+      this.saveForPrincipal(tenantId, principalId, refreshed);
       return refreshed.accessToken;
     } catch {
       // Refresh failed (commonly: authorization revoked) — fail closed and
       // drop the now-invalid credential rather than keep retrying with it.
-      this.clear(tenantId);
+      this.clearForPrincipal(tenantId, principalId);
       return null;
     }
   }
 
-  public async revoke(tenantId: string, fetchFn: FetchFn, _requestId: string): Promise<void> {
-    const token = this.tokensByTenant.get(tenantId);
+  public async revoke(tenantId: string, fetchFn: FetchFn, requestId: string): Promise<void> {
+    return this.revokeForPrincipal(tenantId, DEFAULT_GOOGLE_PRINCIPAL_ID, fetchFn, requestId);
+  }
+
+  public async revokeForPrincipal(tenantId: string, principalId: string, fetchFn: FetchFn, _requestId: string): Promise<void> {
+    const token = this.tokensByOwner.get(ownerKey(tenantId, principalId));
     if (token) await revokeGoogleToken(token.accessToken, fetchFn);
-    this.clear(tenantId);
+    this.clearForPrincipal(tenantId, principalId);
   }
 
   // Hook for subclasses (PersistentGoogleOAuthTokenStore) to persist to disk
@@ -136,12 +182,15 @@ export class InMemoryGoogleOAuthTokenStore implements GoogleOAuthTokenStore {
   protected onChange(): void {}
 
   protected setAll(entries: Iterable<[string, StoredGoogleToken]>): void {
-    this.tokensByTenant.clear();
-    for (const [tenantId, token] of entries) this.tokensByTenant.set(tenantId, token);
+    this.tokensByOwner.clear();
+    for (const [key, token] of entries) {
+      const { tenantId, principalId } = splitOwnerKey(key);
+      this.tokensByOwner.set(ownerKey(tenantId, principalId), token);
+    }
   }
 
   protected entries(): Array<[string, StoredGoogleToken]> {
-    return [...this.tokensByTenant.entries()];
+    return [...this.tokensByOwner.entries()];
   }
 }
 
@@ -154,6 +203,20 @@ export interface PersistentGoogleOAuthTokenStoreOptions {
 // 'ten_production_01' default), so the tool registry's live-status check below
 // reads this one shared store rather than threading tenantId through PlanResolver.
 export const DEFAULT_GOOGLE_TENANT_ID = 'ten_production_01';
+export const DEFAULT_GOOGLE_PRINCIPAL_ID = 'usr_admin_001';
+
+function ownerKey(tenantId: string, principalId: string): string {
+  return `${tenantId}::${principalId}`;
+}
+
+function splitOwnerKey(key: string): { tenantId: string; principalId: string } {
+  const separator = key.indexOf('::');
+  if (separator < 0) {
+    // Backward compatibility for pre-R23.4V persisted tenant-only entries.
+    return { tenantId: key, principalId: DEFAULT_GOOGLE_PRINCIPAL_ID };
+  }
+  return { tenantId: key.slice(0, separator), principalId: key.slice(separator + 2) };
+}
 
 // Preferred path is a systemd-managed data directory outside the Git repo
 // (see docs/DEPLOYMENT.md for the one-time `sudo mkdir` setup). Falls back to

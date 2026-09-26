@@ -18,9 +18,10 @@ import {
   type UpcomingCalendarEvent,
 } from './calendar.client.js';
 import { readGoogleOAuthConfig, type GoogleOAuthConfig } from '../../integrations/google/oauth.client.js';
-import type { GoogleOAuthTokenStore } from '../../integrations/google/token.store.js';
+import { DEFAULT_GOOGLE_PRINCIPAL_ID, type GoogleOAuthTokenStore } from '../../integrations/google/token.store.js';
 import { GoogleCapabilityExecutionPipeline, type NormalizedMutationResult } from '../../capabilities/google-capability-execution-pipeline.js';
 import type { MutationCapabilityDefinition } from '../../capabilities/mutation-registry.js';
+import { CredentialBrokerService, GoogleCredentialAccessService } from '../../security/credentials/index.js';
 
 export const GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID = 'google_calendar.create_event';
 // E2E completion (MASTER.md Section 14.5, item 05): update / cancel / RSVP,
@@ -230,48 +231,72 @@ export class GoogleCalendarService {
     private readonly fetchFn: FetchFn = fetch,
     private readonly getConfig: (env?: NodeJS.ProcessEnv) => GoogleOAuthConfig | null = readGoogleOAuthConfig,
     private readonly executions: ExecutionStore = new ExecutionStore(),
+    credentialAccess?: GoogleCredentialAccessService,
   ) {
+    const access = credentialAccess ?? new GoogleCredentialAccessService(
+      this.tokenStore,
+      new CredentialBrokerService(this.audit),
+      this.audit,
+      this.getConfig,
+      this.fetchFn,
+    );
     this.pipeline = new GoogleCapabilityExecutionPipeline({
-      tokenStore: this.tokenStore, approvals: this.approvals, audit: this.audit,
+      tokenStore: this.tokenStore, credentialAccess: access, approvals: this.approvals, audit: this.audit,
       executions: this.executions, getConfig: this.getConfig, fetchFn: this.fetchFn,
     });
   }
 
   public async getFreeSlots(input: {
     tenantId: string;
+    principalId?: string;
     calendarId?: string;
     timeMin: string;
     timeMax: string;
     requestId: string;
   }): Promise<{ slots: FreeBusyInterval[]; busy: FreeBusyInterval[]; calendarId: string; timeMin: string; timeMax: string }> {
-    const accessToken = await this.pipeline.resolveAccessToken(input.tenantId, input.requestId, 'GOOGLE_CALENDAR_DISCONNECTED', GOOGLE_CALENDAR_DISCONNECTED_MESSAGE_QUERY);
+    return this.pipeline.withAccessToken({
+      tenantId: input.tenantId,
+      principalId: input.principalId ?? DEFAULT_GOOGLE_PRINCIPAL_ID,
+      requestId: input.requestId,
+      capabilityId: 'google_calendar.free_slots',
+      service: 'CALENDAR',
+      purpose: 'read:google_calendar.free_slots',
+      disconnectedErrorCode: 'GOOGLE_CALENDAR_DISCONNECTED',
+      disconnectedMessage: GOOGLE_CALENDAR_DISCONNECTED_MESSAGE_QUERY,
+    }, async (accessToken) => {
     const calendarId = input.calendarId || 'primary';
     const busy = await queryFreeBusy(accessToken, { calendarId, timeMin: input.timeMin, timeMax: input.timeMax }, this.fetchFn, input.requestId);
     const slots = computeFreeSlots(busy, input.timeMin, input.timeMax);
     return { slots, busy, calendarId, timeMin: input.timeMin, timeMax: input.timeMax };
+    });
   }
-
-  // Read-only — My Space's Calendar summary. Reuses the exact same
-  // connect/token-resolution path as getFreeSlots above; never a new OAuth
-  // mechanism, never a new token store, never a direct/bypassing Google
-  // call from outside this module. Read capabilities never go through the
-  // mutation pipeline's approval gate (R10.2-B §13).
   public async listUpcomingEvents(input: {
     tenantId: string;
+    principalId?: string;
     calendarId?: string;
     timeMin: string;
     timeMax: string;
     maxResults?: number;
     requestId: string;
   }): Promise<UpcomingCalendarEvent[]> {
-    const accessToken = await this.pipeline.resolveAccessToken(input.tenantId, input.requestId, 'GOOGLE_CALENDAR_DISCONNECTED', GOOGLE_CALENDAR_DISCONNECTED_MESSAGE_LIST);
-    const calendarId = input.calendarId || 'primary';
-    return listUpcomingCalendarEvents(
-      accessToken,
-      { calendarId, timeMin: input.timeMin, timeMax: input.timeMax, maxResults: input.maxResults },
-      this.fetchFn,
-      input.requestId,
-    );
+    return this.pipeline.withAccessToken({
+      tenantId: input.tenantId,
+      principalId: input.principalId ?? DEFAULT_GOOGLE_PRINCIPAL_ID,
+      requestId: input.requestId,
+      capabilityId: 'google_calendar.upcoming',
+      service: 'CALENDAR',
+      purpose: 'read:google_calendar.upcoming',
+      disconnectedErrorCode: 'GOOGLE_CALENDAR_DISCONNECTED',
+      disconnectedMessage: GOOGLE_CALENDAR_DISCONNECTED_MESSAGE_LIST,
+    }, async (accessToken) => {
+      const calendarId = input.calendarId || 'primary';
+      return listUpcomingCalendarEvents(
+        accessToken,
+        { calendarId, timeMin: input.timeMin, timeMax: input.timeMax, maxResults: input.maxResults },
+        this.fetchFn,
+        input.requestId,
+      );
+    });
   }
 
   public requestCreateEventApproval(input: { tenantId: string; principalId: string; payload: unknown; requestId: string }): ActionApprovalRecord {

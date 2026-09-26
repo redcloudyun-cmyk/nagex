@@ -15,7 +15,28 @@ export interface AuditEventRecord {
   details?: Record<string, unknown>;
 }
 
-const SENSITIVE_DETAIL_KEYS = new Set(['secret', 'password', 'token', 'raw_cot']);
+const SENSITIVE_DETAIL_KEYS = new Set([
+  'secret',
+  'password',
+  'token',
+  'rawcot',
+  'apikey',
+  'authorization',
+  'cookie',
+  'setcookie',
+  'accesstoken',
+  'refreshtoken',
+  'clientsecret',
+  'sessionsecret',
+]);
+
+function normalizeSensitiveKey(key: string): string {
+  return key.replace(/[^a-z0-9]/gi, '').toLowerCase();
+}
+
+function isSensitiveDetailKey(key: string): boolean {
+  return SENSITIVE_DETAIL_KEYS.has(normalizeSensitiveKey(key));
+}
 
 // Recursively strips sensitive keys at any depth without mutating the input
 // (Rule 12/18: Secret/Token/Raw CoT must never reach the audit store).
@@ -26,7 +47,7 @@ function sanitizeDetails(value: unknown): unknown {
   if (value && typeof value === 'object') {
     const result: Record<string, unknown> = {};
     for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
-      if (SENSITIVE_DETAIL_KEYS.has(key)) continue;
+      if (isSensitiveDetailKey(key)) continue;
       result[key] = sanitizeDetails(val);
     }
     return result;

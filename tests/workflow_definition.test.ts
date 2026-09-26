@@ -232,7 +232,32 @@ function buildFullStack() {
   const actionApprovals = new ActionApprovalStore();
   const executionStore = new ExecutionStore({ dir: tempDir('exec') });
   const memoryEngine = new MemoryEngine();
-  const tokenStore: any = { getValidAccessToken: async () => 'mock_token' };
+  const tokenStore: any = {
+      getStatusForPrincipal: () => ({
+        configured: true,
+        connected: true,
+        scopes: [
+          'https://www.googleapis.com/auth/calendar.events',
+          'https://www.googleapis.com/auth/calendar.events.freebusy',
+          'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
+          'https://www.googleapis.com/auth/gmail.modify',
+        ],
+        expiresAt: Date.now() + 3600_000,
+      }),
+      getValidAccessTokenForPrincipal: async () => 'mock_token',
+      getValidAccessToken: async () => 'mock_token',
+      getStatus: () => ({
+        configured: true,
+        connected: true,
+        scopes: [
+          'https://www.googleapis.com/auth/calendar.events',
+          'https://www.googleapis.com/auth/calendar.events.freebusy',
+          'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
+          'https://www.googleapis.com/auth/gmail.modify',
+        ],
+        expiresAt: Date.now() + 3600_000,
+      }),
+    };
   const getConfig: any = () => ({ clientId: 'mock', clientSecret: 'mock', redirectUri: 'mock' });
 
   let gmailSearchCount = 0;

@@ -12,9 +12,10 @@ import {
   type GmailAttachmentMetadata,
 } from './gmail.client.js';
 import { readGoogleOAuthConfig, type GoogleOAuthConfig } from '../../integrations/google/oauth.client.js';
-import type { GoogleOAuthTokenStore } from '../../integrations/google/token.store.js';
+import { DEFAULT_GOOGLE_PRINCIPAL_ID, type GoogleOAuthTokenStore } from '../../integrations/google/token.store.js';
 import { GoogleCapabilityExecutionPipeline, type NormalizedMutationResult } from '../../capabilities/google-capability-execution-pipeline.js';
 import type { MutationCapabilityDefinition } from '../../capabilities/mutation-registry.js';
+import { CredentialBrokerService, GoogleCredentialAccessService } from '../../security/credentials/index.js';
 
 // Gmail as the second real external service, reusing the exact same
 // generic, hash-verified, replay-protected approval system already proven
@@ -120,9 +121,17 @@ export class GmailService {
     private readonly fetchFn: FetchFn = fetch,
     private readonly getConfig: (env?: NodeJS.ProcessEnv) => GoogleOAuthConfig | null = readGoogleOAuthConfig,
     private readonly executions: ExecutionStore = new ExecutionStore(),
+    credentialAccess?: GoogleCredentialAccessService,
   ) {
+    const access = credentialAccess ?? new GoogleCredentialAccessService(
+      this.tokenStore,
+      new CredentialBrokerService(this.audit),
+      this.audit,
+      this.getConfig,
+      this.fetchFn,
+    );
     this.pipeline = new GoogleCapabilityExecutionPipeline({
-      tokenStore: this.tokenStore, approvals: this.approvals, audit: this.audit,
+      tokenStore: this.tokenStore, credentialAccess: access, approvals: this.approvals, audit: this.audit,
       executions: this.executions, getConfig: this.getConfig, fetchFn: this.fetchFn,
     });
   }
@@ -156,15 +165,33 @@ export class GmailService {
 
   // ── read-only (no approval) ─────────────────────────────────────────────
 
-  public async search(input: { tenantId: string; query: string; requestId: string }): Promise<{ threads: Array<{ threadId: string; snippet: string; historyId: string | null }> }> {
-    const accessToken = await this.pipeline.resolveAccessToken(input.tenantId, input.requestId, 'GMAIL_DISCONNECTED', 'Gmail is not connected. Connect Google Calendar/Gmail before this action can execute.');
-    const threads = await searchGmailThreads(accessToken, input.query, this.fetchFn, input.requestId);
-    return { threads };
+  public async search(input: { tenantId: string; principalId?: string; query: string; requestId: string }): Promise<{ threads: Array<{ threadId: string; snippet: string; historyId: string | null }> }> {
+    return this.pipeline.withAccessToken({
+      tenantId: input.tenantId,
+      principalId: input.principalId ?? DEFAULT_GOOGLE_PRINCIPAL_ID,
+      requestId: input.requestId,
+      capabilityId: GMAIL_SEARCH_TOOL_ID,
+      service: 'GMAIL',
+      purpose: 'read:gmail.search',
+      disconnectedErrorCode: 'GMAIL_DISCONNECTED',
+      disconnectedMessage: 'Gmail is not connected. Connect Google Calendar/Gmail before this action can execute.',
+    }, async (accessToken) => {
+      const threads = await searchGmailThreads(accessToken, input.query, this.fetchFn, input.requestId);
+      return { threads };
+    });
   }
 
-  public async readThread(input: { tenantId: string; threadId: string; requestId: string }) {
-    const accessToken = await this.pipeline.resolveAccessToken(input.tenantId, input.requestId, 'GMAIL_DISCONNECTED', 'Gmail is not connected. Connect Google Calendar/Gmail before this action can execute.');
-    return getGmailThread(accessToken, input.threadId, this.fetchFn, input.requestId);
+  public async readThread(input: { tenantId: string; principalId?: string; threadId: string; requestId: string }) {
+    return this.pipeline.withAccessToken({
+      tenantId: input.tenantId,
+      principalId: input.principalId ?? DEFAULT_GOOGLE_PRINCIPAL_ID,
+      requestId: input.requestId,
+      capabilityId: GMAIL_READ_THREAD_TOOL_ID,
+      service: 'GMAIL',
+      purpose: 'read:gmail.read_thread',
+      disconnectedErrorCode: 'GMAIL_DISCONNECTED',
+      disconnectedMessage: 'Gmail is not connected. Connect Google Calendar/Gmail before this action can execute.',
+    }, (accessToken) => getGmailThread(accessToken, input.threadId, this.fetchFn, input.requestId));
   }
 
   // ── approval-gated execution ─────────────────────────────────────────────

@@ -424,6 +424,7 @@ export class CapabilityBroker {
       if (request.capabilityId === 'google_calendar.free_slots') {
         const res = await this.calendarService.getFreeSlots({
           tenantId: request.tenantId,
+          principalId: request.principalId,
           calendarId: payload.calendarId || 'primary',
           timeMin: payload.timeMin,
           timeMax: payload.timeMax,
@@ -442,6 +443,7 @@ export class CapabilityBroker {
       if (request.capabilityId === 'gmail.search') {
         const res = await this.gmailService.search({
           tenantId: request.tenantId,
+          principalId: request.principalId,
           query: payload.query || '',
           requestId: request.requestId,
         });
@@ -451,6 +453,7 @@ export class CapabilityBroker {
       if (request.capabilityId === 'gmail.read_thread') {
         const res = await this.gmailService.readThread({
           tenantId: request.tenantId,
+          principalId: request.principalId,
           threadId: payload.threadId,
           requestId: request.requestId,
         });

@@ -160,7 +160,32 @@ function buildBrokerHarness(fetchFn: typeof fetch) {
   const audit = new AuditLogger();
   const memory = new MemoryEngine();
   const executions = new ExecutionStore({ dir: tmpDir('exec') });
-  const tokenStore: any = { getValidAccessToken: async () => 'mock_token' };
+  const tokenStore: any = {
+      getStatusForPrincipal: () => ({
+        configured: true,
+        connected: true,
+        scopes: [
+          'https://www.googleapis.com/auth/calendar.events',
+          'https://www.googleapis.com/auth/calendar.events.freebusy',
+          'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
+          'https://www.googleapis.com/auth/gmail.modify',
+        ],
+        expiresAt: Date.now() + 3600_000,
+      }),
+      getValidAccessTokenForPrincipal: async () => 'mock_token',
+      getValidAccessToken: async () => 'mock_token',
+      getStatus: () => ({
+        configured: true,
+        connected: true,
+        scopes: [
+          'https://www.googleapis.com/auth/calendar.events',
+          'https://www.googleapis.com/auth/calendar.events.freebusy',
+          'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
+          'https://www.googleapis.com/auth/gmail.modify',
+        ],
+        expiresAt: Date.now() + 3600_000,
+      }),
+    };
   const getConfig: any = () => ({ clientId: 'mock', clientSecret: 'mock', redirectUri: 'mock' });
   const calendarService = new GoogleCalendarService(tokenStore, approvals, audit, memory, fetchFn, getConfig, executions);
   const gmailService = new GmailService(tokenStore, approvals, audit, memory, fetchFn, getConfig, executions);

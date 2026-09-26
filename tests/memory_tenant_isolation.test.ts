@@ -263,7 +263,32 @@ test('13. PUT /api/v1/memory/:id/pin by the rightful tenant + principal works', 
 // ── 14-16: provider write tests — real tenant identity preserved ────────
 
 test('14. GoogleCalendarService writes the created Memory under the real request tenant, never a hardcoded one', async () => {
-  const tokenStore: any = { getValidAccessToken: async () => 'mock_token' };
+  const tokenStore: any = {
+      getStatusForPrincipal: () => ({
+        configured: true,
+        connected: true,
+        scopes: [
+          'https://www.googleapis.com/auth/calendar.events',
+          'https://www.googleapis.com/auth/calendar.events.freebusy',
+          'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
+          'https://www.googleapis.com/auth/gmail.modify',
+        ],
+        expiresAt: Date.now() + 3600_000,
+      }),
+      getValidAccessTokenForPrincipal: async () => 'mock_token',
+      getValidAccessToken: async () => 'mock_token',
+      getStatus: () => ({
+        configured: true,
+        connected: true,
+        scopes: [
+          'https://www.googleapis.com/auth/calendar.events',
+          'https://www.googleapis.com/auth/calendar.events.freebusy',
+          'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
+          'https://www.googleapis.com/auth/gmail.modify',
+        ],
+        expiresAt: Date.now() + 3600_000,
+      }),
+    };
   const approvals = new ActionApprovalStore();
   const audit = new AuditLogger();
   const memory = new MemoryEngine({ dir: tmpDir('14') });
@@ -282,7 +307,32 @@ test('14. GoogleCalendarService writes the created Memory under the real request
 });
 
 test('15. GmailService writes the created Memory under the real request tenant', async () => {
-  const tokenStore: any = { getValidAccessToken: async () => 'mock_token' };
+  const tokenStore: any = {
+      getStatusForPrincipal: () => ({
+        configured: true,
+        connected: true,
+        scopes: [
+          'https://www.googleapis.com/auth/calendar.events',
+          'https://www.googleapis.com/auth/calendar.events.freebusy',
+          'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
+          'https://www.googleapis.com/auth/gmail.modify',
+        ],
+        expiresAt: Date.now() + 3600_000,
+      }),
+      getValidAccessTokenForPrincipal: async () => 'mock_token',
+      getValidAccessToken: async () => 'mock_token',
+      getStatus: () => ({
+        configured: true,
+        connected: true,
+        scopes: [
+          'https://www.googleapis.com/auth/calendar.events',
+          'https://www.googleapis.com/auth/calendar.events.freebusy',
+          'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
+          'https://www.googleapis.com/auth/gmail.modify',
+        ],
+        expiresAt: Date.now() + 3600_000,
+      }),
+    };
   const approvals = new ActionApprovalStore();
   const audit = new AuditLogger();
   const memory = new MemoryEngine({ dir: tmpDir('15') });

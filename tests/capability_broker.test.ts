@@ -45,7 +45,30 @@ describe('Capability Broker Mandatory Tests', () => {
     };
 
     const tokenStore: any = {
+      getStatusForPrincipal: () => ({
+        configured: true,
+        connected: true,
+        scopes: [
+          'https://www.googleapis.com/auth/calendar.events',
+          'https://www.googleapis.com/auth/calendar.events.freebusy',
+          'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
+          'https://www.googleapis.com/auth/gmail.modify',
+        ],
+        expiresAt: Date.now() + 3600_000,
+      }),
+      getValidAccessTokenForPrincipal: async () => 'mock_token',
       getValidAccessToken: async () => 'mock_token',
+      getStatus: () => ({
+        configured: true,
+        connected: true,
+        scopes: [
+          'https://www.googleapis.com/auth/calendar.events',
+          'https://www.googleapis.com/auth/calendar.events.freebusy',
+          'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
+          'https://www.googleapis.com/auth/gmail.modify',
+        ],
+        expiresAt: Date.now() + 3600_000,
+      }),
     };
     const getConfig: any = () => ({
       clientId: 'mock',
@@ -850,7 +873,20 @@ describe('Capability Broker Mandatory Tests', () => {
 
   it('22. google_calendar.free_slots fails when disconnected', async () => {
     const disconnectedTokenStore: any = {
+      getStatusForPrincipal: () => ({
+        configured: true,
+        connected: false,
+        scopes: [],
+        expiresAt: null,
+      }),
+      getValidAccessTokenForPrincipal: async () => null,
       getValidAccessToken: async () => null,
+      getStatus: () => ({
+        configured: true,
+        connected: false,
+        scopes: [],
+        expiresAt: null,
+      }),
     };
     const discCalService = new GoogleCalendarService(
       disconnectedTokenStore,
@@ -1040,7 +1076,32 @@ describe('Capability Broker Mandatory Tests', () => {
     let now = Date.now();
     const shortLivedApprovals = new ActionApprovalStore(() => now, 1000); // 1 second TTL
     const shortLivedCalendar = new GoogleCalendarService(
-      { getValidAccessToken: async () => 'mock_token' } as any,
+      {
+      getStatusForPrincipal: () => ({
+        configured: true,
+        connected: true,
+        scopes: [
+          'https://www.googleapis.com/auth/calendar.events',
+          'https://www.googleapis.com/auth/calendar.events.freebusy',
+          'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
+          'https://www.googleapis.com/auth/gmail.modify',
+        ],
+        expiresAt: Date.now() + 3600_000,
+      }),
+      getValidAccessTokenForPrincipal: async () => 'mock_token',
+      getValidAccessToken: async () => 'mock_token',
+      getStatus: () => ({
+        configured: true,
+        connected: true,
+        scopes: [
+          'https://www.googleapis.com/auth/calendar.events',
+          'https://www.googleapis.com/auth/calendar.events.freebusy',
+          'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
+          'https://www.googleapis.com/auth/gmail.modify',
+        ],
+        expiresAt: Date.now() + 3600_000,
+      }),
+    } as any,
       shortLivedApprovals,
       auditLogger,
       memoryEngine,

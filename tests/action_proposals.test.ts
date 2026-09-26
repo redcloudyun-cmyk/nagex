@@ -276,7 +276,7 @@ test('CALENDAR_RESCHEDULE step 1: approving requests a real Calendar approval (v
 
 test('CALENDAR_RESCHEDULE step 2: once the separate Calendar approval is itself approved, a re-execute call performs the real RSVP write and completes', async () => {
   const h = buildExecutorHarness();
-  h.calendarTokenStore.save(DEFAULT_GOOGLE_TENANT_ID, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: FULL_SCOPE_STRING });
+  h.calendarTokenStore.saveForPrincipal(DEFAULT_GOOGLE_TENANT_ID, 'usr_cal2', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: FULL_SCOPE_STRING });
   // Rebuild the calendar service with a fetchFn that serves the real
   // GET-attendees-then-PATCH-RSVP round trip respondToCalendarEvent needs.
   const approvals = new ActionApprovalStore();

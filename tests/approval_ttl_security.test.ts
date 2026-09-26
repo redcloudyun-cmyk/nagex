@@ -16,7 +16,7 @@ import { GoogleCalendarService, GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID } from '../
 import { GmailService, GMAIL_SEND_EMAIL_TOOL_ID } from '../src/modules/gmail/index.js';
 import { BrowserToolService } from '../src/modules/browser/browser.service.js';
 import { BrowserSessionStore } from '../src/modules/browser/browser-session.store.js';
-import type { GoogleOAuthConfig } from '../src/integrations/google/oauth.client.js';
+import { GOOGLE_CALENDAR_SCOPES, GMAIL_SCOPES, type GoogleOAuthConfig } from '../src/integrations/google/oauth.client.js';
 import type { BrowserRuntime, BrowserSnapshot } from '../src/modules/browser/browser.runtime.js';
 
 function tmpDir(label: string): string {
@@ -230,11 +230,11 @@ test('Service regression: GmailService execution blocked on expired APPROVED app
   };
 
   const tokenStore = new InMemoryGoogleOAuthTokenStore();
-  tokenStore.save('t1', {
+  tokenStore.saveForPrincipal('t1', 'u1', {
     accessToken: 'valid_access_token',
     refreshToken: 'valid_refresh_token',
     expiresAt: clock + 100 * 3600_000,
-    scope: 'https://mail.google.com/',
+    scope: GMAIL_SCOPES.join(' '),
   });
 
   const approvals = new ActionApprovalStore(() => clock);
@@ -297,11 +297,11 @@ test('Service regression: GoogleCalendarService execution blocked on expired APP
   };
 
   const tokenStore = new InMemoryGoogleOAuthTokenStore();
-  tokenStore.save('t1', {
+  tokenStore.saveForPrincipal('t1', 'u1', {
     accessToken: 'valid_access_token',
     refreshToken: 'valid_refresh_token',
     expiresAt: clock + 100 * 3600_000,
-    scope: 'https://www.googleapis.com/auth/calendar',
+    scope: GOOGLE_CALENDAR_SCOPES.join(' '),
   });
 
   const approvals = new ActionApprovalStore(() => clock);
