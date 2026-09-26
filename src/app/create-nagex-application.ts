@@ -55,6 +55,7 @@ import { DesktopActivityAdapter } from '../device-agent/desktop-activity-adapter
 import { DesktopControlService } from '../device-agent/desktop-control.service.js';
 import { googleTokenStore } from '../integrations/google/token.store.js';
 import { readGoogleOAuthConfig } from '../integrations/google/oauth.client.js';
+import { CredentialBrokerService, GoogleCredentialAccessService } from '../security/credentials/index.js';
 import { SessionStore } from '../sessions/session.store.js';
 import { ConversationStore } from '../conversations/conversation.store.js';
 import { ConversationContextService } from '../conversations/conversation-context.service.js';
@@ -150,11 +151,19 @@ export function createNagexApplication(): NagexApplication {
     }),
   });
   const executionStore = new ExecutionStore();
-  const googleCalendarService = new GoogleCalendarService(googleTokenStore, actionApprovals, auditLogger, memoryEngine, fetch, readGoogleOAuthConfig, executionStore);
+  const credentialBroker = new CredentialBrokerService(auditLogger);
+  const googleCredentialAccess = new GoogleCredentialAccessService(
+    googleTokenStore,
+    credentialBroker,
+    auditLogger,
+    readGoogleOAuthConfig,
+    fetch,
+  );
+  const googleCalendarService = new GoogleCalendarService(googleTokenStore, actionApprovals, auditLogger, memoryEngine, fetch, readGoogleOAuthConfig, executionStore, googleCredentialAccess);
   // Gmail as the second real external service — reuses the exact same shared
   // actionApprovals/executionStore/auditLogger/memoryEngine/googleTokenStore
   // singletons as Calendar. No separate approval architecture.
-  const gmailService = new GmailService(googleTokenStore, actionApprovals, auditLogger, memoryEngine, fetch, readGoogleOAuthConfig, executionStore);
+  const gmailService = new GmailService(googleTokenStore, actionApprovals, auditLogger, memoryEngine, fetch, readGoogleOAuthConfig, executionStore, googleCredentialAccess);
   // Browser Agent MVP — the third real capability, same shared approval store.
   // browser.click's dynamic (server-decides-per-click) shape is genuinely
   // different from Gmail/Calendar's client-composes-the-full-payload-upfront
