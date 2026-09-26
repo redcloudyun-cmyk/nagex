@@ -790,11 +790,69 @@ pass 173
 fail 0
 ~~~
 
-R23.4V remains OPEN until:
+## Final Closure — 2026-09-27
 
-1. deterministic regression passes
-2. PR #5 is merged
-3. test-server build/restart/health verification passes
-4. test-server deterministic regression passes
-5. affected browser certification passes
-6. test-server working tree is clean
+Status:
+
+~~~text
+R23.4V Credential Broker / Inject-only Vault
+FROZEN / CLOSED
+~~~
+
+Final certified evidence:
+
+~~~text
+Development targeted scope
+tests 173
+pass 173
+fail 0
+
+Full deterministic regression
+tests 1414
+pass 1410
+fail 0
+skipped 4
+exit code 0
+
+Affected real-browser certification
+tests 64
+pass 64
+fail 0
+skipped 0
+exit code 0
+
+Test server
+main HEAD 6f4046b632e4cf6297174a58f227a691a2140ed5
+build PASS
+nagex.service active
+health status UP
+runtime_active true
+working tree clean
+
+Credential persistence
+NAGEX_TOKEN_ENCRYPTION_KEY PRESENT in systemd environment
+persistence-disabled warning absent after restart
+~~~
+
+Closure invariants confirmed:
+
+~~~text
+AGENT_CREDENTIAL_READ_PATH=0
+PLAINTEXT_CREDENTIAL_API=0
+PARALLEL_GOOGLE_TOKEN_SOURCE=0
+CROSS_TENANT_SECRET_ACCESS=0
+CROSS_USER_SECRET_ACCESS=0
+CREDENTIAL_REFERENCE_ONLY=1
+CREDENTIAL_INJECT_ONLY=1
+CREDENTIAL_USE_AUDITED=1
+SECRET_IN_AUDIT=0
+SECRET_IN_MEMORY=0
+SECRET_IN_APPROVAL_PAYLOAD=0
+SECRET_IN_EXECUTION_RESULT=0
+UNKNOWN_CREDENTIAL_FAIL_OPEN=0
+EXPIRED_CREDENTIAL_FAIL_OPEN=0
+REVOKED_CREDENTIAL_FAIL_OPEN=0
+~~~
+
+R23.4V is frozen. Further browser credential injection must not be added here.
+The next trust milestone is R23.5B — Browser Untrusted-Content Boundary.
