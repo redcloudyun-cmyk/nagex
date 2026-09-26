@@ -751,7 +751,7 @@ pass 171
 fail 0
 ~~~
 
-### Phase E — implemented, pending final local targeted certification
+### Phase E — implemented and locally targeted-certified
 
 Implemented contract:
 
@@ -781,9 +781,20 @@ Policy:
 - R23.5B must establish the untrusted-content/site boundary before browser credential injection is connected
 - future BYOK provider adapters should consume the same broker/reference/lease contract instead of introducing a parallel secret path
 
+Latest Phase E local targeted evidence:
+
+~~~text
+credential-broker scope
+tests 173
+pass 173
+fail 0
+~~~
+
 R23.4V remains OPEN until:
 
-1. Phase E targeted scope passes with fail 0
-2. deterministic regression passes
-3. affected browser certification passes
-4. test-server build/restart/health/working-tree verification passes
+1. deterministic regression passes
+2. PR #5 is merged
+3. test-server build/restart/health verification passes
+4. test-server deterministic regression passes
+5. affected browser certification passes
+6. test-server working tree is clean
