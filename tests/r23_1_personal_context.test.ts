@@ -100,7 +100,7 @@ test('1. aggregates real Calendar + task + reminder', async () => {
     googleCalendarService: fakeCalendar([calendarEvent({ id: 'evt_sync', title: 'Team Sync' })]),
   });
   h.taskStore.create({ tenantId, ownerId: userId, name: 'Write report', objective: 'Write the report', type: 'ONE_TIME', trigger: { type: 'MANUAL' } });
-  h.personalReminderStore.createReminder({ user_id: userId, title: 'Call the client', scheduled_at: new Date().toISOString(), timezone: 'UTC' });
+  h.personalReminderStore.createReminder({ tenant_id: tenantId, user_id: userId, title: 'Call the client', scheduled_at: new Date().toISOString(), timezone: 'UTC' });
 
   const ctx = await h.service.buildCurrentContext({ tenantId, userId });
 
@@ -242,7 +242,9 @@ test('10. partial Gmail failure degrades honestly', async () => {
 
   const ctx = await h.service.buildCurrentContext({ tenantId, userId });
 
-  assert.equal(ctx.sourceStatus.gmail, 'UNAVAILABLE');
+  // R23.1H Part C: gmailService IS wired but the call itself failed —
+  // distinct from "not connected" (ERROR, not UNAVAILABLE).
+  assert.equal(ctx.sourceStatus.gmail, 'ERROR');
   assert.equal(ctx.relatedContext.emails.length, 0, 'no fabricated/stale email data when Gmail fails');
   // Other sources must still be retained — one optional source failing
   // must never fail the whole snapshot.
@@ -258,19 +260,24 @@ test('11. tenant isolation', async () => {
   h.vaultStore.saveItem({ tenantId: 'ten_A', userId, type: 'DOCUMENT', title: 'Tenant A doc', storageRef: 'r1' });
   const capA = h.captureStore.createCapture({ ownerId: userId, tenantId: 'ten_A', type: 'TEXT', content: 'A' });
   h.captureStore.updateStatus(capA.captureId, 'ten_A', userId, 'NEEDS_REVIEW');
+  // R23.1H — REMINDER_CROSS_TENANT_LEAK=0: a shared userId across two
+  // tenants must never see the other tenant's reminders through the
+  // aggregated context either.
+  h.personalReminderStore.createReminder({ tenant_id: 'ten_A', user_id: userId, title: 'Tenant A reminder', scheduled_at: new Date().toISOString(), timezone: 'UTC' });
 
   const ctxB = await h.service.buildCurrentContext({ tenantId: 'ten_B', userId });
 
   assert.equal(ctxB.today.tasks.length, 0, 'tenant B must never see tenant A tasks');
   assert.equal(ctxB.rightNow.pendingApprovals.length, 0, 'tenant B must never see tenant A approvals');
   assert.equal(ctxB.today.importantInbox.length, 0, 'tenant B must never see tenant A inbox items');
+  assert.equal(ctxB.rightNow.reminders.length, 0, 'tenant B must never see tenant A reminders (REMINDER_CROSS_TENANT_LEAK=0)');
 });
 
 test('12. user isolation', async () => {
   const h = buildHarness();
   h.taskStore.create({ tenantId, ownerId: 'usr_A', name: 'User A task', objective: 'A', type: 'ONE_TIME', trigger: { type: 'MANUAL' } });
   h.actionApprovals.request({ toolId: 'gmail.send_email', tenantId, principalId: 'usr_A', payload: {} });
-  h.personalReminderStore.createReminder({ user_id: 'usr_A', title: 'User A reminder', scheduled_at: new Date().toISOString(), timezone: 'UTC' });
+  h.personalReminderStore.createReminder({ tenant_id: tenantId, user_id: 'usr_A', title: 'User A reminder', scheduled_at: new Date().toISOString(), timezone: 'UTC' });
   const memA = h.memoryEngine.proposeMemory('USER', tenantId, 'usr_A', { subject: 'Private', predicate: 'note', value: 'user A only' }, undefined, { userConfirmed: true });
 
   const ctxB = await h.service.buildCurrentContext({ tenantId, userId: 'usr_B' });
@@ -380,4 +387,27 @@ test('17. PersonalHome integration uses the same canonical aggregation path', as
   assert.equal(res.sourceStatus.calendar, 'CONNECTED');
   assert.equal(res.today.meetings.length, 1);
   assert.equal(res.today.meetings[0].id, 'evt_shared_pipeline');
+});
+
+// R23.1H Part D — CANONICAL_USER_INBOX_PIPELINE_COUNT=1: the served Inbox
+// HTTP route (public/app.js::renderInbox()'s data source) and
+// CurrentPersonalContextService's importantInbox both read the exact same
+// CaptureStore record — never a second, divergent store (the retired
+// InboxStore previously diverged silently; see inbox.routes.ts header).
+test('18. Inbox route and Personal Context read the same canonical CaptureStore record (INBOX_CANONICAL_PIPELINE_COUNT=1)', async () => {
+  const h = buildHarness();
+  const created = h.captureStore.createCapture({ ownerId: userId, tenantId, type: 'TEXT', content: 'Pipeline check' });
+  h.captureStore.updateStatus(created.captureId, tenantId, userId, 'NEEDS_REVIEW', { extractedTitle: 'Pipeline check capture' });
+
+  const { handleInboxRoutes } = await import('../src/http/routes/inbox.routes.js');
+  const { VaultStore } = await import('../src/workspace/vault.store.js');
+  const headers = { 'x-nagex-tenant': tenantId, 'x-principal-id': userId };
+  const routeResult = await handleInboxRoutes('GET', '/api/v1/workspace/inbox', null, headers, {}, { captureStore: h.captureStore, vaultStore: new VaultStore() });
+
+  assert.equal(routeResult?.status, 200);
+  const routeItems = (routeResult!.data as { items: Array<{ captureId: string; status: string }> }).items;
+  assert.ok(routeItems.some((i) => i.captureId === created.captureId && i.status === 'NEEDS_REVIEW'), 'Inbox route must serve the real CaptureStore record');
+
+  const ctx = await h.service.buildCurrentContext({ tenantId, userId });
+  assert.ok(ctx.today.importantInbox.some((i) => i.id === created.captureId), 'CurrentPersonalContextService must surface the same CaptureStore record — no parallel Inbox pipeline');
 });
