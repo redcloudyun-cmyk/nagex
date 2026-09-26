@@ -3606,6 +3606,27 @@
       "deterministic": true,
       "assertionIntent": "observable behavior",
       "notes": "Observable deterministic product/service contract."
+    },
+    "r23_3t_permission_approval_hardening": {
+      "milestone": "R23.3T",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "architecture",
+        "browser",
+        "device",
+        "integrations",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Canonical PermissionDecisionService hard-policy boundary: deterministic ALLOW/REQUIRE_APPROVAL/BLOCK, fail-closed identity/capability/safety behavior, no sensitive payload audit leakage, and no downgrade of required approval."
     }
   }
 }
