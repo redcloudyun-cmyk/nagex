@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { AuditLogger } from '../src/governance/audit.logger.js';
 import { PermissionDecisionService, PERMISSION_POLICY_VERSION } from '../src/governance/permission/index.js';
+import { ActionApprovalStore } from '../src/governance/action-approval.store.js';
+import { NagexError } from '../src/common/errors.js';
 import type { CapabilityDefinition, CapabilityRequest } from '../src/capabilities/capability.types.js';
 
 function request(overrides: Partial<CapabilityRequest> = {}): CapabilityRequest {
@@ -166,5 +168,131 @@ test('R23.3T Permission Authority — deterministic hard-policy boundary', async
     assert.doesNotMatch(serialized, /private email body/);
     assert.doesNotMatch(serialized, /do-not-log/);
     assert.equal(logs[0].details?.disposition, 'ALLOW');
+  });
+});
+
+
+test('R23.3T Approval binding — existing canonical store remains fail-closed', async (t) => {
+  const tenantId = 'ten_r233t';
+  const principalId = 'usr_r233t';
+  const toolId = 'gmail.send_email';
+  const payload = {
+    from: 'user@example.com',
+    to: ['alice@example.com'],
+    subject: 'Approved subject',
+    body: 'Approved body',
+  };
+
+  await t.test('reject is terminal and cannot be consumed as granted', () => {
+    const store = new ActionApprovalStore();
+    const approval = store.request({ toolId, tenantId, principalId, payload });
+    store.reject(approval.approvalId, tenantId, principalId, 'req_reject');
+
+    assert.equal(store.get(approval.approvalId, tenantId, principalId)?.status, 'REJECTED');
+    assert.throws(
+      () => store.consume(approval.approvalId, tenantId, principalId, toolId, payload, 'req_execute', 'exe_rejected'),
+      (err: unknown) => err instanceof NagexError && err.code === 'APPROVAL_NOT_GRANTED',
+    );
+    const after = store.get(approval.approvalId, tenantId, principalId)!;
+    assert.equal(after.status, 'REJECTED');
+    assert.equal(after.executionId, null);
+    assert.equal(after.usedAt, null);
+  });
+
+  await t.test('approved payload cannot drift after human review', () => {
+    const store = new ActionApprovalStore();
+    const approval = store.request({ toolId, tenantId, principalId, payload });
+    store.approve(approval.approvalId, tenantId, principalId, 'req_approve');
+
+    assert.throws(
+      () => store.consume(
+        approval.approvalId,
+        tenantId,
+        principalId,
+        toolId,
+        { ...payload, to: ['mallory@example.com'] },
+        'req_execute',
+        'exe_drift',
+      ),
+      (err: unknown) => err instanceof NagexError && err.code === 'APPROVAL_PAYLOAD_MISMATCH',
+    );
+    assert.equal(store.get(approval.approvalId, tenantId, principalId)?.status, 'APPROVED');
+  });
+
+  await t.test('approval cannot drift to a different tool', () => {
+    const store = new ActionApprovalStore();
+    const approval = store.request({ toolId, tenantId, principalId, payload });
+    store.approve(approval.approvalId, tenantId, principalId, 'req_approve');
+
+    assert.throws(
+      () => store.consume(
+        approval.approvalId,
+        tenantId,
+        principalId,
+        'google_calendar.create_event',
+        payload,
+        'req_execute',
+        'exe_tool_drift',
+      ),
+      (err: unknown) => err instanceof NagexError && err.code === 'APPROVAL_TOOL_MISMATCH',
+    );
+    assert.equal(store.get(approval.approvalId, tenantId, principalId)?.status, 'APPROVED');
+  });
+
+  await t.test('approval is consumed exactly once and replay stays blocked', () => {
+    const store = new ActionApprovalStore();
+    const approval = store.request({ toolId, tenantId, principalId, payload });
+    store.approve(approval.approvalId, tenantId, principalId, 'req_approve');
+
+    const consumed = store.consume(
+      approval.approvalId,
+      tenantId,
+      principalId,
+      toolId,
+      payload,
+      'req_execute_1',
+      'exe_once',
+    );
+    assert.equal(consumed.status, 'CONSUMED');
+    assert.equal(consumed.executionId, 'exe_once');
+
+    assert.throws(
+      () => store.consume(
+        approval.approvalId,
+        tenantId,
+        principalId,
+        toolId,
+        payload,
+        'req_execute_2',
+        'exe_replay',
+      ),
+      (err: unknown) => err instanceof NagexError && err.code === 'APPROVAL_ALREADY_CONSUMED',
+    );
+  });
+
+  await t.test('cross-tenant and cross-user approval reuse are hidden as not found', () => {
+    const store = new ActionApprovalStore();
+    const approval = store.request({ toolId, tenantId, principalId, payload });
+    store.approve(approval.approvalId, tenantId, principalId, 'req_approve');
+
+    for (const [attemptTenant, attemptPrincipal] of [
+      ['ten_other', principalId],
+      [tenantId, 'usr_other'],
+    ] as const) {
+      assert.throws(
+        () => store.consume(
+          approval.approvalId,
+          attemptTenant,
+          attemptPrincipal,
+          toolId,
+          payload,
+          'req_cross_owner',
+          'exe_cross_owner',
+        ),
+        (err: unknown) => err instanceof NagexError && err.code === 'APPROVAL_NOT_FOUND',
+      );
+    }
+
+    assert.equal(store.get(approval.approvalId, tenantId, principalId)?.status, 'APPROVED');
   });
 });
