@@ -485,3 +485,67 @@ test('DESKTOP_CANCEL_GRACEFUL_CLEANUP / DESKTOP_CANCEL_NO_RESIDUAL_PROCESS: canc
   assert.equal(shutdownCalled, true, 'cancel must shut down the isolated desktop/worker session');
   assert.equal(controller.hasSession(session.executionSessionId), false, 'no residual controller-tracked session after cancel');
 });
+
+
+test('R23.3T DESKTOP_APPROVAL_CROSS_OWNER_REUSE_BLOCKED: wrong tenant/user cannot consume a granted desktop mutation approval', async () => {
+  const { service, approvals, controller } = buildHarness();
+
+  const start = await service.startSession({
+    tenantId: 't1',
+    ownerId: 'o1',
+    deviceId: 'd1',
+    requestId: 'r23_3t_start',
+    appId: 'NAGEX_TEST_HARNESS',
+    action: 'SET_VALUE',
+    target: 'NagexTestTextInput',
+    parameters: { value: 'approved-value' },
+  });
+  assert.equal(start.kind, 'WAITING_APPROVAL');
+  if (start.kind !== 'WAITING_APPROVAL') return;
+
+  approvals.approve(start.approval.approvalId, 't1', 'o1', 'r23_3t_approve');
+  const before = approvals.get(start.approval.approvalId, 't1', 'o1');
+  assert.equal(before?.status, 'APPROVED');
+
+  const wrongTenant = await service.resumeSession({
+    tenantId: 't2',
+    ownerId: 'o1',
+    requestId: 'r23_3t_wrong_tenant',
+    deviceId: 'd1',
+    approvalId: start.approval.approvalId,
+    appId: 'NAGEX_TEST_HARNESS',
+    action: 'SET_VALUE',
+    target: 'NagexTestTextInput',
+    parameters: { value: 'approved-value' },
+  });
+  assert.equal(wrongTenant.kind, 'TERMINATED');
+  if (wrongTenant.kind === 'TERMINATED') {
+    assert.equal(wrongTenant.status, 'FAILED');
+    assert.equal(wrongTenant.terminationReason, 'APPROVAL_NOT_FOUND');
+  }
+
+  const wrongOwner = await service.resumeSession({
+    tenantId: 't1',
+    ownerId: 'o2',
+    requestId: 'r23_3t_wrong_owner',
+    deviceId: 'd1',
+    approvalId: start.approval.approvalId,
+    appId: 'NAGEX_TEST_HARNESS',
+    action: 'SET_VALUE',
+    target: 'NagexTestTextInput',
+    parameters: { value: 'approved-value' },
+  });
+  assert.equal(wrongOwner.kind, 'TERMINATED');
+  if (wrongOwner.kind === 'TERMINATED') {
+    assert.equal(wrongOwner.status, 'FAILED');
+    assert.equal(wrongOwner.terminationReason, 'APPROVAL_NOT_FOUND');
+  }
+
+  const after = approvals.get(start.approval.approvalId, 't1', 'o1');
+  assert.equal(after?.status, 'APPROVED', 'blocked cross-owner attempts must not consume the rightful owner\'s approval');
+
+  // A blocked continuation must not have initialized or mutated a native
+  // desktop session. buildHarness's fake controller exposes no durable
+  // session until a legitimate execute path reaches it.
+  assert.equal(controller.hasSession(start.executionSessionId), false);
+});
