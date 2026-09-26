@@ -14,7 +14,25 @@ function uniqueScopes(scopes: string[]): string[] {
 }
 
 function cloneReference(reference: CredentialReference): CredentialReference {
-  return { ...reference, scopes: [...reference.scopes] };
+  return {
+    ...reference,
+    scopes: [...reference.scopes],
+    allowedOrigins: reference.allowedOrigins ? [...reference.allowedOrigins] : undefined,
+    allowedCapabilities: reference.allowedCapabilities ? [...reference.allowedCapabilities] : undefined,
+  };
+}
+
+function normalizeOrigin(origin: string): string {
+  try {
+    return new URL(origin).origin.toLowerCase();
+  } catch {
+    return origin.trim().replace(/\/$/, '').toLowerCase();
+  }
+}
+
+function uniqueStrings(values: string[] | undefined): string[] | undefined {
+  if (!values) return undefined;
+  return [...new Set(values.filter((value) => typeof value === 'string' && value.trim()).map((value) => value.trim()))].sort();
 }
 
 export class CredentialBrokerService {
@@ -40,6 +58,8 @@ export class CredentialBrokerService {
       scopes: uniqueScopes(input.scopes),
       createdAt: new Date(this.now()).toISOString(),
       expiresAt: input.expiresAt ?? null,
+      allowedOrigins: uniqueStrings(input.allowedOrigins)?.map(normalizeOrigin),
+      allowedCapabilities: uniqueStrings(input.allowedCapabilities),
     };
 
     this.references.set(reference.credentialRef, reference);
@@ -55,6 +75,8 @@ export class CredentialBrokerService {
         credentialType: reference.credentialType,
         scopes: reference.scopes,
         status: reference.status,
+        allowedOrigins: reference.allowedOrigins,
+        allowedCapabilities: reference.allowedCapabilities,
       },
     });
     return cloneReference(reference);
@@ -128,6 +150,9 @@ export class CredentialBrokerService {
       credentialRef: reference.credentialRef,
       provider: reference.provider,
       expiresAt: new Date(this.now() + 60_000).toISOString(),
+      scopes: [...request.requiredScopes],
+      capabilityId: request.capabilityId,
+      origin: request.origin ? normalizeOrigin(request.origin) : undefined,
     };
 
     // This is the only point where the secret is materialized. It is passed
@@ -153,6 +178,19 @@ export class CredentialBrokerService {
     if (uniqueScopes(request.requiredScopes).some((scope) => !granted.has(scope))) {
       return this.deny(request, reference, 'CREDENTIAL_SCOPE_MISSING');
     }
+
+    if (reference.allowedCapabilities && reference.allowedCapabilities.length > 0) {
+      if (!request.capabilityId || !reference.allowedCapabilities.includes(request.capabilityId)) {
+        return this.deny(request, reference, 'CREDENTIAL_CAPABILITY_NOT_ALLOWED');
+      }
+    }
+
+    if (reference.allowedOrigins && reference.allowedOrigins.length > 0) {
+      if (!request.origin || !reference.allowedOrigins.includes(normalizeOrigin(request.origin))) {
+        return this.deny(request, reference, 'CREDENTIAL_ORIGIN_NOT_ALLOWED');
+      }
+    }
+
     return reference;
   }
 
