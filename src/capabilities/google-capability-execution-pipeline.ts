@@ -27,7 +27,6 @@ import type { AuditLogger } from '../governance/audit.logger.js';
 import type { ActionApprovalStore, ActionApprovalRecord } from '../governance/action-approval.store.js';
 import type { ExecutionStore } from '../governance/execution.store.js';
 import type { MutationCapabilityDefinition, MutationExecutionContext } from './mutation-registry.js';
-import type { GoogleCredentialAccessService } from '../security/credentials/google-credential-access.service.js';
 import { GMAIL_SCOPES, GOOGLE_CALENDAR_SCOPES } from '../integrations/google/oauth.client.js';
 
 type FetchFn = typeof fetch;
@@ -42,9 +41,23 @@ export interface GoogleOAuthTokenStoreLike {
   getValidAccessToken(tenantId: string, config: GoogleOAuthConfigLike, fetchFn: FetchFn, requestId: string): Promise<string | null>;
 }
 
+export interface GoogleCredentialAccessLike {
+  withAccessToken<TResult>(
+    input: {
+      tenantId: string;
+      principalId: string;
+      requiredScopes: string[];
+      purpose: string;
+      requestId: string;
+      capabilityId?: string;
+    },
+    use: (accessToken: string) => Promise<TResult>,
+  ): Promise<TResult | null>;
+}
+
 export interface GoogleCapabilityExecutionPipelineDeps {
   tokenStore: GoogleOAuthTokenStoreLike;
-  credentialAccess: GoogleCredentialAccessService;
+  credentialAccess: GoogleCredentialAccessLike;
   approvals: ActionApprovalStore;
   audit: AuditLogger;
   executions: ExecutionStore;
