@@ -175,7 +175,7 @@ test('token refresh: an expired access token is transparently refreshed using th
   };
   let clock = 1_700_000_000_000;
   const tokenStore = new InMemoryGoogleOAuthTokenStore();
-  tokenStore.save('t1', { accessToken: 'stale-access-token', refreshToken: 'old-refresh-token', expiresAt: clock - 1000, scope: GRANTED_SCOPE_STRING });
+  tokenStore.saveForPrincipal('t1', 'usr_1', { accessToken: 'stale-access-token', refreshToken: 'old-refresh-token', expiresAt: clock - 1000, scope: GRANTED_SCOPE_STRING });
 
   const accessToken = await tokenStore.getValidAccessToken('t1', config, fetchFn, 'req_refresh_1', () => clock);
 
@@ -189,7 +189,7 @@ test('token refresh: an expired access token is transparently refreshed using th
 test('token refresh failure clears the connection (fail closed) instead of returning a stale token', async () => {
   const fetchFn: typeof fetch = async () => jsonResponse({ error: 'invalid_grant', error_description: 'Token has been revoked' }, 400);
   const tokenStore = new InMemoryGoogleOAuthTokenStore();
-  tokenStore.save('t1', { accessToken: 'stale', refreshToken: 'revoked-refresh-token', expiresAt: Date.now() - 1000, scope: GRANTED_SCOPE_STRING });
+  tokenStore.saveForPrincipal('t1', 'usr_1', { accessToken: 'stale', refreshToken: 'revoked-refresh-token', expiresAt: Date.now() - 1000, scope: GRANTED_SCOPE_STRING });
 
   const accessToken = await tokenStore.getValidAccessToken('t1', config, fetchFn, 'req_refresh_2');
 
@@ -435,7 +435,7 @@ test('execution success: returns a normalized SUCCEEDED result and never fakes s
     throw new Error(`unexpected fetch: ${url}`);
   };
   const { tokenStore, approvals, service } = buildHarness(fetchFn);
-  tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
+  tokenStore.saveForPrincipal('t1', 'usr_1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
   const record = approvals.request({ toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, tenantId: 't1', principalId: 'u1', payload: validPayload() });
   approvals.approve(record.approvalId, 't1', 'u1');
 
@@ -454,7 +454,7 @@ test('execution success: returns a normalized SUCCEEDED result and never fakes s
 test('execution provider error (Google failure): a failing Google API call rejects and never returns a fake success', async () => {
   const fetchFn: typeof fetch = async () => jsonResponse({ error: { message: 'insufficient scope' } }, 500);
   const { tokenStore, approvals, service, audit } = buildHarness(fetchFn);
-  tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
+  tokenStore.saveForPrincipal('t1', 'usr_1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
   const record = approvals.request({ toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, tenantId: 't1', principalId: 'u1', payload: validPayload() });
   approvals.approve(record.approvalId, 't1', 'u1');
 
@@ -483,7 +483,7 @@ test('reject disconnected OAuth: execution is refused even with a valid, matchin
 test('unapproved execution attempts never reach Google: pending and rejected approvals are refused', async () => {
   const fetchFn: typeof fetch = async () => { throw new Error('must not call Google without a granted approval'); };
   const { tokenStore, approvals, service } = buildHarness(fetchFn);
-  tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
+  tokenStore.saveForPrincipal('t1', 'usr_1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
 
   const pending = approvals.request({ toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, tenantId: 't1', principalId: 'u1', payload: validPayload() });
   await assert.rejects(
@@ -504,7 +504,7 @@ test('unapproved execution attempts never reach Google: pending and rejected app
 test('audit success/failure: every stage of the approval + execution lifecycle is logged with the dotted action names, tokens are never logged', async () => {
   const fetchFn: typeof fetch = async () => jsonResponse({ id: 'gcal_evt_audit', htmlLink: 'https://calendar.google.com/event?eid=audit' });
   const { tokenStore, service, audit, approvals } = buildHarness(fetchFn);
-  tokenStore.save('t1', { accessToken: 'super-secret-access-token', refreshToken: 'super-secret-refresh-token', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
+  tokenStore.saveForPrincipal('t1', 'usr_1', { accessToken: 'super-secret-access-token', refreshToken: 'super-secret-refresh-token', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
 
   const requested = service.requestCreateEventApproval({ tenantId: 't1', principalId: 'u1', payload: validPayload(), requestId: 'req_audit_1' });
   service.approve(requested.approvalId, 't1', 'u1', 'req_audit_2');
@@ -528,7 +528,7 @@ test('audit success/failure: every stage of the approval + execution lifecycle i
 test('audit failure path: a rejected approval logs approval.rejected, and a failed execution logs tool.execution.failed', async () => {
   const fetchFn: typeof fetch = async () => jsonResponse({ error: { message: 'boom' } }, 500);
   const { tokenStore, service, audit, approvals } = buildHarness(fetchFn);
-  tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
+  tokenStore.saveForPrincipal('t1', 'usr_1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
 
   const requested = service.requestCreateEventApproval({ tenantId: 't1', principalId: 'u1', payload: validPayload(), requestId: 'req_af_1' });
   service.reject(requested.approvalId, 't1', 'u1', 'req_af_2');
@@ -557,7 +557,7 @@ test('oauth connected/disconnected audit events are recorded via the real server
 test('memory update after success: writes "Scheduled <summary> for <date/time>." without persisting attendee emails', async () => {
   const fetchFn: typeof fetch = async () => jsonResponse({ id: 'gcal_evt_mem', htmlLink: 'https://calendar.google.com/event?eid=mem' });
   const { tokenStore, approvals, service, memory } = buildHarness(fetchFn);
-  tokenStore.save('t1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
+  tokenStore.saveForPrincipal('t1', 'usr_1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
   const record = approvals.request({ toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, tenantId: 't1', principalId: 'usr_mem_test', payload: validPayload({ attendees: ['secret-attendee@example.com'] }) });
   approvals.approve(record.approvalId, 't1', 'usr_mem_test');
 
