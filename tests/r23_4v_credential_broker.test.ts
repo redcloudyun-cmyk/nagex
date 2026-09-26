@@ -214,6 +214,109 @@ test('R23.4V Credential Broker — reference-only, owner-bound, inject-only cont
     );
   });
 
+
+
+  await t.test('browser-ready capability and origin constraints fail closed before secret resolution', async () => {
+    const audit = new AuditLogger();
+    const broker = new CredentialBrokerService(audit);
+    const ref = broker.registerReference({
+      tenantId: 'ten_browser',
+      principalId: 'usr_browser',
+      provider: 'WEB_LOGIN',
+      credentialType: 'PASSWORD_REFERENCE',
+      scopes: ['signin'],
+      status: 'ACTIVE',
+      expiresAt: null,
+      allowedOrigins: ['https://example.com/'],
+      allowedCapabilities: ['browser.login.inject'],
+    });
+
+    let resolverCalls = 0;
+    const resolver = async () => {
+      resolverCalls += 1;
+      return CANARY_SECRET;
+    };
+
+    await assert.rejects(
+      broker.withCredential(
+        {
+          credentialRef: ref.credentialRef,
+          tenantId: 'ten_browser',
+          principalId: 'usr_browser',
+          provider: 'WEB_LOGIN',
+          requiredScopes: ['signin'],
+          purpose: 'browser-login',
+          requestId: 'req_wrong_origin',
+          capabilityId: 'browser.login.inject',
+          origin: 'https://evil.example',
+        },
+        resolver,
+        async () => 'must-not-run',
+      ),
+      expectCode('CREDENTIAL_ORIGIN_NOT_ALLOWED'),
+    );
+
+    await assert.rejects(
+      broker.withCredential(
+        {
+          credentialRef: ref.credentialRef,
+          tenantId: 'ten_browser',
+          principalId: 'usr_browser',
+          provider: 'WEB_LOGIN',
+          requiredScopes: ['signin'],
+          purpose: 'browser-login',
+          requestId: 'req_wrong_capability',
+          capabilityId: 'browser.type',
+          origin: 'https://example.com/login',
+        },
+        resolver,
+        async () => 'must-not-run',
+      ),
+      expectCode('CREDENTIAL_CAPABILITY_NOT_ALLOWED'),
+    );
+
+    assert.equal(resolverCalls, 0);
+  });
+
+  await t.test('lease exposes scoped metadata only and normalizes the approved origin', async () => {
+    const audit = new AuditLogger();
+    const broker = new CredentialBrokerService(audit);
+    const ref = broker.registerReference({
+      tenantId: 'ten_lease',
+      principalId: 'usr_lease',
+      provider: 'WEB_LOGIN',
+      credentialType: 'PASSWORD_REFERENCE',
+      scopes: ['signin'],
+      status: 'ACTIVE',
+      expiresAt: null,
+      allowedOrigins: ['https://Example.com/'],
+      allowedCapabilities: ['browser.login.inject'],
+    });
+
+    const lease = await broker.withCredential(
+      {
+        credentialRef: ref.credentialRef,
+        tenantId: 'ten_lease',
+        principalId: 'usr_lease',
+        provider: 'WEB_LOGIN',
+        requiredScopes: ['signin'],
+        purpose: 'browser-login',
+        requestId: 'req_lease',
+        capabilityId: 'browser.login.inject',
+        origin: 'https://example.com/account/signin',
+      },
+      async () => CANARY_SECRET,
+      async ({ lease, secret }) => {
+        assert.equal(secret, CANARY_SECRET);
+        return lease;
+      },
+    );
+
+    assert.equal(lease.origin, 'https://example.com');
+    assert.equal(lease.capabilityId, 'browser.login.inject');
+    assert.deepEqual(lease.scopes, ['signin']);
+    assert.doesNotMatch(JSON.stringify(lease), new RegExp(CANARY_SECRET));
+  });
   await t.test('provider failure cannot leak the secret through broker audit', async () => {
     const audit = new AuditLogger();
     const broker = new CredentialBrokerService(audit);
