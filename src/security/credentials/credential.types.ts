@@ -10,6 +10,8 @@ export interface CredentialReference {
   status: CredentialStatus;
   createdAt: string;
   expiresAt: string | null;
+  allowedOrigins?: string[];
+  allowedCapabilities?: string[];
 }
 
 export interface CredentialUseRequest {
@@ -21,6 +23,7 @@ export interface CredentialUseRequest {
   purpose: string;
   requestId: string;
   capabilityId?: string;
+  origin?: string;
 }
 
 export interface CredentialLease {
@@ -28,6 +31,9 @@ export interface CredentialLease {
   credentialRef: string;
   provider: string;
   expiresAt: string;
+  scopes: string[];
+  capabilityId?: string;
+  origin?: string;
 }
 
 export interface CredentialInjectionContext<TSecret> {
