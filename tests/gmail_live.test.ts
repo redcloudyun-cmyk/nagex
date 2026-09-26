@@ -60,7 +60,7 @@ test('OAuth scope status: a Calendar-only connection does not carry the gmail.mo
   const fetchFn: typeof fetch = async () => jsonResponse({ access_token: 'at', refresh_token: 'rt', expires_in: 3600, scope: CALENDAR_ONLY_SCOPE_STRING });
   const tokenStore = new InMemoryGoogleOAuthTokenStore();
   tokenStore.saveForPrincipal('t1', 'usr_1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: CALENDAR_ONLY_SCOPE_STRING });
-  const status = tokenStore.getStatus('t1');
+  const status = tokenStore.getStatusForPrincipal('t1', 'usr_1');
   assert.equal(status.connected, true);
   assert.ok(!status.scopes.includes(GMAIL_SCOPES[0]));
   void fetchFn;
@@ -69,7 +69,7 @@ test('OAuth scope status: a Calendar-only connection does not carry the gmail.mo
 test('OAuth scope status: a full connection carries both Calendar and Gmail scopes', () => {
   const tokenStore = new InMemoryGoogleOAuthTokenStore();
   tokenStore.saveForPrincipal('t1', 'usr_1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: FULL_SCOPE_STRING });
-  const status = tokenStore.getStatus('t1');
+  const status = tokenStore.getStatusForPrincipal('t1', 'usr_1');
   assert.ok(status.scopes.includes(GMAIL_SCOPES[0]));
   for (const scope of GOOGLE_CALENDAR_SCOPES) assert.ok(status.scopes.includes(scope));
 });
