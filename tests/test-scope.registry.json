@@ -171,7 +171,8 @@
       "google_calendar_live",
       "google_calendar_e2e",
       "r23_3t_permission_approval_hardening",
-      "audit_tenant_isolation"
+      "audit_tenant_isolation",
+      "google_capability_execution_pipeline"
     ]
   },
   "fullOnly": [
