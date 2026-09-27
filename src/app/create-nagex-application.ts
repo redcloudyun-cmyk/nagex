@@ -46,6 +46,8 @@ import { AstraVisualExecutionModelAdapter } from '../device-control/astra-visual
 import { DeviceIdentityStore } from '../device-agent/device-identity.store.js';
 import { RecipientRefStore } from '../mobile/recipient-ref.store.js';
 import { ContactResolver } from '../mobile/contact-resolver.service.js';
+import { MobileMessageRunStore } from '../mobile/mobile-message-run.store.js';
+import { MobileMessageRunService } from '../mobile/mobile-message-run.service.js';
 import { DesktopExecutionSessionStore } from '../device-agent/desktop-execution-session.store.js';
 import { DeviceTransportSecurity } from '../device-agent/device-transport-security.js';
 import { DeviceConnectionStatusStore } from '../device-agent/device-connection-status.store.js';
@@ -208,18 +210,29 @@ export function createNagexApplication(): NagexApplication {
   // "enrolled/connected/authenticated" are reachable from here.
   const deviceConnectionStatusStore = new DeviceConnectionStatusStore();
   const devicePendingCommandStore = new DevicePendingCommandStore();
+  // R23.6M Phase B3 — mobile contact resolution. recipientRef minting is
+  // the only new durable store this phase adds; ContactResolver holds no
+  // state of its own.
+  const recipientRefStore = new RecipientRefStore();
+  const contactResolver = new ContactResolver(recipientRefStore);
+  // R23.6M Phase C — one complete real SMS execution flow. Reuses
+  // actionApprovals/auditLogger unchanged; recipientRefStore already
+  // structurally satisfies RecipientRefLookupPort.
+  const mobileMessageRunStore = new MobileMessageRunStore();
+  const mobileMessageRunService = new MobileMessageRunService(
+    mobileMessageRunStore,
+    recipientRefStore,
+    actionApprovals,
+    auditLogger,
+  );
   const deviceAgentTransportEndpoint = new DeviceAgentTransportEndpoint(
     deviceTransportSecurity,
     deviceIdentityStore,
     deviceConnectionStatusStore,
     desktopExecutionSessionStore,
     devicePendingCommandStore,
+    mobileMessageRunService,
   );
-  // R23.6M Phase B3 — mobile contact resolution. recipientRef minting is
-  // the only new durable store this phase adds; ContactResolver holds no
-  // state of its own.
-  const recipientRefStore = new RecipientRefStore();
-  const contactResolver = new ContactResolver(recipientRefStore);
   const moduleRegistry = new ModuleRegistry();
   const moduleStateStore = new ModuleStateStore();
   const moduleService = new ModuleService(moduleRegistry, moduleStateStore, auditLogger);
@@ -775,5 +788,7 @@ export function createNagexApplication(): NagexApplication {
     competitorPricingRunService,
     recipientRefStore,
     contactResolver,
+    mobileMessageRunStore,
+    mobileMessageRunService,
   };
 }

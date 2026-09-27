@@ -10,10 +10,25 @@
 // IS the allowlist. CLICK/TYPE/KEYPRESS/OPEN_APP/shell/PowerShell/arbitrary
 // process launch do not exist in this type at all — they belong to a later
 // slice, once execution architecture is proven.
-export type DeviceAgentCommandType = 'CONNECT' | 'DISCONNECT' | 'HEARTBEAT' | 'PING' | 'SESSION_OPEN' | 'SESSION_CLOSE' | 'CANCEL' | 'STATUS' | 'ACK';
+//
+// R23.6M Phase C adds exactly the three mobile-message commands deferred
+// since Phase B1 — never a generic device-action vocabulary. Each one maps
+// to exactly one MobileMessageRunService method and nothing else:
+//   MOBILE_MESSAGE_PREPARE -> prepareForExecution() (read-only; no
+//     approval consumption, no send)
+//   MOBILE_MESSAGE_EXECUTE -> executeApproved() (the one moment the
+//     approval is consumed; the device is not yet told to actually invoke
+//     SmsManager until this returns success)
+//   MOBILE_MESSAGE_STATUS  -> reportSendResult()/reportDeliveryConfirmed()
+//     (the device's own honest report of what SmsManager actually did —
+//     never inferred from EXECUTE having returned OK)
+export type DeviceAgentCommandType =
+  | 'CONNECT' | 'DISCONNECT' | 'HEARTBEAT' | 'PING' | 'SESSION_OPEN' | 'SESSION_CLOSE' | 'CANCEL' | 'STATUS' | 'ACK'
+  | 'MOBILE_MESSAGE_PREPARE' | 'MOBILE_MESSAGE_EXECUTE' | 'MOBILE_MESSAGE_STATUS';
 
 const VALID_COMMAND_TYPES: ReadonlySet<string> = new Set<DeviceAgentCommandType>([
   'CONNECT', 'DISCONNECT', 'HEARTBEAT', 'PING', 'SESSION_OPEN', 'SESSION_CLOSE', 'CANCEL', 'STATUS', 'ACK',
+  'MOBILE_MESSAGE_PREPARE', 'MOBILE_MESSAGE_EXECUTE', 'MOBILE_MESSAGE_STATUS',
 ]);
 
 // Section 3 — "receive bounded command envelope... verify server-issued

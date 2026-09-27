@@ -189,4 +189,7 @@ export interface NagexApplication {
   // R23.6M Phase B3 — Mobile Contact Resolution.
   recipientRefStore: import('../mobile/recipient-ref.store.js').RecipientRefStore;
   contactResolver: import('../mobile/contact-resolver.service.js').ContactResolver;
+  // R23.6M Phase C — Mobile SMS Execution.
+  mobileMessageRunStore: import('../mobile/mobile-message-run.store.js').MobileMessageRunStore;
+  mobileMessageRunService: import('../mobile/mobile-message-run.service.js').MobileMessageRunService;
 }

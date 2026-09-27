@@ -3738,6 +3738,40 @@
       "deterministic": true,
       "assertionIntent": "Android device enrollment/identity is tenant-owner scoped and fails closed when revoked or cross-tenant/cross-owner; contact candidate resolution never lets raw spoken text, an unmatched device candidate, or a fabricated string become a recipientRef; ActionApprovalStore is reused unchanged; no SMS/KakaoTalk execution path exists yet",
       "notes": "Phase B (Android Companion Foundation + Voice Foundation + Contact Resolution): DeviceIdentityStore.enroll() is wired to a real authenticated HTTP route for the first time (previously unwired since DC3-A); ContactResolver independently re-validates every device-proposed candidate against the spoken name rather than trusting candidate count; RecipientRefStore is the only place a recipientRef is minted, scoped to tenant+owner+device. SMS/KakaoTalk execution, mobile-message device-agent command types, and Accessibility automation are explicitly deferred to Phase C/D and are not present in this milestone commit."
+    },
+    "r23_6m_phase_c_sms_execution": {
+      "milestone": "R23.6M",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "agents",
+        "approvals",
+        "device",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "the mobile SMS run state machine cannot skip approval, cannot execute twice, cannot send against a message/recipient/channel/device that drifted after approval, never lets the server hold a phone number, and reuses ActionApprovalStore's real hash-binding/one-time-consumption unchanged",
+      "notes": "Server-side orchestration only (MobileMessageRunService) — real SmsManager execution and phone-number resolution happen exclusively on the Android device and are certified separately on physical hardware. Payload-hash binding covers recipientRef+channel+message+deviceId+executionRoute; any post-approval change is caught at executeApproved() time via ActionApprovalStore.consume()'s existing comparison, never a bespoke re-implementation. Duplicate-send has two layers: the run state graph (SEND_ATTEMPTED has no legal self-transition) and the approval store's own CONSUMED status."
+    },
+    "r23_6m_phase_c_device_transport": {
+      "milestone": "R23.6M",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "agents",
+        "approvals",
+        "device",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "the three new MOBILE_MESSAGE_PREPARE/EXECUTE/STATUS device-agent command types are only reachable through a genuine Ed25519-signed, verified envelope, and a revoked device or a forged signature is rejected before any mobile-message run state is ever touched",
+      "notes": "Real Ed25519 keys throughout (crypto.generateKeyPairSync), the exact DeviceAgentTransportEndpoint.handle() dispatch path a real HTTP request hits — not a stub of the transport layer. Proves the wire-level integration on top of the service-level logic already certified in r23_6m_phase_c_sms_execution."
     }
   }
 }

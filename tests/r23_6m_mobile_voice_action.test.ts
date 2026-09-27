@@ -351,7 +351,17 @@ test('R23.6M 11. ActionApprovalStore is untouched by R23.6M — same public surf
 
 // ─── 12. no mobile execution occurs in Phase B ───────────────────────────
 
-test('R23.6M 12. no SMS/KakaoTalk execution path exists anywhere in Phase B (structural check)', () => {
+test('R23.6M 12. no SMS/KakaoTalk execution path exists in any Phase B file (structural check)', () => {
+  // Historical note: this test originally also asserted that
+  // device-agent-protocol.ts had gained no MOBILE_MESSAGE_* command types
+  // at all — true for Phase B, and it caught the exact moment Phase C
+  // legitimately added exactly three of them (MOBILE_MESSAGE_PREPARE/
+  // EXECUTE/STATUS, never a generic vocabulary — see
+  // r23_6m_phase_c_sms_execution.test.ts and
+  // r23_6m_phase_c_device_transport.test.ts for what now certifies that
+  // boundary). That assertion is retired here, not weakened: the Phase B
+  // files themselves — contact resolution only, never message
+  // execution — remain exactly as constrained as before.
   const filesToCheck = [
     'src/mobile/contact-resolution.types.ts',
     'src/mobile/recipient-ref.store.ts',
@@ -360,11 +370,6 @@ test('R23.6M 12. no SMS/KakaoTalk execution path exists anywhere in Phase B (str
   ];
   for (const rel of filesToCheck) {
     const content = fs.readFileSync(rel, 'utf8').replace(/\/\/.*$/gm, '');
-    assert.doesNotMatch(content, /SmsManager|sendTextMessage|kakaotalk.*send|MOBILE_MESSAGE_EXECUTE/i, `${rel} must not contain any message-execution logic in Phase B`);
+    assert.doesNotMatch(content, /SmsManager|sendTextMessage|kakaotalk.*send|MOBILE_MESSAGE_EXECUTE/i, `${rel} must not contain any message-execution logic`);
   }
-  // The device-agent command allowlist has not been widened with any
-  // mobile-execution command type in Phase B — extension is deferred to
-  // Phase C per the R23.6M directive.
-  const protocol = fs.readFileSync('src/device-agent/device-agent-protocol.ts', 'utf8');
-  assert.doesNotMatch(protocol, /MOBILE_MESSAGE/, 'device-agent-protocol.ts must not gain mobile-execution command types until Phase C');
 });

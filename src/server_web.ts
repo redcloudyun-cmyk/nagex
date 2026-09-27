@@ -41,6 +41,7 @@ import { handleCapabilitiesRoutes } from './http/routes/capabilities.routes.js';
 import { handleMySpaceRoutes } from './http/routes/my-space.routes.js';
 import { handleDeviceAgentRoutes } from './http/routes/device-agent.routes.js';
 import { handleMobileDeviceRoutes } from './http/routes/mobile-device.routes.js';
+import { handleMobileMessageRoutes } from './http/routes/mobile-message.routes.js';
 import { handleAuthRoutes } from './http/routes/auth.routes.js';
 import { handleSocialAuthRoutes } from './http/routes/social-auth.routes.js';
 import { handleAccountRoutes } from './http/routes/account.routes.js';
@@ -187,6 +188,7 @@ export const {
   deviceAgentTransportEndpoint,
   deviceIdentityStore,
   contactResolver,
+  mobileMessageRunService,
 } = app;
 
 // A real (not fake) background scheduler loop — only runs when this module
@@ -592,6 +594,12 @@ export async function handleAsyncApiRequest(
     {
       const mobileDeviceResult = handleMobileDeviceRoutes(method, pathname, body, headers, query, { deviceIdentityStore, contactResolver });
       if (mobileDeviceResult) return mobileDeviceResult;
+    }
+
+    // R23.6M Phase C — Mobile SMS message lifecycle routes.
+    {
+      const mobileMessageResult = handleMobileMessageRoutes(method, pathname, body, headers, query, { sessionStore, deviceIdentityStore, mobileMessageRunService });
+      if (mobileMessageResult) return mobileMessageResult;
     }
 
     // R17 — Creation Routes (generate, variation, list, get)

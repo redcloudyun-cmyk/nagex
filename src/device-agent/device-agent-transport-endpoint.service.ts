@@ -13,6 +13,10 @@ import { DeviceConnectionStatusStore } from './device-connection-status.store.js
 import { DesktopExecutionSessionStore, type DesktopExecutionMode } from './desktop-execution-session.store.js';
 import { isDeviceAgentCommandPayload, type DeviceAgentCommandPayload } from './device-agent-protocol.js';
 import { DevicePendingCommandStore } from './device-pending-command.store.js';
+import type { MobileMessageRunService } from '../mobile/mobile-message-run.service.js';
+import type { MobileMessageSendResult } from '../mobile/mobile-message.types.js';
+
+const VALID_SEND_RESULTS: ReadonlySet<string> = new Set<MobileMessageSendResult>(['SENT_CONFIRMED', 'SEND_FAILED', 'SEND_STATUS_UNKNOWN']);
 
 const VALID_MODES: ReadonlySet<string> = new Set<DesktopExecutionMode>(['BACKGROUND', 'ASSISTED', 'TAKEOVER']);
 const DEFAULT_SESSION_TTL_MS = 60 * 60 * 1000; // 1 hour
@@ -36,6 +40,10 @@ export class DeviceAgentTransportEndpoint {
     private readonly connectionStatus: DeviceConnectionStatusStore,
     private readonly sessions: DesktopExecutionSessionStore,
     private readonly pendingCommands: DevicePendingCommandStore,
+    // R23.6M Phase C — optional so desktop-only constructions/tests never
+    // need it. A mobile-message command with this unset fails closed with
+    // a clear configuration error rather than a silent no-op.
+    private readonly mobileMessages?: MobileMessageRunService,
   ) {}
 
   public handle(message: DeviceAgentMessage, requestId: string): DeviceAgentResponse {
@@ -144,7 +152,53 @@ export class DeviceAgentTransportEndpoint {
       case 'ACK': {
         return { status: 'OK', commandType: 'ACK', result: { acknowledged: true } };
       }
+
+      case 'MOBILE_MESSAGE_PREPARE': {
+        const mobileMessages = this.requireMobileMessages(requestId);
+        const runId = typeof payload.data.runId === 'string' ? payload.data.runId : '';
+        if (!runId) {
+          throw new NagexError({ code: 'MOBILE_MESSAGE_RUN_ID_REQUIRED', category: 'VALIDATION', message: 'runId is required.', request_id: requestId });
+        }
+        const prepared = mobileMessages.prepareForExecution(runId, device.tenantId, device.ownerId, device.deviceId, requestId);
+        return { status: 'OK', commandType: 'MOBILE_MESSAGE_PREPARE', result: prepared };
+      }
+
+      case 'MOBILE_MESSAGE_EXECUTE': {
+        const mobileMessages = this.requireMobileMessages(requestId);
+        const runId = typeof payload.data.runId === 'string' ? payload.data.runId : '';
+        if (!runId) {
+          throw new NagexError({ code: 'MOBILE_MESSAGE_RUN_ID_REQUIRED', category: 'VALIDATION', message: 'runId is required.', request_id: requestId });
+        }
+        const run = mobileMessages.executeApproved(runId, device.tenantId, device.ownerId, device.deviceId, requestId);
+        return { status: 'OK', commandType: 'MOBILE_MESSAGE_EXECUTE', result: { runId: run.runId, status: run.status, executionId: run.executionId } };
+      }
+
+      case 'MOBILE_MESSAGE_STATUS': {
+        const mobileMessages = this.requireMobileMessages(requestId);
+        const runId = typeof payload.data.runId === 'string' ? payload.data.runId : '';
+        if (!runId) {
+          throw new NagexError({ code: 'MOBILE_MESSAGE_RUN_ID_REQUIRED', category: 'VALIDATION', message: 'runId is required.', request_id: requestId });
+        }
+        let run;
+        if (payload.data.deliveryConfirmed === true) {
+          run = mobileMessages.reportDeliveryConfirmed(runId, device.tenantId, device.ownerId, device.deviceId, requestId);
+        } else {
+          const result = typeof payload.data.result === 'string' ? payload.data.result : '';
+          if (!VALID_SEND_RESULTS.has(result)) {
+            throw new NagexError({ code: 'MOBILE_MESSAGE_RESULT_INVALID', category: 'VALIDATION', message: 'result must be SENT_CONFIRMED, SEND_FAILED, or SEND_STATUS_UNKNOWN.', request_id: requestId });
+          }
+          run = mobileMessages.reportSendResult(runId, device.tenantId, device.ownerId, device.deviceId, requestId, result as MobileMessageSendResult);
+        }
+        return { status: 'OK', commandType: 'MOBILE_MESSAGE_STATUS', result: { runId: run.runId, status: run.status } };
+      }
     }
+  }
+
+  private requireMobileMessages(requestId: string): MobileMessageRunService {
+    if (!this.mobileMessages) {
+      throw new NagexError({ code: 'MOBILE_MESSAGE_NOT_CONFIGURED', category: 'RUNTIME', message: 'Mobile message execution is not configured on this server.', request_id: requestId });
+    }
+    return this.mobileMessages;
   }
 
   // Called on disconnect/shutdown/logout paths — never on the authenticated

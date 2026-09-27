@@ -52,7 +52,8 @@ export type ResourcePrefix =
   | 'appr'
   | 'cpr'
   | 'cpb'
-  | 'rcp';
+  | 'rcp'
+  | 'mmr';
 
 export function generateResourceId(prefix: ResourcePrefix): string {
   const opaqueId = crypto.randomBytes(8).toString('hex');
