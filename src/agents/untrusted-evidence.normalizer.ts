@@ -56,7 +56,12 @@ export function isUntrustedPricingEvidence(value: unknown): value is UntrustedPr
     && typeof v.title === 'string'
     && typeof v.excerpt === 'string'
     && (v.planName === null || typeof v.planName === 'string')
-    && (v.price === null || typeof v.price === 'number')
+    // Section 8 — "No NaN/Infinity may enter a run record": a non-finite
+    // price is treated as an invalid evidence item, never coerced to null
+    // here (the extraction/grounding boundary is what nulls an unsupported
+    // price; a value that reaches this far claiming to be a number must
+    // actually be one).
+    && (v.price === null || (typeof v.price === 'number' && Number.isFinite(v.price)))
     && (v.currency === null || typeof v.currency === 'string')
     && (v.billingPeriod === null || typeof v.billingPeriod === 'string')
     && (v.region === null || typeof v.region === 'string')

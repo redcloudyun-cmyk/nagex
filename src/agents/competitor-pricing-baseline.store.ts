@@ -3,6 +3,7 @@
 // by BrowserSessionStore/DailyBriefStore (one JSON file per record,
 // survives process restart) — never an in-memory-only map, which would
 // silently lose "what changed since last time" on every deploy/restart.
+import { NagexError } from '../common/errors.js';
 import { generateResourceId, getCurrentISOString } from '../common/utils.js';
 import { FileRecordStore, resolveNagexDataDir } from '../governance/file-record.store.js';
 import { computeDimensionKey } from './pricing-comparability.js';
@@ -21,7 +22,7 @@ export function isCompetitorPricingBaselineRecord(value: unknown): value is Comp
     && (v.billingPeriod === null || typeof v.billingPeriod === 'string')
     && (v.region === null || typeof v.region === 'string')
     && (v.taxIncluded === null || typeof v.taxIncluded === 'boolean')
-    && typeof v.price === 'number'
+    && typeof v.price === 'number' && Number.isFinite(v.price)
     && typeof v.sourceUrl === 'string'
     && typeof v.retrievedAt === 'string'
     && typeof v.verifiedAt === 'string'
@@ -83,6 +84,9 @@ export class CompetitorPricingBaselineStore {
     sourceUrl: string;
     retrievedAt: string;
   }): CompetitorPricingBaselineRecord {
+    if (!Number.isFinite(input.price)) {
+      throw new NagexError({ code: 'AGENT_BASELINE_PRICE_INVALID', category: 'VALIDATION', message: 'A baseline price must be a finite number.', request_id: `req_${Date.now()}` });
+    }
     const dimensionKey = computeDimensionKey(input);
     const key = this.key(input.tenantId, input.ownerId, input.competitor, dimensionKey);
     const existing = this.records.get(key);

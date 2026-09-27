@@ -9,12 +9,23 @@ import { NagexError } from '../common/errors.js';
 import type { CompetitorPricingBaselineStore } from './competitor-pricing-baseline.store.js';
 import type { CompetitorPricingRunStore } from './competitor-pricing-run.store.js';
 import { assertLegalRunTransition } from './competitor-pricing-run.state.js';
-import type { CompetitorPricingResearchRequest, CompetitorPricingRunRecord, E2EAgentFailureReason, E2EAgentRunStatus } from './competitor-pricing-email.types.js';
+import { assertUntrustedPricingEvidence } from './untrusted-evidence.normalizer.js';
+import { computeDimensionKey, computePricingChange } from './pricing-comparability.js';
+import type { CompetitorPricingResearchRequest, CompetitorPricingRunRecord, E2EAgentFailureReason, E2EAgentRunStatus, UntrustedPricingEvidence } from './competitor-pricing-email.types.js';
+
+// The one seam CompetitorPricingRunService depends on for research —
+// CompetitorPricingResearchService implements this, and tests can supply a
+// minimal fake without constructing the real EvidencePackService/
+// BrowserToolService/PricingExtractionService chain.
+export interface CompetitorPricingResearchPort {
+  research(input: { tenantId: string; ownerId: string; requestId: string; competitor: string; targetUrl: string | null }): Promise<UntrustedPricingEvidence[]>;
+}
 
 export class CompetitorPricingRunService {
   constructor(
     private readonly runStore: CompetitorPricingRunStore,
     private readonly baselineStore: CompetitorPricingBaselineStore,
+    private readonly researchService: CompetitorPricingResearchPort,
   ) {}
 
   public startRun(input: CompetitorPricingResearchRequest): CompetitorPricingRunRecord {
@@ -34,6 +45,45 @@ export class CompetitorPricingRunService {
 
   public getOwnedRun(runId: string, tenantId: string, ownerId: string): CompetitorPricingRunRecord | undefined {
     return this.runStore.getOwned(runId, tenantId, ownerId);
+  }
+
+  // Phase C — Research -> evidence normalization -> structured extraction
+  // -> baseline lookup -> comparability -> REPORT_READY. Never touches
+  // Gmail/approval/credentials, and never writes the baseline (Decision 10
+  // — baseline promotion happens only after a real SENT_CONFIRMED, in
+  // Phase E, so a failed/abandoned run can never silently become the new
+  // comparison point).
+  public async completeResearch(runId: string, tenantId: string, ownerId: string, requestId: string): Promise<CompetitorPricingRunRecord> {
+    const run = this.requireOwnedRun(runId, tenantId, ownerId, requestId);
+
+    let rawEvidence;
+    try {
+      rawEvidence = await this.researchService.research({ tenantId, ownerId, requestId, competitor: run.competitor, targetUrl: run.targetUrl });
+    } catch {
+      return this.transitionTo(run, 'FAILED', requestId, { failureReason: 'RESEARCH_UNAVAILABLE' });
+    }
+
+    // Fail closed on missing/invalid provenance — this throws synchronously
+    // and the run remains RESEARCHING (never silently downgraded to
+    // FAILED), mirroring R23.5B's own fail-closed precedent for missing
+    // browser trust provenance.
+    const evidence = rawEvidence.map((item) => assertUntrustedPricingEvidence(item, requestId));
+
+    if (evidence.length === 0) {
+      return this.transitionTo(run, 'FAILED', requestId, { failureReason: 'EVIDENCE_INSUFFICIENT' });
+    }
+
+    // The first grounded evidence item is the "current" pricing snapshot
+    // this run reports and compares against. Its own dimensions (plan,
+    // currency, billing period, region) — not the run's raw request —
+    // determine which baseline is looked up (Decision 5/7: comparison
+    // dimensions must actually match, never assumed from the request alone).
+    const current = evidence[0];
+    const dimensionKey = computeDimensionKey(current);
+    const baseline = this.baselineStore.getOwned(tenantId, ownerId, run.competitor, dimensionKey) ?? null;
+    const change = computePricingChange(current, baseline);
+
+    return this.transitionTo(run, 'REPORT_READY', requestId, { evidence, change, failureReason: null });
   }
 
   private requireOwnedRun(runId: string, tenantId: string, ownerId: string, requestId: string): CompetitorPricingRunRecord {

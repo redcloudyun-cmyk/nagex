@@ -183,5 +183,7 @@ export interface NagexApplication {
   // R23.6E — Competitor Pricing Monitor + Email.
   competitorPricingBaselineStore: import('../agents/competitor-pricing-baseline.store.js').CompetitorPricingBaselineStore;
   competitorPricingRunStore: import('../agents/competitor-pricing-run.store.js').CompetitorPricingRunStore;
+  pricingExtractionService: import('../agents/pricing-extraction.service.js').PricingExtractionService;
+  competitorPricingResearchService: import('../agents/competitor-pricing-research.service.js').CompetitorPricingResearchService;
   competitorPricingRunService: import('../agents/competitor-pricing-run.service.js').CompetitorPricingRunService;
 }
