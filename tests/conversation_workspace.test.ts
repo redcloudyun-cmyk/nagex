@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { ConversationStore } from '../src/conversations/conversation.store.js';
+import { ConversationStore, compareConversationMessages } from '../src/conversations/conversation.store.js';
 import { ConversationContextService } from '../src/conversations/conversation-context.service.js';
 import { isConversationMessageRecord } from '../src/conversations/conversation.types.js';
 import { SessionStore } from '../src/sessions/session.store.js';
@@ -523,4 +523,82 @@ test('Restart E2E: session and conversation survive server restart', () => {
   assert.equal(messages2.length, 2);
   assert.equal(messages2[0].content, 'E2E prompt 1');
   assert.equal(messages2[1].content, 'E2E answer 1');
+});
+
+test('ConversationStore: messages appended within the same createdAt millisecond still preserve append order (seq tie-break)', () => {
+  const dir = tempDir();
+  // Force every append in this test to report the identical millisecond
+  // timestamp, reproducing the exact collision that a fast runtime can hit
+  // in practice, without relying on real appends happening to land in the
+  // same millisecond.
+  const frozenNow = () => '2026-01-01T00:00:00.000Z';
+  const store = new ConversationStore({ dir, now: frozenNow });
+
+  const appended = [];
+  for (let i = 0; i < 10; i++) {
+    appended.push(
+      store.append({
+        tenantId: 'ten_seq',
+        principalId: 'usr_seq',
+        sessionId: 'sess_seq',
+        role: i % 2 === 0 ? 'USER' : 'ASSISTANT',
+        source: 'WEB',
+        content: `Message ${i}`,
+      })
+    );
+  }
+
+  // Every appended record shares the identical createdAt.
+  assert.ok(appended.every((m) => m.createdAt === '2026-01-01T00:00:00.000Z'));
+
+  const listed = store.listSession('ten_seq', 'usr_seq', 'sess_seq');
+  assert.equal(listed.length, 10);
+  for (let i = 0; i < 10; i++) {
+    assert.equal(listed[i].content, `Message ${i}`);
+  }
+
+  // seq survives a fresh store instance reading the same directory, and
+  // ordering is still correct after "restart".
+  const reloaded = new ConversationStore({ dir, now: frozenNow });
+  const relisted = reloaded.listSession('ten_seq', 'usr_seq', 'sess_seq');
+  for (let i = 0; i < 10; i++) {
+    assert.equal(relisted[i].content, `Message ${i}`);
+  }
+
+  // A message appended after reload continues the monotonic counter rather
+  // than restarting it (which would risk a fresh collision with existing
+  // seq values).
+  const next = reloaded.append({
+    tenantId: 'ten_seq',
+    principalId: 'usr_seq',
+    sessionId: 'sess_seq',
+    role: 'USER',
+    source: 'WEB',
+    content: 'Message 10',
+  });
+  assert.ok(typeof next.seq === 'number' && next.seq > (listed[9].seq ?? 0));
+});
+
+test('ConversationStore: a legacy record with no seq field still sorts safely alongside seq-bearing records', () => {
+  const dir = tempDir();
+  const store = new ConversationStore({ dir });
+
+  const withSeq = store.append({
+    tenantId: 'ten_legacy',
+    principalId: 'usr_legacy',
+    sessionId: 'sess_legacy',
+    role: 'USER',
+    source: 'WEB',
+    content: 'Has seq',
+  });
+  assert.equal(typeof withSeq.seq, 'number');
+
+  // Simulate a record persisted before this field existed.
+  const legacyRecord = { ...withSeq, seq: undefined };
+  delete (legacyRecord as { seq?: number }).seq;
+
+  const ordered = [withSeq, legacyRecord].sort(compareConversationMessages);
+  // Must not throw and must produce a stable, deterministic order (falls
+  // back to messageId comparison when either side lacks seq).
+  assert.equal(ordered.length, 2);
 });

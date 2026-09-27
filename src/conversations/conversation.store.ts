@@ -33,6 +33,14 @@ export function compareConversationMessages(
 ): number {
   const timeComparison = a.createdAt.localeCompare(b.createdAt);
   if (timeComparison !== 0) return timeComparison;
+  // createdAt has only millisecond resolution, so two messages appended in
+  // the same millisecond (routine on a fast runtime) are otherwise ordered
+  // by comparing messageId, which is random and not append-order-preserving.
+  // seq is a monotonic per-store append counter and is the authoritative
+  // tie-break whenever both records have one.
+  if (typeof a.seq === 'number' && typeof b.seq === 'number') {
+    return a.seq - b.seq;
+  }
   return a.messageId.localeCompare(b.messageId);
 }
 
@@ -40,6 +48,7 @@ export class ConversationStore {
   private readonly records = new Map<string, ConversationMessageRecord>();
   private readonly fileStore: FileRecordStore<ConversationMessageRecord>;
   private readonly now: () => string;
+  private nextSeq = 1;
 
   constructor(options: ConversationStoreOptions = {}) {
     const env = options.env ?? process.env;
@@ -49,6 +58,9 @@ export class ConversationStore {
 
     for (const record of this.fileStore.readAll()) {
       this.records.set(record.messageId, record);
+      if (typeof record.seq === 'number' && record.seq >= this.nextSeq) {
+        this.nextSeq = record.seq + 1;
+      }
     }
   }
 
@@ -77,6 +89,7 @@ export class ConversationStore {
       parentMessageId: input.parentMessageId,
       createdAt: timestamp,
       updatedAt: timestamp,
+      seq: this.nextSeq++,
     };
 
     try {
