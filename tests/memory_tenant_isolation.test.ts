@@ -365,7 +365,7 @@ test('15. GmailService writes the created Memory under the real request tenant',
   assert.equal(memory.getActiveMemories('USER', 'ten_live_gmail', 'usr_live_gmail').length, 0, 'a pending S2 memory must never appear as ACTIVE before real user confirmation');
 });
 
-test('16. BrowserToolService writes the created Memory under the real request tenant', async () => {
+test('16. BrowserToolService never auto-promotes an approved click into Memory, under any tenant (R23.5B)', async () => {
   const runtime: any = {
     openSession: async () => ({ url: 'https://example.com', title: 'Example' }),
     closeSession: async () => {},
@@ -390,9 +390,17 @@ test('16. BrowserToolService writes the created Memory under the real request te
   service.approve(approvalId, 'ten_live_browser', 'usr_live_browser', 'req_2');
   await service.executeApprovedClick({ approvalId, browserSessionId: session.browserSessionId, selector: 'button#submit-order', tenantId: 'ten_live_browser', ownerId: 'usr_live_browser', requestId: 'req_3' });
 
+  // R23.5B (browser.service.ts's ba736a3) deliberately stopped promoting
+  // browser/page-observed content into persistent Memory at all — page
+  // content is untrusted (browser.types.ts's canWritePersistentMemory:
+  // false) and must never write itself into Memory merely because an
+  // approved click executed. This test used to assert the pre-R23.5B
+  // opposite (memory.length === 1); the tenant-isolation question it
+  // originally asked no longer applies because there is nothing to
+  // isolate — this is now covered together with the R23.5B contract in
+  // tests/r23_5b_browser_untrusted_boundary.test.ts.
   const memories = memory.getActiveMemories('USER', 'ten_live_browser', 'usr_live_browser');
-  assert.equal(memories.length, 1);
-  assert.equal(memories[0].tenantId, 'ten_live_browser');
+  assert.equal(memories.length, 0);
 });
 
 // ── 17: Candidate → Memory ownership ─────────────────────────────────────
