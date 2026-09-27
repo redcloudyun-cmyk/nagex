@@ -21,6 +21,7 @@ import { handleGmailRoutes } from './http/routes/gmail.routes.js';
 import { handleCalendarRoutes } from './http/routes/calendar.routes.js';
 import { handleApprovalsRoutes } from './http/routes/approvals.routes.js';
 import { handleBrowserRoutes } from './http/routes/browser.routes.js';
+import { handleCompetitorPricingAgentRoutes } from './http/routes/competitor-pricing-agent.routes.js';
 import { handleGoogleOAuthStartRoutes, handleGoogleOAuthCallbackRoutes } from './http/routes/google-oauth.routes.js';
 import { handleTelegramRoutes } from './http/routes/telegram.routes.js';
 import { handleSlackRoutes } from './http/routes/slack.routes.js';
@@ -467,6 +468,14 @@ export async function handleAsyncApiRequest(
     {
       const browserResult = await handleBrowserRoutes(method, pathname, body, headers, query, { browserApiService });
       if (browserResult) return browserResult;
+    }
+
+    // ── R23.6E — Competitor Pricing Monitor + Email ─────────────────────────
+    {
+      const competitorPricingResult = await handleCompetitorPricingAgentRoutes(method, pathname, body, headers, query, {
+        competitorPricingRunService: app.competitorPricingRunService,
+      });
+      if (competitorPricingResult) return competitorPricingResult;
     }
 
     // R10.2-D Increment 3 — Task /run + test-only /run-with-fixed-plan.

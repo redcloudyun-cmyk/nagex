@@ -116,6 +116,9 @@ import { LifecycleManager } from './lifecycle-manager.js';
 import { QuestionClassificationService } from '../research/question-classification.service.js';
 import { WebSearchService } from '../research/web-search.service.js';
 import { EvidencePackService } from '../research/evidence-pack.service.js';
+import { CompetitorPricingBaselineStore } from '../agents/competitor-pricing-baseline.store.js';
+import { CompetitorPricingRunStore } from '../agents/competitor-pricing-run.store.js';
+import { CompetitorPricingRunService } from '../agents/competitor-pricing-run.service.js';
 
 export function createNagexApplication(): NagexApplication {
   const socialIdentityStore = new SocialIdentityStore();
@@ -253,6 +256,14 @@ export function createNagexApplication(): NagexApplication {
   const evidencePackService = new EvidencePackService(questionClassificationService, webSearchService);
   const perspectiveCompareService = new PerspectiveCompareService(modelRouter, evidencePackService);
   const forecastCompareService = new ForecastCompareService(modelRouter, evidencePackService);
+
+  // R23.6E — Competitor Pricing Monitor + Email. One scenario-specific
+  // orchestration service (Decision 1), not a generic workflow engine.
+  // Real research/synthesis/draft/send wiring lands in Phase C-E; Phase B
+  // only wires durable persistence + the state-machine skeleton.
+  const competitorPricingBaselineStore = new CompetitorPricingBaselineStore();
+  const competitorPricingRunStore = new CompetitorPricingRunStore();
+  const competitorPricingRunService = new CompetitorPricingRunService(competitorPricingRunStore, competitorPricingBaselineStore);
 
   const capabilityBroker = new CapabilityBroker(
     googleCalendarService,
@@ -730,5 +741,8 @@ export function createNagexApplication(): NagexApplication {
     perspectiveCompareService,
     forecastCompareService,
     seedDemoMemory,
+    competitorPricingBaselineStore,
+    competitorPricingRunStore,
+    competitorPricingRunService,
   };
 }

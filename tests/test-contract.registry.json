@@ -3685,6 +3685,27 @@
       "deterministic": true,
       "assertionIntent": "browser external content remains untrusted and cannot become authority or persistent memory",
       "notes": "Proves browser observations carry UNTRUSTED_EXTERNAL provenance; page content cannot grant permission, approve action, authorize credentials, override policy, or auto-promote itself into persistent Memory; DeviceControl fails closed if provenance is missing."
+    },
+    "r23_6e_real_e2e_agent": {
+      "milestone": "R23.6E",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "agents",
+        "approvals",
+        "browser",
+        "memory-context",
+        "model-routing",
+        "research",
+        "runtime",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "the competitor-pricing-email run's evidence provenance, baseline durability/isolation, and state-machine policy cannot be bypassed",
+      "notes": "Phase B: evidence trust is mandatory and fails closed when missing/invalid; the durable baseline store is tenant/owner isolated and survives store recreation; comparability rules reject mismatched currency/billing-period/dimensions rather than fabricating a delta; a missing baseline reports current-only, never a fabricated change; the run status graph cannot skip a required phase (e.g. RESEARCHING -> SENT_CONFIRMED) and terminal states never resume. Later phases (research/draft/send) are added in their own milestone commits, not this one."
     }
   }
 }
