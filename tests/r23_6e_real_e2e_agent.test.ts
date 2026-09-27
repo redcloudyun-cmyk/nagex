@@ -436,6 +436,105 @@ test('R23.6E GET run status is tenant/owner isolated at the route layer', async 
   );
 });
 
+// ── POST .../:runId/continue — the one execution-surface route ───────────
+
+test('R23.6E POST .../continue drives a run through exactly one legal next step per call, end to end to SENT_CONFIRMED and finalized', async () => {
+  const gmail = fakeGmailSendPort();
+  const runService = new CompetitorPricingRunService(
+    new CompetitorPricingRunStore({ dir: tmp('run-continue-1') }),
+    new CompetitorPricingBaselineStore({ dir: tmp('baseline-continue-1') }),
+    fakeResearch([makeEvidence()]),
+    noVerifiedIdentity(),
+    gmail,
+  );
+  const created = await handleCompetitorPricingAgentRoutes(
+    'POST', '/api/v1/agents/competitor-pricing-email', { competitor: 'Acme', recipientEmail: 'user@example.com' },
+    headers('ten_a', 'usr_a'), {}, { competitorPricingRunService: runService },
+  );
+  const runId = (created?.data as any).runId;
+  const deps = { competitorPricingRunService: runService };
+  const continuePath = `/api/v1/agents/competitor-pricing-email/${runId}/continue`;
+
+  const afterResearch = await handleCompetitorPricingAgentRoutes('POST', continuePath, {}, headers('ten_a', 'usr_a'), {}, deps);
+  assert.equal((afterResearch?.data as any).status, 'REPORT_READY');
+
+  const afterDraft = await handleCompetitorPricingAgentRoutes('POST', continuePath, {}, headers('ten_a', 'usr_a'), {}, deps);
+  assert.equal((afterDraft?.data as any).status, 'DRAFT_CREATED');
+
+  const afterApprovalRequested = await handleCompetitorPricingAgentRoutes('POST', continuePath, {}, headers('ten_a', 'usr_a'), {}, deps);
+  assert.equal((afterApprovalRequested?.data as any).status, 'APPROVAL_REQUIRED');
+  const approvalId = (afterApprovalRequested?.data as any).approvalId;
+
+  // Not yet approved — /continue must never auto-approve; the run stays put.
+  const stillWaiting = await handleCompetitorPricingAgentRoutes('POST', continuePath, {}, headers('ten_a', 'usr_a'), {}, deps);
+  assert.equal((stillWaiting?.data as any).status, 'APPROVAL_REQUIRED');
+  assert.equal(gmail.sendCalls.length, 0);
+
+  gmail.approveFake(approvalId);
+  const afterApproved = await handleCompetitorPricingAgentRoutes('POST', continuePath, {}, headers('ten_a', 'usr_a'), {}, deps);
+  assert.equal((afterApproved?.data as any).status, 'APPROVED');
+
+  const afterSend = await handleCompetitorPricingAgentRoutes('POST', continuePath, {}, headers('ten_a', 'usr_a'), {}, deps);
+  assert.equal((afterSend?.data as any).status, 'SENT_CONFIRMED');
+  assert.equal(gmail.sendCalls.length, 1);
+
+  const afterFinalize = await handleCompetitorPricingAgentRoutes('POST', continuePath, {}, headers('ten_a', 'usr_a'), {}, deps);
+  assert.equal((afterFinalize?.data as any).status, 'SENT_CONFIRMED');
+  assert.equal((afterFinalize?.data as any).baselinePromoted, true);
+});
+
+test('R23.6E POST .../continue on a REJECTED approval reaches BLOCKED and sends nothing', async () => {
+  const gmail = fakeGmailSendPort();
+  const runService = new CompetitorPricingRunService(
+    new CompetitorPricingRunStore({ dir: tmp('run-continue-2') }),
+    new CompetitorPricingBaselineStore({ dir: tmp('baseline-continue-2') }),
+    fakeResearch([makeEvidence()]),
+    noVerifiedIdentity(),
+    gmail,
+  );
+  const created = await handleCompetitorPricingAgentRoutes(
+    'POST', '/api/v1/agents/competitor-pricing-email', { competitor: 'Acme', recipientEmail: 'user@example.com' },
+    headers('ten_a', 'usr_a'), {}, { competitorPricingRunService: runService },
+  );
+  const runId = (created?.data as any).runId;
+  const deps = { competitorPricingRunService: runService };
+  const continuePath = `/api/v1/agents/competitor-pricing-email/${runId}/continue`;
+
+  await handleCompetitorPricingAgentRoutes('POST', continuePath, {}, headers('ten_a', 'usr_a'), {}, deps); // -> REPORT_READY
+  await handleCompetitorPricingAgentRoutes('POST', continuePath, {}, headers('ten_a', 'usr_a'), {}, deps); // -> DRAFT_CREATED
+  const withApproval = await handleCompetitorPricingAgentRoutes('POST', continuePath, {}, headers('ten_a', 'usr_a'), {}, deps); // -> APPROVAL_REQUIRED
+  gmail.rejectFake((withApproval?.data as any).approvalId);
+
+  const afterReject = await handleCompetitorPricingAgentRoutes('POST', continuePath, {}, headers('ten_a', 'usr_a'), {}, deps);
+  assert.equal((afterReject?.data as any).status, 'BLOCKED');
+
+  // BLOCKED has no legal next step — a further /continue is a safe no-op.
+  const noOp = await handleCompetitorPricingAgentRoutes('POST', continuePath, {}, headers('ten_a', 'usr_a'), {}, deps);
+  assert.equal((noOp?.data as any).status, 'BLOCKED');
+  assert.equal(gmail.sendCalls.length, 0, 'a rejected approval must never result in a send');
+});
+
+test('R23.6E POST .../continue is tenant/owner isolated, identical to a nonexistent run', async () => {
+  const runService = new CompetitorPricingRunService(
+    new CompetitorPricingRunStore({ dir: tmp('run-continue-3') }),
+    new CompetitorPricingBaselineStore({ dir: tmp('baseline-continue-3') }),
+    fakeResearch([makeEvidence()]),
+    noVerifiedIdentity(),
+    fakeGmailSendPort(),
+  );
+  const created = await handleCompetitorPricingAgentRoutes(
+    'POST', '/api/v1/agents/competitor-pricing-email', { competitor: 'Acme' },
+    headers('ten_a', 'usr_a'), {}, { competitorPricingRunService: runService },
+  );
+  const runId = (created?.data as any).runId;
+  const continuePath = `/api/v1/agents/competitor-pricing-email/${runId}/continue`;
+
+  await assert.rejects(
+    () => handleCompetitorPricingAgentRoutes('POST', continuePath, {}, headers('ten_b', 'usr_a'), {}, { competitorPricingRunService: runService }),
+    (error: any) => { assert.equal(error.code, 'AGENT_RUN_NOT_FOUND'); return true; },
+  );
+});
+
 // ══════════════════════════════════════════════════════════════════════
 // Phase C — extraction grounding, structured extraction, research
 // retrieval, and RESEARCHING -> REPORT_READY
