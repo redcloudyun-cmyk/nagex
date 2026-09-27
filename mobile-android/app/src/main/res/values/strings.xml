@@ -2,8 +2,7 @@
     <string name="app_name">NAgex Mobile</string>
     <string name="status_title">NAgex Companion — Status</string>
     <string name="label_server_url">NAgex server URL</string>
-    <string name="label_tenant_id">Tenant ID</string>
-    <string name="label_principal_id">Principal ID</string>
+    <string name="label_session_token">NAgex session token (from web login)</string>
     <string name="button_save_config">Save</string>
     <string name="button_enroll">Enroll this device</string>
     <string name="button_check_status">Check connection</string>

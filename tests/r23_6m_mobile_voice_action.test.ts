@@ -20,6 +20,7 @@ import { DeviceConnectionStatusStore } from '../src/device-agent/device-connecti
 import { DesktopExecutionSessionStore } from '../src/device-agent/desktop-execution-session.store.js';
 import { DevicePendingCommandStore } from '../src/device-agent/device-pending-command.store.js';
 import { DeviceAgentTransportEndpoint } from '../src/device-agent/device-agent-transport-endpoint.service.js';
+import { SessionStore } from '../src/sessions/session.store.js';
 import { NagexError } from '../src/common/errors.js';
 
 function tempDir(): string {
@@ -34,8 +35,13 @@ function makeRecipientRefStore(): RecipientRefStore {
   return new RecipientRefStore({ dir: tempDir() });
 }
 
+function makeSessionStore(): SessionStore {
+  return new SessionStore({ dir: tempDir() });
+}
+
 async function callDeviceAgentEnroll(
   deviceIdentityStore: DeviceIdentityStore,
+  sessionStore: SessionStore,
   headers: Record<string, string>,
   body: Record<string, unknown>,
 ) {
@@ -46,7 +52,7 @@ async function callDeviceAgentEnroll(
     new DesktopExecutionSessionStore({ dir: tempDir() }),
     new DevicePendingCommandStore(),
   );
-  return handleDeviceAgentRoutes('POST', '/api/v1/device-agent/enroll', body, headers, {}, { deviceAgentTransportEndpoint, deviceIdentityStore });
+  return handleDeviceAgentRoutes('POST', '/api/v1/device-agent/enroll', body, headers, {}, { deviceAgentTransportEndpoint, deviceIdentityStore, sessionStore });
 }
 
 function callContactResolve(
@@ -60,11 +66,14 @@ function callContactResolve(
 
 // ─── 1. Android device enrollment is tenant/user scoped ─────────────────
 
-test('R23.6M 1. Android device enrollment is tenant/user scoped', async () => {
+test('R23.6M 1. Android device enrollment is tenant/user scoped, derived from a real session', async () => {
   const deviceIdentityStore = makeDeviceIdentityStore();
+  const sessionStore = makeSessionStore();
+  const session = sessionStore.createAuthSession('ten_a', 'usr_a');
   const result = await callDeviceAgentEnroll(
     deviceIdentityStore,
-    { 'x-nagex-tenant': 'ten_a', 'x-principal-id': 'usr_a' },
+    sessionStore,
+    { authorization: `Bearer ${session.sessionId}` },
     { publicKey: 'PEM_PUBLIC_KEY_A', agentVersion: 'android-1.0.0' },
   );
   assert.ok(result);
@@ -79,6 +88,89 @@ test('R23.6M 1. Android device enrollment is tenant/user scoped', async () => {
   assert.ok(owned);
   assert.equal(deviceIdentityStore.getOwned(device.deviceId, 'ten_b', 'usr_a'), null);
   assert.equal(deviceIdentityStore.getOwned(device.deviceId, 'ten_a', 'usr_b'), null);
+});
+
+// ─── Phase B4 security audit — enrollment cannot be spoofed via headers ──
+
+test('R23.6M 1a. enrollment with NO session is rejected, even if x-nagex-tenant/x-principal-id headers are present', async () => {
+  const deviceIdentityStore = makeDeviceIdentityStore();
+  const sessionStore = makeSessionStore();
+  await assert.rejects(
+    () => callDeviceAgentEnroll(
+      deviceIdentityStore,
+      sessionStore,
+      { 'x-nagex-tenant': 'ten_victim', 'x-principal-id': 'usr_victim' },
+      { publicKey: 'PK', agentVersion: 'android-1.0.0' },
+    ),
+    (err: unknown) => err instanceof NagexError && err.code === 'DEVICE_ENROLL_AUTH_REQUIRED',
+  );
+});
+
+test('R23.6M 1b. a caller cannot enroll a device for an arbitrary tenant/principal by setting headers — the real session always wins', async () => {
+  const deviceIdentityStore = makeDeviceIdentityStore();
+  const sessionStore = makeSessionStore();
+  // A real, legitimately authenticated session for ten_a/usr_a...
+  const session = sessionStore.createAuthSession('ten_a', 'usr_a');
+  // ...but the caller ALSO sets spoofed headers claiming to be a different
+  // tenant/user entirely. The session must win completely; the headers
+  // must have zero effect.
+  const result = await callDeviceAgentEnroll(
+    deviceIdentityStore,
+    sessionStore,
+    {
+      authorization: `Bearer ${session.sessionId}`,
+      'x-nagex-tenant': 'ten_victim',
+      'x-principal-id': 'usr_victim',
+    },
+    { publicKey: 'PK', agentVersion: 'android-1.0.0' },
+  );
+  const device = result!.data as { tenantId: string; ownerId: string };
+  assert.equal(device.tenantId, 'ten_a');
+  assert.equal(device.ownerId, 'usr_a');
+  assert.notEqual(device.tenantId, 'ten_victim');
+  assert.notEqual(device.ownerId, 'usr_victim');
+});
+
+test('R23.6M 1c. a revoked/expired/unknown session cannot enroll a device', async () => {
+  const deviceIdentityStore = makeDeviceIdentityStore();
+  const sessionStore = makeSessionStore();
+  const session = sessionStore.createAuthSession('ten_a', 'usr_a');
+  sessionStore.revokeSession(session.sessionId);
+
+  await assert.rejects(
+    () => callDeviceAgentEnroll(
+      deviceIdentityStore,
+      sessionStore,
+      { authorization: `Bearer ${session.sessionId}` },
+      { publicKey: 'PK', agentVersion: 'android-1.0.0' },
+    ),
+    (err: unknown) => err instanceof NagexError && err.code === 'DEVICE_ENROLL_AUTH_REQUIRED',
+  );
+
+  await assert.rejects(
+    () => callDeviceAgentEnroll(
+      deviceIdentityStore,
+      sessionStore,
+      { authorization: 'Bearer sess_totally_made_up' },
+      { publicKey: 'PK', agentVersion: 'android-1.0.0' },
+    ),
+    (err: unknown) => err instanceof NagexError && err.code === 'DEVICE_ENROLL_AUTH_REQUIRED',
+  );
+});
+
+test('R23.6M 1d. the device public key is stored server-side; no private key material ever appears in the enrollment response or record', async () => {
+  const deviceIdentityStore = makeDeviceIdentityStore();
+  const sessionStore = makeSessionStore();
+  const session = sessionStore.createAuthSession('ten_a', 'usr_a');
+  const result = await callDeviceAgentEnroll(
+    deviceIdentityStore,
+    sessionStore,
+    { authorization: `Bearer ${session.sessionId}` },
+    { publicKey: 'PEM_PUBLIC_KEY_ONLY', agentVersion: 'android-1.0.0' },
+  );
+  const device = result!.data as Record<string, unknown>;
+  assert.equal(device.publicKey, 'PEM_PUBLIC_KEY_ONLY');
+  assert.equal('privateKey' in device, false);
 });
 
 // ─── 2. revoked device cannot act ────────────────────────────────────────

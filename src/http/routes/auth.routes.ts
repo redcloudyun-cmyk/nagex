@@ -17,7 +17,7 @@ export interface AuthRoutesDependencies {
 
 const rateLimiter = new IdentityRateLimiter({ windowMs: 15 * 60 * 1000, maxHits: 5 });
 
-function getSessionIdFromHeaders(headers: Record<string, string | string[] | undefined>): string | null {
+export function getSessionIdFromHeaders(headers: Record<string, string | string[] | undefined>): string | null {
   const cookieHeader = Array.isArray(headers['cookie']) ? headers['cookie'][0] : headers['cookie'];
   if (cookieHeader) {
     const match = cookieHeader.match(/nagex_session=([^;]+)/);

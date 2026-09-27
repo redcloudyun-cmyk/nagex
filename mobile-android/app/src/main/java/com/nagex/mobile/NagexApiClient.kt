@@ -39,6 +39,21 @@ class NagexApiClient(private val config: NagexServerConfig) {
             .header("x-request-id", "req_android_${UUID.randomUUID()}")
     }
 
+    /** R23.6M Phase B4 — /enroll specifically requires a real, validated
+     * session (Authorization: Bearer <sessionToken>), never the
+     * x-nagex-tenant/x-principal-id headers [authenticatedRequestBuilder]
+     * uses for every other Phase B call. See device-agent.routes.ts's
+     * header comment for why: those headers are trivially spoofable and
+     * the server no longer accepts them for enrollment. */
+    private fun sessionAuthenticatedRequestBuilder(path: String): Request.Builder {
+        val sessionToken = config.sessionToken
+            ?: throw IllegalStateException("No session token is configured — sign in and enter a session token before enrolling.")
+        return Request.Builder()
+            .url(config.serverBaseUrl + path)
+            .header("Authorization", "Bearer $sessionToken")
+            .header("x-request-id", "req_android_${UUID.randomUUID()}")
+    }
+
     private fun execute(request: Request): JSONObject {
         http.newCall(request).execute().use { response ->
             val bodyString = response.body?.string().orEmpty()
@@ -52,20 +67,27 @@ class NagexApiClient(private val config: NagexServerConfig) {
         }
     }
 
-    data class EnrollResult(val deviceId: String, val status: String)
+    data class EnrollResult(val deviceId: String, val status: String, val tenantId: String, val ownerId: String)
 
     /** Calls POST /api/v1/device-agent/enroll — the one place a
-     * DeviceIdentityRecord is created (src/http/routes/device-agent.routes.ts). */
+     * DeviceIdentityRecord is created (src/http/routes/device-agent.routes.ts).
+     * tenantId/ownerId in the response are the server's own, session-derived
+     * values — never something this client asserted. */
     fun enroll(publicKeyPem: String, agentVersion: String, capabilityInventory: List<String>): EnrollResult {
         val body = JSONObject()
             .put("publicKey", publicKeyPem)
             .put("agentVersion", agentVersion)
             .put("capabilityInventory", JSONArray(capabilityInventory))
-        val request = authenticatedRequestBuilder("/api/v1/device-agent/enroll")
+        val request = sessionAuthenticatedRequestBuilder("/api/v1/device-agent/enroll")
             .post(body.toString().toRequestBody(jsonMediaType))
             .build()
         val result = execute(request)
-        return EnrollResult(result.getString("deviceId"), result.getString("status"))
+        return EnrollResult(
+            deviceId = result.getString("deviceId"),
+            status = result.getString("status"),
+            tenantId = result.getString("tenantId"),
+            ownerId = result.getString("ownerId"),
+        )
     }
 
     /** Calls POST /api/v1/device-agent/message with a signed envelope —

@@ -2,26 +2,59 @@ package com.nagex.mobile
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 
 /**
- * R23.6M Phase B1 — configurable NAgex server URL and the identity/session
- * headers this device has been given. Plain SharedPreferences (not
- * encrypted) — nothing stored here is a secret; the device's own private
- * key lives in [DeviceKeyManager]'s encrypted store instead.
+ * R23.6M Phase B1/B4 — configurable NAgex server URL and this device's
+ * identity/session state.
+ *
+ * Phase B4 security-audit fix: enrollment no longer uses the
+ * x-nagex-tenant/x-principal-id headers (trivially spoofable — see
+ * device-agent.routes.ts's own updated header comment). The server now
+ * requires a real, validated session (`Authorization: Bearer <sessionId>`,
+ * checked against SessionStore.getSession()) for /enroll specifically.
+ * [sessionToken] is that bearer credential — it grants real API access as
+ * the signed-in user, so unlike the other fields here it is stored in
+ * Jetpack Security's EncryptedSharedPreferences, not plain prefs.
+ *
+ * Known Phase B limitation: there is no in-app login flow yet. The user
+ * must obtain a session token from an existing authenticated NAgex web
+ * session (e.g. the `nagex_session` cookie value, or a token from
+ * `POST /api/v1/auth/login`) and enter it here manually. A real mobile
+ * login/QR-pairing flow is a reasonable Phase C+ improvement, not
+ * implemented now.
  */
 class NagexServerConfig(context: Context) {
     private val prefs: SharedPreferences =
         context.getSharedPreferences("nagex_server_config", Context.MODE_PRIVATE)
 
+    private val masterKey = MasterKey.Builder(context)
+        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+        .build()
+
+    private val encryptedPrefs = EncryptedSharedPreferences.create(
+        context,
+        "nagex_server_config_secure",
+        masterKey,
+        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+    )
+
     var serverBaseUrl: String
         get() = prefs.getString(KEY_SERVER_BASE_URL, DEFAULT_SERVER_BASE_URL) ?: DEFAULT_SERVER_BASE_URL
         set(value) = prefs.edit().putString(KEY_SERVER_BASE_URL, value.trimEnd('/')).apply()
 
-    /** Set by whatever authenticated NAgex web/app session the user is
-     * already signed into on this device — Phase B does not implement a
-     * new mobile-specific login flow; it reuses the caller-authenticated
-     * tenant/principal header convention every other NAgex HTTP route
-     * already uses. */
+    /** The real, server-issued session credential — required for
+     * enrollment. Never a client-chosen tenant/principal string. */
+    var sessionToken: String?
+        get() = encryptedPrefs.getString(KEY_SESSION_TOKEN, null)
+        set(value) = encryptedPrefs.edit().putString(KEY_SESSION_TOKEN, value).apply()
+
+    /** Informational only, populated FROM the enrollment response after a
+     * successful enroll — never sent as an auth header themselves. Used
+     * only to label which tenant/user this device is currently enrolled
+     * under, for the status screen. */
     var tenantId: String?
         get() = prefs.getString(KEY_TENANT_ID, null)
         set(value) = prefs.edit().putString(KEY_TENANT_ID, value).apply()
@@ -43,6 +76,7 @@ class NagexServerConfig(context: Context) {
 
     companion object {
         private const val KEY_SERVER_BASE_URL = "server_base_url"
+        private const val KEY_SESSION_TOKEN = "session_token"
         private const val KEY_TENANT_ID = "tenant_id"
         private const val KEY_PRINCIPAL_ID = "principal_id"
         private const val KEY_DEVICE_ID = "device_id"

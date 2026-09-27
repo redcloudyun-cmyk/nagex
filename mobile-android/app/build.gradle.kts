@@ -62,3 +62,18 @@ dependencies {
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
 }
+
+// This repository's absolute path contains non-ASCII (Korean) characters
+// (a fixed, external constraint — see gradle.properties's
+// android.overridePathCheck note). Gradle's forked unit-test worker JVM
+// does not inherit org.gradle.jvmargs's -Dfile.encoding=UTF-8 (that only
+// applies to the Gradle daemon itself), so on a Windows host whose default
+// codepage is not UTF-8, the worker can fail to resolve its own classpath
+// entries under this path (observed: every test class throwing
+// ClassNotFoundException at initialization, never a real per-test
+// failure). Setting both file.encoding and sun.jnu.encoding explicitly on
+// the forked worker fixes this at the source rather than depending on the
+// invoking shell's console codepage.
+tasks.withType<Test> {
+    jvmArgs("-Dfile.encoding=UTF-8", "-Dsun.jnu.encoding=UTF-8")
+}

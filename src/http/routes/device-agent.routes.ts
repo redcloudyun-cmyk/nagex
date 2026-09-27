@@ -12,18 +12,34 @@
 // R23.6M Phase B1 — adds the one missing piece DC3-A/DC3-B1 never wired to
 // HTTP: enrollment itself. DeviceIdentityStore.enroll() has existed since
 // DC3-A but had no caller anywhere in the codebase — a device could only
-// ever be enrolled by hand-writing a record file. /enroll is the ordinary,
-// authenticated-user-session route (x-nagex-tenant/x-principal-id, same
-// convention as every other non-device-transport route) a logged-in user's
-// device — desktop OR Android; this route is not mobile-specific — calls
-// once, submitting the public half of a keypair IT generated locally and
-// never transmits the private half. This is intentionally the only place
-// a DeviceIdentityRecord is created; every device (Windows agent, Android
-// companion app, or any future platform) enrolls exactly the same way.
+// ever be enrolled by hand-writing a record file.
+//
+// R23.6M Phase B4 security audit finding, fixed here: /enroll originally
+// derived tenantId/ownerId from the same x-nagex-tenant/x-principal-id
+// headers every other route in this codebase currently trusts at face
+// value (a pre-existing, systemic gap spanning the whole HTTP layer, not
+// specific to this route — see server_web.ts's handleApiRequest, which
+// falls back to 'ten_production_01'/'usr_admin_001' when these headers are
+// simply absent). For most routes that is an accepted, if imperfect,
+// existing posture. For device enrollment specifically it is not
+// acceptable: it would let any caller mint a real, ACTIVE device identity
+// for an arbitrary tenant/user just by setting two headers. /enroll is
+// fixed narrowly (not the rest of the app) by requiring the SAME real,
+// already-working session mechanism auth.routes.ts already uses for login
+// (an httpOnly `nagex_session` cookie, or `Authorization: Bearer
+// <sessionId>`, validated via SessionStore.getSession() — real,
+// expiry/revocation-checked, bound to tenantId/principalId at login time,
+// not client-controlled). tenantId/ownerId are derived ONLY from that
+// validated session; x-nagex-tenant/x-principal-id are no longer read for
+// this route at all. This does not change or weaken
+// DeviceTransportSecurity — /message's signature-based verification is
+// completely untouched.
 import crypto from 'node:crypto';
 import { NagexError } from '../../common/errors.js';
 import type { DeviceAgentTransportEndpoint } from '../../device-agent/device-agent-transport-endpoint.service.js';
 import type { DeviceIdentityStore } from '../../device-agent/device-identity.store.js';
+import type { SessionStore } from '../../sessions/session.store.js';
+import { getSessionIdFromHeaders } from './auth.routes.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
 
 function getHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
@@ -34,10 +50,11 @@ function getHeaderValue(headers: Record<string, string | string[] | undefined>, 
 export interface DeviceAgentRouteDeps {
   deviceAgentTransportEndpoint: DeviceAgentTransportEndpoint;
   deviceIdentityStore: DeviceIdentityStore;
+  sessionStore: SessionStore;
 }
 
 export const handleDeviceAgentRoutes: AsyncRouteRegistrar<DeviceAgentRouteDeps> = async (method, pathname, body, headers, _query, deps): Promise<ApiResult | undefined> => {
-  const { deviceAgentTransportEndpoint, deviceIdentityStore } = deps;
+  const { deviceAgentTransportEndpoint, deviceIdentityStore, sessionStore } = deps;
 
   if (pathname === '/api/v1/device-agent/message' && method === 'POST') {
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
@@ -52,11 +69,19 @@ export const handleDeviceAgentRoutes: AsyncRouteRegistrar<DeviceAgentRouteDeps> 
 
   if (pathname === '/api/v1/device-agent/enroll' && method === 'POST') {
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant');
-    const ownerId = getHeaderValue(headers, 'x-principal-id');
-    if (!tenantId || !ownerId) {
-      throw new NagexError({ code: 'DEVICE_ENROLL_AUTH_REQUIRED', category: 'VALIDATION', message: 'x-nagex-tenant and x-principal-id are required.', request_id: requestId });
+
+    // tenantId/ownerId come ONLY from a real, validated session — never
+    // from a caller-supplied header. A missing, unknown, expired, or
+    // revoked session is rejected identically (never a distinguishable
+    // error that would help an attacker probe session validity).
+    const sessionId = getSessionIdFromHeaders(headers);
+    const session = sessionId ? sessionStore.getSession(sessionId) : null;
+    if (!session) {
+      throw new NagexError({ code: 'DEVICE_ENROLL_AUTH_REQUIRED', category: 'AUTHENTICATION', message: 'A valid authenticated session is required to enroll a device.', request_id: requestId });
     }
+    const tenantId = session.tenantId;
+    const ownerId = session.principalId;
+
     const publicKey = typeof body?.publicKey === 'string' ? body.publicKey : '';
     const agentVersion = typeof body?.agentVersion === 'string' ? body.agentVersion : '';
     const capabilityInventory = Array.isArray(body?.capabilityInventory) && body.capabilityInventory.every((c: unknown) => typeof c === 'string')

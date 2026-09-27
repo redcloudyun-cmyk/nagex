@@ -33,14 +33,12 @@ class StatusActivity : AppCompatActivity() {
         enrollmentManager = DeviceEnrollmentManager(config, keyManager, apiClient)
 
         binding.serverUrlInput.setText(config.serverBaseUrl)
-        binding.tenantIdInput.setText(config.tenantId ?: "")
-        binding.principalIdInput.setText(config.principalId ?: "")
+        binding.sessionTokenInput.setText(config.sessionToken ?: "")
         renderStatus()
 
         binding.saveConfigButton.setOnClickListener {
             config.serverBaseUrl = binding.serverUrlInput.text.toString()
-            config.tenantId = binding.tenantIdInput.text.toString().ifBlank { null }
-            config.principalId = binding.principalIdInput.text.toString().ifBlank { null }
+            config.sessionToken = binding.sessionTokenInput.text.toString().ifBlank { null }
             binding.statusText.text = "Configuration saved."
         }
 

@@ -42,6 +42,10 @@ class DeviceEnrollmentManager(
             val result = apiClient.enroll(keyManager.publicKeyPem(), agentVersion, CAPABILITIES)
             config.deviceId = result.deviceId
             config.deviceStatus = result.status
+            // tenantId/ownerId are recorded FROM the server's own
+            // session-derived response — this app never asserts them itself.
+            config.tenantId = result.tenantId
+            config.principalId = result.ownerId
             EnrollmentOutcome.Enrolled(result.deviceId, result.status)
         } catch (e: Exception) {
             EnrollmentOutcome.Failed(e.message ?: "Enrollment failed for an unknown reason.")
