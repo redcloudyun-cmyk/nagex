@@ -3665,6 +3665,26 @@
       "deterministic": true,
       "assertionIntent": "credential secret non-propagation",
       "notes": "Injected Google credential material may exist only inside the privileged provider callback. Tests prove it is absent from approval, audit, memory, execution result, model/activity/approval dependency paths, and normalized external error surfaces."
+    },
+    "r23_5b_browser_untrusted_boundary": {
+      "milestone": "R23.5B",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "browser",
+        "device",
+        "memory-context",
+        "model-routing",
+        "runtime",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "browser external content remains untrusted and cannot become authority or persistent memory",
+      "notes": "Proves browser observations carry UNTRUSTED_EXTERNAL provenance; page content cannot grant permission, approve action, authorize credentials, override policy, or auto-promote itself into persistent Memory; DeviceControl fails closed if provenance is missing."
     }
   }
 }
