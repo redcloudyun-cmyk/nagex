@@ -19,7 +19,7 @@
 //     executes exactly that frozen action, never re-proposes (Section 11).
 import { NagexError } from '../common/errors.js';
 import type { BrowserToolService } from '../modules/browser/index.js';
-import type { StructuredBrowserSnapshot } from '../modules/browser/index.js';
+import { isUntrustedBrowserContentTrust, type UntrustedStructuredBrowserSnapshot } from '../modules/browser/index.js';
 import type { CapabilityRisk } from '../capabilities/capability.types.js';
 import type { ActionApprovalRecord } from '../governance/action-approval.store.js';
 import {
@@ -209,7 +209,10 @@ export class DeviceControlService {
       }
 
       const observeInput = { tenantId: current.tenantId, ownerId: current.ownerPrincipalId, requestId, browserSessionId: current.browserSessionId };
-      const structuredSnapshot: StructuredBrowserSnapshot = await this.browser.structuredSnapshot(observeInput);
+      const structuredSnapshot: UntrustedStructuredBrowserSnapshot = await this.browser.structuredSnapshot(observeInput);
+      if (!isUntrustedBrowserContentTrust(structuredSnapshot.trust)) {
+        return this.terminate(current, requestId, 'FAILED', 'DEVICE_BROWSER_TRUST_PROVENANCE_MISSING');
+      }
 
       // A freshly opened session that has never navigated anywhere yet
       // sits on "about:blank" (empty hostname) — not a domain violation,
