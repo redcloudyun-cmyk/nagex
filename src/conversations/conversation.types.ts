@@ -37,6 +37,13 @@ export interface ConversationMessageRecord {
 
   createdAt: string;
   updatedAt: string;
+
+  // Monotonic per-store append counter, used to break ties when two
+  // messages share the same millisecond-resolution createdAt timestamp.
+  // Optional for backward compatibility with records persisted before
+  // this field existed; absent on legacy records, always present on any
+  // record written by the current ConversationStore.
+  seq?: number;
 }
 
 const VALID_ROLES = new Set<string>(['USER', 'ASSISTANT', 'SYSTEM', 'TOOL']);
@@ -61,6 +68,7 @@ export function isConversationMessageRecord(value: unknown): value is Conversati
     typeof v.createdAt === 'string' &&
     typeof v.updatedAt === 'string' &&
     (v.requestId === undefined || typeof v.requestId === 'string') &&
-    (v.parentMessageId === undefined || typeof v.parentMessageId === 'string')
+    (v.parentMessageId === undefined || typeof v.parentMessageId === 'string') &&
+    (v.seq === undefined || typeof v.seq === 'number')
   );
 }
