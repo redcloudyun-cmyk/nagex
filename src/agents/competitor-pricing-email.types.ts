@@ -42,7 +42,8 @@ export type E2EAgentFailureReason =
   | 'CREDENTIAL_UNAVAILABLE'
   | 'SEND_FAILED'
   | 'SEND_UNCONFIRMED'
-  | 'RECIPIENT_INVALID';
+  | 'RECIPIENT_INVALID'
+  | 'APPROVAL_EXPIRED';
 
 export interface CompetitorPricingResearchRequest {
   tenantId: string;

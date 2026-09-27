@@ -24,14 +24,26 @@ export interface CompetitorPricingResearchPort {
   research(input: { tenantId: string; ownerId: string; requestId: string; competitor: string; targetUrl: string | null }): Promise<UntrustedPricingEvidence[]>;
 }
 
-// The one seam for requesting the real, human-facing gmail.send_email
-// approval — GmailService.requestApproval already satisfies this shape
-// exactly. Never used for gmail.create_draft (Section 7/Decision — this
-// milestone never calls Gmail's own draft API at all) and never for
-// executeSendEmail (that's Phase E, gated on the human APPROVE this
-// produces).
-export interface GmailSendApprovalPort {
+// The one seam for the real, human-facing gmail.send_email approval and
+// send — GmailService already satisfies this shape exactly (requestApproval/
+// getApproval/executeSendEmail). Never used for gmail.create_draft
+// (Section 7/Decision — this milestone never calls Gmail's own draft API
+// at all). This is the ONLY place this service ever touches Gmail — never
+// the concrete GmailService class, never action-approval.store/
+// security/credentials directly (see the Phase C/D structural test).
+export interface GmailSendPort {
   requestApproval(input: { toolId: string; tenantId: string; principalId: string; payload: unknown; requestId: string }): { approvalId: string };
+  getApproval(approvalId: string, tenantId: string, principalId: string): { status: string } | undefined;
+  executeSendEmail(input: { approvalId: string; payload: unknown; tenantId: string; principalId: string; requestId: string }): Promise<{ executionId: string; externalId: string; externalUrl: string }>;
+}
+
+// Optional — real production wiring passes the composition root's real
+// AuditLogger; tests may omit it. Structurally compatible with
+// AuditLogger.logEvent (any return value is fine here; only the input
+// shape matters). Never given anything but metadata (runId/approvalId/
+// executionId/action/result) — never the draft payload or a credential.
+export interface AuditLogPort {
+  logEvent(event: { actor: { type: string; id: string }; tenant_id: string; action: string; resource: { type: string; id: string }; result: 'SUCCESS' | 'DENIED' | 'PENDING_APPROVAL' | 'FAILED'; request_id: string; details?: Record<string, unknown> }): unknown;
 }
 
 export class CompetitorPricingRunService {
@@ -40,7 +52,8 @@ export class CompetitorPricingRunService {
     private readonly baselineStore: CompetitorPricingBaselineStore,
     private readonly researchService: CompetitorPricingResearchPort,
     private readonly identityLookup: VerifiedIdentityLookup,
-    private readonly gmailApprovalPort: GmailSendApprovalPort,
+    private readonly gmailSendPort: GmailSendPort,
+    private readonly auditLogger?: AuditLogPort,
   ) {}
 
   public startRun(input: CompetitorPricingResearchRequest): CompetitorPricingRunRecord {
@@ -150,11 +163,11 @@ export class CompetitorPricingRunService {
 
     let approval: { approvalId: string };
     try {
-      approval = this.gmailApprovalPort.requestApproval({
+      approval = this.gmailSendPort.requestApproval({
         toolId: GMAIL_SEND_EMAIL_TOOL_ID,
         tenantId,
         principalId: ownerId,
-        payload: { from: 'me', ...run.draftPayload, attachments: [], threadId: null, replyToMessageId: null },
+        payload: this.toGmailComposePayload(run.draftPayload),
         requestId,
       });
     } catch {
@@ -162,6 +175,127 @@ export class CompetitorPricingRunService {
     }
 
     return this.transitionTo(run, 'APPROVAL_REQUIRED', requestId, { approvalId: approval.approvalId });
+  }
+
+  // Phase E Section 5 — APPROVAL_REQUIRED -> APPROVED only after the real
+  // approval system confirms the exact approval is APPROVED. Presence of
+  // an approvalId is never treated as proof by itself. REJECTED/EXPIRED
+  // both BLOCK the run (Section 2/3) — never silently retried, never a
+  // send. Idempotent-safe: called again while still PENDING, this simply
+  // returns the run unchanged rather than throwing.
+  public confirmApproval(runId: string, tenantId: string, ownerId: string, requestId: string): CompetitorPricingRunRecord {
+    const run = this.requireOwnedRun(runId, tenantId, ownerId, requestId);
+    if (!run.approvalId) {
+      return this.transitionTo(run, 'BLOCKED', requestId, { failureReason: 'APPROVAL_REJECTED' });
+    }
+
+    const approval = this.gmailSendPort.getApproval(run.approvalId, tenantId, ownerId);
+    if (!approval || approval.status === 'REJECTED') {
+      this.audit('approval.rejected', run, requestId, 'DENIED');
+      return this.transitionTo(run, 'BLOCKED', requestId, { failureReason: 'APPROVAL_REJECTED' });
+    }
+    if (approval.status === 'EXPIRED') {
+      this.audit('approval.expired', run, requestId, 'DENIED');
+      return this.transitionTo(run, 'BLOCKED', requestId, { failureReason: 'APPROVAL_EXPIRED' });
+    }
+    if (approval.status !== 'APPROVED') {
+      // Still PENDING (or an unexpected CONSUMED at this stage) — no human
+      // decision yet; the run correctly stays at APPROVAL_REQUIRED.
+      return run;
+    }
+
+    const approved = this.transitionTo(run, 'APPROVED', requestId, {});
+    this.audit('approval.confirmed', approved, requestId, 'SUCCESS');
+    return approved;
+  }
+
+  // Phase E Section 6-11 — APPROVED -> SEND_ATTEMPTED -> SENT_CONFIRMED/FAILED.
+  //
+  // Crash-window handling (Section 11): the run is transitioned to
+  // SEND_ATTEMPTED and durably persisted BEFORE the real Gmail call is
+  // made. This is what makes a process crash mid-send leave a truthful
+  // "attempted, outcome unknown" record rather than nothing at all — and
+  // because SEND_ATTEMPTED has no legal self-transition
+  // (competitor-pricing-run.state.ts), a retry of this exact method on an
+  // already-SEND_ATTEMPTED run fails closed with AGENT_RUN_ILLEGAL_TRANSITION
+  // before ever touching Gmail again. This is layer 1 of duplicate-send
+  // protection.
+  //
+  // Layer 2 is the existing ActionApprovalStore itself: approvalId
+  // consumption is synchronous, durably persisted, and one-time-use,
+  // written to disk BEFORE the real Gmail HTTP call even begins (see
+  // GoogleCapabilityExecutionPipeline.execute()). So even if some other
+  // code path bypassed layer 1, GmailService.executeSendEmail would still
+  // reject a replay with APPROVAL_ALREADY_CONSUMED before calling Gmail a
+  // second time.
+  //
+  // Residual, NOT fixed here (out of Phase E's scope — a pre-existing
+  // property of the shared GoogleCapabilityExecutionPipeline, affecting
+  // every Google mutation, not something R23.6E introduces or can safely
+  // fix on its own): if APPROVAL_ALREADY_CONSUMED is thrown here, it means
+  // some earlier attempt already durably consumed the approval before this
+  // call — most plausibly this exact run's own previous attempt, crashed
+  // between Gmail actually processing the send and this method recording
+  // SENT_CONFIRMED. We cannot prove from here whether that earlier Gmail
+  // call actually succeeded. The truthful choice is to leave the run at
+  // SEND_ATTEMPTED — never FAILED (would hide a real send) and never
+  // SENT_CONFIRMED (would fabricate confirmation). This is a genuine,
+  // unresolved ambiguity: only a real reconciliation check against Gmail's
+  // own Sent history could resolve it, and no such capability exists in
+  // this codebase today.
+  public async executeApprovedSend(runId: string, tenantId: string, ownerId: string, requestId: string): Promise<CompetitorPricingRunRecord> {
+    const run = this.requireOwnedRun(runId, tenantId, ownerId, requestId);
+    if (!run.draftPayload || !run.approvalId) {
+      return this.transitionTo(run, 'FAILED', requestId, { failureReason: 'SEND_FAILED' });
+    }
+
+    const attempting = this.transitionTo(run, 'SEND_ATTEMPTED', requestId, {});
+    this.audit('send.attempted', attempting, requestId, 'PENDING_APPROVAL');
+
+    try {
+      const result = await this.gmailSendPort.executeSendEmail({
+        approvalId: attempting.approvalId!,
+        payload: this.toGmailComposePayload(attempting.draftPayload),
+        tenantId,
+        principalId: ownerId,
+        requestId,
+      });
+      const confirmed = this.transitionTo(attempting, 'SENT_CONFIRMED', requestId, { executionId: result.executionId });
+      this.audit('send.confirmed', confirmed, requestId, 'SUCCESS');
+      return confirmed;
+    } catch (error) {
+      if (error instanceof NagexError && error.code === 'APPROVAL_ALREADY_CONSUMED') {
+        // Ambiguous crash-window outcome — see the method doc comment.
+        // Deliberately NOT transitioned further; SEND_ATTEMPTED itself is
+        // the truthful "attempted, unconfirmed" state.
+        this.audit('send.ambiguous_replay_blocked', attempting, requestId, 'DENIED');
+        return attempting;
+      }
+      const failed = this.transitionTo(attempting, 'FAILED', requestId, { failureReason: 'SEND_FAILED' });
+      this.audit('send.failed', failed, requestId, 'FAILED');
+      return failed;
+    }
+  }
+
+  private toGmailComposePayload(draft: CompetitorPricingRunRecord['draftPayload']) {
+    return { from: 'me', ...draft, attachments: [], threadId: null, replyToMessageId: null };
+  }
+
+  private audit(action: string, run: CompetitorPricingRunRecord, requestId: string, result: 'SUCCESS' | 'DENIED' | 'PENDING_APPROVAL' | 'FAILED'): void {
+    if (!this.auditLogger) return;
+    try {
+      this.auditLogger.logEvent({
+        actor: { type: 'user', id: run.ownerId },
+        tenant_id: run.tenantId,
+        action: `competitor_pricing_email.${action}`,
+        resource: { type: 'CompetitorPricingRun', id: run.runId },
+        result,
+        request_id: requestId,
+        details: { runId: run.runId, approvalId: run.approvalId, executionId: run.executionId },
+      });
+    } catch {
+      /* audit logging is best-effort and must never affect the real outcome */
+    }
   }
 
   private requireOwnedRun(runId: string, tenantId: string, ownerId: string, requestId: string): CompetitorPricingRunRecord {

@@ -278,6 +278,7 @@ export function createNagexApplication(): NagexApplication {
     competitorPricingResearchService,
     identityStore,
     gmailService,
+    auditLogger,
   );
 
   const capabilityBroker = new CapabilityBroker(

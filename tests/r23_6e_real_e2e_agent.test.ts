@@ -11,7 +11,8 @@ import assert from 'node:assert/strict';
 
 import { CompetitorPricingBaselineStore } from '../src/agents/competitor-pricing-baseline.store.js';
 import { CompetitorPricingRunStore } from '../src/agents/competitor-pricing-run.store.js';
-import { CompetitorPricingRunService, type CompetitorPricingResearchPort, type GmailSendApprovalPort } from '../src/agents/competitor-pricing-run.service.js';
+import { CompetitorPricingRunService, type CompetitorPricingResearchPort, type GmailSendPort } from '../src/agents/competitor-pricing-run.service.js';
+import { NagexError } from '../src/common/errors.js';
 import type { VerifiedIdentityLookup } from '../src/agents/recipient-resolution.js';
 import { isLegalRunTransition, assertLegalRunTransition } from '../src/agents/competitor-pricing-run.state.js';
 import { computeDimensionKey, computePricingChange } from '../src/agents/pricing-comparability.js';
@@ -46,13 +47,84 @@ function fakeVerifiedIdentity(email: string): VerifiedIdentityLookup {
   return { getByUserId: () => ({ email, verificationStatus: 'VERIFIED', accountState: 'ACTIVE' }) };
 }
 
-function fakeGmailApproval(): GmailSendApprovalPort & { requests: Array<{ toolId: string; payload: unknown }> } {
+interface FakeApprovalRecord {
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CONSUMED' | 'EXPIRED';
+  toolId: string;
+  payload: unknown;
+  tenantId: string;
+  principalId: string;
+}
+
+// Mirrors the REAL ActionApprovalStore/GmailService semantics closely
+// enough for meaningful orchestration-level tests (status lifecycle,
+// one-time consumption, exact-payload drift detection via a hash-
+// equivalent deep-equality check) — the exhaustive edge-case correctness
+// of the real mechanism itself is R23.3T's job (rerun as validation, not
+// re-tested here).
+function fakeGmailSendPort(): GmailSendPort & {
+  requests: Array<{ toolId: string; payload: unknown }>;
+  sendCalls: Array<{ approvalId: string; payload: unknown }>;
+  approveFake: (approvalId: string) => void;
+  rejectFake: (approvalId: string) => void;
+  expireFake: (approvalId: string) => void;
+  approvals: Map<string, FakeApprovalRecord>;
+} {
+  const approvals = new Map<string, FakeApprovalRecord>();
   const requests: Array<{ toolId: string; payload: unknown }> = [];
+  const sendCalls: Array<{ approvalId: string; payload: unknown }> = [];
+  let counter = 0;
+
   return {
+    approvals,
     requests,
+    sendCalls,
     requestApproval: (input) => {
+      counter++;
+      const approvalId = `apr_fake_${counter}`;
+      approvals.set(approvalId, { status: 'PENDING', toolId: input.toolId, payload: input.payload, tenantId: input.tenantId, principalId: input.principalId });
       requests.push({ toolId: input.toolId, payload: input.payload });
-      return { approvalId: `apr_fake_${requests.length}` };
+      return { approvalId };
+    },
+    getApproval: (approvalId, tenantId, principalId) => {
+      const record = approvals.get(approvalId);
+      if (!record || record.tenantId !== tenantId || record.principalId !== principalId) return undefined;
+      return { status: record.status };
+    },
+    approveFake: (approvalId) => {
+      const record = approvals.get(approvalId);
+      if (record) record.status = 'APPROVED';
+    },
+    rejectFake: (approvalId) => {
+      const record = approvals.get(approvalId);
+      if (record) record.status = 'REJECTED';
+    },
+    expireFake: (approvalId) => {
+      const record = approvals.get(approvalId);
+      if (record) record.status = 'EXPIRED';
+    },
+    executeSendEmail: async (input) => {
+      const record = approvals.get(input.approvalId);
+      if (!record || record.tenantId !== input.tenantId || record.principalId !== input.principalId) {
+        throw new NagexError({ code: 'APPROVAL_NOT_FOUND', category: 'NOT_FOUND', message: 'not found', request_id: input.requestId });
+      }
+      if (record.status === 'CONSUMED') {
+        throw new NagexError({ code: 'APPROVAL_ALREADY_CONSUMED', category: 'CONFLICT', message: 'already consumed', request_id: input.requestId });
+      }
+      if (record.status === 'EXPIRED') {
+        throw new NagexError({ code: 'APPROVAL_EXPIRED', category: 'POLICY', message: 'expired', request_id: input.requestId });
+      }
+      if (record.status !== 'APPROVED') {
+        throw new NagexError({ code: 'APPROVAL_NOT_GRANTED', category: 'POLICY', message: 'not approved', request_id: input.requestId });
+      }
+      if (record.toolId !== 'gmail.send_email') {
+        throw new NagexError({ code: 'APPROVAL_TOOL_MISMATCH', category: 'VALIDATION', message: 'tool mismatch', request_id: input.requestId });
+      }
+      if (JSON.stringify(record.payload) !== JSON.stringify(input.payload)) {
+        throw new NagexError({ code: 'APPROVAL_PAYLOAD_MISMATCH', category: 'VALIDATION', message: 'payload drift', request_id: input.requestId });
+      }
+      record.status = 'CONSUMED';
+      sendCalls.push({ approvalId: input.approvalId, payload: input.payload });
+      return { executionId: `exe_fake_${sendCalls.length}`, externalId: `ext_${sendCalls.length}`, externalUrl: 'https://mail.google.com/mail/u/0/#sent' };
     },
   };
 }
@@ -266,7 +338,7 @@ test('R23.6E starting a run persists it in RESEARCHING and is tenant/owner isola
     new CompetitorPricingBaselineStore({ dir: tmp('baseline-store') }),
     noResearch(),
     noVerifiedIdentity(),
-    fakeGmailApproval(),
+    fakeGmailSendPort(),
   );
   const run = runService.startRun({ tenantId: 'ten_a', ownerId: 'usr_a', requestId: 'req_1', competitor: 'Acme' });
   assert.equal(run.status, 'RESEARCHING');
@@ -284,7 +356,7 @@ test('R23.6E starting a run requires a non-blank competitor', () => {
     new CompetitorPricingBaselineStore({ dir: tmp('baseline-store-2') }),
     noResearch(),
     noVerifiedIdentity(),
-    fakeGmailApproval(),
+    fakeGmailSendPort(),
   );
   assert.throws(
     () => runService.startRun({ tenantId: 'ten_a', ownerId: 'usr_a', requestId: 'req_1', competitor: '   ' }),
@@ -301,7 +373,7 @@ test('R23.6E POST /api/v1/agents/competitor-pricing-email creates a run in RESEA
     new CompetitorPricingBaselineStore({ dir: tmp('baseline-store-route') }),
     noResearch(),
     noVerifiedIdentity(),
-    fakeGmailApproval(),
+    fakeGmailSendPort(),
   );
   const result = await handleCompetitorPricingAgentRoutes(
     'POST', '/api/v1/agents/competitor-pricing-email',
@@ -324,7 +396,7 @@ test('R23.6E POST rejects a blank competitor rather than silently creating an em
     new CompetitorPricingBaselineStore({ dir: tmp('baseline-store-route-2') }),
     noResearch(),
     noVerifiedIdentity(),
-    fakeGmailApproval(),
+    fakeGmailSendPort(),
   );
   await assert.rejects(
     () => handleCompetitorPricingAgentRoutes('POST', '/api/v1/agents/competitor-pricing-email', {}, headers('ten_a', 'usr_a'), {}, { competitorPricingRunService: runService }),
@@ -341,7 +413,7 @@ test('R23.6E GET run status is tenant/owner isolated at the route layer', async 
     new CompetitorPricingBaselineStore({ dir: tmp('baseline-store-route-3') }),
     noResearch(),
     noVerifiedIdentity(),
-    fakeGmailApproval(),
+    fakeGmailSendPort(),
   );
   const created = await handleCompetitorPricingAgentRoutes(
     'POST', '/api/v1/agents/competitor-pricing-email', { competitor: 'Acme' },
@@ -506,7 +578,7 @@ test('R23.6E completeResearch advances RESEARCHING -> REPORT_READY with no basel
     new CompetitorPricingBaselineStore({ dir: tmp('baseline-c-1') }),
     fakeResearch([makeEvidence()]),
     noVerifiedIdentity(),
-    fakeGmailApproval(),
+    fakeGmailSendPort(),
   );
   const run = runService.startRun({ tenantId: 'ten_a', ownerId: 'usr_a', requestId: 'req_1', competitor: 'Acme' });
   const updated = await runService.completeResearch(run.runId, 'ten_a', 'usr_a', 'req_2');
@@ -528,7 +600,7 @@ test('R23.6E completeResearch computes a correct absolute and percentage change 
     baselineStore,
     fakeResearch([makeEvidence({ price: 29 })]),
     noVerifiedIdentity(),
-    fakeGmailApproval(),
+    fakeGmailSendPort(),
   );
   const run = runService.startRun({ tenantId: 'ten_a', ownerId: 'usr_a', requestId: 'req_1', competitor: 'Acme' });
   const updated = await runService.completeResearch(run.runId, 'ten_a', 'usr_a', 'req_2');
@@ -549,7 +621,7 @@ test('R23.6E completeResearch reports NOT_DIRECTLY_COMPARABLE when the tax basis
     baselineStore,
     fakeResearch([makeEvidence({ price: 29, taxIncluded: false })]),
     noVerifiedIdentity(),
-    fakeGmailApproval(),
+    fakeGmailSendPort(),
   );
   const run = runService.startRun({ tenantId: 'ten_a', ownerId: 'usr_a', requestId: 'req_1', competitor: 'Acme' });
   const updated = await runService.completeResearch(run.runId, 'ten_a', 'usr_a', 'req_2');
@@ -563,7 +635,7 @@ test('R23.6E completeResearch fails the run when research returns zero evidence,
     new CompetitorPricingBaselineStore({ dir: tmp('baseline-c-4') }),
     fakeResearch([]),
     noVerifiedIdentity(),
-    fakeGmailApproval(),
+    fakeGmailSendPort(),
   );
   const run = runService.startRun({ tenantId: 'ten_a', ownerId: 'usr_a', requestId: 'req_1', competitor: 'Acme' });
   const updated = await runService.completeResearch(run.runId, 'ten_a', 'usr_a', 'req_2');
@@ -577,7 +649,7 @@ test('R23.6E completeResearch fails the run (not a fabricated success) when rese
     new CompetitorPricingBaselineStore({ dir: tmp('baseline-c-5') }),
     fakeResearch(() => { throw new Error('provider unavailable'); }),
     noVerifiedIdentity(),
-    fakeGmailApproval(),
+    fakeGmailSendPort(),
   );
   const run = runService.startRun({ tenantId: 'ten_a', ownerId: 'usr_a', requestId: 'req_1', competitor: 'Acme' });
   const updated = await runService.completeResearch(run.runId, 'ten_a', 'usr_a', 'req_2');
@@ -592,7 +664,7 @@ test('R23.6E completeResearch fails closed (throws, run stays RESEARCHING) when 
     new CompetitorPricingBaselineStore({ dir: tmp('baseline-c-6') }),
     fakeResearch([withoutTrust as any]),
     noVerifiedIdentity(),
-    fakeGmailApproval(),
+    fakeGmailSendPort(),
   );
   const run = runService.startRun({ tenantId: 'ten_a', ownerId: 'usr_a', requestId: 'req_1', competitor: 'Acme' });
   await assert.rejects(
@@ -612,7 +684,7 @@ test('R23.6E a run can advance RESEARCHING -> REPORT_READY only once; a second a
     new CompetitorPricingBaselineStore({ dir: tmp('baseline-c-7') }),
     fakeResearch([makeEvidence()]),
     noVerifiedIdentity(),
-    fakeGmailApproval(),
+    fakeGmailSendPort(),
   );
   const run = runService.startRun({ tenantId: 'ten_a', ownerId: 'usr_a', requestId: 'req_1', competitor: 'Acme' });
   await runService.completeResearch(run.runId, 'ten_a', 'usr_a', 'req_2');
@@ -633,12 +705,12 @@ test('R23.6E baseline lookup during research is cross-tenant and cross-owner iso
     price: 25, sourceUrl: 'https://acme.example/pricing', retrievedAt: '2026-09-20T00:00:00.000Z',
   });
 
-  const crossTenantRun = new CompetitorPricingRunService(new CompetitorPricingRunStore({ dir: tmp('run-c-8a') }), baselineStore, fakeResearch([makeEvidence({ price: 29 })]), noVerifiedIdentity(), fakeGmailApproval());
+  const crossTenantRun = new CompetitorPricingRunService(new CompetitorPricingRunStore({ dir: tmp('run-c-8a') }), baselineStore, fakeResearch([makeEvidence({ price: 29 })]), noVerifiedIdentity(), fakeGmailSendPort());
   const runA = crossTenantRun.startRun({ tenantId: 'ten_b', ownerId: 'usr_a', requestId: 'req_1', competitor: 'Acme' });
   const resultA = await crossTenantRun.completeResearch(runA.runId, 'ten_b', 'usr_a', 'req_2');
   assert.equal(resultA.change?.reason, 'NO_BASELINE', 'a different tenant must never see another tenant\'s baseline');
 
-  const crossOwnerRun = new CompetitorPricingRunService(new CompetitorPricingRunStore({ dir: tmp('run-c-8b') }), baselineStore, fakeResearch([makeEvidence({ price: 29 })]), noVerifiedIdentity(), fakeGmailApproval());
+  const crossOwnerRun = new CompetitorPricingRunService(new CompetitorPricingRunStore({ dir: tmp('run-c-8b') }), baselineStore, fakeResearch([makeEvidence({ price: 29 })]), noVerifiedIdentity(), fakeGmailSendPort());
   const runB = crossOwnerRun.startRun({ tenantId: 'ten_a', ownerId: 'usr_b', requestId: 'req_1', competitor: 'Acme' });
   const resultB = await crossOwnerRun.completeResearch(runB.runId, 'ten_a', 'usr_b', 'req_2');
   assert.equal(resultB.change?.reason, 'NO_BASELINE', 'a different owner must never see another owner\'s baseline');
@@ -655,7 +727,7 @@ test('R23.6E hostile evidence text can never change the run\'s recipient, and tr
     new CompetitorPricingBaselineStore({ dir: tmp('baseline-c-9') }),
     fakeResearch([hostileEvidence]),
     noVerifiedIdentity(),
-    fakeGmailApproval(),
+    fakeGmailSendPort(),
   );
   const run = runService.startRun({ tenantId: 'ten_a', ownerId: 'usr_a', requestId: 'req_1', competitor: 'Acme', recipientEmail: 'real-user@example.com' });
   const updated = await runService.completeResearch(run.runId, 'ten_a', 'usr_a', 'req_2');
@@ -715,20 +787,21 @@ test('R23.6E Phase C research/extraction modules import no Gmail, approval, cred
 // internal immutable draft payload, and DRAFT_CREATED -> APPROVAL_REQUIRED
 // ══════════════════════════════════════════════════════════════════════
 
-test('R23.6E Phase D orchestration never imports GmailService, ActionApprovalStore, or CredentialBrokerService directly — only the narrow ports', () => {
+test('R23.6E orchestration never imports GmailService, ActionApprovalStore, or CredentialBrokerService directly — only the narrow ports', () => {
   const content = fs.readFileSync(path.resolve('src/agents/competitor-pricing-run.service.ts'), 'utf8');
-  assert.doesNotMatch(content, /import\s*\{[^}]*\bGmailService\b/, 'must depend on GmailSendApprovalPort, never the concrete GmailService class');
-  assert.doesNotMatch(content, /action-approval\.store/);
-  assert.doesNotMatch(content, /security\/credentials/);
-  assert.doesNotMatch(content, /context\/memory\.engine/);
-  // GMAIL_SEND_EMAIL_TOOL_ID is a plain string constant, not GmailService
-  // itself or a call to send/execute anything — never modules/gmail/gmail.client
-  // (the module-private compose/send implementation). Strip comments first
-  // so a doc-comment merely explaining what Phase E will call doesn't
-  // trip this — only an actual method CALL (`.executeXxx(`) counts.
-  assert.doesNotMatch(content, /gmail\.client/);
+  // Strip comments first — this file's own doc-comments explain, by name,
+  // which real modules/methods it deliberately never imports/calls; only
+  // an actual import or method CALL should trip these checks.
   const withoutComments = content.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
-  assert.doesNotMatch(withoutComments, /\.executeSendEmail\(|\.executeCreateDraft\(/, 'Phase D must perform zero Gmail send calls and never call Gmail\'s own create_draft');
+  assert.doesNotMatch(withoutComments, /import\s*\{[^}]*\bGmailService\b/, 'must depend on GmailSendPort, never the concrete GmailService class');
+  assert.doesNotMatch(withoutComments, /action-approval\.store/);
+  assert.doesNotMatch(withoutComments, /security\/credentials/);
+  assert.doesNotMatch(withoutComments, /context\/memory\.engine/);
+  assert.doesNotMatch(withoutComments, /gmail\.client/);
+  // executeSendEmail IS legitimately called now (Phase E), but only ever
+  // as this.gmailSendPort.executeSendEmail(...) — through the injected
+  // port, never a concrete GmailService instance constructed in this file.
+  assert.doesNotMatch(withoutComments, /new GmailService\(/);
 });
 
 test('R23.6E composePricingReport never re-queries the web and never fabricates a value the evidence does not support', () => {
@@ -796,7 +869,7 @@ test('R23.6E an explicit valid recipient is used as-is', async () => {
     new CompetitorPricingBaselineStore({ dir: tmp('baseline-d-1') }),
     fakeResearch([makeEvidence()]),
     noVerifiedIdentity(),
-    fakeGmailApproval(),
+    fakeGmailSendPort(),
   );
   const run = runService.startRun({ tenantId: 'ten_a', ownerId: 'usr_a', requestId: 'req_1', competitor: 'Acme', recipientEmail: 'explicit@example.com' });
   await runService.completeResearch(run.runId, 'ten_a', 'usr_a', 'req_2');
@@ -812,7 +885,7 @@ test('R23.6E with no explicit recipient, the caller\'s own verified account emai
     new CompetitorPricingBaselineStore({ dir: tmp('baseline-d-2') }),
     fakeResearch([makeEvidence()]),
     fakeVerifiedIdentity('me@example.com'),
-    fakeGmailApproval(),
+    fakeGmailSendPort(),
   );
   const run = runService.startRun({ tenantId: 'ten_a', ownerId: 'usr_a', requestId: 'req_1', competitor: 'Acme' });
   await runService.completeResearch(run.runId, 'ten_a', 'usr_a', 'req_2');
@@ -827,7 +900,7 @@ test('R23.6E an unverified account email is never used as the recipient', async 
     new CompetitorPricingBaselineStore({ dir: tmp('baseline-d-3') }),
     fakeResearch([makeEvidence()]),
     unverified,
-    fakeGmailApproval(),
+    fakeGmailSendPort(),
   );
   const run = runService.startRun({ tenantId: 'ten_a', ownerId: 'usr_a', requestId: 'req_1', competitor: 'Acme' });
   await runService.completeResearch(run.runId, 'ten_a', 'usr_a', 'req_2');
@@ -842,7 +915,7 @@ test('R23.6E no valid recipient at all blocks progression rather than guessing a
     new CompetitorPricingBaselineStore({ dir: tmp('baseline-d-4') }),
     fakeResearch([makeEvidence()]),
     noVerifiedIdentity(),
-    fakeGmailApproval(),
+    fakeGmailSendPort(),
   );
   const run = runService.startRun({ tenantId: 'ten_a', ownerId: 'usr_a', requestId: 'req_1', competitor: 'Acme' });
   await runService.completeResearch(run.runId, 'ten_a', 'usr_a', 'req_2');
@@ -859,7 +932,7 @@ test('R23.6E hostile evidence text can never change the resolved recipient', asy
     new CompetitorPricingBaselineStore({ dir: tmp('baseline-d-5') }),
     fakeResearch([hostileEvidence]),
     noVerifiedIdentity(),
-    fakeGmailApproval(),
+    fakeGmailSendPort(),
   );
   const run = runService.startRun({ tenantId: 'ten_a', ownerId: 'usr_a', requestId: 'req_1', competitor: 'Acme', recipientEmail: 'real-user@example.com' });
   await runService.completeResearch(run.runId, 'ten_a', 'usr_a', 'req_2');
@@ -876,7 +949,7 @@ test('R23.6E a valid draft is created and the draft payload equals the composed 
     new CompetitorPricingBaselineStore({ dir: tmp('baseline-d-6') }),
     fakeResearch([makeEvidence()]),
     noVerifiedIdentity(),
-    fakeGmailApproval(),
+    fakeGmailSendPort(),
   );
   const run = runService.startRun({ tenantId: 'ten_a', ownerId: 'usr_a', requestId: 'req_1', competitor: 'Acme', recipientEmail: 'user@example.com' });
   await runService.completeResearch(run.runId, 'ten_a', 'usr_a', 'req_2');
@@ -890,7 +963,7 @@ test('R23.6E a valid draft is created and the draft payload equals the composed 
 });
 
 test('R23.6E approval is requested only after a draft exists, and only for gmail.send_email', async () => {
-  const gmailApproval = fakeGmailApproval();
+  const gmailApproval = fakeGmailSendPort();
   const runService = new CompetitorPricingRunService(
     new CompetitorPricingRunStore({ dir: tmp('run-d-7') }),
     new CompetitorPricingBaselineStore({ dir: tmp('baseline-d-7') }),
@@ -913,7 +986,7 @@ test('R23.6E approval is requested only after a draft exists, and only for gmail
 });
 
 test('R23.6E approval binds the exact to/subject/body payload from the frozen draft', async () => {
-  const gmailApproval = fakeGmailApproval();
+  const gmailApproval = fakeGmailSendPort();
   const runService = new CompetitorPricingRunService(
     new CompetitorPricingRunStore({ dir: tmp('run-d-8') }),
     new CompetitorPricingBaselineStore({ dir: tmp('baseline-d-8') }),
@@ -943,7 +1016,7 @@ test('R23.6E Phase D never reaches APPROVED, SEND_ATTEMPTED, or SENT_CONFIRMED',
     new CompetitorPricingBaselineStore({ dir: tmp('baseline-d-9') }),
     fakeResearch([makeEvidence()]),
     noVerifiedIdentity(),
-    fakeGmailApproval(),
+    fakeGmailSendPort(),
   );
   const run = runService.startRun({ tenantId: 'ten_a', ownerId: 'usr_a', requestId: 'req_1', competitor: 'Acme', recipientEmail: 'user@example.com' });
   await runService.completeResearch(run.runId, 'ten_a', 'usr_a', 'req_2');
@@ -962,7 +1035,7 @@ test('R23.6E no baseline promotion occurs during Phase D', async () => {
     baselineStore,
     fakeResearch([makeEvidence({ price: 29 })]),
     noVerifiedIdentity(),
-    fakeGmailApproval(),
+    fakeGmailSendPort(),
   );
   const run = runService.startRun({ tenantId: 'ten_a', ownerId: 'usr_a', requestId: 'req_1', competitor: 'Acme', recipientEmail: 'user@example.com' });
   await runService.completeResearch(run.runId, 'ten_a', 'usr_a', 'req_2');
@@ -979,7 +1052,7 @@ test('R23.6E cross-tenant and cross-owner run access remains blocked through Pha
     new CompetitorPricingBaselineStore({ dir: tmp('baseline-d-11') }),
     fakeResearch([makeEvidence()]),
     fakeVerifiedIdentity('me@example.com'),
-    fakeGmailApproval(),
+    fakeGmailSendPort(),
   );
   const run = runService.startRun({ tenantId: 'ten_a', ownerId: 'usr_a', requestId: 'req_1', competitor: 'Acme', recipientEmail: 'user@example.com' });
   await runService.completeResearch(run.runId, 'ten_a', 'usr_a', 'req_2');
@@ -993,7 +1066,7 @@ test('R23.6E cross-tenant and cross-owner run access remains blocked through Pha
 });
 
 test('R23.6E no plaintext credential ever appears in the draft payload or approval request', async () => {
-  const gmailApproval = fakeGmailApproval();
+  const gmailApproval = fakeGmailSendPort();
   const runService = new CompetitorPricingRunService(
     new CompetitorPricingRunStore({ dir: tmp('run-d-12') }),
     new CompetitorPricingBaselineStore({ dir: tmp('baseline-d-12') }),
@@ -1008,4 +1081,344 @@ test('R23.6E no plaintext credential ever appears in the draft payload or approv
 
   const serialized = JSON.stringify(gmailApproval.requests);
   assert.doesNotMatch(serialized, /ya29\.|access_token|refresh_token|Bearer /i);
+});
+
+// ══════════════════════════════════════════════════════════════════════
+// Phase E — approval resolution, payload-drift protection, real Gmail
+// send, provider success/failure semantics, and duplicate-send /
+// crash-window protection
+// ══════════════════════════════════════════════════════════════════════
+
+// Advances a fresh run all the way to APPROVAL_REQUIRED, reusing exactly
+// the Phase C/D methods already certified above.
+async function buildApprovalRequiredRun(overrides: { recipientEmail?: string; evidence?: UntrustedPricingEvidence[] } = {}) {
+  const gmail = fakeGmailSendPort();
+  const runService = new CompetitorPricingRunService(
+    new CompetitorPricingRunStore({ dir: tmp(`run-e-${Math.random().toString(36).slice(2)}`) }),
+    new CompetitorPricingBaselineStore({ dir: tmp(`baseline-e-${Math.random().toString(36).slice(2)}`) }),
+    fakeResearch(overrides.evidence ?? [makeEvidence()]),
+    noVerifiedIdentity(),
+    gmail,
+  );
+  const run = runService.startRun({ tenantId: 'ten_a', ownerId: 'usr_a', requestId: 'req_1', competitor: 'Acme', recipientEmail: overrides.recipientEmail ?? 'user@example.com' });
+  await runService.completeResearch(run.runId, 'ten_a', 'usr_a', 'req_2');
+  runService.createDraft(run.runId, 'ten_a', 'usr_a', 'req_3');
+  const withApproval = runService.requestSendApproval(run.runId, 'ten_a', 'usr_a', 'req_4');
+  return { runService, gmail, run: withApproval };
+}
+
+// ── Approval resolution (Section 1, 2, 5) ────────────────────────────────
+
+test('R23.6E a valid, human-approved approval allows the transition to APPROVED', async () => {
+  const { runService, gmail, run } = await buildApprovalRequiredRun();
+  gmail.approveFake(run.approvalId!);
+  const confirmed = runService.confirmApproval(run.runId, 'ten_a', 'usr_a', 'req_5');
+  assert.equal(confirmed.status, 'APPROVED');
+});
+
+test('R23.6E presence of an approvalId alone is never proof of approval — a still-pending approval does not advance the run', async () => {
+  const { runService, run } = await buildApprovalRequiredRun();
+  // Never approved.
+  const stillWaiting = runService.confirmApproval(run.runId, 'ten_a', 'usr_a', 'req_5');
+  assert.equal(stillWaiting.status, 'APPROVAL_REQUIRED');
+});
+
+test('R23.6E a missing approvalId on the run blocks rather than proceeding', async () => {
+  const runService = new CompetitorPricingRunService(
+    new CompetitorPricingRunStore({ dir: tmp('run-e-missing-apr') }),
+    new CompetitorPricingBaselineStore({ dir: tmp('baseline-e-missing-apr') }),
+    fakeResearch([makeEvidence()]),
+    noVerifiedIdentity(),
+    fakeGmailSendPort(),
+  );
+  const run = runService.startRun({ tenantId: 'ten_a', ownerId: 'usr_a', requestId: 'req_1', competitor: 'Acme', recipientEmail: 'user@example.com' });
+  await runService.completeResearch(run.runId, 'ten_a', 'usr_a', 'req_2');
+  runService.createDraft(run.runId, 'ten_a', 'usr_a', 'req_3');
+  // requestSendApproval deliberately never called — approvalId stays null.
+  const blocked = runService.confirmApproval(run.runId, 'ten_a', 'usr_a', 'req_4');
+  assert.equal(blocked.status, 'BLOCKED');
+});
+
+test('R23.6E a rejected approval blocks the run and Gmail send is never invoked', async () => {
+  const { runService, gmail, run } = await buildApprovalRequiredRun();
+  gmail.rejectFake(run.approvalId!);
+  const blocked = runService.confirmApproval(run.runId, 'ten_a', 'usr_a', 'req_5');
+  assert.equal(blocked.status, 'BLOCKED');
+  assert.equal(blocked.failureReason, 'APPROVAL_REJECTED');
+  assert.equal(gmail.sendCalls.length, 0, 'REJECT must cause zero mutation to external Gmail state');
+});
+
+test('R23.6E an expired approval blocks the run', async () => {
+  const { runService, gmail, run } = await buildApprovalRequiredRun();
+  gmail.expireFake(run.approvalId!);
+  const blocked = runService.confirmApproval(run.runId, 'ten_a', 'usr_a', 'req_5');
+  assert.equal(blocked.status, 'BLOCKED');
+  assert.equal(blocked.failureReason, 'APPROVAL_EXPIRED');
+});
+
+test('R23.6E a cross-tenant attempt to confirm approval is blocked, identical to a nonexistent run', async () => {
+  const { runService, gmail, run } = await buildApprovalRequiredRun();
+  gmail.approveFake(run.approvalId!);
+  assert.throws(() => runService.confirmApproval(run.runId, 'ten_b', 'usr_a', 'req_5'), (error: any) => { assert.equal(error.code, 'AGENT_RUN_NOT_FOUND'); return true; });
+});
+
+test('R23.6E a cross-owner attempt to confirm approval is blocked, identical to a nonexistent run', async () => {
+  const { runService, gmail, run } = await buildApprovalRequiredRun();
+  gmail.approveFake(run.approvalId!);
+  assert.throws(() => runService.confirmApproval(run.runId, 'ten_a', 'usr_b', 'req_5'), (error: any) => { assert.equal(error.code, 'AGENT_RUN_NOT_FOUND'); return true; });
+});
+
+// ── Payload drift protection (Section 4) ─────────────────────────────────
+
+test('R23.6E recipient drift after approval blocks the send via the existing payload-hash mechanism', async () => {
+  const { runService, gmail, run } = await buildApprovalRequiredRun();
+  gmail.approveFake(run.approvalId!);
+  runService.confirmApproval(run.runId, 'ten_a', 'usr_a', 'req_5');
+  // Simulate drift: someone mutates the bound approval's recorded payload
+  // recipient after approval, exactly as the real ActionApprovalStore
+  // would detect via its canonical payload hash.
+  gmail.approvals.get(run.approvalId!)!.payload = { ...(gmail.approvals.get(run.approvalId!)!.payload as any), to: ['attacker@evil.example'] };
+  const result = await runService.executeApprovedSend(run.runId, 'ten_a', 'usr_a', 'req_6');
+  assert.equal(result.status, 'FAILED');
+  assert.equal(gmail.sendCalls.length, 0, 'drift must block before any real send');
+});
+
+test('R23.6E subject drift after approval blocks the send', async () => {
+  const { runService, gmail, run } = await buildApprovalRequiredRun();
+  gmail.approveFake(run.approvalId!);
+  runService.confirmApproval(run.runId, 'ten_a', 'usr_a', 'req_5');
+  gmail.approvals.get(run.approvalId!)!.payload = { ...(gmail.approvals.get(run.approvalId!)!.payload as any), subject: 'Something else entirely' };
+  const result = await runService.executeApprovedSend(run.runId, 'ten_a', 'usr_a', 'req_6');
+  assert.equal(result.status, 'FAILED');
+  assert.equal(gmail.sendCalls.length, 0);
+});
+
+test('R23.6E body drift after approval blocks the send', async () => {
+  const { runService, gmail, run } = await buildApprovalRequiredRun();
+  gmail.approveFake(run.approvalId!);
+  runService.confirmApproval(run.runId, 'ten_a', 'usr_a', 'req_5');
+  gmail.approvals.get(run.approvalId!)!.payload = { ...(gmail.approvals.get(run.approvalId!)!.payload as any), body: 'Completely different body content.' };
+  const result = await runService.executeApprovedSend(run.runId, 'ten_a', 'usr_a', 'req_6');
+  assert.equal(result.status, 'FAILED');
+  assert.equal(gmail.sendCalls.length, 0);
+});
+
+test('R23.6E cc/bcc drift after approval blocks the send', async () => {
+  const { runService, gmail, run } = await buildApprovalRequiredRun();
+  gmail.approveFake(run.approvalId!);
+  runService.confirmApproval(run.runId, 'ten_a', 'usr_a', 'req_5');
+  gmail.approvals.get(run.approvalId!)!.payload = { ...(gmail.approvals.get(run.approvalId!)!.payload as any), cc: ['unexpected@example.com'] };
+  const result = await runService.executeApprovedSend(run.runId, 'ten_a', 'usr_a', 'req_6');
+  assert.equal(result.status, 'FAILED');
+  assert.equal(gmail.sendCalls.length, 0);
+});
+
+test('R23.6E an approval bound to the wrong tool/action blocks the send', async () => {
+  const { runService, gmail, run } = await buildApprovalRequiredRun();
+  gmail.approvals.get(run.approvalId!)!.toolId = 'gmail.create_draft';
+  gmail.approveFake(run.approvalId!);
+  runService.confirmApproval(run.runId, 'ten_a', 'usr_a', 'req_5');
+  const result = await runService.executeApprovedSend(run.runId, 'ten_a', 'usr_a', 'req_6');
+  assert.equal(result.status, 'FAILED');
+  assert.equal(gmail.sendCalls.length, 0);
+});
+
+test('R23.6E the exact approved payload reaches Gmail send, never regenerated', async () => {
+  const { runService, gmail, run } = await buildApprovalRequiredRun();
+  gmail.approveFake(run.approvalId!);
+  runService.confirmApproval(run.runId, 'ten_a', 'usr_a', 'req_5');
+  const confirmed = await runService.executeApprovedSend(run.runId, 'ten_a', 'usr_a', 'req_6');
+  assert.equal(confirmed.status, 'SENT_CONFIRMED');
+  assert.deepEqual(gmail.sendCalls[0].payload, gmail.requests[0].payload, 'the payload sent must be byte-for-byte identical to the approved payload');
+});
+
+// ── Send is gated on APPROVED (Section 5, 9) ─────────────────────────────
+
+test('R23.6E send is invoked only after APPROVED — APPROVAL_REQUIRED cannot skip straight to a send attempt', async () => {
+  const { runService, gmail, run } = await buildApprovalRequiredRun();
+  // Never approved or confirmed.
+  await assert.rejects(
+    () => runService.executeApprovedSend(run.runId, 'ten_a', 'usr_a', 'req_5'),
+    (error: any) => { assert.equal(error.code, 'AGENT_RUN_ILLEGAL_TRANSITION'); return true; },
+  );
+  assert.equal(gmail.sendCalls.length, 0);
+});
+
+// ── Credential path / secret hygiene (Section 7) ─────────────────────────
+
+test('R23.6E Phase E orchestration only ever touches credentials through the injected GmailSendPort, never directly', () => {
+  const content = fs.readFileSync(path.resolve('src/agents/competitor-pricing-run.service.ts'), 'utf8');
+  // Strip comments first — this file's own doc-comments explain, by name,
+  // which real modules it deliberately never imports; only an actual
+  // import/call should trip this.
+  const withoutComments = content.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.doesNotMatch(withoutComments, /security\/credentials/);
+  assert.doesNotMatch(withoutComments, /action-approval\.store/);
+  assert.doesNotMatch(withoutComments, /getValidAccessToken|access_token|refresh_token/i);
+});
+
+test('R23.6E no raw secret ever appears in the run record, activity/audit calls, or the Gmail request', async () => {
+  const auditCalls: any[] = [];
+  const gmail = fakeGmailSendPort();
+  const runService = new CompetitorPricingRunService(
+    new CompetitorPricingRunStore({ dir: tmp('run-e-secret') }),
+    new CompetitorPricingBaselineStore({ dir: tmp('baseline-e-secret') }),
+    fakeResearch([makeEvidence()]),
+    noVerifiedIdentity(),
+    gmail,
+    { logEvent: (event) => { auditCalls.push(event); } },
+  );
+  const run = runService.startRun({ tenantId: 'ten_a', ownerId: 'usr_a', requestId: 'req_1', competitor: 'Acme', recipientEmail: 'user@example.com' });
+  await runService.completeResearch(run.runId, 'ten_a', 'usr_a', 'req_2');
+  runService.createDraft(run.runId, 'ten_a', 'usr_a', 'req_3');
+  const withApproval = runService.requestSendApproval(run.runId, 'ten_a', 'usr_a', 'req_4');
+  gmail.approveFake(withApproval.approvalId!);
+  runService.confirmApproval(run.runId, 'ten_a', 'usr_a', 'req_5');
+  const confirmed = await runService.executeApprovedSend(run.runId, 'ten_a', 'usr_a', 'req_6');
+
+  const serialized = JSON.stringify({ confirmed, auditCalls, requests: gmail.requests, sendCalls: gmail.sendCalls });
+  assert.doesNotMatch(serialized, /ya29\.|access_token|refresh_token|Bearer |client_secret/i);
+  assert.ok(auditCalls.length > 0, 'phase transitions should be audited');
+});
+
+// ── Provider success/failure semantics (Section 8, 9) ────────────────────
+
+test('R23.6E provider success transitions the run to SENT_CONFIRMED with a real executionId', async () => {
+  const { runService, gmail, run } = await buildApprovalRequiredRun();
+  gmail.approveFake(run.approvalId!);
+  runService.confirmApproval(run.runId, 'ten_a', 'usr_a', 'req_5');
+  const confirmed = await runService.executeApprovedSend(run.runId, 'ten_a', 'usr_a', 'req_6');
+  assert.equal(confirmed.status, 'SENT_CONFIRMED');
+  assert.ok(confirmed.executionId);
+});
+
+test('R23.6E provider failure transitions the run to FAILED, never a fake SENT_CONFIRMED', async () => {
+  const { runService, gmail, run } = await buildApprovalRequiredRun();
+  gmail.approveFake(run.approvalId!);
+  runService.confirmApproval(run.runId, 'ten_a', 'usr_a', 'req_5');
+  // Simulate a genuine provider-side failure — e.g. Gmail itself rejects
+  // the request for a reason unrelated to approval/drift.
+  const originalExecuteSendEmail = gmail.executeSendEmail;
+  gmail.executeSendEmail = async () => { throw new NagexError({ code: 'GMAIL_EXECUTION_FAILED', category: 'PROVIDER', message: 'provider rejected the request', request_id: 'req_x' }); };
+  const failed = await runService.executeApprovedSend(run.runId, 'ten_a', 'usr_a', 'req_6');
+  assert.equal(failed.status, 'FAILED');
+  assert.equal(failed.failureReason, 'SEND_FAILED');
+  void originalExecuteSendEmail;
+});
+
+// ── Duplicate-send / crash-window protection (Section 10, 11) ────────────
+
+test('R23.6E a second execution attempt after SENT_CONFIRMED never sends the email again', async () => {
+  const { runService, gmail, run } = await buildApprovalRequiredRun();
+  gmail.approveFake(run.approvalId!);
+  runService.confirmApproval(run.runId, 'ten_a', 'usr_a', 'req_5');
+  await runService.executeApprovedSend(run.runId, 'ten_a', 'usr_a', 'req_6');
+  assert.equal(gmail.sendCalls.length, 1);
+
+  await assert.rejects(
+    () => runService.executeApprovedSend(run.runId, 'ten_a', 'usr_a', 'req_7'),
+    (error: any) => { assert.equal(error.code, 'AGENT_RUN_ILLEGAL_TRANSITION'); return true; },
+  );
+  assert.equal(gmail.sendCalls.length, 1, 'a retry after SENT_CONFIRMED must never duplicate the send');
+});
+
+test('R23.6E layer 1 (run-status guard): a retry while still at SEND_ATTEMPTED (simulated crash) fails closed before touching Gmail again', async () => {
+  const { runService, gmail, run } = await buildApprovalRequiredRun();
+  gmail.approveFake(run.approvalId!);
+  runService.confirmApproval(run.runId, 'ten_a', 'usr_a', 'req_5');
+
+  // Simulate a crash: force the run's own persisted state to SEND_ATTEMPTED
+  // without ever completing (as if the process died mid-send, after this
+  // service's own transitionTo(SEND_ATTEMPTED) but before the Gmail
+  // response was processed). We reach into the run store directly, the
+  // same durable state a real process restart would read back.
+  const preCrashed = runService.getOwnedRun(run.runId, 'ten_a', 'usr_a')!;
+  (runService as any).runStore.save({ ...preCrashed, status: 'SEND_ATTEMPTED' });
+
+  await assert.rejects(
+    () => runService.executeApprovedSend(run.runId, 'ten_a', 'usr_a', 'req_6'),
+    (error: any) => { assert.equal(error.code, 'AGENT_RUN_ILLEGAL_TRANSITION'); return true; },
+  );
+  assert.equal(gmail.sendCalls.length, 0, 'layer 1 must block the retry before Gmail is ever called again');
+});
+
+test('R23.6E layer 2 (approval one-time-use): if the run-status guard were somehow bypassed, a replayed approval still cannot send twice', async () => {
+  const { runService, gmail, run } = await buildApprovalRequiredRun();
+  gmail.approveFake(run.approvalId!);
+  runService.confirmApproval(run.runId, 'ten_a', 'usr_a', 'req_5');
+  await runService.executeApprovedSend(run.runId, 'ten_a', 'usr_a', 'req_6');
+  assert.equal(gmail.sendCalls.length, 1);
+
+  // Directly re-invoke the Gmail port with the SAME approvalId, bypassing
+  // this service's own run-status guard entirely, to prove the underlying
+  // approval store's one-time-use semantics are the second, independent
+  // line of defense.
+  await assert.rejects(
+    () => gmail.executeSendEmail({ approvalId: run.approvalId!, payload: gmail.sendCalls[0].payload, tenantId: 'ten_a', principalId: 'usr_a', requestId: 'req_replay' }),
+    (error: any) => { assert.equal(error.code, 'APPROVAL_ALREADY_CONSUMED'); return true; },
+  );
+  assert.equal(gmail.sendCalls.length, 1, 'a direct replay of the same approvalId must never duplicate the send');
+});
+
+test('R23.6E an ambiguous crash-window outcome (APPROVAL_ALREADY_CONSUMED mid-send) is left at SEND_ATTEMPTED — never reported FAILED or SENT_CONFIRMED', async () => {
+  const { runService, gmail, run } = await buildApprovalRequiredRun();
+  gmail.approveFake(run.approvalId!);
+  runService.confirmApproval(run.runId, 'ten_a', 'usr_a', 'req_5');
+
+  // Simulate the exact reproducible crash window this phase is required to
+  // analyze: the approval has already been durably consumed by an earlier
+  // (crashed) attempt at the moment this call reaches Gmail, so the real
+  // outcome of that earlier attempt is genuinely unknown from here.
+  gmail.approvals.get(run.approvalId!)!.status = 'CONSUMED';
+
+  const result = await runService.executeApprovedSend(run.runId, 'ten_a', 'usr_a', 'req_6');
+  assert.equal(result.status, 'SEND_ATTEMPTED', 'the ambiguous outcome must stay truthfully unresolved, never fabricated as FAILED or SENT_CONFIRMED');
+  assert.notEqual(result.status, 'FAILED');
+  assert.notEqual(result.status, 'SENT_CONFIRMED');
+});
+
+// ── Scope discipline (Section 6, 13) ──────────────────────────────────────
+
+test('R23.6E Phase E never calls Gmail create_draft', () => {
+  const content = fs.readFileSync(path.resolve('src/agents/competitor-pricing-run.service.ts'), 'utf8');
+  const withoutComments = content.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.doesNotMatch(withoutComments, /GMAIL_CREATE_DRAFT_TOOL_ID|\.executeCreateDraft\(/);
+});
+
+test('R23.6E Phase E never promotes the competitor pricing baseline, even after SENT_CONFIRMED', async () => {
+  const baselineStore = new CompetitorPricingBaselineStore({ dir: tmp('baseline-e-nopromote') });
+  const gmail = fakeGmailSendPort();
+  const runService = new CompetitorPricingRunService(
+    new CompetitorPricingRunStore({ dir: tmp('run-e-nopromote') }),
+    baselineStore,
+    fakeResearch([makeEvidence({ price: 29 })]),
+    noVerifiedIdentity(),
+    gmail,
+  );
+  const run = runService.startRun({ tenantId: 'ten_a', ownerId: 'usr_a', requestId: 'req_1', competitor: 'Acme', recipientEmail: 'user@example.com' });
+  await runService.completeResearch(run.runId, 'ten_a', 'usr_a', 'req_2');
+  runService.createDraft(run.runId, 'ten_a', 'usr_a', 'req_3');
+  const withApproval = runService.requestSendApproval(run.runId, 'ten_a', 'usr_a', 'req_4');
+  gmail.approveFake(withApproval.approvalId!);
+  runService.confirmApproval(run.runId, 'ten_a', 'usr_a', 'req_5');
+  const confirmed = await runService.executeApprovedSend(run.runId, 'ten_a', 'usr_a', 'req_6');
+  assert.equal(confirmed.status, 'SENT_CONFIRMED');
+
+  const dimensionKey = computeDimensionKey(makeEvidence({ price: 29 }));
+  assert.equal(baselineStore.getOwned('ten_a', 'usr_a', 'Acme', dimensionKey), undefined, 'Phase E must never call upsertVerified — baseline promotion is deferred to Phase F');
+});
+
+test('R23.6E Phase E never writes governed Memory — no MemoryEngine dependency anywhere in the orchestration', () => {
+  const content = fs.readFileSync(path.resolve('src/agents/competitor-pricing-run.service.ts'), 'utf8');
+  assert.doesNotMatch(content, /context\/memory\.engine/);
+  assert.doesNotMatch(content, /proposeMemory|createMemory/);
+});
+
+// ── Illegal transitions fail closed (Section 9) ───────────────────────────
+
+test('R23.6E illegal Phase E transitions fail closed', () => {
+  assert.equal(isLegalRunTransition('APPROVAL_REQUIRED', 'SENT_CONFIRMED'), false);
+  assert.equal(isLegalRunTransition('DRAFT_CREATED', 'APPROVED'), false);
+  assert.equal(isLegalRunTransition('REPORT_READY', 'APPROVED'), false);
+  assert.throws(() => assertLegalRunTransition('DRAFT_CREATED', 'SENT_CONFIRMED', 'req_1'), (error: any) => { assert.equal(error.code, 'AGENT_RUN_ILLEGAL_TRANSITION'); return true; });
 });
