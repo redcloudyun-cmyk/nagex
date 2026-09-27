@@ -180,4 +180,10 @@ export interface NagexApplication {
   rightNowIntelligenceService: import('../personal/right-now-intelligence.service.js').RightNowIntelligenceService;
   /** Re-seeds the canonical demo persona memory into the real MemoryEngine. Call after demo reset. */
   seedDemoMemory(): void;
+  // R23.6E — Competitor Pricing Monitor + Email.
+  competitorPricingBaselineStore: import('../agents/competitor-pricing-baseline.store.js').CompetitorPricingBaselineStore;
+  competitorPricingRunStore: import('../agents/competitor-pricing-run.store.js').CompetitorPricingRunStore;
+  pricingExtractionService: import('../agents/pricing-extraction.service.js').PricingExtractionService;
+  competitorPricingResearchService: import('../agents/competitor-pricing-research.service.js').CompetitorPricingResearchService;
+  competitorPricingRunService: import('../agents/competitor-pricing-run.service.js').CompetitorPricingRunService;
 }

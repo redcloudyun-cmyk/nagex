@@ -187,6 +187,30 @@
       "r23_3t_permission_approval_hardening",
       "r23_4v_credential_broker",
       "r23_4v_secret_non_propagation"
+    ],
+    "r23-6e-real-e2e-agent": [
+      "r23_6e_real_e2e_agent",
+      "r22_4_evidence_pack_web_search",
+      "r22_5_task_aware_model_routing",
+      "browser_agent",
+      "browser_agent_mvp",
+      "browser_module_boundary",
+      "browser_session_ownership_isolation",
+      "r23_5b_browser_untrusted_boundary",
+      "gmail_live",
+      "gmail_approval_ui",
+      "r23_3t_permission_approval_hardening",
+      "approval_ownership_isolation",
+      "approval_ttl_security",
+      "approval_execution_persistence",
+      "capability_broker",
+      "google_capability_execution_pipeline",
+      "r23_4v_credential_broker",
+      "r23_4v_secret_non_propagation",
+      "google_oauth_persistence",
+      "audit_tenant_isolation",
+      "memory_tenant_isolation",
+      "memory_relevance"
     ]
   },
   "fullOnly": [
