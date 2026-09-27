@@ -1,5 +1,50 @@
 import type { BrowserSessionRecord, BrowserSessionStatus } from './browser-session.store.js';
 
+export type BrowserContentTrustLevel = 'UNTRUSTED_EXTERNAL';
+
+export interface BrowserContentTrustMetadata {
+  level: BrowserContentTrustLevel;
+  source: 'BROWSER';
+  origin: string | null;
+  canGrantPermission: false;
+  canApproveAction: false;
+  canAuthorizeCredentialUse: false;
+  canOverridePolicy: false;
+  canWritePersistentMemory: false;
+}
+
+export function createBrowserContentTrustMetadata(url: string): BrowserContentTrustMetadata {
+  let origin: string | null = null;
+  try {
+    const parsed = new URL(url);
+    origin = parsed.origin === 'null' ? null : parsed.origin.toLowerCase();
+  } catch {
+    origin = null;
+  }
+  return {
+    level: 'UNTRUSTED_EXTERNAL',
+    source: 'BROWSER',
+    origin,
+    canGrantPermission: false,
+    canApproveAction: false,
+    canAuthorizeCredentialUse: false,
+    canOverridePolicy: false,
+    canWritePersistentMemory: false,
+  };
+}
+
+export function isUntrustedBrowserContentTrust(value: unknown): value is BrowserContentTrustMetadata {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as Record<string, unknown>;
+  return v.level === 'UNTRUSTED_EXTERNAL'
+    && v.source === 'BROWSER'
+    && v.canGrantPermission === false
+    && v.canApproveAction === false
+    && v.canAuthorizeCredentialUse === false
+    && v.canOverridePolicy === false
+    && v.canWritePersistentMemory === false;
+}
+
 export interface StructuredLink {
   text: string;
   href: string;
@@ -72,3 +117,16 @@ export interface BrowserEvidenceArtifact {
 }
 
 export { BrowserSessionRecord, BrowserSessionStatus };
+
+
+export type UntrustedStructuredBrowserSnapshot = StructuredBrowserSnapshot & {
+  trust: BrowserContentTrustMetadata;
+};
+
+export type UntrustedFindResult = FindResult & {
+  trust: BrowserContentTrustMetadata;
+};
+
+export type UntrustedExtractResult = ExtractResult & {
+  trust: BrowserContentTrustMetadata;
+};

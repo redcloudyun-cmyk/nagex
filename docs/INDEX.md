@@ -32,6 +32,7 @@ MASTER.md
 | `NAgex_External_Benchmark_and_Integration_Guidance_20260926.md` | Consolidated guidance for Muse, Jev, Wissly, WebMCP, model providers, local LLM, developer tools, BYOK, reservation, payment, and future external references |
 | `NAgex_R23.3T_Permission_Approval_Hardening_Development_Directive_20260926.md` | R23.3T permission/approval hardening directive; milestone closed after test-server certification |
 | `NAgex_R23.4V_Credential_Broker_Inject_Only_Vault_Development_Directive_20260926.md` | R23.4V credential broker directive; milestone closed after full regression, browser certification, server verification, and encrypted persistence configuration |
+| `NAgex_R23.5B_Browser_Untrusted_Content_Boundary_Development_Directive_20260927.md` | Current R23.5B directive: browser content provenance, prompt-injection boundary, policy authority, memory/credential isolation |
 | `PERSONAL-AI.md` | Persistent memory, personalization, context, and user control |
 | `MODEL-ROUTER.md` | Model Gateway, routing policy, NVIDIA Nemotron, Nebius integration |
 | `SECURITY.md` | Permissions, human approval, secrets, audit, isolation |

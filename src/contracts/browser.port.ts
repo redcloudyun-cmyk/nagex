@@ -10,7 +10,7 @@
 // BrowserRetrievalPort below (Phase 04, added on real evidence from the
 // QuickCaptureService -> CaptureProcessor -> Browser chain, not
 // speculatively).
-import type { BrowserSessionRecord, FindResult, ExtractResult, StructuredBrowserSnapshot } from '../modules/browser/index.js';
+import type { BrowserSessionRecord, BrowserContentTrustMetadata, UntrustedFindResult, UntrustedExtractResult, UntrustedStructuredBrowserSnapshot } from '../modules/browser/index.js';
 import type { ActionApprovalRecord } from '../governance/action-approval.store.js';
 
 // Mirrors modules/browser/browser.runtime.ts's BrowserSnapshot — inlined
@@ -22,6 +22,7 @@ export interface BrowserPageSnapshot {
   totalCharacters: number;
   returnedCharacters: number;
   truncated: boolean;
+  trust: BrowserContentTrustMetadata;
 }
 
 // Mirrors modules/browser/browser.service.ts's (unexported) BrowserActionInput.
@@ -57,9 +58,9 @@ export interface BrowserPort {
   navigate(input: BrowserActionRequest & { url: string }): Promise<BrowserNavigationResult>;
   tabs(input: BrowserActionRequest): Promise<Array<{ index: number; url: string; title: string }>>;
   snapshot(input: BrowserActionRequest): Promise<BrowserPageSnapshot>;
-  structuredSnapshot(input: BrowserActionRequest): Promise<StructuredBrowserSnapshot>;
-  find(input: BrowserActionRequest & { query: string }): Promise<FindResult>;
-  extract(input: BrowserActionRequest & { target?: 'text' | 'links' | 'buttons' | 'inputs' | 'all' }): Promise<ExtractResult>;
+  structuredSnapshot(input: BrowserActionRequest): Promise<UntrustedStructuredBrowserSnapshot>;
+  find(input: BrowserActionRequest & { query: string }): Promise<UntrustedFindResult>;
+  extract(input: BrowserActionRequest & { target?: 'text' | 'links' | 'buttons' | 'inputs' | 'all' }): Promise<UntrustedExtractResult>;
   back(input: BrowserActionRequest): Promise<BrowserNavigationResult>;
   forward(input: BrowserActionRequest): Promise<BrowserNavigationResult>;
   reload(input: BrowserActionRequest): Promise<BrowserNavigationResult>;

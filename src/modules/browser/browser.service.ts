@@ -11,7 +11,7 @@ import { FileRecordStore, resolveNagexDataDir } from '../../governance/file-reco
 import { BrowserSessionStore, type BrowserSessionRecord, generateEvidenceId } from './browser-session.store.js';
 import { isBrowserRuntimeAvailableSync, type BrowserRuntime, type BrowserSnapshot } from './browser.runtime.js';
 import { assertUrlSafe } from './browser-url-validator.js';
-import type { FindResult, ExtractResult, StructuredBrowserSnapshot } from './browser.types.js';
+import { createBrowserContentTrustMetadata, type UntrustedFindResult, type UntrustedExtractResult, type UntrustedStructuredBrowserSnapshot } from './browser.types.js';
 
 // Browser Agent MVP tool service (MASTER.md Section 14.5 item 06). Reuses
 // the exact same shared ActionApprovalStore/ExecutionStore/AuditLogger/
@@ -246,36 +246,43 @@ export class BrowserToolService {
     return this.runtime.listTabs(record.browserSessionId);
   }
 
-  public async snapshot(input: BrowserActionInput): Promise<BrowserSnapshot> {
+  public async snapshot(input: BrowserActionInput): Promise<BrowserSnapshot & { trust: ReturnType<typeof createBrowserContentTrustMetadata> }> {
     this.requireAvailable(input.requestId);
     const record = this.requireSession(input.browserSessionId, input.tenantId, input.ownerId, input.requestId);
     const snapshot = await this.runtime.snapshot(record.browserSessionId);
     this.auditAction('browser.snapshot', 'tool.execution.succeeded', input, 'SUCCESS', { url: snapshot.url });
-    return snapshot;
+    return { ...snapshot, trust: createBrowserContentTrustMetadata(snapshot.url) };
   }
 
-  public async structuredSnapshot(input: BrowserActionInput): Promise<StructuredBrowserSnapshot> {
+  public async structuredSnapshot(input: BrowserActionInput): Promise<UntrustedStructuredBrowserSnapshot> {
     this.requireAvailable(input.requestId);
     const record = this.requireSession(input.browserSessionId, input.tenantId, input.ownerId, input.requestId);
     const snapshot = await this.runtime.structuredSnapshot(record.browserSessionId);
     this.auditAction('browser.snapshot', 'tool.execution.succeeded', input, 'SUCCESS', { url: snapshot.url });
-    return snapshot;
+    return { ...snapshot, trust: createBrowserContentTrustMetadata(snapshot.url) };
   }
 
-  public async find(input: BrowserActionInput & { query: string }): Promise<FindResult> {
+  public async find(input: BrowserActionInput & { query: string }): Promise<UntrustedFindResult> {
     this.requireAvailable(input.requestId);
     const record = this.requireSession(input.browserSessionId, input.tenantId, input.ownerId, input.requestId);
+    // record.currentUrl is null until the session's first navigate() call
+    // (browser-session.store.ts). find() reads page content, so returning
+    // it without a real observed URL would force createBrowserContentMetadata
+    // to fabricate provenance — fail closed instead of guessing an origin.
+    if (record.currentUrl === null) {
+      throw new NagexError({ code: 'BROWSER_TRUST_PROVENANCE_UNAVAILABLE', category: 'CONFLICT', message: 'This browser session has not navigated to a page yet, so no page content trust provenance is available.', request_id: input.requestId });
+    }
     const result = await this.runtime.find(record.browserSessionId, input.query);
     this.auditAction('browser.find', 'tool.execution.succeeded', input, 'SUCCESS', { query: input.query, matchCount: result.candidates.length });
-    return result;
+    return { ...result, trust: createBrowserContentTrustMetadata(record.currentUrl) };
   }
 
-  public async extract(input: BrowserActionInput & { target?: 'text' | 'links' | 'buttons' | 'inputs' | 'all' }): Promise<ExtractResult> {
+  public async extract(input: BrowserActionInput & { target?: 'text' | 'links' | 'buttons' | 'inputs' | 'all' }): Promise<UntrustedExtractResult> {
     this.requireAvailable(input.requestId);
     const record = this.requireSession(input.browserSessionId, input.tenantId, input.ownerId, input.requestId);
     const result = await this.runtime.extract(record.browserSessionId, input.target);
     this.auditAction('browser.extract', 'tool.execution.succeeded', input, 'SUCCESS', { target: input.target || 'all' });
-    return result;
+    return { ...result, trust: createBrowserContentTrustMetadata(result.url) };
   }
 
   public async back(input: BrowserActionInput): Promise<BrowserActionResult> {
@@ -510,8 +517,11 @@ export class BrowserToolService {
       this.executions.succeed(executionId, { externalId: executionId, externalUrl: page.url, completedAt });
       this.auditAction(BROWSER_CLICK_TOOL_ID, 'tool.execution.succeeded', input, 'SUCCESS', { selector: input.selector, consequential: true, url: page.url });
 
-      const memoryRecord = this.memory.proposeMemory('USER', input.tenantId, input.ownerId, { subject: 'Browser Action', predicate: 'clicked', value: `Clicked "${match.text || input.selector}" on ${page.url}.` });
-      this.memory.activateMemory(memoryRecord.id, input.tenantId, input.ownerId);
+      // R23.5B — the target label and destination URL are controlled by the
+      // observed page. They are untrusted external content and must never be
+      // auto-promoted into persistent Memory merely because an approved click
+      // succeeded. The authoritative execution/audit records already preserve
+      // the system fact that the action occurred.
 
       return { status: 'EXECUTED', url: page.url, title: page.title };
     } catch (error) {

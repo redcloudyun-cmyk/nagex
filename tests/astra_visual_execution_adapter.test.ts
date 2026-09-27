@@ -22,7 +22,7 @@ import { ModelProviderError } from '../src/model-gateway/model-provider.js';
 import { AuditLogger } from '../src/governance/audit.logger.js';
 import { NagexError } from '../src/common/errors.js';
 import type { ProposeNextActionInput } from '../src/device-control/visual-execution-model.port.js';
-import type { StructuredBrowserSnapshot } from '../src/modules/browser/index.js';
+import { createBrowserContentTrustMetadata, type UntrustedStructuredBrowserSnapshot } from '../src/modules/browser/index.js';
 import { DeviceExecutionSessionStore } from '../src/device-control/device-execution-session.store.js';
 import { DeviceControlService } from '../src/device-control/device-control.service.js';
 import { BrowserToolService } from '../src/modules/browser/browser.service.js';
@@ -31,7 +31,7 @@ import { BrowserSessionStore } from '../src/modules/browser/browser-session.stor
 import { ActionApprovalStore } from '../src/governance/action-approval.store.js';
 import { MemoryEngine } from '../src/context/memory.engine.js';
 
-const SNAPSHOT: StructuredBrowserSnapshot = {
+const SNAPSHOT: UntrustedStructuredBrowserSnapshot = {
   url: 'https://example.com/checkout',
   title: 'Example Checkout',
   text: 'Welcome to checkout',
@@ -39,6 +39,7 @@ const SNAPSHOT: StructuredBrowserSnapshot = {
   buttons: [{ text: 'Next', role: 'button' }],
   inputs: [],
   forms: [],
+  trust: createBrowserContentTrustMetadata('https://example.com/checkout'),
 };
 
 function baseInput(overrides: Partial<ProposeNextActionInput> = {}): ProposeNextActionInput {
@@ -247,6 +248,12 @@ test('ASTRA_STRUCTURED_SNAPSHOT_INPUT: the structured snapshot, goal, and constr
   assert.equal(parsed.goal, 'Reach the confirmation page');
   assert.equal(parsed.structuredSnapshot.url, SNAPSHOT.url);
   assert.equal(parsed.structuredSnapshot.title, SNAPSHOT.title);
+  assert.equal(parsed.contentTrust.level, 'UNTRUSTED_EXTERNAL');
+  assert.equal(parsed.contentTrust.source, 'BROWSER');
+  assert.equal(parsed.contentTrust.canGrantPermission, false);
+  assert.equal(parsed.contentTrust.canApproveAction, false);
+  assert.equal(parsed.contentTrust.canAuthorizeCredentialUse, false);
+  assert.equal(parsed.contentTrust.canOverridePolicy, false);
   assert.deepEqual(parsed.allowedDomains, ['example.com']);
   assert.equal(parsed.riskCeiling, 'CONSEQUENTIAL');
   assert.equal(parsed.stepNumber, 1);

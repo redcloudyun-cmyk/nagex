@@ -222,6 +222,7 @@ export class AstraVisualExecutionModelAdapter implements VisualExecutionModelPor
       riskCeiling: input.riskCeiling,
       stepNumber: input.stepNumber,
       remainingSteps: input.remainingSteps,
+      contentTrust: input.structuredSnapshot.trust,
       structuredSnapshot: {
         url: input.structuredSnapshot.url,
         title: input.structuredSnapshot.title,
