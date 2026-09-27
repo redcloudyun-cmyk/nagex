@@ -124,6 +124,43 @@ test('R23.5B every browser read surface carries UNTRUSTED_EXTERNAL provenance', 
   }
 });
 
+test('R23.5B find() fails closed rather than fabricating trust provenance when the session has no observed URL yet', async () => {
+  const memory = new MemoryEngine({ dir: tmp('memory-nourl') });
+  const sessions = new BrowserSessionStore({ dir: tmp('sessions-nourl') });
+  const service = new BrowserToolService(
+    buildRuntime(),
+    sessions,
+    new ActionApprovalStore(),
+    new AuditLogger(),
+    memory,
+    new ExecutionStore({ dir: tmp('executions-nourl') }),
+    tmp('evidence-nourl'),
+    () => true,
+  );
+
+  // Bypass service.open() (which always calls runtime.openSession() and
+  // then updateUrl()) to reproduce the one legitimate state where
+  // currentUrl is still null: a session record that exists (status OPEN)
+  // but has never navigated (browser-session.store.ts's getOrCreate sets
+  // currentUrl: null at creation).
+  const record = sessions.getOrCreate('ten_nourl', 'usr_nourl');
+  assert.equal(record.currentUrl, null);
+
+  await assert.rejects(
+    () => service.find({
+      tenantId: 'ten_nourl',
+      ownerId: 'usr_nourl',
+      requestId: 'req_find_nourl',
+      browserSessionId: record.browserSessionId,
+      query: 'Submit',
+    }),
+    (error: any) => {
+      assert.equal(error.code, 'BROWSER_TRUST_PROVENANCE_UNAVAILABLE');
+      return true;
+    },
+  );
+});
+
 test('R23.5B approved browser execution never auto-promotes page-controlled text into persistent Memory', async () => {
   const { service, memory } = buildBrowserHarness();
   const opened = await service.open({ tenantId: 'ten_mem', ownerId: 'usr_mem', requestId: 'req_open_mem' });

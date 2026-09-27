@@ -265,6 +265,13 @@ export class BrowserToolService {
   public async find(input: BrowserActionInput & { query: string }): Promise<UntrustedFindResult> {
     this.requireAvailable(input.requestId);
     const record = this.requireSession(input.browserSessionId, input.tenantId, input.ownerId, input.requestId);
+    // record.currentUrl is null until the session's first navigate() call
+    // (browser-session.store.ts). find() reads page content, so returning
+    // it without a real observed URL would force createBrowserContentMetadata
+    // to fabricate provenance — fail closed instead of guessing an origin.
+    if (record.currentUrl === null) {
+      throw new NagexError({ code: 'BROWSER_TRUST_PROVENANCE_UNAVAILABLE', category: 'CONFLICT', message: 'This browser session has not navigated to a page yet, so no page content trust provenance is available.', request_id: input.requestId });
+    }
     const result = await this.runtime.find(record.browserSessionId, input.query);
     this.auditAction('browser.find', 'tool.execution.succeeded', input, 'SUCCESS', { query: input.query, matchCount: result.candidates.length });
     return { ...result, trust: createBrowserContentTrustMetadata(record.currentUrl) };
