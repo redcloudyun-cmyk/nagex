@@ -41,7 +41,8 @@ export type E2EAgentFailureReason =
   | 'PAYLOAD_DRIFT'
   | 'CREDENTIAL_UNAVAILABLE'
   | 'SEND_FAILED'
-  | 'SEND_UNCONFIRMED';
+  | 'SEND_UNCONFIRMED'
+  | 'RECIPIENT_INVALID';
 
 export interface CompetitorPricingResearchRequest {
   tenantId: string;
@@ -117,6 +118,24 @@ export interface PricingChange {
   percentChange?: number;
 }
 
+// ── Draft payload (Phase D) ────────────────────────────────────────────
+// R23.6E deliberately never calls Gmail's own create_draft API (that tool
+// is itself approval-gated in this codebase, and a second, hidden
+// server-side approval for an internal step would be exactly the kind of
+// silent self-approval the product forbids). "DRAFT_CREATED" here means an
+// internal, immutable, email-ready payload persisted on the run record —
+// the SAME payload gmail.send_email's real, human-facing approval binds to
+// (Section 8/9). Local to this module (never GmailComposePayload —
+// gmail.client.ts's internal type — module-private, zero external
+// consumers by design).
+export interface CompetitorPricingDraftPayload {
+  to: string[];
+  cc: string[];
+  bcc: string[];
+  subject: string;
+  body: string;
+}
+
 // ── Run record ───────────────────────────────────────────────────────────
 export interface CompetitorPricingRunRecord {
   runId: string;
@@ -130,7 +149,12 @@ export interface CompetitorPricingRunRecord {
   failureReason: E2EAgentFailureReason | null;
   evidence: UntrustedPricingEvidence[];
   change: PricingChange | null;
+  reportSubject: string | null;
   reportBody: string | null;
+  // Frozen at DRAFT_CREATED (Section 10) — nothing in Phase D writes to
+  // this again after APPROVAL_REQUIRED is reached; Phase E's payload-drift
+  // protection is what detects any later attempted mutation.
+  draftPayload: CompetitorPricingDraftPayload | null;
   draftId: string | null;
   approvalId: string | null;
   executionId: string | null;

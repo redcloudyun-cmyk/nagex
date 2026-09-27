@@ -262,13 +262,23 @@ export function createNagexApplication(): NagexApplication {
   // R23.6E — Competitor Pricing Monitor + Email. One scenario-specific
   // orchestration service (Decision 1), not a generic workflow engine.
   // Phase C wires real research (EvidencePackService first, BrowserService
-  // fallback only when needed) + structured extraction (UnifiedModelRouter);
-  // Gmail draft/approval/send land in Phase D-E.
+  // fallback only when needed) + structured extraction (UnifiedModelRouter).
+  // Phase D wires report composition + recipient resolution (explicit ->
+  // the caller's own verified IdentityStore email -> BLOCK) + the one real,
+  // human-facing gmail.send_email approval request via the existing
+  // GmailService/ActionApprovalStore path (never gmail.create_draft, never
+  // a second approval system). Real send lands in Phase E.
   const competitorPricingBaselineStore = new CompetitorPricingBaselineStore();
   const competitorPricingRunStore = new CompetitorPricingRunStore();
   const pricingExtractionService = new PricingExtractionService(modelRouter);
   const competitorPricingResearchService = new CompetitorPricingResearchService(evidencePackService, browserService, pricingExtractionService);
-  const competitorPricingRunService = new CompetitorPricingRunService(competitorPricingRunStore, competitorPricingBaselineStore, competitorPricingResearchService);
+  const competitorPricingRunService = new CompetitorPricingRunService(
+    competitorPricingRunStore,
+    competitorPricingBaselineStore,
+    competitorPricingResearchService,
+    identityStore,
+    gmailService,
+  );
 
   const capabilityBroker = new CapabilityBroker(
     googleCalendarService,

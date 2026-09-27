@@ -22,7 +22,9 @@ export function isCompetitorPricingRunRecord(value: unknown): value is Competito
     && (v.failureReason === null || typeof v.failureReason === 'string')
     && Array.isArray(v.evidence) && v.evidence.every(isUntrustedPricingEvidence)
     && (v.change === null || typeof v.change === 'object')
+    && (v.reportSubject === null || typeof v.reportSubject === 'string')
     && (v.reportBody === null || typeof v.reportBody === 'string')
+    && (v.draftPayload === null || typeof v.draftPayload === 'object')
     && (v.draftId === null || typeof v.draftId === 'string')
     && (v.approvalId === null || typeof v.approvalId === 'string')
     && (v.executionId === null || typeof v.executionId === 'string')
@@ -61,7 +63,9 @@ export class CompetitorPricingRunStore {
       failureReason: null,
       evidence: [],
       change: null,
+      reportSubject: null,
       reportBody: null,
+      draftPayload: null,
       draftId: null,
       approvalId: null,
       executionId: null,

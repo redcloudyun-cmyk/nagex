@@ -11,8 +11,11 @@ import type { E2EAgentRunStatus } from './competitor-pricing-email.types.js';
 // approval rather than terminating the run.
 const LEGAL_TRANSITIONS: Record<E2EAgentRunStatus, E2EAgentRunStatus[]> = {
   RESEARCHING: ['REPORT_READY', 'FAILED'],
-  REPORT_READY: ['DRAFT_CREATED', 'FAILED'],
-  DRAFT_CREATED: ['APPROVAL_REQUIRED', 'FAILED'],
+  // Phase D Section 9 — REPORT_READY/DRAFT_CREATED can each fail closed to
+  // either FAILED (a technical/provider failure) or BLOCKED (a policy-level
+  // stop, e.g. no valid recipient could be resolved — never guessed).
+  REPORT_READY: ['DRAFT_CREATED', 'FAILED', 'BLOCKED'],
+  DRAFT_CREATED: ['APPROVAL_REQUIRED', 'FAILED', 'BLOCKED'],
   APPROVAL_REQUIRED: ['APPROVED', 'BLOCKED'],
   APPROVED: ['SEND_ATTEMPTED', 'APPROVAL_REQUIRED'],
   SEND_ATTEMPTED: ['SENT_CONFIRMED', 'FAILED'],
