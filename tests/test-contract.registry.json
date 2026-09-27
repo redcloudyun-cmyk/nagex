@@ -3686,6 +3686,21 @@
       "assertionIntent": "browser external content remains untrusted and cannot become authority or persistent memory",
       "notes": "Proves browser observations carry UNTRUSTED_EXTERNAL provenance; page content cannot grant permission, approve action, authorize credentials, override policy, or auto-promote itself into persistent Memory; DeviceControl fails closed if provenance is missing."
     },
+    "pricing_billing_period_normalization": {
+      "milestone": "R23.6E-hardening",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "agents",
+        "research"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "known-equivalent billing-period phrasings (month/monthly/per month//month/per member / month) canonicalize to the same dimension-key value without fabricating equivalence for unrecognized phrases, and without altering the raw wording preserved on evidence/baseline records",
+      "notes": "Post-R23.6E-closure hardening: live extraction against notion.com/pricing produced different verbatim billingPeriod phrasings across separate real fetches of the same actual billing period, which broke the exact-match dimension key and produced a false NO_BASELINE. canonicalizeBillingPeriod() in pricing-comparability.ts is the single deterministic normalization boundary for this; annual/monthly remain distinct, unknown phrases are never coerced, and tenant/owner isolation is unaffected."
+    },
     "r23_6e_real_e2e_agent": {
       "milestone": "R23.6E",
       "classification": "CANONICAL_BEHAVIOR",
