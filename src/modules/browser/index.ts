@@ -12,4 +12,5 @@ export { isUrlSafe } from './browser-url-validator.js';
 export type { BrowserSessionRecord, BrowserSessionStatus } from './browser-session.store.js';
 export type { BrowserActionResult, BrowserClickResult, BrowserClickExecuted, BrowserClickApprovalRequired, BrowserEvidence } from './browser.service.js';
 export type { BrowserRuntime, BrowserSnapshot } from './browser.runtime.js';
-export type { FindResult, ExtractResult, StructuredBrowserSnapshot } from './browser.types.js';
+export type { FindResult, ExtractResult, StructuredBrowserSnapshot, BrowserContentTrustMetadata, UntrustedStructuredBrowserSnapshot, UntrustedFindResult, UntrustedExtractResult } from './browser.types.js';
+export { createBrowserContentTrustMetadata, isUntrustedBrowserContentTrust } from './browser.types.js';
