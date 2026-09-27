@@ -186,4 +186,7 @@ export interface NagexApplication {
   pricingExtractionService: import('../agents/pricing-extraction.service.js').PricingExtractionService;
   competitorPricingResearchService: import('../agents/competitor-pricing-research.service.js').CompetitorPricingResearchService;
   competitorPricingRunService: import('../agents/competitor-pricing-run.service.js').CompetitorPricingRunService;
+  // R23.6M Phase B3 — Mobile Contact Resolution.
+  recipientRefStore: import('../mobile/recipient-ref.store.js').RecipientRefStore;
+  contactResolver: import('../mobile/contact-resolver.service.js').ContactResolver;
 }

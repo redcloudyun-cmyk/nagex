@@ -44,6 +44,8 @@ import { DeviceExecutionSessionStore } from '../device-control/device-execution-
 import { DeviceControlService } from '../device-control/device-control.service.js';
 import { AstraVisualExecutionModelAdapter } from '../device-control/astra-visual-execution-model.adapter.js';
 import { DeviceIdentityStore } from '../device-agent/device-identity.store.js';
+import { RecipientRefStore } from '../mobile/recipient-ref.store.js';
+import { ContactResolver } from '../mobile/contact-resolver.service.js';
 import { DesktopExecutionSessionStore } from '../device-agent/desktop-execution-session.store.js';
 import { DeviceTransportSecurity } from '../device-agent/device-transport-security.js';
 import { DeviceConnectionStatusStore } from '../device-agent/device-connection-status.store.js';
@@ -213,6 +215,11 @@ export function createNagexApplication(): NagexApplication {
     desktopExecutionSessionStore,
     devicePendingCommandStore,
   );
+  // R23.6M Phase B3 — mobile contact resolution. recipientRef minting is
+  // the only new durable store this phase adds; ContactResolver holds no
+  // state of its own.
+  const recipientRefStore = new RecipientRefStore();
+  const contactResolver = new ContactResolver(recipientRefStore);
   const moduleRegistry = new ModuleRegistry();
   const moduleStateStore = new ModuleStateStore();
   const moduleService = new ModuleService(moduleRegistry, moduleStateStore, auditLogger);
@@ -766,5 +773,7 @@ export function createNagexApplication(): NagexApplication {
     pricingExtractionService,
     competitorPricingResearchService,
     competitorPricingRunService,
+    recipientRefStore,
+    contactResolver,
   };
 }

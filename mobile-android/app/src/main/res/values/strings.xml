@@ -1,0 +1,14 @@
+<resources>
+    <string name="app_name">NAgex Mobile</string>
+    <string name="status_title">NAgex Companion — Status</string>
+    <string name="label_server_url">NAgex server URL</string>
+    <string name="label_tenant_id">Tenant ID</string>
+    <string name="label_principal_id">Principal ID</string>
+    <string name="button_save_config">Save</string>
+    <string name="button_enroll">Enroll this device</string>
+    <string name="button_check_status">Check connection</string>
+    <string name="button_voice_command">Start voice command</string>
+    <string name="status_not_enrolled">Not enrolled</string>
+    <string name="voice_title">Voice Command</string>
+    <string name="button_start_listening">Tap and speak</string>
+</resources>

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Networking: the app is an authenticated HTTPS client of the NAgex
+         server only; it never listens for inbound connections. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Voice Foundation (Phase B2). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- Contact Resolution (Phase B3) — read-only. NAgex never requests
+         WRITE_CONTACTS; it only ever queries, and only ever uploads
+         candidate contactId+displayName pairs, never the full address
+         book and never a phone number (see ContactCandidateProvider). -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+
+    <!-- Explicitly NOT requested in Phase B: SEND_SMS (Phase C),
+         BIND_ACCESSIBILITY_SERVICE (Phase D, pending the KakaoTalk
+         feasibility spike). Requesting them before the phase that needs
+         them would be an unnecessary, unjustified permission ask. -->
+
+    <application
+        android:allowBackup="false"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.NagexMobile"
+        android:usesCleartextTraffic="false">
+
+        <activity
+            android:name=".StatusActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".VoiceCommandActivity"
+            android:exported="false" />
+
+    </application>
+</manifest>
