@@ -10,4 +10,7 @@
     <string name="status_not_enrolled">Not enrolled</string>
     <string name="voice_title">Voice Command</string>
     <string name="button_start_listening">Tap and speak</string>
+    <string name="button_record_message">Record message</string>
+    <string name="button_approve">Approve</string>
+    <string name="button_reject">Reject</string>
 </resources>

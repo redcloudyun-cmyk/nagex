@@ -15,10 +15,16 @@ import android.provider.ContactsContract
  * minimal, honest in-memory substitute that serves exactly the query
  * shape ContactCandidateProvider actually issues (_ID + DISPLAY_NAME_PRIMARY,
  * a LIKE %name% selection against ContactsContract.Contacts.CONTENT_URI) —
- * it does not attempt to simulate raw contacts, aggregation, phone
- * numbers, or any other real ContactsProvider2 behavior, so it can only
- * ever be used to certify ContactCandidateProvider's own query/filter
- * logic, never anything about real device contact aggregation.
+ * it does not attempt to simulate raw contacts or aggregation the way the
+ * real provider does, so it can only ever be used to certify
+ * ContactCandidateProvider's own query/filter logic, never anything about
+ * real device contact aggregation.
+ *
+ * Also serves ContactsContract.CommonDataKinds.Phone.CONTENT_URI, filtered
+ * by CONTACT_ID = ?, for PhoneNumberResolver certification — real phone
+ * rows are added directly via [addPhoneNumber], not through insert(),
+ * since the real Phone row shape (RawContacts/Data table joins) is well
+ * outside what this minimal fake reproduces.
  */
 class FakeContactsProvider : ContentProvider() {
     private val rows = mutableListOf<Pair<Long, String>>()
@@ -34,6 +40,14 @@ class FakeContactsProvider : ContentProvider() {
     }
 
     override fun query(uri: Uri, projection: Array<out String>?, selection: String?, selectionArgs: Array<out String>?, sortOrder: String?): Cursor {
+        if (uri.toString().startsWith(ContactsContract.CommonDataKinds.Phone.CONTENT_URI.toString())) {
+            val cursor = MatrixCursor(arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER))
+            val contactId = selectionArgs?.firstOrNull()
+            for ((rowContactId, number) in phoneRows) {
+                if (rowContactId == contactId) cursor.addRow(arrayOf(number))
+            }
+            return cursor
+        }
         val cursor = MatrixCursor(arrayOf(ContactsContract.Contacts._ID, ContactsContract.Contacts.DISPLAY_NAME_PRIMARY))
         // Mirrors the real "DISPLAY_NAME_PRIMARY LIKE ?" / "%name%" shape
         // ContactCandidateProvider builds — a substring match, nothing
@@ -45,6 +59,22 @@ class FakeContactsProvider : ContentProvider() {
             }
         }
         return cursor
+    }
+
+    companion object {
+        // Static so test code (running in a different provider-lookup
+        // context than Robolectric's own provider instance) can seed rows
+        // before PhoneNumberResolver ever queries — cleared per-test by
+        // each test's own @Before.
+        val phoneRows = mutableListOf<Pair<String, String>>()
+
+        fun addPhoneNumber(contactId: String, number: String) {
+            phoneRows.add(contactId to number)
+        }
+
+        fun reset() {
+            phoneRows.clear()
+        }
     }
 
     override fun getType(uri: Uri): String? = null

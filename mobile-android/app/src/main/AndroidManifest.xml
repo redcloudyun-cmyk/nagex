@@ -15,10 +15,23 @@
          book and never a phone number (see ContactCandidateProvider). -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
 
-    <!-- Explicitly NOT requested in Phase B: SEND_SMS (Phase C),
-         BIND_ACCESSIBILITY_SERVICE (Phase D, pending the KakaoTalk
-         feasibility spike). Requesting them before the phase that needs
-         them would be an unnecessary, unjustified permission ask. -->
+    <!-- SMS Execution (Phase C) — the one and only place this app ever
+         calls SmsManager is SmsSendExecutor, and only after a real,
+         server-consumed approval. -->
+    <uses-permission android:name="android.permission.SEND_SMS" />
+
+    <!-- SEND_SMS otherwise implies telephony hardware is required, which
+         would make the app un-installable on ChromeOS/tablet/foldable
+         devices with no SIM. Declared not-required: on a device with no
+         telephony, PhoneNumberResolver/SmsSendExecutor simply never find
+         a usable number, the same truthful NotFound/SendFailed path as
+         any other contact with no phone number on file. -->
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
+
+    <!-- Explicitly NOT requested: BIND_ACCESSIBILITY_SERVICE (Phase D,
+         pending the KakaoTalk feasibility spike). Requesting it before the
+         phase that needs it would be an unnecessary, unjustified
+         permission ask. -->
 
     <application
         android:allowBackup="false"
@@ -38,6 +51,10 @@
 
         <activity
             android:name=".VoiceCommandActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".MessageComposeActivity"
             android:exported="false" />
 
     </application>

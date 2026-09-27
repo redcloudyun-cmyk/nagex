@@ -3,14 +3,16 @@ package com.nagex.mobile
 import java.security.MessageDigest
 
 /**
- * R23.6M Phase B1 — builds the exact wire JSON for a
+ * R23.6M Phase B1/C — builds the exact wire JSON for a
  * DeviceAgentCommandPayload (device-agent-protocol.ts:
  * `{commandType, executionSessionId, data}`, in that field order) and its
  * sha256 hash, from the SAME string — never two separately-constructed
- * representations that could drift apart. Phase B only ever sends CONNECT
- * and HEARTBEAT; STATUS is included as a low-risk read that's useful for
- * the diagnostic screen. No mobile-message command type exists yet
- * (deferred to Phase C, per the R23.6M directive).
+ * representations that could drift apart.
+ *
+ * Phase C adds exactly the three mobile-message builders
+ * (mobileMessagePrepare/mobileMessageExecute/mobileMessageStatus) — never
+ * a generic command-data builder. Each corresponds to exactly one
+ * MobileMessageRunService method server-side.
  */
 object DeviceAgentPayload {
 
@@ -35,6 +37,42 @@ object DeviceAgentPayload {
 
     fun status(): Built {
         val json = "{\"commandType\":\"STATUS\",\"executionSessionId\":null,\"data\":{}}"
+        return Built(json, sha256Hex(json))
+    }
+
+    /** MOBILE_MESSAGE_PREPARE — read-only: asks the server for the exact
+     * approved recipientRef+message for this run. Consumes nothing. */
+    fun mobileMessagePrepare(runId: String): Built {
+        val dataJson = "{\"runId\":${CanonicalJson.escapeString(runId)}}"
+        val json = "{\"commandType\":\"MOBILE_MESSAGE_PREPARE\",\"executionSessionId\":null,\"data\":$dataJson}"
+        return Built(json, sha256Hex(json))
+    }
+
+    /** MOBILE_MESSAGE_EXECUTE — the one moment the server consumes the
+     * approval. A successful response means "you are cleared to call
+     * SmsManager now", never that anything has actually been sent yet. */
+    fun mobileMessageExecute(runId: String): Built {
+        val dataJson = "{\"runId\":${CanonicalJson.escapeString(runId)}}"
+        val json = "{\"commandType\":\"MOBILE_MESSAGE_EXECUTE\",\"executionSessionId\":null,\"data\":$dataJson}"
+        return Built(json, sha256Hex(json))
+    }
+
+    /** MOBILE_MESSAGE_STATUS — the device's own honest report of what
+     * SmsManager actually did. [result] must be one of SENT_CONFIRMED /
+     * SEND_FAILED / SEND_STATUS_UNKNOWN — never fabricated from the fact
+     * that sendTextMessage() didn't throw. */
+    fun mobileMessageStatus(runId: String, result: String): Built {
+        val dataJson = "{\"runId\":${CanonicalJson.escapeString(runId)},\"result\":${CanonicalJson.escapeString(result)}}"
+        val json = "{\"commandType\":\"MOBILE_MESSAGE_STATUS\",\"executionSessionId\":null,\"data\":$dataJson}"
+        return Built(json, sha256Hex(json))
+    }
+
+    /** A separate STATUS report specifically for the later DELIVERED
+     * broadcast, which arrives independently of (and sometimes long after)
+     * the SENT result. */
+    fun mobileMessageDeliveryConfirmed(runId: String): Built {
+        val dataJson = "{\"runId\":${CanonicalJson.escapeString(runId)},\"deliveryConfirmed\":true}"
+        val json = "{\"commandType\":\"MOBILE_MESSAGE_STATUS\",\"executionSessionId\":null,\"data\":$dataJson}"
         return Built(json, sha256Hex(json))
     }
 }

@@ -178,4 +178,77 @@ class NagexApiClient(private val config: NagexServerConfig) {
             candidates = outCandidates,
         )
     }
+
+    data class MobileMessageRun(
+        val runId: String,
+        val status: String,
+        val failureReason: String?,
+        val approvalId: String?,
+        val executionId: String?,
+        val message: String,
+    )
+
+    private fun parseRun(result: JSONObject): MobileMessageRun = MobileMessageRun(
+        runId = result.getString("runId"),
+        status = result.getString("status"),
+        failureReason = result.optString("failureReason", null),
+        approvalId = result.optString("approvalId", null),
+        executionId = result.optString("executionId", null),
+        message = result.getString("message"),
+    )
+
+    /** Calls POST /api/v1/mobile/messages — session-authenticated, per the
+     * R23.6M Phase C directive that every new mobile endpoint use validated
+     * session identity, not the spoofable x-nagex-tenant/x-principal-id
+     * headers. Creates the immutable (until edited) draft; never sends
+     * anything by itself. */
+    fun createMessage(deviceId: String, recipientRef: String, message: String): MobileMessageRun {
+        val body = JSONObject().put("deviceId", deviceId).put("recipientRef", recipientRef).put("message", message)
+        val request = sessionAuthenticatedRequestBuilder("/api/v1/mobile/messages")
+            .post(body.toString().toRequestBody(jsonMediaType))
+            .build()
+        return parseRun(execute(request))
+    }
+
+    fun requestMessageApproval(runId: String): MobileMessageRun {
+        val request = sessionAuthenticatedRequestBuilder("/api/v1/mobile/messages/$runId/request-approval")
+            .post("{}".toRequestBody(jsonMediaType))
+            .build()
+        return parseRun(execute(request))
+    }
+
+    fun getMessage(runId: String): MobileMessageRun {
+        val request = sessionAuthenticatedRequestBuilder("/api/v1/mobile/messages/$runId")
+            .get()
+            .build()
+        return parseRun(execute(request))
+    }
+
+    /** Calls the existing, unchanged POST /api/v1/approvals/:id/approve —
+     * the SAME real human-approval endpoint every other consequential
+     * NAgex action (including the R23.6E Gmail send) goes through. This
+     * app never invents a parallel approval mechanism.
+     *
+     * Deliberately uses [authenticatedRequestBuilder] (x-nagex-tenant/
+     * x-principal-id headers), NOT [sessionAuthenticatedRequestBuilder] —
+     * approvals.routes.ts was not touched by R23.6M (it is REUSED, not
+     * new) and still resolves tenantId/principal from those headers at
+     * the composition-root/handleApiRequest level, not from a session.
+     * This is the same pre-existing, disclosed, out-of-scope header-trust
+     * gap Phase B4's audit found everywhere except /enroll — calling this
+     * one specific existing route the way it actually authenticates today
+     * is not a new weakening, just an honest reflection of it. */
+    fun approveMessage(approvalId: String) {
+        val request = authenticatedRequestBuilder("/api/v1/approvals/$approvalId/approve")
+            .post("{}".toRequestBody(jsonMediaType))
+            .build()
+        execute(request)
+    }
+
+    fun rejectMessage(approvalId: String) {
+        val request = authenticatedRequestBuilder("/api/v1/approvals/$approvalId/reject")
+            .post("{}".toRequestBody(jsonMediaType))
+            .build()
+        execute(request)
+    }
 }

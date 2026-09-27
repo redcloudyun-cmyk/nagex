@@ -345,6 +345,78 @@ test('R23.6M-C 13. mobile SMS approvals flow through the exact same ActionApprov
   });
 });
 
+// ─── 15. Expired approval blocks execution ────────────────────────────────
+
+test('R23.6M-C 15. an expired approval blocks the run, execute is never reachable', () => {
+  const runStore = new MobileMessageRunStore({ dir: tempDir() });
+  const recipientRefStore = new RecipientRefStore({ dir: tempDir() });
+  let now = 1_000_000;
+  const approvals = new ActionApprovalStore(() => now, 5_000); // 5s TTL
+  const service = new MobileMessageRunService(runStore, recipientRefStore, approvals);
+  const ref = mintRecipientRef(recipientRefStore);
+
+  let run = service.createDraft({ tenantId: 'ten_a', ownerId: 'usr_a', deviceId: 'dev_1', requestId: 'req_1', recipientRef: ref.recipientRef, message: 'hi' });
+  run = service.requestApproval(run.runId, 'ten_a', 'usr_a', 'req_2');
+
+  now += 10_000; // past the 5s TTL — the approval is now live-expired
+  run = service.confirmApproval(run.runId, 'ten_a', 'usr_a', 'req_3');
+  assert.equal(run.status, 'BLOCKED');
+  assert.equal(run.failureReason, 'APPROVAL_EXPIRED');
+
+  assert.throws(
+    () => service.executeApproved(run.runId, 'ten_a', 'usr_a', 'dev_1', 'req_4'),
+    (err: unknown) => err instanceof NagexError && err.code === 'MOBILE_MESSAGE_EXECUTE_REJECTED',
+  );
+});
+
+// ─── 16. Illegal status transitions are rejected ──────────────────────────
+
+test('R23.6M-C 16. a send result can only be reported for a run actually at SEND_ATTEMPTED', () => {
+  const { recipientRefStore, service } = makeHarness();
+  const ref = mintRecipientRef(recipientRefStore);
+  const run = service.createDraft({ tenantId: 'ten_a', ownerId: 'usr_a', deviceId: 'dev_1', requestId: 'req_1', recipientRef: ref.recipientRef, message: 'hi' });
+
+  // DRAFT_CREATED — nowhere near SEND_ATTEMPTED yet.
+  assert.throws(
+    () => service.reportSendResult(run.runId, 'ten_a', 'usr_a', 'dev_1', 'req_2', 'SENT_CONFIRMED'),
+    (err: unknown) => err instanceof NagexError && err.code === 'MOBILE_MESSAGE_STATUS_REJECTED',
+  );
+  // Delivery cannot be confirmed before the run even reaches SENT_CONFIRMED.
+  assert.throws(
+    () => service.reportDeliveryConfirmed(run.runId, 'ten_a', 'usr_a', 'dev_1', 'req_3'),
+    (err: unknown) => err instanceof NagexError && err.code === 'MOBILE_MESSAGE_STATUS_REJECTED',
+  );
+});
+
+// ─── 17. executionId identifies exactly one real attempt — never reused,
+// never client-supplied ─────────────────────────────────────────────────
+//
+// This service deliberately never accepts a client-supplied idempotency
+// key: the server always mints its own executionId, and the run's own
+// state graph (Layer 1 — no legal re-entry into SEND_ATTEMPTED) combined
+// with ActionApprovalStore's one-time consumption (Layer 2) together mean
+// a retried/duplicated EXECUTE request can never reach a second
+// executionId being minted at all — there is no "same executionId
+// replayed twice" case to defend against, because there is no second
+// executionId to begin with.
+
+test('R23.6M-C 17. each real execution attempt gets its own unique executionId, and a rejected duplicate attempt never gets one at all', () => {
+  const { recipientRefStore, approvals, service } = makeHarness();
+  const ref = mintRecipientRef(recipientRefStore);
+  let run = service.createDraft({ tenantId: 'ten_a', ownerId: 'usr_a', deviceId: 'dev_1', requestId: 'req_1', recipientRef: ref.recipientRef, message: 'hi' });
+  run = service.requestApproval(run.runId, 'ten_a', 'usr_a', 'req_2');
+  approvals.approve(run.approvalId!, 'ten_a', 'usr_a', 'req_3');
+  run = service.confirmApproval(run.runId, 'ten_a', 'usr_a', 'req_4');
+
+  run = service.executeApproved(run.runId, 'ten_a', 'usr_a', 'dev_1', 'req_5');
+  const firstExecutionId = run.executionId;
+  assert.ok(firstExecutionId);
+
+  assert.throws(() => service.executeApproved(run.runId, 'ten_a', 'usr_a', 'dev_1', 'req_6'), NagexError);
+  const afterDuplicate = service.getOwnedRun(run.runId, 'ten_a', 'usr_a')!;
+  assert.equal(afterDuplicate.executionId, firstExecutionId, 'a rejected duplicate attempt must never mint or overwrite the real executionId');
+});
+
 // ─── 14. No scope creep — KakaoTalk/calls/Accessibility/iOS/generic
 // automation are absent from every Phase C server file ──────────────────
 

@@ -1,6 +1,7 @@
 package com.nagex.mobile
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Handler
@@ -11,16 +12,16 @@ import androidx.core.content.ContextCompat
 import com.nagex.mobile.databinding.ActivityVoiceCommandBinding
 
 /**
- * R23.6M Phase B2/B3 — the end-to-end Phase B loop: user speaks -> STT ->
- * contact candidate lookup -> server resolution -> spoken result. This
- * Activity is intentionally the ONLY place decisions are made about what
- * recognized text means; VoiceCaptureManager/NagexSpeech/
- * ContactCandidateProvider/NagexApiClient are all pure input/output or
- * transport, exactly as the R23.6M directive requires of the Voice Layer.
- *
- * Explicitly out of scope here (Phase C/D): no SMS send, no KakaoTalk
- * send, no approval flow — this screen only ever reaches a spoken
- * UNIQUE/AMBIGUOUS/NOT_FOUND result and stops.
+ * R23.6M Phase B2/B3/C — user speaks -> STT -> contact candidate lookup ->
+ * server resolution -> spoken result -> (Phase C) hand-off to
+ * MessageComposeActivity for the compose/approve/send flow. This Activity
+ * is intentionally the ONLY place decisions are made about what recognized
+ * text means; VoiceCaptureManager/NagexSpeech/ContactCandidateProvider/
+ * NagexApiClient are all pure input/output or transport, exactly as the
+ * R23.6M directive requires of the Voice Layer. It never itself composes a
+ * message, requests approval, or sends anything — that is
+ * MessageComposeActivity's job, reached only after a real UNIQUE
+ * resolution.
  */
 class VoiceCommandActivity : AppCompatActivity() {
 
@@ -29,6 +30,7 @@ class VoiceCommandActivity : AppCompatActivity() {
     private lateinit var apiClient: NagexApiClient
     private lateinit var voiceCapture: VoiceCaptureManager
     private lateinit var contactProvider: ContactCandidateProvider
+    private lateinit var recipientLocalCache: RecipientLocalCache
     private var speech: NagexSpeech? = null
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -48,6 +50,7 @@ class VoiceCommandActivity : AppCompatActivity() {
         apiClient = NagexApiClient(config)
         voiceCapture = VoiceCaptureManager(this)
         contactProvider = ContactCandidateProvider(this)
+        recipientLocalCache = RecipientLocalCache(this)
         speech = NagexSpeech(this) { /* ready callback — no action needed */ }
 
         binding.startListeningButton.setOnClickListener {
@@ -100,21 +103,41 @@ class VoiceCommandActivity : AppCompatActivity() {
         showResult("Looking up \"$spokenName\"...")
 
         Thread {
+            val localCandidates = contactProvider.findCandidates(spokenName)
             val outcome = try {
-                val candidates = contactProvider.findCandidates(spokenName)
-                    .map { NagexApiClient.ContactCandidateDto(it.contactId, it.displayName) }
-                apiClient.resolveContacts(deviceId, spokenName, candidates)
+                val candidateDtos = localCandidates.map { NagexApiClient.ContactCandidateDto(it.contactId, it.displayName) }
+                apiClient.resolveContacts(deviceId, spokenName, candidateDtos)
             } catch (e: Exception) {
                 null
             }
-            mainHandler.post { renderResolution(spokenName, outcome) }
+            mainHandler.post { renderResolution(spokenName, outcome, localCandidates) }
         }.start()
     }
 
-    private fun renderResolution(spokenName: String, outcome: NagexApiClient.ContactResolutionResponse?) {
+    private fun renderResolution(spokenName: String, outcome: NagexApiClient.ContactResolutionResponse?, localCandidates: List<ContactCandidateProvider.Candidate>) {
+        if (outcome != null && outcome.status == "UNIQUE" && outcome.recipientRef != null) {
+            // Correlate the server's UNIQUE match back to the local
+            // androidContactId this device itself found — the server never
+            // sent one back (it never has more than the opaque contactId
+            // string to begin with, and never a phone number). Matching by
+            // displayName is safe here: a genuinely duplicate-name
+            // situation is exactly what AMBIGUOUS exists to catch instead
+            // of ever reaching UNIQUE.
+            val matched = localCandidates.firstOrNull { it.displayName == outcome.displayName }
+            if (matched != null) {
+                recipientLocalCache.remember(outcome.recipientRef, matched.contactId)
+                showResult("Found ${outcome.displayName}.")
+                startActivity(Intent(this, MessageComposeActivity::class.java).apply {
+                    putExtra(MessageComposeActivity.EXTRA_RECIPIENT_REF, outcome.recipientRef)
+                    putExtra(MessageComposeActivity.EXTRA_DISPLAY_NAME, outcome.displayName)
+                })
+                return
+            }
+        }
+
         val spoken = when {
             outcome == null -> "Sorry, I couldn't reach NAgex to look that up."
-            outcome.status == "UNIQUE" -> "Found ${outcome.displayName}. (Phase B stops here — no message is sent yet.)"
+            outcome.status == "UNIQUE" -> "Found ${outcome.displayName}, but I lost track of which local contact that was — please try again."
             outcome.status == "AMBIGUOUS" -> {
                 val names = outcome.candidates.joinToString(", ") { it.displayName }
                 "There are ${outcome.candidates.size} contacts matching \"$spokenName\": $names. Please be more specific."

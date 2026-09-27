@@ -3772,6 +3772,23 @@
       "deterministic": true,
       "assertionIntent": "the three new MOBILE_MESSAGE_PREPARE/EXECUTE/STATUS device-agent command types are only reachable through a genuine Ed25519-signed, verified envelope, and a revoked device or a forged signature is rejected before any mobile-message run state is ever touched",
       "notes": "Real Ed25519 keys throughout (crypto.generateKeyPairSync), the exact DeviceAgentTransportEndpoint.handle() dispatch path a real HTTP request hits — not a stub of the transport layer. Proves the wire-level integration on top of the service-level logic already certified in r23_6m_phase_c_sms_execution."
+    },
+    "r23_6m_phase_c_message_routes": {
+      "milestone": "R23.6M",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "agents",
+        "approvals",
+        "device",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "every /api/v1/mobile/messages endpoint requires a real validated session (never the spoofable x-nagex-tenant/x-principal-id headers), and deviceId/recipientRef ownership is independently re-checked at the route layer — cross-tenant, cross-owner, cross-device, and revoked-device attempts are all rejected before any draft is created",
+      "notes": "Route-level complement to r23_6m_phase_c_sms_execution (service logic) and r23_6m_phase_c_device_transport (signed transport) — calls handleMobileMessageRoutes directly, the same dispatch function server_web.ts wires to the real HTTP path."
     }
   }
 }
