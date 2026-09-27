@@ -248,6 +248,12 @@ test('ASTRA_STRUCTURED_SNAPSHOT_INPUT: the structured snapshot, goal, and constr
   assert.equal(parsed.goal, 'Reach the confirmation page');
   assert.equal(parsed.structuredSnapshot.url, SNAPSHOT.url);
   assert.equal(parsed.structuredSnapshot.title, SNAPSHOT.title);
+  assert.equal(parsed.contentTrust.level, 'UNTRUSTED_EXTERNAL');
+  assert.equal(parsed.contentTrust.source, 'BROWSER');
+  assert.equal(parsed.contentTrust.canGrantPermission, false);
+  assert.equal(parsed.contentTrust.canApproveAction, false);
+  assert.equal(parsed.contentTrust.canAuthorizeCredentialUse, false);
+  assert.equal(parsed.contentTrust.canOverridePolicy, false);
   assert.deepEqual(parsed.allowedDomains, ['example.com']);
   assert.equal(parsed.riskCeiling, 'CONSEQUENTIAL');
   assert.equal(parsed.stepNumber, 1);
