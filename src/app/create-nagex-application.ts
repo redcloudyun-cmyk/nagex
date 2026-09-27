@@ -272,6 +272,9 @@ export function createNagexApplication(): NagexApplication {
   const competitorPricingRunStore = new CompetitorPricingRunStore();
   const pricingExtractionService = new PricingExtractionService(modelRouter);
   const competitorPricingResearchService = new CompetitorPricingResearchService(evidencePackService, browserService, pricingExtractionService);
+  const competitorPricingMemoryPort: import('../agents/competitor-pricing-run.service.js').GovernedMemoryPort = {
+    proposeMemory: (input) => memoryEngine.proposeMemory('USER', input.tenantId, input.ownerId, { subject: input.subject, predicate: input.predicate, value: input.value }, undefined, { sourceRef: input.sourceRef, memoryOrigin: 'SUGGESTED' }),
+  };
   const competitorPricingRunService = new CompetitorPricingRunService(
     competitorPricingRunStore,
     competitorPricingBaselineStore,
@@ -279,6 +282,7 @@ export function createNagexApplication(): NagexApplication {
     identityStore,
     gmailService,
     auditLogger,
+    competitorPricingMemoryPort,
   );
 
   const capabilityBroker = new CapabilityBroker(

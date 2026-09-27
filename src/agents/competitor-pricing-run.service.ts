@@ -46,6 +46,27 @@ export interface AuditLogPort {
   logEvent(event: { actor: { type: string; id: string }; tenant_id: string; action: string; resource: { type: string; id: string }; result: 'SUCCESS' | 'DENIED' | 'PENDING_APPROVAL' | 'FAILED'; request_id: string; details?: Record<string, unknown> }): unknown;
 }
 
+// Phase F Section 4 — optional. Real production wiring passes the
+// composition root's real MemoryEngine.proposeMemory bound to 'USER'
+// scope; MemoryEngine already enforces sourceRef/S2/S3/tenant+owner
+// scoping and already dedupes an identical repeated proposal (see
+// findMatchingMemory) — this service never re-implements any of that, it
+// only ever proposes, never force-activates (no userConfirmed: true).
+export interface GovernedMemoryPort {
+  proposeMemory(input: { tenantId: string; ownerId: string; subject: string; predicate: string; value: unknown; sourceRef: string }): unknown;
+}
+
+export interface RunFinalizationResult {
+  run: CompetitorPricingRunRecord;
+  // Section 9/10 — deliberately separate from run.status. A baseline or
+  // memory bookkeeping failure after a confirmed Gmail send must never be
+  // reported as the email having failed; these two booleans are the
+  // truthful, independent record of whether each piece of post-send
+  // bookkeeping actually completed.
+  baselinePromoted: boolean;
+  memoryProposed: boolean;
+}
+
 export class CompetitorPricingRunService {
   constructor(
     private readonly runStore: CompetitorPricingRunStore,
@@ -54,6 +75,7 @@ export class CompetitorPricingRunService {
     private readonly identityLookup: VerifiedIdentityLookup,
     private readonly gmailSendPort: GmailSendPort,
     private readonly auditLogger?: AuditLogPort,
+    private readonly memoryPort?: GovernedMemoryPort,
   ) {}
 
   public startRun(input: CompetitorPricingResearchRequest): CompetitorPricingRunRecord {
@@ -275,6 +297,76 @@ export class CompetitorPricingRunService {
       this.audit('send.failed', failed, requestId, 'FAILED');
       return failed;
     }
+  }
+
+  // Phase F Section 1/9 — SENT_CONFIRMED is the ONLY status that may
+  // trigger baseline promotion or governed Memory. Any other status
+  // (including REPORT_READY/DRAFT_CREATED/APPROVAL_REQUIRED/APPROVED/
+  // SEND_ATTEMPTED/FAILED/BLOCKED) is a safe no-op here — never an error,
+  // so calling this on an in-progress or terminal-but-unsent run is always
+  // safe. Idempotent by construction: baselineStore.upsertVerified()
+  // replaces (never appends to) the same dimension key, and
+  // MemoryEngine.proposeMemory() already refreshes rather than duplicates
+  // an identical existing value — so finalizing the same SENT_CONFIRMED
+  // run twice does not corrupt or duplicate anything (Section 3/25).
+  public finalizeRun(runId: string, tenantId: string, ownerId: string, requestId: string): RunFinalizationResult {
+    const run = this.requireOwnedRun(runId, tenantId, ownerId, requestId);
+    if (run.status !== 'SENT_CONFIRMED') {
+      return { run, baselinePromoted: false, memoryProposed: false };
+    }
+
+    const current = run.evidence[0];
+    let baselinePromoted = false;
+    // Only a real, evidenced numeric price is ever promotable — a run
+    // whose current price is truthfully unknown (null) has nothing valid
+    // to compare a future run against, so no baseline write happens.
+    if (current && current.price !== null) {
+      try {
+        this.baselineStore.upsertVerified({
+          tenantId,
+          ownerId,
+          competitor: run.competitor,
+          planName: current.planName,
+          currency: current.currency,
+          billingPeriod: current.billingPeriod,
+          region: current.region,
+          taxIncluded: current.taxIncluded,
+          price: current.price,
+          sourceUrl: current.sourceUrl,
+          retrievedAt: current.retrievedAt,
+        });
+        baselinePromoted = true;
+        this.audit('finalize.baseline_promoted', run, requestId, 'SUCCESS');
+      } catch {
+        // Section 10 — a bookkeeping failure here must never downgrade the
+        // already-confirmed send; audited separately, run.status untouched.
+        this.audit('finalize.baseline_failed', run, requestId, 'FAILED');
+      }
+    }
+
+    let memoryProposed = false;
+    if (this.memoryPort) {
+      try {
+        // Section 4 — a stable, generic delivery-channel preference only;
+        // never the price itself, never raw evidence/report/page text.
+        // sourceRef ties it to this run's real completed execution.
+        this.memoryPort.proposeMemory({
+          tenantId,
+          ownerId,
+          subject: 'user',
+          predicate: 'prefers_delivery_channel_for_competitor_pricing_reports',
+          value: 'email',
+          sourceRef: run.executionId ?? run.runId,
+        });
+        memoryProposed = true;
+        this.audit('finalize.memory_proposed', run, requestId, 'SUCCESS');
+      } catch {
+        this.audit('finalize.memory_failed', run, requestId, 'FAILED');
+      }
+    }
+
+    this.audit('finalize.completed', run, requestId, 'SUCCESS');
+    return { run, baselinePromoted, memoryProposed };
   }
 
   private toGmailComposePayload(draft: CompetitorPricingRunRecord['draftPayload']) {
