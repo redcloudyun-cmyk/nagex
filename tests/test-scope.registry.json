@@ -190,6 +190,7 @@
     ],
     "r23-6e-real-e2e-agent": [
       "r23_6e_real_e2e_agent",
+      "pricing_billing_period_normalization",
       "r22_4_evidence_pack_web_search",
       "r22_5_task_aware_model_routing",
       "browser_agent",
