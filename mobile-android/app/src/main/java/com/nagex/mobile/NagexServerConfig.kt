@@ -29,17 +29,25 @@ class NagexServerConfig(context: Context) {
     private val prefs: SharedPreferences =
         context.getSharedPreferences("nagex_server_config", Context.MODE_PRIVATE)
 
-    private val masterKey = MasterKey.Builder(context)
-        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-        .build()
-
-    private val encryptedPrefs = EncryptedSharedPreferences.create(
-        context,
-        "nagex_server_config_secure",
-        masterKey,
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-    )
+    // Lazy — EncryptedSharedPreferences requires a real, working
+    // AndroidKeyStore, which normal config reads/writes (serverBaseUrl,
+    // deviceId, etc.) have no need to depend on. Deferring construction
+    // until sessionToken is actually touched keeps every other property
+    // usable in contexts without a real keystore (this codebase's own
+    // Robolectric unit tests included) without weakening how the token
+    // itself is stored once it is.
+    private val encryptedPrefs: SharedPreferences by lazy {
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+        EncryptedSharedPreferences.create(
+            context,
+            "nagex_server_config_secure",
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+        )
+    }
 
     var serverBaseUrl: String
         get() = prefs.getString(KEY_SERVER_BASE_URL, DEFAULT_SERVER_BASE_URL) ?: DEFAULT_SERVER_BASE_URL

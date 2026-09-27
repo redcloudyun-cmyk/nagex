@@ -46,6 +46,12 @@ android {
     buildFeatures {
         viewBinding = true
     }
+
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 dependencies {
@@ -59,6 +65,15 @@ dependencies {
     implementation("org.json:json:20240303")
 
     testImplementation("junit:junit:4.13.2")
+    // R23.6M Phase B4 — Robolectric runs real Android framework shadows
+    // (permission checks, ContentResolver/ContactsContract, TextToSpeech)
+    // as plain JVM unit tests, no emulator/device required. Used only
+    // where it provides genuinely truthful coverage of the disclosed
+    // Phase B gaps (permission denial, contact query scoping, TTS
+    // fallback) — not for anything that needs a real device driver.
+    testImplementation("org.robolectric:robolectric:4.13")
+    testImplementation("androidx.test:core:1.6.1")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
 }
