@@ -5,7 +5,7 @@
 // this port only, never a provider name. A future Astra (or any other
 // computer-use-capable provider) adapter implements this interface — it
 // is never imported by device-control.service.ts directly.
-import type { StructuredBrowserSnapshot } from '../modules/browser/index.js';
+import type { UntrustedStructuredBrowserSnapshot } from '../modules/browser/index.js';
 import type { CapabilityRisk } from '../capabilities/capability.types.js';
 import type { ProposedDeviceAction } from './device-action.types.js';
 
@@ -31,7 +31,7 @@ export interface ProposeNextActionInput {
   tenantId: string;
   ownerId: string;
   goal: string;
-  structuredSnapshot: StructuredBrowserSnapshot;
+  structuredSnapshot: UntrustedStructuredBrowserSnapshot;
   // A reference only (an evidenceId from BrowserToolService's own evidence
   // store) — never raw image bytes crossing this port, matching Section 4/
   // 21's "no raw screenshot bytes" persistence rule extended to the model
