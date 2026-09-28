@@ -29,6 +29,7 @@ import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
 // request path, not a dead file nothing calls.
 import type { ExecutionRouteResolver } from '../../messaging/execution-route-resolver.js';
 import { parseOptionalMessagingChannel } from '../../messaging/messaging-channel.js';
+import type { MessagingHandoffService } from '../../messaging/messaging-handoff.service.js';
 
 function getHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
   const value = headers[name] ?? headers[name.toLowerCase()];
@@ -40,6 +41,7 @@ export interface MobileMessageRouteDeps {
   deviceIdentityStore: DeviceIdentityStore;
   mobileMessageRunService: MobileMessageRunService;
   executionRouteResolver: ExecutionRouteResolver;
+  messagingHandoffService: MessagingHandoffService;
 }
 
 interface AuthedSession {
@@ -69,7 +71,7 @@ function requireOwnedActiveDevice(deviceIdentityStore: DeviceIdentityStore, devi
 const BASE_PATH = '/api/v1/mobile/messages';
 
 export const handleMobileMessageRoutes: AsyncRouteRegistrar<MobileMessageRouteDeps> = async (method, pathname, body, headers, _query, deps): Promise<ApiResult | undefined> => {
-  const { sessionStore, deviceIdentityStore, mobileMessageRunService, executionRouteResolver } = deps;
+  const { sessionStore, deviceIdentityStore, mobileMessageRunService, executionRouteResolver, messagingHandoffService } = deps;
   const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
 
   if (pathname === BASE_PATH && method === 'POST') {
@@ -103,6 +105,10 @@ export const handleMobileMessageRoutes: AsyncRouteRegistrar<MobileMessageRouteDe
     // Defensive, not load-bearing: D1's registry can only ever resolve
     // SMS, so this can never actually fail — it documents that invariant
     // rather than silently trusting it.
+    if (resolved.channel === 'KAKAOTALK' && resolved.route === 'KAKAOTALK_SHARE') {
+      const run = messagingHandoffService.createReady({ recipientRef, message, preferredChannel: 'KAKAOTALK', tenantId, ownerId, deviceId, locale: getHeaderValue(headers, 'x-nagex-locale') || 'ko-KR', requestId });
+      return { status: 201, data: run };
+    }
     if (resolved.channel !== 'SMS' || resolved.route !== 'ANDROID_SMS_MANAGER') {
       throw new NagexError({ code: 'MESSAGING_UNEXPECTED_RESOLUTION', category: 'INTERNAL', message: `Resolver returned unexpected channel/route: ${resolved.channel}/${resolved.route}.`, request_id: requestId });
     }
@@ -116,6 +122,11 @@ export const handleMobileMessageRoutes: AsyncRouteRegistrar<MobileMessageRouteDe
   if (getMatch && method === 'GET') {
     const { tenantId, ownerId } = requireSession(headers, sessionStore, requestId);
     const runId = decodeURIComponent(getMatch[1]);
+    if (runId.startsWith('mhr_')) {
+      let handoff = messagingHandoffService.getOwned(runId, tenantId, ownerId, requestId);
+      if (handoff.status === 'APPROVAL_REQUIRED') handoff = messagingHandoffService.confirmApproval(runId, tenantId, ownerId, requestId);
+      return { status: 200, data: handoff };
+    }
     let run = mobileMessageRunService.getOwnedRun(runId, tenantId, ownerId);
     if (!run) {
       throw new NagexError({ code: 'MOBILE_MESSAGE_RUN_NOT_FOUND', category: 'NOT_FOUND', message: `Run ${runId} was not found.`, request_id: requestId });
@@ -145,7 +156,9 @@ export const handleMobileMessageRoutes: AsyncRouteRegistrar<MobileMessageRouteDe
   if (approvalMatch && method === 'POST') {
     const { tenantId, ownerId } = requireSession(headers, sessionStore, requestId);
     const runId = decodeURIComponent(approvalMatch[1]);
-    const run = mobileMessageRunService.requestApproval(runId, tenantId, ownerId, requestId);
+    const run = runId.startsWith('mhr_')
+      ? messagingHandoffService.requestApproval(runId, tenantId, ownerId, requestId)
+      : mobileMessageRunService.requestApproval(runId, tenantId, ownerId, requestId);
     return { status: 200, data: run };
   }
 

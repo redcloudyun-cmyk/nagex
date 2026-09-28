@@ -7,7 +7,7 @@
 // registered SMS entry to resolve to.
 import type { MobileMessageRunService } from '../mobile/mobile-message-run.service.js';
 import type { MessagingExecutionAdapter } from './messaging-execution-adapter.js';
-import type { CapabilityResult, ExecutionOutcome, ExecutionRoute, PreparedMessage, RunSnapshot, SendMessageAction, SendResult } from './send-message-action.types.js';
+import type { CapabilityResult, ExecutionOutcome, ExecutionRoute, MessagingRouteCapabilities, PreparedMessage, RunSnapshot, SendMessageAction, SendResult } from './send-message-action.types.js';
 
 export class SmsMessagingAdapter implements MessagingExecutionAdapter {
   public readonly channel = 'SMS' as const;
@@ -26,6 +26,10 @@ export class SmsMessagingAdapter implements MessagingExecutionAdapter {
 
   public resolveExecutionRoute(_action: SendMessageAction): ExecutionRoute {
     return 'ANDROID_SMS_MANAGER';
+  }
+
+  public getRouteCapabilities(_action: SendMessageAction): MessagingRouteCapabilities {
+    return { executionMode: 'AUTONOMOUS_VERIFIED', recipientEnforced: true, messageEnforced: true, completionVerifiable: true, requiresHumanCompletion: false };
   }
 
   public async prepare(runId: string, tenantId: string, ownerId: string, deviceId: string, requestId: string): Promise<PreparedMessage> {

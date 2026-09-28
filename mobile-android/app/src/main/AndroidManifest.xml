@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <queries>
+        <package android:name="com.kakao.talk" />
+        <intent><action android:name="android.intent.action.SEND" /><data android:mimeType="text/plain" /></intent>
+    </queries>
+
     <!-- Networking: the app is an authenticated HTTPS client of the NAgex
          server only; it never listens for inbound connections. -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -35,10 +40,8 @@
          any other contact with no phone number on file. -->
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
-    <!-- Explicitly NOT requested: BIND_ACCESSIBILITY_SERVICE (Phase D,
-         pending the KakaoTalk feasibility spike). Requesting it before the
-         phase that needs it would be an unnecessary, unjustified
-         permission ask. -->
+    <!-- Deliberately no AccessibilityService. KakaoTalk uses a truthful
+         ACTION_SEND human handoff; NAgex never selects or clicks in KakaoTalk. -->
 
     <application
         android:allowBackup="false"

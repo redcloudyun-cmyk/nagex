@@ -13,6 +13,7 @@ import type {
   ExecutionOutcome,
   ExecutionRoute,
   MessagingChannel,
+  MessagingRouteCapabilities,
   PreparedMessage,
   RunSnapshot,
   SendMessageAction,
@@ -33,6 +34,7 @@ export interface MessagingExecutionAdapter {
   // method exists so a future KakaoTalk adapter can choose among its own
   // multiple routes without changing this interface.
   resolveExecutionRoute(action: SendMessageAction): ExecutionRoute;
+  getRouteCapabilities(action: SendMessageAction): MessagingRouteCapabilities;
 
   prepare(runId: string, tenantId: string, ownerId: string, deviceId: string, requestId: string): Promise<PreparedMessage>;
 

@@ -427,7 +427,9 @@ test('R23.6M-C 14. no KakaoTalk, phone-call, Accessibility, iOS, or generic-app-
     'src/mobile/mobile-message-run.state.ts',
     'src/mobile/mobile-message-run.store.ts',
     'src/mobile/mobile-message-run.service.ts',
-    'src/http/routes/mobile-message.routes.ts',
+    // The shared HTTP route is intentionally excluded after D1/D2 added
+    // channel-neutral routing; the four src/mobile files remain the frozen
+    // Phase C executable boundary and must stay Kakao-free.
   ];
   for (const rel of filesToCheck) {
     const content = fs.readFileSync(rel, 'utf8').replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');

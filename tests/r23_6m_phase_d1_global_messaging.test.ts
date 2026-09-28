@@ -9,6 +9,9 @@ import { ExecutionRouteResolver } from '../src/messaging/execution-route-resolve
 import { MessagingAdapterRegistry } from '../src/messaging/messaging-adapter-registry.js';
 import { parseOptionalMessagingChannel } from '../src/messaging/messaging-channel.js';
 import { SmsMessagingAdapter } from '../src/messaging/sms-messaging-adapter.js';
+import { MessagingHandoffRunStore } from '../src/messaging/messaging-handoff-run.store.js';
+import { MessagingHandoffService } from '../src/messaging/messaging-handoff.service.js';
+import { KakaoTalkHandoffAdapter } from '../src/messaging/kakaotalk-handoff-adapter.js';
 import type { SendMessageAction } from '../src/messaging/send-message-action.types.js';
 import { MobileMessageRunService } from '../src/mobile/mobile-message-run.service.js';
 import { MobileMessageRunStore } from '../src/mobile/mobile-message-run.store.js';
@@ -26,23 +29,20 @@ function harness() {
   const adapter = new SmsMessagingAdapter(service);
   const registry = new MessagingAdapterRegistry();
   registry.register(adapter);
+  const handoffs = new MessagingHandoffService(new MessagingHandoffRunStore({ dir: tempDir() }), approvals, recipientRefs);
+  registry.register(new KakaoTalkHandoffAdapter(handoffs));
   const resolver = new ExecutionRouteResolver(registry);
   const recipient = recipientRefs.mintOrReuse({ tenantId: 'ten_a', ownerId: 'usr_a', deviceId: 'dev_a', androidContactId: 'contact_a', displayName: 'Alex' });
   const action: SendMessageAction = { recipientRef: recipient.recipientRef, message: 'hello', tenantId: 'ten_a', ownerId: 'usr_a', deviceId: 'dev_a', locale: 'en-US', requestId: 'req_a' };
   return { approvals, service, adapter, registry, resolver, action };
 }
 
-test('R23.6M-D1 A-D/I. only SMS is registered; explicit KakaoTalk and unknown channels fail closed; omission resolves SMS', async () => {
+test('R23.6M-D1 regression. SMS remains the default autonomous route after later adapters are added', async () => {
   const h = harness();
-  assert.deepEqual(h.registry.listRegisteredChannels(), ['SMS']);
-  assert.equal(h.registry.isRegistered('KAKAOTALK'), false);
+  assert.equal(h.registry.isRegistered('SMS'), true);
   const resolved = await h.resolver.resolve(h.action);
   assert.equal(resolved.channel, 'SMS');
   assert.equal(resolved.route, 'ANDROID_SMS_MANAGER');
-  await assert.rejects(
-    () => h.resolver.resolve({ ...h.action, preferredChannel: 'KAKAOTALK' }),
-    (error: unknown) => error instanceof NagexError && error.code === 'MESSAGING_CHANNEL_UNSUPPORTED',
-  );
   assert.throws(
     () => parseOptionalMessagingChannel('WHATSAPP', 'req_unknown'),
     (error: unknown) => error instanceof NagexError && error.code === 'MESSAGING_CHANNEL_UNSUPPORTED',

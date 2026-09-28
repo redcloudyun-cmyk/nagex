@@ -6,12 +6,13 @@
 import { NagexError } from '../common/errors.js';
 import type { MessagingAdapterRegistry } from './messaging-adapter-registry.js';
 import type { MessagingExecutionAdapter } from './messaging-execution-adapter.js';
-import type { ExecutionRoute, MessagingChannel, SendMessageAction } from './send-message-action.types.js';
+import type { ExecutionRoute, MessagingChannel, MessagingRouteCapabilities, SendMessageAction } from './send-message-action.types.js';
 
 export interface ResolvedRoute {
   channel: MessagingChannel;
   route: ExecutionRoute;
   adapter: MessagingExecutionAdapter;
+  capabilities: MessagingRouteCapabilities;
 }
 
 export class ExecutionRouteResolver {
@@ -45,7 +46,7 @@ export class ExecutionRouteResolver {
         request_id: action.requestId,
       });
     }
-    return { channel, route: adapter.resolveExecutionRoute(action), adapter };
+    return { channel, route: adapter.resolveExecutionRoute(action), capabilities: adapter.getRouteCapabilities(action), adapter };
   }
 
   // No preference specified: choose among registered/available adapters.
@@ -58,7 +59,7 @@ export class ExecutionRouteResolver {
       if (!adapter) continue;
       const capability = await adapter.checkCapability(action);
       if (capability.available) {
-        return { channel, route: adapter.resolveExecutionRoute(action), adapter };
+        return { channel, route: adapter.resolveExecutionRoute(action), capabilities: adapter.getRouteCapabilities(action), adapter };
       }
     }
     throw new NagexError({

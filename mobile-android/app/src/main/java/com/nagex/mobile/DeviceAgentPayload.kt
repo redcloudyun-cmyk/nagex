@@ -75,4 +75,14 @@ object DeviceAgentPayload {
         val json = "{\"commandType\":\"MOBILE_MESSAGE_STATUS\",\"executionSessionId\":null,\"data\":$dataJson}"
         return Built(json, sha256Hex(json))
     }
+
+    fun messagingHandoffAuthorize(runId: String): Built = handoff("MESSAGING_HANDOFF_AUTHORIZE", runId)
+    fun messagingHandoffStarted(runId: String): Built = handoff("MESSAGING_HANDOFF_STARTED", runId)
+    fun messagingHandoffUnavailable(runId: String): Built = handoff("MESSAGING_HANDOFF_UNAVAILABLE", runId)
+
+    private fun handoff(command: String, runId: String): Built {
+        val dataJson = "{\"runId\":${CanonicalJson.escapeString(runId)}}"
+        val json = "{\"commandType\":\"$command\",\"executionSessionId\":null,\"data\":$dataJson}"
+        return Built(json, sha256Hex(json))
+    }
 }

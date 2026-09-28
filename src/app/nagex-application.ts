@@ -196,4 +196,6 @@ export interface NagexApplication {
   // adapter (SMS) — see create-nagex-application.ts's own comment.
   messagingAdapterRegistry: import('../messaging/messaging-adapter-registry.js').MessagingAdapterRegistry;
   executionRouteResolver: import('../messaging/execution-route-resolver.js').ExecutionRouteResolver;
+  messagingHandoffRunStore: import('../messaging/messaging-handoff-run.store.js').MessagingHandoffRunStore;
+  messagingHandoffService: import('../messaging/messaging-handoff.service.js').MessagingHandoffService;
 }

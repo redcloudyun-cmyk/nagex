@@ -25,6 +25,9 @@ import { NagexError } from '../src/common/errors.js';
 import { MessagingAdapterRegistry } from '../src/messaging/messaging-adapter-registry.js';
 import { ExecutionRouteResolver } from '../src/messaging/execution-route-resolver.js';
 import { SmsMessagingAdapter } from '../src/messaging/sms-messaging-adapter.js';
+import { MessagingHandoffRunStore } from '../src/messaging/messaging-handoff-run.store.js';
+import { MessagingHandoffService } from '../src/messaging/messaging-handoff.service.js';
+import { KakaoTalkHandoffAdapter } from '../src/messaging/kakaotalk-handoff-adapter.js';
 
 function tempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-r23-6m-phase-c-routes-test-'));
@@ -39,8 +42,10 @@ function makeHarness() {
   const mobileMessageRunService = new MobileMessageRunService(runStore, recipientRefStore, approvals);
   const messagingAdapterRegistry = new MessagingAdapterRegistry();
   messagingAdapterRegistry.register(new SmsMessagingAdapter(mobileMessageRunService));
+  const messagingHandoffService = new MessagingHandoffService(new MessagingHandoffRunStore({ dir: tempDir() }), approvals, recipientRefStore);
+  messagingAdapterRegistry.register(new KakaoTalkHandoffAdapter(messagingHandoffService));
   const executionRouteResolver = new ExecutionRouteResolver(messagingAdapterRegistry);
-  return { sessionStore, deviceIdentityStore, recipientRefStore, mobileMessageRunService, executionRouteResolver };
+  return { sessionStore, deviceIdentityStore, recipientRefStore, mobileMessageRunService, executionRouteResolver, messagingHandoffService };
 }
 
 function call(deps: ReturnType<typeof makeHarness>, method: string, pathname: string, body: Record<string, unknown>, headers: Record<string, string>) {
@@ -49,6 +54,7 @@ function call(deps: ReturnType<typeof makeHarness>, method: string, pathname: st
     deviceIdentityStore: deps.deviceIdentityStore,
     mobileMessageRunService: deps.mobileMessageRunService,
     executionRouteResolver: deps.executionRouteResolver,
+    messagingHandoffService: deps.messagingHandoffService,
   });
 }
 

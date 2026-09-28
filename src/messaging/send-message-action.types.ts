@@ -25,10 +25,19 @@ export type MessagingChannel = 'SMS' | 'KAKAOTALK';
 // == route" assumptions out of this type.
 export type ExecutionRoute =
   | 'ANDROID_SMS_MANAGER'
-  | 'KAKAOTALK_OFFICIAL_API'
-  | 'KAKAOTALK_DEEP_LINK'
-  | 'KAKAOTALK_UI_AUTOMATION'
-  | 'MANUAL_FALLBACK';
+  | 'KAKAOTALK_OFFICIAL_MESSAGE_API'
+  | 'KAKAOTALK_SHARE'
+  | 'KAKAOTALK_MANUAL';
+
+export type MessagingExecutionMode = 'AUTONOMOUS_VERIFIED' | 'HUMAN_HANDOFF' | 'MANUAL';
+
+export interface MessagingRouteCapabilities {
+  executionMode: MessagingExecutionMode;
+  recipientEnforced: boolean;
+  messageEnforced: boolean;
+  completionVerifiable: boolean;
+  requiresHumanCompletion: boolean;
+}
 
 // The canonical, channel-neutral action. Mirrors the same
 // recipientRef/message/device-context shape Phase B3/C already

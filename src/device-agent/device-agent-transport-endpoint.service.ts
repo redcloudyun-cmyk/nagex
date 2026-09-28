@@ -15,6 +15,7 @@ import { isDeviceAgentCommandPayload, type DeviceAgentCommandPayload } from './d
 import { DevicePendingCommandStore } from './device-pending-command.store.js';
 import type { MobileMessageRunService } from '../mobile/mobile-message-run.service.js';
 import type { MobileMessageSendResult } from '../mobile/mobile-message.types.js';
+import type { MessagingHandoffService } from '../messaging/messaging-handoff.service.js';
 
 const VALID_SEND_RESULTS: ReadonlySet<string> = new Set<MobileMessageSendResult>(['SENT_CONFIRMED', 'SEND_FAILED', 'SEND_STATUS_UNKNOWN']);
 
@@ -44,6 +45,7 @@ export class DeviceAgentTransportEndpoint {
     // need it. A mobile-message command with this unset fails closed with
     // a clear configuration error rather than a silent no-op.
     private readonly mobileMessages?: MobileMessageRunService,
+    private readonly messagingHandoffs?: MessagingHandoffService,
   ) {}
 
   public handle(message: DeviceAgentMessage, requestId: string): DeviceAgentResponse {
@@ -191,6 +193,24 @@ export class DeviceAgentTransportEndpoint {
         }
         return { status: 'OK', commandType: 'MOBILE_MESSAGE_STATUS', result: { runId: run.runId, status: run.status } };
       }
+
+      case 'MESSAGING_HANDOFF_AUTHORIZE': {
+        const service = this.requireMessagingHandoffs(requestId);
+        const runId = typeof payload.data.runId === 'string' ? payload.data.runId : '';
+        if (!runId) throw new NagexError({ code: 'MESSAGING_HANDOFF_RUN_ID_REQUIRED', category: 'VALIDATION', message: 'runId is required.', request_id: requestId });
+        return { status: 'OK', commandType: payload.commandType, result: service.authorizeHandoff(runId, device.tenantId, device.ownerId, device.deviceId, requestId) };
+      }
+
+      case 'MESSAGING_HANDOFF_STARTED':
+      case 'MESSAGING_HANDOFF_UNAVAILABLE': {
+        const service = this.requireMessagingHandoffs(requestId);
+        const runId = typeof payload.data.runId === 'string' ? payload.data.runId : '';
+        if (!runId) throw new NagexError({ code: 'MESSAGING_HANDOFF_RUN_ID_REQUIRED', category: 'VALIDATION', message: 'runId is required.', request_id: requestId });
+        const run = payload.commandType === 'MESSAGING_HANDOFF_STARTED'
+          ? service.reportHandoffStarted(runId, device.tenantId, device.ownerId, device.deviceId, requestId)
+          : service.markUnavailable(runId, device.tenantId, device.ownerId, device.deviceId, requestId);
+        return { status: 'OK', commandType: payload.commandType, result: { runId: run.runId, status: run.status } };
+      }
     }
   }
 
@@ -199,6 +219,11 @@ export class DeviceAgentTransportEndpoint {
       throw new NagexError({ code: 'MOBILE_MESSAGE_NOT_CONFIGURED', category: 'RUNTIME', message: 'Mobile message execution is not configured on this server.', request_id: requestId });
     }
     return this.mobileMessages;
+  }
+
+  private requireMessagingHandoffs(requestId: string): MessagingHandoffService {
+    if (!this.messagingHandoffs) throw new NagexError({ code: 'MESSAGING_HANDOFF_NOT_CONFIGURED', category: 'RUNTIME', message: 'Messaging handoff execution is not configured.', request_id: requestId });
+    return this.messagingHandoffs;
   }
 
   // Called on disconnect/shutdown/logout paths — never on the authenticated

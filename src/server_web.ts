@@ -190,6 +190,7 @@ export const {
   contactResolver,
   mobileMessageRunService,
   executionRouteResolver,
+  messagingHandoffService,
 } = app;
 
 // A real (not fake) background scheduler loop — only runs when this module
@@ -599,7 +600,7 @@ export async function handleAsyncApiRequest(
 
     // R23.6M Phase C — Mobile SMS message lifecycle routes.
     {
-      const mobileMessageResult = await handleMobileMessageRoutes(method, pathname, body, headers, query, { sessionStore, deviceIdentityStore, mobileMessageRunService, executionRouteResolver });
+      const mobileMessageResult = await handleMobileMessageRoutes(method, pathname, body, headers, query, { sessionStore, deviceIdentityStore, mobileMessageRunService, executionRouteResolver, messagingHandoffService });
       if (mobileMessageResult) return mobileMessageResult;
     }
 

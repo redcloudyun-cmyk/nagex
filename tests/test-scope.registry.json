@@ -219,6 +219,7 @@
       "r23_6m_phase_c_device_transport",
       "r23_6m_phase_c_message_routes",
       "r23_6m_phase_d1_global_messaging",
+      "r23_6m_phase_d2b_kakaotalk_handoff",
       "device_agent_foundation",
       "device_agent_transport",
       "r23_3t_permission_approval_hardening",

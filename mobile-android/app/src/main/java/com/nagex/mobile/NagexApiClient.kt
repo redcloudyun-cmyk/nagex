@@ -202,8 +202,9 @@ class NagexApiClient(private val config: NagexServerConfig) {
      * session identity, not the spoofable x-nagex-tenant/x-principal-id
      * headers. Creates the immutable (until edited) draft; never sends
      * anything by itself. */
-    fun createMessage(deviceId: String, recipientRef: String, message: String): MobileMessageRun {
+    fun createMessage(deviceId: String, recipientRef: String, message: String, preferredChannel: String? = null): MobileMessageRun {
         val body = JSONObject().put("deviceId", deviceId).put("recipientRef", recipientRef).put("message", message)
+        if (preferredChannel != null) body.put("preferredChannel", preferredChannel)
         val request = sessionAuthenticatedRequestBuilder("/api/v1/mobile/messages")
             .post(body.toString().toRequestBody(jsonMediaType))
             .build()

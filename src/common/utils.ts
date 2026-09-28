@@ -7,6 +7,7 @@ export type ResourcePrefix =
   | 'agt'
   | 'wfl'
   | 'exe'
+  | 'mhr'
   | 'tsk'
   | 'knc'
   | 'kns'

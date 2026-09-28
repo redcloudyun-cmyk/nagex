@@ -3801,6 +3801,18 @@
       "deterministic": true,
       "assertionIntent": "the global messaging registry/resolver/adapter boundary is on the production path, registers only SMS, rejects explicit unimplemented or unknown channels without fallback, and preserves the certified SMS run and approval contracts",
       "notes": "D1 abstraction certification. Runtime tests exercise the real SMS adapter and resolver; narrow structural assertions freeze production composition and the unchanged Phase C executable contract."
+    },
+    "r23_6m_phase_d2b_kakaotalk_handoff": {
+      "milestone": "R23.6M-D2B",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["agents", "approvals", "device", "security"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "KakaoTalk Share is a signed, approval-bound human handoff that stops at NEEDS_HUMAN, never falls back to SMS, never claims recipient enforcement or send confirmation, and contains no Accessibility automation",
+      "notes": "Covers D2B A-P including route capability metadata, exact EXTRA_TEXT boundary, drift reapproval, terminal truthful handoff semantics, and unchanged SMS behavior."
     }
   }
 }

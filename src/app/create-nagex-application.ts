@@ -51,6 +51,9 @@ import { MobileMessageRunService } from '../mobile/mobile-message-run.service.js
 import { MessagingAdapterRegistry } from '../messaging/messaging-adapter-registry.js';
 import { ExecutionRouteResolver } from '../messaging/execution-route-resolver.js';
 import { SmsMessagingAdapter } from '../messaging/sms-messaging-adapter.js';
+import { KakaoTalkHandoffAdapter } from '../messaging/kakaotalk-handoff-adapter.js';
+import { MessagingHandoffRunStore } from '../messaging/messaging-handoff-run.store.js';
+import { MessagingHandoffService } from '../messaging/messaging-handoff.service.js';
 import { DesktopExecutionSessionStore } from '../device-agent/desktop-execution-session.store.js';
 import { DeviceTransportSecurity } from '../device-agent/device-transport-security.js';
 import { DeviceConnectionStatusStore } from '../device-agent/device-connection-status.store.js';
@@ -234,6 +237,9 @@ export function createNagexApplication(): NagexApplication {
   // no certified logic moves here.
   const messagingAdapterRegistry = new MessagingAdapterRegistry();
   messagingAdapterRegistry.register(new SmsMessagingAdapter(mobileMessageRunService));
+  const messagingHandoffRunStore = new MessagingHandoffRunStore();
+  const messagingHandoffService = new MessagingHandoffService(messagingHandoffRunStore, actionApprovals, recipientRefStore, auditLogger);
+  messagingAdapterRegistry.register(new KakaoTalkHandoffAdapter(messagingHandoffService));
   const executionRouteResolver = new ExecutionRouteResolver(messagingAdapterRegistry);
   const deviceAgentTransportEndpoint = new DeviceAgentTransportEndpoint(
     deviceTransportSecurity,
@@ -242,6 +248,7 @@ export function createNagexApplication(): NagexApplication {
     desktopExecutionSessionStore,
     devicePendingCommandStore,
     mobileMessageRunService,
+    messagingHandoffService,
   );
   const moduleRegistry = new ModuleRegistry();
   const moduleStateStore = new ModuleStateStore();
@@ -802,5 +809,7 @@ export function createNagexApplication(): NagexApplication {
     mobileMessageRunService,
     messagingAdapterRegistry,
     executionRouteResolver,
+    messagingHandoffRunStore,
+    messagingHandoffService,
   };
 }

@@ -42,6 +42,7 @@ class MessageComposeActivity : AppCompatActivity() {
     private lateinit var displayName: String
     private var currentRunId: String? = null
     private var currentApprovalId: String? = null
+    private var preferredChannel: String = "SMS"
 
     private val requestMicPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) startListeningForMessage() else showStatus("Microphone permission denied — voice command cannot proceed.")
@@ -67,6 +68,12 @@ class MessageComposeActivity : AppCompatActivity() {
 
         binding.recipientText.text = "To: $displayName"
         binding.recordMessageButton.setOnClickListener {
+            preferredChannel = "SMS"
+            if (VoiceCaptureManager(this).hasMicrophonePermission()) startListeningForMessage()
+            else requestMicPermission.launch(Manifest.permission.RECORD_AUDIO)
+        }
+        binding.recordKakaoMessageButton.setOnClickListener {
+            preferredChannel = "KAKAOTALK"
             if (VoiceCaptureManager(this).hasMicrophonePermission()) startListeningForMessage()
             else requestMicPermission.launch(Manifest.permission.RECORD_AUDIO)
         }
@@ -122,7 +129,7 @@ class MessageComposeActivity : AppCompatActivity() {
         showStatus("Requesting approval...")
         Thread {
             val outcome = try {
-                val run = apiClient.createMessage(deviceId, recipientRef, message)
+                val run = apiClient.createMessage(deviceId, recipientRef, message, preferredChannel)
                 apiClient.requestMessageApproval(run.runId)
             } catch (e: NagexApiClient.ApiException) {
                 null
@@ -134,7 +141,11 @@ class MessageComposeActivity : AppCompatActivity() {
                 }
                 currentRunId = outcome.runId
                 currentApprovalId = outcome.approvalId
-                showStatus("Approve sending this message to $displayName?")
+                if (preferredChannel == "KAKAOTALK") {
+                    showStatus("Approve KakaoTalk handoff for intended recipient $displayName? NAgex passes the exact text, but cannot select or enforce the chat recipient and cannot confirm sending. You must verify the chat and send manually.")
+                } else {
+                    showStatus("Approve sending this SMS to $displayName?")
+                }
                 setApprovalButtonsVisible(true)
             }
         }.start()
@@ -156,11 +167,40 @@ class MessageComposeActivity : AppCompatActivity() {
                     showStatus("Approval did not complete (status=${approvedRun?.status}).")
                     return@post
                 }
-                showStatus("Approved. Preparing to send...")
+                if (preferredChannel == "KAKAOTALK") {
+                    showStatus("Approved. Opening KakaoTalk for manual completion...")
+                    proceedToKakaoTalkHandoff()
+                    return@post
+                }
+                showStatus("Approved. Preparing to send SMS...")
                 if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
                     requestSmsPermission.launch(Manifest.permission.SEND_SMS)
                 } else {
                     proceedToExecution()
+                }
+            }
+        }.start()
+    }
+
+    private fun proceedToKakaoTalkHandoff() {
+        val runId = currentRunId ?: return
+        val deviceId = config.deviceId ?: return
+        val tenantId = config.tenantId ?: return
+        val ownerId = config.principalId ?: return
+        Thread {
+            val authorized = try { apiClient.sendDeviceMessage(deviceId, tenantId, ownerId, keyManager, DeviceAgentPayload.messagingHandoffAuthorize(runId)) }
+            catch (e: Exception) { mainHandler.post { showStatus("KakaoTalk handoff authorization failed.") }; return@Thread }
+            val approvedText = authorized.optJSONObject("result")?.optString("message") ?: run {
+                mainHandler.post { showStatus("Approved handoff text was unavailable.") }; return@Thread
+            }
+            mainHandler.post {
+                when (KakaoTalkHandoffExecutor(this).start(approvedText)) {
+                    is KakaoTalkHandoffExecutor.Result.Started -> Thread {
+                        try { apiClient.sendDeviceMessage(deviceId, tenantId, ownerId, keyManager, DeviceAgentPayload.messagingHandoffStarted(runId)) } catch (_: Exception) { }
+                    }.start().also { showStatus("KakaoTalk opened. Select and verify the recipient, review the message, then send manually. NAgex cannot confirm completion.") }
+                    is KakaoTalkHandoffExecutor.Result.Unavailable -> Thread {
+                        try { apiClient.sendDeviceMessage(deviceId, tenantId, ownerId, keyManager, DeviceAgentPayload.messagingHandoffUnavailable(runId)) } catch (_: Exception) { }
+                    }.start().also { showStatus("KakaoTalk handoff is unavailable. No SMS was sent.") }
                 }
             }
         }.start()
