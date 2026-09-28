@@ -48,6 +48,9 @@ import { RecipientRefStore } from '../mobile/recipient-ref.store.js';
 import { ContactResolver } from '../mobile/contact-resolver.service.js';
 import { MobileMessageRunStore } from '../mobile/mobile-message-run.store.js';
 import { MobileMessageRunService } from '../mobile/mobile-message-run.service.js';
+import { MessagingAdapterRegistry } from '../messaging/messaging-adapter-registry.js';
+import { ExecutionRouteResolver } from '../messaging/execution-route-resolver.js';
+import { SmsMessagingAdapter } from '../messaging/sms-messaging-adapter.js';
 import { DesktopExecutionSessionStore } from '../device-agent/desktop-execution-session.store.js';
 import { DeviceTransportSecurity } from '../device-agent/device-transport-security.js';
 import { DeviceConnectionStatusStore } from '../device-agent/device-connection-status.store.js';
@@ -225,6 +228,13 @@ export function createNagexApplication(): NagexApplication {
     actionApprovals,
     auditLogger,
   );
+  // R23.6M Phase D1 — Global Messaging Abstraction. Exactly one registered
+  // adapter (SMS); KakaoTalk is not registered until D2 provides a real
+  // adapter. SmsMessagingAdapter wraps mobileMessageRunService unchanged —
+  // no certified logic moves here.
+  const messagingAdapterRegistry = new MessagingAdapterRegistry();
+  messagingAdapterRegistry.register(new SmsMessagingAdapter(mobileMessageRunService));
+  const executionRouteResolver = new ExecutionRouteResolver(messagingAdapterRegistry);
   const deviceAgentTransportEndpoint = new DeviceAgentTransportEndpoint(
     deviceTransportSecurity,
     deviceIdentityStore,
@@ -790,5 +800,7 @@ export function createNagexApplication(): NagexApplication {
     contactResolver,
     mobileMessageRunStore,
     mobileMessageRunService,
+    messagingAdapterRegistry,
+    executionRouteResolver,
   };
 }

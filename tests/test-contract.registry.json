@@ -3789,6 +3789,18 @@
       "deterministic": true,
       "assertionIntent": "every /api/v1/mobile/messages endpoint requires a real validated session (never the spoofable x-nagex-tenant/x-principal-id headers), and deviceId/recipientRef ownership is independently re-checked at the route layer — cross-tenant, cross-owner, cross-device, and revoked-device attempts are all rejected before any draft is created",
       "notes": "Route-level complement to r23_6m_phase_c_sms_execution (service logic) and r23_6m_phase_c_device_transport (signed transport) — calls handleMobileMessageRoutes directly, the same dispatch function server_web.ts wires to the real HTTP path."
+    },
+    "r23_6m_phase_d1_global_messaging": {
+      "milestone": "R23.6M-D1",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["agents", "approvals", "device", "security"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "the global messaging registry/resolver/adapter boundary is on the production path, registers only SMS, rejects explicit unimplemented or unknown channels without fallback, and preserves the certified SMS run and approval contracts",
+      "notes": "D1 abstraction certification. Runtime tests exercise the real SMS adapter and resolver; narrow structural assertions freeze production composition and the unchanged Phase C executable contract."
     }
   }
 }

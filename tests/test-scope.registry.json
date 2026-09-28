@@ -218,6 +218,7 @@
       "r23_6m_phase_c_sms_execution",
       "r23_6m_phase_c_device_transport",
       "r23_6m_phase_c_message_routes",
+      "r23_6m_phase_d1_global_messaging",
       "device_agent_foundation",
       "device_agent_transport",
       "r23_3t_permission_approval_hardening",
