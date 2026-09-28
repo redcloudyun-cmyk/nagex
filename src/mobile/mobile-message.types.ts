@@ -85,18 +85,24 @@ export function isMobileMessageRunRecord(value: unknown): value is MobileMessage
 // payload-hash comparison (ActionApprovalStore.consume()), not be
 // silently accepted.
 export interface MobileMessageApprovalPayload {
+  canonicalAction: 'SEND_MESSAGE';
   recipientRef: string;
   channel: MobileMessageChannel;
   message: string;
+  environment: 'ANDROID';
+  provider: 'DEVICE_NATIVE';
   deviceId: string;
   executionRoute: MobileMessageExecutionRoute;
 }
 
 export function buildApprovalPayload(run: Pick<MobileMessageRunRecord, 'recipientRef' | 'channel' | 'message' | 'deviceId' | 'executionRoute'>): MobileMessageApprovalPayload {
   return {
+    canonicalAction: 'SEND_MESSAGE',
     recipientRef: run.recipientRef,
     channel: run.channel,
     message: run.message,
+    environment: 'ANDROID',
+    provider: 'DEVICE_NATIVE',
     deviceId: run.deviceId,
     executionRoute: run.executionRoute,
   };

@@ -3813,6 +3813,18 @@
       "deterministic": true,
       "assertionIntent": "KakaoTalk Share is a signed, approval-bound human handoff that stops at NEEDS_HUMAN, never falls back to SMS, never claims recipient enforcement or send confirmation, and contains no Accessibility automation",
       "notes": "Covers D2B A-P including route capability metadata, exact EXTRA_TEXT boundary, drift reapproval, terminal truthful handoff semantics, and unchanged SMS behavior."
+    },
+    "r23_6m_phase_d3s_canonical_messaging_contract": {
+      "milestone": "R23.6M-D3S",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["agents", "approvals", "device", "security"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "canonical messaging execution contract runtime integration mapping existing SMS to ANDROID/DEVICE_NATIVE/ANDROID_SMS_MANAGER without changing SMS state machine or approval semantics, forbidding generic SENT state, enforcing evidence-based success, binding approval to environment/provider/route, excluding disabled KakaoTalk, and preventing synthetic success from becoming runtime evidence",
+      "notes": "Covers D3S A-P requirements for canonical messaging execution contract."
     }
   }
 }

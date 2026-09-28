@@ -49,9 +49,10 @@ import { ContactResolver } from '../mobile/contact-resolver.service.js';
 import { MobileMessageRunStore } from '../mobile/mobile-message-run.store.js';
 import { MobileMessageRunService } from '../mobile/mobile-message-run.service.js';
 import { MessagingAdapterRegistry } from '../messaging/messaging-adapter-registry.js';
+import { MessagingCapabilityRegistry } from '../messaging/messaging-capability-registry.js';
+import { SMS_CANONICAL_CAPABILITY } from '../messaging/sms-canonical-mapping.js';
 import { ExecutionRouteResolver } from '../messaging/execution-route-resolver.js';
 import { SmsMessagingAdapter } from '../messaging/sms-messaging-adapter.js';
-import { KakaoTalkHandoffAdapter } from '../messaging/kakaotalk-handoff-adapter.js';
 import { MessagingHandoffRunStore } from '../messaging/messaging-handoff-run.store.js';
 import { MessagingHandoffService } from '../messaging/messaging-handoff.service.js';
 import { DesktopExecutionSessionStore } from '../device-agent/desktop-execution-session.store.js';
@@ -237,9 +238,10 @@ export function createNagexApplication(): NagexApplication {
   // no certified logic moves here.
   const messagingAdapterRegistry = new MessagingAdapterRegistry();
   messagingAdapterRegistry.register(new SmsMessagingAdapter(mobileMessageRunService));
+  const messagingCapabilityRegistry = new MessagingCapabilityRegistry();
+  messagingCapabilityRegistry.register(SMS_CANONICAL_CAPABILITY);
   const messagingHandoffRunStore = new MessagingHandoffRunStore();
   const messagingHandoffService = new MessagingHandoffService(messagingHandoffRunStore, actionApprovals, recipientRefStore, auditLogger);
-  messagingAdapterRegistry.register(new KakaoTalkHandoffAdapter(messagingHandoffService));
   const executionRouteResolver = new ExecutionRouteResolver(messagingAdapterRegistry);
   const deviceAgentTransportEndpoint = new DeviceAgentTransportEndpoint(
     deviceTransportSecurity,
@@ -808,6 +810,7 @@ export function createNagexApplication(): NagexApplication {
     mobileMessageRunStore,
     mobileMessageRunService,
     messagingAdapterRegistry,
+    messagingCapabilityRegistry,
     executionRouteResolver,
     messagingHandoffRunStore,
     messagingHandoffService,

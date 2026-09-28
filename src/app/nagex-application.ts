@@ -195,6 +195,7 @@ export interface NagexApplication {
   // R23.6M Phase D1 — Global Messaging Abstraction. Exactly one registered
   // adapter (SMS) — see create-nagex-application.ts's own comment.
   messagingAdapterRegistry: import('../messaging/messaging-adapter-registry.js').MessagingAdapterRegistry;
+  messagingCapabilityRegistry: import('../messaging/messaging-capability-registry.js').MessagingCapabilityRegistry;
   executionRouteResolver: import('../messaging/execution-route-resolver.js').ExecutionRouteResolver;
   messagingHandoffRunStore: import('../messaging/messaging-handoff-run.store.js').MessagingHandoffRunStore;
   messagingHandoffService: import('../messaging/messaging-handoff.service.js').MessagingHandoffService;

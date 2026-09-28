@@ -337,9 +337,12 @@ test('R23.6M-C 13. mobile SMS approvals flow through the exact same ActionApprov
   assert.equal(approval?.toolId, 'mobile.send_sms');
   assert.equal(approval?.status, 'PENDING');
   assert.deepEqual(approval?.canonicalPayload, {
+    canonicalAction: 'SEND_MESSAGE',
     recipientRef: ref.recipientRef,
     channel: 'SMS',
     message: 'hi',
+    environment: 'ANDROID',
+    provider: 'DEVICE_NATIVE',
     deviceId: 'dev_1',
     executionRoute: 'ANDROID_SMS_MANAGER',
   });
