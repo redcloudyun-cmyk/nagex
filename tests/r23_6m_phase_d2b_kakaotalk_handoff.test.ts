@@ -79,6 +79,9 @@ test('D2B I/J. SMS adapter remains autonomous verified and Android handoff conta
   assert.deepEqual(sms.getRouteCapabilities(h.action), { executionMode: 'AUTONOMOUS_VERIFIED', recipientEnforced: true, messageEnforced: true, completionVerifiable: true, requiresHumanCompletion: false });
   const android = fs.readFileSync('mobile-android/app/src/main/java/com/nagex/mobile/KakaoTalkHandoffExecutor.kt', 'utf8');
   assert.match(android, /Intent\.EXTRA_TEXT/); assert.doesNotMatch(android, /Accessibility|performAction|click|SENT_CONFIRMED/i);
+  assert.match(android, /hasWindowFocus\(\)/);
+  assert.match(android, /Result\.Unavailable/);
+  assert.match(android, /MemoChatConnectActivity/);
   const compose = fs.readFileSync('mobile-android/app/src/main/java/com/nagex/mobile/MessageComposeActivity.kt', 'utf8');
   assert.match(compose, /cannot select or enforce the chat recipient/);
   assert.match(compose, /cannot confirm sending/);

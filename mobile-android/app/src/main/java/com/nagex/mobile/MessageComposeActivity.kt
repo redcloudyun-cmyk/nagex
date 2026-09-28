@@ -194,14 +194,14 @@ class MessageComposeActivity : AppCompatActivity() {
                 mainHandler.post { showStatus("Approved handoff text was unavailable.") }; return@Thread
             }
             mainHandler.post {
-                when (KakaoTalkHandoffExecutor(this).start(approvedText)) {
+                KakaoTalkHandoffExecutor(this).start(approvedText) { result -> when (result) {
                     is KakaoTalkHandoffExecutor.Result.Started -> Thread {
                         try { apiClient.sendDeviceMessage(deviceId, tenantId, ownerId, keyManager, DeviceAgentPayload.messagingHandoffStarted(runId)) } catch (_: Exception) { }
                     }.start().also { showStatus("KakaoTalk opened. Select and verify the recipient, review the message, then send manually. NAgex cannot confirm completion.") }
                     is KakaoTalkHandoffExecutor.Result.Unavailable -> Thread {
                         try { apiClient.sendDeviceMessage(deviceId, tenantId, ownerId, keyManager, DeviceAgentPayload.messagingHandoffUnavailable(runId)) } catch (_: Exception) { }
                     }.start().also { showStatus("KakaoTalk handoff is unavailable. No SMS was sent.") }
-                }
+                } }
             }
         }.start()
     }
