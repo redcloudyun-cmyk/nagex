@@ -620,7 +620,7 @@ Phase A    — Mobile Architecture Audit                [CLOSED]
 Phase B    — Android Companion Foundation             [CLOSED]
 Phase C    — Real SMS Execution                       [CLOSED, FINAL_SHA afeb432]
 Phase C.5  — Global Voice Invocation Foundation        [P0 CLOSED, P1 NOT STARTED]
-Phase D1   — Global Messaging Abstraction
+Phase D1   — Global Messaging Abstraction              [CLOSED, 2026-09-28]
 Phase D2   — KakaoTalk Execution Adapter
 Phase D3   — Global Messaging Adapter Feasibility
 Phase E    — Mobile Safety Certification
@@ -743,7 +743,7 @@ SMS 발신/거부→SMS 0건)로 인증 완료. Wake word/VoiceInteractionServic
 phrase)은 시작하지 않았다** — Section 17.4의 wake-word engine 선정
 조사가 먼저 필요하다.
 
-## Phase D1 — Global Messaging Abstraction
+## Phase D1 — Global Messaging Abstraction [CLOSED, 2026-09-28]
 
 신규 추가 (2026-09-28, 기존 단일 Phase D를 세분화). 상세 원칙은
 Section 17.4(Global Messaging Principle)와 17.5(D1 상세)를 참고.
@@ -1562,7 +1562,7 @@ Phase A    — Mobile Architecture Audit                [CLOSED]
 Phase B    — Android Companion Foundation             [CLOSED]
 Phase C    — Real SMS Execution                       [CLOSED, FINAL_SHA afeb432]
 Phase C.5  — Global Voice Invocation Foundation        [P0 CLOSED, P1 NOT STARTED]
-Phase D1   — Global Messaging Abstraction
+Phase D1   — Global Messaging Abstraction              [CLOSED, 2026-09-28]
 Phase D2   — KakaoTalk Execution Adapter
 Phase D3   — Global Messaging Adapter Feasibility
 Phase E    — Mobile Safety Certification
