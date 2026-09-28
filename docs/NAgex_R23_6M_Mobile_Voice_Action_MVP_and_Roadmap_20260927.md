@@ -26,11 +26,12 @@
 
 기준일: 2026-09-27  
 최종 개정: 2026-09-28 — Phase C CLOSED(FINAL_SHA afeb432) 반영, Phase C.5
-  (Global Voice Invocation Foundation) 추가, Phase D를 D1/D2/D3(Global
-  Messaging Abstraction / KakaoTalk Adapter / Global Adapter Feasibility)로
-  세분화, Section 17.2~17.11 글로벌 원칙(Voice Invocation, Cross-Platform
-  Invocation, Global Messaging, Execution Route Resolver, Global Language
-  Model, Security Debt, Phase E Mandatory Blockers) 추가  
+  (Global Voice Invocation Foundation) 추가, Phase D를 D1/D2A/D2B/D3로
+  세분화, D1 Global Messaging Abstraction CLOSED, D2A KakaoTalk Execution
+  Feasibility Audit CLOSED, D2B KakaoTalk Truthful Handoff Adapter를 NEXT로
+  지정. Section 17.12에 Multi-Platform Execution Architecture
+  ("One Brain, Many Execution Planes")를 canonical 원칙으로 추가하고
+  Web/Server/Browser/Android/iOS/Desktop 실행 plane 분리를 반영  
 프로젝트: NAgex  
 목적: 모바일 환경에서 음성 명령을 통해 실제 디바이스 액션을 수행하는 핵심 Personal AI 기능 구현
 
@@ -644,8 +645,12 @@ Phase A    — Mobile Architecture Audit                [CLOSED]
 Phase B    — Android Companion Foundation             [CLOSED]
 Phase C    — Real SMS Execution                       [CLOSED, FINAL_SHA afeb432]
 Phase C.5  — Global Voice Invocation Foundation        [P0 CLOSED, P1 NOT STARTED]
-Phase D1   — Global Messaging Abstraction              [CLOSED, 2026-09-28]
-Phase D2   — KakaoTalk Execution Adapter
+Phase D1   — Global Messaging Abstraction              [CLOSED]
+Phase D2A  — KakaoTalk Execution Feasibility Audit     [CLOSED]
+Phase D2B  — KakaoTalk Truthful Handoff Adapter        [CLOSED]
+Phase D3   — Global Messaging Adapter Feasibility      [AUDIT COMPLETE]
+Phase D3R  — Execution-Plane Messaging Contract Review [DESIGN COMPLETE]
+Phase D3S  — Messaging Contract Runtime Integration    [CLOSED]
 Phase D3   — Global Messaging Adapter Feasibility
 Phase E    — Mobile Safety Certification
 Phase F    — Unified Identity + Global Distribution
@@ -767,7 +772,7 @@ SMS 발신/거부→SMS 0건)로 인증 완료. Wake word/VoiceInteractionServic
 phrase)은 시작하지 않았다** — Section 17.4의 wake-word engine 선정
 조사가 먼저 필요하다.
 
-## Phase D1 — Global Messaging Abstraction [CLOSED, 2026-09-28]
+## Phase D1 — Global Messaging Abstraction [CLOSED]
 
 신규 추가 (2026-09-28, 기존 단일 Phase D를 세분화). 상세 원칙은
 Section 17.4(Global Messaging Principle)와 17.5(D1 상세)를 참고.
@@ -793,7 +798,26 @@ Phase C의 인증된 SMS 실행 경로가 어댑터로 감싼 이후에도 기�
 테스트(scenario A-I, Phase C 4개 스코프)가 그대로 통과한다.
 ```
 
-## Phase D2 — KakaoTalk Execution Adapter
+## Phase D2A — KakaoTalk Execution Feasibility Audit [CLOSED]
+
+결론:
+
+```text
+공식 Kakao Message API는 임의 개인 친구 대상 범용 자동 발송 API가 아님.
+공식 API는 Kakao Login/동의/추가 권한/receiver UUID/템플릿 등 조건부 경로로만 검토.
+KakaoTalk Share / Android 공유는 HUMAN_HANDOFF / NEEDS_HUMAN 경로.
+AccessibilityService 기반 소비자 자동화는 NO-GO.
+앱/공유 UI 실행만으로 SENT_CONFIRMED 처리 금지.
+KakaoTalk 실패 시 SMS silent fallback 금지.
+```
+
+근거 문서:
+
+```text
+docs/NAgex_R23_6M_D2A_KakaoTalk_Execution_Feasibility_Audit_20260928.md
+```
+
+## Phase D2B — KakaoTalk Truthful Handoff Adapter [NEXT]
 
 구현 (Korea-first):
 
@@ -1418,6 +1442,151 @@ NAgex user identity semantics 자체를 바꾸지 않고 확장할 수 있어야
 동일 인물의 Web/Mobile/Desktop 클라이언트는 항상 동일한 canonical NAgex
 userId로 귀결되어야 한다.
 
+
+# 17.12 Multi-Platform Execution Architecture — One Brain, Many Execution Planes
+
+신규 canonical 원칙 (2026-09-28). 상세 개발지시서는 다음 문서를 기준으로 한다:
+
+```text
+docs/NAgex_Multi_Platform_Execution_Architecture_Development_Directive_20260928.md
+```
+
+NAgex는 모든 플랫폼의 실행 코드를 하나로 합치지 않는다. 공통화하는 것은
+**의도/identity/memory/context/policy/approval/audit/result contract**이며,
+실제 실행은 환경별 Execution Plane으로 분리한다.
+
+Canonical 구조:
+
+```text
+WHAT
+→ Canonical Action
+
+WHERE
+→ Execution Environment / Target
+
+HOW
+→ Execution Route / Platform Executor
+```
+
+상위 흐름:
+
+```text
+User / Event
+→ Intent
+→ Canonical Action
+→ Memory / Context / Policy
+→ Human Approval
+→ Execution Planner
+→ Execution Target
+→ Platform Executor
+→ Result Verification
+→ Audit
+```
+
+Reasoning Plane과 Execution Plane은 분리한다:
+
+```text
+Reasoning Plane
+≠
+Execution Plane
+```
+
+지원 대상 Execution Environment:
+
+```text
+SERVER
+WEB
+BROWSER
+ANDROID
+IOS
+DESKTOP
+EXTERNAL_API
+```
+
+플랫폼별 구현 세부사항(Android Intent/Activity, browser selector/DOM,
+iOS App Intent, desktop native API 등)은 canonical action에 절대 노출하지
+않고 해당 platform executor 내부에만 둔다.
+
+Execution Planner는 최소 다음 결정을 분리해서 수행해야 한다:
+
+```text
+Environment Resolver
+→ Capability Resolver
+→ Route Resolver
+→ Execution Plan
+```
+
+Approval은 실제 실행될 plan에 바인딩한다. 다음 항목 중 하나라도 바뀌면
+기존 승인은 무효이며 재승인이 필요하다:
+
+```text
+action
+payload
+recipient
+channel
+environment
+device
+executionRoute
+critical conditions
+```
+
+특히:
+
+```text
+ANDROID → BROWSER
+ANDROID_SMS_MANAGER → WHATSAPP_WEB
+```
+
+와 같은 environment/route 변경은 approval drift다.
+
+Global execution invariants:
+
+```text
+EXECUTION_ROUTE_DRIFT_ALLOWED = 0
+EXECUTION_ENVIRONMENT_DRIFT_ALLOWED = 0
+SILENT_FALLBACK_ALLOWED = 0
+FAKE_SUCCESS_PATHS = 0
+LLM_CAN_DIRECTLY_CONTROL_DEVICE = 0
+```
+
+Human handoff는 실패가 아니라 정식 execution mode다:
+
+```text
+AUTONOMOUS_VERIFIED
+HUMAN_HANDOFF
+MANUAL
+```
+
+예:
+
+```text
+SMS / ANDROID_SMS_MANAGER
+→ AUTONOMOUS_VERIFIED
+
+KakaoTalk / KAKAOTALK_SHARE
+→ HUMAN_HANDOFF
+→ NEEDS_HUMAN
+```
+
+D2B부터 이 원칙을 적용한다:
+
+```text
+environment = ANDROID
+channel = KAKAOTALK
+executionRoute = KAKAOTALK_SHARE
+executionMode = HUMAN_HANDOFF
+```
+
+KakaoTalk Share의 trust boundary 이후 사용자가 선택한 최종 수신자/수정한
+메시지/실제 Send 결과를 NAgex가 검증했다고 주장해서는 안 된다.
+
+장기 개발 원칙:
+
+> **One Brain, Many Execution Planes.**
+
+NAgex는 플랫폼마다 실행 방식은 달라도 사용자 의도와 trust semantics는
+일관되게 유지한다.
+
 ---
 
 # 18. 대표 E2E 시나리오
@@ -1579,15 +1748,19 @@ KakaoTalk
 Android only
 ```
 
-내부 Phase 구조 (2026-09-28 갱신, Section 17/17.1~17.11 참고):
+내부 Phase 구조 (2026-09-28 갱신, Section 17/17.1~17.12 참고):
 
 ```text
 Phase A    — Mobile Architecture Audit                [CLOSED]
 Phase B    — Android Companion Foundation             [CLOSED]
 Phase C    — Real SMS Execution                       [CLOSED, FINAL_SHA afeb432]
 Phase C.5  — Global Voice Invocation Foundation        [P0 CLOSED, P1 NOT STARTED]
-Phase D1   — Global Messaging Abstraction              [CLOSED, 2026-09-28]
-Phase D2   — KakaoTalk Execution Adapter
+Phase D1   — Global Messaging Abstraction              [CLOSED]
+Phase D2A  — KakaoTalk Execution Feasibility Audit     [CLOSED]
+Phase D2B  — KakaoTalk Truthful Handoff Adapter        [CLOSED]
+Phase D3   — Global Messaging Adapter Feasibility      [AUDIT COMPLETE]
+Phase D3R  — Execution-Plane Messaging Contract Review [DESIGN COMPLETE]
+Phase D3S  — Messaging Contract Runtime Integration    [CLOSED]
 Phase D3   — Global Messaging Adapter Feasibility
 Phase E    — Mobile Safety Certification
 Phase F    — Unified Identity + Global Distribution
@@ -1741,12 +1914,13 @@ USER INTENT
    3.2 Phase B    — Android Companion Foundation [CLOSED]
    3.3 Phase C    — Real SMS Execution [CLOSED, FINAL_SHA afeb432]
    3.4 Phase C.5  — Global Voice Invocation Foundation [P0 CLOSED, P1 NOT STARTED]
-   3.5 Phase D1   — Global Messaging Abstraction
-   3.6 Phase D2   — KakaoTalk Execution Adapter
-   3.7 Phase D3   — Global Messaging Adapter Feasibility
-   3.8 Phase E    — Mobile Safety Certification
-   3.9 Phase F    — Unified Identity + Global Distribution
-   3.10 Phase G   — Hackathon Mobile Final Certification
+   3.5 Phase D1   — Global Messaging Abstraction [CLOSED]
+   3.6 Phase D2A  — KakaoTalk Execution Feasibility Audit [CLOSED]
+   3.7 Phase D2B  — KakaoTalk Truthful Handoff Adapter [NEXT]
+   3.8 Phase D3   — Global Messaging Adapter Feasibility
+   3.9 Phase E    — Mobile Safety Certification
+   3.10 Phase F   — Unified Identity + Global Distribution
+   3.11 Phase G   — Hackathon Mobile Final Certification
 4. R23.7G Background Runtime
 5. R23.8P Trust UX
 6. R23.9C Final Certification
