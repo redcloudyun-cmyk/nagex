@@ -90,6 +90,11 @@ function normalizePayload(payload: GmailComposePayload): GmailComposePayload {
     attachments: payload.attachments ?? [],
     threadId: payload.threadId ?? null,
     replyToMessageId: payload.replyToMessageId ?? null,
+    ...(payload.canonicalAction ? { canonicalAction: payload.canonicalAction } : {}),
+    ...(payload.providerAccountRef ? { providerAccountRef: payload.providerAccountRef } : {}),
+    ...(payload.executionEnvironment ? { executionEnvironment: payload.executionEnvironment } : {}),
+    ...(payload.executionProvider ? { executionProvider: payload.executionProvider } : {}),
+    ...(payload.executionRoute ? { executionRoute: payload.executionRoute } : {}),
   };
 }
 
@@ -112,6 +117,7 @@ const GMAIL_MUTATION_BY_TOOL_ID = new Map(GMAIL_MUTATION_DEFINITIONS.map((d) => 
 
 export class GmailService {
   private readonly pipeline: GoogleCapabilityExecutionPipeline;
+  private readonly credentialAccess: GoogleCredentialAccessService;
 
   constructor(
     private readonly tokenStore: GoogleOAuthTokenStore,
@@ -130,6 +136,7 @@ export class GmailService {
       this.getConfig,
       this.fetchFn,
     );
+    this.credentialAccess = access;
     this.pipeline = new GoogleCapabilityExecutionPipeline({
       tokenStore: this.tokenStore, credentialAccess: access, approvals: this.approvals, audit: this.audit,
       executions: this.executions, getConfig: this.getConfig, fetchFn: this.fetchFn,
@@ -143,9 +150,13 @@ export class GmailService {
     if (!definition) {
       throw new NagexError({ code: 'UNSUPPORTED_APPROVAL_TOOL', category: 'VALIDATION', message: `Gmail has no approval-gated action for toolId "${input.toolId}".`, request_id: input.requestId });
     }
-    const payload = definition.validatePayload(input.payload, input.requestId) as GmailComposePayload;
+    let payload = definition.validatePayload(input.payload, input.requestId) as GmailComposePayload;
     if (input.toolId === GMAIL_REPLY_TOOL_ID && (!payload.threadId || !payload.replyToMessageId)) {
       throw new NagexError({ code: 'GMAIL_REPLY_REQUIRES_THREAD', category: 'VALIDATION', message: 'A reply must include both threadId and replyToMessageId.', request_id: input.requestId });
+    }
+    if (input.toolId === GMAIL_SEND_EMAIL_TOOL_ID || input.toolId === GMAIL_REPLY_TOOL_ID) {
+      const providerAccountRef = this.credentialAccess.getProviderAccountRef(input.tenantId, input.principalId);
+      if (providerAccountRef) payload = this.bindCanonicalSendEmailAuthority(payload, input.tenantId, input.principalId, input.requestId);
     }
     // Never log body/subject content — only enough to identify the action in audit.
     return this.pipeline.requestApproval(definition, input.tenantId, input.principalId, payload as unknown as Record<string, unknown>, input.requestId, { to: payload.to });
@@ -197,11 +208,39 @@ export class GmailService {
   // ── approval-gated execution ─────────────────────────────────────────────
 
   public async executeSendEmail(input: { approvalId: string; payload: unknown; tenantId: string; principalId: string; requestId: string }): Promise<NormalizedMutationResult> {
-    return this.executeCompose(GMAIL_SEND_EMAIL_TOOL_ID, input, (accessToken, payload, requestId) => sendGmailMessage(accessToken, payload, this.fetchFn, requestId));
+    const payload = validateAndNormalize(input.payload, input.requestId);
+    this.assertCanonicalSendEmailApproval(input.approvalId, GMAIL_SEND_EMAIL_TOOL_ID, input.tenantId, input.principalId, input.requestId);
+    return this.executeCompose(GMAIL_SEND_EMAIL_TOOL_ID, { ...input, payload: this.bindCanonicalSendEmailAuthority(payload, input.tenantId, input.principalId, input.requestId) }, (accessToken, boundPayload, requestId) => sendGmailMessage(accessToken, boundPayload, this.fetchFn, requestId));
   }
 
   public async executeReply(input: { approvalId: string; payload: unknown; tenantId: string; principalId: string; requestId: string }): Promise<NormalizedMutationResult> {
-    return this.executeCompose(GMAIL_REPLY_TOOL_ID, input, (accessToken, payload, requestId) => sendGmailMessage(accessToken, payload, this.fetchFn, requestId));
+    const payload = validateAndNormalize(input.payload, input.requestId);
+    this.assertCanonicalSendEmailApproval(input.approvalId, GMAIL_REPLY_TOOL_ID, input.tenantId, input.principalId, input.requestId);
+    return this.executeCompose(GMAIL_REPLY_TOOL_ID, { ...input, payload: this.bindCanonicalSendEmailAuthority(payload, input.tenantId, input.principalId, input.requestId) }, (accessToken, boundPayload, requestId) => sendGmailMessage(accessToken, boundPayload, this.fetchFn, requestId));
+  }
+
+  private assertCanonicalSendEmailApproval(approvalId: string, toolId: string, tenantId: string, principalId: string, requestId: string): void {
+    this.getProviderAccountRef(tenantId, principalId, requestId);
+    const record = this.pipeline.getApproval(approvalId, tenantId, principalId);
+    if (!record || record.toolId !== toolId) return; // canonical pipeline owns not-found/wrong-tool precedence
+    const payload = record.canonicalPayload as Partial<GmailComposePayload>;
+    if (payload.canonicalAction !== 'SEND_EMAIL' || !payload.providerAccountRef || payload.executionEnvironment !== 'SERVER' || payload.executionProvider !== 'GOOGLE' || payload.executionRoute !== 'GMAIL_API') {
+      throw new NagexError({ code: 'REAPPROVAL_REQUIRED', category: 'POLICY', message: 'This Gmail approval predates the canonical SEND_EMAIL authority binding. Request fresh approval.', request_id: requestId });
+    }
+  }
+
+  public getProviderAccountRef(tenantId: string, principalId: string, requestId: string): string {
+    const providerAccountRef = this.credentialAccess.getProviderAccountRef(tenantId, principalId);
+    if (!providerAccountRef) throw new NagexError({ code: 'GMAIL_DISCONNECTED', category: 'POLICY', message: GMAIL_DISCONNECTED_MESSAGE, request_id: requestId });
+    return providerAccountRef;
+  }
+
+  private bindCanonicalSendEmailAuthority(payload: GmailComposePayload, tenantId: string, principalId: string, requestId: string): GmailComposePayload {
+    const providerAccountRef = this.getProviderAccountRef(tenantId, principalId, requestId);
+    if (payload.providerAccountRef && payload.providerAccountRef !== providerAccountRef) {
+      throw new NagexError({ code: 'REAPPROVAL_REQUIRED', category: 'POLICY', message: 'The connected Google account changed after approval.', request_id: requestId });
+    }
+    return { ...payload, canonicalAction: 'SEND_EMAIL', providerAccountRef, executionEnvironment: 'SERVER', executionProvider: 'GOOGLE', executionRoute: 'GMAIL_API' };
   }
 
   public async executeCreateDraft(input: { approvalId: string; payload: unknown; tenantId: string; principalId: string; requestId: string }): Promise<NormalizedMutationResult> {

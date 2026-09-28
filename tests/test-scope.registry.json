@@ -66,6 +66,7 @@
       "gmail_i18n",
       "gmail_intent_extraction",
       "gmail_live",
+      "r23_6m_d4b_gmail_canonical_email",
       "google_calendar_e2e",
       "google_calendar_live",
       "google_modules_boundary",

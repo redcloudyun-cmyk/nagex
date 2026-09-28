@@ -23,6 +23,12 @@ export interface GmailComposePayload {
   attachments: GmailAttachmentMetadata[];
   threadId: string | null; // set for a reply
   replyToMessageId: string | null; // set for a reply — the RFC 2822 Message-Id of the message being replied to
+  // D4B approval authority only; never serialized into the MIME message.
+  canonicalAction?: 'SEND_EMAIL';
+  providerAccountRef?: string;
+  executionEnvironment?: 'SERVER';
+  executionProvider?: 'GOOGLE';
+  executionRoute?: 'GMAIL_API';
 }
 
 export interface SentGmailMessage {

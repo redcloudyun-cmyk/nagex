@@ -12,6 +12,7 @@ interface StoredGoogleToken {
   scope: string;
   tokenType: string | null;
   connectedAt: string;
+  providerAccountRef: string;
 }
 
 export interface GoogleConnectionStatus {
@@ -36,6 +37,7 @@ export interface GoogleOAuthTokenStore {
   isConnectedForPrincipal(tenantId: string, principalId: string): boolean;
   getStatus(tenantId: string): GoogleConnectionStatus;
   getStatusForPrincipal(tenantId: string, principalId: string): GoogleConnectionStatus;
+  getProviderAccountRefForPrincipal(tenantId: string, principalId: string): string | null;
   getValidAccessToken(
     tenantId: string,
     config: GoogleOAuthConfig,
@@ -66,7 +68,8 @@ function isValidStoredToken(value: unknown): value is StoredGoogleToken {
     typeof v.expiresAt === 'number' &&
     typeof v.scope === 'string' &&
     (v.tokenType === undefined || v.tokenType === null || typeof v.tokenType === 'string') &&
-    typeof v.connectedAt === 'string'
+    typeof v.connectedAt === 'string' &&
+    (v.providerAccountRef === undefined || typeof v.providerAccountRef === 'string')
   );
 }
 
@@ -82,6 +85,7 @@ export class InMemoryGoogleOAuthTokenStore implements GoogleOAuthTokenStore {
   public saveForPrincipal(tenantId: string, principalId: string, token: GoogleTokenResponse): void {
     const key = ownerKey(tenantId, principalId);
     const existing = this.tokensByOwner.get(key);
+    const accountChanged = Boolean(existing?.refreshToken && token.refreshToken && existing.refreshToken !== token.refreshToken);
     this.tokensByOwner.set(key, {
       accessToken: token.accessToken,
       // Google does not resend a refresh_token on every grant (e.g. a
@@ -92,6 +96,7 @@ export class InMemoryGoogleOAuthTokenStore implements GoogleOAuthTokenStore {
       scope: token.scope,
       tokenType: token.tokenType ?? existing?.tokenType ?? null,
       connectedAt: existing?.connectedAt ?? new Date().toISOString(),
+      providerAccountRef: !accountChanged && existing?.providerAccountRef ? existing.providerAccountRef : `gacct_${crypto.randomUUID()}`,
     });
     this.onChange();
   }
@@ -125,6 +130,10 @@ export class InMemoryGoogleOAuthTokenStore implements GoogleOAuthTokenStore {
       scopes: token.scope.split(' ').filter(Boolean),
       expiresAt: new Date(token.expiresAt).toISOString(),
     };
+  }
+
+  public getProviderAccountRefForPrincipal(tenantId: string, principalId: string): string | null {
+    return this.tokensByOwner.get(ownerKey(tenantId, principalId))?.providerAccountRef ?? null;
   }
 
   // Returns a currently-valid access token, transparently refreshing it if
@@ -277,7 +286,7 @@ export class PersistentGoogleOAuthTokenStore extends InMemoryGoogleOAuthTokenSto
       if (!map || typeof map !== 'object') throw new Error('persisted token map is not an object');
       const validEntries: Array<[string, StoredGoogleToken]> = [];
       for (const [tenantId, token] of Object.entries(map)) {
-        if (isValidStoredToken(token)) validEntries.push([tenantId, { ...token, tokenType: token.tokenType ?? null }]);
+        if (isValidStoredToken(token)) validEntries.push([tenantId, { ...token, tokenType: token.tokenType ?? null, providerAccountRef: token.providerAccountRef ?? `gacct_${crypto.randomUUID()}` }]);
       }
       this.setAll(validEntries);
     } catch {

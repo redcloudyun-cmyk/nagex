@@ -58,6 +58,16 @@ export class GoogleCredentialAccessService {
     );
   }
 
+  public getProviderAccountRef(tenantId: string, principalId: string): string | null {
+    const resolver = (this.tokenStore as Partial<GoogleOAuthTokenStore>).getProviderAccountRefForPrincipal;
+    if (typeof resolver === 'function') return resolver.call(this.tokenStore, tenantId, principalId);
+    // Compatibility for narrow legacy test/port implementations. Production
+    // token stores expose the durable connection reference above.
+    const statusResolver = (this.tokenStore as Partial<GoogleOAuthTokenStore>).getStatusForPrincipal;
+    if (typeof statusResolver !== 'function') return `gacct_legacy_${tenantId}:${principalId}`;
+    return this.ensureReference(tenantId, principalId)?.credentialRef ?? null;
+  }
+
   private ensureReference(tenantId: string, principalId: string): CredentialReference | null {
     const owner = `${tenantId}::${principalId}`;
     const existingRef = this.credentialRefsByOwner.get(owner);

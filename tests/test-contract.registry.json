@@ -3825,6 +3825,18 @@
       "deterministic": true,
       "assertionIntent": "canonical messaging execution contract runtime integration mapping existing SMS to ANDROID/DEVICE_NATIVE/ANDROID_SMS_MANAGER without changing SMS state machine or approval semantics, forbidding generic SENT state, enforcing evidence-based success, binding approval to environment/provider/route, excluding disabled KakaoTalk, and preventing synthetic success from becoming runtime evidence",
       "notes": "Covers D3S A-P requirements for canonical messaging execution contract."
+    },
+    "r23_6m_d4b_gmail_canonical_email": {
+      "milestone": "R23.6M-D4B",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["agents", "approvals", "google", "security"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "SEND_EMAIL remains distinct from SEND_MESSAGE and the real Gmail execution wrapper freezes SERVER/GOOGLE/GMAIL_API plus provider-account, recipient, content, attachment, and reply authority; successful Gmail API acceptance maps only to non-synthetic PROVIDER_ACCEPTED evidence and never delivery or read confirmation",
+      "notes": "D4B automated certification uses the real GmailService, GoogleCapabilityExecutionPipeline, approval store, credential boundary, and Gmail response mapper with a deterministic provider transport. A controlled external Gmail send remains separately PENDING."
     }
   }
 }
