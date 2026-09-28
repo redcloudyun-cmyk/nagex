@@ -65,6 +65,13 @@ KakaoTalk attempt created no SMS run.
 - Physical unsafe-route detection and fail-closed retry: pass.
 - Positive KakaoTalk human-handoff certification: **not achieved**.
 
+Safety result after mitigation:
+
+- wrong-recipient fail-open: **0**
+- silent SMS fallback: **0**
+- fake `SENT_CONFIRMED`: **0**
+- positive KakaoTalk handoff: **not certified**
+
 ## Decision
 
 D2B must not be represented as a working KakaoTalk send or working manual
@@ -75,4 +82,5 @@ for the observed unsafe component.
 R23.6M-D2B remains **BLOCKED FOR POSITIVE CERTIFICATION** until a documented,
 supported KakaoTalk route produces a real recipient-selection/manual-completion
 surface without Accessibility automation, silent fallback, or false completion
-claims. D3 must not begin under the current directive.
+claims. The subsequently authorized D3 work is feasibility audit only and does
+not reopen D2B or authorize another KakaoTalk implementation attempt.

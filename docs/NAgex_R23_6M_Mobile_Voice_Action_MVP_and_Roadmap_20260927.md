@@ -11,6 +11,13 @@
 > review. See
 > `docs/evidence/R23_6M_D2B_KakaoTalk_Handoff_Certification_Report_20260928.md`.
 
+> **2026-09-28 D3 audit status:** D3 feasibility audit is complete and awaits
+> review; no new adapter was implemented. Canonical phase status is: A CLOSED,
+> B CLOSED, C CLOSED, C.5-P0 CLOSED, C.5-P1 NOT STARTED, D1 CLOSED, D2A CLOSED,
+> D2B BLOCKED / FAIL-CLOSED CERTIFIED, D3 AUDIT COMPLETE / REVIEW REQUIRED,
+> E–G NOT STARTED. See
+> `docs/NAgex_R23_6M_D3_Global_Messaging_Adapter_Feasibility_Audit_20260928.md`.
+
 기준일: 2026-09-27  
 최종 개정: 2026-09-28 — Phase C CLOSED(FINAL_SHA afeb432) 반영, Phase C.5
   (Global Voice Invocation Foundation) 추가, Phase D를 D1/D2/D3(Global
