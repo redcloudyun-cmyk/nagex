@@ -80,6 +80,26 @@ R23.9C  Final Hackathon Certification
 
 Payment/tokenized virtual-card work is P2 and is not part of the critical submission path unless all preceding gates close early.
 
+### 2026-09-29 Canonical Milestone Update
+
+This update supersedes the status labels in the sequence above without removing
+R23.7G:
+
+```text
+R23.6M-D3S  Canonical Messaging Runtime          CLOSED / DEPLOYED
+R23.6M-D4A  Gmail Canonical Contract Audit       AUDIT COMPLETE / ACCEPTED
+R23.6M-D4B  Gmail Canonical Email Integration    IMPLEMENTATION CLOSED
+             Real Gmail certification           PENDING
+R23.7G      Background Runtime Certification     NEXT RUNTIME GATE
+R23.7H      Personal Dashboard Foundation        AUDIT / DESIGN ACTIVE
+R23.8P      Governed Personality / Trust UX
+R23.9C      Final Hackathon Certification
+```
+
+R23.7H does not replace or delay R23.7G. Dashboard information architecture
+and shell work may proceed in parallel where it composes already-truthful data
+and does not depend on uncertified background-runtime behavior.
+
 The dependency order matters more than the milestone labels.
 
 Jev is an optional advisory POC only and must not interrupt the current critical path. Wissly-style evidence UX, Microsoft connector expansion, reservation scenarios, and local/private model expansion are retained as planned inputs but are scheduled according to dependency and hackathon value. Payment/tokenized virtual-card work remains P2.

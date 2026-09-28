@@ -33,6 +33,9 @@ MASTER.md
 | `NAgex_R23.3T_Permission_Approval_Hardening_Development_Directive_20260926.md` | R23.3T permission/approval hardening directive; milestone closed after test-server certification |
 | `NAgex_R23.4V_Credential_Broker_Inject_Only_Vault_Development_Directive_20260926.md` | R23.4V credential broker directive; milestone closed after full regression, browser certification, server verification, and encrypted persistence configuration |
 | `NAgex_R23.5B_Browser_Untrusted_Content_Boundary_Development_Directive_20260927.md` | Current R23.5B directive: browser content provenance, prompt-injection boundary, policy authority, memory/credential isolation |
+| `NAgex_R23_6M_D4A_Gmail_Execution_Canonical_Contract_Audit_20260928.md` | Accepted historical Gmail execution audit; final D4B decisions supersede its provisional action/account details |
+| `evidence/R23_6M_D4B_Gmail_Canonical_Email_Execution_Report_20260928.md` | Closed canonical Gmail `SEND_EMAIL` integration; controlled real-send certification remains pending |
+| `NAgex_R23_7H_A_Personal_Dashboard_Product_IA_Audit_20260929.md` | R23.7H-A outcome-first Personal AI Home audit/design; no large UI implementation authorized |
 | `PERSONAL-AI.md` | Persistent memory, personalization, context, and user control |
 | `MODEL-ROUTER.md` | Model Gateway, routing policy, NVIDIA Nemotron, Nebius integration |
 | `SECURITY.md` | Permissions, human approval, secrets, audit, isolation |

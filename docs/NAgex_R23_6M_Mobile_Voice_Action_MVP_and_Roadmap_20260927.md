@@ -1783,6 +1783,26 @@ persistence
 cross-session safety
 ```
 
+## R23.7H — Personal Dashboard Foundation
+
+Status: **R23.7H-A PRODUCT / IA AUDIT ACTIVE**
+
+This milestone composes Personal Home, Inbox, Activity, Vault, Memory, Tasks,
+Calendar, Daily Brief, Approvals, and Connections into one outcome-first
+Personal AI home. It is not an admin or KPI dashboard. R23.7G remains the
+runtime certification gate; dashboard IA and shell work may proceed in parallel
+only where they depend on already-truthful data.
+
+```text
+R23.6M-D3S  CLOSED / DEPLOYED
+R23.6M-D4A  AUDIT COMPLETE / ACCEPTED
+R23.6M-D4B  IMPLEMENTATION CLOSED (real Gmail certification pending)
+R23.7G      Background Runtime Certification
+R23.7H      Personal Dashboard Foundation
+R23.8P      Governed Personality / Trust UX
+R23.9C      Final Hackathon Certification
+```
+
 ## R23.8P — Governed Personality / Trust UX
 
 목표:
