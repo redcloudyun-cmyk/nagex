@@ -1298,6 +1298,24 @@ wake word를 절대 만들지 않는다 — Android 정책/런타임 제약으�
 있는 true always-on invocation이 불가능하다면, 가장 강력한
 정책-준수(compliant) fallback을 구현하고 그 한계를 명시적으로 공개한다.
 
+## Post-Speech Silence Tuning Baseline (C.5B-P0에서 확정, 2026-09-28)
+
+실기기(Samsung SM-F731N) 인증 중 OEM recognizer의 기본 silence threshold가
+이름과 자연스러운 중간 pause를 조기에 잘라내는 현상이 실측되어, 아래
+값을 NAgex 음성 UX의 baseline으로 확정한다 (`VoiceCaptureManager.kt`):
+
+```text
+EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS          = 1800ms (기본값)
+EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS = 1500ms (최소값)
+상한 목표                                                    = ~2200ms
+```
+
+**중요한 단서:** 이 값들은 Android `RecognizerIntent`의 recognizer
+**힌트**일 뿐이며, 특정 기기/OEM recognizer 구현이 이 값을 정확히
+보장한다는 뜻이 아니다 — recognizer/OS가 이 값을 무시하거나 clamp할 수
+있다. 새 기기/새 OEM recognizer로 확장할 때는 반드시 실기기에서
+재검증해야 하며, 이 baseline을 "절대값 보장"으로 오해해서는 안 된다.
+
 # 17.9 Security Debt — Device Private Key (DEVICE_IDENTITY_KEY_HARDENING)
 
 정정 (2026-09-28) — canonical 보안 기록을 다음과 같이 바로잡는다. 현재
