@@ -1,8 +1,12 @@
 # NAgex Mobile Voice Action MVP 구현 지시서 및 개발 로드맵 반영안
 
 기준일: 2026-09-27  
-최종 개정: 2026-09-27 — Phase 명명 확정(A~G) 및 Section 17.1
-  Canonical Identity Principle(1 Account / 여러 Session / 여러 Device) 추가  
+최종 개정: 2026-09-28 — Phase C CLOSED(FINAL_SHA afeb432) 반영, Phase C.5
+  (Global Voice Invocation Foundation) 추가, Phase D를 D1/D2/D3(Global
+  Messaging Abstraction / KakaoTalk Adapter / Global Adapter Feasibility)로
+  세분화, Section 17.2~17.11 글로벌 원칙(Voice Invocation, Cross-Platform
+  Invocation, Global Messaging, Execution Route Resolver, Global Language
+  Model, Security Debt, Phase E Mandatory Blockers) 추가  
 프로젝트: NAgex  
 목적: 모바일 환경에서 음성 명령을 통해 실제 디바이스 액션을 수행하는 핵심 Personal AI 기능 구현
 
@@ -597,20 +601,31 @@ Contact Resolver가 canonical recipient reference를 발급한다.
 
 # 17. 구현 Phase
 
-업데이트 (2026-09-27): 실제 구현 과정에서 Phase 명명을 아래와 같이 확정한다.
-이전 초안의 Phase A~E(Voice Foundation/Contacts/SMS/KakaoTalk/Safety)
-명명은 아래 canonical 목록으로 대체한다 — 각 Phase의 실제 구현 내용 자체는
-이번 개정으로 바뀌지 않으며, Phase 문자와 범위만 실제 수행 순서에 맞게
-정정한다.
+업데이트 (2026-09-28): Phase C가 실기기 인증까지 완료되어 CLOSED되었고
+(FINAL_SHA `afeb432`, 근거: `docs/evidence/R23_6M_Phase_C_SMS_Execution_
+Closure_Report_20260928.md`), 이번 개정에서 두 가지를 canonical 목록에
+반영한다 — (1) Phase C와 Phase D 사이에 Phase C.5(Global Voice Invocation
+Foundation)를 신설하고, (2) 기존 단일 Phase D(KakaoTalk Execution)를
+D1(Global Messaging Abstraction) / D2(KakaoTalk Execution Adapter) /
+D3(Global Messaging Adapter Feasibility)로 분할한다. 이는 NAgex가
+SMS/KakaoTalk/WhatsApp 등 특정 메시징 앱을 core capability로 모델링하지
+않고, COMMUNICATION/SEND_MESSAGE라는 canonical capability 아래 플랫폼별
+MessagingExecutionAdapter를 두는 구조로 처음부터 설계되어야 한다는 원칙
+(Section 17.4)에 따른 것이다. Phase A/B/C의 실제 구현 내용 자체는 이번
+개정으로 바뀌지 않는다 — Phase C의 인증된 SMS 실행 동작(runtime behavior)은
+이 문서 개정으로도, 이후 Phase C.5/D1/D2/D3 구현으로도 변경되지 않는다.
 
 ```text
-Phase A — Mobile Architecture Audit         [CLOSED]
-Phase B — Android Companion Foundation      [CLOSED]
-Phase C — Real SMS Execution                [CURRENT NEXT]
-Phase D — KakaoTalk Execution
-Phase E — Mobile Safety Certification
-Phase F — Unified Identity + Judge Distribution
-Phase G — Hackathon Mobile Final Certification
+Phase A    — Mobile Architecture Audit                [CLOSED]
+Phase B    — Android Companion Foundation             [CLOSED]
+Phase C    — Real SMS Execution                       [CLOSED, FINAL_SHA afeb432]
+Phase C.5  — Global Voice Invocation Foundation        [NEXT]
+Phase D1   — Global Messaging Abstraction
+Phase D2   — KakaoTalk Execution Adapter
+Phase D3   — Global Messaging Adapter Feasibility
+Phase E    — Mobile Safety Certification
+Phase F    — Unified Identity + Global Distribution
+Phase G    — Hackathon Mobile Final Certification
 ```
 
 ## Phase A — Mobile Architecture Audit [CLOSED]
@@ -652,7 +667,7 @@ voice name → unique contact resolution
 실제 물리 기기(Samsung SM-F731N)에서의 실행 검증 완료
 ```
 
-## Phase C — Real SMS Execution [CURRENT NEXT]
+## Phase C — Real SMS Execution [CLOSED, FINAL_SHA afeb432]
 
 구현:
 
@@ -666,7 +681,7 @@ result tracking (SEND_ATTEMPTED/SENT_CONFIRMED/DELIVERY_CONFIRMED/
 audit (메시지 원문은 기록하지 않음 — digest만)
 ```
 
-완료 기준:
+완료 기준 (달성, CLOSED):
 
 ```text
 Voice
@@ -675,19 +690,82 @@ Voice
 → Voice approval
 → device execution
 → result
-실기기에서의 실제 SMS 발신 인증 완료 (Robolectric/단위 테스트만으로는
-Phase C를 종료할 수 없음)
+실기기(Samsung SM-F731N)에서의 실제 SMS 발신 인증 완료 — 시나리오
+A(성공 발신)/B(승인 거부)/C(승인 후 메시지 변조)/D(승인 후 수신자 변조)/
+F(SEND_SMS 권한 거부)/G(디바이스 revoke)/H(잘못된/누락된 recipientRef)/
+I(번호 2개 이상 → 명시적 선택 요구)가 모두 실기기에서 PASS. 시나리오
+E(duplicate execute)는 물리적으로 재현 불가능한 이유가 명시적으로 확인되어
+자동화 테스트(real Ed25519 서명 기반)로 대체 인증됨. 근거 문서:
+docs/evidence/R23_6M_Phase_C_SMS_Execution_Closure_Report_20260928.md
+(FINAL_SHA afeb432).
 ```
 
-## Phase D — KakaoTalk Execution
+## Phase C.5 — Global Voice Invocation Foundation [NEXT]
+
+신규 추가 (2026-09-28). Phase C는 CLOSED 상태를 유지하며, 이 Phase는 Phase C의
+인증된 SMS 실행 동작을 변경하지 않는다 — 오직 "사용자가 어떻게 NAgex를
+호출하는가"만 다룬다. 상세 원칙은 Section 17.2(Global Voice Invocation
+Principle)와 17.3(Cross-Platform Invocation Model)을 참고.
+
+구현 범위 (C.5A 감사 → C.5B~C.5H 구현, Section 17.8 참고):
+
+```text
+C.5A — Invocation Architecture / Feasibility Audit (구현 전 필수, Section 17.8)
+C.5B — Invocation Entry Points (P0: tap-to-talk/notification/QS Tile/widget,
+        P1: wake phrase "네이젝스" / "헤이 네이젝스")
+C.5C — Wake Word Boundary (wake word는 실행 권한을 절대 부여하지 않음)
+C.5D — Privacy / Audio Handling (마이크 lifecycle, 서버 업로드 금지 원칙)
+C.5E — Voice Session UX ("네, 말씀하세요." 이후 기존 파이프라인으로 합류)
+C.5F — Invocation State Machine (IDLE→WAKE_DETECTED→...→ACTION_READY)
+C.5G — Foreground/Background Behavior 테스트
+C.5H — Security Invariants (Section 17.2 불변식과 동일)
+```
+
+완료 기준:
+
+```text
+C.5A 감사 보고서가 먼저 검토·승인되어야 C.5B 이후 구현을 시작할 수 있다.
+모든 진입 경로(tap-to-talk/notification/QS Tile/widget/wake phrase)가
+하나의 canonical VoiceSession 진입점으로 수렴한다 — 진입 경로별로 별도의
+agent/action 로직을 만들지 않는다.
+기존 Phase C 승인/실행 의미론(approval semantics)은 변경되지 않는다.
+```
+
+## Phase D1 — Global Messaging Abstraction
+
+신규 추가 (2026-09-28, 기존 단일 Phase D를 세분화). 상세 원칙은
+Section 17.4(Global Messaging Principle)와 17.5(D1 상세)를 참고.
 
 구현:
+
+```text
+COMMUNICATION/SEND_MESSAGE canonical capability 정의
+SendMessageAction 도메인 모델 (recipient/content/preferredChannel/
+  locale·context/device·session context)
+MessagingExecutionAdapter 인터페이스 (capability check/prepare/
+  execute approved action/status·result/failure·fallback reporting)
+Execution Route Resolver (Section 17.6)
+기존 Phase C SMS 실행 경로를 MessagingExecutionAdapter로 감싸는 wrapper
+  — 인증된 SMS 실행 자체를 불필요하게 리팩터링하지 않는다
+```
+
+완료 기준:
+
+```text
+KakaoTalk 관련 필드/개념이 SendMessageAction에 전혀 노출되지 않는다.
+Phase C의 인증된 SMS 실행 경로가 어댑터로 감싼 이후에도 기존 회귀
+테스트(scenario A-I, Phase C 4개 스코프)가 그대로 통과한다.
+```
+
+## Phase D2 — KakaoTalk Execution Adapter
+
+구현 (Korea-first):
 
 ```text
 KakaoTalk route discovery
 official route support where applicable
 app detection
-UI execution adapter
+UI execution adapter (D1의 MessagingExecutionAdapter 구현체)
 conversation target validation
 message input
 send
@@ -699,12 +777,38 @@ result verification
 ```text
 Voice
 → Contact
-→ KakaoTalk
+→ COMMUNICATION/SEND_MESSAGE (channel=KakaoTalk)
 → Approval
-→ actual device execution
+→ actual device execution (KakaoTalk MessagingExecutionAdapter)
+```
+
+## Phase D3 — Global Messaging Adapter Feasibility
+
+신규 추가 (2026-09-28). 구현이 아닌 조사(feasibility) 단계 — 상세는
+Section 17.4를 참고.
+
+```text
+조사 대상: WhatsApp / RCS / iOS-supported messaging routes / LINE /
+  Email / Slack / Microsoft Teams
+지금 전부 구현하지 않는다 — feasibility만 문서화한다.
 ```
 
 ## Phase E — Mobile Safety Certification
+
+필수 보안 차단 항목 (Section 17.10 — Phase E는 아래 3개가 해소되기 전까지
+종료될 수 없다):
+
+```text
+A. PLATFORM_HEADER_TRUST_GAP
+   — 승인 등 민감 라우트는 반드시 검증된 세션/인증 컨텍스트에서
+     tenant/principal을 도출해야 한다. 위조 가능한 x-nagex-tenant /
+     x-principal-id 헤더로 권한을 부여해서는 안 된다.
+B. DEVICE_IDENTITY_KEY_HARDENING
+   — 현재 소프트웨어 Ed25519 키 저장 방식은 Mobile Safety Certification
+     완료 전에 공식적인 보안 결정/hardening을 받아야 한다 (Section 17.9).
+C. VOICE_PRIVACY_BOUNDARY
+   — wake word 감지만을 위한 연속적인 raw 마이크 오디오 업로드는 금지된다.
+```
 
 필수 테스트:
 
@@ -725,7 +829,7 @@ send result unknown
 cross-user device isolation
 ```
 
-## Phase F — Unified Identity + Judge Distribution
+## Phase F — Unified Identity + Global Distribution
 
 신규 추가 (2026-09-27) — 해커톤 심사위원 배포/시연을 위한 통합 계정 체계.
 자세한 내용은 Section 17.1(Canonical Identity Principle)을 참고.
@@ -762,9 +866,11 @@ F12. Safe Demo Mode / Real Execution Mode separation
 
 # 17.1 Canonical Identity Principle — 1 Account / Multiple Sessions / Multiple Devices
 
-채택 (2026-09-27). Phase F(Unified Identity + Judge Distribution)의 설계
-원칙이며, 지금 이 시점에는 문서화만 하고 구현은 시작하지 않는다 — Phase C
-(Real SMS Execution)가 여전히 다음 구현 대상이다.
+채택 (2026-09-27). Phase F(Unified Identity + Global Distribution)의 설계
+원칙이며, 채택 시점에는 문서화만 하고 구현을 시작하지 않았다 — 이후 Phase C
+(Real SMS Execution)가 CLOSED(FINAL_SHA afeb432)되었고, 다음 구현 대상은
+Phase C.5(Global Voice Invocation Foundation)이다. 이 원칙 자체는 변경되지
+않는다.
 
 ## 핵심 원칙
 
@@ -773,6 +879,12 @@ F12. Safe Demo Mode / Real Execution Mode separation
 + 여러 Session (Web, Mobile Browser, Android App 등)
 + 여러 Device
 ```
+
+이 identity 모델은 Google을 최초 identity provider로 채택하지만, 특정
+provider에 종속되지 않는다 — 향후 다른 identity provider(예: Apple/이메일
+기반 자체 인증 등)가 추가되더라도 "1 NAgex Account + 여러 Session + 여러
+Device"라는 canonical 구조와 "동일 실사용자는 항상 동일 NAgex userId로
+귀결된다"는 원칙 자체는 바뀌지 않아야 한다 (Section 17.11 참고).
 
 Web, Mobile Browser, Android App은 모두 동일한 Google identity를 동일한
 NAgex userId로 귀결시켜야 한다. 모바일 전용 별도 계정을 만들지 않는다.
@@ -874,6 +986,329 @@ DEVICE_ENROLLMENT_WITHOUT_AUTHENTICATED_USER = 0
 LOGIN_GOOGLE_SCOPE_MINIMAL = 1
 GMAIL_CALENDAR_CONSENT_SEPARATE = 1
 ```
+
+---
+
+# 17.2 Global Voice Invocation Principle
+
+신규 추가 (2026-09-28). Phase C.5의 설계 원칙 — NAgex의 음성 호출(voice
+invocation)은 한국어 wake word 전용 구현이 아니라 처음부터 글로벌
+capability로 설계되어야 한다.
+
+## Canonical 발음
+
+```text
+제품명: NAgex
+한국어 canonical 발음: "네이젝스"
+영어 canonical 발음: "NAY-jex"
+
+기본 한국어 invocation: "네이젝스"
+선택 한국어 invocation: "헤이 네이젝스"
+영어 invocation: "NAgex" / "Hey NAgex"
+```
+
+아키텍처는 NAgex의 canonical identity를 바꾸지 않으면서 locale/accent별
+invocation 모델을 허용해야 한다. 글로벌 제품을 한국어 STT 동작에
+하드코딩하지 않는다.
+
+## Canonical 플로우
+
+```text
+Invocation
+→ Voice Session
+→ Language / Locale Detection
+→ User Intent
+→ Contact / Entity Resolution
+→ Human Approval
+→ Execution Route Resolver
+→ Platform Adapter
+→ Result / Audit
+```
+
+Wake phrase는 어떤 실행 권한도 부여하지 않는다.
+
+## 필수 불변식
+
+```text
+WAKE_WORD_CAN_EXECUTE_ACTION = 0
+WAKE_WORD_CAN_BYPASS_APPROVAL = 0
+VOICE_CAN_BYPASS_APPROVAL = 0
+BACKGROUND_RAW_AUDIO_SERVER_UPLOAD = 0
+BACKGROUND_RAW_AUDIO_STORAGE = 0
+LLM_CAN_DIRECTLY_CONTROL_DEVICE = 0
+```
+
+# 17.3 Cross-Platform Invocation Model
+
+Invocation은 공통 추상화 뒤에서 OS별로 다르게 구현된다 — canonical
+추상화 이름은 `VoiceInvocationProvider`이다.
+
+```text
+Android:
+- in-app tap-to-talk
+- home-screen shortcut/widget
+- notification action
+- Quick Settings Tile
+- foreground-session wake word
+- VoiceInteractionService / assistant-role feasibility
+- screen-off/background feasibility subject to Android restrictions
+
+iOS:
+- App Intents
+- Siri / Shortcuts integration
+- system-supported invocation paths
+- Android 방식의 always-on wake word가 가능하다고 가정하지 않는다
+
+Web:
+- mic button
+- keyboard invocation
+- browser-supported voice path
+
+Desktop:
+- global shortcut
+- microphone session
+- future native background integration
+
+Wearables:
+- OS assistant integration where available
+```
+
+OS 전반에 동일한 invocation 메커니즘을 약속하지 않는다. NAgex는 일관된
+사용자 경험(user experience)을 제공하되, 그 아래의 실제 invocation
+route는 플랫폼별로 달라질 수 있다.
+
+# 17.4 Global Messaging Principle
+
+NAgex는 SMS, KakaoTalk, WhatsApp, LINE, iMessage, RCS, Slack, Teams 등을
+core product capability로 취급하지 않는다.
+
+## Canonical capability
+
+```text
+COMMUNICATION / SEND_MESSAGE
+```
+
+## Canonical 도메인
+
+```text
+SendMessageAction
+- recipient
+- content
+- optional preferredChannel
+- locale/context
+- device/session context
+```
+
+## 실행 흐름
+
+```text
+User Intent
+→ COMMUNICATION/SEND_MESSAGE
+→ Contact/Entity Resolution
+→ Human Approval
+→ ExecutionRouteResolver
+→ MessagingExecutionAdapter
+→ platform-specific execution
+```
+
+## 초기 어댑터
+
+```text
+SMS       — Phase C에서 이미 인증 완료
+KakaoTalk — Korea-first 어댑터 (Phase D2)
+
+향후 feasibility 대상 (지금 전부 구현하지 않음):
+- WhatsApp
+- RCS
+- iOS-supported messaging routes
+- LINE
+- Email
+- Slack
+- Microsoft Teams
+```
+
+# 17.5 D1 — Global Messaging Abstraction 상세
+
+KakaoTalk 전용 구현에 앞서, canonical adapter 경계를 먼저 만들고
+검증한다.
+
+## 개념적 인터페이스: `MessagingExecutionAdapter`
+
+책임:
+
+```text
+- capability/availability check
+- prepare
+- execute approved action
+- status/result
+- platform-specific failure/fallback reporting
+```
+
+KakaoTalk 전용 필드는 `SendMessageAction`에 절대 노출되어서는 안 된다.
+
+Phase C의 SMS 실행 동작은 이 어댑터 경계 아래에서 재사용/wrap되어야 하며,
+그 인증된 실행 경로 자체를 불필요하게 무효화해서는 안 된다 — 가능하면
+기존 구현을 감싸는 adapter wrapper를 우선한다.
+
+# 17.6 Execution Route Resolver
+
+글로벌 NAgex 동작 예시:
+
+```text
+User: "Tell John I'll be 10 minutes late."
+
+NAgex resolves:
+recipient
+→ available communication routes
+→ user's explicit/preferred channel
+→ recipient/channel availability
+→ platform/device capability
+→ safest supported route
+
+Possible result: SMS / WhatsApp / KakaoTalk / RCS / Email / etc.
+```
+
+사용자가 채널을 명시적으로 지정하면, 그 채널이 사용 가능한 한 그대로
+따른다. 채널을 지정하지 않으면 사용자 선호/context로 resolve할 수 있지만,
+**최종 승인(approval) 화면에는 반드시 선택된 채널이 노출되어야 한다.**
+
+```text
+Recipient: John
+Channel: WhatsApp
+Message: "I'll be about 10 minutes late."
+
+APPROVE / REJECT
+```
+
+승인 이후 채널이 바뀌면 반드시 재승인이 필요하다 — Phase C에서 이미
+확립된 "승인 이후 payload(메시지/수신자/채널/디바이스/실행경로)가 바뀌면
+재승인이 필요하다"는 원칙(Section 5, 17.5)과 동일한 방향이다.
+
+# 17.7 Global Language Model
+
+다음 세 가지를 분리한다:
+
+```text
+UI Locale
+Conversation Locale
+Execution/Recipient Locale
+```
+
+예:
+
+```text
+UI locale: ko-KR
+Voice request: Korean
+Recipient message: English
+
+User: "존한테 오늘 회의를 30분 미루자고 영어로 보내줘."
+```
+
+NAgex는 영어 메시지를 준비할 수 있지만, 생성된 정확한 수신자/채널/메시지는
+실행 전에 반드시 Human Approval에 바인딩되어야 한다. UI 언어 == 발화 언어
+== 발신 메시지 언어라고 가정하지 않는다.
+
+# 17.8 C.5 Global Voice Invocation Audit (C.5A) 요구사항
+
+구현 전에 C.5는 반드시 feasibility audit만 먼저 수행한다. 감사 보고서는
+아래 항목을 다뤄야 한다:
+
+```text
+1. Android true wake-word feasibility
+2. foreground-session wake-word feasibility
+3. background invocation feasibility
+4. screen-off invocation feasibility
+5. VoiceInteractionService / assistant-role feasibility
+6. notification/Quick Settings/widget fallback
+7. battery implications
+8. privacy implications
+9. Android policy/runtime restrictions
+10. 이 invocation 추상화가 이후 iOS/Web/Desktop을 어떻게 지원할 수 있는가
+```
+
+이 감사가 검토(review)되기 전까지 C.5B 이후 구현을 시작하지 않는다.
+가짜(always-on을 실제로 구현하지 않고 구현된 것처럼 보고하는) 백그라운드
+wake word를 절대 만들지 않는다 — Android 정책/런타임 제약으로 신뢰할 수
+있는 true always-on invocation이 불가능하다면, 가장 강력한
+정책-준수(compliant) fallback을 구현하고 그 한계를 명시적으로 공개한다.
+
+# 17.9 Security Debt — Device Private Key (DEVICE_IDENTITY_KEY_HARDENING)
+
+정정 (2026-09-28) — canonical 보안 기록을 다음과 같이 바로잡는다. 현재
+Phase B/C 구현의 디바이스 private key는:
+
+```text
+- 표준 JCA "Ed25519" provider로 생성됨 (AndroidKeyStore 내부에서
+  생성되지 않음)
+- StrongBox 백엔드가 아님
+- 하드웨어 백엔드가 아님
+- private key 자체는 EncryptedSharedPreferences에 암호화되어
+  저장됨 — 그 wrapping MasterKey는 AndroidKeystore 기반이지만,
+  이는 저장(at-rest) 상태의 암호화일 뿐이다
+- 서명(sign) 시점에는 Ed25519 private key 원본이 앱 프로세스 내부의
+  평범한 PrivateKey 객체로 재구성된다
+- 따라서 이 키는 아키텍처적으로 "추출 불가능(non-exportable)"하지 않다
+```
+
+이 키를 "hardware non-exportable" 또는 "AndroidKeyStore Ed25519 private
+key"라고 서술한 이전 표현은 부정확하며, 이 문서 개정 및
+`docs/evidence/R23_6M_Phase_C_SMS_Execution_Closure_Report_20260928.md`
+Section 17에서 이미 정정되었다.
+
+## 신규 carried-forward 보안 부채: `DEVICE_IDENTITY_KEY_HARDENING`
+
+Phase E(Mobile Safety Certification) 이전/도중에 반드시 평가·확정되어야
+한다. 선호 목표 구조:
+
+```text
+AndroidKeyStore-native asymmetric signing key,
+non-exportable private-key semantics 기반
+```
+
+평가 대상:
+
+```text
+- 대상 Android 버전/provider에서의 Ed25519 지원 여부
+- 필요 시 EC/P-256 AndroidKeyStore 대안
+- 하드웨어 백엔드 가용성
+- StrongBox 가용성
+- key attestation feasibility
+- 마이그레이션/재-enrollment 전략
+```
+
+이번 문서 개정(documentation-only)에서는 인증된 키 구현 자체를 변경하지
+않는다.
+
+# 17.10 Phase E Mandatory Security Blockers
+
+Phase E는 아래 3개 항목이 명시적으로 해소되기 전까지 종료될 수 없다
+(Phase E 섹션 본문에도 동일하게 반영됨):
+
+```text
+A. PLATFORM_HEADER_TRUST_GAP
+   승인 및 기타 민감 라우트는 검증된 세션/인증 컨텍스트에서만
+   tenant/principal을 도출해야 한다. 위조 가능한 x-nagex-tenant /
+   x-principal-id 헤더로는 절대 권한을 부여하지 않는다.
+
+B. DEVICE_IDENTITY_KEY_HARDENING
+   현재 소프트웨어 Ed25519 키 저장 방식은 Mobile Safety Certification
+   완료 전에 공식적인 보안 결정/hardening을 받아야 한다 (Section 17.9).
+
+C. VOICE_PRIVACY_BOUNDARY
+   wake word 감지만을 위한 연속적인 raw 마이크 오디오 서버 업로드는
+   금지된다.
+```
+
+# 17.11 Phase F — Global Identity 확장 원칙
+
+Section 17.1의 canonical identity(1 NAgex Account + 여러 Session + 여러
+Device)는 그대로 유지한다. Google 로그인 identity는 Google 서비스
+capability 권한(Gmail/Calendar 등)과 항상 분리된 채로 남는다.
+
+아키텍처는 이후 추가 identity provider(예: Apple 등)가 도입되더라도
+NAgex user identity semantics 자체를 바꾸지 않고 확장할 수 있어야 한다.
+동일 인물의 Web/Mobile/Desktop 클라이언트는 항상 동일한 canonical NAgex
+userId로 귀결되어야 한다.
 
 ---
 
@@ -1036,16 +1471,19 @@ KakaoTalk
 Android only
 ```
 
-내부 Phase 구조 (2026-09-27 확정, Section 17/17.1 참고):
+내부 Phase 구조 (2026-09-28 갱신, Section 17/17.1~17.11 참고):
 
 ```text
-Phase A — Mobile Architecture Audit         [CLOSED]
-Phase B — Android Companion Foundation      [CLOSED]
-Phase C — Real SMS Execution                [CURRENT NEXT]
-Phase D — KakaoTalk Execution
-Phase E — Mobile Safety Certification
-Phase F — Unified Identity + Judge Distribution
-Phase G — Hackathon Mobile Final Certification
+Phase A    — Mobile Architecture Audit                [CLOSED]
+Phase B    — Android Companion Foundation             [CLOSED]
+Phase C    — Real SMS Execution                       [CLOSED, FINAL_SHA afeb432]
+Phase C.5  — Global Voice Invocation Foundation        [NEXT]
+Phase D1   — Global Messaging Abstraction
+Phase D2   — KakaoTalk Execution Adapter
+Phase D3   — Global Messaging Adapter Feasibility
+Phase E    — Mobile Safety Certification
+Phase F    — Unified Identity + Global Distribution
+Phase G    — Hackathon Mobile Final Certification
 ```
 
 ## R23.7G — Background Runtime Certification
@@ -1191,13 +1629,16 @@ USER INTENT
 1. R23.5B 완전 종료
 2. R23.6E Real E2E 완성
 3. R23.6M Android Voice Messaging MVP
-   3.1 Phase A — Mobile Architecture Audit [CLOSED]
-   3.2 Phase B — Android Companion Foundation [CLOSED]
-   3.3 Phase C — Real SMS Execution [CURRENT NEXT]
-   3.4 Phase D — KakaoTalk Execution
-   3.5 Phase E — Mobile Safety Certification
-   3.6 Phase F — Unified Identity + Judge Distribution
-   3.7 Phase G — Hackathon Mobile Final Certification
+   3.1 Phase A    — Mobile Architecture Audit [CLOSED]
+   3.2 Phase B    — Android Companion Foundation [CLOSED]
+   3.3 Phase C    — Real SMS Execution [CLOSED, FINAL_SHA afeb432]
+   3.4 Phase C.5  — Global Voice Invocation Foundation [NEXT]
+   3.5 Phase D1   — Global Messaging Abstraction
+   3.6 Phase D2   — KakaoTalk Execution Adapter
+   3.7 Phase D3   — Global Messaging Adapter Feasibility
+   3.8 Phase E    — Mobile Safety Certification
+   3.9 Phase F    — Unified Identity + Global Distribution
+   3.10 Phase G   — Hackathon Mobile Final Certification
 4. R23.7G Background Runtime
 5. R23.8P Trust UX
 6. R23.9C Final Certification
