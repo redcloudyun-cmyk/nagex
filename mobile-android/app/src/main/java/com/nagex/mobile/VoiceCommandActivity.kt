@@ -12,30 +12,40 @@ import androidx.core.content.ContextCompat
 import com.nagex.mobile.databinding.ActivityVoiceCommandBinding
 
 /**
- * R23.6M Phase B2/B3/C — user speaks -> STT -> contact candidate lookup ->
- * server resolution -> spoken result -> (Phase C) hand-off to
+ * R23.6M Phase B2/B3/C/C.5B-P0 — user speaks -> STT -> contact candidate
+ * lookup -> server resolution -> spoken result -> (Phase C) hand-off to
  * MessageComposeActivity for the compose/approve/send flow. This Activity
  * is intentionally the ONLY place decisions are made about what recognized
- * text means; VoiceCaptureManager/NagexSpeech/ContactCandidateProvider/
- * NagexApiClient are all pure input/output or transport, exactly as the
- * R23.6M directive requires of the Voice Layer. It never itself composes a
- * message, requests approval, or sends anything — that is
- * MessageComposeActivity's job, reached only after a real UNIQUE
- * resolution.
+ * text means; VoiceSession/VoiceCaptureManager/NagexSpeech/
+ * ContactCandidateProvider/NagexApiClient are all pure input/output,
+ * session-lifecycle, or transport, exactly as the R23.6M directive
+ * requires of the Voice Layer. It never itself composes a message,
+ * requests approval, or sends anything — that is MessageComposeActivity's
+ * job, reached only after a real UNIQUE resolution.
+ *
+ * Phase C.5B-P0: this Activity is now the single canonical destination
+ * every invocation route (in-app tap, home-screen shortcut/widget,
+ * notification action, Quick Settings Tile) converges on — external
+ * routes reach it only via the exported VoiceInvokeActivity trampoline,
+ * never directly, so this Activity's own android:exported="false"
+ * boundary (established in Phase B) is unchanged. EXTRA_AUTO_START, set
+ * only by that trampoline, is what makes external invocation feel like
+ * "no extra button press" (Section 5) without changing the existing
+ * manual in-app tap flow's own behavior.
  */
 class VoiceCommandActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityVoiceCommandBinding
     private lateinit var config: NagexServerConfig
     private lateinit var apiClient: NagexApiClient
-    private lateinit var voiceCapture: VoiceCaptureManager
     private lateinit var contactProvider: ContactCandidateProvider
     private lateinit var recipientLocalCache: RecipientLocalCache
     private var speech: NagexSpeech? = null
+    private var activeSession: VoiceSession? = null
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private val requestMicPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) startListening() else showResult("Microphone permission denied — voice command cannot proceed.")
+        if (granted) beginListening() else showResult("Microphone permission denied — voice command cannot proceed.")
     }
     private val requestContactsPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (!granted) showResult("Contacts permission denied — cannot resolve a recipient.")
@@ -48,37 +58,63 @@ class VoiceCommandActivity : AppCompatActivity() {
 
         config = NagexServerConfig(this)
         apiClient = NagexApiClient(config)
-        voiceCapture = VoiceCaptureManager(this)
         contactProvider = ContactCandidateProvider(this)
         recipientLocalCache = RecipientLocalCache(this)
         speech = NagexSpeech(this) { /* ready callback — no action needed */ }
 
-        binding.startListeningButton.setOnClickListener {
-            if (voiceCapture.hasMicrophonePermission()) startListening()
-            else requestMicPermission.launch(Manifest.permission.RECORD_AUDIO)
+        binding.startListeningButton.setOnClickListener { attemptStartListening() }
+
+        // Every external invocation route (Section 17.3) sets this exactly
+        // once, via VoiceInvokeActivity — never set by this app's own
+        // manual "tap and speak" flow.
+        if (intent.getBooleanExtra(EXTRA_AUTO_START, false)) {
+            attemptStartListening()
         }
     }
 
-    private fun startListening() {
-        binding.recognizedTextView.text = "Listening..."
+    private fun attemptStartListening() {
+        if (VoiceCaptureManager(this).hasMicrophonePermission()) beginListening()
+        else requestMicPermission.launch(Manifest.permission.RECORD_AUDIO)
+    }
+
+    private fun beginListening() {
+        // MULTIPLE_ACTIVE_VOICE_SESSIONS = 0 — a second invocation (e.g.
+        // the widget tapped again, or a notification tapped while this
+        // very screen is already listening) must never start a second
+        // SpeechRecognizer; it is rejected here, truthfully, not silently
+        // queued or dropped.
+        val session = VoiceSession.tryAcquire(this)
+        if (session == null) {
+            showResult("NAgex is already listening.")
+            return
+        }
+        activeSession = session
+        binding.recognizedTextView.text = ""
         binding.resultTextView.text = ""
-        voiceCapture.listenOnce(locale = "ko-KR") { result ->
-            mainHandler.post { onVoiceResult(result) }
+        session.start(locale = "ko-KR", speech = speech, acknowledgement = getString(R.string.voice_acknowledgement)) { result ->
+            mainHandler.post {
+                activeSession = null
+                onVoiceResult(result)
+            }
         }
     }
 
-    private fun onVoiceResult(result: VoiceCaptureManager.Result) {
+    private fun onVoiceResult(result: VoiceSession.Result) {
         when (result) {
-            is VoiceCaptureManager.Result.PermissionDenied ->
+            is VoiceSession.Result.PermissionDenied ->
                 showResult("Microphone permission denied — voice command cannot proceed.")
-            is VoiceCaptureManager.Result.EmptyResult -> {
+            is VoiceSession.Result.EmptyResult -> {
                 // STT uncertain/empty result — no action, per the directive.
                 binding.recognizedTextView.text = ""
                 showResult("Didn't catch that — please try again.")
             }
-            is VoiceCaptureManager.Result.Error ->
+            is VoiceSession.Result.TimedOut -> {
+                binding.recognizedTextView.text = ""
+                showResult("Didn't hear anything — please try again.")
+            }
+            is VoiceSession.Result.Error ->
                 showResult("Voice recognition error: ${result.reason}")
-            is VoiceCaptureManager.Result.Recognized -> {
+            is VoiceSession.Result.Recognized -> {
                 binding.recognizedTextView.text = result.text
                 resolveRecipient(result.text)
             }
@@ -157,7 +193,13 @@ class VoiceCommandActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        activeSession?.cancel()
+        activeSession = null
         speech?.shutdown()
         super.onDestroy()
+    }
+
+    companion object {
+        const val EXTRA_AUTO_START = "extra_auto_start"
     }
 }

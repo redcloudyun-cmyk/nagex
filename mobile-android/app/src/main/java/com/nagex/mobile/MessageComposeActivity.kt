@@ -32,10 +32,10 @@ class MessageComposeActivity : AppCompatActivity() {
     private lateinit var config: NagexServerConfig
     private lateinit var apiClient: NagexApiClient
     private lateinit var keyManager: DeviceKeyManager
-    private lateinit var voiceCapture: VoiceCaptureManager
     private lateinit var recipientLocalCache: RecipientLocalCache
     private lateinit var phoneNumberResolver: PhoneNumberResolver
     private var speech: NagexSpeech? = null
+    private var activeSession: VoiceSession? = null
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private lateinit var recipientRef: String
@@ -61,14 +61,13 @@ class MessageComposeActivity : AppCompatActivity() {
         config = NagexServerConfig(this)
         apiClient = NagexApiClient(config)
         keyManager = DeviceKeyManager(this)
-        voiceCapture = VoiceCaptureManager(this)
         recipientLocalCache = RecipientLocalCache(this)
         phoneNumberResolver = PhoneNumberResolver(this)
         speech = NagexSpeech(this) { }
 
         binding.recipientText.text = "To: $displayName"
         binding.recordMessageButton.setOnClickListener {
-            if (voiceCapture.hasMicrophonePermission()) startListeningForMessage()
+            if (VoiceCaptureManager(this).hasMicrophonePermission()) startListeningForMessage()
             else requestMicPermission.launch(Manifest.permission.RECORD_AUDIO)
         }
         binding.approveButton.setOnClickListener { onApproveTapped() }
@@ -76,19 +75,38 @@ class MessageComposeActivity : AppCompatActivity() {
         setApprovalButtonsVisible(false)
     }
 
+    // C.5B-P0 — this capture step now also goes through the canonical
+    // VoiceSession, so the MULTIPLE_ACTIVE_VOICE_SESSIONS = 0 guard covers
+    // message recording exactly like recipient resolution does.
     private fun startListeningForMessage() {
+        val session = VoiceSession.tryAcquire(this)
+        if (session == null) {
+            showStatus("NAgex is already listening.")
+            return
+        }
+        activeSession = session
         showStatus("Listening for the message...")
-        voiceCapture.listenOnce(locale = "ko-KR") { result ->
-            mainHandler.post { onMessageRecognized(result) }
+        // C.5B-P0 physical-cert finding: starting capture the instant the
+        // button is tapped gave the user no warning/preparation window at
+        // all ("too fast — the gap before I need to speak needs to be
+        // longer"). Reusing the same spoken acknowledgement + wait-for-
+        // TTS-to-finish sequencing VoiceCommandActivity already uses gives
+        // a consistent, audible "now" cue before listening starts.
+        session.start(locale = "ko-KR", speech = speech, acknowledgement = getString(R.string.voice_acknowledgement)) { result ->
+            mainHandler.post {
+                activeSession = null
+                onMessageRecognized(result)
+            }
         }
     }
 
-    private fun onMessageRecognized(result: VoiceCaptureManager.Result) {
+    private fun onMessageRecognized(result: VoiceSession.Result) {
         when (result) {
-            is VoiceCaptureManager.Result.PermissionDenied -> showStatus("Microphone permission denied — voice command cannot proceed.")
-            is VoiceCaptureManager.Result.EmptyResult -> showStatus("Didn't catch that — please try again.")
-            is VoiceCaptureManager.Result.Error -> showStatus("Voice recognition error: ${result.reason}")
-            is VoiceCaptureManager.Result.Recognized -> {
+            is VoiceSession.Result.PermissionDenied -> showStatus("Microphone permission denied — voice command cannot proceed.")
+            is VoiceSession.Result.EmptyResult -> showStatus("Didn't catch that — please try again.")
+            is VoiceSession.Result.TimedOut -> showStatus("Didn't hear anything — please try again.")
+            is VoiceSession.Result.Error -> showStatus("Voice recognition error: ${result.reason}")
+            is VoiceSession.Result.Recognized -> {
                 binding.messageText.text = result.text
                 createDraftAndRequestApproval(result.text)
             }
@@ -269,6 +287,8 @@ class MessageComposeActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        activeSession?.cancel()
+        activeSession = null
         speech?.shutdown()
         super.onDestroy()
     }

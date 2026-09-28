@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- R23.6M Phase C.5B-P0 — the static home-screen shortcut invocation
+     route (Section 4B of the C.5A audit, "shortcut and/or widget", the
+     minimum-reliable half of that pair). Long-pressing the launcher icon
+     offers this shortcut, which targets VoiceInvokeActivity directly —
+     the same exported trampoline the widget/notification/tile routes
+     use, so all P0 routes converge on the identical destination. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="talk_to_nagex"
+        android:enabled="true"
+        android:icon="@drawable/ic_nagex_mic"
+        android:shortcutShortLabel="@string/shortcut_talk_short_label"
+        android:shortcutLongLabel="@string/shortcut_talk_long_label">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.nagex.mobile"
+            android:targetClass="com.nagex.mobile.VoiceInvokeActivity" />
+    </shortcut>
+</shortcuts>

@@ -1,9 +1,12 @@
 package com.nagex.mobile
 
+import android.Manifest
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import com.nagex.mobile.databinding.ActivityStatusBinding
 
@@ -22,6 +25,13 @@ class StatusActivity : AppCompatActivity() {
     private lateinit var enrollmentManager: DeviceEnrollmentManager
     private val mainHandler = Handler(Looper.getMainLooper())
 
+    // C.5B-P0 notification invocation route. Denial is truthful and never
+    // fatal — every other invocation route keeps working regardless of
+    // the outcome here (NotificationHelper's own contract).
+    private val requestNotificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) NotificationHelper.showTalkToNagexNotification(this)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityStatusBinding.inflate(layoutInflater)
@@ -35,6 +45,7 @@ class StatusActivity : AppCompatActivity() {
         binding.serverUrlInput.setText(config.serverBaseUrl)
         binding.sessionTokenInput.setText(config.sessionToken ?: "")
         renderStatus()
+        setUpTalkToNagexNotification()
 
         binding.saveConfigButton.setOnClickListener {
             config.serverBaseUrl = binding.serverUrlInput.text.toString()
@@ -47,6 +58,21 @@ class StatusActivity : AppCompatActivity() {
 
         binding.voiceCommandButton.setOnClickListener {
             startActivity(Intent(this, VoiceCommandActivity::class.java))
+        }
+    }
+
+    // C.5B-P0 — opportunistic, never mandatory. If POST_NOTIFICATIONS is
+    // already granted, the notification is (re)shown; otherwise it is
+    // requested on Android 13+ (the system itself stops presenting the
+    // dialog once a user has denied it enough times — this code does not
+    // add its own separate "don't ask again" tracking). A denial here
+    // never blocks anything else in the app; every other invocation route
+    // keeps working.
+    private fun setUpTalkToNagexNotification() {
+        if (NotificationHelper.hasPermission(this)) {
+            NotificationHelper.showTalkToNagexNotification(this)
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
 

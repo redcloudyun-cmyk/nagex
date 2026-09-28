@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- R23.6M Phase C.5B-P0 — the home-screen widget invocation route
+     (Section 4B of the C.5A audit). RemoteViews-compatible: a single tap
+     target, nothing else. Tapping it launches VoiceInvokeActivity, an
+     ordinary Activity launch — no foreground-service or microphone
+     permission is implicated by the widget itself. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widgetRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#6200EE"
+    android:gravity="center"
+    android:orientation="horizontal"
+    android:padding="12dp">
+
+    <ImageView
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_marginEnd="8dp"
+        android:src="@drawable/ic_nagex_mic"
+        android:contentDescription="@string/shortcut_talk_long_label" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/shortcut_talk_long_label"
+        android:textColor="#FFFFFF"
+        android:textStyle="bold" />
+
+</LinearLayout>

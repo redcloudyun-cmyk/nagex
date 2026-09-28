@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.util.Log
 import androidx.core.content.ContextCompat
 import android.Manifest
 
@@ -47,12 +48,24 @@ class VoiceCaptureManager(private val context: Context) {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+            // Without these, the OEM recognizer's own default silence
+            // threshold was finalizing results too early — physically
+            // observed as names being cut off mid-word and brief natural
+            // pauses (e.g. before a Korean honorific/title) ending the
+            // utterance prematurely. These are hints, not a guaranteed
+            // exact cutoff (the recognizer/OS may clamp or ignore them),
+            // so behavior must still be verified per device.
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, COMPLETE_SILENCE_LENGTH_MILLIS)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS)
         }
+
+        Log.d(TAG, "listenOnce: startListening locale=$locale completeSilenceMs=$COMPLETE_SILENCE_LENGTH_MILLIS possiblyCompleteMs=$POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS")
 
         recognizer.setRecognitionListener(object : RecognitionListener {
             override fun onResults(results: Bundle) {
                 val matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 val text = matches?.firstOrNull()?.trim()
+                Log.d(TAG, "onResults: text=${text ?: "<null>"}")
                 if (text.isNullOrEmpty()) {
                     onResult(Result.EmptyResult)
                 } else {
@@ -62,6 +75,7 @@ class VoiceCaptureManager(private val context: Context) {
             }
 
             override fun onError(error: Int) {
+                Log.d(TAG, "onError: code=$error (${errorName(error)})")
                 // STT uncertain/no-match is a truthful empty result, not an
                 // error — everything else is a genuine error.
                 if (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
@@ -72,15 +86,49 @@ class VoiceCaptureManager(private val context: Context) {
                 recognizer.destroy()
             }
 
-            override fun onReadyForSpeech(params: Bundle?) {}
-            override fun onBeginningOfSpeech() {}
+            override fun onReadyForSpeech(params: Bundle?) {
+                Log.d(TAG, "onReadyForSpeech")
+            }
+            override fun onBeginningOfSpeech() {
+                Log.d(TAG, "onBeginningOfSpeech")
+            }
             override fun onRmsChanged(rmsdB: Float) {}
             override fun onBufferReceived(buffer: ByteArray?) {}
-            override fun onEndOfSpeech() {}
-            override fun onPartialResults(partialResults: Bundle?) {}
+            override fun onEndOfSpeech() {
+                Log.d(TAG, "onEndOfSpeech")
+            }
+            override fun onPartialResults(partialResults: Bundle?) {
+                val partial = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
+                if (partial != null) Log.d(TAG, "onPartialResults: $partial")
+            }
             override fun onEvent(eventType: Int, params: Bundle?) {}
         })
 
         recognizer.startListening(intent)
+    }
+
+    private fun errorName(code: Int): String = when (code) {
+        SpeechRecognizer.ERROR_NO_MATCH -> "ERROR_NO_MATCH"
+        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "ERROR_SPEECH_TIMEOUT"
+        SpeechRecognizer.ERROR_NETWORK -> "ERROR_NETWORK"
+        SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "ERROR_NETWORK_TIMEOUT"
+        SpeechRecognizer.ERROR_AUDIO -> "ERROR_AUDIO"
+        SpeechRecognizer.ERROR_CLIENT -> "ERROR_CLIENT"
+        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "ERROR_INSUFFICIENT_PERMISSIONS"
+        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "ERROR_RECOGNIZER_BUSY"
+        SpeechRecognizer.ERROR_SERVER -> "ERROR_SERVER"
+        else -> "UNKNOWN"
+    }
+
+    companion object {
+        private const val TAG = "NagexVoiceCapture"
+
+        // Post-speech silence targets (R23.6M Phase C.5B-P0 UX tuning):
+        // minimum 1500ms, default 1800ms, capped ~2200ms per the directive.
+        // "Possibly complete" is the recognizer's own earlier, softer
+        // threshold — kept below the hard "complete" threshold so it never
+        // overrides the longer one.
+        const val COMPLETE_SILENCE_LENGTH_MILLIS = 1_800L
+        const val POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS = 1_500L
     }
 }

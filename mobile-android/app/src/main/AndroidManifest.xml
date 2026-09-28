@@ -20,6 +20,13 @@
          server-consumed approval. -->
     <uses-permission android:name="android.permission.SEND_SMS" />
 
+    <!-- Voice Invocation Foundation (Phase C.5B-P0) — the persistent
+         "Talk to NAgex" notification action needs this on Android 13+.
+         Handled truthfully (NotificationHelper.hasPermission): if denied,
+         only the notification route is unavailable, every other
+         invocation route keeps working. Never treated as mandatory. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <!-- SEND_SMS otherwise implies telephony hardware is required, which
          would make the app un-installable on ChromeOS/tablet/foldable
          devices with no SIM. Declared not-required: on a device with no
@@ -47,6 +54,10 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- C.5B-P0 home-screen shortcut route. -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
         </activity>
 
         <activity
@@ -56,6 +67,43 @@
         <activity
             android:name=".MessageComposeActivity"
             android:exported="false" />
+
+        <!-- C.5B-P0 — the ONE exported entry point every external
+             invocation route (shortcut, widget, notification, Quick
+             Settings Tile) targets. Never shown to the user; immediately
+             forwards to VoiceCommandActivity, which stays
+             exported="false". -->
+        <activity
+            android:name=".VoiceInvokeActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.NoDisplay"
+            android:excludeFromRecents="true" />
+
+        <!-- C.5B-P0 home-screen widget route. -->
+        <receiver
+            android:name=".NagexVoiceWidgetProvider"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_talk_to_nagex_info" />
+        </receiver>
+
+        <!-- C.5B-P0 Quick Settings Tile route. Never starts a microphone
+             foreground service from onClick() — see NagexQuickTileService
+             for why. -->
+        <service
+            android:name=".NagexQuickTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_nagex_mic"
+            android:label="@string/quick_tile_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
 
     </application>
 </manifest>

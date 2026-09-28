@@ -13,4 +13,13 @@
     <string name="button_record_message">Record message</string>
     <string name="button_approve">Approve</string>
     <string name="button_reject">Reject</string>
+    <string name="voice_acknowledgement">네, 말씀하세요.</string>
+    <string name="notification_channel_voice_name">NAgex Voice</string>
+    <string name="notification_channel_voice_description">Lets you start talking to NAgex from a notification action.</string>
+    <string name="notification_talk_to_nagex_title">NAgex</string>
+    <string name="notification_talk_to_nagex_text">Tap to talk to NAgex</string>
+    <string name="notification_action_talk">Talk to NAgex</string>
+    <string name="quick_tile_label">NAgex</string>
+    <string name="shortcut_talk_short_label">Talk</string>
+    <string name="shortcut_talk_long_label">Talk to NAgex</string>
 </resources>
