@@ -619,7 +619,7 @@ MessagingExecutionAdapter를 두는 구조로 처음부터 설계되어야 한�
 Phase A    — Mobile Architecture Audit                [CLOSED]
 Phase B    — Android Companion Foundation             [CLOSED]
 Phase C    — Real SMS Execution                       [CLOSED, FINAL_SHA afeb432]
-Phase C.5  — Global Voice Invocation Foundation        [NEXT]
+Phase C.5  — Global Voice Invocation Foundation        [P0 CLOSED, P1 NOT STARTED]
 Phase D1   — Global Messaging Abstraction
 Phase D2   — KakaoTalk Execution Adapter
 Phase D3   — Global Messaging Adapter Feasibility
@@ -700,7 +700,7 @@ docs/evidence/R23_6M_Phase_C_SMS_Execution_Closure_Report_20260928.md
 (FINAL_SHA afeb432).
 ```
 
-## Phase C.5 — Global Voice Invocation Foundation [NEXT]
+## Phase C.5 — Global Voice Invocation Foundation [P0 CLOSED, P1 NOT STARTED]
 
 신규 추가 (2026-09-28). Phase C는 CLOSED 상태를 유지하며, 이 Phase는 Phase C의
 인증된 SMS 실행 동작을 변경하지 않는다 — 오직 "사용자가 어떻게 NAgex를
@@ -730,6 +730,18 @@ C.5A 감사 보고서가 먼저 검토·승인되어야 C.5B 이후 구현을 �
 agent/action 로직을 만들지 않는다.
 기존 Phase C 승인/실행 의미론(approval semantics)은 변경되지 않는다.
 ```
+
+**C.5B-P0 완료 (2026-09-28, commit `f12f35a`):** tap-to-talk/home-screen
+shortcut·widget/persistent notification/Quick Settings Tile 4개 진입
+경로 모두 `VoiceSession`(신규) → `VoiceInvokeActivity`(유일한 exported
+trampoline) 경계로 수렴함을 실기기(Samsung SM-F731N)에서 시나리오
+A-J(in-app tap/widget/notification/QS Tile/다른 앱 foreground 상태에서
+호출/마이크 권한 거부/알림 권한 거부/중복 invocation 거부/음성→실제
+SMS 발신/거부→SMS 0건)로 인증 완료. Wake word/VoiceInteractionService는
+전혀 구현하지 않음(구조적 스캔 테스트로 고정). Phase C 실행/승인
+동작은 변경되지 않았다(회귀 스위트 동일하게 green). **C.5B-P1(wake
+phrase)은 시작하지 않았다** — Section 17.4의 wake-word engine 선정
+조사가 먼저 필요하다.
 
 ## Phase D1 — Global Messaging Abstraction
 
@@ -1037,6 +1049,60 @@ BACKGROUND_RAW_AUDIO_SERVER_UPLOAD = 0
 BACKGROUND_RAW_AUDIO_STORAGE = 0
 LLM_CAN_DIRECTLY_CONTROL_DEVICE = 0
 ```
+
+## Human Approval First는 modality-neutral하다 — "터치 전용"으로 고정하지 않는다
+
+명확화 (2026-09-28, C.5B-P0 실기기 인증 과정에서 확정). 위 두 불변식,
+`VOICE_CAN_BYPASS_APPROVAL = 0`과 `WAKE_WORD_CAN_BYPASS_APPROVAL = 0`은
+**"NAgex는 영원히 터치 승인만 지원해야 한다"는 뜻이 아니다.** 실제 의미는:
+
+```text
+- 음성 invocation 자체는 승인으로 인정되지 않는다
+- wake phrase 자체는 승인으로 인정되지 않는다
+- 실행은 항상 명시적이고 별도로 바인딩된 승인 이벤트를 요구해야 한다
+```
+
+현재 인증된 SMS 실행 플로우(Phase C, C.5B-P0)에서 그 명시적 승인 이벤트는
+**물리적 터치**(`APPROVE`/`REJECT` 버튼)이다 — 이것은 이번 마일스톤의
+현재 구현 선택이며, 바꿀 수 없는 아키텍처 상한선이 아니다.
+
+장기적으로 NAgex는 다음과 같은 추가 명시적 승인 모달리티를 지원할 수
+있다:
+
+```text
+- TOUCH (현재 인증된 유일한 방식)
+- VOICE_EXPLICIT_CONFIRMATION
+- BIOMETRIC
+- SYSTEM_CONFIRMATION
+```
+
+향후 어떤 음성 승인(voice approval)을 도입하더라도, 그것은 "승인 우회"가
+아니라 **별도의, 그 자체로 완전한 승인 메커니즘**으로 설계되어야 하며
+반드시:
+
+```text
+- 정확한 승인된 recipient에 바인딩되어야 한다
+- 정확한 channel에 바인딩되어야 한다
+- 정확한 message에 바인딩되어야 한다
+- 정확한 execution route에 바인딩되어야 한다
+- 명확한 긍정적 의도(affirmative intent)를 요구해야 한다
+- 모호한 발화는 거부해야 한다
+- payload drift 발생 시 재승인을 요구해야 한다
+- 더 위험도가 높은 액션에는 더 강한 확인을 적용해야 한다
+```
+
+예시 (장기, 아직 구현하지 않음):
+
+```text
+NAgex: "조민형 레하에게 '10분 정도 늦습니다'라고 문자 보낼까요?"
+User: "보내"
+```
+
+→ 명시적 승인 의도가 검증된 이후에만 실행이 진행될 수 있다.
+
+**C.5B-P0의 범위:** 터치 전용 APPROVE/REJECT를 그대로 유지하며, 음성
+승인은 지금 구현하지 않는다. 이 절은 오직 향후 설계가 "터치만 영원히
+가능하다"는 잘못된 결론으로 굳어지지 않도록 하기 위한 것이다.
 
 # 17.3 Cross-Platform Invocation Model
 
@@ -1477,7 +1543,7 @@ Android only
 Phase A    — Mobile Architecture Audit                [CLOSED]
 Phase B    — Android Companion Foundation             [CLOSED]
 Phase C    — Real SMS Execution                       [CLOSED, FINAL_SHA afeb432]
-Phase C.5  — Global Voice Invocation Foundation        [NEXT]
+Phase C.5  — Global Voice Invocation Foundation        [P0 CLOSED, P1 NOT STARTED]
 Phase D1   — Global Messaging Abstraction
 Phase D2   — KakaoTalk Execution Adapter
 Phase D3   — Global Messaging Adapter Feasibility
@@ -1632,7 +1698,7 @@ USER INTENT
    3.1 Phase A    — Mobile Architecture Audit [CLOSED]
    3.2 Phase B    — Android Companion Foundation [CLOSED]
    3.3 Phase C    — Real SMS Execution [CLOSED, FINAL_SHA afeb432]
-   3.4 Phase C.5  — Global Voice Invocation Foundation [NEXT]
+   3.4 Phase C.5  — Global Voice Invocation Foundation [P0 CLOSED, P1 NOT STARTED]
    3.5 Phase D1   — Global Messaging Abstraction
    3.6 Phase D2   — KakaoTalk Execution Adapter
    3.7 Phase D3   — Global Messaging Adapter Feasibility
