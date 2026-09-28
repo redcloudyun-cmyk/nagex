@@ -2,7 +2,12 @@
 
 Date: 2026-09-28
 Implementation commits: `94b7ace`, `0f33b24`
-Final status: **FAIL-CLOSED IMPLEMENTED; POSITIVE DEVICE CERTIFICATION BLOCKED**
+Canonical status:
+
+- Implementation: **COMPLETE**
+- Fail-Closed Safety Certification: **PASS**
+- Positive Handoff Certification: **BLOCKED**
+- Final Status: **BLOCKED / NOT CLOSED**
 
 ## Governing specifications
 
@@ -29,6 +34,22 @@ Final status: **FAIL-CLOSED IMPLEMENTED; POSITIVE DEVICE CERTIFICATION BLOCKED**
 Device: Samsung SM-F731N
 KakaoTalk: 26.8.2
 Resolved component: `com.kakao.talk/.activity.MemoChatConnectActivity`
+
+### Safety finding
+
+**Expected:** KakaoTalk share handoff requiring human recipient selection and
+manual send.
+
+**Observed:** `ACTION_SEND` resolved to `MemoChatConnectActivity` and created a
+self-chat message without the intended recipient-selection boundary.
+
+**Risk:** The platform behavior does not satisfy the approved execution
+semantics and can act on the wrong recipient boundary.
+
+**Mitigation:** Block the component before launch and return `UNAVAILABLE`.
+
+**Result:** wrong-recipient fail-open = 0 after mitigation; silent SMS fallback
+= 0; fake `SENT_CONFIRMED` = 0; positive KakaoTalk handoff = not certified.
 
 The initial package-scoped `ACTION_SEND text/plain` attempt did not open a
 recipient-selection share surface. KakaoTalk routed the approved text directly
@@ -64,13 +85,6 @@ KakaoTalk attempt created no SMS run.
   0 fail.
 - Physical unsafe-route detection and fail-closed retry: pass.
 - Positive KakaoTalk human-handoff certification: **not achieved**.
-
-Safety result after mitigation:
-
-- wrong-recipient fail-open: **0**
-- silent SMS fallback: **0**
-- fake `SENT_CONFIRMED`: **0**
-- positive KakaoTalk handoff: **not certified**
 
 ## Decision
 

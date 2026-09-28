@@ -1,7 +1,10 @@
 # R23.6M-D3 — Global Messaging Adapter Feasibility Audit
 
 Date: 2026-09-28
-Status: **AUDIT COMPLETE — REVIEW REQUIRED; NO NEW ADAPTER IMPLEMENTATION AUTHORIZED**
+Status: **AUDIT COMPLETE — ACCEPTED; NO NEW ADAPTER IMPLEMENTATION AUTHORIZED**
+
+This document is the accepted D3 audit output. It does not change D2B's final
+status (`BLOCKED / NOT CLOSED`) and does not authorize runtime implementation.
 
 ## 1. Scope and decision rule
 

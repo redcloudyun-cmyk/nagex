@@ -18,6 +18,12 @@
 > E–G NOT STARTED. See
 > `docs/NAgex_R23_6M_D3_Global_Messaging_Adapter_Feasibility_Audit_20260928.md`.
 
+> **2026-09-28 D3 acceptance / D3R status:** D3 is AUDIT COMPLETE / ACCEPTED.
+> D3R is DESIGN COMPLETE / REVIEW REQUIRED; runtime implementation and new
+> adapters remain unauthorized. D2B remains BLOCKED / FAIL-CLOSED CERTIFIED and
+> NOT CLOSED. See
+> `docs/NAgex_R23_6M_D3R_Execution_Plane_Messaging_Contract_Review_20260928.md`.
+
 기준일: 2026-09-27  
 최종 개정: 2026-09-28 — Phase C CLOSED(FINAL_SHA afeb432) 반영, Phase C.5
   (Global Voice Invocation Foundation) 추가, Phase D를 D1/D2/D3(Global
