@@ -1,0 +1,7 @@
+# gradlew is a POSIX shell script — it must always check out with LF line
+# endings (a CRLF shell script fails on Linux/Mac with "bad interpreter" or
+# similar) regardless of the checking-out platform's core.autocrlf setting.
+gradlew text eol=lf
+gradlew.bat text eol=crlf
+gradle-wrapper.jar binary
+*.jar binary

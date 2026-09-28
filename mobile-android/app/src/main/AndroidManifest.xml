@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <queries>
+        <package android:name="com.kakao.talk" />
+        <intent><action android:name="android.intent.action.SEND" /><data android:mimeType="text/plain" /></intent>
+    </queries>
+
+    <!-- Networking: the app is an authenticated HTTPS client of the NAgex
+         server only; it never listens for inbound connections. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Voice Foundation (Phase B2). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- Contact Resolution (Phase B3) — read-only. NAgex never requests
+         WRITE_CONTACTS; it only ever queries, and only ever uploads
+         candidate contactId+displayName pairs, never the full address
+         book and never a phone number (see ContactCandidateProvider). -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+
+    <!-- SMS Execution (Phase C) — the one and only place this app ever
+         calls SmsManager is SmsSendExecutor, and only after a real,
+         server-consumed approval. -->
+    <uses-permission android:name="android.permission.SEND_SMS" />
+
+    <!-- Voice Invocation Foundation (Phase C.5B-P0) — the persistent
+         "Talk to NAgex" notification action needs this on Android 13+.
+         Handled truthfully (NotificationHelper.hasPermission): if denied,
+         only the notification route is unavailable, every other
+         invocation route keeps working. Never treated as mandatory. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- SEND_SMS otherwise implies telephony hardware is required, which
+         would make the app un-installable on ChromeOS/tablet/foldable
+         devices with no SIM. Declared not-required: on a device with no
+         telephony, PhoneNumberResolver/SmsSendExecutor simply never find
+         a usable number, the same truthful NotFound/SendFailed path as
+         any other contact with no phone number on file. -->
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
+
+    <!-- Deliberately no AccessibilityService. KakaoTalk uses a truthful
+         ACTION_SEND human handoff; NAgex never selects or clicks in KakaoTalk. -->
+
+    <application
+        android:allowBackup="false"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.NagexMobile"
+        android:usesCleartextTraffic="false"
+        android:networkSecurityConfig="@xml/network_security_config">
+
+        <activity
+            android:name=".StatusActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- C.5B-P0 home-screen shortcut route. -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity>
+
+        <activity
+            android:name=".VoiceCommandActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".MessageComposeActivity"
+            android:exported="false" />
+
+        <!-- C.5B-P0 — the ONE exported entry point every external
+             invocation route (shortcut, widget, notification, Quick
+             Settings Tile) targets. Never shown to the user; immediately
+             forwards to VoiceCommandActivity, which stays
+             exported="false". -->
+        <activity
+            android:name=".VoiceInvokeActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.NoDisplay"
+            android:excludeFromRecents="true" />
+
+        <!-- C.5B-P0 home-screen widget route. -->
+        <receiver
+            android:name=".NagexVoiceWidgetProvider"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_talk_to_nagex_info" />
+        </receiver>
+
+        <!-- C.5B-P0 Quick Settings Tile route. Never starts a microphone
+             foreground service from onClick() — see NagexQuickTileService
+             for why. -->
+        <service
+            android:name=".NagexQuickTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_nagex_mic"
+            android:label="@string/quick_tile_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+    </application>
+</manifest>

@@ -186,4 +186,17 @@ export interface NagexApplication {
   pricingExtractionService: import('../agents/pricing-extraction.service.js').PricingExtractionService;
   competitorPricingResearchService: import('../agents/competitor-pricing-research.service.js').CompetitorPricingResearchService;
   competitorPricingRunService: import('../agents/competitor-pricing-run.service.js').CompetitorPricingRunService;
+  // R23.6M Phase B3 — Mobile Contact Resolution.
+  recipientRefStore: import('../mobile/recipient-ref.store.js').RecipientRefStore;
+  contactResolver: import('../mobile/contact-resolver.service.js').ContactResolver;
+  // R23.6M Phase C — Mobile SMS Execution.
+  mobileMessageRunStore: import('../mobile/mobile-message-run.store.js').MobileMessageRunStore;
+  mobileMessageRunService: import('../mobile/mobile-message-run.service.js').MobileMessageRunService;
+  // R23.6M Phase D1 — Global Messaging Abstraction. Exactly one registered
+  // adapter (SMS) — see create-nagex-application.ts's own comment.
+  messagingAdapterRegistry: import('../messaging/messaging-adapter-registry.js').MessagingAdapterRegistry;
+  messagingCapabilityRegistry: import('../messaging/messaging-capability-registry.js').MessagingCapabilityRegistry;
+  executionRouteResolver: import('../messaging/execution-route-resolver.js').ExecutionRouteResolver;
+  messagingHandoffRunStore: import('../messaging/messaging-handoff-run.store.js').MessagingHandoffRunStore;
+  messagingHandoffService: import('../messaging/messaging-handoff.service.js').MessagingHandoffService;
 }

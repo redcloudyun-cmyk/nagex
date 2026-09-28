@@ -44,6 +44,17 @@ import { DeviceExecutionSessionStore } from '../device-control/device-execution-
 import { DeviceControlService } from '../device-control/device-control.service.js';
 import { AstraVisualExecutionModelAdapter } from '../device-control/astra-visual-execution-model.adapter.js';
 import { DeviceIdentityStore } from '../device-agent/device-identity.store.js';
+import { RecipientRefStore } from '../mobile/recipient-ref.store.js';
+import { ContactResolver } from '../mobile/contact-resolver.service.js';
+import { MobileMessageRunStore } from '../mobile/mobile-message-run.store.js';
+import { MobileMessageRunService } from '../mobile/mobile-message-run.service.js';
+import { MessagingAdapterRegistry } from '../messaging/messaging-adapter-registry.js';
+import { MessagingCapabilityRegistry } from '../messaging/messaging-capability-registry.js';
+import { SMS_CANONICAL_CAPABILITY } from '../messaging/sms-canonical-mapping.js';
+import { ExecutionRouteResolver } from '../messaging/execution-route-resolver.js';
+import { SmsMessagingAdapter } from '../messaging/sms-messaging-adapter.js';
+import { MessagingHandoffRunStore } from '../messaging/messaging-handoff-run.store.js';
+import { MessagingHandoffService } from '../messaging/messaging-handoff.service.js';
 import { DesktopExecutionSessionStore } from '../device-agent/desktop-execution-session.store.js';
 import { DeviceTransportSecurity } from '../device-agent/device-transport-security.js';
 import { DeviceConnectionStatusStore } from '../device-agent/device-connection-status.store.js';
@@ -206,12 +217,40 @@ export function createNagexApplication(): NagexApplication {
   // "enrolled/connected/authenticated" are reachable from here.
   const deviceConnectionStatusStore = new DeviceConnectionStatusStore();
   const devicePendingCommandStore = new DevicePendingCommandStore();
+  // R23.6M Phase B3 — mobile contact resolution. recipientRef minting is
+  // the only new durable store this phase adds; ContactResolver holds no
+  // state of its own.
+  const recipientRefStore = new RecipientRefStore();
+  const contactResolver = new ContactResolver(recipientRefStore);
+  // R23.6M Phase C — one complete real SMS execution flow. Reuses
+  // actionApprovals/auditLogger unchanged; recipientRefStore already
+  // structurally satisfies RecipientRefLookupPort.
+  const mobileMessageRunStore = new MobileMessageRunStore();
+  const mobileMessageRunService = new MobileMessageRunService(
+    mobileMessageRunStore,
+    recipientRefStore,
+    actionApprovals,
+    auditLogger,
+  );
+  // R23.6M Phase D1 — Global Messaging Abstraction. Exactly one registered
+  // adapter (SMS); KakaoTalk is not registered until D2 provides a real
+  // adapter. SmsMessagingAdapter wraps mobileMessageRunService unchanged —
+  // no certified logic moves here.
+  const messagingAdapterRegistry = new MessagingAdapterRegistry();
+  messagingAdapterRegistry.register(new SmsMessagingAdapter(mobileMessageRunService));
+  const messagingCapabilityRegistry = new MessagingCapabilityRegistry();
+  messagingCapabilityRegistry.register(SMS_CANONICAL_CAPABILITY);
+  const messagingHandoffRunStore = new MessagingHandoffRunStore();
+  const messagingHandoffService = new MessagingHandoffService(messagingHandoffRunStore, actionApprovals, recipientRefStore, auditLogger);
+  const executionRouteResolver = new ExecutionRouteResolver(messagingAdapterRegistry);
   const deviceAgentTransportEndpoint = new DeviceAgentTransportEndpoint(
     deviceTransportSecurity,
     deviceIdentityStore,
     deviceConnectionStatusStore,
     desktopExecutionSessionStore,
     devicePendingCommandStore,
+    mobileMessageRunService,
+    messagingHandoffService,
   );
   const moduleRegistry = new ModuleRegistry();
   const moduleStateStore = new ModuleStateStore();
@@ -766,5 +805,14 @@ export function createNagexApplication(): NagexApplication {
     pricingExtractionService,
     competitorPricingResearchService,
     competitorPricingRunService,
+    recipientRefStore,
+    contactResolver,
+    mobileMessageRunStore,
+    mobileMessageRunService,
+    messagingAdapterRegistry,
+    messagingCapabilityRegistry,
+    executionRouteResolver,
+    messagingHandoffRunStore,
+    messagingHandoffService,
   };
 }

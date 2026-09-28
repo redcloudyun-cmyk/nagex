@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- R23.6M Phase B4 — the app is HTTPS-only by default
+     (usesCleartextTraffic="false" in AndroidManifest.xml). This carves out
+     exactly one narrow exception: 127.0.0.1/localhost, needed only for
+     local development/smoke-testing against a server run on the same
+     machine via `adb reverse` (never reachable from outside the device
+     itself). It does not weaken transport security for any real NAgex
+     deployment, which is always a real HTTPS hostname. -->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>

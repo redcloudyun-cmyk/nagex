@@ -40,6 +40,8 @@ import { handlePersonalAssistantRoutes } from './http/routes/personal-assistant.
 import { handleCapabilitiesRoutes } from './http/routes/capabilities.routes.js';
 import { handleMySpaceRoutes } from './http/routes/my-space.routes.js';
 import { handleDeviceAgentRoutes } from './http/routes/device-agent.routes.js';
+import { handleMobileDeviceRoutes } from './http/routes/mobile-device.routes.js';
+import { handleMobileMessageRoutes } from './http/routes/mobile-message.routes.js';
 import { handleAuthRoutes } from './http/routes/auth.routes.js';
 import { handleSocialAuthRoutes } from './http/routes/social-auth.routes.js';
 import { handleAccountRoutes } from './http/routes/account.routes.js';
@@ -185,6 +187,10 @@ export const {
   actionEngine,
   deviceAgentTransportEndpoint,
   deviceIdentityStore,
+  contactResolver,
+  mobileMessageRunService,
+  executionRouteResolver,
+  messagingHandoffService,
 } = app;
 
 // A real (not fake) background scheduler loop — only runs when this module
@@ -582,8 +588,20 @@ export async function handleAsyncApiRequest(
 
     // R10.2-D Increment 5 — Device Agent outbound transport route.
     {
-      const deviceAgentResult = await handleDeviceAgentRoutes(method, pathname, body, headers, query, { deviceAgentTransportEndpoint });
+      const deviceAgentResult = await handleDeviceAgentRoutes(method, pathname, body, headers, query, { deviceAgentTransportEndpoint, deviceIdentityStore, sessionStore });
       if (deviceAgentResult) return deviceAgentResult;
+    }
+
+    // R23.6M Phase B3 — Mobile contact resolution route.
+    {
+      const mobileDeviceResult = handleMobileDeviceRoutes(method, pathname, body, headers, query, { deviceIdentityStore, contactResolver });
+      if (mobileDeviceResult) return mobileDeviceResult;
+    }
+
+    // R23.6M Phase C — Mobile SMS message lifecycle routes.
+    {
+      const mobileMessageResult = await handleMobileMessageRoutes(method, pathname, body, headers, query, { sessionStore, deviceIdentityStore, mobileMessageRunService, executionRouteResolver, messagingHandoffService });
+      if (mobileMessageResult) return mobileMessageResult;
     }
 
     // R17 — Creation Routes (generate, variation, list, get)

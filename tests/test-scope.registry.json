@@ -212,6 +212,20 @@
       "audit_tenant_isolation",
       "memory_tenant_isolation",
       "memory_relevance"
+    ],
+    "r23-6m-mobile-voice-action": [
+      "r23_6m_mobile_voice_action",
+      "r23_6m_phase_c_sms_execution",
+      "r23_6m_phase_c_device_transport",
+      "r23_6m_phase_c_message_routes",
+      "r23_6m_phase_d1_global_messaging",
+      "r23_6m_phase_d2b_kakaotalk_handoff",
+      "r23_6m_phase_d3s_canonical_messaging_contract",
+      "device_agent_foundation",
+      "device_agent_transport",
+      "r23_3t_permission_approval_hardening",
+      "approval_ownership_isolation",
+      "approval_ttl_security"
     ]
   },
   "fullOnly": [

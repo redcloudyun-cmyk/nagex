@@ -7,6 +7,7 @@ export type ResourcePrefix =
   | 'agt'
   | 'wfl'
   | 'exe'
+  | 'mhr'
   | 'tsk'
   | 'knc'
   | 'kns'
@@ -51,7 +52,9 @@ export type ResourcePrefix =
   | 'act'
   | 'appr'
   | 'cpr'
-  | 'cpb';
+  | 'cpb'
+  | 'rcp'
+  | 'mmr';
 
 export function generateResourceId(prefix: ResourcePrefix): string {
   const opaqueId = crypto.randomBytes(8).toString('hex');
