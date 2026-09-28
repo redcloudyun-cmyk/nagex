@@ -1,5 +1,16 @@
 # NAgex Mobile Voice Action MVP 구현 지시서 및 개발 로드맵 반영안
 
+> **2026-09-28 D2B certification override:** The fail-closed KakaoTalk
+> handoff boundary is implemented (`94b7ace`, `0f33b24`), but positive device
+> certification is **BLOCKED**. On Samsung SM-F731N / KakaoTalk 26.8.2,
+> package-scoped `ACTION_SEND text/plain` resolves to
+> `MemoChatConnectActivity` and routes to the user's own chat instead of a
+> recipient-selection/manual-completion surface. NAgex now blocks that
+> component before launch and reports `UNAVAILABLE`; it performs no SMS
+> fallback and never reports `SENT`. D3 remains NOT STARTED pending explicit
+> review. See
+> `docs/evidence/R23_6M_D2B_KakaoTalk_Handoff_Certification_Report_20260928.md`.
+
 기준일: 2026-09-27  
 최종 개정: 2026-09-28 — Phase C CLOSED(FINAL_SHA afeb432) 반영, Phase C.5
   (Global Voice Invocation Foundation) 추가, Phase D를 D1/D2/D3(Global
