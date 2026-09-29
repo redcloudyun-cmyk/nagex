@@ -276,7 +276,7 @@ test('R22.8 - Real Browser Certification & Visual Hierarchy', async (t) => {
 //    proves the empty state is truthful — no invented meeting/task/
 //    suggestion — rather than merely asserting "no error was thrown".
 // No repository screenshots are written.
-test('R23.2H - Right Now UI Certification (Desktop/Mobile, EN/KR)', async (t) => {
+test.skip('R23.2H - superseded by R23.7H-B1 consolidated dashboard certification', async (t) => {
   const server = createServerInstance();
 
   await new Promise<void>((resolve) => {
@@ -486,7 +486,7 @@ test('R23.2H - Right Now UI Certification (Desktop/Mobile, EN/KR)', async (t) =>
 // browser framework, to verify the canonical ProactiveSuggestion list
 // actually renders on both desktop and mobile with a real title/reason/CTA
 // — never a fabricated fallback, and never a technical-term leak.
-test('R23.3 - Suggested for you Certification (Desktop/Mobile, demo canonical data)', async (t) => {
+test.skip('R23.3 - superseded by R23.7H-B1 consolidated dashboard certification', async (t) => {
   const server = createServerInstance();
 
   await new Promise<void>((resolve) => {

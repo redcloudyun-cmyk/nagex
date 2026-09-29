@@ -1,6 +1,7 @@
 import type { DailyBriefStore, DailyBriefRecord } from '../governance/daily-brief.store.js';
 import type { ActivityStore, ActivityItem } from '../governance/activity.store.js';
 import type { ActionProposalStore, ActionProposalRecord } from '../assistant/action-proposal.store.js';
+import type { ArtifactStore } from '../artifacts/artifact.store.js';
 import type { CreationStore } from '../creation/creation.store.js';
 import type { IdentityStore } from '../identity/identity.store.js';
 import type { CurrentPersonalContextService, ContextApproval, ContextTask, ContextEvent, CurrentPersonalContext } from '../personal/current-personal-context.service.js';
@@ -14,7 +15,17 @@ export interface HomeCalendarItem {
   endsAt?: string;
   location?: string;
   summary?: string;
+  state?: PersonalHomeConsumerState;
 }
+
+export type PersonalHomeConsumerState =
+  | 'Prepared'
+  | 'Needs approval'
+  | 'In progress'
+  | 'Completed'
+  | 'Needs your action'
+  | 'Failed'
+  | 'Unavailable';
 
 export interface HomeItemAction {
   type: string;
@@ -40,6 +51,7 @@ export interface HomeItem {
   dueAt?: string;
   startsAt?: string;
   action?: HomeItemAction;
+  state: PersonalHomeConsumerState;
 }
 
 export interface PersonalHomeRightNow {
@@ -57,6 +69,7 @@ export interface PersonalHomeRightNow {
   action?: HomeItemAction;
   occurredAt?: string;
   startsAt?: string;
+  state: PersonalHomeConsumerState;
 }
 
 export interface PersonalHomeResponse {
@@ -83,6 +96,13 @@ export interface PersonalHomeResponse {
   preparedForYou: HomeItem[];
   workingForYou: HomeItem[];
   recentResults: HomeItem[];
+  creationActions: Array<{
+    id: 'RESEARCH' | 'ANALYZE';
+    title: string;
+    description: string;
+    action: HomeItemAction;
+  }>;
+  recentCreations: HomeItem[];
   // R23.3 v1.1 — the canonical ProactiveSuggestion list (same instance
   // RightNowIntelligenceService/ProactiveSuggestionService produce
   // everywhere else), embedded here so Desktop/Mobile never need a second
@@ -131,6 +151,7 @@ function mapPrimaryToHomeRightNow(item: RightNowItem): PersonalHomeRightNow {
     action: RIGHT_NOW_ACTION_BY_KIND[item.kind],
     occurredAt: item.timestamp,
     startsAt: item.kind === 'MEETING' ? item.timestamp : undefined,
+    state: item.kind === 'APPROVAL' ? 'Needs approval' : item.kind === 'TASK' ? 'In progress' : 'Prepared',
   };
 }
 
@@ -151,6 +172,8 @@ export class PersonalHomeService {
       dailyBriefStore?: DailyBriefStore;
       activityStore?: ActivityStore;
       actionProposalStore?: ActionProposalStore;
+      artifactStore?: ArtifactStore;
+      /** Legacy mock-image store retained for constructor compatibility; never projected to consumer Home. */
       creationStore?: CreationStore;
       identityStore?: IdentityStore;
     }
@@ -285,6 +308,7 @@ export class PersonalHomeService {
           sourceRef: topProp.id,
           action: { type: 'REVIEW_PROPOSAL', label: 'Review' },
           occurredAt: topProp.createdAt,
+          state: 'Needs your action',
         };
         rightNowSourceIds.add(topProp.id);
       }
@@ -326,6 +350,7 @@ export class PersonalHomeService {
         sourceId: apr.id,
         createdAt: apr.createdAt,
         action: { type: 'REVIEW_APPROVAL', label: 'Review' },
+        state: 'Needs approval',
       });
     }
 
@@ -342,6 +367,7 @@ export class PersonalHomeService {
           sourceId: task.id,
           createdAt: task.createdAt,
           action: { type: 'INSPECT_TASK', label: 'Inspect' },
+          state: task.status === 'FAILED' ? 'Failed' : 'Needs your action',
         });
       }
     }
@@ -359,6 +385,7 @@ export class PersonalHomeService {
           sourceId: prop.id,
           createdAt: prop.createdAt,
           action: { type: 'REVIEW_PROPOSAL', label: 'Review' },
+          state: 'Needs approval',
         });
       }
     }
@@ -377,30 +404,25 @@ export class PersonalHomeService {
           sourceId: prop.id,
           createdAt: prop.createdAt,
           action: { type: 'VIEW_PREPARATION', label: 'Review Draft' },
+          state: 'Prepared',
         });
       }
     }
 
-    if (this.deps.creationStore) {
+    // Legacy CreationStore records are intentionally excluded: that domain
+    // currently persists mock SVG output and is not a truthful Home claim.
+    const recentCreations: HomeItem[] = [];
+    if (this.deps.artifactStore) {
       try {
-        const creations = this.deps.creationStore.listCreations(tenantId, principalId, 5);
-        for (const cr of creations) {
-          if (preparedForYou.length >= 5) break;
-          if (cr.status === 'COMPLETED') {
-            preparedForYou.push({
-              id: `prep_cr_${cr.creationId}`,
-              type: 'CREATION',
-              title: cr.type || 'Prepared Creation',
-              summary: cr.prompt,
-              sourceType: 'ACTIVITY',
-              sourceId: cr.creationId,
-              createdAt: cr.createdAt,
-              action: { type: 'VIEW_CREATION', label: 'View Draft' },
-            });
-          }
+        for (const artifact of this.deps.artifactStore.list(tenantId, principalId, 5)) {
+          recentCreations.push({
+            id: artifact.artifactId, type: artifact.type, title: artifact.title, summary: artifact.preview,
+            sourceType: 'ACTIVITY', sourceId: artifact.artifactId, createdAt: artifact.createdAt,
+            action: { type: 'OPEN_ARTIFACT', label: 'Open', targetUrl: `/api/v1/artifacts/${artifact.artifactId}` }, state: 'Completed',
+          });
         }
       } catch {
-        // ignore
+        // Creation history failure is isolated from all other Home state.
       }
     }
 
@@ -417,6 +439,7 @@ export class PersonalHomeService {
           sourceType: 'TASK',
           sourceId: task.id,
           createdAt: task.createdAt,
+          state: 'In progress',
         });
       }
     }
@@ -433,6 +456,7 @@ export class PersonalHomeService {
         sourceType: 'ACTIVITY',
         sourceId: act.activityId,
         createdAt: act.occurredAt,
+        state: 'Completed',
       });
     }
 
@@ -457,6 +481,11 @@ export class PersonalHomeService {
       preparedForYou,
       workingForYou,
       recentResults,
+      creationActions: [
+        { id: 'RESEARCH', title: 'Research', description: 'Find, verify, and synthesize information.', action: { type: 'START_RESEARCH', label: 'Start research' } },
+        { id: 'ANALYZE', title: 'Analyze', description: 'Understand supported documents and files.', action: { type: 'START_ANALYSIS', label: 'Choose a file' } },
+      ],
+      recentCreations,
       suggestions,
       upcoming,
       sourceStatus: {

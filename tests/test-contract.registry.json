@@ -3837,6 +3837,30 @@
       "deterministic": true,
       "assertionIntent": "SEND_EMAIL remains distinct from SEND_MESSAGE and the real Gmail execution wrapper freezes SERVER/GOOGLE/GMAIL_API plus provider-account, recipient, content, attachment, and reply authority; successful Gmail API acceptance maps only to non-synthetic PROVIDER_ACCEPTED evidence and never delivery or read confirmation",
       "notes": "D4B automated certification uses the real GmailService, GoogleCapabilityExecutionPipeline, approval store, credential boundary, and Gmail response mapper with a deterministic provider transport. A controlled external Gmail send remains separately PENDING."
+    },
+    "r23_7h_b1_personal_dashboard": {
+      "milestone": "R23.7H-B1",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["browser", "personal-home", "mobile"],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "consolidated Personal Dashboard contract and responsive shell",
+      "notes": "Validates R23.7H-B1 Personal Dashboard consolidated 5-section response contract and mobile/desktop rendering parity."
+    },
+    "r23_7h_b2_agentic_creation_home": {
+      "milestone": "R23.7H-B2",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["browser", "personal-home", "mobile"],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "agentic creation home integration and truthful durable creation persistence contract",
+      "notes": "Validates R23.7H-B2 Agentic Creation Home Integration: ArtifactStore projection, Research/Analyze persistence contract, PersonalHomeResponse composition with recentCreations, desktop/mobile rendering parity, EN/KR i18n, accessibility (no unnamed buttons), and truthfulness invariant (no mock SVG or unsupported capability in Recent Creations)."
     }
   }
 }

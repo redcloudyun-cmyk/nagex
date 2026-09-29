@@ -30,6 +30,7 @@
       "r23_3t_permission_approval_hardening"
     ],
     "browser": [
+      "r23_7h_b1_personal_dashboard",
       "browser_agent",
       "browser_agent_mvp",
       "browser_ambient_wiring",
@@ -115,7 +116,9 @@
       "r23_3t_permission_approval_hardening"
     ],
     "personal-home": [
-      "r22_8_personal_home"
+      "r22_8_personal_home",
+      "r23_7h_b1_personal_dashboard",
+      "r23_7h_b2_agentic_creation_home"
     ],
     "memory-context": [
       "r22_3_personal_context_memory"
@@ -127,7 +130,9 @@
       "r22_5_task_aware_model_routing"
     ],
     "mobile": [
-      "r22_1_mobile_home"
+      "r22_1_mobile_home",
+      "r23_7h_b1_personal_dashboard",
+      "r23_7h_b2_agentic_creation_home"
     ],
     "personal-context": [
       "r23_1_personal_context",

@@ -2,11 +2,13 @@ import { NagexError } from '../../common/errors.js';
 import type { AiService } from '../../model-gateway/ai-service.js';
 import type { EvidencePackService } from '../../research/evidence-pack.service.js';
 import type { MemoryRecord } from '../../context/memory.engine.js';
+import type { ArtifactStore } from '../../artifacts/artifact.store.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
 
 export interface ResearchRouteDeps {
   aiService: AiService;
   evidencePackService: EvidencePackService;
+  artifactStore?: ArtifactStore;
   getRelevantMemories?: (tenantId: string, ownerId: string, query: string) => MemoryRecord[];
   modelErrorResult: (error: unknown) => ApiResult;
 }
@@ -64,6 +66,11 @@ export const handleResearchRoutes: AsyncRouteRegistrar<ResearchRouteDeps> = asyn
         evidencePack,
         memories,
         requestId,
+      });
+      deps.artifactStore?.saveCompleted({
+        tenantId, ownerId: principalId, type: 'RESEARCH', title: query,
+        preview: outcome.data.answer, sourceType: 'RESEARCH_RESULT', sourceId: evidencePack.evidencePackId,
+        openTarget: `/api/v1/artifacts/by-source/${encodeURIComponent(evidencePack.evidencePackId)}`,
       });
 
       return {

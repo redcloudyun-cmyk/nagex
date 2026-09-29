@@ -581,6 +581,14 @@
       const send = async () => {
         const text = input.value.trim();
         if (!text) return;
+        if (input.dataset.creationMode === 'RESEARCH' && window.NAGEX_PERSONAL_HOME) {
+          const result = await window.NAGEX_PERSONAL_HOME.submitResearch(text);
+          if (result && !result.error && result.status !== 'UNAVAILABLE') {
+            input.value = '';
+            delete input.dataset.creationMode;
+          }
+          return;
+        }
         input.value = '';
         await window.NAGEX.submitPrompt(text);
       };
@@ -660,15 +668,14 @@
     bindLangToggle('mh-lang-toggle');
   }
 
-  function renderMobileHome() {
+  async function renderMobileHome() {
     if (!document.getElementById('mobile-app-shell')) return;
     initCommandBar();
     initLangToggle();
     renderHeader();
-    renderRightNowHero();
-    renderNeedsYourAttention();
-    renderPreparedForYou();
-    renderToday();
+    if (!window.NAGEX_PERSONAL_HOME) return;
+    const model = await window.NAGEX_PERSONAL_HOME.fetchHome();
+    window.NAGEX_PERSONAL_HOME.renderMobile(model);
   }
 
   function init() {

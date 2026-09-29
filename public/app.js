@@ -674,6 +674,21 @@
         if (btnSend.disabled) return;
         const text = homeInput.value.trim();
         if (!text) return;
+        if (homeInput.dataset.creationMode === 'RESEARCH' && window.NAGEX_PERSONAL_HOME) {
+          btnSend.disabled = true;
+          homeInput.disabled = true;
+          try {
+            const result = await window.NAGEX_PERSONAL_HOME.submitResearch(text);
+            if (result && !result.error && result.status !== 'UNAVAILABLE') {
+              homeInput.value = '';
+              delete homeInput.dataset.creationMode;
+            }
+          } finally {
+            btnSend.disabled = false;
+            homeInput.disabled = false;
+          }
+          return;
+        }
         btnSend.disabled = true;
         homeInput.disabled = true;
         let handedOff = false;

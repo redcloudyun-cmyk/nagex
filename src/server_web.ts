@@ -31,6 +31,7 @@ import { handleProvidersRoutes } from './http/routes/providers.routes.js';
 import { handleSafetyRoutes } from './http/routes/safety.routes.js';
 import { handleConversationRoutes, handleSessionRoutes } from './http/routes/conversation.routes.js';
 import { handleResearchRoutes } from './http/routes/research.routes.js';
+import { handleArtifactRoutes } from './http/routes/artifact.routes.js';
 import { handlePerspectiveCompareRoutes } from './http/routes/perspective-compare.routes.js';
 import { handleForecastCompareRoutes } from './http/routes/forecast-compare.routes.js';
 import { handleDailyBriefRoutes } from './http/routes/daily-brief.routes.js';
@@ -429,7 +430,7 @@ export async function handleAsyncApiRequest(
     }
     // R22.4 — Live Research Endpoint (POST /api/v1/research)
     {
-      const researchResult = await handleResearchRoutes(method, pathname, body, headers, query, { evidencePackService: app.evidencePackService, aiService: service, modelErrorResult, getRelevantMemories });
+      const researchResult = await handleResearchRoutes(method, pathname, body, headers, query, { evidencePackService: app.evidencePackService, aiService: service, artifactStore: app.artifactStore, modelErrorResult, getRelevantMemories });
       if (researchResult) return researchResult;
     }
     // R22.6 — Perspective Compare Endpoint (POST /api/v1/ai/perspective-compare)
@@ -451,7 +452,7 @@ export async function handleAsyncApiRequest(
     // (route-input, storage/status, inbox, vault, uploads, captures, items,
     // candidates, activity) now resolve through one registrar call.
     {
-      const workspaceResult = await handleWorkspaceRoutes(method, pathname, body, headers, query, { quickCaptureService });
+      const workspaceResult = await handleWorkspaceRoutes(method, pathname, body, headers, query, { quickCaptureService, artifactStore: app.artifactStore });
       if (workspaceResult) return workspaceResult;
     }
     // R10.2-D Increment 4 — Google Calendar mutation/read routes. Every
@@ -608,6 +609,10 @@ export async function handleAsyncApiRequest(
     {
       const creationResult = await handleCreationRoutes(method, pathname, body, headers, query, { creationService });
       if (creationResult) return creationResult;
+    }
+    {
+      const artifactResult = await handleArtifactRoutes(method, pathname, body, headers, query, { artifactStore: app.artifactStore });
+      if (artifactResult) return artifactResult;
     }
 
     // R22.9 — Browser-Link Capture Preview Route

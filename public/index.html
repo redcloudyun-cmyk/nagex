@@ -165,13 +165,13 @@
                   <button class="affordance-btn-pill composer-chip-book quick-action-chip" data-action="prepare-meeting"><span class="composer-chip-icon"><svg class="svg-icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg></span><span>Book</span></button>
                   <button class="affordance-btn-pill composer-chip-create quick-action-chip" data-action="summarize-notes"><span class="composer-chip-icon"><svg class="svg-icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></span><span>Create</span></button>
                   <button class="affordance-btn-pill composer-chip-analyze quick-action-chip" data-action="execute-task"><span class="composer-chip-icon"><svg class="svg-icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span><span>Analyze</span></button>
-                  <button class="affordance-btn-pill hidden-affordance" id="btn-afford-file" style="display:none;"></button>
-                  <button class="affordance-btn-pill hidden-affordance" id="btn-afford-audio" style="display:none;"></button>
-                  <button class="affordance-btn-pill hidden-affordance" id="btn-afford-link" style="display:none;"></button>
+                  <button class="affordance-btn-pill hidden-affordance" id="btn-afford-file" style="display:none;" aria-label="Attach file"><span class="nagex-sr-only">Attach file</span></button>
+                  <button class="affordance-btn-pill hidden-affordance" id="btn-afford-audio" style="display:none;" aria-label="Attach audio"><span class="nagex-sr-only">Attach audio</span></button>
+                  <button class="affordance-btn-pill hidden-affordance" id="btn-afford-link" style="display:none;" aria-label="Attach link"><span class="nagex-sr-only">Attach link</span></button>
                 </div>
                 <div class="composer-right-actions">
                   <span class="nagex-identity-badge" style="font-size:0.75rem; color:var(--color-text-muted, #64748b); font-weight:600; padding:4px 8px; border-radius:12px; background:rgba(255,255,255,0.06);">NAgex</span>
-                  <button class="btn-send-circle" id="btn-home-prompt-send" title="Send request">
+                  <button class="btn-send-circle" id="btn-home-prompt-send" title="Send request" aria-label="Send request"><span class="nagex-sr-only">Send request</span>
                     <svg class="svg-icon-sm" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
                   </button>
                 </div>
@@ -182,24 +182,10 @@
               </div>
             </div>
 
-            <!-- Compact Quick Actions -->
-            <div class="nagex-quick-actions-grid" id="home-examples-grid">
-              <button class="nagex-quick-action-card quick-action-chip" data-action="example-research">
-                <span class="qa-icon qa-icon-orange"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
-                <span class="qa-text"><span class="qa-title" data-i18n="home.example.research">Find risky clauses in this contract</span></span>
-              </button>
-              <button class="nagex-quick-action-card quick-action-chip" data-action="example-presentation">
-                <span class="qa-icon qa-icon-blue"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/></svg></span>
-                <span class="qa-text"><span class="qa-title" data-i18n="home.example.presentation">Turn this document into a 10-slide deck</span></span>
-              </button>
-              <button class="nagex-quick-action-card quick-action-chip" data-action="example-coding">
-                <span class="qa-icon qa-icon-green"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span>
-                <span class="qa-text"><span class="qa-title" data-i18n="home.example.coding">Fix this error and run the tests</span></span>
-              </button>
-            </div>
-
             <!-- 2. RIGHT NOW -->
             <section class="nagex-card home-section-right-now" id="home-section-right-now" hidden></section>
+
+            <section class="nagex-card" id="home-section-create" aria-live="polite"></section>
 
             <!-- 2-Column Operational Grid for Sections 3-7 -->
             <div class="desktop-home-grid-operational">
@@ -231,7 +217,7 @@
                 </section>
 
                 <!-- 7. RECENT RESULTS -->
-                <section class="nagex-card home-section-recent-results" id="home-section-recent-results">
+                <section class="nagex-card home-section-recent-results" id="home-section-recent-creations">
                   <div class="nagex-section-heading">
                     <div class="heading-title-group">
                       <span class="card-icon-tile green-tile"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span>
@@ -241,6 +227,7 @@
                   </div>
                   <div id="desktop-recent-actions-list" class="recent-actions-grid"></div>
                 </section>
+                <section class="nagex-card" id="home-section-recent-results" aria-live="polite"></section>
               </div>
 
               <div class="desktop-home-col-center">
@@ -1416,7 +1403,7 @@
         </div>
         <div class="mh-header-right">
           <button class="mh-lang-toggle" id="mh-lang-toggle" data-i18n-lang-toggle title="Switch language" data-i18n-title="header.switchLanguage">KR</button>
-          <button class="mh-notif-bell" id="mh-notif-bell" aria-label="Notifications" data-i18n-aria-label="home.notificationsAria">
+          <button class="mh-notif-bell" id="mh-notif-bell" aria-label="Notifications" data-i18n-aria-label="home.notificationsAria"><span class="nagex-sr-only">Notifications</span>
             <svg class="svg-icon-sm" viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
             <span class="mh-notif-dot" id="mh-notif-dot" hidden></span>
           </button>
@@ -1439,6 +1426,7 @@
           <a class="mh-hero-secondary-link" id="mh-hero-secondary-link" onclick="window.NAGEX.scrollToToday()" data-i18n="home.viewToday">View today</a>
         </div>
       </section>
+      <section class="mh-card" id="mh-section-create" aria-live="polite"></section>
 
       <!-- R23.3 — Suggested for you: the canonical ProactiveSuggestion list
            (GET /api/v1/personal/right-now's `suggestions`), rendered as-is
@@ -1485,15 +1473,18 @@
         <div id="mh-today-list"><div class="nagex-loading-row"></div></div>
       </section>
 
+      <section class="mh-card" id="mh-section-recent-creations" aria-live="polite"></section>
+      <section class="mh-card" id="mh-section-recent" aria-live="polite"></section>
+
       <!-- F. Ask NAgex Composer -->
       <div class="mh-composer-section" id="mh-composer-section">
         <div class="mh-command-bar">
           <button class="mh-add-btn" id="mh-add-btn" title="Add item" aria-label="Add">+</button>
           <input type="text" id="mh-command-input" class="mh-command-input" data-i18n-placeholder="home.askPlaceholder" placeholder="Ask NAgex anything…">
-          <button class="mh-voice-btn" id="mh-voice-btn" title="Capture Voice / Audio" data-i18n-title="workspace.captureVoice">
+          <button class="mh-voice-btn" id="mh-voice-btn" title="Capture Voice / Audio" aria-label="Capture Voice" data-i18n-title="workspace.captureVoice"><span class="nagex-sr-only">Capture Voice</span>
             <svg class="svg-icon-sm" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5zm6 6c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
           </button>
-          <button class="mh-command-send" id="mh-command-send" title="Send request" aria-label="Send">
+          <button class="mh-command-send" id="mh-command-send" title="Send request" aria-label="Send"><span class="nagex-sr-only">Send</span>
             <svg class="svg-icon-sm" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
           </button>
         </div>
@@ -1791,6 +1782,7 @@
   <script src="daily-brief.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="proactive-assistant.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="meeting-prep-view.js?v=__NAGEX_BUILD_VERSION__"></script>
+  <script src="personal-home-view.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="app.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="desktop/desktop-home.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="hero-brief.js?v=__NAGEX_BUILD_VERSION__"></script>

@@ -28,6 +28,7 @@ import type { CandidateStatus, CandidateType } from '../../workspace/candidate.t
 import { NagexError } from '../../common/errors.js';
 import { DEFAULT_GOOGLE_TENANT_ID } from '../../integrations/google/token.store.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
+import type { ArtifactStore } from '../../artifacts/artifact.store.js';
 
 function getHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
   const value = headers[name] ?? headers[name.toLowerCase()];
@@ -36,6 +37,7 @@ function getHeaderValue(headers: Record<string, string | string[] | undefined>, 
 
 export interface WorkspaceRouteDeps {
   quickCaptureService: QuickCaptureService;
+  artifactStore?: ArtifactStore;
 }
 
 export const handleWorkspaceRoutes: AsyncRouteRegistrar<WorkspaceRouteDeps> = async (method, pathname, body, headers, query, deps): Promise<ApiResult | undefined> => {
@@ -95,6 +97,7 @@ export const handleWorkspaceRoutes: AsyncRouteRegistrar<WorkspaceRouteDeps> = as
       originalFilename,
       data: rawData,
     });
+    persistAnalysisArtifact(deps.artifactStore, item);
     return { status: 200, data: item };
   }
 
@@ -130,6 +133,7 @@ export const handleWorkspaceRoutes: AsyncRouteRegistrar<WorkspaceRouteDeps> = as
       data: rawData,
       source,
     });
+    persistAnalysisArtifact(deps.artifactStore, item);
     return { status: 201, data: item };
   }
 
@@ -381,3 +385,13 @@ export const handleWorkspaceRoutes: AsyncRouteRegistrar<WorkspaceRouteDeps> = as
 
   return undefined;
 };
+
+function persistAnalysisArtifact(store: ArtifactStore | undefined, item: import('../../workspace/workspace.types.js').CaptureItem): void {
+  if (!store || (item.status !== 'READY' && item.status !== 'NEEDS_REVIEW')) return;
+  if (!item.metadata.extractedSummary || item.metadata.errorCode) return;
+  store.saveCompleted({
+    tenantId: item.tenantId, ownerId: item.ownerId, type: 'ANALYSIS',
+    title: item.metadata.extractedTitle || item.metadata.originalName || 'File analysis', preview: item.metadata.extractedSummary,
+    sourceType: 'CAPTURE', sourceId: item.captureId, openTarget: `#inbox/${encodeURIComponent(item.captureId)}`,
+  });
+}

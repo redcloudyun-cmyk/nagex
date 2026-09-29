@@ -14,6 +14,7 @@ import type { CreditEngine } from '../billing/credit.engine.js';
 import type { MemoryEngine, MemoryRecord } from '../context/memory.engine.js';
 import type { PersonalContextService } from '../context/personal-context.service.js';
 import type { ConversationMemoryExtractor } from '../context/conversation-memory-extractor.js';
+import type { ArtifactStore } from '../artifacts/artifact.store.js';
 import type { AiService } from '../model-gateway/ai-service.js';
 import type { PlanResolver } from '../planning/plan-resolver.js';
 import type { PersistentActionApprovalStore } from '../governance/action-approval.store.js';
@@ -156,6 +157,7 @@ export interface NagexApplication {
   workflowDefinitionService: WorkflowDefinitionService;
   creationStore: CreationStore;
   creationService: CreationService;
+  artifactStore: ArtifactStore;
   linkCaptureService: LinkCaptureService;
   vaultStore: VaultStore;
   connectionStore: ConnectionStore;

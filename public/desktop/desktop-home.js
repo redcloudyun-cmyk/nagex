@@ -272,15 +272,9 @@
     // one buildCurrentContext() call server-side) — no separate
     // GET /api/v1/personal/right-now fetch here anymore
     // (CONTEXT_BUILD_COUNT_PER_COMPOSITE_HOME_REQUEST=1).
-    const data = await window.NAGEX.apiFetch('/api/v1/personal/home');
-    if (!data) return;
-
-    renderRightNowSection(data.rightNow, { upcoming: data.upcoming, suggestions: data.suggestions });
-    renderTodaySection(data.today, data.sourceStatus);
-    renderNeedsAttentionSection(data.needsAttention);
-    renderPreparedForYouSection(data.preparedForYou);
-    renderWorkingForYouSection(data.workingForYou);
-    renderRecentResultsSection(data.recentResults);
+    if (!window.NAGEX_PERSONAL_HOME) return;
+    const model = await window.NAGEX_PERSONAL_HOME.fetchHome();
+    window.NAGEX_PERSONAL_HOME.renderDesktop(model);
   }
 
   function init() {

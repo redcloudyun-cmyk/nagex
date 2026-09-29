@@ -32,6 +32,7 @@ import { PersonalHomeService } from '../home/personal-home.service.js';
 import { CurrentPersonalContextService } from '../personal/current-personal-context.service.js';
 import { RightNowIntelligenceService } from '../personal/right-now-intelligence.service.js';
 import { ProactiveSuggestionService } from '../personal/proactive-suggestion.service.js';
+import { ArtifactStore } from '../artifacts/artifact.store.js';
 import { skillRegistry as canonicalSkillRegistry } from '../skills/skill-registry.js';
 import { toolRegistry as canonicalToolRegistry } from '../tools/tool-registry.js';
 import { PlanResolver } from '../planning/plan-resolver.js';
@@ -279,6 +280,7 @@ export function createNagexApplication(): NagexApplication {
 
   const creationStore = new CreationStore();
   const creationService = new CreationService(creationStore, auditLogger);
+  const artifactStore = new ArtifactStore();
   const linkCaptureService = new LinkCaptureService();
   const vaultStore = new VaultStore();
   const connectionStore = new ConnectionStore();
@@ -679,7 +681,7 @@ export function createNagexApplication(): NagexApplication {
     dailyBriefStore,
     activityStore,
     actionProposalStore,
-    creationStore,
+    artifactStore,
   });
 
   const personalAssistantEngine = new PersonalAssistantEngine({
@@ -778,6 +780,7 @@ export function createNagexApplication(): NagexApplication {
     workflowDefinitionService,
     creationStore,
     creationService,
+    artifactStore,
     linkCaptureService,
     vaultStore,
     connectionStore,
