@@ -45,6 +45,12 @@ export interface AiServiceResponse<T> {
   requestId: string;
 }
 
+export interface DocumentSynthesisResult {
+  title: string;
+  summary: string;
+  content: string;
+}
+
 function parseJsonObject(text: string, requestId: string, context: string = 'structured plan'): Record<string, unknown> {
   const cleaned = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
   try {
@@ -602,6 +608,71 @@ export class AiService {
         answer: response.text,
         evidencePackId: input.evidencePack.evidencePackId,
         sources: input.evidencePack.sources,
+      },
+      provider: response.provider,
+      model: response.model,
+      latencyMs: response.latencyMs,
+      requestId: response.requestId,
+    };
+  }
+
+  public async documentSynthesis(input: {
+    prompt: string;
+    documentKind?: string;
+    instructions?: string;
+    sourceContext?: string;
+    locale?: 'en' | 'ko';
+    memories?: MemoryRecord[];
+    mode?: RoutingMode;
+    requestId?: string;
+  }): Promise<AiServiceResponse<{ title: string; summary: string; content: string }>> {
+    const requestId = input.requestId || `doc_${randomUUID()}`;
+    const mode = input.mode || 'auto';
+    const isKo = input.locale === 'ko';
+
+    const systemContent = [
+      'You are NAgex, an expert Personal AI document and report authoring engine.',
+      isKo
+        ? '사용자의 요청과 맥락에 맞춰 전문적이고 완성도 높은 문서/보고서를 작성하세요. 반드시 한국어로 작성하세요.'
+        : 'Create a professional, comprehensive, and well-structured document or report based on the user\'s intent and context. Write in English.',
+      'Produce clear Markdown output with a title, executive summary, and well-organized sections.',
+      'Do not claim to have taken external actions. Do not invent fake facts or fake sources.',
+      input.instructions ? `Specific instructions: ${input.instructions}` : null,
+      input.documentKind ? `Document type: ${input.documentKind}` : null,
+      input.memories && input.memories.length > 0 ? `Relevant personal memory context:\n${summarizeMemories(input.memories)}` : null,
+      input.sourceContext ? `Source background & context:\n${input.sourceContext}` : null,
+      'Return JSON with exact structure: {"title":"string","summary":"string (1-2 sentences)","content":"complete markdown text"}',
+    ]
+      .filter((line): line is string => line !== null)
+      .join('\n\n');
+
+    const response = await this.router.generate({
+      mode,
+      requestId,
+      jsonMode: true,
+      routingContext: {
+        taskKind: 'DOCUMENT_SYNTHESIS',
+        requiresJson: true,
+        requestId,
+      },
+      validate: (text) => {
+        const parsed = parseJsonObject(text, requestId, 'document synthesis');
+        requireString(parsed.title, 'title', requestId);
+        requireString(parsed.summary, 'summary', requestId);
+        requireString(parsed.content, 'content', requestId);
+      },
+      messages: [
+        { role: 'system', content: systemContent },
+        { role: 'user', content: `Document Request: ${input.prompt}` },
+      ],
+    });
+
+    const parsed = parseJsonObject(response.text, requestId, 'document synthesis');
+    return {
+      data: {
+        title: requireString(parsed.title, 'title', requestId),
+        summary: requireString(parsed.summary, 'summary', requestId),
+        content: requireString(parsed.content, 'content', requestId),
       },
       provider: response.provider,
       model: response.model,

@@ -157,6 +157,9 @@ export interface NagexApplication {
   workflowDefinitionService: WorkflowDefinitionService;
   creationStore: CreationStore;
   creationService: CreationService;
+  documentStore: import('../creation/document.store.js').DocumentStore;
+  documentExecutor: import('../creation/executors/document-executor.js').DocumentExecutor;
+  creationRuntime: import('../creation/creation-runtime.js').CreationRuntime;
   artifactStore: ArtifactStore;
   linkCaptureService: LinkCaptureService;
   vaultStore: VaultStore;

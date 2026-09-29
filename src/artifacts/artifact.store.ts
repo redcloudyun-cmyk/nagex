@@ -6,7 +6,7 @@ export function isArtifactRecord(value: unknown): value is ArtifactRecord {
   if (!value || typeof value !== 'object') return false;
   const v = value as Record<string, unknown>;
   return typeof v.artifactId === 'string' && typeof v.tenantId === 'string' && typeof v.ownerId === 'string'
-    && (v.type === 'RESEARCH' || v.type === 'ANALYSIS') && v.status === 'COMPLETED'
+    && (v.type === 'RESEARCH' || v.type === 'ANALYSIS' || v.type === 'DOCUMENT') && v.status === 'COMPLETED'
     && typeof v.title === 'string' && typeof v.preview === 'string'
     && (v.sourceType === 'RESEARCH_RESULT' || v.sourceType === 'CAPTURE')
     && typeof v.sourceId === 'string' && typeof v.openTarget === 'string'

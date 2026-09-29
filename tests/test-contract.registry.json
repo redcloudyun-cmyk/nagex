@@ -3861,6 +3861,18 @@
       "deterministic": true,
       "assertionIntent": "agentic creation home integration and truthful durable creation persistence contract",
       "notes": "Validates R23.7H-B2 Agentic Creation Home Integration: ArtifactStore projection, Research/Analyze persistence contract, PersonalHomeResponse composition with recentCreations, desktop/mobile rendering parity, EN/KR i18n, accessibility (no unnamed buttons), and truthfulness invariant (no mock SVG or unsupported capability in Recent Creations)."
+    },
+    "r23_7c_b_document_creation_runtime": {
+      "milestone": "R23.7C-B",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["creation-runtime", "documents", "artifacts", "model-routing", "security"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "general document and report creation runtime, document executor, artifact persistence, revision, and tenant isolation contract",
+      "notes": "Validates R23.7C-B Document & Report Creation Runtime: CreationRuntime boundary, DocumentExecutor, task-aware model routing, canonical DocumentStore persistence, thin ArtifactStore projection, revision lineage, EN/KR support, security/cross-tenant isolation, and truthful failure handling."
     }
   }
 }

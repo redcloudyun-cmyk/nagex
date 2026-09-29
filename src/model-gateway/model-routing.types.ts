@@ -1,6 +1,7 @@
 export type ModelTaskKind =
   | 'CHAT'
   | 'RESEARCH_SYNTHESIS'
+  | 'DOCUMENT_SYNTHESIS'
   | 'PLAN'
   | 'STRUCTURED_EXTRACTION'
   | 'DAILY_BRIEF'

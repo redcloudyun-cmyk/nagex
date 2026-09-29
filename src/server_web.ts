@@ -51,6 +51,7 @@ import { handleRbacRoutes } from './http/routes/rbac.routes.js';
 import { handleEnterpriseIdentityRoutes } from './http/routes/enterprise-identity.routes.js';
 import { handleScimRoutes } from './http/routes/scim.routes.js';
 import { handleCreationRoutes } from './http/routes/creation.routes.js';
+import { handleDocumentCreationRoutes } from './http/routes/document-creation.routes.js';
 import { handleCaptureRoutes } from './http/routes/capture.routes.js';
 import { handleInboxRoutes } from './http/routes/inbox.routes.js';
 import { handleVaultRoutes } from './http/routes/vault.routes.js';
@@ -603,6 +604,16 @@ export async function handleAsyncApiRequest(
     {
       const mobileMessageResult = await handleMobileMessageRoutes(method, pathname, body, headers, query, { sessionStore, deviceIdentityStore, mobileMessageRunService, executionRouteResolver, messagingHandoffService });
       if (mobileMessageResult) return mobileMessageResult;
+    }
+
+    // R23.7C-B — Document & Report Creation Runtime Routes
+    {
+      const docCreationResult = await handleDocumentCreationRoutes(method, pathname, body, headers, query, {
+        creationRuntime: app.creationRuntime,
+        documentExecutor: app.documentExecutor,
+        documentStore: app.documentStore,
+      });
+      if (docCreationResult) return docCreationResult;
     }
 
     // R17 — Creation Routes (generate, variation, list, get)

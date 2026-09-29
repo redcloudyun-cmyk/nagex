@@ -96,6 +96,9 @@ import { WorkflowDefinitionStore } from '../workflows/workflow-definition.store.
 import { WorkflowDefinitionService } from '../workflows/workflow-definition.service.js';
 import { CreationStore } from '../creation/creation.store.js';
 import { CreationService } from '../creation/creation.service.js';
+import { DocumentStore } from '../creation/document.store.js';
+import { DocumentExecutor } from '../creation/executors/document-executor.js';
+import { CreationRuntime } from '../creation/creation-runtime.js';
 import { LinkCaptureService } from '../capture/link-capture.service.js';
 import { VaultStore } from '../workspace/vault.store.js';
 import { ConnectionStore } from '../workspace/connections.store.js';
@@ -502,6 +505,18 @@ export function createNagexApplication(): NagexApplication {
     return personalContextService.getRelevantMemories(tenantId, principalId, prompt);
   }
 
+  const documentStore = new DocumentStore();
+  const documentExecutor = new DocumentExecutor({
+    aiService,
+    documentStore,
+    artifactStore,
+    auditLogger,
+    getRelevantMemories,
+  });
+  const creationRuntime = new CreationRuntime([documentExecutor]);
+
+
+
   // P02 — one persisted continuation record per paused (WAITING_APPROVAL)
   // step; the resume source of truth. executingTaskRunner is kept as its
   // own local so the continuation coordinator (constructed further below,
@@ -780,6 +795,9 @@ export function createNagexApplication(): NagexApplication {
     workflowDefinitionService,
     creationStore,
     creationService,
+    documentStore,
+    documentExecutor,
+    creationRuntime,
     artifactStore,
     linkCaptureService,
     vaultStore,
