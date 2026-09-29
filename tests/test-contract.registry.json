@@ -3897,6 +3897,18 @@
       "deterministic": true,
       "assertionIntent": "real image creation runtime, multi-provider image executor, binary ownership, OpenAI/Google adapters, and revision lineage",
       "notes": "Validates R23.7C-C Real Image Creation Runtime: ImageExecutor, CreationProviderRouter selection, OpenAI & Google image adapters, binary image storage persistence, thin ArtifactStore projection, revision lineage across providers, tenant/user isolation, and real provider certification."
+    },
+    "openai-image-adapter": {
+      "milestone": "R23.7C-C",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["creation-runtime", "images", "artifacts", "model-routing", "security"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "openai image adapter request contract and response normalization",
+      "notes": "Validates OpenAI image adapter against supported contract, omitting response_format and fetching url correctly."
     }
   }
 }

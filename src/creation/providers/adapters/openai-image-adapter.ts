@@ -33,13 +33,13 @@ export class OpenAIImageAdapter implements ImageProviderPort {
   public getCapabilities(): ImageProviderCapabilities {
     return {
       textToImage: true,
-      imageToImage: true,
-      editingInpainting: true,
-      referenceImageConditioning: true,
+      imageToImage: false,
+      editingInpainting: false,
+      referenceImageConditioning: false,
       transparentBackground: false,
       textRendering: true,
       supportedAspectRatios: ['1:1', '16:9', '9:16', '1024x1024', '1792x1024', '1024x1792'],
-      maxReferenceImages: 1,
+      maxReferenceImages: 0,
     };
   }
 
@@ -119,10 +119,13 @@ export class OpenAIImageAdapter implements ImageProviderPort {
       }
 
       let imageBuffer: Buffer;
+      let mimeType = 'image/png';
       if (responseData.b64_json) {
         imageBuffer = Buffer.from(responseData.b64_json, 'base64');
       } else if (responseData.url) {
-        imageBuffer = await this.downloadImage(responseData.url);
+        const dl = await this.downloadImage(responseData.url);
+        imageBuffer = dl.buffer;
+        mimeType = dl.mimeType;
       } else {
         return {
           status: 'FAILED',
@@ -142,7 +145,7 @@ export class OpenAIImageAdapter implements ImageProviderPort {
         status: 'COMPLETED',
         output: {
           imageBuffer,
-          mimeType: 'image/png',
+          mimeType,
         },
         metadata: {
           providerId: this.providerId,
@@ -192,18 +195,20 @@ export class OpenAIImageAdapter implements ImageProviderPort {
   }
 
   private async callOpenAiApi(params: { prompt: string; size: string; model: string }): Promise<{ b64_json?: string; url?: string; revised_prompt?: string }> {
-    const payload = JSON.stringify({
+    const payloadObj: any = {
       model: params.model,
       prompt: params.prompt,
       n: 1,
       size: params.size,
-      response_format: 'b64_json',
-    });
+    };
+    // Let the provider use its default response format (usually 'url')
+    // to maximize compatibility across pure OpenAI and Azure/Enterprise endpoints.
+    const payload = JSON.stringify(payloadObj);
 
     const url = new URL(`${this.baseUrl}/images/generations`);
     const options = {
       hostname: url.hostname,
-      port: url.port || 443,
+      port: url.port || (url.protocol === 'http:' ? 80 : 443),
       path: url.pathname,
       method: 'POST',
       headers: {
@@ -214,7 +219,8 @@ export class OpenAIImageAdapter implements ImageProviderPort {
     };
 
     return new Promise((resolve, reject) => {
-      const req = https.request(options, (res) => {
+      const client = url.protocol === 'http:' ? http : https;
+      const req = client.request(options, (res) => {
         let data = '';
         res.on('data', (chunk) => { data += chunk; });
         res.on('end', () => {
@@ -247,15 +253,28 @@ export class OpenAIImageAdapter implements ImageProviderPort {
     });
   }
 
-  private async downloadImage(urlStr: string): Promise<Buffer> {
+  private async downloadImage(urlStr: string): Promise<{ buffer: Buffer; mimeType: string }> {
     return new Promise((resolve, reject) => {
       const url = new URL(urlStr);
       const client = url.protocol === 'https:' ? https : http;
       client.get(urlStr, (res) => {
+        if (res.statusCode && res.statusCode >= 400) {
+          return reject({ code: 'DOWNLOAD_FAILED', message: `HTTP ${res.statusCode}` });
+        }
+        const mimeType = res.headers['content-type'] || 'image/png';
+        if (!mimeType.startsWith('image/')) {
+          return reject({ code: 'INVALID_MIME_TYPE', message: `Provider returned non-image content: ${mimeType}` });
+        }
         const chunks: Buffer[] = [];
         res.on('data', (chunk) => chunks.push(chunk));
-        res.on('end', () => resolve(Buffer.concat(chunks)));
-      }).on('error', (err) => reject(err));
+        res.on('end', () => {
+          const buffer = Buffer.concat(chunks);
+          if (buffer.length === 0) {
+            return reject({ code: 'EMPTY_BINARY', message: 'Provider returned an empty image binary.' });
+          }
+          resolve({ buffer, mimeType });
+        });
+      }).on('error', (err) => reject({ code: 'NETWORK_ERROR', message: err.message }));
     });
   }
 }
