@@ -20,6 +20,11 @@ export interface CreationRequest {
     locale?: 'en' | 'ko';
     format?: 'MARKDOWN' | 'PDF' | 'HTML';
     routingMode?: RoutingMode;
+    aspectRatio?: string;
+    requestedProviderId?: string;
+    transparentBackground?: boolean;
+    privacyMode?: 'STANDARD' | 'LOCAL_ONLY';
+    title?: string;
   };
   tenantId: string;
   ownerId: string;

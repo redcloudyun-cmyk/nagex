@@ -3873,6 +3873,18 @@
       "deterministic": true,
       "assertionIntent": "general document and report creation runtime, document executor, artifact persistence, revision, and tenant isolation contract",
       "notes": "Validates R23.7C-B Document & Report Creation Runtime: CreationRuntime boundary, DocumentExecutor, task-aware model routing, canonical DocumentStore persistence, thin ArtifactStore projection, revision lineage, EN/KR support, security/cross-tenant isolation, and truthful failure handling."
+    },
+    "r23_7c_p_creation_provider_architecture": {
+      "milestone": "R23.7C-P",
+      "classification": "CANONICAL_ARCHITECTURE",
+      "canonical": true,
+      "scopes": ["architecture", "creation-runtime", "model-routing", "security"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "creation provider architecture baseline, provider router, provider capabilities, creation specs, and availability models",
+      "notes": "Validates R23.7C-P Creation Provider Architecture Baseline: ModelRouter vs CreationProviderRouter boundary, Image/Presentation/Video Creation Specs, capability filtering, availability state semantics, explicit provider overrides, and provider-independent canonical artifact ownership."
     }
   }
 }

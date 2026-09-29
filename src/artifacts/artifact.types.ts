@@ -1,4 +1,4 @@
-export type ArtifactType = 'RESEARCH' | 'ANALYSIS' | 'DOCUMENT';
+export type ArtifactType = 'RESEARCH' | 'ANALYSIS' | 'DOCUMENT' | 'IMAGE' | 'PRESENTATION' | 'VIDEO';
 export type ArtifactStatus = 'COMPLETED' | 'FAILED';
 
 export interface ArtifactRecord {
