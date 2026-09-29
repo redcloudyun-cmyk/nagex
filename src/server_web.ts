@@ -248,7 +248,14 @@ const healthRouteDeps: HealthRouteDeps = { executionCount: () => executionHistor
 // above) — it is a genuine construction-time dependency of
 // taskRunner/telegramService/slackService there.
 
-type ApiResult = { status: number; data: unknown; redirectTo?: string; headers?: Record<string, string> };
+// R23.7C-C — mirrors the same binary-variant addition made to the
+// identically-named (but deliberately separate, per this file's own
+// existing isolation from ./http/http-types.ts) ApiResult type there.
+// Every existing route's plain `{ status, data }` literal still satisfies
+// this union unchanged.
+type JsonApiResult = { status: number; data: unknown; redirectTo?: string; headers?: Record<string, string>; isBinary?: false };
+type BinaryApiResult = { status: number; data: Buffer; contentType: string; redirectTo?: undefined; headers?: Record<string, string>; isBinary: true };
+type ApiResult = JsonApiResult | BinaryApiResult;
 
 const ERROR_CATEGORY_STATUS: Record<string, number> = {
   VALIDATION: 400,
@@ -618,7 +625,7 @@ export async function handleAsyncApiRequest(
 
     // R17 — Creation Routes (generate, variation, list, get)
     {
-      const creationResult = await handleCreationRoutes(method, pathname, body, headers, query, { creationService, imageExecutor: app.imageExecutor });
+      const creationResult = await handleCreationRoutes(method, pathname, body, headers, query, { creationService, imageExecutor: app.imageExecutor, imageStore: app.imageStore });
       if (creationResult) return creationResult;
     }
     {
@@ -837,6 +844,22 @@ export function createServerInstance(opts?: {
           conversationContextService,
           opts
         );
+        // R23.7C-C — explicit binary variant, checked first since a
+        // BinaryApiResult structurally has no redirectTo. The canonical
+        // image-serving route (and any future binary-artifact route)
+        // returns real stored bytes with their real Content-Type, never a
+        // base64-wrapped JSON envelope. Every other route is unaffected —
+        // isBinary is absent/false for all of them, so they fall through
+        // to the unchanged redirect/JSON branches below exactly as before.
+        if (result.isBinary) {
+          const binHeaders: Record<string, string> = { 'Content-Type': result.contentType };
+          if (result.headers) {
+            Object.assign(binHeaders, result.headers);
+          }
+          res.writeHead(result.status, binHeaders);
+          res.end(result.data);
+          return;
+        }
         if (result.redirectTo) {
           // R16 — found while wiring the OIDC/SAML login callbacks, which
           // are the first callers to ever combine a redirect with a

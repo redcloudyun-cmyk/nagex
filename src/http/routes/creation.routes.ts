@@ -5,6 +5,11 @@ import type { CreationService } from '../../creation/creation.service.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
 
 import type { ImageExecutor } from '../../creation/executors/image-executor.js';
+// R23.7C-C — canonical image-serving route. Reuses the exact ImageStore
+// instance ImageExecutor writes through (see create-nagex-application.ts)
+// and its existing tenant/owner authorization (ImageStore.get()) — no new
+// or duplicated authorization logic.
+import type { ImageStore } from '../../creation/image.store.js';
 
 function getHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
   const value = headers[name] ?? headers[name.toLowerCase()];
@@ -14,10 +19,15 @@ function getHeaderValue(headers: Record<string, string | string[] | undefined>, 
 export interface CreationRouteDeps {
   creationService: CreationService;
   imageExecutor?: ImageExecutor;
+  // R23.7C-C — optional so existing test harnesses that never touch the
+  // image-serving route (e.g. test 19's mockCreationService setup) keep
+  // working unmodified; the route itself fails closed (503-equivalent,
+  // never a fake 200) if this is unset while imageExecutor is configured.
+  imageStore?: ImageStore;
 }
 
 export const handleCreationRoutes: AsyncRouteRegistrar<CreationRouteDeps> = async (method, pathname, body, headers, query, deps): Promise<ApiResult | undefined> => {
-  const { creationService, imageExecutor } = deps;
+  const { creationService, imageExecutor, imageStore } = deps;
 
   if (pathname === '/api/v1/creations/generate' && method === 'POST') {
     const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
@@ -154,6 +164,46 @@ export const handleCreationRoutes: AsyncRouteRegistrar<CreationRouteDeps> = asyn
 
     const creations = creationService.listCreations(tenantId, principalId, limit);
     return { status: 200, data: { creations } };
+  }
+
+  // R23.7C-C — canonical image-serving route. Must be checked before the
+  // generic '/api/v1/creations/:id' handler below, or that handler
+  // absorbs this path (treating "images/<id>" as a literal creationId
+  // and 404ing against the wrong store) — this was the exact root cause
+  // of the BROKEN_SUCCESS_CONTRACT this route fixes.
+  if (pathname.startsWith('/api/v1/creations/images/') && method === 'GET') {
+    const imageId = pathname.slice('/api/v1/creations/images/'.length);
+    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const requestId = getHeaderValue(headers, 'x-request-id') || `req_img_${Date.now()}`;
+
+    if (!imageStore) {
+      throw new NagexError({ code: 'IMAGE_SERVING_UNAVAILABLE', category: 'INTERNAL', message: 'Image serving is not configured on this server.', request_id: requestId });
+    }
+    if (!imageId) {
+      return { status: 404, data: { error: 'IMAGE_NOT_FOUND', message: 'Image not found.' } };
+    }
+
+    // Reuses ImageStore.get()'s existing strict tenant+owner equality
+    // check unchanged — a wrong tenant, wrong owner, and a genuinely
+    // unknown imageId are all indistinguishable from this route's
+    // perspective, all producing the identical 404 below. Never a
+    // separate "exists but not yours" response that would disclose
+    // existence to an unauthorized caller.
+    const imageRecord = imageStore.get(imageId, tenantId, principalId);
+    if (!imageRecord) {
+      return { status: 404, data: { error: 'IMAGE_NOT_FOUND', message: 'Image not found.' } };
+    }
+
+    const binary = imageStore.getBinary(imageRecord.binaryStoragePath);
+    if (!binary || binary.length === 0) {
+      // A real, authorized record exists but its binary is missing —
+      // truthful 404, never a fabricated 200 with empty/wrong bytes, and
+      // never a filesystem path or provider URL in the response.
+      return { status: 404, data: { error: 'IMAGE_NOT_FOUND', message: 'Image not found.' } };
+    }
+
+    return { status: 200, data: binary, contentType: imageRecord.mimeType, isBinary: true };
   }
 
   if (pathname.startsWith('/api/v1/creations/') && method === 'GET') {

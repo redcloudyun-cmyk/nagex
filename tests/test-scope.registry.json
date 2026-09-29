@@ -122,6 +122,7 @@
       "r23_7h_b2_agentic_creation_home",
       "r23_7c_b_document_creation_runtime",
       "r23_7c_c_real_image_creation_runtime",
+      "r23_7c_c_canonical_image_serving",
       "openai-image-adapter"
     ],
     "memory-context": [

@@ -3898,6 +3898,18 @@
       "assertionIntent": "real image creation runtime, multi-provider image executor, binary ownership, OpenAI/Google adapters, and revision lineage",
       "notes": "Validates R23.7C-C Real Image Creation Runtime: ImageExecutor, CreationProviderRouter selection, OpenAI & Google image adapters, binary image storage persistence, thin ArtifactStore projection, revision lineage across providers, tenant/user isolation, and real provider certification."
     },
+    "r23_7c_c_canonical_image_serving": {
+      "milestone": "R23.7C-C",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["creation-runtime", "images", "http-routing", "security"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "canonical image-serving HTTP contract: POST-returned imageUrl must be genuinely GET-fetchable with byte-identical content, correct MIME, and tenant/owner-isolated",
+      "notes": "Fixes the BROKEN_SUCCESS_CONTRACT root cause: no GET route ever existed for /api/v1/creations/images/:imageId, so the generic /api/v1/creations/:id handler absorbed it and 404'd against the wrong store. Certifies the new dedicated route (checked before the generic handler), reusing the same ImageStore instance and its existing tenant/owner authorization, with an explicit BinaryApiResult response variant (never base64-wrapped JSON, never a filesystem path or provider URL)."
+    },
     "openai-image-adapter": {
       "milestone": "R23.7C-C",
       "classification": "CANONICAL_BEHAVIOR",

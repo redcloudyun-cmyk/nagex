@@ -813,6 +813,7 @@ export function createNagexApplication(): NagexApplication {
     documentStore,
     documentExecutor,
     imageExecutor,
+    imageStore,
     creationRuntime,
     artifactStore,
     linkCaptureService,
