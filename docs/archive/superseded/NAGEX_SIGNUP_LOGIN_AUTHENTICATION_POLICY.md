@@ -1,9 +1,9 @@
 # NAgex Signup, Login & Email Verification Policy
 
-**Document Type:** Product / Security Architecture  
-**Project:** NAgex  
-**Status:** Approved Baseline  
-**Scope:** Consumer sign-up, social login, email verification, account linking  
+**Document Type:** Product / Security Architecture
+**Project:** NAgex
+**Status:** Approved Baseline
+**Scope:** Consumer sign-up, social login, email verification, account linking
 **Related Milestones:** R13 Identity & Account Lifecycle, R16 Enterprise Identity / SSO
 
 ---

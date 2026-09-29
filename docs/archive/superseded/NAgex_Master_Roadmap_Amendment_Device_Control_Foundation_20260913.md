@@ -1,7 +1,7 @@
 # NAgex Master Roadmap Amendment — Device Control Foundation
 
-**Date:** 2026-09-13  
-**Status:** APPROVED STRATEGIC ROADMAP AMENDMENT  
+**Date:** 2026-09-13
+**Status:** APPROVED STRATEGIC ROADMAP AMENDMENT
 **Parent:** `docs/NAgex_Master_Development_Roadmap_and_Governance_Framework_v1.md`
 
 ## 1. Decision

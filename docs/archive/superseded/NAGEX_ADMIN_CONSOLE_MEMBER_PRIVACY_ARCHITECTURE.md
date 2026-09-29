@@ -1,8 +1,8 @@
 # NAGEX Admin Console · Member Management · Privacy Governance Development Directive
 
-**Status:** Planned / Governing Design Document  
-**Product:** NAGEX  
-**Scope:** Member lifecycle, admin operations, privacy-preserving support, usage/LLM monitoring, security/audit, operational automation  
+**Status:** Planned / Governing Design Document
+**Product:** NAGEX
+**Scope:** Member lifecycle, admin operations, privacy-preserving support, usage/LLM monitoring, security/audit, operational automation
 **Principle:** Administrators manage account state and system health, not users' private lives.
 
 ---
@@ -596,8 +596,8 @@ Dangerous failure modes include duplicate user authority, frontend-only admin pe
 
 Therefore:
 
-> Design now.  
-> Establish identity/account authority next.  
+> Design now.
+> Establish identity/account authority next.
 > Implement the Admin Console on top of that authority.
 
 ---

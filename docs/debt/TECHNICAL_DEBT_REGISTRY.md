@@ -1,6 +1,6 @@
 # NAGEX Technical Debt Registry
 
-Per `docs/NAGEX_DEVELOPMENT_SAFETY_HARNESS.md` §7 (H5 — Technical Debt Harness). Every knowingly temporary, incomplete, simplified, deferred, risky, or workaround implementation must be registered here. This is the first population of the registry (introduced during the R11 Final Safety Certification pass); items below predate this file where noted.
+Per `docs/NAgex_AI_Development_Governance.md` §7 (H5 — Technical Debt Harness). Every knowingly temporary, incomplete, simplified, deferred, risky, or workaround implementation must be registered here. This is the first population of the registry (introduced during the R11 Final Safety Certification pass); items below predate this file where noted.
 
 ---
 

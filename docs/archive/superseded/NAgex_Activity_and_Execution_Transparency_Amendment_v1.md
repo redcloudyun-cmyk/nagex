@@ -1,8 +1,8 @@
 # NAgex Activity & Execution Transparency Amendment v1
 
-**Document type:** Product / UX / Execution Transparency / Development Amendment  
-**Scope:** NAgex Alpha 1.0 and DC3-B2+  
-**Status:** Canonical UX / Execution Transparency Rule  
+**Document type:** Product / UX / Execution Transparency / Development Amendment
+**Scope:** NAgex Alpha 1.0 and DC3-B2+
+**Status:** Canonical UX / Execution Transparency Rule
 **Applies to:** Desktop, Mobile, Device Control, Background Execution, Activity, Approval, Audit, Verification
 
 ---

@@ -1,7 +1,7 @@
 # R23.6M-D1 — Global Messaging Abstraction — Closure Report
 
-Date: 2026-09-28  
-Implementation commit: `141489db8a5ded6d83ed88d785c29d2ddf3ee661`  
+Date: 2026-09-28
+Implementation commit: `141489db8a5ded6d83ed88d785c29d2ddf3ee661`
 Final status: **CLOSED**
 
 ## Governing specification

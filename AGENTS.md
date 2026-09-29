@@ -9,8 +9,9 @@ NAgex is an independent project created on 2026-09-05 for the Nebius x NVIDIA Gl
 ## Required Reading Order
 
 1. Read `MASTER.md`.
-2. Read this `AGENTS.md`.
-3. Read relevant files under `docs/`.
+2. Read `docs/NAGEX_PROJECT_INDEX.md`.
+3. Read `docs/NAgex_AI_Development_Governance.md`.
+4. Read task-relevant canonical docs (as directed by the Index).
 4. Inspect schemas and tests for the affected domain.
 5. Inspect implementation only after the governing contract is understood.
 

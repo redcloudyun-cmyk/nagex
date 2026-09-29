@@ -2,11 +2,12 @@
 
 Before implementation, read:
 
-@docs/NAgex_Canonical_Product_Vision_Personal_AI_Execution_OS.md
 @MASTER.md
-@AGENTS.md
+@docs/NAGEX_PROJECT_INDEX.md
+@docs/NAgex_AI_Development_Governance.md
+@task-relevant canonical docs
 
-The canonical product vision document above is the top-level product principle NAgex is evaluated against — MASTER.md Section 0 adopts it explicitly. Every feature or architecture decision should be checked against it: does this help NAgex understand, plan, decide, execute, adapt, remember, or present a user's real-world goal?
+The canonical product vision document (`canonical/NAgex_Product_Brand_and_Principles.md`) is the top-level product principle NAgex is evaluated against — MASTER.md Section 0 adopts it explicitly. Every feature or architecture decision should be checked against it: does this help NAgex understand, plan, decide, execute, adapt, remember, or present a user's real-world goal?
 
 NAgex means **Next-generation Agent Experience**.
 

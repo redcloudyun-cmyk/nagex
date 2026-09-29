@@ -1,8 +1,8 @@
 # NAgex UI/UX Dual Experience Directive v1
 
-**Document type:** Product / UX / UI Development Directive  
-**Scope:** NAgex Alpha 1.0  
-**Status:** Canonical UI/UX Direction  
+**Document type:** Product / UX / UI Development Directive
+**Scope:** NAgex Alpha 1.0
+**Status:** Canonical UI/UX Direction
 **Core principle:** Shared system, separate experience
 
 ---
@@ -1239,12 +1239,12 @@ Desktop and Mobile must be reviewed side-by-side.
 
 The permanent NAgex UX principle is:
 
-> **Desktop is where the user works with NAgex.  
+> **Desktop is where the user works with NAgex.
 > Mobile is where NAgex stays with the user.**
 
 And:
 
-> **NAgex must not merely show features.  
+> **NAgex must not merely show features.
 > It must show the user what becomes easier, faster, safer, or possible because NAgex is present.**
 
 ---

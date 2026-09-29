@@ -1,7 +1,7 @@
 # NAgex Device Control Architecture & Product Strategy v1
 
-**Project:** NAgex  
-**Purpose:** Device-control architecture decision, development guidance, and long-term product direction  
+**Project:** NAgex
+**Purpose:** Device-control architecture decision, development guidance, and long-term product direction
 **Status:** Canonical design guidance for Device Control roadmap
 
 ---

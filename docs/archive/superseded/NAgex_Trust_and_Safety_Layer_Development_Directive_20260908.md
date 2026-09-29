@@ -1,10 +1,10 @@
 # NAgex Trust & Safety Layer — Development Directive
 
-**Document type:** Canonical development directive  
-**Product:** NAgex Personal AI  
-**Architecture:** NAgex Personal AI Operating System  
-**Status:** Required P0 architecture layer  
-**Implementation timing:** Immediately after Phase 1 Freeze and **before Capability Broker expansion / new consequential capabilities**  
+**Document type:** Canonical development directive
+**Product:** NAgex Personal AI
+**Architecture:** NAgex Personal AI Operating System
+**Status:** Required P0 architecture layer
+**Implementation timing:** Immediately after Phase 1 Freeze and **before Capability Broker expansion / new consequential capabilities**
 **Core principle:** **Safety is an execution boundary, not merely a content filter.**
 
 ---

@@ -1,11 +1,11 @@
 # NAgex Brand Definition
 ## Personal AI for the Next Age
 
-**Brand:** NAgex  
-**Category:** Personal AI  
-**Brand Promise:** Intelligence for the Next Age.  
-**Consumer Positioning:** NAgex — Personal AI for the Next Age  
-**Internal Architecture:** NAgex Personal AI Operating System  
+**Brand:** NAgex
+**Category:** Personal AI
+**Brand Promise:** Intelligence for the Next Age.
+**Consumer Positioning:** NAgex — Personal AI for the Next Age
+**Internal Architecture:** NAgex Personal AI Operating System
 
 ---
 
