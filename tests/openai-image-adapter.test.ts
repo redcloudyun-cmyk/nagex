@@ -41,7 +41,7 @@ test('20. OpenAIImageAdapter - successful binary normalization (url -> Buffer)',
       assert.equal(result.output?.mimeType, 'image/png');
       assert.equal(result.output?.imageBuffer?.toString(), 'fake-image-bytes');
     }
-    assert.equal(capturedPayload.model, 'dall-e-3');
+    assert.equal(capturedPayload.model, 'gpt-image-2.5-flare');
     assert.equal(capturedPayload.response_format, undefined, 'Must not send response_format (defaults to url)');
   } finally {
     server.close();
@@ -120,4 +120,30 @@ test('24. OpenAIImageAdapter - empty binary fails', async () => {
   } finally {
     server.close();
   }
+});
+
+test('25. OpenAIImageAdapter - explicit modelId option overrides default', () => {
+  const adapter = new OpenAIImageAdapter({ apiKey: 'test-key', modelId: 'gpt-image-2.5-sunburst' });
+  // The adapter should use the explicitly provided model
+  assert.equal((adapter as any).modelId, 'gpt-image-2.5-sunburst');
+});
+
+test('26. OpenAIImageAdapter - NAGEX_IMAGE_OPENAI_MODEL env overrides default', () => {
+  const originalEnv = process.env.NAGEX_IMAGE_OPENAI_MODEL;
+  try {
+    process.env.NAGEX_IMAGE_OPENAI_MODEL = 'custom-model-override';
+    const adapter = new OpenAIImageAdapter({ apiKey: 'test-key' });
+    assert.equal((adapter as any).modelId, 'custom-model-override');
+  } finally {
+    if (originalEnv === undefined) {
+      delete process.env.NAGEX_IMAGE_OPENAI_MODEL;
+    } else {
+      process.env.NAGEX_IMAGE_OPENAI_MODEL = originalEnv;
+    }
+  }
+});
+
+test('27. OpenAIImageAdapter - canonical default model is gpt-image-2.5-flare', () => {
+  const adapter = new OpenAIImageAdapter({ apiKey: 'test-key' });
+  assert.equal((adapter as any).modelId, 'gpt-image-2.5-flare');
 });

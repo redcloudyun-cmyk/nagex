@@ -260,7 +260,7 @@ test('J. No provider credentials enter execution metadata or client-facing struc
 
   const providerMetadata = {
     providerId: 'openai-imagen-3',
-    engineOrModel: 'dall-e-3',
+    engineOrModel: 'gpt-image-2.5-flare',
     providerJobId: 'job_7788',
     createdAt: new Date().toISOString(),
   };

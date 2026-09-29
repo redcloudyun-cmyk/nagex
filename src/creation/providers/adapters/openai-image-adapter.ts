@@ -22,7 +22,7 @@ export class OpenAIImageAdapter implements ImageProviderPort {
 
   constructor(options?: OpenAIImageAdapterOptions) {
     this.apiKey = options?.apiKey || process.env.NAGEX_OPENAI_API_KEY || process.env.OPENAI_API_KEY || '';
-    this.modelId = options?.modelId || process.env.NAGEX_IMAGE_OPENAI_MODEL || 'dall-e-3';
+    this.modelId = options?.modelId || process.env.NAGEX_IMAGE_OPENAI_MODEL || 'gpt-image-2.5-flare';
     this.baseUrl = options?.baseUrl || 'https://api.openai.com/v1';
   }
 
