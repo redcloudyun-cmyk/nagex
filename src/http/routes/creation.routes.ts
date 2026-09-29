@@ -1,5 +1,4 @@
 // R17 — Creation HTTP Route Module
-import { DEFAULT_GOOGLE_TENANT_ID } from '../../integrations/google/token.store.js';
 import { NagexError } from '../../common/errors.js';
 import type { CreationService } from '../../creation/creation.service.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
@@ -10,6 +9,14 @@ import type { ImageExecutor } from '../../creation/executors/image-executor.js';
 // and its existing tenant/owner authorization (ImageStore.get()) — no new
 // or duplicated authorization logic.
 import type { ImageStore } from '../../creation/image.store.js';
+// R23.7C-C — shared identity resolver: a real nagex_session cookie (when
+// present and valid) takes precedence over X-NAgex-Tenant/X-Principal-Id
+// headers for the two routes that must agree on identity (generate and
+// image GET), so a native <img> request and its originating POST resolve
+// to the same real user. See src/http/request-identity.ts for the full
+// rationale.
+import { resolveRequestIdentity } from '../request-identity.js';
+import type { SessionStore } from '../../sessions/session.store.js';
 
 function getHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
   const value = headers[name] ?? headers[name.toLowerCase()];
@@ -24,14 +31,17 @@ export interface CreationRouteDeps {
   // working unmodified; the route itself fails closed (503-equivalent,
   // never a fake 200) if this is unset while imageExecutor is configured.
   imageStore?: ImageStore;
+  // R23.7C-C — optional so existing test harnesses that never wire session
+  // identity keep working unmodified via the existing header/default
+  // fallback in resolveRequestIdentity().
+  sessionStore?: SessionStore;
 }
 
 export const handleCreationRoutes: AsyncRouteRegistrar<CreationRouteDeps> = async (method, pathname, body, headers, query, deps): Promise<ApiResult | undefined> => {
-  const { creationService, imageExecutor, imageStore } = deps;
+  const { creationService, imageExecutor, imageStore, sessionStore } = deps;
 
   if (pathname === '/api/v1/creations/generate' && method === 'POST') {
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const { tenantId, principalId } = resolveRequestIdentity(headers, { sessionStore });
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_cr_${Date.now()}`;
     const prompt = typeof body?.prompt === 'string' ? body.prompt : '';
 
@@ -98,8 +108,7 @@ export const handleCreationRoutes: AsyncRouteRegistrar<CreationRouteDeps> = asyn
 
   if (pathname.startsWith('/api/v1/creations/') && pathname.endsWith('/variation') && method === 'POST') {
     const parentCreationId = pathname.slice('/api/v1/creations/'.length, pathname.length - '/variation'.length);
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const { tenantId, principalId } = resolveRequestIdentity(headers, { sessionStore });
 
     try {
       if (imageExecutor) {
@@ -158,8 +167,7 @@ export const handleCreationRoutes: AsyncRouteRegistrar<CreationRouteDeps> = asyn
   }
 
   if (pathname === '/api/v1/creations' && method === 'GET') {
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const { tenantId, principalId } = resolveRequestIdentity(headers, { sessionStore });
     const limit = Number(query.limit) || 50;
 
     const creations = creationService.listCreations(tenantId, principalId, limit);
@@ -173,8 +181,12 @@ export const handleCreationRoutes: AsyncRouteRegistrar<CreationRouteDeps> = asyn
   // of the BROKEN_SUCCESS_CONTRACT this route fixes.
   if (pathname.startsWith('/api/v1/creations/images/') && method === 'GET') {
     const imageId = pathname.slice('/api/v1/creations/images/'.length);
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    // R23.7C-C — same resolver as the generate route above: a native
+    // same-origin <img> request carries the nagex_session cookie
+    // automatically, so a real logged-in user's own images resolve without
+    // any custom JS header. Callers with no valid session fall back to the
+    // existing header/default behavior unchanged.
+    const { tenantId, principalId } = resolveRequestIdentity(headers, { sessionStore });
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_img_${Date.now()}`;
 
     if (!imageStore) {
@@ -208,8 +220,7 @@ export const handleCreationRoutes: AsyncRouteRegistrar<CreationRouteDeps> = asyn
 
   if (pathname.startsWith('/api/v1/creations/') && method === 'GET') {
     const creationId = pathname.slice('/api/v1/creations/'.length);
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const { tenantId, principalId } = resolveRequestIdentity(headers, { sessionStore });
 
     const creation = creationService.getCreation(creationId, tenantId, principalId);
     if (!creation) {

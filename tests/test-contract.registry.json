@@ -3910,6 +3910,18 @@
       "assertionIntent": "canonical image-serving HTTP contract: POST-returned imageUrl must be genuinely GET-fetchable with byte-identical content, correct MIME, and tenant/owner-isolated",
       "notes": "Fixes the BROKEN_SUCCESS_CONTRACT root cause: no GET route ever existed for /api/v1/creations/images/:imageId, so the generic /api/v1/creations/:id handler absorbed it and 404'd against the wrong store. Certifies the new dedicated route (checked before the generic handler), reusing the same ImageStore instance and its existing tenant/owner authorization, with an explicit BinaryApiResult response variant (never base64-wrapped JSON, never a filesystem path or provider URL)."
     },
+    "r23_7c_c_artifact_delivery_identity": {
+      "milestone": "R23.7C-C",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["creation-runtime", "images", "http-routing", "security", "identity"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "shared resolveRequestIdentity() contract: a valid nagex_session (R13) is authoritative for POST /creations/generate and GET /creations/images/:imageId, cannot be overridden by caller-supplied X-NAgex-Tenant/X-Principal-Id headers, and header/default resolution is preserved unchanged when no valid session exists",
+      "notes": "Fixes the browser-authentication root cause confirmed by live server evidence: a native <img> request cannot attach custom headers, so it always resolved to the route's hardcoded default identity, which did not match the real tenant/owner of a session-authenticated user's own image. Adds src/http/request-identity.ts as the one shared identity resolver (session cookie first, header/default fallback unchanged) so creation and later retrieval agree on identity for a real logged-in user, while ImageStore.get()'s strict tenant+owner equality and its fail-closed 404 (no existence disclosure) remain completely unchanged. Does not touch the pre-existing img_93b85a5d7a103e7bdaaeff97 record from the old identity path."
+    },
     "r23_7c_c_canonical_image_ui_rendering": {
       "milestone": "R23.7C-C",
       "classification": "REAL_BROWSER_CERT",

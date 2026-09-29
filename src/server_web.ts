@@ -625,7 +625,7 @@ export async function handleAsyncApiRequest(
 
     // R17 — Creation Routes (generate, variation, list, get)
     {
-      const creationResult = await handleCreationRoutes(method, pathname, body, headers, query, { creationService, imageExecutor: app.imageExecutor, imageStore: app.imageStore });
+      const creationResult = await handleCreationRoutes(method, pathname, body, headers, query, { creationService, imageExecutor: app.imageExecutor, imageStore: app.imageStore, sessionStore: customDeps?.sessionStore ?? sessionStore });
       if (creationResult) return creationResult;
     }
     {
