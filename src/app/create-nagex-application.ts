@@ -100,6 +100,10 @@ import { DocumentStore } from '../creation/document.store.js';
 import { DocumentExecutor } from '../creation/executors/document-executor.js';
 import { CreationRuntime } from '../creation/creation-runtime.js';
 import { LinkCaptureService } from '../capture/link-capture.service.js';
+import { ImageStore } from '../creation/image.store.js';
+import { ImageExecutor } from '../creation/executors/image-executor.js';
+import { CreationProviderRouter } from '../creation/providers/creation-provider-router.js';
+import { OpenAIImageAdapter } from '../creation/providers/adapters/openai-image-adapter.js';
 import { VaultStore } from '../workspace/vault.store.js';
 import { ConnectionStore } from '../workspace/connections.store.js';
 import { ActionStore } from '../workspace/action.store.js';
@@ -513,7 +517,18 @@ export function createNagexApplication(): NagexApplication {
     auditLogger,
     getRelevantMemories,
   });
-  const creationRuntime = new CreationRuntime([documentExecutor]);
+  const creationProviderRouter = new CreationProviderRouter();
+  creationProviderRouter.registerImageProvider(new OpenAIImageAdapter());
+
+  const imageStore = new ImageStore();
+  const imageExecutor = new ImageExecutor({
+    imageStore,
+    artifactStore,
+    providerRouter: creationProviderRouter,
+    auditLogger,
+  });
+
+  const creationRuntime = new CreationRuntime([documentExecutor, imageExecutor]);
 
 
 
@@ -797,6 +812,7 @@ export function createNagexApplication(): NagexApplication {
     creationService,
     documentStore,
     documentExecutor,
+    imageExecutor,
     creationRuntime,
     artifactStore,
     linkCaptureService,

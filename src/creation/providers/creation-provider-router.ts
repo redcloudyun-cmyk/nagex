@@ -78,6 +78,14 @@ export class CreationProviderRouter {
           request_id: spec.requestId,
         });
       }
+      if (spec.referenceImages && spec.referenceImages.length > 0 && !caps.referenceImageConditioning) {
+        throw new NagexError({
+          code: 'CAPABILITY_UNSUPPORTED',
+          category: 'PROVIDER',
+          message: `Requested image provider '${target.providerId}' does not support required capability 'referenceImageConditioning'.`,
+          request_id: spec.requestId,
+        });
+      }
 
       return {
         selectedProvider: target,
@@ -103,6 +111,7 @@ export class CreationProviderRouter {
 
       const caps = provider.getCapabilities();
       if (spec.constraints?.transparentBackground && !caps.transparentBackground) continue;
+      if (spec.referenceImages && spec.referenceImages.length > 0 && !caps.referenceImageConditioning) continue;
       if (spec.aspectRatio && caps.supportedAspectRatios.length > 0 && !caps.supportedAspectRatios.includes(spec.aspectRatio)) continue;
 
       return {

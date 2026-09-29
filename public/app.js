@@ -4990,7 +4990,7 @@
             body: JSON.stringify({
               prompt,
               recipe: { stylePreset, aspectRatio, guidanceScale, quality },
-              referenceImageId: state.selectedRefImageId,
+              type: 'IMAGE', sourceRefs: state.selectedRefImageId ? [{ type: 'ARTIFACT', id: state.selectedRefImageId }] : undefined,
             }),
           });
 

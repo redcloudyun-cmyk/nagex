@@ -159,6 +159,7 @@ export interface NagexApplication {
   creationService: CreationService;
   documentStore: import('../creation/document.store.js').DocumentStore;
   documentExecutor: import('../creation/executors/document-executor.js').DocumentExecutor;
+  imageExecutor: import('../creation/executors/image-executor.js').ImageExecutor;
   creationRuntime: import('../creation/creation-runtime.js').CreationRuntime;
   artifactStore: ArtifactStore;
   linkCaptureService: LinkCaptureService;

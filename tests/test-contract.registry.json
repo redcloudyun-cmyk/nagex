@@ -3885,6 +3885,18 @@
       "deterministic": true,
       "assertionIntent": "creation provider architecture baseline, provider router, provider capabilities, creation specs, and availability models",
       "notes": "Validates R23.7C-P Creation Provider Architecture Baseline: ModelRouter vs CreationProviderRouter boundary, Image/Presentation/Video Creation Specs, capability filtering, availability state semantics, explicit provider overrides, and provider-independent canonical artifact ownership."
+    },
+    "r23_7c_c_real_image_creation_runtime": {
+      "milestone": "R23.7C-C",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["creation-runtime", "images", "artifacts", "model-routing", "security"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "real image creation runtime, multi-provider image executor, binary ownership, OpenAI/Google adapters, and revision lineage",
+      "notes": "Validates R23.7C-C Real Image Creation Runtime: ImageExecutor, CreationProviderRouter selection, OpenAI & Google image adapters, binary image storage persistence, thin ArtifactStore projection, revision lineage across providers, tenant/user isolation, and real provider certification."
     }
   }
 }

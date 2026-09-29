@@ -32,7 +32,7 @@ export interface ImageCreationSpec extends CanonicalCreationSpecBase {
   composition?: string;
   style?: string; // e.g. 'photorealistic', 'vector-art', '3d-render', 'minimalist'
   aspectRatio?: '1:1' | '16:9' | '9:16' | '4:3' | '3:2';
-  referenceImages?: Array<{ assetId?: string; url?: string; weighting?: number }>;
+  referenceImages?: Array<{ assetId?: string; url?: string; weighting?: number; binaryData?: Buffer; mimeType?: string }>;
   textRequirements?: {
     embeddedText?: string;
     fontStyle?: string;

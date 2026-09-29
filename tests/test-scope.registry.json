@@ -120,7 +120,8 @@
       "r22_8_personal_home",
       "r23_7h_b1_personal_dashboard",
       "r23_7h_b2_agentic_creation_home",
-      "r23_7c_b_document_creation_runtime"
+      "r23_7c_b_document_creation_runtime",
+      "r23_7c_c_real_image_creation_runtime"
     ],
     "memory-context": [
       "r22_3_personal_context_memory"
