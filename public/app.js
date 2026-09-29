@@ -4946,6 +4946,24 @@
   });
 
   // ── Creation Domain UI Handler ──
+  //
+  // R23.7C-C — canonical image source policy. The backend now serves the
+  // real generated image at a NAgex-owned canonical path
+  // (/api/v1/creations/images/img_<24 hex>, see image-executor.ts's imageId
+  // format), never a provider URL. This predicate is the single place that
+  // decides whether an assetUrl is safe to render as an <img src>: it never
+  // widens acceptance to arbitrary relative paths (javascript:, file:, or
+  // malformed canonical paths are all rejected and fall back to the
+  // existing placeholder instead of ever being inserted as raw text).
+  const CANONICAL_IMAGE_PATH_PATTERN = /^\/api\/v1\/creations\/images\/img_[0-9a-f]{24}$/;
+
+  function isRenderableImageSource(assetUrl) {
+    if (typeof assetUrl !== 'string' || !assetUrl) return false;
+    if (assetUrl.startsWith('data:image/')) return true;
+    if (assetUrl.startsWith('https://') || assetUrl.startsWith('http://')) return true;
+    return CANONICAL_IMAGE_PATH_PATTERN.test(assetUrl);
+  }
+
   function initCreateView() {
     const btnGenerate = document.getElementById('btn-create-generate');
     const btnVariation = document.getElementById('btn-create-variation');
@@ -5051,9 +5069,9 @@
     if (varControls) varControls.hidden = false;
 
     const assetUrl = creation.outputAssetUrl || creation.imageUrl || '';
-    const imgHtml = (assetUrl.startsWith('data:') || assetUrl.startsWith('http'))
-      ? `<img src="${assetUrl}" style="width: 100%; height: auto; display: block; border-radius: 8px;" alt="${escapeHtml(creation.prompt)}" />`
-      : (assetUrl || `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><rect width="400" height="300" fill="#0f172a"/><text x="200" y="150" fill="#38bdf8" text-anchor="middle" font-size="20">AI Generated Creation</text></svg>`);
+    const imgHtml = isRenderableImageSource(assetUrl)
+      ? `<img src="${escapeHtml(assetUrl)}" style="width: 100%; height: auto; display: block; border-radius: 8px;" alt="${escapeHtml(creation.prompt)}" />`
+      : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><rect width="400" height="300" fill="#0f172a"/><text x="200" y="150" fill="#38bdf8" text-anchor="middle" font-size="20">AI Generated Creation</text></svg>`;
 
     slot.innerHTML = `
       <div class="creation-result-card" style="width: 100%; text-align: center;">
@@ -5084,16 +5102,20 @@
       return;
     }
 
-    listEl.innerHTML = creations.map((c) => `
+    listEl.innerHTML = creations.map((c) => {
+      const assetUrl = c.outputAssetUrl || c.imageUrl || '';
+      const thumbHtml = isRenderableImageSource(assetUrl)
+        ? `<img src="${escapeHtml(assetUrl)}" style="width: 100%; height: 100%; object-fit: cover;" alt="${escapeHtml(c.prompt)}" />`
+        : `<span style="color:#38bdf8; font-size: 0.75rem;">${escapeHtml(c.creationId.slice(0, 8))}</span>`;
+      return `
       <div class="nagex-card creation-history-card" style="padding: 0.75rem; cursor: pointer;" onclick="window.NAGEX.selectCreation('${escapeHtml(c.creationId)}')">
         <div style="height: 120px; border-radius: 4px; overflow: hidden; background: #0f172a; display: flex; align-items: center; justify-content: center; margin-bottom: 0.5rem;">
-          ${(c.outputAssetUrl || c.imageUrl || '').startsWith('data:') || (c.outputAssetUrl || c.imageUrl || '').startsWith('http')
-            ? `<img src="${c.outputAssetUrl || c.imageUrl}" style="width: 100%; height: 100%; object-fit: cover;" alt="${escapeHtml(c.prompt)}" />`
-            : (c.outputAssetUrl || `<span style="color:#38bdf8; font-size: 0.75rem;">${escapeHtml(c.creationId.slice(0, 8))}</span>`)}
+          ${thumbHtml}
         </div>
         <strong style="font-size: 0.8rem; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(c.prompt)}</strong>
         <span style="font-size: 0.7rem; color: var(--text-muted);">${escapeHtml(c.recipe?.stylePreset || 'art')} · ${escapeHtml(new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))}</span>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   }
 
   function renderCreate() {

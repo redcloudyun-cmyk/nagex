@@ -3910,6 +3910,40 @@
       "assertionIntent": "canonical image-serving HTTP contract: POST-returned imageUrl must be genuinely GET-fetchable with byte-identical content, correct MIME, and tenant/owner-isolated",
       "notes": "Fixes the BROKEN_SUCCESS_CONTRACT root cause: no GET route ever existed for /api/v1/creations/images/:imageId, so the generic /api/v1/creations/:id handler absorbed it and 404'd against the wrong store. Certifies the new dedicated route (checked before the generic handler), reusing the same ImageStore instance and its existing tenant/owner authorization, with an explicit BinaryApiResult response variant (never base64-wrapped JSON, never a filesystem path or provider URL)."
     },
+    "r23_7c_c_canonical_image_ui_rendering": {
+      "milestone": "R23.7C-C",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": ["creation-runtime", "images", "personal-home", "browser", "security", "ux"],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "writesRepositoryArtifacts": false,
+      "assertionIntent": "public/app.js's shared isRenderableImageSource() predicate: a canonical relative image URL and existing data:/http(s) sources render as a real <img> element on both the immediate result surface and the history surface, while a malformed/arbitrary relative source (javascript:, file:, unknown path shape, markup-injection attempt) is never trusted as an image source and never leaked into the DOM as raw text or markup",
+      "notes": "Fixes the UI-side gap left after R23.7C-C's canonical image-serving route (r23_7c_c_canonical_image_serving): renderCreationOutput() and loadCreationHistory() previously only wrapped assetUrl in an <img> when it started with 'data:' or 'http', so the real canonical relative imageUrl fell through to being inserted as raw text. Runs a real local headless Chromium session against this repo's own server with deterministic route mocks (no external network, no paid provider) — canonical=true, deterministic=true, writesRepositoryArtifacts=false, so it is selected by the local browser-cert gate, never the deployed/live gates."
+    },
+    "r23_7c_c_deployed_real_browser_cert": {
+      "milestone": "R23.7C-C",
+      "classification": "DEPLOYED_CERT",
+      "canonical": false,
+      "scopes": ["creation-runtime", "images", "personal-home", "browser", "security", "ux"],
+      "externalDependencies": [
+        "deployed NAgex URL",
+        "internet",
+        "Chromium",
+        "real OpenAI image provider"
+      ],
+      "realBrowser": true,
+      "sourceImplementationAssertions": true,
+      "deterministic": false,
+      "assertionIntent": "final real-browser certification of the canonical image-serving contract through the actual deployed Personal Home/Create UI (Desktop EN real generation, Mobile KR view-only), never inferring success from UI text alone",
+      "notes": "Drives Playwright Chromium against a deployed NAgex instance to certify that a real, once-only paid image generation is discoverable from Personal Home, genuinely GET-fetchable at its canonical URL, and actually renders as an <img> element (not just present in the generation response). Mobile KR reuses the same artifact and must never trigger a second generation; it records HISTORY_VISIBILITY=NOT_AVAILABLE truthfully if no mobile surface exposes it rather than fabricating visibility. Never runs as part of regression, browser-cert, or any implicit gate — requires NAGEX_DEPLOYED_URL and npm run test:deployed-cert.",
+      "writesRepositoryArtifacts": true,
+      "requiresEnv": [
+        "NAGEX_DEPLOYED_URL"
+      ]
+    },
     "openai-image-adapter": {
       "milestone": "R23.7C-C",
       "classification": "CANONICAL_BEHAVIOR",
