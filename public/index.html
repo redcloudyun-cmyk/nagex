@@ -1009,6 +1009,40 @@
         </div>
 
         <!-- VIEW: CREATE (AI CREATION STUDIO) -->
+        <!-- CANVAS WORKSPACE (R23.7H-C Phase C) -->
+        <div id="view-canvas" class="tab-view canvas-workspace">
+          <div class="canvas-toolbar">
+            <div class="canvas-toolbar-left">
+              <button class="canvas-back-btn" onclick="window.NAGEX.closeCanvas()" aria-label="Go back" data-i18n="canvas.back">
+                <svg class="svg-icon-sm" viewBox="0 0 24 24"><path fill="currentColor" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+                <span class="back-label">Back</span>
+              </button>
+              <div class="canvas-context">
+                <span id="canvas-artifact-type" class="badge-status">TYPE</span>
+                <h2 id="canvas-artifact-title">Artifact Title</h2>
+              </div>
+            </div>
+            <div class="canvas-toolbar-right">
+              <a id="canvas-action-open" class="btn-primary" style="display:none;" target="_blank" data-i18n="canvas.openTarget">Open original</a>
+            </div>
+          </div>
+
+          <div class="canvas-stage">
+            <div id="canvas-renderer-region" class="canvas-renderer">
+               <!-- Artifact Renderer output -->
+            </div>
+          </div>
+
+          <div class="canvas-agent-input">
+            <div class="canvas-ask-wrapper">
+              <input type="text" id="canvas-ask-input" class="canvas-ask-field" placeholder="Ask NAgex to change this..." data-i18n-placeholder="canvas.askPlaceholder" />
+              <button class="btn-primary canvas-ask-submit" onclick="window.NAGEX.submitCanvasAsk()" data-i18n="canvas.askSubmit">
+                <svg class="svg-icon-sm" viewBox="0 0 24 24"><path fill="currentColor" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div id="view-create" class="tab-view canvas-mode-doc">
           <div class="view-header-bar" style="display: flex; justify-content: space-between; align-items: center;">
             <div>

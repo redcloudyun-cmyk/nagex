@@ -430,6 +430,7 @@
     'tab-my-space': '#my-space',
     'tab-create': '#create',
     'tab-analyze': '#analyze',
+    'tab-canvas': '#canvas',
   };
 
   const HASH_TAB_MAP = {
@@ -448,13 +449,17 @@
     '#my-space': 'tab-my-space',
     '#create': 'tab-create',
     '#analyze': 'tab-analyze',
+    '#canvas': 'tab-canvas',
   };
 
   let isNavigatingFromPopState = false;
 
-  function getHashForTab(tabId, settingsCat) {
+  function getHashForTab(tabId, settingsCat, artifactId) {
     if (tabId === 'tab-settings' && settingsCat) {
       return `#settings/${settingsCat}`;
+    }
+    if (tabId === 'tab-canvas' && artifactId) {
+      return `#canvas/${encodeURIComponent(artifactId)}`;
     }
     return TAB_HASH_MAP[tabId] || '#home';
   }
@@ -463,6 +468,10 @@
     const raw = (rawHash || (typeof window !== 'undefined' ? window.location.hash : '') || '').trim();
     if (!raw) return { tabId: 'tab-home', catKey: null };
 
+    if (raw.startsWith('#canvas/')) {
+      const artifactId = raw.replace('#canvas/', '').split('?')[0];
+      return { tabId: 'tab-canvas', artifactId, catKey: null };
+    }
     if (raw.startsWith('#settings/')) {
       const catKey = raw.replace('#settings/', '');
       return { tabId: 'tab-settings', catKey };
@@ -496,12 +505,13 @@
     // DEBT-0005 History API Integration
     if (!isNavigatingFromPopState && pushHistory && typeof window !== 'undefined' && window.history && window.history.pushState) {
       const catKey = tabId === 'tab-settings' ? (state.activeSettingsCat || 'connections') : null;
-      const targetHash = getHashForTab(tabId, catKey);
+      const artifactId = tabId === 'tab-canvas' ? (options && options.artifactId) : null;
+      const targetHash = getHashForTab(tabId, catKey, artifactId);
       const st = window.history.state;
-      const alreadyPushed = st && st.tabId === tabId && st.settingsCat === catKey && window.location.hash === targetHash;
+      const alreadyPushed = st && st.tabId === tabId && st.settingsCat === catKey && st.artifactId === artifactId && window.location.hash === targetHash;
 
       if (!alreadyPushed) {
-        window.history.pushState({ tabId, settingsCat: catKey }, '', targetHash);
+        window.history.pushState({ tabId, settingsCat: catKey, artifactId }, '', targetHash);
       }
     }
   }
@@ -514,29 +524,44 @@
       try {
         const stateData = e.state;
         if (stateData && stateData.tabId) {
-          switchTab(stateData.tabId, { pushHistory: false });
+          switchTab(stateData.tabId, { pushHistory: false, artifactId: stateData.artifactId });
           if (stateData.tabId === 'tab-settings' && stateData.settingsCat) {
             switchSettingsCategory(stateData.settingsCat, { pushHistory: false });
           }
+          if (stateData.tabId === 'tab-canvas' && stateData.artifactId) {
+             if (window.NAGEX && window.NAGEX.restoreCanvasFromRoute) {
+                 window.NAGEX.restoreCanvasFromRoute(stateData.artifactId);
+             }
+          }
         } else {
           const parsed = parseHash(window.location.hash);
-          switchTab(parsed.tabId, { pushHistory: false });
-          if (parsed.catKey) {
-            switchSettingsCategory(parsed.catKey, { pushHistory: false });
+          switchTab(parsed.tabId, { pushHistory: false, artifactId: parsed.artifactId });
+          if (parsed.catKey) state.activeSettingsCat = parsed.catKey;
+          if (parsed.tabId === 'tab-canvas' && parsed.artifactId) {
+             if (window.NAGEX && window.NAGEX.restoreCanvasFromRoute) {
+                 window.NAGEX.restoreCanvasFromRoute(parsed.artifactId);
+             }
           }
         }
+      } catch (err) {
+        console.error(err);
       } finally {
         isNavigatingFromPopState = false;
       }
     });
 
     const parsed = parseHash(window.location.hash);
-    switchTab(parsed.tabId, { pushHistory: false });
+    switchTab(parsed.tabId, { pushHistory: false, artifactId: parsed.artifactId });
     if (parsed.catKey) state.activeSettingsCat = parsed.catKey;
+    if (parsed.tabId === 'tab-canvas' && parsed.artifactId) {
+       if (window.NAGEX && window.NAGEX.restoreCanvasFromRoute) {
+           window.NAGEX.restoreCanvasFromRoute(parsed.artifactId);
+       }
+    }
 
-    const initialHash = getHashForTab(parsed.tabId, parsed.catKey);
+    const initialHash = getHashForTab(parsed.tabId, parsed.catKey, parsed.artifactId);
     if (window.history.replaceState) {
-      window.history.replaceState({ tabId: parsed.tabId, settingsCat: parsed.catKey }, '', initialHash);
+      window.history.replaceState({ tabId: parsed.tabId, settingsCat: parsed.catKey, artifactId: parsed.artifactId }, '', initialHash);
     }
   }
 

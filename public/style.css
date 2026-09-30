@@ -3162,3 +3162,238 @@ body {
   color: #334155;
   text-decoration: underline;
 }
+
+/* ==========================================================================
+   CANVAS WORKSPACE (R23.7H-C Phase C)
+   ========================================================================== */
+
+.canvas-workspace {
+  background: var(--nagex-surface-primary);
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  max-width: 1200px;
+  margin: 0 auto;
+  overflow: hidden;
+  padding: 24px;
+}
+
+.canvas-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--nagex-border-default);
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  flex-shrink: 0;
+}
+
+.canvas-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.canvas-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  color: var(--nagex-text-secondary);
+  font-weight: 500;
+  font-size: 0.9rem;
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+.canvas-back-btn:hover {
+  background: var(--bg-hover);
+  color: var(--nagex-text-primary);
+}
+
+.canvas-context {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+#canvas-artifact-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--nagex-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 400px;
+}
+
+.canvas-stage {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--nagex-surface-primary);
+  border-radius: 12px;
+  border: 1px solid var(--nagex-border-default);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+}
+
+.canvas-renderer {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  min-height: 200px;
+}
+
+/* Image Artifact Specifics */
+.canvas-image-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.canvas-image-target {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* Document/Research Artifact Specifics */
+.canvas-document-container {
+  max-width: 800px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 32px;
+  background: var(--nagex-surface-primary);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+
+.canvas-document-container h3 {
+  margin-top: 0;
+  color: var(--nagex-text-primary);
+  font-size: 1.5rem;
+}
+
+.canvas-document-container p {
+  color: var(--nagex-text-secondary);
+  line-height: 1.6;
+}
+
+/* Canvas Agent Input */
+.canvas-agent-input {
+  margin-top: 16px;
+  flex-shrink: 0;
+}
+
+.canvas-ask-wrapper {
+  display: flex;
+  gap: 12px;
+  background: var(--nagex-surface-primary);
+  border: 1px solid var(--nagex-border-default);
+  border-radius: 32px;
+  padding: 6px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.canvas-ask-wrapper:focus-within {
+  border-color: var(--nagex-accent-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.canvas-ask-field {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 10px 16px;
+  font-size: 1rem;
+  color: var(--nagex-text-primary);
+  outline: none;
+}
+
+.canvas-ask-field::placeholder {
+  color: var(--nagex-text-muted);
+}
+
+.canvas-ask-submit {
+  border-radius: 24px;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Error State */
+.canvas-error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 32px;
+  color: var(--nagex-text-secondary);
+}
+
+.canvas-error-state svg {
+  color: var(--nagex-danger);
+  margin-bottom: 16px;
+  width: 48px;
+  height: 48px;
+}
+
+.canvas-error-state h3 {
+  color: var(--nagex-text-primary);
+  margin-bottom: 8px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .canvas-workspace {
+    padding: 16px;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    border-top: none;
+  }
+
+  .canvas-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .canvas-toolbar-left {
+    width: 100%;
+  }
+
+  .canvas-toolbar-right {
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  #canvas-artifact-title {
+    max-width: 200px;
+    font-size: 1.1rem;
+  }
+
+  .canvas-ask-submit {
+    padding: 0 16px;
+  }
+  .canvas-ask-submit .back-label {
+    display: none;
+  }
+}

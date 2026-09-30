@@ -246,7 +246,8 @@
       "approval_ttl_security"
     ],
     "ux": [
-      "r23_7h_c_phase_b_artifact_ux_contract"
+      "r23_7h_c_phase_b_artifact_ux_contract",
+      "r23_7h_c_phase_c_canvas_shell"
     ]
   },
   "fullOnly": [
