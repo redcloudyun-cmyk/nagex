@@ -12,6 +12,71 @@
     return window.NAGEX_I18N && window.NAGEX_I18N.getLocale() === 'ko' ? 'ko' : 'en';
   }
 
+  // --- Shared Artifact UX Contract Helpers ---
+  window.NAGEX = window.NAGEX || {};
+
+  window.NAGEX.getArtifactPreviewKind = function (item) {
+    if (item && item.artifactProjection) return item.artifactProjection.previewKind;
+    const type = String(item?.type || item || '').toUpperCase();
+    if (type === 'IMAGE') return 'IMAGE';
+    if (['DOCUMENT', 'RESEARCH', 'ANALYSIS'].includes(type)) return 'TEXT';
+    if (['PRESENTATION', 'VIDEO'].includes(type)) return 'PLANNED';
+    return 'UNKNOWN';
+  };
+
+  window.NAGEX.renderArtifactThumbnail = function (proj) {
+    if (!proj || proj.previewKind !== 'IMAGE' || !proj.previewTarget) return '';
+    return `<div class="ph-artifact-thumbnail" style="width:48px;height:48px;border-radius:6px;overflow:hidden;flex-shrink:0;background:#1e293b;margin-right:12px;"><img src="${esc(proj.previewTarget)}" alt="" style="width:100%;height:100%;object-fit:cover;" /></div>`;
+  };
+
+  window.NAGEX.openArtifactInCanvas = function (artifactId, artifactType, canvasTarget, openTarget) {
+    window.NAGEX = window.NAGEX || {};
+    window.NAGEX._canvasState = {
+      artifactId,
+      artifactType,
+      canvasTarget: canvasTarget || `/canvas?artifactId=${encodeURIComponent(artifactId)}&type=${encodeURIComponent(artifactType)}`,
+      openTarget: openTarget || `/api/v1/artifacts/${encodeURIComponent(artifactId)}`,
+      active: false,
+      activatedAt: null,
+    };
+    return window.NAGEX._canvasState;
+  };
+
+  window.NAGEX.dispatchArtifactOpen = function (type, sourceRef, item) {
+    const proj = item && item.artifactProjection;
+    if (proj) {
+      if (proj.previewKind === 'PLANNED') {
+        const msg = locale() === 'ko' ? '해당 기능은 향후 업데이트에서 지원될 예정입니다.' : 'This artifact type is planned for a future update.';
+        if (typeof window.alert === 'function') window.alert(msg);
+        return { handled: true, status: 'PLANNED', message: msg };
+      }
+      if (proj.previewKind === 'UNKNOWN') {
+        const msg = locale() === 'ko' ? '지원되지 않는 아티팩트 유형입니다.' : 'Unsupported artifact type.';
+        if (typeof window.alert === 'function') window.alert(msg);
+        return { handled: true, status: 'UNKNOWN', message: msg };
+      }
+      const state = window.NAGEX.openArtifactInCanvas(proj.artifactId, proj.artifactType, proj.canvasTarget, proj.openTarget);
+      return { handled: true, status: 'CANVAS_NOT_AVAILABLE', artifactId: state.artifactId, artifactType: state.artifactType };
+    }
+
+    const upperType = String(type || '').toUpperCase();
+    if (upperType === 'PRESENTATION' || upperType === 'VIDEO') {
+      const msg = locale() === 'ko' ? '해당 기능은 향후 업데이트에서 지원될 예정입니다.' : 'This artifact type is planned for a future update.';
+      if (typeof window.alert === 'function') window.alert(msg);
+      return { handled: true, status: 'PLANNED', message: msg };
+    }
+
+    if (['IMAGE', 'DOCUMENT', 'RESEARCH', 'ANALYSIS'].includes(upperType)) {
+      const state = window.NAGEX.openArtifactInCanvas(sourceRef, upperType, `/canvas?artifactId=${encodeURIComponent(sourceRef)}&type=${encodeURIComponent(upperType)}`);
+      return { handled: true, status: 'CANVAS_NOT_AVAILABLE', artifactId: state.artifactId, artifactType: state.artifactType };
+    }
+
+    const msg = locale() === 'ko' ? '지원되지 않는 아티팩트 유형입니다.' : 'Unsupported artifact type.';
+    if (typeof window.alert === 'function') window.alert(msg);
+    return { handled: true, status: 'UNKNOWN', message: msg };
+  };
+  // -------------------------------------------
+
   const COPY = {
     en: { rightNow: 'Right Now', create: 'Create with NAgex', attention: 'Needs Attention', today: 'Today', preparing: 'NAgex Is Preparing', creations: 'Recent Creations', recent: 'Recent Activity', empty: 'Nothing to show right now.', noCreations: 'Your completed research and file analyses will appear here.', unavailable: 'This source is currently unavailable.', research: 'Research', analyze: 'Analyze', researchDesc: 'Find, verify, and synthesize information.', analyzeDesc: 'Understand supported documents and files.', open: 'Open' },
     ko: { rightNow: '지금', create: 'NAgex로 만들기', attention: '확인이 필요해요', today: '오늘', preparing: 'NAgex가 준비 중이에요', creations: '최근 생성 결과', recent: '최근 활동', empty: '지금 표시할 항목이 없습니다.', noCreations: '완료된 리서치와 파일 분석 결과가 여기에 표시됩니다.', unavailable: '현재 이 정보를 불러올 수 없습니다.', research: '리서치', analyze: '분석', researchDesc: '필요한 정보를 찾고 검증해 핵심을 정리합니다.', analyzeDesc: '지원되는 문서와 파일의 내용을 이해하고 정리합니다.', open: '열기' },
@@ -35,7 +100,7 @@
   }
 
   function card(item, state, extra) {
-    return Object.assign({ key: key(item), owningSurface: owningSurface(item), title: item.title || '', context: item.summary || item.reason || '', state, action: item.action || null, actionTarget: item.action?.targetUrl || null, availability: state === 'Unavailable' ? 'unavailable' : 'available', error: state === 'Failed' ? item.summary || item.reason || null : null, type: item.type || item.kind || '', sourceRef: item.sourceId || item.sourceRef || item.id || '' }, extra || {});
+    return Object.assign({ key: key(item), owningSurface: owningSurface(item), title: item.title || '', context: item.summary || item.reason || '', state, action: item.action || null, actionTarget: item.action?.targetUrl || null, availability: state === 'Unavailable' ? 'unavailable' : 'available', error: state === 'Failed' ? item.summary || item.reason || null : null, type: item.type || item.kind || '', sourceRef: item.sourceId || item.sourceRef || item.id || '', artifactProjection: item.artifactProjection || null }, extra || {});
   }
 
   function inferRightNow(item) {
@@ -79,10 +144,15 @@
 
   function renderItems(items) {
     if (!items.length) return `<p class="ph-empty">${esc(COPY[locale()].empty)}</p>`;
-    return items.map((item) => `<article class="ph-item" data-source-key="${esc(item.key)}">
-      <div class="ph-item-copy"><h3>${esc(item.title)}</h3>${item.context ? `<p>${esc(item.context)}</p>` : ''}${item.time ? `<time datetime="${esc(item.time)}">${esc(new Date(item.time).toLocaleTimeString(locale() === 'ko' ? 'ko-KR' : 'en-US', { hour: 'numeric', minute: '2-digit' }))}</time>` : ''}</div>
-      <div class="ph-item-meta"><span class="ph-state" data-state="${esc(item.state)}">${esc(STATE_LABELS[locale()][item.state] || item.state)}</span>${item.action ? `<button type="button" class="ph-action" data-type="${esc(item.type)}" data-ref="${esc(item.sourceRef)}" data-target="${esc(item.actionTarget || '')}">${esc(item.action.type === 'OPEN_ARTIFACT' ? COPY[locale()].open : item.action.label)}</button>` : ''}</div>
-    </article>`).join('');
+    return items.map((item) => {
+      const isImage = item.artifactProjection && item.artifactProjection.previewKind === 'IMAGE' && item.artifactProjection.previewTarget;
+      const thumbHtml = window.NAGEX.renderArtifactThumbnail(item.artifactProjection);
+      return `<article class="ph-item" data-source-key="${esc(item.key)}" ${isImage ? 'style="display:flex;align-items:center;"' : ''}>
+        ${thumbHtml}
+        <div class="ph-item-copy" style="flex:1;"><h3>${esc(item.title)}</h3>${item.context ? `<p>${esc(item.context)}</p>` : ''}${item.time ? `<time datetime="${esc(item.time)}">${esc(new Date(item.time).toLocaleTimeString(locale() === 'ko' ? 'ko-KR' : 'en-US', { hour: 'numeric', minute: '2-digit' }))}</time>` : ''}</div>
+        <div class="ph-item-meta"><span class="ph-state" data-state="${esc(item.state)}">${esc(STATE_LABELS[locale()][item.state] || item.state)}</span>${item.action ? `<button type="button" class="ph-action" data-type="${esc(item.type)}" data-ref="${esc(item.sourceRef)}" data-target="${esc(item.actionTarget || '')}">${esc(item.action.type === 'OPEN_ARTIFACT' ? COPY[locale()].open : item.action.label)}</button>` : ''}</div>
+      </article>`;
+    }).join('');
   }
 
   function renderSection(target, title, items, id) {
@@ -97,7 +167,9 @@
         if (artifact) window.alert(`${artifact.title}\n\n${artifact.preview}`);
         return;
       }
-      window.NAGEX.handleHomeItemAction(button.dataset.type, button.dataset.ref);
+      const itemKey = button.closest('.ph-item')?.dataset?.sourceKey;
+      const item = items.find((i) => i.key === itemKey);
+      window.NAGEX.handleHomeItemAction(button.dataset.type, button.dataset.ref, item);
     }));
   }
 

@@ -2,6 +2,7 @@ import type { DailyBriefStore, DailyBriefRecord } from '../governance/daily-brie
 import type { ActivityStore, ActivityItem } from '../governance/activity.store.js';
 import type { ActionProposalStore, ActionProposalRecord } from '../assistant/action-proposal.store.js';
 import type { ArtifactStore } from '../artifacts/artifact.store.js';
+import { toArtifactUxProjection, type ArtifactUxProjection } from '../artifacts/artifact.types.js';
 import type { CreationStore } from '../creation/creation.store.js';
 import type { IdentityStore } from '../identity/identity.store.js';
 import type { CurrentPersonalContextService, ContextApproval, ContextTask, ContextEvent, CurrentPersonalContext } from '../personal/current-personal-context.service.js';
@@ -52,6 +53,7 @@ export interface HomeItem {
   startsAt?: string;
   action?: HomeItemAction;
   state: PersonalHomeConsumerState;
+  artifactProjection?: ArtifactUxProjection;
 }
 
 export interface PersonalHomeRightNow {
@@ -415,10 +417,12 @@ export class PersonalHomeService {
     if (this.deps.artifactStore) {
       try {
         for (const artifact of this.deps.artifactStore.list(tenantId, principalId, 5)) {
+          const projection = toArtifactUxProjection(artifact);
           recentCreations.push({
             id: artifact.artifactId, type: artifact.type, title: artifact.title, summary: artifact.preview,
             sourceType: 'ACTIVITY', sourceId: artifact.artifactId, createdAt: artifact.createdAt,
             action: { type: 'OPEN_ARTIFACT', label: 'Open', targetUrl: `/api/v1/artifacts/${artifact.artifactId}` }, state: 'Completed',
+            artifactProjection: projection,
           });
         }
       } catch {

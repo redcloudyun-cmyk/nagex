@@ -3754,7 +3754,7 @@
       "sourceImplementationAssertions": false,
       "deterministic": true,
       "assertionIntent": "the mobile SMS run state machine cannot skip approval, cannot execute twice, cannot send against a message/recipient/channel/device that drifted after approval, never lets the server hold a phone number, and reuses ActionApprovalStore's real hash-binding/one-time-consumption unchanged",
-      "notes": "Server-side orchestration only (MobileMessageRunService) — real SmsManager execution and phone-number resolution happen exclusively on the Android device and are certified separately on physical hardware. Payload-hash binding covers recipientRef+channel+message+deviceId+executionRoute; any post-approval change is caught at executeApproved() time via ActionApprovalStore.consume()'s existing comparison, never a bespoke re-implementation. Duplicate-send has two layers: the run state graph (SEND_ATTEMPTED has no legal self-transition) and the approval store's own CONSUMED status."
+      "notes": "Server-side orchestration only (MobileMessageRunService) ??real SmsManager execution and phone-number resolution happen exclusively on the Android device and are certified separately on physical hardware. Payload-hash binding covers recipientRef+channel+message+deviceId+executionRoute; any post-approval change is caught at executeApproved() time via ActionApprovalStore.consume()'s existing comparison, never a bespoke re-implementation. Duplicate-send has two layers: the run state graph (SEND_ATTEMPTED has no legal self-transition) and the approval store's own CONSUMED status."
     },
     "r23_6m_phase_c_device_transport": {
       "milestone": "R23.6M",
@@ -3771,7 +3771,7 @@
       "sourceImplementationAssertions": false,
       "deterministic": true,
       "assertionIntent": "the three new MOBILE_MESSAGE_PREPARE/EXECUTE/STATUS device-agent command types are only reachable through a genuine Ed25519-signed, verified envelope, and a revoked device or a forged signature is rejected before any mobile-message run state is ever touched",
-      "notes": "Real Ed25519 keys throughout (crypto.generateKeyPairSync), the exact DeviceAgentTransportEndpoint.handle() dispatch path a real HTTP request hits — not a stub of the transport layer. Proves the wire-level integration on top of the service-level logic already certified in r23_6m_phase_c_sms_execution."
+      "notes": "Real Ed25519 keys throughout (crypto.generateKeyPairSync), the exact DeviceAgentTransportEndpoint.handle() dispatch path a real HTTP request hits ??not a stub of the transport layer. Proves the wire-level integration on top of the service-level logic already certified in r23_6m_phase_c_sms_execution."
     },
     "r23_6m_phase_c_message_routes": {
       "milestone": "R23.6M",
@@ -3787,8 +3787,8 @@
       "realBrowser": false,
       "sourceImplementationAssertions": false,
       "deterministic": true,
-      "assertionIntent": "every /api/v1/mobile/messages endpoint requires a real validated session (never the spoofable x-nagex-tenant/x-principal-id headers), and deviceId/recipientRef ownership is independently re-checked at the route layer — cross-tenant, cross-owner, cross-device, and revoked-device attempts are all rejected before any draft is created",
-      "notes": "Route-level complement to r23_6m_phase_c_sms_execution (service logic) and r23_6m_phase_c_device_transport (signed transport) — calls handleMobileMessageRoutes directly, the same dispatch function server_web.ts wires to the real HTTP path."
+      "assertionIntent": "every /api/v1/mobile/messages endpoint requires a real validated session (never the spoofable x-nagex-tenant/x-principal-id headers), and deviceId/recipientRef ownership is independently re-checked at the route layer ??cross-tenant, cross-owner, cross-device, and revoked-device attempts are all rejected before any draft is created",
+      "notes": "Route-level complement to r23_6m_phase_c_sms_execution (service logic) and r23_6m_phase_c_device_transport (signed transport) ??calls handleMobileMessageRoutes directly, the same dispatch function server_web.ts wires to the real HTTP path."
     },
     "r23_6m_phase_d1_global_messaging": {
       "milestone": "R23.6M-D1",
@@ -3933,8 +3933,8 @@
       "sourceImplementationAssertions": false,
       "deterministic": true,
       "writesRepositoryArtifacts": false,
-      "assertionIntent": "GET /api/v1/creations and GET /api/v1/creations/:id merge ImageStore-backed real image creations into the same response shape CreationStore records already use — tenant/owner isolated, session-precedence preserved, deterministic newest-first ordering across mixed store types, no duplicate representation, variation lineage intact — and the existing #create-history-list renderer accepts the real (unmocked) canonical image URL as an actual <img>",
-      "notes": "Closes the sole remaining R23.7C-C closure-audit blocker: a real IMAGE creation is never written to CreationStore (it lives only in ImageStore, thinly projected into ArtifactStore for Personal Home), so GET /api/v1/creations — reading CreationStore exclusively — could never show it in the Studio's own history panel, even though that same panel just generated it. Adds imageRecordToCreationListItem() in creation.routes.ts, merging ImageStore's real record (never ArtifactStore's lossy preview, which embeds the provider id) into both the list route and the generic single-GET route (used by the history card's Open action) at the HTTP-response boundary only — no new store, no dual-write. Test I runs a minimal static+creation-routes-only server bound to a deterministic fake provider (never the real OpenAIImageAdapter createServerInstance() would wire), so this file can never reach a real provider regardless of environment."
+      "assertionIntent": "GET /api/v1/creations and GET /api/v1/creations/:id merge ImageStore-backed real image creations into the same response shape CreationStore records already use ??tenant/owner isolated, session-precedence preserved, deterministic newest-first ordering across mixed store types, no duplicate representation, variation lineage intact ??and the existing #create-history-list renderer accepts the real (unmocked) canonical image URL as an actual <img>",
+      "notes": "Closes the sole remaining R23.7C-C closure-audit blocker: a real IMAGE creation is never written to CreationStore (it lives only in ImageStore, thinly projected into ArtifactStore for Personal Home), so GET /api/v1/creations ??reading CreationStore exclusively ??could never show it in the Studio's own history panel, even though that same panel just generated it. Adds imageRecordToCreationListItem() in creation.routes.ts, merging ImageStore's real record (never ArtifactStore's lossy preview, which embeds the provider id) into both the list route and the generic single-GET route (used by the history card's Open action) at the HTTP-response boundary only ??no new store, no dual-write. Test I runs a minimal static+creation-routes-only server bound to a deterministic fake provider (never the real OpenAIImageAdapter createServerInstance() would wire), so this file can never reach a real provider regardless of environment."
     },
     "r23_7c_c_artifact_delivery_identity": {
       "milestone": "R23.7C-C",
@@ -3963,7 +3963,7 @@
       "sourceImplementationAssertions": true,
       "deterministic": false,
       "assertionIntent": "non-paid, real-browser proof of the two final R23.7C-C closure-audit fixes: a real IMAGE creation appears in the desktop Studio's own #create-history-list with the canonical image URL and a working Open action, and provider/model identity (including a deliberately synthetic marker confined to ImageRecord.providerExecutionMetadata) never renders in Personal Home Recent Creations on desktop or mobile",
-      "notes": "Complements r23_7c_c_canonical_desktop_history and r23_7c_c_provider_neutral_preview (deterministic, local) with real-server, real-session, real-browser evidence. Uses the same two-origin pattern as r23_7c_c_session_artifact_delivery_cert.test.ts (NAGEX_DEPLOYED_URL public browser origin, optional NAGEX_CERT_CONTROL_URL loopback for signup/verify-email only). Writes a deterministic PNG fixture directly through production ImageStore/ArtifactStore under the real browser-authenticated session's identity (no debug/public fixture route, no hand-edited JSON, no provider call). Never touches historical img_93b85a5d7a103e7bdaaeff97/art_d563e825e91dbfbb1b52f8f2 evidence. Must run on the same host as the deployed nagex.service. Never runs as part of regression, browser-cert, or any implicit gate — requires NAGEX_DEPLOYED_URL.",
+      "notes": "Complements r23_7c_c_canonical_desktop_history and r23_7c_c_provider_neutral_preview (deterministic, local) with real-server, real-session, real-browser evidence. Uses the same two-origin pattern as r23_7c_c_session_artifact_delivery_cert.test.ts (NAGEX_DEPLOYED_URL public browser origin, optional NAGEX_CERT_CONTROL_URL loopback for signup/verify-email only). Writes a deterministic PNG fixture directly through production ImageStore/ArtifactStore under the real browser-authenticated session's identity (no debug/public fixture route, no hand-edited JSON, no provider call). Never touches historical img_93b85a5d7a103e7bdaaeff97/art_d563e825e91dbfbb1b52f8f2 evidence. Must run on the same host as the deployed nagex.service. Never runs as part of regression, browser-cert, or any implicit gate ??requires NAGEX_DEPLOYED_URL.",
       "writesRepositoryArtifacts": true,
       "requiresEnv": [
         "NAGEX_DEPLOYED_URL"
@@ -3983,8 +3983,8 @@
       "realBrowser": true,
       "sourceImplementationAssertions": true,
       "deterministic": false,
-      "assertionIntent": "non-paid, real-browser certification that a real signup->verify-email->login (R13) session cookie, issued by the browser's own login request against the public deployed origin, authenticates a native same-origin <img> request against the canonical image-serving route with zero custom identity headers, that a valid session overrides spoofed X-NAgex-Tenant/X-Principal-Id headers, and that no session is denied (404) — never calling an image-generation provider",
-      "notes": "Complements r23_7c_c_artifact_delivery_identity (deterministic, local, mocked identity) with a real-server, real-session proof. Two explicit origins: NAGEX_DEPLOYED_URL (public, e.g. https://nagex-test.agex.site) is what Chromium always navigates to and logs into — the real nagex_session cookie is issued naturally by that origin's own Set-Cookie response, never forged, never copied via context.addCookies(); NAGEX_CERT_CONTROL_URL (optional, defaults to NAGEX_DEPLOYED_URL) is a server-side loopback used ONLY for signup/verify-email on hosts where outbound Node fetch() to the public Cloudflare-fronted origin is unreliable — a control-plane cookie is never treated as browser certification evidence. Writes a deterministic local PNG fixture directly through production ImageStore under the browser-authenticated session's real tenantId/principalId (no debug/public fixture route, no hand-edited JSON), then drives real Chromium to load it as a plain <img src>. GENERATION_POST_COUNT must be 0 throughout. Never touches the historical img_93b85a5d7a103e7bdaaeff97/art_d563e825e91dbfbb1b52f8f2 evidence. Must run on the same host as the deployed nagex.service so the ImageStore fixture write lands in the directories the live server actually reads. Never runs as part of regression, browser-cert, or any implicit gate — requires NAGEX_DEPLOYED_URL.",
+      "assertionIntent": "non-paid, real-browser certification that a real signup->verify-email->login (R13) session cookie, issued by the browser's own login request against the public deployed origin, authenticates a native same-origin <img> request against the canonical image-serving route with zero custom identity headers, that a valid session overrides spoofed X-NAgex-Tenant/X-Principal-Id headers, and that no session is denied (404) ??never calling an image-generation provider",
+      "notes": "Complements r23_7c_c_artifact_delivery_identity (deterministic, local, mocked identity) with a real-server, real-session proof. Two explicit origins: NAGEX_DEPLOYED_URL (public, e.g. https://nagex-test.agex.site) is what Chromium always navigates to and logs into ??the real nagex_session cookie is issued naturally by that origin's own Set-Cookie response, never forged, never copied via context.addCookies(); NAGEX_CERT_CONTROL_URL (optional, defaults to NAGEX_DEPLOYED_URL) is a server-side loopback used ONLY for signup/verify-email on hosts where outbound Node fetch() to the public Cloudflare-fronted origin is unreliable ??a control-plane cookie is never treated as browser certification evidence. Writes a deterministic local PNG fixture directly through production ImageStore under the browser-authenticated session's real tenantId/principalId (no debug/public fixture route, no hand-edited JSON), then drives real Chromium to load it as a plain <img src>. GENERATION_POST_COUNT must be 0 throughout. Never touches the historical img_93b85a5d7a103e7bdaaeff97/art_d563e825e91dbfbb1b52f8f2 evidence. Must run on the same host as the deployed nagex.service so the ImageStore fixture write lands in the directories the live server actually reads. Never runs as part of regression, browser-cert, or any implicit gate ??requires NAGEX_DEPLOYED_URL.",
       "writesRepositoryArtifacts": true,
       "requiresEnv": [
         "NAGEX_DEPLOYED_URL"
@@ -4001,7 +4001,7 @@
       "deterministic": true,
       "writesRepositoryArtifacts": false,
       "assertionIntent": "public/app.js's shared isRenderableImageSource() predicate: a canonical relative image URL and existing data:/http(s) sources render as a real <img> element on both the immediate result surface and the history surface, while a malformed/arbitrary relative source (javascript:, file:, unknown path shape, markup-injection attempt) is never trusted as an image source and never leaked into the DOM as raw text or markup",
-      "notes": "Fixes the UI-side gap left after R23.7C-C's canonical image-serving route (r23_7c_c_canonical_image_serving): renderCreationOutput() and loadCreationHistory() previously only wrapped assetUrl in an <img> when it started with 'data:' or 'http', so the real canonical relative imageUrl fell through to being inserted as raw text. Runs a real local headless Chromium session against this repo's own server with deterministic route mocks (no external network, no paid provider) — canonical=true, deterministic=true, writesRepositoryArtifacts=false, so it is selected by the local browser-cert gate, never the deployed/live gates."
+      "notes": "Fixes the UI-side gap left after R23.7C-C's canonical image-serving route (r23_7c_c_canonical_image_serving): renderCreationOutput() and loadCreationHistory() previously only wrapped assetUrl in an <img> when it started with 'data:' or 'http', so the real canonical relative imageUrl fell through to being inserted as raw text. Runs a real local headless Chromium session against this repo's own server with deterministic route mocks (no external network, no paid provider) ??canonical=true, deterministic=true, writesRepositoryArtifacts=false, so it is selected by the local browser-cert gate, never the deployed/live gates."
     },
     "r23_7c_c_deployed_real_browser_cert": {
       "milestone": "R23.7C-C",
@@ -4018,7 +4018,7 @@
       "sourceImplementationAssertions": true,
       "deterministic": false,
       "assertionIntent": "final real-browser certification of the canonical image-serving contract through the actual deployed Personal Home/Create UI (Desktop EN real generation, Mobile KR view-only), never inferring success from UI text alone",
-      "notes": "Drives Playwright Chromium against a deployed NAgex instance to certify that a real, once-only paid image generation is discoverable from Personal Home, genuinely GET-fetchable at its canonical URL, and actually renders as an <img> element (not just present in the generation response). Mobile KR reuses the same artifact and must never trigger a second generation; it records HISTORY_VISIBILITY=NOT_AVAILABLE truthfully if no mobile surface exposes it rather than fabricating visibility. Never runs as part of regression, browser-cert, or any implicit gate — requires NAGEX_DEPLOYED_URL and npm run test:deployed-cert.",
+      "notes": "Drives Playwright Chromium against a deployed NAgex instance to certify that a real, once-only paid image generation is discoverable from Personal Home, genuinely GET-fetchable at its canonical URL, and actually renders as an <img> element (not just present in the generation response). Mobile KR reuses the same artifact and must never trigger a second generation; it records HISTORY_VISIBILITY=NOT_AVAILABLE truthfully if no mobile surface exposes it rather than fabricating visibility. Never runs as part of regression, browser-cert, or any implicit gate ??requires NAGEX_DEPLOYED_URL and npm run test:deployed-cert.",
       "writesRepositoryArtifacts": true,
       "requiresEnv": [
         "NAGEX_DEPLOYED_URL"
@@ -4035,6 +4035,21 @@
       "deterministic": true,
       "assertionIntent": "openai image adapter request contract and response normalization",
       "notes": "Validates OpenAI image adapter against supported contract, omitting response_format and fetching url correctly."
+    },
+    "r23_7h_c_phase_b_artifact_ux_contract": {
+      "milestone": "R23.7H-C",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "ux",
+        "artifacts"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "observable behavior",
+      "notes": "Tests Phase B artifact UX contract implementation"
     }
   }
 }
