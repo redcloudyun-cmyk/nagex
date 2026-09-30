@@ -3910,6 +3910,32 @@
       "assertionIntent": "canonical image-serving HTTP contract: POST-returned imageUrl must be genuinely GET-fetchable with byte-identical content, correct MIME, and tenant/owner-isolated",
       "notes": "Fixes the BROKEN_SUCCESS_CONTRACT root cause: no GET route ever existed for /api/v1/creations/images/:imageId, so the generic /api/v1/creations/:id handler absorbed it and 404'd against the wrong store. Certifies the new dedicated route (checked before the generic handler), reusing the same ImageStore instance and its existing tenant/owner authorization, with an explicit BinaryApiResult response variant (never base64-wrapped JSON, never a filesystem path or provider URL)."
     },
+    "r23_7c_c_provider_neutral_preview": {
+      "milestone": "R23.7C-C",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": ["creation-runtime", "images", "personal-home", "security", "browser"],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "writesRepositoryArtifacts": false,
+      "assertionIntent": "a completed image artifact's ArtifactStore.preview never contains provider/model identity; ImageRecord.providerExecutionMetadata still carries it for technical/audit surfaces; Personal Home Recent Creations (desktop and mobile, real render) never surfaces provider identity; existing image creation/history behavior is unchanged; the new preview text is not a raw i18n key",
+      "notes": "Fixes a confirmed TECHNICAL_UI_LEAK found while closing the desktop-history blocker: ImageExecutor's ArtifactStore.saveCompleted() previously set preview to `Image generated via ${providerId} (...)`, which flows unmodified through PersonalHomeService (summary: artifact.preview) into personal-home-view.js's rendered Recent Creations card on both desktop and mobile, in both locales, after any successful image generation. Fix changed the source to a plain, provider-neutral, locale-neutral `Image (${aspectRatio})`, matching the existing preview convention for other artifact types (e.g. \"Grounded research result\"). Provider/model identity remains fully available in ImageRecord.providerExecutionMetadata, never touched."
+    },
+    "r23_7c_c_canonical_desktop_history": {
+      "milestone": "R23.7C-C",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": ["creation-runtime", "images", "http-routing", "security", "personal-home", "browser"],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "writesRepositoryArtifacts": false,
+      "assertionIntent": "GET /api/v1/creations and GET /api/v1/creations/:id merge ImageStore-backed real image creations into the same response shape CreationStore records already use — tenant/owner isolated, session-precedence preserved, deterministic newest-first ordering across mixed store types, no duplicate representation, variation lineage intact — and the existing #create-history-list renderer accepts the real (unmocked) canonical image URL as an actual <img>",
+      "notes": "Closes the sole remaining R23.7C-C closure-audit blocker: a real IMAGE creation is never written to CreationStore (it lives only in ImageStore, thinly projected into ArtifactStore for Personal Home), so GET /api/v1/creations — reading CreationStore exclusively — could never show it in the Studio's own history panel, even though that same panel just generated it. Adds imageRecordToCreationListItem() in creation.routes.ts, merging ImageStore's real record (never ArtifactStore's lossy preview, which embeds the provider id) into both the list route and the generic single-GET route (used by the history card's Open action) at the HTTP-response boundary only — no new store, no dual-write. Test I runs a minimal static+creation-routes-only server bound to a deterministic fake provider (never the real OpenAIImageAdapter createServerInstance() would wire), so this file can never reach a real provider regardless of environment."
+    },
     "r23_7c_c_artifact_delivery_identity": {
       "milestone": "R23.7C-C",
       "classification": "CANONICAL_BEHAVIOR",

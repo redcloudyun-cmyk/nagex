@@ -8,7 +8,7 @@ import type { ImageExecutor } from '../../creation/executors/image-executor.js';
 // instance ImageExecutor writes through (see create-nagex-application.ts)
 // and its existing tenant/owner authorization (ImageStore.get()) — no new
 // or duplicated authorization logic.
-import type { ImageStore } from '../../creation/image.store.js';
+import type { ImageStore, ImageRecord } from '../../creation/image.store.js';
 // R23.7C-C — shared identity resolver: a real nagex_session cookie (when
 // present and valid) takes precedence over X-NAgex-Tenant/X-Principal-Id
 // headers for the two routes that must agree on identity (generate and
@@ -21,6 +21,40 @@ import type { SessionStore } from '../../sessions/session.store.js';
 function getHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
   const value = headers[name] ?? headers[name.toLowerCase()];
   return Array.isArray(value) ? value[0] : value;
+}
+
+// R23.7C-C — canonical desktop creation-history fix. A real IMAGE creation
+// (type==='IMAGE' in the generate handler above) is never written to
+// CreationStore — it lives only in ImageStore (domain-owning record) and
+// is thinly projected into ArtifactStore for cross-domain surfaces like
+// Personal Home's Recent Creations. GET /api/v1/creations previously read
+// CreationStore exclusively, so a completed image could never appear in
+// the Studio's own #create-history-list — this is the exact
+// historyVisibilityDesktop=FAIL root cause. This projects the real
+// ImageRecord (not ArtifactStore's lossy preview, which embeds the
+// provider id and would leak it into consumer UI) into the same response
+// shape the frontend already expects from a CreationRecord. No new store,
+// no dual-write: ImageStore remains the single source of truth for image
+// domain data, merged at the HTTP-response boundary only.
+function imageRecordToCreationListItem(img: ImageRecord): Record<string, unknown> {
+  const canonicalUrl = `/api/v1/creations/images/${img.imageId}`;
+  return {
+    creationId: img.imageId,
+    tenantId: img.tenantId,
+    ownerId: img.ownerId,
+    type: 'IMAGE',
+    status: 'COMPLETED',
+    prompt: img.prompt,
+    recipe: { stylePreset: img.style, aspectRatio: img.aspectRatio },
+    imageUrl: canonicalUrl,
+    outputAssetUrl: canonicalUrl,
+    thumbnailUrl: canonicalUrl,
+    mimeType: img.mimeType,
+    parentCreationId: img.parentImageId,
+    artifactId: img.artifactId,
+    createdAt: img.createdAt,
+    updatedAt: img.updatedAt,
+  };
 }
 
 export interface CreationRouteDeps {
@@ -170,7 +204,17 @@ export const handleCreationRoutes: AsyncRouteRegistrar<CreationRouteDeps> = asyn
     const { tenantId, principalId } = resolveRequestIdentity(headers, { sessionStore });
     const limit = Number(query.limit) || 50;
 
-    const creations = creationService.listCreations(tenantId, principalId, limit);
+    // Merge the two domain-owned stores at the response boundary: legacy/
+    // text creations from CreationStore, real images from ImageStore.
+    // Their id namespaces (cr_ / img_) never overlap, so no duplicate
+    // representation of the same creation can occur — both are already
+    // tenant+owner filtered by their own store, and the merge only
+    // re-sorts and truncates to `limit`, it does not re-check authorization.
+    const textCreations = creationService.listCreations(tenantId, principalId, limit);
+    const imageCreations = imageStore ? imageStore.list(tenantId, principalId, limit).map(imageRecordToCreationListItem) : [];
+    const creations = [...textCreations, ...imageCreations]
+      .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, limit);
     return { status: 200, data: { creations } };
   }
 
@@ -223,11 +267,24 @@ export const handleCreationRoutes: AsyncRouteRegistrar<CreationRouteDeps> = asyn
     const { tenantId, principalId } = resolveRequestIdentity(headers, { sessionStore });
 
     const creation = creationService.getCreation(creationId, tenantId, principalId);
-    if (!creation) {
-      return { status: 404, data: { error: 'CREATION_NOT_FOUND', message: `Creation ${creationId} not found.` } };
+    if (creation) {
+      const lineage = creationService.getLineage(creation.parentCreationId || creation.creationId, tenantId, principalId);
+      return { status: 200, data: { creation, lineage } };
     }
-    const lineage = creationService.getLineage(creation.parentCreationId || creation.creationId, tenantId, principalId);
-    return { status: 200, data: { creation, lineage } };
+
+    // Not a CreationStore record — check whether it is a real image
+    // (clicking a history card built from imageRecordToCreationListItem
+    // above calls this same generic GET with an img_ id). Reuses
+    // ImageStore.get()'s existing tenant+owner authorization unchanged.
+    if (imageStore) {
+      const imageRecord = imageStore.get(creationId, tenantId, principalId);
+      if (imageRecord) {
+        const lineage = imageStore.getLineage(imageRecord.parentImageId || imageRecord.imageId, tenantId, principalId).map(imageRecordToCreationListItem);
+        return { status: 200, data: { creation: imageRecordToCreationListItem(imageRecord), lineage } };
+      }
+    }
+
+    return { status: 404, data: { error: 'CREATION_NOT_FOUND', message: `Creation ${creationId} not found.` } };
   }
 
   return undefined;

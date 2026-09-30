@@ -207,7 +207,15 @@ export class ImageExecutor implements CreationExecutor<CreationRequest, Creation
           ownerId,
           type: 'IMAGE',
           title,
-          preview: `Image generated via ${selectedProvider.providerId} (${spec.aspectRatio || '1:1'})`,
+          // R23.7C-C — provider-neutral by design: this preview reaches
+          // ordinary consumer UI (Personal Home Recent Creations via
+          // PersonalHomeService -> HomeItem.summary), never technical/
+          // audit surfaces — provider/model identity belongs only in
+          // providerExecutionMetadata (already preserved above), never
+          // here. Plain, locale-neutral factual text, matching the
+          // existing convention for other artifact types' previews
+          // (e.g. "Grounded research result").
+          preview: `Image (${spec.aspectRatio || '1:1'})`,
           sourceType: 'CAPTURE',
           sourceId: imageId,
           openTarget: `/api/v1/creations/images/${imageId}`,
