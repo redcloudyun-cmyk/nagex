@@ -1,4 +1,4 @@
-// NAgex Desktop Home (R22.8) ??Consolidated Personal AI Surface
+// NAgex Desktop Home (R22.8) — Consolidated Personal AI Surface
 (function () {
   'use strict';
 
@@ -14,7 +14,7 @@
     return `<div class="nagex-empty-state" style="padding:0.75rem; font-size:0.82rem; color:var(--color-text-secondary,#94a3b8);">${escapeHtml(text)}</div>`;
   }
 
-  // ?? Hero greeting ??real local time-of-day, never a fabricated name ??
+  // ── Hero greeting — real local time-of-day, never a fabricated name ──
   function renderGreeting() {
     const el = document.getElementById('desktop-hero-greeting');
     const headerSub = document.getElementById('header-greeting-sub');
@@ -45,10 +45,10 @@
     }
   }
 
-  // R23.2H ??finds the grounded "related material" note for the primary
+  // R23.2H — finds the grounded "related material" note for the primary
   // item, purely by matching sourceRef ids RightNowIntelligenceService
   // already tied together (a MEETING_PREP-style suggestion). No relevance
-  // judgment happens here ??UI_AGGREGATION_LOGIC=0, UI_FABRICATED_REASON=0.
+  // judgment happens here — UI_AGGREGATION_LOGIC=0, UI_FABRICATED_REASON=0.
   function findRelatedNote(rightNow, intel) {
     if (!rightNow || !intel || !Array.isArray(intel.suggestions)) return '';
     const suggestion = intel.suggestions.find(
@@ -58,7 +58,7 @@
   }
 
   // "Next": the remaining ranked candidates RightNowIntelligenceService
-  // already computed (intel.upcoming), rendered as-is ??no re-ranking, no
+  // already computed (intel.upcoming), rendered as-is — no re-ranking, no
   // re-fetch of Calendar/Task/Reminder data here.
   function renderNextList(upcoming) {
     const items = (Array.isArray(upcoming) ? upcoming : []).slice(0, 3);
@@ -76,11 +76,11 @@
     `;
   }
 
-  // R23.3 ??"Suggested for you": the canonical ProactiveSuggestion list
-  // (intel.suggestions), rendered as-is ??no priority/relevance logic here
+  // R23.3 — "Suggested for you": the canonical ProactiveSuggestion list
+  // (intel.suggestions), rendered as-is — no priority/relevance logic here
   // (UI_PRIORITY_LOGIC=0, UI_RELEVANCE_LOGIC=0). Internal fields
   // (priorityClass, sourceRef, kind) are deliberately never shown to the
-  // user ??only title/reason/CTA, per R23.3 짠18.
+  // user — only title/reason/CTA, per R23.3 §18.
   function renderSuggestionsList(suggestions, primarySourceId) {
     const items = (Array.isArray(suggestions) ? suggestions : []).filter((s) => !(s.sourceRefs && s.sourceRefs.some((r) => r.id === primarySourceId))).slice(0, 3);
     if (items.length === 0) return '';
@@ -105,7 +105,7 @@
     if (!section) return;
 
     if (!rightNow) {
-      // Truthful empty state ??the section disappears entirely rather than
+      // Truthful empty state — the section disappears entirely rather than
       // showing an invented meeting/task/suggestion.
       section.hidden = true;
       section.innerHTML = '';
@@ -118,7 +118,7 @@
     section.innerHTML = `
       <div class="nagex-section-heading" style="margin-bottom:0.5rem;">
         <div class="heading-title-group">
-          <span class="card-icon-tile red-tile">??/span>
+          <span class="card-icon-tile red-tile">⚡</span>
           <h2 data-i18n="home.rightNowHeader">${escapeHtml(t('home.rightNowHeader', 'Right now'))}</h2>
         </div>
       </div>
@@ -152,7 +152,7 @@
         const calText = sourceStatus?.calendar === 'UNAVAILABLE'
           ? t('home.calendarUnavailable', 'Calendar unavailable')
           : `${counts.meetings} ${t('home.meetings', 'meetings')}`;
-        summaryBar.textContent = `${calText} 쨌 ${counts.emails} ${t('home.emails', 'emails')} 쨌 ${counts.tasks} ${t('home.tasks', 'tasks')} 쨌 ${counts.approvals} ${t('home.approvalsWaiting', 'approvals waiting')}`;
+        summaryBar.textContent = `${calText} · ${counts.emails} ${t('home.emails', 'emails')} · ${counts.tasks} ${t('home.tasks', 'tasks')} · ${counts.approvals} ${t('home.approvalsWaiting', 'approvals waiting')}`;
       }
     }
 
@@ -267,9 +267,9 @@
 
     if (!window.NAGEX || typeof window.NAGEX.apiFetch !== 'function') return;
 
-    // R23.3 v1.1 ??a single GET /api/v1/personal/home fetch now carries
+    // R23.3 v1.1 — a single GET /api/v1/personal/home fetch now carries
     // rightNow/upcoming/suggestions together (all computed from the same
-    // one buildCurrentContext() call server-side) ??no separate
+    // one buildCurrentContext() call server-side) — no separate
     // GET /api/v1/personal/right-now fetch here anymore
     // (CONTEXT_BUILD_COUNT_PER_COMPOSITE_HOME_REQUEST=1).
     if (!window.NAGEX_PERSONAL_HOME) return;
