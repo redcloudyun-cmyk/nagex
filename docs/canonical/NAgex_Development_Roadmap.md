@@ -2,6 +2,7 @@
 
 **Status:** ACTIVE ROADMAP DRAFT
 **Reconstructed:** 2026-09-29
+**Updated:** 2026-09-30 — R23.7H-C opened per canonical decision
 **Current local baseline supplied after document snapshot:** `0181e40 feat(r23.7c-p): establish creation provider architecture`
 
 ## 1. Roadmap Rule
@@ -75,16 +76,163 @@ Historical source documents initially marked R23.7H-B as not started, but later 
 Current reconstructed status:
 
 ```text
-R23.7H-A   Product / IA Audit                         CLOSED
-R23.7H-B1  Personal Dashboard contract/shell          CLOSED
+R23.7H-A    Product / IA Audit                         CLOSED
+R23.7H-B1   Personal Dashboard contract/shell          CLOSED
 R23.7H-B1.5 Creation Capability Reality Audit         CLOSED
-R23.7H-B2  Agentic Creation Home Integration          CLOSED
-R23.7H     Personal Home milestone                    CLOSED
+R23.7H-B2   Agentic Creation Home Integration          CLOSED
+R23.7H      Personal Home milestone                    CLOSED
+
+R23.7H-C    Home/Create Artifact Integration           OPEN
 ```
 
 R23.7H-B2 truthfulness baseline exposed only capabilities that were actually backed at that point and excluded mock/unbacked creation.
 
-This milestone is now a product foundation, not the next active roadmap item.
+R23.7H-C is the currently active milestone. See §5a for full specification.
+
+## 5a. R23.7H-C — Home/Create Artifact Integration (OPEN)
+
+**Milestone family:** Personal Home / UX
+**Status:** OPEN — 2026-09-30
+
+**Canonical role:** Establishes the shared **Creation Artifact UX Integration Contract**,
+making Personal Home artifact-aware for IMAGE now, and extensible for
+PRESENTATION and VIDEO without implementing either.
+
+### Contract Scope
+
+The Creation Artifact UX Integration Contract covers:
+
+1. Creation entry/discovery — how users reach Create on all platforms
+2. Recent Creation rendering — artifact-aware view model for the Personal Home feed
+3. Preview/thumbnail behavior — type-aware rendering; safe canonical delivery
+4. Artifact-type-aware Open behavior — single dispatcher; type maps to canonical target
+5. Canonical artifact navigation — NAgex-owned artifact URLs only; no provider URLs
+6. Desktop/mobile consistency — shared contract; platform adaptation only where strictly required
+7. Provider-neutral user-facing metadata — no provider/model identity in Creation cards
+8. Future artifact-type extensibility — IMAGE, PRESENTATION, VIDEO via the same contract
+
+### Artifact-Type Dispatch Model
+
+```text
+artifact.type
+  -> preview capability  (image: native render | presentation: thumbnail | video: poster)
+  -> renderer            (type-specific, registered; unknown type: safe fallback)
+  -> open behavior       (type-specific, registered; unknown type: fail safely)
+  -> canonical target    (NAgex artifact URL — never a provider URL)
+```
+
+The dispatcher is a single shared system. No separate desktop/mobile dispatch
+unless presentation-layer adaptation strictly requires it — semantics remain
+one contract.
+
+### Mobile Create Entry Design Decision
+
+Mobile must expose the **existing Create surface responsively** (Option A).
+
+Rationale: R23.7H-B2 already established a responsive Personal Home shell;
+there is no separate mobile creation product in the architecture; the
+creation contract (CreationRuntime, specs, router) is platform-neutral.
+A mobile-native Create surface backed by the same contract remains a valid
+future enhancement but must not be implemented as a separate flow in R23.7H-C.
+
+Requirements for mobile Create entry:
+- Normal user-facing language (no Planner/Router/Execution/Capability terminology)
+- Reuses existing Create mental model
+- Responsive Personal AI experience — no separate mobile creation product
+
+### IMAGE Gaps Closed by This Milestone
+
+Three gaps previously tracked as FOLLOW_UP_UX after R23.7C-C closure are
+now formally owned by R23.7H-C. They must be resolved through the shared
+contract, not as isolated image-specific patches:
+
+```text
+GAP-A  Mobile Create entry                         NOT_AVAILABLE -> must become available
+GAP-B  Mobile Recent Creations IMAGE thumbnail     NOT_AVAILABLE -> render safe canonical thumbnail
+GAP-C  Mobile IMAGE Open                           routes to Inbox -> resolve to canonical artifact
+```
+
+### IMAGE Invariants (Preserve from R23.7C-C)
+
+- Canonical NAgex artifact URL (never provider URL)
+- Native image rendering; authorized delivery
+- Provider-neutral preview; no provider/model metadata in user-facing Creation cards
+- Existing session/tenant isolation
+- Existing canonical desktop Studio history behavior
+
+Do NOT redesign or regress the closed R23.7C-C runtime.
+
+### PRESENTATION Extension Points (define only; do not implement)
+
+R23.7H-C must define the registration surface for PRESENTATION:
+- artifact type registration
+- canonical artifact target
+- preview/thumbnail capability
+- Open behavior registration
+
+### VIDEO Extension Points (define only; do not implement)
+
+R23.7H-C must define the registration surface for VIDEO:
+- artifact type registration
+- canonical artifact target
+- poster/preview capability
+- Open/player behavior registration
+
+### Auth / Trust
+
+Reuse existing: resolveRequestIdentity(), session precedence,
+tenant/user/workspace authorization, canonical artifact delivery.
+No new authentication model. No identity-header expansion. No approval bypass.
+
+### Invariants
+
+```text
+FAKE_SUCCESS_PATHS = 0
+STALE_STATE_LEAK   = 0
+RAW_I18N_KEY_LEAK  = 0
+TECHNICAL_UI_LEAK  = 0
+CROSS_SESSION_LEAK = 0
+RESET_SCOPE_LEAK   = 0
+```
+
+Provider/model/runtime identity must not appear in ordinary user-facing Creation cards.
+
+### Exit Criteria
+
+```text
+MOBILE_CREATE_ENTRY       mobile Create entry exists and works
+MOBILE_IMAGE_THUMBNAIL    IMAGE Recent Creation thumbnail renders on mobile
+MOBILE_IMAGE_OPEN         IMAGE Open resolves to canonical artifact target on mobile
+DESKTOP_REGRESSION        desktop behavior remains correct and uncorrupted
+SHARED_DISPATCHER         artifact-type dispatcher / contract exists as shared system
+IMAGE_ON_CONTRACT         IMAGE uses the shared contract
+UNKNOWN_TYPE_SAFE         unknown/future artifact type fails safely, no crash
+CANONICAL_URLS            NAgex artifact URLs remain canonical; no provider URL leaks
+NO_PROVIDER_LEAK          no provider technical metadata in user-facing Creation cards
+I18N_EN_KR                EN and KR both supported
+MOBILE_VIEWPORT_CERT      360 / 390 / 430px mobile viewport certification
+DESKTOP_CERT              desktop certification
+ACCESSIBILITY             accessibility checks pass
+HORIZONTAL_OVERFLOW       horizontal overflow = 0
+C_C_REGRESSION            existing R23.7C-C test suite passes without regression
+NO_PAID_GENERATION        certification does not require paid generation unless
+                          an explicit runtime regression demands it
+```
+
+### Out of Scope
+
+```text
+- Presentation generation
+- Video generation
+- New image providers
+- Personal Home redesign
+- Desktop Studio history redesign
+- DEBT-0008 / DEBT-0009 / DEBT-0010 cleanup
+- R21 stale-test maintenance
+- Unrelated account/auth work
+```
+
+---
 
 ## 6. R23.7C Creation Runtime
 
@@ -107,44 +255,50 @@ R23.7C-C   Real Image Creation Runtime                CLOSED
              R23_7C_C_Real_Image_Creation_Runtime_Closure_Report_20260930.md
 
 R23.7C-D   Presentation / Slides Runtime              PLANNED
+           Technical dependency on R23.7H-C: NONE
+           Execution gate: R23.7H-C must be CLOSED before R23.7C-D may START
+           Reason: the shared Creation Artifact UX Integration Contract must
+           be established before Presentation becomes the second artifact type
+           requiring Home/Create integration. Starting in parallel would create
+           an ad-hoc Presentation UI/history/navigation path, which is prohibited.
+
 R23.7C-E   Video Runtime                              PLANNED
 ```
 
 R23.7C-P is independent of C-C and establishes the provider/spec abstraction for IMAGE/PRESENTATION/VIDEO.
 
-R23.7C-C is closed per the exit criteria in §8 below, on the evidence chain
-recorded in the closure report referenced above. Two explicitly scoped
-follow-up items (mobile Create entry, mobile image thumbnail/open
-behavior) remain open — see §7 item 2 and the closure report — and are
-tracked as FOLLOW_UP_UX, not as C-C closure blockers.
+R23.7C-C is closed per the exit criteria in §8. The three FOLLOW_UP_UX items
+previously associated with C-C closure (mobile Create entry, mobile image
+thumbnail, mobile IMAGE Open routing) are now formally owned by R23.7H-C
+(see §5a). They are not C-C closure blockers and are not floating open items.
 
 ## 7. Immediate Product Development Sequence
 
-The current implementation sequence should be:
+The current implementation sequence:
 
 ```text
-1. Stabilize / complete R23.7C-C Real Image Runtime           CLOSED
-2. Integrate truthful image creation/history into the Personal Home/Create experience   PARTIAL
-3. R23.7C-D Presentation Runtime
-4. R23.7C-E Video Runtime
+1. R23.7C-C Real Image Runtime                                          CLOSED
+2. R23.7H-C Home/Create Artifact Integration                            OPEN  <- ACTIVE
+3. R23.7C-D Presentation Runtime                                        PLANNED
+   (technically parallel-capable, but execution-gated behind R23.7H-C)
+4. R23.7C-E Video Runtime                                               PLANNED
 5. Reconcile R23.7G Background Runtime Certification against current code
 6. R23.8P Personality / Trust UX
 7. R23.9C Final Certification
 ```
 
-Item 1 is closed — see §6/§8 and the R23.7C-C closure report.
+**R23.7C-D execution gate — resolved ambiguity:**
+R23.7C-D has no hard technical dependency on R23.7H-C. However, project
+execution sequence requires that R23.7H-C is CLOSED before R23.7C-D may
+START. The reason: the shared Creation Artifact UX Integration Contract
+must exist before Presentation becomes the second artifact type requiring
+Home/Create integration. Starting R23.7C-D in parallel would cause
+Presentation to receive an isolated UI/history/navigation path, which
+multiplies artifact-type-specific implementations and is explicitly prohibited.
 
-Item 2 is partially satisfied by R23.7C-C's closure work: desktop Studio
-creation history now truthfully includes real IMAGE creations (canonical
-URL, working Open action) and Personal Home's image preview is
-provider-neutral, on both desktop and mobile. What remains open is mobile
-Create capability itself — no mobile entry point, no image thumbnail
-rendering, and IMAGE "Open" currently routes to Inbox instead of the
-artifact. This repo currently defines no numbered milestone for that
-remaining mobile work; it should not be assumed folded into R23.7C-D
-Presentation without an explicit roadmap decision.
-
-Important: item 5 is a **reconciliation gate**, not an assertion that no background-runtime work has occurred. The current source snapshot still names R23.7G as a pending gate, and no later closure evidence was supplied in the consolidation materials.
+Item 5 is a **reconciliation gate**, not an assertion that no background-runtime
+work has occurred. The current source snapshot still names R23.7G as pending;
+no later closure evidence was supplied in the consolidation materials.
 
 ## 8. R23.7C-C Exit Criteria
 

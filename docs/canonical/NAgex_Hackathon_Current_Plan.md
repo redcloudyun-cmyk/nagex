@@ -2,6 +2,7 @@
 
 **Status:** ACTIVE HACKATHON PLAN DRAFT
 **Reconstructed:** 2026-09-29
+**Updated:** 2026-09-30 — R23.7H-C opened per canonical decision
 
 ## 1. Objective
 
@@ -52,13 +53,14 @@ Do not claim a provider integration from architecture-only code.
 
 ## 4. Current Creation Priority
 
-As of the reconstructed 2026-09-29 state:
+As of the 2026-09-30 state:
 
 - Document/Report runtime: closed.
 - Provider-neutral creation baseline: closed.
-- Real Image runtime: closed (see Development Roadmap §6/§8 and the R23.7C-C closure report under docs/archive/evidence/). Mobile Create integration remains open, tracked separately.
-- Slides: planned.
-- Video: planned.
+- Real Image runtime: closed (see Development Roadmap §6/§8 and the R23.7C-C closure report under docs/archive/evidence/).
+- Home/Create Artifact Integration (R23.7H-C): **OPEN — ACTIVE**. Establishes the shared Creation Artifact UX Integration Contract. Closes the three mobile IMAGE UX gaps (mobile Create entry, mobile thumbnail, mobile IMAGE Open routing). Must close before R23.7C-D may start.
+- Slides (R23.7C-D): planned; technically parallel-capable, but execution-gated behind R23.7H-C closure.
+- Video (R23.7C-E): planned.
 
 For hackathon scope, finish and certify a smaller number of real creation flows before exposing a broad grid of nonfunctional capabilities.
 
