@@ -12,6 +12,19 @@
     return window.NAGEX_I18N && window.NAGEX_I18N.getLocale() === 'ko' ? 'ko' : 'en';
   }
 
+  // Desktop and mobile share one Canvas architecture (state, dispatch,
+  // renderer, loading/error semantics) — only the DOM id prefix differs,
+  // so each shell's own markup (#view-canvas vs #mobile-view-canvas) is
+  // targeted without a second implementation. Falls back to desktop ids
+  // when matchMedia is unavailable (e.g. the Phase B/C mock-DOM tests).
+  function isMobileViewport() {
+    try { return Boolean(window.matchMedia && window.matchMedia('(max-width: 768px)').matches); } catch (e) { return false; }
+  }
+
+  function canvasIdPrefix() {
+    return isMobileViewport() ? 'mh-canvas-' : 'canvas-';
+  }
+
   // --- Shared Artifact UX Contract Helpers ---
   window.NAGEX = window.NAGEX || {};
 
@@ -42,10 +55,11 @@
       loadStatus: 'LOADING'
     };
 
-    const titleEl = document.getElementById('canvas-artifact-title');
-    const typeEl = document.getElementById('canvas-artifact-type');
-    const actionOpenEl = document.getElementById('canvas-action-open');
-    const rendererRegion = document.getElementById('canvas-renderer-region');
+    const prefix = canvasIdPrefix();
+    const titleEl = document.getElementById(prefix + 'artifact-title');
+    const typeEl = document.getElementById(prefix + 'artifact-type');
+    const actionOpenEl = document.getElementById(prefix + 'action-open');
+    const rendererRegion = document.getElementById(prefix + 'renderer-region');
 
     if (titleEl) {
       titleEl.textContent = 'Artifact: ' + artifactId;
@@ -68,33 +82,37 @@
 
       if (upperType === 'IMAGE') {
         const previewUrl = artifactProjection && artifactProjection.previewTarget ? artifactProjection.previewTarget : window.NAGEX._canvasState.openTarget;
+        const loadingId = prefix + 'loading';
+        const errorId = prefix + 'error';
+        const wrapperId = prefix + 'image-wrapper';
+        const imgId = prefix + 'img-element';
 
         rendererRegion.innerHTML = `
-          <div id="canvas-loading" style="display:flex; flex-direction:column; align-items:center; color:#64748b; height:100%; justify-content:center;">
+          <div id="${loadingId}" style="display:flex; flex-direction:column; align-items:center; color:#64748b; height:100%; justify-content:center;">
              <svg class="svg-icon-sm animate-spin" viewBox="0 0 24 24" style="width:32px;height:32px;margin-bottom:16px;"><path fill="currentColor" d="M12 4V2A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8z"/></svg>
              <span>Loading artifact...</span>
           </div>
-          <div id="canvas-error" class="canvas-error-state" style="display:none; height:100%; justify-content:center; align-items:center; flex-direction:column;">
+          <div id="${errorId}" class="canvas-error-state" style="display:none; height:100%; justify-content:center; align-items:center; flex-direction:column;">
              <svg viewBox="0 0 24 24" style="width:48px;height:48px;margin-bottom:16px;"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
              <h3>Image failed to load</h3>
              <p>We couldn't load this artifact. It may have been deleted or you may lack permission.</p>
              <button class="btn-secondary" onclick="window.NAGEX.closeCanvas()" style="margin-top:16px;">Go back</button>
           </div>
-          <div class="canvas-image-container" id="canvas-image-wrapper" style="display:none; height:100%;">
-             <img id="canvas-img-element" class="canvas-image-target" alt="Generated Image" style="max-width:100%; max-height:100%; object-fit:contain; border-radius:4px;" />
+          <div class="canvas-image-container" id="${wrapperId}" style="display:none; height:100%;">
+             <img id="${imgId}" class="canvas-image-target" alt="Generated Image" style="max-width:100%; max-height:100%; object-fit:contain; border-radius:4px;" />
           </div>
         `;
 
-        const img = document.getElementById('canvas-img-element');
+        const img = document.getElementById(imgId);
         if (img) {
             img.onload = function() {
-               document.getElementById('canvas-loading').style.display = 'none';
-               document.getElementById('canvas-image-wrapper').style.display = 'flex';
+               document.getElementById(loadingId).style.display = 'none';
+               document.getElementById(wrapperId).style.display = 'flex';
                window.NAGEX._canvasState.loadStatus = 'READY';
             };
             img.onerror = function() {
-               document.getElementById('canvas-loading').style.display = 'none';
-               document.getElementById('canvas-error').style.display = 'flex';
+               document.getElementById(loadingId).style.display = 'none';
+               document.getElementById(errorId).style.display = 'flex';
                window.NAGEX._canvasState.loadStatus = 'ERROR';
             };
             img.src = previewUrl;
@@ -144,7 +162,7 @@
   };
 
   window.NAGEX.submitCanvasAsk = function() {
-     const input = document.getElementById('canvas-ask-input');
+     const input = document.getElementById(canvasIdPrefix() + 'ask-input');
      if (input && input.value) {
          if (typeof window.alert === 'function') {
              window.alert(locale() === 'ko' ? '기능이 향후 지원될 예정입니다.' : 'Action not yet supported. NAgex mutation will be available soon.');
@@ -167,12 +185,12 @@
         return { handled: true, status: 'UNKNOWN', message: msg };
       }
 
-      const titleEl = document.getElementById('canvas-artifact-title');
+      const titleEl = document.getElementById(canvasIdPrefix() + 'artifact-title');
       if (titleEl && item && item.title) {
          titleEl.textContent = item.title;
       }
 
-      if (!document.getElementById('view-canvas')) {
+      if (!document.getElementById(isMobileViewport() ? 'mobile-view-canvas' : 'view-canvas')) {
           return { handled: true, status: 'CANVAS_NOT_AVAILABLE', artifactId: proj.artifactId, artifactType: proj.artifactType };
       }
       const state = window.NAGEX.openArtifactInCanvas(proj.artifactId, proj.artifactType, proj.canvasTarget, proj.openTarget, proj);
@@ -187,7 +205,7 @@
     }
 
     if (['IMAGE', 'DOCUMENT', 'RESEARCH', 'ANALYSIS'].includes(upperType)) {
-      if (!document.getElementById('view-canvas')) {
+      if (!document.getElementById(isMobileViewport() ? 'mobile-view-canvas' : 'view-canvas')) {
           return { handled: true, status: 'CANVAS_NOT_AVAILABLE', artifactId: sourceRef, artifactType: upperType };
       }
       const state = window.NAGEX.openArtifactInCanvas(sourceRef, upperType, `/canvas?artifactId=${encodeURIComponent(sourceRef)}&type=${encodeURIComponent(upperType)}`);

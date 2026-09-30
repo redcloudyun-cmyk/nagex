@@ -1013,9 +1013,9 @@
         <div id="view-canvas" class="tab-view canvas-workspace">
           <div class="canvas-toolbar">
             <div class="canvas-toolbar-left">
-              <button class="canvas-back-btn" onclick="window.NAGEX.closeCanvas()" aria-label="Go back" data-i18n="canvas.back">
+              <button class="canvas-back-btn" onclick="window.NAGEX.closeCanvas()" aria-label="Go back" data-i18n-aria-label="canvas.back">
                 <svg class="svg-icon-sm" viewBox="0 0 24 24"><path fill="currentColor" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
-                <span class="back-label">Back</span>
+                <span class="back-label" data-i18n="canvas.back">Back</span>
               </button>
               <div class="canvas-context">
                 <span id="canvas-artifact-type" class="badge-status">TYPE</span>
@@ -1036,7 +1036,7 @@
           <div class="canvas-agent-input">
             <div class="canvas-ask-wrapper">
               <input type="text" id="canvas-ask-input" class="canvas-ask-field" placeholder="Ask NAgex to change this..." data-i18n-placeholder="canvas.askPlaceholder" />
-              <button class="btn-primary canvas-ask-submit" onclick="window.NAGEX.submitCanvasAsk()" data-i18n="canvas.askSubmit">
+              <button class="btn-primary canvas-ask-submit" onclick="window.NAGEX.submitCanvasAsk()" aria-label="Send" data-i18n-aria-label="canvas.askSubmit">
                 <svg class="svg-icon-sm" viewBox="0 0 24 24"><path fill="currentColor" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
               </button>
             </div>
@@ -1736,6 +1736,43 @@
       </section>
 
       <div class="mh-bottom-spacer" aria-hidden="true"></div>
+    </div>
+
+    <!-- Mobile Canvas native view (R23.7H-C Phase C correction). Desktop
+         and mobile share ONE Canvas architecture — artifact identity,
+         projection, renderer dispatch, loading/error semantics, canonical
+         URL, authorization and Canvas state all live in
+         personal-home-view.js (openArtifactInCanvas/closeCanvas/
+         submitCanvasAsk/dispatchArtifactOpen); only this markup and its
+         mobile-safe layout differ from #view-canvas. Mutually exclusive
+         with the other native views via [hidden], managed only by
+         mobile-home.js's updateShellVisibility(). No desktop search bar,
+         Quick Wake control or notification bell here — those are
+         desktop-shell-only elements this view never includes. -->
+    <div id="mobile-view-canvas" class="mh-scroll mh-canvas-view" hidden>
+      <header class="mh-header mh-canvas-header">
+        <button class="mh-canvas-back-btn" onclick="window.NAGEX.closeCanvas()" aria-label="Go back" data-i18n-aria-label="canvas.back">
+          <svg class="svg-icon-sm" viewBox="0 0 24 24"><path fill="currentColor" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+        </button>
+        <div class="mh-canvas-context">
+          <span id="mh-canvas-artifact-type" class="badge-status">TYPE</span>
+          <h2 id="mh-canvas-artifact-title">Artifact Title</h2>
+        </div>
+        <a id="mh-canvas-action-open" class="mh-canvas-open-link" style="display:none;" target="_blank" data-i18n="canvas.openTarget">Open original</a>
+      </header>
+
+      <div class="mh-canvas-stage">
+        <div id="mh-canvas-renderer-region" class="canvas-renderer">
+          <!-- Artifact Renderer output -->
+        </div>
+      </div>
+
+      <div class="mh-canvas-agent-input">
+        <input type="text" id="mh-canvas-ask-input" class="mh-canvas-ask-field" placeholder="Ask NAgex to change this..." data-i18n-placeholder="canvas.askPlaceholder" />
+        <button class="mh-canvas-ask-submit" onclick="window.NAGEX.submitCanvasAsk()" aria-label="Send" data-i18n-aria-label="canvas.askSubmit">
+          <svg class="svg-icon-sm" viewBox="0 0 24 24"><path fill="currentColor" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+        </button>
+      </div>
     </div>
 
     <!-- Fixed Bottom Navigation — exactly 5 canonical items (MASTER.md

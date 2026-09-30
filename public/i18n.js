@@ -2267,6 +2267,10 @@
     'meetingPrep.viewEvent': 'View event',
     'meetingPrep.couldNotComplete': "I couldn't finish this task right now.",
     'meetingPrep.genericError': "I couldn't complete that. Please try again.",
+    'canvas.back': 'Back',
+    'canvas.openTarget': 'Open original',
+    'canvas.askPlaceholder': 'Ask NAgex to change this...',
+    'canvas.askSubmit': 'Send',
   });
   Object.assign(translations.ko, {
     'home.workingForYou': '진행 중', 'home.workingTitle': '진행 중',
@@ -2329,6 +2333,10 @@
     'memory.sensitive': '민감한 정보 — 확인 후 저장하세요',
     'memory.whyRemembered': '저장 이유',
     'memory.whereFrom': '출처',
+    'canvas.back': '뒤로',
+    'canvas.openTarget': '원본 열기',
+    'canvas.askPlaceholder': 'NAgex에게 수정을 요청하세요...',
+    'canvas.askSubmit': '보내기',
   });
 
   function detectLocale() {

@@ -12,7 +12,7 @@
     return (window.NAGEX_I18N ? window.NAGEX_I18N.t(key) : null) || fallback || key;
   }
 
-  const MOBILE_NATIVE_TABS = new Set(['tab-home', 'tab-inbox', 'tab-executions', 'tab-vault', 'tab-settings']);
+  const MOBILE_NATIVE_TABS = new Set(['tab-home', 'tab-inbox', 'tab-executions', 'tab-vault', 'tab-settings', 'tab-canvas']);
 
   function isMobileViewport() {
     return Boolean(mq && mq.matches);
@@ -49,11 +49,13 @@
     const viewActivity = document.getElementById('mobile-view-activity');
     const viewVault = document.getElementById('mobile-view-vault');
     const viewSettings = document.getElementById('mobile-view-settings');
+    const viewCanvas = document.getElementById('mobile-view-canvas');
     if (viewHome) viewHome.hidden = nativeTab !== 'tab-home';
     if (viewInbox) viewInbox.hidden = nativeTab !== 'tab-inbox';
     if (viewActivity) viewActivity.hidden = nativeTab !== 'tab-executions';
     if (viewVault) viewVault.hidden = nativeTab !== 'tab-vault';
     if (viewSettings) viewSettings.hidden = nativeTab !== 'tab-settings';
+    if (viewCanvas) viewCanvas.hidden = nativeTab !== 'tab-canvas';
 
     if (nativeTab === 'tab-home') {
       renderMobileHome();

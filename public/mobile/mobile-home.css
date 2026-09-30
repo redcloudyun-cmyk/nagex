@@ -834,3 +834,127 @@
   .mh-scroll .ph-create-actions { grid-template-columns:1fr; }
   .mh-scroll .ph-create-action { min-height:56px; }
 }
+
+/* ── Mobile Canvas (R23.7H-C Phase C correction) ────────────────────
+   Native mobile presentation of the shared Canvas shell. Uses this
+   file's own .mh-header/.mh-scroll layout language, never the desktop
+   shell's search/Quick Wake/notification header — see index.html's
+   #mobile-view-canvas comment. Logic (state, dispatch, renderer,
+   loading/error) lives entirely in personal-home-view.js; this is
+   presentation only. */
+.mh-canvas-view {
+  display: flex;
+  flex-direction: column;
+  padding-left: 0;
+  padding-right: 0;
+}
+.mh-canvas-header {
+  padding: calc(var(--nagex-spacing-3) + env(safe-area-inset-top, 0px)) var(--nagex-spacing-4) var(--nagex-spacing-3);
+  gap: 10px;
+  flex-shrink: 0;
+  background: #ffffff;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.06);
+}
+.mh-canvas-back-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: #f1f5f9;
+  color: var(--nagex-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.mh-canvas-back-btn:active {
+  background: #e2e8f0;
+}
+.mh-canvas-context {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.mh-canvas-context .badge-status {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--nagex-accent-primary);
+  text-transform: uppercase;
+}
+.mh-canvas-context h2 {
+  margin: 2px 0 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--nagex-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mh-canvas-open-link {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--nagex-accent-primary);
+  text-decoration: none;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.mh-canvas-stage {
+  flex: 1;
+  min-height: 50vh;
+  margin: var(--nagex-spacing-4);
+  border-radius: var(--nagex-radius-md);
+  background: #ffffff;
+  box-shadow: var(--nagex-shadow-card);
+  overflow: hidden;
+}
+.mh-canvas-stage .canvas-renderer {
+  height: 100%;
+  min-height: 50vh;
+}
+.mh-canvas-agent-input {
+  position: sticky;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px var(--nagex-spacing-4) calc(10px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(180deg, rgba(243, 246, 252, 0.92) 0%, #f3f6fc 100%);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  flex-shrink: 0;
+}
+.mh-canvas-ask-field {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 22px;
+  border: none;
+  background: #ffffff;
+  box-shadow: var(--nagex-shadow-card);
+  font-size: 14px;
+  color: var(--nagex-text-primary);
+}
+.mh-canvas-ask-field::placeholder {
+  color: var(--nagex-text-muted);
+}
+.mh-canvas-ask-submit {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: var(--nagex-accent-primary);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.mh-canvas-ask-submit:active {
+  background: var(--nagex-accent-hover);
+}
