@@ -126,6 +126,7 @@
       "r23_7c_c_artifact_delivery_identity",
       "r23_7c_c_canonical_image_ui_rendering",
       "r23_7c_c_deployed_real_browser_cert",
+      "r23_7c_c_session_artifact_delivery_cert",
       "openai-image-adapter"
     ],
     "memory-context": [
@@ -340,6 +341,7 @@
     "r21_p1_deployed_certification",
     "r23_7c_c_canonical_image_ui_rendering",
     "r23_7c_c_deployed_real_browser_cert",
+    "r23_7c_c_session_artifact_delivery_cert",
     "r22_2_activity_vault",
     "r22_4_evidence_pack_web_search",
     "r22_6_perspective_compare",

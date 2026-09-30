@@ -3922,6 +3922,27 @@
       "assertionIntent": "shared resolveRequestIdentity() contract: a valid nagex_session (R13) is authoritative for POST /creations/generate and GET /creations/images/:imageId, cannot be overridden by caller-supplied X-NAgex-Tenant/X-Principal-Id headers, and header/default resolution is preserved unchanged when no valid session exists",
       "notes": "Fixes the browser-authentication root cause confirmed by live server evidence: a native <img> request cannot attach custom headers, so it always resolved to the route's hardcoded default identity, which did not match the real tenant/owner of a session-authenticated user's own image. Adds src/http/request-identity.ts as the one shared identity resolver (session cookie first, header/default fallback unchanged) so creation and later retrieval agree on identity for a real logged-in user, while ImageStore.get()'s strict tenant+owner equality and its fail-closed 404 (no existence disclosure) remain completely unchanged. Does not touch the pre-existing img_93b85a5d7a103e7bdaaeff97 record from the old identity path."
     },
+    "r23_7c_c_session_artifact_delivery_cert": {
+      "milestone": "R23.7C-C",
+      "classification": "DEPLOYED_CERT",
+      "canonical": false,
+      "scopes": ["creation-runtime", "images", "http-routing", "security", "identity", "browser"],
+      "externalDependencies": [
+        "deployed NAgex URL",
+        "internet",
+        "Chromium",
+        "same host/filesystem as the running nagex.service process (writes the certification fixture through production ImageStore)"
+      ],
+      "realBrowser": true,
+      "sourceImplementationAssertions": true,
+      "deterministic": false,
+      "assertionIntent": "non-paid, real-browser certification that a real signup->verify-email->login (R13) session cookie authenticates a native same-origin <img> request against the canonical image-serving route with zero custom identity headers, that a valid session overrides spoofed X-NAgex-Tenant/X-Principal-Id headers, and that no session is denied (404) — never calling an image-generation provider",
+      "notes": "Complements r23_7c_c_artifact_delivery_identity (deterministic, local, mocked identity) with a real-server, real-session proof: creates a disposable @nagex.invalid certification account via the actual deployed auth endpoints, writes a deterministic local PNG fixture directly through production ImageStore under that session's real tenantId/principalId (no debug/public fixture route, no hand-edited JSON), then drives real Chromium to load it as a plain <img src>. GENERATION_POST_COUNT must be 0 throughout. Never touches the historical img_93b85a5d7a103e7bdaaeff97/art_d563e825e91dbfbb1b52f8f2 evidence. Must run on the same host as the deployed nagex.service so the ImageStore fixture write lands in the directories the live server actually reads. Never runs as part of regression, browser-cert, or any implicit gate — requires NAGEX_DEPLOYED_URL.",
+      "writesRepositoryArtifacts": true,
+      "requiresEnv": [
+        "NAGEX_DEPLOYED_URL"
+      ]
+    },
     "r23_7c_c_canonical_image_ui_rendering": {
       "milestone": "R23.7C-C",
       "classification": "REAL_BROWSER_CERT",
