@@ -56,7 +56,7 @@ As of the reconstructed 2026-09-29 state:
 
 - Document/Report runtime: closed.
 - Provider-neutral creation baseline: closed.
-- Real Image runtime: partial/current.
+- Real Image runtime: closed (see Development Roadmap §6/§8 and the R23.7C-C closure report under docs/archive/evidence/). Mobile Create integration remains open, tracked separately.
 - Slides: planned.
 - Video: planned.
 

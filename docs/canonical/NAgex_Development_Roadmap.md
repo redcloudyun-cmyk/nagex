@@ -98,28 +98,51 @@ R23.7C-B   Document / Report Creation Runtime         CLOSED
 R23.7C-P   Provider-Neutral Creation Architecture     CLOSED
            local commit: 0181e40
 
-R23.7C-C   Real Image Creation Runtime                CURRENT_PARTIAL
+R23.7C-C   Real Image Creation Runtime                CLOSED
+           implementation commit: c71f1971ea061664e1f86abcb6fac71116cadcec
+             (fix(r23.7c-c): complete canonical image history)
+           final certification harness commit: 3b3d4c17b16e41b5b1affbc0ca889d8f55680bd6
+             (test(r23.7c-c): certify final non-paid closure)
+           closure evidence: docs/archive/evidence/
+             R23_7C_C_Real_Image_Creation_Runtime_Closure_Report_20260930.md
+
 R23.7C-D   Presentation / Slides Runtime              PLANNED
 R23.7C-E   Video Runtime                              PLANNED
 ```
 
 R23.7C-P is independent of C-C and establishes the provider/spec abstraction for IMAGE/PRESENTATION/VIDEO.
 
-Known uncommitted C-C partial work is intentionally preserved and must not be mistaken for a closed milestone.
+R23.7C-C is closed per the exit criteria in §8 below, on the evidence chain
+recorded in the closure report referenced above. Two explicitly scoped
+follow-up items (mobile Create entry, mobile image thumbnail/open
+behavior) remain open — see §7 item 2 and the closure report — and are
+tracked as FOLLOW_UP_UX, not as C-C closure blockers.
 
 ## 7. Immediate Product Development Sequence
 
 The current implementation sequence should be:
 
 ```text
-1. Stabilize / complete R23.7C-C Real Image Runtime
-2. Integrate truthful image creation/history into the Personal Home/Create experience
+1. Stabilize / complete R23.7C-C Real Image Runtime           CLOSED
+2. Integrate truthful image creation/history into the Personal Home/Create experience   PARTIAL
 3. R23.7C-D Presentation Runtime
 4. R23.7C-E Video Runtime
 5. Reconcile R23.7G Background Runtime Certification against current code
 6. R23.8P Personality / Trust UX
 7. R23.9C Final Certification
 ```
+
+Item 1 is closed — see §6/§8 and the R23.7C-C closure report.
+
+Item 2 is partially satisfied by R23.7C-C's closure work: desktop Studio
+creation history now truthfully includes real IMAGE creations (canonical
+URL, working Open action) and Personal Home's image preview is
+provider-neutral, on both desktop and mobile. What remains open is mobile
+Create capability itself — no mobile entry point, no image thumbnail
+rendering, and IMAGE "Open" currently routes to Inbox instead of the
+artifact. This repo currently defines no numbered milestone for that
+remaining mobile work; it should not be assumed folded into R23.7C-D
+Presentation without an explicit roadmap decision.
 
 Important: item 5 is a **reconciliation gate**, not an assertion that no background-runtime work has occurred. The current source snapshot still names R23.7G as a pending gate, and no later closure evidence was supplied in the consolidation materials.
 

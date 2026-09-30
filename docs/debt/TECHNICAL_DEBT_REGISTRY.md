@@ -501,6 +501,130 @@ status: OPEN
 
 ---
 
+---
+
+```yaml
+id: DEBT-0008
+area: r23.7c-c/deployed-certification
+description: >
+  Neither ImageStore nor ArtifactStore exposes a public delete() method
+  for metadata records (only binary bytes can be removed, via
+  fs.unlinkSync on the path ImageStore.saveBinary() returns). The two
+  R23.7C-C deployed certification harnesses
+  (tests/r23_7c_c_session_artifact_delivery_cert.test.ts,
+  tests/r23_7c_c_final_non_paid_closure_cert.test.ts) each write one
+  deterministic, non-paid PNG fixture directly through production
+  ImageStore/ArtifactStore on the deployed host, under the real
+  certification account's session identity, and clean up only the binary
+  file afterward — the JSON metadata record is left in place.
+severity: low
+introduced: R23.7C-C (2026-09-30), while building the deployed
+  session-identity and final closure certification harnesses
+reason: >
+  Adding a delete() method to ImageStore/ArtifactStore was explicitly out
+  of scope for a certification harness (no production code changes was a
+  hard constraint on that work), and reaching into either store's private
+  FileRecordStore internals via a cast would be a fragile, undocumented
+  workaround rather than a real fix.
+risk: >
+  Low. The leftover records are ordinary, correctly tenant/owner-scoped
+  ImageRecord/ArtifactRecord entries owned by a disposable
+  @nagex.invalid certification account (see DEBT-0009) — they carry no
+  elevated access, bypass no authorization, and are indistinguishable in
+  the data model from any other real record. They accumulate slowly (one
+  per certification run) rather than being deleted, which is a data-
+  hygiene concern, not a security one.
+target: unscheduled — revisit only if ImageStore/ArtifactStore ever gain a
+  real public delete() method for another product reason (e.g. user-
+  initiated artifact deletion), at which point the certification
+  harnesses' cleanup step should be updated to use it.
+owner: NAGEX
+status: OPEN
+```
+
+---
+
+```yaml
+id: DEBT-0009
+area: r23.7c-c/deployed-certification
+description: >
+  The two R23.7C-C deployed certification harnesses each create one
+  disposable account via the real signup -> verify-email -> login flow
+  (email pattern r23-7c-c-*-cert-<timestamp>@nagex.invalid) to obtain a
+  genuine authenticated browser session for certification. Neither
+  harness deletes that account afterward.
+severity: low
+introduced: R23.7C-C (2026-09-30)
+reason: >
+  Exercising a self-service account-deletion endpoint from within a
+  certification harness was judged out of scope — it would broaden the
+  harness's blast radius (account lifecycle mutation) beyond what it
+  exists to certify (artifact delivery / creation history / provider-
+  neutral preview), and account deletion has its own separate lifecycle
+  semantics (grace period, etc.) that a narrow cert harness should not be
+  the first caller to exercise on a shared deployed host.
+risk: >
+  Low. Each account is uniquely timestamped, holds no elevated
+  privileges, and is isolated from production users by its
+  @nagex.invalid email domain. Accumulation over repeated certification
+  runs is a housekeeping concern only.
+target: unscheduled — revisit together with a dedicated deployed-test-
+  environment account lifecycle/cleanup pass, if one is ever built.
+owner: NAGEX
+status: OPEN
+```
+
+---
+
+```yaml
+id: DEBT-0010
+area: http/request-identity
+description: >
+  src/http/request-identity.ts's resolveRequestIdentity() resolves
+  identity in this order: (1) a valid nagex_session cookie, when present
+  — authoritative; (2) X-NAgex-Tenant/X-Principal-Id caller-supplied
+  headers; (3) a hardcoded default (ten_production_01 / usr_admin_001).
+  Tier (2) trusts caller-supplied headers as real identity whenever no
+  session exists — this is the same header/default behavior every
+  creation route already had before R23.7C-C, now centralized into one
+  resolver rather than duplicated five times, but not removed.
+severity: medium
+introduced: pre-R23.7C-C (the header/default pattern predates this
+  milestone); first FORMALLY REGISTERED during R23.7C-C
+  (2026-09-30) while adding session-cookie precedence
+reason: >
+  Removing the header/default fallback outright would break demo mode and
+  the current single-default-identity flow every other part of this
+  application still uses (there is no enforced login requirement
+  anywhere else yet) — this was explicitly out of scope for R23.7C-C's
+  own narrow fix, per that work's own scope discipline ("do not broadly
+  remove legacy/demo headers until compatibility tests prove what is
+  safe").
+risk: >
+  Medium for future multi-user production correctness, low for current
+  actual exposure: docs/canonical/NAgex_Trust_Identity_Privacy_and_Approval.md
+  §6 states user-facing identity "must not be inferred from UI-only
+  state" — a caller-supplied header is exactly UI-only state. The
+  concrete impersonation vector this milestone closed is that a session
+  now always wins over a spoofed header, verified by tests G/O in
+  tests/r23_7c_c_artifact_delivery_identity.test.ts and the deployed
+  session-bound certification (spoofedHeaderWithValidSession -> 200,
+  identity resolves as the session, never the header). The residual risk
+  is specifically for a caller with NO valid session, who can still claim
+  any tenant/principal via headers and be trusted — today this only
+  matters where the application's own single-default-identity model
+  already treats all such traffic as equivalent.
+target: unscheduled — revisit once NAgex enforces real per-user login as
+  the normal path for creation/artifact routes (rather than the current
+  single-default-identity flow), at which point the header/default tier
+  should be constrained to an explicitly approved demo/internal/test
+  mode instead of applying to any unauthenticated caller.
+owner: NAGEX
+status: OPEN
+```
+
+---
+
 ## Explicitly classified as NON-GOAL, not debt
 
 Per the R11 directive's own explicit instruction not to silently call every disclosed limitation "debt":
