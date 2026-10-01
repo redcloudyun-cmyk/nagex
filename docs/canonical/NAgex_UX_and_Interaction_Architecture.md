@@ -115,15 +115,25 @@ Approval remains bound to the actual material action at the consequence boundary
 
 ## 9. Home Is a Personal AI Home, Not a KPI Dashboard
 
-Current consumer navigation is:
+Current consumer navigation (R23.7H-C Phase D, Product Owner IA decision, approved-mockup-driven) is:
 
 ```text
 Home
 Inbox
-Activity
-Vault
+Create
+Canvas
+Tasks
+Knowledge
+Approvals
 Settings
 ```
+
+This replaces the earlier 5-item nav (Home/Inbox/Activity/Vault/Settings). Create and Canvas are first-class product concepts, not settings sub-pages. Activity and Vault are no longer primary destinations but keep their real routes/views and functionality intact:
+
+- **Activity** (`tab-executions`, `#activity`) is reachable contextually — from Home's "Recent results → View All" and from Tasks' "View activity history" link — since it is the execution history of Tasks.
+- **Vault** (`tab-vault`, `#vault`) is folded into **Knowledge** as the user-facing concept: Knowledge's view links directly into the still-fully-functional Vault view/route/store. Vault's storage/runtime model is unchanged.
+
+The single canonical ordered nav definition is `NAGEX_PRIMARY_NAV` in `public/app.js`; the desktop sidebar (`index.html`'s `ul.nav-menu`) and the mobile bottom nav (a curated subset — Home/Create/Canvas/Inbox/Settings — with Tasks/Knowledge/Approvals reachable via the existing Settings → Advanced drawer) are both kept consistent with it, enforced by `tests/r23_7h_c_phase_d_main_product_experience.test.ts`.
 
 Do not add a separate top-level Dashboard merely because dashboard-style information exists.
 

@@ -37,10 +37,119 @@
     return 'UNKNOWN';
   };
 
+  // R23.7H-C Phase D.2 §10 — Recent Creations must be visual: real
+  // artifacts get a real image thumbnail; other real (non-planned)
+  // artifact types get a designed type-specific icon placeholder instead
+  // of plain text, never a fake generated preview.
   window.NAGEX.renderArtifactThumbnail = function (proj) {
-    if (!proj || proj.previewKind !== 'IMAGE' || !proj.previewTarget) return '';
-    return `<div class="ph-artifact-thumbnail" style="width:48px;height:48px;border-radius:6px;overflow:hidden;flex-shrink:0;background:#1e293b;margin-right:12px;"><img src="${esc(proj.previewTarget)}" alt="" style="width:100%;height:100%;object-fit:cover;" /></div>`;
+    if (!proj) return '';
+    if (proj.previewKind === 'IMAGE' && proj.previewTarget) {
+      // R23.7H-C D8 — if the real image route 404s (e.g. a stale fixture
+      // whose underlying file no longer exists), fall back to a truthful
+      // generic IMAGE icon instead of the browser's broken-image glyph —
+      // never substitutes a fake picture, just an honest "image
+      // unavailable" placeholder in the same visual language as the TEXT
+      // placeholder below.
+      return `<div class="ph-artifact-thumbnail" style="width:48px;height:48px;border-radius:6px;overflow:hidden;flex-shrink:0;background:#1e293b;margin-right:12px;position:relative;"><img src="${esc(proj.previewTarget)}" alt="" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" /><span style="display:none;width:100%;height:100%;align-items:center;justify-content:center;background:#e2e8f0;color:#64748b;"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></span></div>`;
+    }
+    if (proj.previewKind === 'TEXT') {
+      const upperType = String(proj.artifactType || '').toUpperCase();
+      const isResearch = upperType === 'RESEARCH' || upperType === 'ANALYSIS';
+      const bg = isResearch ? '#dcfce7' : '#dbeafe';
+      const fg = isResearch ? '#15803d' : '#1d4ed8';
+      const icon = isResearch
+        ? '<circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M20 20l-5-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>'
+        : '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6" fill="none" stroke="currentColor" stroke-width="1.6"/>';
+      return `<div class="ph-artifact-thumbnail" style="width:48px;height:48px;border-radius:8px;flex-shrink:0;margin-right:12px;display:flex;align-items:center;justify-content:center;background:${bg};color:${fg};"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="currentColor">${icon}</svg></div>`;
+    }
+    return '';
   };
+
+  // R23.7H-C Phase D.4 §11 — shared Agent Context-tab renderer, prefix-
+  // aware so Home's embedded Agent panel and Focus Mode's Agent panel
+  // both use it (was hardcoded to the desktop 'canvas-' id only, meaning
+  // a second instance couldn't exist safely). Real artifact fields only —
+  // no raw canonical URL/API path (D.1 §7), never fabricated.
+  function renderArtifactContext(prefix, artifactType, artifactProjection) {
+    const contextFields = document.getElementById(prefix + 'agent-context-fields');
+    if (!contextFields) return;
+    const c = COPY[locale()];
+    const rows = [
+      [c.contextType, artifactType || ''],
+      [c.contextTitle, (artifactProjection && artifactProjection.title) || c.untitledArtifact],
+      [c.contextUpdated, (artifactProjection && artifactProjection.updatedAt) ? new Date(artifactProjection.updatedAt).toLocaleString(locale() === 'ko' ? 'ko-KR' : 'en-US') : c.contextUnknown],
+    ];
+    contextFields.innerHTML = rows.map(([label, value]) => `<div class="canvas-agent-context-row"><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join('');
+  }
+
+  // R23.7H-C Phase D.3 §8/§11 — shared artifact-stage renderer used by
+  // BOTH Focus Mode Canvas (openArtifactInCanvas below) and Home's
+  // embedded Canvas preview. Same IMAGE/DOCUMENT rendering, same
+  // loading/error semantics, same truthfulness — only the DOM prefix and
+  // where load status is recorded differ, so there is exactly one
+  // implementation of "how an artifact renders" in this app.
+  function renderArtifactStage(prefix, artifactType, artifactProjection, openTarget, stateRef) {
+    if (prefix === 'canvas-' || prefix === 'mh-canvas-') {
+      const dRegion = document.getElementById('canvas-renderer-region');
+      const mRegion = document.getElementById('mh-canvas-renderer-region');
+      if (dRegion) dRegion.innerHTML = '';
+      if (mRegion) mRegion.innerHTML = '';
+    }
+
+    const rendererRegion = document.getElementById(prefix + 'renderer-region');
+    if (!rendererRegion) return;
+    const upperType = String(artifactType || '').toUpperCase();
+
+    if (upperType === 'IMAGE') {
+      const previewUrl = artifactProjection && artifactProjection.previewTarget ? artifactProjection.previewTarget : openTarget;
+      const loadingId = prefix + 'loading';
+      const errorId = prefix + 'error';
+      const wrapperId = (prefix === 'canvas-' || prefix === 'mh-canvas-') ? 'canvas-image-wrapper' : prefix + 'image-wrapper';
+      const imgId = prefix + 'img-element';
+
+      rendererRegion.innerHTML = `
+        <div id="${loadingId}" style="display:flex; flex-direction:column; align-items:center; color:#64748b; height:100%; justify-content:center;">
+           <svg class="svg-icon-sm animate-spin" viewBox="0 0 24 24" style="width:32px;height:32px;margin-bottom:16px;"><path fill="currentColor" d="M12 4V2A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8z"/></svg>
+           <span>Loading artifact...</span>
+        </div>
+        <div id="${errorId}" class="canvas-error-state" style="display:none; height:100%; justify-content:center; align-items:center; flex-direction:column;">
+           <svg viewBox="0 0 24 24" style="width:48px;height:48px;margin-bottom:16px;"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+           <h3>Image failed to load</h3>
+           <p>We couldn't load this artifact. It may have been deleted or you may lack permission.</p>
+           <button class="btn-secondary" onclick="window.NAGEX.closeCanvas()" style="margin-top:16px;">Go back</button>
+        </div>
+        <div class="canvas-image-container" id="${wrapperId}" style="display:none;">
+           <img id="${imgId}" class="canvas-image-target" alt="Generated Image" style="max-width:100%; max-height:100%; object-fit:contain; border-radius:4px;" />
+        </div>
+      `;
+
+      const img = document.getElementById(imgId);
+      if (img) {
+          img.onload = function() {
+             document.getElementById(loadingId).style.display = 'none';
+             document.getElementById(wrapperId).style.display = 'flex';
+             if (stateRef) stateRef.loadStatus = 'READY';
+          };
+          img.onerror = function() {
+             document.getElementById(loadingId).style.display = 'none';
+             document.getElementById(errorId).style.display = 'flex';
+             if (stateRef) stateRef.loadStatus = 'ERROR';
+          };
+          img.src = previewUrl;
+      }
+    } else if (['DOCUMENT', 'RESEARCH', 'ANALYSIS'].includes(upperType)) {
+      rendererRegion.innerHTML = `<div class="canvas-document-container" style="padding: 20px; text-align: center; color: #64748b;">
+        <h3>${esc(upperType)} Workspace</h3>
+        <p>Metadata preview is available. Rich content editor not yet implemented.</p>
+      </div>`;
+      if (stateRef) stateRef.loadStatus = 'READY';
+    } else {
+      rendererRegion.innerHTML = `<div class="canvas-error-state" style="padding: 20px; text-align: center; color: #64748b;">
+         <h3>Unsupported artifact</h3>
+      </div>`;
+      if (stateRef) stateRef.loadStatus = 'ERROR';
+    }
+  }
 
   window.NAGEX.openArtifactInCanvas = function (artifactId, artifactType, canvasTarget, openTarget, artifactProjection) {
     window.NAGEX = window.NAGEX || {};
@@ -59,10 +168,12 @@
     const titleEl = document.getElementById(prefix + 'artifact-title');
     const typeEl = document.getElementById(prefix + 'artifact-type');
     const actionOpenEl = document.getElementById(prefix + 'action-open');
-    const rendererRegion = document.getElementById(prefix + 'renderer-region');
 
     if (titleEl) {
-      titleEl.textContent = 'Artifact: ' + artifactId;
+      // R23.7H-C Phase D.1 §7 — raw artifact IDs are backend identity, not
+      // primary-surface UX. Prefer the real title; fall back to a generic
+      // truthful label (never the ID) when no title exists yet.
+      titleEl.textContent = (artifactProjection && artifactProjection.title) || COPY[locale()].untitledArtifact;
     }
 
     if (typeEl) {
@@ -76,66 +187,30 @@
       actionOpenEl.style.display = 'none';
     }
 
-    if (rendererRegion) {
-      rendererRegion.innerHTML = '';
-      const upperType = String(artifactType || '').toUpperCase();
+    // Desktop-only NAgex Agent panel. Mobile Canvas has no Agent panel
+    // (prefix + 'agent-context-fields' doesn't exist there), so this is a
+    // safe no-op on mobile.
+    renderArtifactContext(prefix, artifactType, artifactProjection);
+    window.NAGEX.switchCanvasAgentTab('chat');
 
-      if (upperType === 'IMAGE') {
-        const previewUrl = artifactProjection && artifactProjection.previewTarget ? artifactProjection.previewTarget : window.NAGEX._canvasState.openTarget;
-        const loadingId = prefix + 'loading';
-        const errorId = prefix + 'error';
-        const wrapperId = prefix + 'image-wrapper';
-        const imgId = prefix + 'img-element';
-
-        rendererRegion.innerHTML = `
-          <div id="${loadingId}" style="display:flex; flex-direction:column; align-items:center; color:#64748b; height:100%; justify-content:center;">
-             <svg class="svg-icon-sm animate-spin" viewBox="0 0 24 24" style="width:32px;height:32px;margin-bottom:16px;"><path fill="currentColor" d="M12 4V2A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8z"/></svg>
-             <span>Loading artifact...</span>
-          </div>
-          <div id="${errorId}" class="canvas-error-state" style="display:none; height:100%; justify-content:center; align-items:center; flex-direction:column;">
-             <svg viewBox="0 0 24 24" style="width:48px;height:48px;margin-bottom:16px;"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
-             <h3>Image failed to load</h3>
-             <p>We couldn't load this artifact. It may have been deleted or you may lack permission.</p>
-             <button class="btn-secondary" onclick="window.NAGEX.closeCanvas()" style="margin-top:16px;">Go back</button>
-          </div>
-          <div class="canvas-image-container" id="${wrapperId}" style="display:none; height:100%;">
-             <img id="${imgId}" class="canvas-image-target" alt="Generated Image" style="max-width:100%; max-height:100%; object-fit:contain; border-radius:4px;" />
-          </div>
-        `;
-
-        const img = document.getElementById(imgId);
-        if (img) {
-            img.onload = function() {
-               document.getElementById(loadingId).style.display = 'none';
-               document.getElementById(wrapperId).style.display = 'flex';
-               window.NAGEX._canvasState.loadStatus = 'READY';
-            };
-            img.onerror = function() {
-               document.getElementById(loadingId).style.display = 'none';
-               document.getElementById(errorId).style.display = 'flex';
-               window.NAGEX._canvasState.loadStatus = 'ERROR';
-            };
-            img.src = previewUrl;
-        }
-      } else if (['DOCUMENT', 'RESEARCH', 'ANALYSIS'].includes(upperType)) {
-        rendererRegion.innerHTML = `<div class="canvas-document-container" style="padding: 20px; text-align: center; color: #64748b;">
-          <h3>${esc(upperType)} Workspace</h3>
-          <p>Metadata preview is available. Rich content editor not yet implemented.</p>
-        </div>`;
-        window.NAGEX._canvasState.loadStatus = 'READY';
-      } else {
-        rendererRegion.innerHTML = `<div class="canvas-error-state" style="padding: 20px; text-align: center; color: #64748b;">
-           <h3>Unsupported artifact</h3>
-        </div>`;
-        window.NAGEX._canvasState.loadStatus = 'ERROR';
-      }
-    }
+    renderArtifactStage(prefix, artifactType, artifactProjection, window.NAGEX._canvasState.openTarget, window.NAGEX._canvasState);
 
     if (typeof window.NAGEX.switchTab === 'function') {
       window.NAGEX.switchTab('tab-canvas', { artifactId: artifactId });
     }
 
     return window.NAGEX._canvasState;
+  };
+
+  window.NAGEX.switchCanvasAgentTab = function(tabId) {
+    document.querySelectorAll('.canvas-agent-tab').forEach((btn) => {
+      const active = btn.dataset.agentTab === tabId;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    document.querySelectorAll('.canvas-agent-tab-panel').forEach((panel) => {
+      panel.hidden = panel.dataset.agentPanel !== tabId;
+    });
   };
 
   window.NAGEX.closeCanvas = function() {
@@ -153,7 +228,7 @@
       }
       if (window.NAGEX_PERSONAL_HOME && typeof window.NAGEX_PERSONAL_HOME.fetchHome === 'function') {
           window.NAGEX_PERSONAL_HOME.fetchHome().then(model => {
-              const item = (model.recentCreations || []).find(c => c.id === artifactId) || (model.recentResults || []).find(c => c.id === artifactId);
+              const item = (model.recentCreations || []).find(c => c.artifactProjection && c.artifactProjection.artifactId === artifactId) || (model.recentResults || []).find(c => c.artifactProjection && c.artifactProjection.artifactId === artifactId);
               if (item && item.artifactProjection) {
                   window.NAGEX.dispatchArtifactOpen(item.artifactProjection.artifactType, artifactId, item);
               }
@@ -161,8 +236,12 @@
       }
   };
 
-  window.NAGEX.submitCanvasAsk = function() {
-     const input = document.getElementById(canvasIdPrefix() + 'ask-input');
+  // R23.7H-C Phase D.4 §11 — accepts an explicit prefix override so
+  // Home's embedded Agent ("home-canvas-") can share this exact truthful
+  // handler with Focus Mode (desktop "canvas-" / mobile "mh-canvas-")
+  // instead of a second copy.
+  window.NAGEX.submitCanvasAsk = function(prefixOverride) {
+     const input = document.getElementById((prefixOverride || canvasIdPrefix()) + 'ask-input');
      if (input && input.value) {
          if (typeof window.alert === 'function') {
              window.alert(locale() === 'ko' ? '기능이 향후 지원될 예정입니다.' : 'Action not yet supported. NAgex mutation will be available soon.');
@@ -219,8 +298,38 @@
   // -------------------------------------------
 
   const COPY = {
-    en: { rightNow: 'Right Now', create: 'Create with NAgex', attention: 'Needs Attention', today: 'Today', preparing: 'NAgex Is Preparing', creations: 'Recent Creations', recent: 'Recent Activity', empty: 'Nothing to show right now.', noCreations: 'Your completed research and file analyses will appear here.', unavailable: 'This source is currently unavailable.', research: 'Research', analyze: 'Analyze', researchDesc: 'Find, verify, and synthesize information.', analyzeDesc: 'Understand supported documents and files.', open: 'Open' },
-    ko: { rightNow: '지금', create: 'NAgex로 만들기', attention: '확인이 필요해요', today: '오늘', preparing: 'NAgex가 준비 중이에요', creations: '최근 생성 결과', recent: '최근 활동', empty: '지금 표시할 항목이 없습니다.', noCreations: '완료된 리서치와 파일 분석 결과가 여기에 표시됩니다.', unavailable: '현재 이 정보를 불러올 수 없습니다.', research: '리서치', analyze: '분석', researchDesc: '필요한 정보를 찾고 검증해 핵심을 정리합니다.', analyzeDesc: '지원되는 문서와 파일의 내용을 이해하고 정리합니다.', open: '열기' },
+    en: {
+      rightNow: 'Right Now', create: 'Create with NAgex', attention: 'Needs Attention', today: 'Today', preparing: 'NAgex Is Preparing', creations: 'Recent Creations', recent: 'Recent Activity', empty: 'Nothing to show right now.', noCreations: 'Your completed research and file analyses will appear here.', unavailable: 'This source is currently unavailable.', research: 'Research', analyze: 'Analyze', researchDesc: 'Find, verify, and synthesize information.', analyzeDesc: 'Understand supported documents and files.', open: 'Continue in Canvas',
+      createSubtitle: 'Turn your ideas into high-quality content.',
+      capREPORTTitle: 'Report', capREPORTDesc: 'Write a structured report or document.',
+      capSLIDESTitle: 'Slides', capSLIDESDesc: 'Presentation decks.',
+      capIMAGETitle: 'Image', capIMAGEDesc: 'Generate images and visual assets.',
+      capVIDEOTitle: 'Video', capVIDEODesc: 'Short video clips.',
+      capRESEARCHTitle: 'Research', capRESEARCHDesc: 'Find, verify, and synthesize information.',
+      capPLANTitle: 'Plan', capPLANDesc: 'Turn a goal into a structured, approvable plan.',
+      capCODETitle: 'Code', capCODEDesc: 'Generate and work with code.',
+      capStatusLive: 'Available', capStatusPartial: 'Partially available', capStatusPlanned: 'Coming soon',
+      workWithData: 'Work with your data', workWithDataSubtitle: 'NAgex can use your documents and connected sources to create personalized content.',
+      contextType: 'Type', contextTitle: 'Title', contextUpdated: 'Updated', contextUnknown: 'Unknown', untitledArtifact: 'Untitled artifact',
+      homeCanvasEmptyTitle: 'Create something with NAgex', homeCanvasEmptyBody: 'Start a report, image, research project, or plan — your work will continue here.', homeCanvasOpenFocus: 'Open in Canvas',
+      justNow: 'Just now', minutesAgo: (n) => `${n} min ago`, hoursAgo: (n) => `${n} hour${n === 1 ? '' : 's'} ago`, daysAgo: (n) => `${n} day${n === 1 ? '' : 's'} ago`,
+    },
+    ko: {
+      rightNow: '지금', create: 'NAgex로 만들기', attention: '확인이 필요해요', today: '오늘', preparing: 'NAgex가 준비 중이에요', creations: '최근 생성 결과', recent: '최근 활동', empty: '지금 표시할 항목이 없습니다.', noCreations: '완료된 리서치와 파일 분석 결과가 여기에 표시됩니다.', unavailable: '현재 이 정보를 불러올 수 없습니다.', research: '리서치', analyze: '분석', researchDesc: '필요한 정보를 찾고 검증해 핵심을 정리합니다.', analyzeDesc: '지원되는 문서와 파일의 내용을 이해하고 정리합니다.', open: '캔버스에서 계속하기',
+      createSubtitle: '아이디어를 완성도 높은 결과물로 만들어 보세요.',
+      capREPORTTitle: '보고서', capREPORTDesc: '구조화된 보고서나 문서를 작성해요.',
+      capSLIDESTitle: '슬라이드', capSLIDESDesc: '프레젠테이션 자료.',
+      capIMAGETitle: '이미지', capIMAGEDesc: '이미지와 시각 자료를 생성해요.',
+      capVIDEOTitle: '비디오', capVIDEODesc: '짧은 영상 클립.',
+      capRESEARCHTitle: '리서치', capRESEARCHDesc: '필요한 정보를 찾고 검증해 핵심을 정리해요.',
+      capPLANTitle: '플랜', capPLANDesc: '목표를 구조화된 승인 가능한 계획으로 만들어요.',
+      capCODETitle: '코드', capCODEDesc: '코드를 생성하고 다뤄요.',
+      capStatusLive: '이용 가능', capStatusPartial: '부분적으로 이용 가능', capStatusPlanned: '출시 예정',
+      workWithData: '내 데이터로 작업하기', workWithDataSubtitle: 'NAgex가 문서와 연결된 소스를 활용해 맞춤 콘텐츠를 만들어 드려요.',
+      contextType: '유형', contextTitle: '제목', contextUpdated: '업데이트', contextUnknown: '알 수 없음', untitledArtifact: '제목 없는 아티팩트',
+      homeCanvasEmptyTitle: 'NAgex로 무언가를 만들어보세요', homeCanvasEmptyBody: '보고서, 이미지, 리서치, 플랜을 시작해 보세요 — 작업 내용이 여기에서 이어집니다.', homeCanvasOpenFocus: '캔버스에서 열기',
+      justNow: '방금 전', minutesAgo: (n) => `${n}분 전`, hoursAgo: (n) => `${n}시간 전`, daysAgo: (n) => `${n}일 전`,
+    },
   };
   const STATE_LABELS = {
     en: Object.fromEntries(STATES.map((state) => [state, state])),
@@ -286,18 +395,28 @@
   function renderItems(items) {
     if (!items.length) return `<p class="ph-empty">${esc(COPY[locale()].empty)}</p>`;
     return items.map((item) => {
-      const isImage = item.artifactProjection && item.artifactProjection.previewKind === 'IMAGE' && item.artifactProjection.previewTarget;
       const thumbHtml = window.NAGEX.renderArtifactThumbnail(item.artifactProjection);
-      return `<article class="ph-item" data-source-key="${esc(item.key)}" ${isImage ? 'style="display:flex;align-items:center;"' : ''}>
+      return `<article class="ph-item" data-source-key="${esc(item.key)}" ${thumbHtml ? 'style="display:flex;align-items:center;"' : ''}>
         ${thumbHtml}
         <div class="ph-item-copy" style="flex:1;"><h3>${esc(item.title)}</h3>${item.context ? `<p>${esc(item.context)}</p>` : ''}${item.time ? `<time datetime="${esc(item.time)}">${esc(new Date(item.time).toLocaleTimeString(locale() === 'ko' ? 'ko-KR' : 'en-US', { hour: 'numeric', minute: '2-digit' }))}</time>` : ''}</div>
-        <div class="ph-item-meta"><span class="ph-state" data-state="${esc(item.state)}">${esc(STATE_LABELS[locale()][item.state] || item.state)}</span>${item.action ? `<button type="button" class="ph-action" data-type="${esc(item.type)}" data-ref="${esc(item.sourceRef)}" data-target="${esc(item.actionTarget || '')}">${esc(item.action.type === 'OPEN_ARTIFACT' ? COPY[locale()].open : item.action.label)}</button>` : ''}</div>
+        <div class="ph-item-meta"><span class="ph-state" data-state="${esc(item.state)}">${esc(STATE_LABELS[locale()][item.state] || item.state)}</span>${item.action ? `<button type="button" class="ph-action" data-type="${esc(item.type)}" data-ref="${esc(item.sourceRef)}" data-target="${esc(item.actionTarget || '')}">${esc(item.action.type === 'OPEN_ARTIFACT' ? (COPY[locale()].homeCanvasOpenFocus || COPY[locale()].open) : item.action.label)}</button>` : ''}</div>
       </article>`;
     }).join('');
   }
 
+  // R23.7H-C Phase D.4 §16 — a truly empty section (no items, and no
+  // section-specific designed empty state — the generic "Nothing to show
+  // right now" text repeated across every section isn't one) must not
+  // render as an empty bordered card. Sections with real content, or a
+  // genuinely designed empty state (embedded Canvas, Recent Creations —
+  // both handled by their own render functions, not this one), are
+  // unaffected.
   function renderSection(target, title, items, id) {
     if (!target) return;
+    if (!items || !items.length) {
+      target.hidden = true;
+      return;
+    }
     target.hidden = false;
     target.setAttribute('data-home-section', id);
     target.innerHTML = `<div class="ph-heading"><h2>${esc(title)}</h2></div><div class="ph-list">${renderItems(items)}</div>`;
@@ -314,16 +433,274 @@
     }));
   }
 
-  function renderCreationActions(target, actions) {
+  // R23.7H-C Phase D — "Work with your data". The real ANALYZE action
+  // (file analysis, previously one of the 2 generic Create tiles) lives
+  // here now, since it isn't one of the 7 mockup Create capabilities —
+  // same real dispatch (`activateCreationAction('ANALYZE')` → the existing
+  // #composer-file-input file picker), not deleted, just relocated.
+  // Connected-sources state is read from the real creationActions/
+  // sourceStatus fields already on the Home response — no invented
+  // integrations, truthful empty state when nothing is connected.
+  // R23.7H-C Phase D — Recent Creations filter pills. Client-side only:
+  // filters the already-fetched `items` array in place, no new API/store.
+  // Maps real ArtifactType values to the 7 mockup capability labels;
+  // PLAN/CODE have no real artifacts today so their pills always filter
+  // to empty (truthful — never implies fake runtime/history).
+  const RECENT_FILTER_TYPE_MAP = { REPORT: ['DOCUMENT'], SLIDES: ['PRESENTATION'], IMAGE: ['IMAGE'], VIDEO: ['VIDEO'], RESEARCH: ['RESEARCH', 'ANALYSIS'], PLAN: [], CODE: [] };
+  const RECENT_FILTERS = ['ALL', 'REPORT', 'SLIDES', 'IMAGE', 'VIDEO', 'RESEARCH', 'PLAN', 'CODE'];
+
+  function recentFilterLabel(id) {
+    if (id === 'ALL') return locale() === 'ko' ? '전체' : 'All';
+    return capabilityCopy(id).title;
+  }
+
+  function wireActionButtons(listEl, items) {
+    if (!listEl) return;
+    listEl.querySelectorAll('.ph-action').forEach((button) => button.addEventListener('click', async () => {
+      if (button.dataset.target && button.dataset.type === 'RESEARCH') {
+        const result = await window.NAGEX.apiFetch(button.dataset.target);
+        const artifact = result && result.artifact;
+        if (artifact) window.alert(`${artifact.title}\n\n${artifact.preview}`);
+        return;
+      }
+      const itemKey = button.closest('.ph-item')?.dataset?.sourceKey;
+      const item = items.find((i) => i.key === itemKey);
+      window.NAGEX.handleHomeItemAction(button.dataset.type, button.dataset.ref, item);
+    }));
+  }
+
+  // R23.7H-C D9 §2 — real timestamp → truthful relative-time string. Only
+  // ever reads artifactProjection.updatedAt (real data); never fabricates
+  // a time when none exists.
+  function formatRelativeTime(iso) {
+    if (!iso) return '';
+    const c = COPY[locale()];
+    const diffMs = Date.now() - new Date(iso).getTime();
+    const minutes = Math.floor(diffMs / 60000);
+    if (minutes < 1) return c.justNow;
+    if (minutes < 60) return c.minutesAgo(minutes);
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return c.hoursAgo(hours);
+    return c.daysAgo(Math.floor(hours / 24));
+  }
+
+  const ARTIFACT_TYPE_TO_CAPABILITY = { DOCUMENT: 'REPORT', PRESENTATION: 'SLIDES', IMAGE: 'IMAGE', VIDEO: 'VIDEO', RESEARCH: 'RESEARCH', ANALYSIS: 'RESEARCH' };
+  function artifactTypeLabel(artifactType) {
+    const capId = ARTIFACT_TYPE_TO_CAPABILITY[String(artifactType || '').toUpperCase()];
+    return capId ? capabilityCopy(capId).title : (artifactType || '');
+  }
+
+  // R23.7H-C D9 §2 — Recent Creations' own card template (not the shared
+  // renderItems() other sections use — Needs Attention/Today's layout is
+  // explicitly frozen this pass). Compacts the state into the metadata
+  // line ("{Type} • {Status} • {relative time}") instead of a separate
+  // badge row, matching the reference's single metadata line while
+  // keeping the real status visible (STATUS_DATA_REMOVED=NO) — nothing
+  // is deleted, just no longer given its own 20px row.
+  function renderRecentItems(items) {
+    if (!items.length) return `<p class="ph-empty">${esc(COPY[locale()].empty)}</p>`;
+    return items.map((item) => {
+      const thumbHtml = window.NAGEX.renderArtifactThumbnail(item.artifactProjection);
+      const typeLabel = artifactTypeLabel(item.artifactProjection ? item.artifactProjection.artifactType : item.type);
+      const stateLabel = STATE_LABELS[locale()][item.state] || item.state;
+      const relTime = item.artifactProjection && item.artifactProjection.updatedAt ? formatRelativeTime(item.artifactProjection.updatedAt) : '';
+      const metaParts = [typeLabel, stateLabel, relTime].filter(Boolean);
+      return `<article class="ph-item" data-source-key="${esc(item.key)}">
+        ${thumbHtml}
+        <div class="ph-item-copy"><h3>${esc(item.title)}</h3><p class="ph-item-compact-meta" data-state="${esc(item.state)}">${esc(metaParts.join(' • '))}</p></div>
+        ${item.action ? `<button type="button" class="ph-action" data-type="${esc(item.type)}" data-ref="${esc(item.sourceRef)}" data-target="${esc(item.actionTarget || '')}">${esc(item.action.type === 'OPEN_ARTIFACT' ? (COPY[locale()].homeCanvasOpenFocus || COPY[locale()].open) : item.action.label)}</button>` : ''}
+      </article>`;
+    }).join('');
+  }
+
+  function renderRecentCreations(target, title, items) {
+    if (!target) return;
+    if (!items || !items.length) {
+      target.hidden = true;
+      return;
+    }
+    target.hidden = false;
+    target.setAttribute('data-home-section', 'recent-creations');
+    const pillsHtml = `<div class="ph-recent-filters">${RECENT_FILTERS.map((id) => `<button type="button" class="ph-recent-filter-pill${id === 'ALL' ? ' active' : ''}" data-recent-filter="${esc(id)}">${esc(recentFilterLabel(id))}</button>`).join('')}</div>`;
+    target.innerHTML = `<div class="ph-heading"><h2>${esc(title)}</h2></div>${pillsHtml}<div class="ph-list" id="${target.id}-list">${renderRecentItems(items)}</div>`;
+    const listEl = document.getElementById(target.id + '-list');
+    const applyFilter = (filterId) => {
+      const filtered = filterId === 'ALL' ? items : items.filter((item) => (RECENT_FILTER_TYPE_MAP[filterId] || []).includes(String(item.type || '').toUpperCase()));
+      listEl.innerHTML = renderRecentItems(filtered);
+      wireActionButtons(listEl, filtered);
+    };
+    target.querySelectorAll('.ph-recent-filter-pill').forEach((pill) => pill.addEventListener('click', () => {
+      target.querySelectorAll('.ph-recent-filter-pill').forEach((p) => p.classList.toggle('active', p === pill));
+      applyFilter(pill.dataset.recentFilter);
+    }));
+    wireActionButtons(listEl, items);
+  }
+
+  function renderWorkWithData(target) {
     if (!target) return;
     const c = COPY[locale()];
     target.hidden = false;
-    target.setAttribute('data-home-section', 'create');
-    target.innerHTML = `<div class="ph-heading"><h2>${esc(c.create)}</h2></div><div class="ph-create-actions">${actions.map((action) => {
-      const isResearch = action.id === 'RESEARCH';
-      return `<button type="button" class="ph-create-action" data-creation-action="${esc(action.id)}"><strong>${esc(isResearch ? c.research : c.analyze)}</strong><span>${esc(isResearch ? c.researchDesc : c.analyzeDesc)}</span></button>`;
-    }).join('')}</div>`;
+    target.setAttribute('data-home-section', 'work-with-data');
+    if (target.id === 'home-section-work-with-data') {
+      target.innerHTML = `<div class="ph-work-data-heading"><span class="ph-work-data-icon" aria-hidden="true"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3 2 8l10 5 10-5-10-5zm-7 9 7 3.5L19 12v4l-7 3.5L5 16v-4z"/></svg></span><div><h2>${esc(c.workWithData)}</h2><p class="ph-heading-sub">${esc(c.workWithDataSubtitle)}</p></div></div><div class="ph-work-data-actions"><button type="button" class="ph-connect-sources" data-creation-action="ANALYZE">Connect sources <span aria-hidden="true">-&gt;</span></button><div class="ph-source-icons" aria-label="Source providers availability"><span class="ph-source-icon" title="Google Drive available when connected">G</span><span class="ph-source-icon" title="Notion planned">N</span><span class="ph-source-icon" title="Cloud storage planned">C</span></div></div>`;
+      target.querySelectorAll('[data-creation-action]').forEach((button) => button.addEventListener('click', () => activateCreationAction(button.dataset.creationAction)));
+      return;
+    }
+    target.innerHTML = `<div class="ph-heading"><h2>${esc(c.workWithData)}</h2><p class="ph-heading-sub">${esc(c.workWithDataSubtitle)}</p></div><div class="ph-create-actions"><button type="button" class="ph-create-action" data-creation-action="ANALYZE"><strong>${esc(c.analyze)}</strong><span>${esc(c.analyzeDesc)}</span></button></div>`;
     target.querySelectorAll('[data-creation-action]').forEach((button) => button.addEventListener('click', () => activateCreationAction(button.dataset.creationAction)));
+  }
+
+  // R23.7H-C Phase D.3 §8/§9 — Home's embedded Canvas: shows the most
+  // recent real artifact using the EXACT SAME shared rendering
+  // architecture as Focus Mode Canvas (renderArtifactStage — no second
+  // implementation), or a truthful empty state when none exists. This
+  // never touches window.NAGEX._canvasState — that only happens when the
+  // user actually navigates to Focus Mode via "Open in Canvas" below —
+  // so the embedded preview and Focus Mode can never disagree about
+  // which artifact is "open" (there is only ever one real state object).
+  function renderHomeEmbeddedCanvas(model) {
+    const target = document.getElementById('home-embedded-canvas');
+    if (!target) return;
+    const c = COPY[locale()];
+    const recent = (model.recentCreations || []).find((item) => item.artifactProjection && (item.artifactProjection.previewKind === 'IMAGE' || item.artifactProjection.previewKind === 'TEXT'));
+
+    target.hidden = false;
+    target.setAttribute('data-home-section', 'embedded-canvas');
+    const agentPanel = document.getElementById('home-agent-panel');
+
+    if (!recent) {
+      target.innerHTML = `<div class="home-canvas-empty"><h2>${esc(c.homeCanvasEmptyTitle)}</h2><p>${esc(c.homeCanvasEmptyBody)}</p></div>`;
+      // R23.7H-C Phase D.4 §16 — no artifact means the Agent has nothing
+      // real to collaborate on yet; hide it rather than show an empty
+      // Chat/Context/Suggestions shell beside an empty Canvas.
+      if (agentPanel) agentPanel.hidden = true;
+      return;
+    }
+    if (agentPanel) agentPanel.hidden = false;
+
+    const proj = recent.artifactProjection;
+    // R23.7H-C Phase D.4 §24 — exposes the REAL canonical artifactId the
+    // embedded preview actually rendered, so certification can verify
+    // "Home and Focus Mode agree" by identity rather than assuming list
+    // position (the D.3 cert script's flawed assumption). Real state,
+    // same real-state-exposure pattern Focus Mode already uses elsewhere.
+    window.NAGEX._homeEmbeddedArtifactIdForCert = proj.artifactId;
+    target.innerHTML = `
+      <div class="canvas-toolbar home-embedded-canvas-toolbar">
+        <div class="canvas-toolbar-left">
+          <div class="canvas-context">
+            <span id="home-canvas-artifact-type" class="badge-status">${esc(proj.artifactType || '')}</span>
+            <h2 id="home-canvas-artifact-title">${esc(proj.title || c.untitledArtifact)}</h2>
+          </div>
+        </div>
+        <div class="canvas-toolbar-right">
+          <button type="button" class="btn-primary" id="home-canvas-open-btn">${esc(c.homeCanvasOpenFocus)}</button>
+        </div>
+      </div>
+      <div class="canvas-stage home-embedded-canvas-stage">
+        <div id="home-canvas-renderer-region" class="canvas-renderer"></div>
+      </div>
+    `;
+
+    renderArtifactStage('home-canvas-', proj.artifactType, proj, proj.openTarget, null);
+    renderArtifactContext('home-canvas-', proj.artifactType, proj);
+    window.NAGEX.switchCanvasAgentTab('chat');
+
+    const openBtn = document.getElementById('home-canvas-open-btn');
+    if (openBtn) {
+      openBtn.addEventListener('click', () => {
+        window.NAGEX.dispatchArtifactOpen(proj.artifactType, recent.sourceRef, recent);
+      });
+    }
+  }
+
+  // R23.7H-C Phase D — the 7 first-class Create capabilities, matching the
+  // approved mockup. This is a static, presentational catalog, NOT the
+  // server's `creationActions` field (which stays a real, typed 2-entry
+  // RESEARCH/ANALYZE dispatch list, untouched). Status here is a truthful,
+  // static fact about which routes/executors actually exist in this
+  // codebase (verified: document-creation.routes.ts for REPORT,
+  // creation.routes.ts/image-executor.ts for IMAGE, research.routes.ts for
+  // RESEARCH, plan-resolver.ts + tasks/automations routes for PLAN's real
+  // but partial step execution; SLIDES/VIDEO/CODE have no route at all) —
+  // the same kind of hardcoded per-type truth Phase C's ArtifactPreviewKind
+  // mapping already uses, not personalized/runtime data.
+  const CREATE_CAPABILITIES = [
+    { id: 'REPORT', status: 'LIVE', tile: 'blue', icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6" fill="none" stroke="currentColor" stroke-width="1.6"/>' },
+    { id: 'SLIDES', status: 'PLANNED', tile: 'orange', icon: '<rect x="2" y="4" width="20" height="14" rx="2"/><path d="M8 22h8" stroke="currentColor" stroke-width="1.6"/>' },
+    { id: 'IMAGE', status: 'LIVE', tile: 'purple', icon: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.6" fill="#fff"/><path d="M21 15l-5-5L5 21" fill="none" stroke="#fff" stroke-width="1.6"/>' },
+    { id: 'VIDEO', status: 'PLANNED', tile: 'red', icon: '<rect x="2" y="5" width="14" height="14" rx="2"/><path d="M16 10l6-3v10l-6-3z"/>' },
+    { id: 'RESEARCH', status: 'LIVE', tile: 'green', icon: '<circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M20 20l-5-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>' },
+    { id: 'PLAN', status: 'PARTIAL', tile: 'blue', icon: '<rect x="3" y="4" width="18" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 2v4M16 2v4M3 10h18" fill="none" stroke="currentColor" stroke-width="2"/>' },
+    { id: 'CODE', status: 'PLANNED', tile: 'purple', icon: '<path d="M8 6l-6 6 6 6M16 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>' },
+  ];
+
+  function capabilityCopy(id) {
+    const c = COPY[locale()];
+    return { title: c['cap' + id + 'Title'] || id, desc: c['cap' + id + 'Desc'] || '' };
+  }
+
+  function statusBadgeLabel(status) {
+    const c = COPY[locale()];
+    if (status === 'LIVE') return c.capStatusLive;
+    if (status === 'PARTIAL') return c.capStatusPartial;
+    return c.capStatusPlanned;
+  }
+
+  function renderCreateCapabilities(target) {
+    if (!target) return;
+    const c = COPY[locale()];
+    target.hidden = false;
+    target.setAttribute('data-home-section', 'create-capabilities');
+    target.innerHTML = `<div class="ph-heading"><h2><svg class="svg-icon-sm" style="color:var(--primary-blue, #0a56f7);" viewBox="0 0 24 24"><path fill="currentColor" d="M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z"/></svg> ${esc(c.create)}</h2><p class="ph-heading-sub">${esc(c.createSubtitle)}</p></div><div class="ph-capability-row">${CREATE_CAPABILITIES.map((cap) => {
+      const copy = capabilityCopy(cap.id);
+      return `<button type="button" class="ph-capability-tile" data-capability="${esc(cap.id)}" data-status="${esc(cap.status)}" aria-label="${esc(copy.title)} — ${esc(statusBadgeLabel(cap.status))}">
+        <span class="ph-capability-icon card-icon-tile ${esc(cap.tile)}-tile"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="currentColor">${cap.icon}</svg></span>
+        <strong>${esc(copy.title)}</strong>
+        <span class="ph-capability-desc">${esc(copy.desc)}</span>
+        <span class="ph-capability-status" data-status="${esc(cap.status)}"><i></i>${esc(statusBadgeLabel(cap.status))}</span>
+      </button>`;
+    }).join('')}</div>`;
+    target.querySelectorAll('[data-capability]').forEach((button) => button.addEventListener('click', () => activateCreateCapability(button.dataset.capability)));
+  }
+
+  function activateCreateCapability(id) {
+    if (id === 'IMAGE') {
+      if (window.NAGEX.switchTab) window.NAGEX.switchTab('tab-create');
+      return;
+    }
+    if (id === 'PLAN') {
+      if (window.NAGEX.switchTab) window.NAGEX.switchTab('tab-plans');
+      return;
+    }
+    if (id === 'RESEARCH') {
+      activateCreationAction('RESEARCH');
+      return;
+    }
+    if (id === 'REPORT') {
+      const input = document.getElementById(window.matchMedia && window.matchMedia('(max-width: 768px)').matches ? 'mh-command-input' : 'home-prompt-input');
+      if (!input) return;
+      input.dataset.creationMode = 'REPORT';
+      input.value = '';
+      input.placeholder = locale() === 'ko' ? '어떤 내용의 보고서를 작성할까요?' : 'What should NAgex write a report about?';
+      input.focus();
+      return;
+    }
+    // SLIDES / VIDEO / CODE — genuinely planned, no executor exists yet.
+    // Same truthful pattern as dispatchArtifactOpen's PLANNED handling:
+    // tell the user honestly, never fake progress or success.
+    const msg = locale() === 'ko' ? '해당 기능은 향후 업데이트에서 지원될 예정입니다.' : 'This capability is planned for a future update.';
+    if (typeof window.alert === 'function') window.alert(msg);
+  }
+
+  async function submitReport(prompt) {
+    const result = await window.NAGEX.apiFetch('/api/v1/creations/documents', { method: 'POST', body: JSON.stringify({ prompt }) });
+    if (!result || result.error) return result;
+    cachedPromise = null;
+    if (result.artifactId) {
+      window.NAGEX.openArtifactInCanvas(result.artifactId, 'DOCUMENT', undefined, result.openTarget, null);
+    }
+    return result;
   }
 
   function activateCreationAction(action) {
@@ -354,11 +731,13 @@
   function renderDesktop(model) {
     const c = COPY[locale()];
     renderSection(document.getElementById('home-section-right-now'), c.rightNow, model.rightNow, 'right-now');
-    renderCreationActions(document.getElementById('home-section-create'), model.creationActions);
+    renderCreateCapabilities(document.getElementById('home-section-create'));
+    renderWorkWithData(document.getElementById('home-section-work-with-data'));
+    renderHomeEmbeddedCanvas(model);
     renderSection(document.getElementById('home-section-needs-attention'), c.attention, model.attention, 'needs-attention');
     renderSection(document.getElementById('home-section-today'), c.today, model.today, 'today');
     renderSection(document.getElementById('home-section-prepared'), c.preparing, model.preparing, 'preparing');
-    renderSection(document.getElementById('home-section-recent-creations'), c.creations, model.recentCreations, 'recent-creations');
+    renderRecentCreations(document.getElementById('home-section-recent-creations'), c.creations, model.recentCreations);
     renderSection(document.getElementById('home-section-recent-results'), c.recent, model.recent, 'recent');
     const obsolete = document.getElementById('home-section-working'); if (obsolete) obsolete.hidden = true;
   }
@@ -366,14 +745,15 @@
   function renderMobile(model) {
     const c = COPY[locale()];
     renderSection(document.getElementById('mh-right-now-hero'), c.rightNow, model.rightNow, 'right-now');
-    renderCreationActions(document.getElementById('mh-section-create'), model.creationActions);
+    renderCreateCapabilities(document.getElementById('mh-section-create'));
+    renderWorkWithData(document.getElementById('mh-section-work-with-data'));
     renderSection(document.getElementById('mh-section-approvals'), c.attention, model.attention, 'needs-attention');
     renderSection(document.getElementById('mh-section-today'), c.today, model.today, 'today');
     renderSection(document.getElementById('mh-section-prepared'), c.preparing, model.preparing, 'preparing');
-    renderSection(document.getElementById('mh-section-recent-creations'), c.creations, model.recentCreations, 'recent-creations');
+    renderRecentCreations(document.getElementById('mh-section-recent-creations'), c.creations, model.recentCreations);
     renderSection(document.getElementById('mh-section-recent'), c.recent, model.recent, 'recent');
     const suggestions = document.getElementById('mh-section-suggestions'); if (suggestions) suggestions.hidden = true;
   }
 
-  window.NAGEX_PERSONAL_HOME = Object.freeze({ STATES, normalize, fetchHome, renderDesktop, renderMobile, submitResearch, invalidate: () => { cachedPromise = null; } });
+  window.NAGEX_PERSONAL_HOME = Object.freeze({ STATES, normalize, fetchHome, renderDesktop, renderMobile, submitResearch, submitReport, invalidate: () => { cachedPromise = null; } });
 })();

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NAgex — Personal AI Control Center</title>
+  <title>NAgex ??Personal AI Control Center</title>
   <link rel="icon" type="image/png" href="assets/favicon.png">
   <link rel="apple-touch-icon" href="assets/nagex-app-icon.png">
   <link rel="stylesheet" href="shared/tokens.css?v=__NAGEX_BUILD_VERSION__">
@@ -19,12 +19,30 @@
 <body>
   <div class="app-wrapper">
     <!-- Header -->
-    <header class="app-header">
+    <header class="app-header nagex-top-composition">
+      <div class="brand-hero-layer" aria-label="NAgex positioning">
+        <div class="brand-hero-identity">
+          <img src="assets/nagex-logo-tagline.png" alt="NAgex" class="nagex-hero-logo">
+        </div>
+        <div class="brand-hero-copy">
+          <h1>Your Personal AI <span>That Understands, Creates, and Acts.</span></h1>
+          <p>NAgex remembers your context, creates high-quality content, and helps you take action with your approval.</p>
+        </div>
+        <div class="brand-hero-visual" aria-label="A smarter tomorrow, with NAgex.">
+          <div class="brand-hero-script">A smarter tomorrow,<br>with NAgex.</div>
+          <div class="brand-hero-shortcuts" aria-label="NAgex capability shortcuts">
+            <button type="button" class="brand-shortcut" onclick="window.NAGEX?.switchTab?.('tab-create')"><span class="brand-shortcut-icon">C</span><span>Create content</span></button>
+            <button type="button" class="brand-shortcut" onclick="window.NAGEX?.switchTab?.('tab-knowledge')"><span class="brand-shortcut-icon">D</span><span>Work with your data</span></button>
+            <button type="button" class="brand-shortcut" onclick="window.NAGEX?.switchTab?.('tab-approvals')"><span class="brand-shortcut-icon">A</span><span>Get approvals</span></button>
+            <button type="button" class="brand-shortcut" onclick="window.NAGEX?.switchTab?.('tab-tasks')"><span class="brand-shortcut-icon">T</span><span>Turn intent into action</span></button>
+          </div>
+        </div>
+      </div>
       <div class="brand-section">
         <button class="hamburger-btn" id="btn-hamburger" aria-label="Toggle Menu">
           <svg class="svg-icon" viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
         </button>
-        <div class="brand-logo-group" title="NAgex — Personal AI for the Next Age" role="button" tabindex="0" aria-label="Go to Home" data-i18n-aria-label="nav.logoHomeAria" onclick="window.NAGEX.goHome()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.NAGEX.goHome();}">
+        <div class="brand-logo-group" title="NAgex ??Personal AI for the Next Age" role="button" tabindex="0" aria-label="Go to Home" data-i18n-aria-label="nav.logoHomeAria" onclick="window.NAGEX.goHome()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.NAGEX.goHome();}">
           <img src="assets/nagex-compact-logo.png" alt="NAgex" class="nagex-compact-logo header-logo">
         </div>
       </div>
@@ -43,7 +61,7 @@
       <div class="desktop-global-search" role="search">
         <svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 3a6.5 6.5 0 1 0 3.98 11.64L19.85 21 21 19.85l-6.36-6.37A6.5 6.5 0 0 0 9.5 3zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9z"/></svg>
         <button type="button" id="btn-header-search" class="desktop-global-search-target">Search anything or ask NAgex...</button>
-        <kbd>⌘ K</kbd>
+        <kbd>??K</kbd>
       </div>
 
       <div class="header-right">
@@ -75,11 +93,13 @@
       <aside class="sidebar-left" id="sidebar-left">
         <div class="sidebar-top-group">
           <ul class="nav-menu">
-            <!-- Default Consumer Navigation (MASTER.md Section 14.12) — exactly
-                 five flat items, no section labels. Capture/Tasks/Memory/
-                 Knowledge/Automations/Connections/Approvals/Skills/Tools are
-                 not deleted — they're reachable from Settings/Settings →
-                 Advanced (see #view-settings) or contextually (Inbox). -->
+            <!-- Canonical Consumer Navigation (R23.7H-C Phase D, Product Owner
+                 IA decision) ??8 primary items, no section labels. This list
+                 must stay in sync with NAGEX_PRIMARY_NAV in app.js (the single
+                 canonical nav definition desktop and mobile both derive from ??                 see tests/r23_7h_c_phase_d_nav.test.ts for the drift check).
+                 Activity (tab-executions) and Vault (tab-vault) are no longer
+                 primary destinations but keep their real routes/views intact ??                 Activity is reachable from Home/Tasks "View activity history"
+                 links, Vault's data is folded into Knowledge. -->
             <li class="nav-item active" data-tab="tab-home">
               <button class="nav-link" title="Home">
                 <svg class="svg-icon" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
@@ -92,16 +112,34 @@
                 <span data-i18n="nav.inbox">Inbox</span>
               </button>
             </li>
-            <li class="nav-item" data-tab="tab-executions">
-              <button class="nav-link" title="Activity">
-                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
-                <span data-i18n="nav.activity">Activity</span>
+            <li class="nav-item" data-tab="tab-create">
+              <button class="nav-link" title="Create">
+                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z"/></svg>
+                <span data-i18n="nav.create">Create</span>
               </button>
             </li>
-            <li class="nav-item" data-tab="tab-vault">
-              <button class="nav-link" title="Vault">
-                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
-                <span data-i18n="nav.vault">Vault</span>
+            <li class="nav-item" data-tab="tab-canvas">
+              <button class="nav-link" title="Canvas">
+                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+                <span data-i18n="nav.canvas">Canvas</span>
+              </button>
+            </li>
+            <li class="nav-item" data-tab="tab-tasks">
+              <button class="nav-link" title="Tasks">
+                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9 14l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                <span data-i18n="nav.tasks">Tasks</span>
+              </button>
+            </li>
+            <li class="nav-item" data-tab="tab-knowledge">
+              <button class="nav-link" title="Knowledge">
+                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.3 4.75 1.05.1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1zm0 13.5c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V8c1.35-.85 3.8-1.5 5.5-1.5 1.2 0 2.4.15 3.5.5v11.5z"/></svg>
+                <span data-i18n="nav.knowledge">Knowledge</span>
+              </button>
+            </li>
+            <li class="nav-item" data-tab="tab-approvals">
+              <button class="nav-link" title="Approvals">
+                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-1.18 14.41L7 11.59l1.41-1.41 2.41 2.41 5.77-5.77L18 8.24l-7.18 7.17z"/></svg>
+                <span data-i18n="nav.approvals">Approvals</span>
               </button>
             </li>
             <li class="nav-item" data-tab="tab-settings">
@@ -115,13 +153,13 @@
 
         <div class="sidebar-bottom-user">
           <div class="sidebar-promo-card">
-            <span class="sparkle-icon">✦</span>
+            <span class="sparkle-icon">??/span>
             <div class="promo-title">A more capable you, every day.</div>
             <div class="promo-progress-bar"><div class="promo-progress-fill" style="width: 75%;"></div></div>
           </div>
           <div class="sidebar-device-card" id="sidebar-device-card" aria-live="polite">
-            <div class="sidebar-device-heading"><span class="sidebar-device-icon">▣</span><span>This PC</span></div>
-            <div class="sidebar-device-state"><span class="sidebar-device-dot"></span><span id="sidebar-device-state">Checking status…</span></div>
+            <div class="sidebar-device-heading"><span class="sidebar-device-icon">??/span><span>This PC</span></div>
+            <div class="sidebar-device-state"><span class="sidebar-device-dot"></span><span id="sidebar-device-state">Checking status??/span></div>
             <div class="sidebar-device-detail" id="sidebar-device-detail">Desktop runtime status</div>
           </div>
           <div class="sidebar-footer-brand">
@@ -129,7 +167,7 @@
             <small data-i18n="brand.tagline">Intelligence for the Next Age.</small>
             <div class="sidebar-footer-links">
               <a href="/privacy">Privacy</a>
-              <span>·</span>
+              <span>夷?/span>
               <a href="/terms">Terms</a>
             </div>
           </div>
@@ -139,7 +177,7 @@
       <!-- Center Main View Container -->
       <main class="center-canvas">
 
-        <!-- VIEW 1: DESKTOP HOME (PERSONAL AI CANONICAL UX) — UI-4 mockup
+        <!-- VIEW 1: DESKTOP HOME (PERSONAL AI CANONICAL UX) ??UI-4 mockup
              clone. Visual composition follows the supplied desktop
              mockup; canonical 5-item nav is unchanged (see sidebar
              above), and every data-bearing section below binds to real
@@ -147,15 +185,19 @@
              content. -->
         <div id="view-home" class="tab-view active-view canvas-mode-chat nagex-desktop-home">
           <div class="desktop-home-main-stack">
-            <!-- 1. GREETING + PRIMARY COMPOSER -->
-            <div class="home-hero-header">
-              <span class="eyebrow-text" id="desktop-hero-greeting" data-i18n="home.greetingMorning">Good morning</span>
-              <h1 class="personal-hero-title" data-i18n="home.heroTitle">What do you want to accomplish?</h1>
-              <p class="personal-hero-subtitle" data-i18n="home.heroSubtitle">Tell NAgex what you need. It plans, takes action, and keeps you in control.</p>
-            </div>
+            <!-- R23.7H-C Phase D.1/D.4 吏? ??greeting + composer merged into
+                 one compact entry card. D.4 removed the large "What do you
+                 want to accomplish?" h1/subtitle (was consuming ~150-200px
+                 before any creation content) ??the composer itself is now
+                 the primary interaction, with just a small greeting above
+                 it, within the ~60-95px vertical budget. -->
+            <div class="home-entry-card home-entry-compact">
+              <div class="home-hero-header home-hero-compact">
+                <span class="eyebrow-text" id="desktop-hero-greeting" data-i18n="home.greetingMorning">Good morning</span>
+              </div>
 
-            <!-- Unified Composer Card -->
-            <div class="unified-capture-composer-card nagex-composer-compact" id="unified-composer">
+              <!-- Unified Composer Card -->
+              <div class="unified-capture-composer-card nagex-composer-compact" id="unified-composer">
               <textarea id="home-prompt-input" class="unified-prompt-textarea nagex-composer-input" placeholder="Ask NAgex to do anything..." data-i18n-placeholder="workspace.askOrDrop" rows="1"></textarea>
               <div class="composer-bottom-bar">
                 <div class="composer-left-actions">
@@ -180,18 +222,80 @@
               <div id="composer-drop-zone" class="composer-file-drop-zone hidden">
                 <span data-i18n="composer.dropZoneHint">Drop a file here, or click to browse</span>
               </div>
+              </div>
             </div>
 
-            <!-- 2. RIGHT NOW -->
-            <section class="nagex-card home-section-right-now" id="home-section-right-now" hidden></section>
+            <!-- R23.7H-C Phase D.4 吏?/吏? ??compact creation strip: Create
+                 with NAgex (dominant) + Work with your data (compact
+                 companion), matching the mockup's horizontal relationship
+                 instead of two stacked full-width sections. -->
+            <!-- R23.7H-C D4.6 Desktop Workspace Grid Foundation: a shared
+                 parent grid reserves a main work column (creation row +
+                 Canvas, stacked) and an Agent rail column (NAgex Agent +
+                 Agent Actions/Today, stacked) at the same layout level, so
+                 the main column's right edge is consistent between the
+                 creation row and Canvas below it. Same ids/handlers as
+                 before, moved under new wrapper elements only. -->
+            <div class="home-workspace-grid">
+            <div class="home-main-workspace">
+            <div class="home-creation-strip">
+              <section class="nagex-card home-creation-strip-main" id="home-section-create" aria-live="polite"></section>
+              <section class="nagex-card home-creation-strip-data" id="home-section-work-with-data" aria-live="polite"></section>
+            </div>
 
-            <section class="nagex-card" id="home-section-create" aria-live="polite"></section>
+            <!-- R23.7H-C Phase D.3/D.4 吏?0/吏?1/吏?3 ??the primary Personal AI
+                 Creation Workspace: embedded Canvas (dominant), NAgex Agent
+                 (Chat/Context/Suggestions, shares switchCanvasAgentTab/
+                 renderArtifactContext with Focus Mode ??no second Agent
+                 implementation), and a truthful context rail (Right Now +
+                 Agent Actions + Today, real state only, moved here from
+                 being a full-width blocker above Canvas ??D.4 吏?). This
+                 whole row is sized to be visible within the first 900px
+                 fold at 1440px (see .home-primary-workspace). -->
+            <section class="nagex-card home-embedded-canvas-card" id="home-embedded-canvas" aria-live="polite"></section>
+            </div>
 
-            <!-- 2-Column Operational Grid for Sections 3-7 -->
-            <div class="desktop-home-grid-operational">
-              <div class="desktop-home-col-main">
-                <!-- 3. TODAY -->
-                <section class="nagex-card home-section-today" id="home-section-today">
+            <div class="home-agent-rail">
+              <aside class="canvas-agent-panel home-agent-panel" id="home-agent-panel" aria-label="NAgex Agent">
+                <div class="canvas-agent-tabs" role="tablist">
+                  <button type="button" class="canvas-agent-tab active" data-agent-tab="chat" role="tab" aria-selected="true" onclick="window.NAGEX.switchCanvasAgentTab('chat')" data-i18n="canvas.agentChat">Chat</button>
+                  <button type="button" class="canvas-agent-tab" data-agent-tab="context" role="tab" aria-selected="false" onclick="window.NAGEX.switchCanvasAgentTab('context')" data-i18n="canvas.agentContext">Context</button>
+                  <button type="button" class="canvas-agent-tab" data-agent-tab="suggestions" role="tab" aria-selected="false" onclick="window.NAGEX.switchCanvasAgentTab('suggestions')" data-i18n="canvas.agentSuggestions">Suggestions</button>
+                </div>
+                <div class="canvas-agent-tab-panel" data-agent-panel="chat">
+                  <p class="canvas-agent-empty" data-i18n="canvas.agentChatIntro">NAgex is ready to help with this creation.</p>
+                  <div class="canvas-ask-wrapper">
+                    <input type="text" id="home-canvas-ask-input" class="canvas-ask-field" placeholder="Ask NAgex to change this..." data-i18n-placeholder="canvas.askPlaceholder" />
+                    <button class="btn-primary canvas-ask-submit" onclick="window.NAGEX.submitCanvasAsk('home-canvas-')" aria-label="Send" data-i18n-aria-label="canvas.askSubmit">
+                      <svg class="svg-icon-sm" viewBox="0 0 24 24"><path fill="currentColor" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                    </button>
+                  </div>
+                </div>
+                <div class="canvas-agent-tab-panel" data-agent-panel="context" hidden>
+                  <dl id="home-canvas-agent-context-fields" class="canvas-agent-context-fields"></dl>
+                </div>
+                <div class="canvas-agent-tab-panel" data-agent-panel="suggestions" hidden>
+                  <p class="canvas-agent-empty" data-i18n="canvas.agentSuggestionsEmpty">Suggestions for this artifact will appear here.</p>
+                </div>
+              </aside>
+
+              <aside class="home-context-rail" id="home-context-rail">
+                <section class="nagex-card home-section-right-now home-context-rail-item" id="home-section-right-now" hidden></section>
+
+                <!-- AGENT ACTIONS (Approval Required) -->
+                <section class="nagex-card home-section-needs-attention home-context-rail-item" id="home-section-needs-attention" hidden>
+                  <div class="nagex-section-heading">
+                    <div class="heading-title-group">
+                      <span class="card-icon-tile red-tile"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
+                      <h2 data-i18n="home.needsYourAttentionHeader">Needs your attention</h2>
+                    </div>
+                    <a class="nagex-section-link" onclick="window.NAGEX.switchTab('tab-approvals')" data-i18n="home.seeAll">View All &gt;</a>
+                  </div>
+                  <div id="list-needs-attention" aria-live="polite"></div>
+                </section>
+
+                <!-- TODAY'S SCHEDULE -->
+                <section class="nagex-card home-section-today home-context-rail-item" id="home-section-today" hidden>
                   <div class="nagex-section-heading">
                     <div class="heading-title-group">
                       <span class="card-icon-tile blue-tile"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg></span>
@@ -204,62 +308,63 @@
                     <div class="nagex-loading-row"></div>
                   </div>
                 </section>
-
-                <!-- 5. PREPARED FOR YOU -->
-                <section class="nagex-card home-section-prepared" id="home-section-prepared">
-                  <div class="nagex-section-heading">
-                    <div class="heading-title-group">
-                      <span class="card-icon-tile orange-tile"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span>
-                      <h2 data-i18n="home.preparedForYouHeader">Prepared for you</h2>
-                    </div>
-                  </div>
-                  <div id="list-prepared-for-you" aria-live="polite"></div>
-                </section>
-
-                <!-- 7. RECENT RESULTS -->
-                <section class="nagex-card home-section-recent-results" id="home-section-recent-creations">
-                  <div class="nagex-section-heading">
-                    <div class="heading-title-group">
-                      <span class="card-icon-tile green-tile"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span>
-                      <h2 data-i18n="home.recentResultsHeader">Recent results</h2>
-                    </div>
-                    <a class="nagex-section-link" onclick="window.NAGEX.switchTab('tab-executions')" data-i18n="home.seeAll">View All &gt;</a>
-                  </div>
-                  <div id="desktop-recent-actions-list" class="recent-actions-grid"></div>
-                </section>
-                <section class="nagex-card" id="home-section-recent-results" aria-live="polite"></section>
-              </div>
-
-              <div class="desktop-home-col-center">
-                <!-- 4. NEEDS YOUR ATTENTION -->
-                <section class="nagex-card home-section-needs-attention" id="home-section-needs-attention">
-                  <div class="nagex-section-heading">
-                    <div class="heading-title-group">
-                      <span class="card-icon-tile red-tile"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
-                      <h2 data-i18n="home.needsYourAttentionHeader">Needs your attention</h2>
-                    </div>
-                    <a class="nagex-section-link" onclick="window.NAGEX.switchTab('tab-approvals')" data-i18n="home.seeAll">View All &gt;</a>
-                  </div>
-                  <div id="list-needs-attention" aria-live="polite"></div>
-                </section>
-
-                <!-- 6. WORKING FOR YOU -->
-                <section class="nagex-card home-section-working" id="home-section-working">
-                  <div class="nagex-section-heading">
-                    <div class="heading-title-group">
-                      <span class="card-icon-tile blue-tile"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12h3l3-9 4 18 3-9h4"/></svg></span>
-                      <h2 data-i18n="home.workingForYouHeader">Working for you</h2>
-                    </div>
-                    <a class="nagex-section-link" onclick="window.NAGEX.switchTab('tab-executions')" data-i18n="home.seeAll">View All &gt;</a>
-                  </div>
-                  <div id="list-nagex-working" aria-live="polite"></div>
-                </section>
-              </div>
+              </aside>
             </div>
-          </div>
-        </div>
+            </div>
 
-          <!-- Explore what NAgex can do — R12.1 Increment 2 §12. Secondary,
+            <!-- R23.7H-C Phase D.4 吏?4 ??Recent Creations follows the
+                 primary workspace directly (no intervening full-width
+                 dashboard grid), so it has meaningful first-fold exposure.
+                 Prepared/Working remain real, secondary, below it. -->
+            <section class="nagex-card home-section-recent-results" id="home-section-recent-creations" hidden>
+              <div class="nagex-section-heading">
+                <div class="heading-title-group">
+                  <span class="card-icon-tile green-tile"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span>
+                  <h2 data-i18n="home.recentResultsHeader">Recent results</h2>
+                </div>
+                <a class="nagex-section-link" onclick="window.NAGEX.switchTab('tab-executions')" data-i18n="home.seeAll">View All &gt;</a>
+              </div>
+              <div id="desktop-recent-actions-list" class="recent-actions-grid"></div>
+            </section>
+            <section class="nagex-card" id="home-section-recent-results" hidden aria-live="polite"></section>
+
+            <section class="nagex-card home-section-prepared" id="home-section-prepared" hidden>
+              <div class="nagex-section-heading">
+                <div class="heading-title-group">
+                  <span class="card-icon-tile orange-tile"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span>
+                  <h2 data-i18n="home.preparedForYouHeader">Prepared for you</h2>
+                </div>
+              </div>
+              <div id="list-prepared-for-you" aria-live="polite"></div>
+            </section>
+
+            <section class="nagex-card home-section-working" id="home-section-working" hidden>
+              <div class="nagex-section-heading">
+                <div class="heading-title-group">
+                  <span class="card-icon-tile blue-tile"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12h3l3-9 4 18 3-9h4"/></svg></span>
+                  <h2 data-i18n="home.workingForYouHeader">Working for you</h2>
+                </div>
+                <a class="nagex-section-link" onclick="window.NAGEX.switchTab('tab-executions')" data-i18n="home.seeAll">View All &gt;</a>
+              </div>
+              <div id="list-nagex-working" aria-live="polite"></div>
+            </section>
+          </div>
+          <!-- R23.7H-C Phase D.1 ??removed one stray extra closing div that
+               used to sit here. It prematurely closed #view-home (opened
+               far above, ~line 170) right after the operational grid, which
+               cascaded into mis-nesting every other #view-* (My Space,
+               Canvas, Create, Tasks, Knowledge, Approvals, Settings, ...)
+               as siblings of <main class="center-canvas"> instead of
+               children of it. This was pre-existing (confirmed present in
+               committed HEAD before this pass) and invisible until
+               Canvas's Phase D.1 width:100%/height:100% made the
+               mis-nested #view-canvas fill its real (wrong, much larger)
+               parent .app-wrapper ??collapsing .workspace-grid's height
+               and pushing #view-canvas across the full viewport, over the
+               sidebar. Confirmed via git show HEAD + browser DOM ancestor
+               chain inspection, not guessed. -->
+
+          <!-- Explore what NAgex can do ??R12.1 Increment 2 吏?2. Secondary,
                outcome-grouped discovery surface (not internal module
                names). Each item submits through the same canonical intent
                path as the composer/examples above, never a hidden route. -->
@@ -300,12 +405,12 @@
 
           <!-- Bottom Footer Info -->
           <footer class="home-canvas-footer">
-            <span>NAgex · Personal AI for the Next Age</span>
+            <span>NAgex 夷?Personal AI for the Next Age</span>
             <span data-i18n="brand.tagline">Intelligence for the Next Age.</span>
           </footer>
         </div>
 
-        <!-- VIEW: MY SPACE (P08 — Personal Space Foundation, first slice).
+        <!-- VIEW: MY SPACE (P08 ??Personal Space Foundation, first slice).
              Thin, read-only composition of already-frozen sources; no new
              persistence, no new router. Reached only via Home's own "My
              Space" card above (top nav is unchanged, per Section 4.1). -->
@@ -313,7 +418,7 @@
           <div class="view-header-bar">
             <div>
               <h2 data-i18n="mySpace.title">My Space</h2>
-              <p class="view-sub" data-i18n="mySpace.subtitle">Your activity, memory, tasks, workflows, calendar, and history — all in one place.</p>
+              <p class="view-sub" data-i18n="mySpace.subtitle">Your activity, memory, tasks, workflows, calendar, and history ??all in one place.</p>
             </div>
           </div>
 
@@ -321,7 +426,7 @@
             <div class="canvas-section-card">
               <div class="card-title-row">
                 <div class="card-title-left">
-                  <span class="card-icon-blue">🕒</span>
+                  <span class="card-icon-blue">?釉?/span>
                   <h3 class="card-main-title" data-i18n="mySpace.activity">Recent Activity</h3>
                 </div>
               </div>
@@ -331,7 +436,7 @@
             <div class="canvas-section-card">
               <div class="card-title-row">
                 <div class="card-title-left">
-                  <span class="card-icon-blue">🧠</span>
+                  <span class="card-icon-blue">?彛?/span>
                   <h3 class="card-main-title" data-i18n="mySpace.memory">Memory</h3>
                 </div>
                 <a class="card-link-see-all" onclick="window.NAGEX.switchTab('tab-memory')" data-i18n="home.seeAll">See all &gt;</a>
@@ -342,7 +447,7 @@
             <div class="canvas-section-card">
               <div class="card-title-row">
                 <div class="card-title-left">
-                  <span class="card-icon-blue">✅</span>
+                  <span class="card-icon-blue">??/span>
                   <h3 class="card-main-title" data-i18n="mySpace.tasks">Tasks</h3>
                 </div>
                 <a class="card-link-see-all" onclick="window.NAGEX.switchTab('tab-tasks')" data-i18n="home.seeAll">See all &gt;</a>
@@ -353,7 +458,7 @@
             <div class="canvas-section-card">
               <div class="card-title-row">
                 <div class="card-title-left">
-                  <span class="card-icon-blue">🔁</span>
+                  <span class="card-icon-blue">?遊?/span>
                   <h3 class="card-main-title" data-i18n="mySpace.workflows">Workflows</h3>
                 </div>
               </div>
@@ -363,7 +468,7 @@
             <div class="canvas-section-card">
               <div class="card-title-row">
                 <div class="card-title-left">
-                  <span class="card-icon-blue">📅</span>
+                  <span class="card-icon-blue">?諭?/span>
                   <h3 class="card-main-title" data-i18n="mySpace.calendar">Upcoming Calendar</h3>
                 </div>
               </div>
@@ -373,7 +478,7 @@
             <div class="canvas-section-card">
               <div class="card-title-row">
                 <div class="card-title-left">
-                  <span class="card-icon-blue">📜</span>
+                  <span class="card-icon-blue">?諭?/span>
                   <h3 class="card-main-title" data-i18n="mySpace.history">Recent History</h3>
                 </div>
               </div>
@@ -403,7 +508,7 @@
               <div class="empty-state-text">No captured items in Inbox yet.</div>
             </div>
             <!-- Phase 1 STEP 5: canonical Candidate records (CandidateStore),
-                 shown read-only here to prove retrieval/listing — full
+                 shown read-only here to prove retrieval/listing ??full
                  review controls are a later step. -->
             <div class="inbox-candidates-section" style="margin-top: 1.5rem;">
               <h3 style="font-size: 0.85rem; color: var(--color-text-secondary); margin-bottom: 0.5rem;" data-i18n="workspace.candidatesTitle">Suggested (Candidates)</h3>
@@ -443,7 +548,7 @@
 
         <!-- VIEW 2: MEMORY (PERSONAL CONTEXT) -->
         <div id="view-memory" class="tab-view">
-          <button class="settings-back-link" data-tab="tab-settings" onclick="window.NAGEX.switchTab('tab-settings')">‹ <span data-i18n="settings.backToSettings">Back to Settings</span></button>
+          <button class="settings-back-link" data-tab="tab-settings" onclick="window.NAGEX.switchTab('tab-settings')">??<span data-i18n="settings.backToSettings">Back to Settings</span></button>
           <div class="view-header">
             <div>
               <h2 data-i18n="personalContext.title">What NAgex Knows</h2>
@@ -484,21 +589,21 @@
             <span class="eyebrow-text">NAGEX CONTROL CENTER</span>
             <h1 class="personal-hero-title">Plan & Execute</h1>
             <p class="personal-hero-subtitle">Turn your goals into real outcomes.</p>
-            <p class="hero-desc-sub">Create structured plans, get the right skills and tools, and let NAgex execute — with your control, approvals, and full visibility.</p>
+            <p class="hero-desc-sub">Create structured plans, get the right skills and tools, and let NAgex execute ??with your control, approvals, and full visibility.</p>
           </div>
 
           <!-- Top 3 Cards + Primary Button (Mockup Image 4) -->
           <div class="plans-summary-row">
             <div class="plan-sum-card">
-              <div class="card-icon-circle blue">📅</div>
+              <div class="card-icon-circle blue">?諭?/div>
               <div>
                 <strong>Open plans</strong>
                 <div class="plan-num">3</div>
-                <small>2 in progress • 1 not started</small>
+                <small>2 in progress ??1 not started</small>
               </div>
             </div>
             <div class="plan-sum-card">
-              <div class="card-icon-circle orange">🛡️</div>
+              <div class="card-icon-circle orange">??녔닼?/div>
               <div>
                 <strong>Pending approvals</strong>
                 <div class="plan-num warning">2</div>
@@ -506,11 +611,11 @@
               </div>
             </div>
             <div class="plan-sum-card">
-              <div class="card-icon-circle purple">▶️</div>
+              <div class="card-icon-circle purple">??고닔</div>
               <div>
                 <strong>Recent executions</strong>
                 <div class="plan-num">6</div>
-                <small>4 completed • 2 running</small>
+                <small>4 completed ??2 running</small>
               </div>
             </div>
             <button class="btn-create-plan-primary">+ Create a new plan</button>
@@ -523,7 +628,7 @@
             <div class="plan-main-card">
               <div class="plan-card-header-top">
                 <div class="plan-title-group">
-                  <div class="plan-icon-square">👥</div>
+                  <div class="plan-icon-square">?維?/div>
                   <div>
                     <h2>Prepare Client Meeting</h2>
                     <p class="sub-text">Prepare for the Acme Corp. quarterly business review meeting.</p>
@@ -540,8 +645,8 @@
                 <div class="tags-list">
                   <span class="chip-tag">Client Meeting</span>
                   <span class="chip-tag">Acme Corp</span>
-                  <span class="chip-tag high-priority">🔥 High Priority</span>
-                  <span class="due-tag">📅 Due Apr 30, 2024</span>
+                  <span class="chip-tag high-priority">?逾?High Priority</span>
+                  <span class="due-tag">?諭?Due Apr 30, 2024</span>
                 </div>
                 <div class="plan-action-btns">
                   <button class="btn-small-outline">Edit</button>
@@ -578,7 +683,7 @@
                     <tr>
                       <td>1</td>
                       <td><strong>Understand meeting context</strong></td>
-                      <td><span class="badge-status green">✓ Completed</span></td>
+                      <td><span class="badge-status green">??Completed</span></td>
                       <td>Memory Recall</td>
                       <td>NAgex Memory</td>
                       <td>-</td>
@@ -588,7 +693,7 @@
                     <tr>
                       <td>2</td>
                       <td><strong>Research client and industry</strong></td>
-                      <td><span class="badge-status green">✓ Completed</span></td>
+                      <td><span class="badge-status green">??Completed</span></td>
                       <td>Web Research</td>
                       <td>Perplexity</td>
                       <td>-</td>
@@ -598,7 +703,7 @@
                     <tr>
                       <td>3</td>
                       <td><strong>Summarize key talking points</strong></td>
-                      <td><span class="badge-status blue">🔵 Running</span></td>
+                      <td><span class="badge-status blue">?逾?Running</span></td>
                       <td>Summarization</td>
                       <td>Notion</td>
                       <td>-</td>
@@ -608,27 +713,27 @@
                     <tr>
                       <td>4</td>
                       <td><strong>Draft meeting deck</strong></td>
-                      <td><span class="badge-status gray">⚪ Ready</span></td>
+                      <td><span class="badge-status gray">??Ready</span></td>
                       <td>Content Creation</td>
                       <td>Google Slides</td>
-                      <td><span class="badge-appr-req">🟠 Required</span></td>
+                      <td><span class="badge-appr-req">???Required</span></td>
                       <td>Apr 29, 2:00 PM</td>
                       <td>-</td>
                     </tr>
                     <tr>
                       <td>5</td>
                       <td><strong>Get stakeholder review</strong></td>
-                      <td><span class="badge-status orange">🟠 Awaiting Approval</span></td>
+                      <td><span class="badge-status orange">???Awaiting Approval</span></td>
                       <td>Communication</td>
                       <td>Gmail</td>
-                      <td><span class="badge-appr-req">🟠 Required</span></td>
+                      <td><span class="badge-appr-req">???Required</span></td>
                       <td>Apr 29, 5:00 PM</td>
                       <td>-</td>
                     </tr>
                     <tr>
                       <td>6</td>
                       <td><strong>Schedule the meeting</strong></td>
-                      <td><span class="badge-status gray">⚪ Ready</span></td>
+                      <td><span class="badge-status gray">??Ready</span></td>
                       <td>Scheduling</td>
                       <td>Google Calendar</td>
                       <td>-</td>
@@ -638,7 +743,7 @@
                     <tr>
                       <td>7</td>
                       <td><strong>Prepare Q&A responses</strong></td>
-                      <td><span class="badge-status gray">⚪ Ready</span></td>
+                      <td><span class="badge-status gray">??Ready</span></td>
                       <td>Analysis</td>
                       <td>ChatGPT</td>
                       <td>-</td>
@@ -648,7 +753,7 @@
                     <tr>
                       <td>8</td>
                       <td><strong>Final review and checklist</strong></td>
-                      <td><span class="badge-status gray">⚪ Ready</span></td>
+                      <td><span class="badge-status gray">??Ready</span></td>
                       <td>Project Management</td>
                       <td>Notion</td>
                       <td>-</td>
@@ -675,7 +780,7 @@
                 <div class="side-field-group">
                   <div class="side-field-label">Selected skill <a class="link-view-all">Change</a></div>
                   <div class="skill-mini-card">
-                    <span class="star-purple">✦</span>
+                    <span class="star-purple">??/span>
                     <div>
                       <strong>Meeting Preparation</strong><br>
                       <small>Plans and prepares for client meetings with context...</small>
@@ -687,9 +792,9 @@
                   <div class="side-field-label">Selected tools <a class="link-view-all">Manage</a></div>
                   <div class="tools-icons-row">
                     <span class="tool-app-icon">N</span>
-                    <span class="tool-app-icon">📅</span>
-                    <span class="tool-app-icon">✉️</span>
-                    <span class="tool-app-icon">📁</span>
+                    <span class="tool-app-icon">?諭?/span>
+                    <span class="tool-app-icon">??듯닔</span>
+                    <span class="tool-app-icon">?諭?/span>
                     <button class="tool-app-add">+</button>
                   </div>
                 </div>
@@ -699,19 +804,19 @@
                   <div class="timeline-vertical-mini">
                     <div class="time-item green">
                       <span class="dot"></span>
-                      <div><strong>Memory loaded</strong><small>Apr 28, 9:01 AM • Relevant context retrieved (12 memories)</small></div>
+                      <div><strong>Memory loaded</strong><small>Apr 28, 9:01 AM ??Relevant context retrieved (12 memories)</small></div>
                     </div>
                     <div class="time-item blue">
                       <span class="dot"></span>
-                      <div><strong>Plan created</strong><small>Apr 28, 9:02 AM • 8 steps generated by NAgex</small></div>
+                      <div><strong>Plan created</strong><small>Apr 28, 9:02 AM ??8 steps generated by NAgex</small></div>
                     </div>
                     <div class="time-item orange">
                       <span class="dot"></span>
-                      <div><strong>Approval requested</strong><small>Apr 28, 9:05 AM • Step 5 - Get stakeholder review</small></div>
+                      <div><strong>Approval requested</strong><small>Apr 28, 9:05 AM ??Step 5 - Get stakeholder review</small></div>
                     </div>
                     <div class="time-item purple">
                       <span class="dot"></span>
-                      <div><strong>Tool executed</strong><small>Apr 29, 9:03 AM • Research completed with Perplexity</small></div>
+                      <div><strong>Tool executed</strong><small>Apr 29, 9:03 AM ??Research completed with Perplexity</small></div>
                     </div>
                   </div>
                 </div>
@@ -720,15 +825,17 @@
           </div>
         </div>
 
-        <!-- VIEW: TASKS (MASTER.md Section 14.4 — Tasks Center) -->
+        <!-- VIEW: TASKS (MASTER.md Section 14.4 ??Tasks Center) -->
         <div id="view-tasks" class="tab-view">
-          <button class="settings-back-link" data-tab="tab-settings" onclick="window.NAGEX.switchTab('tab-settings')">‹ <span data-i18n="settings.backToSettings">Back to Settings</span></button>
           <div class="view-header">
             <div>
               <h2 data-i18n="tasks.title">Tasks</h2>
-              <p class="view-subtitle" data-i18n="tasks.subtitle">Standing work that runs, recurs, waits, watches a condition, or tracks in the background — distinct from a one-off Plan.</p>
+              <p class="view-subtitle" data-i18n="tasks.subtitle">Standing work that runs, recurs, waits, watches a condition, or tracks in the background ??distinct from a one-off Plan.</p>
             </div>
-            <button class="btn-plan-action plan-status-ready" id="btn-new-task" type="button" data-i18n="tasks.newTask">New Task</button>
+            <div style="display:flex; gap:0.5rem; align-items:center;">
+              <a class="nagex-section-link" onclick="window.NAGEX.switchTab('tab-executions')" data-i18n="tasks.viewActivityHistory">View activity history &gt;</a>
+              <button class="btn-plan-action plan-status-ready" id="btn-new-task" type="button" data-i18n="tasks.newTask">New Task</button>
+            </div>
           </div>
 
           <form class="task-create-form" id="task-create-form" style="display:none;">
@@ -763,7 +870,7 @@
               <input type="number" id="task-interval" min="1" value="60">
             </label>
             <label id="task-condition-field" style="display:none;" data-i18n="tasks.form.condition">Condition to watch for
-              <input type="text" id="task-condition" data-i18n-placeholder="tasks.form.conditionPlaceholder" placeholder="e.g. the price is below ₩800,000">
+              <input type="text" id="task-condition" data-i18n-placeholder="tasks.form.conditionPlaceholder" placeholder="e.g. the price is below ??00,000">
             </label>
             <label id="task-watch-url-field" style="display:none;" data-i18n="tasks.form.watchUrl">Page to watch (URL)
               <input type="url" id="task-watch-url" placeholder="https://example.com/flight">
@@ -789,7 +896,7 @@
 
         <!-- VIEW 4: SKILLS -->
         <div id="view-skills" class="tab-view">
-          <button class="settings-back-link" data-tab="tab-settings" onclick="window.NAGEX.switchTab('tab-settings')">‹ <span data-i18n="settings.backToSettings">Back to Settings</span></button>
+          <button class="settings-back-link" data-tab="tab-settings" onclick="window.NAGEX.switchTab('tab-settings')">??<span data-i18n="settings.backToSettings">Back to Settings</span></button>
           <div class="view-header">
             <div>
               <h2 data-i18n="skills.title">Reusable Skills</h2>
@@ -808,7 +915,7 @@
 
         <!-- VIEW 5: TOOLS -->
         <div id="view-tools" class="tab-view">
-          <button class="settings-back-link" data-tab="tab-settings" onclick="window.NAGEX.switchTab('tab-settings')">‹ <span data-i18n="settings.backToSettings">Back to Settings</span></button>
+          <button class="settings-back-link" data-tab="tab-settings" onclick="window.NAGEX.switchTab('tab-settings')">??<span data-i18n="settings.backToSettings">Back to Settings</span></button>
           <div class="view-header">
             <div>
               <h2 data-i18n="tools.title">Executable Tools</h2>
@@ -823,7 +930,6 @@
 
         <!-- VIEW 6: MOBILE APPROVALS & CONNECTED TOOLS (MOCKUP IMAGE 3) -->
         <div id="view-approvals" class="tab-view">
-          <button class="settings-back-link" data-tab="tab-settings" onclick="window.NAGEX.switchTab('tab-settings')">‹ <span data-i18n="settings.backToSettings">Back to Settings</span></button>
           <div class="mountain-hero-banner-sub">
             <span class="eyebrow-text">HUMAN-CONTROLLED AUTONOMY</span>
             <h1 class="personal-hero-title">Approvals</h1>
@@ -832,8 +938,8 @@
           </div>
 
           <div class="approvals-tabs">
-            <button class="appr-tab-btn active" data-appr-filter="PENDING">🛡️ Pending (2)</button>
-            <button class="appr-tab-btn" data-appr-filter="APPROVED">🕒 History</button>
+            <button class="appr-tab-btn active" data-appr-filter="PENDING">??녔닼?Pending (2)</button>
+            <button class="appr-tab-btn" data-appr-filter="APPROVED">?釉?History</button>
           </div>
 
           <!-- Dynamic Approvals List Container -->
@@ -858,16 +964,29 @@
 
         <!-- VIEW 8: KNOWLEDGE -->
         <div id="view-knowledge" class="tab-view">
-          <button class="settings-back-link" data-tab="tab-settings" onclick="window.NAGEX.switchTab('tab-settings')">‹ <span data-i18n="settings.backToSettings">Back to Settings</span></button>
           <div class="view-header">
             <div>
               <h2 data-i18n="knowledge.title">Reference Knowledge</h2>
-              <p class="view-subtitle" data-i18n="knowledge.subtitle">External files, documents, and reference materials NAgex can access during reasoning (Knowledge ≠ Memory).</p>
+              <p class="view-subtitle" data-i18n="knowledge.subtitle">External files, documents, and reference materials NAgex can access during reasoning (Knowledge ??Memory).</p>
             </div>
           </div>
 
           <div class="knowledge-grid" id="knowledge-list-container">
             <!-- Dynamically populated -->
+          </div>
+
+          <!-- R23.7H-C Phase D ??Vault folded into Knowledge as a
+               user-facing concept (Product Owner IA decision). The real
+               Vault storage/runtime model (vault.routes.ts, VaultStore,
+               #view-vault's own real rendering) is unchanged and still
+               fully reachable ??this is a real link into it, not a
+               duplicate/second Vault implementation. -->
+          <div class="view-header" style="margin-top:2rem; padding-top:1.5rem; border-top:1px solid var(--nagex-border-default, #e2e8f0);">
+            <div>
+              <h2 data-i18n="workspace.vaultTitle">Vault</h2>
+              <p class="view-subtitle" data-i18n="workspace.vaultSubtitle">Your saved files, notes, and references.</p>
+            </div>
+            <a class="nagex-section-link" onclick="window.NAGEX.switchTab('tab-vault')" data-i18n="knowledge.openVault">Open Vault &gt;</a>
           </div>
         </div>
 
@@ -922,7 +1041,7 @@
               <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                 <div>
                   <h3 data-i18n="settings.catModels">AI &amp; Models</h3>
-                  <p class="setting-sub" data-i18n="settings.modelsSubtitle">How NAgex uses AI models — managed automatically for best performance</p>
+                  <p class="setting-sub" data-i18n="settings.modelsSubtitle">How NAgex uses AI models ??managed automatically for best performance</p>
                 </div>
                 <button class="btn-secondary" id="btn-probe-model-health" onclick="window.NAGEX.probeModelHealth()" data-i18n="settings.probeHealth">Check connection</button>
               </div>
@@ -937,7 +1056,7 @@
             <!-- 3. AUTONOMY -->
             <div class="settings-card cat-panel" id="cat-panel-autonomy" role="tabpanel" aria-labelledby="cat-tab-autonomy" hidden>
               <h3 data-i18n="settings.catAutonomy">Autonomy Level</h3>
-              <p class="setting-sub" data-i18n="settings.autonomySubtitle">How independently NAgex may act — human approval policy always takes precedence</p>
+              <p class="setting-sub" data-i18n="settings.autonomySubtitle">How independently NAgex may act ??human approval policy always takes precedence</p>
               <div class="autonomy-selector-group" id="autonomy-selector-container">
                 <!-- Dynamically populated -->
               </div>
@@ -954,7 +1073,7 @@
               <div class="setting-row" style="margin-top: 1.25rem;">
                 <div class="setting-info">
                   <span class="setting-title" data-i18n="settings.memory">Memory &amp; Context</span>
-                  <p class="setting-sub" data-i18n="settings.memoryDesc">Preferences, session context, and task history NAgex remembers — inspectable and controllable.</p>
+                  <p class="setting-sub" data-i18n="settings.memoryDesc">Preferences, session context, and task history NAgex remembers ??inspectable and controllable.</p>
                 </div>
                 <button class="btn-secondary" data-tab="tab-memory" onclick="window.NAGEX.switchTab('tab-memory')" data-i18n="settings.openMemory">Open Memory</button>
               </div>
@@ -995,9 +1114,9 @@
             <div class="settings-card" style="margin-top: 1.5rem;">
               <button class="settings-advanced-toggle" id="btn-settings-advanced-toggle" aria-expanded="false" aria-controls="settings-advanced-list">
                 <h3 data-i18n="settings.advanced">Advanced</h3>
-                <span class="settings-advanced-caret">▸</span>
+                <span class="settings-advanced-caret">??/span>
               </button>
-              <p class="setting-sub" data-i18n="settings.advancedDesc">Internal architecture — Knowledge, Approvals, Skills, and Tools. Not needed for everyday use.</p>
+              <p class="setting-sub" data-i18n="settings.advancedDesc">Internal architecture ??Knowledge, Approvals, Skills, and Tools. Not needed for everyday use.</p>
               <div class="settings-advanced-list" id="settings-advanced-list" hidden>
                 <button class="btn-secondary" data-tab="tab-knowledge" onclick="window.NAGEX.switchTab('tab-knowledge')" data-i18n="settings.knowledge">Knowledge</button>
                 <button class="btn-secondary" data-tab="tab-approvals" onclick="window.NAGEX.switchTab('tab-approvals')" data-i18n="settings.approvals">Approvals</button>
@@ -1027,19 +1146,54 @@
             </div>
           </div>
 
-          <div class="canvas-stage">
-            <div id="canvas-renderer-region" class="canvas-renderer">
-               <!-- Artifact Renderer output -->
+          <!-- R23.7H-C Phase D ??Canvas becomes the visual hero of the
+               working area: the artifact stage widens, and a real NAgex
+               Agent panel (Chat/Context/Suggestions) sits alongside it.
+               No new Canvas architecture ??openArtifactInCanvas/
+               dispatchArtifactOpen/closeCanvas/submitCanvasAsk/
+               restoreCanvasFromRoute are unchanged; the Agent panel is
+               populated from the same real _canvasState/artifactProjection
+               already produced by Phase C, and the Chat tab is the exact
+               same real, truthful submitCanvasAsk() interaction (still
+               honestly reports "not yet supported" for mutation), just
+               re-homed here instead of a floating bottom bar. -->
+          <div class="canvas-main-row">
+            <div class="canvas-stage">
+              <div id="canvas-renderer-region" class="canvas-renderer">
+                 <!-- Default truthful empty state ??openArtifactInCanvas()
+                      overwrites this the moment a real artifact is opened.
+                      Never a fake/placeholder artifact. -->
+                 <div class="canvas-empty-state">
+                   <p data-i18n="canvas.emptyState">Open an artifact from Recent Creations to continue working.</p>
+                 </div>
+              </div>
             </div>
-          </div>
 
-          <div class="canvas-agent-input">
-            <div class="canvas-ask-wrapper">
-              <input type="text" id="canvas-ask-input" class="canvas-ask-field" placeholder="Ask NAgex to change this..." data-i18n-placeholder="canvas.askPlaceholder" />
-              <button class="btn-primary canvas-ask-submit" onclick="window.NAGEX.submitCanvasAsk()" aria-label="Send" data-i18n-aria-label="canvas.askSubmit">
-                <svg class="svg-icon-sm" viewBox="0 0 24 24"><path fill="currentColor" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-              </button>
-            </div>
+            <aside class="canvas-agent-panel" aria-label="NAgex Agent">
+              <div class="canvas-agent-tabs" role="tablist">
+                <button type="button" class="canvas-agent-tab active" data-agent-tab="chat" role="tab" aria-selected="true" onclick="window.NAGEX.switchCanvasAgentTab('chat')" data-i18n="canvas.agentChat">Chat</button>
+                <button type="button" class="canvas-agent-tab" data-agent-tab="context" role="tab" aria-selected="false" onclick="window.NAGEX.switchCanvasAgentTab('context')" data-i18n="canvas.agentContext">Context</button>
+                <button type="button" class="canvas-agent-tab" data-agent-tab="suggestions" role="tab" aria-selected="false" onclick="window.NAGEX.switchCanvasAgentTab('suggestions')" data-i18n="canvas.agentSuggestions">Suggestions</button>
+              </div>
+
+              <div class="canvas-agent-tab-panel" data-agent-panel="chat">
+                <p class="canvas-agent-empty" data-i18n="canvas.agentChatIntro">NAgex is ready to help with this creation.</p>
+                <div class="canvas-ask-wrapper">
+                  <input type="text" id="canvas-ask-input" class="canvas-ask-field" placeholder="Ask NAgex to change this..." data-i18n-placeholder="canvas.askPlaceholder" />
+                  <button class="btn-primary canvas-ask-submit" onclick="window.NAGEX.submitCanvasAsk()" aria-label="Send" data-i18n-aria-label="canvas.askSubmit">
+                    <svg class="svg-icon-sm" viewBox="0 0 24 24"><path fill="currentColor" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                  </button>
+                </div>
+              </div>
+
+              <div class="canvas-agent-tab-panel" data-agent-panel="context" hidden>
+                <dl id="canvas-agent-context-fields" class="canvas-agent-context-fields"></dl>
+              </div>
+
+              <div class="canvas-agent-tab-panel" data-agent-panel="suggestions" hidden>
+                <p class="canvas-agent-empty" data-i18n="canvas.agentSuggestionsEmpty">Suggestions for this artifact will appear here.</p>
+              </div>
+            </aside>
           </div>
         </div>
 
@@ -1096,12 +1250,12 @@
                 <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 0.3rem;" data-i18n="create.referenceLabel">Reference Image (Optional)</label>
                 <div id="create-reference-selector" style="display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.3rem;">
                   <button type="button" class="ref-img-chip active" data-ref-id="" style="padding: 0.3rem 0.6rem; border-radius: 4px; border: 1px solid var(--border-subtle); font-size: 0.75rem; background: var(--bg-surface);">None</button>
-                  <button type="button" class="ref-img-chip" data-ref-id="ref_img_neon_city" style="padding: 0.3rem 0.6rem; border-radius: 4px; border: 1px solid var(--border-subtle); font-size: 0.75rem;">🖼️ Neon City Ref</button>
-                  <button type="button" class="ref-img-chip" data-ref-id="ref_img_portrait_sketch" style="padding: 0.3rem 0.6rem; border-radius: 4px; border: 1px solid var(--border-subtle); font-size: 0.75rem;">🖼️ Portrait Ref</button>
+                  <button type="button" class="ref-img-chip" data-ref-id="ref_img_neon_city" style="padding: 0.3rem 0.6rem; border-radius: 4px; border: 1px solid var(--border-subtle); font-size: 0.75rem;">?堉방닼?Neon City Ref</button>
+                  <button type="button" class="ref-img-chip" data-ref-id="ref_img_portrait_sketch" style="padding: 0.3rem 0.6rem; border-radius: 4px; border: 1px solid var(--border-subtle); font-size: 0.75rem;">?堉방닼?Portrait Ref</button>
                 </div>
               </div>
 
-              <button id="btn-create-generate" class="btn-primary" style="width: 100%; margin-top: 1.25rem; padding: 0.6rem; font-weight: 600;" data-i18n="create.btnGenerate">🎨 Generate Creation</button>
+              <button id="btn-create-generate" class="btn-primary" style="width: 100%; margin-top: 1.25rem; padding: 0.6rem; font-weight: 600;" data-i18n="create.btnGenerate">???Generate Creation</button>
             </div>
 
             <!-- Right Column: Result Output & Variation Control -->
@@ -1115,7 +1269,7 @@
               <div id="create-variation-controls" hidden style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px dashed var(--border-subtle);">
                 <h4 style="font-size: 0.85rem; font-weight: 600; margin-bottom: 0.3rem;" data-i18n="create.variationTitle">Edit &amp; Generate Variation</h4>
                 <input type="text" id="create-variation-modifier" placeholder="Add variation instruction (e.g. Add glowing aurora in sky)..." style="width: 100%; padding: 0.4rem; font-size: 0.8rem; border: 1px solid var(--border-subtle); border-radius: 4px; margin-bottom: 0.5rem;">
-                <button id="btn-create-variation" class="btn-secondary" style="width: 100%; font-size: 0.8rem; padding: 0.4rem;" data-i18n="create.btnVariation">🪄 Generate Variation</button>
+                <button id="btn-create-variation" class="btn-secondary" style="width: 100%; font-size: 0.8rem; padding: 0.4rem;" data-i18n="create.btnVariation">?梨?Generate Variation</button>
               </div>
             </div>
           </div>
@@ -1144,7 +1298,7 @@
               <h3 style="font-size: 1rem; color: var(--navy-head); margin-bottom: 0.75rem;" data-i18n="analyze.uploadTitle">Upload Target File</h3>
               <input type="file" id="analyze-file-input" style="display: none;">
               <div id="analyze-dropzone" class="composer-file-drop-zone" style="display: block; border: 2px dashed var(--color-accent-teal, #0d9488); border-radius: 8px; padding: 2rem 1rem; text-align: center; cursor: pointer; background: rgba(13, 148, 136, 0.03);">
-                <div style="font-size: 2rem; margin-bottom: 0.5rem;">📄</div>
+                <div style="font-size: 2rem; margin-bottom: 0.5rem;">?諭?/div>
                 <strong style="display: block; font-size: 0.9rem; color: var(--text-navy);" data-i18n="analyze.dragDrop">Drag &amp; Drop file here</strong>
                 <span style="font-size: 0.75rem; color: var(--text-muted);" data-i18n="analyze.clickBrowse">or click to browse PDF, TXT, CSV, JSON, PNG</span>
               </div>
@@ -1153,7 +1307,7 @@
                 <!-- File details shown here -->
               </div>
 
-              <button id="btn-analyze-execute" class="btn-primary" style="width: 100%; margin-top: 1rem; padding: 0.6rem; font-weight: 600;" disabled data-i18n="analyze.btnRun">🔍 Run Analysis</button>
+              <button id="btn-analyze-execute" class="btn-primary" style="width: 100%; margin-top: 1rem; padding: 0.6rem; font-weight: 600;" disabled data-i18n="analyze.btnRun">?逾?Run Analysis</button>
             </div>
 
             <!-- Right Column: Structured Result Display -->
@@ -1179,33 +1333,41 @@
       </aside>
     </div>
 
-    <!-- Legacy Mobile Bottom Navigation Bar — the pre-UI-5 CSS-collapse
+    <!-- Legacy Mobile Bottom Navigation Bar ??the pre-UI-5 CSS-collapse
          fallback, still used for Inbox/Activity/Vault/Settings at mobile
          widths until each gets its own UI-5 mobile-native slice (see
          mobile/mobile-home.js's shell-visibility rule: this bar and
-         #mobile-app-shell are never both visible at once — UI-5 R1
-         directive §20). data-tab attributes added so switchTab()'s single
+         #mobile-app-shell are never both visible at once ??UI-5 R1
+         directive 吏?0). data-tab attributes added so switchTab()'s single
          active-sync loop can manage this bar too (fixes the pre-existing
          bug where this bar's .active state was never updated). -->
+    <!-- R23.7H-C Phase D.1 吏?3 ??the "legacy responsive" fallback nav
+         (shown only for tabs with no native #mobile-view-* yet, e.g.
+         Create ??see mobile-home.js's "falls through to the legacy
+         responsive tree" comment). Kept in sync with the mobilePrimary
+         subset of NAGEX_PRIMARY_NAV (app.js) rather than the old
+         Home/Inbox/Activity/Vault/Settings set, so a user landing here
+         via Create doesn't see a different/inconsistent nav than the
+         native #mobile-app-shell bottom nav. -->
     <nav class="mobile-bottom-nav">
       <button class="mob-nav-item active" data-tab="tab-home" onclick="window.NAGEX.switchTab('tab-home')">
-        <span class="icon">🏠</span>
+        <span class="icon">?猷?/span>
         <span data-i18n="nav.home">Home</span>
       </button>
+      <button class="mob-nav-item" data-tab="tab-create" onclick="window.NAGEX.switchTab('tab-create')">
+        <span class="icon">??/span>
+        <span data-i18n="nav.create">Create</span>
+      </button>
+      <button class="mob-nav-item" data-tab="tab-canvas" onclick="window.NAGEX.switchTab('tab-canvas')">
+        <span class="icon">?堉방닼?/span>
+        <span data-i18n="nav.canvas">Canvas</span>
+      </button>
       <button class="mob-nav-item" data-tab="tab-inbox" onclick="window.NAGEX.switchTab('tab-inbox')">
-        <span class="icon">📥</span>
+        <span class="icon">?諭?/span>
         <span data-i18n="nav.inbox">Inbox</span>
       </button>
-      <button class="mob-nav-item" data-tab="tab-executions" onclick="window.NAGEX.switchTab('tab-executions')">
-        <span class="icon">⚡</span>
-        <span data-i18n="nav.activity">Activity</span>
-      </button>
-      <button class="mob-nav-item" data-tab="tab-vault" onclick="window.NAGEX.switchTab('tab-vault')">
-        <span class="icon">🗄️</span>
-        <span data-i18n="nav.vault">Vault</span>
-      </button>
       <button class="mob-nav-item" data-tab="tab-settings" onclick="window.NAGEX.switchTab('tab-settings')">
-        <span class="icon">⚙️</span>
+        <span class="icon">??뗮닔</span>
         <span data-i18n="nav.settings">Settings</span>
       </button>
     </nav>
@@ -1217,12 +1379,12 @@
 
   </div>
 
-  <!-- Ambient Assistant overlay + Approval Prompt modal — real body-level
+  <!-- Ambient Assistant overlay + Approval Prompt modal ??real body-level
        siblings of .app-wrapper (UI-5 R4 E2E QA fix), not descendants of it.
        openAmbientOverlay()/the approval-modal handlers can be triggered from
        either shell (Desktop .app-wrapper or #mobile-app-shell), but
        .app-wrapper is set to display:none while the native mobile shell is
-       active — nesting these modals inside .app-wrapper made them fully
+       active ??nesting these modals inside .app-wrapper made them fully
        invisible and unusable on mobile even though the real plan/approval
        logic behind them ran correctly (confirmed via a live Playwright
        check: the modal backdrop's own computed display stayed none, purely
@@ -1249,7 +1411,7 @@
           <!-- Active Voice Indicator (Compact - auto collapses when request is ready) -->
           <div class="ambient-voice-card compact-voice-indicator" id="ambient-voice-card" style="display:none;">
             <div class="voice-card-top">
-              <div class="glowing-mic-icon">🎙️</div>
+              <div class="glowing-mic-icon">??뷸닼?/div>
               <div>
                 <strong data-i18n="ambient.listening">Listening...</strong>
               </div>
@@ -1266,7 +1428,7 @@
           <!-- Type Input Holder for Keyboard & test compatibility -->
           <div class="ambient-type-input-wrap hidden-input-wrap">
             <input type="text" id="ambient-prompt-input" placeholder="Prepare my next client meeting and schedule it." data-i18n-placeholder="ambient.promptPlaceholder" aria-label="Ask NAgex" data-i18n-aria-label="ambient.promptAriaLabel" value="">
-            <button class="btn-send-mini" id="btn-ambient-run" type="button">✈️</button>
+            <button class="btn-send-mini" id="btn-ambient-run" type="button">??뚰닔</button>
             <button id="btn-ambient-voice-toggle" type="button" style="display:none;"></button>
           </div>
 
@@ -1285,7 +1447,7 @@
           <div class="mockup-request-card" id="ambient-request-card">
             <div class="request-card-header">
               <div class="request-user-info">
-                <span class="user-circle-avatar">👤</span>
+                <span class="user-circle-avatar">?維</span>
                 <span class="request-label-text" data-i18n="ambient.yourRequest">Your request</span>
               </div>
               <span class="request-timestamp" id="ambient-request-timestamp" data-i18n="ambient.justNow">Just now</span>
@@ -1304,7 +1466,7 @@
           <div id="ambient-understanding-card" aria-live="polite" style="display:none;">
             <div class="mockup-section-card mockup-summary-section ambient-understanding-card" id="ambient-summary-section">
               <div class="section-header-row">
-                <span class="section-icon-tile blue-tile">📄</span>
+                <span class="section-icon-tile blue-tile">?諭?/span>
                 <div class="section-title-group">
                   <h4 class="section-heading-title" data-i18n="ambient.summaryTitle">Summary</h4>
                   <p class="section-heading-sub" id="ambient-summary-subtitle" data-i18n="ambient.summarySubtitle">Here are the key findings from recent updates on AI agent architecture.</p>
@@ -1319,7 +1481,7 @@
           <!-- 5. SOURCES SECTION -->
           <div class="mockup-section-card mockup-sources-section" id="ambient-sources-section" style="display:none;">
             <div class="section-header-row">
-              <span class="section-icon-tile blue-tile">🔗</span>
+              <span class="section-icon-tile blue-tile">?逾?/span>
               <div class="section-title-group">
                 <h4 class="section-heading-title" data-i18n="ambient.sourcesTitle">Sources</h4>
                 <p class="section-heading-sub" data-i18n="ambient.sourcesSubtitle">Based on recent articles, blogs, and research papers.</p>
@@ -1383,11 +1545,11 @@
         <div class="ambient-sheet-footer mockup-footer" id="ambient-sheet-footer">
           <div class="mockup-bottom-actions" id="ambient-mockup-actions">
             <button class="btn-mockup-secondary" id="btn-ask-followup" type="button">
-              <span class="btn-icon">💬</span>
+              <span class="btn-icon">?裕?/span>
               <span data-i18n="ambient.ctaFollowUp">Ask a follow-up</span>
             </button>
             <button class="btn-mockup-primary" id="btn-save-vault" type="button">
-              <span class="btn-icon">🔖</span>
+              <span class="btn-icon">?逾?/span>
               <span data-i18n="ambient.ctaSaveVault">Save to Vault</span>
             </button>
           </div>
@@ -1399,18 +1561,18 @@
     </div>
     </div>
 
-  <!-- ════════════════════════════════════════════════════════════════
-       UI-5 R1 — Mobile Home. A genuinely separate top-level DOM tree,
+  <!-- ?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름
+       UI-5 R1 ??Mobile Home. A genuinely separate top-level DOM tree,
        not a CSS-collapsed copy of .app-wrapper's #view-home (per the
-       UI-5 directive §3-4). Hidden by default; mobile/mobile-home.js
+       UI-5 directive 吏?-4). Hidden by default; mobile/mobile-home.js
        shows it only when BOTH matchMedia('(max-width: 768px)') is true
-       AND the active tab is Home — every other tab, at any viewport,
+       AND the active tab is Home ??every other tab, at any viewport,
        uses the existing .app-wrapper responsive tree. Every data-bearing
        element below is populated from real state only
-       (window.NAGEX.getState()/apiFetch) by mobile-home.js — nothing
-       here is mockup sample content. ════════════════════════════════ -->
+       (window.NAGEX.getState()/apiFetch) by mobile-home.js ??nothing
+       here is mockup sample content. ?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름 -->
   <div id="mobile-app-shell" class="mobile-app-shell" hidden>
-    <!-- UI-5 R2 — #mobile-app-shell is now the shared Mobile Native shell,
+    <!-- UI-5 R2 ??#mobile-app-shell is now the shared Mobile Native shell,
          not a Home-only structure. mobile-home.js's updateShellVisibility()
          is the single place that decides which one native view (if any) is
          shown; #mobile-view-home and #mobile-view-inbox are mutually
@@ -1422,7 +1584,7 @@
         <div class="mh-brand">
           <img src="assets/nagex-compact-logo.png" alt="NAgex" class="mh-logo" role="button" tabindex="0" aria-label="Go to Home" data-i18n-aria-label="nav.logoHomeAria" onclick="window.NAGEX.goHome()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.NAGEX.goHome();}">
           <div class="mh-brand-text-sm">
-            <span class="mh-greeting-small" id="mh-greeting-small" data-i18n="home.greetingPersonal">Good afternoon, Alex</span>
+            <span class="mh-greeting-small" id="mh-greeting-small" data-i18n="home.greetingPersonal">Good afternoon</span>
           </div>
         </div>
         <div class="header-switchers-group" id="mh-header-switchers-group" style="display:none;">
@@ -1445,12 +1607,12 @@
         </div>
       </header>
 
-      <!-- B. Right Now Hero — Primary Surface -->
+      <!-- B. Right Now Hero ??Primary Surface -->
       <section class="mh-card mh-right-now-hero" id="mh-right-now-hero" aria-busy="true" data-context-ready="false" data-hero-resolved="false">
         <span class="mh-hero-tag" id="mh-hero-tag" data-i18n="home.rightNow">Right now</span>
         <h2 class="mh-hero-headline" id="mh-hero-headline">...</h2>
         <p class="mh-hero-body" id="mh-hero-body">...</p>
-        <!-- R23.2H — grounded "related material" note (e.g. a Vault doc or
+        <!-- R23.2H ??grounded "related material" note (e.g. a Vault doc or
              email tied to the primary meeting). Real text from
              GET /api/v1/personal/right-now only; hidden entirely, never a
              filler sentence, when no such related item exists. -->
@@ -1461,10 +1623,11 @@
         </div>
       </section>
       <section class="mh-card" id="mh-section-create" aria-live="polite"></section>
+      <section class="mh-card" id="mh-section-work-with-data" aria-live="polite"></section>
 
-      <!-- R23.3 — Suggested for you: the canonical ProactiveSuggestion list
+      <!-- R23.3 ??Suggested for you: the canonical ProactiveSuggestion list
            (GET /api/v1/personal/right-now's `suggestions`), rendered as-is
-           — hidden entirely (never a filler card) when there are none. -->
+           ??hidden entirely (never a filler card) when there are none. -->
       <section class="mh-card mh-suggestions-section" id="mh-section-suggestions" hidden>
         <div class="mh-card-header">
           <h2><span data-i18n="home.suggestedForYouHeader">Suggested for you</span></h2>
@@ -1514,7 +1677,7 @@
       <div class="mh-composer-section" id="mh-composer-section">
         <div class="mh-command-bar">
           <button class="mh-add-btn" id="mh-add-btn" title="Add item" aria-label="Add">+</button>
-          <input type="text" id="mh-command-input" class="mh-command-input" data-i18n-placeholder="home.askPlaceholder" placeholder="Ask NAgex anything…">
+          <input type="text" id="mh-command-input" class="mh-command-input" data-i18n-placeholder="home.askPlaceholder" placeholder="Ask NAgex anything??>
           <button class="mh-voice-btn" id="mh-voice-btn" title="Capture Voice / Audio" aria-label="Capture Voice" data-i18n-title="workspace.captureVoice"><span class="nagex-sr-only">Capture Voice</span>
             <svg class="svg-icon-sm" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5zm6 6c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
           </button>
@@ -1535,7 +1698,7 @@
     </div>
 
     <!-- Mobile Inbox native view (UI-5 R2). Real GET /api/v1/workspace/inbox
-         + GET /api/v1/candidates only — see mobile/mobile-inbox.js. Mutually
+         + GET /api/v1/candidates only ??see mobile/mobile-inbox.js. Mutually
          exclusive with #mobile-view-home via [hidden], both managed only by
          mobile-home.js's updateShellVisibility(). -->
     <div id="mobile-view-inbox" class="mh-scroll" hidden>
@@ -1549,8 +1712,7 @@
         </div>
       </header>
 
-      <!-- Real, working filter (unlike Desktop's dead .filter-pill row) —
-           client-side only, filters the already-fetched dataset, no refetch. -->
+      <!-- Real, working filter (unlike Desktop's dead .filter-pill row) ??           client-side only, filters the already-fetched dataset, no refetch. -->
       <div class="mh-inbox-filter-row" id="mh-inbox-filter-row">
         <button class="mh-filter-pill active" data-mh-filter="ALL" data-i18n="mobileInbox.filterAll">All</button>
         <button class="mh-filter-pill" data-mh-filter="NEEDS_REVIEW" data-i18n="mobileInbox.filterNeedsReview">Needs Review</button>
@@ -1569,7 +1731,7 @@
     </div>
 
     <!-- Mobile Activity native view (UI-5 R3). Real GET /api/v1/activity
-         only — see mobile/mobile-activity.js. Mutually exclusive with
+         only ??see mobile/mobile-activity.js. Mutually exclusive with
          #mobile-view-home/#mobile-view-inbox via [hidden], all three
          managed only by mobile-home.js's updateShellVisibility(). -->
     <div id="mobile-view-activity" class="mh-scroll" hidden>
@@ -1627,7 +1789,7 @@
       <!-- Primary saved content list (R22.2) -->
       <div id="mh-vault-list"><div class="nagex-loading-row"></div></div>
 
-      <!-- Secondary storage summary card placed BELOW main content list (R22.2 §10) -->
+      <!-- Secondary storage summary card placed BELOW main content list (R22.2 吏?0) -->
       <div class="mh-vault-storage-card" id="mh-vault-storage-card">
         <div class="mh-vault-storage-row">
           <span class="mh-vault-storage-label" id="mh-vault-storage-label">Local Development Vault</span>
@@ -1641,15 +1803,15 @@
       <div class="mh-bottom-spacer" aria-hidden="true"></div>
     </div>
 
-    <!-- Mobile Settings native view (UI-5 R5 — final native view;
+    <!-- Mobile Settings native view (UI-5 R5 ??final native view;
          MOBILE_NATIVE_TABS now covers all 5 canonical tabs). Real
          state.quickWakeConfig/state.autonomyConfig/state.googleOAuth only
-         — see mobile/mobile-settings.js. No Model Gateway mock, no Dark
+         ??see mobile/mobile-settings.js. No Model Gateway mock, no Dark
          Mode, no notification prefs, no security/model-picker UI (none of
-         those are real anywhere in this app — see the R5 preflight).
+         those are real anywhere in this app ??see the R5 preflight).
          Memory/Automations/Advanced are real navigation links that fall
          through to the legacy responsive tree (those tabs have no native
-         view yet) — this is expected, not a bug. Mutually exclusive with
+         view yet) ??this is expected, not a bug. Mutually exclusive with
          the other native views via [hidden], all managed only by
          mobile-home.js's updateShellVisibility(). -->
     <div id="mobile-view-settings" class="mh-scroll" hidden>
@@ -1662,8 +1824,8 @@
         </div>
       </header>
 
-      <!-- R3 §5/§7: Connected Apps (Google) is now the first settings
-           section — user-facing, real-status connections belong above
+      <!-- R3 吏?/吏?: Connected Apps (Google) is now the first settings
+           section ??user-facing, real-status connections belong above
            preference toggles, and this is the section the directive
            requires to be reachable "without browser zoom tricks", i.e.
            trivially visible near the top of a normal scroll. -->
@@ -1682,7 +1844,7 @@
         <div id="mh-connections-row"></div>
       </section>
 
-      <!-- R7 §2/§3 — real GET /api/v1/providers/status only. -->
+      <!-- R7 吏?/吏? ??real GET /api/v1/providers/status only. -->
       <div class="mh-settings-section-heading" data-i18n="settings.providers">AI &amp; Model</div>
       <section class="mh-settings-card">
         <div id="mh-ai-model-status"></div>
@@ -1693,7 +1855,7 @@
         <div id="mh-autonomy-list"></div>
       </section>
 
-      <!-- R10 — Proactive Assistant (mobile). Real GET/PUT
+      <!-- R10 ??Proactive Assistant (mobile). Real GET/PUT
            /api/v1/proactive-assistant/config only. -->
       <div class="mh-settings-section-heading" data-i18n="proactiveAssistant.title">Proactive Assistant</div>
       <section class="mh-settings-card">
@@ -1739,7 +1901,7 @@
     </div>
 
     <!-- Mobile Canvas native view (R23.7H-C Phase C correction). Desktop
-         and mobile share ONE Canvas architecture — artifact identity,
+         and mobile share ONE Canvas architecture ??artifact identity,
          projection, renderer dispatch, loading/error semantics, canonical
          URL, authorization and Canvas state all live in
          personal-home-view.js (openArtifactInCanvas/closeCanvas/
@@ -1747,7 +1909,7 @@
          mobile-safe layout differ from #view-canvas. Mutually exclusive
          with the other native views via [hidden], managed only by
          mobile-home.js's updateShellVisibility(). No desktop search bar,
-         Quick Wake control or notification bell here — those are
+         Quick Wake control or notification bell here ??those are
          desktop-shell-only elements this view never includes. -->
     <div id="mobile-view-canvas" class="mh-scroll mh-canvas-view" hidden>
       <header class="mh-header mh-canvas-header">
@@ -1775,26 +1937,30 @@
       </div>
     </div>
 
-    <!-- Fixed Bottom Navigation — exactly 5 canonical items (MASTER.md
-         §14.12); My Space stays a contextual entry inside Today's card
-         above, never a 6th item (directive §18/31). data-tab lets
-         switchTab()'s single active-sync loop manage this bar too. -->
+    <!-- Fixed Bottom Navigation ??the mobilePrimary subset of
+         NAGEX_PRIMARY_NAV (app.js), R23.7H-C Phase D. Tasks/Knowledge/
+         Approvals stay reachable via the Settings ??Advanced drawer
+         (index.html's mh-settings-advanced-list), the same established
+         pattern already used for Skills/Tools/Memory. My Space stays a
+         contextual entry inside Today's card, never a bottom-nav item.
+         data-tab lets switchTab()'s single active-sync loop manage this
+         bar too. -->
     <nav class="mh-bottom-nav">
       <button class="mh-nav-item active" data-tab="tab-home" onclick="window.NAGEX.switchTab('tab-home')">
         <span class="mh-nav-pill"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
         <span data-i18n="nav.home">Home</span></span>
       </button>
+      <button class="mh-nav-item" data-tab="tab-create" onclick="window.NAGEX.switchTab('tab-create')">
+        <span class="mh-nav-pill"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z"/></svg>
+        <span data-i18n="nav.create">Create</span></span>
+      </button>
+      <button class="mh-nav-item" data-tab="tab-canvas" onclick="window.NAGEX.switchTab('tab-canvas')">
+        <span class="mh-nav-pill"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+        <span data-i18n="nav.canvas">Canvas</span></span>
+      </button>
       <button class="mh-nav-item" data-tab="tab-inbox" onclick="window.NAGEX.switchTab('tab-inbox')">
         <span class="mh-nav-pill"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5v-3h3.56c.69 1.19 1.97 2 3.44 2s2.75-.81 3.44-2H19v3zm0-5h-4.18c-.41 1.16-1.51 2-2.82 2s-2.41-.84-2.82-2H5V5h14v9z"/></svg>
         <span data-i18n="nav.inbox">Inbox</span></span>
-      </button>
-      <button class="mh-nav-item" data-tab="tab-executions" onclick="window.NAGEX.switchTab('tab-executions')">
-        <span class="mh-nav-pill"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
-        <span data-i18n="nav.activity">Activity</span></span>
-      </button>
-      <button class="mh-nav-item" data-tab="tab-vault" onclick="window.NAGEX.switchTab('tab-vault')">
-        <span class="mh-nav-pill"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
-        <span data-i18n="nav.vault">Vault</span></span>
       </button>
       <button class="mh-nav-item" data-tab="tab-settings" onclick="window.NAGEX.switchTab('tab-settings')">
         <span class="mh-nav-pill"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>

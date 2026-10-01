@@ -247,7 +247,12 @@
     ],
     "ux": [
       "r23_7h_c_phase_b_artifact_ux_contract",
-      "r23_7h_c_phase_c_canvas_shell"
+      "r23_7h_c_phase_c_canvas_shell",
+      "r23_7h_c_phase_d_main_product_experience",
+      "r23_7h_c_phase_d1_visual_convergence",
+      "r23_7h_c_phase_d2_strict_visual_clone",
+      "r23_7h_c_phase_d3_unified_home_workspace",
+      "r23_7h_c_phase_d4_geometry_locked_clone"
     ]
   },
   "fullOnly": [

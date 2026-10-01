@@ -18,6 +18,1053 @@
   justify-content: space-between !important;
 }
 
+@media (min-width: 1200px) {
+  /* V2 D4 final Work with your data geometry. D1-D3 frozen. */
+  /* R23.7H-C D4.5 — outer size/position now comes from the
+     .home-creation-strip grid column, not a coordinate hack. */
+  #home-section-work-with-data {
+    height: 104px !important;
+    min-height: 104px !important;
+    max-height: 104px !important;
+    margin-top: 11px !important;
+    padding: 14px 12px 12px !important;
+    overflow: hidden !important;
+    border-radius: 14px !important;
+    background: #ffffff !important;
+    border-color: rgba(151,190,245,.36) !important;
+    box-shadow: 0 10px 26px rgba(7,87,248,.07) !important;
+  }
+
+  #home-section-work-with-data .ph-work-data-heading {
+    display: grid !important;
+    grid-template-columns: 26px minmax(0, 1fr) !important;
+    gap: 9px !important;
+    align-items: start !important;
+    height: 55px !important;
+  }
+
+  #home-section-work-with-data .ph-work-data-icon {
+    display: grid !important;
+    place-items: center !important;
+    width: 24px !important;
+    height: 24px !important;
+    color: #0757f8 !important;
+  }
+
+  #home-section-work-with-data h2 {
+    margin: 0 !important;
+    color: #06125d !important;
+    font-size: 14px !important;
+    line-height: 17px !important;
+    font-weight: 900 !important;
+    white-space: nowrap !important;
+  }
+
+  #home-section-work-with-data .ph-heading-sub {
+    margin: 5px 0 0 !important;
+    color: #365180 !important;
+    font-size: 9.5px !important;
+    line-height: 12px !important;
+    font-weight: 600 !important;
+  }
+
+  #home-section-work-with-data .ph-work-data-actions {
+    display: grid !important;
+    grid-template-columns: 126px 1fr !important;
+    gap: 10px !important;
+    align-items: center !important;
+    margin-top: -3px !important;
+  }
+
+  #home-section-work-with-data .ph-connect-sources {
+    width: 126px !important;
+    height: 34px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 7px !important;
+    border: 1px solid rgba(151,190,245,.52) !important;
+    border-radius: 13px !important;
+    background: #ffffff !important;
+    color: #0757f8 !important;
+    box-shadow: 0 7px 16px rgba(7,87,248,.07) !important;
+    font-size: 10.5px !important;
+    line-height: 1 !important;
+    font-weight: 850 !important;
+    cursor: pointer !important;
+    white-space: nowrap !important;
+  }
+
+  #home-section-work-with-data .ph-source-icons {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 9px !important;
+    min-width: 0 !important;
+  }
+
+  #home-section-work-with-data .ph-source-icon {
+    display: grid !important;
+    place-items: center !important;
+    width: 20px !important;
+    height: 20px !important;
+    border-radius: 5px !important;
+    background: #f4f8ff !important;
+    border: 1px solid rgba(151,190,245,.36) !important;
+    color: #1f3768 !important;
+    font-size: 10px !important;
+    font-weight: 900 !important;
+  }
+}
+
+@media (min-width: 1200px) {
+  /* V2 D3 Create with NAgex only. D1/D2 frozen; runtime handlers unchanged.
+     R23.7H-C D4.5 — outer size/position now comes from the
+     .home-creation-strip grid column, not a coordinate hack. */
+  #home-section-create {
+    height: 129px !important;
+    min-height: 129px !important;
+    max-height: 129px !important;
+    padding: 4px 20px 12px !important;
+    border-radius: 14px !important;
+    background: #ffffff !important;
+    border-color: rgba(151,190,245,.36) !important;
+    box-shadow: 0 10px 26px rgba(7,87,248,.07) !important;
+  }
+
+  #home-section-create .ph-heading {
+    height: 25px !important;
+    margin: 0 !important;
+    transform: translateY(-5px) !important;
+  }
+
+  #home-section-create .ph-heading h2 {
+    font-size: 17px !important;
+    line-height: 20px !important;
+    font-weight: 900 !important;
+    color: #06125d !important;
+  }
+
+  #home-section-create .ph-heading h2 .svg-icon-sm {
+    width: 18px !important;
+    height: 18px !important;
+  }
+
+  #home-section-create .ph-heading-sub {
+    margin-top: 1px !important;
+    font-size: 11.8px !important;
+    line-height: 13px !important;
+    color: #2f4778 !important;
+    font-weight: 600 !important;
+  }
+
+  /* R23.7H-C D6 — removed fixed width:626px (no longer fits D3's
+     reference-derived narrower width) and the translateY(-5px) hack
+     (unexplained positional compensation, not a real spacing choice). */
+  #home-section-create .ph-capability-row {
+    display: grid !important;
+    grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+    margin-top: 6px !important;
+  }
+
+  #home-section-create .ph-capability-tile {
+    width: auto !important;
+    height: 70px !important;
+    min-height: 70px !important;
+    padding: 9px 8px 7px !important;
+    align-items: center !important;
+    text-align: center !important;
+    gap: 3px !important;
+    border-radius: 9px !important;
+    border-color: rgba(151,190,245,.46) !important;
+    background: linear-gradient(180deg, #ffffff, #f7fbff) !important;
+    box-shadow: 0 7px 17px rgba(7,87,248,.06) !important;
+  }
+
+  #home-section-create .ph-capability-tile[data-capability="CODE"] {
+    display: none !important;
+  }
+
+  #home-section-create .ph-capability-icon {
+    width: 24px !important;
+    height: 24px !important;
+    margin: 0 auto 2px !important;
+  }
+
+  #home-section-create .ph-capability-tile strong {
+    font-size: 10.8px !important;
+    line-height: 12px !important;
+    font-weight: 850 !important;
+  }
+
+  #home-section-create .ph-capability-status {
+    font-size: 9px !important;
+    line-height: 10px !important;
+    font-weight: 700 !important;
+  }
+}
+
+@media (min-width: 1200px) {
+  /* V2 D4 final Work with your data geometry. D1-D3 frozen. */
+  /* R23.7H-C D4.5 — outer size/position now comes from the
+     .home-creation-strip grid column, not a coordinate hack. */
+  #home-section-work-with-data {
+    height: 104px !important;
+    min-height: 104px !important;
+    max-height: 104px !important;
+    margin-top: 11px !important;
+    padding: 14px 12px 12px !important;
+    overflow: hidden !important;
+    border-radius: 14px !important;
+    background: #ffffff !important;
+    border-color: rgba(151,190,245,.36) !important;
+    box-shadow: 0 10px 26px rgba(7,87,248,.07) !important;
+  }
+
+  #home-section-work-with-data .ph-work-data-heading {
+    display: grid !important;
+    grid-template-columns: 26px minmax(0, 1fr) !important;
+    gap: 9px !important;
+    align-items: start !important;
+    height: 55px !important;
+  }
+
+  #home-section-work-with-data .ph-work-data-icon {
+    display: grid !important;
+    place-items: center !important;
+    width: 24px !important;
+    height: 24px !important;
+    color: #0757f8 !important;
+  }
+
+  #home-section-work-with-data h2 {
+    margin: 0 !important;
+    color: #06125d !important;
+    font-size: 14px !important;
+    line-height: 17px !important;
+    font-weight: 900 !important;
+    white-space: nowrap !important;
+  }
+
+  #home-section-work-with-data .ph-heading-sub {
+    margin: 5px 0 0 !important;
+    color: #365180 !important;
+    font-size: 9.5px !important;
+    line-height: 12px !important;
+    font-weight: 600 !important;
+  }
+
+  #home-section-work-with-data .ph-work-data-actions {
+    display: grid !important;
+    grid-template-columns: 126px 1fr !important;
+    gap: 10px !important;
+    align-items: center !important;
+    margin-top: -3px !important;
+  }
+
+  #home-section-work-with-data .ph-connect-sources {
+    width: 126px !important;
+    height: 34px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 7px !important;
+    border: 1px solid rgba(151,190,245,.52) !important;
+    border-radius: 13px !important;
+    background: #ffffff !important;
+    color: #0757f8 !important;
+    box-shadow: 0 7px 16px rgba(7,87,248,.07) !important;
+    font-size: 10.5px !important;
+    line-height: 1 !important;
+    font-weight: 850 !important;
+    cursor: pointer !important;
+    white-space: nowrap !important;
+  }
+
+  #home-section-work-with-data .ph-source-icons {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 9px !important;
+    min-width: 0 !important;
+  }
+
+  #home-section-work-with-data .ph-source-icon {
+    display: grid !important;
+    place-items: center !important;
+    width: 20px !important;
+    height: 20px !important;
+    border-radius: 5px !important;
+    background: #f4f8ff !important;
+    border: 1px solid rgba(151,190,245,.36) !important;
+    color: #1f3768 !important;
+    font-size: 10px !important;
+    font-weight: 900 !important;
+  }
+}
+
+@media (min-width: 1200px) {
+  /* V2 D4 final Work with your data geometry. D1-D3 frozen. */
+  /* R23.7H-C D4.5 — outer size/position now comes from the
+     .home-creation-strip grid column, not a coordinate hack. */
+  #home-section-work-with-data {
+    height: 104px !important;
+    min-height: 104px !important;
+    max-height: 104px !important;
+    margin-top: 11px !important;
+    padding: 14px 12px 12px !important;
+    overflow: hidden !important;
+    border-radius: 14px !important;
+    background: #ffffff !important;
+    border-color: rgba(151,190,245,.36) !important;
+    box-shadow: 0 10px 26px rgba(7,87,248,.07) !important;
+  }
+
+  #home-section-work-with-data .ph-work-data-heading {
+    display: grid !important;
+    grid-template-columns: 26px minmax(0, 1fr) !important;
+    gap: 9px !important;
+    align-items: start !important;
+    height: 55px !important;
+  }
+
+  #home-section-work-with-data .ph-work-data-icon {
+    display: grid !important;
+    place-items: center !important;
+    width: 24px !important;
+    height: 24px !important;
+    color: #0757f8 !important;
+  }
+
+  #home-section-work-with-data h2 {
+    margin: 0 !important;
+    color: #06125d !important;
+    font-size: 14px !important;
+    line-height: 17px !important;
+    font-weight: 900 !important;
+    white-space: nowrap !important;
+  }
+
+  #home-section-work-with-data .ph-heading-sub {
+    margin: 5px 0 0 !important;
+    color: #365180 !important;
+    font-size: 9.5px !important;
+    line-height: 12px !important;
+    font-weight: 600 !important;
+  }
+
+  #home-section-work-with-data .ph-work-data-actions {
+    display: grid !important;
+    grid-template-columns: 126px 1fr !important;
+    gap: 10px !important;
+    align-items: center !important;
+    margin-top: -3px !important;
+  }
+
+  #home-section-work-with-data .ph-connect-sources {
+    width: 126px !important;
+    height: 34px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 7px !important;
+    border: 1px solid rgba(151,190,245,.52) !important;
+    border-radius: 13px !important;
+    background: #ffffff !important;
+    color: #0757f8 !important;
+    box-shadow: 0 7px 16px rgba(7,87,248,.07) !important;
+    font-size: 10.5px !important;
+    line-height: 1 !important;
+    font-weight: 850 !important;
+    cursor: pointer !important;
+    white-space: nowrap !important;
+  }
+
+  #home-section-work-with-data .ph-source-icons {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 9px !important;
+    min-width: 0 !important;
+  }
+
+  #home-section-work-with-data .ph-source-icon {
+    display: grid !important;
+    place-items: center !important;
+    width: 20px !important;
+    height: 20px !important;
+    border-radius: 5px !important;
+    background: #f4f8ff !important;
+    border: 1px solid rgba(151,190,245,.36) !important;
+    color: #1f3768 !important;
+    font-size: 10px !important;
+    font-weight: 900 !important;
+  }
+}
+
+@media (min-width: 1200px) {
+  /* V2 D4 final Work with your data geometry. D1-D3 frozen.
+     R23.7H-C D4.5 — outer size/position now comes from the
+     .home-creation-strip grid column, not a coordinate hack. */
+  #home-section-work-with-data {
+    height: 104px !important;
+    min-height: 104px !important;
+    max-height: 104px !important;
+    margin-top: 11px !important;
+    padding: 14px 12px 12px !important;
+    overflow: hidden !important;
+    border-radius: 14px !important;
+    background: #ffffff !important;
+    border-color: rgba(151,190,245,.36) !important;
+    box-shadow: 0 10px 26px rgba(7,87,248,.07) !important;
+  }
+
+  #home-section-work-with-data .ph-work-data-heading {
+    display: grid !important;
+    grid-template-columns: 26px minmax(0, 1fr) !important;
+    gap: 9px !important;
+    align-items: start !important;
+    height: 55px !important;
+  }
+
+  #home-section-work-with-data .ph-work-data-icon {
+    display: grid !important;
+    place-items: center !important;
+    width: 24px !important;
+    height: 24px !important;
+    color: #0757f8 !important;
+  }
+
+  #home-section-work-with-data h2 {
+    margin: 0 !important;
+    color: #06125d !important;
+    font-size: 14px !important;
+    line-height: 17px !important;
+    font-weight: 900 !important;
+    white-space: nowrap !important;
+  }
+
+  #home-section-work-with-data .ph-heading-sub {
+    margin: 5px 0 0 !important;
+    color: #365180 !important;
+    font-size: 9.5px !important;
+    line-height: 12px !important;
+    font-weight: 600 !important;
+  }
+
+  #home-section-work-with-data .ph-work-data-actions {
+    display: grid !important;
+    grid-template-columns: 126px 1fr !important;
+    gap: 10px !important;
+    align-items: center !important;
+    margin-top: 2px !important;
+  }
+
+  #home-section-work-with-data .ph-connect-sources {
+    width: 126px !important;
+    height: 34px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 7px !important;
+    border: 1px solid rgba(151,190,245,.52) !important;
+    border-radius: 13px !important;
+    background: #ffffff !important;
+    color: #0757f8 !important;
+    box-shadow: 0 7px 16px rgba(7,87,248,.07) !important;
+    font-size: 10.5px !important;
+    line-height: 1 !important;
+    font-weight: 850 !important;
+    cursor: pointer !important;
+    white-space: nowrap !important;
+  }
+
+  #home-section-work-with-data .ph-source-icons {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 9px !important;
+    min-width: 0 !important;
+  }
+
+  #home-section-work-with-data .ph-source-icon {
+    display: grid !important;
+    place-items: center !important;
+    width: 20px !important;
+    height: 20px !important;
+    border-radius: 5px !important;
+    background: #f4f8ff !important;
+    border: 1px solid rgba(151,190,245,.36) !important;
+    color: #1f3768 !important;
+    font-size: 10px !important;
+    font-weight: 900 !important;
+  }
+}
+
+@media (min-width: 1200px) {
+  /* V2 D2 Sidebar only. D1 top composition remains frozen. */
+  .sidebar-left {
+    position: fixed !important;
+    left: 0 !important;
+    top: 78px !important;
+    width: 149px !important;
+    height: 732px !important;
+    margin: 0 !important;
+    transform: none !important;
+    z-index: 96 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    padding: 39px 10px 12px !important;
+    overflow: hidden !important;
+    background: rgba(255,255,255,.86) !important;
+    border: 1px solid rgba(151,190,245,.28) !important;
+    border-radius: 0 13px 13px 0 !important;
+    box-shadow: 10px 0 26px rgba(7,87,248,.06) !important;
+    backdrop-filter: blur(14px) !important;
+  }
+
+  .sidebar-left:hover,
+  .sidebar-left.expanded {
+    width: 149px !important;
+  }
+
+  .sidebar-top-group {
+    min-width: 0 !important;
+  }
+
+  .sidebar-left .nav-menu {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 2px !important;
+    width: 128px !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+  }
+
+  .sidebar-left .nav-item {
+    width: 128px !important;
+    height: 34px !important;
+  }
+
+  .sidebar-left .nav-link {
+    width: 128px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    padding: 0 13px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 13px !important;
+    border-radius: 9px !important;
+    color: #1f3768 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    font-size: 12px !important;
+    font-weight: 650 !important;
+    line-height: 1 !important;
+  }
+
+  .sidebar-left .nav-link span {
+    display: inline !important;
+    opacity: 1 !important;
+    color: inherit !important;
+    font-size: 12px !important;
+    font-weight: 650 !important;
+    white-space: nowrap !important;
+  }
+
+  .sidebar-left .nav-link .svg-icon {
+    width: 18px !important;
+    height: 18px !important;
+    flex: 0 0 18px !important;
+    color: #345082 !important;
+  }
+
+  .sidebar-left .nav-item.active .nav-link {
+    color: #0757f8 !important;
+    background: rgba(7,87,248,.11) !important;
+    box-shadow: none !important;
+    font-weight: 800 !important;
+  }
+
+  .sidebar-left .nav-item.active .nav-link .svg-icon,
+  .sidebar-left .nav-item.active .nav-link span {
+    color: #0757f8 !important;
+    font-weight: 800 !important;
+  }
+
+  .sidebar-bottom-user {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    width: 128px !important;
+    margin: 0 auto !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+
+  .sidebar-promo-card,
+  .sidebar-device-card,
+  .sidebar-footer-brand {
+    display: none !important;
+  }
+}
+
+@media (min-width: 1200px) {
+  /* V2 D1 final correction: desktop top composition only. */
+  .app-header.nagex-top-composition {
+    position: relative !important;
+    z-index: 90 !important;
+    display: grid !important;
+    grid-template-columns: 176px minmax(0, 1fr) 230px !important;
+    grid-template-rows: 92px 51px !important;
+    align-items: center !important;
+    column-gap: 14px !important;
+    row-gap: 0 !important;
+    height: 143px !important;
+    min-height: 143px !important;
+    padding: 0 18px 0 22px !important;
+    overflow: visible !important;
+    background: linear-gradient(90deg, rgba(255,255,255,.95) 0%, rgba(236,247,255,.92) 48%, rgba(219,239,255,.86) 100%) !important;
+    border-bottom: 1px solid rgba(151,190,245,.34) !important;
+    box-shadow: 0 14px 36px rgba(7,87,248,.07) !important;
+  }
+
+  .app-header.nagex-top-composition::after {
+    content: "" !important;
+    position: absolute !important;
+    left: 184px !important;
+    right: 0 !important;
+    bottom: 50px !important;
+    height: 1px !important;
+    background: linear-gradient(90deg, rgba(151,190,245,.12), rgba(151,190,245,.32), rgba(151,190,245,.06)) !important;
+    pointer-events: none !important;
+  }
+
+  .brand-hero-layer {
+    grid-column: 1 / -1 !important;
+    grid-row: 1 !important;
+    display: grid !important;
+    grid-template-columns: 236px minmax(560px, 1fr) 360px !important;
+    align-items: center !important;
+    gap: 18px !important;
+    height: 92px !important;
+    min-width: 0 !important;
+  }
+
+  .brand-hero-identity {
+    display: flex !important;
+    align-items: center !important;
+    min-width: 0 !important;
+  }
+
+  .nagex-hero-logo {
+    width: 188px !important;
+    max-width: 100% !important;
+    height: auto !important;
+    display: block !important;
+    filter: drop-shadow(0 8px 16px rgba(7,87,248,.12)) !important;
+  }
+
+  .brand-hero-copy {
+    min-width: 0 !important;
+    padding-top: 2px !important;
+  }
+
+  .brand-hero-copy h1 {
+    margin: 0 !important;
+    color: #06125d !important;
+    font-size: 30px !important;
+    line-height: 1.05 !important;
+    font-weight: 900 !important;
+    letter-spacing: 0 !important;
+    white-space: nowrap !important;
+  }
+
+  .brand-hero-copy h1 span {
+    color: #0757f8 !important;
+  }
+
+  .brand-hero-copy p {
+    margin: 6px 0 0 !important;
+    color: #2f4778 !important;
+    font-size: 13px !important;
+    line-height: 1.2 !important;
+    font-weight: 600 !important;
+    white-space: nowrap !important;
+  }
+
+  .brand-hero-visual {
+    position: relative !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 210px !important;
+    align-items: center !important;
+    justify-self: stretch !important;
+    min-width: 0 !important;
+    height: 92px !important;
+    padding-left: 10px !important;
+    background: radial-gradient(circle at 28% 44%, rgba(7,87,248,.13), transparent 38%), linear-gradient(90deg, rgba(225,242,255,.22), rgba(206,231,255,.58)) !important;
+    border-radius: 0 0 0 34px !important;
+  }
+
+  .brand-hero-script {
+    justify-self: end !important;
+    margin-right: 16px !important;
+    color: #0757f8 !important;
+    font-size: 17px !important;
+    line-height: 1.06 !important;
+    font-weight: 800 !important;
+    font-style: italic !important;
+    transform: rotate(-10deg) !important;
+    text-align: center !important;
+    text-shadow: 0 8px 18px rgba(7,87,248,.12) !important;
+  }
+
+  .brand-hero-shortcuts {
+    display: grid !important;
+    grid-template-rows: repeat(4, 1fr) !important;
+    gap: 6px !important;
+    min-width: 0 !important;
+  }
+
+  .brand-shortcut {
+    display: flex !important;
+    align-items: center !important;
+    gap: 9px !important;
+    width: 100% !important;
+    height: 35px !important;
+    padding: 0 12px !important;
+    border: 1px solid rgba(151,190,245,.45) !important;
+    border-radius: 9px !important;
+    background: rgba(255,255,255,.78) !important;
+    color: #06125d !important;
+    box-shadow: 0 8px 18px rgba(7,87,248,.07) !important;
+    font-size: 11px !important;
+    font-weight: 800 !important;
+    line-height: 1 !important;
+    text-align: left !important;
+    white-space: nowrap !important;
+    cursor: pointer !important;
+  }
+
+  .brand-shortcut-icon {
+    display: inline-grid !important;
+    place-items: center !important;
+    width: 22px !important;
+    height: 22px !important;
+    flex: 0 0 22px !important;
+    border-radius: 7px !important;
+    background: linear-gradient(180deg, #1681ff, #0757f8) !important;
+    color: #fff !important;
+    font-size: 12px !important;
+    font-weight: 900 !important;
+    box-shadow: 0 6px 14px rgba(7,87,248,.18) !important;
+  }
+
+  .app-header.nagex-top-composition > .brand-section,
+  .app-header.nagex-top-composition > .header-switchers-group,
+  .app-header.nagex-top-composition > .desktop-global-search,
+  .app-header.nagex-top-composition > .header-right {
+    grid-row: 2 !important;
+    align-self: center !important;
+  }
+
+  .app-header.nagex-top-composition > .brand-section {
+    grid-column: 1 !important;
+    width: 176px !important;
+    flex: 0 0 auto !important;
+    gap: 10px !important;
+  }
+
+  .app-header.nagex-top-composition > .desktop-global-search {
+    grid-column: 2 !important;
+    justify-self: stretch !important;
+    width: min(640px, 100%) !important;
+    height: 37px !important;
+    border-radius: 17px !important;
+    padding: 0 12px !important;
+    border-color: rgba(151,190,245,.48) !important;
+    background: rgba(255,255,255,.82) !important;
+    box-shadow: 0 10px 24px rgba(7,87,248,.06) !important;
+  }
+
+  .app-header.nagex-top-composition > .header-right {
+    grid-column: 3 !important;
+    justify-self: end !important;
+    gap: 8px !important;
+  }
+
+  .app-header.nagex-top-composition .brand-section .header-logo {
+    height: 28px !important;
+  }
+
+  .app-header.nagex-top-composition .desktop-global-search-target {
+    color: #263d6d !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+  }
+
+  .app-header.nagex-top-composition .desktop-global-search kbd {
+    border-color: rgba(151,190,245,.55) !important;
+    background: #f4f8ff !important;
+    color: #314871 !important;
+    border-radius: 7px !important;
+    font-size: 10px !important;
+    padding: 3px 7px !important;
+  }
+
+  .app-header.nagex-top-composition .quickwake-subdued-chip,
+  .app-header.nagex-top-composition .lang-toggle-subdued,
+  .app-header.nagex-top-composition .nagex-notif-bell,
+  .app-header.nagex-top-composition .user-pill-header {
+    border-color: rgba(151,190,245,.48) !important;
+    background: rgba(255,255,255,.74) !important;
+    box-shadow: 0 8px 18px rgba(7,87,248,.055) !important;
+  }
+
+  .app-header.nagex-top-composition .header-motto-script {
+    display: none !important;
+  }
+
+  .center-canvas {
+    padding-top: 0 !important;
+  }
+
+  .nagex-desktop-home .desktop-home-main-stack {
+    padding-top: 0 !important;
+  }
+}
+
+@media (min-width: 1200px) {
+  /* V2 D1 correction: desktop top composition only. */
+  .app-header.nagex-top-composition {
+    position: relative !important;
+    z-index: 90 !important;
+    display: grid !important;
+    grid-template-columns: 176px minmax(0, 1fr) auto !important;
+    grid-template-rows: 92px 51px !important;
+    align-items: center !important;
+    column-gap: 14px !important;
+    row-gap: 0 !important;
+    height: 143px !important;
+    min-height: 143px !important;
+    padding: 0 18px 0 22px !important;
+    overflow: visible !important;
+    background:
+      linear-gradient(90deg, rgba(255,255,255,.95) 0%, rgba(236,247,255,.92) 48%, rgba(219,239,255,.86) 100%) !important;
+    border-bottom: 1px solid rgba(151,190,245,.34) !important;
+    box-shadow: 0 14px 36px rgba(7,87,248,.07) !important;
+  }
+
+  .app-header.nagex-top-composition::after {
+    content: "" !important;
+    position: absolute !important;
+    left: 184px !important;
+    right: 0 !important;
+    bottom: 50px !important;
+    height: 1px !important;
+    background: linear-gradient(90deg, rgba(151,190,245,.12), rgba(151,190,245,.32), rgba(151,190,245,.06)) !important;
+    pointer-events: none !important;
+  }
+
+  .brand-hero-layer {
+    grid-column: 1 / -1 !important;
+    grid-row: 1 !important;
+    display: grid !important;
+    grid-template-columns: 236px minmax(560px, 1fr) 360px !important;
+    align-items: center !important;
+    gap: 18px !important;
+    height: 92px !important;
+    min-width: 0 !important;
+  }
+
+  .brand-hero-identity {
+    display: flex !important;
+    align-items: center !important;
+    min-width: 0 !important;
+  }
+
+  .nagex-hero-logo {
+    width: 188px !important;
+    max-width: 100% !important;
+    height: auto !important;
+    display: block !important;
+    filter: drop-shadow(0 8px 16px rgba(7,87,248,.12)) !important;
+  }
+
+  .brand-hero-copy {
+    min-width: 0 !important;
+    padding-top: 2px !important;
+  }
+
+  .brand-hero-copy h1 {
+    margin: 0 !important;
+    color: #06125d !important;
+    font-size: 30px !important;
+    line-height: 1.05 !important;
+    font-weight: 900 !important;
+    letter-spacing: 0 !important;
+    white-space: nowrap !important;
+  }
+
+  .brand-hero-copy h1 span {
+    color: #0757f8 !important;
+  }
+
+  .brand-hero-copy p {
+    margin: 6px 0 0 !important;
+    color: #2f4778 !important;
+    font-size: 13px !important;
+    line-height: 1.2 !important;
+    font-weight: 600 !important;
+    white-space: nowrap !important;
+  }
+
+  .brand-hero-visual {
+    position: relative !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 210px !important;
+    align-items: center !important;
+    justify-self: stretch !important;
+    min-width: 0 !important;
+    height: 92px !important;
+    padding-left: 10px !important;
+    background:
+      radial-gradient(circle at 28% 44%, rgba(7,87,248,.13), transparent 38%),
+      linear-gradient(90deg, rgba(225,242,255,.22), rgba(206,231,255,.58)) !important;
+    border-radius: 0 0 0 34px !important;
+  }
+
+  .brand-hero-script {
+    justify-self: end !important;
+    margin-right: 16px !important;
+    color: #0757f8 !important;
+    font-size: 17px !important;
+    line-height: 1.06 !important;
+    font-weight: 800 !important;
+    font-style: italic !important;
+    transform: rotate(-10deg) !important;
+    text-align: center !important;
+    text-shadow: 0 8px 18px rgba(7,87,248,.12) !important;
+  }
+
+  .brand-hero-shortcuts {
+    display: grid !important;
+    grid-template-rows: repeat(4, 1fr) !important;
+    gap: 6px !important;
+    min-width: 0 !important;
+  }
+
+  .brand-shortcut {
+    display: flex !important;
+    align-items: center !important;
+    gap: 9px !important;
+    width: 100% !important;
+    height: 35px !important;
+    padding: 0 12px !important;
+    border: 1px solid rgba(151,190,245,.45) !important;
+    border-radius: 9px !important;
+    background: rgba(255,255,255,.78) !important;
+    color: #06125d !important;
+    box-shadow: 0 8px 18px rgba(7,87,248,.07) !important;
+    font-size: 11px !important;
+    font-weight: 800 !important;
+    line-height: 1 !important;
+    text-align: left !important;
+    white-space: nowrap !important;
+    cursor: pointer !important;
+  }
+
+  .brand-shortcut-icon {
+    display: inline-grid !important;
+    place-items: center !important;
+    width: 22px !important;
+    height: 22px !important;
+    flex: 0 0 22px !important;
+    border-radius: 7px !important;
+    background: linear-gradient(180deg, #1681ff, #0757f8) !important;
+    color: #fff !important;
+    font-size: 12px !important;
+    font-weight: 900 !important;
+    box-shadow: 0 6px 14px rgba(7,87,248,.18) !important;
+  }
+
+  .app-header.nagex-top-composition > .brand-section,
+  .app-header.nagex-top-composition > .header-switchers-group,
+  .app-header.nagex-top-composition > .desktop-global-search,
+  .app-header.nagex-top-composition > .header-right {
+    grid-row: 2 !important;
+    align-self: center !important;
+  }
+
+  .app-header.nagex-top-composition > .brand-section {
+    grid-column: 1 !important;
+    width: 176px !important;
+    flex: 0 0 auto !important;
+    gap: 10px !important;
+  }
+
+  .app-header.nagex-top-composition > .desktop-global-search {
+    grid-column: 2 !important;
+    justify-self: stretch !important;
+    width: min(640px, 100%) !important;
+    height: 37px !important;
+    border-radius: 17px !important;
+    padding: 0 12px !important;
+    border-color: rgba(151,190,245,.48) !important;
+    background: rgba(255,255,255,.82) !important;
+    box-shadow: 0 10px 24px rgba(7,87,248,.06) !important;
+  }
+
+  .app-header.nagex-top-composition > .header-right {
+    grid-column: 3 !important;
+    justify-self: end !important;
+    gap: 8px !important;
+  }
+
+  .app-header.nagex-top-composition .brand-section .header-logo {
+    height: 28px !important;
+  }
+
+  .app-header.nagex-top-composition .desktop-global-search-target {
+    color: #263d6d !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+  }
+
+  .app-header.nagex-top-composition .desktop-global-search kbd {
+    border-color: rgba(151,190,245,.55) !important;
+    background: #f4f8ff !important;
+    color: #314871 !important;
+    border-radius: 7px !important;
+    font-size: 10px !important;
+    padding: 3px 7px !important;
+  }
+
+  .app-header.nagex-top-composition .quickwake-subdued-chip,
+  .app-header.nagex-top-composition .lang-toggle-subdued,
+  .app-header.nagex-top-composition .nagex-notif-bell,
+  .app-header.nagex-top-composition .user-pill-header {
+    border-color: rgba(151,190,245,.48) !important;
+    background: rgba(255,255,255,.74) !important;
+    box-shadow: 0 8px 18px rgba(7,87,248,.055) !important;
+  }
+
+  .app-header.nagex-top-composition .header-motto-script {
+    display: none !important;
+  }
+
+  .center-canvas {
+    padding-top: 0 !important;
+  }
+
+  .nagex-desktop-home .desktop-home-main-stack {
+    padding-top: 0 !important;
+  }
+}
+
 .app-header .brand-section {
   width: 190px !important;
   flex: 0 0 190px !important;
@@ -292,7 +1339,12 @@
   margin: 0 auto !important;
 }
 
-.nagex-desktop-home .nagex-sr-only {
+/* R23.7H-C Phase D.2 §11 — this screen-reader-only utility used to be
+   scoped to .nagex-desktop-home, so it silently did nothing on mobile
+   (#mobile-app-shell isn't nested under .nagex-desktop-home): the
+   "Notifications" label rendered as visible text, colliding with
+   KR/avatar/greeting in the mobile header. Made a real global utility. */
+.nagex-sr-only {
   position: absolute !important;
   width: 1px !important;
   height: 1px !important;
@@ -305,8 +1357,13 @@
 }
 
 div#view-home.tab-view.active-view.nagex-desktop-home {
+  /* R23.7H-C Phase D.1 — the second 280px grid column was empty (no
+     second child of #view-home exists in index.html), wasting ~294px of
+     width on every 1440px+ screen — the exact "large unused horizontal
+     space" the D.1 visual convergence pass flagged. .desktop-home-
+     main-stack is the only child, so a single column reclaims it. */
   display: grid !important;
-  grid-template-columns: minmax(0, 1fr) 280px !important;
+  grid-template-columns: minmax(0, 1fr) !important;
   gap: 14px !important;
   align-items: start !important;
   padding: 0 !important;
@@ -326,9 +1383,17 @@ div#view-home.nagex-desktop-home .desktop-home-main-stack,
 div#view-home.nagex-desktop-home .desktop-home-grid-operational,
 .nagex-desktop-home .desktop-home-grid-operational {
   display: grid !important;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
-  gap: 12px !important;
+  /* R23.7H-C Phase D — main column wider than the right rail
+     (Agent Actions / Today's Schedule), matching the approved mockup. */
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr) !important;
+  gap: 16px !important;
   align-items: start !important;
+}
+@media (max-width: 1024px) {
+  div#view-home.nagex-desktop-home .desktop-home-grid-operational,
+  .nagex-desktop-home .desktop-home-grid-operational {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
 }
 
 div#view-home.nagex-desktop-home .desktop-home-col-main,
@@ -371,16 +1436,129 @@ div#view-home.nagex-desktop-home .desktop-home-right-rail,
   gap: 8px !important;
 }
 
+/* R23.7H-C Phase D.1 §4.2 — one merged entry card: greeting text (no
+   longer its own bordered/gradient card) sits inside the same card
+   boundary as the composer, reading as one coherent Personal AI entry
+   point instead of two stacked, competing "prompt" cards. */
+.home-entry-card {
+  border-radius: 14px !important;
+  border: 1px solid #e2e8f5 !important;
+  background: linear-gradient(180deg, #f0f7ff 0%, #ffffff 45%) !important;
+  padding: 14px 16px 16px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+}
+.home-entry-card .unified-capture-composer-card {
+  border: 1px solid rgba(15, 23, 42, 0.08) !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03) !important;
+}
+
+/* R23.7H-C Phase D.4 §6 — compact entry card: greeting + composer only,
+   target vertical budget ~60-95px (was ~150-200px with the large h1/
+   subtitle hero, removed from HTML this pass). */
+.home-entry-compact { padding: 8px 12px 10px !important; gap: 4px !important; }
+.home-hero-compact { padding: 0 2px !important; }
+.home-hero-compact .eyebrow-text { margin-bottom: 0 !important; }
+
+/* R23.7H-C Phase D.4 §9 — Create with NAgex (dominant) + Work with your
+   data (compact companion), horizontal relationship instead of two
+   stacked full-width sections. ~74%/26% at 1440px. */
+.home-creation-strip { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 10px; align-items: start; }
+@media (max-width: 1100px) { .home-creation-strip { grid-template-columns: 1fr; } }
+
+/* R23.7H-C Phase D.4 §4/§5/§10/§11/§13 — the primary Personal AI Creation
+   Workspace row: Canvas (dominant) + Agent + contextual rail, sized so it
+   is visible within the first 900px fold at 1440px. Column widths follow
+   the directive's target bands (~57%/22%/19% of the ~1188px main column
+   after the sidebar, close to the requested 55-62%/18-22%/16-20%). */
+/* D.4 §3/§4 fix — align-items:stretch made Canvas/Agent balloon to match
+   whatever height the context rail's real content list happened to be
+   (measured 735px, well past the 900px viewport — an explicit D.4 FAIL
+   condition: "if Canvas requires scrolling before becoming useful, D.4
+   FAILS"). Fixed height instead of stretch: the row is capped to the
+   directive's 390-470px target band; the context rail scrolls internally
+   if its real content is longer than that, Canvas/Agent never do. */
+/* R23.7H-C D4.6 — Desktop Workspace Grid Foundation. Replaces the prior
+   .home-primary-workspace (which only wrapped Canvas+Agent+ContextRail,
+   leaving .home-creation-strip above it as an unrelated sibling with no
+   shared column contract — the D4.5 finding). .home-workspace-grid is now
+   the single shared parent for both rows: a fluid main-work column
+   (creation row + Canvas, stacked) and a reserved Agent rail column
+   (existing Agent panel + context rail, stacked, untouched internally). */
+/* R23.7H-C D6 — rail track widened from the D4.6-provisional 290px to
+   ~431px (REFERENCE_RIGHT_WORKSPACE width), now that D6 measured the
+   reference's actual right-workspace allocation. Authorized by the D6
+   directive as a normal parent-grid-track correction, re-certified below
+   for D3/D4/Canvas. */
+.home-workspace-grid { display: grid; grid-template-columns: minmax(0, 1fr) 431px; gap: 16px; align-items: start; margin-top: 8px; }
+.home-main-workspace { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+/* R23.7H-C D6 — reference confirmed (pixel-measured, not inferred) that
+   NAgex Agent and Agent Actions/Today render as two SIDE-BY-SIDE cards,
+   not one stacked column. Ratio (Agent ~46%, Actions/Today ~49%, gap
+   ~5%) derived from the measured reference bounds (198px / 211px of a
+   431px rail), expressed as fr units so it stays fluid rather than
+   hardcoding the absolute px. No new elements, no duplicated state —
+   #home-agent-panel and #home-context-rail are the same two existing
+   components, just placed in columns instead of stacked rows. */
+.home-agent-rail { display: grid; grid-template-columns: 46fr 49fr; gap: 20px; align-items: start; }
+#home-agent-panel { height: 100%; }
+.home-agent-rail .home-context-rail { display: flex; flex-direction: column; gap: 12px; }
+/* R23.7H-C D6 — Right Now has no truthful counterpart in the approved
+   reference's Agent Actions/Today grouping; hidden from this specific
+   Desktop Home placement only. Its real runtime/population logic
+   (desktop-home.js renderRightNowSection et al.) is untouched — it still
+   populates the element's content, this purely suppresses display here
+   so a future placement can reuse the same component/data unchanged. */
+.home-agent-rail .home-context-rail #home-section-right-now { display: none !important; }
+/* R23.7H-C D5 — CANVAS_HEIGHT_DRIVER: .home-embedded-canvas-stage had
+   max-height:none and .home-embedded-canvas-card had no max-height at
+   all, so a real rendered artifact image (e.g. the 512x512 test fixture)
+   inflated every flex:1 ancestor up to its own intrinsic content size
+   (605px measured) because the max-width/max-height:100% on the <img>
+   never had a definite percentage basis to resolve against.
+   R23.7H-C D9 §1 — the fixed max-height:420px above was stale: it was
+   tuned when Canvas was ~951px wide, before D6 narrowed the main column
+   to ~810px. A fixed px cap doesn't track that. aspect-ratio derives the
+   card's height from whatever width it actually has, using the
+   reference's own measured card proportion (785:346 ≈ 2.27:1) — so the
+   target height scales with real layout instead of being a screenshot
+   constant. flex changed from 1 (grow-to-fill, which is what caused the
+   420px floor to always be hit) to 0 1 auto so the card sizes itself by
+   aspect-ratio instead of stretching to fill leftover column space. */
+.home-embedded-canvas-card { flex: 0 1 auto; min-height: 300px; aspect-ratio: 785 / 346; max-height: 480px; }
+@media (max-width: 1320px) { .home-workspace-grid { grid-template-columns: minmax(0, 1fr) 260px; } }
+@media (max-width: 900px) { .home-workspace-grid { grid-template-columns: 1fr; } }
+
+.home-embedded-canvas-card { padding: 10px !important; display: flex; flex-direction: column; background: linear-gradient(180deg,#ffffff 0%,#f6fbff 100%) !important; border-color: rgba(37,99,235,.14) !important; box-shadow: 0 14px 36px rgba(37,99,235,.13) !important; }
+.home-embedded-canvas-card .home-embedded-canvas-toolbar { padding-bottom: 8px !important; margin-bottom: 8px !important; flex-shrink: 0; border-bottom-color: rgba(37,99,235,.1) !important; }
+.home-embedded-canvas-card .home-embedded-canvas-stage { flex: 1; min-height: 0; max-height: 100%; overflow: hidden; }
+
+/* R23.7H-C D5 — header typography to match the reference's TYPE badge +
+   title hierarchy; reuses the same visual language Focus Mode's
+   #canvas-artifact-title already establishes (font-size/weight), just
+   targeting the home-prefixed ids since both share the .canvas-context
+   class but can't share one ID. No new elements, no fake status text. */
+#home-canvas-artifact-type { font-size: 0.7rem; letter-spacing: 0.04em; }
+#home-canvas-artifact-title { margin: 0; font-size: 1.1rem; font-weight: 600; color: var(--nagex-text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 420px; }
+
+/* D.4 fix — the shared .canvas-agent-panel base rule (style.css) sets a
+   fixed width:320px appropriate for Focus Mode's flex layout; that
+   overrode this grid cell's own 260px track, overlapping the context
+   rail by 60px (measured, a real confirmed overlap, not cosmetic). */
+.home-agent-panel { width: 100% !important; display: flex; flex-direction: column; background: rgba(255,255,255,.92) !important; border-color: rgba(148,163,184,.22) !important; box-shadow: 0 8px 22px rgba(15,23,42,.06) !important; }
+
+.home-context-rail { display: flex; flex-direction: column; gap: 10px; min-width: 0; overflow-y: auto; overflow-x: visible; }
+.home-context-rail-item { padding: 10px !important; flex-shrink: 0; background: rgba(248,251,255,.9) !important; border-color: rgba(148,163,184,.2) !important; box-shadow: 0 4px 14px rgba(15,23,42,.035) !important; }
+.home-context-rail-item .nagex-section-heading h2 { font-size: 0.85rem !important; }
+
 /* Hero Header */
 .nagex-desktop-home .home-hero-header {
   position: relative !important;
-  min-height: 84px !important;
-  padding: 12px 18px !important;
+  min-height: 0 !important;
+  padding: 0 4px !important;
   margin-top: 0 !important;
   margin-bottom: 0 !important;
-  border-radius: 12px !important;
-  border: 1px solid #e2e8f5 !important;
-  background: linear-gradient(120deg, #f0f7ff 0%, #ffffff 55%, #e0f2fe 100%) !important;
   overflow: hidden !important;
 }
 .nagex-desktop-home .eyebrow-text {
@@ -762,11 +1940,11 @@ div#view-home.nagex-desktop-home .desktop-home-right-rail,
 
 /* Card System Baseline */
 .nagex-desktop-home .nagex-card {
-  background: #ffffff !important;
-  border: 1px solid #e2e8f5 !important;
+  background: rgba(255,255,255,.86) !important;
+  border: 1px solid rgba(191,219,254,.58) !important;
   border-radius: 10px !important;
   padding: 10px 12px !important;
-  box-shadow: 0 1.5px 5px rgba(0, 0, 0, 0.02) !important;
+  box-shadow: 0 6px 20px rgba(30,64,175,.045) !important;
 }
 
 .nagex-desktop-home .nagex-section-heading {
@@ -794,6 +1972,8 @@ div#view-home.nagex-desktop-home .desktop-home-right-rail,
 .blue-tile { background: #dbeafe !important; color: #1d4ed8 !important; }
 .red-tile { background: #fee2e2 !important; color: #ef4444 !important; }
 .orange-tile { background: #fff7ed !important; color: #ea580c !important; }
+.green-tile { background: #dcfce7 !important; color: #15803d !important; }
+.purple-tile { background: #ede9fe !important; color: #7c3aed !important; }
 
 /* R12.1 Increment 2 — Capability Discovery (§12). Responsive grid, no
    fixed pixel widths, so it reflows correctly at mobile breakpoints. */
@@ -1265,7 +2445,7 @@ div#view-home.nagex-desktop-home .desktop-home-right-rail,
   .nagex-desktop-home .nagex-quick-actions-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
 }
 .ph-heading { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
-.ph-heading h2 { margin:0; font-size:1rem; color:#1e293b; }
+.ph-heading h2 { margin:0; font-size: 1.15rem; font-weight: 700; color: #111827; display: flex; align-items: center; gap: 8px; }
 .ph-list { display:grid; gap:8px; }
 .ph-item { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px; border:1px solid rgba(148,163,184,.16); border-radius:10px; background:rgba(255,255,255,.025); }
 .ph-item-copy { min-width:0; }
@@ -1277,9 +2457,1026 @@ div#view-home.nagex-desktop-home .desktop-home-right-rail,
 .ph-state[data-state="Completed"] { background:rgba(34,197,94,.12); color:#86efac; }
 .ph-action { border:1px solid rgba(148,163,184,.3); border-radius:7px; padding:5px 9px; background:transparent; color:inherit; cursor:pointer; }
 .ph-create-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
-.ph-create-action { min-height:64px; padding:12px 14px; border:1px solid rgba(37,99,235,.18); border-radius:12px; background:linear-gradient(135deg,rgba(239,246,255,.9),rgba(255,255,255,.95)); color:#1e293b; text-align:left; cursor:pointer; }
+.ph-create-action { min-height:48px; padding:8px 12px; border:1px solid rgba(10,86,247,.18); border-radius:10px; background:linear-gradient(135deg,rgba(239,246,255,.9),rgba(255,255,255,.95)); color:#1e293b; text-align:left; cursor:pointer; }
 .ph-create-action strong,.ph-create-action span { display:block; }
 .ph-create-action strong { font-size:.9rem; }
 .ph-create-action span { margin-top:4px; color:#64748b; font-size:.76rem; line-height:1.4; }
 .ph-action:focus-visible,.ph-create-action:focus-visible { outline:3px solid rgba(37,99,235,.35); outline-offset:2px; }
 @media (prefers-reduced-motion: reduce) { .ph-action,.ph-create-action { transition:none !important; } }
+
+/* R23.7H-C Phase D/D.1/D.3 — 7-tile Create capability row. D.3 §6:
+   compact creation-launcher treatment (was still "too tall and
+   dashboard-like" in D.2) — smaller height, stronger icon presence,
+   description de-emphasized, status a tiny secondary dot+label. */
+.ph-heading-sub { margin: 2px 0 0; font-size: 0.76rem; color: #64748b; line-height: 1.25; }
+.ph-heading { flex-direction:column; align-items:flex-start; justify-content:flex-start; margin-bottom:8px; gap:2px; }
+.ph-capability-row { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; margin-top: 6px; }
+@media (max-width: 1240px) { .ph-capability-row { grid-template-columns:repeat(4,minmax(0,1fr)); } }
+@media (max-width: 860px) { .ph-capability-row { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+.ph-capability-tile { position:relative; min-height:56px; padding:7px 8px; border:1px solid rgba(37,99,235,.1); border-radius:9px; background:linear-gradient(180deg,#ffffff,#f8fbff); box-shadow:0 1px 2px rgba(15,23,42,.025); color:#1e293b; text-align:left; cursor:pointer; display:flex; flex-direction:column; gap:1px; transition:border-color .15s,box-shadow .15s,transform .15s; }
+.ph-capability-tile:hover { border-color:rgba(10,86,247,.28); box-shadow:0 4px 14px rgba(15,23,42,.06); transform:translateY(-1px); }
+.ph-capability-tile:focus-visible { outline:3px solid rgba(10,86,247,.35); outline-offset:2px; }
+.ph-capability-icon { margin-bottom:0; width:22px !important; height:22px !important; }
+.ph-capability-tile strong { font-size:.76rem; line-height:1.15; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+/* D.4 §8 — target tile height 64-90px doesn't leave room for a
+   description line without the tile becoming a dashboard widget again;
+   icon + title + tiny status is the compact-launcher treatment. */
+.ph-capability-desc { display:none; }
+.ph-capability-status { display:inline-flex; align-items:center; gap:4px; font-size:.6rem; font-weight:600; color:#94a3b8; margin-top:0; line-height:1.1; white-space:nowrap; }
+.ph-capability-status i { width:5px; height:5px; border-radius:50%; background:currentColor; display:inline-block; }
+.ph-capability-status[data-status="LIVE"] { color:#16a34a; }
+.ph-capability-status[data-status="PARTIAL"] { color:#d97706; }
+.ph-capability-status[data-status="PLANNED"] { color:#94a3b8; }
+
+/* R23.7H-C Phase D — Recent Creations filter pills */
+.ph-recent-filters { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0 10px; }
+.ph-recent-filter-pill { padding:5px 12px; border-radius:999px; border:1px solid rgba(148,163,184,.28); background:transparent; color:#64748b; font-size:.74rem; font-weight:600; cursor:pointer; }
+.ph-recent-filter-pill.active { background:var(--primary-blue, #0a56f7); border-color:var(--primary-blue, #0a56f7); color:#fff; }
+
+/* R23.7H-C Phase D.3 §8 — Home embedded Canvas. Reuses .canvas-toolbar/
+   .canvas-stage/.canvas-context/.canvas-renderer styling from style.css
+   (same visual language as Focus Mode) with height constraints suited to
+   sitting inline within Home's normal document flow rather than filling
+   the viewport. */
+.home-embedded-canvas-card { padding:10px !important; }
+.home-embedded-canvas-toolbar { padding-bottom:8px !important; margin-bottom:8px !important; }
+.home-embedded-canvas-stage { min-height:0; max-height:100%; overflow:hidden; }
+.home-canvas-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:200px; text-align:center; padding:24px; }
+.home-canvas-empty h2 { margin:0 0 6px; font-size:1.05rem; color:var(--nagex-text-primary,#0f172a); }
+.home-canvas-empty p { margin:0; color:var(--nagex-text-secondary,#64748b); font-size:.85rem; max-width:380px; }
+
+/* D.4 Mockup adjustments */
+.nagex-desktop-home .home-entry-card { display: none !important; }
+
+/* D.4 final visual correction — clone the supplied mockup more closely:
+   keep Canvas dominant at 1440, but give the right contextual rail enough
+   real width and wrapping behavior so text/buttons never clip. */
+@media (max-width: 1080px) {
+  .home-workspace-grid { grid-template-columns: minmax(0,1fr) !important; }
+  .home-agent-rail .home-agent-panel { min-height: 260px !important; }
+}
+.home-context-rail .ph-list { gap: 6px !important; }
+.home-context-rail .ph-item { align-items: flex-start !important; gap: 8px !important; padding: 8px !important; }
+.home-context-rail .ph-item-copy,
+.home-context-rail .ph-item-meta { min-width: 0 !important; }
+.home-context-rail .ph-item-copy h3,
+.home-context-rail .inbox-item-title { font-size: .76rem !important; line-height: 1.25 !important; white-space: normal !important; overflow-wrap: anywhere !important; }
+.home-context-rail .ph-item-copy p,
+.home-context-rail .ph-item-copy time,
+.home-context-rail .inbox-item-summary { font-size: .68rem !important; line-height: 1.25 !important; overflow-wrap: anywhere !important; }
+.home-context-rail .ph-item-meta,
+.home-context-rail .contextual-appr-btns { flex-wrap: wrap !important; min-width: 0 !important; }
+.home-context-rail .btn-primary,
+.home-context-rail .btn-secondary,
+.home-context-rail .ph-action { min-width: 0 !important; max-width: 100% !important; white-space: normal !important; overflow-wrap: anywhere !important; line-height: 1.15 !important; }
+
+.home-section-recent-results .ph-list {
+  display: grid !important;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 12px !important;
+}
+/* R23.7H-C D9 §3 — density tightened toward the reference's measured
+   card (~thumbnail 45px / title 14px / metadata 12px / action 20px /
+   card ~97px — targets, not literal constants). Real content (title,
+   compact type•status•time metadata, Open in Canvas) stays fully
+   visible; no overflow:hidden, no section-level clipping reintroduced. */
+.home-section-recent-results .ph-item {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 5px !important;
+  padding: 6px !important;
+  border-radius: 12px !important;
+  background: linear-gradient(180deg,#ffffff 0%,#f5f9ff 100%) !important;
+  border-color: rgba(191,219,254,.72) !important;
+}
+.home-section-recent-results .ph-artifact-thumbnail {
+  width: 100% !important;
+  height: 45px !important;
+  margin-right: 0 !important;
+  border-radius: 8px !important;
+}
+.home-section-recent-results .ph-item-copy h3 {
+  font-size: .76rem !important;
+  line-height: 1.15 !important;
+  margin: 0 0 2px !important;
+}
+/* R23.7H-C D9 §2 — replaces the separate .ph-state badge row: real
+   status is compacted into this single metadata line ("{Type} •
+   {Status} • {relative time}") instead of its own ~20px row. */
+.home-section-recent-results .ph-item-compact-meta {
+  font-size: .66rem !important;
+  line-height: 1.2 !important;
+  color: #64748b !important;
+  margin: 0 !important;
+}
+.home-section-recent-results .ph-action {
+  width: 100% !important;
+  text-align: center !important;
+  background: #dbeafe !important;
+  border-color: transparent !important;
+  color: #0a56f7 !important;
+  font-weight: 700 !important;
+  padding: 4px 8px !important;
+  min-height: 0 !important;
+  line-height: 1.3 !important;
+}
+@media (max-width: 1240px) {
+  .home-section-recent-results .ph-list { grid-template-columns: repeat(3, minmax(0,1fr)) !important; }
+}
+@media (max-width: 900px) {
+  .home-section-recent-results .ph-list { grid-template-columns: 1fr !important; }
+}
+
+/* Visual reconstruction shell — desktop 1440 only.
+   Tokens are derived from artifacts/visual-reconstruction/reference-measurements.json. */
+@media (min-width: 1200px) {
+  :root {
+    --ref-header-h: 80px;
+    --ref-sidebar-w: 159px;
+    --ref-workspace-gap: 12px;
+    --ref-create-h: 132px;
+    --ref-canvas-ratio: 0.57;
+    --ref-agent-ratio: 0.22;
+    --ref-rail-ratio: 0.21;
+    --ref-recent-h: 169px;
+    --nagex-bg: #edf6ff;
+    --nagex-surface: #ffffff;
+    --nagex-surface-soft: #f3f8ff;
+    --nagex-primary: #0757f8;
+    --nagex-text: #06125d;
+    --nagex-text-secondary: #365180;
+    --nagex-border: #d2e3fb;
+    --nagex-radius-sm: 8px;
+    --nagex-radius-md: 12px;
+    --nagex-radius-lg: 16px;
+    --nagex-shadow: 0 12px 36px rgba(7, 87, 248, .10);
+    --nagex-gap-sm: 8px;
+    --nagex-gap-md: 12px;
+    --nagex-gap-lg: 16px;
+  }
+
+  body,
+  .app-wrapper {
+    background: var(--nagex-bg) !important;
+  }
+
+  .app-header {
+    height: var(--ref-header-h) !important;
+    background: linear-gradient(180deg, #f7fbff 0%, #e7f4ff 100%) !important;
+    border-bottom: 1px solid var(--nagex-border) !important;
+    box-shadow: none !important;
+  }
+
+  .sidebar-left {
+    width: 149px !important;
+    margin-left: 9px !important;
+    background: rgba(255,255,255,.82) !important;
+    border-right: 1px solid var(--nagex-border) !important;
+    max-height: 732px !important;
+  }
+
+  .sidebar-left:hover {
+    width: 149px !important;
+  }
+
+  .sidebar-left .nav-link span {
+    opacity: 1 !important;
+  }
+
+  .center-canvas {
+    padding: var(--nagex-gap-md) var(--nagex-gap-lg) var(--nagex-gap-md) 13px !important;
+    background: var(--nagex-bg) !important;
+  }
+
+  div#view-home.tab-view.active-view.nagex-desktop-home {
+    max-width: none !important;
+    width: 100% !important;
+  }
+
+  .nagex-desktop-home .desktop-home-main-stack {
+    gap: var(--nagex-gap-md) !important;
+    padding-top: 53px !important;
+  }
+
+  /* R23.7H-C D4.5 — fluid 1fr/fixed-260px columns (reference-derived: D4's
+     own frozen internal content needs ~248-260px; D3 fills the remainder
+     of whatever width .center-canvas actually has), replacing the prior
+     846px/248px/1106px hardcoded triple that only "worked" because
+     #home-section-create and #home-section-work-with-data each had a
+     matching position:relative + transform coordinate hack layered on
+     top to force themselves into place despite not fitting this track. */
+  .home-creation-strip {
+    grid-template-columns: minmax(0, 1fr) 260px !important;
+    gap: var(--nagex-gap-md) !important;
+  }
+
+  #home-section-create,
+  #home-section-work-with-data {
+    overflow: hidden !important;
+    background: rgba(255,255,255,.86) !important;
+    border-color: var(--nagex-border) !important;
+    border-radius: var(--nagex-radius-lg) !important;
+    box-shadow: var(--nagex-shadow) !important;
+  }
+
+  #home-section-create {
+    min-height: 129px !important;
+    max-height: 129px !important;
+  }
+
+  #home-section-work-with-data {
+    min-height: 104px !important;
+    max-height: 104px !important;
+    margin-top: 11px !important;
+  }
+
+  .ph-capability-row {
+    gap: 8px !important;
+  }
+
+  .ph-capability-tile {
+    min-height: 58px !important;
+    border-color: var(--nagex-border) !important;
+    background: linear-gradient(180deg, var(--nagex-surface), var(--nagex-surface-soft)) !important;
+  }
+
+  /* R23.7H-C D4.6 — replaces the prior hardcoded 816px/208px/220px column
+     triple + negative-margin-top hacks on .home-agent-panel/.home-context-rail
+     (which were compensating for those two living in a row shorter than
+     their own content, by shifting them upward to visually reach into the
+     creation-row's space above). Now that they live in .home-agent-rail,
+     a column reserved beside the full main-work area (creation row +
+     Canvas stacked), they render at their natural stacked height with no
+     compensation needed.
+     R23.7H-C D9 §4 — margin-top:0 removed; it was suppressing the real
+     .home-workspace-grid margin-top:8px (base rule), which is the
+     legitimate reference-consistent gap under the header. No new offset
+     introduced — just letting the existing rule apply. */
+  .home-workspace-grid {
+    gap: var(--nagex-gap-md) !important;
+  }
+
+  .home-agent-rail .home-context-rail {
+    overflow-y: auto !important;
+  }
+
+  .home-embedded-canvas-card {
+    border-radius: var(--nagex-radius-lg) !important;
+    border-color: var(--nagex-border) !important;
+    background: linear-gradient(180deg, var(--nagex-surface), var(--nagex-surface-soft)) !important;
+    box-shadow: var(--nagex-shadow) !important;
+  }
+
+  .home-embedded-canvas-stage {
+    border-radius: var(--nagex-radius-md) !important;
+    background: #f7fbff !important;
+  }
+
+  .home-embedded-canvas-stage .canvas-renderer {
+    padding: 8px !important;
+  }
+
+  .home-agent-panel,
+  .home-context-rail-item {
+    border-radius: var(--nagex-radius-lg) !important;
+    border-color: var(--nagex-border) !important;
+    background: rgba(255,255,255,.9) !important;
+    box-shadow: 0 8px 24px rgba(6, 18, 93, .055) !important;
+  }
+
+  /* R23.7H-C D8 — removed max-height:176px/overflow:hidden, which clipped
+     real card title/metadata/Open Canvas content (the cards' own content
+     needs ~204px, not 176px). Width is no longer hardcoded either — the
+     section already fills .home-main-workspace's real width via normal
+     block flow. Content-driven height, normal layout. */
+  #home-section-recent-creations {
+    border-radius: var(--nagex-radius-lg) !important;
+    border-color: var(--nagex-border) !important;
+    background: rgba(255,255,255,.82) !important;
+    box-shadow: 0 8px 24px rgba(6, 18, 93, .05) !important;
+  }
+
+  .home-context-rail .ph-item {
+    display: block !important;
+  }
+
+  .home-context-rail .ph-item-meta {
+    margin-top: 8px !important;
+    flex-direction: row !important;
+    align-items: center !important;
+  }
+
+  .home-context-rail .ph-state {
+    font-size: .62rem !important;
+    padding: 2px 6px !important;
+  }
+
+  .home-context-rail .ph-action {
+    padding: 4px 8px !important;
+  }
+
+  /* Visual reconstruction C2 — skin convergence only. Geometry above is frozen. */
+  :root {
+    --nagex-page-bg: #eef6ff;
+    --nagex-surface-ref: rgba(255,255,255,.88);
+    --nagex-surface-soft-ref: #f5f9ff;
+    --nagex-surface-selected-ref: #eaf3ff;
+    --nagex-border-ref: rgba(151, 190, 245, .42);
+    --nagex-border-soft-ref: rgba(188, 212, 253, .36);
+    --nagex-text-primary-ref: #05085a;
+    --nagex-text-secondary-ref: #385181;
+    --nagex-primary-ref: #0757f8;
+    --nagex-primary-hover-ref: #004be0;
+    --nagex-shadow-card-ref: 0 10px 28px rgba(7, 87, 248, .075);
+    --nagex-shadow-stage-ref: 0 18px 48px rgba(7, 87, 248, .13);
+  }
+
+  body,
+  .app-wrapper,
+  .center-canvas {
+    background: radial-gradient(circle at 84% 0%, rgba(206,231,255,.9) 0, rgba(238,246,255,0) 34%), var(--nagex-page-bg) !important;
+  }
+
+  .app-header {
+    background: rgba(247,251,255,.78) !important;
+    backdrop-filter: blur(14px) !important;
+    border-bottom-color: var(--nagex-border-soft-ref) !important;
+  }
+
+  .global-search-box,
+  .unified-search-container {
+    border-color: var(--nagex-border-ref) !important;
+    background: rgba(255,255,255,.82) !important;
+    box-shadow: 0 8px 24px rgba(7,87,248,.055) !important;
+    border-radius: 14px !important;
+  }
+
+  .sidebar-left {
+    background: rgba(255,255,255,.72) !important;
+    border-right-color: var(--nagex-border-soft-ref) !important;
+    box-shadow: 8px 0 26px rgba(7,87,248,.035) !important;
+  }
+
+  .nav-link {
+    color: var(--nagex-text-secondary-ref) !important;
+    font-size: .86rem !important;
+    font-weight: 600 !important;
+    border-radius: 10px !important;
+  }
+
+  .nav-link.active {
+    color: var(--nagex-primary-ref) !important;
+    background: var(--nagex-surface-selected-ref) !important;
+    box-shadow: inset 0 0 0 1px rgba(7,87,248,.05) !important;
+  }
+
+  .nagex-desktop-home .nagex-card,
+  #home-section-create,
+  #home-section-work-with-data,
+  .home-agent-panel,
+  .home-context-rail-item,
+  #home-section-recent-creations {
+    background: linear-gradient(180deg, var(--nagex-surface-ref), rgba(248,252,255,.9)) !important;
+    border-color: var(--nagex-border-ref) !important;
+    box-shadow: var(--nagex-shadow-card-ref) !important;
+  }
+
+  .ph-heading h2,
+  .home-context-rail-item .ph-heading h2,
+  #home-canvas-artifact-title {
+    color: var(--nagex-text-primary-ref) !important;
+    font-weight: 800 !important;
+    letter-spacing: 0 !important;
+  }
+
+  .ph-heading h2 { font-size: 1.08rem !important; }
+  .ph-heading-sub,
+  .ph-item p,
+  .ph-item time,
+  .canvas-agent-empty {
+    color: var(--nagex-text-secondary-ref) !important;
+    line-height: 1.32 !important;
+  }
+
+  .ph-capability-tile {
+    border-color: var(--nagex-border-soft-ref) !important;
+    border-radius: 10px !important;
+    background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%) !important;
+    box-shadow: 0 6px 16px rgba(7,87,248,.045) !important;
+  }
+
+  .ph-capability-icon {
+    border-radius: 8px !important;
+    box-shadow: 0 6px 14px rgba(7,87,248,.10) !important;
+  }
+
+  .ph-capability-tile strong {
+    color: var(--nagex-text-primary-ref) !important;
+    font-weight: 800 !important;
+  }
+
+  .ph-capability-status {
+    font-weight: 700 !important;
+    opacity: .82 !important;
+  }
+
+  .home-embedded-canvas-card {
+    box-shadow: var(--nagex-shadow-stage-ref) !important;
+  }
+
+  .home-embedded-canvas-toolbar,
+  .canvas-toolbar {
+    border-bottom-color: var(--nagex-border-soft-ref) !important;
+  }
+
+  .home-embedded-canvas-stage,
+  .canvas-stage {
+    background: linear-gradient(180deg, #fbfdff 0%, #f3f8ff 100%) !important;
+    border-color: rgba(7,87,248,.18) !important;
+  }
+
+  .btn-primary,
+  .nagex-desktop-home .btn-primary,
+  .canvas-ask-submit {
+    background: linear-gradient(180deg, var(--nagex-primary-ref), var(--nagex-primary-hover-ref)) !important;
+    color: #fff !important;
+    border: 0 !important;
+    box-shadow: 0 8px 18px rgba(7,87,248,.22) !important;
+    font-weight: 800 !important;
+  }
+
+  .canvas-agent-tabs {
+    background: rgba(239,246,255,.75) !important;
+    border-bottom-color: var(--nagex-border-soft-ref) !important;
+  }
+
+  .canvas-agent-tab {
+    color: var(--nagex-text-secondary-ref) !important;
+    font-weight: 700 !important;
+  }
+
+  .canvas-agent-tab.active {
+    color: var(--nagex-primary-ref) !important;
+    background: #fff !important;
+    box-shadow: 0 6px 14px rgba(7,87,248,.10) !important;
+  }
+
+  .canvas-ask-wrapper {
+    border-color: var(--nagex-border-ref) !important;
+    background: rgba(255,255,255,.9) !important;
+  }
+
+  .home-context-rail-item .ph-item,
+  .contextual-approval-card,
+  .home-section-recent-results .ph-item {
+    background: linear-gradient(180deg, #ffffff, #f7fbff) !important;
+    border-color: var(--nagex-border-soft-ref) !important;
+    box-shadow: 0 6px 16px rgba(7,87,248,.04) !important;
+  }
+
+  .ph-state {
+    background: rgba(7,87,248,.08) !important;
+    color: var(--nagex-primary-ref) !important;
+    font-weight: 800 !important;
+  }
+
+  .ph-recent-filter-pill {
+    border-color: var(--nagex-border-ref) !important;
+    color: var(--nagex-text-secondary-ref) !important;
+    background: rgba(255,255,255,.72) !important;
+  }
+
+  .ph-recent-filter-pill.active,
+  .home-section-recent-results .ph-action {
+    background: var(--nagex-primary-ref) !important;
+    color: #fff !important;
+    box-shadow: 0 8px 18px rgba(7,87,248,.18) !important;
+  }
+
+  /* V2 D1 — Header only. Component status: HEADER=ACTIVE, others untouched. */
+  .app-header {
+    height: 80px !important;
+    min-height: 80px !important;
+    padding: 0 18px 0 20px !important;
+    background: linear-gradient(180deg, rgba(249,252,255,.92) 0%, rgba(232,244,255,.86) 100%) !important;
+    border-bottom: 1px solid rgba(151,190,245,.36) !important;
+    box-shadow: 0 8px 28px rgba(7,87,248,.045) !important;
+  }
+
+  .app-header .brand-section {
+    width: 176px !important;
+    flex: 0 0 176px !important;
+    gap: 10px !important;
+  }
+
+  .app-header .header-logo {
+    height: 30px !important;
+    filter: drop-shadow(0 6px 12px rgba(7,87,248,.10)) !important;
+  }
+
+  .desktop-global-search {
+    width: min(610px, 44vw) !important;
+    height: 38px !important;
+    border-radius: 16px !important;
+    padding: 0 12px !important;
+    border-color: rgba(151,190,245,.48) !important;
+    background: rgba(255,255,255,.82) !important;
+    box-shadow: 0 10px 24px rgba(7,87,248,.06) !important;
+  }
+
+  .desktop-global-search-target {
+    color: #263d6d !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+  }
+
+  .desktop-global-search kbd {
+    border-color: rgba(151,190,245,.55) !important;
+    background: #f4f8ff !important;
+    color: #314871 !important;
+    border-radius: 7px !important;
+    font-size: 10px !important;
+    padding: 3px 7px !important;
+  }
+
+  .header-right {
+    gap: 8px !important;
+  }
+
+  .quickwake-subdued-chip,
+  .lang-toggle-subdued,
+  .nagex-notif-bell,
+  .user-pill-header {
+    border-color: rgba(151,190,245,.48) !important;
+    background: rgba(255,255,255,.74) !important;
+    box-shadow: 0 8px 18px rgba(7,87,248,.055) !important;
+  }
+
+  .quickwake-subdued-chip {
+    height: 28px !important;
+    padding: 0 10px !important;
+    border-radius: 999px !important;
+    color: #29426f !important;
+    font-size: 10.5px !important;
+    font-weight: 700 !important;
+  }
+
+  .lang-toggle-subdued {
+    height: 28px !important;
+    min-width: 34px !important;
+    border-radius: 9px !important;
+    color: #29426f !important;
+    font-size: 10.5px !important;
+  }
+
+  .nagex-notif-bell {
+    width: 32px !important;
+    height: 32px !important;
+    color: #29426f !important;
+  }
+
+  .user-pill-header {
+    min-height: 34px !important;
+    padding: 3px 8px 3px 3px !important;
+    border-radius: 999px !important;
+  }
+
+  .user-avatar-img {
+    width: 28px !important;
+    height: 28px !important;
+    box-shadow: 0 8px 18px rgba(7,87,248,.16) !important;
+  }
+
+  .user-greeting-sub {
+    color: #54709f !important;
+    font-size: 8.8px !important;
+    font-weight: 600 !important;
+  }
+
+  .user-name {
+    color: #06125d !important;
+    font-size: 10.8px !important;
+    font-weight: 800 !important;
+  }
+
+  .header-motto-script {
+    color: #1c4cba !important;
+    opacity: .82 !important;
+    font-size: 15px !important;
+    transform: rotate(-5deg) !important;
+  }
+}
+
+@media (min-width: 1200px) {
+  /* V2 D1 final correction: wins over the earlier rejected 80px header pass. */
+  .app-header.nagex-top-composition {
+    position: relative !important;
+    z-index: 90 !important;
+    display: block !important;
+    height: 146px !important;
+    min-height: 146px !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  .brand-hero-layer {
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    display: block !important;
+    width: 1440px !important;
+    height: 146px !important;
+  }
+
+  .brand-hero-identity {
+    position: absolute !important;
+    left: 28px !important;
+    top: 17px !important;
+    width: 170px !important;
+    height: 43px !important;
+    display: block !important;
+  }
+
+  .nagex-hero-logo {
+    width: 170px !important;
+    height: 43px !important;
+    max-width: none !important;
+    object-fit: fill !important;
+  }
+
+  .brand-hero-copy {
+    position: absolute !important;
+    left: 251px !important;
+    top: 19px !important;
+    width: 720px !important;
+    height: 52px !important;
+    padding: 0 !important;
+  }
+
+  .brand-hero-copy h1 {
+    width: 720px !important;
+    height: 34px !important;
+    font-size: 30px !important;
+    line-height: 34px !important;
+    white-space: nowrap !important;
+  }
+
+  .brand-hero-copy p {
+    margin-top: 4px !important;
+    font-size: 12px !important;
+    line-height: 14px !important;
+    white-space: nowrap !important;
+  }
+
+  .brand-hero-visual {
+    position: absolute !important;
+    left: 982px !important;
+    top: 0 !important;
+    width: 238px !important;
+    height: 130px !important;
+    display: block !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+  }
+
+  .brand-hero-script {
+    position: absolute !important;
+    left: 40px !important;
+    top: 28px !important;
+    width: 150px !important;
+    margin: 0 !important;
+    font-size: 17px !important;
+    line-height: 18px !important;
+  }
+
+  .brand-hero-shortcuts {
+    position: absolute !important;
+    left: 238px !important;
+    top: 0 !important;
+    width: 220px !important;
+    height: 146px !important;
+    display: grid !important;
+    grid-template-rows: repeat(4, 1fr) !important;
+    gap: 6px !important;
+  }
+
+  .brand-shortcut {
+    height: 32px !important;
+  }
+
+  .app-header.nagex-top-composition > .brand-section {
+    position: absolute !important;
+    left: 22px !important;
+    top: 95px !important;
+    width: 128px !important;
+    flex: 0 0 auto !important;
+  }
+
+  .app-header.nagex-top-composition > .desktop-global-search {
+    position: absolute !important;
+    left: 172px !important;
+    top: 95px !important;
+    width: 732px !important;
+    height: 38px !important;
+  }
+
+  .app-header.nagex-top-composition > .header-right {
+    position: absolute !important;
+    left: 934px !important;
+    top: 96px !important;
+    margin-right: 0 !important;
+  }
+
+  .app-header.nagex-top-composition .header-motto-script {
+    display: none !important;
+  }
+
+  .center-canvas,
+  .nagex-desktop-home .desktop-home-main-stack {
+    padding-top: 0 !important;
+  }
+}
+
+@media (min-width: 1200px) {
+  /* V2 D2 final sidebar geometry. */
+  .sidebar-left {
+    position: fixed !important;
+    left: 0 !important;
+    top: 78px !important;
+    width: 149px !important;
+    height: 732px !important;
+    z-index: 96 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    padding: 39px 10px 12px !important;
+    overflow: hidden !important;
+    background: rgba(255,255,255,.86) !important;
+    border: 1px solid rgba(151,190,245,.28) !important;
+    border-radius: 0 13px 13px 0 !important;
+    box-shadow: 10px 0 26px rgba(7,87,248,.06) !important;
+  }
+
+  /* R23.7H-C D5 precondition fix — .sidebar-left above is position:fixed,
+     so it no longer reserves space in the .workspace-grid flex row;
+     .center-canvas must compensate with a matching margin-left (its own
+     rendered footprint is left:0 + margin-left:9px + width:149px = 158px)
+     or main content renders underneath the fixed sidebar. This is the
+     standard fixed-sidebar layout compensation, not a coordinate hack. */
+  .center-canvas {
+    margin-left: 158px;
+  }
+
+  .sidebar-left::before {
+    content: "" !important;
+    position: absolute !important;
+    left: 28px !important;
+    top: 7px !important;
+    width: 91px !important;
+    height: 27px !important;
+    background: url("../assets/nagex-compact-logo.png") left center / contain no-repeat !important;
+  }
+
+  .sidebar-left:hover,
+  .sidebar-left.expanded {
+    width: 149px !important;
+  }
+
+  .sidebar-left .nav-menu {
+    display: grid !important;
+    gap: 2px !important;
+    width: 128px !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+  }
+
+  .sidebar-left .nav-item,
+  .sidebar-left .nav-link {
+    width: 128px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+  }
+
+  .sidebar-left .nav-link {
+    padding: 0 13px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 13px !important;
+    border-radius: 9px !important;
+    color: #1f3768 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    font-size: 11.5px !important;
+    font-weight: 650 !important;
+    line-height: 1 !important;
+  }
+
+  .sidebar-left .nav-link span {
+    display: inline !important;
+    opacity: 1 !important;
+    color: inherit !important;
+    font-size: 11.5px !important;
+    font-weight: 650 !important;
+    white-space: nowrap !important;
+  }
+
+  .sidebar-left .nav-link .svg-icon {
+    width: 17px !important;
+    height: 17px !important;
+    flex: 0 0 17px !important;
+    color: #345082 !important;
+  }
+
+  .sidebar-left .nav-item.active .nav-link {
+    color: #0757f8 !important;
+    background: rgba(7,87,248,.11) !important;
+    box-shadow: none !important;
+    font-weight: 800 !important;
+  }
+
+  .sidebar-left .nav-item.active .nav-link .svg-icon,
+  .sidebar-left .nav-item.active .nav-link span {
+    color: #0757f8 !important;
+    font-weight: 800 !important;
+  }
+
+  .sidebar-bottom-user {
+    position: absolute !important;
+    left: 12px !important;
+    bottom: 58px !important;
+    display: block !important;
+    width: 128px !important;
+    height: 42px !important;
+    margin: 0 !important;
+  }
+
+  .sidebar-promo-card,
+  .sidebar-device-card,
+  .sidebar-footer-brand {
+    display: none !important;
+  }
+
+  .sidebar-bottom-user::before {
+    content: "U" !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 2px !important;
+    width: 31px !important;
+    height: 31px !important;
+    display: grid !important;
+    place-items: center !important;
+    border-radius: 50% !important;
+    background: linear-gradient(180deg, #dbeafe, #93c5fd) !important;
+    color: #06125d !important;
+    font-size: 13px !important;
+    font-weight: 900 !important;
+    box-shadow: 0 8px 18px rgba(7,87,248,.15) !important;
+  }
+
+  .sidebar-bottom-user::after {
+    content: "User\A Personal AI Assistant  >" !important;
+    position: absolute !important;
+    left: 40px !important;
+    top: 3px !important;
+    white-space: pre !important;
+    color: #06125d !important;
+    font-size: 9px !important;
+    line-height: 1.15 !important;
+    font-weight: 800 !important;
+  }
+}
+
+@media (min-width: 1200px) {
+  /* R23.7H-C D4.5 — Create with NAgex's outer size/position now comes from
+     the .home-creation-strip grid column (see base rule), not a hardcoded
+     width + position:relative/transform coordinate hack. Internal
+     presentation (heading, tiles, statuses below) is unchanged/frozen. */
+  #home-section-create {
+    height: 129px !important;
+    min-height: 129px !important;
+    max-height: 129px !important;
+    padding: 4px 20px 12px !important;
+    border-radius: 14px !important;
+    background: #ffffff !important;
+    border-color: rgba(151,190,245,.36) !important;
+    box-shadow: 0 10px 26px rgba(7,87,248,.07) !important;
+  }
+
+  #home-section-create .ph-heading {
+    height: 25px !important;
+    margin: 0 !important;
+  }
+
+  #home-section-create .ph-heading h2 {
+    font-size: 17px !important;
+    line-height: 20px !important;
+    font-weight: 900 !important;
+    color: #06125d !important;
+  }
+
+  #home-section-create .ph-heading h2 .svg-icon-sm {
+    width: 18px !important;
+    height: 18px !important;
+  }
+
+  #home-section-create .ph-heading-sub {
+    margin-top: 1px !important;
+    font-size: 11px !important;
+    line-height: 13px !important;
+    color: #2f4778 !important;
+    font-weight: 600 !important;
+  }
+
+  /* R23.7H-C D6 — fixed repeat(6,96px)/width:626px assumed D3's old,
+     wider (846px) card width; now that D6 narrowed D3 to fit the
+     reference's true main/agent column ratio, that fixed row no longer
+     fits and clipped the 6th tile. Fluid minmax(0,1fr) columns let the
+     tiles share whatever width the card actually has (same tile content/
+     icons/status — internal presentation unchanged, only the track
+     sizing is no longer hardcoded). */
+  #home-section-create .ph-capability-row {
+    display: grid !important;
+    grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+    margin-top: 6px !important;
+  }
+
+  #home-section-create .ph-capability-tile {
+    width: auto !important;
+    height: 70px !important;
+    min-height: 70px !important;
+    padding: 9px 8px 7px !important;
+    align-items: center !important;
+    text-align: center !important;
+    gap: 3px !important;
+    border-radius: 9px !important;
+    border-color: rgba(151,190,245,.46) !important;
+    background: linear-gradient(180deg, #ffffff, #f7fbff) !important;
+    box-shadow: 0 7px 17px rgba(7,87,248,.06) !important;
+  }
+
+  #home-section-create .ph-capability-tile[data-capability="CODE"] {
+    display: none !important;
+  }
+
+  #home-section-create .ph-capability-icon {
+    width: 24px !important;
+    height: 24px !important;
+    margin: 0 auto 2px !important;
+  }
+
+  #home-section-create .ph-capability-tile strong {
+    font-size: 10.8px !important;
+    line-height: 12px !important;
+    font-weight: 850 !important;
+  }
+
+  #home-section-create .ph-capability-status {
+    font-size: 9px !important;
+    line-height: 10px !important;
+    font-weight: 700 !important;
+  }
+}
+
+@media (min-width: 1200px) {
+  /* R23.7H-C D4.5 — Work with your data's outer size/position now comes
+     from the .home-creation-strip grid column (see base rule near the
+     top of this file), not a hardcoded width + position:relative/
+     transform coordinate hack. Internal presentation below is frozen. */
+  #home-section-work-with-data {
+    height: 104px !important;
+    min-height: 104px !important;
+    max-height: 104px !important;
+    margin-top: 11px !important;
+    padding: 14px 12px 12px !important;
+    overflow: hidden !important;
+    border-radius: 14px !important;
+    background: #ffffff !important;
+    border-color: rgba(151,190,245,.36) !important;
+    box-shadow: 0 10px 26px rgba(7,87,248,.07) !important;
+  }
+  /* D4 REWORK — reference pixel-scan (mockup 8.png, 1672x941, x=920
+     vertical strip): heading glyph ink band y=203-211 (~9px), subtitle
+     first-line ink band starts y=240 — a ~29px gap between heading
+     baseline and subtitle top, both noticeably more compact than this
+     region's previous height:55px fixed row + font-size:14/line-height:17
+     heading. Tightened to match: smaller heading, lighter weight,
+     smaller gap-driven row height instead of a fixed 55px, and removed
+     the negative margin-top hack before the action row (that negative
+     margin was compensating for the oversized heading block, not a real
+     spacing choice). */
+  #home-section-work-with-data .ph-work-data-heading { display: grid !important; grid-template-columns: 24px minmax(0, 1fr) !important; gap: 8px !important; align-items: start !important; height: auto !important; }
+  #home-section-work-with-data .ph-work-data-icon { display: grid !important; place-items: center !important; width: 22px !important; height: 22px !important; color: #0757f8 !important; }
+  #home-section-work-with-data h2 { margin: 0 !important; color: #06125d !important; font-size: 12.5px !important; line-height: 15px !important; font-weight: 800 !important; white-space: nowrap !important; }
+  #home-section-work-with-data .ph-heading-sub { margin: 3px 0 0 !important; color: #365180 !important; font-size: 9px !important; line-height: 11.5px !important; font-weight: 500 !important; }
+  #home-section-work-with-data .ph-work-data-actions { display: grid !important; grid-template-columns: 126px 1fr !important; gap: 10px !important; align-items: center !important; margin-top: 8px !important; }
+  #home-section-work-with-data .ph-connect-sources { width: 126px !important; height: 34px !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; gap: 7px !important; border: 1px solid rgba(151,190,245,.52) !important; border-radius: 13px !important; background: #ffffff !important; color: #0757f8 !important; box-shadow: 0 7px 16px rgba(7,87,248,.07) !important; font-size: 10.5px !important; line-height: 1 !important; font-weight: 850 !important; cursor: pointer !important; white-space: nowrap !important; }
+  #home-section-work-with-data .ph-source-icons { display: flex !important; align-items: center !important; justify-content: flex-end !important; gap: 9px !important; min-width: 0 !important; }
+  #home-section-work-with-data .ph-source-icon { display: grid !important; place-items: center !important; width: 20px !important; height: 20px !important; border-radius: 5px !important; background: #f4f8ff !important; border: 1px solid rgba(151,190,245,.36) !important; color: #1f3768 !important; font-size: 10px !important; font-weight: 900 !important; }
+}
+
+
+@media (min-width: 1200px) {
+  #home-section-work-with-data { z-index: 126 !important; }
+}

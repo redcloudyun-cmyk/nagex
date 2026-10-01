@@ -1,20 +1,30 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@500;600;700;800&family=Caveat:wght@600;700&display=swap');
 
 :root {
-  --bg-app: #f8fafc;
+  /* R23.7H-C Phase D.3 §17 — replaces D.2's by-eye approximation with
+     values programmatically sampled from the actual Product Owner
+     approved mockup PNG (System.Drawing pixel sampling, flat UI regions
+     only — see docs/archive for the sampled coordinate list in the D.3
+     closure report). Key finding: the real primary blue is a more vivid
+     ~#0854FE (avg of 3 independent solid-button samples), not the #2563eb
+     D.2 approximated from memory. Page background/borders confirmed close
+     to D.2's estimate and only lightly adjusted. */
+  --bg-app: #f0f6fd;
   --bg-surface: #ffffff;
   --bg-subtle: #f1f5f9;
   --bg-hover: #e2e8f0;
+  --bg-surface-blue: #f6f9fd;
 
   --sidebar-bg: #ffffff;
   --sidebar-text: #64748b;
   --sidebar-hover: #f1f5f9;
   --sidebar-active: #eff6ff;
 
-  --border-light: #e2e8f0;
-  --border-strong: #cbd5e1;
+  --border-light: #d8dae8;
+  --border-strong: #b9cceb;
+  --shadow-blue-glow: 0 8px 28px -8px rgba(10, 86, 247, 0.18);
 
-  --primary-blue: #2563eb;
+  --primary-blue: #0a56f7;
   --primary-indigo: #4f46e5;
   --primary-cyan: #06b6d4;
   --gradient-brand: linear-gradient(135deg, #2563eb 0%, #06b6d4 100%);
@@ -206,6 +216,14 @@ body {
 .workspace-grid {
   display: flex;
   flex: 1;
+  /* R23.7H-C Phase D.1 — a flex item's default `min-height: auto` lets its
+     own content's intrinsic size fight the flex-grow:1 sizing from
+     .app-wrapper's column layout; adding a child with height:100% (the
+     widened Canvas) was enough to tip this into collapsing to ~0 instead
+     of the intended "fill remaining viewport height", taking the sidebar
+     down with it (flex stretch of a 0-height row). min-height:0 is the
+     standard fix — flex-grow now wins unambiguously. */
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -1990,6 +2008,15 @@ body {
      safe-area padding or the Close button sits under a home-indicator/
      gesture-bar area on notched devices. */
   .ambient-sheet-footer { padding-bottom: calc(0.7rem + env(safe-area-inset-bottom, 0px)); }
+
+  /* R23.7H-C Phase D.1 §13 — Create (#view-create) has no native mobile
+     view yet and falls through to this legacy-responsive desktop tree
+     (see mobile-home.js's documented fallback pattern). Its inline
+     2-column grid was cramped at 360-430px; force one column here rather
+     than building a second Create architecture, per D.1's explicit
+     "shared semantics, responsive presentation" guidance. */
+  .create-container { grid-template-columns: 1fr !important; gap: 1rem !important; }
+  #view-create .view-header-bar { flex-direction: column; align-items: flex-start !important; gap: 0.5rem; }
 }
 
 /* Public Legal Pages (Privacy / Terms) */
@@ -3168,25 +3195,41 @@ body {
    ========================================================================== */
 
 .canvas-workspace {
-  background: var(--nagex-surface-primary);
+  /* display intentionally NOT set here — this pre-existing rule used to
+     say `display: flex` unconditionally, which (equal specificity, later
+     in source order) silently beat `.tab-view { display: none }`, so
+     #view-canvas rendered on top of Home on every page load regardless of
+     which tab was active. Visibility is controlled exclusively by the
+     shared `.tab-view`/`.tab-view.active-view` rules (same mechanism every
+     other view uses), which already set flex-direction:column too. */
+  /* R23.7H-C Phase D.2 §7 — pale-blue surrounding workspace (was flat
+     white), matching the mockup's cool Canvas environment; the artifact
+     stage itself stays white/elevated so it still reads as dominant. */
+  background: linear-gradient(180deg, var(--nagex-surface-blue, #eef7ff) 0%, #f7fbff 100%);
   height: 100%;
+  width: 100%;
   box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  border-radius: 12px;
-  max-width: 1200px;
+  border-radius: 16px;
+  /* R23.7H-C Phase D — widened so the artifact + Agent panel can dominate
+     the working area at 1440px+ instead of being boxed into a narrow
+     centered column (the Phase C default). R23.7H-C Phase D.1 — explicit
+     width:100% because this flex container was shrink-wrapping to its
+     children's intrinsic size instead of filling .center-canvas, leaving
+     ~460px of unused space at 1440px (the "narrow centered Canvas" D.1
+     flagged) even though max-width was already generous. */
+  max-width: 1760px;
   margin: 0 auto;
   overflow: hidden;
-  padding: 24px;
+  padding: 18px;
 }
 
 .canvas-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--nagex-border-default);
-  padding-bottom: 16px;
-  margin-bottom: 16px;
+  border-bottom: 1px solid rgba(37, 99, 235, 0.12);
+  padding-bottom: 12px;
+  margin-bottom: 12px;
   flex-shrink: 0;
 }
 
@@ -3232,25 +3275,145 @@ body {
   max-width: 400px;
 }
 
+/* R23.7H-C Phase D — the stage sits in a row alongside the NAgex Agent
+   panel; the artifact dominates the working area, the panel is a fixed
+   side column. No architecture change — purely layout/geometry. */
+.canvas-main-row {
+  flex: 1;
+  display: flex;
+  gap: 16px;
+  min-height: 0;
+}
+
 .canvas-stage {
   flex: 1;
+  min-width: 0;
   overflow-y: auto;
-  background: var(--nagex-surface-primary);
-  border-radius: 12px;
-  border: 1px solid var(--nagex-border-default);
+  background: linear-gradient(180deg, #ffffff 0%, #f6fbff 100%);
+  border-radius: 16px;
+  border: 1px solid rgba(37, 99, 235, 0.16);
   display: flex;
   flex-direction: column;
   position: relative;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+  box-shadow: 0 16px 42px rgba(10, 86, 247, 0.15);
+}
+
+.canvas-agent-panel {
+  width: 320px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+  overflow: hidden;
+}
+
+.canvas-agent-tabs {
+  display: flex;
+  border-bottom: 1px solid rgba(37, 99, 235, 0.1);
+  flex-shrink: 0;
+  background: rgba(239, 246, 255, 0.6);
+  padding: 6px;
+  gap: 4px;
+}
+
+.canvas-agent-tab {
+  flex: 1;
+  padding: 8px 7px;
+  border: none;
+  background: transparent;
+  border-radius: 10px;
+  color: var(--nagex-text-secondary);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.canvas-agent-tab.active {
+  color: var(--nagex-accent-primary);
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(10, 86, 247, 0.08);
+}
+
+.canvas-agent-tab-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 14px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* R23.7H-C D6 — no [hidden]{display:none} rule exists anywhere in this
+   stylesheet, so the plain display:flex above (author origin) always beat
+   the browser's default UA [hidden] rule (UA origin always loses to
+   author origin regardless of specificity) — Chat/Context/Suggestions
+   all rendered simultaneously instead of only the active tab. Higher
+   specificity than the bare class above restores native hidden
+   semantics without touching switchCanvasAgentTab's existing logic. */
+.canvas-agent-tab-panel[hidden] {
+  display: none;
+}
+
+.canvas-agent-empty {
+  color: #1e3a8a;
+  font-size: 0.83rem;
+  line-height: 1.5;
+  margin: 0 0 12px;
+}
+
+.canvas-agent-tab-panel[data-agent-panel="chat"] .canvas-ask-wrapper {
+  margin-top: auto;
+}
+
+.canvas-agent-context-fields {
+  margin: 0;
+}
+
+.canvas-agent-context-row {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--nagex-border-default);
+}
+
+.canvas-agent-context-row dt {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--nagex-text-muted);
+}
+
+.canvas-agent-context-row dd {
+  margin: 2px 0 0;
+  font-size: 0.82rem;
+  color: var(--nagex-text-primary);
+  word-break: break-all;
+}
+
+@media (max-width: 1200px) {
+  .canvas-main-row { flex-direction: column; }
+  .canvas-agent-panel { width: 100%; max-height: 320px; }
 }
 
 .canvas-renderer {
   flex: 1;
   display: flex;
-  align-items: center;
+  /* R23.7H-C D5 — stretch (not center) so an auto-cross-size child (e.g.
+     .canvas-image-container) gets this container's real definite height
+     instead of falling back to its own content's intrinsic size. The
+     child centers its own content horizontally/vertically itself. */
+  align-items: stretch;
   justify-content: center;
-  padding: 24px;
+  padding: 12px;
   min-height: 200px;
+}
+
+.canvas-empty-state {
+  color: var(--nagex-text-muted);
+  text-align: center;
+  font-size: 0.9rem;
+  padding: 32px;
 }
 
 /* Image Artifact Specifics */
@@ -3259,15 +3422,25 @@ body {
   align-items: center;
   justify-content: center;
   width: 100%;
-  height: 100%;
+  /* R23.7H-C D5 — no explicit height here; .canvas-renderer below is now
+     align-items:stretch, which gives this flex item the parent's real
+     definite cross-axis (vertical) size directly. An explicit height:100%
+     here blocks stretch from applying at all (per spec, stretch only
+     applies to flex items with an auto cross-size) and was the actual
+     CANVAS_HEIGHT_DRIVER: a 512x512 test image rendering at its full
+     intrinsic height instead of being capped by max-height:100% below,
+     because this container never resolved to a definite height for that
+     percentage to resolve against. */
+  min-height: 0;
+  padding: 0;
 }
 
 .canvas-image-target {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
 }
 
 /* Document/Research Artifact Specifics */
@@ -3300,11 +3473,13 @@ body {
 
 .canvas-ask-wrapper {
   display: flex;
-  gap: 12px;
+  gap: 6px;
   background: var(--nagex-surface-primary);
   border: 1px solid var(--nagex-border-default);
   border-radius: 32px;
   padding: 6px;
+  box-sizing: border-box;
+  min-width: 0;
   box-shadow: 0 2px 8px rgba(0,0,0,0.02);
   transition: border-color 0.2s, box-shadow 0.2s;
 }
@@ -3316,10 +3491,11 @@ body {
 
 .canvas-ask-field {
   flex: 1;
+  min-width: 0;
   border: none;
   background: transparent;
-  padding: 10px 16px;
-  font-size: 1rem;
+  padding: 9px 10px;
+  font-size: 0.88rem;
   color: var(--nagex-text-primary);
   outline: none;
 }
@@ -3330,7 +3506,9 @@ body {
 
 .canvas-ask-submit {
   border-radius: 24px;
-  padding: 0 24px;
+  padding: 0;
+  width: 38px;
+  min-width: 38px;
   display: flex;
   align-items: center;
   justify-content: center;

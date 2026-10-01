@@ -4065,6 +4065,81 @@
       "deterministic": true,
       "assertionIntent": "observable behavior",
       "notes": "Tests Phase C Canvas workspace shell"
+    },
+    "r23_7h_c_phase_d_main_product_experience": {
+      "milestone": "R23.7H-C",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "ux",
+        "artifacts"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "source-text structural truthfulness (capability status table, planned-vs-live dispatch, nav IA drift) — not a DOM-behavioral test",
+      "notes": "Tests Phase D main product experience: Create capability catalog truthfulness (LIVE/PARTIAL/PLANNED), Recent Creations filter is client-side/never fabricates PLAN or CODE artifacts, Canvas Agent panel Context tab reads only real state, canonical 8-item nav has no drift between app.js/index.html/mobile bottom nav, Activity/Vault routes preserved after nav promotion"
+    },
+    "r23_7h_c_phase_d1_visual_convergence": {
+      "milestone": "R23.7H-C",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "ux",
+        "artifacts"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "source-text structural truthfulness (technical-UI-leak regression guards, HTML div-balance regression guard) — not a DOM-behavioral test",
+      "notes": "Tests Phase D.1 visual convergence pass: raw artifact ID/canonical URL removed from primary Canvas surface (TECHNICAL_UI_LEAK regression guard), #view-home/#view-canvas HTML nesting stays well-formed (regression guard for the stray-extra-closing-div bug found and fixed 2026-09-30 that mis-nested every tab-view outside <main> and collapsed the sidebar), capability catalog retains icon/tile visual identity, Recent Creations filter stays client-side-only"
+    },
+    "r23_7h_c_phase_d2_strict_visual_clone": {
+      "milestone": "R23.7H-C",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "ux",
+        "artifacts"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "source-text structural truthfulness (hardcoded-mock-identity regression guard, color-token convergence, D.1 fix preservation) — not a DOM-behavioral test",
+      "notes": "Tests Phase D.2 strict visual clone pass: mobile header no longer hardcodes 'Alex' (found live in production UI, unrelated to the real userProfile.name field the backend actually computes), .nagex-sr-only made a real global utility (was silently a no-op on mobile, causing the visible 'Notifications' text collision), Canvas surfaces use the converged blue-tint tokens, Recent Creations non-image items get a real type-specific thumbnail, and all D.1 structural/visibility fixes remain intact"
+    },
+    "r23_7h_c_phase_d3_unified_home_workspace": {
+      "milestone": "R23.7H-C",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "ux",
+        "artifacts"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "source-text structural truthfulness (shared-architecture non-duplication guard, embedded-vs-focus state separation, truthful empty state) — not a DOM-behavioral test",
+      "notes": "Tests Phase D.3 unified Home workspace: Home's embedded Canvas exists inside #view-home (not a second route), shares the single renderArtifactStage implementation with Focus Mode Canvas (extracted this phase from the former duplicated image/document rendering blocks), never mutates window.NAGEX._canvasState itself (only real navigation to Focus Mode does, via the same dispatchArtifactOpen Recent Creations already uses), shows a truthful empty state with no artifact, is desktop-only (mobile keeps its dedicated flow), and never renders a raw artifact ID"
+    },
+    "r23_7h_c_phase_d4_geometry_locked_clone": {
+      "milestone": "R23.7H-C",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "ux",
+        "artifacts"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "source-text structural truthfulness (geometry regression guards for two real bugs found via real-browser measurement this pass, shared-architecture non-duplication, empty-state truthfulness) — not a DOM-behavioral test",
+      "notes": "Tests Phase D.4 geometry-locked clone: regression guards for two real bugs found via live geometry measurement this pass (align-items:stretch making embedded Canvas balloon to 735px height, requiring scroll — an explicit D.4 FAIL condition; and the shared .canvas-agent-panel width:320px overlapping the context rail by 60px in Home's grid layout), Home Agent panel exists beside Canvas and hides when there's no artifact, Agent Chat has no persistent metadata block (Context tab only), truly-empty sections are hidden rather than rendered as empty bordered strips, and certification now matches artifacts by real canonical identity (window.NAGEX._homeEmbeddedArtifactIdForCert) instead of assuming Recent Creations list position"
     }
   }
 }
