@@ -117,6 +117,7 @@
       "r23_3t_permission_approval_hardening"
     ],
     "personal-home": [
+      "m6_1_mobile_release_blockers",
       "r22_8_personal_home",
       "r23_7h_b1_personal_dashboard",
       "r23_7h_b2_agentic_creation_home",
@@ -142,6 +143,7 @@
       "r22_5_task_aware_model_routing"
     ],
     "mobile": [
+      "m6_1_mobile_release_blockers",
       "r22_1_mobile_home",
       "r23_7h_b1_personal_dashboard",
       "r23_7h_b2_agentic_creation_home"

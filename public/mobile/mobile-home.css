@@ -55,10 +55,17 @@
   gap: 9px;
   min-width: 0;
 }
+/* R23.7H-C M1 — genuinely interactive (role="button", onclick=goHome)
+   but its intrinsic image height (30px) is below the 44px touch-target
+   floor; padding grows the real hit area without distorting/enlarging
+   the visible mark, via box-sizing:content-box (so padding adds to,
+   rather than eating into, the 30px visual height). */
 .mh-logo {
   height: 30px;
   width: auto;
   flex-shrink: 0;
+  padding: 7px 4px;
+  box-sizing: content-box;
 }
 /* Brand dedup — the logo asset (nagex-compact-logo.png) already renders
    the full "NAgex" wordmark, so the adjacent name+tagline text block
@@ -91,9 +98,15 @@
   gap: 8px;
   flex-shrink: 0;
 }
+/* R23.7H-C M1 — grown from 30px to the 44px touch-target floor; visual
+   padding/font-size unchanged, only the tappable box grew. */
 .mh-lang-toggle {
-  height: 30px;
+  min-height: 44px;
+  min-width: 44px;
   padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 9px;
   border: none;
   background: #ffffff;
@@ -103,10 +116,11 @@
   cursor: pointer;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
 }
+/* R23.7H-C M1 — grown from 38px to the 44px touch-target floor. */
 .mh-notif-bell {
   position: relative;
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   border: none;
   background: #ffffff;
@@ -223,7 +237,7 @@
   gap: 8px;
   background: #ffffff;
   border-radius: var(--nagex-radius-pill);
-  padding: 7px 7px 7px 16px;
+  padding: 3px 7px 3px 16px;
   box-shadow: 0 8px 20px -8px rgba(15, 23, 42, 0.16);
   border: 1px solid rgba(226, 232, 240, 0.7);
 }
@@ -241,15 +255,21 @@
   font-size: 14px;
   font-family: var(--font-sans);
   color: var(--nagex-text-primary);
-  height: 34px;
+  height: 44px;
 }
 .mh-command-input::placeholder {
   color: var(--nagex-text-muted);
 }
+/* R23.7H-C M1 — grown from 38px to the 44px touch-target floor (also the
+   control that revealed/needed the mh-voice-btn markup fix — see commit
+   notes: an unterminated placeholder attribute on the preceding input
+   swallowed this button's opening tag, so it never existed as a real
+   DOM node despite its real, already-coded recording/upload handler in
+   mobile-home.js). */
 .mh-voice-btn {
   flex-shrink: 0;
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   border: none;
   background: var(--nagex-surface-subtle);
@@ -264,10 +284,11 @@
   background: #fee2e2;
   color: #b91c1c;
 }
+/* R23.7H-C M1 — grown from 38px to the 44px touch-target floor. */
 .mh-command-send {
   flex-shrink: 0;
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   border: none;
   background: var(--nagex-accent-primary);
@@ -390,6 +411,326 @@
    the moment there is something to show. */
 .mh-card.mh-card-compact {
   padding-bottom: 4px;
+}
+/* ── M4. Right Now — removed from persistent Mobile Home display per
+   the canonical M0.5 decision (its content duplicates whatever Needs
+   Attention/Today already show in full once visible — the same
+   reasoning Desktop's D6 applied to its own Right Now section).
+   Runtime/service/data/API/shared renderer are all untouched — it is
+   still populated by the exact same shared renderSection()/renderMobile()
+   path (personal-home-view.js) every render cycle; this purely hides the
+   visual output, same pattern as Desktop's own Right Now hide.
+   CORRECTION (found mid-M4 runtime audit): mobile-home.js's own
+   renderRightNowHero()/renderNeedsYourAttention()/renderToday()/
+   renderSuggestions()/renderPreparedForYou() functions (and their
+   mh-hero (prefixed), mh-approval-card, mh-btn-approve, mh-today-timeline
+   markup) are DEAD CODE — never invoked anywhere in the current
+   codebase. The live #mh-right-now-hero/#mh-section-approvals/
+   #mh-section-today/#mh-section-prepared are actually all populated by
+   personal-home-view.js's shared renderMobile()→renderSection()→
+   renderItems(), the exact same .ph-heading/.ph-list/.ph-item/.ph-state/
+   .ph-action markup Desktop's equivalent sections use. All M4 styling
+   below targets that real markup, not the dead mobile-home.js classes
+   (left in place, unused, out of scope to delete this pass). */
+#mh-right-now-hero {
+  display: none !important;
+}
+
+/* ── M5. Recent Creations — compact horizontal artifact rail, replacing
+   the inherited default single-column vertical stack (#mh-section-
+   recent-creations carried no mobile-specific styling before this pass,
+   so it fell back to the generic base .ph-item row layout — the same
+   gap M2 found and fixed for the Create capability row). Same shared
+   renderRecentCreations()/renderRecentItems() (personal-home-view.js,
+   the D9 Desktop work) — real data, real compact "{Type} • {Status} •
+   {relative time}" metadata line, real thumbnails, real Open in Canvas
+   action. Only the layout changes here. ── */
+#mh-section-recent-creations .ph-heading {
+  margin-bottom: 8px;
+}
+#mh-section-recent-creations .ph-heading h2 {
+  font-size: 15.5px;
+}
+/* Filter rail — horizontal scroll instead of wrap, each pill grown to
+   the 44px touch-target floor via padding (text stays small). */
+#mh-section-recent-creations .ph-recent-filters {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+#mh-section-recent-creations .ph-recent-filters::-webkit-scrollbar {
+  height: 3px;
+}
+#mh-section-recent-creations .ph-recent-filter-pill {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+/* Card rail — horizontal scroll, one compact vertical card per artifact
+   (thumbnail full-card-width on top, then title/metadata/action below),
+   not Desktop's multi-column grid. Natural next-card peek at all three
+   canonical widths — no fixed peek target, no fake carousel controls. */
+#mh-section-recent-creations .ph-list {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  gap: 10px;
+  padding: 2px 2px 6px;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+#mh-section-recent-creations .ph-list::-webkit-scrollbar {
+  height: 3px;
+}
+#mh-section-recent-creations .ph-item {
+  flex: 0 0 auto;
+  width: 126px;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 14px;
+}
+/* Overrides renderArtifactThumbnail()'s inline 48x48 icon style — same
+   established technique D9's Desktop card treatment already used for
+   the identical reason (inline styles need matching specificity to
+   override). Real thumbnail (real image route or real type icon),
+   only its size/position changes for the card-top layout. */
+#mh-section-recent-creations .ph-artifact-thumbnail {
+  width: 100% !important;
+  height: 76px !important;
+  margin-right: 0 !important;
+  border-radius: 10px !important;
+}
+#mh-section-recent-creations .ph-item-copy h3 {
+  font-size: 12.5px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#mh-section-recent-creations .ph-item-compact-meta {
+  font-size: 10px;
+  line-height: 1.3;
+}
+#mh-section-recent-creations .ph-action {
+  width: 100%;
+  min-height: 44px;
+  font-size: 11.5px;
+  padding: 0 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Truthful image-load failure (shared onerror fallback icon, D8 work) —
+   sized to match this card's full-width thumbnail footprint. */
+#mh-section-recent-creations .ph-artifact-thumbnail span {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* ── M4. Intelligence — Needs Attention + Today combined under one
+   compact section ("What matters now" — chosen over the literal
+   internal name "Intelligence", which reads as technical jargon to a
+   real user; also over "Tasks"/"Notifications", which would read as
+   task-manager/notification-center, the opposite of the product
+   identity this reconstruction is protecting). Built by moving the
+   EXISTING #mh-section-approvals/#mh-section-today nodes (same ids,
+   same real renderSection() output, same real data) into one new
+   wrapper (mobile-home.js) — only their visual grouping changes. ── */
+.mh-intelligence-heading {
+  margin-bottom: 10px;
+}
+.mh-intelligence-heading h2 {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--nagex-text-primary);
+}
+.mh-intelligence-sub.mh-card {
+  margin-top: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.mh-intelligence-sub.mh-card:first-of-type {
+  margin-top: 0;
+}
+/* Sub-section heading: smaller than the shared "What matters now"
+   heading above, for clear visual hierarchy (real heading text is
+   unchanged — "Needs your attention" / "Today" — only its size). */
+.mh-intelligence-sub .ph-heading {
+  margin-bottom: 6px;
+}
+.mh-intelligence-sub .ph-heading h2 {
+  font-size: 13px;
+  font-weight: 700;
+}
+/* Density: concise title + compact single-line context, no repeated
+   description, small real status indicator, one clear real action —
+   replacing the shared desktop-sized .ph-item row (previously 104px
+   tall with a large separate .ph-action button) with a tighter mobile
+   row. Real content (title/state/action) unchanged, only density. */
+.mh-intelligence-sub .ph-list {
+  gap: 6px;
+}
+.mh-intelligence-sub .ph-item {
+  padding: 8px;
+  gap: 8px;
+}
+.mh-intelligence-sub .ph-item-copy h3 {
+  font-size: 13px;
+  line-height: 1.25;
+}
+.mh-intelligence-sub .ph-item-copy p {
+  font-size: 11.5px;
+  margin-top: 1px;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.mh-intelligence-sub .ph-item-meta {
+  gap: 6px;
+}
+.mh-intelligence-sub .ph-state {
+  font-size: 10px;
+  padding: 2px 7px;
+}
+/* R23.7H-C M4 — real touch-target floor on the real action control
+   (previously 63.7x27px, measured live). */
+.mh-intelligence-sub .ph-action {
+  min-height: 44px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+/* ── M3. Continue / Canvas entry — one compact current-artifact card,
+   not a second Canvas. Reuses the real thumbnail markup from
+   window.NAGEX.renderArtifactThumbnail() (48x48 .ph-artifact-thumbnail),
+   styled here only for layout. ── */
+#mh-section-continue .mh-card-header {
+  margin-bottom: 10px;
+}
+.mh-continue-card {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(239, 246, 255, 0.9), rgba(255, 255, 255, 0.95));
+  cursor: pointer;
+  text-align: left;
+}
+.mh-continue-card .ph-artifact-thumbnail {
+  margin-right: 0 !important;
+}
+.mh-continue-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mh-continue-type {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--nagex-accent-primary);
+}
+.mh-continue-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--nagex-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mh-continue-chevron {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  color: var(--nagex-text-muted);
+}
+
+/* ── M2. Create with NAgex — horizontal capability rail ──────────────
+   Both desktop-home.css and mobile-home.css load on every page
+   (index.html:12-13); desktop-home.css's unscoped base .ph-capability-row
+   (display:grid, repeat(7, minmax(0,1fr))) was previously the ONLY rule
+   reaching mobile, producing the dense 7-column dashboard grid M0/M0.5
+   identified as wrong for Mobile. Scoped here under #mh-section-create so
+   Desktop's own grid (and #home-section-create's own scoped rules) stay
+   completely untouched. Same shared CREATE_CAPABILITIES data/markup/click
+   handlers (personal-home-view.js) — this file only restructures the
+   existing output into a horizontal, swipeable rail. */
+#mh-section-create .ph-heading-sub {
+  margin: 2px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.3;
+}
+#mh-section-create .ph-capability-row {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 2px 2px 8px;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+#mh-section-create .ph-capability-row::-webkit-scrollbar {
+  height: 3px;
+}
+#mh-section-create .ph-capability-row::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.14);
+  border-radius: 2px;
+}
+#mh-section-create .ph-capability-tile {
+  flex: 0 0 auto;
+  width: 112px;
+  min-height: 96px;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 7px;
+  padding: 12px 10px;
+}
+#mh-section-create .ph-capability-icon {
+  width: 28px !important;
+  height: 28px !important;
+}
+#mh-section-create .ph-capability-tile strong {
+  font-size: 0.8rem;
+  line-height: 1.2;
+  white-space: normal;
+}
+/* Avoid verbose per-card copy — icon + name + truthful status only. */
+#mh-section-create .ph-capability-desc {
+  display: none;
+}
+#mh-section-create .ph-capability-status {
+  font-size: 0.64rem;
 }
 .mh-card.mh-card-compact .mh-card-header {
   margin-bottom: 2px;
@@ -809,9 +1150,10 @@
   margin-top: var(--nagex-spacing-3);
   margin-bottom: 0;
 }
+/* R23.7H-C M1 — grown from 32px to the 44px touch-target floor. */
 .mh-add-btn {
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   border: none;
   background: #f1f5f9;
@@ -843,10 +1185,17 @@
    loading/error) lives entirely in personal-home-view.js; this is
    presentation only. */
 .mh-canvas-view {
-  display: flex;
+  /* :not([hidden]) — an unconditional `display: flex` here would (author
+     CSS always beats the UA [hidden]{display:none} rule) keep this view
+     visible even while mobile-home.js's updateShellVisibility() sets its
+     [hidden] attribute, exactly the desktop .canvas-workspace bug fixed
+     in style.css. flex-direction alone is safe unconditionally. */
   flex-direction: column;
   padding-left: 0;
   padding-right: 0;
+}
+.mh-canvas-view:not([hidden]) {
+  display: flex;
 }
 .mh-canvas-header {
   padding: calc(var(--nagex-spacing-3) + env(safe-area-inset-top, 0px)) var(--nagex-spacing-4) var(--nagex-spacing-3);
@@ -855,9 +1204,10 @@
   background: #ffffff;
   box-shadow: 0 1px 0 rgba(15, 23, 42, 0.06);
 }
+/* R23.7H-C M3 — grown from 36px to the 44px touch-target floor. */
 .mh-canvas-back-btn {
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   border: none;
   background: #f1f5f9;

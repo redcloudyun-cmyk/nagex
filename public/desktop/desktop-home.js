@@ -288,7 +288,9 @@
           return window.NAGEX.dispatchArtifactOpen(type, sourceRef, item);
         }
       }
-      if (upperType.includes('APPROVAL')) {
+      if (upperType === 'PROPOSAL') {
+        if (window.NAGEX.switchTab) window.NAGEX.switchTab('tab-approvals');
+      } else if (upperType.includes('APPROVAL')) {
         if (window.NAGEX.switchTab) window.NAGEX.switchTab('tab-approvals');
       } else if (upperType.includes('TASK')) {
         if (window.NAGEX.switchTab) window.NAGEX.switchTab('tab-executions');

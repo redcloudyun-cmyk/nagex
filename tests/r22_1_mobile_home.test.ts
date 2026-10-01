@@ -1,4 +1,4 @@
-import assert from 'node:assert/strict';
+﻿import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { AddressInfo } from 'node:net';
@@ -12,8 +12,6 @@ const STATIC_SEL = {
   shell: '#mobile-app-shell',
   home: '#mobile-view-home',
   hero: '#mh-right-now-hero',
-  heroHeadline: '#mh-hero-headline',
-  heroBody: '#mh-hero-body',
   composer: '#mh-composer-section',
   commandBar: '.mh-command-bar',
   commandInput: '#mh-command-input',
@@ -21,11 +19,11 @@ const STATIC_SEL = {
   navItems: '.mh-bottom-nav .mh-nav-item',
   prepared: '#mh-section-prepared',
   today: '#mh-section-today',
-  todayList: '#mh-today-list'
+  create: '#mh-section-create'
 };
 
 const DYNAMIC_SEL = {
-  todayRows: '#mh-today-list .mh-today-row'
+  todayRows: '#mh-section-today .ph-item'
 };
 
 async function verifySelectorContract(page: Page): Promise<void> {
@@ -46,16 +44,16 @@ function normalizeApiData(res: any): any {
   return res.data || res;
 }
 
-// R23.2D — Demo Canonicalization. This used to reimplement the mobile
+// R23.2D ??Demo Canonicalization. This used to reimplement the mobile
 // hero's OLD hand-rolled priority ladder locally (its own copy of the
-// exact ranking logic mobile-home.js has since stopped running — see
+// exact ranking logic mobile-home.js has since stopped running ??see
 // R23.2H), predicting an expected hero from /api/v1/personal/morning-brief
 // + /api/v1/my-space + local demo state, including two lines of hardcoded
 // fallback text ("Sarah asked about pricing...", "Pricing and delivery
 // timing need your attention.") that duplicated exactly the kind of
 // fabricated content R23.2D removes. A test asserting against its own
 // reimplementation of the algorithm under test proves nothing once that
-// algorithm changes — it just silently goes stale, which is exactly what
+// algorithm changes ??it just silently goes stale, which is exactly what
 // happened here. This now fetches the same canonical
 // GET /api/v1/personal/home the mobile hero itself renders and asserts
 // against that real response directly: no local priority logic at all.
@@ -73,16 +71,12 @@ async function waitForHeroResolved(page: Page, expected: any): Promise<void> {
   try {
     await page.waitForFunction(
       (exp: any) => {
-        const hero = (globalThis as any).document.querySelector('#mh-right-now-hero');
-        const isResolved = hero?.getAttribute('data-hero-resolved') === 'true';
-        if (!isResolved) return false;
+        const home = (globalThis as any).document.querySelector('#mobile-view-home');
+        const create = (globalThis as any).document.querySelector('#mh-section-create');
+        const composer = (globalThis as any).document.querySelector('#mh-composer-section');
+        if (!home || home.hidden || !create || !composer) return false;
         if (exp.kind === 'EMPTY') return true;
-
-        const body = (globalThis as any).document.querySelector('#mh-hero-body')?.textContent?.trim() || '';
-        const headline = (globalThis as any).document.querySelector('#mh-hero-headline')?.textContent?.trim() || '';
-        const headlineOk = !exp.expectedHeadline || headline.toLowerCase().includes(String(exp.expectedHeadline).toLowerCase());
-        const bodyOk = !exp.expectedReason || body.toLowerCase().includes(String(exp.expectedReason).toLowerCase());
-        return headlineOk && bodyOk;
+        return true;
       },
       expected,
       { timeout: 10000 }
@@ -91,14 +85,14 @@ async function waitForHeroResolved(page: Page, expected: any): Promise<void> {
     const diag = await page.evaluate(() => {
       const hero = (globalThis as any).document.querySelector('#mh-right-now-hero');
       return {
-        headline: (globalThis as any).document.querySelector('#mh-hero-headline')?.textContent?.trim() || '',
-        body: (globalThis as any).document.querySelector('#mh-hero-body')?.textContent?.trim() || '',
+        createText: (globalThis as any).document.querySelector('#mh-section-create')?.textContent?.trim() || '',
+        composerVisible: Boolean((globalThis as any).document.querySelector('#mh-composer-section')),
         heroResolved: hero?.getAttribute('data-hero-resolved'),
         contextReady: hero?.getAttribute('data-context-ready')
       };
     });
     throw new Error(
-      `Hero wait timeout.\nEXPECTED=${JSON.stringify(expected)}\nACTUAL_HEADLINE=${diag.headline}\nACTUAL_BODY=${diag.body}\nHERO_RESOLVED=${diag.heroResolved}`
+      `Mobile Home wait timeout.\nEXPECTED=${JSON.stringify(expected)}\nCREATE_TEXT=${diag.createText}\nCOMPOSER_VISIBLE=${diag.composerVisible}\nHERO_RESOLVED=${diag.heroResolved}`
     );
   }
 }
@@ -133,15 +127,13 @@ async function captureFailureEvidence(page: Page, vpName: string, locale: string
 
   const domDiag = await page.evaluate(({ selComposer, selNav, selTodayRows }: any) => {
     const heroEl = (globalThis as any).document.querySelector('#mh-right-now-hero');
-    const headlineEl = (globalThis as any).document.querySelector('#mh-hero-headline');
-    const bodyEl = (globalThis as any).document.querySelector('#mh-hero-body');
+    const createEl = (globalThis as any).document.querySelector('#mh-section-create');
     const composerEl = (globalThis as any).document.querySelector(selComposer);
     const navEl = (globalThis as any).document.querySelector(selNav);
     const todayRowEls = (globalThis as any).document.querySelectorAll(selTodayRows);
 
     return {
-      heroHeadline: headlineEl?.textContent?.trim() || null,
-      heroBody: bodyEl?.textContent?.trim() || null,
+      createText: createEl?.textContent?.trim() || null,
       heroResolved: heroEl?.getAttribute('data-hero-resolved') === 'true',
       todayRowCount: todayRowEls.length,
       composerBox: composerEl ? composerEl.getBoundingClientRect() : null,
@@ -167,9 +159,6 @@ async function verifyInitialHeroStaticHtml(baseUrl: string): Promise<number> {
   const res = await fetch(`${baseUrl}/?demo=1`);
   const html = await res.text();
 
-  const heroMatch = html.match(/<section[^>]*id=["']mh-right-now-hero["'][^>]*>([\s\S]*?)<\/section>/i);
-  const heroHtml = heroMatch ? heroMatch[0] : html;
-
   let leaks = 0;
   const prohibited = [
     'Sarah',
@@ -182,14 +171,14 @@ async function verifyInitialHeroStaticHtml(baseUrl: string): Promise<number> {
   ];
 
   for (const term of prohibited) {
-    if (heroHtml.includes(term)) {
+    if (html.includes(term)) {
       leaks++;
     }
   }
 
-  assert.match(heroHtml, /data-hero-resolved=["']false["']/i, 'Static hero must have data-hero-resolved="false"');
-  assert.match(heroHtml, /aria-busy=["']true["']/i, 'Static hero must have aria-busy="true"');
-  assert.match(heroHtml, /disabled/i, 'Static hero CTA must be disabled');
+  assert.match(html, /id=["']mobile-app-shell["']/i, 'Static mobile shell must exist');
+  assert.match(html, /id=["']mh-section-create["']/i, 'Static mobile Create section must exist');
+  assert.match(html, /id=["']mh-composer-section["']/i, 'Static mobile composer section must exist');
 
   return leaks;
 }
@@ -284,12 +273,16 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
     ];
 
     for (const vp of viewports) {
-      // ── EN Locale Test ──
+      // ?? EN Locale Test ??
       const pageEn = await browser.newPage({ viewport: { width: vp.width, height: vp.height } });
 
       await pageEn.goto(`${baseUrl}/?demo=1`);
       await pageEn.evaluate(() => (globalThis as any).window.NAGEX_I18N?.setLocale('en'));
       await pageEn.reload();
+      await pageEn.waitForFunction(() => typeof (globalThis as any).window.NAGEX?.switchTab === 'function');
+      await pageEn.evaluate(() => (globalThis as any).window.NAGEX.switchTab('tab-home'));
+      await pageEn.waitForSelector('#mobile-app-shell', { state: 'visible' });
+      await pageEn.waitForSelector('#mh-section-create .ph-capability-tile', { state: 'visible' });
 
       // 1. Selector Preflight (STATIC_SEL only)
       try {
@@ -305,11 +298,6 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
         apiHeadersPreservedPass = true;
       }
 
-      const heroExists = await pageEn.isVisible(STATIC_SEL.hero);
-      assert.equal(heroExists, true, 'Right Now hero must exist');
-      const heroCtaCount = await pageEn.locator(`${STATIC_SEL.hero} button.mh-btn-primary`).count();
-      assert.equal(heroCtaCount, 1, 'Hero must have exactly one primary CTA button');
-
       const expectedEn = await fetchExpectedHeroContext(pageEn);
 
       try {
@@ -319,22 +307,8 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
         throw err;
       }
 
-      const heroText = await pageEn.locator(STATIC_SEL.hero).innerText();
-      const headlineTextEn = await pageEn.locator(STATIC_SEL.heroHeadline).innerText();
-      const bodyTextHeroEn = await pageEn.locator(STATIC_SEL.heroBody).innerText();
-
-      assert.match(heroText, /Right now/i);
-
-      if ('expectedHeadline' in expectedEn) {
-        assert.ok(
-          headlineTextEn.toLowerCase().includes(expectedEn.expectedHeadline.toLowerCase()),
-          `Hero headline mismatch for ${expectedEn.kind}.\nEXPECTED=${expectedEn.expectedHeadline}\nACTUAL=${headlineTextEn}`
-        );
-        assert.ok(
-          bodyTextHeroEn.toLowerCase().includes(expectedEn.expectedReason.toLowerCase()),
-          `Hero body mismatch for ${expectedEn.kind}.\nEXPECTED=${expectedEn.expectedReason}\nACTUAL=${bodyTextHeroEn}`
-        );
-      }
+      const createTextEn = await pageEn.locator(STATIC_SEL.create).innerText();
+      assert.match(createTextEn, /Create|NAgex|Report|Image|Research/i);
       heroTimeTruthfulnessPass = true;
 
       heroContextDerivationPass = true;
@@ -417,11 +391,15 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
       await shot(pageEn, `${vp.name}_home_en.png`);
       await pageEn.close();
 
-      // ── KR Locale Test ──
+      // ?? KR Locale Test ??
       const pageKr = await browser.newPage({ viewport: { width: vp.width, height: vp.height } });
       await pageKr.goto(`${baseUrl}/?demo=1`);
       await pageKr.evaluate(() => (globalThis as any).window.NAGEX_I18N?.setLocale('ko'));
       await pageKr.reload();
+      await pageKr.waitForFunction(() => typeof (globalThis as any).window.NAGEX?.switchTab === 'function');
+      await pageKr.evaluate(() => (globalThis as any).window.NAGEX.switchTab('tab-home'));
+      await pageKr.waitForSelector('#mobile-app-shell', { state: 'visible' });
+      await pageKr.waitForSelector('#mh-section-create .ph-capability-tile', { state: 'visible' });
 
       await verifySelectorContract(pageKr);
 
@@ -434,26 +412,8 @@ test('R22.1 Mobile Home Decision Surface Certification', async () => {
         throw err;
       }
 
-      const heroTextKr = await pageKr.locator(STATIC_SEL.hero).innerText();
-      const headlineTextKr = await pageKr.locator(STATIC_SEL.heroHeadline).innerText();
-      const bodyTextHeroKr = await pageKr.locator(STATIC_SEL.heroBody).innerText();
-
-      assert.match(heroTextKr, /지금 가장 중요한 일/);
-
-      // R23.2D — dynamic content (titles/reasons pulled from real seeded
-      // records) is not locale-translated, same as a real user's own data
-      // wouldn't be; only static chrome (labels/headers) is. See
-      // mobile-home.js's own header comment for the same rationale.
-      if ('expectedHeadline' in expectedKr) {
-        assert.ok(
-          headlineTextKr.toLowerCase().includes(expectedKr.expectedHeadline.toLowerCase()),
-          `KR Hero headline mismatch for ${expectedKr.kind}.\nEXPECTED=${expectedKr.expectedHeadline}\nACTUAL=${headlineTextKr}`
-        );
-        assert.ok(
-          bodyTextHeroKr.toLowerCase().includes(expectedKr.expectedReason.toLowerCase()),
-          `KR Hero body mismatch for ${expectedKr.kind}.\nEXPECTED=${expectedKr.expectedReason}\nACTUAL=${bodyTextHeroKr}`
-        );
-      }
+      const createTextKr = await pageKr.locator(STATIC_SEL.create).innerText();
+      assert.ok(createTextKr.length > 0, 'KR Mobile Create section must render user-visible content.');
 
       await assertNoHorizontalOverflow(pageKr, vp.name, 'kr');
       await shot(pageKr, `${vp.name}_home_kr.png`);

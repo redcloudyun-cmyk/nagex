@@ -414,6 +414,26 @@
     }
   }
 
+  // R23.7H-C Phase D — the single canonical primary-navigation definition.
+  // Both the desktop sidebar (index.html's ul.nav-menu) and the mobile
+  // bottom nav + Settings→Advanced overflow (index.html's #mobile-app-shell)
+  // are kept manually consistent with this ordered list (verified by
+  // tests/r23_7h_c_phase_d_nav.test.ts) rather than maintaining a second,
+  // independently-authored IA list. `mobilePrimary: true` marks the subset
+  // promoted into the mobile bottom nav; the rest stay reachable via the
+  // existing Settings → Advanced drawer pattern (same as Skills/Tools/Memory
+  // already were before Phase D).
+  window.NAGEX_PRIMARY_NAV = [
+    { tab: 'tab-home', i18nKey: 'nav.home', mobilePrimary: true },
+    { tab: 'tab-inbox', i18nKey: 'nav.inbox', mobilePrimary: true },
+    { tab: 'tab-create', i18nKey: 'nav.create', mobilePrimary: true },
+    { tab: 'tab-canvas', i18nKey: 'nav.canvas', mobilePrimary: true },
+    { tab: 'tab-tasks', i18nKey: 'nav.tasks', mobilePrimary: false },
+    { tab: 'tab-knowledge', i18nKey: 'nav.knowledge', mobilePrimary: false },
+    { tab: 'tab-approvals', i18nKey: 'nav.approvals', mobilePrimary: false },
+    { tab: 'tab-settings', i18nKey: 'nav.settings', mobilePrimary: true },
+  ];
+
   const TAB_HASH_MAP = {
     'tab-home': '#home',
     'tab-inbox': '#inbox',
@@ -483,9 +503,11 @@
   }
 
   function switchTab(tabId, options) {
+    console.log('[ROUTER] switchTab called:', tabId, 'options:', options, 'current activeTab:', state.activeTab);
     const pushHistory = !options || options.pushHistory !== false;
     const prevTab = state.activeTab;
     state.activeTab = tabId;
+    console.log('[ROUTER] Active tab updated to:', state.activeTab);
 
     document.querySelectorAll('.nav-menu .nav-item[data-tab], .mobile-bottom-nav .mob-nav-item[data-tab], #mobile-app-shell [data-tab], .mh-bottom-nav [data-tab], .mh-nav-item[data-tab]').forEach((el) => {
       if (el.getAttribute('data-tab') === tabId) el.classList.add('active');
@@ -509,21 +531,39 @@
       const targetHash = getHashForTab(tabId, catKey, artifactId);
       const st = window.history.state;
       const alreadyPushed = st && st.tabId === tabId && st.settingsCat === catKey && st.artifactId === artifactId && window.location.hash === targetHash;
+      const alreadyAtHash = window.location.hash === targetHash || (window.location.hash === '' && targetHash === '#home');
 
       if (!alreadyPushed) {
-        window.history.pushState({ tabId, settingsCat: catKey, artifactId }, '', targetHash);
+        if (alreadyAtHash) {
+          window.history.replaceState({ tabId, settingsCat: catKey, artifactId }, '', targetHash);
+        } else {
+          window.history.pushState({ tabId, settingsCat: catKey, artifactId }, '', targetHash);
+        }
       }
     }
+  }
+
+  function openMobileCreate() {
+    switchTab('tab-home');
+    const createSection = document.getElementById('mh-section-create');
+    if (createSection && typeof createSection.scrollIntoView === 'function') {
+      createSection.scrollIntoView({ block: 'start', inline: 'nearest' });
+    }
+    document.querySelectorAll('.mobile-bottom-nav .mob-nav-item[data-tab], .mh-bottom-nav [data-tab], .mh-nav-item[data-tab]').forEach((el) => {
+      el.classList.toggle('active', el.getAttribute('data-tab') === 'tab-create');
+    });
   }
 
   function initRouter() {
     if (typeof window === 'undefined' || !window.history) return;
 
     window.addEventListener('popstate', (e) => {
+      console.log('[ROUTER] popstate fired. state:', e.state, 'hash:', window.location.hash);
       isNavigatingFromPopState = true;
       try {
         const stateData = e.state;
         if (stateData && stateData.tabId) {
+          console.log('[ROUTER] using stateData:', stateData.tabId);
           switchTab(stateData.tabId, { pushHistory: false, artifactId: stateData.artifactId });
           if (stateData.tabId === 'tab-settings' && stateData.settingsCat) {
             switchSettingsCategory(stateData.settingsCat, { pushHistory: false });
@@ -535,6 +575,7 @@
           }
         } else {
           const parsed = parseHash(window.location.hash);
+          console.log('[ROUTER] parsed hash:', parsed);
           switchTab(parsed.tabId, { pushHistory: false, artifactId: parsed.artifactId });
           if (parsed.catKey) state.activeSettingsCat = parsed.catKey;
           if (parsed.tabId === 'tab-canvas' && parsed.artifactId) {
@@ -707,6 +748,24 @@
             if (result && !result.error && result.status !== 'UNAVAILABLE') {
               homeInput.value = '';
               delete homeInput.dataset.creationMode;
+            }
+          } finally {
+            btnSend.disabled = false;
+            homeInput.disabled = false;
+          }
+          return;
+        }
+        if (homeInput.dataset.creationMode === 'REPORT' && window.NAGEX_PERSONAL_HOME) {
+          btnSend.disabled = true;
+          homeInput.disabled = true;
+          try {
+            const result = await window.NAGEX_PERSONAL_HOME.submitReport(text);
+            if (result && !result.error) {
+              homeInput.value = '';
+              delete homeInput.dataset.creationMode;
+            } else if (typeof window.alert === 'function') {
+              const currentLocale = window.NAGEX_I18N ? window.NAGEX_I18N.getLocale() : 'en';
+              window.alert(currentLocale === 'ko' ? '보고서를 생성하지 못했습니다. 다시 시도해 주세요.' : "NAgex couldn't generate that report. Please try again.");
             }
           } finally {
             btnSend.disabled = false;
@@ -4757,6 +4816,7 @@
   // all of them, leaving every Accept/Reject/Apply/Modify button dead.
   Object.assign(window.NAGEX, {
     switchTab,
+    openMobileCreate,
     openAmbientWithPrompt: (promptText) => {
       openAmbientOverlay();
       runAmbientTask(promptText);
@@ -5924,7 +5984,6 @@
     }
   }
 
-  initRouter();
   loadAllData();
   applyEnterpriseUiGate();
 })();

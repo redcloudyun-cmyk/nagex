@@ -85,7 +85,7 @@ test('J. Capability tiles stay within the compact D.4 §8 target band (no large 
   const css = readPublic('desktop/desktop-home.css');
   const match = css.match(/\.ph-capability-tile \{[^}]*\}/);
   assert.ok(match);
-  const minHeightMatch = match![0].match(/min-height:(\d+)px/);
+  const minHeightMatch = match![0].match(/min-height:\s*(\d+)px/);
   assert.ok(minHeightMatch);
   const minHeight = Number(minHeightMatch[1]);
   assert.ok(minHeight >= 52 && minHeight <= 76, `capability tile min-height ${minHeight}px must keep Create with NAgex as a compact launcher, not a tall card area`);

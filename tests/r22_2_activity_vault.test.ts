@@ -234,9 +234,9 @@ test('NAgex R22.2 Hardened Pre-Server Certification Audit', async () => {
       // Activity View Certification
       try {
         await pageEn.goto(`${baseUrl}/?demo=1`);
-        await pageEn.waitForSelector('#mobile-app-shell', { state: 'visible' });
-
+        await pageEn.waitForFunction(() => typeof (globalThis as any).window.NAGEX?.switchTab === 'function');
         await pageEn.evaluate(() => (globalThis as any).window.NAGEX.switchTab('tab-executions'));
+        await pageEn.waitForSelector('#mobile-app-shell', { state: 'visible' });
         await pageEn.waitForSelector('#mobile-view-activity', { state: 'visible' });
         await pageEn.waitForSelector('#mh-activity-list .mh-activity-card', { state: 'visible' });
 
@@ -449,10 +449,11 @@ test('NAgex R22.2 Hardened Pre-Server Certification Audit', async () => {
         await pageKr.goto(`${baseUrl}/?demo=1`);
         await pageKr.evaluate(() => (globalThis as any).window.NAGEX_I18N?.setLocale('ko'));
         await pageKr.reload();
+        await pageKr.waitForFunction(() => typeof (globalThis as any).window.NAGEX?.switchTab === 'function');
+        await pageKr.evaluate(() => (globalThis as any).window.NAGEX.switchTab('tab-executions'));
         await pageKr.waitForSelector('#mobile-app-shell', { state: 'visible' });
 
         // Activity KR Modal Chrome Audit
-        await pageKr.evaluate(() => (globalThis as any).window.NAGEX.switchTab('tab-executions'));
         await pageKr.waitForSelector('#mobile-view-activity', { state: 'visible' });
         await shot(pageKr, `${vp.name}_activity_kr.png`);
 
@@ -512,9 +513,10 @@ test('NAgex R22.2 Hardened Pre-Server Certification Audit', async () => {
     const pageErr = await contextErr.newPage();
 
     await pageErr.goto(`${baseUrl}/?demo=1`);
+    await pageErr.waitForFunction(() => typeof (globalThis as any).window.NAGEX?.switchTab === 'function');
+    await pageErr.evaluate(() => (globalThis as any).window.NAGEX.switchTab('tab-executions'));
     await pageErr.waitForSelector('#mobile-app-shell', { state: 'visible' });
 
-    await pageErr.evaluate(() => (globalThis as any).window.NAGEX.switchTab('tab-executions'));
     await pageErr.waitForSelector('#mobile-view-activity', { state: 'visible' });
     const errTextActivity = await pageErr.locator('#mh-activity-list').innerText();
     assert.match(errTextActivity, /Couldn't load Activity|Unable to load/i);

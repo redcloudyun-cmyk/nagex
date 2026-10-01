@@ -160,6 +160,22 @@
       "assertionIntent": "implementation snapshot",
       "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
     },
+    "m6_1_mobile_release_blockers": {
+      "milestone": "M6.1",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "approvals",
+        "personal-home",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "source-text regression guard for mobile Create routing and PROPOSAL Review routing",
+      "notes": "Guards the M6.1 release blockers: mobile bottom nav Create must use the mobile-safe Home creation surface rather than #view-create, and Needs Attention PROPOSAL Review must route to Approvals without inline approval mutation."
+    },
     "approval_execution_persistence": {
       "milestone": "Cross-cutting",
       "classification": "CANONICAL_BEHAVIOR",
