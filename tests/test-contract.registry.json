@@ -4156,6 +4156,20 @@
       "deterministic": true,
       "assertionIntent": "source-text structural truthfulness (geometry regression guards for two real bugs found via real-browser measurement this pass, shared-architecture non-duplication, empty-state truthfulness) — not a DOM-behavioral test",
       "notes": "Tests Phase D.4 geometry-locked clone: regression guards for two real bugs found via live geometry measurement this pass (align-items:stretch making embedded Canvas balloon to 735px height, requiring scroll — an explicit D.4 FAIL condition; and the shared .canvas-agent-panel width:320px overlapping the context rail by 60px in Home's grid layout), Home Agent panel exists beside Canvas and hides when there's no artifact, Agent Chat has no persistent metadata block (Context tab only), truly-empty sections are hidden rather than rendered as empty bordered strips, and certification now matches artifacts by real canonical identity (window.NAGEX._homeEmbeddedArtifactIdForCert) instead of assuming Recent Creations list position"
+    },
+    "r23_7_i18n_visible_keys": {
+      "milestone": "R23.7",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "browser-i18n behavior guard: visible keys required by desktop/mobile shell resolve through NAGEX_I18N.t for both EN and KR and never fall back to raw key text",
+      "notes": "Covers deployed release-blocker keys nav.create, nav.canvas, canvas.agentChat, canvas.agentContext, canvas.agentSuggestions, and canvas.agentChatIntro without relying on source formatting."
     }
   }
 }

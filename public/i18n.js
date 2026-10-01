@@ -18,6 +18,8 @@
       'intent.action.retry': 'Retry task',
       'nav.capture': 'Capture',
       'nav.inbox': 'Inbox',
+      'nav.create': 'Create',
+      'nav.canvas': 'Canvas',
       'nav.vault': 'Vault',
       'nav.memory': 'Memory',
       'nav.plans': 'Plans',
@@ -1127,6 +1129,8 @@
       'intent.action.retry': '재시도',
       'nav.capture': '캡처',
       'nav.inbox': '인박스',
+      'nav.create': '생성',
+      'nav.canvas': '캔버스',
       'nav.vault': '보관함',
       'nav.memory': '기억',
       'nav.plans': '플랜',
@@ -2271,6 +2275,10 @@
     'canvas.openTarget': 'Open original',
     'canvas.askPlaceholder': 'Ask NAgex to change this...',
     'canvas.askSubmit': 'Send',
+    'canvas.agentChat': 'Chat',
+    'canvas.agentContext': 'Context',
+    'canvas.agentSuggestions': 'Suggestions',
+    'canvas.agentChatIntro': 'NAgex is ready to help with this creation.',
   });
   Object.assign(translations.ko, {
     'home.workingForYou': '진행 중', 'home.workingTitle': '진행 중',
@@ -2337,6 +2345,10 @@
     'canvas.openTarget': '원본 열기',
     'canvas.askPlaceholder': 'NAgex에게 수정을 요청하세요...',
     'canvas.askSubmit': '보내기',
+    'canvas.agentChat': '채팅',
+    'canvas.agentContext': '컨텍스트',
+    'canvas.agentSuggestions': '제안',
+    'canvas.agentChatIntro': 'NAgex가 이 작업을 도와드릴 준비가 되어 있어요.',
   });
 
   function detectLocale() {

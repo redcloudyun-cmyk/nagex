@@ -254,7 +254,8 @@
       "r23_7h_c_phase_d1_visual_convergence",
       "r23_7h_c_phase_d2_strict_visual_clone",
       "r23_7h_c_phase_d3_unified_home_workspace",
-      "r23_7h_c_phase_d4_geometry_locked_clone"
+      "r23_7h_c_phase_d4_geometry_locked_clone",
+      "r23_7_i18n_visible_keys"
     ]
   },
   "fullOnly": [
