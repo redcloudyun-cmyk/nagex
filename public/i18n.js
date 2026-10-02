@@ -75,7 +75,7 @@
       'home.reviewPlanAction': 'Review plan',
       'home.askPlaceholder': 'Ask NAgex anything…',
       'home.seeFullDay': 'See full day >',
-      'home.greetingPersonal': 'Good afternoon, Alex',
+      'home.greetingPersonal': 'Good afternoon',
       'home.nextBadge': 'Next',
       'home.importantTitle': 'Important for you',
       'home.importantEmpty': 'Nothing important to flag right now.',
@@ -614,7 +614,7 @@
       'ambient.result.dismiss': 'Dismiss',
 
       // Home View
-      'home.greeting': 'Hello, Alex',
+      'home.greeting': 'Hello',
       'home.subtitle': 'What would you like to do today?',
       'home.promptPlaceholder': 'Ask NAgex anything...',
       'home.runDemoBtn': 'Run Primary Scenario: Prepare Client Meeting',
@@ -1204,7 +1204,7 @@
       'home.reviewPlanAction': '플랜 검토',
       'home.askPlaceholder': 'NAgex에게 무엇이든 말해보세요…',
       'home.seeFullDay': '전체 일정 보기 >',
-      'home.greetingPersonal': '안녕하세요, Alex',
+      'home.greetingPersonal': '안녕하세요',
       'home.nextBadge': '다음',
       'home.importantTitle': '중요한 알림',
       'home.importantEmpty': '지금은 알려드릴 중요한 사항이 없습니다.',
@@ -1767,7 +1767,7 @@
       'ambient.result.dismiss': '닫기',
 
       // Home View
-      'home.greeting': '안녕하세요, Alex님',
+      'home.greeting': '안녕하세요',
       'home.subtitle': '오늘 NAgex가 어떤 작업을 도와드릴까요?',
       'home.promptPlaceholder': 'NAgex에게 무엇이든 물어보세요...',
       'home.runDemoBtn': '주요 시나리오 실행: 미팅 준비 및 일정 등록',

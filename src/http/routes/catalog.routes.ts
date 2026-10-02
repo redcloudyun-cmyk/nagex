@@ -76,9 +76,6 @@ const knowledgeBase = [
 ];
 
 export const handleCatalogRoutes: SyncRouteRegistrar<Record<string, never>> = (method, pathname): ApiResult | undefined => {
-  if (pathname === '/api/v1/plans' && method === 'GET') {
-    return { status: 200, data: { plans: planRegistry, total: planRegistry.length } };
-  }
   if (pathname === '/api/v1/skills' && method === 'GET') {
     const skills = canonicalSkillRegistry.list();
     return { status: 200, data: { skills, total: skills.length } };
@@ -90,9 +87,6 @@ export const handleCatalogRoutes: SyncRouteRegistrar<Record<string, never>> = (m
   if (pathname === '/api/v1/agents' && method === 'GET') {
     const agents = canonicalSkillRegistry.list();
     return { status: 200, data: { agents, total: agents.length } };
-  }
-  if (pathname === '/api/v1/knowledge' && method === 'GET') {
-    return { status: 200, data: { documents: knowledgeBase, total: knowledgeBase.length } };
   }
   return undefined;
 };

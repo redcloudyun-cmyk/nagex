@@ -180,11 +180,24 @@ test('22. PUT /api/v1/modules/:id/state for an unknown principal fails closed (P
   assert.notEqual(result.status, 200, 'an unrecognized principal must never be able to toggle module state — fail closed, per INV-002');
 });
 
-test('23. GET /api/v1/plans through the real handleApiRequest entry point returns the real (not fabricated) plan registry', () => {
-  const result = handleApiRequest('GET', '/api/v1/plans', null, {});
+test('23. GET /api/v1/plans through the real handleApiRequest entry point returns persisted deterministic plans', async () => {
+  const { planStore } = await import('../src/planning/plan.store.js');
+  planStore.write('plan_deterministic_test_23', {
+    id: 'plan_deterministic_test_23',
+    tenantId: 'ten_r102d_test',
+    userId: 'usr_r102d_test',
+    title: 'Test Deterministic Persistence',
+    originalPrompt: 'test',
+    status: 'IN_PROGRESS',
+    steps: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  });
+
+  const result = handleApiRequest('GET', '/api/v1/plans', null, { 'x-nagex-tenant': 'ten_r102d_test', 'x-principal-id': 'usr_r102d_test' });
   assert.equal(result.status, 200);
   const data = result.data as { plans: Array<{ id: string }>; total: number };
-  assert.ok(data.plans.some((p) => p.id === 'plan_acme_meeting'));
+  assert.ok(data.plans.some((p) => p.id === 'plan_deterministic_test_23'));
   assert.equal(data.total, data.plans.length);
 });
 

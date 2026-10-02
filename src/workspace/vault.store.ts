@@ -1,9 +1,17 @@
-// R18 — Vault Domain Store Layer
 import crypto from 'node:crypto';
 import type { SaveVaultItemParams, VaultItem } from './vault.types.js';
+import { FileRecordStore, resolveNagexDataDir } from '../governance/file-record.store.js';
 
 export class VaultStore {
-  private readonly items: Map<string, VaultItem> = new Map();
+  private readonly store: FileRecordStore<VaultItem>;
+
+  constructor(dataDir?: string) {
+    const dir = dataDir ?? resolveNagexDataDir('vault', 'NAGEX_VAULT_DIR');
+    this.store = new FileRecordStore<VaultItem>(dir, (val: unknown): val is VaultItem => {
+      const v = val as any;
+      return typeof v === 'object' && v !== null && typeof v.vaultItemId === 'string' && typeof v.tenantId === 'string' && typeof v.userId === 'string';
+    });
+  }
 
   public saveItem(params: SaveVaultItemParams): VaultItem {
     const vaultItemId = `vlt_${crypto.randomUUID()}`;
@@ -25,19 +33,20 @@ export class VaultStore {
       updatedAt: now,
     };
 
-    this.items.set(vaultItemId, item);
+    this.store.write(vaultItemId, item);
     return item;
   }
 
   public getItem(vaultItemId: string, tenantId: string, userId: string): VaultItem | undefined {
-    const item = this.items.get(vaultItemId);
+    const item = this.store.read(vaultItemId);
     if (!item || item.tenantId !== tenantId || item.userId !== userId) return undefined;
     return item;
   }
 
   public listItems(tenantId: string, userId: string, workspaceId?: string): VaultItem[] {
     const result: VaultItem[] = [];
-    for (const item of this.items.values()) {
+    const items = this.store.readAll();
+    for (const item of items) {
       if (item.tenantId === tenantId && item.userId === userId) {
         if (!workspaceId || item.workspaceId === workspaceId) {
           result.push(item);
@@ -63,6 +72,9 @@ export class VaultStore {
   public deleteItem(vaultItemId: string, tenantId: string, userId: string): boolean {
     const item = this.getItem(vaultItemId, tenantId, userId);
     if (!item) return false;
-    return this.items.delete(vaultItemId);
+    this.store.remove(vaultItemId);
+    return true;
   }
 }
+
+export const vaultStore = new VaultStore();

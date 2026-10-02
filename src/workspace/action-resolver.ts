@@ -232,7 +232,7 @@ export class CandidateActionResolver {
       if (existing) { outcome = 'CONFIRMED_SUCCESS'; successPatch = { targetType: 'MEMORY', targetId: existing.id }; }
       else outcome = 'CONFIRMED_NOT_EXECUTED';
     } else if (candidate.type === 'KNOWLEDGE') {
-      const existing = this.deps.knowledgeEngine?.findByCandidateId(candidateId);
+      const existing = this.deps.knowledgeEngine?.findByCandidateId(candidateId, candidate.principalId, candidate.tenantId);
       if (existing) { outcome = 'CONFIRMED_SUCCESS'; successPatch = { targetType: 'KNOWLEDGE', targetId: existing.document_id }; }
       else outcome = 'CONFIRMED_NOT_EXECUTED';
     } else {
@@ -520,7 +520,7 @@ export class CandidateActionResolver {
     this.audit('candidate.action.started', candidate, requestId, 'PENDING_APPROVAL');
     const payload = candidate.payload as KnowledgeCandidatePayload;
 
-    const existing = this.deps.knowledgeEngine.findByCandidateId(candidate.candidateId);
+    const existing = this.deps.knowledgeEngine.findByCandidateId(candidate.candidateId, candidate.principalId, candidate.tenantId);
     if (existing) {
       const updated = this.markSucceeded(candidate, { targetType: 'KNOWLEDGE', targetId: existing.document_id }, requestId);
       this.recordActivity(updated, 'COMPLETED', `Added "${payload.title}" to knowledge`);
@@ -536,6 +536,8 @@ export class CandidateActionResolver {
         candidateId: candidate.candidateId,
         contentHash: candidate.contentHash,
         sourceRefs: candidate.sourceRefs,
+        ownerId: candidate.principalId,
+        tenantId: candidate.tenantId,
       });
       const updated = this.markSucceeded(candidate, { targetType: 'KNOWLEDGE', targetId: doc.document_id }, requestId);
       this.activity(`Added "${payload.title}" to knowledge`, candidate, requestId);

@@ -83,7 +83,7 @@ test('1b. Workflow Engine rejects malformed graphs instead of silently completin
 });
 
 test('2. Knowledge Engine Candidate Retrieval ACL Filter', () => {
-  const knEngine = new KnowledgeEngine();
+  const knEngine = new KnowledgeEngine('./tmp_knowledge_' + Math.random().toString(36).slice(2));
 
   knEngine.addDocument({
     source_id: 'kns_public',
@@ -110,7 +110,7 @@ test('2. Knowledge Engine Candidate Retrieval ACL Filter', () => {
 });
 
 test('2b. Knowledge Engine Grounded Citation Check rejects fabricated references', () => {
-  const knEngine = new KnowledgeEngine();
+  const knEngine = new KnowledgeEngine('./tmp_knowledge_' + Math.random().toString(36).slice(2));
 
   const doc = knEngine.addDocument({
     source_id: 'kns_public',

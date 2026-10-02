@@ -71,7 +71,7 @@ function buildHarness(overrides: { googleCalendarService?: GoogleCalendarService
   const personalReminderStore = new PersonalReminderStore(path.join(dir, 'reminders'));
   const actionApprovals = new PersistentActionApprovalStore({ dir: path.join(dir, 'approvals') });
   const captureStore = new CaptureStore(path.join(dir, 'captures'));
-  const vaultStore = new VaultStore();
+  const vaultStore = new VaultStore(path.join(dir, 'vault'));
   const memoryEngine = new MemoryEngine({ dir: path.join(dir, 'memories') });
   const personalContextService = new PersonalContextService(memoryEngine);
 
@@ -402,7 +402,7 @@ test('18. Inbox route and Personal Context read the same canonical CaptureStore 
   const { handleInboxRoutes } = await import('../src/http/routes/inbox.routes.js');
   const { VaultStore } = await import('../src/workspace/vault.store.js');
   const headers = { 'x-nagex-tenant': tenantId, 'x-principal-id': userId };
-  const routeResult = await handleInboxRoutes('GET', '/api/v1/workspace/inbox', null, headers, {}, { captureStore: h.captureStore, vaultStore: new VaultStore() });
+  const routeResult = await handleInboxRoutes('GET', '/api/v1/workspace/inbox', null, headers, {}, { captureStore: h.captureStore, vaultStore: h.vaultStore });
 
   assert.equal(routeResult?.status, 200);
   const routeItems = (routeResult!.data as { items: Array<{ captureId: string; status: string }> }).items;

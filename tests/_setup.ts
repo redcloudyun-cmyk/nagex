@@ -150,6 +150,12 @@ if (!alreadyOwnedByThisProcess) {
   process.env.NAGEX_ENTERPRISE_IDENTITY_DIR = path.join(dataRoot, 'enterprise-identity');
   process.env.NAGEX_SOCIAL_IDENTITY_DIR = path.join(dataRoot, 'social-identities');
   process.env.NAGEX_SSO_FLOW_DIR = path.join(dataRoot, 'sso-flow');
+  // R24.6C1 — VaultStore's default dir was never redirected, so every test process
+  // (run in parallel by the gate) seeded the demo tenant into the developer's REAL
+  // vault dir. r23_2d_demo_canonicalization #5 counts demo Vault items, and two
+  // concurrent seeds (or one failed run's leftovers) made it fail "vaultItems 4 vs 2"
+  // and littered real data. Same fix pattern as the R16 identity dirs above.
+  process.env.NAGEX_VAULT_DIR = path.join(dataRoot, 'vault');
 }
 
 process.env.NODE_ENV ??= 'test';

@@ -114,7 +114,10 @@ test('C. canonical artifactId preserved & E. no client imageId derivation', () =
   
   const state = mockWindow.NAGEX.openArtifactInCanvas(proj.artifactId, proj.artifactType, proj.canvasTarget, proj.openTarget, proj);
   assert.equal(state.artifactId, 'art_c123');
-  assert.equal(elements['canvas-artifact-title'].textContent, 'Artifact: art_c123');
+  // R23.7H-C Phase D.1 §7 — the toolbar shows the real artifact title, not
+  // a raw artifact ID (removed as a technical-UI leak); artifactId remains
+  // the canonical identity used everywhere else (state.artifactId above).
+  assert.equal(elements['canvas-artifact-title'].textContent, proj.title);
 });
 
 test('D. canonical IMAGE target used & F. no provider URL', () => {
