@@ -30,7 +30,46 @@
       currentUserState = { authenticated: false, user: null, profile: null, session: null };
     }
     updateUserHeader();
+    applyAccountLocale();
+    // R24.6B — the session result changes what Settings may show (Account
+    // panel, per-user preferences). Re-render Settings from the new truth
+    // instead of leaving the pre-session render on screen.
+    renderAccountSettings();
+    if (window.NAGEX && window.NAGEX.reloadSettingsPrefs) window.NAGEX.reloadSettingsPrefs();
   }
+
+  // R24.6B — locale truth. For an authenticated account, profile.locale
+  // ('en' | 'ko') is the canonical preference; localStorage 'nagex_locale'
+  // is only the presentation cache for the current browser (it is all an
+  // anonymous visitor has). The session applies the account locale to the
+  // cache, and a language change made while signed in is written through to
+  // the profile so the two cannot diverge.
+  function canonicalLocale(value) {
+    const v = String(value == null ? '' : value).trim().toLowerCase();
+    if (v === 'en') return 'en';
+    if (v === 'ko' || v === 'kr') return 'ko';
+    return null;
+  }
+
+  function applyAccountLocale() {
+    if (!currentUserState.authenticated || !window.NAGEX_I18N) return;
+    const accountLocale = canonicalLocale(currentUserState.profile && currentUserState.profile.locale);
+    if (accountLocale && accountLocale !== window.NAGEX_I18N.getLocale()) window.NAGEX_I18N.setLocale(accountLocale);
+  }
+
+  window.addEventListener('nagex:localechange', async (e) => {
+    // R24.6D — the Account surface is painted from t() at render time, so a language change
+    // must repaint it (Desktop's and Mobile's containers share this one renderer).
+    renderAccountSettings();
+    if (!currentUserState.authenticated) return;
+    const next = canonicalLocale(e.detail && e.detail.locale);
+    const current = canonicalLocale(currentUserState.profile && currentUserState.profile.locale);
+    if (!next || next === current) return;
+    const res = await window.NAGEX.apiFetch('/api/v1/account/profile', { method: 'PATCH', body: JSON.stringify({ locale: next }) });
+    if (res && res.profile && !res.error) {
+      currentUserState = { ...currentUserState, profile: { ...currentUserState.profile, locale: res.profile.locale } };
+    }
+  });
 
   function updateUserHeader() {
     const avatarEl = document.querySelector('.user-avatar-img');
@@ -224,7 +263,10 @@
             body: JSON.stringify({ email, password, passwordConfirmation, termsAccepted, privacyAccepted }),
           });
           if (res && res.status === 'PENDING_VERIFICATION') {
-            showAuthModal('verify', { email, token: res.devVerificationToken });
+            // R24.6C1 — a token exists in the response ONLY when the server's explicit
+            // dev opt-in is on. Otherwise nothing was delivered (no mail provider yet)
+            // and the UI says exactly that instead of waiting for a token.
+            showAuthModal('verify', { email, token: res.devVerificationToken, delivery: res.delivery });
           } else {
             msgArea.innerHTML = `<p class="form-error">${escapeHtml(res?.error?.message || 'Account creation failed.')}</p>`;
           }
@@ -234,22 +276,35 @@
       });
     } else if (view === 'verify') {
       title.textContent = t('auth.verifyEmail', 'Verify Email');
-      body.innerHTML = `
-        <form id="auth-form-verify" class="auth-form">
-          <p class="auth-info-text">Please enter the verification token sent to <strong>${escapeHtml(params.email || '')}</strong>.</p>
+      // R24.6C1 — no mail provider exists. With the server's explicit dev opt-in OFF there is
+      // no token in the response and nothing was delivered, so the UI renders only a truthful
+      // notice (no token field, no verify action) instead of waiting for a token.
+      const deliveryUnavailable = !params.token && Boolean(params.delivery) && params.delivery.status === 'NOT_CONFIGURED';
+      const verifyBody = deliveryUnavailable
+        ? `<p class="auth-info-text" id="auth-delivery-notice">Your account was created for <strong>${escapeHtml(params.email || '')}</strong>, but email delivery is not configured on this server yet, so no verification message was sent. Verification cannot be completed until email delivery is set up.</p>`
+        : `<p class="auth-info-text">Enter the verification token for <strong>${escapeHtml(params.email || '')}</strong>.</p>
           <div class="form-group">
             <label for="verify-token">Verification Token</label>
             <input type="text" id="verify-token" class="form-control" required value="${escapeHtml(params.token || '')}">
           </div>
           <div class="form-actions">
             <button type="submit" class="btn btn-primary" id="btn-submit-verify">${escapeHtml(t('auth.verifyEmail', 'Verify Email'))}</button>
-          </div>
+          </div>`;
+      body.innerHTML = `
+        <form id="auth-form-verify" class="auth-form">
+          ${verifyBody}
           <div class="auth-msg-area" id="auth-msg-area"></div>
+          <div class="auth-links">
+            <a href="#" id="link-verify-goto-signin">${escapeHtml(t('auth.alreadyHaveAccount', 'Sign in'))}</a>
+          </div>
         </form>`;
+      document.getElementById('link-verify-goto-signin')?.addEventListener('click', (e) => { e.preventDefault(); showAuthModal('signin'); });
 
       document.getElementById('auth-form-verify')?.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const token = document.getElementById('verify-token').value;
+        const tokenInput = document.getElementById('verify-token');
+        if (!tokenInput) return;
+        const token = tokenInput.value;
         const msgArea = document.getElementById('auth-msg-area');
 
         try {
@@ -276,7 +331,7 @@
             <input type="email" id="forgot-email" class="form-control" required autocomplete="email">
           </div>
           <div class="form-actions">
-            <button type="submit" class="btn btn-primary">Send Reset Instructions</button>
+            <button type="submit" class="btn btn-primary">Request Password Reset</button>
           </div>
           <div class="auth-msg-area" id="auth-msg-area"></div>
           <div class="auth-links">
@@ -299,10 +354,12 @@
           if (res && res.devResetToken) {
             showAuthModal('reset', { token: res.devResetToken });
           } else {
-            msgArea.innerHTML = `<p class="form-success">${escapeHtml(res?.message || 'Password reset instructions sent.')}</p>`;
+            // The server's acknowledgement is deliberately identical for every address and
+            // truthful about delivery; shown as information, never as "email sent" success.
+            msgArea.innerHTML = `<p class="auth-info-text" id="auth-forgot-ack">${escapeHtml(res?.message || 'Password reset request recorded.')}</p>`;
           }
         } catch (err) {
-          msgArea.innerHTML = `<p class="form-error">Failed to send reset instructions.</p>`;
+          msgArea.innerHTML = `<p class="form-error">Could not submit the password reset request.</p>`;
         }
       });
     } else if (view === 'reset') {
@@ -357,26 +414,45 @@
     if (modal) modal.hidden = true;
   }
 
-  // ── Render Settings Account Sub-Tab ──
+  // ── Render Settings Account surface ──
+  // R24.6D — ONE implementation and ONE state (currentUserState + the account APIs) feeds
+  // every container that exists: Mobile's #mh-account-panel (original ids, unprefixed) and
+  // Desktop's #desktop-account-panel (ids prefixed "dk-" so both can coexist without
+  // duplicate DOM ids). renderAccountSettings() repaints all present containers.
+  const ACCOUNT_CONTAINERS = [
+    { id: 'mh-account-panel', prefix: '' },
+    { id: 'desktop-account-panel', prefix: 'dk-' },
+  ];
+
   async function renderAccountSettings() {
-    const el = document.getElementById('mh-account-panel');
+    const targets = ACCOUNT_CONTAINERS.filter((c) => document.getElementById(c.id));
+    if (!targets.length) return;
+    // One sessions fetch shared by every container (no per-container state/requests).
+    const sessionsPromise = currentUserState.authenticated
+      ? window.NAGEX.apiFetch('/api/v1/account/sessions').catch(() => null)
+      : Promise.resolve(null);
+    await Promise.all(targets.map((c) => renderAccountInto(c.id, c.prefix, sessionsPromise)));
+  }
+
+  async function renderAccountInto(containerId, idp, sessionsPromise) {
+    const el = document.getElementById(containerId);
     if (!el) return;
 
     if (!currentUserState.authenticated) {
       el.innerHTML = `
         <div class="mh-settings-row">
           <div class="mh-settings-row-body">
-            <span class="mh-settings-row-title">Sign in to manage your account</span>
-            <span class="mh-row-detail">Access your profile, credentials, active sessions, and data lifecycle settings.</span>
+            <span class="mh-settings-row-title">${escapeHtml(t('account.signInPrompt', 'Sign in to manage your account'))}</span>
+            <span class="mh-row-detail">${escapeHtml(t('account.signInPromptDesc', 'Access your profile, credentials, active sessions, and data lifecycle settings.'))}</span>
           </div>
-          <button class="mh-settings-action-btn" id="btn-account-signin-trigger">${escapeHtml(t('auth.signIn', 'Sign In'))}</button>
+          <button class="mh-settings-action-btn" id="${idp}btn-account-signin-trigger">${escapeHtml(t('auth.signIn', 'Sign In'))}</button>
         </div>`;
-      document.getElementById('btn-account-signin-trigger')?.addEventListener('click', () => showAuthModal('signin'));
+      document.getElementById(idp + 'btn-account-signin-trigger')?.addEventListener('click', () => showAuthModal('signin'));
       return;
     }
 
     const { user, profile } = currentUserState;
-    let sessionsHtml = '<div class="nagex-loading-row">Loading active sessions...</div>';
+    let sessionsHtml = `<div class="nagex-loading-row">${escapeHtml(t('account.loadingSessions', 'Loading active sessions...'))}</div>`;
 
     el.innerHTML = `
       <div class="mh-settings-account-section">
@@ -385,52 +461,53 @@
         <div class="mh-settings-row">
           <div class="mh-settings-form-row">
             <label>${escapeHtml(t('account.displayName', 'Display Name'))}</label>
-            <input type="text" id="acc-profile-name" class="mh-input" value="${escapeHtml(profile?.displayName || '')}">
+            <input type="text" id="${idp}acc-profile-name" class="mh-input" value="${escapeHtml(profile?.displayName || '')}">
           </div>
         </div>
         <div class="mh-settings-row">
           <div class="mh-settings-form-row">
             <label>${escapeHtml(t('account.locale', 'Language / Locale'))}</label>
-            <select id="acc-profile-locale" class="mh-select">
-              <option value="EN" ${profile?.locale === 'EN' ? 'selected' : ''}>English (EN)</option>
-              <option value="KR" ${profile?.locale === 'KR' ? 'selected' : ''}>한국어 (KR)</option>
+            <select id="${idp}acc-profile-locale" class="mh-select">
+              <option value="en" ${canonicalLocale(profile?.locale) === 'en' ? 'selected' : ''}>English (EN)</option>
+              <option value="ko" ${canonicalLocale(profile?.locale) === 'ko' ? 'selected' : ''}>한국어 (KR)</option>
             </select>
           </div>
         </div>
         <div class="mh-settings-row">
-          <button class="mh-settings-action-btn" id="btn-save-profile">${escapeHtml(t('account.saveProfile', 'Save Profile'))}</button>
+          <button class="mh-settings-action-btn" id="${idp}btn-save-profile">${escapeHtml(t('account.saveProfile', 'Save Profile'))}</button>
         </div>
+        <div id="${idp}acc-profile-msg" role="status"></div>
 
         <!-- Password Change -->
         <h4 class="mh-settings-subheading">${escapeHtml(t('account.changePassword', 'Change Password'))}</h4>
         <div class="mh-settings-row">
           <div class="mh-settings-form-row">
             <label>${escapeHtml(t('account.currentPassword', 'Current Password'))}</label>
-            <input type="password" id="acc-pwd-current" class="mh-input">
+            <input type="password" id="${idp}acc-pwd-current" class="mh-input">
           </div>
         </div>
         <div class="mh-settings-row">
           <div class="mh-settings-form-row">
             <label>${escapeHtml(t('account.newPassword', 'New Password'))}</label>
-            <input type="password" id="acc-pwd-new" class="mh-input">
+            <input type="password" id="${idp}acc-pwd-new" class="mh-input">
           </div>
         </div>
         <div class="mh-settings-row">
           <div class="mh-settings-form-row">
             <label>${escapeHtml(t('account.newPasswordConfirmation', 'Confirm New Password'))}</label>
-            <input type="password" id="acc-pwd-confirm" class="mh-input">
+            <input type="password" id="${idp}acc-pwd-confirm" class="mh-input">
           </div>
         </div>
         <div class="mh-settings-row">
-          <button class="mh-settings-action-btn" id="btn-change-password">${escapeHtml(t('account.updatePassword', 'Update Password'))}</button>
+          <button class="mh-settings-action-btn" id="${idp}btn-change-password">${escapeHtml(t('account.updatePassword', 'Update Password'))}</button>
         </div>
-        <div id="acc-pwd-msg"></div>
+        <div id="${idp}acc-pwd-msg"></div>
 
         <!-- Sessions Manager -->
         <h4 class="mh-settings-subheading">${escapeHtml(t('account.sessions', 'Active Sessions'))}</h4>
-        <div id="acc-sessions-list">${sessionsHtml}</div>
+        <div id="${idp}acc-sessions-list">${sessionsHtml}</div>
         <div class="mh-settings-row">
-          <button class="mh-settings-action-btn mh-btn-danger" id="btn-logout-all">${escapeHtml(t('account.logoutAll', 'Log Out All Devices'))}</button>
+          <button class="mh-settings-action-btn mh-btn-danger" id="${idp}btn-logout-all">${escapeHtml(t('account.logoutAll', 'Log Out All Devices'))}</button>
         </div>
 
         <!-- Danger Zone -->
@@ -441,7 +518,7 @@
               <span class="mh-settings-row-title">${escapeHtml(t('account.disableAccount', 'Disable Account'))}</span>
               <span class="mh-row-detail">${escapeHtml(t('account.disableAccountDesc', 'Temporarily disable your account.'))}</span>
             </div>
-            <button class="mh-settings-action-btn mh-btn-danger" id="btn-disable-account">${escapeHtml(t('account.disableAccount', 'Disable'))}</button>
+            <button class="mh-settings-action-btn mh-btn-danger" id="${idp}btn-disable-account">${escapeHtml(t('account.disableAccount', 'Disable'))}</button>
           </div>
           <div class="mh-settings-row">
             <div class="mh-settings-row-body">
@@ -449,31 +526,35 @@
               <span class="mh-row-detail">${escapeHtml(t('account.deleteAccountDesc', 'Request account & data deletion (14-day grace period).'))}</span>
             </div>
             ${user.accountState === 'DELETION_PENDING'
-              ? `<button class="mh-settings-action-btn" id="btn-cancel-delete">${escapeHtml(t('account.cancelDeletion', 'Cancel Deletion'))}</button>`
-              : `<button class="mh-settings-action-btn mh-btn-danger" id="btn-delete-account">${escapeHtml(t('account.deleteAccount', 'Delete'))}</button>`
+              ? `<button class="mh-settings-action-btn" id="${idp}btn-cancel-delete">${escapeHtml(t('account.cancelDeletion', 'Cancel Deletion'))}</button>`
+              : `<button class="mh-settings-action-btn mh-btn-danger" id="${idp}btn-delete-account">${escapeHtml(t('account.deleteAccount', 'Delete'))}</button>`
             }
           </div>
         </div>
       </div>`;
 
     // Bind profile save
-    document.getElementById('btn-save-profile')?.addEventListener('click', async () => {
-      const displayName = document.getElementById('acc-profile-name').value;
-      const locale = document.getElementById('acc-profile-locale').value;
-      await window.NAGEX.apiFetch('/api/v1/account/profile', {
+    document.getElementById(idp + 'btn-save-profile')?.addEventListener('click', async () => {
+      const displayName = document.getElementById(idp + 'acc-profile-name').value;
+      const locale = document.getElementById(idp + 'acc-profile-locale').value;
+      const res = await window.NAGEX.apiFetch('/api/v1/account/profile', {
         method: 'PATCH',
         body: JSON.stringify({ displayName, locale }),
       });
+      if (!res || res.error) {
+        const msg = document.getElementById(idp + 'acc-profile-msg');
+        if (msg) msg.innerHTML = `<p class="form-error">${escapeHtml((res && res.error && res.error.message) || t('settings.saveFailed', 'Could not save settings.'))}</p>`;
+        return;
+      }
       await checkSession();
-      renderAccountSettings();
     });
 
     // Bind password change
-    document.getElementById('btn-change-password')?.addEventListener('click', async () => {
-      const currentPassword = document.getElementById('acc-pwd-current').value;
-      const newPassword = document.getElementById('acc-pwd-new').value;
-      const newPasswordConfirmation = document.getElementById('acc-pwd-confirm').value;
-      const msgArea = document.getElementById('acc-pwd-msg');
+    document.getElementById(idp + 'btn-change-password')?.addEventListener('click', async () => {
+      const currentPassword = document.getElementById(idp + 'acc-pwd-current').value;
+      const newPassword = document.getElementById(idp + 'acc-pwd-new').value;
+      const newPasswordConfirmation = document.getElementById(idp + 'acc-pwd-confirm').value;
+      const msgArea = document.getElementById(idp + 'acc-pwd-msg');
 
       const res = await window.NAGEX.apiFetch('/api/v1/account/password', {
         method: 'POST',
@@ -483,20 +564,20 @@
       if (res && res.message) {
         msgArea.innerHTML = `<p class="form-success">${escapeHtml(res.message)}</p>`;
       } else {
-        msgArea.innerHTML = `<p class="form-error">${escapeHtml(res?.error?.message || 'Password update failed.')}</p>`;
+        msgArea.innerHTML = `<p class="form-error">${escapeHtml(res?.error?.message || t('account.passwordUpdateFailed', 'Password update failed.'))}</p>`;
       }
     });
 
     // Bind logout all
-    document.getElementById('btn-logout-all')?.addEventListener('click', async () => {
+    document.getElementById(idp + 'btn-logout-all')?.addEventListener('click', async () => {
       await window.NAGEX.apiFetch('/api/v1/auth/logout-all', { method: 'POST' });
       await checkSession();
       renderAccountSettings();
     });
 
     // Bind disable account with password confirmation dialog
-    document.getElementById('btn-disable-account')?.addEventListener('click', async () => {
-      const password = prompt('Enter your password to confirm disabling your account:');
+    document.getElementById(idp + 'btn-disable-account')?.addEventListener('click', async () => {
+      const password = prompt(t('account.disablePrompt', 'Enter your password to confirm disabling your account:'));
       if (!password) return;
       const res = await window.NAGEX.apiFetch('/api/v1/account/disable', {
         method: 'POST',
@@ -507,13 +588,13 @@
         await checkSession();
         renderAccountSettings();
       } else {
-        alert(res?.error?.message || 'Failed to disable account.');
+        alert(res?.error?.message || t('account.disableFailed', 'Failed to disable account.'));
       }
     });
 
     // Bind delete account with password confirmation dialog
-    document.getElementById('btn-delete-account')?.addEventListener('click', async () => {
-      const password = prompt('CONFIRMATION REQUIRED: Enter your password to request account deletion (14-day grace period):');
+    document.getElementById(idp + 'btn-delete-account')?.addEventListener('click', async () => {
+      const password = prompt(t('account.deletePrompt', 'CONFIRMATION REQUIRED: Enter your password to request account deletion (14-day grace period):'));
       if (!password) return;
       const res = await window.NAGEX.apiFetch('/api/v1/account/delete', {
         method: 'POST',
@@ -524,22 +605,40 @@
         await checkSession();
         renderAccountSettings();
       } else {
-        alert(res?.error?.message || 'Failed to request deletion.');
+        alert(res?.error?.message || t('account.deleteFailed', 'Failed to request deletion.'));
       }
     });
 
-    // Fetch and render sessions
+    // R24.6D — "Cancel Deletion" was rendered for a DELETION_PENDING account but had NO handler (a dead
+    // control). The supported API is POST /api/v1/account/delete/cancel (email + password); no new account
+    // capability is invented here, the existing one is wired.
+    document.getElementById(idp + 'btn-cancel-delete')?.addEventListener('click', async () => {
+      const password = prompt(t('account.cancelDeletePrompt', 'Enter your password to cancel the pending account deletion:'));
+      if (!password) return;
+      const res = await window.NAGEX.apiFetch('/api/v1/account/delete/cancel', {
+        method: 'POST',
+        body: JSON.stringify({ email: user.email, password }),
+      });
+      if (res && res.message && !res.error) {
+        alert(res.message);
+        await checkSession();
+      } else {
+        alert(res?.error?.message || t('account.cancelDeleteFailed', 'Failed to cancel deletion.'));
+      }
+    });
+
+    // Render sessions from the one shared fetch
     try {
-      const sessRes = await window.NAGEX.apiFetch('/api/v1/account/sessions');
-      const sessionsListEl = document.getElementById('acc-sessions-list');
+      const sessRes = await sessionsPromise;
+      const sessionsListEl = document.getElementById(idp + 'acc-sessions-list');
       if (sessionsListEl && sessRes && sessRes.sessions) {
-        sessionsListEl.innerHTML = sessRes.sessions.map((s) => `
+        sessionsListEl.innerHTML = sessRes.sessions.map((sess) => `
           <div class="mh-settings-row mh-session-row">
             <div class="mh-settings-row-body">
-              <span class="mh-settings-row-title">${escapeHtml(s.userAgent || 'Unknown Device')} ${s.isCurrent ? `<span class="mh-settings-tag mh-settings-tag-ok">Current</span>` : ''}</span>
-              <span class="mh-row-detail">IP: ${escapeHtml(s.ipAddress || '127.0.0.1')} · Created: ${escapeHtml(new Date(s.createdAt).toLocaleDateString())}</span>
+              <span class="mh-settings-row-title">${escapeHtml(sess.userAgent || t('account.unknownDevice', 'Unknown Device'))} ${sess.isCurrent ? `<span class="mh-settings-tag mh-settings-tag-ok">${escapeHtml(t('account.currentSession', 'Current'))}</span>` : ''}</span>
+              <span class="mh-row-detail">${escapeHtml(t('account.ipLabel', 'IP'))}: ${escapeHtml(sess.ipAddress || '127.0.0.1')} · ${escapeHtml(t('account.createdLabel', 'Created'))}: ${escapeHtml(new Date(sess.createdAt).toLocaleDateString())}</span>
             </div>
-            ${!s.isCurrent ? `<button class="mh-settings-action-btn btn-revoke-session" data-session-id="${escapeHtml(s.sessionId)}">${escapeHtml(t('account.revokeSession', 'Revoke'))}</button>` : ''}
+            ${!sess.isCurrent ? `<button class="mh-settings-action-btn btn-revoke-session" data-session-id="${escapeHtml(sess.sessionId)}">${escapeHtml(t('account.revokeSession', 'Revoke'))}</button>` : ''}
           </div>`).join('');
 
         sessionsListEl.querySelectorAll('.btn-revoke-session').forEach((btn) => {
@@ -582,6 +681,8 @@
           showAuthModal('signin');
         } else {
           if (window.NAGEX.switchTab) window.NAGEX.switchTab('tab-settings');
+          // R24.6D — Desktop Settings now has an Account category; the user control lands there.
+          if (window.NAGEX.switchSettingsCategory && document.getElementById('cat-tab-account')) window.NAGEX.switchSettingsCategory('account');
         }
       });
     });

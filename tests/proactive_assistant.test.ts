@@ -9,7 +9,8 @@
 // not to build a parallel scheduler.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { handleAsyncApiRequest, taskStore as sharedTaskStore } from '../src/server_web.js';
+import { handleAsyncApiRequest, taskStore as sharedTaskStore, identityStore as sharedIdentityStore, sessionStore as sharedSessionStore } from '../src/server_web.js';
+import { hashPassword } from '../src/identity/identity.crypto.js';
 import { InMemoryGoogleOAuthTokenStore } from '../src/integrations/google/token.store.js';
 import type { GoogleOAuthConfig } from '../src/integrations/google/oauth.client.js';
 import { ActionApprovalStore } from '../src/governance/action-approval.store.js';
@@ -54,8 +55,17 @@ function buildHarness(modelReply: () => string | Error = () => JSON.stringify({ 
 }
 
 const RUN_ID = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+// R24.6C — Proactive Assistant settings are owned by the AUTHENTICATED session
+// (never client headers). Each logical user is a real account in the
+// production-wired identity/session stores; the returned headers carry the
+// real session cookie plus the session-derived tenant/principal (informational
+// — the server ignores identity headers whenever a session exists).
 function headersFor(name: string) {
-  return { 'x-nagex-tenant': 'ten_proactive', 'x-principal-id': `usr_${name}_${RUN_ID}` };
+  const { identity } = sharedIdentityStore.createAccount(`pa_${name}_${RUN_ID}@example.com`, hashPassword('password123'));
+  sharedIdentityStore.transitionState(identity.userId, 'ACTIVE');
+  const tenantId = `ten_${identity.userId}`;
+  const session = sharedSessionStore.createAuthSession(tenantId, identity.userId, 'MAIN');
+  return { cookie: `nagex_session=${session.sessionId}`, 'x-nagex-tenant': tenantId, 'x-principal-id': identity.userId };
 }
 
 test('GET /api/v1/proactive-assistant/config with no schedule yet returns a truthful disabled default, never a fake enabled state', async () => {
@@ -301,7 +311,7 @@ test('R10.1: after a real scheduled failure, task returns to ACTIVE with lastRun
 test('security: proactive-assistant config for one tenant/principal is never visible to another', async () => {
   const h = buildHarness();
   const HEADERS_A = headersFor('sec_a');
-  const HEADERS_B = { 'x-nagex-tenant': 'ten_other_proactive', 'x-principal-id': `usr_sec_b_${RUN_ID}` };
+  const HEADERS_B = headersFor('sec_b');
   await handleAsyncApiRequest('PUT', '/api/v1/proactive-assistant/config', { enabled: true, localTime: '07:00', timezone: 'UTC', weekdays: [1] }, HEADERS_A, h.aiService, {}, h.calendarService, h.gmailService);
   const resB = await handleAsyncApiRequest('GET', '/api/v1/proactive-assistant/config', null, HEADERS_B, h.aiService, {}, h.calendarService, h.gmailService);
   assert.equal((resB.data as any).enabled, false, "tenant B must never see tenant A's schedule");

@@ -22,6 +22,10 @@ import { resolveEnterpriseLogin, linkEnterpriseIdentity, deprovisionOrganization
 import * as domainService from '../src/enterprise-identity/domain.service.js';
 import * as scim from '../src/enterprise-identity/scim.service.js';
 import { hashPassword } from '../src/identity/identity.crypto.js';
+import { enableDevAuthTokensForFile } from './_dev_auth_tokens.js';
+
+// R24.6C1 — this file legitimately needs raw dev tokens to drive signup/verify; opt in explicitly (restored after the file).
+enableDevAuthTokensForFile();
 
 process.env.NAGEX_TOKEN_ENCRYPTION_KEY = crypto.randomBytes(32).toString('base64');
 

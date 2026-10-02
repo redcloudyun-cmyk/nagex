@@ -45,6 +45,8 @@ function buildHarness(opts: {
   connectCalendar?: boolean;
   connectGmail?: boolean;
   modelReply?: () => string | Error;
+  // R24.6C — the principal whose OWN Google connection serves the brief.
+  principalId?: string;
 } = {}) {
   const calendarTokenStore = new InMemoryGoogleOAuthTokenStore();
   const gmailTokenStore = new InMemoryGoogleOAuthTokenStore();
@@ -53,10 +55,10 @@ function buildHarness(opts: {
   const memory = new MemoryEngine();
 
   if (opts.connectCalendar !== false) {
-    calendarTokenStore.save('ten_test', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: CAL_SCOPE });
+    calendarTokenStore.saveForPrincipal('ten_test', opts.principalId ?? 'usr_admin_001', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: CAL_SCOPE });
   }
   if (opts.connectGmail !== false) {
-    gmailTokenStore.save('ten_test', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GMAIL_SCOPE });
+    gmailTokenStore.saveForPrincipal('ten_test', opts.principalId ?? 'usr_admin_001', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GMAIL_SCOPE });
   }
 
   const calendarService = new GoogleCalendarService(calendarTokenStore, approvals, audit, memory, opts.calendarFetch ?? (async () => jsonResponse({ items: [] })), () => config);
@@ -87,7 +89,7 @@ test('Calendar only: Gmail disconnected still yields a real partial brief ground
   const calendarFetch: typeof fetch = async () => jsonResponse({
     items: [{ id: 'evt_1', summary: 'Client Strategy Sync', start: { dateTime: '2026-01-01T15:00:00Z' }, end: { dateTime: '2026-01-01T16:00:00Z' } }],
   });
-  const h = buildHarness({ calendarFetch, connectGmail: false, modelReply: () => JSON.stringify({ summary: '1 meeting today.', actionItems: [{ title: 'Prepare for Client Strategy Sync', reasoning: 'Meeting at 15:00', priority: 'HIGH' }] }) });
+  const h = buildHarness({ principalId: HEADERS['x-principal-id'], calendarFetch, connectGmail: false, modelReply: () => JSON.stringify({ summary: '1 meeting today.', actionItems: [{ title: 'Prepare for Client Strategy Sync', reasoning: 'Meeting at 15:00', priority: 'HIGH' }] }) });
   const res = await handleAsyncApiRequest('GET', '/api/v1/daily-brief', null, HEADERS, h.aiService, {}, h.calendarService, h.gmailService);
   assert.equal(res.status, 200);
   const data = res.data as any;
@@ -105,7 +107,7 @@ test('Calendar only: Gmail disconnected still yields a real partial brief ground
 test('Gmail only: Calendar disconnected still yields a real partial brief grounded in real email threads', async () => {
   const HEADERS = headersFor('gmail_only');
   const gmailFetch: typeof fetch = async () => jsonResponse({ threads: [{ id: 'th_1', snippet: 'Can you review the proposal by EOD?' }] });
-  const h = buildHarness({ gmailFetch, connectCalendar: false, modelReply: () => JSON.stringify({ summary: '1 email needs attention.', actionItems: [{ title: 'Reply to proposal review request', reasoning: 'Email snippet asks for EOD review', priority: 'MEDIUM' }] }) });
+  const h = buildHarness({ principalId: HEADERS['x-principal-id'], gmailFetch, connectCalendar: false, modelReply: () => JSON.stringify({ summary: '1 email needs attention.', actionItems: [{ title: 'Reply to proposal review request', reasoning: 'Email snippet asks for EOD review', priority: 'MEDIUM' }] }) });
   const res = await handleAsyncApiRequest('GET', '/api/v1/daily-brief', null, HEADERS, h.aiService, {}, h.calendarService, h.gmailService);
   const data = res.data as any;
   assert.equal(data.calendarStatus, 'DISCONNECTED');
@@ -121,7 +123,7 @@ test('Combined: both Calendar and Gmail connected and returning real data yields
   const HEADERS = headersFor('combined');
   const calendarFetch: typeof fetch = async () => jsonResponse({ items: [{ id: 'evt_1', summary: 'Standup', start: { dateTime: '2026-01-01T09:00:00Z' }, end: { dateTime: '2026-01-01T09:15:00Z' } }] });
   const gmailFetch: typeof fetch = async () => jsonResponse({ threads: [{ id: 'th_1', snippet: 'Invoice attached.' }] });
-  const h = buildHarness({ calendarFetch, gmailFetch });
+  const h = buildHarness({ principalId: HEADERS['x-principal-id'], calendarFetch, gmailFetch });
   const res = await handleAsyncApiRequest('GET', '/api/v1/daily-brief', null, HEADERS, h.aiService, {}, h.calendarService, h.gmailService);
   const data = res.data as any;
   assert.equal(data.status, 'OK');
@@ -133,7 +135,7 @@ test('Combined: both Calendar and Gmail connected and returning real data yields
 
 test('Empty data: nothing in calendar/Gmail/tasks still returns a real (not fabricated) brief', async () => {
   const HEADERS = headersFor('empty_data');
-  const h = buildHarness({ modelReply: () => JSON.stringify({ summary: 'Nothing on your calendar or in your inbox today.', actionItems: [] }) });
+  const h = buildHarness({ principalId: HEADERS['x-principal-id'], modelReply: () => JSON.stringify({ summary: 'Nothing on your calendar or in your inbox today.', actionItems: [] }) });
   const res = await handleAsyncApiRequest('GET', '/api/v1/daily-brief', null, HEADERS, h.aiService, {}, h.calendarService, h.gmailService);
   const data = res.data as any;
   assert.equal(data.status, 'OK');
@@ -147,7 +149,7 @@ test('Partial failure: a real Calendar API error (not disconnected) is reported 
   const HEADERS = headersFor('partial_failure');
   const calendarFetch: typeof fetch = async () => jsonResponse({ error: { message: 'internal' } }, 500);
   const gmailFetch: typeof fetch = async () => jsonResponse({ threads: [{ id: 'th_1', snippet: 'Hi' }] });
-  const h = buildHarness({ calendarFetch, gmailFetch });
+  const h = buildHarness({ principalId: HEADERS['x-principal-id'], calendarFetch, gmailFetch });
   const res = await handleAsyncApiRequest('GET', '/api/v1/daily-brief', null, HEADERS, h.aiService, {}, h.calendarService, h.gmailService);
   const data = res.data as any;
   assert.equal(data.calendarStatus, 'ERROR');
@@ -159,7 +161,7 @@ test('Partial failure: a real Calendar API error (not disconnected) is reported 
 test('All-provider failure: model generation unavailable is reported truthfully, never wrapped in a fake summary, and real source data is still returned', async () => {
   const HEADERS = headersFor('all_provider_failure');
   const calendarFetch: typeof fetch = async () => jsonResponse({ items: [{ id: 'evt_1', summary: 'Standup', start: { dateTime: '2026-01-01T09:00:00Z' }, end: { dateTime: '2026-01-01T09:15:00Z' } }] });
-  const h = buildHarness({ calendarFetch, modelReply: () => new Error('all providers down') });
+  const h = buildHarness({ principalId: HEADERS['x-principal-id'], calendarFetch, modelReply: () => new Error('all providers down') });
   const res = await handleAsyncApiRequest('GET', '/api/v1/daily-brief', null, HEADERS, h.aiService, {}, h.calendarService, h.gmailService);
   const data = res.data as any;
   assert.equal(data.status, 'UNAVAILABLE');
@@ -175,7 +177,7 @@ test('fallback: when the primary provider fails and a fallback succeeds, fallbac
   const primary: ModelProvider = fakeModelProvider(() => new Error('primary down'), 'nebius');
   const fallback: ModelProvider = fakeModelProvider(() => JSON.stringify({ summary: 'ok', actionItems: [] }), 'openai');
   const aiService = new AiService(new UnifiedModelRouter([primary, fallback], { info: () => {}, warn: () => {} }));
-  const h = buildHarness();
+  const h = buildHarness({ principalId: HEADERS['x-principal-id'] });
   const res = await handleAsyncApiRequest('GET', '/api/v1/daily-brief', null, HEADERS, aiService, {}, h.calendarService, h.gmailService);
   const data = res.data as any;
   assert.equal(data.status, 'OK');
@@ -185,7 +187,7 @@ test('fallback: when the primary provider fails and a fallback succeeds, fallbac
 
 test('no fake action: Daily Brief never creates or auto-approves anything — no approval is created as a side effect of generating a brief', async () => {
   const HEADERS = headersFor('no_fake_action');
-  const h = buildHarness();
+  const h = buildHarness({ principalId: HEADERS['x-principal-id'] });
   // The route reads currently-pending approvals from the real, shared
   // actionApprovals singleton (same one every other real approval flow in
   // this app uses) — not the harness's own local ActionApprovalStore
@@ -199,7 +201,7 @@ test('no fake action: Daily Brief never creates or auto-approves anything — no
 
 test('source grounding: a real pending approval is surfaced with its own real sourceId/toolId, never invented', async () => {
   const HEADERS = headersFor('source_grounding');
-  const h = buildHarness();
+  const h = buildHarness({ principalId: HEADERS['x-principal-id'] });
   sharedActionApprovals.request({ toolId: 'google_calendar.create_event', tenantId: HEADERS['x-nagex-tenant'], principalId: HEADERS['x-principal-id'], payload: { summary: 'Team Sync' } });
   const res = await handleAsyncApiRequest('GET', '/api/v1/daily-brief', null, HEADERS, h.aiService, {}, h.calendarService, h.gmailService);
   const data = res.data as any;
@@ -215,7 +217,7 @@ test('R9 persistence: a second GET the same day returns the persisted brief with
   let calendarCalls = 0;
   let modelCalls = 0;
   const calendarFetch: typeof fetch = async () => { calendarCalls++; return jsonResponse({ items: [] }); };
-  const h = buildHarness({ calendarFetch, modelReply: () => { modelCalls++; return JSON.stringify({ summary: 'ok', actionItems: [] }); } });
+  const h = buildHarness({ principalId: HEADERS['x-principal-id'], calendarFetch, modelReply: () => { modelCalls++; return JSON.stringify({ summary: 'ok', actionItems: [] }); } });
   const first = await handleAsyncApiRequest('GET', '/api/v1/daily-brief', null, HEADERS, h.aiService, {}, h.calendarService, h.gmailService);
   assert.equal((first.data as any).wasExplicitRefresh, false);
   assert.equal(calendarCalls, 1);
@@ -231,7 +233,7 @@ test('R9 refresh: POST /api/v1/daily-brief/refresh forces a real regeneration an
   const HEADERS = headersFor('refresh_forces');
   let calendarCalls = 0;
   const calendarFetch: typeof fetch = async () => { calendarCalls++; return jsonResponse({ items: [] }); };
-  const h = buildHarness({ calendarFetch });
+  const h = buildHarness({ principalId: HEADERS['x-principal-id'], calendarFetch });
   const first = await handleAsyncApiRequest('GET', '/api/v1/daily-brief', null, HEADERS, h.aiService, {}, h.calendarService, h.gmailService);
   assert.equal(calendarCalls, 1);
 
@@ -249,7 +251,7 @@ test('R9 refresh: POST /api/v1/daily-brief/refresh forces a real regeneration an
 test('R9 refresh failure: a failed refresh never overwrites the last known good persisted brief, and reports lastRefreshAttempt truthfully', async () => {
   const HEADERS = headersFor('refresh_failure_keeps_previous');
   let shouldFail = false;
-  const h = buildHarness({ modelReply: () => shouldFail ? new Error('down') : JSON.stringify({ summary: 'good brief', actionItems: [] }) });
+  const h = buildHarness({ principalId: HEADERS['x-principal-id'], modelReply: () => shouldFail ? new Error('down') : JSON.stringify({ summary: 'good brief', actionItems: [] }) });
   const good = await handleAsyncApiRequest('GET', '/api/v1/daily-brief', null, HEADERS, h.aiService, {}, h.calendarService, h.gmailService);
   assert.equal((good.data as any).status, 'OK');
   assert.equal((good.data as any).summary, 'good brief');
@@ -270,7 +272,7 @@ test('R9 duplicate-request guard: two concurrent refreshes for the same tenant+p
   const HEADERS = headersFor('duplicate_guard');
   let calendarCalls = 0;
   const calendarFetch: typeof fetch = async () => { calendarCalls++; await new Promise((r) => setTimeout(r, 20)); return jsonResponse({ items: [] }); };
-  const h = buildHarness({ calendarFetch });
+  const h = buildHarness({ principalId: HEADERS['x-principal-id'], calendarFetch });
   const [a, b] = await Promise.all([
     handleAsyncApiRequest('GET', '/api/v1/daily-brief', null, HEADERS, h.aiService, {}, h.calendarService, h.gmailService),
     handleAsyncApiRequest('GET', '/api/v1/daily-brief', null, HEADERS, h.aiService, {}, h.calendarService, h.gmailService),
@@ -281,7 +283,7 @@ test('R9 duplicate-request guard: two concurrent refreshes for the same tenant+p
 
 test('R9 history: past days are isolated — refreshing today never changes a different date\'s persisted record', async () => {
   const HEADERS = headersFor('history_isolation');
-  const h = buildHarness({ modelReply: () => JSON.stringify({ summary: 'today only', actionItems: [] }) });
+  const h = buildHarness({ principalId: HEADERS['x-principal-id'], modelReply: () => JSON.stringify({ summary: 'today only', actionItems: [] }) });
   await handleAsyncApiRequest('GET', '/api/v1/daily-brief', null, HEADERS, h.aiService, {}, h.calendarService, h.gmailService);
   await handleAsyncApiRequest('POST', '/api/v1/daily-brief/refresh', null, HEADERS, h.aiService, {}, h.calendarService, h.gmailService);
   const history = await handleAsyncApiRequest('GET', '/api/v1/daily-brief/history', null, HEADERS, h.aiService, {}, h.calendarService, h.gmailService);
@@ -294,7 +296,7 @@ test('R9 history: past days are isolated — refreshing today never changes a di
 test('R9 tenant isolation: history for one tenant/principal never includes another\'s briefs', async () => {
   const HEADERS_A = headersFor('tenant_iso_a');
   const HEADERS_B = { 'x-nagex-tenant': 'ten_other', 'x-principal-id': `usr_tenant_iso_b_${RUN_ID}` };
-  const h = buildHarness();
+  const h = buildHarness({ principalId: HEADERS_A['x-principal-id'] });
   await handleAsyncApiRequest('GET', '/api/v1/daily-brief', null, HEADERS_A, h.aiService, {}, h.calendarService, h.gmailService);
   await handleAsyncApiRequest('GET', '/api/v1/daily-brief', null, HEADERS_B, h.aiService, {}, h.calendarService, h.gmailService);
   const historyA = await handleAsyncApiRequest('GET', '/api/v1/daily-brief/history', null, HEADERS_A, h.aiService, {}, h.calendarService, h.gmailService);
@@ -334,7 +336,7 @@ test('R9 stale detection: a persisted brief older than the freshness window is r
     calendarStatus: 'CONNECTED' as const, gmailStatus: 'CONNECTED' as const, schedule: [], emails: [], summary: 'an old brief', actionItems: [], requestId: 'req_old',
   };
   sharedDailyBriefStore.save(oldRecord);
-  const h = buildHarness();
+  const h = buildHarness({ principalId: HEADERS['x-principal-id'] });
   const res = await handleAsyncApiRequest('GET', '/api/v1/daily-brief', null, HEADERS, h.aiService, {}, h.calendarService, h.gmailService);
   const data = res.data as any;
   assert.equal(data.summary, 'an old brief', 'a plain GET must serve the already-persisted record for today, not regenerate');
@@ -343,7 +345,7 @@ test('R9 stale detection: a persisted brief older than the freshness window is r
 
 test('Activity trace: daily_brief.started and daily_brief.completed are both recorded with real, traceable identifiers', async () => {
   const HEADERS = headersFor('activity_trace');
-  const h = buildHarness();
+  const h = buildHarness({ principalId: HEADERS['x-principal-id'] });
   const res = await handleAsyncApiRequest('GET', '/api/v1/daily-brief', null, HEADERS, h.aiService, {}, h.calendarService, h.gmailService);
   const requestId = (res.data as any).requestId;
   assert.ok(requestId);

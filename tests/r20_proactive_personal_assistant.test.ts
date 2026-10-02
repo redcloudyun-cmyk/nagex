@@ -96,8 +96,13 @@ test('R20/R21 P1 Personal Proactive Assistant Test Suite', async (t) => {
     const vaultStore = new VaultStore();
     const taskStore = new TaskStore({ dir: path.join(tmpDir, 'tasks') });
 
-    calendarTokenStore.save(tenantId, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: CAL_SCOPE });
-    gmailTokenStore.save(tenantId, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GMAIL_SCOPE });
+    // R24.6C — Google data is read with the REQUESTING principal's own
+    // connection (never a tenant-default fallback), so each user under test
+    // is connected explicitly.
+    for (const owner of [userIdA, userIdB]) {
+      calendarTokenStore.saveForPrincipal(tenantId, owner, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: CAL_SCOPE });
+      gmailTokenStore.saveForPrincipal(tenantId, owner, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GMAIL_SCOPE });
+    }
 
     const calendarFetch: typeof fetch = async () => jsonResponse({
       items: [{

@@ -1,5 +1,6 @@
 // R13 Identity & Account Lifecycle — Authentication HTTP Route Registrar
 import { NagexError } from '../../common/errors.js';
+import { AUTH_EMAIL_DELIVERY, devAuthTokenFields } from '../../identity/dev-auth-tokens.js';
 import type { IdentityStore } from '../../identity/identity.store.js';
 import type { IdentityTokenStore } from '../../identity/identity.tokens.js';
 import type { IdentityAuditStore } from '../../identity/identity.audit.js';
@@ -32,6 +33,12 @@ export function getSessionIdFromHeaders(headers: Record<string, string | string[
 
 const COOKIE_HEADER = (sessionId: string) => ({ 'Set-Cookie': `nagex_session=${encodeURIComponent(sessionId)}; Path=/; HttpOnly; SameSite=Lax` });
 const CLEAR_COOKIE_HEADER = { 'Set-Cookie': `nagex_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0` };
+
+// R24.6C1 — one public acknowledgement per endpoint, identical whether or not
+// the address belongs to an account (no account enumeration), and truthful:
+// a request is recorded, nothing is delivered (no mail provider exists yet).
+const RESEND_ACK = 'If an unverified account exists for this address, a new verification request was recorded. Email delivery is not configured on this server yet, so no message was sent.';
+const FORGOT_ACK = 'If an account exists for this address, a password reset request was recorded. Email delivery is not configured on this server yet, so no message was sent.';
 
 export const handleAuthRoutes: AsyncRouteRegistrar<AuthRoutesDependencies> = async (
   method,
@@ -82,8 +89,9 @@ export const handleAuthRoutes: AsyncRouteRegistrar<AuthRoutesDependencies> = asy
           status: 'PENDING_VERIFICATION',
           user: { userId: identity.userId, email: identity.email, accountState: identity.accountState },
           profile: { displayName: profile.displayName, locale: profile.locale, timezone: profile.timezone },
-          message: 'Account created. Please verify your email address.',
-          devVerificationToken: rawToken,
+          message: 'Account created. Email verification is required, but email delivery is not configured on this server yet, so no verification message was sent.',
+          delivery: AUTH_EMAIL_DELIVERY,
+          ...devAuthTokenFields('devVerificationToken', rawToken),
         },
       };
     } catch (err: any) {
@@ -134,14 +142,15 @@ export const handleAuthRoutes: AsyncRouteRegistrar<AuthRoutesDependencies> = asy
           return {
             status: 200,
             data: {
-              message: 'If an unverified account exists, verification instructions have been sent.',
-              devVerificationToken: rawToken,
+              message: RESEND_ACK,
+              delivery: AUTH_EMAIL_DELIVERY,
+              ...devAuthTokenFields('devVerificationToken', rawToken),
             },
           };
         }
       }
     }
-    return { status: 200, data: { message: 'If an unverified account exists, verification instructions have been sent.' } };
+    return { status: 200, data: { message: RESEND_ACK, delivery: AUTH_EMAIL_DELIVERY } };
   }
 
   // 4. POST /api/v1/auth/login
@@ -284,14 +293,15 @@ export const handleAuthRoutes: AsyncRouteRegistrar<AuthRoutesDependencies> = asy
           return {
             status: 200,
             data: {
-              message: 'If an account exists for this address, password reset instructions have been sent.',
-              devResetToken: rawToken,
+              message: FORGOT_ACK,
+              delivery: AUTH_EMAIL_DELIVERY,
+              ...devAuthTokenFields('devResetToken', rawToken),
             },
           };
         }
       }
     }
-    return { status: 200, data: { message: 'If an account exists for this address, password reset instructions have been sent.' } };
+    return { status: 200, data: { message: FORGOT_ACK, delivery: AUTH_EMAIL_DELIVERY } };
   }
 
   // 9. POST /api/v1/auth/reset-password

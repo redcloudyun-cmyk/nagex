@@ -8,6 +8,12 @@ import {
   handleGoogleOAuthCallbackRoutes,
 } from '../src/http/routes/google-oauth.routes.js';
 import { googleTokenStore, InMemoryGoogleOAuthTokenStore } from '../src/integrations/google/token.store.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { IdentityStore } from '../src/identity/identity.store.js';
+import { SessionStore } from '../src/sessions/session.store.js';
+import { hashPassword } from '../src/identity/identity.crypto.js';
 
 const CANARY_SECRET = 'R23_4V_CANARY_SECRET_7f4d2c11';
 
@@ -355,8 +361,17 @@ test('R23.4V Google OAuth state is bound to the initiating tenant and principal'
   process.env.GOOGLE_CLIENT_SECRET = 'test-secret';
   process.env.GOOGLE_REDIRECT_URI = 'http://localhost/oauth/callback';
 
-  const tenantId = 'ten_r234v_oauth';
-  const principalId = 'usr_r234v_owner';
+  // R24.6C — the OAuth owner is the AUTHENTICATED session identity (never a
+  // client header): a real account with a real session.
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-r234v-oauth-'));
+  const identityStore = new IdentityStore({ dir: path.join(tmpDir, 'identity') });
+  const sessionStore = new SessionStore({ dir: path.join(tmpDir, 'sessions') });
+  const { identity: ownerIdentity } = identityStore.createAccount('oauth-owner@example.com', hashPassword('password123'));
+  identityStore.transitionState(ownerIdentity.userId, 'ACTIVE');
+  const principalId = ownerIdentity.userId;
+  const tenantId = `ten_${principalId}`;
+  const ownerCookie = { cookie: `nagex_session=${sessionStore.createAuthSession(tenantId, principalId, 'MAIN').sessionId}` };
+  const authDeps = { sessionStore, identityStore };
   const audit = new AuditLogger();
 
   globalThis.fetch = async () => new Response(JSON.stringify({
@@ -372,9 +387,10 @@ test('R23.4V Google OAuth state is bound to the initiating tenant and principal'
       'GET',
       '/api/v1/oauth/google/start-url',
       null,
-      { 'x-nagex-tenant': tenantId, 'x-principal-id': principalId },
+      // Forged identity headers are present but must be ignored: the owner is the session.
+      { ...ownerCookie, 'x-nagex-tenant': 'ten_attacker', 'x-principal-id': 'usr_attacker' },
       {},
-      {},
+      authDeps,
     );
     assert.equal(started?.status, 200);
     const authorizeUrl = (started?.data as { authorizeUrl: string }).authorizeUrl;
@@ -386,13 +402,14 @@ test('R23.4V Google OAuth state is bound to the initiating tenant and principal'
       '/api/v1/oauth/google/callback',
       null,
       {
+        ...ownerCookie,
         // An attacker/spurious callback header cannot rebind the OAuth
         // continuation to another identity.
         'x-nagex-tenant': 'ten_attacker',
         'x-principal-id': 'usr_attacker',
       },
       { state: state!, code: 'auth-code' },
-      { auditLogger: audit },
+      { auditLogger: audit, ...authDeps },
     );
     assert.equal(callback?.status, 302);
 
@@ -408,9 +425,9 @@ test('R23.4V Google OAuth state is bound to the initiating tenant and principal'
       'GET',
       '/api/v1/oauth/google/callback',
       null,
-      {},
+      { ...ownerCookie },
       { state: state!, code: 'auth-code-replay' },
-      { auditLogger: audit },
+      { auditLogger: audit, ...authDeps },
     );
     assert.equal(replay?.status, 302);
     assert.match(String(replay?.redirectTo), /status=error/);

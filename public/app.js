@@ -27,8 +27,16 @@
     approvalsLoadFailed: false,
     executions: [],
     knowledge: [],
+    // R24.6B — Quick Wake / Autonomy are per-user server preferences. Until
+    // they are really loaded there is NO value (never a pre-load default):
+    // settingsPrefsStatus is LOADING | OK | SIGNED_OUT | ERROR.
     quickWakeConfig: {},
-    autonomyConfig: { level: 'L2' },
+    autonomyConfig: {},
+    settingsPrefsStatus: 'LOADING',
+    // R24.6C — the Google connection is owned by the signed-in account; for a
+    // signed-out visitor the status endpoint answers 401 and Settings says so
+    // instead of showing "not configured".
+    googleOAuthSignedOut: false,
     activeMockup: 'm01',
     pendingIntentResponse: null,
     googleOAuth: { configured: false, connected: false, scopes: [], expiresAt: null },
@@ -167,6 +175,13 @@
 
     const catTabOrg = document.getElementById('cat-tab-organization');
     if (catTabOrg) catTabOrg.style.display = isEnt ? 'inline-block' : 'none';
+
+    // R24.6D — Mobile Settings' Organization section follows the SAME rule as the
+    // Desktop tab above (enterprise functionality stays hidden outside enterprise mode).
+    const mhOrgHeading = document.getElementById('mh-org-settings-heading');
+    if (mhOrgHeading) mhOrgHeading.hidden = !isEnt;
+    const mhOrgCard = document.getElementById('mh-org-settings-card');
+    if (mhOrgCard) mhOrgCard.hidden = !isEnt;
 
     const mhOrgBtn = document.getElementById('mh-btn-org-switcher');
     if (mhOrgBtn) mhOrgBtn.style.display = isEnt ? 'inline-flex' : 'none';
@@ -635,10 +650,66 @@
     else if (state.activeTab === 'tab-approvals') renderApprovals();
     else if (state.activeTab === 'tab-executions') renderActivity();
     else if (state.activeTab === 'tab-knowledge') fetchKnowledge(knowledgeQuery);
-    else if (state.activeTab === 'tab-settings') renderSettings();
+    else if (state.activeTab === 'tab-settings') { renderSettings(); refreshMobileSettings(); }
     else if (state.activeTab === 'tab-my-space') renderMySpace();
     else if (state.activeTab === 'tab-create') renderCreate();
     else if (state.activeTab === 'tab-analyze') renderAnalyze();
+  }
+
+  function commitSettingsPrefsResult(res, apply) {
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    if (res && !res.error) {
+      apply(res);
+      state.settingsPrefsStatus = 'OK';
+      showSettingsSaveFeedback(true);
+    } else {
+      const code = res && res.error && res.error.code;
+      if (code === 'UNAUTHORIZED') state.settingsPrefsStatus = 'SIGNED_OUT';
+      showSettingsSaveFeedback(false, code === 'UNAUTHORIZED' ? t('settings.signInRequired') : t('settings.saveFailed'));
+    }
+    renderSettings();
+    refreshMobileSettings();
+  }
+
+  // R24.6B — single place that turns the two preference API results into
+  // shared state; Desktop and Mobile Settings both render from this.
+  function applySettingsPrefs(qwData, autoData) {
+    const ok = qwData && !qwData.error && autoData && !autoData.error;
+    if (ok) {
+      state.quickWakeConfig = qwData;
+      state.autonomyConfig = autoData;
+      state.settingsPrefsStatus = 'OK';
+      return;
+    }
+    state.quickWakeConfig = {};
+    state.autonomyConfig = {};
+    const unauthorized = [qwData, autoData].some((r) => r && r.error && r.error.code === 'UNAUTHORIZED');
+    state.settingsPrefsStatus = unauthorized ? 'SIGNED_OUT' : 'ERROR';
+  }
+
+  function applyGoogleStatus(data) {
+    if (data && typeof data.connected === 'boolean') {
+      state.googleOAuth = data;
+      state.googleOAuthSignedOut = false;
+    } else if (data && data.error && data.error.code === 'UNAUTHORIZED') {
+      state.googleOAuth = { configured: false, connected: false, scopes: [], expiresAt: null };
+      state.googleOAuthSignedOut = true;
+    }
+  }
+
+  function refreshMobileSettings() {
+    const view = document.getElementById('mobile-view-settings');
+    if (view && !view.hidden && typeof window.NAGEX.renderMobileSettings === 'function') window.NAGEX.renderMobileSettings({ dataOnly: true });
+  }
+
+  async function reloadSettingsPrefs() {
+    const [qwData, autoData, oauthData] = await Promise.all([apiFetch('/api/v1/quickwake/config'), apiFetch('/api/v1/autonomy/config'), apiFetch('/api/v1/oauth/google/status')]);
+    applySettingsPrefs(qwData, autoData);
+    applyGoogleStatus(oauthData);
+    // Everything session-scoped re-reads after a sign-in/out (Proactive Assistant too).
+    if (window.NAGEX.reloadProactiveAssistant) await window.NAGEX.reloadProactiveAssistant();
+    if (state.activeTab === 'tab-settings') renderSettings();
+    refreshMobileSettings();
   }
 
   async function loadAllData() {
@@ -680,9 +751,8 @@
     if (activityData && !activityData.error && Array.isArray(activityData.activities)) state.activity = activityData.activities;
     if (inboxData && Array.isArray(inboxData.items)) state.inbox = inboxData.items;
     if (convData) state.mainConversation = convData;
-    if (qwData) state.quickWakeConfig = qwData;
-    if (autoData) state.autonomyConfig = autoData;
-    if (oauthData && typeof oauthData.connected === 'boolean') state.googleOAuth = oauthData;
+    applySettingsPrefs(qwData, autoData);
+    applyGoogleStatus(oauthData);
     if (tgStatus) state.telegram.status = tgStatus;
     if (tgIdentities) state.telegram.identities = tgIdentities.identities || [];
     if (slackStatus) state.slack.status = slackStatus;
@@ -2696,6 +2766,7 @@
     });
   }
 
+  let settingsToastTimer = null;
   function showSettingsSaveFeedback(success, message) {
     const toast = document.getElementById('settings-save-feedback');
     const errBanner = document.getElementById('settings-error-banner');
@@ -2707,7 +2778,8 @@
         toast.textContent = message || t('settings.savedSuccess') || 'Saved.';
         toast.hidden = false;
         toast.className = 'settings-save-toast success';
-        setTimeout(() => { if (toast) toast.hidden = true; }, 3000);
+        if (settingsToastTimer) clearTimeout(settingsToastTimer);
+        settingsToastTimer = setTimeout(() => { if (toast) toast.hidden = true; }, 3000);
       }
     } else {
       if (toast) toast.hidden = true;
@@ -2721,6 +2793,9 @@
 
   function switchSettingsCategory(catKey, options) {
     const pushHistory = !options || options.pushHistory !== false;
+    // The Organization category is enterprise-only (same rule as the tab's visibility);
+    // an unknown/deep-linked category falls back instead of showing an empty page.
+    if ((catKey === 'organization' && !isEnterpriseUiMode()) || !document.getElementById(`cat-panel-${catKey}`)) catKey = 'connections';
     state.activeSettingsCat = catKey;
     const tabs = document.querySelectorAll('.settings-cat-tab');
     tabs.forEach((tab) => {
@@ -2733,6 +2808,8 @@
       const isMatch = panel.id === `cat-panel-${catKey}`;
       panel.hidden = !isMatch;
     });
+    // R24.6D — Desktop Account: the shared Account renderer (also used by Mobile) paints it.
+    if (catKey === 'account' && window.NAGEX && typeof window.NAGEX.renderAccountSettings === 'function') window.NAGEX.renderAccountSettings();
 
     if (!isNavigatingFromPopState && pushHistory && state.activeTab === 'tab-settings' && typeof window !== 'undefined' && window.history && window.history.pushState) {
       const targetHash = `#settings/${catKey}`;
@@ -2744,28 +2821,15 @@
     }
   }
 
+  // R24.6B — NAgex has no device/session registry that the web UI can read
+  // yet, so there is no real "connected device" to show. The former
+  // hardcoded "Local Desktop Agent … Connected · Active now" row was a
+  // fabricated status and is gone; an honest empty state is shown instead.
   function renderSettingsDevices() {
     const el = document.getElementById('settings-devices-list');
     if (!el) return;
     const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
-    const devices = [
-      {
-        name: 'Local Desktop Agent',
-        platform: 'Windows Desktop',
-        status: 'Connected device',
-        trusted: true,
-        lastSeen: 'Active now',
-      },
-    ];
-    el.innerHTML = devices.map((d) => `
-      <div class="setting-row">
-        <div class="setting-info">
-          <span class="setting-title">${escapeHtml(d.name)} (${escapeHtml(d.platform)})</span>
-          <span class="device-tag">${escapeHtml(d.status)} · ${escapeHtml(d.lastSeen)}</span>
-        </div>
-        <span class="badge-status green">${escapeHtml(t('settings.connected') || 'Connected')}</span>
-      </div>
-    `).join('');
+    el.innerHTML = `<p class="setting-sub" id="settings-devices-empty">${escapeHtml(t('settings.devicesNone'))}</p>`;
   }
 
   function renderSettings() {
@@ -2774,14 +2838,26 @@
 
     switchSettingsCategory(state.activeSettingsCat || 'connections');
 
-    if (qwContainer) {
+    const tr = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    const prefsStatus = state.settingsPrefsStatus;
+    const prefsUnavailableHtml = (status) => {
+      if (status === 'SIGNED_OUT') {
+        return `<p class="setting-sub settings-prefs-unavailable">${escapeHtml(tr('settings.signInRequired'))}</p><button class="btn-secondary" type="button" onclick="window.NAGEX.showAuthModal && window.NAGEX.showAuthModal('signin')">${escapeHtml(tr('auth.signIn'))}</button>`;
+      }
+      if (status === 'ERROR') return `<p class="setting-sub settings-prefs-unavailable">${escapeHtml(tr('settings.prefsUnavailable'))}</p>`;
+      return '';
+    };
+
+    if (qwContainer && prefsStatus !== 'OK') {
+      qwContainer.innerHTML = prefsUnavailableHtml(prefsStatus);
+    } else if (qwContainer) {
       const options = [
-        { key: 'floating_button', title: 'Floating NAgex Button', enabled: state.quickWakeConfig.floating_button },
-        { key: 'quick_settings_tile', title: 'Quick Settings Tile (Android)', enabled: state.quickWakeConfig.quick_settings_tile },
-        { key: 'lock_screen_shortcut', title: 'Lock Screen Shortcut', enabled: state.quickWakeConfig.lock_screen_shortcut },
-        { key: 'voice_wake', title: 'Voice Wake Command', enabled: state.quickWakeConfig.voice_wake },
-        { key: 'double_tap_shortcut', title: 'Double-Tap Shortcut', enabled: state.quickWakeConfig.double_tap_shortcut },
-        { key: 'fingerprint_button', title: 'Fingerprint Sensor Button', notSupported: true, label: 'Not supported on this device' },
+        { key: 'floating_button', title: tr('mobileSettings.qwFloatingButton'), enabled: state.quickWakeConfig.floating_button },
+        { key: 'quick_settings_tile', title: tr('mobileSettings.qwQuickSettingsTile'), enabled: state.quickWakeConfig.quick_settings_tile },
+        { key: 'lock_screen_shortcut', title: tr('mobileSettings.qwLockScreenShortcut'), enabled: state.quickWakeConfig.lock_screen_shortcut },
+        { key: 'voice_wake', title: tr('mobileSettings.qwVoiceWake'), enabled: state.quickWakeConfig.voice_wake },
+        { key: 'double_tap_shortcut', title: tr('mobileSettings.qwDoubleTapShortcut'), enabled: state.quickWakeConfig.double_tap_shortcut },
+        { key: 'fingerprint_button', title: tr('mobileSettings.qwFingerprintButton'), notSupported: true, label: tr('mobileSettings.qwFingerprintNotSupported') },
       ];
 
       qwContainer.innerHTML = options
@@ -2799,15 +2875,17 @@
           }
         </div>`
         )
-        .join('');
+        .join('') + (state.quickWakeConfig.runtime_effect === 'NONE' ? `<p class="setting-sub settings-pref-note" id="quickwake-pref-note">${escapeHtml(tr('settings.preferenceOnlyQuickWake'))}</p>` : '');
     }
 
-    if (autoContainer) {
+    if (autoContainer && prefsStatus !== 'OK') {
+      autoContainer.innerHTML = prefsUnavailableHtml(prefsStatus);
+    } else if (autoContainer) {
       const levels = [
-        { id: 'L0', title: 'Always ask', desc: 'Check with you before making any change.' },
-        { id: 'L1', title: 'Read and suggest', desc: 'Find information and suggest next steps without making changes.' },
-        { id: 'L2', title: 'Help with routine tasks', desc: 'Handle routine steps and check with you before sending or changing anything important.' },
-        { id: 'L3', title: 'Use trusted routines', desc: 'Run routines you have already reviewed and allowed.' },
+        { id: 'L0', title: tr('mobileSettings.autonomyL0Title'), desc: tr('mobileSettings.autonomyL0Desc') },
+        { id: 'L1', title: tr('mobileSettings.autonomyL1Title'), desc: tr('mobileSettings.autonomyL1Desc') },
+        { id: 'L2', title: tr('mobileSettings.autonomyL2Title'), desc: tr('mobileSettings.autonomyL2Desc') },
+        { id: 'L3', title: tr('mobileSettings.autonomyL3Title'), desc: tr('mobileSettings.autonomyL3Desc') },
       ];
 
       autoContainer.innerHTML = levels
@@ -2818,7 +2896,7 @@
           <div class="setting-sub">${escapeHtml(l.desc)}</div>
         </div>`
         )
-        .join('');
+        .join('') + (state.autonomyConfig.runtime_effect === 'NONE' ? `<p class="setting-sub settings-pref-note" id="autonomy-pref-note">${escapeHtml(tr('settings.preferenceOnlyAutonomy'))}</p>` : '');
     }
 
     renderSettingsConnections();
@@ -2883,6 +2961,19 @@
     const el = document.getElementById('settings-connections-status');
     if (!el) return;
 
+    if (state.googleOAuthSignedOut) {
+      el.innerHTML = `
+      <div class="setting-row">
+        <div class="setting-info">
+          <span class="setting-title">Google Calendar &amp; Gmail</span>
+          <span class="device-tag">${escapeHtml(t('settings.signInRequired') || 'Sign in to view and change these settings.')}</span>
+        </div>
+        <button class="btn-secondary" type="button" id="btn-settings-google-signin">${escapeHtml(t('auth.signIn') || 'Sign In')}</button>
+      </div>`;
+      const signIn = document.getElementById('btn-settings-google-signin');
+      if (signIn) signIn.onclick = () => { if (window.NAGEX.showAuthModal) window.NAGEX.showAuthModal('signin'); };
+      return;
+    }
     const oauth = state.googleOAuth || { configured: false, connected: false };
     const statusLabel = oauth.connected
       ? t('settings.connected') || 'Connected'
@@ -5109,48 +5200,19 @@
         renderSettingsAiModel();
       }
     },
+    // R24.6B — no optimistic mutation: state changes only from the server's
+    // confirmed response, and "Saved." is shown only after that write really
+    // persisted. On any failure the control re-renders from the unchanged
+    // state (it reverts) and a truthful error is shown.
     toggleQuickWakeOpt: async (key, value) => {
-      const prevVal = state.quickWakeConfig ? state.quickWakeConfig[key] : false;
-      if (!state.quickWakeConfig) state.quickWakeConfig = {};
-      state.quickWakeConfig[key] = value;
-      try {
-        const res = await apiFetch('/api/v1/quickwake/config', {
-          method: 'POST',
-          body: JSON.stringify({ [key]: value }),
-        });
-        if (res && !res.error) {
-          showSettingsSaveFeedback(true);
-        } else {
-          state.quickWakeConfig[key] = prevVal;
-          showSettingsSaveFeedback(false, res?.error || 'Save failed');
-        }
-      } catch (err) {
-        state.quickWakeConfig[key] = prevVal;
-        showSettingsSaveFeedback(false, err?.message || 'Save failed');
-      }
-      renderSettings();
+      const res = await apiFetch('/api/v1/quickwake/config', { method: 'POST', body: JSON.stringify({ [key]: value }) });
+      commitSettingsPrefsResult(res, (data) => { state.quickWakeConfig = data; });
     },
     selectAutonomy: async (level) => {
-      const prevLevel = state.autonomyConfig ? state.autonomyConfig.level : 'L1';
-      if (!state.autonomyConfig) state.autonomyConfig = { level: 'L1' };
-      state.autonomyConfig.level = level;
-      try {
-        const res = await apiFetch('/api/v1/autonomy/config', {
-          method: 'POST',
-          body: JSON.stringify({ level }),
-        });
-        if (res && !res.error) {
-          showSettingsSaveFeedback(true);
-        } else {
-          state.autonomyConfig.level = prevLevel;
-          showSettingsSaveFeedback(false, res?.error || 'Save failed');
-        }
-      } catch (err) {
-        state.autonomyConfig.level = prevLevel;
-        showSettingsSaveFeedback(false, err?.message || 'Save failed');
-      }
-      renderSettings();
+      const res = await apiFetch('/api/v1/autonomy/config', { method: 'POST', body: JSON.stringify({ level }) });
+      commitSettingsPrefsResult(res, (data) => { state.autonomyConfig = data; });
     },
+    reloadSettingsPrefs,
     renderSettings: () => {
       renderSettings();
     },

@@ -276,7 +276,7 @@ export class PersonalAssistantEngine {
       try {
         const endOfDay = new Date(now);
         endOfDay.setHours(23, 59, 59, 999);
-        const raw = await this.calendarService.listUpcomingEvents({ tenantId, timeMin: now.toISOString(), timeMax: endOfDay.toISOString(), maxResults: 20, requestId: reqId });
+        const raw = await this.calendarService.listUpcomingEvents({ tenantId, principalId: userId, timeMin: now.toISOString(), timeMax: endOfDay.toISOString(), maxResults: 20, requestId: reqId });
         events = raw.map((e) => ({ id: e.id, title: e.title, start_time: e.start, end_time: e.end, attendees: e.attendees }));
       } catch (error) {
         events = [];
@@ -291,7 +291,7 @@ export class PersonalAssistantEngine {
     let gmailStatus: 'CONNECTED' | 'DISCONNECTED' | 'ERROR' = 'CONNECTED';
     if (this.gmailApiService) {
       try {
-        const result = await this.gmailApiService.search({ tenantId, query: 'is:unread newer_than:3d', requestId: reqId });
+        const result = await this.gmailApiService.search({ tenantId, principalId: userId, query: 'is:unread newer_than:3d', requestId: reqId });
         unreplied_emails = result.threads.slice(0, 10).map((t) => ({ id: t.threadId, snippet: t.snippet }));
       } catch (error) {
         unreplied_emails = [];
@@ -481,7 +481,7 @@ export class PersonalAssistantEngine {
     if (this.gmailApiService && event.attendees.length > 0) {
       try {
         const attendeeQuery = event.attendees.map((a) => `from:${a} OR to:${a}`).join(' OR ');
-        const result = await this.gmailApiService.search({ tenantId, query: attendeeQuery, requestId: reqId });
+        const result = await this.gmailApiService.search({ tenantId, principalId: userId, query: attendeeQuery, requestId: reqId });
         for (const thread of result.threads.slice(0, 5)) {
           related_materials.push({ type: 'EMAIL', id: thread.threadId, title: 'Related email', summary: thread.snippet });
         }

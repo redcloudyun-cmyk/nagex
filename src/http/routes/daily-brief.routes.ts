@@ -25,6 +25,9 @@ import type { NotificationEngine } from '../../notifications/notification.engine
 import { TaskStore, type TaskTrigger, type TaskRecord } from '../../tasks/task.store.js';
 import { computeNextRunAt } from '../../tasks/task.scheduler.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
+import type { IdentityStore } from '../../identity/identity.store.js';
+import type { SessionStore } from '../../sessions/session.store.js';
+import { resolveAuthenticatedIdentity } from '../request-identity.js';
 
 function getHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
   const value = headers[name] ?? headers[name.toLowerCase()];
@@ -140,6 +143,10 @@ export interface DailyBriefRouteDeps {
   activityStore: ActivityStore;
   notificationEngine: NotificationEngine;
   taskStore: TaskStore;
+  // R24.6C — Proactive Assistant settings are personal Settings: they are
+  // owned by the authenticated session. Absent stores fail closed (401).
+  sessionStore?: SessionStore;
+  identityStore?: IdentityStore;
 }
 
 export const handleDailyBriefRoutes: AsyncRouteRegistrar<DailyBriefRouteDeps> = async (method, pathname, body, headers, query, deps): Promise<ApiResult | undefined> => {
@@ -243,8 +250,16 @@ export const handleDailyBriefRoutes: AsyncRouteRegistrar<DailyBriefRouteDeps> = 
   // route is a thin, friendlier read/upsert shape over that one
   // underlying Task — never a second persistence layer.
   if (pathname === '/api/v1/proactive-assistant/config' && (method === 'GET' || method === 'PUT')) {
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    // R24.6C — ownership comes ONLY from the authenticated session. The
+    // schedule Task is owned by (session tenant, session user), which is
+    // also exactly what the scheduler hands DailyBriefTaskRunner and what
+    // the Google token store is keyed by for that user's connection.
+    const auth = deps.sessionStore && deps.identityStore ? resolveAuthenticatedIdentity(headers, { sessionStore: deps.sessionStore, identityStore: deps.identityStore }) : null;
+    if (!auth) {
+      return { status: 401, data: { error: { code: 'UNAUTHORIZED', message: 'Sign in to view or change the Proactive Assistant.' } } };
+    }
+    const tenantId = auth.tenantId;
+    const principalId = auth.principalId;
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_proactive_${crypto.randomUUID()}`;
 
     const findExisting = () => taskStore.list(tenantId, principalId).find((t) => t.automationKind === 'DAILY_BRIEF');

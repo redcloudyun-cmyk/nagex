@@ -4198,6 +4198,107 @@
       "deterministic": true,
       "assertionIntent": "verify plans are persisted and isolated by tenant",
       "notes": ""
+    },
+    "r24_6b_settings_persistence": {
+      "milestone": "R24.6B",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "Settings persistence and truthfulness behavior guard: Quick Wake/Autonomy are session-authenticated, validated, per-user, durable (store restart AND a real HTTP server process restart), isolated across users/tenants, and honest about having no runtime effect; a failed durable write is never reported as saved; account locale has one canonical form (en|ko); the connections compatibility path cannot diverge from the Google OAuth source of truth.",
+      "notes": "Real route registrars and real IdentityStore/SessionStore over isolated tmp directories; the restart test spawns a second real server process. sourceImplementationAssertions covers one tripwire that scans src/ for consumers of getPreferences() so runtime_effect: NONE cannot silently become stale."
+    },
+    "r24_6d_settings_surface": {
+      "milestone": "R24.6D",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "Settings surface source/markup contract: Desktop Account container shares the one Account renderer with Mobile (prefixed ids, no duplicate ids), Cancel Deletion has a handler, one enterprise gate controls Organization on Desktop and Mobile, Desktop Quick Wake/Autonomy labels use the shared i18n keys, new strings resolve in EN and KR.",
+      "notes": "Reads production source/markup; the behavior is certified by r24_6d_settings_surface_browser."
+    },
+    "r24_6d_settings_surface_browser": {
+      "milestone": "R24.6D",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "real-Chromium Settings completion: Desktop Account reachable and sharing state with Mobile (no duplicate ids), safe profile edit persisting across reload, password change / session revoke / log-out-all / disable / delete+cancel on DISPOSABLE accounts only, one enterprise-visibility rule for Organization on Desktop and Mobile, Korean Settings with no hardcoded-English leftovers (real language toggles), truthful persisted Quick Wake/Autonomy/Devices/Connections state, Mobile 390x844 parity and no overflow, and security regressions at zero.",
+      "notes": "Disposable accounts created through the production stores; no real user, no real Google connection.",
+      "writesRepositoryArtifacts": false
+    },
+    "r24_6c1_dev_auth_token_containment": {
+      "milestone": "R24.6C1",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Raw authentication-token containment behavior guard: signup, resend-verification, forgot-password and email-change expose NO raw verification/reset token (nor alias, nested copy or secret-bearing URL) unless NAGEX_EXPOSE_DEV_AUTH_TOKENS is exactly '1'; absent/invalid values and NODE_ENV never enable it; forgot-password/resend answer identically for existing and unknown addresses (no account enumeration); responses are truthful that email delivery is NOT_CONFIGURED; the explicit opt-in keeps the dev workflow working; a real server process never logs or persists a raw token.",
+      "notes": "Controls the flag itself per test and restores it. Real route registrars over isolated tmp stores plus real server processes; no real email is sent."
+    },
+    "r24_6c1_auth_token_browser": {
+      "milestone": "R24.6C1",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "user-visible auth containment in real Chromium (Desktop 1440x900, Mobile 390x844) with the dev flag OFF: signup shows a truthful 'delivery not configured' state (no token field, no fake email-sent or success), forgot-password gives identical acknowledgements for existing and unknown addresses and offers no reset form, and no raw token appears in the DOM, inputs, browser storage, console or auth network responses.",
+      "notes": "Disposable accounts only; nothing destructive.",
+      "writesRepositoryArtifacts": false
+    },
+    "r24_6c_settings_identity_boundary": {
+      "milestone": "R24.6C",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Settings identity boundary behavior guard: personal Settings routes (Proactive Assistant, memory settings, Google OAuth connect/callback/status/disconnect, Connected Apps) take ownership ONLY from the authenticated server-side session; forged X-Principal-Id/X-NAgex-Tenant headers can neither authenticate nor override ownership (cross-user and cross-tenant); the OAuth callback is correlated by a server-held one-time state AND the same session; the Daily Brief (manual and scheduled) resolves only the authenticated user's own Google token; /connections reads the canonical Google token store; plus a real server-process restart check.",
+      "notes": "Real route registrars/production entry points with deterministic fake credentials and a stubbed network; no real Google account is touched. The restart test spawns a second real server process."
+    },
+    "r24_6b_settings_real_browser": {
+      "milestone": "R24.6B",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "user-visible Settings behavior in a real Playwright Chromium browser: persisted Quick Wake/Autonomy across reload and a fresh context, truthful Saved/failure feedback (forced write failure), signed-out state, mobile cold-load truthfulness at 390x844, Proactive Assistant draft preservation, no fabricated device, no duplicate Settings ids, canonical account locale, no overflow/raw i18n keys/undersized touch targets.",
+      "notes": "Only safe deterministic settings and throwaway accounts are used; no Google connect/disconnect and no destructive account operations.",
+      "writesRepositoryArtifacts": false
     }
   }
 }

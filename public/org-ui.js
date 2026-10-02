@@ -345,8 +345,8 @@
     if (!orgState.currentOrg) {
       container.innerHTML = `
         <div class="account-card">
-          <h4>No Organization Selected</h4>
-          <p class="text-sub">Create or select an organization to manage members, workspaces, and settings.</p>
+          <h4>${escapeHtml(t('org.noOrgSelected', 'No Organization Selected'))}</h4>
+          <p class="text-sub">${escapeHtml(t('org.noOrgSelectedDesc', 'Create or select an organization to manage members, workspaces, and settings.'))}</p>
           <button class="btn btn-primary" id="btn-settings-create-org">+ ${escapeHtml(t('org.createOrg', 'Create Organization'))}</button>
         </div>`;
       document.getElementById('btn-settings-create-org')?.addEventListener('click', showCreateOrgModal);

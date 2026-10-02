@@ -83,7 +83,7 @@ export class DemoGmailSource implements GmailSearchSource {
     this.fixture = loadFixture(fixturePath);
   }
 
-  public async search(_input: { tenantId: string; query: string; requestId: string }): Promise<{
+  public async search(_input: { tenantId: string; principalId?: string; query: string; requestId: string }): Promise<{
     threads: Array<{ threadId: string; snippet: string; historyId: string | null }>;
   }> {
     return { threads: [{ threadId: this.fixture.email.id, snippet: this.fixture.email.summary, historyId: null }] };

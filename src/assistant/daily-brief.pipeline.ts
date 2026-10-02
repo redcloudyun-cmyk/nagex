@@ -68,7 +68,7 @@ export async function generateDailyBriefOnce(
       const now = new Date();
       const endOfDay = new Date(now);
       endOfDay.setHours(23, 59, 59, 999);
-      schedule = await calendarService.listUpcomingEvents({ tenantId, timeMin: now.toISOString(), timeMax: endOfDay.toISOString(), maxResults: 20, requestId });
+      schedule = await calendarService.listUpcomingEvents({ tenantId, principalId, timeMin: now.toISOString(), timeMax: endOfDay.toISOString(), maxResults: 20, requestId });
     } catch (error) {
       schedule = [];
       calendarStatus = error instanceof NagexError && error.code === 'GOOGLE_CALENDAR_DISCONNECTED' ? 'DISCONNECTED' : 'ERROR';
@@ -84,7 +84,7 @@ export async function generateDailyBriefOnce(
     let emails: Array<{ threadId: string; snippet: string; historyId: string | null }> = [];
     let gmailStatus: 'CONNECTED' | 'DISCONNECTED' | 'ERROR' = 'CONNECTED';
     try {
-      const result = await gmailApiService.search({ tenantId, query: 'is:unread newer_than:3d', requestId });
+      const result = await gmailApiService.search({ tenantId, principalId, query: 'is:unread newer_than:3d', requestId });
       emails = result.threads.slice(0, 10);
     } catch (error) {
       emails = [];

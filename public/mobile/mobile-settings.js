@@ -41,10 +41,42 @@
     { key: 'double_tap_shortcut', labelKey: 'mobileSettings.qwDoubleTapShortcut', fallback: 'Double-Tap Shortcut' },
   ];
 
+  // R24.6B — Quick Wake / Autonomy render ONLY from the shared, server-
+  // loaded state (state.quickWakeConfig / autonomyConfig / settingsPrefsStatus
+  // — the same state Desktop renders from). Before the data is loaded nothing
+  // is shown (never a default value); signed-out / failed loads say so. The
+  // bridge in app.js owns the write, the "Saved."/error result, and the
+  // re-render of both Settings views, so no local refetch or optimistic
+  // mutation happens here.
+  function prefsUnavailableHtml(status) {
+    if (status === 'SIGNED_OUT') {
+      return `
+      <div class="mh-settings-row">
+        <div class="mh-settings-row-body"><span class="mh-settings-row-title">${escapeHtml(t('settings.signInRequired', 'Sign in to view and change these settings.'))}</span></div>
+        <button class="mh-settings-action-btn" type="button" data-prefs-signin>${escapeHtml(t('auth.signIn', 'Sign In'))}</button>
+      </div>`;
+    }
+    if (status === 'ERROR') {
+      return `<div class="mh-settings-row"><span class="mh-settings-row-title">${escapeHtml(t('settings.prefsUnavailable', 'These settings could not be loaded. Try again.'))}</span></div>`;
+    }
+    return '';
+  }
+
+  function bindPrefsSignIn(el) {
+    const btn = el.querySelector('[data-prefs-signin]');
+    if (btn) btn.addEventListener('click', () => { if (window.NAGEX.showAuthModal) window.NAGEX.showAuthModal('signin'); });
+  }
+
   function renderQuickWake() {
     const el = document.getElementById('mh-quickwake-list');
     if (!el || !window.NAGEX.getState) return;
-    const config = window.NAGEX.getState().quickWakeConfig || {};
+    const st = window.NAGEX.getState();
+    if (st.settingsPrefsStatus !== 'OK') {
+      el.innerHTML = prefsUnavailableHtml(st.settingsPrefsStatus);
+      bindPrefsSignIn(el);
+      return;
+    }
+    const config = st.quickWakeConfig || {};
 
     const rows = QUICKWAKE_OPTIONS.map((opt) => `
       <div class="mh-settings-row">
@@ -61,22 +93,15 @@
         <span class="mh-settings-tag">${escapeHtml(t('mobileSettings.qwFingerprintNotSupported', 'Not supported on this device'))}</span>
       </div>`;
 
-    el.innerHTML = rows + fingerprintRow;
+    const note = config.runtime_effect === 'NONE'
+      ? `<div class="mh-settings-row"><span class="mh-row-detail" id="mh-quickwake-pref-note">${escapeHtml(t('settings.preferenceOnlyQuickWake', 'Saved as your preference. No NAgex app applies these shortcuts yet.'))}</span></div>`
+      : '';
+
+    el.innerHTML = rows + fingerprintRow + note;
 
     el.querySelectorAll('input[data-qw-key]').forEach((input) => {
-      input.addEventListener('change', async (e) => {
-        const key = e.target.getAttribute('data-qw-key');
-        const checked = e.target.checked;
-        // Reuses the exact real bridge (app.js) — same POST /api/v1/
-        // quickwake/config, same optimistic local mutation Desktop's own
-        // toggle already does. Then re-fetches the real, confirmed server
-        // state and re-renders from that — never trusting the optimistic
-        // mutation alone as "success" (directive §28: a failed change must
-        // not look like it stuck).
-        await window.NAGEX.toggleQuickWakeOpt(key, checked);
-        const fresh = await window.NAGEX.apiFetch('/api/v1/quickwake/config');
-        if (fresh) window.NAGEX.getState().quickWakeConfig = fresh;
-        renderQuickWake();
+      input.addEventListener('change', (e) => {
+        window.NAGEX.toggleQuickWakeOpt(e.target.getAttribute('data-qw-key'), e.target.checked);
       });
     });
   }
@@ -96,23 +121,27 @@
   function renderAutonomy() {
     const el = document.getElementById('mh-autonomy-list');
     if (!el || !window.NAGEX.getState) return;
-    const current = (window.NAGEX.getState().autonomyConfig || {}).level;
+    const st = window.NAGEX.getState();
+    if (st.settingsPrefsStatus !== 'OK') {
+      el.innerHTML = prefsUnavailableHtml(st.settingsPrefsStatus);
+      bindPrefsSignIn(el);
+      return;
+    }
+    const current = (st.autonomyConfig || {}).level;
+
+    const note = (st.autonomyConfig || {}).runtime_effect === 'NONE'
+      ? `<div class="mh-settings-row"><span class="mh-row-detail" id="mh-autonomy-pref-note">${escapeHtml(t('settings.preferenceOnlyAutonomy', 'Saved as your preference. It does not change how NAgex acts yet — consequential actions still always need your approval.'))}</span></div>`
+      : '';
 
     el.innerHTML = AUTONOMY_LEVELS.map((lvl) => `
       <button class="mh-autonomy-card ${current === lvl.id ? 'selected' : ''}" data-autonomy-id="${lvl.id}">
         <span class="mh-settings-row-title">${escapeHtml(t(lvl.titleKey, lvl.titleFallback))}</span>
         <span class="mh-row-detail">${escapeHtml(t(lvl.descKey, lvl.descFallback))}</span>
-      </button>`).join('');
+      </button>`).join('') + note;
 
     el.querySelectorAll('[data-autonomy-id]').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        const level = btn.getAttribute('data-autonomy-id');
-        // Same real bridge (app.js) as Desktop; same truthful re-fetch
-        // pattern as Quick Wake above.
-        await window.NAGEX.selectAutonomy(level);
-        const fresh = await window.NAGEX.apiFetch('/api/v1/autonomy/config');
-        if (fresh) window.NAGEX.getState().autonomyConfig = fresh;
-        renderAutonomy();
+      btn.addEventListener('click', () => {
+        window.NAGEX.selectAutonomy(btn.getAttribute('data-autonomy-id'));
       });
     });
   }
@@ -132,6 +161,11 @@
   function renderConnections() {
     const el = document.getElementById('mh-connections-row');
     if (!el || !window.NAGEX.getState) return;
+    if (window.NAGEX.getState().googleOAuthSignedOut) {
+      el.innerHTML = prefsUnavailableHtml('SIGNED_OUT');
+      bindPrefsSignIn(el);
+      return;
+    }
     const oauth = window.NAGEX.getState().googleOAuth || { configured: false, connected: false, scopes: [] };
     const scopes = oauth.scopes || [];
 
@@ -237,18 +271,26 @@
     });
   }
 
-  function renderMobileSettings() {
+  // opts.dataOnly: re-render only the sections driven by loaded app state
+  // (Quick Wake, Autonomy, Connections, AI model). Account, Organization and
+  // Proactive Assistant own in-progress form input, so a data refresh (boot
+  // load, polling, a Settings write) must never repaint them.
+  function renderMobileSettings(opts) {
     if (!document.getElementById('mobile-view-settings')) return;
-    initLangToggle();
-    initAdvancedToggle();
-    // No fetch of its own is needed — state.quickWakeConfig/autonomyConfig/
-    // googleOAuth are all already loaded at boot by app.js's loadAllData(),
-    // exactly matching Desktop's own renderSettings(), which also makes no
-    // fresh fetch (directive §28's "shared boot state" framing).
+    const dataOnly = Boolean(opts && opts.dataOnly);
+    if (!dataOnly) {
+      initLangToggle();
+      initAdvancedToggle();
+    }
+    // No fetch of its own: state.quickWakeConfig/autonomyConfig/googleOAuth
+    // come from app.js's loadAllData(). R24.6B — app.js re-invokes this
+    // after loadAllData()/checkSession()/every Settings write, so a cold load
+    // never leaves pre-load values on screen.
     renderQuickWake();
     renderAutonomy();
     renderConnections();
     renderAiModel();
+    if (dataOnly) return;
     if (window.NAGEX.renderAccountSettings) window.NAGEX.renderAccountSettings();
     if (window.NAGEX_ORG_UI && window.NAGEX_ORG_UI.renderOrgSettingsPanel) window.NAGEX_ORG_UI.renderOrgSettingsPanel();
     if (window.NAGEX.renderProactiveAssistant) window.NAGEX.renderProactiveAssistant();

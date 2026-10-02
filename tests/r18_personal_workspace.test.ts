@@ -26,6 +26,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import { createServerInstance } from '../src/server_web.js';
+import { enableDevAuthTokensForFile } from './_dev_auth_tokens.js';
+
+// R24.6C1 — this file legitimately needs raw dev tokens to drive signup/verify; opt in explicitly (restored after the file).
+enableDevAuthTokensForFile();
 
 async function withServer(run: (origin: string) => Promise<void>): Promise<void> {
   const instance = createServerInstance();
@@ -255,12 +259,29 @@ test('6. Today\'s Brief & Hallucination Prevention', async () => {
   });
 });
 
+// R24.6C — Connected Apps belong to the authenticated account: the session,
+// never the X-Principal-Id/X-NAgex-Tenant headers, decides whose connections
+// are listed/disconnected. The same list/credential-protection/disconnect
+// flow is asserted, now as a signed-in user.
 test('7. Connected Apps status, credential protection & disconnect flow', async () => {
   await withServer(async (origin) => {
+    const email = `r18_conn_${Date.now()}@example.com`;
+    const ip = { 'X-Forwarded-For': `10.18.7.${Math.floor(Math.random() * 200) + 1}` };
+    const post = (p: string, body: unknown, extra: Record<string, string> = {}) =>
+      fetch(`${origin}${p}`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...ip, ...extra }, body: JSON.stringify(body) });
+    const signup = await post('/api/v1/auth/signup', { email, password: 'Password-123!', passwordConfirmation: 'Password-123!', termsAccepted: true, privacyAccepted: true });
+    assert.equal(signup.status, 201);
+    await post('/api/v1/auth/verify-email', { token: ((await signup.json()) as any).devVerificationToken });
+    const login = await post('/api/v1/auth/login', { email, password: 'Password-123!' });
+    assert.equal(login.status, 200);
+    const cookie = (login.headers.getSetCookie?.() ?? []).map((c) => c.split(';')[0]).join('; ');
+    const sessionHeaders = { 'Content-Type': 'application/json', Cookie: cookie, 'X-Forwarded-For': ip['X-Forwarded-For'] };
+
+    // Header identity alone is not authentication for Connected Apps.
+    assert.equal((await fetch(`${origin}/api/v1/connections`, { headers: defaultHeaders })).status, 401);
+
     // 7a. List Connections
-    const connRes = await fetch(`${origin}/api/v1/connections`, {
-      headers: defaultHeaders,
-    });
+    const connRes = await fetch(`${origin}/api/v1/connections`, { headers: sessionHeaders });
     assert.equal(connRes.status, 200);
     const connData = (await connRes.json()) as any;
     assert.ok(Array.isArray(connData.connections));
@@ -273,7 +294,7 @@ test('7. Connected Apps status, credential protection & disconnect flow', async 
     // 7b. Disconnect Flow
     const disconnRes = await fetch(`${origin}/api/v1/connections/google/disconnect`, {
       method: 'POST',
-      headers: defaultHeaders,
+      headers: sessionHeaders,
     });
     assert.equal(disconnRes.status, 200);
     const disconnData = (await disconnRes.json()) as any;

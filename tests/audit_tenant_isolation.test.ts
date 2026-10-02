@@ -147,16 +147,37 @@ test('7. getRecentLogs(limit) is unchanged: still global, newest-first, unscoped
 // ── 8: real HTTP route — production wiring, not just the class ──────────
 
 test('8. GET /api/v1/audit/logs is tenant-scoped end to end through the real production route', async () => {
-  const tenantA = 'ten_audit_accept_a';
-  const tenantB = 'ten_audit_accept_b';
+  // R24.6C — Google disconnect is owned by the authenticated session, so the
+  // two tenants are two real accounts' personal tenants (ten_<userId>).
+  const os = await import('node:os');
+  const nodePath = await import('node:path');
+  const nodeFs = await import('node:fs');
+  const { IdentityStore } = await import('../src/identity/identity.store.js');
+  const { SessionStore } = await import('../src/sessions/session.store.js');
+  const { hashPassword } = await import('../src/identity/identity.crypto.js');
+  const tmpDir = nodeFs.mkdtempSync(nodePath.join(os.tmpdir(), 'nagex-audit-iso-'));
+  const identityStore = new IdentityStore({ dir: nodePath.join(tmpDir, 'identity') });
+  const sessionStore = new SessionStore({ dir: nodePath.join(tmpDir, 'sessions') });
+  const makeUser = (email: string) => {
+    const { identity } = identityStore.createAccount(email, hashPassword('password123'));
+    identityStore.transitionState(identity.userId, 'ACTIVE');
+    const tenantId = `ten_${identity.userId}`;
+    return { userId: identity.userId, tenantId, cookie: { cookie: `nagex_session=${sessionStore.createAuthSession(tenantId, identity.userId, 'MAIN').sessionId}` } };
+  };
+  const userA = makeUser('audit-a@example.com');
+  const userB = makeUser('audit-b@example.com');
+  const tenantA = userA.tenantId;
+  const tenantB = userB.tenantId;
+  const disconnect = (u: { cookie: { cookie: string } }) =>
+    handleAsyncApiRequest('POST', '/api/v1/oauth/google/disconnect', null, u.cookie, undefined, {}, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, { identityStore, sessionStore });
 
   // A real, safe, already-existing action that emits a real audit event
   // (oauth:google_disconnected) — never a raw file write, never a
   // destructive action. Both synthetic tenants have no real Google
   // connection, so revoke() is a harmless no-op beyond logging.
-  const disconnectA = await handleAsyncApiRequest('POST', '/api/v1/oauth/google/disconnect', null, { 'x-nagex-tenant': tenantA, 'x-principal-id': 'usr_audit_shared' });
+  const disconnectA = await disconnect(userA);
   assert.equal(disconnectA.status, 200);
-  const disconnectB = await handleAsyncApiRequest('POST', '/api/v1/oauth/google/disconnect', null, { 'x-nagex-tenant': tenantB, 'x-principal-id': 'usr_audit_shared' });
+  const disconnectB = await disconnect(userB);
   assert.equal(disconnectB.status, 200);
 
   const resultA = handleApiRequest('GET', '/api/v1/audit/logs', null, { 'x-nagex-tenant': tenantA, 'x-principal-id': 'usr_audit_shared' });

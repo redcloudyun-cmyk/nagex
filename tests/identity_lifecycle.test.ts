@@ -10,6 +10,10 @@ import { IdentityStore } from '../src/identity/identity.store.js';
 import { IdentityTokenStore } from '../src/identity/identity.tokens.js';
 import { IdentityAuditStore } from '../src/identity/identity.audit.js';
 import { SessionStore } from '../src/sessions/session.store.js';
+import { enableDevAuthTokensForFile } from './_dev_auth_tokens.js';
+
+// R24.6C1 — this file legitimately needs raw dev tokens to drive signup/verify; opt in explicitly (restored after the file).
+enableDevAuthTokensForFile();
 
 function createTestApp() {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-identity-test-'));
@@ -287,7 +291,9 @@ test('R13-IDENTITY-007: Profile Update and Email Change Flow', async () => {
   }, { cookie: `nagex_session=${sess.sessionId}` }, {}, deps);
   assert.equal(profileRes?.status, 200);
   assert.equal((profileRes?.data as any).profile.displayName, 'Alex Smith');
-  assert.equal((profileRes?.data as any).profile.locale, 'KR');
+  // R24.6B — canonical account locale is 'en' | 'ko' (same convention as the
+  // runtime i18n); the legacy 'KR' alias is accepted but stored canonically.
+  assert.equal((profileRes?.data as any).profile.locale, 'ko');
 
   // Request email change
   const emailReqRes = await handleAccountRoutes('POST', '/api/v1/account/email/change-request', {

@@ -26,6 +26,10 @@ import type { AddressInfo } from 'node:net';
 import { chromium, type Browser, type Page } from 'playwright';
 import { createServerInstance } from '../src/server_web.js';
 import { startTestIdp } from './_enterprise_identity_test_idp.js';
+import { enableDevAuthTokensForFile } from './_dev_auth_tokens.js';
+
+// R24.6C1 — this file legitimately needs raw dev tokens to drive signup/verify; opt in explicitly (restored after the file).
+enableDevAuthTokensForFile();
 
 process.env.NAGEX_TOKEN_ENCRYPTION_KEY = crypto.randomBytes(32).toString('base64');
 

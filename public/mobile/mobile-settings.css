@@ -214,3 +214,31 @@
 .mh-settings-nav-row-indent {
   padding-left: 14px;
 }
+
+/* ── R24.6B — Settings touch targets (390x844) ───────────────────────
+   ID-scoped under #mobile-view-settings so the shared classes Desktop also
+   uses (.mh-toggle-switch / .pa-* / .mh-input in the Desktop Notifications
+   panel) are untouched. Visual size of the toggle is unchanged; only its
+   hit area grows to 44px. */
+#mobile-view-settings .mh-toggle-switch { width: 52px; height: 44px; }
+#mobile-view-settings .mh-toggle-switch .mh-toggle-slider { inset: 10px 6px; }
+#mobile-view-settings .mh-settings-action-btn,
+#mobile-view-settings .mh-settings-nav-row,
+#mobile-view-settings .mh-settings-advanced-toggle,
+#mobile-view-settings .pa-save-btn,
+#mobile-view-settings .pa-time-input,
+#mobile-view-settings .pa-timezone-select,
+#mobile-view-settings .mh-input,
+#mobile-view-settings .mh-select { min-height: 44px; }
+#mobile-view-settings .pa-weekday-chip { min-height: 44px; min-width: 44px; }
+#mobile-view-settings #btn-settings-create-org {
+  min-height: 44px;
+  padding: 0 14px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--nagex-accent-primary);
+  background: var(--nagex-accent-soft);
+  border: none;
+  border-radius: 7px;
+  cursor: pointer;
+}

@@ -245,23 +245,49 @@ test('25. GET /api/v1/tools and GET /api/v1/knowledge still return real, non-emp
   assert.equal((afterCleanup.data as { documents: unknown[] }).documents.length, 0);
 });
 
-test('26. GET/POST /api/v1/quickwake/config round-trips through the real handleApiRequest entry point', () => {
-  const before = handleApiRequest('GET', '/api/v1/quickwake/config', null, {});
+// R24.6B — tests 26/27 used to round-trip process-global, unauthenticated
+// state through the sync handleApiRequest. Quick Wake / Autonomy are now
+// per-user session-authenticated preferences served by the async entry point;
+// the same "real entry point round trip" is asserted, plus the auth contract.
+async function settingsSessionFixture() {
+  const os = await import('node:os');
+  const nodePath = await import('node:path');
+  const { IdentityStore } = await import('../src/identity/identity.store.js');
+  const { SessionStore } = await import('../src/sessions/session.store.js');
+  const { hashPassword } = await import('../src/identity/identity.crypto.js');
+  const tmpDir = fs.mkdtempSync(nodePath.join(os.tmpdir(), 'nagex-route-mod-settings-'));
+  const identityStore = new IdentityStore({ dir: nodePath.join(tmpDir, 'identity') });
+  const sessionStore = new SessionStore({ dir: nodePath.join(tmpDir, 'sessions') });
+  const { identity } = identityStore.createAccount('routemod@example.com', hashPassword('password123'));
+  identityStore.transitionState(identity.userId, 'ACTIVE');
+  const session = sessionStore.createAuthSession(`ten_${identity.userId}`, identity.userId, 'MAIN');
+  const call = (method: string, p: string, body: Record<string, unknown> | null, headers: Record<string, string>) =>
+    handleAsyncApiRequest(method, p, body, headers, undefined, {}, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, { identityStore, sessionStore });
+  return { call, cookie: { cookie: `nagex_session=${session.sessionId}` } };
+}
+
+test('26. GET/POST /api/v1/quickwake/config round-trips through the real handleAsyncApiRequest entry point (authenticated session only)', async () => {
+  const { call, cookie } = await settingsSessionFixture();
+  assert.equal((await call('GET', '/api/v1/quickwake/config', null, {})).status, 401);
+  assert.equal((await call('POST', '/api/v1/quickwake/config', { voice_wake: true }, {})).status, 401);
+  const before = await call('GET', '/api/v1/quickwake/config', null, cookie);
   assert.equal(before.status, 200);
-  const updated = handleApiRequest('POST', '/api/v1/quickwake/config', { voice_wake: true }, {});
+  const updated = await call('POST', '/api/v1/quickwake/config', { voice_wake: true }, cookie);
   assert.equal(updated.status, 200);
   assert.equal((updated.data as { voice_wake: boolean }).voice_wake, true);
-  // restore, since this is real shared in-memory state used by other tests/processes
-  handleApiRequest('POST', '/api/v1/quickwake/config', { voice_wake: false }, {});
+  assert.equal(((await call('GET', '/api/v1/quickwake/config', null, cookie)).data as { voice_wake: boolean }).voice_wake, true);
 });
 
-test('27. GET/POST /api/v1/autonomy/config round-trips through the real handleApiRequest entry point', () => {
-  const before = handleApiRequest('GET', '/api/v1/autonomy/config', null, {}) as { data: { level: string } };
-  const originalLevel = before.data.level;
-  const updated = handleApiRequest('POST', '/api/v1/autonomy/config', { level: 'L1' }, {});
+test('27. GET/POST /api/v1/autonomy/config round-trips through the real handleAsyncApiRequest entry point (authenticated session only)', async () => {
+  const { call, cookie } = await settingsSessionFixture();
+  assert.equal((await call('GET', '/api/v1/autonomy/config', null, {})).status, 401);
+  assert.equal((await call('POST', '/api/v1/autonomy/config', { level: 'L1' }, {})).status, 401);
+  const before = (await call('GET', '/api/v1/autonomy/config', null, cookie)) as { status: number; data: { level: string } };
+  assert.equal(before.status, 200);
+  const updated = await call('POST', '/api/v1/autonomy/config', { level: 'L1' }, cookie);
   assert.equal(updated.status, 200);
   assert.equal((updated.data as { level: string }).level, 'L1');
-  handleApiRequest('POST', '/api/v1/autonomy/config', { level: originalLevel }, {});
+  assert.equal(((await call('GET', '/api/v1/autonomy/config', null, cookie)).data as { level: string }).level, 'L1');
 });
 
 test('28. GET /api/v1/notifications through the real handleAsyncApiRequest entry point still works after modularization', async () => {
@@ -544,13 +570,30 @@ test('53. POST /api/v1/tools/browser/navigate without browserSessionId returns t
   assert.equal((result.data as { error: { code: string } }).error.code, 'BROWSER_SESSION_ID_REQUIRED');
 });
 
-test('54. GET /api/v1/oauth/google/start-url through the real handleApiRequest entry point returns the real, non-configured 503 in this test environment (never a fabricated authorize URL)', () => {
-  const result = handleApiRequest('GET', '/api/v1/oauth/google/start-url', null, {});
+// R24.6C — the module-level (production) stores, so a real session works
+// through BOTH real entry points (sync handleApiRequest and async).
+async function productionSessionFixture(email: string) {
+  const server = await import('../src/server_web.js');
+  const { hashPassword } = await import('../src/identity/identity.crypto.js');
+  const { identity } = server.identityStore.createAccount(email, hashPassword('password123'));
+  server.identityStore.transitionState(identity.userId, 'ACTIVE');
+  const tenantId = `ten_${identity.userId}`;
+  return { userId: identity.userId, tenantId, cookie: { cookie: `nagex_session=${server.sessionStore.createAuthSession(tenantId, identity.userId, 'MAIN').sessionId}` } };
+}
+
+test('54. GET /api/v1/oauth/google/start-url through the real handleApiRequest entry point requires a session, then returns the real, non-configured 503 in this test environment (never a fabricated authorize URL)', async () => {
+  // R24.6C — the connection owner is the session; headers/anonymous callers get 401.
+  assert.equal(handleApiRequest('GET', '/api/v1/oauth/google/start-url', null, {}).status, 401);
+  assert.equal(handleApiRequest('GET', '/api/v1/oauth/google/start-url', null, { 'x-principal-id': 'usr_admin_001', 'x-nagex-tenant': 'ten_production_01' }).status, 401);
+  const user = await productionSessionFixture(`r54_${Date.now()}@example.com`);
+  const result = handleApiRequest('GET', '/api/v1/oauth/google/start-url', null, user.cookie);
   assert.ok(result.status === 503 || result.status === 200, 'a real outcome either way, never a match failure');
 });
 
-test('55. GET /api/v1/oauth/google/status through the real handleAsyncApiRequest entry point still works after modularization', async () => {
-  const result = await handleAsyncApiRequest('GET', '/api/v1/oauth/google/status', null, { 'x-nagex-tenant': 'ten_r102d_i4_test' });
+test('55. GET /api/v1/oauth/google/status through the real handleAsyncApiRequest entry point still works after modularization (session-owned)', async () => {
+  assert.equal((await handleAsyncApiRequest('GET', '/api/v1/oauth/google/status', null, { 'x-nagex-tenant': 'ten_r102d_i4_test' })).status, 401);
+  const user = await productionSessionFixture(`r55_${Date.now()}@example.com`);
+  const result = await handleAsyncApiRequest('GET', '/api/v1/oauth/google/status', null, user.cookie);
   assert.equal(result.status, 200);
   assert.equal(typeof (result.data as { configured: boolean }).configured, 'boolean');
 });
@@ -748,7 +791,10 @@ test('73. GET /api/v1/daily-brief and GET /api/v1/daily-brief/history through th
 });
 
 test('74. GET /api/v1/proactive-assistant/config through the real handleAsyncApiRequest entry point returns the real, unconfigured-by-default state (never fabricated enabled=true)', async () => {
-  const result = await handleAsyncApiRequest('GET', '/api/v1/proactive-assistant/config', null, { 'x-nagex-tenant': 'ten_r102d_i5_fresh_test', 'x-principal-id': 'usr_r102d_i5_fresh_test' });
+  // R24.6C — Proactive Assistant settings are session-owned: header identity is 401.
+  assert.equal((await handleAsyncApiRequest('GET', '/api/v1/proactive-assistant/config', null, { 'x-nagex-tenant': 'ten_r102d_i5_fresh_test', 'x-principal-id': 'usr_r102d_i5_fresh_test' })).status, 401);
+  const user = await productionSessionFixture(`r74_${Date.now()}@example.com`);
+  const result = await handleAsyncApiRequest('GET', '/api/v1/proactive-assistant/config', null, user.cookie);
   assert.equal(result.status, 200);
   assert.equal((result.data as { enabled: boolean }).enabled, false);
 });

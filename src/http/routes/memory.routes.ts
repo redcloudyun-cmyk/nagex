@@ -2,6 +2,9 @@ import type { MemoryEngine, MemoryRecord, MemoryScope, MemoryType } from '../../
 import type { PrincipalReference } from '../../common/types.js';
 import type { ApiResult, SyncRouteRegistrar } from '../http-types.js';
 import { getCurrentISOString } from '../../common/utils.js';
+import type { IdentityStore } from '../../identity/identity.store.js';
+import type { SessionStore } from '../../sessions/session.store.js';
+import { resolveAuthenticatedIdentity } from '../request-identity.js';
 
 export interface MemoryRouteDeps {
   memoryEngine: MemoryEngine;
@@ -9,6 +12,10 @@ export interface MemoryRouteDeps {
   tenantId: string;
   principal: PrincipalReference;
   modelErrorResult: (error: unknown) => ApiResult;
+  // R24.6C — memory SETTINGS are personal Settings owned by the authenticated
+  // session. Absent stores fail closed (401).
+  sessionStore?: SessionStore;
+  identityStore?: IdentityStore;
 }
 
 const VALID_SCOPES = new Set(['PERSONAL', 'USER', 'ORGANIZATION', 'WORKSPACE', 'SESSION', 'AGENT', 'TENANT']);
@@ -16,21 +23,18 @@ const VALID_TYPES = new Set(['PREFERENCE', 'FACT', 'RELATIONSHIP', 'PROJECT_CONT
 const VALID_SOURCE_TYPES = new Set(['CONVERSATION', 'MANUAL', 'SYSTEM', 'DOCUMENT', 'TOOL_RESULT', 'LINK', 'VAULT', 'INBOX', 'BROWSER']);
 const VALID_SENSITIVITIES = new Set(['S0', 'S1', 'S2', 'S3']);
 
-export const handleMemoryRoutes: SyncRouteRegistrar<MemoryRouteDeps> = (method, pathname, body, _headers, _query, deps): ApiResult | undefined => {
+export const handleMemoryRoutes: SyncRouteRegistrar<MemoryRouteDeps> = (method, pathname, body, headers, _query, deps): ApiResult | undefined => {
   const { memoryEngine, pinnedMemories, tenantId, principal, modelErrorResult } = deps;
 
-  if (pathname === '/api/v1/memory/settings' && method === 'GET') {
-    const settings = memoryEngine.getSettings(tenantId, principal.id);
-    return { status: 200, data: settings };
-  }
-
-  if (pathname === '/api/v1/memory/settings' && (method === 'POST' || method === 'PATCH')) {
+  if (pathname === '/api/v1/memory/settings' && (method === 'GET' || method === 'POST' || method === 'PATCH')) {
+    // Ownership from the session ONLY — the header-derived tenantId/principal
+    // above are deliberately not used for this endpoint.
+    const owner = deps.sessionStore && deps.identityStore ? resolveAuthenticatedIdentity(headers, { sessionStore: deps.sessionStore, identityStore: deps.identityStore }) : null;
+    if (!owner) return { status: 401, data: { error: { code: 'UNAUTHORIZED', message: 'Sign in to view or change memory settings.' } } };
+    if (method !== 'POST' && method !== 'PATCH') return { status: 200, data: memoryEngine.getSettings(owner.tenantId, owner.principalId) };
     const memoryCaptureEnabled = typeof body?.memoryCaptureEnabled === 'boolean' ? body.memoryCaptureEnabled : undefined;
     const memoryUseEnabled = typeof body?.memoryUseEnabled === 'boolean' ? body.memoryUseEnabled : undefined;
-    const updated = memoryEngine.updateSettings(tenantId, principal.id, {
-      memoryCaptureEnabled,
-      memoryUseEnabled,
-    });
+    const updated = memoryEngine.updateSettings(owner.tenantId, owner.principalId, { memoryCaptureEnabled, memoryUseEnabled });
     return { status: 200, data: updated };
   }
 

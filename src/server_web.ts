@@ -15,6 +15,7 @@ import { handleCatalogRoutes } from './http/routes/catalog.routes.js';
 import { handleKnowledgeRoutes } from './http/routes/knowledge.routes.js';
 import { handlePlanRoutes } from './http/routes/plan.routes.js';
 import { handleSettingsRoutes } from './http/routes/settings.routes.js';
+import { canonicalizeRequestHeaders } from './http/request-identity.js';
 import { handleNotificationsRoutes } from './http/routes/notifications.routes.js';
 import { handleTasksRoutes, handleTasksRunRoutes } from './http/routes/tasks.routes.js';
 import { handleAutomationsRoutes, handleAutomationsRunRoutes } from './http/routes/automations.routes.js';
@@ -311,6 +312,10 @@ export async function handleAsyncApiRequest(
     ssoFlowStore?: SsoFlowStore;
   }
 ): Promise<ApiResult> {
+  // R24.6C — identity boundary: a valid session overrides any client-supplied
+  // identity headers for EVERY route, and anonymous callers cannot name a real
+  // account. See src/http/request-identity.ts.
+  headers = canonicalizeRequestHeaders(headers, { sessionStore: customDeps?.sessionStore ?? sessionStore, identityStore: customDeps?.identityStore ?? identityStore });
   try {
     const demoHeader = headers['x-nagex-demo'] ?? headers['X-NAgex-Demo'];
     const demoEnabled = (Array.isArray(demoHeader) ? demoHeader[0] : demoHeader) === '1';
@@ -364,6 +369,14 @@ export async function handleAsyncApiRequest(
         sessionStore: customDeps?.sessionStore ?? sessionStore,
       });
       if (accountResult) return accountResult;
+    }
+    {
+      // R24.6B — Quick Wake / Autonomy preferences: session-authenticated, per-user, durable (profile record).
+      const settingsResult = await handleSettingsRoutes(method, pathname, body, headers, query, {
+        identityStore: customDeps?.identityStore ?? identityStore,
+        sessionStore: customDeps?.sessionStore ?? sessionStore,
+      });
+      if (settingsResult) return settingsResult;
     }
     {
       const orgResult = await handleOrganizationRoutes(method, pathname, body, headers, query, {
@@ -455,7 +468,7 @@ export async function handleAsyncApiRequest(
     }
     // R10.2-D Increment 4 — Google OAuth callback/status/disconnect.
     {
-      const googleOAuthResult = await handleGoogleOAuthCallbackRoutes(method, pathname, body, headers, query, { auditLogger });
+      const googleOAuthResult = await handleGoogleOAuthCallbackRoutes(method, pathname, body, headers, query, { auditLogger, sessionStore: customDeps?.sessionStore ?? sessionStore, identityStore: customDeps?.identityStore ?? identityStore });
       if (googleOAuthResult) return googleOAuthResult;
     }
     // R10.2-D Increment 3 — all Workspace/Capture/Candidate/Activity routes
@@ -565,7 +578,7 @@ export async function handleAsyncApiRequest(
     // dispatchDetectedChanges/generateProposalsFromChanges pipeline,
     // untouched.
     {
-      const dailyBriefResult = await handleDailyBriefRoutes(method, pathname, body, headers, query, { service, calendarService, gmailApiService, dailyBriefStore, actionProposalStore, actionApprovals, activityStore, notificationEngine, taskStore });
+      const dailyBriefResult = await handleDailyBriefRoutes(method, pathname, body, headers, query, { service, calendarService, gmailApiService, dailyBriefStore, actionProposalStore, actionApprovals, activityStore, notificationEngine, taskStore, sessionStore: customDeps?.sessionStore ?? sessionStore, identityStore: customDeps?.identityStore ?? identityStore });
       if (dailyBriefResult) return dailyBriefResult;
     }
     // R22.8 — Personal AI Home Aggregation Route
@@ -655,7 +668,7 @@ export async function handleAsyncApiRequest(
 
     // R18 — Connected Apps / Connections Routes
     {
-      const connectionsResult = await handleConnectionsRoutes(method, pathname, body, headers, query, { connectionStore });
+      const connectionsResult = await handleConnectionsRoutes(method, pathname, body, headers, query, { connectionStore, auditLogger, sessionStore: customDeps?.sessionStore ?? sessionStore, identityStore: customDeps?.identityStore ?? identityStore });
       if (connectionsResult) return connectionsResult;
     }
 
@@ -678,10 +691,8 @@ export function handleApiRequest(
   headers: Record<string, string | string[] | undefined> = {},
   query: Record<string, string> = {}
 ): ApiResult {
-
-
-
-
+  // R24.6C — same boundary for the sync entry point (idempotent).
+  headers = canonicalizeRequestHeaders(headers, { sessionStore, identityStore });
   const headerTenant = headers['x-nagex-tenant'];
   const headerPrincipal = headers['x-principal-id'];
   const tenantId = (Array.isArray(headerTenant) ? headerTenant[0] : headerTenant) || 'ten_production_01';
@@ -694,7 +705,7 @@ export function handleApiRequest(
   }
 
   {
-    const memoryResult = handleMemoryRoutes(method, pathname, body, headers, {}, { memoryEngine, pinnedMemories, tenantId, principal, modelErrorResult });
+    const memoryResult = handleMemoryRoutes(method, pathname, body, headers, {}, { memoryEngine, pinnedMemories, tenantId, principal, modelErrorResult, sessionStore, identityStore });
     if (memoryResult) return memoryResult;
   }
 
@@ -728,13 +739,8 @@ export function handleApiRequest(
   // and JSON-URL variants). /callback, /status, /disconnect stay in
   // handleAsyncApiRequest (see handleGoogleOAuthCallbackRoutes above).
   {
-    const googleOAuthStartResult = handleGoogleOAuthStartRoutes(method, pathname, body, headers, {}, {});
+    const googleOAuthStartResult = handleGoogleOAuthStartRoutes(method, pathname, body, headers, {}, { sessionStore, identityStore });
     if (googleOAuthStartResult) return googleOAuthStartResult;
-  }
-
-  {
-    const settingsResult = handleSettingsRoutes(method, pathname, body, headers, {}, {});
-    if (settingsResult) return settingsResult;
   }
 
   // R10.2-D Increment 4 — Governance/billing (executions, billing, audit

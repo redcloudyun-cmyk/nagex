@@ -75,8 +75,9 @@ export const handleCalendarRoutes: AsyncRouteRegistrar<CalendarRouteDeps> = asyn
   if (pathname === '/api/v1/tools/google-calendar/free-slots' && method === 'POST') {
     const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
     const config = readGoogleOAuthConfig();
-    const accessToken = config ? await googleTokenStore.getValidAccessToken(tenantId, config, fetch, requestId) : null;
+    const accessToken = config ? await googleTokenStore.getValidAccessTokenForPrincipal(tenantId, principalId, config, fetch, requestId) : null;
     if (!accessToken) throw new NagexError({ code: 'GOOGLE_CALENDAR_DISCONNECTED', category: 'POLICY', message: 'Google Calendar is not connected.', request_id: requestId });
     const calendarId = (typeof body?.calendarId === 'string' && body.calendarId) || 'primary';
     const timeMin = typeof body?.timeMin === 'string' ? body.timeMin : new Date().toISOString();
@@ -89,8 +90,9 @@ export const handleCalendarRoutes: AsyncRouteRegistrar<CalendarRouteDeps> = asyn
     const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
     try {
+      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
       const config = readGoogleOAuthConfig();
-      const accessToken = config ? await googleTokenStore.getValidAccessToken(tenantId, config, fetch, requestId) : null;
+      const accessToken = config ? await googleTokenStore.getValidAccessTokenForPrincipal(tenantId, principalId, config, fetch, requestId) : null;
       if (!accessToken) {
         return { status: 200, data: { events: [], connected: false, message: 'No upcoming events.' } };
       }

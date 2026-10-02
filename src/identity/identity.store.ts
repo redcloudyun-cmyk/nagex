@@ -2,7 +2,19 @@
 import { generateResourceId } from '../common/utils.js';
 import { FileRecordStore, resolveNagexDataDir } from '../governance/file-record.store.js';
 import { NagexError } from '../common/errors.js';
-import type { AccountState, IdentityRecord, ProfileRecord } from './identity.types.js';
+import type { AccountLocale, AccountState, IdentityRecord, ProfileRecord, QuickWakePreferences, AutonomyLevelPreference, UserPreferences } from './identity.types.js';
+
+// R24.6B — canonical account locale at the store boundary. Accepts the
+// canonical lowercase values plus the legacy/uppercase aliases that earlier
+// builds and the old Settings <select> wrote ('EN', 'KR', 'kr'); anything
+// else is NOT a locale (null) and callers must reject it.
+export function normalizeLocale(value: unknown): AccountLocale | null {
+  if (typeof value !== 'string') return null;
+  const v = value.trim().toLowerCase();
+  if (v === 'en') return 'en';
+  if (v === 'ko' || v === 'kr') return 'ko';
+  return null;
+}
 
 export function isIdentityRecord(value: unknown): value is IdentityRecord {
   if (!value || typeof value !== 'object') return false;
@@ -62,6 +74,9 @@ export class IdentityStore {
       this.identities.set(record.userId, record);
     }
     for (const record of this.profileFileStore.readAll()) {
+      // Legacy profiles may carry 'KR'/'EN'/arbitrary text; expose only the
+      // canonical value (persisted form is rewritten on the next write).
+      record.locale = normalizeLocale(record.locale) ?? 'en';
       this.profiles.set(record.userId, record);
     }
   }
@@ -282,28 +297,50 @@ export class IdentityStore {
     return identity;
   }
 
-  public updateProfile(userId: string, patch: Partial<Omit<ProfileRecord, 'userId'>>): ProfileRecord {
-    let profile = this.profiles.get(userId);
-    if (!profile) {
-      profile = {
-        userId,
-        displayName: 'User',
-        avatarUrl: null,
-        locale: 'en',
-        timezone: 'UTC',
-        updatedAt: this.now(),
-      };
-    }
+  private baseProfile(userId: string): ProfileRecord {
+    const existing = this.profiles.get(userId);
+    return existing
+      ? { ...existing, preferences: existing.preferences ? { ...existing.preferences, quickWake: existing.preferences.quickWake ? { ...existing.preferences.quickWake } : undefined } : undefined }
+      : { userId, displayName: 'User', avatarUrl: null, locale: 'en', timezone: 'UTC', updatedAt: this.now() };
+  }
 
+  // The durable write happens BEFORE the in-memory copy is replaced, and a
+  // failed write throws — a profile/preference change is never reported (or
+  // visible to later reads) unless it was really persisted.
+  private commitProfile(profile: ProfileRecord): ProfileRecord {
+    profile.updatedAt = this.now();
+    this.profileFileStore.writeOrThrow(profile.userId, profile);
+    this.profiles.set(profile.userId, profile);
+    return profile;
+  }
+
+  public updateProfile(userId: string, patch: Partial<Omit<ProfileRecord, 'userId'>>): ProfileRecord {
+    const profile = this.baseProfile(userId);
+
+    if (patch.locale !== undefined) {
+      const canonical = normalizeLocale(patch.locale);
+      if (!canonical) {
+        throw new NagexError({ code: 'INVALID_LOCALE', category: 'VALIDATION', message: "locale must be 'en' or 'ko'.", request_id: 'identity_profile' });
+      }
+      profile.locale = canonical;
+    }
     if (patch.displayName !== undefined) profile.displayName = patch.displayName.trim();
     if (patch.avatarUrl !== undefined) profile.avatarUrl = patch.avatarUrl;
-    if (patch.locale !== undefined) profile.locale = patch.locale;
     if (patch.timezone !== undefined) profile.timezone = patch.timezone;
-    profile.updatedAt = this.now();
+    return this.commitProfile(profile);
+  }
 
-    this.profiles.set(userId, profile);
-    this.profileFileStore.write(userId, profile);
-    return profile;
+  public getPreferences(userId: string): UserPreferences {
+    return this.profiles.get(userId)?.preferences ?? {};
+  }
+
+  public updatePreferences(userId: string, patch: { quickWake?: Partial<QuickWakePreferences>; autonomyLevel?: AutonomyLevelPreference }): UserPreferences {
+    const profile = this.baseProfile(userId);
+    const next: UserPreferences = { ...(profile.preferences ?? {}) };
+    if (patch.quickWake) next.quickWake = { ...(next.quickWake ?? {}), ...patch.quickWake };
+    if (patch.autonomyLevel) next.autonomyLevel = patch.autonomyLevel;
+    profile.preferences = next;
+    return this.commitProfile(profile).preferences ?? {};
   }
 
   public purgeAccountData(userId: string): void {
@@ -315,6 +352,7 @@ export class IdentityStore {
     if (profile) {
       profile.displayName = 'Deleted User';
       profile.avatarUrl = null;
+      delete profile.preferences;
       profile.updatedAt = this.now();
       this.profileFileStore.write(userId, profile);
     }

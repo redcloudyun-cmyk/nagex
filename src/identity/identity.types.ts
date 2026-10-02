@@ -38,12 +38,36 @@ export interface IdentityRecord {
   scheduledPurgeAt: string | null;
 }
 
+// R24.6B — canonical account locale. Same convention as the runtime
+// (NAGEX_I18N.getLocale(), the x-nagex-locale header, creation documents):
+// lowercase 'en' | 'ko'. Legacy/uppercase aliases are canonicalized at the
+// store boundary (see normalizeLocale in identity.store.ts).
+export type AccountLocale = 'en' | 'ko';
+
+// R24.6B — per-user settings preferences. Owned by the user's profile record
+// (one durable, user-scoped record per account) — not a separate settings
+// store. Both are PREFERENCE-ONLY today: no runtime component reads them
+// (the API reports runtime_effect: 'NONE' so the UI can say so truthfully).
+export type AutonomyLevelPreference = 'L0' | 'L1' | 'L2' | 'L3';
+export interface QuickWakePreferences {
+  floating_button: boolean;
+  quick_settings_tile: boolean;
+  lock_screen_shortcut: boolean;
+  voice_wake: boolean;
+  double_tap_shortcut: boolean;
+}
+export interface UserPreferences {
+  quickWake?: Partial<QuickWakePreferences>;
+  autonomyLevel?: AutonomyLevelPreference;
+}
+
 export interface ProfileRecord {
   userId: string;
   displayName: string;
   avatarUrl: string | null;
-  locale: string;               // e.g. 'en' or 'kr'
+  locale: string;               // canonical: AccountLocale ('en' | 'ko'); legacy values are normalized on load
   timezone: string;             // e.g. 'Asia/Seoul' or 'UTC'
+  preferences?: UserPreferences;
   updatedAt: string;
 }
 

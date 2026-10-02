@@ -25,12 +25,25 @@ test('3. Subsection selected state is clear with active class and aria-selected'
   assert.match(appJs, /aria-selected/);
 });
 
+// R24.6C — the Google connection belongs to the authenticated account, so the
+// status endpoint no longer answers for an identity named only in headers
+// (it used to return a boolean for any header-supplied principal). A signed-in
+// session still gets a real boolean; nothing is fabricated for anyone else.
 test('4. No fake connection records presented without backend status', async () => {
   const headers = {
     'x-principal-id': 'usr_conn_test_01',
     'x-nagex-tenant': 'ten_conn_test_01',
   };
-  const res = await handleAsyncApiRequest('GET', '/api/v1/oauth/google/status', null, headers);
+  const anonymous = await handleAsyncApiRequest('GET', '/api/v1/oauth/google/status', null, headers);
+  assert.equal(anonymous.status, 401);
+  assert.equal(typeof (anonymous.data as any).connected, 'undefined', 'no connection state may be presented without a session');
+
+  const { identityStore, sessionStore } = await import('../src/server_web.js');
+  const { hashPassword } = await import('../src/identity/identity.crypto.js');
+  const { identity } = identityStore.createAccount(`settings_ux_4_${Date.now()}@example.com`, hashPassword('password123'));
+  identityStore.transitionState(identity.userId, 'ACTIVE');
+  const session = sessionStore.createAuthSession(`ten_${identity.userId}`, identity.userId, 'MAIN');
+  const res = await handleAsyncApiRequest('GET', '/api/v1/oauth/google/status', null, { cookie: `nagex_session=${session.sessionId}` });
   assert.equal(res.status, 200);
   assert.equal(typeof (res.data as any).connected, 'boolean');
 });
@@ -73,10 +86,23 @@ test('10. Save failure does not show false success state', async () => {
   assert.match(appJs, /settings-error-banner/);
 });
 
-test('11. Optimistic update rollbacks state on backend save failure', async () => {
+// R24.6B — supersedes the old "optimistic update + rollback (prevVal/prevLevel)"
+// contract, which mutated state before the server answered and could show
+// "Saved." for a write that was never durable. The stricter contract: state
+// changes ONLY from the server's confirmed response, so a failed write has
+// nothing to roll back (real failure behavior is exercised in the browser
+// test r24_6b_settings_real_browser).
+test('11. Settings never mutate state before the server confirms; failure leaves state unchanged', async () => {
   const appJs = fs.readFileSync(path.join(process.cwd(), 'public', 'app.js'), 'utf-8');
-  assert.match(appJs, /prevVal/);
-  assert.match(appJs, /prevLevel/);
+  assert.doesNotMatch(appJs, /prevVal|prevLevel/, 'no optimistic-mutation bookkeeping may remain');
+  const handlers = appJs.slice(appJs.indexOf('toggleQuickWakeOpt: async'), appJs.indexOf('renderSettings: () =>'));
+  assert.match(handlers, /await apiFetch\('\/api\/v1\/quickwake\/config'/);
+  assert.match(handlers, /await apiFetch\('\/api\/v1\/autonomy\/config'/);
+  // The only state assignments live inside the post-response commit callbacks.
+  assert.doesNotMatch(handlers.replace(/commitSettingsPrefsResult\([^\n]*\n/g, ''), /state\.(quickWakeConfig|autonomyConfig)/);
+  const commit = appJs.slice(appJs.indexOf('function commitSettingsPrefsResult'), appJs.indexOf('function applySettingsPrefs'));
+  assert.match(commit, /if \(res && !res\.error\) \{\s*apply\(res\);[\s\S]*showSettingsSaveFeedback\(true\)/);
+  assert.match(commit, /showSettingsSaveFeedback\(false/);
 });
 
 test('12. Settings load failure is presented as distinct error, not default values', async () => {
@@ -96,10 +122,17 @@ test('14. Notification controls only surface supported real channels', async () 
   assert.match(indexHtml, /quickwake-settings-options/);
 });
 
-test('15. Fake device records absent — only real connected desktop agent surfaced', async () => {
+// R24.6B — supersedes the old assertion that REQUIRED the hardcoded
+// "Local Desktop Agent … Connected" row. No device/session registry is
+// readable by the web UI, so a "connected device" row is fabricated state;
+// the panel now renders an honest empty state.
+test('15. Fake device records absent — no hardcoded "connected" device is rendered', async () => {
   const appJs = fs.readFileSync(path.join(process.cwd(), 'public', 'app.js'), 'utf-8');
   assert.match(appJs, /renderSettingsDevices/);
-  assert.match(appJs, /Local Desktop Agent/);
+  const devices = appJs.slice(appJs.indexOf('function renderSettingsDevices'), appJs.indexOf('function renderSettings()'));
+  assert.doesNotMatch(devices, /Local Desktop Agent|Windows Desktop|Connected device|Active now|lastSeen|trusted:/);
+  assert.doesNotMatch(devices, /badge-status green/);
+  assert.match(devices, /settings\.devicesNone/);
 });
 
 test('16. EN and KR translations present and resolve properly across Settings', async () => {

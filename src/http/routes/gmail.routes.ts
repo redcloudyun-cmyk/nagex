@@ -57,8 +57,9 @@ export const handleGmailRoutes: AsyncRouteRegistrar<GmailRouteDeps> = async (met
   if (pathname === '/api/v1/tools/gmail/search' && method === 'POST') {
     const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
     const query = typeof body?.query === 'string' ? body.query : '';
-    const result = await gmailApiService.search({ tenantId, query, requestId });
+    const result = await gmailApiService.search({ tenantId, principalId, query, requestId });
     return { status: 200, data: result };
   }
 
@@ -67,7 +68,8 @@ export const handleGmailRoutes: AsyncRouteRegistrar<GmailRouteDeps> = async (met
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
     const threadId = typeof body?.threadId === 'string' ? body.threadId : '';
     if (!threadId) throw new NagexError({ code: 'THREAD_ID_REQUIRED', category: 'VALIDATION', message: 'threadId is required.', request_id: requestId });
-    const result = await gmailApiService.readThread({ tenantId, threadId, requestId });
+    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const result = await gmailApiService.readThread({ tenantId, principalId, threadId, requestId });
     return { status: 200, data: result };
   }
 

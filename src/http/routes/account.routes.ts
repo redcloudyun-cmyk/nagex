@@ -1,5 +1,6 @@
 // R13 Identity & Account Lifecycle — Account Management HTTP Route Registrar
 import { NagexError } from '../../common/errors.js';
+import { AUTH_EMAIL_DELIVERY, devAuthTokenFields } from '../../identity/dev-auth-tokens.js';
 import type { IdentityStore } from '../../identity/identity.store.js';
 import type { IdentityTokenStore } from '../../identity/identity.tokens.js';
 import type { IdentityAuditStore } from '../../identity/identity.audit.js';
@@ -90,7 +91,16 @@ export const handleAccountRoutes: AsyncRouteRegistrar<AccountRoutesDependencies>
 
     const data = body || {};
     const { displayName, avatarUrl, locale, timezone } = data as Record<string, any>;
-    const updated = deps.identityStore.updateProfile(auth.userId, { displayName, avatarUrl, locale, timezone });
+    let updated;
+    try {
+      updated = deps.identityStore.updateProfile(auth.userId, { displayName, avatarUrl, locale, timezone });
+    } catch (err) {
+      // R24.6B — an unsupported locale is a client error, never silently stored.
+      if (err instanceof NagexError && err.code === 'INVALID_LOCALE') {
+        return { status: 400, data: { error: { code: err.code, message: err.message } } };
+      }
+      throw err;
+    }
 
     return {
       status: 200,
@@ -163,8 +173,9 @@ export const handleAccountRoutes: AsyncRouteRegistrar<AccountRoutesDependencies>
     return {
       status: 200,
       data: {
-        message: 'Email change verification sent to the new address.',
-        devVerificationToken: rawToken,
+        message: 'Email change request recorded. Email delivery is not configured on this server yet, so no verification message was sent.',
+        delivery: AUTH_EMAIL_DELIVERY,
+        ...devAuthTokenFields('devVerificationToken', rawToken),
       },
     };
   }

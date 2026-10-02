@@ -44,6 +44,10 @@ import path from 'node:path';
 import { chromium, type Page, type BrowserContext } from 'playwright';
 import { ImageStore, type ImageRecord } from '../src/creation/image.store.js';
 import { ArtifactStore } from '../src/artifacts/artifact.store.js';
+import { enableDevAuthTokensForFile } from './_dev_auth_tokens.js';
+
+// R24.6C1 — this file legitimately needs raw dev tokens to drive signup/verify; opt in explicitly (restored after the file).
+enableDevAuthTokensForFile();
 
 declare const document: any;
 

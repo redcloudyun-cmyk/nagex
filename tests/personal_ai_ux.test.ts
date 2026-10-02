@@ -193,14 +193,33 @@ test('8. Personal AI: Approval Queue Handling (Reject Action)', async () => {
   assert.strictEqual(data.status, 'REJECTED');
 });
 
-test('9. Personal AI: Quick Wake & Autonomy Configuration Endpoints', async () => {
-  let res = await handleApiRequest('GET', '/api/v1/quickwake/config', null);
+// R24.6B — supersedes the old unauthenticated, process-global contract
+// (anyone could read/mutate one shared object). The endpoints are now
+// per-user and require a real session; the same defaults/shape are asserted.
+test('9. Personal AI: Quick Wake & Autonomy Configuration Endpoints (authenticated, per user)', async () => {
+  const { IdentityStore } = await import('../src/identity/identity.store.js');
+  const { SessionStore } = await import('../src/sessions/session.store.js');
+  const { hashPassword } = await import('../src/identity/identity.crypto.js');
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-personal-ux-9-'));
+  const identityStore = new IdentityStore({ dir: path.join(tmpDir, 'identity') });
+  const sessionStore = new SessionStore({ dir: path.join(tmpDir, 'sessions') });
+  const { identity } = identityStore.createAccount('ux9@example.com', hashPassword('password123'));
+  identityStore.transitionState(identity.userId, 'ACTIVE');
+  const session = sessionStore.createAuthSession(`ten_${identity.userId}`, identity.userId, 'MAIN');
+  const cookie = { cookie: `nagex_session=${session.sessionId}` };
+  const call = (method: string, p: string, body: Record<string, unknown> | null, headers: Record<string, string>) =>
+    handleAsyncApiRequest(method, p, body, headers, undefined, {}, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, { identityStore, sessionStore });
+
+  assert.strictEqual((await call('GET', '/api/v1/quickwake/config', null, {})).status, 401);
+  assert.strictEqual((await call('POST', '/api/v1/autonomy/config', { level: 'L3' }, {})).status, 401);
+
+  let res = await call('GET', '/api/v1/quickwake/config', null, cookie);
   assert.strictEqual(res.status, 200);
   let data = res.data as { floating_button: boolean; fingerprint_button: any };
   assert.strictEqual(data.floating_button, true);
   assert.strictEqual(data.fingerprint_button.supported, false);
 
-  res = await handleApiRequest('POST', '/api/v1/autonomy/config', { level: 'L3' });
+  res = await call('POST', '/api/v1/autonomy/config', { level: 'L3' }, cookie);
   assert.strictEqual(res.status, 200);
   data = res.data as any;
   assert.strictEqual((data as any).level, 'L3');

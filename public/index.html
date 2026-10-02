@@ -1011,7 +1011,7 @@
             </div>
           </div>
 
-          <div class="settings-category-nav" role="tablist" aria-label="Settings Categories" style="display: flex; gap: 0.5rem; margin-bottom: 1.25rem; flex-wrap: wrap;">
+          <div class="settings-category-nav" role="tablist" aria-label="Settings Categories" data-i18n-aria-label="settings.categoriesAria" style="display: flex; gap: 0.5rem; margin-bottom: 1.25rem; flex-wrap: wrap;">
             <button class="settings-cat-tab active" data-cat="connections" id="cat-tab-connections" role="tab" aria-selected="true" aria-controls="cat-panel-connections" onclick="window.NAGEX.switchSettingsCategory('connections')">
               <span data-i18n="settings.catConnections">Connections</span>
             </button>
@@ -1029,6 +1029,9 @@
             </button>
             <button class="settings-cat-tab" data-cat="devices" id="cat-tab-devices" role="tab" aria-selected="false" aria-controls="cat-panel-devices" onclick="window.NAGEX.switchSettingsCategory('devices')">
               <span data-i18n="settings.catDevices">Devices</span>
+            </button>
+            <button class="settings-cat-tab" data-cat="account" id="cat-tab-account" role="tab" aria-selected="false" aria-controls="cat-panel-account" onclick="window.NAGEX.switchSettingsCategory('account')">
+              <span data-i18n="account.title">Account &amp; Security</span>
             </button>
             <button class="settings-cat-tab" data-cat="organization" id="cat-tab-organization" role="tab" aria-selected="false" aria-controls="cat-panel-organization" onclick="window.NAGEX.switchSettingsCategory('organization')" style="display:none;">
               <span data-i18n="settings.catOrganization">Organization</span>
@@ -1079,7 +1082,7 @@
               <h3 data-i18n="settings.catPrivacy">Privacy</h3>
               <p class="setting-sub" data-i18n="settings.privacySubtitle">Personal data, memory inspection, and security protection boundaries</p>
               <div class="settings-info-box" style="margin-top: 1rem; background: var(--bg-tertiary, #1e293b); padding: 0.85rem 1rem; border-radius: 8px; border-left: 3px solid var(--accent-color, #3b82f6);">
-                <strong style="display: block; font-size: 0.9rem; margin-bottom: 0.25rem;">S3 Sensitive Data Security Invariant</strong>
+                <strong style="display: block; font-size: 0.9rem; margin-bottom: 0.25rem;" data-i18n="settings.privacyS3Title">S3 Sensitive Data Security Invariant</strong>
                 <p class="setting-sub" style="margin: 0;" data-i18n="settings.privacyS3Notice">Sensitive credentials (passwords, OTPs, API keys) are strictly protected and cannot be shared remotely.</p>
               </div>
               <div class="setting-row" style="margin-top: 1.25rem;">
@@ -1117,7 +1120,14 @@
               </div>
             </div>
 
-            <!-- 7. ORGANIZATION -->
+            <!-- 7. ACCOUNT (R24.6D) — same shared renderer/state as Mobile's #mh-account-panel; ids inside are prefixed "dk-" so both can coexist -->
+            <div class="settings-card cat-panel" id="cat-panel-account" role="tabpanel" aria-labelledby="cat-tab-account" hidden>
+              <h3 data-i18n="account.title">Account &amp; Security</h3>
+              <p class="setting-sub" data-i18n="account.subtitle">Manage your personal identity, credentials, active sessions, and data lifecycle.</p>
+              <div id="desktop-account-panel"></div>
+            </div>
+
+            <!-- 8. ORGANIZATION (enterprise-gated; the same rule gates Mobile's Organization section) -->
             <div class="settings-card cat-panel" id="cat-panel-organization" role="tabpanel" aria-labelledby="cat-tab-organization" hidden>
               <div id="desktop-org-settings-content"></div>
             </div>
@@ -1126,7 +1136,7 @@
             <div class="settings-card" style="margin-top: 1.5rem;">
               <button class="settings-advanced-toggle" id="btn-settings-advanced-toggle" aria-expanded="false" aria-controls="settings-advanced-list">
                 <h3 data-i18n="settings.advanced">Advanced</h3>
-                <span class="settings-advanced-caret">??/span>
+                <span class="settings-advanced-caret" aria-hidden="true">▸</span>
               </button>
               <p class="setting-sub" data-i18n="settings.advancedDesc">Internal architecture ??Knowledge, Approvals, Skills, and Tools. Not needed for everyday use.</p>
               <div class="settings-advanced-list" id="settings-advanced-list" hidden>
@@ -1878,8 +1888,8 @@
         <div id="mh-account-panel"></div>
       </section>
 
-      <div class="mh-settings-section-heading" data-i18n="settings.catOrganization">Organization</div>
-      <section class="mh-settings-card">
+      <div class="mh-settings-section-heading" id="mh-org-settings-heading" data-i18n="settings.catOrganization" hidden>Organization</div>
+      <section class="mh-settings-card" id="mh-org-settings-card" hidden>
         <div id="mh-org-settings-content"></div>
       </section>
 

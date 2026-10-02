@@ -100,6 +100,7 @@ export const handleMySpaceRoutes: AsyncRouteRegistrar<MySpaceRouteDeps> = async 
       const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
       calendar = await calendarService.listUpcomingEvents({
         tenantId,
+        principalId: ownerId,
         timeMin: now.toISOString(),
         timeMax: in7Days.toISOString(),
         maxResults: 5,

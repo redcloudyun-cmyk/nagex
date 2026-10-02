@@ -38,6 +38,8 @@ export type ContextSourceType = 'CALENDAR' | 'GMAIL' | 'TASK' | 'REMINDER' | 'AP
 export interface CalendarEventsSource {
   listUpcomingEvents(input: {
     tenantId: string;
+    // R24.6C — the owner whose Google connection is read; never defaulted by callers.
+    principalId?: string;
     calendarId?: string;
     timeMin: string;
     timeMax: string;
@@ -47,7 +49,7 @@ export interface CalendarEventsSource {
 }
 
 export interface GmailSearchSource {
-  search(input: { tenantId: string; query: string; requestId: string }): Promise<{
+  search(input: { tenantId: string; principalId?: string; query: string; requestId: string }): Promise<{
     threads: Array<{ threadId: string; snippet: string; historyId: string | null }>;
   }>;
 }
@@ -222,7 +224,7 @@ export class CurrentPersonalContextService {
         const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).toISOString();
         const dayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).toISOString();
         const events = await this.deps.googleCalendarService.listUpcomingEvents({
-          tenantId, timeMin: dayStart, timeMax: dayEnd, maxResults: 20, requestId,
+          tenantId, principalId: userId, timeMin: dayStart, timeMax: dayEnd, maxResults: 20, requestId,
         });
         todaysEvents = (events || [])
           // A past event (already ended) must never appear as current/upcoming.
@@ -357,7 +359,7 @@ export class CurrentPersonalContextService {
       if (this.deps.gmailService && nextEvent.attendees.length > 0) {
         try {
           const attendeeQuery = nextEvent.attendees.map((a) => `from:${a} OR to:${a}`).join(' OR ');
-          const result = await this.deps.gmailService.search({ tenantId, query: attendeeQuery, requestId });
+          const result = await this.deps.gmailService.search({ tenantId, principalId: userId, query: attendeeQuery, requestId });
           for (const thread of result.threads.slice(0, 5)) {
             emails.push({
               threadId: thread.threadId,
