@@ -12,6 +12,8 @@ import { handleActionProposalsRoutes, type ActionProposalsRouteDeps } from './ht
 import { handleMemoryRoutes } from './http/routes/memory.routes.js';
 import { handleModulesRoutes } from './http/routes/modules.routes.js';
 import { handleCatalogRoutes } from './http/routes/catalog.routes.js';
+import { handleKnowledgeRoutes } from './http/routes/knowledge.routes.js';
+import { handlePlanRoutes } from './http/routes/plan.routes.js';
 import { handleSettingsRoutes } from './http/routes/settings.routes.js';
 import { handleNotificationsRoutes } from './http/routes/notifications.routes.js';
 import { handleTasksRoutes, handleTasksRunRoutes } from './http/routes/tasks.routes.js';
@@ -663,7 +665,7 @@ export async function handleAsyncApiRequest(
       if (actionsResult) return actionsResult;
     }
 
-    return handleApiRequest(method, pathname, body, headers);
+    return handleApiRequest(method, pathname, body, headers, query);
   } catch (error) {
     return modelErrorResult(error);
   }
@@ -673,7 +675,8 @@ export function handleApiRequest(
   method: string,
   pathname: string,
   body: Record<string, unknown> | null,
-  headers: Record<string, string | string[] | undefined> = {}
+  headers: Record<string, string | string[] | undefined> = {},
+  query: Record<string, string> = {}
 ): ApiResult {
 
 
@@ -701,8 +704,14 @@ export function handleApiRequest(
   }
 
   {
+    const planResult = handlePlanRoutes(method, pathname, body, headers, {}, {});
+    if (planResult) return planResult;
+
     const catalogResult = handleCatalogRoutes(method, pathname, body, headers, {}, {});
     if (catalogResult) return catalogResult;
+
+    const knowledgeResult = handleKnowledgeRoutes(method, pathname, body, headers, query, { knowledgeEngine, vaultStore });
+    if (knowledgeResult) return knowledgeResult;
   }
 
   // R10.2-D Increment 4 — Approval lifecycle (list/request/get/legacy

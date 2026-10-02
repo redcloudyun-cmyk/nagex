@@ -196,12 +196,40 @@ test('24. GET /api/v1/skills and GET /api/v1/agents both resolve through the sam
   assert.equal((skills.data as { total: number }).total, (agents.data as { total: number }).total);
 });
 
-test('25. GET /api/v1/tools and GET /api/v1/knowledge still return real, non-empty catalog data through the real entry point', () => {
+test('25. GET /api/v1/tools and GET /api/v1/knowledge still return real, non-empty catalog data through the real entry point', async () => {
   const tools = handleApiRequest('GET', '/api/v1/tools', null, {});
-  const knowledge = handleApiRequest('GET', '/api/v1/knowledge', null, {});
   assert.equal(tools.status, 200);
+
+  // R24.5C — replaces the prior Array.isArray()-only assertion (it passed
+  // even for an empty array despite the test's own "non-empty" name). This
+  // actually proves non-empty + real search through the same module
+  // boundary: POST a real document via the real entry point, GET it back
+  // by an exact query match, then clean up the shared dev-data record it
+  // created (same restore-after-mutate pattern test 26 below already uses
+  // for quickwake/config). Uses handleAsyncApiRequest because the Vault
+  // DELETE needed for cleanup is only registered on the async router;
+  // handleAsyncApiRequest falls through to the same handleApiRequest for
+  // /api/v1/knowledge, so this still proves the real routing boundary.
+  const marker = `modularization_test25_${Date.now()}`;
+  const posted = await handleAsyncApiRequest('POST', '/api/v1/knowledge', { title: marker, content: `Route modularization probe ${marker}` }, {});
+  assert.equal(posted.status, 201);
+  const postedId = (posted.data as { id: string }).id;
+  const vaultItemId = (posted.data as { source_vault_item_id: string }).source_vault_item_id;
+
+  const knowledge = await handleAsyncApiRequest('GET', '/api/v1/knowledge', null, {}, undefined, { q: marker });
   assert.equal(knowledge.status, 200);
-  assert.ok((knowledge.data as { documents: unknown[] }).documents.length > 0);
+  const documents = (knowledge.data as { documents: Array<{ id: string }> }).documents;
+  assert.ok(Array.isArray(documents));
+  assert.equal(documents.length, 1, 'non-empty: the real document just posted must come back from a real query');
+  assert.equal(documents[0].id, postedId);
+
+  // Clean up: deleting the backing Vault source invalidates the derived
+  // Knowledge entry (STALE_KNOWLEDGE_INDEX=0 behavior), leaving no residue
+  // in the shared dev data store for other tests/processes.
+  const vaultDeleted = await handleAsyncApiRequest('DELETE', `/api/v1/workspace/vault/${vaultItemId}`, null, {});
+  assert.equal(vaultDeleted.status, 200);
+  const afterCleanup = await handleAsyncApiRequest('GET', '/api/v1/knowledge', null, {}, undefined, { q: marker });
+  assert.equal((afterCleanup.data as { documents: unknown[] }).documents.length, 0);
 });
 
 test('26. GET/POST /api/v1/quickwake/config round-trips through the real handleApiRequest entry point', () => {

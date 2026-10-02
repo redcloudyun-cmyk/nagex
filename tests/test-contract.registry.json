@@ -4170,6 +4170,34 @@
       "deterministic": true,
       "assertionIntent": "browser-i18n behavior guard: visible keys required by desktop/mobile shell resolve through NAGEX_I18N.t for both EN and KR and never fall back to raw key text",
       "notes": "Covers deployed release-blocker keys nav.create, nav.canvas, canvas.agentChat, canvas.agentContext, canvas.agentSuggestions, and canvas.agentChatIntro without relying on source formatting."
+    },
+    "r24_5c_knowledge_live": {
+      "milestone": "R24.5C",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "knowledge"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "real Knowledge ingestion/search/invalidation behavior guard: exercises the actual handleKnowledgeRoutes handler against real KnowledgeEngine/VaultStore instances over a real temp directory (no mocks) — real content persistence, real substring search, tenant/user isolation, restart persistence, truthful empty-content failure, 404 for missing documents, Vault-delete invalidation of derived Knowledge entries, and non-fabricated index metadata (chunkCount/contentHash/indexedAt stability).",
+      "notes": "Deterministic canary fixture content ('NAgexKnowledgeCanary7429') proves exact-match retrieval through the real search path, not a synthetic/demo substitute. Isolated per-test tmp directories, cleaned up in finally blocks."
+    },
+    "plan-persistence": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "verify plans are persisted and isolated by tenant",
+      "notes": ""
     }
   }
 }

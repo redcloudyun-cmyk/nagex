@@ -351,6 +351,23 @@
     initQuickActionChips();
     handleOAuthRedirectBanner();
     loadAllData();
+    // R24.2B: Wire Enter keys for Canvas Ask inputs to match their buttons' truthful unsupported semantics.
+    const wireCanvasAsk = (id, prefix) => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            if (window.NAGEX && window.NAGEX.submitCanvasAsk) {
+              window.NAGEX.submitCanvasAsk(prefix);
+            }
+          }
+        });
+      }
+    };
+    wireCanvasAsk('home-canvas-ask-input', 'home-canvas-');
+    wireCanvasAsk('canvas-ask-input', undefined);
+    wireCanvasAsk('mh-canvas-ask-input', undefined);
 
     window.addEventListener('keydown', (e) => {
       if (e.altKey && (e.key === 'n' || e.key === 'N')) {
@@ -617,7 +634,7 @@
     else if (state.activeTab === 'tab-tools') renderTools();
     else if (state.activeTab === 'tab-approvals') renderApprovals();
     else if (state.activeTab === 'tab-executions') renderActivity();
-    else if (state.activeTab === 'tab-knowledge') renderKnowledge();
+    else if (state.activeTab === 'tab-knowledge') fetchKnowledge(knowledgeQuery);
     else if (state.activeTab === 'tab-settings') renderSettings();
     else if (state.activeTab === 'tab-my-space') renderMySpace();
     else if (state.activeTab === 'tab-create') renderCreate();
@@ -2502,23 +2519,181 @@
     }
   }
 
+  // R24.5C — real Knowledge search/ingestion state. No client-only demo
+  // filtering: knowledgeQuery drives a real GET /api/v1/knowledge?q= fetch.
+  let knowledgeQuery = '';
+  let knowledgeLoading = false;
+  let knowledgeLoadError = false;
+  let knowledgeSearchDebounce = null;
+
+  function knowledgeStatusLabel(status) {
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k, f) => f || k;
+    const map = {
+      INDEXED: t('knowledge.statusIndexed', 'Indexed'),
+      STORED: t('knowledge.statusStored', 'Stored'),
+      PROCESSING: t('knowledge.statusProcessing', 'Processing'),
+      FAILED: t('knowledge.statusFailed', 'Failed'),
+    };
+    return map[status] || status;
+  }
+
+  async function fetchKnowledge(query) {
+    knowledgeLoading = true;
+    knowledgeLoadError = false;
+    renderKnowledge();
+    try {
+      const qs = query ? `?q=${encodeURIComponent(query)}` : '';
+      const res = await apiFetch(`/api/v1/knowledge${qs}`);
+      knowledgeLoading = false;
+      if (!res || res.error || !Array.isArray(res.documents)) {
+        knowledgeLoadError = true;
+        renderKnowledge();
+        return;
+      }
+      state.knowledge = res.documents;
+      renderKnowledge();
+    } catch (err) {
+      knowledgeLoading = false;
+      knowledgeLoadError = true;
+      renderKnowledge();
+    }
+  }
+
+  async function openKnowledgeSource(documentId) {
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k, f) => f || k;
+    const res = await apiFetch(`/api/v1/knowledge/${encodeURIComponent(documentId)}`);
+    if (!res || res.error) {
+      window.alert(t('knowledge.sourceLoadFailed', "Couldn't load this source."));
+      return;
+    }
+    const created = res.source && res.source.createdAt ? new Date(res.source.createdAt).toLocaleString() : '';
+    let modal = document.getElementById('knowledge-source-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'knowledge-source-modal';
+      modal.className = 'mh-detail-modal-overlay';
+      document.body.appendChild(modal);
+    }
+    modal.innerHTML = `
+      <div class="mh-detail-modal-card">
+        <div class="mh-detail-modal-header">
+          <h3>${escapeHtml(res.name)}</h3>
+          <button class="mh-detail-modal-close" onclick="document.getElementById('knowledge-source-modal').style.display='none'">&times;</button>
+        </div>
+        <div class="mh-detail-modal-body">
+          <p class="mh-detail-desc">${escapeHtml(res.content || '')}</p>
+          <div class="mh-detail-meta-row">
+            <span class="mh-detail-label">${escapeHtml(t('knowledge.status', 'Status:'))}</span>
+            <span class="nagex-badge nagex-badge-muted">${escapeHtml(knowledgeStatusLabel(res.status))}</span>
+          </div>
+          ${res.source ? `
+          <div class="mh-detail-meta-row">
+            <span class="mh-detail-label">${escapeHtml(t('knowledge.sourceType', 'Source type:'))}</span>
+            <span>${escapeHtml(res.source.type)}</span>
+          </div>
+          <div class="mh-detail-meta-row">
+            <span class="mh-detail-label">${escapeHtml(t('mobileCommon.created', 'Created:'))}</span>
+            <span>${escapeHtml(created)}</span>
+          </div>
+          <div class="mh-detail-meta-row">
+            <span class="mh-detail-label">${escapeHtml(t('knowledge.sourceId', 'Source ID:'))}</span>
+            <span>${escapeHtml(res.source.vaultItemId)}</span>
+          </div>` : `
+          <div class="mh-detail-meta-row"><span class="mh-detail-label">${escapeHtml(t('knowledge.sourceUnavailable', 'Original source is no longer available.'))}</span></div>`}
+        </div>
+        <div class="mh-detail-modal-footer">
+          <button class="mh-activity-action-btn secondary" onclick="document.getElementById('knowledge-source-modal').style.display='none'">${escapeHtml(t('mobileVault.close', 'Close'))}</button>
+        </div>
+      </div>`;
+    modal.style.display = 'flex';
+  }
+
+  async function uploadKnowledgeFile(file) {
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k, f) => f || k;
+    const addBtn = document.getElementById('knowledge-add-btn');
+    const text = await file.text();
+    if (addBtn) {
+      addBtn.disabled = true;
+      addBtn.querySelector('span').textContent = t('knowledge.uploading', 'Adding...');
+    }
+    try {
+      const res = await apiFetch('/api/v1/knowledge', {
+        method: 'POST',
+        body: JSON.stringify({ title: file.name, content: text, mimeType: file.type || 'text/plain' }),
+      });
+      if (!res || res.error) {
+        window.alert(t('knowledge.addFailed', "Couldn't add this document."));
+      } else {
+        await fetchKnowledge(knowledgeQuery);
+      }
+    } finally {
+      if (addBtn) {
+        addBtn.disabled = false;
+        addBtn.querySelector('span').textContent = t('knowledge.addButton', 'Add knowledge');
+      }
+    }
+  }
+
+  function initKnowledgeControls() {
+    const addBtn = document.getElementById('knowledge-add-btn');
+    const fileInput = document.getElementById('knowledge-upload-input');
+    const searchInput = document.getElementById('knowledge-search-input');
+    if (addBtn && fileInput && !addBtn.dataset.bound) {
+      addBtn.dataset.bound = '1';
+      addBtn.addEventListener('click', () => fileInput.click());
+      fileInput.addEventListener('change', () => {
+        const file = fileInput.files && fileInput.files[0];
+        fileInput.value = '';
+        if (file) uploadKnowledgeFile(file);
+      });
+    }
+    if (searchInput && !searchInput.dataset.bound) {
+      searchInput.dataset.bound = '1';
+      searchInput.addEventListener('input', () => {
+        knowledgeQuery = searchInput.value.trim();
+        clearTimeout(knowledgeSearchDebounce);
+        knowledgeSearchDebounce = setTimeout(() => fetchKnowledge(knowledgeQuery), 300);
+      });
+    }
+  }
+
   function renderKnowledge() {
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k, f) => f || k;
     const container = document.getElementById('knowledge-list-container');
     if (!container) return;
+    initKnowledgeControls();
+
+    if (knowledgeLoadError) {
+      container.innerHTML = `<div class="nagex-empty-state">${escapeHtml(t('knowledge.loadError', "Couldn't load Knowledge."))}</div>`;
+      return;
+    }
+    if (knowledgeLoading) {
+      container.innerHTML = '<div class="nagex-loading-row"></div><div class="nagex-loading-row"></div>';
+      return;
+    }
+    if (!state.knowledge.length) {
+      container.innerHTML = `<div class="nagex-empty-state">${escapeHtml(knowledgeQuery ? t('knowledge.noResults', 'No knowledge documents match your search.') : t('knowledge.empty', 'No knowledge documents yet. Add one to get started.'))}</div>`;
+      return;
+    }
 
     container.innerHTML = state.knowledge
       .map(
         (k) => `
-      <div class="know-card">
+      <div class="know-card" data-knowledge-id="${escapeHtml(k.id)}">
         <div class="card-header-row">
           <span class="card-title">${escapeHtml(k.name)}</span>
-          <span class="tag-scope">${k.classification}</span>
+          <span class="tag-scope">${escapeHtml(k.classification)}</span>
         </div>
-        <p class="card-body-text">Size: ${(k.size_bytes / 1024 / 1024).toFixed(2)} MB</p>
-        <p class="card-body-text">Indexed Chunks: ${k.chunk_count}</p>
+        <p class="card-body-text">${escapeHtml(knowledgeStatusLabel(k.status))} · ${(k.size_bytes / 1024).toFixed(1)} KB · ${t('knowledge.chunks', '{n} chunks').replace('{n}', String(k.chunk_count))}</p>
+        <p class="card-body-text knowledge-snippet">${escapeHtml(k.snippet || '')}</p>
+        <button type="button" class="nagex-section-link knowledge-open-source-btn" data-knowledge-id="${escapeHtml(k.id)}">${escapeHtml(t('knowledge.openSource', 'Open source'))} &gt;</button>
       </div>`
       )
       .join('');
+
+    container.querySelectorAll('.knowledge-open-source-btn').forEach((btn) => {
+      btn.addEventListener('click', () => openKnowledgeSource(btn.getAttribute('data-knowledge-id')));
+    });
   }
 
   function showSettingsSaveFeedback(success, message) {
@@ -3235,10 +3410,14 @@
     const view = window.NAGEX_PLAN_VIEW;
     if (!card || !statusEl || !stepsEl || !warningsEl || !actionsEl || !view) return;
 
-    const resolved = await apiFetch('/api/v1/plans/resolve', {
-      method: 'POST',
-      body: JSON.stringify({ plan }),
-    });
+    const resolved = await apiFetch('/api/v1/plans/resolve', { method: 'POST', body: JSON.stringify({ plan }) });
+      if (resolved && !resolved.error) {
+         const saveResult = await apiFetch('/api/v1/plans', { method: 'POST', body: JSON.stringify(resolved) });
+         if (saveResult && !saveResult.error) {
+            resolved.id = saveResult.id;
+            state.plans.unshift(saveResult);
+         }
+      }
 
     card.style.display = isDebugMode() ? 'block' : 'none';
 

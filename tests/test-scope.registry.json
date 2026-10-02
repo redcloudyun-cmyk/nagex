@@ -114,7 +114,8 @@
       "persistent_memory",
       "workflow_definition",
       "audit_tenant_isolation",
-      "r23_3t_permission_approval_hardening"
+      "r23_3t_permission_approval_hardening",
+      "plan-persistence"
     ],
     "personal-home": [
       "m6_1_mobile_release_blockers",
@@ -256,6 +257,9 @@
       "r23_7h_c_phase_d3_unified_home_workspace",
       "r23_7h_c_phase_d4_geometry_locked_clone",
       "r23_7_i18n_visible_keys"
+    ],
+    "knowledge": [
+      "r24_5c_knowledge_live"
     ]
   },
   "fullOnly": [

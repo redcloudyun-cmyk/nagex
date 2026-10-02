@@ -1,0 +1,10 @@
+/* R24.5C — Mobile Knowledge. ID-scoped overrides only, so the shared
+   .mh-vault-search-input/.btn-mockup-primary classes (and Vault's own use
+   of them) are untouched — Knowledge's own instances just meet the 44px
+   touch-target floor. */
+#mh-knowledge-search-input {
+  height: 44px;
+}
+#mh-knowledge-add-btn {
+  min-height: 44px;
+}

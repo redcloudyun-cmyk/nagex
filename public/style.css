@@ -3575,3 +3575,76 @@ body {
     display: none;
   }
 }
+
+/* R24.5C — Knowledge view minimal functional styling. #view-knowledge's
+   .view-header/.knowledge-grid classes had no prior CSS anywhere (same gap
+   as the other 7 .view-header views) — adding only what the new search/
+   upload/result-card interaction needs, not a redesign of the page. */
+#view-knowledge .view-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.knowledge-search-row {
+  margin: 1rem 0;
+}
+.knowledge-search-input {
+  width: 100%;
+  max-width: 420px;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 10px;
+  font-size: 0.9rem;
+}
+.knowledge-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.9rem;
+}
+.know-card {
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 12px;
+  padding: 1rem;
+  background: #ffffff;
+}
+.know-card .card-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+.know-card .card-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.know-card .tag-scope {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+  font-weight: 600;
+}
+.know-card .card-body-text {
+  font-size: 0.82rem;
+  color: #64748b;
+  margin: 0.2rem 0;
+}
+.know-card .knowledge-snippet {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.knowledge-open-source-btn {
+  margin-top: 0.5rem;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: 0.82rem;
+}

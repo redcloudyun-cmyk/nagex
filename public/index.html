@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="mobile/mobile-inbox.css?v=__NAGEX_BUILD_VERSION__">
   <link rel="stylesheet" href="mobile/mobile-activity.css?v=__NAGEX_BUILD_VERSION__">
   <link rel="stylesheet" href="mobile/mobile-vault.css?v=__NAGEX_BUILD_VERSION__">
+  <link rel="stylesheet" href="mobile/mobile-knowledge.css?v=__NAGEX_BUILD_VERSION__">
   <link rel="stylesheet" href="mobile/mobile-settings.css?v=__NAGEX_BUILD_VERSION__">
 </head>
 <body>
@@ -595,7 +596,7 @@
           <!-- Top 3 Cards + Primary Button (Mockup Image 4) -->
           <div class="plans-summary-row">
             <div class="plan-sum-card">
-              <div class="card-icon-circle blue">?諭?/div>
+              <div class="card-icon-circle blue">?諭</div>
               <div>
                 <strong>Open plans</strong>
                 <div class="plan-num">3</div>
@@ -603,7 +604,7 @@
               </div>
             </div>
             <div class="plan-sum-card">
-              <div class="card-icon-circle orange">??녔닼?/div>
+              <div class="card-icon-circle orange">??녔닼</div>
               <div>
                 <strong>Pending approvals</strong>
                 <div class="plan-num warning">2</div>
@@ -628,7 +629,7 @@
             <div class="plan-main-card">
               <div class="plan-card-header-top">
                 <div class="plan-title-group">
-                  <div class="plan-icon-square">?維?/div>
+                  <div class="plan-icon-square">?維</div>
                   <div>
                     <h2>Prepare Client Meeting</h2>
                     <p class="sub-text">Prepare for the Acme Corp. quarterly business review meeting.</p>
@@ -969,10 +970,21 @@
               <h2 data-i18n="knowledge.title">Reference Knowledge</h2>
               <p class="view-subtitle" data-i18n="knowledge.subtitle">External files, documents, and reference materials NAgex can access during reasoning (Knowledge ??Memory).</p>
             </div>
+            <button class="btn-mockup-primary" id="knowledge-add-btn" type="button">
+              <span data-i18n="knowledge.addButton">Add knowledge</span>
+            </button>
           </div>
 
-          <div class="knowledge-grid" id="knowledge-list-container">
-            <!-- Dynamically populated -->
+          <!-- R24.5C — real search over the live GET /api/v1/knowledge?q= API.
+               No client-only demo filtering: every keystroke (debounced)
+               re-queries the server. -->
+          <div class="knowledge-search-row">
+            <input type="search" id="knowledge-search-input" class="knowledge-search-input" data-i18n-placeholder="knowledge.searchPlaceholder" placeholder="Search knowledge...">
+          </div>
+          <input type="file" id="knowledge-upload-input" accept=".txt,.md,text/plain,text/markdown" hidden>
+
+          <div id="knowledge-list-container" class="knowledge-grid">
+            <!-- Dynamically populated by renderKnowledge() -->
           </div>
 
           <!-- R23.7H-C Phase D ??Vault folded into Knowledge as a
@@ -1298,7 +1310,7 @@
               <h3 style="font-size: 1rem; color: var(--navy-head); margin-bottom: 0.75rem;" data-i18n="analyze.uploadTitle">Upload Target File</h3>
               <input type="file" id="analyze-file-input" style="display: none;">
               <div id="analyze-dropzone" class="composer-file-drop-zone" style="display: block; border: 2px dashed var(--color-accent-teal, #0d9488); border-radius: 8px; padding: 2rem 1rem; text-align: center; cursor: pointer; background: rgba(13, 148, 136, 0.03);">
-                <div style="font-size: 2rem; margin-bottom: 0.5rem;">?諭?/div>
+                <div style="font-size: 2rem; margin-bottom: 0.5rem;">?諭</div>
                 <strong style="display: block; font-size: 0.9rem; color: var(--text-navy);" data-i18n="analyze.dragDrop">Drag &amp; Drop file here</strong>
                 <span style="font-size: 0.75rem; color: var(--text-muted);" data-i18n="analyze.clickBrowse">or click to browse PDF, TXT, CSV, JSON, PNG</span>
               </div>
@@ -1411,7 +1423,7 @@
           <!-- Active Voice Indicator (Compact - auto collapses when request is ready) -->
           <div class="ambient-voice-card compact-voice-indicator" id="ambient-voice-card" style="display:none;">
             <div class="voice-card-top">
-              <div class="glowing-mic-icon">??뷸닼?/div>
+              <div class="glowing-mic-icon">??뷸닼</div>
               <div>
                 <strong data-i18n="ambient.listening">Listening...</strong>
               </div>
@@ -1803,6 +1815,38 @@
       <div class="mh-bottom-spacer" aria-hidden="true"></div>
     </div>
 
+    <!-- Mobile Knowledge native view (R24.5C). Real GET /api/v1/knowledge?q=
+         rendering canonical KnowledgeDocument[] results from the server —
+         not a client-side filter over an already-fetched list (unlike
+         Vault's search above). Mutually exclusive with the other native
+         views via [hidden], managed only by mobile-home.js's
+         updateShellVisibility(). -->
+    <div id="mobile-view-knowledge" class="mh-scroll" hidden>
+      <header class="mh-header">
+        <div class="mh-brand">
+          <span class="mh-vault-title" data-i18n="knowledge.title">Reference Knowledge</span>
+        </div>
+        <div class="mh-header-right">
+          <button class="mh-lang-toggle" id="mh-knowledge-lang-toggle" data-i18n-lang-toggle title="Switch language" data-i18n-title="header.switchLanguage">KR</button>
+        </div>
+      </header>
+
+      <div class="mh-vault-search-row">
+        <input type="search" id="mh-knowledge-search-input" class="mh-vault-search-input" data-i18n-placeholder="knowledge.searchPlaceholder" placeholder="Search knowledge...">
+      </div>
+
+      <div style="padding: 0 16px 8px;">
+        <button type="button" class="btn-mockup-primary" id="mh-knowledge-add-btn" style="width:100%; justify-content:center;">
+          <span data-i18n="knowledge.addButton">Add knowledge</span>
+        </button>
+        <input type="file" id="mh-knowledge-upload-input" accept=".txt,.md,text/plain,text/markdown" hidden>
+      </div>
+
+      <div id="mh-knowledge-list"><div class="nagex-loading-row"></div></div>
+
+      <div class="mh-bottom-spacer" aria-hidden="true"></div>
+    </div>
+
     <!-- Mobile Settings native view (UI-5 R5 ??final native view;
          MOBILE_NATIVE_TABS now covers all 5 canonical tabs). Real
          state.quickWakeConfig/state.autonomyConfig/state.googleOAuth only
@@ -2027,6 +2071,7 @@
   <script src="mobile/mobile-inbox.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="mobile/mobile-activity.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="mobile/mobile-vault.js?v=__NAGEX_BUILD_VERSION__"></script>
+  <script src="mobile/mobile-knowledge.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="org-ui.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="rbac-ui.js?v=__NAGEX_BUILD_VERSION__"></script>
   <script src="enterprise-identity-ui.js?v=__NAGEX_BUILD_VERSION__"></script>

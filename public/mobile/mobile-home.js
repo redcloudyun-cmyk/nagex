@@ -12,7 +12,7 @@
     return (window.NAGEX_I18N ? window.NAGEX_I18N.t(key) : null) || fallback || key;
   }
 
-  const MOBILE_NATIVE_TABS = new Set(['tab-home', 'tab-inbox', 'tab-executions', 'tab-vault', 'tab-settings', 'tab-canvas']);
+  const MOBILE_NATIVE_TABS = new Set(['tab-home', 'tab-inbox', 'tab-executions', 'tab-vault', 'tab-settings', 'tab-canvas', 'tab-knowledge']);
 
   function isMobileViewport() {
     return Boolean(mq && mq.matches);
@@ -50,12 +50,14 @@
     const viewVault = document.getElementById('mobile-view-vault');
     const viewSettings = document.getElementById('mobile-view-settings');
     const viewCanvas = document.getElementById('mobile-view-canvas');
+    const viewKnowledge = document.getElementById('mobile-view-knowledge');
     if (viewHome) viewHome.hidden = nativeTab !== 'tab-home';
     if (viewInbox) viewInbox.hidden = nativeTab !== 'tab-inbox';
     if (viewActivity) viewActivity.hidden = nativeTab !== 'tab-executions';
     if (viewVault) viewVault.hidden = nativeTab !== 'tab-vault';
     if (viewSettings) viewSettings.hidden = nativeTab !== 'tab-settings';
     if (viewCanvas) viewCanvas.hidden = nativeTab !== 'tab-canvas';
+    if (viewKnowledge) viewKnowledge.hidden = nativeTab !== 'tab-knowledge';
 
     if (nativeTab === 'tab-home') {
       renderMobileHome();
@@ -67,6 +69,8 @@
       window.NAGEX.renderMobileVault();
     } else if (nativeTab === 'tab-settings' && typeof window.NAGEX.renderMobileSettings === 'function') {
       window.NAGEX.renderMobileSettings();
+    } else if (nativeTab === 'tab-knowledge' && typeof window.NAGEX.renderMobileKnowledge === 'function') {
+      window.NAGEX.renderMobileKnowledge();
     }
   }
 

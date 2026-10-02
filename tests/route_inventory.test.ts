@@ -61,7 +61,9 @@ const EXPECTED_ROUTE_MODULE_COUNTS: Record<string, number> = {
   'calendar.routes.ts': 6,
   'capabilities.routes.ts': 2,
   'capture.routes.ts': 1,
-  'catalog.routes.ts': 5,
+  'catalog.routes.ts': 3,
+  'knowledge.routes.ts': 3, // R24.5C — real POST (ingestion) and GET /:id (source traceability) added alongside the original GET list/search
+  'plan.routes.ts': 4,
   'competitor-pricing-agent.routes.ts': 3,
   'connections.routes.ts': 3,
   'conversation.routes.ts': 7,
@@ -122,10 +124,10 @@ test('ROUTE-INV-002: every route module\'s method-check-block count exactly matc
   assert.deepEqual(mismatches, [], `Route module endpoint-count drift detected:\n${mismatches.join('\n')}`);
 });
 
-test('ROUTE-INV-003: the total domain endpoint count across all route modules is exactly 301 — any change requires an intentional manifest update', () => {
+test('ROUTE-INV-003: the total domain endpoint count across all route modules is exactly 306 — any change requires an intentional manifest update', () => {
   // R23.7C-C — +1: GET /api/v1/creations/images/:imageId, the canonical
   // image-serving route fixing the BROKEN_SUCCESS_CONTRACT root cause.
-  assert.equal(TOTAL_DOMAIN_ENDPOINTS, 301);
+  assert.equal(TOTAL_DOMAIN_ENDPOINTS, 306);
   let actualTotal = 0;
   for (const file of listRouteModuleFiles()) {
     actualTotal += countMethodChecks(readSourceWithoutComments(path.join(ROUTES_DIR, file)));
