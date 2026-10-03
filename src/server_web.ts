@@ -35,6 +35,7 @@ import { handleSafetyRoutes } from './http/routes/safety.routes.js';
 import { handleConversationRoutes, handleSessionRoutes } from './http/routes/conversation.routes.js';
 import { handleResearchRoutes } from './http/routes/research.routes.js';
 import { handleArtifactRoutes } from './http/routes/artifact.routes.js';
+import { ArtifactContextResolver } from './artifacts/artifact-context.resolver.js';
 import { handlePerspectiveCompareRoutes } from './http/routes/perspective-compare.routes.js';
 import { handleForecastCompareRoutes } from './http/routes/forecast-compare.routes.js';
 import { handleDailyBriefRoutes } from './http/routes/daily-brief.routes.js';
@@ -644,7 +645,17 @@ export async function handleAsyncApiRequest(
       if (creationResult) return creationResult;
     }
     {
-      const artifactResult = await handleArtifactRoutes(method, pathname, body, headers, query, { artifactStore: app.artifactStore });
+      const artifactResult = await handleArtifactRoutes(method, pathname, body, headers, query, {
+        artifactStore: app.artifactStore,
+        // R24.7B — Canvas Ask: authenticated-session only; reuses the already-composed stores and the overridable AiService.
+        ask: {
+          contextResolver: new ArtifactContextResolver({ artifactStore: app.artifactStore, documentStore: app.documentStore, captureStore }),
+          aiService: service,
+          auditLogger,
+          sessionStore: customDeps?.sessionStore ?? sessionStore,
+          identityStore: customDeps?.identityStore ?? identityStore,
+        },
+      });
       if (artifactResult) return artifactResult;
     }
 

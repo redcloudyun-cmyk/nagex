@@ -137,7 +137,14 @@
           };
           img.src = previewUrl;
       }
-    } else if (['DOCUMENT', 'RESEARCH', 'ANALYSIS'].includes(upperType)) {
+    } else if (upperType === 'DOCUMENT') {
+      renderDocumentStage(rendererRegion, artifactProjection, openTarget, stateRef);
+    } else if (upperType === 'ANALYSIS') {
+      // R24.7B — show the same saved summary Ask is grounded in (the projection
+      // carries the persisted preview), read-only, so the user can see what NAgex answers about.
+      renderReadOnlyText(rendererRegion, (artifactProjection && artifactProjection.summary) || '', COPY[locale()].askSummaryCaption);
+      if (stateRef) stateRef.loadStatus = 'READY';
+    } else if (upperType === 'RESEARCH') {
       rendererRegion.innerHTML = `<div class="canvas-document-container" style="padding: 20px; text-align: center; color: #64748b;">
         <h3>${esc(upperType)} Workspace</h3>
         <p>Metadata preview is available. Rich content editor not yet implemented.</p>
@@ -149,6 +156,168 @@
       </div>`;
       if (stateRef) stateRef.loadStatus = 'ERROR';
     }
+  }
+
+  // R24.7B — read-only text view. Content is only ever assigned through
+  // textContent (never innerHTML), so document Markdown/HTML in a saved
+  // artifact is displayed as plain text and can never execute.
+  function renderReadOnlyText(region, text, caption) {
+    region.innerHTML = '';
+    const wrap = document.createElement('div');
+    wrap.className = 'canvas-document-container canvas-document-readonly';
+    if (caption) {
+      const cap = document.createElement('p');
+      cap.className = 'canvas-document-caption';
+      cap.textContent = caption;
+      wrap.appendChild(cap);
+    }
+    const pre = document.createElement('pre');
+    pre.className = 'canvas-document-text';
+    pre.textContent = text || COPY[locale()].documentEmpty;
+    wrap.appendChild(pre);
+    region.appendChild(wrap);
+  }
+
+  // The stale-response guard is per REGION (Home's embedded Canvas and the Focus
+  // Canvas can show the same artifact at the same time and must not cancel each other).
+  function renderDocumentStage(region, projection, openTarget, stateRef) {
+    const c = COPY[locale()];
+    const seq = (region._documentStageSeq = (region._documentStageSeq || 0) + 1);
+    region.innerHTML = '';
+    const status = document.createElement('p');
+    status.className = 'canvas-document-caption';
+    status.textContent = c.documentLoading;
+    region.appendChild(status);
+    const target = (projection && projection.openTarget) || openTarget || '';
+    // Only the same-origin NAgex API is ever fetched for an artifact's body.
+    if (!/^\/api\/v1\//.test(target)) {
+      status.textContent = c.documentUnavailable;
+      if (stateRef) stateRef.loadStatus = 'ERROR';
+      return;
+    }
+    window.NAGEX.apiFetch(target).then((res) => {
+      if (seq !== region._documentStageSeq || !region.isConnected) return;
+      const doc = res && res.document;
+      if (!doc || typeof doc.content !== 'string') {
+        status.textContent = c.documentUnavailable;
+        if (stateRef) stateRef.loadStatus = 'ERROR';
+        return;
+      }
+      renderReadOnlyText(region, doc.content, c.documentReadOnlyCaption);
+      if (stateRef) stateRef.loadStatus = 'READY';
+    });
+  }
+
+  // --- R24.7B Canvas Ask (read-only, artifact-grounded, one shared implementation) ---
+  // One handler (submitCanvasAsk) and one renderer (renderAskState) serve the
+  // desktop Focus Canvas ('canvas-'), Home's embedded Canvas ('home-canvas-')
+  // and the mobile Canvas ('mh-canvas-'). No Ask/answer state is stored here
+  // beyond a per-surface request sequence number that discards stale responses.
+  const askSeq = { 'canvas-': 0, 'home-canvas-': 0, 'mh-canvas-': 0 };
+
+  // Which artifact a given Ask surface is about. Home's embedded Canvas never
+  // touches window.NAGEX._canvasState (by design), so it is resolved from the
+  // embedded Canvas's own DOM, written by renderHomeEmbeddedCanvas; the Focus
+  // surfaces use the single Focus state. Server-side the artifact is
+  // re-resolved and ownership-checked from this id alone.
+  function activeArtifactForPrefix(prefix) {
+    if (prefix === 'home-canvas-') {
+      const el = document.getElementById('home-embedded-canvas');
+      const id = el && el.getAttribute('data-artifact-id');
+      if (!id) return null;
+      let ask = null;
+      try { ask = JSON.parse(el.getAttribute('data-ask') || 'null'); } catch (e) { ask = null; }
+      return { artifactId: id, ask };
+    }
+    const st = window.NAGEX._canvasState;
+    if (!st || !st.active || !st.artifactId) return null;
+    return { artifactId: st.artifactId, ask: (st.artifactProjection && st.artifactProjection.ask) || null };
+  }
+
+  function askControls(prefix) {
+    const input = document.getElementById(prefix + 'ask-input');
+    const button = input ? input.nextElementSibling : null;
+    return { input, button, region: document.getElementById(prefix + 'ask-answer') };
+  }
+
+  function setAskBusy(prefix, busy) {
+    const { input, button } = askControls(prefix);
+    if (input) input.disabled = busy;
+    if (button) button.disabled = busy;
+  }
+
+  const ASK_UNSUPPORTED_KEYS = { IMAGE_VISUAL_UNSUPPORTED: 'askUnsupportedImage', RESEARCH_PREVIEW_ONLY: 'askUnsupportedResearch', TYPE_NOT_SUPPORTED: 'askUnsupportedType' };
+
+  function groundingLines(g) {
+    const c = COPY[locale()];
+    const lines = [];
+    if (g && g.scope === 'PERSISTED_SUMMARY') lines.push(c.askGroundedSummary);
+    else lines.push(g && g.revision ? c.askGroundedDocumentRev(g.revision) : c.askGroundedDocument);
+    if (g && g.truncated) lines.push(c.askTruncated(g.contextChars, g.contentChars));
+    if (!g || g.externalVerified !== true) lines.push(c.askNotVerified);
+    return lines;
+  }
+
+  // The single response renderer. Everything server- or model-supplied is set via textContent.
+  function renderAskState(prefix, stateName, data) {
+    const { region } = askControls(prefix);
+    if (!region) return;
+    const c = COPY[locale()];
+    region.innerHTML = '';
+    if (stateName === 'idle') { region.hidden = true; region.removeAttribute('data-ask-state'); return; }
+    region.hidden = false;
+    region.setAttribute('data-ask-state', stateName);
+    const body = document.createElement('div');
+    body.className = 'canvas-ask-answer-body';
+    const para = (cls, text) => { const p = document.createElement('p'); p.className = cls; p.textContent = text; return p; };
+    if (stateName === 'loading') {
+      body.appendChild(para('canvas-ask-status', c.askLoading));
+    } else if (stateName === 'answer') {
+      // What the answer is based on (and that it is NOT externally verified) comes FIRST,
+      // so it is always visible — never scrolled out of a short mobile answer region.
+      groundingLines(data.grounding).forEach((line) => body.appendChild(para('canvas-ask-grounding', line)));
+      body.appendChild(para('canvas-ask-answer-text', data.answer));
+    } else if (stateName === 'unsupported') {
+      body.appendChild(para('canvas-ask-status', c[ASK_UNSUPPORTED_KEYS[data && data.reason] || 'askUnsupportedType']));
+    } else if (stateName === 'auth') {
+      body.appendChild(para('canvas-ask-status', c.askSignIn));
+    } else {
+      body.appendChild(para('canvas-ask-status', (data && data.message) || c.askError));
+    }
+    region.appendChild(body);
+  }
+
+  // Resets the Ask surface for the artifact it is now showing: cancels any
+  // in-flight response (stale-response guard), clears the input and the
+  // answer, and — when the server's projection says Ask is unsupported for this
+  // type — shows that truthful reason and disables the input instead of letting
+  // the user type a question that cannot be answered.
+  function resetAskSurface(prefix, ask) {
+    askSeq[prefix] = (askSeq[prefix] || 0) + 1;
+    const { input } = askControls(prefix);
+    if (input) input.value = '';
+    if (ask && ask.supported === false) {
+      renderAskState(prefix, 'unsupported', { reason: ask.reason });
+      setAskBusy(prefix, true);
+    } else {
+      renderAskState(prefix, 'idle');
+      setAskBusy(prefix, false);
+    }
+  }
+  window.NAGEX._resetAskSurface = resetAskSurface;
+
+  function classifyAskError(res) {
+    const c = COPY[locale()];
+    if (!res) return { state: 'error', message: c.askNetworkError };
+    const code = typeof res.error === 'string' ? res.error : (res.error && res.error.code) || '';
+    if (code === 'AUTHENTICATION_REQUIRED') return { state: 'auth' };
+    if (code === 'ARTIFACT_ASK_UNSUPPORTED') return { state: 'unsupported', data: { reason: res.reason } };
+    if (code === 'ARTIFACT_NOT_FOUND') return { state: 'error', message: c.askNotFound };
+    if (code === 'ARTIFACT_CONTEXT_UNAVAILABLE') return { state: 'error', message: c.askContextUnavailable };
+    if (code === 'INVALID_QUESTION') return { state: 'error', message: c.askInvalidQuestion };
+    if (code === 'ASK_MODEL_UNAVAILABLE') return { state: 'error', message: c.askModelUnavailable };
+    if (code === 'REQUEST_TIMEOUT') return { state: 'error', message: c.askTimeout };
+    return { state: 'error', message: c.askError };
   }
 
   window.NAGEX.openArtifactInCanvas = function (artifactId, artifactType, canvasTarget, openTarget, artifactProjection) {
@@ -194,6 +363,8 @@
     window.NAGEX.switchCanvasAgentTab('chat');
 
     renderArtifactStage(prefix, artifactType, artifactProjection, window.NAGEX._canvasState.openTarget, window.NAGEX._canvasState);
+    // R24.7B — a different artifact never inherits the previous Ask input/answer.
+    resetAskSurface(prefix, artifactProjection && artifactProjection.ask);
 
     if (typeof window.NAGEX.switchTab === 'function') {
       window.NAGEX.switchTab('tab-canvas', { artifactId: artifactId });
@@ -222,32 +393,67 @@
      }
   };
 
+  // R24.7B — reopens ANY owned artifact on reload via the real artifact
+  // endpoint's projection (the same ArtifactUxProjection Home uses); it no
+  // longer depends on the artifact being in Home's top-5 Recent Creations.
+  // Not found / not owned / unauthenticated all look the same on purpose.
   window.NAGEX.restoreCanvasFromRoute = function(artifactId) {
       if (window.NAGEX._canvasState && window.NAGEX._canvasState.artifactId === artifactId && window.NAGEX._canvasState.active) {
           return;
       }
-      if (window.NAGEX_PERSONAL_HOME && typeof window.NAGEX_PERSONAL_HOME.fetchHome === 'function') {
-          window.NAGEX_PERSONAL_HOME.fetchHome().then(model => {
-              const item = (model.recentCreations || []).find(c => c.artifactProjection && c.artifactProjection.artifactId === artifactId) || (model.recentResults || []).find(c => c.artifactProjection && c.artifactProjection.artifactId === artifactId);
-              if (item && item.artifactProjection) {
-                  window.NAGEX.dispatchArtifactOpen(item.artifactProjection.artifactType, artifactId, item);
-              }
-          });
-      }
+      window.NAGEX.apiFetch('/api/v1/artifacts/' + encodeURIComponent(artifactId)).then((res) => {
+          const proj = res && res.projection;
+          if (proj && proj.artifactId === artifactId) {
+              window.NAGEX.dispatchArtifactOpen(proj.artifactType, artifactId, { artifactProjection: proj, title: proj.title });
+              return;
+          }
+          const region = document.getElementById(canvasIdPrefix() + 'renderer-region');
+          const titleEl = document.getElementById(canvasIdPrefix() + 'artifact-title');
+          if (titleEl) titleEl.textContent = COPY[locale()].untitledArtifact;
+          if (region) {
+              region.innerHTML = '';
+              const p = document.createElement('p');
+              p.className = 'canvas-document-caption';
+              p.textContent = COPY[locale()].artifactNotFound;
+              region.appendChild(p);
+          }
+      });
   };
 
   // R23.7H-C Phase D.4 §11 — accepts an explicit prefix override so
   // Home's embedded Agent ("home-canvas-") can share this exact truthful
   // handler with Focus Mode (desktop "canvas-" / mobile "mh-canvas-")
   // instead of a second copy.
-  window.NAGEX.submitCanvasAsk = function(prefixOverride) {
-     const input = document.getElementById((prefixOverride || canvasIdPrefix()) + 'ask-input');
-     if (input && input.value) {
-         if (typeof window.alert === 'function') {
-             window.alert(locale() === 'ko' ? '기능이 향후 지원될 예정입니다.' : 'Action not yet supported. NAgex mutation will be available soon.');
-         }
-         input.value = '';
+  window.NAGEX.submitCanvasAsk = async function(prefixOverride) {
+     const prefix = prefixOverride || canvasIdPrefix();
+     const { input } = askControls(prefix);
+     if (!input) return;
+     const question = String(input.value || '').trim();
+     if (!question) return;
+     const active = activeArtifactForPrefix(prefix);
+     if (!active) { renderAskState(prefix, 'error', { message: COPY[locale()].askNoArtifact }); return; }
+     if (active.ask && active.ask.supported === false) { renderAskState(prefix, 'unsupported', { reason: active.ask.reason }); return; }
+     const seq = (askSeq[prefix] = (askSeq[prefix] || 0) + 1);
+     const artifactId = active.artifactId;
+     setAskBusy(prefix, true);
+     renderAskState(prefix, 'loading');
+     // Only the question (and the UI language) is sent: the server resolves the
+     // artifact, its owner and its content from the id and the session cookie.
+     const res = await window.NAGEX.apiFetch('/api/v1/artifacts/' + encodeURIComponent(artifactId) + '/ask', {
+       method: 'POST',
+       body: JSON.stringify({ question, locale: locale() }),
+       timeoutMs: 90000,
+     });
+     const now = activeArtifactForPrefix(prefix);
+     if (seq !== askSeq[prefix] || !now || now.artifactId !== artifactId) return; // stale: surface was reset or moved to another artifact
+     setAskBusy(prefix, false);
+     if (res && typeof res.answer === 'string' && res.answer && res.grounding && res.grounding.artifactId === artifactId) {
+       renderAskState(prefix, 'answer', { answer: res.answer, grounding: res.grounding });
+       input.value = '';
+       return;
      }
+     const failure = classifyAskError(res);
+     renderAskState(prefix, failure.state, failure.data || { message: failure.message });
   };
 
   window.NAGEX.dispatchArtifactOpen = function (type, sourceRef, item) {
@@ -312,6 +518,18 @@
       workWithData: 'Work with your data', workWithDataSubtitle: 'NAgex can use your documents and connected sources to create personalized content.',
       contextType: 'Type', contextTitle: 'Title', contextUpdated: 'Updated', contextUnknown: 'Unknown', untitledArtifact: 'Untitled artifact',
       homeCanvasEmptyTitle: 'Create something with NAgex', homeCanvasEmptyBody: 'Start a report, image, research project, or plan — your work will continue here.', homeCanvasOpenFocus: 'Open in Canvas',
+      documentLoading: 'Loading document…', documentUnavailable: 'This document could not be loaded.', documentEmpty: '(This document has no content.)', documentReadOnlyCaption: 'Read-only view of the saved document', askSummaryCaption: 'Saved summary of this file (read-only)',
+      artifactNotFound: 'This artifact could not be opened. It may not exist, or it may belong to another account.',
+      askLoading: 'NAgex is reading this artifact…', askSignIn: 'Sign in to ask about this artifact.',
+      askUnsupportedImage: 'NAgex cannot inspect the content of this image in Ask yet, so it cannot answer questions about what the image shows.',
+      askUnsupportedResearch: 'Ask is not available for research results yet: only a short preview is saved, not the full result.',
+      askUnsupportedType: 'Ask is not available for this kind of artifact yet.',
+      askGroundedDocument: 'Answered from this document only.', askGroundedDocumentRev: (n) => `Answered from this document only (revision ${n}).`, askGroundedSummary: 'Answered from the saved summary of this file only, not the full file.',
+      askTruncated: (used, total) => `Only the first ${used} of ${total} characters were used, so this answer covers the beginning only.`,
+      askNotVerified: 'Not independently verified. NAgex changed nothing.',
+      askError: 'NAgex could not answer right now. Try again.', askNetworkError: 'Could not reach NAgex. Check your connection and try again.', askTimeout: 'This took too long and was cancelled. Try again.',
+      askNotFound: 'This artifact could not be found.', askContextUnavailable: 'The saved content of this artifact is not available right now.', askInvalidQuestion: 'Enter a question of up to 2000 characters.',
+      askModelUnavailable: 'NAgex cannot answer right now because no model is available.', askNoArtifact: 'Open an artifact first.',
       justNow: 'Just now', minutesAgo: (n) => `${n} min ago`, hoursAgo: (n) => `${n} hour${n === 1 ? '' : 's'} ago`, daysAgo: (n) => `${n} day${n === 1 ? '' : 's'} ago`,
     },
     ko: {
@@ -328,6 +546,18 @@
       workWithData: '내 데이터로 작업하기', workWithDataSubtitle: 'NAgex가 문서와 연결된 소스를 활용해 맞춤 콘텐츠를 만들어 드려요.',
       contextType: '유형', contextTitle: '제목', contextUpdated: '업데이트', contextUnknown: '알 수 없음', untitledArtifact: '제목 없는 아티팩트',
       homeCanvasEmptyTitle: 'NAgex로 무언가를 만들어보세요', homeCanvasEmptyBody: '보고서, 이미지, 리서치, 플랜을 시작해 보세요 — 작업 내용이 여기에서 이어집니다.', homeCanvasOpenFocus: '캔버스에서 열기',
+      documentLoading: '문서를 불러오는 중…', documentUnavailable: '이 문서를 불러오지 못했어요.', documentEmpty: '(이 문서에는 내용이 없어요.)', documentReadOnlyCaption: '저장된 문서의 읽기 전용 보기', askSummaryCaption: '이 파일의 저장된 요약 (읽기 전용)',
+      artifactNotFound: '이 아티팩트를 열 수 없어요. 존재하지 않거나 다른 계정의 항목일 수 있어요.',
+      askLoading: 'NAgex가 이 아티팩트를 읽는 중이에요…', askSignIn: '이 아티팩트에 대해 물어보려면 로그인하세요.',
+      askUnsupportedImage: '아직은 질문하기에서 이미지의 내용을 확인할 수 없어서, 이미지에 무엇이 담겼는지는 답할 수 없어요.',
+      askUnsupportedResearch: '아직은 리서치 결과에 대해 질문할 수 없어요. 전체 결과가 아니라 짧은 미리보기만 저장되어 있어요.',
+      askUnsupportedType: '아직은 이 종류의 아티팩트에 대해 질문할 수 없어요.',
+      askGroundedDocument: '이 문서만을 근거로 답했어요.', askGroundedDocumentRev: (n) => `이 문서(${n}번째 버전)만을 근거로 답했어요.`, askGroundedSummary: '파일 전체가 아니라 저장된 요약만을 근거로 답했어요.',
+      askTruncated: (used, total) => `전체 ${total}자 중 앞부분 ${used}자만 사용했기 때문에 이 답변은 앞부분만 다뤄요.`,
+      askNotVerified: '외부에서 검증된 내용은 아니에요. NAgex는 아무것도 바꾸지 않았어요.',
+      askError: '지금은 NAgex가 답할 수 없어요. 다시 시도해 주세요.', askNetworkError: 'NAgex에 연결하지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요.', askTimeout: '시간이 너무 오래 걸려 취소되었어요. 다시 시도해 주세요.',
+      askNotFound: '이 아티팩트를 찾을 수 없어요.', askContextUnavailable: '이 아티팩트의 저장된 내용을 지금은 불러올 수 없어요.', askInvalidQuestion: '2000자 이내로 질문을 입력해 주세요.',
+      askModelUnavailable: '사용할 수 있는 모델이 없어 지금은 답할 수 없어요.', askNoArtifact: '먼저 아티팩트를 열어 주세요.',
       justNow: '방금 전', minutesAgo: (n) => `${n}분 전`, hoursAgo: (n) => `${n}시간 전`, daysAgo: (n) => `${n}일 전`,
     },
   };
@@ -569,6 +799,9 @@
     const agentPanel = document.getElementById('home-agent-panel');
 
     if (!recent) {
+      target.removeAttribute('data-artifact-id');
+      target.removeAttribute('data-ask');
+      resetAskSurface('home-canvas-', null);
       target.innerHTML = `<div class="home-canvas-empty"><h2>${esc(c.homeCanvasEmptyTitle)}</h2><p>${esc(c.homeCanvasEmptyBody)}</p></div>`;
       // R23.7H-C Phase D.4 §16 — no artifact means the Agent has nothing
       // real to collaborate on yet; hide it rather than show an empty
@@ -585,6 +818,9 @@
     // position (the D.3 cert script's flawed assumption). Real state,
     // same real-state-exposure pattern Focus Mode already uses elsewhere.
     window.NAGEX._homeEmbeddedArtifactIdForCert = proj.artifactId;
+    const previousEmbeddedId = target.getAttribute('data-artifact-id');
+    target.setAttribute('data-artifact-id', proj.artifactId);
+    target.setAttribute('data-ask', JSON.stringify(proj.ask || null));
     target.innerHTML = `
       <div class="canvas-toolbar home-embedded-canvas-toolbar">
         <div class="canvas-toolbar-left">
@@ -605,6 +841,7 @@
     renderArtifactStage('home-canvas-', proj.artifactType, proj, proj.openTarget, null);
     renderArtifactContext('home-canvas-', proj.artifactType, proj);
     window.NAGEX.switchCanvasAgentTab('chat');
+    if (previousEmbeddedId !== proj.artifactId) resetAskSurface('home-canvas-', proj.ask);
 
     const openBtn = document.getElementById('home-canvas-open-btn');
     if (openBtn) {

@@ -264,9 +264,10 @@
                   <button type="button" class="canvas-agent-tab" data-agent-tab="suggestions" role="tab" aria-selected="false" onclick="window.NAGEX.switchCanvasAgentTab('suggestions')" data-i18n="canvas.agentSuggestions">Suggestions</button>
                 </div>
                 <div class="canvas-agent-tab-panel" data-agent-panel="chat">
-                  <p class="canvas-agent-empty" data-i18n="canvas.agentChatIntro">NAgex is ready to help with this creation.</p>
+                  <p class="canvas-agent-empty" data-i18n="canvas.agentChatIntro">Ask a question about this artifact. NAgex answers from its saved content and never changes it.</p>
+                  <div id="home-canvas-ask-answer" class="canvas-ask-answer" role="status" aria-live="polite" hidden></div>
                   <div class="canvas-ask-wrapper">
-                    <input type="text" id="home-canvas-ask-input" class="canvas-ask-field" placeholder="Ask NAgex to change this..." data-i18n-placeholder="canvas.askPlaceholder" />
+                    <input type="text" id="home-canvas-ask-input" class="canvas-ask-field" placeholder="Ask about this artifact..." data-i18n-placeholder="canvas.askPlaceholder" autocomplete="off" />
                     <button class="btn-primary canvas-ask-submit" onclick="window.NAGEX.submitCanvasAsk('home-canvas-')" aria-label="Send" data-i18n-aria-label="canvas.askSubmit">
                       <svg class="svg-icon-sm" viewBox="0 0 24 24"><path fill="currentColor" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
                     </button>
@@ -1199,9 +1200,10 @@
               </div>
 
               <div class="canvas-agent-tab-panel" data-agent-panel="chat">
-                <p class="canvas-agent-empty" data-i18n="canvas.agentChatIntro">NAgex is ready to help with this creation.</p>
+                <p class="canvas-agent-empty" data-i18n="canvas.agentChatIntro">Ask a question about this artifact. NAgex answers from its saved content and never changes it.</p>
+                <div id="canvas-ask-answer" class="canvas-ask-answer" role="status" aria-live="polite" hidden></div>
                 <div class="canvas-ask-wrapper">
-                  <input type="text" id="canvas-ask-input" class="canvas-ask-field" placeholder="Ask NAgex to change this..." data-i18n-placeholder="canvas.askPlaceholder" />
+                  <input type="text" id="canvas-ask-input" class="canvas-ask-field" placeholder="Ask about this artifact..." data-i18n-placeholder="canvas.askPlaceholder" autocomplete="off" />
                   <button class="btn-primary canvas-ask-submit" onclick="window.NAGEX.submitCanvasAsk()" aria-label="Send" data-i18n-aria-label="canvas.askSubmit">
                     <svg class="svg-icon-sm" viewBox="0 0 24 24"><path fill="currentColor" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
                   </button>
@@ -1983,8 +1985,10 @@
         </div>
       </div>
 
+      <div id="mh-canvas-ask-answer" class="mh-canvas-ask-answer canvas-ask-answer" role="status" aria-live="polite" hidden></div>
+
       <div class="mh-canvas-agent-input">
-        <input type="text" id="mh-canvas-ask-input" class="mh-canvas-ask-field" placeholder="Ask NAgex to change this..." data-i18n-placeholder="canvas.askPlaceholder" />
+        <input type="text" id="mh-canvas-ask-input" class="mh-canvas-ask-field" placeholder="Ask about this artifact..." data-i18n-placeholder="canvas.askPlaceholder" autocomplete="off" />
         <button class="mh-canvas-ask-submit" onclick="window.NAGEX.submitCanvasAsk()" aria-label="Send" data-i18n-aria-label="canvas.askSubmit">
           <svg class="svg-icon-sm" viewBox="0 0 24 24"><path fill="currentColor" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
         </button>

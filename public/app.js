@@ -366,12 +366,12 @@
     initQuickActionChips();
     handleOAuthRedirectBanner();
     loadAllData();
-    // R24.2B: Wire Enter keys for Canvas Ask inputs to match their buttons' truthful unsupported semantics.
+    // R24.2B/R24.7B: Enter submits Canvas Ask exactly like the Send button (one shared handler), except while an IME composition is still active.
     const wireCanvasAsk = (id, prefix) => {
       const el = document.getElementById(id);
       if (el) {
         el.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter' && !e.shiftKey) {
+          if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
             e.preventDefault();
             if (window.NAGEX && window.NAGEX.submitCanvasAsk) {
               window.NAGEX.submitCanvasAsk(prefix);

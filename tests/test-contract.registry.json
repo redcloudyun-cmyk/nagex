@@ -4299,6 +4299,64 @@
       "assertionIntent": "user-visible Settings behavior in a real Playwright Chromium browser: persisted Quick Wake/Autonomy across reload and a fresh context, truthful Saved/failure feedback (forced write failure), signed-out state, mobile cold-load truthfulness at 390x844, Proactive Assistant draft preservation, no fabricated device, no duplicate Settings ids, canonical account locale, no overflow/raw i18n keys/undersized touch targets.",
       "notes": "Only safe deterministic settings and throwaway accounts are used; no Google connect/disconnect and no destructive account operations.",
       "writesRepositoryArtifacts": false
+    },
+    "r24_7b_canvas_ask": {
+      "milestone": "R24.7B",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "read-only artifact-grounded Canvas Ask server contract: authenticated-session-only (anonymous and the default-admin fallback denied, forged identity headers and body fields ignored), uniform non-enumerating ownership (cross-user, cross-tenant, unknown id), DOCUMENT full-content and ANALYSIS persisted-summary grounding with a typed never-externally-verified envelope, deterministic truncation disclosed to the user and the model, untrusted-artifact prompt boundary (nonce delimiters, no system-message leakage, no tools), truthful unsupported types without a model call, distinct failure states, safe audit metadata, zero mutation, and Canvas route restore of any owned artifact.",
+      "notes": "Real route registrar, ArtifactStore/DocumentStore/CaptureStore, Identity/Session stores, UnifiedModelRouter and AiService; only the bottom-most model provider is a deterministic fixture that records what the model is given. Not live-model certification (see r24_7b_canvas_ask_live)."
+    },
+    "r24_7b_canvas_ask_contract": {
+      "milestone": "R24.7B",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "Canvas Ask source/markup contract: the ask route, resolver and AiService.artifactAsk contain no mutation primitive and no side channel (main conversation, memory, web search, connected apps, approval/execution); identity only from the authenticated session; existing router with CHAT; one Ask-support rule exposed by the projection; one submitCanvasAsk and one renderer without alert(); textContent-only rendering; three answer regions with one shared handler; restore no longer tied to Home top-5; Ask copy no longer promises mutation and EN/KR key sets match.",
+      "notes": "Reads production source/markup; the behavior is certified by r24_7b_canvas_ask and r24_7b_canvas_ask_browser."
+    },
+    "r24_7b_canvas_ask_browser": {
+      "milestone": "R24.7B",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "real-Chromium Canvas Ask on the real production server, desktop 1440x900, Home-embedded Canvas and mobile 390x844, with provider credentials scrubbed so no model is called: real read-only document content (never executed), route restore of an artifact outside Home top-5 across a reload, uniform not-found for foreign and unknown ids, IMAGE/RESEARCH disabled with a truthful reason and no request, signed-out sign-in state (EN/KR), the exact { question, locale } request and no side-channel calls, truthful no-model-available state, zero mutation, stale-answer reset on artifact change, ANALYSIS summary view, EN/KR copy without raw keys, and mobile layout without horizontal overflow.",
+      "notes": "Disposable accounts through the production stores in a private temp data dir; no real user, no external call.",
+      "writesRepositoryArtifacts": false
+    },
+    "r24_7b_canvas_ask_live": {
+      "milestone": "R24.7B",
+      "classification": "LIVE_EXTERNAL",
+      "canonical": false,
+      "scopes": [
+        "model-routing",
+        "browser"
+      ],
+      "externalDependencies": ["Gemini, OpenAI, or Nebius API","internet","provider credentials","Chromium"],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": false,
+      "assertionIntent": "live Canvas Ask acceptance: a REAL model provider answers real questions about a real DOCUMENT and an ANALYSIS summary through the real server in real Chromium (desktop, Home-embedded, mobile 390x844, Korean), grounding envelope and UI grounding copy match the artifact, a prompt-injection artifact does not take over, truncated documents are disclosed and the text beyond the limit is never seen, nothing is mutated.",
+      "notes": "Credential-gated: the whole file is skipped with an explicit LIVE_DEPENDENCY_UNAVAILABLE reason unless <PROVIDER>_API_KEY and NAGEX_<PROVIDER>_MODEL are set. Synthetic test content only. Provider 429/503 are reported as product failures, never retried or faked."
     }
   }
 }

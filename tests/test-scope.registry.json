@@ -118,7 +118,8 @@
       "plan-persistence",
       "r24_6b_settings_persistence",
       "r24_6c_settings_identity_boundary",
-      "r24_6c1_dev_auth_token_containment"
+      "r24_6c1_dev_auth_token_containment",
+      "r24_7b_canvas_ask"
     ],
     "personal-home": [
       "m6_1_mobile_release_blockers",
@@ -260,7 +261,8 @@
       "r23_7h_c_phase_d3_unified_home_workspace",
       "r23_7h_c_phase_d4_geometry_locked_clone",
       "r23_7_i18n_visible_keys",
-      "r24_6d_settings_surface"
+      "r24_6d_settings_surface",
+      "r24_7b_canvas_ask_contract"
     ],
     "knowledge": [
       "r24_5c_knowledge_live"
@@ -374,6 +376,8 @@
     "r22_7_forecast_compare",
     "r24_6b_settings_real_browser",
     "r24_6c1_auth_token_browser",
-    "r24_6d_settings_surface_browser"
+    "r24_6d_settings_surface_browser",
+    "r24_7b_canvas_ask_browser",
+    "r24_7b_canvas_ask_live"
   ]
 }

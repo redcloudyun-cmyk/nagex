@@ -41,13 +41,33 @@ function setupMockDOM() {
   // Using a mock document object.
   const elements: Record<string, any> = {};
   
+  // R24.7B — minimal DOM element surface. Canvas Ask / the read-only document
+  // view build and mark up nodes (createElement/appendChild/setAttribute), so
+  // the mock element must support that much; it is still a plain object, never
+  // a second implementation of any production logic.
+  const mockElement = (id: string): any => {
+    const el: any = {
+      id, textContent: '', style: {}, href: '', hidden: false, value: '', disabled: false, isConnected: true,
+      attrs: {} as Record<string, string>, children: [] as any[], _html: '',
+      // Like a real element, assigning innerHTML replaces (here: empties) the children.
+      get innerHTML() { return el._html; },
+      set innerHTML(v: string) { el._html = v; el.children = []; },
+      setAttribute(k: string, v: string) { el.attrs[k] = String(v); },
+      removeAttribute(k: string) { delete el.attrs[k]; },
+      getAttribute(k: string) { return k in el.attrs ? el.attrs[k] : null; },
+      appendChild(child: any) { el.children.push(child); return child; },
+    };
+    return el;
+  };
+
   const mockDocument = {
     getElementById: (id: string) => {
       if (!elements[id]) {
-        elements[id] = { id, textContent: '', innerHTML: '', style: {}, href: '' };
+        elements[id] = mockElement(id);
       }
       return elements[id];
     },
+    createElement: (tag: string) => mockElement(tag),
     querySelectorAll: () => []
   };
   
@@ -151,15 +171,47 @@ test('K. PRESENTATION planned -> no fake success', () => {
   assert.ok(elements['alert']);
 });
 
-test('M. DOCUMENT renderer truthful', () => {
+// R24.7B (supersedes the R23.7H-C Phase C contract that asserted the DOCUMENT
+// renderer shows the "DOCUMENT Workspace / Metadata preview" placeholder):
+// the DOCUMENT renderer now shows the REAL, canonical document body, read-only.
+// Stricter, not weaker: it must load the body from the artifact's own
+// same-origin NAgex API target, show a truthful loading state, display the
+// text only through textContent (document Markdown/HTML never executes), offer
+// no editor/mutation control, and show a truthful error when the body cannot
+// be loaded — never the old placeholder.
+test('M. DOCUMENT renderer truthful (R24.7B: real read-only content)', async () => {
   const { mockWindow, elements } = setupMockDOM();
   elements['view-canvas'] = true;
+  const requested: string[] = [];
+  const evil = '# Heading <img src=x onerror=alert(1)> <script>alert(2)</script>';
+  mockWindow.NAGEX.apiFetch = async (url: string) => { requested.push(url); return { document: { content: evil } }; };
   const proj = toArtifactUxProjection(mockDocRecord);
   
   mockWindow.NAGEX.openArtifactInCanvas(proj.artifactId, proj.artifactType, proj.canvasTarget, proj.openTarget, proj);
-  const html = elements['canvas-renderer-region'].innerHTML;
-  assert.ok(html.includes('DOCUMENT Workspace'));
-  assert.ok(html.includes('Metadata preview'));
+  const region = elements['canvas-renderer-region'];
+  assert.equal(region.children[0].textContent, 'Loading document…', 'truthful loading state first');
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.deepEqual(requested, [mockDocRecord.openTarget], 'the body is read from the artifact\'s own same-origin API target');
+  const wrap = region.children[0];
+  const pre = wrap.children.find((c: any) => c.className === 'canvas-document-text');
+  assert.equal(pre.textContent, evil, 'content is assigned as text, verbatim');
+  assert.equal(region.innerHTML, '', 'no HTML string is ever injected for document content');
+  assert.equal(JSON.stringify(region).includes('DOCUMENT Workspace'), false);
+  assert.equal(JSON.stringify(region).includes('Metadata preview'), false);
+  assert.equal(JSON.stringify(region).includes('textarea'), false, 'read-only: no editor');
+  assert.equal(mockWindow.NAGEX._canvasState.loadStatus, 'READY');
+});
+
+test('M2. DOCUMENT renderer shows a truthful error — never fake content — when the body cannot be loaded', async () => {
+  const { mockWindow, elements } = setupMockDOM();
+  elements['view-canvas'] = true;
+  mockWindow.NAGEX.apiFetch = async () => ({ error: 'DOCUMENT_NOT_FOUND' });
+  const proj = toArtifactUxProjection(mockDocRecord);
+  mockWindow.NAGEX.openArtifactInCanvas(proj.artifactId, proj.artifactType, proj.canvasTarget, proj.openTarget, proj);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(elements['canvas-renderer-region'].children[0].textContent, 'This document could not be loaded.');
+  assert.equal(mockWindow.NAGEX._canvasState.loadStatus, 'ERROR');
 });
 
 test('P. Canvas close/back', () => {
