@@ -22,6 +22,7 @@ import { DailyBriefStore, dailyBriefDateKey } from '../src/governance/daily-brie
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
+import { authAs } from './_s1_session_auth.js';
 
 function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
@@ -81,7 +82,10 @@ function buildHarness(opts: {
 // empty starting state regardless of what an earlier run persisted.
 const RUN_ID = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 function headersFor(testName: string) {
-  return { 'x-nagex-tenant': 'ten_test', 'x-principal-id': `usr_${testName}_${RUN_ID}` };
+  const principalId = `usr_${testName}_${RUN_ID}`;
+  // S1: the session cookie is the only thing the server reads. The two identity headers are
+  // NON-authoritative metadata (the server discards them) that the assertions below read back.
+  return { ...authAs('ten_test', principalId), 'x-nagex-tenant': 'ten_test', 'x-principal-id': principalId };
 }
 
 test('Calendar only: Gmail disconnected still yields a real partial brief grounded in real calendar events', async () => {
@@ -295,7 +299,7 @@ test('R9 history: past days are isolated — refreshing today never changes a di
 
 test('R9 tenant isolation: history for one tenant/principal never includes another\'s briefs', async () => {
   const HEADERS_A = headersFor('tenant_iso_a');
-  const HEADERS_B = { 'x-nagex-tenant': 'ten_other', 'x-principal-id': `usr_tenant_iso_b_${RUN_ID}` };
+  const HEADERS_B = authAs('ten_other', `usr_tenant_iso_b_${RUN_ID}`);
   const h = buildHarness({ principalId: HEADERS_A['x-principal-id'] });
   await handleAsyncApiRequest('GET', '/api/v1/daily-brief', null, HEADERS_A, h.aiService, {}, h.calendarService, h.gmailService);
   await handleAsyncApiRequest('GET', '/api/v1/daily-brief', null, HEADERS_B, h.aiService, {}, h.calendarService, h.gmailService);

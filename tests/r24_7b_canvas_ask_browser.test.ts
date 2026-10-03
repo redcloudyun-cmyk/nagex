@@ -133,23 +133,88 @@ describe('R24.7B browser — desktop Focus Canvas', () => {
     await ctx.close();
   });
 
-  it('signed-out: a question gets "Sign in to ask about this artifact" (EN and KR), not an answer', async () => {
-    // An artifact readable without a session lives in the legacy default principal's namespace (the recorded IMAGE_BROWSER_AUTH_DEBT); Ask must still refuse.
+  it('signed-out (Security Gate S1): the artifact itself is not served — no content, no Ask surface, no ask request (EN and KR)', async () => {
+    // Before S1 an artifact in the legacy default principal's namespace was readable without a session (the recorded
+    // IMAGE_BROWSER_AUTH_DEBT) and only Ask refused. S1 removed that fallback: a signed-out caller has no identity, so
+    // the artifact read is 401 and nothing of it reaches the page.
     const seeded = h.seedDocument({ userId: 'usr_admin_001', tenantId: 'ten_production_01' }, { title: 'Default principal doc', content: 'Signed-out content.' });
-    for (const [locale, expected] of [['en', 'Sign in to ask about this artifact.'], ['ko', '이 아티팩트에 대해 물어보려면 로그인하세요.']] as const) {
+    for (const locale of ['en', 'ko'] as const) {
       const ctx = await h.newContext('desktop', undefined, locale);
       const page = await ctx.newPage();
       const rec = recordAskRequests(page);
+      const artifactResponse = page.waitForResponse((r) => new URL(r.url()).pathname === `/api/v1/artifacts/${seeded.artifactId}`);
       await openCanvas(page, seeded.artifactId);
-      await page.waitForSelector(DESKTOP.text);
-      await page.fill(DESKTOP.ask, 'What does it say?');
-      const [response] = await Promise.all([page.waitForResponse((r) => /\/ask$/.test(r.url())), page.click(DESKTOP.send)]);
-      assert.equal(response.status(), 401);
-      await waitState(page, DESKTOP, 'auth');
-      assert.equal((await page.textContent(DESKTOP.answer))?.trim(), expected);
-      assert.equal(rec.asks.length, 1);
+      assert.equal((await artifactResponse).status(), 401);
+      await page.waitForTimeout(800);
+      assert.equal(await page.locator(DESKTOP.text).count(), 0, 'no document text is rendered for a signed-out visitor');
+      assert.equal((await page.content()).includes('Signed-out content.'), false, 'the artifact content never reaches the page');
+      assert.equal(rec.asks.length, 0);
       await ctx.close();
     }
+  });
+
+  // Security Gate S1 — the reachable "auth" state. The signed-out visitor can no longer open an artifact at all, so the
+  // Ask "Sign in to ask" copy is now reached by a user who WAS signed in: they opened the artifact, and then the session
+  // ended (revoked on another device, logout-all, expiry) while the page stayed open with its cookie still in the browser.
+  // This drives the real production session store and the real server; nothing about authentication is faked.
+  async function revokedSessionAsk(surface: Surface, kind: 'desktop' | 'mobile', locale: 'en' | 'ko', expectedAuthCopy: string): Promise<void> {
+    const server = await import('../src/server_web.js');
+    const user = h.user(`rv_${kind}_${locale}`);
+    h.setLocale(user, locale);
+    const seeded = h.seedDocument(user, { title: 'Revocable', content: DOC });
+    const ctx = await h.newContext(kind, user, locale);
+    const page = await ctx.newPage();
+    const rec = recordAskRequests(page);
+    await openCanvas(page, seeded.artifactId);
+    await page.waitForSelector(surface.text);
+    assert.equal(await page.textContent(surface.text), DOC, 'the signed-in user reads the artifact');
+
+    // 1. While the session is live the Ask reaches the real pipeline (no model configured -> the truthful 503), proving the session works.
+    await page.fill(surface.ask, 'What is the launch codename?');
+    const [live] = await Promise.all([page.waitForResponse((r) => /\/ask$/.test(r.url())), page.click(surface.send)]);
+    assert.equal(live.status(), 503);
+    assert.equal((await live.json()).error, 'ASK_MODEL_UNAVAILABLE');
+    await waitState(page, surface, 'error');
+
+    // 2. End the session in the real store. The browser still holds the cookie.
+    assert.equal(server.sessionStore.revokeSession(user.sessionId), true, 'the live session was revoked');
+    assert.equal(server.sessionStore.getSession(user.sessionId), null);
+    assert.equal(((await (await fetch(`${h.origin}/api/v1/auth/session`, { headers: { cookie: `nagex_session=${user.sessionId}` } })).json()) as { authenticated: boolean }).authenticated, false);
+
+    // 3. Ask again from the same open page.
+    rec.mark();
+    await page.fill(surface.ask, 'Is this still answered?');
+    const [refused] = await Promise.all([page.waitForResponse((r) => /\/ask$/.test(r.url())), page.click(surface.send)]);
+    assert.equal(refused.status(), 401, 'the Ask is refused at the session boundary');
+    const body = await refused.json();
+    assert.equal(body.error, 'AUTHENTICATION_REQUIRED');
+    assert.equal('answer' in body, false, 'no answer was produced');
+    assert.equal('grounding' in body, false, 'the artifact was never read for grounding');
+
+    // 4. The UI shows the authentication-required state with the localized copy, and fabricates nothing.
+    await waitState(page, surface, 'auth');
+    assert.equal((await page.textContent(surface.answer))?.trim(), expectedAuthCopy);
+    assert.equal(await page.locator(`${surface.answer} .canvas-ask-answer-text`).count(), 0, 'no answer text');
+    assert.equal(rec.asks.length, 2);
+    assert.deepEqual(rec.others, [], 'no other call (chat, research, revision, variation, mutation) was made after the revocation');
+
+    // 5. The same boundary applies to reading: after a reload the artifact is not served to the revoked session.
+    const reread = page.waitForResponse((r) => new URL(r.url()).pathname === `/api/v1/artifacts/${seeded.artifactId}`);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    assert.equal((await reread).status(), 401);
+    await page.waitForTimeout(600);
+    assert.equal((await page.content()).includes('PELICAN-7314'), false, 'artifact content is not shown to a revoked session');
+    await ctx.close();
+  }
+
+  it('revoked session (Security Gate S1): after the session ends the Ask is refused with the authentication state — real session boundary, EN and KR on desktop', async () => {
+    await revokedSessionAsk(DESKTOP, 'desktop', 'en', 'Sign in to ask about this artifact.');
+    await revokedSessionAsk(DESKTOP, 'desktop', 'ko', '이 아티팩트에 대해 물어보려면 로그인하세요.');
+  });
+
+  it('revoked session (Security Gate S1): the mobile Canvas behaves the same (EN and KR)', async () => {
+    await revokedSessionAsk(MOBILE, 'mobile', 'en', 'Sign in to ask about this artifact.');
+    await revokedSessionAsk(MOBILE, 'mobile', 'ko', '이 아티팩트에 대해 물어보려면 로그인하세요.');
   });
 
   it('the client sends exactly { question, locale } to exactly one endpoint — no artifact content, owner, tenant or grounding — and nothing else', async () => {
@@ -345,15 +410,18 @@ describe('R24.7B browser — mobile 390x844', () => {
     assert.equal((await page.content()).includes('A-MOBILE-SECRET'), false);
     await ctx.close();
 
+    // Signed-out (S1): the artifact read is 401 — nothing renders, nothing can be asked.
     const seeded = h.seedDocument({ userId: 'usr_admin_001', tenantId: 'ten_production_01' }, { title: 'Default mobile doc', content: 'Signed-out mobile content.' });
     const anon = await h.newContext('mobile');
     const p2 = await anon.newPage();
+    const recAnon = recordAskRequests(p2);
+    const anonArtifactResponse = p2.waitForResponse((r) => new URL(r.url()).pathname === `/api/v1/artifacts/${seeded.artifactId}`);
     await openCanvas(p2, seeded.artifactId);
-    await p2.waitForSelector(MOBILE.text);
-    await p2.fill(MOBILE.ask, 'hello?');
-    await p2.click(MOBILE.send);
-    await waitState(p2, MOBILE, 'auth');
-    assert.equal((await p2.textContent(MOBILE.answer))?.trim(), 'Sign in to ask about this artifact.');
+    assert.equal((await anonArtifactResponse).status(), 401);
+    await p2.waitForTimeout(800);
+    assert.equal(await p2.locator(MOBILE.text).count(), 0);
+    assert.equal((await p2.content()).includes('Signed-out mobile content.'), false);
+    assert.equal(recAnon.asks.length, 0);
     await anon.close();
   });
 });

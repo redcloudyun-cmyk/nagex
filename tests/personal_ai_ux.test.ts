@@ -3,7 +3,12 @@ import assert from 'node:assert';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { handleApiRequest, handleAsyncApiRequest } from '../src/server_web.js';
+import { handleApiRequest as rawHandleApiRequest, handleAsyncApiRequest as rawHandleAsyncApiRequest } from '../src/server_web.js';
+import { withDefaultCaller } from './_s1_session_auth.js';
+// S1: calls that carry no credential of their own are made as a real signed-in test account.
+const handleApiRequest = withDefaultCaller(rawHandleApiRequest);
+// S1: calls that carry no credential of their own are made as a real signed-in test account.
+const handleAsyncApiRequest = withDefaultCaller(rawHandleAsyncApiRequest);
 import { MemoryEngine } from '../src/context/memory.engine.js';
 import { ToolInvoker } from '../src/agent/tool.invoker.js';
 import { AiService } from '../src/model-gateway/ai-service.js';
@@ -207,11 +212,17 @@ test('9. Personal AI: Quick Wake & Autonomy Configuration Endpoints (authenticat
   identityStore.transitionState(identity.userId, 'ACTIVE');
   const session = sessionStore.createAuthSession(`ten_${identity.userId}`, identity.userId, 'MAIN');
   const cookie = { cookie: `nagex_session=${session.sessionId}` };
+  // S1: this test is ABOUT authentication against its own private stores, so it calls the UNWRAPPED entry point. The
+  // withDefaultCaller wrapper would inject a default-store cookie into the anonymous calls below, which these custom stores
+  // do not know — the 401s would then hold for the wrong reason (an unknown session) instead of 'no credential at all'.
   const call = (method: string, p: string, body: Record<string, unknown> | null, headers: Record<string, string>) =>
-    handleAsyncApiRequest(method, p, body, headers, undefined, {}, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, { identityStore, sessionStore });
+    rawHandleAsyncApiRequest(method, p, body, headers, undefined, {}, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, { identityStore, sessionStore });
 
   assert.strictEqual((await call('GET', '/api/v1/quickwake/config', null, {})).status, 401);
   assert.strictEqual((await call('POST', '/api/v1/autonomy/config', { level: 'L3' }, {})).status, 401);
+  // A credential that is valid ELSEWHERE (a session of the server's own stores) is not a credential for these stores.
+  const { authAs } = await import('./_s1_session_auth.js');
+  assert.strictEqual((await call('GET', '/api/v1/quickwake/config', null, authAs('ten_other_stores', 'usr_other_stores'))).status, 401);
 
   let res = await call('GET', '/api/v1/quickwake/config', null, cookie);
   assert.strictEqual(res.status, 200);

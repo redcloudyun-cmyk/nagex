@@ -26,9 +26,9 @@ import { InputRouter } from '../../workspace/input-router.js';
 import type { QuickCaptureService } from '../../workspace/quick-capture.service.js';
 import type { CandidateStatus, CandidateType } from '../../workspace/candidate.types.js';
 import { NagexError } from '../../common/errors.js';
-import { DEFAULT_GOOGLE_TENANT_ID } from '../../integrations/google/token.store.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
 import type { ArtifactStore } from '../../artifacts/artifact.store.js';
+import { callerIdentity } from '../request-identity.js';
 
 function getHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
   const value = headers[name] ?? headers[name.toLowerCase()];
@@ -63,8 +63,8 @@ export const handleWorkspaceRoutes: AsyncRouteRegistrar<WorkspaceRouteDeps> = as
     const mimeType = (body?.mimeType as string) || 'application/octet-stream';
     const sizeBytes = Number(body?.sizeBytes || 0);
     const intent = body?.intent as any;
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'ten_production_01';
+    const principalId = callerIdentity(headers).principalId;
+    const tenantId = callerIdentity(headers).tenantId;
     const initResult = await quickCaptureService.initUpload({
       ownerId: principalId,
       tenantId,
@@ -84,8 +84,8 @@ export const handleWorkspaceRoutes: AsyncRouteRegistrar<WorkspaceRouteDeps> = as
     const sizeBytes = Number(body?.sizeBytes || 0);
     const originalFilename = (body?.originalFilename as string) || 'upload.bin';
     const rawData = body?.data ? Buffer.from(body.data as any) : undefined;
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'ten_production_01';
+    const principalId = callerIdentity(headers).principalId;
+    const tenantId = callerIdentity(headers).tenantId;
     const item = await quickCaptureService.completeUpload({
       captureId,
       ownerId: principalId,
@@ -106,8 +106,8 @@ export const handleWorkspaceRoutes: AsyncRouteRegistrar<WorkspaceRouteDeps> = as
     const mimeType = (body?.mimeType as string) || 'application/octet-stream';
     const type = (body?.type as any) || (mimeType.startsWith('audio/') ? 'AUDIO' : 'FILE');
     const source = (body?.source as any) || 'WEB';
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'ten_production_01';
+    const principalId = callerIdentity(headers).principalId;
+    const tenantId = callerIdentity(headers).tenantId;
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_${Date.now()}`;
     // Accept body.base64 (from frontend audio/file recorder), body.data (binary stream),
     // or body.content (plain text fallback). Reject empty payloads.
@@ -141,8 +141,8 @@ export const handleWorkspaceRoutes: AsyncRouteRegistrar<WorkspaceRouteDeps> = as
     const type = (body?.type as any) || 'TEXT';
     const content = (body?.content as string) || '';
     const source = (body?.source as any) || 'WEB';
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'ten_production_01';
+    const principalId = callerIdentity(headers).principalId;
+    const tenantId = callerIdentity(headers).tenantId;
     const item = await quickCaptureService.captureTextOrLink({
       ownerId: principalId,
       tenantId,
@@ -156,8 +156,8 @@ export const handleWorkspaceRoutes: AsyncRouteRegistrar<WorkspaceRouteDeps> = as
   if (pathname.startsWith('/api/v1/workspace/capture/') && (method === 'PATCH' || method === 'POST')) {
     const captureId = pathname.slice('/api/v1/workspace/capture/'.length);
     const action = (body?.status as any) || (body?.action as any) || 'ACTIONED';
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'ten_production_01';
+    const principalId = callerIdentity(headers).principalId;
+    const tenantId = callerIdentity(headers).tenantId;
     const item = await quickCaptureService.actionCapture(captureId, tenantId, principalId, action);
     if (!item) {
       return { status: 404, data: { error: 'ITEM_NOT_FOUND', message: `Capture item ${captureId} not found.` } };
@@ -167,8 +167,8 @@ export const handleWorkspaceRoutes: AsyncRouteRegistrar<WorkspaceRouteDeps> = as
 
   if (pathname.startsWith('/api/v1/workspace/items/') && pathname.endsWith('/download') && method === 'GET') {
     const captureId = pathname.slice('/api/v1/workspace/items/'.length, pathname.length - '/download'.length);
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'ten_production_01';
+    const principalId = callerIdentity(headers).principalId;
+    const tenantId = callerIdentity(headers).tenantId;
     const downloadUrl = await quickCaptureService.getDownloadUrl(captureId, tenantId, principalId);
     if (!downloadUrl) {
       return { status: 404, data: { error: 'ITEM_NOT_FOUND', message: `Capture item ${captureId} not found or no object attached.` } };
@@ -178,8 +178,8 @@ export const handleWorkspaceRoutes: AsyncRouteRegistrar<WorkspaceRouteDeps> = as
 
   if (pathname.startsWith('/api/v1/workspace/items/') && pathname.endsWith('/preview') && method === 'GET') {
     const captureId = pathname.slice('/api/v1/workspace/items/'.length, pathname.length - '/preview'.length);
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'ten_production_01';
+    const principalId = callerIdentity(headers).principalId;
+    const tenantId = callerIdentity(headers).tenantId;
     const previewUrl = await quickCaptureService.getPreviewUrl(captureId, tenantId, principalId);
     if (!previewUrl) {
       return { status: 404, data: { error: 'ITEM_NOT_FOUND', message: `Capture item ${captureId} not found or no object attached.` } };
@@ -190,8 +190,8 @@ export const handleWorkspaceRoutes: AsyncRouteRegistrar<WorkspaceRouteDeps> = as
   if (pathname.startsWith('/api/v1/workspace/items/') && pathname.endsWith('/action') && method === 'POST') {
     const captureId = pathname.slice('/api/v1/workspace/items/'.length, pathname.length - '/action'.length);
     const action = (body?.action as any) || 'ACTIONED';
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'ten_production_01';
+    const principalId = callerIdentity(headers).principalId;
+    const tenantId = callerIdentity(headers).tenantId;
     const item = await quickCaptureService.actionCapture(captureId, tenantId, principalId, action);
     if (!item) {
       return { status: 404, data: { error: 'ITEM_NOT_FOUND', message: `Capture item ${captureId} not found.` } };
@@ -203,8 +203,8 @@ export const handleWorkspaceRoutes: AsyncRouteRegistrar<WorkspaceRouteDeps> = as
     const parts = pathname.slice('/api/v1/workspace/items/'.length).split('/candidates/');
     const captureId = parts[0];
     const candidateId = parts[1] ? parts[1].replace(/\/action$/, '') : '';
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-    const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const tenantId = callerIdentity(headers).tenantId;
+    const ownerId = callerIdentity(headers).principalId;
     const action = body?.action === 'ACCEPT' ? 'ACCEPT' : 'REJECT';
 
     const updated = await quickCaptureService.actionCandidate({
@@ -226,8 +226,8 @@ export const handleWorkspaceRoutes: AsyncRouteRegistrar<WorkspaceRouteDeps> = as
   // create a Task, request a Calendar approval, write Memory, or index
   // Knowledge. Real execution is a later, separate Action phase.
   if (pathname === '/api/v1/candidates' && method === 'GET') {
-    const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+    const ownerId = callerIdentity(headers).principalId;
+    const tenantId = callerIdentity(headers).tenantId;
     const statusFilter = query.status as CandidateStatus | undefined;
     const typeFilter = query.type as CandidateType | undefined;
     const candidates = quickCaptureService.listCandidates(ownerId, tenantId, {
@@ -242,8 +242,8 @@ export const handleWorkspaceRoutes: AsyncRouteRegistrar<WorkspaceRouteDeps> = as
   // AuditLogger and never the legacy non-tenant-isolated executionHistory
   // array.
   if (pathname === '/api/v1/activity' && method === 'GET') {
-    const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+    const ownerId = callerIdentity(headers).principalId;
+    const tenantId = callerIdentity(headers).tenantId;
     const limitRaw = Number(query.limit);
     const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 200) : 50;
     const activities = quickCaptureService.listActivity(ownerId, tenantId, limit);
@@ -252,16 +252,16 @@ export const handleWorkspaceRoutes: AsyncRouteRegistrar<WorkspaceRouteDeps> = as
 
   if (pathname.startsWith('/api/v1/candidates/') && pathname.endsWith('/accept') && method === 'POST') {
     const candidateId = pathname.slice('/api/v1/candidates/'.length, pathname.length - '/accept'.length);
-    const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+    const ownerId = callerIdentity(headers).principalId;
+    const tenantId = callerIdentity(headers).tenantId;
     const record = quickCaptureService.acceptCandidate(candidateId, ownerId, tenantId);
     return { status: 200, data: record };
   }
 
   if (pathname.startsWith('/api/v1/candidates/') && pathname.endsWith('/reject') && method === 'POST') {
     const candidateId = pathname.slice('/api/v1/candidates/'.length, pathname.length - '/reject'.length);
-    const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+    const ownerId = callerIdentity(headers).principalId;
+    const tenantId = callerIdentity(headers).tenantId;
     const record = quickCaptureService.rejectCandidate(candidateId, ownerId, tenantId);
     return { status: 200, data: record };
   }
@@ -275,32 +275,32 @@ export const handleWorkspaceRoutes: AsyncRouteRegistrar<WorkspaceRouteDeps> = as
   // unchanged /api/v1/approvals/:id/approve endpoint.
   if (pathname.startsWith('/api/v1/candidates/') && pathname.endsWith('/execute') && method === 'POST') {
     const candidateId = pathname.slice('/api/v1/candidates/'.length, pathname.length - '/execute'.length);
-    const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+    const ownerId = callerIdentity(headers).principalId;
+    const tenantId = callerIdentity(headers).tenantId;
     const record = await quickCaptureService.executeCandidateAction(candidateId, ownerId, tenantId);
     return { status: 200, data: record };
   }
 
   if (pathname.startsWith('/api/v1/candidates/') && pathname.endsWith('/retry') && method === 'POST') {
     const candidateId = pathname.slice('/api/v1/candidates/'.length, pathname.length - '/retry'.length);
-    const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+    const ownerId = callerIdentity(headers).principalId;
+    const tenantId = callerIdentity(headers).tenantId;
     const record = await quickCaptureService.retryCandidateAction(candidateId, ownerId, tenantId);
     return { status: 200, data: record };
   }
 
   if (pathname.startsWith('/api/v1/candidates/') && pathname.endsWith('/action') && method === 'GET') {
     const candidateId = pathname.slice('/api/v1/candidates/'.length, pathname.length - '/action'.length);
-    const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+    const ownerId = callerIdentity(headers).principalId;
+    const tenantId = callerIdentity(headers).tenantId;
     const action = quickCaptureService.getCandidateAction(candidateId, ownerId, tenantId);
     return { status: 200, data: { candidateId, action } };
   }
 
   if (pathname.startsWith('/api/v1/candidates/') && method === 'PATCH') {
     const candidateId = pathname.slice('/api/v1/candidates/'.length);
-    const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+    const ownerId = callerIdentity(headers).principalId;
+    const tenantId = callerIdentity(headers).tenantId;
     const record = quickCaptureService.modifyCandidate(candidateId, ownerId, tenantId, {
       title: typeof body?.title === 'string' ? body.title : undefined,
       payload: (body?.payload && typeof body.payload === 'object') ? body.payload as Record<string, unknown> : undefined,
@@ -310,8 +310,8 @@ export const handleWorkspaceRoutes: AsyncRouteRegistrar<WorkspaceRouteDeps> = as
 
   if (pathname.startsWith('/api/v1/candidates/') && method === 'GET') {
     const candidateId = pathname.slice('/api/v1/candidates/'.length);
-    const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+    const ownerId = callerIdentity(headers).principalId;
+    const tenantId = callerIdentity(headers).tenantId;
     const record = quickCaptureService.getCandidate(candidateId, ownerId, tenantId);
     if (!record) {
       return { status: 404, data: { error: 'CANDIDATE_NOT_FOUND', message: `Candidate ${candidateId} not found.` } };
@@ -321,8 +321,8 @@ export const handleWorkspaceRoutes: AsyncRouteRegistrar<WorkspaceRouteDeps> = as
 
   if (pathname.startsWith('/api/v1/workspace/items/') && pathname.endsWith('/retry') && method === 'POST') {
     const captureId = pathname.slice('/api/v1/workspace/items/'.length, pathname.length - '/retry'.length);
-    const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'ten_production_01';
+    const ownerId = callerIdentity(headers).principalId;
+    const tenantId = callerIdentity(headers).tenantId;
     const retried = await quickCaptureService.retryCapture(captureId, tenantId, ownerId);
     if (!retried) {
       return { status: 404, data: { error: 'ITEM_NOT_FOUND', message: `Capture item ${captureId} not found.` } };
@@ -332,8 +332,8 @@ export const handleWorkspaceRoutes: AsyncRouteRegistrar<WorkspaceRouteDeps> = as
 
   if (pathname.startsWith('/api/v1/workspace/items/') && !pathname.endsWith('/download') && !pathname.endsWith('/preview') && !pathname.endsWith('/action') && !pathname.endsWith('/retry') && !pathname.includes('/candidates/') && method === 'GET') {
     const captureId = pathname.slice('/api/v1/workspace/items/'.length);
-    const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'ten_production_01';
+    const ownerId = callerIdentity(headers).principalId;
+    const tenantId = callerIdentity(headers).tenantId;
     const item = await quickCaptureService.getCaptureItem(captureId, tenantId, ownerId);
     if (!item) {
       return { status: 404, data: { error: 'ITEM_NOT_FOUND', message: `Capture item ${captureId} not found.` } };
@@ -343,8 +343,8 @@ export const handleWorkspaceRoutes: AsyncRouteRegistrar<WorkspaceRouteDeps> = as
 
   if (pathname.startsWith('/api/v1/workspace/items/') && method === 'DELETE') {
     const captureId = pathname.slice('/api/v1/workspace/items/'.length);
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'ten_production_01';
+    const principalId = callerIdentity(headers).principalId;
+    const tenantId = callerIdentity(headers).tenantId;
     const deleted = await quickCaptureService.deleteCaptureItem(captureId, tenantId, principalId);
     return { status: 200, data: { success: deleted, captureId } };
   }

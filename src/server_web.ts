@@ -15,7 +15,8 @@ import { handleCatalogRoutes } from './http/routes/catalog.routes.js';
 import { handleKnowledgeRoutes } from './http/routes/knowledge.routes.js';
 import { handlePlanRoutes } from './http/routes/plan.routes.js';
 import { handleSettingsRoutes } from './http/routes/settings.routes.js';
-import { canonicalizeRequestHeaders } from './http/request-identity.js';
+import { canonicalizeRequestHeaders, tryGetCallerIdentity } from './http/request-identity.js';
+import { denyIfUnauthorized } from './http/route-access.js';
 import { handleNotificationsRoutes } from './http/routes/notifications.routes.js';
 import { handleTasksRoutes, handleTasksRunRoutes } from './http/routes/tasks.routes.js';
 import { handleAutomationsRoutes, handleAutomationsRunRoutes } from './http/routes/automations.routes.js';
@@ -313,11 +314,12 @@ export async function handleAsyncApiRequest(
     ssoFlowStore?: SsoFlowStore;
   }
 ): Promise<ApiResult> {
-  // R24.6C — identity boundary: a valid session overrides any client-supplied
-  // identity headers for EVERY route, and anonymous callers cannot name a real
-  // account. See src/http/request-identity.ts.
-  headers = canonicalizeRequestHeaders(headers, { sessionStore: customDeps?.sessionStore ?? sessionStore, identityStore: customDeps?.identityStore ?? identityStore });
   try {
+    // S1 — identity boundary. Client identity headers are discarded; identity comes
+    // only from a valid server-side session (src/http/request-identity.ts). This runs
+    // INSIDE the error boundary: a malformed credential must produce a controlled
+    // failure, never an exception that escapes the request handler (S0-02).
+    headers = canonicalizeRequestHeaders(headers, { sessionStore: customDeps?.sessionStore ?? sessionStore, identityStore: customDeps?.identityStore ?? identityStore });
     const demoHeader = headers['x-nagex-demo'] ?? headers['X-NAgex-Demo'];
     const demoEnabled = (Array.isArray(demoHeader) ? demoHeader[0] : demoHeader) === '1';
     if (demoEnabled) {
@@ -326,7 +328,7 @@ export async function handleAsyncApiRequest(
       const rawCookie = Array.isArray(cookieHeader) ? cookieHeader[0] : cookieHeader;
       if (rawCookie) {
         const match = rawCookie.match(/(?:^|;\s*)nagex_demo_session=([^;]+)/);
-        if (match) sessionCookie = decodeURIComponent(match[1]);
+        if (match) { try { sessionCookie = decodeURIComponent(match[1]); } catch { /* malformed demo cookie: treat as absent */ } }
       }
       const headerSession = headers['x-nagex-demo-session'] ?? headers['X-NAgex-Demo-Session'] ?? headers['x-demo-session'];
       const rawHeaderSession = Array.isArray(headerSession) ? headerSession[0] : headerSession;
@@ -347,6 +349,12 @@ export async function handleAsyncApiRequest(
         }
         return demoResult;
       }
+    }
+    // S1 — default-deny route access (src/http/route-access.ts): anything that is not
+    // explicitly public/self-authenticating needs an authenticated identity.
+    {
+      const denied = denyIfUnauthorized(method, pathname, headers);
+      if (denied) return denied;
     }
     // R13 Identity & Account Lifecycle routes
     {
@@ -702,13 +710,18 @@ export function handleApiRequest(
   headers: Record<string, string | string[] | undefined> = {},
   query: Record<string, string> = {}
 ): ApiResult {
-  // R24.6C — same boundary for the sync entry point (idempotent).
+  // S1 — same boundary for the sync entry point (idempotent). No default principal and
+  // no default tenant: a request that is neither authenticated nor on the explicit
+  // public list is denied here, before any registrar sees it.
   headers = canonicalizeRequestHeaders(headers, { sessionStore, identityStore });
-  const headerTenant = headers['x-nagex-tenant'];
-  const headerPrincipal = headers['x-principal-id'];
-  const tenantId = (Array.isArray(headerTenant) ? headerTenant[0] : headerTenant) || 'ten_production_01';
+  const denied = denyIfUnauthorized(method, pathname, headers);
+  if (denied) return denied;
+  const caller = tryGetCallerIdentity(headers);
+  // Anonymous callers only ever reach routes that never read these (public list); the
+  // placeholders carry no authority and match no stored tenant or principal.
+  const tenantId = caller?.tenantId ?? 'ten_unauthenticated';
   const tenantContext: TenantContext = { tenant_id: tenantId, scope_type: 'TENANT' };
-  const principal: PrincipalReference = { type: 'user', id: (Array.isArray(headerPrincipal) ? headerPrincipal[0] : headerPrincipal) || 'usr_admin_001' };
+  const principal: PrincipalReference = { type: 'user', id: caller?.principalId ?? 'usr_unauthenticated' };
 
   {
     const healthResult = handleHealthRoutes(method, pathname, body, headers, {}, healthRouteDeps);
@@ -805,7 +818,7 @@ export function createServerInstance(opts?: {
   rbacStore?: RbacStore;
   rbacService?: RbacService;
 }): http.Server {
-  return http.createServer((req, res) => {
+  const handleHttpRequest = (req: http.IncomingMessage, res: http.ServerResponse): void => {
     const url = new URL(req.url || '/', `http://localhost:${PORT}`);
     const pathname = url.pathname;
     const method = (req.method || 'GET').toUpperCase();
@@ -834,7 +847,8 @@ export function createServerInstance(opts?: {
     if (pathname.startsWith('/api/') || pathname.startsWith('/scim/')) {
       const bodyChunks: Buffer[] = [];
       req.on('data', (chunk) => bodyChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
-      req.on('end', async () => {
+      req.on('end', () => {
+        void (async () => {
         let parsedBody: Record<string, unknown> | null = null;
         const rawBuffer = Buffer.concat(bodyChunks);
         const contentType = (req.headers['content-type'] || '').toLowerCase();
@@ -904,6 +918,7 @@ export function createServerInstance(opts?: {
         }
         res.writeHead(result.status, outHeaders);
         res.end(JSON.stringify(result.data, null, 2));
+        })().catch((error) => failRequest(res, error));
       });
       return;
     }
@@ -946,7 +961,31 @@ export function createServerInstance(opts?: {
         res.end(content);
       }
     });
+  };
+
+  return http.createServer((req, res) => {
+    try {
+      handleHttpRequest(req, res);
+    } catch (error) {
+      failRequest(res, error);
+    }
   });
+}
+
+// S0-02 — last line of defense: an unexpected failure while serving a request is a 4xx/5xx
+// for THAT request, never an uncaught exception that terminates the server. No stack trace,
+// no internal message is returned to the client.
+function failRequest(res: http.ServerResponse, error: unknown): void {
+  const requestId = `req_${crypto.randomUUID()}`;
+  const isUrlError = error instanceof TypeError && /Invalid URL/i.test(error.message);
+  console.error(JSON.stringify({ event: 'http_request_failed', requestId, code: isUrlError ? 'INVALID_REQUEST_URL' : 'INTERNAL_ERROR' }));
+  if (res.headersSent) {
+    res.destroy();
+    return;
+  }
+  const status = isUrlError ? 400 : 500;
+  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
+  res.end(JSON.stringify({ error: { code: isUrlError ? 'INVALID_REQUEST' : 'INTERNAL_ERROR', category: isUrlError ? 'VALIDATION' : 'INTERNAL', message: isUrlError ? 'The request could not be understood.' : 'The request could not be completed.', request_id: requestId } }));
 }
 
 export const server = createServerInstance();

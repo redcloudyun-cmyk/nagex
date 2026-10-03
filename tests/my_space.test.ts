@@ -16,9 +16,10 @@ import { handleAsyncApiRequest, handleApiRequest, createServerInstance } from '.
 import { ActivityStore } from '../src/governance/activity.store.js';
 import { TaskRunStore } from '../src/tasks/task-run.store.js';
 import { listUpcomingCalendarEvents } from '../src/modules/calendar/calendar.client.js';
+import { authAs } from './_s1_session_auth.js';
 
 function headersFor(tenant: string, principal: string) {
-  return { 'x-nagex-tenant': tenant, 'x-principal-id': principal };
+  return authAs(tenant, principal);
 }
 
 // Static assets (index.html, app.js) are served by the underlying HTTP

@@ -15,7 +15,7 @@ import type { ImageStore, ImageRecord } from '../../creation/image.store.js';
 // image GET), so a native <img> request and its originating POST resolve
 // to the same real user. See src/http/request-identity.ts for the full
 // rationale.
-import { resolveRequestIdentity } from '../request-identity.js';
+import { callerIdentity } from '../request-identity.js';
 import type { SessionStore } from '../../sessions/session.store.js';
 
 function getHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
@@ -75,7 +75,7 @@ export const handleCreationRoutes: AsyncRouteRegistrar<CreationRouteDeps> = asyn
   const { creationService, imageExecutor, imageStore, sessionStore } = deps;
 
   if (pathname === '/api/v1/creations/generate' && method === 'POST') {
-    const { tenantId, principalId } = resolveRequestIdentity(headers, { sessionStore });
+    const { tenantId, principalId } = callerIdentity(headers);
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_cr_${Date.now()}`;
     const prompt = typeof body?.prompt === 'string' ? body.prompt : '';
 
@@ -142,7 +142,7 @@ export const handleCreationRoutes: AsyncRouteRegistrar<CreationRouteDeps> = asyn
 
   if (pathname.startsWith('/api/v1/creations/') && pathname.endsWith('/variation') && method === 'POST') {
     const parentCreationId = pathname.slice('/api/v1/creations/'.length, pathname.length - '/variation'.length);
-    const { tenantId, principalId } = resolveRequestIdentity(headers, { sessionStore });
+    const { tenantId, principalId } = callerIdentity(headers);
 
     try {
       if (imageExecutor) {
@@ -201,7 +201,7 @@ export const handleCreationRoutes: AsyncRouteRegistrar<CreationRouteDeps> = asyn
   }
 
   if (pathname === '/api/v1/creations' && method === 'GET') {
-    const { tenantId, principalId } = resolveRequestIdentity(headers, { sessionStore });
+    const { tenantId, principalId } = callerIdentity(headers);
     const limit = Number(query.limit) || 50;
 
     // Merge the two domain-owned stores at the response boundary: legacy/
@@ -230,7 +230,7 @@ export const handleCreationRoutes: AsyncRouteRegistrar<CreationRouteDeps> = asyn
     // automatically, so a real logged-in user's own images resolve without
     // any custom JS header. Callers with no valid session fall back to the
     // existing header/default behavior unchanged.
-    const { tenantId, principalId } = resolveRequestIdentity(headers, { sessionStore });
+    const { tenantId, principalId } = callerIdentity(headers);
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_img_${Date.now()}`;
 
     if (!imageStore) {
@@ -264,7 +264,7 @@ export const handleCreationRoutes: AsyncRouteRegistrar<CreationRouteDeps> = asyn
 
   if (pathname.startsWith('/api/v1/creations/') && method === 'GET') {
     const creationId = pathname.slice('/api/v1/creations/'.length);
-    const { tenantId, principalId } = resolveRequestIdentity(headers, { sessionStore });
+    const { tenantId, principalId } = callerIdentity(headers);
 
     const creation = creationService.getCreation(creationId, tenantId, principalId);
     if (creation) {

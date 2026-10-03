@@ -12,7 +12,7 @@ import {
   type GmailAttachmentMetadata,
 } from './gmail.client.js';
 import { readGoogleOAuthConfig, type GoogleOAuthConfig } from '../../integrations/google/oauth.client.js';
-import { DEFAULT_GOOGLE_PRINCIPAL_ID, type GoogleOAuthTokenStore } from '../../integrations/google/token.store.js';
+import { type GoogleOAuthTokenStore } from '../../integrations/google/token.store.js';
 import { GoogleCapabilityExecutionPipeline, type NormalizedMutationResult } from '../../capabilities/google-capability-execution-pipeline.js';
 import type { MutationCapabilityDefinition } from '../../capabilities/mutation-registry.js';
 import { CredentialBrokerService, GoogleCredentialAccessService } from '../../security/credentials/index.js';
@@ -176,10 +176,10 @@ export class GmailService {
 
   // ── read-only (no approval) ─────────────────────────────────────────────
 
-  public async search(input: { tenantId: string; principalId?: string; query: string; requestId: string }): Promise<{ threads: Array<{ threadId: string; snippet: string; historyId: string | null }> }> {
+  public async search(input: { tenantId: string; principalId: string; query: string; requestId: string }): Promise<{ threads: Array<{ threadId: string; snippet: string; historyId: string | null }> }> {
     return this.pipeline.withAccessToken({
       tenantId: input.tenantId,
-      principalId: input.principalId ?? DEFAULT_GOOGLE_PRINCIPAL_ID,
+      principalId: input.principalId,
       requestId: input.requestId,
       capabilityId: GMAIL_SEARCH_TOOL_ID,
       service: 'GMAIL',
@@ -192,10 +192,10 @@ export class GmailService {
     });
   }
 
-  public async readThread(input: { tenantId: string; principalId?: string; threadId: string; requestId: string }) {
+  public async readThread(input: { tenantId: string; principalId: string; threadId: string; requestId: string }) {
     return this.pipeline.withAccessToken({
       tenantId: input.tenantId,
-      principalId: input.principalId ?? DEFAULT_GOOGLE_PRINCIPAL_ID,
+      principalId: input.principalId,
       requestId: input.requestId,
       capabilityId: GMAIL_READ_THREAD_TOOL_ID,
       service: 'GMAIL',

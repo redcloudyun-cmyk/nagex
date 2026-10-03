@@ -3,7 +3,10 @@ import assert from 'node:assert';
 import { generateResourceId } from '../src/common/utils.js';
 import { PolicyDecisionPoint, describeDeniedDecision } from '../src/identity/pdp.js';
 import { PERMISSION_RISK } from '../src/identity/permission.registry.js';
-import { handleApiRequest } from '../src/server_web.js';
+import { handleApiRequest as rawHandleApiRequest } from '../src/server_web.js';
+import { withDefaultCaller, authAs, authAsWith } from './_s1_session_auth.js';
+// S1: calls that carry no credential of their own are made as a real signed-in test account.
+const handleApiRequest = withDefaultCaller(rawHandleApiRequest);
 import { ModelRouter, type ModelCandidate } from '../src/model-gateway/model-router.js';
 import { DurableRuntimeEngine } from '../src/runtime/runtime.engine.js';
 
@@ -119,7 +122,7 @@ test('2g. server_web handleApiRequest reads tenant/principal from headers, not h
     'POST',
     '/api/v1/executions',
     { agent_id: 'agt_code_reviewer', objective: 'test' },
-    { 'x-nagex-tenant': 'ten_custom_01', 'x-principal-id': 'usr_custom_01', 'x-request-id': 'req_correlated_01' }
+    authAsWith('ten_custom_01', 'usr_custom_01', { 'x-request-id': 'req_correlated_01' })
   );
   assert.strictEqual(withHeaders.status, 201);
   assert.strictEqual((withHeaders.data as any).tenant_id, 'ten_custom_01');
@@ -130,7 +133,7 @@ test('2g. server_web handleApiRequest reads tenant/principal from headers, not h
 });
 
 test('2h. server_web billing: agent execution charges real credits via CreditEngine (S-07 Phase 1)', () => {
-  const tenantHeaders = { 'x-nagex-tenant': 'ten_billing_test_01', 'x-principal-id': 'usr_billing_test' };
+  const tenantHeaders = authAs('ten_billing_test_01', 'usr_billing_test');
 
   // A fresh tenant is lazily seeded with the initial grant.
   const initialUsage = handleApiRequest('GET', '/api/v1/billing/usage', null, tenantHeaders);
@@ -179,7 +182,7 @@ test('2i. server_web POST /api/v1/billing/estimate matches the real charge amoun
   assert.strictEqual(data.currency, 'USD');
 
   // The estimate must never disagree with what an actual execution charges.
-  const tenantHeaders = { 'x-nagex-tenant': 'ten_estimate_test', 'x-principal-id': 'usr_estimate_test' };
+  const tenantHeaders = authAs('ten_estimate_test', 'usr_estimate_test');
   handleApiRequest('POST', '/api/v1/executions', { agent_id: 'agt_code_reviewer', objective: 'estimate check' }, tenantHeaders);
   const usage = handleApiRequest('GET', '/api/v1/billing/usage', null, tenantHeaders);
   assert.strictEqual((usage.data as any).used_credits, data.estimatedCredits);

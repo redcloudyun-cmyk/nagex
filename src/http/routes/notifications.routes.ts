@@ -7,10 +7,10 @@
 // R10.2-D registrar.
 import crypto from 'node:crypto';
 import { NagexError } from '../../common/errors.js';
-import { DEFAULT_GOOGLE_TENANT_ID } from '../../integrations/google/token.store.js';
 import type { NotificationEngine } from '../../notifications/notification.engine.js';
 import type { NotificationType } from '../../notifications/notification.store.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
+import { callerIdentity } from '../request-identity.js';
 
 function getHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
   const value = headers[name] ?? headers[name.toLowerCase()];
@@ -25,21 +25,21 @@ export const handleNotificationsRoutes: AsyncRouteRegistrar<NotificationsRouteDe
   const { notificationEngine } = deps;
 
   if (pathname === '/api/v1/notifications' && method === 'GET') {
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const tenantId = callerIdentity(headers).tenantId;
+    const principalId = callerIdentity(headers).principalId;
     const notifications = notificationEngine.list(tenantId, principalId);
     const unreadCount = notificationEngine.getUnreadCount(tenantId, principalId);
     return { status: 200, data: { notifications, unreadCount, total: notifications.length } };
   }
   if (pathname === '/api/v1/notifications/read-all' && method === 'POST') {
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const tenantId = callerIdentity(headers).tenantId;
+    const principalId = callerIdentity(headers).principalId;
     const updatedCount = notificationEngine.markAllAsRead(tenantId, principalId);
     return { status: 200, data: { success: true, updatedCount } };
   }
   if (pathname.startsWith('/api/v1/notifications/') && pathname.endsWith('/read') && method === 'POST') {
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const tenantId = callerIdentity(headers).tenantId;
+    const principalId = callerIdentity(headers).principalId;
     const id = pathname.slice('/api/v1/notifications/'.length, pathname.length - '/read'.length);
     const record = notificationEngine.markAsRead(id, tenantId, principalId);
     if (!record) {
@@ -49,8 +49,8 @@ export const handleNotificationsRoutes: AsyncRouteRegistrar<NotificationsRouteDe
   }
   if (pathname === '/api/v1/notifications/dispatch' && method === 'POST') {
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_notif_disp_${crypto.randomUUID()}`;
-    const principalId = typeof body?.principalId === 'string' && body.principalId.trim() ? body.principalId.trim() : (getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001');
-    const tenantId = typeof body?.tenantId === 'string' && body.tenantId.trim() ? body.tenantId.trim() : (getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID);
+    const principalId = typeof body?.principalId === 'string' && body.principalId.trim() ? body.principalId.trim() : (callerIdentity(headers).principalId);
+    const tenantId = typeof body?.tenantId === 'string' && body.tenantId.trim() ? body.tenantId.trim() : (callerIdentity(headers).tenantId);
     const type = (typeof body?.type === 'string' ? body.type : 'SYSTEM_ALERT') as NotificationType;
     const title = typeof body?.title === 'string' ? body.title.trim() : 'Notification';
     const bodyText = typeof body?.body === 'string' ? body.body.trim() : '';

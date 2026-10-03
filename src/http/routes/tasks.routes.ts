@@ -15,7 +15,6 @@
 // downstream — that downstream safety chokepoint is untouched by this move).
 import crypto from 'node:crypto';
 import { NagexError } from '../../common/errors.js';
-import { DEFAULT_GOOGLE_TENANT_ID } from '../../integrations/google/token.store.js';
 import type { PrincipalReference } from '../../common/types.js';
 import type { AuditLogger } from '../../governance/audit.logger.js';
 import type { SessionStore } from '../../sessions/session.store.js';
@@ -31,6 +30,7 @@ import type { CapabilityBroker } from '../../capabilities/index.js';
 import type { NotificationEngine } from '../../notifications/notification.engine.js';
 import type { MemoryRecord } from '../../context/memory.engine.js';
 import type { ApiResult, SyncRouteRegistrar, AsyncRouteRegistrar } from '../http-types.js';
+import { callerIdentity } from '../request-identity.js';
 
 function getHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
   const value = headers[name] ?? headers[name.toLowerCase()];
@@ -244,8 +244,8 @@ export const handleTasksRunRoutes: AsyncRouteRegistrar<TasksRunRouteDeps> = asyn
     // Gmail/Calendar dispatch, approval creation, notifications) of a
     // Task they do not own. Ownership mismatch is indistinguishable from
     // a nonexistent task.
-    const runTenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-    const runPrincipalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const runTenantId = callerIdentity(headers).tenantId;
+    const runPrincipalId = callerIdentity(headers).principalId;
     const task = taskStore.get(taskId, runTenantId, runPrincipalId);
     if (!task) return { status: 404, data: { error: { code: 'TASK_NOT_FOUND', category: 'NOT_FOUND', message: `Task ${taskId} was not found.`, request_id: requestId } } };
     // Mirrors the `calendarService` DI pattern elsewhere: the shared
@@ -291,8 +291,8 @@ export const handleTasksRunRoutes: AsyncRouteRegistrar<TasksRunRouteDeps> = asyn
   ) {
     const taskId = pathname.slice('/api/v1/tasks/'.length, pathname.length - '/run-with-fixed-plan'.length);
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_task_fixedplan_${crypto.randomUUID()}`;
-    const fixedPlanTenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-    const fixedPlanPrincipalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const fixedPlanTenantId = callerIdentity(headers).tenantId;
+    const fixedPlanPrincipalId = callerIdentity(headers).principalId;
     const task = taskStore.get(taskId, fixedPlanTenantId, fixedPlanPrincipalId);
     if (!task) return { status: 404, data: { error: { code: 'TASK_NOT_FOUND', category: 'NOT_FOUND', message: `Task ${taskId} was not found.`, request_id: requestId } } };
     const steps = Array.isArray(body?.steps) ? body.steps : [];

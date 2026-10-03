@@ -6,25 +6,13 @@ import type { IdentityStore } from '../../identity/identity.store.js';
 import type { SessionStore } from '../../sessions/session.store.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
 import { PERMISSIONS } from '../../rbac/rbac.types.js';
+import { getSessionIdFromHeaders } from '../session-credential.js';
 
 export interface RbacRoutesDependencies {
   rbacService: RbacService;
   organizationStore: OrganizationStore;
   identityStore: IdentityStore;
   sessionStore: SessionStore;
-}
-
-function getSessionIdFromHeaders(headers: Record<string, string | string[] | undefined>): string | null {
-  const cookieHeader = Array.isArray(headers['cookie']) ? headers['cookie'][0] : headers['cookie'];
-  if (cookieHeader) {
-    const match = cookieHeader.match(/nagex_session=([^;]+)/);
-    if (match) return decodeURIComponent(match[1]);
-  }
-  const authHeader = Array.isArray(headers['authorization']) ? headers['authorization'][0] : headers['authorization'];
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    return authHeader.substring(7).trim();
-  }
-  return null;
 }
 
 function getAuthenticatedUser(

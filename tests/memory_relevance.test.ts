@@ -5,6 +5,7 @@ import type { ModelProvider } from '../src/model-gateway/model-provider.js';
 import { UnifiedModelRouter } from '../src/model-gateway/unified-model-router.js';
 import { handleAsyncApiRequest } from '../src/server_web.js';
 import { GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID } from '../src/modules/calendar/index.js';
+import { authAs } from './_s1_session_auth.js';
 
 const NOOP_LOGGER = { info: () => {}, warn: () => {} };
 
@@ -50,7 +51,7 @@ test('E. a generic "next client meeting" request does not surface the seeded, pi
     'POST',
     '/api/v1/ambient/intent',
     { prompt: 'Prepare my next client meeting and schedule it.' },
-    { 'x-principal-id': 'usr_admin_001' },
+    authAs('ten_production_01', 'usr_admin_001'),
     service,
   );
   assert.equal(res.status, 200);
@@ -65,7 +66,7 @@ test('F. an explicit "Schedule the Acme Corp QBR" request may surface the Acme C
     'POST',
     '/api/v1/ambient/intent',
     { prompt: 'Schedule the Acme Corp QBR.' },
-    { 'x-principal-id': 'usr_admin_001' },
+    authAs('ten_production_01', 'usr_admin_001'),
     service,
   );
   assert.equal(res.status, 200);
@@ -80,7 +81,7 @@ test('G. the exact live regression prompt never surfaces Acme Corp memory, even 
     'POST',
     '/api/v1/ambient/intent',
     { prompt: "Schedule a meeting tomorrow at 2 PM for 30 minutes titled 'NAgex UI Calendar Test'." },
-    { 'x-principal-id': 'usr_admin_001' },
+    authAs('ten_production_01', 'usr_admin_001'),
     service,
   );
   assert.equal(res.status, 200);

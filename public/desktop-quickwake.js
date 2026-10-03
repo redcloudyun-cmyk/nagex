@@ -20,8 +20,6 @@
     const opts = { ...options };
     opts.headers = {
       'Content-Type': 'application/json',
-      'x-nagex-tenant': demoMode ? 'ten_demo_hackathon' : 'ten_production_01',
-      'x-principal-id': demoMode ? 'usr_demo_alex' : 'usr_admin_001',
       'x-nagex-locale': currentLocale,
       'accept-language': currentLocale === 'ko' ? 'ko-KR,ko;q=0.9,en;q=0.8' : 'en-US,en;q=0.9',
       ...(demoMode ? { 'x-nagex-demo': '1' } : {}),

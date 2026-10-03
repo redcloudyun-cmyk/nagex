@@ -12,6 +12,7 @@ import { AuditLogger } from '../src/governance/audit.logger.js';
 import { MemoryEngine } from '../src/context/memory.engine.js';
 import { isUrlSafe, assertUrlSafe } from '../src/modules/browser/browser-url-validator.js';
 import { handleAsyncApiRequest } from '../src/server_web.js';
+import { authAs, authAsWith } from './_s1_session_auth.js';
 
 // The "REST API endpoints" test below goes through server_web.ts's default
 // (non-DI'd) route, which launches the process-lifetime `browserRuntime`
@@ -267,23 +268,17 @@ test('Consequential click action requires human approval and supports replay pro
 
 test('REST API endpoints for Browser Agent tools in server_web', async () => {
   // Create browser session via REST API
-  const openRes = await handleAsyncApiRequest('POST', '/api/v1/browser/sessions', {}, {
-    'x-principal-id': 'usr_admin_001',
-  });
+  const openRes = await handleAsyncApiRequest('POST', '/api/v1/browser/sessions', {}, authAsWith('ten_production_01', 'usr_admin_001', {  }));
   assert.equal(openRes.status, 201);
   assert.ok((openRes.data as any).browserSessionId);
   const bsessId = (openRes.data as any).browserSessionId;
 
   // Tabs endpoint
-  const tabsRes = await handleAsyncApiRequest('POST', '/api/v1/tools/browser/tabs', { browserSessionId: bsessId }, {
-    'x-principal-id': 'usr_admin_001',
-  });
+  const tabsRes = await handleAsyncApiRequest('POST', '/api/v1/tools/browser/tabs', { browserSessionId: bsessId }, authAsWith('ten_production_01', 'usr_admin_001', {  }));
   assert.equal(tabsRes.status, 200);
   assert.ok(Array.isArray((tabsRes.data as any).tabs));
 
   // Close session via REST API
-  const closeRes = await handleAsyncApiRequest('POST', '/api/v1/tools/browser/close', { browserSessionId: bsessId }, {
-    'x-principal-id': 'usr_admin_001',
-  });
+  const closeRes = await handleAsyncApiRequest('POST', '/api/v1/tools/browser/close', { browserSessionId: bsessId }, authAsWith('ten_production_01', 'usr_admin_001', {  }));
   assert.equal(closeRes.status, 200);
 });

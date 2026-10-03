@@ -62,24 +62,29 @@ export const PERMISSION_RISK: Readonly<Record<string, PermissionRisk>> = loadPer
 /**
  * Server-side built-in principal authorization mapping.
  *
- * NOTE: This is a static server-side built-in trust mapping for system principals
- * and known admin IDs. It is NOT a full role-based access control (RBAC) system
- * or dynamic principal -> role -> permission store.
+ * S1 (S0-18): there is NO built-in human admin. Earlier builds granted
+ * module:manage / tenant:create / policy:publish to any principal whose id was the
+ * literal 'usr_admin_001' or 'admin' — and, because identity then came from a
+ * client-supplied header, that was every anonymous caller. Identity now comes only
+ * from a server-side session, and only these principals are elevated:
+ *   - type 'system' (in-process, never a request principal);
+ *   - the registered user ids an operator lists in NAGEX_BUILTIN_ADMIN_PRINCIPALS
+ *     (comma separated, empty by default; read on every call, never cached).
+ * Everyone else holds only 'agent:execute'.
  *
- * TODO(RBAC-integration): Replace this static mapping with a canonical, durable
- * principal -> role -> permission binding store when a dynamic identity/role subsystem
- * is specified and implemented.
- *
- * Fail-closed behavior: Unknown principals receive no module administration ('module:manage')
- * permissions.
+ * NOTE: this is still a static trust mapping, NOT a role-based access control system.
+ * TODO(RBAC-integration): replace with a canonical principal -> role -> permission store.
  */
-export function resolveBuiltInPrincipalPermissions(principal: PrincipalReference): string[] {
-  if (
-    principal.type === 'system' ||
-    principal.id === 'usr_admin_001' ||
-    principal.id === 'admin'
-  ) {
-    return ['module:manage', 'agent:execute', 'tenant:create', 'policy:publish'];
+const BUILT_IN_ADMIN_PERMISSIONS = ['module:manage', 'agent:execute', 'tenant:create', 'policy:publish'];
+export const BUILTIN_ADMIN_PRINCIPALS_ENV = 'NAGEX_BUILTIN_ADMIN_PRINCIPALS';
+
+function configuredAdminPrincipalIds(env: NodeJS.ProcessEnv): Set<string> {
+  return new Set((env[BUILTIN_ADMIN_PRINCIPALS_ENV] ?? '').split(',').map((id) => id.trim()).filter((id) => id.length > 0));
+}
+
+export function resolveBuiltInPrincipalPermissions(principal: PrincipalReference, env: NodeJS.ProcessEnv = process.env): string[] {
+  if (principal.type === 'system' || configuredAdminPrincipalIds(env).has(principal.id)) {
+    return [...BUILT_IN_ADMIN_PERMISSIONS];
   }
   return ['agent:execute'];
 }

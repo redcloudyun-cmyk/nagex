@@ -27,6 +27,7 @@ import { NagexError } from '../src/common/errors.js';
 import type { CalendarCandidatePayload } from '../src/workspace/candidate.types.js';
 import { handleAsyncApiRequest, candidateStore as productionCandidateStore, taskStore as productionTaskStore, createServerInstance } from '../src/server_web.js';
 import type { AddressInfo } from 'node:net';
+import { authAs } from './_s1_session_auth.js';
 
 function tempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-candidate-actions-'));
@@ -462,7 +463,7 @@ function uniqueIdentity(label: string): { tenantId: string; ownerId: string } {
 
 test('API: POST /api/v1/candidates/:id/execute creates a real Task via the production TaskStore', async () => {
   const { tenantId, ownerId } = uniqueIdentity('actapi1');
-  const headers = { 'x-nagex-tenant': tenantId, 'x-principal-id': ownerId };
+  const headers = authAs(tenantId, ownerId);
   const seeded = productionCandidateStore.upsert({
     tenantId, principalId: ownerId, captureId: 'cap_actapi1', sourceRefs: ['capture:cap_actapi1'],
     title: 'API-executed task', type: 'TASK', payload: { name: 'API-executed task' },
@@ -484,7 +485,7 @@ test('API: POST /api/v1/candidates/:id/execute creates a real Task via the produ
 
 test('API: execute on a PROPOSED candidate is rejected (409), never silently succeeds', async () => {
   const { tenantId, ownerId } = uniqueIdentity('actapi2');
-  const headers = { 'x-nagex-tenant': tenantId, 'x-principal-id': ownerId };
+  const headers = authAs(tenantId, ownerId);
   const seeded = productionCandidateStore.upsert({
     tenantId, principalId: ownerId, captureId: 'cap_actapi2', sourceRefs: ['capture:cap_actapi2'],
     title: 'Not yet accepted', type: 'TASK', payload: { name: 'Not yet accepted' },

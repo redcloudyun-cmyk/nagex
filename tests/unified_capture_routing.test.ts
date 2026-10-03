@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { handleAsyncApiRequest } from '../src/server_web.js';
+import { authAs } from './_s1_session_auth.js';
 
 function readSrc(relPath: string): string {
   return fs.readFileSync(path.join(process.cwd(), relPath), 'utf8');
@@ -29,7 +30,7 @@ test('the workspace route registrar defines exactly one handler for each capture
 });
 
 test('route-input, inbox, vault, and storage/status all resolve (never 404), and route-input never creates a Task/Candidate as a side effect', async () => {
-  const headers = { 'x-nagex-tenant': 'ten_step1_test', 'x-principal-id': 'usr_step1_test' };
+  const headers = authAs('ten_step1_test', 'usr_step1_test');
 
   const route = await handleAsyncApiRequest('POST', '/api/v1/workspace/route-input', { text: 'What is NAgex?' }, headers);
   assert.equal(route.status, 200);

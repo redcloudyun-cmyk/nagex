@@ -8,6 +8,7 @@ import { IdentityRateLimiter } from '../../identity/identity.rate-limiter.js';
 import { hashPassword, verifyPassword } from '../../identity/identity.crypto.js';
 import type { SessionStore } from '../../sessions/session.store.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
+import { getSessionIdFromHeaders } from '../session-credential.js';
 
 export interface AuthRoutesDependencies {
   identityStore: IdentityStore;
@@ -18,18 +19,7 @@ export interface AuthRoutesDependencies {
 
 const rateLimiter = new IdentityRateLimiter({ windowMs: 15 * 60 * 1000, maxHits: 5 });
 
-export function getSessionIdFromHeaders(headers: Record<string, string | string[] | undefined>): string | null {
-  const cookieHeader = Array.isArray(headers['cookie']) ? headers['cookie'][0] : headers['cookie'];
-  if (cookieHeader) {
-    const match = cookieHeader.match(/nagex_session=([^;]+)/);
-    if (match) return decodeURIComponent(match[1]);
-  }
-  const authHeader = Array.isArray(headers['authorization']) ? headers['authorization'][0] : headers['authorization'];
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    return authHeader.substring(7).trim();
-  }
-  return null;
-}
+export { getSessionIdFromHeaders } from '../session-credential.js';
 
 const COOKIE_HEADER = (sessionId: string) => ({ 'Set-Cookie': `nagex_session=${encodeURIComponent(sessionId)}; Path=/; HttpOnly; SameSite=Lax` });
 const CLEAR_COOKIE_HEADER = { 'Set-Cookie': `nagex_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0` };

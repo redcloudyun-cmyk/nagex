@@ -11,6 +11,7 @@ import { SlackIdentityStore } from '../src/integrations/slack/slack-identity.sto
 import { SlackClient } from '../src/integrations/slack/slack.client.js';
 import { AuditLogger } from '../src/governance/audit.logger.js';
 import { handleAsyncApiRequest } from '../src/server_web.js';
+import { authAs } from './_s1_session_auth.js';
 
 function tempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-notif-test-'));
@@ -128,25 +129,25 @@ test('Notification API endpoints in server_web.ts respond correctly', async () =
     type: 'TASK_COMPLETED',
     title: 'API Task Done',
     body: 'Your automated task finished cleanly.',
-  }, {}, mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
+  }, authAs('ten_dispatch', 'usr_notif_dispatcher'), mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
 
   assert.equal(dispatchRes.status, 201);
   assert.equal((dispatchRes.data as any).title, 'API Task Done');
   const notifId = (dispatchRes.data as any).id;
 
   // List notifications
-  const listRes = await handleAsyncApiRequest('GET', '/api/v1/notifications', null, { 'x-nagex-tenant': 'ten_test', 'x-principal-id': 'usr_notif_api' }, mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
+  const listRes = await handleAsyncApiRequest('GET', '/api/v1/notifications', null, authAs('ten_test', 'usr_notif_api'), mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
   assert.equal(listRes.status, 200);
   assert.equal((listRes.data as any).unreadCount, 1);
   assert.equal((listRes.data as any).notifications.length, 1);
 
   // Mark single as read
-  const readRes = await handleAsyncApiRequest('POST', `/api/v1/notifications/${notifId}/read`, null, { 'x-nagex-tenant': 'ten_test', 'x-principal-id': 'usr_notif_api' }, mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
+  const readRes = await handleAsyncApiRequest('POST', `/api/v1/notifications/${notifId}/read`, null, authAs('ten_test', 'usr_notif_api'), mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
   assert.equal(readRes.status, 200);
   assert.equal((readRes.data as any).read, true);
 
   // Mark all as read endpoint
-  const readAllRes = await handleAsyncApiRequest('POST', '/api/v1/notifications/read-all', null, { 'x-nagex-tenant': 'ten_test', 'x-principal-id': 'usr_notif_api' }, mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
+  const readAllRes = await handleAsyncApiRequest('POST', '/api/v1/notifications/read-all', null, authAs('ten_test', 'usr_notif_api'), mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
   assert.equal(readAllRes.status, 200);
   assert.equal((readAllRes.data as any).success, true);
 });
@@ -163,16 +164,16 @@ test('P04-R1-08: GET notifications for tenant A cannot expose tenant B', async (
 
   await handleAsyncApiRequest('POST', '/api/v1/notifications/dispatch', {
     tenantId: 'ten_a', principalId: sameId, type: 'TASK_COMPLETED', title: 'A', body: 'A',
-  }, {}, mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
+  }, authAs('ten_dispatch', 'usr_notif_dispatcher'), mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
   await handleAsyncApiRequest('POST', '/api/v1/notifications/dispatch', {
     tenantId: 'ten_b', principalId: sameId, type: 'TASK_COMPLETED', title: 'B', body: 'B',
-  }, {}, mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
+  }, authAs('ten_dispatch', 'usr_notif_dispatcher'), mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
 
-  const listResA = await handleAsyncApiRequest('GET', '/api/v1/notifications', null, { 'x-nagex-tenant': 'ten_a', 'x-principal-id': sameId }, mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
+  const listResA = await handleAsyncApiRequest('GET', '/api/v1/notifications', null, authAs('ten_a', sameId), mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
   assert.equal((listResA.data as any).notifications.length, 1);
   assert.equal((listResA.data as any).notifications[0].title, 'A');
 
-  const listResB = await handleAsyncApiRequest('GET', '/api/v1/notifications', null, { 'x-nagex-tenant': 'ten_b', 'x-principal-id': sameId }, mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
+  const listResB = await handleAsyncApiRequest('GET', '/api/v1/notifications', null, authAs('ten_b', sameId), mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
   assert.equal((listResB.data as any).notifications.length, 1);
   assert.equal((listResB.data as any).notifications[0].title, 'B');
 });
@@ -187,9 +188,9 @@ test('P04-R1-09: unread count for tenant A excludes tenant B', async () => {
 
   await handleAsyncApiRequest('POST', '/api/v1/notifications/dispatch', {
     tenantId: 'ten_a', principalId: sameId, type: 'TASK_COMPLETED', title: 'A', body: 'A',
-  }, {}, mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
+  }, authAs('ten_dispatch', 'usr_notif_dispatcher'), mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
 
-  const listResB = await handleAsyncApiRequest('GET', '/api/v1/notifications', null, { 'x-nagex-tenant': 'ten_b', 'x-principal-id': sameId }, mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
+  const listResB = await handleAsyncApiRequest('GET', '/api/v1/notifications', null, authAs('ten_b', sameId), mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
   assert.equal((listResB.data as any).unreadCount, 0, 'tenant B unread count must not include tenant A notification');
 });
 
@@ -203,20 +204,20 @@ test('P04-R1-10 / P04-R1-12: read-one with wrong tenant cannot mark it, returns 
 
   const dispatchRes = await handleAsyncApiRequest('POST', '/api/v1/notifications/dispatch', {
     tenantId: 'ten_a', principalId: sameId, type: 'TASK_COMPLETED', title: 'A', body: 'A',
-  }, {}, mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
+  }, authAs('ten_dispatch', 'usr_notif_dispatcher'), mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
   const notifId = (dispatchRes.data as any).id;
 
   // Wrong tenant attempting to mark tenant A's notification as read.
-  const wrongTenantRead = await handleAsyncApiRequest('POST', `/api/v1/notifications/${notifId}/read`, null, { 'x-nagex-tenant': 'ten_b', 'x-principal-id': sameId }, mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
+  const wrongTenantRead = await handleAsyncApiRequest('POST', `/api/v1/notifications/${notifId}/read`, null, authAs('ten_b', sameId), mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
   assert.equal(wrongTenantRead.status, 404, 'cross-tenant read must return the same not-found response as a nonexistent id');
   assert.equal((wrongTenantRead.data as any).error.code, 'NOTIFICATION_NOT_FOUND');
 
   // The record itself must remain unread — the wrong-tenant call was a no-op.
-  const listResA = await handleAsyncApiRequest('GET', '/api/v1/notifications', null, { 'x-nagex-tenant': 'ten_a', 'x-principal-id': sameId }, mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
+  const listResA = await handleAsyncApiRequest('GET', '/api/v1/notifications', null, authAs('ten_a', sameId), mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
   assert.equal((listResA.data as any).notifications[0].read, false, 'tenant A notification must remain unread after a wrong-tenant attempt');
 
   // The rightful tenant can still mark it read.
-  const rightTenantRead = await handleAsyncApiRequest('POST', `/api/v1/notifications/${notifId}/read`, null, { 'x-nagex-tenant': 'ten_a', 'x-principal-id': sameId }, mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
+  const rightTenantRead = await handleAsyncApiRequest('POST', `/api/v1/notifications/${notifId}/read`, null, authAs('ten_a', sameId), mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
   assert.equal(rightTenantRead.status, 200);
   assert.equal((rightTenantRead.data as any).read, true);
 });
@@ -231,14 +232,14 @@ test('P04-R1-11: mark-all tenant A does not mutate tenant B', async () => {
 
   await handleAsyncApiRequest('POST', '/api/v1/notifications/dispatch', {
     tenantId: 'ten_a', principalId: sameId, type: 'TASK_COMPLETED', title: 'A', body: 'A',
-  }, {}, mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
+  }, authAs('ten_dispatch', 'usr_notif_dispatcher'), mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
   await handleAsyncApiRequest('POST', '/api/v1/notifications/dispatch', {
     tenantId: 'ten_b', principalId: sameId, type: 'TASK_COMPLETED', title: 'B', body: 'B',
-  }, {}, mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
+  }, authAs('ten_dispatch', 'usr_notif_dispatcher'), mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
 
-  const markAllA = await handleAsyncApiRequest('POST', '/api/v1/notifications/read-all', null, { 'x-nagex-tenant': 'ten_a', 'x-principal-id': sameId }, mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
+  const markAllA = await handleAsyncApiRequest('POST', '/api/v1/notifications/read-all', null, authAs('ten_a', sameId), mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
   assert.equal((markAllA.data as any).updatedCount, 1);
 
-  const listResB = await handleAsyncApiRequest('GET', '/api/v1/notifications', null, { 'x-nagex-tenant': 'ten_b', 'x-principal-id': sameId }, mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
+  const listResB = await handleAsyncApiRequest('GET', '/api/v1/notifications', null, authAs('ten_b', sameId), mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
   assert.equal((listResB.data as any).notifications[0].read, false, 'tenant B notification must remain unread after tenant A mark-all');
 });

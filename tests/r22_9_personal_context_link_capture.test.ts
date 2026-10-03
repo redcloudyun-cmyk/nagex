@@ -6,6 +6,15 @@ import crypto from 'node:crypto';
 import { chromium, type Browser } from 'playwright';
 import { LinkCaptureService, validateUrlForSsrf, type CustomDnsResolver } from '../src/capture/link-capture.service.js';
 import { createServerInstance } from '../src/server_web.js';
+import { authAs, authAsWith, sessionCookie } from './_s1_session_auth.js';
+
+// S1: the demo persona is read-only for anonymous visitors, so the browser flows below that CHANGE memory/vault/inbox
+// run as the demo persona SIGNED IN (a real session for the same tenant/principal the test seeds), not as an anonymous demo visitor.
+async function signedInPage(browser: Browser, baseUrl: string, viewport: { width: number; height: number }) {
+  const context = await browser.newContext({ viewport });
+  await context.addCookies([sessionCookie(baseUrl, 'ten_demo_hackathon', 'usr_demo_alex')]);
+  return context.newPage();
+}
 
 const tenantId = 'ten_production_01';
 const principalId = 'usr_admin_001';
@@ -219,8 +228,7 @@ test('R22.9 — Memory Type Contract & CRUD Invariants', async (t) => {
 
   const headers = {
     'Content-Type': 'application/json',
-    'X-NAgex-Tenant': tenantId,
-    'X-Principal-Id': principalId,
+    ...authAs(tenantId, principalId),
   };
 
   await t.test('CANONICAL_MEMORY_TYPES - Exactly 6 canonical types accepted by API', async () => {
@@ -368,7 +376,7 @@ test('R22.9 — Browser Behavioral Certification (Real Clicks: Confirm, Edit, Pi
 
   await t.test('Real Clicks - Context Actions (Confirm, Edit, Pin, Unpin, Delete)', async () => {
     const testRunId = crypto.randomUUID();
-    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    const page = await signedInPage(browser, baseUrl, { width: 1440, height: 900 });
     page.on('console', (msg) => console.log('PAGE LOG:', msg.text()));
 
     // § 3 — HTTP failure diagnostics: log any 4xx/5xx response from the browser
@@ -411,10 +419,9 @@ test('R22.9 — Browser Behavioral Certification (Real Clicks: Confirm, Edit, Pi
     const createUnconfirmedRes = await fetch(`${baseUrl}/api/v1/memory/remember`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'X-NAgex-Tenant': 'ten_demo_hackathon',
-        'X-Principal-Id': 'usr_demo_alex',
-      },
+    'Content-Type': 'application/json',
+    ...authAs('ten_demo_hackathon', 'usr_demo_alex'),
+  },
       body: JSON.stringify({
         scope: 'USER',
         type: 'FACT',
@@ -436,10 +443,7 @@ test('R22.9 — Browser Behavioral Certification (Real Clicks: Confirm, Edit, Pi
       const verifyRes = await fetch(
         `${baseUrl}/api/v1/memory/${unconfirmedId}`,
         {
-          headers: {
-            'X-NAgex-Tenant': 'ten_demo_hackathon',
-            'X-Principal-Id': 'usr_demo_alex',
-          },
+          headers: authAsWith('ten_demo_hackathon', 'usr_demo_alex', {  }),
         }
       );
       console.log('R22_9_NODE_MEMORY_VERIFY', verifyRes.status, unconfirmedId);
@@ -450,10 +454,9 @@ test('R22.9 — Browser Behavioral Certification (Real Clicks: Confirm, Edit, Pi
     const createRes = await fetch(`${baseUrl}/api/v1/memory/remember`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'X-NAgex-Tenant': 'ten_demo_hackathon',
-        'X-Principal-Id': 'usr_demo_alex',
-      },
+    'Content-Type': 'application/json',
+    ...authAs('ten_demo_hackathon', 'usr_demo_alex'),
+  },
       body: JSON.stringify({
         scope: 'USER',
         type: 'FACT',
@@ -472,10 +475,7 @@ test('R22.9 — Browser Behavioral Certification (Real Clicks: Confirm, Edit, Pi
       const verifyRes = await fetch(
         `${baseUrl}/api/v1/memory/${memId}`,
         {
-          headers: {
-            'X-NAgex-Tenant': 'ten_demo_hackathon',
-            'X-Principal-Id': 'usr_demo_alex',
-          },
+          headers: authAsWith('ten_demo_hackathon', 'usr_demo_alex', {  }),
         }
       );
       console.log('R22_9_NODE_MEMORY_VERIFY', verifyRes.status, memId);
@@ -552,7 +552,7 @@ test('R22.9 — Browser Behavioral Certification (Real Clicks: Confirm, Edit, Pi
   });
 
   await t.test('Real Clicks - Link Capture Modal Actions (URL Preview, Save Vault, Add Inbox, Remember)', async () => {
-    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    const page = await signedInPage(browser, baseUrl, { width: 1440, height: 900 });
     await page.clock.install();
 
     // Route /api/v1/capture/link to return controlled fixture in Playwright
@@ -627,7 +627,7 @@ test('R22.9 — Browser Behavioral Certification (Real Clicks: Confirm, Edit, Pi
 
   await t.test('Forced Failure Truthfulness (Save failure -> no success text, Delete failure -> item restored)', async () => {
     const failureRunId = crypto.randomUUID();
-    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    const page = await signedInPage(browser, baseUrl, { width: 1440, height: 900 });
 
     // § 3 — HTTP failure diagnostics: log any 4xx/5xx response from the browser
     page.on('response', async (response) => {
@@ -720,10 +720,9 @@ test('R22.9 — Browser Behavioral Certification (Real Clicks: Confirm, Edit, Pi
     const createRes = await fetch(`${baseUrl}/api/v1/memory/remember`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'X-NAgex-Tenant': 'ten_demo_hackathon',
-        'X-Principal-Id': 'usr_demo_alex',
-      },
+    'Content-Type': 'application/json',
+    ...authAs('ten_demo_hackathon', 'usr_demo_alex'),
+  },
       body: JSON.stringify({
         scope: 'USER',
         type: 'FACT',
@@ -740,10 +739,7 @@ test('R22.9 — Browser Behavioral Certification (Real Clicks: Confirm, Edit, Pi
       const verifyRes = await fetch(
         `${baseUrl}/api/v1/memory/${memId}`,
         {
-          headers: {
-            'X-NAgex-Tenant': 'ten_demo_hackathon',
-            'X-Principal-Id': 'usr_demo_alex',
-          },
+          headers: authAsWith('ten_demo_hackathon', 'usr_demo_alex', {  }),
         }
       );
       console.log('R22_9_NODE_MEMORY_VERIFY', verifyRes.status, memId);

@@ -10,7 +10,8 @@
       "google_modules_boundary",
       "task_orchestration_boundary",
       "tool_capability_id_alignment",
-      "r23_7c_p_creation_provider_architecture"
+      "r23_7c_p_creation_provider_architecture",
+      "security_s1_identity_contract"
     ],
     "device": [
       "device_agent_foundation",
@@ -120,7 +121,8 @@
       "r24_6c_settings_identity_boundary",
       "r24_6c1_dev_auth_token_containment",
       "r24_7b_canvas_ask",
-      "r24_8b_plan_integrity"
+      "r24_8b_plan_integrity",
+      "security_s1_identity_boundary"
     ],
     "personal-home": [
       "m6_1_mobile_release_blockers",

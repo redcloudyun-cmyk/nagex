@@ -14,7 +14,10 @@ import { AuditLogger } from '../src/governance/audit.logger.js';
 import { MemoryEngine } from '../src/context/memory.engine.js';
 import { InMemoryGoogleOAuthTokenStore } from '../src/integrations/google/token.store.js';
 import { GoogleCalendarService, GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID } from '../src/modules/calendar/index.js';
-import { handleApiRequest } from '../src/server_web.js';
+import { handleApiRequest as rawHandleApiRequest } from '../src/server_web.js';
+import { withDefaultCaller } from './_s1_session_auth.js';
+// S1: calls that carry no credential of their own are made as a real signed-in test account.
+const handleApiRequest = withDefaultCaller(rawHandleApiRequest);
 import { GOOGLE_CALENDAR_SCOPES, type GoogleOAuthConfig } from '../src/integrations/google/oauth.client.js';
 
 function tmpDir(label: string): string {

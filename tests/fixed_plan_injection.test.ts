@@ -31,8 +31,9 @@ import { createProviders } from '../src/model-gateway/providers.js';
 import type { CapabilityExecutorPort } from '../src/contracts/capability.port.js';
 import type { CapabilityRequest, CapabilityBrokerResult } from '../src/capabilities/capability.types.js';
 import type { TaskRecord } from '../src/tasks/task.store.js';
+import { authAs } from './_s1_session_auth.js';
 
-const HEADERS = { 'x-nagex-tenant': 'ten_production_01', 'x-principal-id': 'usr_fixedplan_test' };
+const HEADERS = authAs('ten_production_01', 'usr_fixedplan_test');
 
 function tempStore(prefix: string) {
   return fs.mkdtempSync(path.join(os.tmpdir(), `nagex-v01a-${prefix}-`));

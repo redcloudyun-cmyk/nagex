@@ -7,7 +7,10 @@ import { AiService, type PlanPreview } from '../src/model-gateway/ai-service.js'
 import { UnifiedModelRouter } from '../src/model-gateway/unified-model-router.js';
 import { createProviders } from '../src/model-gateway/providers.js';
 import { NagexError } from '../src/common/errors.js';
-import { handleAsyncApiRequest } from '../src/server_web.js';
+import { handleAsyncApiRequest as rawHandleAsyncApiRequest } from '../src/server_web.js';
+import { withDefaultCaller } from './_s1_session_auth.js';
+// S1: calls that carry no credential of their own are made as a real signed-in test account.
+const handleAsyncApiRequest = withDefaultCaller(rawHandleAsyncApiRequest);
 
 const resolver = new PlanResolver(skillRegistry, toolRegistry);
 

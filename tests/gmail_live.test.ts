@@ -13,7 +13,12 @@ import { GmailService, GMAIL_SEND_EMAIL_TOOL_ID, GMAIL_REPLY_TOOL_ID, GMAIL_CREA
 import { PlanResolver } from '../src/planning/plan-resolver.js';
 import { skillRegistry } from '../src/skills/skill-registry.js';
 import { toolRegistry as sharedToolRegistry } from '../src/tools/tool-registry.js';
-import { handleApiRequest, handleAsyncApiRequest, actionApprovals as sharedActionApprovals } from '../src/server_web.js';
+import { handleApiRequest as rawHandleApiRequest, handleAsyncApiRequest as rawHandleAsyncApiRequest, actionApprovals as sharedActionApprovals } from '../src/server_web.js';
+import { withDefaultCaller, authAs } from './_s1_session_auth.js';
+// S1: calls that carry no credential of their own are made as a real signed-in test account.
+const handleApiRequest = withDefaultCaller(rawHandleApiRequest);
+// S1: calls that carry no credential of their own are made as a real signed-in test account.
+const handleAsyncApiRequest = withDefaultCaller(rawHandleAsyncApiRequest);
 import { AiService, type PlanPreview } from '../src/model-gateway/ai-service.js';
 import type { ModelProvider } from '../src/model-gateway/model-provider.js';
 import { UnifiedModelRouter } from '../src/model-gateway/unified-model-router.js';
@@ -465,7 +470,7 @@ function buildGmailPlanningService(): AiService {
 }
 
 test('task-triggered email still respects approval: a scheduled task whose objective resolves to gmail.send_email never auto-sends', async () => {
-  const headers = { 'x-nagex-tenant': 'ten_production_01', 'x-principal-id': 'usr_gmail_task_test' };
+  const headers = authAs('ten_production_01', 'usr_gmail_task_test');
   const created = handleApiRequest(
     'POST',
     '/api/v1/tasks',

@@ -3961,7 +3961,7 @@
       "realBrowser": false,
       "sourceImplementationAssertions": false,
       "deterministic": true,
-      "assertionIntent": "shared resolveRequestIdentity() contract: a valid nagex_session (R13) is authoritative for POST /creations/generate and GET /creations/images/:imageId, cannot be overridden by caller-supplied X-NAgex-Tenant/X-Principal-Id headers, and header/default resolution is preserved unchanged when no valid session exists",
+      "assertionIntent": "shared caller-identity contract: a valid nagex_session (R13) is authoritative for POST /creations/generate and GET /creations/images/:imageId, caller-supplied X-NAgex-Tenant/X-Principal-Id headers carry no authority, and (Security Gate S1) a request with no valid session — including a malformed credential — has no identity and the route refuses",
       "notes": "Fixes the browser-authentication root cause confirmed by live server evidence: a native <img> request cannot attach custom headers, so it always resolved to the route's hardcoded default identity, which did not match the real tenant/owner of a session-authenticated user's own image. Adds src/http/request-identity.ts as the one shared identity resolver (session cookie first, header/default fallback unchanged) so creation and later retrieval agree on identity for a real logged-in user, while ImageStore.get()'s strict tenant+owner equality and its fail-closed 404 (no existence disclosure) remain completely unchanged. Does not touch the pre-existing img_93b85a5d7a103e7bdaaeff97 record from the old identity path."
     },
     "r23_7c_c_final_non_paid_closure_cert": {
@@ -4400,6 +4400,34 @@
       "assertionIntent": "real-Chromium (desktop 1440x900, mobile 390x844) proof that the visible Ask/Create entry points work and reach the canonical backend paths (general Ask via the header control and Quick Wake, Report and Research tiles on Desktop, Report/Research/general Ask on Mobile), that \"no model / no live search\" is reported truthfully in EN and KR, that a new user sees no fabricated Plans/Approvals/Create data, and that no raw i18n key, mojibake or malformed markup is visible on any main tab in EN and KR.",
       "notes": "Provider credentials are scrubbed, so no model is called; disposable accounts through the production stores in a private temp data dir.",
       "writesRepositoryArtifacts": false
+    },
+    "security_s1_identity_boundary": {
+      "milestone": "SECURITY-GATE-S1",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Security Gate S1 identity boundary through the real entry points: every non-public route is 401 for an anonymous caller and for every forged X-Principal-Id / X-NAgex-Tenant / default-admin / default-tenant / \"admin\" / demo-persona header; a valid session is the only identity and forged headers on it change nothing; anonymous callers never reach a model gateway, the browser agent, Gmail or Calendar; the demo persona is a fixed read-only exception; the access policy is default-deny and every self-authenticating route denies an anonymous caller; malformed cookies, bearer tokens and request lines never crash the server.",
+      "notes": "Real handleApiRequest/handleAsyncApiRequest/createServerInstance, a real localhost HTTP server, real session and identity stores in the test data dir; the paid-provider/browser/Gmail/Calendar services are tripwire proxies that fail the test if reached. No network, no model."
+    },
+    "security_s1_identity_contract": {
+      "milestone": "SECURITY-GATE-S1",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "architecture"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "Source contract that keeps the S1 identity boundary from regressing: no route reads a client identity header or falls back to a default principal/tenant, one crash-safe session-credential parser, canonicalization inside the error boundary, both entry points guarded by the default-deny access policy, no literal built-in admin, the HTTP handler wrapped so a throw fails a request not the process, and the shipped frontend no longer sends a default identity.",
+      "notes": "Reads production source only; behavior is certified by security_s1_identity_boundary."
     }
   }
 }

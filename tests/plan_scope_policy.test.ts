@@ -9,7 +9,10 @@ import { toolRegistry as sharedToolRegistry } from '../src/tools/tool-registry.j
 import { googleTokenStore as sharedGoogleTokenStore, DEFAULT_GOOGLE_TENANT_ID } from '../src/integrations/google/token.store.js';
 import { GOOGLE_CALENDAR_SCOPES } from '../src/integrations/google/oauth.client.js';
 import { GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID } from '../src/modules/calendar/index.js';
-import { handleAsyncApiRequest } from '../src/server_web.js';
+import { handleAsyncApiRequest as rawHandleAsyncApiRequest } from '../src/server_web.js';
+import { withDefaultCaller } from './_s1_session_auth.js';
+// S1: calls that carry no credential of their own are made as a real signed-in test account.
+const handleAsyncApiRequest = withDefaultCaller(rawHandleAsyncApiRequest);
 import type { MemoryRecord } from '../src/context/memory.engine.js';
 
 const GRANTED_SCOPE_STRING = GOOGLE_CALENDAR_SCOPES.join(' ');

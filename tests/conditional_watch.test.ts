@@ -25,6 +25,7 @@ import { toolRegistry } from '../src/tools/tool-registry.js';
 import { CapabilityBroker } from '../src/capabilities/capability-broker.js';
 import { NagexError } from '../src/common/errors.js';
 import { handleApiRequest, handleAsyncApiRequest } from '../src/server_web.js';
+import { authAs } from './_s1_session_auth.js';
 
 function startFixtureServer(priceText: string): Promise<{ origin: string; close: () => Promise<void> }> {
   const server = http.createServer((_req, res) => {
@@ -317,7 +318,7 @@ test('full scheduler tick: an unmet condition stays WAITING with a rescheduled n
 // ── HTTP route validation ───────────────────────────────────────────────────
 
 test('POST /api/v1/tasks rejects a CONDITIONAL task missing condition or watchUrl, and defaults checkIntervalMinutes when omitted', () => {
-  const headers = { 'x-nagex-tenant': 'ten_production_01', 'x-principal-id': 'usr_watch_http_test' };
+  const headers = authAs('ten_production_01', 'usr_watch_http_test');
 
   const missingUrl = handleApiRequest('POST', '/api/v1/tasks', { name: 'Watch', objective: 'Watch a page.', type: 'CONDITIONAL', trigger: { type: 'CONDITION', condition: 'x' } }, headers);
   assert.notEqual(missingUrl.status, 201);
@@ -342,7 +343,7 @@ test('POST /api/v1/tasks rejects a CONDITIONAL task missing condition or watchUr
 test('POST /api/v1/tasks/:id/run executes a real CONDITIONAL task end to end through the HTTP route', async () => {
   const fixture = await startFixtureServer('Current price: $650');
   try {
-    const headers = { 'x-nagex-tenant': 'ten_production_01', 'x-principal-id': 'usr_watch_http_run' };
+    const headers = authAs('ten_production_01', 'usr_watch_http_run');
     const created = handleApiRequest('POST', '/api/v1/tasks', { name: 'Flight watch', objective: 'Watch a page.', type: 'CONDITIONAL', trigger: { type: 'CONDITION', condition: 'The price is below $800', watchUrl: fixture.origin, checkIntervalMinutes: 15 } }, headers);
     assert.equal(created.status, 201);
     const taskId = (created.data as { taskId: string }).taskId;

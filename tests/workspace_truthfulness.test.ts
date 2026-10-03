@@ -10,6 +10,7 @@ import { CaptureStore } from '../src/workspace/capture.store.js';
 import { QuickCaptureService } from '../src/workspace/quick-capture.service.js';
 import { handleAsyncApiRequest } from '../src/server_web.js';
 import { generateTextPdf } from './_pdf_fixtures.js';
+import { authAs } from './_s1_session_auth.js';
 
 test('InputRouter: classifies input intents correctly into a single primary path', () => {
   // 1. ASK
@@ -174,7 +175,7 @@ test('QuickCaptureService: rejects zero-byte audio payloads and requires real by
 });
 
 test('REST API: /api/v1/workspace/route-input and /api/v1/workspace/upload validation', async () => {
-  const headers = { 'x-nagex-tenant': 'ten_production_01', 'x-principal-id': 'usr_truthfulness_test' };
+  const headers = authAs('ten_production_01', 'usr_truthfulness_test');
 
   // 1. Route input ASK
   const routedAsk = await handleAsyncApiRequest(

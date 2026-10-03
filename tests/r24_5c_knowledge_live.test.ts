@@ -10,6 +10,7 @@ import os from 'node:os';
 import { KnowledgeEngine } from '../src/context/knowledge.engine.js';
 import { VaultStore } from '../src/workspace/vault.store.js';
 import { handleKnowledgeRoutes } from '../src/http/routes/knowledge.routes.js';
+import { authAs } from './_s1_session_auth.js';
 
 const CANARY = 'NAgexKnowledgeCanary7429';
 const TENANT_A = 'ten_test_a';
@@ -20,7 +21,7 @@ function createTmpDir(label: string): string {
 }
 
 function headersFor(tenant: string, user: string) {
-  return { 'x-nagex-tenant': tenant, 'x-principal-id': user };
+  return authAs(tenant, user);
 }
 
 describe('R24.5C — Knowledge is a real, live, user-operable capability', () => {

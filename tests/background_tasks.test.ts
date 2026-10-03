@@ -13,6 +13,7 @@ import { PlanResolver } from '../src/planning/plan-resolver.js';
 import { skillRegistry } from '../src/skills/skill-registry.js';
 import { toolRegistry } from '../src/tools/tool-registry.js';
 import { handleAsyncApiRequest } from '../src/server_web.js';
+import { authAs } from './_s1_session_auth.js';
 
 test('Background Tasks (item 09): BackgroundTaskRunner updates step-by-step progress from 0% to 100%', async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-bg-test-1-'));
@@ -118,7 +119,7 @@ test('Background Tasks (AC-12): Cancelling a background task halts execution and
 });
 
 test('Background Tasks API: POST /api/v1/tasks/:id/cancel cancels an active task via API', async () => {
-  const headers = { 'x-nagex-tenant': 'ten_test', 'x-principal-id': 'usr_test' };
+  const headers = authAs('ten_test', 'usr_test');
   const mockAiService: AiService = {
     statuses: () => [],
     chat: async () => ({ provider: 'mock', model: 'mock-model', latencyMs: 10, requestId: 'req_1', data: { message: 'MET: false' } }),

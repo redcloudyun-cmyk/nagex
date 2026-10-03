@@ -11,6 +11,7 @@ import { PlaywrightBrowserRuntime, type BrowserRuntime } from '../src/modules/br
 import { BrowserToolService, BROWSER_CLICK_TOOL_ID, classifyClickConsequence, detectsHumanVerification } from '../src/modules/browser/browser.service.js';
 import { toolRegistry as sharedToolRegistry } from '../src/tools/tool-registry.js';
 import { handleApiRequest, handleAsyncApiRequest, actionApprovals as sharedActionApprovals } from '../src/server_web.js';
+import { authAs } from './_s1_session_auth.js';
 
 // A tiny, deterministic, fully-offline fixture server — real Playwright
 // exercises real HTML over real HTTP, never a mock of the browser itself.
@@ -460,7 +461,7 @@ test('full flow through the real HTTP routes: open -> navigate -> click (approva
   const fixture = await startFixtureServer();
   const sessions = new BrowserSessionStore();
   const testService = new BrowserToolService(sharedRuntime, sessions, sharedActionApprovals, new AuditLogger(), new MemoryEngine());
-  const headers = { 'x-nagex-tenant': 'ten_production_01', 'x-principal-id': 'usr_browser_http_test' };
+  const headers = authAs('ten_production_01', 'usr_browser_http_test');
 
   try {
     const opened = await handleAsyncApiRequest('POST', '/api/v1/browser/sessions', {}, headers, undefined, {}, undefined, undefined, testService);

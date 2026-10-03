@@ -37,6 +37,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import { createServerInstance } from '../src/server_web.js';
+import { authAs } from './_s1_session_auth.js';
 
 async function withServer(run: (origin: string) => Promise<void>): Promise<void> {
   const instance = createServerInstance();
@@ -68,7 +69,7 @@ test('1. Search / Plan / Book / Create / Analyze input routing contract', async 
     for (const item of modes) {
       const res = await fetch(`${origin}/api/v1/workspace/route-input`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authAs('ten_production_01', 'usr_admin_001') },
         body: JSON.stringify({ text: item.text }),
       });
       assert.equal(res.status, 200);
@@ -81,10 +82,9 @@ test('1. Search / Plan / Book / Create / Analyze input routing contract', async 
 test('2. Creation Domain E2E — generate, reference image, recipe, variation, history, tenant isolation', async () => {
   await withServer(async (origin) => {
     const defaultHeaders = {
-      'Content-Type': 'application/json',
-      'X-NAgex-Tenant': 'ten_production_01',
-      'X-Principal-Id': 'usr_admin_001',
-    };
+    'Content-Type': 'application/json',
+    ...authAs('ten_production_01', 'usr_admin_001'),
+  };
 
     // 2a. Generate Creation
     const genRes = await fetch(`${origin}/api/v1/creations/generate`, {
@@ -141,10 +141,9 @@ test('2. Creation Domain E2E — generate, reference image, recipe, variation, h
     const foreignTenantRes = await fetch(`${origin}/api/v1/creations`, {
       method: 'GET',
       headers: {
-        'Content-Type': 'application/json',
-        'X-NAgex-Tenant': 'ten_foreign_99',
-        'X-Principal-Id': 'usr_foreign_99',
-      },
+    'Content-Type': 'application/json',
+    ...authAs('ten_foreign_99', 'usr_foreign_99'),
+  },
     });
     assert.equal(foreignTenantRes.status, 200);
     const foreignListData = (await foreignTenantRes.json()) as any;
@@ -153,10 +152,9 @@ test('2. Creation Domain E2E — generate, reference image, recipe, variation, h
     const foreignGetRes = await fetch(`${origin}/api/v1/creations/${creation.creationId}`, {
       method: 'GET',
       headers: {
-        'Content-Type': 'application/json',
-        'X-NAgex-Tenant': 'ten_foreign_99',
-        'X-Principal-Id': 'usr_foreign_99',
-      },
+    'Content-Type': 'application/json',
+    ...authAs('ten_foreign_99', 'usr_foreign_99'),
+  },
     });
     assert.equal(foreignGetRes.status, 404);
   });
@@ -165,10 +163,9 @@ test('2. Creation Domain E2E — generate, reference image, recipe, variation, h
 test('3. Approval Semantics — Reject (no mutation) vs Approve (mutation)', async () => {
   await withServer(async (origin) => {
     const headers = {
-      'Content-Type': 'application/json',
-      'X-NAgex-Tenant': 'ten_production_01',
-      'X-Principal-Id': 'usr_admin_001',
-    };
+    'Content-Type': 'application/json',
+    ...authAs('ten_production_01', 'usr_admin_001'),
+  };
 
     const validPayload = {
       calendarId: 'primary',
@@ -229,10 +226,9 @@ test('3. Approval Semantics — Reject (no mutation) vs Approve (mutation)', asy
 test('4. Task Retry & Cancel Synchronization', async () => {
   await withServer(async (origin) => {
     const headers = {
-      'Content-Type': 'application/json',
-      'X-NAgex-Tenant': 'ten_production_01',
-      'X-Principal-Id': 'usr_admin_001',
-    };
+    'Content-Type': 'application/json',
+    ...authAs('ten_production_01', 'usr_admin_001'),
+  };
 
     // 4a. Create task
     const createRes = await fetch(`${origin}/api/v1/tasks`, {
@@ -270,10 +266,9 @@ test('4. Task Retry & Cancel Synchronization', async () => {
 test('5. Analyze Upload Init, Complete, & Structured Output', async () => {
   await withServer(async (origin) => {
     const headers = {
-      'Content-Type': 'application/json',
-      'X-NAgex-Tenant': 'ten_production_01',
-      'X-Principal-Id': 'usr_admin_001',
-    };
+    'Content-Type': 'application/json',
+    ...authAs('ten_production_01', 'usr_admin_001'),
+  };
 
     const initRes = await fetch(`${origin}/api/v1/workspace/uploads/init`, {
       method: 'POST',
@@ -311,10 +306,9 @@ test('6. Tenant Guard Context Tampering Protection', async () => {
     const vaultRes = await fetch(`${origin}/api/v1/workspace/vault`, {
       method: 'GET',
       headers: {
-        'Content-Type': 'application/json',
-        'X-NAgex-Tenant': 'ten_attacker_99',
-        'X-Principal-Id': 'usr_attacker_99',
-      },
+    'Content-Type': 'application/json',
+    ...authAs('ten_attacker_99', 'usr_attacker_99'),
+  },
     });
     assert.equal(vaultRes.status, 200);
     const vaultData = (await vaultRes.json()) as any;

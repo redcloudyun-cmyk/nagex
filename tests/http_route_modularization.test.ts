@@ -14,6 +14,7 @@ import path from 'node:path';
 import { SyncHttpRouter, AsyncHttpRouter } from '../src/http/router.js';
 import { handleHealthRoutes, getVcsStatus } from '../src/http/routes/health.routes.js';
 import { handleApiRequest, handleAsyncApiRequest } from '../src/server_web.js';
+import { authAs } from './_s1_session_auth.js';
 
 function readSourceWithoutComments(relPath: string): string {
   return fs.readFileSync(path.resolve(relPath), 'utf8').split('\n').map((line) => line.replace(/\/\/.*/, '')).join('\n');
@@ -100,14 +101,15 @@ test('10. GET /api/v1/vcs/status through both real entry points returns the iden
 });
 
 test('11. GET /api/v1/action-proposals through the real handleAsyncApiRequest entry point still works after modularization', async () => {
-  const result = await handleAsyncApiRequest('GET', '/api/v1/action-proposals', null, { 'x-nagex-tenant': 'ten_r102d_test', 'x-principal-id': 'usr_r102d_test' });
+  const result = await handleAsyncApiRequest('GET', '/api/v1/action-proposals', null, authAs('ten_r102d_test', 'usr_r102d_test'));
   assert.equal(result.status, 200);
   assert.ok(Array.isArray((result.data as { proposals: unknown[] }).proposals));
 });
 
-test('12. unknown route still falls through to 404, not a false match from a migrated registrar', async () => {
-  const result = await handleAsyncApiRequest('GET', '/api/v1/this-route-does-not-exist', null, {});
+test('12. unknown route still falls through to 404 for a signed-in caller (not a false match from a migrated registrar); anonymous callers get 401 (S1 default-deny)', async () => {
+  const result = await handleAsyncApiRequest('GET', '/api/v1/this-route-does-not-exist', null, authAs('ten_r102d_test', 'usr_r102d_test'));
   assert.equal(result.status, 404);
+  assert.equal((await handleAsyncApiRequest('GET', '/api/v1/this-route-does-not-exist', null, {})).status, 401);
 });
 
 // ── Static architecture guard (§20/§10) ──────────────────────────────────
@@ -141,13 +143,13 @@ test('16. no production file outside src/http/ deep-imports a route registrar\'s
 // ── Increment 2: memory/modules/catalog/settings/notifications ──────────
 
 test('17. GET /api/v1/memory through the real handleApiRequest entry point still works after modularization', () => {
-  const result = handleApiRequest('GET', '/api/v1/memory', null, { 'x-nagex-tenant': 'ten_r102d_test', 'x-principal-id': 'usr_r102d_test' });
+  const result = handleApiRequest('GET', '/api/v1/memory', null, authAs('ten_r102d_test', 'usr_r102d_test'));
   assert.equal(result.status, 200);
   assert.ok(Array.isArray((result.data as { memories: unknown[] }).memories));
 });
 
 test('18. POST /api/v1/memory through the real handleApiRequest entry point creates a real, retrievable memory record', () => {
-  const headers = { 'x-nagex-tenant': 'ten_r102d_test', 'x-principal-id': 'usr_r102d_test' };
+  const headers = authAs('ten_r102d_test', 'usr_r102d_test');
   const created = handleApiRequest('POST', '/api/v1/memory', { scope: 'USER', subject: 'Test', predicate: 'likes', value: 'coffee' }, headers);
   assert.equal(created.status, 201);
   const id = (created.data as { id: string }).id;
@@ -158,25 +160,25 @@ test('18. POST /api/v1/memory through the real handleApiRequest entry point crea
 });
 
 test('19. DELETE /api/v1/memory/:id through the real handleApiRequest entry point returns 200 for an unknown id error path (proves the route, not the store, is under test)', () => {
-  const headers = { 'x-nagex-tenant': 'ten_r102d_test', 'x-principal-id': 'usr_r102d_test' };
+  const headers = authAs('ten_r102d_test', 'usr_r102d_test');
   const result = handleApiRequest('DELETE', '/api/v1/memory/mem_does_not_exist_r102d', null, headers);
   assert.ok(result.status === 200 || result.status === 404 || result.status === 500, 'a defined, non-fabricated outcome either way');
 });
 
 test('20. GET /api/v1/modules through the real handleApiRequest entry point still works after modularization', () => {
-  const result = handleApiRequest('GET', '/api/v1/modules', null, { 'x-nagex-tenant': 'ten_r102d_test', 'x-principal-id': 'usr_r102d_test' });
+  const result = handleApiRequest('GET', '/api/v1/modules', null, authAs('ten_r102d_test', 'usr_r102d_test'));
   assert.equal(result.status, 200);
   assert.ok(Array.isArray((result.data as { modules: unknown[] }).modules));
 });
 
 test('21. PUT /api/v1/modules/:id/state with a missing body.enabled still returns the exact original 400 VALIDATION shape (fail-closed input validation preserved)', () => {
-  const result = handleApiRequest('PUT', '/api/v1/modules/some_module/state', {}, { 'x-nagex-tenant': 'ten_r102d_test', 'x-principal-id': 'usr_r102d_test' });
+  const result = handleApiRequest('PUT', '/api/v1/modules/some_module/state', {}, authAs('ten_r102d_test', 'usr_r102d_test'));
   assert.equal(result.status, 400);
   assert.equal((result.data as { error: { code: string } }).error.code, 'INVALID_MODULE_STATE');
 });
 
 test('22. PUT /api/v1/modules/:id/state for an unknown principal fails closed (PDP deny path preserved, not silently allowed)', () => {
-  const result = handleApiRequest('PUT', '/api/v1/modules/some_module/state', { enabled: true }, { 'x-nagex-tenant': 'ten_r102d_test', 'x-principal-id': 'usr_unknown_principal_r102d' });
+  const result = handleApiRequest('PUT', '/api/v1/modules/some_module/state', { enabled: true }, authAs('ten_r102d_test', 'usr_unknown_principal_r102d'));
   assert.notEqual(result.status, 200, 'an unrecognized principal must never be able to toggle module state — fail closed, per INV-002');
 });
 
@@ -194,7 +196,7 @@ test('23. GET /api/v1/plans through the real handleApiRequest entry point return
     updatedAt: new Date().toISOString()
   });
 
-  const result = handleApiRequest('GET', '/api/v1/plans', null, { 'x-nagex-tenant': 'ten_r102d_test', 'x-principal-id': 'usr_r102d_test' });
+  const result = handleApiRequest('GET', '/api/v1/plans', null, authAs('ten_r102d_test', 'usr_r102d_test'));
   assert.equal(result.status, 200);
   const data = result.data as { plans: Array<{ id: string }>; total: number };
   assert.ok(data.plans.some((p) => p.id === 'plan_deterministic_test_23'));
@@ -224,12 +226,12 @@ test('25. GET /api/v1/tools and GET /api/v1/knowledge still return real, non-emp
   // handleAsyncApiRequest falls through to the same handleApiRequest for
   // /api/v1/knowledge, so this still proves the real routing boundary.
   const marker = `modularization_test25_${Date.now()}`;
-  const posted = await handleAsyncApiRequest('POST', '/api/v1/knowledge', { title: marker, content: `Route modularization probe ${marker}` }, {});
+  const posted = await handleAsyncApiRequest('POST', '/api/v1/knowledge', { title: marker, content: `Route modularization probe ${marker}` }, authAs('ten_r102d_test', 'usr_r102d_test'));
   assert.equal(posted.status, 201);
   const postedId = (posted.data as { id: string }).id;
   const vaultItemId = (posted.data as { source_vault_item_id: string }).source_vault_item_id;
 
-  const knowledge = await handleAsyncApiRequest('GET', '/api/v1/knowledge', null, {}, undefined, { q: marker });
+  const knowledge = await handleAsyncApiRequest('GET', '/api/v1/knowledge', null, authAs('ten_r102d_test', 'usr_r102d_test'), undefined, { q: marker });
   assert.equal(knowledge.status, 200);
   const documents = (knowledge.data as { documents: Array<{ id: string }> }).documents;
   assert.ok(Array.isArray(documents));
@@ -239,9 +241,9 @@ test('25. GET /api/v1/tools and GET /api/v1/knowledge still return real, non-emp
   // Clean up: deleting the backing Vault source invalidates the derived
   // Knowledge entry (STALE_KNOWLEDGE_INDEX=0 behavior), leaving no residue
   // in the shared dev data store for other tests/processes.
-  const vaultDeleted = await handleAsyncApiRequest('DELETE', `/api/v1/workspace/vault/${vaultItemId}`, null, {});
+  const vaultDeleted = await handleAsyncApiRequest('DELETE', `/api/v1/workspace/vault/${vaultItemId}`, null, authAs('ten_r102d_test', 'usr_r102d_test'));
   assert.equal(vaultDeleted.status, 200);
-  const afterCleanup = await handleAsyncApiRequest('GET', '/api/v1/knowledge', null, {}, undefined, { q: marker });
+  const afterCleanup = await handleAsyncApiRequest('GET', '/api/v1/knowledge', null, authAs('ten_r102d_test', 'usr_r102d_test'), undefined, { q: marker });
   assert.equal((afterCleanup.data as { documents: unknown[] }).documents.length, 0);
 });
 
@@ -291,18 +293,18 @@ test('27. GET/POST /api/v1/autonomy/config round-trips through the real handleAs
 });
 
 test('28. GET /api/v1/notifications through the real handleAsyncApiRequest entry point still works after modularization', async () => {
-  const result = await handleAsyncApiRequest('GET', '/api/v1/notifications', null, { 'x-nagex-tenant': 'ten_r102d_test', 'x-principal-id': 'usr_r102d_test' });
+  const result = await handleAsyncApiRequest('GET', '/api/v1/notifications', null, authAs('ten_r102d_test', 'usr_r102d_test'));
   assert.equal(result.status, 200);
   assert.ok(Array.isArray((result.data as { notifications: unknown[] }).notifications));
 });
 
 test('29. POST /api/v1/notifications/dispatch with an empty body still returns the exact original VALIDATION error, not a silently-accepted empty notification', async () => {
-  const result = await handleAsyncApiRequest('POST', '/api/v1/notifications/dispatch', { title: 'x' }, { 'x-nagex-tenant': 'ten_r102d_test', 'x-principal-id': 'usr_r102d_test' });
+  const result = await handleAsyncApiRequest('POST', '/api/v1/notifications/dispatch', { title: 'x' }, authAs('ten_r102d_test', 'usr_r102d_test'));
   assert.equal(result.status, 400);
 });
 
 test('30. POST /api/v1/notifications/dispatch then GET /api/v1/notifications proves the dispatched notification is real, not fabricated', async () => {
-  const headers = { 'x-nagex-tenant': 'ten_r102d_test', 'x-principal-id': 'usr_r102d_test' };
+  const headers = authAs('ten_r102d_test', 'usr_r102d_test');
   const dispatched = await handleAsyncApiRequest('POST', '/api/v1/notifications/dispatch', { title: 'Route test', body: 'r10.2-d increment 2 route test' }, headers);
   assert.equal(dispatched.status, 201);
   const id = (dispatched.data as { id: string }).id;
@@ -339,7 +341,7 @@ test('33. none of the five Increment 2 route modules import back from server_web
 // candidates, activity) ──────────────────────────────────────────────────
 
 test('34. GET/POST /api/v1/tasks through the real handleApiRequest entry point still work after modularization', () => {
-  const headers = { 'x-nagex-tenant': 'ten_r102d_i3_test', 'x-principal-id': 'usr_r102d_i3_test' };
+  const headers = authAs('ten_r102d_i3_test', 'usr_r102d_i3_test');
   const listBefore = handleApiRequest('GET', '/api/v1/tasks', null, headers);
   assert.equal(listBefore.status, 200);
   assert.ok(Array.isArray((listBefore.data as { tasks: unknown[] }).tasks));
@@ -355,14 +357,14 @@ test('34. GET/POST /api/v1/tasks through the real handleApiRequest entry point s
 });
 
 test('35. POST /api/v1/tasks rejects an invalid type with the exact original VALIDATION shape (fail-closed input validation preserved)', () => {
-  const headers = { 'x-nagex-tenant': 'ten_r102d_i3_test', 'x-principal-id': 'usr_r102d_i3_test' };
+  const headers = authAs('ten_r102d_i3_test', 'usr_r102d_i3_test');
   const result = handleApiRequest('POST', '/api/v1/tasks', { name: 'bad', objective: 'x', type: 'NOT_A_REAL_TYPE' }, headers);
   assert.equal(result.status, 400);
   assert.equal((result.data as { error: { code: string } }).error.code, 'INVALID_TASK_TYPE');
 });
 
 test('36. Task pause/resume/cancel/delete through the real handleApiRequest entry point still work and are audit-logged (unchanged lifecycle)', () => {
-  const headers = { 'x-nagex-tenant': 'ten_r102d_i3_test', 'x-principal-id': 'usr_r102d_i3_test' };
+  const headers = authAs('ten_r102d_i3_test', 'usr_r102d_i3_test');
   const created = handleApiRequest('POST', '/api/v1/tasks', { name: 'Lifecycle test', objective: 'x', type: 'RECURRING', trigger: { type: 'SCHEDULE', schedule: '0 8 * * *' } }, headers);
   const taskId = (created.data as { taskId: string }).taskId;
 
@@ -379,7 +381,7 @@ test('36. Task pause/resume/cancel/delete through the real handleApiRequest entr
 });
 
 test('37. POST /api/v1/tasks/:id/run through the real handleAsyncApiRequest entry point still executes a real Task run (SCHEDULER_MUTATION path preserved)', async () => {
-  const headers = { 'x-nagex-tenant': 'ten_r102d_i3_test', 'x-principal-id': 'usr_r102d_i3_test' };
+  const headers = authAs('ten_r102d_i3_test', 'usr_r102d_i3_test');
   const created = handleApiRequest('POST', '/api/v1/tasks', { name: 'Run test', objective: 'summarize nothing in particular', type: 'ONE_TIME', trigger: { type: 'MANUAL' } }, headers);
   const taskId = (created.data as { taskId: string }).taskId;
 
@@ -389,8 +391,8 @@ test('37. POST /api/v1/tasks/:id/run through the real handleAsyncApiRequest entr
 });
 
 test('38. POST /api/v1/tasks/:id/run for a task owned by a different tenant returns 404, never leaking or executing another tenant\'s task (Task Isolation Correction preserved)', async () => {
-  const owner = { 'x-nagex-tenant': 'ten_r102d_i3_owner', 'x-principal-id': 'usr_r102d_i3_owner' };
-  const attacker = { 'x-nagex-tenant': 'ten_r102d_i3_attacker', 'x-principal-id': 'usr_r102d_i3_attacker' };
+  const owner = authAs('ten_r102d_i3_owner', 'usr_r102d_i3_owner');
+  const attacker = authAs('ten_r102d_i3_attacker', 'usr_r102d_i3_attacker');
   const created = handleApiRequest('POST', '/api/v1/tasks', { name: 'Isolation test', objective: 'x', type: 'ONE_TIME', trigger: { type: 'MANUAL' } }, owner);
   const taskId = (created.data as { taskId: string }).taskId;
 
@@ -399,7 +401,7 @@ test('38. POST /api/v1/tasks/:id/run for a task owned by a different tenant retu
 });
 
 test('39. POST /api/v1/tasks/:id/run-with-fixed-plan does not exist (falls through to 404) when the test-injection env flag is unset — the two independent gates are preserved', async () => {
-  const headers = { 'x-nagex-tenant': 'ten_r102d_i3_test', 'x-principal-id': 'usr_r102d_i3_test' };
+  const headers = authAs('ten_r102d_i3_test', 'usr_r102d_i3_test');
   const created = handleApiRequest('POST', '/api/v1/tasks', { name: 'Fixed plan gate test', objective: 'x', type: 'ONE_TIME', trigger: { type: 'MANUAL' } }, headers);
   const taskId = (created.data as { taskId: string }).taskId;
   const result = await handleAsyncApiRequest('POST', `/api/v1/tasks/${taskId}/run-with-fixed-plan`, { steps: [] }, headers);
@@ -407,7 +409,7 @@ test('39. POST /api/v1/tasks/:id/run-with-fixed-plan does not exist (falls throu
 });
 
 test('40. GET/POST /api/v1/workflows through the real handleApiRequest entry point still work after modularization', () => {
-  const headers = { 'x-nagex-tenant': 'ten_r102d_i3_test', 'x-principal-id': 'usr_r102d_i3_test' };
+  const headers = authAs('ten_r102d_i3_test', 'usr_r102d_i3_test');
   const created = handleApiRequest('POST', '/api/v1/workflows', { name: 'Route test workflow', description: 'x', steps: [{ title: 'Step 1', skill: 'memory-recall', tool: 'nagex-memory.search' }] }, headers);
   assert.equal(created.status, 201);
   const workflowId = (created.data as { workflowId: string }).workflowId;
@@ -426,14 +428,14 @@ test('40. GET/POST /api/v1/workflows through the real handleApiRequest entry poi
 });
 
 test('41. GET /api/v1/workflows/:id for an unknown id returns the exact original WORKFLOW_NOT_FOUND shape', () => {
-  const headers = { 'x-nagex-tenant': 'ten_r102d_i3_test', 'x-principal-id': 'usr_r102d_i3_test' };
+  const headers = authAs('ten_r102d_i3_test', 'usr_r102d_i3_test');
   const result = handleApiRequest('GET', '/api/v1/workflows/wf_does_not_exist_r102d', null, headers);
   assert.equal(result.status, 404);
   assert.equal((result.data as { error: { code: string } }).error.code, 'WORKFLOW_NOT_FOUND');
 });
 
 test('42. POST /api/v1/workflows/:id/run through the real handleAsyncApiRequest entry point instantiates and runs a real Task from the frozen plan (production instantiate bridge preserved)', async () => {
-  const headers = { 'x-nagex-tenant': 'ten_r102d_i3_test', 'x-principal-id': 'usr_r102d_i3_test' };
+  const headers = authAs('ten_r102d_i3_test', 'usr_r102d_i3_test');
   const created = handleApiRequest('POST', '/api/v1/workflows', {
     name: 'Runnable workflow',
     description: 'x',
@@ -446,7 +448,7 @@ test('42. POST /api/v1/workflows/:id/run through the real handleAsyncApiRequest 
 });
 
 test('43. GET /api/v1/candidates and GET /api/v1/activity through the real handleAsyncApiRequest entry point still work after modularization', async () => {
-  const headers = { 'x-nagex-tenant': 'ten_r102d_i3_test', 'x-principal-id': 'usr_r102d_i3_test' };
+  const headers = authAs('ten_r102d_i3_test', 'usr_r102d_i3_test');
   const candidates = await handleAsyncApiRequest('GET', '/api/v1/candidates', null, headers);
   assert.equal(candidates.status, 200);
   assert.ok(Array.isArray((candidates.data as { candidates: unknown[] }).candidates));
@@ -457,7 +459,7 @@ test('43. GET /api/v1/candidates and GET /api/v1/activity through the real handl
 });
 
 test('44. POST /api/v1/workspace/captures then GET /api/v1/workspace/items/:id proves a real, non-fabricated capture round-trip through the real entry point', async () => {
-  const headers = { 'x-nagex-tenant': 'ten_r102d_i3_test', 'x-principal-id': 'usr_r102d_i3_test' };
+  const headers = authAs('ten_r102d_i3_test', 'usr_r102d_i3_test');
   const created = await handleAsyncApiRequest('POST', '/api/v1/workspace/captures', { type: 'TEXT', content: 'Increment 3 route test capture' }, headers);
   assert.equal(created.status, 201);
   const captureId = (created.data as { captureId: string }).captureId;
@@ -472,7 +474,7 @@ test('44. POST /api/v1/workspace/captures then GET /api/v1/workspace/items/:id p
 });
 
 test('45. GET /api/v1/workspace/items/:id for an unknown id returns the exact original ITEM_NOT_FOUND shape', async () => {
-  const headers = { 'x-nagex-tenant': 'ten_r102d_i3_test', 'x-principal-id': 'usr_r102d_i3_test' };
+  const headers = authAs('ten_r102d_i3_test', 'usr_r102d_i3_test');
   const result = await handleAsyncApiRequest('GET', '/api/v1/workspace/items/cap_does_not_exist_r102d', null, headers);
   assert.equal(result.status, 404);
   assert.equal((result.data as { error: string }).error, 'ITEM_NOT_FOUND');
@@ -544,28 +546,28 @@ test('49. server_web.ts no longer inline-implements any Task/Automation/Workspac
 // static architecture/mutation-safety/route-ownership guards.
 
 test('50. POST /api/v1/tools/gmail/send-email without approvalId returns the exact original VALIDATION error through the real handleAsyncApiRequest entry point', async () => {
-  const result = await handleAsyncApiRequest('POST', '/api/v1/tools/gmail/send-email', {}, { 'x-nagex-tenant': 'ten_r102d_i4_test', 'x-principal-id': 'usr_r102d_i4_test' });
+  const result = await handleAsyncApiRequest('POST', '/api/v1/tools/gmail/send-email', {}, authAs('ten_r102d_i4_test', 'usr_r102d_i4_test'));
   assert.equal(result.status, 400);
   assert.equal((result.data as { error: { code: string } }).error.code, 'APPROVAL_ID_REQUIRED');
 });
 
 test('51. POST /api/v1/tools/google-calendar/create-event without approvalId returns the exact original VALIDATION error (approval-gated mutation path preserved)', async () => {
-  const result = await handleAsyncApiRequest('POST', '/api/v1/tools/google-calendar/create-event', {}, { 'x-nagex-tenant': 'ten_r102d_i4_test', 'x-principal-id': 'usr_r102d_i4_test' });
+  const result = await handleAsyncApiRequest('POST', '/api/v1/tools/google-calendar/create-event', {}, authAs('ten_r102d_i4_test', 'usr_r102d_i4_test'));
   assert.equal(result.status, 400);
   assert.equal((result.data as { error: { code: string } }).error.code, 'APPROVAL_ID_REQUIRED');
 });
 
 test('52. GET /api/v1/approvals then approving an unknown id fails closed (never a fabricated success) through the real handleApiRequest entry point', () => {
-  const list = handleApiRequest('GET', '/api/v1/approvals', null, {});
+  const list = handleApiRequest('GET', '/api/v1/approvals', null, authAs('ten_r102d_test', 'usr_r102d_test'));
   assert.equal(list.status, 200);
   assert.ok(Array.isArray((list.data as { approvals: unknown[] }).approvals));
 
-  const approveUnknown = handleApiRequest('POST', '/api/v1/approvals/appr_does_not_exist_r102d/approve', null, { 'x-nagex-tenant': 'ten_r102d_i4_test', 'x-principal-id': 'usr_r102d_i4_test' });
+  const approveUnknown = handleApiRequest('POST', '/api/v1/approvals/appr_does_not_exist_r102d/approve', null, authAs('ten_r102d_i4_test', 'usr_r102d_i4_test'));
   assert.notEqual(approveUnknown.status, 200);
 });
 
 test('53. POST /api/v1/tools/browser/navigate without browserSessionId returns the exact original VALIDATION error through the real handleAsyncApiRequest entry point', async () => {
-  const result = await handleAsyncApiRequest('POST', '/api/v1/tools/browser/navigate', { url: 'https://example.com' }, {});
+  const result = await handleAsyncApiRequest('POST', '/api/v1/tools/browser/navigate', { url: 'https://example.com' }, authAs('ten_r102d_test', 'usr_r102d_test'));
   assert.equal(result.status, 400);
   assert.equal((result.data as { error: { code: string } }).error.code, 'BROWSER_SESSION_ID_REQUIRED');
 });
@@ -591,7 +593,7 @@ test('54. GET /api/v1/oauth/google/start-url through the real handleApiRequest e
 });
 
 test('55. GET /api/v1/oauth/google/status through the real handleAsyncApiRequest entry point still works after modularization (session-owned)', async () => {
-  assert.equal((await handleAsyncApiRequest('GET', '/api/v1/oauth/google/status', null, { 'x-nagex-tenant': 'ten_r102d_i4_test' })).status, 401);
+  assert.equal((await handleAsyncApiRequest('GET', '/api/v1/oauth/google/status', null, { 'x-nagex-tenant': 'ten_r102d_i4_test', 'x-principal-id': 'usr_admin_001' })).status, 401);
   const user = await productionSessionFixture(`r55_${Date.now()}@example.com`);
   const result = await handleAsyncApiRequest('GET', '/api/v1/oauth/google/status', null, user.cookie);
   assert.equal(result.status, 200);
@@ -612,7 +614,7 @@ test('57. GET /api/v1/desktop/quickwake/status through the real handleAsyncApiRe
 });
 
 test('58. GET /api/v1/billing/usage and GET /api/v1/executions through the real handleApiRequest entry point still work after modularization', () => {
-  const headers = { 'x-nagex-tenant': 'ten_r102d_i4_test', 'x-principal-id': 'usr_r102d_i4_test' };
+  const headers = authAs('ten_r102d_i4_test', 'usr_r102d_i4_test');
   const billing = handleApiRequest('GET', '/api/v1/billing/usage', null, headers);
   assert.equal(billing.status, 200);
   assert.ok(typeof (billing.data as { remaining_credits: number }).remaining_credits === 'number');
@@ -623,7 +625,7 @@ test('58. GET /api/v1/billing/usage and GET /api/v1/executions through the real 
 });
 
 test('59. POST /api/v1/executions goes through the real PDP authorization check and audits denial, never silently allowing an unrecognized action', () => {
-  const headers = { 'x-nagex-tenant': 'ten_r102d_i4_test', 'x-principal-id': 'usr_r102d_i4_test' };
+  const headers = authAs('ten_r102d_i4_test', 'usr_r102d_i4_test');
   const result = handleApiRequest('POST', '/api/v1/executions', { objective: 'Increment 4 route test', agent_id: 'agt_personal_ai' }, headers);
   // A real, non-fabricated outcome: either the PDP allows agt_personal_ai
   // for this built-in principal (201) or denies it (403/other) — either
@@ -719,12 +721,12 @@ test('66. GET /api/v1/providers/status and GET /api/v1/safety/status through the
   assert.equal(providers.status, 200);
   assert.ok(Array.isArray((providers.data as { providers: unknown[] }).providers));
 
-  const safety = await handleAsyncApiRequest('GET', '/api/v1/safety/status', null, { 'x-nagex-tenant': 'ten_r102d_i5_test', 'x-principal-id': 'usr_r102d_i5_test' });
+  const safety = await handleAsyncApiRequest('GET', '/api/v1/safety/status', null, authAs('ten_r102d_i5_test', 'usr_r102d_i5_test'));
   assert.equal(safety.status, 200);
 });
 
 test('67. GET/POST /api/v1/conversations/main round-trips a real message through the real handleAsyncApiRequest entry point', async () => {
-  const headers = { 'x-nagex-tenant': 'ten_r102d_i5_test', 'x-principal-id': 'usr_r102d_i5_test' };
+  const headers = authAs('ten_r102d_i5_test', 'usr_r102d_i5_test');
   const before = await handleAsyncApiRequest('GET', '/api/v1/conversations/main', null, headers);
   assert.equal(before.status, 200);
   assert.ok(Array.isArray((before.data as { messages: unknown[] }).messages));
@@ -738,11 +740,11 @@ test('67. GET/POST /api/v1/conversations/main round-trips a real message through
 });
 
 test('68. POST /api/v1/ai/chat and POST /api/v1/ambient/intent without a required field return the exact original VALIDATION errors, never silently accepted', async () => {
-  const chat = await handleAsyncApiRequest('POST', '/api/v1/ai/chat', {}, {});
+  const chat = await handleAsyncApiRequest('POST', '/api/v1/ai/chat', {}, authAs('ten_r102d_test', 'usr_r102d_test'));
   assert.equal(chat.status, 400);
   assert.equal((chat.data as { error: { code: string } }).error.code, 'MESSAGE_REQUIRED');
 
-  const ambient = await handleAsyncApiRequest('POST', '/api/v1/ambient/intent', {}, {});
+  const ambient = await handleAsyncApiRequest('POST', '/api/v1/ambient/intent', {}, authAs('ten_r102d_test', 'usr_r102d_test'));
   assert.equal(ambient.status, 400);
   assert.equal((ambient.data as { error: { code: string } }).error.code, 'PROMPT_REQUIRED');
 });
@@ -755,23 +757,23 @@ test('69. POST /api/v1/plans/resolve through the real handleAsyncApiRequest entr
     suggestions: [],
     steps: [{ title: 'Step 1', reasoning: 'Trivial step.', skill: 'memory-recall', tool: null, requiresApproval: false }],
   };
-  const result = await handleAsyncApiRequest('POST', '/api/v1/plans/resolve', { plan }, {});
+  const result = await handleAsyncApiRequest('POST', '/api/v1/plans/resolve', { plan }, authAs('ten_r102d_test', 'usr_r102d_test'));
   assert.equal(result.status, 200);
 });
 
 test('70. GET /api/v1/sessions/main through the real handleApiRequest entry point still works after modularization (the sync half of conversation.routes.ts)', () => {
-  const result = handleApiRequest('GET', '/api/v1/sessions/main', null, { 'x-nagex-tenant': 'ten_r102d_i5_test', 'x-principal-id': 'usr_r102d_i5_test' });
+  const result = handleApiRequest('GET', '/api/v1/sessions/main', null, authAs('ten_r102d_i5_test', 'usr_r102d_i5_test'));
   assert.equal(result.status, 200);
   assert.ok((result.data as { sessionId: string }).sessionId);
 });
 
 test('71. POST /api/v1/capabilities/execute for an unknown capabilityId fails closed with 404, never a fabricated success (canonical execution boundary preserved)', async () => {
-  const result = await handleAsyncApiRequest('POST', '/api/v1/capabilities/execute', { capabilityId: 'nagex.does-not-exist.r102d' }, {});
+  const result = await handleAsyncApiRequest('POST', '/api/v1/capabilities/execute', { capabilityId: 'nagex.does-not-exist.r102d' }, authAs('ten_r102d_test', 'usr_r102d_test'));
   assert.equal(result.status, 404);
 });
 
 test('72. GET /api/v1/my-space through the real handleAsyncApiRequest entry point still works after modularization, and never fails the whole response when Calendar is disconnected', async () => {
-  const result = await handleAsyncApiRequest('GET', '/api/v1/my-space', null, { 'x-nagex-tenant': 'ten_r102d_i5_test', 'x-principal-id': 'usr_r102d_i5_test' });
+  const result = await handleAsyncApiRequest('GET', '/api/v1/my-space', null, authAs('ten_r102d_i5_test', 'usr_r102d_i5_test'));
   assert.equal(result.status, 200);
   const data = result.data as { activity: unknown[]; tasks: unknown[]; calendarStatus: string };
   assert.ok(Array.isArray(data.activity));
@@ -780,7 +782,7 @@ test('72. GET /api/v1/my-space through the real handleAsyncApiRequest entry poin
 });
 
 test('73. GET /api/v1/daily-brief and GET /api/v1/daily-brief/history through the real handleAsyncApiRequest entry point still work after modularization', async () => {
-  const headers = { 'x-nagex-tenant': 'ten_r102d_i5_test', 'x-principal-id': 'usr_r102d_i5_test' };
+  const headers = authAs('ten_r102d_i5_test', 'usr_r102d_i5_test');
   const brief = await handleAsyncApiRequest('GET', '/api/v1/daily-brief', null, headers);
   assert.equal(brief.status, 200);
   assert.ok((brief.data as { date: string }).date);

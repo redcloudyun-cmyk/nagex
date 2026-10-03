@@ -20,6 +20,7 @@ import { AiService, type TextUnderstandingResult } from '../src/model-gateway/ai
 import { UnifiedModelRouter } from '../src/model-gateway/unified-model-router.js';
 import { createProviders } from '../src/model-gateway/providers.js';
 import { handleAsyncApiRequest } from '../src/server_web.js';
+import { authAs } from './_s1_session_auth.js';
 
 function tempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-text-understanding-'));
@@ -277,7 +278,7 @@ test('11. Provider/model metadata is recorded truthfully on the capture', async 
 });
 
 test('12. Existing Unified Capture routes (STEP 1) remain unchanged by STEP 2', async () => {
-  const headers = { 'x-nagex-tenant': 'ten_step2_regression', 'x-principal-id': 'usr_step2_regression' };
+  const headers = authAs('ten_step2_regression', 'usr_step2_regression');
   const route = await handleAsyncApiRequest('POST', '/api/v1/workspace/route-input', { text: 'What is NAgex?' }, headers);
   assert.equal(route.status, 200);
   assert.equal((route.data as any).primaryIntent, 'ASK');

@@ -3,7 +3,7 @@ import type { ApiResult, SyncRouteRegistrar } from '../http-types.js';
 import { listPlans, savePlan, getPlan, type PersistedPlan, type StoredPlanStep } from '../../planning/plan.store.js';
 import type { IdentityStore } from '../../identity/identity.store.js';
 import type { SessionStore } from '../../sessions/session.store.js';
-import { resolveAuthenticatedIdentity } from '../request-identity.js';
+import { callerIdentity, resolveAuthenticatedIdentity } from '../request-identity.js';
 
 // R24.8B — Plan ownership and update authority.
 //
@@ -57,9 +57,6 @@ export function sanitizeSteps(raw: unknown): StoredPlanStep[] {
 }
 
 export const handlePlanRoutes: SyncRouteRegistrar<PlanRouteDeps> = (method, pathname, body, headers, _query, deps): ApiResult | undefined => {
-  const readTenant = Array.isArray(headers?.['x-nagex-tenant']) ? headers?.['x-nagex-tenant'][0] : (headers?.['x-nagex-tenant'] || 'default-tenant');
-  const readUser = Array.isArray(headers?.['x-principal-id']) ? headers?.['x-principal-id'][0] : (headers?.['x-principal-id'] || 'default-user');
-
   // Server-owned identity for every mutation.
   const mutationIdentity = () => (deps?.sessionStore && deps?.identityStore
     ? resolveAuthenticatedIdentity(headers, { sessionStore: deps.sessionStore, identityStore: deps.identityStore })
@@ -67,6 +64,7 @@ export const handlePlanRoutes: SyncRouteRegistrar<PlanRouteDeps> = (method, path
   const authRequired: ApiResult = { status: 401, data: { error: 'AUTHENTICATION_REQUIRED', message: 'Sign in to create or change plans.' } };
 
   if (pathname === '/api/v1/plans' && method === 'GET') {
+    const { tenantId: readTenant, principalId: readUser } = callerIdentity(headers);
     const plans = listPlans(readTenant, readUser);
     plans.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     return { status: 200, data: { plans, total: plans.length } };
@@ -99,6 +97,7 @@ export const handlePlanRoutes: SyncRouteRegistrar<PlanRouteDeps> = (method, path
   if (pathname.startsWith('/api/v1/plans/') && method === 'GET') {
     const id = pathname.split('/').pop() || '';
     if (id === 'resolve') return undefined; // Handled by conversation.routes.ts
+    const { tenantId: readTenant, principalId: readUser } = callerIdentity(headers);
     const plan = getPlan(id);
     if (!plan || plan.tenantId !== readTenant || plan.userId !== readUser) {
       return { status: 404, data: { error: 'Plan not found' } };

@@ -6,12 +6,10 @@ import path from 'node:path';
 import { handleAsyncApiRequest } from '../src/server_web.js';
 import { ActionApprovalStore } from '../src/governance/action-approval.store.js';
 import { ActivityStore } from '../src/governance/activity.store.js';
+import { authAs, authAsWith } from './_s1_session_auth.js';
 
 test('1. Inbox contains real attention items only', async () => {
-  const headers = {
-    'x-principal-id': 'usr_inbox_test_01',
-    'x-nagex-tenant': 'ten_inbox_test_01',
-  };
+  const headers = authAsWith('ten_inbox_test_01', 'usr_inbox_test_01', {  });
 
   const res = await handleAsyncApiRequest('GET', '/api/v1/workspace/inbox', null, headers);
   assert.equal(res.status, 200);
@@ -33,10 +31,7 @@ test('2. Approval uses canonical source ActionApprovalStore.listPending', async 
 });
 
 test('3. No seeded approval fixture leaks into production API responses', async () => {
-  const headers = {
-    'x-principal-id': 'usr_clean_' + Date.now(),
-    'x-nagex-tenant': 'ten_clean_' + Date.now(),
-  };
+  const headers = authAsWith('ten_clean_' + Date.now(), 'usr_clean_' + Date.now(), {  });
 
   const res = await handleAsyncApiRequest('GET', '/api/v1/approvals', null, headers);
   assert.equal(res.status, 200);
@@ -44,10 +39,7 @@ test('3. No seeded approval fixture leaks into production API responses', async 
 });
 
 test('4. Clarification state presented without state mutation', async () => {
-  const headers = {
-    'x-principal-id': 'usr_clarify_' + Date.now(),
-    'x-nagex-tenant': 'ten_clarify_' + Date.now(),
-  };
+  const headers = authAsWith('ten_clarify_' + Date.now(), 'usr_clarify_' + Date.now(), {  });
 
   const inboxBefore = await handleAsyncApiRequest('GET', '/api/v1/workspace/inbox', null, headers);
   assert.equal(inboxBefore.status, 200);

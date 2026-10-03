@@ -24,6 +24,7 @@ import { PersonalContextService } from '../src/context/personal-context.service.
 import type { GoogleCalendarService } from '../src/modules/calendar/index.js';
 import type { GmailService } from '../src/modules/gmail/index.js';
 import type { UpcomingCalendarEvent } from '../src/modules/calendar/calendar.client.js';
+import { authAs } from './_s1_session_auth.js';
 
 function tempDir(prefix: string): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -401,7 +402,7 @@ test('18. Inbox route and Personal Context read the same canonical CaptureStore 
 
   const { handleInboxRoutes } = await import('../src/http/routes/inbox.routes.js');
   const { VaultStore } = await import('../src/workspace/vault.store.js');
-  const headers = { 'x-nagex-tenant': tenantId, 'x-principal-id': userId };
+  const headers = authAs(tenantId, userId);
   const routeResult = await handleInboxRoutes('GET', '/api/v1/workspace/inbox', null, headers, {}, { captureStore: h.captureStore, vaultStore: h.vaultStore });
 
   assert.equal(routeResult?.status, 200);

@@ -1,7 +1,12 @@
-// R23.7C-C — Artifact Delivery Identity Contract.
+// R23.7C-C — Artifact Delivery Identity Contract (migrated for Security Gate S1).
 //
-// Certifies the shared resolveRequestIdentity() resolver (src/http/request-
-// identity.ts): a real, valid nagex_session (R13) cookie is authoritative
+// S1: identity comes ONLY from a server-side session. Before S1 a request with no
+// valid session fell back to X-NAgex-Tenant/X-Principal-Id or a default admin; that
+// fallback is gone, so the former "header/default compatibility" cases (E, F, H, P)
+// now assert the opposite: no session means no identity and the route refuses.
+//
+// Certifies the shared caller-identity resolver (src/http/request-identity.ts):
+// a real, valid nagex_session (R13) cookie is authoritative
 // for both POST /api/v1/creations/generate and GET
 // /api/v1/creations/images/:imageId, so a native same-origin <img> request
 // — which can never attach a custom header, only same-origin cookies —
@@ -31,7 +36,9 @@ import { CreationStore } from '../src/creation/creation.store.js';
 import { CreationService } from '../src/creation/creation.service.js';
 import { handleCreationRoutes } from '../src/http/routes/creation.routes.js';
 import { SessionStore } from '../src/sessions/session.store.js';
-import { resolveRequestIdentity } from '../src/http/request-identity.js';
+import { canonicalizeRequestHeaders, tryGetCallerIdentity } from '../src/http/request-identity.js';
+import { IdentityStore } from '../src/identity/identity.store.js';
+import { ensureTestAccount } from './_s1_session_auth.js';
 
 const KNOWN_IMAGE_BYTES = Buffer.from('deterministic-known-png-bytes-for-r23-7c-c-identity');
 const tempDir = (name: string) => fs.mkdtempSync(path.join(os.tmpdir(), name));
@@ -69,7 +76,21 @@ function setup(imagesDir?: string, sessionsDir?: string) {
   const creationStore = new CreationStore({ dir: tempDir('nagex-identity-creations-') });
   const creationService = new CreationService(creationStore, auditLogger);
   const sessionStore = new SessionStore({ dir: sessionsDir ?? tempDir('nagex-identity-sessions-') });
-  return { imageStore, artifactStore, imageExecutor, creationService, sessionStore };
+  const identityStore = new IdentityStore({ dir: tempDir('nagex-identity-accounts-') });
+  return { imageStore, artifactStore, imageExecutor, creationService, sessionStore, identityStore };
+}
+
+// The server canonicalizes headers once, at its HTTP entry points, before any route sees them.
+// These tests call the route module directly, so they do the same step explicitly.
+function canon(deps: ReturnType<typeof setup>, headers: Record<string, string>): Record<string, string> {
+  return canonicalizeRequestHeaders(headers, { sessionStore: deps.sessionStore, identityStore: deps.identityStore }) as Record<string, string>;
+}
+
+// A real account + session for (tenantId, principalId); returns browser-style cookie headers.
+function signIn(deps: ReturnType<typeof setup>, tenantId: string, principalId: string): Record<string, string> {
+  ensureTestAccount(principalId, deps.identityStore);
+  const session = deps.sessionStore.createAuthSession(tenantId, principalId, 'MAIN');
+  return { cookie: cookieHeader(session.sessionId) };
 }
 
 function cookieHeader(sessionId: string) {
@@ -81,21 +102,21 @@ async function generate(deps: ReturnType<typeof setup>, headers: Record<string, 
     'POST',
     '/api/v1/creations/generate',
     { prompt: 'Artifact delivery identity test', type: 'IMAGE' },
-    headers,
+    canon(deps, headers),
     {},
     { creationService: deps.creationService, imageExecutor: deps.imageExecutor, imageStore: deps.imageStore, sessionStore: deps.sessionStore },
   );
 }
 
 async function getImage(deps: ReturnType<typeof setup>, imageUrl: string, headers: Record<string, string>) {
-  return handleCreationRoutes('GET', imageUrl, null, headers, {}, {
+  return handleCreationRoutes('GET', imageUrl, null, canon(deps, headers), {}, {
     creationService: deps.creationService, imageExecutor: deps.imageExecutor, imageStore: deps.imageStore, sessionStore: deps.sessionStore,
   });
 }
 
 test('A. valid session: creation identity equals retrieval identity', async () => {
   const deps = setup();
-  const session = deps.sessionStore.createAuthSession('ten_alice', 'usr_alice', 'MAIN');
+  const session = (ensureTestAccount('usr_alice', deps.identityStore), deps.sessionStore.createAuthSession('ten_alice', 'usr_alice', 'MAIN'));
   const headers = { cookie: cookieHeader(session.sessionId) };
 
   const created = await generate(deps, headers);
@@ -109,7 +130,7 @@ test('A. valid session: creation identity equals retrieval identity', async () =
 
 test('B. native image GET with a valid same-origin session cookie: 200, correct MIME, exact bytes, no custom header needed', async () => {
   const deps = setup();
-  const session = deps.sessionStore.createAuthSession('ten_bob', 'usr_bob', 'MAIN');
+  const session = (ensureTestAccount('usr_bob', deps.identityStore), deps.sessionStore.createAuthSession('ten_bob', 'usr_bob', 'MAIN'));
   const created = await generate(deps, { cookie: cookieHeader(session.sessionId) });
   const imageUrl = (created!.data as any).imageUrl as string;
 
@@ -124,8 +145,8 @@ test('B. native image GET with a valid same-origin session cookie: 200, correct 
 
 test('C. wrong authenticated user (different session, same tenant) is denied: 404, no disclosure', async () => {
   const deps = setup();
-  const owner = deps.sessionStore.createAuthSession('ten_shared', 'usr_owner', 'MAIN');
-  const intruder = deps.sessionStore.createAuthSession('ten_shared', 'usr_intruder', 'MAIN');
+  const owner = (ensureTestAccount('usr_owner', deps.identityStore), deps.sessionStore.createAuthSession('ten_shared', 'usr_owner', 'MAIN'));
+  const intruder = (ensureTestAccount('usr_intruder', deps.identityStore), deps.sessionStore.createAuthSession('ten_shared', 'usr_intruder', 'MAIN'));
   const created = await generate(deps, { cookie: cookieHeader(owner.sessionId) });
   const imageUrl = (created!.data as any).imageUrl as string;
 
@@ -136,8 +157,8 @@ test('C. wrong authenticated user (different session, same tenant) is denied: 40
 
 test('D. wrong tenant (different session, different tenant) is denied: 404', async () => {
   const deps = setup();
-  const owner = deps.sessionStore.createAuthSession('ten_owner_co', 'usr_x', 'MAIN');
-  const victimTenant = deps.sessionStore.createAuthSession('ten_other_co', 'usr_x', 'MAIN');
+  const owner = (ensureTestAccount('usr_x', deps.identityStore), deps.sessionStore.createAuthSession('ten_owner_co', 'usr_x', 'MAIN'));
+  const victimTenant = (ensureTestAccount('usr_x', deps.identityStore), deps.sessionStore.createAuthSession('ten_other_co', 'usr_x', 'MAIN'));
   const created = await generate(deps, { cookie: cookieHeader(owner.sessionId) });
   const imageUrl = (created!.data as any).imageUrl as string;
 
@@ -145,46 +166,37 @@ test('D. wrong tenant (different session, different tenant) is denied: 404', asy
   assert.equal(res!.status, 404);
 });
 
-test('E. missing/invalid session falls back to header/default resolution, then fails closed on mismatch', async () => {
+test('E. an invalid or missing session establishes NO identity: the route refuses (S1: no header/default fallback)', async () => {
   const deps = setup();
-  const owner = deps.sessionStore.createAuthSession('ten_secure', 'usr_secure', 'MAIN');
+  const owner = (ensureTestAccount('usr_secure', deps.identityStore), deps.sessionStore.createAuthSession('ten_secure', 'usr_secure', 'MAIN'));
   const created = await generate(deps, { cookie: cookieHeader(owner.sessionId) });
   const imageUrl = (created!.data as any).imageUrl as string;
 
-  // An invalid/unknown session id must not be silently trusted as if it
-  // resolved to something — it falls through to header/default, which for
-  // this owner's real image is a genuine mismatch, so the request is
-  // denied rather than granted on the strength of an unverifiable cookie.
-  const resInvalidSession = await getImage(deps, imageUrl, { cookie: 'nagex_session=not-a-real-session-id' });
-  assert.equal(resInvalidSession!.status, 404);
-
-  // No session at all, no headers at all: falls back to the pure default
-  // identity, which also does not match this owner's real image.
-  const resNoIdentity = await getImage(deps, imageUrl, {});
-  assert.equal(resNoIdentity!.status, 404);
+  const refused = (e: unknown) => (e as { code?: string }).code === 'AUTHENTICATION_REQUIRED';
+  // An unknown session id establishes no identity at all.
+  await assert.rejects(() => getImage(deps, imageUrl, { cookie: 'nagex_session=not-a-real-session-id' }), refused);
+  // A malformed credential is the same: controlled refusal, never an exception from the parser.
+  await assert.rejects(() => getImage(deps, imageUrl, { cookie: 'nagex_session=%E0%A4%A' }), refused);
+  // No credential at all.
+  await assert.rejects(() => getImage(deps, imageUrl, {}), refused);
 });
 
-test('F. approved legacy/demo header path is preserved unchanged when no session is present', async () => {
+test('F. S1: identity headers alone carry no authority — creating and reading an image both refuse', async () => {
   const deps = setup();
-  const created = await generate(deps, { 'x-nagex-tenant': 'ten_legacy', 'x-principal-id': 'usr_legacy' });
-  const imageUrl = (created!.data as any).imageUrl as string;
-
-  const res = await getImage(deps, imageUrl, { 'x-nagex-tenant': 'ten_legacy', 'x-principal-id': 'usr_legacy' });
-  assert.equal(res!.status, 200);
-  assert.ok((res!.data as Buffer).equals(KNOWN_IMAGE_BYTES));
+  const forged = { 'x-nagex-tenant': 'ten_legacy', 'x-principal-id': 'usr_legacy' };
+  const refused = (e: unknown) => (e as { code?: string }).code === 'AUTHENTICATION_REQUIRED';
+  await assert.rejects(() => generate(deps, forged), refused);
+  await assert.rejects(() => getImage(deps, '/api/v1/creations/images/img_anything', forged), refused);
 });
 
 test('G. a valid session cannot be overridden by caller-supplied identity headers (impersonation denial)', async () => {
   const deps = setup();
-  const alice = deps.sessionStore.createAuthSession('ten_alice2', 'usr_alice2', 'MAIN');
+  const alice = (ensureTestAccount('usr_alice2', deps.identityStore), deps.sessionStore.createAuthSession('ten_alice2', 'usr_alice2', 'MAIN'));
 
   // Alice's own valid session, but headers CLAIM to be a totally different
   // tenant/user. If headers could override a valid session, this would
   // resolve as an impersonation of ten_victim/usr_victim.
-  const identity = resolveRequestIdentity(
-    { cookie: cookieHeader(alice.sessionId), 'x-nagex-tenant': 'ten_victim', 'x-principal-id': 'usr_victim' },
-    { sessionStore: deps.sessionStore },
-  );
+  const identity = tryGetCallerIdentity(canon(deps, { cookie: cookieHeader(alice.sessionId), 'x-nagex-tenant': 'ten_victim', 'x-principal-id': 'usr_victim' }))!;
   assert.equal(identity.source, 'SESSION');
   assert.equal(identity.tenantId, 'ten_alice2');
   assert.equal(identity.principalId, 'usr_alice2');
@@ -205,7 +217,7 @@ test('G. a valid session cannot be overridden by caller-supplied identity header
 
 test('H. ImageStore strict tenant+owner equality authorization is unchanged by this resolver', async () => {
   const deps = setup();
-  const created = await generate(deps, { 'x-nagex-tenant': 'ten_h', 'x-principal-id': 'usr_h' });
+  const created = await generate(deps, signIn(deps, 'ten_h', 'usr_h'));
   const imageId = (created!.data as any).creationId as string;
   const rightOwner = deps.imageStore.get(imageId, 'ten_h', 'usr_h');
   const wrongOwner = deps.imageStore.get(imageId, 'ten_h', 'usr_not_h');
@@ -215,8 +227,8 @@ test('H. ImageStore strict tenant+owner equality authorization is unchanged by t
 
 test('I. no cross-tenant artifact disclosure (session path)', async () => {
   const deps = setup();
-  const a = deps.sessionStore.createAuthSession('ten_i_a', 'usr_i', 'MAIN');
-  const b = deps.sessionStore.createAuthSession('ten_i_b', 'usr_i', 'MAIN');
+  const a = (ensureTestAccount('usr_i', deps.identityStore), deps.sessionStore.createAuthSession('ten_i_a', 'usr_i', 'MAIN'));
+  const b = (ensureTestAccount('usr_i', deps.identityStore), deps.sessionStore.createAuthSession('ten_i_b', 'usr_i', 'MAIN'));
   const created = await generate(deps, { cookie: cookieHeader(a.sessionId) });
   const imageUrl = (created!.data as any).imageUrl as string;
   const res = await getImage(deps, imageUrl, { cookie: cookieHeader(b.sessionId) });
@@ -226,8 +238,8 @@ test('I. no cross-tenant artifact disclosure (session path)', async () => {
 
 test('J. no cross-owner artifact disclosure (session path)', async () => {
   const deps = setup();
-  const a = deps.sessionStore.createAuthSession('ten_j', 'usr_j_a', 'MAIN');
-  const b = deps.sessionStore.createAuthSession('ten_j', 'usr_j_b', 'MAIN');
+  const a = (ensureTestAccount('usr_j_a', deps.identityStore), deps.sessionStore.createAuthSession('ten_j', 'usr_j_a', 'MAIN'));
+  const b = (ensureTestAccount('usr_j_b', deps.identityStore), deps.sessionStore.createAuthSession('ten_j', 'usr_j_b', 'MAIN'));
   const created = await generate(deps, { cookie: cookieHeader(a.sessionId) });
   const imageUrl = (created!.data as any).imageUrl as string;
   const res = await getImage(deps, imageUrl, { cookie: cookieHeader(b.sessionId) });
@@ -239,13 +251,14 @@ test('K. restart persistence: a fresh SessionStore/ImageStore pointed at the sam
   const imagesDir = tempDir('nagex-identity-images-');
   const sessionsDir = tempDir('nagex-identity-sessions-restart-');
   const deps = setup(imagesDir, sessionsDir);
-  const session = deps.sessionStore.createAuthSession('ten_restart', 'usr_restart', 'MAIN');
+  const session = (ensureTestAccount('usr_restart', deps.identityStore), deps.sessionStore.createAuthSession('ten_restart', 'usr_restart', 'MAIN'));
   const created = await generate(deps, { cookie: cookieHeader(session.sessionId) });
   const imageUrl = (created!.data as any).imageUrl as string;
 
   // Fresh instances, same on-disk directories — simulates a service restart.
   const restarted = setup(imagesDir, sessionsDir);
-  const res = await handleCreationRoutes('GET', imageUrl, null, { cookie: cookieHeader(session.sessionId) }, {}, {
+  ensureTestAccount('usr_restart', restarted.identityStore);
+  const res = await handleCreationRoutes('GET', imageUrl, null, canon(restarted, { cookie: cookieHeader(session.sessionId) }), {}, {
     creationService: restarted.creationService, imageExecutor: restarted.imageExecutor, imageStore: restarted.imageStore, sessionStore: restarted.sessionStore,
   });
   assert.equal(res!.status, 200);
@@ -267,34 +280,34 @@ async function generateText(deps: ReturnType<typeof setup>, headers: Record<stri
     'POST',
     '/api/v1/creations/generate',
     { prompt: 'Route identity consistency test (text)' },
-    headers,
+    canon(deps, headers),
     {},
     { creationService: deps.creationService, imageExecutor: deps.imageExecutor, imageStore: deps.imageStore, sessionStore: deps.sessionStore },
   );
 }
 
 async function list(deps: ReturnType<typeof setup>, headers: Record<string, string>) {
-  return handleCreationRoutes('GET', '/api/v1/creations', null, headers, {}, {
+  return handleCreationRoutes('GET', '/api/v1/creations', null, canon(deps, headers), {}, {
     creationService: deps.creationService, imageExecutor: deps.imageExecutor, imageStore: deps.imageStore, sessionStore: deps.sessionStore,
   });
 }
 
 async function getGeneric(deps: ReturnType<typeof setup>, creationId: string, headers: Record<string, string>) {
-  return handleCreationRoutes('GET', `/api/v1/creations/${creationId}`, null, headers, {}, {
+  return handleCreationRoutes('GET', `/api/v1/creations/${creationId}`, null, canon(deps, headers), {}, {
     creationService: deps.creationService, imageExecutor: deps.imageExecutor, imageStore: deps.imageStore, sessionStore: deps.sessionStore,
   });
 }
 
 async function postVariation(deps: ReturnType<typeof setup>, creationId: string, headers: Record<string, string>) {
-  return handleCreationRoutes('POST', `/api/v1/creations/${creationId}/variation`, { promptModifier: 'add sparkles' }, headers, {}, {
+  return handleCreationRoutes('POST', `/api/v1/creations/${creationId}/variation`, { promptModifier: 'add sparkles' }, canon(deps, headers), {}, {
     creationService: deps.creationService, imageExecutor: deps.imageExecutor, imageStore: deps.imageStore, sessionStore: deps.sessionStore,
   });
 }
 
 test('L. LIST (GET /api/v1/creations) uses session identity, never leaking another session\'s creations', async () => {
   const deps = setup();
-  const alice = deps.sessionStore.createAuthSession('ten_list_a', 'usr_list_a', 'MAIN');
-  const bob = deps.sessionStore.createAuthSession('ten_list_b', 'usr_list_b', 'MAIN');
+  const alice = (ensureTestAccount('usr_list_a', deps.identityStore), deps.sessionStore.createAuthSession('ten_list_a', 'usr_list_a', 'MAIN'));
+  const bob = (ensureTestAccount('usr_list_b', deps.identityStore), deps.sessionStore.createAuthSession('ten_list_b', 'usr_list_b', 'MAIN'));
   await generateText(deps, { cookie: cookieHeader(alice.sessionId) });
   await generateText(deps, { cookie: cookieHeader(bob.sessionId) });
 
@@ -307,8 +320,8 @@ test('L. LIST (GET /api/v1/creations) uses session identity, never leaking anoth
 
 test('M. generic GET (GET /api/v1/creations/:id) uses session identity: right session succeeds, wrong session denies (404, no disclosure)', async () => {
   const deps = setup();
-  const owner = deps.sessionStore.createAuthSession('ten_get_owner', 'usr_get_owner', 'MAIN');
-  const intruder = deps.sessionStore.createAuthSession('ten_get_owner', 'usr_get_intruder', 'MAIN');
+  const owner = (ensureTestAccount('usr_get_owner', deps.identityStore), deps.sessionStore.createAuthSession('ten_get_owner', 'usr_get_owner', 'MAIN'));
+  const intruder = (ensureTestAccount('usr_get_intruder', deps.identityStore), deps.sessionStore.createAuthSession('ten_get_owner', 'usr_get_intruder', 'MAIN'));
   const created = await generateText(deps, { cookie: cookieHeader(owner.sessionId) });
   const creationId = (created!.data as any).creationId as string;
 
@@ -323,8 +336,8 @@ test('M. generic GET (GET /api/v1/creations/:id) uses session identity: right se
 
 test('N. VARIATION (POST /api/v1/creations/:id/variation) uses session identity: right session succeeds, wrong session denies', async () => {
   const deps = setup();
-  const owner = deps.sessionStore.createAuthSession('ten_var_owner', 'usr_var_owner', 'MAIN');
-  const intruder = deps.sessionStore.createAuthSession('ten_var_owner', 'usr_var_intruder', 'MAIN');
+  const owner = (ensureTestAccount('usr_var_owner', deps.identityStore), deps.sessionStore.createAuthSession('ten_var_owner', 'usr_var_owner', 'MAIN'));
+  const intruder = (ensureTestAccount('usr_var_intruder', deps.identityStore), deps.sessionStore.createAuthSession('ten_var_owner', 'usr_var_intruder', 'MAIN'));
   const created = await generateText(deps, { cookie: cookieHeader(owner.sessionId) });
   const creationId = (created!.data as any).creationId as string;
 
@@ -339,7 +352,7 @@ test('N. VARIATION (POST /api/v1/creations/:id/variation) uses session identity:
 
 test('O. spoofed identity headers cannot override a valid session on LIST, generic GET, or VARIATION', async () => {
   const deps = setup();
-  const alice = deps.sessionStore.createAuthSession('ten_spoof_a', 'usr_spoof_a', 'MAIN');
+  const alice = (ensureTestAccount('usr_spoof_a', deps.identityStore), deps.sessionStore.createAuthSession('ten_spoof_a', 'usr_spoof_a', 'MAIN'));
   const created = await generateText(deps, { cookie: cookieHeader(alice.sessionId) });
   const creationId = (created!.data as any).creationId as string;
   const spoofedHeaders = { cookie: cookieHeader(alice.sessionId), 'x-nagex-tenant': 'ten_victim', 'x-principal-id': 'usr_victim' };
@@ -355,18 +368,12 @@ test('O. spoofed identity headers cannot override a valid session on LIST, gener
   assert.equal(varRes!.status, 201, 'VARIATION must still resolve as Alice, not the spoofed victim identity');
 });
 
-test('P. legacy header/no-session compatibility is preserved unchanged on LIST, generic GET, and VARIATION', async () => {
+test('P. S1: header-only callers are refused on GENERATE, LIST, generic GET and VARIATION (no legacy compatibility)', async () => {
   const deps = setup();
   const headers = { 'x-nagex-tenant': 'ten_legacy_p', 'x-principal-id': 'usr_legacy_p' };
-  const created = await generateText(deps, headers);
-  const creationId = (created!.data as any).creationId as string;
-
-  const listRes = await list(deps, headers);
-  assert.equal((listRes!.data as any).creations.length, 1);
-
-  const getRes = await getGeneric(deps, creationId, headers);
-  assert.equal(getRes!.status, 200);
-
-  const varRes = await postVariation(deps, creationId, headers);
-  assert.equal(varRes!.status, 201);
+  const refused = (e: unknown) => (e as { code?: string }).code === 'AUTHENTICATION_REQUIRED';
+  await assert.rejects(() => generateText(deps, headers), refused);
+  await assert.rejects(() => list(deps, headers), refused);
+  await assert.rejects(() => getGeneric(deps, 'cr_anything', headers), refused);
+  await assert.rejects(() => postVariation(deps, 'cr_anything', headers), refused);
 });

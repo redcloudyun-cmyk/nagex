@@ -17,6 +17,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { AuditLogger } from '../src/governance/audit.logger.js';
 import { handleApiRequest, handleAsyncApiRequest } from '../src/server_web.js';
+import { authAs } from './_s1_session_auth.js';
 
 function emit(logger: AuditLogger, tenantId: string, action: string, resourceId: string, requestId: string) {
   return logger.logEvent({
@@ -180,13 +181,13 @@ test('8. GET /api/v1/audit/logs is tenant-scoped end to end through the real pro
   const disconnectB = await disconnect(userB);
   assert.equal(disconnectB.status, 200);
 
-  const resultA = handleApiRequest('GET', '/api/v1/audit/logs', null, { 'x-nagex-tenant': tenantA, 'x-principal-id': 'usr_audit_shared' });
+  const resultA = handleApiRequest('GET', '/api/v1/audit/logs', null, authAs(tenantA, 'usr_audit_shared'));
   const dataA = resultA.data as { logs: Array<{ tenant_id: string; action: string }>; total: number };
   assert.ok(dataA.logs.some((l) => l.action === 'oauth:google_disconnected' && l.tenant_id === tenantA));
   assert.equal(dataA.logs.some((l) => l.tenant_id === tenantB), false, 'tenant A must never see tenant B\'s audit events over the real route');
   assert.equal(dataA.total, dataA.logs.length, 'total must reflect only the tenant-scoped result, never a global count');
 
-  const resultB = handleApiRequest('GET', '/api/v1/audit/logs', null, { 'x-nagex-tenant': tenantB, 'x-principal-id': 'usr_audit_shared' });
+  const resultB = handleApiRequest('GET', '/api/v1/audit/logs', null, authAs(tenantB, 'usr_audit_shared'));
   const dataB = resultB.data as { logs: Array<{ tenant_id: string }>; total: number };
   assert.ok(dataB.logs.some((l) => l.tenant_id === tenantB));
   assert.equal(dataB.logs.some((l) => l.tenant_id === tenantA), false, 'tenant B must never see tenant A\'s audit events over the real route');

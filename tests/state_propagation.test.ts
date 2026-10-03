@@ -32,6 +32,7 @@ import { InMemoryGoogleOAuthTokenStore } from '../src/integrations/google/token.
 import type { GoogleOAuthConfig } from '../src/integrations/google/oauth.client.js';
 import type { CalendarCandidatePayload } from '../src/workspace/candidate.types.js';
 import { createServerInstance, handleAsyncApiRequest, candidateStore as productionCandidateStore, activityStore as productionActivityStore, taskStore as productionTaskStore } from '../src/server_web.js';
+import { authAs } from './_s1_session_auth.js';
 
 function tempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-state-propagation-'));
@@ -438,7 +439,7 @@ function uniqueIdentity(label: string): { tenantId: string; ownerId: string } {
 
 test('API: GET /api/v1/activity reflects a real production Task action, isolated per tenant/principal', async () => {
   const { tenantId, ownerId } = uniqueIdentity('activityapi');
-  const headers = { 'x-nagex-tenant': tenantId, 'x-principal-id': ownerId };
+  const headers = authAs(tenantId, ownerId);
   const seeded = productionCandidateStore.upsert({
     tenantId, principalId: ownerId, captureId: 'cap_activityapi', sourceRefs: ['capture:cap_activityapi'],
     title: 'API activity task', type: 'TASK', payload: { name: 'API activity task' },
@@ -451,7 +452,7 @@ test('API: GET /api/v1/activity reflects a real production Task action, isolated
   const activities = (res.data as { activities: Array<{ title: string; status: string }> }).activities;
   assert.ok(activities.some((a) => a.title === 'Created task "API activity task"' && a.status === 'COMPLETED'));
 
-  const otherHeaders = { 'x-nagex-tenant': `${tenantId}_other`, 'x-principal-id': ownerId };
+  const otherHeaders = authAs(`${tenantId}_other`, ownerId);
   const otherRes = await handleAsyncApiRequest('GET', '/api/v1/activity', null, otherHeaders);
   const otherActivities = (otherRes.data as { activities: Array<{ title: string }> }).activities;
   assert.ok(!otherActivities.some((a) => a.title === 'Created task "API activity task"'));

@@ -16,6 +16,7 @@ import type { DeviceIdentityStore } from '../../device-agent/device-identity.sto
 import type { ContactResolver } from '../../mobile/contact-resolver.service.js';
 import { isMobileContactCandidateInput, type MobileContactCandidateInput } from '../../mobile/contact-resolution.types.js';
 import type { ApiResult, SyncRouteRegistrar } from '../http-types.js';
+import { callerIdentity } from '../request-identity.js';
 
 function getHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
   const value = headers[name] ?? headers[name.toLowerCase()];
@@ -33,12 +34,8 @@ export const handleMobileDeviceRoutes: SyncRouteRegistrar<MobileDeviceRouteDeps>
   const { deviceIdentityStore, contactResolver } = deps;
 
   if (pathname === CONTACTS_RESOLVE_PATH && method === 'POST') {
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant');
-    const ownerId = getHeaderValue(headers, 'x-principal-id');
+    const { tenantId, principalId: ownerId } = callerIdentity(headers);
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
-    if (!tenantId || !ownerId) {
-      throw new NagexError({ code: 'MOBILE_CONTACT_RESOLVE_AUTH_REQUIRED', category: 'VALIDATION', message: 'x-nagex-tenant and x-principal-id are required.', request_id: requestId });
-    }
 
     const deviceId = typeof body?.deviceId === 'string' ? body.deviceId : '';
     const spokenName = typeof body?.spokenName === 'string' ? body.spokenName : '';

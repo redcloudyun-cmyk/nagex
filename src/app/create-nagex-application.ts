@@ -129,6 +129,7 @@ import { PersonalReminderStore } from '../personal/personal-reminder.store.js';
 import { PersonalAssistantEngine } from '../personal/personal-assistant.engine.js';
 import { DemoScenarioService } from '../demo/demo-scenario.service.js';
 import { DemoCanonicalSeedService } from '../demo/demo-canonical-seed.service.js';
+import { DEMO_OWNER_ID, DEMO_TENANT_ID } from '../demo/demo-identity.js';
 import { DemoCalendarSource, DemoGmailSource, TenantBranchingCalendarSource, TenantBranchingGmailSource } from '../demo/demo-personal-data-source.js';
 import { SocialIdentityStore } from '../identity/social-identity.store.js';
 import { LifecycleManager } from './lifecycle-manager.js';
@@ -454,8 +455,6 @@ export function createNagexApplication(): NagexApplication {
   // service's static interceptor) so that GET /api/v1/memory served by
   // handleMemoryRoutes returns it alongside any dynamically created records
   // during browser tests and in the real demo flow.
-  const DEMO_TENANT_ID = 'ten_demo_hackathon';
-  const DEMO_OWNER_ID  = 'usr_demo_alex';
   const DEMO_SEED_CONTENT = {
     subject: 'Meeting brief preference',
     predicate: 'prefers',

@@ -21,6 +21,7 @@ import { ConversationStore } from '../src/conversations/conversation.store.js';
 import { ConversationContextService } from '../src/conversations/conversation-context.service.js';
 import { AuditLogger } from '../src/governance/audit.logger.js';
 import type { SearchQueryInput, SearchQueryResult, SearchResult, WebSearchProviderPort } from '../src/research/web-search-provider.port.js';
+import { authAs } from './_s1_session_auth.js';
 
 class MockWebSearchProvider implements WebSearchProviderPort {
   public name = 'mock_search';
@@ -279,7 +280,7 @@ describe('R22.4 Evidence Pack & Live Web Search Foundation', () => {
       'POST',
       '/api/v1/ai/chat',
       { prompt: 'What is the current stock price of NVIDIA today?' },
-      {},
+      authAs('ten_test_01', 'usr_test_01'),
       {},
       {
         service: mockAiService,
@@ -331,7 +332,7 @@ describe('R22.4 Evidence Pack & Live Web Search Foundation', () => {
       'POST',
       '/api/v1/ai/chat',
       { prompt: 'What is the current price of Ethereum today?' },
-      {},
+      authAs('ten_test_01', 'usr_test_01'),
       {},
       {
         service: mockAiService,
@@ -530,7 +531,7 @@ describe('R22.4 Evidence Pack & Live Web Search Foundation', () => {
       'POST',
       '/api/v1/research',
       { query: 'What is TCP/IP?' },
-      { 'x-nagex-tenant': 'ten_test_01', 'x-principal-id': 'usr_test_01' },
+      authAs('ten_test_01', 'usr_test_01'),
       {},
       {
         aiService,
@@ -551,7 +552,7 @@ describe('R22.4 Evidence Pack & Live Web Search Foundation', () => {
       'POST',
       '/api/v1/research',
       { query: 'What is TCP/IP?' },
-      { 'x-nagex-tenant': 'ten_test_01', 'x-principal-id': 'usr_test_01' },
+      authAs('ten_test_01', 'usr_test_01'),
       {},
       {
         aiService,

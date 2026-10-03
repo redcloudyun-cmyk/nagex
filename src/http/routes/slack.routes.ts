@@ -2,12 +2,12 @@
 // item 11), extracted verbatim from server_web.ts's handleAsyncApiRequest.
 import crypto from 'node:crypto';
 import { NagexError } from '../../common/errors.js';
-import { DEFAULT_GOOGLE_TENANT_ID } from '../../integrations/google/token.store.js';
 import type { SlackIdentityStore } from '../../integrations/slack/slack-identity.store.js';
 import type { SlackClient, SlackEventPayload } from '../../integrations/slack/slack.client.js';
 import type { SlackService } from '../../integrations/slack/slack.service.js';
 import type { AuditLogger } from '../../governance/audit.logger.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
+import { callerIdentity } from '../request-identity.js';
 
 function getHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
   const value = headers[name] ?? headers[name.toLowerCase()];
@@ -50,8 +50,8 @@ export const handleSlackRoutes: AsyncRouteRegistrar<SlackRouteDeps> = async (met
   if (pathname === '/api/v1/integrations/slack/identity/link' && method === 'POST') {
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_slack_link_${crypto.randomUUID()}`;
     const slackUserId = String(body?.slackUserId || '').trim();
-    const principalId = typeof body?.principalId === 'string' && body.principalId.trim() ? body.principalId.trim() : (getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001');
-    const tenantId = typeof body?.tenantId === 'string' && body.tenantId.trim() ? body.tenantId.trim() : (getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID);
+    // S1 — a channel identity is linked to the AUTHENTICATED caller only (see telegram.routes.ts).
+    const { principalId, tenantId } = callerIdentity(headers);
     const slackTeamId = typeof body?.slackTeamId === 'string' ? body.slackTeamId.trim() : undefined;
     const username = typeof body?.username === 'string' ? body.username.trim() : undefined;
 

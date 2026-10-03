@@ -41,7 +41,7 @@ export class SlackIdentityStore {
   public link(
     slackUserId: string,
     principalId: string,
-    tenantId = 'ten_production_01',
+    tenantId: string,
     slackTeamId?: string,
     username?: string,
   ): SlackIdentityLinkRecord {
@@ -58,13 +58,14 @@ export class SlackIdentityStore {
     return record;
   }
 
-  public resolve(slackUserId: string, defaultTenantId = 'ten_production_01'): { principalId: string; tenantId: string } {
+  public resolve(slackUserId: string): { principalId: string; tenantId: string } {
     const existing = this.records.get(slackUserId);
     if (existing) {
       return { principalId: existing.principalId, tenantId: existing.tenantId };
     }
-    // Fallback default resolution: bind to default principal for unlinked slack ID
-    return { principalId: `usr_slack_${slackUserId}`, tenantId: defaultTenantId };
+    // S1: an unlinked Slack user is its OWN isolated principal AND tenant — never the default
+    // tenant, never anyone's account. It can only ever see data it created itself.
+    return { principalId: `usr_slack_${slackUserId}`, tenantId: `ten_slack_${slackUserId}` };
   }
 
   public get(slackUserId: string): SlackIdentityLinkRecord | undefined {

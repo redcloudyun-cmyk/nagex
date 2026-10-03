@@ -17,7 +17,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { IdentityStore } from '../src/identity/identity.store.js';
 import { SessionStore } from '../src/sessions/session.store.js';
 import { hashPassword } from '../src/identity/identity.crypto.js';
-import { canonicalizeRequestHeaders, resolveAuthenticatedIdentity } from '../src/http/request-identity.js';
+import { callerIdentity, canonicalizeRequestHeaders, resolveAuthenticatedIdentity, tryGetCallerIdentity } from '../src/http/request-identity.js';
 import { handleDailyBriefRoutes } from '../src/http/routes/daily-brief.routes.js';
 import { handleMemoryRoutes } from '../src/http/routes/memory.routes.js';
 import { handleGoogleOAuthStartRoutes, handleGoogleOAuthCallbackRoutes } from '../src/http/routes/google-oauth.routes.js';
@@ -109,31 +109,38 @@ describe('R24.6C — session-derived identity resolver and header canonicalizati
     assert.equal(resolveAuthenticatedIdentity(c.cookie, { identityStore: stores.identityStore, sessionStore: expiring }), null);
   });
 
-  it('a valid session REPLACES client identity headers (any casing); body/query never supply identity', () => {
+  it('S1: identity headers are DISCARDED (any casing) and the verified caller is the session — never a header, body or query value', () => {
     const stores = openStores(tmp('canon'));
     const a = makeUser(stores, 'a');
     const b = makeUser(stores, 'b');
     const out = canonicalizeRequestHeaders({ ...a.cookie, 'X-Principal-Id': b.userId, 'x-nagex-tenant': b.tenantId, 'X-NAgex-Tenant': 'ten_attacker', 'x-other': 'keep' }, stores);
-    assert.equal(out['x-principal-id'], a.userId);
-    assert.equal(out['x-nagex-tenant'], a.tenantId);
-    assert.equal(out['X-Principal-Id'], undefined);
-    assert.equal(out['X-NAgex-Tenant'], undefined);
+    for (const k of ['x-principal-id', 'x-nagex-tenant', 'X-Principal-Id', 'X-NAgex-Tenant']) assert.equal(out[k], undefined, `${k} must not survive canonicalization`);
     assert.equal(out['x-other'], 'keep');
+    const caller = tryGetCallerIdentity(out)!;
+    assert.equal(caller.principalId, a.userId);
+    assert.equal(caller.tenantId, a.tenantId);
+    assert.equal(caller.source, 'SESSION');
   });
 
-  it('an anonymous caller cannot name a real account (or its personal tenant); legacy default/demo identities still pass through', () => {
+  it('S1: an anonymous caller has NO identity whatever the headers name — real account, default admin, default tenant or demo persona', () => {
     const stores = openStores(tmp('anon'));
     const a = makeUser(stores, 'a');
-    const namesUser = canonicalizeRequestHeaders({ 'x-principal-id': a.userId, 'x-nagex-tenant': 'ten_production_01' }, stores);
-    assert.equal(namesUser['x-principal-id'], undefined);
-    assert.equal(namesUser['x-nagex-tenant'], undefined);
-    const namesTenant = canonicalizeRequestHeaders({ 'x-principal-id': 'usr_admin_001', 'x-nagex-tenant': a.tenantId }, stores);
-    assert.equal(namesTenant['x-principal-id'], undefined);
-    assert.equal(namesTenant['x-nagex-tenant'], undefined);
-
-    const legacy = canonicalizeRequestHeaders({ 'x-principal-id': 'usr_demo_alex', 'x-nagex-tenant': 'ten_demo_hackathon' }, stores);
-    assert.equal(legacy['x-principal-id'], 'usr_demo_alex');
-    assert.equal(legacy['x-nagex-tenant'], 'ten_demo_hackathon');
+    const forged: Array<Record<string, string>> = [
+      { 'x-principal-id': a.userId, 'x-nagex-tenant': 'ten_production_01' },
+      { 'x-principal-id': 'usr_admin_001', 'x-nagex-tenant': a.tenantId },
+      { 'x-principal-id': 'usr_admin_001' },
+      { 'x-nagex-tenant': 'ten_production_01' },
+      { 'x-principal-id': 'admin', 'x-nagex-tenant': 'ten_production_01' },
+      { 'x-principal-id': 'usr_demo_alex', 'x-nagex-tenant': 'ten_demo_hackathon' },
+      { 'x-principal-id': 'usr_never_registered', 'x-nagex-tenant': 'ten_never_registered' },
+    ];
+    for (const headers of forged) {
+      const out = canonicalizeRequestHeaders(headers, stores);
+      assert.equal(out['x-principal-id'], undefined);
+      assert.equal(out['x-nagex-tenant'], undefined);
+      assert.equal(tryGetCallerIdentity(out), null, `no identity from ${JSON.stringify(headers)}`);
+      assert.throws(() => callerIdentity(out), (e: unknown) => (e as { code?: string }).code === 'AUTHENTICATION_REQUIRED');
+    }
   });
 });
 

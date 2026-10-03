@@ -14,6 +14,12 @@ NAgex must allow useful agent autonomy without allowing the agent to silently ex
 - Agent actions are auditable.
 - Failure does not weaken policy.
 
+## 2a. Identity boundary (Security Gate S1)
+
+- Identity comes only from a server-side session. `X-Principal-Id` / `X-NAgex-Tenant`, request bodies and query strings never establish a user or tenant.
+- Routes are default-deny: anything not listed in `src/http/route-access.ts` requires an authenticated identity.
+- There is no default admin, default tenant or built-in admin by name. See ADR-0006.
+
 ## 3. Human Approval
 
 Approval must be enforced in runtime logic, not only UI.

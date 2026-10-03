@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { DesktopConfigStore, DEFAULT_DESKTOP_CONFIG } from '../src/desktop/desktop-config.store.js';
 import { handleAsyncApiRequest } from '../src/server_web.js';
+import { authAs, authAsWith } from './_s1_session_auth.js';
 
 function tempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-desktop-shell-test-'));
@@ -74,10 +75,7 @@ test('Desktop App Main entry module & single instance structure', () => {
 });
 
 test('Gateway API Main Session connectivity for Desktop client', async () => {
-  const res = await handleAsyncApiRequest('GET', '/api/v1/sessions/main', null, {
-    'x-principal-id': 'usr_admin_001',
-    'x-nagex-tenant': 'ten_production_01',
-  });
+  const res = await handleAsyncApiRequest('GET', '/api/v1/sessions/main', null, authAsWith('ten_production_01', 'usr_admin_001', {  }));
 
   assert.equal(res.status, 200);
   assert.ok((res.data as any).sessionId.startsWith('sess_'));

@@ -10,6 +10,7 @@ import { SessionStore } from '../src/sessions/session.store.js';
 import { TaskStore } from '../src/tasks/task.store.js';
 import { AuditLogger } from '../src/governance/audit.logger.js';
 import { handleAsyncApiRequest, desktopRuntimeEngine } from '../src/server_web.js';
+import { authAs, authAsWith } from './_s1_session_auth.js';
 
 function tempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-desktop-test-'));
@@ -143,9 +144,7 @@ test('Desktop Quick Wake API endpoints (status, toggle, tray action)', async () 
 
 test('Same Main Session verification (sess_main_001 & usr_admin_001 principal)', async () => {
   // Main session endpoint check
-  const mainSessRes = await handleAsyncApiRequest('GET', '/api/v1/sessions/main', null, {
-    'x-principal-id': 'usr_admin_001',
-  });
+  const mainSessRes = await handleAsyncApiRequest('GET', '/api/v1/sessions/main', null, authAsWith('ten_production_01', 'usr_admin_001', {  }));
   assert.equal(mainSessRes.status, 200);
   assert.ok((mainSessRes.data as any).sessionId.startsWith('sess_'));
   assert.equal((mainSessRes.data as any).type, 'MAIN');

@@ -19,6 +19,7 @@ import { handleApiRequest, handleAsyncApiRequest, actionApprovals as sharedActio
 import { GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID } from '../src/modules/calendar/index.js';
 import { GMAIL_SEND_EMAIL_TOOL_ID } from '../src/modules/gmail/index.js';
 import { handleApprovalsRoutes } from '../src/http/routes/approvals.routes.js';
+import { authAs } from './_s1_session_auth.js';
 
 function readSrc(relPath: string): string {
   return fs.readFileSync(path.join(process.cwd(), relPath), 'utf8');
@@ -56,7 +57,11 @@ function validGmailPayload(overrides: Record<string, unknown> = {}) {
 let seq = 0;
 function uniqueHeaders() {
   seq += 1;
-  return { 'x-nagex-tenant': `ten_approval_truth_${seq}`, 'x-principal-id': `usr_approval_truth_${seq}` };
+  const tenantId = `ten_approval_truth_${seq}`;
+  const principalId = `usr_approval_truth_${seq}`;
+  // S1: the cookie is the identity. The two identity headers are NON-authoritative metadata (the server discards them)
+  // that the assertions below read back to address the same owner in the shared approval store.
+  return { ...authAs(tenantId, principalId), 'x-nagex-tenant': tenantId, 'x-principal-id': principalId };
 }
 
 // ─── 1-2: no fictional records in production output / no demo-mode leakage ───
@@ -154,7 +159,7 @@ test('8. GET /api/v1/approvals never returns another tenant\'s pending approval'
   const created = await handleAsyncApiRequest('POST', '/api/v1/approvals', { toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, payload: validCalendarPayload() }, ownerHeaders);
   const approvalId = (created.data as any).approvalId as string;
 
-  const otherTenantHeaders = { 'x-nagex-tenant': 'ten_approval_truth_wrong_tenant', 'x-principal-id': ownerHeaders['x-principal-id'] };
+  const otherTenantHeaders = authAs('ten_approval_truth_wrong_tenant', ownerHeaders['x-principal-id']);
   const res = await handleAsyncApiRequest('GET', '/api/v1/approvals', null, otherTenantHeaders);
   const ids = ((res.data as any).approvals as Array<{ id: string }>).map((a) => a.id);
   assert.ok(!ids.includes(approvalId));
@@ -165,7 +170,7 @@ test('9. GET /api/v1/approvals never returns another principal\'s pending approv
   const created = await handleAsyncApiRequest('POST', '/api/v1/approvals', { toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, payload: validCalendarPayload() }, ownerHeaders);
   const approvalId = (created.data as any).approvalId as string;
 
-  const otherPrincipalHeaders = { 'x-nagex-tenant': ownerHeaders['x-nagex-tenant'], 'x-principal-id': 'usr_approval_truth_wrong_principal' };
+  const otherPrincipalHeaders = authAs(ownerHeaders['x-nagex-tenant'], 'usr_approval_truth_wrong_principal');
   const res = await handleAsyncApiRequest('GET', '/api/v1/approvals', null, otherPrincipalHeaders);
   const ids = ((res.data as any).approvals as Array<{ id: string }>).map((a) => a.id);
   assert.ok(!ids.includes(approvalId));

@@ -17,6 +17,7 @@ import { AuditLogger } from '../src/governance/audit.logger.js';
 import { CreationStore } from '../src/creation/creation.store.js';
 import { CreationService } from '../src/creation/creation.service.js';
 import { handleCreationRoutes } from '../src/http/routes/creation.routes.js';
+import { authAs } from './_s1_session_auth.js';
 
 const KNOWN_IMAGE_BYTES = Buffer.from('deterministic-known-png-bytes-for-r23-7c-c');
 
@@ -60,7 +61,7 @@ async function createImage(deps: ReturnType<typeof setup>, tenantId: string, own
     'POST',
     '/api/v1/creations/generate',
     { prompt: 'Canonical serving test', type: 'IMAGE' },
-    { 'x-nagex-tenant': tenantId, 'x-principal-id': ownerId },
+    authAs(tenantId, ownerId),
     {},
     { creationService: deps.creationService, imageExecutor: deps.imageExecutor, imageStore: deps.imageStore },
   );
@@ -71,7 +72,7 @@ function getImage(deps: ReturnType<typeof setup>, imageUrl: string, tenantId: st
     'GET',
     imageUrl,
     null,
-    { 'x-nagex-tenant': tenantId, 'x-principal-id': ownerId },
+    authAs(tenantId, ownerId),
     {},
     { creationService: deps.creationService, imageExecutor: deps.imageExecutor, imageStore: deps.imageStore },
   );
@@ -137,7 +138,7 @@ test('6. the generic GET /api/v1/creations/:id route remains unaffected for a no
     'GET',
     '/api/v1/creations/some_other_creation_id',
     null,
-    { 'x-nagex-tenant': 'ten_a', 'x-principal-id': 'usr_a' },
+    authAs('ten_a', 'usr_a'),
     {},
     { creationService: deps.creationService, imageExecutor: deps.imageExecutor, imageStore: deps.imageStore },
   );

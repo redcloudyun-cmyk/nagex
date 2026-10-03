@@ -3,6 +3,7 @@ import test from 'node:test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { handleAsyncApiRequest } from '../src/server_web.js';
+import { authAs, authAsWith } from './_s1_session_auth.js';
 
 test('1. Real viewport 360px Home render (EN and KR) contracts supported', async () => {
   const indexHtml = fs.readFileSync(path.join(process.cwd(), 'public', 'index.html'), 'utf-8');
@@ -141,10 +142,7 @@ test('23. Truthfulness: Save failure displays error banner, never false success 
 });
 
 test('24. Truthfulness: Provider/model routing displays real provider status read-only', async () => {
-  const headers = {
-    'x-principal-id': 'usr_mobs_01',
-    'x-nagex-tenant': 'ten_mobs_01',
-  };
+  const headers = authAsWith('ten_mobs_01', 'usr_mobs_01', {  });
   const res = await handleAsyncApiRequest('GET', '/api/v1/providers/status', null, headers);
   assert.equal(res.status, 200);
   assert.ok(Array.isArray((res.data as any).providers));
@@ -161,10 +159,7 @@ test('26. Product Invariant: Model routing remains uncoupled from frontend UI to
 });
 
 test('27. Product Invariant: Personal Data Architecture unchanged', async () => {
-  const headers = {
-    'x-principal-id': 'usr_priv_01',
-    'x-nagex-tenant': 'ten_priv_01',
-  };
+  const headers = authAsWith('ten_priv_01', 'usr_priv_01', {  });
   const res = await handleAsyncApiRequest('GET', '/api/v1/memory', null, headers);
   assert.equal(res.status, 200);
 });

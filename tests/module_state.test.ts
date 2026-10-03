@@ -20,6 +20,13 @@ import { AuditLogger } from '../src/governance/audit.logger.js';
 import { handleApiRequest, moduleStateStore, moduleService } from '../src/server_web.js';
 import { resolveBuiltInPrincipalPermissions } from '../src/identity/permission.registry.js';
 import type { CapabilityRequest } from '../src/capabilities/capability.types.js';
+import { authAs, authAsWith } from './_s1_session_auth.js';
+
+// S1 (S0-18): there is no built-in admin by literal id. The PDP elevates a principal only when an
+// OPERATOR lists its registered user id in NAGEX_BUILTIN_ADMIN_PRINCIPALS (default: empty). The
+// route tests below that exercise a permitted mutation configure usr_admin_001 as that operator
+// choice; the unconfigured behavior is asserted explicitly in P06-S1-01.
+process.env.NAGEX_BUILTIN_ADMIN_PRINCIPALS = 'usr_admin_001';
 
 
 function createTempDir(prefix: string): string {
@@ -267,14 +274,26 @@ describe('ModuleStateStore & Service Tests', () => {
       'PUT',
       '/api/v1/modules/module.gmail/state',
       { enabled: false },
-      { 'x-principal-id': 'usr_unknown' }
+      authAs('ten_production_01', 'usr_unknown')
     );
 
     assert.equal(res.status, 403);
     assert.equal((res.data as any).error, 'PERMISSION_DENIED');
   });
 
-  it('P06-R2-02: usr_admin_001 gets module:manage', () => {
+  it('P06-S1-01: the literal ids usr_admin_001 / admin are NOT admins unless an operator configures them; anonymous callers have no identity at all', () => {
+    for (const id of ['usr_admin_001', 'admin']) {
+      assert.equal(resolveBuiltInPrincipalPermissions({ id, type: 'user' }, {}).includes('module:manage'), false, `${id} must not be elevated by its name alone`);
+    }
+    assert.equal(resolveBuiltInPrincipalPermissions({ id: 'usr_x', type: 'user' }, { NAGEX_BUILTIN_ADMIN_PRINCIPALS: 'usr_x, usr_y' }).includes('module:manage'), true);
+    // The old anonymous-admin path: no session, only the headers that used to name the default admin.
+    const anon = handleApiRequest('PUT', '/api/v1/modules/module.gmail/state', { enabled: false }, { 'x-principal-id': 'usr_admin_001', 'x-nagex-tenant': 'ten_production_01' });
+    assert.equal(anon.status, 401);
+    const anonAdminLiteral = handleApiRequest('PUT', '/api/v1/modules/module.gmail/state', { enabled: false }, { 'x-principal-id': 'admin' });
+    assert.equal(anonAdminLiteral.status, 401);
+  });
+
+  it('P06-R2-02: a principal the operator lists in NAGEX_BUILTIN_ADMIN_PRINCIPALS gets module:manage', () => {
     try {
       const perms = resolveBuiltInPrincipalPermissions({ id: 'usr_admin_001', type: 'user' });
       assert.equal(perms.includes('module:manage'), true);
@@ -283,7 +302,7 @@ describe('ModuleStateStore & Service Tests', () => {
         'PUT',
         '/api/v1/modules/module.gmail/state',
         { enabled: false },
-        { 'x-principal-id': 'usr_admin_001' }
+        authAs('ten_production_01', 'usr_admin_001')
       );
 
       assert.equal(res.status, 200);
@@ -295,7 +314,7 @@ describe('ModuleStateStore & Service Tests', () => {
         'PUT',
         '/api/v1/modules/module.gmail/state',
         { enabled: true },
-        { 'x-principal-id': 'usr_admin_001' }
+        authAs('ten_production_01', 'usr_admin_001')
       );
     }
   });
@@ -305,7 +324,7 @@ describe('ModuleStateStore & Service Tests', () => {
       'PUT',
       '/api/v1/modules/module.gmail/state',
       { enabled: false },
-      { 'x-principal-id': 'usr_user_123', 'x-principal-permissions': 'module:manage,*' }
+      authAsWith('ten_production_01', 'usr_user_123', { 'x-principal-permissions': 'module:manage,*' })
     );
 
     assert.equal(res.status, 403);
@@ -322,7 +341,7 @@ describe('ModuleStateStore & Service Tests', () => {
         'PUT',
         '/api/v1/modules/module.calendar/state',
         { enabled: false },
-        { 'x-principal-id': id, 'x-principal-permissions': 'module:manage' }
+        authAsWith('ten_production_01', id, { 'x-principal-permissions': 'module:manage' })
       );
 
       assert.equal(res.status, 403);
@@ -335,7 +354,7 @@ describe('ModuleStateStore & Service Tests', () => {
       'PUT',
       '/api/v1/modules/module.gmail/state',
       { enabled: false, tenantId: 'ten_beta' },
-      { 'x-nagex-tenant': 'ten_alpha', 'x-principal-id': 'usr_admin_001' }
+      authAs('ten_alpha', 'usr_admin_001')
     );
 
     assert.equal(res.status, 403);
@@ -353,7 +372,7 @@ describe('ModuleStateStore & Service Tests', () => {
       'PUT',
       '/api/v1/modules/module.browser/state',
       { enabled: false, tenantId: 'ten_beta' },
-      { 'x-nagex-tenant': 'ten_alpha', 'x-principal-id': 'usr_admin_001' }
+      authAs('ten_alpha', 'usr_admin_001')
     );
 
     assert.equal(res.status, 403);
@@ -416,7 +435,7 @@ function snapshotProductionModuleState(prodDir: string = '/var/lib/nagex/module-
         'PUT',
         '/api/v1/modules/module.gmail/state',
         { enabled: false, tenantId: testTenant },
-        { 'x-nagex-tenant': testTenant, 'x-principal-id': 'usr_admin_001' }
+        authAs(testTenant, 'usr_admin_001')
       );
       assert.equal(res.status, 200);
       assert.equal((res.data as any).enabled, false);
@@ -435,7 +454,7 @@ function snapshotProductionModuleState(prodDir: string = '/var/lib/nagex/module-
         'PUT',
         '/api/v1/modules/module.gmail/state',
         { enabled: true, tenantId: testTenant },
-        { 'x-nagex-tenant': testTenant, 'x-principal-id': 'usr_admin_001' }
+        authAs(testTenant, 'usr_admin_001')
       );
     }
   });
@@ -447,7 +466,7 @@ function snapshotProductionModuleState(prodDir: string = '/var/lib/nagex/module-
         'PUT',
         '/api/v1/modules/module.browser/state',
         { enabled: false, tenantId: testTenant },
-        { 'x-nagex-tenant': testTenant, 'x-principal-id': 'usr_admin_001' }
+        authAs(testTenant, 'usr_admin_001')
       );
       assert.equal(res.status, 200);
       assert.equal((res.data as any).enabled, false);
@@ -456,7 +475,7 @@ function snapshotProductionModuleState(prodDir: string = '/var/lib/nagex/module-
         'PUT',
         '/api/v1/modules/module.browser/state',
         { enabled: true, tenantId: testTenant },
-        { 'x-nagex-tenant': testTenant, 'x-principal-id': 'usr_admin_001' }
+        authAs(testTenant, 'usr_admin_001')
       );
     }
 
@@ -485,7 +504,7 @@ function snapshotProductionModuleState(prodDir: string = '/var/lib/nagex/module-
   });
 
   it('P06-13: GET /api/v1/modules lists modules for tenant', () => {
-    const res = handleApiRequest('GET', '/api/v1/modules', null);
+    const res = handleApiRequest('GET', '/api/v1/modules', null, authAs('ten_production_01', 'usr_module_reader'));
 
     assert.equal(res.status, 200);
     assert.ok(Array.isArray((res.data as any).modules));
@@ -493,7 +512,7 @@ function snapshotProductionModuleState(prodDir: string = '/var/lib/nagex/module-
   });
 
   it('P06-14: GET /api/v1/modules/:moduleId returns 404 for unknown module', () => {
-    const res = handleApiRequest('GET', '/api/v1/modules/module.unknown', null);
+    const res = handleApiRequest('GET', '/api/v1/modules/module.unknown', null, authAs('ten_production_01', 'usr_module_reader'));
     assert.equal(res.status, 404);
     assert.equal((res.data as any).error.code, 'MODULE_NOT_FOUND');
   });

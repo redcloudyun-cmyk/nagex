@@ -22,11 +22,11 @@
 //     legal/idempotent) is returned unchanged rather than erroring.
 import crypto from 'node:crypto';
 import { NagexError } from '../../common/errors.js';
-import { DEFAULT_GOOGLE_TENANT_ID } from '../../integrations/google/token.store.js';
 import type { CompetitorPricingRunService } from '../../agents/competitor-pricing-run.service.js';
 import type { CompetitorPricingRunRecord } from '../../agents/competitor-pricing-email.types.js';
 import type { ReportLocale } from '../../agents/pricing-report-composer.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
+import { callerIdentity } from '../request-identity.js';
 
 function getHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
   const value = headers[name] ?? headers[name.toLowerCase()];
@@ -50,8 +50,8 @@ export const handleCompetitorPricingAgentRoutes: AsyncRouteRegistrar<CompetitorP
   const { competitorPricingRunService } = deps;
 
   if (pathname === BASE_PATH && method === 'POST') {
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-    const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const tenantId = callerIdentity(headers).tenantId;
+    const ownerId = callerIdentity(headers).principalId;
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
     const competitor = typeof body?.competitor === 'string' ? body.competitor : '';
     if (!competitor.trim()) {
@@ -65,8 +65,8 @@ export const handleCompetitorPricingAgentRoutes: AsyncRouteRegistrar<CompetitorP
 
   const getMatch = pathname.match(new RegExp(`^${BASE_PATH}/([^/]+)$`));
   if (getMatch && method === 'GET') {
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-    const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const tenantId = callerIdentity(headers).tenantId;
+    const ownerId = callerIdentity(headers).principalId;
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
     const runId = decodeURIComponent(getMatch[1]);
     const run = competitorPricingRunService.getOwnedRun(runId, tenantId, ownerId);
@@ -78,8 +78,8 @@ export const handleCompetitorPricingAgentRoutes: AsyncRouteRegistrar<CompetitorP
 
   const continueMatch = pathname.match(new RegExp(`^${BASE_PATH}/([^/]+)/continue$`));
   if (continueMatch && method === 'POST') {
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-    const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const tenantId = callerIdentity(headers).tenantId;
+    const ownerId = callerIdentity(headers).principalId;
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
     const runId = decodeURIComponent(continueMatch[1]);
     const locale: ReportLocale = body?.locale === 'ko' ? 'ko' : 'en';

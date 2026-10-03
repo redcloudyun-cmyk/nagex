@@ -1,5 +1,6 @@
 import type { PersonalHomeService } from '../../home/personal-home.service.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
+import { callerIdentity } from '../request-identity.js';
 
 export interface PersonalHomeRouteDeps {
   personalHomeService: PersonalHomeService;
@@ -17,8 +18,8 @@ export const handlePersonalHomeRoutes: AsyncRouteRegistrar<PersonalHomeRouteDeps
   const { personalHomeService, modelErrorResult } = deps;
 
   if (pathname === '/api/v1/personal/home' && method === 'GET') {
-    const tenantId = (Array.isArray(headers['x-nagex-tenant']) ? headers['x-nagex-tenant'][0] : headers['x-nagex-tenant']) || 'ten_production_01';
-    const principalId = (Array.isArray(headers['x-principal-id']) ? headers['x-principal-id'][0] : headers['x-principal-id']) || 'usr_admin_001';
+    const tenantId = callerIdentity(headers).tenantId;
+    const principalId = callerIdentity(headers).principalId;
     const headerRequestId = headers['x-request-id'] || headers['X-Request-Id'];
     const requestId = (Array.isArray(headerRequestId) ? headerRequestId[0] : headerRequestId) || `req_home_${Date.now()}`;
 

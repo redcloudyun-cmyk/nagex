@@ -21,7 +21,12 @@ import { GoogleCalendarService, GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, type Norma
 import { PlanResolver } from '../src/planning/plan-resolver.js';
 import { skillRegistry } from '../src/skills/skill-registry.js';
 import { toolRegistry as sharedToolRegistry } from '../src/tools/tool-registry.js';
-import { handleApiRequest, handleAsyncApiRequest, actionApprovals as sharedActionApprovals } from '../src/server_web.js';
+import { handleApiRequest as rawHandleApiRequest, handleAsyncApiRequest as rawHandleAsyncApiRequest, actionApprovals as sharedActionApprovals } from '../src/server_web.js';
+import { withDefaultCaller } from './_s1_session_auth.js';
+// S1: calls that carry no credential of their own are made as a real signed-in test account.
+const handleApiRequest = withDefaultCaller(rawHandleApiRequest);
+// S1: calls that carry no credential of their own are made as a real signed-in test account.
+const handleAsyncApiRequest = withDefaultCaller(rawHandleAsyncApiRequest);
 import type { PlanPreview } from '../src/model-gateway/ai-service.js';
 
 function jsonResponse(data: unknown, status = 200): Response {

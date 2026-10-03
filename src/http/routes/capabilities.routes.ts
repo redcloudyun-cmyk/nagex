@@ -8,6 +8,7 @@ import { NagexError } from '../../common/errors.js';
 import type { CapabilityBroker } from '../../capabilities/index.js';
 import type { WebSearchService } from '../../research/web-search.service.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
+import { callerIdentity } from '../request-identity.js';
 
 export interface CapabilitiesRouteDeps {
   capabilityBroker: CapabilityBroker;
@@ -34,8 +35,8 @@ export const handleCapabilitiesRoutes: AsyncRouteRegistrar<CapabilitiesRouteDeps
   }
 
   if (pathname === '/api/v1/capabilities/execute' && method === 'POST') {
-    const tenantId = (Array.isArray(headers['x-nagex-tenant']) ? headers['x-nagex-tenant'][0] : headers['x-nagex-tenant']) || 'ten_production_01';
-    const principalId = (Array.isArray(headers['x-principal-id']) ? headers['x-principal-id'][0] : headers['x-principal-id']) || 'usr_admin_001';
+    const tenantId = callerIdentity(headers).tenantId;
+    const principalId = callerIdentity(headers).principalId;
     const headerRequestId = headers['x-request-id'] || headers['X-Request-Id'];
     const requestId = (Array.isArray(headerRequestId) ? headerRequestId[0] : headerRequestId) || `req_cap_${Date.now()}`;
 

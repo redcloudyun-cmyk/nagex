@@ -11,6 +11,7 @@ import { AiService } from '../src/model-gateway/ai-service.js';
 import { UnifiedModelRouter } from '../src/model-gateway/unified-model-router.js';
 import { handleAsyncApiRequest, sessionStore } from '../src/server_web.js';
 import { NagexError } from '../src/common/errors.js';
+import { authAs, authAsWith } from './_s1_session_auth.js';
 
 function tempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-conv-test-'));
@@ -246,10 +247,7 @@ test('API: GET, POST, DELETE /api/v1/conversations/main', async () => {
   const convStore = new ConversationStore({ dir });
   const convContext = new ConversationContextService(convStore);
 
-  const headers = {
-    'x-nagex-tenant': 'ten_test',
-    'x-principal-id': 'usr_test',
-  };
+  const headers = authAsWith('ten_test', 'usr_test', {  });
 
   // 1. GET main conversation -> initial empty
   let res = await handleAsyncApiRequest(
@@ -321,7 +319,7 @@ test('API: GET, POST, DELETE /api/v1/conversations/main', async () => {
     'GET',
     '/api/v1/conversations/main',
     null,
-    { 'x-nagex-tenant': 'ten_OTHER', 'x-principal-id': 'usr_test' },
+    authAs('ten_OTHER', 'usr_test'),
     undefined,
     undefined,
     undefined,
@@ -400,10 +398,7 @@ test('Runtime / AI: USER message persisted before AI call, ASSISTANT message per
     },
   } as unknown as AiService;
 
-  const headers = {
-    'x-nagex-tenant': 'ten_test',
-    'x-principal-id': 'usr_test',
-  };
+  const headers = authAsWith('ten_test', 'usr_test', {  });
 
   // B3 — this test's intent is conversation persistence/ordering, not
   // web-search routing: "What is the weather today?" now legitimately
@@ -453,10 +448,7 @@ test('Runtime / AI: AI failure leaves USER message but creates no fake ASSISTANT
     },
   } as unknown as AiService;
 
-  const headers = {
-    'x-nagex-tenant': 'ten_test',
-    'x-principal-id': 'usr_test',
-  };
+  const headers = authAsWith('ten_test', 'usr_test', {  });
 
   const res = await handleAsyncApiRequest(
     'POST',

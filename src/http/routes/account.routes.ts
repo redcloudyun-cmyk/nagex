@@ -7,25 +7,13 @@ import type { IdentityAuditStore } from '../../identity/identity.audit.js';
 import type { SessionRecord, SessionStore } from '../../sessions/session.store.js';
 import { hashPassword, verifyPassword } from '../../identity/identity.crypto.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
+import { getSessionIdFromHeaders } from '../session-credential.js';
 
 export interface AccountRoutesDependencies {
   identityStore: IdentityStore;
   identityTokenStore: IdentityTokenStore;
   identityAuditStore: IdentityAuditStore;
   sessionStore: SessionStore;
-}
-
-function getSessionIdFromHeaders(headers: Record<string, string | string[] | undefined>): string | null {
-  const cookieHeader = Array.isArray(headers['cookie']) ? headers['cookie'][0] : headers['cookie'];
-  if (cookieHeader) {
-    const match = cookieHeader.match(/nagex_session=([^;]+)/);
-    if (match) return decodeURIComponent(match[1]);
-  }
-  const authHeader = Array.isArray(headers['authorization']) ? headers['authorization'][0] : headers['authorization'];
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    return authHeader.substring(7).trim();
-  }
-  return null;
 }
 
 function requireAuth(headers: Record<string, string | string[] | undefined>, deps: AccountRoutesDependencies): { session: SessionRecord; userId: string; tenantId: string } | null {

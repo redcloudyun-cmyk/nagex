@@ -10,7 +10,6 @@
 // wholesale — no second persistence layer, no parallel scheduler.
 import crypto from 'node:crypto';
 import { NagexError } from '../../common/errors.js';
-import { DEFAULT_GOOGLE_TENANT_ID } from '../../integrations/google/token.store.js';
 import type { AiService } from '../../model-gateway/ai-service.js';
 import type { GoogleCalendarService } from '../../modules/calendar/index.js';
 import type { GmailService } from '../../modules/gmail/index.js';
@@ -27,7 +26,7 @@ import { computeNextRunAt } from '../../tasks/task.scheduler.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
 import type { IdentityStore } from '../../identity/identity.store.js';
 import type { SessionStore } from '../../sessions/session.store.js';
-import { resolveAuthenticatedIdentity } from '../request-identity.js';
+import { resolveAuthenticatedIdentity, callerIdentity } from '../request-identity.js';
 
 function getHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
   const value = headers[name] ?? headers[name.toLowerCase()];
@@ -162,8 +161,8 @@ export const handleDailyBriefRoutes: AsyncRouteRegistrar<DailyBriefRouteDeps> = 
     ((pathname === '/api/v1/daily-brief' || pathname === '/api/v1/brief/today') && method === 'GET') ||
     (pathname === '/api/v1/daily-brief/refresh' && method === 'POST')
   ) {
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const tenantId = callerIdentity(headers).tenantId;
+    const principalId = callerIdentity(headers).principalId;
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_brief_${crypto.randomUUID()}`;
     const isExplicitRefresh = pathname === '/api/v1/daily-brief/refresh';
     const today = dailyBriefDateKey();
@@ -232,8 +231,8 @@ export const handleDailyBriefRoutes: AsyncRouteRegistrar<DailyBriefRouteDeps> = 
   // read-only (never triggers generation). Today's own entry, if already
   // generated, is included like any other date.
   if (pathname === '/api/v1/daily-brief/history' && method === 'GET') {
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const tenantId = callerIdentity(headers).tenantId;
+    const principalId = callerIdentity(headers).principalId;
     const limitRaw = Number(query.days);
     const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 30) : 7;
     const history = dailyBriefStore.listHistory(tenantId, principalId, limit);

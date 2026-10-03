@@ -22,6 +22,7 @@ import { DevicePendingCommandStore } from '../src/device-agent/device-pending-co
 import { DeviceAgentTransportEndpoint } from '../src/device-agent/device-agent-transport-endpoint.service.js';
 import { SessionStore } from '../src/sessions/session.store.js';
 import { NagexError } from '../src/common/errors.js';
+import { authAs } from './_s1_session_auth.js';
 
 function tempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-r23-6m-test-'));
@@ -118,10 +119,10 @@ test('R23.6M 1b. a caller cannot enroll a device for an arbitrary tenant/princip
     deviceIdentityStore,
     sessionStore,
     {
-      authorization: `Bearer ${session.sessionId}`,
-      'x-nagex-tenant': 'ten_victim',
-      'x-principal-id': 'usr_victim',
-    },
+    authorization: `Bearer ${session.sessionId}`,
+    'x-nagex-tenant': 'ten_victim',
+    'x-principal-id': 'usr_victim',
+  },
     { publicKey: 'PK', agentVersion: 'android-1.0.0' },
   );
   const device = result!.data as { tenantId: string; ownerId: string };
@@ -185,7 +186,7 @@ test('R23.6M 2. a revoked device cannot resolve contacts', () => {
     () => callContactResolve(
       deviceIdentityStore,
       contactResolver,
-      { 'x-nagex-tenant': 'ten_a', 'x-principal-id': 'usr_a' },
+      authAs('ten_a', 'usr_a'),
       { deviceId: device.deviceId, spokenName: 'Alex', candidates: [{ contactId: 'c1', displayName: 'Alex Kim' }] },
     ),
     (err: unknown) => err instanceof NagexError && err.code === 'MOBILE_DEVICE_REVOKED',
@@ -203,7 +204,7 @@ test('R23.6M 3. cross-user device access is blocked for contact resolution', () 
     () => callContactResolve(
       deviceIdentityStore,
       contactResolver,
-      { 'x-nagex-tenant': 'ten_a', 'x-principal-id': 'usr_b' },
+      authAs('ten_a', 'usr_b'),
       { deviceId: device.deviceId, spokenName: 'Alex', candidates: [{ contactId: 'c1', displayName: 'Alex Kim' }] },
     ),
     (err: unknown) => err instanceof NagexError && err.code === 'MOBILE_DEVICE_NOT_FOUND',
@@ -221,7 +222,7 @@ test('R23.6M 4. cross-tenant device access is blocked for contact resolution', (
     () => callContactResolve(
       deviceIdentityStore,
       contactResolver,
-      { 'x-nagex-tenant': 'ten_b', 'x-principal-id': 'usr_a' },
+      authAs('ten_b', 'usr_a'),
       { deviceId: device.deviceId, spokenName: 'Alex', candidates: [{ contactId: 'c1', displayName: 'Alex Kim' }] },
     ),
     (err: unknown) => err instanceof NagexError && err.code === 'MOBILE_DEVICE_NOT_FOUND',

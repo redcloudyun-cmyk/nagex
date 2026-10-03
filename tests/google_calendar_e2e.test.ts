@@ -17,7 +17,12 @@ import {
   GOOGLE_CALENDAR_RESPOND_EVENT_TOOL_ID,
 } from '../src/modules/calendar/index.js';
 import { toolRegistry as sharedToolRegistry } from '../src/tools/tool-registry.js';
-import { handleApiRequest, handleAsyncApiRequest, actionApprovals as sharedActionApprovals } from '../src/server_web.js';
+import { handleApiRequest as rawHandleApiRequest, handleAsyncApiRequest as rawHandleAsyncApiRequest, actionApprovals as sharedActionApprovals } from '../src/server_web.js';
+import { withDefaultCaller, authAs } from './_s1_session_auth.js';
+// S1: calls that carry no credential of their own are made as a real signed-in test account.
+const handleApiRequest = withDefaultCaller(rawHandleApiRequest);
+// S1: calls that carry no credential of their own are made as a real signed-in test account.
+const handleAsyncApiRequest = withDefaultCaller(rawHandleAsyncApiRequest);
 import { AiService } from '../src/model-gateway/ai-service.js';
 import type { ModelProvider } from '../src/model-gateway/model-provider.js';
 import { UnifiedModelRouter } from '../src/model-gateway/unified-model-router.js';
@@ -358,7 +363,7 @@ function buildCalendarPlanningService(): AiService {
 }
 
 test('task-triggered cancellation still respects approval: a scheduled task whose objective resolves to cancel_event never auto-cancels', async () => {
-  const headers = { 'x-nagex-tenant': 'ten_production_01', 'x-principal-id': 'usr_calendar_task_test' };
+  const headers = authAs('ten_production_01', 'usr_calendar_task_test');
   const created = handleApiRequest(
     'POST',
     '/api/v1/tasks',

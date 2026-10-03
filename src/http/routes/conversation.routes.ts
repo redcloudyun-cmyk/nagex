@@ -16,7 +16,6 @@
 import crypto from 'node:crypto';
 import { NagexError } from '../../common/errors.js';
 import type { PrincipalReference } from '../../common/types.js';
-import { DEFAULT_GOOGLE_TENANT_ID } from '../../integrations/google/token.store.js';
 import type { AiService, PlanPreview } from '../../model-gateway/ai-service.js';
 import { parseRoutingMode } from '../../model-gateway/ai-service.js';
 import type { PlanResolver } from '../../planning/plan-resolver.js';
@@ -35,6 +34,7 @@ function getHeaderValue(headers: Record<string, string | string[] | undefined>, 
 import type { ConversationMemoryExtractor } from '../../context/conversation-memory-extractor.js';
 import type { EvidencePackService } from '../../research/evidence-pack.service.js';
 import type { EvidencePack } from '../../research/evidence-pack.types.js';
+import { callerIdentity } from '../request-identity.js';
 
 export interface ConversationRouteDeps {
   service: AiService;
@@ -52,8 +52,8 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
   const { service, planResolver, sessionStore, convStore, convContextService, auditLogger, getRelevantMemories } = deps;
 
   if (pathname === '/api/v1/conversations/main' && method === 'GET') {
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const tenantId = callerIdentity(headers).tenantId;
+    const principalId = callerIdentity(headers).principalId;
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_conv_get_${crypto.randomUUID()}`;
     const session = sessionStore.getOrCreateMain(tenantId, principalId);
     const messages = convStore.listSession(tenantId, principalId, session.sessionId)
@@ -78,8 +78,8 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
     };
   }
   if (pathname === '/api/v1/conversations/main/messages' && method === 'POST') {
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const tenantId = callerIdentity(headers).tenantId;
+    const principalId = callerIdentity(headers).principalId;
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_conv_msg_${crypto.randomUUID()}`;
     const content = typeof body?.content === 'string' ? body.content.trim() : '';
     if (!content) {
@@ -112,8 +112,8 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
     return { status: 201, data: record };
   }
   if (pathname === '/api/v1/conversations/main' && method === 'DELETE') {
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const tenantId = callerIdentity(headers).tenantId;
+    const principalId = callerIdentity(headers).principalId;
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_conv_del_${crypto.randomUUID()}`;
     const session = sessionStore.getOrCreateMain(tenantId, principalId);
     const clearedCount = convStore.deleteSession(tenantId, principalId, session.sessionId);
@@ -134,8 +134,8 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
     const rawInput = body?.message ?? body?.prompt;
     const message = typeof rawInput === 'string' ? rawInput.trim() : '';
     if (!message) throw new NagexError({ code: 'MESSAGE_REQUIRED', category: 'VALIDATION', message: 'message is required.', request_id: `req_${crypto.randomUUID()}` });
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const tenantId = callerIdentity(headers).tenantId;
+    const principalId = callerIdentity(headers).principalId;
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_chat_${crypto.randomUUID()}`;
     const session = sessionStore.getOrCreateMain(tenantId, principalId);
 
@@ -255,8 +255,8 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
   if (pathname === '/api/v1/ambient/intent' && method === 'POST') {
     const prompt = typeof body?.prompt === 'string' ? body.prompt.trim() : '';
     if (!prompt) throw new NagexError({ code: 'PROMPT_REQUIRED', category: 'VALIDATION', message: 'prompt is required.', request_id: `req_${crypto.randomUUID()}` });
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const tenantId = callerIdentity(headers).tenantId;
+    const principalId = callerIdentity(headers).principalId;
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_intent_${crypto.randomUUID()}`;
     const session = sessionStore.getOrCreateMain(tenantId, principalId);
 

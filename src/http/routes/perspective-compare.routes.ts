@@ -2,6 +2,7 @@ import { NagexError } from '../../common/errors.js';
 import type { PerspectiveCompareService } from '../../model-gateway/perspective-compare.service.js';
 import type { MemoryRecord } from '../../context/memory.engine.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
+import { callerIdentity } from '../request-identity.js';
 
 export interface PerspectiveCompareRouteDeps {
   perspectiveCompareService: PerspectiveCompareService;
@@ -20,8 +21,8 @@ export const handlePerspectiveCompareRoutes: AsyncRouteRegistrar<PerspectiveComp
   const { perspectiveCompareService, getRelevantMemories, modelErrorResult } = deps;
 
   if (pathname === '/api/v1/ai/perspective-compare' && method === 'POST') {
-    const tenantId = (Array.isArray(headers['x-nagex-tenant']) ? headers['x-nagex-tenant'][0] : headers['x-nagex-tenant']) || 'ten_production_01';
-    const principalId = (Array.isArray(headers['x-principal-id']) ? headers['x-principal-id'][0] : headers['x-principal-id']) || 'usr_admin_001';
+    const tenantId = callerIdentity(headers).tenantId;
+    const principalId = callerIdentity(headers).principalId;
     const headerRequestId = headers['x-request-id'] || headers['X-Request-Id'];
     const requestId = (Array.isArray(headerRequestId) ? headerRequestId[0] : headerRequestId) || `req_cmp_${Date.now()}`;
 

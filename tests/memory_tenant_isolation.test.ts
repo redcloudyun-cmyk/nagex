@@ -36,6 +36,7 @@ import { CandidateStore } from '../src/workspace/candidate.store.js';
 import { CandidateActionResolver } from '../src/workspace/action-resolver.js';
 import { createNagexApplication } from '../src/app/create-nagex-application.js';
 import { handleApiRequest } from '../src/server_web.js';
+import { authAs } from './_s1_session_auth.js';
 
 function tmpDir(label: string): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), `nagex-mem-iso-${label}-`));
@@ -191,10 +192,10 @@ test('10. GET /api/v1/memory only returns the caller\'s own tenant + principal m
   const oldDir = process.env.NAGEX_MEMORIES_DIR;
   process.env.NAGEX_MEMORIES_DIR = dir;
   try {
-    handleApiRequest('POST', '/api/v1/memory', { subject: 'HTTP Isolation A', predicate: 'note', value: 'a' }, { 'x-nagex-tenant': 'ten_http_a', 'x-principal-id': 'usr_http_shared' });
-    handleApiRequest('POST', '/api/v1/memory', { subject: 'HTTP Isolation B', predicate: 'note', value: 'b' }, { 'x-nagex-tenant': 'ten_http_b', 'x-principal-id': 'usr_http_shared' });
+    handleApiRequest('POST', '/api/v1/memory', { subject: 'HTTP Isolation A', predicate: 'note', value: 'a' }, authAs('ten_http_a', 'usr_http_shared'));
+    handleApiRequest('POST', '/api/v1/memory', { subject: 'HTTP Isolation B', predicate: 'note', value: 'b' }, authAs('ten_http_b', 'usr_http_shared'));
 
-    const asA = handleApiRequest('GET', '/api/v1/memory', null, { 'x-nagex-tenant': 'ten_http_a', 'x-principal-id': 'usr_http_shared' });
+    const asA = handleApiRequest('GET', '/api/v1/memory', null, authAs('ten_http_a', 'usr_http_shared'));
     const dataA = asA.data as { memories: Array<{ content: { subject: string } }> };
     assert.ok(dataA.memories.some((m) => m.content.subject === 'HTTP Isolation A'));
     assert.equal(dataA.memories.some((m) => m.content.subject === 'HTTP Isolation B'), false, 'tenant A must never see tenant B\'s memory over the API');
@@ -208,14 +209,14 @@ test('11. DELETE /api/v1/memory/:id from the wrong tenant is blocked; the real r
   const oldDir = process.env.NAGEX_MEMORIES_DIR;
   process.env.NAGEX_MEMORIES_DIR = dir;
   try {
-    const created = handleApiRequest('POST', '/api/v1/memory', { subject: 'HTTP Delete Test', predicate: 'note', value: 'x' }, { 'x-nagex-tenant': 'ten_http_del_a', 'x-principal-id': 'usr_http_del' });
+    const created = handleApiRequest('POST', '/api/v1/memory', { subject: 'HTTP Delete Test', predicate: 'note', value: 'x' }, authAs('ten_http_del_a', 'usr_http_del'));
     const memId = (created.data as { id: string }).id;
 
-    const blocked = handleApiRequest('DELETE', `/api/v1/memory/${memId}`, null, { 'x-nagex-tenant': 'ten_http_del_b', 'x-principal-id': 'usr_http_del' });
+    const blocked = handleApiRequest('DELETE', `/api/v1/memory/${memId}`, null, authAs('ten_http_del_b', 'usr_http_del'));
     assert.equal(blocked.status, 404);
     assert.equal((blocked.data as { error: { code: string } }).error.code, 'MEMORY_NOT_FOUND');
 
-    const stillThere = handleApiRequest('GET', '/api/v1/memory', null, { 'x-nagex-tenant': 'ten_http_del_a', 'x-principal-id': 'usr_http_del' });
+    const stillThere = handleApiRequest('GET', '/api/v1/memory', null, authAs('ten_http_del_a', 'usr_http_del'));
     const stillData = stillThere.data as { memories: Array<{ id: string }> };
     assert.ok(stillData.memories.some((m) => m.id === memId), 'the real record must survive a blocked cross-tenant delete attempt');
   } finally {
@@ -228,14 +229,14 @@ test('12. PUT /api/v1/memory/:id/pin from the wrong tenant is blocked and never 
   const oldDir = process.env.NAGEX_MEMORIES_DIR;
   process.env.NAGEX_MEMORIES_DIR = dir;
   try {
-    const created = handleApiRequest('POST', '/api/v1/memory', { subject: 'HTTP Pin Test', predicate: 'note', value: 'x' }, { 'x-nagex-tenant': 'ten_http_pin_a', 'x-principal-id': 'usr_http_pin' });
+    const created = handleApiRequest('POST', '/api/v1/memory', { subject: 'HTTP Pin Test', predicate: 'note', value: 'x' }, authAs('ten_http_pin_a', 'usr_http_pin'));
     const memId = (created.data as { id: string }).id;
 
-    const blocked = handleApiRequest('PUT', `/api/v1/memory/${memId}/pin`, null, { 'x-nagex-tenant': 'ten_http_pin_b', 'x-principal-id': 'usr_http_pin' });
+    const blocked = handleApiRequest('PUT', `/api/v1/memory/${memId}/pin`, null, authAs('ten_http_pin_b', 'usr_http_pin'));
     assert.equal(blocked.status, 404);
     assert.equal((blocked.data as { error: string }).error, 'MEMORY_NOT_FOUND');
 
-    const rightful = handleApiRequest('GET', '/api/v1/memory', null, { 'x-nagex-tenant': 'ten_http_pin_a', 'x-principal-id': 'usr_http_pin' });
+    const rightful = handleApiRequest('GET', '/api/v1/memory', null, authAs('ten_http_pin_a', 'usr_http_pin'));
     const rightfulData = rightful.data as { memories: Array<{ id: string; pinned: boolean }> };
     const record = rightfulData.memories.find((m) => m.id === memId);
     assert.equal(record?.pinned, false, 'a blocked cross-tenant pin attempt must never mutate pin state');
@@ -249,10 +250,10 @@ test('13. PUT /api/v1/memory/:id/pin by the rightful tenant + principal works', 
   const oldDir = process.env.NAGEX_MEMORIES_DIR;
   process.env.NAGEX_MEMORIES_DIR = dir;
   try {
-    const created = handleApiRequest('POST', '/api/v1/memory', { subject: 'HTTP Pin Rightful', predicate: 'note', value: 'x' }, { 'x-nagex-tenant': 'ten_http_pin_ok', 'x-principal-id': 'usr_http_pin_ok' });
+    const created = handleApiRequest('POST', '/api/v1/memory', { subject: 'HTTP Pin Rightful', predicate: 'note', value: 'x' }, authAs('ten_http_pin_ok', 'usr_http_pin_ok'));
     const memId = (created.data as { id: string }).id;
 
-    const pinned = handleApiRequest('PUT', `/api/v1/memory/${memId}/pin`, null, { 'x-nagex-tenant': 'ten_http_pin_ok', 'x-principal-id': 'usr_http_pin_ok' });
+    const pinned = handleApiRequest('PUT', `/api/v1/memory/${memId}/pin`, null, authAs('ten_http_pin_ok', 'usr_http_pin_ok'));
     assert.equal(pinned.status, 200);
     assert.equal((pinned.data as { pinned: boolean }).pinned, true);
   } finally {

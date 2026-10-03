@@ -18,7 +18,7 @@ import {
   type UpcomingCalendarEvent,
 } from './calendar.client.js';
 import { readGoogleOAuthConfig, type GoogleOAuthConfig } from '../../integrations/google/oauth.client.js';
-import { DEFAULT_GOOGLE_PRINCIPAL_ID, type GoogleOAuthTokenStore } from '../../integrations/google/token.store.js';
+import { type GoogleOAuthTokenStore } from '../../integrations/google/token.store.js';
 import { GoogleCapabilityExecutionPipeline, type NormalizedMutationResult } from '../../capabilities/google-capability-execution-pipeline.js';
 import type { MutationCapabilityDefinition } from '../../capabilities/mutation-registry.js';
 import { CredentialBrokerService, GoogleCredentialAccessService } from '../../security/credentials/index.js';
@@ -248,7 +248,7 @@ export class GoogleCalendarService {
 
   public async getFreeSlots(input: {
     tenantId: string;
-    principalId?: string;
+    principalId: string;
     calendarId?: string;
     timeMin: string;
     timeMax: string;
@@ -256,7 +256,7 @@ export class GoogleCalendarService {
   }): Promise<{ slots: FreeBusyInterval[]; busy: FreeBusyInterval[]; calendarId: string; timeMin: string; timeMax: string }> {
     return this.pipeline.withAccessToken({
       tenantId: input.tenantId,
-      principalId: input.principalId ?? DEFAULT_GOOGLE_PRINCIPAL_ID,
+      principalId: input.principalId,
       requestId: input.requestId,
       capabilityId: 'google_calendar.free_slots',
       service: 'CALENDAR',
@@ -272,7 +272,7 @@ export class GoogleCalendarService {
   }
   public async listUpcomingEvents(input: {
     tenantId: string;
-    principalId?: string;
+    principalId: string;
     calendarId?: string;
     timeMin: string;
     timeMax: string;
@@ -281,7 +281,7 @@ export class GoogleCalendarService {
   }): Promise<UpcomingCalendarEvent[]> {
     return this.pipeline.withAccessToken({
       tenantId: input.tenantId,
-      principalId: input.principalId ?? DEFAULT_GOOGLE_PRINCIPAL_ID,
+      principalId: input.principalId,
       requestId: input.requestId,
       capabilityId: 'google_calendar.upcoming',
       service: 'CALENDAR',

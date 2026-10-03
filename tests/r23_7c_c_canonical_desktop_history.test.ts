@@ -33,6 +33,9 @@ import { CreationStore } from '../src/creation/creation.store.js';
 import { CreationService } from '../src/creation/creation.service.js';
 import { handleCreationRoutes } from '../src/http/routes/creation.routes.js';
 import { SessionStore } from '../src/sessions/session.store.js';
+import { authAs, authAsWith, ensureTestAccount } from './_s1_session_auth.js';
+import { canonicalizeRequestHeaders } from '../src/http/request-identity.js';
+import { IdentityStore } from '../src/identity/identity.store.js';
 
 declare const document: any;
 
@@ -66,7 +69,8 @@ function setup() {
   const creationStore = new CreationStore({ dir: tempDir('nagex-history-creations-') });
   const creationService = new CreationService(creationStore, auditLogger);
   const sessionStore = new SessionStore({ dir: tempDir('nagex-history-sessions-') });
-  return { imageStore, artifactStore, imageExecutor, creationService, sessionStore };
+  const identityStore = new IdentityStore({ dir: tempDir('nagex-history-accounts-') });
+  return { imageStore, artifactStore, imageExecutor, creationService, sessionStore, identityStore };
 }
 
 async function generateImage(deps: ReturnType<typeof setup>, headers: Record<string, string>, prompt = 'History fix test image') {
@@ -101,7 +105,7 @@ async function postVariation(deps: ReturnType<typeof setup>, creationId: string,
 
 test('A. a completed IMAGE creation appears in GET /api/v1/creations for its owner', async () => {
   const deps = setup();
-  const headers = { 'x-nagex-tenant': 'ten_a', 'x-principal-id': 'usr_a' };
+  const headers = authAs('ten_a', 'usr_a');
   const created = await generateImage(deps, headers);
   const imageId = (created!.data as any).creationId as string;
 
@@ -114,7 +118,7 @@ test('A. a completed IMAGE creation appears in GET /api/v1/creations for its own
 
 test('B. the canonical image/open URL is preserved in the history item', async () => {
   const deps = setup();
-  const headers = { 'x-nagex-tenant': 'ten_b', 'x-principal-id': 'usr_b' };
+  const headers = authAs('ten_b', 'usr_b');
   const created = await generateImage(deps, headers);
   const imageId = (created!.data as any).creationId as string;
   const canonicalUrl = (created!.data as any).imageUrl as string;
@@ -128,36 +132,35 @@ test('B. the canonical image/open URL is preserved in the history item', async (
 
 test('C. wrong tenant cannot see the image in history', async () => {
   const deps = setup();
-  const created = await generateImage(deps, { 'x-nagex-tenant': 'ten_c', 'x-principal-id': 'usr_c' });
+  const created = await generateImage(deps, authAs('ten_c', 'usr_c'));
   const imageId = (created!.data as any).creationId as string;
 
-  const listed = await list(deps, { 'x-nagex-tenant': 'ten_victim', 'x-principal-id': 'usr_c' });
+  const listed = await list(deps, authAs('ten_victim', 'usr_c'));
   assert.equal((listed!.data as any).creations.some((c: any) => c.creationId === imageId), false);
 });
 
 test('D. wrong principal cannot see the image in history', async () => {
   const deps = setup();
-  const created = await generateImage(deps, { 'x-nagex-tenant': 'ten_d', 'x-principal-id': 'usr_d' });
+  const created = await generateImage(deps, authAs('ten_d', 'usr_d'));
   const imageId = (created!.data as any).creationId as string;
 
-  const listed = await list(deps, { 'x-nagex-tenant': 'ten_d', 'x-principal-id': 'usr_victim' });
+  const listed = await list(deps, authAs('ten_d', 'usr_victim'));
   assert.equal((listed!.data as any).creations.some((c: any) => c.creationId === imageId), false);
 });
 
 test('E. a valid session cannot be overridden by spoofed identity headers on the history list', async () => {
   const deps = setup();
-  const session = deps.sessionStore.createAuthSession('ten_e', 'usr_e', 'MAIN');
-  const cookie = `nagex_session=${session.sessionId}`;
-  const created = await generateImage(deps, { cookie });
+  const created = await generateImage(deps, authAs('ten_e', 'usr_e'));
   const imageId = (created!.data as any).creationId as string;
 
-  const spoofed = await list(deps, { cookie, 'x-nagex-tenant': 'ten_victim', 'x-principal-id': 'usr_victim' });
+  // S1: identity headers are discarded; the verified caller is the session, so the list is the owner's.
+  const spoofed = await list(deps, authAsWith('ten_e', 'usr_e', { 'x-nagex-tenant': 'ten_victim', 'x-principal-id': 'usr_victim' }));
   assert.ok((spoofed!.data as any).creations.some((c: any) => c.creationId === imageId), 'session identity must govern the list, not the spoofed headers');
 });
 
 test('F. existing CreationStore (non-image) history remains visible alongside images', async () => {
   const deps = setup();
-  const headers = { 'x-nagex-tenant': 'ten_f', 'x-principal-id': 'usr_f' };
+  const headers = authAs('ten_f', 'usr_f');
   const textCreated = await generateText(deps, headers);
   const imageCreated = await generateImage(deps, headers);
   const textId = (textCreated!.data as any).creationId as string;
@@ -171,7 +174,7 @@ test('F. existing CreationStore (non-image) history remains visible alongside im
 
 test('G. no duplicate representation of the same creation across the merged list (id namespaces never overlap)', async () => {
   const deps = setup();
-  const headers = { 'x-nagex-tenant': 'ten_g', 'x-principal-id': 'usr_g' };
+  const headers = authAs('ten_g', 'usr_g');
   await generateText(deps, headers);
   await generateImage(deps, headers);
   await generateImage(deps, headers, 'second image');
@@ -183,7 +186,7 @@ test('G. no duplicate representation of the same creation across the merged list
 
 test('H. ordering remains deterministic (newest-first) across mixed text and image creations', async () => {
   const deps = setup();
-  const headers = { 'x-nagex-tenant': 'ten_h', 'x-principal-id': 'usr_h' };
+  const headers = authAs('ten_h', 'usr_h');
   const first = await generateText(deps, headers);
   await new Promise((r) => setTimeout(r, 5));
   const second = await generateImage(deps, headers);
@@ -201,7 +204,7 @@ test('H. ordering remains deterministic (newest-first) across mixed text and ima
 
 test('J. a variation-created image appears in history with its parent lineage intact', async () => {
   const deps = setup();
-  const headers = { 'x-nagex-tenant': 'ten_j', 'x-principal-id': 'usr_j' };
+  const headers = authAs('ten_j', 'usr_j');
   const original = await generateImage(deps, headers);
   const originalId = (original!.data as any).creationId as string;
 
@@ -242,7 +245,8 @@ function createHistoryTestServer(deps: ReturnType<typeof setup>): http.Server {
       const body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : null;
       const headers: Record<string, string> = {};
       for (const [k, v] of Object.entries(req.headers)) if (typeof v === 'string') headers[k] = v;
-      const result = await handleCreationRoutes(req.method || 'GET', pathname, body, headers, Object.fromEntries(url.searchParams), {
+      // S1: do what the real server does — derive identity from the session cookie, never from a header.
+      const result = await handleCreationRoutes(req.method || 'GET', pathname, body, canonicalizeRequestHeaders(headers, { sessionStore: deps.sessionStore, identityStore: deps.identityStore }), Object.fromEntries(url.searchParams), {
         creationService: deps.creationService, imageExecutor: deps.imageExecutor, imageStore: deps.imageStore, sessionStore: deps.sessionStore,
       });
       if (!result) { res.writeHead(404).end(); return; }
@@ -266,7 +270,11 @@ test('I. the desktop history renderer accepts and renders the real (unmocked) ca
   const port = (server.address() as AddressInfo).port;
   const browser = await chromium.launch({ headless: true, args: [`--explicitly-allowed-ports=${port}`] });
   try {
-    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    ensureTestAccount('usr_i', deps.identityStore);
+    const signedIn = deps.sessionStore.createAuthSession('ten_i', 'usr_i', 'MAIN');
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    await context.addCookies([{ name: 'nagex_session', value: signedIn.sessionId, url: `http://127.0.0.1:${port}` }]);
+    const page = await context.newPage();
     await page.goto(`http://127.0.0.1:${port}/`);
     await page.waitForSelector('.home-discover-chip[data-action="discover-create"]', { state: 'visible' });
     await page.click('.home-discover-chip[data-action="discover-create"]');

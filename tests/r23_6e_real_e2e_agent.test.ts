@@ -31,6 +31,7 @@ import { handleCompetitorPricingAgentRoutes } from '../src/http/routes/competito
 import type { UntrustedPricingEvidence } from '../src/agents/competitor-pricing-email.types.js';
 import type { PricingExtractionCandidateFact } from '../src/agents/pricing-extraction.types.js';
 import type { EvidenceSource } from '../src/research/evidence-pack.types.js';
+import { authAs, authAsWith } from './_s1_session_auth.js';
 
 function fakeResearch(result: UntrustedPricingEvidence[] | (() => Promise<UntrustedPricingEvidence[]>)): CompetitorPricingResearchPort {
   return { research: async () => (typeof result === 'function' ? result() : result) };
@@ -135,7 +136,7 @@ function tmp(label: string): string {
 }
 
 function headers(tenantId: string, ownerId: string): Record<string, string> {
-  return { 'x-nagex-tenant': tenantId, 'x-principal-id': ownerId, 'x-request-id': 'req_test' };
+  return authAsWith(tenantId, ownerId, { 'x-request-id': 'req_test' });
 }
 
 function makeEvidence(overrides: Partial<UntrustedPricingEvidence> = {}): UntrustedPricingEvidence {

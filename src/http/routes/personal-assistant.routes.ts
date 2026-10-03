@@ -3,7 +3,7 @@ import { NagexError } from '../../common/errors.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
 import type { PersonalReminderStore, ReminderStatus } from '../../personal/personal-reminder.store.js';
 import type { PersonalAssistantEngine } from '../../personal/personal-assistant.engine.js';
-import { DEFAULT_GOOGLE_TENANT_ID } from '../../integrations/google/token.store.js';
+import { callerIdentity, tryGetCallerIdentity } from '../request-identity.js';
 
 function getHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
   const value = headers[name] ?? headers[name.toLowerCase()];
@@ -24,8 +24,12 @@ export const handlePersonalAssistantRoutes: AsyncRouteRegistrar<PersonalAssistan
   deps
 ): Promise<ApiResult | undefined> => {
   const { reminderStore, assistantEngine } = deps;
-  const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-  const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+  const caller = tryGetCallerIdentity(headers);
+  // No authenticated caller: this registrar handles nothing. (route-access.ts has already answered 401
+  // for every route that requires one, so only public routes can reach a later registrar.)
+  if (!caller) return undefined;
+  const tenantId = caller.tenantId;
+  const principalId = caller.principalId;
   const requestId = getHeaderValue(headers, 'x-request-id') || `req_pers_${crypto.randomUUID()}`;
 
   // 1. Natural language reminder parse / confirm preview

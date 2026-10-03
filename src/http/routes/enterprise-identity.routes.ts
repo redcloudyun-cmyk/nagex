@@ -21,6 +21,7 @@ import * as domainService from '../../enterprise-identity/domain.service.js';
 import { resolveEnterpriseLogin, linkEnterpriseIdentity } from '../../enterprise-identity/provisioning.service.js';
 import { BUILTIN_ROLE_IDS } from '../../rbac/rbac.store.js';
 import type { AuditLogger } from '../../governance/audit.logger.js';
+import { getSessionIdFromHeaders } from '../session-credential.js';
 
 export interface EnterpriseIdentityRoutesDependencies {
   rbacService: RbacService;
@@ -36,17 +37,6 @@ export interface EnterpriseIdentityRoutesDependencies {
 }
 
 const COOKIE_HEADER = (sessionId: string) => ({ 'Set-Cookie': `nagex_session=${encodeURIComponent(sessionId)}; Path=/; HttpOnly; SameSite=Lax` });
-
-function getSessionIdFromHeaders(headers: Record<string, string | string[] | undefined>): string | null {
-  const cookieHeader = Array.isArray(headers['cookie']) ? headers['cookie'][0] : headers['cookie'];
-  if (cookieHeader) {
-    const match = cookieHeader.match(/nagex_session=([^;]+)/);
-    if (match) return decodeURIComponent(match[1]);
-  }
-  const authHeader = Array.isArray(headers['authorization']) ? headers['authorization'][0] : headers['authorization'];
-  if (authHeader && authHeader.startsWith('Bearer ')) return authHeader.substring(7).trim();
-  return null;
-}
 
 function getAuthenticatedUser(headers: Record<string, string | string[] | undefined>, deps: EnterpriseIdentityRoutesDependencies): { userId: string; email: string } {
   const sessionId = getSessionIdFromHeaders(headers);

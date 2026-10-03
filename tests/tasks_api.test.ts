@@ -4,8 +4,9 @@ import { handleApiRequest, handleAsyncApiRequest } from '../src/server_web.js';
 import { AiService } from '../src/model-gateway/ai-service.js';
 import type { ModelProvider } from '../src/model-gateway/model-provider.js';
 import { UnifiedModelRouter } from '../src/model-gateway/unified-model-router.js';
+import { authAs } from './_s1_session_auth.js';
 
-const HEADERS = { 'x-nagex-tenant': 'ten_production_01', 'x-principal-id': 'usr_tasks_test' };
+const HEADERS = authAs('ten_production_01', 'usr_tasks_test');
 
 function createTaskBody(overrides: Record<string, unknown> = {}) {
   return {
@@ -57,7 +58,7 @@ test('POST /api/v1/tasks rejects a blank name/objective', async () => {
 // ── GET /api/v1/tasks + GET /api/v1/tasks/:id ───────────────────────────
 
 test('GET /api/v1/tasks lists only the calling principal\'s tasks; GET /api/v1/tasks/:id fetches one', async () => {
-  const otherHeaders = { ...HEADERS, 'x-principal-id': 'usr_other_owner' };
+  const otherHeaders = { ...HEADERS, ...authAs('ten_production_01', 'usr_other_owner') };
   const mine = await handleApiRequest('POST', '/api/v1/tasks', createTaskBody({ name: 'Mine' }), HEADERS);
   await handleApiRequest('POST', '/api/v1/tasks', createTaskBody({ name: 'Theirs' }), otherHeaders);
 
@@ -181,10 +182,10 @@ test('POST /api/v1/tasks/:id/run 404s for an unknown task, never silently no-opi
 
 // ── Task Isolation Correction: tenant/owner isolation (HTTP level) ─────
 
-const TENANT_A = { 'x-nagex-tenant': 'ten_isolation_a', 'x-principal-id': 'usr_isolation_shared' };
-const TENANT_B = { 'x-nagex-tenant': 'ten_isolation_b', 'x-principal-id': 'usr_isolation_shared' };
-const SAME_TENANT_OWNER_A = { 'x-nagex-tenant': 'ten_isolation_same', 'x-principal-id': 'usr_isolation_owner_a' };
-const SAME_TENANT_OWNER_B = { 'x-nagex-tenant': 'ten_isolation_same', 'x-principal-id': 'usr_isolation_owner_b' };
+const TENANT_A = authAs('ten_isolation_a', 'usr_isolation_shared');
+const TENANT_B = authAs('ten_isolation_b', 'usr_isolation_shared');
+const SAME_TENANT_OWNER_A = authAs('ten_isolation_same', 'usr_isolation_owner_a');
+const SAME_TENANT_OWNER_B = authAs('ten_isolation_same', 'usr_isolation_owner_b');
 
 function unknownTaskShape(res: { status: number; data: unknown }) {
   return { status: res.status, code: (res.data as { error?: { code?: string } })?.error?.code };

@@ -3,6 +3,7 @@ import type { DocumentExecutor } from '../../creation/executors/document-executo
 import type { DocumentStore } from '../../creation/document.store.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
 import { NagexError } from '../../common/errors.js';
+import { callerIdentity, tryGetCallerIdentity } from '../request-identity.js';
 
 export interface DocumentCreationRouteDeps {
   creationRuntime: CreationRuntime;
@@ -24,8 +25,12 @@ export const handleDocumentCreationRoutes: AsyncRouteRegistrar<DocumentCreationR
   deps
 ): Promise<ApiResult | undefined> => {
   const { creationRuntime, documentExecutor, documentStore } = deps;
-  const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'ten_production_01';
-  const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+  const caller = tryGetCallerIdentity(headers);
+  // No authenticated caller: this registrar handles nothing. (route-access.ts has already answered 401
+  // for every route that requires one, so only public routes can reach a later registrar.)
+  if (!caller) return undefined;
+  const tenantId = caller.tenantId;
+  const principalId = caller.principalId;
   const headerRequestId = getHeaderValue(headers, 'x-request-id');
   const requestId = headerRequestId || `req_doc_${Date.now()}`;
 

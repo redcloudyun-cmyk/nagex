@@ -321,8 +321,6 @@
         ...restOptions,
         headers: {
           'Content-Type': 'application/json',
-          'X-NAgex-Tenant': isDemoMode ? 'ten_demo_hackathon' : 'ten_production_01',
-          'X-Principal-Id': isDemoMode ? 'usr_demo_alex' : 'usr_admin_001',
           'X-NAgex-Locale': currentLocale,
           'Accept-Language': currentLocale === 'ko' ? 'ko-KR,ko;q=0.9,en;q=0.8' : 'en-US,en;q=0.9',
           ...(isDemoMode ? { 'X-NAgex-Demo': '1', 'X-NAgex-Demo-Session': getDemoSessionId() } : {}),
@@ -2293,7 +2291,7 @@
         const tgUserId = prompt('Enter your Telegram user ID to connect Telegram (for example, 12345678):');
         if (tgUserId && tgUserId.trim()) {
           const username = prompt('Optional: Telegram Username (e.g. janesmith):') || undefined;
-          await window.NAGEX.linkTelegramIdentity(tgUserId.trim(), 'usr_admin_001', username);
+          await window.NAGEX.linkTelegramIdentity(tgUserId.trim(), username);
         }
       };
     }
@@ -2303,7 +2301,7 @@
         const slackUserId = prompt('Enter your Slack user ID to connect Slack (for example, U1234567):');
         if (slackUserId && slackUserId.trim()) {
           const username = prompt('Optional: Slack Username (e.g. janesmith):') || undefined;
-          await window.NAGEX.linkSlackIdentity(slackUserId.trim(), 'usr_admin_001', undefined, username);
+          await window.NAGEX.linkSlackIdentity(slackUserId.trim(), undefined, username);
         }
       };
     }
@@ -5361,17 +5359,18 @@
       await apiFetch(`/api/v1/tasks/${taskId}`, { method: 'DELETE' });
       await loadAllData();
     },
-    linkTelegramIdentity: async (telegramUserId, principalId = 'usr_admin_001', username) => {
+    // S1: the server links the channel to the signed-in caller; the client never names a principal.
+    linkTelegramIdentity: async (telegramUserId, username) => {
       await apiFetch('/api/v1/integrations/telegram/identity/link', {
         method: 'POST',
-        body: JSON.stringify({ telegramUserId, principalId, username }),
+        body: JSON.stringify({ telegramUserId, username }),
       });
       await loadAllData();
     },
-    linkSlackIdentity: async (slackUserId, principalId = 'usr_admin_001', slackTeamId, username) => {
+    linkSlackIdentity: async (slackUserId, slackTeamId, username) => {
       await apiFetch('/api/v1/integrations/slack/identity/link', {
         method: 'POST',
-        body: JSON.stringify({ slackUserId, principalId, slackTeamId, username }),
+        body: JSON.stringify({ slackUserId, slackTeamId, username }),
       });
       await loadAllData();
     },

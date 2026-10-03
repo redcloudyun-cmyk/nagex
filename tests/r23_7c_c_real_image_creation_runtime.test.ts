@@ -7,6 +7,7 @@ import { CreationProviderRouter } from '../src/creation/providers/creation-provi
 import type { ImageProviderPort, ImageProviderCapabilities } from '../src/creation/providers/creation-provider.types.js';
 import { AuditLogger } from '../src/governance/audit.logger.js';
 import { handleCreationRoutes } from '../src/http/routes/creation.routes.js';
+import { authAs } from './_s1_session_auth.js';
 
 function createFakeProvider(providerId: string, status: 'AVAILABLE' | 'UNCONFIGURED' = 'AVAILABLE', failGenerate = false, returnEmpty = false): ImageProviderPort {
   const caps: ImageProviderCapabilities = {
@@ -225,7 +226,7 @@ test('19. route invokes ImageExecutor rather than mock SVG', async () => {
   const res = await handleCreationRoutes('POST', '/api/v1/creations/generate', {
     prompt: 'Route test',
     type: 'IMAGE'
-  }, {}, {}, { creationService: mockCreationService, imageExecutor: executor });
+  }, authAs('ten_img_runtime', 'usr_img_runtime'), {}, { creationService: mockCreationService, imageExecutor: executor });
 
   if (res?.status === 400) console.log('Test 19 Failed with:', res.data);
   assert.ok(res);

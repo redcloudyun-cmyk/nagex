@@ -25,7 +25,7 @@
     if (window.NAGEX && typeof window.NAGEX.apiFetch === 'function') return window.NAGEX.apiFetch(url, opts);
     try {
       const demoMode = new URLSearchParams(window.location.search).get('demo') === '1';
-      const res = await fetch(url, Object.assign({ headers: { 'Content-Type': 'application/json', ...(demoMode ? { 'X-NAgex-Demo': '1', 'X-NAgex-Tenant': 'ten_demo_hackathon', 'X-Principal-Id': 'usr_demo_alex' } : {}) } }, opts));
+      const res = await fetch(url, Object.assign({ headers: { 'Content-Type': 'application/json', ...(demoMode ? { 'X-NAgex-Demo': '1' } : {}) } }, opts));
       return await res.json();
     } catch {
       return null;

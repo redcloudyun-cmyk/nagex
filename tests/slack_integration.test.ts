@@ -12,6 +12,7 @@ import { AuditLogger } from '../src/governance/audit.logger.js';
 import { PlanResolver } from '../src/planning/plan-resolver.js';
 import { skillRegistry } from '../src/skills/skill-registry.js';
 import { toolRegistry } from '../src/tools/tool-registry.js';
+import { authAs } from './_s1_session_auth.js';
 
 function tempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-slack-test-'));
@@ -24,7 +25,7 @@ test('SlackIdentityStore links identities and persists across restarts', () => {
   // Default fallback resolution for unlinked ID
   const unlinked = store1.resolve('U12345');
   assert.equal(unlinked.principalId, 'usr_slack_U12345');
-  assert.equal(unlinked.tenantId, 'ten_production_01');
+  assert.equal(unlinked.tenantId, 'ten_slack_U12345', 'S1: an unlinked Slack user is an isolated tenant, never the default tenant');
 
   // Explicit link
   const record = store1.link('U12345', 'usr_admin_001', 'ten_custom_01', 'T999', 'slack_jane');
@@ -212,15 +213,19 @@ test('Slack API endpoints in server_web.ts respond correctly', async () => {
 
   const linkRes = await handleAsyncApiRequest('POST', '/api/v1/integrations/slack/identity/link', {
     slackUserId: 'U555123',
-    principalId: 'usr_slack_link_test',
-    tenantId: 'ten_slack_link_test',
+    // S1: a body-supplied principalId/tenantId is NOT authority. The link is bound to the signed-in caller.
+    principalId: 'usr_someone_else',
+    tenantId: 'ten_someone_else',
     username: 'slack_link_user',
-  }, {}, mockAiService, {}, undefined, undefined, undefined, undefined, customSlackService);
+  }, authAs('ten_slack_link_test', 'usr_slack_link_test'), mockAiService, {}, undefined, undefined, undefined, undefined, customSlackService);
   assert.equal(linkRes.status, 200);
   assert.equal((linkRes.data as any).slackUserId, 'U555123');
   assert.equal((linkRes.data as any).principalId, 'usr_slack_link_test');
+  assert.equal((linkRes.data as any).tenantId, 'ten_slack_link_test');
+  const anonLink = await handleAsyncApiRequest('POST', '/api/v1/integrations/slack/identity/link', { slackUserId: 'U999', principalId: 'usr_x', tenantId: 'ten_x' }, {}, mockAiService, {}, undefined, undefined, undefined, undefined, customSlackService);
+  assert.equal(anonLink.status, 401, 'S1: anonymous callers cannot link a channel identity');
 
-  const listRes = await handleAsyncApiRequest('GET', '/api/v1/integrations/slack/identities', null, {}, mockAiService, {}, undefined, undefined, undefined, undefined, customSlackService);
+  const listRes = await handleAsyncApiRequest('GET', '/api/v1/integrations/slack/identities', null, authAs('ten_slack_link_test', 'usr_slack_link_test'), mockAiService, {}, undefined, undefined, undefined, undefined, customSlackService);
   assert.equal(listRes.status, 200);
   assert.ok(Array.isArray((listRes.data as any).identities));
   assert.ok((listRes.data as any).identities.length >= 1);
@@ -228,7 +233,7 @@ test('Slack API endpoints in server_web.ts respond correctly', async () => {
   const sendRes = await handleAsyncApiRequest('POST', '/api/v1/integrations/slack/send', {
     channel: 'C555123',
     text: 'Test direct Slack message',
-  }, {}, mockAiService, {}, undefined, undefined, undefined, undefined, customSlackService);
+  }, authAs('ten_slack_link_test', 'usr_slack_link_test'), mockAiService, {}, undefined, undefined, undefined, undefined, customSlackService);
   assert.equal(sendRes.status, 200);
   assert.equal((sendRes.data as any).success.ok, true);
 

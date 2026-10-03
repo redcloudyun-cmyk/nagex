@@ -36,6 +36,7 @@ import { handleCreationRoutes } from '../src/http/routes/creation.routes.js';
 import { CreationStore } from '../src/creation/creation.store.js';
 import { CreationService } from '../src/creation/creation.service.js';
 import { SessionStore } from '../src/sessions/session.store.js';
+import { authAs, canonicalizeForTestServer, sessionCookie } from './_s1_session_auth.js';
 
 declare const document: any;
 
@@ -127,7 +128,7 @@ test('F. existing image creation/history behavior is unchanged by the preview fi
   const creationStore = new CreationStore({ dir: tempDir('nagex-preview-hist-creations-') });
   const creationService = new CreationService(creationStore, auditLogger);
   const sessionStore = new SessionStore({ dir: tempDir('nagex-preview-hist-sessions-') });
-  const headers = { 'x-nagex-tenant': 'ten_f', 'x-principal-id': 'usr_f' };
+  const headers = authAs('ten_f', 'usr_f');
   const deps = { creationService, imageExecutor, imageStore, sessionStore };
 
   const created = await handleCreationRoutes('POST', '/api/v1/creations/generate', { prompt: 'regression check', type: 'IMAGE' }, headers, {}, deps);
@@ -166,7 +167,8 @@ function createHomeTestServer(personalHomeService: PersonalHomeService): http.Se
     if (pathname === '/api/v1/personal/home') {
       const headers: Record<string, string> = {};
       for (const [k, v] of Object.entries(req.headers)) if (typeof v === 'string') headers[k] = v;
-      const result = await handlePersonalHomeRoutes(req.method || 'GET', pathname, null, headers, Object.fromEntries(url.searchParams), {
+      // S1: do what the real server does — derive identity from the session cookie, never from a header.
+      const result = await handlePersonalHomeRoutes(req.method || 'GET', pathname, null, canonicalizeForTestServer(headers), Object.fromEntries(url.searchParams), {
         personalHomeService,
         modelErrorResult: () => ({ status: 500, data: { error: 'INTERNAL' } }),
       });
@@ -186,7 +188,9 @@ function createHomeTestServer(personalHomeService: PersonalHomeService): http.Se
 async function renderHomeAndGetText(port: number, width: number, height: number): Promise<string> {
   const browser = await chromium.launch({ headless: true, args: [`--explicitly-allowed-ports=${port}`] });
   try {
-    const page = await browser.newPage({ viewport: { width, height } });
+    const context = await browser.newContext({ viewport: { width, height } });
+    await context.addCookies([sessionCookie(`http://127.0.0.1:${port}`, 'ten_production_01', 'usr_admin_001')]);
+    const page = await context.newPage();
     await page.goto(`http://127.0.0.1:${port}/`);
     const root = width <= 768 ? '#mobile-view-home' : '#view-home';
     // Readiness = the state this test actually needs: the generated image's Recent Creations entry is rendered in this

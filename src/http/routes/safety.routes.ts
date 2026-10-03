@@ -6,6 +6,7 @@
 import { SafetyEngine } from '../../governance/safety.engine.js';
 import { PersistentSafetyStore } from '../../governance/safety.store.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
+import { callerIdentity } from '../request-identity.js';
 
 function getHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
   const value = headers[name] ?? headers[name.toLowerCase()];
@@ -14,8 +15,8 @@ function getHeaderValue(headers: Record<string, string | string[] | undefined>, 
 
 export const handleSafetyRoutes: AsyncRouteRegistrar<Record<string, never>> = async (method, pathname, body, headers): Promise<ApiResult | undefined> => {
   if (pathname === '/api/v1/safety/evaluate' && method === 'POST') {
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'usr_default';
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const tenantId = callerIdentity(headers).tenantId;
+    const principalId = callerIdentity(headers).principalId;
     const input = (body?.input as string) || '';
     const domain = body?.domain as string | undefined;
     const decision = await SafetyEngine.getInstance().evaluateIntent({
@@ -27,14 +28,14 @@ export const handleSafetyRoutes: AsyncRouteRegistrar<Record<string, never>> = as
     return { status: 200, data: decision };
   }
   if (pathname === '/api/v1/safety/events' && method === 'GET') {
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'usr_default';
+    const tenantId = callerIdentity(headers).tenantId;
     const safetyStore = new PersistentSafetyStore();
     const events = await safetyStore.getEvents(tenantId);
     return { status: 200, data: { events, total: events.length } };
   }
   if (pathname === '/api/v1/safety/status' && method === 'GET') {
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || 'usr_default';
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const tenantId = callerIdentity(headers).tenantId;
+    const principalId = callerIdentity(headers).principalId;
     const safetyStore = new PersistentSafetyStore();
     const userStatus = await safetyStore.getUserStatus(tenantId, principalId);
     return { status: 200, data: userStatus };

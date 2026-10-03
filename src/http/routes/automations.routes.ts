@@ -27,8 +27,8 @@ import { ExecutingTaskRunner } from '../../tasks/task.runner.js';
 import type { TaskContinuationStore } from '../../tasks/task-continuation.store.js';
 import type { DurableTaskRunStateStore } from '../../tasks/durable-task-run-state.store.js';
 import type { MemoryRecord } from '../../context/memory.engine.js';
-import { DEFAULT_GOOGLE_TENANT_ID } from '../../integrations/google/token.store.js';
 import type { ApiResult, SyncRouteRegistrar, AsyncRouteRegistrar } from '../http-types.js';
+import { callerIdentity } from '../request-identity.js';
 
 function getHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
   const value = headers[name] ?? headers[name.toLowerCase()];
@@ -135,8 +135,8 @@ export const handleAutomationsRunRoutes: AsyncRouteRegistrar<AutomationsRunRoute
   if (pathname.startsWith('/api/v1/workflows/') && pathname.endsWith('/run') && method === 'POST') {
     const workflowId = pathname.slice('/api/v1/workflows/'.length, pathname.length - '/run'.length);
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_workflow_run_${Date.now()}`;
-    const workflowTenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-    const workflowPrincipalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const workflowTenantId = callerIdentity(headers).tenantId;
+    const workflowPrincipalId = callerIdentity(headers).principalId;
 
     let prepared;
     try {

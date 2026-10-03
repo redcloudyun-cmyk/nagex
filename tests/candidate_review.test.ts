@@ -28,6 +28,7 @@ import { AiService, type TextUnderstandingResult } from '../src/model-gateway/ai
 import { UnifiedModelRouter } from '../src/model-gateway/unified-model-router.js';
 import { createProviders } from '../src/model-gateway/providers.js';
 import { createServerInstance, candidateStore as productionCandidateStore, handleAsyncApiRequest } from '../src/server_web.js';
+import { authAs } from './_s1_session_auth.js';
 
 function tempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-candidate-review-'));
@@ -105,7 +106,7 @@ function uniqueIdentity(label: string): { tenantId: string; ownerId: string } {
 
 test('1. Inbox loading fetches real canonical candidates via GET /api/v1/candidates', async () => {
   const { tenantId, ownerId } = uniqueIdentity('review01');
-  const headers = { 'x-nagex-tenant': tenantId, 'x-principal-id': ownerId };
+  const headers = authAs(tenantId, ownerId);
   const seeded = productionCandidateStore.upsert({
     tenantId, principalId: ownerId, captureId: 'cap_review_1',
     sourceRefs: ['capture:cap_review_1'], title: 'Inbox review target',
@@ -140,7 +141,7 @@ test('2. The served Review card renderer wires Accept/Modify/Reject only for PRO
 
 test('3. POST /api/v1/candidates/:id/accept transitions PROPOSED -> ACCEPTED', async () => {
   const { tenantId, ownerId } = uniqueIdentity('review03');
-  const headers = { 'x-nagex-tenant': tenantId, 'x-principal-id': ownerId };
+  const headers = authAs(tenantId, ownerId);
   const seeded = productionCandidateStore.upsert({
     tenantId, principalId: ownerId, captureId: 'cap_review_3', sourceRefs: ['capture:cap_review_3'],
     title: 'Accept me', type: 'TASK', payload: { name: 'Accept me' },
@@ -175,7 +176,7 @@ test('4-7. Accepting each candidate type never creates a Task, requests a Calend
 
 test('8-9. POST .../reject transitions PROPOSED -> REJECTED, and it stays REJECTED after a fresh GET (refresh)', async () => {
   const { tenantId, ownerId } = uniqueIdentity('review89');
-  const headers = { 'x-nagex-tenant': tenantId, 'x-principal-id': ownerId };
+  const headers = authAs(tenantId, ownerId);
   const seeded = productionCandidateStore.upsert({
     tenantId, principalId: ownerId, captureId: 'cap_review_89', sourceRefs: ['capture:cap_review_89'],
     title: 'Reject me', type: 'TASK', payload: { name: 'Reject me' },
@@ -193,7 +194,7 @@ test('8-9. POST .../reject transitions PROPOSED -> REJECTED, and it stays REJECT
 
 test('10. Modify a TASK candidate', async () => {
   const { tenantId, ownerId } = uniqueIdentity('review10');
-  const headers = { 'x-nagex-tenant': tenantId, 'x-principal-id': ownerId };
+  const headers = authAs(tenantId, ownerId);
   const seeded = productionCandidateStore.upsert({
     tenantId, principalId: ownerId, captureId: 'cap_10', sourceRefs: ['capture:cap_10'],
     title: 'Original name', type: 'TASK', payload: { name: 'Original name' },
@@ -211,7 +212,7 @@ test('10. Modify a TASK candidate', async () => {
 
 test('11. Modify a CALENDAR candidate', async () => {
   const { tenantId, ownerId } = uniqueIdentity('review11');
-  const headers = { 'x-nagex-tenant': tenantId, 'x-principal-id': ownerId };
+  const headers = authAs(tenantId, ownerId);
   const seeded = productionCandidateStore.upsert({
     tenantId, principalId: ownerId, captureId: 'cap_11', sourceRefs: ['capture:cap_11'],
     title: 'Sync', type: 'CALENDAR', payload: { summary: 'Sync', start: null, end: null },
@@ -228,7 +229,7 @@ test('11. Modify a CALENDAR candidate', async () => {
 
 test('12. Modify a MEMORY candidate', async () => {
   const { tenantId, ownerId } = uniqueIdentity('review12');
-  const headers = { 'x-nagex-tenant': tenantId, 'x-principal-id': ownerId };
+  const headers = authAs(tenantId, ownerId);
   const seeded = productionCandidateStore.upsert({
     tenantId, principalId: ownerId, captureId: 'cap_12', sourceRefs: ['capture:cap_12'],
     title: 'Remember: old', type: 'MEMORY', payload: { statement: 'Old statement.' },
@@ -244,7 +245,7 @@ test('12. Modify a MEMORY candidate', async () => {
 
 test('13. Modify a KNOWLEDGE candidate', async () => {
   const { tenantId, ownerId } = uniqueIdentity('review13');
-  const headers = { 'x-nagex-tenant': tenantId, 'x-principal-id': ownerId };
+  const headers = authAs(tenantId, ownerId);
   const seeded = productionCandidateStore.upsert({
     tenantId, principalId: ownerId, captureId: 'cap_13', sourceRefs: ['capture:cap_13'],
     title: 'Ref', type: 'KNOWLEDGE', payload: { title: 'Ref', sourceCaptureId: 'cap_13' },
@@ -264,7 +265,7 @@ test('13. Modify a KNOWLEDGE candidate', async () => {
 
 test('14. Invalid modifications are rejected — blank name, bad datetime, bad timezone, malformed email, blank statement, blank title', async () => {
   const { tenantId, ownerId } = uniqueIdentity('review14');
-  const headers = { 'x-nagex-tenant': tenantId, 'x-principal-id': ownerId };
+  const headers = authAs(tenantId, ownerId);
 
   const task = productionCandidateStore.upsert({ tenantId, principalId: ownerId, captureId: 'cap_14a', sourceRefs: ['capture:cap_14a'], title: 'T', type: 'TASK', payload: { name: 'T' } });
   const blankName = await handleAsyncApiRequest('PATCH', `/api/v1/candidates/${task.candidateId}`, { payload: { name: '   ' } }, headers);
@@ -293,7 +294,7 @@ test('14. Invalid modifications are rejected — blank name, bad datetime, bad t
 
 test('15. A decided (ACCEPTED) candidate cannot be modified', async () => {
   const { tenantId, ownerId } = uniqueIdentity('review15');
-  const headers = { 'x-nagex-tenant': tenantId, 'x-principal-id': ownerId };
+  const headers = authAs(tenantId, ownerId);
   const seeded = productionCandidateStore.upsert({ tenantId, principalId: ownerId, captureId: 'cap_15', sourceRefs: ['capture:cap_15'], title: 'D', type: 'TASK', payload: { name: 'D' } });
   await handleAsyncApiRequest('POST', `/api/v1/candidates/${seeded.candidateId}/accept`, {}, headers);
   const res = await handleAsyncApiRequest('PATCH', `/api/v1/candidates/${seeded.candidateId}`, { payload: { name: 'Changed after accept' } }, headers);
@@ -319,7 +320,7 @@ test('16. An EXPIRED candidate cannot be modified or accepted', () => {
 
 test('17-18. candidateId, captureId, contentHash, and sourceRefs are preserved after modification', async () => {
   const { tenantId, ownerId } = uniqueIdentity('review1718');
-  const headers = { 'x-nagex-tenant': tenantId, 'x-principal-id': ownerId };
+  const headers = authAs(tenantId, ownerId);
   const seeded = productionCandidateStore.upsert({
     tenantId, principalId: ownerId, captureId: 'cap_1718', contentHash: 'hash_fixed', sourceRefs: ['chk_abc_0', 'chk_abc_1'],
     title: 'Preserve me', type: 'TASK', payload: { name: 'Preserve me' },
@@ -337,7 +338,7 @@ test('17-18. candidateId, captureId, contentHash, and sourceRefs are preserved a
 
 test('19. Accepting an already-decided candidate returns a conflict, and a subsequent GET reflects the real current state', async () => {
   const { tenantId, ownerId } = uniqueIdentity('review19');
-  const headers = { 'x-nagex-tenant': tenantId, 'x-principal-id': ownerId };
+  const headers = authAs(tenantId, ownerId);
   const seeded = productionCandidateStore.upsert({ tenantId, principalId: ownerId, captureId: 'cap_19', sourceRefs: ['capture:cap_19'], title: 'S', type: 'TASK', payload: { name: 'S' } });
 
   const first = await handleAsyncApiRequest('POST', `/api/v1/candidates/${seeded.candidateId}/accept`, {}, headers);

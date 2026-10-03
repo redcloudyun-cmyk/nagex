@@ -55,6 +55,7 @@ import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import { createServerInstance } from '../src/server_web.js';
+import { authAs, authAsWith } from './_s1_session_auth.js';
 
 // This file mutates process-wide globals (globalThis.fetch, process.env) at
 // module load time, which — run as part of the full regression suite in one
@@ -92,7 +93,7 @@ test('1. POST /api/v1/workspace/route-input classifies prompts into canonical in
     // ASK intent
     const resAsk = await fetch(`${origin}/api/v1/workspace/route-input`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authAs('ten_production_01', 'usr_admin_001') },
       body: JSON.stringify({ text: 'What is NAgex architecture?' }),
     });
     assert.equal(resAsk.status, 200);
@@ -102,7 +103,7 @@ test('1. POST /api/v1/workspace/route-input classifies prompts into canonical in
     // COMMAND intent
     const resCmd = await fetch(`${origin}/api/v1/workspace/route-input`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authAs('ten_production_01', 'usr_admin_001') },
       body: JSON.stringify({ text: 'Schedule team sync tomorrow at 3pm' }),
     });
     assert.equal(resCmd.status, 200);
@@ -112,7 +113,7 @@ test('1. POST /api/v1/workspace/route-input classifies prompts into canonical in
     // CAPTURE intent
     const resCap = await fetch(`${origin}/api/v1/workspace/route-input`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authAs('ten_production_01', 'usr_admin_001') },
       body: JSON.stringify({ text: 'remember to review security policy' }),
     });
     assert.equal(resCap.status, 200);
@@ -122,7 +123,7 @@ test('1. POST /api/v1/workspace/route-input classifies prompts into canonical in
     // LINK_CAPTURE intent
     const resLink = await fetch(`${origin}/api/v1/workspace/route-input`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authAs('ten_production_01', 'usr_admin_001') },
       body: JSON.stringify({ text: 'https://nebius.com' }),
     });
     assert.equal(resLink.status, 200);
@@ -132,7 +133,7 @@ test('1. POST /api/v1/workspace/route-input classifies prompts into canonical in
     // UPLOAD intent
     const resUpload = await fetch(`${origin}/api/v1/workspace/route-input`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authAs('ten_production_01', 'usr_admin_001') },
       body: JSON.stringify({ text: '', hasFile: true, mimeType: 'application/pdf' }),
     });
     assert.equal(resUpload.status, 200);
@@ -142,7 +143,7 @@ test('1. POST /api/v1/workspace/route-input classifies prompts into canonical in
     // AUDIO_CAPTURE intent
     const resAudio = await fetch(`${origin}/api/v1/workspace/route-input`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authAs('ten_production_01', 'usr_admin_001') },
       body: JSON.stringify({ text: '', hasAudio: true, mimeType: 'audio/webm' }),
     });
     assert.equal(resAudio.status, 200);
@@ -158,10 +159,9 @@ test('2. POST /api/v1/ambient/intent generates structured execution plan with pr
     const res = await fetch(`${origin}/api/v1/ambient/intent`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'x-nagex-tenant': 'ten_production_01',
-        'x-principal-id': 'usr_admin_001',
-      },
+    'Content-Type': 'application/json',
+    ...authAs('ten_production_01', 'usr_admin_001'),
+  },
       body: JSON.stringify({ prompt: 'Schedule team meeting tomorrow at 2pm' }),
     });
     const data = (await res.json()) as any;
@@ -181,7 +181,7 @@ test('3. POST /api/v1/plans/resolve resolves plan against capability broker and 
   await withServer(async (origin) => {
     const intentRes = await fetch(`${origin}/api/v1/ambient/intent`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authAs('ten_production_01', 'usr_admin_001') },
       body: JSON.stringify({ prompt: 'Schedule team sync tomorrow at 3pm' }),
     });
     assert.equal(intentRes.status, 200);
@@ -189,7 +189,7 @@ test('3. POST /api/v1/plans/resolve resolves plan against capability broker and 
 
     const resolveRes = await fetch(`${origin}/api/v1/plans/resolve`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authAs('ten_production_01', 'usr_admin_001') },
       body: JSON.stringify({ plan: intentData.plan }),
     });
     assert.equal(resolveRes.status, 200);
@@ -207,10 +207,7 @@ test('4. GET /api/v1/activity lists tenant/principal-isolated activities', async
   await withServer(async (origin) => {
     const res = await fetch(`${origin}/api/v1/activity`, {
       method: 'GET',
-      headers: {
-        'x-nagex-tenant': 'ten_production_01',
-        'x-principal-id': 'usr_admin_001',
-      },
+      headers: authAsWith('ten_production_01', 'usr_admin_001', {  }),
     });
     assert.equal(res.status, 200);
     const data = (await res.json()) as any;
@@ -229,10 +226,9 @@ test('5. Workspace capture creates capture item and updates inbox & vault summar
     const captureRes = await fetch(`${origin}/api/v1/workspace/capture`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'x-nagex-tenant': tenantId,
-        'x-principal-id': principalId,
-      },
+    'Content-Type': 'application/json',
+    ...authAs(tenantId, principalId),
+  },
       body: JSON.stringify({
         type: 'TEXT',
         content: 'Remember to verify R17 Core Product Wiring',
@@ -247,10 +243,7 @@ test('5. Workspace capture creates capture item and updates inbox & vault summar
     // 2. Fetch Inbox
     const inboxRes = await fetch(`${origin}/api/v1/workspace/inbox`, {
       method: 'GET',
-      headers: {
-        'x-nagex-tenant': tenantId,
-        'x-principal-id': principalId,
-      },
+      headers: authAsWith(tenantId, principalId, {  }),
     });
     assert.equal(inboxRes.status, 200);
     const inboxData = (await inboxRes.json()) as any;
@@ -259,10 +252,7 @@ test('5. Workspace capture creates capture item and updates inbox & vault summar
     // 3. Fetch Vault
     const vaultRes = await fetch(`${origin}/api/v1/workspace/vault`, {
       method: 'GET',
-      headers: {
-        'x-nagex-tenant': tenantId,
-        'x-principal-id': principalId,
-      },
+      headers: authAsWith(tenantId, principalId, {  }),
     });
     assert.equal(vaultRes.status, 200);
     const vaultData = (await vaultRes.json()) as any;

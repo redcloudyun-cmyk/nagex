@@ -7,7 +7,6 @@
 // response.
 import crypto from 'node:crypto';
 import { NagexError } from '../../common/errors.js';
-import { DEFAULT_GOOGLE_TENANT_ID } from '../../integrations/google/token.store.js';
 import type { ActivityStore } from '../../governance/activity.store.js';
 import type { MemoryEngine } from '../../context/memory.engine.js';
 import type { TaskStore } from '../../tasks/task.store.js';
@@ -15,6 +14,7 @@ import type { TaskRunStore } from '../../tasks/task-run.store.js';
 import type { WorkflowDefinitionService } from '../../workflows/workflow-definition.service.js';
 import type { GoogleCalendarService } from '../../modules/calendar/index.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
+import { callerIdentity } from '../request-identity.js';
 
 function getHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
   const value = headers[name] ?? headers[name.toLowerCase()];
@@ -34,8 +34,8 @@ export const handleMySpaceRoutes: AsyncRouteRegistrar<MySpaceRouteDeps> = async 
   const { activityStore, memoryEngine, taskStore, taskRunStore, workflowDefinitionService, calendarService } = deps;
 
   if ((pathname === '/api/v1/my-space' || pathname === '/api/v1/workspace/my-space') && method === 'GET') {
-    const ownerId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+    const ownerId = callerIdentity(headers).principalId;
+    const tenantId = callerIdentity(headers).tenantId;
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_myspace_${crypto.randomUUID()}`;
 
     let activity: ReturnType<typeof activityStore.list> = [];

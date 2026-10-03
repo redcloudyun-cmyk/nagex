@@ -7,6 +7,7 @@ import { DocumentExecutor } from '../src/creation/executors/document-executor.js
 import { DocumentStore } from '../src/creation/document.store.js';
 import { ArtifactStore } from '../src/artifacts/artifact.store.js';
 import { handleDocumentCreationRoutes } from '../src/http/routes/document-creation.routes.js';
+import { authAs, authAsWith } from './_s1_session_auth.js';
 
 async function withServer(run: (origin: string) => Promise<void>): Promise<void> {
   const instance = createServerInstance();
@@ -309,11 +310,7 @@ test('handleDocumentCreationRoutes POST, GET, and Revisions contract', async () 
   const documentExecutor = new DocumentExecutor({ aiService: mockAiService, documentStore, artifactStore });
   const creationRuntime = new CreationRuntime([documentExecutor]);
 
-  const headers = {
-    'x-nagex-tenant': 'ten_route_test',
-    'x-principal-id': 'usr_route_test',
-    'x-request-id': 'req_route_001',
-  };
+  const headers = authAsWith('ten_route_test', 'usr_route_test', { 'x-request-id': 'req_route_001' });
 
   // 1. POST /api/v1/creations/documents
   const postRes = await handleDocumentCreationRoutes('POST', '/api/v1/creations/documents', {
@@ -351,10 +348,7 @@ test('handleDocumentCreationRoutes POST, GET, and Revisions contract', async () 
   assert.equal(notFoundRes.status, 404);
 
   // 5. GET /api/v1/creations/documents/:id with wrong owner -> 404 (DENIED)
-  const deniedRes = await handleDocumentCreationRoutes('GET', `/api/v1/creations/documents/${docId}`, null, {
-    ...headers,
-    'x-principal-id': 'usr_attacker',
-  }, {}, { creationRuntime, documentExecutor, documentStore });
+  const deniedRes = await handleDocumentCreationRoutes('GET', `/api/v1/creations/documents/${docId}`, null, authAsWith('ten_production_01', 'usr_attacker', { 'x-request-id': 'req_route_001' }), {}, { creationRuntime, documentExecutor, documentStore });
   assert.ok(deniedRes);
   assert.equal(deniedRes.status, 404);
 });
@@ -364,10 +358,9 @@ test('Truthful failure when unconfigured model provider receives document reques
     const res = await fetch(`${origin}/api/v1/creations/documents`, {
       method: 'POST',
       headers: {
-        'content-type': 'application/json',
-        'x-nagex-tenant': 'ten_unconfigured',
-        'x-principal-id': 'usr_unconfigured',
-      },
+    'content-type': 'application/json',
+    ...authAs('ten_unconfigured', 'usr_unconfigured'),
+  },
       body: JSON.stringify({
         prompt: 'Create unconfigured test doc',
       }),

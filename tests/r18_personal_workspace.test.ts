@@ -27,6 +27,7 @@ import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import { createServerInstance } from '../src/server_web.js';
 import { enableDevAuthTokensForFile } from './_dev_auth_tokens.js';
+import { authAs } from './_s1_session_auth.js';
 
 // R24.6C1 — this file legitimately needs raw dev tokens to drive signup/verify; opt in explicitly (restored after the file).
 enableDevAuthTokensForFile();
@@ -49,11 +50,10 @@ async function withServer(run: (origin: string) => Promise<void>): Promise<void>
 }
 
 const defaultHeaders = {
-  'Content-Type': 'application/json',
-  'X-NAgex-Tenant': 'ten_production_01',
-  'X-Principal-Id': 'usr_admin_001',
-  'X-NAgex-Workspace': 'ws_default_01',
-};
+    'Content-Type': 'application/json',
+    ...authAs('ten_production_01', 'usr_admin_001'),
+    'X-NAgex-Workspace': 'ws_default_01',
+  };
 
 // R23.1H — the Inbox route is now canonically backed by CaptureStore (the
 // Unified Capture pipeline), not the retired standalone InboxStore, so the
@@ -149,9 +149,9 @@ test('2. Vault E2E — item creation, retrieval, search, TEMP vs VAULT policy, t
 
     // 2c. Tenant Isolation Check: Foreign Tenant Request MUST fail or return DENY / empty / 404
     const foreignHeaders = {
-      ...defaultHeaders,
-      'X-NAgex-Tenant': 'ten_foreign_hacker',
-    };
+    ...defaultHeaders,
+    ...authAs('ten_foreign_hacker', 'usr_admin_001'),
+  };
     const foreignGetRes = await fetch(`${origin}/api/v1/workspace/vault/${vItem.vaultItemId}`, {
       headers: foreignHeaders,
     });
@@ -203,9 +203,9 @@ test('3. Memory E2E — create, retrieve, correction (PATCH), delete, scope isol
 
     // 3d. Cross-User Memory Isolation DENY check
     const foreignUserHeaders = {
-      ...defaultHeaders,
-      'X-Principal-Id': 'usr_other_user_999',
-    };
+    ...defaultHeaders,
+    ...authAs('ten_production_01', 'usr_other_user_999'),
+  };
     const foreignMemGetRes = await fetch(`${origin}/api/v1/memory/${memId}`, {
       headers: foreignUserHeaders,
     });
@@ -278,7 +278,7 @@ test('7. Connected Apps status, credential protection & disconnect flow', async 
     const sessionHeaders = { 'Content-Type': 'application/json', Cookie: cookie, 'X-Forwarded-For': ip['X-Forwarded-For'] };
 
     // Header identity alone is not authentication for Connected Apps.
-    assert.equal((await fetch(`${origin}/api/v1/connections`, { headers: defaultHeaders })).status, 401);
+    assert.equal((await fetch(`${origin}/api/v1/connections`, { headers: { 'X-NAgex-Tenant': 'ten_production_01', 'X-Principal-Id': 'usr_admin_001' } })).status, 401);
 
     // 7a. List Connections
     const connRes = await fetch(`${origin}/api/v1/connections`, { headers: sessionHeaders });

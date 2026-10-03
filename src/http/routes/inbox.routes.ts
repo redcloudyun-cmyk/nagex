@@ -17,11 +17,11 @@
 // Personal Context, and any future proactive layer agree on one canonical
 // Inbox (CANONICAL_USER_INBOX_PIPELINE_COUNT=1). InboxStore itself has
 // been retired (no remaining production reference).
-import { DEFAULT_GOOGLE_TENANT_ID } from '../../integrations/google/token.store.js';
 import type { CaptureStore } from '../../workspace/capture.store.js';
 import type { VaultStore } from '../../workspace/vault.store.js';
 import type { CaptureType } from '../../workspace/workspace.types.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
+import { callerIdentity, tryGetCallerIdentity } from '../request-identity.js';
 
 function getHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
   const value = headers[name] ?? headers[name.toLowerCase()];
@@ -44,8 +44,12 @@ function toCaptureType(sourceType: unknown): CaptureType {
 
 export const handleInboxRoutes: AsyncRouteRegistrar<InboxRouteDeps> = async (method, pathname, body, headers, _query, deps): Promise<ApiResult | undefined> => {
   const { captureStore, vaultStore } = deps;
-  const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-  const userId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+  const caller = tryGetCallerIdentity(headers);
+  // No authenticated caller: this registrar handles nothing. (route-access.ts has already answered 401
+  // for every route that requires one, so only public routes can reach a later registrar.)
+  if (!caller) return undefined;
+  const tenantId = caller.tenantId;
+  const userId = caller.principalId;
 
   if (pathname === '/api/v1/workspace/inbox' && method === 'GET') {
     const items = captureStore.listCaptures(tenantId, userId);

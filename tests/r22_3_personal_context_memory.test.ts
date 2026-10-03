@@ -23,6 +23,7 @@ import { DemoScenarioService } from '../src/demo/demo-scenario.service.js';
 import { createNagexApplication } from '../src/app/create-nagex-application.js';
 import type { PrincipalReference } from '../src/common/types.js';
 import type { ModelProvider } from '../src/model-gateway/model-provider.js';
+import { authAs } from './_s1_session_auth.js';
 
 describe('R22.3 Personal Context / Memory Foundation & Hardening', () => {
   const tenantId = 'ten_test_r223';
@@ -337,7 +338,7 @@ describe('R22.3 Personal Context / Memory Foundation & Hardening', () => {
       },
     };
 
-    const headers = { 'x-nagex-tenant': tenantId, 'x-principal-id': ownerId };
+    const headers = authAs(tenantId, ownerId);
     const body = { message: '기억해줘: 내 커피 취향은 에스프레소 야.' };
 
     let chatFailed = false;

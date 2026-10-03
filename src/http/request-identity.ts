@@ -1,112 +1,39 @@
-// R23.7C-C — Shared Artifact/Request Identity Resolver.
+// Request identity — Security Gate S1 (Identity Boundary).
 //
 // Canonical basis: docs/canonical/NAgex_Trust_Identity_Privacy_and_Approval.md
-// Section 6 ("user-facing identity and authentication state must not be
-// inferred from UI-only state") and Section 13
-// (TENANT_OR_OWNER_MISMATCH -> NOT_FOUND / DENY).
+// (§6 identity must not be inferred from client state; §13 TENANT_OR_OWNER_MISMATCH
+// -> NOT_FOUND / DENY) and docs/NAgex_AI_Development_Governance.md §10.
 //
-// A real authenticated nagex_session (R13) is the only identity source a
-// native browser request can carry automatically — an <img>/<video>/<a>
-// tag can never attach a custom header, only same-origin cookies. When a
-// valid session is present it is authoritative: caller-supplied
-// X-NAgex-Tenant/X-Principal-Id headers are never consulted, which is what
-// closes the impersonation gap (a signed-in user's session cannot be
-// outvoted by a spoofed header).
+// THE RULE
+//   Identity originates from a server-side credential: a valid, unexpired,
+//   unrevoked session whose account still exists. Nothing the client types —
+//   X-Principal-Id, X-NAgex-Tenant, a body field, a query string — is ever
+//   authority. There is no default principal, no default tenant and no
+//   built-in admin that an unauthenticated request can fall back to.
 //
-// When no valid session exists, resolution falls back to the existing
-// header/default behavior unchanged, field-for-field — this preserves demo
-// mode and every current caller (including this repo's own tests and the
-// existing admin/default single-tenant flow) exactly as before. Removing
-// that fallback is explicitly out of scope here; see the recorded
-// IMAGE_BROWSER_AUTH_DEBT — header/default identity is not production
-// multi-user authentication.
+// HOW IT WORKS (one architecture, not two)
+//   1. canonicalizeRequestHeaders() runs at both HTTP entry points. It returns
+//      a COPY of the headers with every client identity header removed, and —
+//      if a valid session is presented — records the session's identity in a
+//      module-private registry keyed by that copy.
+//   2. route-access.ts decides, per route, whether anonymous access is allowed.
+//      Every route that is not explicitly public or self-authenticating
+//      requires an identity from step 1 or is answered 401.
+//   3. A route reads the caller with callerIdentity(headers). That works only
+//      for a headers object that went through step 1; a raw object carrying a
+//      forged X-Principal-Id yields no identity at all (it throws).
 //
-// Every artifact-serving route (images today; video/presentation/report
-// later, per R23.7C-C Phase 8) should call this instead of re-implementing
-// header/session precedence on its own.
-import { DEFAULT_GOOGLE_TENANT_ID } from '../integrations/google/token.store.js';
+// resolveAuthenticatedIdentity() remains the single session resolver.
+import { NagexError } from '../common/errors.js';
+import { DEMO_OWNER_ID, DEMO_TENANT_ID } from '../demo/demo-identity.js';
 import type { IdentityStore } from '../identity/identity.store.js';
 import type { SessionStore } from '../sessions/session.store.js';
-import { getSessionIdFromHeaders } from './routes/auth.routes.js';
+import { getSessionIdFromHeaders } from './session-credential.js';
 
-export type RequestIdentitySource = 'SESSION' | 'HEADER' | 'DEFAULT';
+export { getSessionIdFromHeaders } from './session-credential.js';
 
-export interface RequestIdentity {
-  tenantId: string;
-  principalId: string;
-  source: RequestIdentitySource;
-}
+type HeaderBag = Record<string, string | string[] | undefined>;
 
-export interface ResolveRequestIdentityDeps {
-  sessionStore?: SessionStore;
-}
-
-function getHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
-  const value = headers[name] ?? headers[name.toLowerCase()];
-  return Array.isArray(value) ? value[0] : value;
-}
-
-function parseSessionCookie(headers: Record<string, string | string[] | undefined>): string | undefined {
-  const cookieHeader = getHeaderValue(headers, 'cookie');
-  if (!cookieHeader) return undefined;
-  const match = cookieHeader.match(/(?:^|;\s*)nagex_session=([^;]+)/);
-  return match ? decodeURIComponent(match[1]) : undefined;
-}
-
-export function resolveRequestIdentity(
-  headers: Record<string, string | string[] | undefined>,
-  deps: ResolveRequestIdentityDeps
-): RequestIdentity {
-  if (deps.sessionStore) {
-    const sessionId = parseSessionCookie(headers);
-    if (sessionId) {
-      const session = deps.sessionStore.getSession(sessionId);
-      if (session) {
-        return { tenantId: session.tenantId, principalId: session.principalId, source: 'SESSION' };
-      }
-    }
-  }
-
-  const headerTenant = getHeaderValue(headers, 'x-nagex-tenant');
-  const headerPrincipal = getHeaderValue(headers, 'x-principal-id');
-  if (headerTenant || headerPrincipal) {
-    return {
-      tenantId: headerTenant || DEFAULT_GOOGLE_TENANT_ID,
-      principalId: headerPrincipal || 'usr_admin_001',
-      source: 'HEADER',
-    };
-  }
-
-  return { tenantId: DEFAULT_GOOGLE_TENANT_ID, principalId: 'usr_admin_001', source: 'DEFAULT' };
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-// R24.6C — Settings identity boundary.
-//
-// Two rules, enforced from one place so they cannot drift per route:
-//
-//  1. AUTHENTICATED OWNERSHIP IS SERVER-SIDE. resolveAuthenticatedIdentity()
-//     is the only thing a personal-Settings route may use to decide WHO is
-//     calling: a valid, unexpired, unrevoked session whose account still
-//     exists. userId/tenantId/principalId come from the session record
-//     (tenant = ten_<userId>, the account's personal tenant). A body, a
-//     query string, or X-Principal-Id / X-NAgex-Tenant are never consulted.
-//
-//  2. CLIENT IDENTITY HEADERS CANNOT OVERRIDE OWNERSHIP ANYWHERE.
-//     canonicalizeRequestHeaders() runs at both HTTP entry points before any
-//     route sees the request:
-//       - valid session  -> the identity headers are REPLACED by the
-//         session's identity, so every route that still reads them (memory
-//         capture, Daily Brief, calendar, ...) acts as the signed-in user and
-//         a forged header cannot name another user or tenant;
-//       - no session     -> the legacy default/demo behavior is unchanged,
-//         EXCEPT that a header naming a real registered account (or that
-//         account's personal tenant) is stripped — an anonymous caller can
-//         never impersonate a real user by typing their id.
-//     Headers naming non-account principals (the default admin, demo users)
-//     keep working for unauthenticated legacy/demo flows; that fallback is
-//     the recorded IMAGE_BROWSER_AUTH_DEBT and is out of scope here.
-// ─────────────────────────────────────────────────────────────────────────
 export interface AuthenticatedIdentity {
   userId: string;
   principalId: string;
@@ -119,10 +46,24 @@ export interface AuthIdentityDeps {
   identityStore: IdentityStore;
 }
 
-export function resolveAuthenticatedIdentity(
-  headers: Record<string, string | string[] | undefined>,
-  deps: AuthIdentityDeps
-): AuthenticatedIdentity | null {
+// SESSION: a real authenticated account.
+// DEMO: the fixed, server-defined synthetic demo persona, granted only by
+//       route-access.ts on an explicit read-only allow-list (see there).
+export type CallerIdentitySource = 'SESSION' | 'DEMO';
+
+export interface CallerIdentity {
+  tenantId: string;
+  principalId: string;
+  source: CallerIdentitySource;
+  sessionId?: string;
+}
+
+// Identities established by the server for a specific (canonicalized) headers
+// object. WeakMap: no leak, and a copy/spread of the headers object does NOT
+// carry the identity along, so it can never be inherited by accident.
+const VERIFIED_CALLER = new WeakMap<object, CallerIdentity>();
+
+export function resolveAuthenticatedIdentity(headers: HeaderBag, deps: AuthIdentityDeps): AuthenticatedIdentity | null {
   const sessionId = getSessionIdFromHeaders(headers);
   if (!sessionId) return null;
   const session = deps.sessionStore.getSession(sessionId);
@@ -132,33 +73,37 @@ export function resolveAuthenticatedIdentity(
   return { userId: identity.userId, principalId: identity.userId, tenantId: session.tenantId, sessionId: session.sessionId };
 }
 
-const CLIENT_IDENTITY_HEADERS = new Set(['x-nagex-tenant', 'x-principal-id']);
+// Client-asserted identity. These headers are never read as authority; they are
+// removed so no downstream code can ever mistake them for it.
+const CLIENT_IDENTITY_HEADERS = new Set(['x-nagex-tenant', 'x-principal-id', 'x-tenant-id', 'x-user-id']);
 
-export function canonicalizeRequestHeaders(
-  headers: Record<string, string | string[] | undefined>,
-  deps: AuthIdentityDeps
-): Record<string, string | string[] | undefined> {
-  const out: Record<string, string | string[] | undefined> = {};
+export function canonicalizeRequestHeaders(headers: HeaderBag, deps: AuthIdentityDeps): HeaderBag {
+  const out: HeaderBag = {};
   for (const [key, value] of Object.entries(headers)) {
     if (!CLIENT_IDENTITY_HEADERS.has(key.toLowerCase())) out[key] = value;
   }
-
   const auth = resolveAuthenticatedIdentity(headers, deps);
-  if (auth) {
-    out['x-nagex-tenant'] = auth.tenantId;
-    out['x-principal-id'] = auth.principalId;
-    return out;
-  }
-
-  const claimedTenant = getHeaderValue(headers, 'x-nagex-tenant');
-  const claimedPrincipal = getHeaderValue(headers, 'x-principal-id');
-  const personalTenantOwner = claimedTenant && claimedTenant.startsWith('ten_') ? claimedTenant.slice(4) : undefined;
-  const namesRealAccount =
-    (claimedPrincipal !== undefined && deps.identityStore.getByUserId(claimedPrincipal) !== null) ||
-    (personalTenantOwner !== undefined && deps.identityStore.getByUserId(personalTenantOwner) !== null);
-  if (!namesRealAccount) {
-    if (claimedTenant !== undefined) out['x-nagex-tenant'] = claimedTenant;
-    if (claimedPrincipal !== undefined) out['x-principal-id'] = claimedPrincipal;
-  }
+  if (auth) VERIFIED_CALLER.set(out, { tenantId: auth.tenantId, principalId: auth.principalId, source: 'SESSION', sessionId: auth.sessionId });
   return out;
+}
+
+// Used by route-access.ts for the explicit demo allow-list only.
+export function attachDemoIdentity(headers: HeaderBag): CallerIdentity {
+  const demo: CallerIdentity = { tenantId: DEMO_TENANT_ID, principalId: DEMO_OWNER_ID, source: 'DEMO' };
+  VERIFIED_CALLER.set(headers, demo);
+  return demo;
+}
+
+export function tryGetCallerIdentity(headers: HeaderBag | undefined): CallerIdentity | null {
+  if (!headers || typeof headers !== 'object') return null;
+  return VERIFIED_CALLER.get(headers) ?? null;
+}
+
+// The ONLY way a route obtains tenant/principal. Fails closed.
+export function callerIdentity(headers: HeaderBag | undefined): CallerIdentity {
+  const caller = tryGetCallerIdentity(headers);
+  if (!caller) {
+    throw new NagexError({ code: 'AUTHENTICATION_REQUIRED', category: 'AUTHENTICATION', message: 'Sign in to continue.', request_id: 'req_auth_required' });
+  }
+  return caller;
 }

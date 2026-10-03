@@ -29,6 +29,7 @@ import { UnifiedModelRouter } from '../src/model-gateway/unified-model-router.js
 import { createProviders } from '../src/model-gateway/providers.js';
 import { generateTextPdf } from './_pdf_fixtures.js';
 import { createServerInstance, candidateStore as productionCandidateStore, handleAsyncApiRequest } from '../src/server_web.js';
+import { authAs } from './_s1_session_auth.js';
 
 function tempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-candidate-model-'));
@@ -389,7 +390,7 @@ test('23. GET /api/v1/candidates, GET /:id, POST /:id/accept, POST /:id/reject w
   const runId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const tenantId = `ten_candidate_api_${runId}`;
   const ownerId = `usr_candidate_api_${runId}`;
-  const headers = { 'x-nagex-tenant': tenantId, 'x-principal-id': ownerId };
+  const headers = authAs(tenantId, ownerId);
   const seeded = productionCandidateStore.upsert({
     tenantId, principalId: ownerId, captureId: `cap_api_seed_${runId}`,
     sourceRefs: [`capture:cap_api_seed_${runId}`], title: 'API-seeded suggestion', confidence: 0.77,
@@ -466,7 +467,7 @@ test('24. The served Inbox page has a canonical-candidate container wired to GET
     assert.match(appJs, /renderCandidateReviewQueue/);
 
     const apiRes = await fetch(`${origin}/api/v1/candidates`, {
-      headers: { 'x-nagex-tenant': tenantId, 'x-principal-id': ownerId },
+      headers: authAs(tenantId, ownerId),
     });
     const apiData = (await apiRes.json()) as { candidates: Array<{ candidateId: string; status: string }> };
     assert.ok(apiData.candidates.some((c) => c.candidateId === seeded.candidateId && c.status === 'PROPOSED'));

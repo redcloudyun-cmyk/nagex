@@ -7,7 +7,7 @@ import type { AuditLogger } from '../../governance/audit.logger.js';
 import type { IdentityStore } from '../../identity/identity.store.js';
 import type { SessionStore } from '../../sessions/session.store.js';
 import { NagexError } from '../../common/errors.js';
-import { resolveAuthenticatedIdentity } from '../request-identity.js';
+import { resolveAuthenticatedIdentity, callerIdentity, tryGetCallerIdentity } from '../request-identity.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
 
 // R24.7B — Canvas Ask dependencies. Optional so the pre-existing read routes
@@ -42,8 +42,12 @@ export const handleArtifactRoutes: AsyncRouteRegistrar<ArtifactRouteDeps> = asyn
     return handleArtifactAsk(artifactId, body, headers, deps.ask);
   }
 
-  const tenantId = String(headers['x-nagex-tenant'] || 'ten_production_01');
-  const ownerId = String(headers['x-principal-id'] || 'usr_admin_001');
+  const caller = tryGetCallerIdentity(headers);
+  // No authenticated caller: this registrar handles nothing. (route-access.ts has already answered 401
+  // for every route that requires one, so only public routes can reach a later registrar.)
+  if (!caller) return undefined;
+  const tenantId = caller.tenantId;
+  const ownerId = caller.principalId;
   if (pathname === '/api/v1/artifacts' && method === 'GET') {
     return { status: 200, data: { artifacts: deps.artifactStore.list(tenantId, ownerId, Number(query.limit) || 20) } };
   }

@@ -8,9 +8,9 @@
 // directly; it only translates HTTP <-> GmailService.
 import crypto from 'node:crypto';
 import { NagexError } from '../../common/errors.js';
-import { DEFAULT_GOOGLE_TENANT_ID } from '../../integrations/google/token.store.js';
 import type { GmailService } from '../../modules/gmail/index.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
+import { callerIdentity } from '../request-identity.js';
 
 function getHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
   const value = headers[name] ?? headers[name.toLowerCase()];
@@ -25,8 +25,8 @@ export const handleGmailRoutes: AsyncRouteRegistrar<GmailRouteDeps> = async (met
   const { gmailApiService } = deps;
 
   if (pathname === '/api/v1/tools/gmail/send-email' && method === 'POST') {
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const tenantId = callerIdentity(headers).tenantId;
+    const principalId = callerIdentity(headers).principalId;
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
     const approvalId = typeof body?.approvalId === 'string' ? body.approvalId : '';
     if (!approvalId) throw new NagexError({ code: 'APPROVAL_ID_REQUIRED', category: 'VALIDATION', message: 'approvalId is required.', request_id: requestId });
@@ -35,8 +35,8 @@ export const handleGmailRoutes: AsyncRouteRegistrar<GmailRouteDeps> = async (met
   }
 
   if (pathname === '/api/v1/tools/gmail/reply' && method === 'POST') {
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const tenantId = callerIdentity(headers).tenantId;
+    const principalId = callerIdentity(headers).principalId;
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
     const approvalId = typeof body?.approvalId === 'string' ? body.approvalId : '';
     if (!approvalId) throw new NagexError({ code: 'APPROVAL_ID_REQUIRED', category: 'VALIDATION', message: 'approvalId is required.', request_id: requestId });
@@ -45,8 +45,8 @@ export const handleGmailRoutes: AsyncRouteRegistrar<GmailRouteDeps> = async (met
   }
 
   if (pathname === '/api/v1/tools/gmail/create-draft' && method === 'POST') {
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const tenantId = callerIdentity(headers).tenantId;
+    const principalId = callerIdentity(headers).principalId;
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
     const approvalId = typeof body?.approvalId === 'string' ? body.approvalId : '';
     if (!approvalId) throw new NagexError({ code: 'APPROVAL_ID_REQUIRED', category: 'VALIDATION', message: 'approvalId is required.', request_id: requestId });
@@ -55,20 +55,20 @@ export const handleGmailRoutes: AsyncRouteRegistrar<GmailRouteDeps> = async (met
   }
 
   if (pathname === '/api/v1/tools/gmail/search' && method === 'POST') {
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+    const tenantId = callerIdentity(headers).tenantId;
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const principalId = callerIdentity(headers).principalId;
     const query = typeof body?.query === 'string' ? body.query : '';
     const result = await gmailApiService.search({ tenantId, principalId, query, requestId });
     return { status: 200, data: result };
   }
 
   if (pathname === '/api/v1/tools/gmail/read-thread' && method === 'POST') {
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+    const tenantId = callerIdentity(headers).tenantId;
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
     const threadId = typeof body?.threadId === 'string' ? body.threadId : '';
     if (!threadId) throw new NagexError({ code: 'THREAD_ID_REQUIRED', category: 'VALIDATION', message: 'threadId is required.', request_id: requestId });
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const principalId = callerIdentity(headers).principalId;
     const result = await gmailApiService.readThread({ tenantId, principalId, threadId, requestId });
     return { status: 200, data: result };
   }

@@ -5,9 +5,10 @@ import { handleAsyncApiRequest } from '../src/server_web.js';
 import { ActionStore } from '../src/workspace/action.store.js';
 import { ActionExecutionEngine } from '../src/actions/action-execution.engine.js';
 import { ActionApprovalStore } from '../src/governance/action-approval.store.js';
+import { authAs } from './_s1_session_auth.js';
 
 test('1. Calendar Create: draft -> preview -> approve -> execute -> read-back verification', async () => {
-  const headers = { 'x-nagex-tenant': 'ten_r19_test', 'x-principal-id': 'usr_r19_test' };
+  const headers = authAs('ten_r19_test', 'usr_r19_test');
 
   // Step 1: Create Draft
   const resDraft = await handleAsyncApiRequest('POST', '/api/v1/actions', {
@@ -46,7 +47,7 @@ test('1. Calendar Create: draft -> preview -> approve -> execute -> read-back ve
 });
 
 test('2. Calendar Reject: reject results in status REJECTED and zero external mutation', async () => {
-  const headers = { 'x-nagex-tenant': 'ten_r19_test', 'x-principal-id': 'usr_r19_test' };
+  const headers = authAs('ten_r19_test', 'usr_r19_test');
 
   const resDraft = await handleAsyncApiRequest('POST', '/api/v1/actions', {
     actionType: 'CALENDAR_CREATE',
@@ -69,7 +70,7 @@ test('2. Calendar Reject: reject results in status REJECTED and zero external mu
 });
 
 test('3. Calendar Update & Delete: before/after diff preview and revert lifecycle', async () => {
-  const headers = { 'x-nagex-tenant': 'ten_r19_test', 'x-principal-id': 'usr_r19_test' };
+  const headers = authAs('ten_r19_test', 'usr_r19_test');
 
   // Step 1: Create initial event action & execute
   const resDraft = await handleAsyncApiRequest('POST', '/api/v1/actions', {
@@ -99,7 +100,7 @@ test('3. Calendar Update & Delete: before/after diff preview and revert lifecycl
 });
 
 test('4. Email Send: draft -> preview -> approve -> send verification, non-reversible labeling', async () => {
-  const headers = { 'x-nagex-tenant': 'ten_r19_test', 'x-principal-id': 'usr_r19_test' };
+  const headers = authAs('ten_r19_test', 'usr_r19_test');
 
   const resDraft = await handleAsyncApiRequest('POST', '/api/v1/actions', {
     actionType: 'EMAIL_SEND',
@@ -156,7 +157,7 @@ test('5. Email Recipient Validation: invalid recipient format is rejected prior 
 });
 
 test('6. Double Execution Protection: executing completed action returns existing record without duplicating mutation', async () => {
-  const headers = { 'x-nagex-tenant': 'ten_r19_test', 'x-principal-id': 'usr_r19_test' };
+  const headers = authAs('ten_r19_test', 'usr_r19_test');
 
   const resDraft = await handleAsyncApiRequest('POST', '/api/v1/actions', {
     actionType: 'CALENDAR_CREATE',
@@ -182,7 +183,7 @@ test('6. Double Execution Protection: executing completed action returns existin
 });
 
 test('7. Booking Foundation: unsupported provider returns honest error state without fake booking', async () => {
-  const headers = { 'x-nagex-tenant': 'ten_r19_test', 'x-principal-id': 'usr_r19_test' };
+  const headers = authAs('ten_r19_test', 'usr_r19_test');
 
   const resDraft = await handleAsyncApiRequest('POST', '/api/v1/actions', {
     actionType: 'BOOKING_CREATE',
@@ -200,8 +201,8 @@ test('7. Booking Foundation: unsupported provider returns honest error state wit
 });
 
 test('8. Multi-Tenant & Foreign Access Isolation: foreign user cannot read or approve another tenant action', async () => {
-  const headersOwner = { 'x-nagex-tenant': 'ten_owner_A', 'x-principal-id': 'usr_owner_A' };
-  const headersForeign = { 'x-nagex-tenant': 'ten_attacker_B', 'x-principal-id': 'usr_attacker_B' };
+  const headersOwner = authAs('ten_owner_A', 'usr_owner_A');
+  const headersForeign = authAs('ten_attacker_B', 'usr_attacker_B');
 
   const resDraft = await handleAsyncApiRequest('POST', '/api/v1/actions', {
     actionType: 'CALENDAR_CREATE',

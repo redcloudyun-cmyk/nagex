@@ -8,6 +8,7 @@
 import type { CurrentPersonalContextService } from '../../personal/current-personal-context.service.js';
 import type { RightNowIntelligenceService } from '../../personal/right-now-intelligence.service.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
+import { callerIdentity } from '../request-identity.js';
 
 export interface PersonalContextRouteDeps {
   currentPersonalContextService: CurrentPersonalContextService;
@@ -16,8 +17,7 @@ export interface PersonalContextRouteDeps {
 }
 
 function resolveIdentity(headers: Record<string, string | string[] | undefined>): { tenantId: string; principalId: string; requestId: string } {
-  const tenantId = (Array.isArray(headers['x-nagex-tenant']) ? headers['x-nagex-tenant'][0] : headers['x-nagex-tenant']) || 'ten_production_01';
-  const principalId = (Array.isArray(headers['x-principal-id']) ? headers['x-principal-id'][0] : headers['x-principal-id']) || 'usr_admin_001';
+  const { tenantId, principalId } = callerIdentity(headers);
   const headerRequestId = headers['x-request-id'] || headers['X-Request-Id'];
   const requestId = (Array.isArray(headerRequestId) ? headerRequestId[0] : headerRequestId) || `req_ctx_${Date.now()}`;
   return { tenantId, principalId, requestId };

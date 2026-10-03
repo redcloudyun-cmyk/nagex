@@ -37,7 +37,7 @@ export class TelegramIdentityStore {
     }
   }
 
-  public link(telegramUserId: string, principalId: string, tenantId = 'ten_production_01', username?: string): TelegramIdentityLinkRecord {
+  public link(telegramUserId: string, principalId: string, tenantId: string, username?: string): TelegramIdentityLinkRecord {
     const record: TelegramIdentityLinkRecord = {
       telegramUserId,
       principalId,
@@ -50,13 +50,14 @@ export class TelegramIdentityStore {
     return record;
   }
 
-  public resolve(telegramUserId: string, defaultTenantId = 'ten_production_01'): { principalId: string; tenantId: string } {
+  public resolve(telegramUserId: string): { principalId: string; tenantId: string } {
     const existing = this.records.get(telegramUserId);
     if (existing) {
       return { principalId: existing.principalId, tenantId: existing.tenantId };
     }
-    // Fallback default resolution: bind to default principal or telegram principal
-    return { principalId: `usr_telegram_${telegramUserId}`, tenantId: defaultTenantId };
+    // S1: an unlinked Telegram user is its OWN isolated principal AND tenant — never the default
+    // tenant, never anyone's account. It can only ever see data it created itself.
+    return { principalId: `usr_telegram_${telegramUserId}`, tenantId: `ten_telegram_${telegramUserId}` };
   }
 
   public get(telegramUserId: string): TelegramIdentityLinkRecord | undefined {

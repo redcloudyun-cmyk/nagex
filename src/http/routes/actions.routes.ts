@@ -1,8 +1,8 @@
 // R19 — Action HTTP Route Module
-import { DEFAULT_GOOGLE_TENANT_ID } from '../../integrations/google/token.store.js';
 import type { ActionStore } from '../../workspace/action.store.js';
 import type { ActionExecutionEngine } from '../../actions/action-execution.engine.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
+import { callerIdentity, tryGetCallerIdentity } from '../request-identity.js';
 
 function getHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
   const value = headers[name] ?? headers[name.toLowerCase()];
@@ -23,8 +23,12 @@ export const handleActionsRoutes: AsyncRouteRegistrar<ActionRouteDeps> = async (
   deps
 ): Promise<ApiResult | undefined> => {
   const { actionStore, actionEngine } = deps;
-  const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-  const userId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+  const caller = tryGetCallerIdentity(headers);
+  // No authenticated caller: this registrar handles nothing. (route-access.ts has already answered 401
+  // for every route that requires one, so only public routes can reach a later registrar.)
+  if (!caller) return undefined;
+  const tenantId = caller.tenantId;
+  const userId = caller.principalId;
 
   if (pathname === '/api/v1/actions' && method === 'GET') {
     const items = actionStore.listActions(tenantId, userId);

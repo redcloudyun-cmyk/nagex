@@ -36,6 +36,7 @@ import { AuditLogger } from '../src/governance/audit.logger.js';
 import { NagexError } from '../src/common/errors.js';
 import type { AiService } from '../src/model-gateway/ai-service.js';
 import { handleApiRequest, handleAsyncApiRequest } from '../src/server_web.js';
+import { authAs } from './_s1_session_auth.js';
 
 function tempDir(prefix: string): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), `nagex-wf-${prefix}-`));
@@ -411,8 +412,8 @@ test('20. TaskRecord.workflowDefinitionId is set correctly and is traceability-o
 
 // ── HTTP route wiring smoke tests ────────────────────────────────────────
 
-const WF_HEADERS_A = { 'x-nagex-tenant': 'ten_wf_http_a', 'x-principal-id': 'usr_wf_http' };
-const WF_HEADERS_B = { 'x-nagex-tenant': 'ten_wf_http_b', 'x-principal-id': 'usr_wf_http' };
+const WF_HEADERS_A = authAs('ten_wf_http_a', 'usr_wf_http');
+const WF_HEADERS_B = authAs('ten_wf_http_b', 'usr_wf_http');
 
 test('HTTP: full CRUD lifecycle is reachable and tenant/owner-scoped', async () => {
   const created = await handleApiRequest('POST', '/api/v1/workflows', { name: 'HTTP Workflow', description: 'd', steps: [stepInput()] }, WF_HEADERS_A);

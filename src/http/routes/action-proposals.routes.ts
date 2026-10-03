@@ -10,7 +10,6 @@
 // directly, only through that one existing function.
 import crypto from 'node:crypto';
 import { NagexError } from '../../common/errors.js';
-import { DEFAULT_GOOGLE_TENANT_ID } from '../../integrations/google/token.store.js';
 import { dailyBriefDateKey } from '../../governance/daily-brief.store.js';
 import { executeActionProposal } from '../../assistant/action-proposal-executor.js';
 import type { ActionProposalStore } from '../../assistant/action-proposal.store.js';
@@ -18,6 +17,7 @@ import type { TaskStore } from '../../tasks/task.store.js';
 import type { GoogleCalendarService } from '../../modules/calendar/index.js';
 import type { ActivityStore } from '../../governance/activity.store.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
+import { callerIdentity } from '../request-identity.js';
 
 function getHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
   const value = headers[name] ?? headers[name.toLowerCase()];
@@ -35,15 +35,15 @@ export const handleActionProposalsRoutes: AsyncRouteRegistrar<ActionProposalsRou
   const { actionProposalStore, taskStore, calendarService, activityStore } = deps;
 
   if (pathname === '/api/v1/action-proposals' && method === 'GET') {
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const tenantId = callerIdentity(headers).tenantId;
+    const principalId = callerIdentity(headers).principalId;
     const date = typeof query.date === 'string' && query.date ? query.date : dailyBriefDateKey();
     return { status: 200, data: { proposals: actionProposalStore.listForDate(tenantId, principalId, date) } };
   }
 
   if (pathname.startsWith('/api/v1/action-proposals/') && (pathname.endsWith('/approve') || pathname.endsWith('/reject') || pathname.endsWith('/execute')) && method === 'POST') {
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const tenantId = callerIdentity(headers).tenantId;
+    const principalId = callerIdentity(headers).principalId;
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_proposal_${crypto.randomUUID()}`;
     const action = pathname.endsWith('/approve') ? 'approve' : pathname.endsWith('/reject') ? 'reject' : 'execute';
     const proposalId = pathname.slice('/api/v1/action-proposals/'.length, pathname.length - `/${action}`.length);

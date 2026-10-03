@@ -15,10 +15,11 @@
 // documented exception (see tests/http_route_modularization.test.ts).
 import crypto from 'node:crypto';
 import { NagexError } from '../../common/errors.js';
-import { DEFAULT_GOOGLE_TENANT_ID, googleTokenStore } from '../../integrations/google/token.store.js';
+import { googleTokenStore } from '../../integrations/google/token.store.js';
 import { readGoogleOAuthConfig } from '../../integrations/google/oauth.client.js';
 import { queryFreeBusy, computeFreeSlots, type GoogleCalendarService } from '../../modules/calendar/index.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
+import { callerIdentity } from '../request-identity.js';
 
 function getHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
   const value = headers[name] ?? headers[name.toLowerCase()];
@@ -33,8 +34,8 @@ export const handleCalendarRoutes: AsyncRouteRegistrar<CalendarRouteDeps> = asyn
   const { calendarService } = deps;
 
   if (pathname === '/api/v1/tools/google-calendar/create-event' && method === 'POST') {
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const tenantId = callerIdentity(headers).tenantId;
+    const principalId = callerIdentity(headers).principalId;
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
     const approvalId = typeof body?.approvalId === 'string' ? body.approvalId : '';
     if (!approvalId) throw new NagexError({ code: 'APPROVAL_ID_REQUIRED', category: 'VALIDATION', message: 'approvalId is required.', request_id: requestId });
@@ -43,8 +44,8 @@ export const handleCalendarRoutes: AsyncRouteRegistrar<CalendarRouteDeps> = asyn
   }
 
   if (pathname === '/api/v1/tools/google-calendar/update-event' && method === 'POST') {
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const tenantId = callerIdentity(headers).tenantId;
+    const principalId = callerIdentity(headers).principalId;
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
     const approvalId = typeof body?.approvalId === 'string' ? body.approvalId : '';
     if (!approvalId) throw new NagexError({ code: 'APPROVAL_ID_REQUIRED', category: 'VALIDATION', message: 'approvalId is required.', request_id: requestId });
@@ -53,8 +54,8 @@ export const handleCalendarRoutes: AsyncRouteRegistrar<CalendarRouteDeps> = asyn
   }
 
   if (pathname === '/api/v1/tools/google-calendar/cancel-event' && method === 'POST') {
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const tenantId = callerIdentity(headers).tenantId;
+    const principalId = callerIdentity(headers).principalId;
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
     const approvalId = typeof body?.approvalId === 'string' ? body.approvalId : '';
     if (!approvalId) throw new NagexError({ code: 'APPROVAL_ID_REQUIRED', category: 'VALIDATION', message: 'approvalId is required.', request_id: requestId });
@@ -63,8 +64,8 @@ export const handleCalendarRoutes: AsyncRouteRegistrar<CalendarRouteDeps> = asyn
   }
 
   if (pathname === '/api/v1/tools/google-calendar/respond-to-event' && method === 'POST') {
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const tenantId = callerIdentity(headers).tenantId;
+    const principalId = callerIdentity(headers).principalId;
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
     const approvalId = typeof body?.approvalId === 'string' ? body.approvalId : '';
     if (!approvalId) throw new NagexError({ code: 'APPROVAL_ID_REQUIRED', category: 'VALIDATION', message: 'approvalId is required.', request_id: requestId });
@@ -73,9 +74,9 @@ export const handleCalendarRoutes: AsyncRouteRegistrar<CalendarRouteDeps> = asyn
   }
 
   if (pathname === '/api/v1/tools/google-calendar/free-slots' && method === 'POST') {
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+    const tenantId = callerIdentity(headers).tenantId;
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
-    const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+    const principalId = callerIdentity(headers).principalId;
     const config = readGoogleOAuthConfig();
     const accessToken = config ? await googleTokenStore.getValidAccessTokenForPrincipal(tenantId, principalId, config, fetch, requestId) : null;
     if (!accessToken) throw new NagexError({ code: 'GOOGLE_CALENDAR_DISCONNECTED', category: 'POLICY', message: 'Google Calendar is not connected.', request_id: requestId });
@@ -87,10 +88,10 @@ export const handleCalendarRoutes: AsyncRouteRegistrar<CalendarRouteDeps> = asyn
   }
 
   if (pathname === '/api/v1/calendar/upcoming' && method === 'GET') {
-    const tenantId = getHeaderValue(headers, 'x-nagex-tenant') || DEFAULT_GOOGLE_TENANT_ID;
+    const tenantId = callerIdentity(headers).tenantId;
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
     try {
-      const principalId = getHeaderValue(headers, 'x-principal-id') || 'usr_admin_001';
+      const principalId = callerIdentity(headers).principalId;
       const config = readGoogleOAuthConfig();
       const accessToken = config ? await googleTokenStore.getValidAccessTokenForPrincipal(tenantId, principalId, config, fetch, requestId) : null;
       if (!accessToken) {

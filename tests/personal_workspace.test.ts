@@ -7,6 +7,7 @@ import { CaptureStore } from '../src/workspace/capture.store.js';
 import { QuickCaptureService } from '../src/workspace/quick-capture.service.js';
 import { handleAsyncApiRequest } from '../src/server_web.js';
 import { generateTextPdf } from './_pdf_fixtures.js';
+import { authAs } from './_s1_session_auth.js';
 
 function createTempStore(): { store: CaptureStore; service: QuickCaptureService; cleanup: () => void } {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-test-workspace-'));
@@ -121,7 +122,7 @@ test('QuickCaptureService: getInboxSummary and getVaultSummary aggregate items t
 });
 
 test('REST API routes: /api/v1/workspace/capture, /inbox, /vault, and /capture/:id', async () => {
-  const headers = { 'x-nagex-tenant': 'ten_production_01', 'x-principal-id': 'usr_rest_test' };
+  const headers = authAs('ten_production_01', 'usr_rest_test');
 
   // 1. POST /api/v1/workspace/capture
   const created = await handleAsyncApiRequest(
