@@ -119,7 +119,8 @@
       "r24_6b_settings_persistence",
       "r24_6c_settings_identity_boundary",
       "r24_6c1_dev_auth_token_containment",
-      "r24_7b_canvas_ask"
+      "r24_7b_canvas_ask",
+      "r24_8b_plan_integrity"
     ],
     "personal-home": [
       "m6_1_mobile_release_blockers",
@@ -262,7 +263,8 @@
       "r23_7h_c_phase_d4_geometry_locked_clone",
       "r23_7_i18n_visible_keys",
       "r24_6d_settings_surface",
-      "r24_7b_canvas_ask_contract"
+      "r24_7b_canvas_ask_contract",
+      "r24_8b_ui_integrity_contract"
     ],
     "knowledge": [
       "r24_5c_knowledge_live"
@@ -378,6 +380,7 @@
     "r24_6c1_auth_token_browser",
     "r24_6d_settings_surface_browser",
     "r24_7b_canvas_ask_browser",
-    "r24_7b_canvas_ask_live"
+    "r24_7b_canvas_ask_live",
+    "r24_8b_entry_truthful_ui_browser"
   ]
 }

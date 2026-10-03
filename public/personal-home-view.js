@@ -530,6 +530,10 @@
       askError: 'NAgex could not answer right now. Try again.', askNetworkError: 'Could not reach NAgex. Check your connection and try again.', askTimeout: 'This took too long and was cancelled. Try again.',
       askNotFound: 'This artifact could not be found.', askContextUnavailable: 'The saved content of this artifact is not available right now.', askInvalidQuestion: 'Enter a question of up to 2000 characters.',
       askModelUnavailable: 'NAgex cannot answer right now because no model is available.', askNoArtifact: 'Open an artifact first.',
+      creationNetworkError: 'Could not reach NAgex. Check your connection and try again.',
+      reportModelUnavailable: 'NAgex cannot write reports right now because no model is available.', reportFailed: "NAgex couldn't generate that report. Please try again.",
+      researchSearchUnavailable: 'NAgex cannot research that right now because live web search is unavailable.', researchNoVerifiedSources: 'No verified sources were found for that question, so NAgex did not produce a research answer.',
+      researchModelUnavailable: 'NAgex cannot research that right now because no model is available.', researchFailed: "NAgex couldn't complete that research. Please try again.",
       justNow: 'Just now', minutesAgo: (n) => `${n} min ago`, hoursAgo: (n) => `${n} hour${n === 1 ? '' : 's'} ago`, daysAgo: (n) => `${n} day${n === 1 ? '' : 's'} ago`,
     },
     ko: {
@@ -558,6 +562,10 @@
       askError: '지금은 NAgex가 답할 수 없어요. 다시 시도해 주세요.', askNetworkError: 'NAgex에 연결하지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요.', askTimeout: '시간이 너무 오래 걸려 취소되었어요. 다시 시도해 주세요.',
       askNotFound: '이 아티팩트를 찾을 수 없어요.', askContextUnavailable: '이 아티팩트의 저장된 내용을 지금은 불러올 수 없어요.', askInvalidQuestion: '2000자 이내로 질문을 입력해 주세요.',
       askModelUnavailable: '사용할 수 있는 모델이 없어 지금은 답할 수 없어요.', askNoArtifact: '먼저 아티팩트를 열어 주세요.',
+      creationNetworkError: 'NAgex에 연결하지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요.',
+      reportModelUnavailable: '사용할 수 있는 모델이 없어 지금은 보고서를 작성할 수 없어요.', reportFailed: '보고서를 생성하지 못했어요. 다시 시도해 주세요.',
+      researchSearchUnavailable: '실시간 웹 검색을 사용할 수 없어 지금은 조사할 수 없어요.', researchNoVerifiedSources: '이 질문에 대해 확인된 출처를 찾지 못해서 리서치 답변을 만들지 않았어요.',
+      researchModelUnavailable: '사용할 수 있는 모델이 없어 지금은 조사할 수 없어요.', researchFailed: '리서치를 완료하지 못했어요. 다시 시도해 주세요.',
       justNow: '방금 전', minutesAgo: (n) => `${n}분 전`, hoursAgo: (n) => `${n}시간 전`, daysAgo: (n) => `${n}일 전`,
     },
   };
@@ -915,7 +923,9 @@
       return;
     }
     if (id === 'REPORT') {
-      const input = document.getElementById(window.matchMedia && window.matchMedia('(max-width: 768px)').matches ? 'mh-command-input' : 'home-prompt-input');
+      // R24.8B — on Desktop the Home composer is intentionally hidden; the Report flow starts in the visible Ask sheet.
+      if (!isMobileViewport() && window.NAGEX.openAsk) { window.NAGEX.openAsk('REPORT'); return; }
+      const input = document.getElementById('mh-command-input');
       if (!input) return;
       input.dataset.creationMode = 'REPORT';
       input.value = '';
@@ -935,7 +945,10 @@
     if (!result || result.error) return result;
     cachedPromise = null;
     if (result.artifactId) {
-      window.NAGEX.openArtifactInCanvas(result.artifactId, 'DOCUMENT', undefined, result.openTarget, null);
+      // Open with the REAL projection (title, Ask support) from the artifact endpoint, not an empty one.
+      const art = await window.NAGEX.apiFetch('/api/v1/artifacts/' + encodeURIComponent(result.artifactId));
+      const projection = art && art.projection && art.projection.artifactId === result.artifactId ? art.projection : null;
+      window.NAGEX.openArtifactInCanvas(result.artifactId, 'DOCUMENT', projection ? projection.canvasTarget : undefined, result.openTarget, projection);
     }
     return result;
   }
@@ -946,7 +959,9 @@
       if (fileInput) fileInput.click();
       return;
     }
-    const input = document.getElementById(window.matchMedia && window.matchMedia('(max-width: 768px)').matches ? 'mh-command-input' : 'home-prompt-input');
+    // R24.8B — Desktop: the visible Ask sheet (the Home composer is hidden by design); Mobile: its composer.
+    if (!isMobileViewport() && window.NAGEX.openAsk) { window.NAGEX.openAsk('RESEARCH'); return; }
+    const input = document.getElementById('mh-command-input');
     if (!input) return;
     input.dataset.creationMode = 'RESEARCH';
     input.value = '';
@@ -954,15 +969,33 @@
     input.focus();
   }
 
-  async function submitResearch(query) {
+  async function submitResearch(query, opts) {
     const result = await window.NAGEX.apiFetch('/api/v1/research', { method: 'POST', body: JSON.stringify({ query }) });
-    if (!result || result.error || result.status === 'UNAVAILABLE') return result;
+    // A response with a `status` means the server could not ground an answer (no live search / no verified sources).
+    if (!result || result.error || result.status) return result;
     cachedPromise = null;
     const model = await fetchHome(true);
     renderDesktop(model);
     renderMobile(model);
-    window.alert(result.answer || (locale() === 'ko' ? '리서치가 완료되었습니다.' : 'Research completed.'));
+    if (!(opts && opts.quiet)) window.alert(result.answer || (locale() === 'ko' ? '리서치가 완료되었습니다.' : 'Research completed.'));
     return result;
+  }
+
+  // R24.8B — one truthful, localized explanation for a failed Report/Research request (null = it succeeded).
+  // Both entry surfaces (Desktop Ask sheet, Mobile composer) show this text; nothing is ever reported as done on failure.
+  const UNAVAILABLE_CODES = new Set(['UNAVAILABLE', 'NO_MODEL_PROVIDER_CONFIGURED', 'PROVIDER_UNAVAILABLE', 'ALL_MODEL_PROVIDERS_FAILED', 'MODEL_PROVIDER_NOT_REGISTERED']);
+  function explainCreationFailure(kind, result) {
+    const c = COPY[locale()];
+    if (!result) return c.creationNetworkError;
+    const code = typeof result.error === 'string' ? result.error : (result.error && result.error.code) || '';
+    if (kind === 'RESEARCH') {
+      if (result.status === 'UNAVAILABLE') return c.researchSearchUnavailable;
+      if (result.status) return c.researchNoVerifiedSources;
+      if (code) return UNAVAILABLE_CODES.has(code) ? c.researchModelUnavailable : c.researchFailed;
+      return null;
+    }
+    if (code) return UNAVAILABLE_CODES.has(code) ? c.reportModelUnavailable : c.reportFailed;
+    return null;
   }
 
   function renderDesktop(model) {
@@ -992,5 +1025,5 @@
     const suggestions = document.getElementById('mh-section-suggestions'); if (suggestions) suggestions.hidden = true;
   }
 
-  window.NAGEX_PERSONAL_HOME = Object.freeze({ STATES, normalize, fetchHome, renderDesktop, renderMobile, submitResearch, submitReport, invalidate: () => { cachedPromise = null; } });
+  window.NAGEX_PERSONAL_HOME = Object.freeze({ STATES, normalize, fetchHome, renderDesktop, renderMobile, submitResearch, submitReport, explainCreationFailure, invalidate: () => { cachedPromise = null; } });
 })();

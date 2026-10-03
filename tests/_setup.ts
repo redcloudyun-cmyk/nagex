@@ -156,6 +156,9 @@ if (!alreadyOwnedByThisProcess) {
   // concurrent seeds (or one failed run's leftovers) made it fail "vaultItems 4 vs 2"
   // and littered real data. Same fix pattern as the R16 identity dirs above.
   process.env.NAGEX_VAULT_DIR = path.join(dataRoot, 'vault');
+  // R24.8B — PlanStore's default dir was never redirected either: tests that exercise the real
+  // /api/v1/plans routes with real sessions would otherwise write plans into the developer's real data dir.
+  process.env.NAGEX_PLANS_DIR = path.join(dataRoot, 'plans');
 }
 
 process.env.NODE_ENV ??= 'test';

@@ -145,7 +145,7 @@
     target.hidden = false;
     const proj = recent.artifactProjection;
     const isKo = window.NAGEX_I18N && window.NAGEX_I18N.getLocale() === 'ko';
-    const heading = isKo ? '?댁뼱???묒뾽?섍린' : 'Continue working';
+    const heading = isKo ? '이어서 작업하기' : 'Continue working';
     const thumbHtml = window.NAGEX.renderArtifactThumbnail(proj) || '';
     target.innerHTML = `
       <div class="mh-card-header"><h2>${escapeHtml(heading)}</h2></div>
@@ -263,10 +263,20 @@
         if (!text) return;
         if (input.dataset.creationMode === 'RESEARCH' && window.NAGEX_PERSONAL_HOME) {
           const result = await window.NAGEX_PERSONAL_HOME.submitResearch(text);
-          if (result && !result.error && result.status !== 'UNAVAILABLE') {
-            input.value = '';
-            delete input.dataset.creationMode;
-          }
+          // R24.8B — a failed research request is explained (it used to fail silently); the text stays for a retry.
+          const failure = window.NAGEX_PERSONAL_HOME.explainCreationFailure('RESEARCH', result);
+          if (failure) { window.alert(failure); return; }
+          input.value = '';
+          delete input.dataset.creationMode;
+          return;
+        }
+        // R24.8B — the REPORT tile sets this mode; it used to be ignored here (the request fell through to general Ask).
+        if (input.dataset.creationMode === 'REPORT' && window.NAGEX_PERSONAL_HOME) {
+          const result = await window.NAGEX_PERSONAL_HOME.submitReport(text);
+          const failure = window.NAGEX_PERSONAL_HOME.explainCreationFailure('REPORT', result);
+          if (failure) { window.alert(failure); return; }
+          input.value = '';
+          delete input.dataset.creationMode;
           return;
         }
         input.value = '';

@@ -179,7 +179,8 @@ test('R21 P0.1C real browser: ambient assistant research/meeting/calendar-approv
       await page.waitForSelector('#ambient-surfaced-context', { state: 'visible', timeout: 15000 });
 
       const taskTitle = await page.textContent('#ambient-task-display-title');
-      assert.equal(taskTitle?.trim(), 'Preparing your client meeting');
+      // R24.8B — headline now states only what is true (a plan is being prepared; nothing has been scheduled), instead of claiming the meeting itself is being prepared.
+      assert.equal(taskTitle?.trim(), 'Preparing a plan for your client meeting');
 
       await captureScreenshotEvidence(page);
       await page.close();

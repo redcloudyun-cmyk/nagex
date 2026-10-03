@@ -3393,6 +3393,22 @@ body {
 .canvas-ask-answer[data-ask-state="error"] .canvas-ask-status,
 .canvas-ask-answer[data-ask-state="auth"] .canvas-ask-status { color: #b45309; }
 .canvas-ask-field:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* R24.8B — Ask sheet: progress / error / result area for Report and Research requests. */
+.ambient-creation-status {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.ambient-creation-status[hidden] { display: none; }
+.ambient-creation-status[data-state="error"] { color: #b45309; background: #fffbeb; border-color: rgba(180, 83, 9, 0.35); }
+.ambient-creation-status ul { margin: 6px 0 0 18px; padding: 0; }
+.ambient-creation-status-text { margin: 0 0 6px; white-space: pre-wrap; }
 /* R24.7B — the fixed bottom-right Quick Wake button (56px + 24px margin) sat on top
    of the Focus Canvas Agent's Send button, making Ask impossible to click with a
    pointer. Reserve that corner inside the Focus Agent chat panel (layout only). */

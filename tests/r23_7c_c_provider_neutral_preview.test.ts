@@ -189,7 +189,11 @@ async function renderHomeAndGetText(port: number, width: number, height: number)
     const page = await browser.newPage({ viewport: { width, height } });
     await page.goto(`http://127.0.0.1:${port}/`);
     const root = width <= 768 ? '#mobile-view-home' : '#view-home';
-    await page.waitForFunction((selector: string) => document.querySelectorAll(`${selector} [data-home-section]`).length >= 5, root, { timeout: 15000 });
+    // Readiness = the state this test actually needs: the generated image's Recent Creations entry is rendered in this
+    // viewport's Home. (It used to wait for >= 5 [data-home-section] elements, an arbitrary count that stopped matching
+    // once Home legitimately hides empty sections: the canonical Mobile Home renders 4 here.) The provider-identity
+    // assertions on the rendered text are unchanged.
+    await page.waitForFunction((selector: string) => document.querySelectorAll(`${selector} [data-home-section="recent-creations"] .ph-item`).length >= 1, root, { timeout: 15000 });
     const text = await page.locator(root).innerText();
     await page.close();
     return text;

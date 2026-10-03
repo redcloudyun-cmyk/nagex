@@ -1,5 +1,18 @@
 import { FileRecordStore, resolveNagexDataDir } from '../governance/file-record.store.js';
-import type { ResolvedPlanStep } from './plan-resolver.js';
+import type { PlanStepNecessity } from '../model-gateway/ai-service.js';
+
+// R24.8B — what a stored plan keeps per step: DESCRIPTIVE content only. Resolver-derived and execution
+// state (resolved tool/skill ids, readiness, approval flags, results, parameters) is never persisted from a
+// client and is not part of this shape (legacy records may still carry extra fields on disk; they are ignored).
+export interface StoredPlanStep {
+  step: number;
+  title: string;
+  reasoning?: string;
+  skill?: string;
+  tool?: string;
+  necessity: PlanStepNecessity;
+  dependsOn: number[];
+}
 
 export interface PersistedPlan {
   id: string;
@@ -8,7 +21,7 @@ export interface PersistedPlan {
   title: string;
   originalPrompt: string;
   status: 'DRAFT' | 'READY' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'FAILED';
-  steps: ResolvedPlanStep[];
+  steps: StoredPlanStep[];
   createdAt: string;
   updatedAt: string;
 }

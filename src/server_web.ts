@@ -726,7 +726,7 @@ export function handleApiRequest(
   }
 
   {
-    const planResult = handlePlanRoutes(method, pathname, body, headers, {}, {});
+    const planResult = handlePlanRoutes(method, pathname, body, headers, {}, { sessionStore, identityStore });
     if (planResult) return planResult;
 
     const catalogResult = handleCatalogRoutes(method, pathname, body, headers, {}, {});

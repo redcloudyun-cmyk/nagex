@@ -79,6 +79,15 @@ async function withBrowserPage(origin: string, run: (page: Page) => Promise<void
   }
 }
 
+// R24.8B — the composer under test is the VISIBLE Ask sheet (#ambient-prompt-input / #btn-ambient-run), reached from the
+// header "Search anything or ask NAgex…" control. The Home composer (#home-prompt-input) is hidden by design on Desktop;
+// the same recovery guarantees (disabled while in flight, re-enabled after the bounded timeout, accepts real input
+// again, can start a fresh generation) are asserted against the control a user can actually reach.
+async function openAskSheet(page: Page): Promise<void> {
+  await page.click('#btn-header-search');
+  await page.waitForSelector('#ambient-prompt-input', { state: 'visible' });
+}
+
 async function waitForComposerDisabledState(
   page: Page,
   expectedDisabled: boolean,
@@ -97,7 +106,7 @@ async function waitForComposerDisabledState(
   try {
     await page.waitForFunction(
       (target) => {
-        const input = document.getElementById('home-prompt-input') as HTMLTextAreaElement | null;
+        const input = document.getElementById('ambient-prompt-input') as HTMLTextAreaElement | null;
         return input ? input.disabled === target : false;
       },
       expectedDisabled,
@@ -105,8 +114,8 @@ async function waitForComposerDisabledState(
     );
   } catch (err) {
     const diag = await page.evaluate(() => {
-      const input = document.getElementById('home-prompt-input') as HTMLTextAreaElement | null;
-      const sendBtn = document.getElementById('btn-home-prompt-send') as HTMLButtonElement | null;
+      const input = document.getElementById('ambient-prompt-input') as HTMLTextAreaElement | null;
+      const sendBtn = document.getElementById('btn-ambient-run') as HTMLButtonElement | null;
       const quickActions = Array.from(document.querySelectorAll('.quick-action-chip')).map((el) => ({
         text: (el as HTMLElement).innerText?.trim(),
         disabled: (el as HTMLButtonElement).disabled,
@@ -149,34 +158,39 @@ test('a stalled ambient/intent request recovers: composer, Send, and Quick Actio
         await new Promise(() => {});
       });
 
-      // 1-2. Load Home, type into the composer.
-      await page.fill('#home-prompt-input', 'diagnose the hang bug');
-      assert.equal(await page.$eval('#home-prompt-input', (el) => (el as HTMLTextAreaElement).disabled), false);
+      // 1-2. Open the Ask sheet, type into its composer.
+      await openAskSheet(page);
+      await page.fill('#ambient-prompt-input', 'diagnose the hang bug');
+      assert.equal(await page.$eval('#ambient-prompt-input', (el) => (el as HTMLTextAreaElement).disabled), false);
 
       // 5. Submit.
-      await page.click('#btn-home-prompt-send');
+      await page.click('#btn-ambient-run');
 
       // 6. Assert textarea becomes disabled while the request is active.
       await waitForComposerDisabledState(page, true, 45000, 'Test 1: Wait for disabled===true on submit');
 
-      const sendDisabledWhileInFlight = await page.$eval('#btn-home-prompt-send', (el) => (el as HTMLButtonElement).disabled);
+      const sendDisabledWhileInFlight = await page.$eval('#btn-ambient-run', (el) => (el as HTMLButtonElement).disabled);
       assert.equal(sendDisabledWhileInFlight, true, 'Send control must be disabled while the request is in flight');
 
       // 7-8. Wait for timeout + a real margin, then assert recovery.
       await waitForComposerDisabledState(page, false, TEST_TIMEOUT_MS + 45000, 'Test 1: Wait for disabled===false after timeout');
 
-      const sendDisabledAfterTimeout = await page.$eval('#btn-home-prompt-send', (el) => (el as HTMLButtonElement).disabled);
+      const sendDisabledAfterTimeout = await page.$eval('#btn-ambient-run', (el) => (el as HTMLButtonElement).disabled);
       assert.equal(sendDisabledAfterTimeout, false, 'Send control must recover once the request settles via timeout');
+      // Quick Action chips (kept in the DOM even though the Home entry card is hidden on Desktop) must not stay disabled either.
+      const disabledQuickActions = await page.$$eval('.quick-action-chip', (els: any[]) => els.filter((el) => (el as HTMLButtonElement).disabled).length);
+      assert.equal(disabledQuickActions, 0, 'no Quick Action chip may remain disabled after the timeout recovery');
 
       await page.click('#btn-close-ambient');
 
-      // 9-11. Focus textarea, type new text, assert it is actually present.
-      await page.click('#home-prompt-input');
+      // 9-11. Reopen the sheet, focus its input, type new text, assert it is actually present.
+      await openAskSheet(page);
+      await page.click('#ambient-prompt-input');
       await page.keyboard.type('can I type now');
-      const valueAfterRecovery = await page.$eval('#home-prompt-input', (el) => (el as HTMLTextAreaElement).value);
+      const valueAfterRecovery = await page.$eval('#ambient-prompt-input', (el) => (el as HTMLTextAreaElement).value);
       assert.equal(valueAfterRecovery, 'can I type now');
 
-      // Quick Action controls must also be usable again.
+      // Sending must be usable again (a fresh generation can start once the guard was released by the timeout).
       let secondAmbientRequestSeen = false;
       await page.unroute('**/api/v1/ambient/intent');
       await page.route('**/api/v1/ambient/intent', async (route) => {
@@ -193,12 +207,12 @@ test('a stalled ambient/intent request recovers: composer, Send, and Quick Actio
           }),
         });
       });
-      await page.locator('.quick-action-chip').first().click();
+      await page.click('#btn-ambient-run');
       await page.waitForTimeout(500);
       assert.equal(
         secondAmbientRequestSeen,
         true,
-        'a Quick Action chip must be able to start a fresh generation once the guard was released by the timeout'
+        'the Ask sheet must be able to start a fresh generation once the guard was released by the timeout'
       );
     });
   });
@@ -234,8 +248,9 @@ test('a normal, responding ambient/intent request is unaffected by the new timeo
         });
       });
 
-      await page.fill('#home-prompt-input', 'plan my day');
-      await page.click('#btn-home-prompt-send');
+      await openAskSheet(page);
+      await page.fill('#ambient-prompt-input', 'plan my day');
+      await page.click('#btn-ambient-run');
 
       // Must disable promptly on submit (unchanged pre-existing behavior).
       // The mocked response is still being held open at this point, so

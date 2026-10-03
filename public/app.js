@@ -71,6 +71,8 @@
   // see public/modal-behavior.js for why this is a small state machine
   // rather than a single `document.body.style.overflow = ''` on close.
   let ambientModalTriggerElement = null;
+  // R24.8B — 'REPORT' | 'RESEARCH' when the Ask overlay was opened from a Create tile; null for general Ask.
+  let ambientCreationMode = null;
   let ambientModalKeydownHandler = null;
   const ambientBodyScrollLock = window.NAGEX_MODAL_BEHAVIOR ? window.NAGEX_MODAL_BEHAVIOR.createScrollLock() : null;
   // Guards the activity timeline against logging the same lifecycle event
@@ -2035,7 +2037,7 @@
 
     const plans = state.plans || [];
     if (plans.length === 0) {
-      container.innerHTML = `<div class="empty-state-text">${escapeHtml(t('workspace.noPlansYet') || 'No active plans.')}</div>`;
+      container.innerHTML = `<div class="empty-state-text">${escapeHtml(t('workspace.noPlansYet'))}</div>`;
       return;
     }
 
@@ -2313,8 +2315,11 @@
     const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
 
     const approvals = state.approvals || [];
+    // R24.8B — the count is the REAL number of pending approvals (was a hardcoded "Pending (2)").
+    const countLabel = document.getElementById('approvals-count-label');
+    if (countLabel) countLabel.textContent = `${t('approvals.pendingLabel')} (${approvals.filter((a) => a.status === 'PENDING').length})`;
     if (approvals.length === 0) {
-      container.innerHTML = `<div class="empty-state-text">${escapeHtml(t('workspace.noApprovalsPending') || 'No approvals pending.')}</div>`;
+      container.innerHTML = `<div class="empty-state-text">${escapeHtml(t('workspace.noApprovalsPending'))}</div>`;
       return;
     }
 
@@ -2480,7 +2485,7 @@
         <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.4rem;">
           <span style="font-size:0.72rem; color:var(--text-muted);">${escapeHtml(time)}</span>
           <button id="activity-btn-${aid}" class="btn-secondary activity-expand-btn" aria-expanded="false" style="font-size:0.7rem; padding: 2px 6px;" onclick="window.NAGEX.toggleActivityDetail('${aid}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.NAGEX.toggleActivityDetail('${aid}');}">
-            ${escapeHtml(t('workspace.reviewDetails') || 'Details')}
+            ${escapeHtml(t('workspace.reviewDetails'))}
           </button>
         </div>
         <div id="activity-detail-${aid}" class="activity-detail-panel" hidden style="margin-top:0.5rem; padding-top:0.5rem; border-top:1px dashed var(--border-subtle); font-size:0.75rem;">
@@ -3043,6 +3048,9 @@
     const btnVoice = document.getElementById('btn-ambient-voice-toggle');
     const backdrop = document.getElementById('ambient-overlay-backdrop');
 
+    // R24.8B — the header "Search anything or ask NAgex…" control opens the same Ask sheet as Quick Wake.
+    const btnSearch = document.getElementById('btn-header-search');
+    if (btnSearch) btnSearch.onclick = () => openAmbientOverlay();
     if (btnFloat) btnFloat.onclick = () => openAmbientOverlay();
     if (btnHeader) btnHeader.onclick = () => openAmbientOverlay();
     // X button and footer "Close" button: both only ever dismiss the UI —
@@ -3096,6 +3104,10 @@
     if (!input) return;
     const text = input.value.trim();
     if (!text) return;
+    if (ambientCreationMode) {
+      submitAmbientCreation(ambientCreationMode, text);
+      return;
+    }
     input.value = '';
     // Focus is restored once runAmbientTask finishes and re-enables the
     // controls (see its `finally` block) — focusing here would be a no-op,
@@ -3103,7 +3115,8 @@
     runAmbientTask(text);
   }
 
-  function openAmbientOverlay() {
+  function openAmbientOverlay(creationMode) {
+    ambientCreationMode = creationMode === 'REPORT' || creationMode === 'RESEARCH' ? creationMode : null;
     const backdrop = document.getElementById('ambient-overlay-backdrop');
     const modal = document.getElementById('ambient-sheet-modal');
     const input = document.getElementById('ambient-prompt-input');
@@ -3134,7 +3147,14 @@
       perspectiveCard.style.display = 'none';
       perspectiveCard.innerHTML = '';
     }
+    // R24.8B — a reopened sheet must not keep the previous forecast result (stale-state leak).
+    const forecastCard = document.getElementById('ambient-forecast-card');
+    if (forecastCard) {
+      forecastCard.style.display = 'none';
+      forecastCard.innerHTML = '';
+    }
     resetAmbientFlowUi();
+    applyAmbientIdleAndModeUi();
 
     if (ambientBodyScrollLock) ambientBodyScrollLock.lock(document.body.style.overflow);
     document.body.style.overflow = 'hidden';
@@ -3160,6 +3180,115 @@
       }
     };
     document.addEventListener('keydown', ambientModalKeydownHandler, true);
+  }
+
+  // R24.8B — the idle Ask sheet must not show a sample task/request/progress; those cards are shown only
+  // once a real request is running (see showAmbientRequestCards). Also applies the Create-tile mode
+  // (title + placeholder) and clears the creation status area.
+  const AMBIENT_REQUEST_CARD_IDS = ['ambient-task-title-card', 'ambient-request-card', 'ambient-progress-card'];
+  function applyAmbientIdleAndModeUi() {
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    AMBIENT_REQUEST_CARD_IDS.forEach((id) => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+    const footer = document.getElementById('ambient-mockup-actions');
+    if (footer) footer.style.display = 'none';
+    const status = document.getElementById('ambient-creation-status');
+    if (status) { status.hidden = true; status.textContent = ''; status.removeAttribute('data-state'); }
+    const input = document.getElementById('ambient-prompt-input');
+    const title = document.getElementById('ambient-modal-title');
+    if (ambientCreationMode) {
+      const key = ambientCreationMode === 'REPORT' ? 'Report' : 'Research';
+      if (title) title.textContent = t('ambient.mode' + key + 'Title');
+      if (input) input.placeholder = t('ambient.mode' + key + 'Placeholder');
+    } else if (input) {
+      input.placeholder = t('ambient.promptPlaceholder');
+    }
+  }
+
+  // Shows the request/progress cards for a REAL running request: the card carries the user's own text and a
+  // neutral headline (the sheet's markup holds sample copy that must never be shown as the user's task).
+  function showAmbientRequestCards(promptText) {
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    AMBIENT_REQUEST_CARD_IDS.forEach((id) => { const el = document.getElementById(id); if (el) el.style.display = ''; });
+    const reqText = document.getElementById('ambient-user-request-text');
+    if (reqText) reqText.textContent = '"' + String(promptText || '') + '"';
+    const title = document.getElementById('ambient-task-display-title');
+    if (title) title.textContent = t('ambient.taskWorking');
+    const sub = document.getElementById('ambient-task-display-subtitle');
+    if (sub) sub.textContent = '';
+  }
+
+  function setAmbientCreationStatus(state, content) {
+    const status = document.getElementById('ambient-creation-status');
+    if (!status) return;
+    status.hidden = false;
+    status.setAttribute('data-state', state);
+    status.textContent = '';
+    if (typeof content === 'string') {
+      const p = document.createElement('p');
+      p.className = 'ambient-creation-status-text';
+      p.textContent = content;
+      status.appendChild(p);
+    } else if (content) {
+      status.appendChild(content);
+    }
+  }
+
+  // REPORT / RESEARCH submitted from the Ask sheet go to the SAME canonical runtime the Create tiles use
+  // (NAGEX_PERSONAL_HOME.submitReport / submitResearch -> POST /api/v1/creations/documents | /api/v1/research).
+  // No second router: only the entry surface differs.
+  async function submitAmbientCreation(mode, text) {
+    const home = window.NAGEX_PERSONAL_HOME;
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    if (!home) return;
+    if (ambientRunGuard && !ambientRunGuard.tryEnter()) return;
+    setAmbientRunControlsDisabled(true);
+    setAmbientCreationStatus('working', t(mode === 'REPORT' ? 'ambient.creatingReport' : 'ambient.researching'));
+    try {
+      const result = mode === 'REPORT' ? await home.submitReport(text) : await home.submitResearch(text, { quiet: true });
+      const failure = home.explainCreationFailure(mode, result);
+      if (failure) {
+        // Truthful failure; the user's text stays in the input for a retry.
+        setAmbientCreationStatus('error', failure);
+        return;
+      }
+      const input = document.getElementById('ambient-prompt-input');
+      if (input) input.value = '';
+      if (mode === 'REPORT') {
+        // submitReport already opened the new document in Canvas.
+        closeAmbientOverlay();
+        return;
+      }
+      const box = document.createElement('div');
+      const answer = document.createElement('p');
+      answer.className = 'ambient-creation-status-text';
+      answer.textContent = String(result.answer || '');
+      box.appendChild(answer);
+      const sources = Array.isArray(result.sources) ? result.sources : [];
+      if (sources.length) {
+        const head = document.createElement('strong');
+        head.textContent = t('ambient.sourcesTitle');
+        box.appendChild(head);
+        const list = document.createElement('ul');
+        sources.slice(0, 8).forEach((src) => {
+          const li = document.createElement('li');
+          const url = typeof src.url === 'string' && /^https?:\/\//i.test(src.url) ? src.url : null;
+          if (url) {
+            const a = document.createElement('a');
+            a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+            a.textContent = String(src.title || src.sourceName || url);
+            li.appendChild(a);
+          } else {
+            li.textContent = String(src.title || src.sourceName || '');
+          }
+          list.appendChild(li);
+        });
+        box.appendChild(list);
+      }
+      setAmbientCreationStatus('done', box);
+    } finally {
+      if (ambientRunGuard) ambientRunGuard.exit();
+      setAmbientRunControlsDisabled(false);
+    }
   }
 
   // Dismisses the Ambient Assistant / Plan Preview modal only — this must
@@ -3307,6 +3436,7 @@
     // for what the user perceives as one action.
     if (ambientRunGuard && !ambientRunGuard.tryEnter()) return;
     setAmbientRunControlsDisabled(true);
+    showAmbientRequestCards(promptText);
     try {
       const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
       const progress = document.getElementById('ambient-progress-container');
@@ -3374,6 +3504,7 @@
           }
         }
 
+        cardContainer.style.display = '';
         renderForecastCompareResult(cardContainer, forecastRes, lang);
         if (progress) progress.style.display = 'none';
         return;
@@ -3671,6 +3802,16 @@
     }
   }
 
+  // R24.8B — what has REALLY happened when this card renders: the request was understood and a plan was
+  // prepared for review. Nothing has been searched, read, extracted or generated yet, so no step claims it.
+  function ambientTruthfulSteps(t) {
+    return [
+      { status: 'done', text: '✓ ' + t('ambient.stepUnderstood') },
+      { status: 'done', text: '✓ ' + t('ambient.stepPlanned') },
+      { status: 'upcoming', text: '○ ' + t('ambient.stepNotRun') },
+    ];
+  }
+
   function classifyIntentForUi(promptText) {
     const text = (promptText || '').toLowerCase();
     if (text.includes('meeting') || text.includes('schedule') || text.includes('calendar') || text.includes('미팅') || text.includes('회의') || text.includes('일정')) {
@@ -3734,12 +3875,7 @@
 
       // Progress Steps (Single Progress Surface)
       if (stepsEl) {
-        const steps = [
-          { status: 'done', text: isKr ? '✓ 신뢰할 수 있는 출처 검색 완료' : '✓ Searching trusted sources' },
-          { status: 'done', text: isKr ? '✓ 최신 업데이트 및 자료 분석 완료' : '✓ Reading recent updates' },
-          { status: 'active', text: isKr ? '● 핵심 요약 정리 완료' : '● Preparing a concise summary' },
-          { status: 'upcoming', text: isKr ? '○ 결과 정리 완료' : '○ Finalizing results' }
-        ];
+        const steps = ambientTruthfulSteps(t, isKr);
         stepsEl.innerHTML = steps.map(s => `<div class="user-friendly-step-item ${s.status}">${escapeHtml(s.text)}</div>`).join('');
       }
 
@@ -3867,12 +4003,7 @@
 
       // Meeting Progress Steps
       if (stepsEl) {
-        const steps = [
-          { status: 'done', text: isKr ? '✓ 일정 확인 완료' : '✓ Checked your availability' },
-          { status: 'done', text: isKr ? '✓ 관련 메모 및 이메일 수집' : '✓ Found related notes and emails' },
-          { status: 'active', text: isKr ? '● 미팅 상세내용 준비 중' : '● Preparing meeting details' },
-          { status: 'upcoming', text: isKr ? '○ 캘린더 등록 준비' : '○ Getting the calendar action ready' }
-        ];
+        const steps = ambientTruthfulSteps(t, isKr);
         stepsEl.innerHTML = steps.map(s => `<div class="user-friendly-step-item ${s.status}">${escapeHtml(s.text)}</div>`).join('');
       }
 
@@ -3940,12 +4071,7 @@
       }
 
       if (stepsEl) {
-        const steps = [
-          { status: 'done', text: isKr ? '✓ 문서 구조 파악 완료' : '✓ Examined document structure' },
-          { status: 'done', text: isKr ? '✓ 핵심 조항 추출 완료' : '✓ Extracted key clauses' },
-          { status: 'active', text: isKr ? '● 리스크 요소 평가 중' : '● Evaluating risk factors' },
-          { status: 'upcoming', text: isKr ? '○ 레포트 생성 마무리' : '○ Finalizing report' }
-        ];
+        const steps = ambientTruthfulSteps(t, isKr);
         stepsEl.innerHTML = steps.map(s => `<div class="user-friendly-step-item ${s.status}">${escapeHtml(s.text)}</div>`).join('');
       }
 
@@ -3999,12 +4125,7 @@
       }
 
       if (stepsEl) {
-        const steps = [
-          { status: 'done', text: isKr ? '✓ 프롬프트 레시피 분석 완료' : '✓ Analyzed prompt recipe' },
-          { status: 'done', text: isKr ? '✓ 스타일 프리셋 적용 완료' : '✓ Applied style preset' },
-          { status: 'active', text: isKr ? '● 비주얼 에셋 생성 중' : '● Generating visual asset' },
-          { status: 'upcoming', text: isKr ? '○ 해상도 최적화 마무리' : '○ Finalizing output resolution' }
-        ];
+        const steps = ambientTruthfulSteps(t, isKr);
         stepsEl.innerHTML = steps.map(s => `<div class="user-friendly-step-item ${s.status}">${escapeHtml(s.text)}</div>`).join('');
       }
 
@@ -5879,6 +6000,8 @@
   window.NAGEX.renderPerspectiveCompareResult = renderPerspectiveCompareResult;
   window.NAGEX.renderForecastCompareResult = renderForecastCompareResult;
   window.NAGEX.apiFetch = apiFetch;
+  // R24.8B — the one visible Ask entry used by the header control, Quick Wake and the Create tiles.
+  window.NAGEX.openAsk = (mode) => openAmbientOverlay(mode);
   window.NAGEX.renderMemory = renderMemory;
   window.NAGEX.confirmPersonalContext = confirmPersonalContext;
   window.NAGEX.editPersonalContext = editPersonalContext;
@@ -6149,7 +6272,7 @@
         if (btnVault) btnVault.textContent = t('linkCapture.savedToVault') || 'Saved to Vault';
         scheduleLinkCaptureClose(generation);
       } else {
-        if (btnVault) btnVault.textContent = t('linkCapture.saveVault') || 'Save to Vault';
+        if (btnVault) btnVault.textContent = t('linkCapture.saveToVault') || 'Save to Vault';
         if (errEl) {
           errEl.hidden = false;
           errEl.textContent = typeof res?.error === 'string' ? res.error : (res?.error?.message || t('linkCapture.saveFailed') || 'Save failed');
@@ -6175,7 +6298,7 @@
         if (btnInbox) btnInbox.textContent = t('linkCapture.addedToInbox') || 'Added to Inbox';
         scheduleLinkCaptureClose(generation);
       } else {
-        if (btnInbox) btnInbox.textContent = t('linkCapture.addInbox') || 'Add to Inbox';
+        if (btnInbox) btnInbox.textContent = t('linkCapture.addToInbox') || 'Add to Inbox';
         if (errEl) {
           errEl.hidden = false;
           errEl.textContent = typeof res?.error === 'string' ? res.error : (res?.error?.message || t('linkCapture.saveFailed') || 'Save failed');
@@ -6216,7 +6339,7 @@
         if (btnRemember) btnRemember.textContent = t('linkCapture.remembered') || 'Saved to Personal Context';
         scheduleLinkCaptureClose(generation);
       } else {
-        if (btnRemember) btnRemember.textContent = t('linkCapture.remember') || 'Remember';
+        if (btnRemember) btnRemember.textContent = t('linkCapture.rememberFromThis') || 'Remember';
         if (errEl) {
           errEl.hidden = false;
           errEl.textContent = typeof res?.error === 'string' ? res.error : (res?.error?.message || t('linkCapture.saveFailed') || 'Save failed');

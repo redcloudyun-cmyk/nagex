@@ -150,7 +150,12 @@ test('R21 P0 REAL BROWSER CERTIFICATION: UX Intent Interaction Principles (Scena
       assert.match(taskTitle || '', /Preparing/);
 
       const friendlySteps = await page.textContent('#ambient-friendly-steps');
-      assert.match(friendlySteps || '', /Checked your availability/);
+      // R24.8B — supersedes the assertion that required fabricated progress ("Checked your availability"): the
+      // steps must state only what is true when the plan card renders.
+      assert.match(friendlySteps || '', /Understood your request/);
+      assert.match(friendlySteps || '', /Prepared a plan for your review/);
+      assert.match(friendlySteps || '', /Nothing has been run yet/);
+      assert.doesNotMatch(friendlySteps || '', /Checked your availability|Found related notes and emails/);
 
       const contextText = await page.textContent('#ambient-surfaced-context');
       assert.match(contextText || '', /Related to this meeting/);

@@ -54,10 +54,14 @@ test('R17 REAL BROWSER CERTIFICATION: Playwright Chromium Home & Intent Executio
       await page.goto(`${server.origin}/#home`, { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(300);
 
-      // Verify home composer input exists and is visible on desktop viewport
-      await page.waitForSelector('#home-prompt-input', { state: 'visible' });
-      const inputVisible = await page.locator('#home-prompt-input').isVisible();
-      assert.ok(inputVisible, 'Home prompt input must be visible on desktop view');
+      // R24.8B — supersedes the assertion that the Home composer (#home-prompt-input) is visible on Desktop. That composer is
+      // intentionally hidden on Desktop Home (desktop-home.css), so this scenario asserts the entry a Desktop user really
+      // has: the header "Search anything or ask NAgex…" control is visible AND opens the Ask sheet with a usable input.
+      await page.waitForSelector('#btn-header-search', { state: 'visible' });
+      assert.ok(await page.locator('#btn-header-search').isVisible(), 'the Ask entry must be visible on desktop view');
+      await page.click('#btn-header-search');
+      await page.waitForSelector('#ambient-prompt-input', { state: 'visible' });
+      assert.equal(await page.locator('#ambient-prompt-input').isEnabled(), true, 'the Ask sheet input must be usable');
 
       await saveScreenshot(page, '360x800_home_wired_en.png');
       await page.close();

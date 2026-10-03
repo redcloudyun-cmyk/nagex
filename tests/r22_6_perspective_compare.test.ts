@@ -97,6 +97,19 @@ class MockModelProvider implements ModelProvider {
   }
 }
 
+// R24.8B — the Home composer (#home-prompt-input) is intentionally hidden on Desktop (desktop-home.css), so this
+// test now drives the SAME canonical entry a real user has: the visible Ask sheet opened from the header
+// "Search anything or ask NAgex…" control (the same sheet Quick Wake opens). Equivalent functionality: type a
+// request, send it, and the request reaches the same runAmbientTask pipeline.
+async function askViaVisibleSheet(page: import('playwright').Page, text: string): Promise<void> {
+  if (!(await page.locator('#ambient-prompt-input').isVisible())) {
+    await page.click('#btn-header-search');
+    await page.waitForSelector('#ambient-prompt-input', { state: 'visible' });
+  }
+  await page.fill('#ambient-prompt-input', text);
+  await page.click('#btn-ambient-run');
+}
+
 test('NAgex R22.6 — Perspective Compare Foundation Suite', async () => {
   const metrics: Record<string, any> = {};
   const loggedEvents: Array<{ event: string; fields: any }> = [];
@@ -445,9 +458,7 @@ test('NAgex R22.6 — Perspective Compare Foundation Suite', async () => {
     await page.waitForLoadState('networkidle');
 
     // Test English prompt
-    const homeInput = page.locator('#home-prompt-input');
-    await homeInput.fill('look at this from different perspectives');
-    await page.click('#btn-home-prompt-send');
+    await askViaVisibleSheet(page, 'look at this from different perspectives');
 
     await page.waitForSelector('[data-testid="perspective-compare-result"]', { timeout: 15000 });
     const enText = await page.locator('[data-testid="perspective-compare-result"]').innerText();
@@ -470,8 +481,7 @@ test('NAgex R22.6 — Perspective Compare Foundation Suite', async () => {
       await closeBtn.click();
     }
 
-    await homeInput.fill('여러 관점에서 검토해줘');
-    await page.click('#btn-home-prompt-send');
+    await askViaVisibleSheet(page, '여러 관점에서 검토해줘');
 
     await page.waitForSelector('[data-testid="perspective-compare-result"]', { timeout: 15000 });
     const krText = await page.locator('[data-testid="perspective-compare-result"]').innerText();

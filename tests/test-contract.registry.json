@@ -4357,6 +4357,49 @@
       "deterministic": false,
       "assertionIntent": "live Canvas Ask acceptance: a REAL model provider answers real questions about a real DOCUMENT and an ANALYSIS summary through the real server in real Chromium (desktop, Home-embedded, mobile 390x844, Korean), grounding envelope and UI grounding copy match the artifact, a prompt-injection artifact does not take over, truncated documents are disclosed and the text beyond the limit is never seen, nothing is mutated.",
       "notes": "Credential-gated: the whole file is skipped with an explicit LIVE_DEPENDENCY_UNAVAILABLE reason unless <PROVIDER>_API_KEY and NAGEX_<PROVIDER>_MODEL are set. Synthetic test content only. Provider 429/503 are reported as product failures, never retried or faked."
+    },
+    "r24_8b_plan_integrity": {
+      "milestone": "R24.8B",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "plan ownership and update authority through the real production entry points with real sessions: server-generated plan ids (a client id/owner/tenant/status/createdAt is ignored), no cross-user or cross-tenant takeover by POST-with-existing-id or PUT, forged identity headers cannot re-target a session user, anonymous create/update denied with nothing landing in the default namespace, execution/resolver state on steps is never stored, execution statuses cannot be set by a client, and plans locked by execution cannot be edited.",
+      "notes": "Real handleApiRequest/handleAsyncApiRequest, Identity/Session stores and the plan store (redirected to a temp dir by tests/_setup.ts); no model, no network."
+    },
+    "r24_8b_ui_integrity_contract": {
+      "milestone": "R24.8B",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "source/markup contract: no user-visible mojibake or malformed markup in the product UI sources, no fabricated Plans/Approvals/Create sample data, no fabricated progress steps, the entry points use the existing submitReport/submitResearch runtime, and every statically referenced i18n key (including the seven formerly leaking ones) resolves in EN and KR; plan routes read no client id/owner/tenant/status.",
+      "notes": "Reads production source/markup; behavior is certified by r24_8b_entry_truthful_ui_browser and r24_8b_plan_integrity."
+    },
+    "r24_8b_entry_truthful_ui_browser": {
+      "milestone": "R24.8B",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "real-Chromium (desktop 1440x900, mobile 390x844) proof that the visible Ask/Create entry points work and reach the canonical backend paths (general Ask via the header control and Quick Wake, Report and Research tiles on Desktop, Report/Research/general Ask on Mobile), that \"no model / no live search\" is reported truthfully in EN and KR, that a new user sees no fabricated Plans/Approvals/Create data, and that no raw i18n key, mojibake or malformed markup is visible on any main tab in EN and KR.",
+      "notes": "Provider credentials are scrubbed, so no model is called; disposable accounts through the production stores in a private temp data dir.",
+      "writesRepositoryArtifacts": false
     }
   }
 }

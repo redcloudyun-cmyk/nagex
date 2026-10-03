@@ -58,7 +58,14 @@ test('DOMAIN_NEUTRAL_WORK_UI: Friendly steps container is present for domain-neu
 
   assert.match(html, /id="ambient-friendly-steps"/);
   assert.match(appJs, /user-friendly-step-item/);
-  assert.match(appJs, /Checked your availability/);
+  // R24.8B — supersedes the old assertion that REQUIRED the hardcoded progress copy "Checked your availability".
+  // Those ticks claimed work (availability checked, notes found, clauses extracted, assets generated) that had not
+  // happened when the plan card rendered. The container now shows only what is true — request understood, plan
+  // prepared, nothing run yet — and the fabricated step copy must not exist.
+  assert.match(appJs, /function ambientTruthfulSteps/);
+  assert.match(appJs, /ambient.stepUnderstood/);
+  assert.match(appJs, /ambient.stepNotRun/);
+  assert.doesNotMatch(appJs, /Checked your availability|Found related notes and emails|Examined document structure|Extracted key clauses|Searching trusted sources|Reading recent updates|Generating visual asset|Analyzed prompt recipe/);
 });
 
 test('SHOW_CURRENT_UNDERSTANDING: Summary box renders understanding summary', () => {

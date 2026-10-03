@@ -110,6 +110,19 @@ class MockForecastModelProvider implements ModelProvider {
   }
 }
 
+// R24.8B — the Home composer (#home-prompt-input) is intentionally hidden on Desktop (desktop-home.css), so this
+// test now drives the SAME canonical entry a real user has: the visible Ask sheet opened from the header
+// "Search anything or ask NAgex…" control (the same sheet Quick Wake opens). Equivalent functionality: type a
+// request, send it, and the request reaches the same runAmbientTask pipeline.
+async function askViaVisibleSheet(page: import('playwright').Page, text: string): Promise<void> {
+  if (!(await page.locator('#ambient-prompt-input').isVisible())) {
+    await page.click('#btn-header-search');
+    await page.waitForSelector('#ambient-prompt-input', { state: 'visible' });
+  }
+  await page.fill('#ambient-prompt-input', text);
+  await page.click('#btn-ambient-run');
+}
+
 test('NAgex R22.7 — Forecast Horizon Parsing & Specification Hardening', () => {
   // 1. Production Clock Default Test (now = new Date())
   const defaultHorizon = parseHorizonEnd('Will this project launch before December 2026?');
@@ -452,9 +465,7 @@ test('NAgex R22.7 — Real Browser Certification & UI Verification', async () =>
     await page.waitForLoadState('networkidle');
 
     // 1. Standard Forecast Flow
-    const homeInput = page.locator('#home-prompt-input');
-    await homeInput.fill('forecast will this project launch before December 2026');
-    await page.click('#btn-home-prompt-send');
+    await askViaVisibleSheet(page, 'forecast will this project launch before December 2026');
 
     await page.waitForSelector('[data-testid="forecast-compare-result"]', { timeout: 15000 });
     const enText = await page.locator('[data-testid="forecast-compare-result"]').innerText();
@@ -474,8 +485,7 @@ test('NAgex R22.7 — Real Browser Certification & UI Verification', async () =>
       await closeBtn.click();
     }
 
-    await homeInput.fill('Who will win the presidential election?');
-    await page.click('#btn-home-prompt-send');
+    await askViaVisibleSheet(page, 'Who will win the presidential election?');
 
     await page.waitForSelector('[data-testid="forecast-compare-result"]', { timeout: 15000 });
     const electionUiText = await page.locator('[data-testid="forecast-compare-result"]').innerText();
@@ -501,8 +511,7 @@ test('NAgex R22.7 — Real Browser Certification & UI Verification', async () =>
       await closeBtn.click();
     }
 
-    await homeInput.fill('이게 일어날 가능성을 예측해줘');
-    await page.click('#btn-home-prompt-send');
+    await askViaVisibleSheet(page, '이게 일어날 가능성을 예측해줘');
 
     await page.waitForSelector('[data-testid="forecast-compare-result"]', { timeout: 15000 });
     const krText = await page.locator('[data-testid="forecast-compare-result"]').innerText();
