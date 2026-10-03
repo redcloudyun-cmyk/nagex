@@ -19,6 +19,9 @@ function tempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-tg-test-'));
 }
 
+// S2C: a configured bot client with a fake provider that accepts every message (nothing real is contacted).
+const acceptingTelegramFetch = (async () => new Response(JSON.stringify({ ok: true, result: { message_id: 7 } }), { status: 200 })) as unknown as typeof fetch;
+
 test('TelegramIdentityStore links identities and persists across restarts', () => {
   const dir = tempDir();
   const store1 = new TelegramIdentityStore({ dir });
@@ -56,9 +59,11 @@ test('TelegramBotClient handles unconfigured mock send and getStatus', async () 
   const status = client.getStatus();
   assert.equal(status.configured, false);
 
+  // S2C: with no bot credential nothing is delivered, so the result is a truthful failure (it used to be a fake success)
   const res = await client.sendMessage({ chatId: 999, text: 'Hello Telegram' });
-  assert.equal(res.ok, true);
-  assert.ok(typeof res.messageId === 'number');
+  assert.equal(res.ok, false);
+  assert.equal(res.reason, 'NO_PROVIDER_CREDENTIAL');
+  assert.equal(res.messageId, undefined);
 });
 
 test('TelegramService resolves update to MainSession, retrieves memory, and returns AI response', async () => {
@@ -186,7 +191,7 @@ test('Telegram API endpoints in server_web.ts respond correctly', async () => {
   const dir = tempDir();
   const identityStore = new TelegramIdentityStore({ dir });
   const customTgService = new TelegramService({
-    botClient: new TelegramBotClient(null),
+    botClient: new TelegramBotClient('test-bot-token', acceptingTelegramFetch),
     identityStore,
     sessionStore: new SessionStore({ dir: path.join(dir, 'sessions') }),
     aiService: mockAiService,
@@ -236,6 +241,10 @@ test('Telegram API endpoints in server_web.ts respond correctly', async () => {
   }, authAs('ten_link_test', 'usr_link_test'), mockAiService, {}, undefined, undefined, undefined, customTgService);
   assert.equal(sendRes.status, 200);
   assert.equal((sendRes.data as any).success.ok, true);
+  // S2C: the destination is the caller's own verified link; any other chat is refused
+  const foreignSend = await handleAsyncApiRequest('POST', '/api/v1/integrations/telegram/send', { chatId: '999000', text: 'not mine' }, authAs('ten_link_test', 'usr_link_test'), mockAiService, {}, undefined, undefined, undefined, customTgService);
+  assert.equal(foreignSend.status, 403);
+  assert.equal((foreignSend.data as any).error.code, 'CHANNEL_DESTINATION_NOT_AUTHORIZED');
 
   const webhookUpdate = {
     update_id: 99,

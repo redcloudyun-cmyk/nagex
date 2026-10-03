@@ -30,6 +30,12 @@ NAgex must allow useful agent autonomy without allowing the agent to silently ex
 - A Telegram/Slack user id supplied by a client is never proof of ownership. A channel account is linked to a NAgex principal only when a one-time challenge issued to that signed-in principal is redeemed FROM the channel account, through the authenticated webhook; the link is bound to the issuing principal and tenant.
 - An identity already linked to another principal is never silently taken over; unlinking is explicit and owner-only. Challenges are single-use, 10 minutes, process-local. See ADR-0008.
 
+## 2d. Outbound channel and notification recipient authority (Security Gate S2C)
+
+- S2A, S2B and S2C are a security-hardening sub-series (webhook authenticity, channel identity ownership, outbound recipient authority). They are not the original S0 audit's broad S1–S8 phases.
+- A signed-in caller can send to, and notify, only itself. Telegram/Slack send derives the destination from the caller's own ownership-proven link; a body chat/channel/workspace is only an assertion that must match. `notifications/dispatch` makes the authenticated caller the only recipient. Trusted internal dispatch is a separate server-only entry point.
+- A send that did not happen (no bot credential, provider rejection, network failure) is never reported as delivered. See ADR-0009.
+
 ## 3. Human Approval
 
 Approval must be enforced in runtime logic, not only UI.

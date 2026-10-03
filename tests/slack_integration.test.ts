@@ -19,6 +19,9 @@ function tempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-slack-test-'));
 }
 
+// S2C: a configured bot client with a fake provider that accepts every message (nothing real is contacted).
+const acceptingSlackFetch = (async () => new Response(JSON.stringify({ ok: true, ts: '1700000000.000200' }), { status: 200 })) as unknown as typeof fetch;
+
 test('SlackIdentityStore links identities and persists across restarts', () => {
   const dir = tempDir();
   const store1 = new SlackIdentityStore({ dir });
@@ -57,9 +60,11 @@ test('SlackClient handles unconfigured mock postMessage and getStatus', async ()
   const status = client.getStatus();
   assert.equal(status.configured, false);
 
+  // S2C: with no bot credential nothing is delivered, so the result is a truthful failure (it used to be a fake success)
   const res = await client.postMessage({ channel: 'C12345', text: 'Hello Slack' });
-  assert.equal(res.ok, true);
-  assert.ok(typeof res.ts === 'string');
+  assert.equal(res.ok, false);
+  assert.equal(res.reason, 'NO_PROVIDER_CREDENTIAL');
+  assert.equal(res.ts, undefined);
 });
 
 test('SlackService handles url_verification challenge and processes message updates to MainSession', async () => {
@@ -199,7 +204,7 @@ test('Slack API endpoints in server_web.ts respond correctly', async () => {
   const dir = tempDir();
   const identityStore = new SlackIdentityStore({ dir });
   const customSlackService = new SlackService({
-    slackClient: new SlackClient(null),
+    slackClient: new SlackClient('xoxb-test-bot-token', acceptingSlackFetch),
     identityStore,
     sessionStore: new SessionStore({ dir: path.join(dir, 'sessions') }),
     aiService: mockAiService,
@@ -242,12 +247,16 @@ test('Slack API endpoints in server_web.ts respond correctly', async () => {
   assert.ok(Array.isArray((listRes.data as any).identities));
   assert.ok((listRes.data as any).identities.length >= 1);
 
+  // S2C: the destination is the caller's own verified Slack account (in the workspace it was proven in); any other channel is refused
   const sendRes = await handleAsyncApiRequest('POST', '/api/v1/integrations/slack/send', {
-    channel: 'C555123',
+    channel: 'U555123',
     text: 'Test direct Slack message',
   }, authAs('ten_slack_link_test', 'usr_slack_link_test'), mockAiService, {}, undefined, undefined, undefined, undefined, customSlackService);
   assert.equal(sendRes.status, 200);
   assert.equal((sendRes.data as any).success.ok, true);
+  const foreignSend = await handleAsyncApiRequest('POST', '/api/v1/integrations/slack/send', { channel: 'C555123', text: 'not mine' }, authAs('ten_slack_link_test', 'usr_slack_link_test'), mockAiService, {}, undefined, undefined, undefined, undefined, customSlackService);
+  assert.equal(foreignSend.status, 403);
+  assert.equal((foreignSend.data as any).error.code, 'CHANNEL_DESTINATION_NOT_AUTHORIZED');
 
   // Test URL Verification challenge endpoint
   // S2A: Slack events are accepted only with a valid signature over the raw body (and an unsigned request is refused).

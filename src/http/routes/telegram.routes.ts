@@ -9,6 +9,7 @@ import type { TelegramService } from '../../integrations/telegram/telegram.servi
 import type { AuditLogger } from '../../governance/audit.logger.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
 import { callerIdentity } from '../request-identity.js';
+import { ownChannelSendError } from '../../integrations/channel-send.js';
 import { verifyTelegramWebhook, webhookRejection } from '../../integrations/webhook-auth.js';
 
 function getHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
@@ -39,15 +40,24 @@ export const handleTelegramRoutes: AsyncRouteRegistrar<TelegramRouteDeps> = asyn
     const result = await telegramApiService.processUpdate(update, requestId);
     return { status: 200, data: { status: 'ok', handled: result !== null, result } };
   }
+  // S2C — SELF-DELIVERY ONLY. The destination is derived by the server from the SIGNED-IN caller's own ownership-proven Telegram
+  // link (S2B); the server bot credential is never usable for an arbitrary chat. A body chatId is only an assertion that must
+  // equal that destination (anything else is refused before the provider is invoked), and a failed send is never reported as sent.
   if (pathname === '/api/v1/integrations/telegram/send' && method === 'POST') {
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_tg_send_${crypto.randomUUID()}`;
-    const chatId = body?.chatId ? (typeof body.chatId === 'number' || typeof body.chatId === 'string' ? body.chatId : '') : '';
-    const text = typeof body?.text === 'string' ? body.text.trim() : '';
-    if (!chatId || !text) {
-      throw new NagexError({ code: 'INVALID_TELEGRAM_SEND_PAYLOAD', category: 'VALIDATION', message: 'chatId and text are required.', request_id: requestId });
+    const { principalId, tenantId } = callerIdentity(headers);
+    const rawChat = body?.chatId;
+    if (rawChat !== undefined && rawChat !== null && typeof rawChat !== 'string' && typeof rawChat !== 'number') {
+      throw new NagexError({ code: 'INVALID_TELEGRAM_SEND_PAYLOAD', category: 'VALIDATION', message: 'chatId, when given, must be a string or number.', request_id: requestId });
     }
-    const sent = await telegramBotClient.sendMessage({ chatId, text });
-    return { status: 200, data: { success: sent } };
+    const assertedChatId = rawChat === undefined || rawChat === null || rawChat === '' ? undefined : rawChat;
+    const text = typeof body?.text === 'string' ? body.text.trim() : '';
+    if (!text) {
+      throw new NagexError({ code: 'INVALID_TELEGRAM_SEND_PAYLOAD', category: 'VALIDATION', message: 'text is required.', request_id: requestId });
+    }
+    const result = await telegramApiService.sendToOwnChannel({ principalId, tenantId, text, assertedChatId, requestId });
+    if (result.status !== 'SENT') throw ownChannelSendError(result, 'Telegram', requestId);
+    return { status: 200, data: { success: { ok: true }, destination: 'OWN_VERIFIED_TELEGRAM' } };
   }
   // S2B — the browser can no longer say "I own Telegram user X". A signed-in caller asks for a one-time challenge and proves
   // ownership FROM Telegram (see TelegramService.redeemLinkChallenge, behind the S2A-authenticated webhook):

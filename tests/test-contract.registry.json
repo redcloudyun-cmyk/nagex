@@ -4484,6 +4484,34 @@
       "deterministic": true,
       "assertionIntent": "Source contract that keeps the S2B boundary from regressing: no route links or lists channel identities from client input, link attempts are handled before identity resolution/conversation/memory/model and consume+link share one synchronous step, the challenge store uses a CSPRNG and keeps only digests, identity stores never overwrite another principal's link, both channels share one challenge store, and the UI no longer asks for an external account id.",
       "notes": "Reads production source only; behavior is certified by security_s2b_channel_identity_ownership."
+    },
+    "security_s2c_outbound_recipient_authority": {
+      "milestone": "SECURITY-GATE-S2C",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Security Gate S2C outbound recipient authority through the real entry points: a signed-in caller can send to, and notify, only itself. Telegram/Slack send derives the destination (and, for Slack, the workspace) from the caller's own ownership-proven S2B link; a body chat/channel/workspace is only an assertion that must equal it, and an arbitrary, another user's, another tenant's, unverified or missing destination is refused before the provider is invoked. notifications/dispatch makes the authenticated caller the only recipient (a differing principal or tenant is refused with zero notification write and zero channel fan-out); its channel fan-out uses only proven links; trusted internal dispatch is unchanged and unreachable over HTTP. A missing credential, provider rejection or network failure is never reported as delivered, and no bot token reaches a response, audit event or log.",
+      "notes": "Real handleAsyncApiRequest/route/service/engine entry points and the real application wiring over a localhost HTTP server, with a recording fake provider behind the Telegram and Slack clients (nothing real is contacted) counting provider invocations, notification writes and fan-out."
+    },
+    "security_s2c_authority_contract": {
+      "milestone": "SECURITY-GATE-S2C",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "architecture"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "Source contract that keeps the S2C boundary from regressing: no route calls a channel provider, the send routes go through sendToOwnChannel with the session identity, the services decide every authority question before the provider and trust only proven links, the notification route reaches only dispatchForCaller and nothing under src/http calls the internal dispatch, and the adapters never fabricate success or log an error object.",
+      "notes": "Reads production source only; behavior is certified by security_s2c_outbound_recipient_authority."
     }
   }
 }

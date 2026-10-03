@@ -13,7 +13,8 @@
       "r23_7c_p_creation_provider_architecture",
       "security_s1_identity_contract",
       "security_s2a_webhook_contract",
-      "security_s2b_ownership_contract"
+      "security_s2b_ownership_contract",
+      "security_s2c_authority_contract"
     ],
     "device": [
       "device_agent_foundation",
@@ -126,7 +127,8 @@
       "r24_8b_plan_integrity",
       "security_s1_identity_boundary",
       "security_s2a_webhook_authenticity",
-      "security_s2b_channel_identity_ownership"
+      "security_s2b_channel_identity_ownership",
+      "security_s2c_outbound_recipient_authority"
     ],
     "personal-home": [
       "m6_1_mobile_release_blockers",

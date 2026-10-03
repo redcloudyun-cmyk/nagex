@@ -7,6 +7,7 @@ import { TelegramBotClient, type TelegramMessage, type TelegramUpdate } from './
 import { TelegramIdentityStore } from './telegram-identity.store.js';
 import { NagexError } from '../../common/errors.js';
 import { ChannelLinkChallengeStore, parseChannelLinkCommand } from '../channel-link-challenge.store.js';
+import type { OwnChannelSendResult } from '../channel-send.js';
 
 import type { ConversationStore } from '../../conversations/conversation.store.js';
 import type { ConversationContextService } from '../../conversations/conversation-context.service.js';
@@ -57,6 +58,51 @@ export class TelegramService {
     return this.options.identityStore.unlinkForPrincipal(principalId, tenantId);
   }
 
+  // ── S2C: SELF-DELIVERY ONLY ──
+  // The destination is derived HERE, from the caller's own ownership-proven link; a client-supplied chat id is only an
+  // assertion that must equal one of those destinations. Every check happens before the provider is invoked; nothing
+  // falls back to an arbitrary id or to another user's link, and a failed send is never reported as delivered.
+  public async sendToOwnChannel(input: { principalId: string; tenantId: string; text: string; assertedChatId?: string | number; requestId?: string }): Promise<OwnChannelSendResult> {
+    const requestId = input.requestId ?? `req_tg_send_${Date.now()}`;
+    const audit = (action: string, result: 'SUCCESS' | 'DENIED' | 'FAILED', reason: string, target?: string): void => {
+      this.options.auditLogger.logEvent({
+        actor: { type: 'user', id: input.principalId },
+        tenant_id: input.tenantId,
+        action,
+        resource: { type: 'TelegramChat', id: target ?? 'unresolved' },
+        result,
+        reason_code: reason,
+        request_id: requestId,
+        details: { proof: 'CHANNEL_CHALLENGE' },
+      });
+    };
+    const deny = (code: Extract<OwnChannelSendResult, { status: 'DENIED' }>['code']): OwnChannelSendResult => {
+      audit('channel:telegram_send_denied', 'DENIED', code);
+      return { status: 'DENIED', code };
+    };
+    const store = this.options.identityStore;
+    const links = store.listForPrincipal(input.principalId, input.tenantId);
+    const verified = store.listVerifiedForPrincipal(input.principalId, input.tenantId);
+    if (links.length === 0) return deny('NOT_LINKED');
+    if (verified.length === 0) return deny('LINK_NOT_VERIFIED');
+    let target = verified.length === 1 ? verified[0] : undefined;
+    if (input.assertedChatId !== undefined) {
+      const asserted = String(input.assertedChatId).trim();
+      target = verified.find((l) => l.telegramUserId === asserted);
+      if (!target) return deny(links.some((l) => l.telegramUserId === asserted) ? 'LINK_NOT_VERIFIED' : 'DESTINATION_NOT_OWNED');
+    } else if (!target) {
+      return deny('DESTINATION_AMBIGUOUS');
+    }
+    const sent = await this.options.botClient.sendMessage({ chatId: target.telegramUserId, text: input.text });
+    if (!sent.ok) {
+      const reason = sent.reason ?? 'PROVIDER_REJECTION';
+      audit('channel:telegram_send_failed', 'FAILED', reason, target.telegramUserId);
+      return { status: 'FAILED', reason };
+    }
+    audit('channel:telegram_message_sent', 'SUCCESS', 'DELIVERED', target.telegramUserId);
+    return { status: 'SENT', destination: target.telegramUserId };
+  }
+
   // Runs on the verified update only (S2A). The sender identity is the platform's own `from.id`; the code in the text
   // only selects WHICH challenge is being redeemed. Nothing here touches the conversation, memory or the model, and the
   // code is never persisted or logged.
@@ -82,7 +128,7 @@ export class TelegramService {
       reason = 'NOT_PRIVATE_CHAT';
     } else {
       try {
-        const record = this.options.identityStore.link(tgUserId, consumed.principalId, consumed.tenantId, msg.from!.username);
+        const record = this.options.identityStore.link(tgUserId, consumed.principalId, consumed.tenantId, msg.from!.username, 'CHANNEL_CHALLENGE');
         outcome = 'LINKED';
         reason = 'OWNERSHIP_PROVEN';
         linkedPrincipal = record.principalId;

@@ -8,6 +8,7 @@ import type { SlackService } from '../../integrations/slack/slack.service.js';
 import type { AuditLogger } from '../../governance/audit.logger.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
 import { callerIdentity } from '../request-identity.js';
+import { ownChannelSendError } from '../../integrations/channel-send.js';
 import { getRawBody } from '../raw-body.js';
 import { SignedRequestReplayGuard, verifySlackWebhook, webhookRejection } from '../../integrations/webhook-auth.js';
 
@@ -48,16 +49,28 @@ export const handleSlackRoutes: AsyncRouteRegistrar<SlackRouteDeps> = async (met
     const result = await slackApiService.processEvent(payload, requestId);
     return { status: 200, data: { status: 'ok', handled: result !== null, result } };
   }
+  // S2C — SELF-DELIVERY ONLY. The destination (the caller's own verified Slack user, in the workspace the link was proven in)
+  // is derived by the server from the SIGNED-IN caller's S2B link; the server bot credential is never usable for an arbitrary
+  // channel. A body channel / slackTeamId is only an assertion that must equal it (anything else is refused before the
+  // provider is invoked), and a failed send is never reported as sent.
   if (pathname === '/api/v1/integrations/slack/send' && method === 'POST') {
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_slack_send_${crypto.randomUUID()}`;
-    const channel = typeof body?.channel === 'string' ? body.channel.trim() : '';
+    const { principalId, tenantId } = callerIdentity(headers);
+    const optionalString = (value: unknown, field: string): string | undefined => {
+      if (value === undefined || value === null || value === '') return undefined;
+      if (typeof value !== 'string') throw new NagexError({ code: 'INVALID_SLACK_SEND_PAYLOAD', category: 'VALIDATION', message: `${field}, when given, must be a string.`, request_id: requestId });
+      return value.trim() || undefined;
+    };
+    const assertedChannel = optionalString(body?.channel, 'channel');
+    const assertedWorkspaceId = optionalString(body?.slackTeamId, 'slackTeamId');
+    const threadTs = optionalString(body?.threadTs, 'threadTs');
     const text = typeof body?.text === 'string' ? body.text.trim() : '';
-    const threadTs = typeof body?.threadTs === 'string' ? body.threadTs.trim() : undefined;
-    if (!channel || !text) {
-      throw new NagexError({ code: 'INVALID_SLACK_SEND_PAYLOAD', category: 'VALIDATION', message: 'channel and text are required.', request_id: requestId });
+    if (!text) {
+      throw new NagexError({ code: 'INVALID_SLACK_SEND_PAYLOAD', category: 'VALIDATION', message: 'text is required.', request_id: requestId });
     }
-    const sent = await slackClient.postMessage({ channel, text, threadTs });
-    return { status: 200, data: { success: sent } };
+    const result = await slackApiService.sendToOwnChannel({ principalId, tenantId, text, assertedChannel, assertedWorkspaceId, threadTs, requestId });
+    if (result.status !== 'SENT') throw ownChannelSendError(result, 'Slack', requestId);
+    return { status: 200, data: { success: { ok: true }, destination: 'OWN_VERIFIED_SLACK' } };
   }
   // S2B — the browser can no longer say "I own Slack user X". A signed-in caller asks for a one-time challenge and proves
   // ownership FROM Slack (see SlackService.redeemLinkChallenge, behind the S2A-authenticated events endpoint):

@@ -49,8 +49,9 @@ export const handleNotificationsRoutes: AsyncRouteRegistrar<NotificationsRouteDe
   }
   if (pathname === '/api/v1/notifications/dispatch' && method === 'POST') {
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_notif_disp_${crypto.randomUUID()}`;
-    const principalId = typeof body?.principalId === 'string' && body.principalId.trim() ? body.principalId.trim() : (callerIdentity(headers).principalId);
-    const tenantId = typeof body?.tenantId === 'string' && body.tenantId.trim() ? body.tenantId.trim() : (callerIdentity(headers).tenantId);
+    // S2C — the recipient is the AUTHENTICATED CALLER. A principalId/tenantId in the body is at most a redundant assertion; a
+    // different one is refused by the engine before any notification is written or any channel is invoked.
+    const caller = callerIdentity(headers);
     const type = (typeof body?.type === 'string' ? body.type : 'SYSTEM_ALERT') as NotificationType;
     const title = typeof body?.title === 'string' ? body.title.trim() : 'Notification';
     const bodyText = typeof body?.body === 'string' ? body.body.trim() : '';
@@ -59,14 +60,14 @@ export const handleNotificationsRoutes: AsyncRouteRegistrar<NotificationsRouteDe
       throw new NagexError({ code: 'NOTIFICATION_BODY_REQUIRED', category: 'VALIDATION', message: 'Notification body is required.', request_id: requestId });
     }
 
-    const record = await notificationEngine.dispatch({
-      tenantId,
-      principalId,
+    const record = await notificationEngine.dispatchForCaller({ tenantId: caller.tenantId, principalId: caller.principalId }, {
       type,
       title,
       body: bodyText,
       metadata: body?.metadata && typeof body.metadata === 'object' ? (body.metadata as Record<string, unknown>) : undefined,
       requestId,
+      assertedPrincipalId: body?.principalId,
+      assertedTenantId: body?.tenantId,
     });
     return { status: 201, data: record };
   }

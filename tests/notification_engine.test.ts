@@ -75,8 +75,10 @@ test('NotificationEngine dispatches multi-channel notifications to WEB, Telegram
   const slackIdentityStore = new SlackIdentityStore({ dir: path.join(dir, 'slack') });
   slackIdentityStore.link('U998877', 'usr_multi_001', 'ten_1', 'T01', 'multi_slack');
 
-  const tgBotClient = new TelegramBotClient(null);
-  const slackClient = new SlackClient(null);
+  // S2C: a bot with no credential delivers nothing and reports FAILED; delivery is exercised against configured clients whose
+  // fake provider accepts the message (nothing real is contacted).
+  const tgBotClient = new TelegramBotClient('test-bot-token', (async () => new Response(JSON.stringify({ ok: true, result: { message_id: 1 } }), { status: 200 })) as unknown as typeof fetch);
+  const slackClient = new SlackClient('xoxb-test-bot-token', (async () => new Response(JSON.stringify({ ok: true, ts: '1.1' }), { status: 200 })) as unknown as typeof fetch);
   const auditLogger = new AuditLogger();
 
   const engine = new NotificationEngine({
@@ -123,13 +125,14 @@ test('Notification API endpoints in server_web.ts respond correctly', async () =
   const mockAiService: any = { statuses: () => [] };
 
   // Dispatch via API
+  // S2C: the HTTP route notifies the AUTHENTICATED CALLER only (a body principalId/tenantId equal to the caller is a redundant assertion)
   const dispatchRes = await handleAsyncApiRequest('POST', '/api/v1/notifications/dispatch', {
     tenantId: 'ten_test',
     principalId: 'usr_notif_api',
     type: 'TASK_COMPLETED',
     title: 'API Task Done',
     body: 'Your automated task finished cleanly.',
-  }, authAs('ten_dispatch', 'usr_notif_dispatcher'), mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
+  }, authAs('ten_test', 'usr_notif_api'), mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
 
   assert.equal(dispatchRes.status, 201);
   assert.equal((dispatchRes.data as any).title, 'API Task Done');
@@ -162,12 +165,8 @@ test('P04-R1-08: GET notifications for tenant A cannot expose tenant B', async (
   const mockAiService: any = { statuses: () => [] };
   const sameId = 'usr_shared_http';
 
-  await handleAsyncApiRequest('POST', '/api/v1/notifications/dispatch', {
-    tenantId: 'ten_a', principalId: sameId, type: 'TASK_COMPLETED', title: 'A', body: 'A',
-  }, authAs('ten_dispatch', 'usr_notif_dispatcher'), mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
-  await handleAsyncApiRequest('POST', '/api/v1/notifications/dispatch', {
-    tenantId: 'ten_b', principalId: sameId, type: 'TASK_COMPLETED', title: 'B', body: 'B',
-  }, authAs('ten_dispatch', 'usr_notif_dispatcher'), mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
+  await customEngine.dispatch({ tenantId: 'ten_a', principalId: sameId, type: 'TASK_COMPLETED', title: 'A', body: 'A' });   // trusted internal seeding (S2C: the HTTP route can only notify the caller)
+  await customEngine.dispatch({ tenantId: 'ten_b', principalId: sameId, type: 'TASK_COMPLETED', title: 'B', body: 'B' });   // trusted internal seeding (S2C: the HTTP route can only notify the caller)
 
   const listResA = await handleAsyncApiRequest('GET', '/api/v1/notifications', null, authAs('ten_a', sameId), mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
   assert.equal((listResA.data as any).notifications.length, 1);
@@ -186,9 +185,7 @@ test('P04-R1-09: unread count for tenant A excludes tenant B', async () => {
   const mockAiService: any = { statuses: () => [] };
   const sameId = 'usr_shared_unread';
 
-  await handleAsyncApiRequest('POST', '/api/v1/notifications/dispatch', {
-    tenantId: 'ten_a', principalId: sameId, type: 'TASK_COMPLETED', title: 'A', body: 'A',
-  }, authAs('ten_dispatch', 'usr_notif_dispatcher'), mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
+  await customEngine.dispatch({ tenantId: 'ten_a', principalId: sameId, type: 'TASK_COMPLETED', title: 'A', body: 'A' });   // trusted internal seeding (S2C: the HTTP route can only notify the caller)
 
   const listResB = await handleAsyncApiRequest('GET', '/api/v1/notifications', null, authAs('ten_b', sameId), mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
   assert.equal((listResB.data as any).unreadCount, 0, 'tenant B unread count must not include tenant A notification');
@@ -202,10 +199,8 @@ test('P04-R1-10 / P04-R1-12: read-one with wrong tenant cannot mark it, returns 
   const mockAiService: any = { statuses: () => [] };
   const sameId = 'usr_shared_readone';
 
-  const dispatchRes = await handleAsyncApiRequest('POST', '/api/v1/notifications/dispatch', {
-    tenantId: 'ten_a', principalId: sameId, type: 'TASK_COMPLETED', title: 'A', body: 'A',
-  }, authAs('ten_dispatch', 'usr_notif_dispatcher'), mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
-  const notifId = (dispatchRes.data as any).id;
+  const seeded = await customEngine.dispatch({ tenantId: 'ten_a', principalId: sameId, type: 'TASK_COMPLETED', title: 'A', body: 'A' });   // trusted internal seeding (S2C)
+  const notifId = seeded.id;
 
   // Wrong tenant attempting to mark tenant A's notification as read.
   const wrongTenantRead = await handleAsyncApiRequest('POST', `/api/v1/notifications/${notifId}/read`, null, authAs('ten_b', sameId), mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
@@ -230,12 +225,8 @@ test('P04-R1-11: mark-all tenant A does not mutate tenant B', async () => {
   const mockAiService: any = { statuses: () => [] };
   const sameId = 'usr_shared_markall';
 
-  await handleAsyncApiRequest('POST', '/api/v1/notifications/dispatch', {
-    tenantId: 'ten_a', principalId: sameId, type: 'TASK_COMPLETED', title: 'A', body: 'A',
-  }, authAs('ten_dispatch', 'usr_notif_dispatcher'), mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
-  await handleAsyncApiRequest('POST', '/api/v1/notifications/dispatch', {
-    tenantId: 'ten_b', principalId: sameId, type: 'TASK_COMPLETED', title: 'B', body: 'B',
-  }, authAs('ten_dispatch', 'usr_notif_dispatcher'), mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
+  await customEngine.dispatch({ tenantId: 'ten_a', principalId: sameId, type: 'TASK_COMPLETED', title: 'A', body: 'A' });   // trusted internal seeding (S2C: the HTTP route can only notify the caller)
+  await customEngine.dispatch({ tenantId: 'ten_b', principalId: sameId, type: 'TASK_COMPLETED', title: 'B', body: 'B' });   // trusted internal seeding (S2C: the HTTP route can only notify the caller)
 
   const markAllA = await handleAsyncApiRequest('POST', '/api/v1/notifications/read-all', null, authAs('ten_a', sameId), mockAiService, {}, undefined, undefined, undefined, undefined, undefined, customEngine);
   assert.equal((markAllA.data as any).updatedCount, 1);

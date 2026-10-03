@@ -1,3 +1,5 @@
+import type { ChannelSendFailureReason } from '../channel-send.js';
+
 export interface SlackEventItem {
   type: string;
   user?: string;
@@ -27,6 +29,13 @@ export interface PostMessageOptions {
   threadTs?: string;
 }
 
+export interface SlackSendResult {
+  ok: boolean;
+  ts?: string;
+  // set when ok is false (S2C): never a successful delivery
+  reason?: ChannelSendFailureReason;
+}
+
 export interface SlackBotStatus {
   configured: boolean;
   botId: string | null;
@@ -53,11 +62,15 @@ export class SlackClient {
     };
   }
 
-  public async postMessage(options: PostMessageOptions): Promise<{ ok: boolean; ts?: string }> {
-    if (!this.token) {
-      // Mock mode for offline testing without bot token
-      return { ok: true, ts: String(Date.now() / 1000) };
-    }
+  // The workspace the bot token belongs to, when the operator configured it (SLACK_TEAM_ID). A send whose verified
+  // link belongs to a different workspace is refused (S2C).
+  public getWorkspaceId(): string | null {
+    return process.env.SLACK_TEAM_ID || null;
+  }
+
+  // S2C — truthful result: no credential, a provider rejection and a network failure are failures, never a success.
+  public async postMessage(options: PostMessageOptions): Promise<SlackSendResult> {
+    if (!this.token) return { ok: false, reason: 'NO_PROVIDER_CREDENTIAL' };
 
     const payload = {
       channel: options.channel,
@@ -65,8 +78,9 @@ export class SlackClient {
       thread_ts: options.threadTs,
     };
 
+    let res: Response;
     try {
-      const res = await this.fetchFn(`${this.baseUrl}/chat.postMessage`, {
+      res = await this.fetchFn(`${this.baseUrl}/chat.postMessage`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json; charset=utf-8',
@@ -74,11 +88,15 @@ export class SlackClient {
         },
         body: JSON.stringify(payload),
       });
+    } catch {
+      // the error object is deliberately not logged
+      return { ok: false, reason: 'NETWORK_FAILURE' };
+    }
+    try {
       const data = (await res.json()) as any;
-      return { ok: Boolean(data.ok), ts: data.ts };
-    } catch (error) {
-      console.error('Slack postMessage error:', error);
-      return { ok: false };
+      return data && data.ok === true ? { ok: true, ts: data.ts } : { ok: false, reason: 'PROVIDER_REJECTION' };
+    } catch {
+      return { ok: false, reason: 'PROVIDER_REJECTION' };
     }
   }
 }

@@ -1,6 +1,10 @@
 import { NagexError } from '../../common/errors.js';
 import { FileRecordStore, resolveNagexDataDir } from '../../governance/file-record.store.js';
 
+// S2C — set only by the S2B ownership flow (a challenge redeemed from the Slack account itself, in the workspace it names).
+// A link without it predates S2B and was never proven: it is never a trusted outbound destination for a signed-in caller.
+export type ChannelOwnershipProof = 'CHANNEL_CHALLENGE';
+
 export interface SlackIdentityLinkRecord {
   slackUserId: string;
   slackTeamId?: string;
@@ -8,6 +12,7 @@ export interface SlackIdentityLinkRecord {
   tenantId: string;
   username?: string;
   linkedAt: string;
+  ownershipProof?: ChannelOwnershipProof;
 }
 
 export function isSlackIdentityLinkRecord(value: unknown): value is SlackIdentityLinkRecord {
@@ -45,6 +50,7 @@ export class SlackIdentityStore {
     tenantId: string,
     slackTeamId?: string,
     username?: string,
+    ownershipProof?: ChannelOwnershipProof,
   ): SlackIdentityLinkRecord {
     // S2B — NO_SILENT_REBIND (see TelegramIdentityStore.link): a Slack identity linked to a different principal is
     // never overwritten; re-linking to the same principal refreshes the record.
@@ -59,6 +65,7 @@ export class SlackIdentityStore {
       tenantId,
       username,
       linkedAt: new Date().toISOString(),
+      ownershipProof: ownershipProof ?? existing?.ownershipProof,
     };
     this.records.set(slackUserId, record);
     this.fileStore.write(slackUserId, record);
@@ -86,6 +93,12 @@ export class SlackIdentityStore {
   // S2B — a principal sees and removes only ITS OWN links.
   public listForPrincipal(principalId: string, tenantId: string): SlackIdentityLinkRecord[] {
     return [...this.records.values()].filter((r) => r.principalId === principalId && r.tenantId === tenantId);
+  }
+
+  // Only links whose ownership was PROVEN from the channel (S2B), in a named workspace. These are the only trusted
+  // outbound destinations.
+  public listVerifiedForPrincipal(principalId: string, tenantId: string): SlackIdentityLinkRecord[] {
+    return this.listForPrincipal(principalId, tenantId).filter((r) => r.ownershipProof === 'CHANNEL_CHALLENGE' && Boolean(r.slackTeamId));
   }
 
   public unlinkForPrincipal(principalId: string, tenantId: string): number {

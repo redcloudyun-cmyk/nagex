@@ -1,3 +1,5 @@
+import type { ChannelSendFailureReason } from '../channel-send.js';
+
 export interface TelegramUser {
   id: number;
   is_bot: boolean;
@@ -25,6 +27,13 @@ export interface TelegramUpdate {
   update_id: number;
   message?: TelegramMessage;
   edited_message?: TelegramMessage;
+}
+
+export interface TelegramSendResult {
+  ok: boolean;
+  messageId?: number;
+  // set when ok is false (S2C): never a successful delivery
+  reason?: ChannelSendFailureReason;
 }
 
 export interface SendMessageOptions {
@@ -81,11 +90,10 @@ export class TelegramBotClient {
     }
   }
 
-  public async sendMessage(options: SendMessageOptions): Promise<{ ok: boolean; messageId?: number }> {
-    if (!this.token) {
-      // Mock mode for local testing without bot token
-      return { ok: true, messageId: Math.floor(Math.random() * 1000000) };
-    }
+  // S2C — truthful result. Nothing is delivered without a bot credential, so that is a failure (it used to be a fake
+  // success), and a provider rejection or a network failure are failures too.
+  public async sendMessage(options: SendMessageOptions): Promise<TelegramSendResult> {
+    if (!this.token) return { ok: false, reason: 'NO_PROVIDER_CREDENTIAL' };
 
     const payload = {
       chat_id: options.chatId,
@@ -94,17 +102,22 @@ export class TelegramBotClient {
       reply_to_message_id: options.replyToMessageId,
     };
 
+    let res: Response;
     try {
-      const res = await this.fetchFn(`${this.baseUrl}/sendMessage`, {
+      res = await this.fetchFn(`${this.baseUrl}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
+    } catch {
+      // the error object is deliberately not logged: the request URL carries the bot token
+      return { ok: false, reason: 'NETWORK_FAILURE' };
+    }
+    try {
       const data = (await res.json()) as any;
-      return { ok: Boolean(data.ok), messageId: data.result?.message_id };
-    } catch (error) {
-      console.error('Telegram sendMessage error:', error);
-      return { ok: false };
+      return data && data.ok === true ? { ok: true, messageId: data.result?.message_id } : { ok: false, reason: 'PROVIDER_REJECTION' };
+    } catch {
+      return { ok: false, reason: 'PROVIDER_REJECTION' };
     }
   }
 

@@ -7,6 +7,7 @@ import { SlackClient, type SlackEventPayload } from './slack.client.js';
 import { SlackIdentityStore } from './slack-identity.store.js';
 import { NagexError } from '../../common/errors.js';
 import { ChannelLinkChallengeStore, parseChannelLinkCommand } from '../channel-link-challenge.store.js';
+import type { OwnChannelSendResult } from '../channel-send.js';
 
 import type { ConversationStore } from '../../conversations/conversation.store.js';
 import type { ConversationContextService } from '../../conversations/conversation-context.service.js';
@@ -58,6 +59,58 @@ export class SlackService {
     return this.options.identityStore.unlinkForPrincipal(principalId, tenantId);
   }
 
+  // ── S2C: SELF-DELIVERY ONLY ──
+  // The destination (the caller's own verified Slack user, in the workspace the link was proven in) is derived HERE; a
+  // client-supplied channel / workspace is only an assertion that must equal it. Every check happens before the provider is
+  // invoked; nothing falls back to an arbitrary channel, another workspace or another user's link, and a failed send is
+  // never reported as delivered.
+  public async sendToOwnChannel(input: { principalId: string; tenantId: string; text: string; assertedChannel?: string; assertedWorkspaceId?: string; threadTs?: string; requestId?: string }): Promise<OwnChannelSendResult> {
+    const requestId = input.requestId ?? `req_slack_send_${Date.now()}`;
+    const audit = (action: string, result: 'SUCCESS' | 'DENIED' | 'FAILED', reason: string, target?: string): void => {
+      this.options.auditLogger.logEvent({
+        actor: { type: 'user', id: input.principalId },
+        tenant_id: input.tenantId,
+        action,
+        resource: { type: 'SlackDestination', id: target ?? 'unresolved' },
+        result,
+        reason_code: reason,
+        request_id: requestId,
+        details: { proof: 'CHANNEL_CHALLENGE' },
+      });
+    };
+    const deny = (code: Extract<OwnChannelSendResult, { status: 'DENIED' }>['code']): OwnChannelSendResult => {
+      audit('channel:slack_send_denied', 'DENIED', code);
+      return { status: 'DENIED', code };
+    };
+    const store = this.options.identityStore;
+    const links = store.listForPrincipal(input.principalId, input.tenantId);
+    const verified = store.listVerifiedForPrincipal(input.principalId, input.tenantId);
+    if (links.length === 0) return deny('NOT_LINKED');
+    if (verified.length === 0) return deny('LINK_NOT_VERIFIED');
+    let target = verified.length === 1 ? verified[0] : undefined;
+    if (input.assertedChannel !== undefined) {
+      const asserted = input.assertedChannel.trim();
+      target = verified.find((l) => l.slackUserId === asserted);
+      if (!target) return deny(links.some((l) => l.slackUserId === asserted) ? 'LINK_NOT_VERIFIED' : 'DESTINATION_NOT_OWNED');
+    } else if (!target) {
+      return deny('DESTINATION_AMBIGUOUS');
+    }
+    // workspace binding: the asserted workspace and the bot's own workspace (when the operator configured it) must both be the
+    // workspace the link was proven in
+    const botWorkspace = this.options.slackClient.getWorkspaceId();
+    if ((input.assertedWorkspaceId !== undefined && input.assertedWorkspaceId.trim() !== target.slackTeamId) || (botWorkspace && botWorkspace !== target.slackTeamId)) {
+      return deny('WORKSPACE_MISMATCH');
+    }
+    const sent = await this.options.slackClient.postMessage({ channel: target.slackUserId, text: input.text, threadTs: input.threadTs });
+    if (!sent.ok) {
+      const reason = sent.reason ?? 'PROVIDER_REJECTION';
+      audit('channel:slack_send_failed', 'FAILED', reason, target.slackUserId);
+      return { status: 'FAILED', reason };
+    }
+    audit('channel:slack_message_sent', 'SUCCESS', 'DELIVERED', target.slackUserId);
+    return { status: 'SENT', destination: target.slackUserId };
+  }
+
   // Runs on the signed event only (S2A). The Slack user id and the workspace (team) id are the platform's own data; the
   // code in the text only selects WHICH challenge is being redeemed. Nothing here touches the conversation, memory or the
   // model, and the code is never persisted or logged.
@@ -85,7 +138,7 @@ export class SlackService {
       reason = 'NOT_DIRECT_MESSAGE';
     } else {
       try {
-        const record = this.options.identityStore.link(slackUserId, consumed.principalId, consumed.tenantId, teamId);
+        const record = this.options.identityStore.link(slackUserId, consumed.principalId, consumed.tenantId, teamId, undefined, 'CHANNEL_CHALLENGE');
         outcome = 'LINKED';
         reason = 'OWNERSHIP_PROVEN';
         linkedPrincipal = record.principalId;
