@@ -1,3 +1,4 @@
+import { NagexError } from '../../common/errors.js';
 import { FileRecordStore, resolveNagexDataDir } from '../../governance/file-record.store.js';
 
 export interface TelegramIdentityLinkRecord {
@@ -37,7 +38,15 @@ export class TelegramIdentityStore {
     }
   }
 
+  // S2B — NO_SILENT_REBIND. An external identity that is already linked to a DIFFERENT principal is never overwritten:
+  // the caller gets CHANNEL_IDENTITY_ALREADY_LINKED and the existing link stays exactly as it was. Re-linking to the
+  // SAME principal just refreshes the record. The HTTP flow reaches this only after the channel proved ownership
+  // (ChannelLinkChallengeStore); a client-supplied id never gets here.
   public link(telegramUserId: string, principalId: string, tenantId: string, username?: string): TelegramIdentityLinkRecord {
+    const existing = this.records.get(telegramUserId);
+    if (existing && (existing.principalId !== principalId || existing.tenantId !== tenantId)) {
+      throw new NagexError({ code: 'CHANNEL_IDENTITY_ALREADY_LINKED', category: 'CONFLICT', message: 'This Telegram account is already linked to a NAgex account. It must be unlinked there first.' });
+    }
     const record: TelegramIdentityLinkRecord = {
       telegramUserId,
       principalId,
@@ -62,6 +71,21 @@ export class TelegramIdentityStore {
 
   public get(telegramUserId: string): TelegramIdentityLinkRecord | undefined {
     return this.records.get(telegramUserId);
+  }
+
+  // S2B — a principal sees and removes only ITS OWN links.
+  public listForPrincipal(principalId: string, tenantId: string): TelegramIdentityLinkRecord[] {
+    return [...this.records.values()].filter((r) => r.principalId === principalId && r.tenantId === tenantId);
+  }
+
+  public unlinkForPrincipal(principalId: string, tenantId: string): number {
+    let removed = 0;
+    for (const record of this.listForPrincipal(principalId, tenantId)) {
+      this.records.delete(record.telegramUserId);
+      this.fileStore.remove(record.telegramUserId);
+      removed++;
+    }
+    return removed;
   }
 
   public list(): TelegramIdentityLinkRecord[] {

@@ -212,17 +212,28 @@ test('Slack API endpoints in server_web.ts respond correctly', async () => {
   assert.equal(statusRes.status, 200);
   assert.equal((statusRes.data as any).configured, false);
 
-  const linkRes = await handleAsyncApiRequest('POST', '/api/v1/integrations/slack/identity/link', {
+  // S2B: a client-supplied Slack id (with or without a principal/tenant) is NOT accepted; ownership is proven FROM Slack.
+  const refusedLink = await handleAsyncApiRequest('POST', '/api/v1/integrations/slack/identity/link', {
     slackUserId: 'U555123',
-    // S1: a body-supplied principalId/tenantId is NOT authority. The link is bound to the signed-in caller.
     principalId: 'usr_someone_else',
     tenantId: 'ten_someone_else',
     username: 'slack_link_user',
   }, authAs('ten_slack_link_test', 'usr_slack_link_test'), mockAiService, {}, undefined, undefined, undefined, undefined, customSlackService);
-  assert.equal(linkRes.status, 200);
-  assert.equal((linkRes.data as any).slackUserId, 'U555123');
-  assert.equal((linkRes.data as any).principalId, 'usr_slack_link_test');
-  assert.equal((linkRes.data as any).tenantId, 'ten_slack_link_test');
+  assert.equal(refusedLink.status, 400);
+  assert.equal((refusedLink.data as any).error.code, 'CHANNEL_LINK_PROOF_REQUIRED');
+  assert.equal(identityStore.list().length, 0, 'a refused link wrote nothing');
+  const linkChallengeRes = await handleAsyncApiRequest('POST', '/api/v1/integrations/slack/identity/link/challenge', {}, authAs('ten_slack_link_test', 'usr_slack_link_test'), mockAiService, {}, undefined, undefined, undefined, undefined, customSlackService);
+  assert.equal(linkChallengeRes.status, 201);
+  const linkCode = (linkChallengeRes.data as any).challenge as string;
+  const proof = signedSlackEvent({ type: 'message', channel_type: 'im', user: 'U555123', channel: 'D555123', text: `link ${linkCode}`, ts: '1700000000.000100' }, { team_id: 'T_LINK' });
+  const proofRes = await withWebhookSecrets(BOTH_SECRETS, () => handleAsyncApiRequest('POST', '/api/v1/integrations/slack/events', proof.body, proof.headers, mockAiService, {}, undefined, undefined, undefined, undefined, customSlackService));
+  assert.equal(proofRes.status, 200);
+  assert.equal((proofRes.data as any).result.linkOutcome, 'LINKED');
+  const linked = identityStore.get('U555123');
+  assert.equal(linked?.slackUserId, 'U555123');
+  assert.equal(linked?.principalId, 'usr_slack_link_test', 'bound to the principal that issued the challenge, never to a body-supplied one');
+  assert.equal(linked?.tenantId, 'ten_slack_link_test');
+  assert.equal(linked?.slackTeamId, 'T_LINK', 'the workspace is taken from the signed event');
   const anonLink = await handleAsyncApiRequest('POST', '/api/v1/integrations/slack/identity/link', { slackUserId: 'U999', principalId: 'usr_x', tenantId: 'ten_x' }, {}, mockAiService, {}, undefined, undefined, undefined, undefined, customSlackService);
   assert.equal(anonLink.status, 401, 'S1: anonymous callers cannot link a channel identity');
 

@@ -5,6 +5,8 @@ import type { MemoryRecord } from '../../context/memory.engine.js';
 import type { PlanResolver } from '../../planning/plan-resolver.js';
 import { SlackClient, type SlackEventPayload } from './slack.client.js';
 import { SlackIdentityStore } from './slack-identity.store.js';
+import { NagexError } from '../../common/errors.js';
+import { ChannelLinkChallengeStore, parseChannelLinkCommand } from '../channel-link-challenge.store.js';
 
 import type { ConversationStore } from '../../conversations/conversation.store.js';
 import type { ConversationContextService } from '../../conversations/conversation-context.service.js';
@@ -19,6 +21,9 @@ export interface SlackServiceOptions {
   auditLogger: AuditLogger;
   conversationStore?: ConversationStore;
   conversationContextService?: ConversationContextService;
+  // S2B — ownership-proof challenges. Defaults to a private store; the route that issues a challenge and the events
+  // endpoint that redeems it always reach the same store through this service.
+  challengeStore?: ChannelLinkChallengeStore;
 }
 
 export interface SlackProcessResult {
@@ -29,10 +34,87 @@ export interface SlackProcessResult {
   responseText: string;
   planGenerated?: boolean;
   challenge?: string;
+  // S2B — set when the message was an ownership-proof (link) attempt rather than a chat message
+  linkOutcome?: 'LINKED' | 'DENIED';
 }
 
 export class SlackService {
-  constructor(private readonly options: SlackServiceOptions) {}
+  private readonly challenges: ChannelLinkChallengeStore;
+
+  constructor(private readonly options: SlackServiceOptions) {
+    this.challenges = options.challengeStore ?? new ChannelLinkChallengeStore();
+  }
+
+  // ── S2B: ownership of a Slack account is proven FROM Slack ──
+  public createLinkChallenge(principalId: string, tenantId: string): { token: string; expiresAt: string; ttlSeconds: number } {
+    return this.challenges.issue('slack', principalId, tenantId);
+  }
+
+  public listLinks(principalId: string, tenantId: string): ReturnType<SlackIdentityStore['listForPrincipal']> {
+    return this.options.identityStore.listForPrincipal(principalId, tenantId);
+  }
+
+  public unlinkAll(principalId: string, tenantId: string): number {
+    return this.options.identityStore.unlinkForPrincipal(principalId, tenantId);
+  }
+
+  // Runs on the signed event only (S2A). The Slack user id and the workspace (team) id are the platform's own data; the
+  // code in the text only selects WHICH challenge is being redeemed. Nothing here touches the conversation, memory or the
+  // model, and the code is never persisted or logged.
+  private async redeemLinkChallenge(payload: SlackEventPayload, code: string, malformed: boolean, requestId: string): Promise<SlackProcessResult> {
+    const event = payload.event!;
+    const slackUserId = event.user!;
+    const channel = event.channel!;
+    const teamId = typeof payload.team_id === 'string' ? payload.team_id.trim() : '';
+    let outcome: 'LINKED' | 'DENIED' = 'DENIED';
+    let reason = 'INVALID_CHALLENGE';
+    let reply = 'This link code is invalid or has expired. Create a new one in NAgex and send it here again.';
+    let linkedPrincipal = '';
+    let linkedTenant = `ten_slack_${slackUserId}`;
+
+    // consume + link are one synchronous step: no await between them, so a challenge cannot be spent twice
+    const consumed = this.challenges.consume('slack', code);
+    if (!consumed.ok) {
+      reason = consumed.reason;
+    } else if (malformed) {
+      // a code followed by other text is not a valid command; the code is spent
+      reason = 'MALFORMED_COMMAND';
+    } else if (event.channel_type !== 'im' || !teamId || payload.type !== 'event_callback') {
+      // proof must come from the person's own direct message and name the workspace; a code sent anywhere else is
+      // treated as exposed and is spent
+      reason = 'NOT_DIRECT_MESSAGE';
+    } else {
+      try {
+        const record = this.options.identityStore.link(slackUserId, consumed.principalId, consumed.tenantId, teamId);
+        outcome = 'LINKED';
+        reason = 'OWNERSHIP_PROVEN';
+        linkedPrincipal = record.principalId;
+        linkedTenant = record.tenantId;
+        reply = 'Your Slack account is now linked to the NAgex account that created this code.';
+      } catch (error) {
+        if (error instanceof NagexError && error.code === 'CHANNEL_IDENTITY_ALREADY_LINKED') {
+          reason = 'ALREADY_LINKED';
+          reply = 'This Slack account is already linked to a NAgex account. Unlink it there first, then create a new code.';
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    this.options.auditLogger.logEvent({
+      actor: outcome === 'LINKED' ? { type: 'user', id: linkedPrincipal } : { type: 'system', id: 'slack-service' },
+      tenant_id: linkedTenant,
+      action: outcome === 'LINKED' ? 'channel:slack_identity_linked' : 'channel:slack_identity_link_denied',
+      resource: { type: 'SlackIdentityLink', id: slackUserId },
+      result: outcome === 'LINKED' ? 'SUCCESS' : 'DENIED',
+      reason_code: reason,
+      request_id: requestId,
+      details: { slackUserId, slackTeamId: teamId || undefined, proof: 'CHALLENGE' },
+    });
+
+    await this.options.slackClient.postMessage({ channel, text: reply });
+    return { ok: outcome === 'LINKED', channel, principalId: linkedPrincipal, sessionId: '', responseText: reply, linkOutcome: outcome };
+  }
 
   public async processEvent(payload: SlackEventPayload, requestId = `req_slack_${Date.now()}`): Promise<SlackProcessResult | null> {
     // 1. Handle URL Verification Challenge required by Slack Event API setup
@@ -52,12 +134,16 @@ export class SlackService {
       return null;
     }
 
+    // S2B — an ownership-proof attempt is handled here, before identity resolution, conversation, memory or the model.
+    const linkAttempt = parseChannelLinkCommand('slack', event.text);
+    if (linkAttempt) return this.redeemLinkChallenge(payload, linkAttempt.code, linkAttempt.trailing !== '', requestId);
+
     const slackUserId = event.user;
     const channel = event.channel;
     const text = event.text.trim();
 
     // 2. Identity Resolution -> Canonical Principal & Tenant (AC-13)
-    const { principalId, tenantId } = this.options.identityStore.resolve(slackUserId);
+    const { principalId, tenantId } = this.options.identityStore.resolve(slackUserId, payload.team_id);
     const session = this.options.sessionStore.getOrCreateMain(tenantId, principalId);
 
     // Persist USER message if conversation store is provided

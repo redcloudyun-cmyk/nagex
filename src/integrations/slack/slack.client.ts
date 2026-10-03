@@ -7,6 +7,8 @@ export interface SlackEventItem {
   thread_ts?: string;
   bot_id?: string;
   subtype?: string;
+  // 'im' for a direct message to the bot (S2B ownership proof is accepted only there)
+  channel_type?: string;
 }
 
 export interface SlackEventPayload {

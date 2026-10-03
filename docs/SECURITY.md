@@ -25,6 +25,11 @@ NAgex must allow useful agent autonomy without allowing the agent to silently ex
 - A Telegram or Slack webhook is not an authenticated caller. It is refused (`401`) before any identity lookup, memory read, conversation write, model call or outbound send unless it carries the server-configured Telegram secret-token header, or a valid Slack `v0` signature over the authentic raw body inside a 5-minute window.
 - `TELEGRAM_WEBHOOK_SECRET` and `SLACK_SIGNING_SECRET` come from server configuration only. A missing secret fails closed (`503`), never "verification off". See ADR-0007.
 
+## 2c. Channel identity ownership (Security Gate S2B)
+
+- A Telegram/Slack user id supplied by a client is never proof of ownership. A channel account is linked to a NAgex principal only when a one-time challenge issued to that signed-in principal is redeemed FROM the channel account, through the authenticated webhook; the link is bound to the issuing principal and tenant.
+- An identity already linked to another principal is never silently taken over; unlinking is explicit and owner-only. Challenges are single-use, 10 minutes, process-local. See ADR-0008.
+
 ## 3. Human Approval
 
 Approval must be enforced in runtime logic, not only UI.

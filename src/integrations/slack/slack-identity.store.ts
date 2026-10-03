@@ -1,3 +1,4 @@
+import { NagexError } from '../../common/errors.js';
 import { FileRecordStore, resolveNagexDataDir } from '../../governance/file-record.store.js';
 
 export interface SlackIdentityLinkRecord {
@@ -45,6 +46,12 @@ export class SlackIdentityStore {
     slackTeamId?: string,
     username?: string,
   ): SlackIdentityLinkRecord {
+    // S2B — NO_SILENT_REBIND (see TelegramIdentityStore.link): a Slack identity linked to a different principal is
+    // never overwritten; re-linking to the same principal refreshes the record.
+    const existing = this.records.get(slackUserId);
+    if (existing && (existing.principalId !== principalId || existing.tenantId !== tenantId)) {
+      throw new NagexError({ code: 'CHANNEL_IDENTITY_ALREADY_LINKED', category: 'CONFLICT', message: 'This Slack account is already linked to a NAgex account. It must be unlinked there first.' });
+    }
     const record: SlackIdentityLinkRecord = {
       slackUserId,
       slackTeamId,
@@ -58,9 +65,13 @@ export class SlackIdentityStore {
     return record;
   }
 
-  public resolve(slackUserId: string): { principalId: string; tenantId: string } {
+  // `slackTeamId` is the workspace the (signed) event came from. A link made through the ownership flow records the
+  // workspace it was proven in; an event from a DIFFERENT workspace with the same user id is not that person. (Links that
+  // predate S2B carry no workspace and keep resolving by user id.)
+  public resolve(slackUserId: string, slackTeamId?: string): { principalId: string; tenantId: string } {
     const existing = this.records.get(slackUserId);
-    if (existing) {
+    const workspaceMismatch = Boolean(existing?.slackTeamId && slackTeamId && existing.slackTeamId !== slackTeamId);
+    if (existing && !workspaceMismatch) {
       return { principalId: existing.principalId, tenantId: existing.tenantId };
     }
     // S1: an unlinked Slack user is its OWN isolated principal AND tenant — never the default
@@ -70,6 +81,21 @@ export class SlackIdentityStore {
 
   public get(slackUserId: string): SlackIdentityLinkRecord | undefined {
     return this.records.get(slackUserId);
+  }
+
+  // S2B — a principal sees and removes only ITS OWN links.
+  public listForPrincipal(principalId: string, tenantId: string): SlackIdentityLinkRecord[] {
+    return [...this.records.values()].filter((r) => r.principalId === principalId && r.tenantId === tenantId);
+  }
+
+  public unlinkForPrincipal(principalId: string, tenantId: string): number {
+    let removed = 0;
+    for (const record of this.listForPrincipal(principalId, tenantId)) {
+      this.records.delete(record.slackUserId);
+      this.fileStore.remove(record.slackUserId);
+      removed++;
+    }
+    return removed;
   }
 
   public list(): SlackIdentityLinkRecord[] {

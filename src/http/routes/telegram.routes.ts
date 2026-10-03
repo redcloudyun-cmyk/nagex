@@ -49,34 +49,37 @@ export const handleTelegramRoutes: AsyncRouteRegistrar<TelegramRouteDeps> = asyn
     const sent = await telegramBotClient.sendMessage({ chatId, text });
     return { status: 200, data: { success: sent } };
   }
-  if (pathname === '/api/v1/integrations/telegram/identity/link' && method === 'POST') {
-    const requestId = getHeaderValue(headers, 'x-request-id') || `req_tg_link_${crypto.randomUUID()}`;
-    const telegramUserId = String(body?.telegramUserId || '').trim();
-    // S1 — a channel identity is linked to the AUTHENTICATED caller only. A body-supplied
-    // principalId/tenantId is never authority (it used to let anyone bind a Telegram account
-    // to any user). Webhook signature verification and link ownership proof remain S0-06.
+  // S2B — the browser can no longer say "I own Telegram user X". A signed-in caller asks for a one-time challenge and proves
+  // ownership FROM Telegram (see TelegramService.redeemLinkChallenge, behind the S2A-authenticated webhook):
+  // the link is created there from the platform-verified sender, bound to the principal and tenant that issued the challenge.
+  if (pathname === '/api/v1/integrations/telegram/identity/link/challenge' && method === 'POST') {
     const { principalId, tenantId } = callerIdentity(headers);
-    const username = typeof body?.username === 'string' ? body.username.trim() : undefined;
-
-    if (!telegramUserId) {
-      throw new NagexError({ code: 'TELEGRAM_USER_ID_REQUIRED', category: 'VALIDATION', message: 'telegramUserId is required.', request_id: requestId });
-    }
-    const record = telegramIdentityStore.link(telegramUserId, principalId, tenantId, username);
-    auditLogger.logEvent({
-      actor: { type: 'user', id: principalId },
-      tenant_id: tenantId,
-      action: 'channel:telegram_identity_linked',
-      resource: { type: 'TelegramIdentityLink', id: telegramUserId },
-      result: 'SUCCESS',
-      request_id: requestId,
-      details: { telegramUserId, principalId, tenantId, username },
-    });
-    return { status: 200, data: record };
+    const challenge = telegramApiService.createLinkChallenge(principalId, tenantId);
+    return {
+      status: 201,
+      headers: { 'Cache-Control': 'no-store' },
+      data: {
+        integration: 'telegram',
+        challenge: challenge.token,
+        expiresAt: challenge.expiresAt,
+        ttlSeconds: challenge.ttlSeconds,
+        instructions: { command: `/start ${challenge.token}`, note: 'Send this to the NAgex bot in a private chat from the Telegram account you want to link.' },
+      },
+    };
+  }
+  if (pathname === '/api/v1/integrations/telegram/identity/link' && method === 'POST') {
+    callerIdentity(headers);
+    throw new NagexError({ code: 'CHANNEL_LINK_PROOF_REQUIRED', category: 'VALIDATION', message: 'A Telegram account is linked by proving you control it: request a link code, then send it to the NAgex bot from that Telegram account. A Telegram user id alone is not accepted.' });
+  }
+  if (pathname === '/api/v1/integrations/telegram/identity' && method === 'DELETE') {
+    const { principalId, tenantId } = callerIdentity(headers);
+    return { status: 200, data: { unlinked: telegramApiService.unlinkAll(principalId, tenantId) } };
   }
   if (pathname === '/api/v1/integrations/telegram/identities' && method === 'GET') {
-    const identities = telegramIdentityStore.list();
+    // a principal sees only ITS OWN links
+    const { principalId, tenantId } = callerIdentity(headers);
+    const identities = telegramApiService.listLinks(principalId, tenantId);
     return { status: 200, data: { identities, total: identities.length } };
   }
-
   return undefined;
 };

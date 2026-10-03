@@ -199,17 +199,29 @@ test('Telegram API endpoints in server_web.ts respond correctly', async () => {
   assert.equal(statusRes.status, 200);
   assert.equal((statusRes.data as any).configured, false);
 
-  const linkRes = await handleAsyncApiRequest('POST', '/api/v1/integrations/telegram/identity/link', {
+  // S2B: a client-supplied Telegram id (with or without a principal/tenant) is NOT accepted; ownership is proven FROM Telegram.
+  const refusedLink = await handleAsyncApiRequest('POST', '/api/v1/integrations/telegram/identity/link', {
     telegramUserId: '555123',
-    // S1: a body-supplied principalId/tenantId is NOT authority. The link is bound to the signed-in caller.
     principalId: 'usr_someone_else',
     tenantId: 'ten_someone_else',
     username: 'link_user',
   }, authAs('ten_link_test', 'usr_link_test'), mockAiService, {}, undefined, undefined, undefined, customTgService);
-  assert.equal(linkRes.status, 200);
-  assert.equal((linkRes.data as any).telegramUserId, '555123');
-  assert.equal((linkRes.data as any).principalId, 'usr_link_test');
-  assert.equal((linkRes.data as any).tenantId, 'ten_link_test');
+  assert.equal(refusedLink.status, 400);
+  assert.equal((refusedLink.data as any).error.code, 'CHANNEL_LINK_PROOF_REQUIRED');
+  assert.equal(identityStore.list().length, 0, 'a refused link wrote nothing');
+  const challengeRes = await handleAsyncApiRequest('POST', '/api/v1/integrations/telegram/identity/link/challenge', {}, authAs('ten_link_test', 'usr_link_test'), mockAiService, {}, undefined, undefined, undefined, customTgService);
+  assert.equal(challengeRes.status, 201);
+  const linkCode = (challengeRes.data as any).challenge as string;
+  const proofRes = await withWebhookSecrets(BOTH_SECRETS, () => handleAsyncApiRequest('POST', '/api/v1/integrations/telegram/webhook', {
+    update_id: 98,
+    message: { message_id: 1, date: Date.now(), chat: { id: 555123, type: 'private' }, from: { id: 555123, is_bot: false, first_name: 'LinkUser', username: 'link_user' }, text: `/start ${linkCode}` },
+  }, telegramHeaders(), mockAiService, {}, undefined, undefined, undefined, customTgService));
+  assert.equal(proofRes.status, 200);
+  assert.equal((proofRes.data as any).result.linkOutcome, 'LINKED');
+  const linked = identityStore.get('555123');
+  assert.equal(linked?.telegramUserId, '555123');
+  assert.equal(linked?.principalId, 'usr_link_test', 'bound to the principal that issued the challenge, never to a body-supplied one');
+  assert.equal(linked?.tenantId, 'ten_link_test');
   const anonLink = await handleAsyncApiRequest('POST', '/api/v1/integrations/telegram/identity/link', { telegramUserId: '999', principalId: 'usr_x', tenantId: 'ten_x' }, {}, mockAiService, {}, undefined, undefined, undefined, customTgService);
   assert.equal(anonLink.status, 401, 'S1: anonymous callers cannot link a channel identity');
 

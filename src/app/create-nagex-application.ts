@@ -79,6 +79,7 @@ import { TaskContinuationStore } from '../tasks/task-continuation.store.js';
 import { TaskContinuationCoordinator } from '../tasks/task-continuation.coordinator.js';
 import { DurableTaskRunStateStore } from '../tasks/durable-task-run-state.store.js';
 import { DurableTaskRuntime } from '../tasks/durable-task-runtime.js';
+import { ChannelLinkChallengeStore } from '../integrations/channel-link-challenge.store.js';
 import { TelegramIdentityStore } from '../integrations/telegram/telegram-identity.store.js';
 import { TelegramBotClient } from '../integrations/telegram/telegram.client.js';
 import { TelegramService } from '../integrations/telegram/telegram.service.js';
@@ -550,6 +551,8 @@ export function createNagexApplication(): NagexApplication {
   // construction site.
 
   // ─── MASTER.md Section 14 — Telegram Integration (Item 10) ───
+  // S2B — one process-local challenge store shared by both channels; each challenge is bound to the integration it was issued for.
+  const channelLinkChallengeStore = new ChannelLinkChallengeStore();
   const telegramIdentityStore = new TelegramIdentityStore();
   const telegramBotClient = new TelegramBotClient();
   const telegramService = new TelegramService({
@@ -562,6 +565,7 @@ export function createNagexApplication(): NagexApplication {
     auditLogger,
     conversationStore,
     conversationContextService,
+    challengeStore: channelLinkChallengeStore,
   });
 
   // ─── MASTER.md Section 14 — Slack Integration (Item 11) ───
@@ -577,6 +581,7 @@ export function createNagexApplication(): NagexApplication {
     auditLogger,
     conversationStore,
     conversationContextService,
+    challengeStore: channelLinkChallengeStore,
   });
 
   // ─── MASTER.md Section 14 — Desktop Quick Wake Runtime (Item 14) ───

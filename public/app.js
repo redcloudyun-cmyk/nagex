@@ -2255,12 +2255,12 @@
         ${t.id === 'telegram.bot' ? `<div class="tool-oauth-actions">
           <p style="font-size:0.75rem; margin-top:0.25rem; color:var(--text-muted);">Bot Status: <strong>${state.telegram && state.telegram.status && state.telegram.status.configured ? 'Active' : 'Mock Mode (No Token)'}</strong></p>
           <p style="font-size:0.75rem; color:var(--text-muted);">Linked Users: <strong>${(state.telegram && state.telegram.identities && state.telegram.identities.length) || 0}</strong></p>
-          <button class="btn-small" id="btn-telegram-link-identity">🔗 Link Telegram User</button>
+          <button class="btn-small" id="btn-telegram-link-identity">🔗 Link Telegram (get code)</button>
         </div>` : ''}
         ${t.id === 'slack.bot' ? `<div class="tool-oauth-actions">
           <p style="font-size:0.75rem; margin-top:0.25rem; color:var(--text-muted);">Bot Status: <strong>${state.slack && state.slack.status && state.slack.status.configured ? 'Active' : 'Mock Mode (No Token)'}</strong></p>
           <p style="font-size:0.75rem; color:var(--text-muted);">Linked Users: <strong>${(state.slack && state.slack.identities && state.slack.identities.length) || 0}</strong></p>
-          <button class="btn-small" id="btn-slack-link-identity">🔗 Link Slack User</button>
+          <button class="btn-small" id="btn-slack-link-identity">🔗 Link Slack (get code)</button>
         </div>` : ''}
       </div>`
       )
@@ -2287,23 +2287,12 @@
     }
     const btnTgLink = document.getElementById('btn-telegram-link-identity');
     if (btnTgLink) {
-      btnTgLink.onclick = async () => {
-        const tgUserId = prompt('Enter your Telegram user ID to connect Telegram (for example, 12345678):');
-        if (tgUserId && tgUserId.trim()) {
-          const username = prompt('Optional: Telegram Username (e.g. janesmith):') || undefined;
-          await window.NAGEX.linkTelegramIdentity(tgUserId.trim(), username);
-        }
-      };
+      // S2B: ownership is proven from Telegram, never typed in here.
+      btnTgLink.onclick = async () => { await window.NAGEX.requestChannelLinkCode('telegram'); };
     }
     const btnSlackLink = document.getElementById('btn-slack-link-identity');
     if (btnSlackLink) {
-      btnSlackLink.onclick = async () => {
-        const slackUserId = prompt('Enter your Slack user ID to connect Slack (for example, U1234567):');
-        if (slackUserId && slackUserId.trim()) {
-          const username = prompt('Optional: Slack Username (e.g. janesmith):') || undefined;
-          await window.NAGEX.linkSlackIdentity(slackUserId.trim(), undefined, username);
-        }
-      };
+      btnSlackLink.onclick = async () => { await window.NAGEX.requestChannelLinkCode('slack'); };
     }
   }
 
@@ -5359,19 +5348,15 @@
       await apiFetch(`/api/v1/tasks/${taskId}`, { method: 'DELETE' });
       await loadAllData();
     },
-    // S1: the server links the channel to the signed-in caller; the client never names a principal.
-    linkTelegramIdentity: async (telegramUserId, username) => {
-      await apiFetch('/api/v1/integrations/telegram/identity/link', {
-        method: 'POST',
-        body: JSON.stringify({ telegramUserId, username }),
-      });
-      await loadAllData();
-    },
-    linkSlackIdentity: async (slackUserId, slackTeamId, username) => {
-      await apiFetch('/api/v1/integrations/slack/identity/link', {
-        method: 'POST',
-        body: JSON.stringify({ slackUserId, slackTeamId, username }),
-      });
+    // S2B: the browser never names the external account. It asks the server for a one-time code and the person sends
+    // that code to the NAgex bot FROM the Telegram/Slack account to link; the channel proves who they are.
+    requestChannelLinkCode: async (integration) => {
+      if (integration !== 'telegram' && integration !== 'slack') return;
+      const res = await apiFetch(`/api/v1/integrations/${integration}/identity/link/challenge`, { method: 'POST' });
+      if (res && res.challenge && res.instructions) {
+        const minutes = Math.max(1, Math.round((res.ttlSeconds || 600) / 60));
+        alert(`Link code: ${res.challenge}\n\n${res.instructions.note}\n\n${res.instructions.command}\n\nThe code works once and expires in ${minutes} minutes. Only send a code you created yourself.`);
+      }
       await loadAllData();
     },
     markNotificationRead: async (id) => {

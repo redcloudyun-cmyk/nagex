@@ -59,33 +59,37 @@ export const handleSlackRoutes: AsyncRouteRegistrar<SlackRouteDeps> = async (met
     const sent = await slackClient.postMessage({ channel, text, threadTs });
     return { status: 200, data: { success: sent } };
   }
-  if (pathname === '/api/v1/integrations/slack/identity/link' && method === 'POST') {
-    const requestId = getHeaderValue(headers, 'x-request-id') || `req_slack_link_${crypto.randomUUID()}`;
-    const slackUserId = String(body?.slackUserId || '').trim();
-    // S1 — a channel identity is linked to the AUTHENTICATED caller only (see telegram.routes.ts).
+  // S2B — the browser can no longer say "I own Slack user X". A signed-in caller asks for a one-time challenge and proves
+  // ownership FROM Slack (see SlackService.redeemLinkChallenge, behind the S2A-authenticated events endpoint):
+  // the link is created there from the platform-verified sender, bound to the principal and tenant that issued the challenge.
+  if (pathname === '/api/v1/integrations/slack/identity/link/challenge' && method === 'POST') {
     const { principalId, tenantId } = callerIdentity(headers);
-    const slackTeamId = typeof body?.slackTeamId === 'string' ? body.slackTeamId.trim() : undefined;
-    const username = typeof body?.username === 'string' ? body.username.trim() : undefined;
-
-    if (!slackUserId) {
-      throw new NagexError({ code: 'SLACK_USER_ID_REQUIRED', category: 'VALIDATION', message: 'slackUserId is required.', request_id: requestId });
-    }
-    const record = slackIdentityStore.link(slackUserId, principalId, tenantId, slackTeamId, username);
-    auditLogger.logEvent({
-      actor: { type: 'user', id: principalId },
-      tenant_id: tenantId,
-      action: 'channel:slack_identity_linked',
-      resource: { type: 'SlackIdentityLink', id: slackUserId },
-      result: 'SUCCESS',
-      request_id: requestId,
-      details: { slackUserId, principalId, tenantId, slackTeamId, username },
-    });
-    return { status: 200, data: record };
+    const challenge = slackApiService.createLinkChallenge(principalId, tenantId);
+    return {
+      status: 201,
+      headers: { 'Cache-Control': 'no-store' },
+      data: {
+        integration: 'slack',
+        challenge: challenge.token,
+        expiresAt: challenge.expiresAt,
+        ttlSeconds: challenge.ttlSeconds,
+        instructions: { command: `link ${challenge.token}`, note: 'Send this to the NAgex bot in a direct message from the Slack account you want to link.' },
+      },
+    };
+  }
+  if (pathname === '/api/v1/integrations/slack/identity/link' && method === 'POST') {
+    callerIdentity(headers);
+    throw new NagexError({ code: 'CHANNEL_LINK_PROOF_REQUIRED', category: 'VALIDATION', message: 'A Slack account is linked by proving you control it: request a link code, then send it to the NAgex bot from that Slack account. A Slack user id alone is not accepted.' });
+  }
+  if (pathname === '/api/v1/integrations/slack/identity' && method === 'DELETE') {
+    const { principalId, tenantId } = callerIdentity(headers);
+    return { status: 200, data: { unlinked: slackApiService.unlinkAll(principalId, tenantId) } };
   }
   if (pathname === '/api/v1/integrations/slack/identities' && method === 'GET') {
-    const identities = slackIdentityStore.list();
+    // a principal sees only ITS OWN links
+    const { principalId, tenantId } = callerIdentity(headers);
+    const identities = slackApiService.listLinks(principalId, tenantId);
     return { status: 200, data: { identities, total: identities.length } };
   }
-
   return undefined;
 };

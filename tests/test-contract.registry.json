@@ -4456,6 +4456,34 @@
       "deterministic": true,
       "assertionIntent": "Source contract that keeps the S2A boundary from regressing: both webhook routes verify before the challenge/processing, only those routes hand channel updates to the services, the verifier uses configuration secrets, constant-time comparison and the raw buffer (never a re-serialised body), a missing secret is a refusal, and the HTTP layer passes the original bytes to SIGNED_WEBHOOK routes.",
       "notes": "Reads production source only; behavior is certified by security_s2a_webhook_authenticity."
+    },
+    "security_s2b_channel_identity_ownership": {
+      "milestone": "SECURITY-GATE-S2B",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Security Gate S2B channel identity ownership through the real entry points: a client-supplied Telegram/Slack id never links (the old link routes refuse and write nothing); a link is created only when a one-time, short-lived, single-use challenge issued to a signed-in principal is redeemed from the channel itself through the S2A-authenticated webhook, bound to the issuing principal, tenant, integration and operation and to the sender/workspace taken from verified platform data; unknown, expired, replayed, wrong-integration, wrong-sender, group/non-DM, edited and malformed redemptions link nothing and write nothing; an identity already linked to another principal is never silently taken over; two simultaneous redemptions of one challenge link at most one account; a forged or secret-less webhook cannot redeem or spend a challenge; challenge codes are never logged, audited, replied or stored; the unlinked-sender policy is unchanged.",
+      "notes": "Real handleAsyncApiRequest/route/service entry points with tripwires on link writes, conversation writes, memory reads, model calls and outbound sends, plus the real application wiring over a localhost HTTP server with real session cookies and signed webhooks. No network, no model, no provider credentials."
+    },
+    "security_s2b_ownership_contract": {
+      "milestone": "SECURITY-GATE-S2B",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "architecture"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "Source contract that keeps the S2B boundary from regressing: no route links or lists channel identities from client input, link attempts are handled before identity resolution/conversation/memory/model and consume+link share one synchronous step, the challenge store uses a CSPRNG and keeps only digests, identity stores never overwrite another principal's link, both channels share one challenge store, and the UI no longer asks for an external account id.",
+      "notes": "Reads production source only; behavior is certified by security_s2b_channel_identity_ownership."
     }
   }
 }
