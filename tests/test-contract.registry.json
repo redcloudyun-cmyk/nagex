@@ -4512,6 +4512,34 @@
       "deterministic": true,
       "assertionIntent": "Source contract that keeps the S2C boundary from regressing: no route calls a channel provider, the send routes go through sendToOwnChannel with the session identity, the services decide every authority question before the provider and trust only proven links, the notification route reaches only dispatchForCaller and nothing under src/http calls the internal dispatch, and the adapters never fabricate success or log an error object.",
       "notes": "Reads production source only; behavior is certified by security_s2c_outbound_recipient_authority."
+    },
+    "security_s2d_tenant_resource_ownership": {
+      "milestone": "SECURITY-GATE-S2D",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Security Gate S2D tenant resource ownership through the real entry points: the execution history is scoped to the caller's tenant AND principal (another tenant, another principal in the same tenant and the legacy demo seed are never listed; the route keeps its shape). An upload can be completed only by the caller that initiated it, on the object key the server derived: an unknown, foreign or already-completed upload and a differing/folded/traversal/foreign key are refused BEFORE any storage read, write, delete or signed-URL issue, create no capture, and never echo identifiers; a delete removes only the capture owner's own object; a record from before S2D that points at another owner's object never reaches storage; server-derived keys always sit under the caller's own prefix and a capture id is server-generated.",
+      "notes": "Real handleApiRequest/handleAsyncApiRequest entry points and a real localhost HTTP server, with tripwires counting every call to the shared application storage provider. No network, no model, no provider credentials."
+    },
+    "security_s2d_ownership_contract": {
+      "milestone": "SECURITY-GATE-S2D",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "architecture"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "Source contract that keeps the S2D boundary from regressing: completeUpload looks up the caller's own pending capture and validates the key before any storage access and never creates a capture from a client key; every storage access that follows a capture record goes through the ownership guard; no route calls storage directly; keys are bound to the record id; the execution history is filtered by tenant and principal and never returned as the shared array.",
+      "notes": "Reads production source only; behavior is certified by security_s2d_tenant_resource_ownership."
     }
   }
 }

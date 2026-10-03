@@ -105,7 +105,8 @@ export const handleGovernanceRoutes: SyncRouteRegistrar<GovernanceRouteDeps> = (
     const execution = runtime.createExecution(tenantContext, agentId);
     auditLogger.logEvent({ actor: principal, tenant_id: tenantId, action: 'agent:execute', resource: { type: 'Execution', id: execution.id }, result: 'SUCCESS', request_id: requestId });
 
-    const record = { execution_id: execution.id, agent_id: agentId, agent_name: 'NAgex Personal AI', objective: taskObjective, status: execution.state, tenant_id: tenantId, created_at: new Date().toISOString(), checkpoint: 'INITIAL', request_id: requestId };
+    // S2D — the record carries its OWNER (the authenticated caller), so the history can be scoped to tenant AND principal.
+    const record = { execution_id: execution.id, agent_id: agentId, agent_name: 'NAgex Personal AI', objective: taskObjective, status: execution.state, tenant_id: tenantId, principal_id: principal.id, created_at: new Date().toISOString(), checkpoint: 'INITIAL', request_id: requestId };
     executionHistory.unshift(record);
     return { status: 201, data: record };
   }
@@ -120,7 +121,12 @@ export const handleGovernanceRoutes: SyncRouteRegistrar<GovernanceRouteDeps> = (
     const logs = auditLogger.getAuditLogs(tenantId, 20);
     return { status: 200, data: { logs, total: logs.length } };
   }
-  if (pathname === '/api/v1/executions' && method === 'GET') return { status: 200, data: { executions: executionHistory, total: executionHistory.length } };
+  // S2D — execution history is scoped to the authenticated caller's tenant AND principal. The in-memory array is shared by every
+  // caller, so the filter is the isolation boundary; a record with no owner (the legacy demo seed) belongs to nobody and is never listed.
+  if (pathname === '/api/v1/executions' && method === 'GET') {
+    const own = executionHistory.filter((e) => e.tenant_id === tenantId && e.principal_id === principal.id);
+    return { status: 200, data: { executions: own, total: own.length } };
+  }
 
   return undefined;
 };

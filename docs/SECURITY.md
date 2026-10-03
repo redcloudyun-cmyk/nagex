@@ -36,6 +36,11 @@ NAgex must allow useful agent autonomy without allowing the agent to silently ex
 - A signed-in caller can send to, and notify, only itself. Telegram/Slack send derives the destination from the caller's own ownership-proven link; a body chat/channel/workspace is only an assertion that must match. `notifications/dispatch` makes the authenticated caller the only recipient. Trusted internal dispatch is a separate server-only entry point.
 - A send that did not happen (no bot credential, provider rejection, network failure) is never reported as delivered. See ADR-0009.
 
+## 2e. Tenant resource ownership (Security Gate S2D)
+
+- The execution history is scoped to the caller's tenant AND principal; no caller can list another tenant's or another principal's executions.
+- An upload is completed only by the caller that initiated it, on the object key the server derived for it. Ownership is decided before any storage read, write, delete or signed-URL issue; a client-supplied object key is only an assertion; an object key is never trusted from a request or from a record that does not own it. See ADR-0010.
+
 ## 3. Human Approval
 
 Approval must be enforced in runtime logic, not only UI.

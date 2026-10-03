@@ -60,8 +60,13 @@ export class CaptureStore {
     source?: 'WEB' | 'DESKTOP' | 'MOBILE' | 'TELEGRAM' | 'SLACK';
     metadata?: Partial<CaptureItem['metadata']>;
     vaultPath?: string;
+    // S2D — only server code that already derived an object key from this id passes it, so the record id and the key agree.
+    captureId?: string;
   }): CaptureItem {
-    const captureId = generateResourceId('cap');
+    if (params.captureId !== undefined && !/^cap_[0-9a-f]{16}$/.test(params.captureId)) {
+      throw new Error('CAPTURE_ID_INVALID: a capture id is server-generated.');
+    }
+    const captureId = params.captureId ?? generateResourceId('cap');
     const now = new Date().toISOString();
     const item: CaptureItem = {
       captureId,

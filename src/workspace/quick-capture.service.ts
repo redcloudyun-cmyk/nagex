@@ -26,6 +26,7 @@ import type { ActivityStore } from '../governance/activity.store.js';
 import { classifyFailure } from '../common/failure-taxonomy.js';
 import {
   generateCanonicalObjectKey,
+  isCanonicalObjectKeyFor,
   sanitizeFilename,
   scanObjectForMalware,
   validateFileSize,
@@ -135,6 +136,7 @@ export class QuickCaptureService {
     // 4. Create initial CaptureItem in UPLOADING state
     const initType = (params.mimeType.startsWith('audio/') ? 'AUDIO' : 'FILE') as CaptureType;
     this.store.createCapture({
+      captureId,                 // S2D: the record id is the id the object key was derived from
       ownerId: params.ownerId,
       tenantId: params.tenantId,
       type: initType,
@@ -175,10 +177,30 @@ export class QuickCaptureService {
     originalFilename: string;
     data?: Buffer | Uint8Array;
   }): Promise<CaptureItem> {
+    // S2D — OWNERSHIP BEFORE ANY STORAGE ACCESS. A completion is only for an upload THIS caller initiated: a capture in the caller's
+    // tenant, owned by the caller's principal, still UPLOADING. The object key comes from that record; a key in the request is only
+    // an assertion that must equal it. Nothing below touches storage until all of this holds, and a foreign, unknown or already
+    // completed upload is refused without creating a capture or reading, writing or deleting any object.
+    const requestId = `req_upl_${Date.now()}`;
+    const item = this.store.getCapture(params.captureId, params.tenantId, params.ownerId);
+    if (!item) {
+      throw new NagexError({ code: 'UPLOAD_NOT_FOUND', category: 'NOT_FOUND', message: 'No pending upload with this id was found.', request_id: requestId });
+    }
+    if (item.status !== 'UPLOADING') {
+      throw new NagexError({ code: 'UPLOAD_NOT_PENDING', category: 'CONFLICT', message: 'This upload has already been completed.', request_id: requestId });
+    }
+    const objectKey = this.ownedObjectKey(item);
+    if (!objectKey) {
+      throw new NagexError({ code: 'UPLOAD_OBJECT_UNAVAILABLE', category: 'CONFLICT', message: 'The storage location of this upload is not valid.', request_id: requestId });
+    }
+    if (params.objectKey && params.objectKey !== objectKey) {
+      throw new NagexError({ code: 'UPLOAD_OBJECT_KEY_MISMATCH', category: 'AUTHORIZATION', message: 'The object does not belong to this upload.', request_id: requestId });
+    }
+
     let buf: Buffer | null = params.data ? Buffer.from(params.data) : null;
 
     if (!buf) {
-      const stored = await this.storageProvider.getObject(params.objectKey);
+      const stored = await this.storageProvider.getObject(objectKey);
       if (stored) {
         buf = stored.data;
       }
@@ -188,7 +210,7 @@ export class QuickCaptureService {
       throw new NagexError({
         code: 'STORAGE_OBJECT_NOT_FOUND',
         category: 'NOT_FOUND',
-        message: `Object "${params.objectKey}" could not be retrieved from storage.`,
+        message: 'The uploaded object could not be retrieved from storage.',
         request_id: `req_chk_${Date.now()}`,
       });
     }
@@ -209,35 +231,13 @@ export class QuickCaptureService {
     }
     // If data provided directly, put into storage
     if (params.data) {
-      await this.storageProvider.putObject(params.objectKey, buf, params.mimeType);
+      await this.storageProvider.putObject(objectKey, buf, params.mimeType);
     }
 
-
-    let item = this.store.getCapture(params.captureId, params.tenantId, params.ownerId);
-    if (!item) {
-      const completeType = (params.mimeType.startsWith('audio/') ? 'AUDIO' : 'FILE') as CaptureType;
-      item = this.store.createCapture({
-        ownerId: params.ownerId,
-        tenantId: params.tenantId,
-        type: completeType,
-        content: params.objectKey,
-        source: 'WEB',
-        metadata: {
-          originalName: params.originalFilename,
-          mimeType: params.mimeType,
-          sizeBytes: params.sizeBytes,
-          objectKey: params.objectKey,
-          storageProvider: this.storageProvider.getProviderName(),
-          checksum: actualChecksum,
-        },
-        vaultPath: `${vaultFolderFor(completeType)}/${params.objectKey}`,
-      });
-    } else {
-      this.store.updateStatus(params.captureId, params.tenantId, params.ownerId, 'QUEUED', {
-        checksum: actualChecksum,
-        sizeBytes: params.sizeBytes,
-      });
-    }
+    this.store.updateStatus(params.captureId, params.tenantId, params.ownerId, 'QUEUED', {
+      checksum: actualChecksum,
+      sizeBytes: params.sizeBytes,
+    });
 
     this.quotaEngine.recordUpload(params.ownerId, params.sizeBytes);
 
@@ -279,6 +279,7 @@ export class QuickCaptureService {
     const objectMeta = await this.storageProvider.putObject(objectKey, buf, params.mimeType);
 
     const item = this.store.createCapture({
+      captureId,                 // S2D: the record id is the id the object key was derived from
       ownerId: params.ownerId,
       tenantId: params.tenantId,
       type: params.type,
@@ -329,9 +330,11 @@ export class QuickCaptureService {
     const item = this.store.getCapture(captureId, tenantId, ownerId);
     if (!item) return false;
 
-    // 1. Remove binary object from storage provider if exists
-    if (item.metadata.objectKey) {
-      await this.storageProvider.deleteObject(item.metadata.objectKey);
+    // 1. Remove binary object from storage provider if exists. S2D: only an object under THIS capture owner's own prefix is ever
+    // deleted; a record that points anywhere else (legacy data from before S2D) is removed without touching that object.
+    const ownedKey = this.ownedObjectKey(item);
+    if (ownedKey) {
+      await this.storageProvider.deleteObject(ownedKey);
     }
 
     // 2. Update Quota Engine
@@ -348,9 +351,30 @@ export class QuickCaptureService {
 
   public async getDownloadUrl(captureId: string, tenantId: string, ownerId: string): Promise<string | null> {
     const item = this.store.getCapture(captureId, tenantId, ownerId);
-    if (!item || !item.metadata.objectKey) return null;
+    if (!item) return null;
+    const ownedKey = this.ownedObjectKey(item);          // S2D: never a signed URL for an object the caller does not own
+    if (!ownedKey) return null;
 
-    return await this.storageProvider.getSignedUrl(item.metadata.objectKey, 3600);
+    return await this.storageProvider.getSignedUrl(ownedKey, 3600);
+  }
+
+  // S2D — the ONLY way this service turns a capture record into a storage key. A record whose key is not under its own tenant's
+  // and principal's prefix (data created before S2D from a client-supplied key) never reaches storage.
+  private ownedObjectKey(item: CaptureItem): string | null {
+    const key = item.metadata.objectKey;
+    if (!key) return null;
+    if (isCanonicalObjectKeyFor(key, item.tenantId, item.ownerId)) return key;
+    this.auditLogger?.logEvent({
+      actor: { type: 'system', id: 'capture-service' },
+      tenant_id: item.tenantId,
+      action: 'capture.object_ownership_violation',
+      resource: { type: 'CaptureItem', id: item.captureId },
+      result: 'DENIED',
+      reason_code: 'OBJECT_KEY_NOT_OWNED',
+      request_id: `req_cap_own_${Date.now()}`,
+      details: {},
+    });
+    return null;
   }
 
   public async getPreviewUrl(captureId: string, tenantId: string, ownerId: string): Promise<string | null> {
@@ -704,8 +728,9 @@ export class QuickCaptureService {
     });
 
     let rawBuffer: Buffer | undefined;
-    if (item.metadata.objectKey && this.storageProvider) {
-      const obj = await this.storageProvider.getObject(item.metadata.objectKey);
+    const retryKey = this.ownedObjectKey(item);               // S2D: only the record owner's own object is ever read
+    if (retryKey && this.storageProvider) {
+      const obj = await this.storageProvider.getObject(retryKey);
       if (obj) {
         rawBuffer = obj.data;
       }

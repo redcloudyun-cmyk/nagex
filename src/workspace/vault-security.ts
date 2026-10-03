@@ -133,3 +133,23 @@ export function generateCanonicalObjectKey(params: {
 
   return `tenant/${safeTenant}/principal/${safePrincipal}/captures/${safeCapture}/${safeObject}`;
 }
+
+// Security Gate S2D — object ownership. Every object key the server derives lies under this per-tenant, per-principal prefix.
+export function canonicalObjectKeyPrefix(tenantId: string, principalId: string): string {
+  const safeTenant = tenantId.replace(/[^a-zA-Z0-9_\-]/g, '_');
+  const safePrincipal = principalId.replace(/[^a-zA-Z0-9_\-]/g, '_');
+  return `tenant/${safeTenant}/principal/${safePrincipal}/captures/`;
+}
+
+// True only for a key of exactly the shape generateCanonicalObjectKey produces, under THIS tenant's and principal's prefix.
+// The check is on the raw key (before any storage sanitisation), so another spelling that a storage provider would fold onto
+// the same stored object (for example 'tenant_x_...') is not owned, and neither is a key for another tenant or principal.
+export function isCanonicalObjectKeyFor(objectKey: unknown, tenantId: string, principalId: string): boolean {
+  if (typeof objectKey !== 'string' || objectKey.length === 0 || objectKey.length > 512) return false;
+  const prefix = canonicalObjectKeyPrefix(tenantId, principalId);
+  if (!objectKey.startsWith(prefix)) return false;
+  const rest = objectKey.slice(prefix.length).split('/');
+  if (rest.length !== 2) return false;
+  const [captureSegment, objectSegment] = rest;
+  return /^[A-Za-z0-9_\-]+$/.test(captureSegment) && /^[A-Za-z0-9_\-.]+$/.test(objectSegment) && objectSegment !== '.' && objectSegment !== '..';
+}

@@ -19,6 +19,7 @@ import type { StorageProvider } from '../storage/storage-provider.js';
 import type { KnowledgeEngine } from '../context/knowledge.engine.js';
 import { isUrlSafe } from '../modules/browser/index.js';
 import { extractPdfText, chunkText } from './pdf-extractor.js';
+import { isCanonicalObjectKeyFor } from './vault-security.js';
 import { CandidateStore } from './candidate.store.js';
 import type { ActivityStore } from '../governance/activity.store.js';
 import { classifyFailure } from '../common/failure-taxonomy.js';
@@ -536,7 +537,8 @@ export class CaptureProcessor {
     });
 
     let buf: Buffer | null = rawBuffer || null;
-    if (!buf && item.metadata.objectKey && this.storageProvider) {
+    // S2D: only an object under this capture owner's own prefix is ever read (a record from before S2D may point elsewhere)
+    if (!buf && item.metadata.objectKey && this.storageProvider && isCanonicalObjectKeyFor(item.metadata.objectKey, item.tenantId, item.ownerId)) {
       const obj = await this.storageProvider.getObject(item.metadata.objectKey);
       if (obj) buf = obj.data;
     }
