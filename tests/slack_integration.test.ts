@@ -13,6 +13,7 @@ import { PlanResolver } from '../src/planning/plan-resolver.js';
 import { skillRegistry } from '../src/skills/skill-registry.js';
 import { toolRegistry } from '../src/tools/tool-registry.js';
 import { authAs } from './_s1_session_auth.js';
+import { BOTH_SECRETS, signedSlackChallenge, signedSlackEvent, withWebhookSecrets } from './_s2a_webhooks.js';
 
 function tempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-slack-test-'));
@@ -238,24 +239,23 @@ test('Slack API endpoints in server_web.ts respond correctly', async () => {
   assert.equal((sendRes.data as any).success.ok, true);
 
   // Test URL Verification challenge endpoint
-  const challengeRes = await handleAsyncApiRequest('POST', '/api/v1/integrations/slack/events', {
-    type: 'url_verification',
-    challenge: 'testChallengeToken123',
-  }, {}, mockAiService, {}, undefined, undefined, undefined, undefined, customSlackService);
+  // S2A: Slack events are accepted only with a valid signature over the raw body (and an unsigned request is refused).
+  const unsignedChallenge = await withWebhookSecrets(BOTH_SECRETS, () => handleAsyncApiRequest('POST', '/api/v1/integrations/slack/events', { type: 'url_verification', challenge: 'testChallengeToken123' }, {}, mockAiService, {}, undefined, undefined, undefined, undefined, customSlackService));
+  assert.equal(unsignedChallenge.status, 401, 'S2A: an unsigned challenge is refused');
+  const signedChallenge = signedSlackChallenge('testChallengeToken123');
+  const challengeRes = await withWebhookSecrets(BOTH_SECRETS, () => handleAsyncApiRequest('POST', '/api/v1/integrations/slack/events', signedChallenge.body, signedChallenge.headers, mockAiService, {}, undefined, undefined, undefined, undefined, customSlackService));
   assert.equal(challengeRes.status, 200);
   assert.equal((challengeRes.data as any).challenge, 'testChallengeToken123');
 
   // Test Event callback endpoint
-  const eventRes = await handleAsyncApiRequest('POST', '/api/v1/integrations/slack/events', {
-    type: 'event_callback',
-    event: {
-      type: 'message',
-      user: 'U555123',
-      channel: 'C555123',
-      text: 'Ping via Slack events endpoint',
-      ts: '1700000001.000100',
-    },
-  }, {}, mockAiService, {}, undefined, undefined, undefined, undefined, customSlackService);
+  const signedEvent = signedSlackEvent({
+    type: 'message',
+    user: 'U555123',
+    channel: 'C555123',
+    text: 'Ping via Slack events endpoint',
+    ts: '1700000001.000100',
+  });
+  const eventRes = await withWebhookSecrets(BOTH_SECRETS, () => handleAsyncApiRequest('POST', '/api/v1/integrations/slack/events', signedEvent.body, signedEvent.headers, mockAiService, {}, undefined, undefined, undefined, undefined, customSlackService));
   assert.equal(eventRes.status, 200);
   assert.equal((eventRes.data as any).status, 'ok');
   assert.equal((eventRes.data as any).handled, true);

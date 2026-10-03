@@ -195,8 +195,17 @@ describe('S1 — route access policy', () => {
     ['GET', '/api/v1/health'], ['GET', '/api/v1/skills'], ['GET', '/api/v1/tools'], ['GET', '/api/v1/agents'], ['GET', '/api/v1/capabilities/status'],
     ['GET', '/api/v1/auth/session'], ['POST', '/api/v1/auth/login'], ['POST', '/api/v1/auth/signup'], ['POST', '/api/v1/auth/forgot-password'],
     ['GET', '/api/v1/auth/sso/discover'], ['POST', '/api/v1/device-agent/message'],
-    ['GET', '/api/v1/vcs/status'], ['GET', '/api/v1/providers/status'], ['GET', '/api/v1/integrations/telegram/status'], ['POST', '/api/v1/integrations/telegram/webhook'], ['POST', '/api/v1/integrations/slack/events'],
+    ['GET', '/api/v1/vcs/status'], ['GET', '/api/v1/providers/status'], ['GET', '/api/v1/integrations/telegram/status'],
   ];
+  // S2A — the two channel webhooks left this list: they are SIGNED_WEBHOOK routes, reachable without a session but
+  // refused unless the platform's secret / signature is valid (certified in tests/security_s2a_webhook_authenticity).
+  it('S2A: the channel webhooks are SIGNED_WEBHOOK routes and refuse an unauthenticated request instead of processing it', async () => {
+    for (const path of ['/api/v1/integrations/telegram/webhook', '/api/v1/integrations/slack/events']) {
+      assert.equal(classifyRouteAccess('POST', path)?.access, 'SIGNED_WEBHOOK', path);
+      const res = await handleAsyncApiRequest('POST', path, {}, {});
+      assert.ok(res.status === 401 || res.status === 503, `${path} must not process an unauthenticated request (got ${res.status})`);
+    }
+  });
   it('public and preserved routes are reachable without a session (and are not 401 from the gate)', async () => {
     for (const [method, path] of ANON_OK) {
       const res = await handleAsyncApiRequest(method, path, method === 'POST' ? {} : null, {});

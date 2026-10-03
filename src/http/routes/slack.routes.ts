@@ -8,6 +8,11 @@ import type { SlackService } from '../../integrations/slack/slack.service.js';
 import type { AuditLogger } from '../../governance/audit.logger.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
 import { callerIdentity } from '../request-identity.js';
+import { getRawBody } from '../raw-body.js';
+import { SignedRequestReplayGuard, verifySlackWebhook, webhookRejection } from '../../integrations/webhook-auth.js';
+
+// S2A — a signed delivery is processed once inside Slack's replay window.
+const slackReplayGuard = new SignedRequestReplayGuard();
 
 function getHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
   const value = headers[name] ?? headers[name.toLowerCase()];
@@ -29,6 +34,13 @@ export const handleSlackRoutes: AsyncRouteRegistrar<SlackRouteDeps> = async (met
   }
   if (pathname === '/api/v1/integrations/slack/events' && method === 'POST') {
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_slack_evt_${crypto.randomUUID()}`;
+    // S2A — authenticity BEFORE trust, including the url_verification challenge: the signature is checked over the
+    // authentic raw body and the timestamp must be inside the replay window. Fails closed without a signing secret.
+    const verdict = verifySlackWebhook(headers, getRawBody(body));
+    if (!verdict.ok) return webhookRejection('slack', verdict, requestId);
+    if (verdict.signature && slackReplayGuard.checkAndRemember(verdict.signature)) {
+      return { status: 200, data: { status: 'ok', handled: false, duplicate: true, result: null } };
+    }
     const payload = (body || {}) as unknown as SlackEventPayload;
     if (payload.type === 'url_verification' && payload.challenge) {
       return { status: 200, data: { challenge: payload.challenge } };

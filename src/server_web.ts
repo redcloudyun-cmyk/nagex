@@ -16,7 +16,8 @@ import { handleKnowledgeRoutes } from './http/routes/knowledge.routes.js';
 import { handlePlanRoutes } from './http/routes/plan.routes.js';
 import { handleSettingsRoutes } from './http/routes/settings.routes.js';
 import { canonicalizeRequestHeaders, tryGetCallerIdentity } from './http/request-identity.js';
-import { denyIfUnauthorized } from './http/route-access.js';
+import { classifyRouteAccess, denyIfUnauthorized } from './http/route-access.js';
+import { attachRawBody } from './http/raw-body.js';
 import { handleNotificationsRoutes } from './http/routes/notifications.routes.js';
 import { handleTasksRoutes, handleTasksRunRoutes } from './http/routes/tasks.routes.js';
 import { handleAutomationsRoutes, handleAutomationsRunRoutes } from './http/routes/automations.routes.js';
@@ -865,6 +866,13 @@ export function createServerInstance(opts?: {
             mimeType: contentType || 'application/octet-stream',
             data: rawBuffer,
           };
+        }
+        // S2A — a signed webhook authenticates the exact bytes the platform sent, so the route is handed the original
+        // buffer (never a re-serialisation of the parsed object). A body that did not parse to an object is replaced by an
+        // empty one so the raw bytes can still be verified; the handler then rejects before processing anything.
+        if (classifyRouteAccess(method, pathname)?.access === 'SIGNED_WEBHOOK') {
+          if (parsedBody === null || typeof parsedBody !== 'object') parsedBody = {};
+          attachRawBody(parsedBody, rawBuffer);
         }
         const query = Object.fromEntries(url.searchParams);
         const result = await handleAsyncApiRequest(

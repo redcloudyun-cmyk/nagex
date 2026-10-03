@@ -13,6 +13,9 @@
 //                       and fails closed. Listed so the gate does not change its
 //                       established error contract. tests/security_s1_* proves
 //                       every one of these denies an anonymous caller.
+//   SIGNED_WEBHOOK     an inbound platform webhook (Telegram, Slack). There is no session: the request must prove it came from
+//                       the platform. The handler verifies the server-configured secret / signature BEFORE any trusted
+//                       processing and fails closed (src/integrations/webhook-auth.ts, Security Gate S2A, ADR-0007).
 //   ANONYMOUS_PRESERVED Routes S0 classified UNKNOWN that never used the legacy
 //                       identity mechanism. S1 does not change them; each is
 //                       owned by a later Security Gate phase (noted per rule).
@@ -24,7 +27,7 @@
 import type { ApiResult } from './http-types.js';
 import { attachDemoIdentity, tryGetCallerIdentity } from './request-identity.js';
 
-export type RouteAccessClass = 'PUBLIC' | 'SELF_AUTHENTICATED' | 'ANONYMOUS_PRESERVED';
+export type RouteAccessClass = 'PUBLIC' | 'SELF_AUTHENTICATED' | 'SIGNED_WEBHOOK' | 'ANONYMOUS_PRESERVED';
 
 export interface RouteAccessRule {
   methods: readonly string[] | '*';
@@ -74,8 +77,10 @@ export const ROUTE_ACCESS_RULES: readonly RouteAccessRule[] = [
   rule('*', /^\/api\/v1\/desktop\/quickwake\//, 'ANONYMOUS_PRESERVED', 'local Electron shell control surface — later phase'),
   rule(['POST'], /^\/api\/v1\/capture\/link$/, 'ANONYMOUS_PRESERVED', 'S0-05 SSRF — later phase (no model, no tenant data)'),
   rule(['GET'], /^\/api\/v1\/integrations\/(telegram|slack)\/status$/, 'ANONYMOUS_PRESERVED', 'S0-06 — later phase (configured flag only)'),
-  rule(['POST'], /^\/api\/v1\/integrations\/telegram\/webhook$/, 'ANONYMOUS_PRESERVED', 'S0-06 — webhook must stay reachable; signature verification is a later phase'),
-  rule(['POST'], /^\/api\/v1\/integrations\/slack\/events$/, 'ANONYMOUS_PRESERVED', 'S0-06 — webhook must stay reachable; signature verification is a later phase'),
+
+  // ── SIGNED_WEBHOOK (platform-to-server; authenticated by secret / signature, not by a session) ──
+  rule(['POST'], /^\/api\/v1\/integrations\/telegram\/webhook$/, 'SIGNED_WEBHOOK', 'S2A — Telegram secret-token header verified by the handler before any processing; fails closed'),
+  rule(['POST'], /^\/api\/v1\/integrations\/slack\/events$/, 'SIGNED_WEBHOOK', 'S2A — Slack request signature over the raw body + replay window verified by the handler before any processing; fails closed'),
 ];
 
 // Read-only routes the synthetic demo persona may reach (no model, no mutation).

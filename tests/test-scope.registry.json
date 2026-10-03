@@ -11,7 +11,8 @@
       "task_orchestration_boundary",
       "tool_capability_id_alignment",
       "r23_7c_p_creation_provider_architecture",
-      "security_s1_identity_contract"
+      "security_s1_identity_contract",
+      "security_s2a_webhook_contract"
     ],
     "device": [
       "device_agent_foundation",
@@ -122,7 +123,8 @@
       "r24_6c1_dev_auth_token_containment",
       "r24_7b_canvas_ask",
       "r24_8b_plan_integrity",
-      "security_s1_identity_boundary"
+      "security_s1_identity_boundary",
+      "security_s2a_webhook_authenticity"
     ],
     "personal-home": [
       "m6_1_mobile_release_blockers",

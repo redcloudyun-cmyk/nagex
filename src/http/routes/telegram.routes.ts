@@ -9,6 +9,7 @@ import type { TelegramService } from '../../integrations/telegram/telegram.servi
 import type { AuditLogger } from '../../governance/audit.logger.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
 import { callerIdentity } from '../request-identity.js';
+import { verifyTelegramWebhook, webhookRejection } from '../../integrations/webhook-auth.js';
 
 function getHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
   const value = headers[name] ?? headers[name.toLowerCase()];
@@ -30,6 +31,10 @@ export const handleTelegramRoutes: AsyncRouteRegistrar<TelegramRouteDeps> = asyn
   }
   if (pathname === '/api/v1/integrations/telegram/webhook' && method === 'POST') {
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_tg_wh_${crypto.randomUUID()}`;
+    // S2A — authenticity BEFORE trust: nothing below (identity lookup, conversation write, model) runs for a request that
+    // does not carry the server-configured webhook secret. Fails closed when the secret is not configured.
+    const verdict = verifyTelegramWebhook(headers);
+    if (!verdict.ok) return webhookRejection('telegram', verdict, requestId);
     const update = (body || {}) as unknown as TelegramUpdate;
     const result = await telegramApiService.processUpdate(update, requestId);
     return { status: 200, data: { status: 'ok', handled: result !== null, result } };

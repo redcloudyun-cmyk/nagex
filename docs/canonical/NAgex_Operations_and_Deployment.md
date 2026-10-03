@@ -89,6 +89,15 @@ Failure behavior is fail-closed:
 
 Never report these states as connected.
 
+## 7a. Channel Webhook Secrets
+
+The Telegram and Slack webhooks are accepted only when authenticated (ADR-0007):
+
+- `TELEGRAM_WEBHOOK_SECRET` — 1–256 characters of `A-Z a-z 0-9 _ -`, the same value registered as `secret_token` in Telegram `setWebhook`.
+- `SLACK_SIGNING_SECRET` — the Slack app's Signing Secret.
+
+Failure behavior is fail-closed: with the secret missing, empty or unusable every webhook request is answered `503` and nothing is processed. Never report an integration as receiving events while its secret is unset. Secrets are environment/secret-manager values; never commit or log them.
+
 ## 8. Approval and Execution Persistence
 
 Approvals and execution records that must survive restart are stored outside transient process memory.

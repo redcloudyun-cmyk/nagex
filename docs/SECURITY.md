@@ -20,6 +20,11 @@ NAgex must allow useful agent autonomy without allowing the agent to silently ex
 - Routes are default-deny: anything not listed in `src/http/route-access.ts` requires an authenticated identity.
 - There is no default admin, default tenant or built-in admin by name. See ADR-0006.
 
+## 2b. Channel webhook authenticity (Security Gate S2A)
+
+- A Telegram or Slack webhook is not an authenticated caller. It is refused (`401`) before any identity lookup, memory read, conversation write, model call or outbound send unless it carries the server-configured Telegram secret-token header, or a valid Slack `v0` signature over the authentic raw body inside a 5-minute window.
+- `TELEGRAM_WEBHOOK_SECRET` and `SLACK_SIGNING_SECRET` come from server configuration only. A missing secret fails closed (`503`), never "verification off". See ADR-0007.
+
 ## 3. Human Approval
 
 Approval must be enforced in runtime logic, not only UI.

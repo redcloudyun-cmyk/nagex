@@ -13,6 +13,7 @@ import { PlanResolver } from '../src/planning/plan-resolver.js';
 import { skillRegistry } from '../src/skills/skill-registry.js';
 import { toolRegistry } from '../src/tools/tool-registry.js';
 import { authAs } from './_s1_session_auth.js';
+import { BOTH_SECRETS, telegramHeaders, withWebhookSecrets } from './_s2a_webhooks.js';
 
 function tempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-tg-test-'));
@@ -224,7 +225,7 @@ test('Telegram API endpoints in server_web.ts respond correctly', async () => {
   assert.equal(sendRes.status, 200);
   assert.equal((sendRes.data as any).success.ok, true);
 
-  const webhookRes = await handleAsyncApiRequest('POST', '/api/v1/integrations/telegram/webhook', {
+  const webhookUpdate = {
     update_id: 99,
     message: {
       message_id: 1,
@@ -233,7 +234,11 @@ test('Telegram API endpoints in server_web.ts respond correctly', async () => {
       from: { id: 555123, is_bot: false, first_name: 'LinkUser' },
       text: 'Ping via webhook',
     },
-  }, {}, mockAiService, {}, undefined, undefined, undefined, customTgService);
+  };
+  // S2A: the webhook is accepted only with the server-configured secret-token header.
+  const unsignedWebhook = await withWebhookSecrets(BOTH_SECRETS, () => handleAsyncApiRequest('POST', '/api/v1/integrations/telegram/webhook', webhookUpdate, {}, mockAiService, {}, undefined, undefined, undefined, customTgService));
+  assert.equal(unsignedWebhook.status, 401, 'S2A: an unauthenticated webhook is refused before processing');
+  const webhookRes = await withWebhookSecrets(BOTH_SECRETS, () => handleAsyncApiRequest('POST', '/api/v1/integrations/telegram/webhook', webhookUpdate, telegramHeaders(), mockAiService, {}, undefined, undefined, undefined, customTgService));
   assert.equal(webhookRes.status, 200);
   assert.equal((webhookRes.data as any).status, 'ok');
   assert.equal((webhookRes.data as any).handled, true);
