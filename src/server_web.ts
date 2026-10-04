@@ -18,6 +18,8 @@ import { handleSettingsRoutes } from './http/routes/settings.routes.js';
 import { canonicalizeRequestHeaders, tryGetCallerIdentity } from './http/request-identity.js';
 import { classifyRouteAccess, denyIfUnauthorized } from './http/route-access.js';
 import { attachRawBody } from './http/raw-body.js';
+import { attachResolvedClientIp, parseTrustedProxies, resolveClientIp, UNRESOLVED_CLIENT_IP } from './http/client-ip.js';
+import type { AuthAbuseGuard } from './identity/auth-abuse-guard.js';
 import { handleNotificationsRoutes } from './http/routes/notifications.routes.js';
 import { handleTasksRoutes, handleTasksRunRoutes } from './http/routes/tasks.routes.js';
 import { handleAutomationsRoutes, handleAutomationsRunRoutes } from './http/routes/automations.routes.js';
@@ -313,6 +315,7 @@ export async function handleAsyncApiRequest(
     rbacService?: RbacService;
     enterpriseIdentityStore?: EnterpriseIdentityStore;
     ssoFlowStore?: SsoFlowStore;
+    authAbuseGuard?: AuthAbuseGuard;
   }
 ): Promise<ApiResult> {
   try {
@@ -368,6 +371,7 @@ export async function handleAsyncApiRequest(
         identityTokenStore: customDeps?.identityTokenStore ?? identityTokenStore,
         identityAuditStore: customDeps?.identityAuditStore ?? identityAuditStore,
         sessionStore: customDeps?.sessionStore ?? sessionStore,
+        authAbuseGuard: customDeps?.authAbuseGuard,
       });
       if (authResult) return authResult;
     }
@@ -377,6 +381,7 @@ export async function handleAsyncApiRequest(
         identityTokenStore: customDeps?.identityTokenStore ?? identityTokenStore,
         identityAuditStore: customDeps?.identityAuditStore ?? identityAuditStore,
         sessionStore: customDeps?.sessionStore ?? sessionStore,
+        authAbuseGuard: customDeps?.authAbuseGuard,
       });
       if (accountResult) return accountResult;
     }
@@ -818,8 +823,33 @@ export function createServerInstance(opts?: {
   organizationStore?: OrganizationStore;
   rbacStore?: RbacStore;
   rbacService?: RbacService;
+  authAbuseGuard?: AuthAbuseGuard;
+  /**
+   * S2E — trusted client-IP boundary. `trustedProxies` (comma-separated IPs/CIDRs) defaults to NAGEX_TRUSTED_PROXIES; with
+   * none configured the TCP peer is the client and X-Forwarded-For is never read.
+   * `testPeerAddress` is a TEST-ONLY programmatic seam (it replaces the socket's remote address for a test server) — it is
+   * not an environment variable, not a header and not reachable over the network, and createServerInstance refuses it when
+   * NODE_ENV is "production".
+   */
+  clientIp?: { trustedProxies?: string; testPeerAddress?: (req: http.IncomingMessage) => string | undefined };
 }): http.Server {
+  if (opts?.clientIp?.testPeerAddress && process.env.NODE_ENV === 'production') {
+    throw new Error('testPeerAddress is a test-only seam and cannot be used when NODE_ENV is "production".');
+  }
+  const trustedProxies = parseTrustedProxies(opts?.clientIp?.trustedProxies ?? process.env.NAGEX_TRUSTED_PROXIES);
+  if (trustedProxies.invalidEntries.length > 0) {
+    console.error(JSON.stringify({ event: 'trusted_proxies_invalid_entries_ignored', count: trustedProxies.invalidEntries.length }));
+  }
+  let warnedUntrustedForwarding = false;
+  const testPeerAddress = opts?.clientIp?.testPeerAddress;
   const handleHttpRequest = (req: http.IncomingMessage, res: http.ServerResponse): void => {
+    // S2E — resolve the caller's address ONCE, here, from the TCP peer (and X-Forwarded-For only through a trusted proxy).
+    const peerAddress = (testPeerAddress ? testPeerAddress(req) : undefined) ?? req.socket.remoteAddress;
+    attachResolvedClientIp(req.headers, resolveClientIp({ peerAddress, forwardedFor: req.headers['x-forwarded-for'], trustedProxies }) ?? UNRESOLVED_CLIENT_IP);
+    if (!warnedUntrustedForwarding && trustedProxies.size === 0 && req.headers['x-forwarded-for'] !== undefined && /^(127\.|::1$|::ffff:127\.)/.test(peerAddress ?? '')) {
+      warnedUntrustedForwarding = true;
+      console.error(JSON.stringify({ event: 'forwarded_for_ignored_no_trusted_proxy', hint: 'Behind a reverse proxy, set NAGEX_TRUSTED_PROXIES to the proxy address(es); until then every client shares the proxy address for abuse throttling.' }));
+    }
     const url = new URL(req.url || '/', `http://localhost:${PORT}`);
     const pathname = url.pathname;
     const method = (req.method || 'GET').toUpperCase();
@@ -998,8 +1028,8 @@ function failRequest(res: http.ServerResponse, error: unknown): void {
 
 export const server = createServerInstance();
 
-export async function withTestServer(run: (origin: string) => Promise<void>): Promise<void> {
-  const instance = createServerInstance();
+export async function withTestServer(run: (origin: string) => Promise<void>, serverOptions?: Parameters<typeof createServerInstance>[0]): Promise<void> {
+  const instance = createServerInstance(serverOptions);
   await new Promise<void>((resolve, reject) => {
     instance.listen(0, '127.0.0.1', () => resolve());
     instance.once('error', reject);

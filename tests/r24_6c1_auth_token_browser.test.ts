@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import { createServerInstance, identityStore } from '../src/server_web.js';
+import { TEST_PEER_HEADER, testPeerServerOptions } from './_s2e_peer.js';
 import { hashPassword } from '../src/identity/identity.crypto.js';
 import { DEV_AUTH_TOKEN_FLAG } from '../src/identity/dev-auth-tokens.js';
 
@@ -26,7 +27,7 @@ let ipCounter = 0;
 
 before(async () => {
   delete process.env[DEV_AUTH_TOKEN_FLAG]; // exposure OFF for this whole file
-  const instance = createServerInstance();
+  const instance = createServerInstance(testPeerServerOptions());
   await new Promise<void>((resolve, reject) => { instance.listen(0, '127.0.0.1', () => resolve()); instance.once('error', reject); });
   origin = `http://127.0.0.1:${(instance.address() as AddressInfo).port}`;
   closeServer = async () => {
@@ -49,7 +50,7 @@ async function newPage(kind: 'desktop' | 'mobile'): Promise<{ ctx: BrowserContex
     ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }
     : { viewport: { width: 1440, height: 900 } });
   // Each page presents its own client IP (the per-IP signup/forgot rate limiters are not under test).
-  await ctx.setExtraHTTPHeaders({ 'x-forwarded-for': `10.246.4.${++ipCounter}` });
+  await ctx.setExtraHTTPHeaders({ [TEST_PEER_HEADER]: `10.246.4.${++ipCounter}` });
   const page = await ctx.newPage();
   const capture: Capture = { console: [], bodies: [] };
   page.on('console', (m) => capture.console.push(m.text()));
@@ -108,7 +109,7 @@ for (const kind of ['desktop', 'mobile'] as const) {
       await assertNoTokenAnywhere(page, capture, `${kind} signup`);
 
       // The account really is unverified: sign-in is refused (no fake auth success).
-      const login = await fetch(`${origin}/api/v1/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': `10.246.5.${ipCounter}` }, body: JSON.stringify({ email, password: 'Containment-1!' }) });
+      const login = await fetch(`${origin}/api/v1/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json', [TEST_PEER_HEADER]: `10.246.5.${ipCounter}` }, body: JSON.stringify({ email, password: 'Containment-1!' }) });
       assert.equal(login.status, 403);
       await ctx.close();
     });

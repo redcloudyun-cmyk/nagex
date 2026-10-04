@@ -49,7 +49,7 @@ export const ROUTE_ACCESS_RULES: readonly RouteAccessRule[] = [
   rule(['GET'], /^\/api\/(?:v1\/)?auth\/oidc\/callback$/, 'PUBLIC', 'OIDC redirect callback (state + nonce + PKCE bound)'),
   rule(['GET'], /^\/api\/(?:v1\/)?auth\/saml\/[^/]+\/start$/, 'PUBLIC', 'SAML login start'),
   rule(['POST'], /^\/api\/(?:v1\/)?auth\/saml\/callback$/, 'PUBLIC', 'SAML ACS (signature + InResponseTo + replay bound)'),
-  rule(['POST'], /^\/api\/v1\/account\/(email\/confirm|reactivate|delete\/cancel)$/, 'PUBLIC', 'credential-in-body / one-time-token account recovery (brute-force limits: S0-04, later phase)'),
+  rule(['POST'], /^\/api\/v1\/account\/(email\/confirm|reactivate|delete\/cancel)$/, 'PUBLIC', 'credential-in-body / one-time-token account recovery (password-testing routes share the S2E auth-abuse guard: per-IP, per-account and pair throttling, refused before hashing)'),
   rule(['GET'], /^\/api\/v1\/(skills|tools|agents)$/, 'PUBLIC', 'static product catalog, no tenant data'),
   rule(['GET'], /^\/api\/v1\/capabilities\/status$/, 'PUBLIC', 'capability availability flag, no tenant data'),
   rule(['POST'], /^\/api\/v1\/device-agent\/message$/, 'PUBLIC', 'device transport: authenticated by the enrolled device signature, not a session'),

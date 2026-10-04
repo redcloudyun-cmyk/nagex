@@ -41,6 +41,13 @@ NAgex must allow useful agent autonomy without allowing the agent to silently ex
 - The execution history is scoped to the caller's tenant AND principal; no caller can list another tenant's or another principal's executions.
 - An upload is completed only by the caller that initiated it, on the object key the server derived for it. Ownership is decided before any storage read, write, delete or signed-URL issue; a client-supplied object key is only an assertion; an object key is never trusted from a request or from a record that does not own it. See ADR-0010.
 
+## 2f. Authentication abuse and the trusted client-IP boundary (Security Gate S2E)
+
+- The client address is the TCP peer. `X-Forwarded-For` counts only when the peer is a configured trusted proxy (`NAGEX_TRUSTED_PROXIES`), resolved right-to-left; the leftmost entry, `CF-Connecting-IP` and every other client header are never an address source. Audit and session addresses use the same resolved value.
+- Login, reactivate, delete-cancel (one shared guess budget), signup, forgot-password and resend-verification are throttled per IP, per account and per IP+account with short progressive cooldowns (`429` + `Retry-After`), never a permanent lockout. A throttled request performs no password hashing.
+- Reactivate and delete-cancel do not reveal account state: a wrong password, an unknown address and a correct password on a wrong-state account get the same answer.
+- The throttle is process-local; a distributed backend is out of scope. See ADR-0011.
+
 ## 3. Human Approval
 
 Approval must be enforced in runtime logic, not only UI.

@@ -98,6 +98,17 @@ The Telegram and Slack webhooks are accepted only when authenticated (ADR-0007):
 
 Failure behavior is fail-closed: with the secret missing, empty or unusable every webhook request is answered `503` and nothing is processed. Never report an integration as receiving events while its secret is unset. Secrets are environment/secret-manager values; never commit or log them.
 
+## 7b. Trusted Proxies (client address for abuse throttling)
+
+Node reports the TCP peer as the client address. Behind a reverse proxy (the deployed chain is Cloudflare tunnel → nginx → Node on `127.0.0.1`) that peer is the proxy, so the proxy must be declared (ADR-0011):
+
+- `NAGEX_TRUSTED_PROXIES` — comma-separated IPs and/or CIDRs of the proxies that sit directly in front of Node, e.g. `127.0.0.1,::1` for a same-host nginx. Not a hop count; no Cloudflare range is built in. An empty, absent or invalid value trusts nothing, so `X-Forwarded-For` is ignored and the TCP peer is used.
+- The proxy hop must **append** the address it observed (nginx `proxy_add_x_forwarded_for`) and must be the only network path to Node (Node listens on `127.0.0.1`). `CF-Connecting-IP` is never read.
+- Until it is set behind a proxy, every client shares the proxy address for the per-IP and pair throttles and the server logs one `forwarded_for_ignored_no_trusted_proxy` warning.
+- After changing it, re-verify on the public path that a forged `X-Forwarded-For` does not evade the login throttle.
+
+The throttle state is process-local (single node).
+
 ## 8. Approval and Execution Persistence
 
 Approvals and execution records that must survive restart are stored outside transient process memory.

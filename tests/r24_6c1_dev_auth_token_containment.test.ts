@@ -22,6 +22,8 @@ import { IdentityStore } from '../src/identity/identity.store.js';
 import { IdentityTokenStore } from '../src/identity/identity.tokens.js';
 import { IdentityAuditStore } from '../src/identity/identity.audit.js';
 import { SessionStore } from '../src/sessions/session.store.js';
+import { AuthAbuseGuard } from '../src/identity/auth-abuse-guard.js';
+import { headersFromPeer, SPAWNED_SERVER_TRUSTED_PROXIES } from './_s2e_peer.js';
 import { DEV_AUTH_TOKEN_FLAG, devAuthTokenFields, devAuthTokensExposed } from '../src/identity/dev-auth-tokens.js';
 
 const ORIGINAL_FLAG = process.env[DEV_AUTH_TOKEN_FLAG];
@@ -64,11 +66,12 @@ function fixture(): Fixture {
     identityTokenStore,
     identityAuditStore: new IdentityAuditStore({ dir: path.join(tmpDir, 'audit') }),
     sessionStore: new SessionStore({ dir: path.join(tmpDir, 'sessions') }),
+    authAbuseGuard: new AuthAbuseGuard(),   // S2E: per-fixture throttle state, so direct calls of different tests never share a bucket
   };
   return {
     deps,
     minted,
-    signup: (email: string) => handleAuthRoutes('POST', '/api/v1/auth/signup', { email, password: 'password123', passwordConfirmation: 'password123', termsAccepted: true, privacyAccepted: true }, { 'x-forwarded-for': `10.246.2.${++ipCounter}` }, {}, deps) as Promise<any>,
+    signup: (email: string) => handleAuthRoutes('POST', '/api/v1/auth/signup', { email, password: 'password123', passwordConfirmation: 'password123', termsAccepted: true, privacyAccepted: true }, headersFromPeer(`10.246.2.${++ipCounter}`), {}, deps) as Promise<any>,
   };
 }
 
@@ -273,6 +276,7 @@ async function runServer(flag: string | undefined, run: (call: (method: string, 
     NAGEX_IDENTITY_DIR: path.join(root, 'identity'),
     NAGEX_IDENTITY_TOKENS_DIR: path.join(root, 'identity-tokens'),
     NAGEX_SESSIONS_DIR: path.join(root, 'sessions'),
+    NAGEX_TRUSTED_PROXIES: SPAWNED_SERVER_TRUSTED_PROXIES,
   };
   delete env[DEV_AUTH_TOKEN_FLAG];
   if (flag !== undefined) env[DEV_AUTH_TOKEN_FLAG] = flag;
@@ -284,7 +288,7 @@ async function runServer(flag: string | undefined, run: (call: (method: string, 
     await waitForHealth(origin, child);
     let ip = 0;
     const call = async (method: string, p: string, body?: unknown, headers: Record<string, string> = {}) => {
-      const res = await fetch(origin + p, { method, headers: { 'content-type': 'application/json', 'x-forwarded-for': `10.246.1.${++ip}`, ...headers }, body: body === undefined ? undefined : JSON.stringify(body) });
+      const res = await fetch(origin + p, { method, headers: { 'content-type': 'application/json', 'x-forwarded-for': `10.246.1.${++ip}` /* S2E: this spawned server trusts the test client as its front proxy (see below) */, ...headers }, body: body === undefined ? undefined : JSON.stringify(body) });
       let data: any = null;
       try { data = await res.json(); } catch { /* empty */ }
       return { status: res.status, data };

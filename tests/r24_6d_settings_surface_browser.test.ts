@@ -14,6 +14,7 @@ import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import { createServerInstance, identityStore, sessionStore } from '../src/server_web.js';
+import { TEST_PEER_HEADER, testPeerServerOptions } from './_s2e_peer.js';
 import { hashPassword } from '../src/identity/identity.crypto.js';
 
 declare const window: any;
@@ -30,7 +31,7 @@ let counter = 0;
 const RUN = `${Date.now()}`;
 
 before(async () => {
-  const instance = createServerInstance();
+  const instance = createServerInstance(testPeerServerOptions());
   await new Promise<void>((resolve, reject) => { instance.listen(0, '127.0.0.1', () => resolve()); instance.once('error', reject); });
   origin = `http://127.0.0.1:${(instance.address() as AddressInfo).port}`;
   closeServer = async () => {
@@ -54,7 +55,7 @@ function disposable(label: string, password = 'Disposable-Pass-1!'): Disposable 
 }
 
 async function api(method: string, p: string, body?: unknown, cookie?: string) {
-  const res = await fetch(origin + p, { method, headers: { 'content-type': 'application/json', 'x-forwarded-for': `10.246.8.${++counter % 250}`, ...(cookie ? { cookie } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
+  const res = await fetch(origin + p, { method, headers: { 'content-type': 'application/json', [TEST_PEER_HEADER]: `10.246.8.${++counter % 250}`, ...(cookie ? { cookie } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
   let data: any = null;
   try { data = await res.json(); } catch { /* empty */ }
   return { status: res.status, data };
@@ -214,7 +215,7 @@ describe('R24.6D — Account operations on Desktop (disposable accounts only)', 
     await ctx.close();
 
     // During the grace period the user can sign in again; the Account surface then offers a WORKING cancel.
-    const login = await fetch(`${origin}/api/v1/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.246.9.77' }, body: JSON.stringify({ email: user.email, password: user.password }) });
+    const login = await fetch(`${origin}/api/v1/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json', [TEST_PEER_HEADER]: '10.246.9.77' }, body: JSON.stringify({ email: user.email, password: user.password }) });
     assert.equal(login.status, 200);
     const cookieValue = (login.headers.getSetCookie?.() ?? []).map((c) => c.split(';')[0].split('=').slice(1).join('='))[0];
     const again = await browser.newContext({ viewport: { width: 1440, height: 900 } });

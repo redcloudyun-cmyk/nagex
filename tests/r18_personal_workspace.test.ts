@@ -28,12 +28,13 @@ import type { AddressInfo } from 'node:net';
 import { createServerInstance } from '../src/server_web.js';
 import { enableDevAuthTokensForFile } from './_dev_auth_tokens.js';
 import { authAs } from './_s1_session_auth.js';
+import { TEST_PEER_HEADER, testPeerServerOptions } from './_s2e_peer.js';
 
 // R24.6C1 — this file legitimately needs raw dev tokens to drive signup/verify; opt in explicitly (restored after the file).
 enableDevAuthTokensForFile();
 
 async function withServer(run: (origin: string) => Promise<void>): Promise<void> {
-  const instance = createServerInstance();
+  const instance = createServerInstance(testPeerServerOptions());
   await new Promise<void>((resolve, reject) => {
     instance.listen(0, '127.0.0.1', () => resolve());
     instance.once('error', reject);
@@ -266,7 +267,7 @@ test('6. Today\'s Brief & Hallucination Prevention', async () => {
 test('7. Connected Apps status, credential protection & disconnect flow', async () => {
   await withServer(async (origin) => {
     const email = `r18_conn_${Date.now()}@example.com`;
-    const ip = { 'X-Forwarded-For': `10.18.7.${Math.floor(Math.random() * 200) + 1}` };
+    const ip = { [TEST_PEER_HEADER]: `10.18.7.${Math.floor(Math.random() * 200) + 1}` };
     const post = (p: string, body: unknown, extra: Record<string, string> = {}) =>
       fetch(`${origin}${p}`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...ip, ...extra }, body: JSON.stringify(body) });
     const signup = await post('/api/v1/auth/signup', { email, password: 'Password-123!', passwordConfirmation: 'Password-123!', termsAccepted: true, privacyAccepted: true });
@@ -275,7 +276,7 @@ test('7. Connected Apps status, credential protection & disconnect flow', async 
     const login = await post('/api/v1/auth/login', { email, password: 'Password-123!' });
     assert.equal(login.status, 200);
     const cookie = (login.headers.getSetCookie?.() ?? []).map((c) => c.split(';')[0]).join('; ');
-    const sessionHeaders = { 'Content-Type': 'application/json', Cookie: cookie, 'X-Forwarded-For': ip['X-Forwarded-For'] };
+    const sessionHeaders = { 'Content-Type': 'application/json', Cookie: cookie, [TEST_PEER_HEADER]: ip[TEST_PEER_HEADER] };
 
     // Header identity alone is not authentication for Connected Apps.
     assert.equal((await fetch(`${origin}/api/v1/connections`, { headers: { 'X-NAgex-Tenant': 'ten_production_01', 'X-Principal-Id': 'usr_admin_001' } })).status, 401);

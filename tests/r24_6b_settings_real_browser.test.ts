@@ -12,6 +12,7 @@ import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import { createServerInstance } from '../src/server_web.js';
+import { TEST_PEER_HEADER, testPeerServerOptions } from './_s2e_peer.js';
 import { enableDevAuthTokensForFile } from './_dev_auth_tokens.js';
 
 // R24.6C1 — this file legitimately needs raw dev tokens to drive signup/verify; opt in explicitly (restored after the file).
@@ -33,7 +34,7 @@ const userIdByCookie = new Map<string, string>();
 
 let clientCounter = 0;
 async function json(method: string, p: string, body?: unknown, cookie?: string, clientIp?: string) {
-  const res = await fetch(origin + p, { method, headers: { 'content-type': 'application/json', ...(cookie ? { cookie } : {}), ...(clientIp ? { 'x-forwarded-for': clientIp } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
+  const res = await fetch(origin + p, { method, headers: { 'content-type': 'application/json', ...(cookie ? { cookie } : {}), ...(clientIp ? { [TEST_PEER_HEADER]: clientIp } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
   let data: any = null;
   try { data = await res.json(); } catch { /* empty */ }
   return { status: res.status, data, cookie: (res.headers.getSetCookie?.() ?? []).map((c) => c.split(';')[0]).join('; ') };
@@ -75,7 +76,7 @@ async function openMobileSettings(page: Page): Promise<void> {
 }
 
 before(async () => {
-  const instance = createServerInstance();
+  const instance = createServerInstance(testPeerServerOptions());
   await new Promise<void>((resolve, reject) => {
     instance.listen(0, '127.0.0.1', () => resolve());
     instance.once('error', reject);

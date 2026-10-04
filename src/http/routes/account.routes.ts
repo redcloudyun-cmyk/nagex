@@ -8,12 +8,17 @@ import type { SessionRecord, SessionStore } from '../../sessions/session.store.j
 import { hashPassword, verifyPassword } from '../../identity/identity.crypto.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
 import { getSessionIdFromHeaders } from '../session-credential.js';
+import type { AuthAbuseGuard } from '../../identity/auth-abuse-guard.js';
+import { clientIpOf } from '../client-ip.js';
+import { defaultAuthAbuseGuard, throttleSubject, throttledResponse } from '../auth-throttle.js';
 
 export interface AccountRoutesDependencies {
   identityStore: IdentityStore;
   identityTokenStore: IdentityTokenStore;
   identityAuditStore: IdentityAuditStore;
   sessionStore: SessionStore;
+  /** S2E — defaults to the process-wide guard; injectable so a test can use its own policy and clock. */
+  authAbuseGuard?: AuthAbuseGuard;
 }
 
 function requireAuth(headers: Record<string, string | string[] | undefined>, deps: AccountRoutesDependencies): { session: SessionRecord; userId: string; tenantId: string } | null {
@@ -36,8 +41,9 @@ export const handleAccountRoutes: AsyncRouteRegistrar<AccountRoutesDependencies>
   _query,
   deps
 ): Promise<ApiResult | undefined> => {
-  const rawForwarded = Array.isArray(headers['x-forwarded-for']) ? headers['x-forwarded-for'][0] : headers['x-forwarded-for'];
-  const clientIp = rawForwarded || '127.0.0.1';
+  // S2E — the address comes from the trusted resolver, never from a request header.
+  const clientIp = clientIpOf(headers);
+  const guard = deps.authAbuseGuard ?? defaultAuthAbuseGuard;
   const rawUserAgent = Array.isArray(headers['user-agent']) ? headers['user-agent'][0] : headers['user-agent'];
   const userAgent = rawUserAgent || null;
 
@@ -269,19 +275,28 @@ export const handleAccountRoutes: AsyncRouteRegistrar<AccountRoutesDependencies>
   if (pathname === '/api/v1/account/reactivate' && method === 'POST') {
     const data = body || {};
     const { email, password } = data as Record<string, any>;
-    if (!email || !password) {
+    if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
       return { status: 400, data: { error: { code: 'AUTH_INVALID_CREDENTIALS', message: 'Email and password are required.' } } };
     }
 
+    // S2E — this unauthenticated route tests a password, so it shares the login guess budget and is refused BEFORE any
+    // hashing while throttled.
+    const subject = throttleSubject('credential', headers, email);
+    const decision = guard.check(subject);
+    if (!decision.allowed) {
+      return throttledResponse(decision, 'Too many attempts. Please try again later.');
+    }
+
+    // A wrong password, an unknown address and a correct password on an account that is NOT disabled are all the same
+    // answer and all count as a failed guess: the response must not reveal account state to someone who may not know the
+    // password, and the reverse (state first) must not confirm a guessed password.
     const identity = deps.identityStore.getByEmail(email);
-    if (!identity || !verifyPassword(password, identity.passwordHash)) {
+    if (!identity || !verifyPassword(password, identity.passwordHash) || identity.accountState !== 'DISABLED') {
+      guard.hit(subject);
       return { status: 401, data: { error: { code: 'AUTH_INVALID_CREDENTIALS', message: 'Invalid email or password.' } } };
     }
 
-    if (identity.accountState !== 'DISABLED') {
-      return { status: 400, data: { error: { code: 'ACCOUNT_NOT_DISABLED', message: 'Account is not in disabled state.' } } };
-    }
-
+    guard.clearAccount(subject);
     deps.identityStore.transitionState(identity.userId, 'ACTIVE');
     deps.identityAuditStore.recordEvent(identity.userId, 'account.reactivated', 'SUCCESS', { ip: clientIp, userAgent });
 
@@ -325,19 +340,24 @@ export const handleAccountRoutes: AsyncRouteRegistrar<AccountRoutesDependencies>
   if (pathname === '/api/v1/account/delete/cancel' && method === 'POST') {
     const data = body || {};
     const { email, password } = data as Record<string, any>;
-    if (!email || !password) {
+    if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
       return { status: 400, data: { error: { code: 'AUTH_INVALID_CREDENTIALS', message: 'Email and password are required.' } } };
     }
 
+    // S2E — same shared guess budget and same uniform answer as reactivate (see there).
+    const subject = throttleSubject('credential', headers, email);
+    const decision = guard.check(subject);
+    if (!decision.allowed) {
+      return throttledResponse(decision, 'Too many attempts. Please try again later.');
+    }
+
     const identity = deps.identityStore.getByEmail(email);
-    if (!identity || !verifyPassword(password, identity.passwordHash)) {
+    if (!identity || !verifyPassword(password, identity.passwordHash) || identity.accountState !== 'DELETION_PENDING') {
+      guard.hit(subject);
       return { status: 401, data: { error: { code: 'AUTH_INVALID_CREDENTIALS', message: 'Invalid email or password.' } } };
     }
 
-    if (identity.accountState !== 'DELETION_PENDING') {
-      return { status: 400, data: { error: { code: 'NO_PENDING_DELETION', message: 'Account is not pending deletion.' } } };
-    }
-
+    guard.clearAccount(subject);
     const restored = deps.identityStore.transitionState(identity.userId, 'ACTIVE');
     deps.identityAuditStore.recordEvent(identity.userId, 'account.deletion.cancelled', 'SUCCESS', { ip: clientIp, userAgent });
 

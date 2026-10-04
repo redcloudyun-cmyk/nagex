@@ -29,6 +29,7 @@ import { DEMO_OWNER_ID, DEMO_TENANT_ID } from '../demo/demo-identity.js';
 import type { IdentityStore } from '../identity/identity.store.js';
 import type { SessionStore } from '../sessions/session.store.js';
 import { getSessionIdFromHeaders } from './session-credential.js';
+import { carryResolvedClientIp } from './client-ip.js';
 
 export { getSessionIdFromHeaders } from './session-credential.js';
 
@@ -82,6 +83,9 @@ export function canonicalizeRequestHeaders(headers: HeaderBag, deps: AuthIdentit
   for (const [key, value] of Object.entries(headers)) {
     if (!CLIENT_IDENTITY_HEADERS.has(key.toLowerCase())) out[key] = value;
   }
+  // S2E — the address the HTTP layer resolved for this request (if any) travels with the canonical copy; a header value
+  // such as X-Forwarded-For is just a stripped-nothing header and is never read as an address.
+  carryResolvedClientIp(headers, out);
   const auth = resolveAuthenticatedIdentity(headers, deps);
   if (auth) VERIFIED_CALLER.set(out, { tenantId: auth.tenantId, principalId: auth.principalId, source: 'SESSION', sessionId: auth.sessionId });
   return out;

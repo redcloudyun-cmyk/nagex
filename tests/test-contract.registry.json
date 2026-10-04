@@ -4540,6 +4540,34 @@
       "deterministic": true,
       "assertionIntent": "Source contract that keeps the S2D boundary from regressing: completeUpload looks up the caller's own pending capture and validates the key before any storage access and never creates a capture from a client key; every storage access that follows a capture record goes through the ownership guard; no route calls storage directly; keys are bound to the record id; the execution history is filtered by tenant and principal and never returned as the shared array.",
       "notes": "Reads production source only; behavior is certified by security_s2d_tenant_resource_ownership."
+    },
+    "security_s2e_auth_abuse": {
+      "milestone": "SECURITY-GATE-S2E",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Security Gate S2E authentication abuse and the trusted client-IP boundary through the real HTTP server, with a tripwire on every scrypt call: the TCP peer is the client and X-Forwarded-For counts only through an explicitly configured trusted proxy (right-to-left, never the leftmost entry, never CF-Connecting-IP, invalid configuration or a malformed chain falls back to the peer, IPv6 bucketed by /64); rotating the forged header, the peer or the account cannot escape the per-IP, per-account and pair throttles; login, reactivate and delete-cancel share one guess budget, a throttled request performs ZERO password hashing and is uniform for existing and unknown accounts; reactivate/delete-cancel no longer reveal account state and still work for the legitimate owner; signup/forgot/resend use the same resolver and guard; throttling is progressive, capped, self-recovering and memory-bounded; audit and session addresses come from the trusted resolver; the test peer seam is refused in production and ignored by a normal server.",
+      "notes": "Real localhost HTTP servers (test peer injected only through the programmatic seam), real route/guard code, fake-clock guard unit tests. No network, no model, no provider credentials."
+    },
+    "security_s2e_authabuse_contract": {
+      "milestone": "SECURITY-GATE-S2E",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "architecture"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "Source contract that keeps the S2E boundary from regressing: no address header is read outside server_web, the resolver is peer-first/right-to-left with no Cloudflare trust or hardcoded ranges, only the HTTP layer registers an address and routes only read it, the test peer seam is a programmatic option refused in production and absent from the real start path, login/reactivate/delete-cancel/signup are throttled before any password hashing with no wrong-state oracle, forgot/resend share the guard, and the guard keeps three dimensions, a bounded store and capped progressive cooldowns.",
+      "notes": "Reads production source only; behavior is certified by security_s2e_auth_abuse."
     }
   }
 }

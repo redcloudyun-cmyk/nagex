@@ -15,7 +15,8 @@
       "security_s2a_webhook_contract",
       "security_s2b_ownership_contract",
       "security_s2c_authority_contract",
-      "security_s2d_ownership_contract"
+      "security_s2d_ownership_contract",
+      "security_s2e_authabuse_contract"
     ],
     "device": [
       "device_agent_foundation",
@@ -130,7 +131,8 @@
       "security_s2a_webhook_authenticity",
       "security_s2b_channel_identity_ownership",
       "security_s2c_outbound_recipient_authority",
-      "security_s2d_tenant_resource_ownership"
+      "security_s2d_tenant_resource_ownership",
+      "security_s2e_auth_abuse"
     ],
     "personal-home": [
       "m6_1_mobile_release_blockers",

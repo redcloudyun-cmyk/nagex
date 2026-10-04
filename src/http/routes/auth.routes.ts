@@ -4,20 +4,22 @@ import { AUTH_EMAIL_DELIVERY, devAuthTokenFields } from '../../identity/dev-auth
 import type { IdentityStore } from '../../identity/identity.store.js';
 import type { IdentityTokenStore } from '../../identity/identity.tokens.js';
 import type { IdentityAuditStore } from '../../identity/identity.audit.js';
-import { IdentityRateLimiter } from '../../identity/identity.rate-limiter.js';
+import type { AuthAbuseGuard } from '../../identity/auth-abuse-guard.js';
 import { hashPassword, verifyPassword } from '../../identity/identity.crypto.js';
 import type { SessionStore } from '../../sessions/session.store.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
 import { getSessionIdFromHeaders } from '../session-credential.js';
+import { clientIpOf } from '../client-ip.js';
+import { defaultAuthAbuseGuard, throttleSubject, throttledResponse } from '../auth-throttle.js';
 
 export interface AuthRoutesDependencies {
   identityStore: IdentityStore;
   identityTokenStore: IdentityTokenStore;
   identityAuditStore: IdentityAuditStore;
   sessionStore: SessionStore;
+  /** S2E — defaults to the process-wide guard; injectable so a test can use its own policy and clock. */
+  authAbuseGuard?: AuthAbuseGuard;
 }
-
-const rateLimiter = new IdentityRateLimiter({ windowMs: 15 * 60 * 1000, maxHits: 5 });
 
 export { getSessionIdFromHeaders } from '../session-credential.js';
 
@@ -38,18 +40,22 @@ export const handleAuthRoutes: AsyncRouteRegistrar<AuthRoutesDependencies> = asy
   _query,
   deps
 ): Promise<ApiResult | undefined> => {
-  const rawForwarded = Array.isArray(headers['x-forwarded-for']) ? headers['x-forwarded-for'][0] : headers['x-forwarded-for'];
-  const clientIp = rawForwarded || '127.0.0.1';
+  // S2E — the address comes from the trusted resolver (TCP peer, or X-Forwarded-For only through a trusted proxy), never
+  // from a request header.
+  const clientIp = clientIpOf(headers);
+  const guard = deps.authAbuseGuard ?? defaultAuthAbuseGuard;
   const rawUserAgent = Array.isArray(headers['user-agent']) ? headers['user-agent'][0] : headers['user-agent'];
   const userAgent = rawUserAgent || null;
 
   // 1. POST /api/v1/auth/signup
   if (pathname === '/api/v1/auth/signup' && method === 'POST') {
-    const rateCheck = rateLimiter.check(`signup:${clientIp}`);
-    if (!rateCheck.allowed) {
-      return { status: 429, data: { error: { code: 'AUTH_RATE_LIMITED', message: 'Too many signup attempts. Please try again later.' } } };
+    // Checked before any validation or hashing: a throttled request costs no scrypt.
+    const signupSubject = throttleSubject('signup', headers);
+    const signupDecision = guard.check(signupSubject);
+    if (!signupDecision.allowed) {
+      return throttledResponse(signupDecision, 'Too many signup attempts. Please try again later.');
     }
-    rateLimiter.record(`signup:${clientIp}`);
+    guard.hit(signupSubject);
 
     const data = body || {};
     const { email, password, passwordConfirmation, termsAccepted, privacyAccepted } = data as Record<string, any>;
@@ -123,9 +129,10 @@ export const handleAuthRoutes: AsyncRouteRegistrar<AuthRoutesDependencies> = asy
     const data = body || {};
     const { email } = data as Record<string, any>;
     if (email && typeof email === 'string') {
-      const rateCheck = rateLimiter.check(`resend:${email}`);
-      if (rateCheck.allowed) {
-        rateLimiter.record(`resend:${email}`);
+      // Throttled and un-throttled requests answer identically (no account enumeration); a throttled one does nothing.
+      const resendSubject = throttleSubject('resend', headers, email);
+      if (guard.check(resendSubject).allowed) {
+        guard.hit(resendSubject);
         const identity = deps.identityStore.getByEmail(email);
         if (identity && identity.accountState === 'PENDING_VERIFICATION') {
           const { rawToken } = deps.identityTokenStore.createToken('EMAIL_VERIFY', identity.userId, 24 * 60 * 60 * 1000);
@@ -148,10 +155,11 @@ export const handleAuthRoutes: AsyncRouteRegistrar<AuthRoutesDependencies> = asy
     const data = body || {};
     const { email, password } = data as Record<string, any>;
 
-    const rateKey = `login:${clientIp}:${email || 'unknown'}`;
-    const rateCheck = rateLimiter.check(rateKey);
-    if (!rateCheck.allowed) {
-      return { status: 429, data: { error: { code: 'AUTH_RATE_LIMITED', message: 'Too many login attempts. Please try again later.' } } };
+    // One shared password-guess budget (login, reactivate, delete-cancel), checked BEFORE any password hashing.
+    const loginSubject = throttleSubject('credential', headers, email);
+    const loginDecision = guard.check(loginSubject);
+    if (!loginDecision.allowed) {
+      return throttledResponse(loginDecision, 'Too many sign-in attempts. Please try again later.');
     }
 
     if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
@@ -160,7 +168,7 @@ export const handleAuthRoutes: AsyncRouteRegistrar<AuthRoutesDependencies> = asy
 
     const identity = deps.identityStore.getByEmail(email);
     if (!identity || !verifyPassword(password, identity.passwordHash)) {
-      rateLimiter.record(rateKey);
+      guard.hit(loginSubject);
       if (identity) {
         deps.identityAuditStore.recordEvent(identity.userId, 'login.failed', 'FAILURE', { ip: clientIp, userAgent });
       }
@@ -181,7 +189,7 @@ export const handleAuthRoutes: AsyncRouteRegistrar<AuthRoutesDependencies> = asy
       return { status: 401, data: { error: { code: 'AUTH_INVALID_CREDENTIALS', message: 'Invalid email or password.' } } };
     }
 
-    rateLimiter.reset(rateKey);
+    guard.clearAccount(loginSubject);
 
     // Create session & rotate token
     const tenantId = `ten_${identity.userId}`;
@@ -272,10 +280,9 @@ export const handleAuthRoutes: AsyncRouteRegistrar<AuthRoutesDependencies> = asy
     const data = body || {};
     const { email } = data as Record<string, any>;
     if (email && typeof email === 'string') {
-      const rateKey = `forgot:${clientIp}:${email}`;
-      const rateCheck = rateLimiter.check(rateKey);
-      if (rateCheck.allowed) {
-        rateLimiter.record(rateKey);
+      const forgotSubject = throttleSubject('forgot', headers, email);
+      if (guard.check(forgotSubject).allowed) {
+        guard.hit(forgotSubject);
         const identity = deps.identityStore.getByEmail(email);
         if (identity && identity.accountState === 'ACTIVE') {
           const { rawToken } = deps.identityTokenStore.createToken('PASSWORD_RESET', identity.userId, 60 * 60 * 1000);

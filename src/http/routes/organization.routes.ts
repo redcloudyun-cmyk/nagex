@@ -6,6 +6,7 @@ import type { IdentityAuditStore } from '../../identity/identity.audit.js';
 import type { SessionStore } from '../../sessions/session.store.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
 import { getSessionIdFromHeaders } from '../session-credential.js';
+import { clientIpOf } from '../client-ip.js';
 
 export interface OrganizationRoutesDependencies {
   organizationStore: OrganizationStore;
@@ -48,8 +49,7 @@ export const handleOrganizationRoutes: AsyncRouteRegistrar<OrganizationRoutesDep
   _query,
   deps
 ): Promise<ApiResult | undefined> => {
-  const rawForwarded = Array.isArray(headers['x-forwarded-for']) ? headers['x-forwarded-for'][0] : headers['x-forwarded-for'];
-  const clientIp = rawForwarded || '127.0.0.1';
+  const clientIp = clientIpOf(headers);
   const rawUserAgent = Array.isArray(headers['user-agent']) ? headers['user-agent'][0] : headers['user-agent'];
   const userAgent = rawUserAgent || null;
 

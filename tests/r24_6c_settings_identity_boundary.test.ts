@@ -39,6 +39,7 @@ import { generateDailyBriefOnce } from '../src/assistant/daily-brief.pipeline.js
 import { DailyBriefTaskRunner } from '../src/tasks/runners/daily-brief.runner.js';
 import { createStructuredModelProvider } from './_model_provider_fixtures.js';
 import * as server from '../src/server_web.js';
+import { SPAWNED_SERVER_TRUSTED_PROXIES } from './_s2e_peer.js';
 import { enableDevAuthTokensForFile } from './_dev_auth_tokens.js';
 
 // R24.6C1 — this file legitimately needs raw dev tokens to drive signup/verify; opt in explicitly (restored after the file).
@@ -547,6 +548,7 @@ describe('R24.6C — HTTP-level identity boundary and restart persistence (real 
       NAGEX_SESSIONS_DIR: path.join(root, 'sessions'),
       NAGEX_TASKS_DIR: path.join(root, 'tasks'),
       NAGEX_MEMORY_SETTINGS_DIR: path.join(root, 'memory-settings'),
+      NAGEX_TRUSTED_PROXIES: SPAWNED_SERVER_TRUSTED_PROXIES,   // S2E: the spawned server trusts this test client as its front proxy
     };
     const start = () => spawn(process.execPath, [path.resolve(process.cwd(), 'dist', 'src', 'server_web.js')], { cwd: process.cwd(), env, stdio: 'ignore' });
     let child: ChildProcess | null = null;
