@@ -4568,6 +4568,50 @@
       "deterministic": true,
       "assertionIntent": "Source contract that keeps the S2E boundary from regressing: no address header is read outside server_web, the resolver is peer-first/right-to-left with no Cloudflare trust or hardcoded ranges, only the HTTP layer registers an address and routes only read it, the test peer seam is a programmatic option refused in production and absent from the real start path, login/reactivate/delete-cancel/signup are throttled before any password hashing with no wrong-state oracle, forgot/resend share the guard, and the guard keeps three dimensions, a bounded store and capped progressive cooldowns.",
       "notes": "Reads production source only; behavior is certified by security_s2e_auth_abuse."
+    },
+    "nebius_nemotron_provider": {
+      "milestone": "NEBIUS-NEMOTRON-RUNTIME",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "model-routing",
+        "runtime"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Nebius Token Factory / NVIDIA Nemotron provider adapter against a fake and a real local OpenAI-compatible endpoint: the configured provider uses the canonical URL, model and the server-side credential only (an unsafe base URL or a missing key leaves it UNCONFIGURED and sends nothing); success is normalized (content, usage incl. reasoning tokens, finish reason, request id); hidden provider reasoning (reasoning_content, reasoning, inline think blocks) is dropped and never returned, logged or kept; 401/403/429/5xx/network/timeout/malformed/truncated output are each reported with a fixed reason vocabulary, retried at most once for network/5xx only, and never reported as a result; no secret reaches a log, error, status or result.",
+      "notes": "Fake fetch plus one local HTTP server on 127.0.0.1. The paid Nebius API is never called; the opt-in real certification is scripts/nebius-live-cert.mjs."
+    },
+    "nebius_nemotron_routing": {
+      "milestone": "NEBIUS-NEMOTRON-RUNTIME",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "model-routing",
+        "runtime"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Task-aware routing of Nemotron inside the canonical UnifiedModelRouter/ModelRoutingPolicy: PLAN, RESEARCH_SYNTHESIS and MEETING_PREP prefer NEBIUS (even over an already-live provider); every other TaskKind keeps exactly its pre-existing decision and Nemotron is not even a fallback for it; failures of the preferred provider (429, 401/403, 5xx, 404, timeout, network, malformed, validator rejection, no credential, degraded) fall back to the existing approved providers with a recorded preferredProvider/actualProvider/fallbackReason, never as a fabricated success; an explicit provider choice is never overridden; Nemotron's capability declaration is evidence-graded (nothing beyond chat completion is claimed as supported); telemetry carries task, provider, model, latency and token counts but no prompt, answer, reasoning or credential.",
+      "notes": "Real providers with injected fetch; AiService methods drive the TaskKinds. No network, no paid call."
+    },
+    "nebius_nemotron_contract": {
+      "milestone": "NEBIUS-NEMOTRON-RUNTIME",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "architecture"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "Source contract that keeps the Nebius/Nemotron integration inside the canonical model architecture: the credential, URL and configuration live only in providers.ts; no route or AiService mentions the provider; feature code reaches the model only through the router; the preference table is routing data consulted only by the policy comparator and never by an explicit override; hidden reasoning is reduced to a boolean in the adapter; retry is bounded and every call has a timeout and an unsafe base URL is refused; the failure vocabulary is fixed and logs carry no provider message; the real-API certification is a separate opt-in script.",
+      "notes": "Reads production source only; behavior is certified by nebius_nemotron_provider and nebius_nemotron_routing."
     }
   }
 }

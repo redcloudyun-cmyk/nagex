@@ -115,6 +115,15 @@ It can support a private/local execution plane for compatible models. A future N
 
 This preserves future local/private execution without changing canonical artifact ownership.
 
+### 6.3 Nemotron through Nebius Token Factory — current runtime (ADR-0012)
+
+Nemotron is reached through the existing `UnifiedModelRouter` / `ModelRoutingPolicy` as provider `nebius`
+(model `nvidia/Nemotron-3_5-Lightning`, OpenAI-compatible chat completions). It is a **preferred** provider for `PLAN`,
+`RESEARCH_SYNTHESIS` and `MEETING_PREP` only; every other TaskKind keeps its routing, and the existing providers are the fallback.
+Its capabilities are evidence-graded and only chat completion is declared `SUPPORTED`; JSON-mode adherence, tool use, strict
+structured extraction and long context are `UNVERIFIED` and are not relied on. Hidden provider reasoning is never an answer and is
+never returned, logged or stored. A model that was routed a task has no execution authority: approval and execution stay separate.
+
 ## 7. CreationProviderRouter Is Different
 
 `ModelRouter` and `CreationProviderRouter` answer different questions.

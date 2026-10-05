@@ -1,9 +1,10 @@
-import type { ModelProviderCapabilities } from './model-routing.types.js';
+import type { ModelProviderCapabilities, ModelTaskKind } from './model-routing.types.js';
 import {
   ModelProviderError,
   type ModelProvider,
   type ModelRequest,
   type ModelResponse,
+  type ModelResponseMeta,
   type ModelUsage,
   type ProviderId,
   type ProviderRuntimeStatus,
@@ -118,6 +119,12 @@ abstract class HttpModelProvider implements ModelProvider {
   // outcome (success/failure) of this actual network attempt — the single
   // real signal status()'s LIVE/DEGRADED distinction is built on (R7 §4).
   protected async postJson(url: string, headers: Record<string, string>, body: unknown, requestId: string): Promise<unknown> {
+    return (await this.postJsonDetailed(url, headers, body, requestId)).payload;
+  }
+
+  // Same as postJson, additionally returning the response headers (for a provider's request id). The request headers —
+  // which carry the credential — are never returned, stored or logged.
+  protected async postJsonDetailed(url: string, headers: Record<string, string>, body: unknown, requestId: string): Promise<{ payload: unknown; responseHeaders: Headers | undefined }> {
     try {
       const result = await this.postJsonInner(url, headers, body, requestId);
       this.recordOutcome('success', null);
@@ -129,7 +136,7 @@ abstract class HttpModelProvider implements ModelProvider {
     }
   }
 
-  private async postJsonInner(url: string, headers: Record<string, string>, body: unknown, requestId: string): Promise<unknown> {
+  private async postJsonInner(url: string, headers: Record<string, string>, body: unknown, requestId: string): Promise<{ payload: unknown; responseHeaders: Headers | undefined }> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
@@ -154,7 +161,21 @@ abstract class HttpModelProvider implements ModelProvider {
           retryable: response.status === 408 || response.status === 429 || response.status >= 500,
         });
       }
-      return await response.json();
+      let payload: unknown;
+      try {
+        payload = await response.json();
+      } catch (parseError) {
+        // A timeout while reading the body is still a timeout; anything else is a body that is not JSON.
+        if (controller.signal.aborted) throw parseError;
+        throw new ModelProviderError({
+          provider: this.name,
+          code: 'INVALID_PROVIDER_RESPONSE',
+          message: `${this.name} returned a response that is not valid JSON.`,
+          requestId,
+          retryable: false,
+        });
+      }
+      return { payload, responseHeaders: response.headers };
     } catch (error) {
       if (error instanceof ModelProviderError) throw error;
       if (controller.signal.aborted) {
@@ -181,12 +202,12 @@ abstract class HttpModelProvider implements ModelProvider {
 
   public abstract generate(request: ModelRequest): Promise<ModelResponse>;
 
-  protected response(text: string, startedAt: number, requestId: string, usage?: ModelUsage | null): ModelResponse {
+  protected response(text: string, startedAt: number, requestId: string, usage?: ModelUsage | null, meta?: ModelResponseMeta): ModelResponse {
     if (!text.trim()) {
       this.recordOutcome('failure', 'EMPTY_PROVIDER_RESPONSE');
       throw new ModelProviderError({ provider: this.name, code: 'EMPTY_PROVIDER_RESPONSE', message: `${this.name} returned no text.`, requestId, retryable: true });
     }
-    return { text, provider: this.name, model: this.model!, latencyMs: Date.now() - startedAt, requestId, usage: usage ?? null };
+    return { text, provider: this.name, model: this.model!, latencyMs: Date.now() - startedAt, requestId, usage: usage ?? null, ...(meta ? { meta } : {}) };
   }
 }
 
@@ -257,10 +278,95 @@ export class GeminiProvider extends HttpModelProvider {
   }
 }
 
+export const DEFAULT_NEBIUS_BASE_URL = 'https://api.tokenfactory.nebius.com/v1';
+export const DEFAULT_NEBIUS_MODEL = 'nvidia/Nemotron-3_5-Lightning';
+const DEFAULT_NEBIUS_TIMEOUT_MS = 60_000;     // a reasoning model legitimately thinks for a while; still strictly bounded
+const DEFAULT_NEBIUS_MAX_TOKENS = 8_192;      // includes reasoning tokens
+const NEBIUS_MAX_RETRIES = 1;                  // network failure / 5xx only; never 429, 4xx or timeout
+
+// The tasks NVIDIA Nemotron takes part in through automatic routing. Everything else keeps its existing providers.
+export const NEBIUS_NEMOTRON_TASK_KINDS: ModelTaskKind[] = ['PLAN', 'RESEARCH_SYNTHESIS', 'MEETING_PREP'];
+
+interface NebiusOptions extends ProviderOptions {
+  baseUrl?: string;
+  maxTokens?: number;
+}
+
+// An https URL (plain http only for a loopback address, i.e. a local test endpoint), no embedded credentials. Anything else
+// is a configuration error and leaves the provider UNCONFIGURED rather than sending a credential somewhere unintended.
+function nebiusEndpoint(baseUrl: string | undefined): string | null {
+  try {
+    const url = new URL((baseUrl?.trim() || DEFAULT_NEBIUS_BASE_URL));
+    const loopback = ['127.0.0.1', 'localhost', '[::1]', '::1'].includes(url.hostname);
+    if (url.username || url.password) return null;
+    if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) return null;
+    return `${url.origin}${url.pathname.replace(/\/+$/, '')}/chat/completions`;
+  } catch {
+    return null;
+  }
+}
+
+function contentText(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content.map((part) => (part && typeof part === 'object' && typeof (part as { text?: unknown }).text === 'string' ? (part as { text: string }).text : '')).join('');
+  }
+  return '';
+}
+
+// Reasoning models may inline their thinking in <think>…</think>. That is hidden reasoning, never the answer.
+function stripInlineReasoning(text: string): { text: string; hadReasoning: boolean } {
+  let out = text;
+  let had = false;
+  out = out.replace(/<think>[\s\S]*?<\/think>/gi, () => { had = true; return ''; });
+  const close = out.toLowerCase().lastIndexOf('</think>');
+  if (close >= 0) { had = true; out = out.slice(close + '</think>'.length); }
+  const open = out.toLowerCase().indexOf('<think>');
+  if (open >= 0) { had = true; out = out.slice(0, open); }
+  return { text: out.trim(), hadReasoning: had };
+}
+
+function safeRequestId(value: unknown): string | null {
+  return typeof value === 'string' && /^[A-Za-z0-9._:\-]{1,128}$/.test(value) ? value : null;
+}
+
+function count(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+}
+
 export class NebiusProvider extends HttpModelProvider {
   public readonly name = 'nebius' as const;
+  private readonly endpoint: string | null;
+  private readonly maxTokens: number;
 
+  constructor(options: NebiusOptions) {
+    super({ ...options, timeoutMs: options.timeoutMs ?? DEFAULT_NEBIUS_TIMEOUT_MS });
+    this.endpoint = nebiusEndpoint(options.baseUrl);
+    this.maxTokens = options.maxTokens && options.maxTokens > 0 ? Math.floor(options.maxTokens) : DEFAULT_NEBIUS_MAX_TOKENS;
+  }
+
+  // Capability evidence is per MODEL: Token Factory hosts many. Nemotron takes part in automatic routing only for the tasks
+  // above, is not offered strict structured extraction (unverified), and every capability beyond chat completion is declared
+  // UNVERIFIED until a real certification run records evidence. Other Token Factory models keep the generic declaration.
   public get capabilities(): ModelProviderCapabilities {
+    if (this.model && /nemotron/i.test(this.model)) {
+      return {
+        provider: this.name,
+        supportsJsonMode: true,
+        supportsGeneralChat: true,
+        supportsStructuredExtraction: false,
+        eligibleTaskKinds: [...NEBIUS_NEMOTRON_TASK_KINDS],
+        declared: {
+          CHAT_COMPLETION: 'SUPPORTED',
+          REASONING: 'UNVERIFIED',
+          PLANNING: 'UNVERIFIED',
+          RESEARCH_SYNTHESIS: 'UNVERIFIED',
+          TOOL_USE: 'UNVERIFIED',
+          STRUCTURED_OUTPUT: 'UNVERIFIED',
+          LONG_CONTEXT: 'UNVERIFIED',
+        },
+      };
+    }
     return {
       provider: this.name,
       supportsJsonMode: true,
@@ -269,27 +375,100 @@ export class NebiusProvider extends HttpModelProvider {
     };
   }
 
+  public status() {
+    const status = super.status();
+    if (this.endpoint) return status;
+    return { ...status, configured: false, available: false, status: 'UNCONFIGURED' as const, degradedReason: null };
+  }
+
+  protected assertConfigured(requestId: string): { apiKey: string; model: string } {
+    if (!this.endpoint) {
+      throw new ModelProviderError({ provider: this.name, code: 'PROVIDER_NOT_CONFIGURED', message: `${this.name} provider is not configured.`, requestId, retryable: false });
+    }
+    return super.assertConfigured(requestId);
+  }
+
+  private isTransient(error: unknown): boolean {
+    if (!(error instanceof ModelProviderError)) return false;
+    if (error.code === 'PROVIDER_NETWORK_ERROR') return true;
+    const http = /^PROVIDER_HTTP_(\d{3})$/.exec(error.code);
+    return Boolean(http && Number(http[1]) >= 500);
+  }
+
   public async generate(request: ModelRequest): Promise<ModelResponse> {
     const { apiKey, model } = this.assertConfigured(request.requestId);
     const startedAt = Date.now();
-    const payload = await this.postJson(
-      'https://api.tokenfactory.nebius.com/v1/chat/completions',
-      { Authorization: `Bearer ${apiKey}` },
-      { model, messages: request.messages, ...(request.jsonMode ? { response_format: { type: 'json_object' } } : {}) },
-      request.requestId,
-    ) as { choices?: Array<{ message?: { content?: string } }>; usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } };
-    const usage = payload.usage
-      ? { inputTokens: payload.usage.prompt_tokens ?? null, outputTokens: payload.usage.completion_tokens ?? null, totalTokens: payload.usage.total_tokens ?? null }
+    const body = {
+      model,
+      messages: request.messages,
+      max_tokens: request.maxOutputTokens && request.maxOutputTokens > 0 ? Math.floor(request.maxOutputTokens) : this.maxTokens,
+      ...(request.jsonMode ? { response_format: { type: 'json_object' } } : {}),
+    };
+    let detailed: { payload: unknown; responseHeaders: Headers | undefined } | undefined;
+    for (let attempt = 0; !detailed; attempt++) {
+      try {
+        detailed = await this.postJsonDetailed(this.endpoint!, { Authorization: `Bearer ${apiKey}` }, body, request.requestId);
+      } catch (error) {
+        if (attempt < NEBIUS_MAX_RETRIES && this.isTransient(error)) continue;
+        throw error;
+      }
+    }
+
+    const payload = detailed.payload as {
+      id?: unknown;
+      choices?: Array<{ message?: Record<string, unknown>; finish_reason?: unknown }>;
+      usage?: { prompt_tokens?: unknown; completion_tokens?: unknown; total_tokens?: unknown; completion_tokens_details?: { reasoning_tokens?: unknown } };
+    } | null;
+    const choice = payload && typeof payload === 'object' && Array.isArray(payload.choices) ? payload.choices[0] : undefined;
+    const message = choice && typeof choice === 'object' && choice.message && typeof choice.message === 'object' ? choice.message : undefined;
+    if (!message) {
+      this.recordOutcome('failure', 'INVALID_PROVIDER_RESPONSE');
+      throw new ModelProviderError({ provider: this.name, code: 'INVALID_PROVIDER_RESPONSE', message: `${this.name} returned an unexpected response shape.`, requestId: request.requestId, retryable: false });
+    }
+
+    // The ANSWER is `content` only. `reasoning_content` / `reasoning` / inline <think> are hidden provider reasoning: they are
+    // reduced to a boolean here and the text is dropped — never returned, logged, audited or persisted.
+    const stripped = stripInlineReasoning(contentText(message.content));
+    const reasoningField = [message.reasoning_content, message.reasoning].some((value) => (typeof value === 'string' ? value.trim().length > 0 : Boolean(value)));
+    const finishReason = typeof choice?.finish_reason === 'string' ? choice.finish_reason : null;
+    if (finishReason === 'length') {
+      // The token budget ran out (often spent on reasoning): the answer is incomplete and must not be passed off as complete.
+      this.recordOutcome('failure', 'PROVIDER_TRUNCATED_RESPONSE');
+      throw new ModelProviderError({ provider: this.name, code: 'PROVIDER_TRUNCATED_RESPONSE', message: `${this.name} stopped before completing the answer.`, requestId: request.requestId, retryable: false });
+    }
+    const usage = payload?.usage
+      ? {
+          inputTokens: count(payload.usage.prompt_tokens),
+          outputTokens: count(payload.usage.completion_tokens),
+          totalTokens: count(payload.usage.total_tokens),
+          reasoningTokens: count(payload.usage.completion_tokens_details?.reasoning_tokens),
+        }
       : null;
-    return this.response(payload.choices?.[0]?.message?.content ?? '', startedAt, request.requestId, usage);
+    return this.response(stripped.text, startedAt, request.requestId, usage, {
+      finishReason,
+      providerRequestId: safeRequestId(detailed.responseHeaders?.get('x-request-id')) ?? safeRequestId(payload?.id),
+      reasoningAvailable: stripped.hadReasoning || reasoningField,
+    });
   }
+}
+
+function positiveInt(value: string | undefined): number | undefined {
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : undefined;
 }
 
 export function createProviders(env: NodeJS.ProcessEnv = process.env, fetchFn?: FetchFn, timeoutMs?: number): ModelProvider[] {
   const providers = [
     new OpenAIProvider({ apiKey: env.OPENAI_API_KEY, model: env.NAGEX_OPENAI_MODEL, fetchFn, timeoutMs }),
     new GeminiProvider({ apiKey: env.GEMINI_API_KEY, model: env.NAGEX_GEMINI_MODEL, fetchFn, timeoutMs }),
-    new NebiusProvider({ apiKey: env.NEBIUS_API_KEY, model: env.NAGEX_NEBIUS_MODEL, fetchFn, timeoutMs }),
+    new NebiusProvider({
+      apiKey: env.NEBIUS_API_KEY,
+      model: env.NAGEX_NEBIUS_MODEL || DEFAULT_NEBIUS_MODEL,
+      baseUrl: env.NAGEX_NEBIUS_BASE_URL,
+      timeoutMs: timeoutMs ?? positiveInt(env.NAGEX_NEBIUS_TIMEOUT_MS),
+      maxTokens: positiveInt(env.NAGEX_NEBIUS_MAX_TOKENS),
+      fetchFn,
+    }),
   ];
   const byName = new Map<string, ModelProvider>(providers.map((provider) => [provider.name, provider]));
   const configuredPriority = (env.NAGEX_PROVIDER_PRIORITY || 'nebius,openai,gemini')

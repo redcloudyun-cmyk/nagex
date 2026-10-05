@@ -16,7 +16,8 @@
       "security_s2b_ownership_contract",
       "security_s2c_authority_contract",
       "security_s2d_ownership_contract",
-      "security_s2e_authabuse_contract"
+      "security_s2e_authabuse_contract",
+      "nebius_nemotron_contract"
     ],
     "device": [
       "device_agent_foundation",
@@ -132,7 +133,9 @@
       "security_s2b_channel_identity_ownership",
       "security_s2c_outbound_recipient_authority",
       "security_s2d_tenant_resource_ownership",
-      "security_s2e_auth_abuse"
+      "security_s2e_auth_abuse",
+      "nebius_nemotron_provider",
+      "nebius_nemotron_routing"
     ],
     "personal-home": [
       "m6_1_mobile_release_blockers",
@@ -158,7 +161,9 @@
       "r22_9_personal_context_link_capture"
     ],
     "model-routing": [
-      "r22_5_task_aware_model_routing"
+      "r22_5_task_aware_model_routing",
+      "nebius_nemotron_provider",
+      "nebius_nemotron_routing"
     ],
     "mobile": [
       "m6_1_mobile_release_blockers",

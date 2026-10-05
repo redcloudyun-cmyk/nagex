@@ -109,6 +109,18 @@ Node reports the TCP peer as the client address. Behind a reverse proxy (the dep
 
 The throttle state is process-local (single node).
 
+## 7c. Model Provider Configuration (Nebius / Nemotron)
+
+Model providers are configured from server environment only (ADR-0012); nothing a client sends can select or supply a credential:
+
+- `NEBIUS_API_KEY` — Nebius Token Factory credential. **No default.** Absent or blank → the provider is unavailable (the application and all other routes keep working). Secret: never commit, log or echo it.
+- `NAGEX_NEBIUS_MODEL` — default `nvidia/Nemotron-3_5-Lightning`.
+- `NAGEX_NEBIUS_BASE_URL` — default `https://api.tokenfactory.nebius.com/v1`. Must be `https` (plain `http` is accepted only for a loopback test endpoint) and carry no embedded credentials, otherwise the provider stays unconfigured.
+- `NAGEX_NEBIUS_TIMEOUT_MS` — per-request timeout, default `60000`. `NAGEX_NEBIUS_MAX_TOKENS` — default `8192` (includes reasoning tokens).
+- `NAGEX_PROVIDER_PRIORITY` — unchanged (global tie-break order); the per-task Nemotron preference is routing data in code, not an environment setting.
+
+When the key is present Nemotron becomes the first attempt for PLAN, RESEARCH_SYNTHESIS and MEETING_PREP; the other providers remain the fallback. An opt-in, single-call real certification is `NAGEX_LIVE_NEBIUS_CERT=1 node scripts/nebius-live-cert.mjs` (after build); the normal test suite never calls the paid API. There is no runtime spend guard: watch Nebius billing and the per-request token counts in the `model_request_succeeded` log.
+
 ## 8. Approval and Execution Persistence
 
 Approvals and execution records that must survive restart are stored outside transient process memory.

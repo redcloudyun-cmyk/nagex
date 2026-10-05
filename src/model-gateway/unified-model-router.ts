@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { NagexError } from '../common/errors.js';
 import {
   ModelProviderError,
+  classifyModelFailure,
+  type ModelFailureReason,
   type ModelMessage,
   type ModelProvider,
   type ModelResponse,
@@ -30,6 +32,7 @@ export interface GenerateInput {
   routingContext?: ModelRoutingContext;
   validate?: (text: string) => void;
   fallbackPolicy?: 'ALLOW' | 'DISALLOW';
+  maxOutputTokens?: number;
 }
 
 export class UnifiedModelRouter {
@@ -99,6 +102,15 @@ export class UnifiedModelRouter {
     return [...new Set(eligible.map((p) => p.name))];
   }
 
+  // Why the preferred provider did not answer: the failure it actually produced, else the reason it was never tried.
+  private preferredMissReason(preferred: string, failures: Array<{ provider: string; reason: ModelFailureReason }>): ModelFailureReason {
+    const failed = failures.find((f) => f.provider === preferred);
+    if (failed) return failed.reason;
+    const provider = this.providers.get(preferred);
+    if (!provider || !provider.status().configured) return 'NO_PROVIDER_CREDENTIAL';
+    return provider.status().status === 'DEGRADED' ? 'PROVIDER_DEGRADED' : 'UNKNOWN_FAILURE';
+  }
+
   public async generate(input: GenerateInput): Promise<ModelResponse> {
     const requestId = input.requestId || input.routingContext?.requestId || `mdl_${randomUUID()}`;
 
@@ -125,6 +137,7 @@ export class UnifiedModelRouter {
       selectedProvider: decision.selectedProvider,
       fallbackProviders: effectiveFallbacks,
       reasonCodes: decision.reasonCodes,
+      preferredProvider: decision.preferredProvider ?? null,
     });
 
     const candidateOrder = [decision.selectedProvider, ...effectiveFallbacks];
@@ -141,31 +154,61 @@ export class UnifiedModelRouter {
       });
     }
 
-    const failures: Array<{ provider: string; code: string }> = [];
+    // The routing table's preferred provider for this task (null for an explicit provider choice or a task with none).
+    const preferredProvider = decision.reasonCodes.includes('EXPLICIT_OVERRIDE') ? null : decision.preferredProvider ?? null;
+    const failures: Array<{ provider: string; code: string; reason: ModelFailureReason }> = [];
     for (const provider of candidates) {
       try {
-        const result = await provider.generate({ messages: input.messages, requestId, jsonMode: input.jsonMode });
+        const result = await provider.generate({
+          messages: input.messages,
+          requestId,
+          jsonMode: input.jsonMode,
+          ...(input.maxOutputTokens !== undefined ? { maxOutputTokens: input.maxOutputTokens } : {}),
+        });
         input.validate?.(result.text);
+        const fallbackUsed = provider.name !== candidateOrder[0];
+        const preferredMissed = preferredProvider !== null && result.provider !== preferredProvider;
+        const trace = {
+          taskKind: context.taskKind,
+          preferredProvider,
+          actualProvider: result.provider,
+          fallbackUsed: preferredMissed || fallbackUsed,
+          fallbackReason: preferredMissed ? this.preferredMissReason(preferredProvider, failures) : null,
+        };
+        // Safe telemetry only: no prompt, no response text, no reasoning, no credential. Token counts are the provider's own.
         this.logger.info('model_request_succeeded', {
           requestId,
+          taskKind: context.taskKind,
           provider: result.provider,
           model: result.model,
           latencyMs: result.latencyMs,
-          fallbackUsed: provider.name !== candidateOrder[0],
+          fallbackUsed,
+          preferredProvider: trace.preferredProvider,
+          actualProvider: trace.actualProvider,
+          fallbackReason: trace.fallbackReason,
+          inputTokens: result.usage?.inputTokens ?? null,
+          outputTokens: result.usage?.outputTokens ?? null,
+          totalTokens: result.usage?.totalTokens ?? null,
+          reasoningTokens: result.usage?.reasoningTokens ?? null,
+          reasoningAvailable: result.meta?.reasoningAvailable ?? false,
+          finishReason: result.meta?.finishReason ?? null,
         });
-        return result;
+        return { ...result, routing: trace };
       } catch (error) {
         const normalized = error instanceof ModelProviderError
           ? error
           : error instanceof NagexError
             ? new ModelProviderError({ provider: provider.name, code: error.code, message: error.message, requestId, retryable: true })
             : new ModelProviderError({ provider: provider.name, code: 'PROVIDER_UNKNOWN_ERROR', message: `${provider.name} request failed.`, requestId, retryable: true });
-        failures.push({ provider: provider.name, code: normalized.code });
+        const reason = classifyModelFailure(normalized.code);
+        failures.push({ provider: provider.name, code: normalized.code, reason });
         this.logger.warn('model_request_failed', {
           requestId,
+          taskKind: context.taskKind,
           provider: provider.name,
           model: provider.model,
           code: normalized.code,
+          reason,
           retryable: normalized.retryable,
         });
       }

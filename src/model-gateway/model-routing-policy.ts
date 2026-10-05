@@ -1,6 +1,6 @@
 import { NagexError } from '../common/errors.js';
 import type { ModelProvider, RoutingMode } from './model-provider.js';
-import type { ModelRoutingContext, ModelRoutingDecision } from './model-routing.types.js';
+import type { ModelRoutingContext, ModelRoutingDecision, ModelTaskKind, TaskProviderPreferences } from './model-routing.types.js';
 
 const STATUS_RANK: Record<string, number> = {
   LIVE: 0,
@@ -9,11 +9,56 @@ const STATUS_RANK: Record<string, number> = {
   UNCONFIGURED: 3,
 };
 
+// Initial, deliberately small: the high-reasoning personal-AI tasks prefer NVIDIA Nemotron through Nebius Token Factory.
+// Every other task keeps the routing it had (CHAT, STRUCTURED_EXTRACTION, DAILY_BRIEF, DOCUMENT_SYNTHESIS, …). A preference
+// only ranks an ELIGIBLE, CONFIGURED, non-degraded provider first; the rest of the order is the pre-existing one.
+export const DEFAULT_TASK_PROVIDER_PREFERENCES: TaskProviderPreferences = {
+  PLAN: ['nebius'],
+  RESEARCH_SYNTHESIS: ['nebius'],
+  MEETING_PREP: ['nebius'],
+};
+
 export class ModelRoutingPolicy {
-  public satisfiesCapabilities(provider: ModelProvider, context: ModelRoutingContext): boolean {
+  constructor(private readonly taskPreferences: TaskProviderPreferences = DEFAULT_TASK_PROVIDER_PREFERENCES) {}
+
+  public preferredProvidersFor(taskKind: ModelTaskKind): string[] {
+    return this.taskPreferences[taskKind] ?? [];
+  }
+
+  // preferred-and-healthy first (in preference order), then runtime status tier, then configured priority.
+  private compare(
+    a: ModelProvider,
+    b: ModelProvider,
+    context: ModelRoutingContext,
+    priorityIndexMap: Map<string, number>
+  ): number {
+    const preferred = this.preferredProvidersFor(context.taskKind);
+    const prefRank = (p: ModelProvider): number => {
+      const index = preferred.indexOf(p.name);
+      return index >= 0 && p.status().status !== 'DEGRADED' ? index : 999;
+    };
+    const prefA = prefRank(a);
+    const prefB = prefRank(b);
+    if (prefA !== prefB) return prefA - prefB;
+
+    const statusA = STATUS_RANK[a.status().status] ?? 3;
+    const statusB = STATUS_RANK[b.status().status] ?? 3;
+    if (statusA !== statusB) return statusA - statusB;
+
+    const rankA = priorityIndexMap.has(a.name) ? priorityIndexMap.get(a.name)! : 999;
+    const rankB = priorityIndexMap.has(b.name) ? priorityIndexMap.get(b.name)! : 999;
+    return rankA - rankB;
+  }
+
+  // `ignoreTaskScope` is for an EXPLICIT, allowed provider choice only: a caller that names a provider is not subject to the
+  // provider's automatic-routing task scope (it still cannot bypass the capability requirements below).
+  public satisfiesCapabilities(provider: ModelProvider, context: ModelRoutingContext, options: { ignoreTaskScope?: boolean } = {}): boolean {
     const caps = provider.capabilities;
     if (!caps) {
       // Unknown capability ≠ Supported capability (No fail-open)
+      return false;
+    }
+    if (!options.ignoreTaskScope && caps.eligibleTaskKinds && !caps.eligibleTaskKinds.includes(context.taskKind)) {
       return false;
     }
     if (context.requiresJson && !caps.supportsJsonMode) {
@@ -39,17 +84,7 @@ export class ModelRoutingPolicy {
     const priorityIndexMap = new Map<string, number>();
     configuredPriority.forEach((name, idx) => priorityIndexMap.set(name, idx));
 
-    return [...eligible].sort((a, b) => {
-      const statusA = STATUS_RANK[a.status().status] ?? 3;
-      const statusB = STATUS_RANK[b.status().status] ?? 3;
-      if (statusA !== statusB) {
-        return statusA - statusB;
-      }
-
-      const rankA = priorityIndexMap.has(a.name) ? priorityIndexMap.get(a.name)! : 999;
-      const rankB = priorityIndexMap.has(b.name) ? priorityIndexMap.get(b.name)! : 999;
-      return rankA - rankB;
-    });
+    return [...eligible].sort((a, b) => this.compare(a, b, context, priorityIndexMap));
   }
 
   public select(
@@ -60,6 +95,7 @@ export class ModelRoutingPolicy {
   ): ModelRoutingDecision {
     const providerMap = new Map<string, ModelProvider>(providers.map((p) => [p.name, p]));
     const reasonCodes: string[] = ['TASK_SUPPORTED'];
+    const preferredProvider = this.preferredProvidersFor(context.taskKind)[0] ?? null;
 
     if (context.requiresJson) {
       reasonCodes.push('JSON_MODE_REQUIRED');
@@ -80,7 +116,7 @@ export class ModelRoutingPolicy {
       }
 
       // Explicit override cannot bypass required capability incompatibility
-      if (!satisfiesCapabilities(explicit)) {
+      if (!this.satisfiesCapabilities(explicit, context, { ignoreTaskScope: true })) {
         throw new NagexError({
           code: 'MODEL_PROVIDER_CAPABILITY_UNSUPPORTED',
           category: 'VALIDATION',
@@ -101,6 +137,7 @@ export class ModelRoutingPolicy {
         selectedProvider: mode,
         fallbackProviders: remainingCandidates.map((p) => p.name),
         reasonCodes,
+        preferredProvider,
       };
     }
 
@@ -137,21 +174,14 @@ export class ModelRoutingPolicy {
     const priorityIndexMap = new Map<string, number>();
     configuredPriority.forEach((name, idx) => priorityIndexMap.set(name, idx));
 
-    // 4. Deterministic sorting: Runtime Status Tier -> Configured Priority Tie-Breaker
-    const sortedCandidates = [...eligibleProviders].sort((a, b) => {
-      const statusA = STATUS_RANK[a.status().status] ?? 3;
-      const statusB = STATUS_RANK[b.status().status] ?? 3;
-      if (statusA !== statusB) {
-        return statusA - statusB;
-      }
-
-      const rankA = priorityIndexMap.has(a.name) ? priorityIndexMap.get(a.name)! : 999;
-      const rankB = priorityIndexMap.has(b.name) ? priorityIndexMap.get(b.name)! : 999;
-      return rankA - rankB;
-    });
+    // 4. Deterministic sorting: task-preferred (healthy) -> Runtime Status Tier -> Configured Priority Tie-Breaker
+    const sortedCandidates = [...eligibleProviders].sort((a, b) => this.compare(a, b, context, priorityIndexMap));
 
     const selected = sortedCandidates[0];
     const selectedStatus = selected.status().status;
+    if (this.preferredProvidersFor(context.taskKind).includes(selected.name) && selectedStatus !== 'DEGRADED') {
+      reasonCodes.push('TASK_PREFERRED_PROVIDER');
+    }
 
     if (selectedStatus === 'LIVE') {
       reasonCodes.push('PROVIDER_LIVE');
@@ -166,6 +196,7 @@ export class ModelRoutingPolicy {
       selectedProvider: selected.name,
       fallbackProviders: sortedCandidates.slice(1).map((p) => p.name),
       reasonCodes: [...new Set(reasonCodes)],
+      preferredProvider,
     };
   }
 }
