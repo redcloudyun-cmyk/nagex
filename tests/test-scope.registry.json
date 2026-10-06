@@ -135,7 +135,8 @@
       "security_s2d_tenant_resource_ownership",
       "security_s2e_auth_abuse",
       "nebius_nemotron_provider",
-      "nebius_nemotron_routing"
+      "nebius_nemotron_routing",
+      "jev_shadow_runtime"
     ],
     "personal-home": [
       "m6_1_mobile_release_blockers",
@@ -163,7 +164,8 @@
     "model-routing": [
       "r22_5_task_aware_model_routing",
       "nebius_nemotron_provider",
-      "nebius_nemotron_routing"
+      "nebius_nemotron_routing",
+      "jev_shadow_runtime"
     ],
     "mobile": [
       "m6_1_mobile_release_blockers",

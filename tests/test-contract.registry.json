@@ -4569,6 +4569,22 @@
       "assertionIntent": "Source contract that keeps the S2E boundary from regressing: no address header is read outside server_web, the resolver is peer-first/right-to-left with no Cloudflare trust or hardcoded ranges, only the HTTP layer registers an address and routes only read it, the test peer seam is a programmatic option refused in production and absent from the real start path, login/reactivate/delete-cancel/signup are throttled before any password hashing with no wrong-state oracle, forgot/resend share the guard, and the guard keeps three dimensions, a bounded store and capped progressive cooldowns.",
       "notes": "Reads production source only; behavior is certified by security_s2e_auth_abuse."
     },
+    "jev_shadow_runtime": {
+      "milestone": "JEV-SHADOW-POC",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "model-routing",
+        "runtime",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "JEV shadow-mode advisory contract: typed minimal output only; shadow evaluation is logged after the authoritative router decision without changing provider, task kind, fallback, approval, execution or memory authority; safe telemetry excludes prompt/answer/reasoning/secrets; the deterministic synthetic benchmark covers current TaskKinds and fails closed on invalid schema or systematic high-reasoning downgrades.",
+      "notes": "No network, no paid provider calls. Benchmark providers never generate; current router policy is measured offline."
+    },
     "nebius_nemotron_provider": {
       "milestone": "NEBIUS-NEMOTRON-RUNTIME",
       "classification": "CANONICAL_BEHAVIOR",

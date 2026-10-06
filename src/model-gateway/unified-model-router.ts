@@ -11,6 +11,7 @@ import {
   type ProviderStatus,
   type RoutingMode,
 } from './model-provider.js';
+import { buildJevShadowTelemetry, JevShadowEvaluator } from './jev-shadow-evaluator.js';
 import { ModelRoutingPolicy } from './model-routing-policy.js';
 import type { ModelRoutingContext, ModelRoutingDecision } from './model-routing.types.js';
 
@@ -43,7 +44,8 @@ export class UnifiedModelRouter {
   constructor(
     providers: ModelProvider[],
     private readonly logger: RouterLogger = safeLogger,
-    routingPolicy?: ModelRoutingPolicy
+    routingPolicy?: ModelRoutingPolicy,
+    private readonly jevShadowEvaluator: { evaluate(input: Parameters<JevShadowEvaluator['evaluate']>[0]): ReturnType<JevShadowEvaluator['evaluate']> | Promise<ReturnType<JevShadowEvaluator['evaluate']>> } | null = new JevShadowEvaluator()
   ) {
     this.providers = new Map(providers.map((provider) => [provider.name, provider]));
     this.configuredPriority = providers.map((p) => p.name);
@@ -126,6 +128,32 @@ export class UnifiedModelRouter {
       [...this.providers.values()],
       this.configuredPriority
     );
+    const selectedModel = this.providers.get(decision.selectedProvider)?.model ?? null;
+
+    if (this.jevShadowEvaluator) {
+      try {
+        const jev = await this.jevShadowEvaluator.evaluate({
+          taskKind: context.taskKind,
+          requiresJson: context.requiresJson,
+          requiresEvidenceGrounding: context.requiresEvidenceGrounding,
+        });
+        this.logger.info('jev_shadow_decision', {
+          requestId: context.requestId,
+          ...buildJevShadowTelemetry({
+            taskKind: context.taskKind,
+            currentDecision: decision,
+            currentModel: selectedModel,
+            jev,
+          }),
+        });
+      } catch (error) {
+        this.logger.warn('jev_shadow_failed', {
+          requestId: context.requestId,
+          taskKind: context.taskKind,
+          code: 'JEV_SHADOW_EVALUATION_FAILED',
+        });
+      }
+    }
 
     const fallbackPolicy = input.fallbackPolicy ?? 'ALLOW';
     const effectiveFallbacks = fallbackPolicy === 'DISALLOW' ? [] : decision.fallbackProviders;
