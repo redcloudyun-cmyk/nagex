@@ -295,6 +295,31 @@
       });
     }
 
+    document.querySelectorAll('[data-mobile-quick-action]').forEach((button) => {
+      if (button.dataset.bound) return;
+      button.dataset.bound = '1';
+      button.addEventListener('click', () => {
+        if (!input) return;
+        const action = button.getAttribute('data-mobile-quick-action');
+        if (action === 'IMAGE') {
+          if (window.NAGEX && typeof window.NAGEX.switchTab === 'function') window.NAGEX.switchTab('tab-create');
+          return;
+        }
+        if (action === 'RESEARCH') {
+          input.dataset.creationMode = 'RESEARCH';
+          input.value = 'Research ';
+        } else if (action === 'REPORT') {
+          input.dataset.creationMode = 'REPORT';
+          input.value = 'Create a report about ';
+        } else {
+          delete input.dataset.creationMode;
+          input.value = 'Plan next steps for ';
+        }
+        input.focus();
+        input.setSelectionRange(input.value.length, input.value.length);
+      });
+    });
+
     if (voiceBtn && !voiceBtn.dataset.bound) {
       voiceBtn.dataset.bound = '1';
       voiceBtn.addEventListener('click', async () => {

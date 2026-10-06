@@ -56,6 +56,15 @@ export interface HomeItem {
   artifactProjection?: ArtifactUxProjection;
 }
 
+export interface HomeMemoryContextItem {
+  id: string;
+  type: string;
+  title: string;
+  summary: string;
+  sourceType: 'MEMORY';
+  sourceId: string;
+}
+
 export interface PersonalHomeRightNow {
   // R23.2 — 'TASK' and 'REMINDER' are new: RightNowIntelligenceService can
   // now surface a RUNNING/ACTIVE task or a due/near-term reminder as the
@@ -98,6 +107,7 @@ export interface PersonalHomeResponse {
   preparedForYou: HomeItem[];
   workingForYou: HomeItem[];
   recentResults: HomeItem[];
+  memoryContext: HomeMemoryContextItem[];
   creationActions: Array<{
     id: 'RESEARCH' | 'ANALYZE';
     title: string;
@@ -138,6 +148,30 @@ const RIGHT_NOW_ACTION_BY_KIND: Record<RightNowItemKind, HomeItemAction> = {
   REMINDER: { type: 'VIEW_REMINDER', label: 'View' },
   INBOX: { type: 'REVIEW_CAPTURE', label: 'Review' },
 };
+
+function memoryContextType(predicate: string): string {
+  const lower = predicate.toLowerCase();
+  if (lower.includes('prefer')) return 'Preference';
+  if (lower.includes('project')) return 'Project';
+  if (lower.includes('work')) return 'Working context';
+  if (lower.includes('decid')) return 'Decision';
+  return 'Context';
+}
+
+function memoryValueSummary(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (value == null) return '';
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function isSafeHomeMemoryText(value: string): boolean {
+  if (!value.trim()) return false;
+  return !/(api[_-]?key|authorization|bearer\s+|oauth|password|secret|token|private[_-]?key|credential|security answer)/i.test(value);
+}
 
 // Maps RightNowIntelligenceService's canonical primary item onto the
 // pre-existing PersonalHomeRightNow response shape (RESPONSE COMPATIBILITY
@@ -464,6 +498,21 @@ export class PersonalHomeService {
       });
     }
 
+    const memoryContext: HomeMemoryContextItem[] = [];
+    for (const mem of (context?.relatedContext.memories || []).slice(0, 2)) {
+      const title = mem.subject || 'Context';
+      const summary = memoryValueSummary(mem.value);
+      if (!isSafeHomeMemoryText(`${title} ${mem.predicate} ${summary}`)) continue;
+      memoryContext.push({
+        id: `mem_${mem.id}`,
+        type: memoryContextType(mem.predicate || ''),
+        title,
+        summary,
+        sourceType: 'MEMORY',
+        sourceId: mem.id,
+      });
+    }
+
     // 13. Profile / User Name
     let userName: string | null = null;
     if (this.deps.identityStore) {
@@ -485,6 +534,7 @@ export class PersonalHomeService {
       preparedForYou,
       workingForYou,
       recentResults,
+      memoryContext,
       creationActions: [
         { id: 'RESEARCH', title: 'Research', description: 'Find, verify, and synthesize information.', action: { type: 'START_RESEARCH', label: 'Start research' } },
         { id: 'ANALYZE', title: 'Analyze', description: 'Understand supported documents and files.', action: { type: 'START_ANALYSIS', label: 'Choose a file' } },

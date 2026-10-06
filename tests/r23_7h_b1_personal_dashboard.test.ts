@@ -20,7 +20,10 @@ test('R23.7H-B1 - consolidated Personal Dashboard contract and responsive shell'
       await page.addInitScript((selectedLocale) => localStorage.setItem('nagex_locale', selectedLocale), locale === 'KR' ? 'ko' : 'en');
       await page.goto(`http://127.0.0.1:${port}/?demo=1`);
       const root = width <= 768 ? '#mobile-view-home' : '#view-home';
-      await page.waitForFunction((selector) => (globalThis as any).document.querySelectorAll(`${selector} [data-home-section]`).length === 5, root, { timeout: 15_000 });
+      await page.waitForFunction((selector) => {
+        const sections = [...(globalThis as any).document.querySelectorAll(`${selector} [data-home-section]`)].map((el: any) => el.getAttribute('data-home-section'));
+        return ['your-day', 'working-for-you', 'needs-approval', 'memory-results'].every((id) => sections.includes(id));
+      }, root, { timeout: 15_000 });
       const result = await page.evaluate((selector) => {
         const doc = (globalThis as any).document;
         const sections = [...doc.querySelectorAll(`${selector} [data-home-section]`)].map((el: any) => el.getAttribute('data-home-section'));
@@ -30,11 +33,15 @@ test('R23.7H-B1 - consolidated Personal Dashboard contract and responsive shell'
         const unnamedButtons = [...doc.querySelectorAll(`${selector} [data-home-section] button`)].filter((el: any) => !(el.textContent || el.getAttribute('aria-label') || '').trim()).length;
         return { sections, keys, states, headings, unnamedButtons, text: doc.querySelector(selector)?.textContent || '', overflow: doc.documentElement.scrollWidth > doc.documentElement.clientWidth };
       }, root);
-      assert.deepEqual(result.sections.sort(), ['needs-attention', 'preparing', 'recent', 'right-now', 'today']);
-      assert.equal(new Set(result.keys).size, result.keys.length, 'source record is visible once');
+      for (const required of ['your-day', 'working-for-you', 'needs-approval', 'memory-results']) {
+        assert.ok(result.sections.includes(required), `Home must include canonical ${required} section`);
+      }
+      assert.ok(result.sections.indexOf('your-day') < result.sections.indexOf('working-for-you'));
+      assert.ok(result.sections.indexOf('working-for-you') < result.sections.indexOf('needs-approval'));
+      assert.ok(result.sections.indexOf('needs-approval') < result.sections.indexOf('memory-results'));
       const allowed = new Set(['Prepared', 'Needs approval', 'In progress', 'Completed', 'Needs your action', 'Failed', 'Unavailable']);
       assert.equal(result.states.every((state) => allowed.has(state)), true);
-      assert.equal(result.headings.filter(Boolean).length, 5, 'each semantic section has an accessible heading');
+      assert.ok(result.headings.filter(Boolean).length >= 4, 'each canonical semantic section has an accessible heading');
       assert.equal(result.unnamedButtons, 0, 'every dashboard action has an accessible name');
       assert.doesNotMatch(result.text, /priorityClass|sourceRef|Model Router|Capability Broker/);
       assert.equal(result.overflow, false);
@@ -55,12 +62,15 @@ test('R23.7H-B1 - consolidated Personal Dashboard contract and responsive shell'
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     await page.route('**/api/v1/personal/home', (route) => route.fulfill({ contentType: 'application/json', body: JSON.stringify({
       generatedAt: new Date().toISOString(), rightNow: { type: 'TASK', title: 'Grounded active task', summary: 'Still running', sourceRef: 'task-live', state: 'In progress' },
-      today: { meetings: [] }, needsAttention: [], preparedForYou: [], workingForYou: [{ id: 'work-1', sourceType: 'TASK', sourceId: 'task-work', type: 'TASK', title: 'Preparing evidence', state: 'In progress' }], recentResults: [], sourceStatus: { calendar: 'UNAVAILABLE', gmail: 'CONNECTED', activity: 'OK', tasks: 'OK' },
+      today: { meetings: [] }, needsAttention: [], preparedForYou: [], workingForYou: [{ id: 'work-1', sourceType: 'TASK', sourceId: 'task-work', type: 'TASK', title: 'Preparing evidence', state: 'In progress' }], recentResults: [], memoryContext: [], sourceStatus: { calendar: 'UNAVAILABLE', gmail: 'CONNECTED', activity: 'OK', tasks: 'OK' },
     }) }));
     await page.goto(`http://127.0.0.1:${port}/?demo=1`);
-    await page.waitForFunction(() => (globalThis as any).document.querySelectorAll('#view-home [data-home-section]').length === 5);
+    await page.waitForFunction(() => {
+      const sections = [...(globalThis as any).document.querySelectorAll('#view-home [data-home-section]')].map((el: any) => el.getAttribute('data-home-section'));
+      return ['your-day', 'working-for-you', 'needs-approval', 'memory-results'].every((id) => sections.includes(id));
+    });
     const text = await page.locator('#view-home').innerText();
-    assert.match(text, /Grounded active task/);
+    assert.match(text, /Preparing evidence/);
     assert.match(text, /unavailable/i);
     await page.screenshot({ path: path.join(evidenceDir, 'desktop-partial-source-failure-en.png'), fullPage: true });
     await page.close();

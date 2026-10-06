@@ -2002,9 +2002,31 @@
     const chips = document.querySelectorAll('.quick-action-chip');
     chips.forEach((chip) => {
       chip.onclick = () => {
+        if (chip.disabled || chip.getAttribute('aria-disabled') === 'true') return;
         const action = chip.getAttribute('data-action');
+        const capability = chip.getAttribute('data-capability');
+        const homeInput = document.getElementById('home-prompt-input');
+        if (capability === 'RESEARCH' || capability === 'REPORT' || capability === 'PLAN') {
+          if (!homeInput) return;
+          if (capability === 'RESEARCH') {
+            homeInput.dataset.creationMode = 'RESEARCH';
+            homeInput.value = 'Research ';
+          } else if (capability === 'REPORT') {
+            homeInput.dataset.creationMode = 'REPORT';
+            homeInput.value = 'Create a report about ';
+          } else {
+            delete homeInput.dataset.creationMode;
+            homeInput.value = 'Plan next steps for ';
+          }
+          homeInput.focus();
+          homeInput.setSelectionRange(homeInput.value.length, homeInput.value.length);
+          return;
+        }
+        if (capability === 'IMAGE') {
+          if (window.NAGEX && typeof window.NAGEX.switchTab === 'function') window.NAGEX.switchTab('tab-create');
+          return;
+        }
         if (action in HOME_DISCOVER_PROMPTS) {
-          const homeInput = document.getElementById('home-prompt-input');
           if (homeInput) {
             homeInput.value = HOME_DISCOVER_PROMPTS[action];
             homeInput.focus();
