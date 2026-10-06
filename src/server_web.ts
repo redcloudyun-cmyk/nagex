@@ -234,13 +234,18 @@ const TASK_SCHEDULER_TICK_MS = Number(process.env.NAGEX_TASK_SCHEDULER_INTERVAL_
 // R10.2-D Increment 4 — approvalQueue moved to
 // src/http/routes/approvals.routes.ts; executionHistory moved to
 // src/http/routes/governance.routes.ts (imported above — health.routes.ts
-// still legitimately needs its length for executionCount, below).
+// exposes its length only as execution_history_count).
 // quickWakeConfig/autonomyConfig moved to src/http/routes/settings.routes.ts;
 // knowledgeBase moved to src/http/routes/catalog.routes.ts (each with its
 // only consumer).
 
 // R10.2-D — health/vcs status moved to src/http/routes/health.routes.ts.
-const healthRouteDeps: HealthRouteDeps = { executionCount: () => executionHistory.length };
+// Active executions come from durable runtime state. executionHistory is
+// legacy/demo history and is exposed only as history count.
+const healthRouteDeps: HealthRouteDeps = {
+  activeExecutionCount: () => durableTaskRunState.listRunning().length,
+  executionHistoryCount: () => executionHistory.length,
+};
 
 // ─── API Router ───
 // R10.2-D Increment 5 — getHeaderValue moved into each route module as

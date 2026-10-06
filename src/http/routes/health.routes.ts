@@ -28,12 +28,24 @@ export function getVcsStatus(): VcsStatus {
 }
 
 export interface HealthRouteDeps {
-  executionCount: () => number;
+  activeExecutionCount: () => number;
+  executionHistoryCount: () => number;
 }
 
 export const handleHealthRoutes: SyncRouteRegistrar<HealthRouteDeps> = (method, pathname, _body, _headers, _query, deps): ApiResult | undefined => {
   if (pathname === '/api/v1/health' && method === 'GET') {
-    return { status: 200, data: { status: 'UP', service: 'NAgex Personal AI Platform API', version: '0.1.0', runtime_active: true, active_executions: deps.executionCount(), uptime_seconds: Math.floor(process.uptime()) } };
+    return {
+      status: 200,
+      data: {
+        status: 'UP',
+        service: 'NAgex Personal AI Platform API',
+        version: '0.1.0',
+        runtime_active: true,
+        active_executions: deps.activeExecutionCount(),
+        execution_history_count: deps.executionHistoryCount(),
+        uptime_seconds: Math.floor(process.uptime()),
+      },
+    };
   }
   if (pathname === '/api/v1/vcs/status' && method === 'GET') {
     return { status: 200, data: getVcsStatus() };

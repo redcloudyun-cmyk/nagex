@@ -10,14 +10,27 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { SyncHttpRouter, AsyncHttpRouter } from '../src/http/router.js';
 import { handleHealthRoutes, getVcsStatus } from '../src/http/routes/health.routes.js';
 import { handleApiRequest, handleAsyncApiRequest } from '../src/server_web.js';
+import { DurableTaskRunStateStore } from '../src/tasks/durable-task-run-state.store.js';
 import { authAs } from './_s1_session_auth.js';
 
 function readSourceWithoutComments(relPath: string): string {
   return fs.readFileSync(path.resolve(relPath), 'utf8').split('\n').map((line) => line.replace(/\/\/.*/, '')).join('\n');
+}
+
+function tempDir(prefix: string): string {
+  return fs.mkdtempSync(path.join(os.tmpdir(), `nagex-health-${prefix}-`));
+}
+
+function createHealthDeps(store: DurableTaskRunStateStore, executionHistoryCount: number) {
+  return {
+    activeExecutionCount: () => store.listRunning().length,
+    executionHistoryCount: () => executionHistoryCount,
+  };
 }
 
 // ── Router engine: sequential match, precedence, collision behavior ─────
@@ -59,23 +72,72 @@ test('4. AsyncHttpRouter awaits each registrar in order and stops at the first m
 
 // ── health.routes.ts: behavior identical to the pre-refactor inline code ──
 
-test('5. GET /api/v1/health returns the real UP status with a real executionCount from the injected dep', () => {
-  const result = handleHealthRoutes('GET', '/api/v1/health', null, {}, {}, { executionCount: () => 7 });
+test('5. GET /api/v1/health returns UP status with active executions separated from history count', () => {
+  const result = handleHealthRoutes('GET', '/api/v1/health', null, {}, {}, {
+    activeExecutionCount: () => 7,
+    executionHistoryCount: () => 3,
+  });
   assert.equal(result?.status, 200);
   const data = result!.data as Record<string, unknown>;
   assert.equal(data.status, 'UP');
   assert.equal(data.active_executions, 7);
+  assert.equal(data.execution_history_count, 3);
+  assert.equal(data.runtime_active, true);
+  assert.equal(data.version, '0.1.0');
+  assert.equal(typeof data.uptime_seconds, 'number');
+});
+
+test('5a. completed legacy history does not count as an active execution', () => {
+  const store = new DurableTaskRunStateStore({ dir: tempDir('completed-history') });
+  const result = handleHealthRoutes('GET', '/api/v1/health', null, {}, {}, createHealthDeps(store, 1));
+  const data = result!.data as Record<string, unknown>;
+  assert.equal(data.active_executions, 0);
+  assert.equal(data.execution_history_count, 1);
+});
+
+test('5b. history length greater than zero never changes active_executions', () => {
+  const store = new DurableTaskRunStateStore({ dir: tempDir('history-nonzero') });
+  const result = handleHealthRoutes('GET', '/api/v1/health', null, {}, {}, createHealthDeps(store, 5));
+  const data = result!.data as Record<string, unknown>;
+  assert.equal(data.active_executions, 0);
+  assert.equal(data.execution_history_count, 5);
+});
+
+test('5c. durable RUNNING task runs are the active execution source', () => {
+  const store = new DurableTaskRunStateStore({ dir: tempDir('running') });
+  store.create({ runId: 'run_1', taskId: 'task_1', tenantId: 'ten_1', ownerId: 'usr_1', runRequestId: 'req_1', resolvedSteps: [] });
+  store.create({ runId: 'run_2', taskId: 'task_2', tenantId: 'ten_1', ownerId: 'usr_1', runRequestId: 'req_2', resolvedSteps: [] });
+  const result = handleHealthRoutes('GET', '/api/v1/health', null, {}, {}, createHealthDeps(store, 0));
+  assert.equal((result!.data as Record<string, unknown>).active_executions, 2);
+});
+
+test('5d. WAITING_APPROVAL durable runs are paused, not active', () => {
+  const store = new DurableTaskRunStateStore({ dir: tempDir('waiting') });
+  store.create({ runId: 'run_waiting', taskId: 'task_waiting', tenantId: 'ten_1', ownerId: 'usr_1', runRequestId: 'req_waiting', resolvedSteps: [] });
+  store.markWaitingApproval('run_waiting', 'apr_1');
+  const result = handleHealthRoutes('GET', '/api/v1/health', null, {}, {}, createHealthDeps(store, 0));
+  assert.equal((result!.data as Record<string, unknown>).active_executions, 0);
+});
+
+test('5e. terminal durable run states never count as active', () => {
+  const store = new DurableTaskRunStateStore({ dir: tempDir('terminal') });
+  store.create({ runId: 'run_succeeded', taskId: 'task_succeeded', tenantId: 'ten_1', ownerId: 'usr_1', runRequestId: 'req_succeeded', resolvedSteps: [] });
+  store.markTerminal('run_succeeded', 'SUCCEEDED');
+  store.create({ runId: 'run_failed', taskId: 'task_failed', tenantId: 'ten_1', ownerId: 'usr_1', runRequestId: 'req_failed', resolvedSteps: [] });
+  store.markTerminal('run_failed', 'FAILED');
+  const result = handleHealthRoutes('GET', '/api/v1/health', null, {}, {}, createHealthDeps(store, 0));
+  assert.equal((result!.data as Record<string, unknown>).active_executions, 0);
 });
 
 test('6. GET /api/v1/vcs/status returns real getVcsStatus() output (not fabricated) — this repo IS a real git checkout during tests', () => {
-  const result = handleHealthRoutes('GET', '/api/v1/vcs/status', null, {}, {}, { executionCount: () => 0 });
+  const result = handleHealthRoutes('GET', '/api/v1/vcs/status', null, {}, {}, { activeExecutionCount: () => 0, executionHistoryCount: () => 0 });
   assert.equal(result?.status, 200);
   const direct = getVcsStatus();
   assert.equal((result!.data as { available: boolean }).available, direct.available);
 });
 
 test('7. an unrelated pathname returns undefined from the health registrar — never a false 200', () => {
-  const result = handleHealthRoutes('GET', '/api/v1/not-health', null, {}, {}, { executionCount: () => 0 });
+  const result = handleHealthRoutes('GET', '/api/v1/not-health', null, {}, {}, { activeExecutionCount: () => 0, executionHistoryCount: () => 0 });
   assert.equal(result, undefined);
 });
 
