@@ -514,7 +514,7 @@
       capRESEARCHTitle: 'Research', capRESEARCHDesc: 'Find, verify, and synthesize information.',
       capPLANTitle: 'Plan', capPLANDesc: 'Turn a goal into a structured, approvable plan.',
       capCODETitle: 'Code', capCODEDesc: 'Generate and work with code.',
-      capStatusLive: 'Available', capStatusPartial: 'Partially available', capStatusPlanned: 'Coming soon',
+      capStatusLive: 'Works now', capStatusPartial: 'Partial', capStatusPlanned: 'Upcoming',
       workWithData: 'Work with your data', workWithDataSubtitle: 'NAgex can use your documents and connected sources to create personalized content.',
       contextType: 'Type', contextTitle: 'Title', contextUpdated: 'Updated', contextUnknown: 'Unknown', untitledArtifact: 'Untitled artifact',
       homeCanvasEmptyTitle: 'Create something with NAgex', homeCanvasEmptyBody: 'Start a report, image, research project, or plan — your work will continue here.', homeCanvasOpenFocus: 'Open in Canvas',
@@ -546,7 +546,7 @@
       capRESEARCHTitle: '리서치', capRESEARCHDesc: '필요한 정보를 찾고 검증해 핵심을 정리해요.',
       capPLANTitle: '플랜', capPLANDesc: '목표를 구조화된 승인 가능한 계획으로 만들어요.',
       capCODETitle: '코드', capCODEDesc: '코드를 생성하고 다뤄요.',
-      capStatusLive: '이용 가능', capStatusPartial: '부분적으로 이용 가능', capStatusPlanned: '출시 예정',
+      capStatusLive: '지금 가능', capStatusPartial: '부분 지원', capStatusPlanned: '준비 중',
       workWithData: '내 데이터로 작업하기', workWithDataSubtitle: 'NAgex가 문서와 연결된 소스를 활용해 맞춤 콘텐츠를 만들어 드려요.',
       contextType: '유형', contextTitle: '제목', contextUpdated: '업데이트', contextUnknown: '알 수 없음', untitledArtifact: '제목 없는 아티팩트',
       homeCanvasEmptyTitle: 'NAgex로 무언가를 만들어보세요', homeCanvasEmptyBody: '보고서, 이미지, 리서치, 플랜을 시작해 보세요 — 작업 내용이 여기에서 이어집니다.', homeCanvasOpenFocus: '캔버스에서 열기',
@@ -588,7 +588,17 @@
   }
 
   function card(item, state, extra) {
-    return Object.assign({ key: key(item), owningSurface: owningSurface(item), title: item.title || '', context: item.summary || item.reason || '', state, action: item.action || null, actionTarget: item.action?.targetUrl || null, availability: state === 'Unavailable' ? 'unavailable' : 'available', error: state === 'Failed' ? item.summary || item.reason || null : null, type: item.type || item.kind || '', sourceRef: item.sourceId || item.sourceRef || item.id || '', artifactProjection: item.artifactProjection || null }, extra || {});
+    return Object.assign({ key: key(item), owningSurface: owningSurface(item), title: item.title || '', context: item.summary || item.reason || '', state, action: item.action || null, actionTarget: item.action?.targetUrl || null, availability: state === 'Unavailable' ? 'unavailable' : 'available', error: state === 'Failed' ? item.summary || item.reason || null : null, type: item.type || item.kind || '', sourceRef: item.sourceId || item.sourceRef || item.id || '', createdAt: item.createdAt || '', artifactProjection: item.artifactProjection || null }, extra || {});
+  }
+
+  function memoryCard(item) {
+    return {
+      key: key(item),
+      title: item.title || 'Context',
+      context: item.summary || '',
+      type: item.type || 'Context',
+      sourceRef: item.sourceId || item.id || '',
+    };
   }
 
   function inferRightNow(item) {
@@ -609,20 +619,30 @@
     return 'Completed';
   }
 
+  function isApprovalAttention(item) {
+    const type = String(item.type || '').toUpperCase();
+    const actionType = String(item.action?.type || '').toUpperCase();
+    return item.state === 'Needs approval' || type === 'APPROVAL' || (type === 'PROPOSAL' && actionType.includes('REVIEW'));
+  }
+
   function normalize(response) {
     const home = response && response.data ? response.data : response;
     const seen = new Set();
     const unique = (items) => (items || []).filter((item) => item && item.key && !seen.has(item.key) && seen.add(item.key));
     const rightNow = unique(home && home.rightNow ? [card(home.rightNow, inferRightNow(home.rightNow))] : []);
     const attention = unique((home?.needsAttention || []).map((item) => card(item, item.state || (item.type === 'APPROVAL' ? 'Needs approval' : item.type === 'BLOCKED_TASK' ? 'Failed' : 'Needs your action'))));
+    const approvals = attention.filter(isApprovalAttention);
+    const attentionRest = attention.filter((item) => !isApprovalAttention(item));
     const todayItems = (home?.today?.meetings || []).map((item) => card(Object.assign({ sourceType: 'CALENDAR', sourceId: item.id, type: 'MEETING' }, item), item.state || 'Prepared', { time: item.startsAt }));
     if (home?.sourceStatus?.calendar === 'UNAVAILABLE' && todayItems.length === 0) todayItems.push(card({ id: 'calendar-unavailable', sourceType: 'CALENDAR', title: COPY[locale()].unavailable }, 'Unavailable'));
     const today = unique(todayItems);
-    const preparing = unique([...(home?.preparedForYou || []).map((item) => card(item, item.state || 'Prepared')), ...(home?.workingForYou || []).map((item) => card(item, item.state || 'In progress'))]);
+    const working = unique((home?.workingForYou || []).map((item) => card(item, item.state || 'In progress')));
+    const preparing = unique((home?.preparedForYou || []).map((item) => card(item, item.state || 'Prepared')));
     const recent = unique((home?.recentResults || []).map((item) => card(item, inferRecent(item))));
+    const memoryContext = (home?.memoryContext || []).map(memoryCard).filter((item) => item.title || item.context).slice(0, 2);
     const creationActions = (home?.creationActions || []).filter((item) => item.id === 'RESEARCH' || item.id === 'ANALYZE');
     const recentCreations = unique((home?.recentCreations || []).map((item) => card(item, inferRecent(item))));
-    return { generatedAt: home?.generatedAt || null, rightNow, creationActions, attention, today, preparing, recentCreations, recent };
+    return { generatedAt: home?.generatedAt || null, rightNow, creationActions, attention, approvals, attentionRest, today, working, preparing, memoryContext, recentCreations, recent };
   }
 
   function fetchHome(force) {
@@ -998,31 +1018,249 @@
     return null;
   }
 
+  function yourDayItems(model) {
+    const items = [];
+    const add = (kind, label, item, empty) => {
+      if (items.length >= 3) return;
+      if (item) items.push({ kind, label, item });
+      else if (empty && items.length === 0) items.push({ kind, label, empty });
+    };
+    add('today', 'Coming up', (model.today || [])[0], 'Your schedule is clear for now.');
+    add('attention', 'Attention', (model.attention || [])[0], null);
+    add('brief', 'Context', ((model.preparing || [])[0] || (model.recentCreations || [])[0] || (model.recent || [])[0]), null);
+    if (!items.length) items.push({ kind: 'empty', label: 'Today', empty: 'Nothing needs your attention right now.' });
+    return items.slice(0, 3);
+  }
+
+  function renderYourDayBrief(target, model, mobile) {
+    if (!target) return;
+    const items = yourDayItems(model);
+    target.hidden = false;
+    target.setAttribute('data-home-section', 'your-day');
+    target.innerHTML = `<div class="ph-your-day-heading">
+      <div>
+        <span class="ph-your-day-kicker">Personal context</span>
+        <h2 id="${target.id === 'mh-section-your-day' ? 'mh-your-day-title' : 'home-your-day-title'}">Your Day</h2>
+      </div>
+      <button type="button" class="ph-your-day-link" data-your-day-review>Review</button>
+    </div>
+    <div class="ph-your-day-list">
+      ${items.map((entry) => {
+        if (entry.empty) {
+          return `<article class="ph-your-day-row" data-item-type="${esc(entry.kind)}">
+            <span class="ph-your-day-marker">${esc(entry.label)}</span>
+            <div class="ph-your-day-copy"><h3>${esc(entry.empty)}</h3><p>Real calendar, task, and approval sources will appear here when available.</p></div>
+          </article>`;
+        }
+        const item = entry.item;
+        const time = item.time ? new Date(item.time).toLocaleTimeString(locale() === 'ko' ? 'ko-KR' : 'en-US', { hour: 'numeric', minute: '2-digit' }) : '';
+        const title = time ? `${time} · ${item.title}` : item.title;
+        return `<article class="ph-your-day-row" data-source-key="${esc(item.key)}" data-item-type="${esc(entry.kind)}">
+          <span class="ph-your-day-marker">${esc(entry.label)}</span>
+          <div class="ph-your-day-copy"><h3>${esc(title)}</h3>${item.context ? `<p>${esc(item.context)}</p>` : ''}</div>
+          <button type="button" class="ph-your-day-action" data-type="${esc(item.type)}" data-ref="${esc(item.sourceRef)}">${esc(entry.kind === 'attention' ? 'Review' : 'Open')}</button>
+        </article>`;
+      }).join('')}
+    </div>`;
+    target.querySelector('[data-your-day-review]')?.addEventListener('click', () => {
+      if (window.NAGEX.switchTab) window.NAGEX.switchTab(mobile ? 'tab-my-space' : 'tab-my-space');
+    });
+    target.querySelectorAll('.ph-your-day-action').forEach((button) => button.addEventListener('click', () => {
+      const itemKey = button.closest('.ph-your-day-row')?.dataset?.sourceKey;
+      const item = [
+        ...(model.today || []),
+        ...(model.attention || []),
+        ...(model.preparing || []),
+        ...(model.recentCreations || []),
+        ...(model.recent || []),
+      ].find((candidate) => candidate.key === itemKey);
+      if (button.closest('.ph-your-day-row')?.dataset?.itemType === 'attention' && window.NAGEX.switchTab) {
+        window.NAGEX.switchTab('tab-approvals');
+        return;
+      }
+      window.NAGEX.handleHomeItemAction(button.dataset.type, button.dataset.ref, item);
+    }));
+  }
+
+  function renderWorkingBrief(target, model, mobile) {
+    if (!target) return;
+    const rightNowKeys = new Set((model.rightNow || []).map((item) => item.key));
+    const working = (model.working || []).filter((item) => !rightNowKeys.has(item.key)).slice(0, 3);
+    target.hidden = false;
+    target.setAttribute('data-home-section', 'working-for-you');
+    target.innerHTML = `<div class="ph-working-heading">
+      <div>
+        <span class="ph-working-kicker">Active work</span>
+        <h2 id="${target.id === 'mh-section-working-for-you' ? 'mh-working-title' : 'home-working-title'}">${mobile ? 'Working for You' : 'NAgex is Working for You'}</h2>
+      </div>
+      <button type="button" class="ph-working-link" data-working-focus>${mobile ? 'Start' : 'Give NAgex work'}</button>
+    </div>
+    <div class="ph-working-list">
+      ${working.length ? working.map((item, index) => {
+        const updated = item.time || item.createdAt || '';
+        const updatedText = updated ? new Date(updated).toLocaleString(locale() === 'ko' ? 'ko-KR' : 'en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+        return `<article class="ph-working-row${index === 0 ? ' primary' : ''}" data-source-key="${esc(item.key)}" data-item-type="${esc(item.type || 'TASK')}">
+          <span class="ph-working-dot" aria-label="In progress"></span>
+          <div class="ph-working-copy"><h3>${esc(item.title || 'Working on it')}</h3>${item.context ? `<p>${esc(item.context)}</p>` : ''}<span>${esc(item.type || 'Task')} · ${esc(item.state || 'In progress')}${updatedText ? ` · Updated ${esc(updatedText)}` : ''}</span></div>
+          <button type="button" class="ph-working-action" data-type="${esc(item.type)}" data-ref="${esc(item.sourceRef)}">Open</button>
+        </article>`;
+      }).join('') : `<article class="ph-working-empty"><span class="ph-working-dot idle" aria-label="Nothing running"></span><div><h3>Nothing is running right now.</h3><p>Give NAgex a research, report, plan, or creation request when you want it to work in the background.</p></div></article>`}
+    </div>`;
+    target.querySelector('[data-working-focus]')?.addEventListener('click', () => {
+      const input = document.getElementById(mobile ? 'mh-command-input' : 'home-prompt-input');
+      if (input) input.focus();
+    });
+    target.querySelectorAll('.ph-working-action').forEach((button) => button.addEventListener('click', () => {
+      const itemKey = button.closest('.ph-working-row')?.dataset?.sourceKey;
+      const item = working.find((candidate) => candidate.key === itemKey);
+      window.NAGEX.handleHomeItemAction(button.dataset.type, button.dataset.ref, item);
+    }));
+  }
+
+  function approvalDetailLines(item) {
+    const lines = [];
+    if (item.context) lines.push(item.context);
+    if (item.type) lines.push(item.type === 'APPROVAL' ? 'Human approval before action' : item.type);
+    return lines.slice(0, 2);
+  }
+
+  function renderApprovalBrief(target, model, mobile) {
+    if (!target) return;
+    const workingKeys = new Set((model.working || []).map((item) => item.key));
+    const approvals = (model.approvals || []).filter((item) => !workingKeys.has(item.key)).slice(0, 3);
+    target.hidden = false;
+    target.setAttribute('data-home-section', 'needs-approval');
+    target.innerHTML = `<div class="ph-approval-heading">
+      <div>
+        <span class="ph-approval-kicker">Waiting for you</span>
+        <h2 id="${target.id === 'mh-section-needs-approval' ? 'mh-approval-title' : 'home-approval-title'}">Needs Your Approval${approvals.length ? ` <span>${esc(String(approvals.length))}</span>` : ''}</h2>
+      </div>
+      <button type="button" class="ph-approval-link" data-approval-review>${mobile ? 'Review' : 'Review approvals'}</button>
+    </div>
+    <div class="ph-approval-list">
+      ${approvals.length ? approvals.map((item) => {
+        const details = approvalDetailLines(item);
+        return `<article class="ph-approval-row" data-source-key="${esc(item.key)}" data-item-type="${esc(item.type || 'APPROVAL')}">
+          <span class="ph-approval-pause" aria-label="Waiting for approval"></span>
+          <div class="ph-approval-copy"><h3>${esc(item.title || 'Approval required')}</h3>${details.map((line) => `<p>${esc(line)}</p>`).join('')}<span>${esc(item.state || 'Needs approval')}</span></div>
+          <button type="button" class="ph-approval-action" aria-label="${esc('Review ' + (item.title || 'approval'))}">Review</button>
+        </article>`;
+      }).join('') : `<article class="ph-approval-empty"><span class="ph-approval-pause idle" aria-label="No approvals pending"></span><div><h3>Nothing needs your approval right now.</h3><p>NAgex will ask before important actions.</p></div></article>`}
+    </div>`;
+    target.querySelector('[data-approval-review]')?.addEventListener('click', () => {
+      if (window.NAGEX.switchTab) window.NAGEX.switchTab('tab-approvals');
+    });
+    target.querySelectorAll('.ph-approval-action').forEach((button) => button.addEventListener('click', () => {
+      if (window.NAGEX.switchTab) window.NAGEX.switchTab('tab-approvals');
+    }));
+  }
+
+  function renderMemoryResults(target, model, mobile) {
+    if (!target) return;
+    const workingKeys = new Set((model.working || []).map((item) => item.key));
+    const approvalKeys = new Set((model.approvals || []).map((item) => item.key));
+    const results = [...(model.recentCreations || []), ...(model.recent || [])]
+      .filter((item) => !workingKeys.has(item.key) && !approvalKeys.has(item.key))
+      .slice(0, 3);
+    const memories = (model.memoryContext || []).slice(0, 2);
+    target.hidden = false;
+    target.setAttribute('data-home-section', 'memory-results');
+    target.innerHTML = `<div class="ph-memory-results-grid">
+      <section class="ph-memory-panel" aria-labelledby="${target.id === 'mh-section-memory-results' ? 'mh-memory-title' : 'home-memory-title'}">
+        <div class="ph-memory-heading"><div><span>Context NAgex can use</span><h2 id="${target.id === 'mh-section-memory-results' ? 'mh-memory-title' : 'home-memory-title'}">Memory &amp; Context</h2></div><button type="button" class="ph-memory-link" data-memory-manage>${mobile ? 'Manage' : 'Manage memory'}</button></div>
+        <div class="ph-memory-list">
+          ${memories.length ? memories.map((item) => `<article class="ph-memory-row" data-source-key="${esc(item.key)}"><span>${esc(item.type)}</span><div><h3>${esc(item.title)}</h3>${item.context ? `<p>${esc(item.context)}</p>` : ''}</div></article>`).join('') : `<article class="ph-memory-empty"><h3>NAgex hasn't learned much context yet.</h3><p>Context builds as you work together.</p></article>`}
+        </div>
+      </section>
+      <section class="ph-results-panel" aria-labelledby="${target.id === 'mh-section-memory-results' ? 'mh-results-title' : 'home-results-title'}">
+        <div class="ph-memory-heading"><div><span>Completed work</span><h2 id="${target.id === 'mh-section-memory-results' ? 'mh-results-title' : 'home-results-title'}">Recent Results</h2></div>${!results.length ? '<button type="button" class="ph-memory-link" data-results-start>Start</button>' : ''}</div>
+        <div class="ph-results-list">
+          ${results.length ? results.map((item) => {
+            const relTime = item.artifactProjection && item.artifactProjection.updatedAt ? formatRelativeTime(item.artifactProjection.updatedAt) : (item.createdAt ? formatRelativeTime(item.createdAt) : '');
+            const typeLabel = item.artifactProjection ? artifactTypeLabel(item.artifactProjection.artifactType) : (item.type || 'Result');
+            return `<article class="ph-result-row" data-source-key="${esc(item.key)}">
+              ${window.NAGEX.renderArtifactThumbnail(item.artifactProjection)}
+              <div><h3>${esc(item.title || 'Result')}</h3><p>${esc([typeLabel, item.state, relTime].filter(Boolean).join(' - '))}</p></div>
+              <button type="button" class="ph-result-action" data-type="${esc(item.type)}" data-ref="${esc(item.sourceRef)}" data-target="${esc(item.actionTarget || '')}" aria-label="${esc('Open ' + (item.title || 'result'))}">Open</button>
+            </article>`;
+          }).join('') : `<article class="ph-results-empty"><h3>No recent results yet.</h3><p>Start with Research or Report.</p></article>`}
+        </div>
+      </section>
+    </div>`;
+    target.querySelector('[data-memory-manage]')?.addEventListener('click', () => {
+      if (window.NAGEX.switchTab) window.NAGEX.switchTab('tab-memory');
+    });
+    target.querySelector('[data-results-start]')?.addEventListener('click', () => {
+      const input = document.getElementById(mobile ? 'mh-command-input' : 'home-prompt-input');
+      if (input) input.focus();
+    });
+    target.querySelectorAll('.ph-result-action').forEach((button) => button.addEventListener('click', async () => {
+      if (button.dataset.target && button.dataset.type === 'RESEARCH') {
+        const result = await window.NAGEX.apiFetch(button.dataset.target);
+        const artifact = result && result.artifact;
+        if (artifact) window.alert(`${artifact.title}\n\n${artifact.preview}`);
+        return;
+      }
+      const itemKey = button.closest('.ph-result-row')?.dataset?.sourceKey;
+      const item = results.find((candidate) => candidate.key === itemKey);
+      window.NAGEX.handleHomeItemAction(button.dataset.type, button.dataset.ref, item);
+    }));
+  }
+
   function renderDesktop(model) {
-    const c = COPY[locale()];
-    renderSection(document.getElementById('home-section-right-now'), c.rightNow, model.rightNow, 'right-now');
-    renderCreateCapabilities(document.getElementById('home-section-create'));
-    renderWorkWithData(document.getElementById('home-section-work-with-data'));
-    renderHomeEmbeddedCanvas(model);
-    renderSection(document.getElementById('home-section-needs-attention'), c.attention, model.attention, 'needs-attention');
-    renderSection(document.getElementById('home-section-today'), c.today, model.today, 'today');
-    renderSection(document.getElementById('home-section-prepared'), c.preparing, model.preparing, 'preparing');
-    renderRecentCreations(document.getElementById('home-section-recent-creations'), c.creations, model.recentCreations);
-    renderSection(document.getElementById('home-section-recent-results'), c.recent, model.recent, 'recent');
-    const obsolete = document.getElementById('home-section-working'); if (obsolete) obsolete.hidden = true;
+    renderYourDayBrief(document.getElementById('home-section-your-day'), model, false);
+    renderWorkingBrief(document.getElementById('home-section-working-for-you'), model, false);
+    renderApprovalBrief(document.getElementById('home-section-needs-approval'), model, false);
+    renderMemoryResults(document.getElementById('home-section-memory-results'), model, false);
+    hideSections([
+      'home-section-right-now',
+      'home-section-create',
+      'home-section-work-with-data',
+      'home-embedded-canvas',
+      'home-agent-panel',
+      'home-context-rail',
+      'home-section-needs-attention',
+      'home-section-today',
+      'home-section-prepared',
+      'home-section-recent-creations',
+      'home-section-recent-results',
+      'home-section-working',
+    ]);
+    const legacyWorkspace = document.querySelector('.desktop-home-grid-operational');
+    if (legacyWorkspace) {
+      legacyWorkspace.hidden = true;
+      legacyWorkspace.style.display = 'none';
+      legacyWorkspace.setAttribute('aria-hidden', 'true');
+    }
   }
 
   function renderMobile(model) {
-    const c = COPY[locale()];
-    renderSection(document.getElementById('mh-right-now-hero'), c.rightNow, model.rightNow, 'right-now');
-    renderCreateCapabilities(document.getElementById('mh-section-create'));
-    renderWorkWithData(document.getElementById('mh-section-work-with-data'));
-    renderSection(document.getElementById('mh-section-approvals'), c.attention, model.attention, 'needs-attention');
-    renderSection(document.getElementById('mh-section-today'), c.today, model.today, 'today');
-    renderSection(document.getElementById('mh-section-prepared'), c.preparing, model.preparing, 'preparing');
-    renderRecentCreations(document.getElementById('mh-section-recent-creations'), c.creations, model.recentCreations);
-    renderSection(document.getElementById('mh-section-recent'), c.recent, model.recent, 'recent');
-    const suggestions = document.getElementById('mh-section-suggestions'); if (suggestions) suggestions.hidden = true;
+    renderYourDayBrief(document.getElementById('mh-section-your-day'), model, true);
+    renderWorkingBrief(document.getElementById('mh-section-working-for-you'), model, true);
+    renderApprovalBrief(document.getElementById('mh-section-needs-approval'), model, true);
+    renderMemoryResults(document.getElementById('mh-section-memory-results'), model, true);
+    hideSections([
+      'mh-right-now-hero',
+      'mh-section-create',
+      'mh-section-work-with-data',
+      'mh-section-approvals',
+      'mh-section-today',
+      'mh-section-prepared',
+      'mh-section-recent-creations',
+      'mh-section-recent',
+      'mh-section-suggestions',
+    ]);
+  }
+
+  function hideSections(ids) {
+    ids.forEach((id) => {
+      const target = document.getElementById(id);
+      if (!target) return;
+      target.hidden = true;
+      target.style.display = 'none';
+      target.removeAttribute('data-home-section');
+      target.setAttribute('aria-hidden', 'true');
+    });
   }
 
   window.NAGEX_PERSONAL_HOME = Object.freeze({ STATES, normalize, fetchHome, renderDesktop, renderMobile, submitResearch, submitReport, explainCreationFailure, invalidate: () => { cachedPromise = null; } });

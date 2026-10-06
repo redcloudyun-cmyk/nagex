@@ -178,7 +178,7 @@
       <!-- Center Main View Container -->
       <main class="center-canvas">
 
-        <!-- VIEW 1: DESKTOP HOME (PERSONAL AI CANONICAL UX) ??UI-4 mockup
+        <!-- VIEW 1: DESKTOP HOME (PERSONAL AI CANONICAL UX) — UI-4 mockup
              clone. Visual composition follows the supplied desktop
              mockup; canonical 5-item nav is unchanged (see sidebar
              above), and every data-bearing section below binds to real
@@ -192,28 +192,37 @@
                  before any creation content) ??the composer itself is now
                  the primary interaction, with just a small greeting above
                  it, within the ~60-95px vertical budget. -->
-            <div class="home-entry-card home-entry-compact">
-              <div class="home-hero-header home-hero-compact">
-                <span class="eyebrow-text" id="desktop-hero-greeting" data-i18n="home.greetingMorning">Good morning</span>
+            <section class="home-ai-hero" aria-labelledby="home-ai-hero-title">
+              <div class="home-ai-hero-copy">
+                <span class="home-ai-greeting" id="desktop-hero-greeting" data-i18n="home.greetingMorning">Good morning</span>
+                <h1 id="home-ai-hero-title">What should we work on?</h1>
+                <p>Your Personal AI for creating, deciding, and getting things done.</p>
+                <div class="home-ai-trust-row" aria-label="NAgex trust principles">
+                  <span>Remember</span>
+                  <span>Create</span>
+                  <span>Approve</span>
+                  <span>Act</span>
+                </div>
               </div>
 
-              <!-- Unified Composer Card -->
-              <div class="unified-capture-composer-card nagex-composer-compact" id="unified-composer">
-              <textarea id="home-prompt-input" class="unified-prompt-textarea nagex-composer-input" placeholder="Ask NAgex to do anything..." data-i18n-placeholder="workspace.askOrDrop" rows="1"></textarea>
+              <div class="home-command-zone">
+              <div class="unified-capture-composer-card home-ai-command-composer" id="unified-composer">
+              <div class="home-command-label">Ask NAgex to create, research, prepare, or act</div>
+              <textarea id="home-prompt-input" class="unified-prompt-textarea nagex-composer-input" placeholder="Prepare a briefing for tomorrow's meeting..." data-i18n-placeholder="workspace.askOrDrop" rows="2"></textarea>
               <div class="composer-bottom-bar">
                 <div class="composer-left-actions">
                   <button class="affordance-btn-circle" id="btn-afford-plus" title="More options">+</button>
-                  <button class="affordance-btn-pill composer-chip-search quick-action-chip" data-action="research-topic"><span class="composer-chip-icon"><svg class="svg-icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span><span>Search</span></button>
+                  <button class="affordance-btn-pill composer-chip-search quick-action-chip" data-action="research-topic"><span class="composer-chip-icon"><svg class="svg-icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span><span>Research</span></button>
                   <button class="affordance-btn-pill composer-chip-plan quick-action-chip" data-action="plan-day"><span class="composer-chip-icon"><svg class="svg-icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3.5c-.5-.5-2.5 0-4 1.5L13 8.5 4.8 6.7"/></svg></span><span>Plan</span></button>
-                  <button class="affordance-btn-pill composer-chip-book quick-action-chip" data-action="prepare-meeting"><span class="composer-chip-icon"><svg class="svg-icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg></span><span>Book</span></button>
-                  <button class="affordance-btn-pill composer-chip-create quick-action-chip" data-action="summarize-notes"><span class="composer-chip-icon"><svg class="svg-icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></span><span>Create</span></button>
-                  <button class="affordance-btn-pill composer-chip-analyze quick-action-chip" data-action="execute-task"><span class="composer-chip-icon"><svg class="svg-icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span><span>Analyze</span></button>
+                  <button class="affordance-btn-pill composer-chip-book quick-action-chip" data-action="prepare-meeting"><span class="composer-chip-icon"><svg class="svg-icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg></span><span>Brief</span></button>
+                  <button class="affordance-btn-pill composer-chip-create quick-action-chip" data-action="summarize-notes"><span class="composer-chip-icon"><svg class="svg-icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></span><span>Draft</span></button>
+                  <button class="affordance-btn-pill composer-chip-analyze quick-action-chip" data-action="execute-task"><span class="composer-chip-icon"><svg class="svg-icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span><span>Review</span></button>
                   <button class="affordance-btn-pill hidden-affordance" id="btn-afford-file" style="display:none;" aria-label="Attach file"><span class="nagex-sr-only">Attach file</span></button>
                   <button class="affordance-btn-pill hidden-affordance" id="btn-afford-audio" style="display:none;" aria-label="Attach audio"><span class="nagex-sr-only">Attach audio</span></button>
                   <button class="affordance-btn-pill hidden-affordance" id="btn-afford-link" style="display:none;" aria-label="Attach link"><span class="nagex-sr-only">Attach link</span></button>
                 </div>
                 <div class="composer-right-actions">
-                  <span class="nagex-identity-badge" style="font-size:0.75rem; color:var(--color-text-muted, #64748b); font-weight:600; padding:4px 8px; border-radius:12px; background:rgba(255,255,255,0.06);">NAgex</span>
+                  <span class="nagex-identity-badge">Approval-aware</span>
                   <button class="btn-send-circle" id="btn-home-prompt-send" title="Send request" aria-label="Send request"><span class="nagex-sr-only">Send request</span>
                     <svg class="svg-icon-sm" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
                   </button>
@@ -224,7 +233,32 @@
                 <span data-i18n="composer.dropZoneHint">Drop a file here, or click to browse</span>
               </div>
               </div>
-            </div>
+              <div class="nagex-quick-actions-grid" id="home-examples-grid">
+                <button class="home-capability-chip home-capability-primary quick-action-chip" data-action="example-research" data-capability="RESEARCH" data-status="LIVE" data-status-source="CREATE_CAPABILITIES" aria-label="Research something with NAgex">
+                  <strong>Research</strong><span>Find and synthesize</span>
+                </button>
+                <button class="home-capability-chip home-capability-primary quick-action-chip" data-action="example-communication" data-capability="REPORT" data-status="LIVE" data-status-source="CREATE_CAPABILITIES" aria-label="Create a report with NAgex">
+                  <strong>Report</strong><span>Draft a document</span>
+                </button>
+                <button class="home-capability-chip home-capability-primary quick-action-chip" data-action="example-scheduling" data-capability="PLAN" data-status="PARTIAL" data-status-source="CREATE_CAPABILITIES" aria-label="Plan next steps with NAgex">
+                  <strong>Plan</strong><span>Prepare for approval</span>
+                </button>
+                <button class="home-capability-chip home-capability-primary quick-action-chip" data-action="example-image" data-capability="IMAGE" data-status="LIVE" data-status-source="CREATE_CAPABILITIES" aria-label="Create an image with NAgex">
+                  <strong>Image</strong><span>Open creation</span>
+                </button>
+                <button class="home-capability-chip home-capability-secondary" data-action="example-presentation" data-capability="SLIDES" data-status="PLANNED" data-status-source="CREATE_CAPABILITIES" disabled aria-disabled="true" aria-label="Slides is planned">
+                  <strong>Slides</strong><span>Upcoming</span>
+                </button>
+                <button class="home-capability-chip home-capability-secondary" data-action="example-automation" data-capability="VIDEO" data-status="PLANNED" data-status-source="CREATE_CAPABILITIES" disabled aria-disabled="true" aria-label="Video is planned">
+                  <strong>Video</strong><span>Upcoming</span>
+                </button>
+                <button class="home-capability-chip home-capability-secondary" data-action="example-coding" data-capability="CODE" data-status="PLANNED" data-status-source="CREATE_CAPABILITIES" disabled aria-disabled="true" aria-label="Code is planned">
+                  <strong>Code</strong><span>Upcoming</span>
+                </button>
+              </div>
+              <!-- Home D1 capability examples end. -->
+              </div>
+            </section>
 
             <!-- R23.7H-C Phase D.4 吏?/吏? ??compact creation strip: Create
                  with NAgex (dominant) + Work with your data (compact
@@ -237,7 +271,12 @@
                  the main column's right edge is consistent between the
                  creation row and Canvas below it. Same ids/handlers as
                  before, moved under new wrapper elements only. -->
-            <div class="home-workspace-grid">
+            <section class="home-your-day-brief" id="home-section-your-day" aria-labelledby="home-your-day-title" aria-live="polite"></section>
+            <section class="home-working-brief" id="home-section-working-for-you" aria-labelledby="home-working-title" aria-live="polite"></section>
+            <section class="home-approval-brief" id="home-section-needs-approval" aria-labelledby="home-approval-title" aria-live="polite"></section>
+            <section class="home-memory-results" id="home-section-memory-results" aria-labelledby="home-memory-title home-results-title" aria-live="polite"></section>
+
+            <div class="home-workspace-grid desktop-home-grid-operational">
             <div class="home-main-workspace">
             <div class="home-creation-strip">
               <section class="nagex-card home-creation-strip-main" id="home-section-create" aria-live="polite"></section>
@@ -412,7 +451,7 @@
           </footer>
         </div>
 
-        <!-- VIEW: MY SPACE (P08 ??Personal Space Foundation, first slice).
+        <!-- VIEW: MY SPACE (P08 — Personal Space Foundation, first slice).
              Thin, read-only composition of already-frozen sources; no new
              persistence, no new router. Reached only via Home's own "My
              Space" card above (top nav is unchanged, per Section 4.1). -->
@@ -510,7 +549,7 @@
               <div class="empty-state-text">No captured items in Inbox yet.</div>
             </div>
             <!-- Phase 1 STEP 5: canonical Candidate records (CandidateStore),
-                 shown read-only here to prove retrieval/listing ??full
+                 shown read-only here to prove retrieval/listing — full
                  review controls are a later step. -->
             <div class="inbox-candidates-section" style="margin-top: 1.5rem;">
               <h3 style="font-size: 0.85rem; color: var(--color-text-secondary); margin-bottom: 0.5rem;" data-i18n="workspace.candidatesTitle">Suggested (Candidates)</h3>
@@ -603,7 +642,7 @@
           <!-- R24.8B: the static sample plan, its statistics and execution timeline were fabricated demo data and are removed; real plans render into #plans-list-container above. -->
         </div>
 
-        <!-- VIEW: TASKS (MASTER.md Section 14.4 ??Tasks Center) -->
+        <!-- VIEW: TASKS (MASTER.md Section 14.4 — Tasks Center) -->
         <div id="view-tasks" class="tab-view">
           <div class="view-header">
             <div>
@@ -1124,11 +1163,11 @@
       </aside>
     </div>
 
-    <!-- Legacy Mobile Bottom Navigation Bar ??the pre-UI-5 CSS-collapse
+    <!-- Legacy Mobile Bottom Navigation Bar — the pre-UI-5 CSS-collapse
          fallback, still used for Inbox/Activity/Vault/Settings at mobile
          widths until each gets its own UI-5 mobile-native slice (see
          mobile/mobile-home.js's shell-visibility rule: this bar and
-         #mobile-app-shell are never both visible at once ??UI-5 R1
+         #mobile-app-shell are never both visible at once — UI-5 R1
          directive 吏?0). data-tab attributes added so switchTab()'s single
          active-sync loop can manage this bar too (fixes the pre-existing
          bug where this bar's .active state was never updated). -->
@@ -1170,12 +1209,12 @@
 
   </div>
 
-  <!-- Ambient Assistant overlay + Approval Prompt modal ??real body-level
+  <!-- Ambient Assistant overlay + Approval Prompt modal — real body-level
        siblings of .app-wrapper (UI-5 R4 E2E QA fix), not descendants of it.
        openAmbientOverlay()/the approval-modal handlers can be triggered from
        either shell (Desktop .app-wrapper or #mobile-app-shell), but
        .app-wrapper is set to display:none while the native mobile shell is
-       active ??nesting these modals inside .app-wrapper made them fully
+       active — nesting these modals inside .app-wrapper made them fully
        invisible and unusable on mobile even though the real plan/approval
        logic behind them ran correctly (confirmed via a live Playwright
        check: the modal backdrop's own computed display stayed none, purely
@@ -1354,17 +1393,17 @@
     </div>
 
   <!-- ?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름
-       UI-5 R1 ??Mobile Home. A genuinely separate top-level DOM tree,
+       UI-5 R1 — Mobile Home. A genuinely separate top-level DOM tree,
        not a CSS-collapsed copy of .app-wrapper's #view-home (per the
        UI-5 directive 吏?-4). Hidden by default; mobile/mobile-home.js
        shows it only when BOTH matchMedia('(max-width: 768px)') is true
-       AND the active tab is Home ??every other tab, at any viewport,
+       AND the active tab is Home — every other tab, at any viewport,
        uses the existing .app-wrapper responsive tree. Every data-bearing
        element below is populated from real state only
-       (window.NAGEX.getState()/apiFetch) by mobile-home.js ??nothing
-       here is mockup sample content. ?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름?癒λ름 -->
+       (window.NAGEX.getState()/apiFetch) by mobile-home.js — nothing
+       here is mockup sample content. ════════════════════════════════ -->
   <div id="mobile-app-shell" class="mobile-app-shell" hidden>
-    <!-- UI-5 R2 ??#mobile-app-shell is now the shared Mobile Native shell,
+    <!-- UI-5 R2 — #mobile-app-shell is now the shared Mobile Native shell,
          not a Home-only structure. mobile-home.js's updateShellVisibility()
          is the single place that decides which one native view (if any) is
          shown; #mobile-view-home and #mobile-view-inbox are mutually
@@ -1399,12 +1438,35 @@
         </div>
       </header>
 
-      <!-- B. Right Now Hero ??Primary Surface -->
+      <!-- B. Right Now Hero — Primary Surface -->
+      <section class="mh-personal-ai-hero" aria-labelledby="mh-personal-ai-title">
+        <span class="mh-personal-ai-kicker">NAgex Home</span>
+        <h1 id="mh-personal-ai-title">What should we work on?</h1>
+        <p>Your Personal AI for creating, deciding, and getting things done.</p>
+        <div class="mh-personal-ai-loop" aria-label="NAgex work loop">
+          <span>Remember</span>
+          <span>Create</span>
+          <span>Approve</span>
+          <span>Act</span>
+        </div>
+        <div class="mh-quick-actions" aria-label="Quick actions">
+          <button type="button" class="mh-quick-action" data-mobile-quick-action="RESEARCH">Research</button>
+          <button type="button" class="mh-quick-action" data-mobile-quick-action="REPORT">Report</button>
+          <button type="button" class="mh-quick-action" data-mobile-quick-action="PLAN">Plan</button>
+          <button type="button" class="mh-quick-action" data-mobile-quick-action="IMAGE">Image</button>
+        </div>
+      </section>
+
+      <section class="mh-card mh-your-day-brief" id="mh-section-your-day" aria-labelledby="mh-your-day-title" aria-live="polite"></section>
+      <section class="mh-card mh-working-brief" id="mh-section-working-for-you" aria-labelledby="mh-working-title" aria-live="polite"></section>
+      <section class="mh-card mh-approval-brief" id="mh-section-needs-approval" aria-labelledby="mh-approval-title" aria-live="polite"></section>
+      <section class="mh-card mh-memory-results" id="mh-section-memory-results" aria-labelledby="mh-memory-title mh-results-title" aria-live="polite"></section>
+
       <section class="mh-card mh-right-now-hero" id="mh-right-now-hero" aria-busy="true" data-context-ready="false" data-hero-resolved="false">
         <span class="mh-hero-tag" id="mh-hero-tag" data-i18n="home.rightNow">Right now</span>
         <h2 class="mh-hero-headline" id="mh-hero-headline">...</h2>
         <p class="mh-hero-body" id="mh-hero-body">...</p>
-        <!-- R23.2H ??grounded "related material" note (e.g. a Vault doc or
+        <!-- R23.2H — grounded "related material" note (e.g. a Vault doc or
              email tied to the primary meeting). Real text from
              GET /api/v1/personal/right-now only; hidden entirely, never a
              filler sentence, when no such related item exists. -->
@@ -1417,9 +1479,9 @@
       <section class="mh-card" id="mh-section-create" aria-live="polite"></section>
       <section class="mh-card" id="mh-section-work-with-data" aria-live="polite"></section>
 
-      <!-- R23.3 ??Suggested for you: the canonical ProactiveSuggestion list
+      <!-- R23.3 — Suggested for you: the canonical ProactiveSuggestion list
            (GET /api/v1/personal/right-now's `suggestions`), rendered as-is
-           ??hidden entirely (never a filler card) when there are none. -->
+           — hidden entirely (never a filler card) when there are none. -->
       <section class="mh-card mh-suggestions-section" id="mh-section-suggestions" hidden>
         <div class="mh-card-header">
           <h2><span data-i18n="home.suggestedForYouHeader">Suggested for you</span></h2>
@@ -1490,7 +1552,7 @@
     </div>
 
     <!-- Mobile Inbox native view (UI-5 R2). Real GET /api/v1/workspace/inbox
-         + GET /api/v1/candidates only ??see mobile/mobile-inbox.js. Mutually
+         + GET /api/v1/candidates only — see mobile/mobile-inbox.js. Mutually
          exclusive with #mobile-view-home via [hidden], both managed only by
          mobile-home.js's updateShellVisibility(). -->
     <div id="mobile-view-inbox" class="mh-scroll" hidden>
@@ -1523,7 +1585,7 @@
     </div>
 
     <!-- Mobile Activity native view (UI-5 R3). Real GET /api/v1/activity
-         only ??see mobile/mobile-activity.js. Mutually exclusive with
+         only — see mobile/mobile-activity.js. Mutually exclusive with
          #mobile-view-home/#mobile-view-inbox via [hidden], all three
          managed only by mobile-home.js's updateShellVisibility(). -->
     <div id="mobile-view-activity" class="mh-scroll" hidden>
@@ -1627,15 +1689,15 @@
       <div class="mh-bottom-spacer" aria-hidden="true"></div>
     </div>
 
-    <!-- Mobile Settings native view (UI-5 R5 ??final native view;
+    <!-- Mobile Settings native view (UI-5 R5 — final native view;
          MOBILE_NATIVE_TABS now covers all 5 canonical tabs). Real
          state.quickWakeConfig/state.autonomyConfig/state.googleOAuth only
-         ??see mobile/mobile-settings.js. No Model Gateway mock, no Dark
+         — see mobile/mobile-settings.js. No Model Gateway mock, no Dark
          Mode, no notification prefs, no security/model-picker UI (none of
-         those are real anywhere in this app ??see the R5 preflight).
+         those are real anywhere in this app — see the R5 preflight).
          Memory/Automations/Advanced are real navigation links that fall
          through to the legacy responsive tree (those tabs have no native
-         view yet) ??this is expected, not a bug. Mutually exclusive with
+         view yet) — this is expected, not a bug. Mutually exclusive with
          the other native views via [hidden], all managed only by
          mobile-home.js's updateShellVisibility(). -->
     <div id="mobile-view-settings" class="mh-scroll" hidden>
@@ -1649,7 +1711,7 @@
       </header>
 
       <!-- R3 吏?/吏?: Connected Apps (Google) is now the first settings
-           section ??user-facing, real-status connections belong above
+           section — user-facing, real-status connections belong above
            preference toggles, and this is the section the directive
            requires to be reachable "without browser zoom tricks", i.e.
            trivially visible near the top of a normal scroll. -->
@@ -1679,7 +1741,7 @@
         <div id="mh-autonomy-list"></div>
       </section>
 
-      <!-- R10 ??Proactive Assistant (mobile). Real GET/PUT
+      <!-- R10 — Proactive Assistant (mobile). Real GET/PUT
            /api/v1/proactive-assistant/config only. -->
       <div class="mh-settings-section-heading" data-i18n="proactiveAssistant.title">Proactive Assistant</div>
       <section class="mh-settings-card">
@@ -1725,7 +1787,7 @@
     </div>
 
     <!-- Mobile Canvas native view (R23.7H-C Phase C correction). Desktop
-         and mobile share ONE Canvas architecture ??artifact identity,
+         and mobile share ONE Canvas architecture — artifact identity,
          projection, renderer dispatch, loading/error semantics, canonical
          URL, authorization and Canvas state all live in
          personal-home-view.js (openArtifactInCanvas/closeCanvas/
@@ -1733,7 +1795,7 @@
          mobile-safe layout differ from #view-canvas. Mutually exclusive
          with the other native views via [hidden], managed only by
          mobile-home.js's updateShellVisibility(). No desktop search bar,
-         Quick Wake control or notification bell here ??those are
+         Quick Wake control or notification bell here — those are
          desktop-shell-only elements this view never includes. -->
     <div id="mobile-view-canvas" class="mh-scroll mh-canvas-view" hidden>
       <header class="mh-header mh-canvas-header">

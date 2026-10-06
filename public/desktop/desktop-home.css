@@ -3480,3 +3480,1221 @@ div#view-home.nagex-desktop-home .desktop-home-right-rail,
 @media (min-width: 1200px) {
   #home-section-work-with-data { z-index: 126 !important; }
 }
+
+/* Home UI D1: Personal AI command hero reconstruction. */
+@media (min-width: 769px) {
+  .nagex-desktop-home .desktop-home-main-stack {
+    gap: 18px !important;
+  }
+
+  .nagex-desktop-home .home-ai-hero {
+    position: relative !important;
+    display: grid !important;
+    grid-template-columns: minmax(330px, 0.86fr) minmax(560px, 1.38fr) !important;
+    gap: 34px !important;
+    align-items: center !important;
+    min-height: 250px !important;
+    margin: 16px 24px 10px !important;
+    padding: 30px 38px !important;
+    border: 1px solid rgba(151, 190, 245, 0.42) !important;
+    border-radius: 18px !important;
+    background:
+      linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(246,250,255,0.96) 54%, rgba(238,246,255,0.94) 100%) !important;
+    box-shadow: 0 20px 54px rgba(7, 35, 92, 0.10), 0 1px 0 rgba(255,255,255,0.82) inset !important;
+    overflow: hidden !important;
+  }
+
+  .nagex-desktop-home .home-ai-hero-copy {
+    position: relative !important;
+    z-index: 1 !important;
+    min-width: 0 !important;
+  }
+
+  .nagex-desktop-home .home-ai-greeting {
+    display: inline-flex !important;
+    align-items: center !important;
+    min-height: 24px !important;
+    padding: 0 !important;
+    margin: 0 0 12px !important;
+    border: 0 !important;
+    background: transparent !important;
+    color: #0757f8 !important;
+    font-size: 14px !important;
+    line-height: 20px !important;
+    font-weight: 800 !important;
+  }
+
+  .nagex-desktop-home .home-ai-hero h1 {
+    margin: 0 !important;
+    max-width: 520px !important;
+    color: #06125d !important;
+    font-size: 48px !important;
+    line-height: 1.02 !important;
+    font-weight: 900 !important;
+    letter-spacing: 0 !important;
+  }
+
+  .nagex-desktop-home .home-ai-hero-copy p {
+    max-width: 470px !important;
+    margin: 14px 0 0 !important;
+    color: #2a416e !important;
+    font-size: 17px !important;
+    line-height: 1.55 !important;
+    font-weight: 600 !important;
+  }
+
+  .nagex-desktop-home .home-ai-trust-row {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    margin-top: 16px !important;
+  }
+
+  .nagex-desktop-home .home-ai-trust-row span {
+    display: inline-flex !important;
+    align-items: center !important;
+    min-height: 30px !important;
+    padding: 0 11px !important;
+    border: 1px solid rgba(151, 190, 245, 0.44) !important;
+    border-radius: 8px !important;
+    background: rgba(255, 255, 255, 0.76) !important;
+    color: #1f3768 !important;
+    font-size: 12px !important;
+    line-height: 16px !important;
+    font-weight: 800 !important;
+    white-space: nowrap !important;
+  }
+
+  .nagex-desktop-home .home-command-zone {
+    position: relative !important;
+    z-index: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    min-width: 0 !important;
+  }
+
+  .nagex-desktop-home .home-ai-command-composer {
+    width: 100% !important;
+    min-height: 148px !important;
+    margin: 0 !important;
+    padding: 16px !important;
+    border: 1px solid rgba(151, 190, 245, 0.50) !important;
+    border-radius: 14px !important;
+    background: rgba(255, 255, 255, 0.94) !important;
+    box-shadow: 0 16px 40px rgba(7, 87, 248, 0.10) !important;
+  }
+
+  .nagex-desktop-home .home-command-label {
+    margin: 0 0 8px !important;
+    color: #365180 !important;
+    font-size: 12px !important;
+    line-height: 16px !important;
+    font-weight: 850 !important;
+  }
+
+  .nagex-desktop-home .home-ai-command-composer .nagex-composer-input {
+    min-height: 58px !important;
+    padding: 0 !important;
+    color: #06125d !important;
+    font-size: 18px !important;
+    line-height: 1.45 !important;
+    font-weight: 600 !important;
+  }
+
+  .nagex-desktop-home .home-ai-command-composer .nagex-composer-input::placeholder {
+    color: #7c8eb3 !important;
+  }
+
+  .nagex-desktop-home .home-ai-command-composer .composer-bottom-bar {
+    align-items: center !important;
+    gap: 12px !important;
+    margin-top: 12px !important;
+  }
+
+  .nagex-desktop-home .home-ai-command-composer .composer-left-actions {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    min-width: 0 !important;
+  }
+
+  .nagex-desktop-home .home-ai-command-composer .affordance-btn-pill,
+  .nagex-desktop-home .home-ai-command-composer .affordance-btn-circle {
+    height: 34px !important;
+    border-radius: 8px !important;
+    border-color: rgba(151, 190, 245, 0.48) !important;
+    background: #f7fbff !important;
+    color: #153161 !important;
+    font-size: 12px !important;
+    font-weight: 850 !important;
+  }
+
+  .nagex-desktop-home .home-ai-command-composer .composer-right-actions {
+    align-items: center !important;
+    gap: 10px !important;
+  }
+
+  .nagex-desktop-home .home-ai-command-composer .nagex-identity-badge {
+    display: inline-flex !important;
+    align-items: center !important;
+    min-height: 30px !important;
+    padding: 0 10px !important;
+    border: 1px solid rgba(151, 190, 245, 0.42) !important;
+    border-radius: 8px !important;
+    background: #ffffff !important;
+    color: #365180 !important;
+    font-size: 11px !important;
+    line-height: 14px !important;
+    font-weight: 850 !important;
+    white-space: nowrap !important;
+  }
+
+  .nagex-desktop-home .home-ai-command-composer .btn-send-circle {
+    width: 38px !important;
+    height: 38px !important;
+    min-width: 38px !important;
+    border-radius: 50% !important;
+  }
+
+  .nagex-desktop-home #home-examples-grid {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    margin: 0 !important;
+  }
+
+  .nagex-desktop-home .home-capability-chip {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    align-items: flex-start !important;
+    min-width: 0 !important;
+    height: 52px !important;
+    padding: 9px 10px !important;
+    border: 1px solid rgba(151, 190, 245, 0.42) !important;
+    border-radius: 8px !important;
+    background: rgba(255, 255, 255, 0.86) !important;
+    box-shadow: 0 8px 20px rgba(7, 87, 248, 0.06) !important;
+    color: #06125d !important;
+    text-align: left !important;
+    cursor: pointer !important;
+  }
+
+  .nagex-desktop-home .home-capability-primary {
+    flex: 1 1 104px !important;
+    max-width: 128px !important;
+  }
+
+  .nagex-desktop-home .home-capability-secondary {
+    flex: 0 1 60px !important;
+    height: 42px !important;
+    opacity: 0.68 !important;
+    cursor: not-allowed !important;
+    box-shadow: none !important;
+  }
+
+  .nagex-desktop-home .home-capability-chip:focus-visible {
+    outline: 3px solid rgba(7, 87, 248, 0.34) !important;
+    outline-offset: 2px !important;
+  }
+
+  .nagex-desktop-home .home-capability-chip strong {
+    display: block !important;
+    max-width: 100% !important;
+    color: #06125d !important;
+    font-size: 11.5px !important;
+    line-height: 15px !important;
+    font-weight: 900 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .nagex-desktop-home .home-capability-chip span {
+    display: block !important;
+    max-width: 100% !important;
+    margin-top: 4px !important;
+    color: #5270a5 !important;
+    font-size: 10px !important;
+    line-height: 12px !important;
+    font-weight: 800 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .nagex-desktop-home .home-capability-secondary span {
+    margin-top: 2px !important;
+  }
+}
+
+.nagex-desktop-home .home-your-day-brief {
+  margin: 0 24px 12px !important;
+  padding: 16px 18px !important;
+  border: 1px solid rgba(151, 190, 245, 0.36) !important;
+  border-radius: 12px !important;
+  background: rgba(255, 255, 255, 0.90) !important;
+  box-shadow: 0 12px 28px rgba(7, 35, 92, 0.07) !important;
+}
+
+.nagex-desktop-home .ph-your-day-heading {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  margin-bottom: 12px !important;
+}
+
+.nagex-desktop-home .ph-your-day-kicker {
+  display: block !important;
+  color: #0757f8 !important;
+  font-size: 11px !important;
+  line-height: 14px !important;
+  font-weight: 850 !important;
+}
+
+.nagex-desktop-home .ph-your-day-heading h2 {
+  margin: 2px 0 0 !important;
+  color: #06125d !important;
+  font-size: 22px !important;
+  line-height: 26px !important;
+  font-weight: 900 !important;
+  letter-spacing: 0 !important;
+}
+
+.nagex-desktop-home .ph-your-day-link,
+.nagex-desktop-home .ph-your-day-action {
+  min-height: 34px !important;
+  padding: 0 12px !important;
+  border: 1px solid rgba(151, 190, 245, 0.48) !important;
+  border-radius: 8px !important;
+  background: #ffffff !important;
+  color: #0757f8 !important;
+  font-size: 12px !important;
+  font-weight: 850 !important;
+  cursor: pointer !important;
+}
+
+.nagex-desktop-home .ph-your-day-list {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+}
+
+.nagex-desktop-home .ph-your-day-row {
+  display: grid !important;
+  grid-template-columns: 74px minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 10px !important;
+  min-height: 58px !important;
+  padding: 10px 12px !important;
+  border: 1px solid rgba(151, 190, 245, 0.28) !important;
+  border-radius: 8px !important;
+  background: #f8fbff !important;
+}
+
+.nagex-desktop-home .ph-your-day-marker {
+  color: #5270a5 !important;
+  font-size: 11px !important;
+  line-height: 14px !important;
+  font-weight: 900 !important;
+  text-transform: uppercase !important;
+}
+
+.nagex-desktop-home .ph-your-day-copy {
+  min-width: 0 !important;
+}
+
+.nagex-desktop-home .ph-your-day-copy h3 {
+  margin: 0 !important;
+  color: #06125d !important;
+  font-size: 13px !important;
+  line-height: 17px !important;
+  font-weight: 900 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.nagex-desktop-home .ph-your-day-copy p {
+  margin: 2px 0 0 !important;
+  color: #425b8b !important;
+  font-size: 11px !important;
+  line-height: 14px !important;
+  font-weight: 650 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.nagex-desktop-home .home-working-brief {
+  margin: 0 24px 12px !important;
+  padding: 14px 18px !important;
+  border: 1px solid rgba(151, 190, 245, 0.32) !important;
+  border-radius: 12px !important;
+  background: rgba(255, 255, 255, 0.86) !important;
+  box-shadow: 0 10px 24px rgba(7, 35, 92, 0.06) !important;
+}
+
+.nagex-desktop-home .ph-working-heading {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  margin-bottom: 10px !important;
+}
+
+.nagex-desktop-home .ph-working-kicker {
+  display: block !important;
+  color: #0757f8 !important;
+  font-size: 11px !important;
+  line-height: 14px !important;
+  font-weight: 850 !important;
+}
+
+.nagex-desktop-home .ph-working-heading h2 {
+  margin: 2px 0 0 !important;
+  color: #06125d !important;
+  font-size: 21px !important;
+  line-height: 25px !important;
+  font-weight: 900 !important;
+  letter-spacing: 0 !important;
+}
+
+.nagex-desktop-home .ph-working-link,
+.nagex-desktop-home .ph-working-action {
+  min-height: 34px !important;
+  padding: 0 12px !important;
+  border: 1px solid rgba(151, 190, 245, 0.48) !important;
+  border-radius: 8px !important;
+  background: #ffffff !important;
+  color: #0757f8 !important;
+  font-size: 12px !important;
+  font-weight: 850 !important;
+  cursor: pointer !important;
+}
+
+.nagex-desktop-home .ph-working-list {
+  display: grid !important;
+  gap: 8px !important;
+}
+
+.nagex-desktop-home .ph-working-row,
+.nagex-desktop-home .ph-working-empty {
+  display: grid !important;
+  grid-template-columns: 14px minmax(0, 1fr) auto !important;
+  gap: 10px !important;
+  align-items: center !important;
+  min-height: 58px !important;
+  padding: 10px 12px !important;
+  border: 1px solid rgba(151, 190, 245, 0.26) !important;
+  border-radius: 8px !important;
+  background: #f8fbff !important;
+}
+
+.nagex-desktop-home .ph-working-row.primary {
+  background: #ffffff !important;
+}
+
+.nagex-desktop-home .ph-working-dot {
+  width: 9px !important;
+  height: 9px !important;
+  border-radius: 50% !important;
+  background: #16a34a !important;
+  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.12) !important;
+}
+
+.nagex-desktop-home .ph-working-dot.idle {
+  background: #94a3b8 !important;
+  box-shadow: 0 0 0 4px rgba(148, 163, 184, 0.12) !important;
+}
+
+.nagex-desktop-home .ph-working-copy {
+  min-width: 0 !important;
+}
+
+.nagex-desktop-home .ph-working-copy h3,
+.nagex-desktop-home .ph-working-empty h3 {
+  margin: 0 !important;
+  color: #06125d !important;
+  font-size: 13px !important;
+  line-height: 17px !important;
+  font-weight: 900 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.nagex-desktop-home .ph-working-copy p,
+.nagex-desktop-home .ph-working-empty p,
+.nagex-desktop-home .ph-working-copy span {
+  display: block !important;
+  margin: 2px 0 0 !important;
+  color: #425b8b !important;
+  font-size: 11px !important;
+  line-height: 14px !important;
+  font-weight: 650 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.nagex-desktop-home .home-approval-brief {
+  margin: 0 24px 12px !important;
+  padding: 14px 18px !important;
+  border: 1px solid rgba(217, 119, 6, 0.28) !important;
+  border-radius: 12px !important;
+  background: #fffdf8 !important;
+  box-shadow: 0 10px 24px rgba(92, 54, 7, 0.05) !important;
+}
+
+.nagex-desktop-home .ph-approval-heading {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  margin-bottom: 10px !important;
+}
+
+.nagex-desktop-home .ph-approval-kicker {
+  display: block !important;
+  color: #b45309 !important;
+  font-size: 11px !important;
+  line-height: 14px !important;
+  font-weight: 850 !important;
+}
+
+.nagex-desktop-home .ph-approval-heading h2 {
+  margin: 2px 0 0 !important;
+  color: #2f1e05 !important;
+  font-size: 21px !important;
+  line-height: 25px !important;
+  font-weight: 900 !important;
+  letter-spacing: 0 !important;
+}
+
+.nagex-desktop-home .ph-approval-heading h2 span {
+  color: #92400e !important;
+  font-size: 13px !important;
+  vertical-align: middle !important;
+}
+
+.nagex-desktop-home .ph-approval-link,
+.nagex-desktop-home .ph-approval-action {
+  min-height: 34px !important;
+  padding: 0 12px !important;
+  border: 1px solid rgba(217, 119, 6, 0.36) !important;
+  border-radius: 8px !important;
+  background: #ffffff !important;
+  color: #92400e !important;
+  font-size: 12px !important;
+  font-weight: 850 !important;
+  cursor: pointer !important;
+}
+
+.nagex-desktop-home .ph-approval-list {
+  display: grid !important;
+  gap: 8px !important;
+}
+
+.nagex-desktop-home .ph-approval-row,
+.nagex-desktop-home .ph-approval-empty {
+  display: grid !important;
+  grid-template-columns: 16px minmax(0, 1fr) auto !important;
+  gap: 10px !important;
+  align-items: center !important;
+  min-height: 58px !important;
+  padding: 10px 12px !important;
+  border: 1px solid rgba(217, 119, 6, 0.22) !important;
+  border-radius: 8px !important;
+  background: #ffffff !important;
+}
+
+.nagex-desktop-home .ph-approval-pause {
+  width: 11px !important;
+  height: 11px !important;
+  border-radius: 3px !important;
+  border: 2px solid #d97706 !important;
+  background: #fff7ed !important;
+  box-shadow: 0 0 0 4px rgba(217, 119, 6, 0.11) !important;
+}
+
+.nagex-desktop-home .ph-approval-pause.idle {
+  border-color: #a8a29e !important;
+  background: #fafaf9 !important;
+  box-shadow: 0 0 0 4px rgba(168, 162, 158, 0.12) !important;
+}
+
+.nagex-desktop-home .ph-approval-copy {
+  min-width: 0 !important;
+}
+
+.nagex-desktop-home .ph-approval-copy h3,
+.nagex-desktop-home .ph-approval-empty h3 {
+  margin: 0 !important;
+  color: #2f1e05 !important;
+  font-size: 13px !important;
+  line-height: 17px !important;
+  font-weight: 900 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.nagex-desktop-home .ph-approval-copy p,
+.nagex-desktop-home .ph-approval-empty p,
+.nagex-desktop-home .ph-approval-copy span {
+  display: block !important;
+  margin: 2px 0 0 !important;
+  color: #6b4f2a !important;
+  font-size: 11px !important;
+  line-height: 14px !important;
+  font-weight: 650 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.nagex-desktop-home .home-memory-results {
+  margin: 0 24px 18px !important;
+}
+
+.nagex-desktop-home .ph-memory-results-grid {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+  gap: 12px !important;
+}
+
+.nagex-desktop-home .ph-memory-panel,
+.nagex-desktop-home .ph-results-panel {
+  padding: 14px 16px !important;
+  border: 1px solid rgba(151, 190, 245, 0.28) !important;
+  border-radius: 12px !important;
+  background: rgba(255, 255, 255, 0.9) !important;
+  box-shadow: 0 10px 24px rgba(7, 35, 92, 0.05) !important;
+}
+
+.nagex-desktop-home .ph-memory-heading {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  margin-bottom: 10px !important;
+}
+
+.nagex-desktop-home .ph-memory-heading span,
+.nagex-desktop-home .ph-memory-row > span {
+  display: block !important;
+  color: #5270a5 !important;
+  font-size: 11px !important;
+  line-height: 14px !important;
+  font-weight: 850 !important;
+}
+
+.nagex-desktop-home .ph-memory-heading h2 {
+  margin: 2px 0 0 !important;
+  color: #06125d !important;
+  font-size: 20px !important;
+  line-height: 24px !important;
+  font-weight: 900 !important;
+  letter-spacing: 0 !important;
+}
+
+.nagex-desktop-home .ph-memory-link,
+.nagex-desktop-home .ph-result-action {
+  min-height: 34px !important;
+  padding: 0 12px !important;
+  border: 1px solid rgba(151, 190, 245, 0.48) !important;
+  border-radius: 8px !important;
+  background: #ffffff !important;
+  color: #0757f8 !important;
+  font-size: 12px !important;
+  font-weight: 850 !important;
+  cursor: pointer !important;
+}
+
+.nagex-desktop-home .ph-memory-list,
+.nagex-desktop-home .ph-results-list {
+  display: grid !important;
+  gap: 8px !important;
+}
+
+.nagex-desktop-home .ph-memory-row,
+.nagex-desktop-home .ph-memory-empty,
+.nagex-desktop-home .ph-result-row,
+.nagex-desktop-home .ph-results-empty {
+  min-height: 58px !important;
+  padding: 10px 12px !important;
+  border: 1px solid rgba(151, 190, 245, 0.22) !important;
+  border-radius: 8px !important;
+  background: #f8fbff !important;
+}
+
+.nagex-desktop-home .ph-memory-row,
+.nagex-desktop-home .ph-result-row {
+  display: grid !important;
+  grid-template-columns: 86px minmax(0, 1fr) auto !important;
+  gap: 10px !important;
+  align-items: center !important;
+}
+
+.nagex-desktop-home .ph-result-row {
+  grid-template-columns: auto minmax(0, 1fr) auto !important;
+  background: #ffffff !important;
+}
+
+.nagex-desktop-home .ph-memory-row h3,
+.nagex-desktop-home .ph-memory-empty h3,
+.nagex-desktop-home .ph-result-row h3,
+.nagex-desktop-home .ph-results-empty h3 {
+  margin: 0 !important;
+  color: #06125d !important;
+  font-size: 13px !important;
+  line-height: 17px !important;
+  font-weight: 900 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.nagex-desktop-home .ph-memory-row p,
+.nagex-desktop-home .ph-memory-empty p,
+.nagex-desktop-home .ph-result-row p,
+.nagex-desktop-home .ph-results-empty p {
+  margin: 2px 0 0 !important;
+  color: #425b8b !important;
+  font-size: 11px !important;
+  line-height: 14px !important;
+  font-weight: 650 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+@media (min-width: 769px) and (max-width: 1320px) {
+  .nagex-desktop-home .ph-memory-results-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1240px) {
+  .nagex-desktop-home .home-ai-hero {
+    grid-template-columns: 1fr !important;
+    gap: 22px !important;
+    padding: 34px !important;
+  }
+
+  .nagex-desktop-home .home-ai-hero h1 {
+    max-width: 720px !important;
+    font-size: 44px !important;
+  }
+
+  .nagex-desktop-home .home-ai-hero-copy p {
+    max-width: 650px !important;
+  }
+
+  .nagex-desktop-home .home-capability-primary { flex-basis: calc(25% - 8px) !important; }
+  .nagex-desktop-home .home-capability-secondary { flex-basis: calc(33.333% - 8px) !important; }
+}
+
+@media (max-width: 768px) {
+  .nagex-desktop-home .home-ai-hero {
+    display: grid !important;
+    gap: 18px !important;
+    margin: 12px !important;
+    padding: 24px 18px !important;
+    border-radius: 14px !important;
+    background: #ffffff !important;
+    border: 1px solid rgba(151, 190, 245, 0.34) !important;
+  }
+
+  .nagex-desktop-home .home-ai-hero h1 {
+    margin: 0 !important;
+    color: #06125d !important;
+    font-size: 32px !important;
+    line-height: 1.08 !important;
+    letter-spacing: 0 !important;
+  }
+
+  .nagex-desktop-home #home-examples-grid { display: flex !important; overflow-x: auto !important; }
+}
+
+/* Home D8.1: visual refinement and product-level polish.
+   These overrides keep D1-D8 information architecture intact while reducing
+   marketing chrome, heavy card borders, and repeated blue emphasis. */
+@media (min-width: 1200px) {
+  .app-header.nagex-top-composition {
+    height: 88px !important;
+    min-height: 88px !important;
+    display: grid !important;
+    grid-template-columns: 160px minmax(360px, 640px) minmax(300px, 1fr) !important;
+    align-items: center !important;
+    gap: 18px !important;
+    padding: 0 26px !important;
+    background: rgba(255, 255, 255, 0.96) !important;
+    border-bottom: 1px solid rgba(203, 213, 225, 0.72) !important;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.045) !important;
+  }
+
+  .app-header.nagex-top-composition::after,
+  .brand-hero-layer,
+  .brand-hero-copy,
+  .brand-hero-visual,
+  .brand-hero-shortcuts {
+    display: none !important;
+  }
+
+  .app-header.nagex-top-composition > .brand-section,
+  .app-header.nagex-top-composition > .desktop-global-search,
+  .app-header.nagex-top-composition > .header-right {
+    position: static !important;
+    inset: auto !important;
+    width: auto !important;
+    height: auto !important;
+    grid-row: 1 !important;
+  }
+
+  .app-header.nagex-top-composition > .brand-section {
+    grid-column: 1 !important;
+  }
+
+  .app-header.nagex-top-composition > .desktop-global-search {
+    grid-column: 2 !important;
+    justify-self: stretch !important;
+    height: 40px !important;
+    border-color: rgba(203, 213, 225, 0.82) !important;
+    background: #f8fafc !important;
+    box-shadow: none !important;
+  }
+
+  .app-header.nagex-top-composition > .header-right {
+    grid-column: 3 !important;
+    justify-self: end !important;
+  }
+
+  .app-header.nagex-top-composition .quickwake-subdued-chip,
+  .app-header.nagex-top-composition .lang-toggle-subdued,
+  .app-header.nagex-top-composition .nagex-notif-bell,
+  .app-header.nagex-top-composition .user-pill-header {
+    border-color: rgba(203, 213, 225, 0.76) !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+  }
+}
+
+@media (min-width: 769px) {
+  .center-canvas {
+    padding: 12px 24px 24px !important;
+  }
+
+  .nagex-desktop-home {
+    max-width: 1224px !important;
+    width: min(100%, 1224px) !important;
+  }
+
+  div#view-home.tab-view.active-view.nagex-desktop-home,
+  div#view-home.nagex-desktop-home {
+    justify-self: center !important;
+    max-width: 1224px !important;
+    width: min(100%, 1224px) !important;
+  }
+
+  .nagex-desktop-home .desktop-home-main-stack {
+    gap: 14px !important;
+  }
+
+  .nagex-desktop-home .home-ai-hero {
+    grid-template-columns: minmax(300px, 0.82fr) minmax(520px, 1.18fr) !important;
+    min-height: 218px !important;
+    margin: 12px 10px 8px !important;
+    padding: 26px 32px !important;
+    border-color: rgba(203, 213, 225, 0.7) !important;
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 58%, #f3f7fc 100%) !important;
+    box-shadow: 0 16px 42px rgba(15, 23, 42, 0.075) !important;
+  }
+
+  .nagex-desktop-home .home-ai-greeting {
+    color: #475569 !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    margin-bottom: 10px !important;
+  }
+
+  .nagex-desktop-home .home-ai-hero h1 {
+    color: #0f172a !important;
+    font-size: 44px !important;
+    font-weight: 850 !important;
+  }
+
+  .nagex-desktop-home .home-ai-hero-copy p {
+    max-width: 450px !important;
+    color: #475569 !important;
+    font-size: 16px !important;
+    font-weight: 500 !important;
+  }
+
+  .nagex-desktop-home .home-ai-trust-row {
+    gap: 0 !important;
+    margin-top: 14px !important;
+    color: #64748b !important;
+  }
+
+  .nagex-desktop-home .home-ai-trust-row span {
+    min-height: 0 !important;
+    padding: 0 10px !important;
+    border: 0 !important;
+    border-right: 1px solid rgba(148, 163, 184, 0.42) !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: #64748b !important;
+    font-size: 12px !important;
+    font-weight: 650 !important;
+  }
+
+  .nagex-desktop-home .home-ai-trust-row span:first-child {
+    padding-left: 0 !important;
+  }
+
+  .nagex-desktop-home .home-ai-trust-row span:last-child {
+    border-right: 0 !important;
+  }
+
+  .nagex-desktop-home .home-ai-command-composer {
+    border-color: rgba(203, 213, 225, 0.72) !important;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.065) !important;
+  }
+
+  .nagex-desktop-home .home-command-label,
+  .nagex-desktop-home .home-ai-command-composer .nagex-identity-badge,
+  .nagex-desktop-home .home-capability-chip span,
+  .nagex-desktop-home .ph-your-day-kicker,
+  .nagex-desktop-home .ph-working-kicker,
+  .nagex-desktop-home .ph-memory-heading span,
+  .nagex-desktop-home .ph-memory-row > span {
+    color: #64748b !important;
+    font-weight: 650 !important;
+  }
+
+  .nagex-desktop-home .home-ai-command-composer .affordance-btn-pill,
+  .nagex-desktop-home .home-ai-command-composer .affordance-btn-circle,
+  .nagex-desktop-home .home-capability-chip,
+  .nagex-desktop-home .ph-your-day-link,
+  .nagex-desktop-home .ph-your-day-action,
+  .nagex-desktop-home .ph-working-link,
+  .nagex-desktop-home .ph-working-action,
+  .nagex-desktop-home .ph-memory-link,
+  .nagex-desktop-home .ph-result-action {
+    border-color: rgba(203, 213, 225, 0.72) !important;
+    background: #ffffff !important;
+    color: #334155 !important;
+    box-shadow: none !important;
+    font-weight: 650 !important;
+  }
+
+  .nagex-desktop-home .home-capability-primary {
+    flex: 1 1 112px !important;
+    max-width: 140px !important;
+  }
+
+  .nagex-desktop-home .home-capability-secondary {
+    flex: 0 1 58px !important;
+    height: 36px !important;
+    padding: 7px 8px !important;
+    border-color: transparent !important;
+    background: transparent !important;
+    opacity: 0.62 !important;
+  }
+
+  .nagex-desktop-home .home-capability-secondary span {
+    display: none !important;
+  }
+
+  .nagex-desktop-home .home-your-day-brief,
+  .nagex-desktop-home .home-working-brief,
+  .nagex-desktop-home .home-approval-brief,
+  .nagex-desktop-home .ph-memory-panel,
+  .nagex-desktop-home .ph-results-panel {
+    margin-left: 10px !important;
+    margin-right: 10px !important;
+    border-color: rgba(226, 232, 240, 0.82) !important;
+    box-shadow: none !important;
+    background: rgba(255, 255, 255, 0.88) !important;
+  }
+
+  .nagex-desktop-home .home-approval-brief {
+    border-color: rgba(217, 119, 6, 0.22) !important;
+    background: #fffdf8 !important;
+  }
+
+  .nagex-desktop-home .ph-your-day-list {
+    grid-template-columns: 1fr !important;
+    gap: 0 !important;
+  }
+
+  .nagex-desktop-home .ph-your-day-row,
+  .nagex-desktop-home .ph-working-row,
+  .nagex-desktop-home .ph-working-empty,
+  .nagex-desktop-home .ph-memory-row,
+  .nagex-desktop-home .ph-memory-empty,
+  .nagex-desktop-home .ph-result-row,
+  .nagex-desktop-home .ph-results-empty {
+    min-height: 52px !important;
+    border-width: 0 0 1px 0 !important;
+    border-color: rgba(226, 232, 240, 0.9) !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+  }
+
+  .nagex-desktop-home .ph-your-day-row:last-child,
+  .nagex-desktop-home .ph-working-row:last-child,
+  .nagex-desktop-home .ph-working-empty:last-child,
+  .nagex-desktop-home .ph-memory-row:last-child,
+  .nagex-desktop-home .ph-memory-empty:last-child,
+  .nagex-desktop-home .ph-result-row:last-child,
+  .nagex-desktop-home .ph-results-empty:last-child {
+    border-bottom: 0 !important;
+  }
+
+  .nagex-desktop-home .ph-approval-row,
+  .nagex-desktop-home .ph-approval-empty {
+    border-color: rgba(217, 119, 6, 0.18) !important;
+    box-shadow: none !important;
+  }
+
+  .nagex-desktop-home .ph-your-day-heading h2,
+  .nagex-desktop-home .ph-working-heading h2,
+  .nagex-desktop-home .ph-approval-heading h2,
+  .nagex-desktop-home .ph-memory-heading h2 {
+    color: #0f172a !important;
+    font-weight: 760 !important;
+  }
+
+  .nagex-desktop-home .ph-your-day-copy h3,
+  .nagex-desktop-home .ph-working-copy h3,
+  .nagex-desktop-home .ph-working-empty h3,
+  .nagex-desktop-home .ph-memory-row h3,
+  .nagex-desktop-home .ph-memory-empty h3,
+  .nagex-desktop-home .ph-result-row h3,
+  .nagex-desktop-home .ph-results-empty h3 {
+    color: #1e293b !important;
+    font-weight: 680 !important;
+  }
+
+  .nagex-desktop-home .ph-your-day-copy p,
+  .nagex-desktop-home .ph-working-copy p,
+  .nagex-desktop-home .ph-working-empty p,
+  .nagex-desktop-home .ph-working-copy span,
+  .nagex-desktop-home .ph-memory-row p,
+  .nagex-desktop-home .ph-memory-empty p,
+  .nagex-desktop-home .ph-result-row p,
+  .nagex-desktop-home .ph-results-empty p {
+    color: #64748b !important;
+    font-weight: 450 !important;
+  }
+
+  .floating-quickwake-btn {
+    width: 48px !important;
+    height: 48px !important;
+    right: 22px !important;
+    bottom: 22px !important;
+    background: #1d4ed8 !important;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18) !important;
+    opacity: 0.9 !important;
+  }
+
+  .sidebar-left {
+    top: 88px !important;
+    height: calc(100vh - 88px) !important;
+    padding-top: 18px !important;
+  }
+
+  .sidebar-left::before {
+    display: none !important;
+  }
+}
+
+@media (min-width: 1400px) {
+  .nagex-desktop-home {
+    max-width: 1240px !important;
+    width: min(100%, 1240px) !important;
+  }
+
+  div#view-home.tab-view.active-view.nagex-desktop-home,
+  div#view-home.nagex-desktop-home {
+    max-width: 1240px !important;
+    width: min(100%, 1240px) !important;
+  }
+}
+
+@media (min-width: 1600px) {
+  .nagex-desktop-home {
+    max-width: 1320px !important;
+    width: min(100%, 1320px) !important;
+  }
+
+  div#view-home.tab-view.active-view.nagex-desktop-home,
+  div#view-home.nagex-desktop-home {
+    max-width: 1320px !important;
+    width: min(100%, 1320px) !important;
+  }
+}
+
+/* Home D8.1-C: card/surface system refinement.
+   Keep section identity, but stop every level from carrying its own bordered
+   card treatment. Approval remains the one intentionally stronger trust
+   surface. */
+@media (min-width: 769px) {
+  .nagex-desktop-home .home-your-day-brief,
+  .nagex-desktop-home .home-working-brief,
+  .nagex-desktop-home .ph-memory-panel,
+  .nagex-desktop-home .ph-results-panel {
+    border: 0 !important;
+    background: rgba(255, 255, 255, 0.72) !important;
+    box-shadow: none !important;
+  }
+
+  .nagex-desktop-home .home-your-day-brief {
+    background: linear-gradient(180deg, rgba(255,255,255,0.88), rgba(248,250,252,0.72)) !important;
+  }
+
+  .nagex-desktop-home .home-working-brief {
+    background: linear-gradient(180deg, rgba(248,252,255,0.82), rgba(255,255,255,0.68)) !important;
+  }
+
+  .nagex-desktop-home .ph-memory-panel {
+    background: rgba(248, 250, 252, 0.64) !important;
+  }
+
+  .nagex-desktop-home .ph-results-panel {
+    background: rgba(255, 255, 255, 0.76) !important;
+  }
+
+  .nagex-desktop-home .ph-your-day-row,
+  .nagex-desktop-home .ph-working-row,
+  .nagex-desktop-home .ph-working-empty,
+  .nagex-desktop-home .ph-memory-row,
+  .nagex-desktop-home .ph-memory-empty,
+  .nagex-desktop-home .ph-result-row,
+  .nagex-desktop-home .ph-results-empty {
+    border: 0 !important;
+    background:
+      linear-gradient(to right, rgba(226, 232, 240, 0.9), rgba(226, 232, 240, 0.18)) left bottom / 100% 1px no-repeat !important;
+  }
+
+  .nagex-desktop-home .ph-your-day-row:last-child,
+  .nagex-desktop-home .ph-working-row:last-child,
+  .nagex-desktop-home .ph-working-empty:last-child,
+  .nagex-desktop-home .ph-memory-row:last-child,
+  .nagex-desktop-home .ph-memory-empty:last-child,
+  .nagex-desktop-home .ph-result-row:last-child,
+  .nagex-desktop-home .ph-results-empty:last-child {
+    background-image: none !important;
+  }
+
+  .nagex-desktop-home .ph-your-day-marker {
+    color: #53627a !important;
+    font-weight: 720 !important;
+    text-transform: none !important;
+  }
+
+  .nagex-desktop-home .ph-working-dot {
+    box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.10) !important;
+  }
+
+  .nagex-desktop-home .ph-approval-row,
+  .nagex-desktop-home .ph-approval-empty {
+    border-color: rgba(217, 119, 6, 0.20) !important;
+    background: rgba(255, 255, 255, 0.82) !important;
+  }
+
+  .nagex-desktop-home .ph-approval-link,
+  .nagex-desktop-home .ph-approval-action {
+    border-color: rgba(217, 119, 6, 0.28) !important;
+    background: #ffffff !important;
+    color: #92400e !important;
+    font-weight: 740 !important;
+  }
+
+  .nagex-desktop-home .ph-your-day-link,
+  .nagex-desktop-home .ph-working-link,
+  .nagex-desktop-home .ph-memory-link {
+    border-color: transparent !important;
+    background: transparent !important;
+    color: #475569 !important;
+  }
+
+  .nagex-desktop-home .ph-your-day-action,
+  .nagex-desktop-home .ph-working-action,
+  .nagex-desktop-home .ph-result-action {
+    border-color: rgba(203, 213, 225, 0.64) !important;
+    background: rgba(255, 255, 255, 0.72) !important;
+    color: #1e293b !important;
+  }
+
+  .nagex-desktop-home .ph-memory-row > span {
+    border: 0 !important;
+    background: transparent !important;
+  }
+}
+
+/* Home D8.1-D: final typography and emphasis pass. */
+@media (min-width: 769px) {
+  .nagex-desktop-home .home-ai-hero h1 {
+    font-weight: 820 !important;
+  }
+
+  .nagex-desktop-home .ph-your-day-heading h2,
+  .nagex-desktop-home .ph-working-heading h2,
+  .nagex-desktop-home .ph-approval-heading h2,
+  .nagex-desktop-home .ph-memory-heading h2 {
+    font-weight: 720 !important;
+  }
+
+  .nagex-desktop-home .home-capability-chip strong,
+  .nagex-desktop-home .ph-your-day-copy h3,
+  .nagex-desktop-home .ph-working-copy h3,
+  .nagex-desktop-home .ph-working-empty h3,
+  .nagex-desktop-home .ph-approval-copy h3,
+  .nagex-desktop-home .ph-approval-empty h3,
+  .nagex-desktop-home .ph-memory-row h3,
+  .nagex-desktop-home .ph-memory-empty h3,
+  .nagex-desktop-home .ph-result-row h3,
+  .nagex-desktop-home .ph-results-empty h3 {
+    font-weight: 640 !important;
+  }
+
+  .nagex-desktop-home .ph-your-day-marker,
+  .nagex-desktop-home .ph-working-copy span,
+  .nagex-desktop-home .ph-approval-copy span,
+  .nagex-desktop-home .ph-memory-row > span {
+    color: #64748b !important;
+    font-weight: 560 !important;
+  }
+
+  .nagex-desktop-home .ph-your-day-link,
+  .nagex-desktop-home .ph-working-link,
+  .nagex-desktop-home .ph-memory-link {
+    font-size: 11px !important;
+    font-weight: 560 !important;
+  }
+
+  .nagex-desktop-home .ph-your-day-action,
+  .nagex-desktop-home .ph-working-action,
+  .nagex-desktop-home .ph-result-action {
+    font-weight: 600 !important;
+  }
+
+  .nagex-desktop-home .ph-result-row {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+  }
+
+  .nagex-desktop-home .ph-result-row > div,
+  .nagex-desktop-home .ph-memory-row > div {
+    min-width: 0 !important;
+  }
+
+  .nagex-desktop-home .ph-result-action {
+    min-width: 56px !important;
+    justify-self: end !important;
+  }
+}
