@@ -3890,6 +3890,18 @@
       "assertionIntent": "provider-neutral DeviceUIReasoner lets Astra propose exactly one typed UI action from minimized observation while NAgex Action Gate remains the only authority for app/action/device/recipient/message/route/approval/budget/user-interruption validation; deterministic adapters stay preferred and sensitive screens/redacted observations fail closed",
       "notes": "No live Astra call, no real Android send, and no direct execution authority. AstraDeviceUIReasoner is schema/gate tested with injected deterministic proposal function."
     },
+    "r23_6m_phase_m4b_real_astra_device_loop": {
+      "milestone": "R23.6M-M4B",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["agents", "approvals", "device", "security"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "AstraDeviceUIReasoner has a real provider call path that sends minimized synthetic UI observation to strict structured output, parses one typed proposal, records usage, and then stops at NAgex Action Gate; deterministic known UI invokes zero Astra calls, recovery invokes Astra only as fallback, and failure modes fail closed before any device action",
+      "notes": "Uses fake fetch for provider-contract certification. Actual live Astra diagnostic remains environment-gated and must not be reported PASS without a real configured API key."
+    },
     "r23_6m_d4b_gmail_canonical_email": {
       "milestone": "R23.6M-D4B",
       "classification": "CANONICAL_BEHAVIOR",

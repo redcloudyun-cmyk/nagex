@@ -103,6 +103,14 @@ export interface DeviceUIActionProposal {
   reasonCode: string;
 }
 
+export interface DeviceUIReasonerUsage {
+  provider: DeviceUIReasonerProvider;
+  model: string;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  latencyMs: number;
+}
+
 export interface DeviceUIReasoner {
   reason(input: DeviceUIReasoningInput): Promise<DeviceUIActionProposal>;
 }
@@ -251,17 +259,24 @@ export class FakeDeviceUIReasoner implements DeviceUIReasoner {
 export interface AstraDeviceUIReasonerOptions {
   apiKey?: string;
   model?: string;
+  fetchFn?: typeof fetch;
+  timeoutMs?: number;
   proposeFn?: (input: DeviceUIReasoningInput) => Promise<unknown>;
 }
 
 export class AstraDeviceUIReasoner implements DeviceUIReasoner {
   private readonly apiKey: string | null;
   private readonly model: string;
+  private readonly fetchFn: typeof fetch;
+  private readonly timeoutMs: number;
   private readonly proposeFn?: (input: DeviceUIReasoningInput) => Promise<unknown>;
+  private lastUsage: DeviceUIReasonerUsage | null = null;
 
   constructor(options: AstraDeviceUIReasonerOptions = {}) {
     this.apiKey = options.apiKey?.trim() || null;
     this.model = options.model?.trim() || 'gpt-6-astra';
+    this.fetchFn = options.fetchFn ?? fetch;
+    this.timeoutMs = options.timeoutMs ?? 30_000;
     this.proposeFn = options.proposeFn;
   }
 
@@ -269,17 +284,160 @@ export class AstraDeviceUIReasoner implements DeviceUIReasoner {
     return { configured: Boolean(this.apiKey || this.proposeFn), provider: 'openai-astra', model: this.model };
   }
 
+  public usage(): DeviceUIReasonerUsage | null {
+    return this.lastUsage;
+  }
+
   public async reason(input: DeviceUIReasoningInput): Promise<DeviceUIActionProposal> {
     if (!this.status().configured) {
       throw new ModelProviderError({ provider: 'openai-astra', code: 'PROVIDER_NOT_CONFIGURED', message: 'Astra device UI reasoner is not configured.', requestId: input.requestId, retryable: false });
     }
     const minimized = { ...input, observation: redactDeviceUIObservation(input.observation) };
-    const raw = this.proposeFn ? await this.proposeFn(minimized) : null;
+    const startedAt = Date.now();
+    const raw = this.proposeFn ? await this.proposeFn(minimized) : await this.callResponsesApi(minimized);
     if (!isDeviceUIActionProposal(raw)) {
       throw new ModelProviderError({ provider: 'openai-astra', code: 'PROVIDER_SCHEMA_INVALID', message: 'Astra device UI proposal failed schema validation.', requestId: input.requestId, retryable: false });
     }
+    if (!this.lastUsage) {
+      this.lastUsage = { provider: 'ASTRA', model: this.model, inputTokens: null, outputTokens: null, latencyMs: Date.now() - startedAt };
+    }
     return raw;
   }
+
+  private async callResponsesApi(input: DeviceUIReasoningInput): Promise<unknown> {
+    if (!this.apiKey) {
+      throw new ModelProviderError({ provider: 'openai-astra', code: 'PROVIDER_NOT_CONFIGURED', message: 'Astra device UI reasoner is not configured.', requestId: input.requestId, retryable: false });
+    }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+    const startedAt = Date.now();
+    try {
+      const response = await this.fetchFn('https://api.openai.com/v1/responses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.apiKey}` },
+        signal: controller.signal,
+        body: JSON.stringify({
+          model: this.model,
+          reasoning: { effort: 'low' },
+          input: [
+            { role: 'system', content: [{ type: 'input_text', text: ASTRA_DEVICE_UI_SYSTEM_PROMPT }] },
+            { role: 'user', content: [{ type: 'input_text', text: JSON.stringify(safeReasonerPayload(input)) }] },
+          ],
+          store: false,
+          text: {
+            format: {
+              type: 'json_schema',
+              name: 'device_ui_action_proposal',
+              strict: true,
+              schema: DEVICE_UI_ACTION_PROPOSAL_JSON_SCHEMA,
+            },
+          },
+        }),
+      });
+      if (!response.ok) {
+        const retryable = response.status === 408 || response.status === 429 || response.status >= 500;
+        throw new ModelProviderError({ provider: 'openai-astra', code: `PROVIDER_HTTP_${response.status}`, message: `Astra device UI request failed with HTTP ${response.status}.`, requestId: input.requestId, retryable });
+      }
+      const payload = await response.json();
+      const usage = (payload as { usage?: { input_tokens?: number; output_tokens?: number } }).usage;
+      this.lastUsage = {
+        provider: 'ASTRA',
+        model: this.model,
+        inputTokens: usage?.input_tokens ?? null,
+        outputTokens: usage?.output_tokens ?? null,
+        latencyMs: Date.now() - startedAt,
+      };
+      return extractDeviceUIProposal(payload, input.requestId);
+    } catch (error) {
+      if (error instanceof ModelProviderError) throw error;
+      if (controller.signal.aborted) {
+        throw new ModelProviderError({ provider: 'openai-astra', code: 'PROVIDER_TIMEOUT', message: 'Astra device UI request timed out.', requestId: input.requestId, retryable: true });
+      }
+      throw new ModelProviderError({ provider: 'openai-astra', code: 'PROVIDER_NETWORK_ERROR', message: 'Astra device UI request failed.', requestId: input.requestId, retryable: true });
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+}
+
+const ASTRA_DEVICE_UI_SYSTEM_PROMPT = `You are a device UI reasoning component inside NAgex. You observe a minimized UI state and propose exactly ONE typed UI action. You never approve, execute, send, change recipients, change messages, change devices, change routes, or bypass NAgex Action Gate. Return only the strict JSON schema.`;
+
+const DEVICE_UI_ACTION_PROPOSAL_JSON_SCHEMA = {
+  type: 'object',
+  properties: {
+    provider: { type: 'string', enum: ['ASTRA'] },
+    model: { type: 'string' },
+    action: { type: 'string', enum: DEVICE_UI_REASONER_ACTIONS },
+    targetNodeRef: { type: ['string', 'null'] },
+    semanticTarget: { type: ['string', 'null'] },
+    expectedApp: { type: 'string' },
+    expectedScreen: { type: ['string', 'null'] },
+    confidence: { type: 'number' },
+    evidence: { type: 'array', items: { type: 'string' } },
+    executionStep: { type: 'string' },
+    requiresApproval: { type: 'boolean' },
+    reasonCode: { type: 'string' },
+  },
+  required: ['provider', 'model', 'action', 'targetNodeRef', 'semanticTarget', 'expectedApp', 'expectedScreen', 'confidence', 'evidence', 'executionStep', 'requiresApproval', 'reasonCode'],
+  additionalProperties: false,
+} as const;
+
+function safeReasonerPayload(input: DeviceUIReasoningInput): Record<string, unknown> {
+  return {
+    requestId: input.requestId,
+    observation: input.observation,
+    executionGoal: {
+      appId: input.executionGoal.appId,
+      packageName: input.executionGoal.packageName,
+      deviceId: input.executionGoal.deviceId,
+      recipientRef: input.executionGoal.recipientRef,
+      displayName: input.executionGoal.displayName,
+      approvedMessageHash: input.executionGoal.approvedMessageHash,
+      route: input.executionGoal.route,
+    },
+    allowedActions: input.allowedActions,
+    executionStep: input.currentPlan.actions,
+    budget: {
+      maxReasonerCalls: input.budget.maxReasonerCalls,
+      usedReasonerCalls: input.budget.usedReasonerCalls,
+      maxSteps: input.budget.maxSteps,
+      usedSteps: input.budget.usedSteps,
+    },
+    privacy: { screenshotDefault: 'OFF', rawMessageProvided: false, secretsProvided: false },
+  };
+}
+
+function extractDeviceUIProposal(payload: unknown, requestId: string): unknown {
+  const p = payload as { output?: Array<{ type?: string; content?: Array<{ type?: string; text?: string; refusal?: string }> }> };
+  const messageItems = Array.isArray(p.output) ? p.output.filter((item) => item.type === 'message') : [];
+  if (messageItems.length > 1) {
+    throw new ModelProviderError({ provider: 'openai-astra', code: 'PROVIDER_MULTIPLE_ACTIONS', message: 'Astra returned more than one device UI proposal.', requestId, retryable: false });
+  }
+  for (const item of messageItems) {
+    for (const content of item.content ?? []) {
+      if (content.type === 'refusal') {
+        throw new ModelProviderError({ provider: 'openai-astra', code: 'PROVIDER_REFUSED', message: content.refusal || 'Astra refused to propose a device UI action.', requestId, retryable: false });
+      }
+      if (content.type === 'output_text' && typeof content.text === 'string') {
+        try {
+          const parsed = JSON.parse(content.text);
+          if (parsed && typeof parsed === 'object') {
+            const v = parsed as Record<string, unknown>;
+            return {
+              ...v,
+              targetNodeRef: v.targetNodeRef === null ? undefined : v.targetNodeRef,
+              semanticTarget: v.semanticTarget === null ? undefined : v.semanticTarget,
+              expectedScreen: v.expectedScreen === null ? undefined : v.expectedScreen,
+            };
+          }
+          return parsed;
+        } catch {
+          throw new ModelProviderError({ provider: 'openai-astra', code: 'PROVIDER_MALFORMED_RESPONSE', message: 'Astra returned non-JSON device UI output.', requestId, retryable: false });
+        }
+      }
+    }
+  }
+  throw new ModelProviderError({ provider: 'openai-astra', code: 'PROVIDER_EMPTY_RESPONSE', message: 'Astra returned no device UI proposal.', requestId, retryable: true });
 }
 
 export class DeviceUIReasoningCoordinator {
