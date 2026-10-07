@@ -29,7 +29,7 @@
     "test:model-routing": "npm run test:scope -- model-routing",
     "test:mobile": "npm run test:scope -- mobile",
     "test:personal-context": "npm run test:scope -- personal-context",
-    "build:prod": "rm -rf dist && tsc -p tsconfig.build.json"
+    "build:prod": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json"
   },
   "build": {
     "appId": "com.nagex.desktop",
