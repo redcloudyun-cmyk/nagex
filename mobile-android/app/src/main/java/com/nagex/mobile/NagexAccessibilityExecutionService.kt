@@ -2,6 +2,7 @@ package com.nagex.mobile
 
 import android.accessibilityservice.AccessibilityService
 import android.os.Bundle
+import android.os.SystemClock
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 
@@ -26,11 +27,24 @@ class NagexAccessibilityExecutionService : AccessibilityService() {
         }
     }
 
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        activeService = this
+        interruptedByUser = false
+    }
+
+    override fun onDestroy() {
+        if (activeService === this) activeService = null
+        super.onDestroy()
+    }
+
     override fun onInterrupt() {
         interruptedByUser = true
     }
 
     fun isInterruptedByUser(): Boolean = interruptedByUser
+
+    fun currentPackageName(): String? = rootInActiveWindow?.packageName?.toString()
 
     fun executeBoundedAction(action: String, target: NodeSelector, approvedText: String? = null): ActionResult {
         if (interruptedByUser) return ActionResult(false, "USER_INTERRUPTED")
@@ -43,24 +57,24 @@ class NagexAccessibilityExecutionService : AccessibilityService() {
 
         return when (action) {
             "FIND_ELEMENT", "OBSERVE_RESULT" -> {
-                val node = findFirst(root, target)
+                val node = findFirstWithRetry(target)
                 ActionResult(node != null, if (node != null) "FOUND" else "NODE_NOT_FOUND")
             }
             "FOCUS_INPUT", "CLICK_ALLOWED_NODE" -> {
-                val node = findFirst(root, target) ?: return ActionResult(false, "NODE_NOT_FOUND")
+                val node = findFirstWithRetry(target) ?: return ActionResult(false, "NODE_NOT_FOUND")
                 val accessibilityAction = if (action == "FOCUS_INPUT") AccessibilityNodeInfo.ACTION_FOCUS else AccessibilityNodeInfo.ACTION_CLICK
                 ActionResult(node.performAction(accessibilityAction), action)
             }
-            "TYPE_APPROVED_TEXT" -> {
-                val node = findFirst(root, target) ?: return ActionResult(false, "NODE_NOT_FOUND")
+            "TYPE_APPROVED_TEXT", "TYPE_APPROVED_RECIPIENT_QUERY" -> {
+                val node = findFirstWithRetry(target) ?: return ActionResult(false, "NODE_NOT_FOUND")
                 if (!node.isEditable || approvedText == null) return ActionResult(false, "TEXT_INPUT_NOT_ALLOWED")
                 val args = Bundle().apply {
                     putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, approvedText)
                 }
-                ActionResult(node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args), "TYPE_APPROVED_TEXT")
+                ActionResult(node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args), action)
             }
             "SCROLL_BOUNDED" -> {
-                val node = findFirst(root, target) ?: return ActionResult(false, "NODE_NOT_FOUND")
+                val node = findFirstWithRetry(target) ?: return ActionResult(false, "NODE_NOT_FOUND")
                 ActionResult(node.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD), "SCROLL_BOUNDED")
             }
             "NAVIGATE_BACK", "BACK" -> ActionResult(performGlobalAction(GLOBAL_ACTION_BACK), "NAVIGATE_BACK")
@@ -81,12 +95,29 @@ class NagexAccessibilityExecutionService : AccessibilityService() {
         return null
     }
 
+    private fun findFirstWithRetry(selector: NodeSelector): AccessibilityNodeInfo? {
+        repeat(6) { attempt ->
+            val root = rootInActiveWindow
+            if (root != null) {
+                findFirst(root, selector)?.let { return it }
+            }
+            if (attempt < 5) SystemClock.sleep(250)
+        }
+        return null
+    }
+
     companion object {
+        @Volatile
+        private var activeService: NagexAccessibilityExecutionService? = null
+
+        fun active(): NagexAccessibilityExecutionService? = activeService
+
         val ALLOWED_PACKAGES = setOf("com.kakao.talk")
         val ALLOWED_ACTIONS = setOf(
             "FIND_ELEMENT",
             "FOCUS_INPUT",
             "CLICK_ALLOWED_NODE",
+            "TYPE_APPROVED_RECIPIENT_QUERY",
             "TYPE_APPROVED_TEXT",
             "SCROLL_BOUNDED",
             "NAVIGATE_BACK",
@@ -98,16 +129,20 @@ class NagexAccessibilityExecutionService : AccessibilityService() {
     data class NodeSelector(
         val resourceViewId: String? = null,
         val contentDescription: String? = null,
+        val contentDescriptionContains: String? = null,
         val className: String? = null,
         val visibleText: String? = null,
+        val visibleTextContains: String? = null,
         val editable: Boolean? = null,
         val clickable: Boolean? = null,
     ) {
         fun matches(node: AccessibilityNodeInfo): Boolean {
             if (resourceViewId != null && node.viewIdResourceName != resourceViewId) return false
             if (contentDescription != null && node.contentDescription?.toString() != contentDescription) return false
+            if (contentDescriptionContains != null && node.contentDescription?.toString()?.contains(contentDescriptionContains) != true) return false
             if (className != null && node.className?.toString() != className) return false
             if (visibleText != null && node.text?.toString() != visibleText) return false
+            if (visibleTextContains != null && node.text?.toString()?.contains(visibleTextContains) != true) return false
             if (editable != null && node.isEditable != editable) return false
             if (clickable != null && node.isClickable != clickable) return false
             return true

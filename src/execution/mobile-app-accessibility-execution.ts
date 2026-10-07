@@ -1,4 +1,5 @@
 import { NagexError } from '../common/errors.js';
+import { createHash } from 'node:crypto';
 import { hashCanonicalPayload } from '../governance/action-approval.store.js';
 import type { MobileExecutionAuthority, CanonicalExecutionResult, RouteAuthorityRequest } from './mobile-execution-authority.js';
 
@@ -61,13 +62,14 @@ export interface KakaoSemanticNodeContract {
   resourceId?: string;
   className?: string;
   contentDescription?: string;
+  contentDescriptionContains?: string;
   text?: string;
   clickable: boolean;
   editable: boolean;
 }
 
 export interface KakaoScreenContract {
-  screenId: 'chat-list' | 'search' | 'recipient-result' | 'conversation' | 'composer';
+  screenId: 'home-news' | 'chat-list' | 'search' | 'recipient-result' | 'conversation' | 'composer';
   requiredNodes: readonly KakaoSemanticNodeContract[];
 }
 
@@ -96,19 +98,71 @@ export interface AccessibilityExecutionPlanInput {
 export interface AccessibilityExecutionCommand {
   commandType: 'ACCESSIBILITY_EXECUTE_PLAN';
   executionSessionId: null;
-  data: {
+  data: AccessibilityPlanEnvelope;
+}
+
+export type AccessibilityPlanStepAction =
+  | 'OPEN_APP'
+  | 'FIND_ELEMENT'
+  | 'CLICK_ALLOWED_NODE'
+  | 'SELECT_RECIPIENT'
+  | 'VERIFY_RECIPIENT'
+  | 'FOCUS_INPUT'
+  | 'TYPE_APPROVED_RECIPIENT_QUERY'
+  | 'TYPE_APPROVED_TEXT'
+  | 'OBSERVE_RESULT'
+  | 'NAVIGATE_BACK'
+  | 'SCROLL_BOUNDED';
+
+export interface AccessibilitySelectorHints {
+  resourceId?: string;
+  contentDescription?: string;
+  contentDescriptionContains?: string;
+  className?: string;
+  expectedVisibleLabel?: string;
+  visibleTextContains?: string;
+  relativeRole?: string;
+}
+
+export interface AccessibilityPlanStep {
+  stepId: string;
+  action: AccessibilityPlanStepAction;
+  screenContract: string;
+  semanticTarget: string;
+  selectorHints: AccessibilitySelectorHints;
+}
+
+export interface AccessibilityPlanEnvelope {
     appId: MobileAppId;
+    planId: string;
+    commandId: string;
+    principalId: string;
+    tenantId: string;
+    capability: 'KAKAOTALK_ACCESSIBILITY_SEND';
+    executionRoute: 'ANDROID_ACCESSIBILITY';
+    targetPackage: string;
+    targetAppVersion: string;
+    approvalRef: string;
+    approvedPayloadHash: string;
+    approvedText: string;
     packageName: string;
     deviceId: string;
     actions: readonly AccessibilityAction[];
     recipientRef: string;
     displayName: string;
     messageHash: string;
+    steps: readonly AccessibilityPlanStep[];
+    budget: {
+      maxSteps: number;
+      maxTextInputs: number;
+      maxClicks: number;
+      maxScrolls: number;
+      timeoutMs: number;
+    };
     selectorStrategy: readonly string[];
     timeoutMs: number;
     requiresForeground: true;
     requiresUserPresence: true;
-  };
 }
 
 export interface AccessibilityExecutionPlan {
@@ -125,6 +179,7 @@ export interface MobileAppAdapter {
 
 export const ACCESSIBILITY_ROUTE_PREFERENCE = ['PROVIDER_API', 'ANDROID_NATIVE', 'APP_LINK', 'BROWSER', 'ANDROID_ACCESSIBILITY', 'HUMAN_HANDOFF'] as const;
 export const ACCESSIBILITY_SELECTOR_STRATEGY = ['resource-id', 'contentDescription', 'semantic role/class', 'text label', 'relative hierarchy'] as const;
+export const ACCESSIBILITY_PLAN_TTL_MS = 2 * 60 * 1000;
 
 export const MOBILE_APP_EXECUTION_POLICIES: readonly AppExecutionPolicy[] = [
   {
@@ -169,9 +224,15 @@ function notCertified(appId: MobileAppId, packageName: string): AppExecutionPoli
 
 export const KAKAOTALK_26_8_2_SCREEN_CONTRACTS: readonly KakaoScreenContract[] = [
   {
+    screenId: 'home-news',
+    requiredNodes: [
+      { nodeRef: 'kakao_bottom_chat_tab', className: 'android.widget.RelativeLayout', contentDescriptionContains: '채팅 탭', clickable: true, editable: false },
+    ],
+  },
+  {
     screenId: 'chat-list',
     requiredNodes: [
-      { nodeRef: 'kakao_search_entry', resourceId: 'com.kakao.talk:id/search', className: 'android.widget.Button', contentDescription: 'Search', clickable: true, editable: false },
+      { nodeRef: 'kakao_search_entry', className: 'android.widget.Button', contentDescription: '검색', clickable: true, editable: false },
       { nodeRef: 'kakao_chat_list', className: 'androidx.recyclerview.widget.RecyclerView', contentDescription: 'Chat list', clickable: false, editable: false },
     ],
   },
@@ -220,6 +281,7 @@ export function validateKakaoScreenContract(screenId: KakaoScreenContract['scree
     (required.resourceId === undefined || node.resourceId === required.resourceId) &&
     (required.className === undefined || node.className === required.className) &&
     (required.contentDescription === undefined || node.contentDescription === required.contentDescription) &&
+    (required.contentDescriptionContains === undefined || node.contentDescription?.includes(required.contentDescriptionContains)) &&
     (required.text === undefined || node.text === required.text) &&
     node.clickable === required.clickable &&
     node.editable === required.editable
@@ -256,6 +318,85 @@ function materialPayload(input: AccessibilityExecutionPlanInput): Record<string,
     deviceId: input.deviceId,
     executionRoute: 'ANDROID_ACCESSIBILITY',
   };
+}
+
+function sha256Hex(value: string): string {
+  return createHash('sha256').update(value, 'utf8').digest('hex');
+}
+
+function selectorFor(action: AccessibilityPlanStepAction, displayName: string): AccessibilitySelectorHints {
+  switch (action) {
+    case 'FIND_ELEMENT':
+      return { className: 'android.widget.Button', contentDescription: '검색', relativeRole: 'search-control' };
+    case 'CLICK_ALLOWED_NODE':
+      return { className: 'android.widget.Button', contentDescription: '검색', relativeRole: 'search-control' };
+    case 'TYPE_APPROVED_RECIPIENT_QUERY':
+      return { className: 'android.widget.EditText', relativeRole: 'search-input' };
+    case 'SELECT_RECIPIENT':
+    case 'VERIFY_RECIPIENT':
+      return { expectedVisibleLabel: displayName, relativeRole: 'approved-recipient' };
+    case 'FOCUS_INPUT':
+    case 'TYPE_APPROVED_TEXT':
+      return { className: 'android.widget.EditText', contentDescription: 'Message input', relativeRole: 'composer' };
+    case 'OBSERVE_RESULT':
+      return { className: 'android.widget.EditText', relativeRole: 'composer' };
+    default:
+      return {};
+  }
+}
+
+function planStep(action: AccessibilityPlanStepAction, index: number, displayName: string): AccessibilityPlanStep {
+  return {
+    stepId: `step_${String(index + 1).padStart(2, '0')}_${action.toLowerCase()}`,
+    action,
+    screenContract: action === 'OPEN_APP' ? 'home-news' : action === 'SELECT_RECIPIENT' ? 'recipient-result' : action === 'VERIFY_RECIPIENT' ? 'conversation' : action === 'FIND_ELEMENT' || action === 'CLICK_ALLOWED_NODE' ? 'chat-list' : action === 'TYPE_APPROVED_RECIPIENT_QUERY' ? 'search' : 'conversation',
+    semanticTarget: action === 'SELECT_RECIPIENT' || action === 'VERIFY_RECIPIENT' ? 'approved-recipient' : action === 'FOCUS_INPUT' || action === 'TYPE_APPROVED_TEXT' ? 'message-composer' : action.toLowerCase(),
+    selectorHints: selectorFor(action, displayName),
+  };
+}
+
+function targetedPlanStep(action: AccessibilityPlanStepAction, index: number, screenContract: string, semanticTarget: string, selectorHints: AccessibilitySelectorHints): AccessibilityPlanStep {
+  return {
+    stepId: `step_${String(index + 1).padStart(2, '0')}_${semanticTarget.replace(/[^a-z0-9]+/gi, '_').toLowerCase()}`,
+    action,
+    screenContract,
+    semanticTarget,
+    selectorHints,
+  };
+}
+
+function commandSteps(input: AccessibilityExecutionPlanInput): readonly AccessibilityPlanStep[] {
+  const mapped: AccessibilityPlanStepAction[] = [];
+  if (input.actions.includes('OPEN_APP')) mapped.push('OPEN_APP');
+  if (input.actions.includes('SEARCH_CONTACT') || input.actions.includes('OPEN_CHAT')) mapped.push('CLICK_ALLOWED_NODE', 'FIND_ELEMENT', 'TYPE_APPROVED_RECIPIENT_QUERY');
+  if (input.actions.includes('SELECT_CONTACT')) mapped.push('SELECT_RECIPIENT', 'VERIFY_RECIPIENT');
+  if (input.actions.includes('FOCUS_MESSAGE_BOX')) mapped.push('FOCUS_INPUT');
+  if (input.actions.includes('TYPE_MESSAGE')) mapped.push('TYPE_APPROVED_TEXT');
+  mapped.push('OBSERVE_RESULT');
+  return mapped.map((action, index) => {
+    if (action === 'CLICK_ALLOWED_NODE') {
+      return targetedPlanStep(action, index, 'home-news', 'bottom-chat-tab', { className: 'android.widget.RelativeLayout', contentDescriptionContains: '채팅 탭', relativeRole: 'bottom-chat-tab' });
+    }
+    if (action === 'FIND_ELEMENT') {
+      return targetedPlanStep(action, index, 'chat-list', 'search-control', { className: 'android.widget.Button', contentDescription: '검색', relativeRole: 'search-control' });
+    }
+    if (action === 'TYPE_APPROVED_RECIPIENT_QUERY') {
+      return targetedPlanStep(action, index, 'search', 'search-input', { className: 'android.widget.EditText', relativeRole: 'search-input' });
+    }
+    if (action === 'SELECT_RECIPIENT') {
+      return targetedPlanStep(action, index, 'recipient-result', 'approved-recipient-result', { className: 'android.widget.Button', contentDescriptionContains: input.displayName, relativeRole: 'approved-recipient' });
+    }
+    if (action === 'VERIFY_RECIPIENT') {
+      return targetedPlanStep(action, index, 'conversation', 'conversation-recipient-identity', { className: 'android.widget.TextView', visibleTextContains: input.displayName, relativeRole: 'conversation-title' });
+    }
+    return planStep(action, index, input.displayName);
+  });
+}
+
+function approvalRef(input: AccessibilityExecutionPlanInput): string {
+  const payload = input.approval?.canonicalPayload ?? {};
+  const ref = payload.approvalRef ?? payload.approvalId ?? payload.id;
+  return typeof ref === 'string' && ref ? ref : 'APPROVED_ACTION';
 }
 
 export class MobileAppAccessibilityExecutionService {
@@ -299,14 +440,27 @@ export class MobileAppAccessibilityExecutionService {
       executionSessionId: null,
       data: {
         appId: input.appId,
+        planId: `aplan_${input.requestId}`,
+        commandId: `acmd_${input.requestId}`,
+        principalId: input.principalId,
+        tenantId: input.tenantId,
+        capability: 'KAKAOTALK_ACCESSIBILITY_SEND',
+        executionRoute: 'ANDROID_ACCESSIBILITY',
+        targetPackage: input.packageName,
+        targetAppVersion: input.detectedVersion,
+        approvalRef: approvalRef(input),
+        approvedPayloadHash: sha256Hex(input.approvedMessage),
+        approvedText: input.approvedMessage,
         packageName: input.packageName,
         deviceId: input.deviceId,
         actions: input.actions,
         recipientRef: input.recipientRef,
         displayName: input.displayName,
         messageHash: hashCanonicalPayload({ message: input.approvedMessage }),
+        steps: commandSteps(input),
+        budget: { maxSteps: 10, maxTextInputs: 1, maxClicks: 4, maxScrolls: 2, timeoutMs: 30_000 },
         selectorStrategy: ACCESSIBILITY_SELECTOR_STRATEGY,
-        timeoutMs: 5000,
+        timeoutMs: ACCESSIBILITY_PLAN_TTL_MS,
         requiresForeground: true,
         requiresUserPresence: true,
       },

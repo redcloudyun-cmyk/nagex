@@ -13,8 +13,12 @@ import { DeviceUIActionGate, FakeDeviceUIReasoner } from '../src/execution/devic
 import { harness, plan, proposal, reasoningInput } from './_m4a_device_ui_fixture.js';
 
 const chatListNodes: KakaoSemanticNodeContract[] = [
-  { nodeRef: 'kakao_search_entry', resourceId: 'com.kakao.talk:id/search', className: 'android.widget.Button', contentDescription: 'Search', clickable: true, editable: false },
+  { nodeRef: 'kakao_search_entry', className: 'android.widget.Button', contentDescription: '검색', clickable: true, editable: false },
   { nodeRef: 'kakao_chat_list', className: 'androidx.recyclerview.widget.RecyclerView', contentDescription: 'Chat list', clickable: false, editable: false },
+];
+
+const homeNewsNodes: KakaoSemanticNodeContract[] = [
+  { nodeRef: 'kakao_bottom_chat_tab', className: 'android.widget.RelativeLayout', contentDescription: '채팅 탭 225개의 새로운 업데이트', clickable: true, editable: false },
 ];
 
 const searchNodes: KakaoSemanticNodeContract[] = [
@@ -44,7 +48,7 @@ test('M4C-R1 Android capability report exposes real accessibility state from And
 
 test('M4C-R1 real AccessibilityService implements bounded primitives and keeps send disabled', () => {
   const service = fs.readFileSync('mobile-android/app/src/main/java/com/nagex/mobile/NagexAccessibilityExecutionService.kt', 'utf8');
-  for (const action of ['FIND_ELEMENT', 'FOCUS_INPUT', 'CLICK_ALLOWED_NODE', 'TYPE_APPROVED_TEXT', 'SCROLL_BOUNDED', 'NAVIGATE_BACK', 'OBSERVE_RESULT']) {
+  for (const action of ['FIND_ELEMENT', 'FOCUS_INPUT', 'CLICK_ALLOWED_NODE', 'TYPE_APPROVED_RECIPIENT_QUERY', 'TYPE_APPROVED_TEXT', 'SCROLL_BOUNDED', 'NAVIGATE_BACK', 'OBSERVE_RESULT']) {
     assert.match(service, new RegExp(action));
   }
   assert.match(service, /AccessibilityNodeInfo\.ACTION_CLICK/);
@@ -61,7 +65,8 @@ test('M4C-R1 KakaoTalk 26.8.2 has exact certified contracts and negative cases',
   assert.equal(classifyKakaoVersion('com.kakao.talk', '26.9.0'), 'UNCERTIFIED');
   assert.equal(classifyKakaoVersion('com.kakao.talk', '27.0.0'), 'UNSUPPORTED');
   assert.equal(classifyKakaoVersion('evil.package', '26.8.2'), 'UNSUPPORTED');
-  assert.equal(KAKAOTALK_26_8_2_SCREEN_CONTRACTS.length, 5);
+  assert.equal(KAKAOTALK_26_8_2_SCREEN_CONTRACTS.length, 6);
+  assert.equal(validateKakaoScreenContract('home-news', homeNewsNodes), true);
   assert.equal(validateKakaoScreenContract('chat-list', chatListNodes), true);
   assert.equal(validateKakaoScreenContract('search', searchNodes), true);
   assert.equal(validateKakaoScreenContract('recipient-result', recipientNodes), true);
@@ -79,6 +84,19 @@ test('M4C-R1 certified version can prepare non-send navigation but send remains 
   }));
   assert.equal(prepared.resultCode, 'READY');
   assert.equal(prepared.command?.data.actions.includes('PRESS_SEND'), false);
+  assert.deepEqual(prepared.command?.data.steps.map((step) => step.semanticTarget), [
+    'open_app',
+    'bottom-chat-tab',
+    'search-control',
+    'search-input',
+    'approved-recipient-result',
+    'conversation-recipient-identity',
+    'message-composer',
+    'message-composer',
+    'observe_result',
+  ]);
+  assert.equal(prepared.command?.data.steps[1].selectorHints.contentDescriptionContains, '채팅 탭');
+  assert.equal(prepared.command?.data.steps[3].action, 'TYPE_APPROVED_RECIPIENT_QUERY');
 
   assert.throws(() => h.accessibility.prepare(plan(h, { detectedVersion: '26.9.0' })), /APP_VERSION_UNSUPPORTED/);
   assert.throws(() => h.accessibility.prepare(plan(h, { actions: ['PRESS_SEND'] })), /ACTION_NOT_ALLOWLISTED/);
