@@ -911,7 +911,8 @@
 }
 
 .mh-bottom-spacer {
-  height: calc(84px + env(safe-area-inset-bottom, 0px));
+  flex: 0 0 calc(142px + env(safe-area-inset-bottom, 0px));
+  height: calc(142px + env(safe-area-inset-bottom, 0px));
 }
 
 /* ── I. Fixed bottom navigation — rounded top corners, soft elevation
@@ -1747,13 +1748,17 @@
 
 .mh-memory-results {
   order: 6;
-  margin: 8px 16px 104px;
+  margin: 8px 16px 0;
   padding: 0;
   border: 0;
   background: transparent;
   box-shadow: none;
   position: relative;
   z-index: 31;
+}
+
+#mobile-view-home > .mh-bottom-spacer {
+  order: 7;
 }
 
 .mh-memory-results .ph-memory-results-grid {
