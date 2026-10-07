@@ -68,8 +68,8 @@ function plan(h = harness(), patch: Record<string, unknown> = {}) {
     requestId: 'req_m4a',
     appId: 'KAKAOTALK',
     packageName: 'com.kakao.talk',
-    detectedVersion: '10.x-certified-test-range',
-    actions: ['OPEN_APP', 'OPEN_CHAT', 'SEARCH_CONTACT', 'SELECT_CONTACT', 'FOCUS_MESSAGE_BOX', 'TYPE_MESSAGE', 'REQUEST_SEND_APPROVAL', 'PRESS_SEND', 'OBSERVE_RESULT'],
+    detectedVersion: '26.8.2',
+    actions: ['OPEN_APP', 'OPEN_CHAT', 'SEARCH_CONTACT', 'SELECT_CONTACT', 'FOCUS_MESSAGE_BOX', 'TYPE_MESSAGE', 'REQUEST_SEND_APPROVAL', 'OBSERVE_RESULT'],
     recipientRef: 'rcp_sarah',
     displayName: 'Sarah',
     approvedMessage: 'See you at 6.',
@@ -87,14 +87,14 @@ function observation(deviceId: string, patch: Partial<DeviceUIObservation> = {})
     platform: 'ANDROID',
     deviceRef: deviceId,
     packageName: 'com.kakao.talk',
-    appVersion: '10.x-certified-test-range',
+    appVersion: '26.8.2',
     screenId: 'conversation',
     foregroundState: 'FOREGROUND',
     nodes: [
       { nodeRef: 'node_send', resourceId: 'send', role: 'Button', contentDescription: 'Send', clickable: true, editable: false, enabled: true },
       { nodeRef: 'node_input', resourceId: 'message', role: 'EditText', text: '', clickable: true, editable: true, enabled: true },
     ],
-    availableSemanticActions: ['REQUEST_SEND', 'TYPE_APPROVED_TEXT', 'OBSERVE_RESULT'],
+    availableSemanticActions: ['FIND_ELEMENT', 'TYPE_APPROVED_TEXT', 'OBSERVE_RESULT'],
     executionStep: 'MESSAGE_TYPED',
     timestamp: '2026-10-07T00:00:00.000Z',
     screenshotAllowed: false,
@@ -110,9 +110,9 @@ function proposal(patch: Partial<DeviceUIActionProposal> = {}): DeviceUIActionPr
   return {
     provider: 'ASTRA',
     model: 'gpt-6-astra',
-    action: 'REQUEST_SEND',
-    targetNodeRef: 'node_send',
-    semanticTarget: 'send button',
+    action: 'FIND_ELEMENT',
+    targetNodeRef: 'node_input',
+    semanticTarget: 'message input',
     expectedApp: 'com.kakao.talk',
     expectedScreen: 'conversation',
     confidence: 0.94,
@@ -131,7 +131,7 @@ function reasoningInput(h = harness(), patch: Partial<DeviceUIReasoningInput> = 
     providerPreference: ['DETERMINISTIC', 'ASTRA'],
     observation: observation(h.device.deviceId),
     executionGoal: { appId: 'KAKAOTALK', packageName: 'com.kakao.talk', deviceId: h.device.deviceId, recipientRef: 'rcp_sarah', displayName: 'Sarah', approvedMessageHash: approvedMessageHash('See you at 6.'), route: 'ANDROID_ACCESSIBILITY', approvalId: 'appr_1' },
-    allowedActions: ['REQUEST_SEND', 'TYPE_APPROVED_TEXT', 'OBSERVE_RESULT', 'WAIT'],
+    allowedActions: ['FIND_ELEMENT', 'TYPE_APPROVED_TEXT', 'OBSERVE_RESULT', 'WAIT'],
     currentPlan: p,
     budget: budget(),
     ...patch,
@@ -146,14 +146,14 @@ test('M4A deterministic path succeeds without calling Astra', () => {
   assert.equal(reasoner.calls.length, 0);
 });
 
-test('M4A Astra recovery proposes one typed action and NAgex Action Gate authorizes it', async () => {
+test('M4A Astra recovery proposes one typed non-send action and NAgex Action Gate authorizes it', async () => {
   const h = harness();
   const reasoner = new FakeDeviceUIReasoner([proposal()]);
   const coordinator = new DeviceUIReasoningCoordinator(reasoner);
   const result = await coordinator.recover(reasoningInput(h));
   assert.equal(reasoner.calls.length, 1);
   assert.equal(result.decision, 'AUTHORIZED_ACTION');
-  assert.equal(result.authorizedAction, 'PRESS_SEND');
+  assert.equal(result.authorizedAction, 'SEARCH_CONTACT');
   assert.equal(result.proposal?.provider, 'ASTRA');
 });
 
@@ -178,7 +178,7 @@ test('M4A Action Gate blocks app, recipient, message, device, route, approval, a
   assert.equal(gate.validate(reasoningInput(h, { observation: observation('other_device') }), proposal()).reasonCode, 'DEVICE_CHANGED_AFTER_APPROVAL');
   assert.equal(gate.validate(reasoningInput(h, { currentPlan: plan(h, { approval: approval(h.device.deviceId, { executionRoute: 'APP_LINK' }) }) }), proposal()).reasonCode, 'ROUTE_CHANGED_AFTER_APPROVAL');
   assert.equal(gate.validate(reasoningInput(h, { currentPlan: plan(h, { approval: null }) }), proposal()).reasonCode, 'APPROVAL_MISSING');
-  assert.equal(gate.validate(reasoningInput(h, { currentPlan: plan(h, { approval: approval(h.device.deviceId, { materialPayloadHash: 'wrong' }) }) }), proposal()).reasonCode, 'SEND_BOUNDARY_REVALIDATION_FAILED');
+  assert.equal(gate.validate(reasoningInput(h, { allowedActions: ['REQUEST_SEND'], currentPlan: plan(h, { approval: approval(h.device.deviceId, { materialPayloadHash: 'wrong' }) }) }), proposal({ action: 'REQUEST_SEND' })).reasonCode, 'ACTION_NOT_ALLOWLISTED');
 });
 
 test('M4A execution budget, timeout, scroll budget, and user override block execution', () => {
@@ -213,7 +213,7 @@ test('M4A Astra implementation is provider-neutral, schema-bound, and cannot sel
   } });
   assert.equal(astra.status().configured, true);
   const p = await astra.reason(reasoningInput(h));
-  assert.equal(p.action, 'REQUEST_SEND');
+  assert.equal(p.action, 'FIND_ELEMENT');
   const gate = new DeviceUIActionGate();
   assert.equal(gate.validate(reasoningInput(h, { currentPlan: plan(h, { approval: null }) }), p).decision, 'PERMISSION_REQUIRED');
 });

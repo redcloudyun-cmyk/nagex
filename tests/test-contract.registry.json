@@ -3902,6 +3902,18 @@
       "assertionIntent": "AstraDeviceUIReasoner has a real provider call path that sends minimized synthetic UI observation to strict structured output, parses one typed proposal, records usage, and then stops at NAgex Action Gate; deterministic known UI invokes zero Astra calls, recovery invokes Astra only as fallback, and failure modes fail closed before any device action",
       "notes": "Uses fake fetch for provider-contract certification. Actual live Astra diagnostic remains environment-gated and must not be reported PASS without a real configured API key."
     },
+    "r23_6m_phase_m4c_real_accessibility_actuator": {
+      "milestone": "R23.6M-M4C-R1",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["agents", "approvals", "device", "security"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "real Android accessibility actuator repair: device capability inventory exposes Android OS-derived accessibility state; KakaoTalk 26.8.2 has exact sanitized screen contracts; bounded non-send AccessibilityNodeInfo primitives are implemented; Astra recovery remains advisory/gated and send remains disabled for M4C-R1.",
+      "notes": "No live Android send, no screenshot streaming, no coordinate-only execution, and no arbitrary Accessibility action."
+    },
     "r23_6m_d4b_gmail_canonical_email": {
       "milestone": "R23.6M-D4B",
       "classification": "CANONICAL_BEHAVIOR",

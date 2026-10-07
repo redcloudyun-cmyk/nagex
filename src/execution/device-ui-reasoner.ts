@@ -137,6 +137,7 @@ export const DEVICE_UI_REASONER_ACTIONS: readonly DeviceUIProposedAction[] = [
 
 const PROPOSAL_TO_ACCESSIBILITY_ACTION: Partial<Record<DeviceUIProposedAction, AccessibilityAction>> = {
   OPEN_APP: 'OPEN_APP',
+  FIND_ELEMENT: 'SEARCH_CONTACT',
   SELECT_RECIPIENT: 'SELECT_CONTACT',
   OPEN_CHAT: 'OPEN_CHAT',
   FOCUS_INPUT: 'FOCUS_MESSAGE_BOX',

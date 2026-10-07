@@ -271,6 +271,7 @@
       "r23_6m_phase_m4_constrained_accessibility_execution",
       "r23_6m_phase_m4a_astra_guided_device_control",
       "r23_6m_phase_m4b_real_astra_device_loop",
+      "r23_6m_phase_m4c_real_accessibility_actuator",
       "device_agent_foundation",
       "device_agent_transport",
       "r23_3t_permission_approval_hardening",

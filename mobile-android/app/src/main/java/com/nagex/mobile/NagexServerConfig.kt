@@ -25,7 +25,7 @@ import androidx.security.crypto.MasterKey
  * login/QR-pairing flow is a reasonable Phase C+ improvement, not
  * implemented now.
  */
-class NagexServerConfig(context: Context) {
+class NagexServerConfig(val context: Context) {
     private val prefs: SharedPreferences =
         context.getSharedPreferences("nagex_server_config", Context.MODE_PRIVATE)
 
