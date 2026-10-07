@@ -3914,6 +3914,42 @@
       "assertionIntent": "real Android accessibility actuator repair: device capability inventory exposes Android OS-derived accessibility state; KakaoTalk 26.8.2 has exact sanitized screen contracts; bounded non-send AccessibilityNodeInfo primitives are implemented; Astra recovery remains advisory/gated and send remains disabled for M4C-R1.",
       "notes": "No live Android send, no screenshot streaming, no coordinate-only execution, and no arbitrary Accessibility action."
     },
+    "r23_6m_phase_m4c_r2a_plan_delivery_dispatch": {
+      "milestone": "R23.6M-M4C-R2A",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["agents", "approvals", "device", "security"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "server-bound ACCESSIBILITY_EXECUTE_PLAN delivery and Android dispatch wiring: heartbeat pending-command transport is reused, command envelopes carry approval-bound approvedText plus SHA-256 payload hash, Android verifies device/tenant/user/expiry/replay/accessibility/package/recipient/order before bounded AccessibilityService calls, result reporting is typed and send actions remain blocked.",
+      "notes": "No live Android send, no new command channel, no raw message logging, no coordinates, no arbitrary automation, and no Astra call."
+    },
+    "r23_6m_phase_m4c_r2b_android_auth_enrollment": {
+      "milestone": "R23.6M-M4C-R2B",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": ["agents", "device", "identity-access", "security"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "Android device enrollment authentication UX: normal users sign in through the existing auth/login contract, the returned session id is stored in EncryptedSharedPreferences and never rendered, enrollment uses Authorization Bearer, expired auth clears the encrypted session, logout clears session state, and remote auth requires HTTPS.",
+      "notes": "Source-level Android contract guard. No live server, no device action, no raw session ids."
+    },
+    "r23_6m_phase_m4c_r2c_device_command_enqueue": {
+      "milestone": "R23.6M-M4C-R2C",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["agents", "approvals", "device", "identity-access", "security"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "governed Accessibility execute-plan enqueue API: authenticated user can enqueue only an approval-bound KakaoTalk ACCESSIBILITY_EXECUTE_PLAN for their own active enrolled device; wrong tenant/user/device, inactive device, missing/expired/mismatched approval, route/app/version drift, send/raw/arbitrary actions, duplicate active plans, and expired queued commands fail closed; heartbeat delivery consumes the pending command once.",
+      "notes": "No generic command passthrough, no raw store mutation route, no real Android action, no send."
+    },
     "r23_6m_d4b_gmail_canonical_email": {
       "milestone": "R23.6M-D4B",
       "classification": "CANONICAL_BEHAVIOR",

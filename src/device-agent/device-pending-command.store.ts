@@ -56,6 +56,18 @@ export class DevicePendingCommandStore {
     return command;
   }
 
+  public listPendingForDevice(deviceId: string, tenantId: string, ownerId: string, nowMs = Date.now()): DevicePendingCommand[] {
+    return this.fileStore.readAll().filter((command) => {
+      if (command.deviceId !== deviceId || command.tenantId !== tenantId || command.ownerId !== ownerId) return false;
+      const expiresAt = typeof command.data.expiresAt === 'string' ? Date.parse(command.data.expiresAt) : NaN;
+      return !Number.isFinite(expiresAt) || expiresAt > nowMs;
+    });
+  }
+
+  public findByPlanId(deviceId: string, tenantId: string, ownerId: string, planId: string, nowMs = Date.now()): DevicePendingCommand | null {
+    return this.listPendingForDevice(deviceId, tenantId, ownerId, nowMs).find((command) => command.data.planId === planId) ?? null;
+  }
+
   // Pops the single oldest pending command for this device, if any — one
   // command delivered per heartbeat, never a batch, keeping each delivery
   // small and boundedly verifiable by the agent.
@@ -63,8 +75,13 @@ export class DevicePendingCommandStore {
     const all = this.fileStore.readAll().filter((c) => c.deviceId === deviceId && c.tenantId === tenantId && c.ownerId === ownerId);
     if (all.length === 0) return null;
     all.sort((a, b) => a.queuedAt.localeCompare(b.queuedAt));
-    const next = all[0];
-    this.fileStore.remove(next.commandId);
-    return next;
+    const now = Date.now();
+    for (const next of all) {
+      const expiresAt = typeof next.data.expiresAt === 'string' ? Date.parse(next.data.expiresAt) : NaN;
+      this.fileStore.remove(next.commandId);
+      if (Number.isFinite(expiresAt) && expiresAt <= now) continue;
+      return next;
+    }
+    return null;
   }
 }

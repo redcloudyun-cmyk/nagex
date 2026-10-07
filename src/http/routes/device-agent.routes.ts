@@ -37,6 +37,7 @@
 import crypto from 'node:crypto';
 import { NagexError } from '../../common/errors.js';
 import type { DeviceAgentTransportEndpoint } from '../../device-agent/device-agent-transport-endpoint.service.js';
+import type { DeviceCommandService } from '../../device-agent/device-command.service.js';
 import type { DeviceIdentityStore } from '../../device-agent/device-identity.store.js';
 import type { SessionStore } from '../../sessions/session.store.js';
 import { getSessionIdFromHeaders } from './auth.routes.js';
@@ -49,12 +50,13 @@ function getHeaderValue(headers: Record<string, string | string[] | undefined>, 
 
 export interface DeviceAgentRouteDeps {
   deviceAgentTransportEndpoint: DeviceAgentTransportEndpoint;
+  deviceCommandService?: DeviceCommandService;
   deviceIdentityStore: DeviceIdentityStore;
   sessionStore: SessionStore;
 }
 
 export const handleDeviceAgentRoutes: AsyncRouteRegistrar<DeviceAgentRouteDeps> = async (method, pathname, body, headers, _query, deps): Promise<ApiResult | undefined> => {
-  const { deviceAgentTransportEndpoint, deviceIdentityStore, sessionStore } = deps;
+  const { deviceAgentTransportEndpoint, deviceCommandService, deviceIdentityStore, sessionStore } = deps;
 
   if (pathname === '/api/v1/device-agent/message' && method === 'POST') {
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
@@ -92,6 +94,50 @@ export const handleDeviceAgentRoutes: AsyncRouteRegistrar<DeviceAgentRouteDeps> 
     }
     const device = deviceIdentityStore.enroll({ tenantId, ownerId, publicKey, agentVersion, capabilityInventory });
     return { status: 201, data: device };
+  }
+
+  if (pathname === '/api/v1/device-agent/accessibility-plans' && method === 'POST') {
+    const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+    const sessionId = getSessionIdFromHeaders(headers);
+    const session = sessionId ? sessionStore.getSession(sessionId) : null;
+    if (!session) {
+        throw new NagexError({ code: 'DEVICE_COMMAND_AUTH_REQUIRED', category: 'AUTHENTICATION', message: 'A valid authenticated session is required to enqueue an accessibility plan.', request_id: requestId });
+    }
+    if (!deviceCommandService) {
+      throw new NagexError({ code: 'DEVICE_COMMAND_SERVICE_UNAVAILABLE', category: 'INTERNAL', message: 'Device command service is not configured.', request_id: requestId });
+    }
+
+    const steps = Array.isArray(body?.steps) ? body.steps : [];
+    const result = deviceCommandService.enqueueAccessibilityPlan({
+      tenantId: session.tenantId,
+      principalId: session.principalId,
+      requestId,
+      deviceId: typeof body?.deviceId === 'string' ? body.deviceId : '',
+      approvalRef: typeof body?.approvalRef === 'string' ? body.approvalRef : '',
+      recipientRef: typeof body?.recipientRef === 'string' ? body.recipientRef : '',
+      targetPackage: typeof body?.targetPackage === 'string' ? body.targetPackage : '',
+      targetAppVersion: typeof body?.targetAppVersion === 'string' ? body.targetAppVersion : '',
+      route: typeof body?.route === 'string' ? body.route : '',
+      planId: typeof body?.planId === 'string' ? body.planId : '',
+      approvedPayloadHash: typeof body?.approvedPayloadHash === 'string' ? body.approvedPayloadHash : '',
+      approvedText: typeof body?.approvedText === 'string' ? body.approvedText : undefined,
+      messageHash: typeof body?.messageHash === 'string' ? body.messageHash : '',
+      displayName: typeof body?.displayName === 'string' ? body.displayName : '',
+      expiresAt: typeof body?.expiresAt === 'string' ? body.expiresAt : '',
+      steps: steps as any,
+      budget: body?.budget && typeof body.budget === 'object' && !Array.isArray(body.budget) ? body.budget as Record<string, unknown> : undefined,
+    });
+    return {
+      status: result.status === 'QUEUED' ? 202 : 200,
+      data: {
+        status: result.status,
+        commandId: result.command.commandId,
+        planId: result.command.data.planId,
+        commandType: result.command.commandType,
+        deviceId: result.command.deviceId,
+        queuedAt: result.command.queuedAt,
+      },
+    };
   }
 
   return undefined;

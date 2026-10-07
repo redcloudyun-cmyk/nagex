@@ -60,6 +60,7 @@ import { DesktopExecutionSessionStore } from '../device-agent/desktop-execution-
 import { DeviceTransportSecurity } from '../device-agent/device-transport-security.js';
 import { DeviceConnectionStatusStore } from '../device-agent/device-connection-status.store.js';
 import { DevicePendingCommandStore } from '../device-agent/device-pending-command.store.js';
+import { DeviceCommandService } from '../device-agent/device-command.service.js';
 import { DeviceAgentTransportEndpoint } from '../device-agent/device-agent-transport-endpoint.service.js';
 import { MobileExecutionAuthority } from '../execution/mobile-execution-authority.js';
 import { DesktopAppAllowlist } from '../device-agent/desktop-app-allowlist.js';
@@ -228,6 +229,7 @@ export function createNagexApplication(): NagexApplication {
   // "enrolled/connected/authenticated" are reachable from here.
   const deviceConnectionStatusStore = new DeviceConnectionStatusStore();
   const devicePendingCommandStore = new DevicePendingCommandStore();
+  const deviceCommandService = new DeviceCommandService(deviceIdentityStore, devicePendingCommandStore, actionApprovals);
   // R23.6M Phase B3 — mobile contact resolution. recipientRef minting is
   // the only new durable store this phase adds; ContactResolver holds no
   // state of its own.
@@ -835,6 +837,7 @@ export function createNagexApplication(): NagexApplication {
     deviceTransportSecurity,
     deviceConnectionStatusStore,
     devicePendingCommandStore,
+    deviceCommandService,
     deviceAgentTransportEndpoint,
     personalContextService,
     conversationMemoryExtractor,

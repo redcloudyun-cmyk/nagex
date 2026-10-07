@@ -70,6 +70,7 @@ import type { DesktopExecutionSessionStore } from '../device-agent/desktop-execu
 import type { DeviceTransportSecurity } from '../device-agent/device-transport-security.js';
 import type { DeviceConnectionStatusStore } from '../device-agent/device-connection-status.store.js';
 import type { DevicePendingCommandStore } from '../device-agent/device-pending-command.store.js';
+import type { DeviceCommandService } from '../device-agent/device-command.service.js';
 import type { DeviceAgentTransportEndpoint } from '../device-agent/device-agent-transport-endpoint.service.js';
 
 import type { IdentityStore } from '../identity/identity.store.js';
@@ -177,6 +178,7 @@ export interface NagexApplication {
   deviceTransportSecurity: DeviceTransportSecurity;
   deviceConnectionStatusStore: DeviceConnectionStatusStore;
   devicePendingCommandStore: DevicePendingCommandStore;
+  deviceCommandService: DeviceCommandService;
   deviceAgentTransportEndpoint: DeviceAgentTransportEndpoint;
   getRelevantMemories: (tenantId: string, principalId: string, prompt: string) => MemoryRecord[];
   pinnedMemories: Set<string>;
