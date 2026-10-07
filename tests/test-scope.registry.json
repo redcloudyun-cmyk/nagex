@@ -275,6 +275,7 @@
       "r23_6m_phase_m4c_r2a_plan_delivery_dispatch",
       "r23_6m_phase_m4c_r2b_android_auth_enrollment",
       "r23_6m_phase_m4c_r2c_device_command_enqueue",
+      "r23_6m_phase_m4c_r2d_mobile_accessibility_approval",
       "device_agent_foundation",
       "device_agent_transport",
       "r23_3t_permission_approval_hardening",

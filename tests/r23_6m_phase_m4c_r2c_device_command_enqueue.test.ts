@@ -10,6 +10,7 @@ import { DevicePendingCommandStore } from '../src/device-agent/device-pending-co
 import { DeviceCommandService, ACCESSIBILITY_PLAN_TOOL_ID } from '../src/device-agent/device-command.service.js';
 import { SessionStore } from '../src/sessions/session.store.js';
 import { handleDeviceAgentRoutes } from '../src/http/routes/device-agent.routes.js';
+import { mobileAccessibilityDraftPayload } from '../src/mobile/mobile-accessibility-approval.service.js';
 
 function tmp(): string { return fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-r2c-')); }
 function sha256(text: string): string { return crypto.createHash('sha256').update(text, 'utf8').digest('hex'); }
@@ -31,27 +32,21 @@ function makeHarness(patch: Record<string, unknown> = {}) {
   });
   const message = 'See you at 6.';
   const messageHash = hashCanonicalPayload({ message });
-  const material = {
-    appId: 'KAKAOTALK',
-    packageName: 'com.kakao.talk',
+  const material = mobileAccessibilityDraftPayload({
+    targetPackage: 'com.kakao.talk',
+    targetAppVersion: '26.8.2',
     recipientRef: 'rcp_sarah',
     displayName: 'Sarah',
+    approvedTextHash: sha256(message),
     messageHash,
     deviceId: device.deviceId,
-    executionRoute: 'ANDROID_ACCESSIBILITY',
-  };
+    route: 'ANDROID_ACCESSIBILITY',
+  });
   const approval = approvals.request({
     toolId: ACCESSIBILITY_PLAN_TOOL_ID,
     tenantId: 'ten',
     principalId: 'usr',
-    payload: {
-      deviceId: device.deviceId,
-      recipientRef: 'rcp_sarah',
-      provider: 'KAKAOTALK',
-      executionRoute: 'ANDROID_ACCESSIBILITY',
-      messageHash,
-      materialPayloadHash: hashCanonicalPayload(material),
-    },
+    payload: material,
   });
   approvals.approve(approval.approvalId, 'ten', 'usr');
   const input = {
@@ -127,8 +122,8 @@ const blockedCases: Array<[string, Record<string, unknown>, string]> = [
   ['wrong tenant rejected', { tenantId: 'other' }, 'DEVICE_NOT_FOUND'],
   ['wrong user rejected', { principalId: 'other' }, 'DEVICE_NOT_FOUND'],
   ['missing approval rejected', { approvalRef: 'apr_missing' }, 'APPROVAL_NOT_FOUND'],
-  ['recipient mismatch rejected', { recipientRef: 'rcp_other' }, 'APPROVAL_RECIPIENT_MISMATCH'],
-  ['message hash mismatch rejected', { messageHash: 'wrong' }, 'APPROVAL_MESSAGE_HASH_MISMATCH'],
+  ['recipient mismatch rejected', { recipientRef: 'rcp_other' }, 'APPROVAL_PAYLOAD_MISMATCH'],
+  ['message hash mismatch rejected', { messageHash: 'wrong' }, 'APPROVAL_PAYLOAD_MISMATCH'],
   ['wrong route rejected', { route: 'APP_LINK' }, 'ROUTE_MUTATION_REAPPROVAL_REQUIRED'],
   ['unsupported package rejected', { targetPackage: 'com.other' }, 'APP_NOT_ALLOWLISTED'],
   ['unsupported version rejected', { targetAppVersion: '99.0.0' }, 'APP_VERSION_UNSUPPORTED'],
@@ -156,7 +151,7 @@ test('M4C-R2C expired approval rejected', () => {
   const h = makeHarness();
   const approvals = new ActionApprovalStore(() => current, 1);
   const service = new DeviceCommandService(h.devices, h.pending, approvals, () => now);
-  const approval = approvals.request({ toolId: ACCESSIBILITY_PLAN_TOOL_ID, tenantId: 'ten', principalId: 'usr', payload: { deviceId: h.device.deviceId, recipientRef: 'rcp_sarah', provider: 'KAKAOTALK', executionRoute: 'ANDROID_ACCESSIBILITY', messageHash: h.input.messageHash } });
+  const approval = approvals.request({ toolId: ACCESSIBILITY_PLAN_TOOL_ID, tenantId: 'ten', principalId: 'usr', payload: mobileAccessibilityDraftPayload({ deviceId: h.device.deviceId, recipientRef: 'rcp_sarah', targetPackage: 'com.kakao.talk', targetAppVersion: '26.8.2', route: 'ANDROID_ACCESSIBILITY', approvedTextHash: h.input.approvedPayloadHash, messageHash: h.input.messageHash, displayName: 'Sarah' }) });
   approvals.approve(approval.approvalId, 'ten', 'usr');
   current = now + 120_000;
   expectCode(() => service.enqueueAccessibilityPlan({ ...h.input, approvalRef: approval.approvalId }), 'APPROVAL_EXPIRED');

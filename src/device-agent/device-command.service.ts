@@ -5,8 +5,9 @@ import { hashCanonicalPayload } from '../governance/action-approval.store.js';
 import type { DeviceIdentityStore } from './device-identity.store.js';
 import type { DevicePendingCommand } from './device-agent-protocol.js';
 import type { DevicePendingCommandStore } from './device-pending-command.store.js';
+import { KAKAOTALK_ACCESSIBILITY_DRAFT_TOOL_ID, mobileAccessibilityDraftPayload } from '../mobile/mobile-accessibility-approval.service.js';
 
-export const ACCESSIBILITY_PLAN_TOOL_ID = 'KAKAOTALK_ACCESSIBILITY_SEND';
+export const ACCESSIBILITY_PLAN_TOOL_ID = KAKAOTALK_ACCESSIBILITY_DRAFT_TOOL_ID;
 
 const ALLOWED_ACTIONS = new Set([
   'OPEN_APP',
@@ -117,31 +118,35 @@ export class DeviceCommandService {
       }
     }
 
-    const approval = this.approvals.assertExecutable(input.approvalRef, input.tenantId, input.principalId, ACCESSIBILITY_PLAN_TOOL_ID, input.requestId);
-    const approvedPayload = approval.canonicalPayload;
-    const materialPayload = {
-      appId: 'KAKAOTALK',
-      packageName: input.targetPackage,
-      recipientRef: input.recipientRef,
-      displayName: input.displayName,
-      messageHash: input.messageHash,
-      deviceId: input.deviceId,
-      executionRoute: input.route,
-    };
-    if (approvedPayload.deviceId !== input.deviceId) throw new NagexError({ code: 'APPROVAL_DEVICE_MISMATCH', category: 'POLICY', message: 'Approval is bound to a different device.', request_id: input.requestId });
-    if (approvedPayload.recipientRef !== input.recipientRef && approvedPayload.targetRef !== input.recipientRef) throw new NagexError({ code: 'APPROVAL_RECIPIENT_MISMATCH', category: 'POLICY', message: 'Approval is bound to a different recipient.', request_id: input.requestId });
-    if (approvedPayload.provider !== 'KAKAOTALK') throw new NagexError({ code: 'APPROVAL_APP_MISMATCH', category: 'POLICY', message: 'Approval is bound to a different app.', request_id: input.requestId });
-    if (approvedPayload.executionRoute !== input.route) throw new NagexError({ code: 'ROUTE_MUTATION_REAPPROVAL_REQUIRED', category: 'POLICY', message: 'Route changed after approval.', request_id: input.requestId });
-    if (approvedPayload.messageHash !== undefined && approvedPayload.messageHash !== input.messageHash) throw new NagexError({ code: 'APPROVAL_MESSAGE_HASH_MISMATCH', category: 'POLICY', message: 'Approval is bound to a different message hash.', request_id: input.requestId });
-    if (typeof approvedPayload.materialPayloadHash === 'string' && approvedPayload.materialPayloadHash !== hashCanonicalPayload(materialPayload)) {
-      throw new NagexError({ code: 'APPROVAL_PAYLOAD_MISMATCH', category: 'POLICY', message: 'Plan material payload does not match approval.', request_id: input.requestId });
-    }
-
     const duplicate = this.pendingCommands.findByPlanId(input.deviceId, input.tenantId, input.principalId, input.planId, this.now());
     if (duplicate) return { status: 'DUPLICATE_RETURNED', command: duplicate };
     const active = this.pendingCommands.listPendingForDevice(input.deviceId, input.tenantId, input.principalId, this.now());
     if (active.length > 0) {
       throw new NagexError({ code: 'DEVICE_COMMAND_ALREADY_PENDING', category: 'CONFLICT', message: 'A pending command already exists for this device.', request_id: input.requestId });
+    }
+
+    const materialPayload = mobileAccessibilityDraftPayload({
+      deviceId: input.deviceId,
+      recipientRef: input.recipientRef,
+      targetPackage: input.targetPackage,
+      targetAppVersion: input.targetAppVersion,
+      route: input.route,
+      approvedTextHash: input.approvedPayloadHash,
+      messageHash: input.messageHash,
+      displayName: input.displayName,
+    });
+    const approval = this.approvals.consume(input.approvalRef, input.tenantId, input.principalId, ACCESSIBILITY_PLAN_TOOL_ID, materialPayload, input.requestId, `exec_${input.planId}`);
+    const approvedPayload = approval.canonicalPayload;
+    if (approvedPayload.actionType !== KAKAOTALK_ACCESSIBILITY_DRAFT_TOOL_ID) throw new NagexError({ code: 'APPROVAL_ACTION_MISMATCH', category: 'POLICY', message: 'Approval is not a KakaoTalk accessibility draft approval.', request_id: input.requestId });
+    if (approvedPayload.deviceId !== input.deviceId) throw new NagexError({ code: 'APPROVAL_DEVICE_MISMATCH', category: 'POLICY', message: 'Approval is bound to a different device.', request_id: input.requestId });
+    if (approvedPayload.recipientRef !== input.recipientRef && approvedPayload.targetRef !== input.recipientRef) throw new NagexError({ code: 'APPROVAL_RECIPIENT_MISMATCH', category: 'POLICY', message: 'Approval is bound to a different recipient.', request_id: input.requestId });
+    if (approvedPayload.provider !== 'KAKAOTALK') throw new NagexError({ code: 'APPROVAL_APP_MISMATCH', category: 'POLICY', message: 'Approval is bound to a different app.', request_id: input.requestId });
+    if (approvedPayload.executionRoute !== input.route) throw new NagexError({ code: 'ROUTE_MUTATION_REAPPROVAL_REQUIRED', category: 'POLICY', message: 'Route changed after approval.', request_id: input.requestId });
+    if (approvedPayload.messageHash !== undefined && approvedPayload.messageHash !== input.messageHash) throw new NagexError({ code: 'APPROVAL_MESSAGE_HASH_MISMATCH', category: 'POLICY', message: 'Approval is bound to a different message hash.', request_id: input.requestId });
+    if (approvedPayload.approvedTextHash !== input.approvedPayloadHash) throw new NagexError({ code: 'APPROVAL_MESSAGE_HASH_MISMATCH', category: 'POLICY', message: 'Approval is bound to a different approved text hash.', request_id: input.requestId });
+    if (approvedPayload.targetPackage !== input.targetPackage || approvedPayload.targetAppVersion !== input.targetAppVersion) throw new NagexError({ code: 'APPROVAL_APP_MISMATCH', category: 'POLICY', message: 'Approval is bound to a different app package/version.', request_id: input.requestId });
+    if (typeof approvedPayload.materialPayloadHash === 'string' && approvedPayload.materialPayloadHash !== materialPayload.materialPayloadHash) {
+      throw new NagexError({ code: 'APPROVAL_PAYLOAD_MISMATCH', category: 'POLICY', message: 'Plan material payload does not match approval.', request_id: input.requestId });
     }
 
     const command = this.pendingCommands.enqueue(input.deviceId, input.tenantId, input.principalId, 'ACCESSIBILITY_EXECUTE_PLAN', null, {

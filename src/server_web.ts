@@ -766,7 +766,7 @@ export function handleApiRequest(
   // only ever update the approval record; the canonical
   // GoogleCapabilityExecutionPipeline re-validates everything downstream.
   {
-    const approvalsResult = handleApprovalsRoutes(method, pathname, body, headers, {}, { googleCalendarService, gmailService, actionApprovals, auditLogger, taskContinuationCoordinator, tenantId, principal, modelErrorResult });
+    const approvalsResult = handleApprovalsRoutes(method, pathname, body, headers, {}, { googleCalendarService, gmailService, actionApprovals, mobileAccessibilityApprovalService: app.mobileAccessibilityApprovalService, auditLogger, taskContinuationCoordinator, tenantId, principal, modelErrorResult });
     if (approvalsResult) return approvalsResult;
   }
 

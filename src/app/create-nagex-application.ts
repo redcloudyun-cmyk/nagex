@@ -47,6 +47,7 @@ import { AstraVisualExecutionModelAdapter } from '../device-control/astra-visual
 import { DeviceIdentityStore } from '../device-agent/device-identity.store.js';
 import { RecipientRefStore } from '../mobile/recipient-ref.store.js';
 import { ContactResolver } from '../mobile/contact-resolver.service.js';
+import { MobileAccessibilityApprovalService } from '../mobile/mobile-accessibility-approval.service.js';
 import { MobileMessageRunStore } from '../mobile/mobile-message-run.store.js';
 import { MobileMessageRunService } from '../mobile/mobile-message-run.service.js';
 import { MessagingAdapterRegistry } from '../messaging/messaging-adapter-registry.js';
@@ -235,6 +236,7 @@ export function createNagexApplication(): NagexApplication {
   // state of its own.
   const recipientRefStore = new RecipientRefStore();
   const contactResolver = new ContactResolver(recipientRefStore);
+  const mobileAccessibilityApprovalService = new MobileAccessibilityApprovalService(deviceIdentityStore, recipientRefStore, actionApprovals);
   const mobileExecutionAuthority = new MobileExecutionAuthority(deviceIdentityStore, deviceConnectionStatusStore);
   // R23.6M Phase C — one complete real SMS execution flow. Reuses
   // actionApprovals/auditLogger unchanged; recipientRefStore already
@@ -855,6 +857,7 @@ export function createNagexApplication(): NagexApplication {
     competitorPricingRunService,
     recipientRefStore,
     contactResolver,
+    mobileAccessibilityApprovalService,
     mobileMessageRunStore,
     mobileMessageRunService,
     messagingAdapterRegistry,

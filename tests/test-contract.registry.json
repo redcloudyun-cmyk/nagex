@@ -3950,6 +3950,18 @@
       "assertionIntent": "governed Accessibility execute-plan enqueue API: authenticated user can enqueue only an approval-bound KakaoTalk ACCESSIBILITY_EXECUTE_PLAN for their own active enrolled device; wrong tenant/user/device, inactive device, missing/expired/mismatched approval, route/app/version drift, send/raw/arbitrary actions, duplicate active plans, and expired queued commands fail closed; heartbeat delivery consumes the pending command once.",
       "notes": "No generic command passthrough, no raw store mutation route, no real Android action, no send."
     },
+    "r23_6m_phase_m4c_r2d_mobile_accessibility_approval": {
+      "milestone": "R23.6M-M4C-R2D",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["agents", "approvals", "device", "identity-access", "security"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "governed mobile Accessibility approval creation: authenticated users can create only KAKAOTALK_ACCESSIBILITY_DRAFT approvals bound to owned active device, scoped recipientRef, KakaoTalk package/version, Android Accessibility route, approved text hash, message hash, and action type; SEND approval is unavailable until M4D; enqueue consumes the draft approval once and drift requires reapproval.",
+      "notes": "No generic approval creation, no SEND approval, no raw store mutation, no live Android action."
+    },
     "r23_6m_d4b_gmail_canonical_email": {
       "milestone": "R23.6M-D4B",
       "classification": "CANONICAL_BEHAVIOR",

@@ -26,6 +26,8 @@ import type { TaskContinuationCoordinator } from '../../tasks/task-continuation.
 import type { GoogleCalendarService } from '../../modules/calendar/index.js';
 import type { GmailService } from '../../modules/gmail/index.js';
 import type { ActionApprovalStore, ActionApprovalRecord } from '../../governance/action-approval.store.js';
+import type { MobileAccessibilityApprovalService } from '../../mobile/mobile-accessibility-approval.service.js';
+import { KAKAOTALK_ACCESSIBILITY_DRAFT_TOOL_ID } from '../../mobile/mobile-accessibility-approval.service.js';
 import {
   GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID,
   GOOGLE_CALENDAR_UPDATE_EVENT_TOOL_ID,
@@ -51,6 +53,7 @@ const TOOL_ID_ACTION_LABELS: Record<string, string> = {
   [GMAIL_SEND_EMAIL_TOOL_ID]: 'Send Gmail message',
   [GMAIL_REPLY_TOOL_ID]: 'Reply to Gmail message',
   [GMAIL_CREATE_DRAFT_TOOL_ID]: 'Create Gmail draft',
+  [KAKAOTALK_ACCESSIBILITY_DRAFT_TOOL_ID]: 'Prepare KakaoTalk draft',
 };
 
 function humanActionLabelForToolId(toolId: string): string {
@@ -83,6 +86,7 @@ export interface ApprovalsRouteDeps {
   googleCalendarService: GoogleCalendarService;
   gmailService: GmailService;
   actionApprovals: ActionApprovalStore;
+  mobileAccessibilityApprovalService?: MobileAccessibilityApprovalService;
   auditLogger: AuditLogger;
   taskContinuationCoordinator: TaskContinuationCoordinator;
   tenantId: string;
@@ -91,7 +95,7 @@ export interface ApprovalsRouteDeps {
 }
 
 export const handleApprovalsRoutes: SyncRouteRegistrar<ApprovalsRouteDeps> = (method, pathname, body, _headers, _query, deps): ApiResult | undefined => {
-  const { googleCalendarService, gmailService, actionApprovals, taskContinuationCoordinator, tenantId, principal, modelErrorResult } = deps;
+  const { googleCalendarService, gmailService, actionApprovals, mobileAccessibilityApprovalService, taskContinuationCoordinator, tenantId, principal, modelErrorResult } = deps;
 
   if (pathname === '/api/v1/approvals' && method === 'GET') {
     // Fail closed (R12.1 Increment 2.5 §8): a thrown error here must
@@ -134,6 +138,27 @@ export const handleApprovalsRoutes: SyncRouteRegistrar<ApprovalsRouteDeps> = (me
         const record = gmailService.requestApproval({ toolId, tenantId, principalId: principal.id, payload: body?.payload, requestId });
         return { status: 201, data: record };
       }
+      if (toolId === KAKAOTALK_ACCESSIBILITY_DRAFT_TOOL_ID) {
+        if (!mobileAccessibilityApprovalService) {
+          throw new NagexError({ code: 'MOBILE_ACCESSIBILITY_APPROVAL_SERVICE_UNAVAILABLE', category: 'INTERNAL', message: 'Mobile accessibility approval service is not configured.', request_id: requestId });
+        }
+        const payload = body?.payload && typeof body.payload === 'object' && !Array.isArray(body.payload) ? body.payload as Record<string, unknown> : {};
+        const record = mobileAccessibilityApprovalService.requestDraftApproval({
+          tenantId,
+          principalId: principal.id,
+          requestId,
+          deviceId: typeof payload.deviceId === 'string' ? payload.deviceId : '',
+          recipientRef: typeof payload.recipientRef === 'string' ? payload.recipientRef : '',
+          targetPackage: typeof payload.targetPackage === 'string' ? payload.targetPackage : '',
+          targetAppVersion: typeof payload.targetAppVersion === 'string' ? payload.targetAppVersion : '',
+          route: typeof payload.route === 'string' ? payload.route : '',
+          approvedTextHash: typeof payload.approvedTextHash === 'string' ? payload.approvedTextHash : '',
+          messageHash: typeof payload.messageHash === 'string' ? payload.messageHash : '',
+          displayName: typeof payload.displayName === 'string' ? payload.displayName : '',
+          actionType: typeof payload.actionType === 'string' ? payload.actionType : '',
+        });
+        return { status: 201, data: record };
+      }
       throw new NagexError({ code: 'UNSUPPORTED_APPROVAL_TOOL', category: 'VALIDATION', message: `No approval-gated execution is registered for toolId "${toolId}".`, request_id: requestId });
     } catch (error) {
       return modelErrorResult(error);
@@ -143,10 +168,11 @@ export const handleApprovalsRoutes: SyncRouteRegistrar<ApprovalsRouteDeps> = (me
   if (pathname.startsWith('/api/v1/approvals/') && pathname !== '/api/v1/approvals/calendar-event' && method === 'GET') {
     const apprId = pathname.slice('/api/v1/approvals/'.length);
     const record = googleCalendarService.getApproval(apprId, tenantId, principal.id);
-    if (!record) {
+    const mobileRecord = record ?? actionApprovals.get(apprId, tenantId, principal.id);
+    if (!mobileRecord) {
       return { status: 404, data: { error: 'APPROVAL_NOT_FOUND', message: `Approval ${apprId} was not found.` } };
     }
-    return { status: 200, data: record };
+    return { status: 200, data: mobileRecord };
   }
 
   if (pathname === '/api/v1/approvals/calendar-event' && method === 'POST') {
@@ -165,9 +191,14 @@ export const handleApprovalsRoutes: SyncRouteRegistrar<ApprovalsRouteDeps> = (me
     const apprId = pathname.slice('/api/v1/approvals/'.length, pathname.length - suffix.length);
     const requestId = `req_appr_${Date.now()}`;
     try {
-      const record = isApprove
-        ? googleCalendarService.approve(apprId, tenantId, principal.id, requestId)
-        : googleCalendarService.reject(apprId, tenantId, principal.id, requestId);
+      const existing = actionApprovals.get(apprId, tenantId, principal.id, requestId);
+      const record = existing?.toolId === KAKAOTALK_ACCESSIBILITY_DRAFT_TOOL_ID
+        ? (isApprove
+            ? actionApprovals.approve(apprId, tenantId, principal.id, requestId)
+            : actionApprovals.reject(apprId, tenantId, principal.id, requestId))
+        : (isApprove
+            ? googleCalendarService.approve(apprId, tenantId, principal.id, requestId)
+            : googleCalendarService.reject(apprId, tenantId, principal.id, requestId));
       // P02 — fire-and-forget: this route is synchronous and its response
       // must not change (still 200 with the approval record) whether or
       // not a Task continuation exists for this approvalId. A genuine
