@@ -91,8 +91,11 @@ class AccessibilityExecutionPlanDispatcher(private val context: Context, private
             className = hints.optString("className", null),
             visibleText = hints.optString("expectedVisibleLabel", null) ?: if (step.optString("action") == "VERIFY_RECIPIENT" || step.optString("action") == "SELECT_RECIPIENT") fallbackLabel else null,
             visibleTextContains = hints.optString("visibleTextContains", null),
+            ancestorResourceViewId = hints.optString("ancestorResourceId", null),
+            selected = if (hints.has("selected")) hints.optBoolean("selected") else null,
             editable = if (step.optString("action") == "FOCUS_INPUT" || step.optString("action") == "TYPE_APPROVED_TEXT" || step.optString("action") == "TYPE_APPROVED_RECIPIENT_QUERY") true else null,
             clickable = if (step.optString("action") == "SELECT_RECIPIENT" || step.optString("action") == "CLICK_ALLOWED_NODE") true else null,
+            requireSelectedAfterClick = hints.optBoolean("requireSelectedAfterClick", false),
         )
     }
 

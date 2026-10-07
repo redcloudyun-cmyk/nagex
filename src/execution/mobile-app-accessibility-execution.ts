@@ -121,6 +121,9 @@ export interface AccessibilitySelectorHints {
   className?: string;
   expectedVisibleLabel?: string;
   visibleTextContains?: string;
+  ancestorResourceId?: string;
+  selected?: boolean;
+  requireSelectedAfterClick?: boolean;
   relativeRole?: string;
 }
 
@@ -375,7 +378,13 @@ function commandSteps(input: AccessibilityExecutionPlanInput): readonly Accessib
   mapped.push('OBSERVE_RESULT');
   return mapped.map((action, index) => {
     if (action === 'CLICK_ALLOWED_NODE') {
-      return targetedPlanStep(action, index, 'home-news', 'bottom-chat-tab', { className: 'android.widget.RelativeLayout', contentDescriptionContains: '채팅 탭', relativeRole: 'bottom-chat-tab' });
+      return targetedPlanStep(action, index, 'home-news', 'bottom-chat-tab', {
+        className: 'android.widget.RelativeLayout',
+        contentDescriptionContains: '채팅 탭',
+        ancestorResourceId: 'com.kakao.talk:id/sliding_tabs',
+        requireSelectedAfterClick: true,
+        relativeRole: 'bottom-chat-tab',
+      });
     }
     if (action === 'FIND_ELEMENT') {
       return targetedPlanStep(action, index, 'chat-list', 'search-control', { className: 'android.widget.Button', contentDescription: '검색', relativeRole: 'search-control' });

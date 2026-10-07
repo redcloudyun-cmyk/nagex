@@ -37,6 +37,8 @@ test('M4C-R2A plan uses supported semantic step vocabulary and no send action', 
   const steps = prepared().command?.data.steps ?? [];
   assert.deepEqual(steps.map((s) => s.action), ['OPEN_APP', 'CLICK_ALLOWED_NODE', 'FIND_ELEMENT', 'TYPE_APPROVED_RECIPIENT_QUERY', 'SELECT_RECIPIENT', 'VERIFY_RECIPIENT', 'FOCUS_INPUT', 'TYPE_APPROVED_TEXT', 'OBSERVE_RESULT']);
   assert.equal(steps[1].semanticTarget, 'bottom-chat-tab');
+  assert.equal(steps[1].selectorHints.ancestorResourceId, 'com.kakao.talk:id/sliding_tabs');
+  assert.equal(steps[1].selectorHints.requireSelectedAfterClick, true);
   assert.equal(steps[3].semanticTarget, 'search-input');
   assert.equal(steps.some((s) => ['PRESS_SEND', 'SEND_MESSAGE', 'CLICK_SEND'].includes(s.action)), false);
 });
@@ -102,6 +104,11 @@ const sourceChecks: Array<[string, () => string, RegExp, RegExp?]> = [
   ['step result index reported', dispatcherSource, /stepIndex/],
   ['no raw message logging', dispatcherSource, /approvedText/, /Log\.|printStackTrace|println/],
   ['service active availability exposed', serviceSource, /fun active\(\): NagexAccessibilityExecutionService\?/],
+  ['relative hierarchy selector supported', serviceSource, /ancestorResourceViewId/],
+  ['selected chat tab is a no-op pass', serviceSource, /NAV_ALREADY_SELECTED/],
+  ['unselected chat tab is verified after click', serviceSource, /NAV_SELECTED_AFTER_CLICK/],
+  ['selection verification can fail closed', serviceSource, /NAV_SELECTION_VERIFY_FAILED/],
+  ['ambiguous matching nodes fail closed', serviceSource, /AMBIGUOUS_NODE/],
   ['no coordinate execution primitives', serviceSource, /ACTION_SET_TEXT/, /dispatchGesture|GestureDescription|coordinate|CLICK_SEND/],
 ];
 

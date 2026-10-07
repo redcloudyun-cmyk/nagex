@@ -21,6 +21,10 @@ const homeNewsNodes: KakaoSemanticNodeContract[] = [
   { nodeRef: 'kakao_bottom_chat_tab', className: 'android.widget.RelativeLayout', contentDescription: '채팅 탭 225개의 새로운 업데이트', clickable: true, editable: false },
 ];
 
+const homeNewsNodesWithDynamicUnreadCount: KakaoSemanticNodeContract[] = [
+  { nodeRef: 'kakao_bottom_chat_tab', className: 'android.widget.RelativeLayout', contentDescription: '채팅 탭 226개의 새로운 업데이트', clickable: true, editable: false },
+];
+
 const searchNodes: KakaoSemanticNodeContract[] = [
   { nodeRef: 'kakao_search_input', className: 'android.widget.EditText', contentDescription: 'Search input', clickable: true, editable: true },
 ];
@@ -67,6 +71,7 @@ test('M4C-R1 KakaoTalk 26.8.2 has exact certified contracts and negative cases',
   assert.equal(classifyKakaoVersion('evil.package', '26.8.2'), 'UNSUPPORTED');
   assert.equal(KAKAOTALK_26_8_2_SCREEN_CONTRACTS.length, 6);
   assert.equal(validateKakaoScreenContract('home-news', homeNewsNodes), true);
+  assert.equal(validateKakaoScreenContract('home-news', homeNewsNodesWithDynamicUnreadCount), true);
   assert.equal(validateKakaoScreenContract('chat-list', chatListNodes), true);
   assert.equal(validateKakaoScreenContract('search', searchNodes), true);
   assert.equal(validateKakaoScreenContract('recipient-result', recipientNodes), true);
@@ -96,6 +101,8 @@ test('M4C-R1 certified version can prepare non-send navigation but send remains 
     'observe_result',
   ]);
   assert.equal(prepared.command?.data.steps[1].selectorHints.contentDescriptionContains, '채팅 탭');
+  assert.equal(prepared.command?.data.steps[1].selectorHints.ancestorResourceId, 'com.kakao.talk:id/sliding_tabs');
+  assert.equal(prepared.command?.data.steps[1].selectorHints.requireSelectedAfterClick, true);
   assert.equal(prepared.command?.data.steps[3].action, 'TYPE_APPROVED_RECIPIENT_QUERY');
 
   assert.throws(() => h.accessibility.prepare(plan(h, { detectedVersion: '26.9.0' })), /APP_VERSION_UNSUPPORTED/);

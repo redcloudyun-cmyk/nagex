@@ -61,9 +61,24 @@ class NagexAccessibilityExecutionService : AccessibilityService() {
                 ActionResult(node != null, if (node != null) "FOUND" else "NODE_NOT_FOUND")
             }
             "FOCUS_INPUT", "CLICK_ALLOWED_NODE" -> {
-                val node = findFirstWithRetry(target) ?: return ActionResult(false, "NODE_NOT_FOUND")
+                val node = if (target.requireSelectedAfterClick) {
+                    findUniqueWithRetry(target)
+                } else {
+                    findFirstWithRetry(target)
+                } ?: return ActionResult(false, if (target.lastMatchCount > 1) "AMBIGUOUS_NODE" else "NODE_NOT_FOUND")
+                if (action == "CLICK_ALLOWED_NODE" && target.requireSelectedAfterClick && node.isSelected) {
+                    return ActionResult(true, "NAV_ALREADY_SELECTED")
+                }
                 val accessibilityAction = if (action == "FOCUS_INPUT") AccessibilityNodeInfo.ACTION_FOCUS else AccessibilityNodeInfo.ACTION_CLICK
-                ActionResult(node.performAction(accessibilityAction), action)
+                val clicked = node.performAction(accessibilityAction)
+                if (!clicked) return ActionResult(false, action)
+                if (action == "CLICK_ALLOWED_NODE" && target.requireSelectedAfterClick) {
+                    SystemClock.sleep(250)
+                    val selectedTarget = target.copy(selected = true)
+                    val selectedNode = findUniqueWithRetry(selectedTarget)
+                    return ActionResult(selectedNode != null, if (selectedNode != null) "NAV_SELECTED_AFTER_CLICK" else "NAV_SELECTION_VERIFY_FAILED")
+                }
+                ActionResult(true, action)
             }
             "TYPE_APPROVED_TEXT", "TYPE_APPROVED_RECIPIENT_QUERY" -> {
                 val node = findFirstWithRetry(target) ?: return ActionResult(false, "NODE_NOT_FOUND")
@@ -106,6 +121,34 @@ class NagexAccessibilityExecutionService : AccessibilityService() {
         return null
     }
 
+    private fun findUniqueWithRetry(selector: NodeSelector): AccessibilityNodeInfo? {
+        repeat(6) { attempt ->
+            val root = rootInActiveWindow
+            if (root != null) {
+                val matches = findMatches(root, selector, 2)
+                selector.lastMatchCount = matches.size
+                if (matches.size == 1) return matches.first()
+                if (matches.size > 1) return null
+            }
+            if (attempt < 5) SystemClock.sleep(250)
+        }
+        return null
+    }
+
+    private fun findMatches(root: AccessibilityNodeInfo, selector: NodeSelector, limit: Int): List<AccessibilityNodeInfo> {
+        val matches = mutableListOf<AccessibilityNodeInfo>()
+        val stack = ArrayDeque<AccessibilityNodeInfo>()
+        stack.add(root)
+        while (stack.isNotEmpty() && matches.size < limit) {
+            val node = stack.removeFirst()
+            if (selector.matches(node)) matches.add(node)
+            for (i in 0 until node.childCount) {
+                node.getChild(i)?.let { stack.add(it) }
+            }
+        }
+        return matches
+    }
+
     companion object {
         @Volatile
         private var activeService: NagexAccessibilityExecutionService? = null
@@ -133,9 +176,15 @@ class NagexAccessibilityExecutionService : AccessibilityService() {
         val className: String? = null,
         val visibleText: String? = null,
         val visibleTextContains: String? = null,
+        val ancestorResourceViewId: String? = null,
+        val selected: Boolean? = null,
         val editable: Boolean? = null,
         val clickable: Boolean? = null,
+        val requireSelectedAfterClick: Boolean = false,
     ) {
+        @Transient
+        var lastMatchCount: Int = 0
+
         fun matches(node: AccessibilityNodeInfo): Boolean {
             if (resourceViewId != null && node.viewIdResourceName != resourceViewId) return false
             if (contentDescription != null && node.contentDescription?.toString() != contentDescription) return false
@@ -143,9 +192,20 @@ class NagexAccessibilityExecutionService : AccessibilityService() {
             if (className != null && node.className?.toString() != className) return false
             if (visibleText != null && node.text?.toString() != visibleText) return false
             if (visibleTextContains != null && node.text?.toString()?.contains(visibleTextContains) != true) return false
+            if (ancestorResourceViewId != null && !hasAncestorResource(node, ancestorResourceViewId)) return false
+            if (selected != null && node.isSelected != selected) return false
             if (editable != null && node.isEditable != editable) return false
             if (clickable != null && node.isClickable != clickable) return false
             return true
+        }
+
+        private fun hasAncestorResource(node: AccessibilityNodeInfo, resourceViewId: String): Boolean {
+            var parent = node.parent
+            while (parent != null) {
+                if (parent.viewIdResourceName == resourceViewId) return true
+                parent = parent.parent
+            }
+            return false
         }
     }
 
