@@ -194,6 +194,14 @@ export class DeviceAgentTransportEndpoint {
         return { status: 'OK', commandType: 'MOBILE_MESSAGE_STATUS', result: { runId: run.runId, status: run.status } };
       }
 
+      case 'APP_LINK_OPEN': {
+        // APP_LINK_OPEN is a server-issued pending command for the Android
+        // agent. If an agent echoes it back through the inbound endpoint, the
+        // transport acknowledges only the command shape; it never treats app
+        // launch as downstream completion.
+        return { status: 'OK', commandType: payload.commandType, result: { acknowledged: true, confirmation: 'APP_LAUNCH_NOT_COMPLETION' } };
+      }
+
       case 'MESSAGING_HANDOFF_AUTHORIZE': {
         const service = this.requireMessagingHandoffs(requestId);
         const runId = typeof payload.data.runId === 'string' ? payload.data.runId : '';

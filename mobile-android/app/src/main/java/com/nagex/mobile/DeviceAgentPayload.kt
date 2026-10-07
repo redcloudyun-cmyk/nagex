@@ -80,6 +80,12 @@ object DeviceAgentPayload {
     fun messagingHandoffStarted(runId: String): Built = handoff("MESSAGING_HANDOFF_STARTED", runId)
     fun messagingHandoffUnavailable(runId: String): Built = handoff("MESSAGING_HANDOFF_UNAVAILABLE", runId)
 
+    fun appLinkOpen(targetApp: String, packageName: String, uri: String, actionKind: String, correlationId: String): Built {
+        val dataJson = "{\"targetApp\":${CanonicalJson.escapeString(targetApp)},\"packageName\":${CanonicalJson.escapeString(packageName)},\"uri\":${CanonicalJson.escapeString(uri)},\"actionKind\":${CanonicalJson.escapeString(actionKind)},\"correlationId\":${CanonicalJson.escapeString(correlationId)}}"
+        val json = "{\"commandType\":\"APP_LINK_OPEN\",\"executionSessionId\":null,\"data\":$dataJson}"
+        return Built(json, sha256Hex(json))
+    }
+
     private fun handoff(command: String, runId: String): Built {
         val dataJson = "{\"runId\":${CanonicalJson.escapeString(runId)}}"
         val json = "{\"commandType\":\"$command\",\"executionSessionId\":null,\"data\":$dataJson}"

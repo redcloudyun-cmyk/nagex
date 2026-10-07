@@ -25,7 +25,16 @@ export type PermissionState = 'GRANTED' | 'DENIED' | 'NOT_REQUESTED' | 'REVOKED'
 export type PermissionSource = 'ANDROID_RUNTIME' | 'PROVIDER_OAUTH' | 'CHANNEL_OWNERSHIP' | 'NAGEX_POLICY';
 export type CanonicalExecutionRoute = 'PROVIDER_API' | 'ANDROID_NATIVE' | 'APP_LINK' | 'BROWSER' | 'HUMAN_HANDOFF' | 'UNSUPPORTED_FUTURE';
 export type AuthorityDisposition = 'ALLOW' | 'APPROVAL_REQUIRED' | 'REAPPROVAL_REQUIRED' | 'PERMISSION_REQUIRED' | 'BLOCKED' | 'UNSUPPORTED';
-export type ConfirmationStrength = 'NONE' | 'HANDOFF_STARTED' | 'PROVIDER_ACCEPTED' | 'DEVICE_SEND_CALLBACK' | 'DELIVERY_CONFIRMED';
+export type ConfirmationStrength = 'NONE' | 'HANDOFF_STARTED' | 'PROVIDER_ACCEPTED' | 'DEVICE_SEND_CALLBACK' | 'DELIVERY_CONFIRMED' | 'OBSERVED_BROWSER_STATE';
+export type CanonicalConfirmationStrength = 'STRONG' | 'MEDIUM' | 'WEAK' | 'NONE';
+export type CanonicalExecutionResultStatus =
+  | 'EXECUTED_CONFIRMED'
+  | 'EXECUTED_UNCONFIRMED'
+  | 'HANDOFF_STARTED'
+  | 'REAPPROVAL_REQUIRED'
+  | 'PERMISSION_REQUIRED'
+  | 'BLOCKED'
+  | 'FAILED';
 
 export type RouteAuthorityReasonCode =
   | 'CAPABILITY_UNSUPPORTED'
@@ -131,6 +140,15 @@ export interface RouteAuthorityResult {
   confirmationStrength: ConfirmationStrength;
 }
 
+export interface CanonicalExecutionResult {
+  status: CanonicalExecutionResultStatus;
+  capability: DeviceCapabilityKind;
+  route: CanonicalExecutionRoute | null;
+  confirmationStrength: CanonicalConfirmationStrength;
+  reasonCodes: RouteAuthorityReasonCode[];
+  externalRef?: string;
+}
+
 interface CapabilityDefinition {
   platform: DevicePlatform;
   route: CanonicalExecutionRoute;
@@ -149,8 +167,8 @@ const CAPABILITY_DEFINITIONS: Record<DeviceCapabilityKind, CapabilityDefinition>
   CONTACT_READ: { platform: 'ANDROID', route: 'ANDROID_NATIVE', permissionSource: 'ANDROID_RUNTIME', approvalRequired: false, confirmationStrength: 'NONE', requiresDevice: true, requiresProviderConnection: false, recipientEnforced: true, statusWhenSupported: 'AVAILABLE' },
   SMS_SEND: { platform: 'ANDROID', route: 'ANDROID_NATIVE', permissionSource: 'ANDROID_RUNTIME', approvalRequired: true, confirmationStrength: 'DEVICE_SEND_CALLBACK', requiresDevice: true, requiresProviderConnection: false, recipientEnforced: true, statusWhenSupported: 'AVAILABLE' },
   NOTIFICATION_POST: { platform: 'ANDROID', route: 'ANDROID_NATIVE', permissionSource: 'ANDROID_RUNTIME', approvalRequired: false, confirmationStrength: 'NONE', requiresDevice: true, requiresProviderConnection: false, recipientEnforced: true, statusWhenSupported: 'AVAILABLE' },
-  DEEP_LINK_OPEN: { platform: 'ANDROID', route: 'APP_LINK', permissionSource: 'NAGEX_POLICY', approvalRequired: false, confirmationStrength: 'HANDOFF_STARTED', requiresDevice: true, requiresProviderConnection: false, recipientEnforced: false, statusWhenSupported: 'AVAILABLE' },
-  BROWSER_EXECUTION: { platform: 'BROWSER', route: 'BROWSER', permissionSource: 'NAGEX_POLICY', approvalRequired: true, confirmationStrength: 'PROVIDER_ACCEPTED', requiresDevice: false, requiresProviderConnection: true, recipientEnforced: true, statusWhenSupported: 'AVAILABLE' },
+  DEEP_LINK_OPEN: { platform: 'ANDROID', route: 'APP_LINK', permissionSource: 'NAGEX_POLICY', approvalRequired: true, confirmationStrength: 'HANDOFF_STARTED', requiresDevice: true, requiresProviderConnection: false, recipientEnforced: false, statusWhenSupported: 'AVAILABLE' },
+  BROWSER_EXECUTION: { platform: 'BROWSER', route: 'BROWSER', permissionSource: 'NAGEX_POLICY', approvalRequired: true, confirmationStrength: 'OBSERVED_BROWSER_STATE', requiresDevice: false, requiresProviderConnection: true, recipientEnforced: true, statusWhenSupported: 'AVAILABLE' },
   GMAIL_SEND: { platform: 'SERVER', route: 'PROVIDER_API', permissionSource: 'PROVIDER_OAUTH', approvalRequired: true, confirmationStrength: 'PROVIDER_ACCEPTED', requiresDevice: false, requiresProviderConnection: true, recipientEnforced: true, statusWhenSupported: 'AVAILABLE' },
   CALENDAR_WRITE: { platform: 'SERVER', route: 'PROVIDER_API', permissionSource: 'PROVIDER_OAUTH', approvalRequired: true, confirmationStrength: 'PROVIDER_ACCEPTED', requiresDevice: false, requiresProviderConnection: true, recipientEnforced: true, statusWhenSupported: 'AVAILABLE' },
   TELEGRAM_SELF_DELIVERY: { platform: 'CHANNEL', route: 'PROVIDER_API', permissionSource: 'CHANNEL_OWNERSHIP', approvalRequired: true, confirmationStrength: 'PROVIDER_ACCEPTED', requiresDevice: false, requiresProviderConnection: true, recipientEnforced: true, statusWhenSupported: 'AVAILABLE' },
@@ -292,6 +310,37 @@ export class MobileExecutionAuthority {
     return this.fromCandidate(request, candidate, 'ALLOW');
   }
 
+  public evaluateRouteFailover(input: { approved: RouteAuthorityRequest; candidate: RouteAuthorityRequest; consequential: boolean }): RouteAuthorityResult {
+    if (input.consequential && input.approved.executionRoute !== input.candidate.executionRoute) {
+      return {
+        disposition: 'REAPPROVAL_REQUIRED',
+        capability: input.candidate.capability,
+        selectedRoute: null,
+        candidates: [],
+        reasonCodes: ['ROUTE_CHANGED_AFTER_APPROVAL'],
+        approvalRequired: true,
+        confirmationStrength: 'NONE',
+      };
+    }
+    return this.evaluate(input.candidate);
+  }
+
+  public toCanonicalResult(authority: RouteAuthorityResult, externalRef?: string): CanonicalExecutionResult {
+    const confirmationStrength = canonicalConfirmationStrength(authority.confirmationStrength);
+    if (authority.disposition === 'REAPPROVAL_REQUIRED') return { status: 'REAPPROVAL_REQUIRED', capability: authority.capability, route: null, confirmationStrength, reasonCodes: authority.reasonCodes };
+    if (authority.disposition === 'PERMISSION_REQUIRED') return { status: 'PERMISSION_REQUIRED', capability: authority.capability, route: null, confirmationStrength, reasonCodes: authority.reasonCodes };
+    if (authority.disposition === 'BLOCKED' || authority.disposition === 'UNSUPPORTED' || authority.disposition === 'APPROVAL_REQUIRED') return { status: 'BLOCKED', capability: authority.capability, route: null, confirmationStrength, reasonCodes: authority.reasonCodes };
+    if (authority.selectedRoute === 'HUMAN_HANDOFF') return { status: 'HANDOFF_STARTED', capability: authority.capability, route: authority.selectedRoute, confirmationStrength: 'NONE', reasonCodes: authority.reasonCodes, externalRef };
+    return {
+      status: confirmationStrength === 'STRONG' ? 'EXECUTED_CONFIRMED' : 'EXECUTED_UNCONFIRMED',
+      capability: authority.capability,
+      route: authority.selectedRoute,
+      confirmationStrength,
+      reasonCodes: authority.reasonCodes,
+      externalRef,
+    };
+  }
+
   public requireAllowed(request: RouteAuthorityRequest): RouteAuthorityResult {
     const result = this.evaluate(request);
     if (result.disposition === 'ALLOW') return result;
@@ -376,4 +425,11 @@ export class MobileExecutionAuthority {
   private result(request: RouteAuthorityRequest, selectedRoute: CanonicalExecutionRoute | null, reasonCodes: RouteAuthorityReasonCode[], disposition: AuthorityDisposition, approvalRequired: boolean, confirmationStrength: ConfirmationStrength): RouteAuthorityResult {
     return { disposition, capability: request.capability, selectedRoute, candidates: [], reasonCodes, approvalRequired, confirmationStrength };
   }
+}
+
+export function canonicalConfirmationStrength(strength: ConfirmationStrength): CanonicalConfirmationStrength {
+  if (strength === 'DEVICE_SEND_CALLBACK' || strength === 'DELIVERY_CONFIRMED' || strength === 'PROVIDER_ACCEPTED') return 'STRONG';
+  if (strength === 'OBSERVED_BROWSER_STATE') return 'MEDIUM';
+  if (strength === 'HANDOFF_STARTED') return 'WEAK';
+  return 'NONE';
 }
