@@ -40,8 +40,10 @@
          any other contact with no phone number on file. -->
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
-    <!-- Deliberately no AccessibilityService. KakaoTalk uses a truthful
-         ACTION_SEND human handoff; NAgex never selects or clicks in KakaoTalk. -->
+    <!-- M4 constrained Accessibility route. The OS/user must enable it in
+         Android Settings; NAgex cannot self-enable it. It is package-scoped
+         to KakaoTalk for the initial certified adapter and remains subordinate
+         to server-side route, recipient, message, device, and approval binding. -->
 
     <application
         android:allowBackup="false"
@@ -106,6 +108,18 @@
             <intent-filter>
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
             </intent-filter>
+        </service>
+
+        <service
+            android:name=".NagexAccessibilityExecutionService"
+            android:exported="false"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/nagex_accessibility_service" />
         </service>
 
     </application>

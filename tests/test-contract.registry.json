@@ -3866,6 +3866,30 @@
       "assertionIntent": "real route integration keeps SMS, Gmail, Calendar, Browser, Telegram, Slack, allowlisted Android app links, and KakaoTalk human handoff bound to the M2 authority model; app links validate URI/package/action allowlists; route/device/account/payload drift requires reapproval; voice/mobile cannot bypass approval; unsupported Accessibility, phone, payment, booking, and automated Kakao send remain unavailable",
       "notes": "Deterministic M3 certification uses fake stores/providers only and checks source guards for prohibited Android capabilities. Real external E2E is separately infrastructure-gated."
     },
+    "r23_6m_phase_m4_constrained_accessibility_execution": {
+      "milestone": "R23.6M-M4",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["agents", "approvals", "device", "security"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "constrained Android Accessibility execution is a fallback-only, app/action/version/device/recipient/message/approval-bound route; KakaoTalk is the initial certified adapter, WhatsApp/Instagram/Messenger remain architecture-only NOT_CERTIFIED, UI contract drift/user interruption/timeout fail closed, and arbitrary clicks/typing/coordinates remain unavailable",
+      "notes": "No real Android app send is performed. Real E2E remains separately device/app/account gated."
+    },
+    "r23_6m_phase_m4a_astra_guided_device_control": {
+      "milestone": "R23.6M-M4A",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["agents", "approvals", "device", "security"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "provider-neutral DeviceUIReasoner lets Astra propose exactly one typed UI action from minimized observation while NAgex Action Gate remains the only authority for app/action/device/recipient/message/route/approval/budget/user-interruption validation; deterministic adapters stay preferred and sensitive screens/redacted observations fail closed",
+      "notes": "No live Astra call, no real Android send, and no direct execution authority. AstraDeviceUIReasoner is schema/gate tested with injected deterministic proposal function."
+    },
     "r23_6m_d4b_gmail_canonical_email": {
       "milestone": "R23.6M-D4B",
       "classification": "CANONICAL_BEHAVIOR",

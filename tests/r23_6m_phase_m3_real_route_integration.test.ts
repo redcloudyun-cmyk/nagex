@@ -149,7 +149,7 @@ test('M3 19-20. Kakao app-link integration remains handoff only and never messag
   assert.notEqual(result.status as string, 'MESSAGE_SENT');
 });
 
-test('M3 24-26 and exclusions. voice/mobile cannot bypass approval, cross-tenant/user block, no payment/booking/Accessibility authority', () => {
+test('M3 24-26 and exclusions. voice/mobile cannot bypass approval, cross-tenant/user block, no payment/booking/generic Android UI authority', () => {
   const h = harness();
   const voiceSms = h.authority.evaluate(request('SMS_SEND', 'ANDROID_SMS_MANAGER', { provider: 'DEVICE_NATIVE', executionEnvironment: 'ANDROID', deviceId: h.device.deviceId, approval: null }));
   assert.equal(voiceSms.disposition, 'APPROVAL_REQUIRED');
@@ -161,9 +161,9 @@ test('M3 24-26 and exclusions. voice/mobile cannot bypass approval, cross-tenant
   assert.equal(h.authority.evaluate(request('ANDROID_UI_AUTOMATION', 'UNSUPPORTED_FUTURE')).disposition, 'UNSUPPORTED');
 });
 
-test('M3 source guard. Android app-link executor does not implement Accessibility, phone, payment, booking, or Kakao send confirmation', () => {
+test('M3 source guard. Android app-link and Kakao handoff executors do not implement phone, payment, booking, or Kakao send confirmation', () => {
   const android = fs.readFileSync('mobile-android/app/src/main/java/com/nagex/mobile/AndroidAppLinkExecutor.kt', 'utf8');
   const kakao = fs.readFileSync('mobile-android/app/src/main/java/com/nagex/mobile/KakaoTalkHandoffExecutor.kt', 'utf8');
-  assert.doesNotMatch(android, /AccessibilityService|performAction|ACTION_CALL|Payment|Booking/i);
+  assert.doesNotMatch(android, /performAction|ACTION_CALL|Payment|Booking/i);
   assert.doesNotMatch(kakao, /MESSAGE_SENT|SENT_CONFIRMED|sendTextMessage|performAction/i);
 });

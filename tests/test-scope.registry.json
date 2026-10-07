@@ -268,6 +268,8 @@
       "r23_6m_phase_d3s_canonical_messaging_contract",
       "r23_6m_phase_m2_mobile_execution_authority",
       "r23_6m_phase_m3_real_route_integration",
+      "r23_6m_phase_m4_constrained_accessibility_execution",
+      "r23_6m_phase_m4a_astra_guided_device_control",
       "device_agent_foundation",
       "device_agent_transport",
       "r23_3t_permission_approval_hardening",

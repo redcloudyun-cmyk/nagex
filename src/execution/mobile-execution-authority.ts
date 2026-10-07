@@ -15,15 +15,16 @@ export type DeviceCapabilityKind =
   | 'TELEGRAM_SELF_DELIVERY'
   | 'SLACK_SELF_DELIVERY'
   | 'KAKAOTALK_HANDOFF'
+  | 'KAKAOTALK_ACCESSIBILITY_SEND'
   | 'ANDROID_UI_AUTOMATION'
   | 'PHONE_CALL'
   | 'PAYMENT';
 
 export type DevicePlatform = 'ANDROID' | 'SERVER' | 'BROWSER' | 'CHANNEL';
 export type DeviceCapabilityStatus = 'AVAILABLE' | 'PERMISSION_REQUIRED' | 'UNAVAILABLE' | 'UNSUPPORTED' | 'BLOCKED';
-export type PermissionState = 'GRANTED' | 'DENIED' | 'NOT_REQUESTED' | 'REVOKED' | 'UNAVAILABLE';
+export type PermissionState = 'GRANTED' | 'DENIED' | 'NOT_REQUESTED' | 'REVOKED' | 'UNAVAILABLE' | 'ENABLED' | 'DISABLED';
 export type PermissionSource = 'ANDROID_RUNTIME' | 'PROVIDER_OAUTH' | 'CHANNEL_OWNERSHIP' | 'NAGEX_POLICY';
-export type CanonicalExecutionRoute = 'PROVIDER_API' | 'ANDROID_NATIVE' | 'APP_LINK' | 'BROWSER' | 'HUMAN_HANDOFF' | 'UNSUPPORTED_FUTURE';
+export type CanonicalExecutionRoute = 'PROVIDER_API' | 'ANDROID_NATIVE' | 'APP_LINK' | 'BROWSER' | 'ANDROID_ACCESSIBILITY' | 'HUMAN_HANDOFF' | 'UNSUPPORTED_FUTURE';
 export type AuthorityDisposition = 'ALLOW' | 'APPROVAL_REQUIRED' | 'REAPPROVAL_REQUIRED' | 'PERMISSION_REQUIRED' | 'BLOCKED' | 'UNSUPPORTED';
 export type ConfirmationStrength = 'NONE' | 'HANDOFF_STARTED' | 'PROVIDER_ACCEPTED' | 'DEVICE_SEND_CALLBACK' | 'DELIVERY_CONFIRMED' | 'OBSERVED_BROWSER_STATE';
 export type CanonicalConfirmationStrength = 'STRONG' | 'MEDIUM' | 'WEAK' | 'NONE';
@@ -50,6 +51,7 @@ export type RouteAuthorityReasonCode =
   | 'PAYLOAD_CHANGED_AFTER_APPROVAL'
   | 'ROUTE_UNCONFIRMABLE'
   | 'MANUAL_HANDOFF_ONLY'
+  | 'ACCESSIBILITY_NOT_ENABLED'
   | 'STALE_PERMISSION_GRANT'
   | 'CROSS_TENANT_DEVICE'
   | 'CROSS_USER_DEVICE';
@@ -160,6 +162,7 @@ interface CapabilityDefinition {
   recipientEnforced: boolean;
   statusWhenSupported: DeviceCapabilityStatus;
   manualHandoffOnly?: boolean;
+  accessibilityRequired?: boolean;
 }
 
 const CAPABILITY_DEFINITIONS: Record<DeviceCapabilityKind, CapabilityDefinition> = {
@@ -174,6 +177,7 @@ const CAPABILITY_DEFINITIONS: Record<DeviceCapabilityKind, CapabilityDefinition>
   TELEGRAM_SELF_DELIVERY: { platform: 'CHANNEL', route: 'PROVIDER_API', permissionSource: 'CHANNEL_OWNERSHIP', approvalRequired: true, confirmationStrength: 'PROVIDER_ACCEPTED', requiresDevice: false, requiresProviderConnection: true, recipientEnforced: true, statusWhenSupported: 'AVAILABLE' },
   SLACK_SELF_DELIVERY: { platform: 'CHANNEL', route: 'PROVIDER_API', permissionSource: 'CHANNEL_OWNERSHIP', approvalRequired: true, confirmationStrength: 'PROVIDER_ACCEPTED', requiresDevice: false, requiresProviderConnection: true, recipientEnforced: true, statusWhenSupported: 'AVAILABLE' },
   KAKAOTALK_HANDOFF: { platform: 'ANDROID', route: 'HUMAN_HANDOFF', permissionSource: 'NAGEX_POLICY', approvalRequired: true, confirmationStrength: 'HANDOFF_STARTED', requiresDevice: true, requiresProviderConnection: false, recipientEnforced: false, statusWhenSupported: 'AVAILABLE', manualHandoffOnly: true },
+  KAKAOTALK_ACCESSIBILITY_SEND: { platform: 'ANDROID', route: 'ANDROID_ACCESSIBILITY', permissionSource: 'ANDROID_RUNTIME', approvalRequired: true, confirmationStrength: 'OBSERVED_BROWSER_STATE', requiresDevice: true, requiresProviderConnection: false, recipientEnforced: true, statusWhenSupported: 'AVAILABLE', accessibilityRequired: true },
   ANDROID_UI_AUTOMATION: { platform: 'ANDROID', route: 'UNSUPPORTED_FUTURE', permissionSource: 'ANDROID_RUNTIME', approvalRequired: true, confirmationStrength: 'NONE', requiresDevice: true, requiresProviderConnection: false, recipientEnforced: false, statusWhenSupported: 'UNSUPPORTED' },
   PHONE_CALL: { platform: 'ANDROID', route: 'UNSUPPORTED_FUTURE', permissionSource: 'ANDROID_RUNTIME', approvalRequired: true, confirmationStrength: 'NONE', requiresDevice: true, requiresProviderConnection: false, recipientEnforced: false, statusWhenSupported: 'UNSUPPORTED' },
   PAYMENT: { platform: 'SERVER', route: 'UNSUPPORTED_FUTURE', permissionSource: 'NAGEX_POLICY', approvalRequired: true, confirmationStrength: 'NONE', requiresDevice: false, requiresProviderConnection: true, recipientEnforced: true, statusWhenSupported: 'UNSUPPORTED' },
@@ -193,13 +197,16 @@ export const SUPPORTED_M2_CAPABILITIES: readonly DeviceCapabilityKind[] = [
   'KAKAOTALK_HANDOFF',
 ] as const;
 
+export const SUPPORTED_M4_CAPABILITIES: readonly DeviceCapabilityKind[] = [...SUPPORTED_M2_CAPABILITIES, 'KAKAOTALK_ACCESSIBILITY_SEND'] as const;
 export const SUPPORTED_M2_ROUTES: readonly CanonicalExecutionRoute[] = ['PROVIDER_API', 'ANDROID_NATIVE', 'APP_LINK', 'BROWSER', 'HUMAN_HANDOFF'] as const;
+export const SUPPORTED_M4_ROUTES: readonly CanonicalExecutionRoute[] = ['PROVIDER_API', 'ANDROID_NATIVE', 'APP_LINK', 'BROWSER', 'ANDROID_ACCESSIBILITY', 'HUMAN_HANDOFF'] as const;
 
 const ANDROID_PERMISSION_BY_CAPABILITY: Partial<Record<DeviceCapabilityKind, string>> = {
   VOICE_CAPTURE: 'RECORD_AUDIO',
   CONTACT_READ: 'READ_CONTACTS',
   SMS_SEND: 'SEND_SMS',
   NOTIFICATION_POST: 'POST_NOTIFICATIONS',
+  KAKAOTALK_ACCESSIBILITY_SEND: 'ACCESSIBILITY_SERVICE',
 };
 
 function materialPayloadHash(payload: Record<string, unknown> | undefined): string | undefined {
@@ -212,13 +219,13 @@ export function parseCapabilityInventoryPermission(capability: DeviceCapabilityK
   const exact = inventory.find((item) => item.startsWith(`permission:${permission}:`));
   if (!exact) return 'NOT_REQUESTED';
   const state = exact.split(':')[2];
-  if (state === 'GRANTED' || state === 'DENIED' || state === 'NOT_REQUESTED' || state === 'REVOKED' || state === 'UNAVAILABLE') return state;
+  if (state === 'GRANTED' || state === 'DENIED' || state === 'NOT_REQUESTED' || state === 'REVOKED' || state === 'UNAVAILABLE' || state === 'ENABLED' || state === 'DISABLED') return state;
   return 'UNAVAILABLE';
 }
 
 export function buildAndroidCapabilityReport(input: { device: DeviceIdentityRecord; connection: DeviceConnectionStatusRecord | null; observedAt?: string }): AndroidCapabilityReport {
   const observedAt = input.observedAt ?? new Date().toISOString();
-  const supportedCapabilities = SUPPORTED_M2_CAPABILITIES.filter((capability) => CAPABILITY_DEFINITIONS[capability].platform === 'ANDROID');
+  const supportedCapabilities = SUPPORTED_M4_CAPABILITIES.filter((capability) => CAPABILITY_DEFINITIONS[capability].platform === 'ANDROID');
   const permissions = supportedCapabilities
     .filter((capability) => ANDROID_PERMISSION_BY_CAPABILITY[capability])
     .map((capability) => ({
@@ -233,11 +240,13 @@ export function buildAndroidCapabilityReport(input: { device: DeviceIdentityReco
     }));
   const routeAvailability = Object.fromEntries(supportedCapabilities.map((capability) => {
     const permission = permissions.find((record) => record.capability === capability)?.permissionState ?? 'GRANTED';
+    const requiresAccessibility = CAPABILITY_DEFINITIONS[capability].accessibilityRequired === true;
+    const permissionSatisfied = requiresAccessibility ? permission === 'ENABLED' : permission === 'GRANTED';
     const status: DeviceCapabilityStatus = input.device.status !== 'ACTIVE'
       ? 'BLOCKED'
       : input.connection?.connectionState !== 'CONNECTED'
         ? 'UNAVAILABLE'
-        : permission === 'GRANTED'
+        : permissionSatisfied
           ? 'AVAILABLE'
           : 'PERMISSION_REQUIRED';
     return [capability, status];
@@ -281,8 +290,9 @@ export class MobileExecutionAuthority {
       if (device.status !== 'ACTIVE') reasons.push('DEVICE_UNAVAILABLE');
       if (connection?.connectionState !== 'CONNECTED') reasons.push('DEVICE_UNAVAILABLE');
       permissionState = parseCapabilityInventoryPermission(request.capability, device.capabilityInventory);
-      if (permissionState !== 'GRANTED') {
-        reasons.push(permissionState === 'REVOKED' ? 'STALE_PERMISSION_GRANT' : 'PERMISSION_NOT_GRANTED');
+      const permissionSatisfied = definition.accessibilityRequired ? permissionState === 'ENABLED' : permissionState === 'GRANTED';
+      if (!permissionSatisfied) {
+        reasons.push(definition.accessibilityRequired ? 'ACCESSIBILITY_NOT_ENABLED' : permissionState === 'REVOKED' ? 'STALE_PERMISSION_GRANT' : 'PERMISSION_NOT_GRANTED');
         availability = 'PERMISSION_REQUIRED';
       }
       if (device.status !== 'ACTIVE' || connection?.connectionState !== 'CONNECTED') availability = 'UNAVAILABLE';

@@ -86,6 +86,12 @@ object DeviceAgentPayload {
         return Built(json, sha256Hex(json))
     }
 
+    fun accessibilityExecutePlan(appId: String, packageName: String, deviceId: String, recipientRef: String, displayName: String, messageHash: String, correlationId: String): Built {
+        val dataJson = "{\"appId\":${CanonicalJson.escapeString(appId)},\"packageName\":${CanonicalJson.escapeString(packageName)},\"deviceId\":${CanonicalJson.escapeString(deviceId)},\"recipientRef\":${CanonicalJson.escapeString(recipientRef)},\"displayName\":${CanonicalJson.escapeString(displayName)},\"messageHash\":${CanonicalJson.escapeString(messageHash)},\"correlationId\":${CanonicalJson.escapeString(correlationId)}}"
+        val json = "{\"commandType\":\"ACCESSIBILITY_EXECUTE_PLAN\",\"executionSessionId\":null,\"data\":$dataJson}"
+        return Built(json, sha256Hex(json))
+    }
+
     private fun handoff(command: String, runId: String): Built {
         val dataJson = "{\"runId\":${CanonicalJson.escapeString(runId)}}"
         val json = "{\"commandType\":\"$command\",\"executionSessionId\":null,\"data\":$dataJson}"
