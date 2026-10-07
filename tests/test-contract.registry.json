@@ -3842,6 +3842,18 @@
       "assertionIntent": "canonical messaging execution contract runtime integration mapping existing SMS to ANDROID/DEVICE_NATIVE/ANDROID_SMS_MANAGER without changing SMS state machine or approval semantics, forbidding generic SENT state, enforcing evidence-based success, binding approval to environment/provider/route, excluding disabled KakaoTalk, and preventing synthetic success from becoming runtime evidence",
       "notes": "Covers D3S A-P requirements for canonical messaging execution contract."
     },
+    "r23_6m_phase_m2_mobile_execution_authority": {
+      "milestone": "R23.6M-M2",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["agents", "approvals", "device", "security"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "the shared mobile execution authority model truthfully evaluates capability support, Android permission state, route eligibility, provider/channel availability, approval binding drift, device ownership/offline state, and manual handoff limits without adding new execution authority",
+      "notes": "Covers M2 authority foundation: supported capabilities/routes, permission denied/revoked, device offline, unsupported capability, provider disconnected, approval missing/valid, route/account/recipient/payload drift reapproval, SMS native route, Gmail/Calendar provider route, browser route, Telegram/Slack self-delivery, KakaoTalk human handoff, safe Android capability report, cross-tenant/cross-user/forged device rejection, and voice/mobile approval bypass prevention."
+    },
     "r23_6m_d4b_gmail_canonical_email": {
       "milestone": "R23.6M-D4B",
       "classification": "CANONICAL_BEHAVIOR",

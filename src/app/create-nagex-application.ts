@@ -61,6 +61,7 @@ import { DeviceTransportSecurity } from '../device-agent/device-transport-securi
 import { DeviceConnectionStatusStore } from '../device-agent/device-connection-status.store.js';
 import { DevicePendingCommandStore } from '../device-agent/device-pending-command.store.js';
 import { DeviceAgentTransportEndpoint } from '../device-agent/device-agent-transport-endpoint.service.js';
+import { MobileExecutionAuthority } from '../execution/mobile-execution-authority.js';
 import { DesktopAppAllowlist } from '../device-agent/desktop-app-allowlist.js';
 import { WindowsIsolatedDesktopController } from '../device-agent/windows-isolated-desktop-controller.js';
 import { DesktopActivityAdapter } from '../device-agent/desktop-activity-adapter.js';
@@ -232,6 +233,7 @@ export function createNagexApplication(): NagexApplication {
   // state of its own.
   const recipientRefStore = new RecipientRefStore();
   const contactResolver = new ContactResolver(recipientRefStore);
+  const mobileExecutionAuthority = new MobileExecutionAuthority(deviceIdentityStore, deviceConnectionStatusStore);
   // R23.6M Phase C — one complete real SMS execution flow. Reuses
   // actionApprovals/auditLogger unchanged; recipientRefStore already
   // structurally satisfies RecipientRefLookupPort.
@@ -241,6 +243,7 @@ export function createNagexApplication(): NagexApplication {
     recipientRefStore,
     actionApprovals,
     auditLogger,
+    mobileExecutionAuthority,
   );
   // R23.6M Phase D1 — Global Messaging Abstraction. Exactly one registered
   // adapter (SMS); KakaoTalk is not registered until D2 provides a real
