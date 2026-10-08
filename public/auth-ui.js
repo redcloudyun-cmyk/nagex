@@ -119,7 +119,16 @@
     return modal;
   }
 
-  function showAuthModal(view = 'signin', params = {}) {
+  async function loadAuthProviders() {
+    try {
+      const res = await window.NAGEX.apiFetch('/api/v1/auth/providers');
+      return res && res.providers ? res.providers : {};
+    } catch {
+      return {};
+    }
+  }
+
+  async function showAuthModal(view = 'signin', params = {}) {
     const modal = ensureAuthModal();
     const body = document.getElementById('auth-modal-body');
     const title = document.getElementById('auth-modal-title');
@@ -127,286 +136,51 @@
 
     modal.hidden = false;
 
-    if (view === 'signin') {
-      title.textContent = t('auth.welcome', 'Welcome to NAgex');
-      body.innerHTML = `
-        <div class="auth-provider-first">
-          <p class="auth-subtitle">${escapeHtml(t('auth.subtitle', 'Your personal AI for getting things done.'))}</p>
-          <button type="button" class="auth-provider-btn auth-provider-google" id="btn-auth-google">
-            <svg class="provider-icon google-icon" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-              <path fill="#FBBC05" d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.62z"/>
-              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-            </svg>
-            <span>${escapeHtml(t('auth.continueGoogle', 'Continue with Google'))}</span>
-          </button>
-          <button type="button" class="auth-provider-btn auth-provider-microsoft" id="btn-auth-microsoft">
-            <svg class="provider-icon microsoft-icon" width="18" height="18" viewBox="0 0 23 23" aria-hidden="true">
-              <path fill="#f35325" d="M1 1h10v10H1z"/>
-              <path fill="#81bc06" d="M12 1h10v10H1z"/>
-              <path fill="#05a6f0" d="M1 12h10v10H1z"/>
-              <path fill="#ffba08" d="M12 12h10v10H1z"/>
-            </svg>
-            <span>${escapeHtml(t('auth.continueMicrosoft', 'Continue with Microsoft'))}</span>
-          </button>
-          <div class="auth-divider"><span>${escapeHtml(t('auth.or', 'or'))}</span></div>
-        </div>
-        <form id="auth-form-signin" class="auth-form auth-email-first">
-          <div class="form-group">
-            <label for="signin-email">${escapeHtml(t('auth.email', 'Email address'))}</label>
-            <input type="email" id="signin-email" class="form-control" required autocomplete="email" value="${escapeHtml(params.email || '')}" placeholder="you@example.com">
-          </div>
-          <div class="form-group" id="signin-password-group" hidden>
-            <label for="signin-password">${escapeHtml(t('auth.password', 'Password'))}</label>
-            <input type="password" id="signin-password" class="form-control" autocomplete="current-password" placeholder="••••••••">
-          </div>
-          <div class="form-actions">
-            <button type="submit" class="btn btn-primary btn-auth-submit" id="btn-submit-signin">${escapeHtml(t('auth.continueEmail', 'Continue with email'))}</button>
-          </div>
-          <div class="auth-msg-area" id="auth-msg-area"></div>
-          <div class="auth-links">
-            <a href="#" id="link-forgot-password" hidden>${escapeHtml(t('auth.forgotPassword', 'Forgot password?'))}</a>
-            <span>${escapeHtml(t('auth.newToNagex', 'New to NAgex?'))} <a href="#" id="link-goto-signup">${escapeHtml(t('auth.createAccount', 'Create an account'))}</a></span>
-          </div>
-        </form>
-        <div class="auth-legal"><a href="privacy.html">${escapeHtml(t('auth.privacy', 'Privacy'))}</a><span>·</span><a href="terms.html">${escapeHtml(t('auth.terms', 'Terms'))}</a></div>`;
+    title.textContent = t('auth.welcome', 'Welcome to NAgex');
+    body.innerHTML = `<p class="auth-subtitle">${escapeHtml(t('auth.loadingProviders', 'Loading sign-in options...'))}</p>`;
 
-      const beginProvider = (provider) => {
-        const button = document.getElementById(`btn-auth-${provider}`);
-        if (button) { button.disabled = true; button.textContent = t('auth.redirecting', 'Opening secure sign-in...'); }
-        window.location.assign(`/api/v1/auth/oauth/${provider}/start`);
-      };
-      document.getElementById('btn-auth-google')?.addEventListener('click', () => beginProvider('google'));
-      document.getElementById('btn-auth-microsoft')?.addEventListener('click', () => beginProvider('microsoft'));
-
-      document.getElementById('link-forgot-password')?.addEventListener('click', (e) => { e.preventDefault(); showAuthModal('forgot'); });
-      document.getElementById('link-goto-signup')?.addEventListener('click', (e) => { e.preventDefault(); showAuthModal('signup'); });
-
-      document.getElementById('auth-form-signin')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const email = document.getElementById('signin-email').value;
-        const passwordGroup = document.getElementById('signin-password-group');
-        const passwordInput = document.getElementById('signin-password');
-        if (passwordGroup.hidden && !passwordInput.value) {
-          passwordGroup.hidden = false;
-          passwordInput.required = true;
-          document.getElementById('link-forgot-password').hidden = false;
-          document.getElementById('btn-submit-signin').textContent = t('auth.signIn', 'Sign in');
-          passwordInput.focus();
-          return;
-        }
-        const password = passwordInput.value;
-        const msgArea = document.getElementById('auth-msg-area');
-
-        try {
-          const res = await window.NAGEX.apiFetch('/api/v1/auth/login', {
-            method: 'POST',
-            body: JSON.stringify({ email, password }),
-          });
-          if (res && res.status === 'SUCCESS') {
-            await checkSession();
-            hideAuthModal();
-            if (window.NAGEX.renderMobileSettings) window.NAGEX.renderMobileSettings();
-          } else {
-            msgArea.innerHTML = `<p class="form-error">${escapeHtml(res?.error?.message || 'Invalid email or password.')}</p>`;
-          }
-        } catch (err) {
-          msgArea.innerHTML = `<p class="form-error">Invalid email or password.</p>`;
-        }
-      });
-    } else if (view === 'signup') {
-      title.textContent = t('auth.signUp', 'Create Account');
-      body.innerHTML = `
-        <form id="auth-form-signup" class="auth-form">
-          <div class="form-group">
-            <label for="signup-email">${escapeHtml(t('auth.email', 'Email address'))}</label>
-            <input type="email" id="signup-email" class="form-control" required autocomplete="email">
-          </div>
-          <div class="form-group">
-            <label for="signup-password">${escapeHtml(t('auth.password', 'Password (min 8 chars)'))}</label>
-            <input type="password" id="signup-password" class="form-control" required autocomplete="new-password">
-          </div>
-          <div class="form-group">
-            <label for="signup-confirm">${escapeHtml(t('auth.passwordConfirmation', 'Confirm password'))}</label>
-            <input type="password" id="signup-confirm" class="form-control" required autocomplete="new-password">
-          </div>
-          <div class="form-group form-check">
-            <label><input type="checkbox" id="signup-terms" required> ${escapeHtml(t('auth.termsAccept', 'I accept the Terms of Service'))}</label>
-          </div>
-          <div class="form-group form-check">
-            <label><input type="checkbox" id="signup-privacy" required> ${escapeHtml(t('auth.privacyAccept', 'I accept the Privacy Policy'))}</label>
-          </div>
-          <div class="form-actions">
-            <button type="submit" class="btn btn-primary" id="btn-submit-signup">${escapeHtml(t('auth.signUp', 'Create Account'))}</button>
-          </div>
-          <div class="auth-msg-area" id="auth-msg-area"></div>
-          <div class="auth-links">
-            <a href="#" id="link-goto-signin">${escapeHtml(t('auth.alreadyHaveAccount', 'Already have an account? Sign in'))}</a>
-          </div>
-        </form>`;
-
-      document.getElementById('link-goto-signin')?.addEventListener('click', (e) => { e.preventDefault(); showAuthModal('signin'); });
-
-      document.getElementById('auth-form-signup')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const email = document.getElementById('signup-email').value;
-        const password = document.getElementById('signup-password').value;
-        const passwordConfirmation = document.getElementById('signup-confirm').value;
-        const termsAccepted = document.getElementById('signup-terms').checked;
-        const privacyAccepted = document.getElementById('signup-privacy').checked;
-        const msgArea = document.getElementById('auth-msg-area');
-
-        try {
-          const res = await window.NAGEX.apiFetch('/api/v1/auth/signup', {
-            method: 'POST',
-            body: JSON.stringify({ email, password, passwordConfirmation, termsAccepted, privacyAccepted }),
-          });
-          if (res && res.status === 'PENDING_VERIFICATION') {
-            // R24.6C1 — a token exists in the response ONLY when the server's explicit
-            // dev opt-in is on. Otherwise nothing was delivered (no mail provider yet)
-            // and the UI says exactly that instead of waiting for a token.
-            showAuthModal('verify', { email, token: res.devVerificationToken, delivery: res.delivery });
-          } else {
-            msgArea.innerHTML = `<p class="form-error">${escapeHtml(res?.error?.message || 'Account creation failed.')}</p>`;
-          }
-        } catch (err) {
-          msgArea.innerHTML = `<p class="form-error">Account creation failed.</p>`;
-        }
-      });
-    } else if (view === 'verify') {
-      title.textContent = t('auth.verifyEmail', 'Verify Email');
-      // R24.6C1 — no mail provider exists. With the server's explicit dev opt-in OFF there is
-      // no token in the response and nothing was delivered, so the UI renders only a truthful
-      // notice (no token field, no verify action) instead of waiting for a token.
-      const deliveryUnavailable = !params.token && Boolean(params.delivery) && params.delivery.status === 'NOT_CONFIGURED';
-      const verifyBody = deliveryUnavailable
-        ? `<p class="auth-info-text" id="auth-delivery-notice">Your account was created for <strong>${escapeHtml(params.email || '')}</strong>, but email delivery is not configured on this server yet, so no verification message was sent. Verification cannot be completed until email delivery is set up.</p>`
-        : `<p class="auth-info-text">Enter the verification token for <strong>${escapeHtml(params.email || '')}</strong>.</p>
-          <div class="form-group">
-            <label for="verify-token">Verification Token</label>
-            <input type="text" id="verify-token" class="form-control" required value="${escapeHtml(params.token || '')}">
-          </div>
-          <div class="form-actions">
-            <button type="submit" class="btn btn-primary" id="btn-submit-verify">${escapeHtml(t('auth.verifyEmail', 'Verify Email'))}</button>
-          </div>`;
-      body.innerHTML = `
-        <form id="auth-form-verify" class="auth-form">
-          ${verifyBody}
-          <div class="auth-msg-area" id="auth-msg-area"></div>
-          <div class="auth-links">
-            <a href="#" id="link-verify-goto-signin">${escapeHtml(t('auth.alreadyHaveAccount', 'Sign in'))}</a>
-          </div>
-        </form>`;
-      document.getElementById('link-verify-goto-signin')?.addEventListener('click', (e) => { e.preventDefault(); showAuthModal('signin'); });
-
-      document.getElementById('auth-form-verify')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const tokenInput = document.getElementById('verify-token');
-        if (!tokenInput) return;
-        const token = tokenInput.value;
-        const msgArea = document.getElementById('auth-msg-area');
-
-        try {
-          const res = await window.NAGEX.apiFetch('/api/v1/auth/verify-email', {
-            method: 'POST',
-            body: JSON.stringify({ token }),
-          });
-          if (res && res.status === 'ACTIVE') {
-            msgArea.innerHTML = `<p class="form-success">Email verified! Redirecting to sign in...</p>`;
-            setTimeout(() => showAuthModal('signin', { email: params.email }), 1000);
-          } else {
-            msgArea.innerHTML = `<p class="form-error">${escapeHtml(res?.error?.message || 'Verification failed.')}</p>`;
-          }
-        } catch (err) {
-          msgArea.innerHTML = `<p class="form-error">Verification failed.</p>`;
-        }
-      });
-    } else if (view === 'forgot') {
-      title.textContent = t('auth.forgotPassword', 'Forgot Password');
-      body.innerHTML = `
-        <form id="auth-form-forgot" class="auth-form">
-          <div class="form-group">
-            <label for="forgot-email">${escapeHtml(t('auth.email', 'Email address'))}</label>
-            <input type="email" id="forgot-email" class="form-control" required autocomplete="email">
-          </div>
-          <div class="form-actions">
-            <button type="submit" class="btn btn-primary">Request Password Reset</button>
-          </div>
-          <div class="auth-msg-area" id="auth-msg-area"></div>
-          <div class="auth-links">
-            <a href="#" id="link-goto-signin-2">${escapeHtml(t('auth.alreadyHaveAccount', 'Sign in'))}</a>
-          </div>
-        </form>`;
-
-      document.getElementById('link-goto-signin-2')?.addEventListener('click', (e) => { e.preventDefault(); showAuthModal('signin'); });
-
-      document.getElementById('auth-form-forgot')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const email = document.getElementById('forgot-email').value;
-        const msgArea = document.getElementById('auth-msg-area');
-
-        try {
-          const res = await window.NAGEX.apiFetch('/api/v1/auth/forgot-password', {
-            method: 'POST',
-            body: JSON.stringify({ email }),
-          });
-          if (res && res.devResetToken) {
-            showAuthModal('reset', { token: res.devResetToken });
-          } else {
-            // The server's acknowledgement is deliberately identical for every address and
-            // truthful about delivery; shown as information, never as "email sent" success.
-            msgArea.innerHTML = `<p class="auth-info-text" id="auth-forgot-ack">${escapeHtml(res?.message || 'Password reset request recorded.')}</p>`;
-          }
-        } catch (err) {
-          msgArea.innerHTML = `<p class="form-error">Could not submit the password reset request.</p>`;
-        }
-      });
-    } else if (view === 'reset') {
-      title.textContent = t('auth.resetPassword', 'Reset Password');
-      body.innerHTML = `
-        <form id="auth-form-reset" class="auth-form">
-          <div class="form-group">
-            <label for="reset-token">Reset Token</label>
-            <input type="text" id="reset-token" class="form-control" required value="${escapeHtml(params.token || '')}">
-          </div>
-          <div class="form-group">
-            <label for="reset-new-password">New Password</label>
-            <input type="password" id="reset-new-password" class="form-control" required autocomplete="new-password">
-          </div>
-          <div class="form-group">
-            <label for="reset-confirm-password">Confirm New Password</label>
-            <input type="password" id="reset-confirm-password" class="form-control" required autocomplete="new-password">
-          </div>
-          <div class="form-actions">
-            <button type="submit" class="btn btn-primary">Reset Password</button>
-          </div>
-          <div class="auth-msg-area" id="auth-msg-area"></div>
-        </form>`;
-
-      document.getElementById('auth-form-reset')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const token = document.getElementById('reset-token').value;
-        const newPassword = document.getElementById('reset-new-password').value;
-        const newPasswordConfirmation = document.getElementById('reset-confirm-password').value;
-        const msgArea = document.getElementById('auth-msg-area');
-
-        try {
-          const res = await window.NAGEX.apiFetch('/api/v1/auth/reset-password', {
-            method: 'POST',
-            body: JSON.stringify({ token, newPassword, newPasswordConfirmation }),
-          });
-          if (res && res.message) {
-            msgArea.innerHTML = `<p class="form-success">${escapeHtml(res.message)} Redirecting to sign in...</p>`;
-            setTimeout(() => showAuthModal('signin'), 1200);
-          } else {
-            msgArea.innerHTML = `<p class="form-error">${escapeHtml(res?.error?.message || 'Password reset failed.')}</p>`;
-          }
-        } catch (err) {
-          msgArea.innerHTML = `<p class="form-error">Password reset failed.</p>`;
-        }
-      });
+    const providers = await loadAuthProviders();
+    const buttons = [];
+    if (providers.google && providers.google.enabled) {
+      buttons.push(`
+        <button type="button" class="auth-provider-btn auth-provider-google" id="btn-auth-google">
+          <svg class="provider-icon google-icon" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.62z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+          </svg>
+          <span>${escapeHtml(t('auth.continueGoogle', 'Continue with Google'))}</span>
+        </button>`);
     }
+    if (providers.microsoft && providers.microsoft.enabled) {
+      buttons.push(`
+        <button type="button" class="auth-provider-btn auth-provider-microsoft" id="btn-auth-microsoft">
+          <svg class="provider-icon microsoft-icon" width="18" height="18" viewBox="0 0 23 23" aria-hidden="true">
+            <path fill="#f35325" d="M1 1h10v10H1z"/>
+            <path fill="#81bc06" d="M12 1h10v10H1z"/>
+            <path fill="#05a6f0" d="M1 12h10v10H1z"/>
+            <path fill="#ffba08" d="M12 12h10v10H1z"/>
+          </svg>
+          <span>${escapeHtml(t('auth.continueMicrosoft', 'Continue with Microsoft'))}</span>
+        </button>`);
+    }
+
+    body.innerHTML = `
+      <div class="auth-provider-first">
+        <p class="auth-subtitle">${escapeHtml(t('auth.subtitle', 'Your personal AI for getting things done.'))}</p>
+        ${buttons.length ? buttons.join('') : `<p class="auth-info-text">${escapeHtml(t('auth.noProviders', 'Sign-in is not configured for this runtime.'))}</p>`}
+        <div class="auth-msg-area" id="auth-msg-area"></div>
+      </div>
+      <div class="auth-legal"><a href="privacy.html">${escapeHtml(t('auth.privacy', 'Privacy'))}</a><span>·</span><a href="terms.html">${escapeHtml(t('auth.terms', 'Terms'))}</a></div>`;
+
+    const beginProvider = (provider) => {
+      const button = document.getElementById(`btn-auth-${provider}`);
+      if (button) { button.disabled = true; button.textContent = t('auth.redirecting', 'Opening secure sign-in...'); }
+      window.location.assign(`/api/v1/auth/oauth/${provider}/start`);
+    };
+    document.getElementById('btn-auth-google')?.addEventListener('click', () => beginProvider('google'));
+    document.getElementById('btn-auth-microsoft')?.addEventListener('click', () => beginProvider('microsoft'));
   }
 
   function hideAuthModal() {
@@ -478,31 +252,6 @@
         </div>
         <div id="${idp}acc-profile-msg" role="status"></div>
 
-        <!-- Password Change -->
-        <h4 class="mh-settings-subheading">${escapeHtml(t('account.changePassword', 'Change Password'))}</h4>
-        <div class="mh-settings-row">
-          <div class="mh-settings-form-row">
-            <label>${escapeHtml(t('account.currentPassword', 'Current Password'))}</label>
-            <input type="password" id="${idp}acc-pwd-current" class="mh-input">
-          </div>
-        </div>
-        <div class="mh-settings-row">
-          <div class="mh-settings-form-row">
-            <label>${escapeHtml(t('account.newPassword', 'New Password'))}</label>
-            <input type="password" id="${idp}acc-pwd-new" class="mh-input">
-          </div>
-        </div>
-        <div class="mh-settings-row">
-          <div class="mh-settings-form-row">
-            <label>${escapeHtml(t('account.newPasswordConfirmation', 'Confirm New Password'))}</label>
-            <input type="password" id="${idp}acc-pwd-confirm" class="mh-input">
-          </div>
-        </div>
-        <div class="mh-settings-row">
-          <button class="mh-settings-action-btn" id="${idp}btn-change-password">${escapeHtml(t('account.updatePassword', 'Update Password'))}</button>
-        </div>
-        <div id="${idp}acc-pwd-msg"></div>
-
         <!-- Sessions Manager -->
         <h4 class="mh-settings-subheading">${escapeHtml(t('account.sessions', 'Active Sessions'))}</h4>
         <div id="${idp}acc-sessions-list">${sessionsHtml}</div>
@@ -547,25 +296,6 @@
         return;
       }
       await checkSession();
-    });
-
-    // Bind password change
-    document.getElementById(idp + 'btn-change-password')?.addEventListener('click', async () => {
-      const currentPassword = document.getElementById(idp + 'acc-pwd-current').value;
-      const newPassword = document.getElementById(idp + 'acc-pwd-new').value;
-      const newPasswordConfirmation = document.getElementById(idp + 'acc-pwd-confirm').value;
-      const msgArea = document.getElementById(idp + 'acc-pwd-msg');
-
-      const res = await window.NAGEX.apiFetch('/api/v1/account/password', {
-        method: 'POST',
-        body: JSON.stringify({ currentPassword, newPassword, newPasswordConfirmation }),
-      });
-
-      if (res && res.message) {
-        msgArea.innerHTML = `<p class="form-success">${escapeHtml(res.message)}</p>`;
-      } else {
-        msgArea.innerHTML = `<p class="form-error">${escapeHtml(res?.error?.message || t('account.passwordUpdateFailed', 'Password update failed.'))}</p>`;
-      }
     });
 
     // Bind logout all
@@ -661,16 +391,16 @@
     const authParams = new URLSearchParams(window.location.search);
     if (authParams.get('auth') === 'provider') {
       const status = authParams.get('status');
-      showAuthModal('signin');
-      const msgArea = document.getElementById('auth-msg-area');
-      if (msgArea) {
+      showAuthModal('signin').then(() => {
+        const msgArea = document.getElementById('auth-msg-area');
+        if (!msgArea) return;
         const message = status === 'link-required'
           ? t('auth.linkRequired', 'That email is already in use. Sign in first to connect this account.')
           : status === 'unavailable'
-            ? t('auth.providerUnavailable', 'That sign-in option is not available right now. Try email instead.')
+            ? t('auth.providerUnavailable', 'That sign-in option is not available on this runtime.')
             : t('auth.providerFailed', "We couldn't sign you in. Please try again.");
         msgArea.innerHTML = `<p class="form-error" role="alert">${escapeHtml(message)}</p>`;
-      }
+      });
       window.history.replaceState({}, '', window.location.pathname + window.location.hash);
     }
 

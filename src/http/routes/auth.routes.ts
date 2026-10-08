@@ -1,217 +1,62 @@
-// R13 Identity & Account Lifecycle — Authentication HTTP Route Registrar
-import { NagexError } from '../../common/errors.js';
-import { AUTH_EMAIL_DELIVERY, devAuthTokenFields } from '../../identity/dev-auth-tokens.js';
+// R13 Identity & Account Lifecycle - Authentication HTTP Route Registrar
 import type { IdentityStore } from '../../identity/identity.store.js';
 import type { IdentityTokenStore } from '../../identity/identity.tokens.js';
 import type { IdentityAuditStore } from '../../identity/identity.audit.js';
 import type { AuthAbuseGuard } from '../../identity/auth-abuse-guard.js';
-import { hashPassword, verifyPassword } from '../../identity/identity.crypto.js';
 import type { SessionStore } from '../../sessions/session.store.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
 import { getSessionIdFromHeaders } from '../session-credential.js';
 import { clientIpOf } from '../client-ip.js';
-import { defaultAuthAbuseGuard, throttleSubject, throttledResponse } from '../auth-throttle.js';
 
 export interface AuthRoutesDependencies {
   identityStore: IdentityStore;
   identityTokenStore: IdentityTokenStore;
   identityAuditStore: IdentityAuditStore;
   sessionStore: SessionStore;
-  /** S2E — defaults to the process-wide guard; injectable so a test can use its own policy and clock. */
+  /** S2E - defaults to the process-wide guard; injectable so a test can use its own policy and clock. */
   authAbuseGuard?: AuthAbuseGuard;
 }
 
 export { getSessionIdFromHeaders } from '../session-credential.js';
 
-const COOKIE_HEADER = (sessionId: string) => ({ 'Set-Cookie': `nagex_session=${encodeURIComponent(sessionId)}; Path=/; HttpOnly; SameSite=Lax` });
 const CLEAR_COOKIE_HEADER = { 'Set-Cookie': `nagex_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0` };
-
-// R24.6C1 — one public acknowledgement per endpoint, identical whether or not
-// the address belongs to an account (no account enumeration), and truthful:
-// a request is recorded, nothing is delivered (no mail provider exists yet).
-const RESEND_ACK = 'If an unverified account exists for this address, a new verification request was recorded. Email delivery is not configured on this server yet, so no message was sent.';
-const FORGOT_ACK = 'If an account exists for this address, a password reset request was recorded. Email delivery is not configured on this server yet, so no message was sent.';
+const PASSWORD_AUTH_DISABLED_RESPONSE: ApiResult = {
+  status: 410,
+  data: {
+    error: {
+      code: 'EMAIL_PASSWORD_AUTH_DISABLED',
+      category: 'AUTH_POLICY',
+      message: 'Email/password authentication is not available. Continue with Google or Microsoft.',
+    },
+  },
+};
 
 export const handleAuthRoutes: AsyncRouteRegistrar<AuthRoutesDependencies> = async (
   method,
   pathname,
-  body,
+  _body,
   headers,
   _query,
   deps
 ): Promise<ApiResult | undefined> => {
-  // S2E — the address comes from the trusted resolver (TCP peer, or X-Forwarded-For only through a trusted proxy), never
-  // from a request header.
   const clientIp = clientIpOf(headers);
-  const guard = deps.authAbuseGuard ?? defaultAuthAbuseGuard;
   const rawUserAgent = Array.isArray(headers['user-agent']) ? headers['user-agent'][0] : headers['user-agent'];
   const userAgent = rawUserAgent || null;
 
-  // 1. POST /api/v1/auth/signup
-  if (pathname === '/api/v1/auth/signup' && method === 'POST') {
-    // Checked before any validation or hashing: a throttled request costs no scrypt.
-    const signupSubject = throttleSubject('signup', headers);
-    const signupDecision = guard.check(signupSubject);
-    if (!signupDecision.allowed) {
-      return throttledResponse(signupDecision, 'Too many signup attempts. Please try again later.');
-    }
-    guard.hit(signupSubject);
-
-    const data = body || {};
-    const { email, password, passwordConfirmation, termsAccepted, privacyAccepted } = data as Record<string, any>;
-    if (!email || typeof email !== 'string' || !email.includes('@')) {
-      return { status: 400, data: { error: { code: 'INVALID_EMAIL', message: 'A valid email address is required.' } } };
-    }
-    if (!password || typeof password !== 'string' || password.length < 8) {
-      return { status: 400, data: { error: { code: 'WEAK_PASSWORD', message: 'Password must be at least 8 characters long.' } } };
-    }
-    if (password !== passwordConfirmation) {
-      return { status: 400, data: { error: { code: 'PASSWORD_MISMATCH', message: 'Passwords do not match.' } } };
-    }
-    if (!termsAccepted || !privacyAccepted) {
-      return { status: 400, data: { error: { code: 'TERMS_NOT_ACCEPTED', message: 'You must accept the Terms of Service and Privacy Policy.' } } };
-    }
-
-    try {
-      const passwordHash = hashPassword(password);
-      const { identity, profile } = deps.identityStore.createAccount(email, passwordHash);
-      const { rawToken } = deps.identityTokenStore.createToken('EMAIL_VERIFY', identity.userId, 24 * 60 * 60 * 1000);
-
-      deps.identityAuditStore.recordEvent(identity.userId, 'account.created', 'SUCCESS', { ip: clientIp, userAgent });
-
-      return {
-        status: 201,
-        data: {
-          status: 'PENDING_VERIFICATION',
-          user: { userId: identity.userId, email: identity.email, accountState: identity.accountState },
-          profile: { displayName: profile.displayName, locale: profile.locale, timezone: profile.timezone },
-          message: 'Account created. Email verification is required, but email delivery is not configured on this server yet, so no verification message was sent.',
-          delivery: AUTH_EMAIL_DELIVERY,
-          ...devAuthTokenFields('devVerificationToken', rawToken),
-        },
-      };
-    } catch (err: any) {
-      if (err instanceof NagexError) {
-        return { status: err.code === 'AUTH_EMAIL_ALREADY_EXISTS' ? 409 : 400, data: { error: { code: err.code, message: err.message } } };
-      }
-      return { status: 500, data: { error: { code: 'SERVER_ERROR', message: 'Internal server error.' } } };
-    }
+  if (
+    method === 'POST'
+    && [
+      '/api/v1/auth/signup',
+      '/api/v1/auth/verify-email',
+      '/api/v1/auth/resend-verification',
+      '/api/v1/auth/login',
+      '/api/v1/auth/forgot-password',
+      '/api/v1/auth/reset-password',
+    ].includes(pathname)
+  ) {
+    return PASSWORD_AUTH_DISABLED_RESPONSE;
   }
 
-  // 2. POST /api/v1/auth/verify-email
-  if (pathname === '/api/v1/auth/verify-email' && method === 'POST') {
-    const data = body || {};
-    const { token } = data as Record<string, any>;
-    if (!token || typeof token !== 'string') {
-      return { status: 400, data: { error: { code: 'INVALID_TOKEN', message: 'Verification token is required.' } } };
-    }
-
-    const tokenRecord = deps.identityTokenStore.consumeToken('EMAIL_VERIFY', token);
-    if (!tokenRecord) {
-      return { status: 400, data: { error: { code: 'INVALID_VERIFICATION_TOKEN', message: 'Verification token is invalid, expired, or already used.' } } };
-    }
-
-    const identity = deps.identityStore.transitionState(tokenRecord.userId, 'ACTIVE');
-    deps.identityAuditStore.recordEvent(identity.userId, 'email.verified', 'SUCCESS', { ip: clientIp, userAgent });
-
-    return {
-      status: 200,
-      data: {
-        status: 'ACTIVE',
-        user: { userId: identity.userId, email: identity.email, accountState: identity.accountState },
-        message: 'Email verified successfully.',
-      },
-    };
-  }
-
-  // 3. POST /api/v1/auth/resend-verification
-  if (pathname === '/api/v1/auth/resend-verification' && method === 'POST') {
-    const data = body || {};
-    const { email } = data as Record<string, any>;
-    if (email && typeof email === 'string') {
-      // Throttled and un-throttled requests answer identically (no account enumeration); a throttled one does nothing.
-      const resendSubject = throttleSubject('resend', headers, email);
-      if (guard.check(resendSubject).allowed) {
-        guard.hit(resendSubject);
-        const identity = deps.identityStore.getByEmail(email);
-        if (identity && identity.accountState === 'PENDING_VERIFICATION') {
-          const { rawToken } = deps.identityTokenStore.createToken('EMAIL_VERIFY', identity.userId, 24 * 60 * 60 * 1000);
-          return {
-            status: 200,
-            data: {
-              message: RESEND_ACK,
-              delivery: AUTH_EMAIL_DELIVERY,
-              ...devAuthTokenFields('devVerificationToken', rawToken),
-            },
-          };
-        }
-      }
-    }
-    return { status: 200, data: { message: RESEND_ACK, delivery: AUTH_EMAIL_DELIVERY } };
-  }
-
-  // 4. POST /api/v1/auth/login
-  if (pathname === '/api/v1/auth/login' && method === 'POST') {
-    const data = body || {};
-    const { email, password } = data as Record<string, any>;
-
-    // One shared password-guess budget (login, reactivate, delete-cancel), checked BEFORE any password hashing.
-    const loginSubject = throttleSubject('credential', headers, email);
-    const loginDecision = guard.check(loginSubject);
-    if (!loginDecision.allowed) {
-      return throttledResponse(loginDecision, 'Too many sign-in attempts. Please try again later.');
-    }
-
-    if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
-      return { status: 400, data: { error: { code: 'AUTH_INVALID_CREDENTIALS', message: 'Invalid email or password.' } } };
-    }
-
-    const identity = deps.identityStore.getByEmail(email);
-    if (!identity || !verifyPassword(password, identity.passwordHash)) {
-      guard.hit(loginSubject);
-      if (identity) {
-        deps.identityAuditStore.recordEvent(identity.userId, 'login.failed', 'FAILURE', { ip: clientIp, userAgent });
-      }
-      return { status: 401, data: { error: { code: 'AUTH_INVALID_CREDENTIALS', message: 'Invalid email or password.' } } };
-    }
-
-    // Account state checks
-    if (identity.accountState === 'PENDING_VERIFICATION') {
-      return { status: 403, data: { error: { code: 'AUTH_UNVERIFIED_EMAIL', message: 'Please verify your email address before signing in.' } } };
-    }
-    if (identity.accountState === 'DISABLED') {
-      return { status: 403, data: { error: { code: 'AUTH_ACCOUNT_DISABLED', message: 'This account has been disabled.' } } };
-    }
-    if (identity.accountState === 'LOCKED') {
-      return { status: 403, data: { error: { code: 'AUTH_ACCOUNT_LOCKED', message: 'This account is locked due to security policy.' } } };
-    }
-    if (identity.accountState === 'DELETED') {
-      return { status: 401, data: { error: { code: 'AUTH_INVALID_CREDENTIALS', message: 'Invalid email or password.' } } };
-    }
-
-    guard.clearAccount(loginSubject);
-
-    // Create session & rotate token
-    const tenantId = `ten_${identity.userId}`;
-    const session = deps.sessionStore.createAuthSession(tenantId, identity.userId, 'MAIN', { userAgent, ipAddress: clientIp });
-    deps.identityStore.updateLastLogin(identity.userId);
-    deps.identityAuditStore.recordEvent(identity.userId, 'login.succeeded', 'SUCCESS', { sessionId: session.sessionId, ip: clientIp, userAgent });
-
-    const profile = deps.identityStore.getProfile(identity.userId);
-
-    return {
-      status: 200,
-      headers: COOKIE_HEADER(session.sessionId),
-      data: {
-        status: 'SUCCESS',
-        session: { sessionId: session.sessionId, expiresAt: session.expiresAt },
-        user: { userId: identity.userId, email: identity.email, accountState: identity.accountState },
-        profile: profile ? { displayName: profile.displayName, locale: profile.locale, timezone: profile.timezone } : null,
-      },
-    };
-  }
-
-  // 5. POST /api/v1/auth/logout
   if (pathname === '/api/v1/auth/logout' && method === 'POST') {
     const sessionId = getSessionIdFromHeaders(headers);
     if (sessionId) {
@@ -228,7 +73,6 @@ export const handleAuthRoutes: AsyncRouteRegistrar<AuthRoutesDependencies> = asy
     };
   }
 
-  // 6. POST /api/v1/auth/logout-all
   if (pathname === '/api/v1/auth/logout-all' && method === 'POST') {
     const sessionId = getSessionIdFromHeaders(headers);
     if (!sessionId) {
@@ -248,7 +92,6 @@ export const handleAuthRoutes: AsyncRouteRegistrar<AuthRoutesDependencies> = asy
     };
   }
 
-  // 7. GET /api/v1/auth/session
   if (pathname === '/api/v1/auth/session' && method === 'GET') {
     const sessionId = getSessionIdFromHeaders(headers);
     if (!sessionId) {
@@ -273,65 +116,6 @@ export const handleAuthRoutes: AsyncRouteRegistrar<AuthRoutesDependencies> = asy
         profile: profile ? { displayName: profile.displayName, locale: profile.locale, timezone: profile.timezone } : null,
       },
     };
-  }
-
-  // 8. POST /api/v1/auth/forgot-password
-  if (pathname === '/api/v1/auth/forgot-password' && method === 'POST') {
-    const data = body || {};
-    const { email } = data as Record<string, any>;
-    if (email && typeof email === 'string') {
-      const forgotSubject = throttleSubject('forgot', headers, email);
-      if (guard.check(forgotSubject).allowed) {
-        guard.hit(forgotSubject);
-        const identity = deps.identityStore.getByEmail(email);
-        if (identity && identity.accountState === 'ACTIVE') {
-          const { rawToken } = deps.identityTokenStore.createToken('PASSWORD_RESET', identity.userId, 60 * 60 * 1000);
-          deps.identityAuditStore.recordEvent(identity.userId, 'password.reset.requested', 'SUCCESS', { ip: clientIp, userAgent });
-          return {
-            status: 200,
-            data: {
-              message: FORGOT_ACK,
-              delivery: AUTH_EMAIL_DELIVERY,
-              ...devAuthTokenFields('devResetToken', rawToken),
-            },
-          };
-        }
-      }
-    }
-    return { status: 200, data: { message: FORGOT_ACK, delivery: AUTH_EMAIL_DELIVERY } };
-  }
-
-  // 9. POST /api/v1/auth/reset-password
-  if (pathname === '/api/v1/auth/reset-password' && method === 'POST') {
-    const data = body || {};
-    const { token, newPassword, newPasswordConfirmation } = data as Record<string, any>;
-    if (!token || typeof token !== 'string') {
-      return { status: 400, data: { error: { code: 'INVALID_TOKEN', message: 'Reset token is required.' } } };
-    }
-    if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 8) {
-      return { status: 400, data: { error: { code: 'WEAK_PASSWORD', message: 'Password must be at least 8 characters long.' } } };
-    }
-    if (newPassword !== newPasswordConfirmation) {
-      return { status: 400, data: { error: { code: 'PASSWORD_MISMATCH', message: 'Passwords do not match.' } } };
-    }
-
-    const tokenRecord = deps.identityTokenStore.consumeToken('PASSWORD_RESET', token);
-    if (!tokenRecord) {
-      return { status: 400, data: { error: { code: 'INVALID_RESET_TOKEN', message: 'Reset token is invalid, expired, or already used.' } } };
-    }
-
-    const identity = deps.identityStore.getByUserId(tokenRecord.userId);
-    if (!identity) {
-      return { status: 400, data: { error: { code: 'AUTH_ACCOUNT_NOT_FOUND', message: 'Account not found.' } } };
-    }
-
-    const newHash = hashPassword(newPassword);
-    deps.identityStore.updatePassword(identity.userId, newHash);
-    const tenantId = `ten_${identity.userId}`;
-    deps.sessionStore.revokeAllUserSessions(tenantId, identity.userId);
-    deps.identityAuditStore.recordEvent(identity.userId, 'password.reset.completed', 'SUCCESS', { ip: clientIp, userAgent });
-
-    return { status: 200, data: { message: 'Password has been reset successfully. Please sign in with your new password.' } };
   }
 
   return undefined;

@@ -5,7 +5,7 @@ import type { IdentityStore } from '../../identity/identity.store.js';
 import type { IdentityTokenStore } from '../../identity/identity.tokens.js';
 import type { IdentityAuditStore } from '../../identity/identity.audit.js';
 import type { SessionRecord, SessionStore } from '../../sessions/session.store.js';
-import { hashPassword, verifyPassword } from '../../identity/identity.crypto.js';
+import { verifyPassword } from '../../identity/identity.crypto.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
 import { getSessionIdFromHeaders } from '../session-credential.js';
 import type { AuthAbuseGuard } from '../../identity/auth-abuse-guard.js';
@@ -107,34 +107,16 @@ export const handleAccountRoutes: AsyncRouteRegistrar<AccountRoutesDependencies>
 
   // 3. POST /api/v1/account/password
   if (pathname === '/api/v1/account/password' && method === 'POST') {
-    const auth = requireAuth(headers, deps);
-    if (!auth) {
-      return { status: 401, data: { error: { code: 'UNAUTHORIZED', message: 'Authentication required.' } } };
-    }
-
-    const data = body || {};
-    const { currentPassword, newPassword, newPasswordConfirmation } = data as Record<string, any>;
-    if (!currentPassword || !newPassword || !newPasswordConfirmation) {
-      return { status: 400, data: { error: { code: 'INVALID_PASSWORD', message: 'Current password, new password, and confirmation are required.' } } };
-    }
-
-    const identity = deps.identityStore.getByUserId(auth.userId)!;
-    if (!verifyPassword(currentPassword, identity.passwordHash)) {
-      deps.identityAuditStore.recordEvent(auth.userId, 'password.changed', 'FAILURE', { sessionId: auth.session.sessionId, ip: clientIp, userAgent });
-      return { status: 400, data: { error: { code: 'AUTH_INVALID_CREDENTIALS', message: 'Current password is incorrect.' } } };
-    }
-
-    if (newPassword.length < 8 || newPassword !== newPasswordConfirmation) {
-      return { status: 400, data: { error: { code: 'PASSWORD_MISMATCH', message: 'New password must be at least 8 characters and match confirmation.' } } };
-    }
-
-    const newHash = hashPassword(newPassword);
-    deps.identityStore.updatePassword(auth.userId, newHash);
-    // Keep current session, revoke all other sessions
-    deps.sessionStore.revokeAllUserSessions(auth.tenantId, auth.userId, auth.session.sessionId);
-    deps.identityAuditStore.recordEvent(auth.userId, 'password.changed', 'SUCCESS', { sessionId: auth.session.sessionId, ip: clientIp, userAgent });
-
-    return { status: 200, data: { message: 'Password changed successfully. Other active sessions have been revoked.' } };
+    return {
+      status: 410,
+      data: {
+        error: {
+          code: 'EMAIL_PASSWORD_AUTH_DISABLED',
+          category: 'AUTH_POLICY',
+          message: 'Password credentials are not available for end-user accounts. Continue with Google or Microsoft.',
+        },
+      },
+    };
   }
 
   // 4. POST /api/v1/account/email/change-request

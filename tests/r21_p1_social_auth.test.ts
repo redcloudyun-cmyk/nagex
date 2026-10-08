@@ -4,7 +4,7 @@ import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
 import test from 'node:test';
-import { handleSocialAuthRoutes } from '../src/http/routes/social-auth.routes.js';
+import { handleSocialAuthRoutes, socialAuthProviderAvailability } from '../src/http/routes/social-auth.routes.js';
 import { IdentityStore } from '../src/identity/identity.store.js';
 import { SocialIdentityStore } from '../src/identity/social-identity.store.js';
 import { SessionStore } from '../src/sessions/session.store.js';
@@ -26,12 +26,28 @@ async function start(provider: 'google' | 'microsoft', d: ReturnType<typeof deps
   return handleSocialAuthRoutes('GET', `/api/v1/auth/oauth/${provider}/start`, null, {}, {}, d) as Promise<any>;
 }
 
-test('provider-first auth UI exposes Google, Microsoft, and email without a fake chooser', () => {
+test('provider-first auth UI exposes only configured Google and Microsoft options', () => {
   const ui = fs.readFileSync(path.resolve('public/auth-ui.js'), 'utf8');
   assert.match(ui, /Continue with Google/);
   assert.match(ui, /Continue with Microsoft/);
-  assert.match(ui, /Continue with email/);
+  assert.match(ui, /\/api\/v1\/auth\/providers/);
+  assert.doesNotMatch(ui, /Continue with email/);
+  assert.doesNotMatch(ui, /signin-email|signin-password|forgot-password|auth-form-signup|reset-password|btn-change-password/);
   assert.doesNotMatch(ui, /fake account|account chooser.*option/i);
+});
+
+test('provider catalog reports only fully configured OAuth providers', async () => {
+  const availability = socialAuthProviderAvailability({
+    NAGEX_GOOGLE_LOGIN_CLIENT_ID: 'google-client',
+    NAGEX_GOOGLE_LOGIN_CLIENT_SECRET: 'google-secret',
+    NAGEX_GOOGLE_LOGIN_REDIRECT_URI: 'https://app.example.test/api/v1/auth/oauth/google/callback',
+  });
+  assert.deepEqual(availability, { google: { enabled: true }, microsoft: { enabled: false } });
+
+  const result = await handleSocialAuthRoutes('GET', '/api/v1/auth/providers', null, {}, {}, deps()) as any;
+  assert.equal(result.status, 200);
+  assert.equal(result.data.providers.google.enabled, true);
+  assert.equal(result.data.providers.microsoft.enabled, true);
 });
 
 test('initial Google and Microsoft login scopes are identity-only', async () => {
