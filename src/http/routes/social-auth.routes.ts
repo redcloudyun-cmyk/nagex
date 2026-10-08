@@ -8,13 +8,20 @@ interface Deps { identityStore: IdentityStore; socialIdentityStore: SocialIdenti
 const pendingStates = new Map<string, { provider: SocialProvider; expiresAt: number }>();
 const COOKIE = (id: string) => ({ 'Set-Cookie': `nagex_session=${encodeURIComponent(id)}; Path=/; HttpOnly; SameSite=Lax` });
 
-function config(provider: SocialProvider): { clientId: string; clientSecret: string; redirectUri: string; authorize: string; token: string; scopes: string[] } | null {
+export function socialAuthProviderConfig(provider: SocialProvider, env: NodeJS.ProcessEnv = process.env): { clientId: string; clientSecret: string; redirectUri: string; authorize: string; token: string; scopes: string[] } | null {
   if (provider === 'google') {
-    const clientId = process.env.NAGEX_GOOGLE_LOGIN_CLIENT_ID; const clientSecret = process.env.NAGEX_GOOGLE_LOGIN_CLIENT_SECRET; const redirectUri = process.env.NAGEX_GOOGLE_LOGIN_REDIRECT_URI;
+    const clientId = env.NAGEX_GOOGLE_LOGIN_CLIENT_ID; const clientSecret = env.NAGEX_GOOGLE_LOGIN_CLIENT_SECRET; const redirectUri = env.NAGEX_GOOGLE_LOGIN_REDIRECT_URI;
     return clientId && clientSecret && redirectUri ? { clientId, clientSecret, redirectUri, authorize: 'https://accounts.google.com/o/oauth2/v2/auth', token: 'https://oauth2.googleapis.com/token', scopes: ['openid', 'email', 'profile'] } : null;
   }
-  const clientId = process.env.NAGEX_MICROSOFT_LOGIN_CLIENT_ID; const clientSecret = process.env.NAGEX_MICROSOFT_LOGIN_CLIENT_SECRET; const redirectUri = process.env.NAGEX_MICROSOFT_LOGIN_REDIRECT_URI;
+  const clientId = env.NAGEX_MICROSOFT_LOGIN_CLIENT_ID; const clientSecret = env.NAGEX_MICROSOFT_LOGIN_CLIENT_SECRET; const redirectUri = env.NAGEX_MICROSOFT_LOGIN_REDIRECT_URI;
   return clientId && clientSecret && redirectUri ? { clientId, clientSecret, redirectUri, authorize: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize', token: 'https://login.microsoftonline.com/common/oauth2/v2.0/token', scopes: ['openid', 'email', 'profile'] } : null;
+}
+
+export function socialAuthProviderAvailability(env: NodeJS.ProcessEnv = process.env): { google: { enabled: boolean }; microsoft: { enabled: boolean } } {
+  return {
+    google: { enabled: Boolean(socialAuthProviderConfig('google', env)) },
+    microsoft: { enabled: Boolean(socialAuthProviderConfig('microsoft', env)) },
+  };
 }
 
 async function verifiedClaims(provider: SocialProvider, idToken: string, accessToken: string): Promise<{ sub: string; email: string; name?: string } | null> {
@@ -29,10 +36,13 @@ async function verifiedClaims(provider: SocialProvider, idToken: string, accessT
 }
 
 export const handleSocialAuthRoutes: AsyncRouteRegistrar<Deps> = async (method, pathname, _body, _headers, query, deps): Promise<ApiResult | undefined> => {
+  if (pathname === '/api/v1/auth/providers' && method === 'GET') {
+    return { status: 200, data: { providers: socialAuthProviderAvailability() } };
+  }
   const match = pathname.match(/^\/api\/v1\/auth\/oauth\/(google|microsoft)\/(start|callback)$/);
   const isGet = method === 'GET';
   if (!match || !isGet) return undefined;
-  const provider = match[1] as SocialProvider; const action = match[2]; const cfg = config(provider);
+  const provider = match[1] as SocialProvider; const action = match[2]; const cfg = socialAuthProviderConfig(provider);
   if (!cfg) return { status: 302, data: null, redirectTo: '/?auth=provider&status=unavailable' };
   if (action === 'start') {
     const state = crypto.randomUUID(); pendingStates.set(state, { provider, expiresAt: Date.now() + 10 * 60_000 });
