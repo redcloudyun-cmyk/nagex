@@ -183,6 +183,42 @@
     document.getElementById('btn-auth-microsoft')?.addEventListener('click', () => beginProvider('microsoft'));
   }
 
+  async function showLegacyMigrationModal(token) {
+    const modal = ensureAuthModal();
+    const body = document.getElementById('auth-modal-body');
+    const title = document.getElementById('auth-modal-title');
+    modal.hidden = false;
+    title.textContent = t('auth.legacyMigrationTitle', 'Existing NAgex account found');
+    body.innerHTML = `<p class="auth-subtitle">${escapeHtml(t('auth.loadingMigration', 'Loading account migration...'))}</p>`;
+    try {
+      const res = await window.NAGEX.apiFetch(`/api/v1/auth/oauth/migration/${encodeURIComponent(token)}`);
+      const migration = res.migration;
+      const providerLabel = migration.provider === 'google' ? 'Google' : 'Microsoft';
+      body.innerHTML = `
+        <div class="auth-provider-first">
+          <p class="auth-info-text">${escapeHtml(t('auth.legacyMigrationBody', 'NAgex found an existing account for this verified email. The existing account will be preserved and future sign-in will use this OAuth provider.'))}</p>
+          <p class="auth-info-text"><strong>${escapeHtml(migration.email)}</strong><br>${escapeHtml(providerLabel)}</p>
+          <button type="button" class="btn btn-primary" id="btn-confirm-oauth-migration">${escapeHtml(t('auth.confirmOAuthMigration', `Connect existing account to ${providerLabel}`))}</button>
+          <button type="button" class="btn btn-secondary" id="btn-cancel-oauth-migration">${escapeHtml(t('auth.cancel', 'Cancel'))}</button>
+          <div class="auth-msg-area" id="auth-msg-area"></div>
+        </div>`;
+      document.getElementById('btn-cancel-oauth-migration')?.addEventListener('click', hideAuthModal);
+      document.getElementById('btn-confirm-oauth-migration')?.addEventListener('click', async () => {
+        const msgArea = document.getElementById('auth-msg-area');
+        try {
+          await window.NAGEX.apiFetch(`/api/v1/auth/oauth/migration/${encodeURIComponent(token)}`, { method: 'POST' });
+          await checkSession();
+          hideAuthModal();
+          if (window.NAGEX.renderMobileSettings) window.NAGEX.renderMobileSettings();
+        } catch {
+          if (msgArea) msgArea.innerHTML = `<p class="form-error" role="alert">${escapeHtml(t('auth.migrationFailed', 'This migration request could not be completed. Please start sign-in again.'))}</p>`;
+        }
+      });
+    } catch {
+      body.innerHTML = `<p class="form-error" role="alert">${escapeHtml(t('auth.migrationExpired', 'This migration request expired. Please start sign-in again.'))}</p>`;
+    }
+  }
+
   function hideAuthModal() {
     const modal = document.getElementById('auth-modal');
     if (modal) modal.hidden = true;
@@ -391,11 +427,17 @@
     const authParams = new URLSearchParams(window.location.search);
     if (authParams.get('auth') === 'provider') {
       const status = authParams.get('status');
+      const migration = authParams.get('migration');
+      if (status === 'migration-required' && migration) {
+        showLegacyMigrationModal(migration);
+        window.history.replaceState({}, '', window.location.pathname + window.location.hash);
+        return;
+      }
       showAuthModal('signin').then(() => {
         const msgArea = document.getElementById('auth-msg-area');
         if (!msgArea) return;
         const message = status === 'link-required'
-          ? t('auth.linkRequired', 'That email is already in use. Sign in first to connect this account.')
+          ? t('auth.linkRequired', 'That email is already in use and cannot be linked automatically.')
           : status === 'unavailable'
             ? t('auth.providerUnavailable', 'That sign-in option is not available on this runtime.')
             : t('auth.providerFailed', "We couldn't sign you in. Please try again.");

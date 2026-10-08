@@ -67,7 +67,7 @@ test('Google callback creates a session, reuses provider+subject, and never sile
   globalThis.fetch = async (input: any) => {
     const url = String(input);
     if (url === 'https://oauth2.googleapis.com/token') return new Response(JSON.stringify({ id_token: 'id', access_token: 'access' }), { status: 200 });
-    return new Response(JSON.stringify({ sub: subject, email, name: 'Google User' }), { status: 200 });
+    return new Response(JSON.stringify({ sub: subject, email, email_verified: true, name: 'Google User' }), { status: 200 });
   };
   try {
     const firstStart = await start('google', d); const firstState = new URL(firstStart.redirectTo).searchParams.get('state')!;
@@ -80,10 +80,73 @@ test('Google callback creates a session, reuses provider+subject, and never sile
     const existing = await handleSocialAuthRoutes('GET', '/api/v1/auth/oauth/google/callback', null, {}, { state: secondState, code: 'code-2' }, d) as any;
     assert.equal(existing.status, 302); assert.equal(d.socialIdentityStore.get('google', subject)?.userId, firstUserId);
 
-    email = 'local@example.test'; subject = 'different-google-sub'; d.identityStore.createAccount(email, 'not-a-real-login-hash');
+    email = 'local@example.test'; subject = 'different-google-sub';
+    const local = d.identityStore.createAccount(email, 'not-a-real-login-hash').identity;
+    d.identityStore.transitionState(local.userId, 'ACTIVE');
     const collisionStart = await start('google', d); const collisionState = new URL(collisionStart.redirectTo).searchParams.get('state')!;
     const collision = await handleSocialAuthRoutes('GET', '/api/v1/auth/oauth/google/callback', null, {}, { state: collisionState, code: 'code-3' }, d) as any;
-    assert.equal(collision.redirectTo, '/?auth=provider&status=link-required');
+    assert.match(collision.redirectTo, /^\/\?auth=provider&status=migration-required&migration=/);
     assert.equal(d.socialIdentityStore.get('google', subject), undefined);
+  } finally { globalThis.fetch = original; }
+});
+
+test('verified legacy email migration is explicit, single-use, and preserves owner', async () => {
+  const original = globalThis.fetch; const d = deps();
+  const { identity } = d.identityStore.createAccount('legacy@example.test', 'legacy-password-hash');
+  d.identityStore.transitionState(identity.userId, 'ACTIVE');
+  globalThis.fetch = async (input: any) => {
+    const url = String(input);
+    if (url === 'https://oauth2.googleapis.com/token') return new Response(JSON.stringify({ id_token: 'id', access_token: 'access' }), { status: 200 });
+    return new Response(JSON.stringify({ sub: 'google-legacy-sub', email: 'legacy@example.test', email_verified: true }), { status: 200 });
+  };
+  try {
+    const startResult = await start('google', d); const state = new URL(startResult.redirectTo).searchParams.get('state')!;
+    const callback = await handleSocialAuthRoutes('GET', '/api/v1/auth/oauth/google/callback', null, {}, { state, code: 'code' }, d) as any;
+    const redirect = new URL(`https://app.example.test${callback.redirectTo}`);
+    const token = redirect.searchParams.get('migration')!;
+    assert.equal(redirect.searchParams.get('status'), 'migration-required');
+    assert.equal(d.socialIdentityStore.get('google', 'google-legacy-sub'), undefined);
+
+    const info = await handleSocialAuthRoutes('GET', `/api/v1/auth/oauth/migration/${token}`, null, {}, {}, d) as any;
+    assert.equal(info.status, 200);
+    assert.equal(info.data.migration.userId, identity.userId);
+
+    const confirmed = await handleSocialAuthRoutes('POST', `/api/v1/auth/oauth/migration/${token}`, null, {}, {}, d) as any;
+    assert.equal(confirmed.status, 200);
+    assert.match(confirmed.headers['Set-Cookie'], /nagex_session=/);
+    assert.equal(d.socialIdentityStore.get('google', 'google-legacy-sub')?.userId, identity.userId);
+    assert.equal(d.identityStore.getByEmail('legacy@example.test')?.userId, identity.userId);
+
+    const replay = await handleSocialAuthRoutes('POST', `/api/v1/auth/oauth/migration/${token}`, null, {}, {}, d) as any;
+    assert.equal(replay.status, 410);
+  } finally { globalThis.fetch = original; }
+});
+
+test('legacy migration blocks unverified OAuth email and non-legacy collision', async () => {
+  const original = globalThis.fetch; const d = deps();
+  const legacy = d.identityStore.createAccount('blocked@example.test', 'legacy-password-hash').identity;
+  d.identityStore.transitionState(legacy.userId, 'ACTIVE');
+  let verified = false;
+  globalThis.fetch = async (input: any) => {
+    const url = String(input);
+    if (url === 'https://oauth2.googleapis.com/token') return new Response(JSON.stringify({ id_token: 'id', access_token: 'access' }), { status: 200 });
+    return new Response(JSON.stringify({ sub: 'sub-blocked', email: 'blocked@example.test', email_verified: verified }), { status: 200 });
+  };
+  try {
+    const unverifiedStart = await start('google', d); const unverifiedState = new URL(unverifiedStart.redirectTo).searchParams.get('state')!;
+    const unverified = await handleSocialAuthRoutes('GET', '/api/v1/auth/oauth/google/callback', null, {}, { state: unverifiedState, code: 'code' }, d) as any;
+    assert.equal(unverified.redirectTo, '/?auth=provider&status=link-required');
+
+    const nonLegacy = d.identityStore.createSocialAccount('social-existing@example.test', 'microsoft').identity;
+    verified = true;
+    globalThis.fetch = async (input: any) => {
+      const url = String(input);
+      if (url === 'https://oauth2.googleapis.com/token') return new Response(JSON.stringify({ id_token: 'id', access_token: 'access' }), { status: 200 });
+      return new Response(JSON.stringify({ sub: 'sub-non-legacy', email: nonLegacy.email, email_verified: true }), { status: 200 });
+    };
+    const nonLegacyStart = await start('google', d); const nonLegacyState = new URL(nonLegacyStart.redirectTo).searchParams.get('state')!;
+    const blocked = await handleSocialAuthRoutes('GET', '/api/v1/auth/oauth/google/callback', null, {}, { state: nonLegacyState, code: 'code' }, d) as any;
+    assert.equal(blocked.redirectTo, '/?auth=provider&status=link-required');
+    assert.equal(d.socialIdentityStore.get('google', 'sub-non-legacy'), undefined);
   } finally { globalThis.fetch = original; }
 });

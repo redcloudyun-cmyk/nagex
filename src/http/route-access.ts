@@ -45,6 +45,7 @@ export const ROUTE_ACCESS_RULES: readonly RouteAccessRule[] = [
   rule(['GET'], /^\/api\/v1\/auth\/session$/, 'PUBLIC', 'reports "unauthenticated" to a signed-out browser'),
   rule(['GET'], /^\/api\/v1\/auth\/providers$/, 'PUBLIC', 'configured sign-in provider catalog for the login UI'),
   rule(['GET'], /^\/api\/v1\/auth\/oauth\/(google|microsoft)\/(start|callback)$/, 'PUBLIC', 'social sign-in: the provider redirects an unauthenticated browser here'),
+  rule(['GET', 'POST'], /^\/api\/v1\/auth\/oauth\/migration\/[^/]+$/, 'PUBLIC', 'explicit one-time legacy account OAuth migration confirmation'),
   rule(['GET'], /^\/api\/(?:v1\/)?auth\/sso\/discover$/, 'PUBLIC', 'SSO discovery before sign-in'),
   rule(['GET'], /^\/api\/(?:v1\/)?auth\/oidc\/[^/]+\/start$/, 'PUBLIC', 'OIDC login start'),
   rule(['GET'], /^\/api\/(?:v1\/)?auth\/oidc\/callback$/, 'PUBLIC', 'OIDC redirect callback (state + nonce + PKCE bound)'),
