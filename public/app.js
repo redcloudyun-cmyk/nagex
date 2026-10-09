@@ -18,6 +18,7 @@
     skills: [],
     tools: [],
     approvals: [],
+    approvalSections: { pending: [], inProgress: [], recent: [] },
     // R12.1 Increment 2.5 §8 — fail-closed contract: true only when the
     // real GET /api/v1/approvals fetch itself failed (network error or a
     // structured API error), never set just because the real canonical
@@ -462,7 +463,7 @@
     { tab: 'tab-canvas', i18nKey: 'nav.canvas', mobilePrimary: true },
     { tab: 'tab-tasks', i18nKey: 'nav.tasks', mobilePrimary: false },
     { tab: 'tab-knowledge', i18nKey: 'nav.knowledge', mobilePrimary: false },
-    { tab: 'tab-approvals', i18nKey: 'nav.approvals', mobilePrimary: false },
+    { tab: 'tab-executions', i18nKey: 'nav.activity', mobilePrimary: false },
     { tab: 'tab-settings', i18nKey: 'nav.settings', mobilePrimary: true },
   ];
 
@@ -495,7 +496,8 @@
     '#tasks': 'tab-tasks',
     '#skills': 'tab-skills',
     '#tools': 'tab-tools',
-    '#approvals': 'tab-approvals',
+    '#approvals': 'tab-inbox',
+    '#inbox/approvals': 'tab-inbox',
     '#knowledge': 'tab-knowledge',
     '#settings': 'tab-settings',
     '#my-space': 'tab-my-space',
@@ -536,6 +538,7 @@
 
   function switchTab(tabId, options) {
     console.log('[ROUTER] switchTab called:', tabId, 'options:', options, 'current activeTab:', state.activeTab);
+    if (tabId === 'tab-approvals') tabId = 'tab-inbox';
     const pushHistory = !options || options.pushHistory !== false;
     const prevTab = state.activeTab;
     state.activeTab = tabId;
@@ -743,7 +746,14 @@
     if (skillData) state.skills = skillData.skills || [];
     if (toolData) state.tools = toolData.tools || [];
     state.approvalsLoadFailed = !apprData || Boolean(apprData.error);
-    if (apprData && !apprData.error) state.approvals = apprData.approvals || [];
+    if (apprData && !apprData.error) {
+      state.approvals = apprData.approvals || [];
+      state.approvalSections = {
+        pending: apprData.pending || (apprData.approvals || []).filter((a) => a.status === 'PENDING'),
+        inProgress: apprData.inProgress || [],
+        recent: apprData.recent || [],
+      };
+    }
     if (execData) state.executions = execData.executions || [];
     if (knowData) state.knowledge = knowData.documents || [];
     if (candData) state.candidates = candData.candidates || [];
@@ -1245,7 +1255,7 @@
         id: a.approvalId,
         type: 'APPROVAL',
         priority: 2,
-        groupKey: 'NEEDS_ATTENTION',
+        groupKey: 'APPROVALS',
         title: actionTitle,
         summary: detail,
         status: 'PENDING_APPROVAL',
@@ -1266,7 +1276,7 @@
         id: c.captureId,
         type: 'CLARIFICATION',
         priority: 3,
-        groupKey: 'NEEDS_ATTENTION',
+        groupKey: 'SUGGESTIONS',
         title: title,
         summary: c.metadata?.extractedSummary || c.content || '',
         status: 'NEEDS_REVIEW',
@@ -1325,7 +1335,7 @@
         id: c.captureId,
         type: 'READY_RESULT',
         priority: 6,
-        groupKey: 'READY_FOR_YOU',
+        groupKey: 'NOTIFICATIONS',
         title: c.metadata?.extractedTitle || 'Result ready',
         summary: c.metadata?.extractedSummary || c.content || '',
         status: 'READY',
@@ -1343,7 +1353,7 @@
         id: c.captureId,
         type: 'RUNNING_WORK',
         priority: 7,
-        groupKey: 'NAGEX_IS_WORKING',
+        groupKey: 'NOTIFICATIONS',
         title: c.metadata?.extractedTitle || c.content || 'NAGEX is working',
         summary: c.metadata?.processingSubStage || 'Processing...',
         status: 'WORKING',
@@ -1359,7 +1369,7 @@
         id: c.captureId,
         type: 'RECENTLY_COMPLETED',
         priority: 8,
-        groupKey: 'RECENTLY_COMPLETED',
+        groupKey: 'NOTIFICATIONS',
         title: c.metadata?.extractedTitle || c.content || 'Completed action',
         summary: c.metadata?.extractedSummary || 'Done',
         status: 'COMPLETED',
@@ -1473,12 +1483,12 @@
       return;
     }
 
-    const groupKeys = ['NEEDS_ATTENTION', 'READY_FOR_YOU', 'NAGEX_IS_WORKING', 'RECENTLY_COMPLETED'];
+    const groupKeys = ['NEEDS_ATTENTION', 'APPROVALS', 'SUGGESTIONS', 'NOTIFICATIONS'];
     const groupTitles = {
       NEEDS_ATTENTION: t('inbox.groupNeedsAttention') || 'Needs your attention',
-      READY_FOR_YOU: t('inbox.groupReadyForYou') || 'Ready for you',
-      NAGEX_IS_WORKING: t('inbox.groupNagexWorking') || 'NAGEX is working',
-      RECENTLY_COMPLETED: t('inbox.groupRecentlyCompleted') || 'Recently completed',
+      APPROVALS: t('inbox.groupApprovals') || 'Approvals',
+      SUGGESTIONS: t('inbox.groupSuggestions') || 'Suggestions',
+      NOTIFICATIONS: t('inbox.groupNotifications') || 'Notifications',
     };
 
     let html = '';
@@ -2324,27 +2334,77 @@
     const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
 
     const approvals = state.approvals || [];
+    const sections = state.approvalSections || {
+      pending: approvals.filter((a) => a.status === 'PENDING'),
+      inProgress: [],
+      recent: approvals.filter((a) => a.status !== 'PENDING'),
+    };
     // R24.8B — the count is the REAL number of pending approvals (was a hardcoded "Pending (2)").
     const countLabel = document.getElementById('approvals-count-label');
-    if (countLabel) countLabel.textContent = `${t('approvals.pendingLabel')} (${approvals.filter((a) => a.status === 'PENDING').length})`;
+    if (countLabel) countLabel.textContent = `${t('approvals.pendingLabel')} (${(sections.pending || []).length})`;
     if (approvals.length === 0) {
       container.innerHTML = `<div class="empty-state-text">${escapeHtml(t('workspace.noApprovalsPending'))}</div>`;
       return;
     }
 
-    container.innerHTML = approvals
-      .map(
-        (a) => `
+    function renderKakaoApprovalDetails(a) {
+      const details = a.kakaoAccessibility;
+      if (!details) return '';
+      return `
+        <div class="approval-detail-block" style="display:grid; gap:0.35rem; margin-top:0.75rem;">
+          <p class="card-body-text"><strong>Target contact:</strong> ${escapeHtml(details.targetContact || 'Unknown')}</p>
+          <p class="card-body-text"><strong>Kakao identity:</strong> ${escapeHtml(details.kakaoIdentity || details.expectedProviderDisplayName || 'Unknown')}</p>
+          <p class="card-body-text"><strong>Message:</strong> ${escapeHtml(details.message || 'Unavailable')}</p>
+          <p class="card-body-text"><strong>Action:</strong> ${escapeHtml(details.action || 'Send this message after you approve.')}</p>
+        </div>`;
+    }
+
+    function actionLifecycleStage(a) {
+      const status = a.executionStatus || {};
+      const raw = String(status.stage || status.commandState || a.status || '').toUpperCase();
+      if (a.status === 'PENDING') return 'AWAITING_APPROVAL';
+      if (status.messageSentVerified || status.verifiedOutcome || raw === 'COMPLETED') return 'COMPLETED';
+      if (raw.includes('VERIFY') || status.messageTyped || status.targetVerified) return 'VERIFYING';
+      if (a.status === 'APPROVED' || status.executing || raw.includes('RUNNING') || raw.includes('PROCESSING') || raw.includes('WAITING')) return 'WORKING';
+      if (raw.includes('FAILED') || raw.includes('ERROR')) return 'FAILED';
+      return 'WORKING';
+    }
+
+    function actionLifecycleLabel(stage) {
+      return {
+        AWAITING_APPROVAL: 'Waiting for approval',
+        WORKING: 'Working',
+        VERIFYING: 'Verifying',
+        COMPLETED: 'Completed',
+        FAILED: 'Failed',
+      }[stage] || 'Working';
+    }
+
+    function renderExecutionStatus(a) {
+      const status = a.executionStatus || {};
+      const stage = actionLifecycleStage(a);
+      const blocker = status.blocker ? `<p class="card-body-text" style="color:#b45309;"><strong>Needs attention:</strong> ${escapeHtml(status.blocker)}</p>` : '';
+      return `
+        <div class="approval-detail-block" style="display:grid; gap:0.3rem; margin-top:0.75rem;">
+          <p class="card-body-text"><strong>Status:</strong> ${escapeHtml(actionLifecycleLabel(stage))}</p>
+          <p class="card-body-text"><strong>Outcome:</strong> ${stage === 'COMPLETED' ? 'Verified complete' : stage === 'FAILED' ? 'Failed' : 'Not complete yet'}</p>
+          ${blocker}
+        </div>`;
+    }
+
+    function renderApprovalCard(a) {
+      return `
       <div class="plan-item-card">
         <div class="plan-item-header">
-          <span class="plan-goal-title">Action: ${escapeHtml(a.action || a.title || 'Pending Approval')}</span>
-          <span class="step-badge ${(a.status || 'PENDING').toLowerCase()}">${escapeHtml(a.status || 'PENDING')}</span>
+          <span class="plan-goal-title">${escapeHtml(a.action || a.title || 'Action')}</span>
+          <span class="step-badge ${actionLifecycleStage(a).toLowerCase()}">${escapeHtml(actionLifecycleLabel(actionLifecycleStage(a)))}</span>
         </div>
-        ${a.tool ? `<p class="card-body-text"><strong>Tool Involved:</strong> ${escapeHtml(a.tool)}</p>` : ''}
         ${a.recipient ? `<p class="card-body-text"><strong>Recipient:</strong> ${escapeHtml(a.recipient)}</p>` : ''}
         ${a.subject ? `<p class="card-body-text"><strong>Subject:</strong> ${escapeHtml(a.subject)}</p>` : ''}
-        ${a.shared_data && a.shared_data.length > 0 ? `<p class="card-body-text"><strong>Data Involved:</strong> ${escapeHtml(a.shared_data.join(', '))}</p>` : ''}
+        ${a.shared_data && a.shared_data.length > 0 ? `<p class="card-body-text"><strong>Context:</strong> ${escapeHtml(a.shared_data.join(', '))}</p>` : ''}
         ${a.why ? `<p class="card-body-text" style="color:var(--text-muted);">Reason: ${escapeHtml(a.why)}</p>` : ''}
+        ${renderKakaoApprovalDetails(a)}
+        ${renderExecutionStatus(a)}
         ${
           a.status === 'PENDING'
             ? `
@@ -2354,9 +2414,22 @@
           </div>`
             : ''
         }
-      </div>`
-      )
-      .join('');
+      </div>`;
+    }
+
+    function renderSection(title, items, empty) {
+      return `
+        <section class="approval-section" style="display:grid; gap:0.75rem; margin-bottom:1rem;">
+          <h3 class="section-subtitle">${escapeHtml(title)} (${items.length})</h3>
+          ${items.length ? items.map(renderApprovalCard).join('') : `<div class="empty-state-text">${escapeHtml(empty)}</div>`}
+        </section>`;
+    }
+
+    container.innerHTML = [
+      renderSection('Awaiting approval', sections.pending || [], 'Nothing is waiting for your approval.'),
+      renderSection('Working', sections.inProgress || [], 'No approved actions are in progress.'),
+      renderSection('Recent', sections.recent || [], 'No recent action updates.'),
+    ].join('');
   }
 
   // Phase 1 STEP 8 (item F/G) — the consumer Activity tab. Reads only the
@@ -2478,9 +2551,7 @@
         </div>`;
     }
 
-    // Progressive disclosure expanded details
-    const stepsHtml = (a.steps || []).map((s) => `<li>${escapeHtml(s)}</li>`).join('');
-    const toolsHtml = (a.toolsUsed || []).map((tl) => `<span class="badge-status status-CAPTURED" style="font-size:0.65rem;">${escapeHtml(tl)}</span>`).join(' ');
+    const contextLine = a.effect || a.description || '';
 
     return `
       <div class="plan-item-card activity-outcome-card" style="position:relative; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 0.85rem 1rem;" tabindex="0" role="region" aria-label="${escapeHtml(a.title)}">
@@ -2488,24 +2559,10 @@
           <span class="plan-goal-title" style="font-size:0.88rem; font-weight:600; color:var(--text-navy);">${escapeHtml(a.title)}</span>
           <span class="badge-status ${badgeClass}">${escapeHtml(statusLabel)}</span>
         </div>
-        ${a.description ? `<p class="card-body-text" style="font-size:0.8rem; color:var(--text-secondary); margin-top:0.2rem;">${escapeHtml(a.description)}</p>` : ''}
-        ${a.effect ? `<div style="font-size:0.75rem; font-weight:500; color:var(--color-accent-teal, #0d9488); margin-top:0.25rem;">${escapeHtml(a.effect)}</div>` : ''}
+        ${contextLine ? `<p class="card-body-text" style="font-size:0.8rem; color:var(--text-secondary); margin-top:0.2rem;">${escapeHtml(contextLine)}</p>` : ''}
         ${partialHtml}
         <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.4rem;">
           <span style="font-size:0.72rem; color:var(--text-muted);">${escapeHtml(time)}</span>
-          <button id="activity-btn-${aid}" class="btn-secondary activity-expand-btn" aria-expanded="false" style="font-size:0.7rem; padding: 2px 6px;" onclick="window.NAGEX.toggleActivityDetail('${aid}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.NAGEX.toggleActivityDetail('${aid}');}">
-            ${escapeHtml(t('workspace.reviewDetails'))}
-          </button>
-        </div>
-        <div id="activity-detail-${aid}" class="activity-detail-panel" hidden style="margin-top:0.5rem; padding-top:0.5rem; border-top:1px dashed var(--border-subtle); font-size:0.75rem;">
-          ${stepsHtml ? `<div style="margin-bottom:0.3rem;"><strong>Steps:</strong><ul style="margin:0.2rem 0 0 1.2rem; padding:0;">${stepsHtml}</ul></div>` : ''}
-          ${toolsHtml ? `<div style="margin-bottom:0.3rem; display:flex; gap:0.3rem; align-items:center;"><strong>Tools:</strong> ${toolsHtml}</div>` : ''}
-          ${a.source ? `<div style="margin-bottom:0.2rem; color:var(--text-muted);">Source: ${escapeHtml(a.source.taskId || a.source.approvalId || a.type || 'System')}</div>` : ''}
-          <div style="margin-top:0.3rem;">
-            <button class="btn-secondary" style="font-size:0.65rem; padding: 1px 4px;" onclick="alert('Technical Audit Record ID: ' + escapeHtml('${a.activityId || aid}'))">
-              ${escapeHtml(t('activity.viewTechnicalDetails') || 'View technical details')}
-            </button>
-          </div>
         </div>
       </div>`;
   }

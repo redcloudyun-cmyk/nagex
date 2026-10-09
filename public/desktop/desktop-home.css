@@ -3481,6 +3481,33 @@ div#view-home.nagex-desktop-home .desktop-home-right-rail,
   #home-section-work-with-data { z-index: 126 !important; }
 }
 
+.nav-link:focus-visible {
+  outline: 2px solid rgba(59, 130, 246, 0.75);
+  outline-offset: 3px;
+}
+
+.create-capability-map {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.create-capability-map .nagex-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 8px;
+  min-width: 0;
+  padding: 14px;
+}
+
+.create-capability-map h3 {
+  flex: 0 0 100%;
+  margin: 0 0 4px;
+  font-size: 0.9rem;
+}
+
 /* Home UI D1: Personal AI command hero reconstruction. */
 @media (min-width: 769px) {
   .nagex-desktop-home .desktop-home-main-stack {
@@ -4696,5 +4723,458 @@ div#view-home.nagex-desktop-home .desktop-home-right-rail,
   .nagex-desktop-home .ph-result-action {
     min-width: 56px !important;
     justify-self: end !important;
+  }
+}
+
+/* Responsive repair terminal override: this block intentionally lives at EOF
+   so older pixel-locked desktop-home passes cannot re-expand compact widths. */
+@media (min-width: 1200px) {
+  div#view-home.nagex-desktop-home .desktop-home-main-stack,
+  div#view-home.tab-view.active-view.nagex-desktop-home .desktop-home-main-stack,
+  .nagex-desktop-home .desktop-home-main-stack {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, clamp(320px, 24vw, 360px)) !important;
+    column-gap: 14px !important;
+    row-gap: 14px !important;
+    align-items: start !important;
+  }
+
+  .nagex-desktop-home .home-ai-hero,
+  .nagex-desktop-home .home-memory-results {
+    grid-column: 1 / -1 !important;
+  }
+
+  .nagex-desktop-home .home-your-day-brief,
+  .nagex-desktop-home .home-working-brief {
+    grid-column: 1 !important;
+    width: 100% !important;
+    margin-right: 0 !important;
+  }
+
+  .nagex-desktop-home .home-approval-brief {
+    grid-column: 2 !important;
+    grid-row: 2 / span 2 !important;
+    width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    align-self: start !important;
+    position: sticky !important;
+    top: 12px !important;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1199px) {
+  div#view-home.nagex-desktop-home .desktop-home-main-stack,
+  div#view-home.tab-view.active-view.nagex-desktop-home .desktop-home-main-stack,
+  .nagex-desktop-home .desktop-home-main-stack {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+
+/* NAGEX-DESKTOP-RESPONSIVE-LAYOUT-REPAIR
+   Final responsive safety layer. Earlier desktop passes contain many
+   reference-locked coordinates for a single wide mockup; this layer restores
+   the product contract across compact desktop/tablet widths without changing
+   runtime state or Home lifecycle semantics. */
+html,
+body,
+.app-wrapper,
+.workspace-grid,
+.center-canvas,
+.tab-view,
+.nagex-desktop-home,
+.nagex-desktop-home * {
+  min-width: 0;
+}
+
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.workspace-grid {
+  display: grid !important;
+  grid-template-columns: 72px minmax(0, 1fr) !important;
+  width: 100% !important;
+  max-width: 100vw !important;
+}
+
+.sidebar-overlay {
+  display: none !important;
+}
+
+.sidebar-left {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+}
+
+.center-canvas {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+}
+
+.sidebar-left {
+  width: 72px !important;
+  max-width: 72px !important;
+}
+
+.sidebar-left .nav-link {
+  max-width: 100% !important;
+}
+
+.sidebar-left .nav-link span,
+.sidebar-bottom-user {
+  overflow: hidden !important;
+}
+
+.nagex-desktop-home {
+  max-width: 100% !important;
+}
+
+div#view-home.tab-view.active-view.nagex-desktop-home,
+div#view-home.nagex-desktop-home {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+.nagex-desktop-home .desktop-home-main-stack,
+.nagex-desktop-home .home-ai-hero,
+.nagex-desktop-home .home-command-zone,
+.nagex-desktop-home .home-ai-command-composer,
+.nagex-desktop-home .home-your-day-brief,
+.nagex-desktop-home .home-working-brief,
+.nagex-desktop-home .home-approval-brief,
+.nagex-desktop-home .home-memory-results,
+.nagex-desktop-home .ph-memory-panel,
+.nagex-desktop-home .ph-results-panel {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+.nagex-desktop-home .home-ai-hero h1,
+.nagex-desktop-home .home-ai-hero-copy p,
+.nagex-desktop-home .home-command-label,
+.nagex-desktop-home .home-capability-chip,
+.nagex-desktop-home .ph-your-day-copy,
+.nagex-desktop-home .ph-working-copy,
+.nagex-desktop-home .ph-approval-copy,
+.nagex-desktop-home .ph-memory-row,
+.nagex-desktop-home .ph-result-row {
+  overflow-wrap: anywhere !important;
+}
+
+.nagex-desktop-home .home-ai-hero h1,
+.nagex-desktop-home .ph-your-day-copy h3,
+.nagex-desktop-home .ph-working-copy h3,
+.nagex-desktop-home .ph-approval-copy h3,
+.nagex-desktop-home .ph-memory-row h3,
+.nagex-desktop-home .ph-result-row h3 {
+  white-space: normal !important;
+}
+
+.nagex-desktop-home .composer-bottom-bar,
+.nagex-desktop-home .composer-left-actions,
+.nagex-desktop-home .composer-right-actions {
+  flex-wrap: wrap !important;
+  min-width: 0 !important;
+}
+
+.nagex-desktop-home .nagex-quick-actions-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(min(132px, 100%), 1fr)) !important;
+  gap: 8px !important;
+  overflow: visible !important;
+}
+
+.nagex-desktop-home .home-capability-chip {
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+
+.nagex-desktop-home .ph-memory-results-grid,
+.nagex-desktop-home .ph-your-day-list,
+.nagex-desktop-home .ph-working-list,
+.nagex-desktop-home .ph-approval-list,
+.nagex-desktop-home .ph-memory-list,
+.nagex-desktop-home .ph-results-list {
+  min-width: 0 !important;
+}
+
+@media (min-width: 1440px) {
+  .workspace-grid {
+    grid-template-columns: 158px minmax(0, 1fr) !important;
+  }
+
+  .center-canvas {
+    margin-left: 0 !important;
+  }
+
+  .sidebar-left {
+    width: 149px !important;
+    max-width: 149px !important;
+  }
+}
+
+@media (min-width: 1200px) and (max-width: 1439px) {
+  .workspace-grid {
+    grid-template-columns: 149px minmax(0, 1fr) !important;
+  }
+
+  .center-canvas {
+    margin-left: 0 !important;
+    padding: 12px 24px 24px !important;
+  }
+
+  .sidebar-left {
+    position: static !important;
+    width: 149px !important;
+    max-width: 149px !important;
+    height: auto !important;
+    min-height: 0 !important;
+    top: auto !important;
+    left: auto !important;
+  }
+
+  .nagex-desktop-home .home-ai-hero {
+    grid-template-columns: minmax(280px, 0.78fr) minmax(0, 1.22fr) !important;
+  }
+}
+
+@media (min-width: 1200px) {
+  .nagex-desktop-home .desktop-home-main-stack {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, clamp(320px, 24vw, 360px)) !important;
+    align-items: start !important;
+    column-gap: 14px !important;
+    row-gap: 14px !important;
+  }
+
+  .nagex-desktop-home .home-ai-hero,
+  .nagex-desktop-home .home-memory-results {
+    grid-column: 1 / -1 !important;
+  }
+
+  .nagex-desktop-home .home-your-day-brief,
+  .nagex-desktop-home .home-working-brief {
+    grid-column: 1 !important;
+  }
+
+  .nagex-desktop-home .home-approval-brief {
+    grid-column: 2 !important;
+    grid-row: 2 / span 2 !important;
+    align-self: start !important;
+    position: sticky !important;
+    top: 12px !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1199px) {
+  .app-header.nagex-top-composition {
+    height: 64px !important;
+    min-height: 64px !important;
+    display: grid !important;
+    grid-template-columns: minmax(120px, 180px) minmax(0, 1fr) auto !important;
+    gap: 12px !important;
+    padding: 0 16px !important;
+    overflow: hidden !important;
+  }
+
+  .app-header.nagex-top-composition::after,
+  .brand-hero-layer,
+  .brand-hero-copy,
+  .brand-hero-visual,
+  .brand-hero-shortcuts,
+  .brand-hero-script {
+    display: none !important;
+  }
+
+  .app-header.nagex-top-composition > .brand-section,
+  .app-header.nagex-top-composition > .desktop-global-search,
+  .app-header.nagex-top-composition > .header-right {
+    position: static !important;
+    inset: auto !important;
+    width: auto !important;
+    height: auto !important;
+  }
+
+  .desktop-global-search {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .header-right {
+    min-width: 0 !important;
+  }
+
+  .workspace-grid {
+    grid-template-columns: 72px minmax(0, 1fr) !important;
+  }
+
+  .sidebar-left {
+    position: static !important;
+    width: 72px !important;
+    max-width: 72px !important;
+    height: auto !important;
+    min-height: 0 !important;
+    padding: 14px 8px !important;
+    border-radius: 0 !important;
+  }
+
+  .sidebar-left:hover,
+  .sidebar-left.expanded {
+    width: 72px !important;
+    max-width: 72px !important;
+  }
+
+  .sidebar-left .nav-menu,
+  .sidebar-left .nav-item,
+  .sidebar-left .nav-link {
+    width: 100% !important;
+  }
+
+  .sidebar-left .nav-link {
+    justify-content: center !important;
+    padding: 0 !important;
+  }
+
+  .sidebar-left .nav-link span,
+  .sidebar-bottom-user {
+    display: none !important;
+  }
+
+  .center-canvas {
+    margin-left: 0 !important;
+    padding: 12px clamp(12px, 2vw, 24px) 24px !important;
+  }
+
+  .nagex-desktop-home .desktop-home-main-stack {
+    padding-top: 0 !important;
+    gap: 14px !important;
+  }
+
+  .nagex-desktop-home .home-ai-hero {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: clamp(20px, 3vw, 28px) !important;
+    gap: 16px !important;
+  }
+
+  .nagex-desktop-home .home-ai-hero h1 {
+    max-width: 100% !important;
+    font-size: clamp(28px, 4.4vw, 40px) !important;
+    line-height: 1.08 !important;
+  }
+
+  .nagex-desktop-home .home-ai-hero-copy p {
+    max-width: 64ch !important;
+    font-size: clamp(14px, 1.8vw, 16px) !important;
+  }
+
+  .nagex-desktop-home .home-command-zone {
+    display: grid !important;
+    gap: 12px !important;
+  }
+
+  .nagex-desktop-home .home-ai-command-composer {
+    min-height: 0 !important;
+    padding: 14px !important;
+  }
+
+  .nagex-desktop-home .home-workspace-grid,
+  .nagex-desktop-home .ph-memory-results-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (min-width: 900px) and (max-width: 1199px) {
+  .nagex-desktop-home .home-approval-brief {
+    display: block !important;
+  }
+}
+
+@media (max-width: 899px) {
+  .app-wrapper {
+    max-width: 100vw !important;
+  }
+
+  .app-header,
+  .workspace-grid {
+    max-width: 100vw !important;
+  }
+}
+
+@media (max-width: 768px) {
+  #mobile-app-shell,
+  .mh-scroll,
+  #mobile-view-home,
+  .mh-personal-ai-hero,
+  .mh-composer-section,
+  .mh-command-bar,
+  .mh-your-day-brief,
+  .mh-working-brief,
+  .mh-approval-brief,
+  .mh-memory-results {
+    max-width: 100vw !important;
+    min-width: 0 !important;
+  }
+
+  .mh-personal-ai-hero h1 {
+    font-size: clamp(23px, 7vw, 27px) !important;
+    overflow-wrap: anywhere !important;
+  }
+}
+
+/* Responsive repair terminal override: this block intentionally lives at EOF
+   so older pixel-locked desktop-home passes cannot re-expand compact widths. */
+@media (min-width: 1200px) {
+  .nagex-desktop-home .desktop-home-main-stack {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, clamp(300px, 24vw, 360px)) !important;
+    column-gap: 14px !important;
+    row-gap: 14px !important;
+    align-items: start !important;
+  }
+
+  .nagex-desktop-home .home-ai-hero,
+  .nagex-desktop-home .home-memory-results {
+    grid-column: 1 / -1 !important;
+  }
+
+  .nagex-desktop-home .home-your-day-brief,
+  .nagex-desktop-home .home-working-brief {
+    grid-column: 1 !important;
+    width: 100% !important;
+    margin-right: 0 !important;
+  }
+
+  .nagex-desktop-home .home-approval-brief {
+    grid-column: 2 !important;
+    grid-row: 2 / span 2 !important;
+    width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    align-self: start !important;
+    position: sticky !important;
+    top: 12px !important;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1199px) {
+  .nagex-desktop-home .desktop-home-main-stack {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    max-width: 100% !important;
   }
 }

@@ -1101,7 +1101,7 @@
         const updatedText = updated ? new Date(updated).toLocaleString(locale() === 'ko' ? 'ko-KR' : 'en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
         return `<article class="ph-working-row${index === 0 ? ' primary' : ''}" data-source-key="${esc(item.key)}" data-item-type="${esc(item.type || 'TASK')}">
           <span class="ph-working-dot" aria-label="In progress"></span>
-          <div class="ph-working-copy"><h3>${esc(item.title || 'Working on it')}</h3>${item.context ? `<p>${esc(item.context)}</p>` : ''}<span>${esc(item.type || 'Task')} · ${esc(item.state || 'In progress')}${updatedText ? ` · Updated ${esc(updatedText)}` : ''}</span></div>
+          <div class="ph-working-copy"><h3>${esc(item.title || 'Working on it')}</h3>${item.context ? `<p>${esc(item.context)}</p>` : ''}<span>${esc(item.state || 'In progress')}${updatedText ? ` · Updated ${esc(updatedText)}` : ''}</span></div>
           <button type="button" class="ph-working-action" data-type="${esc(item.type)}" data-ref="${esc(item.sourceRef)}">Open</button>
         </article>`;
       }).join('') : `<article class="ph-working-empty"><span class="ph-working-dot idle" aria-label="Nothing running"></span><div><h3>Nothing is running right now.</h3><p>Give NAgex a research, report, plan, or creation request when you want it to work in the background.</p></div></article>`}
@@ -1120,32 +1120,58 @@
   function approvalDetailLines(item) {
     const lines = [];
     if (item.context) lines.push(item.context);
-    if (item.type) lines.push(item.type === 'APPROVAL' ? 'Human approval before action' : item.type);
     return lines.slice(0, 2);
+  }
+
+  function actionLifecycleStage(item) {
+    const state = String(item.state || '').toLowerCase();
+    const status = String(item.status || item.executionStatus || '').toUpperCase();
+    if (state.includes('approval')) return 'AWAITING_APPROVAL';
+    if (state.includes('failed') || status === 'FAILED') return 'FAILED';
+    if (state.includes('completed') || status === 'COMPLETED') return 'COMPLETED';
+    if (state.includes('verify') || status === 'VERIFYING') return 'VERIFYING';
+    if (state.includes('progress') || status === 'RUNNING' || status === 'PROCESSING' || status === 'QUEUED') return 'WORKING';
+    return 'WORKING';
+  }
+
+  function actionLifecycleLabel(stage) {
+    const labels = {
+      AWAITING_APPROVAL: 'Waiting for approval',
+      WORKING: 'Working',
+      VERIFYING: 'Verifying',
+      COMPLETED: 'Completed',
+      FAILED: 'Failed',
+    };
+    return labels[stage] || 'Working';
   }
 
   function renderApprovalBrief(target, model, mobile) {
     if (!target) return;
-    const workingKeys = new Set((model.working || []).map((item) => item.key));
-    const approvals = (model.approvals || []).filter((item) => !workingKeys.has(item.key)).slice(0, 3);
+    const byKey = new Map();
+    [...(model.approvals || []), ...(model.working || [])].forEach((item) => {
+      if (!item || !item.key || byKey.has(item.key)) return;
+      byKey.set(item.key, item);
+    });
+    const actions = [...byKey.values()].slice(0, 3);
     target.hidden = false;
-    target.setAttribute('data-home-section', 'needs-approval');
+    target.setAttribute('data-home-section', 'action-lifecycle');
     target.innerHTML = `<div class="ph-approval-heading">
       <div>
-        <span class="ph-approval-kicker">Waiting for you</span>
-        <h2 id="${target.id === 'mh-section-needs-approval' ? 'mh-approval-title' : 'home-approval-title'}">Needs Your Approval${approvals.length ? ` <span>${esc(String(approvals.length))}</span>` : ''}</h2>
+        <span class="ph-approval-kicker">Action lifecycle</span>
+        <h2 id="${target.id === 'mh-section-needs-approval' ? 'mh-approval-title' : 'home-approval-title'}">Actions${actions.length ? ` <span>${esc(String(actions.length))}</span>` : ''}</h2>
       </div>
-      <button type="button" class="ph-approval-link" data-approval-review>${mobile ? 'Review' : 'Review approvals'}</button>
+      <button type="button" class="ph-approval-link" data-approval-review>${mobile ? 'Review' : 'Review actions'}</button>
     </div>
     <div class="ph-approval-list">
-      ${approvals.length ? approvals.map((item) => {
+      ${actions.length ? actions.map((item) => {
         const details = approvalDetailLines(item);
-        return `<article class="ph-approval-row" data-source-key="${esc(item.key)}" data-item-type="${esc(item.type || 'APPROVAL')}">
-          <span class="ph-approval-pause" aria-label="Waiting for approval"></span>
+        const stage = actionLifecycleStage(item);
+        return `<article class="ph-approval-row" data-source-key="${esc(item.key)}" data-item-type="${esc(item.type || 'ACTION')}" data-lifecycle-stage="${esc(stage)}">
+          <span class="ph-approval-pause${stage !== 'AWAITING_APPROVAL' ? ' active' : ''}" aria-label="${esc(actionLifecycleLabel(stage))}"></span>
           <div class="ph-approval-copy"><h3>${esc(item.title || 'Approval required')}</h3>${details.map((line) => `<p>${esc(line)}</p>`).join('')}<span>${esc(item.state || 'Needs approval')}</span></div>
-          <button type="button" class="ph-approval-action" aria-label="${esc('Review ' + (item.title || 'approval'))}">Review</button>
+          <button type="button" class="ph-approval-action" aria-label="${esc('Review ' + (item.title || 'action'))}">Review</button>
         </article>`;
-      }).join('') : `<article class="ph-approval-empty"><span class="ph-approval-pause idle" aria-label="No approvals pending"></span><div><h3>Nothing needs your approval right now.</h3><p>NAgex will ask before important actions.</p></div></article>`}
+      }).join('') : `<article class="ph-approval-empty"><span class="ph-approval-pause idle" aria-label="No actions active"></span><div><h3>No active actions right now.</h3><p>When you ask NAgex to act, the same card will stay here through approval, work, verification, and completion.</p></div></article>`}
     </div>`;
     target.querySelector('[data-approval-review]')?.addEventListener('click', () => {
       if (window.NAGEX.switchTab) window.NAGEX.switchTab('tab-approvals');
