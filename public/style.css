@@ -3707,3 +3707,22 @@ body {
   cursor: pointer;
   font-size: 0.82rem;
 }
+
+
+/* Voice Identity settings */
+.voice-identity-settings { display: flex; flex-direction: column; gap: 0.9rem; }
+.voice-identity-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.voice-wake-options { display: grid; gap: 0.55rem; }
+.voice-wake-option { display: flex; gap: 0.7rem; align-items: flex-start; border: 1px solid var(--border-subtle, #dbe5f3); border-radius: 10px; padding: 0.75rem; background: #fff; cursor: pointer; }
+.voice-wake-option.selected { border-color: var(--primary-blue, #2563eb); background: #eff6ff; }
+.voice-wake-option span { display: flex; flex-direction: column; gap: 0.2rem; }
+.voice-wake-option small { color: var(--text-secondary, #64748b); line-height: 1.35; }
+.voice-enrollment-modal { max-width: 620px; width: min(92vw, 620px); background: var(--bg-card, #fff); border-radius: 14px; padding: 1.2rem; }
+.voice-enrollment-steps { display: grid; gap: 0.7rem; padding-left: 1.25rem; }
+.voice-enrollment-steps li { display: grid; grid-template-columns: minmax(88px, auto) 1fr auto; gap: 0.7rem; align-items: center; border: 1px solid var(--border-subtle, #e2e8f0); border-radius: 10px; padding: 0.75rem; }
+.voice-enrollment-steps li span { color: var(--text-secondary, #64748b); font-size: 0.85rem; }
+.voice-enrollment-steps li strong { font-size: 0.98rem; color: var(--navy-head, #0f172a); }
+.settings-row-lite { display: flex; justify-content: space-between; gap: 1rem; padding: .75rem 0; border-bottom: 1px solid #e7edf8; color: #233b66; }
+.settings-state-pill { display: inline-flex; align-items: center; justify-content: center; min-height: 28px; border-radius: 999px; padding: .25rem .68rem; background: #f0f6ff; color: #285184; font-weight: 800; font-size: .82rem; white-space: nowrap; }
+.settings-state-pill.on { background: #dcfce7; color: #047857; }
+@media (max-width: 640px) { .voice-enrollment-steps li { grid-template-columns: 1fr; } .voice-identity-actions { flex-direction: column; } }
