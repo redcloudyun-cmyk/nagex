@@ -2903,6 +2903,37 @@
     el.innerHTML = `<p class="setting-sub" id="settings-devices-empty">${escapeHtml(t('settings.devicesNone'))}</p>`;
   }
 
+
+
+  function renderVoiceIdentitySettings() {
+    const panel = document.getElementById('cat-panel-privacy');
+    if (!panel || panel.querySelector('[data-voice-identity-settings]')) return;
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    const voiceWakeOption = (label, desc, selected) => '<label class="voice-wake-option ' + (selected ? 'selected' : '') + '"><input type="radio" name="voice-wake-phrase" value="' + escapeHtml(label) + '" ' + (selected ? 'checked' : '') + '><span><strong>' + label + '</strong><small>' + escapeHtml(desc) + '</small></span></label>';
+    const voiceHtml = '<div class="settings-info-box voice-identity-settings" data-voice-identity-settings="1">' +
+      '<h4>' + escapeHtml(t('voiceIdentity.title') || 'Voice Identity') + '</h4>' +
+      '<p class="setting-sub">' + escapeHtml(t('voiceIdentity.subtitle') || 'Let NAgex recognize your voice without lowering approval protection.') + '</p>' +
+      '<div class="settings-row-lite"><span>' + escapeHtml(t('voiceIdentity.status') || 'Voice profile status') + '</span><span class="settings-state-pill">' + escapeHtml(t('voiceIdentity.notEnrolled') || 'Not enrolled') + '</span></div>' +
+      '<div class="voice-identity-actions"><button class="btn-secondary" type="button" onclick="window.NAGEX.openVoiceEnrollmentModal()">' + escapeHtml(t('voiceIdentity.enroll') || 'Enroll my voice') + '</button><button class="btn-secondary" type="button" onclick="window.NAGEX.openVoiceEnrollmentModal()">' + escapeHtml(t('voiceIdentity.reenroll') || 'Re-enroll voice') + '</button><button class="btn-secondary" type="button" disabled>' + escapeHtml(t('voiceIdentity.remove') || 'Remove voice profile') + '</button></div>' +
+      '<h4>' + escapeHtml(t('voiceIdentity.wakePhrase') || 'Wake Phrase') + '</h4><div class="voice-wake-options" role="radiogroup" aria-label="' + escapeHtml(t('voiceIdentity.wakePhrase') || 'Wake Phrase') + '">' +
+      voiceWakeOption('&#54860;&#51060; &#45348;&#51060;&#51229;&#49828;', t('voiceIdentity.defaultWakeDesc') || 'Default wake phrase', true) +
+      voiceWakeOption('&#45348;&#51060;&#51229;&#49828;', t('voiceIdentity.shortWakeDesc') || 'Optional short wake', false) +
+      voiceWakeOption('&#51020;&#49457; &#54840;&#52636; &#49324;&#50857; &#50504; &#54632;', t('voiceIdentity.disableWakeDesc') || 'Disable voice wake', false) +
+      '</div><p class="setting-sub">' + escapeHtml(t('voiceIdentity.authorityNote') || 'Voice helps identify who is speaking. Important actions still require approval.') + '</p></div>';
+    panel.insertAdjacentHTML('beforeend', voiceHtml);
+  }
+
+  function openVoiceEnrollmentModal() {
+    if (document.getElementById('voice-enrollment-modal-backdrop')) return;
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    const prompts = ['&#54860;&#51060; &#45348;&#51060;&#51229;&#49828;', '&#50724;&#45720; &#51068;&#51221; &#50508;&#47140;&#51480;', '&#45236;&#51068; &#50500;&#52840;&#50640; &#50508;&#47140;&#51480;', '&#51312;&#48124;&#54805;&#50640;&#44172; &#51204;&#54868; &#44152;&#50612;&#51480;'];
+    const backdrop = document.createElement('div');
+    backdrop.id = 'voice-enrollment-modal-backdrop';
+    backdrop.className = 'ambient-overlay-backdrop active';
+    backdrop.innerHTML = '<div class="ambient-modal voice-enrollment-modal" role="dialog" aria-modal="true" aria-labelledby="voice-enrollment-title"><div class="ambient-modal-header"><h3 id="voice-enrollment-title">' + escapeHtml(t('voiceIdentity.enrollmentTitle') || 'Enroll Voice Identity') + '</h3><button type="button" class="btn-icon-close" aria-label="Close" onclick="document.getElementById(&quot;voice-enrollment-modal-backdrop&quot;).remove()">&times;</button></div><div class="ambient-modal-body"><p class="setting-sub">' + escapeHtml(t('voiceIdentity.enrollmentIntro') || 'Read several short phrases so NAgex can learn to distinguish your voice. Raw enrollment audio is not kept by default.') + '</p><ol class="voice-enrollment-steps">' + prompts.map((prompt, index) => '<li><span>' + escapeHtml(t('voiceIdentity.sample') || 'Sample') + ' ' + (index + 1) + '</span><strong>' + prompt + '</strong><button type="button" class="btn-secondary">' + escapeHtml(t('voiceIdentity.recordSample') || 'Record sample') + '</button></li>').join('') + '</ol><div class="settings-row-lite"><span>' + escapeHtml(t('voiceIdentity.sampleQuality') || 'Sample quality') + '</span><span class="settings-state-pill">' + escapeHtml(t('voiceIdentity.pending') || 'Pending') + '</span></div><div class="settings-row-lite"><span>' + escapeHtml(t('voiceIdentity.profileStorage') || 'Voice profile') + '</span><span class="settings-state-pill on">' + escapeHtml(t('voiceIdentity.deviceLocal') || 'Device-local') + '</span></div></div><div class="ambient-modal-footer"><button type="button" class="btn-secondary" onclick="document.getElementById(&quot;voice-enrollment-modal-backdrop&quot;).remove()">Cancel</button><button type="button" class="btn-primary" disabled>' + escapeHtml(t('voiceIdentity.createProfile') || 'Create voice profile') + '</button></div></div>';
+    document.body.appendChild(backdrop);
+  }
+
   function renderSettings() {
     const qwContainer = document.getElementById('quickwake-settings-options');
     const autoContainer = document.getElementById('autonomy-selector-container');
@@ -2973,6 +3004,7 @@
     renderSettingsConnections();
     renderSettingsAiModel();
     renderSettingsDevices();
+    renderVoiceIdentitySettings();
     if (window.NAGEX.renderProactiveAssistant) window.NAGEX.renderProactiveAssistant();
     // R15 — Settings is reachable via a same-document hash navigation
     // (switchTab never triggers a full page reload), so org/workspace/
@@ -5403,6 +5435,7 @@
     renderSettings: () => {
       renderSettings();
     },
+    openVoiceEnrollmentModal,
     pauseTask: async (taskId) => {
       await apiFetch(`/api/v1/tasks/${taskId}/pause`, { method: 'POST' });
       await loadAllData();
