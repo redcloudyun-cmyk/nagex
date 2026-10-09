@@ -34,7 +34,7 @@
           <div class="brand-hero-shortcuts" aria-label="NAgex capability shortcuts">
             <button type="button" class="brand-shortcut" onclick="window.NAGEX?.switchTab?.('tab-create')"><span class="brand-shortcut-icon">C</span><span>Create content</span></button>
             <button type="button" class="brand-shortcut" onclick="window.NAGEX?.switchTab?.('tab-knowledge')"><span class="brand-shortcut-icon">D</span><span>Work with your data</span></button>
-            <button type="button" class="brand-shortcut" onclick="window.NAGEX?.switchTab?.('tab-approvals')"><span class="brand-shortcut-icon">A</span><span>Get approvals</span></button>
+            <button type="button" class="brand-shortcut" onclick="window.NAGEX?.switchTab?.('tab-inbox')"><span class="brand-shortcut-icon">A</span><span>Review approvals</span></button>
             <button type="button" class="brand-shortcut" onclick="window.NAGEX?.switchTab?.('tab-tasks')"><span class="brand-shortcut-icon">T</span><span>Turn intent into action</span></button>
           </div>
         </div>
@@ -137,10 +137,10 @@
                 <span data-i18n="nav.knowledge">Knowledge</span>
               </button>
             </li>
-            <li class="nav-item" data-tab="tab-approvals">
-              <button class="nav-link" title="Approvals">
-                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-1.18 14.41L7 11.59l1.41-1.41 2.41 2.41 5.77-5.77L18 8.24l-7.18 7.17z"/></svg>
-                <span data-i18n="nav.approvals">Approvals</span>
+            <li class="nav-item" data-tab="tab-executions">
+              <button class="nav-link" title="Activity">
+                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M13 3a9 9 0 1 0 8.95 10h-2.02A7 7 0 1 1 13 5V3zm-1 4h2v6h5v2h-7V7z"/></svg>
+                <span data-i18n="nav.activity">Activity</span>
               </button>
             </li>
             <li class="nav-item" data-tab="tab-settings">
@@ -768,8 +768,8 @@
         <div id="view-executions" class="tab-view">
           <div class="view-header">
             <div>
-              <h2 data-i18n="executions.title">Executions & Audit Timeline</h2>
-              <p class="view-subtitle" data-i18n="executions.subtitle">Live execution lifecycle tracking from goal intake to verified outcome and memory update.</p>
+              <h2 data-i18n="executions.title">Activity</h2>
+              <p class="view-subtitle" data-i18n="executions.subtitle">A concise history of what NAgex did, where it applied, and the result.</p>
             </div>
           </div>
 
@@ -956,9 +956,8 @@
               <p class="setting-sub" data-i18n="settings.advancedDesc">Internal architecture — Knowledge, Approvals, Skills, and Tools. Not needed for everyday use.</p>
               <div class="settings-advanced-list" id="settings-advanced-list" hidden>
                 <button class="btn-secondary" data-tab="tab-knowledge" onclick="window.NAGEX.switchTab('tab-knowledge')" data-i18n="settings.knowledge">Knowledge</button>
-                <button class="btn-secondary" data-tab="tab-approvals" onclick="window.NAGEX.switchTab('tab-approvals')" data-i18n="settings.approvals">Approvals</button>
-                <button class="btn-secondary" data-tab="tab-skills" onclick="window.NAGEX.switchTab('tab-skills')" data-i18n="settings.skills">Skills</button>
-                <button class="btn-secondary" data-tab="tab-tools" onclick="window.NAGEX.switchTab('tab-tools')" data-i18n="settings.tools">Tools</button>
+                <button class="btn-secondary" data-tab="tab-inbox" onclick="window.NAGEX.switchTab('tab-inbox')" data-i18n="settings.approvals">Approvals in Inbox</button>
+                <button class="btn-secondary" data-tab="tab-executions" onclick="window.NAGEX.switchTab('tab-executions')" data-i18n="nav.activity">Activity</button>
               </div>
             </div>
           </div>
@@ -1038,9 +1037,17 @@
         <div id="view-create" class="tab-view canvas-mode-doc">
           <div class="view-header-bar" style="display: flex; justify-content: space-between; align-items: center;">
             <div>
-              <h2 data-i18n="create.title">AI Creation Studio</h2>
-              <p class="view-sub" data-i18n="create.subtitle">Generate images, art, and visual assets with AI prompt recipes &amp; reference images.</p>
+              <h2 data-i18n="create.title">Create</h2>
+              <p class="view-sub" data-i18n="create.subtitle">Start real NAgex creation work from structured launch points.</p>
             </div>
+          </div>
+
+          <div class="create-capability-map" aria-label="Create capability groups">
+            <section class="nagex-card" data-create-group="Documents"><h3>Documents</h3><button class="btn-secondary" onclick="window.NAGEX.openAmbientOverlay && window.NAGEX.openAmbientOverlay('report')">Report</button><button class="btn-secondary" onclick="window.NAGEX.openAmbientOverlay && window.NAGEX.openAmbientOverlay('brief')">Brief</button><button class="btn-secondary" onclick="window.NAGEX.openAmbientOverlay && window.NAGEX.openAmbientOverlay('draft')">Draft</button><button class="btn-secondary" onclick="window.NAGEX.openAmbientOverlay && window.NAGEX.openAmbientOverlay('proposal')">Proposal</button><button class="btn-secondary" onclick="window.NAGEX.openAmbientOverlay && window.NAGEX.openAmbientOverlay('summary')">Summary</button></section>
+            <section class="nagex-card" data-create-group="Presentations"><h3>Presentations</h3><button class="btn-secondary" onclick="window.NAGEX.openAmbientOverlay && window.NAGEX.openAmbientOverlay('slides')">Slides <span class="badge-status status-PROCESSING">Beta</span></button></section>
+            <section class="nagex-card" data-create-group="Visual"><h3>Visual</h3><button class="btn-secondary" onclick="document.getElementById('create-prompt-input')?.focus()">Image</button><button class="btn-secondary" disabled>Infographic <span class="badge-status status-CAPTURED">Coming later</span></button><button class="btn-secondary" disabled>Video <span class="badge-status status-CAPTURED">Coming later</span></button></section>
+            <section class="nagex-card" data-create-group="Analysis"><h3>Analysis</h3><button class="btn-secondary" onclick="window.NAGEX.openAmbientOverlay && window.NAGEX.openAmbientOverlay('research')">Research</button><button class="btn-secondary" onclick="window.NAGEX.switchTab('tab-analyze')">Review</button><button class="btn-secondary" onclick="window.NAGEX.openAmbientOverlay && window.NAGEX.openAmbientOverlay('compare')">Compare</button><button class="btn-secondary" onclick="window.NAGEX.switchTab('tab-analyze')">Data analysis</button></section>
+            <section class="nagex-card" data-create-group="Technical"><h3>Technical</h3><button class="btn-secondary" onclick="window.NAGEX.openAmbientOverlay && window.NAGEX.openAmbientOverlay('code')">Code</button><button class="btn-secondary" onclick="window.NAGEX.switchTab('tab-analyze')">Structured extraction</button></section>
           </div>
 
           <div class="create-container" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1rem;">
@@ -1771,7 +1778,7 @@
           <button class="mh-settings-nav-row mh-settings-nav-row-indent" onclick="window.NAGEX.switchTab('tab-knowledge')">
             <span class="mh-settings-nav-title" data-i18n="settings.knowledge">Knowledge</span>
           </button>
-          <button class="mh-settings-nav-row mh-settings-nav-row-indent" onclick="window.NAGEX.switchTab('tab-approvals')">
+          <button class="mh-settings-nav-row mh-settings-nav-row-indent" onclick="window.NAGEX.switchTab('tab-inbox')">
             <span class="mh-settings-nav-title" data-i18n="settings.approvals">Approvals</span>
           </button>
           <button class="mh-settings-nav-row mh-settings-nav-row-indent" onclick="window.NAGEX.switchTab('tab-skills')">

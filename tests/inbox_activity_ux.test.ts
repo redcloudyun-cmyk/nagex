@@ -56,20 +56,20 @@ test('5. Failed task needing user action appears in attention priority', async (
 test('6. Result-ready item appears in Ready for you group', async () => {
   const appJs = fs.readFileSync(path.join(process.cwd(), 'public', 'app.js'), 'utf-8');
   assert.match(appJs, /READY_RESULT/);
-  assert.match(appJs, /groupKey:\s*'READY_FOR_YOU'/);
+  assert.match(appJs, /groupKey:\s*'NOTIFICATIONS'/);
 });
 
 test('7. Working item appears in NAGEX is working group without internal IDs', async () => {
   const appJs = fs.readFileSync(path.join(process.cwd(), 'public', 'app.js'), 'utf-8');
   assert.match(appJs, /RUNNING_WORK/);
-  assert.match(appJs, /groupKey:\s*'NAGEX_IS_WORKING'/);
+  assert.match(appJs, /groupKey:\s*'NOTIFICATIONS'/);
   assert.doesNotMatch(appJs, /worker_id/);
 });
 
 test('8. Recently completed has lower priority than attention items', async () => {
   const appJs = fs.readFileSync(path.join(process.cwd(), 'public', 'app.js'), 'utf-8');
   assert.match(appJs, /RECENTLY_COMPLETED/);
-  assert.match(appJs, /groupKey:\s*'RECENTLY_COMPLETED'/);
+  assert.match(appJs, /groupKey:\s*'NOTIFICATIONS'/);
   assert.match(appJs, /priority:\s*8/);
 });
 
@@ -87,9 +87,12 @@ test('10. Activity uses outcome-oriented user language', async () => {
   assert.match(appJs, /groupActivityByDate/);
 });
 
-test('11. Raw audit events are not primary Activity rows', async () => {
+test('11. Raw audit details stay out of normal Activity rows', async () => {
   const appJs = fs.readFileSync(path.join(process.cwd(), 'public', 'app.js'), 'utf-8');
-  assert.match(appJs, /View technical details/);
+  assert.doesNotMatch(appJs, /View technical details/);
+  assert.doesNotMatch(appJs, /Technical Audit Record ID/);
+  assert.doesNotMatch(appJs, />Source:/);
+  assert.doesNotMatch(appJs, />Tools:/);
 });
 
 test('12. Completed state requires real canonical completion', async () => {

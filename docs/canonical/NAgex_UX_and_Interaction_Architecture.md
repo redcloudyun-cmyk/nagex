@@ -124,11 +124,11 @@ Create
 Canvas
 Tasks
 Knowledge
-Approvals
+Activity
 Settings
 ```
 
-This replaces the earlier 5-item nav (Home/Inbox/Activity/Vault/Settings). Create and Canvas are first-class product concepts, not settings sub-pages. Activity and Vault are no longer primary destinations but keep their real routes/views and functionality intact:
+This replaces the approval-as-navigation model. Create and Canvas are first-class product concepts, Activity is the concise user-facing history destination, and Vault remains folded into Knowledge while keeping its real route intact:
 
 - **Activity** (`tab-executions`, `#activity`) is reachable contextually — from Home's "Recent results → View All" and from Tasks' "View activity history" link — since it is the execution history of Tasks.
 - **Vault** (`tab-vault`, `#vault`) is folded into **Knowledge** as the user-facing concept: Knowledge's view links directly into the still-fully-functional Vault view/route/store. Vault's storage/runtime model is unchanged.
