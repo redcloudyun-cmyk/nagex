@@ -66,6 +66,7 @@ import { handleCaptureRoutes } from './http/routes/capture.routes.js';
 import { handleInboxRoutes } from './http/routes/inbox.routes.js';
 import { handleVaultRoutes } from './http/routes/vault.routes.js';
 import { handleConnectionsRoutes } from './http/routes/connections.routes.js';
+import { handleSearchRoutes } from './http/routes/search.routes.js';
 import { handleActionsRoutes } from './http/routes/actions.routes.js';
 import { handleCommandContextRoutes } from './http/routes/command-context.routes.js';
 import type { GoogleCalendarService } from './modules/calendar/index.js';
@@ -671,7 +672,7 @@ export async function handleAsyncApiRequest(
 
     // R10.2-D Increment 5 — Device Agent outbound transport route.
     {
-      const deviceAgentResult = await handleDeviceAgentRoutes(method, pathname, body, headers, query, { deviceAgentTransportEndpoint, deviceCommandService: app.deviceCommandService, deviceIdentityStore, sessionStore });
+      const deviceAgentResult = await handleDeviceAgentRoutes(method, pathname, body, headers, query, { deviceAgentTransportEndpoint, deviceCommandService: app.deviceCommandService, deviceIdentityStore, sessionStore, deviceConnectionStatusStore: app.deviceConnectionStatusStore });
       if (deviceAgentResult) return deviceAgentResult;
     }
 
@@ -739,6 +740,22 @@ export async function handleAsyncApiRequest(
     {
       const connectionsResult = await handleConnectionsRoutes(method, pathname, body, headers, query, { connectionStore, auditLogger, sessionStore: customDeps?.sessionStore ?? sessionStore, identityStore: customDeps?.identityStore ?? identityStore });
       if (connectionsResult) return connectionsResult;
+    }
+
+    // Phase 3 global search: local, owner-scoped real state only; no disconnected external source search.
+    {
+      const searchResult = await handleSearchRoutes(method, pathname, body, headers, query, {
+        sessionStore: customDeps?.sessionStore ?? sessionStore,
+        identityStore: customDeps?.identityStore ?? identityStore,
+        captureStore,
+        taskStore,
+        knowledgeEngine,
+        memoryEngine,
+        vaultStore,
+        artifactStore: app.artifactStore,
+        activityStore,
+      });
+      if (searchResult) return searchResult;
     }
 
     // R19 — Action & Approval Integration Routes

@@ -261,6 +261,10 @@ export class NotificationEngine {
     return this.options.store.markAsRead(id, tenantId, principalId);
   }
 
+  public dismiss(id: string, tenantId: string, principalId: string): NotificationRecord | undefined {
+    return this.options.store.dismiss(id, tenantId, principalId);
+  }
+
   public markAllAsRead(tenantId: string, principalId: string): number {
     return this.options.store.markAllAsRead(tenantId, principalId);
   }

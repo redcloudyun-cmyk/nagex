@@ -37,6 +37,8 @@ export interface NotificationRecord {
   read: boolean;
   channelDeliveries: ChannelDelivery[];
   metadata?: Record<string, unknown>;
+  dismissed?: boolean;
+  dismissedAt?: string;
   // P04 — a caller-supplied key that prevents the same logical event
   // (e.g. taskId + runId + eventType) from producing duplicate notifications
   // across restart, approval resume, or duplicate finalization triggers.
@@ -109,6 +111,17 @@ export class NotificationStore {
     if (!record) return undefined;
     if (record.tenantId !== tenantId || record.principalId !== principalId) return undefined;
     record.read = true;
+    this.fileStore.write(id, record);
+    return record;
+  }
+
+  public dismiss(id: string, tenantId: string, principalId: string): NotificationRecord | undefined {
+    const record = this.records.get(id);
+    if (!record) return undefined;
+    if (record.tenantId !== tenantId || record.principalId !== principalId) return undefined;
+    record.read = true;
+    record.dismissed = true;
+    record.dismissedAt = new Date().toISOString();
     this.fileStore.write(id, record);
     return record;
   }

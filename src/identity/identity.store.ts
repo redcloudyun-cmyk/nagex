@@ -300,7 +300,7 @@ export class IdentityStore {
   private baseProfile(userId: string): ProfileRecord {
     const existing = this.profiles.get(userId);
     return existing
-      ? { ...existing, preferences: existing.preferences ? { ...existing.preferences, quickWake: existing.preferences.quickWake ? { ...existing.preferences.quickWake } : undefined } : undefined }
+      ? { ...existing, preferences: existing.preferences ? JSON.parse(JSON.stringify(existing.preferences)) as UserPreferences : undefined }
       : { userId, displayName: 'User', avatarUrl: null, locale: 'en', timezone: 'UTC', updatedAt: this.now() };
   }
 
@@ -334,11 +334,25 @@ export class IdentityStore {
     return this.profiles.get(userId)?.preferences ?? {};
   }
 
-  public updatePreferences(userId: string, patch: { quickWake?: Partial<QuickWakePreferences>; autonomyLevel?: AutonomyLevelPreference }): UserPreferences {
+  public updatePreferences(userId: string, patch: Partial<UserPreferences>): UserPreferences {
     const profile = this.baseProfile(userId);
     const next: UserPreferences = { ...(profile.preferences ?? {}) };
     if (patch.quickWake) next.quickWake = { ...(next.quickWake ?? {}), ...patch.quickWake };
     if (patch.autonomyLevel) next.autonomyLevel = patch.autonomyLevel;
+    if (patch.notifications) next.notifications = { ...(next.notifications ?? {}), ...patch.notifications };
+    if (patch.privacy) next.privacy = { ...(next.privacy ?? {}), ...patch.privacy };
+    if (patch.ambientMonitoring) {
+      next.ambientMonitoring = {
+        ...(next.ambientMonitoring ?? {}),
+        ...patch.ambientMonitoring,
+        sourceConsents: {
+          ...(next.ambientMonitoring?.sourceConsents ?? {}),
+          ...(patch.ambientMonitoring.sourceConsents ?? {}),
+        },
+      };
+    }
+    if (patch.deviceSettings) next.deviceSettings = { ...(next.deviceSettings ?? {}), ...patch.deviceSettings };
+    if (patch.connectionSettings) next.connectionSettings = { ...(next.connectionSettings ?? {}), ...patch.connectionSettings };
     profile.preferences = next;
     return this.commitProfile(profile).preferences ?? {};
   }

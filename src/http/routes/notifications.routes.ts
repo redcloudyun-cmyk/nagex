@@ -47,6 +47,16 @@ export const handleNotificationsRoutes: AsyncRouteRegistrar<NotificationsRouteDe
     }
     return { status: 200, data: record };
   }
+  if (pathname.startsWith('/api/v1/notifications/') && pathname.endsWith('/dismiss') && method === 'POST') {
+    const tenantId = callerIdentity(headers).tenantId;
+    const principalId = callerIdentity(headers).principalId;
+    const id = pathname.slice('/api/v1/notifications/'.length, pathname.length - '/dismiss'.length);
+    const record = notificationEngine.dismiss(id, tenantId, principalId);
+    if (!record) {
+      return { status: 404, data: { error: { code: 'NOTIFICATION_NOT_FOUND', category: 'NOT_FOUND', message: `Notification ${id} was not found.` } } };
+    }
+    return { status: 200, data: record };
+  }
   if (pathname === '/api/v1/notifications/dispatch' && method === 'POST') {
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_notif_disp_${crypto.randomUUID()}`;
     // S2C — the recipient is the AUTHENTICATED CALLER. A principalId/tenantId in the body is at most a redundant assertion; a

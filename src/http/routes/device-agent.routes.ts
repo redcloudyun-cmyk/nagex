@@ -66,8 +66,66 @@ export interface DeviceAgentRouteDeps {
   kakaoAccessibilityApprovalService?: KakaoAccessibilityApprovalService;
 }
 
+function authenticatedDeviceOwner(headers: Record<string, string | string[] | undefined>, sessionStore: SessionStore) {
+  const sessionId = getSessionIdFromHeaders(headers);
+  return sessionId ? sessionStore.getSession(sessionId) : null;
+}
+
 export const handleDeviceAgentRoutes: AsyncRouteRegistrar<DeviceAgentRouteDeps> = async (method, pathname, body, headers, _query, deps): Promise<ApiResult | undefined> => {
   const { deviceAgentTransportEndpoint, deviceCommandService, deviceIdentityStore, sessionStore } = deps;
+
+  if (pathname === '/api/v1/device-agent/devices' && method === 'GET') {
+    const session = authenticatedDeviceOwner(headers, sessionStore);
+    if (!session) {
+      throw new NagexError({ code: 'DEVICE_LIST_AUTH_REQUIRED', category: 'AUTHENTICATION', message: 'A valid authenticated session is required to list devices.', request_id: `req_${crypto.randomUUID()}` });
+    }
+    const devices = deviceIdentityStore.listOwned(session.tenantId, session.principalId).map((device) => {
+      const connection = deps.deviceConnectionStatusStore?.getStatus(device.deviceId, session.tenantId, session.principalId) ?? null;
+      return {
+        deviceId: device.deviceId,
+        name: device.nickname || device.systemDeviceName || device.deviceId,
+        platform: device.os || device.deviceType || 'UNKNOWN',
+        trustState: device.status,
+        connectionState: connection?.connectionState ?? 'UNKNOWN',
+        lastSeenAt: device.lastSeenAt,
+        capabilities: device.capabilityInventory,
+        permissions: device.capabilityInventory.filter((capability) => capability.startsWith('permission:')),
+        runtimeVersion: device.agentVersion,
+        actions: { rename: true, revoke: device.status === 'ACTIVE', disconnect: false, reEnrollGuidance: true },
+      };
+    });
+    return { status: 200, data: { devices, total: devices.length } };
+  }
+
+  if (pathname.startsWith('/api/v1/device-agent/devices/') && method === 'PATCH') {
+    const session = authenticatedDeviceOwner(headers, sessionStore);
+    if (!session) {
+      throw new NagexError({ code: 'DEVICE_UPDATE_AUTH_REQUIRED', category: 'AUTHENTICATION', message: 'A valid authenticated session is required to update a device.', request_id: `req_${crypto.randomUUID()}` });
+    }
+    const deviceId = pathname.slice('/api/v1/device-agent/devices/'.length);
+    const nickname = body?.nickname === null ? null : typeof body?.nickname === 'string' ? body.nickname.trim() : undefined;
+    if (nickname === undefined) {
+      throw new NagexError({ code: 'DEVICE_NICKNAME_REQUIRED', category: 'VALIDATION', message: 'nickname is required.', request_id: `req_${crypto.randomUUID()}` });
+    }
+    const record = deviceIdentityStore.updateNickname(deviceId, session.tenantId, session.principalId, nickname);
+    if (!record) throw new NagexError({ code: 'DEVICE_NOT_FOUND', category: 'NOT_FOUND', message: 'Device was not found for this tenant/user.', request_id: `req_${crypto.randomUUID()}` });
+    return { status: 200, data: record };
+  }
+
+  if (pathname.startsWith('/api/v1/device-agent/devices/') && pathname.endsWith('/revoke') && method === 'POST') {
+    const session = authenticatedDeviceOwner(headers, sessionStore);
+    if (!session) {
+      throw new NagexError({ code: 'DEVICE_REVOKE_AUTH_REQUIRED', category: 'AUTHENTICATION', message: 'A valid authenticated session is required to revoke a device.', request_id: `req_${crypto.randomUUID()}` });
+    }
+    const deviceId = pathname.slice('/api/v1/device-agent/devices/'.length, pathname.length - '/revoke'.length);
+    const record = deviceIdentityStore.revoke(deviceId, session.tenantId, session.principalId);
+    if (!record) throw new NagexError({ code: 'DEVICE_NOT_FOUND', category: 'NOT_FOUND', message: 'Device was not found for this tenant/user.', request_id: `req_${crypto.randomUUID()}` });
+    return { status: 200, data: record };
+  }
+
+  if (pathname.startsWith('/api/v1/device-agent/devices/') && pathname.endsWith('/disconnect') && method === 'POST') {
+    return { status: 501, data: { error: { code: 'DEVICE_DISCONNECT_NOT_SUPPORTED', message: 'Device disconnect is not supported by the current device runtime; revoke is available.' } } };
+  }
 
   if (pathname === '/api/v1/device-agent/message' && method === 'POST') {
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;

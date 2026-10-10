@@ -41,7 +41,10 @@ export interface ConnectionsRouteDeps {
 }
 
 function withCanonicalStatus(record: AppConnectionRecord, tenantId: string, userId: string): AppConnectionRecord {
-  if (record.provider !== 'google') return record;
+  if (record.provider !== 'google') {
+    const unsupported = record.provider === 'microsoft';
+    return { ...record, status: unsupported ? 'UNAVAILABLE' : record.status };
+  }
   const connected = googleTokenStore.getStatusForPrincipal(tenantId, userId).connected;
   return { ...record, status: connected ? 'CONNECTED' : 'DISCONNECTED' };
 }
@@ -55,7 +58,19 @@ export const handleConnectionsRoutes: AsyncRouteRegistrar<ConnectionsRouteDeps> 
   const userId = owner.principalId;
 
   if (pathname === '/api/v1/connections' && method === 'GET') {
-    const connections = connectionStore.listConnections(tenantId, userId).map((r) => withCanonicalStatus(r, tenantId, userId));
+    const connections = connectionStore.listConnections(tenantId, userId).map((r) => {
+      const record = withCanonicalStatus(r, tenantId, userId);
+      return {
+        ...record,
+        consentAuthority: {
+          observeAllowed: false,
+          contentReadAllowed: false,
+          proactiveUseAllowed: false,
+          executeAllowed: false,
+          reason: 'Connection state is not consent or execution authority.',
+        },
+      };
+    });
     return { status: 200, data: { connections, total: connections.length } };
   }
 
@@ -67,7 +82,10 @@ export const handleConnectionsRoutes: AsyncRouteRegistrar<ConnectionsRouteDeps> 
       auditLogger?.logEvent({ actor: { type: 'user', id: userId }, tenant_id: tenantId, action: 'oauth:google_disconnected', resource: { type: 'OAuthConnection', id: 'google_calendar' }, result: 'SUCCESS', request_id: requestId });
       return { status: 200, data: withCanonicalStatus(connectionStore.disconnect(tenantId, userId, provider), tenantId, userId) };
     }
-    const record = connectionStore.disconnect(tenantId, userId, provider);
+    if (provider === 'microsoft') {
+      return { status: 501, data: { error: { code: 'PROVIDER_DISCONNECT_NOT_SUPPORTED', message: `No disconnect integration exists for "${provider}".` } } };
+    }
+    const record = withCanonicalStatus(connectionStore.disconnect(tenantId, userId, provider), tenantId, userId);
     return { status: 200, data: record };
   }
 

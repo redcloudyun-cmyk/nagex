@@ -180,7 +180,7 @@ describe('R24.6B — Quick Wake / Autonomy are authenticated, validated, per-use
       }
     };
     walk(srcRoot);
-    assert.deepEqual(consumers.sort(), ['http/routes/settings.routes.ts']);
+    assert.deepEqual(consumers.sort(), ['http/routes/search.routes.ts', 'http/routes/settings.routes.ts']);
   });
 
   it('a failed durable write is never reported as saved and never changes later reads', async () => {
@@ -333,7 +333,11 @@ describe('R24.6B/C — the connections compatibility path cannot diverge from th
       assert.equal((await post(`/api/v1/connections/${provider}/sync`))?.status, 501);
     }
     const list = (await handleConnectionsRoutes('GET', '/api/v1/connections', null, a.cookie, {}, deps))!.data as any;
-    assert.ok(list.connections.every((c: any) => c.status === 'DISCONNECTED'));
+    const statuses = Object.fromEntries(list.connections.map((c: any) => [c.provider, c.status]));
+    assert.equal(statuses.google, 'DISCONNECTED');
+    assert.equal(statuses.microsoft, 'UNAVAILABLE');
+    assert.equal(statuses.slack, 'DISCONNECTED');
+    assert.equal(statuses.telegram, 'DISCONNECTED');
   });
 
   it('requires a session: no cookie (even with an identity header) is 401', async () => {

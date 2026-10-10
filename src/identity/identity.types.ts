@@ -56,9 +56,58 @@ export interface QuickWakePreferences {
   voice_wake: boolean;
   double_tap_shortcut: boolean;
 }
+export interface NotificationPreferences {
+  web: boolean;
+  desktop: boolean;
+  dailyBrief: boolean;
+  proactive: boolean;
+}
+export interface PrivacyPreferences {
+  includeMemoryInSearch: boolean;
+  includeVaultInSearch: boolean;
+  shareDiagnostics: boolean;
+}
+export interface AmbientSourceConsentPreference {
+  sourceType: string;
+  provider: string;
+  accountRef: string;
+  connected: boolean;
+  observeAllowed: boolean;
+  backgroundAllowed: boolean;
+  contentReadAllowed: boolean;
+  attachmentAllowed: boolean;
+  proactiveUseAllowed: boolean;
+  draftAllowed: boolean;
+  executeAllowed: boolean;
+  scope: string;
+  purpose: string;
+  retention: string;
+  grantedAt: string;
+  updatedAt: string;
+  revokedAt?: string | null;
+}
+export interface AmbientMonitoringPreferences {
+  enabled: boolean;
+  dailyBrief: boolean;
+  proactiveSuggestions: boolean;
+  sourceConsents?: Record<string, AmbientSourceConsentPreference>;
+}
+export interface DeviceSettingsPreferences {
+  allowNewDeviceEnrollment: boolean;
+  requireTrustedDevices: boolean;
+}
+export interface ConnectionSettingsPreferences {
+  autoReconnect: boolean;
+  showUnavailableProviders: boolean;
+}
 export interface UserPreferences {
   quickWake?: Partial<QuickWakePreferences>;
   autonomyLevel?: AutonomyLevelPreference;
+  notifications?: Partial<NotificationPreferences>;
+  privacy?: Partial<PrivacyPreferences>;
+  ambientMonitoring?: Partial<AmbientMonitoringPreferences>;
+  deviceSettings?: Partial<DeviceSettingsPreferences>;
+  connectionSettings?: Partial<ConnectionSettingsPreferences>;
 }
 
 export interface ProfileRecord {
