@@ -9,6 +9,7 @@ export interface DesktopAppConfig {
   hotkey: string;
   alwaysOnTop: boolean;
   openAtLogin: boolean;
+  voiceMuted: boolean;
   windowBounds?: {
     x?: number;
     y?: number;
@@ -24,6 +25,7 @@ export const DEFAULT_DESKTOP_CONFIG: DesktopAppConfig = {
   hotkey: 'Alt+N',
   alwaysOnTop: false,
   openAtLogin: false,
+  voiceMuted: false,
   windowBounds: {
     width: 420,
     height: 680,

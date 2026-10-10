@@ -22,4 +22,5 @@
     <string name="quick_tile_label">NAgex</string>
     <string name="shortcut_talk_short_label">Talk</string>
     <string name="shortcut_talk_long_label">Talk to NAgex</string>
+    <string name="accessibility_service_description">Allows NAgex to prepare approved KakaoTalk message drafts after user approval.</string>
 </resources>

@@ -25,7 +25,7 @@ import androidx.security.crypto.MasterKey
  * login/QR-pairing flow is a reasonable Phase C+ improvement, not
  * implemented now.
  */
-class NagexServerConfig(context: Context) {
+class NagexServerConfig(val context: Context) {
     private val prefs: SharedPreferences =
         context.getSharedPreferences("nagex_server_config", Context.MODE_PRIVATE)
 
@@ -79,6 +79,21 @@ class NagexServerConfig(context: Context) {
         get() = prefs.getString(KEY_DEVICE_STATUS, null)
         set(value) = prefs.edit().putString(KEY_DEVICE_STATUS, value).apply()
 
+    /**
+     * Clears only the server-side enrollment binding cached on this install.
+     * This deliberately preserves the device keypair, server URL, session
+     * token, accessibility state, and unrelated app preferences.
+     */
+    fun clearStaleEnrollmentBindingPreservingDeviceKey() {
+        prefs.edit()
+            .remove(KEY_TENANT_ID)
+            .remove(KEY_PRINCIPAL_ID)
+            .remove(KEY_DEVICE_ID)
+            .remove(KEY_DEVICE_STATUS)
+            .remove(KEY_AUTHENTICATED_EMAIL)
+            .apply()
+    }
+
     val isEnrolled: Boolean
         get() = !deviceId.isNullOrBlank()
 
@@ -89,6 +104,7 @@ class NagexServerConfig(context: Context) {
         private const val KEY_PRINCIPAL_ID = "principal_id"
         private const val KEY_DEVICE_ID = "device_id"
         private const val KEY_DEVICE_STATUS = "device_status"
+        private const val KEY_AUTHENTICATED_EMAIL = "authenticated_email"
 
         // Placeholder default — every real deployment must set its own via
         // the status screen before enrollment; this is never a live

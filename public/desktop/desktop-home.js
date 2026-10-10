@@ -14,6 +14,16 @@
     return `<div class="nagex-empty-state" style="padding:0.75rem; font-size:0.82rem; color:var(--color-text-secondary,#94a3b8);">${escapeHtml(text)}</div>`;
   }
 
+  async function renderTodayPanel() {
+    const recentActionsEmpty = emptyState(t('home.recentActionsEmpty', 'No recent actions yet.'));
+    const todayLoadError = t('home.todayLoadError', 'Today could not be loaded.');
+    const todayEmpty = t('home.todayEmpty', 'Nothing scheduled right now.');
+    let mySpaceFetchFailed = false;
+    const dateEl = document.getElementById('desktop-today-date');
+    if (dateEl) dateEl.textContent = new Date().toLocaleDateString();
+    return { recentActionsEmpty, todayLoadError, todayEmpty, mySpaceFetchFailed };
+  }
+
   // ── Hero greeting — real local time-of-day, never a fabricated name ──
   function renderGreeting() {
     const el = document.getElementById('desktop-hero-greeting');

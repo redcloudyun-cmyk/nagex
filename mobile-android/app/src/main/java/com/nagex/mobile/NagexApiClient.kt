@@ -18,7 +18,12 @@ import java.util.concurrent.TimeUnit
  * Phase B foundation slice, per the "do not build a large mobile design
  * system" directive.
  */
-class NagexApiClient(private val config: NagexServerConfig) {
+interface DeviceEnrollmentApi {
+    fun validateDeviceBinding(deviceId: String, publicKeyPem: String): NagexApiClient.DeviceBindingValidationResult
+    fun enroll(publicKeyPem: String, agentVersion: String, capabilityInventory: List<String>): NagexApiClient.EnrollResult
+}
+
+class NagexApiClient(private val config: NagexServerConfig) : DeviceEnrollmentApi {
 
     private val http = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
@@ -59,8 +64,10 @@ class NagexApiClient(private val config: NagexServerConfig) {
             val bodyString = response.body?.string().orEmpty()
             val parsed = if (bodyString.isNotBlank()) JSONObject(bodyString) else JSONObject()
             if (!response.isSuccessful) {
-                val code = parsed.optString("code", null)
-                val message = parsed.optString("message", "NAgex server request failed (${response.code}).")
+                val error = parsed.optJSONObject("error")
+                val code = error?.optString("code", null) ?: parsed.optString("code", null)
+                val message = error?.optString("message", null)
+                    ?: parsed.optString("message", "NAgex server request failed (${response.code}).")
                 throw ApiException(response.code, code, message)
             }
             return parsed
@@ -68,12 +75,29 @@ class NagexApiClient(private val config: NagexServerConfig) {
     }
 
     data class EnrollResult(val deviceId: String, val status: String, val tenantId: String, val ownerId: String)
+    data class DeviceBindingValidationResult(val deviceId: String, val status: String, val tenantId: String, val ownerId: String)
+
+    override fun validateDeviceBinding(deviceId: String, publicKeyPem: String): DeviceBindingValidationResult {
+        val body = JSONObject()
+            .put("deviceId", deviceId)
+            .put("publicKey", publicKeyPem)
+        val request = sessionAuthenticatedRequestBuilder("/api/v1/device-agent/devices/$deviceId/validate")
+            .post(body.toString().toRequestBody(jsonMediaType))
+            .build()
+        val result = execute(request)
+        return DeviceBindingValidationResult(
+            deviceId = result.getString("deviceId"),
+            status = result.getString("status"),
+            tenantId = result.getString("tenantId"),
+            ownerId = result.getString("ownerId"),
+        )
+    }
 
     /** Calls POST /api/v1/device-agent/enroll — the one place a
      * DeviceIdentityRecord is created (src/http/routes/device-agent.routes.ts).
      * tenantId/ownerId in the response are the server's own, session-derived
      * values — never something this client asserted. */
-    fun enroll(publicKeyPem: String, agentVersion: String, capabilityInventory: List<String>): EnrollResult {
+    override fun enroll(publicKeyPem: String, agentVersion: String, capabilityInventory: List<String>): EnrollResult {
         val body = JSONObject()
             .put("publicKey", publicKeyPem)
             .put("agentVersion", agentVersion)
@@ -146,6 +170,9 @@ class NagexApiClient(private val config: NagexServerConfig) {
         val recipientRef: String?,
         val displayName: String?,
         val candidates: List<ContactCandidateDto>,
+        val matchKind: String?,
+        val similarity: Double?,
+        val confirmationRequired: Boolean,
     )
 
     /** Calls POST /api/v1/mobile/contacts/resolve. Never sends a phone
@@ -160,7 +187,7 @@ class NagexApiClient(private val config: NagexServerConfig) {
             .put("deviceId", deviceId)
             .put("spokenName", spokenName)
             .put("candidates", candidatesJson)
-        val request = authenticatedRequestBuilder("/api/v1/mobile/contacts/resolve")
+        val request = sessionAuthenticatedRequestBuilder("/api/v1/mobile/contacts/resolve")
             .post(body.toString().toRequestBody(jsonMediaType))
             .build()
         val result = execute(request)
@@ -176,6 +203,9 @@ class NagexApiClient(private val config: NagexServerConfig) {
             recipientRef = result.optString("recipientRef", null),
             displayName = result.optString("displayName", null),
             candidates = outCandidates,
+            matchKind = result.optString("matchKind", null),
+            similarity = if (result.has("similarity")) result.optDouble("similarity") else null,
+            confirmationRequired = result.optBoolean("confirmationRequired", false),
         )
     }
 

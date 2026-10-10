@@ -40,6 +40,13 @@ object DeviceAgentPayload {
         return Built(json, sha256Hex(json))
     }
 
+    fun ack(commandId: String, stage: String, resultCode: String? = null): Built {
+        val resultField = if (resultCode == null) "" else ",\"resultCode\":${CanonicalJson.escapeString(resultCode)}"
+        val dataJson = "{\"commandId\":${CanonicalJson.escapeString(commandId)},\"stage\":${CanonicalJson.escapeString(stage)}$resultField}"
+        val json = "{\"commandType\":\"ACK\",\"executionSessionId\":null,\"data\":$dataJson}"
+        return Built(json, sha256Hex(json))
+    }
+
     /** MOBILE_MESSAGE_PREPARE — read-only: asks the server for the exact
      * approved recipientRef+message for this run. Consumes nothing. */
     fun mobileMessagePrepare(runId: String): Built {
@@ -79,6 +86,13 @@ object DeviceAgentPayload {
     fun messagingHandoffAuthorize(runId: String): Built = handoff("MESSAGING_HANDOFF_AUTHORIZE", runId)
     fun messagingHandoffStarted(runId: String): Built = handoff("MESSAGING_HANDOFF_STARTED", runId)
     fun messagingHandoffUnavailable(runId: String): Built = handoff("MESSAGING_HANDOFF_UNAVAILABLE", runId)
+
+    fun accessibilitySelectKakaoDirectConversation(planId: String, conversationRef: String, expectedProviderDisplayName: String): Built {
+        val stepJson = "{\"action\":\"SELECT_KAKAO_DIRECT_CONVERSATION\",\"conversationRef\":${CanonicalJson.escapeString(conversationRef)},\"expectedProviderDisplayName\":${CanonicalJson.escapeString(expectedProviderDisplayName)}}"
+        val dataJson = "{\"planId\":${CanonicalJson.escapeString(planId)},\"targetPackage\":\"com.kakao.talk\",\"conversationRef\":${CanonicalJson.escapeString(conversationRef)},\"expectedProviderDisplayName\":${CanonicalJson.escapeString(expectedProviderDisplayName)},\"steps\":[$stepJson]}"
+        val json = "{\"commandType\":\"ACCESSIBILITY_EXECUTE_PLAN\",\"executionSessionId\":null,\"data\":$dataJson}"
+        return Built(json, sha256Hex(json))
+    }
 
     private fun handoff(command: String, runId: String): Built {
         val dataJson = "{\"runId\":${CanonicalJson.escapeString(runId)}}"

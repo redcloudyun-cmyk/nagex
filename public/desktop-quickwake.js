@@ -12,6 +12,13 @@
     desktopStatus: null,
     quickWake: null,
     isSubmitting: false,
+    voice: {
+      active: false,
+      mediaStream: null,
+      recognition: null,
+      transcript: '',
+      goalId: null,
+    },
   };
 
   async function apiFetch(url, options = {}) {
@@ -57,6 +64,7 @@
     setupTabNav();
     setupChips();
     setupComposer();
+    setupVoiceRuntime();
     setupHotkeyListener();
     setupLangButton();
 
@@ -157,6 +165,112 @@
             submitPrompt(val);
           }
         }
+      };
+    }
+  }
+
+  function appendSystemBubble(message) {
+    const stream = document.getElementById('qw-stream-body');
+    if (!stream) return;
+    const bubble = document.createElement('div');
+    bubble.className = 'qw-bubble nagex';
+    bubble.textContent = message;
+    stream.appendChild(bubble);
+    stream.scrollTop = stream.scrollHeight;
+  }
+
+  function updateVoiceStatus(message) {
+    const status = document.getElementById('qw-status-msg');
+    if (status) status.textContent = message;
+  }
+
+  function getSpeechRecognitionCtor() {
+    return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+  }
+
+  async function startDesktopVoiceCapture(mode = 'CLICK_TO_TALK') {
+    if (state.voice.active) return;
+    state.voice.active = true;
+    state.voice.goalId = state.voice.goalId || `desktop_voice_goal_${Date.now()}`;
+    updateVoiceStatus(t('desktop.listening', 'Listening...'));
+    const voiceBtn = document.getElementById('qw-btn-voice');
+    if (voiceBtn) voiceBtn.classList.add('recording');
+    if (nativeBridge && nativeBridge.showCompactPopup) {
+      nativeBridge.showCompactPopup({
+        type: 'INFO',
+        summary: 'NAgex is listening',
+        detail: mode === 'PUSH_TO_TALK' ? 'Push-to-talk is active.' : 'Click again to stop recording.',
+        goalId: state.voice.goalId,
+        executionId: 'desktop-voice',
+        actions: ['Stop'],
+      });
+    }
+
+    try {
+      state.voice.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err) {
+      state.voice.active = false;
+      if (voiceBtn) voiceBtn.classList.remove('recording');
+      updateVoiceStatus(t('desktop.micDenied', 'Microphone unavailable'));
+      appendSystemBubble(t('desktop.micDeniedDetail', 'Microphone access is required before voice input can continue.'));
+      return;
+    }
+
+    const Recognition = getSpeechRecognitionCtor();
+    if (!Recognition) {
+      appendSystemBubble(t('desktop.micCapturedNoStt', 'Microphone capture is active, but speech recognition is not available in this runtime.'));
+      return;
+    }
+
+    const recognition = new Recognition();
+    recognition.lang = (window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale() === 'ko') ? 'ko-KR' : 'en-US';
+    recognition.interimResults = true;
+    recognition.continuous = false;
+    state.voice.recognition = recognition;
+    recognition.onresult = (event) => {
+      let transcript = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        transcript += event.results[i][0].transcript;
+      }
+      state.voice.transcript = transcript.trim();
+      updateVoiceStatus(state.voice.transcript || t('desktop.listening', 'Listening...'));
+    };
+    recognition.onerror = () => {
+      appendSystemBubble(t('desktop.sttFailed', 'Speech recognition failed. The microphone session was stopped safely.'));
+      stopDesktopVoiceCapture(false);
+    };
+    recognition.onend = () => {
+      const transcript = state.voice.transcript;
+      stopDesktopVoiceCapture(false);
+      if (transcript) submitPrompt(transcript);
+    };
+    recognition.start();
+  }
+
+  function stopDesktopVoiceCapture(clearTranscript = true) {
+    if (state.voice.recognition) {
+      try { state.voice.recognition.stop(); } catch {}
+      state.voice.recognition = null;
+    }
+    if (state.voice.mediaStream) {
+      state.voice.mediaStream.getTracks().forEach((track) => track.stop());
+      state.voice.mediaStream = null;
+    }
+    state.voice.active = false;
+    if (clearTranscript) state.voice.transcript = '';
+    const voiceBtn = document.getElementById('qw-btn-voice');
+    if (voiceBtn) voiceBtn.classList.remove('recording');
+    updateVoiceStatus(t('desktop.ready', 'Ready'));
+    if (nativeBridge && nativeBridge.stopVoiceCapture) nativeBridge.stopVoiceCapture();
+  }
+
+  function setupVoiceRuntime() {
+    const voiceBtn = document.getElementById('qw-btn-voice');
+    if (voiceBtn) {
+      voiceBtn.title = 'Talk to NAgex';
+      voiceBtn.onclick = () => {
+        if (state.voice.active) stopDesktopVoiceCapture();
+        else startDesktopVoiceCapture('CLICK_TO_TALK');
       };
     }
   }
@@ -338,6 +452,15 @@
         input.select();
       }
     });
+    if (nativeBridge.onPushToTalkTriggered) {
+      nativeBridge.onPushToTalkTriggered(() => startDesktopVoiceCapture('PUSH_TO_TALK'));
+    }
+    if (nativeBridge.onVoiceCaptureRequested) {
+      nativeBridge.onVoiceCaptureRequested((data) => startDesktopVoiceCapture((data && data.mode) || 'PUSH_TO_TALK'));
+    }
+    if (nativeBridge.onVoiceCaptureStopRequested) {
+      nativeBridge.onVoiceCaptureStopRequested(() => stopDesktopVoiceCapture());
+    }
   }
 
   window.NAGEX_DESKTOP = {

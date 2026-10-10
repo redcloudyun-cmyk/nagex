@@ -1,40 +1,31 @@
 package com.nagex.mobile
 
-/**
- * R23.6M Phase B2 — a deliberately minimal, deterministic heuristic for
- * pulling a recipient name out of a full spoken utterance, e.g.
- * "김대진 대표에게 전화해줘" -> "김대진 대표". This is NOT real intent
- * parsing/NLU — it exists only so Phase B's foundation loop (voice ->
- * contact candidate lookup -> spoken result) has something to send as
- * `spokenName`. It makes no send/approval/policy decision of any kind,
- * consistent with the Voice Layer's Phase B scope. Real command
- * understanding (message content, channel selection) is Phase C/D's
- * concern, likely via the existing Model Router rather than this
- * hand-rolled heuristic.
- */
 object SpokenNameExtractor {
-
-    private val KOREAN_PARTICLES = listOf("에게는", "한테는", "에게", "한테", "께")
+    private val KOREAN_RECIPIENT_MARKERS = listOf("\uC5D0\uAC8C", "\uD55C\uD14C", "\uAED8")
+    private val KOREAN_COMMAND_MARKERS = listOf("\uC804\uD654", "\uAC78\uC5B4", "\uBB38\uC790", "\uBCF4\uB0B4")
     private val ENGLISH_LEAD_INS = listOf("tell ", "message ", "text ", "call ")
 
     fun extract(utterance: String): String {
         val trimmed = utterance.trim()
         if (trimmed.isEmpty()) return ""
 
-        for (particle in KOREAN_PARTICLES) {
-            val index = trimmed.indexOf(particle)
-            if (index > 0) {
-                return trimmed.substring(0, index).trim()
-            }
+        val wake = WakePhraseMatcher.match(trimmed)
+        val withoutWake = if (wake.decision == WakePhraseMatcher.Decision.ACCEPT) wake.remainder else trimmed
+
+        for (marker in KOREAN_RECIPIENT_MARKERS) {
+            val index = withoutWake.indexOf(marker)
+            if (index > 0) return withoutWake.substring(0, index).trim()
         }
 
-        val lower = trimmed.lowercase()
+        for (marker in KOREAN_COMMAND_MARKERS) {
+            val index = withoutWake.indexOf(marker)
+            if (index > 0) return withoutWake.substring(0, index).trim()
+        }
+
+        val lower = withoutWake.lowercase()
         for (leadIn in ENGLISH_LEAD_INS) {
             if (lower.startsWith(leadIn)) {
-                val rest = trimmed.substring(leadIn.length).trim()
-                // Stop at the first word after the name — a real NLU pass
-                // would do this properly; this MVP heuristic takes just the
-                // next token(s) up to a common trailing verb, best-effort.
+                val rest = withoutWake.substring(leadIn.length).trim()
                 val stopWords = listOf(" that", " i'm", " i am", " to say")
                 var end = rest.length
                 for (stop in stopWords) {
@@ -45,9 +36,6 @@ object SpokenNameExtractor {
             }
         }
 
-        // No recognized pattern — return the whole utterance and let the
-        // server's own match-against-candidates step fail closed
-        // (NOT_FOUND) rather than this class guessing further.
-        return trimmed
+        return withoutWake.trim()
     }
 }

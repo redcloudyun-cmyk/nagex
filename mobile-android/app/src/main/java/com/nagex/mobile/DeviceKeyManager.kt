@@ -30,7 +30,12 @@ import java.security.spec.PKCS8EncodedKeySpec
  * (26) targets. A hardware-backed key is a real, worthwhile hardening
  * step for a later phase, not assumed here.
  */
-class DeviceKeyManager(context: Context) {
+interface DeviceKeyProvider {
+    fun ensureKeyPairExists()
+    fun publicKeyPem(): String
+}
+
+class DeviceKeyManager(context: Context) : DeviceKeyProvider {
 
     // Lazy — see NagexServerConfig's identical rationale: nothing should
     // pay the real-AndroidKeyStore cost merely by constructing this class.
@@ -51,7 +56,7 @@ class DeviceKeyManager(context: Context) {
      * this app install. Idempotent — calling it again after a keypair
      * already exists is a no-op, so re-enrollment attempts never silently
      * rotate the key out from under an already-enrolled device. */
-    fun ensureKeyPairExists() {
+    override fun ensureKeyPairExists() {
         if (encryptedPrefs.contains(KEY_PRIVATE)) return
         val generator = KeyPairGenerator.getInstance("Ed25519")
         val keyPair = generator.generateKeyPair()
@@ -63,7 +68,7 @@ class DeviceKeyManager(context: Context) {
 
     /** The public key, PEM-armored SPKI — exactly the format
      * DeviceTransportSecurity.verify() expects (`format: 'pem', type: 'spki'`). */
-    fun publicKeyPem(): String {
+    override fun publicKeyPem(): String {
         val publicKeyDer = encryptedPrefs.getString(KEY_PUBLIC, null)
             ?: throw IllegalStateException("No device keypair exists yet — call ensureKeyPairExists() first.")
         val body = publicKeyDer.chunked(64).joinToString("\n")

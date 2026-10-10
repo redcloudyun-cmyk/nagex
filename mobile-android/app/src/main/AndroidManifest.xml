@@ -31,6 +31,8 @@
          only the notification route is unavailable, every other
          invocation route keeps working. Never treated as mandatory. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
     <!-- SEND_SMS otherwise implies telephony hardware is required, which
          would make the app un-installable on ChromeOS/tablet/foldable
@@ -40,8 +42,10 @@
          any other contact with no phone number on file. -->
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
-    <!-- Deliberately no AccessibilityService. KakaoTalk uses a truthful
-         ACTION_SEND human handoff; NAgex never selects or clicks in KakaoTalk. -->
+    <!-- M4C constrained Accessibility route. The OS/user must enable it in
+         Android Settings; NAgex cannot self-enable it. It is package-scoped
+         to KakaoTalk and remains subordinate to server-side route, recipient,
+         message, device, and approval binding. -->
 
     <application
         android:allowBackup="false"
@@ -66,6 +70,16 @@
         <activity
             android:name=".VoiceCommandActivity"
             android:exported="false" />
+
+        <service
+            android:name=".NagexVoiceRuntimeService"
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="com.nagex.mobile.action.PLAY_VOICE_OUTPUT" />
+                <action android:name="com.nagex.mobile.action.STOP_VOICE_OUTPUT" />
+            </intent-filter>
+        </service>
 
         <activity
             android:name=".MessageComposeActivity"
@@ -94,6 +108,14 @@
                 android:resource="@xml/widget_talk_to_nagex_info" />
         </receiver>
 
+        <receiver
+            android:name=".R2gRuntimeDiagnosticReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.nagex.mobile.R2G_DRY_RUN_SELECT_KAKAO_DIRECT" />
+            </intent-filter>
+        </receiver>
+
         <!-- C.5B-P0 Quick Settings Tile route. Never starts a microphone
              foreground service from onClick() — see NagexQuickTileService
              for why. -->
@@ -106,6 +128,18 @@
             <intent-filter>
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
             </intent-filter>
+        </service>
+
+        <service
+            android:name=".NagexAccessibilityExecutionService"
+            android:exported="false"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/nagex_accessibility_service" />
         </service>
 
     </application>

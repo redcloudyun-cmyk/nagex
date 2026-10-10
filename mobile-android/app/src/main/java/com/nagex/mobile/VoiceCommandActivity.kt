@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import androidx.appcompat.app.AlertDialog
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -116,7 +117,15 @@ class VoiceCommandActivity : AppCompatActivity() {
                 showResult("Voice recognition error: ${result.reason}")
             is VoiceSession.Result.Recognized -> {
                 binding.recognizedTextView.text = result.text
-                resolveRecipient(result.text)
+                // This Activity is the current development push-to-talk
+                // surface: the user has explicitly started capture, so the
+                // command STT is not required to include the wake phrase.
+                // If STT did include a bounded wake phrase, strip it before
+                // contact resolution; otherwise pass the command transcript
+                // through unchanged.
+                val wake = WakePhraseMatcher.match(result.text)
+                val commandText = if (wake.decision == WakePhraseMatcher.Decision.ACCEPT) wake.remainder else result.text
+                resolveRecipient(commandText)
             }
         }
     }
@@ -161,12 +170,23 @@ class VoiceCommandActivity : AppCompatActivity() {
             // of ever reaching UNIQUE.
             val matched = localCandidates.firstOrNull { it.displayName == outcome.displayName }
             if (matched != null) {
-                recipientLocalCache.remember(outcome.recipientRef, matched.contactId)
-                showResult("Found ${outcome.displayName}.")
-                startActivity(Intent(this, MessageComposeActivity::class.java).apply {
-                    putExtra(MessageComposeActivity.EXTRA_RECIPIENT_REF, outcome.recipientRef)
-                    putExtra(MessageComposeActivity.EXTRA_DISPLAY_NAME, outcome.displayName)
-                })
+                val bind = {
+                    recipientLocalCache.remember(outcome.recipientRef, matched.contactId)
+                    showResult("Found ${outcome.displayName}.")
+                    startActivity(Intent(this, MessageComposeActivity::class.java).apply {
+                        putExtra(MessageComposeActivity.EXTRA_RECIPIENT_REF, outcome.recipientRef)
+                        putExtra(MessageComposeActivity.EXTRA_DISPLAY_NAME, outcome.displayName)
+                    })
+                }
+                if (outcome.confirmationRequired) {
+                    AlertDialog.Builder(this)
+                        .setMessage("${outcome.displayName}님 맞으세요?")
+                        .setPositiveButton("Yes") { _, _ -> bind() }
+                        .setNegativeButton("No") { _, _ -> showResult("Cancelled. Please try again.") }
+                        .show()
+                } else {
+                    bind()
+                }
                 return
             }
         }

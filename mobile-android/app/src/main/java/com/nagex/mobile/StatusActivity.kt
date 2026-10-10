@@ -94,6 +94,8 @@ class StatusActivity : AppCompatActivity() {
                         "Already enrolled. deviceId=${outcome.deviceId}, status=${outcome.status}"
                     is DeviceEnrollmentManager.EnrollmentOutcome.Enrolled ->
                         "Enrolled. deviceId=${outcome.deviceId}, status=${outcome.status}"
+                    is DeviceEnrollmentManager.EnrollmentOutcome.StaleBindingRecovered ->
+                        "Previous enrollment was not found on the current server. Device key preserved and re-enrolled. deviceId=${outcome.newDeviceId}, status=${outcome.status}"
                     is DeviceEnrollmentManager.EnrollmentOutcome.Failed ->
                         "Enrollment failed: ${outcome.message}"
                 }

@@ -64,6 +64,6 @@ class InvocationConvergenceStructuralTest {
     fun `no P0 invocation route declares a microphone foreground-service permission`() {
         val manifest = read("src/main/AndroidManifest.xml")
         assertFalse(manifest.contains("FOREGROUND_SERVICE_MICROPHONE"))
-        assertFalse(manifest.contains("android:foregroundServiceType"))
+        assertFalse(manifest.contains("android:foregroundServiceType=\"microphone\""))
     }
 }

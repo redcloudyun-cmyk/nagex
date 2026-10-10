@@ -8,6 +8,7 @@ import { resolveExistingPublicAsset } from './asset-path.resolver.js';
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
+let compactPopupWindow: BrowserWindow | null = null;
 let isQuitting = false;
 let configStore: DesktopConfigStore;
 // DC3-B1-R1 — at most one active LocalDeviceAgentClient per running
@@ -16,6 +17,19 @@ let configStore: DesktopConfigStore;
 // protection against accidental double-construction.
 let deviceAgentRuntime: LocalDeviceAgentRuntime | null = null;
 let deviceAgentState: LocalDeviceAgentConnectionState = 'UNENROLLED';
+const productionPushToTalkShortcut = 'Ctrl+Shift+Space';
+const desktopNotificationHistory: Array<{
+  id: string;
+  timestamp: string;
+  goalId?: string;
+  executionId?: string;
+  type: string;
+  summary: string;
+  status: 'PENDING' | 'COMPLETED' | 'FAILED' | 'LOGIN_REQUIRED' | 'RESULT_READY';
+  actions: string[];
+  approvalId?: string;
+  expiry?: string;
+}> = [];
 
 // Enforce single instance lock at the OS level
 const gotTheLock = app.requestSingleInstanceLock();
@@ -196,6 +210,32 @@ function registerGlobalHotkey() {
   }
 }
 
+function registerPushToTalkShortcut() {
+  try {
+    const registered = globalShortcut.register(productionPushToTalkShortcut, () => {
+      mainWindow?.webContents.send('desktop:push_to_talk_triggered', {
+        mode: 'PUSH_TO_TALK',
+        shortcut: productionPushToTalkShortcut,
+      });
+      showCompactPopup({
+        type: 'INFO',
+        summary: 'NAgex is listening.',
+        detail: 'Release or click again to finish.',
+        goalId: 'voice-session',
+        executionId: 'desktop-voice',
+        actions: ['Stop'],
+      });
+    });
+    if (registered) {
+      console.log(`[NAgex Desktop] Push-to-talk shortcut (${productionPushToTalkShortcut}) registered successfully.`);
+    } else {
+      console.warn(`[NAgex Desktop] Failed to register push-to-talk shortcut (${productionPushToTalkShortcut}).`);
+    }
+  } catch (err) {
+    console.error('[NAgex Desktop] Error registering push-to-talk shortcut:', err);
+  }
+}
+
 // DC3-B1-R1 — truthful, minimal local status label. Reuses the existing
 // Tray primitive only (Section 10) — no new IPC/renderer surface, and
 // deliberately never says anything resembling "NAgex is controlling this
@@ -223,7 +263,7 @@ function rebuildTrayMenu(gatewayUrl: string): void {
     { label: deviceAgentTrayLabel(deviceAgentState), enabled: false },
     { type: 'separator' },
     {
-      label: 'Open NAgex Quick Wake',
+      label: 'Open NAgex',
       click: () => {
         if (mainWindow) {
           mainWindow.show();
@@ -232,38 +272,39 @@ function rebuildTrayMenu(gatewayUrl: string): void {
       },
     },
     {
-      label: 'Quick Wake (Alt+N)',
+      label: `Talk to NAgex (${productionPushToTalkShortcut})`,
+      click: () => {
+        mainWindow?.webContents.send('desktop:push_to_talk_triggered', {
+          mode: 'CLICK_TO_TALK',
+          shortcut: productionPushToTalkShortcut,
+        });
+        showCompactPopup({
+          type: 'INFO',
+          summary: 'NAgex is listening.',
+          detail: 'Speak naturally. Your transcript will stay attached to the current goal.',
+          goalId: 'voice-session',
+          executionId: 'desktop-voice',
+          actions: ['Stop'],
+        });
+      },
+    },
+    {
+      label: 'Notifications',
       click: () => {
         if (mainWindow) {
-          if (mainWindow.isMinimized()) mainWindow.restore();
           mainWindow.show();
           mainWindow.focus();
-          mainWindow.webContents.send('desktop:hotkey_triggered');
+          mainWindow.webContents.send('desktop:tray_action', 'NOTIFICATIONS');
         }
       },
     },
     {
-      label: 'Active Tasks',
-      click: () => {
-        if (mainWindow) {
-          mainWindow.show();
-          mainWindow.focus();
-          mainWindow.webContents.send('desktop:tray_action', 'ACTIVE_TASKS');
-        }
-      },
-    },
-    {
-      label: 'Pause Automations',
-      click: async () => {
-        try {
-          await fetch(`${gatewayUrl}/api/v1/desktop/quickwake/tray/action`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'PAUSE_AUTOMATIONS' }),
-          });
-        } catch (err) {
-          console.error('[NAgex Desktop] Failed to pause automations from tray:', err);
-        }
+      label: 'Mute voice',
+      type: 'checkbox',
+      checked: Boolean(configStore?.get().voiceMuted),
+      click: (item) => {
+        configStore?.update({ voiceMuted: item.checked });
+        mainWindow?.webContents.send('desktop:voice_muted_changed', item.checked);
       },
     },
     { type: 'separator' },
@@ -296,6 +337,113 @@ function rebuildTrayMenu(gatewayUrl: string): void {
   tray.setContextMenu(contextMenu);
 }
 
+function rememberDesktopNotification(record: {
+  type: string;
+  summary: string;
+  goalId?: string;
+  executionId?: string;
+  status?: 'PENDING' | 'COMPLETED' | 'FAILED' | 'LOGIN_REQUIRED' | 'RESULT_READY';
+  actions?: string[];
+  approvalId?: string;
+  expiry?: string;
+}) {
+  const item = {
+    id: `desktop_notification_${Date.now()}_${desktopNotificationHistory.length}`,
+    timestamp: new Date().toISOString(),
+    goalId: record.goalId,
+    executionId: record.executionId,
+    type: record.type,
+    summary: record.summary,
+    status: record.status ?? (record.type === 'APPROVAL_REQUIRED' ? 'PENDING' as const : 'RESULT_READY' as const),
+    actions: record.actions ?? [],
+    approvalId: record.approvalId,
+    expiry: record.expiry,
+  };
+  desktopNotificationHistory.push(item);
+  return item;
+}
+
+function compactPopupBounds(width = 360, height = 178) {
+  const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()) ?? screen.getPrimaryDisplay();
+  const { workArea } = display;
+  return {
+    x: workArea.x + workArea.width - width - 18,
+    y: workArea.y + workArea.height - height - 18,
+    width,
+    height,
+  };
+}
+
+function popupHtml(payload: { type: string; summary: string; detail?: string; seconds: number; actions?: string[] }) {
+  const actions = (payload.actions?.length ? payload.actions : ['Close']).slice(0, 3);
+  return `<!doctype html><html><head><meta charset="utf-8"><style>
+    *{box-sizing:border-box} body{margin:0;background:transparent;font-family:Segoe UI,Inter,Arial,sans-serif;color:#f8fafc}
+    .card{height:100vh;padding:16px 16px 14px;border:1px solid rgba(148,163,184,.28);border-radius:18px;background:linear-gradient(145deg,rgba(15,23,42,.97),rgba(24,36,52,.96));box-shadow:0 24px 70px rgba(0,0,0,.38)}
+    .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}.brand{font-weight:700;letter-spacing:.01em}.type{font-size:11px;color:#a7f3d0;text-transform:uppercase}
+    .summary{font-size:15px;line-height:1.35;font-weight:650;margin-bottom:5px}.detail{font-size:12px;line-height:1.35;color:#cbd5e1;min-height:32px}
+    .row{display:flex;gap:8px;align-items:center;margin-top:12px}.btn{border:1px solid rgba(148,163,184,.35);background:rgba(255,255,255,.08);color:#f8fafc;border-radius:10px;padding:7px 10px;font-size:12px}.primary{background:#2dd4bf;color:#052e2b;border-color:#2dd4bf;font-weight:700}.timer{margin-left:auto;color:#94a3b8;font-size:12px}
+  </style></head><body><div class="card"><div class="top"><div class="brand">NAgex</div><div class="type">${payload.type}</div></div><div class="summary">${payload.summary}</div><div class="detail">${payload.detail ?? ''}</div><div class="row">${actions.map((a, i) => `<button class="btn ${i === actions.length - 1 ? 'primary' : ''}">${a}</button>`).join('')}<span class="timer">${payload.seconds}s</span></div></div></body></html>`;
+}
+
+function showCompactPopup(payload: {
+  type: 'INFO' | 'ACTIONABLE' | 'APPROVAL_REQUIRED' | 'COMPLETED' | 'ERROR' | 'NEEDS_USER';
+  summary: string;
+  detail?: string;
+  goalId?: string;
+  executionId?: string;
+  approvalId?: string;
+  actions?: string[];
+  expiry?: string;
+}) {
+  const seconds = payload.type === 'INFO' ? 10 : 30;
+  rememberDesktopNotification({
+    type: payload.type,
+    summary: payload.summary,
+    goalId: payload.goalId,
+    executionId: payload.executionId,
+    approvalId: payload.approvalId,
+    expiry: payload.expiry,
+    actions: payload.actions,
+  });
+  compactPopupWindow?.close();
+  compactPopupWindow = new BrowserWindow({
+    ...compactPopupBounds(),
+    frame: false,
+    transparent: true,
+    resizable: false,
+    movable: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    show: false,
+    focusable: false,
+    webPreferences: { sandbox: true },
+  });
+  compactPopupWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false });
+  compactPopupWindow.loadURL('data:text/html,' + encodeURIComponent(popupHtml({ ...payload, seconds }))).catch((err) => {
+    console.error('[NAgex Desktop] Failed to load compact popup:', err);
+  });
+  compactPopupWindow.once('ready-to-show', () => {
+    compactPopupWindow?.showInactive();
+  });
+  setTimeout(() => {
+    compactPopupWindow?.hide();
+  }, seconds * 1000);
+}
+
+function runDesktopUxCertTrigger(): void {
+  if (process.env.NAGEX_DESKTOP_CERT_POPUP !== '1') return;
+  setTimeout(() => {
+    showCompactPopup({
+      type: 'ACTIONABLE',
+      summary: 'NAgex foreground certification popup',
+      detail: 'This popup must not steal focus from the active app.',
+      goalId: 'foreground-cert',
+      executionId: 'foreground-cert-popup',
+      actions: ['Close', 'Details', 'Safe action'],
+    });
+  }, Number(process.env.NAGEX_DESKTOP_CERT_POPUP_DELAY_MS || 2500));
+}
+
 // TRAY_SETUP_FAILURE_CAUGHT — never throws uncaught. An unresolvable icon
 // or a Tray-construction failure (Electron's Tray constructor throws for
 // a missing/invalid icon file) is logged truthfully and the desktop app
@@ -321,6 +469,13 @@ function setupTrayIcon(gatewayUrl: string): void {
 
   tray.setToolTip('NAgex Quick Wake (Alt+N)');
   rebuildTrayMenu(gatewayUrl);
+  tray.on('click', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
   tray.on('double-click', () => {
     if (mainWindow) {
       mainWindow.show();
@@ -374,6 +529,11 @@ function setupIpcHandlers(gatewayUrl: string) {
   });
 
   ipcMain.handle('desktop:send_notification', (_event, payload: { title: string; body: string; type?: string }) => {
+    rememberDesktopNotification({
+      type: payload.type || 'SYSTEM_ALERT',
+      summary: payload.body || payload.title || 'NAgex notification',
+      status: payload.type === 'ERROR' ? 'FAILED' : 'RESULT_READY',
+    });
     if (Notification.isSupported()) {
       const notif = new Notification({
         title: payload.title || 'NAgex Notification',
@@ -390,6 +550,34 @@ function setupIpcHandlers(gatewayUrl: string) {
       });
       notif.show();
     }
+  });
+
+  ipcMain.handle('desktop:show_compact_popup', (_event, payload: {
+    type: 'INFO' | 'ACTIONABLE' | 'APPROVAL_REQUIRED' | 'COMPLETED' | 'ERROR' | 'NEEDS_USER';
+    summary: string;
+    detail?: string;
+    goalId?: string;
+    executionId?: string;
+    approvalId?: string;
+    actions?: string[];
+    expiry?: string;
+  }) => {
+    showCompactPopup(payload);
+    return { shown: true, nonBlocking: true, foregroundStealing: false };
+  });
+
+  ipcMain.handle('desktop:get_notification_history', () => {
+    return desktopNotificationHistory.map((item) => ({ ...item, summary: item.summary.length > 160 ? `${item.summary.slice(0, 157)}...` : item.summary }));
+  });
+
+  ipcMain.handle('desktop:start_voice_capture', () => {
+    mainWindow?.webContents.send('desktop:voice_capture_requested', { mode: 'PUSH_TO_TALK' });
+    return { microphoneSession: 'REQUESTED', realMicCapture: 'RENDERER_GET_USER_MEDIA_REQUIRED', realStt: 'WEB_SPEECH_OR_PROVIDER_REQUIRED' };
+  });
+
+  ipcMain.handle('desktop:stop_voice_capture', () => {
+    mainWindow?.webContents.send('desktop:voice_capture_stop_requested');
+    return { microphoneSession: 'STOP_REQUESTED' };
   });
 
   ipcMain.handle('desktop:get_config', () => {
@@ -439,8 +627,10 @@ app.whenReady().then(async () => {
   const { gatewayUrl, ready } = await startWebServerIfNeeded();
   await createWindow(gatewayUrl, ready);
   registerGlobalHotkey();
+  registerPushToTalkShortcut();
   setupTrayIcon(gatewayUrl);
   setupIpcHandlers(gatewayUrl);
+  runDesktopUxCertTrigger();
 
   const config = configStore.get();
   app.setLoginItemSettings({ openAtLogin: config.openAtLogin });
