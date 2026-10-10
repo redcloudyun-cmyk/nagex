@@ -22,6 +22,9 @@ Thumbs.db
 *.log
 npm-debug.log*
 
+# Local benchmark outputs
+artifacts/jev/
+
 # Test temp directories
 .tmp_test/
 /tmp/

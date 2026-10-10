@@ -1,0 +1,5 @@
+# Add this entry to the existing agex.site Cloudflare Tunnel ingress list.
+# Preserve all existing routes and fallback rules.
+#
+# hostname: control-test.agex.site
+# service: http://127.0.0.1:4500

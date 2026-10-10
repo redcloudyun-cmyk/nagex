@@ -1,0 +1,25 @@
+{
+  "productName": "NAgex Control Center",
+  "adminApiNamespace": "/admin/api",
+  "routes": [
+    "/overview",
+    "/members",
+    "/product-analytics",
+    "/ai-models/registry",
+    "/ai-models/leaderboard",
+    "/ai-models/benchmarks",
+    "/ai-models/live-performance",
+    "/ai-models/routing",
+    "/ai-models/provider-health",
+    "/tools",
+    "/agents-goals",
+    "/executions",
+    "/quality",
+    "/costs",
+    "/devices",
+    "/security",
+    "/system-health",
+    "/audit",
+    "/settings"
+  ]
+}

@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>NAgex Control Center</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <aside class="sidebar" aria-label="Admin navigation">
+      <div class="brand">
+        <span class="mark">N</span>
+        <div>
+          <strong>NAgex Control Center</strong>
+          <span>TEST</span>
+        </div>
+      </div>
+      <nav id="nav"></nav>
+    </aside>
+    <main>
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Independent Admin Control Plane</p>
+          <h1 id="page-title">NAgex Control Center</h1>
+        </div>
+        <label class="search">
+          <span>Search</span>
+          <input id="global-search" type="search" placeholder="Goal, model, tool, member">
+        </label>
+        <label class="range">
+          <span>Range</span>
+          <select id="time-range">
+            <option>24h</option>
+            <option>7d</option>
+            <option>30d</option>
+            <option>90d</option>
+          </select>
+        </label>
+        <div class="status">
+          <span id="environment">TEST</span>
+          <span>Attention <strong id="attention-count">0</strong></span>
+          <span id="auth-state">Admin boundary active</span>
+          <select id="role-select" aria-label="Admin role"></select>
+        </div>
+      </header>
+      <div id="content"></div>
+    </main>
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

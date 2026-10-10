@@ -69,6 +69,48 @@ User intent → relevant memory → model router → structured plan → Plan Pr
 
 This phase deliberately stops before Skill/Tool execution. A generated plan may identify tools and approval requirements, but it does not perform consequential actions.
 
+## Nebius x NVIDIA Global AI Hackathon
+
+### What NAgex Is
+
+NAgex is a personal AI that remembers your context, reasons about what you need, asks permission when required, and takes real action.
+
+### Nebius + NVIDIA
+
+Provider: Nebius Token Factory
+
+Model: NVIDIA Nemotron 3.5 Lightning
+
+Runtime tasks:
+
+- PLAN
+- RESEARCH_SYNTHESIS
+- MEETING_PREP
+
+### Architecture
+
+```text
+User
+-> NAgex
+-> Task-Aware Model Router
+-> Nebius Token Factory
+-> NVIDIA Nemotron 3.5 Lightning
+-> Reasoning Result
+-> Human Approval
+-> Execution
+```
+
+The model reasons. NAgex governs and executes.
+
+### Verified Runtime Status
+
+```text
+REAL_NEBIUS_CALL=PASS
+PLAN_NEMOTRON_ROUTE=PASS
+RESEARCH_SYNTHESIS_NEMOTRON_ROUTE=PASS
+MEETING_PREP_NEMOTRON_ROUTE=PASS
+```
+
 ## Architecture
 
 ```text

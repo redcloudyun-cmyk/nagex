@@ -1,0 +1,25 @@
+[Unit]
+Description=NAgex Control Center
+After=network.target
+
+[Service]
+Type=simple
+User=redcloud
+Group=redcloud
+WorkingDirectory=/home/redcloud/services/nagex/source
+ExecStart=/usr/bin/node /home/redcloud/services/nagex/source/apps/control-center/server.mjs
+Restart=on-failure
+RestartSec=5
+Environment=NODE_ENV=production
+Environment=CONTROL_CENTER_ENV=TEST
+Environment=HOST=127.0.0.1
+Environment=PORT=4500
+Environment=CONTROL_CENTER_SESSION_NAME=__Host-nagex_admin_session
+EnvironmentFile=-/etc/nagex/control-center.env
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+
+[Install]
+WantedBy=multi-user.target
