@@ -68,7 +68,10 @@ test('real-life scenario library v1 is data-driven, broad, synthetic, and schema
     assert.ok(def.executionGoal, `${def.scenarioId} has execution goal`);
     assert.ok(def.verificationGoal, `${def.scenarioId} has verification goal`);
     assert.ok(def.ruleCoverage?.length, `${def.scenarioId} has rule coverage`);
-    assert.doesNotMatch(JSON.stringify(def), /議곕???Blue Dia|010-|redcl/i);
+    const serialized = JSON.stringify(def).toLowerCase();
+    assert.equal(serialized.includes('blue dia'), false);
+    assert.equal(serialized.includes('010-'), false);
+    assert.equal(serialized.includes('redcl'), false);
   }
 });
 

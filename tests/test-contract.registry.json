@@ -5064,6 +5064,349 @@
       "deterministic": true,
       "assertionIntent": "Universal ambient consent layer gates every inbound ambient source before observation, keeps connected/read/proactive/draft/execute authority separate, enforces account/provider/scope/purpose-specific consent, blocks revoked or out-of-scope signals, minimizes raw content, permits proactive candidates only from consent-valid signals, preserves explicit acceptance before goal creation, and exposes Control Center telemetry as aggregate-only.",
       "notes": "Deterministic consent and proactive orchestration coverage only. No live provider observation, no raw private content persistence, and no external execution."
+    },
+    "control_center_deployment": {
+      "milestone": "NAGEX-INTEGRATION-RELEASE-HYGIENE",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "identity-access",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "Release hygiene registry entry for control_center_deployment: preserves the committed product contract and prevents the test gate from treating the focused suite as unclassified debt.",
+      "notes": "Added during integration hygiene after the suite was committed as part of the current branch baseline."
+    },
+    "control_center_final_design": {
+      "milestone": "NAGEX-INTEGRATION-RELEASE-HYGIENE",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "identity-access",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "Release hygiene registry entry for control_center_final_design: preserves the committed product contract and prevents the test gate from treating the focused suite as unclassified debt.",
+      "notes": "Added during integration hygiene after the suite was committed as part of the current branch baseline."
+    },
+    "control_center_foundation": {
+      "milestone": "NAGEX-INTEGRATION-RELEASE-HYGIENE",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "identity-access",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "Release hygiene registry entry for control_center_foundation: preserves the committed product contract and prevents the test gate from treating the focused suite as unclassified debt.",
+      "notes": "Added during integration hygiene after the suite was committed as part of the current branch baseline."
+    },
+    "control_center_real_admin_ui": {
+      "milestone": "NAGEX-INTEGRATION-RELEASE-HYGIENE",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "identity-access",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "Release hygiene registry entry for control_center_real_admin_ui: preserves the committed product contract and prevents the test gate from treating the focused suite as unclassified debt.",
+      "notes": "Added during integration hygiene after the suite was committed as part of the current branch baseline."
+    },
+    "creation_long_run_orchestration": {
+      "milestone": "NAGEX-INTEGRATION-RELEASE-HYGIENE",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "creation-runtime",
+        "model-routing",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Release hygiene registry entry for creation_long_run_orchestration: preserves the committed product contract and prevents the test gate from treating the focused suite as unclassified debt.",
+      "notes": "Added during integration hygiene after the suite was committed as part of the current branch baseline."
+    },
+    "creation_media_production_cert": {
+      "milestone": "NAGEX-INTEGRATION-RELEASE-HYGIENE",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "creation-runtime",
+        "artifacts",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Release hygiene registry entry for creation_media_production_cert: preserves the committed product contract and prevents the test gate from treating the focused suite as unclassified debt.",
+      "notes": "Added during integration hygiene after the suite was committed as part of the current branch baseline."
+    },
+    "creation_style_system": {
+      "milestone": "NAGEX-INTEGRATION-RELEASE-HYGIENE",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "creation-runtime",
+        "ux",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Release hygiene registry entry for creation_style_system: preserves the committed product contract and prevents the test gate from treating the focused suite as unclassified debt.",
+      "notes": "Added during integration hygiene after the suite was committed as part of the current branch baseline."
+    },
+    "creation_visual_quality_cert": {
+      "milestone": "NAGEX-INTEGRATION-RELEASE-HYGIENE",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "creation-runtime",
+        "artifacts",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Release hygiene registry entry for creation_visual_quality_cert: preserves the committed product contract and prevents the test gate from treating the focused suite as unclassified debt.",
+      "notes": "Added during integration hygiene after the suite was committed as part of the current branch baseline."
+    },
+    "desktop_life_execution_runtime": {
+      "milestone": "NAGEX-INTEGRATION-RELEASE-HYGIENE",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "desktop",
+        "runtime",
+        "approvals",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "Release hygiene registry entry for desktop_life_execution_runtime: preserves the committed product contract and prevents the test gate from treating the focused suite as unclassified debt.",
+      "notes": "Added during integration hygiene after the suite was committed as part of the current branch baseline."
+    },
+    "desktop_production_runtime": {
+      "milestone": "NAGEX-INTEGRATION-RELEASE-HYGIENE",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "desktop",
+        "runtime",
+        "voice",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "Release hygiene registry entry for desktop_production_runtime: preserves the committed product contract and prevents the test gate from treating the focused suite as unclassified debt.",
+      "notes": "Added during integration hygiene after the suite was committed as part of the current branch baseline."
+    },
+    "desktop_windows_real_ux_cert": {
+      "milestone": "NAGEX-INTEGRATION-RELEASE-HYGIENE",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "desktop",
+        "browser",
+        "ux",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "Release hygiene registry entry for desktop_windows_real_ux_cert: preserves the committed product contract and prevents the test gate from treating the focused suite as unclassified debt.",
+      "notes": "Added during integration hygiene after the suite was committed as part of the current branch baseline."
+    },
+    "device_foreground_recovery_repair": {
+      "milestone": "NAGEX-INTEGRATION-RELEASE-HYGIENE",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "device",
+        "mobile",
+        "runtime",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Release hygiene registry entry for device_foreground_recovery_repair: preserves the committed product contract and prevents the test gate from treating the focused suite as unclassified debt.",
+      "notes": "Added during integration hygiene after the suite was committed as part of the current branch baseline."
+    },
+    "i18n_locale_unification": {
+      "milestone": "NAGEX-INTEGRATION-RELEASE-HYGIENE",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "ux",
+        "runtime"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Release hygiene registry entry for i18n_locale_unification: preserves the committed product contract and prevents the test gate from treating the focused suite as unclassified debt.",
+      "notes": "Added during integration hygiene after the suite was committed as part of the current branch baseline."
+    },
+    "knowledge_creation_agent_phase1": {
+      "milestone": "NAGEX-INTEGRATION-RELEASE-HYGIENE",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "creation-runtime",
+        "artifacts",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Release hygiene registry entry for knowledge_creation_agent_phase1: preserves the committed product contract and prevents the test gate from treating the focused suite as unclassified debt.",
+      "notes": "Added during integration hygiene after the suite was committed as part of the current branch baseline."
+    },
+    "knowledge_creation_agent_phase2": {
+      "milestone": "NAGEX-INTEGRATION-RELEASE-HYGIENE",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "creation-runtime",
+        "artifacts",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Release hygiene registry entry for knowledge_creation_agent_phase2: preserves the committed product contract and prevents the test gate from treating the focused suite as unclassified debt.",
+      "notes": "Added during integration hygiene after the suite was committed as part of the current branch baseline."
+    },
+    "model_intelligence_tool": {
+      "milestone": "NAGEX-INTEGRATION-RELEASE-HYGIENE",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "model-routing",
+        "runtime",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Release hygiene registry entry for model_intelligence_tool: preserves the committed product contract and prevents the test gate from treating the focused suite as unclassified debt.",
+      "notes": "Added during integration hygiene after the suite was committed as part of the current branch baseline."
+    },
+    "proactive_ambient_orchestration": {
+      "milestone": "NAGEX-INTEGRATION-RELEASE-HYGIENE",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime",
+        "model-routing",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Release hygiene registry entry for proactive_ambient_orchestration: preserves the committed product contract and prevents the test gate from treating the focused suite as unclassified debt.",
+      "notes": "Added during integration hygiene after the suite was committed as part of the current branch baseline."
+    },
+    "responsive_layout_repair": {
+      "milestone": "NAGEX-INTEGRATION-RELEASE-HYGIENE",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Release hygiene registry entry for responsive_layout_repair: preserves the committed product contract and prevents the test gate from treating the focused suite as unclassified debt.",
+      "notes": "Added during integration hygiene after the suite was committed as part of the current branch baseline."
+    },
+    "settings_commercial_ux": {
+      "milestone": "NAGEX-INTEGRATION-RELEASE-HYGIENE",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "ux",
+        "identity-access",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "Release hygiene registry entry for settings_commercial_ux: preserves the committed product contract and prevents the test gate from treating the focused suite as unclassified debt.",
+      "notes": "Added during integration hygiene after the suite was committed as part of the current branch baseline."
+    },
+    "sidebar_ia_v1": {
+      "milestone": "NAGEX-INTEGRATION-RELEASE-HYGIENE",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "ux",
+        "personal-home"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "Release hygiene registry entry for sidebar_ia_v1: preserves the committed product contract and prevents the test gate from treating the focused suite as unclassified debt.",
+      "notes": "Added during integration hygiene after the suite was committed as part of the current branch baseline."
+    },
+    "universal_life_execution": {
+      "milestone": "NAGEX-INTEGRATION-RELEASE-HYGIENE",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime",
+        "approvals",
+        "security",
+        "device"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Release hygiene registry entry for universal_life_execution: preserves the committed product contract and prevents the test gate from treating the focused suite as unclassified debt.",
+      "notes": "Added during integration hygiene after the suite was committed as part of the current branch baseline."
     }
   }
 }
