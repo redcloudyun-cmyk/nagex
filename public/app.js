@@ -2049,7 +2049,6 @@
       container.innerHTML = state.tasks
         .map((task) => {
           const hasProgress = Boolean(task.progress);
-          const percent = hasProgress ? (task.progress.percent || 0) : 0;
           const statusMsg = hasProgress ? (task.progress.statusMessage || task.progress.currentStep || '') : '';
 
           return `
@@ -2064,11 +2063,10 @@
           </p>
           ${hasProgress ? `
           <div class="task-progress-box" style="margin: 0.5rem 0; background: var(--bg-subtle); padding: 0.5rem 0.75rem; border-radius: 8px;">
-            <div style="display:flex; justify-content:space-between; font-size:0.75rem; font-weight:600; margin-bottom: 0.25rem;">
+            <div style="display:flex; justify-content:space-between; gap:0.5rem; font-size:0.75rem; font-weight:600;">
               <span>${escapeHtml(statusMsg)}</span>
-              <span>${percent}%</span>
+              <span>${escapeHtml(task.lastRunStatus || task.status)}</span>
             </div>
-            <div class="progress-bar-small"><div class="fill" style="width: ${percent}%;"></div></div>
           </div>` : ''}
           <p class="card-body-text" style="font-size:0.75rem; color:var(--text-muted);">
             ${escapeHtml(t('tasks.nextRun'))}: ${escapeHtml(formatTaskTimestamp(task.nextRunAt))} ·
@@ -5522,6 +5520,7 @@
       await loadAllData();
     },
     deleteTask: async (taskId) => {
+      if (typeof window.confirm === 'function' && !window.confirm('Delete this task? This removes the saved task from NAgex.')) return;
       await apiFetch(`/api/v1/tasks/${taskId}`, { method: 'DELETE' });
       await loadAllData();
     },

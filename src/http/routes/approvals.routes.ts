@@ -26,6 +26,9 @@ import type { TaskContinuationCoordinator } from '../../tasks/task-continuation.
 import type { GoogleCalendarService } from '../../modules/calendar/index.js';
 import type { GmailService } from '../../modules/gmail/index.js';
 import type { ActionApprovalStore, ActionApprovalRecord } from '../../governance/action-approval.store.js';
+import type { DeviceCommandStatusStore, DeviceCommandStatusRecord } from '../../device-agent/device-command-status.store.js';
+import type { DevicePendingCommandStore } from '../../device-agent/device-pending-command.store.js';
+import type { DevicePendingCommand } from '../../device-agent/device-agent-protocol.js';
 import type { MobileAccessibilityApprovalService } from '../../mobile/mobile-accessibility-approval.service.js';
 import { KAKAOTALK_ACCESSIBILITY_DRAFT_TOOL_ID } from '../../mobile/mobile-accessibility-approval.service.js';
 import {
@@ -82,10 +85,77 @@ function toApprovalSummary(record: ActionApprovalRecord): Record<string, unknown
   };
 }
 
+function executionThreadIdFor(record: ActionApprovalRecord): string {
+  const draftId = record.canonicalPayload?.draftId;
+  return typeof draftId === 'string' && draftId.trim() ? draftId : record.approvalId;
+}
+
+function projectExecutionStatus(
+  record: ActionApprovalRecord,
+  commands: DevicePendingCommand[],
+  statuses: DeviceCommandStatusRecord[],
+): Record<string, unknown> {
+  const command = commands.find((c) => c.data?.executionId === record.executionId) ?? null;
+  const status = (command ? statuses.find((s) => s.commandId === command.commandId) : null)
+    ?? (record.executionId ? statuses.find((s) => s.executionId === record.executionId) : null)
+    ?? null;
+  const stage = status?.stage ?? (command ? 'COMMAND_CREATED' : record.status === 'REJECTED' ? 'CANCELLED' : record.status);
+  const resultCode = status?.resultCode ?? null;
+  const targetVerified = resultCode === 'TARGET_VERIFIED';
+  const messageSentVerified = resultCode === 'SENT_VERIFIED';
+  const commandReportedCompleted = status?.stage === 'COMPLETED';
+  const commandFailed = status?.stage === 'FAILED';
+  const waitingForPrecondition = status?.stage === 'WAITING_FOR_PRECONDITION';
+  const terminalUnverifiedCompletion = commandReportedCompleted && !targetVerified && !messageSentVerified;
+
+  return {
+    stage: targetVerified || messageSentVerified ? resultCode : terminalUnverifiedCompletion ? 'COMMAND_REPORTED_COMPLETED' : stage,
+    commandId: command?.commandId ?? status?.commandId ?? null,
+    commandState: status?.stage ?? null,
+    commandCreated: Boolean(command),
+    delivered: Boolean(status?.deliveredAt),
+    claimed: Boolean(status?.claimedAt),
+    actionCompleted: targetVerified || messageSentVerified,
+    commandReportedCompleted,
+    targetVerified,
+    messageTyped: false,
+    sendExecuted: messageSentVerified,
+    messageSentVerified,
+    verifiedOutcome: targetVerified || messageSentVerified,
+    verificationReason: targetVerified
+      ? 'R2H_IDENTITY_MATCH'
+      : messageSentVerified
+        ? 'POST_SEND_OUTCOME_VERIFIED'
+        : terminalUnverifiedCompletion
+          ? 'COMPLETION_NOT_VERIFIED'
+          : null,
+    resultCode,
+    executionThreadId: executionThreadIdFor(record),
+    failed: commandFailed,
+    waitingForPrecondition,
+  };
+}
+
+function isRecentExecution(record: ActionApprovalRecord, executionStatus: Record<string, unknown>): boolean {
+  return record.status === 'REJECTED'
+    || executionStatus.stage === 'FAILED'
+    || executionStatus.stage === 'TARGET_VERIFIED'
+    || executionStatus.stage === 'SENT_VERIFIED'
+    || executionStatus.stage === 'COMMAND_REPORTED_COMPLETED';
+}
+
+type ApprovalSummary = ReturnType<typeof toApprovalSummary> & {
+  approvalId: string;
+  status: ActionApprovalRecord['status'];
+  executionStatus: Record<string, unknown>;
+};
+
 export interface ApprovalsRouteDeps {
   googleCalendarService: GoogleCalendarService;
   gmailService: GmailService;
   actionApprovals: ActionApprovalStore;
+  devicePendingCommandStore?: DevicePendingCommandStore;
+  deviceCommandStatusStore?: DeviceCommandStatusStore;
   mobileAccessibilityApprovalService?: MobileAccessibilityApprovalService;
   auditLogger: AuditLogger;
   taskContinuationCoordinator: TaskContinuationCoordinator;
@@ -95,7 +165,7 @@ export interface ApprovalsRouteDeps {
 }
 
 export const handleApprovalsRoutes: SyncRouteRegistrar<ApprovalsRouteDeps> = (method, pathname, body, _headers, _query, deps): ApiResult | undefined => {
-  const { googleCalendarService, gmailService, actionApprovals, mobileAccessibilityApprovalService, taskContinuationCoordinator, tenantId, principal, modelErrorResult } = deps;
+  const { googleCalendarService, gmailService, actionApprovals, devicePendingCommandStore, deviceCommandStatusStore, mobileAccessibilityApprovalService, taskContinuationCoordinator, tenantId, principal, modelErrorResult } = deps;
 
   if (pathname === '/api/v1/approvals' && method === 'GET') {
     // Fail closed (R12.1 Increment 2.5 §8): a thrown error here must
@@ -107,8 +177,35 @@ export const handleApprovalsRoutes: SyncRouteRegistrar<ApprovalsRouteDeps> = (me
     try {
       const requestId = `req_appr_list_${Date.now()}`;
       const pending = actionApprovals.listPending(tenantId, principal.id, requestId);
-      const approvals = pending.map(toApprovalSummary);
-      return { status: 200, data: { approvals, total: approvals.length } };
+      const commands = devicePendingCommandStore?.listForOwner(tenantId, principal.id) ?? [];
+      const statuses = deviceCommandStatusStore?.listForOwner(tenantId, principal.id) ?? [];
+      const reviewable = actionApprovals.listOwnedForReview(tenantId, principal.id, requestId);
+      const projected: ApprovalSummary[] = reviewable.map((record) => ({
+        ...toApprovalSummary(record),
+        approvalId: record.approvalId,
+        status: record.status,
+        executionStatus: projectExecutionStatus(record, commands, statuses),
+      }));
+      const pendingIds = new Set(pending.map((record) => record.approvalId));
+      const pendingApprovals = projected.filter((record) => pendingIds.has(String(record.approvalId)));
+      const recent = projected.filter((record) => isRecentExecution(record as unknown as ActionApprovalRecord, record.executionStatus));
+      const recentIds = new Set(recent.map((record) => record.approvalId));
+      const inProgress = projected.filter((record) => !pendingIds.has(String(record.approvalId)) && !recentIds.has(record.approvalId));
+      return {
+        status: 200,
+        data: {
+          approvals: pendingApprovals,
+          pending: pendingApprovals,
+          inProgress,
+          recent,
+          counts: {
+            pending: pendingApprovals.length,
+            inProgress: inProgress.length,
+            recent: recent.length,
+          },
+          total: pendingApprovals.length,
+        },
+      };
     } catch (error) {
       return modelErrorResult(error);
     }

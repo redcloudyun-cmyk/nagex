@@ -145,7 +145,7 @@ test('9. Needs Approval renders consequence-specific CTAs, never a bare Run/Exec
     assert.match(fnMatch![0], /approveGeneric/);
     // The approval card button must call the label function, not a
     // hardcoded generic string.
-    const approvalsSection = appJs.match(/\/\/ 2b\. Needs Approval[\s\S]*?\n    }\n/);
+    const approvalsSection = appJs.match(/\/\/ 2b\. Needs Approval[\s\S]*?function buildCanonicalInboxViewModel/);
     assert.ok(approvalsSection);
     assert.match(approvalsSection![0], /homeApprovalActionLabel\(a, t\)/);
     assert.doesNotMatch(approvalsSection![0], />Run<|>Execute<|>Continue<|>OK</);
@@ -161,7 +161,7 @@ test('10. Needs Approval has no frontend seed-ID filtering — the backend itsel
     const appJs = await (await fetch(`${origin}/app.js`)).text();
     assert.doesNotMatch(appJs, /LEGACY_DEMO_APPROVAL_IDS/);
     assert.doesNotMatch(appJs, /appr_gcal_sync|appr_stakeholder_email/);
-    const approvalsSection = appJs.match(/\/\/ 2b\. Needs Approval[\s\S]*?\n    }\n/);
+    const approvalsSection = appJs.match(/\/\/ 2b\. Needs Approval[\s\S]*?function buildCanonicalInboxViewModel/);
     assert.ok(approvalsSection);
     assert.match(approvalsSection![0], /state\.approvals\.filter\(\(a\) => a\.status === 'PENDING'\)/);
   });
@@ -171,7 +171,7 @@ test('10b. Needs Approval fails closed: a failed fetch renders a distinct "could
   await withServer(async (origin) => {
     const appJs = await (await fetch(`${origin}/app.js`)).text();
     assert.match(appJs, /state\.approvalsLoadFailed = !apprData \|\| Boolean\(apprData\.error\)/);
-    const approvalsSection = appJs.match(/\/\/ 2b\. Needs Approval[\s\S]*?\n    }\n/);
+    const approvalsSection = appJs.match(/\/\/ 2b\. Needs Approval[\s\S]*?function buildCanonicalInboxViewModel/);
     assert.ok(approvalsSection);
     assert.match(approvalsSection![0], /if \(state\.approvalsLoadFailed\) \{/);
     assert.match(approvalsSection![0], /home\.approvalsLoadError/);
@@ -326,7 +326,7 @@ test('23. Home Discover grid CSS uses a responsive auto-fit column layout, not a
 test('24. The composer submit handler has no dependency on renderHomeWorkspaceSections\' own data (one failed secondary section cannot break the composer)', async () => {
   await withServer(async (origin) => {
     const appJs = await (await fetch(`${origin}/app.js`)).text();
-    const homeFn = appJs.match(/function renderHome\(\) \{[\s\S]*?\n  \}\n\n  async function renderHomeWorkspaceSections/);
+    const homeFn = appJs.match(/function renderHome\(\) \{[\s\S]*?async function renderHomeWorkspaceSections/);
     assert.ok(homeFn);
     // btnSend wiring happens unconditionally in renderHome(), never inside
     // renderHomeWorkspaceSections's own try/await chain.

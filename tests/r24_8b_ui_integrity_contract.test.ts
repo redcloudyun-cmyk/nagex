@@ -61,10 +61,23 @@ describe('R24.8B — fabricated demo data is gone from the committed views', () 
     assert.doesNotMatch(live, /Pending \(\d+\)/);
     assert.doesNotMatch(live, /data-appr-filter/);
     assert.match(live, /id="approvals-count-label"/);
-    assert.match(read('public/app.js'), /approvals\.filter\(\(a\) => a\.status === 'PENDING'\)\.length/);
+    assert.match(read('public/app.js'), /approvalSections[\s\S]*apprData\.pending/);
   });
   it('Create: no sample reference images with made-up artifact ids', () => {
     assert.doesNotMatch(live, /ref_img_neon_city|ref_img_portrait_sketch|Neon City Ref|Portrait Ref|create-reference-selector/);
+  });
+  it('the production shell has no fabricated personal progress or capability promo meter', () => {
+    assert.doesNotMatch(live, /A more capable you, every day\./);
+    assert.doesNotMatch(live, /promo-progress-fill/);
+    assert.doesNotMatch(live, /width:\s*75%/);
+  });
+  it('Tasks render real status text, not an arbitrary percent progress bar', () => {
+    const app = read('public/app.js');
+    const renderTasks = app.slice(app.indexOf('function renderTasks('), app.indexOf('// ─── Helper & Section Anchors', app.indexOf('function renderTasks(')));
+    assert.doesNotMatch(renderTasks, /task\.progress\.percent/);
+    assert.doesNotMatch(renderTasks, /progress-bar-small/);
+    assert.doesNotMatch(renderTasks, /\$\{percent\}%/);
+    assert.match(renderTasks, /task\.lastRunStatus \|\| task\.status/);
   });
   it('the idle Ask sheet hides its sample task/request/progress cards until a real request runs', () => {
     const app = read('public/app.js');
