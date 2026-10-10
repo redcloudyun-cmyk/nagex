@@ -19,6 +19,7 @@ import { generateResourceId } from '../common/utils.js';
 import type { MobileMessageRunStore } from './mobile-message-run.store.js';
 import { assertLegalMobileMessageRunTransition } from './mobile-message-run.state.js';
 import { buildApprovalPayload, MOBILE_SEND_SMS_TOOL_ID, type MobileMessageApprovalPayload, type MobileMessageRunRecord, type MobileMessageRunStatus, type MobileMessageSendResult } from './mobile-message.types.js';
+import type { MobileExecutionAuthority } from '../execution/mobile-execution-authority.js';
 
 export interface RecipientRefLookupPort {
   getOwned(recipientRef: string, tenantId: string, ownerId: string, deviceId: string): { recipientRef: string; displayName: string } | null;
@@ -29,7 +30,7 @@ export interface RecipientRefLookupPort {
 // directly with no adapter. Never re-implemented here.
 export interface MobileApprovalPort {
   request(input: { toolId: string; tenantId: string; principalId: string; payload: Record<string, unknown> }): { approvalId: string };
-  get(approvalId: string, tenantId: string, principalId: string): { status: string } | undefined;
+  get(approvalId: string, tenantId: string, principalId: string): { status: string; canonicalPayload?: Record<string, unknown> } | undefined;
   consume(approvalId: string, tenantId: string, principalId: string, toolId: string, payload: Record<string, unknown>, requestId: string, executionId: string): { executionId: string | null };
 }
 
@@ -49,6 +50,7 @@ export class MobileMessageRunService {
     private readonly recipientRefs: RecipientRefLookupPort,
     private readonly approvals: MobileApprovalPort,
     private readonly auditLogger?: AuditLogPort,
+    private readonly executionAuthority?: MobileExecutionAuthority,
   ) {}
 
   public createDraft(input: { tenantId: string; ownerId: string; deviceId: string; requestId: string; recipientRef: string; message: string }): MobileMessageRunRecord {
@@ -174,6 +176,21 @@ export class MobileMessageRunService {
     const executionId = generateResourceId('exe');
 
     try {
+      const approvalRecord = this.approvals.get(run.approvalId, tenantId, ownerId);
+      this.executionAuthority?.requireAllowed({
+        tenantId,
+        principalId: ownerId,
+        requestId,
+        capability: 'SMS_SEND',
+        canonicalAction: 'SEND_MESSAGE',
+        targetRef: run.recipientRef,
+        provider: 'DEVICE_NATIVE',
+        executionEnvironment: 'ANDROID',
+        executionRoute: 'ANDROID_SMS_MANAGER',
+        materialPayload: currentPayload,
+        deviceId,
+        approval: approvalRecord ? { status: approvalRecord.status, canonicalPayload: approvalRecord.canonicalPayload ?? currentPayload } : null,
+      });
       this.approvals.consume(run.approvalId, tenantId, ownerId, MOBILE_SEND_SMS_TOOL_ID, currentPayload, requestId, executionId);
     } catch (error) {
       if (error instanceof NagexError && error.code === 'APPROVAL_PAYLOAD_MISMATCH') {

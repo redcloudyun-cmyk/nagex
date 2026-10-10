@@ -198,10 +198,6 @@ export const {
   actionEngine,
   deviceAgentTransportEndpoint,
   deviceIdentityStore,
-  devicePendingCommandStore,
-  deviceConnectionStatusStore,
-  deviceCommandStatusStore,
-  kakaoAccessibilityApprovalService,
   contactResolver,
   mobileMessageRunService,
   executionRouteResolver,
@@ -641,7 +637,7 @@ export async function handleAsyncApiRequest(
 
     // R10.2-D Increment 5 — Device Agent outbound transport route.
     {
-      const deviceAgentResult = await handleDeviceAgentRoutes(method, pathname, body, headers, query, { deviceAgentTransportEndpoint, deviceIdentityStore, devicePendingCommandStore, deviceConnectionStatusStore, deviceCommandStatusStore, kakaoAccessibilityApprovalService, sessionStore });
+      const deviceAgentResult = await handleDeviceAgentRoutes(method, pathname, body, headers, query, { deviceAgentTransportEndpoint, deviceCommandService: app.deviceCommandService, deviceIdentityStore, sessionStore });
       if (deviceAgentResult) return deviceAgentResult;
     }
 
@@ -775,7 +771,7 @@ export function handleApiRequest(
   // only ever update the approval record; the canonical
   // GoogleCapabilityExecutionPipeline re-validates everything downstream.
   {
-    const approvalsResult = handleApprovalsRoutes(method, pathname, body, headers, {}, { googleCalendarService, gmailService, actionApprovals, kakaoAccessibilityApprovalService, devicePendingCommandStore, deviceCommandStatusStore, auditLogger, taskContinuationCoordinator, tenantId, principal, modelErrorResult });
+    const approvalsResult = handleApprovalsRoutes(method, pathname, body, headers, {}, { googleCalendarService, gmailService, actionApprovals, mobileAccessibilityApprovalService: app.mobileAccessibilityApprovalService, auditLogger, taskContinuationCoordinator, tenantId, principal, modelErrorResult });
     if (approvalsResult) return approvalsResult;
   }
 

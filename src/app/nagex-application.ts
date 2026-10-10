@@ -1,4 +1,4 @@
-// Phase 01 — Composition Root Refactoring.
+﻿// Phase 01 — Composition Root Refactoring.
 //
 // NagexApplication is a plain, explicit-typed application object graph — not
 // a framework, not a service locator, not a generic container. Every field
@@ -70,6 +70,7 @@ import type { DesktopExecutionSessionStore } from '../device-agent/desktop-execu
 import type { DeviceTransportSecurity } from '../device-agent/device-transport-security.js';
 import type { DeviceConnectionStatusStore } from '../device-agent/device-connection-status.store.js';
 import type { DevicePendingCommandStore } from '../device-agent/device-pending-command.store.js';
+import type { DeviceCommandService } from '../device-agent/device-command.service.js';
 import type { DeviceCommandStatusStore } from '../device-agent/device-command-status.store.js';
 import type { DeviceAgentTransportEndpoint } from '../device-agent/device-agent-transport-endpoint.service.js';
 import type { CommandContextStore } from '../commands/command-context.store.js';
@@ -180,6 +181,7 @@ export interface NagexApplication {
   deviceTransportSecurity: DeviceTransportSecurity;
   deviceConnectionStatusStore: DeviceConnectionStatusStore;
   devicePendingCommandStore: DevicePendingCommandStore;
+  deviceCommandService: DeviceCommandService;
   deviceCommandStatusStore: DeviceCommandStatusStore;
   deviceAgentTransportEndpoint: DeviceAgentTransportEndpoint;
   commandContextStore: CommandContextStore;
@@ -204,9 +206,10 @@ export interface NagexApplication {
   // R23.6M Phase B3 — Mobile Contact Resolution.
   recipientRefStore: import('../mobile/recipient-ref.store.js').RecipientRefStore;
   contactResolver: import('../mobile/contact-resolver.service.js').ContactResolver;
-    conversationTargetStore: import('../mobile/conversation-target.store.js').ConversationTargetStore;
-    kakaoAccessibilityDraftStore: import('../mobile/kakao-accessibility-draft.store.js').KakaoAccessibilityDraftStore;
-    kakaoAccessibilityApprovalService: import('../mobile/kakaotalk-accessibility-approval.service.js').KakaoAccessibilityApprovalService;
+  mobileAccessibilityApprovalService: import('../mobile/mobile-accessibility-approval.service.js').MobileAccessibilityApprovalService;
+  conversationTargetStore: import('../mobile/conversation-target.store.js').ConversationTargetStore;
+  kakaoAccessibilityDraftStore: import('../mobile/kakao-accessibility-draft.store.js').KakaoAccessibilityDraftStore;
+  kakaoAccessibilityApprovalService: import('../mobile/kakaotalk-accessibility-approval.service.js').KakaoAccessibilityApprovalService;
   // R23.6M Phase C — Mobile SMS Execution.
   mobileMessageRunStore: import('../mobile/mobile-message-run.store.js').MobileMessageRunStore;
   mobileMessageRunService: import('../mobile/mobile-message-run.service.js').MobileMessageRunService;

@@ -115,6 +115,7 @@ class StatusActivity : AppCompatActivity() {
         Thread {
             val text = try {
                 apiClient.sendDeviceMessage(deviceId, tenantId, ownerId, keyManager, DeviceAgentPayload.connect())
+                apiClient.sendDeviceMessage(deviceId, tenantId, ownerId, keyManager, DeviceAgentPayload.heartbeat(DeviceEnrollmentManager.AGENT_VERSION, DeviceEnrollmentManager.capabilities(this@StatusActivity)))
                 val status = apiClient.sendDeviceMessage(deviceId, tenantId, ownerId, keyManager, DeviceAgentPayload.status())
                 "Connected. Server reports: ${status.optJSONObject("result")}"
             } catch (e: NagexApiClient.ApiException) {

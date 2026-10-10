@@ -11,7 +11,7 @@ import {
   type ProviderStatus,
   type RoutingMode,
 } from './model-provider.js';
-import { buildJevAdvisoryRecord, JevShadowEvaluator, validateJevShadowOutput } from './jev-shadow-evaluator.js';
+import { buildJevAdvisoryRecord, buildJevShadowTelemetry, JevShadowEvaluator, validateJevShadowOutput } from './jev-shadow-evaluator.js';
 import { ModelRoutingPolicy } from './model-routing-policy.js';
 import type { ModelRoutingContext, ModelRoutingDecision } from './model-routing.types.js';
 
@@ -80,6 +80,7 @@ export class UnifiedModelRouter {
     requestId: string;
     context: ModelRoutingContext;
     decision: ModelRoutingDecision;
+    selectedModel: string | null;
   }): void {
     if (!this.jevShadowEvaluator || !this.shouldRunJevAdvisory()) return;
     void Promise.resolve()
@@ -95,6 +96,15 @@ export class UnifiedModelRouter {
           taskKind: input.context.taskKind,
           currentDecision: input.decision,
           jev: validJev,
+        });
+        this.logger.info('jev_shadow_decision', {
+          requestId: input.context.requestId,
+          ...buildJevShadowTelemetry({
+            taskKind: input.context.taskKind,
+            currentDecision: input.decision,
+            currentModel: input.selectedModel,
+            jev: validJev,
+          }),
         });
         this.logger.info('jev_advisory_observed', {
           requestId: record.requestId,
@@ -197,8 +207,9 @@ export class UnifiedModelRouter {
       [...this.providers.values()],
       this.configuredPriority
     );
+    const selectedModel = this.providers.get(decision.selectedProvider)?.model ?? null;
 
-    this.observeJevAdvisory({ requestId, context, decision });
+    this.observeJevAdvisory({ requestId, context, decision, selectedModel });
 
     const fallbackPolicy = input.fallbackPolicy ?? 'ALLOW';
     const effectiveFallbacks = fallbackPolicy === 'DISALLOW' ? [] : decision.fallbackProviders;
