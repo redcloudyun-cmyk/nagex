@@ -88,6 +88,7 @@ import type { SocialIdentityStore } from '../identity/social-identity.store.js';
 
 import type { PersonalReminderStore } from '../personal/personal-reminder.store.js';
 import type { PersonalAssistantEngine } from '../personal/personal-assistant.engine.js';
+import type { ProactiveInteractionStore } from '../personal/proactive-interaction.store.js';
 import type { DemoScenarioService } from '../demo/demo-scenario.service.js';
 import type { QuestionClassificationService } from '../research/question-classification.service.js';
 import type { WebSearchService } from '../research/web-search.service.js';
@@ -100,6 +101,7 @@ export interface NagexApplication {
   demoScenarioService: DemoScenarioService;
   personalReminderStore: PersonalReminderStore;
   personalAssistantEngine: PersonalAssistantEngine;
+  proactiveInteractionStore: ProactiveInteractionStore;
   identityStore: IdentityStore;
   identityTokenStore: IdentityTokenStore;
   identityAuditStore: IdentityAuditStore;

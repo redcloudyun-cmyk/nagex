@@ -642,7 +642,7 @@
     const memoryContext = (home?.memoryContext || []).map(memoryCard).filter((item) => item.title || item.context).slice(0, 2);
     const creationActions = (home?.creationActions || []).filter((item) => item.id === 'RESEARCH' || item.id === 'ANALYZE');
     const recentCreations = unique((home?.recentCreations || []).map((item) => card(item, inferRecent(item))));
-    return { generatedAt: home?.generatedAt || null, rightNow, creationActions, attention, approvals, attentionRest, today, working, preparing, memoryContext, recentCreations, recent };
+    return { generatedAt: home?.generatedAt || null, rightNow, creationActions, attention, approvals, attentionRest, today, working, preparing, memoryContext, recentCreations, recent, suggestions: home?.suggestions || [] };
   }
 
   function fetchHome(force) {
@@ -1018,6 +1018,61 @@
     return null;
   }
 
+  window.NAGEX.handleHomeItemAction = window.NAGEX.handleHomeItemAction || function (type, sourceRef, item) {
+    if (item && item.artifactProjection && window.NAGEX.openArtifactInCanvas) {
+      const p = item.artifactProjection;
+      window.NAGEX.openArtifactInCanvas(p.artifactId, p.artifactType, p.canvasTarget, p.openTarget, p);
+      return;
+    }
+    const upper = String(type || item?.type || '').toUpperCase();
+    if (upper.includes('APPROVAL') || upper === 'PROPOSAL') return window.NAGEX.switchTab && window.NAGEX.switchTab('tab-approvals');
+    if (upper.includes('TASK') || upper === 'BLOCKED_TASK') return window.NAGEX.switchTab && window.NAGEX.switchTab('tab-tasks');
+    if (upper.includes('INBOX') || upper === 'NEEDS_REVIEW_CAPTURE') return window.NAGEX.switchTab && window.NAGEX.switchTab('tab-inbox');
+    if (upper.includes('MEMORY')) return window.NAGEX.switchTab && window.NAGEX.switchTab('tab-memory');
+    if (upper.includes('VAULT')) return window.NAGEX.switchTab && window.NAGEX.switchTab('tab-vault');
+    if (upper.includes('ACTIVITY')) return window.NAGEX.switchTab && window.NAGEX.switchTab('tab-executions');
+    if (sourceRef && String(sourceRef).startsWith('art_') && window.NAGEX.openArtifactInCanvas) return window.NAGEX.openArtifactInCanvas(sourceRef, upper || 'DOCUMENT');
+    if (window.NAGEX.switchTab) window.NAGEX.switchTab('tab-home');
+  };
+
+  async function actOnSuggestion(action, suggestion, title) {
+    const endpoint = '/api/v1/proactive-suggestions/' + encodeURIComponent(suggestion.id) + '/' + action;
+    const body = title ? { title } : {};
+    const result = await window.NAGEX.apiFetch(endpoint, { method: 'POST', body: JSON.stringify(body) });
+    if (result && result.task && window.NAGEX.switchTab) window.NAGEX.switchTab('tab-tasks');
+    if (window.NAGEX_PERSONAL_HOME && window.NAGEX_PERSONAL_HOME.invalidate) window.NAGEX_PERSONAL_HOME.invalidate();
+    return result;
+  }
+
+  function renderSuggestionSection(target, suggestions, mobile) {
+    if (!target) return;
+    const items = Array.isArray(suggestions) ? suggestions.slice(0, 4) : [];
+    if (!items.length) {
+      target.hidden = true;
+      target.style.display = 'none';
+      return;
+    }
+    target.hidden = false;
+    target.style.display = '';
+    target.setAttribute('data-home-section', 'proactive-suggestions');
+    target.innerHTML = `<div class="ph-heading"><h2>${esc(locale() === 'ko' ? 'NAgex 제안' : 'NAgex suggestions')}</h2><p class="ph-heading-sub">${esc(locale() === 'ko' ? '실제 상태에서 나온 다음 행동입니다. 조용히 두어도 권한은 생기지 않습니다.' : 'Next actions grounded in real state. Silence grants no authority.')}</p></div><div class="ph-list">${items.map((s) => `
+      <article class="ph-item" data-suggestion-id="${esc(s.id)}">
+        <div class="ph-item-copy"><h3>${esc(s.title)}</h3><p>${esc(s.reason)}</p></div>
+        <div class="ph-item-meta"><span class="ph-state" data-state="Prepared">${esc(STATE_LABELS[locale()].Prepared)}</span>
+          <button type="button" class="ph-action" data-proactive-action="accept">${esc(locale() === 'ko' ? '작업으로 만들기' : 'Make task')}</button>
+          <button type="button" class="ph-action" data-proactive-action="dismiss">${esc(locale() === 'ko' ? '숨기기' : 'Dismiss')}</button>
+          <button type="button" class="ph-action" data-proactive-action="snooze">${esc(locale() === 'ko' ? '나중에' : 'Snooze')}</button>
+        </div>
+      </article>`).join('')}</div>`;
+    target.querySelectorAll('[data-proactive-action]').forEach((button) => button.addEventListener('click', async () => {
+      const id = button.closest('[data-suggestion-id]')?.getAttribute('data-suggestion-id');
+      const suggestion = items.find((s) => s.id === id);
+      if (!suggestion) return;
+      await actOnSuggestion(button.getAttribute('data-proactive-action'), suggestion);
+      if (!mobile) renderDesktop(await fetchHome(true)); else renderMobile(await fetchHome(true));
+    }));
+  }
+
   function yourDayItems(model) {
     const items = [];
     const add = (kind, label, item, empty) => {
@@ -1238,6 +1293,7 @@
     renderWorkingBrief(document.getElementById('home-section-working-for-you'), model, false);
     renderApprovalBrief(document.getElementById('home-section-needs-approval'), model, false);
     renderMemoryResults(document.getElementById('home-section-memory-results'), model, false);
+    renderSuggestionSection(document.getElementById('home-section-prepared'), model.suggestions, false);
     hideSections([
       'home-section-right-now',
       'home-section-create',
@@ -1247,7 +1303,6 @@
       'home-context-rail',
       'home-section-needs-attention',
       'home-section-today',
-      'home-section-prepared',
       'home-section-recent-creations',
       'home-section-recent-results',
       'home-section-working',
@@ -1265,6 +1320,7 @@
     renderWorkingBrief(document.getElementById('mh-section-working-for-you'), model, true);
     renderApprovalBrief(document.getElementById('mh-section-needs-approval'), model, true);
     renderMemoryResults(document.getElementById('mh-section-memory-results'), model, true);
+    renderSuggestionSection(document.getElementById('mh-section-suggestions'), model.suggestions, true);
     hideSections([
       'mh-right-now-hero',
       'mh-section-create',
@@ -1274,7 +1330,6 @@
       'mh-section-prepared',
       'mh-section-recent-creations',
       'mh-section-recent',
-      'mh-section-suggestions',
     ]);
   }
 

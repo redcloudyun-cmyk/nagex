@@ -32,6 +32,7 @@ import { PersonalHomeService } from '../home/personal-home.service.js';
 import { CurrentPersonalContextService } from '../personal/current-personal-context.service.js';
 import { RightNowIntelligenceService } from '../personal/right-now-intelligence.service.js';
 import { ProactiveSuggestionService } from '../personal/proactive-suggestion.service.js';
+import { ProactiveInteractionStore } from '../personal/proactive-interaction.store.js';
 import { ArtifactStore } from '../artifacts/artifact.store.js';
 import { skillRegistry as canonicalSkillRegistry } from '../skills/skill-registry.js';
 import { toolRegistry as canonicalToolRegistry } from '../tools/tool-registry.js';
@@ -739,6 +740,7 @@ export function createNagexApplication(): NagexApplication {
   // below so Morning Brief/Quick Wake consume it too, never a second
   // suggestion engine.
   const proactiveSuggestionService = new ProactiveSuggestionService();
+  const proactiveInteractionStore = new ProactiveInteractionStore();
   const rightNowIntelligenceService = new RightNowIntelligenceService({ currentPersonalContextService, proactiveSuggestionService });
 
   const personalHomeService = new PersonalHomeService({
@@ -785,6 +787,7 @@ export function createNagexApplication(): NagexApplication {
     socialIdentityStore,
     personalReminderStore,
     personalAssistantEngine,
+    proactiveInteractionStore,
     personalHomeService,
     currentPersonalContextService,
     rightNowIntelligenceService,

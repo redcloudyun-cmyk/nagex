@@ -48,6 +48,7 @@ import { handleDailyBriefRoutes } from './http/routes/daily-brief.routes.js';
 import { handlePersonalHomeRoutes } from './http/routes/personal-home.routes.js';
 import { handlePersonalContextRoutes } from './http/routes/personal-context.routes.js';
 import { handlePersonalAssistantRoutes } from './http/routes/personal-assistant.routes.js';
+import { handleProactiveSuggestionsRoutes } from './http/routes/proactive-suggestions.routes.js';
 import { handleCapabilitiesRoutes } from './http/routes/capabilities.routes.js';
 import { handleMySpaceRoutes } from './http/routes/my-space.routes.js';
 import { handleDeviceAgentRoutes } from './http/routes/device-agent.routes.js';
@@ -658,6 +659,18 @@ export async function handleAsyncApiRequest(
         assistantEngine: app.personalAssistantEngine,
       });
       if (personalAssistantResult) return personalAssistantResult;
+    }
+
+    {
+      const proactiveSuggestionResult = await handleProactiveSuggestionsRoutes(method, pathname, body, headers, query, {
+        rightNowIntelligenceService: app.rightNowIntelligenceService,
+        proactiveInteractionStore: app.proactiveInteractionStore,
+        taskStore,
+        activityStore,
+        notificationEngine,
+        modelErrorResult,
+      });
+      if (proactiveSuggestionResult) return proactiveSuggestionResult;
     }
 
     // R11 — Action Proposals (moved to src/http/routes/action-proposals.routes.ts,
