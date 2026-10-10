@@ -8,6 +8,7 @@ export { BrowserToolService } from './browser.service.js';
 export { browserRuntime, isBrowserRuntimeAvailableSync } from './browser.runtime.js';
 export { browserSessionStore } from './browser-session.store.js';
 export { isUrlSafe } from './browser-url-validator.js';
+export { validateOutboundUrl } from '../../security/outbound-url-policy.js';
 
 export type { BrowserSessionRecord, BrowserSessionStatus } from './browser-session.store.js';
 export type { BrowserActionResult, BrowserClickResult, BrowserClickExecuted, BrowserClickApprovalRequired, BrowserEvidence } from './browser.service.js';

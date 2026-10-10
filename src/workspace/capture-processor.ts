@@ -17,7 +17,7 @@ import type { BrowserRetrievalPort } from '../contracts/browser.port.js';
 import type { AuditLogger } from '../governance/audit.logger.js';
 import type { StorageProvider } from '../storage/storage-provider.js';
 import type { KnowledgeEngine } from '../context/knowledge.engine.js';
-import { isUrlSafe } from '../modules/browser/index.js';
+import { validateOutboundUrl } from '../modules/browser/index.js';
 import { extractPdfText, chunkText } from './pdf-extractor.js';
 import { isCanonicalObjectKeyFor } from './vault-security.js';
 import { CandidateStore } from './candidate.store.js';
@@ -296,15 +296,19 @@ export class CaptureProcessor {
 
     // 1. URL Safety Validation
     const allowLocal = process.env.NAGEX_ALLOW_LOCAL_TEST_URLS === '1';
-    const safety = isUrlSafe(urlStr, { allowLocalhostInTests: allowLocal });
-    if (!safety.safe) {
+    let normalizedUrl = urlStr;
+    try {
+      const safety = await validateOutboundUrl(urlStr, { allowLocalTestDestinations: allowLocal });
+      normalizedUrl = safety.normalizedUrl;
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'URL is blocked by security policy';
       const failedAt = new Date().toISOString();
       const failed = this.updateStatusWithFailure(item, 'FAILED', {
         processingStage: 'FAILED',
         processingCompletedAt: failedAt,
         errorCode: 'BROWSER_UNSAFE_URL',
-        errorMessage: safety.reason || 'URL is blocked by security policy',
-        extractedSummary: `URL safety check failed: ${safety.reason}`,
+        errorMessage: reason,
+        extractedSummary: `URL safety check failed: ${reason}`,
         sourceUrl: urlStr,
       });
 
@@ -316,7 +320,7 @@ export class CaptureProcessor {
           resource: { type: 'CaptureItem', id: item.captureId },
           result: 'DENIED',
           request_id: `req_url_unsafe_${Date.now()}`,
-          details: { url: urlStr, reason: safety.reason },
+          details: { url: urlStr, reason },
         });
       }
 
@@ -362,7 +366,7 @@ export class CaptureProcessor {
         ownerId: item.ownerId,
         requestId: reqId,
         browserSessionId,
-        url: urlStr,
+        url: normalizedUrl,
       });
       // Never a fabricated placeholder — a page with no real title stays
       // null (item D).

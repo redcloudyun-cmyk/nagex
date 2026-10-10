@@ -5,7 +5,7 @@ import { WebSearchService } from './web-search.service.js';
 import { SourceFreshnessValidator } from './source-freshness.validator.js';
 import type { EvidencePack, EvidenceSource, EvidencePackStatus } from './evidence-pack.types.js';
 import type { SearchResult } from './web-search-provider.port.js';
-import { isUrlSafe } from '../modules/browser/index.js';
+import { validateOutboundUrl } from '../security/outbound-url-policy.js';
 
 export function mapSearchStatusToEvidenceStatus(status: string): EvidencePackStatus {
   switch (status) {
@@ -88,7 +88,7 @@ export class EvidencePackService {
       };
     }
 
-    const sources = this.processSearchResults(searchOutcome.results, options?.maxSources || 5, now, classification.category);
+    const sources = await this.processSearchResults(searchOutcome.results, options?.maxSources || 5, now, classification.category);
 
     if (sources.length === 0) {
       return {
@@ -114,12 +114,12 @@ export class EvidencePackService {
     };
   }
 
-  private processSearchResults(
+  private async processSearchResults(
     results: SearchResult[],
     limit: number,
     retrievedAt: string,
     category: string
-  ): EvidenceSource[] {
+  ): Promise<EvidenceSource[]> {
     const seenUrls = new Set<string>();
     // Directive J: Fix domain deduplication bug using Map<string, number> count tracking
     const domainCounts = new Map<string, number>();
@@ -132,7 +132,7 @@ export class EvidencePackService {
       if (!rawUrl) continue;
 
       // SSRF & URL Safety validation using canonical browser-url-validator
-      if (!this.isValidPublicUrl(rawUrl)) continue;
+      if (!(await this.isValidPublicUrl(rawUrl))) continue;
 
       const normalizedUrl = this.normalizeUrl(rawUrl);
       if (seenUrls.has(normalizedUrl)) continue;
@@ -168,9 +168,13 @@ export class EvidencePackService {
     return validSources;
   }
 
-  public isValidPublicUrl(urlString: string): boolean {
-    const res = isUrlSafe(urlString, { allowLocalhostInTests: false });
-    return res.safe;
+  public async isValidPublicUrl(urlString: string): Promise<boolean> {
+    try {
+      await validateOutboundUrl(urlString);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   private normalizeUrl(urlStr: string): string {

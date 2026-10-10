@@ -3,6 +3,7 @@ import path from 'node:path';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import { NagexError } from '../../common/errors.js';
 import { resolveNagexDataDir } from '../../governance/file-record.store.js';
+import { validateOutboundUrl, type OutboundDnsResolver } from '../../security/outbound-url-policy.js';
 import type { StructuredBrowserSnapshot, FindResult, ExtractResult, ElementMatchCandidate, StructuredLink, StructuredButton, StructuredInput, StructuredForm } from './browser.types.js';
 
 // NAgex Browser Runtime — Phase B / Browser Agent MVP (MASTER.md Section
@@ -143,6 +144,7 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
     // persistent cookies optional/configurable, default off).
     private readonly persistent: boolean = process.env.NAGEX_BROWSER_PERSISTENT_PROFILE === '1',
     private readonly profileDir: string = resolveNagexDataDir('browser-profile', 'NAGEX_BROWSER_PROFILE_DIR'),
+    private readonly outboundResolver?: OutboundDnsResolver,
   ) {}
 
   public async isAvailable(): Promise<boolean> {
@@ -175,17 +177,36 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
         headless: true,
         args: ['--explicitly-allowed-ports=6697,6665,6666,6667,6668,6669'],
       });
+      await this.installOutboundPolicy(context);
       this.contexts.set(sessionId, context);
       page = context.pages()[0] ?? (await context.newPage());
     } else {
       const browser = await this.ensureBrowser();
       const context = await browser.newContext();
+      await this.installOutboundPolicy(context);
       this.contexts.set(sessionId, context);
       page = await context.newPage();
     }
     await page.goto('about:blank');
     this.pages.set(sessionId, page);
     return { url: page.url(), title: await page.title() };
+  }
+
+  private async installOutboundPolicy(context: BrowserContext): Promise<void> {
+    await context.route('**/*', async (route) => {
+      const request = route.request();
+      const url = request.url();
+      if (url === 'about:blank' || url.startsWith('data:')) {
+        await route.continue();
+        return;
+      }
+      try {
+        await validateOutboundUrl(url, { resolver: this.outboundResolver, allowLocalTestDestinations: process.env.NAGEX_ALLOW_LOCAL_TEST_URLS === '1' });
+        await route.continue();
+      } catch {
+        await route.abort('blockedbyclient');
+      }
+    });
   }
 
   public async closeSession(sessionId: string): Promise<void> {
@@ -226,6 +247,7 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
 
   public async navigate(sessionId: string, url: string): Promise<{ url: string; title: string }> {
     const page = this.requirePage(sessionId);
+    await validateOutboundUrl(url, { resolver: this.outboundResolver, allowLocalTestDestinations: process.env.NAGEX_ALLOW_LOCAL_TEST_URLS === '1' });
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20_000 });
     return { url: page.url(), title: await page.title() };
   }

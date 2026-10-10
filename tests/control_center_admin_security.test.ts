@@ -83,6 +83,20 @@ test('Cloudflare Access JWT bridge validates issuer audience expiry and signatur
   assert.ok(server.includes('/cdn-cgi/access/certs'));
 });
 
+test('static admin bearer token authority is removed completely', () => {
+  assert.equal(server.includes('NAGEX_CONTROL_ADMIN_TOKEN'), false);
+  assert.equal(server.includes('ADMIN_BEARER_TOKEN'), false);
+  assert.equal(server.includes('timingSafeTokenMatches'), false);
+  assert.equal(server.includes('NAGEX_CONTROL_ADMIN_TOKEN_ROLE'), false);
+  assert.ok(fs.readFileSync('deploy/control-center/control-center.env.example', 'utf8').includes('NAGEX_CONTROL_ADMIN_ALLOWLIST'));
+  assert.equal(fs.readFileSync('deploy/control-center/control-center.env.example', 'utf8').includes('NAGEX_CONTROL_ADMIN_TOKEN'), false);
+});
+
+test('Authorization bearer alone is never an admin authority source', () => {
+  assert.equal(server.includes('req.headers.authorization'), false);
+  assert.equal(server.includes("startsWith('Bearer ')"), false);
+});
+
 test('Access identity maps only verified normalized email to admin session', () => {
   assert.ok(server.includes('trim().toLowerCase()'));
   assert.ok(server.includes('authorizedAdmins.get(verified.email)'));

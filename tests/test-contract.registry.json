@@ -751,6 +751,24 @@
       "assertionIntent": "Control Center admin APIs remain fail-closed, Cloudflare Access identity is accepted only after server-side JWT verification, exact email allowlist maps the initial super admin, signed admin sessions are isolated from normal user sessions, spoofed identity headers do not grant access, and the frontend derives authority only from the server session endpoint.",
       "notes": "Source-level security regression for the public Control Center Access-to-admin-session bridge. Public Google login remains a separate live E2E certification."
     },
+    "outbound_url_policy": {
+      "milestone": "NAGEX-SECURITY-SSRF-UNIFICATION",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "capture",
+        "research",
+        "runtime",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "Canonical outbound URL policy blocks SSRF across Link Capture, Browser navigation, Research evidence URL filtering and Capture Processor URL captures: protocol restriction, embedded credential denial, DNS resolution validation, private/link-local/metadata IPv4/IPv6 blocking, IPv4-mapped IPv6 blocking, redirect revalidation, and DNS rebinding protection via pinned lookup/browser request interception.",
+      "notes": "Uses deterministic fake DNS resolvers and source contracts only; no external network, cloud metadata, browser launch or provider credentials."
+    },
     "capability_broker": {
       "milestone": "Cross-cutting",
       "classification": "CANONICAL_BEHAVIOR",

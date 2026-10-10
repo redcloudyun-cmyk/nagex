@@ -1,8 +1,7 @@
-import dns from 'node:dns/promises';
 import http from 'node:http';
 import https from 'node:https';
 import { URL } from 'node:url';
-import { isIPv4, isIPv6 } from 'node:net';
+import { createPinnedLookup, isPrivateIPv4, isPrivateIPv6, validateOutboundUrl, validateRedirectDestination, type OutboundDnsResolver } from '../security/outbound-url-policy.js';
 
 export interface LinkCaptureSource {
   url: string;
@@ -30,37 +29,8 @@ export interface LinkCaptureResult {
   preview?: LinkCapturePreview;
 }
 
-const PRIVATE_IPV4_RANGES = [
-  { start: ipToLong('10.0.0.0'), end: ipToLong('10.255.255.255') },
-  { start: ipToLong('172.16.0.0'), end: ipToLong('172.31.255.255') },
-  { start: ipToLong('192.168.0.0'), end: ipToLong('192.168.255.255') },
-  { start: ipToLong('127.0.0.0'), end: ipToLong('127.255.255.255') },
-  { start: ipToLong('169.254.0.0'), end: ipToLong('169.254.255.255') },
-  { start: ipToLong('0.0.0.0'), end: ipToLong('0.255.255.255') },
-];
-
-function ipToLong(ip: string): number {
-  return ip.split('.').reduce((acc, octet) => (acc << 8) + parseInt(octet, 10), 0) >>> 0;
-}
-
-export function isPrivateIPv4(ip: string): boolean {
-  if (!/^(?:\d{1,3}\.){3}\d{1,3}$/.test(ip)) return false;
-  const longIp = ipToLong(ip);
-  return PRIVATE_IPV4_RANGES.some((range) => longIp >= range.start && longIp <= range.end);
-}
-
-export function isPrivateIPv6(ip: string): boolean {
-  const normalized = ip.toLowerCase();
-  if (normalized === '::1' || normalized === '::') return true;
-  if (normalized.startsWith('fe80:') || normalized.startsWith('fc00:') || normalized.startsWith('fd00:')) return true;
-  if (normalized.startsWith('::ffff:')) {
-    const ipv4Part = normalized.replace('::ffff:', '');
-    if (isPrivateIPv4(ipv4Part)) return true;
-  }
-  return false;
-}
-
-export type CustomDnsResolver = (hostname: string) => Promise<{ address: string; family: number }[]>;
+export { isPrivateIPv4, isPrivateIPv6 };
+export type CustomDnsResolver = OutboundDnsResolver;
 
 export async function validateUrlForSsrf(
   urlStr: string,
@@ -68,55 +38,10 @@ export async function validateUrlForSsrf(
   allowTestFixture?: boolean
 ): Promise<{ valid: boolean; reason?: string; parsedUrl?: URL; resolvedIp?: string; resolvedFamily?: 4 | 6 }> {
   try {
-    const parsed = new URL(urlStr);
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-      return { valid: false, reason: `Unsupported protocol: ${parsed.protocol}` };
-    }
-
-    const hostname = parsed.hostname.toLowerCase();
-    if (!allowTestFixture) {
-      if (
-        hostname === 'localhost' ||
-        hostname === '127.0.0.1' ||
-        hostname === '::1' ||
-        hostname === '0.0.0.0' ||
-        hostname.endsWith('.local') ||
-        hostname.endsWith('.internal')
-      ) {
-        return { valid: false, reason: 'Access to localhost / local domains is blocked.' };
-      }
-
-      if (isPrivateIPv4(hostname) || isPrivateIPv6(hostname)) {
-        return { valid: false, reason: 'Access to private network IP addresses is blocked.' };
-      }
-    }
-
-    let resolvedIp = hostname;
-    let resolvedFamily: 4 | 6 = 4;
-
-    if (!isIPv4(hostname) && !isIPv6(hostname)) {
-      try {
-        const lookupFn = customResolver || (async (h) => dns.lookup(h, { all: true }));
-        const ips = await lookupFn(hostname);
-        for (const entry of ips) {
-          if (!allowTestFixture && (isPrivateIPv4(entry.address) || isPrivateIPv6(entry.address))) {
-            return { valid: false, reason: `Resolved IP ${entry.address} is in private network range.` };
-          }
-        }
-        if (ips.length > 0) {
-          resolvedIp = ips[0].address;
-          resolvedFamily = ips[0].family === 6 ? 6 : 4;
-        }
-      } catch {
-        return { valid: false, reason: 'DNS resolution failed.' };
-      }
-    } else {
-      resolvedFamily = isPrivateIPv6(hostname) || hostname.includes(':') ? 6 : 4;
-    }
-
-    return { valid: true, parsedUrl: parsed, resolvedIp, resolvedFamily };
-  } catch {
-    return { valid: false, reason: 'Invalid URL format.' };
+    const validation = await validateOutboundUrl(urlStr, { resolver: customResolver, allowLocalTestDestinations: Boolean(allowTestFixture) });
+    return { valid: true, parsedUrl: validation.parsedUrl, resolvedIp: validation.resolvedPublicIp, resolvedFamily: validation.addressFamily };
+  } catch (error) {
+    return { valid: false, reason: error instanceof Error ? error.message : 'Invalid URL format.' };
   }
 }
 
@@ -194,36 +119,7 @@ export class LinkCaptureService {
           },
           timeout: this.timeoutMs,
           // DNS_REBINDING_BYPASS=0: Direct socket connection to the exact IP address validated
-          lookup: (hostname: string, options: any, callback?: any) => {
-            const cb = typeof options === 'function' ? options : callback;
-            if (typeof cb !== 'function') return;
-
-            const handleResult = (ip: string, fam: 4 | 6) => {
-              if ((!this.allowTestFixture || ip !== resolvedIp) && (isPrivateIPv4(ip) || isPrivateIPv6(ip))) {
-                cb(new Error(`DNS Rebinding detected: Host ${hostname} resolved to private IP ${ip}`));
-                return;
-              }
-              if (options && typeof options === 'object' && options.all) {
-                cb(null, [{ address: ip, family: fam }]);
-              } else {
-                cb(null, ip, fam);
-              }
-            };
-
-            if (this.customResolver) {
-              this.customResolver(hostname).then((ips) => {
-                if (ips.length > 0) {
-                  handleResult(ips[0].address, ips[0].family === 6 ? 6 : 4);
-                } else {
-                  handleResult(resolvedIp, resolvedFamily);
-                }
-              }).catch(() => {
-                handleResult(resolvedIp, resolvedFamily);
-              });
-            } else {
-              handleResult(resolvedIp, resolvedFamily);
-            }
-          },
+          lookup: createPinnedLookup({ normalizedUrl: targetUrl.toString(), parsedUrl: targetUrl, hostname: targetUrl.hostname.toLowerCase(), resolvedPublicIp: resolvedIp, addressFamily: resolvedFamily }, this.customResolver, Boolean(this.allowTestFixture)),
         },
         (res) => {
           const statusCode = res.statusCode || 500;
@@ -233,12 +129,8 @@ export class LinkCaptureService {
             req.destroy();
             try {
               const redirectUrl = new URL(res.headers.location, targetUrl);
-              validateUrlForSsrf(redirectUrl.href, this.customResolver, false).then((redirVal) => {
-                if (!redirVal.valid || !redirVal.parsedUrl || !redirVal.resolvedIp) {
-                  resolve({ success: false, finalUrl: redirectUrl.href, error: redirVal.reason || 'Redirect destination blocked.' });
-                  return;
-                }
-                resolve(this.fetchWithRedirectValidation(redirVal.parsedUrl, redirVal.resolvedIp, redirVal.resolvedFamily || 4, redirectCount + 1));
+              validateRedirectDestination(res.headers.location, targetUrl, { resolver: this.customResolver, allowLocalTestDestinations: false }).then((redirVal) => {
+                resolve(this.fetchWithRedirectValidation(redirVal.parsedUrl, redirVal.resolvedPublicIp, redirVal.addressFamily, redirectCount + 1));
               }).catch(() => {
                 resolve({ success: false, finalUrl: redirectUrl.href, error: 'Redirect SSRF validation failed.' });
               });

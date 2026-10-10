@@ -9,7 +9,6 @@ const host = process.env.HOST ?? '127.0.0.1';
 const port = Number.parseInt(process.env.PORT ?? '4500', 10);
 const environment = process.env.CONTROL_CENTER_ENV ?? 'TEST';
 const adminSessionCookie = process.env.CONTROL_CENTER_SESSION_NAME ?? '__Host-nagex_admin_session';
-const configuredToken = process.env.NAGEX_CONTROL_ADMIN_TOKEN;
 const initialSuperAdminEmail = 'redcloudyun@gmail.com';
 const configuredAllowlist = process.env.NAGEX_CONTROL_ADMIN_ALLOWLIST ?? `${initialSuperAdminEmail}:SUPER_ADMIN`;
 const authorizedAdmins = new Map(configuredAllowlist.split(',').map((entry) => entry.trim()).filter(Boolean).map((entry) => {
@@ -100,13 +99,6 @@ function base64url(input) {
 
 function decodeBase64url(input) {
   return Buffer.from(input, 'base64url').toString('utf8');
-}
-
-function timingSafeTokenMatches(received) {
-  if (!configuredToken) return false;
-  const expectedBuffer = Buffer.from(configuredToken);
-  const receivedBuffer = Buffer.from(received ?? '');
-  return receivedBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(receivedBuffer, expectedBuffer);
 }
 
 function parseCookies(req) {
@@ -216,11 +208,6 @@ async function verifyCloudflareAccessJwt(jwt) {
 async function adminActorFromRequest(req, res) {
   const sessionActor = verifySessionCookie(parseCookies(req)[adminSessionCookie]);
   if (sessionActor) return sessionActor;
-
-  const bearer = req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : undefined;
-  if (timingSafeTokenMatches(bearer)) {
-    return { email: 'token-admin@nagex.local', role: process.env.NAGEX_CONTROL_ADMIN_TOKEN_ROLE ?? 'SUPER_ADMIN', authMethod: 'ADMIN_BEARER_TOKEN' };
-  }
 
   const jwt = String(req.headers['cf-access-jwt-assertion'] ?? '');
   const verified = await verifyCloudflareAccessJwt(jwt);
