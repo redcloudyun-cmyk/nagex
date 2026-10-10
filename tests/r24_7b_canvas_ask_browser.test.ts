@@ -334,21 +334,22 @@ describe('R24.7B browser — desktop Focus Canvas', () => {
 });
 
 describe('R24.7B browser — Home embedded Canvas', () => {
-  it('Ask on Home resolves ITS OWN artifact (not the Focus state) and shows the truthful result in the Home answer region', async () => {
+  it('Home embedded Canvas contract is truthful: the retired desktop preview never fabricates an artifact id', async () => {
     const u = h.user('h1');
     const seeded = h.seedDocument(u, { title: 'Home doc', content: 'Home embedded document content.' });
     const ctx = await h.newContext('desktop', u);
     const page = await ctx.newPage();
-    const rec = recordAskRequests(page);
     await page.goto(`${h.origin}/`, { waitUntil: 'domcontentloaded' });
-    await page.waitForSelector('#home-embedded-canvas[data-artifact-id]');
-    assert.equal(await page.getAttribute('#home-embedded-canvas', 'data-artifact-id'), seeded.artifactId);
+    await page.waitForSelector('#home-embedded-canvas', { state: 'attached' });
+    assert.equal(await page.getAttribute('#home-embedded-canvas', 'hidden'), '');
+    assert.equal(await page.getAttribute('#home-embedded-canvas', 'data-artifact-id'), null);
+    assert.equal(await page.evaluate(() => window.NAGEX?._homeEmbeddedArtifactIdForCert || null), null);
     assert.equal(await page.evaluate(() => !window.NAGEX._canvasState || window.NAGEX._canvasState.active !== true), true, 'Focus Canvas state is not active: Home must not depend on it');
-    await page.fill('#home-canvas-ask-input', 'What does this say?');
-    await page.click('#home-agent-panel .canvas-ask-submit');
-    await waitState(page, { ...DESKTOP, answer: '#home-canvas-ask-answer' }, 'error');
-    assert.equal(rec.asks.length, 1);
-    assert.equal(new URL(rec.asks[0].url()).pathname, `/api/v1/artifacts/${seeded.artifactId}/ask`);
+
+    await openCanvas(page, seeded.artifactId);
+    await page.waitForSelector(DESKTOP.text);
+    assert.equal(await page.textContent(DESKTOP.text), 'Home embedded document content.');
+    assert.equal(await page.evaluate(() => window.NAGEX._canvasState.active === true), true, 'Focus Canvas opens only after explicit navigation');
     await ctx.close();
   });
 });

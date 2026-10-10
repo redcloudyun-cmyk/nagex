@@ -81,4 +81,102 @@ describe('NAgex real browser product convergence', () => {
     assert.ok(overflow <= 4, `mobile horizontal overflow ${overflow}px`);
     await ctx.close();
   });
+
+  it('browser search result rows route each certified local result type to a real target', async () => {
+    const user = h.user('convergence-types');
+    const artifact = h.seedDocument(user, {
+      title: 'Search artifact target',
+      content: 'Artifact search target content.',
+    });
+    const ctx = await h.newContext('desktop', user);
+    const page = await ctx.newPage();
+    const cookie = `nagex_session=${user.sessionId}`;
+    const server = await import('../src/server_web.js');
+
+    const taskRes = await page.request.post(`${h.origin}/api/v1/tasks`, {
+      headers: { cookie },
+      data: {
+        name: 'Search task target',
+        objective: 'Verify search task routing',
+        type: 'ONE_TIME',
+        trigger: { type: 'MANUAL' },
+        approvalPolicy: 'ALWAYS_APPROVE',
+      },
+    });
+    assert.equal(taskRes.status(), 201);
+
+    const knowledgeRes = await page.request.post(`${h.origin}/api/v1/knowledge`, {
+      headers: { cookie },
+      data: {
+        title: 'Search knowledge target',
+        content: 'Knowledge search target content.',
+        mimeType: 'text/plain',
+      },
+    });
+    assert.equal(knowledgeRes.status(), 201);
+    const knowledge = await knowledgeRes.json();
+
+    const vaultRes = await page.request.post(`${h.origin}/api/v1/workspace/vault`, {
+      headers: { cookie },
+      data: {
+        title: 'Search vault target',
+        type: 'DOCUMENT',
+        mimeType: 'text/plain',
+        storageRef: 'search-vault-target',
+        contentText: 'Vault search target content.',
+      },
+    });
+    assert.equal(vaultRes.status(), 201);
+    const vault = await vaultRes.json();
+
+    const activity = server.activityStore.record({
+      tenantId: user.tenantId,
+      principalId: user.userId,
+      type: 'CERTIFICATION',
+      title: 'Search activity target',
+      description: 'Activity search target content.',
+      status: 'COMPLETED',
+      dedupeKey: 'search-activity-target',
+    });
+
+    async function searchAndClick(source: string, query: string): Promise<void> {
+      await page.evaluate(() => window.NAGEX_BROWSER_CONVERGENCE.openSearchPanel());
+      await page.waitForFunction(() => document.getElementById('nagex-real-search-panel')?.hidden === false);
+      await page.fill('#nagex-real-search-input', query);
+      const row = page.locator(`.nagex-real-search-row[data-source="${source}"]`).first();
+      await row.waitFor({ state: 'visible' });
+      await row.click();
+    }
+
+    page.on('dialog', async (dialog) => {
+      assert.match(dialog.message(), /Search vault target|Vault item .* has no persisted preview\/download content/);
+      await dialog.accept();
+    });
+
+    await page.goto(`${h.origin}/#home`, { waitUntil: 'domcontentloaded' });
+
+    await searchAndClick('TASKS', 'Search task target');
+    await page.waitForFunction(() => window.location.hash === '#tasks' && document.querySelector('#view-tasks')?.classList.contains('active-view'));
+
+    await searchAndClick('ARTIFACTS', 'Search artifact target');
+    await page.waitForSelector('#canvas-renderer-region .canvas-document-text');
+    assert.equal(await page.textContent('#canvas-renderer-region .canvas-document-text'), 'Artifact search target content.');
+
+    await searchAndClick('KNOWLEDGE', 'Search knowledge target');
+    await page.waitForFunction((title: string) => {
+      const modal = document.getElementById('knowledge-source-modal');
+      return modal && modal.style.display !== 'none' && modal.textContent?.includes(title);
+    }, knowledge.name || 'Search knowledge target');
+    await page.evaluate(() => { const modal = document.getElementById('knowledge-source-modal'); if (modal) modal.style.display = 'none'; });
+
+    await searchAndClick('VAULT', 'Search vault target');
+    await page.waitForFunction((title: string) => window.location.hash === '#vault' && document.body.textContent?.includes(title), vault.title);
+
+    const activitySearch = await page.request.get(`${h.origin}/api/v1/search?q=${encodeURIComponent('Search activity target')}`, { headers: { cookie } });
+    assert.equal(activitySearch.status(), 200);
+    assert.ok(((await activitySearch.json()).results || []).some((result: any) => result.source === 'ACTIVITY' && result.id === activity.activityId));
+    await searchAndClick('ACTIVITY', 'Search activity target');
+    await page.waitForFunction(() => window.location.hash === '#activity' && document.querySelector('#view-executions')?.classList.contains('active-view'));
+    await ctx.close();
+  });
 });

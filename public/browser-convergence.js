@@ -143,7 +143,7 @@
     if (source === 'TASKS') return window.NAGEX?.switchTab?.('tab-tasks');
     if (source === 'KNOWLEDGE') {
       window.NAGEX?.switchTab?.('tab-knowledge');
-      setTimeout(() => document.querySelector(`[data-knowledge-id="${CSS.escape(id)}"]`)?.click(), 250);
+      runWhenAvailable(`.knowledge-open-source-btn[data-knowledge-id="${CSS.escape(id)}"]`, (el) => el.click());
       return;
     }
     if (source === 'VAULT') {
@@ -153,7 +153,7 @@
     }
     if (source === 'ACTIVITY') {
       window.NAGEX?.switchTab?.('tab-executions');
-      setTimeout(() => window.NAGEX?.toggleActivityDetail?.(id), 250);
+      runWhenAvailable(`#activity-btn-${CSS.escape(id)}`, () => window.NAGEX?.toggleActivityDetail?.(id));
       return;
     }
     if (source === 'INBOX') return window.NAGEX?.switchTab?.('tab-inbox');
@@ -169,6 +169,21 @@
       input.focus();
       runSearch();
     }
+  }
+
+  function runWhenAvailable(selector, action, attempts) {
+    const max = attempts || 20;
+    let count = 0;
+    const tick = () => {
+      const el = document.querySelector(selector);
+      if (el) {
+        action(el);
+        return;
+      }
+      count += 1;
+      if (count < max) setTimeout(tick, 100);
+    };
+    tick();
   }
 
   function documentIdFromCanvasState() {
