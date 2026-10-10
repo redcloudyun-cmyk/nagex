@@ -140,16 +140,19 @@
 
     labelEl.textContent = vault.storageInfo?.label || t('mobileVault.storageLocal', 'Local Development Vault');
     if (quotaTextEl) {
-      const usedBytes = typeof vault.usedSizeBytes === 'number' ? vault.usedSizeBytes : 0;
-      const quotaBytes = typeof vault.quotaSizeBytes === 'number' ? vault.quotaSizeBytes : 10737418240;
-      const usedMb = (usedBytes / (1024 * 1024)).toFixed(1);
-      const quotaGb = (quotaBytes / (1024 * 1024 * 1024)).toFixed(0);
-      quotaTextEl.textContent = t('mobileVault.quotaUsed', '{used} MB of {quota} GB').replace('{used}', usedMb).replace('{quota}', quotaGb);
+      if (vault.storageUsageAvailable === true && typeof vault.usedSizeBytes === 'number') {
+        const usedMb = (vault.usedSizeBytes / (1024 * 1024)).toFixed(1);
+        quotaTextEl.textContent = typeof vault.quotaSizeBytes === 'number' && vault.quotaSizeBytes > 0
+          ? t('mobileVault.quotaUsed', '{used} MB of {quota} GB').replace('{used}', usedMb).replace('{quota}', (vault.quotaSizeBytes / (1024 * 1024 * 1024)).toFixed(0))
+          : `${usedMb} MB`;
+      } else {
+        quotaTextEl.textContent = vault.storageUsageLabel || t('mobileVault.storageUsageUnavailable', 'Storage usage unavailable');
+      }
     }
     if (quotaFillEl) {
-      const usedBytes = typeof vault.usedSizeBytes === 'number' ? vault.usedSizeBytes : 0;
-      const quotaBytes = typeof vault.quotaSizeBytes === 'number' ? vault.quotaSizeBytes : 10737418240;
-      const pct = quotaBytes > 0 ? Math.min(100, (usedBytes / quotaBytes) * 100) : 0;
+      const pct = vault.storageUsageAvailable === true && typeof vault.usedSizeBytes === 'number' && typeof vault.quotaSizeBytes === 'number' && vault.quotaSizeBytes > 0
+        ? Math.min(100, (vault.usedSizeBytes / vault.quotaSizeBytes) * 100)
+        : 0;
       quotaFillEl.style.width = `${pct.toFixed(1)}%`;
     }
     if (countEl) {

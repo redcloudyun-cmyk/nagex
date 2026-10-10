@@ -1874,6 +1874,8 @@
       const elBar = document.getElementById('vault-quota-bar');
       const elGrid = document.getElementById('vault-categories-grid');
       const elLabel = document.getElementById('vault-storage-provider-label');
+      const elState = document.getElementById('vault-usage-state');
+      const elRecent = document.getElementById('vault-recent-list');
 
       let truthfulLabel = data.storageInfo?.label || 'Local Development Vault';
       if (health) {
@@ -1888,22 +1890,82 @@
         }
       }
 
-      if (elUsed) elUsed.textContent = `${(data.totalSizeBytes / (1024 * 1024)).toFixed(1)} MB`;
-      if (elBar) elBar.style.width = `${Math.min(100, (data.totalSizeBytes / data.quotaSizeBytes) * 100).toFixed(1)}%`;
+      const usageAvailable = data.storageUsageAvailable === true && typeof data.usedSizeBytes === 'number';
+      const quotaAvailable = typeof data.quotaSizeBytes === 'number' && data.quotaSizeBytes > 0;
+      if (elUsed) {
+        elUsed.textContent = usageAvailable
+          ? `${(data.usedSizeBytes / (1024 * 1024)).toFixed(1)} MB`
+          : (data.storageUsageLabel || 'Storage usage unavailable');
+      }
+      if (elState) {
+        elState.textContent = usageAvailable && quotaAvailable
+          ? `${Math.min(100, (data.usedSizeBytes / data.quotaSizeBytes) * 100).toFixed(1)}%`
+          : 'No quota available';
+      }
+      if (elBar) elBar.style.width = usageAvailable && quotaAvailable ? `${Math.min(100, (data.usedSizeBytes / data.quotaSizeBytes) * 100).toFixed(1)}%` : '0%';
       if (elLabel) elLabel.textContent = truthfulLabel;
 
-      if (elGrid && Array.isArray(data.categories)) {
-        elGrid.innerHTML = data.categories.map((cat) => `
+      const items = Array.isArray(data.items) ? data.items : [];
+      const categories = Array.isArray(data.categories) ? data.categories : Object.values(items.reduce((acc, item) => {
+        const key = item.type || 'FILE';
+        if (!acc[key]) acc[key] = { name: key, itemCount: 0, totalSizeBytes: 0 };
+        acc[key].itemCount += 1;
+        if (typeof item.metadata?.sizeBytes === 'number') acc[key].totalSizeBytes += item.metadata.sizeBytes;
+        return acc;
+      }, {}));
+
+      if (elGrid) {
+        elGrid.innerHTML = categories.length ? categories.map((cat) => `
           <div class="category-card">
             <span class="category-name">${escapeHtml(cat.name)}</span>
             <span class="category-count">${cat.itemCount} items (${(cat.totalSizeBytes / 1024).toFixed(1)} KB)</span>
           </div>
-        `).join('');
+        `).join('') : `<div class="nagex-empty-state">No vault categories yet.</div>`;
+      }
+
+      if (elRecent) {
+        elRecent.innerHTML = `
+          <h4 style="margin-top: 24px; color: var(--navy-head);">Vault Index</h4>
+          ${items.length ? items.map((item) => `
+            <div class="nagex-card" style="padding: 0.75rem; margin-bottom: 0.5rem;">
+              <strong>${escapeHtml(item.title || 'Untitled')}</strong>
+              <div class="card-body-text">${escapeHtml(item.type || 'FILE')} - ${escapeHtml(item.mimeType || 'application/octet-stream')}</div>
+              <div style="display:flex; gap:0.5rem; margin-top:0.5rem; flex-wrap:wrap;">
+                <button type="button" class="btn-secondary" onclick="window.NAGEX.previewVaultItem('${escapeHtml(item.vaultItemId)}')">Preview</button>
+                <button type="button" class="btn-secondary" onclick="window.NAGEX.downloadVaultItem('${escapeHtml(item.vaultItemId)}')">Download</button>
+              </div>
+            </div>
+          `).join('') : `<div class="empty-state-text">No vault items uploaded yet.</div>`}
+        `;
       }
     }
   }
 
   window.NAGEX = window.NAGEX || {};
+  window.NAGEX.previewVaultItem = async (vaultItemId) => {
+    const res = await apiFetch(`/api/v1/workspace/vault/${encodeURIComponent(vaultItemId)}/preview`);
+    if (!res || res.error || typeof res.contentText !== 'string') {
+      window.alert(res?.message || res?.error?.message || 'Preview is unavailable for this Vault item.');
+      return;
+    }
+    window.alert(`${res.title || 'Vault item'}\n\n${res.contentText}`);
+  };
+  window.NAGEX.downloadVaultItem = async (vaultItemId) => {
+    const res = await apiFetch(`/api/v1/workspace/vault/${encodeURIComponent(vaultItemId)}/download`);
+    if (!res || res.error || typeof res.contentText !== 'string') {
+      window.alert(res?.message || res?.error?.message || 'Download content is unavailable for this Vault item.');
+      return;
+    }
+    const blob = new Blob([res.contentText], { type: res.mimeType || 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (res.title || 'vault-item').replace(/[\\/:*?"<>|]+/g, '-');
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
   window.NAGEX.actionCapture = async (captureId, actionType) => {
     await apiFetch(`/api/v1/workspace/capture/${captureId}`, {
       method: 'PATCH',

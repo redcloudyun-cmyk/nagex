@@ -211,7 +211,7 @@ export class DocumentExecutor implements CreationExecutor<CreationRequest, Creat
     if (result.status === 'SUCCESS' && result.creationId) {
       const revisedDoc = this.deps.documentStore.get(result.creationId, params.tenantId, params.ownerId);
       if (revisedDoc) {
-        revisedDoc.parentDocumentId = parent.documentId;
+        revisedDoc.parentDocumentId = parent.parentDocumentId || parent.documentId;
         revisedDoc.revisionIndex = parent.revisionIndex + 1;
         this.deps.documentStore.save(revisedDoc);
       }
