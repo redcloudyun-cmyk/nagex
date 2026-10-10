@@ -22,6 +22,7 @@ import { resolveEnterpriseLogin, linkEnterpriseIdentity } from '../../enterprise
 import { BUILTIN_ROLE_IDS } from '../../rbac/rbac.store.js';
 import type { AuditLogger } from '../../governance/audit.logger.js';
 import { getSessionIdFromHeaders } from '../session-credential.js';
+import { sessionCookieHeader } from '../session-cookie.js';
 
 export interface EnterpriseIdentityRoutesDependencies {
   rbacService: RbacService;
@@ -36,7 +37,7 @@ export interface EnterpriseIdentityRoutesDependencies {
   publicBaseUrl: string; // used to build redirect_uri / ACS URL / SP entityId
 }
 
-const COOKIE_HEADER = (sessionId: string) => ({ 'Set-Cookie': `nagex_session=${encodeURIComponent(sessionId)}; Path=/; HttpOnly; SameSite=Lax` });
+const COOKIE_HEADER = (sessionId: string) => ({ 'Set-Cookie': sessionCookieHeader(sessionId) });
 
 function getAuthenticatedUser(headers: Record<string, string | string[] | undefined>, deps: EnterpriseIdentityRoutesDependencies): { userId: string; email: string } {
   const sessionId = getSessionIdFromHeaders(headers);

@@ -346,7 +346,9 @@ describe('R24.6B/C — the connections compatibility path cannot diverge from th
 
 describe('R24.6B — the "Quick Wake" settings and the desktop runtime status are different things (no shared mutable copy)', () => {
   it('desktop quickwake status exposes runtime window state only, none of the preference keys', async () => {
-    const res = await handleAsyncApiRequest('GET', '/api/v1/desktop/quickwake/status', null, {});
+    process.env.NAGEX_DESKTOP_BRIDGE_TOKEN = 'desktop-test-token';
+    const res = await handleAsyncApiRequest('GET', '/api/v1/desktop/quickwake/status', null, { 'x-nagex-desktop-bridge-token': 'desktop-test-token' });
+    delete process.env.NAGEX_DESKTOP_BRIDGE_TOKEN;
     assert.equal(res.status, 200);
     const keys = Object.keys(res.data as object);
     for (const prefKey of ['floating_button', 'quick_settings_tile', 'lock_screen_shortcut', 'voice_wake', 'double_tap_shortcut', 'fingerprint_button', 'runtime_effect']) {

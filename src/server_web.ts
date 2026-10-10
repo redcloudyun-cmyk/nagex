@@ -19,6 +19,8 @@ import { canonicalizeRequestHeaders, tryGetCallerIdentity } from './http/request
 import { classifyRouteAccess, denyIfUnauthorized } from './http/route-access.js';
 import { attachRawBody } from './http/raw-body.js';
 import { attachResolvedClientIp, parseTrustedProxies, resolveClientIp, UNRESOLVED_CLIENT_IP } from './http/client-ip.js';
+import { requestBodyLimitFor } from './http/body-limit.js';
+import { baseSecurityHeaders } from './http/security-headers.js';
 import type { AuthAbuseGuard } from './identity/auth-abuse-guard.js';
 import { handleNotificationsRoutes } from './http/routes/notifications.routes.js';
 import { handleTasksRoutes, handleTasksRunRoutes } from './http/routes/tasks.routes.js';
@@ -97,6 +99,7 @@ const MUTABLE_FRONTEND_FILES = new Set(['index.html', 'style.css', 'app.js', 'i1
 const VERSIONED_HTML_FILES = new Set(['index.html', 'privacy.html', 'terms.html', 'desktop-quickwake.html']);
 const CLEAN_URL_ALIASES: Record<string, string> = { '/privacy': 'privacy.html', '/terms': 'terms.html', '/quickwake': 'desktop-quickwake.html' };
 const BUILD_VERSION_PLACEHOLDER = '__NAGEX_BUILD_VERSION__';
+const CORS_PUBLIC_ORIGIN = '*';
 
 function createBuildVersion(): string {
   const hash = crypto.createHash('sha256');
@@ -864,7 +867,10 @@ export function createServerInstance(opts?: {
     const pathname = url.pathname;
     const method = (req.method || 'GET').toUpperCase();
 
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    for (const [key, value] of Object.entries(baseSecurityHeaders())) {
+      res.setHeader(key, value);
+    }
+    res.setHeader('Access-Control-Allow-Origin', CORS_PUBLIC_ORIGIN);
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-NAgex-Tenant, X-Principal-Id, X-Request-Id');
 
@@ -887,8 +893,32 @@ export function createServerInstance(opts?: {
     // every request fell through to the static file server and 404'd.
     if (pathname.startsWith('/api/') || pathname.startsWith('/scim/')) {
       const bodyChunks: Buffer[] = [];
-      req.on('data', (chunk) => bodyChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+      const limit = requestBodyLimitFor(pathname);
+      let bodyBytes = 0;
+      let rejectedForSize = false;
+      const rejectOversizedBody = () => {
+        if (rejectedForSize) return;
+        rejectedForSize = true;
+        bodyChunks.length = 0;
+        res.writeHead(413, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: { code: 'REQUEST_BODY_TOO_LARGE', category: 'VALIDATION', message: 'Request body exceeds the configured limit.' } }));
+        req.destroy();
+      };
+      req.on('data', (chunk) => {
+        if (rejectedForSize) return;
+        const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        bodyBytes += buffer.length;
+        if (bodyBytes > limit) {
+          rejectOversizedBody();
+          return;
+        }
+        bodyChunks.push(buffer);
+      });
+      req.on('error', () => {
+        if (!rejectedForSize && !res.headersSent) failRequest(res, new Error('REQUEST_STREAM_ERROR'));
+      });
       req.on('end', () => {
+        if (rejectedForSize) return;
         void (async () => {
         let parsedBody: Record<string, unknown> | null = null;
         const rawBuffer = Buffer.concat(bodyChunks);

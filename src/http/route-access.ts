@@ -27,7 +27,7 @@
 import type { ApiResult } from './http-types.js';
 import { attachDemoIdentity, tryGetCallerIdentity } from './request-identity.js';
 
-export type RouteAccessClass = 'PUBLIC' | 'SELF_AUTHENTICATED' | 'SIGNED_WEBHOOK' | 'ANONYMOUS_PRESERVED';
+export type RouteAccessClass = 'PUBLIC' | 'SELF_AUTHENTICATED' | 'SIGNED_WEBHOOK' | 'LOCAL_DESKTOP_BRIDGE' | 'ANONYMOUS_PRESERVED';
 
 export interface RouteAccessRule {
   methods: readonly string[] | '*';
@@ -77,7 +77,7 @@ export const ROUTE_ACCESS_RULES: readonly RouteAccessRule[] = [
   // ── ANONYMOUS_PRESERVED (S0 UNKNOWN; no legacy-identity dependency; owned by a later phase) ──
   rule(['GET'], /^\/api\/v1\/vcs\/status$/, 'ANONYMOUS_PRESERVED', 'S0-15 information disclosure — later phase'),
   rule(['GET'], /^\/api\/v1\/providers\/status$/, 'ANONYMOUS_PRESERVED', 'S0-15 — later phase (provider names/status only)'),
-  rule('*', /^\/api\/v1\/desktop\/quickwake\//, 'ANONYMOUS_PRESERVED', 'local Electron shell control surface — later phase'),
+  rule('*', /^\/api\/v1\/desktop\/quickwake\//, 'LOCAL_DESKTOP_BRIDGE', 'desktop native control bridge; handler requires a trusted local runtime token'),
   rule(['POST'], /^\/api\/v1\/capture\/link$/, 'ANONYMOUS_PRESERVED', 'S0-05 SSRF — later phase (no model, no tenant data)'),
   rule(['GET'], /^\/api\/v1\/integrations\/(telegram|slack)\/status$/, 'ANONYMOUS_PRESERVED', 'S0-06 — later phase (configured flag only)'),
 

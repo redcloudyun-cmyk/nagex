@@ -3,11 +3,12 @@ import type { IdentityStore } from '../../identity/identity.store.js';
 import type { SocialIdentityStore, SocialProvider } from '../../identity/social-identity.store.js';
 import type { SessionStore } from '../../sessions/session.store.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
+import { sessionCookieHeader } from '../session-cookie.js';
 
 interface Deps { identityStore: IdentityStore; socialIdentityStore: SocialIdentityStore; sessionStore: SessionStore }
 const pendingStates = new Map<string, { provider: SocialProvider; expiresAt: number }>();
 const pendingMigrations = new Map<string, { provider: SocialProvider; subject: string; email: string; userId: string; expiresAt: number; used: boolean }>();
-const COOKIE = (id: string) => ({ 'Set-Cookie': `nagex_session=${encodeURIComponent(id)}; Path=/; HttpOnly; SameSite=Lax` });
+const COOKIE = (id: string) => ({ 'Set-Cookie': sessionCookieHeader(id) });
 
 export function socialAuthProviderConfig(provider: SocialProvider, env: NodeJS.ProcessEnv = process.env): { clientId: string; clientSecret: string; redirectUri: string; authorize: string; token: string; scopes: string[] } | null {
   if (provider === 'google') {

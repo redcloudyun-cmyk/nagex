@@ -127,6 +127,7 @@ if (!alreadyOwnedByThisProcess) {
   process.env.NAGEX_TELEGRAM_DIR = path.join(dataRoot, 'telegram-identities');
   process.env.NAGEX_SLACK_DIR = path.join(dataRoot, 'slack-identities');
   process.env.NAGEX_MEMORIES_DIR = path.join(dataRoot, 'memories');
+  process.env.NAGEX_KNOWLEDGE_DIR = path.join(dataRoot, 'knowledge');
   process.env.NAGEX_PERSONAL_REMINDERS_DIR = path.join(dataRoot, 'personal-reminders');
   process.env.NAGEX_MODULE_STATE_DIR = path.join(dataRoot, 'module-state');
   process.env.NAGEX_WORKFLOW_DEFINITIONS_DIR = path.join(dataRoot, 'workflows');

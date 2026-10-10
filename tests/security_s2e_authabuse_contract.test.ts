@@ -59,12 +59,21 @@ describe('S2E — authentication abuse / client-IP contract', () => {
     assert.deepEqual(tests, ['src/server_web.ts']);
   });
 
-  it('login, reactivate, delete-cancel and signup are throttled BEFORE any password hashing', () => {
+  it('legacy password-auth routes are disabled before any password hashing', () => {
     const auth = stripComments(read('src/http/routes/auth.routes.ts'));
-    const login = auth.slice(auth.indexOf("pathname === '/api/v1/auth/login'"), auth.indexOf("pathname === '/api/v1/auth/logout'"));
-    assert.ok(login.indexOf('guard.check(') > 0 && login.indexOf('guard.check(') < login.indexOf('verifyPassword('));
-    const signup = auth.slice(auth.indexOf("pathname === '/api/v1/auth/signup'"), auth.indexOf("pathname === '/api/v1/auth/verify-email'"));
-    assert.ok(signup.indexOf('guard.check(') > 0 && signup.indexOf('guard.check(') < signup.indexOf('hashPassword('));
+    assert.match(auth, /EMAIL_PASSWORD_AUTH_DISABLED/);
+    assert.match(auth, /PASSWORD_AUTH_DISABLED_RESPONSE/);
+    for (const path of [
+      '/api/v1/auth/signup',
+      '/api/v1/auth/verify-email',
+      '/api/v1/auth/resend-verification',
+      '/api/v1/auth/login',
+      '/api/v1/auth/forgot-password',
+      '/api/v1/auth/reset-password',
+    ]) {
+      assert.match(auth, new RegExp(path.replace(/\//g, '\\/')));
+    }
+    assert.equal(/verifyPassword\(|hashPassword\(|guard\.check\(|throttleSubject\(/.test(auth), false, 'closed password routes have no brute-force/hash path');
     const account = stripComments(read('src/http/routes/account.routes.ts'));
     for (const route of ["pathname === '/api/v1/account/reactivate'", "pathname === '/api/v1/account/delete/cancel'"]) {
       const start = account.indexOf(route);
@@ -76,10 +85,11 @@ describe('S2E — authentication abuse / client-IP contract', () => {
     }
   });
 
-  it('forgot-password and resend-verification use the same guard and keep their indistinguishable acknowledgement', () => {
+  it('forgot-password and resend-verification are part of the disabled password policy', () => {
     const auth = stripComments(read('src/http/routes/auth.routes.ts'));
-    assert.match(auth, /throttleSubject\('resend', headers, email\)/);
-    assert.match(auth, /throttleSubject\('forgot', headers, email\)/);
+    assert.match(auth, /'\/api\/v1\/auth\/forgot-password'/);
+    assert.match(auth, /'\/api\/v1\/auth\/resend-verification'/);
+    assert.match(auth, /EMAIL_PASSWORD_AUTH_DISABLED/);
     assert.equal(/IdentityRateLimiter|rateLimiter\./.test(auth), false, 'the single-key limiter is gone');
     assert.equal(fs.existsSync('src/identity/identity.rate-limiter.ts'), false);
   });

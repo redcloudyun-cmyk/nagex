@@ -125,21 +125,24 @@ test('DesktopRuntimeEngine native desktop notification dispatch via Notification
 });
 
 test('Desktop Quick Wake API endpoints (status, toggle, tray action)', async () => {
+  process.env.NAGEX_DESKTOP_BRIDGE_TOKEN = 'desktop-test-token';
+  const bridge = { 'x-nagex-desktop-bridge-token': 'desktop-test-token' };
   // GET status
-  const statusRes = await handleAsyncApiRequest('GET', '/api/v1/desktop/quickwake/status', null, {});
+  const statusRes = await handleAsyncApiRequest('GET', '/api/v1/desktop/quickwake/status', null, bridge);
   assert.equal(statusRes.status, 200);
   assert.equal((statusRes.data as any).hotkey, 'Alt+N');
   assert.ok((statusRes.data as any).windowState);
 
   // POST toggle
-  const toggleRes = await handleAsyncApiRequest('POST', '/api/v1/desktop/quickwake/toggle', {}, {});
+  const toggleRes = await handleAsyncApiRequest('POST', '/api/v1/desktop/quickwake/toggle', {}, bridge);
   assert.equal(toggleRes.status, 200);
   assert.equal((toggleRes.data as any).windowState.visible, true);
 
   // POST tray action
-  const trayRes = await handleAsyncApiRequest('POST', '/api/v1/desktop/quickwake/tray/action', { action: 'PAUSE_AUTOMATIONS' }, {});
+  const trayRes = await handleAsyncApiRequest('POST', '/api/v1/desktop/quickwake/tray/action', { action: 'PAUSE_AUTOMATIONS' }, bridge);
   assert.equal(trayRes.status, 200);
   assert.equal((trayRes.data as any).action, 'PAUSE_AUTOMATIONS');
+  delete process.env.NAGEX_DESKTOP_BRIDGE_TOKEN;
 });
 
 test('Same Main Session verification (sess_main_001 & usr_admin_001 principal)', async () => {

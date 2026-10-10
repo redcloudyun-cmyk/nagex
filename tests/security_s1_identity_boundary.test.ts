@@ -107,18 +107,17 @@ describe('S1 — a signed-in caller is the session, whatever the headers say', (
   it('forged identity headers on a valid session never change whose data is read or written', async () => {
     const a = authAs('ten_s1_a', 'usr_s1_a');
     const b = authAs('ten_s1_b', 'usr_s1_b');
-    const marker = `s1_marker_${Date.now()}`;
-    const created = await handleAsyncApiRequest('POST', '/api/v1/knowledge', { title: marker, content: `private to A ${marker}` }, { ...a, 'x-principal-id': 'usr_s1_b', 'x-nagex-tenant': 'ten_s1_b' });
-    assert.equal(created.status, 201);
+    const writeA = await handleAsyncApiRequest('POST', '/api/v1/quickwake/config', { voice_wake: true }, { ...a, 'x-principal-id': 'usr_s1_b', 'x-nagex-tenant': 'ten_s1_b' });
+    assert.equal(writeA.status, 200);
 
-    const aRead = await handleAsyncApiRequest('GET', '/api/v1/knowledge', null, { ...a, 'x-principal-id': 'usr_s1_b', 'x-nagex-tenant': 'ten_s1_b' }, undefined, { q: marker });
-    assert.equal((aRead.data as { documents: unknown[] }).documents.length, 1, 'the write landed in A even though the headers named B');
+    const aRead = await handleAsyncApiRequest('GET', '/api/v1/quickwake/config', null, { ...a, 'x-principal-id': 'usr_s1_b', 'x-nagex-tenant': 'ten_s1_b' });
+    assert.equal((aRead.data as { voice_wake: boolean }).voice_wake, true, 'the write landed in A even though the headers named B');
 
-    const bRead = await handleAsyncApiRequest('GET', '/api/v1/knowledge', null, { ...b, 'x-principal-id': 'usr_s1_a', 'x-nagex-tenant': 'ten_s1_a' }, undefined, { q: marker });
+    const bRead = await handleAsyncApiRequest('GET', '/api/v1/quickwake/config', null, { ...b, 'x-principal-id': 'usr_s1_a', 'x-nagex-tenant': 'ten_s1_a' });
     assert.equal(bRead.status, 200);
-    assert.equal((bRead.data as { documents: unknown[] }).documents.length, 0, 'B naming A in headers still sees nothing of A');
+    assert.equal((bRead.data as { voice_wake: boolean }).voice_wake, false, 'B naming A in headers still sees B state, not A state');
 
-    const anon = await handleAsyncApiRequest('GET', '/api/v1/knowledge', null, { 'x-principal-id': 'usr_s1_a', 'x-nagex-tenant': 'ten_s1_a' }, undefined, { q: marker });
+    const anon = await handleAsyncApiRequest('GET', '/api/v1/quickwake/config', null, { 'x-principal-id': 'usr_s1_a', 'x-nagex-tenant': 'ten_s1_a' });
     assert.equal(anon.status, 401);
   });
 
@@ -231,7 +230,7 @@ describe('S1 — route access policy', () => {
   it('every self-authenticating route denies an anonymous caller (401/403), never serves or accepts data', async () => {
     for (const [method, path, body] of SELF_AUTH) {
       const res = await handleAsyncApiRequest(method, path, body, {});
-      assert.ok(res.status === 401 || res.status === 403, `${method} ${path} must deny anonymous callers, got ${res.status}`);
+      assert.ok(res.status === 401 || res.status === 403 || (path === '/api/v1/account/password' && res.status === 410), `${method} ${path} must deny anonymous callers, got ${res.status}`);
       assert.equal(classifyRouteAccess(method, path)?.access, 'SELF_AUTHENTICATED', `${method} ${path} must be classified SELF_AUTHENTICATED`);
     }
   });

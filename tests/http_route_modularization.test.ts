@@ -667,9 +667,11 @@ test('56. GET /api/v1/integrations/telegram/status and GET /api/v1/integrations/
 });
 
 test('57. GET /api/v1/desktop/quickwake/status through the real handleAsyncApiRequest entry point still works after modularization', async () => {
-  const result = await handleAsyncApiRequest('GET', '/api/v1/desktop/quickwake/status', null, {});
+  process.env.NAGEX_DESKTOP_BRIDGE_TOKEN = 'desktop-test-token';
+  const result = await handleAsyncApiRequest('GET', '/api/v1/desktop/quickwake/status', null, { 'x-nagex-desktop-bridge-token': 'desktop-test-token' });
   assert.equal(result.status, 200);
   assert.equal(typeof (result.data as { isRunning: boolean }).isRunning, 'boolean');
+  delete process.env.NAGEX_DESKTOP_BRIDGE_TOKEN;
 });
 
 test('58. GET /api/v1/billing/usage and GET /api/v1/executions through the real handleApiRequest entry point still work after modularization', () => {

@@ -7,6 +7,7 @@ import type { SessionStore } from '../../sessions/session.store.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
 import { getSessionIdFromHeaders } from '../session-credential.js';
 import { clientIpOf } from '../client-ip.js';
+import { clearSessionCookieHeader } from '../session-cookie.js';
 
 export interface AuthRoutesDependencies {
   identityStore: IdentityStore;
@@ -19,7 +20,7 @@ export interface AuthRoutesDependencies {
 
 export { getSessionIdFromHeaders } from '../session-credential.js';
 
-const CLEAR_COOKIE_HEADER = { 'Set-Cookie': `nagex_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0` };
+const CLEAR_COOKIE_HEADER = () => ({ 'Set-Cookie': clearSessionCookieHeader() });
 const PASSWORD_AUTH_DISABLED_RESPONSE: ApiResult = {
   status: 410,
   data: {
@@ -68,7 +69,7 @@ export const handleAuthRoutes: AsyncRouteRegistrar<AuthRoutesDependencies> = asy
     }
     return {
       status: 200,
-      headers: CLEAR_COOKIE_HEADER,
+      headers: CLEAR_COOKIE_HEADER(),
       data: { message: 'Logged out successfully.' },
     };
   }
@@ -87,7 +88,7 @@ export const handleAuthRoutes: AsyncRouteRegistrar<AuthRoutesDependencies> = asy
     deps.identityAuditStore.recordEvent(session.principalId, 'logout.all', 'SUCCESS', { sessionId, ip: clientIp, userAgent });
     return {
       status: 200,
-      headers: CLEAR_COOKIE_HEADER,
+      headers: CLEAR_COOKIE_HEADER(),
       data: { message: 'All sessions revoked.' },
     };
   }
