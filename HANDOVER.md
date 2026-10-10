@@ -19,7 +19,7 @@ NAgex (**Next-generation Agent Experience / Next Age**) is a Personal AI / Agent
 **Governing Rules & Reading Order:**
 1. Read `MASTER.md` (Level 0 product contract).
 2. Read `AGENTS.md` (Developer operating rules).
-3. Read `docs/INDEX.md` and relevant domain docs under `docs/`.
+3. Read `docs/NAGEX_PROJECT_INDEX.md` and relevant domain docs under `docs/`.
 4. Inspect domain tests before modifying implementation.
 
 ---

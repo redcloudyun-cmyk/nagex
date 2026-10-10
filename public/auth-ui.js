@@ -53,6 +53,8 @@
 
   function applyAccountLocale() {
     if (!currentUserState.authenticated || !window.NAGEX_I18N) return;
+    const cachedLocale = canonicalLocale(localStorage.getItem('nagex_locale'));
+    if (cachedLocale) return;
     const accountLocale = canonicalLocale(currentUserState.profile && currentUserState.profile.locale);
     if (accountLocale && accountLocale !== window.NAGEX_I18N.getLocale()) window.NAGEX_I18N.setLocale(accountLocale);
   }

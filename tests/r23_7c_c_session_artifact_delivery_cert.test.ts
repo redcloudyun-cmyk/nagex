@@ -59,9 +59,6 @@ enableDevAuthTokensForFile();
 declare const document: any;
 
 const DEPLOYED_URL = process.env.NAGEX_DEPLOYED_URL;
-if (!DEPLOYED_URL) {
-  throw new Error('NAGEX_DEPLOYED_URL_REQUIRED');
-}
 // Server-side setup only (signup/verify-email) — never the source of
 // browser certification evidence. Defaults to NAGEX_DEPLOYED_URL so a
 // single-origin deployment (the prior behavior) is unaffected.
@@ -87,7 +84,7 @@ function watchForGenerationPosts(page: Page, onHit: () => void): void {
   });
 }
 
-test('R23.7C-C session-bound artifact delivery certification (non-paid)', { timeout: 180000 }, async () => {
+test('R23.7C-C session-bound artifact delivery certification (non-paid)', { timeout: 180000, skip: DEPLOYED_URL ? false : 'NAGEX_DEPLOYED_URL_REQUIRED' }, async () => {
   const cert: Record<string, any> = {
     timestamp: new Date().toISOString(),
     deployedUrl: DEPLOYED_URL,

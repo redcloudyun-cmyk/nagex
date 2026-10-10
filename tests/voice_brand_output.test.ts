@@ -1,9 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import os from 'node:os';
+import path from 'node:path';
 import { PronunciationLexicon } from '../src/voice-output/pronunciation-lexicon.js';
 import { SpeechNormalizer } from '../src/voice-output/speech-normalizer.js';
 import { SpokenResponseComposer } from '../src/voice-output/spoken-response-composer.js';
 import { BRAND_VOICE_LIVE_SAMPLES } from '../src/voice-output/brand-voice-live-samples.js';
+import { CORAL_GOLDEN_TAKE, GPT4O_MINI_TTS_PRESET_SEARCH, NAGEX_CANONICAL_BRAND_VOICE } from '../src/voice-output/brand-voice-profile.js';
+import { BrandVoiceAssetRegistry } from '../src/voice-output/brand-voice-assets.js';
+import { BrandVoiceResolver } from '../src/voice-output/brand-voice-resolver.js';
+import { DYNAMIC_BRAND_VOICE_BENCHMARK_CONTRACT } from '../src/voice-output/dynamic-voice-provider-benchmark.js';
 import { OpenAiNeuralVoiceProvider } from '../src/voice-output/openai-neural-voice-provider.js';
 import { NativeOsVoiceProvider, UnavailableVoiceProvider, VoiceOutputResolver } from '../src/voice-output/voice-output-provider.js';
 
@@ -14,6 +20,99 @@ test('NAgex brand pronunciation is centralized and canonical', () => {
   assert.equal(lexicon.lookup('Calendar')?.spoken, '\uCE98\uB9B0\uB354');
   assert.equal(lexicon.lookup('KORAIL')?.spoken, '\uCF54\uB808\uC77C');
   assert.equal(lexicon.lookup('Outlook')?.spoken, '\uC544\uC6C3\uB8E9');
+});
+
+test('NAgex Natural separates fixed golden take from unresolved dynamic voice', () => {
+  assert.equal(NAGEX_CANONICAL_BRAND_VOICE.displayName, 'NAgex Natural');
+  assert.equal(NAGEX_CANONICAL_BRAND_VOICE.model, 'gpt-4o-mini-tts');
+  assert.equal(NAGEX_CANONICAL_BRAND_VOICE.providerVoice, null);
+  assert.equal(NAGEX_CANONICAL_BRAND_VOICE.baseSpeakingRate, 1.0);
+  assert.equal(NAGEX_CANONICAL_BRAND_VOICE.outputFormat, 'AUDIO_MPEG');
+  assert.match(NAGEX_CANONICAL_BRAND_VOICE.baseStyle, /consistent speaker identity/);
+  assert.equal(NAGEX_CANONICAL_BRAND_VOICE.dynamicBrandVoiceStatus, 'UNRESOLVED');
+  assert.equal(NAGEX_CANONICAL_BRAND_VOICE.commercialDynamicVoiceReady, false);
+  assert.equal(CORAL_GOLDEN_TAKE.referenceVoice, true);
+  assert.equal(CORAL_GOLDEN_TAKE.fixedAssetCandidate, true);
+  assert.equal(CORAL_GOLDEN_TAKE.dynamicCanonicalVoice, false);
+  assert.equal(CORAL_GOLDEN_TAKE.providerVoice, 'coral');
+  assert.equal(GPT4O_MINI_TTS_PRESET_SEARCH.status, 'PAUSED');
+});
+
+test('brand voice asset registry resolves only canonical fixed phrases', () => {
+  const registry = new BrandVoiceAssetRegistry();
+  const greeting = registry.get('GREETING');
+  assert.equal(greeting?.sourceTakeId, 'CORAL_GOLDEN_TAKE');
+  assert.equal(registry.findBySpokenText('안녕하세요. 네이젝스입니다. 필요한 일을 말씀해 주세요.')?.id, 'GREETING');
+  assert.equal(registry.findBySpokenText('내일 저녁 7시에 네 명으로 예약할 수 있어요.'), null);
+});
+
+test('brand voice resolver routes fixed assets separately from dynamic speech', () => {
+  const composer = new SpokenResponseComposer();
+  const resolver = new BrandVoiceResolver();
+  const fixed = resolver.resolve(composer.compose({
+    visualText: 'NAgex greeting',
+    spokenDraft: '안녕하세요. NAgex입니다. 필요한 일을 말씀해 주세요.',
+    locale: 'ko-KR',
+    tone: 'ACKNOWLEDGEMENT',
+    allowCloudTts: true,
+  }));
+  assert.equal(fixed.kind, 'FIXED_ASSET');
+
+  const dynamic = resolver.resolve(composer.compose({
+    visualText: 'Reservation',
+    spokenDraft: '내일 저녁 7시에 네 명으로 예약할 수 있어요.',
+    locale: 'ko-KR',
+    tone: 'INFORMATION',
+    allowCloudTts: true,
+  }));
+  assert.equal(dynamic.kind, 'DYNAMIC_PROVIDER');
+});
+
+test('dynamic provider benchmark is consistency-first and stops on reject', () => {
+  assert.equal(DYNAMIC_BRAND_VOICE_BENCHMARK_CONTRACT.sameTextRepeatCount, 5);
+  assert.equal(DYNAMIC_BRAND_VOICE_BENCHMARK_CONTRACT.rejectStopsSemanticTesting, true);
+  assert.equal(DYNAMIC_BRAND_VOICE_BENCHMARK_CONTRACT.semanticTestRequiresConsistencyPass, true);
+});
+
+test('NAgex Natural provider-facing identity parameters do not drift by sample tone', async () => {
+  const requests: unknown[] = [];
+  const provider = new OpenAiNeuralVoiceProvider({
+    apiKey: 'test-key',
+    endpoint: 'https://tts.example.test/audio',
+    outputDir: path.join(os.tmpdir(), 'nagex-voice-quality-test'),
+  });
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (_url, init) => {
+    requests.push(JSON.parse(String(init?.body)));
+    return new Response(new Uint8Array([1, 2, 3]), { status: 200 });
+  }) as typeof fetch;
+
+  try {
+    for (const sample of BRAND_VOICE_LIVE_SAMPLES) {
+      await provider.synthesize({
+        text: sample.spokenDraft,
+        language: 'ko-KR',
+        voiceProfile: 'NAGEX_NATURAL',
+        prosody: { tone: sample.tone, speakingRate: sample.tone === 'WARNING' ? 'SLOW_CLEAR' : 'BRISK', pitch: 'LOW_MID', pauseMs: 120, emphasis: [] },
+        pronunciationHints: {},
+        outputFormat: 'AUDIO_MPEG',
+      });
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  const uniqueIdentityPayloads = new Set(requests.map((request) => {
+    const payload = request as { model: string; voice: string; instructions: string; speed: number; response_format: string };
+    return JSON.stringify({
+      model: payload.model,
+      voice: payload.voice,
+      instructions: payload.instructions,
+      speed: payload.speed,
+      response_format: payload.response_format,
+    });
+  }));
+  assert.equal(uniqueIdentityPayloads.size, 1);
 });
 
 test('speech normalizer handles Korean dates times currency and provider names', () => {

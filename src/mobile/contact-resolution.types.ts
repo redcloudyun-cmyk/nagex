@@ -29,6 +29,9 @@ export interface ContactResolutionResult {
   // recipientRef is minted — see contact-resolver.service.ts.
   recipientRef?: string;
   displayName?: string;
+  matchKind?: 'EXACT' | 'STRONG_SIMILARITY';
+  similarity?: number;
+  confirmationRequired?: boolean;
   // Present only when status === 'AMBIGUOUS' — the matching candidates,
   // for the caller to present as a clarification choice. Never includes a
   // recipientRef per candidate; one is only minted once the user picks.

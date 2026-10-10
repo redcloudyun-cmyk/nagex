@@ -13,9 +13,11 @@ import { DeviceConnectionStatusStore } from './device-connection-status.store.js
 import { DesktopExecutionSessionStore, type DesktopExecutionMode } from './desktop-execution-session.store.js';
 import { isDeviceAgentCommandPayload, type DeviceAgentCommandPayload } from './device-agent-protocol.js';
 import { DevicePendingCommandStore } from './device-pending-command.store.js';
+import { DeviceCommandStatusStore } from './device-command-status.store.js';
 import type { MobileMessageRunService } from '../mobile/mobile-message-run.service.js';
 import type { MobileMessageSendResult } from '../mobile/mobile-message.types.js';
 import type { MessagingHandoffService } from '../messaging/messaging-handoff.service.js';
+import type { ActivityStore } from '../governance/activity.store.js';
 
 const VALID_SEND_RESULTS: ReadonlySet<string> = new Set<MobileMessageSendResult>(['SENT_CONFIRMED', 'SEND_FAILED', 'SEND_STATUS_UNKNOWN']);
 
@@ -46,6 +48,8 @@ export class DeviceAgentTransportEndpoint {
     // a clear configuration error rather than a silent no-op.
     private readonly mobileMessages?: MobileMessageRunService,
     private readonly messagingHandoffs?: MessagingHandoffService,
+    private readonly commandStatuses: DeviceCommandStatusStore = new DeviceCommandStatusStore(),
+    private readonly activityStore?: ActivityStore,
   ) {}
 
   public handle(message: DeviceAgentMessage, requestId: string): DeviceAgentResponse {
@@ -81,6 +85,10 @@ export class DeviceAgentTransportEndpoint {
         // device-agent-protocol.ts's own header comment for why this
         // stands in for real blocking long-poll in this slice.
         const pendingCommand = this.pendingCommands.dequeueNext(device.deviceId, device.tenantId, device.ownerId);
+        if (pendingCommand) {
+          const executionId = typeof pendingCommand.data.executionId === 'string' ? pendingCommand.data.executionId : null;
+          this.commandStatuses.markDelivered(pendingCommand.commandId, device.tenantId, device.ownerId, device.deviceId, executionId);
+        }
         return { status: 'OK', commandType: 'HEARTBEAT', result: { acknowledged: true, pendingCommand } };
       }
 
@@ -152,7 +160,34 @@ export class DeviceAgentTransportEndpoint {
       }
 
       case 'ACK': {
+        const commandId = typeof payload.data.commandId === 'string' ? payload.data.commandId : '';
+        if (commandId) {
+          const stage = typeof payload.data.stage === 'string' ? payload.data.stage : 'CLAIMED';
+          const normalizedStage = stage === 'WAITING_FOR_PRECONDITION' || stage === 'EXECUTING' || stage === 'COMPLETED' || stage === 'FAILED' ? stage : 'CLAIMED';
+          const resultCode = typeof payload.data.resultCode === 'string' ? payload.data.resultCode : null;
+          this.commandStatuses.report(commandId, device.tenantId, device.ownerId, device.deviceId, normalizedStage, resultCode);
+          if (normalizedStage === 'COMPLETED' && resultCode === 'SENT_VERIFIED' && this.activityStore) {
+            const target = typeof payload.data.target === 'string' && payload.data.target.trim() ? payload.data.target.trim() : 'KakaoTalk';
+            this.activityStore.record({
+              tenantId: device.tenantId,
+              principalId: device.ownerId,
+              type: 'kakaotalk.message.sent',
+              title: 'Sent KakaoTalk message',
+              description: `${target} · Completed`,
+              status: 'COMPLETED',
+              source: {
+                approvalId: typeof payload.data.approvalId === 'string' ? payload.data.approvalId : undefined,
+                executionId: typeof payload.data.executionId === 'string' ? payload.data.executionId : undefined,
+              },
+              dedupeKey: `device-command:${commandId}:SENT_VERIFIED`,
+            });
+          }
+        }
         return { status: 'OK', commandType: 'ACK', result: { acknowledged: true } };
+      }
+
+      case 'ACCESSIBILITY_EXECUTE_PLAN': {
+        return { status: 'OK', commandType: 'ACCESSIBILITY_EXECUTE_PLAN', result: { acknowledged: true } };
       }
 
       case 'MOBILE_MESSAGE_PREPARE': {

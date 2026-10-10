@@ -1,17 +1,3 @@
-// R23.6M Phase B3 — server-side contact resolution.
-//
-// The Android app is untrusted-content-adjacent here in one specific
-// sense: it has already filtered its own address book down to candidates
-// it THINKS are relevant, but that filtering happens on a device the
-// server does not control. The server never simply trusts "there's only
-// one candidate in the list, so it must be right" — it independently
-// re-checks every candidate's displayName against the spoken name before
-// treating a single remaining match as unique. A spoken name, an LLM's
-// guess at a name, or arbitrary app/page text can therefore never become a
-// recipientRef by itself — only a candidate that both (a) the device
-// proposed and (b) the server's own match check confirms, and even then
-// only through RecipientRefStore.mintOrReuse(), the one and only place a
-// recipientRef is ever created.
 import { NagexError } from '../common/errors.js';
 import type { RecipientRefStore } from './recipient-ref.store.js';
 import type { ContactResolutionResult, MobileContactCandidateInput } from './contact-resolution.types.js';
@@ -20,17 +6,37 @@ function normalizeName(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, '');
 }
 
-// Deliberately simple and deterministic — no fuzzy/model-based matching.
-// A spoken name matches a candidate's display name if, after
-// case/whitespace normalization, one contains the other. This tolerates
-// "김대진" matching "김대진 대표" (title suffix) or "Alex" matching "Alex Kim"
-// without inventing similarity scoring that could paper over a genuinely
-// wrong match.
-function matchesSpokenName(spokenName: string, displayName: string): boolean {
+function exactNameMatch(spokenName: string, displayName: string): boolean {
   const a = normalizeName(spokenName);
   const b = normalizeName(displayName);
   if (!a || !b) return false;
   return a === b || b.includes(a) || a.includes(b);
+}
+
+function levenshtein(a: string, b: string): number {
+  if (a === b) return 0;
+  if (!a) return b.length;
+  if (!b) return a.length;
+  const costs = Array.from({ length: b.length + 1 }, (_v, i) => i);
+  for (let i = 0; i < a.length; i += 1) {
+    let last = i;
+    costs[0] = i + 1;
+    for (let j = 0; j < b.length; j += 1) {
+      const old = costs[j + 1] ?? 0;
+      costs[j + 1] = Math.min((costs[j + 1] ?? 0) + 1, (costs[j] ?? 0) + 1, last + (a[i] === b[j] ? 0 : 1));
+      last = old;
+    }
+  }
+  return costs[b.length] ?? 0;
+}
+
+function nameSimilarity(spokenName: string, displayName: string): number {
+  const a = normalizeName(spokenName);
+  const b = normalizeName(displayName);
+  if (!a || !b) return 0;
+  const comparable = b.length > a.length ? b.slice(0, a.length) : b;
+  const distance = levenshtein(a, comparable);
+  return 1 - distance / Math.max(a.length, comparable.length, 1);
 }
 
 export class ContactResolver {
@@ -49,27 +55,31 @@ export class ContactResolver {
       throw new NagexError({ code: 'MOBILE_CONTACT_SPOKEN_NAME_REQUIRED', category: 'VALIDATION', message: 'spokenName is required.', request_id: input.requestId });
     }
 
-    // The server independently re-filters — never trusts the device's own
-    // candidate list at face value, however short it is.
-    const matched = input.candidates.filter((c) => matchesSpokenName(spokenName, c.displayName));
+    const exact = input.candidates.filter((candidate) => exactNameMatch(spokenName, candidate.displayName));
+    const scored = input.candidates
+      .map((candidate) => ({ candidate, similarity: nameSimilarity(spokenName, candidate.displayName) }))
+      .filter((entry) => entry.similarity >= 0.66)
+      .sort((a, b) => b.similarity - a.similarity);
 
-    if (matched.length === 0) {
-      // Fail closed: no candidate, or no candidate that actually matches
-      // the spoken name, is NOT_FOUND — never a best-effort guess at the
-      // "closest" candidate.
-      return { status: 'NOT_FOUND' };
-    }
+    const matched = exact.length > 0 ? exact : scored.map((entry) => entry.candidate);
+    if (matched.length === 0) return { status: 'NOT_FOUND' };
 
     if (matched.length > 1) {
-      // Deduplicate identical (contactId) entries the device may have sent
-      // twice, but a genuine multiple-distinct-contact match is ambiguous.
-      const distinctContactIds = new Set(matched.map((c) => c.contactId));
+      const distinctContactIds = new Set(matched.map((candidate) => candidate.contactId));
       if (distinctContactIds.size > 1) {
         return { status: 'AMBIGUOUS', candidates: matched };
       }
     }
 
     const unique = matched[0];
+    const similarity = exact.length > 0 ? 1 : (scored.find((entry) => entry.candidate.contactId === unique.contactId)?.similarity ?? 0);
+    if (exact.length === 0) {
+      const runnerUp = scored[1]?.similarity ?? 0;
+      if (similarity < 0.66 || similarity - runnerUp < 0.15) {
+        return { status: scored.length > 1 ? 'AMBIGUOUS' : 'NOT_FOUND', candidates: scored.map((entry) => entry.candidate) };
+      }
+    }
+
     const record = this.recipientRefs.mintOrReuse({
       tenantId: input.tenantId,
       ownerId: input.ownerId,
@@ -78,6 +88,13 @@ export class ContactResolver {
       displayName: unique.displayName,
     });
 
-    return { status: 'UNIQUE', recipientRef: record.recipientRef, displayName: record.displayName };
+    return {
+      status: 'UNIQUE',
+      recipientRef: record.recipientRef,
+      displayName: record.displayName,
+      matchKind: exact.length > 0 ? 'EXACT' : 'STRONG_SIMILARITY',
+      similarity,
+      confirmationRequired: exact.length === 0,
+    };
   }
 }

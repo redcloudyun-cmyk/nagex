@@ -84,6 +84,23 @@
       "assertionIntent": "observable behavior",
       "notes": "Observable deterministic product/service contract."
     },
+    "adaptive_ui_perception": {
+      "milestone": "ADAPTIVE-PERCEPTION-FIRST-EXECUTION-CORE",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "device",
+        "mobile",
+        "runtime",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Perception-first execution core builds a semantic UI snapshot from display context, accessibility semantics, vision evidence, and previous action state; layout/posture changes invalidate stale bounds, ambiguous or uncertain tree state triggers vision, low-risk navigation can recover adaptively, and high-risk send remains blocked without deterministic target/payload/approval/route/replay validation.",
+      "notes": "Pure deterministic unit coverage for the platform-neutral adaptive perception contract. No live device action, no browser, no screenshot bytes, and no consequential external mutation."
+    },
     "ambient_composer": {
       "milestone": "Cross-cutting",
       "classification": "IMPLEMENTATION_COUPLED",
@@ -333,6 +350,24 @@
       "deterministic": true,
       "assertionIntent": "observable behavior",
       "notes": "Observable deterministic product/service contract."
+    },
+    "auth_google_microsoft_only": {
+      "milestone": "Cross-cutting",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "identity-access",
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "email/password end-user auth routes and password credential mutation fail closed while OAuth provider availability remains the login authority",
+      "notes": "Covers the Google/Microsoft-only auth policy: local signup/login/verify/resend/forgot/reset/password change are unavailable, session inspection remains valid, and the provider-first UI no longer renders email/password controls."
     },
     "audit_tenant_isolation": {
       "milestone": "Cross-cutting",
@@ -697,6 +732,24 @@
       "deterministic": true,
       "assertionIntent": "implementation snapshot",
       "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "control_center_admin_security": {
+      "milestone": "NAGEX-CONTROL-CENTER-ADMIN-SECURITY",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "identity-access",
+        "runtime",
+        "security",
+        "test-harness",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "Control Center admin APIs remain fail-closed, Cloudflare Access identity is accepted only after server-side JWT verification, exact email allowlist maps the initial super admin, signed admin sessions are isolated from normal user sessions, spoofed identity headers do not grant access, and the frontend derives authority only from the server session endpoint.",
+      "notes": "Source-level security regression for the public Control Center Access-to-admin-session bridge. Public Google login remains a separate live E2E certification."
     },
     "capability_broker": {
       "milestone": "Cross-cutting",
@@ -1597,6 +1650,25 @@
       "deterministic": true,
       "assertionIntent": "implementation snapshot",
       "notes": "Reads production source/markup and asserts implementation shape; underlying intent requires conversion review."
+    },
+    "home_ux_principle": {
+      "milestone": "HOME-UX-PRINCIPLE",
+      "classification": "IMPLEMENTATION_COUPLED",
+      "canonical": false,
+      "scopes": [
+        "approvals",
+        "mobile",
+        "personal-home",
+        "runtime",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "Home keeps intent as the primary interface, moves action lifecycle into one user-facing right-rail card model, and keeps orchestration internals out of normal Activity/Home surfaces.",
+      "notes": "Source contract for normal-user Home UX principle; Developer/Audit surfaces may still expose technical evidence."
     },
     "http_route_modularization": {
       "milestone": "Cross-cutting",
@@ -3810,7 +3882,12 @@
       "milestone": "R23.6M-D1",
       "classification": "CANONICAL_BEHAVIOR",
       "canonical": true,
-      "scopes": ["agents", "approvals", "device", "security"],
+      "scopes": [
+        "agents",
+        "approvals",
+        "device",
+        "security"
+      ],
       "externalDependencies": [],
       "realBrowser": false,
       "sourceImplementationAssertions": true,
@@ -3818,11 +3895,33 @@
       "assertionIntent": "the global messaging registry/resolver/adapter boundary is on the production path, registers only SMS, rejects explicit unimplemented or unknown channels without fallback, and preserves the certified SMS run and approval contracts",
       "notes": "D1 abstraction certification. Runtime tests exercise the real SMS adapter and resolver; narrow structural assertions freeze production composition and the unchanged Phase C executable contract."
     },
+    "r23_6m_m4c_r2f_conversation_target": {
+      "milestone": "R23.6M-M4C-R2F",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "agents",
+        "approvals",
+        "device",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "KakaoTalk conversation targets use server-owned opaque cvr_* references, are tenant/owner/device scoped, bind direct conversations to recipientRef without letting non-direct targets inherit it, keep UNKNOWN non-executable, and require re-resolution on provider-visible identity drift while preserving Android Accessibility send/action guardrails.",
+      "notes": "R2F introduces ConversationTargetStore independently from the existing SMS MobileMessageRun contract. identityFingerprint is a NAgex binding fingerprint over normalized evidence, not a native Kakao conversation id."
+    },
     "r23_6m_phase_d2b_kakaotalk_handoff": {
       "milestone": "R23.6M-D2B",
       "classification": "CANONICAL_BEHAVIOR",
       "canonical": true,
-      "scopes": ["agents", "approvals", "device", "security"],
+      "scopes": [
+        "agents",
+        "approvals",
+        "device",
+        "security"
+      ],
       "externalDependencies": [],
       "realBrowser": false,
       "sourceImplementationAssertions": true,
@@ -3834,7 +3933,12 @@
       "milestone": "R23.6M-D3S",
       "classification": "CANONICAL_BEHAVIOR",
       "canonical": true,
-      "scopes": ["agents", "approvals", "device", "security"],
+      "scopes": [
+        "agents",
+        "approvals",
+        "device",
+        "security"
+      ],
       "externalDependencies": [],
       "realBrowser": false,
       "sourceImplementationAssertions": true,
@@ -3846,7 +3950,12 @@
       "milestone": "R23.6M-D4B",
       "classification": "CANONICAL_BEHAVIOR",
       "canonical": true,
-      "scopes": ["agents", "approvals", "google", "security"],
+      "scopes": [
+        "agents",
+        "approvals",
+        "google",
+        "security"
+      ],
       "externalDependencies": [],
       "realBrowser": false,
       "sourceImplementationAssertions": false,
@@ -3858,7 +3967,11 @@
       "milestone": "R23.7H-B1",
       "classification": "CANONICAL_BEHAVIOR",
       "canonical": true,
-      "scopes": ["browser", "personal-home", "mobile"],
+      "scopes": [
+        "browser",
+        "personal-home",
+        "mobile"
+      ],
       "externalDependencies": [],
       "realBrowser": true,
       "sourceImplementationAssertions": false,
@@ -3870,7 +3983,11 @@
       "milestone": "R23.7H-B2",
       "classification": "CANONICAL_BEHAVIOR",
       "canonical": true,
-      "scopes": ["browser", "personal-home", "mobile"],
+      "scopes": [
+        "browser",
+        "personal-home",
+        "mobile"
+      ],
       "externalDependencies": [],
       "realBrowser": true,
       "sourceImplementationAssertions": false,
@@ -3882,7 +3999,13 @@
       "milestone": "R23.7C-B",
       "classification": "CANONICAL_BEHAVIOR",
       "canonical": true,
-      "scopes": ["creation-runtime", "documents", "artifacts", "model-routing", "security"],
+      "scopes": [
+        "creation-runtime",
+        "documents",
+        "artifacts",
+        "model-routing",
+        "security"
+      ],
       "externalDependencies": [],
       "realBrowser": false,
       "sourceImplementationAssertions": false,
@@ -3894,7 +4017,12 @@
       "milestone": "R23.7C-P",
       "classification": "CANONICAL_ARCHITECTURE",
       "canonical": true,
-      "scopes": ["architecture", "creation-runtime", "model-routing", "security"],
+      "scopes": [
+        "architecture",
+        "creation-runtime",
+        "model-routing",
+        "security"
+      ],
       "externalDependencies": [],
       "realBrowser": false,
       "sourceImplementationAssertions": false,
@@ -3906,7 +4034,13 @@
       "milestone": "R23.7C-C",
       "classification": "CANONICAL_BEHAVIOR",
       "canonical": true,
-      "scopes": ["creation-runtime", "images", "artifacts", "model-routing", "security"],
+      "scopes": [
+        "creation-runtime",
+        "images",
+        "artifacts",
+        "model-routing",
+        "security"
+      ],
       "externalDependencies": [],
       "realBrowser": false,
       "sourceImplementationAssertions": false,
@@ -3918,7 +4052,12 @@
       "milestone": "R23.7C-C",
       "classification": "CANONICAL_BEHAVIOR",
       "canonical": true,
-      "scopes": ["creation-runtime", "images", "http-routing", "security"],
+      "scopes": [
+        "creation-runtime",
+        "images",
+        "http-routing",
+        "security"
+      ],
       "externalDependencies": [],
       "realBrowser": false,
       "sourceImplementationAssertions": false,
@@ -3930,7 +4069,13 @@
       "milestone": "R23.7C-C",
       "classification": "REAL_BROWSER_CERT",
       "canonical": true,
-      "scopes": ["creation-runtime", "images", "personal-home", "security", "browser"],
+      "scopes": [
+        "creation-runtime",
+        "images",
+        "personal-home",
+        "security",
+        "browser"
+      ],
       "externalDependencies": [],
       "realBrowser": true,
       "sourceImplementationAssertions": false,
@@ -3943,7 +4088,14 @@
       "milestone": "R23.7C-C",
       "classification": "REAL_BROWSER_CERT",
       "canonical": true,
-      "scopes": ["creation-runtime", "images", "http-routing", "security", "personal-home", "browser"],
+      "scopes": [
+        "creation-runtime",
+        "images",
+        "http-routing",
+        "security",
+        "personal-home",
+        "browser"
+      ],
       "externalDependencies": [],
       "realBrowser": true,
       "sourceImplementationAssertions": false,
@@ -3956,7 +4108,13 @@
       "milestone": "R23.7C-C",
       "classification": "CANONICAL_BEHAVIOR",
       "canonical": true,
-      "scopes": ["creation-runtime", "images", "http-routing", "security", "identity"],
+      "scopes": [
+        "creation-runtime",
+        "images",
+        "http-routing",
+        "security",
+        "identity"
+      ],
       "externalDependencies": [],
       "realBrowser": false,
       "sourceImplementationAssertions": false,
@@ -3968,7 +4126,14 @@
       "milestone": "R23.7C-C",
       "classification": "DEPLOYED_CERT",
       "canonical": false,
-      "scopes": ["creation-runtime", "images", "personal-home", "security", "identity", "browser"],
+      "scopes": [
+        "creation-runtime",
+        "images",
+        "personal-home",
+        "security",
+        "identity",
+        "browser"
+      ],
       "externalDependencies": [
         "deployed NAgex URL",
         "internet",
@@ -3989,7 +4154,14 @@
       "milestone": "R23.7C-C",
       "classification": "DEPLOYED_CERT",
       "canonical": false,
-      "scopes": ["creation-runtime", "images", "http-routing", "security", "identity", "browser"],
+      "scopes": [
+        "creation-runtime",
+        "images",
+        "http-routing",
+        "security",
+        "identity",
+        "browser"
+      ],
       "externalDependencies": [
         "deployed NAgex URL",
         "internet",
@@ -4010,7 +4182,14 @@
       "milestone": "R23.7C-C",
       "classification": "REAL_BROWSER_CERT",
       "canonical": true,
-      "scopes": ["creation-runtime", "images", "personal-home", "browser", "security", "ux"],
+      "scopes": [
+        "creation-runtime",
+        "images",
+        "personal-home",
+        "browser",
+        "security",
+        "ux"
+      ],
       "externalDependencies": [],
       "realBrowser": true,
       "sourceImplementationAssertions": false,
@@ -4023,7 +4202,14 @@
       "milestone": "R23.7C-C",
       "classification": "DEPLOYED_CERT",
       "canonical": false,
-      "scopes": ["creation-runtime", "images", "personal-home", "browser", "security", "ux"],
+      "scopes": [
+        "creation-runtime",
+        "images",
+        "personal-home",
+        "browser",
+        "security",
+        "ux"
+      ],
       "externalDependencies": [
         "deployed NAgex URL",
         "internet",
@@ -4044,7 +4230,13 @@
       "milestone": "R23.7C-C",
       "classification": "CANONICAL_BEHAVIOR",
       "canonical": true,
-      "scopes": ["creation-runtime", "images", "artifacts", "model-routing", "security"],
+      "scopes": [
+        "creation-runtime",
+        "images",
+        "artifacts",
+        "model-routing",
+        "security"
+      ],
       "externalDependencies": [],
       "realBrowser": false,
       "sourceImplementationAssertions": false,
@@ -4351,7 +4543,12 @@
         "model-routing",
         "browser"
       ],
-      "externalDependencies": ["Gemini, OpenAI, or Nebius API","internet","provider credentials","Chromium"],
+      "externalDependencies": [
+        "Gemini, OpenAI, or Nebius API",
+        "internet",
+        "provider credentials",
+        "Chromium"
+      ],
       "realBrowser": true,
       "sourceImplementationAssertions": false,
       "deterministic": false,
@@ -4569,6 +4766,22 @@
       "assertionIntent": "Source contract that keeps the S2E boundary from regressing: no address header is read outside server_web, the resolver is peer-first/right-to-left with no Cloudflare trust or hardcoded ranges, only the HTTP layer registers an address and routes only read it, the test peer seam is a programmatic option refused in production and absent from the real start path, login/reactivate/delete-cancel/signup are throttled before any password hashing with no wrong-state oracle, forgot/resend share the guard, and the guard keeps three dimensions, a bounded store and capped progressive cooldowns.",
       "notes": "Reads production source only; behavior is certified by security_s2e_auth_abuse."
     },
+    "jev_shadow_runtime": {
+      "milestone": "JEV-SHADOW-POC",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "model-routing",
+        "runtime",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "JEV shadow-mode advisory contract: typed minimal output only; shadow evaluation is logged after the authoritative router decision without changing provider, task kind, fallback, approval, execution or memory authority; safe telemetry excludes prompt/answer/reasoning/secrets; the deterministic synthetic benchmark covers current TaskKinds and fails closed on invalid schema or systematic high-reasoning downgrades.",
+      "notes": "No network, no paid provider calls. Benchmark providers never generate; current router policy is measured offline."
+    },
     "nebius_nemotron_provider": {
       "milestone": "NEBIUS-NEMOTRON-RUNTIME",
       "classification": "CANONICAL_BEHAVIOR",
@@ -4599,6 +4812,133 @@
       "assertionIntent": "Task-aware routing of Nemotron inside the canonical UnifiedModelRouter/ModelRoutingPolicy: PLAN, RESEARCH_SYNTHESIS and MEETING_PREP prefer NEBIUS (even over an already-live provider); every other TaskKind keeps exactly its pre-existing decision and Nemotron is not even a fallback for it; failures of the preferred provider (429, 401/403, 5xx, 404, timeout, network, malformed, validator rejection, no credential, degraded) fall back to the existing approved providers with a recorded preferredProvider/actualProvider/fallbackReason, never as a fabricated success; an explicit provider choice is never overridden; Nemotron's capability declaration is evidence-graded (nothing beyond chat completion is claimed as supported); telemetry carries task, provider, model, latency and token counts but no prompt, answer, reasoning or credential.",
       "notes": "Real providers with injected fetch; AiService methods drive the TaskKinds. No network, no paid call."
     },
+    "r23_6m_m4c_r2g_binding": {
+      "milestone": "R23.6M-M4C-R2G-BIND",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "mobile",
+        "device-agent",
+        "approval"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "KakaoTalk Accessibility DIRECT conversation selection plans require a fresh KAKAOTALK_ACCESSIBILITY_DRAFT approval whose hash binds deviceId, recipientRef, messageHash, provider, route, expectedProviderDisplayName, and server-owned cvr_* conversationRef; the conversation target must be tenant/owner/device-scoped DIRECT KakaoTalk, match the recipientRef, and match the expected display identity, while old approvals and any drift require reapproval.",
+      "notes": "No real-device execution. Verifies server approval/plan binding and Android decoder field propagation without modifying SMS or enabling SEND."
+    },
+    "kakaotalk_fast_path_approval": {
+      "milestone": "PRODUCTION-LATENCY-FAST-PATH",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "mobile",
+        "device-agent",
+        "approval",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "KakaoTalk send approval can be surfaced from warm cached device, recipient, conversation, route, and policy state without default UI dumps/screenshots/Vision, while ambiguous cached identities fail closed before creating an approval.",
+      "notes": "No real-device execution. Covers production fast-path approval latency semantics and duplicate-protected direct identity requirements."
+    },
+    "scenario_certification_framework": {
+      "milestone": "SCENARIO-CERTIFICATION-FRAMEWORK-V1",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "device-agent",
+        "mobile",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Canonical scenario certification runner validates end-to-end intent lifecycle semantics across messaging, calendar, research, artifacts, reservations, commerce, background, multi-device, security, and cross-capability scenarios, including approval gates, evidence correlation, risk policy, real/sandbox/simulation isolation, duplicate protection, cleanup, and verified outcomes.",
+      "notes": "No live external action is performed. REAL mode is explicitly skipped unless a scenario opts in, and consequential real execution remains gated by approval and post-action verification contracts."
+    },
+    "real_life_scenario_library_behavioral_rules": {
+      "milestone": "REAL-LIFE-SCENARIO-LIBRARY-BEHAVIORAL-RULES-V1",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "device-agent",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "mobile",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Real-life scenario library and behavioral rules v1: broad synthetic scenario coverage, multimodal command-context normalization, deterministic behavioral policy decisions, rule priority/conflict handling, duplicate prevention, target/payload/material drift controls, precondition waiting, recovery continuation, cleanup, background/proactive authority policy, and scenario-to-rule traceability without fake REAL certification.",
+      "notes": "Data-driven certification and policy tests only; no live external sends, purchases, bookings, payments, or real-device actions are performed."
+    },
+    "r23_6m_m4c_r2g_draft_store": {
+      "milestone": "R23.6M-M4C-R2G-DRAFT",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "mobile",
+        "device-agent",
+        "approval"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "KakaoTalk Accessibility drafts are server-owned kdr_* records scoped to tenant/owner/device, bound to a DIRECT cvr_* conversation and recipientRef, preserve the exact messageHash, reject drift and non-direct targets, and keep Kakao SEND on a separate approval path from SMS.",
+      "notes": "No real-device execution. Covers draft identity, approval immutability, exact message hash binding, and the separate governed SEND approval boundary."
+    },
+    "r23_7h_d8_home_scenarios": {
+      "milestone": "R23.7H-D8",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "personal-home",
+        "browser",
+        "ux"
+      ],
+      "externalDependencies": [
+        "Chromium"
+      ],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Home scenario browser coverage for the R23.7H-D8 personal-home surface.",
+      "notes": "Registry entry added to unblock the test gate's coverage check; unrelated to Kakao send implementation.",
+      "writesRepositoryArtifacts": false
+    },
+    "approval_execution_status_ux": {
+      "milestone": "APPROVAL-EXECUTION-STATUS-UX",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "device-agent",
+        "mobile"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Approval review UX must keep approved and consumed actions visible outside Pending until terminal outcome evidence exists: Pending(0) can coexist with In Progress(1), APPROVED without command remains visible, command creation is not treated as delivery/claim/execution, cancellation or failure remains visible, and verified success/message-sent states require explicit evidence rather than inference.",
+      "notes": "Route-level projection test. No device execution, no approval bypass, no SEND path."
+    },
     "nebius_nemotron_contract": {
       "milestone": "NEBIUS-NEMOTRON-RUNTIME",
       "classification": "IMPLEMENTATION_COUPLED",
@@ -4612,6 +4952,118 @@
       "deterministic": true,
       "assertionIntent": "Source contract that keeps the Nebius/Nemotron integration inside the canonical model architecture: the credential, URL and configuration live only in providers.ts; no route or AiService mentions the provider; feature code reaches the model only through the router; the preference table is routing data consulted only by the policy comparator and never by an explicit override; hidden reasoning is reduced to a boolean in the adapter; retry is bounded and every call has a timeout and an unsafe base URL is refused; the failure vocabulary is fixed and logs carry no provider message; the real-API certification is a separate opt-in script.",
       "notes": "Reads production source only; behavior is certified by nebius_nemotron_provider and nebius_nemotron_routing."
+    },
+    "multimodal_execution_rail_live_wiring": {
+      "milestone": "NAGEX-MULTIMODAL-EXECUTION-RAIL-LIVE-WIRING",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "home",
+        "approvals",
+        "device-agent",
+        "activity",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Home multimodal command input normalizes to a canonical CommandContext, TEXT can surface a fast-path Kakao approval without agent/tool/model selection, approval remains review-visible until verified outcome, rail states stay user-facing, non-text modalities are honest beta plumbing, and verified Kakao completion maps to user-facing Activity without technical identifiers.",
+      "notes": "No live external action is performed. Real Kakao send/device execution remains separately certified with explicit authorization."
+    },
+    "voice_identity_wake_phrase": {
+      "milestone": "NAGEX-VOICE-IDENTITY-WAKE-PHRASE",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "voice",
+        "settings",
+        "identity-access",
+        "approvals",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "Voice wake phrase and identity enrollment contract: default wake phrase is ?? ????, optional short phrase is ????, disabled mode is available, wake detection never implies speaker verification or authority, development trust is explicit and non-production, high-risk voice-only execution remains blocked behind deterministic approval, continuation trust is invalidated on device lock, and voice profile/raw-audio privacy defaults remain device-local and ephemeral.",
+      "notes": "No live microphone, biometric model, provider, or consequential action. Source-backed UI and deterministic policy/service coverage for productization guardrails."
+    },
+    "voice_brand_output": {
+      "milestone": "NAGEX-VOICE-BRAND-SPEC",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "voice",
+        "ux",
+        "security",
+        "privacy",
+        "model-routing"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "NAgex brand voice output contract: user voice identity/input remains separate from NAgex voice output, canonical pronunciation is centralized, Korean-first speech normalization handles dates/times/currency/provider names, spoken responses may differ from visual text, unverified external actions cannot produce success speech, cloud TTS receives only filtered spoken payload, provider fallback works, and voice output can be disabled.",
+      "notes": "No live audio playback or commercial voice-quality certification. Provider implementations are contract/fallback scaffolding only."
+    },
+    "real_wake_word_pipeline": {
+      "milestone": "NAGEX-REAL-WAKE-WORD-PIPELINE-AND-VOICE-CALL-CERT",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "voice",
+        "mobile",
+        "security",
+        "privacy",
+        "approvals"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Voice activation pipeline contract: wake detection is separate from command STT, command STT may omit the wake phrase after valid wake evidence, wake-word mode without wake evidence is rejected, push-to-talk does not require wake, wake text in STT alone is not authority, wake is not speaker verification, preroll preserves command boundaries while remaining ephemeral, and continuation-window follow-up does not require wake again.",
+      "notes": "Deterministic architecture and privacy regression only. Real acoustic wake detector and real phone-call execution remain separate live certification gates."
+    },
+    "background_voice_call_ux": {
+      "milestone": "NAGEX-BACKGROUND-VOICE-CALL-UX",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "voice",
+        "mobile",
+        "ux",
+        "approvals",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Background voice call UX contract: ordinary short call commands use background capture and compact confirmation, unique verified targets get a five-second cancel/call-now buffer, cancellation blocks execution, ambiguous contacts and multiple phone numbers require explicit selection before countdown, proactive suggestions require explicit positive confirmation, silence is never approval, and the popup cannot substitute for target and phone verification.",
+      "notes": "Policy/state-machine coverage only. Real Android call execution, call-state verification, and post-call Home restore remain separate live certification gates."
+    },
+    "universal_ambient_consent": {
+      "milestone": "NAGEX-PERSONAL-AI-UNIVERSAL-AMBIENT-CONSENT",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "identity-access",
+        "integrations",
+        "memory-context",
+        "model-routing",
+        "runtime",
+        "security",
+        "tasks",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Universal ambient consent layer gates every inbound ambient source before observation, keeps connected/read/proactive/draft/execute authority separate, enforces account/provider/scope/purpose-specific consent, blocks revoked or out-of-scope signals, minimizes raw content, permits proactive candidates only from consent-valid signals, preserves explicit acceptance before goal creation, and exposes Control Center telemetry as aggregate-only.",
+      "notes": "Deterministic consent and proactive orchestration coverage only. No live provider observation, no raw private content persistence, and no external execution."
     }
   }
 }

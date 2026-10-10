@@ -40,7 +40,7 @@ function setupMockDOM() {
   // We parse the minimal DOM required for canvas test.
   // Using a mock document object.
   const elements: Record<string, any> = {};
-  
+
   // R24.7B — minimal DOM element surface. Canvas Ask / the read-only document
   // view build and mark up nodes (createElement/appendChild/setAttribute), so
   // the mock element must support that much; it is still a plain object, never
@@ -186,7 +186,7 @@ test('M. DOCUMENT renderer truthful (R24.7B: real read-only content)', async () 
   const evil = '# Heading <img src=x onerror=alert(1)> <script>alert(2)</script>';
   mockWindow.NAGEX.apiFetch = async (url: string) => { requested.push(url); return { document: { content: evil } }; };
   const proj = toArtifactUxProjection(mockDocRecord);
-  
+
   mockWindow.NAGEX.openArtifactInCanvas(proj.artifactId, proj.artifactType, proj.canvasTarget, proj.openTarget, proj);
   const region = elements['canvas-renderer-region'];
   assert.equal(region.children[0].textContent, 'Loading document…', 'truthful loading state first');

@@ -1,6 +1,6 @@
 // R11 FINAL SAFETY CERTIFICATION — independent Approval/Fail-Closed
 // contract tests for src/assistant/action-proposal-executor.ts, per
-// docs/NAGEX_DEVELOPMENT_SAFETY_HARNESS.md §3.4/§4. Deliberately separate
+// docs/NAgex_AI_Development_Governance.md §3.4/§4. Deliberately separate
 // from tests/action_proposals.test.ts (ordinary feature tests) — this file
 // exists ONLY to prove unapproved/tampered/cross-tenant/failed paths are
 // denied, never executed, and never leave an ambiguous or silently-

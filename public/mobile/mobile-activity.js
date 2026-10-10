@@ -177,12 +177,6 @@
     }
 
     const time = item.occurredAt ? new Date(item.occurredAt).toLocaleString() : '';
-    const source = item.source || {};
-    let sourceTypeLabel = '';
-    if (source.taskId) sourceTypeLabel = t('home.taskFallback', 'Task');
-    else if (source.approvalId) sourceTypeLabel = t('nav.approvals', 'Approval');
-    else if (source.captureId) sourceTypeLabel = t('nav.inbox', 'Inbox Item');
-
     modal.innerHTML = `
       <div class="mh-detail-modal-card">
         <div class="mh-detail-modal-header">
@@ -199,11 +193,6 @@
             <span class="mh-detail-label">${escapeHtml(t('mobileCommon.time', 'Time:'))}</span>
             <span>${escapeHtml(time)}</span>
           </div>
-          ${sourceTypeLabel ? `
-          <div class="mh-detail-meta-row">
-            <span class="mh-detail-label">${escapeHtml(t('mobileCommon.source', 'Source:'))}</span>
-            <span>${escapeHtml(sourceTypeLabel)}</span>
-          </div>` : ''}
         </div>
         <div class="mh-detail-modal-footer">
           ${relatedActionHtml(item)}

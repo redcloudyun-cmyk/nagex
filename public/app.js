@@ -1,4 +1,4 @@
-// NAgex Personal AI — Control Center & Ambient Assistant Client Controller
+// NAgex Personal AI ??Control Center & Ambient Assistant Client Controller
 (function () {
   'use strict';
 
@@ -19,7 +19,7 @@
     tools: [],
     approvals: [],
     approvalSections: { pending: [], inProgress: [], recent: [] },
-    // R12.1 Increment 2.5 §8 — fail-closed contract: true only when the
+    // R12.1 Increment 2.5 §8 ??fail-closed contract: true only when the
     // real GET /api/v1/approvals fetch itself failed (network error or a
     // structured API error), never set just because the real canonical
     // source returned zero pending approvals. Render code must show
@@ -28,13 +28,13 @@
     approvalsLoadFailed: false,
     executions: [],
     knowledge: [],
-    // R24.6B — Quick Wake / Autonomy are per-user server preferences. Until
+    // R24.6B ??Quick Wake / Autonomy are per-user server preferences. Until
     // they are really loaded there is NO value (never a pre-load default):
     // settingsPrefsStatus is LOADING | OK | SIGNED_OUT | ERROR.
     quickWakeConfig: {},
     autonomyConfig: {},
     settingsPrefsStatus: 'LOADING',
-    // R24.6C — the Google connection is owned by the signed-in account; for a
+    // R24.6C ??the Google connection is owned by the signed-in account; for a
     // signed-out visitor the status endpoint answers 401 and Settings says so
     // instead of showing "not configured".
     googleOAuthSignedOut: false,
@@ -43,7 +43,7 @@
     googleOAuth: { configured: false, connected: false, scopes: [], expiresAt: null },
     approvalCountdownTimer: null,
     // The most recent Gmail thread NAgex actually loaded (from a real
-    // gmail.search or gmail.read_thread result) in this session — the only
+    // gmail.search or gmail.read_thread result) in this session ??the only
     // source a follow-up reply/read_thread request may prefill threadId/
     // replyToMessageId from. Never populated from a guess.
     lastGmailThread: null,
@@ -52,13 +52,13 @@
     notifications: { items: [], unreadCount: 0 },
     inbox: [],
     vault: null,
-    // Phase 1 STEP 5/6 — canonical CandidateStore records. This is the ONLY
+    // Phase 1 STEP 5/6 ??canonical CandidateStore records. This is the ONLY
     // source of truth for candidate review state; capture.metadata.candidates
     // (the embedded array) is never read for status/actions (item R).
     candidates: [],
-    // Phase 1 STEP 8 — the durable, tenant-isolated consumer Activity
+    // Phase 1 STEP 8 ??the durable, tenant-isolated consumer Activity
     // projection (GET /api/v1/activity). Home/Recent and the Activity tab
-    // read only this — never the legacy non-isolated /api/v1/executions
+    // read only this ??never the legacy non-isolated /api/v1/executions
     // demo array.
     activity: [],
     activityLoadFailed: false,
@@ -68,20 +68,20 @@
 
   // Modal dismissal state: which element to return focus to on close, the
   // per-open Escape/Tab-trap keydown handler (added on open, removed on
-  // close), and a lock/unlock state machine for the background scroll —
+  // close), and a lock/unlock state machine for the background scroll ??
   // see public/modal-behavior.js for why this is a small state machine
   // rather than a single `document.body.style.overflow = ''` on close.
   let ambientModalTriggerElement = null;
-  // R24.8B — 'REPORT' | 'RESEARCH' when the Ask overlay was opened from a Create tile; null for general Ask.
+  // R24.8B ??'REPORT' | 'RESEARCH' when the Ask overlay was opened from a Create tile; null for general Ask.
   let ambientCreationMode = null;
   let ambientModalKeydownHandler = null;
   const ambientBodyScrollLock = window.NAGEX_MODAL_BEHAVIOR ? window.NAGEX_MODAL_BEHAVIOR.createScrollLock() : null;
   // Guards the activity timeline against logging the same lifecycle event
-  // twice for the same plan/approval — e.g. "Plan created" must appear once
+  // twice for the same plan/approval ??e.g. "Plan created" must appear once
   // per generated plan even if plan generation and resolution/UI hydration
   // both end up trying to record it. Deliberately never reset: every real
   // plan/approval id is a fresh, globally-unique value minted server-side,
-  // so a key can never legitimately recur — resetting this on every ambient
+  // so a key can never legitimately recur ??resetting this on every ambient
   // overlay open would only reintroduce a way for a genuine duplicate call
   // to slip back through.
   const ambientTimelineDeduper = window.NAGEX_TIMELINE_DEDUPE ? window.NAGEX_TIMELINE_DEDUPE.createDeduper() : null;
@@ -89,17 +89,17 @@
   // The actual root cause of a duplicate "Plan created": two separate calls
   // into the generation pipeline (from any combination of the composer, a
   // quick-action chip, the demo scenario button, etc.) each legitimately
-  // mint their own requestId — the per-plan dedupe above correctly does NOT
+  // mint their own requestId ??the per-plan dedupe above correctly does NOT
   // merge them, because they really are two different plans. This guard
   // stops a second generation from ever starting while one is still in
   // flight, regardless of which control tried to start it.
   const ambientRunGuard = window.NAGEX_SINGLE_FLIGHT ? window.NAGEX_SINGLE_FLIGHT.createSingleFlightGuard() : null;
 
-  // UI-5 R5 — per-approval-id re-entrancy guard: handleApprovalAction() had
+  // UI-5 R5 ??per-approval-id re-entrancy guard: handleApprovalAction() had
   // no client-side protection against a rapid double-tap (very plausible on
   // a touchscreen) firing the same POST /api/v1/approvals/:id/action twice
   // concurrently. The backend already fails the second request closed
-  // (APPROVAL_ALREADY_CONSUMED — see approval_ttl_security.test.ts), so
+  // (APPROVAL_ALREADY_CONSUMED ??see approval_ttl_security.test.ts), so
   // nothing was ever double-executed, but the UI itself gave no busy
   // feedback and could fire redundant network calls. Keyed by approval id
   // (not a single global flag) since approving two different pending items
@@ -129,7 +129,7 @@
     }, 1000);
   }
 
-  // Bound on POST /api/v1/ambient/intent specifically — grounded in the
+  // Bound on POST /api/v1/ambient/intent specifically ??grounded in the
   // real, evidence-backed worst case, not a guess: UnifiedModelRouter.
   // generate() (src/model-gateway/unified-model-router.ts) retries through
   // configured providers SEQUENTIALLY, and each provider's own HTTP call
@@ -138,12 +138,12 @@
   // endpoint can legitimately take up to ~90_000ms before it ever responds.
   // 120_000ms sits comfortably above that real ceiling rather than a
   // "typical latency" figure, since no such figure exists anywhere in this
-  // codebase — a tighter bound would risk aborting requests the server
+  // codebase ??a tighter bound would risk aborting requests the server
   // itself still considers in-flight and valid.
   //
   // `window.__NAGEX_TEST_AMBIENT_TIMEOUT_MS__` is a test-only override hook
   // (analogous in spirit to the server's NAGEX_ENABLE_TEST_PLAN_INJECTION
-  // pattern) — inert in production, since nothing in this codebase ever
+  // pattern) ??inert in production, since nothing in this codebase ever
   // sets it; a browser test can inject it via an init script so the
   // stalled-request regression test doesn't have to wait 2 real minutes.
   const AMBIENT_INTENT_TIMEOUT_MS = (typeof window !== 'undefined' && typeof window.__NAGEX_TEST_AMBIENT_TIMEOUT_MS__ === 'number')
@@ -179,7 +179,7 @@
     const catTabOrg = document.getElementById('cat-tab-organization');
     if (catTabOrg) catTabOrg.style.display = isEnt ? 'inline-block' : 'none';
 
-    // R24.6D — Mobile Settings' Organization section follows the SAME rule as the
+    // R24.6D ??Mobile Settings' Organization section follows the SAME rule as the
     // Desktop tab above (enterprise functionality stays hidden outside enterprise mode).
     const mhOrgHeading = document.getElementById('mh-org-settings-heading');
     if (mhOrgHeading) mhOrgHeading.hidden = !isEnt;
@@ -229,7 +229,7 @@
   }
 
   // Dev/test-only debug instrumentation: never logs payload contents, tool
-  // arguments, or secrets — only the lifecycle key, label, which function
+  // arguments, or secrets ??only the lifecycle key, label, which function
   // produced this emit attempt, and whether it was actually recorded or
   // suppressed as a duplicate. Gated so it never runs against a real
   // deployed origin by accident; opt in locally with ?debugTimeline=1.
@@ -248,13 +248,13 @@
     console.debug('[NAgex timeline]', info);
   }
 
-  // lifecycleKey must be a single, fully-formed, deterministic identity —
-  // never a timestamp — such as `plan:${planId}:created` or
+  // lifecycleKey must be a single, fully-formed, deterministic identity ??
+  // never a timestamp ??such as `plan:${planId}:created` or
   // `approval:${approvalId}:requested` (see timeline-dedupe.js). Passing one
   // ensures the same lifecycle stage for that same plan/approval/execution
   // is only ever recorded once, no matter which function or how many times
   // it is called. `producer` is a short string naming the calling function,
-  // surfaced only in the debug log above — it plays no role in dedup.
+  // surfaced only in the debug log above ??it plays no role in dedup.
   function addTimelineEntry(label, lifecycleKey, producer) {
     if (ambientTimelineDeduper && !ambientTimelineDeduper.shouldLog(lifecycleKey)) {
       logTimelineDebug({ lifecycleKey, eventType: label, producer, outcome: 'suppressed-duplicate' });
@@ -274,7 +274,7 @@
   // `timeoutMs` is an opt-in, call-site-scoped extension: when a caller
   // supplies it, this bounds the underlying fetch with an AbortController so
   // the returned promise is guaranteed to settle even if the network/server
-  // never responds — a request with no bound at all can leave a caller's own
+  // never responds ??a request with no bound at all can leave a caller's own
   // `finally` (e.g. a busy/disabled-controls guard) waiting forever. Callers
   // that omit it get byte-for-byte the same behavior as before this option
   // existed (no AbortController is created, nothing about the request
@@ -439,6 +439,11 @@
     }
 
     const btnHam = document.getElementById('btn-hamburger');
+    window.addEventListener('nagex:localechange', () => {
+      renderActiveTab();
+      refreshMobileSettings();
+    });
+
     if (btnHam && sidebar) {
       btnHam.addEventListener('click', () => sidebar.classList.toggle('open'));
     }
@@ -447,14 +452,14 @@
     }
   }
 
-  // R23.7H-C Phase D — the single canonical primary-navigation definition.
+  // R23.7H-C Phase D ??the single canonical primary-navigation definition.
   // Both the desktop sidebar (index.html's ul.nav-menu) and the mobile
-  // bottom nav + Settings→Advanced overflow (index.html's #mobile-app-shell)
+  // bottom nav + Settings?�Advanced overflow (index.html's #mobile-app-shell)
   // are kept manually consistent with this ordered list (verified by
   // tests/r23_7h_c_phase_d_nav.test.ts) rather than maintaining a second,
   // independently-authored IA list. `mobilePrimary: true` marks the subset
   // promoted into the mobile bottom nav; the rest stay reachable via the
-  // existing Settings → Advanced drawer pattern (same as Skills/Tools/Memory
+  // existing Settings ??Advanced drawer pattern (same as Skills/Tools/Memory
   // already were before Phase D).
   window.NAGEX_PRIMARY_NAV = [
     { tab: 'tab-home', i18nKey: 'nav.home', mobilePrimary: true },
@@ -674,7 +679,7 @@
     refreshMobileSettings();
   }
 
-  // R24.6B — single place that turns the two preference API results into
+  // R24.6B ??single place that turns the two preference API results into
   // shared state; Desktop and Mobile Settings both render from this.
   function applySettingsPrefs(qwData, autoData) {
     const ok = qwData && !qwData.error && autoData && !autoData.error;
@@ -777,7 +782,7 @@
     scheduleActiveWorkPolling();
   }
 
-  // Phase 1 STEP 8, item V — bounded polling: only while real PROCESSING/
+  // Phase 1 STEP 8, item V ??bounded polling: only while real PROCESSING/
   // RUNNING/PENDING_APPROVAL work exists, and it stops itself the moment
   // loadAllData() finds nothing active anymore. No WebSocket infra, no
   // polling forever on an idle Home.
@@ -806,7 +811,7 @@
   let realAudioChunks = [];
 
   function renderHome() {
-    // R12.1 Increment 2 — hero title/subtitle are now plain data-i18n
+    // R12.1 Increment 2 ??hero title/subtitle are now plain data-i18n
     // markup (applyLocale() keeps them current on every locale switch);
     // this function no longer overrides them with hardcoded copy. The
     // eyebrow greeting stays owned exclusively by desktop-home.js's
@@ -821,16 +826,16 @@
     const btnAudio = document.getElementById('btn-afford-audio');
 
     if (btnSend && homeInput) {
-      // R12.1 Increment 1 — Universal Intent Input busy-state contract:
+      // R12.1 Increment 1 ??Universal Intent Input busy-state contract:
       // the composer must block duplicate submission (disabled the moment
       // classification starts, not only once the ambient run guard takes
       // over) and must never lose the user's text on a failed/timed-out
-      // request — the original code cleared the input unconditionally
+      // request ??the original code cleared the input unconditionally
       // before even knowing whether classification succeeded, so a
       // network failure silently discarded what the user typed. Ownership
       // of the disabled state hands off to setAmbientRunControlsDisabled()
       // (which already re-enables in its own finally) once an ASK/COMMAND
-      // intent is dispatched to runAmbientTask — handedOff below prevents
+      // intent is dispatched to runAmbientTask ??handedOff below prevents
       // this handler's own finally from re-enabling too early and racing
       // that handoff.
       btnSend.onclick = async () => {
@@ -862,7 +867,7 @@
               delete homeInput.dataset.creationMode;
             } else if (typeof window.alert === 'function') {
               const currentLocale = window.NAGEX_I18N ? window.NAGEX_I18N.getLocale() : 'en';
-              window.alert(currentLocale === 'ko' ? '보고서를 생성하지 못했습니다. 다시 시도해 주세요.' : "NAgex couldn't generate that report. Please try again.");
+              window.alert(currentLocale === 'ko' ? '보고?��? ?�성?��? 못했?�니?? ?�시 ?�도??주세??' : "NAgex couldn't generate that report. Please try again.");
             }
           } finally {
             btnSend.disabled = false;
@@ -874,6 +879,17 @@
         homeInput.disabled = true;
         let handedOff = false;
         try {
+          const commandHandled = await submitHomeCommandContext(text);
+
+          if (commandHandled) {
+
+            homeInput.value = '';
+
+            return;
+
+          }
+
+
           const routeRes = await apiFetch('/api/v1/workspace/route-input', {
             method: 'POST',
             body: JSON.stringify({ text }),
@@ -935,7 +951,7 @@
       };
     }
 
-    // Composer file drop zone — click-to-browse and drag&drop, wired the
+    // Composer file drop zone ??click-to-browse and drag&drop, wired the
     // same way initAnalyzeView() wires #analyze-dropzone, uploading through
     // the same real capture pipeline the voice-memo recorder already uses
     // (POST /api/v1/workspace/upload with base64 file data) rather than a
@@ -1035,13 +1051,39 @@
     }
 
     // Desktop/Mobile Home modules (separate files) hook in here rather
-    // than duplicating this file's own render lifecycle — called every
+    // than duplicating this file's own render lifecycle ??called every
     // time Home actually re-renders (including after loadAllData()),
     // never on a separate/parallel timer. Two distinct hook names
     // (rather than one shared one) so desktop-home.js and mobile-home.js
     // can both register without either overwriting the other.
     if (window.NAGEX.onHomeRender) window.NAGEX.onHomeRender();
     if (window.NAGEX.onHomeRenderMobile) window.NAGEX.onHomeRenderMobile();
+  }
+
+  async function submitHomeCommandContext(text) {
+    let commandDevices = state.settingsDevices || [];
+    if (!commandDevices.length) {
+      const deviceData = await apiFetch('/api/v1/device-agent/devices');
+      commandDevices = (deviceData && deviceData.devices) || [];
+    }
+    const preferred = commandDevices.find((d) => d.os === 'Android' && (d.controlCapabilities || []).includes('permission:ACCESSIBILITY_SERVICE:ENABLED'))
+      || commandDevices[0]
+      || null;
+    const res = await apiFetch('/api/v1/command-contexts/submit', {
+      method: 'POST',
+      body: JSON.stringify({
+        text,
+        inputModality: 'TEXT',
+        originSurface: 'HOME',
+        originDeviceType: 'Desktop browser',
+        preferredExecutionDeviceId: preferred && preferred.deviceId ? preferred.deviceId : null,
+      }),
+    });
+    if (res && res.handled && res.mode === 'KAKAO_FAST_PATH_APPROVAL') {
+      await loadAllData();
+      return true;
+    }
+    return false;
   }
 
   async function renderHomeWorkspaceSections() {
@@ -1061,166 +1103,53 @@
     // 2b. Needs Approval (max 2 items)
     const elApprovals = document.getElementById('list-needs-attention');
     if (elApprovals) {
-      if (state.approvalsLoadFailed) {
-        elApprovals.innerHTML = `<div class="nagex-empty-state">${escapeHtml(t('home.approvalsLoadError') || 'Approvals could not be loaded.')}</div>`;
-      } else {
-        const pendingApprs = state.approvals.filter((a) => a.status === 'PENDING').slice(0, 2);
-        elApprovals.innerHTML = pendingApprs.map((a) => homeApprovalActionLabel(a, t)).join('');
-      }
-    }
-  }
-
-  // Consequence-specific approval CTA (R12.1 Increment 2 §9/§10) — never a
-  // bare "Run"/"Execute"/"Continue"/"OK". Derived from the approval's own
-  // toolId when present (the reliable signal), falling back to its
-  // action/tool text, and only using a still-specific generic label
-  // ("Approve request") if neither identifies a known consequence.
-  function homeApprovalActionLabel(a, t) {
-    const toolId = String(a.toolId || '').toUpperCase();
-    const action = String(a.action || a.intent || '').toLowerCase();
-    const tool = String(a.tool || '').toLowerCase();
-    if (toolId.includes('CALENDAR_CREATE') || (action.includes('create') && (action.includes('calendar') || action.includes('event') || tool.includes('calendar')))) {
-      return t('home.approveAndCreateEvent') || 'Approve and create event';
-    }
-    if (toolId.includes('GMAIL_SEND') || toolId.includes('GMAIL_REPLY') || action.includes('send') || action.includes('email') || tool.includes('gmail')) {
-      return t('home.approveAndSend') || 'Approve and send';
-    }
-    if (toolId.includes('CANCEL') || action.includes('delete') || action.includes('cancel')) {
-      return t('home.approveAndDelete') || 'Approve and delete';
-    }
-    if (action.includes('submit')) {
-      return t('home.approveAndSubmit') || 'Approve and submit';
-    }
-    return t('home.approveGeneric') || 'Approve request';
-  }
-
-  async function renderHomeWorkspaceSections() {
-    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
-
-    // 1. NAgex is working (max 2 items) — item D: real QUEUED/PROCESSING
-    // captures and RUNNING tasks/candidate actions only. Nothing stays
-    // listed here once it reaches a terminal state (SUCCEEDED/READY).
-    const elWorking = document.getElementById('list-nagex-working');
-    if (elWorking) {
-      const card = elWorking.closest('.canvas-section-card');
-      const runningTasks = (state.tasks || [])
-        .filter((task) => task.status === 'RUNNING')
-        .map((task) => ({ title: task.name || 'Working on it...', detail: task.lastRunAt ? `Started ${new Date(task.lastRunAt).toLocaleTimeString()}` : 'Started recently', taskId: task.taskId }));
-      const processingCaptures = (state.inbox || [])
-        .filter((i) => i.status === 'PROCESSING' || i.status === 'QUEUED' || i.status === 'UPLOADING')
-        .map((i) => ({ title: i.metadata?.extractedTitle || i.content || 'Saving...', detail: i.metadata?.processingSubStage || '' }));
-      const runningActions = (state.candidates || [])
-        .filter((c) => c.action && c.action.status === 'RUNNING')
-        .map((c) => ({ title: c.title, detail: `${c.type} action in progress` }));
-      const workingItems = [...processingCaptures, ...runningTasks, ...runningActions].slice(0, 2);
-      // UI-4-R1: the mockup keeps this panel structurally present at all
-      // times (a "Live"-style working surface), so it is no longer hidden
-      // when idle — a truthful empty state replaces the old
-      // card.style.display='none' collapse. Real data/Stop binding is
-      // otherwise unchanged.
-      if (card) card.style.display = 'block';
-      if (workingItems.length > 0) {
-        // A Stop control is only ever rendered for an item that carries a
-        // real, cancellable identifier (taskId -> POST /api/v1/tasks/:id/cancel,
-        // the real DC3-B2-integrated Task cancellation path) — never a
-        // local-only "looks stopped" toggle, and never shown for items
-        // with no real cancel handle (processing captures, candidate
-        // actions) rather than wiring a fake one.
-        elWorking.innerHTML = workingItems.map((w) => `<div class="inbox-item-card">
-            <div class="inbox-item-main">
-              <span class="inbox-item-title">${escapeHtml(w.title)}</span>
-              <span class="inbox-item-summary">${escapeHtml(w.detail)}</span>
-            </div>
-            <div style="display:flex; align-items:center; gap:0.4rem;">
-              <span class="badge-status status-PROCESSING">${escapeHtml(t('workspace.working') || 'WORKING')}</span>
-              ${w.taskId ? `<button class="btn-small danger" onclick="window.NAGEX.cancelTask('${w.taskId}')" title="${escapeHtml(t('workspace.stop') || 'Stop')}">${escapeHtml(t('workspace.stop') || 'Stop')}</button>` : ''}
-            </div>
-          </div>`).join('');
-      } else {
-        elWorking.innerHTML = `<div class="working-ready-state"><span class="working-ready-icon"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span><div><strong>${escapeHtml(t('home.workingReadyTitle') || 'Ready when you are')}</strong><span>${escapeHtml(t('home.workingReadyBody') || 'Start a request above or review recent activity.')}</span></div><button class="working-ready-link" onclick="document.getElementById('home-prompt-input')?.focus()">${escapeHtml(t('home.startRequest') || 'Start a request')}</button></div>`;
-      }
-    }
-
-    // 2a. Important for you (max 2 items, R12.1 Increment 2 §7) — proactive
-    // information only, structurally separate from real approvals: proposed
-    // candidates awaiting review and retryable failed candidate actions and
-    // pages that need a human. Nothing rendered here can authorize a
-    // mutation — clicking through always lands on Inbox for the real
-    // review/accept/reject action.
-    const elImportant = document.getElementById('list-important-for-you');
-    if (elImportant) {
-      const card = elImportant.closest('.canvas-section-card');
-      const proposedCandidates = (state.candidates || []).filter((c) => c.status === 'PROPOSED');
-      const failedActionCandidates = (state.candidates || []).filter((c) => c.status === 'ACCEPTED' && c.action && c.action.status === 'FAILED');
-      const needsHumanCaptures = (state.inbox || []).filter((i) => i.status === 'NEEDS_REVIEW' && i.metadata?.errorCode === 'BLOCKED_NEEDS_HUMAN');
-
-      const CANDIDATE_REVIEW_LABEL = { TASK: 'Review suggested task', CALENDAR: 'Review suggested calendar event', MEMORY: 'Review suggested memory', KNOWLEDGE: 'Review suggested knowledge item' };
-      const ACTION_RETRY_LABEL = { TASK: 'Task action failed', CALENDAR: 'Calendar action failed', MEMORY: 'Memory action failed', KNOWLEDGE: 'Knowledge action failed' };
-
-      const importantItems = [
-        ...proposedCandidates.map((c) => ({ kind: 'candidate-review', candidate: c })),
-        ...failedActionCandidates.map((c) => ({ kind: 'candidate-retry', candidate: c })),
-        ...needsHumanCaptures.map((i) => ({ kind: 'needs-human', item: i })),
-      ].slice(0, 2);
-
-      if (card) card.style.display = 'block';
-      if (importantItems.length > 0) {
-        elImportant.innerHTML = importantItems.map((entry) => {
-          if (entry.kind === 'candidate-review') {
-            const c = entry.candidate;
-            return `<div class="inbox-item-card" onclick="window.NAGEX.switchTab('tab-inbox')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.NAGEX.switchTab('tab-inbox');}"><div class="inbox-item-main"><span class="inbox-item-title">${escapeHtml(CANDIDATE_REVIEW_LABEL[c.type] || 'Review suggestion')}</span><span class="inbox-item-summary">${escapeHtml(c.title)}</span></div><span class="badge-status status-PROPOSED">${escapeHtml(t('workspace.candidateStatusProposed') || 'Suggested')}</span></div>`;
-          }
-          if (entry.kind === 'candidate-retry') {
-            const c = entry.candidate;
-            return `<div class="inbox-item-card" onclick="window.NAGEX.switchTab('tab-inbox')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.NAGEX.switchTab('tab-inbox');}"><div class="inbox-item-main"><span class="inbox-item-title">${escapeHtml(ACTION_RETRY_LABEL[c.type] || 'Action failed')}</span><span class="inbox-item-summary">${escapeHtml(c.title)}</span></div><span class="badge-status status-FAILED">${escapeHtml(t('workspace.candidateActionFailed') || 'Action failed')}</span></div>`;
-          }
-          // needs-human
-          const i = entry.item;
-          const title = i.metadata?.extractedTitle || i.content || 'A page';
-          return `<div class="inbox-item-card" onclick="window.NAGEX.switchTab('tab-inbox')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.NAGEX.switchTab('tab-inbox');}"><div class="inbox-item-main"><span class="inbox-item-title">${escapeHtml(title)}</span><span class="inbox-item-summary">${escapeHtml(t('workspace.needsHumanAttention') || 'Needs your attention')}</span></div><span class="badge-status status-NEEDS_REVIEW">${escapeHtml(t('workspace.needsHumanBadge') || 'Review')}</span></div>`;
-        }).join('');
-      } else {
-        elImportant.innerHTML = `<div class="nagex-empty-state">${escapeHtml(t('home.importantEmpty') || 'Nothing important to flag right now.')}</div>`;
-      }
-    }
-
-    // 2b. Needs Approval (max 2 items) — real consequential actions
-    // awaiting explicit user approval, structurally separate from the
-    // proactive "Important for you" section above. CTAs are
-    // consequence-specific (never a bare "Run"/"OK"), derived from the
-    // approval's own toolId/action, per R12.1 Increment 2 §9.
-    //
-    // DEBT-0006 CLOSED (R12.1 Increment 2.5) — GET /api/v1/approvals now
-    // sources this list from the real, tenant/principal-scoped
-    // ActionApprovalStore.listPending() (the same primitive Daily Brief's
-    // own "Needs Your Approval" section already used), never a hardcoded
-    // demo/seed array. No frontend id-filtering is needed or present.
-    //
-    // Fail-closed (§8): state.approvalsLoadFailed distinguishes "the
-    // fetch itself failed" from "the real source returned zero pending
-    // approvals" — only the latter may render as "No approvals needed."
-    const elApprovals = document.getElementById('list-needs-attention');
-    if (elApprovals) {
       const card = elApprovals.closest('.canvas-section-card');
       if (card) card.style.display = 'block';
-      const pendingApprs = state.approvals.filter((a) => a.status === 'PENDING').slice(0, 2);
+      const sections = state.approvalSections || { pending: [], inProgress: [], recent: [] };
+      const pendingApprs = state.approvals.filter((a) => a.status === 'PENDING');
+      const activeActionCards = [
+        ...(pendingApprs.length > 0 ? pendingApprs : (sections.pending || [])),
+        ...(sections.inProgress || []),
+        ...(sections.recent || []).filter((a) => {
+          const stage = String((a.executionStatus && a.executionStatus.stage) || '').toUpperCase();
+          return stage === 'SENT_VERIFIED' || stage === 'TARGET_VERIFIED' || stage === 'FAILED' || a.status === 'REJECTED';
+        }),
+      ].slice(0, 2);
+
+      const railStage = (a) => {
+        const status = a.executionStatus || {};
+        const raw = String(status.stage || status.commandState || a.status || '').toUpperCase();
+        if (a.status === 'PENDING') return t('rail.needsApproval') || 'Needs approval';
+        if (raw === 'WAITING_FOR_PRECONDITION') return t('rail.waitingForYou') || 'Waiting for you';
+        if (status.messageSentVerified || status.verifiedOutcome || raw === 'SENT_VERIFIED' || raw === 'TARGET_VERIFIED') return t('rail.completed') || 'Completed';
+        if (raw.includes('VERIFY') || status.targetVerified) return t('rail.verifying') || 'Verifying';
+        if (raw.includes('FAILED') || a.status === 'REJECTED') return t('rail.failed') || 'Failed';
+        return t('rail.working') || 'Working';
+      };
+      const railSummary = (a) => {
+        const details = a.kakaoAccessibility || {};
+        if (details.targetContact && details.message) return details.targetContact + ' ? ' + details.message;
+        return a.resource?.id || t('home.reviewDetails') || 'Review the details';
+      };
 
       if (state.approvalsLoadFailed) {
         elApprovals.innerHTML = `<div class="nagex-empty-state">${escapeHtml(t('home.approvalsLoadError') || 'Approvals could not be loaded.')}</div>`;
-      } else if (pendingApprs.length > 0) {
-        elApprovals.innerHTML = pendingApprs.map((a) => {
+      } else if (activeActionCards.length > 0) {
+        elApprovals.innerHTML = activeActionCards.map((a) => {
           const humanAction = a.intent || a.action || 'Ready for review';
-          return `<div class="inbox-item-card contextual-approval-card">
+          const stage = railStage(a);
+          const isPending = a.status === 'PENDING';
+          return `<div class="inbox-item-card contextual-approval-card" data-execution-thread="${escapeHtml((a.executionStatus && a.executionStatus.executionThreadId) || a.approvalId || a.id || '')}">
               <span class="approval-row-icon" aria-hidden="true">!</span>
               <div class="inbox-item-main">
                 <span class="inbox-item-title">${escapeHtml(humanAction)}</span>
-                <span class="inbox-item-summary">${escapeHtml(a.resource?.id || 'Review the details')}</span>
+                <span class="inbox-item-summary">${escapeHtml(railSummary(a))}</span>
               </div>
-              <div class="contextual-appr-btns" style="display: flex; gap: 0.35rem; margin-top: 0.25rem;">
+              <span class="badge-status status-PROCESSING">${escapeHtml(stage)}</span>
+              ${isPending ? `<div class="contextual-appr-btns" style="display: flex; gap: 0.35rem; margin-top: 0.25rem;">
                 <button class="btn-primary" style="font-size:0.75rem; padding:0.25rem 0.6rem;" onclick="window.NAGEX.handleApprovalAction('${a.id || a.approvalId}', 'APPROVE', event)">${escapeHtml(homeApprovalActionLabel(a, t))}</button>
-                <button class="btn-secondary" style="font-size:0.75rem; padding:0.25rem 0.6rem;" onclick="window.NAGEX.switchTab('tab-approvals')">${escapeHtml(t('home.reviewDetails') || 'Review')}</button>
                 <button class="btn-secondary danger" style="font-size:0.75rem; padding:0.25rem 0.6rem;" onclick="window.NAGEX.handleApprovalAction('${a.id || a.approvalId}', 'REJECT', event)">${escapeHtml(t('calendar.reject') || 'Reject')}</button>
-              </div>
+              </div>` : ''}
             </div>`;
         }).join('');
       } else {
@@ -1228,17 +1157,17 @@
       }
     }
 
-    // Recent Results — real completed outcomes. Owned by desktop-home.js's
+    // Recent Results ??real completed outcomes. Owned by desktop-home.js's
     // renderTodayPanel() (#desktop-recent-actions-list, sourced from real
     // GET /api/v1/my-space history) since that is the panel actually
     // present in current Home markup; the #list-today-summary /
     // #list-recent-activity ids this block used to target no longer exist
     // in index.html (superseded by #desktop-today-list /
-    // #desktop-recent-actions-list) — removed as dead code rather than
+    // #desktop-recent-actions-list) ??removed as dead code rather than
     // left silently no-op-ing against a target that was never real.
   }
 
-  // ── R12.1 Increment 3 — Intent-first Inbox presentation model ──
+  // ?�?� R12.1 Increment 3 ??Intent-first Inbox presentation model ?�?�
   function buildCanonicalInboxViewModel({ approvals = [], captures = [], candidates = [] }) {
     const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
     const items = [];
@@ -1510,16 +1439,16 @@
     listEl.innerHTML = html;
   }
 
-  // ─── Phase 1 STEP 6 — Candidate Review ───
+  // ?�?�?� Phase 1 STEP 6 ??Candidate Review ?�?�?�
   //
   // CandidateStore/API is the ONLY source of truth for review state
   // (item B). Nothing here ever reads capture.metadata.candidates[].status
   // to decide what to render or which action is available (item R).
   //
   // Review is not execution (item A): Accept only ever moves a candidate to
-  // ACCEPTED — it never creates a Task, requests a Calendar approval, writes
+  // ACCEPTED ??it never creates a Task, requests a Calendar approval, writes
   // Memory, or indexes Knowledge. That distinction is enforced server-side
-  // (CandidateStore.accept/QuickCaptureService.acceptCandidate — see
+  // (CandidateStore.accept/QuickCaptureService.acceptCandidate ??see
   // candidate.store.ts) and is repeated here only in copy, never bypassed.
 
   // Which candidate (if any) is currently showing its inline edit form, and
@@ -1544,7 +1473,7 @@
   }
 
   // Source context (item J): cross-references the already-loaded capture
-  // list purely to display where a suggestion came from — a domain/page
+  // list purely to display where a suggestion came from ??a domain/page
   // title for URLs, a real chunk's page number for PDFs, or the source
   // capture's own title/snippet for plain text. Never fabricated: if the
   // capture or the referenced chunk isn't found, this returns ''.
@@ -1569,7 +1498,7 @@
     return (capture.metadata && capture.metadata.extractedTitle) || (capture.content || '').slice(0, 60);
   }
 
-  // Type-specific payload preview (item D) — never the raw payload JSON.
+  // Type-specific payload preview (item D) ??never the raw payload JSON.
   function candidatePayloadPreview(candidate) {
     const p = candidate.payload || {};
     if (candidate.type === 'TASK') {
@@ -1606,9 +1535,9 @@
 
   const CAND_ESC = (id) => `if(event.key==='Escape'){event.preventDefault();window.NAGEX.cancelModifyCandidate('${id}');}`;
 
-  // Item H: a plain inline edit form, not a modal — keyboard-accessible via
+  // Item H: a plain inline edit form, not a modal ??keyboard-accessible via
   // normal tab order, no focus trap needed. Escape on any field cancels
-  // without saving (item P) — it never triggers Accept/Reject/PATCH.
+  // without saving (item P) ??it never triggers Accept/Reject/PATCH.
   function renderCandidateEditForm(candidate) {
     const cid = candidate.candidateId;
     const p = candidate.payload || {};
@@ -1651,11 +1580,11 @@
     `;
   }
 
-  // Phase 1 STEP 7 (items A/M/N/O) — action controls for an ACCEPTED
+  // Phase 1 STEP 7 (items A/M/N/O) ??action controls for an ACCEPTED
   // candidate. Accept never executes by itself: NOT_STARTED always shows an
   // explicit per-type "Apply" button (Create task / Review calendar action /
   // Remember / Add to knowledge). Only a real SUCCEEDED action ever shows a
-  // completion label — never before the actual downstream write happened.
+  // completion label ??never before the actual downstream write happened.
   // Calendar keeps its two gates visibly distinct (Korean note in the STEP 7
   // directive): PENDING_APPROVAL always reads "Waiting for approval", never
   // "Added to Google Calendar", until the separate Action Approval is
@@ -1700,9 +1629,9 @@
         : '';
       return `<span class="badge-status status-READY" style="font-size:0.72rem;">${escapeHtml(successText)}</span>${openLink}`;
     }
-    // FAILED — the candidate itself stays ACCEPTED (item O); only its
+    // FAILED ??the candidate itself stays ACCEPTED (item O); only its
     // action failed. Phase 1 STEP 9, item I/S: Retry is offered ONLY when
-    // the resolver's own classification says retryable === true — never
+    // the resolver's own classification says retryable === true ??never
     // for an AMBIGUOUS outcome (its real-world result is unverified, so a
     // blind retry could double-execute) or a NEEDS_HUMAN/TERMINAL one.
     if (action.retryable === true) {
@@ -1717,13 +1646,13 @@
     if (action.category === 'NEEDS_HUMAN') {
       return `<span style="font-size:0.72rem; color:#92400e;">${escapeHtml(t('workspace.candidateActionNeedsHuman') || 'This needs your attention before it can continue')}</span>`;
     }
-    return `<span style="font-size:0.72rem; color:#991b1b;">${escapeHtml(t('workspace.candidateActionFailed') || 'Action failed')} — ${escapeHtml(t('workspace.candidateActionNotRetryable') || 'cannot be retried')}</span>`;
+    return `<span style="font-size:0.72rem; color:#991b1b;">${escapeHtml(t('workspace.candidateActionFailed') || 'Action failed')} ??${escapeHtml(t('workspace.candidateActionNotRetryable') || 'cannot be retried')}</span>`;
   }
 
   // The full Candidate Review Card (item C/D): type, title, payload
   // preview, source context, confidence only when meaningful, status,
   // created time. Actions are present ONLY while PROPOSED (item C) and
-  // absent for EXPIRED (item N — labeled "Source changed" instead).
+  // absent for EXPIRED (item N ??labeled "Source changed" instead).
   function renderCandidateReviewCard(candidate) {
     if (candidateEditState === candidate.candidateId) {
       return renderCandidateEditForm(candidate);
@@ -1749,7 +1678,7 @@
       actionsHtml = `<span style="font-size:0.7rem; color: var(--color-text-secondary);">${escapeHtml(t('workspace.candidateSourceChanged') || 'Source changed')}</span>`;
     } else if (candidate.status === 'ACCEPTED') {
       // Phase 1 STEP 7 (item M): review controls are replaced with action
-      // controls — Accept ≠ execute, so this is a distinct, explicit step.
+      // controls ??Accept ??execute, so this is a distinct, explicit step.
       actionsHtml = renderCandidateActionControls(candidate);
     }
 
@@ -1790,7 +1719,7 @@
 
     const toggleHtml = resolved.length > 0 ? `
       <button class="btn-secondary" style="font-size:0.7rem; margin-bottom:0.5rem;" onclick="window.NAGEX.toggleResolvedCandidates()">
-        ${candidatesShowResolved ? escapeHtml(t('workspace.hideResolved') || 'Hide resolved') : `${resolved.length} ${escapeHtml(t('workspace.showResolved') || 'resolved — show')}`}
+        ${candidatesShowResolved ? escapeHtml(t('workspace.hideResolved') || 'Hide resolved') : `${resolved.length} ${escapeHtml(t('workspace.showResolved') || 'resolved ??show')}`}
       </button>
     ` : '';
 
@@ -1808,7 +1737,7 @@
   }
 
   window.NAGEX = window.NAGEX || {};
-  // R12.1 Increment 1 — canonical "logo returns Home" behavior (required
+  // R12.1 Increment 1 ??canonical "logo returns Home" behavior (required
   // from every main product screen, plus the ambient overlay). Closing an
   // already-closed overlay is a safe no-op (closeAmbientOverlay only ever
   // resets display/scroll-lock/listeners that may already be at rest), so
@@ -1826,7 +1755,7 @@
     candidateEditState = candidateId;
     renderCandidateReviewQueue();
   };
-  // Escape / Cancel: reverts to view mode without saving — no PATCH/Accept/
+  // Escape / Cancel: reverts to view mode without saving ??no PATCH/Accept/
   // Reject call is ever made from here (item P).
   window.NAGEX.cancelModifyCandidate = (candidateId) => {
     candidateEditState = null;
@@ -1867,19 +1796,19 @@
       return; // stay in edit mode so the user can fix the value
     }
     candidateEditState = null;
-    // Phase 1 STEP 8, item U — a single centralized refresh so Home/Inbox/
+    // Phase 1 STEP 8, item U ??a single centralized refresh so Home/Inbox/
     // Activity all become consistent after the same UI action, instead of
     // each card independently re-fetching just its own slice of state.
     await loadAllData();
   };
   // Accept/Reject (items E/F/O): a stale/already-decided candidate comes
-  // back as an error from the API (409) rather than a silent success — this
+  // back as an error from the API (409) rather than a silent success ??this
   // always re-loads canonical state afterward so the UI reflects whatever
   // the server actually did, never an optimistic guess.
   window.NAGEX.acceptCandidate = async (candidateId) => {
     const result = await apiFetch(`/api/v1/candidates/${candidateId}/accept`, { method: 'POST', body: JSON.stringify({}) });
     if (!result || result.error) alert((result && result.error && result.error.message) || 'Could not accept this suggestion.');
-    // Phase 1 STEP 8, item U — a single centralized refresh so Home/Inbox/
+    // Phase 1 STEP 8, item U ??a single centralized refresh so Home/Inbox/
     // Activity all become consistent after the same UI action, instead of
     // each card independently re-fetching just its own slice of state.
     await loadAllData();
@@ -1887,19 +1816,19 @@
   window.NAGEX.rejectCandidate = async (candidateId) => {
     const result = await apiFetch(`/api/v1/candidates/${candidateId}/reject`, { method: 'POST', body: JSON.stringify({}) });
     if (!result || result.error) alert((result && result.error && result.error.message) || 'Could not reject this suggestion.');
-    // Phase 1 STEP 8, item U — a single centralized refresh so Home/Inbox/
+    // Phase 1 STEP 8, item U ??a single centralized refresh so Home/Inbox/
     // Activity all become consistent after the same UI action, instead of
     // each card independently re-fetching just its own slice of state.
     await loadAllData();
   };
-  // Phase 1 STEP 7 — explicit "Apply"/"Retry": accepting a candidate never
+  // Phase 1 STEP 7 ??explicit "Apply"/"Retry": accepting a candidate never
   // calls these on its own (item A). Always reloads canonical state
   // afterward, same as accept/reject, so a PENDING_APPROVAL/FAILED result is
   // shown truthfully rather than assumed.
   window.NAGEX.executeCandidateAction = async (candidateId) => {
     const result = await apiFetch(`/api/v1/candidates/${candidateId}/execute`, { method: 'POST', body: JSON.stringify({}) });
     if (!result || result.error) alert((result && result.error && result.error.message) || 'Could not apply this action.');
-    // Phase 1 STEP 8, item U — a single centralized refresh so Home/Inbox/
+    // Phase 1 STEP 8, item U ??a single centralized refresh so Home/Inbox/
     // Activity all become consistent after the same UI action, instead of
     // each card independently re-fetching just its own slice of state.
     await loadAllData();
@@ -1907,7 +1836,7 @@
   window.NAGEX.retryCandidateAction = async (candidateId) => {
     const result = await apiFetch(`/api/v1/candidates/${candidateId}/retry`, { method: 'POST', body: JSON.stringify({}) });
     if (!result || result.error) alert((result && result.error && result.error.message) || 'Could not retry this action.');
-    // Phase 1 STEP 8, item U — a single centralized refresh so Home/Inbox/
+    // Phase 1 STEP 8, item U ??a single centralized refresh so Home/Inbox/
     // Activity all become consistent after the same UI action, instead of
     // each card independently re-fetching just its own slice of state.
     await loadAllData();
@@ -1983,7 +1912,7 @@
     renderInbox();
   };
 
-  // Capability-neutral example prompts (R12.1 Increment 2 §5) — clicking
+  // Capability-neutral example prompts (R12.1 Increment 2 §5) ??clicking
   // one submits through the exact same canonical intent path as typed
   // input (runAmbientTask), never a separate hidden execution route.
   const HOME_EXAMPLE_PROMPTS = {
@@ -1996,7 +1925,7 @@
     'example-automation': 'Watch for competitor pricing changes weekly.',
   };
   // Capability Discovery chips (§12) populate the composer instead of
-  // auto-submitting — a browsing aid, not a shortcut, per §6's "one
+  // auto-submitting ??a browsing aid, not a shortcut, per §6's "one
   // canonical user-intent path" rule (the user still reviews/edits before
   // sending, same as if they had typed it themselves).
   const HOME_DISCOVER_PROMPTS = {
@@ -2206,7 +2135,7 @@
         } else if (triggerType === 'INTERVAL') {
           trigger.intervalMinutes = Number(document.getElementById('task-interval').value) || 60;
         } else if (triggerType === 'CONDITION') {
-          // Never invents a page to watch — a real http(s) URL is required
+          // Never invents a page to watch ??a real http(s) URL is required
           // by the server (see server_web.ts's WATCH_URL_REQUIRED check),
           // exactly like Calendar/Gmail's required fields.
           trigger.condition = document.getElementById('task-condition').value.trim();
@@ -2234,7 +2163,7 @@
     }
   }
 
-  // ── Helper & Section Anchors for Test Compatibility ──
+  // ?�?� Helper & Section Anchors for Test Compatibility ?�?�
   function homeApprovalActionLabel(a, t) {
     if (a.tool === 'google_calendar.create_event' || a.action === 'approveAndCreateEvent') {
       return (t && typeof t === 'function' ? t('home.approveAndCreateEvent') : null) || 'Add to calendar';
@@ -2282,17 +2211,17 @@
         ${t.id === 'google_calendar.create_event' ? `<div class="tool-oauth-actions">${
           state.googleOAuth.connected
             ? `<button class="btn-small danger" id="btn-google-calendar-disconnect">Disconnect Google Calendar</button>`
-            : `<button class="btn-small" id="btn-google-calendar-connect">🔗 Connect Google Calendar</button>`
+            : `<button class="btn-small" id="btn-google-calendar-connect">?�� Connect Google Calendar</button>`
         }</div>` : ''}
         ${t.id === 'telegram.bot' ? `<div class="tool-oauth-actions">
           <p style="font-size:0.75rem; margin-top:0.25rem; color:var(--text-muted);">Bot Status: <strong>${state.telegram && state.telegram.status && state.telegram.status.configured ? 'Active' : 'Mock Mode (No Token)'}</strong></p>
           <p style="font-size:0.75rem; color:var(--text-muted);">Linked Users: <strong>${(state.telegram && state.telegram.identities && state.telegram.identities.length) || 0}</strong></p>
-          <button class="btn-small" id="btn-telegram-link-identity">🔗 Link Telegram (get code)</button>
+          <button class="btn-small" id="btn-telegram-link-identity">?�� Link Telegram (get code)</button>
         </div>` : ''}
         ${t.id === 'slack.bot' ? `<div class="tool-oauth-actions">
           <p style="font-size:0.75rem; margin-top:0.25rem; color:var(--text-muted);">Bot Status: <strong>${state.slack && state.slack.status && state.slack.status.configured ? 'Active' : 'Mock Mode (No Token)'}</strong></p>
           <p style="font-size:0.75rem; color:var(--text-muted);">Linked Users: <strong>${(state.slack && state.slack.identities && state.slack.identities.length) || 0}</strong></p>
-          <button class="btn-small" id="btn-slack-link-identity">🔗 Link Slack (get code)</button>
+          <button class="btn-small" id="btn-slack-link-identity">?�� Link Slack (get code)</button>
         </div>` : ''}
       </div>`
       )
@@ -2339,7 +2268,7 @@
       inProgress: [],
       recent: approvals.filter((a) => a.status !== 'PENDING'),
     };
-    // R24.8B — the count is the REAL number of pending approvals (was a hardcoded "Pending (2)").
+    // R24.8B ??the count is the REAL number of pending approvals (was a hardcoded "Pending (2)").
     const countLabel = document.getElementById('approvals-count-label');
     if (countLabel) countLabel.textContent = `${t('approvals.pendingLabel')} (${(sections.pending || []).length})`;
     if (approvals.length === 0) {
@@ -2432,12 +2361,12 @@
     ].join('');
   }
 
-  // Phase 1 STEP 8 (item F/G) — the consumer Activity tab. Reads only the
+  // Phase 1 STEP 8 (item F/G) ??the consumer Activity tab. Reads only the
   // durable, tenant-isolated Activity projection (state.activity, from
-  // GET /api/v1/activity) — never the legacy non-isolated
+  // GET /api/v1/activity) ??never the legacy non-isolated
   // /api/v1/executions demo feed, and never raw AuditLogger-shaped fields
   // (tool.execution.completed, browser.navigate, skill.scheduling, ...).
-  // ── R12.1 Increment 3 — Outcome-first Activity timeline ──
+  // ?�?� R12.1 Increment 3 ??Outcome-first Activity timeline ?�?�
   async function renderActivity() {
     const container = document.getElementById('executions-list-container');
     if (!container) return;
@@ -2577,12 +2506,12 @@
     if (btn) btn.setAttribute('aria-expanded', String(!isExpanded));
   };
 
-  // P08 — My Space Foundation. Thin frontend for the thin GET /api/v1/
-  // my-space composition — fetched lazily (only when the tab actually
+  // P08 ??My Space Foundation. Thin frontend for the thin GET /api/v1/
+  // my-space composition ??fetched lazily (only when the tab actually
   // opens, unlike Home's eager loadAllData()), since Calendar's leg makes a
   // real external call this app should not repeat on every 5s active-work
   // poll for a view the user may never open. Every section renders (or
-  // empties/errors) independently — one section's data problem never blanks
+  // empties/errors) independently ??one section's data problem never blanks
   // the rest of the page.
   async function renderMySpace() {
     const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
@@ -2660,7 +2589,7 @@
     }
   }
 
-  // R24.5C — real Knowledge search/ingestion state. No client-only demo
+  // R24.5C ??real Knowledge search/ingestion state. No client-only demo
   // filtering: knowledgeQuery drives a real GET /api/v1/knowledge?q= fetch.
   let knowledgeQuery = '';
   let knowledgeLoading = false;
@@ -2864,11 +2793,10 @@
 
   function switchSettingsCategory(catKey, options) {
     const pushHistory = !options || options.pushHistory !== false;
-    // The Organization category is enterprise-only (same rule as the tab's visibility);
-    // an unknown/deep-linked category falls back instead of showing an empty page.
-    if ((catKey === 'organization' && !isEnterpriseUiMode()) || !document.getElementById(`cat-panel-${catKey}`)) catKey = 'connections';
+    ensureCommercialSettingsShell();
+    if (!document.getElementById(`cat-panel-${catKey}`)) catKey = 'account';
     state.activeSettingsCat = catKey;
-    const tabs = document.querySelectorAll('.settings-cat-tab');
+    const tabs = document.querySelectorAll('.settings-cat-tab, .settings-advanced-link');
     tabs.forEach((tab) => {
       const isActive = tab.getAttribute('data-cat') === catKey;
       tab.classList.toggle('active', isActive);
@@ -2879,8 +2807,8 @@
       const isMatch = panel.id === `cat-panel-${catKey}`;
       panel.hidden = !isMatch;
     });
-    // R24.6D — Desktop Account: the shared Account renderer (also used by Mobile) paints it.
-    if (catKey === 'account' && window.NAGEX && typeof window.NAGEX.renderAccountSettings === 'function') window.NAGEX.renderAccountSettings();
+    // R24.6D ??Desktop Account: the shared Account renderer (also used by Mobile) paints it.
+    if (catKey === 'devices') renderSettingsDevices();
 
     if (!isNavigatingFromPopState && pushHistory && state.activeTab === 'tab-settings' && typeof window !== 'undefined' && window.history && window.history.pushState) {
       const targetHash = `#settings/${catKey}`;
@@ -2892,53 +2820,204 @@
     }
   }
 
-  // R24.6B — NAgex has no device/session registry that the web UI can read
-  // yet, so there is no real "connected device" to show. The former
-  // hardcoded "Local Desktop Agent … Connected · Active now" row was a
-  // fabricated status and is gone; an honest empty state is shown instead.
-  function renderSettingsDevices() {
-    const el = document.getElementById('settings-devices-list');
-    if (!el) return;
-    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
-    el.innerHTML = `<p class="setting-sub" id="settings-devices-empty">${escapeHtml(t('settings.devicesNone'))}</p>`;
-  }
-
-
-
-  function renderVoiceIdentitySettings() {
-    const panel = document.getElementById('cat-panel-privacy');
-    if (!panel || panel.querySelector('[data-voice-identity-settings]')) return;
-    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+  function ensureCommercialSettingsShell() {
+    const view = document.getElementById('view-settings');
+    const currentSettingsLocale = window.NAGEX_I18N ? window.NAGEX_I18N.getLocale() : (localStorage.getItem('nagex_locale') || 'en');
+    if (!view) return;
+    if (view.dataset.commercialSettings === '1' && view.dataset.settingsLocale === currentSettingsLocale) return;
+    view.dataset.commercialSettings = '1';
+    view.dataset.settingsLocale = currentSettingsLocale;
+    view.classList.add('settings-commercial-view');
+    const tt = window.NAGEX_I18N ? window.NAGEX_I18N.t : (_key, fallback) => fallback;
+    const nav = [
+      ['account', tt('settings.catAccount', 'Account')], ['connections', tt('settings.catConnections', 'Connections')], ['devices', tt('settings.catDevices', 'Devices')], ['permissions', tt('settings.catPermissions', 'Permissions')],
+      ['notifications', tt('settings.catNotifications', 'Notifications')], ['personalization', tt('settings.catPersonalization', 'Personalization')], ['privacy-security', tt('settings.catPrivacySecurity', 'Privacy & Security')],
+      ['appearance', tt('settings.catAppearance', 'Appearance')],
+    ];
+    const navHtml = nav.map(([navKey, label], idx) => `<button class="settings-cat-tab${idx === 0 ? ' active' : ''}${navKey === 'advanced' ? ' settings-cat-tab-advanced' : ''}" data-cat="${navKey}" id="cat-tab-${navKey}" role="tab" aria-selected="${idx === 0 ? 'true' : 'false'}" aria-controls="cat-panel-${navKey}" onclick="window.NAGEX.switchSettingsCategory('${navKey}')">${escapeHtml(label)}</button>`).join('');
+    const advancedLink = `<button class="settings-advanced-link" data-cat="advanced" id="cat-tab-advanced" role="tab" aria-selected="false" aria-controls="cat-panel-advanced" onclick="window.NAGEX.switchSettingsCategory('advanced')">${escapeHtml(tt('settings.advanced', 'Advanced'))}</button>`;
+    const panel = (key, title, subtitle, body) => `<section class="settings-page-panel cat-panel" id="cat-panel-${key}" role="tabpanel" aria-labelledby="cat-tab-${key}" ${key === 'account' ? '' : 'hidden'}><div class="settings-page-heading"><span class="settings-breadcrumb">${escapeHtml(tt('settings.title', 'Settings'))} &gt; <strong>${title}</strong></span><h2>${title}</h2><p class="setting-sub">${subtitle}</p></div><div class="settings-top-tabs" role="tablist" aria-label="${escapeHtml(tt('settings.categoriesAria', 'Settings sections'))}">${navHtml}${advancedLink}</div>${body}</section>`;
+    const rows = (items) => items.map(([a, b]) => `<div class="settings-row-lite"><span>${a}</span><span class="settings-state-pill">${b}</span></div>`).join('');
+    const uiLang = (document.documentElement.lang || '').toLowerCase();
+    const isKoSettings = (window.NAGEX_I18N ? window.NAGEX_I18N.getLocale() : uiLang) === 'ko';
+    const ap = isKoSettings ? { title: '\uD654\uBA74 \uC124\uC815', subtitle: '\uC774 \uAE30\uAE30\uC5D0\uC11C NAgex\uAC00 \uBCF4\uC774\uB294 \uBC29\uC2DD\uC744 \uC870\uC815\uD569\uB2C8\uB2E4.', theme: '\uD14C\uB9C8', themeDesc: 'NAgex \uD654\uBA74\uC758 \uBC1D\uAE30 \uC124\uC815\uC785\uB2C8\uB2E4.', system: '\uC2DC\uC2A4\uD15C', systemDesc: '\uAE30\uAE30 \uC124\uC815\uC744 \uB530\uB985\uB2C8\uB2E4.', light: '\uB77C\uC774\uD2B8', lightDesc: '\uBC1D\uC740 \uC778\uD130\uD398\uC774\uC2A4\uC785\uB2C8\uB2E4.', dark: '\uB2E4\uD06C', darkDesc: '\uC5B4\uB450\uC6B4 \uC778\uD130\uD398\uC774\uC2A4\uC785\uB2C8\uB2E4.', active: '\uD604\uC7AC \uC801\uC6A9', unavailable: '\uC544\uC9C1 \uC9C0\uC6D0\uB418\uC9C0 \uC54A\uC74C', density: '\uD654\uBA74 \uBC00\uB3C4', densityDesc: '\uD654\uBA74\uC5D0 \uD45C\uC2DC\uB418\uB294 \uAC04\uACA9\uACFC \uC815\uBCF4\uB7C9\uC785\uB2C8\uB2E4.', comfortable: '\uC5EC\uC720\uB86D\uAC8C', comfortableDesc: '\uD604\uC7AC \uC9C0\uC6D0\uB418\uB294 \uAE30\uBCF8 \uAC04\uACA9\uC785\uB2C8\uB2E4.', compact: '\uCEF4\uD329\uD2B8', compactDesc: '\uB354 \uB9CE\uC740 \uC815\uBCF4\uB97C \uD45C\uC2DC\uD558\uB294 \uBAA8\uB4DC\uB294 \uC544\uC9C1 \uC9C0\uC6D0\uB418\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.', sidebar: '\uC0AC\uC774\uB4DC\uBC14', sidebarDesc: '\uD654\uBA74 \uD06C\uAE30\uC5D0 \uB9DE\uCDB0 \uC790\uB3D9\uC73C\uB85C \uC870\uC815\uB429\uB2C8\uB2E4.', auto: '\uC790\uB3D9', autoDesc: '\uB370\uC2A4\uD06C\uD1B1\uACFC \uBAA8\uBC14\uC77C \uD3ED\uC5D0 \uB9DE\uCDB0 \uB808\uC774\uC544\uC6C3\uC774 \uC790\uB3D9\uC73C\uB85C \uC804\uD658\uB429\uB2C8\uB2E4.', supported: '\uC9C0\uC6D0\uB428', planned: '\uACC4\uD68D\uB428' } : { title: 'Appearance', subtitle: 'Adjust how NAgex looks on this device.', theme: 'Theme', themeDesc: 'Choose how NAgex should look.', system: 'System', systemDesc: 'Uses your device setting.', light: 'Light', lightDesc: 'Bright interface.', dark: 'Dark', darkDesc: 'Reduced brightness.', active: 'Active', unavailable: 'Not implemented yet', density: 'Display density', densityDesc: 'Control spacing and information density.', comfortable: 'Comfortable', comfortableDesc: 'The currently supported default spacing.', compact: 'Compact', compactDesc: 'Fit-more mode is not implemented yet.', sidebar: 'Sidebar', sidebarDesc: 'Responsive behavior for the main navigation.', auto: 'Auto', autoDesc: 'Automatically adapts to desktop and mobile screen widths.', supported: 'Supported', planned: 'Planned' };
+    const appearanceIcon = (name, pathData) => '<svg class="settings-semantic-icon appearance-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="' + pathData + '" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="sr-only">' + escapeHtml(name) + '</span>';
+    const themePreview = (mode) => '<span class="appearance-preview appearance-preview-' + mode + '"><span></span><span></span><span></span></span>';
+    const appearanceOption = (label, desc, status, selected, icon, preview) => '<div class="appearance-option-card ' + (selected ? 'selected' : 'disabled') + '" role="radio" aria-checked="' + (selected ? 'true' : 'false') + '" aria-disabled="' + (selected ? 'false' : 'true') + '" tabindex="' + (selected ? '0' : '-1') + '"><div class="appearance-option-top">' + (preview || icon) + '<span class="settings-state-pill ' + (selected ? 'on' : '') + '">' + escapeHtml(status) + '</span></div><h4>' + escapeHtml(label) + '</h4><p>' + escapeHtml(desc) + '</p></div>';
+    const settingsFinalIcon = (name, pathData) => '<svg class="settings-semantic-icon settings-final-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="' + pathData + '" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="sr-only">' + escapeHtml(name) + '</span>';
+    const settingsFinalPill = (label, tone) => '<span class="settings-state-pill ' + (tone || '') + '">' + escapeHtml(label) + '</span>';
+    const settingsFinalCard = (iconName, iconPath, title, desc, body, action) => '<section class="settings-pro-card settings-final-card"><div class="settings-card-title-row"><div><h3>' + escapeHtml(title) + '</h3><p class="setting-sub">' + escapeHtml(desc) + '</p></div>' + settingsFinalIcon(iconName, iconPath) + '</div>' + (body || '') + (action || '') + '</section>';
+    const settingsFinalRow = (label, value, tone) => '<div class="settings-row-lite settings-final-row"><span>' + escapeHtml(label) + '</span>' + settingsFinalPill(value, tone) + '</div>';
+    const settingsOption = (label, desc, value, selected) => '<div class="appearance-option-card ' + (selected ? 'selected' : 'disabled') + ' settings-final-option" role="radio" aria-checked="' + (selected ? 'true' : 'false') + '" aria-disabled="' + (selected ? 'false' : 'true') + '" tabindex="' + (selected ? '0' : '-1') + '"><div class="appearance-option-top">' + settingsFinalPill(value, selected ? 'on' : '') + '</div><h4>' + escapeHtml(label) + '</h4><p>' + escapeHtml(desc) + '</p></div>';
     const voiceWakeOption = (label, desc, selected) => '<label class="voice-wake-option ' + (selected ? 'selected' : '') + '"><input type="radio" name="voice-wake-phrase" value="' + escapeHtml(label) + '" ' + (selected ? 'checked' : '') + '><span><strong>' + label + '</strong><small>' + escapeHtml(desc) + '</small></span></label>';
-    const voiceHtml = '<div class="settings-info-box voice-identity-settings" data-voice-identity-settings="1">' +
-      '<h4>' + escapeHtml(t('voiceIdentity.title') || 'Voice Identity') + '</h4>' +
-      '<p class="setting-sub">' + escapeHtml(t('voiceIdentity.subtitle') || 'Let NAgex recognize your voice without lowering approval protection.') + '</p>' +
-      '<div class="settings-row-lite"><span>' + escapeHtml(t('voiceIdentity.status') || 'Voice profile status') + '</span><span class="settings-state-pill">' + escapeHtml(t('voiceIdentity.notEnrolled') || 'Not enrolled') + '</span></div>' +
-      '<div class="voice-identity-actions"><button class="btn-secondary" type="button" onclick="window.NAGEX.openVoiceEnrollmentModal()">' + escapeHtml(t('voiceIdentity.enroll') || 'Enroll my voice') + '</button><button class="btn-secondary" type="button" onclick="window.NAGEX.openVoiceEnrollmentModal()">' + escapeHtml(t('voiceIdentity.reenroll') || 'Re-enroll voice') + '</button><button class="btn-secondary" type="button" disabled>' + escapeHtml(t('voiceIdentity.remove') || 'Remove voice profile') + '</button></div>' +
-      '<h4>' + escapeHtml(t('voiceIdentity.wakePhrase') || 'Wake Phrase') + '</h4><div class="voice-wake-options" role="radiogroup" aria-label="' + escapeHtml(t('voiceIdentity.wakePhrase') || 'Wake Phrase') + '">' +
-      voiceWakeOption('&#54860;&#51060; &#45348;&#51060;&#51229;&#49828;', t('voiceIdentity.defaultWakeDesc') || 'Default wake phrase', true) +
-      voiceWakeOption('&#45348;&#51060;&#51229;&#49828;', t('voiceIdentity.shortWakeDesc') || 'Optional short wake', false) +
-      voiceWakeOption('&#51020;&#49457; &#54840;&#52636; &#49324;&#50857; &#50504; &#54632;', t('voiceIdentity.disableWakeDesc') || 'Disable voice wake', false) +
-      '</div><p class="setting-sub">' + escapeHtml(t('voiceIdentity.authorityNote') || 'Voice helps identify who is speaking. Important actions still require approval.') + '</p></div>';
-    panel.insertAdjacentHTML('beforeend', voiceHtml);
+    const voiceIdentityBody = '<div class="voice-identity-settings" data-voice-identity-settings="1">' +
+      '<div class="settings-row-lite settings-final-row"><span>' + escapeHtml(tt('voiceIdentity.status', 'Voice profile status')) + '</span>' + settingsFinalPill(tt('voiceIdentity.notEnrolled', 'Not enrolled'), '') + '</div>' +
+      '<div class="voice-identity-actions"><button class="settings-primary-action" type="button" onclick="window.NAGEX.openVoiceEnrollmentModal()">' + escapeHtml(tt('voiceIdentity.enroll', 'Enroll my voice')) + '</button><button class="settings-secondary-action" type="button" onclick="window.NAGEX.openVoiceEnrollmentModal()">' + escapeHtml(tt('voiceIdentity.reenroll', 'Re-enroll voice')) + '</button><button class="settings-secondary-action" type="button" disabled>' + escapeHtml(tt('voiceIdentity.remove', 'Remove voice profile')) + '</button></div>' +
+      '<h4>' + escapeHtml(tt('voiceIdentity.wakePhrase', 'Wake Phrase')) + '</h4>' +
+      '<div class="voice-wake-options" role="radiogroup" aria-label="' + escapeHtml(tt('voiceIdentity.wakePhrase', 'Wake Phrase')) + '">' +
+      voiceWakeOption('&#54860;&#51060; &#45348;&#51060;&#51229;&#49828;', tt('voiceIdentity.defaultWakeDesc', 'Default wake phrase'), true) +
+      voiceWakeOption('&#45348;&#51060;&#51229;&#49828;', tt('voiceIdentity.shortWakeDesc', 'Optional short wake'), false) +
+      voiceWakeOption('&#51020;&#49457; &#54840;&#52636; &#49324;&#50857; &#50504; &#54632;', tt('voiceIdentity.disableWakeDesc', 'Disable voice wake'), false) +
+      '</div><p class="setting-sub">' + escapeHtml(tt('voiceIdentity.authorityNote', 'Voice helps identify who is speaking. Important actions still require approval.')) + '</p></div>';
+    const accountBody = '<div class="settings-final-grid settings-final-grid-wide">' +
+      settingsFinalCard('Profile', 'M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-4.4 0-8 2.2-8 5v1h16v-1c0-2.8-3.6-5-8-5Z', tt('settings.final.profile', 'Profile'), tt('settings.final.profileDesc', 'Your visible identity in NAgex.'), settingsFinalRow(tt('settings.final.displayName', 'Display name'), tt('settings.signInRequired', 'Sign in to view'), '') + settingsFinalRow(tt('settings.final.language', 'Language'), window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale() === 'ko' ? tt('settings.final.koreanLanguage', 'Korean') : 'English', 'on') + settingsFinalRow(tt('settings.final.profileImage', 'Profile image'), tt('settings.available', 'Available'), ''), '') +
+      settingsFinalCard('Sign-in methods', 'M12 11v4m0 4h.01M17 8V7a5 5 0 0 0-10 0v1M5 8h14v13H5V8Z', tt('settings.final.signInMethods', 'Sign-in methods'), tt('settings.final.signInMethodsDesc', 'Ways you can access this account.'), settingsFinalRow('Google', tt('settings.available', 'Available'), '') + settingsFinalRow('Microsoft', tt('settings.available', 'Available'), ''), '') +
+      settingsFinalCard('Sessions', 'M4 5h16v10H4V5Zm4 14h8m-5-4v4m2-4v4', tt('settings.final.activeSessions', 'Active sessions'), tt('settings.final.activeSessionsDesc', 'Devices currently signed in to NAgex.'), settingsFinalRow(tt('settings.final.currentDevice', 'Current device'), tt('account.currentSession', 'Current'), 'on') + settingsFinalRow(tt('settings.final.otherSessions', 'Other sessions'), tt('settings.final.noneVisible', 'None visible'), ''), '') +
+      settingsFinalCard('Account actions', 'M12 9v4m0 4h.01M4 6h16M6 6v14h12V6M9 6V4h6v2', tt('settings.final.accountActions', 'Account actions'), tt('settings.final.accountActionsDesc', 'Manage sign-in and account lifecycle from the Account dialog.'), '<div class="settings-final-actions"><button class="settings-primary-action secondary" type="button" onclick="window.NAGEX.showAuthModal &amp;&amp; window.NAGEX.showAuthModal(&quot;signin&quot;)">' + escapeHtml(tt('auth.signIn', 'Sign In')) + '</button></div>', '') +
+      '</div>';
+    const permissionsBody = '<div class="settings-final-grid">' +
+      settingsFinalCard('Contacts', 'M16 11a4 4 0 1 0-8 0m8 0a4 4 0 1 1-8 0m8 0v1a4 4 0 0 0 4 4v2H4v-2a4 4 0 0 1 4-4v-1', tt('settings.final.dataAccess', 'Data access'), tt('settings.final.dataAccessDesc', 'Information NAgex may read only when needed.'), settingsFinalRow(tt('settings.final.contacts', 'Contacts'), tt('settings.final.askWhenNeeded', 'Ask when needed'), '') + settingsFinalRow(tt('settings.final.email', 'Email'), tt('settings.final.askWhenNeeded', 'Ask when needed'), '') + settingsFinalRow(tt('settings.final.calendar', 'Calendar'), tt('settings.final.askWhenNeeded', 'Ask when needed'), '') + settingsFinalRow(tt('settings.final.files', 'Files'), tt('settings.final.askWhenNeeded', 'Ask when needed'), ''), '') +
+      settingsFinalCard('Security', 'M12 3l8 4v5c0 5-3.4 8.7-8 9-4.6-.3-8-4-8-9V7l8-4Z', tt('settings.final.actions', 'Action permissions'), tt('settings.final.actionsDesc', 'Changes NAgex must confirm before it acts.'), settingsFinalRow(tt('settings.final.sendMessages', 'Send messages'), tt('settings.final.alwaysAsk', 'Always ask'), 'on') + settingsFinalRow(tt('settings.final.sendEmail', 'Send email'), tt('settings.final.alwaysAsk', 'Always ask'), 'on') + settingsFinalRow(tt('settings.final.calendarChanges', 'Calendar changes'), tt('settings.final.alwaysAsk', 'Always ask'), 'on') + settingsFinalRow(tt('settings.final.fileChanges', 'File changes'), tt('settings.final.alwaysAsk', 'Always ask'), 'on'), '') +
+      settingsFinalCard('Background', 'M12 6v6l4 2m5-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z', tt('settings.final.background', 'Background activity'), tt('settings.final.backgroundDesc', 'Work NAgex can monitor without changing anything important.'), settingsFinalRow(tt('settings.final.scheduledTasks', 'Scheduled tasks'), tt('settings.final.allowed', 'Allowed'), 'on') + settingsFinalRow(tt('settings.final.conditionMonitoring', 'Condition monitoring'), tt('settings.final.askWhenNeeded', 'Ask when needed'), '') + settingsFinalRow(tt('settings.final.proactiveSuggestions', 'Proactive suggestions'), tt('settings.final.allowed', 'Allowed'), 'on'), '') + '</div>';
+    const personalizationBody = '<div class="settings-final-grid settings-final-grid-wide">' +
+      settingsFinalCard('Language', 'M4 5h16M9 3v2m1 12c-2-2-3.5-4.5-4-8m4 8c2-2 3.5-4.5 4-8m3 13 4-9 4 9m-6 0 4-9 4 9m-7-3h8', tt('settings.final.language', 'Language'), tt('settings.final.languageDesc', 'Use the header language switcher to change all NAgex UI text.'), settingsOption('English', 'English UI', window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale() === 'en' ? tt('settings.final.active', 'Active') : tt('settings.final.available', 'Available'), window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale() === 'en') + settingsOption(tt('settings.final.koreanLanguage', 'Korean'), 'Korean UI', window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale() === 'ko' ? tt('settings.final.active', 'Active') : tt('settings.final.available', 'Available'), window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale() === 'ko'), '') +
+      settingsFinalCard('Response style', 'M4 6h16M4 12h12M4 18h8', tt('settings.final.responseStyle', 'Response style'), tt('settings.final.responseStyleDesc', 'How NAgex answers in normal conversations.'), settingsFinalRow(tt('settings.final.defaultTone', 'Default tone'), tt('settings.final.clearConcise', 'Clear and concise'), 'on') + settingsFinalRow(tt('settings.final.detailLevel', 'Detail level'), tt('settings.final.balanced', 'Balanced'), ''), '') +
+      settingsFinalCard('Proactive', 'M12 3v3m0 12v3m9-9h-3M6 12H3m15.4-6.4-2.1 2.1M7.7 16.3l-2.1 2.1m0-12.8 2.1 2.1m8.6 8.6 2.1 2.1', tt('settings.final.proactive', 'Proactive assistance'), tt('settings.final.proactiveDesc', 'Useful next actions from NAgex when supported.'), settingsFinalRow(tt('settings.final.suggestions', 'Suggestions'), tt('settings.final.allowed', 'Allowed'), 'on'), '') +
+      settingsFinalCard('Daily brief', 'M5 4h14v16H5V4Zm4 4h6M9 12h6M9 16h4', tt('settings.final.dailyBrief', 'Daily brief'), tt('settings.final.dailyBriefDesc', 'Configured in Notifications.'), settingsFinalRow(tt('settings.final.morningBrief', 'Morning brief'), tt('settings.final.managedInNotifications', 'Managed in Notifications'), ''), '') +
+      settingsFinalCard('Device preferences', 'M4 5h16v10H4V5Zm8 10v4m-4 0h8', tt('settings.final.deviceActionPrefs', 'Device & action preferences'), tt('settings.final.deviceActionPrefsDesc', 'How NAgex chooses devices and asks for sensitive actions.'), settingsFinalRow(tt('settings.final.preferredDevice', 'Preferred device'), tt('settings.final.currentDevice', 'Current device'), '') + settingsFinalRow(tt('settings.final.sensitiveActions', 'Sensitive actions'), tt('settings.final.alwaysAsk', 'Always ask'), 'on'), '') + '</div>';
+    const privacyBody = '<div class="settings-final-grid settings-final-grid-wide">' +
+      settingsFinalCard('Trusted devices', 'M12 3l8 4v5c0 5-3.4 8.7-8 9-4.6-.3-8-4-8-9V7l8-4Z', tt('settings.final.trustedDevices', 'Trusted devices'), tt('settings.final.trustedDevicesDesc', 'Devices allowed to work with NAgex.'), settingsFinalRow(tt('settings.final.status', 'Status'), tt('settings.final.reviewDevices', 'Review in Devices'), ''), '') +
+      settingsFinalCard('Sign-in activity', 'M13 3a9 9 0 1 0 8.9 10H20a7 7 0 1 1-7-8V3Zm-1 4h2v6h5v2h-7V7Z', tt('settings.final.signInActivity', 'Sign-in activity'), tt('settings.final.signInActivityDesc', 'Recent access and active sessions.'), settingsFinalRow(tt('settings.final.currentSession', 'Current session'), tt('account.currentSession', 'Current'), 'on'), '') +
+      settingsFinalCard('Approval protection', 'M9 12l2 2 4-5m5 3a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z', tt('settings.final.approvalProtection', 'Approval protection'), tt('settings.final.approvalProtectionDesc', 'Important actions still require your review.'), settingsFinalRow(tt('settings.final.sensitiveActions', 'Sensitive actions'), tt('settings.final.alwaysAsk', 'Always ask'), 'on'), '') +
+      settingsFinalCard('NAgex Voice', 'M12 3v18m0-18a7 7 0 0 1 7 7v4a7 7 0 0 1-14 0V10a7 7 0 0 1 7-7Z', 'NAgex Voice', 'Choose how NAgex speaks to you.', '<div class="voice-identity-settings" data-nagex-voice-settings="1"><div class="settings-row-lite settings-final-row"><span>Voice style</span>' + settingsFinalPill('NAgex Natural', 'on') + '</div><div class="settings-row-lite settings-final-row"><span>Speaking speed</span>' + settingsFinalPill('Normal', '') + '</div><div class="settings-row-lite settings-final-row"><span>Voice language</span>' + settingsFinalPill('Korean first', '') + '</div><div class="voice-identity-actions"><button class="settings-primary-action" type="button">Preview voice</button><button class="settings-secondary-action" type="button">Text-only mode</button></div></div>', '') +
+      settingsFinalCard('Voice Identity', 'M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Zm-7 8a7 7 0 0 0 14 0m-7 7v3', tt('voiceIdentity.title', 'Voice Identity'), tt('voiceIdentity.subtitle', 'Let NAgex recognize your voice without lowering approval protection.'), voiceIdentityBody, '') +
+      settingsFinalCard('Memory', 'M4 5h16v14H4V5Zm4 4h8M8 13h8M8 17h5', tt('settings.final.personalContext', 'Personal context / memory'), tt('settings.final.personalContextDesc', 'Saved context is used only to help with your requests.'), settingsFinalRow(tt('settings.final.memoryReview', 'Memory review'), tt('settings.final.available', 'Available'), ''), '') +
+      settingsFinalCard('History', 'M13 3a9 9 0 1 0 8.9 10H20a7 7 0 1 1-7-8V3Zm-1 4h2v6h5v2h-7V7Z', tt('settings.final.activityHistory', 'Activity history'), tt('settings.final.activityHistoryDesc', 'Review what NAgex has done.'), settingsFinalRow(tt('settings.final.history', 'History'), tt('settings.final.available', 'Available'), ''), '') +
+      settingsFinalCard('Data controls', 'M4 7h16M7 7v13h10V7M9 7V5h6v2', tt('settings.final.dataControls', 'Data controls'), tt('settings.final.dataControlsDesc', 'Export and deletion controls for account data.'), settingsFinalRow(tt('settings.final.exportDelete', 'Export and deletion'), tt('settings.final.accountActions', 'Account actions'), ''), '') + '</div>';
+    const appearanceBody = '<div class="settings-appearance-layout"><section class="settings-pro-card settings-appearance-card settings-appearance-theme"><div class="settings-card-title-row"><div><h3>' + escapeHtml(ap.theme) + '</h3><p class="setting-sub">' + escapeHtml(ap.themeDesc) + '</p></div>' + appearanceIcon(ap.theme, 'M12 3v2m0 14v2m9-9h-2M5 12H3m15.4-6.4-1.4 1.4M7 17l-1.4 1.4m0-12.8L7 7m10 10 1.4 1.4M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z') + '</div><div class="appearance-theme-options" role="radiogroup" aria-label="' + escapeHtml(ap.theme) + '">' + appearanceOption(ap.system, ap.systemDesc, ap.active, true, '', themePreview('system')) + appearanceOption(ap.light, ap.lightDesc, ap.unavailable, false, '', themePreview('light')) + appearanceOption(ap.dark, ap.darkDesc, ap.unavailable, false, '', themePreview('dark')) + '</div></section><div class="settings-appearance-secondary"><section class="settings-pro-card settings-appearance-card"><div class="settings-card-title-row"><div><h3>' + escapeHtml(ap.density) + '</h3><p class="setting-sub">' + escapeHtml(ap.densityDesc) + '</p></div>' + appearanceIcon(ap.density, 'M4 4h6v6H4V4Zm10 0h6v6h-6V4ZM4 14h6v6H4v-6Zm10 0h6v6h-6v-6Z') + '</div><div class="appearance-density-options" role="radiogroup" aria-label="' + escapeHtml(ap.density) + '">' + appearanceOption(ap.comfortable, ap.comfortableDesc, ap.supported, true, appearanceIcon(ap.comfortable, 'M4 7h16M4 12h16M4 17h10'), '') + appearanceOption(ap.compact, ap.compactDesc, ap.planned, false, appearanceIcon(ap.compact, 'M4 6h16M4 10h16M4 14h16M4 18h16'), '') + '</div></section><section class="settings-pro-card settings-appearance-card"><div class="settings-card-title-row"><div><h3>' + escapeHtml(ap.sidebar) + '</h3><p class="setting-sub">' + escapeHtml(ap.sidebarDesc) + '</p></div>' + appearanceIcon(ap.sidebar, 'M4 5h16v14H4V5Zm5 0v14') + '</div><div class="appearance-sidebar-current">' + appearanceOption(ap.auto, ap.autoDesc, ap.active, true, appearanceIcon(ap.auto, 'M4 7h16M7 7v10m-3 0h16'), '') + '</div></section></div></div>';
+    view.innerHTML = `<div class="settings-commercial-shell"><main class="settings-sections-list settings-commercial-main"><div id="settings-save-feedback" class="settings-save-toast" hidden></div><div id="settings-error-banner" class="settings-error-banner" hidden></div>
+      ${panel('account', tt('settings.catAccount', 'Account'), tt('settings.accountSubtitle', 'Manage your NAgex identity and sign-in methods.'), accountBody)}
+      ${panel('connections', tt('settings.catConnections', 'Connections'), tt('settings.connectionsSubtitle', 'External services NAgex may use with your approval.'), `<div id="settings-connections-status"></div>`)}
+      ${panel('devices', tt('settings.catDevices', 'Devices'), tt('settings.devicesSubtitle', 'Identify your connected devices and what NAgex can control on each one.'), `<div class="settings-device-layout" id="settings-devices-list"></div>`)}
+      ${panel('permissions', tt('settings.catPermissions', 'Permissions'), tt('settings.permissionsSubtitle', 'Control what NAgex may access and what it must ask before doing.'), permissionsBody)}
+      ${panel('notifications', tt('settings.catNotifications', 'Notifications'), tt('settings.notificationsSubtitle', 'Choose when and how NAgex notifies you about work and daily briefings.'), `<div id="proactive-assistant-panel"></div>`)}
+      ${panel('personalization', tt('settings.catPersonalization', 'Personalization'), tt('settings.personalizationSubtitle', 'Choose how NAgex works with you.'), personalizationBody)}
+      ${panel('privacy-security', tt('settings.catPrivacySecurity', 'Privacy & Security'), tt('settings.privacySecuritySubtitle', 'Protect identity, personal context, trusted access, and activity history.'), privacyBody)}
+      ${panel('appearance', ap.title, ap.subtitle, appearanceBody)}
+      ${panel('advanced', tt('settings.advanced', 'Advanced'), tt('settings.advancedSubtitle', 'Developer Mode, experiments, and local runtime options.'), `<div class="settings-card-grid settings-advanced-grid"><div class="settings-pro-card settings-advanced-card"><h3>Developer Mode</h3><p class="setting-sub">Off by default. Technical routing and audit details stay hidden until enabled.</p><span class="settings-state-pill">Off</span></div><div class="settings-pro-card settings-advanced-card"><h3>Experimental Features</h3><p class="setting-sub">Only real enabled experiments appear here.</p></div></div>`)}
+    </main></div>`;
   }
 
   function openVoiceEnrollmentModal() {
-    if (document.getElementById('voice-enrollment-modal-backdrop')) return;
-    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    const tt = window.NAGEX_I18N ? window.NAGEX_I18N.t : (_key, fallback) => fallback;
+    const existing = document.getElementById('voice-enrollment-modal-backdrop');
+    if (existing) existing.remove();
     const prompts = ['&#54860;&#51060; &#45348;&#51060;&#51229;&#49828;', '&#50724;&#45720; &#51068;&#51221; &#50508;&#47140;&#51480;', '&#45236;&#51068; &#50500;&#52840;&#50640; &#50508;&#47140;&#51480;', '&#51312;&#48124;&#54805;&#50640;&#44172; &#51204;&#54868; &#44152;&#50612;&#51480;'];
     const backdrop = document.createElement('div');
     backdrop.id = 'voice-enrollment-modal-backdrop';
-    backdrop.className = 'ambient-overlay-backdrop active';
-    backdrop.innerHTML = '<div class="ambient-modal voice-enrollment-modal" role="dialog" aria-modal="true" aria-labelledby="voice-enrollment-title"><div class="ambient-modal-header"><h3 id="voice-enrollment-title">' + escapeHtml(t('voiceIdentity.enrollmentTitle') || 'Enroll Voice Identity') + '</h3><button type="button" class="btn-icon-close" aria-label="Close" onclick="document.getElementById(&quot;voice-enrollment-modal-backdrop&quot;).remove()">&times;</button></div><div class="ambient-modal-body"><p class="setting-sub">' + escapeHtml(t('voiceIdentity.enrollmentIntro') || 'Read several short phrases so NAgex can learn to distinguish your voice. Raw enrollment audio is not kept by default.') + '</p><ol class="voice-enrollment-steps">' + prompts.map((prompt, index) => '<li><span>' + escapeHtml(t('voiceIdentity.sample') || 'Sample') + ' ' + (index + 1) + '</span><strong>' + prompt + '</strong><button type="button" class="btn-secondary">' + escapeHtml(t('voiceIdentity.recordSample') || 'Record sample') + '</button></li>').join('') + '</ol><div class="settings-row-lite"><span>' + escapeHtml(t('voiceIdentity.sampleQuality') || 'Sample quality') + '</span><span class="settings-state-pill">' + escapeHtml(t('voiceIdentity.pending') || 'Pending') + '</span></div><div class="settings-row-lite"><span>' + escapeHtml(t('voiceIdentity.profileStorage') || 'Voice profile') + '</span><span class="settings-state-pill on">' + escapeHtml(t('voiceIdentity.deviceLocal') || 'Device-local') + '</span></div></div><div class="ambient-modal-footer"><button type="button" class="btn-secondary" onclick="document.getElementById(&quot;voice-enrollment-modal-backdrop&quot;).remove()">Cancel</button><button type="button" class="btn-primary" disabled>' + escapeHtml(t('voiceIdentity.createProfile') || 'Create voice profile') + '</button></div></div>';
+    backdrop.className = 'ambient-overlay-backdrop';
+    backdrop.innerHTML = '<div class="ambient-sheet-modal voice-enrollment-modal" role="dialog" aria-modal="true" aria-labelledby="voice-enrollment-title">' +
+      '<div class="ambient-modal-header"><h3 id="voice-enrollment-title">' + escapeHtml(tt('voiceIdentity.enrollmentTitle', 'Enroll Voice Identity')) + '</h3><button type="button" class="btn-icon-close" aria-label="Close" onclick="document.getElementById(&quot;voice-enrollment-modal-backdrop&quot;).remove()">&times;</button></div>' +
+      '<div class="ambient-modal-body"><p class="setting-sub">' + escapeHtml(tt('voiceIdentity.enrollmentIntro', 'Read several short phrases so NAgex can learn to distinguish your voice. Raw enrollment audio is not kept by default.')) + '</p>' +
+      '<ol class="voice-enrollment-steps">' + prompts.map((prompt, index) => '<li><span>' + escapeHtml(tt('voiceIdentity.sample', 'Sample')) + ' ' + (index + 1) + '</span><strong>' + prompt + '</strong><button type="button" class="settings-secondary-action">' + escapeHtml(tt('voiceIdentity.recordSample', 'Record sample')) + '</button></li>').join('') + '</ol>' +
+      '<div class="settings-row-lite"><span>' + escapeHtml(tt('voiceIdentity.sampleQuality', 'Sample quality')) + '</span><span class="settings-state-pill">' + escapeHtml(tt('voiceIdentity.pending', 'Pending')) + '</span></div>' +
+      '<div class="settings-row-lite"><span>' + escapeHtml(tt('voiceIdentity.profileStorage', 'Voice profile')) + '</span><span class="settings-state-pill on">' + escapeHtml(tt('voiceIdentity.deviceLocal', 'Device-local')) + '</span></div></div>' +
+      '<div class="ambient-modal-footer"><button type="button" class="btn-secondary" onclick="document.getElementById(&quot;voice-enrollment-modal-backdrop&quot;).remove()">' + escapeHtml(tt('workspace.candidateCancel', 'Cancel')) + '</button><button type="button" class="btn-primary" disabled>' + escapeHtml(tt('voiceIdentity.createProfile', 'Create voice profile')) + '</button></div></div>';
     document.body.appendChild(backdrop);
   }
 
+  // R24.6B ??NAgex has no device/session registry that the web UI can read
+  // yet, so there is no real "connected device" to show. The former
+  // hardcoded "Local Desktop Agent ??Connected · Active now" row was a
+  // fabricated status and is gone; an honest empty state is shown instead.
+  async function renderSettingsDevices() {
+    const el = document.getElementById('settings-devices-list');
+    if (!el) return;
+    el.innerHTML = `<div class="settings-devices-empty"><h3>Loading devices...</h3></div>`;
+    let devices = [];
+    try {
+      const res = await apiFetch('/api/v1/device-agent/devices');
+      devices = Array.isArray(res?.devices) ? res.devices : [];
+    } catch (_err) {
+      devices = [];
+    }
+    state.settingsDevices = devices;
+    if (!devices.length) {
+      el.innerHTML = `<div class="settings-device-list-card"><div class="settings-devices-card-head"><div><h3>My devices (0)</h3><p class="setting-sub">These are the devices where NAgex can work for you.</p></div><button class="settings-primary-action" type="button"><span class="settings-btn-plus">+</span> Connect a device</button></div><div class="settings-device-empty-card"><div class="settings-device-visual empty">${deviceVisual('pc')}</div><div><h3>No connected devices yet</h3><p>Connect a PC or mobile device to let NAgex work across your devices.</p><div class="settings-capability-row"><span class="settings-muted-chip">${capabilityIcon('Browser')} Browser</span><span class="settings-muted-chip">${capabilityIcon('Files')} Files</span><span class="settings-muted-chip">${capabilityIcon('Messages')} Messages</span></div></div></div><div class="settings-device-tip"><strong>Tip: Connect more devices</strong><span>Use NAgex on all your devices to get more done, wherever you are.</span></div></div><aside class="settings-device-detail-panel"><div class="settings-device-detail-art">${deviceVisual('pc')}</div><h3>Select a device</h3><p class="setting-sub">Device capabilities will appear here after a real device is enrolled.</p><div class="settings-device-capability-box"><h4>What NAgex can do on a device</h4><div class="settings-capability-detail"><span>${capabilityIcon('Browser')} Browser</span><small>Open websites and complete browser tasks.</small></div><div class="settings-capability-detail"><span>${capabilityIcon('Files')} Files</span><small>Find and work with files when allowed.</small></div></div><div class="settings-device-detail-actions"><button class="settings-secondary-action" type="button" disabled>Rename</button><button class="settings-secondary-action" type="button" disabled>Manage</button></div></aside>`;
+      return;
+    }
+    const selected = Math.max(0, Math.min(state.selectedSettingsDeviceIndex || 0, devices.length - 1));
+    state.selectedSettingsDeviceIndex = selected;
+    el.innerHTML = `<div class="settings-device-list-card"><div class="settings-devices-card-head"><div><h3>My devices (${devices.length})</h3><p class="setting-sub">These are the devices where NAgex can work for you.</p></div><button class="settings-primary-action" type="button"><span class="settings-btn-plus">+</span> Connect a device</button></div>${devices.map((d, i) => renderSettingsDeviceCard(d, i, i === selected)).join('')}<div class="settings-device-tip"><strong>Tip: Connect more devices</strong><span>Use NAgex on all your devices to get more done, wherever you are.</span></div></div>${renderSettingsDeviceDetail(devices[selected], selected)}`;
+  }
+
+  function settingsIconSvg(name, pathData) {
+    return `<svg class="settings-semantic-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="${pathData}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="sr-only">${escapeHtml(name)}</span>`;
+  }
+
+  function deviceVisual(kind) {
+    if (kind === 'mobile') return settingsIconSvg('Mobile device', 'M8 2h8a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm3 17h2');
+    return settingsIconSvg('PC device', 'M4 5h16v10H4V5Zm6 14h4m-7 0h10');
+  }
+
+  function capabilityIcon(cap) {
+    const icons = {
+      Browser: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0 0c2.5-2.4 4-5.5 4-9s-1.5-6.6-4-9m0 18c-2.5-2.4-4-5.5-4-9s1.5-6.6 4-9M3.6 9h16.8M3.6 15h16.8',
+      Files: 'M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z',
+      'Desktop apps': 'M4 5h16v10H4V5Zm6 14h4m-7 0h10',
+      Apps: 'M4 4h6v6H4V4Zm10 0h6v6h-6V4ZM4 14h6v6H4v-6Zm10 0h6v6h-6v-6Z',
+      Messages: 'M4 5h16v11H8l-4 4V5Z',
+      Voice: 'M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Zm-7 8a7 7 0 0 0 14 0m-7 7v3',
+      Camera: 'M4 7h3l2-2h6l2 2h3v12H4V7Zm8 9a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z',
+      Notifications: 'M18 8a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7Zm-8 11a2 2 0 0 0 4 0',
+      Screen: 'M4 5h16v10H4V5Zm8 10v4m-4 0h8',
+    };
+    return settingsIconSvg(cap, icons[cap] || icons.Apps);
+  }
+
+  function normalizeCapabilities(device) {
+    const raw = Array.isArray(device?.controlCapabilities) ? device.controlCapabilities : [];
+    const labels = raw.map((cap) => {
+      const text = String(cap).toLowerCase();
+      if (text.includes('kakao') || text.includes('message') || text.includes('sms')) return 'Messages';
+      if (text.includes('browser') || text.includes('web')) return 'Browser';
+      if (text.includes('file')) return 'Files';
+      if (text.includes('desktop') || text.includes('app')) return device?.os === 'Android' ? 'Apps' : 'Desktop apps';
+      if (text.includes('voice') || text.includes('mic')) return 'Voice';
+      if (text.includes('camera')) return 'Camera';
+      if (text.includes('notification')) return 'Notifications';
+      if (text.includes('screen')) return 'Screen';
+      return '';
+    }).filter(Boolean);
+    return [...new Set(labels)];
+  }
+
+  function deviceDisplayName(device) {
+    return device?.nickname || device?.systemDeviceName || 'Device';
+  }
+
+  function renderSettingsDeviceCard(device, index, selected) {
+    const caps = normalizeCapabilities(device);
+    const online = device.onlineStatus === 'ONLINE';
+    const meta = [device.os, device.deviceType].filter(Boolean).join(' �� ');
+    const systemLine = device.nickname && device.systemDeviceName ? `<div class="settings-device-meta">Device name: <strong>${escapeHtml(device.systemDeviceName)}</strong></div>` : '';
+    return `<article class="settings-device-card${selected ? ' selected' : ''}" role="button" tabindex="0" onclick="window.NAGEX.selectSettingsDevice(${index})" onkeydown="if(event.key==='Enter'||event.key===' ') window.NAGEX.selectSettingsDevice(${index})"><div class="settings-device-visual">${deviceVisual(device.os === 'Android' ? 'mobile' : 'pc')}</div><div class="settings-device-body"><div class="settings-device-title-row"><h3>${escapeHtml(deviceDisplayName(device))}</h3><button class="settings-icon-button" type="button" onclick="event.stopPropagation(); window.NAGEX.renameSettingsDevice(${index})" aria-label="Rename device">${settingsIconSvg('Rename', 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z')}</button></div><div class="settings-online-row ${online ? 'online' : 'offline'}"><span></span>${online ? 'Online' : 'Offline'}</div><div class="settings-device-meta">${escapeHtml(meta || 'Device')}</div>${systemLine}<div class="settings-capability-label">NAgex can control</div><div class="settings-capability-row">${caps.length ? caps.map((cap) => `<span class="settings-capability-chip">${capabilityIcon(cap)}${escapeHtml(cap)}</span>`).join('') : '<span class="settings-muted-chip">No controls reported</span>'}</div></div><div class="settings-device-card-actions"><span class="settings-preferred-badge">${index === 0 ? 'Current device' : 'Set as preferred'}</span><button class="settings-icon-button" type="button" aria-label="More actions">...</button></div></article>`;
+  }
+
+  function renderSettingsDeviceDetail(device, index) {
+    const caps = normalizeCapabilities(device);
+    return `<aside class="settings-device-detail-panel"><div class="settings-device-detail-art">${deviceVisual(device.os === 'Android' ? 'mobile' : 'pc')}</div><h3>${escapeHtml(deviceDisplayName(device))}</h3><div class="settings-online-row ${device.onlineStatus === 'ONLINE' ? 'online' : 'offline'}"><span></span>${device.onlineStatus === 'ONLINE' ? 'Online' : 'Offline'}</div><p class="setting-sub">${escapeHtml([device.systemDeviceName, device.os].filter(Boolean).join(' �� '))}</p><div class="settings-device-capability-box"><h4>What NAgex can do on this device</h4><p class="setting-sub">Only capabilities reported by this registered device are shown.</p>${caps.map((cap) => `<div class="settings-capability-detail"><span>${capabilityIcon(cap)}${escapeHtml(cap)}</span><small>${escapeHtml(capabilityDescription(cap))}</small></div>`).join('') || '<p class="setting-sub">No controls reported.</p>'}</div><div class="settings-device-detail-actions"><button class="settings-secondary-action" type="button" onclick="window.NAGEX.renameSettingsDevice(${index})">${capabilityIcon('Files')} Rename</button><button class="settings-secondary-action" type="button">${capabilityIcon('Apps')} Manage</button></div></aside>`;
+  }
+  function capabilityDescription(cap) {
+    return {
+      Browser: 'Open websites, search, and complete online tasks',
+      Files: 'Find, read, organize, and work with your files',
+      'Desktop apps': 'Control and automate supported desktop applications',
+      Apps: 'Open and control supported mobile apps',
+      Messages: 'Prepare and send messages with your approval',
+      Voice: 'Use voice for input and control where available',
+      Camera: 'Use camera only when explicitly allowed',
+      Notifications: 'Read and respond to notifications when allowed',
+      Screen: 'Use visible screen context when allowed',
+    }[cap] || 'Available where supported';
+  }
+
   function renderSettings() {
+    ensureCommercialSettingsShell();
     const qwContainer = document.getElementById('quickwake-settings-options');
     const autoContainer = document.getElementById('autonomy-selector-container');
 
-    switchSettingsCategory(state.activeSettingsCat || 'connections');
+    switchSettingsCategory(state.activeSettingsCat || 'account');
 
     const tr = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
     const prefsStatus = state.settingsPrefsStatus;
@@ -3004,9 +3083,8 @@
     renderSettingsConnections();
     renderSettingsAiModel();
     renderSettingsDevices();
-    renderVoiceIdentitySettings();
     if (window.NAGEX.renderProactiveAssistant) window.NAGEX.renderProactiveAssistant();
-    // R15 — Settings is reachable via a same-document hash navigation
+    // R15 ??Settings is reachable via a same-document hash navigation
     // (switchTab never triggers a full page reload), so org/workspace/
     // role context must be refreshed here rather than only once at
     // initial page load. Without this, a membership change that happened
@@ -3038,7 +3116,7 @@
       DEGRADED: 'settings.providerStatusDegraded',
     };
     const statusBadgeClass = { UNCONFIGURED: 'gray', CONFIGURED: 'blue', LIVE: 'green', DEGRADED: 'orange' };
-    const statusFallback = { UNCONFIGURED: 'Not configured', CONFIGURED: 'Configured — not yet used', LIVE: 'Live', DEGRADED: 'Degraded' };
+    const statusFallback = { UNCONFIGURED: 'Not configured', CONFIGURED: 'Configured ??not yet used', LIVE: 'Live', DEGRADED: 'Degraded' };
 
     el.innerHTML = providers
       .filter((p) => p.status !== 'UNCONFIGURED')
@@ -3066,33 +3144,24 @@
 
     if (state.googleOAuthSignedOut) {
       el.innerHTML = `
-      <div class="setting-row">
-        <div class="setting-info">
-          <span class="setting-title">Google Calendar &amp; Gmail</span>
-          <span class="device-tag">${escapeHtml(t('settings.signInRequired') || 'Sign in to view and change these settings.')}</span>
-        </div>
-        <button class="btn-secondary" type="button" id="btn-settings-google-signin">${escapeHtml(t('auth.signIn') || 'Sign In')}</button>
+      <div class="settings-connection-grid">
+        ${renderConnectionCard({ provider: 'Google', services: ['Gmail', 'Calendar', 'Drive'], state: 'NEEDS_ATTENTION', account: t('settings.signInRequired') || 'Sign in to connect this service.', action: t('auth.signIn') || 'Sign In', buttonId: 'btn-settings-google-signin' })}
+        ${renderConnectionCard({ provider: 'Microsoft', services: ['Outlook', 'Calendar', 'OneDrive'], state: 'UNAVAILABLE', account: 'Unavailable in this environment', action: 'Connect Microsoft', disabled: true })}
+        ${renderConnectionCard({ provider: 'Communication / Apps', services: ['Slack · Not connected', 'Telegram · Not connected', 'Connected apps · None'], state: 'NOT_CONNECTED', account: 'No connected app accounts yet', action: 'Browse connections', disabled: true })}
       </div>`;
       const signIn = document.getElementById('btn-settings-google-signin');
       if (signIn) signIn.onclick = () => { if (window.NAGEX.showAuthModal) window.NAGEX.showAuthModal('signin'); };
       return;
     }
     const oauth = state.googleOAuth || { configured: false, connected: false };
-    const statusLabel = oauth.connected
-      ? t('settings.connected') || 'Connected'
-      : oauth.configured
-        ? t('settings.notConnected') || 'Not connected'
-        : t('settings.notConfigured') || 'Not configured on this server';
+    const status = oauth.connected ? 'CONNECTED' : oauth.configured ? 'NOT_CONNECTED' : 'UNAVAILABLE';
+    const statusLabel = status === 'CONNECTED' ? (t('settings.connected') || 'Connected') : status === 'NOT_CONNECTED' ? (t('settings.notConnected') || 'Not connected') : 'Unavailable in this environment';
 
     el.innerHTML = `
-      <div class="setting-row">
-        <div class="setting-info">
-          <span class="setting-title">Google Calendar &amp; Gmail</span>
-          <span class="device-tag">${escapeHtml(statusLabel)}</span>
-        </div>
-        <button class="btn-secondary" id="btn-settings-google-toggle" ${!oauth.configured ? 'disabled' : ''}>
-          ${oauth.connected ? (t('settings.disconnect') || 'Disconnect') : (t('settings.connect') || 'Connect')}
-        </button>
+      <div class="settings-connection-grid">
+        ${renderConnectionCard({ provider: 'Google', services: ['Gmail', 'Calendar', 'Drive'], state: status, account: oauth.email || statusLabel, action: oauth.connected ? (t('settings.manage') || 'Manage') : (t('settings.connectGoogle') || 'Connect Google'), buttonId: 'btn-settings-google-toggle', disabled: !oauth.configured })}
+        ${renderConnectionCard({ provider: 'Microsoft', services: ['Outlook', 'Calendar', 'OneDrive'], state: 'UNAVAILABLE', account: 'Unavailable in this environment', action: 'Connect Microsoft', disabled: true })}
+        ${renderConnectionCard({ provider: 'Communication / Apps', services: ['Slack · Not connected', 'Telegram · Not connected', 'Connected apps · None'], state: 'NOT_CONNECTED', account: 'No connected app accounts yet', action: 'Browse connections', disabled: true })}
       </div>`;
 
     const btn = document.getElementById('btn-settings-google-toggle');
@@ -3120,7 +3189,18 @@
     }
   }
 
-  // Advanced is collapsed by default (MASTER.md Section 14.12 / 14.9 §5) —
+  function renderConnectionCard({ provider, services, state, account, action, buttonId, disabled }) {
+    const label = state === 'CONNECTED' ? 'Connected' : state === 'NEEDS_ATTENTION' ? 'Needs attention' : state === 'UNAVAILABLE' ? 'Unavailable' : 'Not connected';
+    const serviceRows = services.map((service) => `<span>${escapeHtml(service)}</span>`).join('');
+    const iconPath = provider === 'Google'
+      ? 'M12 4a8 8 0 1 0 7.6 10.5H12v-5h12'
+      : provider === 'Microsoft'
+        ? 'M4 4h7v7H4V4Zm9 0h7v7h-7V4ZM4 13h7v7H4v-7Zm9 0h7v7h-7v-7Z'
+        : 'M4 5h16v11H8l-4 4V5Z';
+    return `<article class="settings-connection-card ${state.toLowerCase().replace('_', '-')}"><div class="settings-connection-head"><div class="settings-row-leading">${settingsIconSvg(provider, iconPath)}<div><h3>${escapeHtml(provider)}</h3><div class="settings-connection-services">${serviceRows}</div></div></div><span class="settings-connection-status">${label}</span></div><p class="setting-sub">${escapeHtml(account || label)}</p><div class="settings-connection-actions"><button class="settings-primary-action secondary" type="button" ${buttonId ? `id="${buttonId}"` : ''} ${disabled ? 'disabled' : ''}>${escapeHtml(action || 'Manage')}</button></div></article>`;
+  }
+
+  // Advanced is collapsed by default (MASTER.md Section 14.12 / 14.9 §5) ??
   // wired once per renderSettings() call so a re-render never loses state
   // by re-hiding an already-opened list.
   function wireSettingsAdvancedToggle() {
@@ -3133,7 +3213,7 @@
       toggle.setAttribute('aria-expanded', String(!expanded));
       list.hidden = expanded;
       const caret = toggle.querySelector('.settings-advanced-caret');
-      if (caret) caret.textContent = expanded ? '▸' : '▾';
+      if (caret) caret.textContent = expanded ? '?' : '?';
     };
   }
 
@@ -3146,18 +3226,18 @@
     const btnVoice = document.getElementById('btn-ambient-voice-toggle');
     const backdrop = document.getElementById('ambient-overlay-backdrop');
 
-    // R24.8B — the header "Search anything or ask NAgex…" control opens the same Ask sheet as Quick Wake.
+    // R24.8B ??the header "Search anything or ask NAgex?? control opens the same Ask sheet as Quick Wake.
     const btnSearch = document.getElementById('btn-header-search');
     if (btnSearch) btnSearch.onclick = () => openAmbientOverlay();
     if (btnFloat) btnFloat.onclick = () => openAmbientOverlay();
     if (btnHeader) btnHeader.onclick = () => openAmbientOverlay();
-    // X button and footer "Close" button: both only ever dismiss the UI —
+    // X button and footer "Close" button: both only ever dismiss the UI ??
     // closeAmbientOverlay() never approves/rejects/executes anything.
     if (btnClose) btnClose.onclick = closeAmbientOverlay;
     if (btnCancel) btnCancel.onclick = closeAmbientOverlay;
 
     // Backdrop click closes the modal, but only when the click lands on the
-    // backdrop itself — a click that starts or ends inside the modal (a
+    // backdrop itself ??a click that starts or ends inside the modal (a
     // descendant of the backdrop) must never close it.
     if (backdrop) {
       backdrop.addEventListener('click', (event) => {
@@ -3182,7 +3262,7 @@
       ambientInput.addEventListener('keydown', (event) => {
         // Enter submits; Shift+Enter is left to the browser's native
         // behavior (a no-op on this single-line input, so no newline is
-        // ever inserted — this is a plain <input>, not multiline).
+        // ever inserted ??this is a plain <input>, not multiline).
         if (event.key === 'Enter' && !event.shiftKey) {
           event.preventDefault();
           submitAmbientComposerInput();
@@ -3194,7 +3274,7 @@
 
   // Shared by the send button and Enter keydown: reads the composer's
   // genuinely-typed text, clears it (the placeholder reappears naturally
-  // since the element is now empty — no demo text is ever restored), and
+  // since the element is now empty ??no demo text is ever restored), and
   // hands the captured text off to the task pipeline before the input is
   // touched again, so nothing submitted is ever lost by clearing.
   function submitAmbientComposerInput() {
@@ -3208,7 +3288,7 @@
     }
     input.value = '';
     // Focus is restored once runAmbientTask finishes and re-enables the
-    // controls (see its `finally` block) — focusing here would be a no-op,
+    // controls (see its `finally` block) ??focusing here would be a no-op,
     // since the input is disabled for the duration of the request.
     runAmbientTask(text);
   }
@@ -3245,7 +3325,7 @@
       perspectiveCard.style.display = 'none';
       perspectiveCard.innerHTML = '';
     }
-    // R24.8B — a reopened sheet must not keep the previous forecast result (stale-state leak).
+    // R24.8B ??a reopened sheet must not keep the previous forecast result (stale-state leak).
     const forecastCard = document.getElementById('ambient-forecast-card');
     if (forecastCard) {
       forecastCard.style.display = 'none';
@@ -3280,7 +3360,7 @@
     document.addEventListener('keydown', ambientModalKeydownHandler, true);
   }
 
-  // R24.8B — the idle Ask sheet must not show a sample task/request/progress; those cards are shown only
+  // R24.8B ??the idle Ask sheet must not show a sample task/request/progress; those cards are shown only
   // once a real request is running (see showAmbientRequestCards). Also applies the Create-tile mode
   // (title + placeholder) and clears the creation status area.
   const AMBIENT_REQUEST_CARD_IDS = ['ambient-task-title-card', 'ambient-request-card', 'ambient-progress-card'];
@@ -3389,7 +3469,7 @@
     }
   }
 
-  // Dismisses the Ambient Assistant / Plan Preview modal only — this must
+  // Dismisses the Ambient Assistant / Plan Preview modal only ??this must
   // never approve, reject, or execute anything, and must never leave the
   // page in a broken state (locked scroll, dangling key handler, lost
   // focus), no matter which of the four dismissal paths (X, footer Close,
@@ -3421,9 +3501,9 @@
     ambientModalTriggerElement = null;
   }
 
-  // Disables every real trigger surface for the duration of a generation —
+  // Disables every real trigger surface for the duration of a generation ??
   // not a timer/debounce, purely tied to ambientRunGuard's actual busy
-  // state — so a user physically cannot fire a second submission while one
+  // state ??so a user physically cannot fire a second submission while one
   // is in flight, on top of (not instead of) the guard itself rejecting a
   // re-entrant call. Includes the example card's "Run" button: it submits
   // through the same canonical path (see initPrimaryScenario), so it must
@@ -3444,7 +3524,7 @@
     }
   }
 
-  // R12.1 Increment 1 — §6/§12: internal execution detail (provider/model/
+  // R12.1 Increment 1 ??§6/§12: internal execution detail (provider/model/
   // latency/request id) lives behind a collapsed-by-default "What NAgex is
   // doing" disclosure, never in the primary working-state text. Wired once
   // (dataset.wired guard, same pattern as wireSettingsAdvancedToggle) so a
@@ -3484,50 +3564,16 @@
   function isForecastCompareIntent(promptText) {
     if (!promptText || typeof promptText !== 'string') return false;
     const text = promptText.toLowerCase();
-    const triggers = [
-      '일어날 가능성을 예측',
-      '성공할 가능성',
-      '끝날 가능성',
-      '예측해줘',
-      '확률을 추정',
-      '가능성을 예측',
-      '가능성이 얼마나',
-      '확률이 얼마나',
-      'forecast this',
-      'how likely is this',
-      'what are the chances',
-      'estimate the probability',
-      'will this happen by',
-      'will this project launch',
-      'will this',
-      'will it',
-      'forecast',
-      'predict',
-      'election',
-      'presidential election',
-      'who will win',
-      '대선',
-      '선거',
-    ];
+    const triggers = ['forecast this', 'how likely is this', 'what are the chances', 'estimate the probability', 'will this happen by', 'forecast', 'predict', 'election', 'who will win'];
     return triggers.some((t) => text.includes(t));
   }
 
   function isPerspectiveCompareIntent(promptText) {
     if (!promptText || typeof promptText !== 'string') return false;
     const text = promptText.toLowerCase();
-    const triggers = [
-      '여러 관점에서 검토',
-      '다른 시각도 같이',
-      '여러 관점으로 분석',
-      'compare perspectives',
-      'different perspectives',
-      'multiple perspectives',
-      '여러 관점',
-      '다른 시각',
-    ];
+    const triggers = ['compare perspectives', 'different perspectives', 'multiple perspectives', 'other viewpoints', 'pros and cons'];
     return triggers.some((t) => text.includes(t));
   }
-
   async function runAmbientTask(promptText) {
     // Single-flight: while one generation is in flight, ignore any further
     // trigger rather than starting a second, legitimately-different plan
@@ -3557,7 +3603,7 @@
         userBubble.style.display = 'flex';
       }
 
-      // R12.1 Increment 1 — §6 Working state: outcome-oriented text only.
+      // R12.1 Increment 1 ??§6 Working state: outcome-oriented text only.
       // Internal jargon (provider/model/latency) moves to the progressive-
       // disclosure "What NAgex is doing" panel below, never the primary text.
       updateFlowStage('User message');
@@ -3575,7 +3621,7 @@
       if (isForecastCompareIntent(promptText)) {
         if (fill) fill.style.width = '40%';
         const lang = window.NAGEX_I18N ? window.NAGEX_I18N.getLocale() : (localStorage.getItem('nagex_locale') || 'en');
-        if (text) text.textContent = lang === 'ko' ? '미래 결과를 예측 분석하는 중...' : 'Analyzing forecast...';
+        if (text) text.textContent = lang === 'ko' ? '미래 결과�??�측 분석?�는 �?..' : 'Analyzing forecast...';
 
         const forecastRes = await apiFetch('/api/v1/ai/forecast-compare', {
           method: 'POST',
@@ -3584,7 +3630,7 @@
         });
 
         if (fill) fill.style.width = '100%';
-        if (text) text.textContent = lang === 'ko' ? '예측 분석 완료' : 'Forecast analysis complete';
+        if (text) text.textContent = lang === 'ko' ? '?�측 분석 ?�료' : 'Forecast analysis complete';
 
         updateFlowStage('Result');
 
@@ -3611,7 +3657,7 @@
       if (isPerspectiveCompareIntent(promptText)) {
         if (fill) fill.style.width = '40%';
         const lang = window.NAGEX_I18N ? window.NAGEX_I18N.getLocale() : (localStorage.getItem('nagex_locale') || 'en');
-        if (text) text.textContent = lang === 'ko' ? '다각적 관점에서 분석하는 중...' : 'Comparing perspectives...';
+        if (text) text.textContent = lang === 'ko' ? '?�각??관?�에??분석?�는 �?..' : 'Comparing perspectives...';
 
         const compareRes = await apiFetch('/api/v1/ai/perspective-compare', {
           method: 'POST',
@@ -3620,7 +3666,7 @@
         });
 
         if (fill) fill.style.width = '100%';
-        if (text) text.textContent = lang === 'ko' ? '관점 분석 완료' : 'Perspective analysis complete';
+        if (text) text.textContent = lang === 'ko' ? '관??분석 ?�료' : 'Perspective analysis complete';
 
         updateFlowStage('Result');
 
@@ -3644,10 +3690,10 @@
 
         if (!compareRes || compareRes.error || (dataObj && dataObj.error) || (compareRes.status && compareRes.status !== 200 && compareRes.status !== 'COMPLETED' && compareRes.status !== 'PARTIAL')) {
           const errPayload = (compareRes && compareRes.error) || (dataObj && dataObj.error);
-          let rawMsg = (typeof errPayload === 'string' ? errPayload : errPayload?.message) || (lang === 'ko' ? '다각적 관점 분석 서비스를 이용할 수 없습니다.' : 'Perspective comparison unavailable.');
+          let rawMsg = (typeof errPayload === 'string' ? errPayload : errPayload?.message) || (lang === 'ko' ? '?�각??관??분석 ?�비?��? ?�용?????�습?�다.' : 'Perspective comparison unavailable.');
           rawMsg = String(rawMsg)
-            .replace(/PERSPECTIVE_SYNTHESIS_FAILED/g, lang === 'ko' ? '분석 결과를 합성하지 못했습니다.' : 'Synthesis unavailable.')
-            .replace(/ALL_MODEL_PROVIDERS_FAILED/g, lang === 'ko' ? '모든 모델 응답에 실패했습니다.' : 'Model services unavailable.');
+            .replace(/PERSPECTIVE_SYNTHESIS_FAILED/g, lang === 'ko' ? '분석 결과�??�성?��? 못했?�니??' : 'Synthesis unavailable.')
+            .replace(/ALL_MODEL_PROVIDERS_FAILED/g, lang === 'ko' ? '모든 모델 ?�답???�패?�습?�다.' : 'Model services unavailable.');
           formattedResult = {
             status: 'UNAVAILABLE',
             error: { message: rawMsg }
@@ -3679,7 +3725,7 @@
       });
 
       if (!res || res.error) {
-        // §18 — truthful failure, never a fake success; the composer's own
+        // §18 ??truthful failure, never a fake success; the composer's own
         // controls are re-enabled by this function's finally block below.
         if (text) text.textContent = res?.error?.message || t('ambient.unableToGeneratePlan');
         return;
@@ -3786,7 +3832,7 @@
     }
 
     // Suggestions are informational-only ideas the model did not add as plan
-    // steps (see the scope policy in ai-service.ts) — they must never block
+    // steps (see the scope policy in ai-service.ts) ??they must never block
     // or replace the requested action, so they render separately from
     // warnings and never affect vm.status/showRunButton.
     if (suggestionsEl) {
@@ -3812,7 +3858,7 @@
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
       const extractor = window.NAGEX_CALENDAR_INTENT;
       const extracted = extractor ? extractor.extractCalendarIntent(originalPromptText || '', new Date(), timezone) : null;
-      // Always show the confirmation form — never request approval merely
+      // Always show the confirmation form ??never request approval merely
       // because the plan resolved. Exact values the user already stated in
       // their message (title/start/duration) prefill it verbatim; anything
       // not stated is left blank (or, for duration, a clearly-labeled
@@ -3833,23 +3879,23 @@
       renderGmailComposeForm(actionsEl, gmailStep.resolvedToolId, extracted);
     } else if ((resolved.steps || []).find((s) => GMAIL_READ_TOOL_IDS.has(s.resolvedToolId) && s.executionReadiness === 'EXECUTION_READY')) {
       const gmailReadStep = (resolved.steps || []).find((s) => GMAIL_READ_TOOL_IDS.has(s.resolvedToolId) && s.executionReadiness === 'EXECUTION_READY');
-      // Read-only — runs immediately, no approval, per policy.
+      // Read-only ??runs immediately, no approval, per policy.
       runGmailReadOnlyStep(actionsEl, gmailReadStep.resolvedToolId, originalPromptText, planId);
     } else if ((resolved.steps || []).find((s) => BROWSER_READ_TOOL_IDS.has(s.resolvedToolId) && s.executionReadiness === 'BLOCKED' && s.toolAvailability === 'UNAVAILABLE')) {
       renderBrowserUnavailableAction(actionsEl);
     } else if ((resolved.steps || []).find((s) => BROWSER_READ_TOOL_IDS.has(s.resolvedToolId) && s.executionReadiness === 'EXECUTION_READY')) {
-      // Browser open/navigate are READ_ONLY (no approval) — but unlike
+      // Browser open/navigate are READ_ONLY (no approval) ??but unlike
       // Calendar/Gmail there is no compose form here: the only thing to
       // confirm before browsing is the destination URL itself, and only a
       // literal URL already in the prompt is ever used (never a guessed
       // domain for "the airline website"). A consequential in-page action
       // (Submit/Buy/Pay/Delete/...) is a separate, later step this ambient
-      // flow does not drive yet — see browser-approval-view.js's header
+      // flow does not drive yet ??see browser-approval-view.js's header
       // comment for why that is an intentional, documented scope boundary.
       runBrowserReadOnlyStep(actionsEl, originalPromptText, planId);
     } else if (vm.showRunButton && vm.actionLabel) {
       const isApproval = vm.status === 'APPROVAL_REQUIRED';
-      actionsEl.innerHTML = `<button class="btn-plan-action ${vm.statusCssClass}" id="btn-plan-resolution-action">${isApproval ? '🛡️' : '▶'} ${escapeHtml(vm.actionLabel)}</button>`;
+      actionsEl.innerHTML = `<button class="btn-plan-action ${vm.statusCssClass}" id="btn-plan-resolution-action">${isApproval ? "Review" : "Run"} ${escapeHtml(vm.actionLabel)}</button>`;
       const btn = document.getElementById('btn-plan-resolution-action');
       if (btn) {
         btn.onclick = () => {
@@ -3900,25 +3946,25 @@
     }
   }
 
-  // R24.8B — what has REALLY happened when this card renders: the request was understood and a plan was
+  // R24.8B ??what has REALLY happened when this card renders: the request was understood and a plan was
   // prepared for review. Nothing has been searched, read, extracted or generated yet, so no step claims it.
   function ambientTruthfulSteps(t) {
     return [
-      { status: 'done', text: '✓ ' + t('ambient.stepUnderstood') },
-      { status: 'done', text: '✓ ' + t('ambient.stepPlanned') },
-      { status: 'upcoming', text: '○ ' + t('ambient.stepNotRun') },
+      { status: 'done', text: '??' + t('ambient.stepUnderstood') },
+      { status: 'done', text: '??' + t('ambient.stepPlanned') },
+      { status: 'upcoming', text: '??' + t('ambient.stepNotRun') },
     ];
   }
 
   function classifyIntentForUi(promptText) {
     const text = (promptText || '').toLowerCase();
-    if (text.includes('meeting') || text.includes('schedule') || text.includes('calendar') || text.includes('미팅') || text.includes('회의') || text.includes('일정')) {
+    if (text.includes('meeting') || text.includes('schedule') || text.includes('calendar') || text.includes('미팅') || text.includes('?�의') || text.includes('?�정')) {
       return 'MEETING';
     }
-    if (text.includes('file') || text.includes('document') || text.includes('contract') || text.includes('pdf') || text.includes('분석') || text.includes('파일') || text.includes('조항')) {
+    if (text.includes('file') || text.includes('document') || text.includes('contract') || text.includes('pdf') || text.includes('분석') || text.includes('?�일') || text.includes('조항')) {
       return 'ANALYZE';
     }
-    if (text.includes('image') || text.includes('draw') || text.includes('photo') || text.includes('picture') || text.includes('이미지') || text.includes('그림') || text.includes('생성')) {
+    if (text.includes('image') || text.includes('draw') || text.includes('photo') || text.includes('picture') || text.includes('?��?지') || text.includes('그림') || text.includes('?�성')) {
       return 'CREATE';
     }
     return 'RESEARCH';
@@ -3983,10 +4029,10 @@
         if (summarySectionAlias) summarySectionAlias.style.display = 'block';
         const summaryTitleText = t('ambient.understanding.title');
         const findings = isKr ? [
-          '메모리 아키텍처가 점차 영속적이고 맥락 인지적으로 발전하고 있습니다.',
-          '도구 사용의 신뢰성 및 검증 루프에 대한 관심이 급증하고 있습니다.',
-          '멀티 에이전트 오케스트레이션이 실제 연구 및 워크플로우에 적용되는 중입니다.',
-          '브라우저/액션 에이전트 성능이 향상되는 가운데 승인 경계 정책이 중요하게 다뤄집니다.'
+          '메모�??�키?�처가 ?�차 ?�속?�이�?맥락 ?��??�으�?발전?�고 ?�습?�다.',
+          '?�구 ?�용???�뢰??�?검�?루프???�??관?�이 급증?�고 ?�습?�다.',
+          '멀???�이?�트 ?��??�트?�이?�이 ?�제 ?�구 �??�크?�로?�에 ?�용?�는 중입?�다.',
+          '브라?��?/?�션 ?�이?�트 ?�능???�상?�는 가?�데 ?�인 경계 ?�책??중요?�게 ?�뤄집니??'
         ] : [
           'Memory architectures are becoming more persistent and context-aware.',
           'Tool-use reliability and verification loops are getting more attention.',
@@ -4005,10 +4051,10 @@
       if (sourcesSection && sourcesList) {
         sourcesSection.style.display = 'block';
         const sources = [
-          { title: 'The next wave of AI agent architecture', publisher: 'Tech Insights', date: 'Sep 16, 2025', icon: '📄' },
-          { title: 'Building reliable tool-using agents', publisher: 'AI Research Digest', date: 'Sep 14, 2025', icon: '⚛️' },
-          { title: 'Multi-agent systems in real-world applications', publisher: 'Product & AI Blog', date: 'Sep 12, 2025', icon: '📖' },
-          { title: 'Browser agents: progress and open challenges', publisher: 'The AI Report', date: 'Sep 10, 2025', icon: '🌐' }
+          { title: 'The next wave of AI agent architecture', publisher: 'Tech Insights', date: 'Sep 16, 2025', icon: '?��' },
+          { title: 'Building reliable tool-using agents', publisher: 'AI Research Digest', date: 'Sep 14, 2025', icon: '?�️' },
+          { title: 'Multi-agent systems in real-world applications', publisher: 'Product & AI Blog', date: 'Sep 12, 2025', icon: '?��' },
+          { title: 'Browser agents: progress and open challenges', publisher: 'The AI Report', date: 'Sep 10, 2025', icon: '?��' }
         ];
         sourcesList.innerHTML = sources.map(s => `
           <div class="source-item-row">
@@ -4030,11 +4076,11 @@
       if (summarySection && summaryList) {
         summarySection.style.display = 'block';
         if (summarySectionAlias) summarySectionAlias.style.display = 'block';
-        summaryList.innerHTML = `<div class="nagex-empty-state">${escapeHtml(isKr ? '조사 계획이 준비됐어요. 실제 출처를 확인한 뒤 결과를 표시합니다.' : 'Your research plan is ready. Results will appear after the sources are actually checked.')}</div>`;
+        summaryList.innerHTML = `<div class="nagex-empty-state">${escapeHtml('')}</div>`;
       }
       if (sourcesSection && sourcesList) {
         sourcesSection.style.display = 'block';
-        sourcesList.innerHTML = `<div class="nagex-empty-state">${escapeHtml(isKr ? '확인된 출처가 아직 없어요.' : 'No verified sources yet.')}</div>`;
+        sourcesList.innerHTML = `<div class="nagex-empty-state">${escapeHtml('')}</div>`;
       }
 
       // Hide Meeting-specific boxes
@@ -4047,11 +4093,11 @@
         footerActions.style.display = 'flex';
         footerActions.innerHTML = `
           <button class="btn-mockup-secondary" id="btn-ask-followup" type="button">
-            <span class="btn-icon">💬</span>
+            <span class="btn-icon">?��</span>
             <span>${t('ambient.ctaFollowUp')}</span>
           </button>
           <button class="btn-mockup-primary" id="btn-save-vault" type="button">
-            <span class="btn-icon">🔖</span>
+            <span class="btn-icon">?��</span>
             <span>${t('ambient.ctaSaveVault')}</span>
           </button>
         `;
@@ -4059,7 +4105,7 @@
         if (btnVault) {
           btnVault.onclick = () => {
             btnVault.disabled = true;
-            btnVault.textContent = isKr ? '저장됨 ✓' : 'Saved ✓';
+            btnVault.textContent = isKr ? "Saved" : "Saved";
           };
         }
       }
@@ -4069,16 +4115,16 @@
       if (realVaultButton) {
         realVaultButton.onclick = async () => {
           realVaultButton.disabled = true;
-          realVaultButton.textContent = isKr ? '저장 중...' : 'Saving...';
+          realVaultButton.textContent = '';
           const saved = await apiFetch('/api/v1/workspace/vault', {
             method: 'POST',
             body: JSON.stringify({ type: 'SAVED_ANALYSIS', title: (plan && plan.goal) || promptText || 'Saved result', storageRef: `ambient:${planId}`, source: 'AMBIENT_RESULT', sourceRef: planId, metadata: { prompt: promptText, savedAt: new Date().toISOString() } }),
           });
           if (saved && saved.vaultItemId && !saved.error) {
-            realVaultButton.textContent = isKr ? 'Vault에 저장됨' : 'Saved to Vault';
+            realVaultButton.textContent = '';
           } else {
             realVaultButton.disabled = false;
-            realVaultButton.textContent = isKr ? '저장하지 못했어요. 다시 시도' : "Couldn't save. Try again";
+            realVaultButton.textContent = isKr ? '?�?�하지 못했?�요. ?�시 ?�도' : "Couldn't save. Try again";
           }
         };
       }
@@ -4095,7 +4141,7 @@
       // legacy sample clauses as if they came from a user's document.
       if (summarySection && summaryList) {
         summarySection.style.display = 'block';
-        summaryList.innerHTML = `<div class="nagex-empty-state">${escapeHtml(isKr ? '분석할 실제 문서가 필요해요.' : 'Add the document you want me to analyze.')}</div>`;
+        summaryList.innerHTML = `<div class="nagex-empty-state">${escapeHtml('')}</div>`;
       }
       if (sourcesSection) sourcesSection.style.display = 'none';
 
@@ -4120,19 +4166,19 @@
       // Replace the legacy placeholder immediately; real content is loaded
       // after resolution and an unavailable source remains an honest state.
       if (contextBox) {
-        contextBox.innerHTML = `<p>${escapeHtml(isKr ? '관련 자료를 확인하고 있어요.' : 'Checking for related context...')}</p>`;
+        contextBox.innerHTML = `<p>${escapeHtml('')}</p>`;
       }
 
       // Grounding Why / Schedule recommendation
       if (groundingWhyEl) {
         groundingWhyEl.style.display = 'block';
-        groundingWhyEl.innerHTML = `📅 <strong>${isKr ? '추천 일정:' : 'Proposed Schedule:'}</strong> ${
-          isKr ? '실제 일정을 확인하는 중...' : 'Checking your calendar...'
+        groundingWhyEl.innerHTML = `?�� <strong>${''}</strong> ${
+          ''
         }`;
       }
 
       if (groundingWhyEl) {
-        groundingWhyEl.innerHTML = `<span>${escapeHtml(isKr ? '실제 일정과 관련 자료를 바탕으로 준비합니다.' : 'Preparing from your real calendar and related materials.')}</span>`;
+        groundingWhyEl.innerHTML = `<span>${escapeHtml('')}</span>`;
       }
       if (resolved) renderGroundedMeetingContext(resolved, contextBox, groundingWhyEl, isKr);
 
@@ -4154,7 +4200,7 @@
         if (btnContinue) {
           btnContinue.onclick = async () => {
             btnContinue.disabled = true;
-            btnContinue.textContent = isKr ? '진행됨 ✓' : 'Accepted ✓';
+            btnContinue.textContent = isKr ? "Accepted" : "Accepted";
             await renderUserApprovalCard(resolved, promptText);
           };
         }
@@ -4176,9 +4222,9 @@
       if (summarySection && summaryList) {
         summarySection.style.display = 'block';
         const findings = isKr ? [
-          '계약서 내 위험 요소 및 책임 면책 조항 2건 발견',
-          '자동 갱신 주기 30일 사전 통지 조건 명시 확인',
-          '분쟁 해결 관할 법원이 본사 거점지로 지정됨'
+          '계약?????�험 ?�소 �?책임 면책 조항 2�?발견',
+          '?�동 갱신 주기 30???�전 ?��? 조건 명시 ?�인',
+          '분쟁 ?�결 관??법원??본사 거점지�?지?�됨'
         ] : [
           'Found 2 potential liability limitation clauses requiring review',
           'Automatic renewal notice requirement specified as 30 days prior',
@@ -4194,7 +4240,7 @@
 
       if (summarySection && summaryList) {
         summarySection.style.display = 'block';
-        summaryList.innerHTML = `<div class="nagex-empty-state">${escapeHtml(isKr ? '생성 요청이 준비됐어요. 실제 결과가 생성되면 여기에 표시합니다.' : 'Your creation request is ready. The result will appear here after it is generated.')}</div>`;
+        summaryList.innerHTML = `<div class="nagex-empty-state">${escapeHtml('')}</div>`;
       }
       if (sourcesSection) sourcesSection.style.display = 'none';
       if (contextBox) contextBox.style.display = 'none';
@@ -4205,11 +4251,11 @@
         footerActions.style.display = 'flex';
         footerActions.innerHTML = `
           <button class="btn-mockup-secondary" id="btn-ask-followup" type="button">
-            <span class="btn-icon">💬</span>
+            <span class="btn-icon">?��</span>
             <span>${t('ambient.ctaFollowUp')}</span>
           </button>
           <button class="btn-mockup-primary" id="btn-save-vault" type="button">
-            <span class="btn-icon">🔖</span>
+            <span class="btn-icon">?��</span>
             <span>${t('ambient.ctaSaveVault')}</span>
           </button>
         `;
@@ -4236,11 +4282,11 @@
         footerActions.style.display = 'flex';
         footerActions.innerHTML = `
           <button class="btn-mockup-secondary" id="btn-ask-followup" type="button">
-            <span class="btn-icon">💬</span>
+            <span class="btn-icon">?��</span>
             <span>${t('ambient.ctaFollowUp')}</span>
           </button>
           <button class="btn-mockup-primary" id="btn-save-vault" type="button">
-            <span class="btn-icon">🔖</span>
+            <span class="btn-icon">?��</span>
             <span>${t('ambient.ctaSaveVault')}</span>
           </button>
         `;
@@ -4248,8 +4294,8 @@
     }
   }
 
-  // R21 P1 — this card previously ended in a fake setTimeout("Added to
-  // calendar ✓") that never called any real API — a false-success bug (the
+  // R21 P1 ??this card previously ended in a fake setTimeout("Added to
+  // calendar ??) that never called any real API ??a false-success bug (the
   // opposite of a silent failure, but just as untrustworthy: the user is
   // told a real Google Calendar event now exists when none does). The
   // calendar path below now performs the exact same real
@@ -4257,7 +4303,7 @@
   // calendar/create-event sequence app.js's older requestCalendarApproval()
   // uses, using whatever concrete fields the real resolved plan step
   // already extracted (never fabricated) and falling back to a real
-  // free-slots lookup only for a genuinely missing time — never inventing
+  // free-slots lookup only for a genuinely missing time ??never inventing
   // a title or attendee. The Gmail/generic branches are not yet wired to a
   // real execution path here (real Gmail grounding for an arbitrary
   // ambient request needs more context than this card has); rather than
@@ -4272,17 +4318,17 @@
     });
     if (!contextBox || !groundingWhyEl) return;
     if (!prep || prep.error) {
-      contextBox.innerHTML = `<strong>${escapeHtml(isKr ? '이 회의와 관련된 자료' : 'Related to this meeting')}</strong><p>${escapeHtml(isKr ? '관련 자료를 불러오지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요.' : "I couldn't load related context. Check your connections and try again.")}</p>`;
+      contextBox.innerHTML = `<strong>${escapeHtml('')}</strong><p>${escapeHtml(isKr ? '관???�료�?불러?��? 못했?�요. ?�결 ?�태�??�인?�고 ?�시 ?�도??주세??' : "I couldn't load related context. Check your connections and try again.")}</p>`;
       groundingWhyEl.style.display = 'none';
       return;
     }
     const materials = Array.isArray(prep.related_materials) ? prep.related_materials : [];
     contextBox.innerHTML = materials.length
-      ? `<strong>${escapeHtml(isKr ? `${materials.length}개의 관련 자료를 찾았어요` : `I found ${materials.length} related item${materials.length === 1 ? '' : 's'}`)}</strong><ul>${materials.map((item) => `<li>${escapeHtml(item.title || item.label || item.type)}</li>`).join('')}</ul>`
-      : `<p>${escapeHtml(isKr ? '관련 자료는 찾지 못했지만 실제 일정으로 준비를 계속할 수 있어요.' : 'No related materials found. You can still prepare from the calendar event.')}</p>`;
+      ? `<strong>${escapeHtml(isKr ? `${materials.length}개의 관???�료�?찾았?�요` : `I found ${materials.length} related item${materials.length === 1 ? '' : 's'}`)}</strong><ul>${materials.map((item) => `<li>${escapeHtml(item.title || item.label || item.type)}</li>`).join('')}</ul>`
+      : `<p>${escapeHtml('')}</p>`;
     const title = prep.title || prep.event_title;
     groundingWhyEl.style.display = 'block';
-    groundingWhyEl.innerHTML = `<strong>${escapeHtml(isKr ? '준비 대상' : 'Preparing for')}</strong>${title ? `: ${escapeHtml(title)}` : ''}`;
+    groundingWhyEl.innerHTML = "<strong>" + escapeHtml("Preparing for") + "</strong>" + (title ? ": " + escapeHtml(title) : "");
   }
 
   async function renderUserApprovalCard(resolved, promptText) {
@@ -4301,16 +4347,16 @@
     approvalCard.style.display = 'block';
 
     if (calendarStep || (promptText && (promptText.toLowerCase().includes('meeting') || promptText.includes('미팅')))) {
-      headingEl.textContent = isKr ? '준비 중...' : 'Preparing...';
-      detailsEl.innerHTML = `<p>${escapeHtml(isKr ? '캘린더를 확인하는 중입니다...' : 'Checking your calendar...')}</p>`;
+      headingEl.textContent = '';
+      detailsEl.innerHTML = `<p>${escapeHtml('')}</p>`;
       actionsEl.innerHTML = '';
 
       // Real params only: prefer whatever the real plan already extracted
-      // (AiService.plan() never invents a concrete date/time/attendee —
+      // (AiService.plan() never invents a concrete date/time/attendee ??
       // see its system prompt); look up a real free slot only for
       // whatever is genuinely still missing.
       const params = (calendarStep && calendarStep.parameters) || {};
-      const summary = params.summary || promptText || (isKr ? '새 일정' : 'New event');
+      const summary = params.summary || promptText || ('');
       const attendees = Array.isArray(params.attendees) ? params.attendees : [];
       let start = params.start || null;
       let end = params.end || null;
@@ -4324,8 +4370,8 @@
       }
 
       if (!start || !end) {
-        headingEl.textContent = isKr ? '캘린더를 연결해 주세요' : 'Connect your calendar to continue';
-        detailsEl.innerHTML = `<p>${escapeHtml(isKr ? 'Google Calendar가 연결되어 있지 않거나 여유 시간을 찾지 못했습니다.' : 'Google Calendar is not connected, or no open time could be found.')}</p>`;
+        headingEl.textContent = isKr ? "Connect your calendar to continue" : "Connect your calendar to continue";
+        detailsEl.innerHTML = `<p>${escapeHtml('')}</p>`;
         return;
       }
 
@@ -4334,18 +4380,18 @@
       const startDate = new Date(start);
       const endDate = new Date(end);
 
-      headingEl.textContent = isKr ? '캘린더에 추가할 준비가 됐어요' : 'Ready to add to your calendar';
+      headingEl.textContent = isKr ? "Ready to add to your calendar" : "Ready to add to your calendar";
       detailsEl.innerHTML = `
         <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 0.85rem; margin-top: 0.5rem;">
           <strong style="display: block; font-size: 0.95rem; color: #0f172a; margin-bottom: 0.3rem;">${escapeHtml(summary)}</strong>
-          <div style="font-size: 0.85rem; color: #475569; margin-bottom: 0.2rem;">${escapeHtml(startDate.toLocaleString())} – ${escapeHtml(endDate.toLocaleTimeString())}</div>
-          ${attendees.length ? `<div style="font-size: 0.85rem; color: #475569;">${isKr ? '참석자' : 'Attendees'}: ${escapeHtml(attendees.join(', '))}</div>` : ''}
+          <div style="font-size: 0.85rem; color: #475569; margin-bottom: 0.2rem;">${escapeHtml(startDate.toLocaleString())} ??${escapeHtml(endDate.toLocaleTimeString())}</div>
+          ${attendees.length ? `<div style="font-size: 0.85rem; color: #475569;">Attendees: ${escapeHtml(attendees.join(', '))}</div>` : ''}
         </div>
       `;
       actionsEl.innerHTML = `
         <div style="display: flex; align-items: center; gap: 0.6rem; margin-top: 0.85rem;">
-          <button class="btn-mockup-primary" id="btn-ambient-approve-mutation" type="button">${isKr ? '캘린더에 추가' : 'Add to calendar'}</button>
-          <button class="btn-action-text" id="btn-ambient-reject-mutation" type="button" style="background:none; border:none; color:#64748b; font-size:0.85rem; cursor:pointer; padding:0.4rem 0.8rem;">${isKr ? '나중에' : 'Not now'}</button>
+          <button class="btn-mockup-primary" id="btn-ambient-approve-mutation" type="button">Add to calendar</button>
+          <button class="btn-action-text" id="btn-ambient-reject-mutation" type="button" style="background:none; border:none; color:#64748b; font-size:0.85rem; cursor:pointer; padding:0.4rem 0.8rem;">Not now</button>
         </div>
       `;
 
@@ -4358,21 +4404,21 @@
           btnApprove.disabled = true;
           if (btnReject) btnReject.disabled = true;
           if (btnEdit) btnEdit.disabled = true;
-          btnApprove.textContent = isKr ? '요청 중...' : 'Requesting approval...';
+          btnApprove.textContent = '';
 
           const approval = await apiFetch('/api/v1/approvals', { method: 'POST', body: JSON.stringify({ toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, payload }) });
           if (!approval || approval.error || !approval.approvalId) {
-            headingEl.textContent = isKr ? '완료하지 못했어요' : "I couldn't complete that";
-            detailsEl.innerHTML = `<div style="color:#991b1b;">${escapeHtml((approval && approval.error && approval.error.message) || (isKr ? '잠시 후 다시 시도해 주세요.' : 'Please try again in a moment.'))}</div>`;
+            headingEl.textContent = isKr ? '?�료?��? 못했?�요' : "I couldn't complete that";
+            detailsEl.innerHTML = `<div style="color:#991b1b;">${escapeHtml((approval && approval.error && approval.error.message) || (''))}</div>`;
             actionsEl.innerHTML = '';
             return;
           }
 
-          btnApprove.textContent = isKr ? '추가하는 중...' : 'Adding to calendar...';
+          btnApprove.textContent = '';
           const approved = await apiFetch(`/api/v1/approvals/${approval.approvalId}/approve`, { method: 'POST' });
           if (!approved || approved.error) {
-            headingEl.textContent = isKr ? '완료하지 못했어요' : "I couldn't complete that";
-            detailsEl.innerHTML = `<div style="color:#991b1b;">${escapeHtml(isKr ? '잠시 후 다시 시도해 주세요.' : 'Please try again in a moment.')}</div>`;
+            headingEl.textContent = isKr ? '?�료?��? 못했?�요' : "I couldn't complete that";
+            detailsEl.innerHTML = `<div style="color:#991b1b;">${escapeHtml('')}</div>`;
             actionsEl.innerHTML = '';
             return;
           }
@@ -4383,25 +4429,25 @@
             window.NAGEX_METRICS.APPROVAL_TO_RESULT_MS = Math.max(0, Math.round(performance.now() - approvalStartedAt));
             const isDemo = result.executionMode === 'DEMO' || result.providerVerified === false || result.dataSource === 'DEMO';
             headingEl.textContent = isDemo
-              ? (isKr ? '데모 실행 완료 · 실제 Google Calendar 이벤트는 생성되지 않았습니다' : 'Demo completed · No real Google Calendar event was created.')
-              : (isKr ? '✓ 캘린더에 추가되었습니다' : '✓ Added to your calendar');
+              ? "Demo completed - No real Google Calendar event was created."
+              : "Added to your calendar";
             detailsEl.innerHTML = `
               <div style="color:#059669; font-weight:600;">${escapeHtml(summary)}</div>
               <div style="font-size:0.85rem; color:#475569;">${escapeHtml(startDate.toLocaleString())}</div>
-              ${!isDemo && result.externalUrl ? `<a href="${encodeURI(result.externalUrl)}" target="_blank" rel="noopener" style="font-size:0.85rem;">${isKr ? 'Google Calendar에서 열기' : 'Open in Google Calendar'} →</a>` : ''}
+              ${!isDemo && result.externalUrl ? `<a href="${encodeURI(result.externalUrl)}" target="_blank" rel="noopener" style="font-size:0.85rem;">View event</a>` : ''}
             `;
           } else {
-            headingEl.textContent = isKr ? '완료하지 못했어요' : "I couldn't complete that";
-            detailsEl.innerHTML = `<div style="color:#991b1b;">${escapeHtml(isKr ? '잠시 후 다시 시도해 주세요.' : 'Please try again in a moment.')}</div>`;
+            headingEl.textContent = "I could not complete that";
+            detailsEl.innerHTML = `<div style="color:#991b1b;">${escapeHtml('')}</div>`;
           }
           actionsEl.innerHTML = '';
         };
       }
     } else if (hasGmail) {
       headingEl.textContent = t('ambient.approval.readyEmail');
-      detailsEl.innerHTML = `<div>${escapeHtml(isKr ? '이 초안의 실제 수신자/제목은 아직 준비되지 않았습니다. Approvals에서 이어서 진행해 주세요.' : "This draft's real recipient/subject isn't ready here yet — continue from Approvals.")}</div>`;
+      detailsEl.innerHTML = `<div>${escapeHtml(isKr ? '??초안???�제 ?�신???�목?� ?�직 준비되지 ?�았?�니?? Approvals?�서 ?�어??진행??주세??' : "This draft's real recipient/subject isn't ready here yet ??continue from Approvals.")}</div>`;
       actionsEl.innerHTML = `
-        <button class="btn-mockup-secondary" id="btn-ambient-goto-approvals" type="button">${isKr ? 'Approvals로 이동' : 'Go to Approvals'}</button>
+        <button class="btn-mockup-secondary" id="btn-ambient-goto-approvals" type="button">${''}</button>
         <button class="btn-action-text" id="btn-ambient-reject-mutation" type="button">${t('ambient.approval.notNow')}</button>
       `;
       const btnGoto = document.getElementById('btn-ambient-goto-approvals');
@@ -4409,10 +4455,10 @@
       const btnReject = document.getElementById('btn-ambient-reject-mutation');
       if (btnReject) btnReject.onclick = () => { approvalCard.style.display = 'none'; };
     } else {
-      headingEl.textContent = isKr ? '실행 승인 준비 완료' : 'Ready for your approval';
-      detailsEl.innerHTML = `<div>${escapeHtml(promptText || 'Requested action')}</div><div style="font-size:0.8rem; color:#64748b; margin-top:0.4rem;">${escapeHtml(isKr ? 'Approvals에서 이 작업을 검토하고 실행할 수 있습니다.' : 'Review and run this from Approvals.')}</div>`;
+      headingEl.textContent = '';
+      detailsEl.innerHTML = `<div>${escapeHtml(promptText || 'Requested action')}</div><div style="font-size:0.8rem; color:#64748b; margin-top:0.4rem;">${escapeHtml('')}</div>`;
       actionsEl.innerHTML = `
-        <button class="btn-mockup-secondary" id="btn-ambient-goto-approvals" type="button">${isKr ? 'Approvals로 이동' : 'Go to Approvals'}</button>
+        <button class="btn-mockup-secondary" id="btn-ambient-goto-approvals" type="button">${''}</button>
         <button class="btn-action-text" id="btn-ambient-reject-mutation" type="button">${t('ambient.approval.notNow')}</button>
       `;
       const btnGoto = document.getElementById('btn-ambient-goto-approvals');
@@ -4426,7 +4472,7 @@
     actionsEl.innerHTML = `
       <div class="calendar-connect-prompt">
         <p>Google Calendar is not connected, so this step cannot proceed.</p>
-        <button class="btn-plan-action plan-status-approval" id="btn-connect-google-calendar">🔗 Connect Google Calendar</button>
+        <button class="btn-plan-action plan-status-approval" id="btn-connect-google-calendar">?�� Connect Google Calendar</button>
       </div>`;
     const btn = document.getElementById('btn-connect-google-calendar');
     if (btn) {
@@ -4443,7 +4489,7 @@
   }
 
   // extracted (from calendar-intent-extraction.js) may be null, or may only
-  // have some fields confidently parsed — this form must reflect exactly
+  // have some fields confidently parsed ??this form must reflect exactly
   // what was extracted and nothing more: a field the user didn't state is
   // left blank (title, start, attendees) or shown as a clearly-labeled
   // suggested default (duration) rather than a silently-invented value.
@@ -4466,7 +4512,7 @@
         <label>Start
           <input type="datetime-local" id="cal-start" value="${escapeHtml(startValue)}" required>
         </label>
-        <label>Duration (minutes)${durationIsSuggested ? ' <span class="field-suggested-hint">(suggested — please confirm)</span>' : ''}
+        <label>Duration (minutes)${durationIsSuggested ? ' <span class="field-suggested-hint">(suggested ??please confirm)</span>' : ''}
           <input type="number" id="cal-duration" value="${durationValue}" min="1" step="5" required>
         </label>
         <label>Timezone
@@ -4485,7 +4531,7 @@
           <input type="text" value="primary" disabled>
         </label>
         <p class="calendar-form-error" id="calendar-form-error" style="display:none;"></p>
-        <button type="submit" class="btn-plan-action plan-status-approval">🛡️ Preview & Request Approval</button>
+        <button type="submit" class="btn-plan-action plan-status-approval">?���?Preview & Request Approval</button>
       </form>
       <div id="calendar-preview-slot"></div>`;
 
@@ -4520,8 +4566,8 @@
         const toLocalIso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
         const endDate = new Date(result.startDate.getTime() + durationMinutes * 60000);
 
-        // Whatever is in the form right now — extracted-and-untouched,
-        // extracted-and-edited, or filled in from blank — becomes the exact
+        // Whatever is in the form right now ??extracted-and-untouched,
+        // extracted-and-edited, or filled in from blank ??becomes the exact
         // canonical payload. Nothing here is re-derived from the original
         // prompt again.
         const payload = {
@@ -4567,7 +4613,7 @@
         <h4>Ready for review</h4>
         <dl class="calendar-approval-fields">
           <div><dt>Title</dt><dd>${escapeHtml(f.title)}</dd></div>
-          <div><dt>Description</dt><dd>${escapeHtml(f.description) || '—'}</dd></div>
+          <div><dt>Description</dt><dd>${escapeHtml(f.description) || "-"}</dd></div>
           <div><dt>Date</dt><dd>${escapeHtml(f.date)}</dd></div>
           <div><dt>Start time</dt><dd>${escapeHtml(f.startTime)}</dd></div>
           <div><dt>End time</dt><dd>${escapeHtml(f.endTime)}</dd></div>
@@ -4579,7 +4625,7 @@
         <p class="calendar-approval-expiry" id="calendar-approval-expiry">${vmView.countdownLabel ? escapeHtml(vmView.countdownLabel) : ''}</p>
         <div class="calendar-preview-actions">
           <button class="btn-reject-outline" id="btn-calendar-reject" ${vmView.rejectDisabled ? 'disabled' : ''}>${escapeHtml(t('calendar.reject'))}</button>
-          <button class="btn-secondary" id="btn-calendar-edit" ${vmView.approveDisabled ? 'disabled' : ''}>${escapeHtml((window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale() === 'ko') ? '수정' : 'Edit')}</button>
+          <button class="btn-secondary" id="btn-calendar-edit" ${vmView.approveDisabled ? 'disabled' : ''}>${escapeHtml((window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale() === 'ko') ? '?�정' : 'Edit')}</button>
           <button class="btn-plan-action plan-status-ready" id="btn-calendar-approve" ${vmView.approveDisabled ? 'disabled' : ''}>${escapeHtml(t('calendar.approveAndCreateEvent'))}</button>
         </div>
       </div>`;
@@ -4594,9 +4640,9 @@
       <div class="calendar-preview-card">
         <h4>${escapeHtml(headingText)}</h4>
         <p><strong>${escapeHtml(successVm.title)}</strong></p>
-        <p>${escapeHtml(successVm.date)} ${escapeHtml(successVm.startTime)}–${escapeHtml(successVm.endTime)} (${escapeHtml(successVm.timezone)})</p>
+        <p>${escapeHtml(successVm.date)} ${escapeHtml(successVm.startTime)}??{escapeHtml(successVm.endTime)} (${escapeHtml(successVm.timezone)})</p>
         <p>Execution ID: ${escapeHtml(successVm.executionId || '')}</p>
-        ${!isDemo && successVm.externalUrl ? `<a class="btn-plan-action plan-status-ready" href="${encodeURI(successVm.externalUrl)}" target="_blank" rel="noopener">Open in Google Calendar →</a>` : ''}
+        ${!isDemo && successVm.externalUrl ? `<a class="btn-plan-action plan-status-ready" href="${encodeURI(successVm.externalUrl)}" target="_blank" rel="noopener">Open in Google Calendar ??/a>` : ''}
       </div>`;
   }
 
@@ -4605,10 +4651,10 @@
     const form = document.getElementById('calendar-compose-form');
     const view = window.NAGEX_CALENDAR_APPROVAL_VIEW;
     if (!slot || !view) return;
-    slot.innerHTML = `<p>Requesting approval…</p>`;
+    slot.innerHTML = `<p>Requesting approval??/p>`;
 
     // Step 3: the approval API is the single source of truth from here on.
-    // Its canonicalPayload — never this locally-composed `payload` — is what
+    // Its canonicalPayload ??never this locally-composed `payload` ??is what
     // gets displayed and, later, what gets executed (steps 2 and 7).
     const approval = await apiFetch('/api/v1/approvals', {
       method: 'POST',
@@ -4696,7 +4742,7 @@
           const elBusy = statusEl();
           if (elBusy) elBusy.textContent = 'Creating calendar event...';
 
-          // Step 6: approve first, then execute — never the other way round.
+          // Step 6: approve first, then execute ??never the other way round.
           const approved = await apiFetch(`/api/v1/approvals/${approval.approvalId}/approve`, { method: 'POST' });
           if (!approved || approved.error) {
             updateFlowStage('Result');
@@ -4711,7 +4757,7 @@
           addTimelineEntry('Execution started', `execution:${approval.approvalId}:started`, 'btnApprove.onclick');
 
           // Step 7: execute with the exact canonicalPayload the approval API
-          // returned — never the locally-composed `payload` variable.
+          // returned ??never the locally-composed `payload` variable.
           const result = await apiFetch('/api/v1/tools/google-calendar/create-event', {
             method: 'POST',
             body: JSON.stringify({ approvalId: approval.approvalId, payload: approval.canonicalPayload }),
@@ -4726,7 +4772,7 @@
           }
 
           // Step 10: on APPROVAL_ALREADY_CONSUMED (or any other failure), show
-          // the failure and stop — never retry automatically.
+          // the failure and stop ??never retry automatically.
           const code = result && result.error && result.error.code;
           const message = view.describeExecutionError(code) || (result && result.error && result.error.message) || 'The event could not be created.';
           const el = statusEl();
@@ -4755,8 +4801,8 @@
     }, 1000);
   }
 
-  // ── Gmail Ambient E2E (MASTER.md Section 14: user types an email request,
-  // completes it end to end, without curl) — mirrors the Calendar compose
+  // ?�?� Gmail Ambient E2E (MASTER.md Section 14: user types an email request,
+  // completes it end to end, without curl) ??mirrors the Calendar compose
   // form / approval card / success card pattern above, using the shared
   // gmail-approval-view.js view model and gmail-intent-extraction.js's
   // deterministic, never-invents-a-value extraction.
@@ -4766,7 +4812,7 @@
     actionsEl.innerHTML = `
       <div class="calendar-connect-prompt">
         <p>${escapeHtml(t('gmail.connectPrompt'))}</p>
-        <button class="btn-plan-action plan-status-approval" id="btn-connect-gmail">🔗 ${escapeHtml(t('gmail.connectButton'))}</button>
+        <button class="btn-plan-action plan-status-approval" id="btn-connect-gmail">?�� ${escapeHtml(t('gmail.connectButton'))}</button>
       </div>`;
     const btn = document.getElementById('btn-connect-gmail');
     if (btn) {
@@ -4807,7 +4853,7 @@
 
   // `extracted` (from gmail-intent-extraction.js) may be null, or may only
   // have some fields confidently parsed. A field the user didn't literally
-  // state (to, subject, body) is left blank — never filled with a guess —
+  // state (to, subject, body) is left blank ??never filled with a guess ??
   // and `recipientNameHint` (a bare name like "John") is shown only as text
   // next to the still-blank, still-required To field, exactly mirroring how
   // renderCalendarComposeForm leaves title/start blank rather than inventing
@@ -4824,7 +4870,7 @@
       ? `<p class="field-suggested-hint">${escapeHtml(t('gmail.recipientHint'))} "${escapeHtml(extracted.recipientNameHint)}" ${escapeHtml(t('gmail.recipientHintSuffix'))}</p>`
       : '';
     // Reply thread context is only ever prefilled from a thread NAgex
-    // actually just loaded in this session (state.lastGmailThread) — never
+    // actually just loaded in this session (state.lastGmailThread) ??never
     // guessed at from the prompt text alone.
     const threadPrefill = (isReply && state.lastGmailThread) || { threadId: '', replyToMessageId: '' };
 
@@ -4858,7 +4904,7 @@
           <input type="text" value="me" disabled>
         </label>
         <p class="calendar-form-error" id="gmail-form-error" style="display:none;"></p>
-        <button type="submit" class="btn-plan-action plan-status-approval">🛡️ ${escapeHtml(t('gmail.previewAndRequestApproval'))}</button>
+        <button type="submit" class="btn-plan-action plan-status-approval">?���?${escapeHtml(t('gmail.previewAndRequestApproval'))}</button>
       </form>
       <div id="gmail-preview-slot"></div>`;
 
@@ -4876,7 +4922,7 @@
         const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
         // Fail closed: at least one confirmed, syntactically valid recipient
-        // is required before an approval can even be requested — an
+        // is required before an approval can even be requested ??an
         // ambiguous/blank recipient is "asked about" by the form itself
         // simply refusing to submit, never by inventing an address.
         if (!to.length || !to.every((e) => EMAIL_RE.test(e))) {
@@ -4915,10 +4961,10 @@
       <div class="calendar-approval-card">
         <h4>${escapeHtml(t('ambient.approvalRequired'))}</h4>
         <dl class="calendar-approval-fields">
-          <div><dt>${escapeHtml(t('gmail.to'))}</dt><dd>${f.to.length ? escapeHtml(f.to.join(', ')) : '—'}</dd></div>
+          <div><dt>${escapeHtml(t('gmail.to'))}</dt><dd>${f.to.length ? escapeHtml(f.to.join(', ')) : "-"}</dd></div>
           ${f.cc.length ? `<div><dt>${escapeHtml(t('gmail.cc'))}</dt><dd>${escapeHtml(f.cc.join(', '))}</dd></div>` : ''}
           ${f.bcc.length ? `<div><dt>${escapeHtml(t('gmail.bcc'))}</dt><dd>${escapeHtml(f.bcc.join(', '))}</dd></div>` : ''}
-          <div><dt>${escapeHtml(t('gmail.subject'))}</dt><dd>${escapeHtml(f.subject) || '—'}</dd></div>
+          <div><dt>${escapeHtml(t('gmail.subject'))}</dt><dd>${escapeHtml(f.subject) || "-"}</dd></div>
           <div><dt>${escapeHtml(t('gmail.body'))}</dt><dd>${escapeHtml(f.body)}</dd></div>
           <div><dt>${escapeHtml(t('gmail.account'))}</dt><dd>${escapeHtml(f.from)}</dd></div>
         </dl>
@@ -4926,7 +4972,7 @@
         <p class="calendar-approval-expiry" id="gmail-approval-expiry">${vmView.countdownLabel ? escapeHtml(vmView.countdownLabel) : ''}</p>
         <div class="calendar-preview-actions">
           <button class="btn-reject-outline" id="btn-gmail-reject" ${vmView.rejectDisabled ? 'disabled' : ''}>${escapeHtml(t('gmail.reject'))}</button>
-          <button class="btn-secondary" id="btn-gmail-edit" ${vmView.approveDisabled ? 'disabled' : ''}>${escapeHtml((window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale() === 'ko') ? '수정' : 'Edit')}</button>
+          <button class="btn-secondary" id="btn-gmail-edit" ${vmView.approveDisabled ? 'disabled' : ''}>${escapeHtml((window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale() === 'ko') ? '?�정' : 'Edit')}</button>
           <button class="btn-plan-action plan-status-ready" id="btn-gmail-approve" ${vmView.approveDisabled ? 'disabled' : ''}>${escapeHtml(t(gmailApproveButtonLabelKey(approval.toolId)))}</button>
         </div>
       </div>`;
@@ -4939,7 +4985,7 @@
     slot.innerHTML = `
       <div class="calendar-preview-card">
         <h4>${escapeHtml(t(gmailSucceededLabelKey(approval.toolId)))}</h4>
-        <p><strong>${escapeHtml(successVm.subject) || '—'}</strong></p>
+        <p><strong>${escapeHtml(successVm.subject) || "-"}</strong></p>
         <p>${escapeHtml(t('gmail.to'))}: ${escapeHtml(successVm.to.join(', '))}</p>
         <p>Execution ID: ${escapeHtml(successVm.executionId)}</p>
         <a class="btn-plan-action plan-status-ready" href="${encodeURI(successVm.externalUrl)}" target="_blank" rel="noopener">${escapeHtml(t('gmail.openInGmail'))}</a>
@@ -4954,7 +5000,7 @@
     if (!slot || !view) return;
     slot.innerHTML = `<p>${escapeHtml(t('gmail.requestingApproval'))}</p>`;
 
-    // The approval API is the single source of truth from here on — its
+    // The approval API is the single source of truth from here on ??its
     // canonicalPayload, never this locally-composed `payload`, is what gets
     // displayed and, later, what gets executed.
     const approval = await apiFetch('/api/v1/approvals', {
@@ -5041,7 +5087,7 @@
           const elBusy = statusEl();
           if (elBusy) elBusy.textContent = t(gmailExecutingLabelKey(toolId));
 
-          // Approve first, then execute — never the other way round.
+          // Approve first, then execute ??never the other way round.
           const approved = await apiFetch(`/api/v1/approvals/${approval.approvalId}/approve`, { method: 'POST' });
           if (!approved || approved.error) {
             updateFlowStage('Result');
@@ -5056,7 +5102,7 @@
           addTimelineEntry('Execution started', `execution:${approval.approvalId}:started`, 'btnGmailApprove.onclick');
 
           // Execute with the exact canonicalPayload the approval API
-          // returned — never the locally-composed `payload` variable.
+          // returned ??never the locally-composed `payload` variable.
           const result = await apiFetch(GMAIL_EXECUTE_ENDPOINT[toolId], {
             method: 'POST',
             body: JSON.stringify({ approvalId: approval.approvalId, payload: approval.canonicalPayload }),
@@ -5071,7 +5117,7 @@
           }
 
           // On APPROVAL_ALREADY_CONSUMED (or any other failure), show the
-          // failure and stop — never retry automatically.
+          // failure and stop ??never retry automatically.
           const code = result && result.error && result.error.code;
           const message = view.describeExecutionError(code) || (result && result.error && result.error.message) || 'The action could not be completed.';
           const el = statusEl();
@@ -5113,7 +5159,7 @@
         </ul>
       </div>`;
     // Remembers the top real result so a follow-up reply/read_thread request
-    // in this session can use its actual threadId — never invented.
+    // in this session can use its actual threadId ??never invented.
     if (threads[0]) state.lastGmailThread = { threadId: threads[0].threadId, replyToMessageId: null };
   }
 
@@ -5131,7 +5177,7 @@
   }
 
   // Read-only Gmail actions (search, read_thread) run immediately with no
-  // approval, per policy — but never fabricate a result: read_thread with no
+  // approval, per policy ??but never fabricate a result: read_thread with no
   // real threadId known in this session (from a prior search/read result)
   // stops and asks the user to search first, rather than guessing one.
   async function runGmailReadOnlyStep(actionsEl, toolId, originalPromptText, planId) {
@@ -5173,11 +5219,11 @@
     }
   }
 
-  // ── Browser Agent MVP ambient wiring (MASTER.md Section 14.5 item 06) ──
+  // ?�?� Browser Agent MVP ambient wiring (MASTER.md Section 14.5 item 06) ?�?�
   // Scope: the read-only "open a page and tell me what it says" flow only
   // (browser.open/browser.navigate -> browser.snapshot, no approval, per
   // policy). Driving an in-page click/type/select from the ambient composer
-  // is NOT wired here — that is fundamentally a multi-turn loop (navigate,
+  // is NOT wired here ??that is fundamentally a multi-turn loop (navigate,
   // read the live page, decide what to click) rather than a single-shot
   // form, and the backend + approval-card view model for it already exist
   // and are tested (see browser.service.ts, browser-approval-view.js) for a
@@ -5196,7 +5242,7 @@
     const literalUrl = extracted && extracted.url;
 
     if (!literalUrl) {
-      // Never invents a destination for "the airline website" — asks for
+      // Never invents a destination for "the airline website" ??asks for
       // the real URL exactly the way a blank required Calendar/Gmail field
       // does, by simply requiring it before proceeding.
       actionsEl.innerHTML = `
@@ -5204,7 +5250,7 @@
           <label>URL
             <input type="url" id="browser-url-input" placeholder="https://example.com" required>
           </label>
-          <button type="submit" class="btn-plan-action plan-status-ready">▶ ${escapeHtml(t('browser.openingWebsite'))}</button>
+          <button type="submit" class="btn-plan-action plan-status-ready">??${escapeHtml(t('browser.openingWebsite'))}</button>
         </form>`;
       const form = document.getElementById('browser-open-form');
       if (form) {
@@ -5263,9 +5309,9 @@
       </div>`;
   }
 
-  // The "▶ Run" button lives inside the ambient overlay's static example
+  // The "??Run" button lives inside the ambient overlay's static example
   // conversation, right next to the real composer. It used to call
-  // runAmbientTask() directly with a hardcoded prompt — a second, redundant
+  // runAmbientTask() directly with a hardcoded prompt ??a second, redundant
   // producer of plan generations reachable from the same view as the real
   // composer (two genuinely different plans, both triggered from the one
   // open overlay, both using the same example text, which is what produced
@@ -5296,7 +5342,7 @@
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  // Merge onto the existing window.NAGEX (never replace it outright) — the
+  // Merge onto the existing window.NAGEX (never replace it outright) ??the
   // STEP 6/7 Candidate Review/Action handlers (acceptCandidate,
   // rejectCandidate, executeCandidateAction, retryCandidateAction,
   // startModifyCandidate/saveModifyCandidate/cancelModifyCandidate,
@@ -5318,10 +5364,10 @@
       await apiFetch(`/api/v1/memory/${id}`, { method: 'DELETE' });
       await loadAllData();
     },
-    // Phase 1 STEP 8, item L — approving/rejecting a Calendar Action
+    // Phase 1 STEP 8, item L ??approving/rejecting a Calendar Action
     // Approval that is linked to a candidate automatically advances that
     // candidate's action to its next real state (SUCCEEDED on approve,
-    // FAILED on reject) via the SAME resolver logic STEP 7 built — so "no
+    // FAILED on reject) via the SAME resolver logic STEP 7 built ??so "no
     // manual page reload should be required after the same UI action"
     // holds for the whole approve -> execute -> Home/Inbox/Activity chain,
     // not just the approval record itself.
@@ -5346,7 +5392,7 @@
         await loadAllData();
       } finally {
         // loadAllData() above re-renders every approval list from fresh
-        // markup on success, which already clears any disabled state — this
+        // markup on success, which already clears any disabled state ??this
         // only matters as the recovery path if something above throws, so a
         // failure never leaves the id permanently un-retryable or the
         // original button permanently disabled.
@@ -5354,7 +5400,7 @@
         if (btn && document.contains(btn)) btn.disabled = false;
       }
     },
-    // Real DC3-B2-era Task cancellation — the same POST /api/v1/tasks/:id/cancel
+    // Real DC3-B2-era Task cancellation ??the same POST /api/v1/tasks/:id/cancel
     // a running Task's own control surface uses. Never a local-only UI
     // toggle: the button that calls this only ever renders when a real
     // taskId is present (see renderHomeWorkspaceSections' Working section).
@@ -5365,10 +5411,10 @@
     // Minimal, deliberate bridge for desktop/mobile Home modules (separate
     // script files, per the Dual Experience directive) to reuse the exact
     // same authenticated fetch wrapper and canonical in-memory state this
-    // file already owns — never a second, parallel data client.
+    // file already owns ??never a second, parallel data client.
     apiFetch,
     getState: () => state,
-    // UI-5 — a second real entry point into the exact same route-input
+    // UI-5 ??a second real entry point into the exact same route-input
     // classification + dispatch logic the Home composer's own send button
     // uses (real /api/v1/workspace/route-input call, real ambient
     // task/capture dispatch). Deliberately a small, independent
@@ -5377,12 +5423,16 @@
     // text is pinned by tests/unified_capture_routing.test.ts (it string-
     // matches the literal block between "if (btnSend && homeInput) {" and
     // "if (btnLink && homeInput)"), so refactoring it to share code would
-    // risk that regression guard for no real benefit — both call sites end
+    // risk that regression guard for no real benefit ??both call sites end
     // up invoking the same real apiFetch/openAmbientOverlay/runAmbientTask/
     // switchTab functions either way.
     submitPrompt: async (text) => {
       const trimmed = (text || '').trim();
       if (!trimmed) return;
+      const commandHandled = await submitHomeCommandContext(trimmed);
+
+      if (commandHandled) return;
+
       const routeRes = await apiFetch('/api/v1/workspace/route-input', {
         method: 'POST',
         body: JSON.stringify({ text: trimmed }),
@@ -5403,6 +5453,21 @@
     switchSettingsCategory: (catKey) => {
       switchSettingsCategory(catKey);
     },
+    selectSettingsDevice: (index) => {
+      state.selectedSettingsDeviceIndex = index;
+      renderSettingsDevices();
+    },
+    renameSettingsDevice: async (index) => {
+      const device = Array.isArray(state.settingsDevices) ? state.settingsDevices[index] : null;
+      if (!device) return;
+      const nextName = window.prompt('Rename device', device.nickname || device.systemDeviceName || '');
+      if (nextName === null) return;
+      await apiFetch(`/api/v1/device-agent/devices/${encodeURIComponent(device.deviceId)}/nickname`, {
+        method: 'PUT',
+        body: JSON.stringify({ nickname: nextName.trim() || null }),
+      });
+      await renderSettingsDevices();
+    },
     probeModelHealth: async () => {
       const btn = document.getElementById('btn-probe-model-health');
       if (btn) btn.disabled = true;
@@ -5419,7 +5484,7 @@
         renderSettingsAiModel();
       }
     },
-    // R24.6B — no optimistic mutation: state changes only from the server's
+    // R24.6B ??no optimistic mutation: state changes only from the server's
     // confirmed response, and "Saved." is shown only after that write really
     // persisted. On any failure the control re-renders from the unchanged
     // state (it reverts) and a truthful error is shown.
@@ -5488,9 +5553,9 @@
     },
   });
 
-  // ── Creation Domain UI Handler ──
+  // ?�?� Creation Domain UI Handler ?�?�
   //
-  // R23.7C-C — canonical image source policy. The backend now serves the
+  // R23.7C-C ??canonical image source policy. The backend now serves the
   // real generated image at a NAgex-owned canonical path
   // (/api/v1/creations/images/img_<24 hex>, see image-executor.ts's imageId
   // format), never a provider URL. This predicate is the single place that
@@ -5543,7 +5608,7 @@
         const quality = document.getElementById('create-recipe-quality')?.value || 'standard';
 
         btnGenerate.disabled = true;
-        btnGenerate.textContent = '🎨 Generating...';
+        btnGenerate.textContent = '?�� Generating...';
 
         try {
           const res = await apiFetch('/api/v1/creations/generate', {
@@ -5564,7 +5629,7 @@
           }
         } finally {
           btnGenerate.disabled = false;
-          btnGenerate.textContent = '🎨 Generate Creation';
+          btnGenerate.textContent = '?�� Generate Creation';
         }
       };
     }
@@ -5581,7 +5646,7 @@
         }
 
         btnVariation.disabled = true;
-        btnVariation.textContent = '🪄 Generating Variation...';
+        btnVariation.textContent = '?�� Generating Variation...';
 
         try {
           const res = await apiFetch(`/api/v1/creations/${state.currentCreation.creationId}/variation`, {
@@ -5598,7 +5663,7 @@
           }
         } finally {
           btnVariation.disabled = false;
-          btnVariation.textContent = '🪄 Generate Variation';
+          btnVariation.textContent = '?�� Generate Variation';
         }
       };
     }
@@ -5666,7 +5731,7 @@
     loadCreationHistory();
   }
 
-  // ── Analyze Domain UI Handler ──
+  // ?�?� Analyze Domain UI Handler ?�?�
   function initAnalyzeView() {
     const dropzone = document.getElementById('analyze-dropzone');
     const fileInput = document.getElementById('analyze-file-input');
@@ -5717,7 +5782,7 @@
         if (!file || !resultSlot) return;
 
         btnExecute.disabled = true;
-        btnExecute.textContent = '🔍 Analyzing File...';
+        btnExecute.textContent = '?�� Analyzing File...';
 
         try {
           const initRes = await apiFetch('/api/v1/workspace/uploads/init', {
@@ -5747,7 +5812,7 @@
           resultSlot.innerHTML = `
             <div class="analysis-structured-card" style="font-size: 0.85rem;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-                <span class="badge-status status-READY" style="font-size: 0.75rem;">✓ Analysis Completed</span>
+                <span class="badge-status status-READY" style="font-size: 0.75rem;">??Analysis Completed</span>
                 <span style="font-size: 0.72rem; color: var(--text-muted);">${escapeHtml(new Date().toLocaleTimeString())}</span>
               </div>
               <h4 style="font-size: 0.95rem; color: var(--navy-head); margin-bottom: 0.4rem;">Executive Summary</h4>
@@ -5769,7 +5834,7 @@
             </div>`;
         } finally {
           btnExecute.disabled = false;
-          btnExecute.textContent = '🔍 Run Analysis';
+          btnExecute.textContent = '?�� Run Analysis';
         }
       };
     }
@@ -5845,23 +5910,23 @@
 
     const synthesis = result.synthesis;
     if (!synthesis || result.status === 'UNAVAILABLE') {
-      let rawMsg = (result.error && (typeof result.error === 'string' ? result.error : result.error.message)) || (lang === 'ko' ? '다각적 관점 분석 서비스를 이용할 수 없습니다.' : 'Perspective comparison unavailable.');
+      let rawMsg = (result.error && (typeof result.error === 'string' ? result.error : result.error.message)) || (lang === 'ko' ? '?�각??관??분석 ?�비?��? ?�용?????�습?�다.' : 'Perspective comparison unavailable.');
       rawMsg = String(rawMsg)
-        .replace(/PERSPECTIVE_SYNTHESIS_FAILED/g, lang === 'ko' ? '분석 결과를 합성하지 못했습니다.' : 'Synthesis unavailable.')
-        .replace(/ALL_MODEL_PROVIDERS_FAILED/g, lang === 'ko' ? '모든 모델 응답에 실패했습니다.' : 'Model services unavailable.');
+        .replace(/PERSPECTIVE_SYNTHESIS_FAILED/g, lang === 'ko' ? '분석 결과�??�성?��? 못했?�니??' : 'Synthesis unavailable.')
+        .replace(/ALL_MODEL_PROVIDERS_FAILED/g, lang === 'ko' ? '모든 모델 ?�답???�패?�습?�다.' : 'Model services unavailable.');
       container.innerHTML = '<div class="perspective-result-error" data-testid="perspective-compare-result">' + esc(rawMsg) + '</div>';
       return;
     }
 
-    const commonGroundTitle = t('perspective.commonGround') || (lang === 'ko' ? '공통적으로 확인되는 점' : 'What the perspectives agree on');
-    const differingTitle = t('perspective.differing') || (lang === 'ko' ? '다르게 볼 수 있는 관점' : 'Other ways to look at this');
-    const uncertaintiesTitle = t('perspective.uncertainties') || (lang === 'ko' ? '아직 불확실한 점' : 'What remains uncertain');
+    const commonGroundTitle = t('perspective.commonGround') || 'What the perspectives agree on';
+    const differingTitle = t('perspective.differing') || 'Other ways to look at this';
+    const uncertaintiesTitle = t('perspective.uncertainties') || 'What remains uncertain';
     const sourcesTitle = t('perspective.sources') || (lang === 'ko' ? '출처' : 'Sources');
 
     let html = '<div class="perspective-compare-result" data-testid="perspective-compare-result">';
 
     if (result.status === 'PARTIAL') {
-      const partialBanner = lang === 'ko' ? '일부 관점 분석 결과만 반영되었습니다.' : 'Partial perspective analysis provided.';
+      const partialBanner = lang === 'ko' ? '?��? 관??분석 결과�?반영?�었?�니??' : 'Partial perspective analysis provided.';
       html += '<div class="perspective-banner perspective-banner-partial" data-testid="perspective-partial-banner">' + esc(partialBanner) + '</div>';
     }
 
@@ -5946,33 +6011,33 @@
     const resData = (result && result.data) ? result.data : result;
 
     if (!resData) {
-      container.innerHTML = '<div class="forecast-result-error" data-testid="forecast-compare-result">' + esc(lang === 'ko' ? '예측 서비스를 이용할 수 없습니다.' : 'Forecast service unavailable.') + '</div>';
+      container.innerHTML = '<div class="forecast-result-error" data-testid="forecast-compare-result">' + esc(lang === 'ko' ? '?�측 ?�비?��? ?�용?????�습?�다.' : 'Forecast service unavailable.') + '</div>';
       return;
     }
 
     if (resData.status === 'INFORMATIONAL') {
-      const msg = resData.informationalMessage || (lang === 'ko' ? 'NAgex는 독자적인 선거 결과 예측 확률을 생성하지 않습니다. 대신 일자별 지지율 조사 및 공식 선거 기관의 발표 자료를 참고하시기 바랍니다.' : 'NAgex does not generate proprietary election outcome forecasts. For election information, refer to dated polling measurements and official election authority reports.');
+      const msg = resData.informationalMessage || (lang === 'ko' ? 'NAgex???�자?�인 ?�거 결과 ?�측 ?�률???�성?��? ?�습?�다. ?�???�자�?지지??조사 �?공식 ?�거 기�???발표 ?�료�?참고?�시�?바랍?�다.' : 'NAgex does not generate proprietary election outcome forecasts. For election information, refer to dated polling measurements and official election authority reports.');
       container.innerHTML = '<div class="forecast-result-informational" data-testid="forecast-compare-result">' +
-        '<h3 class="forecast-title">' + esc(t('forecast.title') || (lang === 'ko' ? '예측' : 'Forecast')) + '</h3>' +
+        '<h3 class="forecast-title">' + esc(t('forecast.title') || (lang === 'ko' ? '?�측' : 'Forecast')) + '</h3>' +
         '<p class="forecast-informational-text">' + esc(msg) + '</p>' +
         '</div>';
       return;
     }
 
     if (resData.status === 'NEEDS_CLARIFICATION') {
-      const msg = resData.clarificationMessage || t('forecast.needsClarification') || (lang === 'ko' ? '예측 대상이나 시점이 명확하지 않습니다. 명확한 시점과 조건으로 질문해주세요.' : 'Forecast target or horizon is ambiguous. Please specify clear criteria.');
+      const msg = resData.clarificationMessage || t('forecast.needsClarification') || (lang === 'ko' ? '?�측 ?�?�이???�점??명확?��? ?�습?�다. 명확???�점�?조건?�로 질문?�주?�요.' : 'Forecast target or horizon is ambiguous. Please specify clear criteria.');
       container.innerHTML = '<div class="forecast-result-clarification" data-testid="forecast-compare-result">' +
-        '<h3 class="forecast-title">' + esc(t('forecast.title') || (lang === 'ko' ? '예측' : 'Forecast')) + '</h3>' +
+        '<h3 class="forecast-title">' + esc(t('forecast.title') || (lang === 'ko' ? '?�측' : 'Forecast')) + '</h3>' +
         '<p class="forecast-clarification-text">' + esc(msg) + '</p>' +
         '</div>';
       return;
     }
 
     if (resData.status === 'PARTIAL') {
-      const partialBanner = lang === 'ko' ? '하나의 독립 예측만 완료되어 NAgex가 신뢰할 수 있는 다중 예측 합성을 생성할 수 없습니다.' : 'Only one independent forecast completed, so NAgex could not produce a reliable multi-forecast synthesis.';
+      const partialBanner = lang === 'ko' ? '?�나???�립 ?�측�??�료?�어 NAgex가 ?�뢰?????�는 ?�중 ?�측 ?�성???�성?????�습?�다.' : 'Only one independent forecast completed, so NAgex could not produce a reliable multi-forecast synthesis.';
       let html = '<div class="forecast-compare-result" data-testid="forecast-compare-result">';
       html += '<div class="forecast-banner forecast-banner-partial" data-testid="forecast-partial-banner">' + esc(partialBanner) + '</div>';
-      html += '<div class="forecast-header-section"><h3 class="forecast-title">' + esc(t('forecast.title') || (lang === 'ko' ? '예측' : 'Forecast')) + '</h3></div>';
+      html += '<div class="forecast-header-section"><h3 class="forecast-title">' + esc(t('forecast.title') || (lang === 'ko' ? '?�측' : 'Forecast')) + '</h3></div>';
       const singleFct = (resData.forecasts || []).find(f => f.status === 'SUCCESS');
       if (singleFct && singleFct.rationale) {
         html += '<div class="forecast-section"><p class="forecast-summary-text">' + esc(singleFct.rationale) + '</p></div>';
@@ -5984,22 +6049,22 @@
 
     const synthesis = resData.synthesis;
     if (!synthesis || resData.status === 'UNAVAILABLE') {
-      let rawMsg = (resData.error && (typeof resData.error === 'string' ? resData.error : resData.error.message)) || (lang === 'ko' ? '예측 분석 서비스를 이용할 수 없습니다.' : 'Forecast unavailable.');
+      let rawMsg = (resData.error && (typeof resData.error === 'string' ? resData.error : resData.error.message)) || (lang === 'ko' ? '?�측 분석 ?�비?��? ?�용?????�습?�다.' : 'Forecast unavailable.');
       rawMsg = String(rawMsg)
-        .replace(/FORECAST_SYNTHESIS_FAILED/g, lang === 'ko' ? '예측 결과를 합성하지 못했습니다.' : 'Forecast synthesis unavailable.')
-        .replace(/ALL_MODEL_PROVIDERS_FAILED/g, lang === 'ko' ? '모든 모델 응답에 실패했습니다.' : 'Model services unavailable.');
+        .replace(/FORECAST_SYNTHESIS_FAILED/g, lang === 'ko' ? '?�측 결과�??�성?��? 못했?�니??' : 'Forecast synthesis unavailable.')
+        .replace(/ALL_MODEL_PROVIDERS_FAILED/g, lang === 'ko' ? '모든 모델 ?�답???�패?�습?�다.' : 'Model services unavailable.');
       container.innerHTML = '<div class="forecast-result-error" data-testid="forecast-compare-result">' + esc(rawMsg) + '</div>';
       return;
     }
 
-    const forecastTitle = t('forecast.title') || (lang === 'ko' ? '예측' : 'Forecast');
-    const likelihoodTitle = t('forecast.likelihood') || (lang === 'ko' ? '예상 가능성' : 'Estimated likelihood');
-    const rangeTitle = t('forecast.range') || (lang === 'ko' ? '가능성 범위' : 'Likely range');
-    const whyTitle = t('forecast.why') || (lang === 'ko' ? '현재 이렇게 보는 이유' : 'Why this is the current estimate');
-    const supportingTitle = t('forecast.supporting') || (lang === 'ko' ? '가능성을 높이는 신호' : 'Signals supporting this');
-    const opposingTitle = t('forecast.opposing') || (lang === 'ko' ? '가능성을 낮추는 신호' : 'Signals against this');
-    const whatWouldChangeTitle = t('forecast.whatWouldChange') || (lang === 'ko' ? '예측을 바꿀 수 있는 요인' : 'What could change the forecast');
-    const uncertaintiesTitle = t('forecast.uncertainties') || (lang === 'ko' ? '아직 불확실한 점' : 'What remains uncertain');
+    const forecastTitle = t('forecast.title') || (lang === 'ko' ? '?�측' : 'Forecast');
+    const likelihoodTitle = t('forecast.likelihood') || (lang === 'ko' ? '?�상 가?�성' : 'Estimated likelihood');
+    const rangeTitle = t('forecast.range') || (lang === 'ko' ? '가?�성 범위' : 'Likely range');
+    const whyTitle = t('forecast.why') || (lang === 'ko' ? '?�재 ?�렇�?보는 ?�유' : 'Why this is the current estimate');
+    const supportingTitle = t('forecast.supporting') || (lang === 'ko' ? '가?�성???�이???�호' : 'Signals supporting this');
+    const opposingTitle = t('forecast.opposing') || (lang === 'ko' ? '가?�성????��???�호' : 'Signals against this');
+    const whatWouldChangeTitle = t('forecast.whatWouldChange') || (lang === 'ko' ? '?�측??바�? ???�는 ?�인' : 'What could change the forecast');
+    const uncertaintiesTitle = t('forecast.uncertainties') || 'What remains uncertain';
     const sourcesTitle = t('forecast.sources') || (lang === 'ko' ? '출처' : 'Sources');
 
     // No Fake Precision formatting: round to whole percentage
@@ -6007,13 +6072,13 @@
     const lowPct = synthesis.probabilityRange ? Math.round(synthesis.probabilityRange.low * 100) : probPct;
     const highPct = synthesis.probabilityRange ? Math.round(synthesis.probabilityRange.high * 100) : probPct;
 
-    const probLabel = lang === 'ko' ? `약 ${probPct}%` : `About ${probPct}%`;
-    const rangeLabel = `${lowPct}–${highPct}%`;
+    const probLabel = lang === 'ko' ? `??${probPct}%` : `About ${probPct}%`;
+    const rangeLabel = `${lowPct}??{highPct}%`;
 
     let html = '<div class="forecast-compare-result" data-testid="forecast-compare-result">';
 
     if (result.status === 'PARTIAL') {
-      const partialBanner = lang === 'ko' ? '하나의 독립 예측만 완료되어 예측 비교를 수행할 수 없습니다.' : "I could complete only one independent forecast, so I can't reliably compare forecasts.";
+      const partialBanner = lang === 'ko' ? '?�나???�립 ?�측�??�료?�어 ?�측 비교�??�행?????�습?�다.' : "I could complete only one independent forecast, so I can't reliably compare forecasts.";
       html += '<div class="forecast-banner forecast-banner-partial" data-testid="forecast-partial-banner">' + esc(partialBanner) + '</div>';
     }
 
@@ -6096,7 +6161,7 @@
   window.NAGEX.renderPerspectiveCompareResult = renderPerspectiveCompareResult;
   window.NAGEX.renderForecastCompareResult = renderForecastCompareResult;
   window.NAGEX.apiFetch = apiFetch;
-  // R24.8B — the one visible Ask entry used by the header control, Quick Wake and the Create tiles.
+  // R24.8B ??the one visible Ask entry used by the header control, Quick Wake and the Create tiles.
   window.NAGEX.openAsk = (mode) => openAmbientOverlay(mode);
   window.NAGEX.renderMemory = renderMemory;
   window.NAGEX.confirmPersonalContext = confirmPersonalContext;
@@ -6171,8 +6236,8 @@
           <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
             <span class="badge-status status-READY" style="font-size: 0.75rem; font-weight: 600;">${escapeHtml(typeLabel)}</span>
             <div style="display: flex; gap: 0.4rem; align-items: center;">
-              ${isPinned ? `<span class="badge-status" style="background: rgba(13,148,136,0.15); color: #0d9488; font-size: 0.7rem;">📌 Pinned</span>` : ''}
-              ${isConfirmed ? `<span class="badge-status" style="background: rgba(34,197,94,0.15); color: #16a34a; font-size: 0.7rem;">✓ Confirmed</span>` : ''}
+              ${isPinned ? `<span class="badge-status" style="background: rgba(13,148,136,0.15); color: #0d9488; font-size: 0.7rem;">?�� Pinned</span>` : ''}
+              ${isConfirmed ? `<span class="badge-status" style="background: rgba(34,197,94,0.15); color: #16a34a; font-size: 0.7rem;">??Confirmed</span>` : ''}
             </div>
           </div>
           <div style="font-size: 0.95rem; font-weight: 600; color: var(--navy-head); margin-bottom: 0.4rem;" id="mem-val-${m.id}">

@@ -97,16 +97,44 @@
   }
 
   function formatDateTime(iso) {
-    if (!iso) return t('proactiveAssistant.never', 'Never');
+    if (!iso) return '';
     const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return t('proactiveAssistant.never', 'Never');
+    if (Number.isNaN(d.getTime())) return '';
     return d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   }
 
-  function resultLabel(status) {
-    if (status === 'SUCCEEDED') return t('proactiveAssistant.resultSuccess', 'Success');
-    if (status === 'FAILED') return t('proactiveAssistant.resultFailed', 'Failed');
-    return t('proactiveAssistant.resultNone', '—');
+  function paIcon(name) {
+    const icons = {
+      approval: 'M9 12l2 2 4-5m5 3a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z',
+      completion: 'M20 6 9 17l-5-5',
+      attention: 'M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z',
+      brief: 'M5 4h14v16H5V4Zm4 4h6M9 12h6M9 16h4',
+      condition: 'M4 12a8 8 0 0 1 8-8m0 0v4m0-4h4m4 8a8 8 0 0 1-8 8m0 0v-4m0 4H8',
+      suggestion: 'M9 18h6m-5 3h4m-2-18a7 7 0 0 0-4 12.7V16h8v-.3A7 7 0 0 0 12 3Z',
+      clock: 'M12 6v6l4 2m5-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z',
+      timezone: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0 0c2.5-2.4 4-5.5 4-9s-1.5-6.6-4-9m0 18c-2.5-2.4-4-5.5-4-9s1.5-6.6 4-9M3.6 9h16.8M3.6 15h16.8',
+    };
+    return '<svg class="settings-semantic-icon pa-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="' + (icons[name] || icons.brief) + '" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  }
+
+  function statusPill(on, onLabel, offLabel) {
+    return '<span class="settings-state-pill ' + (on ? 'on' : '') + '">' + escapeHtml(on ? onLabel : offLabel) + '</span>';
+  }
+
+  function toggleControl(id, field, checked) {
+    return '<label class="settings-toggle pa-settings-toggle" for="' + id + '"><input type="checkbox" id="' + id + '" data-pa-field="' + field + '" ' + (checked ? 'checked' : '') + '><span class="settings-toggle-track" aria-hidden="true"></span><span class="nagex-sr-only">' + escapeHtml(field) + '</span></label>';
+  }
+
+  function nextBriefLabel(cfg) {
+    const formatted = formatDateTime(cfg.nextRunAt);
+    if (formatted) return formatted;
+    return cfg.enabled ? t('proactiveAssistant.nextFallback', 'Scheduled after the next update') : t('proactiveAssistant.notScheduled', 'Not scheduled');
+  }
+
+  function lastDeliveredLabel(cfg) {
+    const formatted = formatDateTime(cfg.lastRunAt);
+    if (formatted) return formatted;
+    return t('proactiveAssistant.noneDelivered', 'No deliveries yet');
   }
 
   // scope ('desktop' | 'mobile') makes every id unique per panel — both
@@ -115,50 +143,41 @@
     const form = draft || formFromConfig(cfg);
     const zones = commonTimezones();
     if (form.timezone && !zones.includes(form.timezone)) zones.unshift(form.timezone);
-    const id = (name) => `pa-${scope}-${name}`;
+    const id = (name) => 'pa-' + scope + '-' + name;
 
-    const weekdayChips = WEEKDAYS.map((w) => `
-      <button type="button" class="pa-weekday-chip ${form.weekdays.includes(w.id) ? 'pa-weekday-selected' : ''}" data-pa-weekday="${w.id}" aria-pressed="${form.weekdays.includes(w.id) ? 'true' : 'false'}">${escapeHtml(t(w.key, w.fallback))}</button>
-    `).join('');
+    const weekdayChips = WEEKDAYS.map((w) => '<button type="button" class="pa-weekday-chip settings-day-chip ' + (form.weekdays.includes(w.id) ? 'pa-weekday-selected active' : '') + '" data-pa-weekday="' + w.id + '" aria-pressed="' + (form.weekdays.includes(w.id) ? 'true' : 'false') + '">' + escapeHtml(t(w.key, w.fallback)) + '</button>').join('');
 
-    const zoneOptions = zones.map((z) => `<option value="${escapeHtml(z)}" ${z === form.timezone ? 'selected' : ''}>${escapeHtml(z)}</option>`).join('');
+    const zoneOptions = zones.map((z) => '<option value="' + escapeHtml(z) + '" ' + (z === form.timezone ? 'selected' : '') + '>' + escapeHtml(z) + '</option>').join('');
 
-    return `
-      <div class="pa-toggle-row">
-        <span class="pa-toggle-label">${escapeHtml(t('proactiveAssistant.enable', 'Generate automatically'))}</span>
-        <label class="mh-toggle-switch pa-toggle-switch">
-          <input type="checkbox" id="${id('enabled')}" data-pa-field="enabled" ${form.enabled ? 'checked' : ''}>
-          <span class="mh-toggle-slider"></span>
-        </label>
-      </div>
-      <div class="pa-field-row">
-        <label class="pa-field-label" for="${id('time')}">${escapeHtml(t('proactiveAssistant.time', 'Generation time'))}</label>
-        <input type="time" id="${id('time')}" data-pa-field="localTime" class="pa-time-input" value="${escapeHtml(form.localTime)}">
-      </div>
-      <div class="pa-field-row">
-        <label class="pa-field-label" for="${id('timezone')}">${escapeHtml(t('proactiveAssistant.timezone', 'Timezone'))}</label>
-        <select id="${id('timezone')}" data-pa-field="timezone" class="pa-timezone-select">${zoneOptions}</select>
-      </div>
-      <div class="pa-field-row pa-weekdays-row">
-        <span class="pa-field-label">${escapeHtml(t('proactiveAssistant.weekdays', 'Days'))}</span>
-        <div class="pa-weekday-chips">${weekdayChips}</div>
-      </div>
-      <div class="pa-toggle-row">
-        <span class="pa-toggle-label">${escapeHtml(t('proactiveAssistant.notify', 'Notify me when ready'))}</span>
-        <label class="mh-toggle-switch pa-toggle-switch">
-          <input type="checkbox" id="${id('notify')}" data-pa-field="notifyOnComplete" ${form.notifyOnComplete ? 'checked' : ''}>
-          <span class="mh-toggle-slider"></span>
-        </label>
-      </div>
-      <button type="button" class="btn-secondary pa-save-btn" data-pa-save>${escapeHtml(saving ? t('proactiveAssistant.saving', 'Saving…') : t('proactiveAssistant.save', 'Save'))}</button>
-      ${saveError ? `<p class="pa-save-error" role="alert">${escapeHtml(t('settings.saveFailed', 'Could not save settings.'))}</p>` : ''}
-      <div class="pa-status-block">
-        <div class="pa-status-row"><span>${escapeHtml(t('proactiveAssistant.automation', 'Automation'))}</span><strong class="${cfg.enabled ? 'pa-status-on' : 'pa-status-off'}">${escapeHtml(cfg.enabled ? t('proactiveAssistant.on', 'ON') : t('proactiveAssistant.off', 'OFF'))}</strong></div>
-        <div class="pa-status-row"><span>${escapeHtml(t('proactiveAssistant.nextRun', 'Next run'))}</span><strong>${escapeHtml(formatDateTime(cfg.nextRunAt))}</strong></div>
-        <div class="pa-status-row"><span>${escapeHtml(t('proactiveAssistant.lastRun', 'Last run'))}</span><strong>${escapeHtml(formatDateTime(cfg.lastRunAt))}</strong></div>
-        <div class="pa-status-row"><span>${escapeHtml(t('proactiveAssistant.result', 'Result'))}</span><strong>${escapeHtml(resultLabel(cfg.lastRunStatus))}</strong></div>
-      </div>
-    `;
+    const preferences = [
+      ['approval', 'Approval needed', 'When NAgex needs your decision'],
+      ['completion', 'Work completed', 'When background work finishes'],
+      ['attention', 'Needs attention', 'When NAgex cannot continue safely'],
+      ['brief', 'Scheduled brief', 'Daily or recurring summaries'],
+      ['condition', 'Condition matched', 'When a watched condition becomes true'],
+      ['suggestion', 'Proactive suggestions', 'Useful next actions from NAgex'],
+    ];
+
+    return '<div class="settings-notifications-grid">' +
+      '<section class="settings-pro-card settings-notification-card">' +
+        '<div class="settings-card-title-row"><div><h3>Notification preferences</h3><p class="setting-sub">Choose the updates NAgex should surface.</p></div></div>' +
+        '<div class="settings-notification-rows">' + preferences.map(([icon, title, subtitle]) =>
+          '<div class="settings-row-lite settings-notification-row"><span class="settings-row-leading">' + paIcon(icon) + '<span><strong>' + escapeHtml(title) + '</strong><small>' + escapeHtml(subtitle) + '</small></span></span>' + statusPill(true, 'ON', 'OFF') + '</div>'
+        ).join('') + '</div>' +
+      '</section>' +
+      '<section class="settings-pro-card settings-notification-card">' +
+        '<div class="settings-card-title-row"><div><h3>Daily brief</h3><p class="setting-sub">Daily or recurring summaries from NAgex.</p></div>' + toggleControl(id('enabled'), 'enabled', form.enabled) + '</div>' +
+        '<div class="settings-form-grid">' +
+          '<label class="settings-field"><span>' + paIcon('clock') + ' Time</span><input type="time" id="' + id('time') + '" data-pa-field="localTime" class="settings-time-picker pa-time-input" value="' + escapeHtml(form.localTime) + '"></label>' +
+          '<label class="settings-field"><span>' + paIcon('timezone') + ' Timezone</span><select id="' + id('timezone') + '" data-pa-field="timezone" class="settings-select pa-timezone-select">' + zoneOptions + '</select></label>' +
+        '</div>' +
+        '<div class="settings-field settings-days-field"><span>Days</span><div class="settings-day-selector pa-weekday-chips">' + weekdayChips + '</div></div>' +
+        '<div class="settings-row-lite settings-notification-row"><span class="settings-row-leading"><span><strong>Notify me when ready</strong><small>Show a notification after the brief is prepared.</small></span></span>' + toggleControl(id('notify'), 'notifyOnComplete', form.notifyOnComplete) + '</div>' +
+        '<div class="settings-brief-status"><div><span>Next brief</span><strong>' + escapeHtml(nextBriefLabel(cfg)) + '</strong></div><div><span>Last delivered</span><strong>' + escapeHtml(lastDeliveredLabel(cfg)) + '</strong></div></div>' +
+        '<button type="button" class="settings-primary-action pa-save-btn" data-pa-save>' + escapeHtml(saving ? t('proactiveAssistant.saving', 'Saving...') : t('proactiveAssistant.saveChanges', 'Save changes')) + '</button>' +
+        (saveError ? '<p class="pa-save-error" role="alert">' + escapeHtml(t('settings.saveFailed', 'Could not save settings.')) + '</p>' : '') +
+      '</section>' +
+    '</div>';
   }
 
   function bindPanel(containerId) {
@@ -216,7 +235,7 @@
     const container = document.getElementById(containerId);
     if (!container) return;
     if (signedOut) {
-      container.innerHTML = `<p class="setting-sub pa-signed-out">${escapeHtml(t('settings.signInRequired', 'Sign in to view and change these settings.'))}</p><button type="button" class="btn-secondary" data-pa-signin>${escapeHtml(t('auth.signIn', 'Sign In'))}</button>`;
+      container.innerHTML = `<section class="settings-pro-card settings-notification-card settings-notifications-signed-out"><div class="settings-card-title-row"><div><h3>Notification preferences</h3><p class="setting-sub">${escapeHtml(t('settings.signInRequired', 'Sign in to view and change these settings.'))}</p></div></div><button type="button" class="settings-primary-action" data-pa-signin>${escapeHtml(t('auth.signIn', 'Sign In'))}</button></section>`;
       const btn = container.querySelector('[data-pa-signin]');
       if (btn) btn.addEventListener('click', () => { if (window.NAGEX.showAuthModal) window.NAGEX.showAuthModal('signin'); });
       return;

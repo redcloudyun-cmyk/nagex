@@ -5,7 +5,7 @@ import path from 'node:path';
 
 // Resolves a NAgex data subdirectory the same way the Google OAuth token
 // store resolves its file: an explicit env override, else /var/lib/nagex/<subdir>
-// if that base directory exists and is writable (see docs/DEPLOYMENT.md for
+// if that base directory exists and is writable (see docs/canonical/NAgex_Operations_and_Deployment.md for
 // the one-time server setup), else a per-user fallback so local dev and
 // tests never require /var/lib/nagex to exist.
 export function resolveNagexDataDir(subdir: string, envVar: string, env: NodeJS.ProcessEnv = process.env): string {

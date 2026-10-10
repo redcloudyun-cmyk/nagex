@@ -96,6 +96,20 @@
   --nagex-danger: var(--status-error, #ef4444);
   --nagex-info: var(--status-info, #3b82f6);
 
+  /* ── R23.7H-C Phase D.2 §3 — the exact token names the approved-mockup
+     color convergence pass asks for, aliasing the real values above/in
+     style.css (never a second, independently-maintained palette) ── */
+  --nagex-bg: var(--bg-app, #eef4fc);
+  --nagex-surface: var(--nagex-surface-primary);
+  --nagex-surface-blue: var(--bg-surface-blue, #f2f7fd);
+  --nagex-border: var(--nagex-border-default);
+  --nagex-border-strong: var(--border-strong, #b9cceb);
+  --nagex-primary: var(--nagex-accent-primary);
+  --nagex-primary-soft: var(--nagex-accent-soft);
+  --nagex-text: var(--nagex-text-primary);
+  --nagex-shadow: var(--nagex-shadow-card);
+  --nagex-glow: var(--shadow-blue-glow, 0 8px 28px -8px rgba(37, 99, 235, 0.18));
+
   /* ── Layout — read off the mockups' real proportions: ~280px left
      sidebar, content column capping out well before ultra-wide
      viewports, consistent card/section gaps matching the spacing

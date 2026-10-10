@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Opt-in REAL certification of the Nebius Token Factory / NVIDIA Nemotron runtime path. Makes exactly ONE paid call.
 //
-//   NAGEX_LIVE_NEBIUS_CERT=1 NEBIUS_API_KEY=… node scripts/nebius-live-cert.mjs        (after `npm run build`)
+//   Set NEBIUS_API_KEY in the environment, then run:
+//   NAGEX_LIVE_NEBIUS_CERT=1 node scripts/nebius-live-cert.mjs        (after `npm run build`)
 //
 // Not part of `npm test`: the normal suite never calls the paid API. The credential is read from the environment only and is
 // never printed; the output is limited to the provider, model, latency, token counts and a PASS/FAIL line. Errors are reduced

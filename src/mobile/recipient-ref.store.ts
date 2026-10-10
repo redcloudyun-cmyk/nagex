@@ -68,4 +68,12 @@ export class RecipientRefStore {
     if (record.tenantId !== tenantId || record.ownerId !== ownerId || record.deviceId !== deviceId) return null;
     return record;
   }
+
+  public listForOwnerDevice(tenantId: string, ownerId: string, deviceId: string): MobileRecipientRefRecord[] {
+    return [...this.records.values()].filter((record) => (
+      record.tenantId === tenantId &&
+      record.ownerId === ownerId &&
+      record.deviceId === deviceId
+    ));
+  }
 }

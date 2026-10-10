@@ -59,6 +59,12 @@ export class DevicePendingCommandStore {
   // Pops the single oldest pending command for this device, if any — one
   // command delivered per heartbeat, never a batch, keeping each delivery
   // small and boundedly verifiable by the agent.
+  public listForOwner(tenantId: string, ownerId: string): DevicePendingCommand[] {
+    return this.fileStore.readAll()
+      .filter((command) => command.tenantId === tenantId && command.ownerId === ownerId)
+      .sort((a, b) => b.queuedAt.localeCompare(a.queuedAt));
+  }
+
   public dequeueNext(deviceId: string, tenantId: string, ownerId: string): DevicePendingCommand | null {
     const all = this.fileStore.readAll().filter((c) => c.deviceId === deviceId && c.tenantId === tenantId && c.ownerId === ownerId);
     if (all.length === 0) return null;

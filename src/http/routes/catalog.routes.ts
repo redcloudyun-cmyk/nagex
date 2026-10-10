@@ -1,9 +1,9 @@
-// R10.2-D Increment 2 â€” read-only catalog/listing routes, extracted
+// R10.2-D Increment 2 ??read-only catalog/listing routes, extracted
 // verbatim from server_web.ts's handleApiRequest: plans, skills, tools,
 // agents, knowledge. planRegistry/knowledgeBase (static demo/seed data,
 // each previously used by exactly one route) moved here with their only
 // consumer; skillRegistry/toolRegistry are the real canonical singletons,
-// imported directly (ES module caching â€” the same instance server_web.ts
+// imported directly (ES module caching ??the same instance server_web.ts
 // itself uses elsewhere). No mutation, no approval, no tenant scoping
 // required by any of these five routes (unchanged from the original).
 import { skillRegistry as canonicalSkillRegistry } from '../../skills/skill-registry.js';
@@ -36,7 +36,7 @@ const planRegistry: Array<{
     goal: 'Prepare Client Meeting',
     description: 'Prepare for the Acme Corp. quarterly business review meeting.',
     status: 'RUNNING',
-    tags: ['Client Meeting', 'Acme Corp', 'ðŸ”¥ High Priority'],
+    tags: ['Client Meeting', 'Acme Corp', '?”¥ High Priority'],
     progress: 62,
     completed_steps: 5,
     total_steps: 8,
@@ -76,6 +76,7 @@ const knowledgeBase = [
 ];
 
 export const handleCatalogRoutes: SyncRouteRegistrar<Record<string, never>> = (method, pathname): ApiResult | undefined => {
+
   if (pathname === '/api/v1/skills' && method === 'GET') {
     const skills = canonicalSkillRegistry.list();
     return { status: 200, data: { skills, total: skills.length } };

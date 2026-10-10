@@ -1,9 +1,9 @@
-// R23.1 — Personal Context Aggregation.
+// R23.1 ??Personal Context Aggregation.
 //
 // CurrentPersonalContextService is the ONE canonical Calendar/Task/
 // Reminder/Approval/Inbox/Vault/Memory aggregation pipeline
 // (CONTEXT_AGGREGATION_PIPELINE_COUNT=1). Every test here exercises the
-// real, file-backed canonical stores — only Calendar/Gmail transport is
+// real, file-backed canonical stores ??only Calendar/Gmail transport is
 // faked (same pattern used throughout this suite), never a hand-rolled
 // stand-in for the stores actually under test. Read/aggregate only: no
 // test here ever asserts a mutation of a source store.
@@ -163,7 +163,7 @@ test('5. related Vault grounded', async () => {
 
   const ctx = await h.service.buildCurrentContext({ tenantId, userId });
 
-  assert.equal(ctx.relatedContext.vaultItems.length, 1);
+  console.log('VAULT_ITEMS_DEBUG:', ctx.relatedContext.vaultItems); assert.equal(ctx.relatedContext.vaultItems.length, 1);
   assert.equal(ctx.relatedContext.vaultItems[0].id, saved.vaultItemId);
   assert.equal(ctx.relatedContext.vaultItems[0].relatedToEventId, 'evt_alice_review');
 });
@@ -186,7 +186,7 @@ test('7. deleted/conflicted/unconfirmed-sensitive Memory excluded', async () => 
   h.memoryEngine.deleteMemory(deleted.id, tenantId, userId);
 
   // The second propose with a different value for the same subject/
-  // predicate is the one that lands CONFLICTED — the first stays ACTIVE
+  // predicate is the one that lands CONFLICTED ??the first stays ACTIVE
   // until the conflict is resolved (R22.3's documented model).
   h.memoryEngine.proposeMemory('USER', tenantId, userId, { subject: 'Secret', predicate: 'context', value: 'Project first version' }, undefined, { userConfirmed: true });
   const conflicted = h.memoryEngine.proposeMemory('USER', tenantId, userId, { subject: 'Secret', predicate: 'context', value: 'Project conflicting version' }, undefined, { userConfirmed: true });
@@ -243,11 +243,11 @@ test('10. partial Gmail failure degrades honestly', async () => {
 
   const ctx = await h.service.buildCurrentContext({ tenantId, userId });
 
-  // R23.1H Part C: gmailService IS wired but the call itself failed —
+  // R23.1H Part C: gmailService IS wired but the call itself failed ??
   // distinct from "not connected" (ERROR, not UNAVAILABLE).
   assert.equal(ctx.sourceStatus.gmail, 'ERROR');
   assert.equal(ctx.relatedContext.emails.length, 0, 'no fabricated/stale email data when Gmail fails');
-  // Other sources must still be retained — one optional source failing
+  // Other sources must still be retained ??one optional source failing
   // must never fail the whole snapshot.
   assert.equal(ctx.sourceStatus.calendar, 'OK');
   assert.equal(ctx.today.events.length, 1);
@@ -261,7 +261,7 @@ test('11. tenant isolation', async () => {
   h.vaultStore.saveItem({ tenantId: 'ten_A', userId, type: 'DOCUMENT', title: 'Tenant A doc', storageRef: 'r1' });
   const capA = h.captureStore.createCapture({ ownerId: userId, tenantId: 'ten_A', type: 'TEXT', content: 'A' });
   h.captureStore.updateStatus(capA.captureId, 'ten_A', userId, 'NEEDS_REVIEW');
-  // R23.1H — REMINDER_CROSS_TENANT_LEAK=0: a shared userId across two
+  // R23.1H ??REMINDER_CROSS_TENANT_LEAK=0: a shared userId across two
   // tenants must never see the other tenant's reminders through the
   // aggregated context either.
   h.personalReminderStore.createReminder({ tenant_id: 'ten_A', user_id: userId, title: 'Tenant A reminder', scheduled_at: new Date().toISOString(), timezone: 'UTC' });
@@ -297,7 +297,7 @@ test('13. no fabricated source', async () => {
 
   const ctx = await h.service.buildCurrentContext({ tenantId, userId });
 
-  // Every sourceTrace must reference a real id we actually created — never
+  // Every sourceTrace must reference a real id we actually created ??never
   // a synthesized/random one.
   const traceIds = new Set(ctx.sourceTraces.map((t) => t.sourceId));
   assert.ok(traceIds.has('evt_real'));
@@ -390,10 +390,10 @@ test('17. PersonalHome integration uses the same canonical aggregation path', as
   assert.equal(res.today.meetings[0].id, 'evt_shared_pipeline');
 });
 
-// R23.1H Part D — CANONICAL_USER_INBOX_PIPELINE_COUNT=1: the served Inbox
+// R23.1H Part D ??CANONICAL_USER_INBOX_PIPELINE_COUNT=1: the served Inbox
 // HTTP route (public/app.js::renderInbox()'s data source) and
 // CurrentPersonalContextService's importantInbox both read the exact same
-// CaptureStore record — never a second, divergent store (the retired
+// CaptureStore record ??never a second, divergent store (the retired
 // InboxStore previously diverged silently; see inbox.routes.ts header).
 test('18. Inbox route and Personal Context read the same canonical CaptureStore record (INBOX_CANONICAL_PIPELINE_COUNT=1)', async () => {
   const h = buildHarness();
@@ -410,5 +410,5 @@ test('18. Inbox route and Personal Context read the same canonical CaptureStore 
   assert.ok(routeItems.some((i) => i.captureId === created.captureId && i.status === 'NEEDS_REVIEW'), 'Inbox route must serve the real CaptureStore record');
 
   const ctx = await h.service.buildCurrentContext({ tenantId, userId });
-  assert.ok(ctx.today.importantInbox.some((i) => i.id === created.captureId), 'CurrentPersonalContextService must surface the same CaptureStore record — no parallel Inbox pipeline');
+  assert.ok(ctx.today.importantInbox.some((i) => i.id === created.captureId), 'CurrentPersonalContextService must surface the same CaptureStore record ??no parallel Inbox pipeline');
 });

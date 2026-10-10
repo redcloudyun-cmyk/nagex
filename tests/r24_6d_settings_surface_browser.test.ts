@@ -192,7 +192,7 @@ describe('R24.6D — Account operations on Desktop (disposable accounts only)', 
     const ctx = await newContext('desktop', user);
     const page = await ctx.newPage();
     const dialogs: string[] = [];
-    page.on('dialog', async (d) => { dialogs.push(`${d.type()}:${d.message()}`); await d.accept(d.type() === 'prompt' ? user.password : undefined); });
+    page.on('dialog', async (d) => { dialogs.push(`${d.type()}:${d.message()}`); await d.accept(d.type() === 'prompt' ? user.password : undefined).catch(() => { /* page/context already closed at teardown */ }); });
     await openDesktopSettings(page, '#settings/account');
     await page.waitForSelector('#dk-btn-disable-account');
     await page.click('#dk-btn-disable-account');
@@ -206,7 +206,7 @@ describe('R24.6D — Account operations on Desktop (disposable accounts only)', 
     const user = disposable('delete');
     const ctx = await newContext('desktop', user);
     const page = await ctx.newPage();
-    page.on('dialog', async (d) => { await d.accept(d.type() === 'prompt' ? user.password : undefined); });
+    page.on('dialog', async (d) => { await d.accept(d.type() === 'prompt' ? user.password : undefined).catch(() => { /* page/context already closed at teardown */ }); });
     await openDesktopSettings(page, '#settings/account');
     await page.waitForSelector('#dk-btn-delete-account');
     await page.click('#dk-btn-delete-account');
@@ -221,7 +221,7 @@ describe('R24.6D — Account operations on Desktop (disposable accounts only)', 
     const again = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     await again.addCookies([{ name: 'nagex_session', value: cookieValue, url: origin }]);
     const p2 = await again.newPage();
-    p2.on('dialog', async (d) => { await d.accept(d.type() === 'prompt' ? user.password : undefined); });
+    p2.on('dialog', async (d) => { await d.accept(d.type() === 'prompt' ? user.password : undefined).catch(() => { /* page/context already closed at teardown */ }); });
     await openDesktopSettings(p2, '#settings/account');
     await p2.waitForSelector('#dk-btn-cancel-delete');
     assert.equal(await p2.locator('#dk-btn-delete-account').count(), 0);

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 #
 # NAgex application update — repository-managed version of the operational
-# `nagex-update` command referenced in docs/DEPLOYMENT.md.
+# `nagex-update` command referenced in docs/canonical/NAgex_Operations_and_Deployment.md.
 #
 # What this script does NOT do, on purpose:
 #   - It never runs `npx playwright install-deps`. OS-level package
 #     installation requires sudo and mutates the host outside the app's own
 #     working directory — that is a one-time host provisioning step
-#     (see docs/DEPLOYMENT.md), not something a routine update should do.
+#     (see docs/canonical/NAgex_Operations_and_Deployment.md), not something a routine update should do.
 #   - It never touches Google OAuth token/approval/execution persistence —
 #     those live under /var/lib/nagex (or the per-user fallback), outside
 #     this repo checkout, and this script does not read or write them.
@@ -127,7 +127,7 @@ then
 else
   cat "${BROWSER_LAUNCH_OUTPUT}" >&2
   rm -f "${BROWSER_LAUNCH_OUTPUT}"
-  fail "Chromium could not launch headlessly — Browser Agent would fail closed with BROWSER_UNAVAILABLE. Check host provisioning (see docs/DEPLOYMENT.md's one-time 'sudo npx playwright install-deps chromium' step)."
+  fail "Chromium could not launch headlessly — Browser Agent would fail closed with BROWSER_UNAVAILABLE. Check host provisioning (see docs/canonical/NAgex_Operations_and_Deployment.md's one-time 'sudo npx playwright install-deps chromium' step)."
 fi
 rm -f "${BROWSER_LAUNCH_OUTPUT}"
 
@@ -150,7 +150,7 @@ else
 fi
 
 # ── Stage: service restart ──────────────────────────────────────────────────
-# docs/DEPLOYMENT.md's existing deployment checklist documents this pairing
+# docs/canonical/NAgex_Operations_and_Deployment.md's existing deployment checklist documents this pairing
 # ("`nagex-update` / `systemctl restart nagex` must not destroy the OAuth
 # connection"), so this is a documented, not invented, service name.
 log "Stage: restart nagex service"

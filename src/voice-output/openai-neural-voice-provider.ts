@@ -1,5 +1,6 @@
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { NAGEX_CANONICAL_BRAND_VOICE } from './brand-voice-profile.js';
 import type { VoiceOutputProvider, VoiceSynthesisRequest, VoiceSynthesisResult } from './voice-output-provider.js';
 
 export interface OpenAiNeuralVoiceProviderOptions {
@@ -9,12 +10,6 @@ export interface OpenAiNeuralVoiceProviderOptions {
   outputDir?: string;
   endpoint?: string;
 }
-
-const RATE_BY_PLAN: Record<VoiceSynthesisRequest['prosody']['speakingRate'], number> = {
-  SLOW_CLEAR: 0.92,
-  NORMAL: 1.0,
-  BRISK: 1.06,
-};
 
 export class OpenAiNeuralVoiceProvider implements VoiceOutputProvider {
   public readonly route = 'HIGH_QUALITY_NEURAL' as const;
@@ -26,7 +21,7 @@ export class OpenAiNeuralVoiceProvider implements VoiceOutputProvider {
 
   public constructor(options: OpenAiNeuralVoiceProviderOptions = {}) {
     this.apiKey = options.apiKey ?? process.env.NAGEX_TTS_OPENAI_API_KEY ?? process.env.OPENAI_API_KEY;
-    this.model = options.model ?? process.env.NAGEX_TTS_OPENAI_MODEL ?? 'gpt-4o-mini-tts';
+    this.model = options.model ?? process.env.NAGEX_TTS_OPENAI_MODEL ?? NAGEX_CANONICAL_BRAND_VOICE.model;
     this.voice = options.voice ?? process.env.NAGEX_TTS_OPENAI_VOICE ?? 'coral';
     this.outputDir = options.outputDir ?? process.env.NAGEX_TTS_OUTPUT_DIR ?? path.join('artifacts', 'voice-quality');
     this.endpoint = options.endpoint ?? process.env.NAGEX_TTS_OPENAI_ENDPOINT ?? 'https://api.openai.com/v1/audio/speech';
@@ -56,8 +51,9 @@ export class OpenAiNeuralVoiceProvider implements VoiceOutputProvider {
           model: this.model,
           voice: this.voice,
           input: request.text,
+          instructions: NAGEX_CANONICAL_BRAND_VOICE.baseStyle,
           response_format: request.outputFormat === 'AUDIO_MPEG' ? 'mp3' : 'wav',
-          speed: RATE_BY_PLAN[request.prosody.speakingRate],
+          speed: NAGEX_CANONICAL_BRAND_VOICE.baseSpeakingRate,
         }),
       });
     } catch {
@@ -96,6 +92,10 @@ export class OpenAiNeuralVoiceProvider implements VoiceOutputProvider {
       developerDiagnostics: [
         `VOICE_MODEL=${this.model}`,
         `VOICE_PROFILE=${this.voice}`,
+        `VOICE_STYLE_FIXED=${NAGEX_CANONICAL_BRAND_VOICE.baseStyle}`,
+        `VOICE_BASE_RATE=${NAGEX_CANONICAL_BRAND_VOICE.baseSpeakingRate}`,
+        `VOICE_LANGUAGE_STRATEGY=${NAGEX_CANONICAL_BRAND_VOICE.languageStrategy}`,
+        `VOICE_PITCH_POLICY=${NAGEX_CANONICAL_BRAND_VOICE.pitchPolicy}`,
         `TTS_LATENCY_MS=${Date.now() - startedAt}`,
         `AUDIO_BYTES=${buffer.byteLength}`,
         'AUDIO_DURATION=UNKNOWN_UNTIL_PLAYBACK_OR_PROBE',

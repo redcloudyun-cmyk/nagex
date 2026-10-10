@@ -47,6 +47,9 @@ import { AstraVisualExecutionModelAdapter } from '../device-control/astra-visual
 import { DeviceIdentityStore } from '../device-agent/device-identity.store.js';
 import { RecipientRefStore } from '../mobile/recipient-ref.store.js';
 import { ContactResolver } from '../mobile/contact-resolver.service.js';
+import { ConversationTargetStore } from '../mobile/conversation-target.store.js';
+import { KakaoAccessibilityDraftStore } from '../mobile/kakao-accessibility-draft.store.js';
+import { KakaoAccessibilityApprovalService } from '../mobile/kakaotalk-accessibility-approval.service.js';
 import { MobileMessageRunStore } from '../mobile/mobile-message-run.store.js';
 import { MobileMessageRunService } from '../mobile/mobile-message-run.service.js';
 import { MessagingAdapterRegistry } from '../messaging/messaging-adapter-registry.js';
@@ -60,7 +63,11 @@ import { DesktopExecutionSessionStore } from '../device-agent/desktop-execution-
 import { DeviceTransportSecurity } from '../device-agent/device-transport-security.js';
 import { DeviceConnectionStatusStore } from '../device-agent/device-connection-status.store.js';
 import { DevicePendingCommandStore } from '../device-agent/device-pending-command.store.js';
+import { DeviceCommandStatusStore } from '../device-agent/device-command-status.store.js';
 import { DeviceAgentTransportEndpoint } from '../device-agent/device-agent-transport-endpoint.service.js';
+import { CommandContextStore } from '../commands/command-context.store.js';
+import { MultimodalCommandService } from '../commands/multimodal-command.service.js';
+import { KakaoTalkFastPathApprovalService } from '../mobile/kakaotalk-fast-path-approval.service.js';
 import { DesktopAppAllowlist } from '../device-agent/desktop-app-allowlist.js';
 import { WindowsIsolatedDesktopController } from '../device-agent/windows-isolated-desktop-controller.js';
 import { DesktopActivityAdapter } from '../device-agent/desktop-activity-adapter.js';
@@ -227,11 +234,29 @@ export function createNagexApplication(): NagexApplication {
   // "enrolled/connected/authenticated" are reachable from here.
   const deviceConnectionStatusStore = new DeviceConnectionStatusStore();
   const devicePendingCommandStore = new DevicePendingCommandStore();
+  const deviceCommandStatusStore = new DeviceCommandStatusStore();
   // R23.6M Phase B3 — mobile contact resolution. recipientRef minting is
   // the only new durable store this phase adds; ContactResolver holds no
   // state of its own.
   const recipientRefStore = new RecipientRefStore();
   const contactResolver = new ContactResolver(recipientRefStore);
+  const conversationTargetStore = new ConversationTargetStore();
+  const kakaoAccessibilityDraftStore = new KakaoAccessibilityDraftStore({ deviceIdentityStore, recipientRefStore, conversationTargetStore });
+  const kakaoAccessibilityApprovalService = new KakaoAccessibilityApprovalService(actionApprovals, recipientRefStore, conversationTargetStore, kakaoAccessibilityDraftStore);
+  const kakaoFastPathApprovalService = new KakaoTalkFastPathApprovalService({
+    deviceIdentityStore,
+    recipientRefStore,
+    conversationTargetStore,
+    draftStore: kakaoAccessibilityDraftStore,
+    approvalService: kakaoAccessibilityApprovalService,
+  });
+  const commandContextStore = new CommandContextStore();
+  const multimodalCommandService = new MultimodalCommandService({
+    commandContextStore,
+    kakaoFastPathApprovalService,
+    devicePendingCommandStore,
+    deviceCommandStatusStore,
+  });
   // R23.6M Phase C — one complete real SMS execution flow. Reuses
   // actionApprovals/auditLogger unchanged; recipientRefStore already
   // structurally satisfies RecipientRefLookupPort.
@@ -253,6 +278,7 @@ export function createNagexApplication(): NagexApplication {
   const messagingHandoffRunStore = new MessagingHandoffRunStore();
   const messagingHandoffService = new MessagingHandoffService(messagingHandoffRunStore, actionApprovals, recipientRefStore, auditLogger);
   const executionRouteResolver = new ExecutionRouteResolver(messagingAdapterRegistry);
+  const activityStore = new ActivityStore();
   const deviceAgentTransportEndpoint = new DeviceAgentTransportEndpoint(
     deviceTransportSecurity,
     deviceIdentityStore,
@@ -261,6 +287,8 @@ export function createNagexApplication(): NagexApplication {
     devicePendingCommandStore,
     mobileMessageRunService,
     messagingHandoffService,
+    deviceCommandStatusStore,
+    activityStore,
   );
   const moduleRegistry = new ModuleRegistry();
   const moduleStateStore = new ModuleStateStore();
@@ -272,7 +300,6 @@ export function createNagexApplication(): NagexApplication {
   // stays truthful: on non-Windows, or before the native controller has
   // been built (native/windows-desktop-controller/build.ps1), 'DEVICE_DESKTOP'
   // genuinely reports unavailable rather than silently no-opping.
-  const activityStore = new ActivityStore();
   const dailyBriefStore = new DailyBriefStore();
   const actionProposalStore = new ActionProposalStore();
   const desktopAppAllowlist = new DesktopAppAllowlist();
@@ -832,7 +859,10 @@ export function createNagexApplication(): NagexApplication {
     deviceTransportSecurity,
     deviceConnectionStatusStore,
     devicePendingCommandStore,
+    deviceCommandStatusStore,
     deviceAgentTransportEndpoint,
+    commandContextStore,
+    multimodalCommandService,
     personalContextService,
     conversationMemoryExtractor,
     lifecycle,
@@ -849,6 +879,9 @@ export function createNagexApplication(): NagexApplication {
     competitorPricingRunService,
     recipientRefStore,
     contactResolver,
+    conversationTargetStore,
+    kakaoAccessibilityDraftStore,
+    kakaoAccessibilityApprovalService,
     mobileMessageRunStore,
     mobileMessageRunService,
     messagingAdapterRegistry,

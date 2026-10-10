@@ -1,8 +1,8 @@
-// Phase 1 STEP 8 — State Propagation / Home / Activity.
+// Phase 1 STEP 8 ??State Propagation / Home / Activity.
 //
 // After a real Capture -> Understanding -> Candidate -> Review -> Action
 // transition, Home/Inbox/Activity/Vault must reflect the same canonical
-// state — no fake/demo data, no duplicate state, no manual-refresh
+// state ??no fake/demo data, no duplicate state, no manual-refresh
 // assumptions. This suite verifies the new Activity Projection
 // (AuditLogger/ExecutionStore/canonical stores -> ActivityStore -> consumer
 // Activity, never raw audit events, never the legacy non-isolated
@@ -10,7 +10,7 @@
 // "Recent" sections and the Activity tab are wired to real canonical state
 // (verified against the served app.js source, the same technique
 // tests/navigation_redefinition.test.ts and tests/candidate_review.test.ts
-// already use — this repo has no DOM/browser execution harness).
+// already use ??this repo has no DOM/browser execution harness).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -51,7 +51,7 @@ function buildHarness(calendarFetchFn?: typeof fetch) {
   const activityStore = new ActivityStore({ dir: path.join(dir, 'activity') });
   const taskStore = new TaskStore({ dir: path.join(dir, 'tasks') });
   const memoryEngine = new MemoryEngine({ dir: path.join(dir, 'memories') });
-  const knowledgeEngine = new KnowledgeEngine();
+  const knowledgeEngine = new KnowledgeEngine('./tmp_knowledge_' + Math.random().toString(36).slice(2));
   const tokenStore = new InMemoryGoogleOAuthTokenStore();
   const approvals = new ActionApprovalStore();
   const audit = new AuditLogger();
@@ -111,7 +111,7 @@ function acceptedCalendarCandidate(candidateStore: CandidateStore, tenantId: str
   return candidateStore.accept(c.candidateId, tenantId, ownerId);
 }
 
-// ─── 1-3: Inbox / Home propagation for a PROPOSED candidate, then Accept ───
+// ?�?�?� 1-3: Inbox / Home propagation for a PROPOSED candidate, then Accept ?�?�?�
 
 test('1. A PROPOSED candidate appears in canonical listing (Inbox source of truth)', () => {
   const { candidateStore } = buildHarness();
@@ -123,7 +123,7 @@ test('1. A PROPOSED candidate appears in canonical listing (Inbox source of trut
 test('2. Home "Important for you" sources PROPOSED candidates from canonical state (served app.js)', async () => {
   // R12.1 Increment 2 split the old merged "Needs your attention" section
   // into "Important for you" (proactive, this section) and "Needs
-  // Approval" (real approvals only) — this test follows the code, not the
+  // Approval" (real approvals only) ??this test follows the code, not the
   // comment text it used to match.
   await withServer(async (origin) => {
     const appJs = await (await fetch(`${origin}/app.js`)).text();
@@ -141,7 +141,7 @@ test('3. Accept removes the candidate from the PROPOSED (unresolved review) list
   assert.equal(proposed.length, 0);
 });
 
-// ─── 4-6: Calendar Action Approval propagation ───
+// ?�?�?� 4-6: Calendar Action Approval propagation ?�?�?�
 
 test('4. Executing an ACCEPTED CALENDAR candidate creates a real PENDING Action Approval, distinct from Candidate Review', async () => {
   const { captureStore, candidateStore, tokenStore, approvals, resolver } = buildHarness();
@@ -152,12 +152,12 @@ test('4. Executing an ACCEPTED CALENDAR candidate creates a real PENDING Action 
   assert.equal(result.action?.status, 'PENDING_APPROVAL');
   const approval = approvals.get(result.action!.approvalId!, 't4', 'u4');
   assert.equal(approval?.status, 'PENDING');
-  // Candidate Review already happened (status ACCEPTED) — this is a
-  // separate, later gate (Korean note: 후보 승인 ≠ 실행 승인).
+  // Candidate Review already happened (status ACCEPTED) ??this is a
+  // separate, later gate (Korean note: ?�보 ?�인 ???�행 ?�인).
   assert.equal(result.status, 'ACCEPTED');
 });
 
-test('5. Calendar success (approve + execute) resolves the pending approval — it is no longer PENDING', async () => {
+test('5. Calendar success (approve + execute) resolves the pending approval ??it is no longer PENDING', async () => {
   const fetchFn: typeof fetch = async () => jsonResponse({ id: 'gcal_1', htmlLink: 'https://calendar.google.com/event?eid=x' });
   const { captureStore, candidateStore, tokenStore, approvals, resolver } = buildHarness(fetchFn);
   connectCalendar(tokenStore, 't5');
@@ -185,7 +185,7 @@ test('6. Calendar success creates exactly one Activity item, even after repeated
   assert.equal(items[0].title, 'Added "Project meeting for Activity test" to Google Calendar');
 });
 
-// ─── 7-9: TASK/MEMORY/KNOWLEDGE Activity ───
+// ?�?�?� 7-9: TASK/MEMORY/KNOWLEDGE Activity ?�?�?�
 
 test('7. TASK success creates exactly one Activity item', async () => {
   const { captureStore, candidateStore, activityStore, resolver } = buildHarness();
@@ -219,7 +219,7 @@ test('9. KNOWLEDGE success creates exactly one Activity item', async () => {
   assert.equal(items[0].title, 'Added "Q3 Strategy" to knowledge');
 });
 
-// ─── 10-11: failure Activity + Needs Attention ───
+// ?�?�?� 10-11: failure Activity + Needs Attention ?�?�?�
 
 test('10-11. A failed action creates a truthful FAILED Activity item and the candidate remains eligible for Needs Attention', async () => {
   const dir = tempDir();
@@ -242,7 +242,7 @@ test('10-11. A failed action creates a truthful FAILED Activity item and the can
   assert.equal(result.action?.status, 'FAILED');
 });
 
-// ─── 12-13: REJECTED/EXPIRED never return to unresolved ───
+// ?�?�?� 12-13: REJECTED/EXPIRED never return to unresolved ?�?�?�
 
 test('12. A REJECTED candidate does not reappear as unresolved (PROPOSED) or eligible for action', () => {
   const { candidateStore } = buildHarness();
@@ -259,7 +259,7 @@ test('13. An EXPIRED candidate does not reappear as unresolved', () => {
   assert.equal(candidateStore.list('u13', 't13', { status: 'PROPOSED' }).length, 0);
 });
 
-// ─── 14-16: Activity isolation + persistence ───
+// ?�?�?� 14-16: Activity isolation + persistence ?�?�?�
 
 test('14. Activity is tenant isolated', () => {
   const { activityStore } = buildHarness();
@@ -289,7 +289,7 @@ test('16. Activity survives a restart (fresh ActivityStore instance, same dir)',
   assert.equal(items[0].title, 'Persisted item');
 });
 
-// ─── 17-18: idempotency (no duplication on repeated hydration/rendering) ───
+// ?�?�?� 17-18: idempotency (no duplication on repeated hydration/rendering) ?�?�?�
 
 test('17. Recording the same logical event twice (e.g. replayed hydration) does not duplicate the Activity item', () => {
   const { activityStore } = buildHarness();
@@ -310,7 +310,7 @@ test('18. Reading (list) the Activity feed repeatedly never mutates or duplicate
   assert.equal(items.length, 1);
 });
 
-// ─── 19-21: downstream management views reflect real stores ───
+// ?�?�?� 19-21: downstream management views reflect real stores ?�?�?�
 
 test('19-21. Task/Memory/Knowledge downstream views reflect the real canonical stores after action success', async () => {
   const { captureStore, candidateStore, taskStore, memoryEngine, knowledgeEngine, resolver } = buildHarness();
@@ -331,7 +331,7 @@ test('19-21. Task/Memory/Knowledge downstream views reflect the real canonical s
   assert.equal(doc.length, 1);
 });
 
-// ─── 22: Vault source artifact singularity ───
+// ?�?�?� 22: Vault source artifact singularity ?�?�?�
 
 test('22. The source capture/vault artifact remains singular after multiple candidate actions from the same capture', async () => {
   const { captureStore, candidateStore, resolver } = buildHarness();
@@ -348,7 +348,7 @@ test('22. The source capture/vault artifact remains singular after multiple cand
   assert.equal(captureStore.listCaptures('t22', 'u22').filter((i) => i.captureId === cap.captureId).length, 1);
 });
 
-// ─── 23-24: NEEDS_HUMAN / capture failure propagation ───
+// ?�?�?� 23-24: NEEDS_HUMAN / capture failure propagation ?�?�?�
 
 test('23. NEEDS_HUMAN capture state is reflected in Home\'s eligible-attention filter (served app.js)', async () => {
   await withServer(async (origin) => {
@@ -361,7 +361,7 @@ test('23. NEEDS_HUMAN capture state is reflected in Home\'s eligible-attention f
 
 test('24. A capture that genuinely FAILED never produces a COMPLETED/success Activity entry', () => {
   const { activityStore } = buildHarness();
-  // Simulates what CaptureProcessor.process()'s catch path does — see
+  // Simulates what CaptureProcessor.process()'s catch path does ??see
   // capture-processor.ts recordCaptureFailureActivity.
   activityStore.record({ tenantId: 't24', principalId: 'u24', type: 'capture.failed', title: 'Could not analyze "Strategy.pdf"', status: 'FAILED', dedupeKey: 'cap24:failed' });
   const items = activityStore.list('t24', 'u24');
@@ -370,7 +370,7 @@ test('24. A capture that genuinely FAILED never produces a COMPLETED/success Act
   assert.doesNotMatch(items[0].title, /Summar(y|ized)|complete/i);
 });
 
-// ─── 25: no generic fake "Activity completed" remains ───
+// ?�?�?� 25: no generic fake "Activity completed" remains ?�?�?�
 
 test('25. No generic fake "Activity completed" placeholder remains anywhere in the served app.js', async () => {
   await withServer(async (origin) => {
@@ -379,8 +379,8 @@ test('25. No generic fake "Activity completed" placeholder remains anywhere in t
   });
 });
 
-// ─── 26: Home max 2 enforced (functional confirmation alongside the
-// source-level check already in candidate_review.test.ts) ───
+// ?�?�?� 26: Home max 2 enforced (functional confirmation alongside the
+// source-level check already in candidate_review.test.ts) ?�?�?�
 
 test('26. Home Important-for-you pooling caps at 2 across all eligible sources combined', async () => {
   await withServer(async (origin) => {
@@ -392,12 +392,12 @@ test('26. Home Important-for-you pooling caps at 2 across all eligible sources c
   });
 });
 
-// ─── 27: canonical CandidateStore remains source of review state ───
+// ?�?�?� 27: canonical CandidateStore remains source of review state ?�?�?�
 
 test('27. The Review UI never reads capture.metadata.candidates[] to drive status/actions (still true after STEP 8 changes)', async () => {
   await withServer(async (origin) => {
     const appJs = await (await fetch(`${origin}/app.js`)).text();
-    const reviewSectionStart = appJs.indexOf('Phase 1 STEP 6 — Candidate Review');
+    const reviewSectionStart = appJs.indexOf('Phase 1 STEP 6 ??Candidate Review');
     assert.ok(reviewSectionStart > 0);
     const reviewSection = appJs.slice(reviewSectionStart, appJs.indexOf('window.NAGEX.rejectCandidate = async', reviewSectionStart) + 500);
     const codeOnly = reviewSection.split('\n').filter((line) => !line.trim().startsWith('//')).join('\n');
@@ -405,10 +405,10 @@ test('27. The Review UI never reads capture.metadata.candidates[] to drive statu
   });
 });
 
-// 28. existing STEP 1-7 tests remain green — verified by the regression run
+// 28. existing STEP 1-7 tests remain green ??verified by the regression run
 // (item Z), not a test in this file.
 
-// ─── Regression guard for a real bug manual browser verification (item Y)
+// ?�?�?� Regression guard for a real bug manual browser verification (item Y)
 // caught: a later `window.NAGEX = { ... }` object-literal reassignment
 // silently discarded every STEP 6/7 handler (acceptCandidate,
 // executeCandidateAction, ...) attached earlier via `window.NAGEX.x = ...`,
@@ -416,12 +416,12 @@ test('27. The Review UI never reads capture.metadata.candidates[] to drive statu
 // every source-level regex test above passing (they only check the handler
 // TEXT exists somewhere in the file, not that it survives to become the
 // real runtime object). No source-level test alone would have caught this
-// — it was only found by actually clicking the buttons in a live browser.
+// ??it was only found by actually clicking the buttons in a live browser.
 
 test('BUGFIX REGRESSION: window.NAGEX is never wholesale-reassigned after the STEP 6/7 handlers are attached', async () => {
   await withServer(async (origin) => {
     const appJs = await (await fetch(`${origin}/app.js`)).text();
-    // Strip comment-only lines first — a prose example inside a comment
+    // Strip comment-only lines first ??a prose example inside a comment
     // must never produce a false positive (or negative) here.
     const codeOnly = appJs.split('\n').filter((line) => !line.trim().startsWith('//')).join('\n');
     const bareReassignments = codeOnly.match(/window\.NAGEX\s*=\s*\{/g) || [];
@@ -429,8 +429,8 @@ test('BUGFIX REGRESSION: window.NAGEX is never wholesale-reassigned after the ST
   });
 });
 
-// ─── API wiring: GET /api/v1/activity is tenant/principal isolated and
-// derived from the real production ActivityStore/resolver. ───
+// ?�?�?� API wiring: GET /api/v1/activity is tenant/principal isolated and
+// derived from the real production ActivityStore/resolver. ?�?�?�
 
 function uniqueIdentity(label: string): { tenantId: string; ownerId: string } {
   const runId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;

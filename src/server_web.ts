@@ -65,6 +65,7 @@ import { handleInboxRoutes } from './http/routes/inbox.routes.js';
 import { handleVaultRoutes } from './http/routes/vault.routes.js';
 import { handleConnectionsRoutes } from './http/routes/connections.routes.js';
 import { handleActionsRoutes } from './http/routes/actions.routes.js';
+import { handleCommandContextRoutes } from './http/routes/command-context.routes.js';
 import type { GoogleCalendarService } from './modules/calendar/index.js';
 import type { GmailService } from './modules/gmail/index.js';
 import { BrowserToolService, browserRuntime } from './modules/browser/index.js';
@@ -197,10 +198,15 @@ export const {
   actionEngine,
   deviceAgentTransportEndpoint,
   deviceIdentityStore,
+  devicePendingCommandStore,
+  deviceConnectionStatusStore,
+  deviceCommandStatusStore,
+  kakaoAccessibilityApprovalService,
   contactResolver,
   mobileMessageRunService,
   executionRouteResolver,
   messagingHandoffService,
+  multimodalCommandService,
 } = app;
 
 // A real (not fake) background scheduler loop — only runs when this module
@@ -234,13 +240,18 @@ const TASK_SCHEDULER_TICK_MS = Number(process.env.NAGEX_TASK_SCHEDULER_INTERVAL_
 // R10.2-D Increment 4 — approvalQueue moved to
 // src/http/routes/approvals.routes.ts; executionHistory moved to
 // src/http/routes/governance.routes.ts (imported above — health.routes.ts
-// still legitimately needs its length for executionCount, below).
+// exposes its length only as execution_history_count).
 // quickWakeConfig/autonomyConfig moved to src/http/routes/settings.routes.ts;
 // knowledgeBase moved to src/http/routes/catalog.routes.ts (each with its
 // only consumer).
 
 // R10.2-D — health/vcs status moved to src/http/routes/health.routes.ts.
-const healthRouteDeps: HealthRouteDeps = { executionCount: () => executionHistory.length };
+// Active executions come from durable runtime state. executionHistory is
+// legacy/demo history and is exposed only as history count.
+const healthRouteDeps: HealthRouteDeps = {
+  activeExecutionCount: () => durableTaskRunState.listRunning().length,
+  executionHistoryCount: () => executionHistory.length,
+};
 
 // ─── API Router ───
 // R10.2-D Increment 5 — getHeaderValue moved into each route module as
@@ -492,6 +503,9 @@ export async function handleAsyncApiRequest(
     {
       const workspaceResult = await handleWorkspaceRoutes(method, pathname, body, headers, query, { quickCaptureService, artifactStore: app.artifactStore });
       if (workspaceResult) return workspaceResult;
+
+      const commandContextResult = await handleCommandContextRoutes(method, pathname, body, headers, query, { commandService: multimodalCommandService, sessionStore: customDeps?.sessionStore ?? sessionStore });
+      if (commandContextResult) return commandContextResult;
     }
     // R10.2-D Increment 4 — Google Calendar mutation/read routes. Every
     // mutation still requires a pre-existing approvalId and calls
@@ -627,7 +641,7 @@ export async function handleAsyncApiRequest(
 
     // R10.2-D Increment 5 — Device Agent outbound transport route.
     {
-      const deviceAgentResult = await handleDeviceAgentRoutes(method, pathname, body, headers, query, { deviceAgentTransportEndpoint, deviceIdentityStore, sessionStore });
+      const deviceAgentResult = await handleDeviceAgentRoutes(method, pathname, body, headers, query, { deviceAgentTransportEndpoint, deviceIdentityStore, devicePendingCommandStore, deviceConnectionStatusStore, deviceCommandStatusStore, kakaoAccessibilityApprovalService, sessionStore });
       if (deviceAgentResult) return deviceAgentResult;
     }
 
@@ -761,7 +775,7 @@ export function handleApiRequest(
   // only ever update the approval record; the canonical
   // GoogleCapabilityExecutionPipeline re-validates everything downstream.
   {
-    const approvalsResult = handleApprovalsRoutes(method, pathname, body, headers, {}, { googleCalendarService, gmailService, actionApprovals, auditLogger, taskContinuationCoordinator, tenantId, principal, modelErrorResult });
+    const approvalsResult = handleApprovalsRoutes(method, pathname, body, headers, {}, { googleCalendarService, gmailService, actionApprovals, kakaoAccessibilityApprovalService, devicePendingCommandStore, deviceCommandStatusStore, auditLogger, taskContinuationCoordinator, tenantId, principal, modelErrorResult });
     if (approvalsResult) return approvalsResult;
   }
 

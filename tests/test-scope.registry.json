@@ -32,6 +32,7 @@
       "desktop_app_allowlist",
       "desktop_control_service",
       "device_control",
+      "adaptive_ui_perception",
       "astra_visual_execution_adapter",
       "astra_real_provider_acceptance",
       "browser_session_ownership_isolation",
@@ -93,6 +94,8 @@
       "durable_task_runtime"
     ],
     "tasks": [
+      "real_life_scenario_library_behavioral_rules",
+      "scenario_certification_framework",
       "background_tasks",
       "conditional_watch",
       "task_orchestration_boundary",
@@ -108,6 +111,9 @@
       "workflow_definition"
     ],
     "runtime": [
+      "real_life_scenario_library_behavioral_rules",
+      "scenario_certification_framework",
+      "adaptive_ui_perception",
       "composition_root",
       "conditional_watch",
       "capability_broker",
@@ -135,9 +141,11 @@
       "security_s2d_tenant_resource_ownership",
       "security_s2e_auth_abuse",
       "nebius_nemotron_provider",
-      "nebius_nemotron_routing"
+      "nebius_nemotron_routing",
+      "jev_shadow_runtime"
     ],
     "personal-home": [
+      "home_ux_principle",
       "m6_1_mobile_release_blockers",
       "r22_8_personal_home",
       "r23_7h_b1_personal_dashboard",
@@ -161,11 +169,17 @@
       "r22_9_personal_context_link_capture"
     ],
     "model-routing": [
+      "real_life_scenario_library_behavioral_rules",
       "r22_5_task_aware_model_routing",
       "nebius_nemotron_provider",
-      "nebius_nemotron_routing"
+      "nebius_nemotron_routing",
+      "jev_shadow_runtime"
     ],
     "mobile": [
+      "real_life_scenario_library_behavioral_rules",
+      "scenario_certification_framework",
+      "kakaotalk_fast_path_approval",
+      "adaptive_ui_perception",
       "m6_1_mobile_release_blockers",
       "r22_1_mobile_home",
       "r23_7h_b1_personal_dashboard",
@@ -264,6 +278,10 @@
       "r23_6m_phase_d1_global_messaging",
       "r23_6m_phase_d2b_kakaotalk_handoff",
       "r23_6m_phase_d3s_canonical_messaging_contract",
+      "r23_6m_m4c_r2f_conversation_target",
+      "r23_6m_m4c_r2g_binding",
+      "r23_6m_m4c_r2g_draft_store",
+      "kakaotalk_fast_path_approval",
       "device_agent_foundation",
       "device_agent_transport",
       "r23_3t_permission_approval_hardening",
@@ -271,6 +289,9 @@
       "approval_ttl_security"
     ],
     "ux": [
+      "real_life_scenario_library_behavioral_rules",
+      "scenario_certification_framework",
+      "home_ux_principle",
       "r23_7h_c_phase_b_artifact_ux_contract",
       "r23_7h_c_phase_c_canvas_shell",
       "r23_7h_c_phase_d_main_product_experience",
@@ -301,6 +322,8 @@
     "intent_interaction_foundation",
     "ambient_run_button",
     "approval_truth_source",
+    "approval_execution_status_ux",
+    "auth_google_microsoft_only",
     "candidate_model",
     "candidate_review",
     "capture_ownership_isolation",
@@ -389,6 +412,7 @@
     "r23_7c_c_deployed_real_browser_cert",
     "r23_7c_c_session_artifact_delivery_cert",
     "r23_7c_c_final_non_paid_closure_cert",
+    "r23_7h_d8_home_scenarios",
     "r22_2_activity_vault",
     "r22_4_evidence_pack_web_search",
     "r22_6_perspective_compare",
@@ -399,5 +423,8 @@
     "r24_7b_canvas_ask_browser",
     "r24_7b_canvas_ask_live",
     "r24_8b_entry_truthful_ui_browser"
+  ],
+  "home": [
+    "multimodal_execution_rail_live_wiring"
   ]
 }

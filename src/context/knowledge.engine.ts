@@ -164,19 +164,6 @@ export interface GroundedCitationCheck {
   cited_document_ids: string[];
 }
 
-// specs/schemas/context/grounded-response.schema.json
-//
-// TODO(spec-gap): no LEVEL 3 domain specification for the Knowledge Engine
-// exists yet (docs/INDEX.md lists it under "미작성"). This function is the
-// smallest checkable piece of MASTER.md principle #7 (Model Output은 권한이
-// 아니다) and #14 (Schema Validation on all AI Actions) available today,
-// ahead of real Model Gateway generation being wired up: an AI-generated
-// answer may only cite document_ids that were actually returned as
-// candidates for its query. A citation to anything else is a fabricated
-// (hallucinated) reference and is rejected here, before it can reach a
-// caller. This does not judge answer correctness or require a citation on
-// every answer -- `grounded: false` is an informational signal, not a
-// rejection.
 export function verifyGroundedCitations(
   candidates: KnowledgeCandidate[],
   citedDocumentIds: string[]

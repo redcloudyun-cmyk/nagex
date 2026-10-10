@@ -25,6 +25,10 @@ export interface DeviceIdentityRecord {
   // generated locally; only the public half is ever persisted here.
   publicKey: string;
   agentVersion: string;
+  nickname?: string | null;
+  systemDeviceName?: string | null;
+  deviceType?: string | null;
+  os?: string | null;
   capabilityInventory: string[];
   status: DeviceStatus;
   enrolledAt: string;
@@ -42,6 +46,10 @@ export function isDeviceIdentityRecord(value: unknown): value is DeviceIdentityR
     typeof v.ownerId === 'string' &&
     typeof v.publicKey === 'string' &&
     typeof v.agentVersion === 'string' &&
+    (v.nickname === undefined || v.nickname === null || typeof v.nickname === 'string') &&
+    (v.systemDeviceName === undefined || v.systemDeviceName === null || typeof v.systemDeviceName === 'string') &&
+    (v.deviceType === undefined || v.deviceType === null || typeof v.deviceType === 'string') &&
+    (v.os === undefined || v.os === null || typeof v.os === 'string') &&
     Array.isArray(v.capabilityInventory) && v.capabilityInventory.every((c) => typeof c === 'string') &&
     typeof v.status === 'string' && VALID_STATUSES.has(v.status) &&
     typeof v.enrolledAt === 'string' &&
@@ -54,6 +62,10 @@ export interface EnrollDeviceInput {
   ownerId: string;
   publicKey: string;
   agentVersion: string;
+  nickname?: string | null;
+  systemDeviceName?: string | null;
+  deviceType?: string | null;
+  os?: string | null;
   capabilityInventory?: string[];
 }
 
@@ -85,6 +97,10 @@ export class DeviceIdentityStore {
       ownerId: input.ownerId,
       publicKey: input.publicKey,
       agentVersion: input.agentVersion,
+      nickname: input.nickname ?? null,
+      systemDeviceName: input.systemDeviceName ?? null,
+      deviceType: input.deviceType ?? null,
+      os: input.os ?? null,
       capabilityInventory: [...(input.capabilityInventory ?? [])],
       status: 'ACTIVE',
       enrolledAt: timestamp,
@@ -96,6 +112,10 @@ export class DeviceIdentityStore {
 
   private readRaw(deviceId: string): DeviceIdentityRecord | null {
     return this.fileStore.read(deviceId);
+  }
+
+  public getAny(deviceId: string): DeviceIdentityRecord | null {
+    return this.readRaw(deviceId);
   }
 
   // The one centralized ownership gate every other method routes through
@@ -110,6 +130,12 @@ export class DeviceIdentityStore {
     const record = this.readRaw(deviceId);
     if (!record || record.tenantId !== tenantId || record.ownerId !== ownerId) return null;
     return record;
+  }
+
+  public listOwned(tenantId: string, ownerId: string): DeviceIdentityRecord[] {
+    return this.fileStore.readAll()
+      .filter((record) => record.tenantId === tenantId && record.ownerId === ownerId)
+      .sort((a, b) => b.lastSeenAt.localeCompare(a.lastSeenAt));
   }
 
   private persist(record: DeviceIdentityRecord): DeviceIdentityRecord {
@@ -128,6 +154,13 @@ export class DeviceIdentityStore {
     const record = this.getOwned(deviceId, tenantId, ownerId);
     if (!record) return null;
     record.capabilityInventory = [...capabilityInventory];
+    return this.persist(record);
+  }
+
+  public updateNickname(deviceId: string, tenantId: string, ownerId: string, nickname: string | null): DeviceIdentityRecord | null {
+    const record = this.getOwned(deviceId, tenantId, ownerId);
+    if (!record) return null;
+    record.nickname = nickname;
     return this.persist(record);
   }
 

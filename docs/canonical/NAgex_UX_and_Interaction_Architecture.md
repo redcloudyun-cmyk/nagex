@@ -238,6 +238,20 @@ Voice follows the same intent, clarification, approval and execution rules as te
 
 Voice may accelerate interaction but cannot lower the approval bar.
 
+### Background Voice Call UX
+
+Ordinary short voice commands should normally be captured in the background rather than opening a full-screen voice-input UI.
+
+For an explicitly verified `CALL` intent, NAgex resolves the contact and the phone target first, then shows a compact call confirmation popup. The popup is an execution buffer, not a substitute for target verification.
+
+If exactly one target and phone number are verified, NAgex shows a five-second cancel window with Cancel and Call now actions; voice cancel is supported. If no cancellation occurs during the countdown, NAgex revalidates the target and phone target, then executes exactly one call.
+
+Ambiguous contacts never start a countdown. They show candidate selection first, and the countdown starts only after explicit target selection. Multiple phone numbers use a verified preferred number when one exists; otherwise they require selection.
+
+Proactive call suggestions are stricter: silence is not approval, and an explicit positive confirmation is required.
+
+After a call ends, NAgex closes the call surface, restores Home where feasible, and cleans temporary execution context.
+
 ## 17. EN/KR and Global UX
 
 - translate intent, not word order;

@@ -54,6 +54,8 @@ export type ResourcePrefix =
   | 'cpr'
   | 'cpb'
   | 'rcp'
+  | 'cvr'
+  | 'kdr'
   | 'mmr';
 
 export function generateResourceId(prefix: ResourcePrefix): string {

@@ -228,7 +228,7 @@ function splitOwnerKey(key: string): { tenantId: string; principalId: string } {
 }
 
 // Preferred path is a systemd-managed data directory outside the Git repo
-// (see docs/DEPLOYMENT.md for the one-time `sudo mkdir` setup). Falls back to
+// (see docs/canonical/NAgex_Operations_and_Deployment.md for the one-time `sudo mkdir` setup). Falls back to
 // a per-user data directory when that path doesn't exist or isn't writable
 // yet (fresh checkout, local dev, Windows) rather than crashing the process.
 export function resolveDefaultGoogleTokenStorePath(env: NodeJS.ProcessEnv = process.env): string {

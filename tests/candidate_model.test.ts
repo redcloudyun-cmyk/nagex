@@ -1,11 +1,11 @@
-// Phase 1 STEP 5 — Canonical Candidate Model.
+// Phase 1 STEP 5 ??Canonical Candidate Model.
 //
 // A Candidate means: "NAgex believes this may be useful, but the user has
 // not yet accepted it." This suite verifies the durable CandidateStore
 // (persistence, isolation, idempotent upsert, source-change supersession,
 // lifecycle transitions), that CaptureProcessor's real Understanding output
 // (TEXT/URL/PDF) upserts into it with real traceable sourceRefs, that
-// ACCEPT/REJECT never execute anything (item J — the central STEP 5
+// ACCEPT/REJECT never execute anything (item J ??the central STEP 5
 // guarantee), and that the new /api/v1/candidates API and Inbox surface
 // consume this canonical state.
 import { test } from 'node:test';
@@ -78,14 +78,14 @@ function buildHarness(aiService?: AiService, opts?: { poisoned?: boolean }) {
   const candidateStore = new CandidateStore({ dir: path.join(dir, 'candidates') });
   const taskStore = opts?.poisoned ? new PoisonTaskStore({ dir: path.join(dir, 'tasks') }) : new TaskStore({ dir: path.join(dir, 'tasks') });
   const memoryEngine = opts?.poisoned ? new PoisonMemoryEngine() : new MemoryEngine();
-  const knowledgeEngine = opts?.poisoned ? new PoisonKnowledgeEngine() : new KnowledgeEngine();
+  const knowledgeEngine = opts?.poisoned ? new PoisonKnowledgeEngine() : new KnowledgeEngine('./tmp_knowledge_' + Math.random().toString(36).slice(2));
   const actionApprovals = opts?.poisoned ? new PoisonApprovalStore() : new ActionApprovalStore();
   const service = new QuickCaptureService(store, undefined, taskStore, memoryEngine, knowledgeEngine, aiService, undefined, undefined, actionApprovals, candidateStore);
   return { store, service, candidateStore, taskStore, memoryEngine, knowledgeEngine, actionApprovals, dir };
 }
 
-// ─── 1-3, 21-22: CandidateStore core (create/get/list, persistence,
-// isolation, restart stability, fail-closed on corruption) ───
+// ?�?�?� 1-3, 21-22: CandidateStore core (create/get/list, persistence,
+// isolation, restart stability, fail-closed on corruption) ?�?�?�
 
 test('1. CandidateStore: create (upsert) / get / list', () => {
   const dir = tempDir();
@@ -156,7 +156,7 @@ test('22. A corrupted candidate record file fails closed (skipped, not trusted) 
   assert.equal(reloaded.list('usr_a', 'ten_a').length, 1);
 });
 
-// ─── 4-7: typed payloads per candidate type ───
+// ?�?�?� 4-7: typed payloads per candidate type ?�?�?�
 
 test('4. TASK candidate payload shape', () => {
   const store = new CandidateStore({ dir: tempDir() });
@@ -201,7 +201,7 @@ test('7. KNOWLEDGE candidate payload shape', () => {
   assert.equal((record.payload as { sourceCaptureId: string }).sourceCaptureId, 'cap_9');
 });
 
-// ─── 8-9: idempotent upsert + source-change supersession ───
+// ?�?�?� 8-9: idempotent upsert + source-change supersession ?�?�?�
 
 test('8. Same understanding retried does not append a duplicate canonical candidate', async () => {
   const aiService = buildMockAiService({
@@ -251,7 +251,7 @@ test('9. Changed contentHash: old PROPOSED candidate becomes EXPIRED, a new PROP
   assert.equal(decidedStore.get(decided.candidateId)!.status, 'ACCEPTED');
 });
 
-// ─── 10-13: lifecycle transitions ───
+// ?�?�?� 10-13: lifecycle transitions ?�?�?�
 
 test('10. PROPOSED -> ACCEPTED transition', () => {
   const store = new CandidateStore({ dir: tempDir() });
@@ -294,7 +294,7 @@ test('13. Illegal transitions fail closed (ACCEPTED/REJECTED/EXPIRED cannot tran
   assert.throws(() => store.accept(c.candidateId, 't', 'p'), (err: unknown) => err instanceof NagexError && err.code === 'CANDIDATE_ILLEGAL_TRANSITION');
 });
 
-// ─── 14-17: ACCEPT never executes (the central STEP 5 guarantee) ───
+// ?�?�?� 14-17: ACCEPT never executes (the central STEP 5 guarantee) ?�?�?�
 
 test('14-17. Accepting a TASK/CALENDAR/MEMORY/KNOWLEDGE candidate never creates a Task, requests a Calendar approval, writes Memory, or indexes Knowledge', async () => {
   const aiService = buildMockAiService({
@@ -324,7 +324,7 @@ test('14-17. Accepting a TASK/CALENDAR/MEMORY/KNOWLEDGE candidate never creates 
   void actionApprovals; // present only to prove the poisoned instance was wired and never threw
 });
 
-// ─── 18: rejected candidate does not reappear ───
+// ?�?�?� 18: rejected candidate does not reappear ?�?�?�
 
 test('18. A rejected candidate does not reappear as a new duplicate on unchanged retry', async () => {
   const aiService = buildMockAiService({
@@ -344,7 +344,7 @@ test('18. A rejected candidate does not reappear as a new duplicate on unchanged
   assert.equal(after[0].status, 'REJECTED');
 });
 
-// ─── 19-20: source traceability ───
+// ?�?�?� 19-20: source traceability ?�?�?�
 
 test('19. sourceRefs are preserved and never fabricated for a TEXT capture (capture-level traceability)', async () => {
   const aiService = buildMockAiService({
@@ -379,11 +379,11 @@ test('20. For a PDF capture, canonical candidate sourceRefs reference real Proce
   }
 });
 
-// ─── 23: API list/get/accept/reject ───
+// ?�?�?� 23: API list/get/accept/reject ?�?�?�
 
 test('23. GET /api/v1/candidates, GET /:id, POST /:id/accept, POST /:id/reject work against the real server singleton', async () => {
   // The production CandidateStore persists to real disk state, so this test
-  // uses a fresh, run-unique tenant/capture identity — a fixed one would
+  // uses a fresh, run-unique tenant/capture identity ??a fixed one would
   // collide with a PROPOSED-turned-ACCEPTED record left behind by a
   // previous test run (upsert() correctly refuses to resurrect decided
   // history, which is exactly the behavior a stale fixed id would trip on).
@@ -427,7 +427,7 @@ test('23. GET /api/v1/candidates, GET /:id, POST /:id/accept, POST /:id/reject w
   assert.equal(notFoundRes.status, 404);
 });
 
-// ─── 24: Inbox consumes canonical CandidateStore state ───
+// ?�?�?� 24: Inbox consumes canonical CandidateStore state ?�?�?�
 
 async function withServer(run: (origin: string) => Promise<void>): Promise<void> {
   const instance = createServerInstance();
@@ -474,5 +474,5 @@ test('24. The served Inbox page has a canonical-candidate container wired to GET
   });
 });
 
-// ─── 25: existing understanding tests remain green is verified by the
-// regression run (item S) — see the STEP 5 report, not a test in this file.
+// ?�?�?� 25: existing understanding tests remain green is verified by the
+// regression run (item S) ??see the STEP 5 report, not a test in this file.

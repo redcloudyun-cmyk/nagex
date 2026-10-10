@@ -70,7 +70,10 @@ import type { DesktopExecutionSessionStore } from '../device-agent/desktop-execu
 import type { DeviceTransportSecurity } from '../device-agent/device-transport-security.js';
 import type { DeviceConnectionStatusStore } from '../device-agent/device-connection-status.store.js';
 import type { DevicePendingCommandStore } from '../device-agent/device-pending-command.store.js';
+import type { DeviceCommandStatusStore } from '../device-agent/device-command-status.store.js';
 import type { DeviceAgentTransportEndpoint } from '../device-agent/device-agent-transport-endpoint.service.js';
+import type { CommandContextStore } from '../commands/command-context.store.js';
+import type { MultimodalCommandService } from '../commands/multimodal-command.service.js';
 
 import type { IdentityStore } from '../identity/identity.store.js';
 import type { IdentityTokenStore } from '../identity/identity.tokens.js';
@@ -177,7 +180,10 @@ export interface NagexApplication {
   deviceTransportSecurity: DeviceTransportSecurity;
   deviceConnectionStatusStore: DeviceConnectionStatusStore;
   devicePendingCommandStore: DevicePendingCommandStore;
+  deviceCommandStatusStore: DeviceCommandStatusStore;
   deviceAgentTransportEndpoint: DeviceAgentTransportEndpoint;
+  commandContextStore: CommandContextStore;
+  multimodalCommandService: MultimodalCommandService;
   getRelevantMemories: (tenantId: string, principalId: string, prompt: string) => MemoryRecord[];
   pinnedMemories: Set<string>;
   lifecycle: LifecycleManager;
@@ -198,6 +204,9 @@ export interface NagexApplication {
   // R23.6M Phase B3 — Mobile Contact Resolution.
   recipientRefStore: import('../mobile/recipient-ref.store.js').RecipientRefStore;
   contactResolver: import('../mobile/contact-resolver.service.js').ContactResolver;
+    conversationTargetStore: import('../mobile/conversation-target.store.js').ConversationTargetStore;
+    kakaoAccessibilityDraftStore: import('../mobile/kakao-accessibility-draft.store.js').KakaoAccessibilityDraftStore;
+    kakaoAccessibilityApprovalService: import('../mobile/kakaotalk-accessibility-approval.service.js').KakaoAccessibilityApprovalService;
   // R23.6M Phase C — Mobile SMS Execution.
   mobileMessageRunStore: import('../mobile/mobile-message-run.store.js').MobileMessageRunStore;
   mobileMessageRunService: import('../mobile/mobile-message-run.service.js').MobileMessageRunService;

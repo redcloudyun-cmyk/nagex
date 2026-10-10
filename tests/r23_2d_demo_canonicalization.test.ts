@@ -1,25 +1,28 @@
-// R23.2D â€” Demo Canonicalization.
+// R23.2D ??Demo Canonicalization.
 //
 // Proves DemoScenarioService no longer builds a Home/Right Now response of
 // its own (DEMO_FAKE_PERSONAL_HOME=0, DEMO_FAKE_RIGHT_NOW=0) and that the
 // demo tenant's /api/v1/personal/home and /api/v1/personal/right-now
 // results come from the exact same PersonalHomeService/
 // RightNowIntelligenceService/CurrentPersonalContextService pipeline every
-// other tenant uses (DEMO_PARALLEL_INTELLIGENCE_PIPELINE=0) â€” only the
+// other tenant uses (DEMO_PARALLEL_INTELLIGENCE_PIPELINE=0) ??only the
 // underlying data source (DemoCalendarSource/DemoGmailSource + real
 // Task/Vault/Approval/Memory seed records) differs. Each test constructs
 // its own fresh createNagexApplication() so it never shares state with any
 // other test file (the exact cross-file pollution risk discovered while
-// building this suite â€” see the R23.2H/R23.2D reports).
+// building this suite ??see the R23.2H/R23.2D reports).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import os from 'node:os';
+import path from 'node:path';
+process.env.NAGEX_DATA_DIR = path.join(os.tmpdir(), 'nagex_test_data_' + Math.random().toString(36).slice(2));
 import { createNagexApplication } from '../src/app/create-nagex-application.js';
 
 const DEMO_TENANT_ID = 'ten_demo_hackathon';
 const DEMO_OWNER_ID = 'usr_demo_alex';
 const DEMO_HEADERS = { 'x-nagex-demo': '1', 'x-nagex-tenant': DEMO_TENANT_ID, 'x-principal-id': DEMO_OWNER_ID };
 
-// â”€â”€â”€ 1. DemoScenarioService no longer intercepts personal/home â”€â”€â”€
+// ?€?€?€ 1. DemoScenarioService no longer intercepts personal/home ?€?€?€
 
 test('1. DemoScenarioService.handle returns undefined for GET /api/v1/personal/home', () => {
   const app = createNagexApplication();
@@ -27,7 +30,7 @@ test('1. DemoScenarioService.handle returns undefined for GET /api/v1/personal/h
   assert.equal(result, undefined, 'personal/home must fall through to the real route, never be answered here');
 });
 
-// â”€â”€â”€ 2. GET /api/v1/personal/home (demo tenant) uses the real pipeline â”€â”€â”€
+// ?€?€?€ 2. GET /api/v1/personal/home (demo tenant) uses the real pipeline ?€?€?€
 
 test('2. /personal/home for the demo tenant reflects real seeded Calendar/Approval data, never fabricated fallback text', async () => {
   const app = createNagexApplication();
@@ -38,14 +41,14 @@ test('2. /personal/home for the demo tenant reflects real seeded Calendar/Approv
   assert.equal(home.rightNow?.sourceRef, 'demo_evt_client');
   // The title legitimately matches the seeded Calendar fixture's real
   // event title ("Client strategy meeting" is real seeded data now, not a
-  // hardcoded response string) â€” what changed is the REASON: it is now a
+  // hardcoded response string) ??what changed is the REASON: it is now a
   // computed fact (`summary`), never the old fixed sentence.
   assert.equal(home.rightNow?.title, 'Client strategy meeting');
   assert.equal(home.rightNow?.summary, 'In progress now');
   assert.notEqual(home.rightNow?.summary, 'Pricing and delivery timing need your attention.');
 });
 
-// â”€â”€â”€ 3. GET /api/v1/personal/right-now (demo tenant) uses the real pipeline â”€â”€â”€
+// ?€?€?€ 3. GET /api/v1/personal/right-now (demo tenant) uses the real pipeline ?€?€?€
 
 test('3. /personal/right-now for the demo tenant produces a real, grounded primary and a real suggestion', async () => {
   const app = createNagexApplication();
@@ -63,7 +66,7 @@ test('3. /personal/right-now for the demo tenant produces a real, grounded prima
   assert.ok(prep!.sourceRefs.some((r) => r.type === 'VAULT'));
 });
 
-// â”€â”€â”€ 4. Demo-seeded records genuinely exist in the real stores â”€â”€â”€
+// ?€?€?€ 4. Demo-seeded records genuinely exist in the real stores ?€?€?€
 
 test('4. seed() writes real Task/Vault/Approval/Memory records for the demo tenant', () => {
   const app = createNagexApplication();
@@ -82,7 +85,7 @@ test('4. seed() writes real Task/Vault/Approval/Memory records for the demo tena
   assert.ok(memories.some((m) => m.content.subject === 'Meeting brief preference'));
 });
 
-// â”€â”€â”€ 5. Reset stays deterministic â€” no accumulation across repeated resets â”€â”€â”€
+// ?€?€?€ 5. Reset stays deterministic ??no accumulation across repeated resets ?€?€?€
 
 test('5. demo reset clears and reseeds deterministically (RESET_DETERMINISTIC=1)', () => {
   const app = createNagexApplication();
@@ -100,10 +103,10 @@ test('5. demo reset clears and reseeds deterministically (RESET_DETERMINISTIC=1)
   assert.deepEqual(countState(), baseline, 'first reset must reproduce the exact same canonical counts');
 
   app.demoScenarioService.handle('POST', '/api/v1/demo/reset', {}, DEMO_HEADERS);
-  assert.deepEqual(countState(), baseline, 'second reset must still reproduce the exact same canonical counts â€” never accumulating duplicates');
+  assert.deepEqual(countState(), baseline, 'second reset must still reproduce the exact same canonical counts ??never accumulating duplicates');
 });
 
-// â”€â”€â”€ 6. Right Now intelligence is unaffected by an unrelated tenant's data (isolation preserved) â”€â”€â”€
+// ?€?€?€ 6. Right Now intelligence is unaffected by an unrelated tenant's data (isolation preserved) ?€?€?€
 
 test('6. demo tenant data never leaks into an unrelated real tenant\'s /personal/home (CROSS_TENANT_LEAK=0)', async () => {
   const app = createNagexApplication();
@@ -117,7 +120,7 @@ test('6. demo tenant data never leaks into an unrelated real tenant\'s /personal
   assert.ok(!vaultTitles.includes('Proposal v3'));
 });
 
-// â”€â”€â”€ 7. Real (non-demo) tenants are never routed through the demo Calendar/Gmail source â”€â”€â”€
+// ?€?€?€ 7. Real (non-demo) tenants are never routed through the demo Calendar/Gmail source ?€?€?€
 
 test('7. a real tenant seeded independently reaches the same pipeline with its own real data, never the demo fixture', async () => {
   const app = createNagexApplication();

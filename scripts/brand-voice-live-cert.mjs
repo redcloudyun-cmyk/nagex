@@ -10,6 +10,7 @@ const { BRAND_VOICE_LIVE_SAMPLES } = await import(pathToFileURL(path.join(root, 
 const { SpokenResponseComposer } = await import(pathToFileURL(path.join(root, 'dist', 'src', 'voice-output', 'spoken-response-composer.js')));
 const { OpenAiNeuralVoiceProvider } = await import(pathToFileURL(path.join(root, 'dist', 'src', 'voice-output', 'openai-neural-voice-provider.js')));
 const { NativeOsVoiceProvider, VoiceOutputResolver } = await import(pathToFileURL(path.join(root, 'dist', 'src', 'voice-output', 'voice-output-provider.js')));
+const { NAGEX_CANONICAL_BRAND_VOICE } = await import(pathToFileURL(path.join(root, 'dist', 'src', 'voice-output', 'brand-voice-profile.js')));
 
 const composer = new SpokenResponseComposer();
 const resolver = new VoiceOutputResolver([
@@ -19,7 +20,9 @@ const resolver = new VoiceOutputResolver([
 
 const report = {
   startedAt: new Date().toISOString(),
-  voiceName: 'NAgex Natural',
+  voiceName: NAGEX_CANONICAL_BRAND_VOICE.displayName,
+  dynamicBrandVoiceStatus: NAGEX_CANONICAL_BRAND_VOICE.dynamicBrandVoiceStatus,
+  commercialDynamicVoiceReady: NAGEX_CANONICAL_BRAND_VOICE.commercialDynamicVoiceReady,
   primaryProvider: 'OPENAI_NEURAL_TTS',
   credentialAvailable: Boolean(process.env.NAGEX_TTS_OPENAI_API_KEY || process.env.OPENAI_API_KEY),
   credentialServerSideOnly: true,

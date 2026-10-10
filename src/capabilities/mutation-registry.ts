@@ -17,7 +17,7 @@ export type MutationProvider = 'GOOGLE';
 export type MutationService = 'GMAIL' | 'CALENDAR';
 
 // A declarative safety contract every registered external mutation must
-// state up front — mirrors docs/NAGEX_DEVELOPMENT_SAFETY_HARNESS.md §3.2's
+// state up front — mirrors docs/NAgex_AI_Development_Governance.md §3.2's
 // CapabilitySafetyContract shape.
 export interface MutationCapabilityDefinition<TPayload = unknown> {
   toolId: string;

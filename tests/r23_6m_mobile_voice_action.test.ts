@@ -20,6 +20,10 @@ import { DeviceConnectionStatusStore } from '../src/device-agent/device-connecti
 import { DesktopExecutionSessionStore } from '../src/device-agent/desktop-execution-session.store.js';
 import { DevicePendingCommandStore } from '../src/device-agent/device-pending-command.store.js';
 import { DeviceAgentTransportEndpoint } from '../src/device-agent/device-agent-transport-endpoint.service.js';
+import { ActionApprovalStore } from '../src/governance/action-approval.store.js';
+import { ConversationTargetStore } from '../src/mobile/conversation-target.store.js';
+import { KakaoAccessibilityDraftStore } from '../src/mobile/kakao-accessibility-draft.store.js';
+import { KakaoAccessibilityApprovalService } from '../src/mobile/kakaotalk-accessibility-approval.service.js';
 import { SessionStore } from '../src/sessions/session.store.js';
 import { NagexError } from '../src/common/errors.js';
 import { authAs } from './_s1_session_auth.js';
@@ -53,7 +57,42 @@ async function callDeviceAgentEnroll(
     new DesktopExecutionSessionStore({ dir: tempDir() }),
     new DevicePendingCommandStore(),
   );
-  return handleDeviceAgentRoutes('POST', '/api/v1/device-agent/enroll', body, headers, {}, { deviceAgentTransportEndpoint, deviceIdentityStore, sessionStore });
+  const recipientRefStore = new RecipientRefStore({ dir: tempDir() });
+  const conversationTargetStore = new ConversationTargetStore({ dir: tempDir() });
+  const kakaoDraftStore = new KakaoAccessibilityDraftStore({ deviceIdentityStore, recipientRefStore, conversationTargetStore }, { dir: tempDir() });
+  return handleDeviceAgentRoutes('POST', '/api/v1/device-agent/enroll', body, headers, {}, {
+    deviceAgentTransportEndpoint,
+    deviceIdentityStore,
+    devicePendingCommandStore: new DevicePendingCommandStore(),
+    kakaoAccessibilityApprovalService: new KakaoAccessibilityApprovalService(new ActionApprovalStore(), recipientRefStore, conversationTargetStore, kakaoDraftStore),
+    sessionStore,
+  });
+}
+
+async function callDeviceBindingValidate(
+  deviceIdentityStore: DeviceIdentityStore,
+  sessionStore: SessionStore,
+  deviceId: string,
+  headers: Record<string, string>,
+  body: Record<string, unknown>,
+) {
+  const deviceAgentTransportEndpoint = new DeviceAgentTransportEndpoint(
+    new DeviceTransportSecurity(deviceIdentityStore),
+    deviceIdentityStore,
+    new DeviceConnectionStatusStore({ dir: tempDir() }),
+    new DesktopExecutionSessionStore({ dir: tempDir() }),
+    new DevicePendingCommandStore(),
+  );
+  const recipientRefStore = new RecipientRefStore({ dir: tempDir() });
+  const conversationTargetStore = new ConversationTargetStore({ dir: tempDir() });
+  const kakaoDraftStore = new KakaoAccessibilityDraftStore({ deviceIdentityStore, recipientRefStore, conversationTargetStore }, { dir: tempDir() });
+  return handleDeviceAgentRoutes('POST', `/api/v1/device-agent/devices/${deviceId}/validate`, body, headers, {}, {
+    deviceAgentTransportEndpoint,
+    deviceIdentityStore,
+    devicePendingCommandStore: new DevicePendingCommandStore(),
+    kakaoAccessibilityApprovalService: new KakaoAccessibilityApprovalService(new ActionApprovalStore(), recipientRefStore, conversationTargetStore, kakaoDraftStore),
+    sessionStore,
+  });
 }
 
 function callContactResolve(
@@ -104,6 +143,63 @@ test('R23.6M 1a. enrollment with NO session is rejected, even if x-nagex-tenant/
       { publicKey: 'PK', agentVersion: 'android-1.0.0' },
     ),
     (err: unknown) => err instanceof NagexError && err.code === 'DEVICE_ENROLL_AUTH_REQUIRED',
+  );
+});
+
+test('R23.6M 1v. cached device binding validation confirms an owned active device without exposing key material', async () => {
+  const deviceIdentityStore = makeDeviceIdentityStore();
+  const sessionStore = makeSessionStore();
+  const session = sessionStore.createAuthSession('ten_a', 'usr_a');
+  const device = deviceIdentityStore.enroll({ tenantId: 'ten_a', ownerId: 'usr_a', publicKey: 'PEM_PUBLIC_KEY_A', agentVersion: 'android-1.0.0' });
+  const result = await callDeviceBindingValidate(
+    deviceIdentityStore,
+    sessionStore,
+    device.deviceId,
+    { authorization: `Bearer ${session.sessionId}` },
+    { deviceId: device.deviceId, publicKey: 'PEM_PUBLIC_KEY_A' },
+  );
+  assert.ok(result);
+  assert.equal(result!.status, 200);
+  assert.deepEqual(result!.data, { deviceId: device.deviceId, status: 'ACTIVE', tenantId: 'ten_a', ownerId: 'usr_a' });
+});
+
+test('R23.6M 1w. cached device binding validation reports stale when the device record does not exist', async () => {
+  const deviceIdentityStore = makeDeviceIdentityStore();
+  const sessionStore = makeSessionStore();
+  const session = sessionStore.createAuthSession('ten_a', 'usr_a');
+  await assert.rejects(
+    () => callDeviceBindingValidate(
+      deviceIdentityStore,
+      sessionStore,
+      'dev_missing',
+      { authorization: `Bearer ${session.sessionId}` },
+      { deviceId: 'dev_missing', publicKey: 'PEM_PUBLIC_KEY_A' },
+    ),
+    (err: unknown) => err instanceof NagexError && err.code === 'DEVICE_BINDING_NOT_FOUND',
+  );
+});
+
+test('R23.6M 1x. cached device binding validation fails closed for cross-owner, revoked, or wrong-key bindings', async () => {
+  const deviceIdentityStore = makeDeviceIdentityStore();
+  const sessionStore = makeSessionStore();
+  const session = sessionStore.createAuthSession('ten_a', 'usr_a');
+  const other = deviceIdentityStore.enroll({ tenantId: 'ten_b', ownerId: 'usr_b', publicKey: 'PEM_PUBLIC_KEY_A', agentVersion: 'android-1.0.0' });
+  await assert.rejects(
+    () => callDeviceBindingValidate(deviceIdentityStore, sessionStore, other.deviceId, { authorization: `Bearer ${session.sessionId}` }, { deviceId: other.deviceId, publicKey: 'PEM_PUBLIC_KEY_A' }),
+    (err: unknown) => err instanceof NagexError && err.code === 'DEVICE_BINDING_NOT_AUTHORIZED',
+  );
+
+  const revoked = deviceIdentityStore.enroll({ tenantId: 'ten_a', ownerId: 'usr_a', publicKey: 'PEM_PUBLIC_KEY_A', agentVersion: 'android-1.0.0' });
+  deviceIdentityStore.revoke(revoked.deviceId, 'ten_a', 'usr_a');
+  await assert.rejects(
+    () => callDeviceBindingValidate(deviceIdentityStore, sessionStore, revoked.deviceId, { authorization: `Bearer ${session.sessionId}` }, { deviceId: revoked.deviceId, publicKey: 'PEM_PUBLIC_KEY_A' }),
+    (err: unknown) => err instanceof NagexError && err.code === 'DEVICE_BINDING_NOT_AUTHORIZED',
+  );
+
+  const wrongKey = deviceIdentityStore.enroll({ tenantId: 'ten_a', ownerId: 'usr_a', publicKey: 'PEM_PUBLIC_KEY_A', agentVersion: 'android-1.0.0' });
+  await assert.rejects(
+    () => callDeviceBindingValidate(deviceIdentityStore, sessionStore, wrongKey.deviceId, { authorization: `Bearer ${session.sessionId}` }, { deviceId: wrongKey.deviceId, publicKey: 'PEM_PUBLIC_KEY_B' }),
+    (err: unknown) => err instanceof NagexError && err.code === 'DEVICE_BINDING_NOT_AUTHORIZED',
   );
 });
 
@@ -373,4 +469,44 @@ test('R23.6M 12. no SMS/KakaoTalk execution path exists in any Phase B file (str
     const content = fs.readFileSync(rel, 'utf8').replace(/\/\/.*$/gm, '');
     assert.doesNotMatch(content, /SmsManager|sendTextMessage|kakaotalk.*send|MOBILE_MESSAGE_EXECUTE/i, `${rel} must not contain any message-execution logic`);
   }
+});
+
+test('R23.6M 13. proper-noun STT drift requires unique strong contact evidence and confirmation', () => {
+  const contactResolver = new ContactResolver(makeRecipientRefStore());
+  const strong = contactResolver.resolve({
+    tenantId: 'ten_a',
+    ownerId: 'usr_a',
+    deviceId: 'dev_1',
+    spokenName: '\uC870\uBBFC\uC601',
+    candidates: [{ contactId: 'c1', displayName: '\uC870\uBBFC\uD615' }],
+    requestId: 'req_voice_1',
+  });
+  assert.equal(strong.status, 'UNIQUE');
+  assert.equal(strong.displayName, '\uC870\uBBFC\uD615');
+  assert.equal(strong.matchKind, 'STRONG_SIMILARITY');
+  assert.equal(strong.confirmationRequired, true);
+
+  const weak = contactResolver.resolve({
+    tenantId: 'ten_a',
+    ownerId: 'usr_a',
+    deviceId: 'dev_1',
+    spokenName: '\uC870\uBBFC\uC601',
+    candidates: [{ contactId: 'c2', displayName: '\uAE40\uCCA0\uC218' }],
+    requestId: 'req_voice_2',
+  });
+  assert.equal(weak.status, 'NOT_FOUND');
+
+  const ambiguous = contactResolver.resolve({
+    tenantId: 'ten_a',
+    ownerId: 'usr_a',
+    deviceId: 'dev_1',
+    spokenName: '\uC870\uBBFC\uC601',
+    candidates: [
+      { contactId: 'c3', displayName: '\uC870\uBBFC\uD615' },
+      { contactId: 'c4', displayName: '\uC870\uBBFC\uC815' },
+    ],
+    requestId: 'req_voice_3',
+  });
+  assert.equal(ambiguous.status, 'AMBIGUOUS');
+  assert.equal(ambiguous.recipientRef, undefined);
 });

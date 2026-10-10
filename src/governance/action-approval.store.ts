@@ -191,6 +191,13 @@ export class ActionApprovalStore {
       .filter((record) => record.status === 'PENDING');
   }
 
+  public listOwnedForReview(tenantId: string, principalId: string, requestId = 'apr_list_review'): ActionApprovalRecord[] {
+    return [...this.records.values()]
+      .filter((record) => record.tenantId === tenantId && record.principalId === principalId)
+      .map((record) => this.getLive(record.approvalId, requestId))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
   // Performs a read-only preflight validation of approval state without mutating
   // or consuming the record. Validates toolId binding, expiration, one-time-use,
   // and APPROVED status. Throws appropriate NagexError for non-executable state.

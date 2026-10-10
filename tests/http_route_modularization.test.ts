@@ -1,26 +1,39 @@
-// R10.2-D — HTTP route modularization. Increment 1 covered: the router
+// R10.2-D ??HTTP route modularization. Increment 1 covered: the router
 // engine's own sequential-match/precedence semantics, health/vcs +
 // action-proposals, and the static architecture guard proving route
 // modules never bypass canonical mutation paths. Increment 2 added
 // memory/modules/catalog/settings/notifications. Increment 3 (below,
 // tests 34+) adds tasks/automations(workflows)/workspace(capture/
-// candidates/activity) — still an incremental slice, not the full
+// candidates/activity) ??still an incremental slice, not the full
 // ~147-endpoint migration; the remainder is tracked as DEBT-0004, not
 // silently left undocumented.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { SyncHttpRouter, AsyncHttpRouter } from '../src/http/router.js';
 import { handleHealthRoutes, getVcsStatus } from '../src/http/routes/health.routes.js';
 import { handleApiRequest, handleAsyncApiRequest } from '../src/server_web.js';
+import { DurableTaskRunStateStore } from '../src/tasks/durable-task-run-state.store.js';
 import { authAs } from './_s1_session_auth.js';
 
 function readSourceWithoutComments(relPath: string): string {
   return fs.readFileSync(path.resolve(relPath), 'utf8').split('\n').map((line) => line.replace(/\/\/.*/, '')).join('\n');
 }
 
-// ── Router engine: sequential match, precedence, collision behavior ─────
+function tempDir(prefix: string): string {
+  return fs.mkdtempSync(path.join(os.tmpdir(), `nagex-health-${prefix}-`));
+}
+
+function createHealthDeps(store: DurableTaskRunStateStore, executionHistoryCount: number) {
+  return {
+    activeExecutionCount: () => store.listRunning().length,
+    executionHistoryCount: () => executionHistoryCount,
+  };
+}
+
+// ?�?� Router engine: sequential match, precedence, collision behavior ?�?�?�?�?�
 
 test('1. SyncHttpRouter tries registrars strictly in registration order and returns the first real match', () => {
   const router = new SyncHttpRouter<Record<string, never>>();
@@ -29,7 +42,7 @@ test('1. SyncHttpRouter tries registrars strictly in registration order and retu
   router.register((method, pathname) => { calls.push('second'); return pathname === '/a' ? { status: 200, data: 'from-second' } : undefined; });
   const result = router.handle('GET', '/a', null, {}, {}, {});
   assert.equal(result?.data, 'from-first', 'the first registrar to match wins, exactly like the original if/else-if chain');
-  assert.deepEqual(calls, ['first'], 'a later registrar is never even consulted once an earlier one matches — no ambiguous shadowing');
+  assert.deepEqual(calls, ['first'], 'a later registrar is never even consulted once an earlier one matches ??no ambiguous shadowing');
 });
 
 test('2. SyncHttpRouter falls through to the next registrar when the first genuinely does not handle the path', () => {
@@ -57,29 +70,75 @@ test('4. AsyncHttpRouter awaits each registrar in order and stops at the first m
   assert.deepEqual(calls, ['first', 'second']);
 });
 
-// ── health.routes.ts: behavior identical to the pre-refactor inline code ──
+// ?�?� health.routes.ts: behavior identical to the pre-refactor inline code ?�?�
 
-test('5. GET /api/v1/health returns the real UP status with a real executionCount from the injected dep', () => {
-  const result = handleHealthRoutes('GET', '/api/v1/health', null, {}, {}, { executionCount: () => 7 });
+test('5. GET /api/v1/health returns UP status with active executions separated from history count', () => {
+  const result = handleHealthRoutes('GET', '/api/v1/health', null, {}, {}, { activeExecutionCount: () => 7, executionHistoryCount: () => 3 });
   assert.equal(result?.status, 200);
   const data = result!.data as Record<string, unknown>;
   assert.equal(data.status, 'UP');
   assert.equal(data.active_executions, 7);
+  assert.equal(data.execution_history_count, 3);
+  assert.equal(data.runtime_active, true);
+  assert.equal(data.version, '0.1.0');
+  assert.equal(typeof data.uptime_seconds, 'number');
 });
 
-test('6. GET /api/v1/vcs/status returns real getVcsStatus() output (not fabricated) — this repo IS a real git checkout during tests', () => {
-  const result = handleHealthRoutes('GET', '/api/v1/vcs/status', null, {}, {}, { executionCount: () => 0 });
+test('5a. completed legacy history does not count as an active execution', () => {
+  const store = new DurableTaskRunStateStore({ dir: tempDir('completed-history') });
+  const result = handleHealthRoutes('GET', '/api/v1/health', null, {}, {}, createHealthDeps(store, 1));
+  const data = result!.data as Record<string, unknown>;
+  assert.equal(data.active_executions, 0);
+  assert.equal(data.execution_history_count, 1);
+});
+
+test('5b. history length greater than zero never changes active_executions', () => {
+  const store = new DurableTaskRunStateStore({ dir: tempDir('history-nonzero') });
+  const result = handleHealthRoutes('GET', '/api/v1/health', null, {}, {}, createHealthDeps(store, 5));
+  const data = result!.data as Record<string, unknown>;
+  assert.equal(data.active_executions, 0);
+  assert.equal(data.execution_history_count, 5);
+});
+
+test('5c. durable RUNNING task runs are the active execution source', () => {
+  const store = new DurableTaskRunStateStore({ dir: tempDir('running') });
+  store.create({ runId: 'run_1', taskId: 'task_1', tenantId: 'ten_1', ownerId: 'usr_1', runRequestId: 'req_1', resolvedSteps: [] });
+  store.create({ runId: 'run_2', taskId: 'task_2', tenantId: 'ten_1', ownerId: 'usr_1', runRequestId: 'req_2', resolvedSteps: [] });
+  const result = handleHealthRoutes('GET', '/api/v1/health', null, {}, {}, createHealthDeps(store, 0));
+  assert.equal((result!.data as Record<string, unknown>).active_executions, 2);
+});
+
+test('5d. WAITING_APPROVAL durable runs are paused, not active', () => {
+  const store = new DurableTaskRunStateStore({ dir: tempDir('waiting') });
+  store.create({ runId: 'run_waiting', taskId: 'task_waiting', tenantId: 'ten_1', ownerId: 'usr_1', runRequestId: 'req_waiting', resolvedSteps: [] });
+  store.markWaitingApproval('run_waiting', 'apr_1');
+  const result = handleHealthRoutes('GET', '/api/v1/health', null, {}, {}, createHealthDeps(store, 0));
+  assert.equal((result!.data as Record<string, unknown>).active_executions, 0);
+});
+
+test('5e. terminal durable run states never count as active', () => {
+  const store = new DurableTaskRunStateStore({ dir: tempDir('terminal') });
+  store.create({ runId: 'run_succeeded', taskId: 'task_succeeded', tenantId: 'ten_1', ownerId: 'usr_1', runRequestId: 'req_succeeded', resolvedSteps: [] });
+  store.markTerminal('run_succeeded', 'SUCCEEDED');
+  store.create({ runId: 'run_failed', taskId: 'task_failed', tenantId: 'ten_1', ownerId: 'usr_1', runRequestId: 'req_failed', resolvedSteps: [] });
+  store.markTerminal('run_failed', 'FAILED');
+  const result = handleHealthRoutes('GET', '/api/v1/health', null, {}, {}, createHealthDeps(store, 0));
+  assert.equal((result!.data as Record<string, unknown>).active_executions, 0);
+});
+
+test('6. GET /api/v1/vcs/status returns real getVcsStatus() output (not fabricated) ??this repo IS a real git checkout during tests', () => {
+  const result = handleHealthRoutes('GET', '/api/v1/vcs/status', null, {}, {}, { activeExecutionCount: () => 0, executionHistoryCount: () => 0 });
   assert.equal(result?.status, 200);
   const direct = getVcsStatus();
   assert.equal((result!.data as { available: boolean }).available, direct.available);
 });
 
-test('7. an unrelated pathname returns undefined from the health registrar — never a false 200', () => {
-  const result = handleHealthRoutes('GET', '/api/v1/not-health', null, {}, {}, { executionCount: () => 0 });
+test('7. an unrelated pathname returns undefined from the health registrar ??never a false 200', () => {
+  const result = handleHealthRoutes('GET', '/api/v1/not-health', null, {}, {}, { activeExecutionCount: () => 0, executionHistoryCount: () => 0 });
   assert.equal(result, undefined);
 });
 
-// ── Real end-to-end proof through the actual dispatch entry points ──────
+// ?�?� Real end-to-end proof through the actual dispatch entry points ?�?�?�?�?�?�
 
 test('8. GET /api/v1/health through the real handleApiRequest entry point still works after modularization', () => {
   const result = handleApiRequest('GET', '/api/v1/health', null, {});
@@ -112,9 +171,9 @@ test('12. unknown route still falls through to 404 for a signed-in caller (not a
   assert.equal((await handleAsyncApiRequest('GET', '/api/v1/this-route-does-not-exist', null, {})).status, 401);
 });
 
-// ── Static architecture guard (§20/§10) ──────────────────────────────────
+// ?�?� Static architecture guard (§20/§10) ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
 
-test('13. action-proposals.routes.ts never imports a Calendar/Gmail client internal file directly — only the canonical executor/services', () => {
+test('13. action-proposals.routes.ts never imports a Calendar/Gmail client internal file directly ??only the canonical executor/services', () => {
   const code = readSourceWithoutComments('src/http/routes/action-proposals.routes.ts');
   assert.doesNotMatch(code, /modules\/calendar\/(google-calendar\.service|calendar\.client)\.js/);
   assert.doesNotMatch(code, /modules\/gmail\/(gmail\.service|gmail\.client)\.js/);
@@ -126,21 +185,21 @@ test('14. action-proposals.routes.ts never calls fetch() or a raw provider adapt
   assert.doesNotMatch(code, /\bfetch\s*\(/);
 });
 
-test('15. health.routes.ts has zero dependency on any Google/Gmail/model-gateway module — a pure, provider-agnostic utility route', () => {
+test('15. health.routes.ts has zero dependency on any Google/Gmail/model-gateway module ??a pure, provider-agnostic utility route', () => {
   const code = readSourceWithoutComments('src/http/routes/health.routes.ts');
   assert.doesNotMatch(code, /modules\/(calendar|gmail)\//);
   assert.doesNotMatch(code, /model-gateway\//);
 });
 
-test('16. no production file outside src/http/ deep-imports a route registrar\'s internal helper (getHeaderValue) — route modules are self-contained', () => {
+test('16. no production file outside src/http/ deep-imports a route registrar\'s internal helper (getHeaderValue) ??route modules are self-contained', () => {
   // action-proposals.routes.ts defines its own local getHeaderValue rather
-  // than importing server_web.ts's — proving it has no circular/implicit
+  // than importing server_web.ts's ??proving it has no circular/implicit
   // dependency back on the file it was extracted from.
   const code = readSourceWithoutComments('src/http/routes/action-proposals.routes.ts');
   assert.doesNotMatch(code, /from ['"]\.\.\/\.\.\/server_web\.js['"]/, 'a route module must never import back from server_web.ts (the composition root depends on route modules, never the reverse)');
 });
 
-// ── Increment 2: memory/modules/catalog/settings/notifications ──────────
+// ?�?� Increment 2: memory/modules/catalog/settings/notifications ?�?�?�?�?�?�?�?�?�?�
 
 test('17. GET /api/v1/memory through the real handleApiRequest entry point still works after modularization', () => {
   const result = handleApiRequest('GET', '/api/v1/memory', null, authAs('ten_r102d_test', 'usr_r102d_test'));
@@ -179,7 +238,7 @@ test('21. PUT /api/v1/modules/:id/state with a missing body.enabled still return
 
 test('22. PUT /api/v1/modules/:id/state for an unknown principal fails closed (PDP deny path preserved, not silently allowed)', () => {
   const result = handleApiRequest('PUT', '/api/v1/modules/some_module/state', { enabled: true }, authAs('ten_r102d_test', 'usr_unknown_principal_r102d'));
-  assert.notEqual(result.status, 200, 'an unrecognized principal must never be able to toggle module state — fail closed, per INV-002');
+  assert.notEqual(result.status, 200, 'an unrecognized principal must never be able to toggle module state ??fail closed, per INV-002');
 });
 
 test('23. GET /api/v1/plans through the real handleApiRequest entry point returns persisted deterministic plans', async () => {
@@ -313,7 +372,7 @@ test('30. POST /api/v1/notifications/dispatch then GET /api/v1/notifications pro
   assert.ok(ids.includes(id));
 });
 
-// ── Static architecture guard, Increment 2 ───────────────────────────────
+// ?�?� Static architecture guard, Increment 2 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
 
 test('31. none of the five Increment 2 route modules import a Calendar/Gmail provider-client file directly', () => {
   for (const file of ['memory.routes.ts', 'modules.routes.ts', 'catalog.routes.ts', 'settings.routes.ts', 'notifications.routes.ts']) {
@@ -337,8 +396,8 @@ test('33. none of the five Increment 2 route modules import back from server_web
   }
 });
 
-// ── Increment 3: tasks / automations (workflows) / workspace (capture,
-// candidates, activity) ──────────────────────────────────────────────────
+// ?�?� Increment 3: tasks / automations (workflows) / workspace (capture,
+// candidates, activity) ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
 
 test('34. GET/POST /api/v1/tasks through the real handleApiRequest entry point still work after modularization', () => {
   const headers = authAs('ten_r102d_i3_test', 'usr_r102d_i3_test');
@@ -400,7 +459,7 @@ test('38. POST /api/v1/tasks/:id/run for a task owned by a different tenant retu
   assert.equal(crossTenantRun.status, 404);
 });
 
-test('39. POST /api/v1/tasks/:id/run-with-fixed-plan does not exist (falls through to 404) when the test-injection env flag is unset — the two independent gates are preserved', async () => {
+test('39. POST /api/v1/tasks/:id/run-with-fixed-plan does not exist (falls through to 404) when the test-injection env flag is unset ??the two independent gates are preserved', async () => {
   const headers = authAs('ten_r102d_i3_test', 'usr_r102d_i3_test');
   const created = handleApiRequest('POST', '/api/v1/tasks', { name: 'Fixed plan gate test', objective: 'x', type: 'ONE_TIME', trigger: { type: 'MANUAL' } }, headers);
   const taskId = (created.data as { taskId: string }).taskId;
@@ -444,7 +503,7 @@ test('42. POST /api/v1/workflows/:id/run through the real handleAsyncApiRequest 
   const workflowId = (created.data as { workflowId: string }).workflowId;
 
   const run = await handleAsyncApiRequest('POST', `/api/v1/workflows/${workflowId}/run`, null, headers);
-  assert.ok(run.status === 200 || run.status >= 400, 'a real, non-fabricated outcome either way — never a silently-invented success');
+  assert.ok(run.status === 200 || run.status >= 400, 'a real, non-fabricated outcome either way ??never a silently-invented success');
 });
 
 test('43. GET /api/v1/candidates and GET /api/v1/activity through the real handleAsyncApiRequest entry point still work after modularization', async () => {
@@ -480,7 +539,7 @@ test('45. GET /api/v1/workspace/items/:id for an unknown id returns the exact or
   assert.equal((result.data as { error: string }).error, 'ITEM_NOT_FOUND');
 });
 
-// ── Static architecture guard, Increment 3 ───────────────────────────────
+// ?�?� Static architecture guard, Increment 3 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
 
 test('46. none of the three Increment 3 route modules import a Calendar/Gmail provider-client file directly', () => {
   for (const file of ['tasks.routes.ts', 'automations.routes.ts', 'workspace.routes.ts']) {
@@ -504,18 +563,18 @@ test('48. none of the three Increment 3 route modules import back from server_we
   }
 });
 
-// ── Route Ownership Guard (§15): migrated domains must never regain
-// endpoint implementation inline in server_web.ts ─────────────────────────
+// ?�?� Route Ownership Guard (§15): migrated domains must never regain
+// endpoint implementation inline in server_web.ts ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
 
 test('49. server_web.ts no longer inline-implements any Task/Automation/Workspace/Candidate/Activity route (route ownership guard)', () => {
   const code = readSourceWithoutComments('src/server_web.ts');
   // These are the exact literal route-match conditions the original inline
-  // code used — their presence would mean a future edit re-added an
+  // code used ??their presence would mean a future edit re-added an
   // endpoint to server_web.ts instead of the now-canonical route module.
   // (taskStore/workflowDefinitionService themselves are still legitimately
-  // referenced elsewhere in server_web.ts — by the unrelated, out-of-scope
+  // referenced elsewhere in server_web.ts ??by the unrelated, out-of-scope
   // Daily Brief/Proactive Assistant automation config and my-space
-  // aggregation reads — so this checks route declarations, not service
+  // aggregation reads ??so this checks route declarations, not service
   // usage.)
   for (const pattern of [
     /pathname === '\/api\/v1\/tasks' &&/,
@@ -527,19 +586,19 @@ test('49. server_web.ts no longer inline-implements any Task/Automation/Workspac
     /pathname === '\/api\/v1\/candidates' &&/,
     /pathname === '\/api\/v1\/activity' &&/,
   ]) {
-    assert.doesNotMatch(code, pattern, `server_web.ts must not re-implement ${pattern} inline — it belongs in the Increment 3 route modules now`);
+    assert.doesNotMatch(code, pattern, `server_web.ts must not re-implement ${pattern} inline ??it belongs in the Increment 3 route modules now`);
   }
 });
 
-// ── Increment 4: Gmail / Calendar / Approvals / Browser / Google OAuth /
-// Telegram / Slack / Desktop / Governance ────────────────────────────────
+// ?�?� Increment 4: Gmail / Calendar / Approvals / Browser / Google OAuth /
+// Telegram / Slack / Desktop / Governance ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
 // Deep behavioral coverage (approval ownership/expiry/replay, Gmail/
 // Calendar approval-gated execution, Browser click approval flow, desktop
 // quickwake, Telegram/Slack integration) already exists in dedicated test
 // files (approval_execution_persistence, approval_ttl_security,
 // google_calendar_live/e2e, gmail_live, browser_agent(_mvp), calendar_
 // approval_ui, desktop_quickwake/native_shell, telegram_integration,
-// slack_integration — all of which call the real handleApiRequest/
+// slack_integration ??all of which call the real handleApiRequest/
 // handleAsyncApiRequest entry points and passed unchanged after this
 // migration). These tests focus on what's new in Increment 4: the
 // registrars themselves, their wiring into the real entry points, and the
@@ -628,12 +687,12 @@ test('59. POST /api/v1/executions goes through the real PDP authorization check 
   const headers = authAs('ten_r102d_i4_test', 'usr_r102d_i4_test');
   const result = handleApiRequest('POST', '/api/v1/executions', { objective: 'Increment 4 route test', agent_id: 'agt_personal_ai' }, headers);
   // A real, non-fabricated outcome: either the PDP allows agt_personal_ai
-  // for this built-in principal (201) or denies it (403/other) — either
+  // for this built-in principal (201) or denies it (403/other) ??either
   // way it must be the real decision, never a bypassed/fabricated one.
   assert.ok([200, 201, 402, 403].includes(result.status), `unexpected status ${result.status}`);
 });
 
-// ── Static architecture guard, Increment 4 ───────────────────────────────
+// ?�?� Static architecture guard, Increment 4 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
 
 const INCREMENT_4_ROUTE_FILES = ['gmail.routes.ts', 'calendar.routes.ts', 'approvals.routes.ts', 'browser.routes.ts', 'google-oauth.routes.ts', 'telegram.routes.ts', 'slack.routes.ts', 'desktop.routes.ts', 'governance.routes.ts'];
 
@@ -645,14 +704,14 @@ test('60. none of the nine Increment 4 route modules deep-import a Calendar/Gmai
   }
 });
 
-test('61. only calendar.routes.ts calls fetch() directly, and only for its documented READ_ONLY free-slots OAuth-token-refresh exception — every other Increment 4 route module has zero fetch() calls', () => {
+test('61. only calendar.routes.ts calls fetch() directly, and only for its documented READ_ONLY free-slots OAuth-token-refresh exception ??every other Increment 4 route module has zero fetch() calls', () => {
   for (const file of INCREMENT_4_ROUTE_FILES) {
     const code = readSourceWithoutComments(`src/http/routes/${file}`);
     if (file === 'calendar.routes.ts' || file === 'google-oauth.routes.ts') {
       // calendar.routes.ts: free-slots refreshes its own OAuth token via
       // fetch (read-only, never a mutation). google-oauth.routes.ts: the
       // OAuth token-exchange/refresh/revoke calls are the OAuth domain's
-      // entire reason for existing — neither ever constructs a Gmail/
+      // entire reason for existing ??neither ever constructs a Gmail/
       // Calendar mutation payload.
       continue;
     }
@@ -660,16 +719,16 @@ test('61. only calendar.routes.ts calls fetch() directly, and only for its docum
   }
 });
 
-test('62. every Gmail/Calendar mutation in gmail.routes.ts/calendar.routes.ts goes through GmailService/GoogleCalendarService.executeXxx() — never a raw payload write', () => {
+test('62. every Gmail/Calendar mutation in gmail.routes.ts/calendar.routes.ts goes through GmailService/GoogleCalendarService.executeXxx() ??never a raw payload write', () => {
   const gmailCode = readSourceWithoutComments('src/http/routes/gmail.routes.ts');
   assert.match(gmailCode, /gmailApiService\.execute(SendEmail|Reply|CreateDraft)\(/, 'gmail.routes.ts must route mutations through GmailService.executeXxx()');
   const calendarCode = readSourceWithoutComments('src/http/routes/calendar.routes.ts');
   assert.match(calendarCode, /calendarService\.execute(CreateEvent|UpdateEvent|CancelEvent|RespondToEvent)\(/, 'calendar.routes.ts must route mutations through GoogleCalendarService.executeXxx()');
 });
 
-test('63. approvals.routes.ts never itself calls a Gmail/Calendar mutation method — approve/reject only ever touch the approval record, never a provider write', () => {
+test('63. approvals.routes.ts never itself calls a Gmail/Calendar mutation method ??approve/reject only ever touch the approval record, never a provider write', () => {
   const code = readSourceWithoutComments('src/http/routes/approvals.routes.ts');
-  assert.doesNotMatch(code, /\.execute(SendEmail|Reply|CreateDraft|CreateEvent|UpdateEvent|CancelEvent|RespondToEvent)\(/, 'approvals.routes.ts must never itself execute a provider mutation — that is the separate /api/v1/tools/* route\'s job, after approval');
+  assert.doesNotMatch(code, /\.execute(SendEmail|Reply|CreateDraft|CreateEvent|UpdateEvent|CancelEvent|RespondToEvent)\(/, 'approvals.routes.ts must never itself execute a provider mutation ??that is the separate /api/v1/tools/* route\'s job, after approval');
   assert.match(code, /googleCalendarService\.(approve|reject|getApproval|requestCreateEventApproval|requestUpdateEventApproval|requestCancelEventApproval|requestRespondToEventApproval)\(/, 'approvals.routes.ts must only ever touch the approval record lifecycle');
 });
 
@@ -696,20 +755,20 @@ test('65. server_web.ts no longer inline-implements any Gmail/Calendar/Approval/
     /pathname === '\/api\/v1\/executions' &&/,
     /pathname === '\/api\/v1\/billing\/usage'/,
   ]) {
-    assert.doesNotMatch(code, pattern, `server_web.ts must not re-implement ${pattern} inline — it belongs in the Increment 4 route modules now`);
+    assert.doesNotMatch(code, pattern, `server_web.ts must not re-implement ${pattern} inline ??it belongs in the Increment 4 route modules now`);
   }
 });
 
-// ── Increment 5: Main Session / conversational core, Daily Brief /
+// ?�?� Increment 5: Main Session / conversational core, Daily Brief /
 // Proactive Assistant, Providers, Safety, Capabilities, My Space, Device
-// Agent — the final slice of R10.2-D ─────────────────────────────────────
+// Agent ??the final slice of R10.2-D ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
 // Deep behavioral coverage (conversation/session persistence, ai/chat and
 // ambient/intent AI-reasoning flows, Daily Brief generation/change-
 // detection/proposal-dedup, Proactive Assistant scheduling, Capability
 // Broker execution, device-agent transport/signature verification)
 // already exists in dedicated test files (conversation_workspace,
 // daily_brief, proactive_assistant(_change_detection), capability_broker,
-// device_agent_foundation/transport/electron_runtime — all of which call
+// device_agent_foundation/transport/electron_runtime ??all of which call
 // the real handleApiRequest/handleAsyncApiRequest entry points and passed
 // unchanged after this migration). These tests focus on what's new: the
 // registrars themselves, their wiring into the real entry points, the
@@ -807,7 +866,7 @@ test('75. POST /api/v1/device-agent/message with a malformed payload returns the
   assert.equal((result.data as { error: { code: string } }).error.code, 'DEVICE_MESSAGE_MALFORMED');
 });
 
-// ── Static architecture guard, Increment 5 ───────────────────────────────
+// ?�?� Static architecture guard, Increment 5 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
 
 const INCREMENT_5_ROUTE_FILES = ['providers.routes.ts', 'safety.routes.ts', 'conversation.routes.ts', 'daily-brief.routes.ts', 'capabilities.routes.ts', 'my-space.routes.ts', 'device-agent.routes.ts'];
 
@@ -828,9 +887,9 @@ test('77. none of the seven Increment 5 route modules call fetch() or bypass Cap
   assert.match(capabilitiesCode, /capabilityBroker\.execute\(/, 'capabilities.routes.ts must route execution only through CapabilityBroker.execute()');
 });
 
-test('78. daily-brief.routes.ts never directly mutates scheduler internals — it only calls TaskStore CRUD methods (create/update/pause/resume), never constructs a TaskScheduler/TaskRunner itself', () => {
+test('78. daily-brief.routes.ts never directly mutates scheduler internals ??it only calls TaskStore CRUD methods (create/update/pause/resume), never constructs a TaskScheduler/TaskRunner itself', () => {
   const code = readSourceWithoutComments('src/http/routes/daily-brief.routes.ts');
-  assert.doesNotMatch(code, /new TaskScheduler\(/, 'daily-brief.routes.ts must not construct a TaskScheduler — that stays in the Composition Root / tasks.routes.ts SCHEDULER_MUTATION exception');
+  assert.doesNotMatch(code, /new TaskScheduler\(/, 'daily-brief.routes.ts must not construct a TaskScheduler ??that stays in the Composition Root / tasks.routes.ts SCHEDULER_MUTATION exception');
   assert.doesNotMatch(code, /new (CompositeTaskRunner|ExecutingTaskRunner|PlanPreviewTaskRunner|ConditionalWatchTaskRunner|BackgroundTaskRunner)\(/, 'daily-brief.routes.ts must not construct a task runner directly');
 });
 
@@ -841,10 +900,10 @@ test('79. none of the seven Increment 5 route modules import back from server_we
   }
 });
 
-test('80. server_web.ts no longer inline-implements ANY domain endpoint — the only remaining "method ===" check is the CORS OPTIONS preflight (final route ownership / composition-root guard)', () => {
+test('80. server_web.ts no longer inline-implements ANY domain endpoint ??the only remaining "method ===" check is the CORS OPTIONS preflight (final route ownership / composition-root guard)', () => {
   const code = readSourceWithoutComments('src/server_web.ts');
   const methodChecks = code.match(/method === '[A-Z]+'/g) || [];
   assert.deepEqual(methodChecks, ["method === 'OPTIONS'"], `server_web.ts should contain exactly one method check (CORS preflight) and zero domain route checks; found: ${JSON.stringify(methodChecks)}`);
   // And no leftover domain-specific pathname literal checks either.
-  assert.doesNotMatch(code, /pathname === '\/api\/v1\//, 'server_web.ts must not contain any inline /api/v1/* pathname check — every domain now lives in its own route module');
+  assert.doesNotMatch(code, /pathname === '\/api\/v1\//, 'server_web.ts must not contain any inline /api/v1/* pathname check ??every domain now lives in its own route module');
 });
