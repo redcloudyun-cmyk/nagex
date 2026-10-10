@@ -11,6 +11,7 @@ import {
   type ProviderStatus,
   type RoutingMode,
 } from './model-provider.js';
+import { buildJevAdvisoryRecord, JevShadowEvaluator, validateJevShadowOutput } from './jev-shadow-evaluator.js';
 import { ModelRoutingPolicy } from './model-routing-policy.js';
 import type { ModelRoutingContext, ModelRoutingDecision } from './model-routing.types.js';
 
@@ -35,6 +36,25 @@ export interface GenerateInput {
   maxOutputTokens?: number;
 }
 
+export interface JevAdvisoryConfig {
+  enabled: boolean;
+  sampleRate: number;
+}
+
+export function resolveJevAdvisoryConfig(env: NodeJS.ProcessEnv = process.env): JevAdvisoryConfig {
+  const enabled = env.NAGEX_JEV_ADVISORY_ENABLED === 'true';
+  const rawSampleRate = env.NAGEX_JEV_ADVISORY_SAMPLE_RATE;
+  const sampleRate = rawSampleRate === undefined || rawSampleRate.trim() === '' ? 0 : Number(rawSampleRate);
+  if (!Number.isFinite(sampleRate) || sampleRate < 0 || sampleRate > 1) {
+    throw new Error('NAGEX_JEV_ADVISORY_SAMPLE_RATE must be a number from 0 to 1.');
+  }
+  return { enabled, sampleRate };
+}
+
+type JevAdvisoryEvaluator = {
+  evaluate(input: Parameters<JevShadowEvaluator['evaluate']>[0]): ReturnType<JevShadowEvaluator['evaluate']> | Promise<ReturnType<JevShadowEvaluator['evaluate']>>;
+};
+
 export class UnifiedModelRouter {
   private readonly providers: Map<string, ModelProvider>;
   private readonly configuredPriority: string[];
@@ -43,11 +63,62 @@ export class UnifiedModelRouter {
   constructor(
     providers: ModelProvider[],
     private readonly logger: RouterLogger = safeLogger,
-    routingPolicy?: ModelRoutingPolicy
+    routingPolicy?: ModelRoutingPolicy,
+    private readonly jevShadowEvaluator: JevAdvisoryEvaluator | null = new JevShadowEvaluator(),
+    private readonly jevAdvisoryConfig: JevAdvisoryConfig = resolveJevAdvisoryConfig()
   ) {
     this.providers = new Map(providers.map((provider) => [provider.name, provider]));
     this.configuredPriority = providers.map((p) => p.name);
     this.routingPolicy = routingPolicy ?? new ModelRoutingPolicy();
+  }
+
+  private shouldRunJevAdvisory(): boolean {
+    return Boolean(this.jevShadowEvaluator) && this.jevAdvisoryConfig.enabled && this.jevAdvisoryConfig.sampleRate > 0 && Math.random() < this.jevAdvisoryConfig.sampleRate;
+  }
+
+  private observeJevAdvisory(input: {
+    requestId: string;
+    context: ModelRoutingContext;
+    decision: ModelRoutingDecision;
+  }): void {
+    if (!this.jevShadowEvaluator || !this.shouldRunJevAdvisory()) return;
+    void Promise.resolve()
+      .then(() => this.jevShadowEvaluator!.evaluate({
+        taskKind: input.context.taskKind,
+        requiresJson: input.context.requiresJson,
+        requiresEvidenceGrounding: input.context.requiresEvidenceGrounding,
+      }))
+      .then((jev) => {
+        const validJev = validateJevShadowOutput(jev);
+        const record = buildJevAdvisoryRecord({
+          requestId: input.requestId,
+          taskKind: input.context.taskKind,
+          currentDecision: input.decision,
+          jev: validJev,
+        });
+        this.logger.info('jev_advisory_observed', {
+          requestId: record.requestId,
+          taskKind: record.taskKind,
+          localProvider: record.localSelectedProvider,
+          jevComplexity: record.jevComplexity,
+          jevReasoningLevel: record.jevReasoningLevel,
+          highRiskProbability: record.jevHighRiskProbability,
+          routingAgreement: record.routingAgreement,
+          complexityDirection: record.complexityDirection,
+          latencyMs: record.latencyMs,
+          resolvedModel: record.resolvedJevModel,
+          parserVersion: record.parserVersion,
+          scorerVersion: record.scorerVersion,
+        });
+      })
+      .catch((error) => {
+        const code = error instanceof Error && error.message.includes('Invalid JEV shadow') ? 'JEV_ADVISORY_MALFORMED' : 'JEV_ADVISORY_FAILED';
+        this.logger.warn('jev_advisory_failed', {
+          requestId: input.requestId,
+          taskKind: input.context.taskKind,
+          code,
+        });
+      });
   }
 
   public statuses(): ProviderStatus[] {
@@ -126,6 +197,8 @@ export class UnifiedModelRouter {
       [...this.providers.values()],
       this.configuredPriority
     );
+
+    this.observeJevAdvisory({ requestId, context, decision });
 
     const fallbackPolicy = input.fallbackPolicy ?? 'ALLOW';
     const effectiveFallbacks = fallbackPolicy === 'DISALLOW' ? [] : decision.fallbackProviders;

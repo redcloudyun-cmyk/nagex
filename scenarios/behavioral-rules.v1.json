@@ -1,0 +1,861 @@
+{
+  "version": "1.0.0",
+  "rules": [
+    {
+      "ruleId": "BR-001",
+      "version": "1.0.0",
+      "name": "User Goal Completion",
+      "scope": [
+        "runtime",
+        "verification"
+      ],
+      "priority": "P2",
+      "riskLevels": [
+        "L0_READ_ONLY",
+        "L1_CREATE",
+        "L2_REVERSIBLE_ACTION",
+        "L3_EXTERNAL_COMMUNICATION",
+        "L4_RESERVATION_TRANSACTION",
+        "L5_MONETARY_HIGH_CONSEQUENCE"
+      ],
+      "triggerCondition": "User Goal Completion applies when runtime evidence matches this reusable situation.",
+      "requiredBehavior": "Apply User Goal Completion before allowing the candidate action to proceed.",
+      "prohibitedBehavior": "Do not use model prose, intermediate success, convenience, or stale state to bypass this rule.",
+      "evidenceRequirement": "Structured evidence must be recorded and redacted; high-risk actions require domain-appropriate verification.",
+      "approvalRequirement": "Follow risk policy; approval may be omitted only for non-consequential actions.",
+      "recoveryPolicy": "Recover safely, preserve execution thread, and escalate when deterministic evidence is insufficient.",
+      "sourceScenarios": [
+        "MSG-008",
+        "RPT-010",
+        "RSV-008"
+      ],
+      "status": "ACTIVE",
+      "lastModified": "2026-10-09",
+      "automatedTests": [
+        "real_life_scenario_library_behavioral_rules"
+      ]
+    },
+    {
+      "ruleId": "BR-002",
+      "version": "1.0.0",
+      "name": "First Failure Is Not Final Failure",
+      "scope": [
+        "recovery",
+        "runtime"
+      ],
+      "priority": "P4",
+      "riskLevels": [
+        "L0_READ_ONLY",
+        "L1_CREATE",
+        "L2_REVERSIBLE_ACTION",
+        "L3_EXTERNAL_COMMUNICATION",
+        "L4_RESERVATION_TRANSACTION",
+        "L5_MONETARY_HIGH_CONSEQUENCE"
+      ],
+      "triggerCondition": "First Failure Is Not Final Failure applies when runtime evidence matches this reusable situation.",
+      "requiredBehavior": "Apply First Failure Is Not Final Failure before allowing the candidate action to proceed.",
+      "prohibitedBehavior": "Do not use model prose, intermediate success, convenience, or stale state to bypass this rule.",
+      "evidenceRequirement": "Structured evidence must be recorded and redacted; high-risk actions require domain-appropriate verification.",
+      "approvalRequirement": "Follow risk policy; approval may be omitted only for non-consequential actions.",
+      "recoveryPolicy": "Recover safely, preserve execution thread, and escalate when deterministic evidence is insufficient.",
+      "sourceScenarios": [
+        "MSG-005",
+        "BG-004",
+        "TRV-007"
+      ],
+      "status": "ACTIVE",
+      "lastModified": "2026-10-09",
+      "automatedTests": [
+        "real_life_scenario_library_behavioral_rules"
+      ]
+    },
+    {
+      "ruleId": "BR-003",
+      "version": "1.0.0",
+      "name": "Verified Outcome Required",
+      "scope": [
+        "verification",
+        "runtime"
+      ],
+      "priority": "P3",
+      "riskLevels": [
+        "L0_READ_ONLY",
+        "L1_CREATE",
+        "L2_REVERSIBLE_ACTION",
+        "L3_EXTERNAL_COMMUNICATION",
+        "L4_RESERVATION_TRANSACTION",
+        "L5_MONETARY_HIGH_CONSEQUENCE"
+      ],
+      "triggerCondition": "Verified Outcome Required applies when runtime evidence matches this reusable situation.",
+      "requiredBehavior": "Apply Verified Outcome Required before allowing the candidate action to proceed.",
+      "prohibitedBehavior": "Do not use model prose, intermediate success, convenience, or stale state to bypass this rule.",
+      "evidenceRequirement": "Structured evidence must be recorded and redacted; high-risk actions require domain-appropriate verification.",
+      "approvalRequirement": "Follow risk policy; approval may be omitted only for non-consequential actions.",
+      "recoveryPolicy": "Reconcile outcome before retry.",
+      "sourceScenarios": [
+        "MSG-008",
+        "RSV-008",
+        "PAY-002",
+        "RPT-010"
+      ],
+      "status": "ACTIVE",
+      "lastModified": "2026-10-09",
+      "automatedTests": [
+        "real_life_scenario_library_behavioral_rules"
+      ]
+    },
+    {
+      "ruleId": "BR-004",
+      "version": "1.0.0",
+      "name": "No Blind Duplicate Consequential Action",
+      "scope": [
+        "safety",
+        "runtime"
+      ],
+      "priority": "P1",
+      "riskLevels": [
+        "L0_READ_ONLY",
+        "L1_CREATE",
+        "L2_REVERSIBLE_ACTION",
+        "L3_EXTERNAL_COMMUNICATION",
+        "L4_RESERVATION_TRANSACTION",
+        "L5_MONETARY_HIGH_CONSEQUENCE"
+      ],
+      "triggerCondition": "No Blind Duplicate Consequential Action applies when runtime evidence matches this reusable situation.",
+      "requiredBehavior": "Apply No Blind Duplicate Consequential Action before allowing the candidate action to proceed.",
+      "prohibitedBehavior": "Do not use model prose, intermediate success, convenience, or stale state to bypass this rule.",
+      "evidenceRequirement": "Structured evidence must be recorded and redacted; high-risk actions require domain-appropriate verification.",
+      "approvalRequirement": "Approval/reconfirmation required when the rule detects consequential risk.",
+      "recoveryPolicy": "Reconcile outcome before retry.",
+      "sourceScenarios": [
+        "MSG-008",
+        "PAY-002",
+        "PAY-003",
+        "RSV-008"
+      ],
+      "status": "ACTIVE",
+      "lastModified": "2026-10-09",
+      "automatedTests": [
+        "real_life_scenario_library_behavioral_rules"
+      ]
+    },
+    {
+      "ruleId": "BR-005",
+      "version": "1.0.0",
+      "name": "Target Integrity",
+      "scope": [
+        "identity",
+        "targeting"
+      ],
+      "priority": "P0",
+      "riskLevels": [
+        "L0_READ_ONLY",
+        "L1_CREATE",
+        "L2_REVERSIBLE_ACTION",
+        "L3_EXTERNAL_COMMUNICATION",
+        "L4_RESERVATION_TRANSACTION",
+        "L5_MONETARY_HIGH_CONSEQUENCE"
+      ],
+      "triggerCondition": "Target Integrity applies when runtime evidence matches this reusable situation.",
+      "requiredBehavior": "Apply Target Integrity before allowing the candidate action to proceed.",
+      "prohibitedBehavior": "Do not use model prose, intermediate success, convenience, or stale state to bypass this rule.",
+      "evidenceRequirement": "Structured evidence must be recorded and redacted; high-risk actions require domain-appropriate verification.",
+      "approvalRequirement": "Approval/reconfirmation required when the rule detects consequential risk.",
+      "recoveryPolicy": "Recover safely, preserve execution thread, and escalate when deterministic evidence is insufficient.",
+      "sourceScenarios": [
+        "MSG-004",
+        "MSG-006",
+        "EMAIL-008",
+        "CAL-006"
+      ],
+      "status": "ACTIVE",
+      "lastModified": "2026-10-09",
+      "automatedTests": [
+        "real_life_scenario_library_behavioral_rules"
+      ]
+    },
+    {
+      "ruleId": "BR-006",
+      "version": "1.0.0",
+      "name": "Payload Integrity",
+      "scope": [
+        "approval",
+        "payload"
+      ],
+      "priority": "P1",
+      "riskLevels": [
+        "L0_READ_ONLY",
+        "L1_CREATE",
+        "L2_REVERSIBLE_ACTION",
+        "L3_EXTERNAL_COMMUNICATION",
+        "L4_RESERVATION_TRANSACTION",
+        "L5_MONETARY_HIGH_CONSEQUENCE"
+      ],
+      "triggerCondition": "Payload Integrity applies when runtime evidence matches this reusable situation.",
+      "requiredBehavior": "Apply Payload Integrity before allowing the candidate action to proceed.",
+      "prohibitedBehavior": "Do not use model prose, intermediate success, convenience, or stale state to bypass this rule.",
+      "evidenceRequirement": "Structured evidence must be recorded and redacted; high-risk actions require domain-appropriate verification.",
+      "approvalRequirement": "Approval/reconfirmation required when the rule detects consequential risk.",
+      "recoveryPolicy": "Recover safely, preserve execution thread, and escalate when deterministic evidence is insufficient.",
+      "sourceScenarios": [
+        "MSG-007",
+        "EMAIL-008",
+        "PAY-001",
+        "BUY-003"
+      ],
+      "status": "ACTIVE",
+      "lastModified": "2026-10-09",
+      "automatedTests": [
+        "real_life_scenario_library_behavioral_rules"
+      ]
+    },
+    {
+      "ruleId": "BR-007",
+      "version": "1.0.0",
+      "name": "Material Condition Change",
+      "scope": [
+        "approval",
+        "conditions"
+      ],
+      "priority": "P1",
+      "riskLevels": [
+        "L0_READ_ONLY",
+        "L1_CREATE",
+        "L2_REVERSIBLE_ACTION",
+        "L3_EXTERNAL_COMMUNICATION",
+        "L4_RESERVATION_TRANSACTION",
+        "L5_MONETARY_HIGH_CONSEQUENCE"
+      ],
+      "triggerCondition": "Material Condition Change applies when runtime evidence matches this reusable situation.",
+      "requiredBehavior": "Apply Material Condition Change before allowing the candidate action to proceed.",
+      "prohibitedBehavior": "Do not use model prose, intermediate success, convenience, or stale state to bypass this rule.",
+      "evidenceRequirement": "Structured evidence must be recorded and redacted; high-risk actions require domain-appropriate verification.",
+      "approvalRequirement": "Approval/reconfirmation required when the rule detects consequential risk.",
+      "recoveryPolicy": "Recover safely, preserve execution thread, and escalate when deterministic evidence is insufficient.",
+      "sourceScenarios": [
+        "RSV-004",
+        "RSV-005",
+        "TRV-003",
+        "BUY-003"
+      ],
+      "status": "ACTIVE",
+      "lastModified": "2026-10-09",
+      "automatedTests": [
+        "real_life_scenario_library_behavioral_rules"
+      ]
+    },
+    {
+      "ruleId": "BR-008",
+      "version": "1.0.0",
+      "name": "Approval Is Not Success",
+      "scope": [
+        "approval",
+        "verification"
+      ],
+      "priority": "P0",
+      "riskLevels": [
+        "L0_READ_ONLY",
+        "L1_CREATE",
+        "L2_REVERSIBLE_ACTION",
+        "L3_EXTERNAL_COMMUNICATION",
+        "L4_RESERVATION_TRANSACTION",
+        "L5_MONETARY_HIGH_CONSEQUENCE"
+      ],
+      "triggerCondition": "Approval Is Not Success applies when runtime evidence matches this reusable situation.",
+      "requiredBehavior": "Apply Approval Is Not Success before allowing the candidate action to proceed.",
+      "prohibitedBehavior": "Do not use model prose, intermediate success, convenience, or stale state to bypass this rule.",
+      "evidenceRequirement": "Structured evidence must be recorded and redacted; high-risk actions require domain-appropriate verification.",
+      "approvalRequirement": "Approval/reconfirmation required when the rule detects consequential risk.",
+      "recoveryPolicy": "Recover safely, preserve execution thread, and escalate when deterministic evidence is insufficient.",
+      "sourceScenarios": [
+        "MSG-001",
+        "EMAIL-008",
+        "PAY-001"
+      ],
+      "status": "ACTIVE",
+      "lastModified": "2026-10-09",
+      "automatedTests": [
+        "real_life_scenario_library_behavioral_rules"
+      ]
+    },
+    {
+      "ruleId": "BR-009",
+      "version": "1.0.0",
+      "name": "Authority Consumption At Consequential Boundary",
+      "scope": [
+        "approval",
+        "authority"
+      ],
+      "priority": "P0",
+      "riskLevels": [
+        "L0_READ_ONLY",
+        "L1_CREATE",
+        "L2_REVERSIBLE_ACTION",
+        "L3_EXTERNAL_COMMUNICATION",
+        "L4_RESERVATION_TRANSACTION",
+        "L5_MONETARY_HIGH_CONSEQUENCE"
+      ],
+      "triggerCondition": "Authority Consumption At Consequential Boundary applies when runtime evidence matches this reusable situation.",
+      "requiredBehavior": "Apply Authority Consumption At Consequential Boundary before allowing the candidate action to proceed.",
+      "prohibitedBehavior": "Do not use model prose, intermediate success, convenience, or stale state to bypass this rule.",
+      "evidenceRequirement": "Structured evidence must be recorded and redacted; high-risk actions require domain-appropriate verification.",
+      "approvalRequirement": "Approval/reconfirmation required when the rule detects consequential risk.",
+      "recoveryPolicy": "Recover safely, preserve execution thread, and escalate when deterministic evidence is insufficient.",
+      "sourceScenarios": [
+        "MSG-005",
+        "PAY-001",
+        "BUY-001"
+      ],
+      "status": "ACTIVE",
+      "lastModified": "2026-10-09",
+      "automatedTests": [
+        "real_life_scenario_library_behavioral_rules"
+      ]
+    },
+    {
+      "ruleId": "BR-010",
+      "version": "1.0.0",
+      "name": "Same Execution Thread",
+      "scope": [
+        "recovery",
+        "dedupe"
+      ],
+      "priority": "P2",
+      "riskLevels": [
+        "L0_READ_ONLY",
+        "L1_CREATE",
+        "L2_REVERSIBLE_ACTION",
+        "L3_EXTERNAL_COMMUNICATION",
+        "L4_RESERVATION_TRANSACTION",
+        "L5_MONETARY_HIGH_CONSEQUENCE"
+      ],
+      "triggerCondition": "Same Execution Thread applies when runtime evidence matches this reusable situation.",
+      "requiredBehavior": "Apply Same Execution Thread before allowing the candidate action to proceed.",
+      "prohibitedBehavior": "Do not use model prose, intermediate success, convenience, or stale state to bypass this rule.",
+      "evidenceRequirement": "Structured evidence must be recorded and redacted; high-risk actions require domain-appropriate verification.",
+      "approvalRequirement": "Follow risk policy; approval may be omitted only for non-consequential actions.",
+      "recoveryPolicy": "Recover safely, preserve execution thread, and escalate when deterministic evidence is insufficient.",
+      "sourceScenarios": [
+        "MSG-005",
+        "BG-004",
+        "DEV-001"
+      ],
+      "status": "ACTIVE",
+      "lastModified": "2026-10-09",
+      "automatedTests": [
+        "real_life_scenario_library_behavioral_rules"
+      ]
+    },
+    {
+      "ruleId": "BR-011",
+      "version": "1.0.0",
+      "name": "Precondition Wait",
+      "scope": [
+        "precondition",
+        "device"
+      ],
+      "priority": "P4",
+      "riskLevels": [
+        "L0_READ_ONLY",
+        "L1_CREATE",
+        "L2_REVERSIBLE_ACTION",
+        "L3_EXTERNAL_COMMUNICATION",
+        "L4_RESERVATION_TRANSACTION",
+        "L5_MONETARY_HIGH_CONSEQUENCE"
+      ],
+      "triggerCondition": "Precondition Wait applies when runtime evidence matches this reusable situation.",
+      "requiredBehavior": "Apply Precondition Wait before allowing the candidate action to proceed.",
+      "prohibitedBehavior": "Do not use model prose, intermediate success, convenience, or stale state to bypass this rule.",
+      "evidenceRequirement": "Structured evidence must be recorded and redacted; high-risk actions require domain-appropriate verification.",
+      "approvalRequirement": "Follow risk policy; approval may be omitted only for non-consequential actions.",
+      "recoveryPolicy": "Wait for precondition and resume same execution thread.",
+      "sourceScenarios": [
+        "MSG-005",
+        "BG-005",
+        "TRV-007"
+      ],
+      "status": "ACTIVE",
+      "lastModified": "2026-10-09",
+      "automatedTests": [
+        "real_life_scenario_library_behavioral_rules"
+      ]
+    },
+    {
+      "ruleId": "BR-012",
+      "version": "1.0.0",
+      "name": "Cleanup After Execution",
+      "scope": [
+        "cleanup",
+        "context"
+      ],
+      "priority": "P4",
+      "riskLevels": [
+        "L0_READ_ONLY",
+        "L1_CREATE",
+        "L2_REVERSIBLE_ACTION",
+        "L3_EXTERNAL_COMMUNICATION",
+        "L4_RESERVATION_TRANSACTION",
+        "L5_MONETARY_HIGH_CONSEQUENCE"
+      ],
+      "triggerCondition": "Cleanup After Execution applies when runtime evidence matches this reusable situation.",
+      "requiredBehavior": "Apply Cleanup After Execution before allowing the candidate action to proceed.",
+      "prohibitedBehavior": "Do not use model prose, intermediate success, convenience, or stale state to bypass this rule.",
+      "evidenceRequirement": "Structured evidence must be recorded and redacted; high-risk actions require domain-appropriate verification.",
+      "approvalRequirement": "Follow risk policy; approval may be omitted only for non-consequential actions.",
+      "recoveryPolicy": "Recover safely, preserve execution thread, and escalate when deterministic evidence is insufficient.",
+      "sourceScenarios": [
+        "MSG-009",
+        "RSV-009",
+        "CROSS-001"
+      ],
+      "status": "ACTIVE",
+      "lastModified": "2026-10-09",
+      "automatedTests": [
+        "real_life_scenario_library_behavioral_rules"
+      ]
+    },
+    {
+      "ruleId": "BR-013",
+      "version": "1.0.0",
+      "name": "Origin Device Context",
+      "scope": [
+        "device",
+        "handoff"
+      ],
+      "priority": "P3",
+      "riskLevels": [
+        "L0_READ_ONLY",
+        "L1_CREATE",
+        "L2_REVERSIBLE_ACTION",
+        "L3_EXTERNAL_COMMUNICATION",
+        "L4_RESERVATION_TRANSACTION",
+        "L5_MONETARY_HIGH_CONSEQUENCE"
+      ],
+      "triggerCondition": "Origin Device Context applies when runtime evidence matches this reusable situation.",
+      "requiredBehavior": "Apply Origin Device Context before allowing the candidate action to proceed.",
+      "prohibitedBehavior": "Do not use model prose, intermediate success, convenience, or stale state to bypass this rule.",
+      "evidenceRequirement": "Structured evidence must be recorded and redacted; high-risk actions require domain-appropriate verification.",
+      "approvalRequirement": "Follow risk policy; approval may be omitted only for non-consequential actions.",
+      "recoveryPolicy": "Recover safely, preserve execution thread, and escalate when deterministic evidence is insufficient.",
+      "sourceScenarios": [
+        "MSG-010",
+        "DEV-001",
+        "CROSS-007"
+      ],
+      "status": "ACTIVE",
+      "lastModified": "2026-10-09",
+      "automatedTests": [
+        "real_life_scenario_library_behavioral_rules"
+      ]
+    },
+    {
+      "ruleId": "BR-014",
+      "version": "1.0.0",
+      "name": "Input Modality Independence",
+      "scope": [
+        "multimodal",
+        "routing"
+      ],
+      "priority": "P3",
+      "riskLevels": [
+        "L0_READ_ONLY",
+        "L1_CREATE",
+        "L2_REVERSIBLE_ACTION",
+        "L3_EXTERNAL_COMMUNICATION",
+        "L4_RESERVATION_TRANSACTION",
+        "L5_MONETARY_HIGH_CONSEQUENCE"
+      ],
+      "triggerCondition": "Input Modality Independence applies when runtime evidence matches this reusable situation.",
+      "requiredBehavior": "Apply Input Modality Independence before allowing the candidate action to proceed.",
+      "prohibitedBehavior": "Do not use model prose, intermediate success, convenience, or stale state to bypass this rule.",
+      "evidenceRequirement": "Structured evidence must be recorded and redacted; high-risk actions require domain-appropriate verification.",
+      "approvalRequirement": "Follow risk policy; approval may be omitted only for non-consequential actions.",
+      "recoveryPolicy": "Recover safely, preserve execution thread, and escalate when deterministic evidence is insufficient.",
+      "sourceScenarios": [
+        "MSG-002",
+        "MM-001",
+        "MM-004"
+      ],
+      "status": "ACTIVE",
+      "lastModified": "2026-10-09",
+      "automatedTests": [
+        "real_life_scenario_library_behavioral_rules"
+      ]
+    },
+    {
+      "ruleId": "BR-015",
+      "version": "1.0.0",
+      "name": "Multimodal Fusion",
+      "scope": [
+        "multimodal",
+        "intent"
+      ],
+      "priority": "P2",
+      "riskLevels": [
+        "L0_READ_ONLY",
+        "L1_CREATE",
+        "L2_REVERSIBLE_ACTION",
+        "L3_EXTERNAL_COMMUNICATION",
+        "L4_RESERVATION_TRANSACTION",
+        "L5_MONETARY_HIGH_CONSEQUENCE"
+      ],
+      "triggerCondition": "Multimodal Fusion applies when runtime evidence matches this reusable situation.",
+      "requiredBehavior": "Apply Multimodal Fusion before allowing the candidate action to proceed.",
+      "prohibitedBehavior": "Do not use model prose, intermediate success, convenience, or stale state to bypass this rule.",
+      "evidenceRequirement": "Structured evidence must be recorded and redacted; high-risk actions require domain-appropriate verification.",
+      "approvalRequirement": "Follow risk policy; approval may be omitted only for non-consequential actions.",
+      "recoveryPolicy": "Recover safely, preserve execution thread, and escalate when deterministic evidence is insufficient.",
+      "sourceScenarios": [
+        "MSG-003",
+        "MM-001",
+        "CROSS-008"
+      ],
+      "status": "ACTIVE",
+      "lastModified": "2026-10-09",
+      "automatedTests": [
+        "real_life_scenario_library_behavioral_rules"
+      ]
+    },
+    {
+      "ruleId": "BR-016",
+      "version": "1.0.0",
+      "name": "Tree First, Vision When Uncertain",
+      "scope": [
+        "ui",
+        "vision",
+        "safety"
+      ],
+      "priority": "P0",
+      "riskLevels": [
+        "L0_READ_ONLY",
+        "L1_CREATE",
+        "L2_REVERSIBLE_ACTION",
+        "L3_EXTERNAL_COMMUNICATION",
+        "L4_RESERVATION_TRANSACTION",
+        "L5_MONETARY_HIGH_CONSEQUENCE"
+      ],
+      "triggerCondition": "Tree First, Vision When Uncertain applies when runtime evidence matches this reusable situation.",
+      "requiredBehavior": "Apply Tree First, Vision When Uncertain before allowing the candidate action to proceed.",
+      "prohibitedBehavior": "Do not use model prose, intermediate success, convenience, or stale state to bypass this rule.",
+      "evidenceRequirement": "Structured evidence must be recorded and redacted; high-risk actions require domain-appropriate verification.",
+      "approvalRequirement": "Approval/reconfirmation required when the rule detects consequential risk.",
+      "recoveryPolicy": "Recover safely, preserve execution thread, and escalate when deterministic evidence is insufficient.",
+      "sourceScenarios": [
+        "MSG-003",
+        "MM-006",
+        "CROSS-007"
+      ],
+      "status": "ACTIVE",
+      "lastModified": "2026-10-09",
+      "automatedTests": [
+        "real_life_scenario_library_behavioral_rules"
+      ]
+    },
+    {
+      "ruleId": "BR-017",
+      "version": "1.0.0",
+      "name": "Intent Readback",
+      "scope": [
+        "intent",
+        "approval"
+      ],
+      "priority": "P2",
+      "riskLevels": [
+        "L0_READ_ONLY",
+        "L1_CREATE",
+        "L2_REVERSIBLE_ACTION",
+        "L3_EXTERNAL_COMMUNICATION",
+        "L4_RESERVATION_TRANSACTION",
+        "L5_MONETARY_HIGH_CONSEQUENCE"
+      ],
+      "triggerCondition": "Intent Readback applies when runtime evidence matches this reusable situation.",
+      "requiredBehavior": "Apply Intent Readback before allowing the candidate action to proceed.",
+      "prohibitedBehavior": "Do not use model prose, intermediate success, convenience, or stale state to bypass this rule.",
+      "evidenceRequirement": "Structured evidence must be recorded and redacted; high-risk actions require domain-appropriate verification.",
+      "approvalRequirement": "Follow risk policy; approval may be omitted only for non-consequential actions.",
+      "recoveryPolicy": "Recover safely, preserve execution thread, and escalate when deterministic evidence is insufficient.",
+      "sourceScenarios": [
+        "RSV-001",
+        "TRV-001",
+        "PAY-001"
+      ],
+      "status": "ACTIVE",
+      "lastModified": "2026-10-09",
+      "automatedTests": [
+        "real_life_scenario_library_behavioral_rules"
+      ]
+    },
+    {
+      "ruleId": "BR-018",
+      "version": "1.0.0",
+      "name": "Background Continuity",
+      "scope": [
+        "background",
+        "tasks"
+      ],
+      "priority": "P4",
+      "riskLevels": [
+        "L0_READ_ONLY",
+        "L1_CREATE",
+        "L2_REVERSIBLE_ACTION",
+        "L3_EXTERNAL_COMMUNICATION",
+        "L4_RESERVATION_TRANSACTION",
+        "L5_MONETARY_HIGH_CONSEQUENCE"
+      ],
+      "triggerCondition": "Background Continuity applies when runtime evidence matches this reusable situation.",
+      "requiredBehavior": "Apply Background Continuity before allowing the candidate action to proceed.",
+      "prohibitedBehavior": "Do not use model prose, intermediate success, convenience, or stale state to bypass this rule.",
+      "evidenceRequirement": "Structured evidence must be recorded and redacted; high-risk actions require domain-appropriate verification.",
+      "approvalRequirement": "Follow risk policy; approval may be omitted only for non-consequential actions.",
+      "recoveryPolicy": "Recover safely, preserve execution thread, and escalate when deterministic evidence is insufficient.",
+      "sourceScenarios": [
+        "BG-001",
+        "BG-003",
+        "RPT-007"
+      ],
+      "status": "ACTIVE",
+      "lastModified": "2026-10-09",
+      "automatedTests": [
+        "real_life_scenario_library_behavioral_rules"
+      ]
+    },
+    {
+      "ruleId": "BR-019",
+      "version": "1.0.0",
+      "name": "Proactive But Not Autonomously Consequential",
+      "scope": [
+        "proactive",
+        "authority"
+      ],
+      "priority": "P0",
+      "riskLevels": [
+        "L0_READ_ONLY",
+        "L1_CREATE",
+        "L2_REVERSIBLE_ACTION",
+        "L3_EXTERNAL_COMMUNICATION",
+        "L4_RESERVATION_TRANSACTION",
+        "L5_MONETARY_HIGH_CONSEQUENCE"
+      ],
+      "triggerCondition": "Proactive But Not Autonomously Consequential applies when runtime evidence matches this reusable situation.",
+      "requiredBehavior": "Apply Proactive But Not Autonomously Consequential before allowing the candidate action to proceed.",
+      "prohibitedBehavior": "Do not use model prose, intermediate success, convenience, or stale state to bypass this rule.",
+      "evidenceRequirement": "Structured evidence must be recorded and redacted; high-risk actions require domain-appropriate verification.",
+      "approvalRequirement": "Approval/reconfirmation required when the rule detects consequential risk.",
+      "recoveryPolicy": "Recover safely, preserve execution thread, and escalate when deterministic evidence is insufficient.",
+      "sourceScenarios": [
+        "BG-007",
+        "BG-008",
+        "CROSS-002"
+      ],
+      "status": "ACTIVE",
+      "lastModified": "2026-10-09",
+      "automatedTests": [
+        "real_life_scenario_library_behavioral_rules"
+      ]
+    },
+    {
+      "ruleId": "BR-020",
+      "version": "1.0.0",
+      "name": "Contextual Proposal",
+      "scope": [
+        "proposal",
+        "context"
+      ],
+      "priority": "P5",
+      "riskLevels": [
+        "L0_READ_ONLY",
+        "L1_CREATE",
+        "L2_REVERSIBLE_ACTION",
+        "L3_EXTERNAL_COMMUNICATION",
+        "L4_RESERVATION_TRANSACTION",
+        "L5_MONETARY_HIGH_CONSEQUENCE"
+      ],
+      "triggerCondition": "Contextual Proposal applies when runtime evidence matches this reusable situation.",
+      "requiredBehavior": "Apply Contextual Proposal before allowing the candidate action to proceed.",
+      "prohibitedBehavior": "Do not use model prose, intermediate success, convenience, or stale state to bypass this rule.",
+      "evidenceRequirement": "Structured evidence must be recorded and redacted; high-risk actions require domain-appropriate verification.",
+      "approvalRequirement": "Follow risk policy; approval may be omitted only for non-consequential actions.",
+      "recoveryPolicy": "Recover safely, preserve execution thread, and escalate when deterministic evidence is insufficient.",
+      "sourceScenarios": [
+        "EMAIL-003",
+        "EMAIL-007",
+        "CROSS-002"
+      ],
+      "status": "ACTIVE",
+      "lastModified": "2026-10-09",
+      "automatedTests": [
+        "real_life_scenario_library_behavioral_rules"
+      ]
+    },
+    {
+      "ruleId": "BR-021",
+      "version": "1.0.0",
+      "name": "Minimize User Work",
+      "scope": [
+        "ux",
+        "routing"
+      ],
+      "priority": "P5",
+      "riskLevels": [
+        "L0_READ_ONLY",
+        "L1_CREATE",
+        "L2_REVERSIBLE_ACTION",
+        "L3_EXTERNAL_COMMUNICATION",
+        "L4_RESERVATION_TRANSACTION",
+        "L5_MONETARY_HIGH_CONSEQUENCE"
+      ],
+      "triggerCondition": "Minimize User Work applies when runtime evidence matches this reusable situation.",
+      "requiredBehavior": "Apply Minimize User Work before allowing the candidate action to proceed.",
+      "prohibitedBehavior": "Do not use model prose, intermediate success, convenience, or stale state to bypass this rule.",
+      "evidenceRequirement": "Structured evidence must be recorded and redacted; high-risk actions require domain-appropriate verification.",
+      "approvalRequirement": "Follow risk policy; approval may be omitted only for non-consequential actions.",
+      "recoveryPolicy": "Recover safely, preserve execution thread, and escalate when deterministic evidence is insufficient.",
+      "sourceScenarios": [
+        "RES-004",
+        "BUY-002",
+        "TRV-006"
+      ],
+      "status": "ACTIVE",
+      "lastModified": "2026-10-09",
+      "automatedTests": [
+        "real_life_scenario_library_behavioral_rules"
+      ]
+    },
+    {
+      "ruleId": "BR-022",
+      "version": "1.0.0",
+      "name": "Fast Approval Surface",
+      "scope": [
+        "latency",
+        "approval"
+      ],
+      "priority": "P5",
+      "riskLevels": [
+        "L0_READ_ONLY",
+        "L1_CREATE",
+        "L2_REVERSIBLE_ACTION",
+        "L3_EXTERNAL_COMMUNICATION",
+        "L4_RESERVATION_TRANSACTION",
+        "L5_MONETARY_HIGH_CONSEQUENCE"
+      ],
+      "triggerCondition": "Fast Approval Surface applies when runtime evidence matches this reusable situation.",
+      "requiredBehavior": "Apply Fast Approval Surface before allowing the candidate action to proceed.",
+      "prohibitedBehavior": "Do not use model prose, intermediate success, convenience, or stale state to bypass this rule.",
+      "evidenceRequirement": "Structured evidence must be recorded and redacted; high-risk actions require domain-appropriate verification.",
+      "approvalRequirement": "Follow risk policy; approval may be omitted only for non-consequential actions.",
+      "recoveryPolicy": "Recover safely, preserve execution thread, and escalate when deterministic evidence is insufficient.",
+      "sourceScenarios": [
+        "MSG-001",
+        "EMAIL-008",
+        "PAY-001"
+      ],
+      "status": "ACTIVE",
+      "lastModified": "2026-10-09",
+      "automatedTests": [
+        "real_life_scenario_library_behavioral_rules"
+      ]
+    },
+    {
+      "ruleId": "BR-023",
+      "version": "1.0.0",
+      "name": "External State Truth",
+      "scope": [
+        "status",
+        "evidence"
+      ],
+      "priority": "P3",
+      "riskLevels": [
+        "L0_READ_ONLY",
+        "L1_CREATE",
+        "L2_REVERSIBLE_ACTION",
+        "L3_EXTERNAL_COMMUNICATION",
+        "L4_RESERVATION_TRANSACTION",
+        "L5_MONETARY_HIGH_CONSEQUENCE"
+      ],
+      "triggerCondition": "External State Truth applies when runtime evidence matches this reusable situation.",
+      "requiredBehavior": "Apply External State Truth before allowing the candidate action to proceed.",
+      "prohibitedBehavior": "Do not use model prose, intermediate success, convenience, or stale state to bypass this rule.",
+      "evidenceRequirement": "Structured evidence must be recorded and redacted; high-risk actions require domain-appropriate verification.",
+      "approvalRequirement": "Follow risk policy; approval may be omitted only for non-consequential actions.",
+      "recoveryPolicy": "Recover safely, preserve execution thread, and escalate when deterministic evidence is insufficient.",
+      "sourceScenarios": [
+        "MSG-008",
+        "RSV-008",
+        "PAY-002"
+      ],
+      "status": "ACTIVE",
+      "lastModified": "2026-10-09",
+      "automatedTests": [
+        "real_life_scenario_library_behavioral_rules"
+      ]
+    },
+    {
+      "ruleId": "BR-024",
+      "version": "1.0.0",
+      "name": "Safe Generalization",
+      "scope": [
+        "runtime",
+        "generalization"
+      ],
+      "priority": "P4",
+      "riskLevels": [
+        "L0_READ_ONLY",
+        "L1_CREATE",
+        "L2_REVERSIBLE_ACTION",
+        "L3_EXTERNAL_COMMUNICATION",
+        "L4_RESERVATION_TRANSACTION",
+        "L5_MONETARY_HIGH_CONSEQUENCE"
+      ],
+      "triggerCondition": "Safe Generalization applies when runtime evidence matches this reusable situation.",
+      "requiredBehavior": "Apply Safe Generalization before allowing the candidate action to proceed.",
+      "prohibitedBehavior": "Do not use model prose, intermediate success, convenience, or stale state to bypass this rule.",
+      "evidenceRequirement": "Structured evidence must be recorded and redacted; high-risk actions require domain-appropriate verification.",
+      "approvalRequirement": "Follow risk policy; approval may be omitted only for non-consequential actions.",
+      "recoveryPolicy": "Recover safely, preserve execution thread, and escalate when deterministic evidence is insufficient.",
+      "sourceScenarios": [
+        "CROSS-008",
+        "MM-008",
+        "SAFE-005"
+      ],
+      "status": "ACTIVE",
+      "lastModified": "2026-10-09",
+      "automatedTests": [
+        "real_life_scenario_library_behavioral_rules"
+      ]
+    },
+    {
+      "ruleId": "BR-025",
+      "version": "1.0.0",
+      "name": "User Intent Owns The Goal",
+      "scope": [
+        "intent",
+        "planning"
+      ],
+      "priority": "P2",
+      "riskLevels": [
+        "L0_READ_ONLY",
+        "L1_CREATE",
+        "L2_REVERSIBLE_ACTION",
+        "L3_EXTERNAL_COMMUNICATION",
+        "L4_RESERVATION_TRANSACTION",
+        "L5_MONETARY_HIGH_CONSEQUENCE"
+      ],
+      "triggerCondition": "User Intent Owns The Goal applies when runtime evidence matches this reusable situation.",
+      "requiredBehavior": "Apply User Intent Owns The Goal before allowing the candidate action to proceed.",
+      "prohibitedBehavior": "Do not use model prose, intermediate success, convenience, or stale state to bypass this rule.",
+      "evidenceRequirement": "Structured evidence must be recorded and redacted; high-risk actions require domain-appropriate verification.",
+      "approvalRequirement": "Follow risk policy; approval may be omitted only for non-consequential actions.",
+      "recoveryPolicy": "Recover safely, preserve execution thread, and escalate when deterministic evidence is insufficient.",
+      "sourceScenarios": [
+        "CROSS-003",
+        "RPT-009",
+        "BUY-002"
+      ],
+      "status": "ACTIVE",
+      "lastModified": "2026-10-09",
+      "automatedTests": [
+        "real_life_scenario_library_behavioral_rules"
+      ]
+    }
+  ]
+}

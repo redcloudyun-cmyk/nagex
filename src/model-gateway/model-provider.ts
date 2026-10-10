@@ -133,13 +133,14 @@ export class ModelProviderError extends NagexError {
     requestId: string;
     category?: 'AUTHENTICATION' | 'RATE_LIMIT' | 'PROVIDER' | 'TIMEOUT';
     retryable: boolean;
+    details?: Record<string, unknown>;
   }) {
     super({
       code: input.code,
       category: input.category ?? 'PROVIDER',
       message: input.message,
       request_id: input.requestId,
-      details: { provider: input.provider, retryable: input.retryable },
+      details: { provider: input.provider, retryable: input.retryable, ...(input.details ?? {}) },
     });
     this.provider = input.provider;
     this.retryable = input.retryable;
