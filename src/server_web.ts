@@ -99,7 +99,38 @@ const MUTABLE_FRONTEND_FILES = new Set(['index.html', 'style.css', 'app.js', 'i1
 const VERSIONED_HTML_FILES = new Set(['index.html', 'privacy.html', 'terms.html', 'desktop-quickwake.html']);
 const CLEAN_URL_ALIASES: Record<string, string> = { '/privacy': 'privacy.html', '/terms': 'terms.html', '/quickwake': 'desktop-quickwake.html' };
 const BUILD_VERSION_PLACEHOLDER = '__NAGEX_BUILD_VERSION__';
-const CORS_PUBLIC_ORIGIN = '*';
+const CORS_ALLOWED_METHODS = 'GET, POST, PUT, DELETE, OPTIONS';
+const CORS_ALLOWED_HEADERS = new Set(['content-type', 'x-nagex-tenant', 'x-principal-id', 'x-request-id']);
+
+function parseCorsAllowedOrigins(env: NodeJS.ProcessEnv = process.env): Set<string> {
+  return new Set(
+    (env.NAGEX_CORS_ALLOWED_ORIGINS || '')
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter((origin) => origin.length > 0 && origin !== '*'),
+  );
+}
+
+function applyCorsHeaders(req: http.IncomingMessage, res: http.ServerResponse, allowedOrigins = parseCorsAllowedOrigins()): void {
+  const originHeader = req.headers.origin;
+  const origin = Array.isArray(originHeader) ? undefined : originHeader;
+  if (!origin || !allowedOrigins.has(origin)) {
+    return;
+  }
+
+  const requestedHeaders = String(req.headers['access-control-request-headers'] || '')
+    .split(',')
+    .map((header) => header.trim().toLowerCase())
+    .filter(Boolean);
+  if (requestedHeaders.some((header) => !CORS_ALLOWED_HEADERS.has(header))) {
+    return;
+  }
+
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Allow-Methods', CORS_ALLOWED_METHODS);
+  res.setHeader('Access-Control-Allow-Headers', [...CORS_ALLOWED_HEADERS].join(', '));
+}
 
 function createBuildVersion(): string {
   const hash = crypto.createHash('sha256');
@@ -870,9 +901,7 @@ export function createServerInstance(opts?: {
     for (const [key, value] of Object.entries(baseSecurityHeaders())) {
       res.setHeader(key, value);
     }
-    res.setHeader('Access-Control-Allow-Origin', CORS_PUBLIC_ORIGIN);
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-NAgex-Tenant, X-Principal-Id, X-Request-Id');
+    applyCorsHeaders(req, res);
 
     if (method === 'OPTIONS') {
       res.writeHead(204);

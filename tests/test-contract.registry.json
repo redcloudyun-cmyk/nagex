@@ -4706,6 +4706,21 @@
       "notes": "Provider credentials are scrubbed, so no model is called; disposable accounts through the production stores in a private temp data dir.",
       "writesRepositoryArtifacts": false
     },
+    "security_hardening_s0": {
+      "milestone": "SECURITY-HARDENING-S0",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Public-edge hardening contract through the real HTTP server and route entry points: desktop quickwake control requires the native bridge token, oversized bodies are rejected before route mutation, session cookies carry secure attributes, baseline security headers are emitted, CORS is same-origin by default with no wildcard or arbitrary origin reflection, explicit CORS allowlist preflights validate requested headers, runtime-private .nagex_data remains ignored, and anonymous link capture is rate-limited before execution.",
+      "notes": "Real createServerInstance and selected route handlers over localhost only. No external network, model, provider credentials or browser automation."
+    },
     "security_s1_identity_boundary": {
       "milestone": "SECURITY-GATE-S1",
       "classification": "CANONICAL_BEHAVIOR",

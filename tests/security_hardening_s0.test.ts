@@ -87,6 +87,57 @@ test('S0-03 baseline security headers are emitted', () => {
   assert.match(headers['Content-Security-Policy'], /frame-ancestors/);
 });
 
+test('S0-03b CORS is same-origin by default and does not reflect arbitrary origins', async () => {
+  delete process.env.NAGEX_CORS_ALLOWED_ORIGINS;
+  const server = createServerInstance();
+  const origin = await listen(server);
+  try {
+    const response = await fetch(`${origin}/health`, { headers: { Origin: 'https://evil.example' } });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('access-control-allow-origin'), null);
+    assert.equal(response.headers.get('access-control-allow-credentials'), null);
+
+    const preflight = await fetch(`${origin}/api/v1/quickwake/config`, {
+      method: 'OPTIONS',
+      headers: {
+        Origin: 'https://evil.example',
+        'Access-Control-Request-Method': 'POST',
+        'Access-Control-Request-Headers': 'Content-Type',
+      },
+    });
+    assert.equal(preflight.status, 204);
+    assert.equal(preflight.headers.get('access-control-allow-origin'), null);
+  } finally {
+    await close(server);
+  }
+});
+
+test('S0-03c CORS allows only explicit server-side origins and validates preflight headers', async () => {
+  process.env.NAGEX_CORS_ALLOWED_ORIGINS = 'https://approved.example';
+  const server = createServerInstance();
+  const origin = await listen(server);
+  try {
+    const response = await fetch(`${origin}/health`, { headers: { Origin: 'https://approved.example' } });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('access-control-allow-origin'), 'https://approved.example');
+    assert.equal(response.headers.get('access-control-allow-credentials'), null);
+
+    const rejected = await fetch(`${origin}/api/v1/quickwake/config`, {
+      method: 'OPTIONS',
+      headers: {
+        Origin: 'https://approved.example',
+        'Access-Control-Request-Method': 'POST',
+        'Access-Control-Request-Headers': 'Content-Type, X-Evil-Header',
+      },
+    });
+    assert.equal(rejected.status, 204);
+    assert.equal(rejected.headers.get('access-control-allow-origin'), null);
+  } finally {
+    delete process.env.NAGEX_CORS_ALLOWED_ORIGINS;
+    await close(server);
+  }
+});
+
 test('S0-04 .nagex_data is ignored as runtime-private data', async () => {
   const { readFileSync } = await import('node:fs');
   assert.match(readFileSync('.gitignore', 'utf8'), /^\.nagex_data\/$/m);
