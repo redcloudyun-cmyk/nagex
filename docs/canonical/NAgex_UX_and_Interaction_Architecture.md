@@ -238,6 +238,12 @@ Voice follows the same intent, clarification, approval and execution rules as te
 
 Voice may accelerate interaction but cannot lower the approval bar.
 
+### Universal Voice (ADR-0013)
+
+Voice is three separate capabilities that may share capture and session infrastructure: **Dictation** (speech → editable text, never submitted by the voice layer), **Conversation** (speech → understanding → response) and **Action** (speech → intent → authorized execution → verification, always through the existing deterministic controls).
+
+Platform voice adapters sit behind one contract and return text only; they make no permission, approval or execution decision. Speech-to-text is a replaceable implementation. Audio is processed on-device when that is verified, is never silently sent to a remote processor, and server or third-party processing requires explicit informed consent with a visible indication. Voice-processing consent is separate from execution approval. See `docs/adr/ADR-0013-universal-voice-architecture.md` for the as-built audit and open gaps.
+
 ### Background Voice Call UX
 
 Ordinary short voice commands should normally be captured in the background rather than opening a full-screen voice-input UI.

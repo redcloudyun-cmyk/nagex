@@ -5218,6 +5218,23 @@
       "assertionIntent": "Voice wake phrase and identity enrollment contract: default wake phrase is ?? ????, optional short phrase is ????, disabled mode is available, wake detection never implies speaker verification or authority, development trust is explicit and non-production, high-risk voice-only execution remains blocked behind deterministic approval, continuation trust is invalidated on device lock, and voice profile/raw-audio privacy defaults remain device-local and ephemeral.",
       "notes": "No live microphone, biometric model, provider, or consequential action. Source-backed UI and deterministic policy/service coverage for productization guardrails."
     },
+    "voice_architecture_boundaries": {
+      "milestone": "NAGEX-UNIVERSAL-VOICE-ADR-0013",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "voice",
+        "privacy",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "Pins the Universal Voice invariants that hold today (ADR-0013): the server STT route keeps audio local with no outbound network, logging or persistence; the server-Whisper path never silently falls back to the browser vendor recognizer; the renderer adapter neither persists audio nor logs raw transcript text; Main dictation preserves existing text and never auto-submits; Android capture/session layers and the voice pipeline hold no execution or approval authority; wake word and speaker match are never authority for MEDIUM/HIGH risk; non-TEXT modality is normalized but not executed; speaker enrollment audio is device-local and ephemeral.",
+      "notes": "Structural source assertions plus VoiceIdentityService behavior. Does not assert the open ADR-0013 gaps (local-first default, consent UI, desktop quick-wake submit). No real microphone or device evidence."
+    },
     "voice_brand_output": {
       "milestone": "NAGEX-VOICE-BRAND-SPEC",
       "classification": "CANONICAL_BEHAVIOR",

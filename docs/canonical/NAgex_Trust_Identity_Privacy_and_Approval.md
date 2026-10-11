@@ -66,6 +66,8 @@ Reject is terminal and non-mutating.
 
 Voice does not bypass approval.
 
+Consent to voice (speech) processing is separate from approval of an action. Raw audio is not sent to a server or third-party processor without explicit informed consent, and is not persisted by default (ADR-0013).
+
 Automation does not bypass approval.
 
 Memory does not bypass approval.

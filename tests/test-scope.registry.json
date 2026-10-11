@@ -295,7 +295,8 @@
       "device_agent_transport",
       "r23_3t_permission_approval_hardening",
       "approval_ownership_isolation",
-      "approval_ttl_security"
+      "approval_ttl_security",
+      "voice_architecture_boundaries"
     ],
     "ux": [
       "real_life_scenario_library_behavioral_rules",
