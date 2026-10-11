@@ -72,6 +72,14 @@ async function installVoiceMocks(page: Page): Promise<void> {
 }
 
 describe('NAgex Main surface hard rebuild', () => {
+  it('keeps Main surface assets in the frontend build-version and no-cache set', () => {
+    const server = fs.readFileSync('src/server_web.ts', 'utf8');
+    for (const asset of ['main-surface.js', 'main-surface-rearchitecture.css', 'renderer-voice-adapter.js']) {
+      assert.match(server, new RegExp(`MUTABLE_FRONTEND_FILES[\\s\\S]*${asset.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+      assert.match(server, new RegExp(`createBuildVersion[\\s\\S]*${asset.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+    }
+  });
+
   it('replaces legacy Home with canonical Main, keeps voice functional, and avoids assistant modal execution', async () => {
     fs.mkdirSync(screenshotDir, { recursive: true });
     const user = h.user('main_hard_rebuild');
