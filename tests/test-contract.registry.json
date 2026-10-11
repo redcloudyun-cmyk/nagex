@@ -4724,6 +4724,93 @@
       "notes": "Provider credentials are scrubbed, so no model is called; disposable accounts through the production stores in a private temp data dir.",
       "writesRepositoryArtifacts": false
     },
+    "daily_operating_loop_proactive": {
+      "milestone": "NAGEX-FINAL-DAILY-OPERATING-LOOP",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "personal-home",
+        "tasks",
+        "runtime",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Proactive suggestion accept, dismiss, snooze and suppress decisions persist through the canonical stores; accepting creates real task/activity/notification records while silent suggestions grant no execution authority.",
+      "notes": "Runs against deterministic in-memory/temp-dir service dependencies only; no model, network, or browser."
+    },
+    "main_surface_hard_rebuild_browser": {
+      "milestone": "NAGEX-MAIN-SURFACE-HARD-REBUILD",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "personal-home",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "real-Chromium proof that Home is replaced by the canonical Main execution surface: legacy Home sections are absent from active DOM, Create/Canvas are hidden from primary nav, long input grows, working state stays inline without an assistant modal, stored artifacts open in the right panel, fullscreen result restores context, document revision is bound to the real revision endpoint, bell/tray controls render real state, and a representative mobile viewport has no horizontal overflow.",
+      "notes": "Uses the production server harness with provider credentials scrubbed; result-panel proof seeds real DocumentStore and ArtifactStore records in a private temp data dir. Screenshots are written under artifacts/visual-cert for visual certification evidence.",
+      "writesRepositoryArtifacts": true
+    },
+    "product_surface_phase2_real_state": {
+      "milestone": "NAGEX-PRODUCT-SURFACE-FUNCTIONALIZATION-PHASE2",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "workspace",
+        "creation",
+        "ux",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Phase 2 product surfaces use real persisted state for Vault and creation records, including preview/download ownership boundaries, storage-size truthfulness, and document revision lineage.",
+      "notes": "Route/store contract tests with temp dirs only; no provider credentials or external network."
+    },
+    "product_surface_phase3_real_state": {
+      "milestone": "NAGEX-PRODUCT-SURFACE-FUNCTIONALIZATION-PHASE3",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "settings",
+        "connections",
+        "knowledge",
+        "device",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Phase 3 product surfaces persist profile/settings/ambient consent state, device/connection state, search results, and notifications through canonical stores and routes with owner/session boundaries.",
+      "notes": "Route/store contract tests with temp dirs only; no live external integrations."
+    },
+    "real_browser_product_convergence": {
+      "milestone": "NAGEX-REAL-BROWSER-PRODUCT-CONVERGENCE",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "workspace",
+        "creation",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "real-Chromium proof that global search reads real backend artifact results, opens artifacts in Canvas, Canvas revision calls the real revision endpoint and reports no-model truthfully, and desktop/mobile surfaces fit without horizontal overflow.",
+      "notes": "Uses the production server harness with provider credentials scrubbed and real temp-dir ArtifactStore/DocumentStore records.",
+      "writesRepositoryArtifacts": false
+    },
     "security_hardening_s0": {
       "milestone": "SECURITY-HARDENING-S0",
       "classification": "CANONICAL_BEHAVIOR",
