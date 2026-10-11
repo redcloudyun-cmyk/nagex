@@ -98,7 +98,8 @@ describe('NAgex Main surface hard rebuild', () => {
       assert.match(server, new RegExp(`createBuildVersion[\\s\\S]*${asset.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
     }
     const voiceAdapter = fs.readFileSync('public/renderer-voice-adapter.js', 'utf8');
-    assert.match(voiceAdapter, /window\.location && window\.location\.protocol === 'https:'[\s\S]*'whisper-local'/);
+    assert.match(voiceAdapter, /window\.location && window\.location\.protocol === 'https:'[\s\S]*'server-whisper'/);
+    assert.match(voiceAdapter, /\/api\/v1\/stt/);
     assert.match(voiceAdapter, /window\.NAGEX_STT_BACKEND !== 'browser'/);
   });
 

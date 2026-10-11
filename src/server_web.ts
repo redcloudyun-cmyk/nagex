@@ -70,6 +70,7 @@ import { handleConnectionsRoutes } from './http/routes/connections.routes.js';
 import { handleSearchRoutes } from './http/routes/search.routes.js';
 import { handleActionsRoutes } from './http/routes/actions.routes.js';
 import { handleCommandContextRoutes } from './http/routes/command-context.routes.js';
+import { handleSttRoutes } from './http/routes/stt.routes.js';
 import type { GoogleCalendarService } from './modules/calendar/index.js';
 import type { GmailService } from './modules/gmail/index.js';
 import { BrowserToolService, browserRuntime } from './modules/browser/index.js';
@@ -501,6 +502,10 @@ export async function handleAsyncApiRequest(
     {
       const healthResult = handleHealthRoutes(method, pathname, body, headers, query, healthRouteDeps);
       if (healthResult) return healthResult;
+    }
+    {
+      const sttResult = await handleSttRoutes(method, pathname, body, headers, query, {});
+      if (sttResult) return sttResult;
     }
     // R10.2-D Increment 5 — Main Session / conversational core
     // (conversations/main GET/POST-messages/DELETE, ai/chat, ambient/

@@ -29,6 +29,7 @@ function corsHeaders(req) {
   const headers = {
     'access-control-allow-methods': 'GET, POST, OPTIONS',
     'access-control-allow-headers': 'content-type, x-nagex-stt-token',
+    'access-control-allow-private-network': 'true',
     'access-control-max-age': '600',
     'vary': 'origin',
   };

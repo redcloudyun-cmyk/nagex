@@ -73,6 +73,7 @@ export const ROUTE_ACCESS_RULES: readonly RouteAccessRule[] = [
   rule(['POST'], /^\/api\/v1\/plans$/, 'SELF_AUTHENTICATED', 'plan create, requires a session (ADR-0005)'),
   rule(['PUT'], /^\/api\/v1\/plans\/[^/]+$/, 'SELF_AUTHENTICATED', 'plan update, requires a session (ADR-0005)'),
   rule(['POST'], /^\/api\/v1\/artifacts\/[^/]+\/ask$/, 'SELF_AUTHENTICATED', 'Canvas Ask, requires a session (R24.7B)'),
+  rule(['POST'], /^\/api\/v1\/stt\/transcribe$/, 'SELF_AUTHENTICATED', 'voice transcription: handler requires a server-side session, accepts bounded WAV bytes only and retains no audio'),
 
   // ── ANONYMOUS_PRESERVED (S0 UNKNOWN; no legacy-identity dependency; owned by a later phase) ──
   rule(['GET'], /^\/api\/v1\/vcs\/status$/, 'ANONYMOUS_PRESERVED', 'S0-15 information disclosure — later phase'),

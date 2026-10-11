@@ -25,10 +25,11 @@
     const storage = window.localStorage || null;
     const configuredBackend = window.NAGEX_STT_BACKEND || (storage && storage.getItem('nagex_stt_backend')) || '';
     const publicHttpsDefault = window.location && window.location.protocol === 'https:' && window.NAGEX_STT_BACKEND !== 'browser';
-    const backend = configuredBackend || (publicHttpsDefault ? 'whisper-local' : '');
-    const endpoint = window.NAGEX_LOCAL_STT_ENDPOINT || (storage && storage.getItem('nagex_stt_endpoint')) || 'http://127.0.0.1:4760';
+    const backend = configuredBackend || (publicHttpsDefault ? 'server-whisper' : '');
+    const defaultEndpoint = backend === 'server-whisper' ? '/api/v1/stt' : 'http://127.0.0.1:4760';
+    const endpoint = window.NAGEX_LOCAL_STT_ENDPOINT || (storage && storage.getItem('nagex_stt_endpoint')) || defaultEndpoint;
     const token = window.NAGEX_LOCAL_STT_TOKEN || (storage && storage.getItem('nagex_stt_token')) || '';
-    return { enabled: backend === 'whisper-local', backend, endpoint: endpoint.replace(/\/$/, ''), token };
+    return { enabled: backend === 'whisper-local' || backend === 'server-whisper', backend, endpoint: endpoint.replace(/\/$/, ''), token: backend === 'server-whisper' ? '' : token };
   }
 
   class RendererVoiceAdapter {
@@ -76,7 +77,7 @@
         secureContext: Boolean(window.isSecureContext),
         mediaDevices: Boolean(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
         speechRecognition: Boolean(recognitionCtor()),
-        localWhisper: localWhisperConfig().enabled,
+        whisperBackend: localWhisperConfig().enabled ? localWhisperConfig().backend : '',
       });
       const whisper = localWhisperConfig();
       if (whisper.enabled) return await this.startLocalWhisper(opts, whisper);
@@ -234,9 +235,10 @@
 
     async startLocalWhisper(opts, whisper) {
       const permission = await this.microphonePermission();
-      this.diagnose('MIC_PERMISSION', { permission, backend: 'whisper-local' });
+      const backend = whisper.backend || 'whisper-local';
+      this.diagnose('MIC_PERMISSION', { permission, backend });
       if (permission === STATES.UNAVAILABLE || permission === STATES.PERMISSION_DENIED) {
-        this.transition(permission, { reason: permission, backend: 'whisper-local' });
+        this.transition(permission, { reason: permission, backend });
         return { state: permission, transcript: '' };
       }
       this.cancelled = false;
@@ -244,32 +246,32 @@
       this.lastResultDiagnostic = null;
       this.committedFinalResults = new Set();
       this.activeSession = opts.session || null;
-      this.transition(STATES.REQUESTING_PERMISSION, { session: this.activeSession, backend: 'whisper-local' });
+      this.transition(STATES.REQUESTING_PERMISSION, { session: this.activeSession, backend });
 
       try {
         this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, sampleRate: 16000 } });
         this.diagnose('MEDIA_STREAM_OPENED', {
-          backend: 'whisper-local',
+          backend,
           audioTracks: this.mediaStream.getAudioTracks ? this.mediaStream.getAudioTracks().length : undefined,
           tracks: this.mediaStream.getTracks ? this.mediaStream.getTracks().length : undefined,
         });
       } catch (error) {
         const denied = error && (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError');
         const state = denied ? STATES.PERMISSION_DENIED : STATES.ERROR;
-        this.diagnose('MEDIA_STREAM_ERROR', { backend: 'whisper-local', name: error && error.name, message: error && error.message, state });
+        this.diagnose('MEDIA_STREAM_ERROR', { backend, name: error && error.name, message: error && error.message, state });
         this.cleanup();
-        this.transition(state, { error, session: this.activeSession, backend: 'whisper-local' });
+        this.transition(state, { error, session: this.activeSession, backend });
         return { state, transcript: '' };
       }
 
-      this.transition(STATES.LISTENING, { session: this.activeSession, backend: 'whisper-local' });
+      this.transition(STATES.LISTENING, { session: this.activeSession, backend });
       const maxRecordMs = opts.maxRecordMs || window.NAGEX_STT_MAX_RECORD_MS || 9000;
-      this.diagnose('WHISPER_LOCAL_RECORDING_STARTED', { backend: 'whisper-local', maxRecordMs });
+      this.diagnose('WHISPER_RECORDING_STARTED', { backend, maxRecordMs });
 
       const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
       if (!AudioContextCtor) {
         this.cleanup();
-        this.transition(STATES.UNAVAILABLE, { reason: 'AUDIO_CONTEXT_UNAVAILABLE', backend: 'whisper-local' });
+        this.transition(STATES.UNAVAILABLE, { reason: 'AUDIO_CONTEXT_UNAVAILABLE', backend });
         return { state: STATES.UNAVAILABLE, transcript: '', reason: 'AUDIO_CONTEXT_UNAVAILABLE' };
       }
 
@@ -287,11 +289,11 @@
       await new Promise((resolve) => setTimeout(resolve, maxRecordMs));
       if (this.cancelled) {
         this.cleanup();
-        this.transition(STATES.CANCELLED, { reason: 'cancelled', backend: 'whisper-local' });
+        this.transition(STATES.CANCELLED, { reason: 'cancelled', backend });
         return { state: STATES.CANCELLED, transcript: '', reason: 'cancelled' };
       }
 
-      this.transition(STATES.TRANSCRIBING, { session: this.activeSession, backend: 'whisper-local' });
+      this.transition(STATES.TRANSCRIBING, { session: this.activeSession, backend });
       const samples = this.resample(this.flattenAudio(), this.audioSampleRate, 16000);
       const wav = this.encodeWav(samples, 16000);
       const started = performance.now();
@@ -315,8 +317,8 @@
           confidence: null,
           callbackDelivered: false,
         };
-        this.diagnose('WHISPER_LOCAL_RESULT', {
-          backend: 'whisper-local',
+        this.diagnose('WHISPER_RESULT', {
+          backend,
           ok: Boolean(response.ok && transcript),
           status: response.status,
           transcriptLength: transcript.length,
@@ -328,7 +330,7 @@
         });
         if (!response.ok || !transcript) {
           this.cleanup();
-          this.transition(STATES.CANCELLED, { reason: result.reason || 'NO_TRANSCRIPT', backend: 'whisper-local' });
+          this.transition(STATES.CANCELLED, { reason: result.reason || 'NO_TRANSCRIPT', backend });
           return { state: STATES.CANCELLED, transcript: '', reason: result.reason || 'NO_TRANSCRIPT' };
         }
         this.finalTranscript = transcript;
@@ -340,18 +342,18 @@
         });
         this.lastResultDiagnostic = { ...this.lastResultDiagnostic, callbackDelivered: true };
         this.diagnose('TRANSCRIPT_CALLBACK_DELIVERED', {
-          backend: 'whisper-local',
+          backend,
           finalTranscriptLength: transcript.length,
           interimTranscriptLength: 0,
         });
         this.cleanup();
-        this.transition(STATES.COMPLETED, { transcript, session: this.activeSession, backend: 'whisper-local' });
+        this.transition(STATES.COMPLETED, { transcript, session: this.activeSession, backend });
         return { state: STATES.COMPLETED, transcript };
       } catch (error) {
-        this.diagnose('WHISPER_LOCAL_ERROR', { backend: 'whisper-local', name: error && error.name, message: error && error.message });
+        this.diagnose('WHISPER_ERROR', { backend, name: error && error.name, message: error && error.message });
         this.cleanup();
-        this.transition(STATES.ERROR, { error, reason: 'WHISPER_LOCAL_ERROR', backend: 'whisper-local' });
-        return { state: STATES.ERROR, transcript: '', reason: 'WHISPER_LOCAL_ERROR' };
+        this.transition(STATES.ERROR, { error, reason: 'WHISPER_ERROR', backend });
+        return { state: STATES.ERROR, transcript: '', reason: 'WHISPER_ERROR' };
       }
     }
 

@@ -11,6 +11,7 @@ test('open-source STT POC is isolated, local-only, and inserts without auto-subm
   assert.match(server, /FASTER_WHISPER_NOT_CONFIGURED/);
   assert.match(server, /NAGEX_STT_POC_TOKEN/);
   assert.match(server, /access-control-allow-origin/);
+  assert.match(server, /access-control-allow-private-network/);
   assert.match(server, /https:\/\/nagex-test\.agex\.site/);
   assert.match(server, /req\.method === 'OPTIONS'/);
   assert.match(server, /TRANSCRIPTION_BUSY/);
@@ -22,4 +23,26 @@ test('open-source STT POC is isolated, local-only, and inserts without auto-subm
   assert.match(html, /getUserMedia/);
   assert.match(html, /composer\.value/);
   assert.doesNotMatch(html, /sendRequest|submitPrompt|form\.submit/);
+});
+
+test('same-origin STT route is bounded and reuses whisper.cpp without audio retention', () => {
+  const route = fs.readFileSync('src/http/routes/stt.routes.ts', 'utf8');
+  const server = fs.readFileSync('src/server_web.ts', 'utf8');
+  const bodyLimit = fs.readFileSync('src/http/body-limit.ts', 'utf8');
+  const access = fs.readFileSync('src/http/route-access.ts', 'utf8');
+
+  assert.match(server, /handleSttRoutes/);
+  assert.match(route, /NAGEX_WHISPER_CPP_BIN/);
+  assert.match(route, /NAGEX_WHISPER_CPP_MODEL/);
+  assert.match(route, /MAX_AUDIO_BYTES/);
+  assert.match(route, /MAX_AUDIO_SECONDS/);
+  assert.match(route, /MAX_CONCURRENT_TRANSCRIPTIONS/);
+  assert.match(route, /TRANSCRIBE_TIMEOUT/);
+  assert.match(route, /spawn\(bin, \['-m', model, '-f', wavPath, '-l', 'ko'/);
+  assert.match(route, /await rm\(dir, \{ recursive: true, force: true \}\)/);
+  assert.match(route, /Buffer\.isBuffer\(binaryBody\.data\)/);
+  assert.match(route, /mimeType[\s\S]*includes\('wav'\)/);
+  assert.match(bodyLimit, /\/api\/v1\/stt\/transcribe/);
+  assert.match(access, /\/api\\\/v1\\\/stt\\\/transcribe/);
+  assert.doesNotMatch(route, /localStorage|NAGEX_LOCAL_STT_TOKEN|127\.0\.0\.1:4760/);
 });
