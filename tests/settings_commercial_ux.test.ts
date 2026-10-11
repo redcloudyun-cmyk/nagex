@@ -70,8 +70,12 @@ test('L. KR and EN rendering path remains available in Settings', () => {
 test('device endpoint supports real device list and nickname persistence', () => {
   const src = routes();
   assert.match(src, /\/api\/v1\/device-agent\/devices/);
-  assert.match(src, /\/nickname/);
-  assert.match(src, /projectDeviceForSettings/);
+  assert.match(src, /method === 'PATCH'/);
+  assert.match(src, /updateNickname\(deviceId, session\.tenantId, session\.principalId, nickname\)/);
+  assert.match(src, /DEVICE_UPDATE_AUTH_REQUIRED/);
+  const app = appJs();
+  assert.match(app, /\/api\/v1\/device-agent\/devices\/\$\{encodeURIComponent\(device\.deviceId\)\}`/);
+  assert.doesNotMatch(app, /\/nickname/);
 });
 
 test('production Account settings omit password and Personal AI space from normal UI', () => {
