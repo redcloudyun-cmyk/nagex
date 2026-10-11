@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NAgex STT POC</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 32px; color: #07133f; background: #f6f9ff; }
+    main { max-width: 760px; margin: 0 auto; }
+    button { border: 0; border-radius: 8px; padding: 12px 16px; background: #1267ff; color: #fff; font-weight: 700; }
+    button[disabled] { background: #93a4c6; }
+    textarea { width: 100%; min-height: 160px; margin-top: 16px; padding: 14px; border: 1px solid #c9d7f2; border-radius: 8px; font: inherit; }
+    pre { white-space: pre-wrap; background: #fff; border: 1px solid #dce6fb; border-radius: 8px; padding: 12px; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>NAgex STT POC</h1>
+  <p>Real microphone audio is recorded locally, sent only to this local POC server, transcribed, then inserted as editable text. Nothing is submitted.</p>
+  <button id="record">Record Korean sample</button>
+  <button id="stop" disabled>Stop</button>
+  <textarea id="composer" placeholder="Transcript appears here and remains editable."></textarea>
+  <pre id="status">Idle</pre>
+</main>
+<script>
+  const record = document.getElementById('record');
+  const stop = document.getElementById('stop');
+  const composer = document.getElementById('composer');
+  const status = document.getElementById('status');
+  let audioContext;
+  let stream;
+  let processor;
+  let chunks = [];
+  let sampleRate = 16000;
+
+  function setStatus(value) {
+    status.textContent = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+  }
+
+  function encodeWav(samples) {
+    const dataLength = samples.length * 2;
+    const buffer = new ArrayBuffer(44 + dataLength);
+    const view = new DataView(buffer);
+    const write = (offset, value) => [...value].forEach((char, i) => view.setUint8(offset + i, char.charCodeAt(0)));
+    write(0, 'RIFF');
+    view.setUint32(4, 36 + dataLength, true);
+    write(8, 'WAVE');
+    write(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    write(36, 'data');
+    view.setUint32(40, dataLength, true);
+    let offset = 44;
+    for (const sample of samples) {
+      const clamped = Math.max(-1, Math.min(1, sample));
+      view.setInt16(offset, clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff, true);
+      offset += 2;
+    }
+    return new Blob([view], { type: 'audio/wav' });
+  }
+
+  record.onclick = async () => {
+    chunks = [];
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, sampleRate } });
+    audioContext = new AudioContext({ sampleRate });
+    sampleRate = audioContext.sampleRate;
+    const source = audioContext.createMediaStreamSource(stream);
+    processor = audioContext.createScriptProcessor(4096, 1, 1);
+    processor.onaudioprocess = (event) => chunks.push(new Float32Array(event.inputBuffer.getChannelData(0)));
+    source.connect(processor);
+    processor.connect(audioContext.destination);
+    record.disabled = true;
+    stop.disabled = false;
+    setStatus('Recording... speak Korean, then press Stop.');
+  };
+
+  stop.onclick = async () => {
+    stop.disabled = true;
+    processor.disconnect();
+    stream.getTracks().forEach((track) => track.stop());
+    await audioContext.close();
+    const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+    const samples = new Float32Array(total);
+    let offset = 0;
+    for (const chunk of chunks) { samples.set(chunk, offset); offset += chunk.length; }
+    setStatus({ state: 'transcribing', samples: samples.length, sampleRate });
+    const started = performance.now();
+    const res = await fetch('/transcribe', { method: 'POST', headers: { 'content-type': 'audio/wav' }, body: encodeWav(samples) });
+    const result = await res.json();
+    result.browserRoundTripMs = Math.round(performance.now() - started);
+    if (result.transcript) {
+      composer.value = [composer.value, result.transcript].filter(Boolean).join(' ').trim();
+    }
+    setStatus(result);
+    record.disabled = false;
+  };
+</script>
+</body>
+</html>
