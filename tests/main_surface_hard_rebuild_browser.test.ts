@@ -27,6 +27,7 @@ async function installVoiceMocks(page: Page): Promise<void> {
     (window as any).__nagexVoicePermission = 'granted';
     (window as any).__nagexVoiceMediaUnavailable = false;
     (window as any).__nagexVoiceTrackStopped = false;
+    (window as any).__nagexVoiceError = null;
     Object.defineProperty(navigator, 'mediaDevices', {
       configurable: true,
       value: {
@@ -57,6 +58,11 @@ async function installVoiceMocks(page: Page): Promise<void> {
       start() {
         setTimeout(() => {
           this.onstart?.();
+          if ((window as any).__nagexVoiceError) {
+            this.onerror?.({ error: (window as any).__nagexVoiceError });
+            this.onend?.();
+            return;
+          }
           const transcript = (window as any).__nagexVoiceTranscript || 'voice input';
           const result: any = [{ transcript }];
           result.isFinal = true;
@@ -133,6 +139,14 @@ describe('NAgex Main surface hard rebuild', () => {
     await page.click('#main-mic');
     await page.waitForFunction(() => document.querySelector('#main-work-summary')?.textContent?.includes('Voice input failed'));
     await page.evaluate(() => { (window as any).__nagexVoiceMediaUnavailable = false; });
+
+    await page.evaluate(() => { (window as any).__nagexVoiceError = 'no-speech'; });
+    await page.click('#main-mic');
+    await page.waitForFunction(() => document.querySelector('#main-work-title')?.textContent?.includes('No speech captured'));
+    await page.evaluate(() => { (window as any).__nagexVoiceError = 'network'; });
+    await page.click('#main-mic');
+    await page.waitForFunction(() => document.querySelector('#main-work-summary')?.textContent?.includes('speech service'));
+    await page.evaluate(() => { (window as any).__nagexVoiceError = null; });
 
     await page.fill('#main-surface-input', '');
     await page.evaluate(() => { (window as any).__nagexVoiceTranscript = '음성으로 계획을 세워줘'; });

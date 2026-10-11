@@ -501,6 +501,10 @@
     if (input) input.dataset.voiceBase = input.value.trim();
     state.voiceMode = mode;
     state.voiceAdapter = new window.NAGEX_RENDERER_VOICE.RendererVoiceAdapter({
+      onDiagnostic: (diagnostic) => {
+        const root = document.getElementById('nagex-main-surface');
+        if (root) root.dataset.voiceDiagnostic = diagnostic.event;
+      },
       onStateChange: ({ state: nextState, detail }) => {
         const map = {
           REQUESTING_PERMISSION: 'REQUESTING',
@@ -544,12 +548,24 @@
       }
       return;
     }
+    if (result.state === 'CANCELLED') {
+      setVoiceState('IDLE', result.reason === 'no-speech' || result.reason === 'NO_TRANSCRIPT' ? 'no speech captured' : 'cancelled');
+      if (result.reason === 'no-speech' || result.reason === 'NO_TRANSCRIPT') {
+        showThread('Voice input', 'Ready', 'No speech captured', 'The microphone opened, but no transcript was produced. Check the selected input device and try speaking closer to the microphone.', [
+          { state: 'done', label: 'Microphone opened', detail: 'Browser permission accepted' },
+          { state: 'running', label: 'Speech recognition ended', detail: result.reason || 'NO_TRANSCRIPT' },
+        ]);
+      }
+      return;
+    }
     if (result.state === 'PERMISSION_DENIED' || result.state === 'UNAVAILABLE' || result.state === 'ERROR') {
       const message = result.state === 'PERMISSION_DENIED'
         ? 'Microphone permission is denied. Enable microphone access in the browser settings.'
         : result.state === 'UNAVAILABLE'
           ? 'Voice recognition is unavailable in this browser.'
-          : 'Voice input failed.';
+          : result.reason === 'SPEECH_RECOGNITION_NETWORK'
+            ? 'Speech recognition could not reach the browser speech service. Check network access or use typed input.'
+            : 'Voice input failed.';
       showThread('Voice input', 'Error', 'Voice input unavailable', message, [
         { state: 'running', label: 'Voice input', detail: result.reason || result.state },
       ]);

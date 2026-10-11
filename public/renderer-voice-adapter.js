@@ -30,6 +30,7 @@
       this.finalTranscript = '';
       this.cancelled = false;
       this.activeSession = null;
+      this.lastDiagnostic = null;
     }
 
     isActive() {
@@ -55,12 +56,19 @@
         await this.cancel();
         return { state: STATES.CANCELLED, transcript: '' };
       }
+      this.diagnose('START_REQUESTED', {
+        secureContext: Boolean(window.isSecureContext),
+        mediaDevices: Boolean(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
+        speechRecognition: Boolean(recognitionCtor()),
+      });
       const Recognition = recognitionCtor();
       if (!Recognition) {
+        this.diagnose('UNAVAILABLE', { reason: 'SPEECH_RECOGNITION_UNAVAILABLE' });
         this.transition(STATES.UNAVAILABLE, { reason: 'SPEECH_RECOGNITION_UNAVAILABLE' });
         return { state: STATES.UNAVAILABLE, transcript: '' };
       }
       const permission = await this.microphonePermission();
+      this.diagnose('MIC_PERMISSION', { permission });
       if (permission === STATES.UNAVAILABLE || permission === STATES.PERMISSION_DENIED) {
         this.transition(permission, { reason: permission });
         return { state: permission, transcript: '' };
@@ -73,23 +81,41 @@
 
       try {
         this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        this.diagnose('MEDIA_STREAM_OPENED', {
+          audioTracks: this.mediaStream.getAudioTracks ? this.mediaStream.getAudioTracks().length : undefined,
+          tracks: this.mediaStream.getTracks ? this.mediaStream.getTracks().length : undefined,
+        });
       } catch (error) {
         const denied = error && (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError');
         const state = denied ? STATES.PERMISSION_DENIED : STATES.ERROR;
+        this.diagnose('MEDIA_STREAM_ERROR', { name: error && error.name, message: error && error.message, state });
         this.cleanup();
         this.transition(state, { error, session: this.activeSession });
         return { state, transcript: '' };
       }
 
       return await new Promise((resolve) => {
+        let settled = false;
+        const finish = (payload, detail) => {
+          if (settled) return;
+          settled = true;
+          this.cleanup();
+          this.transition(payload.state, { ...(detail || {}), session: this.activeSession });
+          resolve(payload);
+        };
         const recognition = new Recognition();
         recognition.lang = opts.lang || this.options.lang || 'ko-KR';
         recognition.interimResults = opts.interimResults !== false;
         recognition.continuous = Boolean(opts.continuous);
+        recognition.maxAlternatives = 1;
         this.recognition = recognition;
 
-        recognition.onstart = () => this.transition(STATES.LISTENING, { session: this.activeSession });
+        recognition.onstart = () => {
+          this.diagnose('RECOGNITION_STARTED', { lang: recognition.lang, continuous: recognition.continuous });
+          this.transition(STATES.LISTENING, { session: this.activeSession });
+        };
         recognition.onresult = (event) => {
+          this.diagnose('RECOGNITION_RESULT', { resultIndex: event.resultIndex, resultCount: event.results ? event.results.length : undefined });
           this.transition(STATES.TRANSCRIBING, { session: this.activeSession });
           let interim = '';
           for (let i = event.resultIndex; i < event.results.length; i += 1) {
@@ -108,24 +134,22 @@
         };
         recognition.onerror = (event) => {
           const normalized = this.normalizeError(event);
-          this.cleanup();
-          this.transition(normalized.state, { error: event, reason: normalized.reason, session: this.activeSession });
-          resolve({ state: normalized.state, transcript: this.finalTranscript, reason: normalized.reason });
+          this.diagnose('RECOGNITION_ERROR', { error: event && event.error, message: event && event.message, state: normalized.state, reason: normalized.reason });
+          finish({ state: normalized.state, transcript: this.finalTranscript, reason: normalized.reason }, { error: event, reason: normalized.reason });
         };
         recognition.onend = () => {
           const transcript = this.finalTranscript.trim();
           const state = this.cancelled ? STATES.CANCELLED : transcript ? STATES.COMPLETED : STATES.CANCELLED;
-          this.cleanup();
-          this.transition(state, { transcript, session: this.activeSession });
-          resolve({ state, transcript });
+          const reason = transcript ? undefined : 'NO_TRANSCRIPT';
+          this.diagnose('RECOGNITION_ENDED', { state, transcriptLength: transcript.length, reason });
+          finish({ state, transcript, reason }, { transcript, reason });
         };
 
         try {
           recognition.start();
         } catch (error) {
-          this.cleanup();
-          this.transition(STATES.ERROR, { error, session: this.activeSession });
-          resolve({ state: STATES.ERROR, transcript: '', reason: 'START_FAILED' });
+          this.diagnose('RECOGNITION_START_ERROR', { name: error && error.name, message: error && error.message });
+          finish({ state: STATES.ERROR, transcript: '', reason: 'START_FAILED' }, { error, reason: 'START_FAILED' });
         }
       });
     }
@@ -155,12 +179,30 @@
         return { state: STATES.PERMISSION_DENIED, reason: code };
       }
       if (code === 'audio-capture') return { state: STATES.UNAVAILABLE, reason: code };
+      if (code === 'no-speech' || code === 'aborted') return { state: STATES.CANCELLED, reason: code };
+      if (code === 'network') return { state: STATES.ERROR, reason: 'SPEECH_RECOGNITION_NETWORK' };
       return { state: STATES.ERROR, reason: code };
     }
 
     transition(nextState, detail) {
       this.state = nextState;
       this.options.onStateChange?.({ state: nextState, detail: detail || {}, active: this.isActive() });
+    }
+
+    diagnose(event, detail) {
+      const diagnostic = {
+        event,
+        detail: detail || {},
+        state: this.state,
+        at: new Date().toISOString(),
+      };
+      this.lastDiagnostic = diagnostic;
+      window.__NAGEX_LAST_VOICE_DIAGNOSTIC = diagnostic;
+      try {
+        window.dispatchEvent(new CustomEvent('nagex:voice-diagnostic', { detail: diagnostic }));
+      } catch {}
+      if (this.options.onDiagnostic) this.options.onDiagnostic(diagnostic);
+      if (window.console && window.console.info) window.console.info('[NAgex voice]', diagnostic);
     }
   }
 
