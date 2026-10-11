@@ -2,18 +2,19 @@
   'use strict';
 
   const MODES = [
+    { id: 'ASK', label: 'Ask', capability: 'ASK', enabled: true },
     { id: 'RESEARCH', label: 'Research', capability: 'RESEARCH', enabled: true },
     { id: 'DOCUMENT', label: 'Document', artifactType: 'DOCUMENT', enabled: true },
     { id: 'PLAN', label: 'Plan', capability: 'PLAN', enabled: true },
     { id: 'IMAGE', label: 'Image', artifactType: 'IMAGE', enabled: false, reason: 'Image generation from Main needs a supported image provider route.' },
     { id: 'SLIDES', label: 'Slides', artifactType: 'PRESENTATION', enabled: false, reason: 'Presentation generation is not enabled in this build.' },
     { id: 'VIDEO', label: 'Video', artifactType: 'VIDEO', enabled: false, reason: 'Video generation is not enabled in this build.' },
-    { id: 'CODE', label: 'Code', capability: 'CODE', enabled: true },
+    { id: 'CODE', label: 'Code', capability: 'CODE', enabled: false, reason: 'Code generation is not enabled in this Main build.' },
     { id: 'MORE', label: 'More', enabled: false, reason: 'More capabilities are available contextually after a result exists.' },
   ];
 
   const state = {
-    mode: 'RESEARCH',
+    mode: 'ASK',
     web: true,
     personalContext: false,
     planPreview: true,
@@ -141,21 +142,6 @@
             <button type="button" class="btn-primary" id="main-result-revise">Revise</button>
           </div>
         </aside>
-        <section class="main-bottom-tray" id="main-bottom-tray" data-collapsed="false">
-          <div class="main-tray-head">
-            <div class="main-tray-tabs">
-              <span>Today - <span id="main-count-today">0</span></span>
-              <span>Since yesterday - <span id="main-count-activity">0</span></span>
-              <span>Suggestions - <span id="main-count-suggestions">0</span></span>
-            </div>
-            <button type="button" class="main-tool-btn" id="main-tray-toggle">Collapse</button>
-          </div>
-          <div class="main-tray-grid">
-            <article><h3>Today's Priorities</h3><div id="main-tray-today"></div></article>
-            <article><h3>Since Yesterday</h3><div id="main-tray-activity"></div></article>
-            <article><h3>NAgex Suggests</h3><div id="main-tray-suggestions"></div></article>
-          </div>
-        </section>
       </div>
     `;
   }
@@ -245,26 +231,110 @@
     setTrayCollapsed(true);
     hideResult();
     const metadata = requestMetadata();
-    showThread(prompt, 'Submitting', 'NAgex is starting from Main.', 'Your request is being routed with the selected intent metadata.', [
+    showThread(prompt, 'Submitting', 'NAgex is starting from Main.', 'Your request is being classified before any execution path is chosen.', [
       { state: 'done', label: 'Request captured', detail: metadata.preferredMode },
-      { state: 'running', label: 'Route request', detail: metadata.allowWebResearch ? 'Web allowed' : 'Web off' },
+      { state: 'running', label: 'Classify intent', detail: metadata.allowWebResearch ? 'Web allowed' : 'Web off' },
       { state: 'pending', label: 'Prepare result', detail: '' },
     ]);
     try {
-      if (state.revisionTarget && metadata.preferredArtifactType === 'DOCUMENT') {
-        await reviseDocument(prompt, metadata, state.revisionTarget);
-      } else if (metadata.preferredArtifactType === 'DOCUMENT') {
-        await createDocument(prompt, metadata);
-      } else if (metadata.preferredCapability === 'RESEARCH') {
-        await runResearch(prompt, metadata);
-      } else {
-        await runPlan(prompt, metadata);
-      }
+      await dispatchMainRequest(prompt, metadata);
       if (input) input.value = '';
     } finally {
       state.busy = false;
       if (send) send.disabled = false;
     }
+  }
+
+  async function classifyInput(prompt, metadata) {
+    const result = await api('/api/v1/workspace/route-input', {
+      method: 'POST',
+      body: JSON.stringify({ text: prompt, hasFile: state.attachments.length > 0, requestMetadata: metadata }),
+    });
+    if (!result || result.error) {
+      return { error: result && result.error ? result.error : { message: 'Intent routing is unavailable.' } };
+    }
+    return result.data || result;
+  }
+
+  async function dispatchMainRequest(prompt, metadata) {
+    const route = await classifyInput(prompt, metadata);
+    if (route.error) {
+      showThread(prompt, 'Error', 'NAgex could not classify the request', route.error.message || 'Intent routing is unavailable.', [
+        { state: 'done', label: 'Request captured', detail: metadata.preferredMode },
+        { state: 'running', label: 'Intent routing failed', detail: route.error.code || '' },
+      ]);
+      return;
+    }
+    const routeDetail = [route.primaryIntent, route.confidence != null ? Math.round(Number(route.confidence) * 100) + '%' : ''].filter(Boolean).join(' - ');
+    const steps = [
+      { state: 'done', label: 'Request captured', detail: metadata.preferredMode },
+      { state: 'done', label: 'Intent classified', detail: routeDetail },
+      { state: 'running', label: 'Run selected path', detail: route.reason || '' },
+    ];
+    setStep(steps);
+
+    if (route.primaryIntent === 'LINK_CAPTURE' || route.primaryIntent === 'CAPTURE') {
+      await captureInput(prompt, route);
+      return;
+    }
+
+    if (state.revisionTarget && metadata.preferredArtifactType === 'DOCUMENT') {
+      await reviseDocument(prompt, metadata, state.revisionTarget);
+    } else if (metadata.preferredArtifactType === 'DOCUMENT') {
+      await createDocument(prompt, metadata);
+    } else if (metadata.preferredCapability === 'RESEARCH') {
+      await runResearch(prompt, metadata);
+    } else if (metadata.preferredCapability === 'PLAN' || route.primaryIntent === 'COMMAND') {
+      await runPlan(prompt, metadata, route);
+    } else {
+      await runAnswer(prompt, metadata, route);
+    }
+  }
+
+  async function captureInput(prompt, route) {
+    const result = await api('/api/v1/workspace/capture', {
+      method: 'POST',
+      body: JSON.stringify({
+        type: route.primaryIntent === 'LINK_CAPTURE' ? 'LINK' : 'TEXT',
+        content: route.normalizedPayload && route.normalizedPayload.cleanText ? route.normalizedPayload.cleanText : prompt,
+        source: 'WEB',
+      }),
+    });
+    if (!result || result.error) {
+      showThread(prompt, 'Error', 'Capture could not be saved', (result && result.error && result.error.message) || 'The workspace capture endpoint did not save this request.', [
+        { state: 'done', label: 'Intent classified', detail: route.primaryIntent },
+        { state: 'running', label: 'Capture failed', detail: '' },
+      ]);
+      return;
+    }
+    showThread(prompt, 'Saved', 'Saved to Inbox', 'The request was stored through the real workspace capture pipeline.', [
+      { state: 'done', label: 'Intent classified', detail: route.primaryIntent },
+      { state: 'done', label: 'Capture persisted', detail: result.captureId || result.itemId || '' },
+    ]);
+  }
+
+  async function runAnswer(prompt, metadata, route) {
+    const result = await api('/api/v1/ai/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message: prompt, requestMetadata: metadata }),
+      timeoutMs: 120000,
+    });
+    if (!result || result.error) {
+      showThread(prompt, 'Unavailable', 'Answer is unavailable', (result && result.error && result.error.message) || 'The answer provider did not return a usable response.', [
+        { state: 'done', label: 'Intent classified', detail: route.primaryIntent || 'ASK' },
+        { state: 'running', label: 'Answer unavailable', detail: result && result.error && result.error.code ? result.error.code : '' },
+      ]);
+      return;
+    }
+    const answer = (result.data && result.data.message) || result.message || '';
+    showThread(prompt, 'Answered', 'NAgex answered inline', answer || 'NAgex returned an empty answer.', [
+      { state: 'done', label: 'Intent classified', detail: route.primaryIntent || 'ASK' },
+      { state: 'done', label: 'Answer prepared', detail: (result.data && result.data.messageId) || result.requestId || '' },
+    ]);
+    renderInlineActions([
+      { id: 'follow', label: 'Ask follow-up', action: () => focusComposer('') },
+      { id: 'save', label: 'Save to Vault', action: () => saveTextToVault(answer || prompt) },
+    ]);
   }
 
   async function createDocument(prompt, metadata) {
@@ -356,7 +426,7 @@
     ]);
   }
 
-  async function runPlan(prompt, metadata) {
+  async function runPlan(prompt, metadata, route) {
     const result = await api('/api/v1/ambient/intent', {
       method: 'POST',
       body: JSON.stringify({ prompt, requestMetadata: metadata }),
@@ -364,7 +434,7 @@
     });
     if (!result || result.error || !result.plan) {
       showThread(prompt, 'Error', 'NAgex could not prepare a plan', (result && result.error && result.error.message) || 'The planner did not return a usable plan.', [
-        { state: 'done', label: 'Request captured', detail: metadata.preferredMode },
+        { state: 'done', label: 'Intent classified', detail: route && route.primaryIntent ? route.primaryIntent : metadata.preferredMode },
         { state: 'running', label: 'Planning failed', detail: '' },
       ]);
       return;
@@ -622,37 +692,10 @@
       state.attachments.splice(Number(btn.dataset.removeAttachment), 1);
       renderAttachments();
     });
-    document.getElementById('main-tray-toggle')?.addEventListener('click', () => setTrayCollapsed(!state.trayCollapsed));
     document.getElementById('main-result-close')?.addEventListener('click', hideResult);
     document.getElementById('main-result-expand')?.addEventListener('click', () => document.body.classList.toggle('main-result-fullscreen'));
     document.getElementById('main-result-open')?.addEventListener('click', openResult);
     document.getElementById('main-result-revise')?.addEventListener('click', reviseResult);
-  }
-
-  async function renderTray() {
-    const [tasks, approvals, activity, notifications] = await Promise.all([
-      api('/api/v1/tasks'),
-      api('/api/v1/approvals'),
-      api('/api/v1/activity'),
-      api('/api/v1/notifications'),
-    ]);
-    const taskItems = tasks && Array.isArray(tasks.tasks) ? tasks.tasks.slice(0, 3) : [];
-    const apprItems = approvals && Array.isArray(approvals.pending) ? approvals.pending : [];
-    const actItems = activity && Array.isArray(activity.activities) ? activity.activities.slice(0, 3) : [];
-    const notifItems = notifications && Array.isArray(notifications.notifications) ? notifications.notifications.filter((n) => !n.readAt).slice(0, 3) : [];
-    const today = document.getElementById('main-tray-today');
-    const act = document.getElementById('main-tray-activity');
-    const sug = document.getElementById('main-tray-suggestions');
-    document.getElementById('main-count-today').textContent = String(taskItems.length + apprItems.length);
-    document.getElementById('main-count-activity').textContent = String(actItems.length);
-    document.getElementById('main-count-suggestions').textContent = String(notifItems.length);
-    if (today) today.innerHTML = [...apprItems.map((a) => ({ title: a.intent || 'Approval needed', meta: 'Approval' })), ...taskItems.map((t) => ({ title: t.name || t.title || 'Task', meta: t.status || '' }))].slice(0, 3).map(rowHtml).join('') || '<div class="main-tray-row"><span>No priority items.</span></div>';
-    if (act) act.innerHTML = actItems.map((a) => rowHtml({ title: a.title || a.type || 'Activity', meta: a.status || '' })).join('') || '<div class="main-tray-row"><span>No recent changes.</span></div>';
-    if (sug) sug.innerHTML = notifItems.map((n) => rowHtml({ title: n.title || 'Notification', meta: 'Unread' })).join('') || '<div class="main-tray-row"><span>No suggestions right now.</span></div>';
-  }
-
-  function rowHtml(item) {
-    return `<div class="main-tray-row"><span>${esc(item.title)}</span><small>${esc(item.meta || '')}</small></div>`;
   }
 
   async function renderAttentionCenter() {
@@ -696,7 +739,6 @@
     view.innerHTML = template();
     renderModes();
     bind();
-    renderTray();
     wireAttentionBell();
     window.NAGEX_MAIN_SURFACE = Object.freeze({
       openArtifactResult,
@@ -709,7 +751,6 @@
         ['main-mic', 'microphone dictation', 'Main', 'click', 'Browser SpeechRecognition + microphone permission', 'transcript inserted into composer', 'composer text updated', 'permission/unavailable guidance', 'per request', 'browser permission'],
         ['main-voice', 'voice session', 'Main', 'click', 'Browser SpeechRecognition -> Main sendRequest', 'recognized intent enters Main flow', 'inline working state', 'permission/unavailable guidance', 'per request', 'same Main authority rules'],
         ['btn-notif-bell', 'bell', 'Header', 'click', 'tasks/approvals/activity/notifications APIs', 'none', 'attention center', 'empty state', 'server stores', 'session'],
-        ['main-tray-toggle', 'tray', 'Main', 'click', 'UI session state', 'tray collapsed', 'tray changes', 'n/a', 'session UI', 'n/a'],
         ['main-result-open', 'open result', 'Result', 'click', 'openArtifactInCanvas', 'route/detail view', 'artifact opens', 'unavailable if missing', 'artifact store', 'owner gate'],
         ['main-result-expand', 'expand result', 'Result', 'click', 'UI state', 'fullscreen class', 'large viewer', 'n/a', 'session UI', 'n/a'],
         ['main-result-close', 'close result', 'Result', 'click', 'UI state', 'panel hidden', 'Main restored', 'n/a', 'session UI', 'n/a'],

@@ -14,25 +14,25 @@
   display: none !important;
 }
 
+#btn-floating-quickwake {
+  display: none !important;
+}
+
 .nagex-main-surface {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto auto;
-  grid-template-areas:
-    "main"
-    "tray";
+  grid-template-rows: auto;
+  grid-template-areas: "main";
   align-content: start;
   min-height: calc(100vh - 56px);
-  padding: 22px;
-  gap: 14px;
+  padding: 26px 22px;
+  gap: 18px;
   background: linear-gradient(180deg, #f7fbff 0%, #eef5ff 100%);
 }
 
 .nagex-main-surface.has-result {
   grid-template-columns: minmax(520px, 58fr) minmax(360px, 42fr);
-  grid-template-areas:
-    "main result"
-    "tray tray";
+  grid-template-areas: "main result";
   align-items: stretch;
 }
 
@@ -511,69 +511,12 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
-.main-result-fullscreen .nagex-main-left,
-.main-result-fullscreen .main-bottom-tray {
+.main-result-fullscreen .nagex-main-left {
   display: none !important;
 }
 
 .main-result-fullscreen .main-result-panel {
   min-height: calc(100vh - 100px);
-}
-
-.main-bottom-tray {
-  grid-area: tray;
-  position: relative;
-  background: rgba(255, 255, 255, .94);
-  border: 1px solid #dce7f7;
-  border-radius: 14px;
-  box-shadow: 0 -12px 40px -34px rgba(28, 65, 132, .7);
-  padding: 10px 14px 14px;
-}
-
-.main-tray-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  color: #243a60;
-}
-
-.main-tray-tabs {
-  display: flex;
-  gap: 24px;
-  font-weight: 800;
-}
-
-.main-tray-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 10px;
-}
-
-.main-bottom-tray[data-collapsed="true"] .main-tray-grid {
-  display: none;
-}
-
-.main-tray-grid article {
-  border: 1px solid #e3ebf7;
-  border-radius: 12px;
-  padding: 12px;
-  background: #fff;
-}
-
-.main-tray-grid h3 {
-  margin: 0 0 8px;
-  font-size: .92rem;
-}
-
-.main-tray-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 6px 0;
-  border-top: 1px solid #eef3fa;
-  color: #25385a;
-  font-size: .86rem;
 }
 
 .main-attention-popover {
@@ -658,12 +601,4 @@
     z-index: 3000;
   }
 
-  .main-bottom-tray {
-    position: relative;
-    margin-top: 12px;
-  }
-
-  .main-tray-grid {
-    grid-template-columns: 1fr;
-  }
 }

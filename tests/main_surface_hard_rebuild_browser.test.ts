@@ -91,6 +91,9 @@ describe('NAgex Main surface hard rebuild', () => {
     assert.equal(await page.locator('#assistant-modal, #ambient-assistant-overlay, .ambient-assistant-overlay').count(), 0);
     assert.equal(await page.locator('#main-model-select').count(), 0);
     assert.equal(await page.locator('#nagex-main-surface').getByText(/GPT|Claude|Gemini|model/i).count(), 0);
+    assert.equal(await page.locator('#main-bottom-tray, #main-tray-toggle, #main-count-today, #main-count-activity, #main-count-suggestions').count(), 0);
+    assert.equal(await page.locator('[data-main-mode="ASK"][aria-pressed="true"]').count(), 1);
+    assert.equal(await page.locator('#btn-floating-quickwake').evaluate((el) => getComputedStyle(el).display === 'none'), true);
     assert.equal(await page.locator('#main-mic').isEnabled(), true);
     assert.equal(await page.locator('#main-voice').isEnabled(), true);
     assert.equal(await page.locator('#nagex-main-surface').getByText(/Telegram/i).count(), 0);
@@ -155,10 +158,19 @@ describe('NAgex Main surface hard rebuild', () => {
     await page.click('#main-send');
     await page.waitForFunction(() => document.querySelector('#main-work-title')?.textContent?.includes('Document revision could not be created') || document.querySelector('#main-work-title')?.textContent?.includes('Document revised'), undefined, { timeout: 30000 });
 
-    await page.click('#main-tray-toggle');
+    const routeDecision = await page.evaluate(async () => {
+      const res = await fetch('/api/v1/workspace/route-input', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text: '테스트 중이야' }),
+      });
+      return res.json();
+    });
+    assert.equal(((routeDecision as any).data || routeDecision as any).primaryIntent, 'ASK');
+
     await page.click('#btn-notif-bell');
     await page.waitForSelector('#attention-popover:not([hidden])');
-    await page.screenshot({ path: path.join(screenshotDir, 'desktop-attention-tray.png'), fullPage: true });
+    await page.screenshot({ path: path.join(screenshotDir, 'desktop-attention-bell.png'), fullPage: true });
     const matrix = await page.evaluate(() => window.NAGEX_MAIN_SURFACE.getControlMatrix());
     assert.ok(matrix.length >= 10);
     await ctx.close();
