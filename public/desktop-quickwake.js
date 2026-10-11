@@ -225,10 +225,18 @@
     const transcript = result.transcript || state.voice.transcript;
     stopDesktopVoiceCapture(false);
     if (result.state === 'COMPLETED' && transcript) submitPrompt(transcript);
+    else if (result.state === 'CONSENT_REQUIRED') appendSystemBubble(t('desktop.voiceConsentNeeded', 'Voice input needs your permission before audio is sent to a speech service. Allow it in NAgex Main, or type your request.'));
     else if (result.state === 'PERMISSION_DENIED') appendSystemBubble(t('desktop.micDeniedDetail', 'Microphone access is required before voice input can continue.'));
+    else if (result.state === 'UNAVAILABLE' && result.reason === 'DESKTOP_RUNTIME_NO_STT') appendSystemBubble(t('desktop.voiceNoCompliantStt', 'Voice input is not available in the desktop app yet. You can type your request.'));
     else if (result.state === 'ERROR' || result.state === 'UNAVAILABLE') appendSystemBubble(t('desktop.sttFailed', 'Speech recognition failed. The microphone session was stopped safely.'));
   }
 
+  // Stop recording and transcribe what was captured (the result is then handled by startDesktopVoiceCapture).
+  function finishDesktopVoiceCapture() {
+    if (state.voice.adapter && state.voice.adapter.isActive()) state.voice.adapter.stop();
+  }
+
+  // Cancel: discard the recording without transcribing.
   function stopDesktopVoiceCapture(clearTranscript = true) {
     if (state.voice.adapter && state.voice.adapter.isActive()) state.voice.adapter.cancel();
     state.voice.adapter = null;
@@ -245,7 +253,7 @@
     if (voiceBtn) {
       voiceBtn.title = 'Talk to NAgex';
       voiceBtn.onclick = () => {
-        if (state.voice.active) stopDesktopVoiceCapture();
+        if (state.voice.active) finishDesktopVoiceCapture();
         else startDesktopVoiceCapture('CLICK_TO_TALK');
       };
     }
@@ -253,6 +261,11 @@
 
   function setupHotkeyListener() {
     window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && state.voice.active) {
+        e.preventDefault();
+        stopDesktopVoiceCapture();
+        return;
+      }
       // Alt+N toggles window / focuses composer
       if (e.altKey && (e.key === 'n' || e.key === 'N')) {
         e.preventDefault();
@@ -435,7 +448,7 @@
       nativeBridge.onVoiceCaptureRequested((data) => startDesktopVoiceCapture((data && data.mode) || 'PUSH_TO_TALK'));
     }
     if (nativeBridge.onVoiceCaptureStopRequested) {
-      nativeBridge.onVoiceCaptureStopRequested(() => stopDesktopVoiceCapture());
+      nativeBridge.onVoiceCaptureStopRequested(() => finishDesktopVoiceCapture());
     }
   }
 

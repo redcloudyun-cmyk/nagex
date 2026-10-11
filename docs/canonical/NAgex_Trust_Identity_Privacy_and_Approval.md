@@ -66,7 +66,7 @@ Reject is terminal and non-mutating.
 
 Voice does not bypass approval.
 
-Consent to voice (speech) processing is separate from approval of an action. Raw audio is not sent to a server or third-party processor without explicit informed consent, and is not persisted by default (ADR-0013).
+Consent to voice (speech) processing is separate from approval of an action. NAgex servers do not receive raw audio; third-party speech processing requires provider-specific informed consent that can be withdrawn, unknown processing location is never described as on-device, and raw audio is not persisted by default. Whisper-based speech engines are prohibited (ADR-0013).
 
 Automation does not bypass approval.
 

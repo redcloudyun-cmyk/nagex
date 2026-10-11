@@ -94,6 +94,7 @@
                     <span>Voice</span>
                   </button>
                   <span class="main-voice-status" id="main-voice-status">Idle</span>
+                  <button type="button" class="main-tool-btn" id="main-voice-cancel" hidden>Cancel</button>
                   <button type="button" class="main-tool-btn main-toggle" id="main-plan-toggle" aria-pressed="true">Show plan before actions</button>
                   <button type="button" class="main-send" id="main-send" aria-label="Send request">></button>
                 </div>
@@ -193,6 +194,29 @@
     notice.hidden = false;
     notice.dataset.tone = tone || 'info';
     notice.textContent = message;
+  }
+
+  // Inline prompt inside the composer notice: message plus choices. Used for voice-processing consent.
+  function setComposerPrompt(message, actions) {
+    const notice = document.getElementById('main-composer-notice');
+    if (!notice) return;
+    notice.hidden = false;
+    notice.dataset.tone = 'consent';
+    notice.textContent = '';
+    const text = document.createElement('span');
+    text.textContent = message;
+    notice.appendChild(text);
+    const row = document.createElement('div');
+    row.className = 'main-notice-actions';
+    actions.forEach((action) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'main-tool-btn';
+      btn.textContent = action.label;
+      btn.addEventListener('click', action.action);
+      row.appendChild(btn);
+    });
+    notice.appendChild(row);
   }
 
   function setTrayCollapsed(collapsed) {
@@ -567,11 +591,16 @@
     if (mic) mic.setAttribute('aria-pressed', String(state.voiceMode === 'DICTATION' && next === 'LISTENING'));
     if (voice) voice.setAttribute('aria-pressed', String(state.voiceMode === 'SESSION' && (next === 'VOICE_SESSION_ACTIVE' || next === 'LISTENING' || next === 'TRANSCRIBING')));
     if (status) status.textContent = detail || next.replace(/_/g, ' ').toLowerCase();
+    const recording = next === 'REQUESTING' || next === 'LISTENING' || next === 'TRANSCRIBING' || next === 'VOICE_SESSION_ACTIVE';
+    const cancel = document.getElementById('main-voice-cancel');
+    if (cancel) cancel.hidden = !recording;
+    if (mic) mic.title = recording && state.voiceMode === 'DICTATION' ? 'Stop and transcribe' : 'Dictate into the Main composer';
   }
 
   function userVoiceStatus(detail, fallback) {
     const value = String(detail || '').toLowerCase();
     if (value === 'no-speech' || value === 'no_transcript') return 'Try again';
+    if (value === 'consent_required') return 'Needs your OK';
     if (value.includes('permission') || value === 'notallowederror') return 'Permission needed';
     if (value.includes('network')) return 'Unavailable';
     return fallback || 'Voice ready';
@@ -581,6 +610,15 @@
     if (!result) return 'Voice input did not start. Try again or type your request.';
     if (result.state === 'PERMISSION_DENIED') {
       return 'Microphone permission is blocked. Enable microphone access in the browser and try again.';
+    }
+    if (result.reason === 'DESKTOP_RUNTIME_NO_STT') {
+      return 'Voice input is not available in the desktop app yet. You can type your request.';
+    }
+    if (result.reason === 'PROVIDER_UNKNOWN') {
+      return "Voice input is off because this browser's speech service can't be identified. You can type your request.";
+    }
+    if (result.reason === 'LOCAL_PROCESSING_NOT_VERIFIED') {
+      return "This browser couldn't confirm on-device speech recognition, so voice input is off. You can type your request.";
     }
     if (result.state === 'UNAVAILABLE') {
       return 'Voice input is unavailable in this browser. You can type your request or try a supported browser.';
@@ -594,10 +632,53 @@
     return 'Voice input failed. Try again or type your request.';
   }
 
+  function voiceProcessorNotice(processor) {
+    if (!processor) return '';
+    if (processor.kind === 'LOCAL') return 'Listening on this device. Your audio is not sent anywhere.';
+    if (processor.kind === 'THIRD_PARTY') return 'Listening. Your audio is sent to ' + processor.label + ' to be turned into text. Press the microphone to stop, or Cancel to discard.';
+    return '';
+  }
+
+  function showVoiceConsentPrompt(processor, mode) {
+    const consent = window.NAGEX_RENDERER_VOICE.consent;
+    const browserName = processor.provider === 'microsoft' ? 'Edge' : 'Chrome';
+    const actions = [];
+    if (processor.localInstallable) {
+      actions.push({
+        label: 'Install on-device speech',
+        action: async () => {
+          setComposerNotice('Downloading the on-device speech model. No audio is sent.', 'info');
+          const installed = await window.NAGEX_RENDERER_VOICE.installLocalModel('ko-KR');
+          if (installed) setComposerNotice('On-device speech is ready. Press the microphone to start.', 'info');
+          else setComposerNotice('On-device speech could not be installed. You can allow ' + processor.label + ' speech or type your request.', 'warning');
+        },
+      });
+    }
+    actions.push({
+      label: 'Allow ' + processor.label + ' speech',
+      action: () => {
+        consent.grant(processor.consentKey);
+        setComposerNotice('');
+        startVoiceRecognition(mode);
+      },
+    });
+    actions.push({
+      label: 'Type instead',
+      action: () => {
+        setComposerNotice('');
+        focusComposer();
+      },
+    });
+    setComposerPrompt(
+      'Voice input in ' + browserName + ' sends your audio to ' + processor.label + ' to turn it into text. NAgex only receives the text and never stores the audio. Allow it? You can withdraw this in Settings.',
+      actions,
+    );
+  }
+
   async function startVoiceRecognition(mode) {
     if (state.voiceAdapter && state.voiceAdapter.isActive()) {
-      await state.voiceAdapter.cancel();
-      state.voiceMode = null;
+      // second press = stop recording and transcribe what was captured (Cancel discards instead)
+      await state.voiceAdapter.stop();
       return;
     }
     if (!window.NAGEX_RENDERER_VOICE || !window.NAGEX_RENDERER_VOICE.RendererVoiceAdapter) {
@@ -607,11 +688,15 @@
     }
     setComposerNotice('');
     const input = document.getElementById('main-surface-input');
-    if (input) input.dataset.voiceBase = input.value.trim();
+    const voiceBase = input ? input.value.trim() : '';
+    if (input) input.dataset.voiceBase = voiceBase;
     state.voiceMode = mode;
     state.voiceAdapter = new window.NAGEX_RENDERER_VOICE.RendererVoiceAdapter({
       onDiagnostic: (diagnostic) => {
         window.__NAGEX_LAST_MAIN_VOICE_EVENT = diagnostic && diagnostic.event ? diagnostic.event : null;
+      },
+      onProcessor: (processor) => {
+        state.voiceProcessor = processor;
       },
       onStateChange: ({ state: nextState, detail }) => {
         const map = {
@@ -620,6 +705,7 @@
           TRANSCRIBING: 'TRANSCRIBING',
           COMPLETED: mode === 'SESSION' ? 'VOICE_SESSION_ACTIVE' : 'IDLE',
           CANCELLED: 'IDLE',
+          CONSENT_REQUIRED: 'IDLE',
           PERMISSION_DENIED: 'DENIED',
           UNAVAILABLE: 'ERROR',
           ERROR: 'ERROR',
@@ -627,6 +713,7 @@
         };
         const label = detail && detail.reason ? userVoiceStatus(detail.reason, undefined) : undefined;
         setVoiceState(map[nextState] || nextState, label);
+        if (nextState === 'LISTENING') setComposerNotice(voiceProcessorNotice(state.voiceProcessor), 'info');
       },
       onTranscript: ({ finalTranscript, interimTranscript }) => {
         const current = document.getElementById('main-surface-input');
@@ -634,7 +721,6 @@
         const hasVoiceBase = Object.prototype.hasOwnProperty.call(current.dataset, 'voiceBase');
         const base = hasVoiceBase ? current.dataset.voiceBase : current.value;
         current.value = [base, finalTranscript, interimTranscript].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
-        if ((finalTranscript || interimTranscript) && current.value) setComposerNotice('');
         autoGrow(current);
       },
     });
@@ -650,15 +736,33 @@
     });
     if (input) delete input.dataset.voiceBase;
     state.voiceMode = null;
+    state.voiceProcessor = null;
     if (result.state === 'COMPLETED' && result.transcript) {
       setComposerNotice('');
       setVoiceState('IDLE', mode === 'SESSION' ? 'voice ready' : 'dictation ready');
       return;
     }
+    if (result.state === 'CONSENT_REQUIRED') {
+      setVoiceState('IDLE', 'Needs your OK');
+      showVoiceConsentPrompt(result.processor, mode);
+      return;
+    }
     if (result.state === 'CANCELLED') {
+      if (result.reason === 'cancelled') {
+        // Cancel discards the recording: put the composer back exactly as it was
+        if (input) {
+          input.value = voiceBase;
+          autoGrow(input);
+        }
+        setComposerNotice('');
+        setVoiceState('IDLE', 'cancelled');
+        return;
+      }
       setVoiceState('IDLE', result.reason === 'no-speech' || result.reason === 'NO_TRANSCRIPT' ? 'Try again' : 'cancelled');
       if (result.reason === 'no-speech' || result.reason === 'NO_TRANSCRIPT') {
         setComposerNotice(userVoiceFailureMessage(result), 'warning');
+      } else {
+        setComposerNotice('');
       }
       return;
     }
@@ -794,6 +898,13 @@
     const input = document.getElementById('main-surface-input');
     if (input) input.addEventListener('input', () => autoGrow(input));
     document.getElementById('main-send')?.addEventListener('click', sendRequest);
+    document.getElementById('main-voice-cancel')?.addEventListener('click', () => { if (state.voiceAdapter) state.voiceAdapter.cancel(); });
+    document.getElementById('main-surface-input')?.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && state.voiceAdapter && state.voiceAdapter.isActive()) {
+        event.preventDefault();
+        state.voiceAdapter.cancel();
+      }
+    });
     document.getElementById('main-mic')?.addEventListener('click', () => startVoiceRecognition('DICTATION'));
     document.getElementById('main-voice')?.addEventListener('click', () => startVoiceRecognition('SESSION'));
     input?.addEventListener('keydown', (event) => {
@@ -875,8 +986,8 @@
         ['main-attach', 'attach', 'Main', 'click/change', '/api/v1/workspace/upload', 'capture persisted', 'attachment chip', 'inline error', 'CaptureStore', 'session/owner'],
         ['main-web-toggle', 'web toggle', 'Main', 'click', 'requestMetadata.allowWebResearch', 'metadata changes', 'pressed state', 'n/a', 'per request', 'SSRF policy server-side'],
         ['main-data-toggle', 'my data toggle', 'Main', 'click', 'requestMetadata.usePersonalContext', 'metadata changes', 'pressed state', 'n/a', 'per request', 'consent/owner'],
-        ['main-mic', 'microphone dictation', 'Main', 'click', 'Browser SpeechRecognition + microphone permission', 'transcript inserted into composer', 'composer text updated', 'permission/unavailable guidance', 'per request', 'browser permission'],
-        ['main-voice', 'voice session', 'Main', 'click', 'Browser SpeechRecognition -> Main composer', 'recognized speech becomes editable text', 'composer text updated', 'permission/unavailable guidance', 'per request', 'same Main authority rules'],
+        ['main-mic', 'microphone dictation', 'Main', 'click', 'Device voice adapter: on-device when the browser verifies it, otherwise the browser vendor only after consent; stop = transcribe, cancel = discard', 'transcript inserted into composer', 'composer text updated', 'permission/unavailable guidance', 'per request', 'browser permission'],
+        ['main-voice', 'voice session', 'Main', 'click', 'Device voice adapter (same location and consent rules as dictation) -> Main composer', 'recognized speech becomes editable text', 'composer text updated', 'permission/unavailable guidance', 'per request', 'same Main authority rules'],
         ['btn-notif-bell', 'bell', 'Header', 'click', 'tasks/approvals/activity/notifications APIs', 'none', 'attention center', 'empty state', 'server stores', 'session'],
         ['main-result-open', 'open result', 'Result', 'click', 'openArtifactInCanvas', 'route/detail view', 'artifact opens', 'unavailable if missing', 'artifact store', 'owner gate'],
         ['main-result-expand', 'expand result', 'Result', 'click', 'UI state', 'fullscreen class', 'large viewer', 'n/a', 'session UI', 'n/a'],

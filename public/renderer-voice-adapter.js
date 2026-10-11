@@ -1,6 +1,19 @@
 (function () {
   'use strict';
 
+  // Renderer Voice Adapter (ADR-0013).
+  //
+  // Capture only: microphone in, transcript text out. It never submits, approves or executes anything.
+  //
+  // Processing-location policy (NAgex hosts no speech-to-text engine of its own; see ADR-0013):
+  //   LOCAL        browser reports on-device recognition for the language (SpeechRecognition.available(...) === 'available')
+  //                and processLocally is applied. No audio leaves the device, no consent needed.
+  //   THIRD_PARTY  the browser vendor's speech service (Chrome -> Google, Edge -> Microsoft). Audio is sent to that vendor,
+  //                so recording starts only after provider-specific informed consent.
+  //   NONE         no compliant engine (unknown provider, desktop runtime without STT, no SpeechRecognition).
+  //                Voice is reported unavailable; text input remains.
+  // A browser SpeechRecognition is never assumed to be local. There is no fallback from one processor to another.
+
   const STATES = Object.freeze({
     IDLE: 'IDLE',
     REQUESTING_PERMISSION: 'REQUESTING_PERMISSION',
@@ -10,8 +23,14 @@
     CANCELLED: 'CANCELLED',
     PERMISSION_DENIED: 'PERMISSION_DENIED',
     UNAVAILABLE: 'UNAVAILABLE',
+    CONSENT_REQUIRED: 'CONSENT_REQUIRED',
     ERROR: 'ERROR',
   });
+
+  const CONSENT_STORAGE_KEY = 'nagex_voice_consent_v1';
+  const THIRD_PARTY_DISCLOSURE_VERSION = 1;
+  const DEFAULT_MAX_RECORD_MS = 60000;
+  const STOP_TIMEOUT_MS = 10000;
 
   function recognitionCtor() {
     return window.SpeechRecognition || window.webkitSpeechRecognition || null;
@@ -21,15 +40,101 @@
     return { name: 'microphone' };
   }
 
-  function localWhisperConfig() {
-    const storage = window.localStorage || null;
-    const configuredBackend = window.NAGEX_STT_BACKEND || (storage && storage.getItem('nagex_stt_backend')) || '';
-    const publicHttpsDefault = window.location && window.location.protocol === 'https:' && window.NAGEX_STT_BACKEND !== 'browser';
-    const backend = configuredBackend || (publicHttpsDefault ? 'server-whisper' : '');
-    const defaultEndpoint = backend === 'server-whisper' ? '/api/v1/stt' : 'http://127.0.0.1:4760';
-    const endpoint = window.NAGEX_LOCAL_STT_ENDPOINT || (storage && storage.getItem('nagex_stt_endpoint')) || defaultEndpoint;
-    const token = window.NAGEX_LOCAL_STT_TOKEN || (storage && storage.getItem('nagex_stt_token')) || '';
-    return { enabled: backend === 'whisper-local' || backend === 'server-whisper', backend, endpoint: endpoint.replace(/\/$/, ''), token: backend === 'server-whisper' ? '' : token };
+  // ── Voice-processing consent (separate from execution approval) ─────────────
+  let memoryGrants = {};
+
+  function readGrants() {
+    try {
+      const raw = window.localStorage ? window.localStorage.getItem(CONSENT_STORAGE_KEY) : null;
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.v === 1 && parsed.grants && typeof parsed.grants === 'object') return { ...parsed.grants };
+      }
+      return window.localStorage ? {} : { ...memoryGrants };
+    } catch {
+      return { ...memoryGrants };
+    }
+  }
+
+  function writeGrants(grants) {
+    memoryGrants = { ...grants };
+    try {
+      if (window.localStorage) window.localStorage.setItem(CONSENT_STORAGE_KEY, JSON.stringify({ v: 1, grants }));
+    } catch {
+      // storage unavailable: consent lives for this page session only
+    }
+  }
+
+  const consent = Object.freeze({
+    keyFor(provider) {
+      return 'third-party:' + provider + ':v' + THIRD_PARTY_DISCLOSURE_VERSION;
+    },
+    has(key) {
+      return Boolean(key && readGrants()[key]);
+    },
+    grant(key) {
+      if (!key) return;
+      const grants = readGrants();
+      grants[key] = new Date().toISOString();
+      writeGrants(grants);
+    },
+    withdraw(key) {
+      const grants = readGrants();
+      delete grants[key];
+      writeGrants(grants);
+    },
+    withdrawAll() {
+      writeGrants({});
+    },
+    list() {
+      return Object.entries(readGrants()).map(([key, grantedAt]) => ({ key, grantedAt }));
+    },
+  });
+
+  // ── Processor resolution ────────────────────────────────────────────────────
+  function detectProvider() {
+    const ua = (window.navigator && window.navigator.userAgent) || '';
+    if (/Electron\//.test(ua)) return { id: null, reason: 'DESKTOP_RUNTIME_NO_STT' };
+    if (/\bEdg\//.test(ua)) return { id: 'microsoft', label: 'Microsoft' };
+    if (/\bOPR\//.test(ua) || /Firefox\//.test(ua) || /Safari\//.test(ua) && !/Chrome\//.test(ua)) return { id: null, reason: 'PROVIDER_UNKNOWN' };
+    if (/Chrome\//.test(ua)) return { id: 'google', label: 'Google' };
+    return { id: null, reason: 'PROVIDER_UNKNOWN' };
+  }
+
+  async function resolveProcessor(lang) {
+    const Ctor = recognitionCtor();
+    if (!Ctor) return { kind: 'NONE', reason: 'SPEECH_RECOGNITION_UNAVAILABLE' };
+    const runtime = detectProvider();
+    if (runtime.reason === 'DESKTOP_RUNTIME_NO_STT') return { kind: 'NONE', reason: runtime.reason };
+    let localAvailability = 'unsupported';
+    if (typeof Ctor.available === 'function') {
+      try {
+        localAvailability = String(await Ctor.available({ langs: [lang], processLocally: true }));
+      } catch {
+        localAvailability = 'unknown';
+      }
+    }
+    if (localAvailability === 'available') return { kind: 'LOCAL', label: 'On this device', localAvailability };
+    if (!runtime.id) return { kind: 'NONE', reason: runtime.reason || 'PROVIDER_UNKNOWN', localAvailability };
+    return {
+      kind: 'THIRD_PARTY',
+      provider: runtime.id,
+      label: runtime.label,
+      consentKey: consent.keyFor(runtime.id),
+      localAvailability,
+      localInstallable: localAvailability === 'downloadable',
+    };
+  }
+
+  // Downloads the browser's on-device speech model (model data only; no audio is sent). User-initiated by the caller.
+  async function installLocalModel(lang) {
+    const Ctor = recognitionCtor();
+    if (!Ctor || typeof Ctor.install !== 'function') return false;
+    try {
+      return Boolean(await Ctor.install({ langs: [lang || 'ko-KR'], processLocally: true }));
+    } catch {
+      return false;
+    }
   }
 
   class RendererVoiceAdapter {
@@ -38,12 +143,15 @@
       this.state = STATES.IDLE;
       this.mediaStream = null;
       this.recognition = null;
-      this.audioContext = null;
-      this.audioProcessor = null;
-      this.audioChunks = [];
-      this.audioSampleRate = 16000;
       this.finalTranscript = '';
       this.cancelled = false;
+      this.stopRequested = false;
+      this.starting = false;
+      this.runId = 0;
+      this.settleRun = null;
+      this.maxTimer = null;
+      this.stopTimer = null;
+      this.processor = null;
       this.activeSession = null;
       this.lastDiagnostic = null;
       this.lastResultDiagnostic = null;
@@ -51,7 +159,7 @@
     }
 
     isActive() {
-      return Boolean(this.recognition || this.mediaStream || this.audioContext);
+      return Boolean(this.starting || this.recognition || this.mediaStream);
     }
 
     async microphonePermission() {
@@ -69,75 +177,65 @@
 
     async start(options) {
       const opts = options || {};
-      if (this.isActive()) {
-        await this.cancel();
-        return { state: STATES.CANCELLED, transcript: '' };
-      }
-      this.diagnose('START_REQUESTED', {
-        secureContext: Boolean(window.isSecureContext),
-        mediaDevices: Boolean(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
-        speechRecognition: Boolean(recognitionCtor()),
-        whisperBackend: localWhisperConfig().enabled ? localWhisperConfig().backend : '',
-      });
-      const whisper = localWhisperConfig();
-      if (whisper.enabled) return await this.startLocalWhisper(opts, whisper);
-      const Recognition = recognitionCtor();
-      if (!Recognition) {
-        this.diagnose('UNAVAILABLE', { reason: 'SPEECH_RECOGNITION_UNAVAILABLE' });
-        this.transition(STATES.UNAVAILABLE, { reason: 'SPEECH_RECOGNITION_UNAVAILABLE' });
-        return { state: STATES.UNAVAILABLE, transcript: '' };
-      }
-      const permission = await this.microphonePermission();
-      this.diagnose('MIC_PERMISSION', { permission });
-      if (permission === STATES.UNAVAILABLE || permission === STATES.PERMISSION_DENIED) {
-        this.transition(permission, { reason: permission });
-        return { state: permission, transcript: '' };
-      }
-
+      if (this.isActive()) return { state: this.state, transcript: '', reason: 'BUSY' };
+      const runId = this.runId + 1;
+      this.runId = runId;
+      this.starting = true;
       this.cancelled = false;
+      this.stopRequested = false;
       this.finalTranscript = '';
       this.lastResultDiagnostic = null;
       this.committedFinalResults = new Set();
       this.activeSession = opts.session || null;
-      this.transition(STATES.REQUESTING_PERMISSION, { session: this.activeSession });
 
-      try {
-        this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        this.diagnose('MEDIA_STREAM_OPENED', {
-          audioTracks: this.mediaStream.getAudioTracks ? this.mediaStream.getAudioTracks().length : undefined,
-          tracks: this.mediaStream.getTracks ? this.mediaStream.getTracks().length : undefined,
-        });
-      } catch (error) {
-        const denied = error && (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError');
-        const state = denied ? STATES.PERMISSION_DENIED : STATES.ERROR;
-        this.diagnose('MEDIA_STREAM_ERROR', { name: error && error.name, message: error && error.message, state });
-        this.cleanup();
-        this.transition(state, { error, session: this.activeSession });
-        return { state, transcript: '' };
-      }
+      const lang = opts.lang || this.options.lang || 'ko-KR';
+      this.diagnose('START_REQUESTED', {
+        secureContext: Boolean(window.isSecureContext),
+        mediaDevices: Boolean(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
+        speechRecognition: Boolean(recognitionCtor()),
+      });
+
+      const prepared = await this.prepare(lang, runId);
+      this.starting = false;
+      if (prepared.fail) return prepared.fail;
+      const processor = prepared.processor;
 
       return await new Promise((resolve) => {
         let settled = false;
         const finish = (payload, detail) => {
           if (settled) return;
           settled = true;
+          this.clearTimers();
+          this.settleRun = null;
           this.cleanup();
           this.transition(payload.state, { ...(detail || {}), session: this.activeSession });
-          resolve(payload);
+          resolve({ ...payload, processor });
         };
+        this.settleRun = finish;
+
+        const Recognition = recognitionCtor();
         const recognition = new Recognition();
-        recognition.lang = opts.lang || this.options.lang || 'ko-KR';
+        recognition.lang = lang;
         recognition.interimResults = opts.interimResults !== false;
         recognition.continuous = Boolean(opts.continuous);
         recognition.maxAlternatives = 1;
+        if (processor.kind === 'LOCAL') {
+          if ('processLocally' in recognition) recognition.processLocally = true;
+          if (!('processLocally' in recognition) || recognition.processLocally !== true) {
+            // never claim on-device processing the browser did not accept
+            this.diagnose('LOCAL_PROCESSING_NOT_APPLIED', {});
+            finish({ state: STATES.UNAVAILABLE, transcript: '', reason: 'LOCAL_PROCESSING_NOT_VERIFIED' }, { reason: 'LOCAL_PROCESSING_NOT_VERIFIED' });
+            return;
+          }
+        }
         this.recognition = recognition;
 
         recognition.onstart = () => {
-          this.diagnose('RECOGNITION_STARTED', { lang: recognition.lang, continuous: recognition.continuous });
+          this.diagnose('RECOGNITION_STARTED', { lang: recognition.lang, continuous: recognition.continuous, processor: processor.kind });
           this.transition(STATES.LISTENING, { session: this.activeSession });
         };
         recognition.onresult = (event) => {
-          this.transition(STATES.TRANSCRIBING, { session: this.activeSession });
+          if (this.cancelled || runId !== this.runId) return;
           let interim = '';
           let resultDiagnostic = {
             resultIndex: event.resultIndex,
@@ -214,15 +312,29 @@
         recognition.onerror = (event) => {
           const normalized = this.normalizeError(event);
           this.diagnose('RECOGNITION_ERROR', { error: event && event.error, message: event && event.message, state: normalized.state, reason: normalized.reason });
-          finish({ state: normalized.state, transcript: this.finalTranscript, reason: normalized.reason }, { error: event, reason: normalized.reason });
+          finish({ state: normalized.state, transcript: this.cancelled ? '' : this.finalTranscript, reason: normalized.reason }, { error: event, reason: normalized.reason });
         };
         recognition.onend = () => {
+          if (this.cancelled) {
+            this.diagnose('RECOGNITION_ENDED', { state: STATES.CANCELLED, transcriptLength: 0, reason: 'cancelled' });
+            finish({ state: STATES.CANCELLED, transcript: '', reason: 'cancelled' }, { reason: 'cancelled' });
+            return;
+          }
           const transcript = this.finalTranscript.trim();
-          const state = this.cancelled ? STATES.CANCELLED : transcript ? STATES.COMPLETED : STATES.CANCELLED;
+          const state = transcript ? STATES.COMPLETED : STATES.CANCELLED;
           const reason = transcript ? undefined : 'NO_TRANSCRIPT';
           this.diagnose('RECOGNITION_ENDED', { state, transcriptLength: transcript.length, reason });
           finish({ state, transcript, reason }, { transcript, reason });
         };
+
+        // Consent can be withdrawn while the page is open: re-check immediately before any remote audio flows.
+        if (processor.kind === 'THIRD_PARTY' && !consent.has(processor.consentKey)) {
+          finish({ state: STATES.CONSENT_REQUIRED, transcript: '', reason: 'CONSENT_REQUIRED' }, { reason: 'CONSENT_REQUIRED' });
+          return;
+        }
+
+        const maxRecordMs = opts.maxRecordMs || window.NAGEX_STT_MAX_RECORD_MS || DEFAULT_MAX_RECORD_MS;
+        this.maxTimer = setTimeout(() => { this.stop(); }, maxRecordMs);
 
         try {
           recognition.start();
@@ -233,146 +345,96 @@
       });
     }
 
-    async startLocalWhisper(opts, whisper) {
-      const permission = await this.microphonePermission();
-      const backend = whisper.backend || 'whisper-local';
-      this.diagnose('MIC_PERMISSION', { permission, backend });
-      if (permission === STATES.UNAVAILABLE || permission === STATES.PERMISSION_DENIED) {
-        this.transition(permission, { reason: permission, backend });
-        return { state: permission, transcript: '' };
+    // Resolves the processor, enforces consent and opens the microphone. No audio is captured by NAgex code itself;
+    // the stream is held only so the permission prompt and track lifecycle are explicit.
+    async prepare(lang, runId) {
+      const processor = await resolveProcessor(lang);
+      if (runId !== this.runId || this.cancelled) {
+        return { fail: { state: STATES.CANCELLED, transcript: '', reason: 'cancelled' } };
       }
-      this.cancelled = false;
-      this.finalTranscript = '';
-      this.lastResultDiagnostic = null;
-      this.committedFinalResults = new Set();
-      this.activeSession = opts.session || null;
-      this.transition(STATES.REQUESTING_PERMISSION, { session: this.activeSession, backend });
+      this.processor = processor;
+      this.diagnose('PROCESSOR_RESOLVED', { kind: processor.kind, provider: processor.provider || '', localAvailability: processor.localAvailability || '', reason: processor.reason || '' });
+      try { this.options.onProcessor?.(processor); } catch {}
 
+      if (processor.kind === 'NONE') {
+        this.diagnose('UNAVAILABLE', { reason: processor.reason });
+        this.transition(STATES.UNAVAILABLE, { reason: processor.reason });
+        return { fail: { state: STATES.UNAVAILABLE, transcript: '', reason: processor.reason, processor } };
+      }
+      if (processor.kind === 'THIRD_PARTY' && !consent.has(processor.consentKey)) {
+        this.diagnose('CONSENT_REQUIRED', { provider: processor.provider });
+        this.transition(STATES.CONSENT_REQUIRED, { reason: 'CONSENT_REQUIRED', processor });
+        return { fail: { state: STATES.CONSENT_REQUIRED, transcript: '', reason: 'CONSENT_REQUIRED', processor } };
+      }
+
+      const permission = await this.microphonePermission();
+      this.diagnose('MIC_PERMISSION', { permission });
+      if (permission === STATES.UNAVAILABLE || permission === STATES.PERMISSION_DENIED) {
+        this.transition(permission, { reason: permission });
+        return { fail: { state: permission, transcript: '', processor } };
+      }
+      this.transition(STATES.REQUESTING_PERMISSION, { session: this.activeSession });
       try {
-        this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, sampleRate: 16000 } });
+        this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
         this.diagnose('MEDIA_STREAM_OPENED', {
-          backend,
           audioTracks: this.mediaStream.getAudioTracks ? this.mediaStream.getAudioTracks().length : undefined,
           tracks: this.mediaStream.getTracks ? this.mediaStream.getTracks().length : undefined,
         });
       } catch (error) {
         const denied = error && (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError');
         const state = denied ? STATES.PERMISSION_DENIED : STATES.ERROR;
-        this.diagnose('MEDIA_STREAM_ERROR', { backend, name: error && error.name, message: error && error.message, state });
+        this.diagnose('MEDIA_STREAM_ERROR', { name: error && error.name, message: error && error.message, state });
         this.cleanup();
-        this.transition(state, { error, session: this.activeSession, backend });
-        return { state, transcript: '' };
+        this.transition(state, { error, session: this.activeSession });
+        return { fail: { state, transcript: '', processor } };
       }
-
-      this.transition(STATES.LISTENING, { session: this.activeSession, backend });
-      const maxRecordMs = opts.maxRecordMs || window.NAGEX_STT_MAX_RECORD_MS || 9000;
-      this.diagnose('WHISPER_RECORDING_STARTED', { backend, maxRecordMs });
-
-      const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContextCtor) {
+      if (runId !== this.runId || this.cancelled) {
         this.cleanup();
-        this.transition(STATES.UNAVAILABLE, { reason: 'AUDIO_CONTEXT_UNAVAILABLE', backend });
-        return { state: STATES.UNAVAILABLE, transcript: '', reason: 'AUDIO_CONTEXT_UNAVAILABLE' };
+        return { fail: { state: STATES.CANCELLED, transcript: '', reason: 'cancelled', processor } };
       }
-
-      this.audioChunks = [];
-      this.audioContext = new AudioContextCtor({ sampleRate: 16000 });
-      this.audioSampleRate = this.audioContext.sampleRate || 16000;
-      const source = this.audioContext.createMediaStreamSource(this.mediaStream);
-      this.audioProcessor = this.audioContext.createScriptProcessor(4096, 1, 1);
-      this.audioProcessor.onaudioprocess = (event) => {
-        this.audioChunks.push(new Float32Array(event.inputBuffer.getChannelData(0)));
-      };
-      source.connect(this.audioProcessor);
-      this.audioProcessor.connect(this.audioContext.destination);
-
-      await new Promise((resolve) => setTimeout(resolve, maxRecordMs));
-      if (this.cancelled) {
-        this.cleanup();
-        this.transition(STATES.CANCELLED, { reason: 'cancelled', backend });
-        return { state: STATES.CANCELLED, transcript: '', reason: 'cancelled' };
-      }
-
-      this.transition(STATES.TRANSCRIBING, { session: this.activeSession, backend });
-      const samples = this.resample(this.flattenAudio(), this.audioSampleRate, 16000);
-      const wav = this.encodeWav(samples, 16000);
-      const started = performance.now();
-      try {
-        const headers = { 'content-type': 'audio/wav' };
-        if (whisper.token) headers['x-nagex-stt-token'] = whisper.token;
-        const response = await fetch(`${whisper.endpoint}/transcribe`, { method: 'POST', headers, body: wav });
-        const result = await response.json().catch(() => ({}));
-        const transcript = typeof result.transcript === 'string' ? result.transcript.trim() : '';
-        this.lastResultDiagnostic = {
-          resultIndex: 0,
-          resultCount: transcript ? 1 : 0,
-          alternativeCount: transcript ? 1 : 0,
-          alternativePresent: Boolean(transcript),
-          rawTranscriptType: 'string',
-          rawTranscriptLength: transcript.length,
-          isFinal: Boolean(transcript),
-          transcriptLength: transcript.length,
-          transcriptPresent: Boolean(transcript),
-          confidencePresent: false,
-          confidence: null,
-          callbackDelivered: false,
-        };
-        this.diagnose('WHISPER_RESULT', {
-          backend,
-          ok: Boolean(response.ok && transcript),
-          status: response.status,
-          transcriptLength: transcript.length,
-          durationSeconds: result.durationSeconds,
-          sttLatencyMs: result.latencyMs,
-          browserRoundTripMs: Math.round(performance.now() - started),
-          peakRssMb: result.peakRssMb,
-          reason: result.reason,
-        });
-        if (!response.ok || !transcript) {
-          this.cleanup();
-          this.transition(STATES.CANCELLED, { reason: result.reason || 'NO_TRANSCRIPT', backend });
-          return { state: STATES.CANCELLED, transcript: '', reason: result.reason || 'NO_TRANSCRIPT' };
-        }
-        this.finalTranscript = transcript;
-        this.options.onTranscript?.({
-          finalTranscript: transcript,
-          interimTranscript: '',
-          transcript,
-          session: this.activeSession,
-        });
-        this.lastResultDiagnostic = { ...this.lastResultDiagnostic, callbackDelivered: true };
-        this.diagnose('TRANSCRIPT_CALLBACK_DELIVERED', {
-          backend,
-          finalTranscriptLength: transcript.length,
-          interimTranscriptLength: 0,
-        });
-        this.cleanup();
-        this.transition(STATES.COMPLETED, { transcript, session: this.activeSession, backend });
-        return { state: STATES.COMPLETED, transcript };
-      } catch (error) {
-        this.diagnose('WHISPER_ERROR', { backend, name: error && error.name, message: error && error.message });
-        this.cleanup();
-        this.transition(STATES.ERROR, { error, reason: 'WHISPER_ERROR', backend });
-        return { state: STATES.ERROR, transcript: '', reason: 'WHISPER_ERROR' };
-      }
+      return { processor };
     }
 
+    // Stop recording and transcribe what was captured so far. Never discards.
+    async stop() {
+      if (!this.recognition || this.stopRequested || this.cancelled) return;
+      this.stopRequested = true;
+      this.diagnose('STOP_REQUESTED', {});
+      this.transition(STATES.TRANSCRIBING, { session: this.activeSession });
+      try { this.recognition.stop(); } catch {}
+      clearTimeout(this.stopTimer);
+      this.stopTimer = setTimeout(() => {
+        // the engine did not finish after stop(): give up truthfully instead of waiting forever
+        if (this.recognition) { try { this.recognition.abort(); } catch {} }
+        this.settleRun?.({ state: STATES.CANCELLED, transcript: '', reason: 'NO_TRANSCRIPT' }, { reason: 'NO_TRANSCRIPT' });
+      }, STOP_TIMEOUT_MS);
+    }
+
+    // Discard the recording: nothing is delivered after cancel.
     async cancel() {
       this.cancelled = true;
+      this.finalTranscript = '';
+      this.runId += 1;
       if (this.recognition) {
-        try { this.recognition.stop(); } catch {}
+        try { this.recognition.abort(); } catch { try { this.recognition.stop(); } catch {} }
       }
+      if (this.settleRun) {
+        this.settleRun({ state: STATES.CANCELLED, transcript: '', reason: 'cancelled' }, { reason: 'cancelled' });
+        return;
+      }
+      this.clearTimers();
       this.cleanup();
       this.transition(STATES.CANCELLED, { session: this.activeSession });
     }
 
+    clearTimers() {
+      clearTimeout(this.maxTimer);
+      clearTimeout(this.stopTimer);
+      this.maxTimer = null;
+      this.stopTimer = null;
+    }
+
     cleanup() {
-      if (this.audioProcessor) {
-        try { this.audioProcessor.disconnect(); } catch {}
-      }
-      if (this.audioContext) {
-        try { this.audioContext.close(); } catch {}
-      }
       if (this.mediaStream) {
         this.mediaStream.getTracks().forEach((track) => {
           try { track.stop(); } catch {}
@@ -380,62 +442,6 @@
       }
       this.mediaStream = null;
       this.recognition = null;
-      this.audioContext = null;
-      this.audioProcessor = null;
-      this.audioChunks = [];
-    }
-
-    flattenAudio() {
-      const total = this.audioChunks.reduce((sum, chunk) => sum + chunk.length, 0);
-      const samples = new Float32Array(total);
-      let offset = 0;
-      for (const chunk of this.audioChunks) {
-        samples.set(chunk, offset);
-        offset += chunk.length;
-      }
-      return samples;
-    }
-
-    resample(samples, fromRate, toRate) {
-      if (fromRate === toRate) return samples;
-      const ratio = fromRate / toRate;
-      const length = Math.floor(samples.length / ratio);
-      const output = new Float32Array(length);
-      for (let i = 0; i < length; i += 1) {
-        const sourceIndex = i * ratio;
-        const before = Math.floor(sourceIndex);
-        const after = Math.min(before + 1, samples.length - 1);
-        const weight = sourceIndex - before;
-        output[i] = samples[before] * (1 - weight) + samples[after] * weight;
-      }
-      return output;
-    }
-
-    encodeWav(samples, sampleRate) {
-      const dataLength = samples.length * 2;
-      const buffer = new ArrayBuffer(44 + dataLength);
-      const view = new DataView(buffer);
-      const write = (offset, value) => [...value].forEach((char, i) => view.setUint8(offset + i, char.charCodeAt(0)));
-      write(0, 'RIFF');
-      view.setUint32(4, 36 + dataLength, true);
-      write(8, 'WAVE');
-      write(12, 'fmt ');
-      view.setUint32(16, 16, true);
-      view.setUint16(20, 1, true);
-      view.setUint16(22, 1, true);
-      view.setUint32(24, sampleRate, true);
-      view.setUint32(28, sampleRate * 2, true);
-      view.setUint16(32, 2, true);
-      view.setUint16(34, 16, true);
-      write(36, 'data');
-      view.setUint32(40, dataLength, true);
-      let offset = 44;
-      for (const sample of samples) {
-        const clamped = Math.max(-1, Math.min(1, sample));
-        view.setInt16(offset, clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff, true);
-        offset += 2;
-      }
-      return new Blob([view], { type: 'audio/wav' });
     }
 
     normalizeError(event) {
@@ -444,6 +450,7 @@
         return { state: STATES.PERMISSION_DENIED, reason: code };
       }
       if (code === 'audio-capture') return { state: STATES.UNAVAILABLE, reason: code };
+      if (code === 'language-not-supported') return { state: STATES.UNAVAILABLE, reason: code };
       if (code === 'no-speech' || code === 'aborted') return { state: STATES.CANCELLED, reason: code };
       if (code === 'network') return { state: STATES.ERROR, reason: 'SPEECH_RECOGNITION_NETWORK' };
       return { state: STATES.ERROR, reason: code };
@@ -484,5 +491,5 @@
     }
   }
 
-  window.NAGEX_RENDERER_VOICE = Object.freeze({ RendererVoiceAdapter, STATES });
+  window.NAGEX_RENDERER_VOICE = Object.freeze({ RendererVoiceAdapter, STATES, consent, resolveProcessor, installLocalModel });
 })();

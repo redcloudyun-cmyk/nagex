@@ -5232,8 +5232,8 @@
       "realBrowser": false,
       "sourceImplementationAssertions": true,
       "deterministic": true,
-      "assertionIntent": "Pins the Universal Voice invariants that hold today (ADR-0013): the server STT route keeps audio local with no outbound network, logging or persistence; the server-Whisper path never silently falls back to the browser vendor recognizer; the renderer adapter neither persists audio nor logs raw transcript text; Main dictation preserves existing text and never auto-submits; Android capture/session layers and the voice pipeline hold no execution or approval authority; wake word and speaker match are never authority for MEDIUM/HIGH risk; non-TEXT modality is normalized but not executed; speaker enrollment audio is device-local and ephemeral.",
-      "notes": "Structural source assertions plus VoiceIdentityService behavior. Does not assert the open ADR-0013 gaps (local-first default, consent UI, desktop quick-wake submit). No real microphone or device evidence."
+      "assertionIntent": "Pins the Universal Voice invariants (ADR-0013): no active product source references Whisper or a hosted STT engine; the retired server STT route reads no audio and starts no process; browser SpeechRecognition is never assumed local (third-party unless the platform verifies on-device and processLocally is applied); providers are identified specifically and unknown providers or the desktop runtime get no voice; without provider-specific consent the microphone is never opened; consent is versioned and withdrawable and withdrawal blocks the next recording; stop transcribes and cancel discards; the adapter has no network, audio encoding or fallback engine, persists only consent records and logs no transcript text; Main dictation preserves text, never auto-submits and the control matrix is truthful; voice capture layers and Quick Wake hold no execution authority; wake word and speaker match are never authority; non-TEXT modality is not executed.",
+      "notes": "Runtime tests execute the real renderer adapter in a sandbox with a scripted browser; the rest are structural source assertions plus VoiceIdentityService behavior. No real microphone, device or Korean-recognition evidence; open ADR-0013 gaps (Android recognizer locality, native Windows engine, iOS, Conversation loop) are not asserted."
     },
     "voice_brand_output": {
       "milestone": "NAGEX-VOICE-BRAND-SPEC",
@@ -5635,22 +5635,6 @@
       "deterministic": true,
       "assertionIntent": "Release hygiene registry entry for sidebar_ia_v1: preserves the committed product contract and prevents the test gate from treating the focused suite as unclassified debt.",
       "notes": "Added during integration hygiene after the suite was committed as part of the current branch baseline."
-    },
-    "stt_open_source_poc": {
-      "milestone": "NAGEX-HOME-MAIN-P0H",
-      "classification": "TEST_HARNESS",
-      "canonical": true,
-      "scopes": [
-        "voice",
-        "browser",
-        "security"
-      ],
-      "externalDependencies": [],
-      "realBrowser": false,
-      "sourceImplementationAssertions": true,
-      "deterministic": true,
-      "assertionIntent": "Classifies the isolated open-source STT POC harness contract: local-only binding, no production service interference, request size/duration/concurrency/timeouts, optional token/CORS controls, and no automatic prompt submission.",
-      "notes": "The real microphone Whisper certification is external human evidence; this registry entry covers the deterministic local harness and security guardrails only."
     },
     "universal_life_execution": {
       "milestone": "NAGEX-INTEGRATION-RELEASE-HYGIENE",

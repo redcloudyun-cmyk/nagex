@@ -21,18 +21,28 @@ async function openMain(page: Page): Promise<void> {
   await page.waitForSelector('#nagex-main-surface', { timeout: 20000 });
 }
 
-async function installVoiceMocks(page: Page): Promise<void> {
-  await page.addInitScript(() => {
+async function installVoiceMocks(page: Page, options: { consent?: boolean } = {}): Promise<void> {
+  await page.addInitScript((opts: { consent: boolean }) => {
     (window as any).__nagexVoiceTranscript = '안녕하세요 네이젝스';
     (window as any).__nagexVoicePermission = 'granted';
     (window as any).__nagexVoiceMediaUnavailable = false;
     (window as any).__nagexVoiceTrackStopped = false;
     (window as any).__nagexVoiceError = null;
     (window as any).__nagexVoiceEvents = null;
+    (window as any).__nagexVoiceHold = false;
+    (window as any).__nagexVoiceLocal = '';
+    (window as any).__nagexNoProcessLocally = false;
+    (window as any).__nagexRecognitionStarts = 0;
+    (window as any).__nagexMediaRequests = 0;
+    if (opts.consent) {
+      // the Main voice contract needs provider-specific consent before audio reaches a third-party speech service
+      window.localStorage.setItem('nagex_voice_consent_v1', JSON.stringify({ v: 1, grants: { 'third-party:google:v1': '2026-10-11T00:00:00.000Z' } }));
+    }
     Object.defineProperty(navigator, 'mediaDevices', {
       configurable: true,
       value: {
         getUserMedia: async () => {
+          (window as any).__nagexMediaRequests += 1;
           if ((window as any).__nagexVoiceMediaUnavailable) {
             throw Object.assign(new Error('missing mic'), { name: 'NotFoundError' });
           }
@@ -47,16 +57,35 @@ async function installVoiceMocks(page: Page): Promise<void> {
       configurable: true,
       value: { query: async () => ({ state: (window as any).__nagexVoicePermission }) },
     });
+    const scriptedOrDefault = (): any[] => {
+      const scriptedEvents = (window as any).__nagexVoiceEvents;
+      return Array.isArray(scriptedEvents) && scriptedEvents.length
+        ? scriptedEvents
+        : [{ transcript: (window as any).__nagexVoiceTranscript || 'voice input', isFinal: true, resultIndex: 0 }];
+    };
     class FakeSpeechRecognition {
       lang = '';
       interimResults = false;
       continuous = false;
+      processLocally = false;
       resultIndex = 0;
       onstart: any = null;
       onresult: any = null;
       onend: any = null;
       onerror: any = null;
+      constructor() {
+        if ((window as any).__nagexNoProcessLocally) delete (this as any).processLocally;
+      }
+      static async available() { return (window as any).__nagexVoiceLocal || 'unsupported'; }
+      emit(events: any[]) {
+        for (const entry of events) {
+          const result: any = [{ transcript: entry.transcript || '', confidence: entry.confidence ?? 0.91 }];
+          result.isFinal = Boolean(entry.isFinal);
+          this.onresult?.({ resultIndex: entry.resultIndex ?? 0, results: [result] });
+        }
+      }
       start() {
+        (window as any).__nagexRecognitionStarts += 1;
         setTimeout(() => {
           this.onstart?.();
           if ((window as any).__nagexVoiceError) {
@@ -64,23 +93,25 @@ async function installVoiceMocks(page: Page): Promise<void> {
             this.onend?.();
             return;
           }
-          const scriptedEvents = (window as any).__nagexVoiceEvents;
-          const events = Array.isArray(scriptedEvents) && scriptedEvents.length
-            ? scriptedEvents
-            : [{ transcript: (window as any).__nagexVoiceTranscript || 'voice input', isFinal: true, resultIndex: 0 }];
-          for (const entry of events) {
-            const result: any = [{ transcript: entry.transcript || '', confidence: entry.confidence ?? 0.91 }];
-            result.isFinal = Boolean(entry.isFinal);
-            this.onresult?.({ resultIndex: entry.resultIndex ?? 0, results: [result] });
+          const events = scriptedOrDefault();
+          if ((window as any).__nagexVoiceHold) {
+            // recording stays open until stop()/abort(); interim text is visible meanwhile
+            this.emit(events.filter((entry) => !entry.isFinal));
+            return;
           }
+          this.emit(events);
           this.onend?.();
         }, 20);
       }
-      stop() { this.onend?.(); }
+      stop() {
+        if ((window as any).__nagexVoiceHold) this.emit(scriptedOrDefault().filter((entry) => entry.isFinal));
+        this.onend?.();
+      }
+      abort() { this.onend?.(); }
     }
     (window as any).SpeechRecognition = FakeSpeechRecognition;
     (window as any).webkitSpeechRecognition = FakeSpeechRecognition;
-  });
+  }, { consent: options.consent !== false });
 }
 
 async function expectInlineVoiceNotice(page: Page, pattern: RegExp): Promise<void> {
@@ -98,9 +129,9 @@ describe('NAgex Main surface hard rebuild', () => {
       assert.match(server, new RegExp(`createBuildVersion[\\s\\S]*${asset.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
     }
     const voiceAdapter = fs.readFileSync('public/renderer-voice-adapter.js', 'utf8');
-    assert.match(voiceAdapter, /window\.location && window\.location\.protocol === 'https:'[\s\S]*'server-whisper'/);
-    assert.match(voiceAdapter, /\/api\/v1\/stt/);
-    assert.match(voiceAdapter, /window\.NAGEX_STT_BACKEND !== 'browser'/);
+    // ADR-0013: no Whisper, no NAgex-hosted STT, no audio upload from the renderer adapter
+    assert.doesNotMatch(voiceAdapter, /whisper|\/api\/v1\/stt|server-whisper|fetch\(|AudioContext|encodeWav/i);
+    assert.match(voiceAdapter, /CONSENT_REQUIRED/);
   });
 
   it('replaces legacy Home with canonical Main, keeps voice functional, and avoids assistant modal execution', async () => {
@@ -177,59 +208,6 @@ describe('NAgex Main surface hard rebuild', () => {
     await page.click('#main-mic');
     await page.waitForFunction(() => (document.querySelector('#main-surface-input') as any)?.value === 'duplicate guard');
     await page.evaluate(() => { (window as any).__nagexVoiceEvents = null; });
-
-    await page.fill('#main-surface-input', 'existing');
-    await page.evaluate(() => {
-      (window as any).NAGEX_STT_MAX_RECORD_MS = 1;
-      window.localStorage.setItem('nagex_stt_backend', 'whisper-local');
-      (window as any).__originalFetch = window.fetch;
-      window.fetch = async (url: any, options: any) => {
-        if (String(url).includes('127.0.0.1:4760/transcribe')) {
-          const body = options && options.body;
-          return {
-            ok: true,
-            status: 200,
-            json: async () => ({
-              ok: true,
-              transcript: '위스퍼 테스트',
-              transcriptLength: 6,
-              durationSeconds: 1,
-              latencyMs: 120,
-              peakRssMb: 70,
-              receivedAudio: Boolean(body),
-            }),
-          } as any;
-        }
-        return (window as any).__originalFetch(url, options);
-      };
-      class FakeAudioContext {
-        sampleRate = 16000;
-        destination = {};
-        createMediaStreamSource() { return { connect() {} }; }
-        createScriptProcessor() {
-          const processor: any = { connect() {}, disconnect() {}, onaudioprocess: null };
-          setTimeout(() => {
-            if (processor.onaudioprocess) {
-              processor.onaudioprocess({ inputBuffer: { getChannelData: () => new Float32Array(16000) } });
-            }
-          }, 0);
-          return processor;
-        }
-        close() { return Promise.resolve(); }
-      }
-      (window as any).AudioContext = FakeAudioContext;
-      (window as any).webkitAudioContext = FakeAudioContext;
-    });
-    await page.click('#main-mic');
-    await page.waitForFunction(() => (document.querySelector('#main-surface-input') as any)?.value === 'existing 위스퍼 테스트');
-    const whisperDiagnostic = await page.evaluate(() => (window as any).__NAGEX_LAST_VOICE_DIAGNOSTIC);
-    assert.equal(whisperDiagnostic.detail.backend, 'whisper-local');
-    assert.equal(whisperDiagnostic.transcriptPresent, true);
-    await page.evaluate(() => {
-      window.localStorage.removeItem('nagex_stt_backend');
-      delete (window as any).NAGEX_STT_MAX_RECORD_MS;
-      if ((window as any).__originalFetch) window.fetch = (window as any).__originalFetch;
-    });
 
     await page.fill('#main-surface-input', '기존 요청');
     await page.evaluate(() => { (window as any).__nagexVoiceTranscript = '일본 시장과 비교해줘'; });
@@ -310,6 +288,85 @@ describe('NAgex Main surface hard rebuild', () => {
     await page.screenshot({ path: path.join(screenshotDir, 'desktop-attention-bell.png'), fullPage: true });
     const matrix = await page.evaluate(() => window.NAGEX_MAIN_SURFACE.getControlMatrix());
     assert.ok(matrix.length >= 10);
+    await ctx.close();
+  });
+
+  it('voice processing: consent gates third-party audio, on-device needs none, stop transcribes, cancel discards, no server STT', async () => {
+    const user = h.user('main_voice_consent');
+    const ctx = await h.newContext('desktop', user, 'ko');
+    const page = await ctx.newPage();
+    const sttRequests: string[] = [];
+    page.on('request', (request) => { if (request.url().includes('/api/v1/stt')) sttRequests.push(request.url()); });
+    await installVoiceMocks(page, { consent: false });
+    await openMain(page);
+    const starts = () => page.evaluate(() => (window as any).__nagexRecognitionStarts);
+    const mediaRequests = () => page.evaluate(() => (window as any).__nagexMediaRequests);
+
+    // 1. no consent: no microphone, no recognition, an inline prompt names the provider, text input stays available
+    await page.click('#main-mic');
+    await page.waitForSelector('#main-composer-notice[data-tone="consent"]');
+    assert.match(await page.locator('#main-composer-notice').textContent() || '', /sends your audio to Google/);
+    assert.equal(await starts(), 0);
+    assert.equal(await mediaRequests(), 0);
+    await page.getByRole('button', { name: 'Type instead' }).click();
+    assert.equal(await page.locator('#main-composer-notice').isHidden(), true);
+    assert.equal(await page.locator('#main-surface-input').isEditable(), true);
+
+    // 2. grant: recording starts, the remote processor is disclosed while listening, Cancel is available
+    await page.evaluate(() => { (window as any).__nagexVoiceHold = true; });
+    await page.fill('#main-surface-input', 'existing');
+    await page.click('#main-mic');
+    await page.getByRole('button', { name: 'Allow Google speech' }).click();
+    await page.waitForSelector('#main-voice-cancel:not([hidden])');
+    await page.waitForFunction(() => /sent to Google/.test(document.querySelector('#main-composer-notice')?.textContent || ''));
+    assert.equal(await starts(), 1);
+    assert.equal(await page.evaluate(() => JSON.parse(window.localStorage.getItem('nagex_voice_consent_v1')).grants['third-party:google:v1'] !== undefined), true);
+
+    // 3. stop = transcribe what was captured; existing text kept; nothing is submitted
+    await page.evaluate(() => { (window as any).__nagexVoiceEvents = [{ transcript: '정지 테스트', isFinal: true }]; });
+    await page.click('#main-mic');
+    await page.waitForFunction(() => (document.querySelector('#main-surface-input') as any)?.value === 'existing 정지 테스트');
+    await page.waitForSelector('#main-voice-cancel', { state: 'hidden' });
+    assert.equal(await page.locator('#main-thread-card').isHidden(), true);
+
+    // 4. cancel discards the unsent recording and restores the composer exactly
+    await page.evaluate(() => { (window as any).__nagexVoiceEvents = [{ transcript: '버려질 문장', isFinal: false }, { transcript: '최종 문장', isFinal: true }]; });
+    await page.click('#main-mic');
+    await page.waitForFunction(() => (document.querySelector('#main-surface-input') as any)?.value.includes('버려질 문장'));
+    await page.click('#main-voice-cancel');
+    await page.waitForFunction(() => (document.querySelector('#main-surface-input') as any)?.value === 'existing 정지 테스트');
+    await page.waitForSelector('#main-voice-cancel', { state: 'hidden' });
+    assert.equal(await page.locator('#main-thread-card').isHidden(), true);
+
+    // 5. withdrawal blocks the next remote recording
+    const startsBeforeWithdrawal = await starts();
+    const mediaBeforeWithdrawal = await mediaRequests();
+    await page.evaluate(() => (window as any).NAGEX_RENDERER_VOICE.consent.withdrawAll());
+    await page.click('#main-mic');
+    await page.waitForSelector('#main-composer-notice[data-tone="consent"]');
+    assert.equal(await starts(), startsBeforeWithdrawal);
+    assert.equal(await mediaRequests(), mediaBeforeWithdrawal);
+
+    // 6. browser-verified on-device recognition needs no remote-audio consent and says so
+    await page.evaluate(() => {
+      (window as any).__nagexVoiceLocal = 'available';
+      (window as any).__nagexVoiceHold = false;
+      (window as any).__nagexVoiceEvents = [{ transcript: '로컬 인식', isFinal: true }];
+    });
+    await page.fill('#main-surface-input', '');
+    await page.click('#main-mic');
+    await page.waitForFunction(() => (document.querySelector('#main-surface-input') as any)?.value === '로컬 인식');
+
+    // 7. "available" but processLocally not applied -> never claimed as local; voice is off, text input remains
+    await page.evaluate(() => { (window as any).__nagexNoProcessLocally = true; });
+    const startsBeforeUnverified = await starts();
+    await page.fill('#main-surface-input', '');
+    await page.click('#main-mic');
+    await expectInlineVoiceNotice(page, /couldn't confirm on-device/i);
+    assert.equal(await starts(), startsBeforeUnverified);
+
+    // 8. nothing in this flow ever contacted a server STT endpoint
+    assert.deepEqual(sttRequests, []);
     await ctx.close();
   });
 
