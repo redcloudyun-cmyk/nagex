@@ -23,10 +23,12 @@
 
   function localWhisperConfig() {
     const storage = window.localStorage || null;
-    const backend = window.NAGEX_STT_BACKEND || (storage && storage.getItem('nagex_stt_backend')) || '';
+    const configuredBackend = window.NAGEX_STT_BACKEND || (storage && storage.getItem('nagex_stt_backend')) || '';
+    const publicHttpsDefault = window.location && window.location.protocol === 'https:' && window.NAGEX_STT_BACKEND !== 'browser';
+    const backend = configuredBackend || (publicHttpsDefault ? 'whisper-local' : '');
     const endpoint = window.NAGEX_LOCAL_STT_ENDPOINT || (storage && storage.getItem('nagex_stt_endpoint')) || 'http://127.0.0.1:4760';
     const token = window.NAGEX_LOCAL_STT_TOKEN || (storage && storage.getItem('nagex_stt_token')) || '';
-    return { enabled: backend === 'whisper-local', endpoint: endpoint.replace(/\/$/, ''), token };
+    return { enabled: backend === 'whisper-local', backend, endpoint: endpoint.replace(/\/$/, ''), token };
   }
 
   class RendererVoiceAdapter {

@@ -18,7 +18,7 @@ const MAX_AUDIO_BYTES = Number(process.env.NAGEX_STT_POC_MAX_AUDIO_BYTES || 10 *
 const MAX_AUDIO_SECONDS = Number(process.env.NAGEX_STT_POC_MAX_AUDIO_SECONDS || 20);
 const TRANSCRIBE_TIMEOUT_MS = Number(process.env.NAGEX_STT_POC_TIMEOUT_MS || 120000);
 const STT_TOKEN = process.env.NAGEX_STT_POC_TOKEN || '';
-const ALLOWED_ORIGINS = new Set((process.env.NAGEX_STT_POC_ALLOWED_ORIGINS || 'http://127.0.0.1:4100,http://localhost:4100,http://127.0.0.1:4760,http://localhost:4760,https://nagex.ai')
+const ALLOWED_ORIGINS = new Set((process.env.NAGEX_STT_POC_ALLOWED_ORIGINS || 'http://127.0.0.1:4100,http://localhost:4100,http://127.0.0.1:4760,http://localhost:4760,https://nagex-test.agex.site,https://nagex.ai')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean));

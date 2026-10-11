@@ -11,6 +11,8 @@ test('open-source STT POC is isolated, local-only, and inserts without auto-subm
   assert.match(server, /FASTER_WHISPER_NOT_CONFIGURED/);
   assert.match(server, /NAGEX_STT_POC_TOKEN/);
   assert.match(server, /access-control-allow-origin/);
+  assert.match(server, /https:\/\/nagex-test\.agex\.site/);
+  assert.match(server, /req\.method === 'OPTIONS'/);
   assert.match(server, /TRANSCRIPTION_BUSY/);
   assert.match(server, /TRANSCRIBE_TIMEOUT/);
   assert.match(server, /AUDIO_DURATION_UNSUPPORTED/);
