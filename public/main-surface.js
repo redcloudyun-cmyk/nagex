@@ -98,6 +98,7 @@
                   <button type="button" class="main-send" id="main-send" aria-label="Send request">></button>
                 </div>
               </div>
+              <div class="main-composer-notice" id="main-composer-notice" role="status" aria-live="polite" hidden></div>
             </div>
           </section>
           <section class="main-thread-card" id="main-thread-card" hidden>
@@ -180,6 +181,20 @@
     setStep(steps || []);
   }
 
+  function setComposerNotice(message, tone) {
+    const notice = document.getElementById('main-composer-notice');
+    if (!notice) return;
+    if (!message) {
+      notice.hidden = true;
+      notice.textContent = '';
+      notice.removeAttribute('data-tone');
+      return;
+    }
+    notice.hidden = false;
+    notice.dataset.tone = tone || 'info';
+    notice.textContent = message;
+  }
+
   function setTrayCollapsed(collapsed) {
     state.trayCollapsed = collapsed;
     const tray = document.getElementById('main-bottom-tray');
@@ -198,6 +213,7 @@
 
   async function uploadFile(file) {
     if (!file || state.busy) return;
+    setComposerNotice('');
     showThread('Attachment upload', 'Uploading', 'Adding attachment', 'NAgex is storing this file through the real workspace upload pipeline.', [
       { state: 'running', label: 'Upload file', detail: file.name },
     ]);
@@ -228,6 +244,7 @@
     const send = document.getElementById('main-send');
     const prompt = input ? input.value.trim() : '';
     if (!prompt || state.busy) return;
+    setComposerNotice('');
     state.busy = true;
     if (send) send.disabled = true;
     setTrayCollapsed(true);
@@ -552,6 +569,31 @@
     if (status) status.textContent = detail || next.replace(/_/g, ' ').toLowerCase();
   }
 
+  function userVoiceStatus(detail, fallback) {
+    const value = String(detail || '').toLowerCase();
+    if (value === 'no-speech' || value === 'no_transcript') return 'Try again';
+    if (value.includes('permission') || value === 'notallowederror') return 'Permission needed';
+    if (value.includes('network')) return 'Unavailable';
+    return fallback || 'Voice ready';
+  }
+
+  function userVoiceFailureMessage(result) {
+    if (!result) return 'Voice input did not start. Try again or type your request.';
+    if (result.state === 'PERMISSION_DENIED') {
+      return 'Microphone permission is blocked. Enable microphone access in the browser and try again.';
+    }
+    if (result.state === 'UNAVAILABLE') {
+      return 'Voice input is unavailable in this browser. You can type your request or try a supported browser.';
+    }
+    if (result.reason === 'no-speech' || result.reason === 'NO_TRANSCRIPT') {
+      return "I didn't catch that. Try again or type your request.";
+    }
+    if (result.reason === 'SPEECH_RECOGNITION_NETWORK') {
+      return 'Speech recognition is unavailable right now. Try again or type your request.';
+    }
+    return 'Voice input failed. Try again or type your request.';
+  }
+
   async function startVoiceRecognition(mode) {
     if (state.voiceAdapter && state.voiceAdapter.isActive()) {
       await state.voiceAdapter.cancel();
@@ -559,19 +601,17 @@
       return;
     }
     if (!window.NAGEX_RENDERER_VOICE || !window.NAGEX_RENDERER_VOICE.RendererVoiceAdapter) {
-      setVoiceState('ERROR', 'speech recognition unavailable');
-      showThread('Voice input', 'Unavailable', 'Voice recognition is unavailable', 'This browser does not expose a speech recognition API. Use typed input or a supported browser.', [
-        { state: 'running', label: 'Voice unavailable', detail: 'RendererVoiceAdapter missing' },
-      ]);
+      setVoiceState('ERROR', 'Unavailable');
+      setComposerNotice('Voice input is unavailable in this browser. You can type your request or try a supported browser.', 'error');
       return;
     }
+    setComposerNotice('');
     const input = document.getElementById('main-surface-input');
     if (input) input.dataset.voiceBase = input.value.trim();
     state.voiceMode = mode;
     state.voiceAdapter = new window.NAGEX_RENDERER_VOICE.RendererVoiceAdapter({
       onDiagnostic: (diagnostic) => {
-        const root = document.getElementById('nagex-main-surface');
-        if (root) root.dataset.voiceDiagnostic = diagnostic.event;
+        window.__NAGEX_LAST_MAIN_VOICE_EVENT = diagnostic && diagnostic.event ? diagnostic.event : null;
       },
       onStateChange: ({ state: nextState, detail }) => {
         const map = {
@@ -585,7 +625,7 @@
           ERROR: 'ERROR',
           IDLE: 'IDLE',
         };
-        const label = detail && detail.reason ? detail.reason : undefined;
+        const label = detail && detail.reason ? userVoiceStatus(detail.reason, undefined) : undefined;
         setVoiceState(map[nextState] || nextState, label);
       },
       onTranscript: ({ finalTranscript, interimTranscript }) => {
@@ -594,8 +634,7 @@
         const hasVoiceBase = Object.prototype.hasOwnProperty.call(current.dataset, 'voiceBase');
         const base = hasVoiceBase ? current.dataset.voiceBase : current.value;
         current.value = [base, finalTranscript, interimTranscript].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
-        const root = document.getElementById('nagex-main-surface');
-        if (root) root.dataset.voiceTranscriptDelivered = current.value ? 'true' : 'false';
+        if ((finalTranscript || interimTranscript) && current.value) setComposerNotice('');
         autoGrow(current);
       },
     });
@@ -612,30 +651,20 @@
     if (input) delete input.dataset.voiceBase;
     state.voiceMode = null;
     if (result.state === 'COMPLETED' && result.transcript) {
+      setComposerNotice('');
       setVoiceState('IDLE', mode === 'SESSION' ? 'voice ready' : 'dictation ready');
       return;
     }
     if (result.state === 'CANCELLED') {
-      setVoiceState('IDLE', result.reason === 'no-speech' || result.reason === 'NO_TRANSCRIPT' ? 'no speech captured' : 'cancelled');
+      setVoiceState('IDLE', result.reason === 'no-speech' || result.reason === 'NO_TRANSCRIPT' ? 'Try again' : 'cancelled');
       if (result.reason === 'no-speech' || result.reason === 'NO_TRANSCRIPT') {
-        showThread('Voice input', 'Ready', 'No speech captured', 'The microphone opened, but no transcript was produced. Check the selected input device and try speaking closer to the microphone.', [
-          { state: 'done', label: 'Microphone opened', detail: 'Browser permission accepted' },
-          { state: 'running', label: 'Speech recognition ended', detail: result.reason || 'NO_TRANSCRIPT' },
-        ]);
+        setComposerNotice(userVoiceFailureMessage(result), 'warning');
       }
       return;
     }
     if (result.state === 'PERMISSION_DENIED' || result.state === 'UNAVAILABLE' || result.state === 'ERROR') {
-      const message = result.state === 'PERMISSION_DENIED'
-        ? 'Microphone permission is denied. Enable microphone access in the browser settings.'
-        : result.state === 'UNAVAILABLE'
-          ? 'Voice recognition is unavailable in this browser.'
-          : result.reason === 'SPEECH_RECOGNITION_NETWORK'
-            ? 'Speech recognition could not reach the browser speech service. Check network access or use typed input.'
-            : 'Voice input failed.';
-      showThread('Voice input', 'Error', 'Voice input unavailable', message, [
-        { state: 'running', label: 'Voice input', detail: result.reason || result.state },
-      ]);
+      setVoiceState('ERROR', userVoiceStatus(result.reason, 'Unavailable'));
+      setComposerNotice(userVoiceFailureMessage(result), 'error');
     }
   }
 

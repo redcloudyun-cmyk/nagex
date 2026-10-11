@@ -83,6 +83,13 @@ async function installVoiceMocks(page: Page): Promise<void> {
   });
 }
 
+async function expectInlineVoiceNotice(page: Page, pattern: RegExp): Promise<void> {
+  await page.waitForSelector('#main-composer-notice:not([hidden])');
+  assert.match(await page.locator('#main-composer-notice').textContent() || '', pattern);
+  const surfaceText = await page.locator('#nagex-main-surface').textContent();
+  assert.doesNotMatch(surfaceText || '', /NO_TRANSCRIPT|RendererVoiceAdapter|Microphone opened|Speech recognition ended|Voice input unavailable|No speech captured/);
+}
+
 describe('NAgex Main surface hard rebuild', () => {
   it('keeps Main surface assets in the frontend build-version and no-cache set', () => {
     const server = fs.readFileSync('src/server_web.ts', 'utf8');
@@ -153,7 +160,7 @@ describe('NAgex Main surface hard rebuild', () => {
       ];
     });
     await page.click('#main-mic');
-    await page.waitForFunction(() => document.querySelector('#main-work-title')?.textContent?.includes('No speech captured'));
+    await expectInlineVoiceNotice(page, /didn't catch|Try again/i);
     await page.evaluate(() => { (window as any).__nagexVoiceEvents = null; });
 
     await page.fill('#main-surface-input', '');
@@ -231,22 +238,23 @@ describe('NAgex Main surface hard rebuild', () => {
 
     await page.evaluate(() => { (window as any).__nagexVoicePermission = 'denied'; });
     await page.click('#main-mic');
-    await page.waitForFunction(() => document.querySelector('#main-work-title')?.textContent?.includes('Voice input unavailable'));
+    await expectInlineVoiceNotice(page, /permission/i);
+    assert.notEqual(await page.locator('#main-request-text').textContent().catch(() => ''), 'Voice input');
 
     await page.evaluate(() => {
       (window as any).__nagexVoicePermission = 'granted';
       (window as any).__nagexVoiceMediaUnavailable = true;
     });
     await page.click('#main-mic');
-    await page.waitForFunction(() => document.querySelector('#main-work-summary')?.textContent?.includes('Voice input failed'));
+    await expectInlineVoiceNotice(page, /failed|unavailable|supported browser/i);
     await page.evaluate(() => { (window as any).__nagexVoiceMediaUnavailable = false; });
 
     await page.evaluate(() => { (window as any).__nagexVoiceError = 'no-speech'; });
     await page.click('#main-mic');
-    await page.waitForFunction(() => document.querySelector('#main-work-title')?.textContent?.includes('No speech captured'));
+    await expectInlineVoiceNotice(page, /didn't catch|Try again/i);
     await page.evaluate(() => { (window as any).__nagexVoiceError = 'network'; });
     await page.click('#main-mic');
-    await page.waitForFunction(() => document.querySelector('#main-work-summary')?.textContent?.includes('speech service'));
+    await expectInlineVoiceNotice(page, /unavailable|Try again/i);
     await page.evaluate(() => { (window as any).__nagexVoiceError = null; });
 
     await page.fill('#main-surface-input', '');

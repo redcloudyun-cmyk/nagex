@@ -166,6 +166,34 @@
   padding-top: 10px;
 }
 
+.main-composer-notice {
+  margin-top: 10px;
+  padding: 9px 11px;
+  border: 1px solid #cfe0f8;
+  border-radius: 8px;
+  background: #f7fbff;
+  color: #294066;
+  font-size: .86rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.main-composer-notice[hidden] {
+  display: none !important;
+}
+
+.main-composer-notice[data-tone="warning"] {
+  border-color: #f4d18f;
+  background: #fff8eb;
+  color: #6f4b05;
+}
+
+.main-composer-notice[data-tone="error"] {
+  border-color: #ffc6c6;
+  background: #fff1f1;
+  color: #8a1f1f;
+}
+
 .main-left-tools,
 .main-right-tools {
   display: flex;
