@@ -69,7 +69,7 @@ async function installVoiceMocks(page: Page): Promise<void> {
             ? scriptedEvents
             : [{ transcript: (window as any).__nagexVoiceTranscript || 'voice input', isFinal: true, resultIndex: 0 }];
           for (const entry of events) {
-            const result: any = [{ transcript: entry.transcript || '' }];
+            const result: any = [{ transcript: entry.transcript || '', confidence: entry.confidence ?? 0.91 }];
             result.isFinal = Boolean(entry.isFinal);
             this.onresult?.({ resultIndex: entry.resultIndex ?? 0, results: [result] });
           }
@@ -126,6 +126,11 @@ describe('NAgex Main surface hard rebuild', () => {
     assert.equal(await page.evaluate(() => (window as any).__nagexVoiceTrackStopped), true);
     const firstVoiceDiagnostic = await page.evaluate(() => (window as any).__NAGEX_LAST_VOICE_DIAGNOSTIC);
     assert.equal(firstVoiceDiagnostic.transcriptPresent, true);
+    assert.equal(firstVoiceDiagnostic.alternativePresent, true);
+    assert.equal(firstVoiceDiagnostic.alternativeCount, 1);
+    assert.equal(firstVoiceDiagnostic.rawTranscriptType, 'string');
+    assert.ok(firstVoiceDiagnostic.rawTranscriptLength >= firstVoiceDiagnostic.transcriptLength);
+    assert.equal(firstVoiceDiagnostic.confidencePresent, true);
     assert.equal(firstVoiceDiagnostic.isFinal, true);
     assert.equal(firstVoiceDiagnostic.callbackDelivered, true);
     assert.ok(firstVoiceDiagnostic.transcriptLength > 0);

@@ -124,23 +124,38 @@
           let resultDiagnostic = {
             resultIndex: event.resultIndex,
             resultCount: event.results ? event.results.length : 0,
+            alternativeCount: 0,
+            alternativePresent: false,
+            rawTranscriptType: 'undefined',
+            rawTranscriptLength: 0,
             isFinal: false,
             transcriptLength: 0,
             transcriptPresent: false,
+            confidencePresent: false,
+            confidence: null,
             callbackDelivered: false,
           };
           const startIndex = Number.isFinite(event.resultIndex) ? event.resultIndex : 0;
           for (let i = startIndex; event.results && i < event.results.length; i += 1) {
             const result = event.results[i];
-            const rawTranscript = result && result[0] && typeof result[0].transcript === 'string' ? result[0].transcript : '';
+            const alternative = result && result[0] ? result[0] : null;
+            const rawTranscriptValue = alternative ? alternative.transcript : undefined;
+            const rawTranscript = typeof rawTranscriptValue === 'string' ? rawTranscriptValue : '';
             const text = rawTranscript.trim();
+            const confidence = alternative && typeof alternative.confidence === 'number' ? alternative.confidence : null;
             resultDiagnostic = {
               resultIndex: event.resultIndex,
               resultOffset: i,
               resultCount: event.results ? event.results.length : 0,
+              alternativeCount: result && typeof result.length === 'number' ? result.length : 0,
+              alternativePresent: Boolean(alternative),
+              rawTranscriptType: typeof rawTranscriptValue,
+              rawTranscriptLength: rawTranscript.length,
               isFinal: Boolean(result && result.isFinal),
               transcriptLength: text.length,
               transcriptPresent: text.length > 0,
+              confidencePresent: confidence !== null,
+              confidence,
               callbackDelivered: false,
             };
             if (!text) continue;
@@ -241,9 +256,15 @@
         event,
         resultIndex: resultDiagnostic.resultIndex,
         resultCount: resultDiagnostic.resultCount,
+        alternativeCount: resultDiagnostic.alternativeCount,
+        alternativePresent: resultDiagnostic.alternativePresent,
+        rawTranscriptType: resultDiagnostic.rawTranscriptType,
+        rawTranscriptLength: resultDiagnostic.rawTranscriptLength,
         isFinal: resultDiagnostic.isFinal,
         transcriptLength: resultDiagnostic.transcriptLength,
         transcriptPresent: resultDiagnostic.transcriptPresent,
+        confidencePresent: resultDiagnostic.confidencePresent,
+        confidence: resultDiagnostic.confidence,
         callbackDelivered: resultDiagnostic.callbackDelivered,
         detail: detail || {},
         state: this.state,
