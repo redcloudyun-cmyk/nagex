@@ -320,4 +320,108 @@ describe('NAgex Main surface hard rebuild', () => {
     await page.screenshot({ path: path.join(screenshotDir, 'mobile-fullscreen-result.png'), fullPage: true });
     await ctx.close();
   });
+
+  it('audits all Main modes and routes enabled modes without clearing composer context', async () => {
+    const user = h.user('main_mode_selector');
+    const ctx = await h.newContext('desktop', user, 'ko');
+    const page = await ctx.newPage();
+    const calls: string[] = [];
+
+    await page.route('**/api/v1/workspace/route-input', async (route) => {
+      calls.push('route-input');
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ data: { primaryIntent: 'ASK', confidence: 0.91, reason: 'test route', normalizedPayload: { rawInput: 'x' } } }),
+      });
+    });
+    await page.route('**/api/v1/ai/chat', async (route) => {
+      calls.push('ask');
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { message: 'real answer path', messageId: 'msg_mode_1' } }) });
+    });
+    await page.route('**/api/v1/research', async (route) => {
+      calls.push('research');
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ query: 'q', answer: 'research answer', sources: [{ url: 'https://example.test', title: 'Source' }] }) });
+    });
+    await page.route('**/api/v1/creations/documents', async (route) => {
+      calls.push('document');
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({ creationId: 'doc_mode_1', documentId: 'doc_mode_1', artifactId: 'art_doc_mode_1', title: 'Document result', content: 'document body', format: 'MARKDOWN', openTarget: '/api/v1/creations/documents/doc_mode_1' }),
+      });
+    });
+    await page.route('**/api/v1/ambient/intent', async (route) => {
+      calls.push('plan');
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ plan: { summary: 'Plan ready', steps: [{ title: 'Check context', reasoning: 'Needed' }, { title: 'Execute safely', reasoning: 'Approval if needed' }] } }),
+      });
+    });
+    await page.route('**/api/v1/creations/generate', async (route) => {
+      calls.push('image');
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({ creationId: 'img_mode_1', artifactId: 'art_img_mode_1', type: 'IMAGE', title: 'Image result', prompt: 'image prompt', imageUrl: '/api/v1/creations/images/img_mode_1', outputAssetUrl: '/api/v1/creations/images/img_mode_1', mimeType: 'image/png' }),
+      });
+    });
+
+    await openMain(page);
+    assert.equal(await page.locator('[data-main-mode]').count(), 9);
+    for (const enabledMode of ['ASK', 'RESEARCH', 'DOCUMENT', 'PLAN', 'IMAGE', 'MORE']) {
+      await page.fill('#main-surface-input', `draft ${enabledMode}`);
+      await page.click(`[data-main-mode="${enabledMode}"]`);
+      assert.equal(await page.locator('#main-surface-input').inputValue(), `draft ${enabledMode}`);
+      assert.equal(await page.locator(`[data-main-mode="${enabledMode}"]`).getAttribute('aria-pressed'), 'true');
+    }
+    for (const disabledMode of ['SLIDES', 'VIDEO', 'CODE']) {
+      assert.equal(await page.locator(`[data-main-mode="${disabledMode}"]`).isDisabled(), true);
+      assert.equal(await page.locator(`[data-main-mode="${disabledMode}"]`).getAttribute('aria-disabled'), 'true');
+    }
+
+    await page.fill('#main-surface-input', 'ask prompt');
+    await page.click('[data-main-mode="ASK"]');
+    await page.click('#main-send');
+    await page.waitForFunction(() => document.querySelector('#main-work-title')?.textContent?.includes('NAgex answered inline'));
+
+    await page.fill('#main-surface-input', 'research prompt');
+    await page.click('[data-main-mode="RESEARCH"]');
+    await page.click('#main-send');
+    await page.waitForFunction(() => document.querySelector('#main-work-title')?.textContent?.includes('Research result'));
+
+    await page.fill('#main-surface-input', 'document prompt');
+    await page.click('[data-main-mode="DOCUMENT"]');
+    await page.click('#main-send');
+    await page.waitForSelector('#main-result-panel:not([hidden])');
+    assert.equal(await page.locator('#main-result-kind').textContent(), 'DOC');
+
+    await page.fill('#main-surface-input', 'plan prompt');
+    await page.click('[data-main-mode="PLAN"]');
+    await page.click('#main-send');
+    await page.waitForFunction(() => document.querySelector('#main-work-title')?.textContent?.includes('Plan ready'));
+
+    await page.fill('#main-surface-input', 'image prompt');
+    await page.click('[data-main-mode="IMAGE"]');
+    await page.click('#main-send');
+    await page.waitForFunction(() => document.querySelector('#main-work-title')?.textContent?.includes('Image created'));
+    assert.equal(await page.locator('#main-result-kind').textContent(), 'IMAGE');
+    assert.equal(await page.locator('#main-result-preview img').count(), 1);
+
+    await page.fill('#main-surface-input', 'show capabilities');
+    await page.click('[data-main-mode="MORE"]');
+    await page.click('#main-send');
+    await page.waitForFunction(() => document.querySelector('#main-work-title')?.textContent?.includes('Main mode capability audit'));
+    assert.equal(await page.locator('#main-result-panel').isHidden(), true);
+
+    await page.focus('[data-main-mode="ASK"]');
+    await page.keyboard.press('ArrowRight');
+    assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('data-main-mode')), 'RESEARCH');
+
+    for (const expected of ['ask', 'research', 'document', 'plan', 'image']) {
+      assert.ok(calls.includes(expected), `${expected} route must be called`);
+    }
+    await ctx.close();
+  });
 });

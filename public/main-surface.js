@@ -2,15 +2,15 @@
   'use strict';
 
   const MODES = [
-    { id: 'ASK', label: 'Ask', capability: 'ASK', enabled: true },
-    { id: 'RESEARCH', label: 'Research', capability: 'RESEARCH', enabled: true },
-    { id: 'DOCUMENT', label: 'Document', artifactType: 'DOCUMENT', enabled: true },
-    { id: 'PLAN', label: 'Plan', capability: 'PLAN', enabled: true },
-    { id: 'IMAGE', label: 'Image', artifactType: 'IMAGE', enabled: false, reason: 'Image generation from Main needs a supported image provider route.' },
-    { id: 'SLIDES', label: 'Slides', artifactType: 'PRESENTATION', enabled: false, reason: 'Presentation generation is not enabled in this build.' },
-    { id: 'VIDEO', label: 'Video', artifactType: 'VIDEO', enabled: false, reason: 'Video generation is not enabled in this build.' },
-    { id: 'CODE', label: 'Code', capability: 'CODE', enabled: false, reason: 'Code generation is not enabled in this Main build.' },
-    { id: 'MORE', label: 'More', enabled: false, reason: 'More capabilities are available contextually after a result exists.' },
+    { id: 'ASK', label: 'Ask', capability: 'ASK', enabled: true, support: 'FULL', route: '/api/v1/ai/chat' },
+    { id: 'RESEARCH', label: 'Research', capability: 'RESEARCH', enabled: true, support: 'FULL', route: '/api/v1/research' },
+    { id: 'DOCUMENT', label: 'Document', artifactType: 'DOCUMENT', enabled: true, support: 'FULL', route: '/api/v1/creations/documents' },
+    { id: 'PLAN', label: 'Plan', capability: 'PLAN', enabled: true, support: 'PARTIAL', route: '/api/v1/ambient/intent' },
+    { id: 'IMAGE', label: 'Image', artifactType: 'IMAGE', enabled: true, support: 'FULL', route: '/api/v1/creations/generate' },
+    { id: 'SLIDES', label: 'Slides', artifactType: 'PRESENTATION', enabled: false, support: 'MISSING', reason: 'Presentation provider ports exist, but no consumer-safe Main generation route is enabled yet.' },
+    { id: 'VIDEO', label: 'Video', artifactType: 'VIDEO', enabled: false, support: 'MISSING', reason: 'Video provider experiments exist, but no consumer-safe Main generation route is enabled yet.' },
+    { id: 'CODE', label: 'Code', capability: 'CODE', enabled: false, support: 'MISSING', reason: 'No canonical code artifact runtime is enabled in Main yet.' },
+    { id: 'MORE', label: 'More', capability: 'CAPABILITY_AUDIT', enabled: true, support: 'PARTIAL', route: 'inline capability matrix' },
   ];
 
   const state = {
@@ -149,8 +149,10 @@
   function renderModes() {
     const row = document.getElementById('main-mode-row');
     if (!row) return;
+    row.setAttribute('role', 'toolbar');
+    row.setAttribute('aria-label', 'Main execution modes');
     row.innerHTML = MODES.map((mode) => `
-      <button type="button" class="main-mode-chip" data-main-mode="${esc(mode.id)}" aria-pressed="${mode.id === state.mode ? 'true' : 'false'}" ${mode.enabled ? '' : 'disabled title="' + esc(mode.reason) + '"'}>
+      <button type="button" class="main-mode-chip" data-main-mode="${esc(mode.id)}" data-support="${esc(mode.support)}" aria-pressed="${mode.id === state.mode ? 'true' : 'false'}" aria-disabled="${mode.enabled ? 'false' : 'true'}" ${mode.enabled ? '' : 'disabled title="' + esc(mode.reason) + '"'}>
         ${esc(mode.label)}
       </button>
     `).join('');
@@ -282,10 +284,14 @@
       await reviseDocument(prompt, metadata, state.revisionTarget);
     } else if (metadata.preferredArtifactType === 'DOCUMENT') {
       await createDocument(prompt, metadata);
+    } else if (metadata.preferredArtifactType === 'IMAGE') {
+      await createImage(prompt, metadata);
     } else if (metadata.preferredCapability === 'RESEARCH') {
       await runResearch(prompt, metadata);
     } else if (metadata.preferredCapability === 'PLAN' || route.primaryIntent === 'COMMAND') {
       await runPlan(prompt, metadata, route);
+    } else if (metadata.preferredCapability === 'CAPABILITY_AUDIT') {
+      showModeCapabilityMatrix(prompt);
     } else {
       await runAnswer(prompt, metadata, route);
     }
@@ -369,6 +375,45 @@
     });
   }
 
+  async function createImage(prompt, metadata) {
+    const result = await api('/api/v1/creations/generate', {
+      method: 'POST',
+      body: JSON.stringify({
+        prompt,
+        type: 'IMAGE',
+        creationKind: 'IMAGE',
+        recipe: { type: 'IMAGE', aspectRatio: '1:1', locale: 'ko' },
+        requestMetadata: metadata,
+      }),
+      timeoutMs: 120000,
+    });
+    if (!result || result.error || result.status === 'FAILED' || result.status === 'UNAVAILABLE') {
+      showThread(prompt, 'Unavailable', 'Image generation is unavailable', (result && (result.message || result.errorMessage)) || (result && result.error && result.error.message) || 'No configured image provider produced a real image.', [
+        { state: 'done', label: 'Request captured', detail: 'Image' },
+        { state: 'running', label: 'Image provider unavailable', detail: (result && (result.error || result.errorCode || result.status)) || '' },
+      ]);
+      return;
+    }
+    const artifact = result.artifactId ? await api('/api/v1/artifacts/' + encodeURIComponent(result.artifactId)) : null;
+    const projection = artifact && artifact.projection ? artifact.projection : null;
+    const imageUrl = result.imageUrl || result.outputAssetUrl || result.openTarget || (projection && projection.openTarget);
+    showThread(prompt, 'Completed', 'Image created', 'The image result is ready in the right panel.', [
+      { state: 'done', label: 'Request captured', detail: 'Image' },
+      { state: 'done', label: 'Image generated', detail: result.creationId || '' },
+      { state: 'done', label: 'Result panel opened', detail: result.artifactId || '' },
+    ]);
+    showResult({
+      type: 'IMAGE',
+      title: result.title || (projection && projection.title) || 'Generated image',
+      meta: [result.mimeType || 'image/png', result.artifactId ? 'artifact ready' : 'artifact unavailable'].join(' - '),
+      preview: result.prompt || prompt,
+      imageUrl,
+      artifactId: result.artifactId,
+      openTarget: result.openTarget || imageUrl,
+      projection,
+    });
+  }
+
   async function reviseDocument(prompt, metadata, target) {
     const result = await api('/api/v1/creations/documents/' + encodeURIComponent(target.documentId) + '/revisions', {
       method: 'POST',
@@ -448,6 +493,29 @@
     renderInlineActions([
       { id: 'show-plan', label: 'Show plan', action: () => setStep((result.plan.steps || []).map((step, index) => ({ state: index === 0 ? 'running' : 'pending', label: step.title || ('Step ' + (index + 1)), detail: step.reasoning || '' }))) },
     ]);
+  }
+
+  function showModeCapabilityMatrix(prompt) {
+    const enabled = MODES.filter((mode) => mode.enabled && mode.id !== 'MORE').map((mode) => `${mode.label}: ${mode.support}`).join(' / ');
+    const unavailable = MODES.filter((mode) => !mode.enabled).map((mode) => `${mode.label}: ${mode.reason}`).join(' ');
+    showThread(prompt, 'Ready', 'Main mode capability audit', 'Supported modes route to real execution. Unsupported modes stay disabled until their canonical route can produce a verified result.', [
+      { state: 'done', label: 'Enabled modes', detail: enabled },
+      { state: 'pending', label: 'Not enabled', detail: unavailable },
+    ]);
+    renderInlineActions([
+      { id: 'ask', label: 'Ask', action: () => selectMode('ASK') },
+      { id: 'research', label: 'Research', action: () => selectMode('RESEARCH') },
+      { id: 'document', label: 'Document', action: () => selectMode('DOCUMENT') },
+      { id: 'image', label: 'Image', action: () => selectMode('IMAGE') },
+    ]);
+  }
+
+  function selectMode(modeId) {
+    const mode = MODES.find((m) => m.id === modeId);
+    if (!mode || !mode.enabled) return;
+    state.mode = mode.id;
+    renderModes();
+    focusComposer('');
   }
 
   function renderInlineActions(actions) {
@@ -597,7 +665,11 @@
     if (title) title.textContent = result.title || 'Result';
     if (meta) meta.textContent = result.meta || '';
     if (preview) {
-      preview.innerHTML = `<article class="main-doc-page"><div><strong>NAgex</strong><br><small>Your Personal AI</small></div><h1>${esc(result.title || 'Generated result')}</h1><p>${esc(result.preview || 'Preview is unavailable for this result.')}</p></article>`;
+      if (result.type === 'IMAGE' && result.imageUrl) {
+        preview.innerHTML = `<article class="main-doc-page main-image-page"><div><strong>NAgex</strong><br><small>Your Personal AI</small></div><h1>${esc(result.title || 'Generated image')}</h1><img src="${esc(result.imageUrl)}" alt="${esc(result.title || 'Generated image')}" loading="lazy"><p>${esc(result.preview || 'Image artifact')}</p></article>`;
+      } else {
+        preview.innerHTML = `<article class="main-doc-page"><div><strong>NAgex</strong><br><small>Your Personal AI</small></div><h1>${esc(result.title || 'Generated result')}</h1><p>${esc(result.preview || 'Preview is unavailable for this result.')}</p></article>`;
+      }
     }
     if (revise) {
       revise.disabled = !result.documentId;
@@ -675,9 +747,20 @@
     document.getElementById('main-mode-row')?.addEventListener('click', (event) => {
       const btn = event.target.closest('[data-main-mode]');
       if (!btn || btn.disabled) return;
-      state.mode = btn.dataset.mainMode;
-      renderModes();
-      focusComposer('');
+      selectMode(btn.dataset.mainMode);
+    });
+    document.getElementById('main-mode-row')?.addEventListener('keydown', (event) => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      const buttons = Array.from(document.querySelectorAll('#main-mode-row [data-main-mode]')).filter((btn) => !btn.disabled);
+      const current = document.activeElement;
+      const currentIndex = Math.max(0, buttons.indexOf(current));
+      let nextIndex = currentIndex;
+      if (event.key === 'ArrowLeft') nextIndex = Math.max(0, currentIndex - 1);
+      if (event.key === 'ArrowRight') nextIndex = Math.min(buttons.length - 1, currentIndex + 1);
+      if (event.key === 'Home') nextIndex = 0;
+      if (event.key === 'End') nextIndex = buttons.length - 1;
+      event.preventDefault();
+      buttons[nextIndex]?.focus();
     });
     const input = document.getElementById('main-surface-input');
     if (input) input.addEventListener('input', () => autoGrow(input));

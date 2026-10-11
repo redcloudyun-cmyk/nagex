@@ -5619,6 +5619,22 @@
       "assertionIntent": "Release hygiene registry entry for sidebar_ia_v1: preserves the committed product contract and prevents the test gate from treating the focused suite as unclassified debt.",
       "notes": "Added during integration hygiene after the suite was committed as part of the current branch baseline."
     },
+    "stt_open_source_poc": {
+      "milestone": "NAGEX-HOME-MAIN-P0H",
+      "classification": "TEST_HARNESS",
+      "canonical": true,
+      "scopes": [
+        "voice",
+        "browser",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "Classifies the isolated open-source STT POC harness contract: local-only binding, no production service interference, request size/duration/concurrency/timeouts, optional token/CORS controls, and no automatic prompt submission.",
+      "notes": "The real microphone Whisper certification is external human evidence; this registry entry covers the deterministic local harness and security guardrails only."
+    },
     "universal_life_execution": {
       "milestone": "NAGEX-INTEGRATION-RELEASE-HYGIENE",
       "classification": "CANONICAL_BEHAVIOR",
