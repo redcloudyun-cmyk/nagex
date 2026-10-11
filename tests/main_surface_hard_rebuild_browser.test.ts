@@ -28,6 +28,7 @@ async function installVoiceMocks(page: Page): Promise<void> {
     (window as any).__nagexVoiceMediaUnavailable = false;
     (window as any).__nagexVoiceTrackStopped = false;
     (window as any).__nagexVoiceError = null;
+    (window as any).__nagexVoiceEvents = null;
     Object.defineProperty(navigator, 'mediaDevices', {
       configurable: true,
       value: {
@@ -63,10 +64,15 @@ async function installVoiceMocks(page: Page): Promise<void> {
             this.onend?.();
             return;
           }
-          const transcript = (window as any).__nagexVoiceTranscript || 'voice input';
-          const result: any = [{ transcript }];
-          result.isFinal = true;
-          this.onresult?.({ resultIndex: 0, results: [result] });
+          const scriptedEvents = (window as any).__nagexVoiceEvents;
+          const events = Array.isArray(scriptedEvents) && scriptedEvents.length
+            ? scriptedEvents
+            : [{ transcript: (window as any).__nagexVoiceTranscript || 'voice input', isFinal: true, resultIndex: 0 }];
+          for (const entry of events) {
+            const result: any = [{ transcript: entry.transcript || '' }];
+            result.isFinal = Boolean(entry.isFinal);
+            this.onresult?.({ resultIndex: entry.resultIndex ?? 0, results: [result] });
+          }
           this.onend?.();
         }, 20);
       }
@@ -118,6 +124,43 @@ describe('NAgex Main surface hard rebuild', () => {
     await page.click('#main-mic');
     await page.waitForFunction(() => (document.querySelector('#main-surface-input') as any)?.value.includes('한국 생성형 AI 시장 조사'));
     assert.equal(await page.evaluate(() => (window as any).__nagexVoiceTrackStopped), true);
+    const firstVoiceDiagnostic = await page.evaluate(() => (window as any).__NAGEX_LAST_VOICE_DIAGNOSTIC);
+    assert.equal(firstVoiceDiagnostic.transcriptPresent, true);
+    assert.equal(firstVoiceDiagnostic.isFinal, true);
+    assert.equal(firstVoiceDiagnostic.callbackDelivered, true);
+    assert.ok(firstVoiceDiagnostic.transcriptLength > 0);
+
+    await page.fill('#main-surface-input', '');
+    await page.evaluate(() => {
+      (window as any).__nagexVoiceEvents = [
+        { transcript: 'interim text', isFinal: false },
+        { transcript: 'final text', isFinal: true },
+      ];
+    });
+    await page.click('#main-mic');
+    await page.waitForFunction(() => (document.querySelector('#main-surface-input') as any)?.value === 'final text');
+    await page.evaluate(() => { (window as any).__nagexVoiceEvents = null; });
+
+    await page.fill('#main-surface-input', '');
+    await page.evaluate(() => {
+      (window as any).__nagexVoiceEvents = [
+        { transcript: '', isFinal: true },
+      ];
+    });
+    await page.click('#main-mic');
+    await page.waitForFunction(() => document.querySelector('#main-work-title')?.textContent?.includes('No speech captured'));
+    await page.evaluate(() => { (window as any).__nagexVoiceEvents = null; });
+
+    await page.fill('#main-surface-input', '');
+    await page.evaluate(() => {
+      (window as any).__nagexVoiceEvents = [
+        { transcript: 'duplicate guard', isFinal: true },
+        { transcript: 'duplicate guard', isFinal: true },
+      ];
+    });
+    await page.click('#main-mic');
+    await page.waitForFunction(() => (document.querySelector('#main-surface-input') as any)?.value === 'duplicate guard');
+    await page.evaluate(() => { (window as any).__nagexVoiceEvents = null; });
 
     await page.fill('#main-surface-input', '기존 요청');
     await page.evaluate(() => { (window as any).__nagexVoiceTranscript = '일본 시장과 비교해줘'; });
@@ -150,9 +193,11 @@ describe('NAgex Main surface hard rebuild', () => {
 
     await page.fill('#main-surface-input', '');
     await page.evaluate(() => { (window as any).__nagexVoiceTranscript = '음성으로 계획을 세워줘'; });
+    const beforeVoiceRequest = await page.locator('#main-request-text').textContent().catch(() => '');
     await page.click('#main-voice');
-    await page.waitForSelector('#main-thread-card:not([hidden])', { timeout: 30000 });
-    await page.waitForFunction(() => document.querySelector('#main-request-text')?.textContent?.includes('음성으로 계획을 세워줘'));
+    await page.waitForFunction(() => (document.querySelector('#main-surface-input') as any)?.value.includes('음성으로 계획을 세워줘'));
+    const afterVoiceRequest = await page.locator('#main-request-text').textContent().catch(() => '');
+    assert.equal(afterVoiceRequest, beforeVoiceRequest);
 
     await page.fill('#main-surface-input', '한국의 생성형 AI 시장 동향을 조사해서 보고서로 만들어줘. 최근 1년간의 주요 기업, 투자 동향, 산업별 활용 사례, 향후 전망을 포함해줘.');
     const height = await page.locator('#main-surface-input').evaluate((el) => el.getBoundingClientRect().height);

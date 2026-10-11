@@ -31,6 +31,8 @@
       this.cancelled = false;
       this.activeSession = null;
       this.lastDiagnostic = null;
+      this.lastResultDiagnostic = null;
+      this.committedFinalResults = new Set();
     }
 
     isActive() {
@@ -76,6 +78,8 @@
 
       this.cancelled = false;
       this.finalTranscript = '';
+      this.lastResultDiagnostic = null;
+      this.committedFinalResults = new Set();
       this.activeSession = opts.session || null;
       this.transition(STATES.REQUESTING_PERMISSION, { session: this.activeSession });
 
@@ -115,22 +119,64 @@
           this.transition(STATES.LISTENING, { session: this.activeSession });
         };
         recognition.onresult = (event) => {
-          this.diagnose('RECOGNITION_RESULT', { resultIndex: event.resultIndex, resultCount: event.results ? event.results.length : undefined });
           this.transition(STATES.TRANSCRIBING, { session: this.activeSession });
           let interim = '';
-          for (let i = event.resultIndex; i < event.results.length; i += 1) {
+          let resultDiagnostic = {
+            resultIndex: event.resultIndex,
+            resultCount: event.results ? event.results.length : 0,
+            isFinal: false,
+            transcriptLength: 0,
+            transcriptPresent: false,
+            callbackDelivered: false,
+          };
+          const startIndex = Number.isFinite(event.resultIndex) ? event.resultIndex : 0;
+          for (let i = startIndex; event.results && i < event.results.length; i += 1) {
             const result = event.results[i];
-            const text = result && result[0] && result[0].transcript ? result[0].transcript.trim() : '';
+            const rawTranscript = result && result[0] && typeof result[0].transcript === 'string' ? result[0].transcript : '';
+            const text = rawTranscript.trim();
+            resultDiagnostic = {
+              resultIndex: event.resultIndex,
+              resultOffset: i,
+              resultCount: event.results ? event.results.length : 0,
+              isFinal: Boolean(result && result.isFinal),
+              transcriptLength: text.length,
+              transcriptPresent: text.length > 0,
+              callbackDelivered: false,
+            };
             if (!text) continue;
-            if (result.isFinal) this.finalTranscript += (this.finalTranscript ? ' ' : '') + text;
-            else interim += (interim ? ' ' : '') + text;
+            if (result.isFinal) {
+              const finalKey = [i, text].join(':');
+              if (!this.committedFinalResults.has(finalKey)) {
+                this.committedFinalResults.add(finalKey);
+                this.finalTranscript += (this.finalTranscript ? ' ' : '') + text;
+              }
+            } else {
+              interim += (interim ? ' ' : '') + text;
+            }
           }
-          this.options.onTranscript?.({
-            finalTranscript: this.finalTranscript,
-            interimTranscript: interim,
-            transcript: [this.finalTranscript, interim].filter(Boolean).join(' ').trim(),
-            session: this.activeSession,
-          });
+          this.lastResultDiagnostic = resultDiagnostic;
+          this.diagnose('RECOGNITION_RESULT', resultDiagnostic);
+          try {
+            this.options.onTranscript?.({
+              finalTranscript: this.finalTranscript,
+              interimTranscript: interim,
+              transcript: [this.finalTranscript, interim].filter(Boolean).join(' ').trim(),
+              session: this.activeSession,
+            });
+            this.lastResultDiagnostic = { ...resultDiagnostic, callbackDelivered: true };
+            this.diagnose('TRANSCRIPT_CALLBACK_DELIVERED', {
+              ...this.lastResultDiagnostic,
+              finalTranscriptLength: this.finalTranscript.trim().length,
+              interimTranscriptLength: interim.trim().length,
+            });
+          } catch (error) {
+            this.lastResultDiagnostic = { ...resultDiagnostic, callbackDelivered: false };
+            this.diagnose('TRANSCRIPT_CALLBACK_ERROR', {
+              ...this.lastResultDiagnostic,
+              name: error && error.name,
+              message: error && error.message,
+            });
+          }
         };
         recognition.onerror = (event) => {
           const normalized = this.normalizeError(event);
@@ -190,8 +236,15 @@
     }
 
     diagnose(event, detail) {
+      const resultDiagnostic = this.lastResultDiagnostic || {};
       const diagnostic = {
         event,
+        resultIndex: resultDiagnostic.resultIndex,
+        resultCount: resultDiagnostic.resultCount,
+        isFinal: resultDiagnostic.isFinal,
+        transcriptLength: resultDiagnostic.transcriptLength,
+        transcriptPresent: resultDiagnostic.transcriptPresent,
+        callbackDelivered: resultDiagnostic.callbackDelivered,
         detail: detail || {},
         state: this.state,
         at: new Date().toISOString(),

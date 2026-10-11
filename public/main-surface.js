@@ -523,8 +523,11 @@
       onTranscript: ({ finalTranscript, interimTranscript }) => {
         const current = document.getElementById('main-surface-input');
         if (!current) return;
-        const base = current.dataset.voiceBase || current.value;
+        const hasVoiceBase = Object.prototype.hasOwnProperty.call(current.dataset, 'voiceBase');
+        const base = hasVoiceBase ? current.dataset.voiceBase : current.value;
         current.value = [base, finalTranscript, interimTranscript].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+        const root = document.getElementById('nagex-main-surface');
+        if (root) root.dataset.voiceTranscriptDelivered = current.value ? 'true' : 'false';
         autoGrow(current);
       },
     });
@@ -541,11 +544,7 @@
     if (input) delete input.dataset.voiceBase;
     state.voiceMode = null;
     if (result.state === 'COMPLETED' && result.transcript) {
-      if (mode === 'SESSION') {
-        sendRequest();
-      } else {
-        setVoiceState('IDLE', 'dictation ready');
-      }
+      setVoiceState('IDLE', mode === 'SESSION' ? 'voice ready' : 'dictation ready');
       return;
     }
     if (result.state === 'CANCELLED') {
@@ -765,7 +764,7 @@
         ['main-web-toggle', 'web toggle', 'Main', 'click', 'requestMetadata.allowWebResearch', 'metadata changes', 'pressed state', 'n/a', 'per request', 'SSRF policy server-side'],
         ['main-data-toggle', 'my data toggle', 'Main', 'click', 'requestMetadata.usePersonalContext', 'metadata changes', 'pressed state', 'n/a', 'per request', 'consent/owner'],
         ['main-mic', 'microphone dictation', 'Main', 'click', 'Browser SpeechRecognition + microphone permission', 'transcript inserted into composer', 'composer text updated', 'permission/unavailable guidance', 'per request', 'browser permission'],
-        ['main-voice', 'voice session', 'Main', 'click', 'Browser SpeechRecognition -> Main sendRequest', 'recognized intent enters Main flow', 'inline working state', 'permission/unavailable guidance', 'per request', 'same Main authority rules'],
+        ['main-voice', 'voice session', 'Main', 'click', 'Browser SpeechRecognition -> Main composer', 'recognized speech becomes editable text', 'composer text updated', 'permission/unavailable guidance', 'per request', 'same Main authority rules'],
         ['btn-notif-bell', 'bell', 'Header', 'click', 'tasks/approvals/activity/notifications APIs', 'none', 'attention center', 'empty state', 'server stores', 'session'],
         ['main-result-open', 'open result', 'Result', 'click', 'openArtifactInCanvas', 'route/detail view', 'artifact opens', 'unavailable if missing', 'artifact store', 'owner gate'],
         ['main-result-expand', 'expand result', 'Result', 'click', 'UI state', 'fullscreen class', 'large viewer', 'n/a', 'session UI', 'n/a'],
