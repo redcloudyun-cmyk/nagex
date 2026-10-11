@@ -167,6 +167,59 @@ describe('NAgex Main surface hard rebuild', () => {
     await page.waitForFunction(() => (document.querySelector('#main-surface-input') as any)?.value === 'duplicate guard');
     await page.evaluate(() => { (window as any).__nagexVoiceEvents = null; });
 
+    await page.fill('#main-surface-input', 'existing');
+    await page.evaluate(() => {
+      (window as any).NAGEX_STT_MAX_RECORD_MS = 1;
+      window.localStorage.setItem('nagex_stt_backend', 'whisper-local');
+      (window as any).__originalFetch = window.fetch;
+      window.fetch = async (url: any, options: any) => {
+        if (String(url).includes('127.0.0.1:4760/transcribe')) {
+          const body = options && options.body;
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              ok: true,
+              transcript: '위스퍼 테스트',
+              transcriptLength: 6,
+              durationSeconds: 1,
+              latencyMs: 120,
+              peakRssMb: 70,
+              receivedAudio: Boolean(body),
+            }),
+          } as any;
+        }
+        return (window as any).__originalFetch(url, options);
+      };
+      class FakeAudioContext {
+        sampleRate = 16000;
+        destination = {};
+        createMediaStreamSource() { return { connect() {} }; }
+        createScriptProcessor() {
+          const processor: any = { connect() {}, disconnect() {}, onaudioprocess: null };
+          setTimeout(() => {
+            if (processor.onaudioprocess) {
+              processor.onaudioprocess({ inputBuffer: { getChannelData: () => new Float32Array(16000) } });
+            }
+          }, 0);
+          return processor;
+        }
+        close() { return Promise.resolve(); }
+      }
+      (window as any).AudioContext = FakeAudioContext;
+      (window as any).webkitAudioContext = FakeAudioContext;
+    });
+    await page.click('#main-mic');
+    await page.waitForFunction(() => (document.querySelector('#main-surface-input') as any)?.value === 'existing 위스퍼 테스트');
+    const whisperDiagnostic = await page.evaluate(() => (window as any).__NAGEX_LAST_VOICE_DIAGNOSTIC);
+    assert.equal(whisperDiagnostic.detail.backend, 'whisper-local');
+    assert.equal(whisperDiagnostic.transcriptPresent, true);
+    await page.evaluate(() => {
+      window.localStorage.removeItem('nagex_stt_backend');
+      delete (window as any).NAGEX_STT_MAX_RECORD_MS;
+      if ((window as any).__originalFetch) window.fetch = (window as any).__originalFetch;
+    });
+
     await page.fill('#main-surface-input', '기존 요청');
     await page.evaluate(() => { (window as any).__nagexVoiceTranscript = '일본 시장과 비교해줘'; });
     await page.click('#main-mic');
