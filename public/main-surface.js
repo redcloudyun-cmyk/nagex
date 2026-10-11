@@ -23,7 +23,7 @@
     result: null,
     revisionTarget: null,
     voiceState: 'IDLE',
-    recognition: null,
+    voiceAdapter: null,
     voiceMode: null,
   };
 
@@ -52,6 +52,11 @@
       showPlanBeforeConsequentialActions: state.planPreview,
       routingPolicy: 'INTERNAL_AUTO',
       attachmentRefs: state.attachments.map((a) => a.captureId || a.id).filter(Boolean),
+      activeContext: {
+        artifactId: state.result && state.result.artifactId ? state.result.artifactId : null,
+        documentId: state.result && state.result.documentId ? state.result.documentId : null,
+        revisionDocumentId: state.revisionTarget && state.revisionTarget.documentId ? state.revisionTarget.documentId : null,
+      },
     };
   }
 
@@ -397,10 +402,6 @@
     autoGrow(input);
   }
 
-  function speechRecognitionCtor() {
-    return window.SpeechRecognition || window.webkitSpeechRecognition || null;
-  }
-
   function setVoiceState(next, detail) {
     state.voiceState = next;
     const root = document.getElementById('nagex-main-surface');
@@ -413,99 +414,75 @@
     if (status) status.textContent = detail || next.replace(/_/g, ' ').toLowerCase();
   }
 
-  async function queryMicrophonePermission() {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return 'UNAVAILABLE';
-    if (!navigator.permissions || !navigator.permissions.query) return 'UNKNOWN';
-    try {
-      const permission = await navigator.permissions.query({ name: 'microphone' });
-      if (permission.state === 'granted') return 'ALLOWED';
-      if (permission.state === 'denied') return 'DENIED';
-      return 'UNKNOWN';
-    } catch {
-      return 'UNKNOWN';
-    }
-  }
-
-  async function ensureMicrophoneAccess() {
-    const permission = await queryMicrophonePermission();
-    if (permission === 'UNAVAILABLE') throw new Error('Microphone input is unavailable in this browser.');
-    if (permission === 'DENIED') throw new Error('Microphone permission is denied. Enable microphone access in the browser settings.');
-    setVoiceState('REQUESTING', 'requesting mic');
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    stream.getTracks().forEach((track) => track.stop());
-    return true;
-  }
-
   async function startVoiceRecognition(mode) {
-    if (state.recognition) {
-      state.recognition.stop();
-      state.recognition = null;
-      setVoiceState('IDLE', 'stopped');
+    if (state.voiceAdapter && state.voiceAdapter.isActive()) {
+      await state.voiceAdapter.cancel();
       state.voiceMode = null;
       return;
     }
-    const Recognition = speechRecognitionCtor();
-    if (!Recognition) {
+    if (!window.NAGEX_RENDERER_VOICE || !window.NAGEX_RENDERER_VOICE.RendererVoiceAdapter) {
       setVoiceState('ERROR', 'speech recognition unavailable');
       showThread('Voice input', 'Unavailable', 'Voice recognition is unavailable', 'This browser does not expose a speech recognition API. Use typed input or a supported browser.', [
-        { state: 'running', label: 'Voice unavailable', detail: 'SpeechRecognition missing' },
+        { state: 'running', label: 'Voice unavailable', detail: 'RendererVoiceAdapter missing' },
       ]);
       return;
     }
-    try {
-      await ensureMicrophoneAccess();
-      const recognition = new Recognition();
-      recognition.lang = 'ko-KR';
-      recognition.interimResults = true;
-      recognition.continuous = mode === 'SESSION';
-      state.recognition = recognition;
-      state.voiceMode = mode;
-      let finalTranscript = '';
-      recognition.onstart = () => setVoiceState(mode === 'SESSION' ? 'VOICE_SESSION_ACTIVE' : 'LISTENING', mode === 'SESSION' ? 'voice session active' : 'listening');
-      recognition.onerror = (event) => {
-        const message = event && event.error === 'not-allowed' ? 'Microphone permission denied.' : 'Voice recognition error.';
-        state.recognition = null;
-        state.voiceMode = null;
-        setVoiceState('ERROR', message);
-        showThread('Voice input', 'Error', 'Voice input failed', message, [{ state: 'running', label: 'Voice error', detail: event && event.error ? event.error : '' }]);
-      };
-      recognition.onresult = (event) => {
-        setVoiceState('TRANSCRIBING', 'transcribing');
-        let interim = '';
-        for (let i = event.resultIndex; i < event.results.length; i += 1) {
-          const text = event.results[i][0] && event.results[i][0].transcript ? event.results[i][0].transcript.trim() : '';
-          if (event.results[i].isFinal) finalTranscript += (finalTranscript ? ' ' : '') + text;
-          else interim += (interim ? ' ' : '') + text;
-        }
-        const input = document.getElementById('main-surface-input');
-        if (input) {
-          const base = input.dataset.voiceBase || input.value;
-          input.value = [base, finalTranscript, interim].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
-          autoGrow(input);
-        }
-      };
-      recognition.onend = () => {
-        const wasSession = state.voiceMode === 'SESSION';
-        state.recognition = null;
-        state.voiceMode = null;
-        const input = document.getElementById('main-surface-input');
-        if (input) delete input.dataset.voiceBase;
-        if (finalTranscript) {
-          setVoiceState(wasSession ? 'VOICE_SESSION_ACTIVE' : 'IDLE', wasSession ? 'intent recognized' : 'dictation ready');
-          if (wasSession) sendRequest();
-        } else {
-          setVoiceState('IDLE', 'no speech captured');
-        }
-      };
-      const input = document.getElementById('main-surface-input');
-      if (input) input.dataset.voiceBase = input.value.trim();
-      recognition.start();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Voice input could not start.';
-      state.recognition = null;
-      state.voiceMode = null;
-      setVoiceState(message.includes('denied') ? 'DENIED' : 'ERROR', message);
-      showThread('Voice input', 'Error', 'Voice input unavailable', message, [{ state: 'running', label: 'Microphone access', detail: message }]);
+    const input = document.getElementById('main-surface-input');
+    if (input) input.dataset.voiceBase = input.value.trim();
+    state.voiceMode = mode;
+    state.voiceAdapter = new window.NAGEX_RENDERER_VOICE.RendererVoiceAdapter({
+      onStateChange: ({ state: nextState, detail }) => {
+        const map = {
+          REQUESTING_PERMISSION: 'REQUESTING',
+          LISTENING: mode === 'SESSION' ? 'VOICE_SESSION_ACTIVE' : 'LISTENING',
+          TRANSCRIBING: 'TRANSCRIBING',
+          COMPLETED: mode === 'SESSION' ? 'VOICE_SESSION_ACTIVE' : 'IDLE',
+          CANCELLED: 'IDLE',
+          PERMISSION_DENIED: 'DENIED',
+          UNAVAILABLE: 'ERROR',
+          ERROR: 'ERROR',
+          IDLE: 'IDLE',
+        };
+        const label = detail && detail.reason ? detail.reason : undefined;
+        setVoiceState(map[nextState] || nextState, label);
+      },
+      onTranscript: ({ finalTranscript, interimTranscript }) => {
+        const current = document.getElementById('main-surface-input');
+        if (!current) return;
+        const base = current.dataset.voiceBase || current.value;
+        current.value = [base, finalTranscript, interimTranscript].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+        autoGrow(current);
+      },
+    });
+    const result = await state.voiceAdapter.start({
+      lang: 'ko-KR',
+      continuous: mode === 'SESSION',
+      session: {
+        mode,
+        activeResultArtifactId: state.result && state.result.artifactId ? state.result.artifactId : null,
+        activeDocumentId: state.result && state.result.documentId ? state.result.documentId : null,
+        revisionTarget: state.revisionTarget,
+      },
+    });
+    if (input) delete input.dataset.voiceBase;
+    state.voiceMode = null;
+    if (result.state === 'COMPLETED' && result.transcript) {
+      if (mode === 'SESSION') {
+        sendRequest();
+      } else {
+        setVoiceState('IDLE', 'dictation ready');
+      }
+      return;
+    }
+    if (result.state === 'PERMISSION_DENIED' || result.state === 'UNAVAILABLE' || result.state === 'ERROR') {
+      const message = result.state === 'PERMISSION_DENIED'
+        ? 'Microphone permission is denied. Enable microphone access in the browser settings.'
+        : result.state === 'UNAVAILABLE'
+          ? 'Voice recognition is unavailable in this browser.'
+          : 'Voice input failed.';
+      showThread('Voice input', 'Error', 'Voice input unavailable', message, [
+        { state: 'running', label: 'Voice input', detail: result.reason || result.state },
+      ]);
     }
   }
 

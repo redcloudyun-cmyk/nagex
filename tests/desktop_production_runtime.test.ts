@@ -5,6 +5,7 @@ import test from 'node:test';
 const desktopApp = readFileSync('src/desktop/desktop-app.ts', 'utf8');
 const preload = readFileSync('src/desktop/preload.ts', 'utf8');
 const quickWake = readFileSync('public/desktop-quickwake.js', 'utf8');
+const rendererVoiceAdapter = readFileSync('public/renderer-voice-adapter.js', 'utf8');
 
 test('desktop production runtime is wired into the real Electron app entrypoint', () => {
   assert.match(desktopApp, /from 'electron'/);
@@ -79,12 +80,15 @@ test('microphone and STT path is truthful about renderer/provider requirement', 
   assert.match(desktopApp, /realStt: 'WEB_SPEECH_OR_PROVIDER_REQUIRED'/);
 });
 
-test('quick wake renderer implements real microphone capture and Web Speech STT handoff', () => {
-  assert.match(quickWake, /navigator\.mediaDevices\.getUserMedia\(\{ audio: true \}\)/);
-  assert.match(quickWake, /window\.SpeechRecognition \|\| window\.webkitSpeechRecognition/);
-  assert.match(quickWake, /recognition\.onresult/);
+test('quick wake renderer uses the shared voice adapter for real microphone capture and Web Speech STT handoff', () => {
+  assert.match(rendererVoiceAdapter, /navigator\.mediaDevices\.getUserMedia\(\{ audio: true \}\)/);
+  assert.match(rendererVoiceAdapter, /window\.SpeechRecognition \|\| window\.webkitSpeechRecognition/);
+  assert.match(rendererVoiceAdapter, /recognition\.onresult/);
+  assert.match(quickWake, /NAGEX_RENDERER_VOICE\.RendererVoiceAdapter/);
   assert.match(quickWake, /submitPrompt\(transcript\)/);
-  assert.match(quickWake, /getTracks\(\)\.forEach\(\(track\) => track\.stop\(\)\)/);
+  assert.doesNotMatch(quickWake, /navigator\.mediaDevices\.getUserMedia/);
+  assert.doesNotMatch(quickWake, /window\.SpeechRecognition \|\| window\.webkitSpeechRecognition/);
+  assert.match(rendererVoiceAdapter, /getTracks\(\)\.forEach\(\(track\) =>/);
 });
 
 test('quick wake voice runtime supports click-to-talk and native push-to-talk continuity', () => {

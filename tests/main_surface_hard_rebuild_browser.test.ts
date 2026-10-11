@@ -1,7 +1,7 @@
-import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { after, before, describe, it } from 'node:test';
 import type { Page } from 'playwright';
 import { startCanvasAskHarness, type CanvasAskHarness } from './_canvas_ask_harness.js';
 
@@ -24,15 +24,26 @@ async function openMain(page: Page): Promise<void> {
 async function installVoiceMocks(page: Page): Promise<void> {
   await page.addInitScript(() => {
     (window as any).__nagexVoiceTranscript = '안녕하세요 네이젝스';
+    (window as any).__nagexVoicePermission = 'granted';
+    (window as any).__nagexVoiceMediaUnavailable = false;
+    (window as any).__nagexVoiceTrackStopped = false;
     Object.defineProperty(navigator, 'mediaDevices', {
       configurable: true,
       value: {
-        getUserMedia: async () => ({ getTracks: () => [{ stop() {} }] }),
+        getUserMedia: async () => {
+          if ((window as any).__nagexVoiceMediaUnavailable) {
+            throw Object.assign(new Error('missing mic'), { name: 'NotFoundError' });
+          }
+          if ((window as any).__nagexVoicePermission === 'denied') {
+            throw Object.assign(new Error('denied'), { name: 'NotAllowedError' });
+          }
+          return { getTracks: () => [{ stop() { (window as any).__nagexVoiceTrackStopped = true; } }] };
+        },
       },
     });
     Object.defineProperty(navigator, 'permissions', {
       configurable: true,
-      value: { query: async () => ({ state: 'granted' }) },
+      value: { query: async () => ({ state: (window as any).__nagexVoicePermission }) },
     });
     class FakeSpeechRecognition {
       lang = '';
@@ -46,7 +57,7 @@ async function installVoiceMocks(page: Page): Promise<void> {
       start() {
         setTimeout(() => {
           this.onstart?.();
-          const transcript = (window as any).__nagexVoiceTranscript || '음성 입력';
+          const transcript = (window as any).__nagexVoiceTranscript || 'voice input';
           const result: any = [{ transcript }];
           result.isFinal = true;
           this.onresult?.({ resultIndex: 0, results: [result] });
@@ -61,12 +72,12 @@ async function installVoiceMocks(page: Page): Promise<void> {
 }
 
 describe('NAgex Main surface hard rebuild', () => {
-  it('replaces legacy Home with canonical Main, hides Create/Canvas primary nav, and avoids assistant modal execution', async () => {
+  it('replaces legacy Home with canonical Main, keeps voice functional, and avoids assistant modal execution', async () => {
     fs.mkdirSync(screenshotDir, { recursive: true });
     const user = h.user('main_hard_rebuild');
     const seeded = h.seedDocument(user, {
-      title: '한국의 생성형 AI 시장 동향 보고서_v1.docx',
-      content: '한국의 생성형 AI 시장은 빠르게 확대되고 있습니다. 주요 기업, 투자 동향, 산업별 활용 사례, 향후 전망을 요약합니다.',
+      title: '한국 생성형 AI 시장 동향 보고서 v1.docx',
+      content: '한국 생성형 AI 시장은 빠르게 성장하고 있습니다. 주요 기업, 투자 동향, 산업별 활용 사례, 향후 전망을 요약합니다.',
       revision: 1,
     });
     const ctx = await h.newContext('desktop', user, 'ko');
@@ -89,10 +100,28 @@ describe('NAgex Main surface hard rebuild', () => {
     await page.evaluate(() => { (window as any).__nagexVoiceTranscript = '한국 생성형 AI 시장 조사'; });
     await page.click('#main-mic');
     await page.waitForFunction(() => (document.querySelector('#main-surface-input') as any)?.value.includes('한국 생성형 AI 시장 조사'));
+    assert.equal(await page.evaluate(() => (window as any).__nagexVoiceTrackStopped), true);
+
     await page.fill('#main-surface-input', '기존 요청');
     await page.evaluate(() => { (window as any).__nagexVoiceTranscript = '일본 시장과 비교해줘'; });
     await page.click('#main-mic');
     await page.waitForFunction(() => (document.querySelector('#main-surface-input') as any)?.value.includes('기존 요청 일본 시장과 비교해줘'));
+
+    await page.evaluate(() => { (window as any).__nagexVoiceTranscript = 'Compare the Japanese market too'; });
+    await page.click('#main-mic');
+    await page.waitForFunction(() => (document.querySelector('#main-surface-input') as any)?.value.includes('Compare the Japanese market too'));
+
+    await page.evaluate(() => { (window as any).__nagexVoicePermission = 'denied'; });
+    await page.click('#main-mic');
+    await page.waitForFunction(() => document.querySelector('#main-work-title')?.textContent?.includes('Voice input unavailable'));
+
+    await page.evaluate(() => {
+      (window as any).__nagexVoicePermission = 'granted';
+      (window as any).__nagexVoiceMediaUnavailable = true;
+    });
+    await page.click('#main-mic');
+    await page.waitForFunction(() => document.querySelector('#main-work-summary')?.textContent?.includes('Voice input failed'));
+    await page.evaluate(() => { (window as any).__nagexVoiceMediaUnavailable = false; });
 
     await page.fill('#main-surface-input', '');
     await page.evaluate(() => { (window as any).__nagexVoiceTranscript = '음성으로 계획을 세워줘'; });

@@ -14,8 +14,7 @@
     isSubmitting: false,
     voice: {
       active: false,
-      mediaStream: null,
-      recognition: null,
+      adapter: null,
       transcript: '',
       goalId: null,
     },
@@ -184,14 +183,15 @@
     if (status) status.textContent = message;
   }
 
-  function getSpeechRecognitionCtor() {
-    return window.SpeechRecognition || window.webkitSpeechRecognition || null;
-  }
-
   async function startDesktopVoiceCapture(mode = 'CLICK_TO_TALK') {
     if (state.voice.active) return;
+    if (!window.NAGEX_RENDERER_VOICE || !window.NAGEX_RENDERER_VOICE.RendererVoiceAdapter) {
+      appendSystemBubble(t('desktop.micCapturedNoStt', 'Speech recognition is not available in this runtime.'));
+      return;
+    }
     state.voice.active = true;
     state.voice.goalId = state.voice.goalId || `desktop_voice_goal_${Date.now()}`;
+    state.voice.transcript = '';
     updateVoiceStatus(t('desktop.listening', 'Listening...'));
     const voiceBtn = document.getElementById('qw-btn-voice');
     if (voiceBtn) voiceBtn.classList.add('recording');
@@ -206,56 +206,32 @@
       });
     }
 
-    try {
-      state.voice.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch (err) {
-      state.voice.active = false;
-      if (voiceBtn) voiceBtn.classList.remove('recording');
-      updateVoiceStatus(t('desktop.micDenied', 'Microphone unavailable'));
-      appendSystemBubble(t('desktop.micDeniedDetail', 'Microphone access is required before voice input can continue.'));
-      return;
-    }
-
-    const Recognition = getSpeechRecognitionCtor();
-    if (!Recognition) {
-      appendSystemBubble(t('desktop.micCapturedNoStt', 'Microphone capture is active, but speech recognition is not available in this runtime.'));
-      return;
-    }
-
-    const recognition = new Recognition();
-    recognition.lang = (window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale() === 'ko') ? 'ko-KR' : 'en-US';
-    recognition.interimResults = true;
-    recognition.continuous = false;
-    state.voice.recognition = recognition;
-    recognition.onresult = (event) => {
-      let transcript = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        transcript += event.results[i][0].transcript;
-      }
-      state.voice.transcript = transcript.trim();
-      updateVoiceStatus(state.voice.transcript || t('desktop.listening', 'Listening...'));
-    };
-    recognition.onerror = () => {
-      appendSystemBubble(t('desktop.sttFailed', 'Speech recognition failed. The microphone session was stopped safely.'));
-      stopDesktopVoiceCapture(false);
-    };
-    recognition.onend = () => {
-      const transcript = state.voice.transcript;
-      stopDesktopVoiceCapture(false);
-      if (transcript) submitPrompt(transcript);
-    };
-    recognition.start();
+    state.voice.adapter = new window.NAGEX_RENDERER_VOICE.RendererVoiceAdapter({
+      onStateChange: ({ state: voiceState }) => {
+        if (voiceState === 'REQUESTING_PERMISSION') updateVoiceStatus(t('desktop.listening', 'Requesting microphone...'));
+        else if (voiceState === 'LISTENING') updateVoiceStatus(t('desktop.listening', 'Listening...'));
+        else if (voiceState === 'TRANSCRIBING') updateVoiceStatus(state.voice.transcript || t('desktop.listening', 'Listening...'));
+      },
+      onTranscript: ({ transcript }) => {
+        state.voice.transcript = transcript.trim();
+        updateVoiceStatus(state.voice.transcript || t('desktop.listening', 'Listening...'));
+      },
+    });
+    const result = await state.voice.adapter.start({
+      lang: (window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale() === 'ko') ? 'ko-KR' : 'en-US',
+      continuous: false,
+      session: { mode, goalId: state.voice.goalId, executionId: 'desktop-voice' },
+    });
+    const transcript = result.transcript || state.voice.transcript;
+    stopDesktopVoiceCapture(false);
+    if (result.state === 'COMPLETED' && transcript) submitPrompt(transcript);
+    else if (result.state === 'PERMISSION_DENIED') appendSystemBubble(t('desktop.micDeniedDetail', 'Microphone access is required before voice input can continue.'));
+    else if (result.state === 'ERROR' || result.state === 'UNAVAILABLE') appendSystemBubble(t('desktop.sttFailed', 'Speech recognition failed. The microphone session was stopped safely.'));
   }
 
   function stopDesktopVoiceCapture(clearTranscript = true) {
-    if (state.voice.recognition) {
-      try { state.voice.recognition.stop(); } catch {}
-      state.voice.recognition = null;
-    }
-    if (state.voice.mediaStream) {
-      state.voice.mediaStream.getTracks().forEach((track) => track.stop());
-      state.voice.mediaStream = null;
-    }
+    if (state.voice.adapter && state.voice.adapter.isActive()) state.voice.adapter.cancel();
+    state.voice.adapter = null;
     state.voice.active = false;
     if (clearTranscript) state.voice.transcript = '';
     const voiceBtn = document.getElementById('qw-btn-voice');
