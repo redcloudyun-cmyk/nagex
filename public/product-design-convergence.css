@@ -1,0 +1,388 @@
+/*
+ * NAgex final product design convergence.
+ * Visual-only layer over the real functional surfaces. No backend or action
+ * contracts are changed here.
+ */
+
+:root {
+  --nxc-bg: #f4f7fb;
+  --nxc-surface: #ffffff;
+  --nxc-surface-soft: #f8fafc;
+  --nxc-ink: #0c1425;
+  --nxc-muted: #5b6b84;
+  --nxc-faint: #8b98ad;
+  --nxc-line: #dfe7f2;
+  --nxc-line-strong: #c7d4e6;
+  --nxc-blue: #0a56f7;
+  --nxc-teal: #0f9f9a;
+  --nxc-amber: #b7791f;
+  --nxc-red: #dc2626;
+  --nxc-green: #059669;
+  --nxc-radius: 8px;
+  --nxc-shadow: 0 10px 30px -24px rgba(15, 23, 42, .55);
+}
+
+body {
+  background:
+    linear-gradient(180deg, #f7faff 0%, var(--nxc-bg) 48%, #f6f8fb 100%);
+  color: var(--nxc-ink);
+}
+
+.app-header {
+  height: 56px !important;
+  background: rgba(255, 255, 255, .94) !important;
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(199, 212, 230, .78) !important;
+  box-shadow: none !important;
+}
+
+.desktop-global-search-target,
+.header-search-bar,
+#nagex-real-search-input {
+  border-radius: var(--nxc-radius) !important;
+  border-color: var(--nxc-line) !important;
+  background: #f8fbff !important;
+}
+
+.desktop-global-search-target:hover,
+.desktop-global-search-target:focus-visible,
+#nagex-real-search-input:focus {
+  border-color: rgba(10, 86, 247, .42) !important;
+  box-shadow: 0 0 0 3px rgba(10, 86, 247, .08) !important;
+}
+
+.sidebar-left,
+.left-sidebar {
+  background: rgba(255, 255, 255, .9) !important;
+  border-right: 1px solid rgba(199, 212, 230, .72) !important;
+  box-shadow: none !important;
+}
+
+.nav-menu .nav-link,
+.mh-nav-item,
+.mob-nav-item {
+  border-radius: var(--nxc-radius) !important;
+}
+
+.nav-menu .nav-item.active .nav-link,
+.mh-nav-item.active,
+.mob-nav-item.active {
+  background: #edf4ff !important;
+  color: var(--nxc-blue) !important;
+}
+
+.center-canvas {
+  background: transparent !important;
+}
+
+.tab-view {
+  color: var(--nxc-ink);
+}
+
+.nagex-card,
+.canvas-section-card,
+.setting-card,
+.task-card,
+.approval-card,
+.appr-card,
+.know-card,
+.vault-card,
+.inbox-card,
+.mh-card {
+  border-radius: var(--nxc-radius) !important;
+  border: 1px solid rgba(199, 212, 230, .82) !important;
+  box-shadow: var(--nxc-shadow) !important;
+  background: var(--nxc-surface) !important;
+}
+
+.nagex-card .card-title,
+.canvas-section-card h2,
+.canvas-section-card h3,
+.setting-card h3,
+.task-card h3,
+.know-card .card-title,
+.ph-heading h2 {
+  letter-spacing: 0 !important;
+  color: var(--nxc-ink) !important;
+}
+
+.hero-desc-sub,
+.card-body-text,
+.setting-sub,
+.ph-heading-sub,
+.canvas-agent-empty,
+.nagex-empty-state {
+  color: var(--nxc-muted) !important;
+}
+
+.btn-primary,
+.ph-action,
+.ph-create-action,
+.canvas-ask-submit,
+.mh-canvas-ask-submit,
+#nagex-document-revision-submit {
+  border-radius: var(--nxc-radius) !important;
+  background: var(--nxc-blue) !important;
+  border: 1px solid var(--nxc-blue) !important;
+  box-shadow: none !important;
+  font-weight: 700 !important;
+}
+
+.btn-primary:hover,
+.ph-action:hover,
+.ph-create-action:hover,
+.canvas-ask-submit:hover,
+.mh-canvas-ask-submit:hover,
+#nagex-document-revision-submit:hover {
+  background: #0848d6 !important;
+}
+
+.btn-secondary,
+.canvas-back-btn,
+.mh-canvas-back-btn,
+.canvas-agent-tab,
+.ph-capability-tile,
+.quick-action-chip,
+.home-capability-chip {
+  border-radius: var(--nxc-radius) !important;
+  border-color: var(--nxc-line) !important;
+  box-shadow: none !important;
+}
+
+.home-ai-hero {
+  border: 1px solid rgba(199, 212, 230, .78) !important;
+  border-radius: 12px !important;
+  background: linear-gradient(135deg, #ffffff 0%, #f7fbff 70%) !important;
+  box-shadow: var(--nxc-shadow) !important;
+}
+
+.home-ai-hero h1,
+#home-ai-hero-title {
+  font-size: clamp(1.55rem, 2.2vw, 2.15rem) !important;
+  line-height: 1.08 !important;
+  letter-spacing: 0 !important;
+}
+
+.home-ai-hero p {
+  color: var(--nxc-muted) !important;
+  max-width: 58ch;
+}
+
+.home-ai-trust-row span {
+  border-radius: 999px !important;
+  background: #f1f7ff !important;
+  border: 1px solid rgba(199, 212, 230, .78) !important;
+  color: #24405f !important;
+}
+
+.home-ai-command-composer,
+.unified-capture-composer-card {
+  border-radius: 12px !important;
+  border: 1px solid rgba(10, 86, 247, .2) !important;
+  box-shadow: 0 14px 40px -30px rgba(10, 86, 247, .7) !important;
+}
+
+.home-command-label {
+  color: var(--nxc-muted) !important;
+  font-weight: 650 !important;
+}
+
+.unified-prompt-textarea,
+.canvas-ask-field,
+.mh-canvas-ask-field,
+#nagex-document-revision-input,
+input.form-input,
+textarea.form-input {
+  border-radius: var(--nxc-radius) !important;
+  border-color: var(--nxc-line) !important;
+  background: #fbfdff !important;
+}
+
+.unified-prompt-textarea:focus,
+.canvas-ask-field:focus,
+.mh-canvas-ask-field:focus,
+#nagex-document-revision-input:focus,
+input.form-input:focus,
+textarea.form-input:focus {
+  border-color: rgba(10, 86, 247, .48) !important;
+  box-shadow: 0 0 0 3px rgba(10, 86, 247, .08) !important;
+  outline: none !important;
+}
+
+.ph-approval-heading,
+.ph-approval-row,
+.approvals-list-container article,
+.ambient-user-approval-card {
+  border-radius: var(--nxc-radius) !important;
+}
+
+.ph-approval-pause,
+.badge-status,
+.ph-capability-status,
+.nagex-badge {
+  border-radius: 999px !important;
+  font-weight: 750 !important;
+}
+
+.status-COMPLETED,
+.status-VERIFIED,
+.badge-status.status-COMPLETED {
+  color: #045f45 !important;
+  background: #e8f7f1 !important;
+  border-color: #b7e4d2 !important;
+}
+
+.status-PENDING,
+.status-NEEDS_ATTENTION,
+.badge-status.status-PENDING {
+  color: #7a4a09 !important;
+  background: #fff7e8 !important;
+  border-color: #f4d9a8 !important;
+}
+
+.status-FAILED,
+.badge-status.status-FAILED {
+  color: #8f1d1d !important;
+  background: #fff1f1 !important;
+  border-color: #f2b7b7 !important;
+}
+
+.canvas-workspace,
+.mh-canvas-view {
+  background: transparent !important;
+}
+
+.canvas-main-row {
+  gap: 18px !important;
+}
+
+.canvas-stage,
+.mh-canvas-stage {
+  border-radius: 10px !important;
+  border: 1px solid var(--nxc-line) !important;
+  background: #ffffff !important;
+  box-shadow: var(--nxc-shadow) !important;
+}
+
+.canvas-agent-panel,
+.home-agent-panel {
+  border-radius: 10px !important;
+  border: 1px solid var(--nxc-line) !important;
+  box-shadow: none !important;
+}
+
+.canvas-agent-tab.active {
+  background: #edf4ff !important;
+  color: var(--nxc-blue) !important;
+}
+
+.nagex-document-revision-control {
+  border-top-color: var(--nxc-line) !important;
+  padding: 16px 14px !important;
+}
+
+.nagex-document-revision-control h3 {
+  font-size: .95rem !important;
+  line-height: 1.2 !important;
+  margin: 0 0 8px !important;
+  color: var(--nxc-ink) !important;
+}
+
+#nagex-document-revision-input {
+  min-height: 78px !important;
+  width: 100% !important;
+  resize: vertical !important;
+}
+
+#nagex-document-revision-submit {
+  min-height: 36px !important;
+  padding: 0 14px !important;
+  margin-top: 8px !important;
+  font-size: .82rem !important;
+}
+
+.nagex-real-search-panel {
+  z-index: 2600 !important;
+}
+
+.nagex-real-search-shell {
+  border-radius: 10px !important;
+  border-color: rgba(199, 212, 230, .95) !important;
+  box-shadow: 0 28px 70px -38px rgba(15, 23, 42, .8) !important;
+}
+
+.nagex-real-search-row {
+  border-radius: var(--nxc-radius) !important;
+  transition: border-color .16s ease, background .16s ease, transform .16s ease;
+}
+
+.nagex-real-search-row:hover {
+  transform: translateY(-1px);
+}
+
+.nagex-real-search-row span {
+  color: var(--nxc-teal) !important;
+}
+
+.settings-category-panel,
+.settings-main-content,
+.approvals-list-container,
+.executions-list-container,
+#tasks-list-container,
+#knowledge-list-container,
+#inbox-items-list,
+#vault-recent-list {
+  gap: 12px !important;
+}
+
+#mobile-app-shell {
+  background: linear-gradient(180deg, #f8fbff 0%, #f2f6fb 100%) !important;
+}
+
+.mh-hero {
+  border-radius: 18px !important;
+  background: linear-gradient(160deg, #ffffff 0%, #f4f8ff 100%) !important;
+  box-shadow: 0 14px 36px -28px rgba(15, 23, 42, .7) !important;
+}
+
+.mh-bottom-nav {
+  border-top: 1px solid rgba(199, 212, 230, .78) !important;
+  background: rgba(255, 255, 255, .96) !important;
+  backdrop-filter: blur(12px);
+}
+
+.mh-card,
+.mh-settings-card,
+.mh-canvas-stage {
+  border-radius: 12px !important;
+}
+
+@media (max-width: 640px) {
+  .mh-scroll {
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+  }
+
+  .nagex-real-search-panel {
+    inset: 64px 12px auto 12px !important;
+  }
+
+  .canvas-agent-panel,
+  .home-agent-panel {
+    border-radius: 12px !important;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .tab-view.active-view,
+  .nagex-real-search-panel:not([hidden]),
+  .canvas-stage,
+  .mh-canvas-stage {
+    animation: nxc-enter .18s ease-out both;
+  }
+}
+
+@keyframes nxc-enter {
+  from { opacity: .84; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
