@@ -24,10 +24,10 @@
   grid-template-rows: auto;
   grid-template-areas: "main";
   align-content: start;
-  min-height: calc(100vh - 56px);
-  padding: 26px 22px;
-  gap: 18px;
-  background: linear-gradient(180deg, #f7fbff 0%, #eef5ff 100%);
+  min-height: 0;
+  padding: var(--nagex-spacing-4) var(--nagex-spacing-6) var(--nagex-spacing-5);
+  gap: var(--nagex-gap-card);
+  background: transparent;
 }
 
 .nagex-main-surface.has-result {
@@ -41,7 +41,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--nagex-gap-card);
 }
 
 .nagex-main-surface:not(.has-result) .nagex-main-left {
@@ -52,17 +52,18 @@
 
 .main-hero-row {
   display: flex;
-  align-items: flex-end;
+  align-items: baseline;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--nagex-spacing-4);
 }
 
 .main-hero-row h1 {
   margin: 0;
-  font-size: clamp(2rem, 3.4vw, 3.45rem);
-  line-height: 1.02;
+  font-size: var(--nagex-fs-hero);
+  font-weight: var(--nagex-fw-semibold);
+  line-height: var(--nagex-lh-tight);
   letter-spacing: 0;
-  color: #07104a;
+  color: var(--nagex-ink);
 }
 
 .main-hero-row h1 span {
@@ -70,50 +71,51 @@
 }
 
 .main-hero-row p {
-  margin: 8px 0 0;
-  color: #536789;
-  font-size: 1.05rem;
+  margin: var(--nagex-spacing-1) 0 0;
+  color: var(--nagex-ink-2);
+  font-size: var(--nagex-fs-reading);
 }
 
 .main-quote {
-  max-width: 230px;
+  max-width: 260px;
   text-align: right;
-  color: #61749a;
-  font-size: .88rem;
+  color: var(--nagex-ink-3);
+  font-size: var(--nagex-fs-secondary);
 }
 
 .main-composer-card {
-  background: rgba(255, 255, 255, .92);
-  border: 1px solid #d9e6f8;
-  border-radius: 16px;
-  box-shadow: 0 18px 55px -40px rgba(28, 65, 132, .65);
-  padding: 10px;
+  background: var(--nagex-paper);
+  border: 1px solid var(--nagex-line);
+  border-radius: var(--nagex-r-panel);
+  box-shadow: var(--nagex-elevation-card);
+  padding: var(--nagex-spacing-2);
 }
 
 .main-mode-row {
   display: flex;
-  gap: 8px;
+  gap: var(--nagex-gap-control);
   overflow-x: auto;
-  padding: 2px 2px 10px;
+  padding: 0 2px var(--nagex-spacing-2);
   scrollbar-width: thin;
 }
 
 .main-mode-chip {
-  min-height: 38px;
-  padding: 0 14px;
-  border: 1px solid #d8e4f6;
-  background: #fff;
-  color: #11254d;
-  border-radius: 8px;
-  font-weight: 800;
+  min-height: var(--nagex-control-sm);
+  padding: 0 var(--nagex-spacing-3);
+  border: 1px solid var(--nagex-line);
+  background: var(--nagex-paper);
+  color: var(--nagex-ink);
+  border-radius: var(--nagex-r-control);
+  font-size: var(--nagex-fs-control);
+  font-weight: var(--nagex-fw-medium);
   cursor: pointer;
   white-space: nowrap;
 }
 
 .main-mode-chip[aria-pressed="true"] {
   color: #fff;
-  background: #0b63f6;
-  border-color: #0b63f6;
+  background: var(--nagex-blue);
+  border-color: var(--nagex-blue);
 }
 
 .main-mode-chip:disabled {
@@ -133,49 +135,49 @@
 }
 
 .main-mode-chip:focus-visible {
-  outline: 3px solid rgba(11, 99, 246, .28);
-  outline-offset: 2px;
+  outline: 0;
+  box-shadow: var(--nagex-focus-ring);
 }
 
 .main-input-wrap {
-  border: 1px solid #dce7f5;
-  border-radius: 14px;
-  background: #fff;
-  padding: 14px;
+  border: 1px solid var(--nagex-line);
+  border-radius: var(--nagex-r-card);
+  background: var(--nagex-paper);
+  padding: var(--nagex-spacing-3);
 }
 
 #main-surface-input {
   width: 100%;
-  min-height: 92px;
-  max-height: 330px;
+  min-height: 56px;
+  max-height: 220px;
   resize: none;
   border: 0;
   outline: 0;
   font: inherit;
-  font-size: 1rem;
-  line-height: 1.6;
-  color: #0b1638;
+  font-size: var(--nagex-fs-reading);
+  line-height: var(--nagex-lh-reading);
+  color: var(--nagex-ink);
 }
 
 .main-composer-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  border-top: 1px solid #edf2f9;
-  padding-top: 10px;
+  gap: var(--nagex-spacing-3);
+  border-top: 1px solid var(--nagex-line);
+  padding-top: var(--nagex-spacing-2);
 }
 
 .main-composer-notice {
-  margin-top: 10px;
-  padding: 9px 11px;
+  margin-top: var(--nagex-spacing-2);
+  padding: var(--nagex-spacing-2) var(--nagex-spacing-3);
   border: 1px solid #cfe0f8;
-  border-radius: 8px;
+  border-radius: var(--nagex-r-control);
   background: #f7fbff;
-  color: #294066;
-  font-size: .86rem;
-  font-weight: 700;
-  line-height: 1.4;
+  color: var(--nagex-ink-2);
+  font-size: var(--nagex-fs-secondary);
+  font-weight: var(--nagex-fw-medium);
+  line-height: var(--nagex-lh-ui);
 }
 
 .main-composer-notice[hidden] {
@@ -207,7 +209,7 @@
 }
 
 .main-home-briefing {
-  margin-top: 4px;
+  margin-top: 0;
 }
 
 .main-home-briefing[hidden] {
@@ -216,24 +218,24 @@
 
 .main-briefing-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--nagex-gap-card);
 }
 
 .main-briefing-card {
-  background: rgba(255, 255, 255, .9);
-  border: 1px solid #dfe9f7;
-  border-radius: 14px;
-  padding: 14px 16px;
-  box-shadow: 0 14px 45px -38px rgba(28, 65, 132, .65);
+  background: var(--nagex-paper);
+  border: 1px solid var(--nagex-line);
+  border-radius: var(--nagex-r-card);
+  padding: var(--nagex-pad-card);
+  box-shadow: var(--nagex-elevation-card);
   min-width: 0;
 }
 
 .main-briefing-card h2 {
-  margin: 0 0 8px;
-  font-size: .86rem;
-  font-weight: 800;
-  color: #294066;
+  margin: 0 0 var(--nagex-spacing-2);
+  font-size: var(--nagex-fs-body);
+  font-weight: var(--nagex-fw-semibold);
+  color: var(--nagex-ink);
 }
 
 .main-briefing-list {
@@ -242,7 +244,7 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--nagex-spacing-2);
 }
 
 .main-briefing-row,
@@ -250,16 +252,16 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  font-size: .86rem;
-  line-height: 1.35;
-  color: #1c2a44;
+  font-size: var(--nagex-fs-body);
+  line-height: var(--nagex-lh-ui);
+  color: var(--nagex-ink);
   overflow-wrap: anywhere;
 }
 
 .main-briefing-row small,
 .main-briefing-suggestion small {
-  color: #547096;
-  font-size: .76rem;
+  color: var(--nagex-ink-3);
+  font-size: var(--nagex-fs-caption);
 }
 
 .main-briefing-suggestion {
@@ -267,8 +269,8 @@
   text-align: left;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 8px;
-  padding: 4px 6px;
+  border-radius: var(--nagex-r-control);
+  padding: var(--nagex-spacing-1) 6px;
   margin: 0 -6px;
   font: inherit;
   cursor: pointer;
@@ -276,21 +278,21 @@
 
 .main-briefing-suggestion:hover,
 .main-briefing-suggestion:focus-visible {
-  background: #f1f7ff;
-  border-color: #cfe0f8;
+  background: var(--nagex-wash);
+  border-color: var(--nagex-line);
 }
 
 .main-briefing-approval {
   color: #6f4b05 !important;
-  font-weight: 700;
+  font-weight: var(--nagex-fw-medium);
 }
 
 .main-briefing-empty,
 .main-briefing-note {
   margin: 0;
-  color: #547096;
-  font-size: .82rem;
-  line-height: 1.4;
+  color: var(--nagex-ink-3);
+  font-size: var(--nagex-fs-secondary);
+  line-height: var(--nagex-lh-ui);
 }
 
 .main-briefing-note {
@@ -319,16 +321,6 @@
  *  conversation   greeting and briefing collapse; a normal stream with the composer docked at the bottom
  *  agent task     the same stream, with real plan/step/approval blocks and the result panel beside it
  */
-.nagex-main-surface {
-  min-height: 0;
-  padding: 14px 22px 20px;
-  gap: 12px;
-}
-
-.nagex-main-left {
-  gap: 12px;
-}
-
 .nagex-main-surface:not(.has-result) .nagex-main-left {
   width: min(1120px, 100%);
   max-width: 1120px;
@@ -338,72 +330,10 @@
   align-items: baseline;
 }
 
-.main-hero-row h1 {
-  font-size: clamp(1.45rem, 2vw, 1.95rem);
-  line-height: 1.15;
-}
-
-.main-hero-row p {
-  margin: 2px 0 0;
-  font-size: .95rem;
-}
-
-.main-quote {
-  max-width: 260px;
-  font-size: .8rem;
-}
-
-.main-composer-card {
-  padding: 8px;
-  border-radius: 14px;
-}
-
-.main-mode-row {
-  padding: 0 2px 8px;
-}
-
-.main-mode-chip {
-  min-height: 32px;
-  padding: 0 12px;
-}
-
-.main-input-wrap {
-  padding: 10px 12px;
-}
-
-#main-surface-input {
-  min-height: 56px;
-  max-height: 220px;
-  line-height: 1.5;
-}
-
-.main-composer-footer {
-  padding-top: 8px;
-}
-
 .main-composer-card .main-send {
-  width: 44px;
-  height: 44px;
-  font-size: 1.15rem;
-}
-
-.main-home-briefing {
-  margin-top: 0;
-}
-
-.main-briefing-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.main-briefing-card {
-  padding: 10px 12px;
-  border-radius: 12px;
-  min-height: 112px;
-}
-
-.main-briefing-card h2 {
-  margin: 0 0 6px;
+  width: var(--nagex-control-lg);
+  height: var(--nagex-control-lg);
+  font-size: 1.05rem;
 }
 
 @media (max-width: 1180px) {
@@ -537,8 +467,9 @@
 
 .main-turn .main-work-title {
   margin: 6px 0 0;
-  font-size: 1rem;
-  color: #0a1a44;
+  font-size: var(--nagex-fs-card-title);
+  font-weight: var(--nagex-fw-semibold);
+  color: var(--nagex-ink);
 }
 
 .main-turn .main-work-title:empty,
@@ -551,7 +482,9 @@
 
 .main-work-summary {
   margin: 6px 0 0;
-  color: #102040;
+  color: var(--nagex-ink);
+  font-size: var(--nagex-fs-reading);
+  line-height: var(--nagex-lh-reading);
   overflow-wrap: anywhere;
 }
 
@@ -572,13 +505,13 @@
 .main-work-summary h5,
 .main-work-summary h6 {
   margin: 0 0 .7em;
-  line-height: 1.6;
+  line-height: var(--nagex-lh-reading);
 }
 
-.main-work-summary h3 { font-size: 1.15rem; }
-.main-work-summary h4 { font-size: 1.05rem; }
+.main-work-summary h3 { font-size: 17px; font-weight: var(--nagex-fw-semibold); }
+.main-work-summary h4 { font-size: 16px; font-weight: var(--nagex-fw-semibold); }
 .main-work-summary h5,
-.main-work-summary h6 { font-size: 1rem; }
+.main-work-summary h6 { font-size: var(--nagex-fs-reading); font-weight: var(--nagex-fw-semibold); }
 
 .main-work-summary ul,
 .main-work-summary ol {
@@ -662,8 +595,8 @@
 
 .main-turn-working {
   margin: 6px 0 0 !important;
-  color: #547096 !important;
-  font-size: .9rem;
+  color: var(--nagex-ink-3) !important;
+  font-size: var(--nagex-fs-secondary);
 }
 
 .main-turn-working::before {
@@ -740,7 +673,7 @@
   grid-template-columns: 22px minmax(0, 1fr) auto;
   gap: 8px;
   align-items: center;
-  font-size: .9rem;
+  font-size: var(--nagex-fs-control);
 }
 
 .main-run-steps li.failed .main-step-dot {
@@ -756,8 +689,8 @@
 
 .main-run-note {
   margin: 8px 0 0 !important;
-  font-size: .86rem;
-  color: #3b4f73;
+  font-size: var(--nagex-fs-secondary);
+  color: var(--nagex-ink-2);
 }
 
 .main-run-note[hidden],
@@ -781,7 +714,7 @@
   border-radius: 10px;
   background: #fffaf0;
   color: #4a3304;
-  font-size: .9rem;
+  font-size: var(--nagex-fs-control);
 }
 
 .main-approval-card small {
@@ -800,14 +733,14 @@
 
 .main-turn .main-inline-actions .btn-secondary,
 .main-turn .main-turn-details {
-  min-height: 30px;
-  padding: 0 12px;
-  border: 1px solid #d8e4f6;
-  border-radius: 8px;
-  background: #fff;
-  color: #30476d;
-  font-size: .85rem;
-  font-weight: 700;
+  min-height: var(--nagex-control-sm);
+  padding: 0 var(--nagex-spacing-3);
+  border: 1px solid var(--nagex-line);
+  border-radius: var(--nagex-r-control);
+  background: var(--nagex-paper);
+  color: var(--nagex-ink-2);
+  font-size: var(--nagex-fs-control);
+  font-weight: var(--nagex-fw-medium);
   cursor: pointer;
 }
 
@@ -831,13 +764,14 @@
 
 .main-tool-btn,
 .main-select {
-  min-height: 34px;
-  padding: 0 12px;
-  border-radius: 8px;
-  border: 1px solid #d8e4f6;
-  background: #fff;
-  color: #30476d;
-  font-weight: 700;
+  min-height: var(--nagex-control-sm);
+  padding: 0 var(--nagex-spacing-3);
+  border-radius: var(--nagex-r-control);
+  border: 1px solid var(--nagex-line);
+  background: var(--nagex-paper);
+  color: var(--nagex-ink-2);
+  font-size: var(--nagex-fs-control);
+  font-weight: var(--nagex-fw-medium);
 }
 
 .main-toggle[aria-pressed="true"] {
@@ -848,20 +782,21 @@
 
 .main-mic-btn,
 .main-voice-btn {
-  min-height: 40px;
+  min-height: var(--nagex-control-md);
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 13px;
+  gap: var(--nagex-gap-control);
+  padding: 0 var(--nagex-spacing-3);
   border-radius: 999px;
-  border: 1px solid #cfe0f8;
-  background: #f8fbff;
-  color: #133765;
-  font-weight: 900;
+  border: 1px solid var(--nagex-line);
+  background: var(--nagex-paper);
+  color: var(--nagex-ink-2);
+  font-size: var(--nagex-fs-control);
+  font-weight: var(--nagex-fw-medium);
 }
 
 .main-mic-btn {
-  width: 42px;
+  width: var(--nagex-control-md);
   justify-content: center;
   padding: 0;
 }
@@ -904,11 +839,10 @@
 }
 
 .main-voice-status {
-  min-width: 72px;
-  color: #547096;
-  font-size: .78rem;
-  font-weight: 800;
-  text-transform: capitalize;
+  min-width: 56px;
+  color: var(--nagex-ink-3);
+  font-size: var(--nagex-fs-caption);
+  font-weight: var(--nagex-fw-regular);
 }
 
 .nagex-main-surface[data-voice-state="LISTENING"] .main-voice-dot,
@@ -923,14 +857,13 @@
 }
 
 .main-send {
-  width: 54px;
-  height: 54px;
+  width: var(--nagex-control-lg);
+  height: var(--nagex-control-lg);
   border: 0;
   border-radius: 50%;
-  background: #0b63f6;
+  background: var(--nagex-blue);
   color: #fff;
-  font-size: 1.35rem;
-  box-shadow: 0 18px 30px -18px rgba(11, 99, 246, .9);
+  font-size: 1.05rem;
   cursor: pointer;
 }
 
@@ -949,22 +882,22 @@
 .main-attachment-chip {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 10px;
-  border: 1px solid #d8e4f6;
+  gap: var(--nagex-gap-control);
+  padding: 5px var(--nagex-spacing-3);
+  border: 1px solid var(--nagex-line);
   border-radius: 999px;
-  background: #f7fbff;
-  color: #294066;
-  font-size: .82rem;
-  font-weight: 700;
+  background: var(--nagex-wash);
+  color: var(--nagex-ink-2);
+  font-size: var(--nagex-fs-secondary);
+  font-weight: var(--nagex-fw-medium);
 }
 
 .main-thread-card {
-  background: rgba(255, 255, 255, .9);
-  border: 1px solid #dfe9f7;
-  border-radius: 14px;
-  padding: 18px;
-  box-shadow: 0 14px 45px -38px rgba(28, 65, 132, .65);
+  background: var(--nagex-paper);
+  border: 1px solid var(--nagex-line);
+  border-radius: var(--nagex-r-card);
+  padding: var(--nagex-spacing-4);
+  box-shadow: var(--nagex-elevation-card);
 }
 
 .main-thread-card[hidden] {
@@ -973,32 +906,32 @@
 
 .main-message {
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr);
-  gap: 14px;
-  padding: 12px 0;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: var(--nagex-spacing-3);
+  padding: var(--nagex-spacing-2) 0;
 }
 
 .main-avatar {
-  width: 38px;
-  height: 38px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   display: grid;
   place-items: center;
-  background: #dbeafe;
-  color: #0b63f6;
-  font-weight: 900;
+  background: var(--nagex-blue-wash);
+  color: var(--nagex-blue);
+  font-weight: var(--nagex-fw-semibold);
 }
 
 .main-avatar.nagex {
-  background: linear-gradient(145deg, #eff6ff, #dbeafe);
+  background: var(--nagex-blue-wash);
 }
 
 .main-message-meta {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  color: #587095;
-  font-size: .82rem;
+  color: var(--nagex-ink-3);
+  font-size: var(--nagex-fs-caption);
 }
 
 .main-message p {
@@ -1054,10 +987,10 @@
 .main-result-panel {
   grid-area: result;
   min-width: 0;
-  background: rgba(255, 255, 255, .94);
-  border: 1px solid #dce7f7;
-  border-radius: 18px;
-  box-shadow: 0 22px 65px -45px rgba(28, 65, 132, .8);
+  background: var(--nagex-paper);
+  border: 1px solid var(--nagex-line);
+  border-radius: var(--nagex-r-panel);
+  box-shadow: var(--nagex-elevation-card);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -1069,33 +1002,34 @@
 
 .main-result-header {
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) 34px;
-  gap: 14px;
+  grid-template-columns: 40px minmax(0, 1fr) 32px;
+  gap: var(--nagex-spacing-3);
   align-items: center;
-  padding: 18px;
+  padding: var(--nagex-spacing-4);
 }
 
 .main-result-file-icon {
-  height: 48px;
-  border-radius: 10px;
+  height: 40px;
+  border-radius: var(--nagex-r-control);
   display: grid;
   place-items: center;
-  background: #0b63f6;
+  background: var(--nagex-blue);
   color: #fff;
-  font-size: .72rem;
-  font-weight: 900;
+  font-size: var(--nagex-fs-caption);
+  font-weight: var(--nagex-fw-semibold);
 }
 
 .main-result-title-group h2 {
   margin: 0;
-  font-size: 1rem;
-  color: #07143b;
+  font-size: var(--nagex-fs-card-title);
+  font-weight: var(--nagex-fw-semibold);
+  color: var(--nagex-ink);
 }
 
 .main-result-title-group p {
-  margin: 4px 0 0;
-  color: #5f7292;
-  font-size: .82rem;
+  margin: 2px 0 0;
+  color: var(--nagex-ink-3);
+  font-size: var(--nagex-fs-secondary);
 }
 
 .main-result-icon-btn {
@@ -1108,23 +1042,25 @@
 
 .main-result-tabs {
   display: flex;
-  gap: 18px;
+  gap: var(--nagex-spacing-4);
   align-items: center;
-  padding: 0 18px;
-  border-bottom: 1px solid #e5eef9;
+  padding: 0 var(--nagex-spacing-4);
+  border-bottom: 1px solid var(--nagex-line);
 }
 
 .main-result-tabs button {
-  min-height: 42px;
+  min-height: 38px;
   border: 0;
   background: transparent;
-  color: #435a7f;
-  font-weight: 800;
+  color: var(--nagex-ink-3);
+  font-size: var(--nagex-fs-control);
+  font-weight: var(--nagex-fw-medium);
 }
 
 .main-result-tabs button.active {
-  color: #0b63f6;
-  box-shadow: inset 0 -2px #0b63f6;
+  color: var(--nagex-blue);
+  font-weight: var(--nagex-fw-semibold);
+  box-shadow: inset 0 -2px var(--nagex-blue);
 }
 
 .main-result-expand {
@@ -1171,10 +1107,10 @@
 
 .main-result-footer {
   display: flex;
-  gap: 8px;
+  gap: var(--nagex-gap-control);
   justify-content: flex-end;
-  padding: 12px 18px;
-  border-top: 1px solid #e5eef9;
+  padding: var(--nagex-spacing-3) var(--nagex-spacing-4);
+  border-top: 1px solid var(--nagex-line);
 }
 
 .main-result-fullscreen .workspace-grid {
@@ -1205,16 +1141,17 @@
   width: min(420px, calc(100vw - 24px));
   max-height: min(620px, calc(100vh - 82px));
   overflow: auto;
-  background: #fff;
-  border: 1px solid #dce7f7;
-  border-radius: 14px;
-  box-shadow: 0 26px 80px -42px rgba(15, 23, 42, .85);
-  padding: 14px;
+  background: var(--nagex-paper);
+  border: 1px solid var(--nagex-line);
+  border-radius: var(--nagex-r-panel);
+  box-shadow: var(--nagex-elevation-popover);
+  padding: var(--nagex-spacing-3);
 }
 
 .main-attention-popover h2 {
-  margin: 0 0 10px;
-  font-size: 1rem;
+  margin: 0 0 var(--nagex-spacing-2);
+  font-size: var(--nagex-fs-card-title);
+  font-weight: var(--nagex-fw-semibold);
 }
 
 .main-attention-row {
@@ -1261,7 +1198,7 @@
   }
 
   .main-hero-row h1 {
-    font-size: 2.2rem;
+    font-size: var(--nagex-fs-page);
   }
 
   .main-quote {

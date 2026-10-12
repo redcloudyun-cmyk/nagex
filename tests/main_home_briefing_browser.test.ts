@@ -6,7 +6,7 @@ import { startCanvasAskHarness, type CanvasAskHarness } from './_canvas_ask_harn
 declare const window: any;
 declare const document: any;
 
-// Desktop Main: the Home personal briefing (Today / Since Yesterday / Suggestions) is restored under the composer and is
+// Desktop Main: the Home personal briefing (Today / Since yesterday / Suggestions) is restored under the composer and is
 // shown only on an empty Home. These are real-Chromium tests against the production server harness; only the AI chat
 // answer and, where stated, the session list / personal-home payloads are stubbed so each state can be forced.
 
@@ -43,7 +43,7 @@ async function send(page: Page, text: string): Promise<void> {
 }
 
 describe('Desktop Main — conditional Home briefing', () => {
-  it('A. empty Home shows Today / Since Yesterday / Suggestions from the real aggregation (EN)', async () => {
+  it('A. empty Home shows Today / Since yesterday / Suggestions from the real aggregation (EN)', async () => {
     const user = h.user('briefing_en');
     h.seedDocument(user, { title: 'Quarterly plan v2', content: 'recent document', at: iso(-2 * HOUR) });
     h.seedDocument(user, { title: 'Ancient report', content: 'old document', at: iso(-96 * HOUR) });
@@ -55,7 +55,7 @@ describe('Desktop Main — conditional Home briefing', () => {
     await settled(page, 'EMPTY_HOME');
 
     assert.equal(await briefingVisible(page), true);
-    assert.deepEqual(await page.locator('.main-briefing-card h2').allTextContents(), ['Today', 'To-do', 'Since Yesterday', 'Suggestions']);
+    assert.deepEqual(await page.locator('.main-briefing-card h2').allTextContents(), ['Today', 'To-do', 'Since yesterday', 'Suggestions']);
     await page.waitForFunction(() => document.querySelector('#main-home-briefing')?.dataset.state === 'ready');
 
     // real data: the recent artifact is listed, the 4-day-old one is not
@@ -63,7 +63,7 @@ describe('Desktop Main — conditional Home briefing', () => {
     assert.match(since, /Quarterly plan v2/);
     assert.doesNotMatch(since, /Ancient report/);
     // truthful states: no calendar is connected in the harness, so Today says so instead of inventing events
-    assert.match(await sectionText(page, 'today'), /Google Calendar isn't available on this server/);
+    assert.match(await sectionText(page, 'today'), /Calendar isn't available on this server/);
     // suggestions are either real ones or an honest empty line, never placeholder text
     assert.doesNotMatch(await sectionText(page, 'suggestions'), /lorem|sample|demo|placeholder/i);
     assert.ok(homeCalls >= 1);
@@ -85,9 +85,9 @@ describe('Desktop Main — conditional Home briefing', () => {
     await openMain(page);
     await settled(page, 'EMPTY_HOME');
     await page.waitForFunction(() => document.querySelector('#main-home-briefing')?.dataset.state === 'ready');
-    assert.deepEqual(await page.locator('.main-briefing-card h2').allTextContents(), ['오늘', '할 일', '어제 이후', '제안']);
+    assert.deepEqual(await page.locator('.main-briefing-card h2').allTextContents(), ['오늘', '할 일', '어제 이후', '추천']);
     assert.match(await sectionText(page, 'since'), /분기 계획서/);
-    assert.match(await sectionText(page, 'today'), /이 서버에서는 구글 캘린더를 사용할 수 없습니다/);
+    assert.match(await sectionText(page, 'today'), /이 서버에서는 캘린더를 사용할 수 없어요/);
     const text = await page.locator('#main-home-briefing').innerText();
     assert.doesNotMatch(text, /mainBriefing\.|undefined|\[object/);
     assert.equal(await page.evaluate(() => Math.max(0, document.documentElement.scrollWidth - window.innerWidth)), 0);
@@ -230,7 +230,7 @@ describe('Desktop Main — conditional Home briefing', () => {
     await settled(page, 'EMPTY_HOME'); // the session could not be read, so Main does not pretend a conversation exists
     await page.waitForFunction(() => document.querySelector('#main-home-briefing')?.dataset.state === 'error');
     assert.equal(await briefingVisible(page), true);
-    for (const id of ['today', 'since', 'suggestions'] as const) assert.match(await sectionText(page, id), /Couldn't load your briefing/);
+    for (const id of ['today', 'since', 'suggestions'] as const) assert.match(await sectionText(page, id), /I couldn't load your briefing/);
     assert.equal(await page.locator('.main-briefing-row').count(), 0);
     fail = false;
     await page.click('#main-briefing-retry');
@@ -255,7 +255,7 @@ describe('Desktop Main — conditional Home briefing', () => {
     await openMain(page);
     await settled(page, 'EMPTY_HOME');
     await page.waitForSelector('.main-briefing-suggestion');
-    assert.match(await sectionText(page, 'suggestions'), /Approval required/);
+    assert.match(await sectionText(page, 'suggestions'), /Needs your approval/);
     await page.fill('#main-surface-input', '내 초안');
     const postsBefore = posts.length;
     await page.click('.main-briefing-suggestion');
@@ -270,9 +270,9 @@ describe('Desktop Main — conditional Home briefing', () => {
       { locale: 'en' as const, hour: 9, name: 'Ada Lovelace', text: 'Good morning, Ada Lovelace', initial: 'A' },
       { locale: 'en' as const, hour: 14, name: 'Ada Lovelace', text: 'Good afternoon, Ada Lovelace', initial: 'A' },
       { locale: 'en' as const, hour: 20, name: 'Ada Lovelace', text: 'Good evening, Ada Lovelace', initial: 'A' },
-      { locale: 'ko' as const, hour: 9, name: '김서연', text: '좋은 아침입니다, 김서연님', initial: '김' },
-      { locale: 'ko' as const, hour: 14, name: '김서연', text: '좋은 오후입니다, 김서연님', initial: '김' },
-      { locale: 'ko' as const, hour: 20, name: '김서연', text: '좋은 저녁입니다, 김서연님', initial: '김' },
+      { locale: 'ko' as const, hour: 9, name: '김서연', text: '김서연님, 좋은 아침이에요', initial: '김' },
+      { locale: 'ko' as const, hour: 14, name: '김서연', text: '김서연님, 좋은 오후예요', initial: '김' },
+      { locale: 'ko' as const, hour: 20, name: '김서연', text: '김서연님, 좋은 저녁이에요', initial: '김' },
     ];
     for (const c of cases) {
       const user = h.user(`greet_${c.locale}_${c.hour}`);
@@ -283,7 +283,7 @@ describe('Desktop Main — conditional Home briefing', () => {
       await page.clock.setFixedTime(new Date(2026, 9, 12, c.hour, 30));
       await openMain(page);
       await page.waitForFunction((expected: string) => document.querySelector('#main-greeting')?.innerText === expected, c.text);
-      assert.equal(await page.locator('#main-greeting-sub').innerText(), c.locale === 'ko' ? '오늘은 무엇을 이루고 싶으신가요?' : 'What would you like to accomplish today?');
+      assert.equal(await page.locator('#main-greeting-sub').innerText(), c.locale === 'ko' ? '무엇을 도와드릴까요?' : 'What can I help with?');
       assert.doesNotMatch(await page.locator('body').innerText(), /redcloudyun/);
       await ctx.close();
     }
@@ -311,7 +311,7 @@ describe('Desktop Main — conditional Home briefing', () => {
     await pageB.clock.setFixedTime(new Date(2026, 9, 12, 20, 30));
     await openMain(pageB);
     await pageB.waitForFunction(() => document.querySelector('#main-home-briefing')?.dataset.state === 'error');
-    assert.equal(await pageB.locator('#main-greeting').innerText(), '좋은 저녁입니다');
+    assert.equal(await pageB.locator('#main-greeting').innerText(), '좋은 저녁이에요');
     assert.doesNotMatch(await pageB.locator('body').innerText(), /redcloudyun/);
     await ctxB.close();
   });
@@ -351,7 +351,7 @@ describe('Desktop Main — conditional Home briefing', () => {
     assert.equal((await page.locator('#main-attach').innerText()).trim(), '첨부');
     assert.equal((await page.locator('#main-web-toggle').innerText()).trim(), '웹');
     assert.equal((await page.locator('#main-data-toggle').innerText()).trim(), '내 데이터');
-    assert.equal((await page.locator('#main-plan-toggle').innerText()).trim(), '실행 전에 계획 보기');
+    assert.equal((await page.locator('#main-plan-toggle').innerText()).trim(), '실행 전에 계획 보여 주기');
     assert.equal((await page.locator('#main-voice').innerText()).trim(), '음성');
     assert.equal((await page.locator('#main-voice-status').innerText()).trim(), '대기 중');
     assert.match((await page.locator('#main-surface-input').getAttribute('placeholder')) || '', /조사|제작|계획|실행/);
@@ -366,15 +366,15 @@ describe('Desktop Main — conditional Home briefing', () => {
     assert.match(today, /제목 없는 일정/);
     assert.match(today, /Research/); // a user's own meeting title is never translated
     const since = await sectionText(page, 'since');
-    assert.match(since, /데일리 브리프가 생성되었습니다/);
-    assert.match(since, /작업 "Pay rent"을\(를\) 만들었습니다/);
+    assert.match(since, /데일리 브리프를 만들었어요/);
+    assert.match(since, /작업 "Pay rent"을\(를\) 만들었어요/);
     assert.match(since, /Quarterly plan v2/);
     const suggestions = await sectionText(page, 'suggestions');
     assert.match(suggestions, /Budget review 준비하기/);
-    assert.match(suggestions, /일정이 15분 뒤에 시작되며 관련 항목 2개를 찾았습니다/);
+    assert.match(suggestions, /일정이 15분 뒤에 시작돼요\. 관련 항목 2개를 찾았어요/);
 
     const visible = await page.locator('#nagex-main-surface').innerText();
-    assert.doesNotMatch(visible, /Approval Required|Daily Brief|Untitled Meeting|Show plan before actions|My data|Small steps every day/);
+    assert.doesNotMatch(visible, /Approval Required|Daily Brief|Untitled Meeting|Show me the plan first|My data|Small steps every day/);
     assert.doesNotMatch(visible, /mainText\.|mainPattern\.|mainBriefing\./);
     await ctx.close();
   });
@@ -399,7 +399,7 @@ describe('Desktop Main — conditional Home briefing', () => {
     await page.waitForFunction(() => document.querySelector('#main-attach')?.textContent?.trim() === '첨부');
     assert.deepEqual((await page.locator('.main-mode-chip').allInnerTexts()).map((s) => s.trim()), ['질문', '리서치', '문서', '계획', '이미지', '슬라이드', '영상', '코드', '더보기']);
     assert.equal((await page.locator('#main-voice-status').innerText()).trim(), '대기 중');
-    assert.match(await sectionText(page, 'since'), /데일리 브리프가 생성되었습니다/);
+    assert.match(await sectionText(page, 'since'), /데일리 브리프를 만들었어요/);
     await page.evaluate(() => window.NAGEX_I18N.setLocale('en'));
     await page.waitForFunction(() => document.querySelector('#main-attach')?.textContent?.trim() === 'Attach');
     assert.match(await sectionText(page, 'since'), /Daily Brief generated/);
@@ -427,14 +427,14 @@ describe('Desktop Main — conditional Home briefing', () => {
   it('calendar states: Today explains each connection state truthfully, in EN and KR, with a working action only where one can help', async () => {
     const connectPath = '/api/v1/oauth/google/start';
     const cases = [
-      { state: 'NOT_CONNECTED', reason: 'NO_CONNECTION', extra: { connectPath }, en: /Google Calendar isn't connected/, ko: /구글 캘린더가 연결되어 있지 않아/, action: 'connect', enLabel: 'Connect Google Calendar', koLabel: '구글 캘린더 연결' },
-      { state: 'CONNECTING', reason: 'AUTHORIZATION_PENDING', extra: {}, en: /Finishing Google Calendar authorization/, ko: /인증을 마무리하는 중/, action: 'refresh', enLabel: 'Check again', koLabel: '다시 확인' },
-      { state: 'REAUTH_REQUIRED', reason: 'TOKEN_REVOKED', extra: { connectPath }, en: /expired or was revoked/, ko: /만료되었거나 취소되었습니다/, action: 'connect', enLabel: 'Reconnect Google Calendar', koLabel: '구글 캘린더 다시 연결' },
-      { state: 'REAUTH_REQUIRED', reason: 'MISSING_SCOPE', extra: { connectPath }, en: /wasn't fully granted/, ko: /모두 허용되지 않았습니다/, action: 'connect', enLabel: 'Reconnect Google Calendar', koLabel: '구글 캘린더 다시 연결' },
-      { state: 'ERROR', reason: 'PROVIDER_TIMEOUT', extra: { retryable: true }, en: /did not respond in time/, ko: /제시간에 응답하지 않았습니다/, action: 'refresh', enLabel: 'Try again', koLabel: '다시 시도' },
-      { state: 'ERROR', reason: 'PROVIDER_ERROR', extra: { retryable: true }, en: /returned an error/, ko: /오류가 반환되었습니다/, action: 'refresh', enLabel: 'Try again', koLabel: '다시 시도' },
-      { state: 'ERROR', reason: 'PROVIDER_API_DISABLED', extra: { retryable: false }, en: /API is not enabled/, ko: /API가 켜져 있지 않습니다/, action: null, enLabel: '', koLabel: '' },
-      { state: 'UNAVAILABLE', reason: 'OAUTH_NOT_CONFIGURED', extra: {}, en: /isn't available on this server/, ko: /사용할 수 없습니다/, action: null, enLabel: '', koLabel: '' },
+      { state: 'NOT_CONNECTED', reason: 'NO_CONNECTION', extra: { connectPath }, en: /Connect your calendar to see today's events/, ko: /캘린더를 연결하면 오늘 일정을 볼 수 있어요/, action: 'connect', enLabel: 'Connect your calendar', koLabel: '캘린더 연결하기' },
+      { state: 'CONNECTING', reason: 'AUTHORIZATION_PENDING', extra: {}, en: /Finishing calendar setup/, ko: /캘린더 연결을 마무리하고 있어요/, action: 'refresh', enLabel: 'Check again', koLabel: '다시 확인' },
+      { state: 'REAUTH_REQUIRED', reason: 'TOKEN_REVOKED', extra: { connectPath }, en: /Your calendar access expired/, ko: /캘린더 접근 권한이 만료되었어요/, action: 'connect', enLabel: 'Reconnect your calendar', koLabel: '캘린더 다시 연결하기' },
+      { state: 'REAUTH_REQUIRED', reason: 'MISSING_SCOPE', extra: { connectPath }, en: /wasn't fully allowed/, ko: /일부만 허용되었어요/, action: 'connect', enLabel: 'Reconnect your calendar', koLabel: '캘린더 다시 연결하기' },
+      { state: 'ERROR', reason: 'PROVIDER_TIMEOUT', extra: { retryable: true }, en: /did not respond in time/, ko: /제때 응답하지 않았어요/, action: 'refresh', enLabel: 'Try again', koLabel: '다시 시도' },
+      { state: 'ERROR', reason: 'PROVIDER_ERROR', extra: { retryable: true }, en: /returned an error/, ko: /오류가 났어요/, action: 'refresh', enLabel: 'Try again', koLabel: '다시 시도' },
+      { state: 'ERROR', reason: 'PROVIDER_API_DISABLED', extra: { retryable: false }, en: /API is not enabled/, ko: /API가 켜져 있지 않아요/, action: null, enLabel: '', koLabel: '' },
+      { state: 'UNAVAILABLE', reason: 'OAUTH_NOT_CONFIGURED', extra: {}, en: /isn't available on this server/, ko: /사용할 수 없어요/, action: null, enLabel: '', koLabel: '' },
     ];
     for (const locale of ['en', 'ko'] as const) {
       for (const c of cases) {
@@ -448,7 +448,7 @@ describe('Desktop Main — conditional Home briefing', () => {
         await page.waitForFunction(() => document.querySelector('#main-home-briefing')?.dataset.state === 'ready');
         const today = await sectionText(page, 'today');
         assert.match(today, locale === 'en' ? c.en : c.ko, `${locale} ${c.state}/${c.reason}`);
-        assert.doesNotMatch(today, /Nothing scheduled|예정된 일정이나/, `${c.state}: never claims an empty day when the calendar is unreadable`);
+        assert.doesNotMatch(today, /You're all clear|예정된 일정이 없어요/, `${c.state}: never claims an empty day when the calendar is unreadable`);
         const buttons = await page.locator('#main-briefing-today .main-calendar-action').allInnerTexts();
         assert.deepEqual(buttons.map((b) => b.trim()), c.action ? [locale === 'en' ? c.enLabel : c.koLabel] : [], `${locale} ${c.state}/${c.reason} action`);
         assert.doesNotMatch(await page.locator('#nagex-main-surface').innerText(), /mainBriefing\.|[A-Z]+_[A-Z_]+/, 'no raw keys or reason codes');

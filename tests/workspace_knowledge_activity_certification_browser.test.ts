@@ -218,7 +218,7 @@ describe('Activity', () => {
       assert.doesNotMatch(text, RAW_KEY);
       if (locale === 'en') assert.match(text, /Could not analyze/);
       else {
-        assert.match(text, /분석하지 못했습니다/);
+        assert.match(text, /분석하지 못했어요/);
         assert.doesNotMatch(text, /Could not analyze/);
         assert.match(text, /실패/);
       }

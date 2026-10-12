@@ -79,14 +79,14 @@ const box = (page: Page, selector: string) => page.locator(selector).first().eva
 const visibleInViewport = (page: Page, selector: string) => page.locator(selector).first().evaluate((el: any) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && r.top >= 0 && r.bottom <= window.innerHeight + 0.5; });
 
 describe('Unified Main workspace', () => {
-  it('A. idle Home shows Today, To-do, Since Yesterday and Suggestions in the first viewport at realistic sizes, without scrolling', async () => {
+  it('A. idle Home shows Today, To-do, Since yesterday and Suggestions in the first viewport at realistic sizes, without scrolling', async () => {
     for (const [width, height] of [[1440, 900], [1680, 900], [1920, 1080], [1366, 768]] as const) {
       const ctx = await contextAt(width, height, `unified_idle_${width}x${height}`);
       const page = await ctx.newPage();
       await stubRichHome(page);
       await openMain(page);
       assert.equal(await sessionState(page), 'EMPTY_HOME');
-      assert.deepEqual(await page.locator('.main-briefing-card h2').allTextContents(), ['Today', 'To-do', 'Since Yesterday', 'Suggestions']);
+      assert.deepEqual(await page.locator('.main-briefing-card h2').allTextContents(), ['Today', 'To-do', 'Since yesterday', 'Suggestions']);
       for (const id of ['today', 'todo', 'since', 'suggestions']) {
         assert.equal(await visibleInViewport(page, `[data-briefing-section="${id}"]`), true, `${id} card fully inside the ${width}x${height} viewport`);
         assert.equal(await visibleInViewport(page, `[data-briefing-section="${id}"] .main-briefing-row, [data-briefing-section="${id}"] .main-briefing-suggestion`), true, `${id}: first row visible at ${width}x${height}`);
@@ -110,8 +110,8 @@ describe('Unified Main workspace', () => {
     const page = await ctx.newPage();
     const states: Array<{ todo: any; expect: RegExp }> = [
       { todo: { status: 'UNAVAILABLE', items: [] }, expect: /isn't available right now/ },
-      { todo: { status: 'ERROR', items: [] }, expect: /Couldn't load your to-do list/ },
-      { todo: { status: 'OK', items: [] }, expect: /Nothing on your to-do list/ },
+      { todo: { status: 'ERROR', items: [] }, expect: /I couldn't load your to-do list/ },
+      { todo: { status: 'OK', items: [] }, expect: /Your to-do list is empty/ },
     ];
     for (const s of states) {
       await page.unroute('**/api/v1/personal/home').catch(() => undefined);
@@ -260,7 +260,7 @@ describe('Unified Main workspace', () => {
     await toggle.click();
     assert.equal(await toggle.getAttribute('aria-expanded'), 'true');
     assert.equal(await page.locator('#main-home-briefing').isVisible(), true, 'My Day shows the briefing again');
-    assert.deepEqual(await page.locator('.main-briefing-card h2').allTextContents(), ['Today', 'To-do', 'Since Yesterday', 'Suggestions']);
+    assert.deepEqual(await page.locator('.main-briefing-card h2').allTextContents(), ['Today', 'To-do', 'Since yesterday', 'Suggestions']);
     assert.match(await page.locator('#main-briefing-todo').innerText(), /Call the client back/);
     assert.equal(await page.locator('.main-turn').count(), 1, 'the conversation is untouched');
     assert.equal(await page.locator('#main-surface-input').inputValue(), 'a half-written follow-up', 'the draft is untouched');
@@ -334,11 +334,11 @@ describe('Unified Main workspace', () => {
     await stubRichHome(page);
     await stubChat(page, ['내일 서울은 맑고 최고 기온은 22도입니다.']);
     await openMain(page);
-    assert.deepEqual(await page.locator('.main-briefing-card h2').allTextContents(), ['오늘', '할 일', '어제 이후', '제안']);
+    assert.deepEqual(await page.locator('.main-briefing-card h2').allTextContents(), ['오늘', '할 일', '어제 이후', '추천']);
     assert.match(await page.locator('#main-briefing-todo').innerText(), /기한 지남|오늘 마감|예정됨/);
     await ask(page, '내일 서울 날씨 알려줘');
     await page.waitForFunction(() => document.querySelector('.main-turn[data-kind="answer"]'));
-    assert.equal((await page.locator('#main-myday-toggle').innerText()).trim(), '나의 하루');
+    assert.equal((await page.locator('#main-myday-toggle').innerText()).trim(), '오늘의 일정과 할 일');
     assert.equal((await page.locator('#main-new-conversation').innerText()).trim(), '새 대화');
     const text = await page.locator('#nagex-main-surface').innerText();
     assert.doesNotMatch(text, /mainBriefing\.|mainText\.|mainDay\.|Answered|ASK\b/);

@@ -579,10 +579,10 @@
           <div class="inbox-container">
             <div class="inbox-toolbar">
               <div class="inbox-filters">
-                <button class="filter-pill active" data-inbox-filter="ALL">All Items</button>
-                <button class="filter-pill" data-inbox-filter="NEEDS_REVIEW">Needs Review</button>
-                <button class="filter-pill" data-inbox-filter="READY">Ready</button>
-                <button class="filter-pill" data-inbox-filter="PROCESSING">Processing</button>
+                <button class="filter-pill active" data-inbox-filter="ALL" data-i18n="workspace.filterAll">All</button>
+                <button class="filter-pill" data-inbox-filter="NEEDS_REVIEW" data-i18n="workspace.filterNeedsReview">Needs review</button>
+                <button class="filter-pill" data-inbox-filter="READY" data-i18n="workspace.filterReady">Ready</button>
+                <button class="filter-pill" data-inbox-filter="PROCESSING" data-i18n="workspace.filterProcessing">Processing</button>
               </div>
             </div>
             <div class="inbox-items-list" id="inbox-items-list">
@@ -591,8 +591,8 @@
             <!-- Phase 1 STEP 5: canonical Candidate records (CandidateStore),
                  shown read-only here to prove retrieval/listing — full
                  review controls are a later step. -->
-            <div class="inbox-candidates-section" style="margin-top: 1.5rem;">
-              <h3 style="font-size: 0.85rem; color: var(--color-text-secondary); margin-bottom: 0.5rem;" data-i18n="workspace.candidatesTitle">Suggested (Candidates)</h3>
+            <div class="inbox-candidates-section">
+              <h3 class="inbox-candidates-title" data-i18n="workspace.candidatesTitle">Suggested (Candidates)</h3>
               <div class="inbox-candidates-list" id="inbox-candidates-list"></div>
             </div>
           </div>
@@ -848,7 +848,7 @@
                #view-vault's own real rendering) is unchanged and still
                fully reachable ??this is a real link into it, not a
                duplicate/second Vault implementation. -->
-          <div class="view-header" style="margin-top:2rem; padding-top:1.5rem; border-top:1px solid var(--nagex-border-default, #e2e8f0);">
+          <div class="view-header knowledge-vault-header">
             <div>
               <h2 data-i18n="workspace.vaultTitle">Vault</h2>
               <p class="view-subtitle" data-i18n="workspace.vaultSubtitle">Your saved files, notes, and references.</p>

@@ -125,7 +125,7 @@ body {
   background: var(--nxc-blue) !important;
   border: 1px solid var(--nxc-blue) !important;
   box-shadow: none !important;
-  font-weight: 700 !important;
+  font-weight: var(--nagex-fw-medium) !important;
 }
 
 .btn-primary:hover,

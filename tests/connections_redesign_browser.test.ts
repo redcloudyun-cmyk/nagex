@@ -554,13 +554,13 @@ describe('Localization, responsiveness and accessibility', () => {
     let text = await layer(page).innerText();
     for (const expected of [/사용자 지정 MCP 서버 추가/, /서버 이름/, /HTTPS 서버 주소/, /Bearer 자격 증명/, /취소/]) assert.match(text, expected);
     await layer(page).locator('button[type="submit"]').click();
-    assert.match(await layer(page).locator('#nagex-mcp-err').innerText(), /서버 이름을 입력하세요/);
+    assert.match(await layer(page).locator('#nagex-mcp-err').innerText(), /서버 이름을 입력해 주세요/);
     await layer(page).locator('input[name="name"]').fill('문서 서버');
     await layer(page).locator('input[name="url"]').fill(PUBLIC_URL);
     await layer(page).locator('button[type="submit"]').click();
     await layer(page).locator('#nagex-layer-title', { hasText: '서버 확인 완료' }).waitFor({ timeout: 20000 });
     await layer(page).locator('[data-act="tool-toggle"][data-tool="search_docs"]').click();
-    assert.match(await layer(page).locator('.nagex-conn-confirm').innerText(), /사용할 때마다 승인이 필요합니다/);
+    assert.match(await layer(page).locator('.nagex-conn-confirm').innerText(), /사용할 때마다 승인이 필요해요/);
     await layer(page).locator('[data-act="tool-confirm"]').click();
     await page.waitForFunction(() => document.querySelector('#nagex-conn-layer [data-tool="search_docs"][role="switch"]')?.getAttribute('aria-checked') === 'true');
     assert.match(await layer(page).innerText(), /켜짐/);

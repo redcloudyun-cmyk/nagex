@@ -508,8 +508,8 @@
     position: fixed !important;
     left: 0 !important;
     top: 78px !important;
-    width: 149px !important;
-    height: 732px !important;
+    width: var(--nagex-sidebar-w) !important;
+    height: calc(100vh - 90px) !important;
     margin: 0 !important;
     transform: none !important;
     z-index: 96 !important;
@@ -1192,8 +1192,8 @@
   border-radius: 999px !important;
   background: #ef4444 !important;
   color: #ffffff !important;
-  font-size: 8px !important;
-  font-weight: 700 !important;
+  font-size: 9px !important;
+  font-weight: var(--nagex-fw-semibold) !important;
   border: 1.5px solid #ffffff !important;
   display: flex !important;
   align-items: center !important;
@@ -2009,9 +2009,9 @@ div#view-home.nagex-desktop-home .desktop-home-right-rail,
 
 .nagex-section-link,
 .card-link-see-all {
-  font-size: 10.5px !important;
-  font-weight: 600 !important;
-  color: #1d4ed8 !important;
+  font-size: var(--nagex-fs-secondary) !important;
+  font-weight: var(--nagex-fw-medium) !important;
+  color: var(--nagex-blue) !important;
   cursor: pointer !important;
   text-decoration: none !important;
 }
@@ -2633,7 +2633,7 @@ div#view-home.nagex-desktop-home .desktop-home-right-rail,
     margin-left: 9px !important;
     background: rgba(255,255,255,.82) !important;
     border-right: 1px solid var(--nagex-border) !important;
-    max-height: 732px !important;
+    max-height: calc(100vh - 90px) !important;
   }
 
   .sidebar-left:hover {
@@ -2899,11 +2899,11 @@ div#view-home.nagex-desktop-home .desktop-home-right-rail,
   .btn-primary,
   .nagex-desktop-home .btn-primary,
   .canvas-ask-submit {
-    background: linear-gradient(180deg, var(--nagex-primary-ref), var(--nagex-primary-hover-ref)) !important;
+    background: var(--nagex-blue) !important;
     color: #fff !important;
     border: 0 !important;
-    box-shadow: 0 8px 18px rgba(7,87,248,.22) !important;
-    font-weight: 800 !important;
+    box-shadow: none !important;
+    font-weight: var(--nagex-fw-medium) !important;
   }
 
   .canvas-agent-tabs {
@@ -3014,20 +3014,21 @@ div#view-home.nagex-desktop-home .desktop-home-right-rail,
   }
 
   .quickwake-subdued-chip {
-    height: 28px !important;
-    padding: 0 10px !important;
+    height: var(--nagex-control-sm) !important;
+    padding: 0 var(--nagex-spacing-3) !important;
     border-radius: 999px !important;
-    color: #29426f !important;
-    font-size: 10.5px !important;
-    font-weight: 700 !important;
+    color: var(--nagex-ink-2) !important;
+    font-size: var(--nagex-fs-caption) !important;
+    font-weight: var(--nagex-fw-medium) !important;
   }
 
   .lang-toggle-subdued {
-    height: 28px !important;
+    height: var(--nagex-control-sm) !important;
     min-width: 34px !important;
-    border-radius: 9px !important;
-    color: #29426f !important;
-    font-size: 10.5px !important;
+    border-radius: var(--nagex-r-control) !important;
+    color: var(--nagex-ink-2) !important;
+    font-size: var(--nagex-fs-caption) !important;
+    font-weight: var(--nagex-fw-medium) !important;
   }
 
   .nagex-notif-bell {
@@ -3045,19 +3046,22 @@ div#view-home.nagex-desktop-home .desktop-home-right-rail,
   .user-avatar-img {
     width: 28px !important;
     height: 28px !important;
-    box-shadow: 0 8px 18px rgba(7,87,248,.16) !important;
+    background: var(--nagex-blue) !important;
+    font-size: var(--nagex-fs-caption) !important;
+    font-weight: var(--nagex-fw-semibold) !important;
+    box-shadow: none !important;
   }
 
   .user-greeting-sub {
-    color: #54709f !important;
-    font-size: 8.8px !important;
-    font-weight: 600 !important;
+    color: var(--nagex-ink-3) !important;
+    font-size: var(--nagex-fs-micro) !important;
+    font-weight: var(--nagex-fw-regular) !important;
   }
 
   .user-name {
-    color: #06125d !important;
-    font-size: 10.8px !important;
-    font-weight: 800 !important;
+    color: var(--nagex-ink) !important;
+    font-size: var(--nagex-fs-caption) !important;
+    font-weight: var(--nagex-fw-semibold) !important;
   }
 
   .header-motto-script {
@@ -3198,40 +3202,41 @@ div#view-home.nagex-desktop-home .desktop-home-right-rail,
 }
 
 @media (min-width: 1200px) {
-  /* V2 D2 final sidebar geometry. */
+  /* Design System V2 sidebar geometry: width and type come from tokens; the height follows the viewport instead of a fixed 732px. */
   .sidebar-left {
     position: fixed !important;
     left: 0 !important;
     top: 78px !important;
-    width: 149px !important;
-    height: 732px !important;
+    width: var(--nagex-sidebar-w) !important;
+    height: calc(100vh - 90px) !important;
     z-index: 96 !important;
     display: flex !important;
     flex-direction: column !important;
     justify-content: space-between !important;
-    padding: 39px 10px 12px !important;
+    padding: 44px 10px 12px !important;
     overflow: hidden !important;
-    background: rgba(255,255,255,.86) !important;
-    border: 1px solid rgba(151,190,245,.28) !important;
-    border-radius: 0 13px 13px 0 !important;
-    box-shadow: 10px 0 26px rgba(7,87,248,.06) !important;
+    background: var(--nagex-paper) !important;
+    border: 1px solid var(--nagex-line) !important;
+    border-left: 0 !important;
+    border-radius: 0 var(--nagex-r-panel) var(--nagex-r-panel) 0 !important;
+    box-shadow: var(--nagex-elevation-card) !important;
   }
 
   /* R23.7H-C D5 precondition fix — .sidebar-left above is position:fixed,
      so it no longer reserves space in the .workspace-grid flex row;
      .center-canvas must compensate with a matching margin-left (its own
-     rendered footprint is left:0 + margin-left:9px + width:149px = 158px)
+     rendered footprint is left:0 + margin-left:9px + the sidebar width token)
      or main content renders underneath the fixed sidebar. This is the
      standard fixed-sidebar layout compensation, not a coordinate hack. */
   .center-canvas {
-    margin-left: 158px;
+    margin-left: calc(var(--nagex-sidebar-w) + 9px);
   }
 
   .sidebar-left::before {
     content: "" !important;
     position: absolute !important;
-    left: 28px !important;
-    top: 7px !important;
+    left: 22px !important;
+    top: 9px !important;
     width: 91px !important;
     height: 27px !important;
     background: url("../assets/nagex-compact-logo.png") left center / contain no-repeat !important;
@@ -3239,36 +3244,36 @@ div#view-home.nagex-desktop-home .desktop-home-right-rail,
 
   .sidebar-left:hover,
   .sidebar-left.expanded {
-    width: 149px !important;
+    width: var(--nagex-sidebar-w) !important;
   }
 
   .sidebar-left .nav-menu {
     display: grid !important;
-    gap: 2px !important;
-    width: 128px !important;
+    gap: var(--nagex-spacing-1) !important;
+    width: calc(var(--nagex-sidebar-w) - 20px) !important;
     margin: 0 auto !important;
     padding: 0 !important;
   }
 
   .sidebar-left .nav-item,
   .sidebar-left .nav-link {
-    width: 128px !important;
-    height: 32px !important;
-    min-height: 32px !important;
+    width: calc(var(--nagex-sidebar-w) - 20px) !important;
+    height: var(--nagex-control-md) !important;
+    min-height: var(--nagex-control-md) !important;
   }
 
   .sidebar-left .nav-link {
-    padding: 0 13px !important;
+    padding: 0 var(--nagex-spacing-3) !important;
     display: flex !important;
     align-items: center !important;
     justify-content: flex-start !important;
-    gap: 13px !important;
-    border-radius: 9px !important;
-    color: #1f3768 !important;
+    gap: 10px !important;
+    border-radius: var(--nagex-r-control) !important;
+    color: var(--nagex-ink-2) !important;
     background: transparent !important;
     box-shadow: none !important;
-    font-size: 11.5px !important;
-    font-weight: 650 !important;
+    font-size: var(--nagex-fs-control) !important;
+    font-weight: var(--nagex-fw-medium) !important;
     line-height: 1 !important;
   }
 
@@ -3276,37 +3281,38 @@ div#view-home.nagex-desktop-home .desktop-home-right-rail,
     display: inline !important;
     opacity: 1 !important;
     color: inherit !important;
-    font-size: 11.5px !important;
-    font-weight: 650 !important;
+    font-size: var(--nagex-fs-control) !important;
+    font-weight: var(--nagex-fw-medium) !important;
     white-space: nowrap !important;
   }
 
   .sidebar-left .nav-link .svg-icon {
-    width: 17px !important;
-    height: 17px !important;
-    flex: 0 0 17px !important;
-    color: #345082 !important;
+    width: 18px !important;
+    height: 18px !important;
+    flex: 0 0 18px !important;
+    color: var(--nagex-ink-3) !important;
   }
 
   .sidebar-left .nav-item.active .nav-link {
-    color: #0757f8 !important;
-    background: rgba(7,87,248,.11) !important;
+    color: var(--nagex-blue) !important;
+    background: var(--nagex-blue-wash) !important;
     box-shadow: none !important;
-    font-weight: 800 !important;
+    font-weight: var(--nagex-fw-semibold) !important;
   }
 
   .sidebar-left .nav-item.active .nav-link .svg-icon,
   .sidebar-left .nav-item.active .nav-link span {
-    color: #0757f8 !important;
-    font-weight: 800 !important;
+    color: var(--nagex-blue) !important;
+    font-weight: var(--nagex-fw-semibold) !important;
   }
 
+  /* Design System V2: the static "User / Personal AI Assistant" label was a fabricated identity; the header shows the real account. */
   .sidebar-bottom-user {
     position: absolute !important;
     left: 12px !important;
-    bottom: 58px !important;
-    display: block !important;
-    width: 128px !important;
+    bottom: 24px !important;
+    display: none !important;
+    width: calc(var(--nagex-sidebar-w) - 20px) !important;
     height: 42px !important;
     margin: 0 !important;
   }
@@ -3327,11 +3333,11 @@ div#view-home.nagex-desktop-home .desktop-home-right-rail,
     display: grid !important;
     place-items: center !important;
     border-radius: 50% !important;
-    background: linear-gradient(180deg, #dbeafe, #93c5fd) !important;
-    color: #06125d !important;
-    font-size: 13px !important;
-    font-weight: 900 !important;
-    box-shadow: 0 8px 18px rgba(7,87,248,.15) !important;
+    background: var(--nagex-blue-wash) !important;
+    color: var(--nagex-blue) !important;
+    font-size: var(--nagex-fs-secondary) !important;
+    font-weight: var(--nagex-fw-semibold) !important;
+    box-shadow: none !important;
   }
 
   .sidebar-bottom-user::after {
@@ -3340,10 +3346,10 @@ div#view-home.nagex-desktop-home .desktop-home-right-rail,
     left: 40px !important;
     top: 3px !important;
     white-space: pre !important;
-    color: #06125d !important;
-    font-size: 9px !important;
-    line-height: 1.15 !important;
-    font-weight: 800 !important;
+    color: var(--nagex-ink-2) !important;
+    font-size: var(--nagex-fs-caption) !important;
+    line-height: 1.3 !important;
+    font-weight: var(--nagex-fw-medium) !important;
   }
 }
 
@@ -4909,7 +4915,7 @@ div#view-home.nagex-desktop-home {
 
 @media (min-width: 1440px) {
   .workspace-grid {
-    grid-template-columns: 158px minmax(0, 1fr) !important;
+    grid-template-columns: calc(var(--nagex-sidebar-w) + 9px) minmax(0, 1fr) !important;
   }
 
   .center-canvas {
@@ -4917,14 +4923,14 @@ div#view-home.nagex-desktop-home {
   }
 
   .sidebar-left {
-    width: 149px !important;
-    max-width: 149px !important;
+    width: var(--nagex-sidebar-w) !important;
+    max-width: var(--nagex-sidebar-w) !important;
   }
 }
 
 @media (min-width: 1200px) and (max-width: 1439px) {
   .workspace-grid {
-    grid-template-columns: 149px minmax(0, 1fr) !important;
+    grid-template-columns: var(--nagex-sidebar-w) minmax(0, 1fr) !important;
   }
 
   .center-canvas {
@@ -4934,8 +4940,8 @@ div#view-home.nagex-desktop-home {
 
   .sidebar-left {
     position: static !important;
-    width: 149px !important;
-    max-width: 149px !important;
+    width: var(--nagex-sidebar-w) !important;
+    max-width: var(--nagex-sidebar-w) !important;
     height: auto !important;
     min-height: 0 !important;
     top: auto !important;

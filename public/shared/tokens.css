@@ -119,3 +119,82 @@
   --nagex-card-gap: var(--nagex-spacing-4);
   --nagex-section-gap: var(--nagex-spacing-7);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+ * Design System V2 — "Modern Everyday Personal AI", comfortably compact.
+ * The authoritative scale for Desktop. These tokens are NEW names (existing --nagex-* names above keep their values so the Mobile
+ * UI, which also loads this file, is unchanged). New and migrated Desktop CSS reads ONLY these tokens; see docs/design/.
+ *
+ *   type     body 14 / reading 15 / secondary 13 / caption 12 · nav+button 13.5 · card title 15 · section 18 · page 24 · hero 28
+ *   weight   400 body · 500 controls and navigation · 600 headings (700-900 are not defaults)
+ *   space    4 8 12 16 20 24 32
+ *   control  30 / 34 / 38
+ *   shape    radius 6 / 8 / 10 / 12 · hairline neutral borders · one subtle elevation
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
+:root {
+  /* Typography (px so Desktop reads the same regardless of the root font size) */
+  --nagex-fs-micro: 11px; /* header chip labels only */
+  --nagex-fs-caption: 12px;
+  --nagex-fs-secondary: 13px;
+  --nagex-fs-body: 14px;
+  --nagex-fs-reading: 15px;
+  --nagex-fs-control: 13.5px;
+  --nagex-fs-card-title: 15px;
+  --nagex-fs-section: 18px;
+  --nagex-fs-page: 24px;
+  --nagex-fs-hero: 28px;
+
+  --nagex-fw-regular: 400;
+  --nagex-fw-medium: 500;
+  --nagex-fw-semibold: 600;
+
+  --nagex-lh-tight: 1.25;
+  --nagex-lh-ui: 1.4;
+  --nagex-lh-reading: 1.55;
+
+  /* Locale-aware font stacks: Latin from Inter, Hangul from Noto Sans KR (Open Font License), never a mixed fallback guess. */
+  --nagex-font-latin: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --nagex-font-hangul: 'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Nanum Gothic', sans-serif;
+  --nagex-font-ui: var(--nagex-font-latin);
+
+  /* Spacing roles (values come from the 4/8/12/16/20/24/32 scale above) */
+  --nagex-gap-control: var(--nagex-spacing-2);
+  --nagex-gap-card: var(--nagex-spacing-3);
+  --nagex-pad-card: var(--nagex-spacing-3) var(--nagex-spacing-4);
+  --nagex-gap-section: var(--nagex-spacing-6);
+
+  /* Controls */
+  --nagex-control-sm: 30px;
+  --nagex-control-md: 34px;
+  --nagex-control-lg: 38px;
+
+  /* Shape and elevation */
+  --nagex-r-control: 8px;
+  --nagex-r-card: 10px;
+  --nagex-r-panel: 12px;
+  --nagex-line: #e3e8ef;
+  --nagex-line-strong: #cfd8e4;
+  --nagex-elevation-card: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --nagex-elevation-popover: 0 8px 24px rgba(15, 23, 42, 0.12);
+
+  /* Neutral-first colour: brand blue is reserved for selection, the primary action, focus and meaningful progress */
+  --nagex-ink: #0f172a;
+  --nagex-ink-2: #475569;
+  --nagex-ink-3: #64748b;
+  --nagex-canvas: #f6f8fb;
+  --nagex-paper: #ffffff;
+  --nagex-wash: #f1f5f9;
+  --nagex-blue: var(--nagex-accent-primary, #0a56f7);
+  --nagex-blue-wash: #eaf1ff;
+  --nagex-focus-ring: 0 0 0 2px #fff, 0 0 0 4px rgba(10, 86, 247, 0.55);
+
+  --nagex-sidebar-w: 176px;
+}
+
+/* Hangul gets its own stack and no Latin letter-spacing / tight leading */
+html[lang="ko"] {
+  --nagex-font-ui: var(--nagex-font-hangul);
+  --nagex-lh-tight: 1.35;
+  --nagex-lh-ui: 1.5;
+  --nagex-lh-reading: 1.65;
+}

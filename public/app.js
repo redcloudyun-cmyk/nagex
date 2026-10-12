@@ -2661,11 +2661,11 @@
       if (!items || items.length === 0) continue;
 
       html += `
-        <div class="activity-group-section" style="margin-bottom: 1.5rem;">
-          <h3 style="font-size: 0.85rem; font-weight: 700; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.75rem; border-bottom: 1px solid var(--border-subtle); padding-bottom: 0.35rem;">
+        <div class="activity-group-section">
+          <h3 class="activity-group-title">
             ${escapeHtml(groupTitles[key])} (${items.length})
           </h3>
-          <div class="activity-group-items" style="display: flex; flex-direction: column; gap: 0.6rem;">
+          <div class="activity-group-items">
             ${items.map(renderActivityOutcomeCard).join('')}
           </div>
         </div>`;
@@ -2719,24 +2719,24 @@
       const completedSteps = a.subSteps.filter((s) => s.status === 'COMPLETED').map((s) => s.title || s.name);
       const failedSteps = a.subSteps.filter((s) => s.status === 'FAILED').map((s) => s.title || s.name);
       partialHtml = `
-        <div class="activity-partial-breakdown" style="margin-top:0.35rem; font-size:0.75rem; background: rgba(0,0,0,0.03); padding:0.4rem; border-radius:4px;">
-          ${completedSteps.length > 0 ? `<div style="color:#166534;"><strong>${escapeHtml(t('activity.substepsCompleted') || 'Completed:')}</strong> ${escapeHtml(completedSteps.join(', '))}</div>` : ''}
-          ${failedSteps.length > 0 ? `<div style="color:#991b1b; margin-top:0.2rem;"><strong>${escapeHtml(t('activity.substepsFailed') || 'Failed:')}</strong> ${escapeHtml(failedSteps.join(', '))}</div>` : ''}
+        <div class="activity-partial-breakdown">
+          ${completedSteps.length > 0 ? `<div class="ok"><strong>${escapeHtml(t('activity.substepsCompleted') || 'Completed:')}</strong> ${escapeHtml(completedSteps.join(', '))}</div>` : ''}
+          ${failedSteps.length > 0 ? `<div class="bad"><strong>${escapeHtml(t('activity.substepsFailed') || 'Failed:')}</strong> ${escapeHtml(failedSteps.join(', '))}</div>` : ''}
         </div>`;
     }
 
     const contextLine = a.effect || a.description || '';
 
     return `
-      <div class="plan-item-card activity-outcome-card" style="position:relative; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 0.85rem 1rem;" tabindex="0" role="region" aria-label="${escapeHtml(a.title)}">
-        <div class="plan-item-header" style="display:flex; justify-content:space-between; align-items:center;">
-          <span class="plan-goal-title" style="font-size:0.88rem; font-weight:600; color:var(--text-navy);">${escapeHtml(window.NAGEX_MAIN_L10N ? window.NAGEX_MAIN_L10N.localizeAppText(a.title) : a.title)}</span>
+      <div class="plan-item-card activity-outcome-card" tabindex="0" role="region" aria-label="${escapeHtml(a.title)}">
+        <div class="plan-item-header activity-card-head">
+          <span class="plan-goal-title activity-card-title">${escapeHtml(window.NAGEX_MAIN_L10N ? window.NAGEX_MAIN_L10N.localizeAppText(a.title) : a.title)}</span>
           <span class="badge-status ${badgeClass}">${escapeHtml(statusLabel)}</span>
         </div>
-        ${contextLine ? `<p class="card-body-text" style="font-size:0.8rem; color:var(--text-secondary); margin-top:0.2rem;">${escapeHtml(window.NAGEX_MAIN_L10N ? window.NAGEX_MAIN_L10N.localizeAppText(contextLine) : contextLine)}</p>` : ''}
+        ${contextLine ? `<p class="card-body-text activity-card-text">${escapeHtml(window.NAGEX_MAIN_L10N ? window.NAGEX_MAIN_L10N.localizeAppText(contextLine) : contextLine)}</p>` : ''}
         ${partialHtml}
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.4rem;">
-          <span style="font-size:0.72rem; color:var(--text-muted);">${escapeHtml(time)}</span>
+        <div class="activity-card-foot">
+          <span class="activity-card-time">${escapeHtml(time)}</span>
         </div>
       </div>`;
   }

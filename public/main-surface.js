@@ -1528,11 +1528,15 @@
     const name = mainUserName();
     const base = greetingSalutation(new Date().getHours());
     heading.textContent = '';
-    heading.appendChild(document.createTextNode(name ? base + ', ' : base));
-    if (name) {
-      const span = document.createElement('span');
-      span.textContent = briefingLocale() === 'ko-KR' ? name + '님' : name;
-      heading.appendChild(span);
+    // English reads "Good evening, Name"; Korean reads naturally the other way round: "Name님, 좋은 저녁이에요".
+    const korean = briefingLocale() === 'ko-KR';
+    const nameSpan = () => { const span = document.createElement('span'); span.textContent = korean ? name + '님' : name; return span; };
+    if (name && korean) {
+      heading.appendChild(nameSpan());
+      heading.appendChild(document.createTextNode(', ' + base));
+    } else {
+      heading.appendChild(document.createTextNode(name ? base + ', ' : base));
+      if (name) heading.appendChild(nameSpan());
     }
     const sub = document.getElementById('main-greeting-sub');
     if (sub) sub.textContent = bt('mainHome.subtitle', 'What would you like to accomplish today?');
