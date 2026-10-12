@@ -265,6 +265,62 @@ describe('Desktop Main — conditional Home briefing', () => {
     await ctx.close();
   });
 
+  it('greeting: real profile name, EN/KR, local time of day, and a neutral avatar only when there is no name', async () => {
+    const cases = [
+      { locale: 'en' as const, hour: 9, name: 'Ada Lovelace', text: 'Good morning, Ada Lovelace', initial: 'A' },
+      { locale: 'en' as const, hour: 14, name: 'Ada Lovelace', text: 'Good afternoon, Ada Lovelace', initial: 'A' },
+      { locale: 'en' as const, hour: 20, name: 'Ada Lovelace', text: 'Good evening, Ada Lovelace', initial: 'A' },
+      { locale: 'ko' as const, hour: 9, name: '김서연', text: '좋은 아침입니다, 김서연님', initial: '김' },
+      { locale: 'ko' as const, hour: 14, name: '김서연', text: '좋은 오후입니다, 김서연님', initial: '김' },
+      { locale: 'ko' as const, hour: 20, name: '김서연', text: '좋은 저녁입니다, 김서연님', initial: '김' },
+    ];
+    for (const c of cases) {
+      const user = h.user(`greet_${c.locale}_${c.hour}`);
+      h.setDisplayName(user, c.name);
+      if (c.locale === 'ko') h.setLocale(user, 'ko');
+      const ctx = await h.newContext('desktop', user, c.locale);
+      const page = await ctx.newPage();
+      await page.clock.setFixedTime(new Date(2026, 9, 12, c.hour, 30));
+      await openMain(page);
+      await page.waitForFunction((expected: string) => document.querySelector('#main-greeting')?.innerText === expected, c.text);
+      assert.equal((await page.locator('#main-user-avatar').textContent())?.trim(), c.initial);
+      assert.equal((await page.locator('#main-user-name').textContent())?.trim(), c.name);
+      assert.equal(await page.locator('#main-greeting-sub').innerText(), c.locale === 'ko' ? '오늘은 무엇을 이루고 싶으신가요?' : 'What would you like to accomplish today?');
+      assert.doesNotMatch(await page.locator('body').innerText(), /redcloudyun/);
+      await ctx.close();
+    }
+  });
+
+  it('greeting fallback: a placeholder name or a failing profile source gives a time-of-day greeting only, never a fabricated name', async () => {
+    // placeholder display name stored for accounts without a real one
+    const placeholder = h.user('greet_placeholder');
+    h.setDisplayName(placeholder, 'User');
+    const ctxA = await h.newContext('desktop', placeholder, 'en');
+    const pageA = await ctxA.newPage();
+    await pageA.clock.setFixedTime(new Date(2026, 9, 12, 9, 30));
+    await openMain(pageA);
+    await pageA.waitForFunction(() => document.querySelector('#main-home-briefing')?.dataset.state === 'ready');
+    assert.equal(await pageA.locator('#main-greeting').innerText(), 'Good morning');
+    assert.equal((await pageA.locator('#main-user-avatar').textContent())?.trim(), 'U');
+    assert.equal((await pageA.locator('#main-user-name').textContent())?.trim(), 'You');
+    assert.doesNotMatch(await pageA.locator('body').innerText(), /redcloudyun/);
+    await ctxA.close();
+
+    // the profile source (personal home) failing: same safe fallback, KR wording
+    const failing = h.user('greet_failing');
+    h.setLocale(failing, 'ko');
+    const ctxB = await h.newContext('desktop', failing, 'ko');
+    const pageB = await ctxB.newPage();
+    await pageB.route('**/api/v1/personal/home', async (route) => { await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: { code: 'HOME_UNAVAILABLE' } }) }); });
+    await pageB.clock.setFixedTime(new Date(2026, 9, 12, 20, 30));
+    await openMain(pageB);
+    await pageB.waitForFunction(() => document.querySelector('#main-home-briefing')?.dataset.state === 'error');
+    assert.equal(await pageB.locator('#main-greeting').innerText(), '좋은 저녁입니다');
+    assert.equal((await pageB.locator('#main-user-name').textContent())?.trim(), '나');
+    assert.doesNotMatch(await pageB.locator('body').innerText(), /redcloudyun/);
+    await ctxB.close();
+  });
+
   it('desktop viewports: no overflow at 1440 and 1100 wide, three columns then readable stacking', async () => {
     const user = h.user('briefing_viewport');
     const ctx = await h.newContext('desktop', user, 'en');

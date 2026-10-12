@@ -518,8 +518,10 @@ export class PersonalHomeService {
     if (this.deps.identityStore) {
       try {
         const profile = (this.deps.identityStore as any).getProfile ? (this.deps.identityStore as any).getProfile(principalId) : null;
-        if (profile && profile.name) {
-          userName = profile.name;
+        // ProfileRecord carries `displayName` (there is no `name`); the store's default "User" is a placeholder, not a name.
+        const displayName = profile && typeof profile.displayName === 'string' ? profile.displayName.trim() : '';
+        if (displayName && displayName !== 'User') {
+          userName = displayName;
         }
       } catch {
         userName = null;

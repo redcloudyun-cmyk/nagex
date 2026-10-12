@@ -67,8 +67,8 @@
         <section class="nagex-main-left">
           <div class="main-hero-row">
             <div>
-              <h1>Good morning, <span>redcloudyun</span></h1>
-              <p>What would you like to accomplish today?</p>
+              <h1 id="main-greeting"></h1>
+              <p id="main-greeting-sub"></p>
             </div>
             <p class="main-quote">"Small steps every day create a bigger tomorrow."</p>
           </div>
@@ -113,9 +113,9 @@
           <section class="main-thread-card" id="main-thread-card" hidden>
             <div class="main-thread-tools"><button type="button" class="main-tool-btn" id="main-new-conversation">New conversation</button></div>
             <div class="main-message">
-              <span class="main-avatar">R</span>
+              <span class="main-avatar" id="main-user-avatar">U</span>
               <div>
-                <div class="main-message-meta"><strong>redcloudyun</strong><span id="main-request-time">Just now</span></div>
+                <div class="main-message-meta"><strong id="main-user-name">You</strong><span id="main-request-time">Just now</span></div>
                 <p id="main-request-text"></p>
               </div>
             </div>
@@ -987,6 +987,40 @@
     return date.getTime() - 86400000;
   }
 
+  // ── Greeting: the signed-in user's real profile name and the local time of day ───────────────────────────
+  // The name comes from the existing personal-home aggregation (userProfile.name = the account's display name). Without one
+  // (profile missing, placeholder name or the briefing source failing) the greeting is time-of-day only and the avatar is neutral.
+  function mainUserName() {
+    const profile = briefing.data && briefing.data.userProfile;
+    return profile && typeof profile.name === 'string' ? profile.name.trim() : '';
+  }
+
+  function greetingSalutation(hour) {
+    if (hour < 12) return bt('home.greetingMorning', 'Good morning');
+    if (hour < 18) return bt('home.greetingAfternoon', 'Good afternoon');
+    return bt('home.greetingEvening', 'Good evening');
+  }
+
+  function renderGreeting() {
+    const heading = document.getElementById('main-greeting');
+    if (!heading) return;
+    const name = mainUserName();
+    const base = greetingSalutation(new Date().getHours());
+    heading.textContent = '';
+    heading.appendChild(document.createTextNode(name ? base + ', ' : base));
+    if (name) {
+      const span = document.createElement('span');
+      span.textContent = briefingLocale() === 'ko-KR' ? name + '님' : name;
+      heading.appendChild(span);
+    }
+    const sub = document.getElementById('main-greeting-sub');
+    if (sub) sub.textContent = bt('mainHome.subtitle', 'What would you like to accomplish today?');
+    const avatar = document.getElementById('main-user-avatar');
+    if (avatar) avatar.textContent = name ? Array.from(name)[0].toUpperCase() : 'U';
+    const label = document.getElementById('main-user-name');
+    if (label) label.textContent = name || bt('mainHome.you', 'You');
+  }
+
   function briefingModel(home) {
     const list = (value) => (Array.isArray(value) ? value.filter((item) => item && item.title) : []);
     const status = home.sourceStatus || {};
@@ -1099,6 +1133,7 @@
       briefing.status = 'error';
     }
     renderBriefing();
+    renderGreeting();
   }
 
   function threadIsVisible() {
@@ -1211,8 +1246,10 @@
     });
     if (!briefing.localeListener) {
       briefing.localeListener = true;
-      window.addEventListener('nagex:localechange', () => renderBriefing());
+      window.addEventListener('nagex:localechange', () => { renderBriefing(); renderGreeting(); });
+      window.setInterval(renderGreeting, 5 * 60 * 1000);
     }
+    renderGreeting();
     renderBriefing();
     syncBriefingVisibility();
     restoreMainSession();

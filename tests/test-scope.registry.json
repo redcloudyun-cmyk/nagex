@@ -145,6 +145,7 @@
       "jev_shadow_runtime"
     ],
     "personal-home": [
+      "personal_home_profile_name",
       "home_ux_principle",
       "m6_1_mobile_release_blockers",
       "r22_8_personal_home",

@@ -750,6 +750,8 @@ export function createNagexApplication(): NagexApplication {
     activityStore,
     actionProposalStore,
     artifactStore,
+    // the account's real profile (display name) for the Main greeting; without it userProfile.name is always null
+    identityStore,
   });
 
   const personalAssistantEngine = new PersonalAssistantEngine({

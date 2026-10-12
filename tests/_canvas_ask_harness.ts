@@ -34,6 +34,7 @@ export interface CanvasAskHarness {
   user(label: string): DisposableUser;
   // An authenticated account's profile.locale is the canonical language (it overrides localStorage on load).
   setLocale(user: DisposableUser, locale: 'en' | 'ko'): void;
+  setDisplayName(user: DisposableUser, name: string): void;
   seedDocument(owner: { userId: string; tenantId: string }, opts: { title: string; content: string; at?: string; revision?: number }): { artifactId: string; documentId: string };
   seedAnalysis(owner: { userId: string; tenantId: string }, opts: { title: string; summary: string; at?: string }): { artifactId: string; captureId: string };
   seedOther(owner: { userId: string; tenantId: string }, type: ArtifactType, opts: { title: string; preview: string; at?: string }): { artifactId: string };
@@ -80,6 +81,7 @@ export async function startCanvasAskHarness(opts: { scrubProviders: boolean }): 
       return { userId: identity.userId, tenantId, sessionId: session.sessionId };
     },
     setLocale(user, locale) { server.identityStore.updateProfile(user.userId, { locale }); },
+    setDisplayName(user, name) { server.identityStore.updateProfile(user.userId, { displayName: name }); },
     seedDocument(owner, o) {
       const documentId = `doc_r247b_${RUN}_${++counter}`;
       const at = o.at ?? new Date().toISOString();
