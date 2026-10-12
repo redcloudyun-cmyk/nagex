@@ -38,6 +38,7 @@ import { canonicalizeRequestHeaders } from '../src/http/request-identity.js';
 import { IdentityStore } from '../src/identity/identity.store.js';
 
 declare const document: any;
+declare const window: any;
 
 const KNOWN_IMAGE_BYTES = Buffer.from('deterministic-known-png-bytes-for-r23-7c-c-history');
 const tempDir = (name: string) => fs.mkdtempSync(path.join(os.tmpdir(), name));
@@ -276,8 +277,9 @@ test('I. the desktop history renderer accepts and renders the real (unmocked) ca
     await context.addCookies([{ name: 'nagex_session', value: signedIn.sessionId, url: `http://127.0.0.1:${port}` }]);
     const page = await context.newPage();
     await page.goto(`http://127.0.0.1:${port}/`);
-    await page.waitForSelector('.home-discover-chip[data-action="discover-create"]', { state: 'visible' });
-    await page.click('.home-discover-chip[data-action="discover-create"]');
+    // Home is the unified Main surface (the old discovery chips are retired); the Create view is still a routed screen
+    await page.waitForFunction(() => Boolean(window.NAGEX && window.NAGEX.switchTab));
+    await page.evaluate(() => window.NAGEX.switchTab('tab-create'));
     await page.waitForSelector('#create-prompt-input', { state: 'visible' });
     await page.fill('#create-prompt-input', 'end to end history render test');
     await page.click('#btn-create-generate');

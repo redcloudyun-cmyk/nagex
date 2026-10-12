@@ -37,6 +37,7 @@ import { CreationStore } from '../src/creation/creation.store.js';
 import { CreationService } from '../src/creation/creation.service.js';
 import { SessionStore } from '../src/sessions/session.store.js';
 import { authAs, canonicalizeForTestServer, sessionCookie } from './_s1_session_auth.js';
+import { tryGetCallerIdentity } from '../src/http/request-identity.js';
 
 declare const document: any;
 
@@ -158,7 +159,7 @@ test('G. the new preview text is not a raw i18n key', async () => {
 // deterministic fake provider, no mocked routes for /api/v1/personal/home
 // — the render must not surface provider identity in either viewport.
 // ---------------------------------------------------------------------
-function createHomeTestServer(personalHomeService: PersonalHomeService): http.Server {
+function createHomeTestServer(personalHomeService: PersonalHomeService, artifactStore: ArtifactStore): http.Server {
   const publicDir = path.resolve('public');
   return http.createServer(async (req, res) => {
     const url = new URL(req.url || '/', 'http://127.0.0.1');
@@ -177,6 +178,16 @@ function createHomeTestServer(personalHomeService: PersonalHomeService): http.Se
       return;
     }
 
+    // The Recent screen lists the caller's own artifacts (same owner-scoped read as GET /api/v1/artifacts).
+    if (pathname === '/api/v1/artifacts') {
+      const headers: Record<string, string> = {};
+      for (const [k, v] of Object.entries(req.headers)) if (typeof v === 'string') headers[k] = v;
+      const caller = tryGetCallerIdentity(canonicalizeForTestServer(headers));
+      res.writeHead(caller ? 200 : 401, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify(caller ? { artifacts: artifactStore.list(caller.tenantId, caller.principalId, 50) } : { error: 'AUTHENTICATION_REQUIRED' }));
+      return;
+    }
+
     const filePath = path.join(publicDir, pathname);
     if (!filePath.startsWith(publicDir) || !fs.existsSync(filePath)) { res.writeHead(404).end(); return; }
     const contentType = filePath.endsWith('.js') ? 'application/javascript' : filePath.endsWith('.html') ? 'text/html' : 'application/octet-stream';
@@ -191,12 +202,11 @@ async function renderHomeAndGetText(port: number, width: number, height: number)
     const context = await browser.newContext({ viewport: { width, height } });
     await context.addCookies([sessionCookie(`http://127.0.0.1:${port}`, 'ten_production_01', 'usr_admin_001')]);
     const page = await context.newPage();
-    await page.goto(`http://127.0.0.1:${port}/`);
-    const root = width <= 768 ? '#mobile-view-home' : '#view-home';
-    // Readiness = the state this test actually needs: a real artifact is visible in D7's canonical Recent Results
-    // surface. Provider-identity assertions on the rendered text are unchanged.
-    await page.waitForFunction((selector: string) => document.querySelectorAll(`${selector} [data-home-section="memory-results"] .ph-result-row`).length >= 1, root, { timeout: 15000 });
-    const text = await page.locator(root).innerText();
+    await page.goto(`http://127.0.0.1:${port}/#recent`);
+    // Readiness = the state this test actually needs: a real artifact row is visible on the Recent screen (the consumer surface that
+    // lists created artifacts on desktop and phones). Provider-identity assertions on the rendered text are unchanged.
+    await page.waitForFunction(() => document.querySelectorAll('#recent-list .recent-item').length >= 1, undefined, { timeout: 15000 });
+    const text = await page.locator('#recent-list').innerText();
     await page.close();
     return text;
   } finally {
@@ -204,31 +214,31 @@ async function renderHomeAndGetText(port: number, width: number, height: number)
   }
 }
 
-test('D. desktop Personal Home Recent Creations does not render provider identity', async () => {
+test('D. desktop Recent does not render provider identity', async () => {
   const deps = setup();
   await generateOne(deps, 'ten_production_01', 'usr_admin_001');
   const personalHomeService = new PersonalHomeService({ artifactStore: deps.artifactStore } as any);
-  const server = createHomeTestServer(personalHomeService);
+  const server = createHomeTestServer(personalHomeService, deps.artifactStore);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const port = (server.address() as AddressInfo).port;
   try {
     const text = await renderHomeAndGetText(port, 1440, 900);
-    assertNoProviderIdentity(text, 'Desktop #view-home rendered text');
+    assertNoProviderIdentity(text, 'Desktop Recent rendered text');
   } finally {
     server.close();
   }
 });
 
-test('E. mobile Personal Home Recent Creations does not render provider identity', async () => {
+test('E. phone Recent does not render provider identity', async () => {
   const deps = setup();
   await generateOne(deps, 'ten_production_01', 'usr_admin_001');
   const personalHomeService = new PersonalHomeService({ artifactStore: deps.artifactStore } as any);
-  const server = createHomeTestServer(personalHomeService);
+  const server = createHomeTestServer(personalHomeService, deps.artifactStore);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const port = (server.address() as AddressInfo).port;
   try {
     const text = await renderHomeAndGetText(port, 390, 844);
-    assertNoProviderIdentity(text, 'Mobile #mobile-view-home rendered text');
+    assertNoProviderIdentity(text, 'Phone Recent rendered text');
   } finally {
     server.close();
   }
