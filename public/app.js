@@ -3519,6 +3519,9 @@
     const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
     const el = document.getElementById('settings-connections-status');
     if (!el) return;
+    // Apps & Connections is owned by connections-ui.js (icon-first catalog, My connections, MCP management). The legacy cards below
+    // remain only as a fallback if that script failed to load.
+    if (window.NAGEX_CONNECTIONS_UI) { window.NAGEX_CONNECTIONS_UI.mount({ signedOut: Boolean(state.googleOAuthSignedOut) }); return; }
 
     if (state.googleOAuthSignedOut) {
       el.innerHTML = `
@@ -3531,7 +3534,6 @@
       const signIn = document.getElementById('btn-settings-google-signin');
       if (signIn) signIn.onclick = () => { if (window.NAGEX.showAuthModal) window.NAGEX.showAuthModal('signin'); };
       wireGitHubCard(true);
-      if (window.NAGEX_MCP_SETTINGS) window.NAGEX_MCP_SETTINGS.mount(true);
       return;
     }
     const oauth = state.googleOAuth || { configured: false, connected: false };
@@ -3586,7 +3588,6 @@
         }
       };
     }
-    if (window.NAGEX_MCP_SETTINGS) window.NAGEX_MCP_SETTINGS.mount(false);
   }
 
   function renderConnectionCard({ provider, services, state, account, action, buttonId, disabled, reason, secondary }) {

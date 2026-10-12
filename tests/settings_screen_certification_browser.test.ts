@@ -134,45 +134,55 @@ describe('Desktop Settings certification', () => {
     }
   });
 
-  it('Connections: the real Google state with the action that fits it (connect, reconnect, retry, manage, unavailable)', async () => {
+  it('Connections: the real Google state on the Gmail / Calendar cards with the action that fits it (connect, reconnect, retry, manage, setup required)', async () => {
     const { ctx, page } = await open('settings_connections', 'en', '#settings/connections');
-    const cases: Array<{ status: Record<string, unknown>; label: RegExp; enabled: boolean }> = [
-      { status: { configured: true, connected: false, scopes: [], expiresAt: null, connection: connection('NOT_CONNECTED', 'NO_CONNECTION') }, label: /Connect Google/, enabled: true },
-      { status: { configured: true, connected: false, scopes: [], expiresAt: null, connection: connection('REAUTH_REQUIRED', 'TOKEN_REVOKED', 'Google access was revoked or has expired. Reconnect Google Calendar.') }, label: /Reconnect/, enabled: true },
-      { status: { configured: true, connected: true, scopes: ['x'], expiresAt: null, connection: connection('ERROR', 'PROVIDER_TIMEOUT', 'Google Calendar did not respond in time. Try again.') }, label: /Try again/, enabled: true },
-      { status: { configured: true, connected: true, scopes: ['x'], expiresAt: null, connection: { ...connection('CONNECTED', null), verifiedAt: new Date().toISOString() } }, label: /Manage/, enabled: true },
-      { status: { configured: false, connected: false, scopes: [], expiresAt: null, connection: connection('UNAVAILABLE', 'OAUTH_NOT_CONFIGURED') }, label: /Connect Google/, enabled: false },
+    const scopes = [
+      'https://www.googleapis.com/auth/calendar.events', 'https://www.googleapis.com/auth/calendar.events.freebusy',
+      'https://www.googleapis.com/auth/calendar.calendarlist.readonly', 'https://www.googleapis.com/auth/gmail.modify',
+    ];
+    const cases: Array<{ status: Record<string, unknown>; state: string; button: string | null }> = [
+      { status: { configured: true, connected: false, scopes: [], expiresAt: null, connection: connection('NOT_CONNECTED', 'NO_CONNECTION') }, state: 'NOT_CONNECTED', button: 'Connect' },
+      { status: { configured: true, connected: false, scopes: [], expiresAt: null, connection: connection('REAUTH_REQUIRED', 'TOKEN_REVOKED', 'Google access was revoked or has expired. Reconnect Google Calendar.') }, state: 'REAUTH_REQUIRED', button: 'Reconnect' },
+      { status: { configured: true, connected: true, scopes, expiresAt: null, connection: connection('ERROR', 'PROVIDER_TIMEOUT', 'Google Calendar did not respond in time. Try again.') }, state: 'ERROR', button: 'Try again' },
+      { status: { configured: true, connected: true, scopes, expiresAt: null, connection: { ...connection('CONNECTED', null), verifiedAt: new Date().toISOString() } }, state: 'CONNECTED', button: 'Manage' },
+      { status: { configured: false, connected: false, scopes: [], expiresAt: null, connection: connection('UNAVAILABLE', 'OAUTH_NOT_CONFIGURED') }, state: 'SETUP_REQUIRED', button: null },
     ];
     for (const c of cases) {
       await page.unroute('**/api/v1/oauth/google/status').catch(() => undefined);
       await stubGoogleStatus(page, c.status);
       await page.goto(`${h.origin}/#settings/connections`);
       await page.reload();
-      await page.waitForSelector('#btn-settings-google-toggle', { timeout: 15000 });
-      const button = page.locator('#btn-settings-google-toggle');
-      assert.match((await button.innerText()).trim(), c.label, JSON.stringify((c.status.connection as any).state));
-      assert.equal(await button.isEnabled(), c.enabled);
-      if (!c.enabled) assert.ok(((await button.getAttribute('title')) || '').length > 5, 'a disabled connect button says why');
+      await page.waitForSelector('.nagex-conn-card[data-app="gmail"]', { timeout: 15000 });
+      const gmail = page.locator('.nagex-conn-card[data-app="gmail"]');
+      assert.equal(await gmail.getAttribute('data-state'), c.state, JSON.stringify((c.status.connection as any).state));
+      if (c.button === null) assert.equal(await gmail.locator('button').count(), 0, 'no connect control when the server cannot connect');
+      else assert.equal((await gmail.locator('button').innerText()).trim(), c.button);
     }
-    // Connect really starts Google OAuth; Try again re-reads the status; Manage asks before disconnecting
+    // Connect really starts Google OAuth; Manage opens real details and disconnecting needs an in-panel confirmation
     await page.unroute('**/api/v1/oauth/google/status').catch(() => undefined);
     let calls = await stubGoogleStatus(page, { configured: true, connected: false, scopes: [], expiresAt: null, connection: connection('NOT_CONNECTED', 'NO_CONNECTION') });
     await page.goto(`${h.origin}/#settings/connections`);
     await page.reload();
-    await page.waitForSelector('#btn-settings-google-toggle');
-    const [request] = await Promise.all([page.waitForRequest((r) => r.url().includes('/api/v1/oauth/google/start'), { timeout: 15000 }), page.click('#btn-settings-google-toggle')]);
+    await page.waitForSelector('.nagex-conn-card[data-app="gmail"] button');
+    const [request] = await Promise.all([page.waitForRequest((r) => r.url().includes('/api/v1/oauth/google/start'), { timeout: 15000 }), page.click('.nagex-conn-card[data-app="gmail"] button')]);
     assert.equal(new URL(request.url()).pathname, '/api/v1/oauth/google/start');
 
     await page.unroute('**/api/v1/oauth/google/status').catch(() => undefined);
     await page.unroute('**/api/v1/oauth/google/disconnect').catch(() => undefined);
-    calls = await stubGoogleStatus(page, { configured: true, connected: true, scopes: ['x'], expiresAt: null, connection: { ...connection('CONNECTED', null), verifiedAt: new Date().toISOString() } });
+    calls = await stubGoogleStatus(page, { configured: true, connected: true, scopes, expiresAt: null, connection: { ...connection('CONNECTED', null), verifiedAt: new Date().toISOString() } });
     await page.goto(`${h.origin}/#settings/connections`);
     await page.reload();
-    await page.waitForSelector('#btn-settings-google-toggle');
-    page.once('dialog', (d) => d.dismiss());
-    await page.click('#btn-settings-google-toggle');
+    await page.waitForSelector('.nagex-conn-card.mine');
+    await page.click('.nagex-conn-card.mine button');
+    await page.waitForSelector('#nagex-conn-layer');
+    await page.click('#nagex-conn-layer [data-act="ask-disconnect"]');
+    await page.click('#nagex-conn-layer [data-act="cancel-confirm"]');
     await page.waitForTimeout(300);
     assert.ok(!calls.includes('disconnect'), 'declining the confirmation sends no disconnect');
+    await page.click('#nagex-conn-layer [data-act="ask-disconnect"]');
+    await page.click('#nagex-conn-layer [data-act="confirm-disconnect"]');
+    await page.waitForFunction(() => !document.getElementById('nagex-conn-layer'), undefined, { timeout: 10000 });
+    assert.ok(calls.includes('disconnect'), 'confirming sends the disconnect');
     await ctx.close();
   });
 

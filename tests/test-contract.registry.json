@@ -5331,8 +5331,8 @@
       "assertionIntent": "Home todo is built from the signed-in user's real reminder and task stores only (due/overdue reminders and not-yet-running tasks), never another user's items, and states UNAVAILABLE / ERROR / empty honestly instead of inventing items.",
       "notes": "Uses the real CurrentPersonalContextService with temp stores."
     },
-    "github_connection_browser": {
-      "milestone": "NAGEX-GITHUB-BUILTIN-CONNECTION",
+    "connections_redesign_browser": {
+      "milestone": "NAGEX-CONNECTIONS-REDESIGN",
       "classification": "REAL_BROWSER_CERT",
       "canonical": true,
       "scopes": [
@@ -5343,24 +5343,8 @@
       "realBrowser": true,
       "sourceImplementationAssertions": false,
       "deterministic": true,
-      "assertionIntent": "Real-Chromium certification of the built-in GitHub connection card in Settings > Connections: NOT_CONNECTED shows the truth and a Connect button that really navigates to the GitHub authorize URL (client id, server-held state, scopes, no secret); a server without the OAuth App shows a disabled button; CONNECTED shows the account and the real repository listing and Disconnect revokes the grant and returns to Not connected; REAUTH_REQUIRED offers Reconnect while a provider outage never disconnects; another user never sees or reads the connection; the card is localized in Korean without raw keys.",
-      "notes": "Production server harness with provider credentials scrubbed; GitHub is a scripted fetch inside the server process. The token store, routes, sessions and the Settings card are real.",
-      "writesRepositoryArtifacts": false
-    },
-    "mcp_settings_browser": {
-      "milestone": "NAGEX-MCP-SETTINGS-UI",
-      "classification": "REAL_BROWSER_CERT",
-      "canonical": true,
-      "scopes": [
-        "browser",
-        "ux"
-      ],
-      "externalDependencies": [],
-      "realBrowser": true,
-      "sourceImplementationAssertions": false,
-      "deterministic": true,
-      "assertionIntent": "Real-Chromium (and installed Chrome via NAGEX_TEST_BROWSER_CHANNEL=chrome) certification of Settings > Connections > Additional tools (MCP) against the real MCP backend: register, list, discovery (tools disabled by default, unsupported tools named), enable with confirmation, disable, refresh (a changed definition disables an enabled tool and is flagged; a changed server identity locks the tools with a warning), delete; signed-out, unavailable and provider-error states are truthful and localized without raw codes or raw server wording; the typed name and address survive an error but the token is write-only (never in the DOM, storage or any response); server-supplied HTML is inert; another user cannot see or change the servers; the UI never causes a tool call and an enabled tool is only reachable through a pending approval; EN/KR labels and no horizontal overflow at desktop and phone width.",
-      "notes": "Production server harness with provider credentials scrubbed. The MCP backend, policy, store, broker and sessions are real; the remote MCP server is an in-process loopback server and the https registration URL is rewritten to it (the backend is told to accept loopback for the test, and switched back to the production policy for the rejection steps).",
+      "assertionIntent": "Real-Chromium (and installed Chrome) certification of Settings > Apps & Connections against the real Google status, GitHub connection and MCP backends: header, My connections, Built-in apps (Gmail, Google Calendar, Google Drive, GitHub, Outlook, OneDrive) with NAgex-drawn icons and one truthful state each (connected, not connected, setup required, needs attention, error, coming later), no button unless it does something, one shared Google grant behind Gmail and Calendar, functional search and filters over the real data, signed-out sign-in state; Connect reaches the provider authorize URL; the detail drawer shows real account/capability/verification data and disconnect needs an in-panel confirmation and revokes; the custom MCP form is hidden until the Add modal (focus trap, Escape, focus return, announced validation, no duplicate submit), unsafe addresses are rejected, discovery returns real tool metadata with every tool OFF, enabling is explicit with a warning, a changed definition or server identity forces re-review/locks the tools, refresh and removal reflect the server, credentials never reach the DOM, storage or responses, server-supplied HTML is inert, another user or tenant sees and changes nothing, the UI never calls a tool and an invoke only yields a pending approval; live EN/KR switching without refresh; no clipping, overlap, overflow or header overlap from 768 to 1920 px; accessible names, roles and states.",
+      "notes": "Production server harness with provider credentials scrubbed. Google tokens, GitHub connection, MCP service/policy/broker and sessions are real; GitHub is a scripted fetch inside the server process and the remote MCP server is an in-process loopback server (the https registration URL is rewritten to it; the production URL policy is restored for the rejection steps). No real OAuth account or remote MCP server is contacted.",
       "writesRepositoryArtifacts": false
     },
     "settings_screen_certification_browser": {
