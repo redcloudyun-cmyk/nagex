@@ -625,6 +625,31 @@ status: OPEN
 
 ---
 
+```yaml
+id: DEBT-0011
+area: design-system / desktop-css
+description: >
+  Design System V2 converted the token layer, the Desktop shell (sidebar, header chips), Home, Apps & Connections, Recent, Workspace, Knowledge,
+  Activity and the Settings chrome. The legacy stylesheet layers beneath them are NOT removed: desktop-home.css (~5000 lines of coordinate-based
+  "phase" rules with !important) and product-design-convergence.css (~100 !important declarations) still style parts of Desktop that V2 has not
+  reached (Settings sub-panel rows/forms, Devices, Permissions, Notifications, Appearance, Create/Analyze, Vault detail, Plans/Tasks), and
+  Korean copy for provider/technical notices outside Home and Connections is still in formal register.
+severity: low
+introduced: 2026-10-12 (V2 deliberately edited only the winning rules of the converted screens instead of rewriting the legacy layers)
+reason: >
+  Rewriting the whole Desktop cascade at once would destabilize screens that have not been visually reviewed; the directive requires validating
+  Home and Connections first and not declaring other screens approved.
+risk: >
+  Visual inconsistency on unconverted screens; contradictory legacy declarations may confuse future edits. No functional, security or
+  approval impact.
+target: after human review of the V2 screens, convert the remaining screens one by one using the V2 tokens, deleting the superseded legacy
+  rules they replace; then retire the dead phase blocks of desktop-home.css.
+owner: NAGEX
+status: OPEN
+```
+
+---
+
 ## Explicitly classified as NON-GOAL, not debt
 
 Per the R11 directive's own explicit instruction not to silently call every disclosed limitation "debt":

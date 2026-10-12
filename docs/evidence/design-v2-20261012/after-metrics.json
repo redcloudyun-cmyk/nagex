@@ -1,0 +1,434 @@
+{
+  "home-en-1440x900": {
+    "viewport": [
+      1440,
+      900
+    ],
+    "bodyFontSize": "16px",
+    "bodyFontFamily": "Inter, -apple-system, BlinkMacSystemFont, sans-serif",
+    "medianFontSizePx": 14,
+    "medianFontWeight": 400,
+    "sizeHistogram": {
+      "9": 1,
+      "10": 5,
+      "11": 12,
+      "12": 260,
+      "14": 355,
+      "15": 70,
+      "16": 25,
+      "17": 1,
+      "28": 46
+    },
+    "weightHistogram": {
+      "400": 456,
+      "500": 162,
+      "600": 157
+    },
+    "heavyTextPercent": 0,
+    "visibleChars": 775,
+    "charsInInitialViewport": 775,
+    "shadowedElements": 7,
+    "gradientElements": 1,
+    "visibleElements": 146,
+    "cardCount": 4,
+    "cardAvgHeight": 186,
+    "cardMaxHeight": 186,
+    "pageScrollOverflowY": 0
+  },
+  "connections-en-1440x900": {
+    "viewport": [
+      1440,
+      900
+    ],
+    "bodyFontSize": "16px",
+    "bodyFontFamily": "Inter, -apple-system, BlinkMacSystemFont, sans-serif",
+    "medianFontSizePx": 13,
+    "medianFontWeight": 500,
+    "sizeHistogram": {
+      "9": 1,
+      "10": 5,
+      "11": 12,
+      "12": 275,
+      "13": 356,
+      "14": 231,
+      "15": 155,
+      "18": 41,
+      "24": 18
+    },
+    "weightHistogram": {
+      "400": 484,
+      "500": 348,
+      "600": 262
+    },
+    "heavyTextPercent": 0,
+    "visibleChars": 1094,
+    "charsInInitialViewport": 938,
+    "shadowedElements": 20,
+    "gradientElements": 2,
+    "visibleElements": 231,
+    "cardCount": 9,
+    "cardAvgHeight": 132,
+    "cardMaxHeight": 155,
+    "pageScrollOverflowY": 0
+  },
+  "home-en-1680x900": {
+    "viewport": [
+      1680,
+      900
+    ],
+    "bodyFontSize": "16px",
+    "bodyFontFamily": "Inter, -apple-system, BlinkMacSystemFont, sans-serif",
+    "medianFontSizePx": 14,
+    "medianFontWeight": 400,
+    "sizeHistogram": {
+      "9": 1,
+      "10": 5,
+      "11": 12,
+      "12": 260,
+      "14": 355,
+      "15": 70,
+      "16": 25,
+      "17": 1,
+      "28": 46
+    },
+    "weightHistogram": {
+      "400": 456,
+      "500": 162,
+      "600": 157
+    },
+    "heavyTextPercent": 0,
+    "visibleChars": 775,
+    "charsInInitialViewport": 775,
+    "shadowedElements": 7,
+    "gradientElements": 1,
+    "visibleElements": 146,
+    "cardCount": 4,
+    "cardAvgHeight": 186,
+    "cardMaxHeight": 186,
+    "pageScrollOverflowY": 0
+  },
+  "connections-en-1680x900": {
+    "viewport": [
+      1680,
+      900
+    ],
+    "bodyFontSize": "16px",
+    "bodyFontFamily": "Inter, -apple-system, BlinkMacSystemFont, sans-serif",
+    "medianFontSizePx": 13,
+    "medianFontWeight": 500,
+    "sizeHistogram": {
+      "9": 1,
+      "10": 5,
+      "11": 12,
+      "12": 275,
+      "13": 356,
+      "14": 231,
+      "15": 155,
+      "18": 41,
+      "24": 18
+    },
+    "weightHistogram": {
+      "400": 484,
+      "500": 348,
+      "600": 262
+    },
+    "heavyTextPercent": 0,
+    "visibleChars": 1094,
+    "charsInInitialViewport": 938,
+    "shadowedElements": 20,
+    "gradientElements": 2,
+    "visibleElements": 231,
+    "cardCount": 9,
+    "cardAvgHeight": 132,
+    "cardMaxHeight": 155,
+    "pageScrollOverflowY": 0
+  },
+  "home-en-1920x1080": {
+    "viewport": [
+      1920,
+      1080
+    ],
+    "bodyFontSize": "16px",
+    "bodyFontFamily": "Inter, -apple-system, BlinkMacSystemFont, sans-serif",
+    "medianFontSizePx": 14,
+    "medianFontWeight": 400,
+    "sizeHistogram": {
+      "9": 1,
+      "10": 5,
+      "11": 12,
+      "12": 260,
+      "14": 355,
+      "15": 70,
+      "16": 25,
+      "17": 1,
+      "28": 46
+    },
+    "weightHistogram": {
+      "400": 456,
+      "500": 162,
+      "600": 157
+    },
+    "heavyTextPercent": 0,
+    "visibleChars": 775,
+    "charsInInitialViewport": 775,
+    "shadowedElements": 7,
+    "gradientElements": 1,
+    "visibleElements": 146,
+    "cardCount": 4,
+    "cardAvgHeight": 186,
+    "cardMaxHeight": 186,
+    "pageScrollOverflowY": 0
+  },
+  "connections-en-1920x1080": {
+    "viewport": [
+      1920,
+      1080
+    ],
+    "bodyFontSize": "16px",
+    "bodyFontFamily": "Inter, -apple-system, BlinkMacSystemFont, sans-serif",
+    "medianFontSizePx": 13,
+    "medianFontWeight": 500,
+    "sizeHistogram": {
+      "9": 1,
+      "10": 5,
+      "11": 12,
+      "12": 275,
+      "13": 356,
+      "14": 231,
+      "15": 155,
+      "18": 41,
+      "24": 18
+    },
+    "weightHistogram": {
+      "400": 484,
+      "500": 348,
+      "600": 262
+    },
+    "heavyTextPercent": 0,
+    "visibleChars": 1094,
+    "charsInInitialViewport": 1094,
+    "shadowedElements": 20,
+    "gradientElements": 2,
+    "visibleElements": 231,
+    "cardCount": 9,
+    "cardAvgHeight": 132,
+    "cardMaxHeight": 155,
+    "pageScrollOverflowY": 0
+  },
+  "home-ko-1440x900": {
+    "viewport": [
+      1440,
+      900
+    ],
+    "bodyFontSize": "16px",
+    "bodyFontFamily": "Inter, -apple-system, BlinkMacSystemFont, sans-serif",
+    "medianFontSizePx": 14,
+    "medianFontWeight": 400,
+    "sizeHistogram": {
+      "9": 1,
+      "10": 5,
+      "11": 6,
+      "12": 186,
+      "14": 229,
+      "15": 34,
+      "16": 18,
+      "17": 1,
+      "28": 44
+    },
+    "weightHistogram": {
+      "400": 320,
+      "500": 80,
+      "600": 124
+    },
+    "heavyTextPercent": 0,
+    "visibleChars": 524,
+    "charsInInitialViewport": 524,
+    "shadowedElements": 7,
+    "gradientElements": 1,
+    "visibleElements": 146,
+    "cardCount": 4,
+    "cardAvgHeight": 194,
+    "cardMaxHeight": 194,
+    "pageScrollOverflowY": 0
+  },
+  "connections-ko-1440x900": {
+    "viewport": [
+      1440,
+      900
+    ],
+    "bodyFontSize": "16px",
+    "bodyFontFamily": "Inter, -apple-system, BlinkMacSystemFont, sans-serif",
+    "medianFontSizePx": 13,
+    "medianFontWeight": 500,
+    "sizeHistogram": {
+      "9": 1,
+      "10": 5,
+      "11": 6,
+      "12": 184,
+      "13": 188,
+      "14": 90,
+      "15": 128,
+      "18": 16,
+      "24": 6
+    },
+    "weightHistogram": {
+      "400": 287,
+      "500": 139,
+      "600": 198
+    },
+    "heavyTextPercent": 0,
+    "visibleChars": 624,
+    "charsInInitialViewport": 530,
+    "shadowedElements": 20,
+    "gradientElements": 2,
+    "visibleElements": 231,
+    "cardCount": 9,
+    "cardAvgHeight": 137,
+    "cardMaxHeight": 160,
+    "pageScrollOverflowY": 0
+  },
+  "home-ko-1680x900": {
+    "viewport": [
+      1680,
+      900
+    ],
+    "bodyFontSize": "16px",
+    "bodyFontFamily": "Inter, -apple-system, BlinkMacSystemFont, sans-serif",
+    "medianFontSizePx": 14,
+    "medianFontWeight": 400,
+    "sizeHistogram": {
+      "9": 1,
+      "10": 5,
+      "11": 6,
+      "12": 186,
+      "14": 229,
+      "15": 34,
+      "16": 18,
+      "17": 1,
+      "28": 44
+    },
+    "weightHistogram": {
+      "400": 320,
+      "500": 80,
+      "600": 124
+    },
+    "heavyTextPercent": 0,
+    "visibleChars": 524,
+    "charsInInitialViewport": 524,
+    "shadowedElements": 7,
+    "gradientElements": 1,
+    "visibleElements": 146,
+    "cardCount": 4,
+    "cardAvgHeight": 194,
+    "cardMaxHeight": 194,
+    "pageScrollOverflowY": 0
+  },
+  "connections-ko-1680x900": {
+    "viewport": [
+      1680,
+      900
+    ],
+    "bodyFontSize": "16px",
+    "bodyFontFamily": "Inter, -apple-system, BlinkMacSystemFont, sans-serif",
+    "medianFontSizePx": 13,
+    "medianFontWeight": 500,
+    "sizeHistogram": {
+      "9": 1,
+      "10": 5,
+      "11": 6,
+      "12": 184,
+      "13": 188,
+      "14": 90,
+      "15": 128,
+      "18": 16,
+      "24": 6
+    },
+    "weightHistogram": {
+      "400": 287,
+      "500": 139,
+      "600": 198
+    },
+    "heavyTextPercent": 0,
+    "visibleChars": 624,
+    "charsInInitialViewport": 530,
+    "shadowedElements": 20,
+    "gradientElements": 2,
+    "visibleElements": 231,
+    "cardCount": 9,
+    "cardAvgHeight": 137,
+    "cardMaxHeight": 160,
+    "pageScrollOverflowY": 0
+  },
+  "home-ko-1920x1080": {
+    "viewport": [
+      1920,
+      1080
+    ],
+    "bodyFontSize": "16px",
+    "bodyFontFamily": "Inter, -apple-system, BlinkMacSystemFont, sans-serif",
+    "medianFontSizePx": 14,
+    "medianFontWeight": 400,
+    "sizeHistogram": {
+      "9": 1,
+      "10": 5,
+      "11": 6,
+      "12": 186,
+      "14": 229,
+      "15": 34,
+      "16": 18,
+      "17": 1,
+      "28": 44
+    },
+    "weightHistogram": {
+      "400": 320,
+      "500": 80,
+      "600": 124
+    },
+    "heavyTextPercent": 0,
+    "visibleChars": 524,
+    "charsInInitialViewport": 524,
+    "shadowedElements": 7,
+    "gradientElements": 1,
+    "visibleElements": 146,
+    "cardCount": 4,
+    "cardAvgHeight": 194,
+    "cardMaxHeight": 194,
+    "pageScrollOverflowY": 0
+  },
+  "connections-ko-1920x1080": {
+    "viewport": [
+      1920,
+      1080
+    ],
+    "bodyFontSize": "16px",
+    "bodyFontFamily": "Inter, -apple-system, BlinkMacSystemFont, sans-serif",
+    "medianFontSizePx": 13,
+    "medianFontWeight": 500,
+    "sizeHistogram": {
+      "9": 1,
+      "10": 5,
+      "11": 6,
+      "12": 184,
+      "13": 188,
+      "14": 90,
+      "15": 128,
+      "18": 16,
+      "24": 6
+    },
+    "weightHistogram": {
+      "400": 287,
+      "500": 139,
+      "600": 198
+    },
+    "heavyTextPercent": 0,
+    "visibleChars": 624,
+    "charsInInitialViewport": 624,
+    "shadowedElements": 20,
+    "gradientElements": 2,
+    "visibleElements": 231,
+    "cardCount": 9,
+    "cardAvgHeight": 137,
+    "cardMaxHeight": 160,
+    "pageScrollOverflowY": 0
+  }
+}

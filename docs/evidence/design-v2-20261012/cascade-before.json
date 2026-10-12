@@ -1,0 +1,154 @@
+{
+  "home:greeting": {
+    "selector": "#main-greeting",
+    "winners": {
+      "font-size": "clamp(1.45rem, 2vw, 1.95rem)  <= .main-hero-row h1 [main-surface-rearchitecture.css]",
+      "font-weight": "bold  <= h1 [(inline)]",
+      "padding": "0  <= * [style.css]",
+      "padding-top": "0px  <= * [style.css]",
+      "padding-right": "0px  <= * [style.css]",
+      "padding-bottom": "0px  <= * [style.css]",
+      "padding-left": "0px  <= * [style.css]",
+      "line-height": "1.15  <= .main-hero-row h1 [main-surface-rearchitecture.css]",
+      "letter-spacing": "0px  <= .main-hero-row h1 [main-surface-rearchitecture.css]"
+    }
+  },
+  "home:briefing-card": {
+    "selector": ".main-briefing-card",
+    "winners": {
+      "padding": "10px 12px  <= .main-briefing-card [main-surface-rearchitecture.css]",
+      "padding-top": "10px  <= .main-briefing-card [main-surface-rearchitecture.css]",
+      "padding-right": "12px  <= .main-briefing-card [main-surface-rearchitecture.css]",
+      "padding-bottom": "10px  <= .main-briefing-card [main-surface-rearchitecture.css]",
+      "padding-left": "12px  <= .main-briefing-card [main-surface-rearchitecture.css]",
+      "border-radius": "12px  <= .main-briefing-card [main-surface-rearchitecture.css]",
+      "box-shadow": "rgba(28, 65, 132, 0.65) 0px 14px 45px -38px  <= .main-briefing-card [main-surface-rearchitecture.css]",
+      "background-image": "initial  <= .main-briefing-card [main-surface-rearchitecture.css]",
+      "min-height": "112px  <= .main-briefing-card [main-surface-rearchitecture.css]"
+    }
+  },
+  "home:briefing-card-title": {
+    "selector": ".main-briefing-card h2",
+    "winners": {
+      "font-size": "0.86rem  <= .main-briefing-card h2 [main-surface-rearchitecture.css]",
+      "font-weight": "800  <= .main-briefing-card h2 [main-surface-rearchitecture.css]",
+      "padding": "0  <= * [style.css]",
+      "padding-top": "0px  <= * [style.css]",
+      "padding-right": "0px  <= * [style.css]",
+      "padding-bottom": "0px  <= * [style.css]",
+      "padding-left": "0px  <= * [style.css]"
+    }
+  },
+  "home:sidebar-nav-link": {
+    "selector": ".nav-menu .nav-link",
+    "winners": {
+      "font-weight": "800 !important !important  <= .sidebar-left .nav-item.active .nav-link [desktop-home.css]",
+      "font-size": "11.5px !important !important  <= .sidebar-left .nav-link [desktop-home.css]",
+      "font-family": "  <= input, textarea, select, button [(inline)]",
+      "font-size-adjust": "  <= input, textarea, select, button [(inline)]",
+      "letter-spacing": "normal  <= input, textarea, select, button [(inline)]",
+      "line-height": "1 !important !important  <= .sidebar-left .nav-link [desktop-home.css]",
+      "padding-block-start": "1px  <= input[type=\"button\" i], input[type=\"submit\" i], input[type=\"reset\" i], [(inline)]",
+      "padding-block-end": "1px  <= input[type=\"button\" i], input[type=\"submit\" i], input[type=\"reset\" i], [(inline)]",
+      "padding-inline-start": "6px  <= input[type=\"button\" i], input[type=\"submit\" i], input[type=\"reset\" i], [(inline)]",
+      "padding-inline-end": "6px  <= input[type=\"button\" i], input[type=\"submit\" i], input[type=\"reset\" i], [(inline)]",
+      "padding": "0 13px !important !important  <= .sidebar-left .nav-link [desktop-home.css]",
+      "padding-top": "0px !important !important  <= .sidebar-left .nav-link [desktop-home.css]",
+      "padding-right": "13px !important !important  <= .sidebar-left .nav-link [desktop-home.css]",
+      "padding-bottom": "0px !important !important  <= .sidebar-left .nav-link [desktop-home.css]",
+      "padding-left": "13px !important !important  <= .sidebar-left .nav-link [desktop-home.css]",
+      "border-radius": "var(--nxc-radius) !important !important  <= .nav-menu .nav-link, .mh-nav-item, .mob-nav-item [product-design-convergence.css]",
+      "background-image": "initial !important !important  <= .nav-menu .nav-item.active .nav-link, .mh-nav-item.active, .mob-nav-it [product-design-convergence.css]",
+      "min-height": "32px !important !important  <= .sidebar-left .nav-item, .sidebar-left .nav-link [desktop-home.css]",
+      "height": "32px !important !important  <= .sidebar-left .nav-item, .sidebar-left .nav-link [desktop-home.css]",
+      "box-shadow": "none !important !important  <= .sidebar-left .nav-item.active .nav-link [desktop-home.css]"
+    }
+  },
+  "settings:sidebar-nav-link": {
+    "selector": ".nav-menu .nav-link",
+    "winners": {
+      "font-weight": "650 !important !important  <= .sidebar-left .nav-link [desktop-home.css]",
+      "font-size": "11.5px !important !important  <= .sidebar-left .nav-link [desktop-home.css]",
+      "font-family": "  <= input, textarea, select, button [(inline)]",
+      "font-size-adjust": "  <= input, textarea, select, button [(inline)]",
+      "letter-spacing": "normal  <= input, textarea, select, button [(inline)]",
+      "line-height": "1 !important !important  <= .sidebar-left .nav-link [desktop-home.css]",
+      "padding-block-start": "1px  <= input[type=\"button\" i], input[type=\"submit\" i], input[type=\"reset\" i], [(inline)]",
+      "padding-block-end": "1px  <= input[type=\"button\" i], input[type=\"submit\" i], input[type=\"reset\" i], [(inline)]",
+      "padding-inline-start": "6px  <= input[type=\"button\" i], input[type=\"submit\" i], input[type=\"reset\" i], [(inline)]",
+      "padding-inline-end": "6px  <= input[type=\"button\" i], input[type=\"submit\" i], input[type=\"reset\" i], [(inline)]",
+      "padding": "0 13px !important !important  <= .sidebar-left .nav-link [desktop-home.css]",
+      "padding-top": "0px !important !important  <= .sidebar-left .nav-link [desktop-home.css]",
+      "padding-right": "13px !important !important  <= .sidebar-left .nav-link [desktop-home.css]",
+      "padding-bottom": "0px !important !important  <= .sidebar-left .nav-link [desktop-home.css]",
+      "padding-left": "13px !important !important  <= .sidebar-left .nav-link [desktop-home.css]",
+      "border-radius": "var(--nxc-radius) !important !important  <= .nav-menu .nav-link, .mh-nav-item, .mob-nav-item [product-design-convergence.css]",
+      "background-image": "initial !important !important  <= .sidebar-left .nav-link [desktop-home.css]",
+      "min-height": "32px !important !important  <= .sidebar-left .nav-item, .sidebar-left .nav-link [desktop-home.css]",
+      "height": "32px !important !important  <= .sidebar-left .nav-item, .sidebar-left .nav-link [desktop-home.css]",
+      "box-shadow": "none !important !important  <= .sidebar-left .nav-link [desktop-home.css]"
+    }
+  },
+  "settings:page-title": {
+    "selector": "#view-settings h2",
+    "winners": {
+      "font-size": "2.35rem  <= .settings-page-heading h2 [style.css]",
+      "font-weight": "850  <= .settings-page-heading h2 [style.css]",
+      "padding": "0  <= * [style.css]",
+      "padding-top": "0px  <= * [style.css]",
+      "padding-right": "0px  <= * [style.css]",
+      "padding-bottom": "0px  <= * [style.css]",
+      "padding-left": "0px  <= * [style.css]",
+      "line-height": "1.05  <= .settings-page-heading h2 [style.css]",
+      "letter-spacing": "0px  <= .settings-page-heading h2 [style.css]"
+    }
+  },
+  "settings:category-tab": {
+    "selector": "#cat-tab-connections",
+    "winners": {
+      "font-weight": "700  <= .settings-cat-tab [style.css]",
+      "font-size": "0.95rem  <= .settings-cat-tab [style.css]",
+      "font-family": "inherit  <= .settings-cat-tab [style.css]",
+      "font-size-adjust": "inherit  <= .settings-cat-tab [style.css]",
+      "letter-spacing": "normal  <= input, textarea, select, button [(inline)]",
+      "line-height": "inherit  <= .settings-cat-tab [style.css]",
+      "padding-block-start": "1px  <= input[type=\"button\" i], input[type=\"submit\" i], input[type=\"reset\" i], [(inline)]",
+      "padding-block-end": "1px  <= input[type=\"button\" i], input[type=\"submit\" i], input[type=\"reset\" i], [(inline)]",
+      "padding-inline-start": "6px  <= input[type=\"button\" i], input[type=\"submit\" i], input[type=\"reset\" i], [(inline)]",
+      "padding-inline-end": "6px  <= input[type=\"button\" i], input[type=\"submit\" i], input[type=\"reset\" i], [(inline)]",
+      "padding": ".68rem 1rem  <= .settings-top-tabs .settings-cat-tab [style.css]",
+      "padding-top": "0.68rem  <= .settings-top-tabs .settings-cat-tab [style.css]",
+      "padding-right": "1rem  <= .settings-top-tabs .settings-cat-tab [style.css]",
+      "padding-bottom": "0.68rem  <= .settings-top-tabs .settings-cat-tab [style.css]",
+      "padding-left": "1rem  <= .settings-top-tabs .settings-cat-tab [style.css]",
+      "border-radius": "9px  <= .settings-top-tabs .settings-cat-tab [style.css]",
+      "background-image": "initial  <= .settings-top-tabs .settings-cat-tab.active [style.css]",
+      "box-shadow": "rgba(21, 92, 245, 0.22) 0px 10px 22px  <= .settings-top-tabs .settings-cat-tab.active [style.css]"
+    }
+  },
+  "settings:card": {
+    "selector": ".nagex-conn-card",
+    "winners": {
+      "padding": "14px 16px  <= .nagex-conn-card [connections-ui.css]",
+      "padding-top": "14px  <= .nagex-conn-card [connections-ui.css]",
+      "padding-right": "16px  <= .nagex-conn-card [connections-ui.css]",
+      "padding-bottom": "14px  <= .nagex-conn-card [connections-ui.css]",
+      "padding-left": "16px  <= .nagex-conn-card [connections-ui.css]",
+      "border-radius": "14px  <= .nagex-conn-card [connections-ui.css]",
+      "box-shadow": "rgba(17, 37, 77, 0.04) 0px 1px 2px  <= .nagex-conn-card [connections-ui.css]",
+      "background-image": "initial  <= .nagex-conn-card[data-state=\"UNAVAILABLE\"], .nagex-conn-card[data-stat [connections-ui.css]"
+    }
+  },
+  "settings:card-title": {
+    "selector": ".nagex-conn-card-title h4",
+    "winners": {
+      "font-weight": "700  <= .nagex-conn-card-title h4 [connections-ui.css]",
+      "padding": "0  <= * [style.css]",
+      "padding-top": "0px  <= * [style.css]",
+      "padding-right": "0px  <= * [style.css]",
+      "padding-bottom": "0px  <= * [style.css]",
+      "padding-left": "0px  <= * [style.css]",
+      "font-size": "0.98rem  <= .nagex-conn-card-title h4 [connections-ui.css]"
+    }
+  }
+}

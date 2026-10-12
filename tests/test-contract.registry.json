@@ -5347,6 +5347,22 @@
       "notes": "Production server harness with provider credentials scrubbed. Google tokens, GitHub connection, MCP service/policy/broker and sessions are real; GitHub is a scripted fetch inside the server process and the remote MCP server is an in-process loopback server (the https registration URL is rewritten to it; the production URL policy is restored for the rejection steps). No real OAuth account or remote MCP server is contacted.",
       "writesRepositoryArtifacts": false
     },
+    "design_system_v2_browser": {
+      "milestone": "NAGEX-DESIGN-SYSTEM-V2",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Design System V2 contract in real Chromium (EN/KR, 1440/1680/1920): measured typography (hero 28/600, body 14-15, nothing above weight 600 on Home, Connections and the list screens), control heights (30/34/38), card density without artificial minimum heights, spacing on the 4/8/12/16/20/24/32 scale, locale font stacks (Inter for English, Noto Sans KR for Korean) switching live with the language, natural English/Korean Home and Connections copy, greeting word order, shell geometry (176px token sidebar following the viewport, 13.5px/500 navigation, no fabricated user block), and the shared page system of Recent, Workspace, Knowledge and Activity (same title style, one content column and left edge, styled buttons and filter pills, localized chips, no inline weights).",
+      "notes": "Production server harness with provider credentials scrubbed; computed-style assertions against the V2 token scale, never screenshots. Google Fonts are requested by the page (Inter, Noto Sans KR); the assertions read the declared font-family stack, so they hold offline.",
+      "writesRepositoryArtifacts": false
+    },
     "settings_screen_certification_browser": {
       "milestone": "NAGEX-DESKTOP-SETTINGS-CERT",
       "classification": "REAL_BROWSER_CERT",

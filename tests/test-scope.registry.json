@@ -64,7 +64,8 @@
       "capability_broker",
       "tool_capability_id_alignment",
       "r23_3t_permission_approval_hardening",
-      "connections_redesign_browser"
+      "connections_redesign_browser",
+      "design_system_v2_browser"
     ],
     "google": [
       "google_calendar_connection_state",
@@ -335,7 +336,8 @@
       "r24_6d_settings_surface",
       "r24_7b_canvas_ask_contract",
       "r24_8b_ui_integrity_contract",
-      "connections_redesign_browser"
+      "connections_redesign_browser",
+      "design_system_v2_browser"
     ],
     "knowledge": [
       "r24_5c_knowledge_live"
