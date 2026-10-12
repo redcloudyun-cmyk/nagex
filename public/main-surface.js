@@ -1942,6 +1942,16 @@
 
   // The other screens (Activity ...) translate application-generated wording with the same rules as Main.
   window.NAGEX_MAIN_L10N = { localizeAppText, mt };
+  // Other screens (Recent) continue work in Main: go Home, wait for Main, then open the artifact in the result panel.
+  window.NAGEX_MAIN_ACTIONS = {
+    openArtifact: async (artifactId) => {
+      if (!artifactId) return false;
+      if (window.NAGEX && window.NAGEX.switchTab) window.NAGEX.switchTab('tab-home');
+      for (let i = 0; i < 60 && !document.getElementById('main-result-panel'); i += 1) await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      return openArtifactResult(artifactId);
+    },
+  };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', rebuildHome);
   else rebuildHome();

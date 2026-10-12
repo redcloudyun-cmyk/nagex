@@ -5333,6 +5333,22 @@
       "notes": "Production server harness with provider credentials scrubbed, so capture processing fails truthfully (no model provider); no network access is used.",
       "writesRepositoryArtifacts": false
     },
+    "sidebar_navigation_certification_browser": {
+      "milestone": "NAGEX-DESKTOP-SIDEBAR-NAV-CERT",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Real-Chromium certification of the Desktop sidebar: exactly Home, Recent, Workspace, Knowledge, Activity, Settings (EN/KR labels); every item opens its screen, updates the route, is marked active, loads real data or an honest empty state with no script error, horizontal overflow or raw i18n key at 1440x900, 1680x900 and 1920x1080; refresh keeps the route and back/forward walk the history; unauthenticated requests to each screen API answer 401; Recent lists only the real artifacts of the owning user newest first, opens one in Main, and is localized.",
+      "notes": "Production server harness with provider credentials scrubbed; artifacts are seeded through the real stores.",
+      "writesRepositoryArtifacts": false
+    },
     "personal_home_profile_name": {
       "milestone": "NAGEX-DESKTOP-MAIN-GREETING",
       "classification": "CANONICAL_BEHAVIOR",

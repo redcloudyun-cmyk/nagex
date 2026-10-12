@@ -3814,6 +3814,38 @@
     'mainText.Copy': '\uBCF5\uC0AC',
     'mainText.Copied': '\uBCF5\uC0AC\uB428',
   });
+  Object.assign(translations.en, {
+    'nav.recent': 'Recent',
+    'recent.title': 'Recent',
+    'recent.subtitle': 'What you created lately. Open anything to keep working on it.',
+    'recent.empty': 'Nothing created yet. Ask NAgex to write a document or make an image.',
+    'recent.loadError': 'Couldn\'t load your recent items.',
+    'recent.open': 'Open',
+    'recent.today': 'Today',
+    'recent.yesterday': 'Yesterday',
+    'recent.earlier': 'Earlier',
+    'recent.openFailed': 'Couldn\'t open this item.',
+    'mainText.Analysis': 'Analysis',
+    'mainText.Presentation': 'Presentation',
+    'mainText.Artifact': 'Artifact',
+    'mainText.Loading': 'Loading...',
+  });
+  Object.assign(translations.ko, {
+    'nav.recent': '\uCD5C\uADFC',
+    'recent.title': '\uCD5C\uADFC',
+    'recent.subtitle': '\uCD5C\uADFC\uC5D0 \uB9CC\uB4E0 \uD56D\uBAA9\uC785\uB2C8\uB2E4. \uC5F4\uC5B4\uC11C \uC774\uC5B4\uC11C \uC791\uC5C5\uD558\uC138\uC694.',
+    'recent.empty': '\uC544\uC9C1 \uB9CC\uB4E0 \uD56D\uBAA9\uC774 \uC5C6\uC2B5\uB2C8\uB2E4. NAgex\uC5D0\uAC8C \uBB38\uC11C \uC791\uC131\uC774\uB098 \uC774\uBBF8\uC9C0 \uC0DD\uC131\uC744 \uC694\uCCAD\uD574 \uBCF4\uC138\uC694.',
+    'recent.loadError': '\uCD5C\uADFC \uD56D\uBAA9\uC744 \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.',
+    'recent.open': '\uC5F4\uAE30',
+    'recent.today': '\uC624\uB298',
+    'recent.yesterday': '\uC5B4\uC81C',
+    'recent.earlier': '\uC774\uC804',
+    'recent.openFailed': '\uC774 \uD56D\uBAA9\uC744 \uC5F4\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.',
+    'mainText.Analysis': '\uBD84\uC11D',
+    'mainText.Presentation': '\uD504\uB808\uC820\uD14C\uC774\uC158',
+    'mainText.Artifact': '\uACB0\uACFC\uBB3C',
+    'mainText.Loading': '\uBD88\uB7EC\uC624\uB294 \uC911...',
+  });
   // tx(): translate a fixed English UI phrase (key mainText.<slug>); unknown text and user content come back unchanged.
   function tx(text) { if (text == null || text === '') return text == null ? '' : text; const value = String(text); const key = 'mainText.' + value.replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 80); const out = t(key, value); return out === key ? value : out; }
   window.NAGEX_I18N = { t, tx, getLocale, getLanguage: getLocale, setLocale, toggleLocale, applyLocale, getMissingKeys: () => Array.from(missingKeys) };

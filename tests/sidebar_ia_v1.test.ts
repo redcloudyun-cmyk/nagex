@@ -18,6 +18,7 @@ test('Sidebar IA v1 primary menu is canonical and excludes approval/internals', 
   const index = read('public/index.html');
   assert.deepEqual(primaryNavTabs(appJs), [
     'tab-home',
+    'tab-recent',
     'tab-inbox',
     'tab-create',
     'tab-canvas',
@@ -27,7 +28,7 @@ test('Sidebar IA v1 primary menu is canonical and excludes approval/internals', 
     'tab-settings',
   ]);
   const sidebar = index.match(/<ul class="nav-menu">([\s\S]*?)<\/ul>/)?.[1] || '';
-  assert.equal((sidebar.match(/<li class="nav-item(?: active)?" data-tab=/g) || []).length, 8);
+  assert.equal((sidebar.match(/<li class="nav-item(?: active)?" data-tab=/g) || []).length, 9);
   assert.doesNotMatch(sidebar, /tab-approvals/);
   assert.doesNotMatch(sidebar, /nav\.approvals/);
   for (const hidden of ['nav.agents', 'nav.skills', 'nav.tools', 'nav.executions']) {

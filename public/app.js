@@ -463,6 +463,7 @@
   // already were before Phase D).
   window.NAGEX_PRIMARY_NAV = [
     { tab: 'tab-home', i18nKey: 'nav.home', mobilePrimary: true },
+    { tab: 'tab-recent', i18nKey: 'nav.recent', mobilePrimary: false },
     { tab: 'tab-inbox', i18nKey: 'nav.inbox', mobilePrimary: true },
     { tab: 'tab-create', i18nKey: 'nav.create', mobilePrimary: true },
     { tab: 'tab-canvas', i18nKey: 'nav.canvas', mobilePrimary: true },
@@ -484,6 +485,7 @@
     'tab-tools': '#tools',
     'tab-approvals': '#approvals',
     'tab-knowledge': '#knowledge',
+    'tab-recent': '#recent',
     'tab-settings': '#settings',
     'tab-my-space': '#my-space',
     'tab-create': '#create',
@@ -504,6 +506,7 @@
     '#approvals': 'tab-inbox',
     '#inbox/approvals': 'tab-inbox',
     '#knowledge': 'tab-knowledge',
+    '#recent': 'tab-recent',
     '#settings': 'tab-settings',
     '#my-space': 'tab-my-space',
     '#create': 'tab-create',
@@ -658,6 +661,7 @@
     else if (state.activeTab === 'tab-approvals') renderApprovals();
     else if (state.activeTab === 'tab-executions') renderActivity();
     else if (state.activeTab === 'tab-knowledge') fetchKnowledge(knowledgeQuery);
+    else if (state.activeTab === 'tab-recent') renderRecent();
     else if (state.activeTab === 'tab-settings') { renderSettings(); refreshMobileSettings(); }
     else if (state.activeTab === 'tab-my-space') renderMySpace();
     else if (state.activeTab === 'tab-create') renderCreate();
@@ -2561,6 +2565,48 @@
   // /api/v1/executions demo feed, and never raw AuditLogger-shaped fields
   // (tool.execution.completed, browser.navigate, skill.scheduling, ...).
   // ?€?€ R12.1 Increment 3 ??Outcome-first Activity timeline ?€?€
+  // Recent: the user's own artifacts (the existing ArtifactStore, newest first). Opening one continues the work in Main.
+  async function renderRecent() {
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    const el = document.getElementById('recent-list');
+    if (!el) return;
+    el.innerHTML = '<div class="empty-state-text">' + escapeHtml(l10nPhrase('Loading...')) + '</div>';
+    const data = await apiFetch('/api/v1/artifacts?limit=50');
+    if (!data || data.error || !Array.isArray(data.artifacts)) {
+      el.innerHTML = '<div class="empty-state-text" style="color:#ef4444;">' + escapeHtml(t('recent.loadError')) + '</div>';
+      return;
+    }
+    const items = data.artifacts.slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    if (items.length === 0) {
+      el.innerHTML = '<div class="empty-state-text">' + escapeHtml(t('recent.empty')) + '</div>';
+      return;
+    }
+    const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
+    const day = 86400000;
+    const groupOf = (iso) => { const ms = new Date(iso).getTime(); return ms >= startOfToday.getTime() ? 'today' : ms >= startOfToday.getTime() - day ? 'yesterday' : 'earlier'; };
+    const labels = { today: t('recent.today'), yesterday: t('recent.yesterday'), earlier: t('recent.earlier') };
+    const typeLabel = (type) => l10nPhrase({ DOCUMENT: 'Document', IMAGE: 'Image', PRESENTATION: 'Presentation', VIDEO: 'Video', ANALYSIS: 'Analysis' }[type] || 'Artifact');
+    let html = '';
+    ['today', 'yesterday', 'earlier'].forEach((key) => {
+      const group = items.filter((item) => groupOf(item.createdAt) === key);
+      if (!group.length) return;
+      html += '<h3 class="recent-group-title">' + escapeHtml(labels[key]) + ' (' + group.length + ')</h3>';
+      html += group.map((item) => {
+        const when = new Date(item.createdAt);
+        const time = key === 'today' ? when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : when.toLocaleDateString([], { month: 'short', day: 'numeric' });
+        return '<div class="recent-item" data-artifact-id="' + escapeHtml(item.artifactId) + '"><div class="recent-item-main"><span class="recent-item-title">' + escapeHtml(item.title || '') + '</span><span class="recent-item-meta">' + escapeHtml(typeLabel(item.type)) + ' - ' + escapeHtml(time) + '</span></div><button type="button" class="btn-secondary recent-open" data-artifact-id="' + escapeHtml(item.artifactId) + '">' + escapeHtml(t('recent.open')) + '</button></div>';
+      }).join('');
+    });
+    el.innerHTML = html;
+    el.querySelectorAll('.recent-open').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const actions = window.NAGEX_MAIN_ACTIONS;
+        const ok = actions && actions.openArtifact ? await actions.openArtifact(btn.getAttribute('data-artifact-id')) : false;
+        if (!ok) window.alert(t('recent.openFailed'));
+      });
+    });
+  }
+
   async function renderActivity() {
     const container = document.getElementById('executions-list-container');
     if (!container) return;

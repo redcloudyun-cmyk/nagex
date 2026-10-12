@@ -39,6 +39,7 @@
       "r23_3t_permission_approval_hardening"
     ],
     "browser": [
+      "sidebar_navigation_certification_browser",
       "workspace_knowledge_activity_certification_browser",
       "settings_screen_certification_browser",
       "main_unified_workspace_browser",
@@ -309,6 +310,7 @@
       "voice_architecture_boundaries"
     ],
     "ux": [
+      "sidebar_navigation_certification_browser",
       "workspace_knowledge_activity_certification_browser",
       "settings_screen_certification_browser",
       "main_unified_workspace_browser",

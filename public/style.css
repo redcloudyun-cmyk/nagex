@@ -4353,3 +4353,11 @@ body {
 .workspace-notice[data-tone="error"] { background: #fff1f1; color: #8a1f1f; }
 .workspace-notice[hidden], .workspace-note-form[hidden] { display: none !important; }
 .filter-pill[aria-pressed="true"] { font-weight: 700; }
+
+/* Recent */
+.recent-list { display: grid; gap: 8px; max-width: 880px; }
+.recent-group-title { margin: 14px 0 4px; font-size: .8rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--color-text-secondary, #5b6b86); }
+.recent-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border: 1px solid #dfe9f7; border-radius: 12px; background: rgba(255,255,255,.9); }
+.recent-item-main { display: grid; gap: 2px; min-width: 0; }
+.recent-item-title { font-weight: 600; overflow-wrap: anywhere; }
+.recent-item-meta { font-size: .8rem; color: #5b6b86; }
