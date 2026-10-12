@@ -113,7 +113,7 @@ export const handleAuthRoutes: AsyncRouteRegistrar<AuthRoutesDependencies> = asy
       data: {
         authenticated: true,
         session: { sessionId: session.sessionId, createdAt: session.createdAt, lastActiveAt: session.lastActiveAt, expiresAt: session.expiresAt },
-        user: { userId: identity.userId, email: identity.email, accountState: identity.accountState },
+        user: { userId: identity.userId, email: identity.email, accountState: identity.accountState, authProvider: identity.authProvider },
         profile: profile ? { displayName: profile.displayName, locale: profile.locale, timezone: profile.timezone } : null,
       },
     };

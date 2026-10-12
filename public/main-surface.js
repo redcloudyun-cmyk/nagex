@@ -1661,7 +1661,8 @@
     const view = document.getElementById('view-home');
     if (!view || view.dataset.mainSurface === '1') return;
     view.dataset.mainSurface = '1';
-    view.className = 'tab-view active-view';
+    // keep whatever app.js decided for this route: a refresh on another screen must not bring Home back on top
+    view.className = view.classList.contains('active-view') ? 'tab-view active-view' : 'tab-view';
     view.innerHTML = template();
     renderModes();
     applyMainStaticLocale();

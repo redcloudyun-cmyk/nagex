@@ -11,6 +11,9 @@
     return resolved && resolved !== key ? resolved : (fallback || key);
   }
 
+  // shown once after the next Account render (a successful save re-renders the panel)
+  let accountNotice = null; // { text, at }
+
   let currentUserState = {
     authenticated: false,
     user: null,
@@ -244,6 +247,7 @@
       ? window.NAGEX.apiFetch('/api/v1/account/sessions').catch(() => null)
       : Promise.resolve(null);
     await Promise.all(targets.map((c) => renderAccountInto(c.id, c.prefix, sessionsPromise)));
+
   }
 
   async function renderAccountInto(containerId, idp, sessionsPromise) {
@@ -264,6 +268,11 @@
     }
 
     const { user, profile } = currentUserState;
+    // Disable / delete are confirmed with a password; accounts that sign in with Google or Microsoft have none,
+    // so those controls could never succeed. They are only offered where they can work.
+    const provider = String(user.authProvider || '');
+    const passwordLifecycle = provider === 'local';
+    const methodLabel = provider ? t('account.method.' + provider, provider) : '';
     let sessionsHtml = `<div class="nagex-loading-row">${escapeHtml(t('account.loadingSessions', 'Loading active sessions...'))}</div>`;
 
     el.innerHTML = `
@@ -271,8 +280,20 @@
         <!-- Profile Form -->
         <h4 class="mh-settings-subheading">${escapeHtml(t('account.profile', 'Profile'))}</h4>
         <div class="mh-settings-row">
+          <div class="mh-settings-row-body">
+            <span class="mh-settings-row-title">${escapeHtml(t('account.email', 'Email'))}</span>
+            <span class="mh-row-detail" id="${idp}acc-email">${escapeHtml(user.email || '')}</span>
+          </div>
+        </div>
+        ${methodLabel ? `<div class="mh-settings-row">
+          <div class="mh-settings-row-body">
+            <span class="mh-settings-row-title">${escapeHtml(t('account.signInMethod', 'Sign-in method'))}</span>
+            <span class="mh-row-detail" id="${idp}acc-method">${escapeHtml(methodLabel)}</span>
+          </div>
+        </div>` : ''}
+        <div class="mh-settings-row">
           <div class="mh-settings-form-row">
-            <label>${escapeHtml(t('account.displayName', 'Display Name'))}</label>
+            <label for="${idp}acc-profile-name">${escapeHtml(t('account.displayName', 'Display Name'))}</label>
             <input type="text" id="${idp}acc-profile-name" class="mh-input" value="${escapeHtml(profile?.displayName || '')}">
           </div>
         </div>
@@ -300,7 +321,8 @@
         <!-- Danger Zone -->
         <h4 class="mh-settings-subheading mh-subheading-danger">${escapeHtml(t('account.dangerZone', 'Danger Zone'))}</h4>
         <div class="mh-settings-danger-card">
-          <div class="mh-settings-row">
+          ${passwordLifecycle ? '' : `<div class="mh-settings-row"><div class="mh-settings-row-body"><span class="mh-row-detail" id="${idp}acc-lifecycle-note">${escapeHtml(t('account.oauthLifecycleNote', 'Disabling or deleting an account that signs in with Google or Microsoft is not available in the app yet.'))}</span></div></div>`}
+          ${passwordLifecycle ? `<div class="mh-settings-row">
             <div class="mh-settings-row-body">
               <span class="mh-settings-row-title">${escapeHtml(t('account.disableAccount', 'Disable Account'))}</span>
               <span class="mh-row-detail">${escapeHtml(t('account.disableAccountDesc', 'Temporarily disable your account.'))}</span>
@@ -316,9 +338,14 @@
               ? `<button class="mh-settings-action-btn" id="${idp}btn-cancel-delete">${escapeHtml(t('account.cancelDeletion', 'Cancel Deletion'))}</button>`
               : `<button class="mh-settings-action-btn mh-btn-danger" id="${idp}btn-delete-account">${escapeHtml(t('account.deleteAccount', 'Delete'))}</button>`
             }
-          </div>
+          </div>` : ''}
         </div>
       </div>`;
+    // a save re-renders the panel (and the session refresh can re-render it again): keep the confirmation visible for a few seconds
+    if (accountNotice && Date.now() - accountNotice.at < 6000) {
+      const noticeEl = document.getElementById(idp + 'acc-profile-msg');
+      if (noticeEl) noticeEl.innerHTML = `<p class="form-success" role="status">${escapeHtml(accountNotice.text)}</p>`;
+    }
 
     // Bind profile save
     document.getElementById(idp + 'btn-save-profile')?.addEventListener('click', async () => {
@@ -328,16 +355,20 @@
         method: 'PATCH',
         body: JSON.stringify({ displayName, locale }),
       });
+      if (res && !res.error) accountNotice = { text: t('account.profileSaved', 'Profile saved.'), at: Date.now() };
       if (!res || res.error) {
         const msg = document.getElementById(idp + 'acc-profile-msg');
         if (msg) msg.innerHTML = `<p class="form-error">${escapeHtml((res && res.error && res.error.message) || t('settings.saveFailed', 'Could not save settings.'))}</p>`;
         return;
       }
       await checkSession();
+      // the account language is the canonical UI language: apply it right away
+      if (window.NAGEX_I18N && canonicalLocale(locale) && canonicalLocale(locale) !== window.NAGEX_I18N.getLocale()) window.NAGEX_I18N.setLocale(canonicalLocale(locale));
     });
 
     // Bind logout all
     document.getElementById(idp + 'btn-logout-all')?.addEventListener('click', async () => {
+      if (!window.confirm(t('account.logoutAllConfirm', 'Sign out of all devices, including this one?'))) return;
       await window.NAGEX.apiFetch('/api/v1/auth/logout-all', { method: 'POST' });
       await checkSession();
       renderAccountSettings();

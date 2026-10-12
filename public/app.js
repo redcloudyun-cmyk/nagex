@@ -2869,6 +2869,7 @@
     });
     // R24.6D ??Desktop Account: the shared Account renderer (also used by Mobile) paints it.
     if (catKey === 'devices') renderSettingsDevices();
+    if (catKey === 'account' && window.NAGEX && window.NAGEX.renderAccountSettings) window.NAGEX.renderAccountSettings();
 
     if (!isNavigatingFromPopState && pushHistory && state.activeTab === 'tab-settings' && typeof window !== 'undefined' && window.history && window.history.pushState) {
       const targetHash = `#settings/${catKey}`;
@@ -2908,24 +2909,26 @@
     const settingsFinalPill = (label, tone) => '<span class="settings-state-pill ' + (tone || '') + '">' + escapeHtml(label) + '</span>';
     const settingsFinalCard = (iconName, iconPath, title, desc, body, action) => '<section class="settings-pro-card settings-final-card"><div class="settings-card-title-row"><div><h3>' + escapeHtml(title) + '</h3><p class="setting-sub">' + escapeHtml(desc) + '</p></div>' + settingsFinalIcon(iconName, iconPath) + '</div>' + (body || '') + (action || '') + '</section>';
     const settingsFinalRow = (label, value, tone) => '<div class="settings-row-lite settings-final-row"><span>' + escapeHtml(label) + '</span>' + settingsFinalPill(value, tone) + '</div>';
-    const settingsOption = (label, desc, value, selected) => '<div class="appearance-option-card ' + (selected ? 'selected' : 'disabled') + ' settings-final-option" role="radio" aria-checked="' + (selected ? 'true' : 'false') + '" aria-disabled="' + (selected ? 'false' : 'true') + '" tabindex="' + (selected ? '0' : '-1') + '"><div class="appearance-option-top">' + settingsFinalPill(value, selected ? 'on' : '') + '</div><h4>' + escapeHtml(label) + '</h4><p>' + escapeHtml(desc) + '</p></div>';
+    // localeCode makes the card a real language switch; without it the card only reports a state
+    const settingsOption = (label, desc, value, selected, localeCode) => '<div class="appearance-option-card ' + (selected || localeCode ? (selected ? 'selected' : '') : 'disabled') + ' settings-final-option" role="radio" aria-checked="' + (selected ? 'true' : 'false') + '" aria-disabled="' + (selected || localeCode ? 'false' : 'true') + '" tabindex="' + (selected || localeCode ? '0' : '-1') + '"' + (localeCode ? ' data-locale-option="' + localeCode + '"' : '') + '><div class="appearance-option-top">' + settingsFinalPill(value, selected ? 'on' : '') + '</div><h4>' + escapeHtml(label) + '</h4><p>' + escapeHtml(desc) + '</p></div>';
     const voiceWakeOption = (label, desc, selected) => '<label class="voice-wake-option ' + (selected ? 'selected' : '') + '"><input type="radio" name="voice-wake-phrase" value="' + escapeHtml(label) + '" ' + (selected ? 'checked' : '') + '><span><strong>' + label + '</strong><small>' + escapeHtml(desc) + '</small></span></label>';
     const voiceConsentKeys = (() => { try { return window.NAGEX_RENDERER_VOICE && window.NAGEX_RENDERER_VOICE.consent ? window.NAGEX_RENDERER_VOICE.consent.list().map((entry) => entry.key) : []; } catch (_e) { return []; } })();
     const voiceConsentLabels = voiceConsentKeys.map((key) => (/google/.test(key) ? 'Google' : /microsoft/.test(key) ? 'Microsoft' : key));
     const voiceProcessingBody = '<div class="voice-processing-settings" data-voice-processing-settings="1">' +
       '<h4>' + escapeHtml(tt('voiceProcessing.title', 'Voice processing')) + '</h4>' +
       '<div class="settings-row-lite settings-final-row"><span>' + escapeHtml(tt('voiceProcessing.allowed', 'Allowed speech services')) + '</span><span data-voice-consent-status>' + escapeHtml(voiceConsentLabels.length ? voiceConsentLabels.join(', ') : tt('voiceProcessing.none', 'None. Voice input works only when your browser confirms on-device recognition.')) + '</span></div>' +
-      '<div class="voice-identity-actions"><button class="settings-secondary-action" type="button" ' + (voiceConsentLabels.length ? '' : 'disabled ') + 'data-withdrawn-text="' + escapeHtml(tt('voiceProcessing.withdrawn', 'Withdrawn. Voice input will ask again before any audio is sent.')) + '" onclick="window.NAGEX_RENDERER_VOICE.consent.withdrawAll();var s=this.parentNode.parentNode.querySelector(&quot;[data-voice-consent-status]&quot;);if(s)s.textContent=this.dataset.withdrawnText;this.disabled=true;">' + escapeHtml(tt('voiceProcessing.withdraw', 'Withdraw voice consent')) + '</button></div>' +
+      '<div class="voice-identity-actions"><button class="settings-secondary-action" type="button" ' + (voiceConsentLabels.length ? '' : 'disabled aria-disabled="true" title="' + escapeHtml(tt('voiceProcessing.noneToWithdraw', 'No voice consent has been given yet.')) + '" ') + 'data-withdrawn-text="' + escapeHtml(tt('voiceProcessing.withdrawn', 'Withdrawn. Voice input will ask again before any audio is sent.')) + '" onclick="window.NAGEX_RENDERER_VOICE.consent.withdrawAll();var s=this.parentNode.parentNode.querySelector(&quot;[data-voice-consent-status]&quot;);if(s)s.textContent=this.dataset.withdrawnText;this.disabled=true;">' + escapeHtml(tt('voiceProcessing.withdraw', 'Withdraw voice consent')) + '</button></div>' +
       '<p class="setting-sub">' + escapeHtml(tt('voiceProcessing.note', 'NAgex only receives text from voice input and never stores your audio.')) + '</p></div>';
     const voiceIdentityBody = '<div class="voice-identity-settings" data-voice-identity-settings="1">' +
       '<div class="settings-row-lite settings-final-row"><span>' + escapeHtml(tt('voiceIdentity.status', 'Voice profile status')) + '</span>' + settingsFinalPill(tt('voiceIdentity.notEnrolled', 'Not enrolled'), '') + '</div>' +
-      '<div class="voice-identity-actions"><button class="settings-primary-action" type="button" onclick="window.NAGEX.openVoiceEnrollmentModal()">' + escapeHtml(tt('voiceIdentity.enroll', 'Enroll my voice')) + '</button><button class="settings-secondary-action" type="button" onclick="window.NAGEX.openVoiceEnrollmentModal()">' + escapeHtml(tt('voiceIdentity.reenroll', 'Re-enroll voice')) + '</button><button class="settings-secondary-action" type="button" disabled>' + escapeHtml(tt('voiceIdentity.remove', 'Remove voice profile')) + '</button></div>' +
+      '<div class="voice-identity-actions"><button class="settings-primary-action" type="button" onclick="window.NAGEX.openVoiceEnrollmentModal()">' + escapeHtml(tt('voiceIdentity.enroll', 'Enroll my voice')) + '</button><button class="settings-secondary-action" type="button" onclick="window.NAGEX.openVoiceEnrollmentModal()">' + escapeHtml(tt('voiceIdentity.reenroll', 'Re-enroll voice')) + '</button><button class="settings-secondary-action" type="button" disabled aria-disabled="true" title="' + escapeHtml(tt('voiceIdentity.removeUnavailable', 'Removing a voice profile is not available yet.')) + '">' + escapeHtml(tt('voiceIdentity.remove', 'Remove voice profile')) + '</button></div>' +
       '<h4>' + escapeHtml(tt('voiceIdentity.wakePhrase', 'Wake Phrase')) + '</h4>' +
       '<div class="voice-wake-options" role="radiogroup" aria-label="' + escapeHtml(tt('voiceIdentity.wakePhrase', 'Wake Phrase')) + '">' +
       voiceWakeOption('&#54860;&#51060; &#45348;&#51060;&#51229;&#49828;', tt('voiceIdentity.defaultWakeDesc', 'Default wake phrase'), true) +
       voiceWakeOption('&#45348;&#51060;&#51229;&#49828;', tt('voiceIdentity.shortWakeDesc', 'Optional short wake'), false) +
       voiceWakeOption('&#51020;&#49457; &#54840;&#52636; &#49324;&#50857; &#50504; &#54632;', tt('voiceIdentity.disableWakeDesc', 'Disable voice wake'), false) +
       '</div><p class="setting-sub">' + escapeHtml(tt('voiceIdentity.authorityNote', 'Voice helps identify who is speaking. Important actions still require approval.')) + '</p>' + voiceProcessingBody + '</div>';
+    const accountPanelBody = '<div id="desktop-account-panel" class="desktop-account-panel"></div>';
     const accountBody = '<div class="settings-final-grid settings-final-grid-wide">' +
       settingsFinalCard('Profile', 'M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-4.4 0-8 2.2-8 5v1h16v-1c0-2.8-3.6-5-8-5Z', tt('settings.final.profile', 'Profile'), tt('settings.final.profileDesc', 'Your visible identity in NAgex.'), settingsFinalRow(tt('settings.final.displayName', 'Display name'), tt('settings.signInRequired', 'Sign in to view'), '') + settingsFinalRow(tt('settings.final.language', 'Language'), window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale() === 'ko' ? tt('settings.final.koreanLanguage', 'Korean') : 'English', 'on') + settingsFinalRow(tt('settings.final.profileImage', 'Profile image'), tt('settings.available', 'Available'), ''), '') +
       settingsFinalCard('Sign-in methods', 'M12 11v4m0 4h.01M17 8V7a5 5 0 0 0-10 0v1M5 8h14v13H5V8Z', tt('settings.final.signInMethods', 'Sign-in methods'), tt('settings.final.signInMethodsDesc', 'Ways you can access this account.'), settingsFinalRow('Google', tt('settings.available', 'Available'), '') + settingsFinalRow('Microsoft', tt('settings.available', 'Available'), ''), '') +
@@ -2937,7 +2940,7 @@
       settingsFinalCard('Security', 'M12 3l8 4v5c0 5-3.4 8.7-8 9-4.6-.3-8-4-8-9V7l8-4Z', tt('settings.final.actions', 'Action permissions'), tt('settings.final.actionsDesc', 'Changes NAgex must confirm before it acts.'), settingsFinalRow(tt('settings.final.sendMessages', 'Send messages'), tt('settings.final.alwaysAsk', 'Always ask'), 'on') + settingsFinalRow(tt('settings.final.sendEmail', 'Send email'), tt('settings.final.alwaysAsk', 'Always ask'), 'on') + settingsFinalRow(tt('settings.final.calendarChanges', 'Calendar changes'), tt('settings.final.alwaysAsk', 'Always ask'), 'on') + settingsFinalRow(tt('settings.final.fileChanges', 'File changes'), tt('settings.final.alwaysAsk', 'Always ask'), 'on'), '') +
       settingsFinalCard('Background', 'M12 6v6l4 2m5-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z', tt('settings.final.background', 'Background activity'), tt('settings.final.backgroundDesc', 'Work NAgex can monitor without changing anything important.'), settingsFinalRow(tt('settings.final.scheduledTasks', 'Scheduled tasks'), tt('settings.final.allowed', 'Allowed'), 'on') + settingsFinalRow(tt('settings.final.conditionMonitoring', 'Condition monitoring'), tt('settings.final.askWhenNeeded', 'Ask when needed'), '') + settingsFinalRow(tt('settings.final.proactiveSuggestions', 'Proactive suggestions'), tt('settings.final.allowed', 'Allowed'), 'on'), '') + '</div>';
     const personalizationBody = '<div class="settings-final-grid settings-final-grid-wide">' +
-      settingsFinalCard('Language', 'M4 5h16M9 3v2m1 12c-2-2-3.5-4.5-4-8m4 8c2-2 3.5-4.5 4-8m3 13 4-9 4 9m-6 0 4-9 4 9m-7-3h8', tt('settings.final.language', 'Language'), tt('settings.final.languageDesc', 'Use the header language switcher to change all NAgex UI text.'), settingsOption('English', 'English UI', window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale() === 'en' ? tt('settings.final.active', 'Active') : tt('settings.final.available', 'Available'), window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale() === 'en') + settingsOption(tt('settings.final.koreanLanguage', 'Korean'), 'Korean UI', window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale() === 'ko' ? tt('settings.final.active', 'Active') : tt('settings.final.available', 'Available'), window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale() === 'ko'), '') +
+      settingsFinalCard('Language', 'M4 5h16M9 3v2m1 12c-2-2-3.5-4.5-4-8m4 8c2-2 3.5-4.5 4-8m3 13 4-9 4 9m-6 0 4-9 4 9m-7-3h8', tt('settings.final.language', 'Language'), tt('settings.final.languageDesc', 'Use the header language switcher to change all NAgex UI text.'), settingsOption('English', 'English UI', window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale() === 'en' ? tt('settings.final.active', 'Active') : tt('settings.final.available', 'Available'), window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale() === 'en', 'en') + settingsOption(tt('settings.final.koreanLanguage', 'Korean'), 'Korean UI', window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale() === 'ko' ? tt('settings.final.active', 'Active') : tt('settings.final.available', 'Available'), window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale() === 'ko', 'ko'), '') +
       settingsFinalCard('Response style', 'M4 6h16M4 12h12M4 18h8', tt('settings.final.responseStyle', 'Response style'), tt('settings.final.responseStyleDesc', 'How NAgex answers in normal conversations.'), settingsFinalRow(tt('settings.final.defaultTone', 'Default tone'), tt('settings.final.clearConcise', 'Clear and concise'), 'on') + settingsFinalRow(tt('settings.final.detailLevel', 'Detail level'), tt('settings.final.balanced', 'Balanced'), ''), '') +
       settingsFinalCard('Proactive', 'M12 3v3m0 12v3m9-9h-3M6 12H3m15.4-6.4-2.1 2.1M7.7 16.3l-2.1 2.1m0-12.8 2.1 2.1m8.6 8.6 2.1 2.1', tt('settings.final.proactive', 'Proactive assistance'), tt('settings.final.proactiveDesc', 'Useful next actions from NAgex when supported.'), settingsFinalRow(tt('settings.final.suggestions', 'Suggestions'), tt('settings.final.allowed', 'Allowed'), 'on'), '') +
       settingsFinalCard('Daily brief', 'M5 4h14v16H5V4Zm4 4h6M9 12h6M9 16h4', tt('settings.final.dailyBrief', 'Daily brief'), tt('settings.final.dailyBriefDesc', 'Configured in Notifications.'), settingsFinalRow(tt('settings.final.morningBrief', 'Morning brief'), tt('settings.final.managedInNotifications', 'Managed in Notifications'), ''), '') +
@@ -2953,7 +2956,7 @@
       settingsFinalCard('Data controls', 'M4 7h16M7 7v13h10V7M9 7V5h6v2', tt('settings.final.dataControls', 'Data controls'), tt('settings.final.dataControlsDesc', 'Export and deletion controls for account data.'), settingsFinalRow(tt('settings.final.exportDelete', 'Export and deletion'), tt('settings.final.accountActions', 'Account actions'), ''), '') + '</div>';
     const appearanceBody = '<div class="settings-appearance-layout"><section class="settings-pro-card settings-appearance-card settings-appearance-theme"><div class="settings-card-title-row"><div><h3>' + escapeHtml(ap.theme) + '</h3><p class="setting-sub">' + escapeHtml(ap.themeDesc) + '</p></div>' + appearanceIcon(ap.theme, 'M12 3v2m0 14v2m9-9h-2M5 12H3m15.4-6.4-1.4 1.4M7 17l-1.4 1.4m0-12.8L7 7m10 10 1.4 1.4M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z') + '</div><div class="appearance-theme-options" role="radiogroup" aria-label="' + escapeHtml(ap.theme) + '">' + appearanceOption(ap.system, ap.systemDesc, ap.active, true, '', themePreview('system')) + appearanceOption(ap.light, ap.lightDesc, ap.unavailable, false, '', themePreview('light')) + appearanceOption(ap.dark, ap.darkDesc, ap.unavailable, false, '', themePreview('dark')) + '</div></section><div class="settings-appearance-secondary"><section class="settings-pro-card settings-appearance-card"><div class="settings-card-title-row"><div><h3>' + escapeHtml(ap.density) + '</h3><p class="setting-sub">' + escapeHtml(ap.densityDesc) + '</p></div>' + appearanceIcon(ap.density, 'M4 4h6v6H4V4Zm10 0h6v6h-6V4ZM4 14h6v6H4v-6Zm10 0h6v6h-6v-6Z') + '</div><div class="appearance-density-options" role="radiogroup" aria-label="' + escapeHtml(ap.density) + '">' + appearanceOption(ap.comfortable, ap.comfortableDesc, ap.supported, true, appearanceIcon(ap.comfortable, 'M4 7h16M4 12h16M4 17h10'), '') + appearanceOption(ap.compact, ap.compactDesc, ap.planned, false, appearanceIcon(ap.compact, 'M4 6h16M4 10h16M4 14h16M4 18h16'), '') + '</div></section><section class="settings-pro-card settings-appearance-card"><div class="settings-card-title-row"><div><h3>' + escapeHtml(ap.sidebar) + '</h3><p class="setting-sub">' + escapeHtml(ap.sidebarDesc) + '</p></div>' + appearanceIcon(ap.sidebar, 'M4 5h16v14H4V5Zm5 0v14') + '</div><div class="appearance-sidebar-current">' + appearanceOption(ap.auto, ap.autoDesc, ap.active, true, appearanceIcon(ap.auto, 'M4 7h16M7 7v10m-3 0h16'), '') + '</div></section></div></div>';
     view.innerHTML = `<div class="settings-commercial-shell"><main class="settings-sections-list settings-commercial-main"><div id="settings-save-feedback" class="settings-save-toast" hidden></div><div id="settings-error-banner" class="settings-error-banner" hidden></div>
-      ${panel('account', tt('settings.catAccount', 'Account'), tt('settings.accountSubtitle', 'Manage your NAgex identity and sign-in methods.'), accountBody)}
+      ${panel('account', tt('settings.catAccount', 'Account'), tt('settings.accountSubtitle', 'Manage your NAgex identity and sign-in methods.'), accountPanelBody)}
       ${panel('connections', tt('settings.catConnections', 'Connections'), tt('settings.connectionsSubtitle', 'External services NAgex may use with your approval.'), `<div id="settings-connections-status"></div>`)}
       ${panel('devices', tt('settings.catDevices', 'Devices'), tt('settings.devicesSubtitle', 'Identify your connected devices and what NAgex can control on each one.'), `<div class="settings-device-layout" id="settings-devices-list"></div>`)}
       ${panel('permissions', tt('settings.catPermissions', 'Permissions'), tt('settings.permissionsSubtitle', 'Control what NAgex may access and what it must ask before doing.'), permissionsBody)}
@@ -2987,10 +2990,51 @@
   // yet, so there is no real "connected device" to show. The former
   // hardcoded "Local Desktop Agent ??Connected · Active now" row was a
   // fabricated status and is gone; an honest empty state is shown instead.
+  // Fixed English UI phrases follow the language (key mainText.<slug>); user content is never passed through here.
+  function l10nPhrase(text) {
+    return window.NAGEX_I18N && window.NAGEX_I18N.tx ? window.NAGEX_I18N.tx(text) : text;
+  }
+
+  // Translates the text nodes of a chrome-only container (no user content) whose whole text is a known phrase.
+  function l10nChrome(root) {
+    if (!root || !window.NAGEX_I18N || !window.NAGEX_I18N.tx) return;
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    nodes.forEach((node) => {
+      const raw = node.nodeValue || '';
+      const trimmed = raw.trim();
+      if (!trimmed) return;
+      const out = window.NAGEX_I18N.tx(trimmed);
+      if (out !== trimmed) node.nodeValue = raw.replace(trimmed, out);
+    });
+  }
+
+  // Language cards in Personalization: a click really switches the UI language (the account language is saved by the
+  // locale-change handler in auth-ui.js).
+  function wireLanguageOptions() {
+    const view = document.getElementById('view-settings');
+    if (!view || view.dataset.languageWired === '1') return;
+    view.dataset.languageWired = '1';
+    const choose = (card) => {
+      const code = card && card.getAttribute('data-locale-option');
+      if (!code || !window.NAGEX_I18N || window.NAGEX_I18N.getLocale() === code) return;
+      window.NAGEX_I18N.setLocale(code);
+      if (state.activeTab === 'tab-settings') renderActiveTab();
+    };
+    view.addEventListener('click', (event) => choose(event.target.closest && event.target.closest('[data-locale-option]')));
+    view.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      const card = event.target.closest && event.target.closest('[data-locale-option]');
+      if (card) { event.preventDefault(); choose(card); }
+    });
+  }
+
   async function renderSettingsDevices() {
+    const tt = window.NAGEX_I18N ? window.NAGEX_I18N.t : (_key, fallback) => fallback;
     const el = document.getElementById('settings-devices-list');
     if (!el) return;
-    el.innerHTML = `<div class="settings-devices-empty"><h3>Loading devices...</h3></div>`;
+    el.innerHTML = `<div class="settings-devices-empty"><h3>${escapeHtml(l10nPhrase('Loading devices...'))}</h3></div>`;
     let devices = [];
     try {
       const res = await apiFetch('/api/v1/device-agent/devices');
@@ -3000,12 +3044,13 @@
     }
     state.settingsDevices = devices;
     if (!devices.length) {
-      el.innerHTML = `<div class="settings-device-list-card"><div class="settings-devices-card-head"><div><h3>My devices (0)</h3><p class="setting-sub">These are the devices where NAgex can work for you.</p></div><button class="settings-primary-action" type="button"><span class="settings-btn-plus">+</span> Connect a device</button></div><div class="settings-device-empty-card"><div class="settings-device-visual empty">${deviceVisual('pc')}</div><div><h3>${escapeHtml(tt('settings.devicesNone', 'No connected devices yet'))}</h3><p>Connect a PC or mobile device to let NAgex work across your devices.</p><div class="settings-capability-row"><span class="settings-muted-chip">${capabilityIcon('Browser')} Browser</span><span class="settings-muted-chip">${capabilityIcon('Files')} Files</span><span class="settings-muted-chip">${capabilityIcon('Messages')} Messages</span></div></div></div><div class="settings-device-tip"><strong>Tip: Connect more devices</strong><span>Use NAgex on all your devices to get more done, wherever you are.</span></div></div><aside class="settings-device-detail-panel"><div class="settings-device-detail-art">${deviceVisual('pc')}</div><h3>Select a device</h3><p class="setting-sub">Device capabilities will appear here after a real device is enrolled.</p><div class="settings-device-capability-box"><h4>What NAgex can do on a device</h4><div class="settings-capability-detail"><span>${capabilityIcon('Browser')} Browser</span><small>Open websites and complete browser tasks.</small></div><div class="settings-capability-detail"><span>${capabilityIcon('Files')} Files</span><small>Find and work with files when allowed.</small></div></div><div class="settings-device-detail-actions"><button class="settings-secondary-action" type="button" disabled>Rename</button><button class="settings-secondary-action" type="button" disabled>Manage</button></div></aside>`;
+      el.innerHTML = `<div class="settings-device-list-card"><div class="settings-devices-card-head"><div><h3>My devices (0)</h3><p class="setting-sub">These are the devices where NAgex can work for you.</p></div><button class="settings-primary-action" type="button" disabled aria-disabled="true" title="${escapeHtml(l10nPhrase('Devices are enrolled from the NAgex desktop or mobile app.'))}"><span class="settings-btn-plus">+</span> Connect a device</button></div><div class="settings-device-empty-card"><div class="settings-device-visual empty">${deviceVisual('pc')}</div><div><h3>${escapeHtml(tt('settings.devicesNone', 'No connected devices yet'))}</h3><p>Connect a PC or mobile device to let NAgex work across your devices.</p><div class="settings-capability-row"><span class="settings-muted-chip">${capabilityIcon('Browser')} Browser</span><span class="settings-muted-chip">${capabilityIcon('Files')} Files</span><span class="settings-muted-chip">${capabilityIcon('Messages')} Messages</span></div></div></div><div class="settings-device-tip"><strong>Tip: Connect more devices</strong><span>Use NAgex on all your devices to get more done, wherever you are.</span></div></div><aside class="settings-device-detail-panel"><div class="settings-device-detail-art">${deviceVisual('pc')}</div><h3>Select a device</h3><p class="setting-sub">Device capabilities will appear here after a real device is enrolled.</p><div class="settings-device-capability-box"><h4>What NAgex can do on a device</h4><div class="settings-capability-detail"><span>${capabilityIcon('Browser')} Browser</span><small>Open websites and complete browser tasks.</small></div><div class="settings-capability-detail"><span>${capabilityIcon('Files')} Files</span><small>Find and work with files when allowed.</small></div></div><div class="settings-device-detail-actions"><button class="settings-secondary-action" type="button" disabled aria-disabled="true" title="${escapeHtml(l10nPhrase('Select a device first.'))}">${escapeHtml(l10nPhrase('Rename'))}</button><button class="settings-secondary-action" type="button" disabled aria-disabled="true" title="${escapeHtml(l10nPhrase('Select a device first.'))}">${escapeHtml(l10nPhrase('Manage'))}</button></div></aside>`;
+      l10nChrome(el);
       return;
     }
     const selected = Math.max(0, Math.min(state.selectedSettingsDeviceIndex || 0, devices.length - 1));
     state.selectedSettingsDeviceIndex = selected;
-    el.innerHTML = `<div class="settings-device-list-card"><div class="settings-devices-card-head"><div><h3>My devices (${devices.length})</h3><p class="setting-sub">These are the devices where NAgex can work for you.</p></div><button class="settings-primary-action" type="button"><span class="settings-btn-plus">+</span> Connect a device</button></div>${devices.map((d, i) => renderSettingsDeviceCard(d, i, i === selected)).join('')}<div class="settings-device-tip"><strong>Tip: Connect more devices</strong><span>Use NAgex on all your devices to get more done, wherever you are.</span></div></div>${renderSettingsDeviceDetail(devices[selected], selected)}`;
+    el.innerHTML = `<div class="settings-device-list-card"><div class="settings-devices-card-head"><div><h3>My devices (${devices.length})</h3><p class="setting-sub">These are the devices where NAgex can work for you.</p></div><button class="settings-primary-action" type="button" disabled aria-disabled="true" title="${escapeHtml(l10nPhrase('Devices are enrolled from the NAgex desktop or mobile app.'))}"><span class="settings-btn-plus">+</span> Connect a device</button></div>${devices.map((d, i) => renderSettingsDeviceCard(d, i, i === selected)).join('')}<div class="settings-device-tip"><strong>Tip: Connect more devices</strong><span>Use NAgex on all your devices to get more done, wherever you are.</span></div></div>${renderSettingsDeviceDetail(devices[selected], selected)}`;
   }
 
   function settingsIconSvg(name, pathData) {
@@ -3150,6 +3195,8 @@
     renderSettingsConnections();
     renderSettingsAiModel();
     renderSettingsDevices();
+    if (window.NAGEX && window.NAGEX.renderAccountSettings) window.NAGEX.renderAccountSettings();
+    wireLanguageOptions();
     if (window.NAGEX.renderProactiveAssistant) window.NAGEX.renderProactiveAssistant();
     // R15 ??Settings is reachable via a same-document hash navigation
     // (switchTab never triggers a full page reload), so org/workspace/
@@ -3221,20 +3268,35 @@
       return;
     }
     const oauth = state.googleOAuth || { configured: false, connected: false };
-    const status = oauth.connected ? 'CONNECTED' : oauth.configured ? 'NOT_CONNECTED' : 'UNAVAILABLE';
-    const statusLabel = status === 'CONNECTED' ? (t('settings.connected') || 'Connected') : status === 'NOT_CONNECTED' ? (t('settings.notConnected') || 'Not connected') : 'Unavailable in this environment';
+    // The server's connection detail (state + reason) is authoritative; without it fall back to the legacy flags.
+    const conn = oauth.connection || null;
+    const connState = conn && conn.state ? conn.state : (oauth.connected ? 'CONNECTED' : oauth.configured ? 'NOT_CONNECTED' : 'UNAVAILABLE');
+    const status = connState === 'CONNECTED' ? 'CONNECTED' : connState === 'NOT_CONNECTED' ? 'NOT_CONNECTED' : connState === 'UNAVAILABLE' ? 'UNAVAILABLE' : 'NEEDS_ATTENTION';
+    const statusLabel = connState === 'CONNECTED' ? (t('settings.connected') || 'Connected')
+      : connState === 'NOT_CONNECTED' ? (t('settings.notConnected') || 'Not connected')
+      : connState === 'UNAVAILABLE' ? l10nPhrase('Unavailable in this environment')
+      : connState === 'CONNECTING' ? l10nPhrase('Connecting...')
+      : (conn && conn.message) || l10nPhrase('Needs attention');
+    const googleAction = connState === 'CONNECTED' ? (t('settings.manage') || 'Manage') : connState === 'REAUTH_REQUIRED' ? l10nPhrase('Reconnect') : connState === 'ERROR' ? l10nPhrase('Try again') : (t('settings.connectGoogle') || 'Connect Google');
 
     el.innerHTML = `
       <div class="settings-connection-grid">
-        ${renderConnectionCard({ provider: 'Google', services: ['Gmail', 'Calendar', 'Drive'], state: status, account: oauth.email || statusLabel, action: oauth.connected ? (t('settings.manage') || 'Manage') : (t('settings.connectGoogle') || 'Connect Google'), buttonId: 'btn-settings-google-toggle', disabled: !oauth.configured })}
-        ${renderConnectionCard({ provider: 'Microsoft', services: ['Outlook', 'Calendar', 'OneDrive'], state: 'UNAVAILABLE', account: 'Unavailable in this environment', action: 'Connect Microsoft', disabled: true })}
-        ${renderConnectionCard({ provider: 'Communication / Apps', services: ['Slack · Not connected', 'Telegram · Not connected', 'Connected apps · None'], state: 'NOT_CONNECTED', account: 'No connected app accounts yet', action: 'Browse connections', disabled: true })}
+        ${renderConnectionCard({ provider: 'Google', services: ['Gmail', 'Calendar', 'Drive'], state: status, account: oauth.email || statusLabel, action: googleAction, buttonId: 'btn-settings-google-toggle', disabled: !oauth.configured || connState === 'CONNECTING', reason: !oauth.configured ? l10nPhrase('Unavailable in this environment') : '' })}
+        ${renderConnectionCard({ provider: 'Microsoft', services: ['Outlook', 'Calendar', 'OneDrive'], state: 'UNAVAILABLE', account: l10nPhrase('Unavailable in this environment'), action: l10nPhrase('Connect Microsoft'), disabled: true, reason: l10nPhrase('Unavailable in this environment') })}
+        ${renderConnectionCard({ provider: 'Communication / Apps', services: ['Slack · Not connected', 'Telegram · Not connected', 'Connected apps · None'], state: 'NOT_CONNECTED', account: l10nPhrase('No connected app accounts yet'), action: l10nPhrase('Browse connections'), disabled: true, reason: l10nPhrase('Unavailable in this environment') })}
       </div>`;
 
     const btn = document.getElementById('btn-settings-google-toggle');
     if (btn && oauth.configured) {
       btn.onclick = async () => {
-        if (oauth.connected) {
+        if (connState === 'ERROR') {
+          // a provider failure is retried, never turned into a reconnect or a disconnect
+          const retry = await apiFetch('/api/v1/oauth/google/status');
+          if (retry) state.googleOAuth = retry;
+          renderSettingsConnections();
+          return;
+        }
+        if (connState === 'CONNECTED') {
           const confirmMsg = t('settings.confirmDisconnectMsg')
             ? t('settings.confirmDisconnectMsg').replace('{service}', 'Google Calendar & Gmail')
             : 'Disconnecting Google Calendar & Gmail will prevent NAgex from taking automated actions on your behalf. Are you sure?';
@@ -3256,15 +3318,15 @@
     }
   }
 
-  function renderConnectionCard({ provider, services, state, account, action, buttonId, disabled }) {
-    const label = state === 'CONNECTED' ? 'Connected' : state === 'NEEDS_ATTENTION' ? 'Needs attention' : state === 'UNAVAILABLE' ? 'Unavailable' : 'Not connected';
+  function renderConnectionCard({ provider, services, state, account, action, buttonId, disabled, reason }) {
+    const label = l10nPhrase(state === 'CONNECTED' ? 'Connected' : state === 'NEEDS_ATTENTION' ? 'Needs attention' : state === 'UNAVAILABLE' ? 'Unavailable' : 'Not connected');
     const serviceRows = services.map((service) => `<span>${escapeHtml(service)}</span>`).join('');
     const iconPath = provider === 'Google'
       ? 'M12 4a8 8 0 1 0 7.6 10.5H12v-5h12'
       : provider === 'Microsoft'
         ? 'M4 4h7v7H4V4Zm9 0h7v7h-7V4ZM4 13h7v7H4v-7Zm9 0h7v7h-7v-7Z'
         : 'M4 5h16v11H8l-4 4V5Z';
-    return `<article class="settings-connection-card ${state.toLowerCase().replace('_', '-')}"><div class="settings-connection-head"><div class="settings-row-leading">${settingsIconSvg(provider, iconPath)}<div><h3>${escapeHtml(provider)}</h3><div class="settings-connection-services">${serviceRows}</div></div></div><span class="settings-connection-status">${label}</span></div><p class="setting-sub">${escapeHtml(account || label)}</p><div class="settings-connection-actions"><button class="settings-primary-action secondary" type="button" ${buttonId ? `id="${buttonId}"` : ''} ${disabled ? 'disabled' : ''}>${escapeHtml(action || 'Manage')}</button></div></article>`;
+    return `<article class="settings-connection-card ${state.toLowerCase().replace('_', '-')}"><div class="settings-connection-head"><div class="settings-row-leading">${settingsIconSvg(provider, iconPath)}<div><h3>${escapeHtml(provider)}</h3><div class="settings-connection-services">${serviceRows}</div></div></div><span class="settings-connection-status">${label}</span></div><p class="setting-sub">${escapeHtml(account || label)}</p><div class="settings-connection-actions"><button class="settings-primary-action secondary" type="button" ${buttonId ? `id="${buttonId}"` : ''} ${disabled ? 'disabled aria-disabled="true"' : ''} ${disabled && reason ? `title="${escapeHtml(reason)}"` : ''}>${escapeHtml(action || 'Manage')}</button></div></article>`;
   }
 
   // Advanced is collapsed by default (MASTER.md Section 14.12 / 14.9 §5) ??

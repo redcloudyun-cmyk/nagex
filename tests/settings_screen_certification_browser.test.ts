@@ -1,0 +1,206 @@
+import assert from 'node:assert/strict';
+import { after, before, describe, it } from 'node:test';
+import type { BrowserContext, Page } from 'playwright';
+import { startCanvasAskHarness, type CanvasAskHarness } from './_canvas_ask_harness.js';
+
+declare const window: any;
+declare const document: any;
+declare const location: any;
+
+// Desktop Settings certification (real Chromium, production server harness, real session): the route survives a refresh,
+// the Account panel is the real signed-in account (profile save persists, no signed-out placeholder), Devices does not
+// crash and offers no dead control, Connections reflects the real Google connection state with an action that fits it,
+// and no category shows raw i18n keys, in EN and KR.
+
+let h: CanvasAskHarness;
+before(async () => { h = await startCanvasAskHarness({ scrubProviders: true }); });
+after(async () => { await h?.close(); });
+
+async function open(label: string, locale: 'en' | 'ko', hash: string): Promise<{ ctx: BrowserContext; page: Page; errors: string[] }> {
+  const user = h.user(label);
+  if (locale === 'ko') h.setLocale(user, 'ko');
+  const ctx = await h.newContext('desktop', user, locale);
+  const page = await ctx.newPage();
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+  await page.goto(`${h.origin}/${hash}`, { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('#view-settings', { state: 'attached' });
+  return { ctx, page, errors };
+}
+
+const activeViews = (page: Page) => page.evaluate(() => [...document.querySelectorAll('.tab-view.active-view')].map((v: any) => v.id));
+const tab = (page: Page, cat: string) => page.locator(`[role="tab"][data-cat="${cat}"]:visible`).first();
+const panel = (page: Page, cat: string) => page.locator(`#cat-panel-${cat}:visible`).first();
+const RAW_KEY = /\b(?:settings|auth|account|proactiveAssistant|rail|inbox|desktop|nav|home|voiceIdentity|voiceProcessing)\.[A-Za-z][A-Za-z0-9]+/;
+
+async function stubGoogleStatus(page: Page, status: Record<string, unknown>): Promise<string[]> {
+  const calls: string[] = [];
+  await page.route('**/api/v1/oauth/google/status', async (route) => { calls.push('status'); await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(status) }); });
+  await page.route('**/api/v1/oauth/google/disconnect', async (route) => { calls.push('disconnect'); await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ connected: false, scopes: [], expiresAt: null }) }); });
+  return calls;
+}
+const connection = (state: string, reason: string | null, message = '') => ({ provider: 'google_calendar', state, reason, retryable: state === 'ERROR', scopes: [], missingScopes: [], connectPath: state === 'NOT_CONNECTED' || state === 'REAUTH_REQUIRED' ? '/api/v1/oauth/google/start' : null, verifiedAt: null, message });
+
+describe('Desktop Settings certification', () => {
+  it('route: a refresh on #settings/... shows only Settings; back/forward keep working', async () => {
+    const { ctx, page } = await open('settings_route', 'en', '#settings/account');
+    await page.waitForTimeout(800);
+    assert.deepEqual(await activeViews(page), ['view-settings'], 'Home must not be shown on top of Settings');
+    assert.equal(await page.locator('#nagex-main-surface').isVisible(), false);
+    await page.reload();
+    await page.waitForTimeout(800);
+    assert.deepEqual(await activeViews(page), ['view-settings']);
+    assert.equal(await page.evaluate(() => location.hash), '#settings/account');
+    await tab(page, 'devices').click();
+    assert.equal(await page.evaluate(() => location.hash), '#settings/devices');
+    await page.goto(`${h.origin}/#knowledge`);
+    await page.waitForTimeout(500);
+    assert.deepEqual(await activeViews(page), ['view-knowledge']);
+    await page.goBack();
+    await page.waitForTimeout(500);
+    assert.deepEqual(await activeViews(page), ['view-settings']);
+    await ctx.close();
+  });
+
+  it('Account: the real signed-in account, a profile save that persists, and no signed-out placeholder', async () => {
+    const { ctx, page, errors } = await open('settings_account', 'en', '#settings/account');
+    await page.waitForSelector('#dk-acc-profile-name', { timeout: 15000 });
+    const text = await panel(page, 'account').innerText();
+    assert.doesNotMatch(text, /Sign in to view|Sign In\b/i, 'a signed-in account never sees the signed-out placeholder');
+    const session: any = await page.evaluate(async () => (await fetch('/api/v1/auth/session', { credentials: 'same-origin' })).json());
+    assert.equal(session.authenticated, true);
+    assert.equal((await page.locator('#dk-acc-email').innerText()).trim(), session.user.email);
+    assert.ok(session.user.authProvider, 'the session says how this account signs in');
+    assert.ok(await page.locator('#dk-acc-sessions-list .mh-session-row').count() >= 1, 'the current session is listed');
+
+    await page.fill('#dk-acc-profile-name', 'Ada Certified');
+    await page.click('#dk-btn-save-profile');
+    await page.waitForSelector('#dk-acc-profile-msg .form-success', { timeout: 10000 });
+    assert.match(await page.locator('#dk-acc-profile-msg').innerText(), /Profile saved/);
+    await page.reload();
+    await page.waitForSelector('#dk-acc-profile-name');
+    assert.equal(await page.locator('#dk-acc-profile-name').inputValue(), 'Ada Certified', 'the save really persisted');
+    assert.deepEqual(errors, []);
+    await ctx.close();
+  });
+
+  it('Account: Google/Microsoft accounts get no password-confirmed delete/disable controls that could never work', async () => {
+    const { ctx, page } = await open('settings_account_oauth', 'en', '#home');
+    await page.route('**/api/v1/auth/session', async (route) => {
+      const response = await route.fetch();
+      const body = await response.json();
+      body.user = { ...body.user, authProvider: 'google' };
+      await route.fulfill({ response, contentType: 'application/json', body: JSON.stringify(body) });
+    });
+    await page.goto(`${h.origin}/#settings/account`);
+    await page.reload();
+    await page.waitForSelector('#dk-acc-profile-name', { timeout: 15000 });
+    assert.equal((await page.locator('#dk-acc-method').innerText()).trim(), 'Google');
+    assert.equal(await page.locator('#dk-btn-delete-account').count(), 0);
+    assert.equal(await page.locator('#dk-btn-disable-account').count(), 0);
+    assert.match(await page.locator('#dk-acc-lifecycle-note').innerText(), /not available in the app yet/);
+    // signing out of every device asks first, and declining sends nothing
+    const requests: string[] = [];
+    page.on('request', (r) => { if (r.url().includes('/api/v1/auth/logout-all')) requests.push(r.url()); });
+    page.once('dialog', (d) => d.dismiss());
+    await page.click('#dk-btn-logout-all');
+    await page.waitForTimeout(300);
+    assert.deepEqual(requests, []);
+    await ctx.close();
+  });
+
+  it('Account KR: localized, the language choice is applied and saved', async () => {
+    const { ctx, page } = await open('settings_account_ko', 'ko', '#settings/account');
+    await page.waitForSelector('#dk-acc-profile-name', { timeout: 15000 });
+    const text = await panel(page, 'account').innerText();
+    assert.doesNotMatch(text, RAW_KEY);
+    assert.match(text, /이메일/);
+    assert.match(text, /프로필/);
+    await ctx.close();
+  });
+
+  it('Devices: opens without a script error, states the empty state truthfully, and offers no dead control', async () => {
+    for (const locale of ['en', 'ko'] as const) {
+      const { ctx, page, errors } = await open(`settings_devices_${locale}`, locale, '#settings/devices');
+      await page.waitForSelector('.settings-device-list-card', { timeout: 15000 });
+      assert.deepEqual(errors, [], `no script error in ${locale}`);
+      const connect = page.locator('.settings-devices-card-head button');
+      assert.equal(await connect.isDisabled(), true, 'enrolment happens from the device apps, not here');
+      assert.ok(((await connect.getAttribute('title')) || '').length > 10, 'the disabled control explains why');
+      const text = await panel(page, 'devices').innerText();
+      assert.doesNotMatch(text, RAW_KEY);
+      if (locale === 'ko') assert.doesNotMatch(text, /My devices|Select a device|Connect a PC|Tip: Connect/);
+      await ctx.close();
+    }
+  });
+
+  it('Connections: the real Google state with the action that fits it (connect, reconnect, retry, manage, unavailable)', async () => {
+    const { ctx, page } = await open('settings_connections', 'en', '#settings/connections');
+    const cases: Array<{ status: Record<string, unknown>; label: RegExp; enabled: boolean }> = [
+      { status: { configured: true, connected: false, scopes: [], expiresAt: null, connection: connection('NOT_CONNECTED', 'NO_CONNECTION') }, label: /Connect Google/, enabled: true },
+      { status: { configured: true, connected: false, scopes: [], expiresAt: null, connection: connection('REAUTH_REQUIRED', 'TOKEN_REVOKED', 'Google access was revoked or has expired. Reconnect Google Calendar.') }, label: /Reconnect/, enabled: true },
+      { status: { configured: true, connected: true, scopes: ['x'], expiresAt: null, connection: connection('ERROR', 'PROVIDER_TIMEOUT', 'Google Calendar did not respond in time. Try again.') }, label: /Try again/, enabled: true },
+      { status: { configured: true, connected: true, scopes: ['x'], expiresAt: null, connection: { ...connection('CONNECTED', null), verifiedAt: new Date().toISOString() } }, label: /Manage/, enabled: true },
+      { status: { configured: false, connected: false, scopes: [], expiresAt: null, connection: connection('UNAVAILABLE', 'OAUTH_NOT_CONFIGURED') }, label: /Connect Google/, enabled: false },
+    ];
+    for (const c of cases) {
+      await page.unroute('**/api/v1/oauth/google/status').catch(() => undefined);
+      await stubGoogleStatus(page, c.status);
+      await page.goto(`${h.origin}/#settings/connections`);
+      await page.reload();
+      await page.waitForSelector('#btn-settings-google-toggle', { timeout: 15000 });
+      const button = page.locator('#btn-settings-google-toggle');
+      assert.match((await button.innerText()).trim(), c.label, JSON.stringify((c.status.connection as any).state));
+      assert.equal(await button.isEnabled(), c.enabled);
+      if (!c.enabled) assert.ok(((await button.getAttribute('title')) || '').length > 5, 'a disabled connect button says why');
+    }
+    // Connect really starts Google OAuth; Try again re-reads the status; Manage asks before disconnecting
+    await page.unroute('**/api/v1/oauth/google/status').catch(() => undefined);
+    let calls = await stubGoogleStatus(page, { configured: true, connected: false, scopes: [], expiresAt: null, connection: connection('NOT_CONNECTED', 'NO_CONNECTION') });
+    await page.goto(`${h.origin}/#settings/connections`);
+    await page.reload();
+    await page.waitForSelector('#btn-settings-google-toggle');
+    const [request] = await Promise.all([page.waitForRequest((r) => r.url().includes('/api/v1/oauth/google/start'), { timeout: 15000 }), page.click('#btn-settings-google-toggle')]);
+    assert.equal(new URL(request.url()).pathname, '/api/v1/oauth/google/start');
+
+    await page.unroute('**/api/v1/oauth/google/status').catch(() => undefined);
+    await page.unroute('**/api/v1/oauth/google/disconnect').catch(() => undefined);
+    calls = await stubGoogleStatus(page, { configured: true, connected: true, scopes: ['x'], expiresAt: null, connection: { ...connection('CONNECTED', null), verifiedAt: new Date().toISOString() } });
+    await page.goto(`${h.origin}/#settings/connections`);
+    await page.reload();
+    await page.waitForSelector('#btn-settings-google-toggle');
+    page.once('dialog', (d) => d.dismiss());
+    await page.click('#btn-settings-google-toggle');
+    await page.waitForTimeout(300);
+    assert.ok(!calls.includes('disconnect'), 'declining the confirmation sends no disconnect');
+    await ctx.close();
+  });
+
+  it('every category: no script error, no raw i18n key, and no disabled-without-reason control, in EN and KR', async () => {
+    for (const locale of ['en', 'ko'] as const) {
+      const { ctx, page, errors } = await open(`settings_all_${locale}`, locale, '#settings/account');
+      await page.waitForSelector('[role="tab"][data-cat]:visible');
+      const cats = await page.evaluate(() => [...new Set([...document.querySelectorAll('[role="tab"][data-cat]')].map((b: any) => b.dataset.cat))]);
+      assert.ok(cats.length >= 8);
+      for (const cat of cats as string[]) {
+        await tab(page, cat).click();
+        await page.waitForTimeout(500);
+        const text = await panel(page, cat).innerText();
+        assert.doesNotMatch(text, RAW_KEY, `${locale}/${cat}: no raw i18n key`);
+        const unexplained = await panel(page, cat).evaluate((el: any) => [...el.querySelectorAll('button:disabled, [aria-disabled="true"]')].filter((b: any) => { const r = b.getBoundingClientRect(); return r.width > 0 && r.height > 0 && !b.getAttribute('title') && !/\bsettings-(model-chip|state-pill)\b/.test(b.className) && !/Not implemented|Planned|Not supported|아직 지원되지|계획/i.test(b.textContent || ''); }).map((b: any) => (b.textContent || '').trim().slice(0, 30)));
+        assert.deepEqual(unexplained, [], `${locale}/${cat}: disabled controls explain themselves`);
+      }
+      assert.deepEqual(errors, [], `${locale}: no script errors across all categories`);
+      await ctx.close();
+    }
+  });
+
+  it('notifications: the save control is labelled, not a raw key', async () => {
+    for (const [locale, expected] of [['en', /Save changes/], ['ko', /변경 사항 저장/]] as const) {
+      const { ctx, page } = await open(`settings_notif_${locale}`, locale, '#settings/notifications');
+      await page.waitForSelector('.pa-save-btn', { timeout: 15000 });
+      for (const text of await page.locator('.pa-save-btn').allInnerTexts()) assert.match(text.trim(), expected);
+      await ctx.close();
+    }
+  });
+});

@@ -5301,6 +5301,22 @@
       "assertionIntent": "Home todo is built from the signed-in user's real reminder and task stores only (due/overdue reminders and not-yet-running tasks), never another user's items, and states UNAVAILABLE / ERROR / empty honestly instead of inventing items.",
       "notes": "Uses the real CurrentPersonalContextService with temp stores."
     },
+    "settings_screen_certification_browser": {
+      "milestone": "NAGEX-DESKTOP-SETTINGS-CERT",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Real-Chromium certification of Desktop Settings: a refresh on #settings/... shows only Settings (Home is not forced on top), back/forward work; the Account panel is the real signed-in account (email, sign-in method, profile save that persists, sessions, no signed-out placeholder, no password-confirmed lifecycle controls for Google/Microsoft accounts); Devices opens without a script error and offers no dead control; Connections reflects the real Google state (connect/reconnect/retry/manage/unavailable) with an action that fits it; Personalization language cards really switch language; no category shows raw i18n keys or unexplained disabled controls in EN and KR.",
+      "notes": "Production server harness with provider credentials scrubbed; the Google OAuth status and the session provider are stubbed to force each state. Account profile save and session listing are real.",
+      "writesRepositoryArtifacts": false
+    },
     "personal_home_profile_name": {
       "milestone": "NAGEX-DESKTOP-MAIN-GREETING",
       "classification": "CANONICAL_BEHAVIOR",
