@@ -20,6 +20,7 @@
     planPreview: true,
     busy: false,
     sessionChecked: false,
+    briefingExpandedInConversation: false,
     attachments: [],
     result: null,
     revisionTarget: null,
@@ -111,7 +112,7 @@
             <button type="button" class="main-tool-btn main-briefing-retry" id="main-briefing-retry" hidden>Try again</button>
           </section>
           <section class="main-thread-card" id="main-thread-card" hidden>
-            <div class="main-thread-tools"><button type="button" class="main-tool-btn" id="main-new-conversation">New conversation</button></div>
+            <div class="main-thread-tools"><button type="button" class="main-tool-btn" id="main-toggle-briefing" aria-controls="main-home-briefing" aria-expanded="false">My Day</button><button type="button" class="main-tool-btn" id="main-new-conversation">New conversation</button></div>
             <div class="main-message">
               <span class="main-avatar" id="main-user-avatar">U</span>
               <div>
@@ -1289,7 +1290,13 @@
     if (!root || !section) return;
     const sessionState = state.sessionChecked ? mainSessionState() : 'CHECKING';
     root.dataset.sessionState = sessionState;
-    section.hidden = sessionState !== 'EMPTY_HOME';
+    const showBriefing = sessionState === 'EMPTY_HOME' || (sessionState !== 'CHECKING' && state.briefingExpandedInConversation);
+    section.hidden = !showBriefing;
+    const button = document.getElementById('main-toggle-briefing');
+    if (button) {
+      button.setAttribute('aria-expanded', String(showBriefing && sessionState !== 'EMPTY_HOME'));
+      button.textContent = mt(showBriefing && sessionState !== 'EMPTY_HOME' ? 'Hide My Day' : 'My Day');
+    }
   }
 
   function watchMainSession() {
@@ -1352,6 +1359,7 @@
     if (newest) writeFreshMark(newest);
     const card = document.getElementById('main-thread-card');
     if (card) card.hidden = true;
+    state.briefingExpandedInConversation = false;
     renderInlineActions([]);
     hideResult();
     state.result = null;
@@ -1367,6 +1375,10 @@
     state.sessionChecked = false;
     watchMainSession();
     document.getElementById('main-new-conversation')?.addEventListener('click', startNewConversation);
+    document.getElementById('main-toggle-briefing')?.addEventListener('click', () => {
+      state.briefingExpandedInConversation = !state.briefingExpandedInConversation;
+      syncBriefingVisibility();
+    });
     document.getElementById('main-briefing-retry')?.addEventListener('click', () => loadBriefing(true));
     document.getElementById('main-briefing-today')?.addEventListener('click', (event) => {
       const button = event.target.closest && event.target.closest('[data-calendar-action]');
