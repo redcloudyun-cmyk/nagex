@@ -5363,6 +5363,21 @@
       "notes": "Production server harness with provider credentials scrubbed; computed-style assertions against the V2 token scale, never screenshots. Google Fonts are requested by the page (Inter, Noto Sans KR); the assertions read the declared font-family stack, so they hold offline.",
       "writesRepositoryArtifacts": false
     },
+    "public_source_encoding": {
+      "milestone": "NAGEX-UI-INTEGRITY",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Every shipped text source under public/ is valid UTF-8 and free of the corruption signatures of commit ef5a4e6 (Korean text or glyphs replaced by ?? or invalid bytes, bilingual literals reduced to an empty string), so Korean and symbol text can never silently degrade again.",
+      "notes": "Reads the files only; no server or browser.",
+      "writesRepositoryArtifacts": false
+    },
     "r23_7h_c_mobile_recent_image_browser": {
       "milestone": "R23.7H-C",
       "classification": "REAL_BROWSER_CERT",

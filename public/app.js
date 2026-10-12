@@ -1,4 +1,4 @@
-// NAgex Personal AI ??Control Center & Ambient Assistant Client Controller
+// NAgex Personal AI — Control Center & Ambient Assistant Client Controller
 (function () {
   'use strict';
 
@@ -19,7 +19,7 @@
     tools: [],
     approvals: [],
     approvalSections: { pending: [], inProgress: [], recent: [] },
-    // R12.1 Increment 2.5 §8 ??fail-closed contract: true only when the
+    // R12.1 Increment 2.5 §8 — fail-closed contract: true only when the
     // real GET /api/v1/approvals fetch itself failed (network error or a
     // structured API error), never set just because the real canonical
     // source returned zero pending approvals. Render code must show
@@ -28,13 +28,13 @@
     approvalsLoadFailed: false,
     executions: [],
     knowledge: [],
-    // R24.6B ??Quick Wake / Autonomy are per-user server preferences. Until
+    // R24.6B — Quick Wake / Autonomy are per-user server preferences. Until
     // they are really loaded there is NO value (never a pre-load default):
     // settingsPrefsStatus is LOADING | OK | SIGNED_OUT | ERROR.
     quickWakeConfig: {},
     autonomyConfig: {},
     settingsPrefsStatus: 'LOADING',
-    // R24.6C ??the Google connection is owned by the signed-in account; for a
+    // R24.6C — the Google connection is owned by the signed-in account; for a
     // signed-out visitor the status endpoint answers 401 and Settings says so
     // instead of showing "not configured".
     googleOAuthSignedOut: false,
@@ -46,7 +46,7 @@
     githubLoading: false,
     approvalCountdownTimer: null,
     // The most recent Gmail thread NAgex actually loaded (from a real
-    // gmail.search or gmail.read_thread result) in this session ??the only
+    // gmail.search or gmail.read_thread result) in this session — the only
     // source a follow-up reply/read_thread request may prefill threadId/
     // replyToMessageId from. Never populated from a guess.
     lastGmailThread: null,
@@ -55,13 +55,13 @@
     notifications: { items: [], unreadCount: 0 },
     inbox: [],
     vault: null,
-    // Phase 1 STEP 5/6 ??canonical CandidateStore records. This is the ONLY
+    // Phase 1 STEP 5/6 — canonical CandidateStore records. This is the ONLY
     // source of truth for candidate review state; capture.metadata.candidates
     // (the embedded array) is never read for status/actions (item R).
     candidates: [],
-    // Phase 1 STEP 8 ??the durable, tenant-isolated consumer Activity
+    // Phase 1 STEP 8 — the durable, tenant-isolated consumer Activity
     // projection (GET /api/v1/activity). Home/Recent and the Activity tab
-    // read only this ??never the legacy non-isolated /api/v1/executions
+    // read only this — never the legacy non-isolated /api/v1/executions
     // demo array.
     activity: [],
     activityLoadFailed: false,
@@ -80,11 +80,11 @@
   let ambientModalKeydownHandler = null;
   const ambientBodyScrollLock = window.NAGEX_MODAL_BEHAVIOR ? window.NAGEX_MODAL_BEHAVIOR.createScrollLock() : null;
   // Guards the activity timeline against logging the same lifecycle event
-  // twice for the same plan/approval ??e.g. "Plan created" must appear once
+  // twice for the same plan/approval — e.g. "Plan created" must appear once
   // per generated plan even if plan generation and resolution/UI hydration
   // both end up trying to record it. Deliberately never reset: every real
   // plan/approval id is a fresh, globally-unique value minted server-side,
-  // so a key can never legitimately recur ??resetting this on every ambient
+  // so a key can never legitimately recur — resetting this on every ambient
   // overlay open would only reintroduce a way for a genuine duplicate call
   // to slip back through.
   const ambientTimelineDeduper = window.NAGEX_TIMELINE_DEDUPE ? window.NAGEX_TIMELINE_DEDUPE.createDeduper() : null;
@@ -92,17 +92,17 @@
   // The actual root cause of a duplicate "Plan created": two separate calls
   // into the generation pipeline (from any combination of the composer, a
   // quick-action chip, the demo scenario button, etc.) each legitimately
-  // mint their own requestId ??the per-plan dedupe above correctly does NOT
+  // mint their own requestId — the per-plan dedupe above correctly does NOT
   // merge them, because they really are two different plans. This guard
   // stops a second generation from ever starting while one is still in
   // flight, regardless of which control tried to start it.
   const ambientRunGuard = window.NAGEX_SINGLE_FLIGHT ? window.NAGEX_SINGLE_FLIGHT.createSingleFlightGuard() : null;
 
-  // UI-5 R5 ??per-approval-id re-entrancy guard: handleApprovalAction() had
+  // UI-5 R5 — per-approval-id re-entrancy guard: handleApprovalAction() had
   // no client-side protection against a rapid double-tap (very plausible on
   // a touchscreen) firing the same POST /api/v1/approvals/:id/action twice
   // concurrently. The backend already fails the second request closed
-  // (APPROVAL_ALREADY_CONSUMED ??see approval_ttl_security.test.ts), so
+  // (APPROVAL_ALREADY_CONSUMED — see approval_ttl_security.test.ts), so
   // nothing was ever double-executed, but the UI itself gave no busy
   // feedback and could fire redundant network calls. Keyed by approval id
   // (not a single global flag) since approving two different pending items
@@ -132,7 +132,7 @@
     }, 1000);
   }
 
-  // Bound on POST /api/v1/ambient/intent specifically ??grounded in the
+  // Bound on POST /api/v1/ambient/intent specifically — grounded in the
   // real, evidence-backed worst case, not a guess: UnifiedModelRouter.
   // generate() (src/model-gateway/unified-model-router.ts) retries through
   // configured providers SEQUENTIALLY, and each provider's own HTTP call
@@ -141,12 +141,12 @@
   // endpoint can legitimately take up to ~90_000ms before it ever responds.
   // 120_000ms sits comfortably above that real ceiling rather than a
   // "typical latency" figure, since no such figure exists anywhere in this
-  // codebase ??a tighter bound would risk aborting requests the server
+  // codebase — a tighter bound would risk aborting requests the server
   // itself still considers in-flight and valid.
   //
   // `window.__NAGEX_TEST_AMBIENT_TIMEOUT_MS__` is a test-only override hook
   // (analogous in spirit to the server's NAGEX_ENABLE_TEST_PLAN_INJECTION
-  // pattern) ??inert in production, since nothing in this codebase ever
+  // pattern) — inert in production, since nothing in this codebase ever
   // sets it; a browser test can inject it via an init script so the
   // stalled-request regression test doesn't have to wait 2 real minutes.
   const AMBIENT_INTENT_TIMEOUT_MS = (typeof window !== 'undefined' && typeof window.__NAGEX_TEST_AMBIENT_TIMEOUT_MS__ === 'number')
@@ -182,7 +182,7 @@
     const catTabOrg = document.getElementById('cat-tab-organization');
     if (catTabOrg) catTabOrg.style.display = isEnt ? 'inline-block' : 'none';
 
-    // R24.6D ??Mobile Settings' Organization section follows the SAME rule as the
+    // R24.6D — Mobile Settings' Organization section follows the SAME rule as the
     // Desktop tab above (enterprise functionality stays hidden outside enterprise mode).
     const mhOrgHeading = document.getElementById('mh-org-settings-heading');
     if (mhOrgHeading) mhOrgHeading.hidden = !isEnt;
@@ -232,7 +232,7 @@
   }
 
   // Dev/test-only debug instrumentation: never logs payload contents, tool
-  // arguments, or secrets ??only the lifecycle key, label, which function
+  // arguments, or secrets — only the lifecycle key, label, which function
   // produced this emit attempt, and whether it was actually recorded or
   // suppressed as a duplicate. Gated so it never runs against a real
   // deployed origin by accident; opt in locally with ?debugTimeline=1.
@@ -252,12 +252,12 @@
   }
 
   // lifecycleKey must be a single, fully-formed, deterministic identity ??
-  // never a timestamp ??such as `plan:${planId}:created` or
+  // never a timestamp — such as `plan:${planId}:created` or
   // `approval:${approvalId}:requested` (see timeline-dedupe.js). Passing one
   // ensures the same lifecycle stage for that same plan/approval/execution
   // is only ever recorded once, no matter which function or how many times
   // it is called. `producer` is a short string naming the calling function,
-  // surfaced only in the debug log above ??it plays no role in dedup.
+  // surfaced only in the debug log above — it plays no role in dedup.
   function addTimelineEntry(label, lifecycleKey, producer) {
     if (ambientTimelineDeduper && !ambientTimelineDeduper.shouldLog(lifecycleKey)) {
       logTimelineDebug({ lifecycleKey, eventType: label, producer, outcome: 'suppressed-duplicate' });
@@ -277,7 +277,7 @@
   // `timeoutMs` is an opt-in, call-site-scoped extension: when a caller
   // supplies it, this bounds the underlying fetch with an AbortController so
   // the returned promise is guaranteed to settle even if the network/server
-  // never responds ??a request with no bound at all can leave a caller's own
+  // never responds — a request with no bound at all can leave a caller's own
   // `finally` (e.g. a busy/disabled-controls guard) waiting forever. Callers
   // that omit it get byte-for-byte the same behavior as before this option
   // existed (no AbortController is created, nothing about the request
@@ -457,14 +457,14 @@
     }
   }
 
-  // R23.7H-C Phase D ??the single canonical primary-navigation definition.
+  // R23.7H-C Phase D — the single canonical primary-navigation definition.
   // Both the desktop sidebar (index.html's ul.nav-menu) and the mobile
-  // bottom nav + Settings?�Advanced overflow (index.html's #mobile-app-shell)
+  // bottom nav + Settings→Advanced overflow (index.html's #mobile-app-shell)
   // are kept manually consistent with this ordered list (verified by
   // tests/r23_7h_c_phase_d_nav.test.ts) rather than maintaining a second,
   // independently-authored IA list. `mobilePrimary: true` marks the subset
   // promoted into the mobile bottom nav; the rest stay reachable via the
-  // existing Settings ??Advanced drawer pattern (same as Skills/Tools/Memory
+  // existing Settings → Advanced drawer pattern (same as Skills/Tools/Memory
   // already were before Phase D).
   window.NAGEX_PRIMARY_NAV = [
     { tab: 'tab-home', i18nKey: 'nav.home', mobilePrimary: true },
@@ -688,7 +688,7 @@
     refreshMobileSettings();
   }
 
-  // R24.6B ??single place that turns the two preference API results into
+  // R24.6B — single place that turns the two preference API results into
   // shared state; Desktop and Mobile Settings both render from this.
   function applySettingsPrefs(qwData, autoData) {
     const ok = qwData && !qwData.error && autoData && !autoData.error;
@@ -791,7 +791,7 @@
     scheduleActiveWorkPolling();
   }
 
-  // Phase 1 STEP 8, item V ??bounded polling: only while real PROCESSING/
+  // Phase 1 STEP 8, item V — bounded polling: only while real PROCESSING/
   // RUNNING/PENDING_APPROVAL work exists, and it stops itself the moment
   // loadAllData() finds nothing active anymore. No WebSocket infra, no
   // polling forever on an idle Home.
@@ -820,7 +820,7 @@
   let realAudioChunks = [];
 
   function renderHome() {
-    // R12.1 Increment 2 ??hero title/subtitle are now plain data-i18n
+    // R12.1 Increment 2 — hero title/subtitle are now plain data-i18n
     // markup (applyLocale() keeps them current on every locale switch);
     // this function no longer overrides them with hardcoded copy. The
     // eyebrow greeting stays owned exclusively by desktop-home.js's
@@ -835,16 +835,16 @@
     const btnAudio = document.getElementById('btn-afford-audio');
 
     if (btnSend && homeInput) {
-      // R12.1 Increment 1 ??Universal Intent Input busy-state contract:
+      // R12.1 Increment 1 — Universal Intent Input busy-state contract:
       // the composer must block duplicate submission (disabled the moment
       // classification starts, not only once the ambient run guard takes
       // over) and must never lose the user's text on a failed/timed-out
-      // request ??the original code cleared the input unconditionally
+      // request — the original code cleared the input unconditionally
       // before even knowing whether classification succeeded, so a
       // network failure silently discarded what the user typed. Ownership
       // of the disabled state hands off to setAmbientRunControlsDisabled()
       // (which already re-enables in its own finally) once an ASK/COMMAND
-      // intent is dispatched to runAmbientTask ??handedOff below prevents
+      // intent is dispatched to runAmbientTask — handedOff below prevents
       // this handler's own finally from re-enabling too early and racing
       // that handoff.
       btnSend.onclick = async () => {
@@ -876,7 +876,7 @@
               delete homeInput.dataset.creationMode;
             } else if (typeof window.alert === 'function') {
               const currentLocale = window.NAGEX_I18N ? window.NAGEX_I18N.getLocale() : 'en';
-              window.alert(currentLocale === 'ko' ? '보고?��? ?�성?��? 못했?�니?? ?�시 ?�도??주세??' : "NAgex couldn't generate that report. Please try again.");
+              window.alert(currentLocale === 'ko' ? '보고서를 생성하지 못했습니다. 다시 시도해 주세요.' : "NAgex couldn't generate that report. Please try again.");
             }
           } finally {
             btnSend.disabled = false;
@@ -960,7 +960,7 @@
       };
     }
 
-    // Composer file drop zone ??click-to-browse and drag&drop, wired the
+    // Composer file drop zone — click-to-browse and drag&drop, wired the
     // same way initAnalyzeView() wires #analyze-dropzone, uploading through
     // the same real capture pipeline the voice-memo recorder already uses
     // (POST /api/v1/workspace/upload with base64 file data) rather than a
@@ -1060,7 +1060,7 @@
     }
 
     // Desktop/Mobile Home modules (separate files) hook in here rather
-    // than duplicating this file's own render lifecycle ??called every
+    // than duplicating this file's own render lifecycle — called every
     // time Home actually re-renders (including after loadAllData()),
     // never on a separate/parallel timer. Two distinct hook names
     // (rather than one shared one) so desktop-home.js and mobile-home.js
@@ -1166,17 +1166,17 @@
       }
     }
 
-    // Recent Results ??real completed outcomes. Owned by desktop-home.js's
+    // Recent Results — real completed outcomes. Owned by desktop-home.js's
     // renderTodayPanel() (#desktop-recent-actions-list, sourced from real
     // GET /api/v1/my-space history) since that is the panel actually
     // present in current Home markup; the #list-today-summary /
     // #list-recent-activity ids this block used to target no longer exist
     // in index.html (superseded by #desktop-today-list /
-    // #desktop-recent-actions-list) ??removed as dead code rather than
+    // #desktop-recent-actions-list) — removed as dead code rather than
     // left silently no-op-ing against a target that was never real.
   }
 
-  // ?�?� R12.1 Increment 3 ??Intent-first Inbox presentation model ?�?�
+  // ── R12.1 Increment 3 — Intent-first Inbox presentation model ──
   function buildCanonicalInboxViewModel({ approvals = [], captures = [], candidates = [] }) {
     const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
     const items = [];
@@ -1572,16 +1572,16 @@
     listEl.innerHTML = html;
   }
 
-  // ?�?�?� Phase 1 STEP 6 ??Candidate Review ?�?�?�
+  // ─── Phase 1 STEP 6 — Candidate Review ───
   //
   // CandidateStore/API is the ONLY source of truth for review state
   // (item B). Nothing here ever reads capture.metadata.candidates[].status
   // to decide what to render or which action is available (item R).
   //
   // Review is not execution (item A): Accept only ever moves a candidate to
-  // ACCEPTED ??it never creates a Task, requests a Calendar approval, writes
+  // ACCEPTED — it never creates a Task, requests a Calendar approval, writes
   // Memory, or indexes Knowledge. That distinction is enforced server-side
-  // (CandidateStore.accept/QuickCaptureService.acceptCandidate ??see
+  // (CandidateStore.accept/QuickCaptureService.acceptCandidate — see
   // candidate.store.ts) and is repeated here only in copy, never bypassed.
 
   // Which candidate (if any) is currently showing its inline edit form, and
@@ -1606,7 +1606,7 @@
   }
 
   // Source context (item J): cross-references the already-loaded capture
-  // list purely to display where a suggestion came from ??a domain/page
+  // list purely to display where a suggestion came from — a domain/page
   // title for URLs, a real chunk's page number for PDFs, or the source
   // capture's own title/snippet for plain text. Never fabricated: if the
   // capture or the referenced chunk isn't found, this returns ''.
@@ -1631,7 +1631,7 @@
     return (capture.metadata && capture.metadata.extractedTitle) || (capture.content || '').slice(0, 60);
   }
 
-  // Type-specific payload preview (item D) ??never the raw payload JSON.
+  // Type-specific payload preview (item D) — never the raw payload JSON.
   function candidatePayloadPreview(candidate) {
     const p = candidate.payload || {};
     if (candidate.type === 'TASK') {
@@ -1668,9 +1668,9 @@
 
   const CAND_ESC = (id) => `if(event.key==='Escape'){event.preventDefault();window.NAGEX.cancelModifyCandidate('${id}');}`;
 
-  // Item H: a plain inline edit form, not a modal ??keyboard-accessible via
+  // Item H: a plain inline edit form, not a modal — keyboard-accessible via
   // normal tab order, no focus trap needed. Escape on any field cancels
-  // without saving (item P) ??it never triggers Accept/Reject/PATCH.
+  // without saving (item P) — it never triggers Accept/Reject/PATCH.
   function renderCandidateEditForm(candidate) {
     const cid = candidate.candidateId;
     const p = candidate.payload || {};
@@ -1713,11 +1713,11 @@
     `;
   }
 
-  // Phase 1 STEP 7 (items A/M/N/O) ??action controls for an ACCEPTED
+  // Phase 1 STEP 7 (items A/M/N/O) — action controls for an ACCEPTED
   // candidate. Accept never executes by itself: NOT_STARTED always shows an
   // explicit per-type "Apply" button (Create task / Review calendar action /
   // Remember / Add to knowledge). Only a real SUCCEEDED action ever shows a
-  // completion label ??never before the actual downstream write happened.
+  // completion label — never before the actual downstream write happened.
   // Calendar keeps its two gates visibly distinct (Korean note in the STEP 7
   // directive): PENDING_APPROVAL always reads "Waiting for approval", never
   // "Added to Google Calendar", until the separate Action Approval is
@@ -1762,9 +1762,9 @@
         : '';
       return `<span class="badge-status status-READY" style="font-size:0.72rem;">${escapeHtml(successText)}</span>${openLink}`;
     }
-    // FAILED ??the candidate itself stays ACCEPTED (item O); only its
+    // FAILED — the candidate itself stays ACCEPTED (item O); only its
     // action failed. Phase 1 STEP 9, item I/S: Retry is offered ONLY when
-    // the resolver's own classification says retryable === true ??never
+    // the resolver's own classification says retryable === true — never
     // for an AMBIGUOUS outcome (its real-world result is unverified, so a
     // blind retry could double-execute) or a NEEDS_HUMAN/TERMINAL one.
     if (action.retryable === true) {
@@ -1785,7 +1785,7 @@
   // The full Candidate Review Card (item C/D): type, title, payload
   // preview, source context, confidence only when meaningful, status,
   // created time. Actions are present ONLY while PROPOSED (item C) and
-  // absent for EXPIRED (item N ??labeled "Source changed" instead).
+  // absent for EXPIRED (item N — labeled "Source changed" instead).
   function renderCandidateReviewCard(candidate) {
     if (candidateEditState === candidate.candidateId) {
       return renderCandidateEditForm(candidate);
@@ -1811,7 +1811,7 @@
       actionsHtml = `<span style="font-size:0.7rem; color: var(--color-text-secondary);">${escapeHtml(t('workspace.candidateSourceChanged') || 'Source changed')}</span>`;
     } else if (candidate.status === 'ACCEPTED') {
       // Phase 1 STEP 7 (item M): review controls are replaced with action
-      // controls ??Accept ??execute, so this is a distinct, explicit step.
+      // controls — Accept ≠ execute, so this is a distinct, explicit step.
       actionsHtml = renderCandidateActionControls(candidate);
     }
 
@@ -1852,7 +1852,7 @@
 
     const toggleHtml = resolved.length > 0 ? `
       <button class="btn-secondary" style="font-size:0.7rem; margin-bottom:0.5rem;" onclick="window.NAGEX.toggleResolvedCandidates()">
-        ${candidatesShowResolved ? escapeHtml(t('workspace.hideResolved') || 'Hide resolved') : `${resolved.length} ${escapeHtml(t('workspace.showResolved') || 'resolved ??show')}`}
+        ${candidatesShowResolved ? escapeHtml(t('workspace.hideResolved') || 'Hide resolved') : `${resolved.length} ${escapeHtml(t('workspace.showResolved') || 'resolved — show')}`}
       </button>
     ` : '';
 
@@ -1870,7 +1870,7 @@
   }
 
   window.NAGEX = window.NAGEX || {};
-  // R12.1 Increment 1 ??canonical "logo returns Home" behavior (required
+  // R12.1 Increment 1 — canonical "logo returns Home" behavior (required
   // from every main product screen, plus the ambient overlay). Closing an
   // already-closed overlay is a safe no-op (closeAmbientOverlay only ever
   // resets display/scroll-lock/listeners that may already be at rest), so
@@ -1888,7 +1888,7 @@
     candidateEditState = candidateId;
     renderCandidateReviewQueue();
   };
-  // Escape / Cancel: reverts to view mode without saving ??no PATCH/Accept/
+  // Escape / Cancel: reverts to view mode without saving — no PATCH/Accept/
   // Reject call is ever made from here (item P).
   window.NAGEX.cancelModifyCandidate = (candidateId) => {
     candidateEditState = null;
@@ -1929,19 +1929,19 @@
       return; // stay in edit mode so the user can fix the value
     }
     candidateEditState = null;
-    // Phase 1 STEP 8, item U ??a single centralized refresh so Home/Inbox/
+    // Phase 1 STEP 8, item U — a single centralized refresh so Home/Inbox/
     // Activity all become consistent after the same UI action, instead of
     // each card independently re-fetching just its own slice of state.
     await loadAllData();
   };
   // Accept/Reject (items E/F/O): a stale/already-decided candidate comes
-  // back as an error from the API (409) rather than a silent success ??this
+  // back as an error from the API (409) rather than a silent success — this
   // always re-loads canonical state afterward so the UI reflects whatever
   // the server actually did, never an optimistic guess.
   window.NAGEX.acceptCandidate = async (candidateId) => {
     const result = await apiFetch(`/api/v1/candidates/${candidateId}/accept`, { method: 'POST', body: JSON.stringify({}) });
     if (!result || result.error) alert((result && result.error && result.error.message) || 'Could not accept this suggestion.');
-    // Phase 1 STEP 8, item U ??a single centralized refresh so Home/Inbox/
+    // Phase 1 STEP 8, item U — a single centralized refresh so Home/Inbox/
     // Activity all become consistent after the same UI action, instead of
     // each card independently re-fetching just its own slice of state.
     await loadAllData();
@@ -1949,19 +1949,19 @@
   window.NAGEX.rejectCandidate = async (candidateId) => {
     const result = await apiFetch(`/api/v1/candidates/${candidateId}/reject`, { method: 'POST', body: JSON.stringify({}) });
     if (!result || result.error) alert((result && result.error && result.error.message) || 'Could not reject this suggestion.');
-    // Phase 1 STEP 8, item U ??a single centralized refresh so Home/Inbox/
+    // Phase 1 STEP 8, item U — a single centralized refresh so Home/Inbox/
     // Activity all become consistent after the same UI action, instead of
     // each card independently re-fetching just its own slice of state.
     await loadAllData();
   };
-  // Phase 1 STEP 7 ??explicit "Apply"/"Retry": accepting a candidate never
+  // Phase 1 STEP 7 — explicit "Apply"/"Retry": accepting a candidate never
   // calls these on its own (item A). Always reloads canonical state
   // afterward, same as accept/reject, so a PENDING_APPROVAL/FAILED result is
   // shown truthfully rather than assumed.
   window.NAGEX.executeCandidateAction = async (candidateId) => {
     const result = await apiFetch(`/api/v1/candidates/${candidateId}/execute`, { method: 'POST', body: JSON.stringify({}) });
     if (!result || result.error) alert((result && result.error && result.error.message) || 'Could not apply this action.');
-    // Phase 1 STEP 8, item U ??a single centralized refresh so Home/Inbox/
+    // Phase 1 STEP 8, item U — a single centralized refresh so Home/Inbox/
     // Activity all become consistent after the same UI action, instead of
     // each card independently re-fetching just its own slice of state.
     await loadAllData();
@@ -1969,7 +1969,7 @@
   window.NAGEX.retryCandidateAction = async (candidateId) => {
     const result = await apiFetch(`/api/v1/candidates/${candidateId}/retry`, { method: 'POST', body: JSON.stringify({}) });
     if (!result || result.error) alert((result && result.error && result.error.message) || 'Could not retry this action.');
-    // Phase 1 STEP 8, item U ??a single centralized refresh so Home/Inbox/
+    // Phase 1 STEP 8, item U — a single centralized refresh so Home/Inbox/
     // Activity all become consistent after the same UI action, instead of
     // each card independently re-fetching just its own slice of state.
     await loadAllData();
@@ -2117,7 +2117,7 @@
     renderInbox();
   };
 
-  // Capability-neutral example prompts (R12.1 Increment 2 §5) ??clicking
+  // Capability-neutral example prompts (R12.1 Increment 2 §5) — clicking
   // one submits through the exact same canonical intent path as typed
   // input (runAmbientTask), never a separate hidden execution route.
   const HOME_EXAMPLE_PROMPTS = {
@@ -2130,7 +2130,7 @@
     'example-automation': 'Watch for competitor pricing changes weekly.',
   };
   // Capability Discovery chips (§12) populate the composer instead of
-  // auto-submitting ??a browsing aid, not a shortcut, per §6's "one
+  // auto-submitting — a browsing aid, not a shortcut, per §6's "one
   // canonical user-intent path" rule (the user still reviews/edits before
   // sending, same as if they had typed it themselves).
   const HOME_DISCOVER_PROMPTS = {
@@ -2338,7 +2338,7 @@
         } else if (triggerType === 'INTERVAL') {
           trigger.intervalMinutes = Number(document.getElementById('task-interval').value) || 60;
         } else if (triggerType === 'CONDITION') {
-          // Never invents a page to watch ??a real http(s) URL is required
+          // Never invents a page to watch — a real http(s) URL is required
           // by the server (see server_web.ts's WATCH_URL_REQUIRED check),
           // exactly like Calendar/Gmail's required fields.
           trigger.condition = document.getElementById('task-condition').value.trim();
@@ -2366,7 +2366,7 @@
     }
   }
 
-  // ?�?� Helper & Section Anchors for Test Compatibility ?�?�
+  // ── Helper & Section Anchors for Test Compatibility ──
   function homeApprovalActionLabel(a, t) {
     if (a.tool === 'google_calendar.create_event' || a.action === 'approveAndCreateEvent') {
       return (t && typeof t === 'function' ? t('home.approveAndCreateEvent') : null) || 'Add to calendar';
@@ -2414,17 +2414,17 @@
         ${t.id === 'google_calendar.create_event' ? `<div class="tool-oauth-actions">${
           state.googleOAuth.connected
             ? `<button class="btn-small danger" id="btn-google-calendar-disconnect">Disconnect Google Calendar</button>`
-            : `<button class="btn-small" id="btn-google-calendar-connect">?�� Connect Google Calendar</button>`
+            : `<button class="btn-small" id="btn-google-calendar-connect">🔗 Connect Google Calendar</button>`
         }</div>` : ''}
         ${t.id === 'telegram.bot' ? `<div class="tool-oauth-actions">
           <p style="font-size:0.75rem; margin-top:0.25rem; color:var(--text-muted);">Bot Status: <strong>${state.telegram && state.telegram.status && state.telegram.status.configured ? 'Active' : 'Mock Mode (No Token)'}</strong></p>
           <p style="font-size:0.75rem; color:var(--text-muted);">Linked Users: <strong>${(state.telegram && state.telegram.identities && state.telegram.identities.length) || 0}</strong></p>
-          <button class="btn-small" id="btn-telegram-link-identity">?�� Link Telegram (get code)</button>
+          <button class="btn-small" id="btn-telegram-link-identity">🔗 Link Telegram (get code)</button>
         </div>` : ''}
         ${t.id === 'slack.bot' ? `<div class="tool-oauth-actions">
           <p style="font-size:0.75rem; margin-top:0.25rem; color:var(--text-muted);">Bot Status: <strong>${state.slack && state.slack.status && state.slack.status.configured ? 'Active' : 'Mock Mode (No Token)'}</strong></p>
           <p style="font-size:0.75rem; color:var(--text-muted);">Linked Users: <strong>${(state.slack && state.slack.identities && state.slack.identities.length) || 0}</strong></p>
-          <button class="btn-small" id="btn-slack-link-identity">?�� Link Slack (get code)</button>
+          <button class="btn-small" id="btn-slack-link-identity">🔗 Link Slack (get code)</button>
         </div>` : ''}
       </div>`
       )
@@ -2471,7 +2471,7 @@
       inProgress: [],
       recent: approvals.filter((a) => a.status !== 'PENDING'),
     };
-    // R24.8B ??the count is the REAL number of pending approvals (was a hardcoded "Pending (2)").
+    // R24.8B — the count is the REAL number of pending approvals (was a hardcoded "Pending (2)").
     const countLabel = document.getElementById('approvals-count-label');
     if (countLabel) countLabel.textContent = `${t('approvals.pendingLabel')} (${(sections.pending || []).length})`;
     if (approvals.length === 0) {
@@ -2564,12 +2564,12 @@
     ].join('');
   }
 
-  // Phase 1 STEP 8 (item F/G) ??the consumer Activity tab. Reads only the
+  // Phase 1 STEP 8 (item F/G) — the consumer Activity tab. Reads only the
   // durable, tenant-isolated Activity projection (state.activity, from
-  // GET /api/v1/activity) ??never the legacy non-isolated
+  // GET /api/v1/activity) — never the legacy non-isolated
   // /api/v1/executions demo feed, and never raw AuditLogger-shaped fields
   // (tool.execution.completed, browser.navigate, skill.scheduling, ...).
-  // ?�?� R12.1 Increment 3 ??Outcome-first Activity timeline ?�?�
+  // ── R12.1 Increment 3 — Outcome-first Activity timeline ──
   // Recent: the user's own artifacts (the existing ArtifactStore, newest first). Opening one continues the work in Main.
   async function renderRecent() {
     const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
@@ -2754,12 +2754,12 @@
     if (btn) btn.setAttribute('aria-expanded', String(!isExpanded));
   };
 
-  // P08 ??My Space Foundation. Thin frontend for the thin GET /api/v1/
-  // my-space composition ??fetched lazily (only when the tab actually
+  // P08 — My Space Foundation. Thin frontend for the thin GET /api/v1/
+  // my-space composition — fetched lazily (only when the tab actually
   // opens, unlike Home's eager loadAllData()), since Calendar's leg makes a
   // real external call this app should not repeat on every 5s active-work
   // poll for a view the user may never open. Every section renders (or
-  // empties/errors) independently ??one section's data problem never blanks
+  // empties/errors) independently — one section's data problem never blanks
   // the rest of the page.
   async function renderMySpace() {
     const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
@@ -2837,7 +2837,7 @@
     }
   }
 
-  // R24.5C ??real Knowledge search/ingestion state. No client-only demo
+  // R24.5C — real Knowledge search/ingestion state. No client-only demo
   // filtering: knowledgeQuery drives a real GET /api/v1/knowledge?q= fetch.
   let knowledgeQuery = '';
   let knowledgeLoading = false;
@@ -3060,7 +3060,7 @@
       const isMatch = panel.id === `cat-panel-${catKey}`;
       panel.hidden = !isMatch;
     });
-    // R24.6D ??Desktop Account: the shared Account renderer (also used by Mobile) paints it.
+    // R24.6D — Desktop Account: the shared Account renderer (also used by Mobile) paints it.
     if (catKey === 'devices') renderSettingsDevices();
     if (catKey === 'account' && window.NAGEX && window.NAGEX.renderAccountSettings) window.NAGEX.renderAccountSettings();
 
@@ -3179,9 +3179,9 @@
     document.body.appendChild(backdrop);
   }
 
-  // R24.6B ??NAgex has no device/session registry that the web UI can read
+  // R24.6B — NAgex has no device/session registry that the web UI can read
   // yet, so there is no real "connected device" to show. The former
-  // hardcoded "Local Desktop Agent ??Connected · Active now" row was a
+  // hardcoded "Local Desktop Agent … Connected · Active now" row was a
   // fabricated status and is gone; an honest empty state is shown instead.
   // Fixed English UI phrases follow the language (key mainText.<slug>); user content is never passed through here.
   function l10nPhrase(text) {
@@ -3294,14 +3294,14 @@
   function renderSettingsDeviceCard(device, index, selected) {
     const caps = normalizeCapabilities(device);
     const online = device.onlineStatus === 'ONLINE';
-    const meta = [device.os, device.deviceType].filter(Boolean).join(' �� ');
+    const meta = [device.os, device.deviceType].filter(Boolean).join(' · ');
     const systemLine = device.nickname && device.systemDeviceName ? `<div class="settings-device-meta">Device name: <strong>${escapeHtml(device.systemDeviceName)}</strong></div>` : '';
     return `<article class="settings-device-card${selected ? ' selected' : ''}" role="button" tabindex="0" onclick="window.NAGEX.selectSettingsDevice(${index})" onkeydown="if(event.key==='Enter'||event.key===' ') window.NAGEX.selectSettingsDevice(${index})"><div class="settings-device-visual">${deviceVisual(device.os === 'Android' ? 'mobile' : 'pc')}</div><div class="settings-device-body"><div class="settings-device-title-row"><h3>${escapeHtml(deviceDisplayName(device))}</h3><button class="settings-icon-button" type="button" onclick="event.stopPropagation(); window.NAGEX.renameSettingsDevice(${index})" aria-label="Rename device">${settingsIconSvg('Rename', 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z')}</button></div><div class="settings-online-row ${online ? 'online' : 'offline'}"><span></span>${online ? 'Online' : 'Offline'}</div><div class="settings-device-meta">${escapeHtml(meta || 'Device')}</div>${systemLine}<div class="settings-capability-label">NAgex can control</div><div class="settings-capability-row">${caps.length ? caps.map((cap) => `<span class="settings-capability-chip">${capabilityIcon(cap)}${escapeHtml(cap)}</span>`).join('') : '<span class="settings-muted-chip">No controls reported</span>'}</div></div><div class="settings-device-card-actions"><span class="settings-preferred-badge">${index === 0 ? 'Current device' : 'Set as preferred'}</span><button class="settings-icon-button" type="button" aria-label="More actions">...</button></div></article>`;
   }
 
   function renderSettingsDeviceDetail(device, index) {
     const caps = normalizeCapabilities(device);
-    return `<aside class="settings-device-detail-panel"><div class="settings-device-detail-art">${deviceVisual(device.os === 'Android' ? 'mobile' : 'pc')}</div><h3>${escapeHtml(deviceDisplayName(device))}</h3><div class="settings-online-row ${device.onlineStatus === 'ONLINE' ? 'online' : 'offline'}"><span></span>${device.onlineStatus === 'ONLINE' ? 'Online' : 'Offline'}</div><p class="setting-sub">${escapeHtml([device.systemDeviceName, device.os].filter(Boolean).join(' �� '))}</p><div class="settings-device-capability-box"><h4>What NAgex can do on this device</h4><p class="setting-sub">Only capabilities reported by this registered device are shown.</p>${caps.map((cap) => `<div class="settings-capability-detail"><span>${capabilityIcon(cap)}${escapeHtml(cap)}</span><small>${escapeHtml(capabilityDescription(cap))}</small></div>`).join('') || '<p class="setting-sub">No controls reported.</p>'}</div><div class="settings-device-detail-actions"><button class="settings-secondary-action" type="button" onclick="window.NAGEX.renameSettingsDevice(${index})">${capabilityIcon('Files')} Rename</button><button class="settings-secondary-action" type="button">${capabilityIcon('Apps')} Manage</button></div></aside>`;
+    return `<aside class="settings-device-detail-panel"><div class="settings-device-detail-art">${deviceVisual(device.os === 'Android' ? 'mobile' : 'pc')}</div><h3>${escapeHtml(deviceDisplayName(device))}</h3><div class="settings-online-row ${device.onlineStatus === 'ONLINE' ? 'online' : 'offline'}"><span></span>${device.onlineStatus === 'ONLINE' ? 'Online' : 'Offline'}</div><p class="setting-sub">${escapeHtml([device.systemDeviceName, device.os].filter(Boolean).join(' · '))}</p><div class="settings-device-capability-box"><h4>What NAgex can do on this device</h4><p class="setting-sub">Only capabilities reported by this registered device are shown.</p>${caps.map((cap) => `<div class="settings-capability-detail"><span>${capabilityIcon(cap)}${escapeHtml(cap)}</span><small>${escapeHtml(capabilityDescription(cap))}</small></div>`).join('') || '<p class="setting-sub">No controls reported.</p>'}</div><div class="settings-device-detail-actions"><button class="settings-secondary-action" type="button" onclick="window.NAGEX.renameSettingsDevice(${index})">${capabilityIcon('Files')} Rename</button><button class="settings-secondary-action" type="button">${capabilityIcon('Apps')} Manage</button></div></aside>`;
   }
   function capabilityDescription(cap) {
     return {
@@ -3391,7 +3391,7 @@
     if (window.NAGEX && window.NAGEX.renderAccountSettings) window.NAGEX.renderAccountSettings();
     wireLanguageOptions();
     if (window.NAGEX.renderProactiveAssistant) window.NAGEX.renderProactiveAssistant();
-    // R15 ??Settings is reachable via a same-document hash navigation
+    // R15 — Settings is reachable via a same-document hash navigation
     // (switchTab never triggers a full page reload), so org/workspace/
     // role context must be refreshed here rather than only once at
     // initial page load. Without this, a membership change that happened
@@ -3423,7 +3423,7 @@
       DEGRADED: 'settings.providerStatusDegraded',
     };
     const statusBadgeClass = { UNCONFIGURED: 'gray', CONFIGURED: 'blue', LIVE: 'green', DEGRADED: 'orange' };
-    const statusFallback = { UNCONFIGURED: 'Not configured', CONFIGURED: 'Configured ??not yet used', LIVE: 'Live', DEGRADED: 'Degraded' };
+    const statusFallback = { UNCONFIGURED: 'Not configured', CONFIGURED: 'Configured — not yet used', LIVE: 'Live', DEGRADED: 'Degraded' };
 
     el.innerHTML = providers
       .filter((p) => p.status !== 'UNCONFIGURED')
@@ -3632,7 +3632,7 @@
     const btnVoice = document.getElementById('btn-ambient-voice-toggle');
     const backdrop = document.getElementById('ambient-overlay-backdrop');
 
-    // R24.8B ??the header "Search anything or ask NAgex?? control opens the same Ask sheet as Quick Wake.
+    // R24.8B — the header "Search anything or ask NAgex…" control opens the same Ask sheet as Quick Wake.
     const btnSearch = document.getElementById('btn-header-search');
     if (btnSearch) btnSearch.onclick = () => openAmbientOverlay();
     if (btnFloat) btnFloat.onclick = () => openAmbientOverlay();
@@ -3643,7 +3643,7 @@
     if (btnCancel) btnCancel.onclick = closeAmbientOverlay;
 
     // Backdrop click closes the modal, but only when the click lands on the
-    // backdrop itself ??a click that starts or ends inside the modal (a
+    // backdrop itself — a click that starts or ends inside the modal (a
     // descendant of the backdrop) must never close it.
     if (backdrop) {
       backdrop.addEventListener('click', (event) => {
@@ -3668,7 +3668,7 @@
       ambientInput.addEventListener('keydown', (event) => {
         // Enter submits; Shift+Enter is left to the browser's native
         // behavior (a no-op on this single-line input, so no newline is
-        // ever inserted ??this is a plain <input>, not multiline).
+        // ever inserted — this is a plain <input>, not multiline).
         if (event.key === 'Enter' && !event.shiftKey) {
           event.preventDefault();
           submitAmbientComposerInput();
@@ -3680,7 +3680,7 @@
 
   // Shared by the send button and Enter keydown: reads the composer's
   // genuinely-typed text, clears it (the placeholder reappears naturally
-  // since the element is now empty ??no demo text is ever restored), and
+  // since the element is now empty — no demo text is ever restored), and
   // hands the captured text off to the task pipeline before the input is
   // touched again, so nothing submitted is ever lost by clearing.
   function submitAmbientComposerInput() {
@@ -3694,7 +3694,7 @@
     }
     input.value = '';
     // Focus is restored once runAmbientTask finishes and re-enables the
-    // controls (see its `finally` block) ??focusing here would be a no-op,
+    // controls (see its `finally` block) — focusing here would be a no-op,
     // since the input is disabled for the duration of the request.
     runAmbientTask(text);
   }
@@ -3731,7 +3731,7 @@
       perspectiveCard.style.display = 'none';
       perspectiveCard.innerHTML = '';
     }
-    // R24.8B ??a reopened sheet must not keep the previous forecast result (stale-state leak).
+    // R24.8B — a reopened sheet must not keep the previous forecast result (stale-state leak).
     const forecastCard = document.getElementById('ambient-forecast-card');
     if (forecastCard) {
       forecastCard.style.display = 'none';
@@ -3766,7 +3766,7 @@
     document.addEventListener('keydown', ambientModalKeydownHandler, true);
   }
 
-  // R24.8B ??the idle Ask sheet must not show a sample task/request/progress; those cards are shown only
+  // R24.8B — the idle Ask sheet must not show a sample task/request/progress; those cards are shown only
   // once a real request is running (see showAmbientRequestCards). Also applies the Create-tile mode
   // (title + placeholder) and clears the creation status area.
   const AMBIENT_REQUEST_CARD_IDS = ['ambient-task-title-card', 'ambient-request-card', 'ambient-progress-card'];
@@ -3875,7 +3875,7 @@
     }
   }
 
-  // Dismisses the Ambient Assistant / Plan Preview modal only ??this must
+  // Dismisses the Ambient Assistant / Plan Preview modal only — this must
   // never approve, reject, or execute anything, and must never leave the
   // page in a broken state (locked scroll, dangling key handler, lost
   // focus), no matter which of the four dismissal paths (X, footer Close,
@@ -3909,7 +3909,7 @@
 
   // Disables every real trigger surface for the duration of a generation ??
   // not a timer/debounce, purely tied to ambientRunGuard's actual busy
-  // state ??so a user physically cannot fire a second submission while one
+  // state — so a user physically cannot fire a second submission while one
   // is in flight, on top of (not instead of) the guard itself rejecting a
   // re-entrant call. Includes the example card's "Run" button: it submits
   // through the same canonical path (see initPrimaryScenario), so it must
@@ -4029,7 +4029,7 @@
       if (isForecastCompareIntent(promptText)) {
         if (fill) fill.style.width = '40%';
         const lang = window.NAGEX_I18N ? window.NAGEX_I18N.getLocale() : (localStorage.getItem('nagex_locale') || 'en');
-        if (text) text.textContent = lang === 'ko' ? '미래 결과�??�측 분석?�는 �?..' : 'Analyzing forecast...';
+        if (text) text.textContent = lang === 'ko' ? '미래 결과를 예측 분석하는 중...' : 'Analyzing forecast...';
 
         const forecastRes = await apiFetch('/api/v1/ai/forecast-compare', {
           method: 'POST',
@@ -4038,7 +4038,7 @@
         });
 
         if (fill) fill.style.width = '100%';
-        if (text) text.textContent = lang === 'ko' ? '?�측 분석 ?�료' : 'Forecast analysis complete';
+        if (text) text.textContent = lang === 'ko' ? '예측 분석 완료' : 'Forecast analysis complete';
 
         updateFlowStage('Result');
 
@@ -4065,7 +4065,7 @@
       if (isPerspectiveCompareIntent(promptText)) {
         if (fill) fill.style.width = '40%';
         const lang = window.NAGEX_I18N ? window.NAGEX_I18N.getLocale() : (localStorage.getItem('nagex_locale') || 'en');
-        if (text) text.textContent = lang === 'ko' ? '?�각??관?�에??분석?�는 �?..' : 'Comparing perspectives...';
+        if (text) text.textContent = lang === 'ko' ? '다각적 관점에서 분석하는 중...' : 'Comparing perspectives...';
 
         const compareRes = await apiFetch('/api/v1/ai/perspective-compare', {
           method: 'POST',
@@ -4074,7 +4074,7 @@
         });
 
         if (fill) fill.style.width = '100%';
-        if (text) text.textContent = lang === 'ko' ? '관??분석 ?�료' : 'Perspective analysis complete';
+        if (text) text.textContent = lang === 'ko' ? '관점 분석 완료' : 'Perspective analysis complete';
 
         updateFlowStage('Result');
 
@@ -4098,10 +4098,10 @@
 
         if (!compareRes || compareRes.error || (dataObj && dataObj.error) || (compareRes.status && compareRes.status !== 200 && compareRes.status !== 'COMPLETED' && compareRes.status !== 'PARTIAL')) {
           const errPayload = (compareRes && compareRes.error) || (dataObj && dataObj.error);
-          let rawMsg = (typeof errPayload === 'string' ? errPayload : errPayload?.message) || (lang === 'ko' ? '?�각??관??분석 ?�비?��? ?�용?????�습?�다.' : 'Perspective comparison unavailable.');
+          let rawMsg = (typeof errPayload === 'string' ? errPayload : errPayload?.message) || (lang === 'ko' ? '다각적 관점 분석 서비스를 이용할 수 없습니다.' : 'Perspective comparison unavailable.');
           rawMsg = String(rawMsg)
-            .replace(/PERSPECTIVE_SYNTHESIS_FAILED/g, lang === 'ko' ? '분석 결과�??�성?��? 못했?�니??' : 'Synthesis unavailable.')
-            .replace(/ALL_MODEL_PROVIDERS_FAILED/g, lang === 'ko' ? '모든 모델 ?�답???�패?�습?�다.' : 'Model services unavailable.');
+            .replace(/PERSPECTIVE_SYNTHESIS_FAILED/g, lang === 'ko' ? '분석 결과를 합성하지 못했습니다.' : 'Synthesis unavailable.')
+            .replace(/ALL_MODEL_PROVIDERS_FAILED/g, lang === 'ko' ? '모든 모델 응답에 실패했습니다.' : 'Model services unavailable.');
           formattedResult = {
             status: 'UNAVAILABLE',
             error: { message: rawMsg }
@@ -4133,7 +4133,7 @@
       });
 
       if (!res || res.error) {
-        // §18 ??truthful failure, never a fake success; the composer's own
+        // §18 — truthful failure, never a fake success; the composer's own
         // controls are re-enabled by this function's finally block below.
         if (text) text.textContent = res?.error?.message || t('ambient.unableToGeneratePlan');
         return;
@@ -4240,7 +4240,7 @@
     }
 
     // Suggestions are informational-only ideas the model did not add as plan
-    // steps (see the scope policy in ai-service.ts) ??they must never block
+    // steps (see the scope policy in ai-service.ts) — they must never block
     // or replace the requested action, so they render separately from
     // warnings and never affect vm.status/showRunButton.
     if (suggestionsEl) {
@@ -4266,7 +4266,7 @@
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
       const extractor = window.NAGEX_CALENDAR_INTENT;
       const extracted = extractor ? extractor.extractCalendarIntent(originalPromptText || '', new Date(), timezone) : null;
-      // Always show the confirmation form ??never request approval merely
+      // Always show the confirmation form — never request approval merely
       // because the plan resolved. Exact values the user already stated in
       // their message (title/start/duration) prefill it verbatim; anything
       // not stated is left blank (or, for duration, a clearly-labeled
@@ -4287,18 +4287,18 @@
       renderGmailComposeForm(actionsEl, gmailStep.resolvedToolId, extracted);
     } else if ((resolved.steps || []).find((s) => GMAIL_READ_TOOL_IDS.has(s.resolvedToolId) && s.executionReadiness === 'EXECUTION_READY')) {
       const gmailReadStep = (resolved.steps || []).find((s) => GMAIL_READ_TOOL_IDS.has(s.resolvedToolId) && s.executionReadiness === 'EXECUTION_READY');
-      // Read-only ??runs immediately, no approval, per policy.
+      // Read-only — runs immediately, no approval, per policy.
       runGmailReadOnlyStep(actionsEl, gmailReadStep.resolvedToolId, originalPromptText, planId);
     } else if ((resolved.steps || []).find((s) => BROWSER_READ_TOOL_IDS.has(s.resolvedToolId) && s.executionReadiness === 'BLOCKED' && s.toolAvailability === 'UNAVAILABLE')) {
       renderBrowserUnavailableAction(actionsEl);
     } else if ((resolved.steps || []).find((s) => BROWSER_READ_TOOL_IDS.has(s.resolvedToolId) && s.executionReadiness === 'EXECUTION_READY')) {
-      // Browser open/navigate are READ_ONLY (no approval) ??but unlike
+      // Browser open/navigate are READ_ONLY (no approval) — but unlike
       // Calendar/Gmail there is no compose form here: the only thing to
       // confirm before browsing is the destination URL itself, and only a
       // literal URL already in the prompt is ever used (never a guessed
       // domain for "the airline website"). A consequential in-page action
       // (Submit/Buy/Pay/Delete/...) is a separate, later step this ambient
-      // flow does not drive yet ??see browser-approval-view.js's header
+      // flow does not drive yet — see browser-approval-view.js's header
       // comment for why that is an intentional, documented scope boundary.
       runBrowserReadOnlyStep(actionsEl, originalPromptText, planId);
     } else if (vm.showRunButton && vm.actionLabel) {
@@ -4354,25 +4354,25 @@
     }
   }
 
-  // R24.8B ??what has REALLY happened when this card renders: the request was understood and a plan was
+  // R24.8B — what has REALLY happened when this card renders: the request was understood and a plan was
   // prepared for review. Nothing has been searched, read, extracted or generated yet, so no step claims it.
   function ambientTruthfulSteps(t) {
     return [
-      { status: 'done', text: '??' + t('ambient.stepUnderstood') },
-      { status: 'done', text: '??' + t('ambient.stepPlanned') },
-      { status: 'upcoming', text: '??' + t('ambient.stepNotRun') },
+      { status: 'done', text: '✓ ' + t('ambient.stepUnderstood') },
+      { status: 'done', text: '✓ ' + t('ambient.stepPlanned') },
+      { status: 'upcoming', text: '○ ' + t('ambient.stepNotRun') },
     ];
   }
 
   function classifyIntentForUi(promptText) {
     const text = (promptText || '').toLowerCase();
-    if (text.includes('meeting') || text.includes('schedule') || text.includes('calendar') || text.includes('미팅') || text.includes('?�의') || text.includes('?�정')) {
+    if (text.includes('meeting') || text.includes('schedule') || text.includes('calendar') || text.includes('미팅') || text.includes('회의') || text.includes('일정')) {
       return 'MEETING';
     }
-    if (text.includes('file') || text.includes('document') || text.includes('contract') || text.includes('pdf') || text.includes('분석') || text.includes('?�일') || text.includes('조항')) {
+    if (text.includes('file') || text.includes('document') || text.includes('contract') || text.includes('pdf') || text.includes('분석') || text.includes('파일') || text.includes('조항')) {
       return 'ANALYZE';
     }
-    if (text.includes('image') || text.includes('draw') || text.includes('photo') || text.includes('picture') || text.includes('?��?지') || text.includes('그림') || text.includes('?�성')) {
+    if (text.includes('image') || text.includes('draw') || text.includes('photo') || text.includes('picture') || text.includes('이미지') || text.includes('그림') || text.includes('생성')) {
       return 'CREATE';
     }
     return 'RESEARCH';
@@ -4437,10 +4437,10 @@
         if (summarySectionAlias) summarySectionAlias.style.display = 'block';
         const summaryTitleText = t('ambient.understanding.title');
         const findings = isKr ? [
-          '메모�??�키?�처가 ?�차 ?�속?�이�?맥락 ?��??�으�?발전?�고 ?�습?�다.',
-          '?�구 ?�용???�뢰??�?검�?루프???�??관?�이 급증?�고 ?�습?�다.',
-          '멀???�이?�트 ?��??�트?�이?�이 ?�제 ?�구 �??�크?�로?�에 ?�용?�는 중입?�다.',
-          '브라?��?/?�션 ?�이?�트 ?�능???�상?�는 가?�데 ?�인 경계 ?�책??중요?�게 ?�뤄집니??'
+          '메모리 아키텍처가 점차 영속적이고 맥락 인지적으로 발전하고 있습니다.',
+          '도구 사용의 신뢰성 및 검증 루프에 대한 관심이 급증하고 있습니다.',
+          '멀티 에이전트 오케스트레이션이 실제 연구 및 워크플로우에 적용되는 중입니다.',
+          '브라우저/액션 에이전트 성능이 향상되는 가운데 승인 경계 정책이 중요하게 다뤄집니다.'
         ] : [
           'Memory architectures are becoming more persistent and context-aware.',
           'Tool-use reliability and verification loops are getting more attention.',
@@ -4459,10 +4459,10 @@
       if (sourcesSection && sourcesList) {
         sourcesSection.style.display = 'block';
         const sources = [
-          { title: 'The next wave of AI agent architecture', publisher: 'Tech Insights', date: 'Sep 16, 2025', icon: '?��' },
-          { title: 'Building reliable tool-using agents', publisher: 'AI Research Digest', date: 'Sep 14, 2025', icon: '?�️' },
-          { title: 'Multi-agent systems in real-world applications', publisher: 'Product & AI Blog', date: 'Sep 12, 2025', icon: '?��' },
-          { title: 'Browser agents: progress and open challenges', publisher: 'The AI Report', date: 'Sep 10, 2025', icon: '?��' }
+          { title: 'The next wave of AI agent architecture', publisher: 'Tech Insights', date: 'Sep 16, 2025', icon: '📄' },
+          { title: 'Building reliable tool-using agents', publisher: 'AI Research Digest', date: 'Sep 14, 2025', icon: '⚛️' },
+          { title: 'Multi-agent systems in real-world applications', publisher: 'Product & AI Blog', date: 'Sep 12, 2025', icon: '📖' },
+          { title: 'Browser agents: progress and open challenges', publisher: 'The AI Report', date: 'Sep 10, 2025', icon: '🌐' }
         ];
         sourcesList.innerHTML = sources.map(s => `
           <div class="source-item-row">
@@ -4484,11 +4484,11 @@
       if (summarySection && summaryList) {
         summarySection.style.display = 'block';
         if (summarySectionAlias) summarySectionAlias.style.display = 'block';
-        summaryList.innerHTML = `<div class="nagex-empty-state">${escapeHtml('')}</div>`;
+        summaryList.innerHTML = `<div class="nagex-empty-state">${escapeHtml(isKr ? '조사 계획이 준비됐어요. 실제 출처를 확인한 뒤 결과를 표시합니다.' : 'Your research plan is ready. Results will appear after the sources are actually checked.')}</div>`;
       }
       if (sourcesSection && sourcesList) {
         sourcesSection.style.display = 'block';
-        sourcesList.innerHTML = `<div class="nagex-empty-state">${escapeHtml('')}</div>`;
+        sourcesList.innerHTML = `<div class="nagex-empty-state">${escapeHtml(isKr ? '확인된 출처가 아직 없어요.' : 'No verified sources yet.')}</div>`;
       }
 
       // Hide Meeting-specific boxes
@@ -4501,11 +4501,11 @@
         footerActions.style.display = 'flex';
         footerActions.innerHTML = `
           <button class="btn-mockup-secondary" id="btn-ask-followup" type="button">
-            <span class="btn-icon">?��</span>
+            <span class="btn-icon">💬</span>
             <span>${t('ambient.ctaFollowUp')}</span>
           </button>
           <button class="btn-mockup-primary" id="btn-save-vault" type="button">
-            <span class="btn-icon">?��</span>
+            <span class="btn-icon">🔖</span>
             <span>${t('ambient.ctaSaveVault')}</span>
           </button>
         `;
@@ -4532,7 +4532,7 @@
             realVaultButton.textContent = '';
           } else {
             realVaultButton.disabled = false;
-            realVaultButton.textContent = isKr ? '?�?�하지 못했?�요. ?�시 ?�도' : "Couldn't save. Try again";
+            realVaultButton.textContent = isKr ? '저장하지 못했어요. 다시 시도' : "Couldn't save. Try again";
           }
         };
       }
@@ -4549,7 +4549,7 @@
       // legacy sample clauses as if they came from a user's document.
       if (summarySection && summaryList) {
         summarySection.style.display = 'block';
-        summaryList.innerHTML = `<div class="nagex-empty-state">${escapeHtml('')}</div>`;
+        summaryList.innerHTML = `<div class="nagex-empty-state">${escapeHtml(isKr ? '분석할 실제 문서가 필요해요.' : 'Add the document you want me to analyze.')}</div>`;
       }
       if (sourcesSection) sourcesSection.style.display = 'none';
 
@@ -4574,19 +4574,19 @@
       // Replace the legacy placeholder immediately; real content is loaded
       // after resolution and an unavailable source remains an honest state.
       if (contextBox) {
-        contextBox.innerHTML = `<p>${escapeHtml('')}</p>`;
+        contextBox.innerHTML = `<p>${escapeHtml(isKr ? '관련 자료를 확인하고 있어요.' : 'Checking for related context...')}</p>`;
       }
 
       // Grounding Why / Schedule recommendation
       if (groundingWhyEl) {
         groundingWhyEl.style.display = 'block';
-        groundingWhyEl.innerHTML = `?�� <strong>${''}</strong> ${
-          ''
+        groundingWhyEl.innerHTML = `📅 <strong>${isKr ? '추천 일정:' : 'Proposed Schedule:'}</strong> ${
+          isKr ? '실제 일정을 확인하는 중...' : 'Checking your calendar...'
         }`;
       }
 
       if (groundingWhyEl) {
-        groundingWhyEl.innerHTML = `<span>${escapeHtml('')}</span>`;
+        groundingWhyEl.innerHTML = `<span>${escapeHtml(isKr ? '실제 일정과 관련 자료를 바탕으로 준비합니다.' : 'Preparing from your real calendar and related materials.')}</span>`;
       }
       if (resolved) renderGroundedMeetingContext(resolved, contextBox, groundingWhyEl, isKr);
 
@@ -4630,9 +4630,9 @@
       if (summarySection && summaryList) {
         summarySection.style.display = 'block';
         const findings = isKr ? [
-          '계약?????�험 ?�소 �?책임 면책 조항 2�?발견',
-          '?�동 갱신 주기 30???�전 ?��? 조건 명시 ?�인',
-          '분쟁 ?�결 관??법원??본사 거점지�?지?�됨'
+          '계약서 내 위험 요소 및 책임 면책 조항 2건 발견',
+          '자동 갱신 주기 30일 사전 통지 조건 명시 확인',
+          '분쟁 해결 관할 법원이 본사 거점지로 지정됨'
         ] : [
           'Found 2 potential liability limitation clauses requiring review',
           'Automatic renewal notice requirement specified as 30 days prior',
@@ -4648,7 +4648,7 @@
 
       if (summarySection && summaryList) {
         summarySection.style.display = 'block';
-        summaryList.innerHTML = `<div class="nagex-empty-state">${escapeHtml('')}</div>`;
+        summaryList.innerHTML = `<div class="nagex-empty-state">${escapeHtml(isKr ? '생성 요청이 준비됐어요. 실제 결과가 생성되면 여기에 표시합니다.' : 'Your creation request is ready. The result will appear here after it is generated.')}</div>`;
       }
       if (sourcesSection) sourcesSection.style.display = 'none';
       if (contextBox) contextBox.style.display = 'none';
@@ -4659,11 +4659,11 @@
         footerActions.style.display = 'flex';
         footerActions.innerHTML = `
           <button class="btn-mockup-secondary" id="btn-ask-followup" type="button">
-            <span class="btn-icon">?��</span>
+            <span class="btn-icon">💬</span>
             <span>${t('ambient.ctaFollowUp')}</span>
           </button>
           <button class="btn-mockup-primary" id="btn-save-vault" type="button">
-            <span class="btn-icon">?��</span>
+            <span class="btn-icon">🔖</span>
             <span>${t('ambient.ctaSaveVault')}</span>
           </button>
         `;
@@ -4690,11 +4690,11 @@
         footerActions.style.display = 'flex';
         footerActions.innerHTML = `
           <button class="btn-mockup-secondary" id="btn-ask-followup" type="button">
-            <span class="btn-icon">?��</span>
+            <span class="btn-icon">💬</span>
             <span>${t('ambient.ctaFollowUp')}</span>
           </button>
           <button class="btn-mockup-primary" id="btn-save-vault" type="button">
-            <span class="btn-icon">?��</span>
+            <span class="btn-icon">🔖</span>
             <span>${t('ambient.ctaSaveVault')}</span>
           </button>
         `;
@@ -4702,8 +4702,8 @@
     }
   }
 
-  // R21 P1 ??this card previously ended in a fake setTimeout("Added to
-  // calendar ??) that never called any real API ??a false-success bug (the
+  // R21 P1 — this card previously ended in a fake setTimeout("Added to
+  // calendar ✓") that never called any real API — a false-success bug (the
   // opposite of a silent failure, but just as untrustworthy: the user is
   // told a real Google Calendar event now exists when none does). The
   // calendar path below now performs the exact same real
@@ -4711,7 +4711,7 @@
   // calendar/create-event sequence app.js's older requestCalendarApproval()
   // uses, using whatever concrete fields the real resolved plan step
   // already extracted (never fabricated) and falling back to a real
-  // free-slots lookup only for a genuinely missing time ??never inventing
+  // free-slots lookup only for a genuinely missing time — never inventing
   // a title or attendee. The Gmail/generic branches are not yet wired to a
   // real execution path here (real Gmail grounding for an arbitrary
   // ambient request needs more context than this card has); rather than
@@ -4726,14 +4726,14 @@
     });
     if (!contextBox || !groundingWhyEl) return;
     if (!prep || prep.error) {
-      contextBox.innerHTML = `<strong>${escapeHtml('')}</strong><p>${escapeHtml(isKr ? '관???�료�?불러?��? 못했?�요. ?�결 ?�태�??�인?�고 ?�시 ?�도??주세??' : "I couldn't load related context. Check your connections and try again.")}</p>`;
+      contextBox.innerHTML = `<strong>${escapeHtml(isKr ? '이 회의와 관련된 자료' : 'Related to this meeting')}</strong><p>${escapeHtml(isKr ? '관련 자료를 불러오지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요.' : "I couldn't load related context. Check your connections and try again.")}</p>`;
       groundingWhyEl.style.display = 'none';
       return;
     }
     const materials = Array.isArray(prep.related_materials) ? prep.related_materials : [];
     contextBox.innerHTML = materials.length
-      ? `<strong>${escapeHtml(isKr ? `${materials.length}개의 관???�료�?찾았?�요` : `I found ${materials.length} related item${materials.length === 1 ? '' : 's'}`)}</strong><ul>${materials.map((item) => `<li>${escapeHtml(item.title || item.label || item.type)}</li>`).join('')}</ul>`
-      : `<p>${escapeHtml('')}</p>`;
+      ? `<strong>${escapeHtml(isKr ? `${materials.length}개의 관련 자료를 찾았어요` : `I found ${materials.length} related item${materials.length === 1 ? '' : 's'}`)}</strong><ul>${materials.map((item) => `<li>${escapeHtml(item.title || item.label || item.type)}</li>`).join('')}</ul>`
+      : `<p>${escapeHtml(isKr ? '관련 자료는 찾지 못했지만 실제 일정으로 준비를 계속할 수 있어요.' : 'No related materials found. You can still prepare from the calendar event.')}</p>`;
     const title = prep.title || prep.event_title;
     groundingWhyEl.style.display = 'block';
     groundingWhyEl.innerHTML = "<strong>" + escapeHtml("Preparing for") + "</strong>" + (title ? ": " + escapeHtml(title) : "");
@@ -4756,7 +4756,7 @@
 
     if (calendarStep || (promptText && (promptText.toLowerCase().includes('meeting') || promptText.includes('미팅')))) {
       headingEl.textContent = '';
-      detailsEl.innerHTML = `<p>${escapeHtml('')}</p>`;
+      detailsEl.innerHTML = `<p>${escapeHtml(isKr ? '캘린더를 확인하는 중입니다...' : 'Checking your calendar...')}</p>`;
       actionsEl.innerHTML = '';
 
       // Real params only: prefer whatever the real plan already extracted
@@ -4779,7 +4779,7 @@
 
       if (!start || !end) {
         headingEl.textContent = isKr ? "Connect your calendar to continue" : "Connect your calendar to continue";
-        detailsEl.innerHTML = `<p>${escapeHtml('')}</p>`;
+        detailsEl.innerHTML = `<p>${escapeHtml(isKr ? 'Google Calendar가 연결되어 있지 않거나 여유 시간을 찾지 못했습니다.' : 'Google Calendar is not connected, or no open time could be found.')}</p>`;
         return;
       }
 
@@ -4816,7 +4816,7 @@
 
           const approval = await apiFetch('/api/v1/approvals', { method: 'POST', body: JSON.stringify({ toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, payload }) });
           if (!approval || approval.error || !approval.approvalId) {
-            headingEl.textContent = isKr ? '?�료?��? 못했?�요' : "I couldn't complete that";
+            headingEl.textContent = isKr ? '완료하지 못했어요' : "I couldn't complete that";
             detailsEl.innerHTML = `<div style="color:#991b1b;">${escapeHtml((approval && approval.error && approval.error.message) || (''))}</div>`;
             actionsEl.innerHTML = '';
             return;
@@ -4825,8 +4825,8 @@
           btnApprove.textContent = '';
           const approved = await apiFetch(`/api/v1/approvals/${approval.approvalId}/approve`, { method: 'POST' });
           if (!approved || approved.error) {
-            headingEl.textContent = isKr ? '?�료?��? 못했?�요' : "I couldn't complete that";
-            detailsEl.innerHTML = `<div style="color:#991b1b;">${escapeHtml('')}</div>`;
+            headingEl.textContent = isKr ? '완료하지 못했어요' : "I couldn't complete that";
+            detailsEl.innerHTML = `<div style="color:#991b1b;">${escapeHtml(isKr ? '잠시 후 다시 시도해 주세요.' : 'Please try again in a moment.')}</div>`;
             actionsEl.innerHTML = '';
             return;
           }
@@ -4846,16 +4846,16 @@
             `;
           } else {
             headingEl.textContent = "I could not complete that";
-            detailsEl.innerHTML = `<div style="color:#991b1b;">${escapeHtml('')}</div>`;
+            detailsEl.innerHTML = `<div style="color:#991b1b;">${escapeHtml(isKr ? '잠시 후 다시 시도해 주세요.' : 'Please try again in a moment.')}</div>`;
           }
           actionsEl.innerHTML = '';
         };
       }
     } else if (hasGmail) {
       headingEl.textContent = t('ambient.approval.readyEmail');
-      detailsEl.innerHTML = `<div>${escapeHtml(isKr ? '??초안???�제 ?�신???�목?� ?�직 준비되지 ?�았?�니?? Approvals?�서 ?�어??진행??주세??' : "This draft's real recipient/subject isn't ready here yet ??continue from Approvals.")}</div>`;
+      detailsEl.innerHTML = `<div>${escapeHtml(isKr ? '이 초안의 실제 수신자/제목은 아직 준비되지 않았습니다. Approvals에서 이어서 진행해 주세요.' : "This draft's real recipient/subject isn't ready here yet — continue from Approvals.")}</div>`;
       actionsEl.innerHTML = `
-        <button class="btn-mockup-secondary" id="btn-ambient-goto-approvals" type="button">${''}</button>
+        <button class="btn-mockup-secondary" id="btn-ambient-goto-approvals" type="button">${isKr ? 'Approvals로 이동' : 'Go to Approvals'}</button>
         <button class="btn-action-text" id="btn-ambient-reject-mutation" type="button">${t('ambient.approval.notNow')}</button>
       `;
       const btnGoto = document.getElementById('btn-ambient-goto-approvals');
@@ -4864,9 +4864,9 @@
       if (btnReject) btnReject.onclick = () => { approvalCard.style.display = 'none'; };
     } else {
       headingEl.textContent = '';
-      detailsEl.innerHTML = `<div>${escapeHtml(promptText || 'Requested action')}</div><div style="font-size:0.8rem; color:#64748b; margin-top:0.4rem;">${escapeHtml('')}</div>`;
+      detailsEl.innerHTML = `<div>${escapeHtml(promptText || 'Requested action')}</div><div style="font-size:0.8rem; color:#64748b; margin-top:0.4rem;">${escapeHtml(isKr ? 'Approvals에서 이 작업을 검토하고 실행할 수 있습니다.' : 'Review and run this from Approvals.')}</div>`;
       actionsEl.innerHTML = `
-        <button class="btn-mockup-secondary" id="btn-ambient-goto-approvals" type="button">${''}</button>
+        <button class="btn-mockup-secondary" id="btn-ambient-goto-approvals" type="button">${isKr ? 'Approvals로 이동' : 'Go to Approvals'}</button>
         <button class="btn-action-text" id="btn-ambient-reject-mutation" type="button">${t('ambient.approval.notNow')}</button>
       `;
       const btnGoto = document.getElementById('btn-ambient-goto-approvals');
@@ -4880,7 +4880,7 @@
     actionsEl.innerHTML = `
       <div class="calendar-connect-prompt">
         <p>Google Calendar is not connected, so this step cannot proceed.</p>
-        <button class="btn-plan-action plan-status-approval" id="btn-connect-google-calendar">?�� Connect Google Calendar</button>
+        <button class="btn-plan-action plan-status-approval" id="btn-connect-google-calendar">🔗 Connect Google Calendar</button>
       </div>`;
     const btn = document.getElementById('btn-connect-google-calendar');
     if (btn) {
@@ -4897,7 +4897,7 @@
   }
 
   // extracted (from calendar-intent-extraction.js) may be null, or may only
-  // have some fields confidently parsed ??this form must reflect exactly
+  // have some fields confidently parsed — this form must reflect exactly
   // what was extracted and nothing more: a field the user didn't state is
   // left blank (title, start, attendees) or shown as a clearly-labeled
   // suggested default (duration) rather than a silently-invented value.
@@ -4920,7 +4920,7 @@
         <label>Start
           <input type="datetime-local" id="cal-start" value="${escapeHtml(startValue)}" required>
         </label>
-        <label>Duration (minutes)${durationIsSuggested ? ' <span class="field-suggested-hint">(suggested ??please confirm)</span>' : ''}
+        <label>Duration (minutes)${durationIsSuggested ? ' <span class="field-suggested-hint">(suggested — please confirm)</span>' : ''}
           <input type="number" id="cal-duration" value="${durationValue}" min="1" step="5" required>
         </label>
         <label>Timezone
@@ -4939,7 +4939,7 @@
           <input type="text" value="primary" disabled>
         </label>
         <p class="calendar-form-error" id="calendar-form-error" style="display:none;"></p>
-        <button type="submit" class="btn-plan-action plan-status-approval">?���?Preview & Request Approval</button>
+        <button type="submit" class="btn-plan-action plan-status-approval">🛡️ Preview & Request Approval</button>
       </form>
       <div id="calendar-preview-slot"></div>`;
 
@@ -4974,8 +4974,8 @@
         const toLocalIso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
         const endDate = new Date(result.startDate.getTime() + durationMinutes * 60000);
 
-        // Whatever is in the form right now ??extracted-and-untouched,
-        // extracted-and-edited, or filled in from blank ??becomes the exact
+        // Whatever is in the form right now — extracted-and-untouched,
+        // extracted-and-edited, or filled in from blank — becomes the exact
         // canonical payload. Nothing here is re-derived from the original
         // prompt again.
         const payload = {
@@ -5033,7 +5033,7 @@
         <p class="calendar-approval-expiry" id="calendar-approval-expiry">${vmView.countdownLabel ? escapeHtml(vmView.countdownLabel) : ''}</p>
         <div class="calendar-preview-actions">
           <button class="btn-reject-outline" id="btn-calendar-reject" ${vmView.rejectDisabled ? 'disabled' : ''}>${escapeHtml(t('calendar.reject'))}</button>
-          <button class="btn-secondary" id="btn-calendar-edit" ${vmView.approveDisabled ? 'disabled' : ''}>${escapeHtml((window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale() === 'ko') ? '?�정' : 'Edit')}</button>
+          <button class="btn-secondary" id="btn-calendar-edit" ${vmView.approveDisabled ? 'disabled' : ''}>${escapeHtml((window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale() === 'ko') ? '수정' : 'Edit')}</button>
           <button class="btn-plan-action plan-status-ready" id="btn-calendar-approve" ${vmView.approveDisabled ? 'disabled' : ''}>${escapeHtml(t('calendar.approveAndCreateEvent'))}</button>
         </div>
       </div>`;
@@ -5062,7 +5062,7 @@
     slot.innerHTML = `<p>Requesting approval??/p>`;
 
     // Step 3: the approval API is the single source of truth from here on.
-    // Its canonicalPayload ??never this locally-composed `payload` ??is what
+    // Its canonicalPayload — never this locally-composed `payload` — is what
     // gets displayed and, later, what gets executed (steps 2 and 7).
     const approval = await apiFetch('/api/v1/approvals', {
       method: 'POST',
@@ -5150,7 +5150,7 @@
           const elBusy = statusEl();
           if (elBusy) elBusy.textContent = 'Creating calendar event...';
 
-          // Step 6: approve first, then execute ??never the other way round.
+          // Step 6: approve first, then execute — never the other way round.
           const approved = await apiFetch(`/api/v1/approvals/${approval.approvalId}/approve`, { method: 'POST' });
           if (!approved || approved.error) {
             updateFlowStage('Result');
@@ -5165,7 +5165,7 @@
           addTimelineEntry('Execution started', `execution:${approval.approvalId}:started`, 'btnApprove.onclick');
 
           // Step 7: execute with the exact canonicalPayload the approval API
-          // returned ??never the locally-composed `payload` variable.
+          // returned — never the locally-composed `payload` variable.
           const result = await apiFetch('/api/v1/tools/google-calendar/create-event', {
             method: 'POST',
             body: JSON.stringify({ approvalId: approval.approvalId, payload: approval.canonicalPayload }),
@@ -5180,7 +5180,7 @@
           }
 
           // Step 10: on APPROVAL_ALREADY_CONSUMED (or any other failure), show
-          // the failure and stop ??never retry automatically.
+          // the failure and stop — never retry automatically.
           const code = result && result.error && result.error.code;
           const message = view.describeExecutionError(code) || (result && result.error && result.error.message) || 'The event could not be created.';
           const el = statusEl();
@@ -5209,8 +5209,8 @@
     }, 1000);
   }
 
-  // ?�?� Gmail Ambient E2E (MASTER.md Section 14: user types an email request,
-  // completes it end to end, without curl) ??mirrors the Calendar compose
+  // ── Gmail Ambient E2E (MASTER.md Section 14: user types an email request,
+  // completes it end to end, without curl) — mirrors the Calendar compose
   // form / approval card / success card pattern above, using the shared
   // gmail-approval-view.js view model and gmail-intent-extraction.js's
   // deterministic, never-invents-a-value extraction.
@@ -5220,7 +5220,7 @@
     actionsEl.innerHTML = `
       <div class="calendar-connect-prompt">
         <p>${escapeHtml(t('gmail.connectPrompt'))}</p>
-        <button class="btn-plan-action plan-status-approval" id="btn-connect-gmail">?�� ${escapeHtml(t('gmail.connectButton'))}</button>
+        <button class="btn-plan-action plan-status-approval" id="btn-connect-gmail">🔗 ${escapeHtml(t('gmail.connectButton'))}</button>
       </div>`;
     const btn = document.getElementById('btn-connect-gmail');
     if (btn) {
@@ -5261,7 +5261,7 @@
 
   // `extracted` (from gmail-intent-extraction.js) may be null, or may only
   // have some fields confidently parsed. A field the user didn't literally
-  // state (to, subject, body) is left blank ??never filled with a guess ??
+  // state (to, subject, body) is left blank — never filled with a guess —
   // and `recipientNameHint` (a bare name like "John") is shown only as text
   // next to the still-blank, still-required To field, exactly mirroring how
   // renderCalendarComposeForm leaves title/start blank rather than inventing
@@ -5278,7 +5278,7 @@
       ? `<p class="field-suggested-hint">${escapeHtml(t('gmail.recipientHint'))} "${escapeHtml(extracted.recipientNameHint)}" ${escapeHtml(t('gmail.recipientHintSuffix'))}</p>`
       : '';
     // Reply thread context is only ever prefilled from a thread NAgex
-    // actually just loaded in this session (state.lastGmailThread) ??never
+    // actually just loaded in this session (state.lastGmailThread) — never
     // guessed at from the prompt text alone.
     const threadPrefill = (isReply && state.lastGmailThread) || { threadId: '', replyToMessageId: '' };
 
@@ -5312,7 +5312,7 @@
           <input type="text" value="me" disabled>
         </label>
         <p class="calendar-form-error" id="gmail-form-error" style="display:none;"></p>
-        <button type="submit" class="btn-plan-action plan-status-approval">?���?${escapeHtml(t('gmail.previewAndRequestApproval'))}</button>
+        <button type="submit" class="btn-plan-action plan-status-approval">🛡️ ${escapeHtml(t('gmail.previewAndRequestApproval'))}</button>
       </form>
       <div id="gmail-preview-slot"></div>`;
 
@@ -5330,7 +5330,7 @@
         const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
         // Fail closed: at least one confirmed, syntactically valid recipient
-        // is required before an approval can even be requested ??an
+        // is required before an approval can even be requested — an
         // ambiguous/blank recipient is "asked about" by the form itself
         // simply refusing to submit, never by inventing an address.
         if (!to.length || !to.every((e) => EMAIL_RE.test(e))) {
@@ -5380,7 +5380,7 @@
         <p class="calendar-approval-expiry" id="gmail-approval-expiry">${vmView.countdownLabel ? escapeHtml(vmView.countdownLabel) : ''}</p>
         <div class="calendar-preview-actions">
           <button class="btn-reject-outline" id="btn-gmail-reject" ${vmView.rejectDisabled ? 'disabled' : ''}>${escapeHtml(t('gmail.reject'))}</button>
-          <button class="btn-secondary" id="btn-gmail-edit" ${vmView.approveDisabled ? 'disabled' : ''}>${escapeHtml((window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale() === 'ko') ? '?�정' : 'Edit')}</button>
+          <button class="btn-secondary" id="btn-gmail-edit" ${vmView.approveDisabled ? 'disabled' : ''}>${escapeHtml((window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale() === 'ko') ? '수정' : 'Edit')}</button>
           <button class="btn-plan-action plan-status-ready" id="btn-gmail-approve" ${vmView.approveDisabled ? 'disabled' : ''}>${escapeHtml(t(gmailApproveButtonLabelKey(approval.toolId)))}</button>
         </div>
       </div>`;
@@ -5408,7 +5408,7 @@
     if (!slot || !view) return;
     slot.innerHTML = `<p>${escapeHtml(t('gmail.requestingApproval'))}</p>`;
 
-    // The approval API is the single source of truth from here on ??its
+    // The approval API is the single source of truth from here on — its
     // canonicalPayload, never this locally-composed `payload`, is what gets
     // displayed and, later, what gets executed.
     const approval = await apiFetch('/api/v1/approvals', {
@@ -5495,7 +5495,7 @@
           const elBusy = statusEl();
           if (elBusy) elBusy.textContent = t(gmailExecutingLabelKey(toolId));
 
-          // Approve first, then execute ??never the other way round.
+          // Approve first, then execute — never the other way round.
           const approved = await apiFetch(`/api/v1/approvals/${approval.approvalId}/approve`, { method: 'POST' });
           if (!approved || approved.error) {
             updateFlowStage('Result');
@@ -5510,7 +5510,7 @@
           addTimelineEntry('Execution started', `execution:${approval.approvalId}:started`, 'btnGmailApprove.onclick');
 
           // Execute with the exact canonicalPayload the approval API
-          // returned ??never the locally-composed `payload` variable.
+          // returned — never the locally-composed `payload` variable.
           const result = await apiFetch(GMAIL_EXECUTE_ENDPOINT[toolId], {
             method: 'POST',
             body: JSON.stringify({ approvalId: approval.approvalId, payload: approval.canonicalPayload }),
@@ -5525,7 +5525,7 @@
           }
 
           // On APPROVAL_ALREADY_CONSUMED (or any other failure), show the
-          // failure and stop ??never retry automatically.
+          // failure and stop — never retry automatically.
           const code = result && result.error && result.error.code;
           const message = view.describeExecutionError(code) || (result && result.error && result.error.message) || 'The action could not be completed.';
           const el = statusEl();
@@ -5567,7 +5567,7 @@
         </ul>
       </div>`;
     // Remembers the top real result so a follow-up reply/read_thread request
-    // in this session can use its actual threadId ??never invented.
+    // in this session can use its actual threadId — never invented.
     if (threads[0]) state.lastGmailThread = { threadId: threads[0].threadId, replyToMessageId: null };
   }
 
@@ -5585,7 +5585,7 @@
   }
 
   // Read-only Gmail actions (search, read_thread) run immediately with no
-  // approval, per policy ??but never fabricate a result: read_thread with no
+  // approval, per policy — but never fabricate a result: read_thread with no
   // real threadId known in this session (from a prior search/read result)
   // stops and asks the user to search first, rather than guessing one.
   async function runGmailReadOnlyStep(actionsEl, toolId, originalPromptText, planId) {
@@ -5627,11 +5627,11 @@
     }
   }
 
-  // ?�?� Browser Agent MVP ambient wiring (MASTER.md Section 14.5 item 06) ?�?�
+  // ── Browser Agent MVP ambient wiring (MASTER.md Section 14.5 item 06) ──
   // Scope: the read-only "open a page and tell me what it says" flow only
   // (browser.open/browser.navigate -> browser.snapshot, no approval, per
   // policy). Driving an in-page click/type/select from the ambient composer
-  // is NOT wired here ??that is fundamentally a multi-turn loop (navigate,
+  // is NOT wired here — that is fundamentally a multi-turn loop (navigate,
   // read the live page, decide what to click) rather than a single-shot
   // form, and the backend + approval-card view model for it already exist
   // and are tested (see browser.service.ts, browser-approval-view.js) for a
@@ -5650,7 +5650,7 @@
     const literalUrl = extracted && extracted.url;
 
     if (!literalUrl) {
-      // Never invents a destination for "the airline website" ??asks for
+      // Never invents a destination for "the airline website" — asks for
       // the real URL exactly the way a blank required Calendar/Gmail field
       // does, by simply requiring it before proceeding.
       actionsEl.innerHTML = `
@@ -5717,9 +5717,9 @@
       </div>`;
   }
 
-  // The "??Run" button lives inside the ambient overlay's static example
+  // The "▶ Run" button lives inside the ambient overlay's static example
   // conversation, right next to the real composer. It used to call
-  // runAmbientTask() directly with a hardcoded prompt ??a second, redundant
+  // runAmbientTask() directly with a hardcoded prompt — a second, redundant
   // producer of plan generations reachable from the same view as the real
   // composer (two genuinely different plans, both triggered from the one
   // open overlay, both using the same example text, which is what produced
@@ -5750,7 +5750,7 @@
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  // Merge onto the existing window.NAGEX (never replace it outright) ??the
+  // Merge onto the existing window.NAGEX (never replace it outright) — the
   // STEP 6/7 Candidate Review/Action handlers (acceptCandidate,
   // rejectCandidate, executeCandidateAction, retryCandidateAction,
   // startModifyCandidate/saveModifyCandidate/cancelModifyCandidate,
@@ -5772,10 +5772,10 @@
       await apiFetch(`/api/v1/memory/${id}`, { method: 'DELETE' });
       await loadAllData();
     },
-    // Phase 1 STEP 8, item L ??approving/rejecting a Calendar Action
+    // Phase 1 STEP 8, item L — approving/rejecting a Calendar Action
     // Approval that is linked to a candidate automatically advances that
     // candidate's action to its next real state (SUCCEEDED on approve,
-    // FAILED on reject) via the SAME resolver logic STEP 7 built ??so "no
+    // FAILED on reject) via the SAME resolver logic STEP 7 built — so "no
     // manual page reload should be required after the same UI action"
     // holds for the whole approve -> execute -> Home/Inbox/Activity chain,
     // not just the approval record itself.
@@ -5800,7 +5800,7 @@
         await loadAllData();
       } finally {
         // loadAllData() above re-renders every approval list from fresh
-        // markup on success, which already clears any disabled state ??this
+        // markup on success, which already clears any disabled state — this
         // only matters as the recovery path if something above throws, so a
         // failure never leaves the id permanently un-retryable or the
         // original button permanently disabled.
@@ -5808,7 +5808,7 @@
         if (btn && document.contains(btn)) btn.disabled = false;
       }
     },
-    // Real DC3-B2-era Task cancellation ??the same POST /api/v1/tasks/:id/cancel
+    // Real DC3-B2-era Task cancellation — the same POST /api/v1/tasks/:id/cancel
     // a running Task's own control surface uses. Never a local-only UI
     // toggle: the button that calls this only ever renders when a real
     // taskId is present (see renderHomeWorkspaceSections' Working section).
@@ -5819,10 +5819,10 @@
     // Minimal, deliberate bridge for desktop/mobile Home modules (separate
     // script files, per the Dual Experience directive) to reuse the exact
     // same authenticated fetch wrapper and canonical in-memory state this
-    // file already owns ??never a second, parallel data client.
+    // file already owns — never a second, parallel data client.
     apiFetch,
     getState: () => state,
-    // UI-5 ??a second real entry point into the exact same route-input
+    // UI-5 — a second real entry point into the exact same route-input
     // classification + dispatch logic the Home composer's own send button
     // uses (real /api/v1/workspace/route-input call, real ambient
     // task/capture dispatch). Deliberately a small, independent
@@ -5831,7 +5831,7 @@
     // text is pinned by tests/unified_capture_routing.test.ts (it string-
     // matches the literal block between "if (btnSend && homeInput) {" and
     // "if (btnLink && homeInput)"), so refactoring it to share code would
-    // risk that regression guard for no real benefit ??both call sites end
+    // risk that regression guard for no real benefit — both call sites end
     // up invoking the same real apiFetch/openAmbientOverlay/runAmbientTask/
     // switchTab functions either way.
     submitPrompt: async (text) => {
@@ -5892,7 +5892,7 @@
         renderSettingsAiModel();
       }
     },
-    // R24.6B ??no optimistic mutation: state changes only from the server's
+    // R24.6B — no optimistic mutation: state changes only from the server's
     // confirmed response, and "Saved." is shown only after that write really
     // persisted. On any failure the control re-renders from the unchanged
     // state (it reverts) and a truthful error is shown.
@@ -5962,9 +5962,9 @@
     },
   });
 
-  // ?�?� Creation Domain UI Handler ?�?�
+  // ── Creation Domain UI Handler ──
   //
-  // R23.7C-C ??canonical image source policy. The backend now serves the
+  // R23.7C-C — canonical image source policy. The backend now serves the
   // real generated image at a NAgex-owned canonical path
   // (/api/v1/creations/images/img_<24 hex>, see image-executor.ts's imageId
   // format), never a provider URL. This predicate is the single place that
@@ -6017,7 +6017,7 @@
         const quality = document.getElementById('create-recipe-quality')?.value || 'standard';
 
         btnGenerate.disabled = true;
-        btnGenerate.textContent = '?�� Generating...';
+        btnGenerate.textContent = '🎨 Generating...';
 
         try {
           const res = await apiFetch('/api/v1/creations/generate', {
@@ -6038,7 +6038,7 @@
           }
         } finally {
           btnGenerate.disabled = false;
-          btnGenerate.textContent = '?�� Generate Creation';
+          btnGenerate.textContent = '🎨 Generate Creation';
         }
       };
     }
@@ -6055,7 +6055,7 @@
         }
 
         btnVariation.disabled = true;
-        btnVariation.textContent = '?�� Generating Variation...';
+        btnVariation.textContent = '🪄 Generating Variation...';
 
         try {
           const res = await apiFetch(`/api/v1/creations/${state.currentCreation.creationId}/variation`, {
@@ -6072,7 +6072,7 @@
           }
         } finally {
           btnVariation.disabled = false;
-          btnVariation.textContent = '?�� Generate Variation';
+          btnVariation.textContent = '🪄 Generate Variation';
         }
       };
     }
@@ -6140,7 +6140,7 @@
     loadCreationHistory();
   }
 
-  // ?�?� Analyze Domain UI Handler ?�?�
+  // ── Analyze Domain UI Handler ──
   function initAnalyzeView() {
     const dropzone = document.getElementById('analyze-dropzone');
     const fileInput = document.getElementById('analyze-file-input');
@@ -6191,7 +6191,7 @@
         if (!file || !resultSlot) return;
 
         btnExecute.disabled = true;
-        btnExecute.textContent = '?�� Analyzing File...';
+        btnExecute.textContent = '🔍 Analyzing File...';
 
         try {
           const initRes = await apiFetch('/api/v1/workspace/uploads/init', {
@@ -6221,7 +6221,7 @@
           resultSlot.innerHTML = `
             <div class="analysis-structured-card" style="font-size: 0.85rem;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-                <span class="badge-status status-READY" style="font-size: 0.75rem;">??Analysis Completed</span>
+                <span class="badge-status status-READY" style="font-size: 0.75rem;">✓ Analysis Completed</span>
                 <span style="font-size: 0.72rem; color: var(--text-muted);">${escapeHtml(new Date().toLocaleTimeString())}</span>
               </div>
               <h4 style="font-size: 0.95rem; color: var(--navy-head); margin-bottom: 0.4rem;">Executive Summary</h4>
@@ -6243,7 +6243,7 @@
             </div>`;
         } finally {
           btnExecute.disabled = false;
-          btnExecute.textContent = '?�� Run Analysis';
+          btnExecute.textContent = '🔍 Run Analysis';
         }
       };
     }
@@ -6319,10 +6319,10 @@
 
     const synthesis = result.synthesis;
     if (!synthesis || result.status === 'UNAVAILABLE') {
-      let rawMsg = (result.error && (typeof result.error === 'string' ? result.error : result.error.message)) || (lang === 'ko' ? '?�각??관??분석 ?�비?��? ?�용?????�습?�다.' : 'Perspective comparison unavailable.');
+      let rawMsg = (result.error && (typeof result.error === 'string' ? result.error : result.error.message)) || (lang === 'ko' ? '다각적 관점 분석 서비스를 이용할 수 없습니다.' : 'Perspective comparison unavailable.');
       rawMsg = String(rawMsg)
-        .replace(/PERSPECTIVE_SYNTHESIS_FAILED/g, lang === 'ko' ? '분석 결과�??�성?��? 못했?�니??' : 'Synthesis unavailable.')
-        .replace(/ALL_MODEL_PROVIDERS_FAILED/g, lang === 'ko' ? '모든 모델 ?�답???�패?�습?�다.' : 'Model services unavailable.');
+        .replace(/PERSPECTIVE_SYNTHESIS_FAILED/g, lang === 'ko' ? '분석 결과를 합성하지 못했습니다.' : 'Synthesis unavailable.')
+        .replace(/ALL_MODEL_PROVIDERS_FAILED/g, lang === 'ko' ? '모든 모델 응답에 실패했습니다.' : 'Model services unavailable.');
       container.innerHTML = '<div class="perspective-result-error" data-testid="perspective-compare-result">' + esc(rawMsg) + '</div>';
       return;
     }
@@ -6335,7 +6335,7 @@
     let html = '<div class="perspective-compare-result" data-testid="perspective-compare-result">';
 
     if (result.status === 'PARTIAL') {
-      const partialBanner = lang === 'ko' ? '?��? 관??분석 결과�?반영?�었?�니??' : 'Partial perspective analysis provided.';
+      const partialBanner = lang === 'ko' ? '일부 관점 분석 결과만 반영되었습니다.' : 'Partial perspective analysis provided.';
       html += '<div class="perspective-banner perspective-banner-partial" data-testid="perspective-partial-banner">' + esc(partialBanner) + '</div>';
     }
 
@@ -6420,33 +6420,33 @@
     const resData = (result && result.data) ? result.data : result;
 
     if (!resData) {
-      container.innerHTML = '<div class="forecast-result-error" data-testid="forecast-compare-result">' + esc(lang === 'ko' ? '?�측 ?�비?��? ?�용?????�습?�다.' : 'Forecast service unavailable.') + '</div>';
+      container.innerHTML = '<div class="forecast-result-error" data-testid="forecast-compare-result">' + esc(lang === 'ko' ? '예측 서비스를 이용할 수 없습니다.' : 'Forecast service unavailable.') + '</div>';
       return;
     }
 
     if (resData.status === 'INFORMATIONAL') {
-      const msg = resData.informationalMessage || (lang === 'ko' ? 'NAgex???�자?�인 ?�거 결과 ?�측 ?�률???�성?��? ?�습?�다. ?�???�자�?지지??조사 �?공식 ?�거 기�???발표 ?�료�?참고?�시�?바랍?�다.' : 'NAgex does not generate proprietary election outcome forecasts. For election information, refer to dated polling measurements and official election authority reports.');
+      const msg = resData.informationalMessage || (lang === 'ko' ? 'NAgex는 독자적인 선거 결과 예측 확률을 생성하지 않습니다. 대신 일자별 지지율 조사 및 공식 선거 기관의 발표 자료를 참고하시기 바랍니다.' : 'NAgex does not generate proprietary election outcome forecasts. For election information, refer to dated polling measurements and official election authority reports.');
       container.innerHTML = '<div class="forecast-result-informational" data-testid="forecast-compare-result">' +
-        '<h3 class="forecast-title">' + esc(t('forecast.title') || (lang === 'ko' ? '?�측' : 'Forecast')) + '</h3>' +
+        '<h3 class="forecast-title">' + esc(t('forecast.title') || (lang === 'ko' ? '예측' : 'Forecast')) + '</h3>' +
         '<p class="forecast-informational-text">' + esc(msg) + '</p>' +
         '</div>';
       return;
     }
 
     if (resData.status === 'NEEDS_CLARIFICATION') {
-      const msg = resData.clarificationMessage || t('forecast.needsClarification') || (lang === 'ko' ? '?�측 ?�?�이???�점??명확?��? ?�습?�다. 명확???�점�?조건?�로 질문?�주?�요.' : 'Forecast target or horizon is ambiguous. Please specify clear criteria.');
+      const msg = resData.clarificationMessage || t('forecast.needsClarification') || (lang === 'ko' ? '예측 대상이나 시점이 명확하지 않습니다. 명확한 시점과 조건으로 질문해주세요.' : 'Forecast target or horizon is ambiguous. Please specify clear criteria.');
       container.innerHTML = '<div class="forecast-result-clarification" data-testid="forecast-compare-result">' +
-        '<h3 class="forecast-title">' + esc(t('forecast.title') || (lang === 'ko' ? '?�측' : 'Forecast')) + '</h3>' +
+        '<h3 class="forecast-title">' + esc(t('forecast.title') || (lang === 'ko' ? '예측' : 'Forecast')) + '</h3>' +
         '<p class="forecast-clarification-text">' + esc(msg) + '</p>' +
         '</div>';
       return;
     }
 
     if (resData.status === 'PARTIAL') {
-      const partialBanner = lang === 'ko' ? '?�나???�립 ?�측�??�료?�어 NAgex가 ?�뢰?????�는 ?�중 ?�측 ?�성???�성?????�습?�다.' : 'Only one independent forecast completed, so NAgex could not produce a reliable multi-forecast synthesis.';
+      const partialBanner = lang === 'ko' ? '하나의 독립 예측만 완료되어 NAgex가 신뢰할 수 있는 다중 예측 합성을 생성할 수 없습니다.' : 'Only one independent forecast completed, so NAgex could not produce a reliable multi-forecast synthesis.';
       let html = '<div class="forecast-compare-result" data-testid="forecast-compare-result">';
       html += '<div class="forecast-banner forecast-banner-partial" data-testid="forecast-partial-banner">' + esc(partialBanner) + '</div>';
-      html += '<div class="forecast-header-section"><h3 class="forecast-title">' + esc(t('forecast.title') || (lang === 'ko' ? '?�측' : 'Forecast')) + '</h3></div>';
+      html += '<div class="forecast-header-section"><h3 class="forecast-title">' + esc(t('forecast.title') || (lang === 'ko' ? '예측' : 'Forecast')) + '</h3></div>';
       const singleFct = (resData.forecasts || []).find(f => f.status === 'SUCCESS');
       if (singleFct && singleFct.rationale) {
         html += '<div class="forecast-section"><p class="forecast-summary-text">' + esc(singleFct.rationale) + '</p></div>';
@@ -6458,21 +6458,21 @@
 
     const synthesis = resData.synthesis;
     if (!synthesis || resData.status === 'UNAVAILABLE') {
-      let rawMsg = (resData.error && (typeof resData.error === 'string' ? resData.error : resData.error.message)) || (lang === 'ko' ? '?�측 분석 ?�비?��? ?�용?????�습?�다.' : 'Forecast unavailable.');
+      let rawMsg = (resData.error && (typeof resData.error === 'string' ? resData.error : resData.error.message)) || (lang === 'ko' ? '예측 분석 서비스를 이용할 수 없습니다.' : 'Forecast unavailable.');
       rawMsg = String(rawMsg)
-        .replace(/FORECAST_SYNTHESIS_FAILED/g, lang === 'ko' ? '?�측 결과�??�성?��? 못했?�니??' : 'Forecast synthesis unavailable.')
-        .replace(/ALL_MODEL_PROVIDERS_FAILED/g, lang === 'ko' ? '모든 모델 ?�답???�패?�습?�다.' : 'Model services unavailable.');
+        .replace(/FORECAST_SYNTHESIS_FAILED/g, lang === 'ko' ? '예측 결과를 합성하지 못했습니다.' : 'Forecast synthesis unavailable.')
+        .replace(/ALL_MODEL_PROVIDERS_FAILED/g, lang === 'ko' ? '모든 모델 응답에 실패했습니다.' : 'Model services unavailable.');
       container.innerHTML = '<div class="forecast-result-error" data-testid="forecast-compare-result">' + esc(rawMsg) + '</div>';
       return;
     }
 
-    const forecastTitle = t('forecast.title') || (lang === 'ko' ? '?�측' : 'Forecast');
-    const likelihoodTitle = t('forecast.likelihood') || (lang === 'ko' ? '?�상 가?�성' : 'Estimated likelihood');
-    const rangeTitle = t('forecast.range') || (lang === 'ko' ? '가?�성 범위' : 'Likely range');
-    const whyTitle = t('forecast.why') || (lang === 'ko' ? '?�재 ?�렇�?보는 ?�유' : 'Why this is the current estimate');
-    const supportingTitle = t('forecast.supporting') || (lang === 'ko' ? '가?�성???�이???�호' : 'Signals supporting this');
-    const opposingTitle = t('forecast.opposing') || (lang === 'ko' ? '가?�성????��???�호' : 'Signals against this');
-    const whatWouldChangeTitle = t('forecast.whatWouldChange') || (lang === 'ko' ? '?�측??바�? ???�는 ?�인' : 'What could change the forecast');
+    const forecastTitle = t('forecast.title') || (lang === 'ko' ? '예측' : 'Forecast');
+    const likelihoodTitle = t('forecast.likelihood') || (lang === 'ko' ? '예상 가능성' : 'Estimated likelihood');
+    const rangeTitle = t('forecast.range') || (lang === 'ko' ? '가능성 범위' : 'Likely range');
+    const whyTitle = t('forecast.why') || (lang === 'ko' ? '현재 이렇게 보는 이유' : 'Why this is the current estimate');
+    const supportingTitle = t('forecast.supporting') || (lang === 'ko' ? '가능성을 높이는 신호' : 'Signals supporting this');
+    const opposingTitle = t('forecast.opposing') || (lang === 'ko' ? '가능성을 낮추는 신호' : 'Signals against this');
+    const whatWouldChangeTitle = t('forecast.whatWouldChange') || (lang === 'ko' ? '예측을 바꿀 수 있는 요인' : 'What could change the forecast');
     const uncertaintiesTitle = t('forecast.uncertainties') || 'What remains uncertain';
     const sourcesTitle = t('forecast.sources') || (lang === 'ko' ? '출처' : 'Sources');
 
@@ -6487,7 +6487,7 @@
     let html = '<div class="forecast-compare-result" data-testid="forecast-compare-result">';
 
     if (result.status === 'PARTIAL') {
-      const partialBanner = lang === 'ko' ? '?�나???�립 ?�측�??�료?�어 ?�측 비교�??�행?????�습?�다.' : "I could complete only one independent forecast, so I can't reliably compare forecasts.";
+      const partialBanner = lang === 'ko' ? '하나의 독립 예측만 완료되어 예측 비교를 수행할 수 없습니다.' : "I could complete only one independent forecast, so I can't reliably compare forecasts.";
       html += '<div class="forecast-banner forecast-banner-partial" data-testid="forecast-partial-banner">' + esc(partialBanner) + '</div>';
     }
 
@@ -6570,7 +6570,7 @@
   window.NAGEX.renderPerspectiveCompareResult = renderPerspectiveCompareResult;
   window.NAGEX.renderForecastCompareResult = renderForecastCompareResult;
   window.NAGEX.apiFetch = apiFetch;
-  // R24.8B ??the one visible Ask entry used by the header control, Quick Wake and the Create tiles.
+  // R24.8B — the one visible Ask entry used by the header control, Quick Wake and the Create tiles.
   window.NAGEX.openAsk = (mode) => openAmbientOverlay(mode);
   window.NAGEX.renderMemory = renderMemory;
   window.NAGEX.confirmPersonalContext = confirmPersonalContext;
@@ -6645,8 +6645,8 @@
           <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
             <span class="badge-status status-READY" style="font-size: 0.75rem; font-weight: 600;">${escapeHtml(typeLabel)}</span>
             <div style="display: flex; gap: 0.4rem; align-items: center;">
-              ${isPinned ? `<span class="badge-status" style="background: rgba(13,148,136,0.15); color: #0d9488; font-size: 0.7rem;">?�� Pinned</span>` : ''}
-              ${isConfirmed ? `<span class="badge-status" style="background: rgba(34,197,94,0.15); color: #16a34a; font-size: 0.7rem;">??Confirmed</span>` : ''}
+              ${isPinned ? `<span class="badge-status" style="background: rgba(13,148,136,0.15); color: #0d9488; font-size: 0.7rem;">📌 Pinned</span>` : ''}
+              ${isConfirmed ? `<span class="badge-status" style="background: rgba(34,197,94,0.15); color: #16a34a; font-size: 0.7rem;">✓ Confirmed</span>` : ''}
             </div>
           </div>
           <div style="font-size: 0.95rem; font-weight: 600; color: var(--navy-head); margin-bottom: 0.4rem;" id="mem-val-${m.id}">

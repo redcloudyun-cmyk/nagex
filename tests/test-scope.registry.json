@@ -341,7 +341,8 @@
       "connections_redesign_browser",
       "design_system_v2_browser",
       "mobile_phone_shell_browser",
-      "r23_7h_c_mobile_recent_image_browser"
+      "r23_7h_c_mobile_recent_image_browser",
+      "public_source_encoding"
     ],
     "knowledge": [
       "r24_5c_knowledge_live"
