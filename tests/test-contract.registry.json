@@ -5381,6 +5381,21 @@
       "notes": "Reads the files only; no server or browser.",
       "writesRepositoryArtifacts": false
     },
+    "notification_title_localization": {
+      "milestone": "R23.7G",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Every notification title the task runtime and the daily brief generate has a Main localization pattern and both English and Korean text, so a Korean user never sees an English lifecycle title in the attention center.",
+      "notes": "Reads the runtime and UI sources only; no server or browser.",
+      "writesRepositoryArtifacts": false
+    },
     "r23_7c_d_presentation_runtime": {
       "milestone": "R23.7C-D",
       "classification": "CANONICAL_BEHAVIOR",

@@ -1462,6 +1462,9 @@
   const APP_TEXT_PATTERNS = [
     [/^Approval Required: (.+)$/, 'mainPattern.approval_required'],
     [/^Task Blocked: (.+)$/, 'mainPattern.task_blocked'],
+    [/^Task Completed: (.+)$/, 'mainPattern.task_completed'],
+    [/^Task Failed: (.+)$/, 'mainPattern.task_failed'],
+    [/^Condition Met: (.+)$/, 'mainPattern.condition_met'],
     [/^"(.+)" needs your attention$/, 'mainPattern.needs_attention'],
     [/^Action "(.+)" was rejected by user\.$/, 'mainPattern.action_rejected'],
     [/^Could not analyze "(.+)"$/, 'mainPattern.could_not_analyze'],
