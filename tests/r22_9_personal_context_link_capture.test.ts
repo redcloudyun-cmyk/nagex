@@ -89,7 +89,9 @@ test('R22.9 — Link Capture SSRF & Socket Binding Unit Tests', async (t) => {
       assert.ok(
         result.error?.includes('private network') ||
         result.error?.includes('Redirected target') ||
-        result.error?.includes('blocked'),
+        result.error?.includes('blocked') ||
+        // the unified outbound policy answers with one generic sentence that does not reveal why a target was refused
+        result.error?.includes('Redirect SSRF validation failed'),
         `Expected SSRF redirect block error, got: ${result.error}`
       );
     } finally {
