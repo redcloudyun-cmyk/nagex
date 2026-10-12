@@ -86,12 +86,12 @@
       if (avatarEl) avatarEl.textContent = initial;
       if (mhAvatarEl) mhAvatarEl.textContent = initial;
       if (userNameEl) userNameEl.innerHTML = `${escapeHtml(name)} <svg class="chevron-sm" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>`;
-      if (greetingSubEl) greetingSubEl.textContent = `${currentUserState.user.accountState === 'DELETION_PENDING' ? '[Deletion Pending]' : 'Signed in as'}`;
+      if (greetingSubEl) greetingSubEl.textContent = `${currentUserState.user.accountState === 'DELETION_PENDING' ? t('shell.deletionPending', '[Deletion Pending]') : t('shell.signedInAs', 'Signed in as')}`;
     } else {
       if (avatarEl) avatarEl.textContent = '?';
       if (mhAvatarEl) mhAvatarEl.textContent = '?';
       if (userNameEl) userNameEl.innerHTML = `${escapeHtml(t('auth.signIn', 'Sign In'))} <svg class="chevron-sm" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>`;
-      if (greetingSubEl) greetingSubEl.textContent = 'Welcome,';
+      if (greetingSubEl) greetingSubEl.textContent = t('shell.welcome', 'Welcome,');
     }
   }
 

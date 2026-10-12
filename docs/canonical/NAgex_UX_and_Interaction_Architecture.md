@@ -199,6 +199,15 @@ The Main screen shows a compact personal briefing under the composer — **Today
 
 Rules: no invented events, activity or suggestions — an unavailable source (for example no calendar) is stated, a failing source shows an error with retry, and an empty section says so. "Since Yesterday" lists only items that carry a real timestamp from the start of yesterday. A suggestion is a control that puts its text in the composer without overwriting a draft; it never executes anything and shows when approval would be required. "New conversation" only resets the visible Home: the server keeps the whole Main history. EN/KR strings come from the shared i18n dictionary.
 
+### Desktop Main localization
+
+Every visible string on Desktop Main — composer chrome, mode chips, thread status and steps, the result panel, the Attention Center, the briefing cards and the app-shell header — follows the account locale (EN/KR) and re-renders when the language changes.
+
+- Static chrome uses `data-i18n*` attributes. Runtime text goes through `mt()` (exact UI strings, key `mainText.<slug of the English text>`) or `localizeAppText()` (also the server's templated activity/suggestion wording, `mainPattern.*`).
+- Only fixed application wording is translated. User content (calendar titles, task and document names, prompts, AI answers, stored records) is never translated or altered; the server keeps storing English wording and the client translates at display time.
+- Logic must not depend on translated text: the thread status is also kept in `data-status` in its canonical form.
+- A new user-visible Main string needs its EN and KO entries in `public/i18n.js` in the same change.
+
 ## 12. Consumer Status Vocabulary
 
 Prefer stable human states:

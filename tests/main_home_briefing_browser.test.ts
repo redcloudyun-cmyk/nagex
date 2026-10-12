@@ -321,6 +321,96 @@ describe('Desktop Main — conditional Home briefing', () => {
     await ctxB.close();
   });
 
+  // A fixed application-generated briefing payload: fixed wording must follow the locale, embedded user content must not.
+  async function stubGeneratedBriefing(page: Page): Promise<void> {
+    await page.route('**/api/v1/personal/home', async (route) => {
+      const response = await route.fetch();
+      const body = await response.json();
+      const home = body.data || body;
+      home.today = { ...(home.today || {}), meetings: [
+        { id: 'm1', title: 'Research', startsAt: iso(HOUR) },
+        { id: 'm2', title: 'Untitled Meeting', startsAt: iso(2 * HOUR) },
+      ] };
+      home.needsAttention = [{ id: 'a1', type: 'APPROVAL', title: 'Approval Required: gmail.send_email', summary: 'Action requires human confirmation', state: 'Needs approval', createdAt: iso(-HOUR) }];
+      home.recentResults = [
+        { id: 'r1', type: 'DAILY_BRIEF', title: 'Daily Brief generated', summary: '', state: 'Completed', createdAt: iso(-HOUR), sourceId: 'act_1' },
+        { id: 'r2', type: 'TASK', title: 'Created task "Pay rent"', summary: '', state: 'Completed', createdAt: iso(-2 * HOUR), sourceId: 'act_2' },
+        { id: 'r3', type: 'DOCUMENT', title: 'Quarterly plan v2', summary: '', state: 'Completed', createdAt: iso(-3 * HOUR), sourceId: 'act_3' },
+      ];
+      home.suggestions = [{ id: 'sug_1', kind: 'MEETING_PREP', title: 'Prepare for Budget review', reason: 'Your meeting starts in 15 minutes and I found 2 related items.', sourceRefs: [], action: { type: 'PREPARE', label: 'Prepare', requiresApproval: false }, generatedAt: new Date().toISOString() }];
+      home.sourceStatus = { ...(home.sourceStatus || {}), calendar: 'CONNECTED', activity: 'OK' };
+      await route.fulfill({ response, contentType: 'application/json', body: JSON.stringify(body.data ? { ...body, data: home } : home) });
+    });
+  }
+
+  it('localization KR: composer chrome, modes, voice status and generated briefing wording are Korean; user content is untouched', async () => {
+    const user = h.user('l10n_ko');
+    h.setLocale(user, 'ko');
+    const ctx = await h.newContext('desktop', user, 'ko');
+    const page = await ctx.newPage();
+    await stubGeneratedBriefing(page);
+    await openMain(page);
+    await settled(page, 'EMPTY_HOME');
+    await page.waitForFunction(() => document.querySelector('#main-home-briefing')?.dataset.state === 'ready');
+
+    assert.equal((await page.locator('#main-attach').innerText()).trim(), '첨부');
+    assert.equal((await page.locator('#main-web-toggle').innerText()).trim(), '웹');
+    assert.equal((await page.locator('#main-data-toggle').innerText()).trim(), '내 데이터');
+    assert.equal((await page.locator('#main-plan-toggle').innerText()).trim(), '실행 전에 계획 보기');
+    assert.equal((await page.locator('#main-voice').innerText()).trim(), '음성');
+    assert.equal((await page.locator('#main-voice-status').innerText()).trim(), '대기 중');
+    assert.match((await page.locator('#main-surface-input').getAttribute('placeholder')) || '', /조사|제작|계획|실행/);
+    assert.deepEqual((await page.locator('.main-mode-chip').allInnerTexts()).map((s) => s.trim()), ['질문', '리서치', '문서', '계획', '이미지', '슬라이드', '영상', '코드', '더보기']);
+    assert.equal((await page.locator('#main-send').getAttribute('aria-label')), '요청 보내기');
+    // app-shell chrome that is visible on the Main screen
+    assert.match((await page.locator('#btn-header-search').innerText()).trim(), /검색/);
+    assert.equal((await page.locator('#btn-header-quickwake span').innerText()).trim(), '빠른 호출');
+
+    const today = await sectionText(page, 'today');
+    assert.match(today, /승인 필요: gmail\.send_email/);
+    assert.match(today, /제목 없는 일정/);
+    assert.match(today, /Research/); // a user's own meeting title is never translated
+    const since = await sectionText(page, 'since');
+    assert.match(since, /데일리 브리프가 생성되었습니다/);
+    assert.match(since, /작업 "Pay rent"을\(를\) 만들었습니다/);
+    assert.match(since, /Quarterly plan v2/);
+    const suggestions = await sectionText(page, 'suggestions');
+    assert.match(suggestions, /Budget review 준비하기/);
+    assert.match(suggestions, /일정이 15분 뒤에 시작되며 관련 항목 2개를 찾았습니다/);
+
+    const visible = await page.locator('#nagex-main-surface').innerText();
+    assert.doesNotMatch(visible, /Approval Required|Daily Brief|Untitled Meeting|Show plan before actions|My data|Small steps every day/);
+    assert.doesNotMatch(visible, /mainText\.|mainPattern\.|mainBriefing\./);
+    await ctx.close();
+  });
+
+  it('localization EN: the same payload keeps its English wording, and switching language flips Main without a reload', async () => {
+    const user = h.user('l10n_en');
+    const ctx = await h.newContext('desktop', user, 'en');
+    const page = await ctx.newPage();
+    await stubGeneratedBriefing(page);
+    await openMain(page);
+    await settled(page, 'EMPTY_HOME');
+    await page.waitForFunction(() => document.querySelector('#main-home-briefing')?.dataset.state === 'ready');
+
+    assert.equal((await page.locator('#main-attach').innerText()).trim(), 'Attach');
+    assert.equal((await page.locator('#main-voice-status').innerText()).trim(), 'Idle');
+    assert.deepEqual((await page.locator('.main-mode-chip').allInnerTexts()).map((s) => s.trim()), ['Ask', 'Research', 'Document', 'Plan', 'Image', 'Slides', 'Video', 'Code', 'More']);
+    assert.match(await sectionText(page, 'today'), /Approval Required: gmail\.send_email/);
+    assert.match(await sectionText(page, 'since'), /Daily Brief generated/);
+    assert.match(await sectionText(page, 'suggestions'), /Your meeting starts in 15 minutes and I found 2 related items\./);
+
+    await page.evaluate(() => window.NAGEX_I18N.setLocale('ko'));
+    await page.waitForFunction(() => document.querySelector('#main-attach')?.textContent?.trim() === '첨부');
+    assert.deepEqual((await page.locator('.main-mode-chip').allInnerTexts()).map((s) => s.trim()), ['질문', '리서치', '문서', '계획', '이미지', '슬라이드', '영상', '코드', '더보기']);
+    assert.equal((await page.locator('#main-voice-status').innerText()).trim(), '대기 중');
+    assert.match(await sectionText(page, 'since'), /데일리 브리프가 생성되었습니다/);
+    await page.evaluate(() => window.NAGEX_I18N.setLocale('en'));
+    await page.waitForFunction(() => document.querySelector('#main-attach')?.textContent?.trim() === 'Attach');
+    assert.match(await sectionText(page, 'since'), /Daily Brief generated/);
+    await ctx.close();
+  });
+
   it('desktop viewports: no overflow at 1440 and 1100 wide, three columns then readable stacking', async () => {
     const user = h.user('briefing_viewport');
     const ctx = await h.newContext('desktop', user, 'en');

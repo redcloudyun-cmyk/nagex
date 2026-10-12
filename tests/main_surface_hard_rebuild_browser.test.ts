@@ -142,7 +142,7 @@ describe('NAgex Main surface hard rebuild', () => {
       content: '한국 생성형 AI 시장은 빠르게 성장하고 있습니다. 주요 기업, 투자 동향, 산업별 활용 사례, 향후 전망을 요약합니다.',
       revision: 1,
     });
-    const ctx = await h.newContext('desktop', user, 'ko');
+    const ctx = await h.newContext('desktop', user, 'en');
     const page = await ctx.newPage();
     await installVoiceMocks(page);
     await openMain(page);
@@ -294,7 +294,7 @@ describe('NAgex Main surface hard rebuild', () => {
 
   it('voice processing: consent gates third-party audio, on-device needs none, stop transcribes, cancel discards, no server STT', async () => {
     const user = h.user('main_voice_consent');
-    const ctx = await h.newContext('desktop', user, 'ko');
+    const ctx = await h.newContext('desktop', user, 'en');
     const page = await ctx.newPage();
     const sttRequests: string[] = [];
     page.on('request', (request) => { if (request.url().includes('/api/v1/stt')) sttRequests.push(request.url()); });
@@ -393,7 +393,7 @@ describe('NAgex Main surface hard rebuild', () => {
 
   it('audits all Main modes and routes enabled modes without clearing composer context', async () => {
     const user = h.user('main_mode_selector');
-    const ctx = await h.newContext('desktop', user, 'ko');
+    const ctx = await h.newContext('desktop', user, 'en');
     const page = await ctx.newPage();
     const calls: string[] = [];
 

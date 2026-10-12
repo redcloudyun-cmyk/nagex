@@ -70,33 +70,33 @@
               <h1 id="main-greeting"></h1>
               <p id="main-greeting-sub"></p>
             </div>
-            <p class="main-quote">"Small steps every day create a bigger tomorrow."</p>
+            <p class="main-quote">"<span data-i18n="mainText.Small_steps_every_day_create_a_bigger_tomorrow">Small steps every day create a bigger tomorrow.</span>"</p>
           </div>
-          <section class="main-composer-card" aria-label="Main NAgex request composer">
+          <section class="main-composer-card" aria-label="Main NAgex request composer" data-i18n-aria-label="mainText.Main_NAgex_request_composer">
             <div class="main-mode-row" id="main-mode-row"></div>
             <div class="main-input-wrap">
-              <textarea id="main-surface-input" placeholder="Ask NAgex to research, create, plan, or act..."></textarea>
+              <textarea id="main-surface-input" placeholder="Ask NAgex to research, create, plan, or act..." data-i18n-placeholder="mainText.Ask_NAgex_to_research_create_plan_or_act"></textarea>
               <div class="main-attachment-list" id="main-attachment-list"></div>
               <div class="main-composer-footer">
                 <div class="main-left-tools">
-                  <button type="button" class="main-tool-btn" id="main-attach">Attach</button>
+                  <button type="button" class="main-tool-btn" id="main-attach" data-i18n="mainText.Attach">Attach</button>
                   <input type="file" id="main-file-input" hidden>
-                  <button type="button" class="main-tool-btn main-toggle" id="main-web-toggle" aria-pressed="true">Web</button>
-                  <button type="button" class="main-tool-btn main-toggle" id="main-data-toggle" aria-pressed="false">My data</button>
+                  <button type="button" class="main-tool-btn main-toggle" id="main-web-toggle" aria-pressed="true" data-i18n="mainText.Web">Web</button>
+                  <button type="button" class="main-tool-btn main-toggle" id="main-data-toggle" aria-pressed="false" data-i18n="mainText.My_data">My data</button>
                 </div>
                 <div class="main-right-tools">
                   <button type="button" class="main-mic-btn" id="main-mic" title="Dictate into the Main composer">
                     <span aria-hidden="true" class="main-voice-mic"></span>
-                    <span class="nagex-sr-only">Microphone dictation</span>
+                    <span class="nagex-sr-only" data-i18n="mainText.Microphone_dictation">Microphone dictation</span>
                   </button>
-                  <button type="button" class="main-voice-btn" id="main-voice" title="Start NAgex voice mode">
+                  <button type="button" class="main-voice-btn" id="main-voice" title="Start NAgex voice mode" data-i18n-title="mainText.Start_NAgex_voice_mode">
                     <span aria-hidden="true" class="main-voice-dot"></span>
-                    <span>Voice</span>
+                    <span data-i18n="mainText.Voice">Voice</span>
                   </button>
                   <span class="main-voice-status" id="main-voice-status">Idle</span>
-                  <button type="button" class="main-tool-btn" id="main-voice-cancel" hidden>Cancel</button>
-                  <button type="button" class="main-tool-btn main-toggle" id="main-plan-toggle" aria-pressed="true">Show plan before actions</button>
-                  <button type="button" class="main-send" id="main-send" aria-label="Send request">></button>
+                  <button type="button" class="main-tool-btn" id="main-voice-cancel" data-i18n="mainText.Cancel" hidden>Cancel</button>
+                  <button type="button" class="main-tool-btn main-toggle" id="main-plan-toggle" aria-pressed="true" data-i18n="mainText.Show_plan_before_actions">Show plan before actions</button>
+                  <button type="button" class="main-send" id="main-send" aria-label="Send request" data-i18n-aria-label="mainText.Send_request">></button>
                 </div>
               </div>
               <div class="main-composer-notice" id="main-composer-notice" role="status" aria-live="polite" hidden></div>
@@ -131,26 +131,26 @@
             </div>
           </section>
         </section>
-        <aside class="main-result-panel" id="main-result-panel" hidden aria-label="Result panel">
+        <aside class="main-result-panel" id="main-result-panel" hidden aria-label="Result panel" data-i18n-aria-label="mainText.Result_panel">
           <div class="main-result-header">
             <div class="main-result-file-icon" id="main-result-kind">DOC</div>
             <div class="main-result-title-group">
               <h2 id="main-result-title">Result</h2>
               <p id="main-result-meta">Ready</p>
             </div>
-            <button type="button" class="main-result-icon-btn" id="main-result-close" aria-label="Close result">x</button>
+            <button type="button" class="main-result-icon-btn" id="main-result-close" aria-label="Close result" data-i18n-aria-label="mainText.Close_result">x</button>
           </div>
           <div class="main-result-tabs">
-            <button type="button" class="active">Preview</button>
-            <button type="button" id="main-result-sources" disabled>Sources</button>
-            <button type="button" id="main-result-versions" disabled>Versions</button>
-            <button type="button" class="main-result-expand" id="main-result-expand">Expand</button>
+            <button type="button" class="active" data-i18n="mainText.Preview">Preview</button>
+            <button type="button" id="main-result-sources" data-i18n="mainText.Sources" disabled>Sources</button>
+            <button type="button" id="main-result-versions" data-i18n="mainText.Versions" disabled>Versions</button>
+            <button type="button" class="main-result-expand" id="main-result-expand" data-i18n="mainText.Expand">Expand</button>
           </div>
           <div class="main-result-preview" id="main-result-preview"></div>
           <div class="main-result-footer">
-            <button type="button" class="btn-secondary" id="main-result-download" disabled>Download</button>
-            <button type="button" class="btn-secondary" id="main-result-open">Open</button>
-            <button type="button" class="btn-primary" id="main-result-revise">Revise</button>
+            <button type="button" class="btn-secondary" id="main-result-download" data-i18n="mainText.Download" disabled>Download</button>
+            <button type="button" class="btn-secondary" id="main-result-open" data-i18n="mainText.Open">Open</button>
+            <button type="button" class="btn-primary" id="main-result-revise" data-i18n="mainText.Revise">Revise</button>
           </div>
         </aside>
       </div>
@@ -161,10 +161,10 @@
     const row = document.getElementById('main-mode-row');
     if (!row) return;
     row.setAttribute('role', 'toolbar');
-    row.setAttribute('aria-label', 'Main execution modes');
+    row.setAttribute('aria-label', mt('Main execution modes'));
     row.innerHTML = MODES.map((mode) => `
-      <button type="button" class="main-mode-chip" data-main-mode="${esc(mode.id)}" data-support="${esc(mode.support)}" aria-pressed="${mode.id === state.mode ? 'true' : 'false'}" aria-disabled="${mode.enabled ? 'false' : 'true'}" ${mode.enabled ? '' : 'disabled title="' + esc(mode.reason) + '"'}>
-        ${esc(mode.label)}
+      <button type="button" class="main-mode-chip" data-main-mode="${esc(mode.id)}" data-support="${esc(mode.support)}" aria-pressed="${mode.id === state.mode ? 'true' : 'false'}" aria-disabled="${mode.enabled ? 'false' : 'true'}" ${mode.enabled ? '' : 'disabled title="' + esc(mt(mode.reason)) + '"'}>
+        ${esc(mt(mode.label))}
       </button>
     `).join('');
   }
@@ -173,7 +173,7 @@
     const list = document.getElementById('main-step-list');
     if (!list) return;
     list.innerHTML = items.map((item) => `
-      <li class="${esc(item.state)}"><span class="main-step-dot">${item.state === 'done' ? '✓' : ''}</span><span>${esc(item.label)}</span><small>${esc(item.detail || '')}</small></li>
+      <li class="${esc(item.state)}"><span class="main-step-dot">${item.state === 'done' ? '✓' : ''}</span><span>${esc(localizeAppText(item.label))}</span><small>${esc(localizeAppText(item.detail || ''))}</small></li>
     `).join('');
   }
 
@@ -183,11 +183,11 @@
     const promptEl = document.getElementById('main-request-text');
     if (promptEl) promptEl.textContent = prompt;
     const statusEl = document.getElementById('main-status');
-    if (statusEl) statusEl.textContent = status;
+    if (statusEl) { statusEl.textContent = localizeAppText(status); statusEl.dataset.status = status; }
     const titleEl = document.getElementById('main-work-title');
-    if (titleEl) titleEl.textContent = title;
+    if (titleEl) titleEl.textContent = localizeAppText(title);
     const summaryEl = document.getElementById('main-work-summary');
-    if (summaryEl) summaryEl.textContent = summary;
+    if (summaryEl) summaryEl.textContent = localizeAppText(summary);
     setStep(steps || []);
   }
 
@@ -202,7 +202,7 @@
     }
     notice.hidden = false;
     notice.dataset.tone = tone || 'info';
-    notice.textContent = message;
+    notice.textContent = localizeAppText(message);
   }
 
   // Inline prompt inside the composer notice: message plus choices. Used for voice-processing consent.
@@ -213,7 +213,7 @@
     notice.dataset.tone = 'consent';
     notice.textContent = '';
     const text = document.createElement('span');
-    text.textContent = message;
+    text.textContent = localizeAppText(message);
     notice.appendChild(text);
     const row = document.createElement('div');
     row.className = 'main-notice-actions';
@@ -221,7 +221,7 @@
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'main-tool-btn';
-      btn.textContent = action.label;
+      btn.textContent = localizeAppText(action.label);
       btn.addEventListener('click', action.action);
       row.appendChild(btn);
     });
@@ -232,14 +232,14 @@
     const el = document.getElementById('main-attachment-list');
     if (!el) return;
     el.innerHTML = state.attachments.map((a, index) => `
-      <span class="main-attachment-chip">${esc(a.filename || a.title || 'Attachment')} <button type="button" data-remove-attachment="${index}" aria-label="Remove attachment">x</button></span>
+      <span class="main-attachment-chip">${esc(a.filename || a.title || mt('Attachment'))} <button type="button" data-remove-attachment="${index}" aria-label="${esc(mt('Remove attachment'))}">x</button></span>
     `).join('');
   }
 
   async function uploadFile(file) {
     if (!file || state.busy) return;
     setComposerNotice('');
-    showThread('Attachment upload', 'Uploading', 'Adding attachment', 'NAgex is storing this file through the real workspace upload pipeline.', [
+    showThread(mt('Attachment upload'), 'Uploading', 'Adding attachment', 'NAgex is storing this file through the real workspace upload pipeline.', [
       { state: 'running', label: 'Upload file', detail: file.name },
     ]);
     const reader = new FileReader();
@@ -252,11 +252,11 @@
       if (result && !result.error) {
         state.attachments.push(result);
         renderAttachments();
-        showThread('Attachment upload', 'Ready', 'Attachment added', 'The file is persisted and will be referenced by the next request.', [
+        showThread(mt('Attachment upload'), 'Ready', 'Attachment added', 'The file is persisted and will be referenced by the next request.', [
           { state: 'done', label: 'Upload file', detail: result.captureId || file.name },
         ]);
       } else {
-        showThread('Attachment upload', 'Error', 'Attachment failed', (result && result.error && result.error.message) || 'The file could not be uploaded.', [
+        showThread(mt('Attachment upload'), 'Error', 'Attachment failed', (result && result.error && result.error.message) || 'The file could not be uploaded.', [
           { state: 'running', label: 'Upload failed', detail: file.name },
         ]);
       }
@@ -527,18 +527,18 @@
     }
     const steps = (result.plan.steps || []).slice(0, 6).map((step, index) => ({
       state: index === 0 ? 'done' : index === 1 ? 'running' : 'pending',
-      label: step.title || ('Step ' + (index + 1)),
+      label: step.title || (mt('Step') + ' ' + (index + 1)),
       detail: step.requiresApproval ? 'Approval needed before execution' : (step.resolvedToolId || ''),
     }));
     showThread(prompt, 'Plan ready', result.plan.summary || 'NAgex prepared a plan.', 'Review the plan inline. Required approvals remain mandatory and cannot be bypassed here.', steps);
     renderInlineActions([
-      { id: 'show-plan', label: 'Show plan', action: () => setStep((result.plan.steps || []).map((step, index) => ({ state: index === 0 ? 'running' : 'pending', label: step.title || ('Step ' + (index + 1)), detail: step.reasoning || '' }))) },
+      { id: 'show-plan', label: 'Show plan', action: () => setStep((result.plan.steps || []).map((step, index) => ({ state: index === 0 ? 'running' : 'pending', label: step.title || (mt('Step') + ' ' + (index + 1)), detail: step.reasoning || '' }))) },
     ]);
   }
 
   function showModeCapabilityMatrix(prompt) {
-    const enabled = MODES.filter((mode) => mode.enabled && mode.id !== 'MORE').map((mode) => `${mode.label}: ${mode.support}`).join(' / ');
-    const unavailable = MODES.filter((mode) => !mode.enabled).map((mode) => `${mode.label}: ${mode.reason}`).join(' ');
+    const enabled = MODES.filter((mode) => mode.enabled && mode.id !== 'MORE').map((mode) => `${mt(mode.label)}: ${mt(mode.support)}`).join(' / ');
+    const unavailable = MODES.filter((mode) => !mode.enabled).map((mode) => `${mt(mode.label)}: ${mt(mode.reason)}`).join(' ');
     showThread(prompt, 'Ready', 'Main mode capability audit', 'Supported modes route to real execution. Unsupported modes stay disabled until their canonical route can produce a verified result.', [
       { state: 'done', label: 'Enabled modes', detail: enabled },
       { state: 'pending', label: 'Not enabled', detail: unavailable },
@@ -567,7 +567,7 @@
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = action.id === 'cancel' ? 'btn-secondary danger' : 'btn-secondary';
-      btn.textContent = action.label;
+      btn.textContent = localizeAppText(action.label);
       btn.addEventListener('click', action.action);
       el.appendChild(btn);
     });
@@ -590,11 +590,11 @@
     if (root) root.dataset.voiceState = next;
     if (mic) mic.setAttribute('aria-pressed', String(state.voiceMode === 'DICTATION' && next === 'LISTENING'));
     if (voice) voice.setAttribute('aria-pressed', String(state.voiceMode === 'SESSION' && (next === 'VOICE_SESSION_ACTIVE' || next === 'LISTENING' || next === 'TRANSCRIBING')));
-    if (status) status.textContent = detail || next.replace(/_/g, ' ').toLowerCase();
+    if (status) status.textContent = mt(detail || next.replace(/_/g, ' ').toLowerCase());
     const recording = next === 'REQUESTING' || next === 'LISTENING' || next === 'TRANSCRIBING' || next === 'VOICE_SESSION_ACTIVE';
     const cancel = document.getElementById('main-voice-cancel');
     if (cancel) cancel.hidden = !recording;
-    if (mic) mic.title = recording && state.voiceMode === 'DICTATION' ? 'Stop and transcribe' : 'Dictate into the Main composer';
+    if (mic) mic.title = recording && state.voiceMode === 'DICTATION' ? mt('Stop and transcribe') : mt('Dictate into the Main composer');
   }
 
   function userVoiceStatus(detail, fallback) {
@@ -777,7 +777,7 @@
       method: 'POST',
       body: JSON.stringify({ title: 'Saved NAgex result', type: 'DOCUMENT', mimeType: 'text/plain', storageRef: 'main-result:' + Date.now(), contentText: text }),
     });
-    showThread('Save to Vault', result && !result.error ? 'Saved' : 'Error', result && !result.error ? 'Saved to Vault' : 'Could not save', result && !result.error ? 'The result is now stored in your workspace Vault.' : ((result && result.error && result.error.message) || 'Save failed.'), [
+    showThread(mt('Save to Vault'), result && !result.error ? 'Saved' : 'Error', result && !result.error ? 'Saved to Vault' : 'Could not save', result && !result.error ? 'The result is now stored in your workspace Vault.' : ((result && result.error && result.error.message) || 'Save failed.'), [
       { state: result && !result.error ? 'done' : 'running', label: 'Save to Vault', detail: result && (result.vaultItemId || result.id || '') },
     ]);
   }
@@ -794,18 +794,18 @@
     const preview = document.getElementById('main-result-preview');
     const revise = document.getElementById('main-result-revise');
     if (kind) kind.textContent = result.type === 'DOCUMENT' ? 'DOC' : result.type;
-    if (title) title.textContent = result.title || 'Result';
-    if (meta) meta.textContent = result.meta || '';
+    if (title) title.textContent = localizeAppText(result.title || 'Result');
+    if (meta) meta.textContent = String(result.meta || '').split(' - ').map(localizeAppText).join(' - ');
     if (preview) {
       if (result.type === 'IMAGE' && result.imageUrl) {
-        preview.innerHTML = `<article class="main-doc-page main-image-page"><div><strong>NAgex</strong><br><small>Your Personal AI</small></div><h1>${esc(result.title || 'Generated image')}</h1><img src="${esc(result.imageUrl)}" alt="${esc(result.title || 'Generated image')}" loading="lazy"><p>${esc(result.preview || 'Image artifact')}</p></article>`;
+        preview.innerHTML = `<article class="main-doc-page main-image-page"><div><strong>NAgex</strong><br><small>${esc(mt('Your Personal AI'))}</small></div><h1>${esc(localizeAppText(result.title || 'Generated image'))}</h1><img src="${esc(result.imageUrl)}" alt="${esc(localizeAppText(result.title || 'Generated image'))}" loading="lazy"><p>${esc(localizeAppText(result.preview || 'Image artifact'))}</p></article>`;
       } else {
-        preview.innerHTML = `<article class="main-doc-page"><div><strong>NAgex</strong><br><small>Your Personal AI</small></div><h1>${esc(result.title || 'Generated result')}</h1><p>${esc(result.preview || 'Preview is unavailable for this result.')}</p></article>`;
+        preview.innerHTML = `<article class="main-doc-page"><div><strong>NAgex</strong><br><small>${esc(mt('Your Personal AI'))}</small></div><h1>${esc(localizeAppText(result.title || 'Generated result'))}</h1><p>${esc(localizeAppText(result.preview || 'Preview is unavailable for this result.'))}</p></article>`;
       }
     }
     if (revise) {
       revise.disabled = !result.documentId;
-      revise.title = result.documentId ? 'Create a bounded document revision from Main.' : 'Revision is available only for document artifacts.';
+      revise.title = result.documentId ? mt('Create a bounded document revision from Main.') : mt('Revision is available only for document artifacts.');
     }
   }
 
@@ -947,6 +947,92 @@
     return window.NAGEX_I18N && window.NAGEX_I18N.t ? window.NAGEX_I18N.t(key, fallback) : fallback;
   }
 
+  // ── Localization of application-generated text ─────────────────────────────────────────────────────────
+  // mt(): exact UI/chrome strings (key mainText.<slug>). localizeAppText(): also the server's templated activity and
+  // suggestion phrases ("Approval Required: x"), translating only the fixed wording and leaving the embedded user
+  // content ("x") and stored records untouched. Text that matches nothing (user content, AI answers) is returned as is.
+  function mtSlug(text) {
+    return String(text).replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 80);
+  }
+
+  function mt(text) {
+    if (text == null || text === '') return text == null ? '' : text;
+    const value = String(text);
+    const key = 'mainText.' + mtSlug(value);
+    const translated = bt(key, value);
+    return translated === key ? value : translated;
+  }
+
+  const APP_TEXT_PATTERNS = [
+    [/^Approval Required: (.+)$/, 'mainPattern.approval_required'],
+    [/^Task Blocked: (.+)$/, 'mainPattern.task_blocked'],
+    [/^"(.+)" needs your attention$/, 'mainPattern.needs_attention'],
+    [/^Action "(.+)" was rejected by user\.$/, 'mainPattern.action_rejected'],
+    [/^Could not analyze "(.+)"$/, 'mainPattern.could_not_analyze'],
+    [/^Summarized "(.+)"$/, 'mainPattern.summarized'],
+    [/^Executed: (.+)$/, 'mainPattern.executed'],
+    [/^Created task from suggestion: (.+)$/, 'mainPattern.task_from_suggestion'],
+    [/^Suggestion (accepted|dismissed|snoozed|declined|rejected)$/, 'mainPattern.suggestion_decision'],
+    [/^Created task "(.+)"$/, 'mainPattern.created_task'],
+    [/^Remembered: (.+)$/, 'mainPattern.remembered'],
+    [/^Added "(.+)" to knowledge$/, 'mainPattern.added_knowledge'],
+    [/^Added "(.+)" to Google Calendar$/, 'mainPattern.added_calendar'],
+    [/^Prepare for (.+)$/, 'mainPattern.prepare_for'],
+    [/^Follow up: (.+)$/, 'mainPattern.follow_up'],
+    [/^Continue: (.+)$/, 'mainPattern.continue_item'],
+    [/^Your meeting is in progress now and I found (\d+) related items?\.$/, 'mainPattern.meeting_now_items'],
+    [/^Your meeting starts in (\d+) minutes? and I found (\d+) related items?\.$/, 'mainPattern.meeting_soon_items'],
+    [/^A related message says: (.*)$/, 'mainPattern.related_message'],
+    [/^NAgex prepared an action \((.+)\) that needs your approval\.$/, 'mainPattern.prepared_action'],
+    [/^Starts in (\d+) minutes?$/, 'mainPattern.starts_in'],
+    [/^Due in (\d+) minutes?$/, 'mainPattern.due_in'],
+    [/^Overdue by (\d+) minutes?$/, 'mainPattern.overdue_by'],
+    [/^Because: You have "(.+)" in (\d+) minutes?\.$/, 'mainPattern.because_event'],
+    [/^Allow (.+) speech$/, 'mainPattern.allow_speech'],
+    [/^Voice input in (.+) sends your audio to (.+) to turn it into text\. NAgex only receives the text and never stores the audio\. Allow it\? You can withdraw this in Settings\.$/, 'mainPattern.voice_consent_prompt'],
+    [/^Listening\. Your audio is sent to (.+) to be turned into text\. Press the microphone to stop, or Cancel to discard\.$/, 'mainPattern.listening_third_party'],
+    [/^On-device speech could not be installed\. You can allow (.+) speech or type your request\.$/, 'mainPattern.local_install_failed'],
+  ];
+
+  function localizeAppText(text) {
+    if (text == null || text === '') return text == null ? '' : text;
+    const value = String(text);
+    const exact = mt(value);
+    if (exact !== value) return exact;
+    for (const entry of APP_TEXT_PATTERNS) {
+      const match = entry[0].exec(value);
+      if (!match) continue;
+      const template = bt(entry[1], '');
+      if (!template || template === entry[1]) return value;
+      return template.replace(/\{(\d)\}/g,(_m, index) => {
+        const part = match[Number(index) + 1] == null ? '' : match[Number(index) + 1];
+        return /^(accepted|dismissed|snoozed|declined|rejected)$/.test(part) ? mt(part) : part;
+      });
+    }
+    return value;
+  }
+
+
+  // Static chrome carries data-i18n* attributes (applied here at mount, and by i18n.js on every language change). The few regions that
+  // hold dynamic text are only re-localized while they still show their idle placeholder, so a result already on screen is not rewritten.
+  function applyMainStaticLocale() {
+    const root = document.getElementById('nagex-main-surface');
+    if (!root) return;
+    root.querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = bt(el.getAttribute('data-i18n'), el.textContent); });
+    root.querySelectorAll('[data-i18n-placeholder]').forEach((el) => { el.setAttribute('placeholder', bt(el.getAttribute('data-i18n-placeholder'), el.getAttribute('placeholder') || '')); });
+    root.querySelectorAll('[data-i18n-title]').forEach((el) => { el.setAttribute('title', bt(el.getAttribute('data-i18n-title'), el.getAttribute('title') || '')); });
+    root.querySelectorAll('[data-i18n-aria-label]').forEach((el) => { el.setAttribute('aria-label', bt(el.getAttribute('data-i18n-aria-label'), el.getAttribute('aria-label') || '')); });
+    const threadIdle = document.getElementById('main-thread-card') && document.getElementById('main-thread-card').hidden;
+    const resultIdle = document.getElementById('main-result-panel') && document.getElementById('main-result-panel').hidden;
+    const setIdle = (id, english) => { const el = document.getElementById(id); if (el) el.textContent = mt(english); };
+    if (threadIdle) { setIdle('main-status', 'Ready'); setIdle('main-work-title', 'Ready'); setIdle('main-request-time', 'Just now'); }
+    if (resultIdle) { setIdle('main-result-title', 'Result'); setIdle('main-result-meta', 'Ready'); }
+    const voiceStatus = document.getElementById('main-voice-status');
+    if (voiceStatus && (!root.dataset.voiceState || root.dataset.voiceState === 'IDLE') && /^(idle|Idle|대기 중)$/.test(voiceStatus.textContent.trim())) voiceStatus.textContent = mt('Idle');
+    const mic = document.getElementById('main-mic');
+    if (mic && !root.dataset.voiceState) mic.title = mt('Dictate into the Main composer');
+  }
+
   function briefingLocale() {
     return window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale() === 'ko' ? 'ko-KR' : 'en-US';
   }
@@ -1031,8 +1117,8 @@
       seenToday.add(title);
       today.push({ title, meta });
     };
-    list(home.today && home.today.meetings).forEach((meeting) => pushToday(meeting.title, briefingTime(meeting.startsAt)));
-    list(home.needsAttention).forEach((item) => pushToday(item.title, briefingStateLabel(item.state)));
+    list(home.today && home.today.meetings).forEach((meeting) => pushToday(meeting.title === 'Untitled Meeting' ? mt(meeting.title) : meeting.title, briefingTime(meeting.startsAt)));
+    list(home.needsAttention).forEach((item) => pushToday(localizeAppText(item.title), briefingStateLabel(item.state)));
     list(home.upcoming).forEach((item) => pushToday(item.title, briefingTime(item.timestamp)));
     const cutoff = startOfYesterdayMs();
     const seenSince = new Set();
@@ -1046,10 +1132,10 @@
         return true;
       })
       .slice(0, 4)
-      .map((item) => ({ title: item.title, meta: [briefingStateLabel(item.state), briefingWhen(item.createdAt)].filter(Boolean).join(' - ') }));
+      .map((item) => ({ title: localizeAppText(item.title), meta: [briefingStateLabel(item.state), briefingWhen(item.createdAt)].filter(Boolean).join(' - ') }));
     const suggestions = list(home.suggestions).slice(0, 3).map((item) => ({
-      title: item.title,
-      reason: item.reason || '',
+      title: localizeAppText(item.title),
+      reason: localizeAppText(item.reason || ''),
       approval: Boolean(item.action && item.action.requiresApproval),
     }));
     return {
@@ -1246,7 +1332,7 @@
     });
     if (!briefing.localeListener) {
       briefing.localeListener = true;
-      window.addEventListener('nagex:localechange', () => { renderBriefing(); renderGreeting(); });
+      window.addEventListener('nagex:localechange', () => { renderModes(); renderBriefing(); renderGreeting(); applyMainStaticLocale(); });
       window.setInterval(renderGreeting, 5 * 60 * 1000);
     }
     renderGreeting();
@@ -1263,12 +1349,12 @@
       api('/api/v1/approvals'), api('/api/v1/tasks'), api('/api/v1/activity'), api('/api/v1/notifications'),
     ]);
     const rows = [
-      ...((approvals && approvals.pending) || []).map((a) => ({ label: a.intent || 'Approval needed', target: 'tab-inbox' })),
-      ...((tasks && tasks.tasks) || []).filter((t) => t.status === 'RUNNING').map((t) => ({ label: t.name || 'Running task', target: 'tab-inbox' })),
-      ...((activity && activity.activities) || []).slice(0, 3).map((a) => ({ label: a.title || 'Recent result', target: 'tab-executions' })),
-      ...((notifications && notifications.notifications) || []).filter((n) => !n.readAt).slice(0, 3).map((n) => ({ label: n.title || 'Notification', target: 'tab-inbox' })),
+      ...((approvals && approvals.pending) || []).map((a) => ({ label: a.intent || mt('Approval needed'), target: 'tab-inbox' })),
+      ...((tasks && tasks.tasks) || []).filter((t) => t.status === 'RUNNING').map((t) => ({ label: t.name || mt('Running task'), target: 'tab-inbox' })),
+      ...((activity && activity.activities) || []).slice(0, 3).map((a) => ({ label: localizeAppText(a.title || mt('Recent result')), target: 'tab-executions' })),
+      ...((notifications && notifications.notifications) || []).filter((n) => !n.readAt).slice(0, 3).map((n) => ({ label: localizeAppText(n.title || mt('Notification')), target: 'tab-inbox' })),
     ];
-    pop.innerHTML = `<h2>Attention Center</h2>${rows.length ? rows.map((r) => `<button type="button" class="main-attention-row" data-target="${esc(r.target)}">${esc(r.label)}</button>`).join('') : '<p>Nothing needs attention right now.</p>'}`;
+    pop.innerHTML = `<h2>${esc(mt('Attention Center'))}</h2>${rows.length ? rows.map((r) => `<button type="button" class="main-attention-row" data-target="${esc(r.target)}">${esc(r.label)}</button>`).join('') : '<p>' + esc(mt('Nothing needs attention right now.')) + '</p>'}`;
     pop.hidden = false;
   }
 
@@ -1296,6 +1382,7 @@
     view.className = 'tab-view active-view';
     view.innerHTML = template();
     renderModes();
+    applyMainStaticLocale();
     bind();
     wireAttentionBell();
     initHomeBriefing();
