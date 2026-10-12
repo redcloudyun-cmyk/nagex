@@ -340,9 +340,9 @@ describe('R24.7B browser — Home embedded Canvas', () => {
     const ctx = await h.newContext('desktop', u);
     const page = await ctx.newPage();
     await page.goto(`${h.origin}/`, { waitUntil: 'domcontentloaded' });
-    await page.waitForSelector('#home-embedded-canvas', { state: 'attached' });
-    assert.equal(await page.getAttribute('#home-embedded-canvas', 'hidden'), '');
-    assert.equal(await page.getAttribute('#home-embedded-canvas', 'data-artifact-id'), null);
+    // Home is the unified Main surface: the embedded Home canvas region was retired with the old Home, so it must not exist at all
+    await page.waitForSelector('#nagex-main-surface', { state: 'attached' });
+    assert.equal(await page.locator('#home-embedded-canvas').count(), 0, 'the retired Home embedded Canvas is not rendered');
     assert.equal(await page.evaluate(() => window.NAGEX?._homeEmbeddedArtifactIdForCert || null), null);
     assert.equal(await page.evaluate(() => !window.NAGEX._canvasState || window.NAGEX._canvasState.active !== true), true, 'Focus Canvas state is not active: Home must not depend on it');
 
