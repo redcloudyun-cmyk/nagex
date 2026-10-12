@@ -1226,7 +1226,7 @@
          Home/Inbox/Activity/Vault/Settings set, so a user landing here
          via Create doesn't see a different/inconsistent nav than the
          native #mobile-app-shell bottom nav. -->
-    <nav class="mobile-bottom-nav">
+    <nav class="mobile-bottom-nav" aria-label="Main navigation" data-i18n-aria-label="nav.primaryAria">
       <button class="mob-nav-item active" data-tab="tab-home" onclick="window.NAGEX.switchTab('tab-home')">
         <span class="icon">🏠</span>
         <span data-i18n="nav.home">Home</span>
@@ -1888,7 +1888,7 @@
          contextual entry inside Today's card, never a bottom-nav item.
          data-tab lets switchTab()'s single active-sync loop manage this
          bar too. -->
-    <nav class="mh-bottom-nav">
+    <nav class="mh-bottom-nav" aria-label="Main navigation" data-i18n-aria-label="nav.primaryAria">
       <button class="mh-nav-item active" data-tab="tab-home" onclick="window.NAGEX.switchTab('tab-home')">
         <span class="mh-nav-pill"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
         <span data-i18n="nav.home">Home</span></span>

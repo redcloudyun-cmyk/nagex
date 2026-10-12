@@ -3821,6 +3821,7 @@
   });
   Object.assign(translations.en, {
     'nav.recent': 'Recent',
+    'nav.primaryAria': 'Main navigation',
     'recent.title': 'Recent',
     'recent.subtitle': 'What you created lately. Open anything to keep working on it.',
     'recent.empty': 'Nothing created yet. Ask NAgex to write a document or make an image.',
@@ -3837,6 +3838,7 @@
   });
   Object.assign(translations.ko, {
     'nav.recent': '\uCD5C\uADFC',
+    'nav.primaryAria': '\uC8FC\uC694 \uBA54\uB274',
     'recent.title': '\uCD5C\uADFC',
     'recent.subtitle': '\uCD5C\uADFC\uC5D0 \uB9CC\uB4E0 \uD56D\uBAA9\uC785\uB2C8\uB2E4. \uC5F4\uC5B4\uC11C \uC774\uC5B4\uC11C \uC791\uC5C5\uD558\uC138\uC694.',
     'recent.empty': '\uC544\uC9C1 \uB9CC\uB4E0 \uD56D\uBAA9\uC774 \uC5C6\uC2B5\uB2C8\uB2E4. NAgex\uC5D0\uAC8C \uBB38\uC11C \uC791\uC131\uC774\uB098 \uC774\uBBF8\uC9C0 \uC0DD\uC131\uC744 \uC694\uCCAD\uD574 \uBCF4\uC138\uC694.',

@@ -558,8 +558,8 @@
     console.log('[ROUTER] Active tab updated to:', state.activeTab);
 
     document.querySelectorAll('.nav-menu .nav-item[data-tab], .mobile-bottom-nav .mob-nav-item[data-tab], #mobile-app-shell [data-tab], .mh-bottom-nav [data-tab], .mh-nav-item[data-tab]').forEach((el) => {
-      if (el.getAttribute('data-tab') === tabId) el.classList.add('active');
-      else el.classList.remove('active');
+      if (el.getAttribute('data-tab') === tabId) { el.classList.add('active'); el.setAttribute('aria-current', 'page'); }
+      else { el.classList.remove('active'); el.removeAttribute('aria-current'); }
     });
 
     const targetViewId = 'view-' + tabId.replace('tab-', '');

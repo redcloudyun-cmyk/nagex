@@ -68,6 +68,10 @@ test('phone shell: Main Home, one fitting header, bottom navigation and no horiz
         const recent = await geometry(page);
         assert.ok(recent.scrollW <= recent.vw, `${tag} recent: horizontal overflow`);
         assert.deepEqual([...recent.navTabs].sort(), [...PRIMARY].sort(), `${tag} recent: bottom navigation items`);
+        // accessibility: a labelled landmark in the user's language, and exactly the current destination marked aria-current
+        const navA11y = await page.evaluate(() => ({ label: document.querySelector('.mobile-bottom-nav')?.getAttribute('aria-label') || '', current: [...document.querySelectorAll('.mobile-bottom-nav [aria-current="page"]')].map((e: any) => e.getAttribute('data-tab')) }));
+        assert.equal(navA11y.label, locale === 'ko' ? '주요 메뉴' : 'Main navigation', `${tag} recent: bottom navigation landmark label`);
+        assert.deepEqual(navA11y.current, ['tab-recent'], `${tag} recent: the current destination is aria-current`);
         const left = await page.evaluate(() => Math.round(document.querySelector('#view-recent').getBoundingClientRect().left));
         assert.ok(left <= 24, `${tag} recent: content must start at the page edge, not after a sidebar column (left=${left})`);
 
