@@ -2731,8 +2731,8 @@
     },
     "r21_p0_2_personal_ui_real_browser": {
       "milestone": "R21.P0",
-      "classification": "REAL_BROWSER_CERT",
-      "canonical": true,
+      "classification": "SUPERSEDED_CONTRACT",
+      "canonical": false,
       "scopes": [
         "browser",
         "capture",
@@ -2745,7 +2745,8 @@
       "sourceImplementationAssertions": false,
       "deterministic": true,
       "assertionIntent": "user-visible browser behavior",
-      "notes": "Runs observable UI behavior in a real Playwright Chromium browser.",
+      "notes": "R21 P0.2 certified the old Home and the native mobile Home as separate shells; Home is now the unified Main surface on desktop and phones (r24_8b_entry_truthful_ui_browser, mobile_phone_shell_browser, main_*_browser).",
+      "supersededBy": "R23.7H-C Phase D / unified Main surface",
       "writesRepositoryArtifacts": false
     },
     "r21_p0_ux_principles": {
