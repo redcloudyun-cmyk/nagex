@@ -143,7 +143,10 @@ test('REST API routes: /api/v1/workspace/capture, /inbox, /vault, and /capture/:
   // 3. GET /api/v1/workspace/vault
   const vault = await handleAsyncApiRequest('GET', '/api/v1/workspace/vault', null, headers);
   assert.equal(vault.status, 200);
-  assert.ok((vault.data as any).quotaSizeBytes > 0);
+  // The Vault never invents a storage quota: without a configured limit the quota is null and the usage label says what the number means.
+  assert.equal((vault.data as any).quotaSizeBytes, null);
+  assert.equal(typeof (vault.data as any).storageUsageAvailable, 'boolean');
+  assert.ok(Array.isArray((vault.data as any).items));
 
   // 4. PATCH /api/v1/workspace/capture/:id
   const updated = await handleAsyncApiRequest(

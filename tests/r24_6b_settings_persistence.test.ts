@@ -409,22 +409,19 @@ describe('R24.6B — HTTP-level server restart certification', () => {
       try { data = await res.json(); } catch { /* empty */ }
       return { status: res.status, data, setCookie: (res.headers.getSetCookie?.() ?? []).map((c) => c.split(';')[0]).join('; ') };
     };
-    const signIn = async (email: string) => {
-      const signup = await json('POST', '/api/v1/auth/signup', { email, password: 'Restart-Cert-1!', passwordConfirmation: 'Restart-Cert-1!', termsAccepted: true, privacyAccepted: true });
-      assert.equal(signup.status, 201);
-      await json('POST', '/api/v1/auth/verify-email', { token: signup.data.devVerificationToken });
-      const login = await json('POST', '/api/v1/auth/login', { email, password: 'Restart-Cert-1!' });
-      assert.equal(login.status, 200);
-      return login.setCookie;
-    };
+    // accounts and sessions are created in the same directories the child process loads (end-user password signup is disabled)
+    const preStores = { identityStore: new IdentityStore({ dir: identityDir }), sessionStore: new SessionStore({ dir: sessionsDir }) } as unknown as Stores;
+    const userA = makeUser(preStores, 'restart_a@example.invalid');
+    const userB = makeUser(preStores, 'restart_b@example.invalid');
+    const secondSessionOfA = `nagex_session=${preStores.sessionStore.createAuthSession('ten_' + userA.userId, userA.userId, 'MAIN').sessionId}`;
 
     try {
       child = startServerProcess(port, identityDir, sessionsDir);
       await waitForHealth(origin, child);
 
       assert.equal((await json('GET', '/api/v1/quickwake/config')).status, 401);
-      const cookieA = await signIn('restart_a@example.invalid');
-      const cookieB = await signIn('restart_b@example.invalid');
+      const cookieA = userA.cookie.cookie;
+      const cookieB = userB.cookie.cookie;
 
       assert.equal((await json('POST', '/api/v1/quickwake/config', { voice_wake: true, floating_button: false }, cookieA)).status, 200);
       assert.equal((await json('POST', '/api/v1/autonomy/config', { level: 'L0' }, cookieA)).status, 200);
@@ -444,9 +441,8 @@ describe('R24.6B — HTTP-level server restart certification', () => {
       assert.equal(qwAfter.data.voice_wake, true);
       assert.equal(qwAfter.data.floating_button, false);
       assert.equal((await json('GET', '/api/v1/autonomy/config', undefined, cookieA)).data.level, 'L0');
-      // …a fresh sign-in sees the same values…
-      const relogin = (await json('POST', '/api/v1/auth/login', { email: 'restart_a@example.invalid', password: 'Restart-Cert-1!' })).setCookie;
-      assert.equal((await json('GET', '/api/v1/autonomy/config', undefined, relogin)).data.level, 'L0');
+      // …another session of the same user sees the same values…
+      assert.equal((await json('GET', '/api/v1/autonomy/config', undefined, secondSessionOfA)).data.level, 'L0');
       // …and user B is still unaffected.
       assert.equal((await json('GET', '/api/v1/autonomy/config', undefined, cookieB)).data.level, 'L2');
       assert.equal((await json('GET', '/api/v1/quickwake/config', undefined, cookieB)).data.voice_wake, false);

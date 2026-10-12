@@ -377,14 +377,13 @@ test('25. HTTP: SSO_POLICY_MANAGE is OWNER-only — ADMIN attempting to change s
     const ownerEmail = `owner_${Date.now()}@example.com`;
     const adminEmail = `admin_${Date.now()}@example.com`;
     async function signupAndVerifyAndSignin(email: string) {
-      await fetch(`${baseUrl}/api/v1/auth/signup`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password: 'Password123!', passwordConfirmation: 'Password123!', termsAccepted: true, privacyAccepted: true }) });
+      // password signup/login are disabled (OAuth-only): create the active account and its session through the production-wired stores
       const identityMod = await import('../src/server_web.js');
-      const identity = identityMod.identityStore.getByEmail(email)!;
+      const { hashPassword } = await import('../src/identity/identity.crypto.js');
+      const { identity } = identityMod.identityStore.createAccount(email, hashPassword('Password123!'));
       identityMod.identityStore.transitionState(identity.userId, 'ACTIVE');
-      const signinRes = await fetch(`${baseUrl}/api/v1/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password: 'Password123!' }) });
-      const setCookie = signinRes.headers.get('set-cookie') || '';
-      const sessionId = decodeURIComponent((/nagex_session=([^;]+)/.exec(setCookie) || [, ''])[1]);
-      return { userId: identity.userId, sessionId };
+      const session = identityMod.sessionStore.createAuthSession(`ten_${identity.userId}`, identity.userId, 'MAIN');
+      return { userId: identity.userId, sessionId: session.sessionId };
     }
 
     const ownerAuth = await signupAndVerifyAndSignin(ownerEmail);

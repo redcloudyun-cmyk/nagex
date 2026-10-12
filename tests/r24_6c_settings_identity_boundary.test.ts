@@ -566,22 +566,19 @@ describe('R24.6C — HTTP-level identity boundary and restart persistence (real 
       try { data = await res.json(); } catch { /* empty */ }
       return { status: res.status, data, setCookie: (res.headers.getSetCookie?.() ?? []).map((c) => c.split(';')[0]).join('; ') };
     };
+    // End-user password signup is disabled (OAuth-only): the accounts and sessions are created in the directories the child process loads.
+    const preStores = openStores(root);
     const signIn = async (label: string) => {
-      const ip = `10.246.3.${++ipCounter}`;
-      const email = `${label}_${RUN}@example.invalid`;
-      const signup = await call('POST', '/api/v1/auth/signup', { email, password: 'Boundary-Cert-1!', passwordConfirmation: 'Boundary-Cert-1!', termsAccepted: true, privacyAccepted: true }, {}, ip);
-      assert.equal(signup.status, 201);
-      await call('POST', '/api/v1/auth/verify-email', { token: signup.data.devVerificationToken }, {}, ip);
-      const login = await call('POST', '/api/v1/auth/login', { email, password: 'Boundary-Cert-1!' }, {}, ip);
-      assert.equal(login.status, 200);
-      return { cookie: { cookie: login.setCookie }, userId: signup.data.user.userId as string, email, ip, forged: { 'x-principal-id': signup.data.user.userId as string, 'x-nagex-tenant': `ten_${signup.data.user.userId}` } };
+      void ipCounter;
+      const user = makeUser(preStores, label);
+      return { cookie: user.cookie, userId: user.userId, forged: user.forged };
     };
 
     try {
-      child = start();
-      await waitForHealth(origin, child);
       const a = await signIn('proc_a');
       const b = await signIn('proc_b');
+      child = start();
+      await waitForHealth(origin, child);
 
       // Anonymous + a header naming a real account: rejected everywhere.
       for (const p of ['/api/v1/quickwake/config', '/api/v1/autonomy/config', '/api/v1/proactive-assistant/config', '/api/v1/memory/settings', '/api/v1/oauth/google/status', '/api/v1/connections']) {

@@ -270,12 +270,12 @@ test('7. Connected Apps status, credential protection & disconnect flow', async 
     const ip = { [TEST_PEER_HEADER]: `10.18.7.${Math.floor(Math.random() * 200) + 1}` };
     const post = (p: string, body: unknown, extra: Record<string, string> = {}) =>
       fetch(`${origin}${p}`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...ip, ...extra }, body: JSON.stringify(body) });
-    const signup = await post('/api/v1/auth/signup', { email, password: 'Password-123!', passwordConfirmation: 'Password-123!', termsAccepted: true, privacyAccepted: true });
-    assert.equal(signup.status, 201);
-    await post('/api/v1/auth/verify-email', { token: ((await signup.json()) as any).devVerificationToken });
-    const login = await post('/api/v1/auth/login', { email, password: 'Password-123!' });
-    assert.equal(login.status, 200);
-    const cookie = (login.headers.getSetCookie?.() ?? []).map((c) => c.split(';')[0]).join('; ');
+    // password signup/login are disabled (OAuth-only): the account and its session come from the production-wired stores
+    const serverMod = await import('../src/server_web.js');
+    const { hashPassword } = await import('../src/identity/identity.crypto.js');
+    const { identity } = serverMod.identityStore.createAccount(email, hashPassword('Password-123!'));
+    serverMod.identityStore.transitionState(identity.userId, 'ACTIVE');
+    const cookie = `nagex_session=${serverMod.sessionStore.createAuthSession(`ten_${identity.userId}`, identity.userId, 'MAIN').sessionId}`;
     const sessionHeaders = { 'Content-Type': 'application/json', Cookie: cookie, [TEST_PEER_HEADER]: ip[TEST_PEER_HEADER] };
 
     // Header identity alone is not authentication for Connected Apps.
