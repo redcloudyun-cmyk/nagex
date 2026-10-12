@@ -1,6 +1,8 @@
 import { googleTokenStore } from '../integrations/google/token.store.js';
 import { GMAIL_SCOPES, GOOGLE_CALENDAR_SCOPES } from '../integrations/google/oauth.client.js';
 import { isBrowserRuntimeAvailableSync } from '../modules/browser/index.js';
+import { githubTokenStore } from '../integrations/github/token.store.js';
+import { readGitHubOAuthConfig } from '../integrations/github/oauth.client.js';
 
 export type SideEffectLevel = 'READ_ONLY' | 'REVERSIBLE_WRITE' | 'IRREVERSIBLE_WRITE';
 export type ToolExecutionMode = 'live' | 'mock' | 'unavailable';
@@ -152,6 +154,14 @@ function gmailLiveStatus(identity?: ToolIdentity): LiveToolStatus {
   return hasGmailScope ? { connectionStatus: 'connected', executionMode: 'live' } : { connectionStatus: 'disconnected', executionMode: 'unavailable' };
 }
 
+// GitHub is LIVE only for THIS user's usable grant on a server that has the GitHub OAuth App configured. Never from config alone.
+function githubLiveStatus(identity?: ToolIdentity): LiveToolStatus {
+  if (!identity?.tenantId || !identity.principalId || !readGitHubOAuthConfig()) return { connectionStatus: 'disconnected', executionMode: 'unavailable' };
+  return githubTokenStore.getStatusForPrincipal(identity.tenantId, identity.principalId).authState === 'ACTIVE'
+    ? { connectionStatus: 'connected', executionMode: 'live' }
+    : { connectionStatus: 'disconnected', executionMode: 'unavailable' };
+}
+
 // Live = the Chromium binary Playwright expects is actually present on
 // disk (checked once, cheaply, synchronously — see
 // isBrowserRuntimeAvailableSync). Never reports live from configuration or
@@ -279,6 +289,9 @@ export const toolRegistry = new ToolRegistry([
     aliases: ['respond to calendar invite', 'rsvp', 'accept calendar invite', 'decline calendar invite'],
     getLiveStatus: googleCalendarLiveStatus,
   },
+  { id: 'github.list_repos', name: 'GitHub Repositories', capability: 'code.repository.list', connectionStatus: 'disconnected', sideEffectLevel: 'READ_ONLY', requiresApproval: false, executionMode: 'unavailable', aliases: ['list github repositories', 'list github repos', 'github repositories', 'my github repos'], getLiveStatus: githubLiveStatus },
+  { id: 'github.list_directory', name: 'GitHub Directory', capability: 'code.repository.directory.list', connectionStatus: 'disconnected', sideEffectLevel: 'READ_ONLY', requiresApproval: false, executionMode: 'unavailable', aliases: ['list github directory', 'browse github repository', 'github directory'], getLiveStatus: githubLiveStatus },
+  { id: 'github.read_file', name: 'GitHub File', capability: 'code.repository.file.read', connectionStatus: 'disconnected', sideEffectLevel: 'READ_ONLY', requiresApproval: false, executionMode: 'unavailable', aliases: ['read github file', 'github file', 'read file from github'], getLiveStatus: githubLiveStatus },
   { id: 'notion.create_page', name: 'Notion', capability: 'document.page.create', connectionStatus: 'unavailable', sideEffectLevel: 'REVERSIBLE_WRITE', requiresApproval: true, executionMode: 'unavailable', aliases: ['notion create page', 'create notion page'] },
   { id: 'memory.search', name: 'NAgex Memory', capability: 'memory.read', connectionStatus: 'connected', sideEffectLevel: 'READ_ONLY', requiresApproval: false, executionMode: 'live', aliases: ['memory recall', 'search memory'] },
   { id: 'workspace.prepare_draft', name: 'Workspace Draft', capability: 'document.draft.prepare', connectionStatus: 'connected', sideEffectLevel: 'REVERSIBLE_WRITE', requiresApproval: true, executionMode: 'live', aliases: ['prepare draft', 'draft document'] },

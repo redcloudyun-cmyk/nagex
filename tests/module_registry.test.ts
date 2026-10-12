@@ -5,13 +5,14 @@ import { ModuleRegistry } from '../src/modules/module.registry.js';
 import type { ModuleDefinition } from '../src/modules/module.types.js';
 
 describe('ModuleRegistry Tests', () => {
-  it('P06-01: registers default canonical modules (gmail, calendar, browser)', () => {
+  it('P06-01: registers default canonical modules (gmail, calendar, browser, github)', () => {
     const registry = new ModuleRegistry();
     const modules = registry.list();
-    assert.equal(modules.length, 3);
+    assert.equal(modules.length, 4);
     assert.ok(registry.has('module.calendar'));
     assert.ok(registry.has('module.gmail'));
     assert.ok(registry.has('module.browser'));
+    assert.ok(registry.has('module.github'));
   });
 
   it('P06-02: throws when registering a duplicate module ID', () => {

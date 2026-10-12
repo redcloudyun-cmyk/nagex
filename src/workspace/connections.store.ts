@@ -57,7 +57,7 @@ export class ConnectionStore {
   }
 
   public listConnections(tenantId: string, userId: string): AppConnectionRecord[] {
-    const providers: ConnectionProvider[] = ['google', 'microsoft', 'slack', 'telegram'];
+    const providers: ConnectionProvider[] = ['google', 'github', 'microsoft', 'slack', 'telegram'];
     return providers.map((p) => this.getOrCreateConnection(tenantId, userId, p));
   }
 }

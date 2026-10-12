@@ -2,7 +2,6 @@ import { CapabilityDefinition } from './capability.types.js';
 
 export class CapabilityRegistry {
   private readonly definitions = new Map<string, CapabilityDefinition>();
-
   constructor() {
     this.registerDefaults();
   }
@@ -24,6 +23,12 @@ export class CapabilityRegistry {
       { id: 'gmail.send_email', provider: 'GMAIL', risk: 'CONSEQUENTIAL', approval: 'REQUIRED', enabled: true },
       { id: 'gmail.reply', provider: 'GMAIL', risk: 'CONSEQUENTIAL', approval: 'REQUIRED', enabled: true },
       { id: 'gmail.create_draft', provider: 'GMAIL', risk: 'LOW', approval: 'CONDITIONAL', enabled: true },
+
+      // GitHub (built-in connection). Read-only: nothing here writes to GitHub. Any future write capability must be
+      // registered as CONSEQUENTIAL with approval REQUIRED and execute through the Broker's approval continuation.
+      { id: 'github.list_repos', provider: 'GITHUB', risk: 'READ_ONLY', approval: 'NONE', enabled: true },
+      { id: 'github.list_directory', provider: 'GITHUB', risk: 'READ_ONLY', approval: 'NONE', enabled: true },
+      { id: 'github.read_file', provider: 'GITHUB', risk: 'READ_ONLY', approval: 'NONE', enabled: true },
 
       // Browser
       { id: 'browser.open', provider: 'BROWSER', risk: 'READ_ONLY', approval: 'NONE', enabled: true },

@@ -17,6 +17,7 @@ import type { DeviceControlService } from '../device-control/device-control.serv
 import type { DesktopControlService } from '../device-agent/desktop-control.service.js';
 import type { WebSearchService } from '../research/web-search.service.js';
 import type { EvidencePackService } from '../research/evidence-pack.service.js';
+import type { GitHubConnectionService } from '../integrations/github/github-connection.js';
 
 export interface CapabilityIdempotencyRecord {
   key: string;
@@ -91,6 +92,8 @@ export class CapabilityBroker {
     private readonly webSearchService?: WebSearchService,
     private readonly evidencePackService?: EvidencePackService,
     permissionDecisionService?: PermissionDecisionService,
+    // Built-in GitHub connection (read-only). Additive, optional, trailing: absent, GITHUB capabilities report unavailable.
+    private readonly githubService?: Pick<GitHubConnectionService, 'listRepositories' | 'listDirectory' | 'readFile'>,
   ) {
     this.permissionDecisionService = permissionDecisionService ?? new PermissionDecisionService(this.auditLogger);
     const dataDir = resolveNagexDataDir(idempotencyDirName, idempotencyEnvVar);
@@ -282,6 +285,7 @@ export class CapabilityBroker {
     if (provider === 'BROWSER') return Boolean(this.browserService);
     if (provider === 'DEVICE') return Boolean(this.deviceControlService);
     if (provider === 'DEVICE_DESKTOP') return Boolean(this.desktopControlService) && this.desktopControlService!.isReady();
+    if (provider === 'GITHUB') return Boolean(this.githubService);
     if (provider === 'WEB_SEARCH') return Boolean(this.evidencePackService) && this.evidencePackService!.isWebSearchAvailable();
     return false;
   }
@@ -456,6 +460,25 @@ export class CapabilityBroker {
           capabilityId: request.capabilityId,
           result: res,
         };
+      }
+    }
+
+    // GitHub (read-only). Identity is the broker request's server-derived tenant + principal; a payload can never name another user.
+    if (def.provider === 'GITHUB' && this.githubService) {
+      const identity = { tenantId: request.tenantId, principalId: request.principalId, requestId: request.requestId };
+      let read;
+      if (request.capabilityId === 'github.list_repos') {
+        const perPage = Math.floor(Number(payload.maxResults));
+        read = await this.githubService.listRepositories(identity, { query: typeof payload.query === 'string' ? payload.query : undefined, perPage: Number.isFinite(perPage) && perPage > 0 ? Math.min(perPage, 100) : 30 });
+      } else if (request.capabilityId === 'github.list_directory') {
+        read = await this.githubService.listDirectory(identity, { owner: payload.owner, repo: payload.repo, path: payload.path, ref: payload.ref });
+      } else if (request.capabilityId === 'github.read_file') {
+        read = await this.githubService.readFile(identity, { owner: payload.owner, repo: payload.repo, path: payload.path, ref: payload.ref });
+      }
+      if (read) {
+        // A connection that cannot serve the request is a BLOCK with its real state, never an empty "success".
+        if (read.outcome === 'NOT_AVAILABLE') return { status: 'BLOCKED', capabilityId: request.capabilityId, reasonCode: `GITHUB_${read.connection.state}` };
+        return { status: 'EXECUTED', capabilityId: request.capabilityId, result: read.outcome === 'OK' ? { outcome: 'OK', ...read.data } : { outcome: read.outcome } };
       }
     }
 

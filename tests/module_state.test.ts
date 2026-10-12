@@ -508,7 +508,7 @@ function snapshotProductionModuleState(prodDir: string = '/var/lib/nagex/module-
 
     assert.equal(res.status, 200);
     assert.ok(Array.isArray((res.data as any).modules));
-    assert.equal((res.data as any).total, 3);
+    assert.equal((res.data as any).total, 4);
   });
 
   it('P06-14: GET /api/v1/modules/:moduleId returns 404 for unknown module', () => {

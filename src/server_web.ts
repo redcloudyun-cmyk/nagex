@@ -32,6 +32,8 @@ import { handleApprovalsRoutes } from './http/routes/approvals.routes.js';
 import { handleBrowserRoutes } from './http/routes/browser.routes.js';
 import { handleCompetitorPricingAgentRoutes } from './http/routes/competitor-pricing-agent.routes.js';
 import { handleGoogleOAuthStartRoutes, handleGoogleOAuthCallbackRoutes } from './http/routes/google-oauth.routes.js';
+import { handleGitHubOAuthStartRoutes, handleGitHubRoutes } from './http/routes/github.routes.js';
+import { githubConnectionService } from './integrations/github/index.js';
 import { GoogleCalendarConnectionService } from './integrations/google/calendar-connection.js';
 import { hasPendingGoogleOAuthState } from './integrations/google/oauth-state.store.js';
 import { readGoogleOAuthConfig } from './integrations/google/oauth.client.js';
@@ -549,6 +551,11 @@ export async function handleAsyncApiRequest(
       const googleOAuthResult = await handleGoogleOAuthCallbackRoutes(method, pathname, body, headers, query, { auditLogger, sessionStore: customDeps?.sessionStore ?? sessionStore, identityStore: customDeps?.identityStore ?? identityStore, calendarConnection: calendarConnectionFor(calendarService) });
       if (googleOAuthResult) return googleOAuthResult;
     }
+    // Built-in GitHub connection: OAuth callback/status/disconnect and read-only repository access.
+    {
+      const githubResult = await handleGitHubRoutes(method, pathname, body, headers, query, { auditLogger, sessionStore: customDeps?.sessionStore ?? sessionStore, identityStore: customDeps?.identityStore ?? identityStore, githubConnection: githubConnectionService });
+      if (githubResult) return githubResult;
+    }
     // R10.2-D Increment 3 — all Workspace/Capture/Candidate/Activity routes
     // (route-input, storage/status, inbox, vault, uploads, captures, items,
     // candidates, activity) now resolve through one registrar call.
@@ -771,7 +778,7 @@ export async function handleAsyncApiRequest(
 
     // R18 — Connected Apps / Connections Routes
     {
-      const connectionsResult = await handleConnectionsRoutes(method, pathname, body, headers, query, { connectionStore, auditLogger, sessionStore: customDeps?.sessionStore ?? sessionStore, identityStore: customDeps?.identityStore ?? identityStore, calendarConnection: calendarConnectionFor(calendarService) });
+      const connectionsResult = await handleConnectionsRoutes(method, pathname, body, headers, query, { connectionStore, auditLogger, sessionStore: customDeps?.sessionStore ?? sessionStore, identityStore: customDeps?.identityStore ?? identityStore, calendarConnection: calendarConnectionFor(calendarService), githubConnection: githubConnectionService });
       if (connectionsResult) return connectionsResult;
     }
 
@@ -865,6 +872,10 @@ export function handleApiRequest(
   {
     const googleOAuthStartResult = handleGoogleOAuthStartRoutes(method, pathname, body, headers, {}, { sessionStore, identityStore });
     if (googleOAuthStartResult) return googleOAuthStartResult;
+  }
+  {
+    const githubStartResult = handleGitHubOAuthStartRoutes(method, pathname, body, headers, {}, { sessionStore, identityStore });
+    if (githubStartResult) return githubStartResult;
   }
 
   // R10.2-D Increment 4 — Governance/billing (executions, billing, audit

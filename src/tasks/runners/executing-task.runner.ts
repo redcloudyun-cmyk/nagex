@@ -29,7 +29,7 @@ import { DurableTaskRunStateStore } from '../durable-task-run-state.store.js';
 // ToolRegistry's id to match (the old id is now kept only as a backward-
 // compatible alias), so the two ID spaces agree and this capability is
 // real, working scope for this milestone.
-const EXECUTABLE_CAPABILITY_IDS = new Set(['gmail.search', 'gmail.read_thread', 'google_calendar.free_slots']);
+const EXECUTABLE_CAPABILITY_IDS = new Set(['gmail.search', 'gmail.read_thread', 'google_calendar.free_slots', 'github.list_repos', 'github.list_directory', 'github.read_file']);
 
 // P02 — the 7 consequential capabilities P02a taught CapabilityBroker to
 // execute once approved (mirrors capability-broker.ts's own

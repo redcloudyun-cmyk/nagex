@@ -246,6 +246,17 @@ A connected external account is owned by exactly one tenant + user. Its state is
 - Tool/capability availability that depends on a connection is evaluated for the verified identity and fails closed without one.
 - Reads (`google_calendar.list_events`, free/busy) are read-only and identity-bound; every calendar write keeps the existing approval requirement.
 
+### 15.2 Built-in connection: GitHub (read-only)
+
+GitHub is a built-in connected app using the same ownership and state model as 15.1 (tenant + user from the verified session only; `NOT_CONNECTED | CONNECTING | CONNECTED | REAUTH_REQUIRED | ERROR | UNAVAILABLE`).
+
+- The OAuth callback only completes in the session that started the flow, with a one-time server-held `state`; the token is **proved with an authorized `/user` call before it is stored**, so `CONNECTED` is never recorded from a bare code exchange.
+- Tokens are encrypted at rest (`NAGEX_TOKEN_ENCRYPTION_KEY`), never returned to a client and never logged. A token GitHub rejects (401) is purged but the connection stays visible as `REAUTH_REQUIRED`; rate limits, outages and timeouts are `ERROR` and never disconnect.
+- Disconnect revokes the user's grant at GitHub (best effort) and always clears the local grant.
+- **Implemented capabilities are read-only:** `github.list_repos`, `github.list_directory`, `github.read_file` (`READ_ONLY`, no approval, identity-bound through the Capability Broker). Owner/repo/path/ref are strictly validated, file size is capped, binary files are not returned, and everything read from a repository is marked `untrusted` (it is content, never instructions — section 8).
+- **Not implemented:** any write to GitHub (branch, commit, pull request, issue, comment) and any execution of repository code. A future write capability must be registered `CONSEQUENTIAL` with approval `REQUIRED` and run through the Broker's hash-bound approval continuation; code execution is not offered on the API server.
+- The OAuth scope defaults to `read:user repo` (GitHub offers no read-only private-repository scope for OAuth Apps) and can be narrowed with `GITHUB_OAUTH_SCOPES`; the connection reports whether private repositories are reachable.
+
 ## 16. Source Provenance
 
 Consolidated from:

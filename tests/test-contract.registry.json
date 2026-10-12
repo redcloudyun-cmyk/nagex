@@ -5268,6 +5268,21 @@
       "assertionIntent": "Google Calendar connection truthfulness: identity is the verified session tenant + user only (another user, another tenant, forged headers/query/body and a missing identity never read or reveal anyone else's connection or events, and tools fail closed without an identity); every state is reported truthfully (NOT_CONNECTED, CONNECTING only for the user who started authorization, CONNECTED only with a usable correctly scoped grant and verifiedAt only after a real authorized Google call, REAUTH_REQUIRED for revoked/expired/rejected grants and missing scopes, ERROR for timeouts/outages/rate limits/API-disabled/internal faults, UNAVAILABLE without an OAuth client); a grant Google no longer honours keeps its metadata, purges its secrets and persists the reauthorization flag, while a transient provider failure never touches the grant; real events are read through the existing credential-brokered service and the list_events capability is read-only and identity-bound; writes still require approval.",
       "notes": "Google is replaced by a scripted fetch; the token store, credential broker, pipeline, service, routes and sessions are the production code."
     },
+    "github_connection": {
+      "milestone": "NAGEX-GITHUB-BUILTIN-CONNECTION",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "credential-broker",
+        "permission-approval-hardening"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "GitHub built-in connection truthfulness: identity is the verified session tenant + user only (another user, another tenant and forged headers/query never read or reveal anyone else connection, repositories or files; the OAuth callback only completes in the session that started the flow with a one-time state); every state is reported truthfully (UNAVAILABLE without an OAuth App and no dead connect path, NOT_CONNECTED, CONNECTING only for the user who started authorization, CONNECTED with verifiedAt only after a real authorized GitHub call, REAUTH_REQUIRED when GitHub rejects the saved token while keeping the metadata and purging the secret, ERROR for rate limits/outages/timeouts that keep the connection); access is read-only (repository list, directory, file) with strict owner/repo/path/ref validation, size/binary limits and repository text marked untrusted; tokens are encrypted at rest and never appear in responses; the Capability Broker and Tool Registry expose only READ_ONLY NONE-approval GitHub capabilities bound to the request identity and block with the real state when not connected.",
+      "notes": "GitHub is replaced by a scripted fetch; the token store, connection service, broker, tool registry, routes and sessions are the production code."
+    },
     "main_unified_workspace_browser": {
       "milestone": "NAGEX-DESKTOP-MAIN-UNIFIED-WORKSPACE",
       "classification": "REAL_BROWSER_CERT",
@@ -5300,6 +5315,22 @@
       "deterministic": true,
       "assertionIntent": "Home todo is built from the signed-in user's real reminder and task stores only (due/overdue reminders and not-yet-running tasks), never another user's items, and states UNAVAILABLE / ERROR / empty honestly instead of inventing items.",
       "notes": "Uses the real CurrentPersonalContextService with temp stores."
+    },
+    "github_connection_browser": {
+      "milestone": "NAGEX-GITHUB-BUILTIN-CONNECTION",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Real-Chromium certification of the built-in GitHub connection card in Settings > Connections: NOT_CONNECTED shows the truth and a Connect button that really navigates to the GitHub authorize URL (client id, server-held state, scopes, no secret); a server without the OAuth App shows a disabled button; CONNECTED shows the account and the real repository listing and Disconnect revokes the grant and returns to Not connected; REAUTH_REQUIRED offers Reconnect while a provider outage never disconnects; another user never sees or reads the connection; the card is localized in Korean without raw keys.",
+      "notes": "Production server harness with provider credentials scrubbed; GitHub is a scripted fetch inside the server process. The token store, routes, sessions and the Settings card are real.",
+      "writesRepositoryArtifacts": false
     },
     "settings_screen_certification_browser": {
       "milestone": "NAGEX-DESKTOP-SETTINGS-CERT",

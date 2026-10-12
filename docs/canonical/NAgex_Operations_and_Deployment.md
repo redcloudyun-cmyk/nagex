@@ -89,6 +89,21 @@ Failure behavior is fail-closed:
 
 Never report these states as connected.
 
+## 7d. GitHub Connection
+
+GitHub (built-in connection) is available only when the OAuth App is configured; otherwise the UI shows it as unavailable and offers no Connect action.
+
+| Variable | Purpose |
+|---|---|
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | GitHub OAuth App credentials (secret never reaches a client) |
+| `GITHUB_REDIRECT_URI` | must equal the OAuth App callback, `<origin>/api/v1/oauth/github/callback` |
+| `GITHUB_OAUTH_SCOPES` | optional; default `read:user repo` |
+| `NAGEX_GITHUB_TOKEN_STORE_PATH` | optional; default `/var/lib/nagex/github-oauth.json` with the same fallback as Google |
+
+GitHub tokens are persisted encrypted with `NAGEX_TOKEN_ENCRYPTION_KEY`; without the key they live in memory only and do not survive a restart. A missing, corrupted or wrong-key file means "not connected" — never connected.
+
+No real GitHub account or OAuth App has been exercised by automated tests; those are scripted-provider tests. Real-account verification stays pending until credentials are configured on the server and a user connects.
+
 ## 7a. Channel Webhook Secrets
 
 The Telegram and Slack webhooks are accepted only when authenticated (ADR-0007):

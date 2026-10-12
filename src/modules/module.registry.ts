@@ -46,6 +46,16 @@ export class ModuleRegistry {
         enabledByDefault: true,
       },
       {
+        moduleId: 'module.github',
+        name: 'GitHub Module',
+        version: '1.0.0',
+        category: 'Development',
+        description: 'Lists the connected user repositories and reads repository files (read-only).',
+        capabilities: ['github.list_repos', 'github.list_directory', 'github.read_file'],
+        requiredPermissions: ['github:read'],
+        enabledByDefault: true,
+      },
+      {
         moduleId: 'module.browser',
         name: 'Browser Agent Module',
         version: '1.0.0',
@@ -89,6 +99,7 @@ export class ModuleRegistry {
         'gmail.read',
         'gmail.search_email',
       ],
+      'module.github': ['github.repos', 'github.repositories', 'github.read', 'github.files'],
       'module.browser': [
         'browser.session.open',
         'browser.session.close',

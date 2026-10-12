@@ -63,6 +63,7 @@ export const ROUTE_ACCESS_RULES: readonly RouteAccessRule[] = [
   rule(['POST'], /^\/api\/v1\/invitations\/[^/]+\/accept$/, 'SELF_AUTHENTICATED', 'requires a session'),
   rule('*', /^\/scim\/v2(\/|$)/, 'SELF_AUTHENTICATED', 'SCIM bearer token scoped to one organization'),
   rule('*', /^\/api\/v1\/oauth\/google\/(start|start-url|callback|status|disconnect)$/, 'SELF_AUTHENTICATED', 'Google connection: session + state nonce'),
+  rule('*', /^\/api\/v1\/oauth\/github\/(start|start-url|callback|status|disconnect)$/, 'SELF_AUTHENTICATED', 'GitHub connection: session + state nonce'),
   rule('*', /^\/api\/v1\/connections(\/|$)/, 'SELF_AUTHENTICATED', 'requires a session'),
   rule('*', /^\/api\/v1\/mobile\/messages(\/|$)/, 'SELF_AUTHENTICATED', 'requires a session'),
   rule(['POST'], /^\/api\/v1\/device-agent\/enroll$/, 'SELF_AUTHENTICATED', 'requires a session'),

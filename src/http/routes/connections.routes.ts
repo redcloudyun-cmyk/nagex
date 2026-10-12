@@ -26,6 +26,7 @@ import type { SessionStore } from '../../sessions/session.store.js';
 import { resolveAuthenticatedIdentity } from '../request-identity.js';
 import type { ConnectionStore } from '../../workspace/connections.store.js';
 import type { CalendarConnectionState, GoogleCalendarConnectionService } from '../../integrations/google/calendar-connection.js';
+import type { GitHubConnectionService } from '../../integrations/github/github-connection.js';
 import type { AppConnectionRecord, ConnectionProvider } from '../../workspace/connections.types.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
 
@@ -40,6 +41,7 @@ export interface ConnectionsRouteDeps {
   sessionStore: SessionStore;
   identityStore: IdentityStore;
   calendarConnection?: GoogleCalendarConnectionService;
+  githubConnection?: GitHubConnectionService;
 }
 
 // The state names the UI shows. Google is read from the per-user connection (token store), never from a local copy.
@@ -103,8 +105,19 @@ export const handleConnectionsRoutes: AsyncRouteRegistrar<ConnectionsRouteDeps> 
 
   if (pathname === '/api/v1/connections' && method === 'GET') {
     const googleStatus = calendarConnection ? await calendarConnection.getStatus({ tenantId, principalId: userId, requestId: `req_conn_${crypto.randomUUID()}` }) : null;
+    // GitHub is a built-in connected app: its state is derived from the per-user token store, never from a local copy.
+    const githubStatus = deps.githubConnection ? await deps.githubConnection.getStatus({ tenantId, principalId: userId, requestId: `req_conn_${crypto.randomUUID()}` }) : null;
     const connections = connectionStore.listConnections(tenantId, userId).map((r) => {
       const record = withCanonicalStatus(r, tenantId, userId);
+      if (record.provider === 'github') {
+        return {
+          ...record,
+          status: githubStatus ? githubStatus.state : 'UNAVAILABLE',
+          accountName: githubStatus?.account?.login,
+          detail: githubStatus ? { reason: githubStatus.reason, retryable: githubStatus.retryable, connectPath: githubStatus.connectPath, verifiedAt: githubStatus.verifiedAt, privateAccess: githubStatus.privateAccess } : { reason: 'OAUTH_NOT_CONFIGURED', retryable: false, connectPath: null, verifiedAt: null, privateAccess: false },
+          consentAuthority: { observeAllowed: false, contentReadAllowed: false, proactiveUseAllowed: false, executeAllowed: false, reason: 'Connection state is not consent or execution authority.' },
+        };
+      }
       if (record.provider === 'google' && googleStatus) {
         return {
           ...record,

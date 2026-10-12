@@ -1,5 +1,5 @@
 // R18 — Connected Apps & Integration Status Types
-export type ConnectionProvider = 'google' | 'microsoft' | 'slack' | 'telegram';
+export type ConnectionProvider = 'google' | 'microsoft' | 'slack' | 'telegram' | 'github';
 export type ConnectionStatus = 'NOT_CONNECTED' | 'CONNECTING' | 'CONNECTED' | 'DISCONNECTED' | 'REAUTH_REQUIRED' | 'EXPIRED' | 'UNAVAILABLE' | 'ERROR';
 
 export interface AppConnectionRecord {

@@ -36,6 +36,7 @@ import { ProactiveInteractionStore } from '../personal/proactive-interaction.sto
 import { ArtifactStore } from '../artifacts/artifact.store.js';
 import { skillRegistry as canonicalSkillRegistry } from '../skills/skill-registry.js';
 import { toolRegistry as canonicalToolRegistry } from '../tools/tool-registry.js';
+import { githubConnectionService } from '../integrations/github/index.js';
 import { PlanResolver } from '../planning/plan-resolver.js';
 import { PersistentActionApprovalStore } from '../governance/action-approval.store.js';
 import { ExecutionStore } from '../governance/execution.store.js';
@@ -384,6 +385,8 @@ export function createNagexApplication(): NagexApplication {
     desktopControlService,
     webSearchService,
     evidencePackService,
+    undefined,
+    githubConnectionService,
   );
 
   // ─── MASTER.md Section 14 — Main Session + Tasks Foundation ───

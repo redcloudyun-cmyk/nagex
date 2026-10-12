@@ -3784,7 +3784,7 @@ body {
 .settings-connection-card.connected .settings-connection-status { background: #dcfce7; color: #047857; }
 .settings-connection-card.unavailable .settings-connection-status { background: #f1f5f9; color: #64748b; }
 .settings-connection-card.needs-attention .settings-connection-status { background: #fff7ed; color: #c2410c; }
-.settings-connection-actions { display: flex; justify-content: flex-end; margin-top: 1.2rem; }
+.settings-connection-actions { display: flex; justify-content: flex-end; gap: .6rem; flex-wrap: wrap; margin-top: 1.2rem; }
 .settings-primary-action.secondary { background: #f8fbff; color: #0b63f6; border: 1px solid #cfe0f7; }
 .settings-primary-action.secondary:disabled { color: #90a4c4; background: #f4f7fb; cursor: not-allowed; }
 .settings-device-layout { grid-template-columns: minmax(0, 1fr) 380px; gap: 1.6rem; }

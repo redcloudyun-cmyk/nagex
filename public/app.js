@@ -41,6 +41,9 @@
     activeMockup: 'm01',
     pendingIntentResponse: null,
     googleOAuth: { configured: false, connected: false, scopes: [], expiresAt: null },
+    githubConnection: null,
+    githubLoaded: false,
+    githubLoading: false,
     approvalCountdownTimer: null,
     // The most recent Gmail thread NAgex actually loaded (from a real
     // gmail.search or gmail.read_thread result) in this session ??the only
@@ -348,9 +351,11 @@
     if (!oauthResult) return;
     const status = params.get('status');
     window.alert(
-      oauthResult === 'google' && status === 'connected'
-        ? 'Google Calendar connected.'
-        : 'Could not connect Google Calendar. Please try again.'
+      oauthResult === 'github'
+        ? l10nPhrase(status === 'connected' ? 'GitHub connected.' : 'Could not connect GitHub. Please try again.')
+        : oauthResult === 'google' && status === 'connected'
+          ? 'Google Calendar connected.'
+          : 'Could not connect Google Calendar. Please try again.'
     );
     params.delete('oauth');
     params.delete('status');
@@ -3436,6 +3441,80 @@
       .join('') || `<p class="setting-sub">${escapeHtml(t('settings.providerNoneConfigured') || 'No model provider is configured on this server.')}</p>`;
   }
 
+  // GitHub built-in connection: state comes from the server per signed-in user (never a local copy).
+  async function loadGitHubConnection(verify) {
+    state.githubLoading = true;
+    const data = await apiFetch('/api/v1/connections/github' + (verify ? '?verify=1' : ''));
+    if (data && data.connection) state.githubConnection = data.connection;
+    else if (data && data.error && data.error.code === 'UNAUTHORIZED') state.githubConnection = null;
+    else state.githubConnection = { provider: 'github', state: 'ERROR', reason: 'PROVIDER_ERROR', retryable: true, scopes: [], account: null, privateAccess: false, connectPath: null, verifiedAt: null, message: 'GitHub returned an error. Try again.' };
+    state.githubLoaded = true;
+    state.githubLoading = false;
+    renderSettingsConnections();
+  }
+
+  function githubCardHtml(signedOut) {
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    const services = [l10nPhrase('Repositories'), l10nPhrase('Files')];
+    if (signedOut) return renderConnectionCard({ provider: 'GitHub', services, state: 'NEEDS_ATTENTION', account: t('settings.signInRequired') || 'Sign in to connect this service.', action: t('auth.signIn') || 'Sign In', buttonId: 'btn-settings-github-signin' });
+    if (!state.githubLoaded) return renderConnectionCard({ provider: 'GitHub', services, state: 'NOT_CONNECTED', account: l10nPhrase('Loading...'), action: l10nPhrase('Connect GitHub'), disabled: true });
+    const conn = state.githubConnection || { state: 'UNAVAILABLE', message: 'GitHub is not available on this server.' };
+    const connState = conn.state;
+    const status = connState === 'CONNECTED' ? 'CONNECTED' : connState === 'NOT_CONNECTED' ? 'NOT_CONNECTED' : connState === 'UNAVAILABLE' ? 'UNAVAILABLE' : 'NEEDS_ATTENTION';
+    const login = conn.account && conn.account.login;
+    const account = connState === 'CONNECTED'
+      ? l10nPhrase('Connected as') + (login ? ' @' + login : '') + ' \u00b7 ' + l10nPhrase(conn.privateAccess ? 'Includes private repositories' : 'Public repositories only')
+      : connState === 'NOT_CONNECTED' ? l10nPhrase('Read-only access to your repositories and files.')
+      : connState === 'CONNECTING' ? l10nPhrase('GitHub authorization is in progress.')
+      : l10nPhrase(conn.message || 'GitHub is not available on this server.');
+    const action = connState === 'CONNECTED' ? l10nPhrase('Disconnect') : connState === 'REAUTH_REQUIRED' ? l10nPhrase('Reconnect') : connState === 'ERROR' ? l10nPhrase('Try again') : connState === 'CONNECTING' ? l10nPhrase('Connecting...') : l10nPhrase('Connect GitHub');
+    return renderConnectionCard({
+      provider: 'GitHub', services, state: status, account, action, buttonId: 'btn-settings-github-toggle',
+      disabled: connState === 'UNAVAILABLE' || connState === 'CONNECTING',
+      reason: connState === 'UNAVAILABLE' ? l10nPhrase('Unavailable in this environment') : '',
+      secondary: connState === 'CONNECTED' ? { id: 'btn-settings-github-repos', label: l10nPhrase('Browse repositories') } : null,
+    });
+  }
+
+  function wireGitHubCard(signedOut) {
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    if (signedOut) {
+      const signIn = document.getElementById('btn-settings-github-signin');
+      if (signIn) signIn.onclick = () => { if (window.NAGEX.showAuthModal) window.NAGEX.showAuthModal('signin'); };
+      return;
+    }
+    if (!state.githubLoaded && !state.githubLoading) loadGitHubConnection(false);
+    const conn = state.githubConnection;
+    const toggle = document.getElementById('btn-settings-github-toggle');
+    if (toggle && conn && conn.state !== 'UNAVAILABLE' && conn.state !== 'CONNECTING') {
+      toggle.onclick = async () => {
+        if (conn.state === 'ERROR') { await loadGitHubConnection(true); return; }
+        if (conn.state === 'CONNECTED') {
+          if (!window.confirm(l10nPhrase('Disconnect GitHub? NAgex will no longer be able to read your repositories.'))) return;
+          const res = await apiFetch('/api/v1/connections/github/disconnect', { method: 'POST' });
+          await loadGitHubConnection(false);
+          if (res && res.connection) showSettingsSaveFeedback(true, l10nPhrase('GitHub disconnected.'));
+          else showSettingsSaveFeedback(false, l10nPhrase('Could not disconnect GitHub.'));
+          return;
+        }
+        window.location.href = conn.connectPath || '/api/v1/oauth/github/start';
+      };
+    }
+    const repos = document.getElementById('btn-settings-github-repos');
+    if (repos) {
+      repos.onclick = async () => {
+        const res = await apiFetch('/api/v1/connections/github/repos?perPage=50');
+        if (!res || res.error || !Array.isArray(res.repositories)) {
+          if (res && res.connection) { state.githubConnection = res.connection; renderSettingsConnections(); }
+          showTextModal(l10nPhrase('Repositories'), l10nPhrase((res && res.error && res.error.message) || 'Could not load repositories.'));
+          return;
+        }
+        const lines = res.repositories.map((repo) => repo.fullName + '  [' + l10nPhrase(repo.private ? 'Private' : 'Public') + ']' + (repo.description ? '\n    ' + repo.description : ''));
+        showTextModal(l10nPhrase('Repositories'), lines.length ? lines.join('\n') : l10nPhrase('No repositories found.'));
+      };
+    }
+  }
+
   function renderSettingsConnections() {
     const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
     const el = document.getElementById('settings-connections-status');
@@ -3445,11 +3524,13 @@
       el.innerHTML = `
       <div class="settings-connection-grid">
         ${renderConnectionCard({ provider: 'Google', services: ['Gmail', 'Calendar', 'Drive'], state: 'NEEDS_ATTENTION', account: t('settings.signInRequired') || 'Sign in to connect this service.', action: t('auth.signIn') || 'Sign In', buttonId: 'btn-settings-google-signin' })}
+        ${githubCardHtml(true)}
         ${renderConnectionCard({ provider: 'Microsoft', services: ['Outlook', 'Calendar', 'OneDrive'], state: 'UNAVAILABLE', account: 'Unavailable in this environment', action: 'Connect Microsoft', disabled: true })}
         ${renderConnectionCard({ provider: 'Communication / Apps', services: ['Slack · Not connected', 'Telegram · Not connected', 'Connected apps · None'], state: 'NOT_CONNECTED', account: 'No connected app accounts yet', action: 'Browse connections', disabled: true })}
       </div>`;
       const signIn = document.getElementById('btn-settings-google-signin');
       if (signIn) signIn.onclick = () => { if (window.NAGEX.showAuthModal) window.NAGEX.showAuthModal('signin'); };
+      wireGitHubCard(true);
       return;
     }
     const oauth = state.googleOAuth || { configured: false, connected: false };
@@ -3467,9 +3548,12 @@
     el.innerHTML = `
       <div class="settings-connection-grid">
         ${renderConnectionCard({ provider: 'Google', services: ['Gmail', 'Calendar', 'Drive'], state: status, account: oauth.email || statusLabel, action: googleAction, buttonId: 'btn-settings-google-toggle', disabled: !oauth.configured || connState === 'CONNECTING', reason: !oauth.configured ? l10nPhrase('Unavailable in this environment') : '' })}
+        ${githubCardHtml(false)}
         ${renderConnectionCard({ provider: 'Microsoft', services: ['Outlook', 'Calendar', 'OneDrive'], state: 'UNAVAILABLE', account: l10nPhrase('Unavailable in this environment'), action: l10nPhrase('Connect Microsoft'), disabled: true, reason: l10nPhrase('Unavailable in this environment') })}
         ${renderConnectionCard({ provider: 'Communication / Apps', services: ['Slack · Not connected', 'Telegram · Not connected', 'Connected apps · None'], state: 'NOT_CONNECTED', account: l10nPhrase('No connected app accounts yet'), action: l10nPhrase('Browse connections'), disabled: true, reason: l10nPhrase('Unavailable in this environment') })}
       </div>`;
+
+    wireGitHubCard(false);
 
     const btn = document.getElementById('btn-settings-google-toggle');
     if (btn && oauth.configured) {
@@ -3503,15 +3587,17 @@
     }
   }
 
-  function renderConnectionCard({ provider, services, state, account, action, buttonId, disabled, reason }) {
+  function renderConnectionCard({ provider, services, state, account, action, buttonId, disabled, reason, secondary }) {
     const label = l10nPhrase(state === 'CONNECTED' ? 'Connected' : state === 'NEEDS_ATTENTION' ? 'Needs attention' : state === 'UNAVAILABLE' ? 'Unavailable' : 'Not connected');
     const serviceRows = services.map((service) => `<span>${escapeHtml(service)}</span>`).join('');
     const iconPath = provider === 'Google'
       ? 'M12 4a8 8 0 1 0 7.6 10.5H12v-5h12'
       : provider === 'Microsoft'
         ? 'M4 4h7v7H4V4Zm9 0h7v7h-7V4ZM4 13h7v7H4v-7Zm9 0h7v7h-7v-7Z'
-        : 'M4 5h16v11H8l-4 4V5Z';
-    return `<article class="settings-connection-card ${state.toLowerCase().replace('_', '-')}"><div class="settings-connection-head"><div class="settings-row-leading">${settingsIconSvg(provider, iconPath)}<div><h3>${escapeHtml(provider)}</h3><div class="settings-connection-services">${serviceRows}</div></div></div><span class="settings-connection-status">${label}</span></div><p class="setting-sub">${escapeHtml(account || label)}</p><div class="settings-connection-actions"><button class="settings-primary-action secondary" type="button" ${buttonId ? `id="${buttonId}"` : ''} ${disabled ? 'disabled aria-disabled="true"' : ''} ${disabled && reason ? `title="${escapeHtml(reason)}"` : ''}>${escapeHtml(action || 'Manage')}</button></div></article>`;
+        : provider === 'GitHub'
+          ? 'M8 6 2 12l6 6 1.4-1.4L4.8 12l4.6-4.6L8 6Zm8 0-1.4 1.4 4.6 4.6-4.6 4.6L16 18l6-6-6-6Z'
+          : 'M4 5h16v11H8l-4 4V5Z';
+    return `<article class="settings-connection-card ${state.toLowerCase().replace('_', '-')}"><div class="settings-connection-head"><div class="settings-row-leading">${settingsIconSvg(provider, iconPath)}<div><h3>${escapeHtml(provider)}</h3><div class="settings-connection-services">${serviceRows}</div></div></div><span class="settings-connection-status">${label}</span></div><p class="setting-sub">${escapeHtml(account || label)}</p><div class="settings-connection-actions"><button class="settings-primary-action secondary" type="button" ${buttonId ? `id="${buttonId}"` : ''} ${disabled ? 'disabled aria-disabled="true"' : ''} ${disabled && reason ? `title="${escapeHtml(reason)}"` : ''}>${escapeHtml(action || 'Manage')}</button>${secondary ? `<button class="settings-primary-action secondary" type="button" id="${secondary.id}">${escapeHtml(secondary.label)}</button>` : ''}</div></article>`;
   }
 
   // Advanced is collapsed by default (MASTER.md Section 14.12 / 14.9 §5) ??
