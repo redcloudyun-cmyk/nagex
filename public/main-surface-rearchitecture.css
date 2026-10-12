@@ -1213,6 +1213,11 @@
   .sidebar-left {
     display: none !important;
   }
+
+  /* touch targets */
+  .recent-open {
+    min-height: 44px;
+  }
 }
 
 /* Phones: the Main surface is Home (the native mobile shell keeps Inbox / Activity / Knowledge / Settings). The desktop marketing hero

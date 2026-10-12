@@ -5363,6 +5363,23 @@
       "notes": "Production server harness with provider credentials scrubbed; computed-style assertions against the V2 token scale, never screenshots. Google Fonts are requested by the page (Inter, Noto Sans KR); the assertions read the declared font-family stack, so they hold offline.",
       "writesRepositoryArtifacts": false
     },
+    "r23_7h_c_mobile_recent_image_browser": {
+      "milestone": "R23.7H-C",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "mobile",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "R23.7H-C exit criteria MOBILE_IMAGE_THUMBNAIL, MOBILE_IMAGE_OPEN, UNKNOWN_TYPE_SAFE, CANONICAL_URLS, NO_PROVIDER_LEAK, ACCESSIBILITY and HORIZONTAL_OVERFLOW for Recent on phones (360/390/430) and desktop in EN and KR: an IMAGE artifact with the canonical NAgex image path shows a decoded thumbnail, a provider URL / malformed path / other type never does, Open shows the canonical image in the Main result panel, a planned type (PRESENTATION) opens safely as text, no provider/model identity or raw i18n key in a row, Open is a 44px touch target on phones.",
+      "notes": "Production server harness with provider credentials scrubbed; the canonical image binary is served by a route stub (no generation, no paid call).",
+      "writesRepositoryArtifacts": false
+    },
     "mobile_phone_shell_browser": {
       "milestone": "R23.7H-C",
       "classification": "REAL_BROWSER_CERT",

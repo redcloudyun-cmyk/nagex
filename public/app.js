@@ -2599,10 +2599,13 @@
       html += group.map((item) => {
         const when = new Date(item.createdAt);
         const time = key === 'today' ? when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : when.toLocaleDateString([], { month: 'short', day: 'numeric' });
-        return '<div class="recent-item" data-artifact-id="' + escapeHtml(item.artifactId) + '"><div class="recent-item-main"><span class="recent-item-title">' + escapeHtml(item.title || '') + '</span><span class="recent-item-meta">' + escapeHtml(typeLabel(item.type)) + ' - ' + escapeHtml(time) + '</span></div><button type="button" class="btn-secondary recent-open" data-artifact-id="' + escapeHtml(item.artifactId) + '">' + escapeHtml(t('recent.open')) + '</button></div>';
+        // IMAGE artifacts show their NAgex-owned canonical image only (never a provider URL or any other path); a broken image is removed, not shown
+        const thumb = item.type === 'IMAGE' && CANONICAL_IMAGE_PATH_PATTERN.test(String(item.openTarget || '')) ? '<img class="recent-thumb" src="' + escapeHtml(item.openTarget) + '" alt="" width="44" height="44" loading="lazy">' : '';
+        return '<div class="recent-item" data-artifact-id="' + escapeHtml(item.artifactId) + '">' + thumb + '<div class="recent-item-main"><span class="recent-item-title">' + escapeHtml(item.title || '') + '</span><span class="recent-item-meta">' + escapeHtml(typeLabel(item.type)) + ' - ' + escapeHtml(time) + '</span></div><button type="button" class="btn-secondary recent-open" data-artifact-id="' + escapeHtml(item.artifactId) + '">' + escapeHtml(t('recent.open')) + '</button></div>';
       }).join('');
     });
     el.innerHTML = html;
+    el.querySelectorAll('.recent-thumb').forEach((img) => img.addEventListener('error', () => img.remove()));
     el.querySelectorAll('.recent-open').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const actions = window.NAGEX_MAIN_ACTIONS;

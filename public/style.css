@@ -4428,7 +4428,8 @@ body {
 .recent-list { display: grid; gap: var(--nagex-spacing-2); max-width: 880px; }
 .recent-group-title { margin: var(--nagex-spacing-4) 0 var(--nagex-spacing-1); font-size: var(--nagex-fs-secondary); font-weight: var(--nagex-fw-semibold); letter-spacing: 0; text-transform: none; color: var(--nagex-ink-3); }
 .recent-item { display: flex; align-items: center; justify-content: space-between; gap: var(--nagex-spacing-3); padding: var(--nagex-spacing-2) var(--nagex-spacing-3) var(--nagex-spacing-2) var(--nagex-spacing-4); border: 1px solid var(--nagex-line); border-radius: var(--nagex-r-card); background: var(--nagex-paper); }
-.recent-item-main { display: grid; gap: 2px; min-width: 0; }
+.recent-item-main { display: grid; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.recent-thumb { flex: 0 0 auto; width: 44px; height: 44px; object-fit: cover; border-radius: var(--nagex-r-control); background: var(--nagex-wash); border: 1px solid var(--nagex-line); }
 .recent-item-title { font-size: var(--nagex-fs-body); font-weight: var(--nagex-fw-medium); overflow-wrap: anywhere; }
 .recent-item-meta { font-size: var(--nagex-fs-caption); color: var(--nagex-ink-3); }
 

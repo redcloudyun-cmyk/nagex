@@ -195,7 +195,8 @@
       "r22_1_mobile_home",
       "r23_7h_b1_personal_dashboard",
       "r23_7h_b2_agentic_creation_home",
-      "mobile_phone_shell_browser"
+      "mobile_phone_shell_browser",
+      "r23_7h_c_mobile_recent_image_browser"
     ],
     "personal-context": [
       "personal_home_todo",
@@ -339,7 +340,8 @@
       "r24_8b_ui_integrity_contract",
       "connections_redesign_browser",
       "design_system_v2_browser",
-      "mobile_phone_shell_browser"
+      "mobile_phone_shell_browser",
+      "r23_7h_c_mobile_recent_image_browser"
     ],
     "knowledge": [
       "r24_5c_knowledge_live"

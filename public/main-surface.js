@@ -1226,6 +1226,9 @@
     }
   }
 
+  // The only image source an opened artifact may display: the NAgex-owned canonical path (never a provider URL, data: URL or any other path).
+  const CANONICAL_IMAGE_PATH = /^\/api\/v1\/creations\/images\/img_[0-9a-f]{24}$/;
+
   async function openArtifactResult(artifactId) {
     if (!artifactId) return false;
     const artifact = await api('/api/v1/artifacts/' + encodeURIComponent(artifactId));
@@ -1237,11 +1240,13 @@
       const documentResponse = await api('/api/v1/creations/documents/' + encodeURIComponent(documentId));
       document = documentResponse && documentResponse.document ? documentResponse.document : null;
     }
+    const imageUrl = projection.artifactType === 'IMAGE' && CANONICAL_IMAGE_PATH.test(String(projection.previewTarget || '')) ? projection.previewTarget : undefined;
     showResult({
       type: projection.artifactType || 'ARTIFACT',
+      imageUrl,
       title: projection.title || (document && document.title) || 'Stored artifact',
       meta: [projection.artifactType || 'ARTIFACT', projection.state || 'ready'].filter(Boolean).join(' - '),
-      preview: (document && document.content) || projection.preview || 'This artifact has no inline preview.',
+      preview: (document && document.content) || projection.preview || projection.summary || 'This artifact has no inline preview.',
       artifactId,
       documentId,
       openTarget: projection.openTarget,
