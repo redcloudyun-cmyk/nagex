@@ -89,7 +89,8 @@ test('F. Canonical primary nav (NAGEX_PRIMARY_NAV) and the desktop sidebar data-
   const htmlTabs = [...navMenuMatch![1].matchAll(/data-tab="([a-z0-9-]+)"/g)].map((m) => m[1]).sort();
 
   assert.deepEqual(htmlTabs, jsTabs, 'sidebar data-tab set must exactly match NAGEX_PRIMARY_NAV');
-  assert.deepEqual(jsTabs, ['tab-approvals', 'tab-canvas', 'tab-create', 'tab-home', 'tab-inbox', 'tab-knowledge', 'tab-settings', 'tab-tasks'].sort());
+  // Current canonical IA (sidebar commit 576eeea added the Recent screen; Activity is the nav entry for tab-executions; Approvals is no longer a primary tab).
+  assert.deepEqual(jsTabs, ['tab-canvas', 'tab-create', 'tab-executions', 'tab-home', 'tab-inbox', 'tab-knowledge', 'tab-recent', 'tab-settings', 'tab-tasks'].sort());
 });
 
 test('G. Activity and Vault routes/views still exist after nav promotion (no deletion of real functionality)', () => {

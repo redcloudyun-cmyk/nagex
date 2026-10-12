@@ -53,11 +53,13 @@ test('F. Embedded Canvas region exists only once in the desktop HTML (no acciden
   assert.equal(count, 1);
 });
 
-test('G. Desktop-only: renderHomeEmbeddedCanvas is wired into renderDesktop but not renderMobile (mobile keeps its own dedicated flow, per D.3 §22)', () => {
+test('G. The retired embedded Home Canvas is no longer rendered by renderDesktop (Home is the unified Main surface) and was never part of renderMobile', () => {
   const src = readPublic('personal-home-view.js');
   const desktopFn = src.match(/function renderDesktop\(model\) \{([\s\S]*?)\n  \}/);
   const mobileFn = src.match(/function renderMobile\(model\) \{([\s\S]*?)\n  \}/);
-  assert.ok(desktopFn && desktopFn[1].includes('renderHomeEmbeddedCanvas(model)'));
+  // Home is now the Main surface: the desktop renderer explicitly hides the embedded canvas region instead of rendering it.
+  assert.ok(desktopFn && !desktopFn[1].includes('renderHomeEmbeddedCanvas(model)'));
+  assert.ok(desktopFn && /hideSections\(\[[\s\S]*'home-embedded-canvas'/.test(desktopFn[1]), 'the embedded canvas section must be hidden on desktop');
   assert.ok(mobileFn && !mobileFn[1].includes('renderHomeEmbeddedCanvas'));
 });
 
