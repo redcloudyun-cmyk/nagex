@@ -776,3 +776,77 @@
   }
 
 }
+
+
+/* Adaptive Main: conversation replaces the idle hero layout, rather than
+   adding a second Q&A dashboard beneath the oversized idle composer. */
+.nagex-main-surface[data-session-state="CONVERSATION"] .main-hero-row,
+.nagex-main-surface[data-session-state="RESULT"] .main-hero-row {
+  display: none;
+}
+.nagex-main-surface[data-session-state="CONVERSATION"] .nagex-main-left,
+.nagex-main-surface[data-session-state="RESULT"] .nagex-main-left {
+  min-height: calc(100dvh - 170px);
+}
+.nagex-main-surface[data-session-state="CONVERSATION"] .main-thread-card,
+.nagex-main-surface[data-session-state="RESULT"] .main-thread-card {
+  order: 1;
+  flex: 1 0 auto;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 10px 0 24px;
+}
+.nagex-main-surface[data-session-state="CONVERSATION"] .main-home-briefing,
+.nagex-main-surface[data-session-state="RESULT"] .main-home-briefing {
+  order: 2;
+}
+.nagex-main-surface[data-session-state="CONVERSATION"] .main-composer-card,
+.nagex-main-surface[data-session-state="RESULT"] .main-composer-card {
+  order: 3;
+  position: sticky;
+  bottom: 12px;
+  z-index: 12;
+  box-shadow: 0 8px 30px rgba(28, 65, 132, .10);
+}
+.nagex-main-surface[data-session-state="CONVERSATION"] .main-input-wrap textarea,
+.nagex-main-surface[data-session-state="RESULT"] .main-input-wrap textarea {
+  min-height: 58px;
+}
+.nagex-main-surface[data-session-state="CONVERSATION"] .main-message:first-of-type {
+  display: flex;
+  justify-content: flex-end;
+}
+.nagex-main-surface[data-session-state="CONVERSATION"] .main-message:first-of-type > div {
+  max-width: min(80%, 700px);
+  border-radius: 16px;
+  padding: 12px 16px;
+  background: #e9f1fc;
+}
+.nagex-main-surface[data-session-state="CONVERSATION"] .main-message:first-of-type .main-avatar {
+  display: none;
+}
+.nagex-main-surface[data-session-state="CONVERSATION"] .main-message:nth-of-type(2) {
+  max-width: 100%;
+}
+.nagex-main-surface[data-session-state="CONVERSATION"] .main-message:nth-of-type(2) #main-work-title {
+  font-size: 1rem;
+  font-weight: 600;
+}
+.nagex-main-surface[data-session-state="CONVERSATION"] .main-thread-tools,
+.nagex-main-surface[data-session-state="RESULT"] .main-thread-tools {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+@media (max-width: 860px) {
+  .nagex-main-surface[data-session-state="CONVERSATION"] .nagex-main-left,
+  .nagex-main-surface[data-session-state="RESULT"] .nagex-main-left {
+    min-height: calc(100dvh - 150px);
+  }
+  .nagex-main-surface[data-session-state="CONVERSATION"] .main-composer-card,
+  .nagex-main-surface[data-session-state="RESULT"] .main-composer-card {
+    bottom: 6px;
+  }
+}
