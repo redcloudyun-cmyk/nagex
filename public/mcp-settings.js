@@ -34,6 +34,7 @@
   let error = '';
   let loading = false;
   let submitting = false;
+  let signedOut = false;
   let sequence = 0;
 
   async function request(endpoint, options) {
@@ -74,7 +75,7 @@
       <h3>${escapeHtml(t.title)}</h3>
       <p class="setting-sub">${escapeHtml(t.note)}</p>
       <p class="setting-sub nagex-mcp-warning">${escapeHtml(t.warning)}</p>
-      <form id="nagex-mcp-add" autocomplete="off">
+      <form id="nagex-mcp-add" autocomplete="off" ${signedOut ? 'hidden' : ''}>
         <div class="nagex-mcp-form-fields">
           <label>${escapeHtml(t.name)}<input name="name" type="text" maxlength="80" required></label>
           <label>${escapeHtml(t.url)}<input name="url" type="url" placeholder="https://example.com/mcp" pattern="https://.*" required></label>
@@ -82,7 +83,7 @@
         </div>
         <button class="settings-primary-action secondary" type="submit" ${submitting ? 'disabled' : ''}>${escapeHtml(submitting ? t.busy : t.add)}</button>
       </form>
-      <p class="setting-sub" role="status" aria-live="polite" id="nagex-mcp-status">${escapeHtml(error || (loading ? t.load : ''))}</p>
+      <p class="setting-sub" role="status" aria-live="polite" id="nagex-mcp-status">${escapeHtml(signedOut ? t.signIn : (error || (loading ? t.load : '')))}</p>
       <div class="nagex-mcp-list">${servers.length
         ? servers.map(server => `
           <article class="nagex-mcp-server">
@@ -173,10 +174,12 @@
   }
 
   window.NAGEX_MCP_SETTINGS = Object.freeze({
-    mount: function () {
+    mount: function (isSignedOut) {
+      signedOut = Boolean(isSignedOut);
       // The parent Connections view is rebuilt by the existing Settings code.
       // Always mount into its current DOM and load owner-scoped server status.
       servers = [];
+      if (signedOut) { ++sequence; loading = false; error = ''; render(); return; }
       load();
     },
   });
