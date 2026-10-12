@@ -55,22 +55,25 @@ const EXPECTED_ROUTE_MODULE_COUNTS: Record<string, number> = {
   'actions.routes.ts': 7,
   'approvals.routes.ts': 6,
   'artifact.routes.ts': 3, // R24.7B: + POST /api/v1/artifacts/:artifactId/ask
-  'auth.routes.ts': 9,
+  'auth.routes.ts': 4, // end-user password auth was disabled (OAuth-only login): signup/verify/password flows left this module
   'automations.routes.ts': 6,
   'browser.routes.ts': 17,
   'calendar.routes.ts': 6,
   'capabilities.routes.ts': 2,
   'capture.routes.ts': 1,
   'catalog.routes.ts': 3,
+  'command-context.routes.ts': 0, // dispatches on request.method variables, not literal method checks (not counted by this methodology)
+  'github.routes.ts': 6, // built-in GitHub connection (read-only repository access)
+  'mcp.routes.ts': 9, // owner-scoped MCP server registry (register, discover, tools, refresh, remove)
   'knowledge.routes.ts': 3, // R24.5C — real POST (ingestion) and GET /:id (source traceability) added alongside the original GET list/search
   'plan.routes.ts': 4,
   'competitor-pricing-agent.routes.ts': 3,
-  'connections.routes.ts': 3,
+  'connections.routes.ts': 5, // truthful per-provider connection states
   'conversation.routes.ts': 7,
   'creation.routes.ts': 5,
   'daily-brief.routes.ts': 6,
   'desktop.routes.ts': 3,
-  'device-agent.routes.ts': 5,
+  'device-agent.routes.ts': 8, // accessibility plan delivery and result ack routes
   'document-creation.routes.ts': 3,
   'forecast-compare.routes.ts': 1,
   'gmail.routes.ts': 5,
@@ -83,21 +86,24 @@ const EXPECTED_ROUTE_MODULE_COUNTS: Record<string, number> = {
   'mobile-message.routes.ts': 4,
   'modules.routes.ts': 3,
   'my-space.routes.ts': 1,
-  'notifications.routes.ts': 4,
+  'notifications.routes.ts': 5,
   'organization.routes.ts': 20,
   'personal-assistant.routes.ts': 16,
   'personal-context.routes.ts': 3,
   'personal-home.routes.ts': 1,
+  'proactive-suggestions.routes.ts': 0, // not counted by this methodology (see command-context)
   'perspective-compare.routes.ts': 1,
   'providers.routes.ts': 2,
   'rbac.routes.ts': 9,
   'enterprise-identity.routes.ts': 25,
   'research.routes.ts': 1,
+  'search.routes.ts': 0, // not counted by this methodology (see command-context)
+  'stt.routes.ts': 0, // not counted by this methodology (see command-context)
   'scim.routes.ts': 9,
   'safety.routes.ts': 3,
-  'settings.routes.ts': 4,
+  'settings.routes.ts': 10, // account, locale, Proactive Assistant, Quick Wake and Autonomy settings
   'slack.routes.ts': 7,
-  'social-auth.routes.ts': 1,
+  'social-auth.routes.ts': 5, // Google / GitHub OAuth start + callback + sign-in routes
   'tasks.routes.ts': 11,
   'telegram.routes.ts': 7,
   'vault.routes.ts': 4,
@@ -124,10 +130,10 @@ test('ROUTE-INV-002: every route module\'s method-check-block count exactly matc
   assert.deepEqual(mismatches, [], `Route module endpoint-count drift detected:\n${mismatches.join('\n')}`);
 });
 
-test('ROUTE-INV-003: the total domain endpoint count across all route modules is exactly 311 — any change requires an intentional manifest update', () => {
+test('ROUTE-INV-003: the total domain endpoint count across all route modules is exactly 340 — any change requires an intentional manifest update', () => {
   // R23.7C-C — +1: GET /api/v1/creations/images/:imageId, the canonical
   // image-serving route fixing the BROKEN_SUCCESS_CONTRACT root cause.
-  assert.equal(TOTAL_DOMAIN_ENDPOINTS, 314);
+  assert.equal(TOTAL_DOMAIN_ENDPOINTS, 340);
   let actualTotal = 0;
   for (const file of listRouteModuleFiles()) {
     actualTotal += countMethodChecks(readSourceWithoutComments(path.join(ROUTES_DIR, file)));
