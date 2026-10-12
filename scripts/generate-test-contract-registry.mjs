@@ -24,6 +24,8 @@ const deployedCert = new Map([
 const superseded = new Map([
   ['r21_p0_1c_clone_mockup', { by: 'R22.1/R22.8', note: 'R21 approved-mockup source snapshot was replaced by R22 mobile-first and Personal Home contracts; retain for historical conversion review.' }],
   ['r21_p0_1c_real_browser', { by: 'R22.1/R22.8', note: 'R21 clone-layout browser certification was replaced by R22 mobile and canonical Personal Home browser certification.' }],
+  ['r23_7h_b1_personal_dashboard', { by: 'R23.7H-C Phase D / unified Main surface', note: 'The consolidated Personal Dashboard shell (five stacked sections rendered by the old Home) was retired when Home became the unified Main surface; the /api/v1/personal/home data contract is covered by main_home_briefing_browser and r23_7h_d8_home_scenarios.' }],
+  ['r23_7h_b2_agentic_creation_home', { by: 'R23.7H-C Phase D / unified Main surface', note: 'The agentic creation Home (Recent Creations cards on the old Home) was retired with the old Home; Recent now lists artifacts (r23_7h_c_mobile_recent_image_browser) and creation truthfulness is covered by r23_7c_c_* and r24_8b_entry_truthful_ui_browser.' }],
 ]);
 const exactScopes = new Map([
   ['r22_1_mobile_home', ['mobile', 'personal-home', 'browser']],

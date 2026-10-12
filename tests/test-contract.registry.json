@@ -4091,8 +4091,8 @@
     },
     "r23_7h_b1_personal_dashboard": {
       "milestone": "R23.7H-B1",
-      "classification": "CANONICAL_BEHAVIOR",
-      "canonical": true,
+      "classification": "SUPERSEDED_CONTRACT",
+      "canonical": false,
       "scopes": [
         "browser",
         "personal-home",
@@ -4103,12 +4103,13 @@
       "sourceImplementationAssertions": false,
       "deterministic": true,
       "assertionIntent": "consolidated Personal Dashboard contract and responsive shell",
-      "notes": "Validates R23.7H-B1 Personal Dashboard consolidated 5-section response contract and mobile/desktop rendering parity."
+      "notes": "The consolidated Personal Dashboard shell (five stacked sections rendered by the old Home) was retired when Home became the unified Main surface; the /api/v1/personal/home data contract is covered by main_home_briefing_browser and r23_7h_d8_home_scenarios.",
+      "supersededBy": "R23.7H-C Phase D / unified Main surface"
     },
     "r23_7h_b2_agentic_creation_home": {
       "milestone": "R23.7H-B2",
-      "classification": "CANONICAL_BEHAVIOR",
-      "canonical": true,
+      "classification": "SUPERSEDED_CONTRACT",
+      "canonical": false,
       "scopes": [
         "browser",
         "personal-home",
@@ -4119,7 +4120,8 @@
       "sourceImplementationAssertions": false,
       "deterministic": true,
       "assertionIntent": "agentic creation home integration and truthful durable creation persistence contract",
-      "notes": "Validates R23.7H-B2 Agentic Creation Home Integration: ArtifactStore projection, Research/Analyze persistence contract, PersonalHomeResponse composition with recentCreations, desktop/mobile rendering parity, EN/KR i18n, accessibility (no unnamed buttons), and truthfulness invariant (no mock SVG or unsupported capability in Recent Creations)."
+      "notes": "The agentic creation Home (Recent Creations cards on the old Home) was retired with the old Home; Recent now lists artifacts (r23_7h_c_mobile_recent_image_browser) and creation truthfulness is covered by r23_7c_c_* and r24_8b_entry_truthful_ui_browser.",
+      "supersededBy": "R23.7H-C Phase D / unified Main surface"
     },
     "r23_7c_b_document_creation_runtime": {
       "milestone": "R23.7C-B",
