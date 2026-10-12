@@ -19,7 +19,7 @@
     tools: [],
     approvals: [],
     approvalSections: { pending: [], inProgress: [], recent: [] },
-    // R12.1 Increment 2.5 §8 ??fail-closed contract: true only when the
+    // R12.1 Increment 2.5 Â§8 ??fail-closed contract: true only when the
     // real GET /api/v1/approvals fetch itself failed (network error or a
     // structured API error), never set just because the real canonical
     // source returned zero pending approvals. Render code must show
@@ -459,7 +459,7 @@
 
   // R23.7H-C Phase D ??the single canonical primary-navigation definition.
   // Both the desktop sidebar (index.html's ul.nav-menu) and the mobile
-  // bottom nav + Settings?�Advanced overflow (index.html's #mobile-app-shell)
+  // bottom nav + Settings?Advanced overflow (index.html's #mobile-app-shell)
   // are kept manually consistent with this ordered list (verified by
   // tests/r23_7h_c_phase_d_nav.test.ts) rather than maintaining a second,
   // independently-authored IA list. `mobilePrimary: true` marks the subset
@@ -876,7 +876,7 @@
               delete homeInput.dataset.creationMode;
             } else if (typeof window.alert === 'function') {
               const currentLocale = window.NAGEX_I18N ? window.NAGEX_I18N.getLocale() : 'en';
-              window.alert(currentLocale === 'ko' ? '보고?��? ?�성?��? 못했?�니?? ?�시 ?�도??주세??' : "NAgex couldn't generate that report. Please try again.");
+              window.alert(currentLocale === 'ko' ? 'ë³´ê³ ?ë? ?ì±?ì? ëª»í?µë?? ?¤ì ?ë??ì£¼ì¸??' : "NAgex couldn't generate that report. Please try again.");
             }
           } finally {
             btnSend.disabled = false;
@@ -904,7 +904,7 @@
             body: JSON.stringify({ text }),
           });
           if (!routeRes || routeRes.error) {
-            // Truthful recovery (§18): never a fake success, and the
+            // Truthful recovery (Â§18): never a fake success, and the
             // user's original text is preserved for retry, not discarded.
             return;
           }
@@ -1176,7 +1176,7 @@
     // left silently no-op-ing against a target that was never real.
   }
 
-  // ?�?� R12.1 Increment 3 ??Intent-first Inbox presentation model ?�?�
+  // ?? R12.1 Increment 3 ??Intent-first Inbox presentation model ??
   function buildCanonicalInboxViewModel({ approvals = [], captures = [], candidates = [] }) {
     const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
     const items = [];
@@ -1380,7 +1380,7 @@
       </div>`;
   }
 
-  // ── Workspace: filters, add note, upload, open Vault, result view
+  // ââ Workspace: filters, add note, upload, open Vault, result view
   let inboxFilter = 'ALL';
   const INBOX_FILTER_STATUSES = {
     NEEDS_REVIEW: ['FAILED', 'NEEDS_REVIEW', 'PENDING_APPROVAL', 'PROPOSED'],
@@ -1572,7 +1572,7 @@
     listEl.innerHTML = html;
   }
 
-  // ?�?�?� Phase 1 STEP 6 ??Candidate Review ?�?�?�
+  // ??? Phase 1 STEP 6 ??Candidate Review ???
   //
   // CandidateStore/API is the ONLY source of truth for review state
   // (item B). Nothing here ever reads capture.metadata.candidates[].status
@@ -1619,13 +1619,13 @@
         try { domain = new URL(capture.metadata.sourceUrl).hostname; } catch { /* leave blank */ }
       }
       const title = (capture.metadata && (capture.metadata.pageTitle || capture.metadata.extractedTitle)) || '';
-      return [title, domain].filter(Boolean).join(' · ');
+      return [title, domain].filter(Boolean).join(' Â· ');
     }
     if (capture.type === 'FILE') {
       const chunkRef = (candidate.sourceRefs || []).find((r) => typeof r === 'string' && r.indexOf('chk_') === 0);
       const chunk = chunkRef ? ((capture.metadata && capture.metadata.chunks) || []).find((c) => c.chunkId === chunkRef) : null;
       const filename = (capture.metadata && (capture.metadata.originalName || capture.metadata.extractedTitle)) || 'document';
-      return chunk && chunk.pageStart != null ? `${filename} · p.${chunk.pageStart}` : filename;
+      return chunk && chunk.pageStart != null ? `${filename} Â· p.${chunk.pageStart}` : filename;
     }
     // TEXT
     return (capture.metadata && capture.metadata.extractedTitle) || (capture.content || '').slice(0, 60);
@@ -1635,14 +1635,14 @@
   function candidatePayloadPreview(candidate) {
     const p = candidate.payload || {};
     if (candidate.type === 'TASK') {
-      return [p.objective, p.dueAt ? `due ${new Date(p.dueAt).toLocaleDateString()}` : ''].filter(Boolean).join(' · ');
+      return [p.objective, p.dueAt ? `due ${new Date(p.dueAt).toLocaleDateString()}` : ''].filter(Boolean).join(' Â· ');
     }
     if (candidate.type === 'CALENDAR') {
       const bits = [];
       if (p.start) bits.push(new Date(p.start).toLocaleString());
       if (p.timezone) bits.push(p.timezone);
       if (p.attendees && p.attendees.length > 0) bits.push(`${p.attendees.length} attendee${p.attendees.length > 1 ? 's' : ''}`);
-      return bits.join(' · ');
+      return bits.join(' Â· ');
     }
     if (candidate.type === 'MEMORY') {
       return p.statement || '';
@@ -1794,8 +1794,8 @@
     const preview = candidatePayloadPreview(candidate);
     const sourceContext = candidateSourceContext(candidate);
     const metaBits = [sourceContext, candidate.confidence != null ? `confidence ${Math.round(candidate.confidence * 100)}%` : '', new Date(candidate.createdAt).toLocaleString()]
-      .filter(Boolean).map(escapeHtml).join(' · ');
-    const modifiedTag = candidate.review && candidate.review.modified ? ` · ${escapeHtml(t('workspace.candidateModifiedTag') || 'edited')}` : '';
+      .filter(Boolean).map(escapeHtml).join(' Â· ');
+    const modifiedTag = candidate.review && candidate.review.modified ? ` Â· ${escapeHtml(t('workspace.candidateModifiedTag') || 'edited')}` : '';
     const canAct = candidate.status === 'PROPOSED';
 
     let actionsHtml = '';
@@ -2117,7 +2117,7 @@
     renderInbox();
   };
 
-  // Capability-neutral example prompts (R12.1 Increment 2 §5) ??clicking
+  // Capability-neutral example prompts (R12.1 Increment 2 Â§5) ??clicking
   // one submits through the exact same canonical intent path as typed
   // input (runAmbientTask), never a separate hidden execution route.
   const HOME_EXAMPLE_PROMPTS = {
@@ -2129,8 +2129,8 @@
     'example-scheduling': 'Compare hotels for my Seoul trip.',
     'example-automation': 'Watch for competitor pricing changes weekly.',
   };
-  // Capability Discovery chips (§12) populate the composer instead of
-  // auto-submitting ??a browsing aid, not a shortcut, per §6's "one
+  // Capability Discovery chips (Â§12) populate the composer instead of
+  // auto-submitting ??a browsing aid, not a shortcut, per Â§6's "one
   // canonical user-intent path" rule (the user still reviews/edits before
   // sending, same as if they had typed it themselves).
   const HOME_DISCOVER_PROMPTS = {
@@ -2232,9 +2232,9 @@
 
   function formatTaskTrigger(trigger) {
     if (!trigger) return 'MANUAL';
-    if (trigger.type === 'SCHEDULE') return `SCHEDULE · ${trigger.schedule || ''} (${trigger.timezone || 'UTC'})`;
-    if (trigger.type === 'INTERVAL') return `INTERVAL · every ${trigger.intervalMinutes || '?'} min`;
-    if (trigger.type === 'CONDITION') return `CONDITION · ${trigger.condition || ''}`;
+    if (trigger.type === 'SCHEDULE') return `SCHEDULE Â· ${trigger.schedule || ''} (${trigger.timezone || 'UTC'})`;
+    if (trigger.type === 'INTERVAL') return `INTERVAL Â· every ${trigger.intervalMinutes || '?'} min`;
+    if (trigger.type === 'CONDITION') return `CONDITION Â· ${trigger.condition || ''}`;
     return trigger.type;
   }
 
@@ -2264,7 +2264,7 @@
           </div>
           <p class="card-body-text">${escapeHtml(task.objective)}</p>
           <p class="card-body-text" style="font-size:0.75rem; color:var(--text-muted);">
-            ${escapeHtml(task.type)} · ${escapeHtml(formatTaskTrigger(task.trigger))}
+            ${escapeHtml(task.type)} Â· ${escapeHtml(formatTaskTrigger(task.trigger))}
           </p>
           ${hasProgress ? `
           <div class="task-progress-box" style="margin: 0.5rem 0; background: var(--bg-subtle); padding: 0.5rem 0.75rem; border-radius: 8px;">
@@ -2274,7 +2274,7 @@
             </div>
           </div>` : ''}
           <p class="card-body-text" style="font-size:0.75rem; color:var(--text-muted);">
-            ${escapeHtml(t('tasks.nextRun'))}: ${escapeHtml(formatTaskTimestamp(task.nextRunAt))} ·
+            ${escapeHtml(t('tasks.nextRun'))}: ${escapeHtml(formatTaskTimestamp(task.nextRunAt))} Â·
             ${escapeHtml(t('tasks.lastRun'))}: ${escapeHtml(formatTaskTimestamp(task.lastRunAt))}${task.lastRunStatus ? ` (${escapeHtml(task.lastRunStatus)})` : ''}
           </p>
           <div class="card-footer-actions">
@@ -2366,7 +2366,7 @@
     }
   }
 
-  // ?�?� Helper & Section Anchors for Test Compatibility ?�?�
+  // ?? Helper & Section Anchors for Test Compatibility ??
   function homeApprovalActionLabel(a, t) {
     if (a.tool === 'google_calendar.create_event' || a.action === 'approveAndCreateEvent') {
       return (t && typeof t === 'function' ? t('home.approveAndCreateEvent') : null) || 'Add to calendar';
@@ -2414,17 +2414,17 @@
         ${t.id === 'google_calendar.create_event' ? `<div class="tool-oauth-actions">${
           state.googleOAuth.connected
             ? `<button class="btn-small danger" id="btn-google-calendar-disconnect">Disconnect Google Calendar</button>`
-            : `<button class="btn-small" id="btn-google-calendar-connect">?�� Connect Google Calendar</button>`
+            : `<button class="btn-small" id="btn-google-calendar-connect">? Connect Google Calendar</button>`
         }</div>` : ''}
         ${t.id === 'telegram.bot' ? `<div class="tool-oauth-actions">
           <p style="font-size:0.75rem; margin-top:0.25rem; color:var(--text-muted);">Bot Status: <strong>${state.telegram && state.telegram.status && state.telegram.status.configured ? 'Active' : 'Mock Mode (No Token)'}</strong></p>
           <p style="font-size:0.75rem; color:var(--text-muted);">Linked Users: <strong>${(state.telegram && state.telegram.identities && state.telegram.identities.length) || 0}</strong></p>
-          <button class="btn-small" id="btn-telegram-link-identity">?�� Link Telegram (get code)</button>
+          <button class="btn-small" id="btn-telegram-link-identity">? Link Telegram (get code)</button>
         </div>` : ''}
         ${t.id === 'slack.bot' ? `<div class="tool-oauth-actions">
           <p style="font-size:0.75rem; margin-top:0.25rem; color:var(--text-muted);">Bot Status: <strong>${state.slack && state.slack.status && state.slack.status.configured ? 'Active' : 'Mock Mode (No Token)'}</strong></p>
           <p style="font-size:0.75rem; color:var(--text-muted);">Linked Users: <strong>${(state.slack && state.slack.identities && state.slack.identities.length) || 0}</strong></p>
-          <button class="btn-small" id="btn-slack-link-identity">?�� Link Slack (get code)</button>
+          <button class="btn-small" id="btn-slack-link-identity">? Link Slack (get code)</button>
         </div>` : ''}
       </div>`
       )
@@ -2569,7 +2569,7 @@
   // GET /api/v1/activity) ??never the legacy non-isolated
   // /api/v1/executions demo feed, and never raw AuditLogger-shaped fields
   // (tool.execution.completed, browser.navigate, skill.scheduling, ...).
-  // ?�?� R12.1 Increment 3 ??Outcome-first Activity timeline ?�?�
+  // ?? R12.1 Increment 3 ??Outcome-first Activity timeline ??
   // Recent: the user's own artifacts (the existing ArtifactStore, newest first). Opening one continues the work in Main.
   async function renderRecent() {
     const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
@@ -3004,7 +3004,7 @@
           <span class="card-title">${escapeHtml(k.name)}</span>
           <span class="tag-scope">${escapeHtml(k.classification)}</span>
         </div>
-        <p class="card-body-text">${escapeHtml(knowledgeStatusLabel(k.status))} · ${(k.size_bytes / 1024).toFixed(1)} KB · ${t('knowledge.chunks', '{n} chunks').replace('{n}', String(k.chunk_count))}</p>
+        <p class="card-body-text">${escapeHtml(knowledgeStatusLabel(k.status))} Â· ${(k.size_bytes / 1024).toFixed(1)} KB Â· ${t('knowledge.chunks', '{n} chunks').replace('{n}', String(k.chunk_count))}</p>
         <p class="card-body-text knowledge-snippet">${escapeHtml(k.snippet || '')}</p>
         <button type="button" class="nagex-section-link knowledge-open-source-btn" data-knowledge-id="${escapeHtml(k.id)}">${escapeHtml(t('knowledge.openSource', 'Open source'))} &gt;</button>
       </div>`
@@ -3178,7 +3178,7 @@
 
   // R24.6B ??NAgex has no device/session registry that the web UI can read
   // yet, so there is no real "connected device" to show. The former
-  // hardcoded "Local Desktop Agent ??Connected · Active now" row was a
+  // hardcoded "Local Desktop Agent ??Connected Â· Active now" row was a
   // fabricated status and is gone; an honest empty state is shown instead.
   // Fixed English UI phrases follow the language (key mainText.<slug>); user content is never passed through here.
   function l10nPhrase(text) {
@@ -3291,14 +3291,14 @@
   function renderSettingsDeviceCard(device, index, selected) {
     const caps = normalizeCapabilities(device);
     const online = device.onlineStatus === 'ONLINE';
-    const meta = [device.os, device.deviceType].filter(Boolean).join(' �� ');
+    const meta = [device.os, device.deviceType].filter(Boolean).join(' ¡¤ ');
     const systemLine = device.nickname && device.systemDeviceName ? `<div class="settings-device-meta">Device name: <strong>${escapeHtml(device.systemDeviceName)}</strong></div>` : '';
     return `<article class="settings-device-card${selected ? ' selected' : ''}" role="button" tabindex="0" onclick="window.NAGEX.selectSettingsDevice(${index})" onkeydown="if(event.key==='Enter'||event.key===' ') window.NAGEX.selectSettingsDevice(${index})"><div class="settings-device-visual">${deviceVisual(device.os === 'Android' ? 'mobile' : 'pc')}</div><div class="settings-device-body"><div class="settings-device-title-row"><h3>${escapeHtml(deviceDisplayName(device))}</h3><button class="settings-icon-button" type="button" onclick="event.stopPropagation(); window.NAGEX.renameSettingsDevice(${index})" aria-label="Rename device">${settingsIconSvg('Rename', 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z')}</button></div><div class="settings-online-row ${online ? 'online' : 'offline'}"><span></span>${online ? 'Online' : 'Offline'}</div><div class="settings-device-meta">${escapeHtml(meta || 'Device')}</div>${systemLine}<div class="settings-capability-label">NAgex can control</div><div class="settings-capability-row">${caps.length ? caps.map((cap) => `<span class="settings-capability-chip">${capabilityIcon(cap)}${escapeHtml(cap)}</span>`).join('') : '<span class="settings-muted-chip">No controls reported</span>'}</div></div><div class="settings-device-card-actions"><span class="settings-preferred-badge">${index === 0 ? 'Current device' : 'Set as preferred'}</span><button class="settings-icon-button" type="button" aria-label="More actions">...</button></div></article>`;
   }
 
   function renderSettingsDeviceDetail(device, index) {
     const caps = normalizeCapabilities(device);
-    return `<aside class="settings-device-detail-panel"><div class="settings-device-detail-art">${deviceVisual(device.os === 'Android' ? 'mobile' : 'pc')}</div><h3>${escapeHtml(deviceDisplayName(device))}</h3><div class="settings-online-row ${device.onlineStatus === 'ONLINE' ? 'online' : 'offline'}"><span></span>${device.onlineStatus === 'ONLINE' ? 'Online' : 'Offline'}</div><p class="setting-sub">${escapeHtml([device.systemDeviceName, device.os].filter(Boolean).join(' �� '))}</p><div class="settings-device-capability-box"><h4>What NAgex can do on this device</h4><p class="setting-sub">Only capabilities reported by this registered device are shown.</p>${caps.map((cap) => `<div class="settings-capability-detail"><span>${capabilityIcon(cap)}${escapeHtml(cap)}</span><small>${escapeHtml(capabilityDescription(cap))}</small></div>`).join('') || '<p class="setting-sub">No controls reported.</p>'}</div><div class="settings-device-detail-actions"><button class="settings-secondary-action" type="button" onclick="window.NAGEX.renameSettingsDevice(${index})">${capabilityIcon('Files')} Rename</button><button class="settings-secondary-action" type="button">${capabilityIcon('Apps')} Manage</button></div></aside>`;
+    return `<aside class="settings-device-detail-panel"><div class="settings-device-detail-art">${deviceVisual(device.os === 'Android' ? 'mobile' : 'pc')}</div><h3>${escapeHtml(deviceDisplayName(device))}</h3><div class="settings-online-row ${device.onlineStatus === 'ONLINE' ? 'online' : 'offline'}"><span></span>${device.onlineStatus === 'ONLINE' ? 'Online' : 'Offline'}</div><p class="setting-sub">${escapeHtml([device.systemDeviceName, device.os].filter(Boolean).join(' ¡¤ '))}</p><div class="settings-device-capability-box"><h4>What NAgex can do on this device</h4><p class="setting-sub">Only capabilities reported by this registered device are shown.</p>${caps.map((cap) => `<div class="settings-capability-detail"><span>${capabilityIcon(cap)}${escapeHtml(cap)}</span><small>${escapeHtml(capabilityDescription(cap))}</small></div>`).join('') || '<p class="setting-sub">No controls reported.</p>'}</div><div class="settings-device-detail-actions"><button class="settings-secondary-action" type="button" onclick="window.NAGEX.renameSettingsDevice(${index})">${capabilityIcon('Files')} Rename</button><button class="settings-secondary-action" type="button">${capabilityIcon('Apps')} Manage</button></div></aside>`;
   }
   function capabilityDescription(cap) {
     return {
@@ -3432,8 +3432,8 @@
         return `
         <div class="setting-row">
           <div class="setting-info">
-            <span class="setting-title">${escapeHtml(p.provider)}${p.model ? ` · ${escapeHtml(p.model)}` : ''}</span>
-            <span class="device-tag">${escapeHtml(roleLabel)}${p.lastCheckedAt ? ` · ${escapeHtml(t('settings.providerLastChecked') || 'Last checked')} ${escapeHtml(new Date(p.lastCheckedAt).toLocaleTimeString())}` : ''}</span>
+            <span class="setting-title">${escapeHtml(p.provider)}${p.model ? ` Â· ${escapeHtml(p.model)}` : ''}</span>
+            <span class="device-tag">${escapeHtml(roleLabel)}${p.lastCheckedAt ? ` Â· ${escapeHtml(t('settings.providerLastChecked') || 'Last checked')} ${escapeHtml(new Date(p.lastCheckedAt).toLocaleTimeString())}` : ''}</span>
           </div>
           <span class="badge-status ${statusBadgeClass[p.status] || 'gray'}">${escapeHtml(t(statusLabelKey[p.status]) || statusFallback[p.status] || p.status)}</span>
         </div>`;
@@ -3526,11 +3526,12 @@
         ${renderConnectionCard({ provider: 'Google', services: ['Gmail', 'Calendar', 'Drive'], state: 'NEEDS_ATTENTION', account: t('settings.signInRequired') || 'Sign in to connect this service.', action: t('auth.signIn') || 'Sign In', buttonId: 'btn-settings-google-signin' })}
         ${githubCardHtml(true)}
         ${renderConnectionCard({ provider: 'Microsoft', services: ['Outlook', 'Calendar', 'OneDrive'], state: 'UNAVAILABLE', account: 'Unavailable in this environment', action: 'Connect Microsoft', disabled: true })}
-        ${renderConnectionCard({ provider: 'Communication / Apps', services: ['Slack · Not connected', 'Telegram · Not connected', 'Connected apps · None'], state: 'NOT_CONNECTED', account: 'No connected app accounts yet', action: 'Browse connections', disabled: true })}
+        ${renderConnectionCard({ provider: 'Communication / Apps', services: ['Slack Â· Not connected', 'Telegram Â· Not connected', 'Connected apps Â· None'], state: 'NOT_CONNECTED', account: 'No connected app accounts yet', action: 'Browse connections', disabled: true })}
       </div>`;
       const signIn = document.getElementById('btn-settings-google-signin');
       if (signIn) signIn.onclick = () => { if (window.NAGEX.showAuthModal) window.NAGEX.showAuthModal('signin'); };
       wireGitHubCard(true);
+      window.NAGEX_MCP_SETTINGS?.mount();
       return;
     }
     const oauth = state.googleOAuth || { configured: false, connected: false };
@@ -3550,7 +3551,7 @@
         ${renderConnectionCard({ provider: 'Google', services: ['Gmail', 'Calendar', 'Drive'], state: status, account: oauth.email || statusLabel, action: googleAction, buttonId: 'btn-settings-google-toggle', disabled: !oauth.configured || connState === 'CONNECTING', reason: !oauth.configured ? l10nPhrase('Unavailable in this environment') : '' })}
         ${githubCardHtml(false)}
         ${renderConnectionCard({ provider: 'Microsoft', services: ['Outlook', 'Calendar', 'OneDrive'], state: 'UNAVAILABLE', account: l10nPhrase('Unavailable in this environment'), action: l10nPhrase('Connect Microsoft'), disabled: true, reason: l10nPhrase('Unavailable in this environment') })}
-        ${renderConnectionCard({ provider: 'Communication / Apps', services: ['Slack · Not connected', 'Telegram · Not connected', 'Connected apps · None'], state: 'NOT_CONNECTED', account: l10nPhrase('No connected app accounts yet'), action: l10nPhrase('Browse connections'), disabled: true, reason: l10nPhrase('Unavailable in this environment') })}
+        ${renderConnectionCard({ provider: 'Communication / Apps', services: ['Slack Â· Not connected', 'Telegram Â· Not connected', 'Connected apps Â· None'], state: 'NOT_CONNECTED', account: l10nPhrase('No connected app accounts yet'), action: l10nPhrase('Browse connections'), disabled: true, reason: l10nPhrase('Unavailable in this environment') })}
       </div>`;
 
     wireGitHubCard(false);
@@ -3585,6 +3586,7 @@
         }
       };
     }
+    window.NAGEX_MCP_SETTINGS?.mount();
   }
 
   function renderConnectionCard({ provider, services, state, account, action, buttonId, disabled, reason, secondary }) {
@@ -3600,7 +3602,7 @@
     return `<article class="settings-connection-card ${state.toLowerCase().replace('_', '-')}"><div class="settings-connection-head"><div class="settings-row-leading">${settingsIconSvg(provider, iconPath)}<div><h3>${escapeHtml(provider)}</h3><div class="settings-connection-services">${serviceRows}</div></div></div><span class="settings-connection-status">${label}</span></div><p class="setting-sub">${escapeHtml(account || label)}</p><div class="settings-connection-actions"><button class="settings-primary-action secondary" type="button" ${buttonId ? `id="${buttonId}"` : ''} ${disabled ? 'disabled aria-disabled="true"' : ''} ${disabled && reason ? `title="${escapeHtml(reason)}"` : ''}>${escapeHtml(action || 'Manage')}</button>${secondary ? `<button class="settings-primary-action secondary" type="button" id="${secondary.id}">${escapeHtml(secondary.label)}</button>` : ''}</div></article>`;
   }
 
-  // Advanced is collapsed by default (MASTER.md Section 14.12 / 14.9 §5) ??
+  // Advanced is collapsed by default (MASTER.md Section 14.12 / 14.9 Â§5) ??
   // wired once per renderSettings() call so a re-render never loses state
   // by re-hiding an already-opened list.
   function wireSettingsAdvancedToggle() {
@@ -3924,7 +3926,7 @@
     }
   }
 
-  // R12.1 Increment 1 ??§6/§12: internal execution detail (provider/model/
+  // R12.1 Increment 1 ??Â§6/Â§12: internal execution detail (provider/model/
   // latency/request id) lives behind a collapsed-by-default "What NAgex is
   // doing" disclosure, never in the primary working-state text. Wired once
   // (dataset.wired guard, same pattern as wireSettingsAdvancedToggle) so a
@@ -4003,7 +4005,7 @@
         userBubble.style.display = 'flex';
       }
 
-      // R12.1 Increment 1 ??§6 Working state: outcome-oriented text only.
+      // R12.1 Increment 1 ??Â§6 Working state: outcome-oriented text only.
       // Internal jargon (provider/model/latency) moves to the progressive-
       // disclosure "What NAgex is doing" panel below, never the primary text.
       updateFlowStage('User message');
@@ -4021,7 +4023,7 @@
       if (isForecastCompareIntent(promptText)) {
         if (fill) fill.style.width = '40%';
         const lang = window.NAGEX_I18N ? window.NAGEX_I18N.getLocale() : (localStorage.getItem('nagex_locale') || 'en');
-        if (text) text.textContent = lang === 'ko' ? '미래 결과�??�측 분석?�는 �?..' : 'Analyzing forecast...';
+        if (text) text.textContent = lang === 'ko' ? 'ë¯¸ë ê²°ê³¼ë¥??ì¸¡ ë¶ì?ë ì¤?..' : 'Analyzing forecast...';
 
         const forecastRes = await apiFetch('/api/v1/ai/forecast-compare', {
           method: 'POST',
@@ -4030,7 +4032,7 @@
         });
 
         if (fill) fill.style.width = '100%';
-        if (text) text.textContent = lang === 'ko' ? '?�측 분석 ?�료' : 'Forecast analysis complete';
+        if (text) text.textContent = lang === 'ko' ? '?ì¸¡ ë¶ì ?ë£' : 'Forecast analysis complete';
 
         updateFlowStage('Result');
 
@@ -4057,7 +4059,7 @@
       if (isPerspectiveCompareIntent(promptText)) {
         if (fill) fill.style.width = '40%';
         const lang = window.NAGEX_I18N ? window.NAGEX_I18N.getLocale() : (localStorage.getItem('nagex_locale') || 'en');
-        if (text) text.textContent = lang === 'ko' ? '?�각??관?�에??분석?�는 �?..' : 'Comparing perspectives...';
+        if (text) text.textContent = lang === 'ko' ? '?¤ê°??ê´?ì??ë¶ì?ë ì¤?..' : 'Comparing perspectives...';
 
         const compareRes = await apiFetch('/api/v1/ai/perspective-compare', {
           method: 'POST',
@@ -4066,7 +4068,7 @@
         });
 
         if (fill) fill.style.width = '100%';
-        if (text) text.textContent = lang === 'ko' ? '관??분석 ?�료' : 'Perspective analysis complete';
+        if (text) text.textContent = lang === 'ko' ? 'ê´??ë¶ì ?ë£' : 'Perspective analysis complete';
 
         updateFlowStage('Result');
 
@@ -4090,10 +4092,10 @@
 
         if (!compareRes || compareRes.error || (dataObj && dataObj.error) || (compareRes.status && compareRes.status !== 200 && compareRes.status !== 'COMPLETED' && compareRes.status !== 'PARTIAL')) {
           const errPayload = (compareRes && compareRes.error) || (dataObj && dataObj.error);
-          let rawMsg = (typeof errPayload === 'string' ? errPayload : errPayload?.message) || (lang === 'ko' ? '?�각??관??분석 ?�비?��? ?�용?????�습?�다.' : 'Perspective comparison unavailable.');
+          let rawMsg = (typeof errPayload === 'string' ? errPayload : errPayload?.message) || (lang === 'ko' ? '?¤ê°??ê´??ë¶ì ?ë¹?¤ë? ?´ì©?????ìµ?ë¤.' : 'Perspective comparison unavailable.');
           rawMsg = String(rawMsg)
-            .replace(/PERSPECTIVE_SYNTHESIS_FAILED/g, lang === 'ko' ? '분석 결과�??�성?��? 못했?�니??' : 'Synthesis unavailable.')
-            .replace(/ALL_MODEL_PROVIDERS_FAILED/g, lang === 'ko' ? '모든 모델 ?�답???�패?�습?�다.' : 'Model services unavailable.');
+            .replace(/PERSPECTIVE_SYNTHESIS_FAILED/g, lang === 'ko' ? 'ë¶ì ê²°ê³¼ë¥??©ì±?ì? ëª»í?µë??' : 'Synthesis unavailable.')
+            .replace(/ALL_MODEL_PROVIDERS_FAILED/g, lang === 'ko' ? 'ëª¨ë  ëª¨ë¸ ?ëµ???¤í¨?ìµ?ë¤.' : 'Model services unavailable.');
           formattedResult = {
             status: 'UNAVAILABLE',
             error: { message: rawMsg }
@@ -4125,7 +4127,7 @@
       });
 
       if (!res || res.error) {
-        // §18 ??truthful failure, never a fake success; the composer's own
+        // Â§18 ??truthful failure, never a fake success; the composer's own
         // controls are re-enabled by this function's finally block below.
         if (text) text.textContent = res?.error?.message || t('ambient.unableToGeneratePlan');
         return;
@@ -4143,7 +4145,7 @@
         planSteps.innerHTML = res.plan.steps
           .map((s) => `<div class="step-row">
             <span class="step-num">${s.step}.</span>
-            <span class="step-name"><strong>${escapeHtml(s.title)}</strong><br><small>${escapeHtml(s.reasoning)}${s.requiresApproval ? ' · Ready for review' : ''}</small></span>
+            <span class="step-name"><strong>${escapeHtml(s.title)}</strong><br><small>${escapeHtml(s.reasoning)}${s.requiresApproval ? ' Â· Ready for review' : ''}</small></span>
           </div>`)
           .join('');
       }
@@ -4358,13 +4360,13 @@
 
   function classifyIntentForUi(promptText) {
     const text = (promptText || '').toLowerCase();
-    if (text.includes('meeting') || text.includes('schedule') || text.includes('calendar') || text.includes('미팅') || text.includes('?�의') || text.includes('?�정')) {
+    if (text.includes('meeting') || text.includes('schedule') || text.includes('calendar') || text.includes('ë¯¸í') || text.includes('?ì') || text.includes('?¼ì ')) {
       return 'MEETING';
     }
-    if (text.includes('file') || text.includes('document') || text.includes('contract') || text.includes('pdf') || text.includes('분석') || text.includes('?�일') || text.includes('조항')) {
+    if (text.includes('file') || text.includes('document') || text.includes('contract') || text.includes('pdf') || text.includes('ë¶ì') || text.includes('?ì¼') || text.includes('ì¡°í­')) {
       return 'ANALYZE';
     }
-    if (text.includes('image') || text.includes('draw') || text.includes('photo') || text.includes('picture') || text.includes('?��?지') || text.includes('그림') || text.includes('?�성')) {
+    if (text.includes('image') || text.includes('draw') || text.includes('photo') || text.includes('picture') || text.includes('?´ë?ì§') || text.includes('ê·¸ë¦¼') || text.includes('?ì±')) {
       return 'CREATE';
     }
     return 'RESEARCH';
@@ -4429,10 +4431,10 @@
         if (summarySectionAlias) summarySectionAlias.style.display = 'block';
         const summaryTitleText = t('ambient.understanding.title');
         const findings = isKr ? [
-          '메모�??�키?�처가 ?�차 ?�속?�이�?맥락 ?��??�으�?발전?�고 ?�습?�다.',
-          '?�구 ?�용???�뢰??�?검�?루프???�??관?�이 급증?�고 ?�습?�다.',
-          '멀???�이?�트 ?��??�트?�이?�이 ?�제 ?�구 �??�크?�로?�에 ?�용?�는 중입?�다.',
-          '브라?��?/?�션 ?�이?�트 ?�능???�상?�는 가?�데 ?�인 경계 ?�책??중요?�게 ?�뤄집니??'
+          'ë©ëª¨ë¦??í¤?ì²ê° ?ì°¨ ?ì?ì´ê³?ë§¥ë½ ?¸ì??ì¼ë¡?ë°ì ?ê³  ?ìµ?ë¤.',
+          '?êµ¬ ?¬ì©??? ë¢°??ë°?ê²ì¦?ë£¨í?????ê´?¬ì´ ê¸ì¦?ê³  ?ìµ?ë¤.',
+          'ë©???ì´?í¸ ?¤ì??¤í¸?ì´?ì´ ?¤ì  ?°êµ¬ ë°??í¬?ë¡?°ì ?ì©?ë ì¤ì?ë¤.',
+          'ë¸ë¼?°ì?/?¡ì ?ì´?í¸ ?±ë¥???¥ì?ë ê°?´ë° ?¹ì¸ ê²½ê³ ?ì±??ì¤ì?ê² ?¤ë¤ì§ë??'
         ] : [
           'Memory architectures are becoming more persistent and context-aware.',
           'Tool-use reliability and verification loops are getting more attention.',
@@ -4451,10 +4453,10 @@
       if (sourcesSection && sourcesList) {
         sourcesSection.style.display = 'block';
         const sources = [
-          { title: 'The next wave of AI agent architecture', publisher: 'Tech Insights', date: 'Sep 16, 2025', icon: '?��' },
-          { title: 'Building reliable tool-using agents', publisher: 'AI Research Digest', date: 'Sep 14, 2025', icon: '?�️' },
-          { title: 'Multi-agent systems in real-world applications', publisher: 'Product & AI Blog', date: 'Sep 12, 2025', icon: '?��' },
-          { title: 'Browser agents: progress and open challenges', publisher: 'The AI Report', date: 'Sep 10, 2025', icon: '?��' }
+          { title: 'The next wave of AI agent architecture', publisher: 'Tech Insights', date: 'Sep 16, 2025', icon: '?' },
+          { title: 'Building reliable tool-using agents', publisher: 'AI Research Digest', date: 'Sep 14, 2025', icon: '?ï¸' },
+          { title: 'Multi-agent systems in real-world applications', publisher: 'Product & AI Blog', date: 'Sep 12, 2025', icon: '?' },
+          { title: 'Browser agents: progress and open challenges', publisher: 'The AI Report', date: 'Sep 10, 2025', icon: '?' }
         ];
         sourcesList.innerHTML = sources.map(s => `
           <div class="source-item-row">
@@ -4493,11 +4495,11 @@
         footerActions.style.display = 'flex';
         footerActions.innerHTML = `
           <button class="btn-mockup-secondary" id="btn-ask-followup" type="button">
-            <span class="btn-icon">?��</span>
+            <span class="btn-icon">?¬</span>
             <span>${t('ambient.ctaFollowUp')}</span>
           </button>
           <button class="btn-mockup-primary" id="btn-save-vault" type="button">
-            <span class="btn-icon">?��</span>
+            <span class="btn-icon">?</span>
             <span>${t('ambient.ctaSaveVault')}</span>
           </button>
         `;
@@ -4524,7 +4526,7 @@
             realVaultButton.textContent = '';
           } else {
             realVaultButton.disabled = false;
-            realVaultButton.textContent = isKr ? '?�?�하지 못했?�요. ?�시 ?�도' : "Couldn't save. Try again";
+            realVaultButton.textContent = isKr ? '??¥íì§ ëª»í?´ì. ?¤ì ?ë' : "Couldn't save. Try again";
           }
         };
       }
@@ -4572,7 +4574,7 @@
       // Grounding Why / Schedule recommendation
       if (groundingWhyEl) {
         groundingWhyEl.style.display = 'block';
-        groundingWhyEl.innerHTML = `?�� <strong>${''}</strong> ${
+        groundingWhyEl.innerHTML = `? <strong>${''}</strong> ${
           ''
         }`;
       }
@@ -4622,9 +4624,9 @@
       if (summarySection && summaryList) {
         summarySection.style.display = 'block';
         const findings = isKr ? [
-          '계약?????�험 ?�소 �?책임 면책 조항 2�?발견',
-          '?�동 갱신 주기 30???�전 ?��? 조건 명시 ?�인',
-          '분쟁 ?�결 관??법원??본사 거점지�?지?�됨'
+          'ê³ì½?????í ?ì ë°?ì±ì ë©´ì± ì¡°í­ 2ê±?ë°ê²¬',
+          '?ë ê°±ì  ì£¼ê¸° 30???¬ì  ?µì? ì¡°ê±´ ëªì ?ì¸',
+          'ë¶ì ?´ê²° ê´??ë²ì??ë³¸ì¬ ê±°ì ì§ë¡?ì§?ë¨'
         ] : [
           'Found 2 potential liability limitation clauses requiring review',
           'Automatic renewal notice requirement specified as 30 days prior',
@@ -4651,11 +4653,11 @@
         footerActions.style.display = 'flex';
         footerActions.innerHTML = `
           <button class="btn-mockup-secondary" id="btn-ask-followup" type="button">
-            <span class="btn-icon">?��</span>
+            <span class="btn-icon">?¬</span>
             <span>${t('ambient.ctaFollowUp')}</span>
           </button>
           <button class="btn-mockup-primary" id="btn-save-vault" type="button">
-            <span class="btn-icon">?��</span>
+            <span class="btn-icon">?</span>
             <span>${t('ambient.ctaSaveVault')}</span>
           </button>
         `;
@@ -4682,11 +4684,11 @@
         footerActions.style.display = 'flex';
         footerActions.innerHTML = `
           <button class="btn-mockup-secondary" id="btn-ask-followup" type="button">
-            <span class="btn-icon">?��</span>
+            <span class="btn-icon">?¬</span>
             <span>${t('ambient.ctaFollowUp')}</span>
           </button>
           <button class="btn-mockup-primary" id="btn-save-vault" type="button">
-            <span class="btn-icon">?��</span>
+            <span class="btn-icon">?</span>
             <span>${t('ambient.ctaSaveVault')}</span>
           </button>
         `;
@@ -4718,13 +4720,13 @@
     });
     if (!contextBox || !groundingWhyEl) return;
     if (!prep || prep.error) {
-      contextBox.innerHTML = `<strong>${escapeHtml('')}</strong><p>${escapeHtml(isKr ? '관???�료�?불러?��? 못했?�요. ?�결 ?�태�??�인?�고 ?�시 ?�도??주세??' : "I couldn't load related context. Check your connections and try again.")}</p>`;
+      contextBox.innerHTML = `<strong>${escapeHtml('')}</strong><p>${escapeHtml(isKr ? 'ê´???ë£ë¥?ë¶ë¬?¤ì? ëª»í?´ì. ?°ê²° ?íë¥??ì¸?ê³  ?¤ì ?ë??ì£¼ì¸??' : "I couldn't load related context. Check your connections and try again.")}</p>`;
       groundingWhyEl.style.display = 'none';
       return;
     }
     const materials = Array.isArray(prep.related_materials) ? prep.related_materials : [];
     contextBox.innerHTML = materials.length
-      ? `<strong>${escapeHtml(isKr ? `${materials.length}개의 관???�료�?찾았?�요` : `I found ${materials.length} related item${materials.length === 1 ? '' : 's'}`)}</strong><ul>${materials.map((item) => `<li>${escapeHtml(item.title || item.label || item.type)}</li>`).join('')}</ul>`
+      ? `<strong>${escapeHtml(isKr ? `${materials.length}ê°ì ê´???ë£ë¥?ì°¾ì?´ì` : `I found ${materials.length} related item${materials.length === 1 ? '' : 's'}`)}</strong><ul>${materials.map((item) => `<li>${escapeHtml(item.title || item.label || item.type)}</li>`).join('')}</ul>`
       : `<p>${escapeHtml('')}</p>`;
     const title = prep.title || prep.event_title;
     groundingWhyEl.style.display = 'block';
@@ -4746,7 +4748,7 @@
 
     approvalCard.style.display = 'block';
 
-    if (calendarStep || (promptText && (promptText.toLowerCase().includes('meeting') || promptText.includes('미팅')))) {
+    if (calendarStep || (promptText && (promptText.toLowerCase().includes('meeting') || promptText.includes('ë¯¸í')))) {
       headingEl.textContent = '';
       detailsEl.innerHTML = `<p>${escapeHtml('')}</p>`;
       actionsEl.innerHTML = '';
@@ -4808,7 +4810,7 @@
 
           const approval = await apiFetch('/api/v1/approvals', { method: 'POST', body: JSON.stringify({ toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, payload }) });
           if (!approval || approval.error || !approval.approvalId) {
-            headingEl.textContent = isKr ? '?�료?��? 못했?�요' : "I couldn't complete that";
+            headingEl.textContent = isKr ? '?ë£?ì? ëª»í?´ì' : "I couldn't complete that";
             detailsEl.innerHTML = `<div style="color:#991b1b;">${escapeHtml((approval && approval.error && approval.error.message) || (''))}</div>`;
             actionsEl.innerHTML = '';
             return;
@@ -4817,7 +4819,7 @@
           btnApprove.textContent = '';
           const approved = await apiFetch(`/api/v1/approvals/${approval.approvalId}/approve`, { method: 'POST' });
           if (!approved || approved.error) {
-            headingEl.textContent = isKr ? '?�료?��? 못했?�요' : "I couldn't complete that";
+            headingEl.textContent = isKr ? '?ë£?ì? ëª»í?´ì' : "I couldn't complete that";
             detailsEl.innerHTML = `<div style="color:#991b1b;">${escapeHtml('')}</div>`;
             actionsEl.innerHTML = '';
             return;
@@ -4845,7 +4847,7 @@
       }
     } else if (hasGmail) {
       headingEl.textContent = t('ambient.approval.readyEmail');
-      detailsEl.innerHTML = `<div>${escapeHtml(isKr ? '??초안???�제 ?�신???�목?� ?�직 준비되지 ?�았?�니?? Approvals?�서 ?�어??진행??주세??' : "This draft's real recipient/subject isn't ready here yet ??continue from Approvals.")}</div>`;
+      detailsEl.innerHTML = `<div>${escapeHtml(isKr ? '??ì´ì???¤ì  ?ì ???ëª©? ?ì§ ì¤ë¹ëì§ ?ì?µë?? Approvals?ì ?´ì´??ì§í??ì£¼ì¸??' : "This draft's real recipient/subject isn't ready here yet ??continue from Approvals.")}</div>`;
       actionsEl.innerHTML = `
         <button class="btn-mockup-secondary" id="btn-ambient-goto-approvals" type="button">${''}</button>
         <button class="btn-action-text" id="btn-ambient-reject-mutation" type="button">${t('ambient.approval.notNow')}</button>
@@ -4872,7 +4874,7 @@
     actionsEl.innerHTML = `
       <div class="calendar-connect-prompt">
         <p>Google Calendar is not connected, so this step cannot proceed.</p>
-        <button class="btn-plan-action plan-status-approval" id="btn-connect-google-calendar">?�� Connect Google Calendar</button>
+        <button class="btn-plan-action plan-status-approval" id="btn-connect-google-calendar">? Connect Google Calendar</button>
       </div>`;
     const btn = document.getElementById('btn-connect-google-calendar');
     if (btn) {
@@ -4931,7 +4933,7 @@
           <input type="text" value="primary" disabled>
         </label>
         <p class="calendar-form-error" id="calendar-form-error" style="display:none;"></p>
-        <button type="submit" class="btn-plan-action plan-status-approval">?���?Preview & Request Approval</button>
+        <button type="submit" class="btn-plan-action plan-status-approval">?¡ï¸?Preview & Request Approval</button>
       </form>
       <div id="calendar-preview-slot"></div>`;
 
@@ -5025,7 +5027,7 @@
         <p class="calendar-approval-expiry" id="calendar-approval-expiry">${vmView.countdownLabel ? escapeHtml(vmView.countdownLabel) : ''}</p>
         <div class="calendar-preview-actions">
           <button class="btn-reject-outline" id="btn-calendar-reject" ${vmView.rejectDisabled ? 'disabled' : ''}>${escapeHtml(t('calendar.reject'))}</button>
-          <button class="btn-secondary" id="btn-calendar-edit" ${vmView.approveDisabled ? 'disabled' : ''}>${escapeHtml((window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale() === 'ko') ? '?�정' : 'Edit')}</button>
+          <button class="btn-secondary" id="btn-calendar-edit" ${vmView.approveDisabled ? 'disabled' : ''}>${escapeHtml((window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale() === 'ko') ? '?ì ' : 'Edit')}</button>
           <button class="btn-plan-action plan-status-ready" id="btn-calendar-approve" ${vmView.approveDisabled ? 'disabled' : ''}>${escapeHtml(t('calendar.approveAndCreateEvent'))}</button>
         </div>
       </div>`;
@@ -5035,7 +5037,7 @@
   function renderCalendarSuccessCard(slot, approval, result, view) {
     const successVm = view.buildSuccessViewModel(approval.canonicalPayload, result);
     const isDemo = result && (result.executionMode === 'DEMO' || result.providerVerified === false || result.dataSource === 'DEMO');
-    const headingText = isDemo ? 'Demo completed · No real Google Calendar event was created.' : 'Calendar event created';
+    const headingText = isDemo ? 'Demo completed Â· No real Google Calendar event was created.' : 'Calendar event created';
     slot.innerHTML = `
       <div class="calendar-preview-card">
         <h4>${escapeHtml(headingText)}</h4>
@@ -5201,7 +5203,7 @@
     }, 1000);
   }
 
-  // ?�?� Gmail Ambient E2E (MASTER.md Section 14: user types an email request,
+  // ?? Gmail Ambient E2E (MASTER.md Section 14: user types an email request,
   // completes it end to end, without curl) ??mirrors the Calendar compose
   // form / approval card / success card pattern above, using the shared
   // gmail-approval-view.js view model and gmail-intent-extraction.js's
@@ -5212,7 +5214,7 @@
     actionsEl.innerHTML = `
       <div class="calendar-connect-prompt">
         <p>${escapeHtml(t('gmail.connectPrompt'))}</p>
-        <button class="btn-plan-action plan-status-approval" id="btn-connect-gmail">?�� ${escapeHtml(t('gmail.connectButton'))}</button>
+        <button class="btn-plan-action plan-status-approval" id="btn-connect-gmail">? ${escapeHtml(t('gmail.connectButton'))}</button>
       </div>`;
     const btn = document.getElementById('btn-connect-gmail');
     if (btn) {
@@ -5304,7 +5306,7 @@
           <input type="text" value="me" disabled>
         </label>
         <p class="calendar-form-error" id="gmail-form-error" style="display:none;"></p>
-        <button type="submit" class="btn-plan-action plan-status-approval">?���?${escapeHtml(t('gmail.previewAndRequestApproval'))}</button>
+        <button type="submit" class="btn-plan-action plan-status-approval">?¡ï¸?${escapeHtml(t('gmail.previewAndRequestApproval'))}</button>
       </form>
       <div id="gmail-preview-slot"></div>`;
 
@@ -5372,7 +5374,7 @@
         <p class="calendar-approval-expiry" id="gmail-approval-expiry">${vmView.countdownLabel ? escapeHtml(vmView.countdownLabel) : ''}</p>
         <div class="calendar-preview-actions">
           <button class="btn-reject-outline" id="btn-gmail-reject" ${vmView.rejectDisabled ? 'disabled' : ''}>${escapeHtml(t('gmail.reject'))}</button>
-          <button class="btn-secondary" id="btn-gmail-edit" ${vmView.approveDisabled ? 'disabled' : ''}>${escapeHtml((window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale() === 'ko') ? '?�정' : 'Edit')}</button>
+          <button class="btn-secondary" id="btn-gmail-edit" ${vmView.approveDisabled ? 'disabled' : ''}>${escapeHtml((window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale() === 'ko') ? '?ì ' : 'Edit')}</button>
           <button class="btn-plan-action plan-status-ready" id="btn-gmail-approve" ${vmView.approveDisabled ? 'disabled' : ''}>${escapeHtml(t(gmailApproveButtonLabelKey(approval.toolId)))}</button>
         </div>
       </div>`;
@@ -5619,7 +5621,7 @@
     }
   }
 
-  // ?�?� Browser Agent MVP ambient wiring (MASTER.md Section 14.5 item 06) ?�?�
+  // ?? Browser Agent MVP ambient wiring (MASTER.md Section 14.5 item 06) ??
   // Scope: the read-only "open a page and tell me what it says" flow only
   // (browser.open/browser.navigate -> browser.snapshot, no approval, per
   // policy). Driving an in-page click/type/select from the ambient composer
@@ -5772,7 +5774,7 @@
     // holds for the whole approve -> execute -> Home/Inbox/Activity chain,
     // not just the approval record itself.
     handleApprovalAction: async (id, action, sourceEvent) => {
-      // Exactly-once guard (UI-5 R5 §4): ignore a second APPROVE/REJECT for
+      // Exactly-once guard (UI-5 R5 Â§4): ignore a second APPROVE/REJECT for
       // the same approval id while the first is still in flight, rather
       // than relying solely on the backend's replay protection to absorb a
       // redundant request.
@@ -5954,7 +5956,7 @@
     },
   });
 
-  // ?�?� Creation Domain UI Handler ?�?�
+  // ?? Creation Domain UI Handler ??
   //
   // R23.7C-C ??canonical image source policy. The backend now serves the
   // real generated image at a NAgex-owned canonical path
@@ -6009,7 +6011,7 @@
         const quality = document.getElementById('create-recipe-quality')?.value || 'standard';
 
         btnGenerate.disabled = true;
-        btnGenerate.textContent = '?�� Generating...';
+        btnGenerate.textContent = '?¨ Generating...';
 
         try {
           const res = await apiFetch('/api/v1/creations/generate', {
@@ -6030,7 +6032,7 @@
           }
         } finally {
           btnGenerate.disabled = false;
-          btnGenerate.textContent = '?�� Generate Creation';
+          btnGenerate.textContent = '?¨ Generate Creation';
         }
       };
     }
@@ -6047,7 +6049,7 @@
         }
 
         btnVariation.disabled = true;
-        btnVariation.textContent = '?�� Generating Variation...';
+        btnVariation.textContent = '?ª Generating Variation...';
 
         try {
           const res = await apiFetch(`/api/v1/creations/${state.currentCreation.creationId}/variation`, {
@@ -6064,7 +6066,7 @@
           }
         } finally {
           btnVariation.disabled = false;
-          btnVariation.textContent = '?�� Generate Variation';
+          btnVariation.textContent = '?ª Generate Variation';
         }
       };
     }
@@ -6090,10 +6092,10 @@
         <div style="text-align: left; font-size: 0.82rem;">
           <strong>${escapeHtml(creation.prompt)}</strong>
           <div style="color: var(--text-muted); font-size: 0.75rem; margin-top: 0.2rem;">
-            <span>ID: ${escapeHtml(creation.creationId)}</span> ·
-            <span>Style: ${escapeHtml(creation.recipe?.stylePreset || 'default')}</span> ·
+            <span>ID: ${escapeHtml(creation.creationId)}</span> Â·
+            <span>Style: ${escapeHtml(creation.recipe?.stylePreset || 'default')}</span> Â·
             <span>Aspect: ${escapeHtml(creation.recipe?.aspectRatio || '1:1')}</span>
-            ${creation.parentCreationId ? ` · <span class="badge-status status-PROCESSING" style="font-size: 0.65rem;">Variation of ${escapeHtml(creation.parentCreationId.slice(0, 8))}</span>` : ''}
+            ${creation.parentCreationId ? ` Â· <span class="badge-status status-PROCESSING" style="font-size: 0.65rem;">Variation of ${escapeHtml(creation.parentCreationId.slice(0, 8))}</span>` : ''}
           </div>
         </div>
       </div>`;
@@ -6122,7 +6124,7 @@
           ${thumbHtml}
         </div>
         <strong style="font-size: 0.8rem; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(c.prompt)}</strong>
-        <span style="font-size: 0.7rem; color: var(--text-muted);">${escapeHtml(c.recipe?.stylePreset || 'art')} · ${escapeHtml(new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))}</span>
+        <span style="font-size: 0.7rem; color: var(--text-muted);">${escapeHtml(c.recipe?.stylePreset || 'art')} Â· ${escapeHtml(new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))}</span>
       </div>`;
     }).join('');
   }
@@ -6132,7 +6134,7 @@
     loadCreationHistory();
   }
 
-  // ?�?� Analyze Domain UI Handler ?�?�
+  // ?? Analyze Domain UI Handler ??
   function initAnalyzeView() {
     const dropzone = document.getElementById('analyze-dropzone');
     const fileInput = document.getElementById('analyze-file-input');
@@ -6169,7 +6171,7 @@
         metaEl.innerHTML = `
           <strong>Selected: ${escapeHtml(file.name)}</strong>
           <div style="color: var(--text-muted); font-size: 0.72rem; margin-top: 0.1rem;">
-            Size: ${(file.size / 1024).toFixed(1)} KB · Type: ${escapeHtml(file.type || 'unknown')}
+            Size: ${(file.size / 1024).toFixed(1)} KB Â· Type: ${escapeHtml(file.type || 'unknown')}
           </div>`;
       }
       if (btnExecute) btnExecute.disabled = false;
@@ -6183,7 +6185,7 @@
         if (!file || !resultSlot) return;
 
         btnExecute.disabled = true;
-        btnExecute.textContent = '?�� Analyzing File...';
+        btnExecute.textContent = '? Analyzing File...';
 
         try {
           const initRes = await apiFetch('/api/v1/workspace/uploads/init', {
@@ -6235,7 +6237,7 @@
             </div>`;
         } finally {
           btnExecute.disabled = false;
-          btnExecute.textContent = '?�� Run Analysis';
+          btnExecute.textContent = '? Run Analysis';
         }
       };
     }
@@ -6311,10 +6313,10 @@
 
     const synthesis = result.synthesis;
     if (!synthesis || result.status === 'UNAVAILABLE') {
-      let rawMsg = (result.error && (typeof result.error === 'string' ? result.error : result.error.message)) || (lang === 'ko' ? '?�각??관??분석 ?�비?��? ?�용?????�습?�다.' : 'Perspective comparison unavailable.');
+      let rawMsg = (result.error && (typeof result.error === 'string' ? result.error : result.error.message)) || (lang === 'ko' ? '?¤ê°??ê´??ë¶ì ?ë¹?¤ë? ?´ì©?????ìµ?ë¤.' : 'Perspective comparison unavailable.');
       rawMsg = String(rawMsg)
-        .replace(/PERSPECTIVE_SYNTHESIS_FAILED/g, lang === 'ko' ? '분석 결과�??�성?��? 못했?�니??' : 'Synthesis unavailable.')
-        .replace(/ALL_MODEL_PROVIDERS_FAILED/g, lang === 'ko' ? '모든 모델 ?�답???�패?�습?�다.' : 'Model services unavailable.');
+        .replace(/PERSPECTIVE_SYNTHESIS_FAILED/g, lang === 'ko' ? 'ë¶ì ê²°ê³¼ë¥??©ì±?ì? ëª»í?µë??' : 'Synthesis unavailable.')
+        .replace(/ALL_MODEL_PROVIDERS_FAILED/g, lang === 'ko' ? 'ëª¨ë  ëª¨ë¸ ?ëµ???¤í¨?ìµ?ë¤.' : 'Model services unavailable.');
       container.innerHTML = '<div class="perspective-result-error" data-testid="perspective-compare-result">' + esc(rawMsg) + '</div>';
       return;
     }
@@ -6322,12 +6324,12 @@
     const commonGroundTitle = t('perspective.commonGround') || 'What the perspectives agree on';
     const differingTitle = t('perspective.differing') || 'Other ways to look at this';
     const uncertaintiesTitle = t('perspective.uncertainties') || 'What remains uncertain';
-    const sourcesTitle = t('perspective.sources') || (lang === 'ko' ? '출처' : 'Sources');
+    const sourcesTitle = t('perspective.sources') || (lang === 'ko' ? 'ì¶ì²' : 'Sources');
 
     let html = '<div class="perspective-compare-result" data-testid="perspective-compare-result">';
 
     if (result.status === 'PARTIAL') {
-      const partialBanner = lang === 'ko' ? '?��? 관??분석 결과�?반영?�었?�니??' : 'Partial perspective analysis provided.';
+      const partialBanner = lang === 'ko' ? '?¼ë? ê´??ë¶ì ê²°ê³¼ë§?ë°ì?ì?µë??' : 'Partial perspective analysis provided.';
       html += '<div class="perspective-banner perspective-banner-partial" data-testid="perspective-partial-banner">' + esc(partialBanner) + '</div>';
     }
 
@@ -6412,33 +6414,33 @@
     const resData = (result && result.data) ? result.data : result;
 
     if (!resData) {
-      container.innerHTML = '<div class="forecast-result-error" data-testid="forecast-compare-result">' + esc(lang === 'ko' ? '?�측 ?�비?��? ?�용?????�습?�다.' : 'Forecast service unavailable.') + '</div>';
+      container.innerHTML = '<div class="forecast-result-error" data-testid="forecast-compare-result">' + esc(lang === 'ko' ? '?ì¸¡ ?ë¹?¤ë? ?´ì©?????ìµ?ë¤.' : 'Forecast service unavailable.') + '</div>';
       return;
     }
 
     if (resData.status === 'INFORMATIONAL') {
-      const msg = resData.informationalMessage || (lang === 'ko' ? 'NAgex???�자?�인 ?�거 결과 ?�측 ?�률???�성?��? ?�습?�다. ?�???�자�?지지??조사 �?공식 ?�거 기�???발표 ?�료�?참고?�시�?바랍?�다.' : 'NAgex does not generate proprietary election outcome forecasts. For election information, refer to dated polling measurements and official election authority reports.');
+      const msg = resData.informationalMessage || (lang === 'ko' ? 'NAgex???ì?ì¸ ? ê±° ê²°ê³¼ ?ì¸¡ ?ë¥ ???ì±?ì? ?ìµ?ë¤. ????¼ìë³?ì§ì§??ì¡°ì¬ ë°?ê³µì ? ê±° ê¸°ê???ë°í ?ë£ë¥?ì°¸ê³ ?ìê¸?ë°ë?ë¤.' : 'NAgex does not generate proprietary election outcome forecasts. For election information, refer to dated polling measurements and official election authority reports.');
       container.innerHTML = '<div class="forecast-result-informational" data-testid="forecast-compare-result">' +
-        '<h3 class="forecast-title">' + esc(t('forecast.title') || (lang === 'ko' ? '?�측' : 'Forecast')) + '</h3>' +
+        '<h3 class="forecast-title">' + esc(t('forecast.title') || (lang === 'ko' ? '?ì¸¡' : 'Forecast')) + '</h3>' +
         '<p class="forecast-informational-text">' + esc(msg) + '</p>' +
         '</div>';
       return;
     }
 
     if (resData.status === 'NEEDS_CLARIFICATION') {
-      const msg = resData.clarificationMessage || t('forecast.needsClarification') || (lang === 'ko' ? '?�측 ?�?�이???�점??명확?��? ?�습?�다. 명확???�점�?조건?�로 질문?�주?�요.' : 'Forecast target or horizon is ambiguous. Please specify clear criteria.');
+      const msg = resData.clarificationMessage || t('forecast.needsClarification') || (lang === 'ko' ? '?ì¸¡ ??ì´???ì ??ëªí?ì? ?ìµ?ë¤. ëªí???ì ê³?ì¡°ê±´?¼ë¡ ì§ë¬¸?´ì£¼?¸ì.' : 'Forecast target or horizon is ambiguous. Please specify clear criteria.');
       container.innerHTML = '<div class="forecast-result-clarification" data-testid="forecast-compare-result">' +
-        '<h3 class="forecast-title">' + esc(t('forecast.title') || (lang === 'ko' ? '?�측' : 'Forecast')) + '</h3>' +
+        '<h3 class="forecast-title">' + esc(t('forecast.title') || (lang === 'ko' ? '?ì¸¡' : 'Forecast')) + '</h3>' +
         '<p class="forecast-clarification-text">' + esc(msg) + '</p>' +
         '</div>';
       return;
     }
 
     if (resData.status === 'PARTIAL') {
-      const partialBanner = lang === 'ko' ? '?�나???�립 ?�측�??�료?�어 NAgex가 ?�뢰?????�는 ?�중 ?�측 ?�성???�성?????�습?�다.' : 'Only one independent forecast completed, so NAgex could not produce a reliable multi-forecast synthesis.';
+      const partialBanner = lang === 'ko' ? '?ë???ë¦½ ?ì¸¡ë§??ë£?ì´ NAgexê° ? ë¢°?????ë ?¤ì¤ ?ì¸¡ ?©ì±???ì±?????ìµ?ë¤.' : 'Only one independent forecast completed, so NAgex could not produce a reliable multi-forecast synthesis.';
       let html = '<div class="forecast-compare-result" data-testid="forecast-compare-result">';
       html += '<div class="forecast-banner forecast-banner-partial" data-testid="forecast-partial-banner">' + esc(partialBanner) + '</div>';
-      html += '<div class="forecast-header-section"><h3 class="forecast-title">' + esc(t('forecast.title') || (lang === 'ko' ? '?�측' : 'Forecast')) + '</h3></div>';
+      html += '<div class="forecast-header-section"><h3 class="forecast-title">' + esc(t('forecast.title') || (lang === 'ko' ? '?ì¸¡' : 'Forecast')) + '</h3></div>';
       const singleFct = (resData.forecasts || []).find(f => f.status === 'SUCCESS');
       if (singleFct && singleFct.rationale) {
         html += '<div class="forecast-section"><p class="forecast-summary-text">' + esc(singleFct.rationale) + '</p></div>';
@@ -6450,23 +6452,23 @@
 
     const synthesis = resData.synthesis;
     if (!synthesis || resData.status === 'UNAVAILABLE') {
-      let rawMsg = (resData.error && (typeof resData.error === 'string' ? resData.error : resData.error.message)) || (lang === 'ko' ? '?�측 분석 ?�비?��? ?�용?????�습?�다.' : 'Forecast unavailable.');
+      let rawMsg = (resData.error && (typeof resData.error === 'string' ? resData.error : resData.error.message)) || (lang === 'ko' ? '?ì¸¡ ë¶ì ?ë¹?¤ë? ?´ì©?????ìµ?ë¤.' : 'Forecast unavailable.');
       rawMsg = String(rawMsg)
-        .replace(/FORECAST_SYNTHESIS_FAILED/g, lang === 'ko' ? '?�측 결과�??�성?��? 못했?�니??' : 'Forecast synthesis unavailable.')
-        .replace(/ALL_MODEL_PROVIDERS_FAILED/g, lang === 'ko' ? '모든 모델 ?�답???�패?�습?�다.' : 'Model services unavailable.');
+        .replace(/FORECAST_SYNTHESIS_FAILED/g, lang === 'ko' ? '?ì¸¡ ê²°ê³¼ë¥??©ì±?ì? ëª»í?µë??' : 'Forecast synthesis unavailable.')
+        .replace(/ALL_MODEL_PROVIDERS_FAILED/g, lang === 'ko' ? 'ëª¨ë  ëª¨ë¸ ?ëµ???¤í¨?ìµ?ë¤.' : 'Model services unavailable.');
       container.innerHTML = '<div class="forecast-result-error" data-testid="forecast-compare-result">' + esc(rawMsg) + '</div>';
       return;
     }
 
-    const forecastTitle = t('forecast.title') || (lang === 'ko' ? '?�측' : 'Forecast');
-    const likelihoodTitle = t('forecast.likelihood') || (lang === 'ko' ? '?�상 가?�성' : 'Estimated likelihood');
-    const rangeTitle = t('forecast.range') || (lang === 'ko' ? '가?�성 범위' : 'Likely range');
-    const whyTitle = t('forecast.why') || (lang === 'ko' ? '?�재 ?�렇�?보는 ?�유' : 'Why this is the current estimate');
-    const supportingTitle = t('forecast.supporting') || (lang === 'ko' ? '가?�성???�이???�호' : 'Signals supporting this');
-    const opposingTitle = t('forecast.opposing') || (lang === 'ko' ? '가?�성????��???�호' : 'Signals against this');
-    const whatWouldChangeTitle = t('forecast.whatWouldChange') || (lang === 'ko' ? '?�측??바�? ???�는 ?�인' : 'What could change the forecast');
+    const forecastTitle = t('forecast.title') || (lang === 'ko' ? '?ì¸¡' : 'Forecast');
+    const likelihoodTitle = t('forecast.likelihood') || (lang === 'ko' ? '?ì ê°?¥ì±' : 'Estimated likelihood');
+    const rangeTitle = t('forecast.range') || (lang === 'ko' ? 'ê°?¥ì± ë²ì' : 'Likely range');
+    const whyTitle = t('forecast.why') || (lang === 'ko' ? '?ì¬ ?´ë ê²?ë³´ë ?´ì ' : 'Why this is the current estimate');
+    const supportingTitle = t('forecast.supporting') || (lang === 'ko' ? 'ê°?¥ì±???ì´??? í¸' : 'Signals supporting this');
+    const opposingTitle = t('forecast.opposing') || (lang === 'ko' ? 'ê°?¥ì±????¶??? í¸' : 'Signals against this');
+    const whatWouldChangeTitle = t('forecast.whatWouldChange') || (lang === 'ko' ? '?ì¸¡??ë°ê? ???ë ?ì¸' : 'What could change the forecast');
     const uncertaintiesTitle = t('forecast.uncertainties') || 'What remains uncertain';
-    const sourcesTitle = t('forecast.sources') || (lang === 'ko' ? '출처' : 'Sources');
+    const sourcesTitle = t('forecast.sources') || (lang === 'ko' ? 'ì¶ì²' : 'Sources');
 
     // No Fake Precision formatting: round to whole percentage
     const probPct = Math.round(synthesis.probability * 100);
@@ -6479,7 +6481,7 @@
     let html = '<div class="forecast-compare-result" data-testid="forecast-compare-result">';
 
     if (result.status === 'PARTIAL') {
-      const partialBanner = lang === 'ko' ? '?�나???�립 ?�측�??�료?�어 ?�측 비교�??�행?????�습?�다.' : "I could complete only one independent forecast, so I can't reliably compare forecasts.";
+      const partialBanner = lang === 'ko' ? '?ë???ë¦½ ?ì¸¡ë§??ë£?ì´ ?ì¸¡ ë¹êµë¥??í?????ìµ?ë¤.' : "I could complete only one independent forecast, so I can't reliably compare forecasts.";
       html += '<div class="forecast-banner forecast-banner-partial" data-testid="forecast-partial-banner">' + esc(partialBanner) + '</div>';
     }
 
@@ -6637,7 +6639,7 @@
           <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
             <span class="badge-status status-READY" style="font-size: 0.75rem; font-weight: 600;">${escapeHtml(typeLabel)}</span>
             <div style="display: flex; gap: 0.4rem; align-items: center;">
-              ${isPinned ? `<span class="badge-status" style="background: rgba(13,148,136,0.15); color: #0d9488; font-size: 0.7rem;">?�� Pinned</span>` : ''}
+              ${isPinned ? `<span class="badge-status" style="background: rgba(13,148,136,0.15); color: #0d9488; font-size: 0.7rem;">? Pinned</span>` : ''}
               ${isConfirmed ? `<span class="badge-status" style="background: rgba(34,197,94,0.15); color: #16a34a; font-size: 0.7rem;">??Confirmed</span>` : ''}
             </div>
           </div>
@@ -6646,7 +6648,7 @@
           </div>
           <div style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0.75rem;">
             <span>${escapeHtml(t('personalContext.learnedFrom') || 'Learned from:')} ${escapeHtml(sourceLabel)}</span>
-            ${updatedTime ? ` · ${updatedTime}` : ''}
+            ${updatedTime ? ` Â· ${updatedTime}` : ''}
           </div>
           <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; border-top: 1px dashed var(--border-subtle); padding-top: 0.5rem;">
             ${!isConfirmed ? `<button type="button" class="btn-secondary" style="font-size: 0.72rem; padding: 2px 8px;" onclick="window.NAGEX.confirmPersonalContext('${m.id}')">${escapeHtml(t('personalContext.confirm') || 'Confirm')}</button>` : ''}
@@ -6785,7 +6787,7 @@
     if (domainEl) domainEl.textContent = source.siteName || source.finalUrl || source.url || '';
     if (titleEl) titleEl.textContent = source.title || 'Untitled Page';
     if (summaryEl) summaryEl.textContent = preview.summary || preview.excerpt || '';
-    if (headingsEl) headingsEl.textContent = (preview.headings || []).join(' · ');
+    if (headingsEl) headingsEl.textContent = (preview.headings || []).join(' Â· ');
 
     if (previewCard) previewCard.hidden = false;
     if (actions) actions.hidden = false;
