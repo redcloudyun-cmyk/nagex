@@ -107,6 +107,15 @@ GitHub tokens and MCP connections (with their credentials) are persisted encrypt
 
 No real GitHub account or OAuth App has been exercised by automated tests; those are scripted-provider tests. Real-account verification stays pending until credentials are configured on the server and a user connects.
 
+**Readiness and certification procedure (operator):**
+
+1. Create a GitHub OAuth App (GitHub → Settings → Developer settings → OAuth Apps) whose Authorization callback URL is exactly `<public origin>/api/v1/oauth/github/callback`.
+2. Put `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` and `GITHUB_REDIRECT_URI` in the service environment (a systemd drop-in, never in the repository) and run `sudo systemctl restart nagex`.
+3. Run `node scripts/github-readiness-check.mjs` on the server: it reports configuration (redirect URI shape, requested scopes, no write/admin scope, encryption key) without printing any secret.
+4. Real-account read-only certification: `GITHUB_CERT_TOKEN=<test account token> GITHUB_CERT_REPO=owner/repo GITHUB_CERT_PATH=README.md node scripts/github-readiness-check.mjs` drives the production connection service (GET `/user`, repository list, directory, file, identity isolation). Then connect through Settings → Connections as the real user; the card must show `CONNECTED` with the account login, and Disconnect must return it to `Not connected`.
+
+**Remote MCP server check:** `MCP_CHECK_URL=https://<server>/mcp [MCP_CHECK_TOKEN=<bearer>] node scripts/mcp-remote-check.mjs` runs the production URL policy, initialize handshake and tool discovery/schema validation against a real server. It never calls a tool and never prints the token.
+
 ## 7a. Channel Webhook Secrets
 
 The Telegram and Slack webhooks are accepted only when authenticated (ADR-0007):
