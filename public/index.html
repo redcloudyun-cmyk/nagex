@@ -539,10 +539,25 @@
         <div id="view-inbox" class="tab-view canvas-mode-doc">
           <div class="view-header-bar">
             <div>
-              <h2 data-i18n="workspace.inboxTitle">Inbox</h2>
-              <p class="view-sub" data-i18n="workspace.inboxSubtitle">Single triage hub for quick captures, files, URLs, and audio notes.</p>
+              <h2 data-i18n="workspace.title">Workspace</h2>
+              <p class="view-sub" data-i18n="workspace.workspaceSubtitle">Capture notes and files, review what needs you, and keep what matters.</p>
             </div>
           </div>
+          <div class="workspace-actions" id="workspace-actions">
+            <button type="button" class="btn-primary" id="workspace-add-note" data-i18n="workspace.addNote">Add note</button>
+            <button type="button" class="btn-secondary" id="workspace-upload" data-i18n="workspace.uploadFile">Upload file</button>
+            <button type="button" class="btn-secondary" id="workspace-open-vault" data-i18n="workspace.openVault">Open Vault</button>
+            <input type="file" id="workspace-file-input" hidden>
+          </div>
+          <form class="workspace-note-form" id="workspace-note-form" hidden>
+            <label class="nagex-sr-only" for="workspace-note-input" data-i18n="workspace.noteLabel">Note</label>
+            <textarea id="workspace-note-input" rows="3" maxlength="8000" placeholder="Write a note, idea or reminder..." data-i18n-placeholder="workspace.notePlaceholder"></textarea>
+            <div class="workspace-note-actions">
+              <button type="submit" class="btn-primary" id="workspace-note-save" data-i18n="workspace.saveNote">Save to Inbox</button>
+              <button type="button" class="btn-secondary" id="workspace-note-cancel" data-i18n="workspace.cancel">Cancel</button>
+            </div>
+          </form>
+          <p class="workspace-notice" id="workspace-notice" role="status" aria-live="polite" hidden></p>
           <div class="inbox-container">
             <div class="inbox-toolbar">
               <div class="inbox-filters">

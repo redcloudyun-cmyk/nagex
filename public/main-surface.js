@@ -1690,6 +1690,9 @@
     });
   }
 
+  // The other screens (Activity ...) translate application-generated wording with the same rules as Main.
+  window.NAGEX_MAIN_L10N = { localizeAppText, mt };
+
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', rebuildHome);
   else rebuildHome();
   window.addEventListener('hashchange', () => {

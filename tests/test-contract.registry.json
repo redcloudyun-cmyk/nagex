@@ -5317,6 +5317,22 @@
       "notes": "Production server harness with provider credentials scrubbed; the Google OAuth status and the session provider are stubbed to force each state. Account profile save and session listing are real.",
       "writesRepositoryArtifacts": false
     },
+    "workspace_knowledge_activity_certification_browser": {
+      "milestone": "NAGEX-DESKTOP-WORKSPACE-CERT",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Real-Chromium certification of Desktop Workspace (Inbox + Vault), Knowledge and Activity: Add note and Upload file really capture and persist (an empty note is refused), capture failures are stated truthfully with what was captured and the real reason, filters/Retry/Open Vault/Open result are real controls with no dead buttons, Vault preview is an in-page dialog and delete asks first and persists, Knowledge add/search/open-source work, unsupported files are refused, internal ids stay out of ordinary UI, Activity shows real records with application wording localized and user content untouched, and every store is private to its owner (user/tenant isolation) in EN and KR.",
+      "notes": "Production server harness with provider credentials scrubbed, so capture processing fails truthfully (no model provider); no network access is used.",
+      "writesRepositoryArtifacts": false
+    },
     "personal_home_profile_name": {
       "milestone": "NAGEX-DESKTOP-MAIN-GREETING",
       "classification": "CANONICAL_BEHAVIOR",

@@ -1246,14 +1246,15 @@
         type: 'FAILED_WORK',
         priority: 5,
         groupKey: 'NEEDS_ATTENTION',
-        title: c.metadata?.extractedTitle || 'Capture processing failed',
-        summary: c.metadata?.errorMessage || 'Execution encountered an error',
+        // say WHAT failed (the capture itself), not just that something did
+        title: c.metadata?.extractedTitle || (c.content ? String(c.content).slice(0, 80) : '') || c.metadata?.originalName || l10nPhrase('Capture processing failed'),
+        summary: l10nPhrase('Capture processing failed') + ': ' + l10nPhrase(c.metadata?.errorMessage || 'Execution encountered an error'),
         status: 'FAILED',
         source: c.source || 'capture',
         createdAt: c.createdAt,
         updatedAt: c.createdAt,
         primaryAction: retryable ? { label: t('workspace.retry') || 'Retry', actionType: 'RETRY_CAPTURE', captureId: c.captureId } : null,
-        errorState: c.metadata?.errorMessage || 'Execution error',
+        errorState: l10nPhrase(c.metadata?.errorMessage || 'Execution error'),
         attentionReason: c.metadata?.failureCategory === 'NEEDS_HUMAN' ? (t('workspace.needsHumanAttention') || 'Needs your attention') : (t('workspace.notRetryable') || 'Cannot be retried'),
       });
     });
@@ -1330,8 +1331,11 @@
         primaryBtnHtml = `<button class="btn-primary" style="font-size:0.75rem; padding: 4px 10px;" onclick="window.NAGEX.acceptCandidate('${item.id}')">${escapeHtml(item.primaryAction.label)}</button>`;
       } else if (item.primaryAction.actionType === 'ACTION_CAPTURE') {
         primaryBtnHtml = `<button class="btn-primary" style="font-size:0.75rem; padding: 4px 10px;" onclick="window.NAGEX.actionCapture('${item.id}', 'ACTIONED')">${escapeHtml(item.primaryAction.label)}</button>`;
+      } else if (item.primaryAction.actionType === 'VIEW_RESULT') {
+        primaryBtnHtml = `<button class="btn-secondary" style="font-size:0.75rem; padding: 4px 10px;" onclick="window.NAGEX.viewInboxResult('${item.id}')">${escapeHtml(item.primaryAction.label)}</button>`;
       } else {
-        primaryBtnHtml = `<button class="btn-secondary" style="font-size:0.75rem; padding: 4px 10px;">${escapeHtml(item.primaryAction.label)}</button>`;
+        // an action with no handler would be a dead control: render nothing for it
+        primaryBtnHtml = '';
       }
     }
 
@@ -1353,10 +1357,10 @@
         <div class="inbox-item-main">
           <div style="display:flex; align-items:center; gap:0.5rem;">
             <span class="inbox-item-title">${escapeHtml(item.title)}</span>
-            <span class="badge-status ${badgeClass}">${escapeHtml(item.status)}</span>
+            <span class="badge-status ${badgeClass}">${escapeHtml(l10nPhrase(item.status))}</span>
           </div>
           <span class="inbox-item-summary">${escapeHtml(item.summary)}</span>
-          ${item.attentionReason ? `<span style="font-size:0.72rem; color:var(--color-accent-gold, #d97706); font-weight:500;">${escapeHtml(item.attentionReason)}</span>` : ''}
+          ${item.attentionReason ? `<span style="font-size:0.72rem; color:var(--color-accent-gold, #d97706); font-weight:500;">${escapeHtml(l10nPhrase(item.attentionReason))}</span>` : ''}
           ${item.errorState ? `<span style="font-size:0.72rem; color:#ef4444;">${escapeHtml(item.errorState)}</span>` : ''}
           <span style="font-size:0.7rem; color:var(--text-muted, #9ca3af);">${timeStr}</span>
         </div>
@@ -1367,10 +1371,125 @@
       </div>`;
   }
 
+  // ── Workspace: filters, add note, upload, open Vault, result view
+  let inboxFilter = 'ALL';
+  const INBOX_FILTER_STATUSES = {
+    NEEDS_REVIEW: ['FAILED', 'NEEDS_REVIEW', 'PENDING_APPROVAL', 'PROPOSED'],
+    READY: ['READY', 'COMPLETED'],
+    PROCESSING: ['WORKING'],
+  };
+  function inboxFilterMatches(item) {
+    return inboxFilter === 'ALL' || (INBOX_FILTER_STATUSES[inboxFilter] || []).includes(item.status);
+  }
+
+  // Shared in-page dialog for read-only text (replaces blocking window.alert previews).
+  function showTextModal(title, text) {
+    let modal = document.getElementById('nagex-text-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'nagex-text-modal';
+      modal.className = 'mh-detail-modal-overlay';
+      modal.setAttribute('role', 'dialog');
+      modal.setAttribute('aria-modal', 'true');
+      document.body.appendChild(modal);
+    }
+    modal.innerHTML = '<div class="mh-detail-modal-card"><div class="mh-detail-modal-header"><h3></h3><button type="button" class="mh-detail-modal-close" aria-label="Close">&times;</button></div><div class="mh-detail-modal-body"><p class="mh-detail-desc" style="white-space:pre-wrap"></p></div></div>';
+    modal.querySelector('h3').textContent = title || '';
+    modal.querySelector('.mh-detail-desc').textContent = text || '';
+    modal.querySelector('.mh-detail-modal-close').setAttribute('aria-label', (window.NAGEX_I18N && window.NAGEX_I18N.t('workspace.vaultClose')) || 'Close');
+    const onKey = (event) => { if (event.key === 'Escape') close(); };
+    const close = () => { modal.style.display = 'none'; document.removeEventListener('keydown', onKey); };
+    modal.querySelector('.mh-detail-modal-close').addEventListener('click', close);
+    modal.addEventListener('click', (event) => { if (event.target === modal) close(); });
+    document.addEventListener('keydown', onKey);
+    modal.style.display = 'flex';
+    modal.querySelector('.mh-detail-modal-close').focus();
+  }
+
+  function workspaceNotice(message, tone) {
+    const el = document.getElementById('workspace-notice');
+    if (!el) return;
+    el.textContent = message || '';
+    el.dataset.tone = tone || 'info';
+    el.hidden = !message;
+  }
+
+  function apiMessage(res, fallback) {
+    return (res && (res.message || (res.error && res.error.message) || (typeof res.error === 'string' ? res.error : ''))) || fallback;
+  }
+
+  function wireWorkspaceActions() {
+    const bar = document.getElementById('workspace-actions');
+    if (!bar || bar.dataset.wired === '1') return;
+    bar.dataset.wired = '1';
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    const form = document.getElementById('workspace-note-form');
+    const input = document.getElementById('workspace-note-input');
+    const fileInput = document.getElementById('workspace-file-input');
+    document.getElementById('workspace-add-note')?.addEventListener('click', () => {
+      if (!form) return;
+      form.hidden = !form.hidden;
+      if (!form.hidden && input) input.focus();
+    });
+    document.getElementById('workspace-note-cancel')?.addEventListener('click', () => { if (form) form.hidden = true; });
+    form?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const content = input ? input.value.trim() : '';
+      if (!content) { workspaceNotice(t('workspace.noteEmpty'), 'error'); return; }
+      const save = document.getElementById('workspace-note-save');
+      if (save) save.disabled = true;
+      const res = await apiFetch('/api/v1/workspace/capture', { method: 'POST', body: JSON.stringify({ type: 'TEXT', content, source: 'WEB' }) });
+      if (save) save.disabled = false;
+      if (!res || res.error || !res.captureId) { workspaceNotice(apiMessage(res, t('workspace.noteFailed')), 'error'); return; }
+      if (input) input.value = '';
+      form.hidden = true;
+      workspaceNotice(t('workspace.noteSaved'), 'info');
+      await renderInbox();
+    });
+    document.getElementById('workspace-upload')?.addEventListener('click', () => fileInput && fileInput.click());
+    fileInput?.addEventListener('change', () => {
+      const file = fileInput.files && fileInput.files[0];
+      fileInput.value = '';
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64 = String(reader.result || '').split(',')[1];
+        const res = await apiFetch('/api/v1/workspace/upload', { method: 'POST', body: JSON.stringify({ type: 'FILE', filename: file.name, mimeType: file.type || 'application/octet-stream', base64, source: 'WEB' }) });
+        if (!res || res.error || !res.captureId) { workspaceNotice(apiMessage(res, t('workspace.uploadFailed')), 'error'); return; }
+        workspaceNotice(t('workspace.uploaded'), 'info');
+        await renderInbox();
+      };
+      reader.readAsDataURL(file);
+    });
+    document.getElementById('workspace-open-vault')?.addEventListener('click', () => switchTab('tab-vault'));
+    document.querySelectorAll('.filter-pill[data-inbox-filter]').forEach((pill) => {
+      pill.setAttribute('aria-pressed', String(pill.classList.contains('active')));
+      pill.addEventListener('click', () => {
+        inboxFilter = pill.getAttribute('data-inbox-filter') || 'ALL';
+        document.querySelectorAll('.filter-pill[data-inbox-filter]').forEach((p) => {
+          const active = p === pill;
+          p.classList.toggle('active', active);
+          p.setAttribute('aria-pressed', String(active));
+        });
+        renderInbox();
+      });
+    });
+  }
+
+  (window.NAGEX = window.NAGEX || {}).viewInboxResult = (captureId) => {
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    const item = (state.inbox || []).find((entry) => entry.captureId === captureId);
+    const title = item && item.metadata && (item.metadata.extractedTitle || item.metadata.originalName) || (item && item.content ? String(item.content).slice(0, 80) : '');
+    const body = item && ((item.metadata && item.metadata.extractedSummary) || item.content);
+    if (!item || !body) { showTextModal(t('workspace.title'), t('workspace.resultUnavailable')); return; }
+    showTextModal(title, body);
+  };
+
   async function renderInbox() {
     const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
     const listEl = document.getElementById('inbox-items-list');
     if (!listEl) return;
+    wireWorkspaceActions();
     // Gated by metadata?.retryable !== false (captureRetryable)
 
     let loadError = false;
@@ -1401,14 +1520,19 @@
       return;
     }
 
-    const items = buildCanonicalInboxViewModel({
+    const allItems = buildCanonicalInboxViewModel({
       approvals: approvalsData,
       captures: inboxData,
       candidates: candData,
     });
+    const items = allItems.filter(inboxFilterMatches);
 
-    if (items.length === 0) {
+    if (allItems.length === 0) {
       listEl.innerHTML = `<div class="empty-state-text">${escapeHtml(t('inbox.emptyState') || 'Nothing needs your attention right now.')}</div>`;
+      return;
+    }
+    if (items.length === 0) {
+      listEl.innerHTML = `<div class="empty-state-text">${escapeHtml(t('workspace.filterEmpty'))}</div>`;
       return;
     }
 
@@ -1925,17 +2049,18 @@
 
       if (elRecent) {
         elRecent.innerHTML = `
-          <h4 style="margin-top: 24px; color: var(--navy-head);">Vault Index</h4>
+          <h4 style="margin-top: 24px; color: var(--navy-head);">${escapeHtml(l10nPhrase('Vault Index'))}</h4>
           ${items.length ? items.map((item) => `
             <div class="nagex-card" style="padding: 0.75rem; margin-bottom: 0.5rem;">
-              <strong>${escapeHtml(item.title || 'Untitled')}</strong>
+              <strong>${escapeHtml(item.title || l10nPhrase('Untitled'))}</strong>
               <div class="card-body-text">${escapeHtml(item.type || 'FILE')} - ${escapeHtml(item.mimeType || 'application/octet-stream')}</div>
               <div style="display:flex; gap:0.5rem; margin-top:0.5rem; flex-wrap:wrap;">
-                <button type="button" class="btn-secondary" onclick="window.NAGEX.previewVaultItem('${escapeHtml(item.vaultItemId)}')">Preview</button>
-                <button type="button" class="btn-secondary" onclick="window.NAGEX.downloadVaultItem('${escapeHtml(item.vaultItemId)}')">Download</button>
+                <button type="button" class="btn-secondary" onclick="window.NAGEX.previewVaultItem('${escapeHtml(item.vaultItemId)}')">${escapeHtml(l10nPhrase('Preview'))}</button>
+                <button type="button" class="btn-secondary" onclick="window.NAGEX.downloadVaultItem('${escapeHtml(item.vaultItemId)}')">${escapeHtml(l10nPhrase('Download'))}</button>
+                <button type="button" class="btn-secondary" onclick="window.NAGEX.deleteVaultItem('${escapeHtml(item.vaultItemId)}')">${escapeHtml(l10nPhrase('Delete'))}</button>
               </div>
             </div>
-          `).join('') : `<div class="empty-state-text">No vault items uploaded yet.</div>`}
+          `).join('') : `<div class="empty-state-text">${escapeHtml(window.NAGEX_I18N ? window.NAGEX_I18N.t('workspace.vaultEmpty') : 'Nothing saved to your Vault yet.')}</div>`}
         `;
       }
     }
@@ -1945,10 +2070,19 @@
   window.NAGEX.previewVaultItem = async (vaultItemId) => {
     const res = await apiFetch(`/api/v1/workspace/vault/${encodeURIComponent(vaultItemId)}/preview`);
     if (!res || res.error || typeof res.contentText !== 'string') {
-      window.alert(res?.message || res?.error?.message || 'Preview is unavailable for this Vault item.');
+      showTextModal(l10nPhrase('Preview'), apiMessage(res, 'Preview is unavailable for this Vault item.'));
       return;
     }
-    window.alert(`${res.title || 'Vault item'}\n\n${res.contentText}`);
+    showTextModal(res.title || 'Vault', res.contentText);
+  };
+  window.NAGEX.deleteVaultItem = async (vaultItemId) => {
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    const item = ((state.vault && state.vault.items) || []).find((entry) => entry.vaultItemId === vaultItemId);
+    const label = (item && item.title) || '';
+    if (!window.confirm(t('workspace.vaultDeleteConfirm').replace('{title}', label))) return;
+    const res = await apiFetch(`/api/v1/workspace/vault/${encodeURIComponent(vaultItemId)}`, { method: 'DELETE' });
+    if (!res || res.error) { showTextModal(t('workspace.title'), apiMessage(res, t('workspace.vaultDeleteFailed'))); return; }
+    renderVault();
   };
   window.NAGEX.downloadVaultItem = async (vaultItemId) => {
     const res = await apiFetch(`/api/v1/workspace/vault/${encodeURIComponent(vaultItemId)}/download`);
@@ -2545,10 +2679,10 @@
     return `
       <div class="plan-item-card activity-outcome-card" style="position:relative; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 0.85rem 1rem;" tabindex="0" role="region" aria-label="${escapeHtml(a.title)}">
         <div class="plan-item-header" style="display:flex; justify-content:space-between; align-items:center;">
-          <span class="plan-goal-title" style="font-size:0.88rem; font-weight:600; color:var(--text-navy);">${escapeHtml(a.title)}</span>
+          <span class="plan-goal-title" style="font-size:0.88rem; font-weight:600; color:var(--text-navy);">${escapeHtml(window.NAGEX_MAIN_L10N ? window.NAGEX_MAIN_L10N.localizeAppText(a.title) : a.title)}</span>
           <span class="badge-status ${badgeClass}">${escapeHtml(statusLabel)}</span>
         </div>
-        ${contextLine ? `<p class="card-body-text" style="font-size:0.8rem; color:var(--text-secondary); margin-top:0.2rem;">${escapeHtml(contextLine)}</p>` : ''}
+        ${contextLine ? `<p class="card-body-text" style="font-size:0.8rem; color:var(--text-secondary); margin-top:0.2rem;">${escapeHtml(window.NAGEX_MAIN_L10N ? window.NAGEX_MAIN_L10N.localizeAppText(contextLine) : contextLine)}</p>` : ''}
         ${partialHtml}
         <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.4rem;">
           <span style="font-size:0.72rem; color:var(--text-muted);">${escapeHtml(time)}</span>
@@ -2725,10 +2859,10 @@
             <span class="mh-detail-label">${escapeHtml(t('mobileCommon.created', 'Created:'))}</span>
             <span>${escapeHtml(created)}</span>
           </div>
-          <div class="mh-detail-meta-row">
+          ${localStorage.getItem('nagex_main_diagnostics') === '1' || /[?&]diagnostics=1/.test(window.location.search + window.location.hash) ? `<div class="mh-detail-meta-row">
             <span class="mh-detail-label">${escapeHtml(t('knowledge.sourceId', 'Source ID:'))}</span>
             <span>${escapeHtml(res.source.vaultItemId)}</span>
-          </div>` : `
+          </div>` : ''}` : `
           <div class="mh-detail-meta-row"><span class="mh-detail-label">${escapeHtml(t('knowledge.sourceUnavailable', 'Original source is no longer available.'))}</span></div>`}
         </div>
         <div class="mh-detail-modal-footer">
@@ -2741,6 +2875,11 @@
   async function uploadKnowledgeFile(file) {
     const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k, f) => f || k;
     const addBtn = document.getElementById('knowledge-add-btn');
+    // only text is read and indexed today: anything else must not be added as if it were understood
+    if (!/\.(txt|md)$/i.test(file.name) && !/^text\//.test(file.type || '')) {
+      showTextModal(t('knowledge.addButton', 'Add knowledge'), t('knowledge.onlyText'));
+      return;
+    }
     const text = await file.text();
     if (addBtn) {
       addBtn.disabled = true;
@@ -2752,7 +2891,7 @@
         body: JSON.stringify({ title: file.name, content: text, mimeType: file.type || 'text/plain' }),
       });
       if (!res || res.error) {
-        window.alert(t('knowledge.addFailed', "Couldn't add this document."));
+        showTextModal(t('knowledge.addButton', 'Add knowledge'), apiMessage(res, t('knowledge.addFailed', "Couldn't add this document.")));
       } else {
         await fetchKnowledge(knowledgeQuery);
       }

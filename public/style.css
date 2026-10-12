@@ -4343,3 +4343,13 @@ body {
   .voice-enrollment-steps li { grid-template-columns: 1fr; }
   .voice-identity-actions { flex-direction: column; }
 }
+
+/* Workspace actions (add note / upload / open vault) */
+.workspace-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 12px; }
+.workspace-note-form { display: grid; gap: 8px; margin: 0 0 12px; max-width: 720px; }
+.workspace-note-form textarea { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font: inherit; resize: vertical; }
+.workspace-note-actions { display: flex; gap: 8px; }
+.workspace-notice { margin: 0 0 12px; padding: 8px 12px; border-radius: 8px; background: #eef6ff; color: #1d3a66; font-size: .88rem; }
+.workspace-notice[data-tone="error"] { background: #fff1f1; color: #8a1f1f; }
+.workspace-notice[hidden], .workspace-note-form[hidden] { display: none !important; }
+.filter-pill[aria-pressed="true"] { font-weight: 700; }
