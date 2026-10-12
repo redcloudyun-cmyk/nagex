@@ -38,7 +38,9 @@ function harness() {
 
 test('the To-do lists the user\'s due/overdue reminders and not-yet-running tasks, and only theirs', async () => {
   const h = harness();
-  const soon = new Date(Date.now() + 60 * 60_000).toISOString();
+  // 'due today' must stay today even when the suite runs in the last hour of the local day
+  const endOfToday = new Date(); endOfToday.setHours(23, 59, 0, 0);
+  const soon = new Date(Math.min(Date.now() + 60 * 60_000, endOfToday.getTime())).toISOString();
   const earlier = new Date(Date.now() - 60 * 60_000).toISOString();
   h.personalReminderStore.createReminder({ tenant_id: tenantId, user_id: userId, title: 'Call the client', scheduled_at: soon, timezone: 'UTC' });
   h.personalReminderStore.createReminder({ tenant_id: tenantId, user_id: userId, title: 'Send the invoice', scheduled_at: earlier, timezone: 'UTC' });
