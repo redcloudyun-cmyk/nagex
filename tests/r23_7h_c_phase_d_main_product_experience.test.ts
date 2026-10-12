@@ -108,7 +108,7 @@ test('H. Mobile bottom nav is a subset of NAGEX_PRIMARY_NAV (single canonical de
   const navMatch = appJs.match(/window\.NAGEX_PRIMARY_NAV = \[([\s\S]*?)\];/);
   const jsTabs = new Set([...navMatch![1].matchAll(/tab:\s*'([a-z0-9-]+)'/g)].map((m) => m[1]));
 
-  const bottomNavMatch = html.match(/<nav class="mh-bottom-nav">([\s\S]*?)<\/nav>/);
+  const bottomNavMatch = html.match(/<nav class="mh-bottom-nav"[^>]*>([\s\S]*?)<\/nav>/);
   assert.ok(bottomNavMatch, 'mobile bottom nav not found');
   const mobileTabs = [...bottomNavMatch![1].matchAll(/data-tab="([a-z0-9-]+)"/g)].map((m) => m[1]);
   for (const tab of mobileTabs) {
