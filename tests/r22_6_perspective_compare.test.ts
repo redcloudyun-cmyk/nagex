@@ -103,7 +103,7 @@ class MockModelProvider implements ModelProvider {
 // request, send it, and the request reaches the same runAmbientTask pipeline.
 async function askViaVisibleSheet(page: import('playwright').Page, text: string): Promise<void> {
   if (!(await page.locator('#ambient-prompt-input').isVisible())) {
-    await page.click('#btn-header-search');
+    await page.click('#btn-header-quickwake');
     await page.waitForSelector('#ambient-prompt-input', { state: 'visible' });
   }
   await page.fill('#ambient-prompt-input', text);
@@ -445,7 +445,16 @@ test('NAgex R22.6 — Perspective Compare Foundation Suite', async () => {
     const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 
     browserInstance = await chromium.launch({ headless: true });
-    const page = await browserInstance.newPage({ viewport: { width: 1280, height: 900 } });
+
+    // A real signed-in session (the demo persona is read-only since the identity boundary): the account and session are created through the stores
+    const { identityStore, sessionStore } = await import('../src/server_web.js');
+    const { hashPassword } = await import('../src/identity/identity.crypto.js');
+    const created = identityStore.createAccount(`compare_${Date.now()}@example.invalid`, hashPassword('Disposable-Pass-1!'));
+    identityStore.transitionState(created.identity.userId, 'ACTIVE');
+    const authSession = sessionStore.createAuthSession(`ten_${created.identity.userId}`, created.identity.userId, 'MAIN');
+    const signedIn = await browserInstance.newContext({ viewport: { width: 1280, height: 900 } });
+    await signedIn.addCookies([{ name: 'nagex_session', value: authSession.sessionId, url: origin }]);
+    const page = await signedIn.newPage();
 
     let apiCalled = false;
     page.on('request', (req) => {
@@ -454,7 +463,7 @@ test('NAgex R22.6 — Perspective Compare Foundation Suite', async () => {
       }
     });
 
-    await page.goto(`${origin}/?demo=1`);
+    await page.goto(`${origin}/`);
     await page.waitForLoadState('networkidle');
 
     // Test English prompt

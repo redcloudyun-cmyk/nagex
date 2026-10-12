@@ -3970,14 +3970,16 @@
   function isForecastCompareIntent(promptText) {
     if (!promptText || typeof promptText !== 'string') return false;
     const text = promptText.toLowerCase();
-    const triggers = ['forecast this', 'how likely is this', 'what are the chances', 'estimate the probability', 'will this happen by', 'forecast', 'predict', 'election', 'who will win'];
+    const triggers = ['forecast this', 'how likely is this', 'what are the chances', 'estimate the probability', 'will this happen by', 'forecast', 'predict', 'election', 'who will win',
+      '일어날 가능성을 예측', '성공할 가능성', '끝날 가능성', '예측해줘', '확률을 추정', '가능성을 예측', '가능성이 얼마나', '확률이 얼마나'];
     return triggers.some((t) => text.includes(t));
   }
 
   function isPerspectiveCompareIntent(promptText) {
     if (!promptText || typeof promptText !== 'string') return false;
     const text = promptText.toLowerCase();
-    const triggers = ['compare perspectives', 'different perspectives', 'multiple perspectives', 'other viewpoints', 'pros and cons'];
+    const triggers = ['compare perspectives', 'different perspectives', 'multiple perspectives', 'other viewpoints', 'pros and cons',
+      '여러 관점에서 검토', '다른 시각도 같이', '여러 관점으로 분석', '여러 관점', '다른 시각'];
     return triggers.some((t) => text.includes(t));
   }
   async function runAmbientTask(promptText) {

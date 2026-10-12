@@ -84,7 +84,7 @@ async function withBrowserPage(origin: string, run: (page: Page) => Promise<void
 // the same recovery guarantees (disabled while in flight, re-enabled after the bounded timeout, accepts real input
 // again, can start a fresh generation) are asserted against the control a user can actually reach.
 async function openAskSheet(page: Page): Promise<void> {
-  await page.click('#btn-header-search');
+  await page.click('#btn-header-quickwake');
   await page.waitForSelector('#ambient-prompt-input', { state: 'visible' });
 }
 
