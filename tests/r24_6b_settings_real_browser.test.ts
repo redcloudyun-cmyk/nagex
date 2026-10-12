@@ -11,9 +11,10 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
-import { createServerInstance } from '../src/server_web.js';
+import { createServerInstance, identityStore, sessionStore } from '../src/server_web.js';
 import { TEST_PEER_HEADER, testPeerServerOptions } from './_s2e_peer.js';
 import { enableDevAuthTokensForFile } from './_dev_auth_tokens.js';
+import { hashPassword } from '../src/identity/identity.crypto.js';
 
 // R24.6C1 — this file legitimately needs raw dev tokens to drive signup/verify; opt in explicitly (restored after the file).
 enableDevAuthTokensForFile();
@@ -41,14 +42,13 @@ async function json(method: string, p: string, body?: unknown, cookie?: string, 
 }
 
 async function createSignedInUser(email: string): Promise<string> {
-  const ip = `10.24.6.${++clientCounter}`; // test harness: each user signs up from its own client IP (per-IP signup rate limiter)
-  const signup = await json('POST', '/api/v1/auth/signup', { email, password: PASSWORD, passwordConfirmation: PASSWORD, termsAccepted: true, privacyAccepted: true }, undefined, ip);
-  assert.equal(signup.status, 201);
-  await json('POST', '/api/v1/auth/verify-email', { token: signup.data.devVerificationToken }, undefined, ip);
-  const login = await json('POST', '/api/v1/auth/login', { email, password: PASSWORD }, undefined, ip);
-  assert.equal(login.status, 200);
-  userIdByCookie.set(login.cookie, signup.data.user.userId);
-  return login.cookie; // "nagex_session=<value>"
+  // End-user password signup is disabled (OAuth-only login): create the active account and its session directly, like the shared harness.
+  const { identity } = identityStore.createAccount(email, hashPassword(PASSWORD));
+  identityStore.transitionState(identity.userId, 'ACTIVE');
+  const session = sessionStore.createAuthSession(`ten_${identity.userId}`, identity.userId, 'MAIN');
+  const cookie = `nagex_session=${session.sessionId}`;
+  userIdByCookie.set(cookie, identity.userId);
+  return cookie; // "nagex_session=<value>"
 }
 
 async function newContext(kind: 'desktop' | 'mobile', cookie?: string): Promise<BrowserContext> {
