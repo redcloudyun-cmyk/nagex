@@ -34,6 +34,7 @@ import { handleCompetitorPricingAgentRoutes } from './http/routes/competitor-pri
 import { handleGoogleOAuthStartRoutes, handleGoogleOAuthCallbackRoutes } from './http/routes/google-oauth.routes.js';
 import { handleGitHubOAuthStartRoutes, handleGitHubRoutes } from './http/routes/github.routes.js';
 import { githubConnectionService } from './integrations/github/index.js';
+import { handleMcpRoutes } from './http/routes/mcp.routes.js';
 import { GoogleCalendarConnectionService } from './integrations/google/calendar-connection.js';
 import { hasPendingGoogleOAuthState } from './integrations/google/oauth-state.store.js';
 import { readGoogleOAuthConfig } from './integrations/google/oauth.client.js';
@@ -206,6 +207,7 @@ export const {
   moduleStateStore,
   moduleService,
   capabilityBroker,
+  mcpService,
   sessionStore,
   conversationStore,
   conversationContextService,
@@ -555,6 +557,11 @@ export async function handleAsyncApiRequest(
     {
       const githubResult = await handleGitHubRoutes(method, pathname, body, headers, query, { auditLogger, sessionStore: customDeps?.sessionStore ?? sessionStore, identityStore: customDeps?.identityStore ?? identityStore, githubConnection: githubConnectionService });
       if (githubResult) return githubResult;
+    }
+    // User-owned MCP servers (discovery, per-tool enablement, broker-governed invocation).
+    {
+      const mcpResult = await handleMcpRoutes(method, pathname, body, headers, query, { sessionStore: customDeps?.sessionStore ?? sessionStore, identityStore: customDeps?.identityStore ?? identityStore, mcpService, capabilityBroker });
+      if (mcpResult) return mcpResult;
     }
     // R10.2-D Increment 3 — all Workspace/Capture/Candidate/Activity routes
     // (route-input, storage/status, inbox, vault, uploads, captures, items,

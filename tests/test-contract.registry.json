@@ -5283,6 +5283,21 @@
       "assertionIntent": "GitHub built-in connection truthfulness: identity is the verified session tenant + user only (another user, another tenant and forged headers/query never read or reveal anyone else connection, repositories or files; the OAuth callback only completes in the session that started the flow with a one-time state); every state is reported truthfully (UNAVAILABLE without an OAuth App and no dead connect path, NOT_CONNECTED, CONNECTING only for the user who started authorization, CONNECTED with verifiedAt only after a real authorized GitHub call, REAUTH_REQUIRED when GitHub rejects the saved token while keeping the metadata and purging the secret, ERROR for rate limits/outages/timeouts that keep the connection); access is read-only (repository list, directory, file) with strict owner/repo/path/ref validation, size/binary limits and repository text marked untrusted; tokens are encrypted at rest and never appear in responses; the Capability Broker and Tool Registry expose only READ_ONLY NONE-approval GitHub capabilities bound to the request identity and block with the real state when not connected.",
       "notes": "GitHub is replaced by a scripted fetch; the token store, connection service, broker, tool registry, routes and sessions are the production code."
     },
+    "mcp_runtime": {
+      "milestone": "NAGEX-MCP-RUNTIME",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "credential-broker",
+        "permission-approval-hardening"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "MCP runtime inside the existing authority model: the server URL is an SSRF boundary (https only, no credentials, no private/loopback/link-local/metadata/reserved or DNS-rebound address, allowlist, no redirects, bounded time and size); tool descriptors are untrusted (constrained names, sanitized descriptions, schemas limited to a checkable subset, arguments validated before approval); a server identity is pinned and a mismatch or a changed tool definition disables the tools until the owner re-enables them; connections are owner-scoped and credentials encrypted at rest; tools are disabled until enabled, become per-user CONSEQUENTIAL approval-REQUIRED capabilities that never appear in the catalog, and execute only through the Capability Broker with a hash-bound one-time approval consumed immediately before the call and without credentials or arguments in audit; results are untrusted and capped.",
+      "notes": "The MCP client is exercised against in-process fake servers (an in-memory transport and a real loopback HTTP server); the policy, store, service, broker, approvals, tool registry, routes and sessions are the production code. No external MCP server is contacted."
+    },
     "main_unified_workspace_browser": {
       "milestone": "NAGEX-DESKTOP-MAIN-UNIFIED-WORKSPACE",
       "classification": "REAL_BROWSER_CERT",

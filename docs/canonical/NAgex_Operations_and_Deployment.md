@@ -89,7 +89,7 @@ Failure behavior is fail-closed:
 
 Never report these states as connected.
 
-## 7d. GitHub Connection
+## 7d. GitHub and MCP Connections
 
 GitHub (built-in connection) is available only when the OAuth App is configured; otherwise the UI shows it as unavailable and offers no Connect action.
 
@@ -99,8 +99,11 @@ GitHub (built-in connection) is available only when the OAuth App is configured;
 | `GITHUB_REDIRECT_URI` | must equal the OAuth App callback, `<origin>/api/v1/oauth/github/callback` |
 | `GITHUB_OAUTH_SCOPES` | optional; default `read:user repo` |
 | `NAGEX_GITHUB_TOKEN_STORE_PATH` | optional; default `/var/lib/nagex/github-oauth.json` with the same fallback as Google |
+| `NAGEX_MCP_STORE_PATH` | optional; default `/var/lib/nagex/mcp-connections.json` |
+| `NAGEX_MCP_ALLOWED_HOSTS` | optional comma-separated allowlist (`host` or `*.suffix`) for MCP server hosts |
+| `NAGEX_MCP_ALLOW_PRIVATE_NETWORK` | development/test only; never set in production |
 
-GitHub tokens are persisted encrypted with `NAGEX_TOKEN_ENCRYPTION_KEY`; without the key they live in memory only and do not survive a restart. A missing, corrupted or wrong-key file means "not connected" — never connected.
+GitHub tokens and MCP connections (with their credentials) are persisted encrypted with `NAGEX_TOKEN_ENCRYPTION_KEY`; without the key they live in memory only and do not survive a restart. A missing, corrupted or wrong-key file means "not connected" — never connected.
 
 No real GitHub account or OAuth App has been exercised by automated tests; those are scripted-provider tests. Real-account verification stays pending until credentials are configured on the server and a user connects.
 

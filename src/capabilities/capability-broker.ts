@@ -18,6 +18,7 @@ import type { DesktopControlService } from '../device-agent/desktop-control.serv
 import type { WebSearchService } from '../research/web-search.service.js';
 import type { EvidencePackService } from '../research/evidence-pack.service.js';
 import type { GitHubConnectionService } from '../integrations/github/github-connection.js';
+import type { McpService } from '../mcp/mcp.service.js';
 
 export interface CapabilityIdempotencyRecord {
   key: string;
@@ -94,6 +95,8 @@ export class CapabilityBroker {
     permissionDecisionService?: PermissionDecisionService,
     // Built-in GitHub connection (read-only). Additive, optional, trailing: absent, GITHUB capabilities report unavailable.
     private readonly githubService?: Pick<GitHubConnectionService, 'listRepositories' | 'listDirectory' | 'readFile'>,
+    // User-registered MCP servers. Additive, optional, trailing: absent, MCP capabilities report unavailable.
+    private readonly mcpService?: Pick<McpService, 'requestToolApproval' | 'executeApprovedTool'>,
   ) {
     this.permissionDecisionService = permissionDecisionService ?? new PermissionDecisionService(this.auditLogger);
     const dataDir = resolveNagexDataDir(idempotencyDirName, idempotencyEnvVar);
@@ -286,6 +289,7 @@ export class CapabilityBroker {
     if (provider === 'DEVICE') return Boolean(this.deviceControlService);
     if (provider === 'DEVICE_DESKTOP') return Boolean(this.desktopControlService) && this.desktopControlService!.isReady();
     if (provider === 'GITHUB') return Boolean(this.githubService);
+    if (provider === 'MCP') return Boolean(this.mcpService);
     if (provider === 'WEB_SEARCH') return Boolean(this.evidencePackService) && this.evidencePackService!.isWebSearchAvailable();
     return false;
   }
@@ -315,7 +319,8 @@ export class CapabilityBroker {
     // Fix B — Enforce effectiveApproval:
     // If safety policy requires action approval (effectiveApproval === 'REQUIRED')
     // but the requested capability has no native approval continuation, BLOCK with CAPABILITY_SAFETY_APPROVAL_REQUIRED.
-    if (effectiveApproval === 'REQUIRED' && !NATIVE_APPROVAL_CAPABILITIES.has(request.capabilityId)) {
+    // MCP tools carry their own hash-bound approval continuation (McpService), so they are native too.
+    if (effectiveApproval === 'REQUIRED' && !NATIVE_APPROVAL_CAPABILITIES.has(request.capabilityId) && def.provider !== 'MCP') {
       this.auditLogger.logEvent({
         actor: { type: 'user', id: request.principalId },
         tenant_id: request.tenantId,
@@ -480,6 +485,19 @@ export class CapabilityBroker {
         if (read.outcome === 'NOT_AVAILABLE') return { status: 'BLOCKED', capabilityId: request.capabilityId, reasonCode: `GITHUB_${read.connection.state}` };
         return { status: 'EXECUTED', capabilityId: request.capabilityId, result: read.outcome === 'OK' ? { outcome: 'OK', ...read.data } : { outcome: read.outcome } };
       }
+    }
+
+    // MCP (user-registered tool servers): always CONSEQUENTIAL + approval REQUIRED. Identity is the request's server-derived
+    // tenant + principal; McpService refuses any tool the request identity does not own.
+    if (def.provider === 'MCP' && this.mcpService) {
+      const identity = { tenantId: request.tenantId, principalId: request.principalId, requestId: request.requestId };
+      if (request.approvalId) {
+        const result = await this.mcpService.executeApprovedTool({ ...identity, capabilityId: request.capabilityId, payload: request.payload, approvalId: request.approvalId });
+        return { status: 'EXECUTED', capabilityId: request.capabilityId, result };
+      }
+      const approval = this.mcpService.requestToolApproval({ ...identity, capabilityId: request.capabilityId, payload: request.payload });
+      this.logApprovalRequired(request, def);
+      return { status: 'APPROVAL_REQUIRED', capabilityId: request.capabilityId, approval };
     }
 
     // Handle Gmail Capabilities

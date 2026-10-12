@@ -2,6 +2,10 @@ import { CapabilityDefinition } from './capability.types.js';
 
 export class CapabilityRegistry {
   private readonly definitions = new Map<string, CapabilityDefinition>();
+  // Per-user entries (MCP tools the owner enabled). Kept apart from the canonical set so they never appear in list():
+  // another user's tool ids are not disclosed by a catalog, and they can be added and removed at runtime.
+  private readonly dynamicDefinitions = new Map<string, CapabilityDefinition>();
+
   constructor() {
     this.registerDefaults();
   }
@@ -70,11 +74,23 @@ export class CapabilityRegistry {
   }
 
   public get(capabilityId: string): CapabilityDefinition | undefined {
-    return this.definitions.get(capabilityId);
+    return this.definitions.get(capabilityId) ?? this.dynamicDefinitions.get(capabilityId);
   }
 
   public has(capabilityId: string): boolean {
-    return this.definitions.has(capabilityId);
+    return this.definitions.has(capabilityId) || this.dynamicDefinitions.has(capabilityId);
+  }
+
+  // A dynamic definition can never replace a canonical one, and only the MCP provider may register dynamically.
+  public registerDynamic(definition: CapabilityDefinition): void {
+    if (definition.provider !== 'MCP' || !definition.id.startsWith('mcp.') || this.definitions.has(definition.id)) {
+      throw new Error(`Capability "${definition.id}" cannot be registered dynamically.`);
+    }
+    this.dynamicDefinitions.set(definition.id, definition);
+  }
+
+  public unregisterDynamic(capabilityId: string): void {
+    this.dynamicDefinitions.delete(capabilityId);
   }
 
   public list(): CapabilityDefinition[] {

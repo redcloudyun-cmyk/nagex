@@ -37,6 +37,8 @@ import { ArtifactStore } from '../artifacts/artifact.store.js';
 import { skillRegistry as canonicalSkillRegistry } from '../skills/skill-registry.js';
 import { toolRegistry as canonicalToolRegistry } from '../tools/tool-registry.js';
 import { githubConnectionService } from '../integrations/github/index.js';
+import { McpService } from '../mcp/mcp.service.js';
+import { PersistentMcpConnectionStore } from '../mcp/mcp-connection.store.js';
 import { PlanResolver } from '../planning/plan-resolver.js';
 import { PersistentActionApprovalStore } from '../governance/action-approval.store.js';
 import { ExecutionStore } from '../governance/execution.store.js';
@@ -371,6 +373,16 @@ export function createNagexApplication(): NagexApplication {
     competitorPricingMemoryPort,
   );
 
+  // User-registered MCP servers: discovery + pinned identity here, execution only through the Capability Broker below.
+  const mcpService = new McpService({
+    store: new PersistentMcpConnectionStore(),
+    approvals: actionApprovals,
+    audit: auditLogger,
+    registry: capabilityRegistry,
+    executions: executionStore,
+  });
+  mcpService.hydrate();
+  canonicalToolRegistry.registerDynamicProvider((identity) => mcpService.registeredToolsFor(identity));
   const capabilityBroker = new CapabilityBroker(
     googleCalendarService,
     gmailService,
@@ -387,6 +399,7 @@ export function createNagexApplication(): NagexApplication {
     evidencePackService,
     undefined,
     githubConnectionService,
+    mcpService,
   );
 
   // ─── MASTER.md Section 14 — Main Session + Tasks Foundation ───
@@ -790,6 +803,7 @@ export function createNagexApplication(): NagexApplication {
     questionClassificationService,
     webSearchService,
     evidencePackService,
+    mcpService,
     demoScenarioService,
     socialIdentityStore,
     personalReminderStore,

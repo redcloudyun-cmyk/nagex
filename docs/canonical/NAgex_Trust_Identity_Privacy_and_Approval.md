@@ -257,6 +257,19 @@ GitHub is a built-in connected app using the same ownership and state model as 1
 - **Not implemented:** any write to GitHub (branch, commit, pull request, issue, comment) and any execution of repository code. A future write capability must be registered `CONSEQUENTIAL` with approval `REQUIRED` and run through the Broker's hash-bound approval continuation; code execution is not offered on the API server.
 - The OAuth scope defaults to `read:user repo` (GitHub offers no read-only private-repository scope for OAuth Apps) and can be narrowed with `GITHUB_OAUTH_SCOPES`; the connection reports whether private repositories are reachable.
 
+### 15.3 MCP servers (user-registered tool servers)
+
+MCP is an extension point inside the existing authority model, not a second one.
+
+- Transport is Streamable HTTP only. **stdio / process-spawning servers are not supported** (they would execute arbitrary code on the API server).
+- A server URL is an SSRF boundary: https only, no embedded credentials, no private / loopback / link-local / metadata / reserved address (checked on the literal host, on every resolved address at registration, and again at connect time), optional operator allowlist (`NAGEX_MCP_ALLOWED_HOSTS`), redirects never followed, bounded time and size. `NAGEX_MCP_ALLOW_PRIVATE_NETWORK=1` exists for development and tests only.
+- Every connection belongs to one tenant + user; a foreign connection is indistinguishable from a missing one. The optional bearer credential is encrypted at rest and never returned.
+- The server identity (origin, advertised name) is **pinned** on first successful initialize. A different identity disables every tool of that connection and it stays untrusted until removed and re-added.
+- Tool definitions are untrusted input: names are constrained, descriptions sanitized and capped, and an input schema must stay inside a small fully-checkable JSON Schema subset or the tool is rejected at discovery. Arguments are validated against the accepted schema before an approval is even requested.
+- A discovered tool is **disabled** until its owner enables it. If its definition changes (checked on refresh and again immediately before every call) it is disabled again until re-enabled; a `readOnlyHint` from a server is shown, never trusted.
+- An enabled tool becomes a per-user `CapabilityRegistry` entry (`provider: MCP`, `CONSEQUENTIAL`, approval `REQUIRED`, never listed in the catalog). Execution is only via `CapabilityBroker.execute`: the Permission Authority applies, the call requires a hash-bound, one-time `ActionApproval` consumed immediately before the call, and execution/audit records are written without credentials or argument content.
+- Results are untrusted data (size-capped text; non-text content is reported by type only). The autonomous task runner does not execute MCP tools; they run only after an explicit approval.
+
 ## 16. Source Provenance
 
 Consolidated from:

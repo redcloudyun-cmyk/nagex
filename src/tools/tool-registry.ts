@@ -78,9 +78,28 @@ function computeAvailability(connectionStatus: ToolConnectionStatus, executionMo
   return 'AVAILABLE';
 }
 
+// Per-user tools discovered at runtime (MCP). Always asked for the verified identity; without one nothing is offered.
+export type DynamicToolProvider = (identity: ToolIdentity) => RegisteredTool[];
+
 export class ToolRegistry {
   private readonly tools: RegisteredTool[];
   private readonly lookup = new Map<string, RegisteredTool>();
+  private readonly dynamicProviders: DynamicToolProvider[] = [];
+
+  public registerDynamicProvider(provider: DynamicToolProvider): void {
+    this.dynamicProviders.push(provider);
+  }
+
+  private dynamicTools(identity?: ToolIdentity): RegisteredTool[] {
+    if (!identity?.tenantId || !identity.principalId || this.dynamicProviders.length === 0) return [];
+    const staticIds = new Set(this.tools.map((tool) => tool.id));
+    return this.dynamicProviders.flatMap((provider) => provider(identity)).filter((tool) => !staticIds.has(tool.id));
+  }
+
+  private findDynamic(requested: string, identity?: ToolIdentity): RegisteredTool | undefined {
+    const key = normalizeToolName(requested);
+    return this.dynamicTools(identity).find((tool) => [tool.id, tool.name, ...tool.aliases].some((candidate) => normalizeToolName(candidate) === key));
+  }
 
   constructor(tools: RegisteredTool[]) {
     this.tools = tools.map((tool) => Object.freeze({ ...tool, aliases: [...tool.aliases] }));
@@ -95,7 +114,7 @@ export class ToolRegistry {
   }
 
   public list(identity?: ToolIdentity): readonly PublicToolDescriptor[] {
-    return this.tools.map((tool) => {
+    return [...this.tools, ...this.dynamicTools(identity)].map((tool) => {
       const { connectionStatus, executionMode } = resolveLiveFields(tool, identity);
       return {
         id: tool.id,
@@ -113,7 +132,7 @@ export class ToolRegistry {
     if (!requestedTool?.trim()) {
       return { requestedTool: null, status: 'RESOLVED', resolvedToolId: null, resolvedToolName: null, capability: null, connectionStatus: null, sideEffectLevel: null, requiresApproval: false, executionMode: null, availability: 'NOT_REQUIRED' };
     }
-    const tool = this.lookup.get(normalizeToolName(requestedTool));
+    const tool = this.lookup.get(normalizeToolName(requestedTool)) ?? this.findDynamic(requestedTool, identity);
     if (!tool) {
       return { requestedTool, status: 'UNRESOLVED', resolvedToolId: null, resolvedToolName: null, capability: null, connectionStatus: null, sideEffectLevel: null, requiresApproval: false, executionMode: null, availability: 'UNRESOLVED' };
     }
