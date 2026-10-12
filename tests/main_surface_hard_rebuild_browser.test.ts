@@ -153,7 +153,8 @@ describe('NAgex Main surface hard rebuild', () => {
     assert.equal(await page.locator('#assistant-modal, #ambient-assistant-overlay, .ambient-assistant-overlay').count(), 0);
     assert.equal(await page.locator('#main-model-select').count(), 0);
     assert.equal(await page.locator('#nagex-main-surface').getByText(/GPT|Claude|Gemini|model/i).count(), 0);
-    assert.equal(await page.locator('#main-bottom-tray, #main-tray-toggle, #main-count-today, #main-count-activity, #main-count-suggestions').count(), 0);
+    assert.equal(await page.locator('#main-bottom-tray, #main-tray-toggle, #main-count-today, #main-count-activity, #main-count-suggestions').count(), 0); // the old collapsible tray stays gone
+    assert.equal(await page.locator('#main-home-briefing').count(), 1); // its replacement: the conditional Home briefing (hidden, never deleted, while a conversation is active)
     assert.equal(await page.locator('[data-main-mode="ASK"][aria-pressed="true"]').count(), 1);
     assert.equal(await page.locator('#btn-floating-quickwake').evaluate((el) => getComputedStyle(el).display === 'none'), true);
     assert.equal(await page.locator('#main-mic').isEnabled(), true);

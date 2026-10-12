@@ -19,7 +19,7 @@
     personalContext: false,
     planPreview: true,
     busy: false,
-    trayCollapsed: false,
+    sessionChecked: false,
     attachments: [],
     result: null,
     revisionTarget: null,
@@ -102,7 +102,16 @@
               <div class="main-composer-notice" id="main-composer-notice" role="status" aria-live="polite" hidden></div>
             </div>
           </section>
+          <section class="main-home-briefing" id="main-home-briefing" aria-label="Personal briefing" data-state="idle" hidden>
+            <div class="main-briefing-grid">
+              <article class="main-briefing-card" data-briefing-section="today"><h2 id="main-briefing-title-today">Today</h2><div class="main-briefing-body" id="main-briefing-today"></div></article>
+              <article class="main-briefing-card" data-briefing-section="since"><h2 id="main-briefing-title-since">Since Yesterday</h2><div class="main-briefing-body" id="main-briefing-since"></div></article>
+              <article class="main-briefing-card" data-briefing-section="suggestions"><h2 id="main-briefing-title-suggestions">Suggestions</h2><div class="main-briefing-body" id="main-briefing-suggestions"></div></article>
+            </div>
+            <button type="button" class="main-tool-btn main-briefing-retry" id="main-briefing-retry" hidden>Try again</button>
+          </section>
           <section class="main-thread-card" id="main-thread-card" hidden>
+            <div class="main-thread-tools"><button type="button" class="main-tool-btn" id="main-new-conversation">New conversation</button></div>
             <div class="main-message">
               <span class="main-avatar">R</span>
               <div>
@@ -219,14 +228,6 @@
     notice.appendChild(row);
   }
 
-  function setTrayCollapsed(collapsed) {
-    state.trayCollapsed = collapsed;
-    const tray = document.getElementById('main-bottom-tray');
-    const btn = document.getElementById('main-tray-toggle');
-    if (tray) tray.dataset.collapsed = collapsed ? 'true' : 'false';
-    if (btn) btn.textContent = collapsed ? 'Expand' : 'Collapse';
-  }
-
   function renderAttachments() {
     const el = document.getElementById('main-attachment-list');
     if (!el) return;
@@ -271,7 +272,6 @@
     setComposerNotice('');
     state.busy = true;
     if (send) send.disabled = true;
-    setTrayCollapsed(true);
     hideResult();
     const metadata = requestMetadata();
     showThread(prompt, 'Submitting', 'NAgex is starting from Main.', 'Your request is being classified before any execution path is chosen.', [
@@ -788,7 +788,6 @@
     const panel = document.getElementById('main-result-panel');
     if (root) root.classList.add('has-result');
     if (panel) panel.hidden = false;
-    setTrayCollapsed(true);
     const kind = document.getElementById('main-result-kind');
     const title = document.getElementById('main-result-title');
     const meta = document.getElementById('main-result-meta');
@@ -936,6 +935,290 @@
     document.getElementById('main-result-revise')?.addEventListener('click', reviseResult);
   }
 
+  // ── Home personal briefing (Today / Since Yesterday / Suggestions) ───────────────────────────────────────
+  // Restored after commit b834803 deleted it. It is shown under the composer only on an empty Home and hidden (never removed)
+  // while a conversation or result is active. Data comes only from the existing /api/v1/personal/home aggregation; an
+  // unavailable source is stated, never filled in. Visibility is derived from the actual Main session state.
+  const FRESH_MARK_KEY = 'nagex_main_fresh_after_v1';
+  const briefing = { data: null, status: 'idle', loadedAt: 0, localeListener: false };
+  let sessionObserver = null;
+
+  function bt(key, fallback) {
+    return window.NAGEX_I18N && window.NAGEX_I18N.t ? window.NAGEX_I18N.t(key, fallback) : fallback;
+  }
+
+  function briefingLocale() {
+    return window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale() === 'ko' ? 'ko-KR' : 'en-US';
+  }
+
+  function briefingStateLabel(value) {
+    const map = {
+      Prepared: ['mainBriefing.state.prepared', 'Prepared'],
+      'Needs approval': ['mainBriefing.state.needsApproval', 'Needs approval'],
+      'In progress': ['mainBriefing.state.inProgress', 'In progress'],
+      Completed: ['mainBriefing.state.completed', 'Completed'],
+      'Needs your action': ['mainBriefing.state.needsAction', 'Needs your action'],
+      Failed: ['mainBriefing.state.failed', 'Failed'],
+      Unavailable: ['mainBriefing.state.unavailable', 'Unavailable'],
+    };
+    return map[value] ? bt(map[value][0], map[value][1]) : '';
+  }
+
+  function briefingTime(iso) {
+    const date = new Date(iso);
+    if (!iso || Number.isNaN(date.getTime())) return '';
+    return date.toLocaleTimeString(briefingLocale(), { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function briefingWhen(iso) {
+    const date = new Date(iso);
+    if (!iso || Number.isNaN(date.getTime())) return '';
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const days = Math.floor((startOfToday.getTime() - new Date(date).setHours(0, 0, 0, 0)) / 86400000);
+    if (days <= 0) return briefingTime(iso);
+    if (days === 1) return bt('mainBriefing.yesterday', 'Yesterday') + ' ' + briefingTime(iso);
+    return date.toLocaleDateString(briefingLocale(), { month: 'short', day: 'numeric' });
+  }
+
+  function startOfYesterdayMs() {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    return date.getTime() - 86400000;
+  }
+
+  function briefingModel(home) {
+    const list = (value) => (Array.isArray(value) ? value.filter((item) => item && item.title) : []);
+    const status = home.sourceStatus || {};
+    const seenToday = new Set();
+    const today = [];
+    const pushToday = (title, meta) => {
+      if (seenToday.has(title)) return;
+      seenToday.add(title);
+      today.push({ title, meta });
+    };
+    list(home.today && home.today.meetings).forEach((meeting) => pushToday(meeting.title, briefingTime(meeting.startsAt)));
+    list(home.needsAttention).forEach((item) => pushToday(item.title, briefingStateLabel(item.state)));
+    list(home.upcoming).forEach((item) => pushToday(item.title, briefingTime(item.timestamp)));
+    const cutoff = startOfYesterdayMs();
+    const seenSince = new Set();
+    const since = [...list(home.recentResults), ...list(home.recentCreations)]
+      .filter((item) => item.createdAt && Date.parse(item.createdAt) >= cutoff)
+      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+      .filter((item) => {
+        const key = item.sourceId || item.id || item.title;
+        if (seenSince.has(key)) return false;
+        seenSince.add(key);
+        return true;
+      })
+      .slice(0, 4)
+      .map((item) => ({ title: item.title, meta: [briefingStateLabel(item.state), briefingWhen(item.createdAt)].filter(Boolean).join(' - ') }));
+    const suggestions = list(home.suggestions).slice(0, 3).map((item) => ({
+      title: item.title,
+      reason: item.reason || '',
+      approval: Boolean(item.action && item.action.requiresApproval),
+    }));
+    return {
+      today: today.slice(0, 5),
+      since,
+      suggestions,
+      calendarUnavailable: status.calendar === 'UNAVAILABLE',
+      activityUnavailable: Boolean(status.activity) && status.activity !== 'OK',
+    };
+  }
+
+  function briefingRows(rows) {
+    return '<ul class="main-briefing-list">' + rows.map((row) => '<li class="main-briefing-row"><span>' + esc(row.title) + '</span>' + (row.meta ? '<small>' + esc(row.meta) + '</small>' : '') + '</li>').join('') + '</ul>';
+  }
+
+  function renderBriefing() {
+    const section = document.getElementById('main-home-briefing');
+    if (!section) return;
+    section.setAttribute('aria-label', bt('mainBriefing.aria', 'Personal briefing'));
+    section.dataset.state = briefing.status;
+    const titles = { today: bt('mainBriefing.today', 'Today'), since: bt('mainBriefing.since', 'Since Yesterday'), suggestions: bt('mainBriefing.suggestions', 'Suggestions') };
+    Object.keys(titles).forEach((key) => {
+      const heading = document.getElementById('main-briefing-title-' + key);
+      if (heading) heading.textContent = titles[key];
+    });
+    const newButton = document.getElementById('main-new-conversation');
+    if (newButton) {
+      newButton.textContent = bt('mainBriefing.newConversation', 'New conversation');
+      newButton.title = bt('mainBriefing.newConversationHint', 'Start a fresh Home. Your earlier conversation is kept.');
+    }
+    const bodies = { today: document.getElementById('main-briefing-today'), since: document.getElementById('main-briefing-since'), suggestions: document.getElementById('main-briefing-suggestions') };
+    const retry = document.getElementById('main-briefing-retry');
+    const note = (text) => '<p class="main-briefing-empty">' + esc(text) + '</p>';
+    if (briefing.status === 'idle' || briefing.status === 'loading') {
+      Object.values(bodies).forEach((body) => { if (body) body.innerHTML = note(bt('mainBriefing.loading', 'Loading...')); });
+      if (retry) retry.hidden = true;
+      return;
+    }
+    if (briefing.status === 'error' || !briefing.data) {
+      Object.values(bodies).forEach((body) => { if (body) body.innerHTML = note(bt('mainBriefing.error', "Couldn't load your briefing.")); });
+      if (retry) {
+        retry.hidden = false;
+        retry.textContent = bt('mainBriefing.retry', 'Try again');
+      }
+      return;
+    }
+    if (retry) retry.hidden = true;
+    const model = briefingModel(briefing.data);
+    if (bodies.today) {
+      bodies.today.innerHTML = model.today.length
+        ? briefingRows(model.today) + (model.calendarUnavailable ? '<p class="main-briefing-note">' + esc(bt('mainBriefing.calendarNote', "Calendar isn't connected; events are not included.")) + '</p>' : '')
+        : note(model.calendarUnavailable ? bt('mainBriefing.calendarUnavailable', "Calendar isn't connected, so today's events can't be shown.") : bt('mainBriefing.emptyToday', 'Nothing scheduled or waiting for you today.'));
+    }
+    if (bodies.since) {
+      bodies.since.innerHTML = model.since.length
+        ? briefingRows(model.since)
+        : note(model.activityUnavailable ? bt('mainBriefing.activityUnavailable', 'Recent activity is unavailable right now.') : bt('mainBriefing.emptySince', 'No updates since yesterday.'));
+    }
+    if (bodies.suggestions) {
+      bodies.suggestions.innerHTML = model.suggestions.length
+        ? '<ul class="main-briefing-list">' + model.suggestions.map((item, index) => '<li><button type="button" class="main-briefing-suggestion" data-suggestion-index="' + index + '" title="' + esc(bt('mainBriefing.useSuggestion', 'Put this in the Main box')) + '"><span>' + esc(item.title) + '</span>' + (item.reason ? '<small>' + esc(item.reason) + '</small>' : '') + (item.approval ? '<small class="main-briefing-approval">' + esc(bt('mainBriefing.approvalRequired', 'Approval required')) + '</small>' : '') + '</button></li>').join('') + '</ul>'
+        : note(bt('mainBriefing.emptySuggestions', 'No suggestions right now.'));
+    }
+  }
+
+  async function loadBriefing(force) {
+    if (briefing.status === 'loading') return;
+    if (!force && briefing.status === 'ready' && Date.now() - briefing.loadedAt < 60000) {
+      renderBriefing();
+      return;
+    }
+    if (!briefing.data) briefing.status = 'loading';
+    renderBriefing();
+    const response = await api('/api/v1/personal/home');
+    const home = response && response.data && typeof response.data === 'object' ? response.data : response;
+    if (home && !home.error && typeof home === 'object' && home.sourceStatus) {
+      briefing.data = home;
+      briefing.status = 'ready';
+      briefing.loadedAt = Date.now();
+    } else if (!briefing.data) {
+      briefing.status = 'error';
+    }
+    renderBriefing();
+  }
+
+  function threadIsVisible() {
+    const card = document.getElementById('main-thread-card');
+    return Boolean(card && !card.hidden);
+  }
+
+  // Derived from what Main is really showing: an active result, an active/restored conversation, or an empty Home.
+  function mainSessionState() {
+    const panel = document.getElementById('main-result-panel');
+    if ((panel && !panel.hidden) || (state.result && document.getElementById('nagex-main-surface')?.classList.contains('has-result'))) return 'RESULT';
+    if (state.busy || threadIsVisible()) return 'CONVERSATION';
+    return 'EMPTY_HOME';
+  }
+
+  function syncBriefingVisibility() {
+    const root = document.getElementById('nagex-main-surface');
+    const section = document.getElementById('main-home-briefing');
+    if (!root || !section) return;
+    const sessionState = state.sessionChecked ? mainSessionState() : 'CHECKING';
+    root.dataset.sessionState = sessionState;
+    section.hidden = sessionState !== 'EMPTY_HOME';
+  }
+
+  function watchMainSession() {
+    if (sessionObserver) sessionObserver.disconnect();
+    sessionObserver = new MutationObserver(syncBriefingVisibility);
+    const root = document.getElementById('nagex-main-surface');
+    const card = document.getElementById('main-thread-card');
+    const panel = document.getElementById('main-result-panel');
+    if (root) sessionObserver.observe(root, { attributes: true, attributeFilter: ['class'] });
+    if (card) sessionObserver.observe(card, { attributes: true, attributeFilter: ['hidden'] });
+    if (panel) sessionObserver.observe(panel, { attributes: true, attributeFilter: ['hidden'] });
+  }
+
+  function readFreshMark() {
+    try { return window.sessionStorage.getItem(FRESH_MARK_KEY) || ''; } catch { return ''; }
+  }
+
+  function writeFreshMark(value) {
+    try { window.sessionStorage.setItem(FRESH_MARK_KEY, value); } catch { /* storage unavailable: the mark only lives for this page */ }
+  }
+
+  // Refresh: rebuild the visible conversation from the server's Main session (minus anything the user started fresh from).
+  async function restoreMainSession() {
+    const data = await api('/api/v1/conversations/main', { timeoutMs: 4000 });
+    if (data && !data.error && Array.isArray(data.messages) && !state.busy && !threadIsVisible()) {
+      const mark = readFreshMark();
+      const messages = data.messages
+        .filter((m) => m && typeof m.content === 'string' && m.createdAt && (!m.status || m.status === 'COMMITTED') && (!mark || m.createdAt > mark))
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+      let lastUser = -1;
+      messages.forEach((m, index) => { if (String(m.role).toUpperCase() === 'USER') lastUser = index; });
+      if (lastUser >= 0) {
+        const user = messages[lastUser];
+        const reply = messages.slice(lastUser + 1).find((m) => String(m.role).toUpperCase() === 'ASSISTANT');
+        showThread(
+          user.content,
+          reply ? 'Answered' : bt('mainBriefing.noReplyStatus', 'No reply saved'),
+          bt('mainBriefing.restoredTitle', 'Earlier in this conversation'),
+          reply ? reply.content : bt('mainBriefing.noReply', 'This request has no saved answer.'),
+          [{ state: 'done', label: bt('mainBriefing.restoredStep', 'Restored from your Main conversation'), detail: briefingWhen(user.createdAt) }],
+        );
+        const when = document.getElementById('main-request-time');
+        if (when) when.textContent = briefingWhen(user.createdAt);
+        renderInlineActions([{ id: 'follow', label: 'Ask follow-up', action: () => focusComposer('') }]);
+      }
+    }
+    state.sessionChecked = true;
+    syncBriefingVisibility();
+  }
+
+  // New conversation: only the visible Home is reset. The server keeps the whole history; the view just starts after it.
+  async function startNewConversation() {
+    if (state.busy) return;
+    const data = await api('/api/v1/conversations/main', { timeoutMs: 4000 });
+    if (!data || data.error || !Array.isArray(data.messages)) {
+      setComposerNotice(bt('mainBriefing.newFailed', "Couldn't start a new conversation right now. Try again."), 'error');
+      return;
+    }
+    const newest = data.messages.reduce((acc, m) => (m && m.createdAt && m.createdAt > acc ? m.createdAt : acc), readFreshMark());
+    if (newest) writeFreshMark(newest);
+    const card = document.getElementById('main-thread-card');
+    if (card) card.hidden = true;
+    renderInlineActions([]);
+    hideResult();
+    state.result = null;
+    state.revisionTarget = null;
+    setComposerNotice('');
+    state.sessionChecked = true;
+    syncBriefingVisibility();
+    loadBriefing(true);
+    document.getElementById('main-surface-input')?.focus();
+  }
+
+  function initHomeBriefing() {
+    state.sessionChecked = false;
+    watchMainSession();
+    document.getElementById('main-new-conversation')?.addEventListener('click', startNewConversation);
+    document.getElementById('main-briefing-retry')?.addEventListener('click', () => loadBriefing(true));
+    document.getElementById('main-briefing-suggestions')?.addEventListener('click', (event) => {
+      const button = event.target.closest && event.target.closest('[data-suggestion-index]');
+      if (!button || !briefing.data) return;
+      const item = briefingModel(briefing.data).suggestions[Number(button.dataset.suggestionIndex)];
+      const input = document.getElementById('main-surface-input');
+      if (!item || !input) return;
+      input.value = input.value.trim() ? input.value.replace(/\s+$/, '') + '\n' + item.title : item.title;
+      autoGrow(input);
+      input.focus();
+    });
+    if (!briefing.localeListener) {
+      briefing.localeListener = true;
+      window.addEventListener('nagex:localechange', () => renderBriefing());
+    }
+    renderBriefing();
+    syncBriefingVisibility();
+    restoreMainSession();
+    loadBriefing(false);
+  }
+
   async function renderAttentionCenter() {
     const pop = document.getElementById('attention-popover');
     if (!pop) return;
@@ -978,6 +1261,7 @@
     renderModes();
     bind();
     wireAttentionBell();
+    initHomeBriefing();
     window.NAGEX_MAIN_SURFACE = Object.freeze({
       openArtifactResult,
       getControlMatrix: () => [
@@ -988,6 +1272,8 @@
         ['main-data-toggle', 'my data toggle', 'Main', 'click', 'requestMetadata.usePersonalContext', 'metadata changes', 'pressed state', 'n/a', 'per request', 'consent/owner'],
         ['main-mic', 'microphone dictation', 'Main', 'click', 'Device voice adapter: on-device when the browser verifies it, otherwise the browser vendor only after consent; stop = transcribe, cancel = discard', 'transcript inserted into composer', 'composer text updated', 'permission/unavailable guidance', 'per request', 'browser permission'],
         ['main-voice', 'voice session', 'Main', 'click', 'Device voice adapter (same location and consent rules as dictation) -> Main composer', 'recognized speech becomes editable text', 'composer text updated', 'permission/unavailable guidance', 'per request', 'same Main authority rules'],
+        ['main-home-briefing', 'personal briefing', 'Main', 'render', '/api/v1/personal/home (existing aggregation, read-only)', 'Today / Since Yesterday / Suggestions from real data or a stated empty or unavailable state', 'section under the composer; hidden (not removed) while a conversation or result is active', 'error text with retry; never invented items', 'server aggregation; nothing stored by the section', 'same session authentication'],
+        ['main-new-conversation', 'new conversation', 'Main', 'click', 'GET /api/v1/conversations/main (read-only)', 'visible conversation reset; earlier history kept', 'empty Home with the briefing', 'inline error if the session cannot be read', 'server keeps the history; sessionStorage mark only', 'same session authentication'],
         ['btn-notif-bell', 'bell', 'Header', 'click', 'tasks/approvals/activity/notifications APIs', 'none', 'attention center', 'empty state', 'server stores', 'session'],
         ['main-result-open', 'open result', 'Result', 'click', 'openArtifactInCanvas', 'route/detail view', 'artifact opens', 'unavailable if missing', 'artifact store', 'owner gate'],
         ['main-result-expand', 'expand result', 'Result', 'click', 'UI state', 'fullscreen class', 'large viewer', 'n/a', 'session UI', 'n/a'],

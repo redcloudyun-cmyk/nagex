@@ -299,6 +299,7 @@
       "voice_architecture_boundaries"
     ],
     "ux": [
+      "main_home_briefing_browser",
       "real_life_scenario_library_behavioral_rules",
       "scenario_certification_framework",
       "home_ux_principle",

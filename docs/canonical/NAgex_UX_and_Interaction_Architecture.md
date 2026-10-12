@@ -183,6 +183,22 @@ A source failure should degrade the affected section truthfully rather than blan
 
 Duplicate `sourceRef` presentation across sections should be avoided.
 
+### Desktop Main personal briefing
+
+The Main screen shows a compact personal briefing under the composer — **Today**, **Since Yesterday** and **Suggestions** — fed only by the existing `PersonalHomeResponse` (`GET /api/v1/personal/home`). It is conditionally displayed, never deleted: hiding it keeps its markup, data and cache, and makes no extra API call.
+
+| Main state | Briefing |
+|---|---|
+| Empty Home (including composer focused or a draft being typed) | Visible |
+| Prompt submitted, response in flight or streaming | Hidden |
+| Conversation or restored conversation active | Hidden |
+| Artifact/result panel active | Hidden |
+| Approval workflow active (it lives in the conversation) | Hidden |
+| New empty Home started by the user | Visible |
+| Refresh | Derived from the restored Main session (server conversation history, after the user's "New conversation" mark), not from an initial boolean |
+
+Rules: no invented events, activity or suggestions — an unavailable source (for example no calendar) is stated, a failing source shows an error with retry, and an empty section says so. "Since Yesterday" lists only items that carry a real timestamp from the start of yesterday. A suggestion is a control that puts its text in the composer without overwriting a draft; it never executes anything and shows when approval would be required. "New conversation" only resets the visible Home: the server keeps the whole Main history. EN/KR strings come from the shared i18n dictionary.
+
 ## 12. Consumer Status Vocabulary
 
 Prefer stable human states:

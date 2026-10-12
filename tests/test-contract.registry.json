@@ -5235,6 +5235,23 @@
       "assertionIntent": "Pins the Universal Voice invariants (ADR-0013): no active product source references Whisper or a hosted STT engine; the retired server STT route reads no audio and starts no process; browser SpeechRecognition is never assumed local (third-party unless the platform verifies on-device and processLocally is applied); providers are identified specifically and unknown providers or the desktop runtime get no voice; without provider-specific consent the microphone is never opened; consent is versioned and withdrawable and withdrawal blocks the next recording; stop transcribes and cancel discards; the adapter has no network, audio encoding or fallback engine, persists only consent records and logs no transcript text; Main dictation preserves text, never auto-submits and the control matrix is truthful; voice capture layers and Quick Wake hold no execution authority; wake word and speaker match are never authority; non-TEXT modality is not executed.",
       "notes": "Runtime tests execute the real renderer adapter in a sandbox with a scripted browser; the rest are structural source assertions plus VoiceIdentityService behavior. No real microphone, device or Korean-recognition evidence; open ADR-0013 gaps (Android recognizer locality, native Windows engine, iOS, Conversation loop) are not asserted."
     },
+    "main_home_briefing_browser": {
+      "milestone": "NAGEX-DESKTOP-MAIN-HOME-BRIEFING",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "personal-home",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Real-Chromium proof that the Home personal briefing (Today / Since Yesterday / Suggestions) is restored under the Main composer: it is fed by the existing personal-home aggregation with honest empty, unavailable and error states (no invented items), is localized EN/KR without raw keys, stays visible while a draft is typed, is hidden (not deleted, no extra API call) once a conversation or result is active, returns on a new empty Home while earlier history is kept on the server, derives its visibility after a refresh from the restored Main session (including a fresh Home that must stay fresh), shows suggestions as real controls that never overwrite a draft or execute anything, and does not overflow at desktop widths.",
+      "notes": "Production server harness with provider credentials scrubbed; the AI chat answer and, where stated, the conversation list / personal-home payload are stubbed to force each state. Does not exercise a real AI provider.",
+      "writesRepositoryArtifacts": false
+    },
     "voice_brand_output": {
       "milestone": "NAGEX-VOICE-BRAND-SPEC",
       "classification": "CANONICAL_BEHAVIOR",
