@@ -81,7 +81,8 @@ export const handleProactiveSuggestionsRoutes: AsyncRouteRegistrar<ProactiveSugg
       });
       const record = deps.proactiveInteractionStore.save({ tenantId, principalId, suggestionId, decision, sourceRefs: suggestion.sourceRefs, taskId: task.taskId });
       deps.activityStore.record({ tenantId, principalId, type: 'PROACTIVE_ACCEPTED', title: `Created task from suggestion: ${task.name}`, description: suggestion.reason, status: 'COMPLETED', source: { taskId: task.taskId }, dedupeKey: `proactive:${suggestionId}:accepted` });
-      await deps.notificationEngine.dispatch({ tenantId, principalId, type: 'ACTION_COMPLETED', title: 'Suggestion accepted', body: `Created task: ${task.name}`, metadata: { target: `#tasks/${task.taskId}`, suggestionId, taskId: task.taskId }, dedupeKey: `proactive:${suggestionId}:accepted` });
+      // the recipient is the authenticated caller (S2C): HTTP code never names a recipient, so it uses the caller-bound dispatch authority
+      await deps.notificationEngine.dispatchForCaller({ tenantId, principalId }, { type: 'ACTION_COMPLETED', title: 'Suggestion accepted', body: `Created task: ${task.name}`, metadata: { target: `#tasks/${task.taskId}`, suggestionId, taskId: task.taskId }, requestId, dedupeKey: `proactive:${suggestionId}:accepted` });
       return { status: 201, data: { interaction: record, task, authorityGranted: false } };
     }
 
