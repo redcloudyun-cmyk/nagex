@@ -82,7 +82,12 @@ export function toArtifactUxProjection(record: ArtifactRecord): ArtifactUxProjec
   } else if (type === 'DOCUMENT' || type === 'RESEARCH' || type === 'ANALYSIS') {
     previewKind = 'TEXT';
     previewTarget = null;
-  } else if (type === 'PRESENTATION' || type === 'VIDEO') {
+  } else if (type === 'PRESENTATION') {
+    // R23.7C-D: a real stored deck. It is shown as an outline with a download (the Main result panel); it has no separate Canvas route.
+    previewKind = 'TEXT';
+    previewTarget = null;
+    canvasTarget = '';
+  } else if (type === 'VIDEO') {
     previewKind = 'PLANNED';
     previewTarget = null;
     canvasTarget = ''; // non-routable for planned/future extension

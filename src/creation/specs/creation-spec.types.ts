@@ -65,6 +65,7 @@ export interface PresentationSlideSpec {
 export interface PresentationCreationSpec extends CanonicalCreationSpecBase {
   creationKind: 'PRESENTATION';
   title: string;
+  subtitle?: string;
   audience?: string;
   tone?: 'FORMAL' | 'CONVERSATIONAL' | 'INSPIRATIONAL' | 'TECHNICAL';
   slides: PresentationSlideSpec[];

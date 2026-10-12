@@ -117,6 +117,9 @@ import { CreationRuntime } from '../creation/creation-runtime.js';
 import { LinkCaptureService } from '../capture/link-capture.service.js';
 import { ImageStore } from '../creation/image.store.js';
 import { ImageExecutor } from '../creation/executors/image-executor.js';
+import { PresentationExecutor } from '../creation/executors/presentation-executor.js';
+import { PresentationStore } from '../creation/presentation.store.js';
+import { LocalPptxPresentationAdapter } from '../creation/providers/adapters/local-pptx-adapter.js';
 import { CreationProviderRouter } from '../creation/providers/creation-provider-router.js';
 import { OpenAIImageAdapter } from '../creation/providers/adapters/openai-image-adapter.js';
 import { VaultStore } from '../workspace/vault.store.js';
@@ -570,6 +573,8 @@ export function createNagexApplication(): NagexApplication {
   });
   const creationProviderRouter = new CreationProviderRouter();
   creationProviderRouter.registerImageProvider(new OpenAIImageAdapter());
+  // R23.7C-D: NAgex's own in-process PresentationML renderer (text slides). Always available; no network, no third party.
+  creationProviderRouter.registerPresentationProvider(new LocalPptxPresentationAdapter());
 
   const imageStore = new ImageStore();
   const imageExecutor = new ImageExecutor({
@@ -579,7 +584,18 @@ export function createNagexApplication(): NagexApplication {
     auditLogger,
   });
 
-  const creationRuntime = new CreationRuntime([documentExecutor, imageExecutor]);
+  const presentationStore = new PresentationStore();
+  const presentationExecutor = new PresentationExecutor({
+    aiService,
+    presentationStore,
+    providerRouter: creationProviderRouter,
+    artifactStore,
+    documentStore,
+    auditLogger,
+    getRelevantMemories,
+  });
+
+  const creationRuntime = new CreationRuntime([documentExecutor, imageExecutor, presentationExecutor]);
 
 
 
@@ -874,6 +890,8 @@ export function createNagexApplication(): NagexApplication {
     documentExecutor,
     imageExecutor,
     imageStore,
+    presentationStore,
+    presentationExecutor,
     creationRuntime,
     artifactStore,
     linkCaptureService,

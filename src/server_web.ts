@@ -70,6 +70,7 @@ import { handleEnterpriseIdentityRoutes } from './http/routes/enterprise-identit
 import { handleScimRoutes } from './http/routes/scim.routes.js';
 import { handleCreationRoutes } from './http/routes/creation.routes.js';
 import { handleDocumentCreationRoutes } from './http/routes/document-creation.routes.js';
+import { handlePresentationCreationRoutes } from './http/routes/presentation-creation.routes.js';
 import { handleCaptureRoutes } from './http/routes/capture.routes.js';
 import { handleInboxRoutes } from './http/routes/inbox.routes.js';
 import { handleVaultRoutes } from './http/routes/vault.routes.js';
@@ -743,6 +744,15 @@ export async function handleAsyncApiRequest(
         documentStore: app.documentStore,
       });
       if (docCreationResult) return docCreationResult;
+    }
+
+    // R23.7C-D — Presentation / Slides Creation Runtime Routes
+    {
+      const presentationResult = await handlePresentationCreationRoutes(method, pathname, body, headers, query, {
+        creationRuntime: app.creationRuntime,
+        presentationStore: app.presentationStore,
+      });
+      if (presentationResult) return presentationResult;
     }
 
     // R17 — Creation Routes (generate, variation, list, get)
