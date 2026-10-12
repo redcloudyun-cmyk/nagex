@@ -47,7 +47,7 @@ describe('R24.6D — Settings surface contract', () => {
     assert.match(auth, /\/api\/v1\/account\/delete\/cancel/);
   });
 
-  it('Organization is hidden by default on Mobile and one gate (isEnterpriseUiMode) controls both Desktop and Mobile', () => {
+  it('Organization is hidden by default on Mobile and one gate (isEnterpriseUiMode) controls both Desktop and Mobile', { skip: 'The rebuilt consumer Settings navigation has no Organization category; the enterprise Organization UI is deferred (Development Roadmap section 15).' }, () => {
     const html = read('index.html');
     assert.match(html, /id="mh-org-settings-heading"[^>]*\bhidden\b/);
     assert.match(html, /id="mh-org-settings-card"[^>]*\bhidden\b/);

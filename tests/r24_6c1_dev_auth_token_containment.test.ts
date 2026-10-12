@@ -115,7 +115,8 @@ describe('R24.6C1 — the single dev-token policy', () => {
   });
 });
 
-describe('R24.6C1 — flag OFF: no raw token from any of the four flows', () => {
+const PASSWORD_AUTH_RETIRED = "End-user password authentication was disabled by commit 8a25f7c (Google/Microsoft sign-in only); the replacement contract is tests/auth_google_microsoft_only.test.ts";
+describe('R24.6C1 — flag OFF: no raw token from any of the four flows', { skip: PASSWORD_AUTH_RETIRED }, () => {
   for (const flagValue of [undefined, '', '0', 'true']) {
     it(`signup / resend / forgot / email-change expose nothing (flag=${JSON.stringify(flagValue)})`, async () => {
       await withFlag(flagValue, async () => {
@@ -176,7 +177,7 @@ describe('R24.6C1 — flag OFF: no raw token from any of the four flows', () => 
   });
 });
 
-describe('R24.6C1 — forgot-password does not enumerate accounts', () => {
+describe('R24.6C1 — forgot-password does not enumerate accounts', { skip: PASSWORD_AUTH_RETIRED }, () => {
   it('existing, nonexistent, pending, disabled and malformed requests get the identical public response (flag OFF)', async () => {
     await withFlag(undefined, async () => {
       const f = fixture();
@@ -206,7 +207,7 @@ describe('R24.6C1 — forgot-password does not enumerate accounts', () => {
   });
 });
 
-describe('R24.6C1 — explicit opt-in (flag "1") keeps the dev/test workflow working', () => {
+describe('R24.6C1 — explicit opt-in (flag "1") keeps the dev/test workflow working', { skip: PASSWORD_AUTH_RETIRED }, () => {
   it('signup → verify, resend, forgot → reset, and email-change → confirm all work with the raw token', async () => {
     await withFlag('1', async () => {
       const f = fixture();
@@ -310,7 +311,7 @@ function readTree(dir: string): string {
   return out;
 }
 
-describe('R24.6C1 — real server process', () => {
+describe('R24.6C1 — real server process', { skip: PASSWORD_AUTH_RETIRED }, () => {
   it('default configuration (no flag): signup and forgot-password responses contain no token; an existing and an unknown address look identical', { timeout: 120_000 }, async () => {
     await runServer(undefined, async (call) => {
       const email = `proc_default_${Date.now()}@example.invalid`;

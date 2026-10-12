@@ -85,7 +85,7 @@ async function assertNoTokenAnywhere(page: Page, capture: Capture, where: string
 }
 
 for (const kind of ['desktop', 'mobile'] as const) {
-  describe(`R24.6C1 real browser — ${kind}`, () => {
+  describe(`R24.6C1 real browser — ${kind}`, { skip: "End-user password authentication was disabled by commit 8a25f7c (Google/Microsoft sign-in only); the replacement contract is tests/auth_google_microsoft_only.test.ts (the sign-up and forgot-password screens no longer exist)" }, () => {
     it('signup shows a truthful "delivery not configured" state: no token field, no fake "email sent", no token in DOM/storage/console/network', { timeout: 120_000 }, async () => {
       const { ctx, page, capture } = await newPage(kind);
       await openAuth(page, kind);

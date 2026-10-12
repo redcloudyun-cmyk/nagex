@@ -29,7 +29,8 @@ function createTestApp() {
   };
 }
 
-test('R13-IDENTITY-001: Account Creation (Signup) & Validation', async () => {
+const PASSWORD_AUTH_RETIRED = "End-user password authentication was disabled by commit 8a25f7c (Google/Microsoft sign-in only); the replacement contract is tests/auth_google_microsoft_only.test.ts";
+test('R13-IDENTITY-001: Account Creation (Signup) & Validation', { skip: PASSWORD_AUTH_RETIRED }, async () => {
   const deps = createTestApp();
 
   // Valid signup
@@ -73,7 +74,7 @@ test('R13-IDENTITY-001: Account Creation (Signup) & Validation', async () => {
   assert.equal((mismatchRes?.data as any).error.code, 'PASSWORD_MISMATCH');
 });
 
-test('R13-IDENTITY-002: Email Verification & Token Lifecycle', async () => {
+test('R13-IDENTITY-002: Email Verification & Token Lifecycle', { skip: PASSWORD_AUTH_RETIRED }, async () => {
   const deps = createTestApp();
 
   // Signup
@@ -99,7 +100,7 @@ test('R13-IDENTITY-002: Email Verification & Token Lifecycle', async () => {
   assert.equal((replayRes?.data as any).error.code, 'INVALID_VERIFICATION_TOKEN');
 });
 
-test('R13-IDENTITY-003: Login, State Machine, and Uniform Error Messages', async () => {
+test('R13-IDENTITY-003: Login, State Machine, and Uniform Error Messages', { skip: PASSWORD_AUTH_RETIRED }, async () => {
   const deps = createTestApp();
 
   // Signup & verify
@@ -230,7 +231,7 @@ test('R13-IDENTITY-005: IDOR Defense — Foreign Session Revocation Rejection (4
   assert.ok(checkB);
 });
 
-test('R13-IDENTITY-006: Password Change, Password Recovery & Session Invalidation', async () => {
+test('R13-IDENTITY-006: Password Change, Password Recovery & Session Invalidation', { skip: PASSWORD_AUTH_RETIRED }, async () => {
   const deps = createTestApp();
 
   const { identity } = deps.identityStore.createAccount('pw@example.com', hashPassword('OldPassword123!'));

@@ -92,6 +92,10 @@ const duplicateIds = (page: Page) => page.evaluate(() => {
   return [...seen.entries()].filter(([, n]) => n > 1).map(([id]) => id);
 });
 
+const PASSWORD_AUTH_RETIRED = 'End-user password authentication was disabled by commit 8a25f7c (Google/Microsoft sign-in only; password endpoints answer 410); the Desktop password-change form and the password-confirmed disable/delete flows no longer exist. Replacement contract: tests/auth_google_microsoft_only.test.ts. Account disable/delete for OAuth-only accounts is tracked as DEBT-0013.';
+const DESKTOP_PREFS_UI_RETIRED = 'The rebuilt Desktop Settings has no Autonomy or Quick Wake panel (the commercial shell replaced those containers); the same preferences are certified through the Mobile Settings tests. Tracked as DEBT-0013.';
+const ORG_UI_DEFERRED = 'The rebuilt consumer Settings has no Organization category; the enterprise Organization UI is deferred (Development Roadmap section 15).';
+
 describe('R24.6D — Desktop Account is reachable and shares the Mobile implementation', () => {
   it('the header user control lands on the Account category; profile values load; a safe edit persists across reload', { timeout: 120_000 }, async () => {
     const user = disposable('acct');
@@ -151,7 +155,7 @@ describe('R24.6D — Desktop Account is reachable and shares the Mobile implemen
   });
 });
 
-describe('R24.6D — Account operations on Desktop (disposable accounts only)', () => {
+describe('R24.6D — Account operations on Desktop (disposable accounts only)', { skip: PASSWORD_AUTH_RETIRED }, () => {
   it('password change, session revoke and log-out-all work through the Desktop UI', { timeout: 180_000 }, async () => {
     const user = disposable('pwd');
     const second = sessionStore.createAuthSession(user.tenantId, user.userId, 'MAIN', { userAgent: 'Disposable Second Device' } as any);
@@ -231,7 +235,7 @@ describe('R24.6D — Account operations on Desktop (disposable accounts only)', 
   });
 });
 
-describe('R24.6D — Organization follows one enterprise-visibility rule on Desktop and Mobile', () => {
+describe('R24.6D — Organization follows one enterprise-visibility rule on Desktop and Mobile', { skip: ORG_UI_DEFERRED }, () => {
   it('hidden on both outside enterprise mode (including a #settings/organization deep link); visible on both with ?enterprise=1', { timeout: 120_000 }, async () => {
     const user = disposable('org');
     // Desktop, consumer mode
@@ -263,7 +267,8 @@ describe('R24.6D — Organization follows one enterprise-visibility rule on Desk
 });
 
 // Visible English-only text in a Korean Settings surface (brand/product names are legitimate).
-const ALLOWED_ENGLISH = [/^Google Calendar & Gmail$/, /^NAgex$/, /^IP$/];
+// The account email address and the English language endonym are not translatable text either.
+const ALLOWED_ENGLISH = [/^Google Calendar & Gmail$/, /^NAgex$/, /^IP$/, /^(Gmail|Google Calendar|Google Drive|GitHub|Outlook|OneDrive \/ SharePoint|Google|Microsoft|English)$/, /^\S+@\S+$/];
 async function englishOnlyText(page: Page, rootSelector: string): Promise<string[]> {
   const found: string[] = await page.evaluate((sel: string) => {
     const root = document.querySelector(sel);
@@ -299,14 +304,13 @@ describe('R24.6D — Settings i18n', () => {
     await page.waitForFunction(() => window.NAGEX_I18N.getLocale() === 'ko');
     const leaks: string[] = [];
     const labels: Record<string, string[]> = {};
-    for (const cat of ['account', 'connections', 'ai-models', 'autonomy', 'privacy', 'notifications', 'devices']) {
+    for (const cat of ['account', 'connections', 'devices', 'permissions', 'notifications', 'personalization', 'privacy-security', 'appearance']) {
       await page.evaluate((c: string) => document.getElementById('cat-tab-' + c).click(), cat);
       await page.waitForTimeout(300);
       leaks.push(...(await englishOnlyText(page, '#view-settings')).map((t) => `desktop/${cat}: ${t}`));
-      const raw: string[] = await page.evaluate(() => (document.querySelector('#view-settings').innerText.match(/\b[a-z]+[A-Za-z]*\.[a-z][A-Za-z]+\b/g) || []));
+      // the Account section shows the account email (a dotted domain), which is not an i18n key
+      const raw: string[] = await page.evaluate(() => (document.querySelector('#view-settings').innerText.replace(/\S+@\S+/g, '').match(/\b[a-z]+[A-Za-z]*\.[a-z][A-Za-z]+\b/g) || []));
       assert.deepEqual(raw, [], `raw i18n keys in desktop ${cat}`);
-      if (cat === 'notifications') labels.deskQw = await page.$$eval('#quickwake-settings-options .setting-title', (e: any[]) => e.map((x) => x.textContent.trim()));
-      if (cat === 'autonomy') labels.deskAu = await page.$$eval('#autonomy-selector-container .setting-title', (e: any[]) => e.map((x) => x.textContent.trim()));
     }
     assert.deepEqual([...new Set(leaks)], [], 'hardcoded English in Korean desktop Settings');
     await ctx.close();
@@ -323,15 +327,13 @@ describe('R24.6D — Settings i18n', () => {
     labels.mobAu = await mpage.$$eval('#mh-autonomy-list .mh-autonomy-card .mh-settings-row-title', (e: any[]) => e.map((x) => x.textContent.trim()));
     await mctx.close();
 
-    assert.deepEqual(labels.deskQw, labels.mobQw, 'Desktop and Mobile Quick Wake labels come from the same i18n keys');
-    assert.deepEqual(labels.deskAu, labels.mobAu, 'Desktop and Mobile Autonomy labels come from the same i18n keys');
-    assert.ok(labels.deskQw.every((l) => /[가-힣]/.test(l)), `Korean Quick Wake labels: ${labels.deskQw.join(' | ')}`);
-    assert.ok(labels.deskAu.every((l) => /[가-힣]/.test(l)), `Korean Autonomy labels: ${labels.deskAu.join(' | ')}`);
+    assert.ok(labels.mobQw.length > 0 && labels.mobQw.every((l) => /[가-힣]/.test(l)), `Korean Quick Wake labels: ${labels.mobQw.join(' | ')}`);
+    assert.ok(labels.mobAu.length > 0 && labels.mobAu.every((l) => /[가-힣]/.test(l)), `Korean Autonomy labels: ${labels.mobAu.join(' | ')}`);
   });
 });
 
 describe('R24.6D — final Settings surface: persisted state, truthful config-only/unsupported controls, security', () => {
-  it('Desktop: Quick Wake, Autonomy, Proactive Assistant, memory settings, Connections and Devices all show truthful, persisted, per-user state', { timeout: 180_000 }, async () => {
+  it('Desktop: Quick Wake, Autonomy, Proactive Assistant, memory settings, Connections and Devices all show truthful, persisted, per-user state', { skip: DESKTOP_PREFS_UI_RETIRED, timeout: 180_000 }, async () => {
     const user = disposable('final');
     const ctx = await newContext('desktop', user);
     const page = await ctx.newPage();
@@ -390,7 +392,7 @@ describe('R24.6D — final Settings surface: persisted state, truthful config-on
     assert.equal(await mpage.evaluate(() => (document.querySelector('#mh-quickwake-list input[data-qw-key="floating_button"]') as any).checked), false);
     const layout = await mpage.evaluate(() => ({
       overflow: document.scrollingElement.scrollWidth > innerWidth + 1 || document.querySelector('#mobile-view-settings').scrollWidth > document.querySelector('#mobile-view-settings').clientWidth + 1,
-      raw: (document.querySelector('#mobile-view-settings').innerText.match(/\b[a-z]+[A-Za-z]*\.[a-z][A-Za-z]+\b/g) || []),
+      raw: (document.querySelector('#mobile-view-settings').innerText.replace(/\S+@\S+/g, '').match(/\b[a-z]+[A-Za-z]*\.[a-z][A-Za-z]+\b/g) || []),
     }));
     assert.equal(layout.overflow, false, 'horizontal overflow at 390px');
     assert.deepEqual(layout.raw, []);
@@ -414,8 +416,9 @@ describe('R24.6D — final Settings surface: persisted state, truthful config-on
     assert.equal((await fetch(`${origin}/api/v1/autonomy/config`, { headers: { 'x-principal-id': a.userId, 'x-nagex-tenant': a.tenantId } })).status, 401);
 
     const signup = await api('POST', '/api/v1/auth/signup', { email: `r246d_signup_${RUN}@example.invalid`, password: 'Sign-Up-Pass-1!', passwordConfirmation: 'Sign-Up-Pass-1!', termsAccepted: true, privacyAccepted: true });
-    assert.equal(signup.status, 201);
+    // password signup is disabled (OAuth-only, commit 8a25f7c): the endpoint refuses and exposes no token or delivery detail
+    assert.equal(signup.status, 410);
     assert.equal(signup.data.devVerificationToken, undefined);
-    assert.deepEqual(signup.data.delivery, { status: 'NOT_CONFIGURED' });
+    assert.equal(JSON.stringify(signup.data).includes('devVerificationToken'), false);
   });
 });
