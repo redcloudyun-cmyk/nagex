@@ -250,6 +250,12 @@ export class TaskStore {
     );
   }
 
+  // System-only (startup recovery, like listDue): every task whose record says a run is in flight. After a process restart nothing is
+  // genuinely in flight, so these are runs the previous process life was interrupted in.
+  public listRunning(): TaskRecord[] {
+    return [...this.records.values()].filter((t) => t.status === 'RUNNING');
+  }
+
   public update(taskId: string, tenantId: string, ownerId: string, patch: Partial<Pick<TaskRecord, 'name' | 'objective' | 'trigger' | 'approvalPolicy' | 'nextRunAt' | 'notifyOnComplete'>>, requestId = 'task_update'): TaskRecord {
     const record = this.requireOwned(taskId, tenantId, ownerId, requestId);
     if (patch.name !== undefined) record.name = patch.name;

@@ -200,3 +200,36 @@ test('a run persists (survives a restart) via a fresh TaskRunStore pointed at th
   assert.ok(restored);
   assert.equal(restored!.status, 'SUCCEEDED');
 });
+
+// Duplicate/replay prevention (R23.7G reconciliation): a slow run lets the next interval tick start while the previous tick is still working through its
+// snapshot of due tasks. A task the later tick already ran must not be run again when the earlier tick reaches it.
+class GatedRunner implements TaskRunner {
+  public readonly callsByTask = new Map<string, number>();
+  private release!: () => void;
+  private readonly gate = new Promise<void>((resolve) => { this.release = resolve; });
+  constructor(private readonly slowTaskId: string) {}
+  open(): void { this.release(); }
+  async run(task: TaskRecord): Promise<TaskRunOutcome> {
+    this.callsByTask.set(task.taskId, (this.callsByTask.get(task.taskId) ?? 0) + 1);
+    if (task.taskId === this.slowTaskId) await this.gate;
+    return { status: 'SUCCEEDED', result: { ok: true } };
+  }
+}
+
+test('overlapping ticks never run the same due task twice (the earlier tick re-checks before it runs a task a later tick already ran)', async () => {
+  const taskStore = new TaskStore({ dir: tempDir() });
+  const runStore = new TaskRunStore({ dir: tempDir() });
+  const first = taskStore.create(baseTaskInput({ name: 'slow first' }));
+  const second = taskStore.create(baseTaskInput({ name: 'second' }));
+  const runner = new GatedRunner(first.taskId);
+  const scheduler = new TaskScheduler(taskStore, runStore, runner, new AuditLogger(), () => new Date('2026-06-01T00:00:00.000Z'));
+
+  const slowTick = scheduler.tick(); // runs the first task and waits on the gate
+  await new Promise((resolve) => setImmediate(resolve));
+  await scheduler.tick(); // the next interval tick: the first task is RUNNING, the second is still due and gets run here
+  runner.open();
+  await slowTick;
+
+  assert.equal(runner.callsByTask.get(first.taskId), 1, 'the slow task ran once');
+  assert.equal(runner.callsByTask.get(second.taskId), 1, 'the second task ran once, not twice');
+});

@@ -289,7 +289,8 @@ The current implementation sequence:
 3. R23.7C-D Presentation Runtime                                        IMPLEMENTED (acceptance pending; started ahead of the H-C closure gate)
    (technically parallel-capable, but execution-gated behind R23.7H-C)
 4. R23.7C-E Video Runtime                                               PLANNED
-5. Reconcile R23.7G Background Runtime Certification against current code
+5. Reconcile R23.7G Background Runtime Certification against current code   RECONCILED 2026-10-13 (2 defects fixed, residual limits listed;
+   see docs/evidence/NAGEX_R23_7G_BACKGROUND_RUNTIME_RECONCILIATION_20261013.md) — owner acceptance pending
 6. R23.8P Personality / Trust UX
 7. R23.9C Final Certification
 ```
@@ -361,6 +362,11 @@ Required questions include:
 - cross-session isolation.
 
 If newer evidence proves R23.7G closed, update this roadmap from that evidence rather than rerunning work blindly.
+
+**Reconciliation result (2026-10-13):** every question above now has a stated, tested position in
+`docs/evidence/NAGEX_R23_7G_BACKGROUND_RUNTIME_RECONCILIATION_20261013.md`. The reconciliation found and fixed two real defects (overlapping scheduler ticks could run
+one task twice; a run interrupted by a restart left its schedule stranded as RUNNING) and lists the residual limits (at-least-once recovery for an ambiguous external
+dispatch, no kill-the-server end-to-end test for the interrupted-run sweep, single-process assumption). It does not close R23.7G on its own; that needs the owner.
 
 ## 12. Personality / Trust UX
 

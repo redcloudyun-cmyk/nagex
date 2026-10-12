@@ -86,7 +86,22 @@ function buildStack() {
   const actionApprovals = new ActionApprovalStore(Date.now, 15 * 60 * 1000);
   const executionStore = new ExecutionStore({ dir: tempDir('exec') });
   const memoryEngine = new MemoryEngine();
-  const tokenStore: any = { getValidAccessToken: async () => 'mock_token' };
+  // a connected Google account for the (per-principal) credential access service; the grant covers the Calendar and Gmail scopes the steps need
+  const tokenStore: any = {
+    getStatusForPrincipal: () => ({
+      configured: true,
+      connected: true,
+      scopes: [
+        'https://www.googleapis.com/auth/calendar.events',
+        'https://www.googleapis.com/auth/calendar.events.freebusy',
+        'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
+        'https://www.googleapis.com/auth/gmail.modify',
+      ],
+      expiresAt: Date.now() + 3600_000,
+    }),
+    getValidAccessTokenForPrincipal: async () => 'mock_token',
+    getValidAccessToken: async () => 'mock_token',
+  };
   const getConfig: any = () => ({ clientId: 'mock', clientSecret: 'mock', redirectUri: 'mock' });
 
   let gmailSendCount = 0;
@@ -408,4 +423,29 @@ test('16. no false completion/failure notification for a run recovered into a fr
 
   await runtime.recoverOnStartup();
   assert.deepEqual(dispatched, ['APPROVAL_REQUEST'], 'a recovered run that pauses again must dispatch APPROVAL_REQUEST but never TASK_COMPLETED/TASK_FAILED');
+});
+
+// R23.7G reconciliation — a scheduled task that is NOT a durable multi-step plan run (a daily brief, a condition watch, a plan preview) has no durable
+// record, so recoverOnStartup() cannot resume it. If the previous process life died while it was running, its Task stayed RUNNING forever (the scheduler
+// only picks up ACTIVE/WAITING tasks) and its TaskRun stayed RUNNING: the schedule silently stopped. The startup sweep must record an honest FAILED run
+// (never a fake success) and put the schedule back into service.
+test('14. failInterruptedRuns() ends a run the previous process died in as FAILED (INTERRUPTED_BY_RESTART) and puts a recurring schedule back into service', async () => {
+  const { taskStore, taskRunStore, durableRuntime } = buildStack();
+  const recurring = taskStore.create({ tenantId: 't_p03', ownerId: 'u_p03', name: 'Daily brief', objective: 'x', type: 'RECURRING', trigger: { type: 'INTERVAL', intervalMinutes: 60 }, approvalPolicy: 'READ_ONLY_AUTO', nextRunAt: '2026-01-01T00:00:00.000Z' });
+  const oneTime = taskStore.create({ tenantId: 't_p03', ownerId: 'u_p03', name: 'Once', objective: 'x', type: 'ONE_TIME', trigger: { type: 'MANUAL' }, approvalPolicy: 'READ_ONLY_AUTO' });
+  const idle = taskStore.create({ tenantId: 't_p03', ownerId: 'u_p03', name: 'Idle', objective: 'x', type: 'RECURRING', trigger: { type: 'INTERVAL', intervalMinutes: 60 }, approvalPolicy: 'READ_ONLY_AUTO', nextRunAt: '2099-01-01T00:00:00.000Z' });
+  for (const [task, runId] of [[recurring, 'exe_int_rec'], [oneTime, 'exe_int_one']] as const) {
+    taskStore.markRunning(task.taskId);
+    taskRunStore.start({ runId, taskId: task.taskId, tenantId: task.tenantId, startedAt: new Date().toISOString() });
+  }
+
+  assert.equal(durableRuntime.failInterruptedRuns(), 2);
+
+  assert.equal(taskRunStore.get('exe_int_rec')?.status, 'FAILED');
+  assert.equal(taskRunStore.get('exe_int_rec')?.errorCode, 'INTERRUPTED_BY_RESTART');
+  assert.equal(taskStore.get(recurring.taskId, recurring.tenantId, recurring.ownerId)?.status, 'ACTIVE', 'a recurring schedule is back in service');
+  assert.equal(taskStore.get(recurring.taskId, recurring.tenantId, recurring.ownerId)?.lastRunStatus, 'FAILED');
+  assert.equal(taskStore.get(oneTime.taskId, oneTime.tenantId, oneTime.ownerId)?.status, 'FAILED', 'a one-time task is not reported as completed');
+  assert.equal(taskStore.get(idle.taskId, idle.tenantId, idle.ownerId)?.status, 'ACTIVE', 'a task that was not running is untouched');
+  assert.equal(durableRuntime.failInterruptedRuns(), 0, 'idempotent: nothing is left RUNNING');
 });

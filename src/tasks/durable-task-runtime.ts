@@ -1,7 +1,7 @@
 import { NagexError } from '../common/errors.js';
 import type { AuditLogger } from '../governance/audit.logger.js';
 import type { NotificationEngine } from '../notifications/notification.engine.js';
-import type { TaskRunOutcome } from './task.scheduler.js';
+import { computeNextRunAt, type TaskRunOutcome } from './task.scheduler.js';
 import { finalizeTaskRun } from './task-run-finalizer.js';
 import type { TaskStore } from './task.store.js';
 import type { TaskRunStore } from './task-run.store.js';
@@ -92,5 +92,33 @@ export class DurableTaskRuntime {
     }
 
     return { recovered, failed };
+  }
+
+  // Runs once at boot, AFTER recoverOnStartup(). Every durable multi-step run has been resumed or finalized by then, so a Task still RUNNING is a
+  // scheduled run that has no durable record to resume from (daily brief, condition watch, plan preview) and that the previous process life died in. It
+  // is recorded as a FAILED run (INTERRUPTED_BY_RESTART, audited, the owner is notified) — never as a success and never silently — and the schedule goes
+  // back into service through the same finalization every other run uses (RECURRING -> ACTIVE with its next run, ONE_TIME -> FAILED). It is not re-run
+  // here: replaying a run whose side effects are unknown is not this method's decision.
+  public failInterruptedRuns(): number {
+    let failed = 0;
+    for (const task of this.tasks.listRunning()) {
+      const requestId = `req_task_interrupted_${task.taskId}`;
+      const run = this.runs.listForTask(task.taskId).find((r) => r.status === 'RUNNING');
+      if (run) {
+        finalizeTaskRun(
+          { tasks: this.tasks, runs: this.runs, audit: this.audit, now: this.now, notificationEngine: this.notificationEngine },
+          task,
+          run.runId,
+          requestId,
+          { status: 'FAILED', errorCode: 'INTERRUPTED_BY_RESTART' },
+        );
+      } else {
+        // marked running but the run record was never written: still must not stay RUNNING
+        const nextRun = computeNextRunAt(task.trigger, this.now());
+        this.tasks.recordRunOutcome(task.taskId, { status: 'FAILED', completedAt: this.now().toISOString(), nextRunAt: nextRun ? nextRun.toISOString() : null }, requestId);
+      }
+      failed++;
+    }
+    return failed;
   }
 }

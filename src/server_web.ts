@@ -1245,6 +1245,11 @@ export async function startNagexServer(): Promise<{ server: http.Server }> {
       if (recovered > 0 || failed > 0) {
         console.log(JSON.stringify({ event: 'durable_task_run_recovery_completed', recovered, failed }));
       }
+      // scheduled runs with no durable record (daily brief, condition watch, plan preview) that the previous process life died in
+      const interrupted = durableTaskRuntime.failInterruptedRuns();
+      if (interrupted > 0) {
+        console.log(JSON.stringify({ event: 'interrupted_task_runs_failed', interrupted }));
+      }
     },
     stop: () => {}, // one-time startup action — nothing to tear down
   });

@@ -158,9 +158,10 @@ export interface TaskRunner {
 // Finds ACTIVE tasks whose nextRunAt has arrived, runs each exactly once
 // through the injected TaskRunner (never bypassing it — see MASTER.md
 // AC-07/AC-10), records a TaskRun, reschedules RECURRING tasks, and
-// completes ONE_TIME tasks. Does not itself guard against overlapping
-// ticks — the caller (a single setInterval in server_web.ts) must not
-// invoke tick() concurrently with itself.
+// completes ONE_TIME tasks. Overlapping ticks cannot run a task twice
+// (tick() re-checks that each snapshot entry is still due before it claims
+// it), so a slow run does not hold up other due tasks picked up by the
+// next interval tick.
 export class TaskScheduler {
   constructor(
     private readonly tasks: TaskStore,
@@ -175,6 +176,10 @@ export class TaskScheduler {
     const due = this.tasks.listDue(this.now());
     const results: TaskRunRecord[] = [];
     for (const task of due) {
+      // Duplicate-run guard: a slow earlier run can let the next interval tick start while this tick still holds its snapshot of due tasks. A task
+      // another tick has already claimed (status RUNNING) or finished and rescheduled is no longer due, so it is skipped here. The re-check and
+      // runOne()'s markRunning() are synchronous with each other, so two ticks can never both claim the same task.
+      if (!this.tasks.listDue(this.now()).some((current) => current.taskId === task.taskId)) continue;
       results.push(await this.runOne(task));
     }
     return results;
