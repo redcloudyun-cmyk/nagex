@@ -709,6 +709,33 @@ status: OPEN
 
 ---
 
+```yaml
+id: DEBT-0014
+area: device-agent / Android accessibility / Kakao send (tests vs source)
+description: >
+  31 tests in the regression gate fail on every run and on every recorded baseline: the M4/M4C Android accessibility suites (source-regex assertions over
+  the Kotlin service and the device-agent messages), "JIT SEND preparation ...", "production approval route source dispatches approved Kakao SEND once ...",
+  "Right rail keeps the same approved card visible as Working ...", and R23.6M 1v/1w/1x (cached device binding validation). Several assert source that no longer
+  exists: src/http/routes/approvals.routes.ts has no enqueueKakaoSendAfterApproval, and no route /api/v1/device-agent/accessibility-prepare-message-plans exists.
+  Provenance: both were added by ef5a4e6 (feat(proactive): add ambient consent and integration foundations) and were dropped from approvals.routes.ts by the merge
+  b873e41 ("Merge origin/r23.6m-mobile-voice-action"), which deleted ~195 lines of that file. Whether the merge removed them deliberately or by conflict resolution was
+  not established.
+severity: medium
+introduced: b873e41 (the tests came from ef5a4e6)
+reason: >
+  Out of the overnight roadmap scope, and the answer needs the owner: restoring the Kakao/accessibility send path would re-open a consequential-action feature
+  and its approval semantics; deleting the tests would hide a possible lost feature. Neither was done.
+risk: >
+  If the feature was lost by accident, the Android/Kakao assisted-send path is not available although its tests (and possibly docs) say it is; if it was removed on
+  purpose, 31 stale tests keep the gate red and mask new failures.
+target: owner decision — restore the dropped code from ef5a4e6 (with its approval gates) or retire the tests as SUPERSEDED_CONTRACT with the reason; then
+  re-run the gate. Do not claim "Android accessibility send" as a capability until then (MASTER section 7).
+owner: NAGEX
+status: OPEN
+```
+
+---
+
 ## Explicitly classified as NON-GOAL, not debt
 
 Per the R11 directive's own explicit instruction not to silently call every disclosed limitation "debt":
