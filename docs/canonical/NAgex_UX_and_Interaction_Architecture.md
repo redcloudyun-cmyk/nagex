@@ -135,6 +135,17 @@ This replaces the approval-as-navigation model. Create and Canvas are first-clas
 
 The single canonical ordered nav definition is `NAGEX_PRIMARY_NAV` in `public/app.js`; the desktop sidebar (`index.html`'s `ul.nav-menu`) and the mobile bottom nav (a curated subset — Home/Create/Canvas/Inbox/Settings — with Tasks/Knowledge/Approvals reachable via the existing Settings → Advanced drawer) are both kept consistent with it, enforced by `tests/r23_7h_c_phase_d_main_product_experience.test.ts`.
 
+### 9.1 Current desktop sidebar and unified Main (2026-10)
+
+The as-built desktop sidebar (certified by `tests/sidebar_navigation_certification_browser.test.ts`) is exactly `Home, Recent, Workspace, Knowledge, Activity, Settings` (KR: 홈, 최근, 워크스페이스, 지식 베이스, 활동, 설정). Rules:
+
+- **Recent** (`tab-recent`, `#recent`) lists the signed-in user's own artifacts from the existing artifact store, newest first; opening one continues the work in Main. It introduces no new data store. There is no Projects screen: no project data model exists, so none is exposed.
+- **Workspace** (`tab-inbox`) filters and actions act on real items only; read-only previews use an in-page dialog, never a blocking `alert`.
+- **Settings → Account** shows the signed-in user's real identity and sign-in method; a signed-out state shows a sign-in prompt, never a profile form.
+- **Main** is one adaptive surface: idle Home briefing (greeting, composer, Today/Calendar, Personal To-do, Since Yesterday, Suggestions), conversation (compact right-aligned user turns, left-aligned NAgex answers rendered as sanitized Markdown, composer docked at the bottom, multi-turn, restored on refresh) and agent mode (a real task run: plan steps, progress, inline approvals, results; nothing is invented). "My Day" restores the briefing without destroying the conversation. Routing/tool identifiers appear only under the developer diagnostics flag.
+- The Personal To-do shows only the user's real reminders and scheduled/paused/draft tasks; empty is stated honestly.
+- Unsupported creation modes (Slides, Video, Code) remain visibly unavailable rather than advertised.
+
 Do not add a separate top-level Dashboard merely because dashboard-style information exists.
 
 Home should answer:
