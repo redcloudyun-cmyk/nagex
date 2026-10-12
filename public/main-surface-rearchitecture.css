@@ -313,6 +313,336 @@
   }
 }
 
+/*
+ * Unified Main: ONE workspace whose layout follows the real state.
+ *  idle Home      compact hero + composer, the four-card briefing visible without scrolling
+ *  conversation   greeting and briefing collapse; a normal stream with the composer docked at the bottom
+ *  agent task     the same stream, with real plan/step/approval blocks and the result panel beside it
+ */
+.nagex-main-surface {
+  min-height: 0;
+  padding: 14px 22px 20px;
+  gap: 12px;
+}
+
+.nagex-main-left {
+  gap: 12px;
+}
+
+.nagex-main-surface:not(.has-result) .nagex-main-left {
+  width: min(1120px, 100%);
+  max-width: 1120px;
+}
+
+.main-hero-row {
+  align-items: baseline;
+}
+
+.main-hero-row h1 {
+  font-size: clamp(1.45rem, 2vw, 1.95rem);
+  line-height: 1.15;
+}
+
+.main-hero-row p {
+  margin: 2px 0 0;
+  font-size: .95rem;
+}
+
+.main-quote {
+  max-width: 260px;
+  font-size: .8rem;
+}
+
+.main-composer-card {
+  padding: 8px;
+  border-radius: 14px;
+}
+
+.main-mode-row {
+  padding: 0 2px 8px;
+}
+
+.main-mode-chip {
+  min-height: 32px;
+  padding: 0 12px;
+}
+
+.main-input-wrap {
+  padding: 10px 12px;
+}
+
+#main-surface-input {
+  min-height: 56px;
+  max-height: 220px;
+  line-height: 1.5;
+}
+
+.main-composer-footer {
+  padding-top: 8px;
+}
+
+.main-composer-card .main-send {
+  width: 44px;
+  height: 44px;
+  font-size: 1.15rem;
+}
+
+.main-home-briefing {
+  margin-top: 0;
+}
+
+.main-briefing-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.main-briefing-card {
+  padding: 10px 12px;
+  border-radius: 12px;
+  min-height: 112px;
+}
+
+.main-briefing-card h2 {
+  margin: 0 0 6px;
+}
+
+@media (max-width: 1180px) {
+  .main-briefing-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .main-briefing-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* conversation bar: My Day + New conversation */
+.main-conversation-bar {
+  order: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.main-conversation-bar[hidden] {
+  display: none !important;
+}
+
+.main-myday-toggle[aria-expanded="true"] {
+  color: #084fd6;
+  background: #eaf2ff;
+  border-color: #a7c7ff;
+}
+
+/* conversation / agent task: a bounded workspace, the stream scrolls, the composer stays docked */
+.tab-view.main-conversing {
+  height: 100%;
+}
+
+.tab-view.main-conversing .nagex-main-surface {
+  height: 100%;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr);
+  padding-bottom: 12px;
+}
+
+.nagex-main-surface[data-session-state="CONVERSATION"] .nagex-main-left,
+.nagex-main-surface[data-session-state="RESULT"] .nagex-main-left {
+  height: 100%;
+  min-height: 0;
+}
+
+.nagex-main-surface[data-session-state="CONVERSATION"] .main-hero-row,
+.nagex-main-surface[data-session-state="RESULT"] .main-hero-row {
+  display: none;
+}
+
+.nagex-main-surface[data-session-state="CONVERSATION"] .main-home-briefing,
+.nagex-main-surface[data-session-state="RESULT"] .main-home-briefing {
+  order: 2;
+  max-height: min(42vh, 340px);
+  overflow-y: auto;
+}
+
+.nagex-main-surface[data-session-state="CONVERSATION"] .main-thread-card,
+.nagex-main-surface[data-session-state="RESULT"] .main-thread-card {
+  order: 3;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.nagex-main-surface[data-session-state="CONVERSATION"] .main-composer-card,
+.nagex-main-surface[data-session-state="RESULT"] .main-composer-card {
+  order: 4;
+  flex: 0 0 auto;
+}
+
+.nagex-main-surface.has-result .main-result-panel {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* the stream */
+.nagex-main-surface .main-thread-card {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 4px 2px 0;
+}
+
+.main-turns {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.main-turn {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.main-turn .main-message {
+  padding: 0;
+}
+
+.main-turn .main-message-user {
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: end;
+}
+
+.main-turn .main-message-user .main-avatar,
+.main-turn .main-message-user .main-message-meta {
+  display: none;
+}
+
+.main-turn .main-message-user > div {
+  max-width: min(78%, 640px);
+  background: #eaf2ff;
+  border: 1px solid #cfe0f8;
+  border-radius: 16px 16px 4px 16px;
+  padding: 8px 14px;
+}
+
+.main-turn .main-message-user p {
+  margin: 0;
+}
+
+.main-turn .main-work-title {
+  margin: 6px 0 0;
+  font-size: 1rem;
+  color: #0a1a44;
+}
+
+.main-turn .main-work-title:empty,
+.main-turn .main-work-summary:empty,
+.main-turn .main-message-status:empty,
+.main-turn .main-inline-actions:empty,
+.main-turn .main-inline-approvals:empty {
+  display: none;
+}
+
+.main-turn-working {
+  margin: 6px 0 0 !important;
+  color: #547096 !important;
+  font-size: .9rem;
+}
+
+.main-turn-working::before {
+  content: "";
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: #0b63f6;
+  animation: mainVoicePulse 1s ease-in-out infinite;
+}
+
+/* what a turn shows follows what really happened */
+.main-turn:not([data-kind="pending"]) .main-turn-working {
+  display: none;
+}
+
+.main-turn[data-kind="pending"] .main-work-title,
+.main-turn[data-kind="pending"] .main-work-summary,
+.main-turn[data-kind="pending"] .main-step-list,
+.main-turn[data-kind="pending"] .main-message-status,
+.main-turn[data-kind="answer"] .main-work-title,
+.main-turn[data-kind="answer"] .main-step-list,
+.main-turn[data-kind="answer"] .main-message-status,
+.main-turn[data-kind="notice"] .main-step-list {
+  display: none;
+}
+
+.nagex-main-surface[data-diagnostics="1"] .main-turn .main-step-list {
+  display: grid !important;
+}
+
+.main-turn-details {
+  margin-top: 8px;
+  min-height: 28px;
+}
+
+.main-inline-approvals {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.main-approval-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid #f4d18f;
+  border-radius: 10px;
+  background: #fffaf0;
+  color: #4a3304;
+  font-size: .9rem;
+}
+
+.main-approval-card small {
+  color: #7a5a1a;
+}
+
+.main-approval-card button {
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 8px;
+}
+
+.main-turn .main-inline-actions {
+  margin-top: 10px;
+}
+
+.main-turn .main-inline-actions .btn-secondary,
+.main-turn .main-turn-details {
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid #d8e4f6;
+  border-radius: 8px;
+  background: #fff;
+  color: #30476d;
+  font-size: .85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.main-turn .main-inline-actions .btn-secondary:hover,
+.main-turn .main-turn-details:hover {
+  background: #f1f7ff;
+  border-color: #a7c7ff;
+}
+
 .main-left-tools,
 .main-right-tools {
   display: flex;

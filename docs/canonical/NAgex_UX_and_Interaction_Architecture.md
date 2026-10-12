@@ -199,6 +199,21 @@ The Main screen shows a compact personal briefing under the composer — **Today
 
 Rules: no invented events, activity or suggestions — an unavailable source (for example no calendar) is stated, a failing source shows an error with retry, and an empty section says so. "Since Yesterday" lists only items that carry a real timestamp from the start of yesterday. A suggestion is a control that puts its text in the composer without overwriting a draft; it never executes anything and shows when approval would be required. "New conversation" only resets the visible Home: the server keeps the whole Main history. EN/KR strings come from the shared i18n dictionary.
 
+### Desktop Main unified workspace
+
+Desktop Main is ONE adaptive workspace — one session, one Composer, one response stream. Chat and agent work are not separate products; the presentation follows the real task state.
+
+| State | What is shown |
+|---|---|
+| Idle Home | compact personalized greeting, the Composer, and the four-card briefing — Today (calendar), personal To-do, Since Yesterday, Suggestions — inside the first viewport without scrolling (1440x900, 1680x900, 1920x1080, 1366x768) |
+| Draft typing | unchanged; the briefing stays |
+| Conversation / agent task | greeting and briefing collapse; a normal stream (the question once, the answer inline) with the Composer docked at the bottom; a task additionally shows its real plan steps, progress and any real pending approval inline; documents/images open in the contextual result panel |
+| "My Day" | reopens the briefing above the stream without touching the conversation or the draft |
+| New conversation | returns to the idle Home with the briefing |
+| Refresh | the whole conversation (or a started-fresh Home) is restored from the Main session, never from an initial boolean |
+
+Rules: a plain question is just a question and an answer — never an agent dashboard; steps, approvals and evidence appear only when they really exist and are never invented; internal identifiers (modes, intents, tool/approval/message ids) are developer diagnostics (`nagex_main_diagnostics`) or behind an explicit "Show details", never ordinary UI; the personal To-do is real reminder/task data or an honest unavailable/empty state; no global CSS rule may permanently hide briefing data and off-screen rendering does not count as visible.
+
 ### Desktop Main localization
 
 Every visible string on Desktop Main — composer chrome, mode chips, thread status and steps, the result panel, the Attention Center, the briefing cards and the app-shell header — follows the account locale (EN/KR) and re-renders when the language changes.

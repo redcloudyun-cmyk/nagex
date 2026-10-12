@@ -55,7 +55,7 @@ describe('Desktop Main — conditional Home briefing', () => {
     await settled(page, 'EMPTY_HOME');
 
     assert.equal(await briefingVisible(page), true);
-    assert.deepEqual(await page.locator('.main-briefing-card h2').allTextContents(), ['Today', 'Since Yesterday', 'Suggestions']);
+    assert.deepEqual(await page.locator('.main-briefing-card h2').allTextContents(), ['Today', 'To-do', 'Since Yesterday', 'Suggestions']);
     await page.waitForFunction(() => document.querySelector('#main-home-briefing')?.dataset.state === 'ready');
 
     // real data: the recent artifact is listed, the 4-day-old one is not
@@ -85,7 +85,7 @@ describe('Desktop Main — conditional Home briefing', () => {
     await openMain(page);
     await settled(page, 'EMPTY_HOME');
     await page.waitForFunction(() => document.querySelector('#main-home-briefing')?.dataset.state === 'ready');
-    assert.deepEqual(await page.locator('.main-briefing-card h2').allTextContents(), ['오늘', '어제 이후', '제안']);
+    assert.deepEqual(await page.locator('.main-briefing-card h2').allTextContents(), ['오늘', '할 일', '어제 이후', '제안']);
     assert.match(await sectionText(page, 'since'), /분기 계획서/);
     assert.match(await sectionText(page, 'today'), /이 서버에서는 구글 캘린더를 사용할 수 없습니다/);
     const text = await page.locator('#main-home-briefing').innerText();
@@ -283,8 +283,6 @@ describe('Desktop Main — conditional Home briefing', () => {
       await page.clock.setFixedTime(new Date(2026, 9, 12, c.hour, 30));
       await openMain(page);
       await page.waitForFunction((expected: string) => document.querySelector('#main-greeting')?.innerText === expected, c.text);
-      assert.equal((await page.locator('#main-user-avatar').textContent())?.trim(), c.initial);
-      assert.equal((await page.locator('#main-user-name').textContent())?.trim(), c.name);
       assert.equal(await page.locator('#main-greeting-sub').innerText(), c.locale === 'ko' ? '오늘은 무엇을 이루고 싶으신가요?' : 'What would you like to accomplish today?');
       assert.doesNotMatch(await page.locator('body').innerText(), /redcloudyun/);
       await ctx.close();
@@ -301,8 +299,6 @@ describe('Desktop Main — conditional Home briefing', () => {
     await openMain(pageA);
     await pageA.waitForFunction(() => document.querySelector('#main-home-briefing')?.dataset.state === 'ready');
     assert.equal(await pageA.locator('#main-greeting').innerText(), 'Good morning');
-    assert.equal((await pageA.locator('#main-user-avatar').textContent())?.trim(), 'U');
-    assert.equal((await pageA.locator('#main-user-name').textContent())?.trim(), 'You');
     assert.doesNotMatch(await pageA.locator('body').innerText(), /redcloudyun/);
     await ctxA.close();
 
@@ -316,7 +312,6 @@ describe('Desktop Main — conditional Home briefing', () => {
     await openMain(pageB);
     await pageB.waitForFunction(() => document.querySelector('#main-home-briefing')?.dataset.state === 'error');
     assert.equal(await pageB.locator('#main-greeting').innerText(), '좋은 저녁입니다');
-    assert.equal((await pageB.locator('#main-user-name').textContent())?.trim(), '나');
     assert.doesNotMatch(await pageB.locator('body').innerText(), /redcloudyun/);
     await ctxB.close();
   });
@@ -367,7 +362,7 @@ describe('Desktop Main — conditional Home briefing', () => {
     assert.equal((await page.locator('#btn-header-quickwake span').innerText()).trim(), '빠른 호출');
 
     const today = await sectionText(page, 'today');
-    assert.match(today, /승인 필요: gmail\.send_email/);
+    assert.match(today, /승인 필요: 이메일 보내기/);
     assert.match(today, /제목 없는 일정/);
     assert.match(today, /Research/); // a user's own meeting title is never translated
     const since = await sectionText(page, 'since');
@@ -396,7 +391,7 @@ describe('Desktop Main — conditional Home briefing', () => {
     assert.equal((await page.locator('#main-attach').innerText()).trim(), 'Attach');
     assert.equal((await page.locator('#main-voice-status').innerText()).trim(), 'Idle');
     assert.deepEqual((await page.locator('.main-mode-chip').allInnerTexts()).map((s) => s.trim()), ['Ask', 'Research', 'Document', 'Plan', 'Image', 'Slides', 'Video', 'Code', 'More']);
-    assert.match(await sectionText(page, 'today'), /Approval Required: gmail\.send_email/);
+    assert.match(await sectionText(page, 'today'), /Approval Required: Send email/);
     assert.match(await sectionText(page, 'since'), /Daily Brief generated/);
     assert.match(await sectionText(page, 'suggestions'), /Your meeting starts in 15 minutes and I found 2 related items\./);
 
@@ -539,7 +534,7 @@ describe('Desktop Main — conditional Home briefing', () => {
     }
   });
 
-  it('desktop viewports: no overflow at 1440 and 1100 wide, three columns then readable stacking', async () => {
+  it('desktop viewports: no overflow at 1440, 1100 and 900 wide; four columns, then two', async () => {
     const user = h.user('briefing_viewport');
     const ctx = await h.newContext('desktop', user, 'en');
     const page = await ctx.newPage();
@@ -550,9 +545,9 @@ describe('Desktop Main — conditional Home briefing', () => {
       await page.setViewportSize({ width, height: 900 });
       assert.equal(await page.evaluate(() => Math.max(0, document.documentElement.scrollWidth - window.innerWidth)), 0, `overflow at ${width}`);
       const boxes = await page.locator('.main-briefing-card').evaluateAll((cards: any[]) => cards.map((card) => { const r = card.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width }; }));
-      assert.equal(boxes.length, 3);
-      if (width >= 1100) assert.ok(Math.abs(boxes[0].y - boxes[1].y) < 2 && Math.abs(boxes[1].y - boxes[2].y) < 2, `three columns at ${width}`);
-      else assert.ok(boxes[1].y > boxes[0].y && boxes[2].y > boxes[1].y, `stacked at ${width}`);
+      assert.equal(boxes.length, 4);
+      if (width >= 1200) assert.ok(boxes.every((b: any) => Math.abs(b.y - boxes[0].y) < 2), `four columns at ${width}`);
+      else assert.ok(Math.abs(boxes[0].y - boxes[1].y) < 2 && Math.abs(boxes[2].y - boxes[3].y) < 2 && boxes[2].y > boxes[0].y, `two columns at ${width}`);
     }
     await ctx.close();
   });

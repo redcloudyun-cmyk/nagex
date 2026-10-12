@@ -26,6 +26,8 @@
     voiceState: 'IDLE',
     voiceAdapter: null,
     voiceMode: null,
+    activeTurn: null,
+    myDayOpen: false,
   };
 
   function api(endpoint, options) {
@@ -102,33 +104,21 @@
               <div class="main-composer-notice" id="main-composer-notice" role="status" aria-live="polite" hidden></div>
             </div>
           </section>
+          <div class="main-conversation-bar" id="main-conversation-bar" hidden>
+            <button type="button" class="main-tool-btn main-myday-toggle" id="main-myday-toggle" aria-expanded="false" aria-controls="main-home-briefing">My Day</button>
+            <button type="button" class="main-tool-btn" id="main-new-conversation">New conversation</button>
+          </div>
           <section class="main-home-briefing" id="main-home-briefing" aria-label="Personal briefing" data-state="idle" hidden>
             <div class="main-briefing-grid">
               <article class="main-briefing-card" data-briefing-section="today"><h2 id="main-briefing-title-today">Today</h2><div class="main-briefing-body" id="main-briefing-today"></div></article>
+              <article class="main-briefing-card" data-briefing-section="todo"><h2 id="main-briefing-title-todo">To-do</h2><div class="main-briefing-body" id="main-briefing-todo"></div></article>
               <article class="main-briefing-card" data-briefing-section="since"><h2 id="main-briefing-title-since">Since Yesterday</h2><div class="main-briefing-body" id="main-briefing-since"></div></article>
               <article class="main-briefing-card" data-briefing-section="suggestions"><h2 id="main-briefing-title-suggestions">Suggestions</h2><div class="main-briefing-body" id="main-briefing-suggestions"></div></article>
             </div>
             <button type="button" class="main-tool-btn main-briefing-retry" id="main-briefing-retry" hidden>Try again</button>
           </section>
-          <section class="main-thread-card" id="main-thread-card" hidden>
-            <div class="main-thread-tools"><button type="button" class="main-tool-btn" id="main-new-conversation">New conversation</button></div>
-            <div class="main-message">
-              <span class="main-avatar" id="main-user-avatar">U</span>
-              <div>
-                <div class="main-message-meta"><strong id="main-user-name">You</strong><span id="main-request-time">Just now</span></div>
-                <p id="main-request-text"></p>
-              </div>
-            </div>
-            <div class="main-message">
-              <span class="main-avatar nagex">N</span>
-              <div>
-                <div class="main-message-meta"><strong>NAgex</strong><span id="main-status">Ready</span></div>
-                <h2 id="main-work-title">Ready</h2>
-                <p id="main-work-summary"></p>
-                <ol class="main-step-list" id="main-step-list"></ol>
-                <div class="main-inline-actions" id="main-inline-actions"></div>
-              </div>
-            </div>
+          <section class="main-thread-card" id="main-thread-card" aria-label="Conversation" hidden>
+            <ol class="main-turns" id="main-turns"></ol>
           </section>
         </section>
         <aside class="main-result-panel" id="main-result-panel" hidden aria-label="Result panel" data-i18n-aria-label="mainText.Result_panel">
@@ -169,26 +159,190 @@
     `).join('');
   }
 
-  function setStep(items) {
-    const list = document.getElementById('main-step-list');
+  // ── Conversation stream ───────────────────────────────────────────────────────────────────────────────────
+  // One Main session, one stream: every request becomes a turn (the question once, then NAgex's answer). The newest
+  // turn owns the element ids the rest of Main (and the tests) use; older turns keep their content but not the ids.
+  // What a turn shows follows what really happened: a plain answer is just the answer, a task shows its real steps.
+  const TURN_IDS = ['main-user-avatar', 'main-user-name', 'main-request-time', 'main-request-text', 'main-status', 'main-work-title', 'main-work-summary', 'main-step-list', 'main-inline-actions', 'main-inline-approvals'];
+
+  function diagnosticsOn() {
+    try { return window.localStorage.getItem('nagex_main_diagnostics') === '1' || /[?&]diagnostics=1/.test(window.location.search + window.location.hash); } catch { return false; }
+  }
+
+  // Internal identifiers (enums, ids, tool ids) are for diagnostics, never ordinary UI.
+  function isInternalToken(value) {
+    const s = String(value || '').trim();
+    if (!s) return false;
+    return /^[A-Z][A-Z0-9_]{2,}$/.test(s)
+      || /^[a-z0-9]+(?:_[a-z0-9]+)*\.[a-z0-9_.]+$/.test(s)
+      || /^(?:req|msg|art|doc|cap|cr|task|plan|exe|cmd|evt|gcal|vault|capture|item)[_-][A-Za-z0-9_-]{3,}$/i.test(s)
+      || /^[A-Za-z0-9]+_[A-Za-z0-9_-]{8,}$/.test(s)
+      || /^[a-f0-9-]{12,}$/i.test(s);
+  }
+
+  function visibleDetail(detail, showRaw) {
+    const text = localizeAppText(detail || '');
+    if (!text) return '';
+    return showRaw || !isInternalToken(detail) ? text : '';
+  }
+
+  function turnTemplate() {
+    return `
+      <li class="main-turn" data-kind="pending">
+        <div class="main-message main-message-user">
+          <span class="main-avatar main-user-avatar" id="main-user-avatar">U</span>
+          <div>
+            <div class="main-message-meta"><strong class="main-user-name" id="main-user-name">You</strong><span class="main-request-time" id="main-request-time"></span></div>
+            <p id="main-request-text"></p>
+          </div>
+        </div>
+        <div class="main-message main-message-nagex">
+          <span class="main-avatar nagex">N</span>
+          <div>
+            <div class="main-message-meta"><strong>NAgex</strong><span class="main-message-status" id="main-status"></span></div>
+            <p class="main-turn-working" role="status"></p>
+            <h2 class="main-work-title" id="main-work-title"></h2>
+            <p class="main-work-summary" id="main-work-summary"></p>
+            <ol class="main-step-list" id="main-step-list"></ol>
+            <button type="button" class="main-tool-btn main-turn-details" hidden></button>
+            <div class="main-inline-actions" id="main-inline-actions"></div>
+            <div class="main-inline-approvals" id="main-inline-approvals"></div>
+          </div>
+        </div>
+      </li>`;
+  }
+
+  function stripTurnIds(el) {
+    if (!el) return;
+    TURN_IDS.forEach((id) => { const node = el.querySelector('#' + id); if (node) node.removeAttribute('id'); });
+  }
+
+  function beginTurn(prompt) {
+    const list = document.getElementById('main-turns');
+    if (!list) return null;
+    stripTurnIds(list.lastElementChild);
+    const holder = document.createElement('div');
+    holder.innerHTML = turnTemplate();
+    const el = holder.firstElementChild;
+    list.appendChild(el);
+    const turn = { el, prompt, kind: 'pending', steps: [], detailsOpen: false };
+    state.activeTurn = turn;
+    const text = el.querySelector('.main-message-user p');
+    if (text) text.textContent = prompt;
+    const working = el.querySelector('.main-turn-working');
+    if (working) working.textContent = mt('Working on it...');
+    const toggle = el.querySelector('.main-turn-details');
+    if (toggle) toggle.addEventListener('click', () => { turn.detailsOpen = !turn.detailsOpen; renderSteps(turn); });
+    renderGreeting();
+    return turn;
+  }
+
+  function turnKindFor(status) {
+    const s = String(status || '');
+    if (s === 'Submitting' || s === 'Uploading') return 'pending';
+    if (s === 'Answered') return 'answer';
+    if (s === 'Plan ready' || s === 'Completed') return 'task';
+    return 'notice';
+  }
+
+  function renderSteps(turn) {
+    if (!turn || !turn.el) return;
+    const list = turn.el.querySelector('.main-step-list');
     if (!list) return;
-    list.innerHTML = items.map((item) => `
-      <li class="${esc(item.state)}"><span class="main-step-dot">${item.state === 'done' ? '✓' : ''}</span><span>${esc(localizeAppText(item.label))}</span><small>${esc(localizeAppText(item.detail || ''))}</small></li>
+    const showRaw = diagnosticsOn() || turn.detailsOpen;
+    list.innerHTML = (turn.steps || []).map((item) => `
+      <li class="${esc(item.state)}"><span class="main-step-dot">${item.state === 'done' ? '✓' : ''}</span><span>${esc(localizeAppText(item.label))}</span><small>${esc(visibleDetail(item.detail, showRaw))}</small></li>
     `).join('');
+    // "Show details" exists only where there is real, otherwise hidden execution evidence to inspect.
+    const toggle = turn.el.querySelector('.main-turn-details');
+    if (toggle) {
+      const hasEvidence = (turn.steps || []).some((item) => item.detail && isInternalToken(item.detail));
+      toggle.hidden = !(turn.kind === 'task' && hasEvidence && !diagnosticsOn());
+      toggle.textContent = turn.detailsOpen ? mt('Hide details') : mt('Show details');
+      toggle.setAttribute('aria-expanded', String(Boolean(turn.detailsOpen)));
+    }
+  }
+
+  function setStep(items) {
+    if (!state.activeTurn) return;
+    state.activeTurn.steps = items || [];
+    renderSteps(state.activeTurn);
+  }
+
+  function scrollStreamToEnd() {
+    const card = document.getElementById('main-thread-card');
+    if (card) card.scrollTop = card.scrollHeight;
   }
 
   function showThread(prompt, status, title, summary, steps) {
     const card = document.getElementById('main-thread-card');
     if (card) card.hidden = false;
-    const promptEl = document.getElementById('main-request-text');
-    if (promptEl) promptEl.textContent = prompt;
-    const statusEl = document.getElementById('main-status');
+    let turn = state.activeTurn;
+    if (!turn || !turn.el.isConnected || turn.prompt !== prompt) turn = beginTurn(prompt);
+    if (!turn) return;
+    turn.kind = turnKindFor(status);
+    turn.el.dataset.kind = turn.kind;
+    const statusEl = turn.el.querySelector('.main-message-status');
     if (statusEl) { statusEl.textContent = localizeAppText(status); statusEl.dataset.status = status; }
-    const titleEl = document.getElementById('main-work-title');
+    const titleEl = turn.el.querySelector('.main-work-title');
     if (titleEl) titleEl.textContent = localizeAppText(title);
-    const summaryEl = document.getElementById('main-work-summary');
+    const summaryEl = turn.el.querySelector('.main-work-summary');
     if (summaryEl) summaryEl.textContent = localizeAppText(summary);
-    setStep(steps || []);
+    turn.steps = steps || [];
+    renderSteps(turn);
+    scrollStreamToEnd();
+  }
+
+  // Real pending approvals of the signed-in user, rendered inline with working Approve / Reject controls.
+  // Nothing is shown (or claimed) when the list cannot be read.
+  async function loadInlineApprovals(turn) {
+    if (!turn || !turn.el) return;
+    const box = turn.el.querySelector('.main-inline-approvals');
+    if (!box) return;
+    const data = await api('/api/v1/approvals');
+    const pending = data && !data.error && Array.isArray(data.pending) ? data.pending : null;
+    box.textContent = '';
+    if (!pending || pending.length === 0) return;
+    const heading = document.createElement('strong');
+    heading.textContent = mt('Waiting for your approval');
+    box.appendChild(heading);
+    pending.slice(0, 5).forEach((approval) => {
+      const row = document.createElement('div');
+      row.className = 'main-approval-card';
+      row.dataset.approvalId = approval.approvalId || approval.id;
+      const label = document.createElement('span');
+      label.textContent = localizeAppText(approval.action || mt('Approval needed'));
+      row.appendChild(label);
+      if (approval.expiresAt) {
+        const when = document.createElement('small');
+        when.textContent = mt('Expires') + ' ' + briefingWhen(approval.expiresAt);
+        row.appendChild(when);
+      }
+      const decide = async (verdict) => {
+        row.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+        const result = await api('/api/v1/approvals/' + encodeURIComponent(row.dataset.approvalId) + '/' + verdict, { method: 'POST', body: JSON.stringify({}) });
+        if (result && !result.error) {
+          row.textContent = (verdict === 'approve' ? mt('Approved') : mt('Rejected')) + ' - ' + localizeAppText(approval.action || '');
+          row.dataset.decision = verdict;
+        } else {
+          row.querySelectorAll('button').forEach((b) => { b.disabled = false; });
+          setComposerNotice(mt('Could not update this approval.'), 'error');
+        }
+      };
+      const approve = document.createElement('button');
+      approve.type = 'button';
+      approve.className = 'btn-primary';
+      approve.textContent = mt('Approve');
+      approve.addEventListener('click', () => decide('approve'));
+      const reject = document.createElement('button');
+      reject.type = 'button';
+      reject.className = 'btn-secondary danger';
+      reject.textContent = mt('Reject');
+      reject.addEventListener('click', () => decide('reject'));
+      row.appendChild(approve);
+      row.appendChild(reject);
+      box.appendChild(row);
+    });
   }
 
   function setComposerNotice(message, tone) {
@@ -273,19 +427,31 @@
     state.busy = true;
     if (send) send.disabled = true;
     hideResult();
+    state.activeTurn = null;
     const metadata = requestMetadata();
     showThread(prompt, 'Submitting', 'NAgex is starting from Main.', 'Your request is being classified before any execution path is chosen.', [
       { state: 'done', label: 'Request captured', detail: metadata.preferredMode },
       { state: 'running', label: 'Classify intent', detail: metadata.allowWebResearch ? 'Web allowed' : 'Web off' },
       { state: 'pending', label: 'Prepare result', detail: '' },
     ]);
+    // the question now lives in the conversation stream: clear the composer so it is shown once, not twice
+    if (input) { input.value = ''; autoGrow(input); }
     try {
       await dispatchMainRequest(prompt, metadata);
-      if (input) input.value = '';
+      offerRetryAfterFailure(prompt);
     } finally {
       state.busy = false;
       if (send) send.disabled = false;
     }
+  }
+
+  // A request that ended in an error/unavailable notice can be put back in the composer with one click.
+  function offerRetryAfterFailure(prompt) {
+    const turn = state.activeTurn;
+    if (!turn || turn.kind !== 'notice' || turn.prompt !== prompt) return;
+    const actions = turn.el.querySelector('.main-inline-actions');
+    if (!actions || actions.children.length > 0) return;
+    renderInlineActions([{ id: 'retry', label: 'Try again', action: () => { const input = document.getElementById('main-surface-input'); if (input && !input.value) input.value = prompt; focusComposer(''); } }]);
   }
 
   async function classifyInput(prompt, metadata) {
@@ -530,6 +696,7 @@
       label: step.title || (mt('Step') + ' ' + (index + 1)),
       detail: step.requiresApproval ? 'Approval needed before execution' : (step.resolvedToolId || ''),
     }));
+    if ((result.plan.steps || []).some((step) => step.requiresApproval)) setTimeout(() => loadInlineApprovals(state.activeTurn), 0);
     showThread(prompt, 'Plan ready', result.plan.summary || 'NAgex prepared a plan.', 'Review the plan inline. Required approvals remain mandatory and cannot be bypassed here.', steps);
     renderInlineActions([
       { id: 'show-plan', label: 'Show plan', action: () => setStep((result.plan.steps || []).map((step, index) => ({ state: index === 0 ? 'running' : 'pending', label: step.title || (mt('Step') + ' ' + (index + 1)), detail: step.reasoning || '' }))) },
@@ -994,6 +1161,23 @@
     [/^On-device speech could not be installed\. You can allow (.+) speech or type your request\.$/, 'mainPattern.local_install_failed'],
   ];
 
+  // An internal tool id ("gmail.send_email") is never shown as is: it becomes the plain action it performs.
+  const TOOL_ACTION_LABELS = {
+    send_email: 'Send email',
+    reply: 'Reply to email',
+    create_draft: 'Create email draft',
+    create_event: 'Create calendar event',
+    update_event: 'Update calendar event',
+    cancel_event: 'Cancel calendar event',
+    respond_to_event: 'Respond to calendar event',
+  };
+
+  function friendlyToolName(id) {
+    const action = String(id).split('.').slice(1).join('.') || String(id);
+    const label = TOOL_ACTION_LABELS[action] || (action.replace(/[_.]+/g, ' ').replace(/^./, (c) => c.toUpperCase()));
+    return mt(label);
+  }
+
   function localizeAppText(text) {
     if (text == null || text === '') return text == null ? '' : text;
     const value = String(text);
@@ -1006,7 +1190,8 @@
       if (!template || template === entry[1]) return value;
       return template.replace(/\{(\d)\}/g,(_m, index) => {
         const part = match[Number(index) + 1] == null ? '' : match[Number(index) + 1];
-        return /^(accepted|dismissed|snoozed|declined|rejected)$/.test(part) ? mt(part) : part;
+        if (/^(accepted|dismissed|snoozed|declined|rejected)$/.test(part)) return mt(part);
+        return /^[a-z0-9]+(?:_[a-z0-9]+)*\.[a-z0-9_.]+$/.test(part) ? friendlyToolName(part) : part;
       });
     }
     return value;
@@ -1101,10 +1286,8 @@
     }
     const sub = document.getElementById('main-greeting-sub');
     if (sub) sub.textContent = bt('mainHome.subtitle', 'What would you like to accomplish today?');
-    const avatar = document.getElementById('main-user-avatar');
-    if (avatar) avatar.textContent = name ? Array.from(name)[0].toUpperCase() : 'U';
-    const label = document.getElementById('main-user-name');
-    if (label) label.textContent = name || bt('mainHome.you', 'You');
+    document.querySelectorAll('.main-user-avatar').forEach((avatar) => { avatar.textContent = name ? Array.from(name)[0].toUpperCase() : 'U'; });
+    document.querySelectorAll('.main-user-name').forEach((label) => { label.textContent = name || bt('mainHome.you', 'You'); });
   }
 
   function briefingModel(home) {
@@ -1133,6 +1316,14 @@
       })
       .slice(0, 4)
       .map((item) => ({ title: localizeAppText(item.title), meta: [briefingStateLabel(item.state), briefingWhen(item.createdAt)].filter(Boolean).join(' - ') }));
+    const todoSource = home.todo && typeof home.todo === 'object' ? home.todo : null;
+    const todo = {
+      status: todoSource && typeof todoSource.status === 'string' ? todoSource.status : 'UNAVAILABLE',
+      items: todoSource && Array.isArray(todoSource.items) ? todoSource.items.filter((item) => item && item.title).slice(0, 5).map((item) => ({
+        title: item.title,
+        meta: [mt(item.state || ''), item.kind === 'REMINDER' && item.dueAt ? briefingTime(item.dueAt) : ''].filter(Boolean).join(' - '),
+      })) : [],
+    };
     const suggestions = list(home.suggestions).slice(0, 3).map((item) => ({
       title: localizeAppText(item.title),
       reason: localizeAppText(item.reason || ''),
@@ -1140,6 +1331,7 @@
     }));
     return {
       today: today.slice(0, 5),
+      todo,
       since,
       suggestions,
       calendarUnavailable: status.calendar === 'UNAVAILABLE',
@@ -1203,7 +1395,7 @@
     if (!section) return;
     section.setAttribute('aria-label', bt('mainBriefing.aria', 'Personal briefing'));
     section.dataset.state = briefing.status;
-    const titles = { today: bt('mainBriefing.today', 'Today'), since: bt('mainBriefing.since', 'Since Yesterday'), suggestions: bt('mainBriefing.suggestions', 'Suggestions') };
+    const titles = { today: bt('mainBriefing.today', 'Today'), todo: bt('mainBriefing.todo', 'To-do'), since: bt('mainBriefing.since', 'Since Yesterday'), suggestions: bt('mainBriefing.suggestions', 'Suggestions') };
     Object.keys(titles).forEach((key) => {
       const heading = document.getElementById('main-briefing-title-' + key);
       if (heading) heading.textContent = titles[key];
@@ -1213,7 +1405,9 @@
       newButton.textContent = bt('mainBriefing.newConversation', 'New conversation');
       newButton.title = bt('mainBriefing.newConversationHint', 'Start a fresh Home. Your earlier conversation is kept.');
     }
-    const bodies = { today: document.getElementById('main-briefing-today'), since: document.getElementById('main-briefing-since'), suggestions: document.getElementById('main-briefing-suggestions') };
+    const myDay = document.getElementById('main-myday-toggle');
+    if (myDay) myDay.textContent = bt('mainDay.title', 'My Day');
+    const bodies = { today: document.getElementById('main-briefing-today'), todo: document.getElementById('main-briefing-todo'), since: document.getElementById('main-briefing-since'), suggestions: document.getElementById('main-briefing-suggestions') };
     const retry = document.getElementById('main-briefing-retry');
     const note = (text) => '<p class="main-briefing-empty">' + esc(text) + '</p>';
     if (briefing.status === 'idle' || briefing.status === 'loading') {
@@ -1236,6 +1430,11 @@
       bodies.today.innerHTML = model.today.length
         ? briefingRows(model.today) + calendarState
         : (calendarState || note(bt('mainBriefing.emptyToday', 'Nothing scheduled or waiting for you today.')));
+    }
+    if (bodies.todo) {
+      bodies.todo.innerHTML = model.todo.items.length
+        ? briefingRows(model.todo.items)
+        : note(model.todo.status === 'ERROR' ? bt('mainBriefing.todoError', "Couldn't load your to-do list.") : model.todo.status === 'UNAVAILABLE' ? bt('mainBriefing.todoUnavailable', "Your to-do list isn't available right now.") : bt('mainBriefing.todoEmpty', 'Nothing on your to-do list.'));
     }
     if (bodies.since) {
       bodies.since.innerHTML = model.since.length
@@ -1289,7 +1488,16 @@
     if (!root || !section) return;
     const sessionState = state.sessionChecked ? mainSessionState() : 'CHECKING';
     root.dataset.sessionState = sessionState;
-    section.hidden = sessionState !== 'EMPTY_HOME';
+    const conversing = sessionState === 'CONVERSATION' || sessionState === 'RESULT';
+    // Idle Home: the briefing is open. While working it collapses, and "My Day" reopens it without touching the conversation or the draft.
+    section.hidden = !(sessionState === 'EMPTY_HOME' || (conversing && state.myDayOpen));
+    const bar = document.getElementById('main-conversation-bar');
+    if (bar) bar.hidden = !conversing;
+    const toggle = document.getElementById('main-myday-toggle');
+    if (toggle) toggle.setAttribute('aria-expanded', String(conversing && state.myDayOpen));
+    const view = root.closest('.tab-view');
+    if (view) view.classList.toggle('main-conversing', conversing);
+    root.dataset.diagnostics = diagnosticsOn() ? '1' : '0';
   }
 
   function watchMainSession() {
@@ -1319,21 +1527,29 @@
       const messages = data.messages
         .filter((m) => m && typeof m.content === 'string' && m.createdAt && (!m.status || m.status === 'COMMITTED') && (!mark || m.createdAt > mark))
         .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-      let lastUser = -1;
-      messages.forEach((m, index) => { if (String(m.role).toUpperCase() === 'USER') lastUser = index; });
-      if (lastUser >= 0) {
-        const user = messages[lastUser];
-        const reply = messages.slice(lastUser + 1).find((m) => String(m.role).toUpperCase() === 'ASSISTANT');
+      // the whole conversation, in order: each question once, followed by the answer that was saved for it
+      const pairs = [];
+      messages.forEach((m, index) => {
+        if (String(m.role).toUpperCase() !== 'USER') return;
+        const reply = messages.slice(index + 1).find((x) => String(x.role).toUpperCase() === 'ASSISTANT' || String(x.role).toUpperCase() === 'USER');
+        pairs.push({ user: m, reply: reply && String(reply.role).toUpperCase() === 'ASSISTANT' ? reply : null });
+      });
+      pairs.slice(-20).forEach((pair) => {
+        state.activeTurn = null;
         showThread(
-          user.content,
-          reply ? 'Answered' : bt('mainBriefing.noReplyStatus', 'No reply saved'),
+          pair.user.content,
+          pair.reply ? 'Answered' : bt('mainBriefing.noReplyStatus', 'No reply saved'),
           bt('mainBriefing.restoredTitle', 'Earlier in this conversation'),
-          reply ? reply.content : bt('mainBriefing.noReply', 'This request has no saved answer.'),
-          [{ state: 'done', label: bt('mainBriefing.restoredStep', 'Restored from your Main conversation'), detail: briefingWhen(user.createdAt) }],
+          pair.reply ? pair.reply.content : bt('mainBriefing.noReply', 'This request has no saved answer.'),
+          [],
         );
-        const when = document.getElementById('main-request-time');
-        if (when) when.textContent = briefingWhen(user.createdAt);
+        const when = state.activeTurn && state.activeTurn.el.querySelector('.main-request-time, #main-request-time');
+        if (when) when.textContent = briefingWhen(pair.user.createdAt);
+      });
+      if (pairs.length > 0) {
         renderInlineActions([{ id: 'follow', label: 'Ask follow-up', action: () => focusComposer('') }]);
+        // the next request starts a new turn after the restored ones
+        state.activeTurn = null;
       }
     }
     state.sessionChecked = true;
@@ -1352,7 +1568,10 @@
     if (newest) writeFreshMark(newest);
     const card = document.getElementById('main-thread-card');
     if (card) card.hidden = true;
-    renderInlineActions([]);
+    const turns = document.getElementById('main-turns');
+    if (turns) turns.textContent = '';
+    state.activeTurn = null;
+    state.myDayOpen = false;
     hideResult();
     state.result = null;
     state.revisionTarget = null;
@@ -1367,6 +1586,11 @@
     state.sessionChecked = false;
     watchMainSession();
     document.getElementById('main-new-conversation')?.addEventListener('click', startNewConversation);
+    document.getElementById('main-myday-toggle')?.addEventListener('click', () => {
+      state.myDayOpen = !state.myDayOpen;
+      syncBriefingVisibility();
+      if (state.myDayOpen) loadBriefing(false);
+    });
     document.getElementById('main-briefing-retry')?.addEventListener('click', () => loadBriefing(true));
     document.getElementById('main-briefing-today')?.addEventListener('click', (event) => {
       const button = event.target.closest && event.target.closest('[data-calendar-action]');

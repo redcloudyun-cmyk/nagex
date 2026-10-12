@@ -249,8 +249,8 @@ describe('NAgex Main surface hard rebuild', () => {
     assert.equal(afterVoiceRequest, beforeVoiceRequest);
 
     await page.fill('#main-surface-input', '한국의 생성형 AI 시장 동향을 조사해서 보고서로 만들어줘. 최근 1년간의 주요 기업, 투자 동향, 산업별 활용 사례, 향후 전망을 포함해줘.');
-    const height = await page.locator('#main-surface-input').evaluate((el) => el.getBoundingClientRect().height);
-    assert.ok(height > 90, `composer must grow for long input, got ${height}`);
+    const grown = await page.locator('#main-surface-input').evaluate((el: any) => ({ height: el.getBoundingClientRect().height, clipped: el.scrollHeight > el.clientHeight + 2 }));
+    assert.ok(grown.height >= 56 && !grown.clipped, `composer must fit long input without clipping it, got ${grown.height}`);
     await page.screenshot({ path: path.join(screenshotDir, 'desktop-long-input.png'), fullPage: true });
 
     await page.click('[data-main-mode="PLAN"]');

@@ -11,6 +11,41 @@ import type { ProactiveSuggestion } from '../personal/proactive-suggestion.servi
 import { calendarStatusFromFailure, type CalendarConnectionStatus } from '../integrations/google/calendar-connection.js';
 import { hasPendingGoogleOAuthState } from '../integrations/google/oauth-state.store.js';
 
+// Personal To-do: today's / overdue reminders and the user's not-yet-running tasks, straight from the canonical context
+// (PersonalReminderStore + TaskStore). Never fabricated: with no source it says so.
+export interface HomeTodoItem {
+  id: string;
+  kind: 'REMINDER' | 'TASK';
+  title: string;
+  dueAt: string | null;
+  state: 'Overdue' | 'Due today' | 'Scheduled' | 'Paused' | 'Draft';
+}
+
+export interface HomeTodo {
+  status: 'OK' | 'UNAVAILABLE' | 'ERROR';
+  items: HomeTodoItem[];
+}
+
+export function buildHomeTodo(context: CurrentPersonalContext | null, now: Date): HomeTodo {
+  if (!context) return { status: 'UNAVAILABLE', items: [] };
+  const items: HomeTodoItem[] = [];
+  for (const reminder of context.rightNow.reminders) {
+    const due = new Date(reminder.scheduledAt).getTime();
+    items.push({ id: `todo_${reminder.id}`, kind: 'REMINDER', title: reminder.title, dueAt: reminder.scheduledAt, state: Number.isFinite(due) && due < now.getTime() ? 'Overdue' : 'Due today' });
+  }
+  // RUNNING / FAILED / WAITING tasks already appear under "working for you" / "needs attention"; this lists what is still to do.
+  for (const task of context.today.tasks) {
+    if (task.status === 'ACTIVE') items.push({ id: `todo_${task.id}`, kind: 'TASK', title: task.name, dueAt: null, state: 'Scheduled' });
+    else if (task.status === 'PAUSED') items.push({ id: `todo_${task.id}`, kind: 'TASK', title: task.name, dueAt: null, state: 'Paused' });
+    else if (task.status === 'DRAFT') items.push({ id: `todo_${task.id}`, kind: 'TASK', title: task.name, dueAt: null, state: 'Draft' });
+  }
+  const { reminders, tasks } = context.sourceStatus;
+  if (items.length > 0) return { status: 'OK', items };
+  if (reminders === 'ERROR' || tasks === 'ERROR') return { status: 'ERROR', items: [] };
+  if (reminders === 'UNAVAILABLE' && tasks === 'UNAVAILABLE') return { status: 'UNAVAILABLE', items: [] };
+  return { status: 'OK', items: [] };
+}
+
 export interface HomeCalendarItem {
   id: string;
   title: string;
@@ -131,6 +166,7 @@ export interface PersonalHomeResponse {
   };
   // Why the calendar is (not) available: NOT_CONNECTED / CONNECTING / CONNECTED / REAUTH_REQUIRED / ERROR / UNAVAILABLE.
   calendarConnection?: CalendarConnectionStatus;
+  todo?: HomeTodo;
   userProfile?: {
     name: string | null;
   };
@@ -551,6 +587,7 @@ export class PersonalHomeService {
       recentCreations,
       suggestions,
       upcoming,
+      todo: buildHomeTodo(context, now),
       // An authorization the user just started is the truthful state while the connection is not usable yet.
       calendarConnection: calendarConnection && (calendarConnection.state === 'NOT_CONNECTED' || calendarConnection.state === 'REAUTH_REQUIRED') && hasPendingGoogleOAuthState(tenantId, principalId)
         ? { ...calendarConnection, state: 'CONNECTING', reason: 'AUTHORIZATION_PENDING', connectPath: null, message: 'Google Calendar authorization is in progress.' }

@@ -39,6 +39,7 @@
       "r23_3t_permission_approval_hardening"
     ],
     "browser": [
+      "main_unified_workspace_browser",
       "r23_7h_b1_personal_dashboard",
       "browser_agent",
       "browser_agent_mvp",
@@ -146,6 +147,8 @@
       "jev_shadow_runtime"
     ],
     "personal-home": [
+      "main_unified_workspace_browser",
+      "personal_home_todo",
       "google_calendar_connection_state",
       "personal_home_profile_name",
       "home_ux_principle",
@@ -189,6 +192,7 @@
       "r23_7h_b2_agentic_creation_home"
     ],
     "personal-context": [
+      "personal_home_todo",
       "r23_1_personal_context",
       "r22_8_personal_home",
       "memory_tenant_isolation",
@@ -303,6 +307,8 @@
       "voice_architecture_boundaries"
     ],
     "ux": [
+      "main_unified_workspace_browser",
+      "personal_home_todo",
       "main_home_briefing_browser",
       "real_life_scenario_library_behavioral_rules",
       "scenario_certification_framework",

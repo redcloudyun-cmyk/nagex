@@ -5268,6 +5268,39 @@
       "assertionIntent": "Google Calendar connection truthfulness: identity is the verified session tenant + user only (another user, another tenant, forged headers/query/body and a missing identity never read or reveal anyone else's connection or events, and tools fail closed without an identity); every state is reported truthfully (NOT_CONNECTED, CONNECTING only for the user who started authorization, CONNECTED only with a usable correctly scoped grant and verifiedAt only after a real authorized Google call, REAUTH_REQUIRED for revoked/expired/rejected grants and missing scopes, ERROR for timeouts/outages/rate limits/API-disabled/internal faults, UNAVAILABLE without an OAuth client); a grant Google no longer honours keeps its metadata, purges its secrets and persists the reauthorization flag, while a transient provider failure never touches the grant; real events are read through the existing credential-brokered service and the list_events capability is read-only and identity-bound; writes still require approval.",
       "notes": "Google is replaced by a scripted fetch; the token store, credential broker, pipeline, service, routes and sessions are the production code."
     },
+    "main_unified_workspace_browser": {
+      "milestone": "NAGEX-DESKTOP-MAIN-UNIFIED-WORKSPACE",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "personal-home",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Real-Chromium proof of the unified Main workspace: idle Home shows Today / To-do / Since Yesterday / Suggestions inside the first viewport at 1440x900, 1680x900, 1920x1080 and 1366x768 without scrolling; the personal To-do is real data or an honest unavailable/empty state; the first prompt turns Home into a conversation (question once, answer inline, one conversation card, composer docked at the bottom, no internal identifiers); a plan shows only its real steps and real pending approvals with working Approve/Reject; execution evidence is inspectable (Show details, diagnostics) but hidden by default; the briefing collapses while working and My Day reopens it without touching the conversation or draft; New conversation returns to the idle Home; refresh restores the whole conversation and a fresh Home; EN/KR; no inert controls.",
+      "notes": "Production server harness with provider credentials scrubbed; the AI answer, plan, approvals, conversation list and personal-home payload are stubbed to force each state. Does not exercise a real AI provider.",
+      "writesRepositoryArtifacts": false
+    },
+    "personal_home_todo": {
+      "milestone": "NAGEX-DESKTOP-MAIN-UNIFIED-WORKSPACE",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "personal-home",
+        "personal-context",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Home todo is built from the signed-in user's real reminder and task stores only (due/overdue reminders and not-yet-running tasks), never another user's items, and states UNAVAILABLE / ERROR / empty honestly instead of inventing items.",
+      "notes": "Uses the real CurrentPersonalContextService with temp stores."
+    },
     "personal_home_profile_name": {
       "milestone": "NAGEX-DESKTOP-MAIN-GREETING",
       "classification": "CANONICAL_BEHAVIOR",
