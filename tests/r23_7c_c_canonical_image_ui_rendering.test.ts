@@ -21,6 +21,7 @@ import { chromium } from 'playwright';
 import { createServerInstance } from '../src/server_web.js';
 
 declare const document: any;
+declare const window: any;
 
 const CANONICAL_IMAGE_URL = '/api/v1/creations/images/img_aaaaaaaaaaaaaaaaaaaaaaaa';
 const DATA_IMAGE_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
@@ -55,8 +56,9 @@ test('R23.7C-C canonical image UI rendering: <img> only for legitimate sources, 
       );
     }
     await page.goto(`${base}/`);
-    await page.waitForSelector('.home-discover-chip[data-action="discover-create"]', { state: 'visible' });
-    await page.click('.home-discover-chip[data-action="discover-create"]');
+    // Home is now the unified Main surface (the old Home discovery chips are retired); the Create view is still a routed screen, so open it the way the app does.
+    await page.waitForFunction(() => Boolean(window.NAGEX && window.NAGEX.switchTab));
+    await page.evaluate(() => window.NAGEX.switchTab('tab-create'));
     await page.waitForSelector('#create-prompt-input', { state: 'visible' });
     return page;
   }
