@@ -342,7 +342,9 @@
       "design_system_v2_browser",
       "mobile_phone_shell_browser",
       "r23_7h_c_mobile_recent_image_browser",
-      "public_source_encoding"
+      "public_source_encoding",
+      "r23_7c_d_presentation_runtime",
+      "r23_7c_d_presentation_main_browser"
     ],
     "knowledge": [
       "r24_5c_knowledge_live"

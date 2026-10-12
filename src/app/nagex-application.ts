@@ -171,6 +171,9 @@ export interface NagexApplication {
   // R23.7C-C — same ImageStore instance imageExecutor writes through,
   // exposed so the canonical image-serving HTTP route reads real state.
   imageStore: import('../creation/image.store.js').ImageStore;
+  // R23.7C-D — the presentation runtime: executor + the store the download/viewer routes read.
+  presentationStore: import('../creation/presentation.store.js').PresentationStore;
+  presentationExecutor: import('../creation/executors/presentation-executor.js').PresentationExecutor;
   creationRuntime: import('../creation/creation-runtime.js').CreationRuntime;
   artifactStore: ArtifactStore;
   linkCaptureService: LinkCaptureService;

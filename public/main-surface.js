@@ -7,7 +7,7 @@
     { id: 'DOCUMENT', label: 'Document', artifactType: 'DOCUMENT', enabled: true, support: 'FULL', route: '/api/v1/creations/documents' },
     { id: 'PLAN', label: 'Plan', capability: 'PLAN', enabled: true, support: 'PARTIAL', route: '/api/v1/ambient/intent' },
     { id: 'IMAGE', label: 'Image', artifactType: 'IMAGE', enabled: true, support: 'FULL', route: '/api/v1/creations/generate' },
-    { id: 'SLIDES', label: 'Slides', artifactType: 'PRESENTATION', enabled: false, support: 'MISSING', reason: 'Presentation provider ports exist, but no consumer-safe Main generation route is enabled yet.' },
+    { id: 'SLIDES', label: 'Slides', artifactType: 'PRESENTATION', enabled: true, support: 'PARTIAL', route: '/api/v1/creations/presentations' },
     { id: 'VIDEO', label: 'Video', artifactType: 'VIDEO', enabled: false, support: 'MISSING', reason: 'Video provider experiments exist, but no consumer-safe Main generation route is enabled yet.' },
     { id: 'CODE', label: 'Code', capability: 'CODE', enabled: false, support: 'MISSING', reason: 'No canonical code artifact runtime is enabled in Main yet.' },
     { id: 'MORE', label: 'More', capability: 'CAPABILITY_AUDIT', enabled: true, support: 'PARTIAL', route: 'inline capability matrix' },
@@ -741,6 +741,8 @@
       await createDocument(prompt, metadata);
     } else if (metadata.preferredArtifactType === 'IMAGE') {
       await createImage(prompt, metadata);
+    } else if (metadata.preferredArtifactType === 'PRESENTATION') {
+      await createPresentation(prompt, metadata);
     } else if (metadata.preferredCapability === 'RESEARCH') {
       await runResearch(prompt, metadata);
     } else if (metadata.preferredCapability === 'PLAN' || route.primaryIntent === 'COMMAND') {
@@ -867,6 +869,51 @@
       openTarget: result.openTarget || imageUrl,
       projection,
     });
+  }
+
+  // NAgex-owned presentation identity and download path; anything else is never rendered as a link
+  const PRESENTATION_DOWNLOAD_PATH = /^\/api\/v1\/creations\/presentations\/pres_[0-9a-f]{24}\/download$/;
+  const PRESENTATION_VIEW_PATH = /^\/api\/v1\/creations\/presentations\/pres_[0-9a-f]{24}$/;
+
+  async function createPresentation(prompt, metadata) {
+    const result = await api('/api/v1/creations/presentations', {
+      method: 'POST',
+      body: JSON.stringify({ prompt, locale: (window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale()) || 'en', requestMetadata: metadata }),
+      timeoutMs: 180000,
+    });
+    if (!result || result.error || result.status === 'FAILED' || result.status === 'UNAVAILABLE') {
+      showThread(prompt, 'Error', bt('mainSlides.failedTitle', 'Presentation could not be created'), serverFailure(result, bt('mainSlides.failedBody', 'No presentation was produced.')), [
+        { state: 'done', label: 'Request captured', detail: 'Slides' },
+        { state: 'running', label: 'Creation failed', detail: '' },
+      ]);
+      return;
+    }
+    const viewer = result.openTarget && PRESENTATION_VIEW_PATH.test(result.openTarget) ? await api(result.openTarget) : null;
+    const deck = viewer && viewer.presentation ? viewer.presentation : null;
+    const artifact = result.artifactId ? await api('/api/v1/artifacts/' + encodeURIComponent(result.artifactId)) : null;
+    const projection = artifact && artifact.projection ? artifact.projection : null;
+    showThread(prompt, 'Completed', bt('mainSlides.createdTitle', 'Presentation created'), bt('mainSlides.createdBody', 'The presentation is ready in the right panel. Download the .pptx to edit it in PowerPoint or Keynote.'), [
+      { state: 'done', label: 'Request captured', detail: 'Slides' },
+      { state: 'done', label: bt('mainSlides.stepPlanned', 'Deck planned'), detail: '' },
+      { state: 'done', label: bt('mainSlides.stepFile', 'Presentation file created'), detail: '' },
+    ]);
+    showResult(presentationResult(deck || { presentationId: result.creationId, title: result.title, subtitle: '', slides: [], downloadTarget: result.metadata && result.metadata.downloadTarget }, result.artifactId, result.openTarget, projection, result.content));
+  }
+
+  function presentationResult(deck, artifactId, openTarget, projection, fallbackText) {
+    const slides = Array.isArray(deck.slides) ? deck.slides : [];
+    return {
+      type: 'PRESENTATION',
+      title: deck.title || 'Presentation',
+      meta: [bt('mainSlides.count', '{n} slides').replace('{n}', String(slides.length + 1)), '.pptx'].join(' - '),
+      preview: fallbackText || deck.summary || '',
+      slides,
+      subtitle: deck.subtitle || '',
+      downloadTarget: PRESENTATION_DOWNLOAD_PATH.test(String(deck.downloadTarget || '')) ? deck.downloadTarget : '',
+      artifactId,
+      openTarget,
+      projection,
+    };
   }
 
   async function reviseDocument(prompt, metadata, target) {
@@ -1214,11 +1261,21 @@
     if (title) title.textContent = localizeAppText(result.title || 'Result');
     if (meta) meta.textContent = String(result.meta || '').split(' - ').map(localizeAppText).join(' - ');
     if (preview) {
-      if (result.type === 'IMAGE' && result.imageUrl) {
+      if (result.type === 'PRESENTATION') {
+        const outline = (result.slides || []).map((slide, index) => `<li><strong>${esc(slide.title)}</strong><ul>${(slide.bullets || []).map((bullet) => `<li>${esc(bullet)}</li>`).join('')}</ul></li>`).join('');
+        const link = result.downloadTarget ? `<p><a class="main-result-download" href="${esc(result.downloadTarget)}" download>${esc(bt('mainSlides.download', 'Download .pptx'))}</a></p>` : '';
+        preview.innerHTML = `<article class="main-doc-page main-deck-page"><div><strong>NAgex</strong><br><small>${esc(mt('Your Personal AI'))}</small></div><h1>${esc(result.title || 'Presentation')}</h1>${result.subtitle ? `<p>${esc(result.subtitle)}</p>` : ''}${outline ? `<ol class="main-deck-outline">${outline}</ol>` : `<p>${esc(result.preview || '')}</p>`}${link}</article>`;
+      } else if (result.type === 'IMAGE' && result.imageUrl) {
         preview.innerHTML = `<article class="main-doc-page main-image-page"><div><strong>NAgex</strong><br><small>${esc(mt('Your Personal AI'))}</small></div><h1>${esc(localizeAppText(result.title || 'Generated image'))}</h1><img src="${esc(result.imageUrl)}" alt="${esc(localizeAppText(result.title || 'Generated image'))}" loading="lazy"><p>${esc(localizeAppText(result.preview || 'Image artifact'))}</p></article>`;
       } else {
         preview.innerHTML = `<article class="main-doc-page"><div><strong>NAgex</strong><br><small>${esc(mt('Your Personal AI'))}</small></div><h1>${esc(localizeAppText(result.title || 'Generated result'))}</h1><p>${esc(localizeAppText(result.preview || 'Preview is unavailable for this result.'))}</p></article>`;
       }
+    }
+    const openButton = document.getElementById('main-result-open');
+    if (openButton) {
+      // a presentation opens in this panel (outline + download); there is no separate Canvas viewer for decks
+      openButton.disabled = result.type === 'PRESENTATION';
+      openButton.title = result.type === 'PRESENTATION' ? bt('mainSlides.openHint', 'Presentations open in this panel. Download the .pptx to edit them.') : '';
     }
     if (revise) {
       revise.disabled = !result.documentId;
@@ -1234,6 +1291,12 @@
     const artifact = await api('/api/v1/artifacts/' + encodeURIComponent(artifactId));
     if (!artifact || artifact.error || !artifact.projection) return false;
     const projection = artifact.projection;
+    if (projection.artifactType === 'PRESENTATION' && PRESENTATION_VIEW_PATH.test(String(projection.openTarget || ''))) {
+      const viewer = await api(projection.openTarget);
+      if (!viewer || viewer.error || !viewer.presentation) return false;
+      showResult(presentationResult(viewer.presentation, artifactId, projection.openTarget, projection, projection.summary));
+      return true;
+    }
     const documentId = parseDocumentId(projection.openTarget);
     let document = null;
     if (documentId) {

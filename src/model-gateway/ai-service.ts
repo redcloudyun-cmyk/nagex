@@ -4,6 +4,7 @@ import type { MemoryRecord } from '../context/memory.engine.js';
 import type { EvidencePack, EvidenceSource } from '../research/evidence-pack.types.js';
 import type { RoutingMode } from './model-provider.js';
 import { UnifiedModelRouter } from './unified-model-router.js';
+import { normalizePresentationOutline, OUTLINE_LIMITS, type PresentationOutline } from './presentation-outline.js';
 
 export type PlanStepNecessity = 'REQUIRED' | 'OPTIONAL';
 
@@ -752,6 +753,59 @@ export class AiService {
         summary: requireString(parsed.summary, 'summary', requestId),
         content: requireString(parsed.content, 'content', requestId),
       },
+      provider: response.provider,
+      model: response.model,
+      latencyMs: response.latencyMs,
+      requestId: response.requestId,
+    };
+  }
+
+  // R23.7C-D: the model plans the deck (title, subtitle, content slides with bullets). It never renders anything and never claims an export.
+  public async presentationOutline(input: {
+    prompt: string;
+    sourceContext?: string;
+    instructions?: string;
+    locale?: 'en' | 'ko';
+    memories?: MemoryRecord[];
+    mode?: RoutingMode;
+    requestId?: string;
+  }): Promise<AiServiceResponse<PresentationOutline>> {
+    const requestId = input.requestId || `deck_${randomUUID()}`;
+    const mode = input.mode || 'auto';
+    const isKo = input.locale === 'ko';
+
+    const systemContent = [
+      'You are NAgex, a Personal AI that plans clear presentation decks.',
+      isKo
+        ? '사용자의 요청에 맞춰 발표 자료의 구성을 계획하세요. 모든 텍스트는 반드시 한국어로 작성하세요.'
+        : "Plan the structure of a presentation that fits the user's request. Write all text in English.",
+      `Use ${OUTLINE_LIMITS.minContentSlides + 2} to ${OUTLINE_LIMITS.maxContentSlides - 4} content slides (more only when the request needs it), each with a short title and 2 to ${OUTLINE_LIMITS.maxBulletsPerSlide} concise bullets (one idea per bullet, no more than ${OUTLINE_LIMITS.maxBulletChars} characters).`,
+      'Do not invent facts, numbers, quotes or sources. When source context is provided, ground the slides in it; otherwise write general, non-specific points and keep claims modest.',
+      'Do not mention that you are an AI model and do not claim that a file was created or sent.',
+      input.instructions ? `Specific instructions: ${input.instructions}` : null,
+      input.memories && input.memories.length > 0 ? `Relevant personal memory context:\n${summarizeMemories(input.memories)}` : null,
+      input.sourceContext ? `Source background & context:\n${input.sourceContext}` : null,
+      'Return JSON with exact structure: {"title":"deck title","subtitle":"one line (may be empty)","slides":[{"title":"slide title","bullets":["point","point"]}]}',
+    ]
+      .filter((line): line is string => line !== null)
+      .join('\n\n');
+
+    const response = await this.router.generate({
+      mode,
+      requestId,
+      jsonMode: true,
+      routingContext: { taskKind: 'PRESENTATION_SYNTHESIS', requiresJson: true, requestId },
+      validate: (text) => {
+        normalizePresentationOutline(parseJsonObject(text, requestId, 'presentation outline'), requestId);
+      },
+      messages: [
+        { role: 'system', content: systemContent },
+        { role: 'user', content: `Presentation Request: ${input.prompt}` },
+      ],
+    });
+
+    return {
+      data: normalizePresentationOutline(parseJsonObject(response.text, requestId, 'presentation outline'), requestId),
       provider: response.provider,
       model: response.model,
       latencyMs: response.latencyMs,

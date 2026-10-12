@@ -5380,6 +5380,39 @@
       "notes": "Reads the files only; no server or browser.",
       "writesRepositoryArtifacts": false
     },
+    "r23_7c_d_presentation_runtime": {
+      "milestone": "R23.7C-D",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "model-routing",
+        "runtime",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Presentation runtime contract: the .pptx package is structurally valid (zip integrity, well-formed XML, content types, relationship targets), the outline is bounded and never padded, the executor fails truthfully (no model, unusable plan, no renderer, failed render, a provider URL without bytes) without creating anything, only the caller's own documents ground a deck, and the routes enforce ownership (404 for another owner, tenant, unknown or malformed id), safe download headers and a provider-neutral viewer.",
+      "notes": "No model is called: the AiService is a deterministic fake; the writer, stores, router and routes are real.",
+      "writesRepositoryArtifacts": false
+    },
+    "r23_7c_d_presentation_main_browser": {
+      "milestone": "R23.7C-D",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Main Slides mode in real Chromium on desktop and phone, EN and KR: the chip is enabled, a request without a model fails truthfully in the user language (no internal code, no download link), a stored deck opens from Recent as an outline with the canonical download link and a real .pptx download, another owner and anonymous callers are refused, and a created deck shows in the thread with the result panel.",
+      "notes": "Production server harness with provider credentials scrubbed; the deck is seeded through the real stores, the planner needs a model.",
+      "writesRepositoryArtifacts": false
+    },
     "r23_7h_c_mobile_recent_image_browser": {
       "milestone": "R23.7H-C",
       "classification": "REAL_BROWSER_CERT",

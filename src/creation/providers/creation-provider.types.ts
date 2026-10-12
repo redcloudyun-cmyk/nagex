@@ -86,7 +86,7 @@ export interface PresentationProviderPort {
   readonly providerId: string;
   getStatus(): ProviderAvailabilityStatus;
   getCapabilities(): PresentationProviderCapabilities;
-  generatePresentation(spec: import('../specs/creation-spec.types.js').PresentationCreationSpec): Promise<ProviderExecutionResult<{ presentationUrl?: string; rawDeckJson?: Record<string, unknown>; mimeType: string }>>;
+  generatePresentation(spec: import('../specs/creation-spec.types.js').PresentationCreationSpec): Promise<ProviderExecutionResult<{ presentationUrl?: string; presentationBuffer?: Buffer; rawDeckJson?: Record<string, unknown>; mimeType: string }>>;
 }
 
 export interface VideoProviderPort {
