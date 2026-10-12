@@ -171,6 +171,10 @@ describe('NAgex real browser product convergence', () => {
 
     await searchAndClick('VAULT', 'Search vault target');
     await page.waitForFunction((title: string) => window.location.hash === '#vault' && document.body.textContent?.includes(title), vault.title);
+    // the Vault preview is an in-page dialog now (no blocking alert): close it before the next search
+    await page.waitForFunction(() => { const m = document.getElementById('nagex-text-modal'); return Boolean(m) && m.style.display === 'flex'; });
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => document.getElementById('nagex-text-modal')?.style.display === 'none');
 
     const activitySearch = await page.request.get(`${h.origin}/api/v1/search?q=${encodeURIComponent('Search activity target')}`, { headers: { cookie } });
     assert.equal(activitySearch.status(), 200);

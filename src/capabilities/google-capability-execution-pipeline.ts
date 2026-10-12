@@ -205,10 +205,12 @@ export class GoogleCapabilityExecutionPipeline {
     const fail = (code: string, category: 'POLICY' | 'TIMEOUT' | 'PROVIDER' | 'INTERNAL' | 'RUNTIME', message: string, details?: Record<string, unknown>): never => {
       throw new NagexError({ code, category, message, request_id: input.requestId, details });
     };
+    const status = store.getStatusForPrincipal(input.tenantId, input.principalId);
+    // no connection for this user stays "disconnected" (the long-standing code); only a connection that cannot be used
+    // because the server has no OAuth client is reported as unavailable
+    if (status.authState === 'NONE') return fail(input.disconnectedErrorCode, 'POLICY', input.disconnectedMessage);
     const config = this.deps.getConfig();
     if (!config) return fail('GOOGLE_CALENDAR_UNAVAILABLE', 'RUNTIME', 'Google Calendar is not available on this server.');
-    const status = store.getStatusForPrincipal(input.tenantId, input.principalId);
-    if (status.authState === 'NONE') return fail(input.disconnectedErrorCode, 'POLICY', input.disconnectedMessage);
     if (status.authState === 'REAUTH_REQUIRED') {
       return fail('GOOGLE_CALENDAR_REAUTH_REQUIRED', 'POLICY', 'Google Calendar must be reconnected.', { reason: status.reauthReason ?? 'TOKEN_REVOKED' });
     }

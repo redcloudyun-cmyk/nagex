@@ -16,6 +16,7 @@
 // rather than duplicating its (already-hardened) relevance logic.
 import type { UpcomingCalendarEvent } from '../modules/calendar/index.js';
 import { calendarStatusFromFailure, classifyCalendarFailure, type CalendarConnectionStatus } from '../integrations/google/calendar-connection.js';
+import { readGoogleOAuthConfig } from '../integrations/google/oauth.client.js';
 import type { TaskStore, TaskRecord, TaskStatus } from '../tasks/task.store.js';
 import type { PersonalReminderStore, PersonalReminder } from './personal-reminder.store.js';
 import type { ActionApprovalStore, ActionApprovalRecord } from '../governance/action-approval.store.js';
@@ -247,7 +248,9 @@ export class CurrentPersonalContextService {
       } catch (error) {
         sourceStatus.calendar = 'ERROR';
         todaysEvents = [];
-        calendarConnection = calendarStatusFromFailure(classifyCalendarFailure(error));
+        const failure = classifyCalendarFailure(error);
+        // "not connected" on a server that has no Google OAuth client is not something the user can fix: say so
+        calendarConnection = calendarStatusFromFailure(failure.state === 'NOT_CONNECTED' && !readGoogleOAuthConfig() ? { state: 'UNAVAILABLE', reason: 'OAUTH_NOT_CONFIGURED', retryable: false } : failure);
       }
     } else {
       sourceStatus.calendar = 'UNAVAILABLE';
