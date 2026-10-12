@@ -159,6 +159,161 @@
     `).join('');
   }
 
+  // ── Safe Markdown ─────────────────────────────────────────────────────────────────────────────────────────
+  // AI answers are untrusted text. They are turned into DOM nodes (headings, lists, tables, code, quotes, links) where
+  // every piece of text is a text node, raw HTML is never interpreted, and a link is only ever http(s) with rel=noopener.
+  function mdSafeUrl(value) {
+    try {
+      const url = new URL(String(value).trim());
+      return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null;
+    } catch { return null; }
+  }
+
+  function mdInline(parent, text) {
+    const pattern = /(`[^`\n]+`)|(\*\*[^*\n]+\*\*)|(__[^_\n]+__)|(\*[^*\n]+\*)|(\[[^\]\n]+\]\([^)\s]+\))|(https?:\/\/[^\s<>"')\]]+)/g;
+    let last = 0;
+    let match;
+    while ((match = pattern.exec(text))) {
+      if (match.index > last) parent.appendChild(document.createTextNode(text.slice(last, match.index)));
+      const token = match[0];
+      if (match[1]) { const code = document.createElement('code'); code.textContent = token.slice(1, -1); parent.appendChild(code); }
+      else if (match[2] || match[3]) { const strong = document.createElement('strong'); mdInline(strong, token.slice(2, -2)); parent.appendChild(strong); }
+      else if (match[4]) { const em = document.createElement('em'); mdInline(em, token.slice(1, -1)); parent.appendChild(em); }
+      else {
+        let label = token;
+        let href = token;
+        if (match[5]) {
+          const parts = /^\[([^\]]+)\]\(([^)\s]+)\)$/.exec(token);
+          label = parts[1];
+          href = parts[2];
+        }
+        const safe = mdSafeUrl(href);
+        if (safe) {
+          const a = document.createElement('a');
+          a.href = safe;
+          a.target = '_blank';
+          a.rel = 'noopener noreferrer nofollow';
+          a.textContent = label;
+          parent.appendChild(a);
+        } else {
+          parent.appendChild(document.createTextNode(token));
+        }
+      }
+      last = match.index + token.length;
+    }
+    if (last < text.length) parent.appendChild(document.createTextNode(text.slice(last)));
+  }
+
+  function mdCells(line) {
+    return line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((cell) => cell.trim());
+  }
+
+  function renderMarkdown(container, source) {
+    container.textContent = '';
+    const lines = String(source == null ? '' : source).replace(/\r\n?/g, '\n').split('\n');
+    let i = 0;
+    const flushParagraph = (buffer) => {
+      if (!buffer.length) return;
+      const p = document.createElement('p');
+      buffer.forEach((line, index) => { if (index) p.appendChild(document.createElement('br')); mdInline(p, line); });
+      container.appendChild(p);
+      buffer.length = 0;
+    };
+    const paragraph = [];
+    while (i < lines.length) {
+      const line = lines[i];
+      const fence = /^```\s*([A-Za-z0-9_+-]*)\s*$/.exec(line);
+      if (fence) {
+        flushParagraph(paragraph);
+        const body = [];
+        i += 1;
+        while (i < lines.length && !/^```\s*$/.test(lines[i])) { body.push(lines[i]); i += 1; }
+        i += 1;
+        const wrap = document.createElement('div');
+        wrap.className = 'main-md-code';
+        const copy = document.createElement('button');
+        copy.type = 'button';
+        copy.className = 'main-md-copy';
+        copy.textContent = mt('Copy');
+        const pre = document.createElement('pre');
+        const code = document.createElement('code');
+        if (fence[1]) code.dataset.lang = fence[1].toLowerCase();
+        code.textContent = body.join('\n');
+        pre.appendChild(code);
+        copy.addEventListener('click', () => {
+          const done = () => { copy.textContent = mt('Copied'); setTimeout(() => { copy.textContent = mt('Copy'); }, 1500); };
+          try { navigator.clipboard.writeText(code.textContent).then(done, () => {}); } catch { /* clipboard unavailable: the text stays selectable */ }
+        });
+        wrap.appendChild(copy);
+        wrap.appendChild(pre);
+        container.appendChild(wrap);
+        continue;
+      }
+      if (!line.trim()) { flushParagraph(paragraph); i += 1; continue; }
+      const heading = /^(#{1,4})\s+(.+)$/.exec(line);
+      if (heading) {
+        flushParagraph(paragraph);
+        const h = document.createElement('h' + Math.min(6, heading[1].length + 2));
+        mdInline(h, heading[2]);
+        container.appendChild(h);
+        i += 1;
+        continue;
+      }
+      if (/^(-{3,}|\*{3,})\s*$/.test(line)) { flushParagraph(paragraph); container.appendChild(document.createElement('hr')); i += 1; continue; }
+      if (/^>\s?/.test(line)) {
+        flushParagraph(paragraph);
+        const quote = document.createElement('blockquote');
+        const parts = [];
+        while (i < lines.length && /^>\s?/.test(lines[i])) { parts.push(lines[i].replace(/^>\s?/, '')); i += 1; }
+        parts.forEach((part, index) => { if (index) quote.appendChild(document.createElement('br')); mdInline(quote, part); });
+        container.appendChild(quote);
+        continue;
+      }
+      const list = /^(\s*)([-*+]|\d+[.)])\s+(.+)$/.exec(line);
+      if (list) {
+        flushParagraph(paragraph);
+        const ordered = /\d/.test(list[2]);
+        const el = document.createElement(ordered ? 'ol' : 'ul');
+        while (i < lines.length) {
+          const item = /^(\s*)([-*+]|\d+[.)])\s+(.+)$/.exec(lines[i]);
+          if (!item || /\d/.test(item[2]) !== ordered) break;
+          const li = document.createElement('li');
+          mdInline(li, item[3]);
+          el.appendChild(li);
+          i += 1;
+        }
+        container.appendChild(el);
+        continue;
+      }
+      if (line.includes('|') && i + 1 < lines.length && /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(lines[i + 1])) {
+        flushParagraph(paragraph);
+        const table = document.createElement('table');
+        const head = document.createElement('thead');
+        const headRow = document.createElement('tr');
+        mdCells(line).forEach((cell) => { const th = document.createElement('th'); mdInline(th, cell); headRow.appendChild(th); });
+        head.appendChild(headRow);
+        table.appendChild(head);
+        const bodyEl = document.createElement('tbody');
+        i += 2;
+        while (i < lines.length && lines[i].includes('|') && lines[i].trim()) {
+          const tr = document.createElement('tr');
+          mdCells(lines[i]).forEach((cell) => { const td = document.createElement('td'); mdInline(td, cell); tr.appendChild(td); });
+          bodyEl.appendChild(tr);
+          i += 1;
+        }
+        table.appendChild(bodyEl);
+        const scroller = document.createElement('div');
+        scroller.className = 'main-md-table';
+        scroller.appendChild(table);
+        container.appendChild(scroller);
+        continue;
+      }
+      paragraph.push(line);
+      i += 1;
+    }
+    flushParagraph(paragraph);
+  }
+
   // ── Conversation stream ───────────────────────────────────────────────────────────────────────────────────
   // One Main session, one stream: every request becomes a turn (the question once, then NAgex's answer). The newest
   // turn owns the element ids the rest of Main (and the tests) use; older turns keep their content but not the ids.
@@ -202,7 +357,7 @@
             <div class="main-message-meta"><strong>NAgex</strong><span class="main-message-status" id="main-status"></span></div>
             <p class="main-turn-working" role="status"></p>
             <h2 class="main-work-title" id="main-work-title"></h2>
-            <p class="main-work-summary" id="main-work-summary"></p>
+            <div class="main-work-summary" id="main-work-summary"></div>
             <ol class="main-step-list" id="main-step-list"></ol>
             <button type="button" class="main-tool-btn main-turn-details" hidden></button>
             <div class="main-inline-actions" id="main-inline-actions"></div>
@@ -287,10 +442,103 @@
     const titleEl = turn.el.querySelector('.main-work-title');
     if (titleEl) titleEl.textContent = localizeAppText(title);
     const summaryEl = turn.el.querySelector('.main-work-summary');
-    if (summaryEl) summaryEl.textContent = localizeAppText(summary);
+    if (summaryEl) {
+      // an AI answer (or a research answer) is rendered as safe Markdown; NAgex's own status text stays plain
+      if (turn.kind === 'answer' || (turn.kind === 'task' && title === 'Research result')) renderMarkdown(summaryEl, summary);
+      else { summaryEl.textContent = localizeAppText(summary); summaryEl.classList.add('main-plain'); }
+    }
     turn.steps = steps || [];
     renderSteps(turn);
     scrollStreamToEnd();
+  }
+
+  // ── Agent run: a plan becomes a real Task; what is shown is what the run record says, never invented ──────────
+  const RUN_STATE_LABELS = { RUNNING: 'Running', WAITING_APPROVAL: 'Waiting for your approval', SUCCEEDED: 'Completed', FAILED: 'Failed', CANCELLED: 'Cancelled' };
+
+  function runBlockFor(turn) {
+    let block = turn.el.querySelector('.main-run-block');
+    if (!block) {
+      block = document.createElement('div');
+      block.className = 'main-run-block';
+      block.innerHTML = '<div class="main-run-head"><strong class="main-run-state"></strong><button type="button" class="main-tool-btn main-run-cancel" hidden></button></div><ol class="main-run-steps"></ol><p class="main-run-note"></p>';
+      const anchor = turn.el.querySelector('.main-inline-approvals');
+      (anchor && anchor.parentNode ? anchor.parentNode : turn.el).insertBefore(block, anchor || null);
+    }
+    return block;
+  }
+
+  // Steps come from the run's own result (completed, waiting, halted) - the executor plans on its own, so the preview's
+  // titles are NOT assumed to match; each step is named by the real action it performed.
+  function renderRun(turn, taskId, run, note) {
+    const block = runBlockFor(turn);
+    const status = run && run.status ? run.status : 'RUNNING';
+    block.dataset.runState = status;
+    block.querySelector('.main-run-state').textContent = mt(RUN_STATE_LABELS[status] || status);
+    const result = run && run.result && typeof run.result === 'object' ? run.result : {};
+    const steps = [];
+    (Array.isArray(result.steps) ? result.steps : Array.isArray(result.completedSteps) ? result.completedSteps : []).forEach((s) => {
+      steps.push({ state: s.status === 'SUCCEEDED' || s.status === 'COMPLETED' ? 'done' : 'running', label: mt('Step') + ' ' + s.step + ' - ' + friendlyToolName(s.capabilityId || ''), detail: s.status === 'SUCCEEDED' || s.status === 'COMPLETED' ? '' : String(s.status || '') });
+    });
+    if (typeof result.waitingAtStep === 'number') steps.push({ state: 'running', label: mt('Step') + ' ' + result.waitingAtStep, detail: mt('Approval needed before this step can run.') });
+    if (typeof result.haltedAtStep === 'number') steps.push({ state: 'failed', label: mt('Step') + ' ' + result.haltedAtStep, detail: String(result.reason || '') });
+    block.querySelector('.main-run-steps').innerHTML = steps.map((s) => '<li class="' + esc(s.state) + '"><span class="main-step-dot">' + (s.state === 'done' ? '✓' : '') + '</span><span>' + esc(s.label) + '</span><small>' + esc(visibleDetail(s.detail, diagnosticsOn() || turn.detailsOpen)) + '</small></li>').join('');
+    const noteEl = block.querySelector('.main-run-note');
+    let text = note || '';
+    if (!text && status === 'FAILED') text = mt("NAgex couldn't complete this plan.");
+    if (!text && status === 'SUCCEEDED') text = mt('The plan finished.');
+    if (!text && status === 'CANCELLED') text = mt('The plan was cancelled.');
+    noteEl.textContent = text;
+    noteEl.hidden = !text;
+    const cancel = block.querySelector('.main-run-cancel');
+    const live = status === 'RUNNING' || status === 'WAITING_APPROVAL';
+    cancel.hidden = !live;
+    cancel.textContent = mt('Cancel');
+    cancel.onclick = async () => {
+      cancel.disabled = true;
+      const res = await api('/api/v1/tasks/' + encodeURIComponent(taskId) + '/cancel', { method: 'POST', body: JSON.stringify({}) });
+      cancel.disabled = false;
+      if (res && !res.error) { turn.runPolling = false; renderRun(turn, taskId, { status: 'CANCELLED', result }, ''); }
+      else setComposerNotice(mt("Couldn't cancel this plan."), 'error');
+    };
+    scrollStreamToEnd();
+  }
+
+  async function pollRun(turn, taskId) {
+    turn.runPolling = true;
+    for (let i = 0; i < 120 && turn.runPolling && turn.el.isConnected; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      if (!turn.runPolling || !turn.el.isConnected) return;
+      const data = await api('/api/v1/tasks/' + encodeURIComponent(taskId) + '/runs');
+      const runs = data && !data.error && Array.isArray(data.runs) ? data.runs : null;
+      if (!runs || runs.length === 0) continue;
+      const latest = runs.slice().sort((a, b) => String(a.startedAt).localeCompare(String(b.startedAt))).pop();
+      renderRun(turn, taskId, latest, '');
+      if (latest.status === 'WAITING_APPROVAL') loadInlineApprovals(turn);
+      if (latest.status === 'SUCCEEDED' || latest.status === 'FAILED') { turn.runPolling = false; return; }
+    }
+    turn.runPolling = false;
+  }
+
+  async function startPlanRun(turn, prompt, plan) {
+    if (!turn || !turn.el || turn.runStarted) return;
+    turn.runStarted = true;
+    const taskId = { value: null };
+    renderRun(turn, '', { status: 'RUNNING' }, mt('Working on it...'));
+    const created = await api('/api/v1/tasks', { method: 'POST', body: JSON.stringify({ type: 'ONE_TIME', name: String((plan && plan.summary) || prompt).slice(0, 80), objective: prompt, trigger: { type: 'MANUAL' }, approvalPolicy: 'ALWAYS_APPROVE' }) });
+    if (!created || created.error || !created.taskId) {
+      turn.runStarted = false;
+      renderRun(turn, '', { status: 'FAILED' }, mt("Couldn't start this plan."));
+      return;
+    }
+    taskId.value = created.taskId;
+    // the run call returns when the executor finishes or stops at an approval
+    const run = await api('/api/v1/tasks/' + encodeURIComponent(created.taskId) + '/run', { method: 'POST', body: JSON.stringify({}), timeoutMs: 180000 });
+    if (!run || run.error || !run.status) {
+      renderRun(turn, created.taskId, { status: 'FAILED' }, mt("NAgex couldn't complete this plan."));
+      return;
+    }
+    renderRun(turn, created.taskId, run, '');
+    if (run.status === 'WAITING_APPROVAL') { loadInlineApprovals(turn); pollRun(turn, created.taskId); }
   }
 
   // Real pending approvals of the signed-in user, rendered inline with working Approve / Reject controls.
@@ -699,6 +947,8 @@
     if ((result.plan.steps || []).some((step) => step.requiresApproval)) setTimeout(() => loadInlineApprovals(state.activeTurn), 0);
     showThread(prompt, 'Plan ready', result.plan.summary || 'NAgex prepared a plan.', 'Review the plan inline. Required approvals remain mandatory and cannot be bypassed here.', steps);
     renderInlineActions([
+      // Run: creates a real Task from this request and runs it through the same approval-gated executor as everywhere else
+      { id: 'run-plan', label: 'Run this plan', action: ((turn) => () => startPlanRun(turn, prompt, result.plan))(state.activeTurn) },
       { id: 'show-plan', label: 'Show plan', action: () => setStep((result.plan.steps || []).map((step, index) => ({ state: index === 0 ? 'running' : 'pending', label: step.title || (mt('Step') + ' ' + (index + 1)), detail: step.reasoning || '' }))) },
     ]);
   }

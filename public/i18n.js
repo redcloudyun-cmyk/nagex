@@ -3782,6 +3782,38 @@
     'mainText.PROPOSED': '\uC81C\uC548\uB428',
     'mainText.COMPLETED': '\uC644\uB8CC',
   });
+  Object.assign(translations.en, {
+    'mainText.Run_this_plan': 'Run this plan',
+    'mainText.Running': 'Running',
+    'mainText.Cancelled': 'Cancelled',
+    'mainText.Stop': 'Stop',
+    'mainText.NAgex_couldn_t_complete_this_plan': 'NAgex couldn\'t complete this plan.',
+    'mainText.Couldn_t_start_this_plan': 'Couldn\'t start this plan.',
+    'mainText.The_plan_was_cancelled': 'The plan was cancelled.',
+    'mainText.The_plan_finished': 'The plan finished.',
+    'mainText.Approval_needed_before_this_step_can_run': 'Approval needed before this step can run.',
+    'mainText.Couldn_t_cancel_this_plan': 'Couldn\'t cancel this plan.',
+  });
+  Object.assign(translations.ko, {
+    'mainText.Run_this_plan': '\uC774 \uACC4\uD68D \uC2E4\uD589',
+    'mainText.Running': '\uC2E4\uD589 \uC911',
+    'mainText.Cancelled': '\uCDE8\uC18C\uB428',
+    'mainText.Stop': '\uC911\uC9C0',
+    'mainText.NAgex_couldn_t_complete_this_plan': 'NAgex\uAC00 \uC774 \uACC4\uD68D\uC744 \uC644\uB8CC\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.',
+    'mainText.Couldn_t_start_this_plan': '\uC774 \uACC4\uD68D\uC744 \uC2DC\uC791\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.',
+    'mainText.The_plan_was_cancelled': '\uACC4\uD68D\uC774 \uCDE8\uC18C\uB418\uC5C8\uC2B5\uB2C8\uB2E4.',
+    'mainText.The_plan_finished': '\uACC4\uD68D\uC774 \uB05D\uB0AC\uC2B5\uB2C8\uB2E4.',
+    'mainText.Approval_needed_before_this_step_can_run': '\uC774 \uB2E8\uACC4\uB97C \uC2E4\uD589\uD558\uB824\uBA74 \uC2B9\uC778\uC774 \uD544\uC694\uD569\uB2C8\uB2E4.',
+    'mainText.Couldn_t_cancel_this_plan': '\uACC4\uD68D\uC744 \uCDE8\uC18C\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.',
+  });
+  Object.assign(translations.en, {
+    'mainText.Copy': 'Copy',
+    'mainText.Copied': 'Copied',
+  });
+  Object.assign(translations.ko, {
+    'mainText.Copy': '\uBCF5\uC0AC',
+    'mainText.Copied': '\uBCF5\uC0AC\uB428',
+  });
   // tx(): translate a fixed English UI phrase (key mainText.<slug>); unknown text and user content come back unchanged.
   function tx(text) { if (text == null || text === '') return text == null ? '' : text; const value = String(text); const key = 'mainText.' + value.replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 80); const out = t(key, value); return out === key ? value : out; }
   window.NAGEX_I18N = { t, tx, getLocale, getLanguage: getLocale, setLocale, toggleLocale, applyLocale, getMissingKeys: () => Array.from(missingKeys) };

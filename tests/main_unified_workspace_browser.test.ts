@@ -368,4 +368,148 @@ describe('Unified Main workspace', () => {
     assert.equal(await page.evaluate(() => document.activeElement?.id), 'main-surface-input');
     await ctx.close();
   });
+  // ── agent run: a plan becomes a real Task and its REAL run state is shown ──
+  const PLAN = {
+    goal: 'Prepare the client meeting', summary: 'Prepare the client meeting pack', reasoningSummary: 'Gather, draft, send.', suggestions: [],
+    steps: [
+      { step: 1, title: 'Draft the summary email', reasoning: 'Write it', skill: 'drafting', tool: 'gmail.create_draft', requiresApproval: false },
+      { step: 2, title: 'Send the email to the client', reasoning: 'Deliver it', skill: 'email', tool: 'gmail.send_email', requiresApproval: true },
+    ],
+  };
+
+  async function planPage(label: string): Promise<{ ctx: BrowserContext; page: Page }> {
+    const ctx = await contextAt(1440, 900, label);
+    const page = await ctx.newPage();
+    await stubRichHome(page);
+    await page.route('**/api/v1/ambient/intent', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ plan: PLAN }) }));
+    await openMain(page);
+    await page.click('[data-main-mode="PLAN"]');
+    await ask(page, 'Prepare the client meeting and email the summary');
+    await page.waitForSelector('.main-turn[data-kind="task"]', { timeout: 15000 });
+    return { ctx, page };
+  }
+
+  it('D3. "Run this plan" creates a real task, shows the run\'s real steps and waiting approval, and the run completes after approval', async () => {
+    const { ctx, page } = await planPage('unified_run_flow');
+    const calls: string[] = [];
+    let runsPolled = 0;
+    await page.route('**/api/v1/tasks', async (route) => {
+      if (route.request().method() !== 'POST') return route.continue();
+      calls.push('create:' + JSON.stringify(route.request().postDataJSON()));
+      await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ taskId: 'task_run_1', status: 'ACTIVE' }) });
+    });
+    await page.route('**/api/v1/tasks/task_run_1/run', async (route) => {
+      calls.push('run');
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ runId: 'run_1', taskId: 'task_run_1', status: 'WAITING_APPROVAL', startedAt: iso(-5000), completedAt: null, errorCode: null, result: { kind: 'STEP_EXECUTION', completedSteps: [{ step: 1, capabilityId: 'gmail.create_draft', status: 'SUCCEEDED', result: {} }], waitingAtStep: 2, approvalId: 'appr_run_1' } }) });
+    });
+    await page.route('**/api/v1/tasks/task_run_1/runs', async (route) => {
+      runsPolled += 1;
+      const done = runsPolled > 0 && decisions.length > 0;
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ total: 1, runs: [done
+        ? { runId: 'run_1', taskId: 'task_run_1', status: 'SUCCEEDED', startedAt: iso(-5000), completedAt: iso(0), errorCode: null, result: { kind: 'STEP_EXECUTION', steps: [{ step: 1, capabilityId: 'gmail.create_draft', status: 'SUCCEEDED', result: {} }, { step: 2, capabilityId: 'gmail.send_email', status: 'SUCCEEDED', result: {} }] } }
+        : { runId: 'run_1', taskId: 'task_run_1', status: 'WAITING_APPROVAL', startedAt: iso(-5000), completedAt: null, errorCode: null, result: { kind: 'STEP_EXECUTION', completedSteps: [{ step: 1, capabilityId: 'gmail.create_draft', status: 'SUCCEEDED', result: {} }], waitingAtStep: 2, approvalId: 'appr_run_1' } }] }) });
+    });
+    const decisions: string[] = [];
+    await page.route('**/api/v1/approvals', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue();
+      const pending = decisions.length ? [] : [{ id: 'appr_run_1', approvalId: 'appr_run_1', toolId: 'gmail.send_email', action: 'Send email', status: 'PENDING', createdAt: iso(-1000), expiresAt: iso(HOUR) }];
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ approvals: pending, pending, inProgress: [], recent: [], counts: { pending: pending.length, inProgress: 0, recent: 0 }, total: pending.length }) });
+    });
+    await page.route('**/api/v1/approvals/appr_run_1/*', async (route) => { decisions.push(route.request().url().split('/').pop() || ''); await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ approvalId: 'appr_run_1', status: 'APPROVED' }) }); });
+
+    await page.click('.main-turn .main-inline-actions button:has-text("Run this plan")');
+    await page.waitForSelector('.main-run-block[data-run-state="WAITING_APPROVAL"]', { timeout: 15000 });
+    assert.equal(calls.length, 2);
+    assert.match(calls[0], /"objective":"Prepare the client meeting and email the summary"/);
+    assert.match(calls[0], /"approvalPolicy":"ALWAYS_APPROVE"/, 'approval policy is never relaxed from the UI');
+    const block = await page.locator('.main-run-block').innerText();
+    assert.match(block, /Waiting for your approval/);
+    assert.match(block, /Step 1 - Create email draft/, 'completed steps are named by the real action');
+    assert.match(block, /Step 2/);
+    assert.doesNotMatch(block, /gmail\.create_draft|appr_run_1|task_run_1|run_1/, 'no internal ids in the ordinary UI');
+    // the real pending approval is right there, in the same session
+    await page.waitForSelector('.main-approval-card');
+    await page.locator('.main-approval-card button.btn-primary').click();
+    await page.waitForSelector('.main-run-block[data-run-state="SUCCEEDED"]', { timeout: 20000 });
+    assert.deepEqual(decisions, ['approve']);
+    const done = await page.locator('.main-run-block').innerText();
+    assert.match(done, /Completed/);
+    assert.match(done, /Step 2 - Send email/);
+    await ctx.close();
+  });
+
+  it('D4. a run that fails is reported as failed with no invented steps; Cancel stops a waiting run through the real endpoint', async () => {
+    const failed = await planPage('unified_run_failed');
+    // the real server (no model provider configured in the harness) decides what happens: whatever it says is shown
+    await failed.page.click('.main-turn .main-inline-actions button:has-text("Run this plan")');
+    await failed.page.waitForSelector('.main-run-block[data-run-state="FAILED"]', { timeout: 60000 });
+    const text = await failed.page.locator('.main-run-block').innerText();
+    assert.match(text, /Failed/);
+    assert.match(text, /couldn't complete this plan/);
+    assert.equal(await failed.page.locator('.main-run-steps li.done').count(), 0, 'nothing is shown as done that did not run');
+    assert.doesNotMatch(text, /task_|run_|[A-Z_]{8,}/, 'no internal ids or codes');
+    await failed.ctx.close();
+
+    const { ctx, page } = await planPage('unified_run_cancel');
+    const cancels: string[] = [];
+    await page.route('**/api/v1/tasks', async (route) => { if (route.request().method() !== 'POST') return route.continue(); await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ taskId: 'task_cancel_1' }) }); });
+    await page.route('**/api/v1/tasks/task_cancel_1/run', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ runId: 'run_c', taskId: 'task_cancel_1', status: 'WAITING_APPROVAL', startedAt: iso(-1000), completedAt: null, errorCode: null, result: { kind: 'STEP_EXECUTION', completedSteps: [], waitingAtStep: 1, approvalId: 'appr_c' } }) }));
+    await page.route('**/api/v1/tasks/task_cancel_1/runs', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ total: 0, runs: [] }) }));
+    await page.route('**/api/v1/tasks/task_cancel_1/cancel', async (route) => { cancels.push('cancel'); await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ taskId: 'task_cancel_1', status: 'CANCELLED' }) }); });
+    await page.route('**/api/v1/approvals', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ approvals: [], pending: [], inProgress: [], recent: [], counts: { pending: 0, inProgress: 0, recent: 0 }, total: 0 }) }));
+    await page.click('.main-turn .main-inline-actions button:has-text("Run this plan")');
+    await page.waitForSelector('.main-run-block[data-run-state="WAITING_APPROVAL"] .main-run-cancel:not([hidden])', { timeout: 15000 });
+    await page.click('.main-run-cancel');
+    await page.waitForSelector('.main-run-block[data-run-state="CANCELLED"]', { timeout: 10000 });
+    assert.deepEqual(cancels, ['cancel']);
+    assert.match(await page.locator('.main-run-block').innerText(), /Cancelled/);
+    assert.equal(await page.locator('.main-run-cancel').isVisible(), false, 'nothing left to cancel');
+    await ctx.close();
+  });
+
+  it('A3. answers render safe Markdown (headings, lists, tables, code, links) and never interpret raw HTML or javascript: links', async () => {
+    const ctx = await contextAt(1440, 900, 'unified_markdown');
+    const page = await ctx.newPage();
+    await stubRichHome(page);
+    const fence = '```';
+    const markdown = [
+      '## Weekly plan', '',
+      'Here is **bold**, *italic* and `inline code` with a [link](https://example.com/docs).', '',
+      '- first item', '- second item', '',
+      '1. one', '2. two', '',
+      '| Day | Task |', '|---|---|', '| Mon | Review |', '| Tue | Ship |', '',
+      `${fence}ts`, 'const a = "<b>x</b>";', fence, '',
+      '<script>window.__xss=1</script>',
+      '<img src=x onerror="window.__xss=2">',
+      '[bad](javascript:window.__xss=3)',
+    ].join('\n');
+    await stubChat(page, [markdown]);
+    await openMain(page);
+    await ask(page, 'Give me a plan');
+    await page.waitForSelector('.main-turn[data-kind="answer"] .main-work-summary h4', { timeout: 15000 });
+    const summary = page.locator('.main-turn .main-work-summary');
+    assert.equal((await summary.locator('h4').innerText()).trim(), 'Weekly plan');
+    assert.equal((await summary.locator('strong').first().innerText()).trim(), 'bold');
+    assert.equal((await summary.locator('em').first().innerText()).trim(), 'italic');
+    assert.equal((await summary.locator('p code').first().innerText()).trim(), 'inline code');
+    const link = summary.locator('a[href="https://example.com/docs"]');
+    assert.equal(await link.count(), 1);
+    assert.equal(await link.getAttribute('target'), '_blank');
+    assert.match((await link.getAttribute('rel')) || '', /noopener/);
+    assert.equal(await summary.locator('ul li').count(), 2);
+    assert.equal(await summary.locator('ol li').count(), 2);
+    assert.equal(await summary.locator('table th').count(), 2);
+    assert.equal(await summary.locator('table td').count(), 4);
+    assert.equal(await summary.locator('.main-md-code pre code').innerText(), 'const a = "<b>x</b>";', 'code is shown literally, never interpreted');
+    assert.equal(await summary.locator('.main-md-copy').count(), 1);
+    // untrusted markup stays inert text
+    const text = await summary.innerText();
+    assert.match(text, /<script>window\.__xss=1<\/script>/);
+    assert.equal(await summary.locator('script, img, iframe, object, embed, style').count(), 0);
+    assert.equal(await summary.locator('a[href^="javascript:" i]').count(), 0);
+    assert.equal(await page.evaluate(() => (window as any).__xss), undefined);
+    // the answer is still one turn, and the question is plain text (never Markdown)
+    assert.equal(await page.locator('.main-turn').count(), 1);
+    await ctx.close();
+  });
 });
