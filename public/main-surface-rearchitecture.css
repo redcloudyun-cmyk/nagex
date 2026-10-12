@@ -813,23 +813,23 @@
 .nagex-main-surface[data-session-state="RESULT"] .main-input-wrap textarea {
   min-height: 58px;
 }
-.nagex-main-surface[data-session-state="CONVERSATION"] .main-message:first-of-type {
+.nagex-main-surface[data-session-state="CONVERSATION"] .main-thread-card > .main-message:nth-child(2) {
   display: flex;
   justify-content: flex-end;
 }
-.nagex-main-surface[data-session-state="CONVERSATION"] .main-message:first-of-type > div {
+.nagex-main-surface[data-session-state="CONVERSATION"] .main-thread-card > .main-message:nth-child(2) > div {
   max-width: min(80%, 700px);
   border-radius: 16px;
   padding: 12px 16px;
   background: #e9f1fc;
 }
-.nagex-main-surface[data-session-state="CONVERSATION"] .main-message:first-of-type .main-avatar {
+.nagex-main-surface[data-session-state="CONVERSATION"] .main-thread-card > .main-message:nth-child(2) .main-avatar {
   display: none;
 }
-.nagex-main-surface[data-session-state="CONVERSATION"] .main-message:nth-of-type(2) {
+.nagex-main-surface[data-session-state="CONVERSATION"] .main-thread-card > .main-message:nth-child(3) {
   max-width: 100%;
 }
-.nagex-main-surface[data-session-state="CONVERSATION"] .main-message:nth-of-type(2) #main-work-title {
+.nagex-main-surface[data-session-state="CONVERSATION"] .main-thread-card > .main-message:nth-child(3) #main-work-title {
   font-size: 1rem;
   font-weight: 600;
 }
