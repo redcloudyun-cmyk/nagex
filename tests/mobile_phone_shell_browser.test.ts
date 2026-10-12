@@ -81,6 +81,16 @@ test('phone shell: Main Home, one fitting header, bottom navigation and no horiz
         assert.ok(await page.locator('#mobile-view-settings').isVisible(), `${tag} settings: native settings view`);
         assert.equal(await page.locator('.app-wrapper').isVisible(), false, `${tag} settings: the desktop wrapper is hidden`);
         assert.ok((await page.evaluate(() => document.documentElement.scrollWidth)) <= width, `${tag} settings: horizontal overflow`);
+
+        // Apps & connections (GitHub, custom tool servers) stays reachable on a phone: the native Settings links to the responsive screen
+        await page.locator('#mh-apps-open').click();
+        await page.waitForSelector('#nagex-connections', { state: 'visible', timeout: 15000 });
+        assert.equal(await page.locator('#mobile-app-shell').isVisible(), false, `${tag} connections: the native shell yields to the responsive Connections screen`);
+        assert.ok(await page.locator('.mobile-bottom-nav').isVisible(), `${tag} connections: bottom navigation visible`);
+        assert.ok((await page.evaluate(() => document.documentElement.scrollWidth)) <= width, `${tag} connections: horizontal overflow`);
+        await page.locator('.mobile-bottom-nav [data-tab="tab-settings"]').click();
+        await page.waitForSelector('#mobile-app-shell:not([hidden]) #mobile-view-settings', { state: 'visible', timeout: 10000 });
+
         await page.locator('.mh-bottom-nav [data-tab="tab-home"]').click();
         await page.waitForSelector('#main-surface-input', { state: 'visible', timeout: 10000 });
         assert.equal(await page.locator('#mobile-app-shell').isVisible(), false, `${tag} back home: native shell hidden again`);

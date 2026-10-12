@@ -200,7 +200,24 @@
           ${escapeHtml(oauth.connected ? t('settings.disconnect', 'Disconnect') : t('settings.connect', 'Connect'))}
         </button>
       </div>
-      ${oauth.configured ? scopeRow('mobileSettings.googleCalendarScope', 'Calendar', 'calendar') + scopeRow('mobileSettings.googleGmailScope', 'Gmail', 'gmail') : ''}`;
+      ${oauth.configured ? scopeRow('mobileSettings.googleCalendarScope', 'Calendar', 'calendar') + scopeRow('mobileSettings.googleGmailScope', 'Gmail', 'gmail') : ''}
+      <div class="mh-settings-row">
+        <div class="mh-settings-row-body">
+          <span class="mh-settings-row-title">${escapeHtml(t('mobileSettings.appsRow', 'Apps & connections'))}</span>
+          <span class="mh-settings-tag">${escapeHtml(t('mobileSettings.appsRowSub', 'GitHub, custom tools and more'))}</span>
+        </div>
+        <button class="mh-settings-action-btn" id="mh-apps-open">${escapeHtml(t('mobileSettings.appsOpen', 'Open'))}</button>
+      </div>`;
+    const appsBtn = document.getElementById('mh-apps-open');
+    if (appsBtn) {
+      appsBtn.onclick = () => {
+        // select the Connections category (this also records #settings/connections), then let the shell re-evaluate which tree to show
+        window.NAGEX.mobileSettingsOverview = false;
+        if (typeof window.NAGEX.switchSettingsCategory === 'function') window.NAGEX.switchSettingsCategory('connections');
+        else window.location.hash = '#settings/connections';
+        if (typeof window.NAGEX.onTabChange === 'function') window.NAGEX.onTabChange('tab-settings');
+      };
+    }
 
     const btn = document.getElementById('mh-google-toggle');
     if (btn && oauth.configured) {

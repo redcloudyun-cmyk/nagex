@@ -22,6 +22,9 @@
     const tab = window.NAGEX.getState && window.NAGEX.getState().activeTab;
     // Home on a phone is the unified Main surface (it lives in the desktop wrapper), not the native mobile Home
     if (tab === 'tab-home' && document.querySelector('script[src*="main-surface.js"]')) return null;
+    // A Settings category deep link (#settings/connections, e.g. after an OAuth redirect, or the Apps & connections row of the native Settings) is a
+    // responsive Desktop-tree screen; the plain Settings tab and a bottom-navigation tap on Settings show the native overview.
+    if (tab === 'tab-settings' && /^#settings\/[^?]+/.test(window.location.hash || '') && !window.NAGEX.mobileSettingsOverview) return null;
     return tab && MOBILE_NATIVE_TABS.has(tab) ? tab : null;
   }
 
@@ -401,6 +404,12 @@
     window.NAGEX = window.NAGEX || {};
     window.NAGEX.onHomeRenderMobile = () => { if (isMobileViewport() && activeNativeTab() === 'tab-home') renderMobileHome(); };
     window.NAGEX.onTabChange = updateShellVisibility;
+    // a bottom-navigation tap on Settings asks for the native overview even when the last route was a Settings category (capture phase: before
+    // the tap's own handler switches tabs); any other tap clears the request
+    document.addEventListener('click', (event) => {
+      const item = event.target && event.target.closest ? event.target.closest('.mobile-bottom-nav [data-tab], .mh-bottom-nav [data-tab]') : null;
+      if (item) window.NAGEX.mobileSettingsOverview = item.getAttribute('data-tab') === 'tab-settings';
+    }, true);
     window.NAGEX.bindMobileLangToggle = bindLangToggle;
     window.NAGEX.scrollToToday = () => {
       const todaySection = document.getElementById('mh-section-today');
