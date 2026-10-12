@@ -658,7 +658,7 @@
           { state: 'done', label: 'Upload file', detail: result.captureId || file.name },
         ]);
       } else {
-        showThread(mt('Attachment upload'), 'Error', 'Attachment failed', (result && result.error && result.error.message) || 'The file could not be uploaded.', [
+        showThread(mt('Attachment upload'), 'Error', 'Attachment failed', serverFailure(result, 'The file could not be uploaded.'), [
           { state: 'running', label: 'Upload failed', detail: file.name },
         ]);
       }
@@ -762,7 +762,7 @@
       }),
     });
     if (!result || result.error) {
-      showThread(prompt, 'Error', 'Capture could not be saved', (result && result.error && result.error.message) || 'The workspace capture endpoint did not save this request.', [
+      showThread(prompt, 'Error', 'Capture could not be saved', serverFailure(result, 'The workspace capture endpoint did not save this request.'), [
         { state: 'done', label: 'Intent classified', detail: route.primaryIntent },
         { state: 'running', label: 'Capture failed', detail: '' },
       ]);
@@ -781,7 +781,7 @@
       timeoutMs: 120000,
     });
     if (!result || result.error) {
-      showThread(prompt, 'Unavailable', 'Answer is unavailable', (result && result.error && result.error.message) || 'The answer provider did not return a usable response.', [
+      showThread(prompt, 'Unavailable', 'Answer is unavailable', serverFailure(result, 'The answer provider did not return a usable response.'), [
         { state: 'done', label: 'Intent classified', detail: route.primaryIntent || 'ASK' },
         { state: 'running', label: 'Answer unavailable', detail: result && result.error && result.error.code ? result.error.code : '' },
       ]);
@@ -804,7 +804,7 @@
       body: JSON.stringify({ prompt, requestMetadata: metadata }),
     });
     if (!result || result.error) {
-      showThread(prompt, 'Error', 'Document could not be created', (result && result.error && result.error.message) || 'No document result is available.', [
+      showThread(prompt, 'Error', 'Document could not be created', serverFailure(result, 'No document result is available.'), [
         { state: 'done', label: 'Request captured', detail: 'Document' },
         { state: 'running', label: 'Creation failed', detail: '' },
       ]);
@@ -837,13 +837,13 @@
         prompt,
         type: 'IMAGE',
         creationKind: 'IMAGE',
-        recipe: { type: 'IMAGE', aspectRatio: '1:1', locale: 'ko' },
+        recipe: { type: 'IMAGE', aspectRatio: '1:1', locale: (window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale()) || 'en' },
         requestMetadata: metadata,
       }),
       timeoutMs: 120000,
     });
     if (!result || result.error || result.status === 'FAILED' || result.status === 'UNAVAILABLE') {
-      showThread(prompt, 'Unavailable', 'Image generation is unavailable', (result && (result.message || result.errorMessage)) || (result && result.error && result.error.message) || 'No configured image provider produced a real image.', [
+      showThread(prompt, 'Unavailable', 'Image generation is unavailable', serverFailure(result, 'No configured image provider produced a real image.'), [
         { state: 'done', label: 'Request captured', detail: 'Image' },
         { state: 'running', label: 'Image provider unavailable', detail: (result && (result.error || result.errorCode || result.status)) || '' },
       ]);
@@ -875,7 +875,7 @@
       body: JSON.stringify({ instruction: prompt, requestMetadata: metadata }),
     });
     if (!result || result.error || result.ok === false) {
-      showThread(prompt, 'Error', 'Document revision could not be created', (result && result.message) || (result && result.error && result.error.message) || 'The document revision endpoint did not create a revision.', [
+      showThread(prompt, 'Error', 'Document revision could not be created', (result && result.message) || serverFailure(result, 'The document revision endpoint did not create a revision.'), [
         { state: 'done', label: 'Revision target selected', detail: target.documentId },
         { state: 'running', label: 'Revision failed', detail: '' },
       ]);
@@ -908,7 +908,7 @@
       body: JSON.stringify({ query: prompt, requestMetadata: metadata }),
     });
     if (!result || result.error || result.status) {
-      showThread(prompt, 'Unavailable', 'Research is unavailable', (result && result.error && result.error.message) || 'No verified research result is available from the current providers.', [
+      showThread(prompt, 'Unavailable', 'Research is unavailable', serverFailure(result, 'No verified research result is available from the current providers.'), [
         { state: 'done', label: 'Request captured', detail: 'Research' },
         { state: 'running', label: 'Research unavailable', detail: result && result.status ? result.status : '' },
       ]);
@@ -933,7 +933,7 @@
       timeoutMs: 120000,
     });
     if (!result || result.error || !result.plan) {
-      showThread(prompt, 'Error', 'NAgex could not prepare a plan', (result && result.error && result.error.message) || 'The planner did not return a usable plan.', [
+      showThread(prompt, 'Error', 'NAgex could not prepare a plan', serverFailure(result, 'The planner did not return a usable plan.'), [
         { state: 'done', label: 'Intent classified', detail: route && route.primaryIntent ? route.primaryIntent : metadata.preferredMode },
         { state: 'running', label: 'Planning failed', detail: '' },
       ]);
@@ -1194,7 +1194,7 @@
       method: 'POST',
       body: JSON.stringify({ title: 'Saved NAgex result', type: 'DOCUMENT', mimeType: 'text/plain', storageRef: 'main-result:' + Date.now(), contentText: text }),
     });
-    showThread(mt('Save to Vault'), result && !result.error ? 'Saved' : 'Error', result && !result.error ? 'Saved to Vault' : 'Could not save', result && !result.error ? 'The result is now stored in your workspace Vault.' : ((result && result.error && result.error.message) || 'Save failed.'), [
+    showThread(mt('Save to Vault'), result && !result.error ? 'Saved' : 'Error', result && !result.error ? 'Saved to Vault' : 'Could not save', result && !result.error ? 'The result is now stored in your workspace Vault.' : (serverFailure(result, 'Save failed.')), [
       { state: result && !result.error ? 'done' : 'running', label: 'Save to Vault', detail: result && (result.vaultItemId || result.id || '') },
     ]);
   }
@@ -1362,6 +1362,17 @@
 
   function bt(key, fallback) {
     return window.NAGEX_I18N && window.NAGEX_I18N.t ? window.NAGEX_I18N.t(key, fallback) : fallback;
+  }
+
+  // Servers answer with { error: { message } } or { error: 'CODE', message }. The first non-empty, truthful wording wins; the
+  // "no model provider" case is worded for the user instead of echoing the internal sentence.
+  function serverFailure(result, fallback) {
+    if (result && result.error === 'NO_MODEL_PROVIDER_CONFIGURED') return bt('mainError.noModel', "NAgex can't do this right now because no AI model is available.");
+    if (result && result.error === 'NO_CREATION_PROVIDER_AVAILABLE') return bt('mainError.noImageProvider', "NAgex can't create images right now because no image service is set up.");
+    if (result && result.error && typeof result.error === 'object' && result.error.message) return result.error.message;
+    if (result && typeof result.message === 'string' && result.message) return result.message;
+    if (result && typeof result.errorMessage === 'string' && result.errorMessage) return result.errorMessage;
+    return fallback;
   }
 
   // ── Localization of application-generated text ─────────────────────────────────────────────────────────

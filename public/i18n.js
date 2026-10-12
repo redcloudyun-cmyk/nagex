@@ -2556,11 +2556,14 @@
   let currentLocale = detectLocale();
 
   const missingKeys = new Set();
+  // 'mainText.<slug>' keys are PROBES: the Main surface looks every visible string up by its slug and shows the string itself when no
+  // translation exists (user content, AI answers, record titles). A missed probe is expected, not a missing key, so it is kept apart.
+  const missingProbes = new Set();
 
   function t(key, fallback) {
     const value = (translations[currentLocale] && translations[currentLocale][key]) || (translations.en && translations.en[key]);
     if (value != null) return value;
-    missingKeys.add(String(key));
+    if (String(key).indexOf('mainText.') === 0) missingProbes.add(String(key)); else missingKeys.add(String(key));
     if (fallback != null) return String(fallback);
     return String(key);
   }
@@ -3198,6 +3201,8 @@
     'mainText.Cancel_calendar_event': 'Cancel calendar event',
     'mainText.Respond_to_calendar_event': 'Respond to calendar event',
     'mainDay.title': 'My Day',
+    'mainError.noModel': "NAgex can't do this right now because no AI model is available.",
+    'mainError.noImageProvider': "NAgex can't create images right now because no image service is set up.",
     'mainText.Overdue': 'Overdue',
     'mainText.Due_today': 'Due today',
     'mainText.Scheduled': 'Scheduled',
@@ -4356,13 +4361,15 @@
     'mainBriefing.noReplyStatus': '\uC800\uC7A5\uB41C \uB2F5\uBCC0 \uC5C6\uC74C',
     'mainBriefing.restoredTitle': '\uC774 \uB300\uD654\uC758 \uC774\uC804 \uB0B4\uC6A9',
     'mainDay.title': '\uC624\uB298\uC758 \uC77C\uC815\uACFC \uD560 \uC77C',
+    'mainError.noModel': '\uC9C0\uAE08\uC740 \uC0AC\uC6A9\uD560 \uC218 \uC788\uB294 AI \uBAA8\uB378\uC774 \uC5C6\uC5B4\uC11C \uC774 \uC791\uC5C5\uC744 \uD560 \uC218 \uC5C6\uC5B4\uC694.',
+    'mainError.noImageProvider': '\uC9C0\uAE08\uC740 \uC774\uBBF8\uC9C0 \uC11C\uBE44\uC2A4\uAC00 \uC124\uC815\uB418\uC5B4 \uC788\uC9C0 \uC54A\uC544\uC11C \uC774\uBBF8\uC9C0\uB97C \uB9CC\uB4E4 \uC218 \uC5C6\uC5B4\uC694.',
     'mainText.Ask_NAgex_to_research_create_plan_or_act': '\uC870\uC0AC, \uC791\uC131, \uACC4\uD68D, \uC2E4\uD589\uAE4C\uC9C0 \uBB34\uC5C7\uC774\uB4E0 \uB9E1\uACA8 \uBCF4\uC138\uC694\u2026',
     'mainText.Show_plan_before_actions': '\uC2E4\uD589 \uC804\uC5D0 \uACC4\uD68D \uBCF4\uC5EC \uC8FC\uAE30',
     'mainText.Small_steps_every_day_create_a_bigger_tomorrow': '\uC791\uC740 \uAC78\uC74C\uC774 \uC313\uC5EC \uB354 \uD070 \uB0B4\uC77C\uC774 \uB3FC\uC694.',
   });
   // tx(): translate a fixed English UI phrase (key mainText.<slug>); unknown text and user content come back unchanged.
   function tx(text) { if (text == null || text === '') return text == null ? '' : text; const value = String(text); const key = 'mainText.' + value.replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 80); const out = t(key, value); return out === key ? value : out; }
-  window.NAGEX_I18N = { t, tx, getLocale, getLanguage: getLocale, setLocale, toggleLocale, applyLocale, getMissingKeys: () => Array.from(missingKeys) };
+  window.NAGEX_I18N = { t, tx, getLocale, getLanguage: getLocale, setLocale, toggleLocale, applyLocale, getMissingKeys: () => Array.from(missingKeys), getMissingProbes: () => Array.from(missingProbes) };
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', applyLocale);

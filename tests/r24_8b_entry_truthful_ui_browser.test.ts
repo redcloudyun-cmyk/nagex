@@ -27,174 +27,110 @@ function watch(page: Page) {
 }
 async function openHome(page: Page, kind: 'desktop' | 'mobile'): Promise<void> {
   await page.goto(`${h.origin}/#home`, { waitUntil: 'domcontentloaded' });
-  await page.waitForSelector(kind === 'desktop' ? '#home-section-create .ph-capability-tile' : '#mh-section-create .ph-capability-tile', { state: 'visible', timeout: 20000 });
+  // Home is the unified Main surface on desktop and on phones (the retired capability tiles no longer exist)
+  await page.waitForSelector('#main-surface-input', { state: 'visible', timeout: 20000 });
 }
 const tile = (kind: 'desktop' | 'mobile', id: string) => `${kind === 'desktop' ? '#home-section-create' : '#mh-section-create'} .ph-capability-tile[data-capability="${id}"]`;
 const text = async (page: Page, sel: string) => ((await page.textContent(sel)) || '').replace(/\s+/g, ' ').trim();
 
-describe('R24.8B desktop — Ask and Create entry points work from the visible product surface', () => {
-  it('DESKTOP_GENERAL_ASK: the header "Search anything or ask NAgex…" control opens the Ask sheet; the idle sheet shows no sample task; a request reaches the real pipeline', async () => {
-    const u = h.user('ga');
-    const ctx = await h.newContext('desktop', u);
-    const page = await ctx.newPage();
-    const w = watch(page);
-    await openHome(page, 'desktop');
-    assert.match(await text(page, '#btn-header-search'), /Search anything or ask NAgex/);
-    await page.click('#btn-header-search');
-    await page.waitForSelector('#ambient-prompt-input', { state: 'visible' });
-    const idle = (await page.innerText('#ambient-sheet-modal')).replace(/s+/g, ' ').trim(); // visible text only
-    assert.equal(/AI agent architecture|Research and summarize latest|Tech Insights|Searching trusted sources/i.test(idle), false, `idle sheet must show no sample task: ${idle.slice(0, 160)}`);
-    for (const id of ['ambient-task-title-card', 'ambient-request-card', 'ambient-progress-card', 'ambient-mockup-actions']) assert.equal(await page.isHidden('#' + id), true, `${id} is hidden while idle`);
-    await page.fill('#ambient-prompt-input', 'Plan a launch checklist for next week.');
-    await page.press('#ambient-prompt-input', 'Enter');
-    await page.waitForFunction(() => document.getElementById('ambient-prompt-input')?.disabled === false && !!document.getElementById('ambient-request-card') && getComputedStyle(document.getElementById('ambient-request-card')).display !== 'none', undefined, { timeout: 30000 }).catch(() => {});
-    await page.waitForTimeout(1500);
-    assert.ok(w.find('POST', /^\/api\/v1\/ambient\/intent$/).length >= 1, 'the request reached POST /api/v1/ambient/intent');
-    assert.equal(/Searching trusted sources|Checked your availability|Found related notes|Reading recent updates|Generating visual asset/i.test((await page.innerText('#ambient-sheet-modal'))), false, 'no fabricated progress is shown');
-    assert.match(await text(page, '#ambient-request-card'), /Plan a launch checklist for next week/, 'the request card shows the REAL request');
-    // Quick Wake opens the very same sheet; Escape closes it.
-    await page.keyboard.press('Escape');
-    await page.click('#btn-floating-quickwake');
-    await page.waitForSelector('#ambient-prompt-input', { state: 'visible' });
-    assert.equal(await page.inputValue('#ambient-prompt-input'), '');
-    await ctx.close();
-  });
+// Home is the unified Main surface on desktop and on phones: the mode chips (Ask, Research, Document, Image) and ONE composer are the entry
+// points. Provider credentials are scrubbed, so each flow must reach its canonical backend path and say truthfully, in the user's language and
+// without internal codes, why it cannot finish.
+const NO_MODEL = { en: /can't do this right now because no AI model is available/, ko: /사용할 수 있는 AI 모델이 없어서/ };
+const NO_IMAGE_SERVICE = { en: /can't create images right now because no image service is set up/, ko: /이미지 서비스가 설정되어 있지 않아서/ };
+const FAILURE_TITLE = {
+  DOCUMENT: { en: /Document could not be created/, ko: /문서를 만들지 못했어요/ },
+  RESEARCH: { en: /Research is unavailable/, ko: /리서치를 할 수 없어요/ },
+  IMAGE: { en: /Image generation is unavailable/, ko: /이미지를 만들 수 없어요/ },
+} as const;
 
-  it('DESKTOP_REPORT_ENTRY: the Report tile opens the Ask sheet in Report mode, reaches POST /api/v1/creations/documents, and "no model" is reported truthfully (EN and KR)', async () => {
-    for (const [locale, titleRe, placeholderRe, errorRe] of [
-      ['en', /Write a report/, /What should NAgex write a report about\?/, /cannot write reports right now because no model is available/],
-      ['ko', /보고서 작성/, /어떤 내용의 보고서를 작성할까요\?/, /사용할 수 있는 모델이 없어 지금은 보고서를 작성할 수 없어요/],
-    ] as const) {
-      const u = h.user('rep_' + locale);
-      h.setLocale(u, locale);
-      const ctx = await h.newContext('desktop', u, locale);
-      const page = await ctx.newPage();
-      const w = watch(page);
-      await openHome(page, 'desktop');
-      await page.click(tile('desktop', 'REPORT'));
-      await page.waitForSelector('#ambient-prompt-input', { state: 'visible' });
-      assert.match(await text(page, '#ambient-modal-title'), titleRe);
-      assert.match((await page.getAttribute('#ambient-prompt-input', 'placeholder')) || '', placeholderRe);
-      await page.fill('#ambient-prompt-input', 'Quarterly launch report');
-      await page.click('#btn-ambient-run');
-      await page.waitForSelector('#ambient-creation-status[data-state="error"]', { timeout: 30000 });
-      const reqs = w.find('POST', /^\/api\/v1\/creations\/documents$/);
-      assert.equal(reqs.length, 1, 'exactly one request to the canonical document-creation path');
-      assert.equal(JSON.parse(reqs[0].body).prompt, 'Quarterly launch report');
-      assert.match(await text(page, '#ambient-creation-status'), errorRe);
-      assert.equal(await page.inputValue('#ambient-prompt-input'), 'Quarterly launch report', 'the text is kept for a retry');
-      assert.equal(await page.isDisabled('#ambient-prompt-input'), false);
-      assert.deepEqual(w.dialogs, [], 'no alert() on the Desktop flow');
-      assert.equal(w.find('POST', /ambient\/intent|route-input/).length, 0, 'a Report request is not sent to general Ask');
-      await ctx.close();
+async function sendFromMain(page: Page, mode: string, prompt: string): Promise<void> {
+  await page.click(`[data-main-mode="${mode}"]`);
+  await page.fill('#main-surface-input', prompt);
+  await page.click('#main-send');
+}
+async function lastTurnText(page: Page): Promise<string> {
+  await page.waitForFunction(() => { const turns = document.querySelectorAll('.main-turn'); const last = turns[turns.length - 1] as any; return Boolean(last) && last.getAttribute('data-kind') !== 'pending'; }, undefined, { timeout: 30000 });
+  return page.evaluate(() => { const turns = document.querySelectorAll('.main-turn'); return ((turns[turns.length - 1] as any).innerText || '').replace(/\s+/g, ' ').trim(); });
+}
+
+describe('R24.8B — Main entry points reach the real pipelines and explain truthfully why they cannot finish (desktop + phone, EN + KR)', () => {
+  for (const kind of ['desktop', 'mobile'] as const) {
+    for (const locale of ['en', 'ko'] as const) {
+      it(`${kind}/${locale}: Document, Research and Image reach their canonical routes with a user-language reason; Ask reaches the general pipeline`, async () => {
+        const u = h.user(`entry_${kind}_${locale}`);
+        h.setLocale(u, locale);
+        const ctx = await h.newContext(kind, u, locale);
+        const page = await ctx.newPage();
+        const w = watch(page);
+        await openHome(page, kind);
+
+        await sendFromMain(page, 'DOCUMENT', 'Quarterly launch report');
+        let turn = await lastTurnText(page);
+        const docs = w.find('POST', /^\/api\/v1\/creations\/documents$/);
+        assert.equal(docs.length, 1, 'exactly one request to the canonical document-creation path');
+        assert.equal(JSON.parse(docs[0].body).prompt, 'Quarterly launch report');
+        assert.match(turn, FAILURE_TITLE.DOCUMENT[locale]);
+        assert.match(turn, NO_MODEL[locale], turn);
+        assert.equal(w.find('POST', /ambient\/intent/).length, 0, 'a Document request is not sent to the planner');
+
+        await sendFromMain(page, 'RESEARCH', 'latest agent frameworks');
+        turn = await lastTurnText(page);
+        const research = w.find('POST', /^\/api\/v1\/research$/);
+        assert.equal(research.length, 1);
+        assert.equal(JSON.parse(research[0].body).query, 'latest agent frameworks');
+        assert.match(turn, FAILURE_TITLE.RESEARCH[locale]);
+
+        await sendFromMain(page, 'IMAGE', 'a calm lake at dawn');
+        turn = await lastTurnText(page);
+        assert.equal(w.find('POST', /^\/api\/v1\/creations\/generate$/).length, 1);
+        assert.match(turn, FAILURE_TITLE.IMAGE[locale]);
+        assert.match(turn, NO_IMAGE_SERVICE[locale], turn);
+
+        await sendFromMain(page, 'ASK', 'What is on my plate today?');
+        await lastTurnText(page);
+        assert.ok(w.find('POST', /route-input|ai\/chat/).length >= 1, 'a plain question reaches the general Ask pipeline');
+        assert.equal(w.find('POST', /creations\/documents/).length, 1, 'Ask did not create a second document request');
+
+        const visible = await page.evaluate(() => document.body.innerText);
+        assert.equal(/NO_MODEL_PROVIDER_CONFIGURED|NO_CREATION_PROVIDER_AVAILABLE/.test(visible), false, 'internal error codes are never shown');
+        assert.deepEqual(w.dialogs, [], 'no alert() on the Main flows');
+        await ctx.close();
+      });
     }
-  });
+  }
 
-  it('DESKTOP_RESEARCH_ENTRY: the Research tile opens the sheet in Research mode, reaches POST /api/v1/research, and an unavailable search is reported truthfully (EN and KR)', async () => {
-    for (const [locale, titleRe, errorRe] of [
-      ['en', /Research/, /(live web search is unavailable|No verified sources were found|no model is available)/],
-      ['ko', /리서치/, /(실시간 웹 검색을 사용할 수 없어|확인된 출처를 찾지 못해서|사용할 수 있는 모델이 없어)/],
-    ] as const) {
-      const u = h.user('res_' + locale);
-      h.setLocale(u, locale);
-      const ctx = await h.newContext('desktop', u, locale);
-      const page = await ctx.newPage();
-      const w = watch(page);
-      await openHome(page, 'desktop');
-      await page.click(tile('desktop', 'RESEARCH'));
-      await page.waitForSelector('#ambient-prompt-input', { state: 'visible' });
-      assert.match(await text(page, '#ambient-modal-title'), titleRe);
-      await page.fill('#ambient-prompt-input', 'latest agent frameworks');
-      await page.click('#btn-ambient-run');
-      await page.waitForSelector('#ambient-creation-status[data-state="error"]', { timeout: 30000 });
-      const reqs = w.find('POST', /^\/api\/v1\/research$/);
-      assert.equal(reqs.length, 1);
-      assert.equal(JSON.parse(reqs[0].body).query, 'latest agent frameworks');
-      assert.match(await text(page, '#ambient-creation-status'), errorRe);
-      assert.equal(await page.inputValue('#ambient-prompt-input'), 'latest agent frameworks');
-      assert.deepEqual(w.dialogs, []);
-      await ctx.close();
-    }
-  });
-});
-
-describe('R24.8B — the Ask sheet never shows a previous result or sample request when reopened', () => {
-  it('NO_STALE_ASK_STATE: after a failed Report request, reopening the general Ask sheet shows a clean idle sheet', async () => {
+  it('NO_STALE_STATE: after a failed Document request, an Ask message does not reuse the Document route or its error', async () => {
     const u = h.user('stale');
     const ctx = await h.newContext('desktop', u);
     const page = await ctx.newPage();
+    const w = watch(page);
     await openHome(page, 'desktop');
-    await page.click(tile('desktop', 'REPORT'));
-    await page.fill('#ambient-prompt-input', 'Quarterly launch report');
-    await page.click('#btn-ambient-run');
-    await page.waitForSelector('#ambient-creation-status[data-state="error"]', { timeout: 30000 });
-    await page.keyboard.press('Escape');
-    await page.click('#btn-header-search');
+    await sendFromMain(page, 'DOCUMENT', 'Quarterly launch report');
+    await lastTurnText(page);
+    await page.click('[data-main-mode="ASK"]');
+    assert.equal(await page.getAttribute('[data-main-mode="ASK"]', 'aria-pressed'), 'true');
+    assert.equal(await page.getAttribute('[data-main-mode="DOCUMENT"]', 'aria-pressed'), 'false', 'the Document mode does not stick');
+    await page.fill('#main-surface-input', 'What is on my plate today?');
+    await page.click('#main-send');
+    const turn = await lastTurnText(page);
+    assert.equal(w.find('POST', /creations\/documents/).length, 1, 'only the first request used the Document route');
+    assert.equal(/Document could not be created/.test(turn), false, 'the previous error is not shown for the new request');
+    await ctx.close();
+  });
+
+  it('DESKTOP_QUICK_WAKE: the Quick Wake chip opens an idle Ask sheet with no sample task, no previous result and no fabricated progress', async () => {
+    const u = h.user('qw');
+    const ctx = await h.newContext('desktop', u);
+    const page = await ctx.newPage();
+    await openHome(page, 'desktop');
+    await page.click('#btn-header-quickwake');
     await page.waitForSelector('#ambient-prompt-input', { state: 'visible' });
-    assert.equal(await page.isHidden('#ambient-creation-status'), true, 'the previous error/result area is hidden');
-    assert.equal((await page.textContent('#ambient-creation-status')) || '', '', 'and empty');
+    const idle = (await page.innerText('#ambient-sheet-modal')).replace(/\s+/g, ' ').trim();
+    assert.equal(/AI agent architecture|Research and summarize latest|Tech Insights|Searching trusted sources/i.test(idle), false, `idle sheet must show no sample task: ${idle.slice(0, 160)}`);
+    for (const id of ['ambient-task-title-card', 'ambient-request-card', 'ambient-progress-card', 'ambient-mockup-actions']) assert.equal(await page.isHidden('#' + id), true, `${id} is hidden while idle`);
     assert.equal(await page.inputValue('#ambient-prompt-input'), '');
-    assert.match(await text(page, '#ambient-modal-title'), /NAgex Assistant/);
-    assert.equal(/Write a report/.test((await page.getAttribute('#ambient-prompt-input', 'placeholder')) || ''), false, 'the Report-mode placeholder does not stick');
-    for (const id of ['ambient-task-title-card', 'ambient-request-card', 'ambient-progress-card']) assert.equal(await page.isHidden('#' + id), true);
-    // A Report-mode sheet must not stay in Report mode for the next general request either.
-    await page.fill('#ambient-prompt-input', 'What is on my plate today?');
-    await page.click('#btn-ambient-run');
-    await page.waitForTimeout(1500);
-    assert.equal((await page.evaluate(() => document.getElementById('ambient-creation-status')?.getAttribute('data-state') || '')), '', 'a general request does not use the creation status area');
-    await ctx.close();
-  });
-});
-
-describe('R24.8B mobile 390x844 — Report routes to the Report flow; Research and general Ask keep working', () => {
-  it('MOBILE_REPORT_ENTRY: the Report tile + composer send reaches POST /api/v1/creations/documents (not general Ask) and failure is explained', async () => {
-    const u = h.user('mrep');
-    const ctx = await h.newContext('mobile', u);
-    const page = await ctx.newPage();
-    const w = watch(page);
-    await openHome(page, 'mobile');
-    await page.click(tile('mobile', 'REPORT'));
-    await page.fill('#mh-command-input', 'Quarterly launch report');
-    await page.click('#mh-command-send');
-    await page.waitForFunction(() => true);
-    await page.waitForTimeout(2500);
-    const reqs = w.find('POST', /^\/api\/v1\/creations\/documents$/);
-    assert.equal(reqs.length, 1);
-    assert.equal(JSON.parse(reqs[0].body).prompt, 'Quarterly launch report');
-    assert.equal(w.find('POST', /ambient\/intent|route-input/).length, 0, 'it did not fall through to general Ask');
-    assert.equal(w.dialogs.length, 1);
-    assert.match(w.dialogs[0], /cannot write reports right now because no model is available/);
-    assert.equal(await page.inputValue('#mh-command-input'), 'Quarterly launch report', 'text kept for retry');
-    await ctx.close();
-  });
-
-  it('MOBILE_RESEARCH_ENTRY: the Research tile + composer reaches POST /api/v1/research and failure is explained (it used to be silent)', async () => {
-    const u = h.user('mres');
-    const ctx = await h.newContext('mobile', u);
-    const page = await ctx.newPage();
-    const w = watch(page);
-    await openHome(page, 'mobile');
-    await page.click(tile('mobile', 'RESEARCH'));
-    await page.fill('#mh-command-input', 'latest agent frameworks');
-    await page.click('#mh-command-send');
-    await page.waitForTimeout(2500);
-    assert.equal(w.find('POST', /^\/api\/v1\/research$/).length, 1);
-    assert.equal(w.dialogs.length, 1);
-    assert.match(w.dialogs[0], /(live web search is unavailable|No verified sources were found|no model is available)/);
-    await ctx.close();
-  });
-
-  it('MOBILE_GENERAL_ASK: a plain message from the composer still goes to the general Ask pipeline', async () => {
-    const u = h.user('mga');
-    const ctx = await h.newContext('mobile', u);
-    const page = await ctx.newPage();
-    const w = watch(page);
-    await openHome(page, 'mobile');
-    await page.fill('#mh-command-input', 'What is on my plate today?');
-    await page.click('#mh-command-send');
-    await page.waitForTimeout(2500);
-    assert.ok(w.find('POST', /route-input|ambient\/intent|ai\/chat/).length >= 1, JSON.stringify(w.seen.map((s) => s.method + ' ' + s.path).slice(-6)));
-    assert.equal(w.find('POST', /creations\/documents|\/research/).length, 0);
+    await page.keyboard.press('Escape');
     await ctx.close();
   });
 });
@@ -212,11 +148,11 @@ describe('R24.8B — no fabricated product state', () => {
       assert.equal(/Acme|Prepare Client Meeting|Apr 2\d|Perplexity|12 memories|8 steps generated|2 in progress|4 completed|Open plans|Understand meeting context|62%|5 of 8/i.test(plans), false, `no sample plan data: ${plans.slice(0, 200)}`);
       assert.equal(await page.locator('#view-plans table, #view-plans .plan-sum-card, #view-plans .plan-execute-split-layout').count(), 0);
       assert.ok(await page.locator('#btn-plans-ask').isVisible(), 'a real "Plan with NAgex" action exists');
-      const approvals = await view('approvals', '#view-approvals');
-      assert.match(approvals, /Pending \(0\)/);
-      assert.equal(/Pending \(2\)/.test(approvals), false);
-      assert.match(approvals, /Nothing is waiting for your approval\./);
-      assert.equal(await page.locator('#view-approvals [data-appr-filter]').count(), 0, 'no dead filter buttons');
+      // Approvals are reviewed in the Workspace screen (the #approvals route resolves to it); a new user sees its truthful empty state
+      const approvals = await view('approvals', '#view-inbox');
+      assert.match(approvals, /Nothing needs your attention right now\./);
+      assert.equal(/Pending \(2\)/.test(approvals), false, 'no fake approval count');
+      assert.equal(await page.locator('[data-appr-filter]').count(), 0, 'no dead filter buttons');
       const create = await view('create', '#view-create');
       assert.equal(/Neon City|Portrait Ref/i.test(create), false);
       assert.equal(await page.locator('#create-reference-selector, .ref-img-chip').count(), 0);
