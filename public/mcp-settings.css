@@ -1,0 +1,23 @@
+
+/* Optional MCP connection management: scoped to Settings > Connections. */
+.nagex-mcp-settings { margin-top: 24px; padding: 20px; }
+.nagex-mcp-settings h3 { margin: 0 0 8px; }
+.nagex-mcp-warning { padding: 10px 12px; border-radius: 10px; background: #f2f6fc; }
+.nagex-mcp-form-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 16px 0; }
+.nagex-mcp-form-fields label { display: grid; gap: 6px; font-size: .88rem; font-weight: 600; color: #263955; min-width: 0; }
+.nagex-mcp-form-fields label:last-child { grid-column: 1 / -1; }
+.nagex-mcp-form-fields input { width: 100%; min-width: 0; box-sizing: border-box; border: 1px solid #cbd8ea; border-radius: 8px; padding: 10px 12px; background: #fff; color: #11254d; font: inherit; }
+.nagex-mcp-form-fields input:focus-visible, .nagex-mcp-settings button:focus-visible, .nagex-mcp-tool input:focus-visible { outline: 2px solid #1667f2; outline-offset: 2px; }
+.nagex-mcp-settings button { cursor: pointer; }
+.nagex-mcp-settings button:disabled { cursor: not-allowed; opacity: .55; }
+.nagex-mcp-list { display: grid; gap: 14px; margin-top: 14px; }
+.nagex-mcp-server { padding: 16px; border: 1px solid #d8e4f6; border-radius: 12px; background: #fff; overflow-wrap: anywhere; }
+.nagex-mcp-heading { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.nagex-mcp-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+.nagex-mcp-actions button { border: 1px solid #d8e4f6; background: #f8fbff; color: #163568; border-radius: 8px; padding: 8px 10px; font: inherit; }
+.nagex-mcp-tools { display: grid; gap: 8px; }
+.nagex-mcp-tool { display: flex; align-items: flex-start; gap: 10px; border-radius: 8px; padding: 8px; background: #f7faff; overflow-wrap: anywhere; }
+.nagex-mcp-tool input { flex: 0 0 auto; margin-top: 4px; }
+.nagex-mcp-tool span { display: grid; gap: 3px; }
+.nagex-mcp-tool small { color: #546884; font-size: .78rem; }
+@media(max-width: 700px) { .nagex-mcp-form-fields { grid-template-columns: minmax(0, 1fr); } .nagex-mcp-settings { padding: 14px; } }
