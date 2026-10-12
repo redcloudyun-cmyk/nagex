@@ -8,14 +8,18 @@ import { GOOGLE_CALENDAR_SCOPES } from '../src/integrations/google/oauth.client.
 import { GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID } from '../src/modules/calendar/index.js';
 import type { PlanPreview } from '../src/model-gateway/ai-service.js';
 
+// the verified tenant + user these fixtures connect and resolve for (tool status is per user, never a shared default)
+import { DEFAULT_GOOGLE_PRINCIPAL_ID } from '../src/integrations/google/token.store.js';
+const LIVE_ID = { tenantId: DEFAULT_GOOGLE_TENANT_ID, principalId: DEFAULT_GOOGLE_PRINCIPAL_ID };
+
 const GRANTED_SCOPE_STRING = GOOGLE_CALENDAR_SCOPES.join(' ');
 
 async function withGoogleConnected<T>(fn: () => T | Promise<T>): Promise<T> {
-  sharedGoogleTokenStore.save(DEFAULT_GOOGLE_TENANT_ID, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3_600_000, scope: GRANTED_SCOPE_STRING });
+  sharedGoogleTokenStore.saveForPrincipal(LIVE_ID.tenantId, LIVE_ID.principalId, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3_600_000, scope: GRANTED_SCOPE_STRING });
   try {
     return await fn();
   } finally {
-    sharedGoogleTokenStore.clear(DEFAULT_GOOGLE_TENANT_ID);
+    sharedGoogleTokenStore.clearForPrincipal(LIVE_ID.tenantId, LIVE_ID.principalId);
   }
 }
 
@@ -68,7 +72,7 @@ function planWith(skill: string, tool: string): PlanPreview {
 }
 
 test('D. a plan step using the semantic variant "calendar.create" resolves to APPROVAL_REQUIRED, not BLOCKED', () => withGoogleConnected(() => {
-  const resolved = resolver.resolve(planWith('calendar.create', GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID));
+  const resolved = resolver.resolve(planWith('calendar.create', GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID), LIVE_ID);
   const step = resolved.steps[0];
   assert.equal(step.skillResolutionStatus, 'RESOLVED');
   assert.equal(step.resolvedSkillId, 'skill.scheduling');
@@ -79,7 +83,7 @@ test('D. a plan step using the semantic variant "calendar.create" resolves to AP
 }));
 
 test('an unrelated unresolved skill still fails closed even for an otherwise-available Calendar tool', () => withGoogleConnected(() => {
-  const resolved = resolver.resolve(planWith('quantum flux capacitor tuning', GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID));
+  const resolved = resolver.resolve(planWith('quantum flux capacitor tuning', GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID), LIVE_ID);
   const step = resolved.steps[0];
   assert.equal(step.skillResolutionStatus, 'UNRESOLVED');
   assert.equal(step.executionReadiness, 'BLOCKED');

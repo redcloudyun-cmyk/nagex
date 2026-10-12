@@ -32,6 +32,10 @@ import { handleApprovalsRoutes } from './http/routes/approvals.routes.js';
 import { handleBrowserRoutes } from './http/routes/browser.routes.js';
 import { handleCompetitorPricingAgentRoutes } from './http/routes/competitor-pricing-agent.routes.js';
 import { handleGoogleOAuthStartRoutes, handleGoogleOAuthCallbackRoutes } from './http/routes/google-oauth.routes.js';
+import { GoogleCalendarConnectionService } from './integrations/google/calendar-connection.js';
+import { hasPendingGoogleOAuthState } from './integrations/google/oauth-state.store.js';
+import { readGoogleOAuthConfig } from './integrations/google/oauth.client.js';
+import { googleTokenStore } from './integrations/google/token.store.js';
 import { handleTelegramRoutes } from './http/routes/telegram.routes.js';
 import { handleSlackRoutes } from './http/routes/slack.routes.js';
 import { handleDesktopRoutes } from './http/routes/desktop.routes.js';
@@ -309,6 +313,17 @@ type JsonApiResult = { status: number; data: unknown; redirectTo?: string; heade
 type BinaryApiResult = { status: number; data: Buffer; contentType: string; redirectTo?: undefined; headers?: Record<string, string>; isBinary: true };
 type ApiResult = JsonApiResult | BinaryApiResult;
 
+// Stateless: identity is always passed per call from the verified session; nothing here is shared between users.
+function calendarConnectionFor(calendarService: GoogleCalendarService): GoogleCalendarConnectionService {
+  return new GoogleCalendarConnectionService({
+    tokenStore: googleTokenStore,
+    getConfig: readGoogleOAuthConfig,
+    fetchFn: fetch,
+    calendar: calendarService,
+    hasPendingAuthorization: hasPendingGoogleOAuthState,
+  });
+}
+
 const ERROR_CATEGORY_STATUS: Record<string, number> = {
   VALIDATION: 400,
   AUTHENTICATION: 401,
@@ -531,7 +546,7 @@ export async function handleAsyncApiRequest(
     }
     // R10.2-D Increment 4 — Google OAuth callback/status/disconnect.
     {
-      const googleOAuthResult = await handleGoogleOAuthCallbackRoutes(method, pathname, body, headers, query, { auditLogger, sessionStore: customDeps?.sessionStore ?? sessionStore, identityStore: customDeps?.identityStore ?? identityStore });
+      const googleOAuthResult = await handleGoogleOAuthCallbackRoutes(method, pathname, body, headers, query, { auditLogger, sessionStore: customDeps?.sessionStore ?? sessionStore, identityStore: customDeps?.identityStore ?? identityStore, calendarConnection: calendarConnectionFor(calendarService) });
       if (googleOAuthResult) return googleOAuthResult;
     }
     // R10.2-D Increment 3 — all Workspace/Capture/Candidate/Activity routes
@@ -549,7 +564,7 @@ export async function handleAsyncApiRequest(
     // GoogleCalendarService.executeXxx(), built on R10.2-B's
     // GoogleCapabilityExecutionPipeline — unchanged.
     {
-      const calendarResult = await handleCalendarRoutes(method, pathname, body, headers, query, { calendarService });
+      const calendarResult = await handleCalendarRoutes(method, pathname, body, headers, query, { calendarService, calendarConnection: calendarConnectionFor(calendarService) });
       if (calendarResult) return calendarResult;
     }
 
@@ -756,7 +771,7 @@ export async function handleAsyncApiRequest(
 
     // R18 — Connected Apps / Connections Routes
     {
-      const connectionsResult = await handleConnectionsRoutes(method, pathname, body, headers, query, { connectionStore, auditLogger, sessionStore: customDeps?.sessionStore ?? sessionStore, identityStore: customDeps?.identityStore ?? identityStore });
+      const connectionsResult = await handleConnectionsRoutes(method, pathname, body, headers, query, { connectionStore, auditLogger, sessionStore: customDeps?.sessionStore ?? sessionStore, identityStore: customDeps?.identityStore ?? identityStore, calendarConnection: calendarConnectionFor(calendarService) });
       if (connectionsResult) return connectionsResult;
     }
 

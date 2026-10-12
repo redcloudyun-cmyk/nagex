@@ -9,6 +9,7 @@
 import { skillRegistry as canonicalSkillRegistry } from '../../skills/skill-registry.js';
 import { toolRegistry as canonicalToolRegistry } from '../../tools/tool-registry.js';
 import type { ApiResult, SyncRouteRegistrar } from '../http-types.js';
+import { tryGetCallerIdentity } from '../request-identity.js';
 
 const planRegistry: Array<{
   id: string;
@@ -36,7 +37,7 @@ const planRegistry: Array<{
     goal: 'Prepare Client Meeting',
     description: 'Prepare for the Acme Corp. quarterly business review meeting.',
     status: 'RUNNING',
-    tags: ['Client Meeting', 'Acme Corp', '?”¥ High Priority'],
+    tags: ['Client Meeting', 'Acme Corp', '?ï¿½ï¿½ High Priority'],
     progress: 62,
     completed_steps: 5,
     total_steps: 8,
@@ -75,14 +76,16 @@ const knowledgeBase = [
   { id: 'kb_002', name: 'Product_Strategy_2025.docx', classification: 'INTERNAL', size_bytes: 1153433, status: 'INDEXED', indexed_at: '2026-08-19T09:15:00Z', chunk_count: 87 },
 ];
 
-export const handleCatalogRoutes: SyncRouteRegistrar<Record<string, never>> = (method, pathname): ApiResult | undefined => {
+export const handleCatalogRoutes: SyncRouteRegistrar<Record<string, never>> = (method, pathname, _body, headers): ApiResult | undefined => {
 
   if (pathname === '/api/v1/skills' && method === 'GET') {
     const skills = canonicalSkillRegistry.list();
     return { status: 200, data: { skills, total: skills.length } };
   }
   if (pathname === '/api/v1/tools' && method === 'GET') {
-    const tools = canonicalToolRegistry.list();
+    // live status is per verified user; an unverified caller sees per-user tools as not live
+    const caller = tryGetCallerIdentity(headers);
+    const tools = canonicalToolRegistry.list(caller ? { tenantId: caller.tenantId, principalId: caller.principalId } : undefined);
     return { status: 200, data: { tools, total: tools.length } };
   }
   if (pathname === '/api/v1/agents' && method === 'GET') {

@@ -9,6 +9,7 @@ import type { ActionApprovalStore } from '../governance/action-approval.store.js
 import type { MemoryEngine } from '../context/memory.engine.js';
 import type { AiService } from '../model-gateway/ai-service.js';
 import { NagexError } from '../common/errors.js';
+import { isCalendarNeedsConnection } from '../integrations/google/calendar-connection.js';
 // R23.3 — narrow structural interfaces, not the concrete GoogleCalendarService/
 // GmailService classes (same R23.2D pattern as CurrentPersonalContextService)
 // so this engine can be handed the exact same tenant-branching demo-aware
@@ -280,7 +281,7 @@ export class PersonalAssistantEngine {
         events = raw.map((e) => ({ id: e.id, title: e.title, start_time: e.start, end_time: e.end, attendees: e.attendees }));
       } catch (error) {
         events = [];
-        calendarStatus = error instanceof NagexError && error.code === 'GOOGLE_CALENDAR_DISCONNECTED' ? 'DISCONNECTED' : 'ERROR';
+        calendarStatus = isCalendarNeedsConnection(error) ? 'DISCONNECTED' : 'ERROR';
       }
     } else {
       calendarStatus = 'DISCONNECTED';

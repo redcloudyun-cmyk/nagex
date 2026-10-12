@@ -124,7 +124,7 @@ export class WorkflowDefinitionService {
     }
 
     const planPreview = buildPlanPreview(workflow);
-    const resolved = this.options.planResolver.resolve(planPreview);
+    const resolved = this.options.planResolver.resolve(planPreview, { tenantId, principalId: ownerPrincipalId });
 
     const task = this.options.taskStore.create({
       tenantId,

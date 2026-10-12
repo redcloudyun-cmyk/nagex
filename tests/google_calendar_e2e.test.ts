@@ -27,6 +27,10 @@ import { AiService } from '../src/model-gateway/ai-service.js';
 import type { ModelProvider } from '../src/model-gateway/model-provider.js';
 import { UnifiedModelRouter } from '../src/model-gateway/unified-model-router.js';
 
+// the verified tenant + user these fixtures connect and resolve for (tool status is per user, never a shared default)
+import { DEFAULT_GOOGLE_PRINCIPAL_ID } from '../src/integrations/google/token.store.js';
+const LIVE_ID = { tenantId: DEFAULT_GOOGLE_TENANT_ID, principalId: DEFAULT_GOOGLE_PRINCIPAL_ID };
+
 function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 }
@@ -58,39 +62,39 @@ function respondPayload(overrides: Record<string, unknown> = {}) {
 // ── tool live/disconnected for the new tool IDs ─────────────────────────────
 
 test('update/cancel/respond tools report disconnected/unavailable with no OAuth connection', () => {
-  sharedGoogleTokenStore.clear(DEFAULT_GOOGLE_TENANT_ID);
+  sharedGoogleTokenStore.clearForPrincipal(LIVE_ID.tenantId, LIVE_ID.principalId);
   for (const toolId of [GOOGLE_CALENDAR_UPDATE_EVENT_TOOL_ID, GOOGLE_CALENDAR_CANCEL_EVENT_TOOL_ID, GOOGLE_CALENDAR_RESPOND_EVENT_TOOL_ID]) {
-    const resolution = sharedToolRegistry.resolve(toolId);
+    const resolution = sharedToolRegistry.resolve(toolId, LIVE_ID);
     assert.equal(resolution.connectionStatus, 'disconnected');
     assert.equal(resolution.executionMode, 'unavailable');
   }
 });
 
 test('update/cancel/respond tools go LIVE with the same Calendar connection create_event already uses', () => {
-  sharedGoogleTokenStore.save(DEFAULT_GOOGLE_TENANT_ID, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
+  sharedGoogleTokenStore.saveForPrincipal(LIVE_ID.tenantId, LIVE_ID.principalId, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
   try {
     for (const toolId of [GOOGLE_CALENDAR_UPDATE_EVENT_TOOL_ID, GOOGLE_CALENDAR_CANCEL_EVENT_TOOL_ID, GOOGLE_CALENDAR_RESPOND_EVENT_TOOL_ID]) {
-      const resolution = sharedToolRegistry.resolve(toolId);
+      const resolution = sharedToolRegistry.resolve(toolId, LIVE_ID);
       assert.equal(resolution.connectionStatus, 'connected', `expected ${toolId} connected`);
       assert.equal(resolution.executionMode, 'live', `expected ${toolId} live`);
     }
-    assert.equal(sharedToolRegistry.resolve(GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID).executionMode, 'live');
+    assert.equal(sharedToolRegistry.resolve(GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, LIVE_ID).executionMode, 'live');
   } finally {
-    sharedGoogleTokenStore.clear(DEFAULT_GOOGLE_TENANT_ID);
+    sharedGoogleTokenStore.clearForPrincipal(LIVE_ID.tenantId, LIVE_ID.principalId);
   }
 });
 
 test('cancel_event is IRREVERSIBLE_WRITE; update_event and respond_to_event are REVERSIBLE_WRITE — all three require approval', () => {
-  sharedGoogleTokenStore.save(DEFAULT_GOOGLE_TENANT_ID, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
+  sharedGoogleTokenStore.saveForPrincipal(LIVE_ID.tenantId, LIVE_ID.principalId, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
   try {
-    assert.equal(sharedToolRegistry.resolve(GOOGLE_CALENDAR_CANCEL_EVENT_TOOL_ID).sideEffectLevel, 'IRREVERSIBLE_WRITE');
-    assert.equal(sharedToolRegistry.resolve(GOOGLE_CALENDAR_UPDATE_EVENT_TOOL_ID).sideEffectLevel, 'REVERSIBLE_WRITE');
-    assert.equal(sharedToolRegistry.resolve(GOOGLE_CALENDAR_RESPOND_EVENT_TOOL_ID).sideEffectLevel, 'REVERSIBLE_WRITE');
+    assert.equal(sharedToolRegistry.resolve(GOOGLE_CALENDAR_CANCEL_EVENT_TOOL_ID, LIVE_ID).sideEffectLevel, 'IRREVERSIBLE_WRITE');
+    assert.equal(sharedToolRegistry.resolve(GOOGLE_CALENDAR_UPDATE_EVENT_TOOL_ID, LIVE_ID).sideEffectLevel, 'REVERSIBLE_WRITE');
+    assert.equal(sharedToolRegistry.resolve(GOOGLE_CALENDAR_RESPOND_EVENT_TOOL_ID, LIVE_ID).sideEffectLevel, 'REVERSIBLE_WRITE');
     for (const toolId of [GOOGLE_CALENDAR_UPDATE_EVENT_TOOL_ID, GOOGLE_CALENDAR_CANCEL_EVENT_TOOL_ID, GOOGLE_CALENDAR_RESPOND_EVENT_TOOL_ID]) {
-      assert.equal(sharedToolRegistry.resolve(toolId).requiresApproval, true);
+      assert.equal(sharedToolRegistry.resolve(toolId, LIVE_ID).requiresApproval, true);
     }
   } finally {
-    sharedGoogleTokenStore.clear(DEFAULT_GOOGLE_TENANT_ID);
+    sharedGoogleTokenStore.clearForPrincipal(LIVE_ID.tenantId, LIVE_ID.principalId);
   }
 });
 
@@ -310,7 +314,7 @@ test('full flow through the real HTTP routes: request -> approve -> cancel-event
   const testConfig: GoogleOAuthConfig = { clientId: 'x', clientSecret: 'y', redirectUri: 'https://nagex-test.agex.site/api/v1/oauth/google/callback' };
   const testCalendarService = new GoogleCalendarService(sharedGoogleTokenStore, sharedActionApprovals, new AuditLogger(), new MemoryEngine(), mockFetch, () => testConfig);
 
-  sharedGoogleTokenStore.save(DEFAULT_GOOGLE_TENANT_ID, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
+  sharedGoogleTokenStore.saveForPrincipal(LIVE_ID.tenantId, LIVE_ID.principalId, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
   try {
     const created = handleApiRequest('POST', '/api/v1/approvals', { toolId: GOOGLE_CALENDAR_CANCEL_EVENT_TOOL_ID, payload });
     assert.equal(created.status, 201);
@@ -332,7 +336,7 @@ test('full flow through the real HTTP routes: request -> approve -> cancel-event
     assert.notEqual(replay.status, 200);
     assert.equal((replay.data as { error: { code: string } }).error.code, 'APPROVAL_ALREADY_CONSUMED');
   } finally {
-    sharedGoogleTokenStore.clear(DEFAULT_GOOGLE_TENANT_ID);
+    sharedGoogleTokenStore.clearForPrincipal(LIVE_ID.tenantId, LIVE_ID.principalId);
   }
 });
 

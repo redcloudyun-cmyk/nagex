@@ -15,9 +15,8 @@
 // documented exception (see tests/http_route_modularization.test.ts).
 import crypto from 'node:crypto';
 import { NagexError } from '../../common/errors.js';
-import { googleTokenStore } from '../../integrations/google/token.store.js';
-import { readGoogleOAuthConfig } from '../../integrations/google/oauth.client.js';
-import { queryFreeBusy, computeFreeSlots, type GoogleCalendarService } from '../../modules/calendar/index.js';
+import type { GoogleCalendarConnectionService } from '../../integrations/google/calendar-connection.js';
+import type { GoogleCalendarService } from '../../modules/calendar/index.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
 import { callerIdentity } from '../request-identity.js';
 
@@ -28,10 +27,11 @@ function getHeaderValue(headers: Record<string, string | string[] | undefined>, 
 
 export interface CalendarRouteDeps {
   calendarService: GoogleCalendarService;
+  calendarConnection?: GoogleCalendarConnectionService;
 }
 
 export const handleCalendarRoutes: AsyncRouteRegistrar<CalendarRouteDeps> = async (method, pathname, body, headers, _query, deps): Promise<ApiResult | undefined> => {
-  const { calendarService } = deps;
+  const { calendarService, calendarConnection } = deps;
 
   if (pathname === '/api/v1/tools/google-calendar/create-event' && method === 'POST') {
     const tenantId = callerIdentity(headers).tenantId;
@@ -77,33 +77,37 @@ export const handleCalendarRoutes: AsyncRouteRegistrar<CalendarRouteDeps> = asyn
     const tenantId = callerIdentity(headers).tenantId;
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
     const principalId = callerIdentity(headers).principalId;
-    const config = readGoogleOAuthConfig();
-    const accessToken = config ? await googleTokenStore.getValidAccessTokenForPrincipal(tenantId, principalId, config, fetch, requestId) : null;
-    if (!accessToken) throw new NagexError({ code: 'GOOGLE_CALENDAR_DISCONNECTED', category: 'POLICY', message: 'Google Calendar is not connected.', request_id: requestId });
     const calendarId = (typeof body?.calendarId === 'string' && body.calendarId) || 'primary';
     const timeMin = typeof body?.timeMin === 'string' ? body.timeMin : new Date().toISOString();
     const timeMax = typeof body?.timeMax === 'string' ? body.timeMax : new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
-    const busy = await queryFreeBusy(accessToken, { calendarId, timeMin, timeMax }, fetch, requestId);
-    return { status: 200, data: { busy, freeSlots: computeFreeSlots(busy, timeMin, timeMax) } };
+    // Same credential-brokered, principal-bound path as every other calendar read (no second Google client here).
+    const result = await calendarService.getFreeSlots({ tenantId, principalId, calendarId, timeMin, timeMax, requestId });
+    return { status: 200, data: { busy: result.busy, freeSlots: result.slots } };
   }
 
   if (pathname === '/api/v1/calendar/upcoming' && method === 'GET') {
-    const tenantId = callerIdentity(headers).tenantId;
+    // Identity comes from the verified session only. The answer states WHY there are no events (not connected,
+    // must reconnect, Google failed) instead of a bare connected:false, and carries the user's real events.
+    const identity = callerIdentity(headers);
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
-    try {
-      const principalId = callerIdentity(headers).principalId;
-      const config = readGoogleOAuthConfig();
-      const accessToken = config ? await googleTokenStore.getValidAccessTokenForPrincipal(tenantId, principalId, config, fetch, requestId) : null;
-      if (!accessToken) {
-        return { status: 200, data: { events: [], connected: false, message: 'No upcoming events.' } };
-      }
-      const timeMin = new Date().toISOString();
-      const timeMax = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
-      const busy = await queryFreeBusy(accessToken, { calendarId: 'primary', timeMin, timeMax }, fetch, requestId);
-      return { status: 200, data: { events: busy, connected: true, message: busy.length ? null : 'No upcoming events.' } };
-    } catch {
-      return { status: 200, data: { events: [], connected: false, message: 'No upcoming events.' } };
-    }
+    if (!calendarConnection) throw new NagexError({ code: 'CALENDAR_CONNECTION_NOT_CONFIGURED', category: 'RUNTIME', message: 'Calendar connection status is not available.', request_id: requestId });
+    const now = new Date();
+    const result = await calendarConnection.readEvents(
+      { tenantId: identity.tenantId, principalId: identity.principalId, requestId },
+      { timeMin: now.toISOString(), timeMax: new Date(now.getTime() + 7 * 24 * 3600 * 1000).toISOString(), maxResults: 20 },
+    );
+    const { connection } = result;
+    const providerFailed = connection.state === 'ERROR';
+    return {
+      status: providerFailed ? (connection.reason === 'PROVIDER_TIMEOUT' ? 504 : 502) : 200,
+      data: {
+        events: result.events,
+        connected: connection.state === 'CONNECTED',
+        connection,
+        message: connection.state === 'CONNECTED' ? (result.events.length ? null : 'No upcoming events.') : connection.message,
+        ...(providerFailed ? { error: { code: connection.reason, message: connection.message, retryable: connection.retryable } } : {}),
+      },
+    };
   }
 
   return undefined;

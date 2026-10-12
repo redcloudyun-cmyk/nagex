@@ -62,6 +62,7 @@
       "r23_3t_permission_approval_hardening"
     ],
     "google": [
+      "google_calendar_connection_state",
       "approval_execution_persistence",
       "approval_ttl_security",
       "approval_ownership_isolation",
@@ -145,6 +146,7 @@
       "jev_shadow_runtime"
     ],
     "personal-home": [
+      "google_calendar_connection_state",
       "personal_home_profile_name",
       "home_ux_principle",
       "m6_1_mobile_release_blockers",
@@ -222,6 +224,7 @@
       "desktop_control_service"
     ],
     "credential-broker": [
+      "google_calendar_connection_state",
       "r23_4v_credential_broker",
       "google_oauth_persistence",
       "gmail_live",

@@ -1,4 +1,5 @@
 import { NagexError } from '../../common/errors.js';
+import { GOOGLE_PROVIDER_TIMEOUT_MS, isAbortOrTimeout } from '../../integrations/google/oauth.client.js';
 
 type FetchFn = typeof fetch;
 
@@ -18,6 +19,25 @@ export interface CreatedCalendarEvent {
   externalUrl: string;
 }
 
+function providerErrorStatus(payload: Record<string, unknown>): string | null {
+  const error = payload?.error as { status?: unknown } | undefined;
+  return error && typeof error.status === 'string' ? error.status : null;
+}
+
+// Google reports the precise cause in error.errors[].reason (v2 style) and error.details[].reason (ErrorInfo).
+function providerErrorReasons(payload: Record<string, unknown>): string[] {
+  const error = payload?.error as { errors?: unknown; details?: unknown } | undefined;
+  const reasons: string[] = [];
+  for (const list of [error?.errors, error?.details]) {
+    if (!Array.isArray(list)) continue;
+    for (const entry of list) {
+      const reason = entry && typeof entry === 'object' ? (entry as { reason?: unknown }).reason : undefined;
+      if (typeof reason === 'string') reasons.push(reason);
+    }
+  }
+  return reasons;
+}
+
 async function googleApiRequest(
   url: string,
   method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
@@ -35,8 +55,17 @@ async function googleApiRequest(
         'Content-Type': 'application/json',
       },
       body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(GOOGLE_PROVIDER_TIMEOUT_MS),
     });
-  } catch {
+  } catch (error) {
+    if (isAbortOrTimeout(error)) {
+      throw new NagexError({
+        code: 'GOOGLE_CALENDAR_TIMEOUT',
+        category: 'TIMEOUT',
+        message: 'Google Calendar did not respond in time.',
+        request_id: requestId,
+      });
+    }
     throw new NagexError({
       code: 'GOOGLE_CALENDAR_NETWORK_ERROR',
       category: 'PROVIDER',
@@ -48,7 +77,7 @@ async function googleApiRequest(
   const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
 
   if (!response.ok) {
-    const category = response.status === 401 || response.status === 403 ? 'AUTHENTICATION' : 'PROVIDER';
+    const category = response.status === 401 || response.status === 403 ? 'POLICY' : 'PROVIDER';
     const message =
       (payload?.error as { message?: string } | undefined)?.message || `Google Calendar API request failed with HTTP ${response.status}.`;
     throw new NagexError({
@@ -56,6 +85,8 @@ async function googleApiRequest(
       category,
       message,
       request_id: requestId,
+      // Machine-readable cause so callers can tell an expired/rejected token and a missing scope from rate limits and outages.
+      details: { httpStatus: response.status, providerStatus: providerErrorStatus(payload), reasons: providerErrorReasons(payload) },
     });
   }
 

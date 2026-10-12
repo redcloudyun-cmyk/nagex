@@ -1,10 +1,16 @@
-import { googleTokenStore, DEFAULT_GOOGLE_TENANT_ID } from '../integrations/google/token.store.js';
-import { GMAIL_SCOPES } from '../integrations/google/oauth.client.js';
+import { googleTokenStore } from '../integrations/google/token.store.js';
+import { GMAIL_SCOPES, GOOGLE_CALENDAR_SCOPES } from '../integrations/google/oauth.client.js';
 import { isBrowserRuntimeAvailableSync } from '../modules/browser/index.js';
 
 export type SideEffectLevel = 'READ_ONLY' | 'REVERSIBLE_WRITE' | 'IRREVERSIBLE_WRITE';
 export type ToolExecutionMode = 'live' | 'mock' | 'unavailable';
 export type ToolConnectionStatus = 'connected' | 'disconnected' | 'unavailable';
+
+// The verified tenant + user a tool's live status is evaluated for. Never derived from a default or from client input.
+export interface ToolIdentity {
+  tenantId: string;
+  principalId: string;
+}
 
 export interface LiveToolStatus {
   connectionStatus: ToolConnectionStatus;
@@ -25,7 +31,8 @@ export interface RegisteredTool {
   // (e.g. an OAuth connection) report their real status instead of a fixed
   // value baked in at registry construction — required so "live" is never
   // reported from env/config presence alone.
-  getLiveStatus?: () => LiveToolStatus;
+  // Per-user tools (e.g. a Google connection) must answer for the given identity and report not-live without one.
+  getLiveStatus?: (identity?: ToolIdentity) => LiveToolStatus;
 }
 
 export interface ToolResolution {
@@ -55,8 +62,8 @@ function normalizeToolName(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.+|\.+$/g, '');
 }
 
-function resolveLiveFields(tool: RegisteredTool): { connectionStatus: ToolConnectionStatus; executionMode: ToolExecutionMode } {
-  const live = tool.getLiveStatus?.();
+function resolveLiveFields(tool: RegisteredTool, identity?: ToolIdentity): { connectionStatus: ToolConnectionStatus; executionMode: ToolExecutionMode } {
+  const live = tool.getLiveStatus?.(identity);
   return {
     connectionStatus: live?.connectionStatus ?? tool.connectionStatus,
     executionMode: live?.executionMode ?? tool.executionMode,
@@ -85,9 +92,9 @@ export class ToolRegistry {
     }
   }
 
-  public list(): readonly PublicToolDescriptor[] {
+  public list(identity?: ToolIdentity): readonly PublicToolDescriptor[] {
     return this.tools.map((tool) => {
-      const { connectionStatus, executionMode } = resolveLiveFields(tool);
+      const { connectionStatus, executionMode } = resolveLiveFields(tool, identity);
       return {
         id: tool.id,
         name: tool.name,
@@ -100,7 +107,7 @@ export class ToolRegistry {
     });
   }
 
-  public resolve(requestedTool: string | null): ToolResolution {
+  public resolve(requestedTool: string | null, identity?: ToolIdentity): ToolResolution {
     if (!requestedTool?.trim()) {
       return { requestedTool: null, status: 'RESOLVED', resolvedToolId: null, resolvedToolName: null, capability: null, connectionStatus: null, sideEffectLevel: null, requiresApproval: false, executionMode: null, availability: 'NOT_REQUIRED' };
     }
@@ -108,7 +115,7 @@ export class ToolRegistry {
     if (!tool) {
       return { requestedTool, status: 'UNRESOLVED', resolvedToolId: null, resolvedToolName: null, capability: null, connectionStatus: null, sideEffectLevel: null, requiresApproval: false, executionMode: null, availability: 'UNRESOLVED' };
     }
-    const { connectionStatus, executionMode } = resolveLiveFields(tool);
+    const { connectionStatus, executionMode } = resolveLiveFields(tool, identity);
     const availability = computeAvailability(connectionStatus, executionMode);
     return {
       requestedTool,
@@ -125,17 +132,22 @@ export class ToolRegistry {
   }
 }
 
-function googleCalendarLiveStatus(): LiveToolStatus {
-  const connected = googleTokenStore.isConnected(DEFAULT_GOOGLE_TENANT_ID);
-  return connected ? { connectionStatus: 'connected', executionMode: 'live' } : { connectionStatus: 'disconnected', executionMode: 'unavailable' };
+// Live only for THIS user's usable grant that carries the calendar scopes. Without a verified identity nothing can be
+// claimed live (previously a fixed default account's connection answered for everyone).
+function googleCalendarLiveStatus(identity?: ToolIdentity): LiveToolStatus {
+  if (!identity?.tenantId || !identity.principalId) return { connectionStatus: 'disconnected', executionMode: 'unavailable' };
+  const status = googleTokenStore.getStatusForPrincipal(identity.tenantId, identity.principalId);
+  const hasScopes = GOOGLE_CALENDAR_SCOPES.every((scope) => status.scopes.includes(scope));
+  return status.connected && hasScopes ? { connectionStatus: 'connected', executionMode: 'live' } : { connectionStatus: 'disconnected', executionMode: 'unavailable' };
 }
 
 // Gmail is LIVE only once the shared Google connection actually carries the
 // gmail.modify scope — an account connected before Gmail scopes existed
 // (Calendar-only) must reconnect once; "connected" alone is not enough,
 // unlike Calendar, which only ever asked for its own scopes.
-function gmailLiveStatus(): LiveToolStatus {
-  const status = googleTokenStore.getStatus(DEFAULT_GOOGLE_TENANT_ID);
+function gmailLiveStatus(identity?: ToolIdentity): LiveToolStatus {
+  if (!identity?.tenantId || !identity.principalId) return { connectionStatus: 'disconnected', executionMode: 'unavailable' };
+  const status = googleTokenStore.getStatusForPrincipal(identity.tenantId, identity.principalId);
   const hasGmailScope = status.connected && status.scopes.includes(GMAIL_SCOPES[0]);
   return hasGmailScope ? { connectionStatus: 'connected', executionMode: 'live' } : { connectionStatus: 'disconnected', executionMode: 'unavailable' };
 }

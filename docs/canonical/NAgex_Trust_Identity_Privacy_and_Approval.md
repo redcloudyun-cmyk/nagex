@@ -228,6 +228,24 @@ JEV_CAN_READ_CREDENTIALS = 0
 SECRET_LOG_LEAK = 0
 ```
 
+### 15.1 Connected-account state (Google Calendar)
+
+A connected external account is owned by exactly one tenant + user. Its state is always computed for the verified session identity — never a default account, never a client-supplied user, tenant, header, query or body field.
+
+| State | Meaning |
+|---|---|
+| `NOT_CONNECTED` | no connection for this tenant + user |
+| `CONNECTING` | this user started authorization and it has not finished (visible only to that user) |
+| `CONNECTED` | a usable grant with the required scopes; `verifiedAt` is set only when an authorized provider call just succeeded |
+| `REAUTH_REQUIRED` | the connection exists but must be authorized again: revoked/expired grant, provider-rejected token, or a missing scope |
+| `ERROR` | the connection is fine but the provider failed (timeout, outage, rate limit, API disabled) or NAgex hit an internal fault — retry, do not reconnect |
+| `UNAVAILABLE` | this deployment cannot offer the provider (no OAuth client) — no connect action is shown |
+
+- A grant the provider no longer honours is **not silently deleted**: the connection metadata and the reauthorization flag are kept (and persisted), while the unusable access/refresh secrets are purged immediately. Reconnecting replaces it.
+- A transient provider failure never marks a grant dead and never prompts the user to reconnect.
+- Tool/capability availability that depends on a connection is evaluated for the verified identity and fails closed without one.
+- Reads (`google_calendar.list_events`, free/busy) are read-only and identity-bound; every calendar write keeps the existing approval requirement.
+
 ## 16. Source Provenance
 
 Consolidated from:

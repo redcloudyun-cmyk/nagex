@@ -71,7 +71,7 @@ export class ExecutingTaskRunner implements TaskRunner {
 
     let resolved;
     try {
-      resolved = this.planResolver.resolve(planResponse.data);
+      resolved = this.planResolver.resolve(planResponse.data, { tenantId: task.tenantId, principalId: task.ownerId });
     } catch (error) {
       return { status: 'FAILED', errorCode: error instanceof Error ? error.message : 'TASK_PLAN_RESOLUTION_FAILED' };
     }

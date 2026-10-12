@@ -15,6 +15,8 @@ export class CapabilityRegistry {
       { id: 'google_calendar.cancel_event', provider: 'GOOGLE_CALENDAR', risk: 'CONSEQUENTIAL', approval: 'REQUIRED', enabled: true },
       { id: 'google_calendar.respond_to_event', provider: 'GOOGLE_CALENDAR', risk: 'CONSEQUENTIAL', approval: 'REQUIRED', enabled: true },
       { id: 'google_calendar.free_slots', provider: 'GOOGLE_CALENDAR', risk: 'READ_ONLY', approval: 'NONE', enabled: true },
+      // Reads the signed-in user's real upcoming events (titles, times, attendees); never writes.
+      { id: 'google_calendar.list_events', provider: 'GOOGLE_CALENDAR', risk: 'READ_ONLY', approval: 'NONE', enabled: true },
 
       // Gmail
       { id: 'gmail.search', provider: 'GMAIL', risk: 'READ_ONLY', approval: 'NONE', enabled: true },

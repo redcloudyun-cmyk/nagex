@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { NagexError } from '../../common/errors.js';
 import { refreshGoogleAccessToken, revokeGoogleToken, type GoogleOAuthConfig, type GoogleTokenResponse } from './oauth.client.js';
 import { loadEncryptionKey, encryptJson, decryptJson, type EncryptedEnvelope } from './token.crypto.js';
 
@@ -13,13 +14,32 @@ interface StoredGoogleToken {
   tokenType: string | null;
   connectedAt: string;
   providerAccountRef: string;
+  // A grant Google no longer honours (revoked, or expired without a refresh token) is NOT deleted: the connection
+  // metadata stays so the user is told to reauthorize, but the unusable secrets are purged at once.
+  authState?: 'ACTIVE' | 'REAUTH_REQUIRED';
+  reauthReason?: GoogleReauthReason;
+  reauthAt?: string;
 }
 
+export type GoogleReauthReason = 'TOKEN_REVOKED' | 'TOKEN_EXPIRED_NO_REFRESH' | 'TOKEN_REJECTED';
+
 export interface GoogleConnectionStatus {
+  // true only while a usable grant exists; a connection that needs reauthorization is NOT connected.
   connected: boolean;
   scopes: string[];
   expiresAt: string | null;
+  authState: 'NONE' | 'ACTIVE' | 'REAUTH_REQUIRED';
+  reauthReason: GoogleReauthReason | null;
+  reauthAt: string | null;
 }
+
+export type GoogleAccessTokenFailure = 'NOT_CONNECTED' | 'REAUTH_REQUIRED' | 'PROVIDER_TIMEOUT' | 'PROVIDER_ERROR' | 'INTERNAL_ERROR';
+
+// Discriminated outcome of obtaining a usable access token, so callers can tell "no connection" from "must reauthorize"
+// from a transient provider problem (which keeps the connection) instead of treating every failure as "disconnected".
+export type GoogleAccessTokenResult =
+  | { ok: true; accessToken: string }
+  | { ok: false; reason: GoogleAccessTokenFailure; reauthReason?: GoogleReauthReason; code?: string };
 
 type FetchFn = typeof fetch;
 
@@ -38,6 +58,16 @@ export interface GoogleOAuthTokenStore {
   getStatus(tenantId: string): GoogleConnectionStatus;
   getStatusForPrincipal(tenantId: string, principalId: string): GoogleConnectionStatus;
   getProviderAccountRefForPrincipal(tenantId: string, principalId: string): string | null;
+  acquireAccessTokenForPrincipal(
+    tenantId: string,
+    principalId: string,
+    config: GoogleOAuthConfig,
+    fetchFn: FetchFn,
+    requestId: string,
+    now?: () => number,
+  ): Promise<GoogleAccessTokenResult>;
+  // Marks the connection as needing reauthorization (e.g. Google rejected the access token) and purges its secrets.
+  markReauthRequiredForPrincipal(tenantId: string, principalId: string, reason: GoogleReauthReason): void;
   getValidAccessToken(
     tenantId: string,
     config: GoogleOAuthConfig,
@@ -69,7 +99,10 @@ function isValidStoredToken(value: unknown): value is StoredGoogleToken {
     typeof v.scope === 'string' &&
     (v.tokenType === undefined || v.tokenType === null || typeof v.tokenType === 'string') &&
     typeof v.connectedAt === 'string' &&
-    (v.providerAccountRef === undefined || typeof v.providerAccountRef === 'string')
+    (v.providerAccountRef === undefined || typeof v.providerAccountRef === 'string') &&
+    (v.authState === undefined || v.authState === 'ACTIVE' || v.authState === 'REAUTH_REQUIRED') &&
+    (v.reauthReason === undefined || typeof v.reauthReason === 'string') &&
+    (v.reauthAt === undefined || typeof v.reauthAt === 'string')
   );
 }
 
@@ -115,7 +148,8 @@ export class InMemoryGoogleOAuthTokenStore implements GoogleOAuthTokenStore {
   }
 
   public isConnectedForPrincipal(tenantId: string, principalId: string): boolean {
-    return this.tokensByOwner.has(ownerKey(tenantId, principalId));
+    const token = this.tokensByOwner.get(ownerKey(tenantId, principalId));
+    return Boolean(token) && token?.authState !== 'REAUTH_REQUIRED';
   }
 
   public getStatus(tenantId: string): GoogleConnectionStatus {
@@ -124,11 +158,15 @@ export class InMemoryGoogleOAuthTokenStore implements GoogleOAuthTokenStore {
 
   public getStatusForPrincipal(tenantId: string, principalId: string): GoogleConnectionStatus {
     const token = this.tokensByOwner.get(ownerKey(tenantId, principalId));
-    if (!token) return { connected: false, scopes: [], expiresAt: null };
+    if (!token) return { connected: false, scopes: [], expiresAt: null, authState: 'NONE', reauthReason: null, reauthAt: null };
+    const needsReauth = token.authState === 'REAUTH_REQUIRED';
     return {
-      connected: true,
+      connected: !needsReauth,
       scopes: token.scope.split(' ').filter(Boolean),
       expiresAt: new Date(token.expiresAt).toISOString(),
+      authState: needsReauth ? 'REAUTH_REQUIRED' : 'ACTIVE',
+      reauthReason: needsReauth ? token.reauthReason ?? 'TOKEN_REVOKED' : null,
+      reauthAt: needsReauth ? token.reauthAt ?? null : null,
     };
   }
 
@@ -157,23 +195,86 @@ export class InMemoryGoogleOAuthTokenStore implements GoogleOAuthTokenStore {
     requestId: string,
     now: () => number = Date.now,
   ): Promise<string | null> {
-    const token = this.tokensByOwner.get(ownerKey(tenantId, principalId));
-    if (!token) return null;
-    if (token.expiresAt > now()) return token.accessToken;
+    const result = await this.acquireAccessTokenForPrincipal(tenantId, principalId, config, fetchFn, requestId, now);
+    return result.ok ? result.accessToken : null;
+  }
+
+  private readonly refreshesInFlight = new Map<string, Promise<GoogleAccessTokenResult>>();
+
+  // Obtains a usable access token, refreshing it when expired. Fails closed (never a token) but says WHY:
+  //  - NOT_CONNECTED       no connection for this tenant+user
+  //  - REAUTH_REQUIRED     Google no longer honours the grant (revoked / expired without refresh token): the connection
+  //                        metadata is kept, the dead secrets are purged, and the user must reauthorize
+  //  - PROVIDER_TIMEOUT/PROVIDER_ERROR  a transient Google failure: the connection and its secrets are kept untouched
+  public async acquireAccessTokenForPrincipal(
+    tenantId: string,
+    principalId: string,
+    config: GoogleOAuthConfig,
+    fetchFn: FetchFn,
+    requestId: string,
+    now: () => number = Date.now,
+  ): Promise<GoogleAccessTokenResult> {
+    const key = ownerKey(tenantId, principalId);
+    const token = this.tokensByOwner.get(key);
+    if (!token) return { ok: false, reason: 'NOT_CONNECTED' };
+    if (token.authState === 'REAUTH_REQUIRED') return { ok: false, reason: 'REAUTH_REQUIRED', reauthReason: token.reauthReason ?? 'TOKEN_REVOKED' };
+    if (token.expiresAt > now()) return { ok: true, accessToken: token.accessToken };
     if (!token.refreshToken) {
-      this.clearForPrincipal(tenantId, principalId);
-      return null;
+      this.markReauthRequiredForPrincipal(tenantId, principalId, 'TOKEN_EXPIRED_NO_REFRESH');
+      return { ok: false, reason: 'REAUTH_REQUIRED', reauthReason: 'TOKEN_EXPIRED_NO_REFRESH' };
     }
+    const inFlight = this.refreshesInFlight.get(key);
+    if (inFlight) return inFlight;
+    const refreshing = this.refreshAccessToken(tenantId, principalId, token.refreshToken, config, fetchFn, requestId, now)
+      .finally(() => { this.refreshesInFlight.delete(key); });
+    this.refreshesInFlight.set(key, refreshing);
+    return refreshing;
+  }
+
+  private async refreshAccessToken(
+    tenantId: string,
+    principalId: string,
+    refreshToken: string,
+    config: GoogleOAuthConfig,
+    fetchFn: FetchFn,
+    requestId: string,
+    now: () => number,
+  ): Promise<GoogleAccessTokenResult> {
     try {
-      const refreshed = await refreshGoogleAccessToken(config, token.refreshToken, fetchFn, requestId, now);
+      const refreshed = await refreshGoogleAccessToken(config, refreshToken, fetchFn, requestId, now);
       this.saveForPrincipal(tenantId, principalId, refreshed);
-      return refreshed.accessToken;
-    } catch {
-      // Refresh failed (commonly: authorization revoked) — fail closed and
-      // drop the now-invalid credential rather than keep retrying with it.
-      this.clearForPrincipal(tenantId, principalId);
-      return null;
+      return { ok: true, accessToken: refreshed.accessToken };
+    } catch (error) {
+      if (!(error instanceof NagexError)) return { ok: false, reason: 'INTERNAL_ERROR' };
+      if (error.code === 'GOOGLE_OAUTH_TIMEOUT') return { ok: false, reason: 'PROVIDER_TIMEOUT', code: error.code };
+      if (error.code === 'GOOGLE_OAUTH_TOKEN_EXCHANGE_FAILED') {
+        const oauthError = error.details?.oauthError;
+        // invalid_grant / unauthorized_client: Google says this grant is dead (revoked, expired, password change...).
+        if (oauthError === 'invalid_grant' || oauthError === 'unauthorized_client') {
+          this.markReauthRequiredForPrincipal(tenantId, principalId, 'TOKEN_REVOKED');
+          return { ok: false, reason: 'REAUTH_REQUIRED', reauthReason: 'TOKEN_REVOKED', code: error.code };
+        }
+      }
+      // network failure, 5xx, 429, a misconfigured OAuth client...: not the user's authorization — keep the connection.
+      return { ok: false, reason: 'PROVIDER_ERROR', code: error.code };
     }
+  }
+
+  public markReauthRequiredForPrincipal(tenantId: string, principalId: string, reason: GoogleReauthReason): void {
+    const key = ownerKey(tenantId, principalId);
+    const token = this.tokensByOwner.get(key);
+    if (!token) return;
+    this.tokensByOwner.set(key, {
+      ...token,
+      // the grant is unusable: do not retain either secret
+      accessToken: '',
+      refreshToken: null,
+      expiresAt: 0,
+      authState: 'REAUTH_REQUIRED',
+      reauthReason: reason,
+      reauthAt: new Date().toISOString(),
+    });
+    this.onChange();
   }
 
   public async revoke(tenantId: string, fetchFn: FetchFn, requestId: string): Promise<void> {
@@ -182,7 +283,8 @@ export class InMemoryGoogleOAuthTokenStore implements GoogleOAuthTokenStore {
 
   public async revokeForPrincipal(tenantId: string, principalId: string, fetchFn: FetchFn, _requestId: string): Promise<void> {
     const token = this.tokensByOwner.get(ownerKey(tenantId, principalId));
-    if (token) await revokeGoogleToken(token.accessToken, fetchFn);
+    // a connection that already needs reauthorization holds no secret to revoke at Google
+    if (token && token.accessToken) await revokeGoogleToken(token.accessToken, fetchFn);
     this.clearForPrincipal(tenantId, principalId);
   }
 

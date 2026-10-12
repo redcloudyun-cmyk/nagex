@@ -37,6 +37,14 @@ export interface GoogleTokenResponse {
 
 type FetchFn = typeof fetch;
 
+// Bounded so a hung Google endpoint is reported as a timeout (retryable, connection kept) instead of hanging the request.
+export const GOOGLE_PROVIDER_TIMEOUT_MS = 10_000;
+
+export function isAbortOrTimeout(error: unknown): boolean {
+  const name = error && typeof error === 'object' ? (error as { name?: unknown }).name : undefined;
+  return name === 'TimeoutError' || name === 'AbortError';
+}
+
 export function readGoogleOAuthConfig(env: NodeJS.ProcessEnv = process.env): GoogleOAuthConfig | null {
   const clientId = env.GOOGLE_CLIENT_ID?.trim();
   const clientSecret = env.GOOGLE_CLIENT_SECRET?.trim();
@@ -75,8 +83,17 @@ async function postToken(body: URLSearchParams, fetchFn: FetchFn, requestId: str
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: body.toString(),
+      signal: AbortSignal.timeout(GOOGLE_PROVIDER_TIMEOUT_MS),
     });
-  } catch {
+  } catch (error) {
+    if (isAbortOrTimeout(error)) {
+      throw new NagexError({
+        code: 'GOOGLE_OAUTH_TIMEOUT',
+        category: 'TIMEOUT',
+        message: 'Google OAuth did not respond in time.',
+        request_id: requestId,
+      });
+    }
     throw new NagexError({
       code: 'GOOGLE_OAUTH_NETWORK_ERROR',
       category: 'PROVIDER',
@@ -93,6 +110,8 @@ async function postToken(body: URLSearchParams, fetchFn: FetchFn, requestId: str
       category: response.status === 401 || response.status === 403 ? 'AUTHENTICATION' : 'PROVIDER',
       message: payload.error_description || payload.error || `Google OAuth token exchange failed with HTTP ${response.status}.`,
       request_id: requestId,
+      // Machine-readable cause (never a token): lets callers tell a revoked/expired grant from a transient provider failure.
+      details: { httpStatus: response.status, oauthError: payload.error ?? null },
     });
   }
 

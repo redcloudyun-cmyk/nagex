@@ -5252,6 +5252,22 @@
       "notes": "Production server harness with provider credentials scrubbed; the AI chat answer and, where stated, the conversation list / personal-home payload are stubbed to force each state. Does not exercise a real AI provider.",
       "writesRepositoryArtifacts": false
     },
+    "google_calendar_connection_state": {
+      "milestone": "NAGEX-GOOGLE-CALENDAR-CONNECTION",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "google",
+        "credential-broker",
+        "personal-home"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Google Calendar connection truthfulness: identity is the verified session tenant + user only (another user, another tenant, forged headers/query/body and a missing identity never read or reveal anyone else's connection or events, and tools fail closed without an identity); every state is reported truthfully (NOT_CONNECTED, CONNECTING only for the user who started authorization, CONNECTED only with a usable correctly scoped grant and verifiedAt only after a real authorized Google call, REAUTH_REQUIRED for revoked/expired/rejected grants and missing scopes, ERROR for timeouts/outages/rate limits/API-disabled/internal faults, UNAVAILABLE without an OAuth client); a grant Google no longer honours keeps its metadata, purges its secrets and persists the reauthorization flag, while a transient provider failure never touches the grant; real events are read through the existing credential-brokered service and the list_events capability is read-only and identity-bound; writes still require approval.",
+      "notes": "Google is replaced by a scripted fetch; the token store, credential broker, pipeline, service, routes and sessions are the production code."
+    },
     "personal_home_profile_name": {
       "milestone": "NAGEX-DESKTOP-MAIN-GREETING",
       "classification": "CANONICAL_BEHAVIOR",

@@ -2,7 +2,7 @@ import { NagexError } from '../common/errors.js';
 import { ApprovalPolicy } from '../governance/approval-policy.js';
 import type { PlanPreview, PlanStep, PlanStepNecessity } from '../model-gateway/ai-service.js';
 import { SkillRegistry } from '../skills/skill-registry.js';
-import { ToolRegistry, type SideEffectLevel } from '../tools/tool-registry.js';
+import { ToolRegistry, type SideEffectLevel, type ToolIdentity } from '../tools/tool-registry.js';
 
 export type ExecutionReadiness = 'EXECUTION_READY' | 'BLOCKED' | 'APPROVAL_REQUIRED';
 
@@ -52,7 +52,9 @@ function normalizeSuggestions(value: unknown): string[] {
 export class PlanResolver {
   constructor(private readonly skills: SkillRegistry, private readonly tools: ToolRegistry, private readonly approvalPolicy: ApprovalPolicy = new ApprovalPolicy()) {}
 
-  public resolve(plan: PlanPreview): ResolvedPlan {
+  // identity: the verified tenant + user the plan is resolved for. Per-user tool availability (a Google connection) is
+  // evaluated for them; without it such tools resolve as unavailable instead of borrowing someone else's connection.
+  public resolve(plan: PlanPreview, identity?: ToolIdentity): ResolvedPlan {
     if (!plan || typeof plan.goal !== 'string' || typeof plan.summary !== 'string' || typeof plan.reasoningSummary !== 'string' || !Array.isArray(plan.steps) || plan.steps.length === 0) {
       throw new NagexError({ code: 'INVALID_PLAN_PREVIEW', category: 'VALIDATION', message: 'A generated Plan Preview with at least one step is required.', request_id: 'plan_resolve' });
     }
@@ -70,7 +72,7 @@ export class PlanResolver {
     // Each step's own readiness (skill/tool/approval) is resolved completely
     // independently of every other step first, so one unrelated step can
     // never corrupt another's individually-correct state.
-    const steps = plan.steps.map((step) => this.resolveOwnStep(step));
+    const steps = plan.steps.map((step) => this.resolveOwnStep(step, identity));
 
     this.applyDependencyGating(steps);
 
@@ -121,9 +123,9 @@ export class PlanResolver {
     }
   }
 
-  private resolveOwnStep(step: PlanStep): ResolvedPlanStep {
+  private resolveOwnStep(step: PlanStep, identity?: ToolIdentity): ResolvedPlanStep {
     const skill = this.skills.resolve(step.skill);
-    const tool = this.tools.resolve(step.tool);
+    const tool = this.tools.resolve(step.tool, identity);
     const warnings: string[] = [];
     if (skill.status === 'UNRESOLVED') warnings.push(`Unregistered skill: ${step.skill}`);
     if (tool.status === 'UNRESOLVED') warnings.push(`Unregistered tool: ${step.tool}`);

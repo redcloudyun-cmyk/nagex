@@ -42,6 +42,13 @@ import * as server from '../src/server_web.js';
 import { SPAWNED_SERVER_TRUSTED_PROXIES } from './_s2e_peer.js';
 import { enableDevAuthTokensForFile } from './_dev_auth_tokens.js';
 
+// Google is offered only when the server has an OAuth client; a connected account is CONNECTED only then.
+// a connection counts as a usable Calendar connection only with the real calendar scopes
+const REAL_CALENDAR_SCOPES = ['https://www.googleapis.com/auth/calendar.events', 'https://www.googleapis.com/auth/calendar.events.freebusy', 'https://www.googleapis.com/auth/calendar.calendarlist.readonly'].join(' ');
+process.env.GOOGLE_CLIENT_ID ??= 'r24-6c-client-id';
+process.env.GOOGLE_CLIENT_SECRET ??= 'r24-6c-client-secret';
+process.env.GOOGLE_REDIRECT_URI ??= 'https://nagex-test.agex.site/api/v1/oauth/google/callback';
+
 // R24.6C1 — this file legitimately needs raw dev tokens to drive signup/verify; opt in explicitly (restored after the file).
 enableDevAuthTokensForFile();
 
@@ -332,7 +339,7 @@ describe('R24.6C — Google OAuth ownership is the authenticated account', () =>
     await withOAuthEnv(async () => {
       const f = oauthFixture();
       try {
-        googleTokenStore.saveForPrincipal(f.a.tenantId, f.a.userId, { accessToken: 'at_A_not_a_secret', refreshToken: null, expiresAt: Date.now() + 3_600_000, scope: 'calendar' });
+        googleTokenStore.saveForPrincipal(f.a.tenantId, f.a.userId, { accessToken: 'at_A_not_a_secret', refreshToken: null, expiresAt: Date.now() + 3_600_000, scope: REAL_CALENDAR_SCOPES });
 
         assert.equal((await f.status({}))?.status, 401);
         assert.equal((await f.status(f.a.forged))?.status, 401);
@@ -356,11 +363,11 @@ describe('R24.6C — Google OAuth ownership is the authenticated account', () =>
       const deps = { connectionStore: new ConnectionStore(), ...f.stores };
       const google = async (headers: Record<string, string>) => {
         const res = await handleConnectionsRoutes('GET', '/api/v1/connections', null, headers, {}, deps);
-        return ((res!.data as any).connections as any[]).find((c) => c.provider === 'google').status as string;
+        return ((res!.data as any).connections as any[]).find((c) => c.provider === 'google').status === 'CONNECTED' ? 'CONNECTED' : 'DISCONNECTED'; // any state but CONNECTED means: not connected for this user
       };
       try {
         assert.equal((await handleConnectionsRoutes('GET', '/api/v1/connections', null, f.a.forged, {}, deps))?.status, 401);
-        googleTokenStore.saveForPrincipal(f.a.tenantId, f.a.userId, { accessToken: 'at_A_not_a_secret', refreshToken: null, expiresAt: Date.now() + 3_600_000, scope: 'calendar' });
+        googleTokenStore.saveForPrincipal(f.a.tenantId, f.a.userId, { accessToken: 'at_A_not_a_secret', refreshToken: null, expiresAt: Date.now() + 3_600_000, scope: REAL_CALENDAR_SCOPES });
 
         // Divergence check: /connections and /oauth/google/status always agree, for both users.
         for (const [who, other] of [[f.a, f.b], [f.b, f.a]] as const) {
@@ -468,7 +475,7 @@ describe('R24.6C — forged identity headers through the real production entry p
     const asBWithAHeaders = { ...b.cookie, ...a.forged };
     const realFetch = globalThis.fetch;
     globalThis.fetch = (async () => new Response('{}', { status: 200 })) as typeof fetch; // revoke is best-effort network; never real
-    googleTokenStore.saveForPrincipal(a.tenantId, a.userId, { accessToken: 'at_FA_not_a_secret', refreshToken: null, expiresAt: Date.now() + 3_600_000, scope: 'calendar' });
+    googleTokenStore.saveForPrincipal(a.tenantId, a.userId, { accessToken: 'at_FA_not_a_secret', refreshToken: null, expiresAt: Date.now() + 3_600_000, scope: REAL_CALENDAR_SCOPES });
     try {
       // Quick Wake / Autonomy
       assert.equal((await asyncCall('POST', '/api/v1/quickwake/config', { voice_wake: true }, asAWithBHeaders)).status, 200);
@@ -493,7 +500,7 @@ describe('R24.6C — forged identity headers through the real production entry p
       // Google status / disconnect / Connections
       assert.equal(((await asyncCall('GET', '/api/v1/oauth/google/status', null, asBWithAHeaders)).data as any).connected, false);
       assert.equal(((await asyncCall('GET', '/api/v1/oauth/google/status', null, asAWithBHeaders)).data as any).connected, true);
-      const googleRow = async (h: Record<string, string>) => (((await asyncCall('GET', '/api/v1/connections', null, h)).data as any).connections as any[]).find((c) => c.provider === 'google').status;
+      const googleRow = async (h: Record<string, string>) => (((await asyncCall('GET', '/api/v1/connections', null, h)).data as any).connections as any[]).find((c) => c.provider === 'google').status === 'CONNECTED' ? 'CONNECTED' : 'DISCONNECTED';
       assert.equal(await googleRow(asBWithAHeaders), 'DISCONNECTED');
       assert.equal(await googleRow(asAWithBHeaders), 'CONNECTED');
       assert.equal((await asyncCall('POST', '/api/v1/oauth/google/disconnect', null, asBWithAHeaders)).status, 200);

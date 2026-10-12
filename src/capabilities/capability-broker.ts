@@ -421,6 +421,27 @@ export class CapabilityBroker {
         return { status: 'APPROVAL_REQUIRED', capabilityId: request.capabilityId, approval };
       }
 
+      if (request.capabilityId === 'google_calendar.list_events') {
+        if (typeof this.calendarService.listUpcomingEvents !== 'function') {
+          return { status: 'BLOCKED', capabilityId: request.capabilityId, reasonCode: 'CAPABILITY_PROVIDER_UNAVAILABLE' };
+        }
+        const now = Date.now();
+        const timeMin = typeof payload.timeMin === 'string' && !Number.isNaN(Date.parse(payload.timeMin)) ? payload.timeMin : new Date(now).toISOString();
+        const timeMax = typeof payload.timeMax === 'string' && !Number.isNaN(Date.parse(payload.timeMax)) ? payload.timeMax : new Date(now + 7 * 24 * 3600 * 1000).toISOString();
+        const requested = Math.floor(Number(payload.maxResults));
+        // Identity is the broker request's (server-derived) tenant + principal — a payload can never name another user.
+        const events = await this.calendarService.listUpcomingEvents({
+          tenantId: request.tenantId,
+          principalId: request.principalId,
+          calendarId: typeof payload.calendarId === 'string' && payload.calendarId ? payload.calendarId : 'primary',
+          timeMin,
+          timeMax,
+          maxResults: Number.isFinite(requested) && requested > 0 ? Math.min(requested, 50) : 20,
+          requestId: request.requestId,
+        });
+        return { status: 'EXECUTED', capabilityId: request.capabilityId, result: { events, timeMin, timeMax } };
+      }
+
       if (request.capabilityId === 'google_calendar.free_slots') {
         const res = await this.calendarService.getFreeSlots({
           tenantId: request.tenantId,

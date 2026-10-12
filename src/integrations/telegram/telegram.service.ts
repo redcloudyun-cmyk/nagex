@@ -226,7 +226,7 @@ export class TelegramService {
         requestId,
       });
 
-      const resolved = this.options.planResolver.resolve(planRes.data);
+      const resolved = this.options.planResolver.resolve(planRes.data, { tenantId, principalId });
       planGenerated = true;
 
       const stepsList = resolved.steps

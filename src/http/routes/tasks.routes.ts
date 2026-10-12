@@ -301,7 +301,7 @@ export const handleTasksRunRoutes: AsyncRouteRegistrar<TasksRunRouteDeps> = asyn
     }
     let resolved;
     try {
-      resolved = planResolver.resolve({ goal: task.objective, summary: 'V01a test-only fixed-plan injection.', reasoningSummary: 'V01a test-only fixed-plan injection.', suggestions: [], steps } as unknown as PlanPreview);
+      resolved = planResolver.resolve({ goal: task.objective, summary: 'V01a test-only fixed-plan injection.', reasoningSummary: 'V01a test-only fixed-plan injection.', suggestions: [], steps } as unknown as PlanPreview, { tenantId: fixedPlanTenantId, principalId: fixedPlanPrincipalId });
     } catch (error) {
       return modelErrorResult(error);
     }

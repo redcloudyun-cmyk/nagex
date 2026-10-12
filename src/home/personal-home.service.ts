@@ -8,6 +8,8 @@ import type { IdentityStore } from '../identity/identity.store.js';
 import type { CurrentPersonalContextService, ContextApproval, ContextTask, ContextEvent, CurrentPersonalContext } from '../personal/current-personal-context.service.js';
 import type { RightNowIntelligenceService, RightNowItem, RightNowItemKind } from '../personal/right-now-intelligence.service.js';
 import type { ProactiveSuggestion } from '../personal/proactive-suggestion.service.js';
+import { calendarStatusFromFailure, type CalendarConnectionStatus } from '../integrations/google/calendar-connection.js';
+import { hasPendingGoogleOAuthState } from '../integrations/google/oauth-state.store.js';
 
 export interface HomeCalendarItem {
   id: string;
@@ -127,6 +129,8 @@ export interface PersonalHomeResponse {
     activity: string;
     tasks: string;
   };
+  // Why the calendar is (not) available: NOT_CONNECTED / CONNECTING / CONNECTED / REAUTH_REQUIRED / ERROR / UNAVAILABLE.
+  calendarConnection?: CalendarConnectionStatus;
   userProfile?: {
     name: string | null;
   };
@@ -231,6 +235,7 @@ export class PersonalHomeService {
     let calendarStatus = 'CONNECTED';
     let gmailStatus = 'CONNECTED';
     let context: CurrentPersonalContext | null = null;
+    let calendarConnection: CalendarConnectionStatus | undefined;
     if (this.deps.currentPersonalContextService) {
       try {
         context = await this.deps.currentPersonalContextService.buildCurrentContext({ tenantId, userId: principalId, now, requestId });
@@ -239,9 +244,11 @@ export class PersonalHomeService {
         calendarEvents = context.today.events;
         calendarStatus = context.sourceStatus.calendar === 'OK' ? 'CONNECTED' : 'UNAVAILABLE';
         gmailStatus = context.sourceStatus.gmail === 'OK' ? 'CONNECTED' : 'UNAVAILABLE';
+        calendarConnection = context.calendarConnection;
       } catch {
         calendarStatus = 'UNAVAILABLE';
         gmailStatus = 'UNAVAILABLE';
+        calendarConnection = calendarStatusFromFailure({ state: 'ERROR', reason: 'INTERNAL_ERROR', retryable: true });
       }
     } else {
       calendarStatus = 'UNAVAILABLE';
@@ -544,6 +551,10 @@ export class PersonalHomeService {
       recentCreations,
       suggestions,
       upcoming,
+      // An authorization the user just started is the truthful state while the connection is not usable yet.
+      calendarConnection: calendarConnection && (calendarConnection.state === 'NOT_CONNECTED' || calendarConnection.state === 'REAUTH_REQUIRED') && hasPendingGoogleOAuthState(tenantId, principalId)
+        ? { ...calendarConnection, state: 'CONNECTING', reason: 'AUTHORIZATION_PENDING', connectPath: null, message: 'Google Calendar authorization is in progress.' }
+        : calendarConnection,
       sourceStatus: {
         calendar: calendarStatus,
         gmail: gmailStatus,

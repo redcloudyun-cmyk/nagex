@@ -7,6 +7,7 @@
 // response.
 import crypto from 'node:crypto';
 import { NagexError } from '../../common/errors.js';
+import { isCalendarNeedsConnection } from '../../integrations/google/calendar-connection.js';
 import type { ActivityStore } from '../../governance/activity.store.js';
 import type { MemoryEngine } from '../../context/memory.engine.js';
 import type { TaskStore } from '../../tasks/task.store.js';
@@ -108,7 +109,7 @@ export const handleMySpaceRoutes: AsyncRouteRegistrar<MySpaceRouteDeps> = async 
       });
     } catch (error) {
       calendar = [];
-      calendarStatus = error instanceof NagexError && error.code === 'GOOGLE_CALENDAR_DISCONNECTED' ? 'DISCONNECTED' : 'ERROR';
+      calendarStatus = isCalendarNeedsConnection(error) ? 'DISCONNECTED' : 'ERROR';
     }
 
     // History = Activity + owned TaskRun ONLY (approved P08 definition —

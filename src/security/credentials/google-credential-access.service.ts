@@ -15,6 +15,12 @@ export interface GoogleCredentialUseInput {
   capabilityId?: string;
 }
 
+function sameScopes(left: string[], right: string[]): boolean {
+  const a = [...new Set(left)].sort();
+  const b = [...new Set(right)].sort();
+  return a.length === b.length && a.every((scope, index) => scope === b[index]);
+}
+
 export class GoogleCredentialAccessService {
   private readonly credentialRefsByOwner = new Map<string, string>();
 
@@ -73,7 +79,9 @@ export class GoogleCredentialAccessService {
     const existingRef = this.credentialRefsByOwner.get(owner);
     if (existingRef) {
       const existing = this.broker.getReference(existingRef, tenantId, principalId);
-      if (existing) return existing;
+      const current = this.tokenStore.getStatusForPrincipal(tenantId, principalId);
+      // reuse the reference only while it still describes the live grant (same scopes); a reconnect re-binds it
+      if (existing && existing.status === 'ACTIVE' && sameScopes(existing.scopes, current.scopes)) return existing;
       this.credentialRefsByOwner.delete(owner);
     }
 

@@ -60,6 +60,16 @@ export interface CalendarApprovalRequesterPort {
     timeMin: string;
     timeMax: string;
   }>;
+  // Optional so narrow test/port implementations keep compiling; the broker reports the capability unavailable without it.
+  listUpcomingEvents?(input: {
+    tenantId: string;
+    principalId: string;
+    calendarId?: string;
+    timeMin: string;
+    timeMax: string;
+    maxResults?: number;
+    requestId: string;
+  }): Promise<Array<{ id: string; title: string; start: string; end: string; status: string | null; updated: string | null; attendees: string[] }>>;
   requestCreateEventApproval(input: CalendarApprovalRequestInput): ActionApprovalRecord;
   requestUpdateEventApproval(input: CalendarApprovalRequestInput): ActionApprovalRecord;
   requestCancelEventApproval(input: CalendarApprovalRequestInput): ActionApprovalRecord;

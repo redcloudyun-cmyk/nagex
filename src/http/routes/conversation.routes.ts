@@ -321,7 +321,8 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
   }
   if (pathname === '/api/v1/plans/resolve' && method === 'POST') {
     const candidate = body?.plan && typeof body.plan === 'object' ? body.plan : body;
-    return { status: 200, data: planResolver.resolve(candidate as unknown as PlanPreview) };
+    const identity = callerIdentity(headers);
+    return { status: 200, data: planResolver.resolve(candidate as unknown as PlanPreview, { tenantId: identity.tenantId, principalId: identity.principalId }) };
   }
 
   return undefined;

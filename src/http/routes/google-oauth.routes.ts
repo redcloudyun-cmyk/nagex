@@ -27,7 +27,9 @@ import type { IdentityStore } from '../../identity/identity.store.js';
 import type { SessionStore } from '../../sessions/session.store.js';
 import { buildGoogleAuthorizeUrl, exchangeGoogleAuthorizationCode, readGoogleOAuthConfig } from '../../integrations/google/oauth.client.js';
 import { googleTokenStore } from '../../integrations/google/token.store.js';
-import { resolveAuthenticatedIdentity, type AuthenticatedIdentity } from '../request-identity.js';
+import { consumeGoogleOAuthState, issueGoogleOAuthState } from '../../integrations/google/oauth-state.store.js';
+import type { GoogleCalendarConnectionService } from '../../integrations/google/calendar-connection.js';
+import { resolveAuthenticatedIdentity } from '../request-identity.js';
 import type { ApiResult, SyncRouteRegistrar, AsyncRouteRegistrar } from '../http-types.js';
 
 function getHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
@@ -42,35 +44,7 @@ export interface GoogleOAuthAuthDeps {
 
 const UNAUTHORIZED: ApiResult = { status: 401, data: { error: { code: 'UNAUTHORIZED', message: 'Sign in to manage your Google connection.' } } };
 
-interface PendingGoogleOAuthState {
-  tenantId: string;
-  principalId: string;
-  createdAt: number;
-}
-
-const GOOGLE_OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
-const pendingGoogleOAuthStates = new Map<string, PendingGoogleOAuthState>();
-
-function issueGoogleOAuthState(owner: AuthenticatedIdentity): string {
-  const state = crypto.randomUUID();
-  const now = Date.now();
-
-  for (const [key, pending] of pendingGoogleOAuthStates.entries()) {
-    if (now - pending.createdAt > GOOGLE_OAUTH_STATE_TTL_MS) pendingGoogleOAuthStates.delete(key);
-  }
-
-  pendingGoogleOAuthStates.set(state, { tenantId: owner.tenantId, principalId: owner.principalId, createdAt: now });
-  return state;
-}
-
-function consumeGoogleOAuthState(state: string | undefined): PendingGoogleOAuthState | null {
-  if (!state) return null;
-  const pending = pendingGoogleOAuthStates.get(state);
-  pendingGoogleOAuthStates.delete(state);
-  if (!pending) return null;
-  if (Date.now() - pending.createdAt > GOOGLE_OAUTH_STATE_TTL_MS) return null;
-  return pending;
-}
+// The one-time state nonces live in integrations/google/oauth-state.store.ts (shared with the connection-status resolver).
 
 export const handleGoogleOAuthStartRoutes: SyncRouteRegistrar<GoogleOAuthAuthDeps> = (method, pathname, _body, headers, _query, deps): ApiResult | undefined => {
   if (pathname === '/api/v1/oauth/google/start' && method === 'GET') {
@@ -103,6 +77,7 @@ export const handleGoogleOAuthStartRoutes: SyncRouteRegistrar<GoogleOAuthAuthDep
 
 export interface GoogleOAuthCallbackRouteDeps extends GoogleOAuthAuthDeps {
   auditLogger: AuditLogger;
+  calendarConnection?: GoogleCalendarConnectionService;
 }
 
 export const handleGoogleOAuthCallbackRoutes: AsyncRouteRegistrar<GoogleOAuthCallbackRouteDeps> = async (method, pathname, _body, headers, query, deps): Promise<ApiResult | undefined> => {
@@ -150,7 +125,8 @@ export const handleGoogleOAuthCallbackRoutes: AsyncRouteRegistrar<GoogleOAuthCal
       await googleTokenStore.getValidAccessTokenForPrincipal(owner.tenantId, owner.principalId, config, fetch, requestId);
     }
     const status = googleTokenStore.getStatusForPrincipal(owner.tenantId, owner.principalId);
-    return { status: 200, data: { configured: Boolean(config), ...status } };
+    const connection = deps.calendarConnection ? await deps.calendarConnection.getStatus({ tenantId: owner.tenantId, principalId: owner.principalId, requestId }) : undefined;
+    return { status: 200, data: { configured: Boolean(config), ...status, connection } };
   }
   if (pathname === '/api/v1/oauth/google/disconnect' && method === 'POST') {
     const owner = resolveAuthenticatedIdentity(headers, deps);

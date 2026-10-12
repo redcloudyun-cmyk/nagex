@@ -107,7 +107,7 @@ test('a corrupted token file fails closed to disconnected instead of crashing', 
   try {
     const store = new PersistentGoogleOAuthTokenStore({ filePath, env });
     assert.equal(store.isConnected('t1'), false);
-    assert.deepEqual(store.getStatus('t1'), { connected: false, scopes: [], expiresAt: null });
+    assert.deepEqual(store.getStatus('t1'), { connected: false, scopes: [], expiresAt: null, authState: 'NONE', reauthReason: null, reauthAt: null });
   } finally {
     fs.rmSync(filePath, { force: true });
   }
@@ -161,7 +161,7 @@ test('status never exposes token values, even when backed by the persistent stor
     const status = store.getStatus('t1');
     const serialized = JSON.stringify(status);
     assert.doesNotMatch(serialized, /top-secret-access|top-secret-refresh/);
-    assert.deepEqual(Object.keys(status).sort(), ['connected', 'expiresAt', 'scopes']);
+    assert.deepEqual(Object.keys(status).sort(), ['authState', 'connected', 'expiresAt', 'reauthAt', 'reauthReason', 'scopes']);
 
     // The file on disk is ciphertext, not a token value in the clear either.
     const onDisk = fs.readFileSync(filePath, 'utf8');

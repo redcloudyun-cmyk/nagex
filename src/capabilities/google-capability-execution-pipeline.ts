@@ -28,6 +28,7 @@ import type { ActionApprovalStore, ActionApprovalRecord } from '../governance/ac
 import type { ExecutionStore } from '../governance/execution.store.js';
 import type { MutationCapabilityDefinition, MutationExecutionContext } from './mutation-registry.js';
 import { GMAIL_SCOPES, GOOGLE_CALENDAR_SCOPES } from '../integrations/google/oauth.client.js';
+import type { GoogleOAuthTokenStore } from '../integrations/google/token.store.js';
 
 type FetchFn = typeof fetch;
 
@@ -158,6 +159,9 @@ export class GoogleCapabilityExecutionPipeline {
     use: (accessToken: string) => Promise<TResult>,
   ): Promise<TResult> {
     const requiredScopes = input.service === 'GMAIL' ? [...GMAIL_SCOPES] : [...GOOGLE_CALENDAR_SCOPES];
+    // Calendar fails with the SPECIFIC cause (not connected / must reauthorize / missing scope / Google down) instead of
+    // collapsing every credential problem into "disconnected". A transient Google failure keeps the stored connection.
+    if (input.service === 'CALENDAR') await this.preflightCalendarCredential(input, requiredScopes);
     let result: TResult | null;
     try {
       result = await this.deps.credentialAccess.withAccessToken({
@@ -189,6 +193,38 @@ export class GoogleCapabilityExecutionPipeline {
       });
     }
     return result;
+  }
+
+  private async preflightCalendarCredential(
+    input: { tenantId: string; principalId: string; requestId: string; disconnectedErrorCode: string; disconnectedMessage: string },
+    requiredScopes: string[],
+  ): Promise<void> {
+    const store = this.deps.tokenStore as Partial<GoogleOAuthTokenStore>;
+    // Narrow legacy/test token stores without the status API keep the original fail-closed behaviour below.
+    if (typeof store.getStatusForPrincipal !== 'function' || typeof store.acquireAccessTokenForPrincipal !== 'function') return;
+    const fail = (code: string, category: 'POLICY' | 'TIMEOUT' | 'PROVIDER' | 'INTERNAL' | 'RUNTIME', message: string, details?: Record<string, unknown>): never => {
+      throw new NagexError({ code, category, message, request_id: input.requestId, details });
+    };
+    const config = this.deps.getConfig();
+    if (!config) return fail('GOOGLE_CALENDAR_UNAVAILABLE', 'RUNTIME', 'Google Calendar is not available on this server.');
+    const status = store.getStatusForPrincipal(input.tenantId, input.principalId);
+    if (status.authState === 'NONE') return fail(input.disconnectedErrorCode, 'POLICY', input.disconnectedMessage);
+    if (status.authState === 'REAUTH_REQUIRED') {
+      return fail('GOOGLE_CALENDAR_REAUTH_REQUIRED', 'POLICY', 'Google Calendar must be reconnected.', { reason: status.reauthReason ?? 'TOKEN_REVOKED' });
+    }
+    const missingScopes = requiredScopes.filter((scope) => !status.scopes.includes(scope));
+    if (missingScopes.length > 0) {
+      return fail('GOOGLE_CALENDAR_REAUTH_REQUIRED', 'POLICY', 'Google Calendar access was not fully granted.', { reason: 'MISSING_SCOPE', missingScopes });
+    }
+    const acquired = await store.acquireAccessTokenForPrincipal(input.tenantId, input.principalId, config, this.deps.fetchFn, input.requestId);
+    if (acquired.ok) return;
+    if (acquired.reason === 'NOT_CONNECTED') return fail(input.disconnectedErrorCode, 'POLICY', input.disconnectedMessage);
+    if (acquired.reason === 'REAUTH_REQUIRED') {
+      return fail('GOOGLE_CALENDAR_REAUTH_REQUIRED', 'POLICY', 'Google Calendar must be reconnected.', { reason: acquired.reauthReason ?? 'TOKEN_REVOKED' });
+    }
+    if (acquired.reason === 'PROVIDER_TIMEOUT') return fail('GOOGLE_OAUTH_TIMEOUT', 'TIMEOUT', 'Google did not respond in time.');
+    if (acquired.reason === 'PROVIDER_ERROR') return fail('GOOGLE_OAUTH_PROVIDER_ERROR', 'PROVIDER', 'Google could not refresh the calendar access.');
+    return fail('GOOGLE_CALENDAR_INTERNAL_ERROR', 'INTERNAL', 'NAgex could not obtain calendar access.');
   }
 
   // ── the canonical mutation execution chokepoint (§6) ────────────────────

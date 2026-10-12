@@ -15,6 +15,7 @@
 // relevance gate — this service *uses* that one for its own memory section
 // rather than duplicating its (already-hardened) relevance logic.
 import type { UpcomingCalendarEvent } from '../modules/calendar/index.js';
+import { calendarStatusFromFailure, classifyCalendarFailure, type CalendarConnectionStatus } from '../integrations/google/calendar-connection.js';
 import type { TaskStore, TaskRecord, TaskStatus } from '../tasks/task.store.js';
 import type { PersonalReminderStore, PersonalReminder } from './personal-reminder.store.js';
 import type { ActionApprovalStore, ActionApprovalRecord } from '../governance/action-approval.store.js';
@@ -172,6 +173,8 @@ export interface CurrentPersonalContext {
   needsAttention: ContextAttentionItem[];
   sourceTraces: ContextSourceTrace[];
   sourceStatus: ContextSourceStatus;
+  // The truthful reason behind sourceStatus.calendar (not connected / must reconnect / provider error ...).
+  calendarConnection?: CalendarConnectionStatus;
 }
 
 export interface BuildCurrentContextParams {
@@ -219,6 +222,7 @@ export class CurrentPersonalContextService {
 
     // ── Calendar: today's events, ongoing/nearest-upcoming first, past excluded ──
     let todaysEvents: ContextEvent[] = [];
+    let calendarConnection: CalendarConnectionStatus | undefined;
     if (this.deps.googleCalendarService) {
       try {
         const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).toISOString();
@@ -226,6 +230,8 @@ export class CurrentPersonalContextService {
         const events = await this.deps.googleCalendarService.listUpcomingEvents({
           tenantId, principalId: userId, timeMin: dayStart, timeMax: dayEnd, maxResults: 20, requestId,
         });
+        // Google answered an authorized request for this user: the one moment CONNECTED is a verified fact.
+        calendarConnection = { provider: 'google_calendar', state: 'CONNECTED', reason: null, retryable: false, scopes: [], missingScopes: [], connectPath: null, verifiedAt: now.toISOString(), message: 'Google Calendar is connected.' };
         todaysEvents = (events || [])
           // A past event (already ended) must never appear as current/upcoming.
           .filter((e) => new Date(e.end).getTime() >= now.getTime())
@@ -238,12 +244,14 @@ export class CurrentPersonalContextService {
             sourceTrace: { type: 'CALENDAR' as const, sourceId: e.id, title: e.title, observedAt: now.toISOString() },
           }))
           .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
-      } catch {
+      } catch (error) {
         sourceStatus.calendar = 'ERROR';
         todaysEvents = [];
+        calendarConnection = calendarStatusFromFailure(classifyCalendarFailure(error));
       }
     } else {
       sourceStatus.calendar = 'UNAVAILABLE';
+      calendarConnection = calendarStatusFromFailure({ state: 'UNAVAILABLE', reason: 'OAUTH_NOT_CONFIGURED', retryable: false });
     }
     for (const e of todaysEvents) sourceTraces.push(e.sourceTrace);
     // Prefer an ongoing event (already started, not yet ended) over the
@@ -509,6 +517,7 @@ export class CurrentPersonalContextService {
       needsAttention,
       sourceTraces,
       sourceStatus,
+      calendarConnection,
     };
   }
 }

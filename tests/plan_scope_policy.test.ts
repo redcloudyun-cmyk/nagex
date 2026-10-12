@@ -15,15 +15,19 @@ import { withDefaultCaller } from './_s1_session_auth.js';
 const handleAsyncApiRequest = withDefaultCaller(rawHandleAsyncApiRequest);
 import type { MemoryRecord } from '../src/context/memory.engine.js';
 
+// the verified tenant + user these fixtures connect and resolve for (tool status is per user, never a shared default)
+import { DEFAULT_GOOGLE_PRINCIPAL_ID } from '../src/integrations/google/token.store.js';
+const LIVE_ID = { tenantId: DEFAULT_GOOGLE_TENANT_ID, principalId: DEFAULT_GOOGLE_PRINCIPAL_ID };
+
 const GRANTED_SCOPE_STRING = GOOGLE_CALENDAR_SCOPES.join(' ');
 const NOOP_LOGGER = { info: () => {}, warn: () => {} };
 
 async function withGoogleConnected<T>(fn: () => T | Promise<T>): Promise<T> {
-  sharedGoogleTokenStore.save(DEFAULT_GOOGLE_TENANT_ID, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3_600_000, scope: GRANTED_SCOPE_STRING });
+  sharedGoogleTokenStore.saveForPrincipal(LIVE_ID.tenantId, LIVE_ID.principalId, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3_600_000, scope: GRANTED_SCOPE_STRING });
   try {
     return await fn();
   } finally {
-    sharedGoogleTokenStore.clear(DEFAULT_GOOGLE_TENANT_ID);
+    sharedGoogleTokenStore.clearForPrincipal(LIVE_ID.tenantId, LIVE_ID.principalId);
   }
 }
 
@@ -41,7 +45,7 @@ test('A. Simple calendar request: only the Calendar scheduling step is required 
       { step: 1, title: 'Create calendar event', reasoning: 'Fulfills the explicit scheduling request.', skill: 'Scheduling', tool: 'google_calendar.create_event', requiresApproval: true, necessity: 'REQUIRED', dependsOn: [] },
     ],
   };
-  const resolved = resolver.resolve(plan);
+  const resolved = resolver.resolve(plan, LIVE_ID);
   assert.equal(resolved.steps.length, 1);
   assert.equal(resolved.steps[0].resolvedToolId, GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID);
   assert.equal(resolved.steps[0].toolAvailability, 'AVAILABLE');
@@ -62,7 +66,7 @@ test('B. "Schedule it and email John": Calendar + Gmail, Calendar stays independ
       { step: 2, title: 'Email John', reasoning: 'Explicitly requested notification.', skill: 'Email Drafting', tool: 'Gmail', requiresApproval: true, necessity: 'REQUIRED', dependsOn: [] },
     ],
   };
-  const resolved = resolver.resolve(plan);
+  const resolved = resolver.resolve(plan, LIVE_ID);
   assert.equal(resolved.steps.length, 2);
   assert.equal(resolved.steps[0].resolvedToolId, GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID);
   assert.equal(resolved.steps[0].executionReadiness, 'APPROVAL_REQUIRED');
@@ -87,7 +91,7 @@ test('C. "Prepare an agenda and schedule the meeting": agenda preparation + Cale
       { step: 2, title: 'Create calendar event', reasoning: 'Explicitly requested scheduling action.', skill: 'Scheduling', tool: 'google_calendar.create_event', requiresApproval: true, necessity: 'REQUIRED', dependsOn: [] },
     ],
   };
-  const resolved = resolver.resolve(plan);
+  const resolved = resolver.resolve(plan, LIVE_ID);
   assert.equal(resolved.steps.length, 2);
   assert.equal(resolved.steps[0].resolvedSkillId, 'skill.meeting_preparation');
   assert.equal(resolved.steps[0].executionReadiness, 'EXECUTION_READY');
@@ -109,7 +113,7 @@ test('D. "Schedule it and update Notion": Calendar + Notion steps both present',
       { step: 2, title: 'Update Notion page', reasoning: 'Explicitly requested Notion update.', skill: 'Document Summary', tool: 'Notion', requiresApproval: true, necessity: 'REQUIRED', dependsOn: [] },
     ],
   };
-  const resolved = resolver.resolve(plan);
+  const resolved = resolver.resolve(plan, LIVE_ID);
   assert.equal(resolved.steps.length, 2);
   assert.equal(resolved.steps[0].resolvedToolId, GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID);
   assert.equal(resolved.steps[0].executionReadiness, 'APPROVAL_REQUIRED');
@@ -132,7 +136,7 @@ test('E. Explicit multi-tool request with unavailable Notion: Calendar readiness
       { step: 3, title: 'Share the Notion page link', reasoning: 'Depends on the Notion page existing.', skill: 'Planning', tool: null, requiresApproval: false, necessity: 'REQUIRED', dependsOn: [2] },
     ],
   };
-  const resolved = resolver.resolve(plan);
+  const resolved = resolver.resolve(plan, LIVE_ID);
 
   // Calendar (step 1) has no dependency on the blocked Notion step, so it
   // must keep its own, independently-calculated readiness.

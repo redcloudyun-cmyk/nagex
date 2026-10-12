@@ -1143,8 +1143,55 @@
       since,
       suggestions,
       calendarUnavailable: status.calendar === 'UNAVAILABLE',
+      // why the calendar is (not) available: state + reason + connect path, from the server (null on an older server)
+      calendar: home.calendarConnection && typeof home.calendarConnection === 'object' ? home.calendarConnection : null,
       activityUnavailable: Boolean(status.activity) && status.activity !== 'OK',
     };
+  }
+
+  // The Today card never claims "nothing scheduled" when the calendar is simply not readable. It says which state
+  // the Google Calendar connection is in and offers the one action that can change it (never a dead button).
+  const CALENDAR_ERROR_TEXT = {
+    PROVIDER_TIMEOUT: ['mainBriefing.cal.timeout', 'Google Calendar did not respond in time.'],
+    PROVIDER_UNREACHABLE: ['mainBriefing.cal.unreachable', 'Google Calendar could not be reached.'],
+    PROVIDER_RATE_LIMITED: ['mainBriefing.cal.rateLimited', 'Google Calendar is limiting requests right now.'],
+    PROVIDER_API_DISABLED: ['mainBriefing.cal.apiDisabled', 'The Google Calendar API is not enabled for this NAgex deployment.'],
+    PROVIDER_FORBIDDEN: ['mainBriefing.cal.forbidden', 'Google Calendar refused this request.'],
+    PROVIDER_ERROR: ['mainBriefing.cal.providerError', 'Google Calendar returned an error.'],
+    INTERNAL_ERROR: ['mainBriefing.cal.internalError', "NAgex couldn't read Google Calendar because of an internal error."],
+  };
+
+  function calendarNotice(model) {
+    const c = model.calendar;
+    if (!c) {
+      // an older server without the connection detail: keep the previous, generic statement
+      return model.calendarUnavailable ? '<p class="main-briefing-note">' + esc(bt('mainBriefing.calendarNote', "Calendar isn't connected; events are not included.")) + '</p>' : '';
+    }
+    if (c.state === 'CONNECTED') return '';
+    let text = '';
+    let action = null;
+    const connectPath = typeof c.connectPath === 'string' && c.connectPath.indexOf('/api/v1/oauth/') === 0 ? c.connectPath : null;
+    if (c.state === 'NOT_CONNECTED') {
+      text = bt('mainBriefing.cal.notConnected', "Google Calendar isn't connected, so today's events can't be shown.");
+      if (connectPath) action = { id: 'connect', label: bt('mainBriefing.cal.connect', 'Connect Google Calendar') };
+    } else if (c.state === 'CONNECTING') {
+      text = bt('mainBriefing.cal.connecting', 'Finishing Google Calendar authorization...');
+      action = { id: 'refresh', label: bt('mainBriefing.cal.checkAgain', 'Check again') };
+    } else if (c.state === 'REAUTH_REQUIRED') {
+      text = c.reason === 'MISSING_SCOPE'
+        ? bt('mainBriefing.cal.missingScope', "Calendar access wasn't fully granted. Reconnect and allow calendar access.")
+        : bt('mainBriefing.cal.reauth', "Google Calendar access expired or was revoked. Reconnect to see today's events.");
+      if (connectPath) action = { id: 'connect', label: bt('mainBriefing.cal.reconnect', 'Reconnect Google Calendar') };
+    } else if (c.state === 'ERROR') {
+      const entry = CALENDAR_ERROR_TEXT[c.reason] || CALENDAR_ERROR_TEXT.PROVIDER_ERROR;
+      text = bt(entry[0], entry[1]);
+      if (c.retryable) action = { id: 'refresh', label: bt('mainBriefing.cal.retry', 'Try again') };
+    } else {
+      text = bt('mainBriefing.cal.unavailable', "Google Calendar isn't available on this server.");
+    }
+    return '<div class="main-briefing-note main-calendar-state" data-calendar-state="' + esc(c.state) + '"' + (c.reason ? ' data-calendar-reason="' + esc(c.reason) + '"' : '') + '><span>' + esc(text) + '</span>'
+      + (action ? ' <button type="button" class="main-tool-btn main-calendar-action" data-calendar-action="' + action.id + '"' + (action.id === 'connect' ? ' data-calendar-path="' + esc(connectPath) + '"' : '') + '>' + esc(action.label) + '</button>' : '')
+      + '</div>';
   }
 
   function briefingRows(rows) {
@@ -1185,9 +1232,10 @@
     if (retry) retry.hidden = true;
     const model = briefingModel(briefing.data);
     if (bodies.today) {
+      const calendarState = calendarNotice(model);
       bodies.today.innerHTML = model.today.length
-        ? briefingRows(model.today) + (model.calendarUnavailable ? '<p class="main-briefing-note">' + esc(bt('mainBriefing.calendarNote', "Calendar isn't connected; events are not included.")) + '</p>' : '')
-        : note(model.calendarUnavailable ? bt('mainBriefing.calendarUnavailable', "Calendar isn't connected, so today's events can't be shown.") : bt('mainBriefing.emptyToday', 'Nothing scheduled or waiting for you today.'));
+        ? briefingRows(model.today) + calendarState
+        : (calendarState || note(bt('mainBriefing.emptyToday', 'Nothing scheduled or waiting for you today.')));
     }
     if (bodies.since) {
       bodies.since.innerHTML = model.since.length
@@ -1320,6 +1368,16 @@
     watchMainSession();
     document.getElementById('main-new-conversation')?.addEventListener('click', startNewConversation);
     document.getElementById('main-briefing-retry')?.addEventListener('click', () => loadBriefing(true));
+    document.getElementById('main-briefing-today')?.addEventListener('click', (event) => {
+      const button = event.target.closest && event.target.closest('[data-calendar-action]');
+      if (!button) return;
+      if (button.dataset.calendarAction === 'connect' && button.dataset.calendarPath && button.dataset.calendarPath.indexOf('/api/v1/oauth/') === 0) {
+        // real OAuth: a full navigation to the server, which redirects to Google
+        window.location.href = button.dataset.calendarPath;
+      } else if (button.dataset.calendarAction === 'refresh') {
+        loadBriefing(true);
+      }
+    });
     document.getElementById('main-briefing-suggestions')?.addEventListener('click', (event) => {
       const button = event.target.closest && event.target.closest('[data-suggestion-index]');
       if (!button || !briefing.data) return;

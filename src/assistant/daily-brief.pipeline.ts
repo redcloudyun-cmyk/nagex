@@ -7,6 +7,7 @@
 // reads, the exact same AiService.brief() call, and the exact same
 // activity-event naming.
 import { NagexError } from '../common/errors.js';
+import { isCalendarNeedsConnection } from '../integrations/google/calendar-connection.js';
 import type { GoogleCalendarService } from '../modules/calendar/index.js';
 import type { GmailService } from '../modules/gmail/index.js';
 import type { AiService, BriefActionItem } from '../model-gateway/ai-service.js';
@@ -71,7 +72,7 @@ export async function generateDailyBriefOnce(
       schedule = await calendarService.listUpcomingEvents({ tenantId, principalId, timeMin: now.toISOString(), timeMax: endOfDay.toISOString(), maxResults: 20, requestId });
     } catch (error) {
       schedule = [];
-      calendarStatus = error instanceof NagexError && error.code === 'GOOGLE_CALENDAR_DISCONNECTED' ? 'DISCONNECTED' : 'ERROR';
+      calendarStatus = isCalendarNeedsConnection(error) ? 'DISCONNECTED' : 'ERROR';
     }
     if (calendarStatus === 'CONNECTED') {
       activityStore.record({ tenantId, principalId, type: 'daily_brief.source_calendar_completed', title: 'Daily Brief: calendar read', status: 'COMPLETED', dedupeKey: `daily_brief:${requestId}:calendar` });

@@ -188,15 +188,17 @@ export function createNagexApplication(): NagexApplication {
     }),
   });
   const executionStore = new ExecutionStore();
+  // Resolved at call time, not captured at startup, so the Google clients always use the current global fetch.
+  const googleFetch: typeof fetch = (input, init) => globalThis.fetch(input, init);
   const credentialBroker = new CredentialBrokerService(auditLogger);
   const googleCredentialAccess = new GoogleCredentialAccessService(
     googleTokenStore,
     credentialBroker,
     auditLogger,
     readGoogleOAuthConfig,
-    fetch,
+    googleFetch,
   );
-  const googleCalendarService = new GoogleCalendarService(googleTokenStore, actionApprovals, auditLogger, memoryEngine, fetch, readGoogleOAuthConfig, executionStore, googleCredentialAccess);
+  const googleCalendarService = new GoogleCalendarService(googleTokenStore, actionApprovals, auditLogger, memoryEngine, googleFetch, readGoogleOAuthConfig, executionStore, googleCredentialAccess);
   // Gmail as the second real external service — reuses the exact same shared
   // actionApprovals/executionStore/auditLogger/memoryEngine/googleTokenStore
   // singletons as Calendar. No separate approval architecture.

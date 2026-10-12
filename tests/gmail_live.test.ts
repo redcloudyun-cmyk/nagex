@@ -23,6 +23,10 @@ import { AiService, type PlanPreview } from '../src/model-gateway/ai-service.js'
 import type { ModelProvider } from '../src/model-gateway/model-provider.js';
 import { UnifiedModelRouter } from '../src/model-gateway/unified-model-router.js';
 
+// the verified tenant + user these fixtures connect and resolve for (tool status is per user, never a shared default)
+import { DEFAULT_GOOGLE_PRINCIPAL_ID } from '../src/integrations/google/token.store.js';
+const LIVE_ID = { tenantId: DEFAULT_GOOGLE_TENANT_ID, principalId: DEFAULT_GOOGLE_PRINCIPAL_ID };
+
 function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 }
@@ -82,48 +86,48 @@ test('OAuth scope status: a full connection carries both Calendar and Gmail scop
 // ── Gmail tool live/disconnected ────────────────────────────────────────────
 
 test('Gmail tools report disconnected/unavailable with no OAuth connection at all', () => {
-  sharedGoogleTokenStore.clear(DEFAULT_GOOGLE_TENANT_ID);
+  sharedGoogleTokenStore.clearForPrincipal(LIVE_ID.tenantId, LIVE_ID.principalId);
   for (const toolName of ['gmail.send_email', 'gmail.reply', 'gmail.create_draft', 'gmail.search', 'gmail.read_thread']) {
-    const resolution = sharedToolRegistry.resolve(toolName);
+    const resolution = sharedToolRegistry.resolve(toolName, LIVE_ID);
     assert.equal(resolution.connectionStatus, 'disconnected', `expected ${toolName} disconnected`);
     assert.equal(resolution.executionMode, 'unavailable', `expected ${toolName} unavailable`);
   }
 });
 
 test('Gmail tools stay unavailable when Google is connected but WITHOUT the gmail.modify scope (Calendar-only)', () => {
-  sharedGoogleTokenStore.save(DEFAULT_GOOGLE_TENANT_ID, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: CALENDAR_ONLY_SCOPE_STRING });
+  sharedGoogleTokenStore.saveForPrincipal(LIVE_ID.tenantId, LIVE_ID.principalId, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: CALENDAR_ONLY_SCOPE_STRING });
   try {
-    const resolution = sharedToolRegistry.resolve('gmail.send_email');
+    const resolution = sharedToolRegistry.resolve('gmail.send_email', LIVE_ID);
     assert.equal(resolution.connectionStatus, 'disconnected');
     assert.equal(resolution.executionMode, 'unavailable');
     // Calendar itself must remain live and unaffected — Gmail's own scope
     // gap must never weaken Calendar's status.
-    const calendarResolution = sharedToolRegistry.resolve('Google Calendar');
+    const calendarResolution = sharedToolRegistry.resolve('Google Calendar', LIVE_ID);
     assert.equal(calendarResolution.executionMode, 'live');
   } finally {
-    sharedGoogleTokenStore.clear(DEFAULT_GOOGLE_TENANT_ID);
+    sharedGoogleTokenStore.clearForPrincipal(LIVE_ID.tenantId, LIVE_ID.principalId);
   }
 });
 
 test('Gmail tools go LIVE once the connection carries the gmail.modify scope', () => {
-  sharedGoogleTokenStore.save(DEFAULT_GOOGLE_TENANT_ID, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: FULL_SCOPE_STRING });
+  sharedGoogleTokenStore.saveForPrincipal(LIVE_ID.tenantId, LIVE_ID.principalId, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: FULL_SCOPE_STRING });
   try {
     for (const toolName of ['gmail.send_email', 'gmail.reply', 'gmail.create_draft', 'gmail.search', 'gmail.read_thread']) {
-      const resolution = sharedToolRegistry.resolve(toolName);
+      const resolution = sharedToolRegistry.resolve(toolName, LIVE_ID);
       assert.equal(resolution.connectionStatus, 'connected', `expected ${toolName} connected`);
       assert.equal(resolution.executionMode, 'live', `expected ${toolName} live`);
     }
     // Calendar remains live too — one connection covers both, and neither weakens the other.
-    assert.equal(sharedToolRegistry.resolve('Google Calendar').executionMode, 'live');
+    assert.equal(sharedToolRegistry.resolve('Google Calendar', LIVE_ID).executionMode, 'live');
   } finally {
-    sharedGoogleTokenStore.clear(DEFAULT_GOOGLE_TENANT_ID);
+    sharedGoogleTokenStore.clearForPrincipal(LIVE_ID.tenantId, LIVE_ID.principalId);
   }
 });
 
 // ── approval required at plan resolution ────────────────────────────────────
 
 test('approval required: a live gmail.send_email step always resolves to APPROVAL_REQUIRED', () => {
-  sharedGoogleTokenStore.save(DEFAULT_GOOGLE_TENANT_ID, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: FULL_SCOPE_STRING });
+  sharedGoogleTokenStore.saveForPrincipal(LIVE_ID.tenantId, LIVE_ID.principalId, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: FULL_SCOPE_STRING });
   try {
     const resolver = new PlanResolver(skillRegistry, sharedToolRegistry);
     const plan: PlanPreview = {
@@ -132,23 +136,23 @@ test('approval required: a live gmail.send_email step always resolves to APPROVA
       reasoningSummary: 'Direct write action.',
       steps: [{ step: 1, title: 'Send email', reasoning: 'Notify the client.', skill: 'Email Drafting', tool: 'gmail.send_email', requiresApproval: false }],
     };
-    const resolved = resolver.resolve(plan);
+    const resolved = resolver.resolve(plan, LIVE_ID);
     assert.equal(resolved.status, 'APPROVAL_REQUIRED');
     assert.equal(resolved.steps[0].toolAvailability, 'AVAILABLE');
     assert.equal(resolved.steps[0].approvalRequired, true);
   } finally {
-    sharedGoogleTokenStore.clear(DEFAULT_GOOGLE_TENANT_ID);
+    sharedGoogleTokenStore.clearForPrincipal(LIVE_ID.tenantId, LIVE_ID.principalId);
   }
 });
 
 test('search never requires approval, even when connected', () => {
-  sharedGoogleTokenStore.save(DEFAULT_GOOGLE_TENANT_ID, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: FULL_SCOPE_STRING });
+  sharedGoogleTokenStore.saveForPrincipal(LIVE_ID.tenantId, LIVE_ID.principalId, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: FULL_SCOPE_STRING });
   try {
-    const resolution = sharedToolRegistry.resolve('gmail.search');
+    const resolution = sharedToolRegistry.resolve('gmail.search', LIVE_ID);
     assert.equal(resolution.sideEffectLevel, 'READ_ONLY');
     assert.equal(resolution.requiresApproval, false);
   } finally {
-    sharedGoogleTokenStore.clear(DEFAULT_GOOGLE_TENANT_ID);
+    sharedGoogleTokenStore.clearForPrincipal(LIVE_ID.tenantId, LIVE_ID.principalId);
   }
 });
 
@@ -405,7 +409,7 @@ test('full flow through the real HTTP routes: POST /api/v1/approvals -> .../appr
   const testConfig: GoogleOAuthConfig = { clientId: 'x', clientSecret: 'y', redirectUri: 'https://nagex-test.agex.site/api/v1/oauth/google/callback' };
   const testGmailService = new GmailService(sharedGoogleTokenStore, sharedActionApprovals, new AuditLogger(), new MemoryEngine(), mockFetch, () => testConfig);
 
-  sharedGoogleTokenStore.save(DEFAULT_GOOGLE_TENANT_ID, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: FULL_SCOPE_STRING });
+  sharedGoogleTokenStore.saveForPrincipal(LIVE_ID.tenantId, LIVE_ID.principalId, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: FULL_SCOPE_STRING });
   try {
     const created = handleApiRequest('POST', '/api/v1/approvals', { toolId: GMAIL_SEND_EMAIL_TOOL_ID, payload });
     assert.equal(created.status, 201);
@@ -433,7 +437,7 @@ test('full flow through the real HTTP routes: POST /api/v1/approvals -> .../appr
     assert.notEqual(replay.status, 200);
     assert.equal((replay.data as { error: { code: string } }).error.code, 'APPROVAL_ALREADY_CONSUMED');
   } finally {
-    sharedGoogleTokenStore.clear(DEFAULT_GOOGLE_TENANT_ID);
+    sharedGoogleTokenStore.clearForPrincipal(LIVE_ID.tenantId, LIVE_ID.principalId);
   }
 });
 

@@ -63,7 +63,7 @@ describe('Desktop Main — conditional Home briefing', () => {
     assert.match(since, /Quarterly plan v2/);
     assert.doesNotMatch(since, /Ancient report/);
     // truthful states: no calendar is connected in the harness, so Today says so instead of inventing events
-    assert.match(await sectionText(page, 'today'), /Calendar isn't connected/);
+    assert.match(await sectionText(page, 'today'), /Google Calendar isn't available on this server/);
     // suggestions are either real ones or an honest empty line, never placeholder text
     assert.doesNotMatch(await sectionText(page, 'suggestions'), /lorem|sample|demo|placeholder/i);
     assert.ok(homeCalls >= 1);
@@ -87,7 +87,7 @@ describe('Desktop Main — conditional Home briefing', () => {
     await page.waitForFunction(() => document.querySelector('#main-home-briefing')?.dataset.state === 'ready');
     assert.deepEqual(await page.locator('.main-briefing-card h2').allTextContents(), ['오늘', '어제 이후', '제안']);
     assert.match(await sectionText(page, 'since'), /분기 계획서/);
-    assert.match(await sectionText(page, 'today'), /캘린더가 연결되어 있지 않아/);
+    assert.match(await sectionText(page, 'today'), /이 서버에서는 구글 캘린더를 사용할 수 없습니다/);
     const text = await page.locator('#main-home-briefing').innerText();
     assert.doesNotMatch(text, /mainBriefing\.|undefined|\[object/);
     assert.equal(await page.evaluate(() => Math.max(0, document.documentElement.scrollWidth - window.innerWidth)), 0);
@@ -409,6 +409,134 @@ describe('Desktop Main — conditional Home briefing', () => {
     await page.waitForFunction(() => document.querySelector('#main-attach')?.textContent?.trim() === 'Attach');
     assert.match(await sectionText(page, 'since'), /Daily Brief generated/);
     await ctx.close();
+  });
+
+  // The Today card must say WHY calendar events are missing. Each state is forced through the personal-home payload.
+  const calendarConnection = (state: string, reason: string | null, extra: Record<string, unknown> = {}) => ({
+    provider: 'google_calendar', state, reason, retryable: false, scopes: [], missingScopes: [], connectPath: null, verifiedAt: null, message: '', ...extra,
+  });
+
+  async function stubCalendarState(page: Page, connection: Record<string, unknown>, counter?: { n: number }): Promise<void> {
+    await page.route('**/api/v1/personal/home', async (route) => {
+      if (counter) counter.n += 1;
+      const response = await route.fetch();
+      const body = await response.json();
+      const home = body.data || body;
+      home.calendarConnection = connection;
+      home.today = { ...(home.today || {}), meetings: [] };
+      home.sourceStatus = { ...(home.sourceStatus || {}), calendar: connection.state === 'CONNECTED' ? 'CONNECTED' : 'UNAVAILABLE' };
+      await route.fulfill({ response, contentType: 'application/json', body: JSON.stringify(body.data ? { ...body, data: home } : home) });
+    });
+  }
+
+  it('calendar states: Today explains each connection state truthfully, in EN and KR, with a working action only where one can help', async () => {
+    const connectPath = '/api/v1/oauth/google/start';
+    const cases = [
+      { state: 'NOT_CONNECTED', reason: 'NO_CONNECTION', extra: { connectPath }, en: /Google Calendar isn't connected/, ko: /구글 캘린더가 연결되어 있지 않아/, action: 'connect', enLabel: 'Connect Google Calendar', koLabel: '구글 캘린더 연결' },
+      { state: 'CONNECTING', reason: 'AUTHORIZATION_PENDING', extra: {}, en: /Finishing Google Calendar authorization/, ko: /인증을 마무리하는 중/, action: 'refresh', enLabel: 'Check again', koLabel: '다시 확인' },
+      { state: 'REAUTH_REQUIRED', reason: 'TOKEN_REVOKED', extra: { connectPath }, en: /expired or was revoked/, ko: /만료되었거나 취소되었습니다/, action: 'connect', enLabel: 'Reconnect Google Calendar', koLabel: '구글 캘린더 다시 연결' },
+      { state: 'REAUTH_REQUIRED', reason: 'MISSING_SCOPE', extra: { connectPath }, en: /wasn't fully granted/, ko: /모두 허용되지 않았습니다/, action: 'connect', enLabel: 'Reconnect Google Calendar', koLabel: '구글 캘린더 다시 연결' },
+      { state: 'ERROR', reason: 'PROVIDER_TIMEOUT', extra: { retryable: true }, en: /did not respond in time/, ko: /제시간에 응답하지 않았습니다/, action: 'refresh', enLabel: 'Try again', koLabel: '다시 시도' },
+      { state: 'ERROR', reason: 'PROVIDER_ERROR', extra: { retryable: true }, en: /returned an error/, ko: /오류가 반환되었습니다/, action: 'refresh', enLabel: 'Try again', koLabel: '다시 시도' },
+      { state: 'ERROR', reason: 'PROVIDER_API_DISABLED', extra: { retryable: false }, en: /API is not enabled/, ko: /API가 켜져 있지 않습니다/, action: null, enLabel: '', koLabel: '' },
+      { state: 'UNAVAILABLE', reason: 'OAUTH_NOT_CONFIGURED', extra: {}, en: /isn't available on this server/, ko: /사용할 수 없습니다/, action: null, enLabel: '', koLabel: '' },
+    ];
+    for (const locale of ['en', 'ko'] as const) {
+      for (const c of cases) {
+        const user = h.user(`cal_${locale}_${c.state}_${c.reason}`.toLowerCase());
+        if (locale === 'ko') h.setLocale(user, 'ko');
+        const ctx = await h.newContext('desktop', user, locale);
+        const page = await ctx.newPage();
+        await stubCalendarState(page, calendarConnection(c.state, c.reason, c.extra));
+        await openMain(page);
+        await settled(page, 'EMPTY_HOME');
+        await page.waitForFunction(() => document.querySelector('#main-home-briefing')?.dataset.state === 'ready');
+        const today = await sectionText(page, 'today');
+        assert.match(today, locale === 'en' ? c.en : c.ko, `${locale} ${c.state}/${c.reason}`);
+        assert.doesNotMatch(today, /Nothing scheduled|예정된 일정이나/, `${c.state}: never claims an empty day when the calendar is unreadable`);
+        const buttons = await page.locator('#main-briefing-today .main-calendar-action').allInnerTexts();
+        assert.deepEqual(buttons.map((b) => b.trim()), c.action ? [locale === 'en' ? c.enLabel : c.koLabel] : [], `${locale} ${c.state}/${c.reason} action`);
+        assert.doesNotMatch(await page.locator('#nagex-main-surface').innerText(), /mainBriefing\.|[A-Z]+_[A-Z_]+/, 'no raw keys or reason codes');
+        await ctx.close();
+      }
+    }
+  });
+
+  it('calendar actions are real: Connect starts the Google OAuth route, Try again re-reads the briefing, and nothing else is clickable', async () => {
+    const user = h.user('cal_actions');
+    const ctx = await h.newContext('desktop', user, 'en');
+    const page = await ctx.newPage();
+    const counter = { n: 0 };
+    await stubCalendarState(page, calendarConnection('NOT_CONNECTED', 'NO_CONNECTION', { connectPath: '/api/v1/oauth/google/start' }), counter);
+    await openMain(page);
+    await settled(page, 'EMPTY_HOME');
+    await page.waitForSelector('#main-briefing-today .main-calendar-action');
+    const [request] = await Promise.all([
+      page.waitForRequest((r) => r.url().includes('/api/v1/oauth/google/start'), { timeout: 15000 }),
+      page.click('#main-briefing-today .main-calendar-action'),
+    ]);
+    assert.equal(new URL(request.url()).pathname, '/api/v1/oauth/google/start');
+    await ctx.close();
+
+    const ctx2 = await h.newContext('desktop', h.user('cal_actions_retry'), 'en');
+    const page2 = await ctx2.newPage();
+    const counter2 = { n: 0 };
+    await stubCalendarState(page2, calendarConnection('ERROR', 'PROVIDER_TIMEOUT', { retryable: true }), counter2);
+    await openMain(page2);
+    await settled(page2, 'EMPTY_HOME');
+    await page2.waitForSelector('#main-briefing-today .main-calendar-action');
+    const before = counter2.n;
+    await page2.click('#main-briefing-today .main-calendar-action');
+    await page2.waitForFunction(() => document.querySelector('#main-home-briefing')?.dataset.state === 'ready');
+    await page2.waitForTimeout(300);
+    assert.ok(counter2.n > before, 'Try again re-reads the briefing source');
+    await ctx2.close();
+  });
+
+  it('calendar CONNECTED: the real Google events of the signed-in user reach Main; another user sees none of them', async () => {
+    const { googleTokenStore } = await import('../src/integrations/google/token.store.js');
+    const owner = h.user('cal_real_owner');
+    const stranger = h.user('cal_real_stranger');
+    const scopes = ['https://www.googleapis.com/auth/calendar.events', 'https://www.googleapis.com/auth/calendar.events.freebusy', 'https://www.googleapis.com/auth/calendar.calendarlist.readonly'].join(' ');
+    googleTokenStore.saveForPrincipal(owner.tenantId, owner.userId, { accessToken: 'at_real_owner', refreshToken: 'rt_real_owner', expiresAt: Date.now() + 3_600_000, scope: scopes });
+    const env = { id: process.env.GOOGLE_CLIENT_ID, secret: process.env.GOOGLE_CLIENT_SECRET, redirect: process.env.GOOGLE_REDIRECT_URI };
+    process.env.GOOGLE_CLIENT_ID = 'cal-real-client'; process.env.GOOGLE_CLIENT_SECRET = 'cal-real-secret'; process.env.GOOGLE_REDIRECT_URI = 'https://nagex-test.agex.site/api/v1/oauth/google/callback';
+    const originalFetch = globalThis.fetch;
+    const tokens: Array<string | null> = [];
+    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (!url.startsWith('https://www.googleapis.com/calendar/')) return originalFetch(input, init);
+      tokens.push(new Headers(init?.headers).get('authorization'));
+      const start = new Date(Date.now() + 10 * 60_000);
+      const end = new Date(Date.now() + 20 * 60_000);
+      return new Response(JSON.stringify({ items: [{ id: 'evt_real_1', summary: 'Quarterly design review', status: 'confirmed', start: { dateTime: start.toISOString() }, end: { dateTime: end.toISOString() }, attendees: [{ email: 'kim@example.com' }] }] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }) as typeof fetch;
+    try {
+      const ownerCtx = await h.newContext('desktop', owner, 'en');
+      const ownerPage = await ownerCtx.newPage();
+      await openMain(ownerPage);
+      await settled(ownerPage, 'EMPTY_HOME');
+      await ownerPage.waitForFunction(() => document.querySelector('#main-home-briefing')?.dataset.state === 'ready');
+      await ownerPage.waitForFunction(() => /Quarterly design review/.test(document.querySelector('#main-briefing-today')?.textContent || ''), undefined, { timeout: 15000 });
+      assert.equal(await ownerPage.locator('#main-briefing-today .main-calendar-state').count(), 0, 'a verified CONNECTED calendar shows no warning');
+      assert.ok(tokens.includes('Bearer at_real_owner'));
+      await ownerCtx.close();
+
+      const callsBefore = tokens.length;
+      const strangerCtx = await h.newContext('desktop', stranger, 'en');
+      const strangerPage = await strangerCtx.newPage();
+      await openMain(strangerPage);
+      await settled(strangerPage, 'EMPTY_HOME');
+      await strangerPage.waitForFunction(() => document.querySelector('#main-home-briefing')?.dataset.state === 'ready');
+      assert.doesNotMatch(await sectionText(strangerPage, 'today'), /Quarterly design review/);
+      assert.equal(tokens.length, callsBefore, 'the other user never triggers a Google call with the owner\'s token');
+      assert.deepEqual(tokens.filter((x) => x !== 'Bearer at_real_owner'), []);
+      await strangerCtx.close();
+    } finally {
+      globalThis.fetch = originalFetch;
+      googleTokenStore.clearForPrincipal(owner.tenantId, owner.userId);
+      for (const [k, v] of [['GOOGLE_CLIENT_ID', env.id], ['GOOGLE_CLIENT_SECRET', env.secret], ['GOOGLE_REDIRECT_URI', env.redirect]] as const) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+    }
   });
 
   it('desktop viewports: no overflow at 1440 and 1100 wide, three columns then readable stacking', async () => {

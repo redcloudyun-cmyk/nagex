@@ -65,7 +65,7 @@ export class BackgroundTaskRunner implements TaskRunner {
             mode: 'auto',
             requestId,
           });
-          this.planResolver.resolve(planResponse.data);
+          this.planResolver.resolve(planResponse.data, { tenantId: task.tenantId, principalId: task.ownerId });
         } catch {
           logs.push(`[${getCurrentISOString()}] Model plan resolution warning logged`);
         }
