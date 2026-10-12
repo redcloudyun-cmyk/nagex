@@ -1,0 +1,321 @@
+{
+  "label": "after",
+  "blockFonts": false,
+  "browser": "chrome",
+  "home-en-1440x900": {
+    "platformFontsGreeting": [
+      {
+        "family": "Inter",
+        "glyphs": 48,
+        "custom": true
+      }
+    ],
+    "platformFontsSubtitle": [
+      {
+        "family": "Inter",
+        "glyphs": 21,
+        "custom": true
+      }
+    ],
+    "platformFontsBriefingCard": [
+      {
+        "family": "Inter",
+        "glyphs": 5,
+        "custom": true
+      }
+    ],
+    "documentFontFacesDeclared": 430,
+    "documentFontFacesLoaded": 6,
+    "loadedFamiliesAndWeights": [
+      "Inter 400",
+      "Inter 500",
+      "Inter 600",
+      "Inter 700",
+      "Inter 800",
+      "Outfit 700"
+    ],
+    "fontBytesTotal": 0,
+    "fontNetwork": {
+      "requests": 6,
+      "ok": 6,
+      "failed": 0,
+      "sample": [
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.gstatic.com/s/outfit/v15/QGYvz_MVcBeNP4NJtEtq.woff2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 200
+        }
+      ]
+    }
+  },
+  "connections-en-1440x900": {
+    "platformFontsTitle": [],
+    "platformFontsCardTitle": [
+      {
+        "family": "Inter",
+        "glyphs": 16,
+        "custom": true
+      },
+      {
+        "family": "Inter",
+        "glyphs": 6,
+        "custom": true
+      }
+    ]
+  },
+  "home-en-1680x900": {
+    "platformFontsGreeting": [
+      {
+        "family": "Inter",
+        "glyphs": 48,
+        "custom": true
+      }
+    ],
+    "platformFontsSubtitle": [
+      {
+        "family": "Inter",
+        "glyphs": 21,
+        "custom": true
+      }
+    ],
+    "platformFontsBriefingCard": [
+      {
+        "family": "Inter",
+        "glyphs": 5,
+        "custom": true
+      }
+    ],
+    "documentFontFacesDeclared": 430,
+    "documentFontFacesLoaded": 6,
+    "loadedFamiliesAndWeights": [
+      "Inter 400",
+      "Inter 500",
+      "Inter 600",
+      "Inter 700",
+      "Inter 800",
+      "Outfit 700"
+    ],
+    "fontBytesTotal": 0,
+    "fontNetwork": {
+      "requests": 6,
+      "ok": 6,
+      "failed": 0,
+      "sample": [
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.gstatic.com/s/outfit/v15/QGYvz_MVcBeNP4NJtEtq.woff2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 200
+        }
+      ]
+    }
+  },
+  "connections-en-1680x900": {
+    "platformFontsTitle": [],
+    "platformFontsCardTitle": [
+      {
+        "family": "Inter",
+        "glyphs": 16,
+        "custom": true
+      },
+      {
+        "family": "Inter",
+        "glyphs": 6,
+        "custom": true
+      }
+    ]
+  },
+  "home-ko-1440x900": {
+    "platformFontsGreeting": [
+      {
+        "family": "Noto Sans KR Thin",
+        "glyphs": 45,
+        "custom": true
+      }
+    ],
+    "platformFontsSubtitle": [
+      {
+        "family": "Noto Sans KR Thin",
+        "glyphs": 11,
+        "custom": true
+      }
+    ],
+    "platformFontsBriefingCard": [
+      {
+        "family": "Noto Sans KR Thin",
+        "glyphs": 2,
+        "custom": true
+      }
+    ],
+    "documentFontFacesDeclared": 430,
+    "documentFontFacesLoaded": 42,
+    "loadedFamiliesAndWeights": [
+      "Inter 400",
+      "Inter 500",
+      "Inter 600",
+      "Inter 700",
+      "Inter 800",
+      "Noto Sans KR 400",
+      "Noto Sans KR 500",
+      "Noto Sans KR 600",
+      "Outfit 700"
+    ],
+    "fontBytesTotal": 0,
+    "fontNetwork": {
+      "requests": 29,
+      "ok": 29,
+      "failed": 0,
+      "sample": [
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.gstatic.com/s/outfit/v15/QGYvz_MVcBeNP4NJtEtq.woff2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.gstatic.com/s/notosanskr/v40/PbykFmXiEBPT4ITbgNA5CgmG0X7t.woff2",
+          "status": 200
+        }
+      ]
+    }
+  },
+  "connections-ko-1440x900": {
+    "platformFontsTitle": [],
+    "platformFontsCardTitle": [
+      {
+        "family": "Noto Sans KR Thin",
+        "glyphs": 6,
+        "custom": true
+      },
+      {
+        "family": "Noto Sans KR Thin",
+        "glyphs": 16,
+        "custom": true
+      }
+    ]
+  },
+  "home-ko-1680x900": {
+    "platformFontsGreeting": [
+      {
+        "family": "Noto Sans KR Thin",
+        "glyphs": 46,
+        "custom": true
+      }
+    ],
+    "platformFontsSubtitle": [
+      {
+        "family": "Noto Sans KR Thin",
+        "glyphs": 11,
+        "custom": true
+      }
+    ],
+    "platformFontsBriefingCard": [
+      {
+        "family": "Noto Sans KR Thin",
+        "glyphs": 2,
+        "custom": true
+      }
+    ],
+    "documentFontFacesDeclared": 430,
+    "documentFontFacesLoaded": 42,
+    "loadedFamiliesAndWeights": [
+      "Inter 400",
+      "Inter 500",
+      "Inter 600",
+      "Inter 700",
+      "Inter 800",
+      "Noto Sans KR 400",
+      "Noto Sans KR 500",
+      "Noto Sans KR 600",
+      "Outfit 700"
+    ],
+    "fontBytesTotal": 0,
+    "fontNetwork": {
+      "requests": 29,
+      "ok": 29,
+      "failed": 0,
+      "sample": [
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.gstatic.com/s/outfit/v15/QGYvz_MVcBeNP4NJtEtq.woff2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.gstatic.com/s/notosanskr/v40/PbykFmXiEBPT4ITbgNA5CgmG0X7t.woff2",
+          "status": 200
+        }
+      ]
+    }
+  },
+  "connections-ko-1680x900": {
+    "platformFontsTitle": [],
+    "platformFontsCardTitle": [
+      {
+        "family": "Noto Sans KR Thin",
+        "glyphs": 6,
+        "custom": true
+      },
+      {
+        "family": "Noto Sans KR Thin",
+        "glyphs": 16,
+        "custom": true
+      }
+    ]
+  },
+  "activeViews": {
+    "settings-devices-en": "view-settings",
+    "settings-permissions-en": "view-settings",
+    "settings-notifications-en": "view-settings",
+    "settings-personalization-en": "view-settings",
+    "settings-privacy-en": "view-settings",
+    "settings-appearance-en": "view-settings",
+    "settings-advanced-en": "view-settings",
+    "route-tasks-en": "view-tasks",
+    "route-vault-en": "view-vault",
+    "route-create-en": "view-create",
+    "route-canvas-en": "view-canvas",
+    "route-analyze-en": "view-analyze",
+    "route-my-space-en": "view-my-space",
+    "settings-devices-ko": "view-settings",
+    "settings-permissions-ko": "view-settings",
+    "settings-notifications-ko": "view-settings",
+    "settings-personalization-ko": "view-settings",
+    "settings-privacy-ko": "view-settings",
+    "settings-appearance-ko": "view-settings",
+    "settings-advanced-ko": "view-settings"
+  }
+}

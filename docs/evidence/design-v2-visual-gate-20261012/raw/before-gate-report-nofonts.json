@@ -1,0 +1,291 @@
+{
+  "label": "before",
+  "blockFonts": true,
+  "browser": "chrome",
+  "home-en-1440x900": {
+    "platformFontsGreeting": [
+      {
+        "family": "Inter",
+        "glyphs": 48,
+        "custom": false
+      }
+    ],
+    "platformFontsSubtitle": [
+      {
+        "family": "Inter",
+        "glyphs": 40,
+        "custom": false
+      }
+    ],
+    "platformFontsBriefingCard": [
+      {
+        "family": "Inter",
+        "glyphs": 5,
+        "custom": false
+      }
+    ],
+    "documentFontFacesDeclared": 0,
+    "documentFontFacesLoaded": 0,
+    "loadedFamiliesAndWeights": [],
+    "fontBytesTotal": 0,
+    "fontNetwork": {
+      "requests": 2,
+      "ok": 0,
+      "failed": 2,
+      "sample": [
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 0
+        },
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 0
+        }
+      ]
+    },
+    "simulatedNoLocalFonts": {
+      "stack": "",
+      "greeting": [
+        {
+          "family": "Inter",
+          "glyphs": 48,
+          "custom": false
+        }
+      ],
+      "subtitle": [
+        {
+          "family": "Inter",
+          "glyphs": 40,
+          "custom": false
+        }
+      ],
+      "body": [
+        {
+          "family": "Inter",
+          "glyphs": 5,
+          "custom": false
+        }
+      ]
+    }
+  },
+  "connections-en-1440x900": {
+    "platformFontsTitle": [],
+    "platformFontsCardTitle": [
+      {
+        "family": "Inter",
+        "glyphs": 22,
+        "custom": false
+      }
+    ]
+  },
+  "home-en-1680x900": {
+    "platformFontsGreeting": [
+      {
+        "family": "Inter",
+        "glyphs": 48,
+        "custom": false
+      }
+    ],
+    "platformFontsSubtitle": [
+      {
+        "family": "Inter",
+        "glyphs": 40,
+        "custom": false
+      }
+    ],
+    "platformFontsBriefingCard": [
+      {
+        "family": "Inter",
+        "glyphs": 5,
+        "custom": false
+      }
+    ],
+    "documentFontFacesDeclared": 0,
+    "documentFontFacesLoaded": 0,
+    "loadedFamiliesAndWeights": [],
+    "fontBytesTotal": 0,
+    "fontNetwork": {
+      "requests": 2,
+      "ok": 0,
+      "failed": 2,
+      "sample": [
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 0
+        },
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 0
+        }
+      ]
+    }
+  },
+  "connections-en-1680x900": {
+    "platformFontsTitle": [],
+    "platformFontsCardTitle": [
+      {
+        "family": "Inter",
+        "glyphs": 22,
+        "custom": false
+      }
+    ]
+  },
+  "home-ko-1440x900": {
+    "platformFontsGreeting": [
+      {
+        "family": "Inter",
+        "glyphs": 37,
+        "custom": false
+      },
+      {
+        "family": "Malgun Gothic",
+        "glyphs": 8,
+        "custom": false
+      }
+    ],
+    "platformFontsSubtitle": [
+      {
+        "family": "Inter",
+        "glyphs": 4,
+        "custom": false
+      },
+      {
+        "family": "Malgun Gothic",
+        "glyphs": 14,
+        "custom": false
+      }
+    ],
+    "platformFontsBriefingCard": [
+      {
+        "family": "Malgun Gothic",
+        "glyphs": 2,
+        "custom": false
+      }
+    ],
+    "documentFontFacesDeclared": 0,
+    "documentFontFacesLoaded": 0,
+    "loadedFamiliesAndWeights": [],
+    "fontBytesTotal": 0,
+    "fontNetwork": {
+      "requests": 2,
+      "ok": 0,
+      "failed": 2,
+      "sample": [
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 0
+        },
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 0
+        }
+      ]
+    },
+    "simulatedNoLocalFonts": {
+      "stack": "",
+      "greeting": [
+        {
+          "family": "Inter",
+          "glyphs": 37,
+          "custom": false
+        },
+        {
+          "family": "Malgun Gothic",
+          "glyphs": 8,
+          "custom": false
+        }
+      ],
+      "subtitle": [
+        {
+          "family": "Inter",
+          "glyphs": 4,
+          "custom": false
+        },
+        {
+          "family": "Malgun Gothic",
+          "glyphs": 14,
+          "custom": false
+        }
+      ],
+      "body": [
+        {
+          "family": "Malgun Gothic",
+          "glyphs": 2,
+          "custom": false
+        }
+      ]
+    }
+  },
+  "connections-ko-1440x900": {
+    "platformFontsTitle": [],
+    "platformFontsCardTitle": [
+      {
+        "family": "Inter",
+        "glyphs": 22,
+        "custom": false
+      }
+    ]
+  },
+  "home-ko-1680x900": {
+    "platformFontsGreeting": [
+      {
+        "family": "Inter",
+        "glyphs": 38,
+        "custom": false
+      },
+      {
+        "family": "Malgun Gothic",
+        "glyphs": 8,
+        "custom": false
+      }
+    ],
+    "platformFontsSubtitle": [
+      {
+        "family": "Inter",
+        "glyphs": 4,
+        "custom": false
+      },
+      {
+        "family": "Malgun Gothic",
+        "glyphs": 14,
+        "custom": false
+      }
+    ],
+    "platformFontsBriefingCard": [
+      {
+        "family": "Malgun Gothic",
+        "glyphs": 2,
+        "custom": false
+      }
+    ],
+    "documentFontFacesDeclared": 0,
+    "documentFontFacesLoaded": 0,
+    "loadedFamiliesAndWeights": [],
+    "fontBytesTotal": 0,
+    "fontNetwork": {
+      "requests": 2,
+      "ok": 0,
+      "failed": 2,
+      "sample": [
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 0
+        },
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 0
+        }
+      ]
+    }
+  },
+  "connections-ko-1680x900": {
+    "platformFontsTitle": [],
+    "platformFontsCardTitle": [
+      {
+        "family": "Inter",
+        "glyphs": 22,
+        "custom": false
+      }
+    ]
+  }
+}

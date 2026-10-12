@@ -1,0 +1,18 @@
+{
+  "en": {
+    "lang": "en",
+    "fontUi": "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+    "fontRequests": 3,
+    "nonOk": 0,
+    "platformFonts": [],
+    "facesLoaded": 6
+  },
+  "ko": {
+    "lang": "en",
+    "fontUi": "",
+    "fontRequests": 0,
+    "nonOk": 0,
+    "platformFonts": [],
+    "facesLoaded": 0
+  }
+}

@@ -1,0 +1,491 @@
+{
+  "label": "after",
+  "blockFonts": false,
+  "browser": "chrome",
+  "home-en-1440x900": {
+    "platformFontsGreeting": [
+      {
+        "family": "Inter",
+        "glyphs": 48,
+        "custom": true
+      }
+    ],
+    "platformFontsSubtitle": [
+      {
+        "family": "Inter",
+        "glyphs": 21,
+        "custom": true
+      }
+    ],
+    "platformFontsBriefingCard": [
+      {
+        "family": "Inter",
+        "glyphs": 5,
+        "custom": true
+      }
+    ],
+    "geometry": {
+      "cardCount": 4,
+      "cardWidthMedian": 271,
+      "cardHeightAvg": 233,
+      "cardHeightMin": 233,
+      "cardHeightMax": 233,
+      "contentColumn": {
+        "left": 223,
+        "width": 1180
+      },
+      "viewportWidth": 1440,
+      "emptyRightOfContentPx": 38,
+      "sidebar": null,
+      "pageHeading": {
+        "size": "28px",
+        "weight": "600"
+      },
+      "topFontSizesByChars": [
+        "12px:301",
+        "14px:234",
+        "13.5px:154",
+        "15px:70"
+      ]
+    },
+    "documentFontFacesDeclared": 430,
+    "documentFontFacesLoaded": 6,
+    "loadedFamiliesAndWeights": [
+      "Inter 400",
+      "Inter 500",
+      "Inter 600",
+      "Inter 700",
+      "Inter 800",
+      "Outfit 700"
+    ],
+    "fontBytesTotal": 0,
+    "fontNetwork": {
+      "requests": 6,
+      "ok": 6,
+      "failed": 0,
+      "sample": [
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.gstatic.com/s/outfit/v15/QGYvz_MVcBeNP4NJtEtq.woff2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 200
+        }
+      ]
+    }
+  },
+  "connections-en-1440x900": {
+    "geometry": {
+      "cardCount": 9,
+      "cardWidthMedian": 270,
+      "cardHeightAvg": 132,
+      "cardHeightMin": 115,
+      "cardHeightMax": 155,
+      "contentColumn": {
+        "left": 0,
+        "width": 0
+      },
+      "viewportWidth": 1440,
+      "emptyRightOfContentPx": 1440,
+      "sidebar": null,
+      "pageHeading": {
+        "size": "24px",
+        "weight": "600"
+      },
+      "topFontSizesByChars": [
+        "13px:356",
+        "12px:276",
+        "13.5px:210",
+        "15px:155"
+      ]
+    },
+    "platformFontsTitle": [],
+    "platformFontsCardTitle": [
+      {
+        "family": "Inter",
+        "glyphs": 16,
+        "custom": true
+      },
+      {
+        "family": "Inter",
+        "glyphs": 6,
+        "custom": true
+      }
+    ]
+  },
+  "home-en-1680x900": {
+    "platformFontsGreeting": [
+      {
+        "family": "Inter",
+        "glyphs": 48,
+        "custom": true
+      }
+    ],
+    "platformFontsSubtitle": [
+      {
+        "family": "Inter",
+        "glyphs": 21,
+        "custom": true
+      }
+    ],
+    "platformFontsBriefingCard": [
+      {
+        "family": "Inter",
+        "glyphs": 5,
+        "custom": true
+      }
+    ],
+    "geometry": {
+      "cardCount": 4,
+      "cardWidthMedian": 271,
+      "cardHeightAvg": 233,
+      "cardHeightMin": 233,
+      "cardHeightMax": 233,
+      "contentColumn": {
+        "left": 343,
+        "width": 1180
+      },
+      "viewportWidth": 1680,
+      "emptyRightOfContentPx": 158,
+      "sidebar": null,
+      "pageHeading": {
+        "size": "28px",
+        "weight": "600"
+      },
+      "topFontSizesByChars": [
+        "12px:301",
+        "14px:234",
+        "13.5px:154",
+        "15px:70"
+      ]
+    },
+    "documentFontFacesDeclared": 430,
+    "documentFontFacesLoaded": 6,
+    "loadedFamiliesAndWeights": [
+      "Inter 400",
+      "Inter 500",
+      "Inter 600",
+      "Inter 700",
+      "Inter 800",
+      "Outfit 700"
+    ],
+    "fontBytesTotal": 0,
+    "fontNetwork": {
+      "requests": 6,
+      "ok": 6,
+      "failed": 0,
+      "sample": [
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.gstatic.com/s/outfit/v15/QGYvz_MVcBeNP4NJtEtq.woff2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 200
+        }
+      ]
+    }
+  },
+  "connections-en-1680x900": {
+    "geometry": {
+      "cardCount": 9,
+      "cardWidthMedian": 270,
+      "cardHeightAvg": 132,
+      "cardHeightMin": 115,
+      "cardHeightMax": 155,
+      "contentColumn": {
+        "left": 0,
+        "width": 0
+      },
+      "viewportWidth": 1680,
+      "emptyRightOfContentPx": 1680,
+      "sidebar": null,
+      "pageHeading": {
+        "size": "24px",
+        "weight": "600"
+      },
+      "topFontSizesByChars": [
+        "13px:356",
+        "12px:276",
+        "13.5px:210",
+        "15px:155"
+      ]
+    },
+    "platformFontsTitle": [],
+    "platformFontsCardTitle": [
+      {
+        "family": "Inter",
+        "glyphs": 16,
+        "custom": true
+      },
+      {
+        "family": "Inter",
+        "glyphs": 6,
+        "custom": true
+      }
+    ]
+  },
+  "home-ko-1440x900": {
+    "platformFontsGreeting": [
+      {
+        "family": "Noto Sans KR Thin",
+        "glyphs": 45,
+        "custom": true
+      }
+    ],
+    "platformFontsSubtitle": [
+      {
+        "family": "Noto Sans KR Thin",
+        "glyphs": 11,
+        "custom": true
+      }
+    ],
+    "platformFontsBriefingCard": [
+      {
+        "family": "Noto Sans KR Thin",
+        "glyphs": 2,
+        "custom": true
+      }
+    ],
+    "geometry": {
+      "cardCount": 4,
+      "cardWidthMedian": 271,
+      "cardHeightAvg": 243,
+      "cardHeightMin": 243,
+      "cardHeightMax": 243,
+      "contentColumn": {
+        "left": 223,
+        "width": 1180
+      },
+      "viewportWidth": 1440,
+      "emptyRightOfContentPx": 38,
+      "sidebar": null,
+      "pageHeading": {
+        "size": "28px",
+        "weight": "600"
+      },
+      "topFontSizesByChars": [
+        "12px:213",
+        "14px:188",
+        "13.5px:74",
+        "28px:45"
+      ]
+    },
+    "documentFontFacesDeclared": 430,
+    "documentFontFacesLoaded": 42,
+    "loadedFamiliesAndWeights": [
+      "Inter 400",
+      "Inter 500",
+      "Inter 600",
+      "Inter 700",
+      "Inter 800",
+      "Noto Sans KR 400",
+      "Noto Sans KR 500",
+      "Noto Sans KR 600",
+      "Outfit 700"
+    ],
+    "fontBytesTotal": 0,
+    "fontNetwork": {
+      "requests": 29,
+      "ok": 29,
+      "failed": 0,
+      "sample": [
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.gstatic.com/s/outfit/v15/QGYvz_MVcBeNP4NJtEtq.woff2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.gstatic.com/s/notosanskr/v40/PbykFmXiEBPT4ITbgNA5CgmG0X7t.woff2",
+          "status": 200
+        }
+      ]
+    }
+  },
+  "connections-ko-1440x900": {
+    "geometry": {
+      "cardCount": 9,
+      "cardWidthMedian": 270,
+      "cardHeightAvg": 137,
+      "cardHeightMin": 120,
+      "cardHeightMax": 160,
+      "contentColumn": {
+        "left": 0,
+        "width": 0
+      },
+      "viewportWidth": 1440,
+      "emptyRightOfContentPx": 1440,
+      "sidebar": null,
+      "pageHeading": {
+        "size": "24px",
+        "weight": "600"
+      },
+      "topFontSizesByChars": [
+        "13px:188",
+        "12px:185",
+        "15px:128",
+        "13.5px:82"
+      ]
+    },
+    "platformFontsTitle": [],
+    "platformFontsCardTitle": [
+      {
+        "family": "Noto Sans KR Thin",
+        "glyphs": 6,
+        "custom": true
+      },
+      {
+        "family": "Noto Sans KR Thin",
+        "glyphs": 16,
+        "custom": true
+      }
+    ]
+  },
+  "home-ko-1680x900": {
+    "platformFontsGreeting": [
+      {
+        "family": "Noto Sans KR Thin",
+        "glyphs": 46,
+        "custom": true
+      }
+    ],
+    "platformFontsSubtitle": [
+      {
+        "family": "Noto Sans KR Thin",
+        "glyphs": 11,
+        "custom": true
+      }
+    ],
+    "platformFontsBriefingCard": [
+      {
+        "family": "Noto Sans KR Thin",
+        "glyphs": 2,
+        "custom": true
+      }
+    ],
+    "geometry": {
+      "cardCount": 4,
+      "cardWidthMedian": 271,
+      "cardHeightAvg": 243,
+      "cardHeightMin": 243,
+      "cardHeightMax": 243,
+      "contentColumn": {
+        "left": 343,
+        "width": 1180
+      },
+      "viewportWidth": 1680,
+      "emptyRightOfContentPx": 158,
+      "sidebar": null,
+      "pageHeading": {
+        "size": "28px",
+        "weight": "600"
+      },
+      "topFontSizesByChars": [
+        "12px:214",
+        "14px:188",
+        "13.5px:74",
+        "28px:46"
+      ]
+    },
+    "documentFontFacesDeclared": 430,
+    "documentFontFacesLoaded": 42,
+    "loadedFamiliesAndWeights": [
+      "Inter 400",
+      "Inter 500",
+      "Inter 600",
+      "Inter 700",
+      "Inter 800",
+      "Noto Sans KR 400",
+      "Noto Sans KR 500",
+      "Noto Sans KR 600",
+      "Outfit 700"
+    ],
+    "fontBytesTotal": 0,
+    "fontNetwork": {
+      "requests": 29,
+      "ok": 29,
+      "failed": 0,
+      "sample": [
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.gstatic.com/s/outfit/v15/QGYvz_MVcBeNP4NJtEtq.woff2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.gstatic.com/s/notosanskr/v40/PbykFmXiEBPT4ITbgNA5CgmG0X7t.woff2",
+          "status": 200
+        }
+      ]
+    }
+  },
+  "connections-ko-1680x900": {
+    "geometry": {
+      "cardCount": 9,
+      "cardWidthMedian": 270,
+      "cardHeightAvg": 137,
+      "cardHeightMin": 120,
+      "cardHeightMax": 160,
+      "contentColumn": {
+        "left": 0,
+        "width": 0
+      },
+      "viewportWidth": 1680,
+      "emptyRightOfContentPx": 1680,
+      "sidebar": null,
+      "pageHeading": {
+        "size": "24px",
+        "weight": "600"
+      },
+      "topFontSizesByChars": [
+        "13px:188",
+        "12px:186",
+        "15px:128",
+        "13.5px:82"
+      ]
+    },
+    "platformFontsTitle": [],
+    "platformFontsCardTitle": [
+      {
+        "family": "Noto Sans KR Thin",
+        "glyphs": 6,
+        "custom": true
+      },
+      {
+        "family": "Noto Sans KR Thin",
+        "glyphs": 16,
+        "custom": true
+      }
+    ]
+  }
+}

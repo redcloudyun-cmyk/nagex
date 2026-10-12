@@ -1,0 +1,271 @@
+{
+  "label": "after",
+  "blockFonts": true,
+  "browser": "chrome",
+  "home-en-1440x900": {
+    "platformFontsGreeting": [
+      {
+        "family": "Inter",
+        "glyphs": 48,
+        "custom": false
+      }
+    ],
+    "platformFontsSubtitle": [
+      {
+        "family": "Inter",
+        "glyphs": 21,
+        "custom": false
+      }
+    ],
+    "platformFontsBriefingCard": [
+      {
+        "family": "Inter",
+        "glyphs": 5,
+        "custom": false
+      }
+    ],
+    "documentFontFacesDeclared": 0,
+    "documentFontFacesLoaded": 0,
+    "loadedFamiliesAndWeights": [],
+    "fontBytesTotal": 0,
+    "fontNetwork": {
+      "requests": 2,
+      "ok": 0,
+      "failed": 2,
+      "sample": [
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 0
+        },
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 0
+        }
+      ]
+    },
+    "simulatedNoLocalFonts": {
+      "stack": "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      "greeting": [
+        {
+          "family": "Segoe UI Semibold",
+          "glyphs": 48,
+          "custom": false
+        }
+      ],
+      "subtitle": [
+        {
+          "family": "Segoe UI",
+          "glyphs": 21,
+          "custom": false
+        }
+      ],
+      "body": [
+        {
+          "family": "Segoe UI Semibold",
+          "glyphs": 5,
+          "custom": false
+        }
+      ]
+    }
+  },
+  "connections-en-1440x900": {
+    "platformFontsTitle": [],
+    "platformFontsCardTitle": [
+      {
+        "family": "Inter",
+        "glyphs": 22,
+        "custom": false
+      }
+    ]
+  },
+  "home-en-1680x900": {
+    "platformFontsGreeting": [
+      {
+        "family": "Inter",
+        "glyphs": 48,
+        "custom": false
+      }
+    ],
+    "platformFontsSubtitle": [
+      {
+        "family": "Inter",
+        "glyphs": 21,
+        "custom": false
+      }
+    ],
+    "platformFontsBriefingCard": [
+      {
+        "family": "Inter",
+        "glyphs": 5,
+        "custom": false
+      }
+    ],
+    "documentFontFacesDeclared": 0,
+    "documentFontFacesLoaded": 0,
+    "loadedFamiliesAndWeights": [],
+    "fontBytesTotal": 0,
+    "fontNetwork": {
+      "requests": 2,
+      "ok": 0,
+      "failed": 2,
+      "sample": [
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 0
+        },
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 0
+        }
+      ]
+    }
+  },
+  "connections-en-1680x900": {
+    "platformFontsTitle": [],
+    "platformFontsCardTitle": [
+      {
+        "family": "Inter",
+        "glyphs": 22,
+        "custom": false
+      }
+    ]
+  },
+  "home-ko-1440x900": {
+    "platformFontsGreeting": [
+      {
+        "family": "Noto Sans KR",
+        "glyphs": 45,
+        "custom": false
+      }
+    ],
+    "platformFontsSubtitle": [
+      {
+        "family": "Noto Sans KR",
+        "glyphs": 11,
+        "custom": false
+      }
+    ],
+    "platformFontsBriefingCard": [
+      {
+        "family": "Noto Sans KR",
+        "glyphs": 2,
+        "custom": false
+      }
+    ],
+    "documentFontFacesDeclared": 0,
+    "documentFontFacesLoaded": 0,
+    "loadedFamiliesAndWeights": [],
+    "fontBytesTotal": 0,
+    "fontNetwork": {
+      "requests": 2,
+      "ok": 0,
+      "failed": 2,
+      "sample": [
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 0
+        },
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 0
+        }
+      ]
+    },
+    "simulatedNoLocalFonts": {
+      "stack": "'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Nanum Gothic', sans-serif",
+      "greeting": [
+        {
+          "family": "Malgun Gothic",
+          "glyphs": 45,
+          "custom": false
+        }
+      ],
+      "subtitle": [
+        {
+          "family": "Malgun Gothic",
+          "glyphs": 11,
+          "custom": false
+        }
+      ],
+      "body": [
+        {
+          "family": "Malgun Gothic",
+          "glyphs": 2,
+          "custom": false
+        }
+      ]
+    }
+  },
+  "connections-ko-1440x900": {
+    "platformFontsTitle": [],
+    "platformFontsCardTitle": [
+      {
+        "family": "Noto Sans KR",
+        "glyphs": 16,
+        "custom": false
+      },
+      {
+        "family": "Noto Sans KR",
+        "glyphs": 6,
+        "custom": false
+      }
+    ]
+  },
+  "home-ko-1680x900": {
+    "platformFontsGreeting": [
+      {
+        "family": "Noto Sans KR",
+        "glyphs": 46,
+        "custom": false
+      }
+    ],
+    "platformFontsSubtitle": [
+      {
+        "family": "Noto Sans KR",
+        "glyphs": 11,
+        "custom": false
+      }
+    ],
+    "platformFontsBriefingCard": [
+      {
+        "family": "Noto Sans KR",
+        "glyphs": 2,
+        "custom": false
+      }
+    ],
+    "documentFontFacesDeclared": 0,
+    "documentFontFacesLoaded": 0,
+    "loadedFamiliesAndWeights": [],
+    "fontBytesTotal": 0,
+    "fontNetwork": {
+      "requests": 2,
+      "ok": 0,
+      "failed": 2,
+      "sample": [
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 0
+        },
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 0
+        }
+      ]
+    }
+  },
+  "connections-ko-1680x900": {
+    "platformFontsTitle": [],
+    "platformFontsCardTitle": [
+      {
+        "family": "Noto Sans KR",
+        "glyphs": 16,
+        "custom": false
+      },
+      {
+        "family": "Noto Sans KR",
+        "glyphs": 6,
+        "custom": false
+      }
+    ]
+  }
+}

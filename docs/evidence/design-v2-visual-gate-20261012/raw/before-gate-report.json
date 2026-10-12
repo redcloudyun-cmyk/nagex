@@ -1,0 +1,505 @@
+{
+  "label": "before",
+  "blockFonts": false,
+  "browser": "chrome",
+  "home-en-1440x900": {
+    "platformFontsGreeting": [
+      {
+        "family": "Inter",
+        "glyphs": 48,
+        "custom": true
+      }
+    ],
+    "platformFontsSubtitle": [
+      {
+        "family": "Inter",
+        "glyphs": 40,
+        "custom": true
+      }
+    ],
+    "platformFontsBriefingCard": [
+      {
+        "family": "Inter",
+        "glyphs": 5,
+        "custom": true
+      }
+    ],
+    "geometry": {
+      "cardCount": 4,
+      "cardWidthMedian": 273,
+      "cardHeightAvg": 215,
+      "cardHeightMin": 215,
+      "cardHeightMax": 215,
+      "contentColumn": {
+        "left": 209,
+        "width": 1180
+      },
+      "viewportWidth": 1440,
+      "emptyRightOfContentPx": 51,
+      "sidebar": null,
+      "pageHeading": {
+        "size": "28.8px",
+        "weight": "700"
+      },
+      "topFontSizesByChars": [
+        "13.76px:234",
+        "12.16px:219",
+        "13.3333px:112",
+        "15.2px:89"
+      ]
+    },
+    "documentFontFacesDeclared": 58,
+    "documentFontFacesLoaded": 6,
+    "loadedFamiliesAndWeights": [
+      "Inter 400",
+      "Inter 500",
+      "Inter 600",
+      "Inter 700",
+      "Inter 800",
+      "Outfit 700"
+    ],
+    "fontBytesTotal": 0,
+    "fontNetwork": {
+      "requests": 6,
+      "ok": 6,
+      "failed": 0,
+      "sample": [
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.gstatic.com/s/outfit/v15/QGYvz_MVcBeNP4NJtEtq.woff2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 200
+        }
+      ]
+    }
+  },
+  "connections-en-1440x900": {
+    "geometry": {
+      "cardCount": 9,
+      "cardWidthMedian": 269,
+      "cardHeightAvg": 173,
+      "cardHeightMin": 136,
+      "cardHeightMax": 186,
+      "contentColumn": {
+        "left": 0,
+        "width": 0
+      },
+      "viewportWidth": 1440,
+      "emptyRightOfContentPx": 1440,
+      "sidebar": null,
+      "pageHeading": {
+        "size": "37.6px",
+        "weight": "850"
+      },
+      "topFontSizesByChars": [
+        "13.44px:281",
+        "12.8px:108",
+        "15.68px:103",
+        "15.2px:99"
+      ]
+    },
+    "platformFontsTitle": [],
+    "platformFontsCardTitle": [
+      {
+        "family": "Inter",
+        "glyphs": 6,
+        "custom": true
+      },
+      {
+        "family": "Inter",
+        "glyphs": 16,
+        "custom": true
+      }
+    ]
+  },
+  "home-en-1680x900": {
+    "platformFontsGreeting": [
+      {
+        "family": "Inter",
+        "glyphs": 48,
+        "custom": true
+      }
+    ],
+    "platformFontsSubtitle": [
+      {
+        "family": "Inter",
+        "glyphs": 40,
+        "custom": true
+      }
+    ],
+    "platformFontsBriefingCard": [
+      {
+        "family": "Inter",
+        "glyphs": 5,
+        "custom": true
+      }
+    ],
+    "geometry": {
+      "cardCount": 4,
+      "cardWidthMedian": 273,
+      "cardHeightAvg": 215,
+      "cardHeightMin": 215,
+      "cardHeightMax": 215,
+      "contentColumn": {
+        "left": 329,
+        "width": 1180
+      },
+      "viewportWidth": 1680,
+      "emptyRightOfContentPx": 171,
+      "sidebar": null,
+      "pageHeading": {
+        "size": "31.2px",
+        "weight": "700"
+      },
+      "topFontSizesByChars": [
+        "13.76px:234",
+        "12.16px:219",
+        "13.3333px:112",
+        "15.2px:89"
+      ]
+    },
+    "documentFontFacesDeclared": 58,
+    "documentFontFacesLoaded": 6,
+    "loadedFamiliesAndWeights": [
+      "Inter 400",
+      "Inter 500",
+      "Inter 600",
+      "Inter 700",
+      "Inter 800",
+      "Outfit 700"
+    ],
+    "fontBytesTotal": 0,
+    "fontNetwork": {
+      "requests": 6,
+      "ok": 6,
+      "failed": 0,
+      "sample": [
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.gstatic.com/s/outfit/v15/QGYvz_MVcBeNP4NJtEtq.woff2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 200
+        }
+      ]
+    }
+  },
+  "connections-en-1680x900": {
+    "geometry": {
+      "cardCount": 9,
+      "cardWidthMedian": 269,
+      "cardHeightAvg": 173,
+      "cardHeightMin": 136,
+      "cardHeightMax": 186,
+      "contentColumn": {
+        "left": 0,
+        "width": 0
+      },
+      "viewportWidth": 1680,
+      "emptyRightOfContentPx": 1680,
+      "sidebar": null,
+      "pageHeading": {
+        "size": "37.6px",
+        "weight": "850"
+      },
+      "topFontSizesByChars": [
+        "13.44px:281",
+        "12.8px:108",
+        "15.68px:103",
+        "15.2px:99"
+      ]
+    },
+    "platformFontsTitle": [],
+    "platformFontsCardTitle": [
+      {
+        "family": "Inter",
+        "glyphs": 6,
+        "custom": true
+      },
+      {
+        "family": "Inter",
+        "glyphs": 16,
+        "custom": true
+      }
+    ]
+  },
+  "home-ko-1440x900": {
+    "platformFontsGreeting": [
+      {
+        "family": "Inter",
+        "glyphs": 37,
+        "custom": true
+      },
+      {
+        "family": "Malgun Gothic",
+        "glyphs": 8,
+        "custom": false
+      }
+    ],
+    "platformFontsSubtitle": [
+      {
+        "family": "Inter",
+        "glyphs": 4,
+        "custom": true
+      },
+      {
+        "family": "Malgun Gothic",
+        "glyphs": 14,
+        "custom": false
+      }
+    ],
+    "platformFontsBriefingCard": [
+      {
+        "family": "Malgun Gothic",
+        "glyphs": 2,
+        "custom": false
+      }
+    ],
+    "geometry": {
+      "cardCount": 4,
+      "cardWidthMedian": 273,
+      "cardHeightAvg": 215,
+      "cardHeightMin": 215,
+      "cardHeightMax": 215,
+      "contentColumn": {
+        "left": 209,
+        "width": 1180
+      },
+      "viewportWidth": 1440,
+      "emptyRightOfContentPx": 51,
+      "sidebar": null,
+      "pageHeading": {
+        "size": "28.8px",
+        "weight": "700"
+      },
+      "topFontSizesByChars": [
+        "13.76px:190",
+        "12.16px:140",
+        "13.3333px:52",
+        "15.2px:46"
+      ]
+    },
+    "documentFontFacesDeclared": 58,
+    "documentFontFacesLoaded": 6,
+    "loadedFamiliesAndWeights": [
+      "Inter 400",
+      "Inter 500",
+      "Inter 600",
+      "Inter 700",
+      "Inter 800",
+      "Outfit 700"
+    ],
+    "fontBytesTotal": 0,
+    "fontNetwork": {
+      "requests": 6,
+      "ok": 6,
+      "failed": 0,
+      "sample": [
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.gstatic.com/s/outfit/v15/QGYvz_MVcBeNP4NJtEtq.woff2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 200
+        }
+      ]
+    }
+  },
+  "connections-ko-1440x900": {
+    "geometry": {
+      "cardCount": 9,
+      "cardWidthMedian": 269,
+      "cardHeightAvg": 173,
+      "cardHeightMin": 136,
+      "cardHeightMax": 186,
+      "contentColumn": {
+        "left": 0,
+        "width": 0
+      },
+      "viewportWidth": 1440,
+      "emptyRightOfContentPx": 1440,
+      "sidebar": null,
+      "pageHeading": {
+        "size": "37.6px",
+        "weight": "850"
+      },
+      "topFontSizesByChars": [
+        "13.44px:165",
+        "15.68px:99",
+        "12.8px:80",
+        "12.48px:39"
+      ]
+    },
+    "platformFontsTitle": [],
+    "platformFontsCardTitle": [
+      {
+        "family": "Inter",
+        "glyphs": 6,
+        "custom": true
+      },
+      {
+        "family": "Inter",
+        "glyphs": 16,
+        "custom": true
+      }
+    ]
+  },
+  "home-ko-1680x900": {
+    "platformFontsGreeting": [
+      {
+        "family": "Inter",
+        "glyphs": 38,
+        "custom": true
+      },
+      {
+        "family": "Malgun Gothic",
+        "glyphs": 8,
+        "custom": false
+      }
+    ],
+    "platformFontsSubtitle": [
+      {
+        "family": "Inter",
+        "glyphs": 4,
+        "custom": true
+      },
+      {
+        "family": "Malgun Gothic",
+        "glyphs": 14,
+        "custom": false
+      }
+    ],
+    "platformFontsBriefingCard": [
+      {
+        "family": "Malgun Gothic",
+        "glyphs": 2,
+        "custom": false
+      }
+    ],
+    "geometry": {
+      "cardCount": 4,
+      "cardWidthMedian": 273,
+      "cardHeightAvg": 215,
+      "cardHeightMin": 215,
+      "cardHeightMax": 215,
+      "contentColumn": {
+        "left": 329,
+        "width": 1180
+      },
+      "viewportWidth": 1680,
+      "emptyRightOfContentPx": 171,
+      "sidebar": null,
+      "pageHeading": {
+        "size": "31.2px",
+        "weight": "700"
+      },
+      "topFontSizesByChars": [
+        "13.76px:190",
+        "12.16px:140",
+        "13.3333px:52",
+        "15.2px:46"
+      ]
+    },
+    "documentFontFacesDeclared": 58,
+    "documentFontFacesLoaded": 6,
+    "loadedFamiliesAndWeights": [
+      "Inter 400",
+      "Inter 500",
+      "Inter 600",
+      "Inter 700",
+      "Inter 800",
+      "Outfit 700"
+    ],
+    "fontBytesTotal": 0,
+    "fontNetwork": {
+      "requests": 6,
+      "ok": 6,
+      "failed": 0,
+      "sample": [
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.gstatic.com/s/outfit/v15/QGYvz_MVcBeNP4NJtEtq.woff2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2",
+          "status": 200
+        },
+        {
+          "url": "https://fonts.googleapis.com/css2",
+          "status": 200
+        }
+      ]
+    }
+  },
+  "connections-ko-1680x900": {
+    "geometry": {
+      "cardCount": 9,
+      "cardWidthMedian": 269,
+      "cardHeightAvg": 173,
+      "cardHeightMin": 136,
+      "cardHeightMax": 186,
+      "contentColumn": {
+        "left": 0,
+        "width": 0
+      },
+      "viewportWidth": 1680,
+      "emptyRightOfContentPx": 1680,
+      "sidebar": null,
+      "pageHeading": {
+        "size": "37.6px",
+        "weight": "850"
+      },
+      "topFontSizesByChars": [
+        "13.44px:165",
+        "15.68px:99",
+        "12.8px:80",
+        "12.48px:39"
+      ]
+    },
+    "platformFontsTitle": [],
+    "platformFontsCardTitle": [
+      {
+        "family": "Inter",
+        "glyphs": 6,
+        "custom": true
+      },
+      {
+        "family": "Inter",
+        "glyphs": 16,
+        "custom": true
+      }
+    ]
+  }
+}
