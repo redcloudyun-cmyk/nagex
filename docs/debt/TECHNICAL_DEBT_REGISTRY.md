@@ -620,7 +620,15 @@ target: unscheduled — revisit once NAgex enforces real per-user login as
   should be constrained to an explicitly approved demo/internal/test
   mode instead of applying to any unauthenticated caller.
 owner: NAGEX
-status: OPEN
+status: CLOSED
+closed: Security Gate S1 (02730fd, "establish authenticated request identity boundary"), hardened by S2A-S2E
+resolution: >
+  The header/default tiers described above no longer exist. src/http/request-identity.ts canonicalizeRequestHeaders() strips every client identity
+  header at both HTTP entry points and records an identity only from a valid, unexpired session whose account still exists; callerIdentity() fails
+  closed with AUTHENTICATION_REQUIRED; there is no default tenant or principal. The only non-session identity is the fixed synthetic demo persona on an
+  explicit read-only allow-list in src/http/route-access.ts. Evidence: tests/security_s1_identity_boundary.test.ts,
+  tests/security_s1_identity_contract.test.ts and tests/r24_6c_settings_identity_boundary.test.ts (forged X-Principal-Id / X-NAgex-Tenant cannot select
+  another user's data). Re-open if any route is added that reads tenant/principal from anywhere except callerIdentity().
 ```
 
 ---
@@ -644,6 +652,57 @@ risk: >
   approval impact.
 target: after human review of the V2 screens, convert the remaining screens one by one using the V2 tokens, deleting the superseded legacy
   rules they replace; then retire the dead phase blocks of desktop-home.css.
+owner: NAGEX
+status: OPEN
+```
+
+---
+
+```yaml
+id: DEBT-0012
+area: creation / legacy generate route
+description: >
+  POST /api/v1/creations/generate (src/http/routes/creation.routes.ts) routes a request through the real ImageExecutor only when the body declares an
+  IMAGE kind (recipe.type, creationKind or type). Any other body falls through to the legacy CreationService, which renders a deterministic MOCK SVG
+  (generateMockImageSvg) and answers 201 with status COMPLETED, type TEXT_TO_IMAGE and an outputAssetUrl. The Main surface and the Create tab always send
+  an IMAGE kind, so the product path is real; the mock is reachable only by a caller that omits the kind.
+severity: medium
+introduced: pre-R23.7C-C (the legacy creation service predates the provider-neutral CreationRuntime)
+reason: >
+  Several older tests and the legacy Create tab still exercise the fall-through; removing it needs those callers migrated to the canonical image,
+  document and presentation routes first.
+risk: >
+  A mock artifact can be presented as a completed creation to a caller that does not declare IMAGE. This is the kind of mock-as-production behavior
+  MASTER section 7 forbids, so it must not be advertised in any UI; it is not reachable from the current Main or Create UI.
+target: R23.9C final certification — either make the legacy branch answer an explicit UNSUPPORTED/validation error or label its output as MOCK, then migrate
+  the remaining tests (r17_final_completion, r23_7c_c_*) to the canonical routes.
+owner: NAGEX
+status: OPEN
+```
+
+---
+
+```yaml
+id: DEBT-0013
+area: settings / account lifecycle
+description: >
+  The rebuilt Desktop Settings (ensureCommercialSettingsShell, Design System V2) has no Autonomy-level selector and no Quick Wake options panel; both
+  still exist on Mobile Settings and as APIs (/api/v1/autonomy/config, quick-wake config). Separately, account disable and account deletion were
+  confirmed with the account password; password authentication was disabled (commit 8a25f7c, Google/Microsoft only), those endpoints now answer 410, and no
+  OAuth re-authentication replacement exists, so an OAuth-only user cannot disable or delete the account from the UI. Also: the NAgex Voice card in
+  Desktop Settings shows static values (voice style, speed, language) and its Preview voice / Text-only mode buttons have no behavior (they are disabled
+  and say "Not available yet").
+severity: medium
+introduced: Settings rebuild (2026-10) and the OAuth-only login decision (8a25f7c)
+reason: >
+  Design approval for the rebuilt Settings is still pending; re-adding panels or inventing an OAuth re-auth flow was outside the overnight scope and must
+  not change authentication policy without the owner.
+risk: >
+  Desktop users cannot change Autonomy/Quick Wake preferences (they remain preference-only and do not change runtime behavior); account deletion
+  (a privacy right under the Trust document) is not self-service for OAuth accounts.
+target: after design approval — add Autonomy and Quick Wake back to Desktop Permissions/Devices from the shared renderers; define OAuth
+  re-authentication (fresh provider sign-in) for disable/delete; re-enable the skipped tests (r24_6b_settings_real_browser x3, r24_6d_settings_surface_browser
+  x2 groups, identity_lifecycle, r24_6c1_*).
 owner: NAGEX
 status: OPEN
 ```

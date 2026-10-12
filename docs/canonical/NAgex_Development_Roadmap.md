@@ -2,7 +2,7 @@
 
 **Status:** ACTIVE ROADMAP DRAFT
 **Reconstructed:** 2026-09-29
-**Updated:** 2026-09-30 — R23.7H-C opened per canonical decision
+**Updated:** 2026-10-13 — R23.7H-C exit criteria re-verified (acceptance pending); R23.7C-D implemented (see §5, §6)
 **Current local baseline supplied after document snapshot:** `0181e40 feat(r23.7c-p): establish creation provider architecture`
 
 ## 1. Roadmap Rule
@@ -82,12 +82,17 @@ R23.7H-B1.5 Creation Capability Reality Audit         CLOSED
 R23.7H-B2   Agentic Creation Home Integration          CLOSED
 R23.7H      Personal Home milestone                    CLOSED
 
-R23.7H-C    Home/Create Artifact Integration           OPEN
+R23.7H-C    Home/Create Artifact Integration           OPEN — implementation complete, owner acceptance pending (2026-10-13)
 ```
 
 R23.7H-B2 truthfulness baseline exposed only capabilities that were actually backed at that point and excluded mock/unbacked creation.
 
 R23.7H-C is the currently active milestone. See §5a for full specification.
+
+**Reconciliation note (2026-10-13):** the exit criteria in §5a were re-verified against the rebuilt unified Main surface (Design System V2). The per-criterion
+evidence matrix is `docs/evidence/NAGEX_R23_7H_C_AND_R23_7C_D_EVIDENCE_20261013.md`. All criteria pass in headless Chromium at 360/390/430 and desktop; no physical-phone
+or screen-reader session was run. The milestone is deliberately **not** marked CLOSED here: closure needs the owner's acceptance, and design acceptance of the rebuilt
+screens is still PENDING.
 
 ## 5a. R23.7H-C — Home/Create Artifact Integration (OPEN)
 
@@ -254,7 +259,9 @@ R23.7C-C   Real Image Creation Runtime                CLOSED
            closure evidence: docs/archive/evidence/
              R23_7C_C_Real_Image_Creation_Runtime_Closure_Report_20260930.md
 
-R23.7C-D   Presentation / Slides Runtime              PLANNED
+R23.7C-D   Presentation / Slides Runtime              IMPLEMENTED (2026-10-13, ahead of the H-C closure gate — see
+           the evidence document NAGEX_R23_7H_C_AND_R23_7C_D_EVIDENCE_20261013.md; .pptx structurally validated, not opened in
+           an office application; no preview thumbnail; needs a configured model)
            Technical dependency on R23.7H-C: NONE
            Execution gate: R23.7H-C must be CLOSED before R23.7C-D may START
            Reason: the shared Creation Artifact UX Integration Contract must
@@ -279,7 +286,7 @@ The current implementation sequence:
 ```text
 1. R23.7C-C Real Image Runtime                                          CLOSED
 2. R23.7H-C Home/Create Artifact Integration                            OPEN  <- ACTIVE
-3. R23.7C-D Presentation Runtime                                        PLANNED
+3. R23.7C-D Presentation Runtime                                        IMPLEMENTED (acceptance pending; started ahead of the H-C closure gate)
    (technically parallel-capable, but execution-gated behind R23.7H-C)
 4. R23.7C-E Video Runtime                                               PLANNED
 5. Reconcile R23.7G Background Runtime Certification against current code
