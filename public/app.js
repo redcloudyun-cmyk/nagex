@@ -3531,7 +3531,7 @@
       const signIn = document.getElementById('btn-settings-google-signin');
       if (signIn) signIn.onclick = () => { if (window.NAGEX.showAuthModal) window.NAGEX.showAuthModal('signin'); };
       wireGitHubCard(true);
-      window.NAGEX_MCP_SETTINGS?.mount();
+      window.NAGEX_MCP_SETTINGS?.mount(true);
       return;
     }
     const oauth = state.googleOAuth || { configured: false, connected: false };
@@ -3586,7 +3586,7 @@
         }
       };
     }
-    window.NAGEX_MCP_SETTINGS?.mount();
+    window.NAGEX_MCP_SETTINGS?.mount(false);
   }
 
   function renderConnectionCard({ provider, services, state, account, action, buttonId, disabled, reason, secondary }) {
