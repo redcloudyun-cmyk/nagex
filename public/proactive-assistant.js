@@ -121,8 +121,8 @@
     return '<span class="settings-state-pill ' + (on ? 'on' : '') + '">' + escapeHtml(on ? onLabel : offLabel) + '</span>';
   }
 
-  function toggleControl(id, field, checked) {
-    return '<label class="settings-toggle pa-settings-toggle" for="' + id + '"><input type="checkbox" id="' + id + '" data-pa-field="' + field + '" ' + (checked ? 'checked' : '') + '><span class="settings-toggle-track" aria-hidden="true"></span><span class="nagex-sr-only">' + escapeHtml(field) + '</span></label>';
+  function toggleControl(id, field, checked, label) {
+    return '<label class="settings-toggle pa-settings-toggle" for="' + id + '"><input type="checkbox" id="' + id + '" data-pa-field="' + field + '" ' + (checked ? 'checked' : '') + '><span class="settings-toggle-track" aria-hidden="true"></span><span class="nagex-sr-only">' + escapeHtml(label) + '</span></label>';
   }
 
   function nextBriefLabel(cfg) {
@@ -150,30 +150,30 @@
     const zoneOptions = zones.map((z) => '<option value="' + escapeHtml(z) + '" ' + (z === form.timezone ? 'selected' : '') + '>' + escapeHtml(z) + '</option>').join('');
 
     const preferences = [
-      ['approval', 'Approval needed', 'When NAgex needs your decision'],
-      ['completion', 'Work completed', 'When background work finishes'],
-      ['attention', 'Needs attention', 'When NAgex cannot continue safely'],
-      ['brief', 'Scheduled brief', 'Daily or recurring summaries'],
-      ['condition', 'Condition matched', 'When a watched condition becomes true'],
-      ['suggestion', 'Proactive suggestions', 'Useful next actions from NAgex'],
+      ['approval', t('proactiveAssistant.pref.approval', 'Approval needed'), t('proactiveAssistant.pref.approvalSub', 'When NAgex needs your decision')],
+      ['completion', t('proactiveAssistant.pref.completion', 'Work completed'), t('proactiveAssistant.pref.completionSub', 'When background work finishes')],
+      ['attention', t('proactiveAssistant.pref.attention', 'Needs attention'), t('proactiveAssistant.pref.attentionSub', 'When NAgex cannot continue safely')],
+      ['brief', t('proactiveAssistant.pref.brief', 'Scheduled brief'), t('proactiveAssistant.pref.briefSub', 'Daily or recurring summaries')],
+      ['condition', t('proactiveAssistant.pref.condition', 'Condition matched'), t('proactiveAssistant.pref.conditionSub', 'When a watched condition becomes true')],
+      ['suggestion', t('proactiveAssistant.pref.suggestion', 'Proactive suggestions'), t('proactiveAssistant.pref.suggestionSub', 'Useful next actions from NAgex')],
     ];
 
     return '<div class="settings-notifications-grid">' +
       '<section class="settings-pro-card settings-notification-card">' +
-        '<div class="settings-card-title-row"><div><h3>Notification preferences</h3><p class="setting-sub">Choose the updates NAgex should surface.</p></div></div>' +
+        '<div class="settings-card-title-row"><div><h3>' + escapeHtml(t('proactiveAssistant.prefsTitle', 'Notification preferences')) + '</h3><p class="setting-sub">' + escapeHtml(t('proactiveAssistant.prefsSub', 'Choose the updates NAgex should surface.')) + '</p></div></div>' +
         '<div class="settings-notification-rows">' + preferences.map(([icon, title, subtitle]) =>
-          '<div class="settings-row-lite settings-notification-row"><span class="settings-row-leading">' + paIcon(icon) + '<span><strong>' + escapeHtml(title) + '</strong><small>' + escapeHtml(subtitle) + '</small></span></span>' + statusPill(true, 'ON', 'OFF') + '</div>'
+          '<div class="settings-row-lite settings-notification-row"><span class="settings-row-leading">' + paIcon(icon) + '<span><strong>' + escapeHtml(title) + '</strong><small>' + escapeHtml(subtitle) + '</small></span></span>' + statusPill(true, t('proactiveAssistant.on', 'ON'), t('proactiveAssistant.off', 'OFF')) + '</div>'
         ).join('') + '</div>' +
       '</section>' +
       '<section class="settings-pro-card settings-notification-card">' +
-        '<div class="settings-card-title-row"><div><h3>Daily brief</h3><p class="setting-sub">Daily or recurring summaries from NAgex.</p></div>' + toggleControl(id('enabled'), 'enabled', form.enabled) + '</div>' +
+        '<div class="settings-card-title-row"><div><h3>' + escapeHtml(t('proactiveAssistant.dailyBriefTitle', 'Daily brief')) + '</h3><p class="setting-sub">' + escapeHtml(t('proactiveAssistant.dailyBriefSub', 'Daily or recurring summaries from NAgex.')) + '</p></div>' + toggleControl(id('enabled'), 'enabled', form.enabled, t('proactiveAssistant.dailyBriefTitle', 'Daily brief')) + '</div>' +
         '<div class="settings-form-grid">' +
-          '<label class="settings-field"><span>' + paIcon('clock') + ' Time</span><input type="time" id="' + id('time') + '" data-pa-field="localTime" class="settings-time-picker pa-time-input" value="' + escapeHtml(form.localTime) + '"></label>' +
-          '<label class="settings-field"><span>' + paIcon('timezone') + ' Timezone</span><select id="' + id('timezone') + '" data-pa-field="timezone" class="settings-select pa-timezone-select">' + zoneOptions + '</select></label>' +
+          '<label class="settings-field"><span>' + paIcon('clock') + ' ' + escapeHtml(t('proactiveAssistant.timeLabel', 'Time')) + '</span><input type="time" id="' + id('time') + '" data-pa-field="localTime" class="settings-time-picker pa-time-input" value="' + escapeHtml(form.localTime) + '"></label>' +
+          '<label class="settings-field"><span>' + paIcon('timezone') + ' ' + escapeHtml(t('proactiveAssistant.timezone', 'Timezone')) + '</span><select id="' + id('timezone') + '" data-pa-field="timezone" class="settings-select pa-timezone-select">' + zoneOptions + '</select></label>' +
         '</div>' +
-        '<div class="settings-field settings-days-field"><span>Days</span><div class="settings-day-selector pa-weekday-chips">' + weekdayChips + '</div></div>' +
-        '<div class="settings-row-lite settings-notification-row"><span class="settings-row-leading"><span><strong>Notify me when ready</strong><small>Show a notification after the brief is prepared.</small></span></span>' + toggleControl(id('notify'), 'notifyOnComplete', form.notifyOnComplete) + '</div>' +
-        '<div class="settings-brief-status"><div><span>Next brief</span><strong>' + escapeHtml(nextBriefLabel(cfg)) + '</strong></div><div><span>Last delivered</span><strong>' + escapeHtml(lastDeliveredLabel(cfg)) + '</strong></div></div>' +
+        '<div class="settings-field settings-days-field"><span>' + escapeHtml(t('proactiveAssistant.daysLabel', 'Days')) + '</span><div class="settings-day-selector pa-weekday-chips">' + weekdayChips + '</div></div>' +
+        '<div class="settings-row-lite settings-notification-row"><span class="settings-row-leading"><span><strong>' + escapeHtml(t('proactiveAssistant.notifyTitle', 'Notify me when ready')) + '</strong><small>' + escapeHtml(t('proactiveAssistant.notifySub', 'Show a notification after the brief is prepared.')) + '</small></span></span>' + toggleControl(id('notify'), 'notifyOnComplete', form.notifyOnComplete, t('proactiveAssistant.notifyTitle', 'Notify me when ready')) + '</div>' +
+        '<div class="settings-brief-status"><div><span>' + escapeHtml(t('proactiveAssistant.nextBrief', 'Next brief')) + '</span><strong>' + escapeHtml(nextBriefLabel(cfg)) + '</strong></div><div><span>' + escapeHtml(t('proactiveAssistant.lastDelivered', 'Last delivered')) + '</span><strong>' + escapeHtml(lastDeliveredLabel(cfg)) + '</strong></div></div>' +
         '<button type="button" class="settings-primary-action pa-save-btn" data-pa-save>' + escapeHtml(saving ? t('proactiveAssistant.saving', 'Saving...') : t('proactiveAssistant.saveChanges', 'Save changes')) + '</button>' +
         (saveError ? '<p class="pa-save-error" role="alert">' + escapeHtml(t('settings.saveFailed', 'Could not save settings.')) + '</p>' : '') +
       '</section>' +

@@ -24,7 +24,8 @@
     if (tab === 'tab-home' && document.querySelector('script[src*="main-surface.js"]')) return null;
     // A Settings category deep link (#settings/connections, e.g. after an OAuth redirect, or the Apps & connections row of the native Settings) is a
     // responsive Desktop-tree screen; the plain Settings tab and a bottom-navigation tap on Settings show the native overview.
-    if (tab === 'tab-settings' && /^#settings\/[^?]+/.test(window.location.hash || '') && !window.NAGEX.mobileSettingsOverview) return null;
+    // The native overview itself is mirrored in the route as #settings/account (the default category): that route is NOT a deep link and survives a reload.
+    if (tab === 'tab-settings' && /^#settings\/(?!account(?:[/?#]|$))[^?]+/.test(window.location.hash || '') && !window.NAGEX.mobileSettingsOverview) return null;
     return tab && MOBILE_NATIVE_TABS.has(tab) ? tab : null;
   }
 
