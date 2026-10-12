@@ -9,6 +9,7 @@
 .nav-menu .nav-item[data-tab="tab-canvas"],
 .nav-menu .nav-item[data-tab="tab-tasks"],
 .mobile-bottom-nav [data-tab="tab-create"],
+.mobile-bottom-nav [data-tab="tab-canvas"],
 .mh-bottom-nav [data-tab="tab-create"],
 .mh-bottom-nav [data-tab="tab-canvas"] {
   display: none !important;
@@ -1166,24 +1167,78 @@
   color: #102040;
 }
 
+/* Phone shell (every tab): one header row that fits 360px, and no empty sidebar column. Navigation is the bottom bar. */
+@media (max-width: 768px) {
+  .hamburger-btn,
+  .header-motto-script,
+  .user-profile-meta,
+  .desktop-global-search kbd,
+  .quickwake-subdued-chip > span {
+    display: none !important;
+  }
+
+  .quickwake-subdued-chip {
+    display: none !important;
+  }
+
+  .app-header .desktop-global-search {
+    position: relative;
+    flex: 0 0 40px !important;
+    width: 40px !important;
+    min-width: 0 !important;
+    max-width: 40px !important;
+    padding: 0 !important;
+    justify-content: center;
+  }
+
+  .app-header .header-right {
+    margin-left: auto !important;
+    gap: var(--nagex-spacing-2) !important;
+    min-width: 0 !important;
+  }
+
+  .app-header .desktop-global-search-target {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    font-size: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .workspace-grid {
+    display: block !important;
+  }
+
+  .sidebar-left {
+    display: none !important;
+  }
+}
+
+/* Phones: the Main surface is Home (the native mobile shell keeps Inbox / Activity / Knowledge / Settings). The desktop marketing hero
+   (giant logo + landing copy) is only hidden by the >= 769px rules, so hide it here too, or it covers the Main surface. */
 @media (max-width: 860px) {
-  body:has(#nagex-main-surface) #mobile-app-shell {
+  .brand-hero-layer {
     display: none !important;
   }
 
-  body:has(#nagex-main-surface) .app-wrapper {
-    display: block !important;
-  }
-
-  body:has(#nagex-main-surface) .workspace-grid {
-    display: block !important;
-  }
-
-  body:has(#nagex-main-surface) .sidebar-left {
+  body:has(#view-home.active-view #nagex-main-surface) #mobile-app-shell {
     display: none !important;
   }
 
-  body:has(#nagex-main-surface) #view-home {
+  body:has(#view-home.active-view #nagex-main-surface) .app-wrapper {
+    display: block !important;
+  }
+
+  body:has(#view-home.active-view #nagex-main-surface) .workspace-grid {
+    display: block !important;
+  }
+
+  body:has(#view-home.active-view #nagex-main-surface) .sidebar-left {
+    display: none !important;
+  }
+
+  body:has(#view-home.active-view #nagex-main-surface) #view-home {
     display: block !important;
   }
 

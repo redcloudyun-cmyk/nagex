@@ -20,6 +20,8 @@
 
   function activeNativeTab() {
     const tab = window.NAGEX.getState && window.NAGEX.getState().activeTab;
+    // Home on a phone is the unified Main surface (it lives in the desktop wrapper), not the native mobile Home
+    if (tab === 'tab-home' && document.querySelector('script[src*="main-surface.js"]')) return null;
     return tab && MOBILE_NATIVE_TABS.has(tab) ? tab : null;
   }
 

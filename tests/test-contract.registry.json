@@ -5363,6 +5363,23 @@
       "notes": "Production server harness with provider credentials scrubbed; computed-style assertions against the V2 token scale, never screenshots. Google Fonts are requested by the page (Inter, Noto Sans KR); the assertions read the declared font-family stack, so they hold offline.",
       "writesRepositoryArtifacts": false
     },
+    "mobile_phone_shell_browser": {
+      "milestone": "R23.7H-C",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "mobile",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Phone shell certification at 360/390/430px in EN and KR: Home is the unified Main surface (composer and briefing visible, the desktop marketing hero never covers it), one header row that fits the viewport, a bottom navigation (Home, Recent, Inbox, Activity, Settings) on every tab, no horizontal overflow, no empty sidebar column on non-native tabs, and the swap between the Main Home and the native mobile Settings shell leaves exactly one shell visible.",
+      "notes": "Production server harness with provider credentials scrubbed; geometry and visibility are read from the real DOM, never screenshots.",
+      "writesRepositoryArtifacts": false
+    },
     "settings_screen_certification_browser": {
       "milestone": "NAGEX-DESKTOP-SETTINGS-CERT",
       "classification": "REAL_BROWSER_CERT",
