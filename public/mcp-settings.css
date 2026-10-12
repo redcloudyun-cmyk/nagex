@@ -21,3 +21,7 @@
 .nagex-mcp-tool span { display: grid; gap: 3px; }
 .nagex-mcp-tool small { color: #546884; font-size: .78rem; }
 @media(max-width: 700px) { .nagex-mcp-form-fields { grid-template-columns: minmax(0, 1fr); } .nagex-mcp-settings { padding: 14px; } }
+.nagex-mcp-status:empty { display: none; }
+.nagex-mcp-alert { padding: 8px 10px; border-radius: 8px; background: #fff4e5; color: #8a4b00; }
+.nagex-mcp-changed { color: #8a4b00; font-weight: 600; }
+.nagex-mcp-server .settings-state-pill[data-status="IDENTITY_MISMATCH"], .nagex-mcp-server .settings-state-pill[data-status="ERROR"] { background: #fff4e5; color: #8a4b00; }

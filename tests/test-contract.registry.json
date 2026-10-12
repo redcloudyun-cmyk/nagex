@@ -5347,6 +5347,22 @@
       "notes": "Production server harness with provider credentials scrubbed; GitHub is a scripted fetch inside the server process. The token store, routes, sessions and the Settings card are real.",
       "writesRepositoryArtifacts": false
     },
+    "mcp_settings_browser": {
+      "milestone": "NAGEX-MCP-SETTINGS-UI",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Real-Chromium (and installed Chrome via NAGEX_TEST_BROWSER_CHANNEL=chrome) certification of Settings > Connections > Additional tools (MCP) against the real MCP backend: register, list, discovery (tools disabled by default, unsupported tools named), enable with confirmation, disable, refresh (a changed definition disables an enabled tool and is flagged; a changed server identity locks the tools with a warning), delete; signed-out, unavailable and provider-error states are truthful and localized without raw codes or raw server wording; the typed name and address survive an error but the token is write-only (never in the DOM, storage or any response); server-supplied HTML is inert; another user cannot see or change the servers; the UI never causes a tool call and an enabled tool is only reachable through a pending approval; EN/KR labels and no horizontal overflow at desktop and phone width.",
+      "notes": "Production server harness with provider credentials scrubbed. The MCP backend, policy, store, broker and sessions are real; the remote MCP server is an in-process loopback server and the https registration URL is rewritten to it (the backend is told to accept loopback for the test, and switched back to the production policy for the rejection steps).",
+      "writesRepositoryArtifacts": false
+    },
     "settings_screen_certification_browser": {
       "milestone": "NAGEX-DESKTOP-SETTINGS-CERT",
       "classification": "REAL_BROWSER_CERT",

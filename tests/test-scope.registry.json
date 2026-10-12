@@ -64,7 +64,8 @@
       "capability_broker",
       "tool_capability_id_alignment",
       "r23_3t_permission_approval_hardening",
-      "github_connection_browser"
+      "github_connection_browser",
+      "mcp_settings_browser"
     ],
     "google": [
       "google_calendar_connection_state",
@@ -335,7 +336,8 @@
       "r24_6d_settings_surface",
       "r24_7b_canvas_ask_contract",
       "r24_8b_ui_integrity_contract",
-      "github_connection_browser"
+      "github_connection_browser",
+      "mcp_settings_browser"
     ],
     "knowledge": [
       "r24_5c_knowledge_live"

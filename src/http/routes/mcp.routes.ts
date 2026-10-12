@@ -24,7 +24,8 @@ const STATUS_BY_CATEGORY: Record<string, number> = {
 
 function errorResult(error: unknown): ApiResult {
   if (error instanceof NagexError) {
-    const status = STATUS_BY_CATEGORY[error.category] ?? 500;
+    // An MCP server rejecting OUR credential is an upstream failure (502), never a statement about the user's NAgex session (401).
+    const status = error.code === 'MCP_SERVER_AUTH_FAILED' ? 502 : STATUS_BY_CATEGORY[error.category] ?? 500;
     return { status, data: { error: { code: error.code, message: error.message, ...(error.details ? { details: error.details } : {}) } } };
   }
   throw error;

@@ -484,13 +484,16 @@ describe('HTTP: verified session only', () => {
   let target: http.Server;
   let base: string;
   const envBackup = process.env.NAGEX_MCP_ALLOW_PRIVATE_NETWORK;
+  let rejectAuth = false;
   beforeEach(async () => {
+    rejectAuth = false;
     process.env.NAGEX_MCP_ALLOW_PRIVATE_NETWORK = '1'; // lets the production service reach this loopback test server
     target = http.createServer((req, res) => {
       const chunks: Buffer[] = [];
       req.on('data', (c) => chunks.push(c));
       req.on('end', () => {
         const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        if (rejectAuth) { res.writeHead(401); res.end(); return; }
         if (body.method === 'notifications/initialized') { res.writeHead(202); res.end(); return; }
         const result = body.method === 'initialize' ? { protocolVersion: '2025-06-18', serverInfo: { name: 'HTTP Test Server', version: '1' }, capabilities: {} }
           : body.method === 'tools/list' ? { tools: [SEARCH_TOOL] } : { content: [{ type: 'text', text: 'http-ok' }] };
@@ -515,6 +518,13 @@ describe('HTTP: verified session only', () => {
     for (const [method, p] of [['GET', '/api/v1/mcp/servers'], ['POST', '/api/v1/mcp/servers'], ['GET', '/api/v1/mcp/servers/mcp_0123456789abcdef'], ['POST', '/api/v1/mcp/servers/mcp_0123456789abcdef/tools/search_docs/invoke']] as const) {
       assert.equal((await call(method, p, {}, {})).status, 401, `${method} ${p}`);
     }
+  });
+
+  it('an MCP server rejecting OUR credential is an upstream failure (502), never a NAgex session 401', async () => {
+    rejectAuth = true;
+    const res = await call('POST', '/api/v1/mcp/servers', { name: 'auth', url: base, bearerToken: 'wrong' }, session('usr_mcp_upstream'));
+    assert.equal(res.status, 502);
+    assert.equal((res.data as any).error.code, 'MCP_SERVER_AUTH_FAILED');
   });
 
   it('production policy refuses a loopback/private server URL', async () => {

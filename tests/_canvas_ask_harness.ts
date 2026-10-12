@@ -54,7 +54,9 @@ export async function startCanvasAskHarness(opts: { scrubProviders: boolean }): 
   const instance = server.createServerInstance();
   await new Promise<void>((resolve, reject) => { instance.listen(0, '127.0.0.1', () => resolve()); instance.once('error', reject); });
   const origin = `http://127.0.0.1:${(instance.address() as AddressInfo).port}`;
-  const browser = await chromium.launch({ headless: true });
+  // NAGEX_TEST_BROWSER_CHANNEL=chrome runs the same tests in the installed Google Chrome instead of the bundled Chromium.
+  const channel = process.env.NAGEX_TEST_BROWSER_CHANNEL?.trim();
+  const browser = await chromium.launch({ headless: true, ...(channel ? { channel } : {}) });
 
   const artifactStoreFor = (at?: string) => new ArtifactStore({ dir: process.env.NAGEX_ARTIFACTS_DIR, now: at ? () => at : undefined });
   const documentStore = new DocumentStore({ dir: process.env.NAGEX_DOCUMENTS_DIR });
