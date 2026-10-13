@@ -186,10 +186,22 @@ test('R22.8 - Real Browser Certification & Visual Hierarchy', async (t) => {
       extraHTTPHeaders: locale === 'KR' ? { 'Accept-Language': 'ko-KR,ko' } : { 'Accept-Language': 'en-US,en' }
     });
 
-    await page.goto(`${baseUrl}/?demo=1`);
-    await page.waitForLoadState('domcontentloaded');
+    const response = await page.goto(`${baseUrl}/?demo=1`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    assert.equal(response?.status(), 200, 'Home document must load successfully before UI certification');
     const targetSelector = viewport.width <= 768 ? '#mobile-view-home' : '#view-home';
-    await page.waitForSelector(targetSelector, { state: 'attached', timeout: 10000 });
+    try {
+      await page.waitForSelector(targetSelector, { state: 'attached', timeout: 20000 });
+    } catch (error) {
+      const diagnostic = await page.evaluate(() => ({
+        readyState: document.readyState,
+        title: document.title,
+        bodyPresent: Boolean(document.body),
+        desktopHomePresent: Boolean(document.getElementById('view-home')),
+        mobileHomePresent: Boolean(document.getElementById('mobile-view-home')),
+        url: location.pathname,
+      })).catch(() => ({ evaluationFailed: true }));
+      throw new Error(`Home container missing for ${locale} ${viewport.width}x${viewport.height}: ${JSON.stringify(diagnostic)}; ${String(error)}`);
+    }
 
     // 1. Verify Model Picker Affordance Removed (MODEL_PICKER_PRIMARY_UI=0, MODEL_SELECTOR_AFFORDANCE_PRIMARY_UI=0)
     const modelPickerDropdown = await page.$('.model-selector-chip .model-chip-arrow');
