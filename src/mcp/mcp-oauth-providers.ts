@@ -26,7 +26,8 @@ export interface McpOAuthProviderTemplate {
 // Slack allows only directory-published or internal apps to use MCP, and workspace admins approve the integration.
 export const SLACK_MCP_OAUTH_TEMPLATE: McpOAuthProviderTemplate = Object.freeze({
   id: 'slack',
-  displayName: 'Slack',
+  // Distinct from the built-in "Slack" chat channel (talk to NAgex from Slack): this is the workspace's own tools through Slack's official MCP server.
+  displayName: 'Slack workspace',
   mcpEndpoint: 'https://mcp.slack.com/mcp',
   resource: 'https://mcp.slack.com',
   protectedResourceMetadataUrl: 'https://mcp.slack.com/.well-known/oauth-protected-resource',
