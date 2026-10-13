@@ -5286,6 +5286,22 @@
       "assertionIntent": "GitHub built-in connection truthfulness: identity is the verified session tenant + user only (another user, another tenant and forged headers/query never read or reveal anyone else connection, repositories or files; the OAuth callback only completes in the session that started the flow with a one-time state); every state is reported truthfully (UNAVAILABLE without an OAuth App and no dead connect path, NOT_CONNECTED, CONNECTING only for the user who started authorization, CONNECTED with verifiedAt only after a real authorized GitHub call, REAUTH_REQUIRED when GitHub rejects the saved token while keeping the metadata and purging the secret, ERROR for rate limits/outages/timeouts that keep the connection); access is read-only (repository list, directory, file) with strict owner/repo/path/ref validation, size/binary limits and repository text marked untrusted; tokens are encrypted at rest and never appear in responses; the Capability Broker and Tool Registry expose only READ_ONLY NONE-approval GitHub capabilities bound to the request identity and block with the real state when not connected.",
       "notes": "GitHub is replaced by a scripted fetch; the token store, connection service, broker, tool registry, routes and sessions are the production code."
     },
+    "mcp_e2e_isolated_server": {
+      "milestone": "NAGEX-MCP-RUNTIME",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "credential-broker",
+        "permission-approval-hardening"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "End-to-end MCP certification of the production path against an isolated, repository-controlled Streamable HTTP MCP server over real HTTP: initialize and identity pinning, paged tool discovery and schema acceptance, SSE responses, disabled-by-default tools, hash-bound one-time approval before any server call, argument validation, tool-reported errors recorded as failures, cross-user and cross-tenant isolation, credential rotation to AUTH_REQUIRED and reconnect without spending the approval, changed definitions and server identity blocking, removal, timeouts, restart persistence with encrypted storage, session termination, and the read-only remote check script.",
+      "notes": "The server is NOT a third-party MCP provider; this is protocol-path certification only. The private-network escape hatch (NAGEX_MCP_ALLOW_PRIVATE_NETWORK=1) is set by the test so the production client can reach the loopback server; production policy is covered by mcp_runtime.",
+      "writesRepositoryArtifacts": false
+    },
     "mcp_runtime": {
       "milestone": "NAGEX-MCP-RUNTIME",
       "classification": "CANONICAL_BEHAVIOR",
