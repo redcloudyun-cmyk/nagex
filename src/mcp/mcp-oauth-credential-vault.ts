@@ -72,6 +72,32 @@ export class McpOAuthCredentialVault {
     return decoded;
   }
 
+  // Transactional replacement of an encrypted snapshot. Verify every entry with
+  // authenticated decryption BEFORE mutating the live map. A corrupted file or
+  // wrong key never becomes an empty/partially-loaded "connected" state.
+  public restoreSealedSnapshot(snapshot: unknown): void {
+    if (!Array.isArray(snapshot) || snapshot.length > 10000) throw new Error('MCP_OAUTH_SNAPSHOT_INVALID');
+    const checked = new Map<string, SealedCredential>();
+    for (const raw of snapshot) {
+      if (!raw || typeof raw !== 'object') throw new Error('MCP_OAUTH_SNAPSHOT_INVALID');
+      const record = raw as SealedCredential;
+      if (!validIdentity(record.identity) || record.id !== keyFor(record.identity) || checked.has(record.id) ||
+          !record.envelope || record.envelope.version !== 1 || record.envelope.algorithm !== 'aes-256-gcm') {
+        throw new Error('MCP_OAUTH_SNAPSHOT_INVALID');
+      }
+      let decoded: McpOAuthStoredCredential;
+      try { decoded = decryptJson<McpOAuthStoredCredential>(this.key, record.envelope); }
+      catch { throw new Error('MCP_OAUTH_CREDENTIAL_INTEGRITY_ERROR'); }
+      if (!decoded?.identity || !validIdentity(decoded.identity) || keyFor(decoded.identity) !== record.id ||
+          decoded.tokens?.tokenType !== 'Bearer' || !decoded.tokens.accessToken) {
+        throw new Error('MCP_OAUTH_CREDENTIAL_INTEGRITY_ERROR');
+      }
+      checked.set(record.id, { id: record.id, identity: { ...record.identity }, envelope: { ...record.envelope } });
+    }
+    this.records.clear();
+    for (const [id, record] of checked) this.records.set(id, record);
+  }
+
   public remove(identity: McpOAuthCredentialIdentity): boolean {
     return validIdentity(identity) ? this.records.delete(keyFor(identity)) : false;
   }
