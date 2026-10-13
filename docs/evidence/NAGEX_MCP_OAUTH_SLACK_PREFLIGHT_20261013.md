@@ -40,3 +40,20 @@ USER_ACCEPTANCE=NO
 ```
 
 No changes to production `main`, test server or protected user tokens are authorized by this preflight.
+
+## 2026-10-13 — real public metadata finding
+
+The user ran the preflight and saw `MCP_OAUTH_METADATA_REJECTED`. The actual official resource metadata at
+`https://mcp.slack.com/.well-known/oauth-protected-resource` reports:
+
+- MCP Streamable HTTP endpoint: `https://mcp.slack.com/mcp`
+- RFC9728 protected resource identifier: `https://mcp.slack.com`
+- authorization server: `https://mcp.slack.com`
+
+The first preflight hardcoded the endpoint as the expected resource and incorrectly rejected this legitimate metadata. The preflight was corrected to keep these *distinct* addresses and still require an exact, canonical protected-resource match. No URL security policy was bypassed. The revised preflight has **not yet been user-run**.
+
+Supporting official references:
+- https://mcp.slack.com/.well-known/oauth-protected-resource
+- https://docs.slack.dev/ai/slack-mcp-server/
+
+Remaining blockers are unchanged: confidential-client OAuth, trusted issuer discovery, operator-owned Slack app/workspace approval, callback and stored-token runtime integration, live end-to-end certification.
