@@ -55,6 +55,14 @@ export class McpOAuthProviderRegistry {
       clientId: registration.clientId, redirectUri: registration.redirectUri,
       resource: registration.resource, scope: registration.requestedScopes, request: issued });
   }
+  public requestedScopesFor(pending: PendingMcpOAuth): string[] {
+    const registration = [...this.providers.values()].find((provider) =>
+      provider.resource === pending.resource && provider.issuer === pending.issuer &&
+      provider.clientId === pending.clientId && provider.redirectUri === pending.redirectUri);
+    if (!registration) throw new Error('MCP_OAUTH_REGISTRATION_CHANGED');
+    return [...registration.requestedScopes];
+  }
+
   public resolveTrustedTokenEndpoint(pending: PendingMcpOAuth): string {
     const registration = [...this.providers.values()].find((provider) =>
       provider.resource === pending.resource && provider.issuer === pending.issuer &&
