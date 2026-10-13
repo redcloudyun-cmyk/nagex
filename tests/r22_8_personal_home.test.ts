@@ -193,12 +193,12 @@ test('R22.8 - Real Browser Certification & Visual Hierarchy', async (t) => {
       await page.waitForSelector(targetSelector, { state: 'attached', timeout: 20000 });
     } catch (error) {
       const diagnostic = await page.evaluate(() => ({
-        readyState: document.readyState,
-        title: document.title,
-        bodyPresent: Boolean(document.body),
-        desktopHomePresent: Boolean(document.getElementById('view-home')),
-        mobileHomePresent: Boolean(document.getElementById('mobile-view-home')),
-        url: location.pathname,
+        readyState: (globalThis as any).document.readyState,
+        title: (globalThis as any).document.title,
+        bodyPresent: Boolean((globalThis as any).document.body),
+        desktopHomePresent: Boolean((globalThis as any).document.getElementById('view-home')),
+        mobileHomePresent: Boolean((globalThis as any).document.getElementById('mobile-view-home')),
+        url: (globalThis as any).location.pathname,
       })).catch(() => ({ evaluationFailed: true }));
       throw new Error(`Home container missing for ${locale} ${viewport.width}x${viewport.height}: ${JSON.stringify(diagnostic)}; ${String(error)}`);
     }
