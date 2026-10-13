@@ -6,6 +6,8 @@ import { NagexError } from '../common/errors.js';
 
 export const MCP_OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 export const MCP_OAUTH_MAX_PENDING = 256;
+// One account can hold only a few unfinished flows: starting more retires its oldest, so a single signed-in user can never exhaust the global pending table.
+export const MCP_OAUTH_MAX_PENDING_PER_OWNER = 5;
 
 export interface McpOAuthOwner { tenantId: string; principalId: string }
 export interface PendingMcpOAuth {
@@ -56,6 +58,8 @@ export function createMcpOAuthStateStore(): McpOAuthStateStore {
         || typeof context.clientId !== 'string' || !context.clientId.trim() || context.clientId.length > 512) return invalid('CONTEXT');
       if (context.resourceParameter !== undefined && (!validHttps(context.resourceParameter) || new URL(context.resourceParameter).href !== new URL(context.resource).href)) return invalid('CONTEXT');
       sweep(now);
+      const mine = [...pending.entries()].filter(([, item]) => item.owner.tenantId === owner.tenantId && item.owner.principalId === owner.principalId);
+      for (const [oldState] of mine.slice(0, Math.max(0, mine.length - (MCP_OAUTH_MAX_PENDING_PER_OWNER - 1)))) pending.delete(oldState);
       if (pending.size >= MCP_OAUTH_MAX_PENDING) return invalid('PENDING_LIMIT');
       const state = crypto.randomBytes(32).toString('base64url');
       const codeVerifier = crypto.randomBytes(32).toString('base64url');

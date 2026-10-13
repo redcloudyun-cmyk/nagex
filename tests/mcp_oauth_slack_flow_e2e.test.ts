@@ -438,3 +438,36 @@ describe('disconnect and isolation', () => {
     assert.equal(as.forms.length, 0);
   });
 });
+
+describe('abuse resistance', () => {
+  it('one account can hold only a few unfinished flows; starting more retires its oldest and never blocks other accounts', async () => {
+    const hog = authAs(TENANT, uniq());
+    const states: string[] = [];
+    for (let i = 0; i < 8; i++) {
+      const started = await oauthRoute('POST', '/api/v1/oauth/mcp/start', { providerId: 'fakeslack' }, hog);
+      assert.equal(started.status, 200);
+      states.push(new URL(started.data.authorizeUrl).searchParams.get('state')!);
+    }
+    // the oldest flows were retired: a callback for them is refused without reaching the provider
+    assert.equal((await oauthRoute('GET', '/api/v1/oauth/mcp/callback', null, hog, { state: states[0], code: 'c' })).status, 400);
+    assert.equal(as.forms.length, 0);
+    // another account still starts normally
+    assert.equal((await oauthRoute('POST', '/api/v1/oauth/mcp/start', { providerId: 'fakeslack' }, authAs(TENANT, uniq()))).status, 200);
+  });
+
+  it('two simultaneous verifications of one owner and provider produce ONE connection', async () => {
+    const user = uniq();
+    await connect(user);
+    const principal = { tenantId: TENANT, principalId: user, requestId: 'r' };
+    const binding = (await stack.runtime.coordinator())!.providerRegistry.bindingFor('fakeslack')!;
+    const input = { name: 'Fake Slack', mcpEndpoint: binding.mcpEndpoint, binding: { providerId: 'fakeslack', resource: binding.resource, issuer: binding.issuer, clientId: binding.clientId, scopes: binding.scopes } };
+    // remove the connection but keep the credential, then race two reconnects
+    const [only] = stack.service.list(principal);
+    stack.service.remove(principal, only.connectionId);
+    // (remove() deletes the credential too: sign in once more, then race)
+    const again = await connect(user);
+    assert.equal(again.callback.data.status, 'MCP_CONNECTED_VERIFIED');
+    await Promise.all([stack.service.connectOAuth(principal, input), stack.service.connectOAuth(principal, input), stack.service.connectOAuth(principal, input)]);
+    assert.equal(stack.service.list(principal).length, 1);
+  });
+});
