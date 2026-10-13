@@ -128,16 +128,13 @@ export const handleCreationRoutes: AsyncRouteRegistrar<CreationRouteDeps> = asyn
       return { status: 201, data: creation };
     }
 
-    const creation = await creationService.generateCreation({
-      tenantId,
-      ownerId: principalId,
-      prompt,
-      recipe: body?.recipe as any,
-      referenceImageId: typeof body?.referenceImageId === 'string' ? body.referenceImageId : undefined,
-      parentCreationId: typeof body?.parentCreationId === 'string' ? body.parentCreationId : undefined,
-    });
-
-    return { status: 201, data: creation };
+    // Only an image can be created through this route (documents and presentations have their own routes). A body that does not say IMAGE used to fall through to
+    // the legacy generator, which answered a deterministic MOCK svg as a COMPLETED creation. A mock is never a finished creation, so the request is refused
+    // plainly and nothing is created or recorded.
+    return {
+      status: 400,
+      data: { status: 'UNSUPPORTED', error: 'CREATION_KIND_UNSUPPORTED', message: 'Only images can be created here (type IMAGE). Documents and presentations are created through their own routes.' },
+    };
   }
 
   if (pathname.startsWith('/api/v1/creations/') && pathname.endsWith('/variation') && method === 'POST') {
@@ -184,14 +181,12 @@ export const handleCreationRoutes: AsyncRouteRegistrar<CreationRouteDeps> = asyn
         }
       }
 
-      const variation = await creationService.generateVariation({
-        tenantId,
-        ownerId: principalId,
-        parentCreationId,
-        promptModifier: typeof body?.promptModifier === 'string' ? body.promptModifier : undefined,
-        recipeOverrides: body?.recipeOverrides as any,
-      });
-      return { status: 201, data: variation };
+      // Only a real image can be revised. A leftover legacy creation (a mock record from before real image creation) stays listed and readable, but it is never
+      // "revised" into another mock; a parent that does not exist is not found.
+      if (creationService.getCreation(parentCreationId, tenantId, principalId)) {
+        return { status: 409, data: { status: 'UNSUPPORTED', error: 'CREATION_NOT_REVISABLE', message: 'This is a legacy placeholder creation and cannot be revised. Create a new image instead.' } };
+      }
+      return { status: 404, data: { error: 'CREATION_NOT_FOUND', message: `Creation ${parentCreationId} not found.` } };
     } catch (err: any) {
       if (err.message?.includes('CREATION_NOT_FOUND')) {
         return { status: 404, data: { error: 'CREATION_NOT_FOUND', message: `Creation ${parentCreationId} not found.` } };

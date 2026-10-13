@@ -26,7 +26,7 @@ import java.util.concurrent.TimeUnit
  * Bounded Android Accessibility executor for the M4C KakaoTalk draft route.
  *
  * Android/user settings control whether this service is enabled. NAgex does
- * not self-enable it, does not execute raw coordinates, and never presses send.
+ * not self-enable it, never acts on raw screen positions, and never presses send.
  */
 class NagexAccessibilityExecutionService : AccessibilityService() {
     @Volatile
@@ -50,7 +50,7 @@ class NagexAccessibilityExecutionService : AccessibilityService() {
         interruptedByUser = false
         deviceAgentPollingOwner = DeviceAgentPollingOwner(
             transportFactory = { createDeviceAgentTransportOrNull() },
-            dispatcher = AccessibilityExecutionPlanDispatcher(),
+            dispatcher = AccessibilityExecutionPlanDispatcher(applicationContext, NagexServerConfig(applicationContext)),
         )
         deviceAgentPollingOwner.ensureDeviceAgentRunning("accessibility_service_connected")
     }
@@ -75,6 +75,8 @@ class NagexAccessibilityExecutionService : AccessibilityService() {
         if (interruptedByUser) return ActionResult(false, "USER_INTERRUPTED")
         if (!ALLOWED_ACTIONS.contains(action)) return ActionResult(false, "ACTION_NOT_ALLOWLISTED")
         if (action == "PRESS_SEND" || action == "REQUEST_SEND_APPROVAL") return ActionResult(false, "SEND_ACTION_DISABLED_IN_M4C")
+        // the generic, ungoverned send step is disabled too; only the approval-bound KAKAOTALK_GOVERNED_SEND / KAKAOTALK_SEARCH_TO_SEND actions can send
+        if (action == "SEND_MESSAGE") return ActionResult(false, "SEND_ACTION_DISABLED_IN_M4C_R1")
 
         if (requiresKakaoForegroundRecovery(action)) {
             val foreground = ensureTargetAppForeground("com.kakao.talk")
@@ -745,7 +747,7 @@ class NagexAccessibilityExecutionService : AccessibilityService() {
                                 bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
                                 }
                                 bitmap.recycle()
-                                artifact = outFile.absolutePath
+                                artifact = outFile.path
                                 capability = AdaptiveUiPerception.ScreenCaptureCapability.AVAILABLE
                             } else {
                                 capability = AdaptiveUiPerception.ScreenCaptureCapability.SECURE_SURFACE

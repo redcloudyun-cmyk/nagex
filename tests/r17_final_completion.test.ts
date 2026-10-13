@@ -79,84 +79,41 @@ test('1. Search / Plan / Book / Create / Analyze input routing contract', async 
   });
 });
 
-test('2. Creation Domain E2E — generate, reference image, recipe, variation, history, tenant isolation', async () => {
+test('2. Creation Domain E2E - a placeholder is never answered as a creation (DEBT-0012); history and tenant isolation still hold', async () => {
   await withServer(async (origin) => {
-    const defaultHeaders = {
-    'Content-Type': 'application/json',
-    ...authAs('ten_production_01', 'usr_admin_001'),
-  };
+    const defaultHeaders = { 'Content-Type': 'application/json', ...authAs('ten_production_01', 'usr_admin_001') };
 
-    // 2a. Generate Creation
+    const before = (((await (await fetch(`${origin}/api/v1/creations`, { method: 'GET', headers: defaultHeaders })).json()) as any).creations ?? []) as unknown[];
+
+    // 2a. A body that does not say IMAGE used to receive a deterministic MOCK svg as a COMPLETED creation. It is refused plainly instead.
     const genRes = await fetch(`${origin}/api/v1/creations/generate`, {
       method: 'POST',
       headers: defaultHeaders,
-      body: JSON.stringify({
-        prompt: 'Futuristic floating city in sunset glow',
-        recipe: { stylePreset: 'cyberpunk', aspectRatio: '16:9', guidanceScale: 9.0, quality: 'hd' },
-        referenceImageId: 'ref_img_neon_city',
-      }),
+      body: JSON.stringify({ prompt: 'Futuristic floating city in sunset glow', recipe: { stylePreset: 'cyberpunk', aspectRatio: '16:9', guidanceScale: 9.0, quality: 'hd' }, referenceImageId: 'ref_img_neon_city' }),
     });
-    assert.equal(genRes.status, 201);
-    const creation = (await genRes.json()) as any;
-    assert.ok(creation.creationId.startsWith('cr_'));
-    assert.equal(creation.prompt, 'Futuristic floating city in sunset glow');
-    assert.equal(creation.recipe.stylePreset, 'cyberpunk');
-    assert.equal(creation.referenceImageId, 'ref_img_neon_city');
-    assert.ok(creation.outputAssetUrl.includes('data:image/svg+xml'));
+    assert.equal(genRes.status, 400);
+    const refusal = (await genRes.json()) as any;
+    assert.equal(refusal.error, 'CREATION_KIND_UNSUPPORTED');
+    assert.equal(refusal.status, 'UNSUPPORTED');
+    assert.equal(JSON.stringify(refusal).includes('data:image/svg+xml'), false, 'no mock artifact is returned');
 
-    // 2b. Generate Variation
-    const varRes = await fetch(`${origin}/api/v1/creations/${creation.creationId}/variation`, {
-      method: 'POST',
-      headers: defaultHeaders,
-      body: JSON.stringify({
-        promptModifier: 'Add glowing holographic billboards',
-      }),
-    });
-    assert.equal(varRes.status, 201);
-    const variation = (await varRes.json()) as any;
-    assert.ok(variation.creationId.startsWith('cr_'));
-    assert.equal(variation.parentCreationId, creation.creationId);
-    assert.ok(variation.prompt.includes('holographic billboards'));
+    // 2b. A variation of something that does not exist is not found (and never produces a mock)
+    const varRes = await fetch(`${origin}/api/v1/creations/cr_does_not_exist/variation`, { method: 'POST', headers: defaultHeaders, body: JSON.stringify({ promptModifier: 'Add glowing holographic billboards' }) });
+    assert.equal(varRes.status, 404);
 
-    // 2c. List Creations
-    const listRes = await fetch(`${origin}/api/v1/creations`, {
-      method: 'GET',
-      headers: defaultHeaders,
-    });
+    // 2c. History: nothing was recorded by the refused request (the store persists between runs, so compare with the state before)
+    const listRes = await fetch(`${origin}/api/v1/creations`, { method: 'GET', headers: defaultHeaders });
     assert.equal(listRes.status, 200);
     const listData = (await listRes.json()) as any;
-    assert.ok(listData.creations.length >= 2);
+    assert.ok(Array.isArray(listData.creations));
+    assert.equal(listData.creations.length, before.length, 'the refused request created nothing');
 
-    // 2d. Get Lineage
-    const getRes = await fetch(`${origin}/api/v1/creations/${variation.creationId}`, {
-      method: 'GET',
-      headers: defaultHeaders,
-    });
-    assert.equal(getRes.status, 200);
-    const getDetails = (await getRes.json()) as any;
-    assert.equal(getDetails.creation.creationId, variation.creationId);
-    assert.ok(getDetails.lineage.length >= 2);
-
-    // 2e. Tenant Isolation — Foreign Tenant DENY
-    const foreignTenantRes = await fetch(`${origin}/api/v1/creations`, {
-      method: 'GET',
-      headers: {
-    'Content-Type': 'application/json',
-    ...authAs('ten_foreign_99', 'usr_foreign_99'),
-  },
-    });
+    // 2d. Tenant isolation: a foreign tenant sees none of it
+    const foreign = { 'Content-Type': 'application/json', ...authAs('ten_foreign_99', 'usr_foreign_99') };
+    const foreignTenantRes = await fetch(`${origin}/api/v1/creations`, { method: 'GET', headers: foreign });
     assert.equal(foreignTenantRes.status, 200);
-    const foreignListData = (await foreignTenantRes.json()) as any;
-    assert.equal(foreignListData.creations.length, 0);
-
-    const foreignGetRes = await fetch(`${origin}/api/v1/creations/${creation.creationId}`, {
-      method: 'GET',
-      headers: {
-    'Content-Type': 'application/json',
-    ...authAs('ten_foreign_99', 'usr_foreign_99'),
-  },
-    });
-    assert.equal(foreignGetRes.status, 404);
+    assert.equal(((await foreignTenantRes.json()) as any).creations.length, 0);
+    assert.equal((await fetch(`${origin}/api/v1/creations/cr_does_not_exist`, { method: 'GET', headers: foreign })).status, 404);
   });
 });
 

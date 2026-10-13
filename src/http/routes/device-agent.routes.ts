@@ -66,6 +66,10 @@ export interface DeviceAgentRouteDeps {
   kakaoAccessibilityApprovalService?: KakaoAccessibilityApprovalService;
 }
 
+function publicKeyFingerprint(publicKey: string): string {
+  return crypto.createHash('sha256').update(publicKey.trim()).digest('hex');
+}
+
 function authenticatedDeviceOwner(headers: Record<string, string | string[] | undefined>, sessionStore: SessionStore) {
   const sessionId = getSessionIdFromHeaders(headers);
   return sessionId ? sessionStore.getSession(sessionId) : null;
@@ -163,6 +167,31 @@ export const handleDeviceAgentRoutes: AsyncRouteRegistrar<DeviceAgentRouteDeps> 
     }
     const device = deviceIdentityStore.enroll({ tenantId, ownerId, publicKey, agentVersion, capabilityInventory });
     return { status: 201, data: device };
+  }
+
+  // Cached device-binding validation (the Android app asks on start-up whether its stored enrollment is still valid for the signed-in account): the answer is
+  // derived only from the verified session and the stored device record; it never discloses key material and fails closed for cross-owner / revoked / wrong key.
+  const validateMatch = pathname.match(/^\/api\/v1\/device-agent\/devices\/([^/]+)\/validate$/);
+  if (validateMatch && method === 'POST') {
+    const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+    const session = authenticatedDeviceOwner(headers, sessionStore);
+    if (!session) {
+      throw new NagexError({ code: 'DEVICE_VALIDATE_AUTH_REQUIRED', category: 'AUTHENTICATION', message: 'A valid authenticated session is required to validate a device binding.', request_id: requestId });
+    }
+    const pathDeviceId = decodeURIComponent(validateMatch[1]);
+    const bodyDeviceId = typeof body?.deviceId === 'string' ? body.deviceId : '';
+    const publicKey = typeof body?.publicKey === 'string' ? body.publicKey : '';
+    if (!bodyDeviceId || bodyDeviceId !== pathDeviceId || !publicKey.trim()) {
+      throw new NagexError({ code: 'DEVICE_VALIDATE_FIELDS_REQUIRED', category: 'VALIDATION', message: 'deviceId and publicKey are required.', request_id: requestId });
+    }
+    const device = deviceIdentityStore.getAny(pathDeviceId);
+    if (!device) {
+      throw new NagexError({ code: 'DEVICE_BINDING_NOT_FOUND', category: 'NOT_FOUND', message: 'Device binding was not found on this runtime.', request_id: requestId });
+    }
+    if (device.tenantId !== session.tenantId || device.ownerId !== session.principalId || device.status !== 'ACTIVE' || publicKeyFingerprint(device.publicKey) !== publicKeyFingerprint(publicKey)) {
+      throw new NagexError({ code: 'DEVICE_BINDING_NOT_AUTHORIZED', category: 'AUTHORIZATION', message: 'Device binding could not be validated for this session.', request_id: requestId });
+    }
+    return { status: 200, data: { deviceId: device.deviceId, status: device.status, tenantId: device.tenantId, ownerId: device.ownerId } };
   }
 
   if (pathname === '/api/v1/device-agent/accessibility-plans' && method === 'POST') {
@@ -337,6 +366,71 @@ export const handleDeviceAgentRoutes: AsyncRouteRegistrar<DeviceAgentRouteDeps> 
       steps: [{ action: 'KAKAOTALK_GOVERNED_SEND', expectedProviderDisplayName, conversationRef, messageHash }],
       requiresForeground: true,
       requiresUserPresence: true,
+    });
+    deviceCommandStatusStore?.markQueued({
+      commandId: command.commandId,
+      tenantId: session.tenantId,
+      ownerId: session.principalId,
+      deviceId,
+      executionId,
+    });
+    return { status: 202, data: { status: 'QUEUED', command } };
+  }
+
+  // JIT message PREPARATION: the device types and verifies the exact approved message in KakaoTalk but never presses send, so it needs no send approval and
+  // consumes none. Sending is a separate, approval-bound command (see approvals.routes.ts enqueueKakaoSendAfterApproval).
+  if (pathname === '/api/v1/device-agent/accessibility-prepare-message-plans' && method === 'POST') {
+    const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+    const session = authenticatedDeviceOwner(headers, sessionStore);
+    if (!session) {
+      throw new NagexError({ code: 'DEVICE_COMMAND_AUTH_REQUIRED', category: 'AUTHENTICATION', message: 'A valid authenticated session is required to enqueue an accessibility preparation plan.', request_id: requestId });
+    }
+    const { devicePendingCommandStore, deviceCommandStatusStore } = deps;
+    if (!devicePendingCommandStore) {
+      throw new NagexError({ code: 'DEVICE_COMMAND_SERVICE_UNAVAILABLE', category: 'INTERNAL', message: 'Device command queue is not configured.', request_id: requestId });
+    }
+    const deviceId = typeof body?.deviceId === 'string' ? body.deviceId : '';
+    const recipientRef = typeof body?.recipientRef === 'string' ? body.recipientRef : '';
+    const draftId = typeof body?.draftId === 'string' ? body.draftId : '';
+    const message = typeof body?.message === 'string' ? body.message : '';
+    const messageHash = typeof body?.messageHash === 'string' ? body.messageHash : '';
+    const conversationRef = typeof body?.conversationRef === 'string' ? body.conversationRef : '';
+    const provider = typeof body?.provider === 'string' ? body.provider : '';
+    const route = typeof body?.route === 'string' ? body.route : '';
+    const expectedProviderDisplayName = typeof body?.expectedProviderDisplayName === 'string' ? body.expectedProviderDisplayName : '';
+    const planId = typeof body?.planId === 'string' ? body.planId : `aplan_${crypto.randomUUID()}`;
+    if (!deviceId || !recipientRef || !draftId || !message || !messageHash || !conversationRef || !expectedProviderDisplayName.trim() || provider !== KAKAOTALK_PROVIDER || route !== ANDROID_ACCESSIBILITY_ROUTE) {
+      throw new NagexError({ code: 'ACCESSIBILITY_PREPARE_PLAN_FIELDS_REQUIRED', category: 'VALIDATION', message: 'draftId, deviceId, recipientRef, message, messageHash, provider, route, conversationRef, and expectedProviderDisplayName are required.', request_id: requestId });
+    }
+    if (buildKakaoAccessibilityMessageHash(message) !== messageHash) {
+      throw new NagexError({ code: 'ACCESSIBILITY_PREPARE_MESSAGE_HASH_MISMATCH', category: 'POLICY', message: 'Message hash does not match the exact message text.', request_id: requestId });
+    }
+    const device = deviceIdentityStore.getOwned(deviceId, session.tenantId, session.principalId);
+    if (!device || device.status !== 'ACTIVE') {
+      throw new NagexError({ code: 'DEVICE_NOT_FOUND', category: 'NOT_FOUND', message: 'Device was not found for this tenant/user.', request_id: requestId });
+    }
+    if (!device.capabilityInventory.includes('permission:ACCESSIBILITY_SERVICE:ENABLED')) {
+      throw new NagexError({ code: 'ACCESSIBILITY_NOT_ENABLED', category: 'POLICY', message: 'Accessibility permission is not enabled for this device.', request_id: requestId });
+    }
+    const executionId = `aplan_exec_${crypto.randomUUID()}`;
+    const command = devicePendingCommandStore.enqueue(deviceId, session.tenantId, session.principalId, 'ACCESSIBILITY_EXECUTE_PLAN', null, {
+      planId,
+      executionId,
+      packageName: 'com.kakao.talk',
+      targetPackage: 'com.kakao.talk',
+      provider,
+      route,
+      action: 'PREPARE_MESSAGE',
+      draftId,
+      recipientRef,
+      message,
+      messageHash,
+      conversationRef,
+      expectedProviderDisplayName,
+      steps: [{ action: 'KAKAOTALK_PREPARE_MESSAGE', expectedProviderDisplayName, conversationRef, messageHash }],
+      requiresForeground: true,
+      requiresUserPresence: true,
+      requiresSendApproval: false,
     });
     deviceCommandStatusStore?.markQueued({
       commandId: command.commandId,

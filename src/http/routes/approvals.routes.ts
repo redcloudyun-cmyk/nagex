@@ -32,6 +32,13 @@ import type { DevicePendingCommand } from '../../device-agent/device-agent-proto
 import type { MobileAccessibilityApprovalService } from '../../mobile/mobile-accessibility-approval.service.js';
 import { KAKAOTALK_ACCESSIBILITY_DRAFT_TOOL_ID } from '../../mobile/mobile-accessibility-approval.service.js';
 import {
+  ANDROID_ACCESSIBILITY_ROUTE,
+  KAKAOTALK_ACCESSIBILITY_SEND_TOOL_ID,
+  KAKAOTALK_PROVIDER,
+  SEND_KAKAO_DIRECT_MESSAGE_ACTION,
+  type KakaoAccessibilityApprovalService,
+} from '../../mobile/kakaotalk-accessibility-approval.service.js';
+import {
   GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID,
   GOOGLE_CALENDAR_UPDATE_EVENT_TOOL_ID,
   GOOGLE_CALENDAR_CANCEL_EVENT_TOOL_ID,
@@ -57,6 +64,7 @@ const TOOL_ID_ACTION_LABELS: Record<string, string> = {
   [GMAIL_REPLY_TOOL_ID]: 'Reply to Gmail message',
   [GMAIL_CREATE_DRAFT_TOOL_ID]: 'Create Gmail draft',
   [KAKAOTALK_ACCESSIBILITY_DRAFT_TOOL_ID]: 'Prepare KakaoTalk draft',
+  [KAKAOTALK_ACCESSIBILITY_SEND_TOOL_ID]: 'Send KakaoTalk message',
 };
 
 function humanActionLabelForToolId(toolId: string): string {
@@ -72,8 +80,8 @@ function resourceIdForRecord(record: ActionApprovalRecord): string {
 // Maps a real ActionApprovalRecord to the shape Home/Inbox/mobile already
 // render (id/approvalId/toolId/action/resource/status/timestamps) — no
 // frontend rendering change required, only the data source underneath it.
-function toApprovalSummary(record: ActionApprovalRecord): Record<string, unknown> {
-  return {
+function toApprovalSummary(record: ActionApprovalRecord, kakaoAccessibilityApprovalService?: KakaoAccessibilityApprovalService): Record<string, unknown> {
+  const summary: Record<string, unknown> = {
     id: record.approvalId,
     approvalId: record.approvalId,
     toolId: record.toolId,
@@ -83,6 +91,15 @@ function toApprovalSummary(record: ActionApprovalRecord): Record<string, unknown
     createdAt: record.createdAt,
     expiresAt: record.expiresAt,
   };
+  const kakaoDetails = kakaoAccessibilityApprovalService?.describeApprovalForHuman(record);
+  if (kakaoDetails) summary.kakaoAccessibility = kakaoDetails;
+  return summary;
+}
+
+function isKakaoConversationPayload(payload: unknown): boolean {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return false;
+  const candidate = payload as Record<string, unknown>;
+  return typeof candidate.draftId === 'string' && candidate.draftId.trim() !== '' && typeof candidate.conversationRef === 'string' && candidate.conversationRef.trim() !== '';
 }
 
 function executionThreadIdFor(record: ActionApprovalRecord): string {
@@ -95,49 +112,145 @@ function projectExecutionStatus(
   commands: DevicePendingCommand[],
   statuses: DeviceCommandStatusRecord[],
 ): Record<string, unknown> {
-  const command = commands.find((c) => c.data?.executionId === record.executionId) ?? null;
-  const status = (command ? statuses.find((s) => s.commandId === command.commandId) : null)
-    ?? (record.executionId ? statuses.find((s) => s.executionId === record.executionId) : null)
-    ?? null;
-  const stage = status?.stage ?? (command ? 'COMMAND_CREATED' : record.status === 'REJECTED' ? 'CANCELLED' : record.status);
-  const resultCode = status?.resultCode ?? null;
-  const targetVerified = resultCode === 'TARGET_VERIFIED';
-  const messageSentVerified = resultCode === 'SENT_VERIFIED';
-  const commandReportedCompleted = status?.stage === 'COMPLETED';
-  const commandFailed = status?.stage === 'FAILED';
-  const waitingForPrecondition = status?.stage === 'WAITING_FOR_PRECONDITION';
-  const terminalUnverifiedCompletion = commandReportedCompleted && !targetVerified && !messageSentVerified;
-
+  const command = commands.find((candidate) => {
+    const data = candidate.data as Record<string, unknown>;
+    return (record.executionId && data.executionId === record.executionId) || data.approvalId === record.approvalId;
+  });
+  const statusRecord = statuses.find((candidate) => (record.executionId && candidate.executionId === record.executionId) || candidate.commandId === command?.commandId);
+  const deviceBound = record.toolId === KAKAOTALK_ACCESSIBILITY_DRAFT_TOOL_ID || record.toolId === KAKAOTALK_ACCESSIBILITY_SEND_TOOL_ID;
+  const commandCreated = Boolean(command || (deviceBound && record.executionId));
+  const targetVerified = statusRecord?.stage === 'COMPLETED' && statusRecord.resultCode === 'TARGET_VERIFIED';
+  const messageSentVerified = statusRecord?.stage === 'COMPLETED' && statusRecord.resultCode === 'SENT_VERIFIED';
+  const verifiedOutcome = targetVerified || messageSentVerified;
+  const commandReportedCompleted = statusRecord?.stage === 'COMPLETED';
+  // One lifecycle for the user: the same approved card stays visible as "Working" while the command is created, delivered, claimed and executing,
+  // and only a device-reported verified outcome is shown as done. A bare "completed" report without verification is never shown as success.
+  const stage = statusRecord?.stage === 'DELIVERED'
+      ? 'DELIVERED'
+    : statusRecord?.stage === 'CLAIMED'
+      ? 'CLAIMED'
+      : statusRecord?.stage === 'WAITING_FOR_PRECONDITION'
+        ? 'WAITING_FOR_PRECONDITION'
+      : statusRecord?.stage === 'EXECUTING'
+        ? 'EXECUTING'
+        : statusRecord?.stage === 'COMPLETED'
+          ? messageSentVerified ? 'SENT_VERIFIED' : targetVerified ? 'TARGET_VERIFIED' : 'COMMAND_REPORTED_COMPLETED'
+          : statusRecord?.stage === 'FAILED'
+            ? 'FAILED'
+            : record.status === 'PENDING'
+              ? 'AWAITING_APPROVAL'
+              : record.status === 'REJECTED' || record.status === 'EXPIRED'
+                ? 'CANCELLED'
+                : commandCreated
+                  ? 'COMMAND_CREATED'
+                  : record.status === 'APPROVED'
+                    ? 'APPROVED'
+                    : record.status;
+  const blocker = statusRecord?.stage === 'FAILED'
+    ? (statusRecord.resultCode ?? 'Device command failed.')
+    : statusRecord?.stage === 'WAITING_FOR_PRECONDITION'
+      ? (statusRecord.resultCode ?? 'Waiting for the required app screen before executing.')
+      : commandReportedCompleted && !verifiedOutcome
+        ? 'COMPLETION_NOT_VERIFIED'
+        : statusRecord && statusRecord.stage !== 'COMPLETED'
+          ? null
+          : record.status === 'CONSUMED' && command
+            ? 'Command is queued and waiting for the Android device-agent to receive it.'
+            : record.status === 'APPROVED'
+              ? 'Approved action is waiting for command creation.'
+              : record.status === 'CONSUMED'
+                ? 'Approval was consumed; no verified completion evidence is available yet.'
+                : record.status === 'EXPIRED'
+                  ? 'Approval expired before execution completed.'
+                  : record.status === 'REJECTED'
+                    ? 'Approval was rejected.'
+                    : null;
   return {
-    stage: targetVerified || messageSentVerified ? resultCode : terminalUnverifiedCompletion ? 'COMMAND_REPORTED_COMPLETED' : stage,
-    commandId: command?.commandId ?? status?.commandId ?? null,
-    commandState: status?.stage ?? null,
-    commandCreated: Boolean(command),
-    delivered: Boolean(status?.deliveredAt),
-    claimed: Boolean(status?.claimedAt),
-    actionCompleted: targetVerified || messageSentVerified,
+    stage,
+    executionThreadId: executionThreadIdFor(record),
+    approvalState: record.status === 'PENDING' ? 'AWAITING_APPROVAL' : record.status,
+    commandId: command?.commandId ?? statusRecord?.commandId ?? null,
+    commandState: statusRecord?.stage ?? (command ? 'QUEUED' : commandCreated ? 'CREATED_NOT_OBSERVED_PENDING' : 'NOT_CREATED'),
+    commandCreated,
+    delivered: Boolean(statusRecord?.deliveredAt),
+    claimed: Boolean(statusRecord?.claimedAt),
+    executing: statusRecord?.stage === 'EXECUTING',
     commandReportedCompleted,
     targetVerified,
+    actionCompleted: verifiedOutcome,
+    verifiedOutcome,
     messageTyped: false,
+    readyToSend: false,
     sendExecuted: messageSentVerified,
     messageSentVerified,
-    verifiedOutcome: targetVerified || messageSentVerified,
-    verificationReason: targetVerified
-      ? 'R2H_IDENTITY_MATCH'
-      : messageSentVerified
-        ? 'POST_SEND_OUTCOME_VERIFIED'
-        : terminalUnverifiedCompletion
-          ? 'COMPLETION_NOT_VERIFIED'
-          : null,
-    resultCode,
-    executionThreadId: executionThreadIdFor(record),
-    failed: commandFailed,
-    waitingForPrecondition,
+    inFlight: isInFlightStage(stage),
+    resultCode: statusRecord?.resultCode ?? null,
+    failed: statusRecord?.stage === 'FAILED',
+    waitingForPrecondition: statusRecord?.stage === 'WAITING_FOR_PRECONDITION',
+    blocker,
+    verificationReason: commandReportedCompleted && !verifiedOutcome ? 'COMPLETION_NOT_VERIFIED' : (messageSentVerified ? 'POST_SEND_OUTCOME_VERIFIED' : targetVerified ? 'R2H_IDENTITY_MATCH' : null),
+    nextAction: blocker ? 'Resolve the blocker before treating this action as executed.' : null,
   };
 }
 
+// An approved SEND (never a draft) is queued for the device exactly once, and only from the approve route: the command carries the approval id and the
+// hash-bound recipient / conversation / message the human approved, and the device refuses a plan that does not match them.
+function enqueueKakaoSendAfterApproval(input: {
+  record: ActionApprovalRecord;
+  kakaoAccessibilityApprovalService?: KakaoAccessibilityApprovalService;
+  devicePendingCommandStore?: DevicePendingCommandStore;
+  deviceCommandStatusStore?: DeviceCommandStatusStore;
+  existingCommands: DevicePendingCommand[];
+}): DevicePendingCommand | null {
+  if (input.record.toolId !== KAKAOTALK_ACCESSIBILITY_SEND_TOOL_ID) return null;
+  if (input.record.status !== 'APPROVED') return null;
+  if (!input.kakaoAccessibilityApprovalService || !input.devicePendingCommandStore) return null;
+  const details = input.kakaoAccessibilityApprovalService.describeApprovalForHuman(input.record);
+  if (!details || !details.message) return null;
+  const existing = input.existingCommands.find((command) => {
+    const data = command.data as Record<string, unknown>;
+    return data.approvalId === input.record.approvalId || data.draftId === details.draftId;
+  });
+  if (existing) return existing;
+  const executionId = input.record.executionId ?? `kakao_exec_${Date.now()}`;
+  const command = input.devicePendingCommandStore.enqueue(details.deviceId, input.record.tenantId, input.record.principalId, 'ACCESSIBILITY_EXECUTE_PLAN', null, {
+    planId: `aplan_${input.record.approvalId}`,
+    executionId,
+    packageName: 'com.kakao.talk',
+    targetPackage: 'com.kakao.talk',
+    provider: KAKAOTALK_PROVIDER,
+    route: ANDROID_ACCESSIBILITY_ROUTE,
+    action: SEND_KAKAO_DIRECT_MESSAGE_ACTION,
+    draftId: details.draftId,
+    recipientRef: details.recipientRef,
+    approvalId: input.record.approvalId,
+    message: details.message,
+    messageHash: details.messageHash,
+    conversationRef: details.conversationRef,
+    expectedProviderDisplayName: details.expectedProviderDisplayName,
+    steps: [{ action: 'KAKAOTALK_GOVERNED_SEND', expectedProviderDisplayName: details.expectedProviderDisplayName, conversationRef: details.conversationRef, messageHash: details.messageHash }],
+    requiresForeground: true,
+    requiresUserPresence: true,
+  });
+  input.deviceCommandStatusStore?.markQueued({
+    commandId: command.commandId,
+    tenantId: input.record.tenantId,
+    ownerId: input.record.principalId,
+    deviceId: details.deviceId,
+    executionId,
+  });
+  return command;
+}
+
+// Work that is still moving: the same approved card stays visible as "Working" while the command is created, delivered, claimed and executing.
+function isInFlightStage(stage: unknown): boolean {
+  return stage === 'APPROVED' || stage === 'COMMAND_CREATED' || stage === 'DELIVERED' || stage === 'CLAIMED' || stage === 'WAITING_FOR_PRECONDITION' || stage === 'EXECUTING';
+}
+
 function isRecentExecution(record: ActionApprovalRecord, executionStatus: Record<string, unknown>): boolean {
+  if (isInFlightStage(executionStatus.stage)) return false;
   return record.status === 'REJECTED'
+    || executionStatus.stage === 'CANCELLED'
     || executionStatus.stage === 'FAILED'
     || executionStatus.stage === 'TARGET_VERIFIED'
     || executionStatus.stage === 'SENT_VERIFIED'
@@ -157,6 +270,7 @@ export interface ApprovalsRouteDeps {
   devicePendingCommandStore?: DevicePendingCommandStore;
   deviceCommandStatusStore?: DeviceCommandStatusStore;
   mobileAccessibilityApprovalService?: MobileAccessibilityApprovalService;
+  kakaoAccessibilityApprovalService?: KakaoAccessibilityApprovalService;
   auditLogger: AuditLogger;
   taskContinuationCoordinator: TaskContinuationCoordinator;
   tenantId: string;
@@ -165,7 +279,7 @@ export interface ApprovalsRouteDeps {
 }
 
 export const handleApprovalsRoutes: SyncRouteRegistrar<ApprovalsRouteDeps> = (method, pathname, body, _headers, _query, deps): ApiResult | undefined => {
-  const { googleCalendarService, gmailService, actionApprovals, devicePendingCommandStore, deviceCommandStatusStore, mobileAccessibilityApprovalService, taskContinuationCoordinator, tenantId, principal, modelErrorResult } = deps;
+  const { googleCalendarService, gmailService, actionApprovals, devicePendingCommandStore, deviceCommandStatusStore, mobileAccessibilityApprovalService, kakaoAccessibilityApprovalService, taskContinuationCoordinator, tenantId, principal, modelErrorResult } = deps;
 
   if (pathname === '/api/v1/approvals' && method === 'GET') {
     // Fail closed (R12.1 Increment 2.5 §8): a thrown error here must
@@ -181,7 +295,7 @@ export const handleApprovalsRoutes: SyncRouteRegistrar<ApprovalsRouteDeps> = (me
       const statuses = deviceCommandStatusStore?.listForOwner(tenantId, principal.id) ?? [];
       const reviewable = actionApprovals.listOwnedForReview(tenantId, principal.id, requestId);
       const projected: ApprovalSummary[] = reviewable.map((record) => ({
-        ...toApprovalSummary(record),
+        ...toApprovalSummary(record, kakaoAccessibilityApprovalService),
         approvalId: record.approvalId,
         status: record.status,
         executionStatus: projectExecutionStatus(record, commands, statuses),
@@ -233,6 +347,27 @@ export const handleApprovalsRoutes: SyncRouteRegistrar<ApprovalsRouteDeps> = (me
       }
       if (toolId === GMAIL_SEND_EMAIL_TOOL_ID || toolId === GMAIL_REPLY_TOOL_ID || toolId === GMAIL_CREATE_DRAFT_TOOL_ID) {
         const record = gmailService.requestApproval({ toolId, tenantId, principalId: principal.id, payload: body?.payload, requestId });
+        return { status: 201, data: record };
+      }
+      if (toolId === KAKAOTALK_ACCESSIBILITY_SEND_TOOL_ID || (toolId === KAKAOTALK_ACCESSIBILITY_DRAFT_TOOL_ID && isKakaoConversationPayload(body?.payload))) {
+        if (!kakaoAccessibilityApprovalService) {
+          throw new NagexError({ code: 'KAKAOTALK_APPROVAL_SERVICE_UNAVAILABLE', category: 'INTERNAL', message: 'KakaoTalk accessibility approval service is not configured.', request_id: requestId });
+        }
+        const payload = body?.payload as Record<string, unknown>;
+        const input = {
+          tenantId,
+          ownerId: principal.id,
+          draftId: typeof payload.draftId === 'string' ? payload.draftId : '',
+          deviceId: typeof payload.deviceId === 'string' ? payload.deviceId : '',
+          recipientRef: typeof payload.recipientRef === 'string' ? payload.recipientRef : '',
+          conversationRef: typeof payload.conversationRef === 'string' ? payload.conversationRef : '',
+          messageHash: typeof payload.messageHash === 'string' ? payload.messageHash : '',
+          expectedProviderDisplayName: typeof payload.expectedProviderDisplayName === 'string' ? payload.expectedProviderDisplayName : '',
+          requestId,
+        };
+        const record = toolId === KAKAOTALK_ACCESSIBILITY_SEND_TOOL_ID
+          ? kakaoAccessibilityApprovalService.requestSendApproval(input)
+          : kakaoAccessibilityApprovalService.requestDraftApproval(input);
         return { status: 201, data: record };
       }
       if (toolId === KAKAOTALK_ACCESSIBILITY_DRAFT_TOOL_ID) {
@@ -289,13 +424,15 @@ export const handleApprovalsRoutes: SyncRouteRegistrar<ApprovalsRouteDeps> = (me
     const requestId = `req_appr_${Date.now()}`;
     try {
       const existing = actionApprovals.get(apprId, tenantId, principal.id, requestId);
-      const record = existing?.toolId === KAKAOTALK_ACCESSIBILITY_DRAFT_TOOL_ID
+      const useGenericApprovalStore = existing?.toolId === KAKAOTALK_ACCESSIBILITY_DRAFT_TOOL_ID || existing?.toolId === KAKAOTALK_ACCESSIBILITY_SEND_TOOL_ID;
+      const record = useGenericApprovalStore
         ? (isApprove
             ? actionApprovals.approve(apprId, tenantId, principal.id, requestId)
             : actionApprovals.reject(apprId, tenantId, principal.id, requestId))
         : (isApprove
             ? googleCalendarService.approve(apprId, tenantId, principal.id, requestId)
             : googleCalendarService.reject(apprId, tenantId, principal.id, requestId));
+      if (isApprove) enqueueKakaoSendAfterApproval({ record, kakaoAccessibilityApprovalService, devicePendingCommandStore, deviceCommandStatusStore, existingCommands: devicePendingCommandStore?.listForOwner(tenantId, principal.id) ?? [] });
       // P02 — fire-and-forget: this route is synchronous and its response
       // must not change (still 200 with the approval record) whether or
       // not a Task continuation exists for this approvalId. A genuine
@@ -318,9 +455,12 @@ export const handleApprovalsRoutes: SyncRouteRegistrar<ApprovalsRouteDeps> = (me
     // removed in R12.1 Increment 2.5 (DEBT-0006 closure).
     const requestId = `req_appr_${Date.now()}`;
     try {
-      const record = action === 'APPROVE'
-        ? googleCalendarService.approve(apprId, tenantId, principal.id, requestId)
-        : googleCalendarService.reject(apprId, tenantId, principal.id, requestId);
+      const existing = actionApprovals.get(apprId, tenantId, principal.id, requestId);
+      const useGenericApprovalStore = existing?.toolId === KAKAOTALK_ACCESSIBILITY_DRAFT_TOOL_ID || existing?.toolId === KAKAOTALK_ACCESSIBILITY_SEND_TOOL_ID;
+      const record = useGenericApprovalStore
+        ? (action === 'APPROVE' ? actionApprovals.approve(apprId, tenantId, principal.id, requestId) : actionApprovals.reject(apprId, tenantId, principal.id, requestId))
+        : (action === 'APPROVE' ? googleCalendarService.approve(apprId, tenantId, principal.id, requestId) : googleCalendarService.reject(apprId, tenantId, principal.id, requestId));
+      if (action === 'APPROVE') enqueueKakaoSendAfterApproval({ record, kakaoAccessibilityApprovalService, devicePendingCommandStore, deviceCommandStatusStore, existingCommands: devicePendingCommandStore?.listForOwner(tenantId, principal.id) ?? [] });
       if (action === 'APPROVE') taskContinuationCoordinator.onApproved(apprId).catch(() => {});
       else taskContinuationCoordinator.onRejected(apprId);
       return { status: 200, data: record };

@@ -36,7 +36,7 @@ import { CreationStore } from '../src/creation/creation.store.js';
 import { CreationService } from '../src/creation/creation.service.js';
 import { handleCreationRoutes } from '../src/http/routes/creation.routes.js';
 import { SessionStore } from '../src/sessions/session.store.js';
-import { canonicalizeRequestHeaders, tryGetCallerIdentity } from '../src/http/request-identity.js';
+import { callerIdentity, canonicalizeRequestHeaders, tryGetCallerIdentity } from '../src/http/request-identity.js';
 import { IdentityStore } from '../src/identity/identity.store.js';
 import { ensureTestAccount } from './_s1_session_auth.js';
 
@@ -275,15 +275,12 @@ test('K. restart persistence: a fresh SessionStore/ImageStore pointed at the sam
 // image-specific fixtures already covered by tests A-K.
 // ---------------------------------------------------------------------
 
+// A retained legacy (placeholder) creation. The HTTP route no longer produces them (see test Q), so the record is seeded through the service for the
+// identity of the SAME session the route would have resolved - callerIdentity() still fails closed for a header-only caller.
 async function generateText(deps: ReturnType<typeof setup>, headers: Record<string, string>) {
-  return handleCreationRoutes(
-    'POST',
-    '/api/v1/creations/generate',
-    { prompt: 'Route identity consistency test (text)' },
-    canon(deps, headers),
-    {},
-    { creationService: deps.creationService, imageExecutor: deps.imageExecutor, imageStore: deps.imageStore, sessionStore: deps.sessionStore },
-  );
+  const { tenantId, principalId } = callerIdentity(canon(deps, headers));
+  const record = await deps.creationService.generateCreation({ tenantId, ownerId: principalId, prompt: 'Route identity consistency test (text)' });
+  return { status: 201, data: record } as { status: number; data: unknown };
 }
 
 async function list(deps: ReturnType<typeof setup>, headers: Record<string, string>) {
@@ -342,8 +339,9 @@ test('N. VARIATION (POST /api/v1/creations/:id/variation) uses session identity:
   const creationId = (created!.data as any).creationId as string;
 
   const rightful = await postVariation(deps, creationId, { cookie: cookieHeader(owner.sessionId) });
-  assert.equal(rightful!.status, 201);
-  assert.equal((rightful!.data as any).parentCreationId, creationId);
+  // the owner is recognized (a legacy placeholder is refused as not revisable - it is never "revised" into another mock), the intruder is told nothing
+  assert.equal(rightful!.status, 409);
+  assert.equal((rightful!.data as any).error, 'CREATION_NOT_REVISABLE');
 
   const denied = await postVariation(deps, creationId, { cookie: cookieHeader(intruder.sessionId) });
   assert.equal(denied!.status, 404);
@@ -365,7 +363,9 @@ test('O. spoofed identity headers cannot override a valid session on LIST, gener
   assert.equal(getRes!.status, 200, 'generic GET must still resolve as Alice, not the spoofed victim identity');
 
   const varRes = await postVariation(deps, creationId, spoofedHeaders);
-  assert.equal(varRes!.status, 201, 'VARIATION must still resolve as Alice, not the spoofed victim identity');
+  // identity is still Alice's (a record that is not hers would be 404); a legacy placeholder is refused as not revisable instead of being "revised" into another mock
+  assert.equal(varRes!.status, 409, 'VARIATION must still resolve as Alice, not the spoofed victim identity');
+  assert.equal((varRes!.data as any).error, 'CREATION_NOT_REVISABLE');
 });
 
 test('P. S1: header-only callers are refused on GENERATE, LIST, generic GET and VARIATION (no legacy compatibility)', async () => {
@@ -376,4 +376,18 @@ test('P. S1: header-only callers are refused on GENERATE, LIST, generic GET and 
   await assert.rejects(() => list(deps, headers), refused);
   await assert.rejects(() => getGeneric(deps, 'cr_anything', headers), refused);
   await assert.rejects(() => postVariation(deps, 'cr_anything', headers), refused);
+});
+
+test('Q. DEBT-0012: a body that does not say IMAGE is refused with a truthful unsupported state - no mock creation is answered, recorded or listed', async () => {
+  const deps = setup();
+  const owner = (ensureTestAccount('usr_q_owner', deps.identityStore), deps.sessionStore.createAuthSession('ten_q', 'usr_q_owner', 'MAIN'));
+  const headers = { cookie: cookieHeader(owner.sessionId) };
+  const refused = await handleCreationRoutes('POST', '/api/v1/creations/generate', { prompt: 'something' }, canon(deps, headers), {}, { creationService: deps.creationService, imageExecutor: deps.imageExecutor, imageStore: deps.imageStore, sessionStore: deps.sessionStore });
+  assert.equal(refused!.status, 400);
+  assert.deepEqual({ status: (refused!.data as any).status, error: (refused!.data as any).error }, { status: 'UNSUPPORTED', error: 'CREATION_KIND_UNSUPPORTED' });
+  assert.equal(JSON.stringify(refused!.data).includes('svg'), false, 'no mock artifact in the answer');
+  assert.equal((await list(deps, headers))!.status, 200);
+  assert.equal(((await list(deps, headers))!.data as any).creations.length, 0, 'nothing was recorded');
+  const stillRefused = await handleCreationRoutes('POST', '/api/v1/creations/generate', { prompt: 'x', type: 'VIDEO' }, canon(deps, headers), {}, { creationService: deps.creationService, imageExecutor: deps.imageExecutor, imageStore: deps.imageStore, sessionStore: deps.sessionStore });
+  assert.equal(stillRefused!.status, 400, 'an unsupported kind is refused too');
 });

@@ -11,6 +11,7 @@ const statusSource = () => fs.readFileSync('mobile-android/app/src/main/java/com
 const payloadSource = () => fs.readFileSync('mobile-android/app/src/main/java/com/nagex/mobile/DeviceAgentPayload.kt', 'utf8');
 const serviceSource = () => fs.readFileSync('mobile-android/app/src/main/java/com/nagex/mobile/NagexAccessibilityExecutionService.kt', 'utf8');
 const endpointSource = () => fs.readFileSync('src/device-agent/device-agent-transport-endpoint.service.ts', 'utf8');
+const pollingOwnerSource = () => fs.readFileSync('mobile-android/app/src/main/java/com/nagex/mobile/DeviceAgentPollingOwner.kt', 'utf8');
 
 function prepared() {
   const h = harness();
@@ -57,26 +58,34 @@ test('M4C-R2A selector hints are semantic and do not carry coordinates or execut
   assert.doesNotMatch(serialized, /"xpath"|"script"|"coordinate"/i);
 });
 
-test('M4C-R2A Android status screen receives pending ACCESSIBILITY_EXECUTE_PLAN from existing heartbeat transport', () => {
-  const source = statusSource();
-  assert.match(source, /DeviceAgentPayload\.heartbeat/);
-  assert.match(source, /pendingCommand/);
-  assert.match(source, /ACCESSIBILITY_EXECUTE_PLAN/);
-  assert.match(source, /AccessibilityExecutionPlanDispatcher/);
+test('M4C-R2A Android receives a pending ACCESSIBILITY_EXECUTE_PLAN from the existing heartbeat transport and hands it to the plan dispatcher', () => {
+  // The status screen still announces itself through the signed heartbeat; the pending command is received and dispatched by the polling owner that the
+  // accessibility service owns (the status screen no longer polls).
+  assert.match(statusSource(), /DeviceAgentPayload\.heartbeat/);
+  const owner = pollingOwnerSource();
+  assert.match(owner, /transport\.heartbeat\(\)/);
+  assert.match(owner, /optJSONObject\("pendingCommand"\)/);
+  assert.match(owner, /dispatcher\.dispatch\(command\)/);
+  assert.match(serviceSource(), /dispatcher = AccessibilityExecutionPlanDispatcher\(/);
+  assert.match(dispatcherSource(), /ACCESSIBILITY_EXECUTE_PLAN/);
 });
 
-test('M4C-R2A Android reports typed result through the existing signed device-agent message path', () => {
-  const source = payloadSource();
-  assert.match(source, /fun accessibilityPlanResult/);
-  assert.match(source, /\\"commandType\\":\\"ACCESSIBILITY_EXECUTE_PLAN\\"/);
-  assert.match(statusSource(), /DeviceAgentPayload\.accessibilityPlanResult/);
+test('M4C-R2A Android reports a typed result (stage + result code, never the approved text) through the existing signed device-agent message path', () => {
+  const payload = payloadSource();
+  assert.match(payload, /fun ack\(commandId: String, stage: String, resultCode: String\? = null\)/);
+  assert.match(payload, /\\"commandType\\":\\"ACK\\"/);
+  assert.doesNotMatch(payload.slice(payload.indexOf('fun ack(')), /approvedText/);
+  const owner = pollingOwnerSource();
+  assert.match(owner, /val finalStage = if \(result\.ok\) "COMPLETED" else "FAILED"/);
+  assert.match(owner, /transport\.ack\(commandId, finalStage, result\.reasonCode\)/);
 });
 
-test('M4C-R2A server accepts only safe accessibility result metadata and not approved text', () => {
+test('M4C-R2A server accepts only safe result metadata (a whitelisted stage and a result code) and never the approved text; a received plan is not completion', () => {
   const source = endpointSource();
-  assert.match(source, /ACCESSIBILITY_PLAN_RESULT_RECORDED/);
-  assert.match(source, /confirmationStrength/);
-  assert.doesNotMatch(source, /record\.approvedText/);
+  assert.match(source, /const normalizedStage = stage === 'WAITING_FOR_PRECONDITION' \|\| stage === 'EXECUTING' \|\| stage === 'COMPLETED' \|\| stage === 'FAILED' \? stage : 'CLAIMED'/);
+  assert.match(source, /this\.commandStatuses\.report\(commandId, device\.tenantId, device\.ownerId, device\.deviceId, normalizedStage, resultCode\)/);
+  assert.match(source, /ACCESSIBILITY_PLAN_NOT_COMPLETION/);
+  assert.doesNotMatch(source, /record\.approvedText|payload\.data\.approvedText|payload\.data\.message\b/);
 });
 
 const sourceChecks: Array<[string, () => string, RegExp, RegExp?]> = [
