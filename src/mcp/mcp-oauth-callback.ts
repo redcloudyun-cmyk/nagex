@@ -15,6 +15,8 @@ export interface McpOAuthCallbackDeps {
   // Must consult trusted discovery metadata pinned during authorization start.
   // This callback must NOT accept a token URL supplied by browser parameters.
   resolveTrustedTokenEndpoint: (pending: PendingMcpOAuth) => Promise<string>;
+  // Resolved exclusively from the operator-vetted provider registry; never from query params.
+  resolveRequestedScopes: (pending: PendingMcpOAuth) => string[];
   exchange?: typeof exchangeMcpOAuthCode;
 }
 
@@ -43,7 +45,14 @@ export async function completeMcpOAuthCallback(
   if (typeof query.code !== 'string' || !query.code || query.code.length > 4096) return invalid('CODE_INVALID');
   const endpoint = await deps.resolveTrustedTokenEndpoint(pending);
   // The actual token transport re-validates outbound endpoint DNS/SSRF.
+  const requestedScopes = deps.resolveRequestedScopes(pending);
+  if (!Array.isArray(requestedScopes) || requestedScopes.some((scope) => typeof scope !== 'string' || !scope)) return invalid('SCOPE_POLICY_INVALID');
   const tokens = await (deps.exchange ?? exchangeMcpOAuthCode)(pending, query.code, endpoint, requestId);
+  // Never store a token carrying an unexpected elevation. If scopes were
+  // requested, require an explicit provider-reported scope list; an omitted
+  // grant cannot be assumed to match the authorization request.
+  if ((requestedScopes.length > 0 && tokens.scope.length === 0) ||
+      tokens.scope.some((scope) => !requestedScopes.includes(scope))) return invalid('TOKEN_SCOPE_MISMATCH');
   const identity: McpOAuthCredentialIdentity = {
     tenantId: pending.owner.tenantId, principalId: pending.owner.principalId,
     resource: pending.resource, issuer: pending.issuer, clientId: pending.clientId,
