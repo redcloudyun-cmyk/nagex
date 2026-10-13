@@ -98,6 +98,14 @@ Default rules:
 
 Identity lifecycle, sessions, federation, provisioning, and RBAC remain separate implementation domains but must obey this canonical boundary.
 
+### 6.1 Account disable / delete / recovery
+
+- Disabling or deleting an account is a consequential change of the person's own data and always needs fresh proof of identity. NAgex adds no password authentication for it.
+- A local (legacy password) account confirms with its password. A Google or Microsoft account confirms with a session created by a provider sign-in within the last 5 minutes **and** its typed account email; an older session is refused with `REAUTH_REQUIRED` and nothing changes. Organization-managed accounts (OIDC / SAML / SCIM) are governed by their organization and are refused here.
+- Disabling or requesting deletion revokes every session of the account and is audited. Deletion has a 14-day grace period.
+- A provider sign-in on a disabled or deletion-pending account opens **no** session. It issues a single-use, 10-minute, state-bound token; reactivation or cancelling the deletion happens only when the person explicitly chooses it, and is audited. A deleted account cannot be recovered.
+- "Fresh" means a provider sign-in happened minutes ago; NAgex does not claim the provider forced a password re-entry.
+
 ## 7. Credential Broker / Vault
 
 Credentials are capability enablers, not permission.

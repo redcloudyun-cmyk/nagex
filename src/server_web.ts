@@ -426,7 +426,7 @@ export async function handleAsyncApiRequest(
     }
     // R13 Identity & Account Lifecycle routes
     {
-      const socialAuthResult = await handleSocialAuthRoutes(method, pathname, body, headers, query, { identityStore: customDeps?.identityStore ?? identityStore, socialIdentityStore: app.socialIdentityStore, sessionStore: customDeps?.sessionStore ?? sessionStore });
+      const socialAuthResult = await handleSocialAuthRoutes(method, pathname, body, headers, query, { identityStore: customDeps?.identityStore ?? identityStore, socialIdentityStore: app.socialIdentityStore, sessionStore: customDeps?.sessionStore ?? sessionStore, identityAuditStore: customDeps?.identityAuditStore ?? identityAuditStore });
       if (socialAuthResult) return socialAuthResult;
     }
     {

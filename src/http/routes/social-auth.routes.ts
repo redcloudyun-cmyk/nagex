@@ -4,10 +4,14 @@ import type { SocialIdentityStore, SocialProvider } from '../../identity/social-
 import type { SessionStore } from '../../sessions/session.store.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
 import { sessionCookieHeader } from '../session-cookie.js';
+import type { IdentityAuditStore } from '../../identity/identity.audit.js';
 
-interface Deps { identityStore: IdentityStore; socialIdentityStore: SocialIdentityStore; sessionStore: SessionStore }
+interface Deps { identityStore: IdentityStore; socialIdentityStore: SocialIdentityStore; sessionStore: SessionStore; identityAuditStore?: IdentityAuditStore }
 const pendingStates = new Map<string, { provider: SocialProvider; expiresAt: number }>();
 const pendingMigrations = new Map<string, { provider: SocialProvider; subject: string; email: string; userId: string; expiresAt: number; used: boolean }>();
+// A provider sign-in on a DISABLED or DELETION_PENDING account does not open a session. The provider has just proved who the person is, so it only issues this one-time,
+// short-lived token that lets them explicitly reactivate the account or cancel the pending deletion (or leave it as it is).
+const pendingRecoveries = new Map<string, { userId: string; state: 'DISABLED' | 'DELETION_PENDING'; expiresAt: number; used: boolean }>();
 const COOKIE = (id: string) => ({ 'Set-Cookie': sessionCookieHeader(id) });
 
 export function socialAuthProviderConfig(provider: SocialProvider, env: NodeJS.ProcessEnv = process.env): { clientId: string; clientSecret: string; redirectUri: string; authorize: string; token: string; scopes: string[] } | null {
@@ -71,6 +75,35 @@ export const handleSocialAuthRoutes: AsyncRouteRegistrar<Deps> = async (method, 
     deps.identityStore.updateLastLogin(migration.userId);
     return { status: 200, headers: COOKIE(session.sessionId), data: { status: 'SUCCESS', userId: migration.userId } };
   }
+  const recoveryMatch = pathname.match(/^\/api\/v1\/auth\/oauth\/recovery\/([^/]+)$/);
+  if (recoveryMatch && (method === 'GET' || method === 'POST')) {
+    const token = decodeURIComponent(recoveryMatch[1]);
+    const recovery = pendingRecoveries.get(token);
+    if (!recovery || recovery.used || recovery.expiresAt < Date.now()) {
+      if (recovery) pendingRecoveries.delete(token);
+      return { status: 410, data: { error: { code: 'ACCOUNT_RECOVERY_EXPIRED', message: 'This request expired. Sign in again.' } } };
+    }
+    const identity = deps.identityStore.getByUserId(recovery.userId);
+    if (!identity || identity.accountState !== recovery.state) {
+      pendingRecoveries.delete(token);
+      return { status: 409, data: { error: { code: 'ACCOUNT_RECOVERY_NOT_ELIGIBLE', message: 'The account changed. Sign in again.' } } };
+    }
+    if (method === 'GET') {
+      return { status: 200, data: { recovery: { state: recovery.state, email: identity.email, scheduledPurgeAt: identity.scheduledPurgeAt ?? null, expiresAt: new Date(recovery.expiresAt).toISOString() } } };
+    }
+    const action = typeof (_body as { action?: unknown } | null)?.action === 'string' ? String((_body as { action: string }).action) : '';
+    const expected = recovery.state === 'DISABLED' ? 'REACTIVATE' : 'CANCEL_DELETION';
+    if (action !== expected) {
+      return { status: 400, data: { error: { code: 'ACCOUNT_RECOVERY_ACTION_INVALID', message: `This account can only be recovered with ${expected}.` } } };
+    }
+    recovery.used = true;
+    pendingRecoveries.delete(token);
+    deps.identityStore.transitionState(identity.userId, 'ACTIVE');
+    deps.identityAuditStore?.recordEvent(identity.userId, recovery.state === 'DISABLED' ? 'account.reactivated' : 'account.deletion.cancelled', 'SUCCESS', { details: { method: 'PROVIDER_SIGN_IN' } });
+    const session = deps.sessionStore.createAuthSession(`ten_${identity.userId}`, identity.userId, 'MAIN');
+    deps.identityStore.updateLastLogin(identity.userId);
+    return { status: 200, headers: COOKIE(session.sessionId), data: { status: 'SUCCESS', accountState: 'ACTIVE' } };
+  }
   const match = pathname.match(/^\/api\/v1\/auth\/oauth\/(google|microsoft)\/(start|callback)$/);
   const isGet = method === 'GET';
   if (!match || !isGet) return undefined;
@@ -109,6 +142,12 @@ export const handleSocialAuthRoutes: AsyncRouteRegistrar<Deps> = async (method, 
     }
     identity = deps.identityStore.createSocialAccount(claims.email, provider).identity;
     deps.socialIdentityStore.create(provider, claims.sub, identity.userId);
+  }
+  if (identity.accountState === 'DELETED') return { status: 302, data: null, redirectTo: '/?auth=provider&status=account-deleted' };
+  if (identity.accountState === 'DISABLED' || identity.accountState === 'DELETION_PENDING') {
+    const recoveryToken = crypto.randomUUID();
+    pendingRecoveries.set(recoveryToken, { userId: identity.userId, state: identity.accountState, expiresAt: Date.now() + 10 * 60_000, used: false });
+    return { status: 302, data: null, redirectTo: `/?auth=provider&status=${identity.accountState === 'DISABLED' ? 'account-disabled' : 'deletion-pending'}&recovery=${encodeURIComponent(recoveryToken)}` };
   }
   const session = deps.sessionStore.createAuthSession(`ten_${identity.userId}`, identity.userId, 'MAIN');
   deps.identityStore.updateLastLogin(identity.userId);

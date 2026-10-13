@@ -84,7 +84,7 @@ describe('Desktop Settings certification', () => {
     await ctx.close();
   });
 
-  it('Account: Google/Microsoft accounts get no password-confirmed delete/disable controls that could never work', async () => {
+  it('Account: Google/Microsoft accounts get an in-page disable/delete confirmation instead of a password prompt that could never work', async () => {
     const { ctx, page } = await open('settings_account_oauth', 'en', '#home');
     await page.route('**/api/v1/auth/session', async (route) => {
       const response = await route.fetch();
@@ -96,9 +96,19 @@ describe('Desktop Settings certification', () => {
     await page.reload();
     await page.waitForSelector('#dk-acc-profile-name', { timeout: 15000 });
     assert.equal((await page.locator('#dk-acc-method').innerText()).trim(), 'Google');
-    assert.equal(await page.locator('#dk-btn-delete-account').count(), 0);
-    assert.equal(await page.locator('#dk-btn-disable-account').count(), 0);
-    assert.match(await page.locator('#dk-acc-lifecycle-note').innerText(), /not available in the app yet/);
+    // DEBT-0013: no password prompt that could never work; the controls open an in-page confirmation (fresh provider sign-in + typed email)
+    assert.equal(await page.locator('#dk-btn-delete-account').count(), 1);
+    assert.equal(await page.locator('#dk-btn-disable-account').count(), 1);
+    assert.match(await page.locator('#dk-acc-lifecycle-note').innerText(), /sign in with your provider again and type your account email/);
+    const browserPrompts: string[] = [];
+    const onDialog = (d: any) => { browserPrompts.push(d.message()); void d.dismiss(); };
+    page.on('dialog', onDialog);
+    await page.click('#dk-btn-disable-account');
+    await page.waitForSelector('#account-lifecycle-dialog[data-kind="disable"]');
+    assert.equal(await page.locator('#btn-lifecycle-confirm').isDisabled(), true);
+    await page.click('#btn-lifecycle-cancel');
+    page.off('dialog', onDialog);
+    assert.deepEqual(browserPrompts, [], 'no browser prompt opened for a provider account');
     // signing out of every device asks first, and declining sends nothing
     const requests: string[] = [];
     page.on('request', (r) => { if (r.url().includes('/api/v1/auth/logout-all')) requests.push(r.url()); });

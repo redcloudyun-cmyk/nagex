@@ -2,6 +2,7 @@
 import { NagexError } from '../../common/errors.js';
 import { AUTH_EMAIL_DELIVERY, devAuthTokenFields } from '../../identity/dev-auth-tokens.js';
 import type { IdentityStore } from '../../identity/identity.store.js';
+import type { IdentityRecord } from '../../identity/identity.types.js';
 import type { IdentityTokenStore } from '../../identity/identity.tokens.js';
 import type { IdentityAuditStore } from '../../identity/identity.audit.js';
 import type { SessionRecord, SessionStore } from '../../sessions/session.store.js';
@@ -19,6 +20,33 @@ export interface AccountRoutesDependencies {
   sessionStore: SessionStore;
   /** S2E — defaults to the process-wide guard; injectable so a test can use its own policy and clock. */
   authAbuseGuard?: AuthAbuseGuard;
+}
+
+// Re-authentication for the data-lifecycle actions (disable, delete). A password only exists for legacy local accounts. An account that signs in with Google or
+// Microsoft proves it is the same person by signing in with the provider AGAIN just now (its session was created by that sign-in within the window below) and by
+// typing its own email. Enterprise-managed accounts (OIDC / SAML / SCIM) are governed by their organization.
+export const FRESH_SIGN_IN_WINDOW_MS = 5 * 60_000;
+
+type LifecycleProof = { ok: true } | { ok: false; result: ApiResult };
+
+function confirmLifecycleAction(identity: IdentityRecord, session: SessionRecord, data: Record<string, unknown>): LifecycleProof {
+  const fail = (status: number, code: string, message: string, details?: Record<string, unknown>): LifecycleProof => ({ ok: false, result: { status, data: { error: { code, message, ...(details ? { details } : {}) } } } });
+  if (identity.authProvider === 'google' || identity.authProvider === 'microsoft') {
+    const signedInAt = Date.parse(session.createdAt);
+    if (!Number.isFinite(signedInAt) || Date.now() - signedInAt > FRESH_SIGN_IN_WINDOW_MS) {
+      return fail(403, 'REAUTH_REQUIRED', 'Sign in again to confirm this change.', { reauthPath: `/api/v1/auth/oauth/${identity.authProvider}/start`, windowSeconds: FRESH_SIGN_IN_WINDOW_MS / 1000 });
+    }
+    const typed = typeof data.confirmEmail === 'string' ? data.confirmEmail.trim().toLowerCase() : '';
+    if (typed !== identity.email.trim().toLowerCase()) return fail(400, 'CONFIRMATION_MISMATCH', 'Type your account email to confirm.');
+    return { ok: true };
+  }
+  if (identity.authProvider === 'local') {
+    const password = data.password;
+    if (!password || typeof password !== 'string') return fail(400, 'AUTH_INVALID_CREDENTIALS', 'Password confirmation is required.');
+    if (!verifyPassword(password, identity.passwordHash)) return fail(400, 'AUTH_INVALID_CREDENTIALS', 'Password confirmation failed.');
+    return { ok: true };
+  }
+  return fail(403, 'ACCOUNT_MANAGED_BY_ORGANIZATION', 'This account is managed by your organization.');
 }
 
 function requireAuth(headers: Record<string, string | string[] | undefined>, deps: AccountRoutesDependencies): { session: SessionRecord; userId: string; tenantId: string } | null {
@@ -235,16 +263,9 @@ export const handleAccountRoutes: AsyncRouteRegistrar<AccountRoutesDependencies>
       return { status: 401, data: { error: { code: 'UNAUTHORIZED', message: 'Authentication required.' } } };
     }
 
-    const data = body || {};
-    const { password } = data as Record<string, any>;
-    if (!password || typeof password !== 'string') {
-      return { status: 400, data: { error: { code: 'AUTH_INVALID_CREDENTIALS', message: 'Password confirmation is required.' } } };
-    }
-
     const identity = deps.identityStore.getByUserId(auth.userId)!;
-    if (!verifyPassword(password, identity.passwordHash)) {
-      return { status: 400, data: { error: { code: 'AUTH_INVALID_CREDENTIALS', message: 'Password confirmation failed.' } } };
-    }
+    const proof = confirmLifecycleAction(identity, auth.session, (body || {}) as Record<string, unknown>);
+    if (!proof.ok) return proof.result;
 
     deps.identityStore.transitionState(auth.userId, 'DISABLED');
     deps.sessionStore.revokeAllUserSessions(auth.tenantId, auth.userId);
@@ -292,16 +313,9 @@ export const handleAccountRoutes: AsyncRouteRegistrar<AccountRoutesDependencies>
       return { status: 401, data: { error: { code: 'UNAUTHORIZED', message: 'Authentication required.' } } };
     }
 
-    const data = body || {};
-    const { password } = data as Record<string, any>;
-    if (!password || typeof password !== 'string') {
-      return { status: 400, data: { error: { code: 'AUTH_INVALID_CREDENTIALS', message: 'Password confirmation is required.' } } };
-    }
-
     const identity = deps.identityStore.getByUserId(auth.userId)!;
-    if (!verifyPassword(password, identity.passwordHash)) {
-      return { status: 400, data: { error: { code: 'AUTH_INVALID_CREDENTIALS', message: 'Password confirmation failed.' } } };
-    }
+    const proof = confirmLifecycleAction(identity, auth.session, (body || {}) as Record<string, unknown>);
+    if (!proof.ok) return proof.result;
 
     const updated = deps.identityStore.transitionState(auth.userId, 'DELETION_PENDING');
     deps.sessionStore.revokeAllUserSessions(auth.tenantId, auth.userId);

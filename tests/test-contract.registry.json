@@ -1747,6 +1747,37 @@
       "assertionIntent": "observable behavior",
       "notes": "Observable deterministic product/service contract."
     },
+    "oauth_account_lifecycle": {
+      "milestone": "DEBT-0013",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "identity-access",
+        "runtime"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "A Google / Microsoft account (no password) disables or deletes itself only with a fresh provider sign-in plus its typed email (stale session -> REAUTH_REQUIRED, nothing changes, no password path); a provider sign-in on a disabled / deletion-pending account opens no session and issues a single-use, state-bound, expiring recovery token whose explicit action is audited; DELETED accounts cannot be recovered.",
+      "notes": "Provider token / userinfo HTTP is scripted in-process; no live provider is contacted. Local password accounts keep the password path."
+    },
+    "oauth_account_lifecycle_browser": {
+      "milestone": "DEBT-0013",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "identity-access"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Real-Chromium certification against the production server: the Settings dialog enables its confirm button only when the account email is typed, an old session is told to sign in again and the intent reopens the dialog for the same account only, a provider sign-in on a disabled / deletion-pending account shows an explicit recovery offer (EN and KR, no raw keys) and opens no session until chosen, and managed accounts get an honest note instead of controls.",
+      "notes": "Production server harness with provider credentials scrubbed; the Google token / userinfo endpoints are scripted in-process (no live provider). Screenshots are written only when NAGEX_CAPTURE_DIR is set.",
+      "writesRepositoryArtifacts": false
+    },
     "identity_real_browser": {
       "milestone": "Cross-cutting",
       "classification": "REAL_BROWSER_CERT",

@@ -224,6 +224,120 @@
     }
   }
 
+  // ── Disable / delete an account that signs in with Google or Microsoft ──
+  // The server requires a session created by a provider sign-in within the last few minutes plus the typed account email. When the session is older it answers
+  // REAUTH_REQUIRED; the person signs in again and this dialog reopens (remembered in sessionStorage for the same account only, for a few minutes).
+  const PENDING_LIFECYCLE_KEY = 'nagex.pendingAccountLifecycle';
+
+  function rememberLifecycleIntent(kind, email) {
+    try { sessionStorage.setItem(PENDING_LIFECYCLE_KEY, JSON.stringify({ kind, email, at: Date.now() })); } catch { /* storage unavailable: the person simply starts again */ }
+  }
+
+  function takeLifecycleIntent() {
+    try {
+      const raw = sessionStorage.getItem(PENDING_LIFECYCLE_KEY);
+      sessionStorage.removeItem(PENDING_LIFECYCLE_KEY);
+      const intent = raw ? JSON.parse(raw) : null;
+      return intent && (intent.kind === 'disable' || intent.kind === 'delete') && Date.now() - Number(intent.at) < 10 * 60000 ? intent : null;
+    } catch { return null; }
+  }
+
+  function showAccountLifecycleModal(kind) {
+    const user = currentUserState.user;
+    if (!user) return;
+    const provider = String(user.authProvider || '');
+    const providerLabel = provider === 'microsoft' ? 'Microsoft' : 'Google';
+    const isDelete = kind === 'delete';
+    const modal = ensureAuthModal();
+    const body = document.getElementById('auth-modal-body');
+    document.getElementById('auth-modal-title').textContent = isDelete ? t('account.lifecycle.deleteTitle', 'Delete your account?') : t('account.lifecycle.disableTitle', 'Disable your account?');
+    modal.hidden = false;
+    body.innerHTML = `
+      <div class="auth-provider-first" id="account-lifecycle-dialog" data-kind="${isDelete ? 'delete' : 'disable'}">
+        <p class="auth-info-text">${escapeHtml(isDelete
+          ? t('account.lifecycle.deleteBody', 'Your account and data will be scheduled for deletion in 14 days and every device will be signed out. Signing in again within 14 days lets you cancel the deletion.')
+          : t('account.lifecycle.disableBody', 'Your account will be turned off and every device will be signed out. Nothing is deleted, and you can turn it back on by signing in again.'))}</p>
+        <label class="auth-label" for="lifecycle-confirm-email">${escapeHtml(t('account.lifecycle.emailLabel', 'Type your account email to confirm'))}</label>
+        <input class="form-input" id="lifecycle-confirm-email" type="email" autocomplete="off" spellcheck="false" placeholder="${escapeHtml(user.email || '')}">
+        <button type="button" class="btn btn-primary" id="btn-lifecycle-confirm" disabled>${escapeHtml(isDelete ? t('account.lifecycle.confirmDelete', 'Delete account') : t('account.lifecycle.confirmDisable', 'Disable account'))}</button>
+        <button type="button" class="btn btn-secondary" id="btn-lifecycle-cancel">${escapeHtml(t('auth.cancel', 'Cancel'))}</button>
+        <div class="auth-msg-area" id="auth-msg-area" role="status"></div>
+      </div>`;
+    const input = document.getElementById('lifecycle-confirm-email');
+    const confirm = document.getElementById('btn-lifecycle-confirm');
+    const msgArea = document.getElementById('auth-msg-area');
+    const typedMatches = () => input.value.trim().toLowerCase() === String(user.email || '').trim().toLowerCase();
+    input.addEventListener('input', () => { confirm.disabled = !typedMatches(); });
+    document.getElementById('btn-lifecycle-cancel')?.addEventListener('click', hideAuthModal);
+    confirm.addEventListener('click', async () => {
+      if (!typedMatches()) return;
+      confirm.disabled = true;
+      const res = await window.NAGEX.apiFetch(isDelete ? '/api/v1/account/delete' : '/api/v1/account/disable', { method: 'POST', body: JSON.stringify({ confirmEmail: input.value.trim() }) });
+      if (res && res.error && res.error.code === 'REAUTH_REQUIRED') {
+        const path = (res.error.details && res.error.details.reauthPath) || `/api/v1/auth/oauth/${provider}/start`;
+        msgArea.innerHTML = `<p class="auth-info-text" role="alert">${escapeHtml(t('account.lifecycle.reauth', 'For your safety, sign in again to confirm this change.'))}</p>
+          <button type="button" class="btn btn-primary" id="btn-lifecycle-reauth">${escapeHtml(t('account.lifecycle.reauthButton', 'Sign in again'))} (${escapeHtml(providerLabel)})</button>`;
+        document.getElementById('btn-lifecycle-reauth')?.addEventListener('click', () => { rememberLifecycleIntent(kind, user.email); window.location.assign(path); });
+        return;
+      }
+      if (res && !res.error) {
+        body.innerHTML = `<div class="auth-provider-first"><p class="auth-info-text" role="status">${escapeHtml(isDelete
+          ? t('account.lifecycle.deletedDone', 'Deletion is scheduled. Sign in within 14 days if you change your mind.')
+          : t('account.lifecycle.disabledDone', 'Your account is disabled. Sign in again any time to turn it back on.'))}</p>
+          <button type="button" class="btn btn-secondary" id="btn-lifecycle-close">${escapeHtml(t('account.lifecycle.close', 'Close'))}</button></div>`;
+        document.getElementById('btn-lifecycle-close')?.addEventListener('click', hideAuthModal);
+        await checkSession();
+        renderAccountSettings();
+        return;
+      }
+      confirm.disabled = !typedMatches();
+      msgArea.innerHTML = `<p class="form-error" role="alert">${escapeHtml((res && res.error && res.error.message) || t('account.lifecycle.failed', 'That could not be completed. Please try again.'))}</p>`;
+    });
+    input.focus();
+  }
+
+  // ── A provider sign-in on a disabled / deletion-pending account: no session is opened; the person chooses explicitly ──
+  async function showAccountRecoveryModal(token) {
+    const modal = ensureAuthModal();
+    const body = document.getElementById('auth-modal-body');
+    const title = document.getElementById('auth-modal-title');
+    modal.hidden = false;
+    title.textContent = t('auth.recoveryLoading', 'Checking your account...');
+    body.innerHTML = '';
+    const info = await window.NAGEX.apiFetch(`/api/v1/auth/oauth/recovery/${encodeURIComponent(token)}`);
+    const recovery = info && info.recovery;
+    if (!recovery) {
+      title.textContent = t('auth.signIn', 'Sign In');
+      body.innerHTML = `<p class="form-error" role="alert">${escapeHtml(t('auth.recoveryExpired', 'This request expired. Please sign in again.'))}</p>`;
+      return;
+    }
+    const pending = recovery.state === 'DELETION_PENDING';
+    title.textContent = pending ? t('auth.recoveryTitlePending', 'Your account is scheduled for deletion') : t('auth.recoveryTitleDisabled', 'Your account is disabled');
+    body.innerHTML = `
+      <div class="auth-provider-first" id="account-recovery-dialog" data-state="${escapeHtml(recovery.state)}">
+        <p class="auth-info-text">${escapeHtml(pending
+          ? t('auth.recoveryBodyPending', 'This account is scheduled for deletion. Do you want to cancel the deletion and keep it?')
+          : t('auth.recoveryBodyDisabled', 'Do you want to turn this account back on?'))}</p>
+        <p class="auth-info-text"><strong>${escapeHtml(recovery.email || '')}</strong></p>
+        <button type="button" class="btn btn-primary" id="btn-account-recover">${escapeHtml(pending ? t('auth.recoveryCancelDeletion', 'Cancel deletion and keep my account') : t('auth.recoveryReactivate', 'Turn account back on'))}</button>
+        <button type="button" class="btn btn-secondary" id="btn-account-recover-leave">${escapeHtml(t('auth.recoveryLeave', 'Leave it as it is'))}</button>
+        <div class="auth-msg-area" id="auth-msg-area" role="status"></div>
+      </div>`;
+    document.getElementById('btn-account-recover-leave')?.addEventListener('click', hideAuthModal);
+    document.getElementById('btn-account-recover')?.addEventListener('click', async () => {
+      const done = await window.NAGEX.apiFetch(`/api/v1/auth/oauth/recovery/${encodeURIComponent(token)}`, { method: 'POST', body: JSON.stringify({ action: pending ? 'CANCEL_DELETION' : 'REACTIVATE' }) });
+      if (done && !done.error) {
+        await checkSession();
+        hideAuthModal();
+        renderAccountSettings();
+        if (window.NAGEX.renderMobileSettings) window.NAGEX.renderMobileSettings();
+        return;
+      }
+      const msgArea = document.getElementById('auth-msg-area');
+      if (msgArea) msgArea.innerHTML = `<p class="form-error" role="alert">${escapeHtml(t('auth.recoveryExpired', 'This request expired. Please sign in again.'))}</p>`;
+    });
+  }
+
   function hideAuthModal() {
     const modal = document.getElementById('auth-modal');
     if (modal) modal.hidden = true;
@@ -272,6 +386,9 @@
     // so those controls could never succeed. They are only offered where they can work.
     const provider = String(user.authProvider || '');
     const passwordLifecycle = provider === 'local';
+    // Google / Microsoft accounts confirm with a fresh provider sign-in + their typed email (no password exists); other providers are managed by their organization.
+    const providerLifecycle = provider === 'google' || provider === 'microsoft';
+    const lifecycleControls = passwordLifecycle || providerLifecycle;
     const methodLabel = provider ? t('account.method.' + provider, provider) : '';
     let sessionsHtml = `<div class="nagex-loading-row">${escapeHtml(t('account.loadingSessions', 'Loading active sessions...'))}</div>`;
 
@@ -321,8 +438,8 @@
         <!-- Danger Zone -->
         <h4 class="mh-settings-subheading mh-subheading-danger">${escapeHtml(t('account.dangerZone', 'Danger Zone'))}</h4>
         <div class="mh-settings-danger-card">
-          ${passwordLifecycle ? '' : `<div class="mh-settings-row"><div class="mh-settings-row-body"><span class="mh-row-detail" id="${idp}acc-lifecycle-note">${escapeHtml(t('account.oauthLifecycleNote', 'Disabling or deleting an account that signs in with Google or Microsoft is not available in the app yet.'))}</span></div></div>`}
-          ${passwordLifecycle ? `<div class="mh-settings-row">
+          ${passwordLifecycle ? '' : `<div class="mh-settings-row"><div class="mh-settings-row-body"><span class="mh-row-detail" id="${idp}acc-lifecycle-note">${providerLifecycle ? escapeHtml(t('account.oauthLifecycleNote', 'To disable or delete this account, you sign in with your provider again and type your account email.')) : escapeHtml(t('account.managedLifecycleNote', 'This account is managed by your organization. Ask your administrator to disable or remove it.'))}</span></div></div>`}
+          ${lifecycleControls ? `<div class="mh-settings-row">
             <div class="mh-settings-row-body">
               <span class="mh-settings-row-title">${escapeHtml(t('account.disableAccount', 'Disable Account'))}</span>
               <span class="mh-row-detail">${escapeHtml(t('account.disableAccountDesc', 'Temporarily disable your account.'))}</span>
@@ -335,7 +452,7 @@
               <span class="mh-row-detail">${escapeHtml(t('account.deleteAccountDesc', 'Request account & data deletion (14-day grace period).'))}</span>
             </div>
             ${user.accountState === 'DELETION_PENDING'
-              ? `<button class="mh-settings-action-btn" id="${idp}btn-cancel-delete">${escapeHtml(t('account.cancelDeletion', 'Cancel Deletion'))}</button>`
+              ? (passwordLifecycle ? `<button class="mh-settings-action-btn" id="${idp}btn-cancel-delete">${escapeHtml(t('account.cancelDeletion', 'Cancel Deletion'))}</button>` : `<span class="mh-row-detail">${escapeHtml(t('account.lifecycle.deletedDone', 'Deletion is scheduled. Sign in within 14 days if you change your mind.'))}</span>`)
               : `<button class="mh-settings-action-btn mh-btn-danger" id="${idp}btn-delete-account">${escapeHtml(t('account.deleteAccount', 'Delete'))}</button>`
             }
           </div>` : ''}
@@ -376,6 +493,7 @@
 
     // Bind disable account with password confirmation dialog
     document.getElementById(idp + 'btn-disable-account')?.addEventListener('click', async () => {
+      if (providerLifecycle) { showAccountLifecycleModal('disable'); return; }
       const password = prompt(t('account.disablePrompt', 'Enter your password to confirm disabling your account:'));
       if (!password) return;
       const res = await window.NAGEX.apiFetch('/api/v1/account/disable', {
@@ -393,6 +511,7 @@
 
     // Bind delete account with password confirmation dialog
     document.getElementById(idp + 'btn-delete-account')?.addEventListener('click', async () => {
+      if (providerLifecycle) { showAccountLifecycleModal('delete'); return; }
       const password = prompt(t('account.deletePrompt', 'CONFIRMATION REQUIRED: Enter your password to request account deletion (14-day grace period):'));
       if (!password) return;
       const res = await window.NAGEX.apiFetch('/api/v1/account/delete', {
@@ -455,12 +574,23 @@
 
   // Initialize header pill click handlers
   document.addEventListener('DOMContentLoaded', () => {
-    checkSession();
+    checkSession().then(() => {
+      // returning from "Sign in again" for a disable / delete: reopen that confirmation for the same signed-in account
+      const intent = takeLifecycleIntent();
+      const user = currentUserState.user;
+      if (intent && currentUserState.authenticated && user && String(user.email || '').toLowerCase() === String(intent.email || '').toLowerCase()) showAccountLifecycleModal(intent.kind);
+    });
 
     const authParams = new URLSearchParams(window.location.search);
     if (authParams.get('auth') === 'provider') {
       const status = authParams.get('status');
       const migration = authParams.get('migration');
+      const recoveryToken = authParams.get('recovery');
+      if ((status === 'account-disabled' || status === 'deletion-pending') && recoveryToken) {
+        showAccountRecoveryModal(recoveryToken);
+        window.history.replaceState({}, '', window.location.pathname + window.location.hash);
+        return;
+      }
       if (status === 'migration-required' && migration) {
         showLegacyMigrationModal(migration);
         window.history.replaceState({}, '', window.location.pathname + window.location.hash);
@@ -469,7 +599,9 @@
       showAuthModal('signin').then(() => {
         const msgArea = document.getElementById('auth-msg-area');
         if (!msgArea) return;
-        const message = status === 'link-required'
+        const message = status === 'account-deleted'
+          ? t('auth.accountDeleted', 'This account was deleted and cannot be signed in to.')
+          : status === 'link-required'
           ? t('auth.linkRequired', 'That email is already in use and cannot be linked automatically.')
           : status === 'unavailable'
             ? t('auth.providerUnavailable', 'That sign-in option is not available on this runtime.')

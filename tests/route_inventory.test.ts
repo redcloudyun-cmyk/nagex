@@ -104,7 +104,7 @@ const EXPECTED_ROUTE_MODULE_COUNTS: Record<string, number> = {
   'safety.routes.ts': 3,
   'settings.routes.ts': 10, // account, locale, Proactive Assistant, Quick Wake and Autonomy settings
   'slack.routes.ts': 7,
-  'social-auth.routes.ts': 5, // Google / GitHub OAuth start + callback + sign-in routes
+  'social-auth.routes.ts': 8, // Google / Microsoft OAuth start + callback + providers, legacy migration confirmation, and the one-time account recovery token (DEBT-0013)
   'tasks.routes.ts': 11,
   'telegram.routes.ts': 7,
   'vault.routes.ts': 4,
@@ -131,10 +131,10 @@ test('ROUTE-INV-002: every route module\'s method-check-block count exactly matc
   assert.deepEqual(mismatches, [], `Route module endpoint-count drift detected:\n${mismatches.join('\n')}`);
 });
 
-test('ROUTE-INV-003: the total domain endpoint count across all route modules is exactly 344 — any change requires an intentional manifest update', () => {
+test('ROUTE-INV-003: the total domain endpoint count across all route modules is exactly 347 — any change requires an intentional manifest update', () => {
   // R23.7C-C — +1: GET /api/v1/creations/images/:imageId, the canonical
   // image-serving route fixing the BROKEN_SUCCESS_CONTRACT root cause.
-  assert.equal(TOTAL_DOMAIN_ENDPOINTS, 344);
+  assert.equal(TOTAL_DOMAIN_ENDPOINTS, 347);
   let actualTotal = 0;
   for (const file of listRouteModuleFiles()) {
     actualTotal += countMethodChecks(readSourceWithoutComments(path.join(ROUTES_DIR, file)));
