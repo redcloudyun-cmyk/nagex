@@ -56,7 +56,13 @@ describe('MCP OAuth canonical HTTP router end-to-end with isolated trusted coord
     assert.equal(callback.status, 200, JSON.stringify(callback.data));
     assert.deepEqual(callback.data, { status: 'CREDENTIAL_STORED', resource });
     assert.equal(h.getExchanges(), 1);
-    assert.equal(h.vault.load({ tenantId: 'tenant-mcp-http', principalId: 'owner-mcp-http', resource, issuer, clientId })?.tokens.accessToken, 'secret-access');
+    const expectedIdentity = { tenantId: 'tenant-mcp-http', principalId: 'owner-mcp-http', resource, issuer, clientId };
+    const snapshot = h.vault.sealedSnapshot();
+    assert.equal(snapshot.length, 1, 'callback must store exactly one encrypted record in the injected vault');
+    assert.deepEqual(snapshot[0].identity, expectedIdentity, 'credential owner must match the authenticated session tenant/principal and pinned MCP resource');
+    const stored = h.vault.load(expectedIdentity);
+    assert.ok(stored, 'owner must be able to retrieve their own encrypted credential');
+    assert.equal(stored.tokens.accessToken, 'secret-access');
     assert.doesNotMatch(JSON.stringify(h.vault.sealedSnapshot()), /secret-access/);
     const replay = await h.call('GET', '/api/v1/oauth/mcp/callback', null, owner, { state, code: 'provider-code' });
     assert.equal(replay.status, 400);
