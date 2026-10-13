@@ -42,13 +42,52 @@ function rels(items: Array<{ id: string; type: string; target: string }>): strin
 
 const lang = (locale: 'en' | 'ko') => (locale === 'ko' ? 'ko-KR' : 'en-US');
 
-function titleShape(id: number, name: string, text: string, locale: 'en' | 'ko', phType: 'title' | 'ctrTitle'): string {
-  return `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${name}"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr><p:ph type="${phType}"/></p:nvPr></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr><a:normAutofit/></a:bodyPr><a:lstStyle/><a:p><a:r><a:rPr lang="${lang(locale)}" dirty="0"/><a:t>${xmlText(text)}</a:t></a:r></a:p></p:txBody></p:sp>`;
+// ── text fitting ───────────────────────────────────────────────────────────────────────────────────────────────────────────
+// Width of one character in units of the font size: full-width (Hangul, CJK, emoji) ~1.0, other characters ~0.55, a space ~0.3.
+function textUnits(text: string): number {
+  let units = 0;
+  for (const ch of text) {
+    const c = ch.codePointAt(0) ?? 0;
+    const wide = (c >= 0x1100 && c <= 0x11ff) || (c >= 0x2e80 && c <= 0xd7ff) || (c >= 0xf900 && c <= 0xfaff) || (c >= 0xff00 && c <= 0xffef) || c >= 0x1f300;
+    units += wide ? 1 : c === 32 ? 0.3 : 0.55;
+  }
+  return units;
+}
+const wrappedLines = (text: string, sizePt: number, widthPt: number): number => Math.max(1, Math.ceil((textUnits(text) * sizePt) / widthPt));
+
+// usable text widths / heights in points (placeholder size minus insets and bullet indent) of the master and layouts below
+const TITLE_WIDTH_PT = 813;
+const COVER_WIDTH_PT = 706;
+const BODY_WIDTH_PT = 786;
+const BODY_HEIGHT_PT = 332;
+const SUBTITLE_HEIGHT_PT = 122;
+
+// Largest title size (pt) at which the title fits `maxLines` lines; null = the master default fits.
+function fitTitleSize(text: string, widthPt: number, maxLines: number, defaultPt = 40): number | null {
+  for (let size = defaultPt; size >= 20; size -= 2) if (wrappedLines(text, size, widthPt) <= maxLines) return size === defaultPt ? null : size;
+  return 20;
 }
 
-function bodyShape(id: number, name: string, paragraphs: string[], locale: 'en' | 'ko', ph: string): string {
+// Largest body size (pt) at which every paragraph fits the content area; null = the master default fits.
+function fitBodySize(paragraphs: string[], widthPt: number, heightPt: number, defaultPt = 24): number | null {
+  for (let size = defaultPt; size >= 14; size -= 2) {
+    const lines = paragraphs.reduce((sum, text) => sum + wrappedLines(text, size, widthPt), 0);
+    if (lines * size * 1.2 + paragraphs.length * 8 <= heightPt) return size === defaultPt ? null : size;
+  }
+  return 14;
+}
+
+const sizeAttr = (sizePt: number | null) => (sizePt === null ? '' : ` sz="${sizePt * 100}"`);
+
+function titleShape(id: number, name: string, text: string, locale: 'en' | 'ko', phType: 'title' | 'ctrTitle'): string {
+  const size = phType === 'ctrTitle' ? fitTitleSize(text, COVER_WIDTH_PT, 4) : fitTitleSize(text, TITLE_WIDTH_PT, 2);
+  return `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${name}"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr><p:ph type="${phType}"/></p:nvPr></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr><a:normAutofit/></a:bodyPr><a:lstStyle/><a:p><a:r><a:rPr lang="${lang(locale)}"${sizeAttr(size)} dirty="0"/><a:t>${xmlText(text)}</a:t></a:r></a:p></p:txBody></p:sp>`;
+}
+
+function bodyShape(id: number, name: string, paragraphs: string[], locale: 'en' | 'ko', ph: string, isSubtitle = false): string {
+  const size = isSubtitle ? fitBodySize(paragraphs, COVER_WIDTH_PT, SUBTITLE_HEIGHT_PT) : fitBodySize(paragraphs, BODY_WIDTH_PT, BODY_HEIGHT_PT);
   const body = paragraphs.length
-    ? paragraphs.map((text) => `<a:p><a:r><a:rPr lang="${lang(locale)}" dirty="0"/><a:t>${xmlText(text)}</a:t></a:r></a:p>`).join('')
+    ? paragraphs.map((text) => `<a:p><a:r><a:rPr lang="${lang(locale)}"${sizeAttr(size)} dirty="0"/><a:t>${xmlText(text)}</a:t></a:r></a:p>`).join('')
     : `<a:p><a:endParaRPr lang="${lang(locale)}" dirty="0"/></a:p>`;
   return `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${name}"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr>${ph}</p:nvPr></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr><a:normAutofit/></a:bodyPr><a:lstStyle/>${body}</p:txBody></p:sp>`;
 }
@@ -59,8 +98,8 @@ function slideXml(shapes: string): string {
   return `${XML_HEAD}<p:sld xmlns:a="${NS_A}" xmlns:r="${NS_R}" xmlns:p="${NS_P}"><p:cSld><p:spTree>${GROUP_HEAD}${shapes}</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>`;
 }
 
-function placeholder(id: number, name: string, ph: string, x: number, y: number, cx: number, cy: number, extraBody = '', prompt = ''): string {
-  return `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${name}"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr>${ph}</p:nvPr></p:nvSpPr><p:spPr><a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm></p:spPr><p:txBody><a:bodyPr${extraBody}><a:normAutofit/></a:bodyPr><a:lstStyle/><a:p><a:r><a:rPr lang="en-US"/><a:t>${prompt}</a:t></a:r></a:p></p:txBody></p:sp>`;
+function placeholder(id: number, name: string, ph: string, x: number, y: number, cx: number, cy: number, extraBody = '', prompt = '', lstStyle = '<a:lstStyle/>'): string {
+  return `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${name}"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr>${ph}</p:nvPr></p:nvSpPr><p:spPr><a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm></p:spPr><p:txBody><a:bodyPr${extraBody}><a:normAutofit/></a:bodyPr>${lstStyle}<a:p><a:r><a:rPr lang="en-US"/><a:t>${prompt}</a:t></a:r></a:p></p:txBody></p:sp>`;
 }
 
 const LEVEL = (n: number, size: number, indent: number, bullet: boolean) =>
@@ -74,7 +113,7 @@ function masterXml(): string {
 
 function layoutTitleXml(): string {
   const title = placeholder(2, 'Title 1', '<p:ph type="ctrTitle"/>', 1524000, 1122363, 9144000, 2387600, ' anchor="b"', 'Click to edit Master title style');
-  const sub = placeholder(3, 'Subtitle 2', '<p:ph type="subTitle" idx="1"/>', 1524000, 3602038, 9144000, 1655762, '', 'Click to edit Master subtitle style');
+  const sub = placeholder(3, 'Subtitle 2', '<p:ph type="subTitle" idx="1"/>', 1524000, 3602038, 9144000, 1655762, '', 'Click to edit Master subtitle style', '<a:lstStyle><a:lvl1pPr marL="0" indent="0" algn="l"><a:buNone/><a:defRPr sz="2400"/></a:lvl1pPr></a:lstStyle>');
   return `${XML_HEAD}<p:sldLayout xmlns:a="${NS_A}" xmlns:r="${NS_R}" xmlns:p="${NS_P}" type="title" preserve="1"><p:cSld name="Title Slide"><p:spTree>${GROUP_HEAD}${title}${sub}</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sldLayout>`;
 }
 
@@ -92,7 +131,7 @@ function themeXml(): string {
 
 export function buildPptx(deck: DeckOutline, now: Date = new Date()): Buffer {
   const slides: string[] = [];
-  slides.push(slideXml(titleShape(2, 'Title 1', deck.title, deck.locale, 'ctrTitle') + bodyShape(3, 'Subtitle 2', deck.subtitle ? [deck.subtitle] : [], deck.locale, '<p:ph type="subTitle" idx="1"/>')));
+  slides.push(slideXml(titleShape(2, 'Title 1', deck.title, deck.locale, 'ctrTitle') + bodyShape(3, 'Subtitle 2', deck.subtitle ? [deck.subtitle] : [], deck.locale, '<p:ph type="subTitle" idx="1"/>', true)));
   for (const slide of deck.slides) {
     slides.push(slideXml(titleShape(2, 'Title 1', slide.title, deck.locale, 'title') + bodyShape(3, 'Content Placeholder 2', slide.bullets, deck.locale, '<p:ph idx="1"/>')));
   }

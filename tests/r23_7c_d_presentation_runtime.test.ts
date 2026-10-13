@@ -286,3 +286,26 @@ test('F2. download names are header-safe and readable', () => {
   assert.equal(downloadFileName('3분기 계획'), '3분기 계획.pptx');
   assert.ok(downloadFileName('x'.repeat(300)).length <= 85);
 });
+
+// Found by opening a generated deck in Microsoft PowerPoint 16 and exporting its slides (docs/evidence/pptx-render-20261013): the cover subtitle showed a bullet, and a
+// long title wrapped to three lines over its bullets. PowerPoint only applies <a:normAutofit/> when text is edited, so the writer chooses the size itself.
+test('G. rendering: no bullet on the cover subtitle; long titles and bullets get a smaller size that fits; short text keeps the master size', () => {
+  const part = (zip: Buffer, name: string): string => readZip(zip).find((entry) => entry.name === name)!.data.toString('utf8');
+  const short = buildPptx({ title: 'Quarterly review', subtitle: 'Strategy', locale: 'en', slides: [{ title: 'Summary', bullets: ['One', 'Two', 'Three'] }] });
+  assert.equal(/ sz="/.test(part(short, 'ppt/slides/slide1.xml')), false, 'a short cover keeps the master sizes');
+  assert.equal(/ sz="/.test(part(short, 'ppt/slides/slide2.xml')), false, 'a short slide keeps the master sizes');
+  assert.match(part(short, 'ppt/slideLayouts/slideLayout1.xml'), /<a:lvl1pPr marL="0" indent="0" algn="l"><a:buNone\/>/, 'the subtitle placeholder of the cover layout has no bullet');
+
+  const longKo = '긴 제목 테스트: 이 제목은 두 줄 이상으로 길어질 수 있도록 일부러 아주 길게 작성했습니다 (long title wrapping check)';
+  const longBullet = '아주 긴 글머리표 문장도 슬라이드 안에서 줄바꿈되어야 하며 영역 밖으로 넘치면 안 됩니다. A very long bullet sentence must wrap inside the slide and must not overflow outside the content area.';
+  const long = buildPptx({ title: 'Cover', locale: 'ko', slides: [{ title: longKo, bullets: [longBullet, '짧은 항목', 'Special chars: & < >'] }, { title: 'Dense', bullets: Array.from({ length: 12 }, () => longBullet) }] });
+  const titleSize = Number(/<p:ph type="title"\/>[\s\S]*?<a:rPr[^>]* sz="(\d+)"/.exec(part(long, 'ppt/slides/slide2.xml'))![1]);
+  assert.ok(titleSize < 4000 && titleSize >= 2000, `a long title is shrunk (sz ${titleSize})`);
+  const bodySize = Number(/<p:ph idx="1"\/>[\s\S]*?<a:rPr[^>]* sz="(\d+)"/.exec(part(long, 'ppt/slides/slide3.xml'))![1]);
+  assert.ok(bodySize < 2400 && bodySize >= 1400, `a dense slide is shrunk (sz ${bodySize})`);
+  for (const n of [1, 2, 3]) assertWellFormed(part(long, `ppt/slides/slide${n}.xml`), `slide${n}`);
+  // an extreme input is bounded, never infinite or below the floor
+  const extreme = buildPptx({ title: 'x'.repeat(5000), locale: 'en', slides: [{ title: 'y'.repeat(5000), bullets: ['z'.repeat(20000)] }] });
+  assert.match(part(extreme, 'ppt/slides/slide2.xml'), / sz="2000"/);
+  assert.match(part(extreme, 'ppt/slides/slide2.xml'), / sz="1400"/);
+});
