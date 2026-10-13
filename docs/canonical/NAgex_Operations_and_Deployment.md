@@ -106,6 +106,26 @@ GitHub (built-in connection) is available only when the OAuth App is configured;
 
 GitHub tokens and MCP connections (with their credentials) are persisted encrypted with `NAGEX_TOKEN_ENCRYPTION_KEY`; without the key they live in memory only and do not survive a restart. A missing, corrupted or wrong-key file means "not connected" — never connected.
 
+### MCP OAuth (provider sign-in, e.g. Slack's official MCP server)
+
+Default **OFF**. Nothing is activated by partial credentials; a missing piece is reported as `SETUP_REQUIRED` (naming only the missing item) and the Connections screen shows no Connect button.
+
+| Variable | Purpose |
+|---|---|
+| `NAGEX_MCP_OAUTH_ENABLED=1` | master opt-in (anything else = off) |
+| `NAGEX_TOKEN_ENCRYPTION_KEY` | required (already used above); the OAuth credential store is encrypted with it |
+| `NAGEX_MCP_OAUTH_SLACK_CLIENT_ID` | the NAgex-owned Slack app's client id |
+| `NAGEX_MCP_OAUTH_SLACK_CLIENT_SECRET` | the app's client secret (protected environment only; read server-side at token exchange, never sent to a browser, logged or stored) |
+| `NAGEX_MCP_OAUTH_SLACK_REDIRECT_URI` | must equal `<origin>/api/v1/oauth/mcp/callback` exactly (https) and be allow-listed in the Slack app |
+| `NAGEX_MCP_OAUTH_SLACK_SCOPES` | optional comma list; default read-only `search:read.public,search:read.users,channels:read,channels:history,users:read`; every scope must be advertised by Slack's metadata |
+| `NAGEX_MCP_OAUTH_STORE_FILE` | optional absolute path of the encrypted credential file; default `/var/lib/nagex/mcp-oauth-credentials.json` with the usual fallback |
+
+Slack only lets directory-published or internal apps use its MCP server, and a workspace admin approves the integration; none of that is something NAgex can do for the operator.
+
+Before turning it on, run `node scripts/mcp-oauth-runtime-check.mjs` with the production environment: it prints each provider's state exactly as users would see it and performs only the read-only public metadata requests (no sign-in, no credential sent). A provider becomes `AVAILABLE` only after Slack's published metadata verifies (resource, issuer, PKCE S256, advertised `client_secret_post`, scopes).
+
+Limits, stated plainly: pending authorization states are held in process memory (one process; a restart or a second worker makes an unfinished sign-in fail closed and the person starts again); tokens are used until their provider-declared expiry and are not refreshed, so an expired sign-in turns the connection into "Sign in again"; disconnect deletes the local credential and does not call a provider revocation endpoint.
+
 No real GitHub account or OAuth App has been exercised by automated tests; those are scripted-provider tests. Real-account verification stays pending until credentials are configured on the server and a user connects.
 
 **Readiness and certification procedure (operator):**
