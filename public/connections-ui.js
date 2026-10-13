@@ -192,15 +192,22 @@
   };
 
   function primaryAction(item, st) {
-    // no button unless it does something: setup-required / coming-later / unsupported apps have none
+    // The catalog is authoritative for whether a real action exists. Never show a
+    // Connect/Link button that would become a no-op because the server denied it.
+    const serverAction = data.catalog ? (catalogConnector(item.id) || {}).action : null;
     if (CHANNELS.has(item.source)) {
-      if (st.state === 'NOT_CONNECTED') return { act: 'link-channel', label: t('conn.action.link'), aria: t('conn.aria.link', { app: item.name }), primary: true };
+      if (st.state === 'NOT_CONNECTED' && (!data.catalog || (serverAction && serverAction.kind === 'CHANNEL_LINK' && serverAction.provider === item.source))) {
+        return { act: 'link-channel', label: t('conn.action.link'), aria: t('conn.aria.link', { app: item.name }), primary: true };
+      }
       if (st.state === 'ERROR') return { act: 'retry', label: t('conn.action.retry'), aria: t('conn.aria.retry', { app: item.name }) };
       return null;
     }
     if (st.state === 'CONNECTED') return { act: 'manage', label: t('conn.action.manage'), aria: t('conn.aria.manage', { app: item.name }) };
-    if (st.state === 'NOT_CONNECTED') return { act: 'connect', label: t('conn.action.connect'), aria: t('conn.aria.connect', { app: item.name }), primary: true };
-    if (st.state === 'REAUTH_REQUIRED') return { act: 'connect', label: t('conn.action.reconnect'), aria: t('conn.aria.reconnect', { app: item.name }), primary: true };
+    if (st.state === 'NOT_CONNECTED' || st.state === 'REAUTH_REQUIRED') {
+      const allowed = !data.catalog || (serverAction && serverAction.kind === 'OAUTH'
+        && ((item.source === 'google' && serverAction.provider === 'google') || (item.source === 'github' && serverAction.provider === 'github')));
+      if (allowed) return { act: 'connect', label: t(st.state === 'NOT_CONNECTED' ? 'conn.action.connect' : 'conn.action.reconnect'), aria: t('conn.aria.connect', { app: item.name }), primary: true };
+    }
     if (st.state === 'ERROR') return { act: 'retry', label: t('conn.action.retry'), aria: t('conn.aria.retry', { app: item.name }) };
     return null;
   }
