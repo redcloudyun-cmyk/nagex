@@ -600,6 +600,18 @@
       case 'reload': data.loaded = false; loadAll(); return;
       case 'connect': {
         const src = target.getAttribute('data-source');
+        const appId = target.getAttribute('data-app');
+        // Catalog is authoritative when loaded: never invent OAuth navigation from a card label.
+        // Older deployments without the catalog retain the existing provider-specific, configured-state fallback.
+        const entry = appId && catalogConnector(appId);
+        if (data.catalog) {
+          const action = entry && entry.action;
+          const allowed = action && action.kind === 'OAUTH'
+            && ((src === 'google' && action.provider === 'google') || (src === 'github' && action.provider === 'github'));
+          const path = allowed && typeof action.startPath === 'string' ? action.startPath : null;
+          if (path && (path === '/api/v1/oauth/google/start' || path === '/api/v1/oauth/github/start')) window.location.href = path;
+          return;
+        }
         const path = src === 'github' ? githubBase().connectPath : googleBase().connectPath;
         if (path) window.location.href = path;
         return;
