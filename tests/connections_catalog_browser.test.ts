@@ -71,6 +71,11 @@ async function capture(page: Page, name: string): Promise<void> {
 const withSlackConfigured = (state: 'NOT_CONNECTED' | 'CONNECTED') => (body: any) => {
   const slack = body.connectors.find((entry: any) => entry.id === 'slack');
   slack.connection = state === 'CONNECTED' ? { state: 'CONNECTED', reason: null, account: 'Acme', count: 1 } : { state: 'NOT_CONNECTED', reason: null, account: null, count: 0 };
+  // A provider-ready simulated connection must also return the server's explicit
+  // action projection, not just rewrite a badge into NOT_CONNECTED.
+  slack.action = state === 'CONNECTED'
+    ? { kind: 'NONE', reason: 'ALREADY_CONNECTED' }
+    : { kind: 'CHANNEL_LINK', provider: 'slack', startPath: '/api/v1/integrations/slack/identity/link/challenge' };
   return body;
 };
 
@@ -129,6 +134,20 @@ describe('More apps: honest availability', () => {
     await page.evaluate(() => (window as any).NAGEX_I18N.setLocale('ko'));
     await page.waitForFunction(() => document.querySelector('#nagex-conn-category option[value="DATA"]')?.textContent === '데이터 및 리서치');
     assert.equal(await category.inputValue(), 'ALL');
+    await ctx.close();
+  });
+});
+
+describe('connect actions are server-authorized', () => {
+  it('never shows a link button if the catalog lacks an approved action even when connection state says NOT_CONNECTED', async () => {
+    const { ctx, page } = await open('cat_no_dead_link', 'en', { width: 1440, height: 900 }, (body: any) => {
+      const slack = body.connectors.find((entry: any) => entry.id === 'slack');
+      slack.connection = { state: 'NOT_CONNECTED', reason: null, account: null, count: 0 };
+      slack.action = { kind: 'NONE', reason: 'NOT_CONFIGURED_ON_SERVER' };
+      return body;
+    });
+    assert.equal(await card(page, 'slack').getAttribute('data-state'), 'NOT_CONNECTED');
+    assert.equal(await card(page, 'slack').locator('button[data-act="link-channel"]').count(), 0);
     await ctx.close();
   });
 });

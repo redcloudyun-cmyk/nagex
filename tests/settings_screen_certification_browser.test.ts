@@ -39,6 +39,25 @@ async function stubGoogleStatus(page: Page, status: Record<string, unknown>): Pr
   await page.route('**/api/v1/oauth/google/disconnect', async (route) => { calls.push('disconnect'); await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ connected: false, scopes: [], expiresAt: null }) }); });
   return calls;
 }
+// The Connections screen reads both the provider status and the authoritative
+// per-user connector catalog. A simulated provider state must amend BOTH responses;
+// otherwise NOT_CONNECTED in one response can correctly have no Connect action in the other.
+async function stubGoogleCatalog(page: Page, state: string): Promise<void> {
+  await page.unroute('**/api/v1/connectors/catalog').catch(() => undefined);
+  await page.route('**/api/v1/connectors/catalog', async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    for (const entry of body.connectors || []) {
+      if (entry.id !== 'gmail' && entry.id !== 'google-calendar') continue;
+      entry.connection = { state: state === 'SETUP_REQUIRED' ? 'SETUP_REQUIRED' : state, reason: state === 'SETUP_REQUIRED' ? 'OAUTH_NOT_CONFIGURED' : null, account: null, count: null };
+      entry.action = state === 'NOT_CONNECTED' || state === 'REAUTH_REQUIRED'
+        ? { kind: 'OAUTH', provider: 'google', startPath: '/api/v1/oauth/google/start' }
+        : { kind: 'NONE', reason: state === 'CONNECTED' ? 'ALREADY_CONNECTED' : state };
+    }
+    await route.fulfill({ response, json: body });
+  });
+}
+
 const connection = (state: string, reason: string | null, message = '') => ({ provider: 'google_calendar', state, reason, retryable: state === 'ERROR', scopes: [], missingScopes: [], connectPath: state === 'NOT_CONNECTED' || state === 'REAUTH_REQUIRED' ? '/api/v1/oauth/google/start' : null, verifiedAt: null, message });
 
 describe('Desktop Settings certification', () => {
@@ -160,6 +179,7 @@ describe('Desktop Settings certification', () => {
     for (const c of cases) {
       await page.unroute('**/api/v1/oauth/google/status').catch(() => undefined);
       await stubGoogleStatus(page, c.status);
+      await stubGoogleCatalog(page, c.state);
       await page.goto(`${h.origin}/#settings/connections`);
       await page.reload();
       await page.waitForSelector('.nagex-conn-card[data-app="gmail"]', { timeout: 15000 });
@@ -171,6 +191,7 @@ describe('Desktop Settings certification', () => {
     // Connect really starts Google OAuth; Manage opens real details and disconnecting needs an in-panel confirmation
     await page.unroute('**/api/v1/oauth/google/status').catch(() => undefined);
     let calls = await stubGoogleStatus(page, { configured: true, connected: false, scopes: [], expiresAt: null, connection: connection('NOT_CONNECTED', 'NO_CONNECTION') });
+    await stubGoogleCatalog(page, 'NOT_CONNECTED');
     await page.goto(`${h.origin}/#settings/connections`);
     await page.reload();
     await page.waitForSelector('.nagex-conn-card[data-app="gmail"] button');
@@ -180,6 +201,7 @@ describe('Desktop Settings certification', () => {
     await page.unroute('**/api/v1/oauth/google/status').catch(() => undefined);
     await page.unroute('**/api/v1/oauth/google/disconnect').catch(() => undefined);
     calls = await stubGoogleStatus(page, { configured: true, connected: true, scopes, expiresAt: null, connection: { ...connection('CONNECTED', null), verifiedAt: new Date().toISOString() } });
+    await stubGoogleCatalog(page, 'CONNECTED');
     await page.goto(`${h.origin}/#settings/connections`);
     await page.reload();
     await page.waitForSelector('.nagex-conn-card.mine');

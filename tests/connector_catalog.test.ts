@@ -121,6 +121,44 @@ describe('connection state comes from the real sources', () => {
   });
 });
 
+describe('server-owned connect actions (not optimistic UI badges)', () => {
+  it('offers OAuth only when the actual provider is configured, and never for unsupported apps', async () => {
+    const available = await byId({
+      google: async () => ({ state: 'NOT_CONNECTED', reason: null, scopes: [] }),
+      github: async () => ({ state: 'NOT_CONNECTED', reason: null, account: null }),
+      slack: () => ({ configured: true, linked: 0, account: null }),
+      telegram: () => ({ configured: false, linked: 0, account: null }),
+      mcp: () => ({ servers: [] }),
+    });
+    assert.deepEqual(available.get('gmail')!.action, { kind: 'OAUTH', provider: 'google', startPath: '/api/v1/oauth/google/start' });
+    assert.deepEqual(available.get('google-calendar')!.action, { kind: 'OAUTH', provider: 'google', startPath: '/api/v1/oauth/google/start' });
+    assert.deepEqual(available.get('github')!.action, { kind: 'OAUTH', provider: 'github', startPath: '/api/v1/oauth/github/start' });
+    assert.deepEqual(available.get('slack')!.action, { kind: 'CHANNEL_LINK', provider: 'slack', startPath: '/api/v1/integrations/slack/identity/link/challenge' });
+    assert.equal(available.get('telegram')!.action.kind, 'NONE');
+    assert.equal(available.get('mcp-custom')!.action.kind, 'ADVANCED_MCP');
+    for (const entry of available.values()) {
+      if (entry.availability !== 'LIVE') assert.equal(entry.action.kind, 'NONE', entry.id);
+    }
+
+    const unconfigured = await byId({
+      google: async () => ({ state: 'UNAVAILABLE', reason: 'OAUTH_NOT_CONFIGURED', scopes: [] }),
+      github: async () => ({ state: 'UNAVAILABLE', reason: 'OAUTH_NOT_CONFIGURED', account: null }),
+    });
+    assert.equal(unconfigured.get('gmail')!.action.kind, 'NONE');
+    assert.equal(unconfigured.get('github')!.action.kind, 'NONE');
+  });
+
+  it('does not issue a second Connect action after connection; missing Google scope needs explicit reauthorization', async () => {
+    const connected = await byId({
+      google: async () => ({ state: 'CONNECTED', reason: null, scopes: [CALENDAR_SCOPE] }),
+      github: async () => ({ state: 'CONNECTED', reason: null, account: 'octocat' }),
+    });
+    assert.deepEqual(connected.get('google-calendar')!.action, { kind: 'NONE', reason: 'ALREADY_CONNECTED' });
+    assert.equal(connected.get('github')!.action.kind, 'NONE');
+    assert.deepEqual(connected.get('gmail')!.action, { kind: 'OAUTH', provider: 'google', startPath: '/api/v1/oauth/google/start' });
+  });
+});
+
 describe('HTTP: GET /api/v1/connectors/catalog', () => {
   const envBackup = process.env.NAGEX_MCP_ALLOW_PRIVATE_NETWORK;
   let testServer: { url: string; close(): Promise<void> };
@@ -144,7 +182,16 @@ describe('HTTP: GET /api/v1/connectors/catalog', () => {
     assert.deepEqual(data.categories.map((category: any) => category.id), CONNECTOR_CATEGORIES.map((category) => category.id));
     const stateOf = (id: string) => data.connectors.find((connector: any) => connector.id === id).connection.state;
     for (const id of ['gmail', 'google-calendar', 'github']) assert.ok(['NOT_CONNECTED', 'SETUP_REQUIRED'].includes(stateOf(id)), `${id} for a fresh user is ${stateOf(id)}`);
-    for (const connector of data.connectors.filter((entry: any) => entry.availability !== 'LIVE')) assert.equal(connector.connection.state, 'UNAVAILABLE', connector.id);
+    for (const connector of data.connectors.filter((entry: any) => entry.availability !== 'LIVE')) {
+      assert.equal(connector.connection.state, 'UNAVAILABLE', connector.id);
+      assert.equal(connector.action.kind, 'NONE', connector.id);
+    }
+    for (const connector of data.connectors) {
+      if (connector.action.kind === 'OAUTH') {
+        assert.ok(['/api/v1/oauth/google/start', '/api/v1/oauth/github/start'].includes(connector.action.startPath));
+        assert.equal(connector.availability, 'LIVE');
+      }
+    }
     assert.doesNotMatch(JSON.stringify(data), /bearerToken|catalog-token|access_token|client_secret/i);
   });
 

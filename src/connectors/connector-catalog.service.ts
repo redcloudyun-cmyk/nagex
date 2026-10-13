@@ -17,6 +17,34 @@ export interface ConnectorConnection {
   count: number | null;
 }
 
+// A server-owned action projection. URLs are fixed local routes, never metadata-controlled external URLs.
+// "LIVE" describes source code availability, not deployment readiness; actual OAuth starts only
+// when the corresponding user's connection source confirms the provider is configured.
+export type ConnectorAction =
+  | { kind: 'NONE'; reason: string }
+  | { kind: 'OAUTH'; provider: 'google' | 'github'; startPath: string }
+  | { kind: 'CHANNEL_LINK'; provider: 'slack' | 'telegram'; startPath: string }
+  | { kind: 'ADVANCED_MCP'; path: 'settings/connections/advanced' };
+
+export function actionForConnector(definition: ConnectorDefinition, connection: ConnectorConnection): ConnectorAction {
+  if (definition.availability !== 'LIVE') return { kind: 'NONE', reason: definition.availability };
+  if (connection.state === 'CONNECTED') return { kind: 'NONE', reason: 'ALREADY_CONNECTED' };
+  if (connection.state !== 'NOT_CONNECTED' && connection.state !== 'REAUTH_REQUIRED') return { kind: 'NONE', reason: connection.reason ?? connection.state };
+  if (definition.stateSource === 'google' && definition.authMethod === 'GOOGLE_OAUTH') {
+    return { kind: 'OAUTH', provider: 'google', startPath: '/api/v1/oauth/google/start' };
+  }
+  if (definition.stateSource === 'github' && definition.authMethod === 'GITHUB_OAUTH') {
+    return { kind: 'OAUTH', provider: 'github', startPath: '/api/v1/oauth/github/start' };
+  }
+  if ((definition.stateSource === 'slack' || definition.stateSource === 'telegram') && definition.authMethod === 'CHANNEL_LINK') {
+    return { kind: 'CHANNEL_LINK', provider: definition.stateSource, startPath: '/api/v1/integrations/' + definition.stateSource + '/identity/link/challenge' };
+  }
+  if (definition.stateSource === 'mcp' && definition.authMethod === 'BEARER_TOKEN') {
+    return { kind: 'ADVANCED_MCP', path: 'settings/connections/advanced' };
+  }
+  return { kind: 'NONE', reason: 'AUTH_PATH_UNAVAILABLE' };
+}
+
 export interface ConnectorView {
   id: string;
   name: string;
@@ -29,6 +57,7 @@ export interface ConnectorView {
   description: LocalizedText;
   setup: LocalizedText | null;
   connection: ConnectorConnection;
+  action: ConnectorAction;
 }
 
 export interface ConnectorCatalogView {
@@ -74,11 +103,14 @@ export class ConnectorCatalogService {
       if (!cache.has(key)) cache.set(key, Promise.resolve().then(read));
       return cache.get(key) as Promise<T>;
     };
-    const connectors = await Promise.all(this.definitions.map(async (definition) => ({
-      id: definition.id, name: definition.name, category: definition.category, icon: definition.icon, provider: definition.provider, authMethod: definition.authMethod,
-      availability: definition.availability, capabilities: [...definition.capabilities], description: definition.description, setup: definition.setup,
-      connection: await this.connectionFor(definition, identity, once),
-    })));
+    const connectors = await Promise.all(this.definitions.map(async (definition) => {
+      const connection = await this.connectionFor(definition, identity, once);
+      return {
+        id: definition.id, name: definition.name, category: definition.category, icon: definition.icon, provider: definition.provider, authMethod: definition.authMethod,
+        availability: definition.availability, capabilities: [...definition.capabilities], description: definition.description, setup: definition.setup,
+        connection, action: actionForConnector(definition, connection),
+      };
+    }));
     return { categories: CONNECTOR_CATEGORIES.map((category) => ({ ...category })), connectors };
   }
 
