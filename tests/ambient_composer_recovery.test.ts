@@ -261,12 +261,12 @@ test('a normal, responding ambient/intent request is unaffected by the new timeo
       releaseResponse();
       await waitForComposerDisabledState(page, false, 45000, 'Test 2: Wait for disabled===false on completion');
 
-      const resultVisible = await page.evaluate(() => {
-        const c1 = document.getElementById('ambient-result-card');
-        const c2 = document.getElementById('ambient-understanding-card');
-        return (c1 && c1.style.display !== 'none') || (c2 && c2.style.display !== 'none');
-      });
-      assert.equal(resultVisible, true, 'the plan result card or canonical understanding card should render on a normal successful response');
+      // The input can re-enable in the request finalizer before the result paint.
+      // Wait for an actually visible result; do not turn a missing card into PASS.
+      await page.waitForFunction(() => {
+        const cards = [document.getElementById('ambient-result-card'), document.getElementById('ambient-understanding-card')];
+        return cards.some((card) => card && card.style.display !== 'none' && card.getClientRects().length > 0);
+      }, undefined, { timeout: 12000, polling: 100 });
     });
   });
 });
