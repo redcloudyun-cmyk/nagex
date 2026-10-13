@@ -22,6 +22,23 @@ describe('MCP OAuth callback HTTP fail-closed integration', () => {
     assert.doesNotMatch(JSON.stringify(result.data), /forged-state|private-code|attacker/);
   });
 
+  it('rejects unconfigured or unauthenticated OAuth start and refuses arbitrary caller provider URLs', async () => {
+    const path = '/api/v1/oauth/mcp/start';
+    const signedOut = await handleAsyncApiRequest('POST', path, { providerId: 'verified-provider' }, {});
+    assert.equal(signedOut.status, 401);
+    const owner = authAs('tenant-mcp', 'user-mcp');
+    const notConfigured = await handleAsyncApiRequest('POST', path, {
+      providerId: 'verified-provider',
+      tokenEndpoint: 'https://attacker.example/token',
+      redirectUri: 'https://attacker.example/callback',
+    }, owner);
+    assert.equal(notConfigured.status, 503);
+    assert.equal((notConfigured.data as any).error.code, 'MCP_OAUTH_NOT_CONFIGURED');
+    assert.doesNotMatch(JSON.stringify(notConfigured.data), /attacker/);
+    const wrongMethod = await handleAsyncApiRequest('GET', path, null, owner);
+    assert.equal(wrongMethod.status, 405);
+  });
+
   it('rejects non-GET methods without consuming OAuth state', async () => {
     const result = await handleAsyncApiRequest('POST', '/api/v1/oauth/mcp/callback', {}, authAs('tenant-mcp', 'user-mcp'));
     assert.equal(result.status, 405);
