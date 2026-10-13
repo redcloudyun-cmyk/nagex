@@ -19,7 +19,10 @@ type HTMLTextAreaElement = any;
 type HTMLButtonElement = any;
 type HTMLElement = any;
 
-const TEST_TIMEOUT_MS = 300;
+// Give a stalled request enough time to be observed even when the full Chromium
+// certification suite is CPU-bound. This remains a bounded timeout test; 300ms
+// could expire before Playwright's first disabled-state poll under load.
+const TEST_TIMEOUT_MS = 5000;
 
 async function withServer(run: (origin: string) => Promise<void>): Promise<void> {
   const instance = createServerInstance();
