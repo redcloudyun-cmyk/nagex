@@ -64,7 +64,7 @@ const EXPECTED_ROUTE_MODULE_COUNTS: Record<string, number> = {
   'catalog.routes.ts': 3,
   'command-context.routes.ts': 0, // dispatches on request.method variables, not literal method checks (not counted by this methodology)
   'github.routes.ts': 6, // built-in GitHub connection (read-only repository access)
-  'mcp.routes.ts': 9, // owner-scoped MCP server registry (register, discover, tools, refresh, remove)
+  'mcp.routes.ts': 10, // owner-scoped MCP server registry (register, discover, tools, refresh, reconnect, remove)
   'knowledge.routes.ts': 3, // R24.5C — real POST (ingestion) and GET /:id (source traceability) added alongside the original GET list/search
   'plan.routes.ts': 4,
   'competitor-pricing-agent.routes.ts': 3,
@@ -131,10 +131,10 @@ test('ROUTE-INV-002: every route module\'s method-check-block count exactly matc
   assert.deepEqual(mismatches, [], `Route module endpoint-count drift detected:\n${mismatches.join('\n')}`);
 });
 
-test('ROUTE-INV-003: the total domain endpoint count across all route modules is exactly 342 — any change requires an intentional manifest update', () => {
+test('ROUTE-INV-003: the total domain endpoint count across all route modules is exactly 343 — any change requires an intentional manifest update', () => {
   // R23.7C-C — +1: GET /api/v1/creations/images/:imageId, the canonical
   // image-serving route fixing the BROKEN_SUCCESS_CONTRACT root cause.
-  assert.equal(TOTAL_DOMAIN_ENDPOINTS, 342);
+  assert.equal(TOTAL_DOMAIN_ENDPOINTS, 343);
   let actualTotal = 0;
   for (const file of listRouteModuleFiles()) {
     actualTotal += countMethodChecks(readSourceWithoutComments(path.join(ROUTES_DIR, file)));
