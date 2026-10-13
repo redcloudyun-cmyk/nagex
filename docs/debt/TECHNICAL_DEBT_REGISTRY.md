@@ -760,6 +760,32 @@ status: CLOSED
 
 ---
 
+```yaml
+id: DEBT-0015
+area: connectors / inherited legacy / MCP scope
+description: >
+  Findings of the AGEX asset recovery (docs/evidence/NAGEX_AGEX_ASSET_RECOVERY_MATRIX_20261013.md): (1) NAgex still carries unused inherited AGEX modules —
+  src/agent/{agent.executor,tool.invoker,multi-agent.orchestrator}.ts and src/plugin/plugin.framework.ts, imported only by the barrel src/index.ts and legacy tests —
+  and dead static seeds (planRegistry, knowledgeBase) in src/http/routes/catalog.routes.ts; (2) a Gmail card is Connected when the Google grant includes the Gmail
+  scope, but Check connection performs a live read for Calendar only, so Gmail has no independently proven verification time; (3) MCP servers that require the MCP
+  OAuth authorization flow cannot be added (the client sends a static bearer token) and stdio servers are refused by design; (4) Microsoft is sign-in only: Outlook,
+  OneDrive/SharePoint and Teams are PLANNED with no integration code; (5) no third-party MCP server has been certified (only an isolated repository server), and the
+  deployed server environment (NAGEX_TOKEN_ENCRYPTION_KEY set, NAGEX_MCP_ALLOW_PRIVATE_NETWORK unset) was not verified.
+severity: low
+introduced: inherited from the AGEX bootstrap; gaps recorded 2026-10-13
+reason: >
+  None of these is on a runtime request path or advertises a capability; each needs an owner decision, credentials or a roadmap slot rather than an overnight change.
+risk: >
+  Confusion for future edits (dead inherited code), a Gmail verification time that is not independently proven, and operators assuming OAuth-only MCP servers or
+  Microsoft apps work.
+target: delete the inherited modules and seeds together with their legacy tests; add a Gmail read to Check connection; decide on MCP OAuth and on the first Microsoft
+  integration; certify one owner-authorized third-party MCP server with scripts/mcp-remote-check.mjs and verify the deployed environment.
+owner: NAGEX
+status: OPEN
+```
+
+---
+
 ## Explicitly classified as NON-GOAL, not debt
 
 Per the R11 directive's own explicit instruction not to silently call every disclosed limitation "debt":

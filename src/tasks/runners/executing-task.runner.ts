@@ -67,6 +67,7 @@ export class ExecutingTaskRunner implements TaskRunner {
       memories: this.getMemories(task.tenantId, task.ownerId, task.objective),
       mode: 'auto',
       requestId,
+      identity: { tenantId: task.tenantId, principalId: task.ownerId },
     });
 
     let resolved;

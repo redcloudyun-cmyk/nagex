@@ -386,6 +386,8 @@ export function createNagexApplication(): NagexApplication {
   });
   mcpService.hydrate();
   canonicalToolRegistry.registerDynamicProvider((identity) => mcpService.registeredToolsFor(identity));
+  // The planner is told which custom tools THIS user enabled (it can only propose them; resolution + approval + the Broker are unchanged).
+  aiService.setUserToolProvider((identity) => mcpService.toolsFor(identity).map((tool) => ({ id: tool.capabilityId, name: `${tool.serverName}: ${tool.toolName}`, description: tool.description })));
   const capabilityBroker = new CapabilityBroker(
     googleCalendarService,
     gmailService,

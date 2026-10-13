@@ -15,12 +15,14 @@ import type { ActionApprovalRecord, ActionApprovalStore } from '../governance/ac
 import type { ExecutionStore } from '../governance/execution.store.js';
 import type { CapabilityRegistry } from '../capabilities/capability.registry.js';
 import type { RegisteredTool } from '../tools/tool-registry.js';
-import { McpClient, createHttpMcpTransport, type McpCallResult, type McpTransport } from './mcp-client.js';
+import { McpClient, MCP_TIMEOUT_MS, createHttpMcpTransport, type McpCallResult, type McpTransport } from './mcp-client.js';
 import { toView, type McpConnectionRecord, type McpConnectionStore, type McpConnectionView, type McpToolState } from './mcp-connection.store.js';
 import { parseToolDescriptor, sanitizeText, validateArguments } from './mcp-schema.js';
 import { assertSafeMcpUrl, readMcpUrlPolicyFromEnv, type McpUrlPolicyOptions } from './mcp-url-policy.js';
 
 export const MCP_MAX_SERVERS_PER_USER = 10;
+
+export type McpExecutionResult = McpCallResult & { server: string; tool: string; executionId: string; outcome: 'TOOL_RESPONDED' | 'TOOL_REPORTED_ERROR'; verification: { status: 'UNVERIFIED'; reason: 'MCP_PROVIDER_RESPONSE_ONLY' } };
 
 export interface McpIdentity {
   tenantId: string;
@@ -36,6 +38,13 @@ export interface McpServiceDeps {
   executions: ExecutionStore;
   transport?: McpTransport;
   policy?: () => McpUrlPolicyOptions;
+  // Per-request timeout; defaults to NAGEX_MCP_TIMEOUT_MS (bounded to 1 s - 60 s) or 15 s.
+  timeoutMs?: number;
+}
+
+export function readMcpTimeoutFromEnv(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = Number(env.NAGEX_MCP_TIMEOUT_MS);
+  return Number.isFinite(raw) && raw >= 1_000 && raw <= 60_000 ? Math.floor(raw) : MCP_TIMEOUT_MS;
 }
 
 export interface McpToolForPlanning {
@@ -54,8 +63,10 @@ const notFound = (requestId: string): NagexError => err('MCP_NOT_FOUND', 'NOT_FO
 export class McpService {
   private readonly transport: McpTransport;
   private readonly policy: () => McpUrlPolicyOptions;
+  private readonly timeoutMs: number;
 
   constructor(private readonly deps: McpServiceDeps) {
+    this.timeoutMs = deps.timeoutMs ?? readMcpTimeoutFromEnv();
     this.policy = deps.policy ?? (() => readMcpUrlPolicyFromEnv());
     this.transport = deps.transport ?? createHttpMcpTransport(this.policy());
   }
@@ -79,8 +90,7 @@ export class McpService {
     const name = sanitizeText(input.name, 60);
     if (!name) throw err('MCP_INVALID_REQUEST', 'VALIDATION', 'A server name is required.', requestId);
     if (this.deps.store.list(tenantId, principalId).length >= MCP_MAX_SERVERS_PER_USER) throw err('MCP_LIMIT_REACHED', 'QUOTA', `You can connect at most ${MCP_MAX_SERVERS_PER_USER} MCP servers.`, requestId);
-    const bearerToken = typeof input.bearerToken === 'string' && input.bearerToken.trim() ? input.bearerToken.trim().slice(0, 4096) : null;
-    if (bearerToken && /[\r\n]/.test(bearerToken)) throw err('MCP_INVALID_REQUEST', 'VALIDATION', 'The credential is not valid.', requestId);
+    const bearerToken = this.normalizeBearer(input.bearerToken, requestId);
     const url = await assertSafeMcpUrl(input.url, requestId, this.policy());
 
     const discovered = await this.discover(url, bearerToken, requestId);
@@ -101,22 +111,38 @@ export class McpService {
 
   // Re-discovers the server. A different server identity disables everything; a changed tool definition disables that tool.
   public async refresh(identity: McpIdentity, connectionId: string): Promise<McpConnectionView> {
+    return this.reverify(identity, connectionId, undefined);
+  }
+
+  // Reconnection after the server rejected the stored credential (expired / revoked / rotated): the owner supplies a new one. It replaces the stored
+  // credential ONLY if the server then identifies as the pinned server; a changed tool definition still disables that tool until re-enabled.
+  public async reconnect(identity: McpIdentity, connectionId: string, input: { bearerToken?: unknown }): Promise<McpConnectionView> {
+    const token = this.normalizeBearer(input.bearerToken, identity.requestId);
+    if (!token) throw err('MCP_INVALID_REQUEST', 'VALIDATION', 'A new credential is required to reconnect.', identity.requestId);
+    return this.reverify(identity, connectionId, token);
+  }
+
+  private normalizeBearer(raw: unknown, requestId: string): string | null {
+    const token = typeof raw === 'string' && raw.trim() ? raw.trim().slice(0, 4096) : null;
+    if (token && /[\r\n]/.test(token)) throw err('MCP_INVALID_REQUEST', 'VALIDATION', 'The credential is not valid.', requestId);
+    return token;
+  }
+
+  private async reverify(identity: McpIdentity, connectionId: string, newToken: string | undefined): Promise<McpConnectionView> {
     const record = this.requireOwned(identity, connectionId);
     const url = await assertSafeMcpUrl(record.url, identity.requestId, this.policy());
     let discovered;
     try {
-      discovered = await this.discover(url, record.bearerToken, identity.requestId);
+      discovered = await this.discover(url, newToken ?? record.bearerToken, identity.requestId);
     } catch (error) {
-      record.status = 'ERROR';
-      record.reason = error instanceof NagexError ? error.code : 'MCP_ERROR';
-      this.deps.store.save(record);
-      this.audit(identity, 'mcp.server_refresh_failed', 'FAILED', connectionId, { reason: record.reason });
+      this.markUnreachable(identity, record, error, 'mcp.server_refresh_failed');
       throw error;
     }
     if (!this.identityMatches(record, discovered.identity.serverName, url.origin)) {
       this.markMismatch(identity, record);
       return toView(record);
     }
+    if (newToken !== undefined) record.bearerToken = newToken;
     record.status = 'CONNECTED';
     record.reason = null;
     record.identity.serverVersion = discovered.identity.serverVersion;
@@ -134,7 +160,7 @@ export class McpService {
     record.discoveredAt = getCurrentISOString();
     this.deps.store.save(record);
     this.syncCapabilities(record);
-    this.audit(identity, 'mcp.server_refreshed', 'SUCCESS', connectionId, { tools: record.tools.length, changed: record.tools.filter((t) => t.changedSinceEnabled).length });
+    this.audit(identity, newToken !== undefined ? 'mcp.server_reconnected' : 'mcp.server_refreshed', 'SUCCESS', connectionId, { tools: record.tools.length, changed: record.tools.filter((t) => t.changedSinceEnabled).length });
     return toView(record);
   }
 
@@ -192,7 +218,7 @@ export class McpService {
     return approval;
   }
 
-  public async executeApprovedTool(request: McpIdentity & { capabilityId: string; payload: unknown; approvalId: string }): Promise<McpCallResult & { server: string; tool: string; executionId: string }> {
+  public async executeApprovedTool(request: McpIdentity & { capabilityId: string; payload: unknown; approvalId: string }): Promise<McpExecutionResult> {
     const { record, tool } = this.resolveCallable(request, request.capabilityId);
     const args = this.argumentsFrom(request.payload, request.requestId);
     const problems = validateArguments(tool.inputSchema, args);
@@ -200,13 +226,34 @@ export class McpService {
 
     // Verify the server is still the one the owner enabled BEFORE spending the approval.
     const url = await assertSafeMcpUrl(record.url, request.requestId, this.policy());
-    const client = new McpClient({ url, bearerToken: record.bearerToken, transport: this.transport, requestId: request.requestId });
-    const identity = await client.initialize();
+    const client = new McpClient({ url, bearerToken: record.bearerToken, transport: this.transport, requestId: request.requestId, timeoutMs: this.timeoutMs });
+    try {
+      return await this.runApproved(request, record, tool, args, url, client);
+    } finally {
+      await client.close();
+    }
+  }
+
+  private async runApproved(request: McpIdentity & { capabilityId: string; payload: unknown; approvalId: string }, record: McpConnectionRecord, tool: McpToolState, args: Record<string, unknown>, url: URL, client: McpClient): Promise<McpExecutionResult> {
+    let identity;
+    try {
+      identity = await client.initialize();
+    } catch (error) {
+      this.markAuthRequiredIfRejected(request, record, error);
+      throw error;
+    }
     if (!this.identityMatches(record, identity.serverName, url.origin)) {
       this.markMismatch(request, record);
       throw err('MCP_IDENTITY_MISMATCH', 'POLICY', 'This MCP server no longer identifies as the server you connected. Its tools are disabled.', request.requestId);
     }
-    const advertised = (await client.listTools()).map(parseToolDescriptor).find((parsed) => parsed.ok && parsed.tool.name === tool.name);
+    let listed: unknown[];
+    try {
+      listed = await client.listTools();
+    } catch (error) {
+      this.markAuthRequiredIfRejected(request, record, error);
+      throw error;
+    }
+    const advertised = listed.map(parseToolDescriptor).find((parsed) => parsed.ok && parsed.tool.name === tool.name);
     if (!advertised || !advertised.ok || advertised.tool.schemaHash !== tool.schemaHash) {
       tool.enabled = false;
       tool.changedSinceEnabled = true;
@@ -225,10 +272,18 @@ export class McpService {
     this.deps.audit.logEvent({ actor: { type: 'user', id: request.principalId }, tenant_id: request.tenantId, action: 'tool.execution.started', resource: { type: 'ToolExecution', id: executionId }, result: 'PENDING_APPROVAL', request_id: request.requestId, details: { toolId: tool.capabilityId, approvalId: request.approvalId, provider: 'MCP' } });
     try {
       const result = await client.callTool(tool.name, args);
+      if (result.isError) {
+        // The tool itself reported an error: the call reached the server but the action did not succeed, so it is recorded as FAILED, never as a success.
+        this.deps.executions.fail(executionId, { errorCode: 'MCP_TOOL_REPORTED_ERROR', completedAt: getCurrentISOString() });
+        this.deps.audit.logEvent({ actor: { type: 'user', id: request.principalId }, tenant_id: request.tenantId, action: 'tool.execution.failed', resource: { type: 'ToolExecution', id: executionId }, result: 'FAILED', reason_code: 'MCP_TOOL_REPORTED_ERROR', request_id: request.requestId, details: { toolId: tool.capabilityId, provider: 'MCP' } });
+        return { ...result, server: record.name, tool: tool.name, executionId, outcome: 'TOOL_REPORTED_ERROR', verification: { status: 'UNVERIFIED', reason: 'MCP_PROVIDER_RESPONSE_ONLY' } };
+      }
       this.deps.executions.succeed(executionId, { externalId: `${record.connectionId}:${tool.name}`, externalUrl: url.origin, completedAt: getCurrentISOString() });
       this.deps.audit.logEvent({ actor: { type: 'user', id: request.principalId }, tenant_id: request.tenantId, action: 'tool.execution.succeeded', resource: { type: 'ToolExecution', id: executionId }, result: 'SUCCESS', request_id: request.requestId, details: { toolId: tool.capabilityId, provider: 'MCP', toolReportedError: result.isError } });
-      return { ...result, server: record.name, tool: tool.name, executionId };
+      // MCP offers no way to verify the side effect: the server's answer is reported as exactly that (a response), never as verified completion.
+      return { ...result, server: record.name, tool: tool.name, executionId, outcome: 'TOOL_RESPONDED', verification: { status: 'UNVERIFIED', reason: 'MCP_PROVIDER_RESPONSE_ONLY' } };
     } catch (error) {
+      this.markAuthRequiredIfRejected(request, record, error);
       const code = error instanceof NagexError ? error.code : 'MCP_EXECUTION_FAILED';
       this.deps.executions.fail(executionId, { errorCode: code, completedAt: getCurrentISOString() });
       this.deps.audit.logEvent({ actor: { type: 'user', id: request.principalId }, tenant_id: request.tenantId, action: 'tool.execution.failed', resource: { type: 'ToolExecution', id: executionId }, result: 'FAILED', reason_code: code, request_id: request.requestId, details: { toolId: tool.capabilityId, provider: 'MCP' } });
@@ -266,6 +321,24 @@ export class McpService {
     return record.identity.serverName === serverName && record.identity.origin === origin;
   }
 
+  // A failed re-verification: a rejected credential means the owner must reconnect; any other failure is a (retryable) error. Nothing stays callable.
+  private markUnreachable(identity: McpIdentity, record: McpConnectionRecord, error: unknown, auditAction: string): void {
+    const code = error instanceof NagexError ? error.code : 'MCP_ERROR';
+    record.status = code === 'MCP_SERVER_AUTH_FAILED' ? 'AUTH_REQUIRED' : 'ERROR';
+    record.reason = code;
+    this.deps.store.save(record);
+    this.syncCapabilities(record);
+    this.audit(identity, auditAction, 'FAILED', record.connectionId, { reason: code });
+  }
+
+  // During a call only a rejected credential changes the connection (a timeout or a 5xx is transient and must not disable the owner's tools).
+  private markAuthRequiredIfRejected(identity: McpIdentity, record: McpConnectionRecord, error: unknown): void {
+    if (error instanceof NagexError && error.code === 'MCP_SERVER_AUTH_FAILED' && record.status === 'CONNECTED') this.markUnreachable(identity, record, error, 'mcp.server_auth_failed');
+  }
+
+  // Whether connections survive a restart (disclosed to the owner: without NAGEX_TOKEN_ENCRYPTION_KEY they are kept in memory only).
+  public get durable(): boolean { return this.deps.store.durable; }
+
   private markMismatch(identity: McpIdentity, record: McpConnectionRecord): void {
     record.status = 'IDENTITY_MISMATCH';
     record.reason = 'SERVER_IDENTITY_CHANGED';
@@ -283,8 +356,16 @@ export class McpService {
     }
   }
 
-  private async discover(url: URL, bearerToken: string | null, requestId: string): Promise<{ identity: { serverName: string; serverVersion: string; protocolVersion: string }; tools: Array<Omit<McpToolState, 'enabled' | 'changedSinceEnabled' | 'capabilityId'>>; rejected: Array<{ name: string; reason: string }> }> {
-    const client = new McpClient({ url, bearerToken, transport: this.transport, requestId });
+  private async discover(url: URL, bearerToken: string | null, requestId: string) {
+    const client = new McpClient({ url, bearerToken, transport: this.transport, requestId, timeoutMs: this.timeoutMs });
+    try {
+      return await this.discoverFrom(client);
+    } finally {
+      await client.close();
+    }
+  }
+
+  private async discoverFrom(client: McpClient): Promise<{ identity: { serverName: string; serverVersion: string; protocolVersion: string }; tools: Array<Omit<McpToolState, 'enabled' | 'changedSinceEnabled' | 'capabilityId'>>; rejected: Array<{ name: string; reason: string }> }> {
     const identity = await client.initialize();
     const tools: Array<Omit<McpToolState, 'enabled' | 'changedSinceEnabled' | 'capabilityId'>> = [];
     const rejected: Array<{ name: string; reason: string }> = [];

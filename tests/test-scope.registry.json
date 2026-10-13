@@ -66,6 +66,7 @@
       "tool_capability_id_alignment",
       "r23_3t_permission_approval_hardening",
       "connections_redesign_browser",
+      "connections_catalog_browser",
       "design_system_v2_browser"
     ],
     "google": [
@@ -235,7 +236,10 @@
       "device_control",
       "desktop_control_service",
       "github_connection",
-      "mcp_runtime"
+      "mcp_runtime",
+      "mcp_e2e_isolated_server",
+      "mcp_planning_discovery",
+      "connector_catalog"
     ],
     "credential-broker": [
       "google_calendar_connection_state",
@@ -250,7 +254,10 @@
       "google_capability_execution_pipeline",
       "r23_4v_secret_non_propagation",
       "github_connection",
-      "mcp_runtime"
+      "mcp_runtime",
+      "mcp_e2e_isolated_server",
+      "mcp_planning_discovery",
+      "connector_catalog"
     ],
     "browser-untrusted-boundary": [
       "r23_5b_browser_untrusted_boundary",
@@ -340,6 +347,7 @@
       "r24_7b_canvas_ask_contract",
       "r24_8b_ui_integrity_contract",
       "connections_redesign_browser",
+      "connections_catalog_browser",
       "design_system_v2_browser",
       "mobile_phone_shell_browser",
       "r23_7h_c_mobile_recent_image_browser",

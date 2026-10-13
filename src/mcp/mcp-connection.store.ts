@@ -9,7 +9,8 @@ import path from 'node:path';
 import { decryptJson, encryptJson, loadEncryptionKey, type EncryptedEnvelope } from '../integrations/google/token.crypto.js';
 import type { McpJsonSchema } from './mcp-schema.js';
 
-export type McpConnectionStatus = 'CONNECTED' | 'IDENTITY_MISMATCH' | 'ERROR';
+// AUTH_REQUIRED: the server rejected the stored credential (expired, revoked or rotated). Nothing is callable until the owner reconnects with a new one.
+export type McpConnectionStatus = 'CONNECTED' | 'IDENTITY_MISMATCH' | 'AUTH_REQUIRED' | 'ERROR';
 
 export interface McpToolState {
   name: string;
@@ -59,10 +60,13 @@ export interface McpConnectionStore {
   // Internal lookup used by the broker path; the caller MUST still verify ownership against the request identity.
   findByCapabilityId(capabilityId: string): McpConnectionRecord | undefined;
   all(): McpConnectionRecord[];
+  // True when connections survive a restart (encrypted file with NAGEX_TOKEN_ENCRYPTION_KEY); false = memory only.
+  readonly durable: boolean;
 }
 
 export class InMemoryMcpConnectionStore implements McpConnectionStore {
   protected readonly records = new Map<string, McpConnectionRecord>();
+  public get durable(): boolean { return false; }
 
   public add(record: McpConnectionRecord): void { this.records.set(record.connectionId, record); this.onChange(); }
   public get(tenantId: string, principalId: string, connectionId: string): McpConnectionRecord | undefined {
@@ -104,6 +108,7 @@ export function resolveDefaultMcpStorePath(env: NodeJS.ProcessEnv = process.env)
 export class PersistentMcpConnectionStore extends InMemoryMcpConnectionStore {
   private readonly filePath: string;
   private readonly key: Buffer | null;
+  public override get durable(): boolean { return this.key !== null; }
 
   constructor(options: { filePath?: string; env?: NodeJS.ProcessEnv } = {}) {
     super();

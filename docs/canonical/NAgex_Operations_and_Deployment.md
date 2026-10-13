@@ -102,6 +102,7 @@ GitHub (built-in connection) is available only when the OAuth App is configured;
 | `NAGEX_MCP_STORE_PATH` | optional; default `/var/lib/nagex/mcp-connections.json` |
 | `NAGEX_MCP_ALLOWED_HOSTS` | optional comma-separated allowlist (`host` or `*.suffix`) for MCP server hosts |
 | `NAGEX_MCP_ALLOW_PRIVATE_NETWORK` | development/test only; never set in production |
+| `NAGEX_MCP_TIMEOUT_MS` | optional per-request timeout for MCP servers, bounded to 1000-60000 (default 15000) |
 
 GitHub tokens and MCP connections (with their credentials) are persisted encrypted with `NAGEX_TOKEN_ENCRYPTION_KEY`; without the key they live in memory only and do not survive a restart. A missing, corrupted or wrong-key file means "not connected" — never connected.
 

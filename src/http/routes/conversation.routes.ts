@@ -293,6 +293,7 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
       conversation,
       mode: parseRoutingMode(body?.provider, process.env.NAGEX_MODEL_PROVIDER),
       requestId,
+      identity: { tenantId, principalId },
     });
 
     // Section 6: Persist ASSISTANT message AFTER successful AI generation
