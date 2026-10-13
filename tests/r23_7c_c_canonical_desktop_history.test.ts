@@ -34,7 +34,7 @@ import { CreationService } from '../src/creation/creation.service.js';
 import { handleCreationRoutes } from '../src/http/routes/creation.routes.js';
 import { SessionStore } from '../src/sessions/session.store.js';
 import { authAs, authAsWith, ensureTestAccount } from './_s1_session_auth.js';
-import { canonicalizeRequestHeaders } from '../src/http/request-identity.js';
+import { callerIdentity, canonicalizeRequestHeaders } from '../src/http/request-identity.js';
 import { IdentityStore } from '../src/identity/identity.store.js';
 
 declare const document: any;
@@ -80,10 +80,12 @@ async function generateImage(deps: ReturnType<typeof setup>, headers: Record<str
   });
 }
 
+// A retained legacy (placeholder) creation. The HTTP route no longer produces them (non-image generate is refused as unsupported), so the record is seeded
+// through the service for the identity the route would have resolved from these headers.
 async function generateText(deps: ReturnType<typeof setup>, headers: Record<string, string>) {
-  return handleCreationRoutes('POST', '/api/v1/creations/generate', { prompt: 'History fix test text creation' }, headers, {}, {
-    creationService: deps.creationService, imageExecutor: deps.imageExecutor, imageStore: deps.imageStore, sessionStore: deps.sessionStore,
-  });
+  const { tenantId, principalId } = callerIdentity(headers);
+  const record = await deps.creationService.generateCreation({ tenantId, ownerId: principalId, prompt: 'History fix test text creation' });
+  return { status: 201, data: record } as { status: number; data: unknown };
 }
 
 async function list(deps: ReturnType<typeof setup>, headers: Record<string, string>) {
