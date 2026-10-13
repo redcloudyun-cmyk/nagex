@@ -39,6 +39,7 @@ import { toolRegistry as canonicalToolRegistry } from '../tools/tool-registry.js
 import { githubConnectionService } from '../integrations/github/index.js';
 import { McpService } from '../mcp/mcp.service.js';
 import { PersistentMcpConnectionStore } from '../mcp/mcp-connection.store.js';
+import { McpOAuthRuntime } from '../mcp/mcp-oauth-runtime.js';
 import { PlanResolver } from '../planning/plan-resolver.js';
 import { PersistentActionApprovalStore } from '../governance/action-approval.store.js';
 import { ExecutionStore } from '../governance/execution.store.js';
@@ -377,7 +378,10 @@ export function createNagexApplication(): NagexApplication {
   );
 
   // User-registered MCP servers: discovery + pinned identity here, execution only through the Capability Broker below.
+  // Operator-activated MCP OAuth (default OFF: NAGEX_MCP_OAUTH_ENABLED=1 plus a complete provider registration). The runtime also resolves the owner's stored token per call.
+  const mcpOAuthRuntime = new McpOAuthRuntime();
   const mcpService = new McpService({
+    oauth: mcpOAuthRuntime,
     store: new PersistentMcpConnectionStore(),
     approvals: actionApprovals,
     audit: auditLogger,
@@ -822,6 +826,7 @@ export function createNagexApplication(): NagexApplication {
     webSearchService,
     evidencePackService,
     mcpService,
+    mcpOAuthRuntime,
     demoScenarioService,
     socialIdentityStore,
     personalReminderStore,

@@ -7,6 +7,7 @@
 // createNagexApplication() has something concrete to return and
 // server_web.ts has something concrete to destructure from.
 import type { McpService } from '../mcp/mcp.service.js';
+import type { McpOAuthRuntime } from '../mcp/mcp-oauth-runtime.js';
 import type { PolicyDecisionPoint } from '../identity/pdp.js';
 import type { DurableRuntimeEngine } from '../runtime/runtime.engine.js';
 import type { AuditLogger } from '../governance/audit.logger.js';
@@ -100,6 +101,7 @@ export interface NagexApplication {
   webSearchService: WebSearchService;
   evidencePackService: EvidencePackService;
   mcpService: McpService;
+  mcpOAuthRuntime: McpOAuthRuntime;
   demoScenarioService: DemoScenarioService;
   personalReminderStore: PersonalReminderStore;
   personalAssistantEngine: PersonalAssistantEngine;

@@ -6210,6 +6210,23 @@
       "notes": "Deterministic repository-controlled test. No real third-party OAuth provider is contacted; a local fake provider stands in. Not a live-provider certification.",
       "writesRepositoryArtifacts": false
     },
+    "mcp_oauth_slack_flow_e2e": {
+      "milestone": "NAGEX-MCP-OAUTH-OVERNIGHT-20261013",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "integrations",
+        "identity-access",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "MCP OAuth product journey against a local fake Slack-shaped provider and an isolated MCP server: opt-in operator activation (DISABLED / SETUP_REQUIRED / UNAVAILABLE, never a value), PKCE start with the operator's pinned client and the provider-published resource, authenticated callback, encrypted owner-bound token, MCP initialize + tools/list with every tool OFF, enable, Human Approval, one-time broker-governed call reported as TOOL_RESPONDED/UNVERIFIED; token persistence is not a verified connection; expiry, upstream revoke, restart, disconnect and cross-user/tenant isolation all fail closed.",
+      "notes": "Deterministic repository-controlled test. No real third-party OAuth provider is contacted; a local fake provider stands in. Not a live-provider certification.",
+      "writesRepositoryArtifacts": false
+    },
     "mcp_oauth_token": {
       "milestone": "NAGEX-MCP-OAUTH-STAGE1",
       "classification": "CANONICAL_BEHAVIOR",

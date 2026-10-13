@@ -28,7 +28,7 @@ export interface McpOAuthProviderRegistration {
 interface VerifiedRegistration {
   id: string; clientId: string; redirectUri: string; requestedScopes: string[];
   resource: string; issuer: string; authorizationEndpoint: string; tokenEndpoint: string;
-  tokenAuthMethod: McpOAuthTokenAuthMethod; clientSecretRef: string | null; mcpEndpoint: string; responseProfile: McpOAuthResponseProfile; displayName: string;
+  resourceParameter: string; tokenAuthMethod: McpOAuthTokenAuthMethod; clientSecretRef: string | null; mcpEndpoint: string; responseProfile: McpOAuthResponseProfile; displayName: string;
 }
 
 export interface McpOAuthProviderSummary { id: string; displayName: string; mcpEndpoint: string; resource: string; scopes: string[] }
@@ -59,6 +59,8 @@ function validateRegistration(reg: McpOAuthProviderRegistration): VerifiedRegist
   return { id: reg.id, resource: resource.resource, issuer: auth.issuer, clientId: reg.clientId,
     redirectUri: callback.href, requestedScopes: [...new Set(reg.requestedScopes)],
     authorizationEndpoint: auth.authorizationEndpoint, tokenEndpoint: auth.tokenEndpoint,
+    // verified equal (canonically) to the expected resource by parseProtectedResourceMetadata above
+    resourceParameter: String((reg.protectedResourceMetadata as { resource: unknown }).resource),
     tokenAuthMethod, clientSecretRef: secretRef, mcpEndpoint: mcpEndpoint.href, responseProfile, displayName: (reg.displayName ?? reg.id).slice(0, 60) };
 }
 
@@ -81,10 +83,10 @@ export class McpOAuthProviderRegistry {
     const registration = this.providers.get(providerId);
     if (!registration) throw new Error('MCP_OAUTH_PROVIDER_NOT_AVAILABLE');
     const issued = states.issue(owner, { resource: registration.resource, issuer: registration.issuer,
-      clientId: registration.clientId, redirectUri: registration.redirectUri });
+      clientId: registration.clientId, redirectUri: registration.redirectUri, resourceParameter: registration.resourceParameter });
     return buildMcpOAuthAuthorizeUrl({ authorizationEndpoint: registration.authorizationEndpoint,
       clientId: registration.clientId, redirectUri: registration.redirectUri,
-      resource: registration.resource, scope: registration.requestedScopes, request: issued });
+      resource: registration.resourceParameter, scope: registration.requestedScopes, request: issued });
   }
   public requestedScopesFor(pending: PendingMcpOAuth): string[] {
     const registration = [...this.providers.values()].find((provider) =>
@@ -115,5 +117,17 @@ export class McpOAuthProviderRegistry {
   public providerFor(pending: PendingMcpOAuth): { id: string; displayName: string; mcpEndpoint: string } {
     const r = this.registrationFor(pending);
     return { id: r.id, displayName: r.displayName, mcpEndpoint: r.mcpEndpoint };
+  }
+
+  // The credential tuple a provider signs people in under (for connecting with an already stored credential).
+  public bindingFor(providerId: string): { providerId: string; displayName: string; mcpEndpoint: string; resource: string; issuer: string; clientId: string; scopes: string[] } | undefined {
+    const r = this.providers.get(providerId);
+    return r ? { providerId: r.id, displayName: r.displayName, mcpEndpoint: r.mcpEndpoint, resource: r.resource, issuer: r.issuer, clientId: r.clientId, scopes: [...r.requestedScopes] } : undefined;
+  }
+
+  // The provider a stored credential identity belongs to (resource + issuer + client), after the callback has consumed the pending state.
+  public providerByCredential(identity: { resource: string; issuer: string; clientId: string }): { id: string; displayName: string; mcpEndpoint: string; scopes: string[] } | undefined {
+    const r = [...this.providers.values()].find((p) => p.resource === identity.resource && p.issuer === identity.issuer && p.clientId === identity.clientId);
+    return r ? { id: r.id, displayName: r.displayName, mcpEndpoint: r.mcpEndpoint, scopes: [...r.requestedScopes] } : undefined;
   }
 }

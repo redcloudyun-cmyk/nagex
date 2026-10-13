@@ -38,7 +38,7 @@ export async function completeMcpOAuthCallback(
   query: { state?: unknown; code?: unknown; error?: unknown },
   requestId: string,
   now: number = Date.now(),
-): Promise<{ status: 'CREDENTIAL_STORED'; resource: string; issuer: string }> {
+): Promise<{ status: 'CREDENTIAL_STORED'; resource: string; issuer: string; clientId: string; scopes: string[] }> {
   // Consume state BEFORE checking provider success. A denied callback must not
   // be replayable later with an injected authorization code.
   const state = typeof query.state === 'string' ? query.state : undefined;
@@ -66,5 +66,5 @@ export async function completeMcpOAuthCallback(
   };
   // Must be synchronous and durable or throw. No success reply on save error.
   deps.vault.save(identity, tokens, now);
-  return { status: 'CREDENTIAL_STORED', resource: pending.resource, issuer: pending.issuer };
+  return { status: 'CREDENTIAL_STORED', resource: pending.resource, issuer: pending.issuer, clientId: pending.clientId, scopes: [...tokens.scope] };
 }

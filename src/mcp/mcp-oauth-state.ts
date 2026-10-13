@@ -14,6 +14,9 @@ export interface PendingMcpOAuth {
   issuer: string;
   clientId: string;
   redirectUri: string;
+  // The RFC 8707 "resource" value exactly as the provider published it (e.g. "https://mcp.slack.com" with no trailing slash). The canonical form above is used
+  // for identity binding; providers may compare this parameter as a plain string, so the published spelling is what goes on the wire.
+  resourceParameter?: string;
   codeVerifier: string;
   createdAt: number;
 }
@@ -51,6 +54,7 @@ export function createMcpOAuthStateStore(): McpOAuthStateStore {
       if (!validOwner(owner)) return invalid('OWNER');
       if (!context || !validHttps(context.resource) || !validHttps(context.issuer) || !validHttps(context.redirectUri)
         || typeof context.clientId !== 'string' || !context.clientId.trim() || context.clientId.length > 512) return invalid('CONTEXT');
+      if (context.resourceParameter !== undefined && (!validHttps(context.resourceParameter) || new URL(context.resourceParameter).href !== new URL(context.resource).href)) return invalid('CONTEXT');
       sweep(now);
       if (pending.size >= MCP_OAUTH_MAX_PENDING) return invalid('PENDING_LIMIT');
       const state = crypto.randomBytes(32).toString('base64url');

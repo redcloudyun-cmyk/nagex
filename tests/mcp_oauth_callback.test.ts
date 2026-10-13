@@ -36,7 +36,7 @@ describe('MCP OAuth callback transaction', () => {
     const p = setup();
     const issued = p.stateStore.issue(owner, context, 1000);
     const result = await completeMcpOAuthCallback(p.deps, owner, { state: issued.state, code: 'test-code' }, 'req_ok', 1001);
-    assert.deepEqual(result, { status: 'CREDENTIAL_STORED', resource: context.resource, issuer: context.issuer });
+    assert.deepEqual(result, { status: 'CREDENTIAL_STORED', resource: context.resource, issuer: context.issuer, clientId: context.clientId, scopes: ['tools.read'] });
     const stored = p.vault.load({ ...owner, resource: context.resource, issuer: context.issuer, clientId: context.clientId });
     assert.deepEqual(stored?.tokens, token);
     assert.doesNotMatch(JSON.stringify(p.vault.sealedSnapshot()), /secret-code-exchanged/);

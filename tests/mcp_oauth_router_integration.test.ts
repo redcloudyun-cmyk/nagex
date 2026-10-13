@@ -55,7 +55,10 @@ describe('MCP OAuth canonical HTTP router end-to-end with isolated trusted coord
     const state = url.searchParams.get('state')!;
     const callback = await h.call('GET', '/api/v1/oauth/mcp/callback', null, owner, { state, code: 'provider-code' });
     assert.equal(callback.status, 200, JSON.stringify(callback.data));
-    assert.deepEqual(callback.data, { status: 'CREDENTIAL_STORED', resource });
+    // With the MCP service wired, a stored credential is reported as exactly that until the MCP server itself verifies: the injected vault here is not the service's
+    // credential source and the endpoint is not a reachable MCP server, so this is NOT a verified connection (token persistence is not proof of a working server).
+    assert.equal((callback.data as any).status, 'OAUTH_CREDENTIAL_STORED');
+    assert.notEqual((callback.data as any).status, 'MCP_CONNECTED_VERIFIED');
     assert.equal(h.getExchanges(), 1);
     // The metadata parser canonicalizes an origin-only issuer to a trailing-slash URL.
     // Credential identity must use that exact pinned canonical URI, not the raw fixture spelling.

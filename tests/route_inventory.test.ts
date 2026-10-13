@@ -66,6 +66,7 @@ const EXPECTED_ROUTE_MODULE_COUNTS: Record<string, number> = {
   'github.routes.ts': 6, // built-in GitHub connection (read-only repository access)
   'connector-catalog.routes.ts': 1, // normalized connector catalog with the signed-in user's real connection state
   'mcp.routes.ts': 10, // owner-scoped MCP server registry (register, discover, tools, refresh, reconnect, remove)
+  'mcp-oauth.routes.ts': 0, // not counted by this methodology: the allowed method is derived from the path table (providers GET, start POST, callback GET, connect POST) and answers 405 otherwise
   'knowledge.routes.ts': 3, // R24.5C — real POST (ingestion) and GET /:id (source traceability) added alongside the original GET list/search
   'plan.routes.ts': 4,
   'competitor-pricing-agent.routes.ts': 3,

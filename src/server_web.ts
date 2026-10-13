@@ -35,7 +35,7 @@ import { handleGoogleOAuthStartRoutes, handleGoogleOAuthCallbackRoutes } from '.
 import { handleGitHubOAuthStartRoutes, handleGitHubRoutes } from './http/routes/github.routes.js';
 import { githubConnectionService } from './integrations/github/index.js';
 import { handleMcpRoutes } from './http/routes/mcp.routes.js';
-import { handleMcpOAuthCallbackRoute } from './http/routes/mcp-oauth.routes.js';
+import { handleMcpOAuthRoutes } from './http/routes/mcp-oauth.routes.js';
 import type { McpOAuthCallbackRouteDeps } from './http/routes/mcp-oauth.routes.js';
 import { handleConnectorCatalogRoutes } from './http/routes/connector-catalog.routes.js';
 import { ConnectorCatalogService } from './connectors/connector-catalog.service.js';
@@ -213,6 +213,7 @@ export const {
   moduleService,
   capabilityBroker,
   mcpService,
+  mcpOAuthRuntime,
   sessionStore,
   conversationStore,
   conversationContextService,
@@ -583,9 +584,11 @@ export async function handleAsyncApiRequest(
     // a trusted issuer-pinned OAuth coordinator is installed. No user tokens
     // or callback parameters are ever handled by the normal MCP tool API.
     {
-      const mcpOAuthResult = await handleMcpOAuthCallbackRoute(method, pathname, body, headers, query, {
+      const mcpOAuthResult = await handleMcpOAuthRoutes(method, pathname, body, headers, query, {
         sessionStore: customDeps?.sessionStore ?? sessionStore,
         identityStore: customDeps?.identityStore ?? identityStore,
+        oauthRuntime: mcpOAuthRuntime,
+        mcpService,
         ...customDeps?.mcpOAuthCoordinator,
       });
       if (mcpOAuthResult) return mcpOAuthResult;

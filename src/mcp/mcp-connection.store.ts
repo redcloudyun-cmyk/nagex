@@ -8,6 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { decryptJson, encryptJson, loadEncryptionKey, type EncryptedEnvelope } from '../integrations/google/token.crypto.js';
 import type { McpJsonSchema } from './mcp-schema.js';
+import type { McpOAuthBinding } from './mcp-oauth-binding.js';
 
 // AUTH_REQUIRED: the server rejected the stored credential (expired, revoked or rotated). Nothing is callable until the owner reconnects with a new one.
 export type McpConnectionStatus = 'CONNECTED' | 'IDENTITY_MISMATCH' | 'AUTH_REQUIRED' | 'ERROR';
@@ -32,6 +33,8 @@ export interface McpConnectionRecord {
   name: string;
   url: string;
   bearerToken: string | null;
+  // When set, the credential is an OAuth token in the owner's encrypted vault (resolved per call); bearerToken is then always null.
+  oauth?: McpOAuthBinding;
   status: McpConnectionStatus;
   reason: string | null;
   // Pinned on first successful initialize; any later mismatch blocks every tool until the owner removes and re-adds the server.
@@ -42,13 +45,15 @@ export interface McpConnectionRecord {
   discoveredAt: string;
 }
 
-export interface McpConnectionView extends Omit<McpConnectionRecord, 'bearerToken' | 'tenantId' | 'principalId'> {
+export interface McpConnectionView extends Omit<McpConnectionRecord, 'bearerToken' | 'tenantId' | 'principalId' | 'oauth'> {
   hasCredential: boolean;
+  // Non-secret: which provider's sign-in this connection uses, and the scopes granted. null for a connection that uses a pasted credential or none.
+  oauth: { providerId: string; scopes: string[] } | null;
 }
 
 export function toView(record: McpConnectionRecord): McpConnectionView {
-  const { bearerToken, tenantId: _tenantId, principalId: _principalId, ...rest } = record;
-  return { ...rest, hasCredential: Boolean(bearerToken) };
+  const { bearerToken, tenantId: _tenantId, principalId: _principalId, oauth, ...rest } = record;
+  return { ...rest, hasCredential: Boolean(bearerToken) || Boolean(oauth), oauth: oauth ? { providerId: oauth.providerId, scopes: [...oauth.scopes] } : null };
 }
 
 export interface McpConnectionStore {

@@ -19,6 +19,7 @@ import { McpClient, MCP_TIMEOUT_MS, createHttpMcpTransport, type McpCallResult, 
 import { toView, type McpConnectionRecord, type McpConnectionStore, type McpConnectionView, type McpToolState } from './mcp-connection.store.js';
 import { parseToolDescriptor, sanitizeText, validateArguments } from './mcp-schema.js';
 import { assertSafeMcpUrl, readMcpUrlPolicyFromEnv, type McpUrlPolicyOptions } from './mcp-url-policy.js';
+import type { McpOAuthBearerResolver, McpOAuthBinding } from './mcp-oauth-binding.js';
 
 export const MCP_MAX_SERVERS_PER_USER = 10;
 
@@ -40,6 +41,8 @@ export interface McpServiceDeps {
   policy?: () => McpUrlPolicyOptions;
   // Per-request timeout; defaults to NAGEX_MCP_TIMEOUT_MS (bounded to 1 s - 60 s) or 15 s.
   timeoutMs?: number;
+  // Resolves the owner's OAuth token for connections created through a provider sign-in. Without it such connections can never be called (REAUTH_REQUIRED).
+  oauth?: McpOAuthBearerResolver;
 }
 
 export function readMcpTimeoutFromEnv(env: NodeJS.ProcessEnv = process.env): number {
@@ -84,6 +87,61 @@ export class McpService {
     return toView(this.requireOwned(identity, connectionId));
   }
 
+  // Creates or re-verifies the connection of a provider sign-in whose credential is ALREADY stored in the owner's vault. The endpoint comes from the operator-pinned
+  // provider registration, never from a request. Discovery (initialize + tools/list) must succeed under that credential before anything is reported connected.
+  // An existing connection of the same provider is re-verified (its pinned identity, tool hashes and enabled state are kept); a changed definition is disabled.
+  public async connectOAuth(identity: McpIdentity, input: { name: string; mcpEndpoint: string; binding: McpOAuthBinding }): Promise<{ view: McpConnectionView; created: boolean }> {
+    const { tenantId, principalId, requestId } = identity;
+    if (!tenantId || !principalId) throw err('UNAUTHORIZED', 'AUTHENTICATION', 'Sign in to connect an MCP server.', requestId);
+    const existing = this.deps.store.list(tenantId, principalId).find((record) => record.oauth?.providerId === input.binding.providerId);
+    if (existing) {
+      existing.oauth = { ...input.binding, scopes: [...input.binding.scopes] };
+      existing.bearerToken = null;
+      return { view: await this.reverify(identity, existing.connectionId, undefined), created: false };
+    }
+    if (this.deps.store.list(tenantId, principalId).length >= MCP_MAX_SERVERS_PER_USER) throw err('MCP_LIMIT_REACHED', 'QUOTA', `You can connect at most ${MCP_MAX_SERVERS_PER_USER} MCP servers.`, requestId);
+    const name = sanitizeText(input.name, 60);
+    if (!name) throw err('MCP_INVALID_REQUEST', 'VALIDATION', 'A server name is required.', requestId);
+    const url = await assertSafeMcpUrl(input.mcpEndpoint, requestId, this.policy());
+    const token = this.oauthBearer({ tenantId, principalId }, input.binding, requestId);
+    const discovered = await this.discover(url, token, requestId);
+    const connectionId = `mcp_${crypto.randomBytes(8).toString('hex')}`;
+    const now = getCurrentISOString();
+    const record: McpConnectionRecord = {
+      connectionId, tenantId, principalId, name, url: url.toString(), bearerToken: null, oauth: { ...input.binding, scopes: [...input.binding.scopes] },
+      status: 'CONNECTED', reason: null,
+      identity: { origin: url.origin, serverName: discovered.identity.serverName, serverVersion: discovered.identity.serverVersion, protocolVersion: discovered.identity.protocolVersion, pinnedAt: now },
+      tools: discovered.tools.map((tool) => ({ ...tool, enabled: false, changedSinceEnabled: false, capabilityId: `mcp.${connectionId}.${tool.name}` })),
+      rejectedTools: discovered.rejected,
+      createdAt: now, discoveredAt: now,
+    };
+    this.deps.store.add(record);
+    this.audit(identity, 'mcp.server_added', 'SUCCESS', connectionId, { origin: url.origin, serverName: record.identity.serverName, tools: record.tools.length, rejected: record.rejectedTools.length, auth: 'OAUTH', provider: input.binding.providerId });
+    return { view: toView(record), created: true };
+  }
+
+  // The OAuth token of this owner for the binding, or a REAUTH_REQUIRED error. Nothing is ever called with a missing or expired credential.
+  private oauthBearer(owner: { tenantId: string; principalId: string }, binding: McpOAuthBinding, requestId: string): string {
+    const bearer = this.deps.oauth?.bearerFor(owner, binding) ?? { state: 'MISSING' as const };
+    if (bearer.state === 'OK') return bearer.token;
+    throw err('MCP_OAUTH_REAUTH_REQUIRED', 'POLICY', 'Sign in with the provider again to use this connection.', requestId, { reason: bearer.state === 'EXPIRED' ? 'OAUTH_TOKEN_EXPIRED' : 'OAUTH_CREDENTIAL_MISSING', providerId: binding.providerId });
+  }
+
+  // The credential to present for a stored connection. For an OAuth connection a missing / expired token turns it into AUTH_REQUIRED (tools off) and aborts.
+  private credentialFor(identity: McpIdentity, record: McpConnectionRecord): string | null {
+    if (!record.oauth) return record.bearerToken;
+    try {
+      return this.oauthBearer({ tenantId: record.tenantId, principalId: record.principalId }, record.oauth, identity.requestId);
+    } catch (error) {
+      record.status = 'AUTH_REQUIRED';
+      record.reason = error instanceof NagexError && typeof error.details?.reason === 'string' ? error.details.reason : 'OAUTH_CREDENTIAL_MISSING';
+      this.deps.store.save(record);
+      this.syncCapabilities(record);
+      this.audit(identity, 'mcp.oauth_reauth_required', 'DENIED', record.connectionId, { reason: record.reason });
+      throw error;
+    }
+  }
+
   public async addServer(identity: McpIdentity, input: { name: unknown; url: unknown; bearerToken?: unknown }): Promise<McpConnectionView> {
     const { tenantId, principalId, requestId } = identity;
     if (!tenantId || !principalId) throw err('UNAUTHORIZED', 'AUTHENTICATION', 'Sign in to add an MCP server.', requestId);
@@ -117,6 +175,8 @@ export class McpService {
   // Reconnection after the server rejected the stored credential (expired / revoked / rotated): the owner supplies a new one. It replaces the stored
   // credential ONLY if the server then identifies as the pinned server; a changed tool definition still disables that tool until re-enabled.
   public async reconnect(identity: McpIdentity, connectionId: string, input: { bearerToken?: unknown }): Promise<McpConnectionView> {
+    // A provider sign-in connection never takes a pasted credential: it reconnects through the provider's sign-in.
+    if (this.requireOwned(identity, connectionId).oauth) throw err('MCP_OAUTH_REAUTH_REQUIRED', 'POLICY', 'Sign in with the provider again to reconnect.', identity.requestId, { reason: 'OAUTH_MANAGED' });
     const token = this.normalizeBearer(input.bearerToken, identity.requestId);
     if (!token) throw err('MCP_INVALID_REQUEST', 'VALIDATION', 'A new credential is required to reconnect.', identity.requestId);
     return this.reverify(identity, connectionId, token);
@@ -133,7 +193,7 @@ export class McpService {
     const url = await assertSafeMcpUrl(record.url, identity.requestId, this.policy());
     let discovered;
     try {
-      discovered = await this.discover(url, newToken ?? record.bearerToken, identity.requestId);
+      discovered = await this.discover(url, newToken ?? this.credentialFor(identity, record), identity.requestId);
     } catch (error) {
       this.markUnreachable(identity, record, error, 'mcp.server_refresh_failed');
       throw error;
@@ -182,6 +242,14 @@ export class McpService {
     const record = this.requireOwned(identity, connectionId);
     for (const tool of record.tools) this.deps.registry.unregisterDynamic(tool.capabilityId);
     this.deps.store.remove(identity.tenantId, identity.principalId, connectionId);
+    // Disconnect also deletes the owner's stored OAuth credential (local removal; provider-side revocation is not performed here).
+    if (record.oauth) {
+      const stillUsed = this.deps.store.list(identity.tenantId, identity.principalId).some((other) => other.oauth && other.oauth.resource === record.oauth!.resource && other.oauth.issuer === record.oauth!.issuer && other.oauth.clientId === record.oauth!.clientId);
+      if (!stillUsed) {
+        this.deps.oauth?.remove({ tenantId: identity.tenantId, principalId: identity.principalId }, record.oauth);
+        this.audit(identity, 'mcp.oauth_credential_removed', 'SUCCESS', connectionId, { provider: record.oauth.providerId });
+      }
+    }
     this.audit(identity, 'mcp.server_removed', 'SUCCESS', connectionId, {});
   }
 
@@ -210,6 +278,8 @@ export class McpService {
 
   public requestToolApproval(request: McpIdentity & { capabilityId: string; payload: unknown }): ActionApprovalRecord {
     const { record, tool } = this.resolveCallable(request, request.capabilityId);
+    // An expired / missing provider credential is surfaced BEFORE a human is asked to approve something that cannot run.
+    if (record.oauth) this.credentialFor(request, record);
     const args = this.argumentsFrom(request.payload, request.requestId);
     const problems = validateArguments(tool.inputSchema, args);
     if (problems.length > 0) throw err('MCP_INVALID_ARGUMENTS', 'VALIDATION', `The arguments do not match the tool's schema: ${problems.slice(0, 3).join(' ')}`, request.requestId);
@@ -226,7 +296,7 @@ export class McpService {
 
     // Verify the server is still the one the owner enabled BEFORE spending the approval.
     const url = await assertSafeMcpUrl(record.url, request.requestId, this.policy());
-    const client = new McpClient({ url, bearerToken: record.bearerToken, transport: this.transport, requestId: request.requestId, timeoutMs: this.timeoutMs });
+    const client = new McpClient({ url, bearerToken: this.credentialFor(request, record), transport: this.transport, requestId: request.requestId, timeoutMs: this.timeoutMs });
     try {
       return await this.runApproved(request, record, tool, args, url, client);
     } finally {
@@ -324,7 +394,7 @@ export class McpService {
   // A failed re-verification: a rejected credential means the owner must reconnect; any other failure is a (retryable) error. Nothing stays callable.
   private markUnreachable(identity: McpIdentity, record: McpConnectionRecord, error: unknown, auditAction: string): void {
     const code = error instanceof NagexError ? error.code : 'MCP_ERROR';
-    record.status = code === 'MCP_SERVER_AUTH_FAILED' ? 'AUTH_REQUIRED' : 'ERROR';
+    record.status = code === 'MCP_SERVER_AUTH_FAILED' || code === 'MCP_OAUTH_REAUTH_REQUIRED' ? 'AUTH_REQUIRED' : 'ERROR';
     record.reason = code;
     this.deps.store.save(record);
     this.syncCapabilities(record);

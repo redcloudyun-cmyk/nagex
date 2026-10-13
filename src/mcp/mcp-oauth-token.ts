@@ -124,7 +124,7 @@ export async function exchangeMcpOAuthCode(
     redirect_uri: pending.redirectUri,
     client_id: pending.clientId,
     code_verifier: pending.codeVerifier,
-    resource: pending.resource,
+    resource: pending.resourceParameter ?? pending.resource,
   });
   if (clientAuth.method === 'client_secret_post') form.set('client_secret', clientAuth.clientSecret as string);
   let response: TokenHttpResponse;

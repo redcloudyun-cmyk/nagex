@@ -250,7 +250,8 @@
       "mcp_oauth_route",
       "mcp_oauth_router_integration",
       "mcp_oauth_state",
-      "mcp_oauth_token"
+      "mcp_oauth_token",
+      "mcp_oauth_slack_flow_e2e"
     ],
     "credential-broker": [
       "google_calendar_connection_state",
@@ -279,7 +280,8 @@
       "mcp_oauth_route",
       "mcp_oauth_router_integration",
       "mcp_oauth_state",
-      "mcp_oauth_token"
+      "mcp_oauth_token",
+      "mcp_oauth_slack_flow_e2e"
     ],
     "browser-untrusted-boundary": [
       "r23_5b_browser_untrusted_boundary",
