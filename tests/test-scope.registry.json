@@ -239,7 +239,18 @@
       "mcp_runtime",
       "mcp_e2e_isolated_server",
       "mcp_planning_discovery",
-      "connector_catalog"
+      "connector_catalog",
+      "mcp_oauth_callback",
+      "mcp_oauth_confidential_exchange",
+      "mcp_oauth_credential_vault",
+      "mcp_oauth_discovery",
+      "mcp_oauth_metadata",
+      "mcp_oauth_persistent_store",
+      "mcp_oauth_provider_registry",
+      "mcp_oauth_route",
+      "mcp_oauth_router_integration",
+      "mcp_oauth_state",
+      "mcp_oauth_token"
     ],
     "credential-broker": [
       "google_calendar_connection_state",
@@ -257,7 +268,18 @@
       "mcp_runtime",
       "mcp_e2e_isolated_server",
       "mcp_planning_discovery",
-      "connector_catalog"
+      "connector_catalog",
+      "mcp_oauth_callback",
+      "mcp_oauth_confidential_exchange",
+      "mcp_oauth_credential_vault",
+      "mcp_oauth_discovery",
+      "mcp_oauth_metadata",
+      "mcp_oauth_persistent_store",
+      "mcp_oauth_provider_registry",
+      "mcp_oauth_route",
+      "mcp_oauth_router_integration",
+      "mcp_oauth_state",
+      "mcp_oauth_token"
     ],
     "browser-untrusted-boundary": [
       "r23_5b_browser_untrusted_boundary",
