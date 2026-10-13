@@ -35,6 +35,7 @@ import { handleGoogleOAuthStartRoutes, handleGoogleOAuthCallbackRoutes } from '.
 import { handleGitHubOAuthStartRoutes, handleGitHubRoutes } from './http/routes/github.routes.js';
 import { githubConnectionService } from './integrations/github/index.js';
 import { handleMcpRoutes } from './http/routes/mcp.routes.js';
+import { handleMcpOAuthCallbackRoute } from './http/routes/mcp-oauth.routes.js';
 import { handleConnectorCatalogRoutes } from './http/routes/connector-catalog.routes.js';
 import { ConnectorCatalogService } from './connectors/connector-catalog.service.js';
 import { GoogleCalendarConnectionService } from './integrations/google/calendar-connection.js';
@@ -575,6 +576,16 @@ export async function handleAsyncApiRequest(
     {
       const githubResult = await handleGitHubRoutes(method, pathname, body, headers, query, { auditLogger, sessionStore: customDeps?.sessionStore ?? sessionStore, identityStore: customDeps?.identityStore ?? identityStore, githubConnection: githubConnectionService });
       if (githubResult) return githubResult;
+    }
+    // MCP OAuth: authenticated callback surface, explicitly unavailable until
+    // a trusted issuer-pinned OAuth coordinator is installed. No user tokens
+    // or callback parameters are ever handled by the normal MCP tool API.
+    {
+      const mcpOAuthResult = await handleMcpOAuthCallbackRoute(method, pathname, body, headers, query, {
+        sessionStore: customDeps?.sessionStore ?? sessionStore,
+        identityStore: customDeps?.identityStore ?? identityStore,
+      });
+      if (mcpOAuthResult) return mcpOAuthResult;
     }
     // User-owned MCP servers (discovery, per-tool enablement, broker-governed invocation).
     {
