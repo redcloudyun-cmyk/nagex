@@ -13,6 +13,7 @@ const CANDIDATES = Object.freeze({
     mcpEndpoint: 'https://mcp.slack.com/mcp',
     resource: 'https://mcp.slack.com',
     protectedMetadata: 'https://mcp.slack.com/.well-known/oauth-protected-resource',
+    authorizationMetadata: 'https://mcp.slack.com/.well-known/oauth-authorization-server',
   },
 });
 
@@ -25,10 +26,25 @@ if (!candidate || process.argv.length > 3) {
   try {
     const document = await getMcpOAuthMetadata(candidate.protectedMetadata, 'req_mcp_preflight');
     const metadata = parseProtectedResourceMetadata(document, candidate.resource);
+    // This is a vendor-documented endpoint, not a guessed URL or a link
+    // followed blindly from untrusted metadata.
+    const authRaw = await getMcpOAuthMetadata(candidate.authorizationMetadata, 'req_mcp_preflight_auth');
+    const auth = parseAuthorizationServerMetadata(authRaw, candidate.resource);
+    if (!metadata.authorizationServers.includes(auth.issuer)) throw new Error('MCP_OAUTH_ISSUER_NOT_AUTHORIZED');
+    const supportedMethods = Array.isArray(authRaw?.token_endpoint_auth_methods_supported)
+      ? authRaw.token_endpoint_auth_methods_supported.filter((method) => typeof method === 'string')
+      : [];
     const result = {
       provider: id,
       resourceVerified: metadata.resource === new URL(candidate.resource).href,
+      preflight: 'METADATA_VERIFIED',
       protectedMetadataRead: true,
+      authorizationMetadataVerified: true,
+      pkceS256: auth.codeChallengeMethodsSupported.includes('S256'),
+      requiredTokenClientAuth: supportedMethods,
+      // This probe checks metadata only, not whether NAgex implements the
+      // provider's confidential-client exchange or has any provider keys.
+      providerOAuthReady: false,
       issuerCount: metadata.authorizationServers.length,
       scopeCount: metadata.scopesSupported.length,
       // We do not print metadata endpoints or credentials into CI logs.
@@ -36,9 +52,6 @@ if (!candidate || process.argv.length > 3) {
       tokenExchangeTested: false,
       mcpToolsCertified: false,
     };
-    // This probe deliberately does not assume an authorization server's
-    // well-known URL can be guessed from its issuer. A separate approved
-    // discovery plan must validate the RFC8414 or OIDC metadata path.
     console.log(JSON.stringify(result, null, 2));
   } catch (error) {
     console.error(JSON.stringify({
