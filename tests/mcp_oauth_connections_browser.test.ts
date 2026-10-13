@@ -82,8 +82,17 @@ describe('provider sign-in cards (EN)', () => {
     await ctx.close();
   });
 
-  it('a provider that is not available has NO Connect button and says why, in More apps', async () => {
-    for (const [state, text] of [['DISABLED', /not turned on for this server/i], ['SETUP_REQUIRED', /still has to finish setting this up/i], ['UNAVAILABLE', /could not be checked right now/i]] as const) {
+  it('a provider the operator has not started to set up is not shown at all (default production state)', async () => {
+    const { ctx, page, errors } = await open('mcpoauth_disabled', { provider: 'DISABLED' });
+    await page.locator('details.nagex-conn-more > summary').click();
+    assert.equal(await page.locator('.nagex-conn-card[data-app^="mcp-oauth:"]').count(), 0);
+    assert.doesNotMatch(await page.locator('#nagex-connections').innerText(), /Slack workspace/);
+    assert.deepEqual(errors, []);
+    await ctx.close();
+  });
+
+  it('a provider that is set up but not available has NO Connect button and says why, in More apps', async () => {
+    for (const [state, text] of [['SETUP_REQUIRED', /still has to finish setting this up/i], ['UNAVAILABLE', /could not be checked right now/i]] as const) {
       const { ctx, page, errors } = await open(`mcpoauth_${state.toLowerCase()}`, { provider: state });
       const slack = card(page, 'mcp-oauth:slack');
       await page.locator('details.nagex-conn-more > summary').click();
@@ -186,6 +195,8 @@ describe('Korean and phone width', () => {
     const slack = card(page, 'mcp-oauth:slack');
     const text = await slack.innerText() + await page.locator('[data-oauth-notice]').innerText();
     assert.match(text, /로그인하면 NAgex가 공식 도구를 대신 사용할 수 있어요/);
+    assert.match(text, /Slack 워크스페이스/, 'the provider name is localized');
+    assert.doesNotMatch(text, /Slack workspace/);
     assert.match(text, /연결이 확인되기 전까지는 연결된 것이 아니에요/);
     assert.doesNotMatch(text, RAW);
     assert.doesNotMatch(text, /(습니다|입니다)\./);

@@ -122,13 +122,16 @@
     };
   }
   // Provider sign-in apps (e.g. Slack's official MCP server). A provider appears as an app only until the person is connected; after that it is a connection.
+  // The provider's display name is localized here (the server stores one English name); an unknown provider falls back to the name the server gave.
+  function oauthName(providerId, fallback) { const key = 'conn.oauth.name.' + providerId; const text = t(key); return text === key ? fallback : text; }
   const oauthServerFor = (providerId) => data.mcp.servers.find((server) => server.oauth && server.oauth.providerId === providerId) || null;
   function oauthApps() {
-    return data.mcpOAuth.providers.filter((provider) => !oauthServerFor(provider.id)).map((provider) => {
+    // A provider the operator has not started to set up (DISABLED) is not shown at all: there is nothing the person can do or wait for.
+    return data.mcpOAuth.providers.filter((provider) => provider.state !== 'DISABLED' && !oauthServerFor(provider.id)).map((provider) => {
       const available = provider.state === 'AVAILABLE';
-      const setup = provider.state === 'UNAVAILABLE' ? t('conn.oauth.unverified') : provider.state === 'DISABLED' ? t('conn.oauth.notEnabled') : t('conn.oauth.setupPending');
+      const setup = provider.state === 'UNAVAILABLE' ? t('conn.oauth.unverified') : t('conn.oauth.setupPending');
       return {
-        id: 'mcp-oauth:' + provider.id, providerId: provider.id, name: provider.displayName, provider: provider.displayName, source: 'mcp-oauth', category: 'COMMUNICATION', icon: ICONS[provider.id] ? provider.id : 'mcp',
+        id: 'mcp-oauth:' + provider.id, providerId: provider.id, name: oauthName(provider.id, provider.displayName), provider: oauthName(provider.id, provider.displayName), source: 'mcp-oauth', category: 'COMMUNICATION', icon: ICONS[provider.id] ? provider.id : 'mcp',
         availability: available ? 'LIVE' : 'UNAVAILABLE', desc: t('conn.oauth.desc', { app: provider.displayName }), setup: available ? '' : setup,
         oauthState: available ? { state: 'NOT_CONNECTED', reason: null } : provider.state === 'UNAVAILABLE' ? { state: 'ERROR', reason: 'PROVIDER_ERROR' } : { state: 'SETUP_REQUIRED', reason: null },
       };
@@ -176,7 +179,7 @@
       const tools = Array.isArray(server.tools) ? server.tools : [];
       const enabled = tools.filter((tool) => tool.enabled).length;
       const state = server.status === 'CONNECTED' ? 'CONNECTED' : (server.status === 'IDENTITY_MISMATCH' || server.status === 'AUTH_REQUIRED') ? 'REAUTH_REQUIRED' : 'ERROR';
-      items.push({ kind: 'mcp', id: server.connectionId, name: server.name, icon: 'mcp', state, account: (server.identity && server.identity.serverName) || '', summary: t('conn.cap.mcpCount', { enabled, total: tools.length }), search: [server.name, server.url, ...(tools.map((tool) => tool.name))].join(' ') });
+      items.push({ kind: 'mcp', id: server.connectionId, name: server.oauth ? oauthName(server.oauth.providerId, server.name) : server.name, icon: 'mcp', state, account: (server.identity && server.identity.serverName) || '', summary: t('conn.cap.mcpCount', { enabled, total: tools.length }), search: [server.name, server.url, ...(tools.map((tool) => tool.name))].join(' ') });
     }
     return items;
   }
@@ -276,7 +279,8 @@
   function noticeHtml() {
     const n = ui.oauthNotice;
     if (!n) return '';
-    const name = (data.mcpOAuth.providers.find((p) => p.id === n.provider) || { displayName: n.provider || t('conn.oauth.thisApp') }).displayName;
+    const found = data.mcpOAuth.providers.find((p) => p.id === n.provider);
+    const name = found ? oauthName(found.id, found.displayName) : (n.provider ? oauthName(n.provider, n.provider) : t('conn.oauth.thisApp'));
     const text = n.status === 'connected' ? t('conn.oauth.connected', { app: name }) : n.status === 'stored' ? t('conn.oauth.stored', { app: name }) : t('conn.oauth.failed', { app: name });
     const retry = n.status === 'stored' && n.provider ? `<button type="button" class="nagex-conn-btn" data-act="oauth-retry" data-provider="${escapeHtml(n.provider)}">${escapeHtml(t('conn.action.retry'))}</button>` : '';
     return `<div class="nagex-conn-banner" role="status" data-oauth-notice="${escapeHtml(n.status)}"><span>${escapeHtml(text)}</span>${retry}<button type="button" class="nagex-conn-btn" data-act="oauth-dismiss">${escapeHtml(t('conn.action.close'))}</button></div>`;
@@ -603,13 +607,13 @@
     } else {
       const server = serverById(d.id);
       if (!server) return '';
-      title = server.name; icon = 'mcp'; state = server.status === 'CONNECTED' ? 'CONNECTED' : (server.status === 'IDENTITY_MISMATCH' || server.status === 'AUTH_REQUIRED') ? 'REAUTH_REQUIRED' : 'ERROR';
+      title = server.oauth ? oauthName(server.oauth.providerId, server.name) : server.name; icon = 'mcp'; state = server.status === 'CONNECTED' ? 'CONNECTED' : (server.status === 'IDENTITY_MISMATCH' || server.status === 'AUTH_REQUIRED') ? 'REAUTH_REQUIRED' : 'ERROR';
       const tools = Array.isArray(server.tools) ? server.tools : [];
       body = (server.status === 'IDENTITY_MISMATCH' ? `<p class="nagex-conn-alert" role="alert">${escapeHtml(t('conn.mcp.mismatch'))}</p>` : '')
         + (server.status === 'AUTH_REQUIRED' && server.oauth ? `<div class="nagex-conn-alert" role="alert"><p>${escapeHtml(t('conn.oauth.reauth'))}</p></div><button type="button" class="nagex-conn-btn primary" data-act="oauth-reauth" data-provider="${escapeHtml(server.oauth.providerId)}" ${d.busy ? 'disabled aria-busy="true"' : ''}>${escapeHtml(t('conn.oauth.signInAgain'))}</button>` : '')
         + (server.status === 'AUTH_REQUIRED' && !server.oauth ? `<div class="nagex-conn-alert" role="alert"><p>${escapeHtml(t('conn.mcp.authRequired'))}</p></div><form id="nagex-mcp-reconnect" novalidate autocomplete="off" class="nagex-conn-inline-form"><label class="nagex-conn-field"><span>${escapeHtml(t('conn.mcp.newToken'))}</span><input name="bearerToken" type="password" autocomplete="new-password" data-focus="mcp-newtoken" ${d.busy ? 'disabled' : ''}></label><button type="submit" class="nagex-conn-btn primary" ${d.busy ? 'disabled aria-busy="true"' : ''}>${escapeHtml(t('conn.action.reconnect'))}</button></form>` : '')
         + factsHtml([[t('conn.detail.status'), badge(state)], [t('conn.mcp.identity'), escapeHtml((server.identity && server.identity.serverName) || '—') + (server.identity && server.identity.serverVersion ? ' ' + escapeHtml(server.identity.serverVersion) : '')], [t('conn.mcp.origin'), escapeHtml((server.identity && server.identity.origin) || server.url)], [t('conn.mcp.toolsEnabled'), escapeHtml(t('conn.cap.mcpCount', { enabled: tools.filter((x) => x.enabled).length, total: tools.length }))], [t('conn.detail.lastVerified'), verified(server.discoveredAt)]])
-        + toolsHtml(server, d) + secure + confirmBlock('remove', server.oauth ? t('conn.oauth.disconnect.confirm', { app: server.name }) : t('conn.remove.confirm'));
+        + toolsHtml(server, d) + secure + confirmBlock('remove', server.oauth ? t('conn.oauth.disconnect.confirm', { app: title }) : t('conn.remove.confirm'));
       foot = `<button type="button" class="nagex-conn-btn" data-act="mcp-refresh" ${d.busy ? 'disabled aria-busy="true"' : ''}>${escapeHtml(t('conn.action.refresh'))}</button><button type="button" class="nagex-conn-btn danger" data-act="ask-remove" ${d.busy ? 'disabled' : ''}>${escapeHtml(server.oauth ? t('conn.action.disconnect') : t('conn.action.removeServer'))}</button>`;
     }
     return `
