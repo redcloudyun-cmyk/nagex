@@ -6227,6 +6227,22 @@
       "notes": "Deterministic repository-controlled test. No real third-party OAuth provider is contacted; a local fake provider stands in. Not a live-provider certification.",
       "writesRepositoryArtifacts": false
     },
+    "mcp_oauth_connections_browser": {
+      "milestone": "NAGEX-MCP-OAUTH-OVERNIGHT-20261013",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Real-Chromium certification of provider sign-in in Apps & Connections: an AVAILABLE provider offers Connect which starts the sign-in with only the provider id; a provider that is disabled, not set up or unverifiable shows no Connect button and says why; no provider list invents nothing; a connected provider is a connection with every tool OFF and Disconnect asks before deleting; an expired sign-in offers Sign in again (never a pasted token); the return from the provider shows connected / stored-but-not-verified (with Retry) / failed truthfully, removes the status from the address bar and never injects hostile values; KR copy is haeyo-che without raw keys; 360/390/430 px have no horizontal overflow.",
+      "notes": "Production server harness with provider credentials scrubbed. The provider list, the connection list and removal are substituted in the browser; the provider sign-in page is intercepted. The real start/callback/verification behavior is covered by mcp_oauth_slack_flow_e2e. Screenshots are written only when NAGEX_CAPTURE_DIR is set.",
+      "writesRepositoryArtifacts": false
+    },
     "mcp_oauth_token": {
       "milestone": "NAGEX-MCP-OAUTH-STAGE1",
       "classification": "CANONICAL_BEHAVIOR",
