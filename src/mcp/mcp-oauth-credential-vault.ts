@@ -20,7 +20,7 @@ export interface McpOAuthStoredCredential {
   storedAt: number;
 }
 
-interface SealedCredential {
+export interface SealedCredential {
   id: string;
   identity: McpOAuthCredentialIdentity;
   envelope: EncryptedEnvelope;
