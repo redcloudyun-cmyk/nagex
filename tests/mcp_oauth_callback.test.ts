@@ -70,6 +70,20 @@ describe('MCP OAuth callback transaction', () => {
     }
   });
 
+  it('rejects over-scoped, unspecified and unregistered grants without saving a token', async () => {
+    for (const scope of [['tools.read', 'tools.admin'], [], ['tools.admin']]) {
+      const p = setup();
+      const issued = p.stateStore.issue(owner, context, 1000);
+      p.deps.exchange = async () => ({ ...token, scope });
+      await assert.rejects(
+        () => completeMcpOAuthCallback(p.deps, owner, { state: issued.state, code: 'test-code' }, 'req_scope', 1001),
+        /could not be completed/i,
+      );
+      assert.equal(p.vault.sealedSnapshot().length, 0, 'unexpected scope must not be stored');
+      await assert.rejects(() => completeMcpOAuthCallback(p.deps, owner, { state: issued.state, code: 'test-code' }, 'req_replay', 1002));
+    }
+  });
+
   it('does not claim success when encrypted persistence fails; it still burns state', async () => {
     const p = setup();
     const issued = p.stateStore.issue(owner, context, 1000);
