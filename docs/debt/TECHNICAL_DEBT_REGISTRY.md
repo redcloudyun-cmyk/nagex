@@ -677,7 +677,12 @@ risk: >
 target: R23.9C final certification — either make the legacy branch answer an explicit UNSUPPORTED/validation error or label its output as MOCK, then migrate
   the remaining tests (r17_final_completion, r23_7c_c_*) to the canonical routes.
 owner: NAGEX
-status: OPEN
+resolution: >
+  CLOSED on integration/r23.7-20261013. POST /api/v1/creations/generate no longer falls through to the legacy mock: a non-IMAGE kind answers 400
+  { status: 'UNSUPPORTED', error: 'CREATION_KIND_UNSUPPORTED' }, and POST /api/v1/creations/:id/variation on a retained legacy placeholder answers 409
+  CREATION_NOT_REVISABLE (an unknown id stays 404). Retained legacy records stay readable. Tests: r23_7c_c_artifact_delivery_identity (N, O, Q),
+  r23_7c_c_canonical_desktop_history, r17_final_completion (compares the creation count before and after, expecting no new record).
+status: CLOSED
 ```
 
 ---
@@ -704,6 +709,14 @@ target: after design approval — add Autonomy and Quick Wake back to Desktop Pe
   re-authentication (fresh provider sign-in) for disable/delete; re-enable the skipped tests (r24_6b_settings_real_browser x3, r24_6d_settings_surface_browser
   x2 groups, identity_lifecycle, r24_6c1_*).
 owner: NAGEX
+resolution_partial: >
+  The OAuth account-lifecycle part is resolved on integration/r23.7-20261013 (no password authentication was added): disable / delete for a Google or Microsoft account
+  need a session created by a provider sign-in within the last 5 minutes plus the typed account email (otherwise 403 REAUTH_REQUIRED with the provider start path and
+  nothing changes); a provider sign-in on a DISABLED or DELETION_PENDING account opens no session and issues a single-use, 10-minute, state-bound recovery token
+  (GET/POST /api/v1/auth/oauth/recovery/:token, REACTIVATE or CANCEL_DELETION, audited); a DELETED account cannot sign in. The provider is not asked to force a password
+  re-entry (Google's prompt=select_account is the strongest option NAgex requests), so "fresh" means "a provider sign-in happened minutes ago". Tests: oauth_account_lifecycle,
+  oauth_account_lifecycle_browser, settings_screen_certification_browser. STILL OPEN here: the missing Desktop Autonomy / Quick Wake panels, the static NAgex Voice card, and
+  re-enabling the skipped settings tests listed under target.
 status: OPEN
 ```
 
@@ -731,7 +744,18 @@ risk: >
 target: owner decision — restore the dropped code from ef5a4e6 (with its approval gates) or retire the tests as SUPERSEDED_CONTRACT with the reason; then
   re-run the gate. Do not claim "Android accessibility send" as a capability until then (MASTER section 7).
 owner: NAGEX
-status: OPEN
+resolution: >
+  CLOSED on integration/r23.7-20261013 (commit f55b8c8 and the merge/strings fixes before it). Established provenance: the merge b873e41 joined two diverged lines (p1
+  93e3102 = governed Kakao send / R2g line; p2 cc333c8 = governed-draft M4C line) and produced a hybrid - Kotlin from p1, tests from p2, routes from p2. Each parent
+  passed its own tests; the three M4C-R2A assertions were already red on p2 itself. Restored without weakening the send gate: governed Kakao SEND approvals and
+  enqueueKakaoSendAfterApproval (command bound to device, recipient, draft, conversation, expected display name, message hash and approval id; created only after an
+  APPROVED send), the execution-status projection, device-binding validation (POST /devices/:id/validate, fails closed), the JIT prepare route (never consumes a send
+  approval), and the Android dispatcher (WRONG_DEVICE/TENANT/USER, expiry, replay, package allow-list, payload hash, budget, FORBIDDEN_ACTIONS for send). The generic
+  accessibility step still answers SEND_ACTION_DISABLED_IN_M4C_R1. Result: all 31 named failures pass (npm test 2729 tests / 2721 pass / 0 fail / 8 skipped); Android
+  unit tests 105 run, 3 failing for environment reasons that predate this work (an orientation test and two AndroidKeyStore tests on the JVM).
+  KakaoTalk message sending is NOT enabled for users by this change: it still requires explicit Human Approval bound to device, recipient, conversation and message hash, and
+  is not certified on a real device.
+status: CLOSED
 ```
 
 ---
