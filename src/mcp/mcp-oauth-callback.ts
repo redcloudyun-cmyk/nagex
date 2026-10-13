@@ -2,7 +2,7 @@
 // Ownership comes from a verified NAgex session, never from callback query data.
 // Token endpoint is resolved from SERVER-TRUSTED issuer metadata, not caller input.
 import { NagexError } from '../common/errors.js';
-import { exchangeMcpOAuthCode, type McpOAuthTokens } from './mcp-oauth-token.js';
+import { exchangeMcpOAuthCode, type McpOAuthClientAuthentication, type McpOAuthResponseProfile, type McpOAuthTokens } from './mcp-oauth-token.js';
 import type { McpOAuthOwner, McpOAuthStateStore, PendingMcpOAuth } from './mcp-oauth-state.js';
 import type { McpOAuthCredentialIdentity } from './mcp-oauth-credential-vault.js';
 
@@ -17,6 +17,9 @@ export interface McpOAuthCallbackDeps {
   resolveTrustedTokenEndpoint: (pending: PendingMcpOAuth) => Promise<string>;
   // Resolved exclusively from the operator-vetted provider registry; never from query params.
   resolveRequestedScopes: (pending: PendingMcpOAuth) => string[];
+  // The operator-pinned client authentication of the provider this flow started from, with the secret resolved server-side. Absent = public client (PKCE only).
+  // Throwing (secret missing / provider changed) fails the callback closed before any request is made.
+  resolveClientAuthentication?: (pending: PendingMcpOAuth) => { clientAuth: McpOAuthClientAuthentication; responseProfile?: McpOAuthResponseProfile };
   exchange?: typeof exchangeMcpOAuthCode;
 }
 
@@ -47,7 +50,11 @@ export async function completeMcpOAuthCallback(
   // The actual token transport re-validates outbound endpoint DNS/SSRF.
   const requestedScopes = deps.resolveRequestedScopes(pending);
   if (!Array.isArray(requestedScopes) || requestedScopes.some((scope) => typeof scope !== 'string' || !scope)) return invalid('SCOPE_POLICY_INVALID');
-  const tokens = await (deps.exchange ?? exchangeMcpOAuthCode)(pending, query.code, endpoint, requestId);
+  let auth: { clientAuth?: McpOAuthClientAuthentication; responseProfile?: McpOAuthResponseProfile } = {};
+  if (deps.resolveClientAuthentication) {
+    try { auth = deps.resolveClientAuthentication(pending); } catch { return invalid('CLIENT_AUTH_UNAVAILABLE'); }
+  }
+  const tokens = await (deps.exchange ?? exchangeMcpOAuthCode)(pending, query.code, endpoint, requestId, { clientAuth: auth.clientAuth, responseProfile: auth.responseProfile });
   // Never store a token carrying an unexpected elevation. If scopes were
   // requested, require an explicit provider-reported scope list; an omitted
   // grant cannot be assumed to match the authorization request.

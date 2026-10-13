@@ -51,6 +51,8 @@ export interface AuthorizationServerMetadata {
   authorizationEndpoint: string;
   tokenEndpoint: string;
   codeChallengeMethodsSupported: string[];
+  // As advertised (RFC 8414 section 2). null when the metadata does not say; the RFC default would then be client_secret_basic.
+  tokenEndpointAuthMethodsSupported: string[] | null;
 }
 
 export function parseAuthorizationServerMetadata(raw: unknown, discoveredIssuer: string): AuthorizationServerMetadata {
@@ -61,5 +63,7 @@ export function parseAuthorizationServerMetadata(raw: unknown, discoveredIssuer:
   const tokenEndpoint = secureMetadataUrl(metadata.token_endpoint);
   const methods = metadata.code_challenge_methods_supported;
   if (!Array.isArray(methods) || !methods.includes('S256')) return reject('PKCE_S256_NOT_SUPPORTED');
-  return { issuer, authorizationEndpoint, tokenEndpoint, codeChallengeMethodsSupported: ['S256'] };
+  const authMethods = metadata.token_endpoint_auth_methods_supported;
+  if (authMethods !== undefined && (!Array.isArray(authMethods) || authMethods.length > 16 || !authMethods.every((m) => typeof m === 'string' && m.length > 0 && m.length < 64))) return reject('TOKEN_AUTH_METHODS_INVALID');
+  return { issuer, authorizationEndpoint, tokenEndpoint, codeChallengeMethodsSupported: ['S256'], tokenEndpointAuthMethodsSupported: authMethods === undefined ? null : [...new Set(authMethods as string[])] };
 }

@@ -17,7 +17,7 @@ describe('MCP OAuth discovery metadata, no outbound request', () => {
     });
     assert.deepEqual(parseAuthorizationServerMetadata(authDoc(), issuer), {
       issuer, authorizationEndpoint: 'https://login.example.org/oauth/authorize',
-      tokenEndpoint: 'https://login.example.org/oauth/token', codeChallengeMethodsSupported: ['S256'],
+      tokenEndpoint: 'https://login.example.org/oauth/token', codeChallengeMethodsSupported: ['S256'], tokenEndpointAuthMethodsSupported: null,
     });
   });
   it('fails closed on resource confusion and issuer substitution', () => {
