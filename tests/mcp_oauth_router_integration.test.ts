@@ -27,6 +27,7 @@ function harness() {
     pendingStates: states,
     oauth: {
       stateStore: states, vault,
+      resolveRequestedScopes: (pending: any) => providers.requestedScopesFor(pending),
       resolveTrustedTokenEndpoint: async (pending: { issuer: string; resource: string; clientId: string; redirectUri: string }) => providers.resolveTrustedTokenEndpoint(pending as any),
       exchange: async () => {
         exchanges++;
