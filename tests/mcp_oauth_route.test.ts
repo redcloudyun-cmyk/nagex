@@ -5,7 +5,7 @@ import { authAs } from './_s1_session_auth.js';
 
 describe('MCP OAuth callback HTTP fail-closed integration', () => {
   it('does not disclose callback data to unauthenticated visitors', async () => {
-    const result = await handleAsyncApiRequest('GET', '/api/v1/oauth/mcp/callback', null, {}, {
+    const result = await handleAsyncApiRequest('GET', '/api/v1/oauth/mcp/callback', null, {}, undefined, {
       state: 'forged-state', code: 'private-code',
     });
     assert.equal(result.status, 401);
@@ -14,7 +14,7 @@ describe('MCP OAuth callback HTTP fail-closed integration', () => {
 
   it('requires operator-configured trusted OAuth coordinator; never claims connected', async () => {
     const owner = authAs('tenant-mcp', 'user-mcp');
-    const result = await handleAsyncApiRequest('GET', '/api/v1/oauth/mcp/callback', null, owner, {
+    const result = await handleAsyncApiRequest('GET', '/api/v1/oauth/mcp/callback', null, owner, undefined, {
       state: 'forged-state', code: 'private-code', token_endpoint: 'https://attacker.example/token',
     });
     assert.equal(result.status, 503);
