@@ -56,7 +56,9 @@ describe('MCP OAuth canonical HTTP router end-to-end with isolated trusted coord
     assert.equal(callback.status, 200, JSON.stringify(callback.data));
     assert.deepEqual(callback.data, { status: 'CREDENTIAL_STORED', resource });
     assert.equal(h.getExchanges(), 1);
-    const expectedIdentity = { tenantId: 'tenant-mcp-http', principalId: 'owner-mcp-http', resource, issuer, clientId };
+    // The metadata parser canonicalizes an origin-only issuer to a trailing-slash URL.
+    // Credential identity must use that exact pinned canonical URI, not the raw fixture spelling.
+    const expectedIdentity = { tenantId: 'tenant-mcp-http', principalId: 'owner-mcp-http', resource, issuer: new URL(issuer).href, clientId };
     const snapshot = h.vault.sealedSnapshot();
     assert.equal(snapshot.length, 1, 'callback must store exactly one encrypted record in the injected vault');
     assert.deepEqual(snapshot[0].identity, expectedIdentity, 'credential owner must match the authenticated session tenant/principal and pinned MCP resource');
