@@ -15,6 +15,8 @@ export const MCP_MAX_RESULT_TEXT = 100 * 1024;
 
 export interface McpTransportRequest {
   url: URL;
+  // POST for every JSON-RPC message; DELETE only to end the server-side session (best effort).
+  method?: 'POST' | 'DELETE';
   headers: Record<string, string>;
   body: string;
   timeoutMs: number;
@@ -31,7 +33,7 @@ export function createHttpMcpTransport(policy: McpUrlPolicyOptions = readMcpUrlP
   const lookup = createGuardedLookup(policy);
   return (request) => new Promise<McpTransportResponse>((resolve, reject) => {
     const client = request.url.protocol === 'http:' ? http : https;
-    const req = client.request(request.url, { method: 'POST', headers: { ...request.headers, 'Content-Length': String(Buffer.byteLength(request.body)) }, lookup, agent: false, timeout: request.timeoutMs }, (res) => {
+    const req = client.request(request.url, { method: request.method ?? 'POST', headers: { ...request.headers, 'Content-Length': String(Buffer.byteLength(request.body)) }, lookup, agent: false, timeout: request.timeoutMs }, (res) => {
       const chunks: Buffer[] = [];
       let size = 0;
       res.on('data', (chunk: Buffer) => {
@@ -149,6 +151,19 @@ export class McpClient {
     this.negotiatedVersion = protocolVersion;
     await this.post({ jsonrpc: '2.0', method: 'notifications/initialized' }, false);
     return { serverName, serverVersion: typeof info.version === 'string' ? info.version.replace(/[\u0000-\u001f]/g, '').slice(0, 40) : '', protocolVersion };
+  }
+
+  // Ends the server-side session (Streamable HTTP: DELETE with the session id). Best effort: a server may answer 405 or be gone, and a failure
+  // here never changes the outcome of the operation that already finished.
+  public async close(): Promise<void> {
+    if (!this.sessionId) return;
+    const headers: Record<string, string> = { 'Mcp-Session-Id': this.sessionId };
+    if (this.options.bearerToken) headers.Authorization = `Bearer ${this.options.bearerToken}`;
+    if (this.negotiatedVersion) headers['MCP-Protocol-Version'] = this.negotiatedVersion;
+    this.sessionId = null;
+    try {
+      await this.options.transport({ url: this.options.url, headers, body: '', method: 'DELETE', timeoutMs: 5_000, maxBytes: 4_096 });
+    } catch { /* ignored on purpose */ }
   }
 
   public async listTools(): Promise<unknown[]> {

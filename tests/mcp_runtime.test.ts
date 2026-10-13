@@ -27,11 +27,12 @@ const URL_OK = 'https://mcp.example.com/mcp';
 const SEARCH_TOOL = { name: 'search_docs', description: 'Search the docs.', inputSchema: { type: 'object', properties: { query: { type: 'string', minLength: 1, maxLength: 50 }, limit: { type: 'integer', minimum: 1, maximum: 10 } }, required: ['query'], additionalProperties: false }, annotations: { readOnlyHint: true } };
 const OTHER_TOOL = { name: 'create_ticket', description: 'Create a ticket.', inputSchema: { type: 'object', properties: { title: { type: 'string' } }, required: ['title'] } };
 
-interface ServerState { name: string; version: string; tools: unknown[]; status?: number; callText?: string; callExtra?: unknown[]; isError?: boolean; bearer?: string }
+interface ServerState { name: string; version: string; tools: unknown[]; status?: number; callText?: string; callExtra?: unknown[]; isError?: boolean; bearer?: string; sessionId?: string }
 function fakeServer(state: ServerState) {
   const calls: Array<{ method: string; authorization: string | null; params: any }> = [];
-  const reply = (id: unknown, result: unknown) => ({ status: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id, result }) });
+  const reply = (id: unknown, result: unknown) => ({ status: 200, headers: { 'content-type': 'application/json', ...(state.sessionId ? { 'mcp-session-id': state.sessionId } : {}) }, body: JSON.stringify({ jsonrpc: '2.0', id, result }) });
   const transport: McpTransport = async (req) => {
+    if (req.method === 'DELETE') { calls.push({ method: 'DELETE', authorization: req.headers.Authorization ?? null, params: req.headers['Mcp-Session-Id'] }); return { status: 200, headers: {}, body: '' }; }
     const message = JSON.parse(req.body);
     calls.push({ method: message.method, authorization: req.headers.Authorization ?? null, params: message.params });
     if (state.status) return { status: state.status, headers: {}, body: '' };
@@ -54,10 +55,11 @@ function build(state: ServerState, store = new InMemoryMcpConnectionStore()) {
   const audit = new AuditLogger();
   const approvals = new ActionApprovalStore();
   const registry = new CapabilityRegistry();
-  const service = new McpService({ store, approvals, audit, registry, executions: new ExecutionStore(), transport: server.transport, policy: PUBLIC_POLICY });
+  const executions = new ExecutionStore();
+  const service = new McpService({ store, approvals, audit, registry, executions, transport: server.transport, policy: PUBLIC_POLICY });
   process.env.NAGEX_TEST_IDEMPOTENCY_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-idem-'));
   const broker = new CapabilityBroker({} as never, {} as never, {} as never, audit, registry, `mcp_idem_${Math.random().toString(36).slice(2)}`, 'NAGEX_TEST_IDEMPOTENCY_DIR', undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, service);
-  return { service, server, audit, approvals, registry, broker, store };
+  return { service, server, audit, approvals, registry, broker, store, executions };
 }
 const baseState = (): ServerState => ({ name: 'Docs Server', version: '1.0.0', tools: [SEARCH_TOOL, OTHER_TOOL] });
 
@@ -480,6 +482,156 @@ describe('persistence', () => {
   });
 });
 
+
+describe('reconnection, truthful outcomes and session hygiene', () => {
+  const request = (capabilityId: string, who = A, extra: Record<string, unknown> = {}) => ({ capabilityId, tenantId: who.tenantId, principalId: who.principalId, requestId: `${who.requestId}_${Math.random().toString(36).slice(2)}`, payload: { arguments: { query: 'billing' } }, source: 'WEB' as const, ...extra });
+
+  it('a rejected credential on refresh marks the server AUTH_REQUIRED, unregisters its tools, and a reconnect with a valid credential restores it for the owner only', async () => {
+    const state: ServerState = { ...baseState(), bearer: 'old-token' };
+    const ctx = build(state);
+    const view = await ctx.service.addServer(A, { name: 'Docs', url: URL_OK, bearerToken: 'old-token' });
+    ctx.service.setToolEnabled(A, view.connectionId, 'search_docs', true);
+    const capabilityId = view.tools[0].capabilityId;
+    assert.equal(ctx.registry.has(capabilityId), true);
+
+    state.bearer = 'rotated-token'; // the provider rotated / expired the credential
+    await assert.rejects(() => ctx.service.refresh(A, view.connectionId), (e: any) => e.code === 'MCP_SERVER_AUTH_FAILED');
+    const afterFail = ctx.service.get(A, view.connectionId);
+    assert.equal(afterFail.status, 'AUTH_REQUIRED');
+    assert.equal(ctx.registry.has(capabilityId), false, 'nothing stays callable while the credential is rejected');
+    assert.equal(ctx.service.toolsFor(A).length, 0);
+
+    await assert.rejects(() => ctx.service.reconnect(A, view.connectionId, { bearerToken: 'still-wrong' }), (e: any) => e.code === 'MCP_SERVER_AUTH_FAILED');
+    assert.equal(ctx.service.get(A, view.connectionId).status, 'AUTH_REQUIRED');
+    await assert.rejects(() => ctx.service.reconnect(B, view.connectionId, { bearerToken: 'rotated-token' }), (e: any) => e.code === 'MCP_NOT_FOUND', 'another user cannot reconnect it');
+    await assert.rejects(() => ctx.service.reconnect(A, view.connectionId, {}), (e: any) => e.code === 'MCP_INVALID_REQUEST', 'a credential is required');
+
+    const restored = await ctx.service.reconnect(A, view.connectionId, { bearerToken: 'rotated-token' });
+    assert.equal(restored.status, 'CONNECTED');
+    assert.equal(restored.hasCredential, true);
+    assert.equal(restored.tools.find((tool) => tool.name === 'search_docs')!.enabled, true, 'an unchanged tool the owner enabled is usable again');
+    assert.equal(ctx.registry.has(capabilityId), true);
+    await ctx.service.refresh(A, view.connectionId); // the new credential is the stored one
+    assert.equal(ctx.server.calls.at(-3)!.authorization, 'Bearer rotated-token');
+  });
+
+  it('a reconnect to a server that no longer identifies as the pinned one keeps it blocked and does NOT store the new credential', async () => {
+    const state: ServerState = { ...baseState(), bearer: 'old-token' };
+    const ctx = build(state);
+    const view = await ctx.service.addServer(A, { name: 'Docs', url: URL_OK, bearerToken: 'old-token' });
+    ctx.service.setToolEnabled(A, view.connectionId, 'search_docs', true);
+    state.bearer = 'rotated-token';
+    await assert.rejects(() => ctx.service.refresh(A, view.connectionId), (e: any) => e.code === 'MCP_SERVER_AUTH_FAILED');
+    state.name = 'Impostor Server';
+    const view2 = await ctx.service.reconnect(A, view.connectionId, { bearerToken: 'rotated-token' });
+    assert.equal(view2.status, 'IDENTITY_MISMATCH');
+    assert.equal(ctx.registry.has(view.tools[0].capabilityId), false);
+    assert.equal(ctx.store.get(A.tenantId, A.principalId, view.connectionId)!.bearerToken, 'old-token', 'the credential is replaced only after the pinned identity is confirmed');
+  });
+
+  it('a credential rejected at call time makes the server AUTH_REQUIRED BEFORE the approval is spent; after reconnecting the same approval still works once', async () => {
+    const state: ServerState = { ...baseState(), bearer: 'old-token', callText: 'Found 3.' };
+    const ctx = build(state);
+    const view = await ctx.service.addServer(A, { name: 'Docs', url: URL_OK, bearerToken: 'old-token' });
+    ctx.service.setToolEnabled(A, view.connectionId, 'search_docs', true);
+    const capabilityId = view.tools[0].capabilityId;
+    const approval = (await ctx.broker.execute(request(capabilityId)) as any).approval;
+    ctx.approvals.approve(approval.approvalId, A.tenantId, A.principalId);
+
+    state.bearer = 'rotated-token';
+    await assert.rejects(() => ctx.broker.execute(request(capabilityId, A, { approvalId: approval.approvalId })), (e: any) => e.code === 'MCP_SERVER_AUTH_FAILED');
+    assert.equal(ctx.service.get(A, view.connectionId).status, 'AUTH_REQUIRED');
+    assert.equal(ctx.server.toolCalls().length, 0, 'the tool was never called');
+    assert.equal(ctx.executions.list().filter((entry) => entry.approvalId === approval.approvalId).length, 0, 'no execution was started and the approval was not consumed');
+    const blocked: any = await ctx.broker.execute(request(capabilityId, A, { approvalId: approval.approvalId })).catch((e: unknown) => e);
+    assert.notEqual(blocked?.status, 'EXECUTED', 'while AUTH_REQUIRED the tool is not resolvable');
+    assert.equal(ctx.server.toolCalls().length, 0);
+
+    await ctx.service.reconnect(A, view.connectionId, { bearerToken: 'rotated-token' });
+    const done = await ctx.broker.execute(request(capabilityId, A, { approvalId: approval.approvalId })) as any;
+    assert.equal(done.status, 'EXECUTED');
+    assert.equal(ctx.server.toolCalls().length, 1);
+  });
+
+  it('a transient failure during a call (timeout / 5xx) does not disable the owner\'s tools; only a rejected credential does', async () => {
+    const state: ServerState = { ...baseState(), bearer: 'tok' };
+    const ctx = build(state);
+    const view = await ctx.service.addServer(A, { name: 'Docs', url: URL_OK, bearerToken: 'tok' });
+    ctx.service.setToolEnabled(A, view.connectionId, 'search_docs', true);
+    const capabilityId = view.tools[0].capabilityId;
+    const approval = (await ctx.broker.execute(request(capabilityId)) as any).approval;
+    ctx.approvals.approve(approval.approvalId, A.tenantId, A.principalId);
+    state.status = 503;
+    await assert.rejects(() => ctx.broker.execute(request(capabilityId, A, { approvalId: approval.approvalId })), (e: any) => e.code === 'MCP_SERVER_ERROR');
+    assert.equal(ctx.service.get(A, view.connectionId).status, 'CONNECTED');
+    assert.equal(ctx.registry.has(capabilityId), true);
+  });
+
+  it('a tool-reported error is recorded as a FAILED execution (never a success) and every result says it is an unverified provider response', async () => {
+    const ctx = build({ ...baseState(), callText: 'quota exceeded', isError: true });
+    const view = await ctx.service.addServer(A, { name: 'Docs', url: URL_OK });
+    ctx.service.setToolEnabled(A, view.connectionId, 'search_docs', true);
+    const capabilityId = view.tools[0].capabilityId;
+    const approval = (await ctx.broker.execute(request(capabilityId)) as any).approval;
+    ctx.approvals.approve(approval.approvalId, A.tenantId, A.principalId);
+    const done = await ctx.broker.execute(request(capabilityId, A, { approvalId: approval.approvalId })) as any;
+    assert.equal(done.result.isError, true);
+    assert.equal(done.result.outcome, 'TOOL_REPORTED_ERROR');
+    assert.deepEqual(done.result.verification, { status: 'UNVERIFIED', reason: 'MCP_PROVIDER_RESPONSE_ONLY' });
+    const recorded = ctx.executions.get(done.result.executionId)!;
+    assert.equal(recorded.status, 'FAILED');
+    assert.equal(recorded.errorCode, 'MCP_TOOL_REPORTED_ERROR');
+
+    const ok = build({ ...baseState(), callText: 'fine' });
+    const view2 = await ok.service.addServer(A, { name: 'Docs', url: URL_OK });
+    ok.service.setToolEnabled(A, view2.connectionId, 'search_docs', true);
+    const approval2 = (await ok.broker.execute(request(view2.tools[0].capabilityId)) as any).approval;
+    ok.approvals.approve(approval2.approvalId, A.tenantId, A.principalId);
+    const done2 = await ok.broker.execute(request(view2.tools[0].capabilityId, A, { approvalId: approval2.approvalId })) as any;
+    assert.equal(done2.result.outcome, 'TOOL_RESPONDED');
+    assert.deepEqual(done2.result.verification, { status: 'UNVERIFIED', reason: 'MCP_PROVIDER_RESPONSE_ONLY' }, 'a server answer is not verified completion');
+    assert.equal(ok.executions.get(done2.result.executionId)!.status, 'SUCCEEDED');
+  });
+
+  it('every server-side session NAgex opens is ended (discovery, refresh, approved call); a server that sends no session id gets no DELETE', async () => {
+    const withSession = build({ ...baseState(), sessionId: 'sess-123' });
+    const view = await withSession.service.addServer(A, { name: 'Docs', url: URL_OK, bearerToken: 'tok-1' });
+    const deletes = () => withSession.server.calls.filter((c) => c.method === 'DELETE');
+    assert.equal(deletes().length, 1, 'discovery closed its session');
+    assert.equal(deletes()[0].params, 'sess-123');
+    assert.equal(deletes()[0].authorization, 'Bearer tok-1');
+    await withSession.service.refresh(A, view.connectionId);
+    assert.equal(deletes().length, 2);
+    withSession.service.setToolEnabled(A, view.connectionId, 'search_docs', true);
+    const capabilityId = view.tools[0].capabilityId;
+    const approval = (await withSession.broker.execute(request(capabilityId)) as any).approval;
+    withSession.approvals.approve(approval.approvalId, A.tenantId, A.principalId);
+    await withSession.broker.execute(request(capabilityId, A, { approvalId: approval.approvalId }));
+    assert.equal(deletes().length, 3, 'the approved call closed its session too');
+
+    const noSession = build(baseState());
+    await noSession.service.addServer(A, { name: 'Docs', url: URL_OK });
+    assert.equal(noSession.server.calls.filter((c) => c.method === 'DELETE').length, 0);
+  });
+
+  it('a failing DELETE never changes the outcome of the operation', async () => {
+    const ctx = build({ ...baseState(), sessionId: 'sess-9' });
+    const original = ctx.server.transport;
+    const flaky: McpTransport = async (req) => { if (req.method === 'DELETE') throw new Error('socket closed'); return original(req); };
+    const service = new McpService({ store: new InMemoryMcpConnectionStore(), approvals: new ActionApprovalStore(), audit: new AuditLogger(), registry: new CapabilityRegistry(), executions: new ExecutionStore(), transport: flaky, policy: PUBLIC_POLICY });
+    const view = await service.addServer(A, { name: 'Docs', url: URL_OK });
+    assert.equal(view.status, 'CONNECTED');
+  });
+
+  it('is honest about durability: memory-only without an encryption key, durable with one', async () => {
+    assert.equal(new InMemoryMcpConnectionStore().durable, false);
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-mcp-dur-'));
+    assert.equal(new PersistentMcpConnectionStore({ filePath: path.join(dir, 'a.json'), env: {} as NodeJS.ProcessEnv }).durable, false);
+    assert.equal(new PersistentMcpConnectionStore({ filePath: path.join(dir, 'b.json'), env: { NAGEX_TOKEN_ENCRYPTION_KEY: Buffer.alloc(32, 5).toString('base64') } as NodeJS.ProcessEnv }).durable, true);
+    assert.equal(build(baseState()).service.durable, false);
+  });
+});
+
 describe('HTTP: verified session only', () => {
   let target: http.Server;
   let base: string;
@@ -570,5 +722,31 @@ describe('HTTP: verified session only', () => {
     assert.equal((await call('DELETE', `/api/v1/mcp/servers/${server.connectionId}`, null, b)).status, 404);
     assert.equal((await call('DELETE', `/api/v1/mcp/servers/${server.connectionId}`, null, a)).status, 200);
     assert.equal(((await call('GET', '/api/v1/mcp/servers', null, a)).data as any).total, 0);
+  });
+
+  it('reconnect over HTTP: a rejected credential shows AUTH_REQUIRED, only the owner can reconnect, a bad credential changes nothing, and the list discloses durability', async () => {
+    const a = session('usr_mcp_rc_a');
+    const b = session('usr_mcp_rc_b');
+    const added = await call('POST', '/api/v1/mcp/servers', { name: 'HTTP Server', url: base, bearerToken: 'first-token' }, a);
+    assert.equal(added.status, 201);
+    const id = (added.data as any).server.connectionId;
+    assert.equal(typeof ((await call('GET', '/api/v1/mcp/servers', null, a)).data as any).durable, 'boolean');
+
+    rejectAuth = true;
+    const refresh = await call('POST', `/api/v1/mcp/servers/${id}/refresh`, {}, a);
+    assert.equal(refresh.status, 502, 'a provider rejecting OUR credential is an upstream failure, never a NAgex 401');
+    assert.equal(((await call('GET', `/api/v1/mcp/servers/${id}`, null, a)).data as any).server.status, 'AUTH_REQUIRED');
+
+    assert.equal((await call('POST', `/api/v1/mcp/servers/${id}/reconnect`, { bearerToken: 'second-token' }, b)).status, 404, 'another user cannot reconnect it');
+    assert.equal((await call('POST', `/api/v1/mcp/servers/${id}/reconnect`, {}, a)).status, 400, 'a new credential is required');
+    assert.equal((await call('POST', `/api/v1/mcp/servers/${id}/reconnect`, { bearerToken: 'second-token' }, a)).status, 502, 'still rejected: still AUTH_REQUIRED');
+    assert.equal(((await call('GET', `/api/v1/mcp/servers/${id}`, null, a)).data as any).server.status, 'AUTH_REQUIRED');
+
+    rejectAuth = false;
+    const ok = await call('POST', `/api/v1/mcp/servers/${id}/reconnect`, { bearerToken: 'second-token' }, a);
+    assert.equal(ok.status, 200);
+    assert.equal((ok.data as any).server.status, 'CONNECTED');
+    assert.doesNotMatch(JSON.stringify(ok.data), /first-token|second-token/);
+    assert.equal((await call('DELETE', `/api/v1/mcp/servers/${id}`, null, a)).status, 200);
   });
 });

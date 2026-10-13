@@ -44,14 +44,14 @@ export const handleMcpRoutes: AsyncRouteRegistrar<McpRouteDeps> = async (method,
   try {
     if (pathname === '/api/v1/mcp/servers' && method === 'GET') {
       const servers = mcpService.list(identity);
-      return { status: 200, data: { servers, total: servers.length } };
+      return { status: 200, data: { servers, total: servers.length, durable: mcpService.durable } };
     }
     if (pathname === '/api/v1/mcp/servers' && method === 'POST') {
       const server = await mcpService.addServer(identity, { name: body?.name, url: body?.url, bearerToken: body?.bearerToken });
       return { status: 201, data: { server } };
     }
 
-    const match = /^\/api\/v1\/mcp\/servers\/(mcp_[a-f0-9]{16})(?:\/(refresh|tools\/([A-Za-z][A-Za-z0-9_.-]{0,63})(?:\/(invoke))?))?$/.exec(pathname);
+    const match = /^\/api\/v1\/mcp\/servers\/(mcp_[a-f0-9]{16})(?:\/(refresh|reconnect|tools\/([A-Za-z][A-Za-z0-9_.-]{0,63})(?:\/(invoke))?))?$/.exec(pathname);
     if (!match) return { status: 404, data: { error: { code: 'MCP_NOT_FOUND', message: 'That MCP server or tool was not found.' } } };
     const [, connectionId, , toolName, invoke] = match;
 
@@ -62,6 +62,7 @@ export const handleMcpRoutes: AsyncRouteRegistrar<McpRouteDeps> = async (method,
       return { status: 200, data: { removed: true } };
     }
     if (match[2] === 'refresh' && method === 'POST') return { status: 200, data: { server: await mcpService.refresh(identity, connectionId) } };
+    if (match[2] === 'reconnect' && method === 'POST') return { status: 200, data: { server: await mcpService.reconnect(identity, connectionId, { bearerToken: body?.bearerToken }) } };
 
     if (toolName && !invoke && method === 'POST') {
       if (typeof body?.enabled !== 'boolean') return { status: 400, data: { error: { code: 'MCP_INVALID_REQUEST', message: '"enabled" must be true or false.' } } };
