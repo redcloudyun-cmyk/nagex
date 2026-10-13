@@ -6039,6 +6039,176 @@
       "deterministic": true,
       "assertionIntent": "Release hygiene registry entry for universal_life_execution: preserves the committed product contract and prevents the test gate from treating the focused suite as unclassified debt.",
       "notes": "Added during integration hygiene after the suite was committed as part of the current branch baseline."
+    },
+    "mcp_oauth_callback": {
+      "milestone": "NAGEX-MCP-OAUTH-STAGE1",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "integrations",
+        "identity-access",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Consumes session-bound OAuth state once, verifies tenant and principal, uses trusted token endpoint, and refuses success when storage fails.",
+      "notes": "Deterministic repository-controlled unit or HTTP integration test. No real third-party OAuth or tool execution is certified.",
+      "writesRepositoryArtifacts": false
+    },
+    "mcp_oauth_credential_vault": {
+      "milestone": "NAGEX-MCP-OAUTH-STAGE1",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "integrations",
+        "identity-access",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "AES-256-GCM credential privacy, fail-closed key validation, tenant/principal/resource/issuer/client segregation and disconnect.",
+      "notes": "Deterministic repository-controlled unit or HTTP integration test. No real third-party OAuth or tool execution is certified.",
+      "writesRepositoryArtifacts": false
+    },
+    "mcp_oauth_discovery": {
+      "milestone": "NAGEX-MCP-OAUTH-STAGE1",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "integrations",
+        "identity-access",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Real loopback HTTP metadata retrieval under explicit isolated policy; redirects, SSRF, content type and response bounds denied.",
+      "notes": "Deterministic repository-controlled unit or HTTP integration test. No real third-party OAuth or tool execution is certified.",
+      "writesRepositoryArtifacts": false
+    },
+    "mcp_oauth_metadata": {
+      "milestone": "NAGEX-MCP-OAUTH-STAGE1",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "integrations",
+        "identity-access",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Strict protected resource and authorization-server metadata validation, issuer pinning, URL security and PKCE S256.",
+      "notes": "Deterministic repository-controlled unit or HTTP integration test. No real third-party OAuth or tool execution is certified.",
+      "writesRepositoryArtifacts": false
+    },
+    "mcp_oauth_persistent_store": {
+      "milestone": "NAGEX-MCP-OAUTH-STAGE1",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "integrations",
+        "identity-access",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Encrypted file store restart recovery, wrong-key and tamper rejection, symlink blocking, atomic writes and rollback.",
+      "notes": "Deterministic repository-controlled unit or HTTP integration test. No real third-party OAuth or tool execution is certified.",
+      "writesRepositoryArtifacts": false
+    },
+    "mcp_oauth_provider_registry": {
+      "milestone": "NAGEX-MCP-OAUTH-STAGE1",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "integrations",
+        "identity-access",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Operator-vetted OAuth registration, issuer and scope pinning, redirect URI validation and PKCE initiation.",
+      "notes": "Deterministic repository-controlled unit or HTTP integration test. No real third-party OAuth or tool execution is certified.",
+      "writesRepositoryArtifacts": false
+    },
+    "mcp_oauth_route": {
+      "milestone": "NAGEX-MCP-OAUTH-STAGE1",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "integrations",
+        "identity-access",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Canonical authenticated OAuth callback/start boundary denies unconfigured, unauthenticated and invalid methods.",
+      "notes": "Deterministic repository-controlled unit or HTTP integration test. No real third-party OAuth or tool execution is certified.",
+      "writesRepositoryArtifacts": false
+    },
+    "mcp_oauth_router_integration": {
+      "milestone": "NAGEX-MCP-OAUTH-STAGE1",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "integrations",
+        "identity-access",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Isolated canonical HTTP router OAuth start and callback using real signed-in session and scripted token provider; replay and tenant isolation.",
+      "notes": "Deterministic repository-controlled unit or HTTP integration test. No real third-party OAuth or tool execution is certified.",
+      "writesRepositoryArtifacts": false
+    },
+    "mcp_oauth_state": {
+      "milestone": "NAGEX-MCP-OAUTH-STAGE1",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "integrations",
+        "identity-access",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "One-time PKCE authorization state, expiry, per-user tenancy, replay and cross-tenant blocking.",
+      "notes": "Deterministic repository-controlled unit or HTTP integration test. No real third-party OAuth or tool execution is certified.",
+      "writesRepositoryArtifacts": false
+    },
+    "mcp_oauth_token": {
+      "milestone": "NAGEX-MCP-OAUTH-STAGE1",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "integrations",
+        "identity-access",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Guarded token exchange enforces PKCE, resource binding, SSL, SSRF protections, size limits and errors without secret leakage.",
+      "notes": "Deterministic repository-controlled unit or HTTP integration test. No real third-party OAuth or tool execution is certified.",
+      "writesRepositoryArtifacts": false
     }
   }
 }
