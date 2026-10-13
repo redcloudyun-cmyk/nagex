@@ -127,3 +127,21 @@ body.nagex-conn-open { overflow: hidden; }
   .nagex-conn-facts > div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
 }
 @media (prefers-reduced-motion: reduce) { .nagex-conn-card { transition: none; } }
+
+/* connector catalog: category filter, "More apps" disclosure, unsupported state, chat-account link dialog */
+.nagex-conn-category { display: block; }
+.nagex-conn-category select { height: var(--nagex-control-sm); padding: 0 var(--nagex-spacing-3); border: 1px solid var(--nagex-line); border-radius: 999px; background: var(--nagex-paper); color: var(--nagex-ink-2); font: inherit; font-size: var(--nagex-fs-secondary); }
+.nagex-conn-category select:focus-visible { outline: 0; box-shadow: var(--nagex-focus-ring); }
+.nagex-conn-card[data-state="UNSUPPORTED"] { background: var(--nagex-canvas); }
+.nagex-conn-badge[data-state="UNSUPPORTED"] { background: var(--nagex-wash); color: var(--nagex-ink-3); }
+.nagex-conn-more { display: grid; gap: var(--nagex-gap-card); }
+.nagex-conn-more > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: var(--nagex-spacing-2); font-size: var(--nagex-fs-section); font-weight: var(--nagex-fw-semibold); color: var(--nagex-ink); }
+.nagex-conn-more > summary::-webkit-details-marker { display: none; }
+.nagex-conn-more > summary::before { content: ""; width: 8px; height: 8px; border-right: 2px solid var(--nagex-ink-3); border-bottom: 2px solid var(--nagex-ink-3); transform: rotate(-45deg); transition: transform .12s ease; }
+.nagex-conn-more[open] > summary::before { transform: rotate(45deg); }
+.nagex-conn-more > summary:focus-visible { outline: 0; box-shadow: var(--nagex-focus-ring); border-radius: var(--nagex-r-control); }
+.nagex-conn-steps { margin: 0; padding-left: 1.25rem; display: grid; gap: var(--nagex-spacing-3); color: var(--nagex-ink-2); }
+.nagex-conn-code { display: inline-block; margin-top: 6px; padding: 6px 10px; border: 1px solid var(--nagex-line-strong); border-radius: var(--nagex-r-control); background: var(--nagex-wash); color: var(--nagex-ink); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: var(--nagex-fs-secondary); overflow-wrap: anywhere; user-select: all; }
+.nagex-conn-code:focus-visible { outline: 0; box-shadow: var(--nagex-focus-ring); }
+.nagex-conn-inline-form { display: grid; gap: var(--nagex-spacing-2); justify-items: start; margin: var(--nagex-spacing-2) 0; }
+.nagex-conn-inline-form .nagex-conn-field { width: 100%; }

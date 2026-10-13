@@ -53,6 +53,11 @@
     outlook: { bg: '#0f6cbd', glyph: '<path d="M3.5 7h13v10h-13z"/><path d="m3.5 7.5 6.5 5 6.5-5"/><path d="M16.5 9.5h4v8h-9v-.5"/>' },
     onedrive: { bg: '#0f78d4', glyph: '<path d="M7.5 18.5a4 4 0 0 1-.6-7.95A5.5 5.5 0 0 1 17.4 9.6a4.5 4.5 0 0 1 .1 8.9z"/>' },
     google: { bg: '#ffffff', text: 'G', color: '#4285f4' },
+    slack: { bg: '#4a154b', glyph: '<path d="M9.5 4 8 20M16 4l-1.5 16M4 9.5h16M3.5 15h16"/>' },
+    telegram: { bg: '#229ed9', glyph: '<path d="M20.5 4.5 3.5 11l5.5 2 2 6 3-4 4.5 3z"/><path d="m9 13 7-5"/>' },
+    teams: { bg: '#5b5fc7', glyph: '<circle cx="9" cy="8" r="3"/><path d="M3.5 19v-2a4 4 0 0 1 4-4h3a4 4 0 0 1 4 4v2"/><circle cx="17" cy="9" r="2"/>' },
+    zoom: { bg: '#2d8cff', glyph: '<rect x="3.5" y="7" width="11" height="10" rx="2"/><path d="m14.5 11 6-3v8l-6-3z"/>' },
+    data: { bg: '#4b5563', glyph: '<path d="M4.5 19.5h15M7 16v-5M12 16V7M17 16v-3"/>' },
     mcp: { bg: '#5b4bd5', glyph: '<path d="M4.5 5.5h15v5h-15zM4.5 13.5h15v5h-15z"/><path d="M8 8h.01M8 16h.01"/>' },
   };
   function iconHtml(name) {
@@ -64,8 +69,8 @@
   }
 
   // ── state ─────────────────────────────────────────────────────────────────────────────────────────────────────────
-  const data = { googleVerifiedAt: null, loaded: false, loading: false, lastLoadAt: 0, signedOut: false, google: null, github: null, mcp: { servers: [], unavailable: false, errorCode: '' }, loadFailed: false };
-  const ui = { query: '', filter: 'ALL', drawer: null, modal: null, live: '' };
+  const data = { googleVerifiedAt: null, loaded: false, loading: false, lastLoadAt: 0, signedOut: false, google: null, github: null, mcp: { servers: [], unavailable: false, errorCode: '' }, loadFailed: false, catalog: null };
+  const ui = { query: '', filter: 'ALL', category: 'ALL', drawer: null, modal: null, live: '' };
   let layer = null; // { el, opener, openerKey }
   let sequence = 0;
 
@@ -95,8 +100,41 @@
     if (c.state === 'UNAVAILABLE') return { state: 'SETUP_REQUIRED', reason: 'OAUTH_NOT_CONFIGURED', account: null, connectPath: null, verifiedAt: null, privateAccess: false };
     return { state: c.state, reason: c.reason || null, account: c.account ? c.account.login : null, connectPath: c.connectPath || '/api/v1/oauth/github/start', verifiedAt: c.verifiedAt || null, privateAccess: Boolean(c.privateAccess) };
   }
+  // The server connector catalog (GET /api/v1/connectors/catalog) is the source of what exists and what is really connected for chat channels; the
+  // Google / GitHub cards keep their richer, separately verified state. If the catalog cannot be loaded the six original built-in apps are shown and
+  // the banner reports the failure - the UI never invents a connector or a connection.
+  const CHANNELS = new Set(['slack', 'telegram']);
+  const SHOWN_PLANNED = new Set(['google-drive', 'outlook', 'onedrive']);
+  const LEGACY_CATEGORY = { gmail: 'COMMUNICATION', 'google-calendar': 'PRODUCTIVITY', 'google-drive': 'FILES', github: 'DEVELOPER', outlook: 'COMMUNICATION', onedrive: 'FILES' };
+  function catalogConnector(id) { return data.catalog ? data.catalog.connectors.find((entry) => entry.id === id) || null : null; }
+  function sourceOfConnector(entry) {
+    if (entry.availability !== 'LIVE') return 'planned';
+    if (entry.id === 'gmail' || entry.id === 'google-calendar') return 'google';
+    if (entry.id === 'github') return 'github';
+    return CHANNELS.has(entry.id) ? entry.id : 'planned';
+  }
+  function toItem(entry) {
+    const lang = locale();
+    return {
+      id: entry.id, name: entry.name, provider: entry.provider, source: sourceOfConnector(entry), availability: entry.availability, category: entry.category,
+      icon: ICONS[entry.icon] ? entry.icon : 'mcp', desc: (entry.description && (entry.description[lang] || entry.description.en)) || '', setup: entry.setup ? (entry.setup[lang] || entry.setup.en) : '',
+      needs: entry.id === 'gmail' ? GMAIL_SCOPE : entry.id === 'google-calendar' ? CALENDAR_SCOPE : undefined,
+    };
+  }
+  function builtinItems() {
+    if (!data.catalog) return CATALOG.map((item) => ({ ...item, category: LEGACY_CATEGORY[item.id] || 'COMMUNICATION', desc: t(item.cap), setup: '', availability: item.source === 'planned' ? 'PLANNED' : 'LIVE' }));
+    return data.catalog.connectors.filter((entry) => (entry.availability === 'LIVE' && entry.id !== 'mcp-custom') || SHOWN_PLANNED.has(entry.id)).map(toItem);
+  }
+  // Everything else the catalog knows about: not available, and said plainly.
+  function moreItems() {
+    return data.catalog ? data.catalog.connectors.filter((entry) => entry.availability !== 'LIVE' && !SHOWN_PLANNED.has(entry.id)).map(toItem) : [];
+  }
   function appState(item) {
-    if (item.source === 'planned') return { state: 'UNAVAILABLE', reason: 'COMING_LATER' };
+    if (item.source === 'planned') return item.availability === 'UNSUPPORTED' ? { state: 'UNSUPPORTED', reason: 'NOT_SUPPORTED' } : { state: 'UNAVAILABLE', reason: 'COMING_LATER' };
+    if (CHANNELS.has(item.source)) {
+      const entry = catalogConnector(item.id);
+      return entry ? { state: entry.connection.state, reason: entry.connection.reason, count: entry.connection.count, account: entry.connection.account } : { state: 'ERROR', reason: 'PROVIDER_ERROR' };
+    }
     if (item.source === 'github') return githubBase();
     const base = googleBase();
     if (item.needs && base.state === 'CONNECTED' && !base.scopes.includes(item.needs)) return { ...base, state: 'REAUTH_REQUIRED', reason: 'MISSING_SCOPE' };
@@ -116,10 +154,14 @@
     if (data.github && gh.state !== 'NOT_CONNECTED' && gh.state !== 'SETUP_REQUIRED') {
       items.push({ kind: 'github', id: 'github', name: 'GitHub', icon: 'github', state: gh.state, account: gh.account ? '@' + gh.account : '', summary: t('conn.cap.github'), search: 'github ' + t('conn.cap.github') + ' ' + (gh.account || '') });
     }
+    for (const entry of data.catalog ? data.catalog.connectors : []) {
+      if (!CHANNELS.has(entry.id) || entry.connection.state !== 'CONNECTED') continue;
+      items.push({ kind: 'channel', id: entry.id, name: entry.name, icon: entry.icon, state: 'CONNECTED', account: entry.connection.account || '', summary: t('conn.channel.linked', { count: entry.connection.count || 1 }), search: entry.id + ' ' + entry.provider + ' chat' });
+    }
     for (const server of data.mcp.servers) {
       const tools = Array.isArray(server.tools) ? server.tools : [];
       const enabled = tools.filter((tool) => tool.enabled).length;
-      const state = server.status === 'CONNECTED' ? 'CONNECTED' : server.status === 'IDENTITY_MISMATCH' ? 'REAUTH_REQUIRED' : 'ERROR';
+      const state = server.status === 'CONNECTED' ? 'CONNECTED' : (server.status === 'IDENTITY_MISMATCH' || server.status === 'AUTH_REQUIRED') ? 'REAUTH_REQUIRED' : 'ERROR';
       items.push({ kind: 'mcp', id: server.connectionId, name: server.name, icon: 'mcp', state, account: (server.identity && server.identity.serverName) || '', summary: t('conn.cap.mcpCount', { enabled, total: tools.length }), search: [server.name, server.url, ...(tools.map((tool) => tool.name))].join(' ') });
     }
     return items;
@@ -150,7 +192,12 @@
   };
 
   function primaryAction(item, st) {
-    // no button unless it does something: setup-required / coming-later apps have none
+    // no button unless it does something: setup-required / coming-later / unsupported apps have none
+    if (CHANNELS.has(item.source)) {
+      if (st.state === 'NOT_CONNECTED') return { act: 'link-channel', label: t('conn.action.link'), aria: t('conn.aria.link', { app: item.name }), primary: true };
+      if (st.state === 'ERROR') return { act: 'retry', label: t('conn.action.retry'), aria: t('conn.aria.retry', { app: item.name }) };
+      return null;
+    }
     if (st.state === 'CONNECTED') return { act: 'manage', label: t('conn.action.manage'), aria: t('conn.aria.manage', { app: item.name }) };
     if (st.state === 'NOT_CONNECTED') return { act: 'connect', label: t('conn.action.connect'), aria: t('conn.aria.connect', { app: item.name }), primary: true };
     if (st.state === 'REAUTH_REQUIRED') return { act: 'connect', label: t('conn.action.reconnect'), aria: t('conn.aria.reconnect', { app: item.name }), primary: true };
@@ -161,11 +208,14 @@
   function appCardHtml(item) {
     const st = appState(item);
     const action = primaryAction(item, st);
-    const hint = reasonText(st.state, st.reason);
+    // For apps that are not available, and for chat channels, the catalog's own requirement text is the honest hint.
+    const requirement = item.setup && (st.state === 'UNAVAILABLE' || st.state === 'UNSUPPORTED' || (CHANNELS.has(item.source) && (st.state === 'SETUP_REQUIRED' || st.state === 'NOT_CONNECTED')));
+    const linked = CHANNELS.has(item.source) && st.state === 'CONNECTED' ? t('conn.channel.linked', { count: st.count || 1 }) : '';
+    const hint = requirement ? item.setup : (linked || reasonText(st.state, st.reason));
     const shared = item.source === 'google' ? t('conn.uses.google') : '';
     return `
       <article class="nagex-conn-card" data-conn-key="app:${escapeHtml(item.id)}" data-app="${escapeHtml(item.id)}" data-state="${escapeHtml(st.state)}" aria-labelledby="nagex-app-${escapeHtml(item.id)}">
-        <div class="nagex-conn-card-top">${iconHtml(item.icon)}<div class="nagex-conn-card-title"><h4 id="nagex-app-${escapeHtml(item.id)}">${escapeHtml(item.name)}</h4><p>${escapeHtml(t(item.cap))}</p></div></div>
+        <div class="nagex-conn-card-top">${iconHtml(item.icon)}<div class="nagex-conn-card-title"><h4 id="nagex-app-${escapeHtml(item.id)}">${escapeHtml(item.name)}</h4><p>${escapeHtml(item.desc || t(item.cap))}</p></div></div>
         <div class="nagex-conn-card-meta">${badge(st.state)}${hint || shared ? `<p class="nagex-conn-hint">${escapeHtml(hint || shared)}</p>` : ''}</div>
         <div class="nagex-conn-card-actions">${action ? `<button type="button" class="nagex-conn-btn ${action.primary ? 'primary' : ''}" data-act="${action.act}" data-source="${escapeHtml(item.source)}" data-app="${escapeHtml(item.id)}" aria-label="${escapeHtml(action.aria)}" ${ui.busyApp === item.id ? 'disabled aria-busy="true"' : ''}>${escapeHtml(action.label)}</button>` : ''}</div>
       </article>`;
@@ -174,11 +224,13 @@
   function myItemHtml(item) {
     const detail = [item.account, item.summary].filter(Boolean).join(' · ');
     const manage = t('conn.action.manage');
+    // a linked chat account has nothing to manage here (linking is proven from the chat app itself): no button without behavior
+    const actions = item.kind === 'channel' ? '' : `<button type="button" class="nagex-conn-btn" data-act="manage-item" data-kind="${escapeHtml(item.kind)}" data-id="${escapeHtml(item.id)}" aria-label="${escapeHtml(t('conn.aria.manage', { app: item.name }))}">${escapeHtml(manage)}</button>`;
     return `
       <article class="nagex-conn-card mine" data-conn-key="mine:${escapeHtml(item.kind)}:${escapeHtml(item.id)}" data-kind="${escapeHtml(item.kind)}" data-state="${escapeHtml(item.state)}" aria-labelledby="nagex-mine-${escapeHtml(item.id)}">
         <div class="nagex-conn-card-top">${iconHtml(item.icon)}<div class="nagex-conn-card-title"><h4 id="nagex-mine-${escapeHtml(item.id)}">${escapeHtml(item.name)}</h4><p>${escapeHtml(detail)}</p></div></div>
         <div class="nagex-conn-card-meta">${badge(item.state)}</div>
-        <div class="nagex-conn-card-actions"><button type="button" class="nagex-conn-btn" data-act="manage-item" data-kind="${escapeHtml(item.kind)}" data-id="${escapeHtml(item.id)}" aria-label="${escapeHtml(t('conn.aria.manage', { app: item.name }))}">${escapeHtml(manage)}</button></div>
+        <div class="nagex-conn-card-actions">${actions}</div>
       </article>`;
   }
 
@@ -189,11 +241,11 @@
     if (!data.loaded) return `<p class="nagex-conn-loading" role="status">${escapeHtml(t('conn.loading'))}</p>`;
     const mine = myConnections().filter((item) => matches(item.search + ' ' + item.name + ' ' + item.summary, item.state));
     const allMine = myConnections();
-    const builtin = CATALOG.filter((item) => {
-      const st = appState(item);
-      return matches([item.name, item.provider, t(item.cap)].join(' '), st.state);
-    });
-    const filtering = Boolean(ui.query.trim()) || ui.filter !== 'ALL';
+    const categoryOk = (item) => ui.category === 'ALL' || item.category === ui.category;
+    const matchesApp = (item) => categoryOk(item) && matches([item.name, item.provider, item.desc].join(' '), appState(item).state);
+    const builtin = builtinItems().filter(matchesApp);
+    const more = moreItems().filter(matchesApp);
+    const filtering = Boolean(ui.query.trim()) || ui.filter !== 'ALL' || ui.category !== 'ALL';
     const sections = [];
     const failed = data.loadFailed ? `<div class="nagex-conn-banner" role="alert"><span>${escapeHtml(t('conn.loadError'))}</span><button type="button" class="nagex-conn-btn" data-act="reload">${escapeHtml(t('conn.action.retry'))}</button></div>` : '';
     sections.push(failed);
@@ -207,13 +259,18 @@
     } else {
       sections.push(`<section class="nagex-conn-section" aria-labelledby="nagex-sec-builtin"><h3 id="nagex-sec-builtin">${escapeHtml(t('conn.section.builtin'))}</h3><p class="nagex-conn-empty-line">${escapeHtml(t('conn.noMatch'))}</p></section>`);
     }
+    // More apps: known to NAgex but NOT available (coming later or not supported), grouped by category, with the requirement stated; no buttons.
+    if (more.length) {
+      const groups = (data.catalog.categories || []).map((category) => [category, more.filter((item) => item.category === category.id)]).filter(([, items]) => items.length);
+      sections.push(`<section class="nagex-conn-section" aria-labelledby="nagex-sec-more"><details class="nagex-conn-more" ${filtering ? 'open' : ''}><summary id="nagex-sec-more">${escapeHtml(t('conn.more.title'))} <span class="nagex-conn-count">${more.length}</span></summary><p class="nagex-conn-help">${escapeHtml(t('conn.more.sub'))}</p>${groups.map(([category, items]) => `<h4 class="nagex-conn-subtitle">${escapeHtml(category.label[locale()] || category.label.en)}</h4><div class="nagex-conn-grid">${items.map(appCardHtml).join('')}</div>`).join('')}</details></section>`);
+    }
     // Explore & add
     sections.push(`<section class="nagex-conn-section" aria-labelledby="nagex-sec-explore"><h3 id="nagex-sec-explore">${escapeHtml(t('conn.section.explore'))}</h3>
       <div class="nagex-conn-explore">
         ${iconHtml('mcp')}
         <div class="nagex-conn-card-title"><h4>${escapeHtml(t('conn.mcp.cardTitle'))}</h4><p>${escapeHtml(t('conn.explore.desc'))}</p></div>
         ${data.mcp.unavailable ? `<span class="nagex-conn-hint">${escapeHtml(t('conn.mcp.unavailable'))}</span>` : `<button type="button" class="nagex-conn-btn primary" data-act="add-mcp" id="nagex-conn-add">${escapeHtml(t('conn.addMcp'))}</button>`}
-      </div></section>`);
+      </div>${data.mcp.servers.length && data.mcp.durable === false ? `<p class="nagex-conn-note" role="note">${escapeHtml(t('conn.mcp.notDurable'))}</p>` : ''}</section>`);
     return sections.join('');
   }
 
@@ -224,6 +281,7 @@
         <label class="nagex-conn-search"><span class="nagex-conn-sr">${escapeHtml(t('conn.search.label'))}</span>
           <input type="search" id="nagex-conn-search" placeholder="${escapeHtml(t('conn.search.label'))}" value="${escapeHtml(ui.query)}" autocomplete="off" spellcheck="false"></label>
         <div class="nagex-conn-filters" role="group" aria-label="${escapeHtml(t('conn.filter.label'))}">${filters.map(([id, key]) => `<button type="button" class="nagex-conn-chip" data-act="filter" data-filter="${id}" aria-pressed="${ui.filter === id}">${escapeHtml(t(key))}</button>`).join('')}</div>
+        ${data.catalog ? `<label class="nagex-conn-category"><span class="nagex-conn-sr">${escapeHtml(t('conn.category.label'))}</span><select id="nagex-conn-category">${[{ id: 'ALL' }, ...data.catalog.categories].map((category) => `<option value="${escapeHtml(category.id)}" ${ui.category === category.id ? 'selected' : ''}>${escapeHtml(category.id === 'ALL' ? t('conn.category.all') : (category.label[locale()] || category.label.en))}</option>`).join('')}</select></label>` : ''}
       </div>`;
   }
 
@@ -241,6 +299,7 @@
       container.appendChild(el);
       el.addEventListener('click', onClick);
       el.addEventListener('input', (event) => { if (event.target && event.target.id === 'nagex-conn-search') { ui.query = event.target.value; renderBody(); } });
+      el.addEventListener('change', (event) => { if (event.target && event.target.id === 'nagex-conn-category') { ui.category = event.target.value || 'ALL'; renderBody(); } });
     }
     root = el;
     return el;
@@ -263,15 +322,16 @@
     const version = ++sequence;
     data.loading = true;
     if (!data.loaded) renderBody();
-    const [g, gh, m] = await Promise.all([request(API.google), request(options && options.verify ? API.github + '?verify=1' : API.github), request(API.mcp)]);
+    const [g, gh, m, c] = await Promise.all([request(API.google), request(options && options.verify ? API.github + '?verify=1' : API.github), request(API.mcp), request('/api/v1/connectors/catalog')]);
     if (version !== sequence) return;
     const unauthorized = (r) => r.status === 401 && (!r.code || r.code === 'UNAUTHORIZED');
     data.signedOut = unauthorized(g) && unauthorized(gh) && unauthorized(m);
     if (!data.signedOut) {
       data.google = g.ok ? g.body : (unauthorized(g) ? null : { error: true });
       data.github = gh.body && gh.body.connection ? gh.body.connection : null;
-      data.mcp = { servers: m.ok && Array.isArray(m.body.servers) ? m.body.servers : [], unavailable: m.status === 503 || m.code === 'MCP_NOT_AVAILABLE', errorCode: m.ok ? '' : m.code };
-      data.loadFailed = !g.ok || !(gh.body && gh.body.connection) || (!m.ok && !data.mcp.unavailable);
+      data.mcp = { servers: m.ok && Array.isArray(m.body.servers) ? m.body.servers : [], unavailable: m.status === 503 || m.code === 'MCP_NOT_AVAILABLE', errorCode: m.ok ? '' : m.code, durable: m.ok ? m.body.durable !== false : true };
+      data.catalog = c.ok && c.body && Array.isArray(c.body.connectors) && Array.isArray(c.body.categories) ? c.body : null;
+      data.loadFailed = !g.ok || !(gh.body && gh.body.connection) || (!m.ok && !data.mcp.unavailable) || !data.catalog;
     }
     data.loaded = true;
     data.loading = false;
@@ -363,9 +423,26 @@
       ${rejected.length ? `<h4 class="nagex-conn-subtitle">${escapeHtml(t('conn.mcp.rejected'))}</h4><ul class="nagex-conn-rejected">${rejected.map((r) => `<li><strong>${escapeHtml(r.name || '?')}</strong> <span>${escapeHtml(rejectText(r.reason))}</span></li>`).join('')}</ul>` : ''}`;
   }
 
+  // Linking a chat account (Slack / Telegram): ownership is proven FROM the chat app. NAgex issues a one-time code; the user sends it to the NAgex app
+  // there. Nothing is linked until the server has seen that message, so this dialog only ever shows the code and then re-reads the real state.
+  function linkModalHtml(m, closeBtn) {
+    const app = m.integration === 'telegram' ? 'Telegram' : 'Slack';
+    const expires = m.challenge && m.challenge.expiresAt ? fmtTime(m.challenge.expiresAt) : '';
+    const body = m.busy
+      ? `<p class="nagex-conn-progress" role="status">${escapeHtml(t('conn.link.loading'))}</p>`
+      : m.error
+        ? `<p class="nagex-conn-error" role="alert">${escapeHtml(m.error)}</p>`
+        : `<ol class="nagex-conn-steps"><li>${escapeHtml(t('conn.link.step1', { app }))}</li><li>${escapeHtml(t('conn.link.step2'))}<br><code class="nagex-conn-code" data-focus="link-command" tabindex="0">${escapeHtml(m.challenge.command)}</code></li><li>${escapeHtml(t('conn.link.step3', { time: expires }))}</li></ol><p class="nagex-conn-note">${escapeHtml(t('conn.link.once'))}</p><p class="nagex-conn-success" role="status">${escapeHtml(m.message || '')}</p>`;
+    return `
+      <header class="nagex-conn-panel-head">${iconHtml(m.integration)}<div><h2 id="nagex-layer-title">${escapeHtml(t('conn.link.title', { app }))}</h2><p>${escapeHtml(t('conn.link.intro', { app }))}</p></div>${closeBtn}</header>
+      <div class="nagex-conn-panel-body">${body}</div>
+      <footer class="nagex-conn-panel-foot"><button type="button" class="nagex-conn-btn" data-act="close-layer">${escapeHtml(t('conn.action.close'))}</button>${m.challenge && !m.busy && !m.error ? `<button type="button" class="nagex-conn-btn primary" data-act="check-link" data-autofocus>${escapeHtml(t('conn.link.check'))}</button>` : ''}</footer>`;
+  }
+
   function modalHtml() {
     const m = ui.modal;
     const closeBtn = `<button type="button" class="nagex-conn-close" data-act="close-layer" aria-label="${escapeHtml(t('conn.action.close'))}" ${m.busy ? 'disabled' : ''}>×</button>`;
+    if (m.step === 'link') return linkModalHtml(m, closeBtn);
     if (m.step === 'review') {
       const server = serverById(m.serverId) || m.server;
       return `
@@ -396,7 +473,26 @@
       </form>`;
   }
 
+  // Reconnect an MCP server whose credential the server rejected: the new credential is read once, cleared at once, and replaces the stored one only if
+  // the server still identifies as the pinned server (enforced server-side).
+  async function onReconnectSubmit(event) {
+    event.preventDefault();
+    const d = ui.drawer;
+    if (!d || d.busy) return;
+    const field = event.target.elements.bearerToken;
+    const bearerToken = String(field.value || '');
+    field.value = '';
+    if (!bearerToken.trim()) { d.error = t('conn.mcp.tokenRequired'); renderLayer(); announce(d.error); return; }
+    d.busy = true; d.error = ''; d.message = ''; renderLayer();
+    const res = await request(`${API.mcp}/${encodeURIComponent(d.id)}/reconnect`, { method: 'POST', body: JSON.stringify({ bearerToken }) });
+    d.busy = false;
+    if (res.ok && res.body.server) { applyServer(res.body.server); d.message = t('conn.msg.reconnected'); announce(d.message); }
+    else d.error = errorText(res.code);
+    renderBody(); renderLayer();
+  }
+
   async function onSubmit(event) {
+    if (event.target && event.target.id === 'nagex-mcp-reconnect') return onReconnectSubmit(event);
     if (!event.target || event.target.id !== 'nagex-mcp-form') return;
     event.preventDefault();
     const m = ui.modal;
@@ -456,9 +552,10 @@
     } else {
       const server = serverById(d.id);
       if (!server) return '';
-      title = server.name; icon = 'mcp'; state = server.status === 'CONNECTED' ? 'CONNECTED' : server.status === 'IDENTITY_MISMATCH' ? 'REAUTH_REQUIRED' : 'ERROR';
+      title = server.name; icon = 'mcp'; state = server.status === 'CONNECTED' ? 'CONNECTED' : (server.status === 'IDENTITY_MISMATCH' || server.status === 'AUTH_REQUIRED') ? 'REAUTH_REQUIRED' : 'ERROR';
       const tools = Array.isArray(server.tools) ? server.tools : [];
       body = (server.status === 'IDENTITY_MISMATCH' ? `<p class="nagex-conn-alert" role="alert">${escapeHtml(t('conn.mcp.mismatch'))}</p>` : '')
+        + (server.status === 'AUTH_REQUIRED' ? `<div class="nagex-conn-alert" role="alert"><p>${escapeHtml(t('conn.mcp.authRequired'))}</p></div><form id="nagex-mcp-reconnect" novalidate autocomplete="off" class="nagex-conn-inline-form"><label class="nagex-conn-field"><span>${escapeHtml(t('conn.mcp.newToken'))}</span><input name="bearerToken" type="password" autocomplete="new-password" data-focus="mcp-newtoken" ${d.busy ? 'disabled' : ''}></label><button type="submit" class="nagex-conn-btn primary" ${d.busy ? 'disabled aria-busy="true"' : ''}>${escapeHtml(t('conn.action.reconnect'))}</button></form>` : '')
         + factsHtml([[t('conn.detail.status'), badge(state)], [t('conn.mcp.identity'), escapeHtml((server.identity && server.identity.serverName) || '—') + (server.identity && server.identity.serverVersion ? ' ' + escapeHtml(server.identity.serverVersion) : '')], [t('conn.mcp.origin'), escapeHtml((server.identity && server.identity.origin) || server.url)], [t('conn.mcp.toolsEnabled'), escapeHtml(t('conn.cap.mcpCount', { enabled: tools.filter((x) => x.enabled).length, total: tools.length }))], [t('conn.detail.lastVerified'), verified(server.discoveredAt)]])
         + toolsHtml(server, d) + secure + confirmBlock('remove', t('conn.remove.confirm'));
       foot = `<button type="button" class="nagex-conn-btn" data-act="mcp-refresh" ${d.busy ? 'disabled aria-busy="true"' : ''}>${escapeHtml(t('conn.action.refresh'))}</button><button type="button" class="nagex-conn-btn danger" data-act="ask-remove" ${d.busy ? 'disabled' : ''}>${escapeHtml(t('conn.action.removeServer'))}</button>`;
@@ -525,6 +622,31 @@
         ui.drawer = { kind: target.getAttribute('data-kind'), id: target.getAttribute('data-id'), confirm: null, busy: false, error: '', message: '', toolConfirm: null };
         openLayer('drawer', target); return;
       }
+      case 'link-channel': {
+        const integration = target.getAttribute('data-app');
+        if (!CHANNELS.has(integration)) return;
+        ui.modal = { step: 'link', integration, busy: true, error: '', challenge: null, message: '' };
+        openLayer('modal', target);
+        const res = await request(`/api/v1/integrations/${integration}/identity/link/challenge`, { method: 'POST', body: '{}' });
+        const m = ui.modal;
+        if (!m || m.step !== 'link' || m.integration !== integration) return;
+        m.busy = false;
+        const command = res.body && res.body.instructions && typeof res.body.instructions.command === 'string' ? res.body.instructions.command : '';
+        if (res.ok && command) m.challenge = { command, expiresAt: res.body.expiresAt || '' };
+        else m.error = res.status === 401 ? t('conn.signedOut') : t('conn.link.error');
+        renderLayer(true);
+        return;
+      }
+      case 'check-link': {
+        const m = ui.modal;
+        if (!m || m.step !== 'link') return;
+        m.message = '';
+        await loadAll();
+        const entry = catalogConnector(m.integration);
+        if (entry && entry.connection.state === 'CONNECTED') { announce(t('conn.link.done')); closeLayer(); return; }
+        if (ui.modal === m) { m.message = t('conn.link.notYet'); renderLayer(); announce(m.message); }
+        return;
+      }
       case 'add-mcp': ui.modal = { step: 'form', name: '', url: '', error: '', errors: {}, busy: false, toolConfirm: null }; openLayer('modal', target); return;
       case 'close-layer': if (ui.modal && ui.modal.busy) return; closeLayer(); return;
       case 'tool-toggle': {
@@ -564,7 +686,7 @@
         const d = ui.drawer; d.busy = true; d.error = ''; d.message = ''; renderLayer();
         const res = await request(`${API.mcp}/${encodeURIComponent(d.id)}/refresh`, { method: 'POST', body: '{}' });
         d.busy = false;
-        if (res.ok && res.body.server) { applyServer(res.body.server); d.message = t('conn.msg.refreshed'); announce(d.message); } else d.error = errorText(res.code);
+        if (res.ok && res.body.server) { applyServer(res.body.server); d.message = t('conn.msg.refreshed'); announce(d.message); } else { d.error = errorText(res.code); await loadAll(); }
         renderBody(); renderLayer(); return;
       }
       case 'confirm-remove': {

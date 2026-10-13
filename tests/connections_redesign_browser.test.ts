@@ -151,9 +151,10 @@ describe('Apps & Connections: layout and built-in apps', () => {
     assert.match(await mine(page).filter({ hasText: 'Google' }).innerText(), /Gmail · Calendar/);
     assert.equal(await mine(page).locator('.nagex-conn-badge[data-state="CONNECTED"]').count(), 2);
     // Built-in apps: all registered entries, each with an icon, a capability line and exactly one truthful state
-    const names = await page.locator('.nagex-conn-card:not(.mine) h4').allInnerTexts();
-    assert.deepEqual(names, ['Gmail', 'Google Calendar', 'Google Drive', 'GitHub', 'Outlook', 'OneDrive / SharePoint']);
-    for (const app of ['gmail', 'google-calendar', 'google-drive', 'github', 'outlook', 'onedrive']) {
+    // (the list comes from the server connector catalog: live apps first, then the three "coming later" apps; everything else is under "More apps")
+    const names = await page.locator('section[aria-labelledby="nagex-sec-builtin"] .nagex-conn-card h4').allInnerTexts();
+    assert.deepEqual(names, ['Gmail', 'Google Calendar', 'GitHub', 'Slack', 'Telegram', 'Google Drive', 'Outlook', 'OneDrive / SharePoint']);
+    for (const app of ['gmail', 'google-calendar', 'google-drive', 'github', 'outlook', 'onedrive', 'slack', 'telegram']) {
       assert.equal(await card(page, app).locator('.nagex-conn-icon svg').count(), 1, `${app} has an icon`);
       assert.equal(await card(page, app).locator('.nagex-conn-badge').count(), 1);
     }
@@ -217,7 +218,7 @@ describe('Apps & Connections: layout and built-in apps', () => {
     await page.locator('#nagex-conn-search').fill('repositories');
     assert.deepEqual(await page.locator('.nagex-conn-card:not(.mine) h4').allInnerTexts(), ['GitHub'], 'capability text is searched');
     await page.locator('#nagex-conn-search').fill('microsoft');
-    assert.deepEqual(await page.locator('.nagex-conn-card:not(.mine) h4').allInnerTexts(), ['Outlook', 'OneDrive / SharePoint'], 'provider is searched');
+    assert.deepEqual(await page.locator('.nagex-conn-card:not(.mine) h4').allInnerTexts(), ['Outlook', 'OneDrive / SharePoint', 'Microsoft Teams'], 'provider is searched (Teams is listed under More apps, which opens while filtering)');
     await page.locator('#nagex-conn-search').fill('zzz-nothing');
     assert.equal(await page.locator('.nagex-conn-card').count(), 0);
     assert.match(await page.locator('#nagex-conn-body').innerText(), /Nothing matches your search/);
@@ -528,7 +529,7 @@ describe('Localization, responsiveness and accessibility', () => {
     await page.evaluate(() => (window as any).NAGEX_I18N.setLocale('ko'));
     await page.waitForFunction(() => /내 연결/.test(document.querySelector('#nagex-connections')?.textContent || ''), undefined, { timeout: 5000 });
     let text = await page.locator('#nagex-connections').innerText();
-    for (const expected of [/내 연결/, /기본 앱/, /탐색 및 추가/, /연결됨/, /곧 제공 예정/, /\+ 사용자 지정 MCP 서버 추가/, /저장소 · 파일/, /이메일 · 초안/]) assert.match(text, expected);
+    for (const expected of [/내 연결/, /기본 앱/, /탐색 및 추가/, /연결됨/, /곧 제공 예정/, /\+ 사용자 지정 MCP 서버 추가/, /저장소를 둘러보고 파일을 읽습니다/, /메일을 검색하고 답장 초안을 만들며/, /더 많은 앱/]) assert.match(text, expected);
     assert.match(text, /My Docs Server/, 'a user-provided server name is not translated');
     assert.match(text, /Docs MCP/, 'the server-advertised identity is not translated');
     assert.equal(await page.locator('#nagex-conn-search').getAttribute('placeholder'), '앱과 도구 검색');

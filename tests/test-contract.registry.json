@@ -5302,6 +5302,22 @@
       "notes": "The server is NOT a third-party MCP provider; this is protocol-path certification only. The private-network escape hatch (NAGEX_MCP_ALLOW_PRIVATE_NETWORK=1) is set by the test so the production client can reach the loopback server; production policy is covered by mcp_runtime.",
       "writesRepositoryArtifacts": false
     },
+    "connections_catalog_browser": {
+      "milestone": "NAGEX-CONNECTOR-CATALOG",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Real-Chromium certification of the catalog-driven Apps & Connections surface: the not-available apps sit under a collapsed More apps group with their status (coming later / not supported) and stated requirement and no button, nothing is shown connected, the category filter narrows built-in apps and More apps together, Slack and Telegram show setup required without a button when the server is not configured, the chat-account link dialog shows the one-time command and only a real connected state closes it and lists the account, a failing challenge is reported, an MCP server whose credential was rejected shows needs attention with locked tools and a reconnect form that clears the credential from the field and never leaks it to the DOM or storage, the in-memory durability notice is shown, EN and KR have no raw keys, and a 390 px phone has no horizontal overflow.",
+      "notes": "Production server harness with provider credentials scrubbed. The catalog response is rewritten in the browser to simulate a configured Slack and the chat-link challenge is stubbed; the MCP server is the isolated repository test server (scripts/mcp-test-server.mjs), not a third-party provider. Screenshots are written only when NAGEX_CAPTURE_DIR is set.",
+      "writesRepositoryArtifacts": false
+    },
     "connector_catalog": {
       "milestone": "NAGEX-CONNECTOR-CATALOG",
       "classification": "CANONICAL_BEHAVIOR",

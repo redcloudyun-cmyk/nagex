@@ -65,6 +65,7 @@
       "tool_capability_id_alignment",
       "r23_3t_permission_approval_hardening",
       "connections_redesign_browser",
+      "connections_catalog_browser",
       "design_system_v2_browser"
     ],
     "google": [
@@ -343,6 +344,7 @@
       "r24_7b_canvas_ask_contract",
       "r24_8b_ui_integrity_contract",
       "connections_redesign_browser",
+      "connections_catalog_browser",
       "design_system_v2_browser",
       "mobile_phone_shell_browser",
       "r23_7h_c_mobile_recent_image_browser",
