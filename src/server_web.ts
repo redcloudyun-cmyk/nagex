@@ -36,6 +36,7 @@ import { handleGitHubOAuthStartRoutes, handleGitHubRoutes } from './http/routes/
 import { githubConnectionService } from './integrations/github/index.js';
 import { handleMcpRoutes } from './http/routes/mcp.routes.js';
 import { handleMcpOAuthCallbackRoute } from './http/routes/mcp-oauth.routes.js';
+import type { McpOAuthCallbackRouteDeps } from './http/routes/mcp-oauth.routes.js';
 import { handleConnectorCatalogRoutes } from './http/routes/connector-catalog.routes.js';
 import { ConnectorCatalogService } from './connectors/connector-catalog.service.js';
 import { GoogleCalendarConnectionService } from './integrations/google/calendar-connection.js';
@@ -398,6 +399,7 @@ export async function handleAsyncApiRequest(
     enterpriseIdentityStore?: EnterpriseIdentityStore;
     ssoFlowStore?: SsoFlowStore;
     authAbuseGuard?: AuthAbuseGuard;
+    mcpOAuthCoordinator?: Pick<McpOAuthCallbackRouteDeps, 'oauth' | 'providerRegistry' | 'pendingStates'>;
   }
 ): Promise<ApiResult> {
   try {
@@ -584,6 +586,7 @@ export async function handleAsyncApiRequest(
       const mcpOAuthResult = await handleMcpOAuthCallbackRoute(method, pathname, body, headers, query, {
         sessionStore: customDeps?.sessionStore ?? sessionStore,
         identityStore: customDeps?.identityStore ?? identityStore,
+        ...customDeps?.mcpOAuthCoordinator,
       });
       if (mcpOAuthResult) return mcpOAuthResult;
     }
