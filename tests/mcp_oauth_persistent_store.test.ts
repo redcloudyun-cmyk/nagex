@@ -49,9 +49,17 @@ describe('MCP OAuth encrypted persistent credential store', () => {
     try {
       const original = path.join(t.dir, 'other.json');
       fs.writeFileSync(original, JSON.stringify({ schema: 1, records: [] }));
-      fs.symlinkSync(original, t.file);
-      assert.throws(() => new PersistentMcpOAuthCredentialStore({ file: t.file, env }), /MCP_OAUTH_STORE_INVALID_FILE/);
-      fs.rmSync(t.file);
+      // On Windows, creating symlinks may require Developer Mode or elevated
+      // privileges. Verify the security invariant when OS policy permits it.
+      let symlinkCreated = false;
+      try { fs.symlinkSync(original, t.file); symlinkCreated = true; }
+      catch (error) {
+        if (!['EPERM', 'EACCES', 'ENOSYS'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error;
+      }
+      if (symlinkCreated) {
+        assert.throws(() => new PersistentMcpOAuthCredentialStore({ file: t.file, env }), /MCP_OAUTH_STORE_INVALID_FILE/);
+        fs.rmSync(t.file);
+      }
       fs.writeFileSync(t.file, JSON.stringify({ schema: 1, records: [{ id: 'forged' }] }));
       assert.throws(() => new PersistentMcpOAuthCredentialStore({ file: t.file, env }));
     } finally { t.close(); }
