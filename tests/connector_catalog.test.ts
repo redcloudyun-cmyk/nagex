@@ -182,7 +182,16 @@ describe('HTTP: GET /api/v1/connectors/catalog', () => {
     assert.deepEqual(data.categories.map((category: any) => category.id), CONNECTOR_CATEGORIES.map((category) => category.id));
     const stateOf = (id: string) => data.connectors.find((connector: any) => connector.id === id).connection.state;
     for (const id of ['gmail', 'google-calendar', 'github']) assert.ok(['NOT_CONNECTED', 'SETUP_REQUIRED'].includes(stateOf(id)), `${id} for a fresh user is ${stateOf(id)}`);
-    for (const connector of data.connectors.filter((entry: any) => entry.availability !== 'LIVE')) assert.equal(connector.connection.state, 'UNAVAILABLE', connector.id);
+    for (const connector of data.connectors.filter((entry: any) => entry.availability !== 'LIVE')) {
+      assert.equal(connector.connection.state, 'UNAVAILABLE', connector.id);
+      assert.equal(connector.action.kind, 'NONE', connector.id);
+    }
+    for (const connector of data.connectors) {
+      if (connector.action.kind === 'OAUTH') {
+        assert.ok(['/api/v1/oauth/google/start', '/api/v1/oauth/github/start'].includes(connector.action.startPath));
+        assert.equal(connector.availability, 'LIVE');
+      }
+    }
     assert.doesNotMatch(JSON.stringify(data), /bearerToken|catalog-token|access_token|client_secret/i);
   });
 
