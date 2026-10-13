@@ -15,6 +15,7 @@ function setup() {
   let resolved = 0;
   const deps: McpOAuthCallbackDeps = {
     stateStore, vault,
+    resolveRequestedScopes: () => ['tools.read'],
     resolveTrustedTokenEndpoint: async (pending) => {
       resolved++;
       assert.equal(pending.issuer, context.issuer);
