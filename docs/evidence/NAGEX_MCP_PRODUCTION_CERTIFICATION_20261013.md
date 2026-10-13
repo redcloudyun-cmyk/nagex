@@ -50,3 +50,10 @@ Additional completions in this work: `NAGEX_MCP_TIMEOUT_MS` operator knob (1–6
 
 - A real third-party HTTPS MCP server, authorized by the owner, passes `scripts/mcp-remote-check.mjs` and one controlled non-destructive tool call through Settings (this is the only thing this run could not do).
 - The deployed server's environment (items 1 and 2 above) is verified.
+
+## 5. Deployment candidate (not deployed)
+
+- Branch: `feat/agex-assets-mcp-20261013` (pushed). Behavioural head verified by the full gate: `812bc9d`; later commits on this branch are documentation only.
+- Not merged into `main` and not deployed. Deploying is the owner's step: fast-forward the server checkout to this branch, `npx tsc -p .`, then `sudo systemctl restart nagex` (backend and `public/` changes), then the checks in section 3.
+- Nothing in this branch changes authentication policy, approvals, or the Model Gateway; the new routes are `POST /api/v1/mcp/servers/:id/reconnect` and `GET /api/v1/connectors/catalog` (both session-required).
+- Human acceptance of the Connections design remains **PENDING**.
