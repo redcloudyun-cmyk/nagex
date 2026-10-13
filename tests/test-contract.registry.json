@@ -5302,6 +5302,22 @@
       "notes": "The server is NOT a third-party MCP provider; this is protocol-path certification only. The private-network escape hatch (NAGEX_MCP_ALLOW_PRIVATE_NETWORK=1) is set by the test so the production client can reach the loopback server; production policy is covered by mcp_runtime.",
       "writesRepositoryArtifacts": false
     },
+    "connector_catalog": {
+      "milestone": "NAGEX-CONNECTOR-CATALOG",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "credential-broker",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "The normalized connector catalog is truthful: stable unique ids, EN and KR copy, a LIVE connector claims only capabilities that registered engine entries back and reads its state from a real source, PLANNED and UNSUPPORTED connectors advertise nothing and can never appear connected, Gmail and Calendar share one Google read with per-scope truth, OAuth and channel states map faithfully, a failing source is an error and never a silent not-connected, and over HTTP the state belongs to the signed-in user only (forged identity headers ignored).",
+      "notes": "Sources are stubbed for the service tests; the HTTP tests use the production server wiring and the isolated MCP test server (scripts/mcp-test-server.mjs). No third-party provider is contacted and no OAuth connection is claimed.",
+      "writesRepositoryArtifacts": false
+    },
     "mcp_runtime": {
       "milestone": "NAGEX-MCP-RUNTIME",
       "classification": "CANONICAL_BEHAVIOR",

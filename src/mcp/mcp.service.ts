@@ -15,7 +15,7 @@ import type { ActionApprovalRecord, ActionApprovalStore } from '../governance/ac
 import type { ExecutionStore } from '../governance/execution.store.js';
 import type { CapabilityRegistry } from '../capabilities/capability.registry.js';
 import type { RegisteredTool } from '../tools/tool-registry.js';
-import { McpClient, createHttpMcpTransport, type McpCallResult, type McpTransport } from './mcp-client.js';
+import { McpClient, MCP_TIMEOUT_MS, createHttpMcpTransport, type McpCallResult, type McpTransport } from './mcp-client.js';
 import { toView, type McpConnectionRecord, type McpConnectionStore, type McpConnectionView, type McpToolState } from './mcp-connection.store.js';
 import { parseToolDescriptor, sanitizeText, validateArguments } from './mcp-schema.js';
 import { assertSafeMcpUrl, readMcpUrlPolicyFromEnv, type McpUrlPolicyOptions } from './mcp-url-policy.js';
@@ -38,6 +38,13 @@ export interface McpServiceDeps {
   executions: ExecutionStore;
   transport?: McpTransport;
   policy?: () => McpUrlPolicyOptions;
+  // Per-request timeout; defaults to NAGEX_MCP_TIMEOUT_MS (bounded to 1 s - 60 s) or 15 s.
+  timeoutMs?: number;
+}
+
+export function readMcpTimeoutFromEnv(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = Number(env.NAGEX_MCP_TIMEOUT_MS);
+  return Number.isFinite(raw) && raw >= 1_000 && raw <= 60_000 ? Math.floor(raw) : MCP_TIMEOUT_MS;
 }
 
 export interface McpToolForPlanning {
@@ -56,8 +63,10 @@ const notFound = (requestId: string): NagexError => err('MCP_NOT_FOUND', 'NOT_FO
 export class McpService {
   private readonly transport: McpTransport;
   private readonly policy: () => McpUrlPolicyOptions;
+  private readonly timeoutMs: number;
 
   constructor(private readonly deps: McpServiceDeps) {
+    this.timeoutMs = deps.timeoutMs ?? readMcpTimeoutFromEnv();
     this.policy = deps.policy ?? (() => readMcpUrlPolicyFromEnv());
     this.transport = deps.transport ?? createHttpMcpTransport(this.policy());
   }
@@ -217,7 +226,7 @@ export class McpService {
 
     // Verify the server is still the one the owner enabled BEFORE spending the approval.
     const url = await assertSafeMcpUrl(record.url, request.requestId, this.policy());
-    const client = new McpClient({ url, bearerToken: record.bearerToken, transport: this.transport, requestId: request.requestId });
+    const client = new McpClient({ url, bearerToken: record.bearerToken, transport: this.transport, requestId: request.requestId, timeoutMs: this.timeoutMs });
     try {
       return await this.runApproved(request, record, tool, args, url, client);
     } finally {
@@ -348,7 +357,7 @@ export class McpService {
   }
 
   private async discover(url: URL, bearerToken: string | null, requestId: string) {
-    const client = new McpClient({ url, bearerToken, transport: this.transport, requestId });
+    const client = new McpClient({ url, bearerToken, transport: this.transport, requestId, timeoutMs: this.timeoutMs });
     try {
       return await this.discoverFrom(client);
     } finally {

@@ -66,6 +66,7 @@ export const ROUTE_ACCESS_RULES: readonly RouteAccessRule[] = [
   rule('*', /^\/api\/v1\/oauth\/github\/(start|start-url|callback|status|disconnect)$/, 'SELF_AUTHENTICATED', 'GitHub connection: session + state nonce'),
   rule('*', /^\/api\/v1\/mcp(\/|$)/, 'SELF_AUTHENTICATED', 'user-owned MCP servers, requires a session'),
   rule('*', /^\/api\/v1\/connections(\/|$)/, 'SELF_AUTHENTICATED', 'requires a session'),
+  rule(['GET'], /^\/api\/v1\/connectors\/catalog$/, 'SELF_AUTHENTICATED', 'connector catalog with the signed-in user\'s real connection state, requires a session'),
   rule('*', /^\/api\/v1\/mobile\/messages(\/|$)/, 'SELF_AUTHENTICATED', 'requires a session'),
   rule(['POST'], /^\/api\/v1\/device-agent\/enroll$/, 'SELF_AUTHENTICATED', 'requires a session'),
   rule(['POST'], /^\/api\/v1\/device-agent\/devices\/[^/]+\/validate$/, 'SELF_AUTHENTICATED', 'requires a session and validates a cached local binding'),

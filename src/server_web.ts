@@ -35,6 +35,8 @@ import { handleGoogleOAuthStartRoutes, handleGoogleOAuthCallbackRoutes } from '.
 import { handleGitHubOAuthStartRoutes, handleGitHubRoutes } from './http/routes/github.routes.js';
 import { githubConnectionService } from './integrations/github/index.js';
 import { handleMcpRoutes } from './http/routes/mcp.routes.js';
+import { handleConnectorCatalogRoutes } from './http/routes/connector-catalog.routes.js';
+import { ConnectorCatalogService } from './connectors/connector-catalog.service.js';
 import { GoogleCalendarConnectionService } from './integrations/google/calendar-connection.js';
 import { hasPendingGoogleOAuthState } from './integrations/google/oauth-state.store.js';
 import { readGoogleOAuthConfig } from './integrations/google/oauth.client.js';
@@ -329,6 +331,21 @@ function calendarConnectionFor(calendarService: GoogleCalendarService): GoogleCa
   });
 }
 
+// The connector catalog reads each connection's REAL state from the store that owns it (per signed-in user); nothing is cached or invented here.
+const connectorCatalogService = new ConnectorCatalogService({
+  google: async (identity) => {
+    const status = await calendarConnectionFor(googleCalendarService).getStatus({ ...identity, requestId: `req_catalog_${Date.now()}` });
+    return { state: status.state, reason: status.reason, scopes: status.scopes };
+  },
+  github: async (identity) => {
+    const status = await githubConnectionService.getStatus({ ...identity, requestId: `req_catalog_${Date.now()}` });
+    return { state: status.state, reason: status.reason, account: status.account ? status.account.login : null };
+  },
+  slack: (identity) => ({ configured: slackClient.getStatus().configured, linked: slackIdentityStore.listVerifiedForPrincipal(identity.principalId, identity.tenantId).length, account: slackClient.getStatus().teamName }),
+  telegram: (identity) => ({ configured: telegramBotClient.getStatus().configured, linked: telegramIdentityStore.listVerifiedForPrincipal(identity.principalId, identity.tenantId).length, account: null }),
+  mcp: (identity) => ({ servers: mcpService.list({ ...identity, requestId: `req_catalog_${Date.now()}` }).map((server) => ({ status: server.status })) }),
+});
+
 const ERROR_CATEGORY_STATUS: Record<string, number> = {
   VALIDATION: 400,
   AUTHENTICATION: 401,
@@ -563,6 +580,11 @@ export async function handleAsyncApiRequest(
     {
       const mcpResult = await handleMcpRoutes(method, pathname, body, headers, query, { sessionStore: customDeps?.sessionStore ?? sessionStore, identityStore: customDeps?.identityStore ?? identityStore, mcpService, capabilityBroker });
       if (mcpResult) return mcpResult;
+    }
+    // Normalized connector catalog (static metadata + the signed-in user's real connection state).
+    {
+      const catalogResult = await handleConnectorCatalogRoutes(method, pathname, body, headers, query, { sessionStore: customDeps?.sessionStore ?? sessionStore, identityStore: customDeps?.identityStore ?? identityStore, connectorCatalog: connectorCatalogService });
+      if (catalogResult) return catalogResult;
     }
     // R10.2-D Increment 3 — all Workspace/Capture/Candidate/Activity routes
     // (route-input, storage/status, inbox, vault, uploads, captures, items,

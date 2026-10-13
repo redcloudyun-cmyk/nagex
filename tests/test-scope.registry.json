@@ -235,7 +235,8 @@
       "desktop_control_service",
       "github_connection",
       "mcp_runtime",
-      "mcp_e2e_isolated_server"
+      "mcp_e2e_isolated_server",
+      "connector_catalog"
     ],
     "credential-broker": [
       "google_calendar_connection_state",
@@ -251,7 +252,8 @@
       "r23_4v_secret_non_propagation",
       "github_connection",
       "mcp_runtime",
-      "mcp_e2e_isolated_server"
+      "mcp_e2e_isolated_server",
+      "connector_catalog"
     ],
     "browser-untrusted-boundary": [
       "r23_5b_browser_untrusted_boundary",
