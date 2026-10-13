@@ -57,3 +57,17 @@ Supporting official references:
 - https://docs.slack.dev/ai/slack-mcp-server/
 
 Remaining blockers are unchanged: confidential-client OAuth, trusted issuer discovery, operator-owned Slack app/workspace approval, callback and stored-token runtime integration, live end-to-end certification.
+
+## Further official OAuth authorization server metadata
+
+The official `https://mcp.slack.com/.well-known/oauth-authorization-server` response advertises:
+
+- Issuer: `https://mcp.slack.com` (canonical URL may include trailing slash)
+- Authorization endpoint: `https://slack.com/oauth/v2_user/authorize`
+- Token endpoint: `https://slack.com/api/oauth.v2.user.access`
+- PKCE methods: `S256`
+- Token endpoint client authentication: `client_secret_post`
+
+The vendor-documented authorization-server metadata URL is now probed separately and pinned to the protected-resource issuer. A result of `METADATA_VERIFIED` is strictly a read-only metadata result, **not a working OAuth connection**. The current generic NAgex token exchange does not send the Slack confidential client secret and cannot yet claim to support this endpoint. NAgex must provision a verified operator-owned Slack app, secure server-side client secret resolution, applicable scopes, and a provider-certified token exchange flow before turning on Connect.
+
+Reference: https://mcp.slack.com/.well-known/oauth-authorization-server
