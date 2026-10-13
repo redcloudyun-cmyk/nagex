@@ -529,7 +529,7 @@ describe('Localization, responsiveness and accessibility', () => {
     await page.evaluate(() => (window as any).NAGEX_I18N.setLocale('ko'));
     await page.waitForFunction(() => /내 연결/.test(document.querySelector('#nagex-connections')?.textContent || ''), undefined, { timeout: 5000 });
     let text = await page.locator('#nagex-connections').innerText();
-    for (const expected of [/내 연결/, /기본 앱/, /탐색 및 추가/, /연결됨/, /곧 제공 예정/, /\+ 사용자 지정 MCP 서버 추가/, /저장소를 둘러보고 파일을 읽습니다/, /메일을 검색하고 답장 초안을 만들며/, /더 많은 앱/]) assert.match(text, expected);
+    for (const expected of [/내 연결/, /기본 앱/, /탐색 및 추가/, /연결됨/, /곧 제공 예정/, /\+ 사용자 지정 MCP 서버 추가/, /저장소를 둘러보고 파일을 읽어요/, /메일을 검색하고 답장 초안을 만들어요/, /더 많은 앱/]) assert.match(text, expected);
     assert.match(text, /My Docs Server/, 'a user-provided server name is not translated');
     assert.match(text, /Docs MCP/, 'the server-advertised identity is not translated');
     assert.equal(await page.locator('#nagex-conn-search').getAttribute('placeholder'), '앱과 도구 검색');

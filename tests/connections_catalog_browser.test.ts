@@ -105,7 +105,8 @@ describe('More apps: honest availability', () => {
     assert.match(text, /지원하지 않음/);
     assert.match(text, /곧 제공 예정/);
     assert.match(await card(page, 'x').innerText(), /X는 유료 개발자 플랜/);
-    assert.match(await card(page, 'slack').innerText(), /Slack에서 NAgex와 대화하고 알림을 받습니다/);
+    assert.doesNotMatch(text, /(습니다|입니다)\./, 'the catalog copy follows the 해요체 register');
+    assert.match(await card(page, 'slack').innerText(), /Slack에서 NAgex와 대화하고 알림을 받아요/);
     assert.doesNotMatch(text, RAW);
     assert.doesNotMatch(await page.locator('details.nagex-conn-more').innerText(), /Not available yet|Not supported|Coming later/);
     await capture(page, 'connections-ko-desktop-more-open');

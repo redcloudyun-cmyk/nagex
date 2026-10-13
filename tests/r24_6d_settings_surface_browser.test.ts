@@ -268,7 +268,7 @@ describe('R24.6D — Organization follows one enterprise-visibility rule on Desk
 
 // Visible English-only text in a Korean Settings surface (brand/product names are legitimate).
 // The account email address and the English language endonym are not translatable text either.
-const ALLOWED_ENGLISH = [/^Google Calendar & Gmail$/, /^NAgex$/, /^IP$/, /^(Gmail|Google Calendar|Google Drive|GitHub|Outlook|OneDrive \/ SharePoint|Google|Microsoft|English)$/, /^\S+@\S+$/];
+const ALLOWED_ENGLISH = [/^Google Calendar & Gmail$/, /^NAgex$/, /^IP$/, /^(Gmail|Google Calendar|Google Drive|GitHub|Outlook|OneDrive \/ SharePoint|Google|Microsoft|English|Slack|Telegram|Microsoft Teams|Zoom|World Bank data|CoinGecko|X \(Twitter\)|Similarweb|Ahrefs|Brand24|Morningstar)$/, /^\S+@\S+$/];
 async function englishOnlyText(page: Page, rootSelector: string): Promise<string[]> {
   const found: string[] = await page.evaluate((sel: string) => {
     const root = document.querySelector(sel);
