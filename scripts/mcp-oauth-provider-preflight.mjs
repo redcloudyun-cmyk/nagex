@@ -8,7 +8,10 @@ import { parseProtectedResourceMetadata, parseAuthorizationServerMetadata } from
 
 const CANDIDATES = Object.freeze({
   slack: {
-    resource: 'https://mcp.slack.com/mcp',
+    // Slack's RFC9728 protected resource identifier is its origin, not the
+    // /mcp Streamable HTTP endpoint. These serve distinct protocol roles.
+    mcpEndpoint: 'https://mcp.slack.com/mcp',
+    resource: 'https://mcp.slack.com',
     protectedMetadata: 'https://mcp.slack.com/.well-known/oauth-protected-resource',
   },
 });
@@ -24,7 +27,7 @@ if (!candidate || process.argv.length > 3) {
     const metadata = parseProtectedResourceMetadata(document, candidate.resource);
     const result = {
       provider: id,
-      resourceVerified: metadata.resource === candidate.resource,
+      resourceVerified: metadata.resource === new URL(candidate.resource).href,
       protectedMetadataRead: true,
       issuerCount: metadata.authorizationServers.length,
       scopeCount: metadata.scopesSupported.length,
