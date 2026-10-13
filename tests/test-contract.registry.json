@@ -5334,6 +5334,22 @@
       "notes": "Sources are stubbed for the service tests; the HTTP tests use the production server wiring and the isolated MCP test server (scripts/mcp-test-server.mjs). No third-party provider is contacted and no OAuth connection is claimed.",
       "writesRepositoryArtifacts": false
     },
+    "mcp_planning_discovery": {
+      "milestone": "NAGEX-MCP-RUNTIME",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "credential-broker",
+        "model-routing"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Connected custom tools are discoverable by the existing planning and capability resolution: the planner prompt names only the tools the signed-in user ENABLED (disabled, other users' and identity-less requests get exactly the unchanged prompt, capped at 25), tool names and descriptions are treated as untrusted (quoted, single-line, truncated, with a never-obey instruction), and a plan step naming a tool resolves through the existing PlanResolver for its owner only as available and approval-required, by id or by display name, and stops resolving the moment the tool is disabled - no second execution engine.",
+      "notes": "The model router is a scripted stand-in that captures the prompt and returns a fixed plan; the AiService, McpService, ToolRegistry dynamic provider and PlanResolver are production code. No external model or MCP server is contacted.",
+      "writesRepositoryArtifacts": false
+    },
     "mcp_runtime": {
       "milestone": "NAGEX-MCP-RUNTIME",
       "classification": "CANONICAL_BEHAVIOR",

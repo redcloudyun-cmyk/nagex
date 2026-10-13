@@ -64,6 +64,7 @@ export class BackgroundTaskRunner implements TaskRunner {
             memories: this.getMemories(task.tenantId, task.ownerId, task.objective),
             mode: 'auto',
             requestId,
+            identity: { tenantId: task.tenantId, principalId: task.ownerId },
           });
           this.planResolver.resolve(planResponse.data, { tenantId: task.tenantId, principalId: task.ownerId });
         } catch {

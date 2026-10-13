@@ -224,6 +224,7 @@ export class TelegramService {
         conversation,
         mode: 'auto',
         requestId,
+        identity: { tenantId, principalId },
       });
 
       const resolved = this.options.planResolver.resolve(planRes.data, { tenantId, principalId });

@@ -237,6 +237,7 @@
       "github_connection",
       "mcp_runtime",
       "mcp_e2e_isolated_server",
+      "mcp_planning_discovery",
       "connector_catalog"
     ],
     "credential-broker": [
@@ -254,6 +255,7 @@
       "github_connection",
       "mcp_runtime",
       "mcp_e2e_isolated_server",
+      "mcp_planning_discovery",
       "connector_catalog"
     ],
     "browser-untrusted-boundary": [
