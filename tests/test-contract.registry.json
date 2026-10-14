@@ -5140,6 +5140,22 @@
       "notes": "Only the plan route is stubbed (no model in the harness); its seal is issued by the server's real PlanSeal and verified by the real run route.",
       "writesRepositoryArtifacts": false
     },
+    "home_reviewed_plan_security_review": {
+      "milestone": "NAGEX-D10-OVERNIGHT-SECURITY",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime",
+        "tasks",
+        "permission-approval-hardening"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Independent review of the Home reviewed-plan path made executable: PlanSeal binds owner, plan and expiry (every deciding field changes the hash; a forged expiry invalidates the token; claims are never forgotten while replayable and the table fails closed when full); a run waiting for approval survives a process restart and resumes exactly once with the frozen step; a decline stays declined; an approval that EXPIRES ends the waiting run by itself with nothing sent; a granted approval is not rewritten by a later expiry; and the run route never reads the runnable verdict, resolved plan, approval id, tool or identity from the request, never calls the broker itself, never approves, and never asks the model.",
+      "notes": "Local only: temp directories, persistent approval / task / continuation stores rebuilt as a restart, a counting stub in place of Google."
+    },
     "advisory_plan": {
       "milestone": "NAGEX-D11-ADVISORY-PLAN",
       "classification": "CANONICAL_BEHAVIOR",

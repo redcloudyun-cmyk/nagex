@@ -273,8 +273,10 @@ export const handleTasksRunRoutes: AsyncRouteRegistrar<TasksRunRouteDeps> = asyn
       auditLogger.logEvent({ actor: { type: 'user', id: principalId }, tenant_id: tenantId, action: 'plan.run.denied', resource: { type: 'ReviewedPlan', id: verified.planHash }, result: 'DENIED', reason_code: assessment.reasons[0], request_id: requestId, details: { reasons: assessment.reasons, capabilityId: assessment.capabilityId } });
       return fail(422, 'PLAN_NOT_RUNNABLE', 'This plan cannot be sent for approval from Home.', { reasons: assessment.reasons });
     }
-    const claim = seal.claim(identity, verified.planHash, { taskId: 'pending', runId: null });
+    const claim = seal.claim(identity, verified.planHash, { taskId: null, runId: null });
     if (!claim.claimed) {
+      if ('full' in claim) return fail(503, 'PLAN_RUN_CAPACITY', 'NAgex is busy sending plans for approval. Try again in a moment.');
+      // a request that is still being created has no task yet: the answer says it was started, without pointing at a task that does not exist
       return fail(409, 'PLAN_ALREADY_STARTED', 'This plan was already sent for approval.', { taskId: claim.existing.taskId, runId: claim.existing.runId });
     }
     let task: TaskRecord;

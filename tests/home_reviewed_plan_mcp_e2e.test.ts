@@ -325,3 +325,19 @@ describe('plan route -> sealed preview -> approval request -> approval -> isolat
     assert.equal((data(await call('GET', '/api/v1/approvals', null, as(user))).pending as any[]).length, 0);
   });
 });
+
+describe('tools are the caller\'s own', () => {
+  it('a plan that names ANOTHER person\'s connected tool (same tenant or another) is not runnable, creates nothing and never reaches that person\'s server', async () => {
+    const owner = 'usr_home_xuser_owner';
+    const id = await connect(owner);
+    for (const [attacker, tenant] of [['usr_home_xuser_attacker', TENANT], ['usr_home_xuser_owner', 'ten_home_run_foreign']] as const) {
+      const plan = planFor(id, { message: 'borrowed tool' });
+      const res = await requestRun(attacker, plan, seal(attacker, plan, tenant).token, tenant);
+      assert.equal(res.status, 422, `${attacker}@${tenant}`);
+      assert.ok(data(res).error.reasons.some((r: string) => r === 'PLAN_BLOCKED' || r === 'TOOL_UNAVAILABLE'), JSON.stringify(data(res).error.reasons));
+      assert.equal((data(await call('GET', '/api/v1/tasks', null, as(attacker, tenant))).tasks as any[]).length, 0);
+      assert.equal((data(await call('GET', '/api/v1/approvals', null, as(attacker, tenant))).pending as any[]).length, 0);
+    }
+    assert.equal(server.callsTo('echo'), 0);
+  });
+});

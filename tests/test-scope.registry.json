@@ -121,7 +121,8 @@
       "notification_delivery",
       "workflow_definition",
       "home_reviewed_plan_mcp_e2e",
-      "home_reviewed_plan_run_inert_providers"
+      "home_reviewed_plan_run_inert_providers",
+      "home_reviewed_plan_security_review"
     ],
     "runtime": [
       "real_life_scenario_library_behavioral_rules",
@@ -160,7 +161,8 @@
       "jev_shadow_runtime",
       "one_input_intent_routing",
       "home_reviewed_plan_mcp_e2e",
-      "home_reviewed_plan_run_inert_providers"
+      "home_reviewed_plan_run_inert_providers",
+      "home_reviewed_plan_security_review"
     ],
     "personal-home": [
       "main_unified_workspace_browser",
@@ -255,7 +257,8 @@
       "mcp_planning_discovery",
       "connector_catalog",
       "home_reviewed_plan_mcp_e2e",
-      "home_reviewed_plan_run_inert_providers"
+      "home_reviewed_plan_run_inert_providers",
+      "home_reviewed_plan_security_review"
     ],
     "credential-broker": [
       "google_calendar_connection_state",

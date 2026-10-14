@@ -70,6 +70,23 @@ export class TaskContinuationCoordinator {
     this.finalize(task, continuation.runId, continuation.runRequestId, { status: 'FAILED', errorCode: 'APPROVAL_REJECTED', result: { kind: 'STEP_EXECUTION', completedSteps: durable?.executedSoFar ?? [], haltedAtStep: durable?.resolvedSteps[durable.stepIndex]?.step, reason: 'The required approval was rejected.' } });
   }
 
+  // Call when ActionApprovalStore notices that an approval has EXPIRED (it detects expiry lazily, on any read). The run that was waiting on it ends as FAILED / APPROVAL_EXPIRED
+  // right away, so a person is never shown "waiting for your approval" for an approval that can no longer be granted. Never executes anything. A no-op for every approval
+  // that is not a Task continuation, and for a continuation that was already claimed (approved / rejected) - the claim makes the two triggers mutually exclusive.
+  public onExpired(approvalId: string): void {
+    try {
+      const continuation = this.claim(approvalId);
+      if (!continuation) return;
+      const task = this.tasks.get(continuation.taskId, continuation.tenantId, continuation.ownerId);
+      if (!task) return;
+      const durable = this.durableRunState.get(continuation.runId);
+      this.durableRunState.markTerminal(continuation.runId, 'FAILED');
+      this.finalize(task, continuation.runId, continuation.runRequestId, { status: 'FAILED', errorCode: 'APPROVAL_EXPIRED', result: { kind: 'STEP_EXECUTION', completedSteps: durable?.executedSoFar ?? [], haltedAtStep: durable?.stepIndex !== undefined ? durable.stepIndex + 1 : 1, reason: 'The approval expired before it was granted.' } });
+    } catch {
+      // expiry is reported on a best-effort path of a read; a failure here must never break the read that noticed it
+    }
+  }
+
   // Marks the continuation RESUMED before doing anything async — no
   // intervening await between the check and the mark, so two concurrent
   // triggers for the same approvalId can never both proceed. The real
