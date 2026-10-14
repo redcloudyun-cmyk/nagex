@@ -77,6 +77,7 @@ async function run(prompt, expectedClass) {
     row.note = `${typeof error?.code === 'string' ? error.code : 'ERROR'} ${failures}`.trim();
     row.latencyMs = Date.now() - started;
   }
+  row.attempts = (logs.find((l) => l.event === 'model_request_succeeded' && l.fields.requestId === requestId)?.fields.attempts) ?? '-';
   row.codes = logs.filter((l) => l.event === 'model_request_failed' && l.fields.requestId === requestId).map((l) => `${l.fields.provider}:${l.fields.code}`);
   return row;
 }
@@ -89,8 +90,8 @@ for (const p of ACTION) actionRows.push(await run(p, 'ACTION'));
 const pad = (v, n) => String(v).padEnd(n);
 const print = (title, rows) => {
   console.log(`\n== ${title}`);
-  console.log(`${pad('#', 3)}${pad('class', 10)}${pad('answered', 9)}${pad('provider', 9)}${pad('latencyMs', 10)}${pad('fallback', 9)}${pad('steps', 6)}${pad('sugg', 5)}reason / codes`);
-  rows.forEach((r, i) => console.log(`${pad(i + 1, 3)}${pad(r.class, 10)}${pad(r.outcome === 'OK' ? r.kind : 'ERROR', 9)}${pad(r.provider, 9)}${pad(r.latencyMs, 10)}${pad(r.fallback, 9)}${pad(r.steps, 6)}${pad(r.suggestions, 5)}${[r.reason !== '-' ? r.reason : '', ...(r.codes ?? []), r.note].filter(Boolean).join(' ')}`));
+  console.log(`${pad('#', 3)}${pad('class', 10)}${pad('answered', 9)}${pad('provider', 9)}${pad('latencyMs', 10)}${pad('fallback', 9)}${pad('tries', 6)}${pad('steps', 6)}${pad('sugg', 5)}reason / codes`);
+  rows.forEach((r, i) => console.log(`${pad(i + 1, 3)}${pad(r.class, 10)}${pad(r.outcome === 'OK' ? r.kind : 'ERROR', 9)}${pad(r.provider, 9)}${pad(r.latencyMs, 10)}${pad(r.fallback, 9)}${pad(r.attempts, 6)}${pad(r.steps, 6)}${pad(r.suggestions, 5)}${[r.reason !== '-' ? r.reason : '', ...(r.codes ?? []), r.note].filter(Boolean).join(' ')}`));
 };
 print('ADVICE-ONLY requests (10)', advisoryRows);
 print('ACTION requests (10)', actionRows);
@@ -113,6 +114,8 @@ const act = {
   errors: actionRows.filter((r) => r.outcome !== 'OK').length,
 };
 const median = (rows) => { const s = rows.filter((r) => r.outcome === 'OK').map((r) => r.latencyMs).sort((a, b) => a - b); return s.length ? s[Math.floor(s.length / 2)] : 'n/a'; };
+const retried = (rows) => rows.filter((r) => r.outcome === 'OK' && Number(r.attempts) > 1).length;
+console.log(`answers that needed a second Nemotron try (the validator rejected the first): advice-only ${retried(advisoryRows)}/10, action ${retried(actionRows)}/10`);
 console.log(`\nADVICE-ONLY: classified advisory ${adv.classified}/10; answered by Nemotron without fallback ${adv.nemotronDirect}/10 (advice accepted ${adv.advisoryAccepted}, a real step plan ${adv.actionPlanFromNemotron}); fell back ${adv.fellBack}; errors ${adv.errors}; median latency ${median(advisoryRows)} ms`);
 console.log(`ACTION: classified action ${act.classified}/10; answered by Nemotron without fallback ${act.nemotronDirect}/10; ADVISORY answers ${act.advisoryAnswers} (must be 0); zero-step ACTION plans ${act.zeroStepActionPlans} (must be 0); fell back ${act.fellBack}; errors ${act.errors}; median latency ${median(actionRows)} ms`);
 const broken = [...advisoryRows, ...actionRows].filter((r) => r.note === 'INVARIANT_BROKEN').length;
