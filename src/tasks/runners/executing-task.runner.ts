@@ -194,7 +194,10 @@ export class ExecutingTaskRunner implements TaskRunner {
       const resolvedToolId = step.resolvedToolId;
 
       if (step.executionReadiness === 'APPROVAL_REQUIRED') {
-        if (!resolvedToolId || !NATIVE_APPROVAL_WRITE_CAPABILITY_IDS.has(resolvedToolId)) {
+        // A user-registered MCP tool ("mcp.<connection>.<tool>") carries its own hash-bound approval continuation inside the CapabilityBroker (McpService), exactly like
+        // the calendar / mail writes: the first call only REQUESTS the approval, the resume call executes with the approved id. The broker still decides - an id that is not
+        // a registered MCP capability is BLOCKED there.
+        if (!resolvedToolId || !(NATIVE_APPROVAL_WRITE_CAPABILITY_IDS.has(resolvedToolId) || /^mcp\.[^.\s]+\.[^\s]+$/.test(resolvedToolId))) {
           // Never self-approve, and never pause-and-hope for a capability
           // P02a never taught the Broker to execute — fail closed exactly
           // like an unsupported read-only capability.

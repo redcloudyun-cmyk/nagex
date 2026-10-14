@@ -5091,6 +5091,55 @@
       "notes": "Production server harness with provider credentials scrubbed. Route-input and authentication are real; chat, research, creations and the plan route are stubbed so each test proves WHICH path was reached and that no consequential request (task, approval, execution, send) was made. No model is called.",
       "writesRepositoryArtifacts": false
     },
+    "home_reviewed_plan_mcp_e2e": {
+      "milestone": "NAGEX-D10-HOME-APPROVAL-EXECUTION",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime",
+        "tasks",
+        "permission-approval-hardening"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Home 'request approval to run' through the PRODUCTION routes and singletons against the repository-controlled isolated MCP server: a sealed plan preview -> approval request (nothing dispatched) -> the unchanged approval route -> exactly one execution -> a tool response reported as UNVERIFIED; decline, double click and simultaneous requests, wrong owner / tenant, changed plan (arguments, tool, extra step, approval flag, goal), expired or foreign-process seal, missing seal, unrunnable plans (multi-step, no arguments, unregistered or not-enabled tool, read-only, unavailable provider), advisory never sealed, audit by hash and argument names only, signed-in caller required.",
+      "notes": "Real HTTP between NAgex and scripts/mcp-test-server.mjs (loopback, in-memory tools). No Gmail, calendar, payment, message or deletion is involved. Not certification of any third-party provider."
+    },
+    "home_reviewed_plan_run_inert_providers": {
+      "milestone": "NAGEX-D10-HOME-APPROVAL-EXECUTION",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime",
+        "tasks",
+        "permission-approval-hardening"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "The Home run route against the real GmailService / GoogleCalendarService / CapabilityBroker / ActionApprovalStore with only the HTTP boundary to Google faked by a counting stub: nothing is sent or scheduled when approval is requested, the approved action runs exactly once, a missing detail never reaches an approval, reject / expiry / failing provider / another owner / stale preview / read-only step all end without any send, the route never self-approves or relaxes task policy.",
+      "notes": "Counting in-memory stub instead of Google; nothing leaves the machine."
+    },
+    "home_reviewed_plan_browser": {
+      "milestone": "NAGEX-D10-HOME-APPROVAL-EXECUTION",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "personal-home",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "The authentic Home chain in real Chromium against the isolated MCP destination, EN and KR at 1440 / 430 / 390 / 360: plan preview with one honest button, the exact proposal, WAITING approval with nothing done, a real Approve click, the tool called exactly once, a result shown as 'Tool responded' (not verified); Decline ends as Not run with no call; a double click creates one task and one approval; 44px touch targets and no overflow on phones.",
+      "notes": "Only the plan route is stubbed (no model in the harness); its seal is issued by the server's real PlanSeal and verified by the real run route.",
+      "writesRepositoryArtifacts": false
+    },
     "advisory_plan": {
       "milestone": "NAGEX-D11-ADVISORY-PLAN",
       "classification": "CANONICAL_BEHAVIOR",

@@ -30,6 +30,9 @@ import type { CapabilityBroker } from '../../capabilities/index.js';
 import type { NotificationEngine } from '../../notifications/notification.engine.js';
 import type { MemoryRecord } from '../../context/memory.engine.js';
 import type { ApiResult, SyncRouteRegistrar, AsyncRouteRegistrar } from '../http-types.js';
+import type { ActionApprovalStore } from '../../governance/action-approval.store.js';
+import { defaultPlanSeal, type PlanSeal } from '../../planning/plan-seal.js';
+import { assessReviewedPlan, executionParameters, previewableArguments, previewArguments } from '../../planning/reviewed-plan-eligibility.js';
 import { callerIdentity } from '../request-identity.js';
 
 function getHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
@@ -231,10 +234,99 @@ export interface TasksRunRouteDeps {
   auditLogger: AuditLogger;
   notificationEngine: NotificationEngine;
   modelErrorResult: (error: unknown) => ApiResult;
+  // for POST /api/v1/tasks/from-reviewed-plan (optional so every existing caller and test keeps working)
+  sessionStore?: SessionStore;
+  actionApprovals?: Pick<ActionApprovalStore, 'get'>;
+  planSeal?: PlanSeal;
 }
 
 export const handleTasksRunRoutes: AsyncRouteRegistrar<TasksRunRouteDeps> = async (method, pathname, body, headers, _query, deps): Promise<ApiResult | undefined> => {
   const { taskStore, taskRunStore, taskScheduler, service, aiService, planResolver, capabilityBroker, getRelevantMemories, taskContinuations, durableTaskRunState, auditLogger, notificationEngine, modelErrorResult } = deps;
+
+  // Home: "request approval to run" a REVIEWED plan. Plan preview -> approval request is the ONLY thing this does. It dispatches nothing: the single approval-gated step is handed to
+  // the existing ExecutingTaskRunner, whose first call to the CapabilityBroker only REQUESTS the approval (calendar / mail / MCP services create the real ActionApproval).
+  // Execution happens later, through the unchanged approval route -> TaskContinuationCoordinator -> broker with the approved id, and only if the person approves.
+  //   plan sealed (owner + hash) -> verified here -> re-resolved server-side -> eligibility re-checked -> one-time claim -> task -> run pauses at WAITING_APPROVAL.
+  if (pathname === '/api/v1/tasks/from-reviewed-plan' && method === 'POST') {
+    const requestId = getHeaderValue(headers, 'x-request-id') || `req_plan_run_${crypto.randomUUID()}`;
+    const { tenantId, principalId } = callerIdentity(headers);
+    const identity = { tenantId, principalId };
+    const seal = deps.planSeal ?? defaultPlanSeal;
+    const fail = (status: number, code: string, message: string, extra: Record<string, unknown> = {}): ApiResult => ({ status, data: { error: { code, category: status >= 500 ? 'INTERNAL' : status === 409 ? 'CONFLICT' : status === 403 ? 'POLICY' : 'VALIDATION', message, request_id: requestId, ...extra } } });
+    const plan = body?.plan;
+    const sealToken = body?.planSeal && typeof body.planSeal === 'object' ? (body.planSeal as Record<string, unknown>).token : body?.planSealToken;
+    const verified = seal.verify(identity, plan, sealToken);
+    if (!verified.ok) {
+      auditLogger.logEvent({ actor: { type: 'user', id: principalId }, tenant_id: tenantId, action: 'plan.run.denied', resource: { type: 'ReviewedPlan', id: 'unverified' }, result: 'DENIED', reason_code: verified.reason, request_id: requestId });
+      return verified.reason === 'PLAN_SEAL_EXPIRED'
+        ? fail(410, 'PLAN_SEAL_EXPIRED', 'This plan was shown too long ago. Ask again to get a fresh plan.')
+        : fail(403, verified.reason, 'This is not the plan that was shown to you, so nothing was started.');
+    }
+    let resolved;
+    try {
+      resolved = planResolver.resolve(plan as PlanPreview, identity);
+    } catch (error) {
+      return modelErrorResult(error);
+    }
+    const assessment = assessReviewedPlan(resolved);
+    if (!assessment.ok) {
+      auditLogger.logEvent({ actor: { type: 'user', id: principalId }, tenant_id: tenantId, action: 'plan.run.denied', resource: { type: 'ReviewedPlan', id: verified.planHash }, result: 'DENIED', reason_code: assessment.reasons[0], request_id: requestId, details: { reasons: assessment.reasons, capabilityId: assessment.capabilityId } });
+      return fail(422, 'PLAN_NOT_RUNNABLE', 'This plan cannot be sent for approval from Home.', { reasons: assessment.reasons });
+    }
+    const claim = seal.claim(identity, verified.planHash, { taskId: 'pending', runId: null });
+    if (!claim.claimed) {
+      return fail(409, 'PLAN_ALREADY_STARTED', 'This plan was already sent for approval.', { taskId: claim.existing.taskId, runId: claim.existing.runId });
+    }
+    let task: TaskRecord;
+    let run;
+    try {
+      const sessionId = deps.sessionStore ? deps.sessionStore.getOrCreateMain(tenantId, principalId).sessionId : 'ses_reviewed_plan';
+      const prompt = typeof body?.prompt === 'string' ? body.prompt.trim().slice(0, 500) : '';
+      task = taskStore.create({
+        tenantId,
+        ownerId: principalId,
+        name: String((plan as PlanPreview).summary || (plan as PlanPreview).goal || 'Reviewed plan').slice(0, 80),
+        objective: prompt || String((plan as PlanPreview).goal || ''),
+        type: 'ONE_TIME',
+        sourceSessionId: sessionId,
+        trigger: { type: 'MANUAL' },
+        // the task never auto-approves anything: every consequential step still waits for a concrete human approval
+        approvalPolicy: 'ALWAYS_APPROVE',
+        nextRunAt: null,
+      });
+      auditLogger.logEvent({ actor: { type: 'user', id: principalId }, tenant_id: tenantId, action: 'task.created', resource: { type: 'Task', id: task.taskId }, result: 'SUCCESS', request_id: requestId, details: { type: task.type, triggerType: task.trigger.type, source: 'REVIEWED_PLAN' } });
+      seal.attachRun(identity, verified.planHash, task.taskId, null);
+      const runner = new ExecutingTaskRunner(aiService, planResolver, capabilityBroker, (t, p, q) => getRelevantMemories(t, p, q), taskContinuations, durableTaskRunState);
+      // the envelope the broker expects for the tool (MCP: { arguments }); the values are exactly the reviewed ones
+      const executable = { steps: resolved.steps.map((s) => ({ ...s, parameters: executionParameters(s.resolvedToolId, s.parameters) })) };
+      const scheduler = new TaskScheduler(taskStore, taskRunStore, { run: (t: TaskRecord, reqId: string, runId: string) => runner.runWithResolvedPlan(t, reqId, runId, executable) }, auditLogger, undefined, notificationEngine);
+      run = await scheduler.runOne(task);
+    } catch (error) {
+      // nothing reached an approval: release the claim so a server-side failure never locks the person out of their own plan
+      if (!run) seal.release(identity, verified.planHash);
+      return modelErrorResult(error);
+    }
+    seal.attachRun(identity, verified.planHash, task.taskId, run.runId);
+    // the paused run's approval is the continuation the runner persisted for it (the run record itself carries no result while it waits)
+    const approvalId = run.status === 'WAITING_APPROVAL' ? (taskContinuations.listForTask(task.taskId).find((c) => c.runId === run.runId && c.status === 'WAITING')?.approvalId ?? null) : null;
+    let approval: { approvalId: string; status: string; expiresAt: string } | null = null;
+    if (approvalId && deps.actionApprovals) {
+      try { const record = deps.actionApprovals.get(approvalId, tenantId, principalId, requestId); approval = record ? { approvalId, status: record.status, expiresAt: record.expiresAt } : { approvalId, status: 'PENDING', expiresAt: '' }; } catch { approval = { approvalId, status: 'PENDING', expiresAt: '' }; }
+    }
+    const step = resolved.steps[0];
+    auditLogger.logEvent({ actor: { type: 'user', id: principalId }, tenant_id: tenantId, action: 'plan.run.requested', resource: { type: 'ReviewedPlan', id: verified.planHash }, result: run.status === 'FAILED' ? 'FAILED' : run.status === 'WAITING_APPROVAL' ? 'PENDING_APPROVAL' : 'SUCCESS', request_id: requestId, details: { planHash: verified.planHash, capabilityId: assessment.capabilityId, taskId: task.taskId, runId: run.runId, runStatus: run.status, approvalRequested: Boolean(approvalId), argumentNames: Object.keys(previewableArguments(step.resolvedToolId, step.parameters)).slice(0, 12) } });
+    return {
+      status: 200,
+      data: {
+        state: run.status === 'WAITING_APPROVAL' ? 'APPROVAL_REQUIRED' : run.status === 'FAILED' ? 'FAILED' : run.status,
+        taskId: task.taskId,
+        runId: run.runId,
+        planHash: verified.planHash,
+        run,
+        proposal: { capabilityId: assessment.capabilityId, arguments: previewArguments(previewableArguments(step.resolvedToolId, step.parameters)), approval },
+      },
+    };
+  }
 
   if (pathname.startsWith('/api/v1/tasks/') && pathname.endsWith('/run') && method === 'POST') {
     const taskId = pathname.slice('/api/v1/tasks/'.length, pathname.length - '/run'.length);

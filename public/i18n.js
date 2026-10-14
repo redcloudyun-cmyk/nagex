@@ -4662,6 +4662,55 @@
     'mainRoute.planOnlyState': '계획 확인됨',
     'mainRoute.planOnlyNote': '실행된 것은 없어요. 아직은 이 계획을 자동으로 실행할 수 없어서, 직접 진행하거나 단계별로 승인해야 해요.'
   });
+  // Home "request approval to run": preview -> approval request -> approval -> tool response (English + Korean, same keys).
+  Object.assign(translations.en, {
+    'mainRun.requestApproval': 'Request approval to run',
+    'mainRun.requesting': 'Asking for your approval...',
+    'mainRun.previewOnly': 'This is a preview only:',
+    'mainRun.youApprove': 'You are asked to approve: ',
+    'mainRun.waiting': 'Waiting for your approval - nothing has been done yet',
+    'mainRun.waitingNote': 'It will only happen if you approve below.',
+    'mainRun.toolResponded': 'Tool responded',
+    'mainRun.respondedNote': 'The tool answered. NAgex has not independently checked the result in the real world.',
+    'mainRun.declined': 'Not run - you declined',
+    'mainRun.declinedNote': 'You declined, so nothing was done.',
+    'mainRun.expired': 'Not run - the approval expired',
+    'mainRun.expiredNote': 'The approval expired before it was granted, so nothing was done. Ask again to get a fresh one.',
+    'mainRun.err.expired': 'This plan is too old to run. Ask again to get a fresh plan.',
+    'mainRun.err.invalid': "NAgex couldn't confirm that this is the plan you were shown, so nothing was started.",
+    'mainRun.err.started': 'This plan was already sent for approval.',
+    'mainRun.err.generic': "NAgex couldn't send this plan for approval. Nothing was done.",
+    'mainRun.why.single': 'From Home, NAgex sends one step at a time for approval, and this plan has several.',
+    'mainRun.why.read': 'This step only reads information, so there is nothing to approve - ask in the conversation instead.',
+    'mainRun.why.unsupported': "NAgex can't send this kind of step for approval from Home yet.",
+    'mainRun.why.unavailable': "The app this needs isn't connected or available here, so it can't be run.",
+    'mainRun.why.args': 'Some details are missing (for example who, what or when). Add them and ask again.',
+    'mainRun.why.blocked': "This plan can't be run: a step is blocked or not recognised."
+  });
+  Object.assign(translations.ko, {
+    'mainRun.requestApproval': '승인 요청하기',
+    'mainRun.requesting': '승인을 요청하는 중...',
+    'mainRun.previewOnly': '미리보기만 가능해요:',
+    'mainRun.youApprove': '이 작업을 승인할지 물어봐요: ',
+    'mainRun.waiting': '승인을 기다리는 중 - 아직 아무것도 하지 않았어요',
+    'mainRun.waitingNote': '아래에서 승인해야만 실행돼요.',
+    'mainRun.toolResponded': '도구가 응답했어요',
+    'mainRun.respondedNote': '도구가 응답했어요. 실제 결과는 NAgex가 따로 확인하지 않았어요.',
+    'mainRun.declined': '실행하지 않음 - 거절하셨어요',
+    'mainRun.declinedNote': '거절하셨기 때문에 아무것도 하지 않았어요.',
+    'mainRun.expired': '실행하지 않음 - 승인이 만료됐어요',
+    'mainRun.expiredNote': '승인이 이루어지기 전에 만료돼서 아무것도 하지 않았어요. 다시 요청해 새 승인을 받아 주세요.',
+    'mainRun.err.expired': '이 계획은 너무 오래돼서 실행할 수 없어요. 다시 요청해 새 계획을 받아 주세요.',
+    'mainRun.err.invalid': '보여 드린 계획과 같은 계획인지 확인할 수 없어서 아무것도 시작하지 않았어요.',
+    'mainRun.err.started': '이 계획은 이미 승인 요청을 보냈어요.',
+    'mainRun.err.generic': '이 계획을 승인 요청으로 보내지 못했어요. 아무것도 하지 않았어요.',
+    'mainRun.why.single': '홈에서는 한 번에 한 단계씩만 승인을 요청할 수 있는데, 이 계획은 단계가 여러 개예요.',
+    'mainRun.why.read': '이 단계는 정보를 읽기만 해서 승인할 것이 없어요. 대화에서 바로 물어봐 주세요.',
+    'mainRun.why.unsupported': '이런 단계는 아직 홈에서 승인 요청으로 보낼 수 없어요.',
+    'mainRun.why.unavailable': '이 작업에 필요한 앱이 연결되어 있지 않거나 사용할 수 없어서 실행할 수 없어요.',
+    'mainRun.why.args': '필요한 정보(누가, 무엇을, 언제 등)가 빠져 있어요. 내용을 보태서 다시 요청해 주세요.',
+    'mainRun.why.blocked': '이 계획은 실행할 수 없어요. 막혀 있거나 알 수 없는 단계가 있어요.'
+  });
   // tx(): translate a fixed English UI phrase (key mainText.<slug>); unknown text and user content come back unchanged.
   function tx(text) { if (text == null || text === '') return text == null ? '' : text; const value = String(text); const key = 'mainText.' + value.replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 80); const out = t(key, value); return out === key ? value : out; }
   window.NAGEX_I18N = { t, tx, getLocale, getLanguage: getLocale, setLocale, toggleLocale, applyLocale, getMissingKeys: () => Array.from(missingKeys), getMissingProbes: () => Array.from(missingProbes) };

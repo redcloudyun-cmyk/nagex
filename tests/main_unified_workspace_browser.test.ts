@@ -386,38 +386,44 @@ describe('Unified Main workspace', () => {
     ],
   };
 
-  async function planPage(label: string): Promise<{ ctx: BrowserContext; page: Page }> {
+  const SEAL = { planHash: 'f'.repeat(64), token: '1893456000000.sealed-by-the-server-for-the-test', expiresAt: new Date(Date.now() + HOUR).toISOString() };
+  const RUNNABLE = { ok: true, reasons: [], capabilityId: 'gmail.send_email' };
+
+  // the plan route is stubbed (no model in the harness); what a plan preview carries is what the real route returns: the plan, its seal, and whether Home can ask for approval
+  async function planPage(label: string, preview: Record<string, unknown> = { runnable: RUNNABLE, planSeal: SEAL }): Promise<{ ctx: BrowserContext; page: Page }> {
     const ctx = await contextAt(1440, 900, label);
     const page = await ctx.newPage();
     await stubRichHome(page);
-    await page.route('**/api/v1/ambient/intent', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ plan: PLAN }) }));
+    await page.route('**/api/v1/ambient/intent', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'PLAN_PREVIEW', plan: PLAN, ...preview }) }));
     await openMain(page);
     await ask(page, 'Prepare the client meeting and email the summary');
     await page.waitForSelector('.main-turn[data-kind="task"]', { timeout: 15000 });
     return { ctx, page };
   }
+  const REQUEST = '.main-turn .main-inline-actions button:has-text("Request approval to run")';
 
-  it('D3. "Run this plan" creates a real task, shows the run\'s real steps and waiting approval, and the run completes after approval', async () => {
+  it('D3. "Request approval to run" sends the reviewed plan, shows the exact proposal and WAITING approval with nothing done, and reports a tool response (not a verified outcome) after approval', async () => {
     const { ctx, page } = await planPage('unified_run_flow');
-    const calls: string[] = [];
+    const posts: string[] = [];
+    const bodies: any[] = [];
     let runsPolled = 0;
-    await page.route('**/api/v1/tasks', async (route) => {
-      if (route.request().method() !== 'POST') return route.continue();
-      calls.push('create:' + JSON.stringify(route.request().postDataJSON()));
-      await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ taskId: 'task_run_1', status: 'ACTIVE' }) });
-    });
-    await page.route('**/api/v1/tasks/task_run_1/run', async (route) => {
-      calls.push('run');
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ runId: 'run_1', taskId: 'task_run_1', status: 'WAITING_APPROVAL', startedAt: iso(-5000), completedAt: null, errorCode: null, result: { kind: 'STEP_EXECUTION', completedSteps: [{ step: 1, capabilityId: 'gmail.create_draft', status: 'SUCCEEDED', result: {} }], waitingAtStep: 2, approvalId: 'appr_run_1' } }) });
+    page.on('request', (r) => { if (r.method() === 'POST') posts.push(new URL(r.url()).pathname); });
+    const decisions: string[] = [];
+    await page.route('**/api/v1/tasks/from-reviewed-plan', async (route) => {
+      bodies.push(route.request().postDataJSON());
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+        state: 'APPROVAL_REQUIRED', taskId: 'task_run_1', runId: 'run_1', planHash: SEAL.planHash,
+        run: { runId: 'run_1', taskId: 'task_run_1', status: 'WAITING_APPROVAL', startedAt: iso(-1000), completedAt: null, errorCode: null, result: null },
+        proposal: { capabilityId: 'gmail.send_email', arguments: [{ name: 'to', value: 'client@example.com' }, { name: 'subject', value: 'Meeting summary' }], approval: { approvalId: 'appr_run_1', status: 'PENDING', expiresAt: iso(HOUR) } },
+      }) });
     });
     await page.route('**/api/v1/tasks/task_run_1/runs', async (route) => {
       runsPolled += 1;
-      const done = runsPolled > 0 && decisions.length > 0;
+      const done = decisions.length > 0;
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ total: 1, runs: [done
-        ? { runId: 'run_1', taskId: 'task_run_1', status: 'SUCCEEDED', startedAt: iso(-5000), completedAt: iso(0), errorCode: null, result: { kind: 'STEP_EXECUTION', steps: [{ step: 1, capabilityId: 'gmail.create_draft', status: 'SUCCEEDED', result: {} }, { step: 2, capabilityId: 'gmail.send_email', status: 'SUCCEEDED', result: {} }] } }
-        : { runId: 'run_1', taskId: 'task_run_1', status: 'WAITING_APPROVAL', startedAt: iso(-5000), completedAt: null, errorCode: null, result: { kind: 'STEP_EXECUTION', completedSteps: [{ step: 1, capabilityId: 'gmail.create_draft', status: 'SUCCEEDED', result: {} }], waitingAtStep: 2, approvalId: 'appr_run_1' } }] }) });
+        ? { runId: 'run_1', taskId: 'task_run_1', status: 'SUCCEEDED', startedAt: iso(-5000), completedAt: iso(0), errorCode: null, result: { kind: 'STEP_EXECUTION', steps: [{ step: 1, capabilityId: 'gmail.send_email', status: 'EXECUTED', result: { text: 'Provider accepted the message.' } }] } }
+        : { runId: 'run_1', taskId: 'task_run_1', status: 'WAITING_APPROVAL', startedAt: iso(-5000), completedAt: null, errorCode: null, result: null }] }) });
     });
-    const decisions: string[] = [];
     await page.route('**/api/v1/approvals', async (route) => {
       if (route.request().method() !== 'GET') return route.continue();
       const pending = decisions.length ? [] : [{ id: 'appr_run_1', approvalId: 'appr_run_1', toolId: 'gmail.send_email', action: 'Send email', status: 'PENDING', createdAt: iso(-1000), expiresAt: iso(HOUR) }];
@@ -425,47 +431,79 @@ describe('Unified Main workspace', () => {
     });
     await page.route('**/api/v1/approvals/appr_run_1/*', async (route) => { decisions.push(route.request().url().split('/').pop() || ''); await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ approvalId: 'appr_run_1', status: 'APPROVED' }) }); });
 
-    await page.click('.main-turn .main-inline-actions button:has-text("Run this plan")');
+    // before the click nothing was requested; the button says what it does
+    assert.equal(await page.locator('.main-turn .main-inline-actions button:has-text("Run this plan")').count(), 0, 'no button claims to run it');
+    assert.deepEqual(posts.filter((p) => /tasks|approvals/.test(p)), []);
+    await page.click(REQUEST);
     await page.waitForSelector('.main-run-block[data-run-state="WAITING_APPROVAL"]', { timeout: 15000 });
-    assert.equal(calls.length, 2);
-    assert.match(calls[0], /"objective":"Prepare the client meeting and email the summary"/);
-    assert.match(calls[0], /"approvalPolicy":"ALWAYS_APPROVE"/, 'approval policy is never relaxed from the UI');
-    const block = await page.locator('.main-run-block').innerText();
-    assert.match(block, /Waiting for your approval/);
-    assert.match(block, /Step 1 - Create email draft/, 'completed steps are named by the real action');
-    assert.match(block, /Step 2/);
-    assert.doesNotMatch(block, /gmail\.create_draft|appr_run_1|task_run_1|run_1/, 'no internal ids in the ordinary UI');
-    // the real pending approval is right there, in the same session
+    assert.equal(bodies.length, 1);
+    assert.equal(bodies[0].planSeal.token, SEAL.token, 'the seal of the plan that was shown travels with it');
+    assert.equal(bodies[0].plan.steps.length, 2);
+    assert.deepEqual(posts.filter((p) => /\/api\/v1\/tasks/.test(p)), ['/api/v1/tasks/from-reviewed-plan'], 'no separate task creation or run call: one reviewed-plan request');
+    const waiting = await page.locator('.main-run-block').innerText();
+    assert.match(waiting, /Waiting for your approval - nothing has been done yet/);
+    assert.match(waiting, /It will only happen if you approve below/);
+    assert.match(waiting, /You are asked to approve: Send email/);
+    assert.match(waiting, /to\s+client@example\.com/);
+    assert.match(waiting, /subject\s+Meeting summary/);
+    assert.doesNotMatch(waiting, /gmail\.send_email|appr_run_1|task_run_1|run_1/, 'no internal ids in the ordinary UI');
+    // the real pending approval is right there, in the same session; nothing is decided for the person
     await page.waitForSelector('.main-approval-card');
+    assert.deepEqual(decisions, []);
     await page.locator('.main-approval-card button.btn-primary').click();
-    await page.waitForSelector('.main-run-block[data-run-state="SUCCEEDED"]', { timeout: 20000 });
+    await page.waitForSelector('.main-run-block[data-run-state="TOOL_RESPONDED"]', { timeout: 20000 });
     assert.deepEqual(decisions, ['approve']);
     const done = await page.locator('.main-run-block').innerText();
-    assert.match(done, /Completed/);
-    assert.match(done, /Step 2 - Send email/);
+    assert.match(done, /Tool responded/);
+    assert.match(done, /has not independently checked the result/);
+    assert.match(done, /Step 1 - Send email/);
+    assert.match(done, /Provider accepted the message\./);
+    assert.doesNotMatch(done, /Completed|The plan finished/, 'a provider response is not reported as a completed, verified outcome');
+    assert.ok(runsPolled >= 1);
     await ctx.close();
   });
 
-  it('D4. a run that fails is reported as failed with no invented steps; Cancel stops a waiting run through the real endpoint', async () => {
+  it('D4. a refused or failed request leaves the plan reviewable with the reason; a declined approval reads "Not run"; Cancel stops a waiting run through the real endpoint', async () => {
+    // the REAL server: a seal it did not issue is refused (403) and nothing is started
     const failed = await planPage('unified_run_failed');
-    // the real server (no model provider configured in the harness) decides what happens: whatever it says is shown
-    await failed.page.click('.main-turn .main-inline-actions button:has-text("Run this plan")');
-    await failed.page.waitForSelector('.main-run-block[data-run-state="FAILED"]', { timeout: 60000 });
+    await failed.page.click(REQUEST);
+    await failed.page.waitForSelector('.main-run-block[data-run-state="FAILED"]', { timeout: 30000 });
     const text = await failed.page.locator('.main-run-block').innerText();
-    assert.match(text, /Failed/);
-    assert.match(text, /couldn't complete this plan/);
+    assert.match(text, /couldn't confirm that this is the plan you were shown, so nothing was started/);
     assert.equal(await failed.page.locator('.main-run-steps li.done').count(), 0, 'nothing is shown as done that did not run');
     assert.doesNotMatch(text, /task_|run_|[A-Z_]{8,}/, 'no internal ids or codes');
+    assert.equal(await failed.page.locator(REQUEST).isVisible(), true, 'the plan stays reviewable and the request can be tried again');
     await failed.ctx.close();
+
+    // a plan Home cannot take to approval is a preview with the reason, and has no request button at all
+    const preview = await planPage('unified_run_preview_only', { runnable: { ok: false, reasons: ['PLAN_NOT_SINGLE_STEP'], capabilityId: null }, planSeal: SEAL });
+    assert.equal(await preview.page.locator(REQUEST).count(), 0);
+    assert.match(await preview.page.locator('.main-turn').innerText(), /This is a preview only: From Home, NAgex sends one step at a time for approval/);
+    await preview.ctx.close();
+
+    // a declined approval: the run ends "Not run - you declined"
+    const declined = await planPage('unified_run_declined');
+    await declined.page.route('**/api/v1/tasks/from-reviewed-plan', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ state: 'APPROVAL_REQUIRED', taskId: 'task_dec_1', runId: 'run_d', planHash: SEAL.planHash, run: { runId: 'run_d', taskId: 'task_dec_1', status: 'WAITING_APPROVAL', startedAt: iso(-1000), completedAt: null, errorCode: null, result: null }, proposal: { capabilityId: 'gmail.send_email', arguments: [{ name: 'to', value: 'a@example.com' }], approval: { approvalId: 'appr_dec_1', status: 'PENDING', expiresAt: iso(HOUR) } } }) }));
+    let rejected = false;
+    await declined.page.route('**/api/v1/tasks/task_dec_1/runs', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ total: 1, runs: [rejected ? { runId: 'run_d', taskId: 'task_dec_1', status: 'FAILED', startedAt: iso(-3000), completedAt: iso(0), errorCode: 'APPROVAL_REJECTED', result: null } : { runId: 'run_d', taskId: 'task_dec_1', status: 'WAITING_APPROVAL', startedAt: iso(-3000), completedAt: null, errorCode: null, result: null }] }) }));
+    await declined.page.route('**/api/v1/approvals', (route) => route.request().method() !== 'GET' ? route.continue() : route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ approvals: [], pending: rejected ? [] : [{ id: 'appr_dec_1', approvalId: 'appr_dec_1', toolId: 'gmail.send_email', action: 'Send email', status: 'PENDING', createdAt: iso(-1000), expiresAt: iso(HOUR) }], inProgress: [], recent: [], counts: { pending: 1, inProgress: 0, recent: 0 }, total: 1 }) }));
+    await declined.page.route('**/api/v1/approvals/appr_dec_1/*', async (route) => { rejected = true; await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ approvalId: 'appr_dec_1', status: 'REJECTED' }) }); });
+    await declined.page.click(REQUEST);
+    await declined.page.waitForSelector('.main-approval-card');
+    await declined.page.locator('.main-approval-card button.btn-secondary').click();
+    await declined.page.waitForSelector('.main-run-block[data-run-state="DECLINED"]', { timeout: 20000 });
+    const declinedText = await declined.page.locator('.main-run-block').innerText();
+    assert.match(declinedText, /Not run - you declined/);
+    assert.match(declinedText, /nothing was done/);
+    await declined.ctx.close();
 
     const { ctx, page } = await planPage('unified_run_cancel');
     const cancels: string[] = [];
-    await page.route('**/api/v1/tasks', async (route) => { if (route.request().method() !== 'POST') return route.continue(); await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ taskId: 'task_cancel_1' }) }); });
-    await page.route('**/api/v1/tasks/task_cancel_1/run', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ runId: 'run_c', taskId: 'task_cancel_1', status: 'WAITING_APPROVAL', startedAt: iso(-1000), completedAt: null, errorCode: null, result: { kind: 'STEP_EXECUTION', completedSteps: [], waitingAtStep: 1, approvalId: 'appr_c' } }) }));
+    await page.route('**/api/v1/tasks/from-reviewed-plan', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ state: 'APPROVAL_REQUIRED', taskId: 'task_cancel_1', runId: 'run_c', planHash: SEAL.planHash, run: { runId: 'run_c', taskId: 'task_cancel_1', status: 'WAITING_APPROVAL', startedAt: iso(-1000), completedAt: null, errorCode: null, result: null }, proposal: { capabilityId: 'gmail.send_email', arguments: [], approval: null } }) }));
     await page.route('**/api/v1/tasks/task_cancel_1/runs', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ total: 0, runs: [] }) }));
     await page.route('**/api/v1/tasks/task_cancel_1/cancel', async (route) => { cancels.push('cancel'); await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ taskId: 'task_cancel_1', status: 'CANCELLED' }) }); });
     await page.route('**/api/v1/approvals', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ approvals: [], pending: [], inProgress: [], recent: [], counts: { pending: 0, inProgress: 0, recent: 0 }, total: 0 }) }));
-    await page.click('.main-turn .main-inline-actions button:has-text("Run this plan")');
+    await page.click(REQUEST);
     await page.waitForSelector('.main-run-block[data-run-state="WAITING_APPROVAL"] .main-run-cancel:not([hidden])', { timeout: 15000 });
     await page.click('.main-run-cancel');
     await page.waitForSelector('.main-run-block[data-run-state="CANCELLED"]', { timeout: 10000 });
@@ -546,7 +584,7 @@ describe('Advisory answers in Main', () => {
       assert.match(text, locale === 'en' ? /Open the review by stating where the approval flow stands today\./ : /Open the review/);
       assert.match(text, locale === 'en' ? /No actions were taken\. This is advice only\./ : /실행한 작업은 없어요\. 조언만 드려요\./);
       assert.match(text, locale === 'en' ? /Suggested next moves/ : /다음에 해볼 일/);
-      assert.equal(await page.locator('.main-turn .main-inline-actions button:has-text("Run this plan")').count(), 0, 'no Run button for advice');
+      assert.equal(await page.locator('.main-turn .main-inline-actions button:has-text("Request approval to run")').count(), 0, 'no request-approval button for advice');
       assert.equal(await page.locator('.main-turn .main-step-list li').count(), 0, 'advice is not shown as steps');
       assert.equal(await page.locator('.main-turn .main-inline-approvals .main-approval, .main-turn .main-run-block').count(), 0);
       assert.deepEqual(requests, [], 'nothing was created, resolved or approved');

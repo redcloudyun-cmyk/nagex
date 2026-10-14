@@ -19,6 +19,8 @@ import type { PrincipalReference } from '../../common/types.js';
 import type { AiService, PlanPreview } from '../../model-gateway/ai-service.js';
 import { parseRoutingMode } from '../../model-gateway/ai-service.js';
 import type { PlanResolver } from '../../planning/plan-resolver.js';
+import { defaultPlanSeal, type PlanSeal } from '../../planning/plan-seal.js';
+import { assessReviewedPlan } from '../../planning/reviewed-plan-eligibility.js';
 import type { SessionStore } from '../../sessions/session.store.js';
 import type { ConversationStore } from '../../conversations/conversation.store.js';
 import type { ConversationContextService } from '../../conversations/conversation-context.service.js';
@@ -46,6 +48,8 @@ export interface ConversationRouteDeps {
   getRelevantMemories: (tenantId: string, principalId: string, prompt: string) => MemoryRecord[];
   memoryExtractor?: ConversationMemoryExtractor;
   evidencePackService?: EvidencePackService;
+  // the seal of reviewed plans (one per process); optional so tests can inject a clock
+  planSeal?: PlanSeal;
 }
 
 export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps> = async (method, pathname, body, headers, _query, deps): Promise<ApiResult | undefined> => {
@@ -329,7 +333,18 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
       return { status: 200, data: { status: 'ADVISORY_RESPONSE', executable: false, message: 'No actions were taken. This is advice only.', advice: { goal, summary, reasoningSummary, suggestions: suggestions ?? [] }, provider: result.provider, model: result.model, latencyMs: result.latencyMs, requestId: result.requestId } };
     }
 
-    return { status: 200, data: { status: 'PLAN_PREVIEW', message: 'Plan generated. Review it before any tools are executed.', plan: result.data, provider: result.provider, model: result.model, latencyMs: result.latencyMs, requestId: result.requestId } };
+    // A plan preview is only a preview. It is SEALED (hash + owner-bound token) so a later "request approval to run" can only ever run exactly this plan for this person,
+    // and it says up front whether the existing approval machinery can take it from Home (never dispatching anything before a concrete human approval).
+    const identity = { tenantId, principalId };
+    const planSealIssue = (deps.planSeal ?? defaultPlanSeal).seal(identity, result.data);
+    let runnable: { ok: boolean; reasons: string[]; capabilityId: string | null };
+    try {
+      const assessment = assessReviewedPlan(planResolver.resolve(result.data, identity));
+      runnable = { ok: assessment.ok, reasons: assessment.reasons, capabilityId: assessment.capabilityId };
+    } catch {
+      runnable = { ok: false, reasons: ['PLAN_BLOCKED'], capabilityId: null };
+    }
+    return { status: 200, data: { status: 'PLAN_PREVIEW', message: 'Plan generated. Review it before any tools are executed.', plan: result.data, planSeal: planSealIssue, runnable, provider: result.provider, model: result.model, latencyMs: result.latencyMs, requestId: result.requestId } };
   }
   if (pathname === '/api/v1/plans/resolve' && method === 'POST') {
     const candidate = body?.plan && typeof body.plan === 'object' ? body.plan : body;

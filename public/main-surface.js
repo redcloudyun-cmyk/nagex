@@ -515,7 +515,7 @@
     if (!block) {
       block = document.createElement('div');
       block.className = 'main-run-block';
-      block.innerHTML = '<div class="main-run-head"><strong class="main-run-state"></strong><button type="button" class="main-tool-btn main-run-cancel" hidden></button></div><ol class="main-run-steps"></ol><p class="main-run-note"></p>';
+      block.innerHTML = '<div class="main-run-head"><strong class="main-run-state"></strong><button type="button" class="main-tool-btn main-run-cancel" hidden></button></div><div class="main-run-proposal" hidden></div><ol class="main-run-steps"></ol><p class="main-run-note"></p>';
       const anchor = turn.el.querySelector('.main-inline-approvals');
       (anchor && anchor.parentNode ? anchor.parentNode : turn.el).insertBefore(block, anchor || null);
     }
@@ -530,18 +530,33 @@
     const result = run && run.result && typeof run.result === 'object' ? run.result : {};
     // A run that only produced a reviewable plan (no step executed, nothing sent or changed) is NOT "completed": it is said to be a reviewed plan.
     const planOnly = status === 'SUCCEEDED' && result.kind === 'PLAN_PREVIEW';
-    block.dataset.runState = planOnly ? 'PLAN_ONLY' : status;
-    block.querySelector('.main-run-state').textContent = planOnly ? bt('mainRoute.planOnlyState', 'Plan reviewed') : mt(RUN_STATE_LABELS[status] || status);
+    // An approved step that ran is "the tool responded" - what the provider answered - never "verified": NAgex has not checked the outcome in the world.
+    const responded = status === 'SUCCEEDED' && result.kind === 'STEP_EXECUTION';
+    const declined = status === 'FAILED' && run && run.errorCode === 'APPROVAL_REJECTED';
+    const expired = status === 'FAILED' && run && run.errorCode === 'APPROVAL_EXPIRED';
+    block.dataset.runState = planOnly ? 'PLAN_ONLY' : responded ? 'TOOL_RESPONDED' : declined ? 'DECLINED' : expired ? 'EXPIRED' : status;
+    block.querySelector('.main-run-state').textContent = planOnly ? bt('mainRoute.planOnlyState', 'Plan reviewed')
+      : responded ? bt('mainRun.toolResponded', 'Tool responded')
+      : declined ? bt('mainRun.declined', 'Not run - you declined')
+      : expired ? bt('mainRun.expired', 'Not run - the approval expired')
+      : status === 'WAITING_APPROVAL' && block.dataset.flow === 'reviewed' ? bt('mainRun.waiting', 'Waiting for your approval - nothing has been done yet')
+      : mt(RUN_STATE_LABELS[status] || status);
     const steps = [];
     (Array.isArray(result.steps) ? result.steps : Array.isArray(result.completedSteps) ? result.completedSteps : []).forEach((s) => {
-      steps.push({ state: s.status === 'SUCCEEDED' || s.status === 'COMPLETED' ? 'done' : 'running', label: mt('Step') + ' ' + s.step + ' - ' + friendlyToolName(s.capabilityId || ''), detail: s.status === 'SUCCEEDED' || s.status === 'COMPLETED' ? '' : String(s.status || '') });
+      const finished = s.status === 'SUCCEEDED' || s.status === 'COMPLETED' || s.status === 'EXECUTED';
+      const answer = finished && s.result && typeof s.result.text === 'string' ? s.result.text.replace(/\s+/g, ' ').slice(0, 200) : '';
+      steps.push({ state: finished ? 'done' : 'running', label: mt('Step') + ' ' + s.step + ' - ' + friendlyToolName(s.capabilityId || ''), detail: finished ? answer : String(s.status || '') });
     });
     if (typeof result.waitingAtStep === 'number') steps.push({ state: 'running', label: mt('Step') + ' ' + result.waitingAtStep, detail: mt('Approval needed before this step can run.') });
     if (typeof result.haltedAtStep === 'number') steps.push({ state: 'failed', label: mt('Step') + ' ' + result.haltedAtStep, detail: String(result.reason || '') });
     block.querySelector('.main-run-steps').innerHTML = steps.map((s) => '<li class="' + esc(s.state) + '"><span class="main-step-dot">' + (s.state === 'done' ? '✓' : '') + '</span><span>' + esc(s.label) + '</span><small>' + esc(visibleDetail(s.detail, diagnosticsOn() || turn.detailsOpen)) + '</small></li>').join('');
     const noteEl = block.querySelector('.main-run-note');
     let text = note || '';
-    if (!text && status === 'FAILED') text = mt("NAgex couldn't complete this plan.");
+    if (!text && declined) text = bt('mainRun.declinedNote', 'You declined, so nothing was done.');
+    if (!text && expired) text = bt('mainRun.expiredNote', 'The approval expired before it was granted, so nothing was done. Ask again to get a fresh one.');
+    if (!text && responded) text = bt('mainRun.respondedNote', 'The tool answered. NAgex has not independently checked the result in the real world.');
+    if (!text && status === 'WAITING_APPROVAL' && block.dataset.flow === 'reviewed') text = bt('mainRun.waitingNote', 'It will only happen if you approve below.');
+    if (!text && status === 'FAILED') text = result && typeof result.reason === 'string' && result.reason ? mt("NAgex couldn't complete this plan.") + ' ' + String(result.reason).slice(0, 200) : mt("NAgex couldn't complete this plan.");
     if (!text && planOnly) text = bt('mainRoute.planOnlyNote', "Nothing was executed. NAgex can't run this plan automatically yet - it stays a plan for you to carry out or approve step by step.");
     if (!text && status === 'SUCCEEDED') text = mt('The plan finished.');
     if (!text && status === 'CANCELLED') text = mt('The plan was cancelled.');
@@ -563,8 +578,8 @@
 
   async function pollRun(turn, taskId) {
     turn.runPolling = true;
-    for (let i = 0; i < 120 && turn.runPolling && turn.el.isConnected; i += 1) {
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+    for (let i = 0; i < 240 && turn.runPolling && turn.el.isConnected; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
       if (!turn.runPolling || !turn.el.isConnected) return;
       const data = await api('/api/v1/tasks/' + encodeURIComponent(taskId) + '/runs');
       const runs = data && !data.error && Array.isArray(data.runs) ? data.runs : null;
@@ -577,26 +592,78 @@
     turn.runPolling = false;
   }
 
-  async function startPlanRun(turn, prompt, plan) {
+  // What the person is about to approve, in their own words and values: the action and its exact arguments. Never an id, never a secret (the server already hid those).
+  function renderProposal(turn, proposal) {
+    const block = runBlockFor(turn);
+    const box = block.querySelector('.main-run-proposal');
+    if (!box) return;
+    box.textContent = '';
+    const args = proposal && Array.isArray(proposal.arguments) ? proposal.arguments : [];
+    if (!proposal || !proposal.capabilityId) { box.hidden = true; return; }
+    const title = document.createElement('strong');
+    title.textContent = bt('mainRun.youApprove', 'You are asked to approve: ') + friendlyToolName(proposal.capabilityId);
+    box.appendChild(title);
+    if (args.length > 0) {
+      const list = document.createElement('dl');
+      args.forEach((a) => {
+        const dt = document.createElement('dt');
+        dt.textContent = String(a.name || '');
+        const dd = document.createElement('dd');
+        dd.textContent = String(a.value == null ? '' : a.value);
+        list.appendChild(dt);
+        list.appendChild(dd);
+      });
+      box.appendChild(list);
+    }
+    box.hidden = false;
+  }
+
+  function planRunFailureText(code, reasons) {
+    if (code === 'PLAN_SEAL_EXPIRED') return bt('mainRun.err.expired', 'This plan is too old to run. Ask again to get a fresh plan.');
+    if (code === 'PLAN_SEAL_INVALID' || code === 'PLAN_SEAL_MISSING') return bt('mainRun.err.invalid', "NAgex couldn't confirm that this is the plan you were shown, so nothing was started.");
+    if (code === 'PLAN_ALREADY_STARTED') return bt('mainRun.err.started', 'This plan was already sent for approval.');
+    if (code === 'PLAN_NOT_RUNNABLE') return runnableReasonText(reasons);
+    return bt('mainRun.err.generic', "NAgex couldn't send this plan for approval. Nothing was done.");
+  }
+
+  function runnableReasonText(reasons) {
+    const list = Array.isArray(reasons) ? reasons : [];
+    const table = {
+      PLAN_NOT_SINGLE_STEP: bt('mainRun.why.single', 'From Home, NAgex sends one step at a time for approval, and this plan has several.'),
+      STEP_NOT_APPROVAL_GATED: bt('mainRun.why.read', 'This step only reads information, so there is nothing to approve - ask in the conversation instead.'),
+      TOOL_NOT_SUPPORTED_FROM_HOME: bt('mainRun.why.unsupported', "NAgex can't send this kind of step for approval from Home yet."),
+      TOOL_UNAVAILABLE: bt('mainRun.why.unavailable', "The app this needs isn't connected or available here, so it can't be run."),
+      ARGUMENTS_MISSING: bt('mainRun.why.args', 'Some details are missing (for example who, what or when). Add them and ask again.'),
+      PLAN_BLOCKED: bt('mainRun.why.blocked', "This plan can't be run: a step is blocked or not recognised."),
+    };
+    return list.map((r) => table[r]).filter(Boolean)[0] || table.PLAN_BLOCKED;
+  }
+
+  // "Request approval to run": the reviewed plan (sealed by the server) is sent back; the server checks it is exactly the plan that was shown, for this person, and asks for
+  // the approval through the existing approval machinery. NOTHING is executed here. The run starts only after the person approves (the unchanged Approve button below).
+  async function startPlanRun(turn, prompt, plan, planSeal) {
     if (!turn || !turn.el || turn.runStarted) return;
     turn.runStarted = true;
-    const taskId = { value: null };
-    renderRun(turn, '', { status: 'RUNNING' }, mt('Working on it...'));
-    const created = await api('/api/v1/tasks', { method: 'POST', body: JSON.stringify({ type: 'ONE_TIME', name: String((plan && plan.summary) || prompt).slice(0, 80), objective: prompt, trigger: { type: 'MANUAL' }, approvalPolicy: 'ALWAYS_APPROVE' }) });
-    if (!created || created.error || !created.taskId) {
-      turn.runStarted = false;
-      renderRun(turn, '', { status: 'FAILED' }, mt("Couldn't start this plan."));
+    runBlockFor(turn).dataset.flow = 'reviewed';
+    renderRun(turn, '', { status: 'RUNNING' }, bt('mainRun.requesting', 'Asking for your approval...'));
+    const started = await api('/api/v1/tasks/from-reviewed-plan', { method: 'POST', body: JSON.stringify({ plan, planSeal, prompt }), timeoutMs: 60000 });
+    if (!started || started.error || !started.run) {
+      const error = started && started.error && typeof started.error === 'object' ? started.error : null;
+      const code = error ? error.code : '';
+      // an already-started plan is attached to its real run; a refused or failed request leaves the plan reviewable
+      if (code === 'PLAN_ALREADY_STARTED' && error.taskId) {
+        renderRun(turn, error.taskId, { status: 'WAITING_APPROVAL' }, planRunFailureText(code));
+        loadInlineApprovals(turn);
+        pollRun(turn, error.taskId);
+        return;
+      }
+      if (code !== 'PLAN_SEAL_EXPIRED') turn.runStarted = false;
+      renderRun(turn, '', { status: 'FAILED' }, planRunFailureText(code, error && error.reasons));
       return;
     }
-    taskId.value = created.taskId;
-    // the run call returns when the executor finishes or stops at an approval
-    const run = await api('/api/v1/tasks/' + encodeURIComponent(created.taskId) + '/run', { method: 'POST', body: JSON.stringify({}), timeoutMs: 180000 });
-    if (!run || run.error || !run.status) {
-      renderRun(turn, created.taskId, { status: 'FAILED' }, mt("NAgex couldn't complete this plan."));
-      return;
-    }
-    renderRun(turn, created.taskId, run, '');
-    if (run.status === 'WAITING_APPROVAL') { loadInlineApprovals(turn); pollRun(turn, created.taskId); }
+    renderProposal(turn, started.proposal);
+    renderRun(turn, started.taskId, started.run, '');
+    if (started.run.status === 'WAITING_APPROVAL') { loadInlineApprovals(turn); pollRun(turn, started.taskId); }
   }
 
   // Real pending approvals of the signed-in user, rendered inline with working Approve / Reject controls.
@@ -1251,10 +1318,12 @@
       detail: step.requiresApproval ? 'Approval needed before execution' : (step.resolvedToolId || ''),
     }));
     if ((result.plan.steps || []).some((step) => step.requiresApproval)) setTimeout(() => loadInlineApprovals(state.activeTurn), 0);
-    showThread(prompt, 'Plan ready', result.plan.summary || 'NAgex prepared a plan.', 'Review the plan inline. Required approvals remain mandatory and cannot be bypassed here.', steps);
+    const runnable = result.runnable && result.runnable.ok === true && result.planSeal && typeof result.planSeal.token === 'string';
+    const previewOnly = runnable ? '' : ' ' + bt('mainRun.previewOnly', 'This is a preview only:') + ' ' + runnableReasonText(result.runnable && result.runnable.reasons);
+    showThread(prompt, 'Plan ready', result.plan.summary || 'NAgex prepared a plan.', 'Review the plan inline. Required approvals remain mandatory and cannot be bypassed here.' + previewOnly, steps);
     renderInlineActions([
-      // Run: creates a real Task from this request and runs it through the same approval-gated executor as everywhere else
-      { id: 'run-plan', label: 'Run this plan', action: ((turn) => () => startPlanRun(turn, prompt, result.plan))(state.activeTurn) },
+      // Request approval: sends exactly this reviewed plan to the existing approval flow. Nothing runs until the person approves.
+      ...(runnable ? [{ id: 'run-plan', label: bt('mainRun.requestApproval', 'Request approval to run'), action: ((turn) => () => startPlanRun(turn, prompt, result.plan, result.planSeal))(state.activeTurn) }] : []),
       { id: 'show-plan', label: 'Show plan', action: () => setStep((result.plan.steps || []).map((step, index) => ({ state: index === 0 ? 'running' : 'pending', label: step.title || (mt('Step') + ' ' + (index + 1)), detail: step.reasoning || '' }))) },
     ]);
   }
@@ -1782,7 +1851,8 @@
   };
 
   function friendlyToolName(id) {
-    const action = String(id).split('.').slice(1).join('.') || String(id);
+    const isUserTool = /^mcp[.]/.test(String(id));
+    const action = isUserTool ? String(id).split('.').slice(2).join('.') || 'tool' : String(id).split('.').slice(1).join('.') || String(id);
     const label = TOOL_ACTION_LABELS[action] || (action.replace(/[_.]+/g, ' ').replace(/^./, (c) => c.toUpperCase()));
     return mt(label);
   }

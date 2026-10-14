@@ -634,6 +634,7 @@ export async function handleAsyncApiRequest(
       const tasksRunResult = await handleTasksRunRoutes(method, pathname, body, headers, query, {
         taskStore, taskRunStore, taskScheduler, service, aiService, planResolver, capabilityBroker,
         getRelevantMemories, taskContinuations, durableTaskRunState, auditLogger, notificationEngine, modelErrorResult,
+        sessionStore, actionApprovals,
       });
       if (tasksRunResult) return tasksRunResult;
     }

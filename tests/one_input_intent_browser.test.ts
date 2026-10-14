@@ -175,21 +175,18 @@ describe('One Input: the optional shortcut and approval boundaries', () => {
     await ctx.close();
   });
 
-  it('"Run this plan" never reports a plan-only run as completed', async () => {
+  it('a plan that Home cannot take to approval has no run button and says why; a plan-only run is never called completed', async () => {
     const ctx = await contextAt(1440, 900, 'oi_run_truth', 'en');
     const page = await ctx.newPage();
-    await stubBackends(page);
-    await page.route('**/api/v1/tasks', (route) => route.request().method() === 'POST' ? route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ taskId: 'task_po_1', status: 'ACTIVE' }) }) : route.continue());
-    await page.route('**/api/v1/tasks/task_po_1/run', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ runId: 'run_po_1', taskId: 'task_po_1', status: 'SUCCEEDED', startedAt: new Date().toISOString(), completedAt: new Date().toISOString(), errorCode: null, result: { kind: 'PLAN_PREVIEW', note: 'Automatic tool execution is not yet implemented for scheduled tasks - this run produced a reviewable plan only.', plan: { steps: [] } } }) }));
+    const calls = await stubBackends(page);
     await openMain(page);
     await ask(page, 'Schedule a project review meeting tomorrow at 10 AM');
-    await settle(page);
-    await page.click('.main-turn .main-inline-actions button:has-text("Run this plan")');
-    await page.waitForSelector('.main-run-block[data-run-state="PLAN_ONLY"]', { timeout: 15000 });
-    const block = await page.locator('.main-run-block').innerText();
-    assert.match(block, /Plan reviewed/);
-    assert.match(block, /Nothing was executed/);
-    assert.doesNotMatch(block, /Completed|The plan finished/);
+    const turn = await settle(page);
+    // the stubbed plan route returns a plan without a seal or a runnable verdict: the screen offers nothing to run and says it is a preview
+    assert.equal(await page.locator('.main-turn .main-inline-actions button:has-text("Request approval to run")').count(), 0);
+    assert.equal(await page.locator('.main-turn .main-inline-actions button:has-text("Run this plan")').count(), 0, 'nothing claims to run the plan');
+    assert.match(turn, /This is a preview only:/);
+    assert.deepEqual(posts(calls).filter((c) => CONSEQUENTIAL.test(c)), []);
     await ctx.close();
   });
 });

@@ -53,6 +53,8 @@ export interface McpToolForPlanning {
   serverName: string;
   toolName: string;
   description: string;
+  // the tool's own input schema (untrusted server data; only property names, types and required names ever reach a prompt)
+  inputSchema?: unknown;
 }
 
 function err(code: string, category: ConstructorParameters<typeof NagexError>[0]['category'], message: string, requestId: string, details?: Record<string, unknown>): NagexError {
@@ -189,7 +191,7 @@ export class McpService {
   public toolsFor(identity: { tenantId: string; principalId: string }): McpToolForPlanning[] {
     return this.deps.store.list(identity.tenantId, identity.principalId)
       .filter((record) => record.status === 'CONNECTED')
-      .flatMap((record) => record.tools.filter((tool) => tool.enabled && !tool.changedSinceEnabled).map((tool) => ({ capabilityId: tool.capabilityId, connectionId: record.connectionId, serverName: record.name, toolName: tool.name, description: tool.description })));
+      .flatMap((record) => record.tools.filter((tool) => tool.enabled && !tool.changedSinceEnabled).map((tool) => ({ capabilityId: tool.capabilityId, connectionId: record.connectionId, serverName: record.name, toolName: tool.name, description: tool.description, inputSchema: tool.inputSchema })));
   }
 
   // The Tool Registry view of toolsFor(): an MCP tool's effect is unknown to NAgex, so it always resolves as approval-gated.

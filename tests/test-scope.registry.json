@@ -68,7 +68,8 @@
       "connections_redesign_browser",
       "connections_catalog_browser",
       "design_system_v2_browser",
-      "one_input_intent_browser"
+      "one_input_intent_browser",
+      "home_reviewed_plan_browser"
     ],
     "google": [
       "google_calendar_connection_state",
@@ -118,7 +119,9 @@
       "durable_task_runtime",
       "fixed_plan_injection",
       "notification_delivery",
-      "workflow_definition"
+      "workflow_definition",
+      "home_reviewed_plan_mcp_e2e",
+      "home_reviewed_plan_run_inert_providers"
     ],
     "runtime": [
       "real_life_scenario_library_behavioral_rules",
@@ -155,7 +158,9 @@
       "nebius_nemotron_first",
       "advisory_plan",
       "jev_shadow_runtime",
-      "one_input_intent_routing"
+      "one_input_intent_routing",
+      "home_reviewed_plan_mcp_e2e",
+      "home_reviewed_plan_run_inert_providers"
     ],
     "personal-home": [
       "main_unified_workspace_browser",
@@ -178,7 +183,8 @@
       "r23_7c_c_final_non_paid_closure_cert",
       "r23_7c_c_session_artifact_delivery_cert",
       "openai-image-adapter",
-      "one_input_intent_browser"
+      "one_input_intent_browser",
+      "home_reviewed_plan_browser"
     ],
     "memory-context": [
       "r22_3_personal_context_memory"
@@ -247,7 +253,9 @@
       "mcp_runtime",
       "mcp_e2e_isolated_server",
       "mcp_planning_discovery",
-      "connector_catalog"
+      "connector_catalog",
+      "home_reviewed_plan_mcp_e2e",
+      "home_reviewed_plan_run_inert_providers"
     ],
     "credential-broker": [
       "google_calendar_connection_state",
@@ -363,7 +371,8 @@
       "notification_title_localization",
       "r23_7c_d_presentation_runtime",
       "r23_7c_d_presentation_main_browser",
-      "one_input_intent_browser"
+      "one_input_intent_browser",
+      "home_reviewed_plan_browser"
     ],
     "knowledge": [
       "r24_5c_knowledge_live"

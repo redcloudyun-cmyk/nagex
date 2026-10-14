@@ -1568,3 +1568,42 @@
     min-width: 44px;
   }
 }
+
+/* Home "request approval to run": what the person is asked to approve, in plain words and exact values */
+.main-run-proposal {
+  margin: 8px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--nagex-line);
+  border-radius: var(--nagex-r-control);
+  background: #f8fbff;
+  font-size: var(--nagex-fs-control);
+}
+
+.main-run-proposal dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 12px;
+  margin: 8px 0 0;
+}
+
+.main-run-proposal dt {
+  color: var(--nagex-ink-3);
+}
+
+.main-run-proposal dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.main-run-proposal[hidden] {
+  display: none !important;
+}
+
+.main-run-block[data-run-state="TOOL_RESPONDED"] .main-run-state {
+  color: #0b6b3a;
+}
+
+.main-run-block[data-run-state="DECLINED"] .main-run-state,
+.main-run-block[data-run-state="EXPIRED"] .main-run-state {
+  color: var(--nagex-ink-2);
+}
