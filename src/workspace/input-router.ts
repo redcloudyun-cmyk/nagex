@@ -118,6 +118,11 @@ const EN_ACT_VERB = '(send|email|e-mail|reply|respond|forward|schedule|reschedul
 const EN_ACTION_LEAD = '(?:^|[.!?;,:]\\s*|\\b(?:and|then|please|also|just|now|first|next|can you|could you|would you|will you|go ahead and|i want you to|i need you to|i\'d like you to|i would like you to|i need to|i want to|i have to|i\'d like to|let\'s)\\s+)';
 const EN_ACTION = new RegExp(EN_ACTION_LEAD + '(?:please\\s+)?' + EN_ACT_VERB + '\\b', 'i');
 const EN_ACTION_OBJECT = /\b(create|add|make|set up|put|schedule)\b[^.!?\n]{0,16}\b(calendar event|event|meeting|appointment|reminder|task|to-?do|call)\b(?!\s+(agenda|summary|notes|minutes|report|doc|document|brief|template|invitation|invite))/i;
+// asking NAgex to USE something the person connected ("use my test tool to ...", "도구로 ... 실행해줘") is an action on that tool: a plan whose tool step waits for approval
+const TOOL_USE = [
+  /\b(use|run|call|invoke|trigger|ask)\b[^.!?\n]{0,30}\b(tool|tools|connector|integration|plugin|mcp)\b/i,
+  /(도구|툴|커넥터|연동|플러그인)[^.!?\n]{0,12}(써\s*(서|줘)|사용|실행|호출|돌려)/,
+];
 const DESTRUCTIVE = [/(삭제|지워|지우|제거|취소|없애|폐기)\S{0,4}\s*(줘|주세요|해\s*줘|해\s*주세요|해라|하세요|줄래|해\s*줄래)/, /\b(delete|erase|remove|trash|cancel|wipe|discard)\b/i];
 
 // "don't send it" / "보내지 말고": the negated verb is removed before the action check; a negation never creates an action
@@ -232,7 +237,7 @@ export function decideRouting(rawText: string, options: { hasAttachment?: boolea
 
   // 3. consequential action: communicate / schedule / change / delete / spend / publish
   const koAction = KO_ACTION.test(work) || KO_ACTION_EVENT.test(work) || KO_ACTION_MEETING.test(work);
-  const asksAction = koAction || EN_ACTION.test(work) || EN_ACTION_OBJECT.test(work);
+  const asksAction = koAction || EN_ACTION.test(work) || EN_ACTION_OBJECT.test(work) || TOOL_USE.some((re) => re.test(work));
   const isInfoQuestion = EN_INFO_QUESTION.test(work) || (language === 'ko' && KO_INFO_QUESTION.test(work));
   const conjoinedAction = /\b(and|then|and then)\s+(please\s+)?(send|email|forward|schedule|book|cancel|delete|post|share|publish|pay|buy|order|reply|invite)\b/i.test(work);
   // "how do I send an email?" asks for information; "explain it and send it to Alex" still asks for the send

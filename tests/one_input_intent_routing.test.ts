@@ -78,6 +78,10 @@ const ROWS: Row[] = [
   { id: 'Q-en-5', text: 'What should I focus on this week to keep the launch on track?', kind: 'ADVICE', needs: ['ADVICE'] },
   // more phrasings of the same intents
   { id: 'X-1', text: 'Can you send an email to Alex saying the report is ready?', kind: 'ACTION_PLAN', needs: ['ACTION'] },
+  { id: 'T-en', text: 'Use my test tool to echo "approval check 42"', kind: 'ACTION_PLAN', needs: ['ACTION'] },
+  { id: 'T-ko', text: '내 테스트 도구를 사용해서 "안녕" 메시지를 보내줘', kind: 'ACTION_PLAN', needs: ['ACTION'] },
+  { id: 'T-ko2', text: '연동된 도구로 이 메시지를 실행해줘', kind: 'ACTION_PLAN', needs: ['ACTION'] },
+  { id: 'T-q', text: 'What does the MCP tool protocol do?', kind: 'CONVERSATION', needs: ['ANSWER'] },
   { id: 'X-2', text: '알렉스에게 보고서가 준비됐다고 메일을 보내줘', kind: 'ACTION_PLAN', needs: ['ACTION'] },
   { id: 'X-3', text: '금요일 오후 3시 회의를 취소해줘', kind: 'ACTION_PLAN', needs: ['ACTION'], destructive: true },
   { id: 'X-4', text: '고양이 그림 그려줘', kind: 'CREATE_ARTIFACT', target: 'IMAGE', needs: ['IMAGE'] },
