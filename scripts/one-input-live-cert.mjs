@@ -53,7 +53,13 @@ const hangulShare = (text) => { const h = (String(text).match(/[ㄱ-ㆎ가-힣]/
 const visibleText = (value) => Array.isArray(value) ? value.map(visibleText).join(' ') : value && typeof value === 'object' ? Object.entries(value).filter(([k]) => ['goal', 'summary', 'reasoningSummary', 'suggestions', 'title', 'reasoning', 'steps'].includes(k)).map(([, v]) => visibleText(v)).join(' ') : typeof value === 'string' ? value : '';
 
 const rows = [];
+// A failed Nemotron call degrades it for a cool-down (60 s by default); requests that arrive inside it skip it by design. Wait it out so every request is a fresh
+// Nemotron-first attempt, and report any timeout or error truthfully instead of letting one slow call hide the next twelve.
+const COOLDOWN_MS = 62_000;
+let lastFailureAt = 0;
 for (const req of REQUESTS) {
+  const wait = lastFailureAt + COOLDOWN_MS - Date.now();
+  if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
   const requestId = `cert_oi_${++seq}`;
   const decision = InputRouter.classify({ text: req.text }).decision;
   const row = { id: req.id, expect: req.expect, routed: decision.kind, routeOk: decision.kind === req.expect, outcome: 'ERROR', provider: '-', model: '-', latencyMs: 0, fallback: '-', reason: '-', attempts: '-', kind: '-', steps: '-', hangul: -1, note: '' };
@@ -81,6 +87,8 @@ for (const req of REQUESTS) {
     row.note = `${typeof error?.code === 'string' ? error.code : 'ERROR'} ${failures}`.trim();
     row.latencyMs = Date.now() - started;
   }
+  if (row.fallback === 'yes' && row.reason !== 'PROVIDER_DEGRADED') lastFailureAt = Date.now();
+  row.selected = (logs.find((l) => l.event === 'model_routing_decision' && l.fields.requestId === requestId)?.fields.selectedProvider) ?? '-';
   row.attempts = (logs.find((l) => l.event === 'model_request_succeeded' && l.fields.requestId === requestId)?.fields.attempts) ?? '-';
   rows.push(row);
 }
@@ -95,6 +103,8 @@ const en = rows.filter((r) => r.id.includes('-en') && r.outcome === 'OK');
 const summary = {
   routed: rows.filter((r) => r.routeOk).length,
   nemotronDirect: rows.filter(direct).length,
+  nemotronFirst: rows.filter((r) => r.selected === 'nebius').length,
+  fallbacksWithReason: rows.filter((r) => r.outcome === 'OK' && r.fallback === 'yes' && r.reason !== '-').length,
   fellBack: rows.filter((r) => r.outcome === 'OK' && r.fallback === 'yes').length,
   errors: rows.filter((r) => r.outcome !== 'OK').length,
   broken: rows.filter((r) => r.note === 'INVARIANT_BROKEN').length,
@@ -104,9 +114,9 @@ const summary = {
   englishRequests: en.length,
 };
 console.log(`\nROUTING: ${summary.routed}/${rows.length} requests routed as expected`);
-console.log(`MODEL_ROUTE: answered by Nemotron without fallback ${summary.nemotronDirect}/${rows.length}; fell back ${summary.fellBack}; errors ${summary.errors}; broken invariants ${summary.broken} (must be 0)`);
+console.log(`MODEL_ROUTE: Nemotron chosen first ${summary.nemotronFirst}/${rows.length}; answered by Nemotron without fallback ${summary.nemotronDirect}/${rows.length} (below ${rows.length} = Nemotron timed out or errored: see the reasons above); fell back ${summary.fellBack}, each with a recorded reason ${summary.fallbacksWithReason}/${summary.fellBack}; errors ${summary.errors}; broken invariants ${summary.broken} (must be 0)`);
 console.log(`LANGUAGE: Korean requests answered mostly in Korean ${summary.koreanRequestsAnsweredInKorean}/${summary.koreanRequests}; English requests answered in English ${summary.englishRequestsAnsweredInEnglish}/${summary.englishRequests}`);
-const pass = summary.routed === rows.length && summary.nemotronDirect === rows.length && summary.broken === 0 && summary.errors === 0
+const pass = summary.routed === rows.length && summary.nemotronFirst === rows.length && summary.fallbacksWithReason === summary.fellBack && summary.broken === 0 && summary.errors === 0
   && summary.koreanRequestsAnsweredInKorean === summary.koreanRequests && summary.englishRequestsAnsweredInEnglish === summary.englishRequests;
 console.log(`REAL_ONE_INPUT=${pass ? 'PASS' : 'FAIL'}`);
 process.exit(pass ? 0 : 1);
