@@ -165,7 +165,7 @@ Deployment alone moves the host toward the branch column; the remaining ~25 % is
 * 슬라이드는 Nemotron 대상 작업이 아니라서 **다른 텍스트 공급자**가 서버에 설정돼 있어야 해요(확인하지 못했어요).
 
 ### (4) 운영자 조치 (1~3개)
-1. **배포 여부 결정과 실행** — 승인해 주시면 아래 §15 명령으로 같은 방식(릴리스 디렉터리 교체)으로 배포하고, `sudo systemctl stop/start nagex`는 운영자가 직접 실행해요.
+1. **배포 여부 결정과 실행** — 승인해 주시면 아래 (5)의 명령으로 같은 방식(릴리스 디렉터리 교체)으로 배포하고, `sudo systemctl stop/start nagex`는 운영자가 직접 실행해요.
 2. **시연용 무해한 도구 1개 등록** — 배포 후 로그인한 화면의 연결(Connections)에서 공개 HTTPS MCP echo/note 서버 1개를 직접 등록하세요(제가 임의로 원격 서비스를 등록하지 않아요). 이게 없으면 호스팅 "승인→실행" 장면은 BLOCKED로 남아요. 대안: 앱 내부 승인형 기능(`workspace.prepare_draft` 실제 구현)을 다음 작업으로 승인.
 3. **Nemotron 타임아웃과 공급자 확인** — `NAGEX_NEBIUS_TIMEOUT_MS`를 그대로 둘지(영상은 편집) 올릴지 결정하고, 검색·슬라이드·이미지 공급자가 서버에 설정돼 있는지 확인해 주세요.
 
