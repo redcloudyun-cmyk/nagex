@@ -73,6 +73,9 @@ const ROWS: Row[] = [
   { id: 'Q-en-3', text: 'How do I optimize Nebius Token Factory?', kind: 'CONVERSATION', needs: ['ANSWER'] },
   { id: 'Q-ko-1', text: '일정은 어떻게 잡나요?', kind: 'CONVERSATION', needs: ['ANSWER'] },
   { id: 'Q-ko-2', text: '회의 안건 만들어줘', kind: 'CONVERSATION', needs: ['ANSWER'] },
+  { id: 'Q-ko-3', text: '네이젝스가 뭐야? 두 문장으로 설명해줘.', kind: 'CONVERSATION', needs: ['ANSWER'] },
+  { id: 'Q-en-4', text: 'Explain how OAuth works', kind: 'CONVERSATION', needs: ['ANSWER'] },
+  { id: 'Q-en-5', text: 'What should I focus on this week to keep the launch on track?', kind: 'ADVICE', needs: ['ADVICE'] },
   // more phrasings of the same intents
   { id: 'X-1', text: 'Can you send an email to Alex saying the report is ready?', kind: 'ACTION_PLAN', needs: ['ACTION'] },
   { id: 'X-2', text: '알렉스에게 보고서가 준비됐다고 메일을 보내줘', kind: 'ACTION_PLAN', needs: ['ACTION'] },

@@ -127,7 +127,10 @@ const DRAFT_ONLY = /(초안만|작성만|쓰기만|만들기만|\bdraft (only|ju
 
 // plain information questions are conversation, even when an action word appears inside the question ("how do I send an email?")
 const EN_INFO_QUESTION = /^\s*(how|what|why|who|when|where|which|is|are|does|do|did|explain|describe|tell me (about|how|why|what)|what's|whats)\b/i;
-const KO_INFO_QUESTION = /(어떻게|무엇|뭐|왜|언제|어디|누구|방법|차이|이유|뜻|의미|인가요|나요|ㄹ까요|할까요|일까요|있을까|될까|좋을까)[^.!]*\?*\s*$/;
+const KO_INFO_QUESTION = /(어떻게|무엇|뭐|왜|언제|어디|누구|방법|차이|이유|뜻|의미|인가요|나요|ㄹ까요|할까요|일까요|있을까|될까|좋을까)/;
+
+// a plain factual question ("what is X? explain it") is a conversation; only words that really ask for a recommendation, a preparation or a priority make it advice
+const STRONG_ADVICE = /(\b(what|how) should\b|\bshould i\b|\bprepare\b|\bsuggest|\brecommend|\badvi[cs]e|\bprioriti[sz]e|\bnext (action|step|move)s?\b|\btalking points\b|조언|추천|제안|준비|우선순위|어떻게\s*(해야|하면)|무엇을\s*(해야|하면)|뭘\s*(해야|하면)|다음\s*(행동|단계|할\s*일))/i;
 
 // vague: nothing to route, ask one question
 const VAGUE = [
@@ -292,7 +295,7 @@ export function decideRouting(rawText: string, options: { hasAttachment?: boolea
   }
 
   // 8. advice (prepare / suggest / recommend / prioritise) - only when the plan service would also accept it as advice-only, so the advisory path never gets an action request
-  if (classifyPlanRequest(work).kind === 'ADVISORY') {
+  if (classifyPlanRequest(work).kind === 'ADVISORY' && !(isInfoQuestion && !STRONG_ADVICE.test(work))) {
     return makeDecision({ kind: 'ADVICE', language, needs: [{ capability: 'ADVICE', supported: true }], confidence: 0.82, executionNegated, reasonCodes: [...reasonCodes, 'ADVICE_REQUESTED'] });
   }
 
