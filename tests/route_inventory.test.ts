@@ -106,7 +106,7 @@ const EXPECTED_ROUTE_MODULE_COUNTS: Record<string, number> = {
   'settings.routes.ts': 10, // account, locale, Proactive Assistant, Quick Wake and Autonomy settings
   'slack.routes.ts': 7,
   'social-auth.routes.ts': 8, // Google / Microsoft OAuth start + callback + providers, legacy migration confirmation, and the one-time account recovery token (DEBT-0013)
-  'tasks.routes.ts': 11,
+  'tasks.routes.ts': 12, // + POST /api/v1/tasks/from-reviewed-plan (Home: request approval to run a reviewed, sealed plan)
   'telegram.routes.ts': 7,
   'vault.routes.ts': 4,
   'workspace.routes.ts': 25,
@@ -132,11 +132,11 @@ test('ROUTE-INV-002: every route module\'s method-check-block count exactly matc
   assert.deepEqual(mismatches, [], `Route module endpoint-count drift detected:\n${mismatches.join('\n')}`);
 });
 
-test('ROUTE-INV-003: the total domain endpoint count across all route modules is exactly 349 — any change requires an intentional manifest update', () => {
+test('ROUTE-INV-003: the total domain endpoint count across all route modules is exactly 350 — any change requires an intentional manifest update', () => {
   // R23.7C-C — +1: GET /api/v1/creations/images/:imageId, the canonical
   // image-serving route fixing the BROKEN_SUCCESS_CONTRACT root cause.
   // Integration of R23.7 recovery + AGEX/MCP: 347 (R23.7 incl. restored device-agent 10 and social-auth 8) + connector-catalog 1 + MCP reconnect 1.
-  assert.equal(TOTAL_DOMAIN_ENDPOINTS, 349);
+  assert.equal(TOTAL_DOMAIN_ENDPOINTS, 350);
   let actualTotal = 0;
   for (const file of listRouteModuleFiles()) {
     actualTotal += countMethodChecks(readSourceWithoutComments(path.join(ROUTES_DIR, file)));

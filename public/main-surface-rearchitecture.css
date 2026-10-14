@@ -1607,3 +1607,9 @@
 .main-run-block[data-run-state="EXPIRED"] .main-run-state {
   color: var(--nagex-ink-2);
 }
+
+.main-plan-note {
+  margin: 8px 0 0;
+  color: var(--nagex-ink-2);
+  font-size: var(--nagex-fs-control);
+}

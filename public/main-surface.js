@@ -618,6 +618,20 @@
     box.hidden = false;
   }
 
+  function setPlanNote(turn, text) {
+    if (!turn || !turn.el) return;
+    let note = turn.el.querySelector('.main-plan-note');
+    if (!text) { if (note) note.remove(); return; }
+    if (!note) {
+      note = document.createElement('p');
+      note.className = 'main-plan-note';
+      const summary = turn.el.querySelector('.main-work-summary');
+      if (summary && summary.parentNode) summary.parentNode.insertBefore(note, summary.nextSibling);
+      else turn.el.appendChild(note);
+    }
+    note.textContent = text;
+  }
+
   function planRunFailureText(code, reasons) {
     if (code === 'PLAN_SEAL_EXPIRED') return bt('mainRun.err.expired', 'This plan is too old to run. Ask again to get a fresh plan.');
     if (code === 'PLAN_SEAL_INVALID' || code === 'PLAN_SEAL_MISSING') return bt('mainRun.err.invalid', "NAgex couldn't confirm that this is the plan you were shown, so nothing was started.");
@@ -1319,8 +1333,9 @@
     }));
     if ((result.plan.steps || []).some((step) => step.requiresApproval)) setTimeout(() => loadInlineApprovals(state.activeTurn), 0);
     const runnable = result.runnable && result.runnable.ok === true && result.planSeal && typeof result.planSeal.token === 'string';
-    const previewOnly = runnable ? '' : ' ' + bt('mainRun.previewOnly', 'This is a preview only:') + ' ' + runnableReasonText(result.runnable && result.runnable.reasons);
-    showThread(prompt, 'Plan ready', result.plan.summary || 'NAgex prepared a plan.', 'Review the plan inline. Required approvals remain mandatory and cannot be bypassed here.' + previewOnly, steps);
+    showThread(prompt, 'Plan ready', result.plan.summary || 'NAgex prepared a plan.', 'Review the plan inline. Required approvals remain mandatory and cannot be bypassed here.', steps);
+    // a plan Home cannot take to approval is a preview, and says why (a separate line: the summary above is a fixed, translated sentence)
+    setPlanNote(state.activeTurn, runnable ? '' : bt('mainRun.previewOnly', 'This is a preview only:') + ' ' + runnableReasonText(result.runnable && result.runnable.reasons));
     renderInlineActions([
       // Request approval: sends exactly this reviewed plan to the existing approval flow. Nothing runs until the person approves.
       ...(runnable ? [{ id: 'run-plan', label: bt('mainRun.requestApproval', 'Request approval to run'), action: ((turn) => () => startPlanRun(turn, prompt, result.plan, result.planSeal))(state.activeTurn) }] : []),
