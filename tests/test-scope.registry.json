@@ -67,6 +67,7 @@
       "r23_3t_permission_approval_hardening",
       "connections_redesign_browser",
       "connections_catalog_browser",
+      "mcp_oauth_connections_browser",
       "design_system_v2_browser"
     ],
     "google": [
@@ -239,7 +240,19 @@
       "mcp_runtime",
       "mcp_e2e_isolated_server",
       "mcp_planning_discovery",
-      "connector_catalog"
+      "connector_catalog",
+      "mcp_oauth_callback",
+      "mcp_oauth_confidential_exchange",
+      "mcp_oauth_credential_vault",
+      "mcp_oauth_discovery",
+      "mcp_oauth_metadata",
+      "mcp_oauth_persistent_store",
+      "mcp_oauth_provider_registry",
+      "mcp_oauth_route",
+      "mcp_oauth_router_integration",
+      "mcp_oauth_state",
+      "mcp_oauth_token",
+      "mcp_oauth_slack_flow_e2e"
     ],
     "credential-broker": [
       "google_calendar_connection_state",
@@ -257,7 +270,19 @@
       "mcp_runtime",
       "mcp_e2e_isolated_server",
       "mcp_planning_discovery",
-      "connector_catalog"
+      "connector_catalog",
+      "mcp_oauth_callback",
+      "mcp_oauth_confidential_exchange",
+      "mcp_oauth_credential_vault",
+      "mcp_oauth_discovery",
+      "mcp_oauth_metadata",
+      "mcp_oauth_persistent_store",
+      "mcp_oauth_provider_registry",
+      "mcp_oauth_route",
+      "mcp_oauth_router_integration",
+      "mcp_oauth_state",
+      "mcp_oauth_token",
+      "mcp_oauth_slack_flow_e2e"
     ],
     "browser-untrusted-boundary": [
       "r23_5b_browser_untrusted_boundary",
@@ -348,6 +373,7 @@
       "r24_8b_ui_integrity_contract",
       "connections_redesign_browser",
       "connections_catalog_browser",
+      "mcp_oauth_connections_browser",
       "design_system_v2_browser",
       "mobile_phone_shell_browser",
       "r23_7h_c_mobile_recent_image_browser",

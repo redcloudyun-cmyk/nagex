@@ -278,6 +278,15 @@ MCP is an extension point inside the existing authority model, not a second one.
 - An enabled tool becomes a per-user `CapabilityRegistry` entry (`provider: MCP`, `CONSEQUENTIAL`, approval `REQUIRED`, never listed in the catalog). Execution is only via `CapabilityBroker.execute`: the Permission Authority applies, the call requires a hash-bound, one-time `ActionApproval` consumed immediately before the call, and execution/audit records are written without credentials or argument content.
 - Results are untrusted data (size-capped text; non-text content is reported by type only). The autonomous task runner does not execute MCP tools; they run only after an explicit approval.
 
+#### MCP OAuth (provider sign-in)
+
+- Ordinary users never supply or see an API key, client secret, token URL or MCP URL. The operator registers a NAgex-owned client for a NAgex-reviewed provider template; the pinned token endpoint, issuer, resource, client-authentication method (`none` or `client_secret_post`) and response shape come from that registration and the provider's verified published metadata, never from a request, query or callback.
+- The authorization state is one-time, expires, and is bound to the authenticated NAgex session that started it (tenant + user); a foreign, replayed, denied or substituted callback stores nothing. A provider that grants more scope than requested, or reports none to check against, is refused before storage.
+- The access token lives only in the owner's encrypted credential vault, bound to (tenant, user, resource, issuer, client). The connection record, every view, log, redirect and response carry no token; the browser only ever sees a status.
+- `OAUTH_CREDENTIAL_STORED` (a token exists) is not `MCP_CONNECTED_VERIFIED` (initialize + tools/list succeeded under it). Only the latter is shown as connected.
+- A missing or expired token means `REAUTH_REQUIRED`: the connection's tools switch off and no request is made to the MCP server. Tools stay OFF after connecting, and every call still goes through hash-bound, one-time Human Approval via the Capability Broker; a provider's read-only hint is never trusted.
+- The RFC 8707 `resource` is sent as the provider published it; the canonical form is used internally for identity binding. Disconnect removes the connection, its tools and the stored credential.
+
 ## 16. Source Provenance
 
 Consolidated from:

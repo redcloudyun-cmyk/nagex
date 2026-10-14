@@ -8,7 +8,7 @@
 (function () {
   'use strict';
 
-  const API = { google: '/api/v1/oauth/google/status', googleVerify: '/api/v1/connections/google-calendar?verify=1', googleDisconnect: '/api/v1/oauth/google/disconnect', github: '/api/v1/connections/github', githubDisconnect: '/api/v1/connections/github/disconnect', mcp: '/api/v1/mcp/servers' };
+  const API = { google: '/api/v1/oauth/google/status', googleVerify: '/api/v1/connections/google-calendar?verify=1', googleDisconnect: '/api/v1/oauth/google/disconnect', github: '/api/v1/connections/github', githubDisconnect: '/api/v1/connections/github/disconnect', mcp: '/api/v1/mcp/servers', mcpOAuth: '/api/v1/oauth/mcp' };
   const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.modify';
   const CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
   const REQUEST_TIMEOUT_MS = 45000; // adding an MCP server runs a handshake and a tool listing server-side
@@ -69,7 +69,7 @@
   }
 
   // ── state ─────────────────────────────────────────────────────────────────────────────────────────────────────────
-  const data = { googleVerifiedAt: null, loaded: false, loading: false, lastLoadAt: 0, signedOut: false, google: null, github: null, mcp: { servers: [], unavailable: false, errorCode: '' }, loadFailed: false, catalog: null };
+  const data = { googleVerifiedAt: null, loaded: false, loading: false, lastLoadAt: 0, signedOut: false, google: null, github: null, mcp: { servers: [], unavailable: false, errorCode: '' }, loadFailed: false, catalog: null, mcpOAuth: { providers: [] } };
   const ui = { query: '', filter: 'ALL', category: 'ALL', drawer: null, modal: null, live: '' };
   let layer = null; // { el, opener, openerKey }
   let sequence = 0;
@@ -121,15 +121,32 @@
       needs: entry.id === 'gmail' ? GMAIL_SCOPE : entry.id === 'google-calendar' ? CALENDAR_SCOPE : undefined,
     };
   }
+  // Provider sign-in apps (e.g. Slack's official MCP server). A provider appears as an app only until the person is connected; after that it is a connection.
+  // The provider's display name is localized here (the server stores one English name); an unknown provider falls back to the name the server gave.
+  function oauthName(providerId, fallback) { const key = 'conn.oauth.name.' + providerId; const text = t(key); return text === key ? fallback : text; }
+  const oauthServerFor = (providerId) => data.mcp.servers.find((server) => server.oauth && server.oauth.providerId === providerId) || null;
+  function oauthApps() {
+    // A provider the operator has not started to set up (DISABLED) is not shown at all: there is nothing the person can do or wait for.
+    return data.mcpOAuth.providers.filter((provider) => provider.state !== 'DISABLED' && !oauthServerFor(provider.id)).map((provider) => {
+      const available = provider.state === 'AVAILABLE';
+      const setup = provider.state === 'UNAVAILABLE' ? t('conn.oauth.unverified') : t('conn.oauth.setupPending');
+      return {
+        id: 'mcp-oauth:' + provider.id, providerId: provider.id, name: oauthName(provider.id, provider.displayName), provider: oauthName(provider.id, provider.displayName), source: 'mcp-oauth', category: 'COMMUNICATION', icon: ICONS[provider.id] ? provider.id : 'mcp',
+        availability: available ? 'LIVE' : 'UNAVAILABLE', desc: t('conn.oauth.desc', { app: provider.displayName }), setup: available ? '' : setup,
+        oauthState: available ? { state: 'NOT_CONNECTED', reason: null } : provider.state === 'UNAVAILABLE' ? { state: 'ERROR', reason: 'PROVIDER_ERROR' } : { state: 'SETUP_REQUIRED', reason: null },
+      };
+    });
+  }
   function builtinItems() {
     if (!data.catalog) return CATALOG.map((item) => ({ ...item, category: LEGACY_CATEGORY[item.id] || 'COMMUNICATION', desc: t(item.cap), setup: '', availability: item.source === 'planned' ? 'PLANNED' : 'LIVE' }));
-    return data.catalog.connectors.filter((entry) => (entry.availability === 'LIVE' && entry.id !== 'mcp-custom') || SHOWN_PLANNED.has(entry.id)).map(toItem);
+    return data.catalog.connectors.filter((entry) => (entry.availability === 'LIVE' && entry.id !== 'mcp-custom') || SHOWN_PLANNED.has(entry.id)).map(toItem).concat(oauthApps().filter((item) => item.availability === 'LIVE'));
   }
   // Everything else the catalog knows about: not available, and said plainly.
   function moreItems() {
-    return data.catalog ? data.catalog.connectors.filter((entry) => entry.availability !== 'LIVE' && !SHOWN_PLANNED.has(entry.id)).map(toItem) : [];
+    return data.catalog ? data.catalog.connectors.filter((entry) => entry.availability !== 'LIVE' && !SHOWN_PLANNED.has(entry.id)).map(toItem).concat(oauthApps().filter((item) => item.availability !== 'LIVE')) : [];
   }
   function appState(item) {
+    if (item.source === 'mcp-oauth') return item.oauthState;
     if (item.source === 'planned') return item.availability === 'UNSUPPORTED' ? { state: 'UNSUPPORTED', reason: 'NOT_SUPPORTED' } : { state: 'UNAVAILABLE', reason: 'COMING_LATER' };
     if (CHANNELS.has(item.source)) {
       const entry = catalogConnector(item.id);
@@ -162,7 +179,7 @@
       const tools = Array.isArray(server.tools) ? server.tools : [];
       const enabled = tools.filter((tool) => tool.enabled).length;
       const state = server.status === 'CONNECTED' ? 'CONNECTED' : (server.status === 'IDENTITY_MISMATCH' || server.status === 'AUTH_REQUIRED') ? 'REAUTH_REQUIRED' : 'ERROR';
-      items.push({ kind: 'mcp', id: server.connectionId, name: server.name, icon: 'mcp', state, account: (server.identity && server.identity.serverName) || '', summary: t('conn.cap.mcpCount', { enabled, total: tools.length }), search: [server.name, server.url, ...(tools.map((tool) => tool.name))].join(' ') });
+      items.push({ kind: 'mcp', id: server.connectionId, name: server.oauth ? oauthName(server.oauth.providerId, server.name) : server.name, icon: 'mcp', state, account: (server.identity && server.identity.serverName) || '', summary: t('conn.cap.mcpCount', { enabled, total: tools.length }), search: [server.name, server.url, ...(tools.map((tool) => tool.name))].join(' ') });
     }
     return items;
   }
@@ -202,6 +219,11 @@
       if (st.state === 'ERROR') return { act: 'retry', label: t('conn.action.retry'), aria: t('conn.aria.retry', { app: item.name }) };
       return null;
     }
+    if (item.source === 'mcp-oauth') {
+      if (st.state === 'NOT_CONNECTED') return { act: 'oauth-connect', label: t('conn.action.connect'), aria: t('conn.aria.connect', { app: item.name }), primary: true };
+      if (st.state === 'ERROR') return { act: 'retry', label: t('conn.action.retry'), aria: t('conn.aria.retry', { app: item.name }) };
+      return null;
+    }
     if (st.state === 'CONNECTED') return { act: 'manage', label: t('conn.action.manage'), aria: t('conn.aria.manage', { app: item.name }) };
     if (st.state === 'NOT_CONNECTED' || st.state === 'REAUTH_REQUIRED') {
       const allowed = !data.catalog || (serverAction && serverAction.kind === 'OAUTH'
@@ -216,9 +238,9 @@
     const st = appState(item);
     const action = primaryAction(item, st);
     // For apps that are not available, and for chat channels, the catalog's own requirement text is the honest hint.
-    const requirement = item.setup && (st.state === 'UNAVAILABLE' || st.state === 'UNSUPPORTED' || (CHANNELS.has(item.source) && (st.state === 'SETUP_REQUIRED' || st.state === 'NOT_CONNECTED')));
+    const requirement = item.setup && (st.state === 'UNAVAILABLE' || st.state === 'UNSUPPORTED' || item.source === 'mcp-oauth' || (CHANNELS.has(item.source) && (st.state === 'SETUP_REQUIRED' || st.state === 'NOT_CONNECTED')));
     const linked = CHANNELS.has(item.source) && st.state === 'CONNECTED' ? t('conn.channel.linked', { count: st.count || 1 }) : '';
-    const hint = requirement ? item.setup : (linked || reasonText(st.state, st.reason));
+    const hint = requirement ? item.setup : (linked || reasonText(st.state, st.reason) || (item.source === 'mcp-oauth' ? t('conn.oauth.approvalNote') : ''));
     const shared = item.source === 'google' ? t('conn.uses.google') : '';
     return `
       <article class="nagex-conn-card" data-conn-key="app:${escapeHtml(item.id)}" data-app="${escapeHtml(item.id)}" data-state="${escapeHtml(st.state)}" aria-labelledby="nagex-app-${escapeHtml(item.id)}">
@@ -241,6 +263,29 @@
       </article>`;
   }
 
+  // The provider's sign-in ends with a redirect to this screen carrying only a status (never a credential). It is read once, shown, and removed from the address bar.
+  function takeOAuthReturn() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const status = params.get('mcp_oauth');
+      if (!status) return;
+      const notice = { status: ['connected', 'stored', 'failed'].includes(status) ? status : 'failed', provider: /^[a-z0-9-]{1,64}$/.test(params.get('provider') || '') ? params.get('provider') : '' };
+      ui.oauthNotice = notice;
+      params.delete('mcp_oauth'); params.delete('provider'); params.delete('reason');
+      const query = params.toString();
+      window.history.replaceState({}, '', window.location.pathname + (query ? '?' + query : '') + window.location.hash);
+    } catch { /* the notice is a convenience */ }
+  }
+  function noticeHtml() {
+    const n = ui.oauthNotice;
+    if (!n) return '';
+    const found = data.mcpOAuth.providers.find((p) => p.id === n.provider);
+    const name = found ? oauthName(found.id, found.displayName) : (n.provider ? oauthName(n.provider, n.provider) : t('conn.oauth.thisApp'));
+    const text = n.status === 'connected' ? t('conn.oauth.connected', { app: name }) : n.status === 'stored' ? t('conn.oauth.stored', { app: name }) : t('conn.oauth.failed', { app: name });
+    const retry = n.status === 'stored' && n.provider ? `<button type="button" class="nagex-conn-btn" data-act="oauth-retry" data-provider="${escapeHtml(n.provider)}">${escapeHtml(t('conn.action.retry'))}</button>` : '';
+    return `<div class="nagex-conn-banner" role="status" data-oauth-notice="${escapeHtml(n.status)}"><span>${escapeHtml(text)}</span>${retry}<button type="button" class="nagex-conn-btn" data-act="oauth-dismiss">${escapeHtml(t('conn.action.close'))}</button></div>`;
+  }
+
   function bodyHtml() {
     if (data.signedOut) {
       return `<div class="nagex-conn-empty" role="status"><p>${escapeHtml(t('conn.signedOut'))}</p><button type="button" class="nagex-conn-btn primary" data-act="sign-in">${escapeHtml(t('conn.signIn'))}</button></div>`;
@@ -256,6 +301,7 @@
     const sections = [];
     const failed = data.loadFailed ? `<div class="nagex-conn-banner" role="alert"><span>${escapeHtml(t('conn.loadError'))}</span><button type="button" class="nagex-conn-btn" data-act="reload">${escapeHtml(t('conn.action.retry'))}</button></div>` : '';
     sections.push(failed);
+    sections.push(noticeHtml());
     // My connections
     sections.push(`<section class="nagex-conn-section" aria-labelledby="nagex-sec-mine"><h3 id="nagex-sec-mine">${escapeHtml(t('conn.section.mine'))}</h3>${
       mine.length ? `<div class="nagex-conn-grid">${mine.map(myItemHtml).join('')}</div>`
@@ -329,7 +375,7 @@
     const version = ++sequence;
     data.loading = true;
     if (!data.loaded) renderBody();
-    const [g, gh, m, c] = await Promise.all([request(API.google), request(options && options.verify ? API.github + '?verify=1' : API.github), request(API.mcp), request('/api/v1/connectors/catalog')]);
+    const [g, gh, m, c, o] = await Promise.all([request(API.google), request(options && options.verify ? API.github + '?verify=1' : API.github), request(API.mcp), request('/api/v1/connectors/catalog'), request(API.mcpOAuth + '/providers')]);
     if (version !== sequence) return;
     const unauthorized = (r) => r.status === 401 && (!r.code || r.code === 'UNAUTHORIZED');
     data.signedOut = unauthorized(g) && unauthorized(gh) && unauthorized(m);
@@ -338,6 +384,8 @@
       data.github = gh.body && gh.body.connection ? gh.body.connection : null;
       data.mcp = { servers: m.ok && Array.isArray(m.body.servers) ? m.body.servers : [], unavailable: m.status === 503 || m.code === 'MCP_NOT_AVAILABLE', errorCode: m.ok ? '' : m.code, durable: m.ok ? m.body.durable !== false : true };
       data.catalog = c.ok && c.body && Array.isArray(c.body.connectors) && Array.isArray(c.body.categories) ? c.body : null;
+      // Optional capability: when the list cannot be read, no provider card is shown (never an invented one).
+      data.mcpOAuth = { providers: o.ok && o.body && Array.isArray(o.body.providers) ? o.body.providers.filter((p) => p && typeof p.id === 'string' && /^[a-z0-9-]{1,64}$/.test(p.id)) : [] };
       data.loadFailed = !g.ok || !(gh.body && gh.body.connection) || (!m.ok && !data.mcp.unavailable) || !data.catalog;
     }
     data.loaded = true;
@@ -559,13 +607,14 @@
     } else {
       const server = serverById(d.id);
       if (!server) return '';
-      title = server.name; icon = 'mcp'; state = server.status === 'CONNECTED' ? 'CONNECTED' : (server.status === 'IDENTITY_MISMATCH' || server.status === 'AUTH_REQUIRED') ? 'REAUTH_REQUIRED' : 'ERROR';
+      title = server.oauth ? oauthName(server.oauth.providerId, server.name) : server.name; icon = 'mcp'; state = server.status === 'CONNECTED' ? 'CONNECTED' : (server.status === 'IDENTITY_MISMATCH' || server.status === 'AUTH_REQUIRED') ? 'REAUTH_REQUIRED' : 'ERROR';
       const tools = Array.isArray(server.tools) ? server.tools : [];
       body = (server.status === 'IDENTITY_MISMATCH' ? `<p class="nagex-conn-alert" role="alert">${escapeHtml(t('conn.mcp.mismatch'))}</p>` : '')
-        + (server.status === 'AUTH_REQUIRED' ? `<div class="nagex-conn-alert" role="alert"><p>${escapeHtml(t('conn.mcp.authRequired'))}</p></div><form id="nagex-mcp-reconnect" novalidate autocomplete="off" class="nagex-conn-inline-form"><label class="nagex-conn-field"><span>${escapeHtml(t('conn.mcp.newToken'))}</span><input name="bearerToken" type="password" autocomplete="new-password" data-focus="mcp-newtoken" ${d.busy ? 'disabled' : ''}></label><button type="submit" class="nagex-conn-btn primary" ${d.busy ? 'disabled aria-busy="true"' : ''}>${escapeHtml(t('conn.action.reconnect'))}</button></form>` : '')
+        + (server.status === 'AUTH_REQUIRED' && server.oauth ? `<div class="nagex-conn-alert" role="alert"><p>${escapeHtml(t('conn.oauth.reauth'))}</p></div><button type="button" class="nagex-conn-btn primary" data-act="oauth-reauth" data-provider="${escapeHtml(server.oauth.providerId)}" ${d.busy ? 'disabled aria-busy="true"' : ''}>${escapeHtml(t('conn.oauth.signInAgain'))}</button>` : '')
+        + (server.status === 'AUTH_REQUIRED' && !server.oauth ? `<div class="nagex-conn-alert" role="alert"><p>${escapeHtml(t('conn.mcp.authRequired'))}</p></div><form id="nagex-mcp-reconnect" novalidate autocomplete="off" class="nagex-conn-inline-form"><label class="nagex-conn-field"><span>${escapeHtml(t('conn.mcp.newToken'))}</span><input name="bearerToken" type="password" autocomplete="new-password" data-focus="mcp-newtoken" ${d.busy ? 'disabled' : ''}></label><button type="submit" class="nagex-conn-btn primary" ${d.busy ? 'disabled aria-busy="true"' : ''}>${escapeHtml(t('conn.action.reconnect'))}</button></form>` : '')
         + factsHtml([[t('conn.detail.status'), badge(state)], [t('conn.mcp.identity'), escapeHtml((server.identity && server.identity.serverName) || '—') + (server.identity && server.identity.serverVersion ? ' ' + escapeHtml(server.identity.serverVersion) : '')], [t('conn.mcp.origin'), escapeHtml((server.identity && server.identity.origin) || server.url)], [t('conn.mcp.toolsEnabled'), escapeHtml(t('conn.cap.mcpCount', { enabled: tools.filter((x) => x.enabled).length, total: tools.length }))], [t('conn.detail.lastVerified'), verified(server.discoveredAt)]])
-        + toolsHtml(server, d) + secure + confirmBlock('remove', t('conn.remove.confirm'));
-      foot = `<button type="button" class="nagex-conn-btn" data-act="mcp-refresh" ${d.busy ? 'disabled aria-busy="true"' : ''}>${escapeHtml(t('conn.action.refresh'))}</button><button type="button" class="nagex-conn-btn danger" data-act="ask-remove" ${d.busy ? 'disabled' : ''}>${escapeHtml(t('conn.action.removeServer'))}</button>`;
+        + toolsHtml(server, d) + secure + confirmBlock('remove', server.oauth ? t('conn.oauth.disconnect.confirm', { app: title }) : t('conn.remove.confirm'));
+      foot = `<button type="button" class="nagex-conn-btn" data-act="mcp-refresh" ${d.busy ? 'disabled aria-busy="true"' : ''}>${escapeHtml(t('conn.action.refresh'))}</button><button type="button" class="nagex-conn-btn danger" data-act="ask-remove" ${d.busy ? 'disabled' : ''}>${escapeHtml(server.oauth ? t('conn.action.disconnect') : t('conn.action.removeServer'))}</button>`;
     }
     return `
       <header class="nagex-conn-panel-head">${iconHtml(icon)}<div><h2 id="nagex-layer-title">${escapeHtml(title)}</h2><p>${escapeHtml(t(d.kind === 'mcp' ? 'conn.kind.mcp' : 'conn.kind.builtin'))}</p></div>${closeBtn}</header>
@@ -701,6 +750,27 @@
         else { d.error = t('conn.err.generic'); renderLayer(); }
         return;
       }
+      case 'oauth-connect':
+      case 'oauth-reauth': {
+        const providerId = act === 'oauth-reauth' ? target.getAttribute('data-provider') : String(target.getAttribute('data-app') || '').replace(/^mcp-oauth:/, '');
+        if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(providerId || '')) return;
+        const busyKey = target.getAttribute('data-app'); ui.busyApp = busyKey; if (ui.drawer && act === 'oauth-reauth') { ui.drawer.busy = true; renderLayer(); } else renderBody();
+        // The start request is made by the signed-in NAgex session; the provider's sign-in page is where the person consents. Nothing is connected until the callback verifies it.
+        const res = await request(API.mcpOAuth + '/start', { method: 'POST', body: JSON.stringify({ providerId }) });
+        ui.busyApp = null;
+        if (res.ok && res.body && typeof res.body.authorizeUrl === 'string' && /^https:\/\//.test(res.body.authorizeUrl)) { window.location.assign(res.body.authorizeUrl); return; }
+        const message = res.code === 'MCP_OAUTH_NOT_CONFIGURED' || res.status === 503 ? t('conn.oauth.setupPending') : t('conn.oauth.startFailed');
+        if (ui.drawer && act === 'oauth-reauth') { ui.drawer.busy = false; ui.drawer.error = message; renderLayer(); } else { ui.oauthNotice = { status: 'failed', provider: providerId }; renderBody(); }
+        announce(message);
+        return;
+      }
+      case 'oauth-retry': {
+        const providerId = target.getAttribute('data-provider') || '';
+        const res = await request(API.mcpOAuth + '/connect', { method: 'POST', body: JSON.stringify({ providerId }) });
+        ui.oauthNotice = { status: res.ok && res.body && res.body.status === 'MCP_CONNECTED_VERIFIED' ? 'connected' : 'stored', provider: providerId };
+        await loadAll(); return;
+      }
+      case 'oauth-dismiss': ui.oauthNotice = null; renderBody(); return;
       case 'mcp-refresh': {
         const d = ui.drawer; d.busy = true; d.error = ''; d.message = ''; renderLayer();
         const res = await request(`${API.mcp}/${encodeURIComponent(d.id)}/refresh`, { method: 'POST', body: '{}' });
@@ -728,6 +798,7 @@
     if (!el) return;
     if (options && options.signedOut) { data.signedOut = true; data.loaded = true; renderAll(); return; }
     if (data.signedOut) { data.signedOut = false; data.loaded = false; }
+    takeOAuthReturn();
     renderAll();
     if (!data.loading && (!data.loaded || Date.now() - data.lastLoadAt > STALE_MS)) loadAll();
   }

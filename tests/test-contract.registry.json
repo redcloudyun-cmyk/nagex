@@ -6039,6 +6039,226 @@
       "deterministic": true,
       "assertionIntent": "Release hygiene registry entry for universal_life_execution: preserves the committed product contract and prevents the test gate from treating the focused suite as unclassified debt.",
       "notes": "Added during integration hygiene after the suite was committed as part of the current branch baseline."
+    },
+    "mcp_oauth_callback": {
+      "milestone": "NAGEX-MCP-OAUTH-STAGE1",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "integrations",
+        "identity-access",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Consumes session-bound OAuth state once, verifies tenant and principal, uses trusted token endpoint, and refuses success when storage fails.",
+      "notes": "Deterministic repository-controlled unit or HTTP integration test. No real third-party OAuth or tool execution is certified.",
+      "writesRepositoryArtifacts": false
+    },
+    "mcp_oauth_credential_vault": {
+      "milestone": "NAGEX-MCP-OAUTH-STAGE1",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "integrations",
+        "identity-access",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "AES-256-GCM credential privacy, fail-closed key validation, tenant/principal/resource/issuer/client segregation and disconnect.",
+      "notes": "Deterministic repository-controlled unit or HTTP integration test. No real third-party OAuth or tool execution is certified.",
+      "writesRepositoryArtifacts": false
+    },
+    "mcp_oauth_discovery": {
+      "milestone": "NAGEX-MCP-OAUTH-STAGE1",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "integrations",
+        "identity-access",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Real loopback HTTP metadata retrieval under explicit isolated policy; redirects, SSRF, content type and response bounds denied.",
+      "notes": "Deterministic repository-controlled unit or HTTP integration test. No real third-party OAuth or tool execution is certified.",
+      "writesRepositoryArtifacts": false
+    },
+    "mcp_oauth_metadata": {
+      "milestone": "NAGEX-MCP-OAUTH-STAGE1",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "integrations",
+        "identity-access",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Strict protected resource and authorization-server metadata validation, issuer pinning, URL security and PKCE S256.",
+      "notes": "Deterministic repository-controlled unit or HTTP integration test. No real third-party OAuth or tool execution is certified.",
+      "writesRepositoryArtifacts": false
+    },
+    "mcp_oauth_persistent_store": {
+      "milestone": "NAGEX-MCP-OAUTH-STAGE1",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "integrations",
+        "identity-access",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Encrypted file store restart recovery, wrong-key and tamper rejection, symlink blocking, atomic writes and rollback.",
+      "notes": "Deterministic repository-controlled unit or HTTP integration test. No real third-party OAuth or tool execution is certified.",
+      "writesRepositoryArtifacts": false
+    },
+    "mcp_oauth_provider_registry": {
+      "milestone": "NAGEX-MCP-OAUTH-STAGE1",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "integrations",
+        "identity-access",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Operator-vetted OAuth registration, issuer and scope pinning, redirect URI validation and PKCE initiation.",
+      "notes": "Deterministic repository-controlled unit or HTTP integration test. No real third-party OAuth or tool execution is certified.",
+      "writesRepositoryArtifacts": false
+    },
+    "mcp_oauth_route": {
+      "milestone": "NAGEX-MCP-OAUTH-STAGE1",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "integrations",
+        "identity-access",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Canonical authenticated OAuth callback/start boundary denies unconfigured, unauthenticated and invalid methods.",
+      "notes": "Deterministic repository-controlled unit or HTTP integration test. No real third-party OAuth or tool execution is certified.",
+      "writesRepositoryArtifacts": false
+    },
+    "mcp_oauth_router_integration": {
+      "milestone": "NAGEX-MCP-OAUTH-STAGE1",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "integrations",
+        "identity-access",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Isolated canonical HTTP router OAuth start and callback using real signed-in session and scripted token provider; replay and tenant isolation.",
+      "notes": "Deterministic repository-controlled unit or HTTP integration test. No real third-party OAuth or tool execution is certified.",
+      "writesRepositoryArtifacts": false
+    },
+    "mcp_oauth_state": {
+      "milestone": "NAGEX-MCP-OAUTH-STAGE1",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "integrations",
+        "identity-access",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "One-time PKCE authorization state, expiry, per-user tenancy, replay and cross-tenant blocking.",
+      "notes": "Deterministic repository-controlled unit or HTTP integration test. No real third-party OAuth or tool execution is certified.",
+      "writesRepositoryArtifacts": false
+    },
+    "mcp_oauth_confidential_exchange": {
+      "milestone": "NAGEX-MCP-OAUTH-OVERNIGHT-20261013",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "integrations",
+        "identity-access",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Operator-pinned client authentication for MCP OAuth: client_secret_post sends the secret only in the form body to the pinned token endpoint, fails closed before any request when the secret is unavailable, never leaks it in errors, honors Slack's pinned response profile (ok:false, token_type user, comma scopes), requires the server to advertise the method, keeps the MCP endpoint on the verified resource origin, and a callback with a missing secret or over-scoped grant stores nothing.",
+      "notes": "Deterministic repository-controlled test. No real third-party OAuth provider is contacted; a local fake provider stands in. Not a live-provider certification.",
+      "writesRepositoryArtifacts": false
+    },
+    "mcp_oauth_slack_flow_e2e": {
+      "milestone": "NAGEX-MCP-OAUTH-OVERNIGHT-20261013",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "integrations",
+        "identity-access",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "MCP OAuth product journey against a local fake Slack-shaped provider and an isolated MCP server: opt-in operator activation (DISABLED / SETUP_REQUIRED / UNAVAILABLE, never a value), PKCE start with the operator's pinned client and the provider-published resource, authenticated callback, encrypted owner-bound token, MCP initialize + tools/list with every tool OFF, enable, Human Approval, one-time broker-governed call reported as TOOL_RESPONDED/UNVERIFIED; token persistence is not a verified connection; expiry, upstream revoke, restart, disconnect and cross-user/tenant isolation all fail closed.",
+      "notes": "Deterministic repository-controlled test. No real third-party OAuth provider is contacted; a local fake provider stands in. Not a live-provider certification.",
+      "writesRepositoryArtifacts": false
+    },
+    "mcp_oauth_connections_browser": {
+      "milestone": "NAGEX-MCP-OAUTH-OVERNIGHT-20261013",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Real-Chromium certification of provider sign-in in Apps & Connections: an AVAILABLE provider offers Connect which starts the sign-in with only the provider id; a provider that is disabled, not set up or unverifiable shows no Connect button and says why; no provider list invents nothing; a connected provider is a connection with every tool OFF and Disconnect asks before deleting; an expired sign-in offers Sign in again (never a pasted token); the return from the provider shows connected / stored-but-not-verified (with Retry) / failed truthfully, removes the status from the address bar and never injects hostile values; KR copy is haeyo-che without raw keys; 360/390/430 px have no horizontal overflow.",
+      "notes": "Production server harness with provider credentials scrubbed. The provider list, the connection list and removal are substituted in the browser; the provider sign-in page is intercepted. The real start/callback/verification behavior is covered by mcp_oauth_slack_flow_e2e. Screenshots are written only when NAGEX_CAPTURE_DIR is set.",
+      "writesRepositoryArtifacts": false
+    },
+    "mcp_oauth_token": {
+      "milestone": "NAGEX-MCP-OAUTH-STAGE1",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "integrations",
+        "identity-access",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Guarded token exchange enforces PKCE, resource binding, SSL, SSRF protections, size limits and errors without secret leakage.",
+      "notes": "Deterministic repository-controlled unit or HTTP integration test. No real third-party OAuth or tool execution is certified.",
+      "writesRepositoryArtifacts": false
     }
   }
 }
