@@ -223,6 +223,40 @@ describe('fallbacks are logged and audited with their reason; the trace is conte
   });
 });
 
+describe('the preferred provider gets one more try when the task validator rejects its answer', () => {
+  const generate = (s: ReturnType<typeof stack>, validate: (text: string) => void, task: ModelTaskKind = 'PLAN') =>
+    s.router.generate({ messages: [{ role: 'user', content: 'p' }], mode: 'auto', jsonMode: true, routingContext: ctx(task, true), validate });
+
+  it('a one-off malformed answer is retried on Nemotron: no fallback, attempts are logged', async () => {
+    let n = 0;
+    const s = stack({ nebius: () => nebiusOk(++n === 1 ? 'malformed' : '{"ok":true}') });
+    const result = await generate(s, (text) => { if (text === 'malformed') throw new Error('rejected by the validator'); });
+    assert.equal(result.provider, 'nebius');
+    assert.equal(result.routing?.fallbackUsed, false);
+    assert.equal(s.calls.nebius, 2);
+    assert.equal(s.calls.gemini + s.calls.openai, 0);
+    assert.equal(s.logs.filter((l) => l.event === 'model_validation_retry').length, 1);
+    assert.equal(s.logs.find((l) => l.event === 'model_request_succeeded')!.fields.attempts, 2);
+  });
+
+  it('two rejected answers fall back; the fallback provider is not retried (its rejection fails the request)', async () => {
+    const s = stack({ nebius: () => nebiusOk('malformed'), gemini: () => geminiOk('malformed'), openai: () => openaiOk('malformed') });
+    await assert.rejects(() => generate(s, (text) => { if (text === 'malformed') throw new Error('rejected'); }), (error: any) => error.code === 'ALL_MODEL_PROVIDERS_FAILED');
+    assert.equal(s.calls.nebius, 2, 'preferred provider: original + one retry');
+    assert.equal(s.calls.gemini, 1, 'a fallback provider is tried once');
+  });
+
+  it('there is no retry without a validator, and none for a task that does not prefer Nemotron', async () => {
+    const s = stack({ nebius: () => nebiusOk('x') });
+    await s.router.generate({ messages: [{ role: 'user', content: 'p' }], mode: 'auto', routingContext: ctx('CHAT') });
+    assert.equal(s.calls.nebius, 1);
+    const other = stack({ gemini: () => geminiOk('malformed') });
+    await assert.rejects(() => generate(other, (text) => { if (text === 'malformed') throw new Error('rejected'); }, 'DAILY_BRIEF'));
+    assert.equal(other.calls.gemini, 1, 'DAILY_BRIEF is not a Nemotron task and not retried');
+    assert.equal(other.calls.nebius, 0);
+  });
+});
+
 describe('the evidence trace is opt-in on the status endpoint', () => {
   it('providers/status returns recentCalls only when the owner enables NAGEX_EXPOSE_MODEL_TRACE=1', async () => {
     const s = stack();

@@ -58,6 +58,9 @@ type JevAdvisoryEvaluator = {
   evaluate(input: Parameters<JevShadowEvaluator['evaluate']>[0]): ReturnType<JevShadowEvaluator['evaluate']> | Promise<ReturnType<JevShadowEvaluator['evaluate']>>;
 };
 
+// How many extra tries the preferred provider gets when its answer is rejected by the task's validator (see generate()).
+export const VALIDATION_RETRIES = 1;
+
 export class UnifiedModelRouter {
   private readonly providers: Map<string, ModelProvider>;
   private readonly configuredPriority: string[];
@@ -273,13 +276,26 @@ export class UnifiedModelRouter {
     const failures: Array<{ provider: string; code: string; reason: ModelFailureReason }> = [];
     for (const provider of candidates) {
       try {
-        const result = await provider.generate({
-          messages: input.messages,
-          requestId,
-          jsonMode: input.jsonMode,
-          ...(input.maxOutputTokens !== undefined ? { maxOutputTokens: input.maxOutputTokens } : {}),
-        });
-        input.validate?.(result.text);
+        // A reasoning model sometimes answers with a structure the task validator rejects (a list of objects, a missing field). The PREFERRED provider gets one more try before the
+        // request falls back, so a one-off malformed answer does not cost the person the preferred model. Only validator rejections retry; transport errors already have their
+        // own bounded handling in the provider, and a fallback provider is never retried.
+        const maxAttempts = input.validate && provider.name === preferredProvider ? 1 + VALIDATION_RETRIES : 1;
+        let result!: ModelResponse;
+        let attempts = 0;
+        for (;;) {
+          attempts++;
+          result = await provider.generate({
+            messages: input.messages,
+            requestId,
+            jsonMode: input.jsonMode,
+            ...(input.maxOutputTokens !== undefined ? { maxOutputTokens: input.maxOutputTokens } : {}),
+          });
+          try { input.validate?.(result.text); break; }
+          catch (validationError) {
+            if (attempts >= maxAttempts) throw validationError;
+            this.logger.info('model_validation_retry', { requestId, taskKind: context.taskKind, provider: provider.name, attempt: attempts });
+          }
+        }
         const fallbackUsed = provider.name !== candidateOrder[0];
         const preferredMissed = preferredProvider !== null && result.provider !== preferredProvider;
         const trace = {
@@ -298,6 +314,7 @@ export class UnifiedModelRouter {
           latencyMs: result.latencyMs,
           // "fallback" means the provider the routing table prefers did not answer - whether it failed just now or was skipped while degraded.
           fallbackUsed: trace.fallbackUsed,
+          attempts,
           preferredProvider: trace.preferredProvider,
           actualProvider: trace.actualProvider,
           fallbackReason: trace.fallbackReason,

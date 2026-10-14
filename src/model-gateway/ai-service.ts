@@ -103,18 +103,32 @@ function invalidPlan(message: string, requestId: string): never {
   throw new NagexError({ code: 'INVALID_MODEL_RESPONSE', category: 'PROVIDER', message, request_id: requestId });
 }
 
-// An ADVISORY answer is valid only when ALL of this holds: the request itself was classified advisory (decided by the caller from the person's own words), the model
-// declared responseKind ADVISORY, steps is exactly [], the briefing (summary) is substantive, and every suggestion is a concrete, standalone next move. Anything
-// else - missing declaration, steps present, empty / placeholder / malformed suggestions - is rejected like any other malformed plan.
+// An ADVISORY answer is valid only when ALL of this holds: the request itself was classified advisory (decided by the caller from the person's own words), steps is
+// exactly [], the model did not label the answer as something else (responseKind is ADVISORY or simply absent), the briefing (summary) is substantive, and every
+// suggestion is a concrete, standalone next move. Anything else - steps present, a different responseKind, empty / placeholder / malformed suggestions - is rejected
+// like any other malformed plan. The model's own label is never what makes an answer advice: the person's request and the structure are.
+// Nemotron sometimes wraps each suggestion as {"sentence": "..."} (or text / suggestion / action). That loses nothing and invents nothing, so exactly that one shape - an object with ONE
+// of those four keys holding a string - is unwrapped before the concreteness check. Numbers, nested lists, other objects and anything else stay invalid.
+const SUGGESTION_WRAPPER_KEYS = ['sentence', 'text', 'suggestion', 'action'];
+function unwrapSuggestion(value: unknown): unknown {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const keys = Object.keys(value as Record<string, unknown>);
+    if (keys.length === 1 && SUGGESTION_WRAPPER_KEYS.includes(keys[0]) && typeof (value as Record<string, unknown>)[keys[0]] === 'string') return (value as Record<string, unknown>)[keys[0]];
+  }
+  return value;
+}
+
 function normalizeAdvisory(raw: Record<string, unknown>, requestId: string): PlanPreview {
-  if (raw.responseKind !== 'ADVISORY') return invalidPlan('The model response contains no plan steps and does not declare an advisory answer.', requestId);
+  if (raw.responseKind !== undefined && raw.responseKind !== 'ADVISORY') return invalidPlan('The model response contains no plan steps and labels itself as an action plan.', requestId);
   const goal = requireString(raw.goal, 'goal', requestId);
   const summary = requireString(raw.summary, 'summary', requestId);
-  const reasoningSummary = requireString(raw.reasoningSummary, 'reasoningSummary', requestId);
+  // metadata only (never shown as the answer): absent is kept empty rather than invented
+  const reasoningSummary = typeof raw.reasoningSummary === 'string' ? raw.reasoningSummary.trim() : '';
   if (summary.trim().length < 20) return invalidPlan('The advisory summary is too short to be an answer.', requestId);
   if (!Array.isArray(raw.suggestions) || raw.suggestions.length === 0 || raw.suggestions.length > 8) return invalidPlan('An advisory answer needs between 1 and 8 suggestions.', requestId);
-  if (!raw.suggestions.every(isConcreteSuggestion)) return invalidPlan('Every advisory suggestion must be a concrete next move.', requestId);
-  const suggestions = [...new Set(raw.suggestions.map((s) => (s as string).trim()))];
+  const candidates = raw.suggestions.map(unwrapSuggestion);
+  if (!candidates.every(isConcreteSuggestion)) return invalidPlan('Every advisory suggestion must be a concrete next move.', requestId);
+  const suggestions = [...new Set(candidates.map((s) => (s as string).trim()))];
   return { goal, summary, reasoningSummary, kind: 'ADVISORY', steps: [], suggestions };
 }
 
@@ -899,8 +913,15 @@ export class AiService {
             'Never invent concrete scheduling details (date, time, duration, title, attendees) that are not present in the user\'s request or already-confirmed conversation context. If a calendar-creation step is required but a concrete detail is missing, do not fabricate it — say so in reasoningSummary and/or ask for it via "suggestions" instead of guessing. This same rule applies to every step\'s "parameters" below: never invent a concrete argument value.',
             'Each step must declare "dependsOn": an array of the 1-based step numbers (from this same steps array) it strictly requires to have executed first, or [] when it has none. Only mark a real dependency (e.g. "send the invite" depending on "create the event"); never invent a dependency between unrelated steps.',
             'Every tool-backed step must include "parameters": an object containing only the concrete arguments that tool needs which are explicitly available from the user\'s current request or already-confirmed conversation context (for example timeMin/timeMax for a calendar free-slots check, or query for a Gmail search). Never invent a missing concrete value — if a needed argument is not actually available, leave it out of "parameters" and explain or ask for it via reasoningSummary/"suggestions" instead of guessing. A step with no real arguments (or no tool) may use an empty object.',
-            'Return JSON only with this exact shape:',
-            '{"goal":"string","summary":"string","reasoningSummary":"brief rationale without hidden chain-of-thought","suggestions":["string", ...],"steps":[{"title":"string","reasoning":"brief justification","skill":"string","tool":"string or null","requiresApproval":true,"necessity":"REQUIRED or OPTIONAL","dependsOn":[1,2],"parameters":{}}]}',
+            ...(advisoryAllowed ? [
+              'Return JSON only. This request asks for advice, so answer with the ADVISORY shape below. EVERY field is required - an advisory answer with a missing or malformed field is rejected:',
+              '{"responseKind":"ADVISORY","goal":"string","summary":"the briefing or answer itself, several sentences","reasoningSummary":"brief rationale without hidden chain-of-thought","suggestions":["a complete sentence that says exactly what to do","another complete sentence","..."],"steps":[]}',
+              'Every suggestion is a plain text sentence: do not number the suggestions, and do not wrap them in objects or nested lists (an array of sentences only). Use the ACTION_PLAN shape instead ONLY if something really has to be done with a tool:',
+              '{"responseKind":"ACTION_PLAN","goal":"string","summary":"string","reasoningSummary":"brief rationale without hidden chain-of-thought","suggestions":["string", ...],"steps":[{"title":"string","reasoning":"brief justification","skill":"string","tool":"string or null","requiresApproval":true,"necessity":"REQUIRED or OPTIONAL","dependsOn":[1,2],"parameters":{}}]}',
+            ] : [
+              'Return JSON only with this exact shape:',
+              '{"goal":"string","summary":"string","reasoningSummary":"brief rationale without hidden chain-of-thought","suggestions":["string", ...],"steps":[{"title":"string","reasoning":"brief justification","skill":"string","tool":"string or null","requiresApproval":true,"necessity":"REQUIRED or OPTIONAL","dependsOn":[1,2],"parameters":{}}]}',
+            ]),
             'Mark any consequential tool step as requiresApproval=true.',
             ...(advisoryAllowed ? [
               'ADVISORY ANSWER: this request asks only for advice, a briefing, a recommendation or an explanation, and nothing has to be done with a tool. Answer it directly: set "responseKind":"ADVISORY", return "steps":[] and put the briefing / answer itself in "summary".',

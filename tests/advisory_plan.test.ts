@@ -86,7 +86,7 @@ describe('an advisory answer is accepted only under every condition', () => {
     const result = await plan(svc, DEMO);                       // allowAdvisory not set
     assert.equal(result.data.kind, 'ACTION');
     assert.equal(result.data.steps.length, 1);
-    assert.deepEqual(seen.map((s) => s.p), ['nebius', 'gemini']);
+    assert.deepEqual(seen.map((s) => s.p), ['nebius', 'nebius', 'gemini']);
     const explicitFalse = service(() => nebiusOk(advice()), () => geminiOk(actionPlan));
     assert.equal((await plan(explicitFalse.svc, DEMO, false)).data.kind, 'ACTION');
   });
@@ -97,13 +97,13 @@ describe('an advisory answer is accepted only under every condition', () => {
       const result = await plan(svc, prompt, true);
       assert.equal(result.data.kind, 'ACTION', prompt);
       assert.equal(result.provider, 'gemini', `${prompt}: Nemotron's zero-step answer was refused and the fallback produced a real plan`);
-      assert.deepEqual(seen.map((s) => s.p), ['nebius', 'gemini']);
+      assert.deepEqual(seen.map((s) => s.p), ['nebius', 'nebius', 'gemini']);
     }
   });
 
   const rejected: Array<[string, Record<string, unknown>]> = [
-    ['no responseKind', { responseKind: undefined }],
     ['responseKind ACTION_PLAN with no steps', { responseKind: 'ACTION_PLAN' }],
+    ['an unknown responseKind', { responseKind: 'SOMETHING_ELSE' }],
     ['no suggestions', { suggestions: [] }],
     ['suggestions missing', { suggestions: undefined }],
     ['suggestions not an array', { suggestions: 'Open with the status of the approval flow.' }],
@@ -114,7 +114,6 @@ describe('an advisory answer is accepted only under every condition', () => {
     ['more than eight suggestions', { suggestions: Array.from({ length: 9 }, (_v, i) => `Concrete next move number ${i + 1} for the team to do.`) }],
     ['a summary too short to be an answer', { summary: 'Be ready.' }],
     ['no goal', { goal: '' }],
-    ['no reasoningSummary', { reasoningSummary: undefined }],
     ['steps present although declared ADVISORY', { steps: JSON.parse(actionPlan).steps }],
     ['steps not an array', { steps: 'none' }],
     ['steps missing', { steps: undefined }],
@@ -125,13 +124,36 @@ describe('an advisory answer is accepted only under every condition', () => {
       const result = await plan(svc, DEMO, true);
       assert.equal(result.provider, 'gemini', 'Nemotron\'s answer was invalid');
       assert.equal(result.data.kind, 'ACTION');
-      assert.deepEqual(seen.map((s) => s.p), ['nebius', 'gemini']);
+      assert.deepEqual(seen.map((s) => s.p), ['nebius', 'nebius', 'gemini']);
     });
   }
 
   it('with no provider able to answer validly the request FAILS (no empty or invented advice)', async () => {
     const { svc } = service(() => nebiusOk(advice({ suggestions: [] })));
     await assert.rejects(() => plan(svc, DEMO, true), (error: any) => error.code === 'ALL_MODEL_PROVIDERS_FAILED');
+  });
+
+  it('a missing responseKind or reasoningSummary does not matter: the request, the empty steps and the concrete suggestions decide (nothing is invented for the missing field)', async () => {
+    const { svc } = service(() => nebiusOk(advice({ responseKind: undefined, reasoningSummary: undefined })), () => geminiOk(actionPlan));
+    const result = await plan(svc, DEMO, true);
+    assert.equal(result.data.kind, 'ADVISORY');
+    assert.equal(result.provider, 'nebius');
+    assert.equal(result.data.reasoningSummary, '');
+  });
+
+  it('a suggestion wrapped as {"sentence"|"text"|"suggestion"|"action": "..."} is unwrapped; any other shape is still rejected', async () => {
+    const good = ['Open the review by stating where the approval flow stands today.', 'Ask the design lead which open item blocks the next milestone.'];
+    const wrapped = service(() => nebiusOk(advice({ suggestions: [{ sentence: good[0] }, { text: good[1] }] })));
+    const result = await plan(wrapped.svc, DEMO, true);
+    assert.deepEqual(result.data.suggestions, good);
+    assert.equal(result.provider, 'nebius');
+    for (const bad of [[{ text: good[0], extra: 1 }], [{ foo: good[0] }], [{ text: 42 }], [[good[0], good[1]]], [1, 2, 3, 4, 5], [1.1, 1.2], [{}], [null]]) {
+      const { svc, seen } = service(() => nebiusOk(advice({ suggestions: bad })), () => geminiOk(actionPlan));
+      const answered = await plan(svc, DEMO, true);
+      assert.equal(answered.provider, 'gemini', JSON.stringify(bad));
+      assert.equal(answered.data.kind, 'ACTION');
+      assert.deepEqual(seen.map((s) => s.p), ['nebius', 'nebius', 'gemini']);
+    }
   });
 
   it('duplicate suggestions are collapsed; Korean advice is accepted', async () => {
