@@ -74,11 +74,15 @@ async function step(name, taskKind, run, check) {
 }
 
 // The real paths. Each call goes through the production AiService method, so the TaskKind, JSON mode, validators and routing are the shipped ones.
+// NAGEX_CERT_REPEAT=n (1-10) repeats the five paths to measure how often Nemotron answers validly and how long it takes.
+const REPEAT = Math.min(10, Math.max(1, Number.parseInt(process.env.NAGEX_CERT_REPEAT ?? '1', 10) || 1));
+for (let round = 0; round < REPEAT; round++) {
 await step('conversation', 'CHAT', () => real.service.chat({ message: 'In two sentences, what does a personal AI need before it may send an email on my behalf?', mode: 'auto', requestId: 'cert_chat' }), (d) => typeof d.message === 'string' && d.message.trim().length > 20);
 await step('planning', 'PLAN', () => real.service.plan({ prompt: 'Prepare for tomorrow\'s project review and suggest the next action.', memories: [], mode: 'auto', requestId: 'cert_plan' }), (d) => d && Array.isArray(d.steps) && d.steps.length > 0);
 await step('research', 'RESEARCH_SYNTHESIS', () => real.service.research({ query: pack.query, evidencePack: pack, mode: 'auto', requestId: 'cert_research' }), (d) => typeof d.answer === 'string' && d.answer.trim().length > 20);
 await step('meeting-prep', 'MEETING_PREP', () => real.service.meetingPrep({ eventDigest: 'Project review, 10:00, with the design lead', emailsDigest: '', vaultDigest: '', memoryDigest: 'The project ships a hash-bound approval flow.', mode: 'auto', requestId: 'cert_meeting' }), (d) => d && Array.isArray(d.keyPoints) && d.keyPoints.length > 0 && Array.isArray(d.suggestedAgenda) && d.suggestedAgenda.length > 0);
 await step('document-draft', 'DOCUMENT_SYNTHESIS', () => real.service.documentSynthesis({ prompt: 'A one-page summary of why every external action needs a one-time approval.', documentKind: 'REPORT', locale: 'en', mode: 'auto', requestId: 'cert_doc' }), (d) => typeof d.title === 'string' && typeof d.content === 'string' && d.content.trim().length > 50);
+}
 
 // Control: a task that must NOT go to Nemotron keeps its own route (real call, answered by another provider).
 let control = 'NOT_RUN';
@@ -111,6 +115,9 @@ const usage = logs.filter((l) => l.event === 'model_request_succeeded' && l.fiel
 console.log(`nebius token counts (provider-reported): ${usage.join(' | ') || 'n/a'}`);
 console.log(`control (a non-Nemotron task keeps its route): ${control}`);
 console.log(`real fallback with audit: ${fallback}`);
-const allPass = rows.length === 5 && rows.every((r) => r.outcome === 'PASS');
+const byTask = {};
+for (const r of rows) { const e = (byTask[r.taskKind] ??= { n: 0, ok: 0, ms: [] }); e.n++; if (r.outcome === 'PASS') e.ok++; e.ms.push(r.latencyMs); }
+for (const [task, e] of Object.entries(byTask)) { const s = [...e.ms].sort((a, b) => a - b); console.log(`summary ${task}: ${e.ok}/${e.n} answered by Nemotron without fallback; latency min=${s[0]} median=${s[Math.floor(s.length / 2)]} max=${s[s.length - 1]} ms`); }
+const allPass = rows.length === 5 * REPEAT && rows.every((r) => r.outcome === 'PASS');
 console.log(`REAL_NEMOTRON_FIRST=${allPass ? 'PASS' : 'FAIL'}`);
 process.exit(allPass ? 0 : 1);
