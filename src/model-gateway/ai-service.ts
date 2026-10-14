@@ -5,6 +5,7 @@ import type { EvidencePack, EvidenceSource } from '../research/evidence-pack.typ
 import type { RoutingMode } from './model-provider.js';
 import { UnifiedModelRouter } from './unified-model-router.js';
 import { classifyPlanRequest, isConcreteSuggestion } from './plan-request-kind.js';
+import { detectRequestLanguage, languageInstruction } from '../common/request-language.js';
 import { normalizePresentationOutline, OUTLINE_LIMITS, type PresentationOutline } from './presentation-outline.js';
 
 export type PlanStepNecessity = 'REQUIRED' | 'OPTIONAL';
@@ -592,6 +593,7 @@ export class AiService {
     const requestId = input.requestId || `chat_${randomUUID()}`;
     const systemContent = [
       'You are NAgex, a personal AI assistant. Be concise and do not claim that tools were executed.',
+      languageInstruction(detectRequestLanguage(input.message)),
       input.memories && input.memories.length > 0
         ? `Relevant personal memory:\n${summarizeMemories(input.memories)}`
         : null,
@@ -730,6 +732,7 @@ export class AiService {
       'You are NAgex, an evidence-grounded research assistant.',
       'Always base your findings on the provided External Evidence Pack. Distinguish supported facts from inference. Acknowledge evidence gaps when evidence is insufficient.',
       'Never fabricate source URLs or publication dates. Refer to evidence source IDs in your answer.',
+      languageInstruction(detectRequestLanguage(input.query)),
       input.memories && input.memories.length > 0 ? `Relevant personal memory:\n${summarizeMemories(input.memories)}` : null,
       `External Evidence Pack (ID: ${input.evidencePack.evidencePackId}):\n${summarizeEvidencePack(input.evidencePack)}`,
     ]
@@ -928,6 +931,7 @@ export class AiService {
               'Put 2 to 6 concrete next moves in "suggestions": each one a complete, standalone sentence that says exactly what to do (never a placeholder, a fragment, or "next steps"). An advisory answer must never contain steps and must never imply that anything was executed.',
               'If the request actually needs something to be done with a tool, do not use ADVISORY: return the normal plan with "responseKind":"ACTION_PLAN" and at least one step.',
             ] : []),
+            languageInstruction(detectRequestLanguage(input.prompt)),
             ...this.userToolLines(input.identity),
           ].join('\n'),
         },

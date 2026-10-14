@@ -48,7 +48,12 @@ export const handleWorkspaceRoutes: AsyncRouteRegistrar<WorkspaceRouteDeps> = as
     const hasFile = Boolean(body?.hasFile);
     const hasAudio = Boolean(body?.hasAudio);
     const mimeType = typeof body?.mimeType === 'string' ? body.mimeType : undefined;
-    const classification = InputRouter.classify({ text, hasFile, hasAudio, mimeType });
+    // The optional shortcut the person picked (never required, never authority): it can only bias a plain request toward an artifact, see decideRouting().
+    const meta = body?.requestMetadata && typeof body.requestMetadata === 'object' ? body.requestMetadata as Record<string, unknown> : null;
+    const hint = meta
+      ? { artifactType: typeof meta.preferredArtifactType === 'string' ? meta.preferredArtifactType : null, capability: typeof meta.preferredCapability === 'string' ? meta.preferredCapability : null }
+      : null;
+    const classification = InputRouter.classify({ text, hasFile, hasAudio, mimeType, hint });
     return { status: 200, data: classification };
   }
 

@@ -250,7 +250,7 @@ describe('Workspace KR', () => {
     await page.waitForSelector('#workspace-add-note');
     assert.equal((await page.locator('#workspace-add-note').innerText()).trim(), '메모 추가');
     assert.equal((await page.locator('#workspace-upload').innerText()).trim(), '파일 업로드');
-    assert.equal((await page.locator('#workspace-open-vault').innerText()).trim(), 'Vault 열기');
+    assert.equal((await page.locator('#workspace-open-vault').innerText()).trim(), '보관함 열기');
     await page.click('#workspace-add-note');
     await page.fill('#workspace-note-input', 'Call the dentist on Friday at 3pm');
     await page.click('#workspace-note-save');

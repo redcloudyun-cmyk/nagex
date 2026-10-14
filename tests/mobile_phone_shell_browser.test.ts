@@ -59,7 +59,13 @@ test('phone shell: Main Home, one fitting header, bottom navigation and no horiz
         assert.deepEqual([...home.navTabs].sort(), [...PRIMARY].sort(), `${tag} home: bottom navigation items`);
         assert.ok(home.navRect && home.navRect[0] === 0 && home.navRect[1] === width, `${tag} home: bottom nav spans the viewport`);
         assert.ok(await page.locator('#main-surface-input').isVisible(), `${tag} home: the Main composer is visible`);
-        assert.ok(await page.locator('#main-home-briefing').isVisible(), `${tag} home: the briefing is visible`);
+        // One Input: the briefing is a quiet bar (My Day), collapsed by default, and opens on a 44px-high target
+        assert.equal(await page.locator('#main-home-briefing').isVisible(), false, `${tag} home: the briefing is collapsed by default`);
+        const myDay = await page.locator('#main-myday-toggle').boundingBox();
+        assert.ok(myDay && myDay.height >= 44 - 0.5, `${tag} home: My Day is a 44px touch target (${myDay?.height})`);
+        await page.locator('#main-myday-toggle').click();
+        assert.ok(await page.locator('#main-home-briefing').isVisible(), `${tag} home: the briefing opens`);
+        await page.locator('#main-myday-toggle').click();
         assert.equal(await page.locator('#mobile-app-shell').isVisible(), false, `${tag} home: the native shell stays hidden behind the Main surface`);
 
         // Recent: a non-native tab uses the responsive tree with the same bottom navigation and no empty sidebar column

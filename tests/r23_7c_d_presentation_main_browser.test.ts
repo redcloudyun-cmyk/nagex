@@ -66,6 +66,7 @@ test('Slides: enabled mode, truthful failure without a model, stored deck opens 
         const chip = page.locator('[data-main-mode="SLIDES"]');
         assert.equal(await chip.isDisabled(), false, `${tag}: Slides chip is enabled`);
         assert.notEqual(await chip.getAttribute('aria-disabled'), 'true');
+        await page.click('#main-shortcut-toggle');
         await chip.click();
         await page.fill('#main-surface-input', locale === 'ko' ? '분기 계획 발표 자료' : 'A deck for the quarterly plan');
         await page.click('#main-send');
@@ -123,8 +124,9 @@ test('Slides: enabled mode, truthful failure without a model, stored deck opens 
           : route.continue());
         await page.goto(`${h.origin}/#home`);
         await page.waitForSelector('#main-surface-input');
+        await page.click('#main-shortcut-toggle');
         await page.click('[data-main-mode="SLIDES"]');
-        await page.fill('#main-surface-input', locale === 'ko' ? '발표 자료 만들어줘' : 'Make a deck');
+        await page.fill('#main-surface-input', locale === 'ko' ? '로드맵 발표 자료 만들어줘' : 'Make a deck about the roadmap');
         await page.click('#main-send');
         await page.waitForSelector('#main-result-panel:not([hidden]) .main-deck-outline', { timeout: 20000 });
         const created = await page.evaluate(() => { const turns = document.querySelectorAll('.main-turn'); return ((turns[turns.length - 1] as any).innerText as string).replace(/\s+/g, ' '); });

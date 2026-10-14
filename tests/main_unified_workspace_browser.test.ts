@@ -86,6 +86,10 @@ describe('Unified Main workspace', () => {
       await stubRichHome(page);
       await openMain(page);
       assert.equal(await sessionState(page), 'EMPTY_HOME');
+      // One Input: the briefing is a quiet bar, collapsed by default; opening it must fit the first viewport without scrolling
+      assert.equal(await page.locator('#main-home-briefing').isVisible(), false, 'My Day is collapsed by default');
+      await page.click('#main-myday-toggle');
+      await page.waitForSelector('.main-briefing-card', { state: 'visible' });
       assert.deepEqual(await page.locator('.main-briefing-card h2').allTextContents(), ['Today', 'To-do', 'Since yesterday', 'Suggestions']);
       for (const id of ['today', 'todo', 'since', 'suggestions']) {
         assert.equal(await visibleInViewport(page, `[data-briefing-section="${id}"]`), true, `${id} card fully inside the ${width}x${height} viewport`);
@@ -93,7 +97,7 @@ describe('Unified Main workspace', () => {
       }
       assert.equal(await visibleInViewport(page, '#main-greeting'), true);
       const composer = await box(page, '.main-composer-card');
-      assert.ok(composer.height < 240, `the composer is compact (${Math.round(composer.height)}px) at ${width}x${height}`);
+      assert.ok(composer.height >= 100 && composer.height <= 125, `the composer is compact at rest, about 100-120px (${Math.round(composer.height)}px) at ${width}x${height}`);
       const scroll = await page.locator('main.center-canvas').evaluate((el: any) => ({ top: el.scrollTop, overflow: el.scrollHeight - el.clientHeight }));
       assert.equal(scroll.top, 0);
       assert.ok(scroll.overflow <= 1, `idle Home needs no scrolling at ${width}x${height} (overflow ${scroll.overflow})`);
@@ -200,7 +204,7 @@ describe('Unified Main workspace', () => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ approvalId: 'appr_task_1', status: 'APPROVED' }) });
     });
     await openMain(page);
-    await page.click('[data-main-mode="PLAN"]');
+    // no mode is chosen: "... and email the summary" is an action, so the words alone lead to the approval-gated plan
     await ask(page, 'Prepare the client meeting and email the summary');
     await page.waitForSelector('.main-turn[data-kind="task"] .main-approval-card', { timeout: 15000 });
 
@@ -226,7 +230,6 @@ describe('Unified Main workspace', () => {
       const page = await ctx.newPage();
       await page.route('**/api/v1/ambient/intent', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ plan: { ...plan, steps: [{ ...plan.steps[0], resolvedToolId: 'gmail.create_draft' }] } }) }));
       await openMain(page);
-      await page.click('[data-main-mode="PLAN"]');
       await ask(page, 'Prepare a draft for the client');
       await page.waitForSelector('.main-turn[data-kind="task"]', { timeout: 15000 });
       const stepText = () => page.locator('.main-turn .main-step-list').innerText();
@@ -287,9 +290,13 @@ describe('Unified Main workspace', () => {
     await page.click('#main-new-conversation');
     await page.waitForFunction(() => document.querySelector('#nagex-main-surface')?.dataset.sessionState === 'EMPTY_HOME');
     assert.equal(await page.locator('.main-hero-row').isVisible(), true);
-    assert.equal(await page.locator('#main-home-briefing').isVisible(), true);
-    assert.equal(await page.locator('#main-conversation-bar').isVisible(), false);
+    // the fresh Home is quiet: My Day is collapsed, available, and "New conversation" has nothing to start over from
+    assert.equal(await page.locator('#main-home-briefing').isVisible(), false);
+    assert.equal(await page.locator('#main-myday-toggle').isVisible(), true);
+    assert.equal(await page.locator('#main-new-conversation').isVisible(), false);
     assert.equal(await page.locator('.main-turn').count(), 0);
+    await page.click('#main-myday-toggle');
+    assert.equal(await page.locator('#main-home-briefing').isVisible(), true);
     assert.equal(await visibleInViewport(page, '[data-briefing-section="today"]'), true);
     await ctx.close();
   });
@@ -323,6 +330,8 @@ describe('Unified Main workspace', () => {
     await page.waitForFunction(() => document.querySelector('#nagex-main-surface')?.dataset.sessionState === 'EMPTY_HOME');
     await page.reload();
     await page.waitForFunction(() => document.querySelector('#nagex-main-surface')?.dataset.sessionState === 'EMPTY_HOME');
+    assert.equal(await page.locator('#main-home-briefing').isVisible(), false);
+    await page.click('#main-myday-toggle');
     assert.equal(await page.locator('#main-home-briefing').isVisible(), true);
     assert.equal(await page.locator('.main-turn').count(), 0);
     await ctx.close();
@@ -383,7 +392,6 @@ describe('Unified Main workspace', () => {
     await stubRichHome(page);
     await page.route('**/api/v1/ambient/intent', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ plan: PLAN }) }));
     await openMain(page);
-    await page.click('[data-main-mode="PLAN"]');
     await ask(page, 'Prepare the client meeting and email the summary');
     await page.waitForSelector('.main-turn[data-kind="task"]', { timeout: 15000 });
     return { ctx, page };
@@ -531,7 +539,6 @@ describe('Advisory answers in Main', () => {
       await stubRichHome(page);
       await page.route('**/api/v1/ambient/intent', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ADVICE) }));
       await openMain(page);
-      await page.click('[data-main-mode="PLAN"]');
       await ask(page, 'Prepare a concise briefing for tomorrow\'s meeting and suggest the next action');
       await page.waitForSelector('.main-turn[data-kind="answer"]', { timeout: 15000 });
       const text = await page.locator('.main-turn').innerText();

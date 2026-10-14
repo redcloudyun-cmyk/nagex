@@ -27,6 +27,12 @@ async function settled(page: Page, expected: 'EMPTY_HOME' | 'CONVERSATION' | 'RE
 }
 
 const briefingVisible = (page: Page) => page.locator('#main-home-briefing').isVisible();
+const myDayExpanded = async (page: Page) => (await page.locator('#main-myday-toggle').getAttribute('aria-expanded')) === 'true';
+// One Input: the briefing is a quiet bar ("My Day") that stays collapsed until the person opens it.
+async function openMyDay(page: Page): Promise<void> {
+  if (!(await myDayExpanded(page))) await page.click('#main-myday-toggle');
+  await page.waitForSelector('#main-home-briefing', { state: 'visible' });
+}
 const sectionText = (page: Page, id: 'today' | 'since' | 'suggestions') => page.locator(`#main-briefing-${id}`).innerText();
 
 async function stubChat(page: Page, bodies: any[], delayMs = 0): Promise<void> {
@@ -53,6 +59,12 @@ describe('Desktop Main — conditional Home briefing', () => {
     page.on('request', (request) => { if (request.url().includes('/api/v1/personal/home')) homeCalls += 1; });
     await openMain(page);
     await settled(page, 'EMPTY_HOME');
+    // One Input: the briefing is a quiet bar - collapsed by default, with the real toggle in place - and it opens on request
+    assert.equal(await briefingVisible(page), false);
+    assert.equal(await page.locator('#main-myday-toggle').isVisible(), true);
+    assert.equal(await myDayExpanded(page), false);
+    await openMyDay(page);
+    assert.equal(await myDayExpanded(page), true);
 
     assert.equal(await briefingVisible(page), true);
     assert.deepEqual(await page.locator('.main-briefing-card h2').allTextContents(), ['Today', 'To-do', 'Since yesterday', 'Suggestions']);
@@ -84,6 +96,7 @@ describe('Desktop Main — conditional Home briefing', () => {
     const page = await ctx.newPage();
     await openMain(page);
     await settled(page, 'EMPTY_HOME');
+    await openMyDay(page);
     await page.waitForFunction(() => document.querySelector('#main-home-briefing')?.dataset.state === 'ready');
     assert.deepEqual(await page.locator('.main-briefing-card h2').allTextContents(), ['오늘', '할 일', '어제 이후', '추천']);
     assert.match(await sectionText(page, 'since'), /분기 계획서/);
@@ -94,7 +107,7 @@ describe('Desktop Main — conditional Home briefing', () => {
     await ctx.close();
   });
 
-  it('B/C. a draft keeps the briefing; submitting hides it without deleting its data or re-fetching', async () => {
+  it('B/C. a draft keeps an open briefing; submitting collapses it without deleting its data or re-fetching', async () => {
     const user = h.user('briefing_flow');
     h.seedDocument(user, { title: 'Draft context doc', content: 'doc', at: iso(-1 * HOUR) });
     const ctx = await h.newContext('desktop', user, 'en');
@@ -106,6 +119,7 @@ describe('Desktop Main — conditional Home briefing', () => {
     await openMain(page);
     await settled(page, 'EMPTY_HOME');
     await page.waitForFunction(() => document.querySelector('#main-home-briefing')?.dataset.state === 'ready');
+    await openMyDay(page);
 
     // focusing and typing do not hide it, and the draft is untouched
     await page.click('#main-surface-input');
@@ -152,23 +166,27 @@ describe('Desktop Main — conditional Home briefing', () => {
     assert.match(await page.locator('#main-request-text').textContent() || '', /이전 질문/);
     assert.match(await page.locator('#main-work-summary').textContent() || '', /이전 답변/);
 
-    // start a fresh empty Home: the briefing returns, the server history is untouched
+    // start a fresh empty Home: it is quiet again (My Day collapsed, one click opens the briefing), the server history is untouched
     await page.click('#main-new-conversation');
     await settled(page, 'EMPTY_HOME');
+    assert.equal(await briefingVisible(page), false);
+    await openMyDay(page);
     assert.equal(await briefingVisible(page), true);
     assert.deepEqual(methods.filter((method) => method !== 'GET'), []);
     assert.equal(messages.length, 2);
 
-    // an artifact result hides it again, without any overlay on the conversation
+    // an artifact result gives the room to the result, without any overlay on the conversation
     const opened = await page.evaluate((artifactId: string) => window.NAGEX_MAIN_SURFACE.openArtifactResult(artifactId), seeded.artifactId);
     assert.equal(opened, true);
     await settled(page, 'RESULT');
     assert.equal(await briefingVisible(page), false);
     assert.equal(await page.locator('[role="dialog"]:visible').count(), 0);
 
-    // closing the result returns to the empty Home
+    // closing the result returns to the empty Home, with My Day available
     await page.click('#main-result-close');
     await settled(page, 'EMPTY_HOME');
+    assert.equal(await page.locator('#main-myday-toggle').isVisible(), true);
+    await openMyDay(page);
     assert.equal(await briefingVisible(page), true);
     await ctx.close();
   });
@@ -182,9 +200,11 @@ describe('Desktop Main — conditional Home briefing', () => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ session: { sessionId: 'ses_main', type: 'MAIN' }, messages }) });
     });
 
-    // 1. empty server session -> empty Home restored -> visible
+    // 1. empty server session -> empty Home restored -> briefing available behind My Day
     await openMain(page);
     await settled(page, 'EMPTY_HOME');
+    assert.equal(await briefingVisible(page), false);
+    await openMyDay(page);
     assert.equal(await briefingVisible(page), true);
 
     // 2. a conversation exists -> refresh restores it -> hidden
@@ -202,6 +222,8 @@ describe('Desktop Main — conditional Home briefing', () => {
     await page.reload();
     await page.waitForSelector('#nagex-main-surface');
     await settled(page, 'EMPTY_HOME');
+    assert.equal(await page.locator('#main-myday-toggle').isVisible(), true);
+    await openMyDay(page);
     assert.equal(await briefingVisible(page), true);
     assert.equal(messages.length, 2);
 
@@ -228,6 +250,7 @@ describe('Desktop Main — conditional Home briefing', () => {
     await page.route('**/api/v1/conversations/main', async (route) => { await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: { code: 'SESSION_UNAVAILABLE' } }) }); });
     await openMain(page);
     await settled(page, 'EMPTY_HOME'); // the session could not be read, so Main does not pretend a conversation exists
+    await openMyDay(page);
     await page.waitForFunction(() => document.querySelector('#main-home-briefing')?.dataset.state === 'error');
     assert.equal(await briefingVisible(page), true);
     for (const id of ['today', 'since', 'suggestions'] as const) assert.match(await sectionText(page, id), /I couldn't load your briefing/);
@@ -254,6 +277,7 @@ describe('Desktop Main — conditional Home briefing', () => {
     page.on('request', (request) => { if (request.method() === 'POST') posts.push(request.url()); });
     await openMain(page);
     await settled(page, 'EMPTY_HOME');
+    await openMyDay(page);
     await page.waitForSelector('.main-briefing-suggestion');
     assert.match(await sectionText(page, 'suggestions'), /Needs your approval/);
     await page.fill('#main-surface-input', '내 초안');
@@ -346,6 +370,7 @@ describe('Desktop Main — conditional Home briefing', () => {
     await stubGeneratedBriefing(page);
     await openMain(page);
     await settled(page, 'EMPTY_HOME');
+    await openMyDay(page);
     await page.waitForFunction(() => document.querySelector('#main-home-briefing')?.dataset.state === 'ready');
 
     assert.equal((await page.locator('#main-attach').innerText()).trim(), '첨부');
@@ -353,9 +378,13 @@ describe('Desktop Main — conditional Home briefing', () => {
     assert.equal((await page.locator('#main-data-toggle').innerText()).trim(), '내 데이터');
     assert.equal((await page.locator('#main-plan-toggle').innerText()).trim(), '실행 전에 계획 보여 주기');
     assert.equal((await page.locator('#main-voice').innerText()).trim(), '음성');
-    assert.equal((await page.locator('#main-voice-status').innerText()).trim(), '대기 중');
+    assert.equal((await page.locator('#main-voice-status').textContent() || '').trim(), '대기 중');
     assert.match((await page.locator('#main-surface-input').getAttribute('placeholder')) || '', /조사|제작|계획|실행/);
-    assert.deepEqual((await page.locator('.main-mode-chip').allInnerTexts()).map((s) => s.trim()), ['질문', '리서치', '문서', '계획', '이미지', '슬라이드', '영상', '코드', '더보기']);
+    // the optional shortcuts live under the compact + menu; the top level has no mode chips
+    assert.equal(await page.locator('#main-mode-row').isVisible(), false);
+    await page.click('#main-shortcut-toggle');
+    assert.deepEqual((await page.locator('.main-mode-chip > span').allInnerTexts()).map((s) => s.trim()), ['리서치', '문서', '이미지', '슬라이드', '영상', '코드', '할 수 있는 일']);
+    await page.keyboard.press('Escape');
     assert.equal((await page.locator('#main-send').getAttribute('aria-label')), '요청 보내기');
     // app-shell chrome that is visible on the Main screen
     assert.match((await page.locator('#btn-header-search').innerText()).trim(), /검색/);
@@ -386,19 +415,24 @@ describe('Desktop Main — conditional Home briefing', () => {
     await stubGeneratedBriefing(page);
     await openMain(page);
     await settled(page, 'EMPTY_HOME');
+    await openMyDay(page);
     await page.waitForFunction(() => document.querySelector('#main-home-briefing')?.dataset.state === 'ready');
 
     assert.equal((await page.locator('#main-attach').innerText()).trim(), 'Attach');
-    assert.equal((await page.locator('#main-voice-status').innerText()).trim(), 'Idle');
-    assert.deepEqual((await page.locator('.main-mode-chip').allInnerTexts()).map((s) => s.trim()), ['Ask', 'Research', 'Document', 'Plan', 'Image', 'Slides', 'Video', 'Code', 'More']);
+    assert.equal((await page.locator('#main-voice-status').textContent() || '').trim(), 'Idle');
+    await page.click('#main-shortcut-toggle');
+    assert.deepEqual((await page.locator('.main-mode-chip > span').allInnerTexts()).map((s) => s.trim()), ['Research', 'Document', 'Image', 'Slides', 'Video', 'Code', 'What NAgex can do']);
+    await page.keyboard.press('Escape');
     assert.match(await sectionText(page, 'today'), /Approval Required: Send email/);
     assert.match(await sectionText(page, 'since'), /Daily Brief generated/);
     assert.match(await sectionText(page, 'suggestions'), /Your meeting starts in 15 minutes and I found 2 related items\./);
 
     await page.evaluate(() => window.NAGEX_I18N.setLocale('ko'));
     await page.waitForFunction(() => document.querySelector('#main-attach')?.textContent?.trim() === '첨부');
-    assert.deepEqual((await page.locator('.main-mode-chip').allInnerTexts()).map((s) => s.trim()), ['질문', '리서치', '문서', '계획', '이미지', '슬라이드', '영상', '코드', '더보기']);
-    assert.equal((await page.locator('#main-voice-status').innerText()).trim(), '대기 중');
+    await page.click('#main-shortcut-toggle');
+    assert.deepEqual((await page.locator('.main-mode-chip > span').allInnerTexts()).map((s) => s.trim()), ['리서치', '문서', '이미지', '슬라이드', '영상', '코드', '할 수 있는 일']);
+    await page.keyboard.press('Escape');
+    assert.equal((await page.locator('#main-voice-status').textContent() || '').trim(), '대기 중');
     assert.match(await sectionText(page, 'since'), /데일리 브리프를 만들었어요/);
     await page.evaluate(() => window.NAGEX_I18N.setLocale('en'));
     await page.waitForFunction(() => document.querySelector('#main-attach')?.textContent?.trim() === 'Attach');
@@ -445,6 +479,7 @@ describe('Desktop Main — conditional Home briefing', () => {
         await stubCalendarState(page, calendarConnection(c.state, c.reason, c.extra));
         await openMain(page);
         await settled(page, 'EMPTY_HOME');
+        await openMyDay(page);
         await page.waitForFunction(() => document.querySelector('#main-home-briefing')?.dataset.state === 'ready');
         const today = await sectionText(page, 'today');
         assert.match(today, locale === 'en' ? c.en : c.ko, `${locale} ${c.state}/${c.reason}`);
@@ -465,6 +500,7 @@ describe('Desktop Main — conditional Home briefing', () => {
     await stubCalendarState(page, calendarConnection('NOT_CONNECTED', 'NO_CONNECTION', { connectPath: '/api/v1/oauth/google/start' }), counter);
     await openMain(page);
     await settled(page, 'EMPTY_HOME');
+    await openMyDay(page);
     await page.waitForSelector('#main-briefing-today .main-calendar-action');
     const [request] = await Promise.all([
       page.waitForRequest((r) => r.url().includes('/api/v1/oauth/google/start'), { timeout: 15000 }),
@@ -479,6 +515,7 @@ describe('Desktop Main — conditional Home briefing', () => {
     await stubCalendarState(page2, calendarConnection('ERROR', 'PROVIDER_TIMEOUT', { retryable: true }), counter2);
     await openMain(page2);
     await settled(page2, 'EMPTY_HOME');
+    await openMyDay(page2);
     await page2.waitForSelector('#main-briefing-today .main-calendar-action');
     const before = counter2.n;
     await page2.click('#main-briefing-today .main-calendar-action');
@@ -511,6 +548,7 @@ describe('Desktop Main — conditional Home briefing', () => {
       const ownerPage = await ownerCtx.newPage();
       await openMain(ownerPage);
       await settled(ownerPage, 'EMPTY_HOME');
+      await openMyDay(ownerPage);
       await ownerPage.waitForFunction(() => document.querySelector('#main-home-briefing')?.dataset.state === 'ready');
       await ownerPage.waitForFunction(() => /Quarterly design review/.test(document.querySelector('#main-briefing-today')?.textContent || ''), undefined, { timeout: 15000 });
       assert.equal(await ownerPage.locator('#main-briefing-today .main-calendar-state').count(), 0, 'a verified CONNECTED calendar shows no warning');
@@ -522,6 +560,7 @@ describe('Desktop Main — conditional Home briefing', () => {
       const strangerPage = await strangerCtx.newPage();
       await openMain(strangerPage);
       await settled(strangerPage, 'EMPTY_HOME');
+      await openMyDay(strangerPage);
       await strangerPage.waitForFunction(() => document.querySelector('#main-home-briefing')?.dataset.state === 'ready');
       assert.doesNotMatch(await sectionText(strangerPage, 'today'), /Quarterly design review/);
       assert.equal(tokens.length, callsBefore, 'the other user never triggers a Google call with the owner\'s token');
@@ -540,6 +579,7 @@ describe('Desktop Main — conditional Home briefing', () => {
     const page = await ctx.newPage();
     await openMain(page);
     await settled(page, 'EMPTY_HOME');
+    await openMyDay(page);
     await page.waitForFunction(() => document.querySelector('#main-home-briefing')?.dataset.state === 'ready');
     for (const width of [1440, 1100, 900]) {
       await page.setViewportSize({ width, height: 900 });

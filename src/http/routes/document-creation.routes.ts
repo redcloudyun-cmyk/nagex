@@ -3,6 +3,7 @@ import type { DocumentExecutor } from '../../creation/executors/document-executo
 import type { DocumentStore } from '../../creation/document.store.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
 import { NagexError } from '../../common/errors.js';
+import { detectRequestLanguage } from '../../common/request-language.js';
 import { callerIdentity, tryGetCallerIdentity } from '../request-identity.js';
 
 export interface DocumentCreationRouteDeps {
@@ -43,7 +44,8 @@ export const handleDocumentCreationRoutes: AsyncRouteRegistrar<DocumentCreationR
       };
     }
 
-    const locale = body?.locale === 'ko' ? 'ko' : 'en';
+    // an explicit locale wins; otherwise the document follows the language the person wrote the request in (a Korean request gets a Korean document)
+    const locale = body?.locale === 'ko' || body?.locale === 'en' ? body.locale : (detectRequestLanguage(prompt) === 'ko' ? 'ko' : 'en');
     const result = await creationRuntime.create({
       creationKind: 'DOCUMENT',
       prompt,
@@ -91,7 +93,7 @@ export const handleDocumentCreationRoutes: AsyncRouteRegistrar<DocumentCreationR
       tenantId,
       ownerId: principalId,
       requestId,
-      locale: body?.locale === 'ko' ? 'ko' : undefined,
+      locale: body?.locale === 'ko' || detectRequestLanguage(instruction) === 'ko' ? 'ko' : undefined,
       routingMode: body?.routingMode,
     });
 

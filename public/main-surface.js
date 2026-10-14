@@ -1,20 +1,24 @@
 (function () {
   'use strict';
 
+  // One Input: the person never has to pick a mode - NAgex decides from the words (server-owned routing decision, see dispatchMainRequest).
+  // These are OPTIONAL shortcuts under the "+" menu. A shortcut only biases the artifact format of a plain request for ONE request; it can never override an
+  // action (which stays an approval-gated plan) or an unsupported kind.
+  const AUTO_MODE = { id: 'AUTO', label: 'Auto', capability: null, artifactType: null, enabled: true, support: 'FULL' };
   const MODES = [
-    { id: 'ASK', label: 'Ask', capability: 'ASK', enabled: true, support: 'FULL', route: '/api/v1/ai/chat' },
     { id: 'RESEARCH', label: 'Research', capability: 'RESEARCH', enabled: true, support: 'FULL', route: '/api/v1/research' },
     { id: 'DOCUMENT', label: 'Document', artifactType: 'DOCUMENT', enabled: true, support: 'FULL', route: '/api/v1/creations/documents' },
-    { id: 'PLAN', label: 'Plan', capability: 'PLAN', enabled: true, support: 'PARTIAL', route: '/api/v1/ambient/intent' },
     { id: 'IMAGE', label: 'Image', artifactType: 'IMAGE', enabled: true, support: 'FULL', route: '/api/v1/creations/generate' },
     { id: 'SLIDES', label: 'Slides', artifactType: 'PRESENTATION', enabled: true, support: 'PARTIAL', route: '/api/v1/creations/presentations' },
     { id: 'VIDEO', label: 'Video', artifactType: 'VIDEO', enabled: false, support: 'MISSING', reason: 'Video provider experiments exist, but no consumer-safe Main generation route is enabled yet.' },
     { id: 'CODE', label: 'Code', capability: 'CODE', enabled: false, support: 'MISSING', reason: 'No canonical code artifact runtime is enabled in Main yet.' },
-    { id: 'MORE', label: 'More', capability: 'CAPABILITY_AUDIT', enabled: true, support: 'PARTIAL', route: 'inline capability matrix' },
+    { id: 'MORE', label: 'What NAgex can do', capability: 'CAPABILITY_AUDIT', enabled: true, support: 'PARTIAL', route: 'inline capability matrix' },
   ];
 
   const state = {
-    mode: 'ASK',
+    mode: 'AUTO',
+    shortcutsOpen: false,
+    lastContext: '',
     web: true,
     personalContext: false,
     planPreview: true,
@@ -44,8 +48,19 @@
       .replace(/'/g, '&#39;');
   }
 
+  // The language the person wrote in decides the language of what NAgex writes back (never the screen language, never an automatic translation).
+  // Mirrors the server's detectRequestLanguage(): Korean as soon as Hangul is a meaningful part of the letters; the screen language only when the text has no letters.
+  function requestLocale(text) {
+    const value = String(text || '');
+    const hangul = (value.match(/[ㄱ-ㆎ가-힣]/g) || []).length;
+    const latin = (value.match(/[A-Za-z]/g) || []).length;
+    if (hangul > 0 && hangul / (hangul + latin) >= 0.25) return 'ko';
+    if (latin > 0) return 'en';
+    return (window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale()) === 'ko' ? 'ko' : 'en';
+  }
+
   function requestMetadata() {
-    const mode = MODES.find((m) => m.id === state.mode) || MODES[0];
+    const mode = MODES.find((m) => m.id === state.mode) || AUTO_MODE;
     return {
       preferredMode: mode.id,
       preferredCapability: mode.capability || null,
@@ -75,12 +90,19 @@
             <p class="main-quote">"<span data-i18n="mainText.Small_steps_every_day_create_a_bigger_tomorrow">Small steps every day create a bigger tomorrow.</span>"</p>
           </div>
           <section class="main-composer-card" aria-label="Main NAgex request composer" data-i18n-aria-label="mainText.Main_NAgex_request_composer">
-            <div class="main-mode-row" id="main-mode-row"></div>
             <div class="main-input-wrap">
-              <textarea id="main-surface-input" placeholder="Ask NAgex to research, create, plan, or act..." data-i18n-placeholder="mainText.Ask_NAgex_to_research_create_plan_or_act"></textarea>
+              <textarea id="main-surface-input" rows="1" placeholder="Ask NAgex to research, create, plan, or act..." data-i18n-placeholder="mainText.Ask_NAgex_to_research_create_plan_or_act"></textarea>
               <div class="main-attachment-list" id="main-attachment-list"></div>
+              <div class="main-shortcut-chip" id="main-shortcut-chip" hidden>
+                <span id="main-shortcut-chip-label"></span>
+                <button type="button" class="main-shortcut-clear" id="main-shortcut-clear" aria-label="Remove shortcut">x</button>
+              </div>
               <div class="main-composer-footer">
                 <div class="main-left-tools">
+                  <div class="main-shortcut-wrap">
+                    <button type="button" class="main-tool-btn main-shortcut-toggle" id="main-shortcut-toggle" aria-haspopup="menu" aria-expanded="false" aria-controls="main-mode-row" aria-label="Shortcuts" title="Shortcuts">+</button>
+                    <div class="main-mode-row" id="main-mode-row" role="menu" hidden></div>
+                  </div>
                   <button type="button" class="main-tool-btn" id="main-attach" data-i18n="mainText.Attach">Attach</button>
                   <input type="file" id="main-file-input" hidden>
                   <button type="button" class="main-tool-btn main-toggle" id="main-web-toggle" aria-pressed="true" data-i18n="mainText.Web">Web</button>
@@ -104,9 +126,9 @@
               <div class="main-composer-notice" id="main-composer-notice" role="status" aria-live="polite" hidden></div>
             </div>
           </section>
-          <div class="main-conversation-bar" id="main-conversation-bar" hidden>
+          <div class="main-conversation-bar" id="main-conversation-bar">
             <button type="button" class="main-tool-btn main-myday-toggle" id="main-myday-toggle" aria-expanded="false" aria-controls="main-home-briefing">My Day</button>
-            <button type="button" class="main-tool-btn" id="main-new-conversation">New conversation</button>
+            <button type="button" class="main-tool-btn" id="main-new-conversation" hidden>New conversation</button>
           </div>
           <section class="main-home-briefing" id="main-home-briefing" aria-label="Personal briefing" data-state="idle" hidden>
             <div class="main-briefing-grid">
@@ -147,16 +169,49 @@
     `;
   }
 
+  // The optional shortcuts live in a compact "+" menu. Nothing here is required: a plain request is routed by what it says.
+  function modeLabel(mode) {
+    return mode.id === 'MORE' ? bt('mainRoute.capabilities', 'What NAgex can do') : mt(mode.label);
+  }
+
   function renderModes() {
     const row = document.getElementById('main-mode-row');
     if (!row) return;
-    row.setAttribute('role', 'toolbar');
-    row.setAttribute('aria-label', mt('Main execution modes'));
+    row.setAttribute('role', 'menu');
+    row.setAttribute('aria-label', bt('mainRoute.shortcutsLabel', 'Optional shortcuts'));
     row.innerHTML = MODES.map((mode) => `
-      <button type="button" class="main-mode-chip" data-main-mode="${esc(mode.id)}" data-support="${esc(mode.support)}" aria-pressed="${mode.id === state.mode ? 'true' : 'false'}" aria-disabled="${mode.enabled ? 'false' : 'true'}" ${mode.enabled ? '' : 'disabled title="' + esc(mt(mode.reason)) + '"'}>
-        ${esc(mt(mode.label))}
+      <button type="button" role="menuitem" class="main-mode-chip" data-main-mode="${esc(mode.id)}" data-support="${esc(mode.support)}" aria-checked="${mode.id === state.mode ? 'true' : 'false'}" aria-disabled="${mode.enabled ? 'false' : 'true'}" ${mode.enabled ? '' : 'disabled title="' + esc(bt('mainRoute.shortcutUnavailable', 'Not available yet') + ' - ' + mt(mode.reason)) + '"'}>
+        <span>${esc(modeLabel(mode))}</span>${mode.enabled ? '' : '<small>' + esc(bt('mainRoute.shortcutUnavailable', 'Not available yet')) + '</small>'}
       </button>
     `).join('');
+    const toggle = document.getElementById('main-shortcut-toggle');
+    if (toggle) {
+      const label = bt('mainRoute.shortcutsLabel', 'Optional shortcuts');
+      toggle.setAttribute('aria-label', label);
+      toggle.title = label;
+      toggle.setAttribute('aria-expanded', String(state.shortcutsOpen));
+    }
+    row.hidden = !state.shortcutsOpen;
+    const chip = document.getElementById('main-shortcut-chip');
+    const active = MODES.find((m) => m.id === state.mode);
+    if (chip) {
+      chip.hidden = !active;
+      const text = document.getElementById('main-shortcut-chip-label');
+      if (text) text.textContent = active ? modeLabel(active) : '';
+      const clear = document.getElementById('main-shortcut-clear');
+      if (clear) clear.setAttribute('aria-label', bt('mainRoute.shortcutRemove', 'Remove shortcut'));
+    }
+  }
+
+  function setShortcutsOpen(open, returnFocus) {
+    state.shortcutsOpen = Boolean(open);
+    renderModes();
+    if (state.shortcutsOpen) {
+      const first = document.querySelector('#main-mode-row [data-main-mode]:not([disabled])');
+      if (first) first.focus();
+    } else if (returnFocus) {
+      document.getElementById('main-shortcut-toggle')?.focus();
+    }
   }
 
   // ── Safe Markdown ─────────────────────────────────────────────────────────────────────────────────────────
@@ -472,9 +527,11 @@
   function renderRun(turn, taskId, run, note) {
     const block = runBlockFor(turn);
     const status = run && run.status ? run.status : 'RUNNING';
-    block.dataset.runState = status;
-    block.querySelector('.main-run-state').textContent = mt(RUN_STATE_LABELS[status] || status);
     const result = run && run.result && typeof run.result === 'object' ? run.result : {};
+    // A run that only produced a reviewable plan (no step executed, nothing sent or changed) is NOT "completed": it is said to be a reviewed plan.
+    const planOnly = status === 'SUCCEEDED' && result.kind === 'PLAN_PREVIEW';
+    block.dataset.runState = planOnly ? 'PLAN_ONLY' : status;
+    block.querySelector('.main-run-state').textContent = planOnly ? bt('mainRoute.planOnlyState', 'Plan reviewed') : mt(RUN_STATE_LABELS[status] || status);
     const steps = [];
     (Array.isArray(result.steps) ? result.steps : Array.isArray(result.completedSteps) ? result.completedSteps : []).forEach((s) => {
       steps.push({ state: s.status === 'SUCCEEDED' || s.status === 'COMPLETED' ? 'done' : 'running', label: mt('Step') + ' ' + s.step + ' - ' + friendlyToolName(s.capabilityId || ''), detail: s.status === 'SUCCEEDED' || s.status === 'COMPLETED' ? '' : String(s.status || '') });
@@ -485,6 +542,7 @@
     const noteEl = block.querySelector('.main-run-note');
     let text = note || '';
     if (!text && status === 'FAILED') text = mt("NAgex couldn't complete this plan.");
+    if (!text && planOnly) text = bt('mainRoute.planOnlyNote', "Nothing was executed. NAgex can't run this plan automatically yet - it stays a plan for you to carry out or approve step by step.");
     if (!text && status === 'SUCCEEDED') text = mt('The plan finished.');
     if (!text && status === 'CANCELLED') text = mt('The plan was cancelled.');
     noteEl.textContent = text;
@@ -677,8 +735,16 @@
     hideResult();
     state.activeTurn = null;
     const metadata = requestMetadata();
+    // an optional shortcut applies to exactly ONE request: the next plain request is routed by its words again
+    const armed = MODES.find((m) => m.id === state.mode);
+    state.mode = 'AUTO';
+    state.shortcutsOpen = false;
+    renderModes();
+    // working on a request gives the stream the room: My Day closes (one click reopens it, without touching the conversation or the draft)
+    state.myDayOpen = false;
+    syncBriefingVisibility();
     showThread(prompt, 'Submitting', 'NAgex is starting from Main.', 'Your request is being classified before any execution path is chosen.', [
-      { state: 'done', label: 'Request captured', detail: metadata.preferredMode },
+      { state: 'done', label: 'Request captured', detail: armed ? modeLabel(armed) : '' },
       { state: 'running', label: 'Classify intent', detail: metadata.allowWebResearch ? 'Web allowed' : 'Web off' },
       { state: 'pending', label: 'Prepare result', detail: '' },
     ]);
@@ -722,36 +788,180 @@
       ]);
       return;
     }
-    const routeDetail = [route.primaryIntent, route.confidence != null ? Math.round(Number(route.confidence) * 100) + '%' : ''].filter(Boolean).join(' - ');
+    const decision = routingDecisionOf(route, metadata);
     const steps = [
-      { state: 'done', label: 'Request captured', detail: metadata.preferredMode },
-      { state: 'done', label: 'Intent classified', detail: routeDetail },
+      { state: 'done', label: 'Request captured', detail: '' },
+      { state: 'done', label: 'Intent classified', detail: routeLabel(decision) },
       { state: 'running', label: 'Run selected path', detail: route.reason || '' },
     ];
     setStep(steps);
 
-    if (route.primaryIntent === 'LINK_CAPTURE' || route.primaryIntent === 'CAPTURE') {
+    if (decision.kind === 'CAPTURE') {
       await captureInput(prompt, route);
       return;
     }
 
-    if (state.revisionTarget && metadata.preferredArtifactType === 'DOCUMENT') {
+    // "Revise" was pressed on a document: the next request is its instruction. Only an action or something unavailable is kept out of that path.
+    if (state.revisionTarget && decision.kind !== 'ACTION_PLAN' && decision.kind !== 'UNSUPPORTED' && decision.kind !== 'CLARIFY') {
       await reviseDocument(prompt, metadata, state.revisionTarget);
-    } else if (metadata.preferredArtifactType === 'DOCUMENT') {
-      await createDocument(prompt, metadata);
-    } else if (metadata.preferredArtifactType === 'IMAGE') {
-      await createImage(prompt, metadata);
-    } else if (metadata.preferredArtifactType === 'PRESENTATION') {
-      await createPresentation(prompt, metadata);
-    } else if (metadata.preferredCapability === 'RESEARCH') {
-      await runResearch(prompt, metadata);
-    } else if (metadata.preferredCapability === 'PLAN' || route.primaryIntent === 'COMMAND') {
-      await runPlan(prompt, metadata, route);
-    } else if (metadata.preferredCapability === 'CAPABILITY_AUDIT') {
-      showModeCapabilityMatrix(prompt);
-    } else {
-      await runAnswer(prompt, metadata, route);
+      return;
     }
+
+    // The server decided WHICH existing path serves the request. Each path below is the unchanged route with its own rights and its own approval:
+    // an action is only ever a plan that waits for the person's approval; what NAgex cannot do is said plainly; nothing falls through to a chat answer
+    // that pretends to be the deliverable.
+    switch (decision.kind) {
+      case 'CLARIFY':
+        showClarification(prompt, decision);
+        return;
+      case 'UNSUPPORTED':
+        showUnsupported(prompt, decision);
+        return;
+      case 'ACTION_PLAN':
+      case 'ADVICE':
+        await runPlan(prompt, metadata, route);
+        return;
+      case 'RESEARCH':
+        await runResearch(prompt, metadata);
+        return;
+      case 'CREATE_ARTIFACT':
+        await runCreation(prompt, metadata, decision);
+        return;
+      default:
+        await runAnswer(prompt, metadata, route);
+    }
+  }
+
+  // The routing decision is owned by the server. A server that only answers with the legacy intent is read the safe way: a plan that needs approval, or a plain answer.
+  function routingDecisionOf(route, metadata) {
+    if (route && route.decision && typeof route.decision.kind === 'string') return route.decision;
+    const legacy = route && route.primaryIntent;
+    const kind = legacy === 'COMMAND' ? 'ACTION_PLAN' : legacy === 'LINK_CAPTURE' || legacy === 'CAPTURE' ? 'CAPTURE' : 'CONVERSATION';
+    return {
+      version: 1, kind, targetArtifactType: null, needs: [], compound: false, supported: true, language: requestLocale(''),
+      confidence: route && typeof route.confidence === 'number' ? route.confidence : 0,
+      ambiguity: { level: 'NONE', reason: null, clarifyingQuestion: null }, permissionRisk: 'NONE', destructive: false, executionNegated: false, reasonCodes: ['LEGACY_ROUTE'],
+    };
+  }
+
+  function routeLabel(decision) {
+    const labels = {
+      CONVERSATION: bt('mainRoute.kind.answer', 'Answer'),
+      ADVICE: bt('mainRoute.kind.advice', 'Advice'),
+      RESEARCH: bt('mainRoute.kind.research', 'Research with sources'),
+      ACTION_PLAN: bt('mainRoute.kind.action', 'Plan for your approval'),
+      CAPTURE: bt('mainRoute.kind.capture', 'Save'),
+      UNSUPPORTED: bt('mainRoute.kind.unsupported', 'Not available yet'),
+      CLARIFY: bt('mainRoute.kind.clarify', 'Needs one detail'),
+    };
+    if (decision.kind === 'CREATE_ARTIFACT') {
+      const artifact = { DOCUMENT: mt('Document'), PRESENTATION: mt('Slides'), IMAGE: mt('Image') }[decision.targetArtifactType] || mt('Document');
+      const research = (decision.needs || []).some((n) => n.capability === 'RESEARCH');
+      return research ? bt('mainRoute.kind.researchThenCreate', 'Research, then {artifact}').replace('{artifact}', artifact) : bt('mainRoute.kind.create', 'Create {artifact}').replace('{artifact}', artifact);
+    }
+    return labels[decision.kind] || '';
+  }
+
+  function putBackInComposer(prompt) {
+    const input = document.getElementById('main-surface-input');
+    if (input && !input.value) input.value = prompt;
+    focusComposer('');
+  }
+
+  // One minimal question, no side effect: nothing was started, nothing was spent.
+  function showClarification(prompt, decision) {
+    const question = decision.ambiguity && decision.ambiguity.clarifyingQuestion;
+    const text = question ? (decision.language === 'ko' ? question.ko : question.en) : bt('mainRoute.clarifyBody', 'Tell me a little more about what you want.');
+    showThread(prompt, 'Ready', bt('mainRoute.clarifyTitle', 'One quick question'), text, [
+      { state: 'done', label: 'Request captured', detail: '' },
+      { state: 'done', label: 'Intent classified', detail: routeLabel(decision) },
+      { state: 'running', label: bt('mainRoute.waitingForDetail', 'Waiting for your answer'), detail: '' },
+    ]);
+    renderInlineActions([{ id: 'edit', label: bt('mainRoute.editRequest', 'Edit request'), action: () => putBackInComposer(prompt) }]);
+  }
+
+  // What NAgex cannot do is said plainly. Nothing was created or run, and the request is never answered as if it had been.
+  function showUnsupported(prompt, decision) {
+    const video = decision.targetArtifactType === 'VIDEO';
+    const title = video ? bt('mainRoute.videoTitle', "Video creation isn't available yet") : bt('mainRoute.codeTitle', "Building or running an app isn't available yet");
+    const body = video
+      ? bt('mainRoute.videoBody', "NAgex can't make videos yet, so nothing was created. I can write a script or storyboard, make an image, or build slides instead - just ask.")
+      : bt('mainRoute.codeBody', "NAgex can't build, run or host an app or website yet, so nothing was created or run. I can still explain code or answer coding questions here.");
+    showThread(prompt, 'Unavailable', title, body, [
+      { state: 'done', label: 'Request captured', detail: '' },
+      { state: 'done', label: 'Intent classified', detail: routeLabel(decision) },
+      { state: 'pending', label: bt('mainRoute.nothingCreated', 'Nothing was created or run'), detail: '' },
+    ]);
+    renderInlineActions([{ id: 'edit', label: bt('mainRoute.editRequest', 'Edit request'), action: () => putBackInComposer(prompt) }]);
+  }
+
+  // Only the first N characters of a previous answer ever travel as context for "make slides from this".
+  function withContext(prompt) {
+    const nl = String.fromCharCode(10);
+    return prompt + nl + nl + 'Source material (the previous answer in this conversation):' + nl + String(state.lastContext || '').slice(0, 6000);
+  }
+
+  async function runCreation(prompt, metadata, decision) {
+    const target = decision.targetArtifactType;
+    if ((target === 'DOCUMENT' || target === 'PRESENTATION') && (decision.needs || []).some((n) => n.capability === 'RESEARCH')) {
+      await runResearchThenCreate(prompt, metadata, decision);
+      return;
+    }
+    let apiPrompt = prompt;
+    if (decision.ambiguity && decision.ambiguity.level === 'HIGH' && decision.ambiguity.reason === 'MISSING_TOPIC') {
+      const refersBack = (decision.reasonCodes || []).indexOf('CONTEXT_REFERENCE') >= 0;
+      if (refersBack && state.lastContext && (target === 'DOCUMENT' || target === 'PRESENTATION')) apiPrompt = withContext(prompt);
+      else { showClarification(prompt, decision); return; }
+    }
+    if (target === 'DOCUMENT') await createDocument(prompt, metadata, { apiPrompt });
+    else if (target === 'PRESENTATION') await createPresentation(prompt, metadata, { apiPrompt });
+    else if (target === 'IMAGE') await createImage(prompt, metadata);
+    else showUnsupported(prompt, decision);
+  }
+
+  function researchSourceLines(sources) {
+    return (Array.isArray(sources) ? sources : []).slice(0, 12).map((s, i) => '[' + (i + 1) + '] ' + String(s.title || s.sourceName || s.url || '').slice(0, 160) + (s.url ? ' - ' + s.url : ''));
+  }
+
+  function researchReportPrompt(prompt, research) {
+    const nl = String.fromCharCode(10);
+    return [
+      prompt,
+      '',
+      'Write the report ONLY from these verified research findings. Cite the numbered sources where they support a statement. Do not add facts that are not in the findings or the sources.',
+      '',
+      'FINDINGS:',
+      String(research.answer || ''),
+      '',
+      'SOURCES:',
+    ].concat(researchSourceLines(research.sources)).join(nl);
+  }
+
+  // "Research X and turn it into a report": the research is real and runs first; the report is written from ITS findings only. If no verified source
+  // exists the report is not written at all (an unsourced report would be a fake deliverable) and the person is told which step stopped.
+  async function runResearchThenCreate(prompt, metadata, decision) {
+    const target = decision.targetArtifactType;
+    const artifactName = target === 'PRESENTATION' ? mt('Slides') : target === 'IMAGE' ? mt('Image') : mt('Document');
+    setStep([
+      { state: 'done', label: 'Request captured', detail: '' },
+      { state: 'done', label: 'Intent classified', detail: routeLabel(decision) },
+      { state: 'running', label: bt('mainRoute.stepResearch', 'Collecting and checking sources'), detail: '' },
+      { state: 'pending', label: bt('mainRoute.stepThenCreate', 'Then write the {artifact}').replace('{artifact}', artifactName), detail: '' },
+    ]);
+    const research = await api('/api/v1/research', { method: 'POST', body: JSON.stringify({ query: prompt, requestMetadata: metadata }) });
+    if (!research || research.error || research.status || !research.answer) {
+      showThread(prompt, 'Unavailable', bt('mainRoute.researchStoppedTitle', 'The research step could not be completed'), serverFailure(research, bt('mainRoute.researchStoppedBody', 'No verified research result is available from the current providers.')) + ' ' + bt('mainRoute.reportNotWritten', 'No report was written, because it would not rest on verified sources.'), [
+        { state: 'done', label: 'Request captured', detail: '' },
+        { state: 'running', label: 'Research unavailable', detail: research && research.status ? research.status : '' },
+        { state: 'pending', label: bt('mainRoute.nothingCreated', 'Nothing was created or run'), detail: '' },
+      ]);
+      return;
+    }
+    state.lastContext = String(research.answer).slice(0, 6000);
+    const sourceCount = Array.isArray(research.sources) ? research.sources.length : 0;
+    const lead = [{ state: 'done', label: 'Sources checked', detail: String(sourceCount) }];
+    if (target === 'PRESENTATION') await createPresentation(prompt, metadata, { apiPrompt: researchReportPrompt(prompt, research), leadSteps: lead });
+    else await createDocument(prompt, metadata, { apiPrompt: researchReportPrompt(prompt, research), leadSteps: lead });
   }
 
   async function captureInput(prompt, route) {
@@ -784,14 +994,15 @@
     });
     if (!result || result.error) {
       showThread(prompt, 'Unavailable', 'Answer is unavailable', serverFailure(result, 'The answer provider did not return a usable response.'), [
-        { state: 'done', label: 'Intent classified', detail: route.primaryIntent || 'ASK' },
+        { state: 'done', label: 'Intent classified', detail: routeLabel(routingDecisionOf(route, metadata)) },
         { state: 'running', label: 'Answer unavailable', detail: result && result.error && result.error.code ? result.error.code : '' },
       ]);
       return;
     }
     const answer = (result.data && result.data.message) || result.message || '';
+    if (answer) state.lastContext = String(answer).slice(0, 6000);
     showThread(prompt, 'Answered', 'NAgex answered inline', answer || 'NAgex returned an empty answer.', [
-      { state: 'done', label: 'Intent classified', detail: route.primaryIntent || 'ASK' },
+      { state: 'done', label: 'Intent classified', detail: routeLabel(routingDecisionOf(route, metadata)) },
       { state: 'done', label: 'Answer prepared', detail: (result.data && result.data.messageId) || result.requestId || '' },
     ]);
     renderInlineActions([
@@ -800,26 +1011,31 @@
     ]);
   }
 
-  async function createDocument(prompt, metadata) {
+  // options.apiPrompt: what the creation route is asked (the original words plus source material); the thread always shows the person's own words.
+  // options.leadSteps: stages that already finished in front of this one (the research of "research, then write a report").
+  async function createDocument(prompt, metadata, options) {
+    const opts = options || {};
+    const lead = Array.isArray(opts.leadSteps) ? opts.leadSteps : [];
+    const apiPrompt = opts.apiPrompt || prompt;
     const result = await api('/api/v1/creations/documents', {
       method: 'POST',
-      body: JSON.stringify({ prompt, requestMetadata: metadata }),
+      body: JSON.stringify({ prompt: apiPrompt, locale: requestLocale(opts.localeSource || prompt), requestMetadata: metadata }),
     });
     if (!result || result.error) {
-      showThread(prompt, 'Error', 'Document could not be created', serverFailure(result, 'No document result is available.'), [
+      showThread(prompt, 'Error', 'Document could not be created', serverFailure(result, 'No document result is available.'), lead.concat([
         { state: 'done', label: 'Request captured', detail: 'Document' },
         { state: 'running', label: 'Creation failed', detail: '' },
-      ]);
+      ]));
       return;
     }
     const artifact = result.artifactId ? await api('/api/v1/artifacts/' + encodeURIComponent(result.artifactId)) : null;
     const projection = artifact && artifact.projection ? artifact.projection : null;
     const documentId = result.documentId || result.creationId || parseDocumentId(result.openTarget || (projection && projection.openTarget));
-    showThread(prompt, 'Completed', 'Document created', 'The result is ready in the right panel. You can revise it or open the detailed viewer.', [
+    showThread(prompt, 'Completed', 'Document created', 'The result is ready in the right panel. You can revise it or open the detailed viewer.', lead.concat([
       { state: 'done', label: 'Request captured', detail: 'Document' },
       { state: 'done', label: 'Document generated', detail: result.creationId || result.documentId || '' },
       { state: 'done', label: 'Result panel opened', detail: result.artifactId || '' },
-    ]);
+    ]));
     showResult({
       type: 'DOCUMENT',
       title: result.title || (projection && projection.title) || 'Generated document',
@@ -839,7 +1055,7 @@
         prompt,
         type: 'IMAGE',
         creationKind: 'IMAGE',
-        recipe: { type: 'IMAGE', aspectRatio: '1:1', locale: (window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale()) || 'en' },
+        recipe: { type: 'IMAGE', aspectRatio: '1:1', locale: requestLocale(prompt) },
         requestMetadata: metadata,
       }),
       timeoutMs: 120000,
@@ -875,28 +1091,30 @@
   const PRESENTATION_DOWNLOAD_PATH = /^\/api\/v1\/creations\/presentations\/pres_[0-9a-f]{24}\/download$/;
   const PRESENTATION_VIEW_PATH = /^\/api\/v1\/creations\/presentations\/pres_[0-9a-f]{24}$/;
 
-  async function createPresentation(prompt, metadata) {
+  async function createPresentation(prompt, metadata, options) {
+    const opts = options || {};
+    const lead = Array.isArray(opts.leadSteps) ? opts.leadSteps : [];
     const result = await api('/api/v1/creations/presentations', {
       method: 'POST',
-      body: JSON.stringify({ prompt, locale: (window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale()) || 'en', requestMetadata: metadata }),
+      body: JSON.stringify({ prompt: opts.apiPrompt || prompt, locale: requestLocale(prompt), requestMetadata: metadata }),
       timeoutMs: 180000,
     });
     if (!result || result.error || result.status === 'FAILED' || result.status === 'UNAVAILABLE') {
-      showThread(prompt, 'Error', bt('mainSlides.failedTitle', 'Presentation could not be created'), serverFailure(result, bt('mainSlides.failedBody', 'No presentation was produced.')), [
+      showThread(prompt, 'Error', bt('mainSlides.failedTitle', 'Presentation could not be created'), serverFailure(result, bt('mainSlides.failedBody', 'No presentation was produced.')), lead.concat([
         { state: 'done', label: 'Request captured', detail: 'Slides' },
         { state: 'running', label: 'Creation failed', detail: '' },
-      ]);
+      ]));
       return;
     }
     const viewer = result.openTarget && PRESENTATION_VIEW_PATH.test(result.openTarget) ? await api(result.openTarget) : null;
     const deck = viewer && viewer.presentation ? viewer.presentation : null;
     const artifact = result.artifactId ? await api('/api/v1/artifacts/' + encodeURIComponent(result.artifactId)) : null;
     const projection = artifact && artifact.projection ? artifact.projection : null;
-    showThread(prompt, 'Completed', bt('mainSlides.createdTitle', 'Presentation created'), bt('mainSlides.createdBody', 'The presentation is ready in the right panel. Download the .pptx to edit it in PowerPoint or Keynote.'), [
+    showThread(prompt, 'Completed', bt('mainSlides.createdTitle', 'Presentation created'), bt('mainSlides.createdBody', 'The presentation is ready in the right panel. Download the .pptx to edit it in PowerPoint or Keynote.'), lead.concat([
       { state: 'done', label: 'Request captured', detail: 'Slides' },
       { state: 'done', label: bt('mainSlides.stepPlanned', 'Deck planned'), detail: '' },
       { state: 'done', label: bt('mainSlides.stepFile', 'Presentation file created'), detail: '' },
-    ]);
+    ]));
     showResult(presentationResult(deck || { presentationId: result.creationId, title: result.title, subtitle: '', slides: [], downloadTarget: result.metadata && result.metadata.downloadTarget }, result.artifactId, result.openTarget, projection, result.content));
   }
 
@@ -961,16 +1179,44 @@
       ]);
       return;
     }
-    showThread(prompt, 'Completed', 'Research result', result.answer || 'Research completed.', [
+    // the sources are shown with the answer: "with sources" is only true when the person can open them
+    const nl = String.fromCharCode(10);
+    const sourceList = (Array.isArray(result.sources) ? result.sources : []).slice(0, 12)
+      .filter((s) => s && /^https?:\/\//i.test(String(s.url || '')))
+      .map((s, i) => '- [' + (i + 1) + '] [' + String(s.title || s.sourceName || s.url).replace(/[\[\]]/g, '') + '](' + String(s.url).replace(/\s/g, '') + ')');
+    const answerText = result.answer || 'Research completed.';
+    const markdown = sourceList.length ? answerText + nl + nl + '**' + bt('mainRoute.sources', 'Sources') + '**' + nl + sourceList.join(nl) : answerText;
+    if (result.answer) state.lastContext = String(result.answer).slice(0, 6000);
+    showThread(prompt, 'Completed', 'Research result', markdown, [
       { state: 'done', label: 'Request captured', detail: 'Research' },
       { state: 'done', label: 'Sources checked', detail: Array.isArray(result.sources) ? String(result.sources.length) : '' },
       { state: 'done', label: 'Answer prepared', detail: '' },
     ]);
     renderInlineActions([
       { id: 'follow', label: 'Ask follow-up', action: () => focusComposer(result.answer || '') },
-      { id: 'report', label: 'Create report', action: () => { state.mode = 'DOCUMENT'; renderModes(); focusComposer(prompt); } },
+      // the report is a NEXT STEP the person confirms: it is written from these findings only
+      { id: 'report', label: 'Create report', action: () => createReportFromResearch(prompt, metadata, result) },
       { id: 'save', label: 'Save to Vault', action: () => saveTextToVault(result.answer || prompt) },
     ]);
+  }
+
+  async function createReportFromResearch(prompt, metadata, research) {
+    if (state.busy) return;
+    state.busy = true;
+    const send = document.getElementById('main-send');
+    if (send) send.disabled = true;
+    try {
+      const shown = bt('mainRoute.reportFromFindings', 'Create a report from these findings');
+      state.activeTurn = null;
+      showThread(shown, 'Submitting', 'NAgex is starting from Main.', 'Your request is being classified before any execution path is chosen.', [
+        { state: 'done', label: 'Request captured', detail: '' },
+        { state: 'running', label: bt('mainRoute.stepWriteReport', 'Writing the report from the verified findings'), detail: '' },
+      ]);
+      await createDocument(shown, metadata, { apiPrompt: researchReportPrompt(prompt, research), localeSource: prompt, leadSteps: [{ state: 'done', label: 'Sources checked', detail: Array.isArray(research.sources) ? String(research.sources.length) : '' }] });
+    } finally {
+      state.busy = false;
+      if (send) send.disabled = false;
+    }
   }
 
   async function runPlan(prompt, metadata, route) {
@@ -981,18 +1227,20 @@
     });
     // Advice only: the person asked for advice and nothing to be done. It is shown as an answer - no plan, no steps, no Run button, nothing to approve.
     if (result && !result.error && !result.plan && result.status === 'ADVISORY_RESPONSE' && result.executable === false && result.advice && typeof result.advice.summary === 'string') {
+      const nl = String.fromCharCode(10);
       const suggestions = Array.isArray(result.advice.suggestions) ? result.advice.suggestions.filter((s) => typeof s === 'string' && s.trim()) : [];
       const markdown = [result.advice.summary]
         .concat(suggestions.length ? ['', '**' + mt('Suggested next moves') + '**'].concat(suggestions.map((s) => '- ' + s)) : [])
         .concat(['', '_' + mt('No actions were taken. This is advice only.') + '_'])
-        .join(String.fromCharCode(10));
+        .join(nl);
+      state.lastContext = String(result.advice.summary + nl + suggestions.join(nl)).slice(0, 6000);
       showThread(prompt, 'Answered', 'Advice', markdown, []);
       renderInlineActions([{ id: 'follow', label: 'Ask follow-up', action: () => focusComposer('') }]);
       return;
     }
     if (!result || result.error || !result.plan) {
       showThread(prompt, 'Error', 'NAgex could not prepare a plan', serverFailure(result, 'The planner did not return a usable plan.'), [
-        { state: 'done', label: 'Intent classified', detail: route && route.primaryIntent ? route.primaryIntent : metadata.preferredMode },
+        { state: 'done', label: 'Intent classified', detail: routeLabel(routingDecisionOf(route, metadata)) },
         { state: 'running', label: 'Planning failed', detail: '' },
       ]);
       return;
@@ -1011,25 +1259,27 @@
     ]);
   }
 
+  // "What NAgex can do": the plain list, nothing advertised that has no real path today
   function showModeCapabilityMatrix(prompt) {
-    const enabled = MODES.filter((mode) => mode.enabled && mode.id !== 'MORE').map((mode) => `${mt(mode.label)}: ${mt(mode.support)}`).join(' / ');
-    const unavailable = MODES.filter((mode) => !mode.enabled).map((mode) => `${mt(mode.label)}: ${mt(mode.reason)}`).join(' ');
-    showThread(prompt, 'Ready', 'Main mode capability audit', 'Supported modes route to real execution. Unsupported modes stay disabled until their canonical route can produce a verified result.', [
-      { state: 'done', label: 'Enabled modes', detail: enabled },
-      { state: 'pending', label: 'Not enabled', detail: unavailable },
+    state.activeTurn = null;
+    showThread(prompt, 'Ready', bt('mainRoute.capabilitiesTitle', 'What NAgex can do'), bt('mainRoute.capabilitiesBody', 'Just tell NAgex what you want, in your own words. It answers questions, gives advice, researches with sources, writes documents, builds slides and makes images, and prepares plans for things to be done - those wait for your approval before anything happens. Video and building or running apps are not available yet.'), [
+      { state: 'done', label: bt('mainRoute.capAvailable', 'Available now'), detail: [mt('Research'), mt('Document'), mt('Slides'), mt('Image')].join(' / ') },
+      { state: 'pending', label: bt('mainRoute.shortcutUnavailable', 'Not available yet'), detail: [mt('Video'), mt('Code')].join(' / ') },
     ]);
-    renderInlineActions([
-      { id: 'ask', label: 'Ask', action: () => selectMode('ASK') },
-      { id: 'research', label: 'Research', action: () => selectMode('RESEARCH') },
-      { id: 'document', label: 'Document', action: () => selectMode('DOCUMENT') },
-      { id: 'image', label: 'Image', action: () => selectMode('IMAGE') },
-    ]);
+    renderInlineActions([]);
   }
 
+  // An optional shortcut for the NEXT request only (clear it with x). It never replaces the words and never overrides an action.
   function selectMode(modeId) {
     const mode = MODES.find((m) => m.id === modeId);
     if (!mode || !mode.enabled) return;
+    if (mode.id === 'MORE') {
+      setShortcutsOpen(false, true);
+      showModeCapabilityMatrix(bt('mainRoute.capabilitiesTitle', 'What NAgex can do'));
+      return;
+    }
     state.mode = mode.id;
+    state.shortcutsOpen = false;
     renderModes();
     focusComposer('');
   }
@@ -1259,6 +1509,8 @@
 
   function showResult(result) {
     state.result = result;
+    // a result gives the room to the result: My Day closes (one click reopens it)
+    state.myDayOpen = false;
     const root = document.getElementById('nagex-main-surface');
     const panel = document.getElementById('main-result-panel');
     if (root) root.classList.add('has-result');
@@ -1378,17 +1630,31 @@
       selectMode(btn.dataset.mainMode);
     });
     document.getElementById('main-mode-row')?.addEventListener('keydown', (event) => {
-      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setShortcutsOpen(false, true);
+        return;
+      }
+      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
       const buttons = Array.from(document.querySelectorAll('#main-mode-row [data-main-mode]')).filter((btn) => !btn.disabled);
       const current = document.activeElement;
       const currentIndex = Math.max(0, buttons.indexOf(current));
       let nextIndex = currentIndex;
-      if (event.key === 'ArrowLeft') nextIndex = Math.max(0, currentIndex - 1);
-      if (event.key === 'ArrowRight') nextIndex = Math.min(buttons.length - 1, currentIndex + 1);
+      if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') nextIndex = Math.max(0, currentIndex - 1);
+      if (event.key === 'ArrowDown' || event.key === 'ArrowRight') nextIndex = Math.min(buttons.length - 1, currentIndex + 1);
       if (event.key === 'Home') nextIndex = 0;
       if (event.key === 'End') nextIndex = buttons.length - 1;
       event.preventDefault();
       buttons[nextIndex]?.focus();
+    });
+    document.getElementById('main-shortcut-toggle')?.addEventListener('click', () => setShortcutsOpen(!state.shortcutsOpen, state.shortcutsOpen));
+    document.getElementById('main-shortcut-clear')?.addEventListener('click', () => { state.mode = 'AUTO'; renderModes(); focusComposer(''); });
+    // the menu closes when the person clicks anywhere else
+    document.addEventListener('click', (event) => {
+      if (!state.shortcutsOpen) return;
+      if (event.target && event.target.closest && event.target.closest('.main-shortcut-wrap')) return;
+      state.shortcutsOpen = false;
+      renderModes();
     });
     const input = document.getElementById('main-surface-input');
     if (input) input.addEventListener('input', () => autoGrow(input));
@@ -1836,12 +2102,15 @@
     const sessionState = state.sessionChecked ? mainSessionState() : 'CHECKING';
     root.dataset.sessionState = sessionState;
     const conversing = sessionState === 'CONVERSATION' || sessionState === 'RESULT';
-    // Idle Home: the briefing is open. While working it collapses, and "My Day" reopens it without touching the conversation or the draft.
-    section.hidden = !(sessionState === 'EMPTY_HOME' || (conversing && state.myDayOpen));
+    // The briefing never competes with the request box: it is collapsed until the person opens it with "My Day" (idle Home or mid-conversation alike),
+    // and opening it does not touch the conversation or the draft. Its real provider / empty / failure states are unchanged.
+    section.hidden = !state.myDayOpen;
     const bar = document.getElementById('main-conversation-bar');
-    if (bar) bar.hidden = !conversing;
+    if (bar) bar.hidden = false;
+    const fresh = document.getElementById('main-new-conversation');
+    if (fresh) fresh.hidden = !conversing;
     const toggle = document.getElementById('main-myday-toggle');
-    if (toggle) toggle.setAttribute('aria-expanded', String(conversing && state.myDayOpen));
+    if (toggle) toggle.setAttribute('aria-expanded', String(state.myDayOpen));
     const view = root.closest('.tab-view');
     if (view) view.classList.toggle('main-conversing', conversing);
     root.dataset.diagnostics = diagnosticsOn() ? '1' : '0';
@@ -2019,14 +2288,15 @@
     window.NAGEX_MAIN_SURFACE = Object.freeze({
       openArtifactResult,
       getControlMatrix: () => [
-        ['main-mode-row', 'mode chips', 'Main', 'click', 'requestMetadata/preferredMode', 'metadata changes', 'selected chip', 'disabled if unavailable', 'per request', 'auth inherited'],
+        ['main-shortcut-toggle', 'optional shortcuts (+ menu)', 'Main', 'click/keyboard', 'requestMetadata.preferredArtifactType / preferredCapability (a hint for route-input, never required)', 'biases ONE plain request toward research / document / image / slides; cannot override an action or an unsupported kind', 'chip in the composer, cleared after the request', 'Video and Code disabled with a reason', 'per request', 'auth inherited; routing decision is advice only'],
+        ['main-surface-input', 'one input', 'Main', 'send', 'POST /api/v1/workspace/route-input -> the existing answer / advice / research / creation / plan routes', 'the server routing decision selects ONE existing path; an action is only a plan that waits for approval', 'inline progress/result, or one clarifying question, or a plain not-available notice', 'inline error', 'server stores per route', 'each selected route enforces its own rights and approval'],
         ['main-send', 'send', 'Main', 'click', 'ambient/research/creation APIs', 'goal/result created where supported', 'inline progress/result', 'inline error', 'server stores', 'session'],
         ['main-attach', 'attach', 'Main', 'click/change', '/api/v1/workspace/upload', 'capture persisted', 'attachment chip', 'inline error', 'CaptureStore', 'session/owner'],
         ['main-web-toggle', 'web toggle', 'Main', 'click', 'requestMetadata.allowWebResearch', 'metadata changes', 'pressed state', 'n/a', 'per request', 'SSRF policy server-side'],
         ['main-data-toggle', 'my data toggle', 'Main', 'click', 'requestMetadata.usePersonalContext', 'metadata changes', 'pressed state', 'n/a', 'per request', 'consent/owner'],
         ['main-mic', 'microphone dictation', 'Main', 'click', 'Device voice adapter: on-device when the browser verifies it, otherwise the browser vendor only after consent; stop = transcribe, cancel = discard', 'transcript inserted into composer', 'composer text updated', 'permission/unavailable guidance', 'per request', 'browser permission'],
         ['main-voice', 'voice session', 'Main', 'click', 'Device voice adapter (same location and consent rules as dictation) -> Main composer', 'recognized speech becomes editable text', 'composer text updated', 'permission/unavailable guidance', 'per request', 'same Main authority rules'],
-        ['main-home-briefing', 'personal briefing', 'Main', 'render', '/api/v1/personal/home (existing aggregation, read-only)', 'Today / Since Yesterday / Suggestions from real data or a stated empty or unavailable state', 'section under the composer; hidden (not removed) while a conversation or result is active', 'error text with retry; never invented items', 'server aggregation; nothing stored by the section', 'same session authentication'],
+        ['main-home-briefing', 'personal briefing', 'Main', 'render', '/api/v1/personal/home (existing aggregation, read-only)', 'Today / Since Yesterday / Suggestions from real data or a stated empty or unavailable state', 'collapsed by default behind My Day; opens on request and closes again while a request or result is active (hidden, not removed)', 'error text with retry; never invented items', 'server aggregation; nothing stored by the section', 'same session authentication'],
         ['main-new-conversation', 'new conversation', 'Main', 'click', 'GET /api/v1/conversations/main (read-only)', 'visible conversation reset; earlier history kept', 'empty Home with the briefing', 'inline error if the session cannot be read', 'server keeps the history; sessionStorage mark only', 'same session authentication'],
         ['btn-notif-bell', 'bell', 'Header', 'click', 'tasks/approvals/activity/notifications APIs', 'none', 'attention center', 'empty state', 'server stores', 'session'],
         ['main-result-open', 'open result', 'Result', 'click', 'openArtifactInCanvas', 'route/detail view', 'artifact opens', 'unavailable if missing', 'artifact store', 'owner gate'],

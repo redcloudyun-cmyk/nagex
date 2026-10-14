@@ -44,8 +44,12 @@ const FAILURE_TITLE = {
   IMAGE: { en: /Image generation is unavailable/, ko: /이미지를 만들 수 없어요/ },
 } as const;
 
+// One Input: a plain request needs no mode. The optional shortcut (under "+") only biases ONE request toward an artifact.
 async function sendFromMain(page: Page, mode: string, prompt: string): Promise<void> {
-  await page.click(`[data-main-mode="${mode}"]`);
+  if (mode !== 'ASK') {
+    await page.click('#main-shortcut-toggle');
+    await page.click(`[data-main-mode="${mode}"]`);
+  }
   await page.fill('#main-surface-input', prompt);
   await page.click('#main-send');
 }
@@ -108,9 +112,8 @@ describe('R24.8B — Main entry points reach the real pipelines and explain trut
     await openHome(page, 'desktop');
     await sendFromMain(page, 'DOCUMENT', 'Quarterly launch report');
     await lastTurnText(page);
-    await page.click('[data-main-mode="ASK"]');
-    assert.equal(await page.getAttribute('[data-main-mode="ASK"]', 'aria-pressed'), 'true');
-    assert.equal(await page.getAttribute('[data-main-mode="DOCUMENT"]', 'aria-pressed'), 'false', 'the Document mode does not stick');
+    assert.equal(await page.locator('#main-shortcut-chip').isVisible(), false, 'the Document shortcut does not stick');
+    assert.equal(await page.locator('[data-main-mode][aria-checked="true"]').count(), 0, 'no mode stays selected');
     await page.fill('#main-surface-input', 'What is on my plate today?');
     await page.click('#main-send');
     const turn = await lastTurnText(page);

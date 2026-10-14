@@ -67,7 +67,8 @@
       "r23_3t_permission_approval_hardening",
       "connections_redesign_browser",
       "connections_catalog_browser",
-      "design_system_v2_browser"
+      "design_system_v2_browser",
+      "one_input_intent_browser"
     ],
     "google": [
       "google_calendar_connection_state",
@@ -153,7 +154,8 @@
       "nebius_nemotron_routing",
       "nebius_nemotron_first",
       "advisory_plan",
-      "jev_shadow_runtime"
+      "jev_shadow_runtime",
+      "one_input_intent_routing"
     ],
     "personal-home": [
       "main_unified_workspace_browser",
@@ -175,13 +177,15 @@
       "r23_7c_c_deployed_real_browser_cert",
       "r23_7c_c_final_non_paid_closure_cert",
       "r23_7c_c_session_artifact_delivery_cert",
-      "openai-image-adapter"
+      "openai-image-adapter",
+      "one_input_intent_browser"
     ],
     "memory-context": [
       "r22_3_personal_context_memory"
     ],
     "capture": [
-      "r22_9_personal_context_link_capture"
+      "r22_9_personal_context_link_capture",
+      "one_input_intent_routing"
     ],
     "model-routing": [
       "real_life_scenario_library_behavioral_rules",
@@ -358,7 +362,8 @@
       "public_source_encoding",
       "notification_title_localization",
       "r23_7c_d_presentation_runtime",
-      "r23_7c_d_presentation_main_browser"
+      "r23_7c_d_presentation_main_browser",
+      "one_input_intent_browser"
     ],
     "knowledge": [
       "r24_5c_knowledge_live"

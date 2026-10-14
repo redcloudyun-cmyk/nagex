@@ -5059,6 +5059,38 @@
       "assertionIntent": "Nebius Token Factory / NVIDIA Nemotron provider adapter against a fake and a real local OpenAI-compatible endpoint: the configured provider uses the canonical URL, model and the server-side credential only (an unsafe base URL or a missing key leaves it UNCONFIGURED and sends nothing); success is normalized (content, usage incl. reasoning tokens, finish reason, request id); hidden provider reasoning (reasoning_content, reasoning, inline think blocks) is dropped and never returned, logged or kept; 401/403/429/5xx/network/timeout/malformed/truncated output are each reported with a fixed reason vocabulary, retried at most once for network/5xx only, and never reported as a result; no secret reaches a log, error, status or result.",
       "notes": "Fake fetch plus one local HTTP server on 127.0.0.1. The paid Nebius API is never called; the opt-in real certification is scripts/nebius-live-cert.mjs."
     },
+    "one_input_intent_routing": {
+      "milestone": "NAGEX-D11-ONE-INPUT",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime",
+        "capture"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "A person's ordinary Korean or English request is routed by a deterministic, server-owned decision to the existing path that serves it: an answer, advice, research, a created document/slides/image, an approval-gated action plan, a capture, a plain 'not available' for video and running code apps, or one minimal question. The decision is advice about routing only: an action is always a plan that needs approval, a negated action never becomes an action, an explicit shortcut cannot override an action or an unsupported kind, and route-input creates nothing.",
+      "notes": "Pure classification plus the real HTTP route (handleAsyncApiRequest); no model is called. The real Nemotron runs are in docs/evidence/NAGEX_D11_ONE_INPUT_INTENT_CERT_20261014.md."
+    },
+    "one_input_intent_browser": {
+      "milestone": "NAGEX-D11-ONE-INPUT",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "personal-home",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Real-Chromium proof of One Input on the production server harness: a plain Korean or English request reaches the one existing path that serves it (answer, advice, research, document, slides, image, approval-gated plan, capture), what NAgex cannot do (video, a running code app) is said plainly with nothing created, one minimal question is asked for a vague or topic-less request, research-then-report runs research first and writes the report only from its verified findings in the request language, an optional shortcut applies once and cannot override an action, a plan-only run is never reported as completed, and the composer is compact (about 100-120px at 1440, 44px targets on 360/390/430 phones, keyboard-usable + menu, My Day collapsed by default, 보관함 wording with spaced follow-up and save buttons) in EN and KR.",
+      "notes": "Production server harness with provider credentials scrubbed. Route-input and authentication are real; chat, research, creations and the plan route are stubbed so each test proves WHICH path was reached and that no consequential request (task, approval, execution, send) was made. No model is called.",
+      "writesRepositoryArtifacts": false
+    },
     "advisory_plan": {
       "milestone": "NAGEX-D11-ADVISORY-PLAN",
       "classification": "CANONICAL_BEHAVIOR",

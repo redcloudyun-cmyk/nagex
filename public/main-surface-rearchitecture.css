@@ -1277,3 +1277,294 @@
   }
 
 }
+
+/* ═══ D-11 One Input: compact composer (B+C), optional shortcuts under "+", collapsed My Day ═══════════════════════════════════
+   The request box is one calm line that grows when it is used. Mode chips are gone from the top level: the words decide.            */
+.main-composer-card {
+  padding: 8px;
+}
+
+.main-composer-card .main-input-wrap {
+  position: relative;
+  padding: 8px 12px;
+}
+
+.main-composer-card #main-surface-input {
+  min-height: 40px;
+  max-height: 220px;
+  line-height: 1.5;
+  transition: min-height .12s ease;
+}
+
+/* it opens up when the person starts writing (long text grows it further through the script) */
+.main-composer-card:focus-within #main-surface-input {
+  min-height: 64px;
+}
+
+.main-composer-card .main-composer-footer {
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  padding-top: 6px;
+  margin-top: 4px;
+}
+
+.main-composer-card .main-left-tools,
+.main-composer-card .main-right-tools {
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.main-shortcut-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.main-shortcut-toggle {
+  width: var(--nagex-control-md);
+  min-width: var(--nagex-control-md);
+  padding: 0;
+  border-radius: 50%;
+  font-size: 1.25rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.main-shortcut-toggle[aria-expanded="true"] {
+  color: #084fd6;
+  background: #eaf2ff;
+  border-color: #a7c7ff;
+}
+
+.main-mode-row[role="menu"] {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 6px);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 232px;
+  max-width: min(92vw, 320px);
+  padding: 6px;
+  overflow: visible;
+  background: var(--nagex-paper);
+  border: 1px solid var(--nagex-line);
+  border-radius: 12px;
+  box-shadow: 0 10px 28px rgba(16, 32, 64, .18);
+}
+
+.main-mode-row[role="menu"][hidden] {
+  display: none !important;
+}
+
+.main-mode-row[role="menu"] .main-mode-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  border-radius: 8px;
+}
+
+.main-mode-row[role="menu"] .main-mode-chip small {
+  color: var(--nagex-ink-3);
+  font-size: var(--nagex-fs-caption);
+  font-weight: var(--nagex-fw-regular);
+}
+
+.main-mode-row[role="menu"] .main-mode-chip:hover:not(:disabled),
+.main-mode-row[role="menu"] .main-mode-chip:focus-visible {
+  background: #f1f7ff;
+}
+
+.main-mode-row[role="menu"] .main-mode-chip[aria-checked="true"] {
+  background: #eaf2ff;
+  color: #084fd6;
+}
+
+.main-mode-row[role="menu"] .main-mode-chip::after {
+  display: none;
+}
+
+.main-shortcut-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  padding: 2px 4px 2px 12px;
+  border-radius: 999px;
+  background: #eaf2ff;
+  color: #084fd6;
+  font-size: var(--nagex-fs-control);
+  font-weight: var(--nagex-fw-medium);
+}
+
+.main-shortcut-chip[hidden] {
+  display: none !important;
+}
+
+.main-shortcut-clear {
+  min-width: 28px;
+  min-height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.main-shortcut-clear:focus-visible {
+  outline: 0;
+  box-shadow: var(--nagex-focus-ring);
+}
+
+/* an idle microphone has nothing to say */
+.nagex-main-surface:not([data-voice-state]) .main-voice-status,
+.nagex-main-surface[data-voice-state="IDLE"] .main-voice-status {
+  display: none;
+}
+
+/* My Day: a quiet bar under the request box; the briefing opens only when asked */
+.nagex-main-surface:not([data-session-state="CONVERSATION"]):not([data-session-state="RESULT"]) .main-conversation-bar {
+  order: 0;
+  justify-content: flex-start;
+}
+
+.main-myday-toggle::after {
+  content: "";
+  display: inline-block;
+  margin-left: 8px;
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform .12s ease;
+}
+
+.main-myday-toggle[aria-expanded="true"]::after {
+  transform: translateY(1px) rotate(-135deg);
+}
+
+.main-turn .main-inline-actions {
+  gap: 10px;
+}
+
+.main-run-block[data-run-state="PLAN_ONLY"] .main-run-state {
+  color: var(--nagex-ink-2);
+}
+
+@media (max-width: 860px) {
+  .main-composer-card .main-composer-footer {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .main-composer-card .main-left-tools,
+  .main-composer-card .main-right-tools {
+    flex: 1 1 100%;
+    margin-left: 0;
+  }
+
+  .main-composer-card .main-right-tools {
+    justify-content: flex-end;
+  }
+
+  /* 44px touch targets on phones */
+  .main-composer-card .main-tool-btn,
+  .main-composer-card .main-mic-btn,
+  .main-composer-card .main-voice-btn,
+  .main-composer-card .main-send,
+  .main-composer-card .main-shortcut-toggle,
+  .main-composer-card .main-shortcut-clear,
+  .main-mode-row[role="menu"] .main-mode-chip,
+  .main-myday-toggle,
+  #main-new-conversation,
+  .main-turn .main-inline-actions .btn-secondary,
+  .main-run-block .main-run-cancel,
+  .main-approval-card button {
+    min-height: 44px;
+  }
+
+  .main-composer-card .main-mic-btn,
+  .main-composer-card .main-send,
+  .main-composer-card .main-shortcut-toggle {
+    width: 44px;
+    min-width: 44px;
+  }
+
+  .main-composer-card .main-shortcut-clear {
+    min-width: 44px;
+  }
+
+  .main-mode-row[role="menu"] {
+    min-width: min(88vw, 280px);
+  }
+}
+
+/* compact rest height (about 100-120px on desktop); it grows on focus and with long text */
+.main-composer-card {
+  padding: 6px;
+}
+
+.main-composer-card .main-input-wrap {
+  padding: 6px 10px;
+}
+
+.main-composer-card .main-attachment-list:empty {
+  display: none;
+}
+
+.main-composer-card .main-composer-footer {
+  margin-top: 2px;
+  padding-top: 4px;
+}
+
+@media (max-width: 860px) {
+  .main-composer-card .main-send {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* the shortcut menu opens downward on an idle Home (the request box is near the top) and upward when the box is docked under a conversation */
+.main-mode-row[role="menu"] {
+  top: calc(100% + 6px);
+  bottom: auto;
+}
+
+.nagex-main-surface[data-session-state="CONVERSATION"] .main-mode-row[role="menu"],
+.nagex-main-surface[data-session-state="RESULT"] .main-mode-row[role="menu"] {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+
+/* phones: the page scrolls and the request box is part of it, so the shortcut menu always opens downward (an upward menu could leave the top of the page) */
+@media (max-width: 860px) {
+  .main-mode-row[role="menu"],
+  .nagex-main-surface[data-session-state="CONVERSATION"] .main-mode-row[role="menu"],
+  .nagex-main-surface[data-session-state="RESULT"] .main-mode-row[role="menu"] {
+    top: calc(100% + 6px);
+    bottom: auto;
+    min-width: min(88vw, 280px);
+    z-index: 60;
+  }
+}
+
+@media (max-width: 860px) {
+  .main-composer-card .main-tool-btn,
+  .main-composer-card .main-voice-btn,
+  .main-myday-toggle,
+  #main-new-conversation,
+  .main-turn .main-inline-actions .btn-secondary {
+    min-width: 44px;
+  }
+}

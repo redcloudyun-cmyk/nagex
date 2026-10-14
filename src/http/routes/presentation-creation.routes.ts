@@ -2,6 +2,7 @@ import type { CreationRuntime } from '../../creation/creation-runtime.js';
 import type { PresentationStore } from '../../creation/presentation.store.js';
 import { PRESENTATION_ID_PATTERN } from '../../creation/presentation.store.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
+import { detectRequestLanguage } from '../../common/request-language.js';
 import { tryGetCallerIdentity } from '../request-identity.js';
 
 export interface PresentationCreationRouteDeps {
@@ -57,7 +58,8 @@ export const handlePresentationCreationRoutes: AsyncRouteRegistrar<PresentationC
       options: {
         style: typeof body?.style === 'string' ? body.style : undefined,
         targetAudience: typeof body?.targetAudience === 'string' ? body.targetAudience : undefined,
-        locale: body?.locale === 'ko' ? 'ko' : 'en',
+        // an explicit locale wins; otherwise the deck follows the language of the request
+        locale: body?.locale === 'ko' || body?.locale === 'en' ? body.locale : (detectRequestLanguage(prompt) === 'ko' ? 'ko' : 'en'),
         routingMode: typeof body?.routingMode === 'string' ? (body.routingMode as any) : undefined,
       },
       tenantId,

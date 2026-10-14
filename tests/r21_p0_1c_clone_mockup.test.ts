@@ -99,5 +99,5 @@ test('EN_KR_I18N: All new mockup keys exist in bilingual dictionary without raw 
   assert.match(i18n, /'ambient\.ctaFollowUp': 'Ask a follow-up'/);
   assert.match(i18n, /'ambient\.ctaFollowUp': '추가 질문하기'/);
   assert.match(i18n, /'ambient\.ctaSaveVault': 'Save to Vault'/);
-  assert.match(i18n, /'ambient\.ctaSaveVault': 'Vault에 저장'/);
+  assert.match(i18n, /'ambient\.ctaSaveVault': '보관함에 저장'/);
 });

@@ -76,12 +76,18 @@ const css = (page: Page, selector: string, props: string[]) => page.evaluate(([s
 }, [selector, props] as const);
 const px = (value: string | undefined) => parseFloat(value || '0');
 const SCALE = [0, 4, 8, 12, 16, 20, 24, 32];
+// One Input: the briefing is a quiet bar ("My Day") that is collapsed until the person opens it
+async function openMyDay(page: Page): Promise<void> {
+  if ((await page.locator('#main-myday-toggle').getAttribute('aria-expanded')) !== 'true') await page.click('#main-myday-toggle');
+  await page.waitForSelector('.main-briefing-card', { state: 'visible' });
+}
 
 describe('Design System V2: Home', () => {
   it('idle Home (EN and KR): hero 28px/600, body 14-15px, no weight above 600, compact controls and cards with no artificial minimum height', async () => {
     for (const locale of ['en', 'ko'] as const) {
       const { ctx, page, errors } = await open(`v2_home_${locale}`, locale, '#home');
-      await page.waitForSelector('.main-briefing-card');
+      assert.equal(await page.locator('#main-home-briefing').isVisible(), false, 'the briefing is collapsed by default');
+      await openMyDay(page);
       const hero = (await css(page, '#main-greeting', ['font-size', 'font-weight']))!;
       assert.equal(px(hero['font-size']), 28, `${locale} hero size`);
       assert.ok(px(hero['font-weight']) <= 600, 'hero is not bold');
@@ -97,13 +103,18 @@ describe('Design System V2: Home', () => {
       assert.doesNotMatch(card['box-shadow'], /\b(?:1[4-9]|[2-9]\d)px\b/, 'no heavy elevation');
       const title = (await css(page, '.main-briefing-card h2', ['font-size', 'font-weight']))!;
       assert.deepEqual([px(title['font-size']), px(title['font-weight'])], [14, 600]);
+      // at rest (nothing focused) the composer is compact, about 100-120px; it only opens up when the person starts writing
+      const composer = await page.locator('.main-composer-card').boundingBox();
+      assert.ok(composer && composer.height >= 100 && composer.height <= 125, `composer is compact at rest, about 100-120px (${composer?.height})`);
+      // the optional shortcuts are compact menu items under "+"; there are no mode chips on the top level
+      assert.equal(await page.locator('#main-mode-row').isVisible(), false);
+      await page.click('#main-shortcut-toggle');
       const chip = (await css(page, '.main-mode-chip', ['height', 'font-weight', 'font-size']))!;
-      assert.ok(px(chip.height) <= 32, `compact mode chips (${chip.height})`);
+      assert.ok(px(chip.height) <= 40, `compact shortcut items (${chip.height})`);
       assert.ok(px(chip['font-weight']) <= 500);
+      await page.keyboard.press('Escape');
       const send = (await css(page, '.main-send', ['width', 'height']))!;
       assert.equal(px(send.width), 38);
-      const composer = await page.locator('.main-composer-card').boundingBox();
-      assert.ok(composer && composer.height < 210, `composer is compact (${composer?.height})`);
       assert.deepEqual(errors, []);
       await ctx.close();
     }
@@ -111,14 +122,14 @@ describe('Design System V2: Home', () => {
 
   it('Home copy: natural English and natural Korean (not literal), and the greeting reads naturally in each language', async () => {
     const en = await open('v2_copy_en', 'en', '#home');
-    await en.page.waitForSelector('.main-briefing-card');
+    await openMyDay(en.page);
     assert.equal((await en.page.locator('#main-greeting-sub').innerText()).trim(), 'What can I help with?');
     assert.deepEqual(await en.page.locator('.main-briefing-card h2').allTextContents(), ['Today', 'To-do', 'Since yesterday', 'Suggestions']);
     assert.match(await en.page.locator('#main-surface-input').getAttribute('placeholder') ?? '', /Ask me to research, write, plan, or get something done/);
     await en.ctx.close();
 
     const ko = await open('v2_copy_ko', 'ko', '#home');
-    await ko.page.waitForSelector('.main-briefing-card');
+    await openMyDay(ko.page);
     assert.equal((await ko.page.locator('#main-greeting-sub').innerText()).trim(), '무엇을 도와드릴까요?');
     assert.deepEqual(await ko.page.locator('.main-briefing-card h2').allTextContents(), ['오늘', '할 일', '어제 이후', '추천']);
     assert.equal((await ko.page.locator('#main-myday-toggle, [data-main-myday]').first().innerText().catch(() => '')).trim() || '오늘의 일정과 할 일', '오늘의 일정과 할 일');
@@ -132,7 +143,7 @@ describe('Design System V2: Home', () => {
 
   it('live language switch: copy, greeting order and the Hangul font stack change without a reload', async () => {
     const { ctx, page } = await open('v2_live', 'en', '#home');
-    await page.waitForSelector('.main-briefing-card');
+    await openMyDay(page);
     const family = () => page.evaluate(() => getComputedStyle(document.querySelector('#nagex-main-surface')).fontFamily);
     assert.match(await family(), /^Inter/);
     assert.equal(await page.evaluate(() => document.documentElement.lang), 'en');

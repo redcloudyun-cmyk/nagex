@@ -155,7 +155,10 @@ describe('NAgex Main surface hard rebuild', () => {
     assert.equal(await page.locator('#nagex-main-surface').getByText(/GPT|Claude|Gemini|model/i).count(), 0);
     assert.equal(await page.locator('#main-bottom-tray, #main-tray-toggle, #main-count-today, #main-count-activity, #main-count-suggestions').count(), 0); // the old collapsible tray stays gone
     assert.equal(await page.locator('#main-home-briefing').count(), 1); // its replacement: the conditional Home briefing (hidden, never deleted, while a conversation is active)
-    assert.equal(await page.locator('[data-main-mode="ASK"][aria-pressed="true"]').count(), 1);
+    // One Input: no mode is selected or required - the optional shortcuts sit under "+" and none is armed
+    assert.equal(await page.locator('#main-shortcut-chip').isVisible(), false);
+    assert.equal(await page.locator('[data-main-mode][aria-checked="true"]').count(), 0);
+    assert.equal(await page.locator('#main-mode-row').isVisible(), false);
     assert.equal(await page.locator('#btn-floating-quickwake').evaluate((el) => getComputedStyle(el).display === 'none'), true);
     assert.equal(await page.locator('#main-mic').isEnabled(), true);
     assert.equal(await page.locator('#main-voice').isEnabled(), true);
@@ -253,7 +256,6 @@ describe('NAgex Main surface hard rebuild', () => {
     assert.ok(grown.height >= 56 && !grown.clipped, `composer must fit long input without clipping it, got ${grown.height}`);
     await page.screenshot({ path: path.join(screenshotDir, 'desktop-long-input.png'), fullPage: true });
 
-    await page.click('[data-main-mode="PLAN"]');
     await page.click('#main-send');
     await page.waitForSelector('#main-thread-card:not([hidden])', { timeout: 30000 });
     await page.screenshot({ path: path.join(screenshotDir, 'desktop-working.png'), fullPage: true });
@@ -397,14 +399,6 @@ describe('NAgex Main surface hard rebuild', () => {
     const page = await ctx.newPage();
     const calls: string[] = [];
 
-    await page.route('**/api/v1/workspace/route-input', async (route) => {
-      calls.push('route-input');
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ data: { primaryIntent: 'ASK', confidence: 0.91, reason: 'test route', normalizedPayload: { rawInput: 'x' } } }),
-      });
-    });
     await page.route('**/api/v1/ai/chat', async (route) => {
       calls.push('ask');
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { message: 'real answer path', messageId: 'msg_mode_1' } }) });
@@ -439,59 +433,79 @@ describe('NAgex Main surface hard rebuild', () => {
     });
 
     await openMain(page);
-    assert.equal(await page.locator('[data-main-mode]').count(), 9);
-    for (const enabledMode of ['ASK', 'RESEARCH', 'DOCUMENT', 'PLAN', 'IMAGE', 'MORE']) {
-      await page.fill('#main-surface-input', `draft ${enabledMode}`);
-      await page.click(`[data-main-mode="${enabledMode}"]`);
-      assert.equal(await page.locator('#main-surface-input').inputValue(), `draft ${enabledMode}`);
-      assert.equal(await page.locator(`[data-main-mode="${enabledMode}"]`).getAttribute('aria-pressed'), 'true');
-    }
-    for (const disabledMode of ['SLIDES', 'VIDEO', 'CODE']) {
+    // the optional shortcuts live in the compact "+" menu (7 items); the top level has no mode row
+    assert.equal(await page.locator('#main-mode-row').isVisible(), false);
+    await page.click('#main-shortcut-toggle');
+    assert.equal(await page.locator('#main-mode-row').isVisible(), true);
+    assert.equal(await page.locator('[data-main-mode]').count(), 7);
+    for (const disabledMode of ['VIDEO', 'CODE']) {
       assert.equal(await page.locator(`[data-main-mode="${disabledMode}"]`).isDisabled(), true);
       assert.equal(await page.locator(`[data-main-mode="${disabledMode}"]`).getAttribute('aria-disabled'), 'true');
+      assert.match((await page.locator(`[data-main-mode="${disabledMode}"]`).getAttribute('title')) || '', /Not available yet/);
     }
+    for (const enabledMode of ['RESEARCH', 'DOCUMENT', 'IMAGE', 'SLIDES']) assert.equal(await page.locator(`[data-main-mode="${enabledMode}"]`).isDisabled(), false, enabledMode);
+    // keyboard: arrows move through the menu, Escape closes it and returns focus to the "+" button
+    await page.focus('[data-main-mode="RESEARCH"]');
+    await page.keyboard.press('ArrowDown');
+    assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('data-main-mode')), 'DOCUMENT');
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator('#main-mode-row').isVisible(), false);
+    assert.equal(await page.evaluate(() => document.activeElement?.id), 'main-shortcut-toggle');
 
-    await page.fill('#main-surface-input', 'ask prompt');
-    await page.click('[data-main-mode="ASK"]');
+    // no shortcut: the words alone decide. A question is answered ...
+    await page.fill('#main-surface-input', 'What is the capital of France?');
     await page.click('#main-send');
     await page.waitForFunction(() => document.querySelector('#main-work-title')?.textContent?.includes('NAgex answered inline'));
+    assert.deepEqual(calls, ['ask']);
 
-    await page.fill('#main-surface-input', 'research prompt');
-    await page.click('[data-main-mode="RESEARCH"]');
+    // ... research is recognised from its own words ...
+    await page.fill('#main-surface-input', 'Research the latest AI trends and cite sources');
     await page.click('#main-send');
     await page.waitForFunction(() => document.querySelector('#main-work-title')?.textContent?.includes('Research result'));
 
-    await page.fill('#main-surface-input', 'document prompt');
-    await page.click('[data-main-mode="DOCUMENT"]');
+    // ... a document, slides and an image too ...
+    await page.fill('#main-surface-input', 'Write a one-page report on our launch plan');
     await page.click('#main-send');
     await page.waitForSelector('#main-result-panel:not([hidden])');
     assert.equal(await page.locator('#main-result-kind').textContent(), 'DOC');
 
-    await page.fill('#main-surface-input', 'plan prompt');
-    await page.click('[data-main-mode="PLAN"]');
-    await page.click('#main-send');
-    await page.waitForFunction(() => document.querySelector('#main-work-title')?.textContent?.includes('Plan ready'));
-
-    await page.fill('#main-surface-input', 'image prompt');
-    await page.click('[data-main-mode="IMAGE"]');
+    await page.fill('#main-surface-input', 'Generate an image of a mountain at sunrise');
     await page.click('#main-send');
     await page.waitForFunction(() => document.querySelector('#main-work-title')?.textContent?.includes('Image created'));
     assert.equal(await page.locator('#main-result-kind').textContent(), 'IMAGE');
     assert.equal(await page.locator('#main-result-preview img').count(), 1);
 
-    await page.fill('#main-surface-input', 'show capabilities');
-    await page.click('[data-main-mode="MORE"]');
+    // ... and something to be DONE becomes a plan for approval, never an answer
+    await page.fill('#main-surface-input', 'Schedule a project review meeting tomorrow at 10 AM');
     await page.click('#main-send');
-    await page.waitForFunction(() => document.querySelector('#main-work-title')?.textContent?.includes('Main mode capability audit'));
-    assert.equal(await page.locator('#main-result-panel').isHidden(), true);
+    await page.waitForFunction(() => document.querySelector('#main-work-title')?.textContent?.includes('Plan ready'));
 
-    await page.focus('[data-main-mode="ASK"]');
-    await page.keyboard.press('ArrowRight');
-    assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('data-main-mode')), 'RESEARCH');
+    // an optional shortcut biases ONE plain request: it keeps the composer text, applies once, and clears itself
+    await page.fill('#main-surface-input', 'launch notes');
+    await page.click('#main-shortcut-toggle');
+    await page.click('[data-main-mode="DOCUMENT"]');
+    assert.equal(await page.locator('#main-surface-input').inputValue(), 'launch notes');
+    assert.equal(await page.locator('#main-shortcut-chip').isVisible(), true);
+    await page.click('#main-send');
+    await page.waitForFunction(() => document.querySelector('#main-work-title')?.textContent?.includes('Document created'));
+    assert.equal(await page.locator('#main-shortcut-chip').isVisible(), false, 'the shortcut does not stick');
+    const documentCalls = calls.filter((c) => c === 'document').length;
+    await page.fill('#main-surface-input', 'launch notes again');
+    await page.click('#main-send');
+    await page.waitForFunction(() => document.querySelector('#main-work-title')?.textContent?.includes('NAgex answered inline'));
+    assert.equal(calls.filter((c) => c === 'document').length, documentCalls, 'the next plain request is routed by its words again');
+
+    // "What NAgex can do" answers at once, without a request, and only lists what exists
+    await page.click('#main-shortcut-toggle');
+    await page.click('[data-main-mode="MORE"]');
+    await page.waitForFunction(() => document.querySelector('#main-work-title')?.textContent?.includes('What NAgex can do'));
+    assert.equal(await page.locator('#main-result-panel').isHidden(), true);
 
     for (const expected of ['ask', 'research', 'document', 'plan', 'image']) {
       assert.ok(calls.includes(expected), `${expected} route must be called`);
     }
+    // nothing consequential ran by itself: the plan is only a plan
+    assert.equal(calls.filter((c) => c === 'plan').length, 1);
     await ctx.close();
   });
 });
