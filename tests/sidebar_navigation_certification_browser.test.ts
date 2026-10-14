@@ -122,8 +122,11 @@ describe('Recent', () => {
     const { ctx, page, user, errors } = await open('recent_flow', 'en', 1440, 900, '#recent');
     await page.waitForSelector('#recent-list');
     await page.waitForFunction(() => /Nothing created yet/.test(document.querySelector('#recent-list')?.textContent || ''), undefined, { timeout: 10000 });
-    h.seedDocument(user, { title: 'Quarterly plan v2', content: 'Plan body text for the quarter.', at: new Date(Date.now() - 3 * 3600_000).toISOString() });
-    h.seedDocument(user, { title: 'Launch checklist', content: 'Checklist body.', at: new Date(Date.now() - 1 * 3600_000).toISOString() });
+    // Both documents are meant to be from TODAY (local day), newest first. "3 h ago" / "1 h ago" fell on yesterday between 00:00 and 03:00, so the times are clamped to the local day.
+    const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
+    const todayAt = (hoursAgo: number, floorSeconds: number) => new Date(Math.min(Date.now() - 1000, Math.max(Date.now() - hoursAgo * 3600_000, startOfToday.getTime() + floorSeconds * 1000))).toISOString();
+    h.seedDocument(user, { title: 'Quarterly plan v2', content: 'Plan body text for the quarter.', at: todayAt(3, 5) });
+    h.seedDocument(user, { title: 'Launch checklist', content: 'Checklist body.', at: todayAt(1, 10) });
     h.seedDocument(user, { title: 'Old report', content: 'Old body.', at: new Date(Date.now() - 4 * 86400_000).toISOString() });
     await page.reload();
     await page.waitForSelector('.recent-item', { timeout: 15000 });
