@@ -52,7 +52,7 @@ describe('A. configured provider', () => {
     assert.equal(calls[0].body.model, MODEL);
     assert.deepEqual(calls[0].body.messages.map((m: any) => m.role), ['system', 'user', 'assistant', 'user']);
     assert.equal(JSON.stringify(calls[0].body).includes(KEY), false, 'the credential never travels in the body');
-    assert.equal(calls[0].body.max_tokens, 8192, 'a reasoning-sized default budget');
+    assert.equal(calls[0].body.max_tokens, 16384, 'a reasoning-sized default budget');
     assert.equal(calls[0].body.response_format, undefined);
   });
 
@@ -289,7 +289,6 @@ describe('I. malformed provider output is INVALID_RESPONSE, never a result', () 
     ['choice without a message', () => new Response(JSON.stringify({ choices: [{ finish_reason: 'stop' }] }), { status: 200 })],
     ['null content', () => ok({ content: null })],
     ['empty content', () => ok({ content: '   ' })],
-    ['token budget exhausted (finish_reason=length)', () => new Response(JSON.stringify({ choices: [{ message: { content: 'half an ans' }, finish_reason: 'length' }] }), { status: 200 })],
     ['JSON null', () => new Response('null', { status: 200 })],
   ];
   for (const [label, build] of cases) {
@@ -301,6 +300,16 @@ describe('I. malformed provider output is INVALID_RESPONSE, never a result', () 
       assert.equal(provider.status().status, 'DEGRADED');
     });
   }
+});
+
+describe('I2. a truncated answer fails the REQUEST, not the provider', () => {
+  it('finish_reason=length is INVALID_RESPONSE for that request, and the provider (which answered) stays LIVE', async () => {
+    const { fetchFn } = recorder(() => new Response(JSON.stringify({ choices: [{ message: { content: 'half an ans' }, finish_reason: 'length' }] }), { status: 200 }));
+    const provider = nebius(fetchFn);
+    const err = await failure(provider.generate(req()));
+    assert.equal(classifyModelFailure(err.code), 'INVALID_RESPONSE', `${err.code}`);
+    assert.equal(provider.status().status, 'LIVE', 'one request that ran out of tokens must not push every other task to a fallback');
+  });
 });
 
 describe('J. no secret leakage', () => {

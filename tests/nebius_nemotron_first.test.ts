@@ -124,6 +124,36 @@ describe('a failed Nemotron is retried after a cool-down, never locked out for e
     assert.equal(s.nebius.status().retryEligible, true);
   });
 
+  it('the recorded reason is the one that applied when the provider was skipped, even if the cool-down ends while the fallback answers', async () => {
+    const s = stack({ nebius: failTimeout });
+    await ask(s.router, 'CHAT');                       // Nemotron fails -> DEGRADED
+    s.clock.now += COOLDOWN - 1_000;                  // still inside the cool-down when the request is routed...
+    const slowFallback: Reply = () => { s.clock.now += 5_000; return openaiOk('late answer'); };   // ...but it ends while the fallback is answering
+    const s2 = s;                                      // same providers; only the OpenAI reply is slower
+    (s2.providers[1] as any).fetchFn = async () => slowFallback();
+    const result = await ask(s.router, 'CHAT');
+    assert.equal(result.provider, 'openai');
+    assert.equal(result.routing?.fallbackReason, 'PROVIDER_DEGRADED');
+    assert.equal(s.nebius.status().retryEligible, true, 'by now Nemotron may be tried again');
+  });
+
+  it('a truncated answer (token budget used up by reasoning) falls back for THAT request only: Nemotron stays LIVE for the next one', async () => {
+    let truncated = true;
+    const s = stack({ nebius: () => (truncated ? new Response(JSON.stringify({ choices: [{ message: { content: 'half' }, finish_reason: 'length' }] }), { status: 200 }) : nebiusOk('whole answer')) });
+    await ask(s.router, 'CHAT');                       // a first success makes the provider LIVE
+    truncated = false;
+    await ask(s.router, 'CHAT');
+    assert.equal(s.nebius.status().status, 'LIVE');
+    truncated = true;
+    const cut = await ask(s.router, 'CHAT');
+    assert.notEqual(cut.provider, 'nebius');
+    assert.equal(cut.routing?.fallbackReason, 'INVALID_RESPONSE');
+    assert.equal(s.nebius.status().status, 'LIVE');
+    truncated = false;
+    const next = await ask(s.router, 'RESEARCH_SYNTHESIS');
+    assert.equal(next.provider, 'nebius', 'the next task is not pushed to a fallback by one truncated answer');
+  });
+
   it('the cool-down is bounded and configurable; garbage falls back to the default', () => {
     assert.equal(readDegradedCooldownMs({}), DEFAULT_DEGRADED_COOLDOWN_MS);
     assert.equal(readDegradedCooldownMs({ NAGEX_PROVIDER_DEGRADED_COOLDOWN_MS: '5000' }), 5000);

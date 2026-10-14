@@ -298,7 +298,7 @@ export class GeminiProvider extends HttpModelProvider {
 export const DEFAULT_NEBIUS_BASE_URL = 'https://api.tokenfactory.nebius.com/v1';
 export const DEFAULT_NEBIUS_MODEL = 'nvidia/Nemotron-3_5-Lightning';
 const DEFAULT_NEBIUS_TIMEOUT_MS = 60_000;     // a reasoning model legitimately thinks for a while; still strictly bounded
-const DEFAULT_NEBIUS_MAX_TOKENS = 8_192;      // includes reasoning tokens
+const DEFAULT_NEBIUS_MAX_TOKENS = 16_384;     // includes reasoning tokens (a Nemotron plan has been measured at up to ~6.7k)
 const NEBIUS_MAX_RETRIES = 1;                  // network failure / 5xx only; never 429, 4xx or timeout
 
 // The tasks NVIDIA Nemotron (through Nebius Token Factory) takes part in through automatic routing, and prefers: general conversation, planning,
@@ -451,8 +451,9 @@ export class NebiusProvider extends HttpModelProvider {
     const reasoningField = [message.reasoning_content, message.reasoning].some((value) => (typeof value === 'string' ? value.trim().length > 0 : Boolean(value)));
     const finishReason = typeof choice?.finish_reason === 'string' ? choice.finish_reason : null;
     if (finishReason === 'length') {
-      // The token budget ran out (often spent on reasoning): the answer is incomplete and must not be passed off as complete.
-      this.recordOutcome('failure', 'PROVIDER_TRUNCATED_RESPONSE');
+      // The token budget ran out (often spent on reasoning): the answer is incomplete and must not be passed off as complete. That is a fact about THIS request,
+      // not about the provider: the call reached it and it answered, so it stays LIVE and other tasks are not pushed to a fallback because of it.
+      this.recordOutcome('success', null);
       throw new ModelProviderError({ provider: this.name, code: 'PROVIDER_TRUNCATED_RESPONSE', message: `${this.name} stopped before completing the answer.`, requestId: request.requestId, retryable: false });
     }
     const usage = payload?.usage

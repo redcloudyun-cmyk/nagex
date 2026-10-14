@@ -40,6 +40,8 @@ function stack(env) {
   return { router, service: new AiService(router) };
 }
 
+let seq = 0;
+const rid = (name) => `cert_${name}_${++seq}`;
 const real = stack(process.env);
 const rows = [];
 const nowIso = new Date().toISOString();
@@ -51,7 +53,10 @@ const pack = {
   ],
 };
 
+// NAGEX_CERT_TASKS=PLAN,CHAT limits the run to some task kinds (default: all five).
+const ONLY = process.env.NAGEX_CERT_TASKS ? new Set(process.env.NAGEX_CERT_TASKS.split(',').map((s) => s.trim())) : null;
 async function step(name, taskKind, run, check) {
+  if (ONLY && !ONLY.has(taskKind)) return;
   const started = Date.now();
   let outcome = 'PASS'; let note = '';
   try {
@@ -62,7 +67,9 @@ async function step(name, taskKind, run, check) {
       const valid = check(response.data);
       if (!valid) { outcome = 'FAIL'; note = 'the answer was empty or malformed'; }
       if (trace.actualProvider !== 'nebius') { outcome = 'FAIL'; note = `answered by ${trace.actualProvider}: ${trace.fallbackReason ?? 'not preferred'}`; }
-      rows.push({ name, taskKind, provider: trace.actualProvider, model: trace.model, latencyMs: trace.latencyMs, fallbackUsed: trace.fallbackUsed, fallbackReason: trace.fallbackReason, outcome, note });
+      // the fixed failure codes the router logged for THIS request (never provider text)
+      const codes = logs.filter((l) => l.event === 'model_request_failed' && l.fields.requestId === trace.requestId).map((l) => `${l.fields.provider}:${l.fields.code}`);
+      rows.push({ name, taskKind, provider: trace.actualProvider, model: trace.model, latencyMs: trace.latencyMs, fallbackUsed: trace.fallbackUsed, fallbackReason: trace.fallbackReason, outcome, note: [note, codes.length ? `codes ${codes.join(',')}` : ''].filter(Boolean).join('; ') });
       return;
     }
   } catch (error) {
@@ -77,11 +84,13 @@ async function step(name, taskKind, run, check) {
 // NAGEX_CERT_REPEAT=n (1-10) repeats the five paths to measure how often Nemotron answers validly and how long it takes.
 const REPEAT = Math.min(10, Math.max(1, Number.parseInt(process.env.NAGEX_CERT_REPEAT ?? '1', 10) || 1));
 for (let round = 0; round < REPEAT; round++) {
-await step('conversation', 'CHAT', () => real.service.chat({ message: 'In two sentences, what does a personal AI need before it may send an email on my behalf?', mode: 'auto', requestId: 'cert_chat' }), (d) => typeof d.message === 'string' && d.message.trim().length > 20);
-await step('planning', 'PLAN', () => real.service.plan({ prompt: 'Prepare for tomorrow\'s project review and suggest the next action.', memories: [], mode: 'auto', requestId: 'cert_plan' }), (d) => d && Array.isArray(d.steps) && d.steps.length > 0);
-await step('research', 'RESEARCH_SYNTHESIS', () => real.service.research({ query: pack.query, evidencePack: pack, mode: 'auto', requestId: 'cert_research' }), (d) => typeof d.answer === 'string' && d.answer.trim().length > 20);
-await step('meeting-prep', 'MEETING_PREP', () => real.service.meetingPrep({ eventDigest: 'Project review, 10:00, with the design lead', emailsDigest: '', vaultDigest: '', memoryDigest: 'The project ships a hash-bound approval flow.', mode: 'auto', requestId: 'cert_meeting' }), (d) => d && Array.isArray(d.keyPoints) && d.keyPoints.length > 0 && Array.isArray(d.suggestedAgenda) && d.suggestedAgenda.length > 0);
-await step('document-draft', 'DOCUMENT_SYNTHESIS', () => real.service.documentSynthesis({ prompt: 'A one-page summary of why every external action needs a one-time approval.', documentKind: 'REPORT', locale: 'en', mode: 'auto', requestId: 'cert_doc' }), (d) => typeof d.title === 'string' && typeof d.content === 'string' && d.content.trim().length > 50);
+await step('conversation', 'CHAT', () => real.service.chat({ message: 'In two sentences, what does a personal AI need before it may send an email on my behalf?', mode: 'auto', requestId: rid('chat') }), (d) => typeof d.message === 'string' && d.message.trim().length > 20);
+// An actionable request by default (a plan needs at least one step). NAGEX_CERT_PLAN_PROMPT can substitute an advisory prompt to measure how often a model answers it with zero steps.
+const PLAN_PROMPT = process.env.NAGEX_CERT_PLAN_PROMPT || 'Schedule a 30 minute project review tomorrow at 10:00 titled Project review.';
+await step('planning', 'PLAN', () => real.service.plan({ prompt: PLAN_PROMPT, memories: [], mode: 'auto', requestId: rid('plan') }), (d) => d && Array.isArray(d.steps) && d.steps.length > 0);
+await step('research', 'RESEARCH_SYNTHESIS', () => real.service.research({ query: pack.query, evidencePack: pack, mode: 'auto', requestId: rid('research') }), (d) => typeof d.answer === 'string' && d.answer.trim().length > 20);
+await step('meeting-prep', 'MEETING_PREP', () => real.service.meetingPrep({ eventDigest: 'Project review, 10:00, with the design lead', emailsDigest: '', vaultDigest: '', memoryDigest: 'The project ships a hash-bound approval flow.', mode: 'auto', requestId: rid('meeting') }), (d) => d && Array.isArray(d.keyPoints) && d.keyPoints.length > 0 && Array.isArray(d.suggestedAgenda) && d.suggestedAgenda.length > 0);
+await step('document-draft', 'DOCUMENT_SYNTHESIS', () => real.service.documentSynthesis({ prompt: 'A one-page summary of why every external action needs a one-time approval.', documentKind: 'REPORT', locale: 'en', mode: 'auto', requestId: rid('doc') }), (d) => typeof d.title === 'string' && typeof d.content === 'string' && d.content.trim().length > 50);
 }
 
 // Control: a task that must NOT go to Nemotron keeps its own route (real call, answered by another provider).
@@ -118,6 +127,6 @@ console.log(`real fallback with audit: ${fallback}`);
 const byTask = {};
 for (const r of rows) { const e = (byTask[r.taskKind] ??= { n: 0, ok: 0, ms: [] }); e.n++; if (r.outcome === 'PASS') e.ok++; e.ms.push(r.latencyMs); }
 for (const [task, e] of Object.entries(byTask)) { const s = [...e.ms].sort((a, b) => a - b); console.log(`summary ${task}: ${e.ok}/${e.n} answered by Nemotron without fallback; latency min=${s[0]} median=${s[Math.floor(s.length / 2)]} max=${s[s.length - 1]} ms`); }
-const allPass = rows.length === 5 * REPEAT && rows.every((r) => r.outcome === 'PASS');
+const allPass = rows.length === (ONLY ? ONLY.size : 5) * REPEAT && rows.every((r) => r.outcome === 'PASS');
 console.log(`REAL_NEMOTRON_FIRST=${allPass ? 'PASS' : 'FAIL'}`);
 process.exit(allPass ? 0 : 1);

@@ -197,9 +197,11 @@ export class UnifiedModelRouter {
   }
 
   // Why the preferred provider did not answer: the failure it actually produced, else the reason it was never tried.
-  private preferredMissReason(preferred: string, failures: Array<{ provider: string; reason: ModelFailureReason }>): ModelFailureReason {
+  private preferredMissReason(preferred: string, failures: Array<{ provider: string; reason: ModelFailureReason }>, skippedAsDegraded: boolean): ModelFailureReason {
     const failed = failures.find((f) => f.provider === preferred);
     if (failed) return failed.reason;
+    // decided BEFORE the call: the cool-down may have ended while the fallback was answering
+    if (skippedAsDegraded) return 'PROVIDER_DEGRADED';
     const provider = this.providers.get(preferred);
     if (!provider || !provider.status().configured) return 'NO_PROVIDER_CREDENTIAL';
     return isDegradedNow(provider.status()) ? 'PROVIDER_DEGRADED' : 'UNKNOWN_FAILURE';
@@ -266,6 +268,8 @@ export class UnifiedModelRouter {
 
     // The routing table's preferred provider for this task (null for an explicit provider choice or a task with none).
     const preferredProvider = decision.reasonCodes.includes('EXPLICIT_OVERRIDE') ? null : decision.preferredProvider ?? null;
+    const preferredProviderInstance = preferredProvider ? this.providers.get(preferredProvider) : undefined;
+    const preferredSkippedAsDegraded = Boolean(preferredProviderInstance && decision.selectedProvider !== preferredProvider && isDegradedNow(preferredProviderInstance.status()));
     const failures: Array<{ provider: string; code: string; reason: ModelFailureReason }> = [];
     for (const provider of candidates) {
       try {
@@ -283,7 +287,7 @@ export class UnifiedModelRouter {
           preferredProvider,
           actualProvider: result.provider,
           fallbackUsed: preferredMissed || fallbackUsed,
-          fallbackReason: preferredMissed ? this.preferredMissReason(preferredProvider, failures) : null,
+          fallbackReason: preferredMissed ? this.preferredMissReason(preferredProvider, failures, preferredSkippedAsDegraded) : null,
         };
         // Safe telemetry only: no prompt, no response text, no reasoning, no credential. Token counts are the provider's own.
         this.logger.info('model_request_succeeded', {
