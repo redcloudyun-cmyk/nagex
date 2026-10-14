@@ -5188,6 +5188,23 @@
       "assertionIntent": "81 realistic Korean/English phrasings across advice, schedule, research, document, slides, image, unsupported, compound, explain+send, destructive, negated, vague and connected-tool requests route to the safe decision; action, destructive, negated, unsupported and plain-question rows are exact",
       "notes": "Pure classification, no model, no network. Guards what people actually type, not only the examples the router rules were written for."
     },
+    "one_input_slides_chain_browser": {
+      "milestone": "NAGEX-D10-OVERNIGHT-SLIDES",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "personal-home",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "From ONE natural-language request (Korean or English) research runs first and the slide deck is planned only from the returned findings and links, then stored as a presentation artifact; with the search provider down no deck is planned or stored and the person is told the research step could not be completed",
+      "notes": "Production server in-process with a LOCAL deterministic model and search endpoint (tests/_local_ai_world.ts); slides are not a Nemotron task so the fixed Gemini URL is redirected to the local fake for this in-process server only. Proves NAgex's own chain, not that a real provider answered.",
+      "writesRepositoryArtifacts": false
+    },
     "advisory_plan": {
       "milestone": "NAGEX-D11-ADVISORY-PLAN",
       "classification": "CANONICAL_BEHAVIOR",

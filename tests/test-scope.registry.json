@@ -70,7 +70,8 @@
       "design_system_v2_browser",
       "one_input_intent_browser",
       "home_reviewed_plan_browser",
-      "one_input_document_chain_browser"
+      "one_input_document_chain_browser",
+      "one_input_slides_chain_browser"
     ],
     "google": [
       "google_calendar_connection_state",
@@ -189,7 +190,8 @@
       "openai-image-adapter",
       "one_input_intent_browser",
       "home_reviewed_plan_browser",
-      "one_input_document_chain_browser"
+      "one_input_document_chain_browser",
+      "one_input_slides_chain_browser"
     ],
     "memory-context": [
       "r22_3_personal_context_memory"
@@ -380,7 +382,8 @@
       "r23_7c_d_presentation_main_browser",
       "one_input_intent_browser",
       "home_reviewed_plan_browser",
-      "one_input_document_chain_browser"
+      "one_input_document_chain_browser",
+      "one_input_slides_chain_browser"
     ],
     "knowledge": [
       "r24_5c_knowledge_live"

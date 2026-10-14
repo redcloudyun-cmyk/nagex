@@ -267,7 +267,9 @@ export function decideRouting(rawText: string, options: { hasAttachment?: boolea
   const target: ArtifactTarget | null = wantsSlides ? 'PRESENTATION' : wantsDocument ? 'DOCUMENT' : wantsImage ? 'IMAGE' : null;
   if (target) {
     const needs: IntentNeed[] = [];
-    if (wantsResearch) needs.push({ capability: 'RESEARCH', supported: true });
+    // research feeds a written artifact (document / slides). An image is made from the person's own description - claiming a research step it does not run would be untrue.
+    const researchUsed = wantsResearch && target !== 'IMAGE';
+    if (researchUsed) needs.push({ capability: 'RESEARCH', supported: true });
     needs.push({ capability: target, supported: true });
     let topicSource = work;
     for (const re of RESEARCH_CUE) { re.lastIndex = 0; topicSource = topicSource.replace(re, ' '); }
@@ -275,7 +277,7 @@ export function decideRouting(rawText: string, options: { hasAttachment?: boolea
     return makeDecision({
       kind: 'CREATE_ARTIFACT', language, targetArtifactType: target, needs, confidence: topicless ? 0.6 : 0.86, permissionRisk: 'LOCAL_CREATE', executionNegated,
       ambiguity: topicless ? { level: 'HIGH', reason: 'MISSING_TOPIC', clarifyingQuestion: CLARIFY_TOPIC[target as 'DOCUMENT' | 'PRESENTATION' | 'IMAGE'] } : NO_AMBIGUITY,
-      reasonCodes: [...reasonCodes, 'ARTIFACT_REQUESTED', ...(topicless ? ['MISSING_TOPIC'] : []), ...(CONTEXT_REFERENCE.test(work) ? ['CONTEXT_REFERENCE'] : []), ...(needs.length > 1 ? ['COMPOUND'] : [])],
+      reasonCodes: [...reasonCodes, 'ARTIFACT_REQUESTED', ...(wantsResearch && target === 'IMAGE' ? ['RESEARCH_NOT_USED_FOR_IMAGE'] : []), ...(topicless ? ['MISSING_TOPIC'] : []), ...(CONTEXT_REFERENCE.test(work) ? ['CONTEXT_REFERENCE'] : []), ...(needs.length > 1 ? ['COMPOUND'] : [])],
     });
   }
 

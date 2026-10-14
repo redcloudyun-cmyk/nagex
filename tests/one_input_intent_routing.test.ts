@@ -175,6 +175,24 @@ describe('the decision can never create authority', () => {
     assert.equal(decideRouting(base, { hint: { artifactType: 'WEIRD', capability: 'PLAN' } }).kind, 'CONVERSATION');
   });
 
+  it('research feeds a document or slides, but an image is made from the description alone: no research need is promised for it, and the reason is recorded', () => {
+    for (const text of ['서울 야경을 조사해서 이미지로 만들어줘', 'Research the Seoul skyline and generate an image of it']) {
+      const d = decideRouting(text);
+      assert.equal(d.kind, 'CREATE_ARTIFACT', text);
+      assert.equal(d.targetArtifactType, 'IMAGE', text);
+      assert.deepEqual(d.needs.map((n) => n.capability), ['IMAGE'], text);
+      assert.equal(d.compound, false, text);
+      assert.ok(d.reasonCodes.includes('RESEARCH_NOT_USED_FOR_IMAGE'), text);
+    }
+    for (const [text, target] of [['전기차 시장을 조사해서 보고서로 만들어줘', 'DOCUMENT'], ['경쟁사를 리서치해서 발표 자료로 정리해줘', 'PRESENTATION']] as const) {
+      const d = decideRouting(text);
+      assert.equal(d.targetArtifactType, target, text);
+      assert.deepEqual(d.needs.map((n) => n.capability), ['RESEARCH', target], text);
+      assert.equal(d.compound, true, text);
+      assert.ok(!d.reasonCodes.includes('RESEARCH_NOT_USED_FOR_IMAGE'), text);
+    }
+  });
+
   it('unsupported kinds are marked unsupported, say which, and are not creatable artifacts', () => {
     for (const text of ['30초 홍보영상 만들어줘', 'Create a short animation clip', '웹사이트 코드 작성해서 실행해줘', 'Deploy my app to a server', '게임 만들어줘']) {
       const d = decideRouting(text);

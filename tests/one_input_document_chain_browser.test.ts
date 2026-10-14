@@ -201,6 +201,29 @@ describe('research -> report: written only from the returned sources; closed whe
   }
 });
 
+describe('research -> image: no research is run or implied; the person is told the image is made from the description', () => {
+  for (const [locale, text, note] of [['ko', '서울 야경을 조사해서 이미지로 만들어줘', /이미지는 설명한 내용으로 만들어요/], ['en', 'Research the Seoul skyline and generate an image of it', /Images are made from your description/]] as const) {
+    it(`${locale}: only the image route is called, the search endpoint is never asked, and the screen says so`, async () => {
+      world.failSearch(false);
+      const user = h.user(`img_research_${locale}`);
+      const ctx = await contextFor(user, locale);
+      const page = await ctx.newPage();
+      const posts: string[] = [];
+      page.on('request', (r) => { if (r.method() === 'POST') posts.push(new URL(r.url()).pathname); });
+      const queriesBefore = world.searchQueries.length;
+      await openHome(page);
+      await ask(page, text);
+      const turn = await settle(page);
+      assert.equal(posts.includes('/api/v1/research'), false, 'research was not run');
+      assert.ok(posts.includes('/api/v1/creations/generate'), 'the image route was used');
+      assert.equal(world.searchQueries.length, queriesBefore, 'the search provider was never asked');
+      assert.match(turn, note);
+      assert.doesNotMatch(turn, /Research, then|조사 후/, 'the route label does not promise a research step');
+      await ctx.close();
+    });
+  }
+});
+
 describe('storage that cannot persist is reported, never "created"', () => {
   it('a document store that fails to save makes the creation FAIL with no artifact (code path, not a screen claim)', async () => {
     const { DocumentExecutor } = await import('../src/creation/executors/document-executor.js');

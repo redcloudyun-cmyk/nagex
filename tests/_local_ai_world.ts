@@ -4,7 +4,7 @@
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 
-export interface LocalModelRequest { kind: 'document' | 'plan-advice' | 'plan-action' | 'research' | 'chat' | 'other'; system: string; user: string; korean: boolean }
+export interface LocalModelRequest { kind: 'document' | 'presentation' | 'plan-advice' | 'plan-action' | 'research' | 'chat' | 'other'; system: string; user: string; korean: boolean }
 
 export interface LocalAiWorld {
   env: Record<string, string>;
@@ -13,6 +13,9 @@ export interface LocalAiWorld {
   failDocuments: (mode: 'off' | 'http500' | 'empty-content' | 'not-json') => void;
   failSearch: (on: boolean) => void;
   setChatDelayMs: (ms: number) => void;
+  // OPT-IN: slides are not a Nemotron task, so they go to another provider. The Gemini endpoint is a fixed public URL; this redirects ONLY that host to the local model for the
+  // IN-PROCESS production server (global fetch, restored on close) and returns the fake key env to start the harness with. Nothing leaves the machine.
+  installGeminiBridge: () => Record<string, string>;
   close: () => Promise<void>;
 }
 
@@ -28,11 +31,32 @@ export async function startLocalAiWorld(): Promise<LocalAiWorld> {
 
   const model = http.createServer(async (req, res) => {
     const body = JSON.parse((await readBody(req)) || '{}');
-    const messages: Array<{ role: string; content: string }> = Array.isArray(body.messages) ? body.messages : [];
+    const gemini = /:generateContent/.test(req.url ?? '');
+    const messages: Array<{ role: string; content: string }> = gemini
+      ? [
+          { role: 'system', content: (body.systemInstruction?.parts ?? []).map((p: { text?: string }) => p.text ?? '').join('\n') },
+          ...(body.contents ?? []).map((c: { role?: string; parts?: Array<{ text?: string }> }) => ({ role: c.role === 'model' ? 'assistant' : 'user', content: (c.parts ?? []).map((p) => p.text ?? '').join('') })),
+        ]
+      : Array.isArray(body.messages) ? body.messages : [];
     const system = String(messages.find((m) => m.role === 'system')?.content ?? '');
     const user = String(messages.filter((m) => m.role === 'user').slice(-1)[0]?.content ?? '');
     const korean = /written in Korean|반드시 한국어로/.test(system);
-    const reply = (content: string) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ model: body.model, choices: [{ message: { content }, finish_reason: 'stop' }], usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 } })); };
+    const reply = (content: string) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(gemini ? JSON.stringify({ candidates: [{ content: { parts: [{ text: content }] } }], usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 10, totalTokenCount: 20 } }) : JSON.stringify({ model: body.model, choices: [{ message: { content }, finish_reason: 'stop' }], usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 } })); };
+    if (/plans clear presentation decks/.test(system)) {
+      modelRequests.push({ kind: 'presentation', system, user, korean });
+      const asked = user.replace(/^Presentation Request:\s*/, '');
+      const findings = /FINDINGS:/.test(asked);
+      const sources = (asked.match(/https?:\/\/\S+/g) ?? []).slice(0, 5).map((s) => s.replace(/[)\]]+$/, ''));
+      reply(JSON.stringify({
+        title: korean ? '시장 동향 발표' : 'Market trends deck',
+        subtitle: korean ? '확인된 출처 기반' : 'Based on verified sources',
+        slides: [
+          { title: korean ? '핵심 요약' : 'Key takeaways', bullets: [findings ? (korean ? '확인된 조사 결과에만 근거합니다' : 'Grounded only in the verified findings') : (korean ? '일반적인 요점입니다' : 'General points only'), korean ? '다음 단계를 정합니다' : 'Decide the next step'] },
+          { title: korean ? '출처' : 'Sources', bullets: sources.length ? sources : [korean ? '출처 없음' : 'No sources'] },
+        ],
+      }));
+      return;
+    }
     if (/Return JSON with exact structure: \{"title"/.test(system)) {
       modelRequests.push({ kind: 'document', system, user, korean });
       if (documentMode === 'http500') { res.writeHead(500, { 'content-type': 'application/json' }); res.end('{"error":"local model failure"}'); return; }
@@ -87,7 +111,20 @@ export async function startLocalAiWorld(): Promise<LocalAiWorld> {
   });
 
   const [modelPort, searchPort] = [await listen(model), await listen(search)];
+  const realFetch = globalThis.fetch;
+  let bridged = false;
   return {
+    installGeminiBridge: () => {
+      if (!bridged) {
+        bridged = true;
+        globalThis.fetch = ((input: any, init?: any) => {
+          const url = typeof input === 'string' ? input : input instanceof URL ? input.href : String(input?.url ?? input);
+          if (url.startsWith('https://generativelanguage.googleapis.com/')) return realFetch(`http://127.0.0.1:${modelPort}${new URL(url).pathname}`, init);
+          return realFetch(input, init);
+        }) as typeof fetch;
+      }
+      return { GEMINI_API_KEY: 'local-fake-gemini-key-not-a-secret', NAGEX_GEMINI_MODEL: 'gemini-local', NAGEX_PROVIDER_PRIORITY: 'nebius,gemini' };
+    },
     env: {
       NEBIUS_API_KEY: 'local-fake-key-not-a-secret',
       NAGEX_NEBIUS_BASE_URL: `http://127.0.0.1:${modelPort}/v1`,
@@ -101,6 +138,6 @@ export async function startLocalAiWorld(): Promise<LocalAiWorld> {
     failDocuments: (mode) => { documentMode = mode; },
     failSearch: (on) => { searchDown = on; },
     setChatDelayMs: (ms) => { chatDelayMs = ms; },
-    close: async () => { model.closeAllConnections?.(); search.closeAllConnections?.(); await Promise.all([new Promise((r) => model.close(() => r(null))), new Promise((r) => search.close(() => r(null)))]); },
+    close: async () => { globalThis.fetch = realFetch; model.closeAllConnections?.(); search.closeAllConnections?.(); await Promise.all([new Promise((r) => model.close(() => r(null))), new Promise((r) => search.close(() => r(null)))]); },
   };
 }
