@@ -294,10 +294,15 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
       mode: parseRoutingMode(body?.provider, process.env.NAGEX_MODEL_PROVIDER),
       requestId,
       identity: { tenantId, principalId },
+      // The person reads this answer: an advice-only request may be answered with advice (no steps). Everything that can ever execute still needs a real plan.
+      allowAdvisory: true,
     });
 
+    const advisory = result.data.kind === 'ADVISORY';
     // Section 6: Persist ASSISTANT message AFTER successful AI generation
-    const assistantContent = result.data.summary || result.data.goal || 'Plan generated.';
+    const assistantContent = advisory
+      ? [result.data.summary, ...(result.data.suggestions ?? []).map((s) => '- ' + s)].join(String.fromCharCode(10))
+      : result.data.summary || result.data.goal || 'Plan generated.';
     const assistantMsgRecord = convStore.append({
       tenantId,
       principalId,
@@ -315,8 +320,14 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
       resource: { type: 'ConversationMessage', id: assistantMsgRecord.messageId },
       result: 'SUCCESS',
       request_id: requestId,
-      details: { sessionId: session.sessionId, messageId: assistantMsgRecord.messageId, role: 'ASSISTANT', source: 'WEB' },
+      details: { sessionId: session.sessionId, messageId: assistantMsgRecord.messageId, role: 'ASSISTANT', source: 'WEB', ...(advisory ? { responseKind: 'ADVISORY' } : {}) },
     });
+
+    // An advisory answer is advice, not a plan: it carries NO plan object, no steps, nothing to resolve, approve or run, and says so.
+    if (advisory) {
+      const { goal, summary, reasoningSummary, suggestions } = result.data;
+      return { status: 200, data: { status: 'ADVISORY_RESPONSE', executable: false, message: 'No actions were taken. This is advice only.', advice: { goal, summary, reasoningSummary, suggestions: suggestions ?? [] }, provider: result.provider, model: result.model, latencyMs: result.latencyMs, requestId: result.requestId } };
+    }
 
     return { status: 200, data: { status: 'PLAN_PREVIEW', message: 'Plan generated. Review it before any tools are executed.', plan: result.data, provider: result.provider, model: result.model, latencyMs: result.latencyMs, requestId: result.requestId } };
   }

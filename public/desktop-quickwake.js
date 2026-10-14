@@ -384,6 +384,9 @@
             <button class="qw-icon-btn" onclick="window.NAGEX_DESKTOP.executePlan('${res.plan.goal}')">${escapeHtml(t('desktop.continue', 'Continue'))}</button>
           </div>
         `;
+      } else if (res && res.status === 'ADVISORY_RESPONSE' && res.advice) {
+        // advice only: plain text, no plan, no Continue button
+        nagexBubble.textContent = [String(res.advice.summary || '')].concat((Array.isArray(res.advice.suggestions) ? res.advice.suggestions : []).map((s) => '- ' + String(s))).join(String.fromCharCode(10));
       } else if (res && res.message) {
         nagexBubble.textContent = res.message;
       } else {

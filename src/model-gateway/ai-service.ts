@@ -4,6 +4,7 @@ import type { MemoryRecord } from '../context/memory.engine.js';
 import type { EvidencePack, EvidenceSource } from '../research/evidence-pack.types.js';
 import type { RoutingMode } from './model-provider.js';
 import { UnifiedModelRouter } from './unified-model-router.js';
+import { classifyPlanRequest, isConcreteSuggestion } from './plan-request-kind.js';
 import { normalizePresentationOutline, OUTLINE_LIMITS, type PresentationOutline } from './presentation-outline.js';
 
 export type PlanStepNecessity = 'REQUIRED' | 'OPTIONAL';
@@ -32,6 +33,9 @@ export interface PlanPreview {
   goal: string;
   summary: string;
   reasoningSummary: string;
+  // ACTION (default): at least one step, resolved and approved before anything runs. ADVISORY: the person asked for advice only; it has NO steps (steps is always
+  // []), is never executable, and only the interactive Home route ever asks for it (see AiService.plan's allowAdvisory).
+  kind?: 'ACTION' | 'ADVISORY';
   steps: PlanStep[];
   // Non-blocking ideas the model has but the user did not ask for — must
   // never become executable steps (see the scope policy in plan()).
@@ -95,8 +99,30 @@ function normalizeParameters(value: unknown, present: boolean, requestId: string
   return value as Record<string, unknown>;
 }
 
-function normalizePlan(text: string, requestId: string): PlanPreview {
+function invalidPlan(message: string, requestId: string): never {
+  throw new NagexError({ code: 'INVALID_MODEL_RESPONSE', category: 'PROVIDER', message, request_id: requestId });
+}
+
+// An ADVISORY answer is valid only when ALL of this holds: the request itself was classified advisory (decided by the caller from the person's own words), the model
+// declared responseKind ADVISORY, steps is exactly [], the briefing (summary) is substantive, and every suggestion is a concrete, standalone next move. Anything
+// else - missing declaration, steps present, empty / placeholder / malformed suggestions - is rejected like any other malformed plan.
+function normalizeAdvisory(raw: Record<string, unknown>, requestId: string): PlanPreview {
+  if (raw.responseKind !== 'ADVISORY') return invalidPlan('The model response contains no plan steps and does not declare an advisory answer.', requestId);
+  const goal = requireString(raw.goal, 'goal', requestId);
+  const summary = requireString(raw.summary, 'summary', requestId);
+  const reasoningSummary = requireString(raw.reasoningSummary, 'reasoningSummary', requestId);
+  if (summary.trim().length < 20) return invalidPlan('The advisory summary is too short to be an answer.', requestId);
+  if (!Array.isArray(raw.suggestions) || raw.suggestions.length === 0 || raw.suggestions.length > 8) return invalidPlan('An advisory answer needs between 1 and 8 suggestions.', requestId);
+  if (!raw.suggestions.every(isConcreteSuggestion)) return invalidPlan('Every advisory suggestion must be a concrete next move.', requestId);
+  const suggestions = [...new Set(raw.suggestions.map((s) => (s as string).trim()))];
+  return { goal, summary, reasoningSummary, kind: 'ADVISORY', steps: [], suggestions };
+}
+
+function normalizePlan(text: string, requestId: string, advisoryAllowed: boolean = false): PlanPreview {
   const raw = parseJsonObject(text, requestId);
+  if (advisoryAllowed && Array.isArray(raw.steps) && raw.steps.length === 0) return normalizeAdvisory(raw, requestId);
+  // a declared advisory answer that nevertheless carries steps is a contradiction: never accept it as either
+  if (raw.responseKind === 'ADVISORY') return invalidPlan('An advisory answer must not contain plan steps.', requestId);
   if (!Array.isArray(raw.steps) || raw.steps.length === 0) {
     throw new NagexError({ code: 'INVALID_MODEL_RESPONSE', category: 'PROVIDER', message: 'The model response contains no plan steps.', request_id: requestId });
   }
@@ -105,6 +131,7 @@ function normalizePlan(text: string, requestId: string): PlanPreview {
     summary: requireString(raw.summary, 'summary', requestId),
     reasoningSummary: requireString(raw.reasoningSummary, 'reasoningSummary', requestId),
     suggestions: normalizeSuggestions(raw.suggestions),
+    kind: 'ACTION',
     steps: raw.steps.map((value, index) => {
       if (!value || typeof value !== 'object' || Array.isArray(value)) {
         throw new NagexError({ code: 'INVALID_MODEL_RESPONSE', category: 'PROVIDER', message: `Plan step ${index + 1} is invalid.`, request_id: requestId });
@@ -841,8 +868,12 @@ export class AiService {
     };
   }
 
-  public async plan(input: { prompt: string; memories: MemoryRecord[]; mode: RoutingMode; requestId?: string; conversation?: Array<{ role: 'user' | 'assistant'; content: string }>; identity?: { tenantId: string; principalId: string } }): Promise<AiServiceResponse<PlanPreview>> {
+  // allowAdvisory is for an INTERACTIVE caller that shows the answer to the person (the Home route). Only then, and only when the person's own words ask for advice and
+  // for nothing to be done (classifyPlanRequest), may the answer be an ADVISORY one with no steps. Every other caller (background / task runners, chat-channel services,
+  // an explicit action request) keeps the strict rule: at least one step, otherwise the answer is rejected and the next provider is tried.
+  public async plan(input: { prompt: string; memories: MemoryRecord[]; mode: RoutingMode; requestId?: string; conversation?: Array<{ role: 'user' | 'assistant'; content: string }>; identity?: { tenantId: string; principalId: string }; allowAdvisory?: boolean }): Promise<AiServiceResponse<PlanPreview>> {
     const requestId = input.requestId || `plan_${randomUUID()}`;
+    const advisoryAllowed = input.allowAdvisory === true && classifyPlanRequest(input.prompt).kind === 'ADVISORY';
     const response = await this.router.generate({
       mode: input.mode,
       requestId,
@@ -852,7 +883,7 @@ export class AiService {
         requiresJson: true,
         requestId,
       },
-      validate: (text) => { normalizePlan(text, requestId); },
+      validate: (text) => { normalizePlan(text, requestId, advisoryAllowed); },
       messages: [
         {
           role: 'system',
@@ -871,6 +902,11 @@ export class AiService {
             'Return JSON only with this exact shape:',
             '{"goal":"string","summary":"string","reasoningSummary":"brief rationale without hidden chain-of-thought","suggestions":["string", ...],"steps":[{"title":"string","reasoning":"brief justification","skill":"string","tool":"string or null","requiresApproval":true,"necessity":"REQUIRED or OPTIONAL","dependsOn":[1,2],"parameters":{}}]}',
             'Mark any consequential tool step as requiresApproval=true.',
+            ...(advisoryAllowed ? [
+              'ADVISORY ANSWER: this request asks only for advice, a briefing, a recommendation or an explanation, and nothing has to be done with a tool. Answer it directly: set "responseKind":"ADVISORY", return "steps":[] and put the briefing / answer itself in "summary".',
+              'Put 2 to 6 concrete next moves in "suggestions": each one a complete, standalone sentence that says exactly what to do (never a placeholder, a fragment, or "next steps"). An advisory answer must never contain steps and must never imply that anything was executed.',
+              'If the request actually needs something to be done with a tool, do not use ADVISORY: return the normal plan with "responseKind":"ACTION_PLAN" and at least one step.',
+            ] : []),
             ...this.userToolLines(input.identity),
           ].join('\n'),
         },
@@ -884,7 +920,7 @@ export class AiService {
         },
       ],
     });
-    return { data: normalizePlan(response.text, requestId), provider: response.provider, model: response.model, latencyMs: response.latencyMs, requestId: response.requestId };
+    return { data: normalizePlan(response.text, requestId, advisoryAllowed), provider: response.provider, model: response.model, latencyMs: response.latencyMs, requestId: response.requestId };
   }
 
   // Real, model-backed understanding of captured TEXT content (Phase 1

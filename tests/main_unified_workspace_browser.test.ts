@@ -513,3 +513,37 @@ describe('Unified Main workspace', () => {
     await ctx.close();
   });
 });
+
+// An advice-only answer (ADVISORY_RESPONSE) is shown as an answer: no plan, no steps, no Run button, no approvals; and it says nothing was done.
+describe('Advisory answers in Main', () => {
+  const ADVICE = {
+    status: 'ADVISORY_RESPONSE', executable: false, message: 'No actions were taken. This is advice only.',
+    advice: { goal: 'Be ready for tomorrow', summary: 'Tomorrow\'s review centers on the approval flow; lead with the status and decide the next milestone.', reasoningSummary: 'r', suggestions: ['Open the review by stating where the approval flow stands today.', 'Agree on one owner and a date for the next action.'] },
+    provider: 'nebius', model: 'nvidia/Nemotron-3_5-Lightning', latencyMs: 12000, requestId: 'req_adv_1',
+  };
+
+  for (const locale of ['en', 'ko'] as const) {
+    it(`E1. ${locale}: advice is rendered as an answer with its suggestions and "no actions were taken"; there is nothing to run or approve`, async () => {
+      const ctx = await contextAt(1440, 900, `unified_advice_${locale}`, locale);
+      const page = await ctx.newPage();
+      const requests: string[] = [];
+      page.on('request', (r) => { const p = new URL(r.url()).pathname; if (/\/api\/v1\/(tasks|approvals|plans\/resolve)/.test(p) && r.method() !== 'GET') requests.push(`${r.method()} ${p}`); });
+      await stubRichHome(page);
+      await page.route('**/api/v1/ambient/intent', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ADVICE) }));
+      await openMain(page);
+      await page.click('[data-main-mode="PLAN"]');
+      await ask(page, 'Prepare a concise briefing for tomorrow\'s meeting and suggest the next action');
+      await page.waitForSelector('.main-turn[data-kind="answer"]', { timeout: 15000 });
+      const text = await page.locator('.main-turn').innerText();
+      assert.match(text, /approval flow/);
+      assert.match(text, locale === 'en' ? /Open the review by stating where the approval flow stands today\./ : /Open the review/);
+      assert.match(text, locale === 'en' ? /No actions were taken\. This is advice only\./ : /실행한 작업은 없어요\. 조언만 드려요\./);
+      assert.match(text, locale === 'en' ? /Suggested next moves/ : /다음에 해볼 일/);
+      assert.equal(await page.locator('.main-turn .main-inline-actions button:has-text("Run this plan")').count(), 0, 'no Run button for advice');
+      assert.equal(await page.locator('.main-turn .main-step-list li').count(), 0, 'advice is not shown as steps');
+      assert.equal(await page.locator('.main-turn .main-inline-approvals .main-approval, .main-turn .main-run-block').count(), 0);
+      assert.deepEqual(requests, [], 'nothing was created, resolved or approved');
+      await ctx.close();
+    });
+  }
+});

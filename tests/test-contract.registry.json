@@ -5059,6 +5059,21 @@
       "assertionIntent": "Nebius Token Factory / NVIDIA Nemotron provider adapter against a fake and a real local OpenAI-compatible endpoint: the configured provider uses the canonical URL, model and the server-side credential only (an unsafe base URL or a missing key leaves it UNCONFIGURED and sends nothing); success is normalized (content, usage incl. reasoning tokens, finish reason, request id); hidden provider reasoning (reasoning_content, reasoning, inline think blocks) is dropped and never returned, logged or kept; 401/403/429/5xx/network/timeout/malformed/truncated output are each reported with a fixed reason vocabulary, retried at most once for network/5xx only, and never reported as a result; no secret reaches a log, error, status or result.",
       "notes": "Fake fetch plus one local HTTP server on 127.0.0.1. The paid Nebius API is never called; the opt-in real certification is scripts/nebius-live-cert.mjs."
     },
+    "advisory_plan": {
+      "milestone": "NAGEX-D11-ADVISORY-PLAN",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "model-routing",
+        "runtime"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "An advice-only request may be answered with advice (no steps) only when the person's own words ask for advice and nothing to be done (deterministic, fail-closed classifier), the model declares ADVISORY, steps is exactly [], the summary is substantive and every suggestion is concrete; an action request with no steps stays rejected, malformed / empty / placeholder advice is rejected and the next provider answers, a caller that did not ask for advisory (runners, chat channels) keeps the strict rule, the advisory prompt instruction is sent only for advisory requests, the route returns ADVISORY_RESPONSE with no plan object and executable:false, the plan resolver refuses advice, and only the Home route sets allowAdvisory.",
+      "notes": "Fake provider endpoints (Nebius Nemotron + Gemini fallback). Proves the contract, NOT that a real model answered; real Nemotron runs are recorded in docs/evidence/NAGEX_D11_ADVISORY_PLAN_CERT_20261014.md."
+    },
     "nebius_nemotron_first": {
       "milestone": "NAGEX-D11-NEMOTRON-FIRST",
       "classification": "CANONICAL_BEHAVIOR",

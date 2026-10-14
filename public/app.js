@@ -4155,6 +4155,13 @@
         return;
       }
 
+      // Advice only (no plan, nothing to run): show it as text and stop - there is nothing to resolve or approve.
+      if (res.status === 'ADVISORY_RESPONSE' && res.executable === false && res.advice && !res.plan) {
+        if (fill) fill.style.width = '100%';
+        const lines = [String(res.advice.summary || '')].concat((Array.isArray(res.advice.suggestions) ? res.advice.suggestions : []).map((s) => '- ' + String(s)));
+        if (text) text.textContent = lines.join(String.fromCharCode(10));
+        return;
+      }
       if (fill) fill.style.width = '100%';
       if (text) text.textContent = t('ambient.progress.planReady');
       renderAmbientActivityDetail({ provider: res.provider, model: res.model, latencyMs: res.latencyMs, requestId: res.requestId });

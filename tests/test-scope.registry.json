@@ -152,6 +152,7 @@
       "nebius_nemotron_provider",
       "nebius_nemotron_routing",
       "nebius_nemotron_first",
+      "advisory_plan",
       "jev_shadow_runtime"
     ],
     "personal-home": [
@@ -188,6 +189,7 @@
       "nebius_nemotron_provider",
       "nebius_nemotron_routing",
       "nebius_nemotron_first",
+      "advisory_plan",
       "jev_shadow_runtime"
     ],
     "mobile": [

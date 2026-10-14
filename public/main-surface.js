@@ -979,6 +979,17 @@
       body: JSON.stringify({ prompt, requestMetadata: metadata }),
       timeoutMs: 120000,
     });
+    // Advice only: the person asked for advice and nothing to be done. It is shown as an answer - no plan, no steps, no Run button, nothing to approve.
+    if (result && !result.error && !result.plan && result.status === 'ADVISORY_RESPONSE' && result.executable === false && result.advice && typeof result.advice.summary === 'string') {
+      const suggestions = Array.isArray(result.advice.suggestions) ? result.advice.suggestions.filter((s) => typeof s === 'string' && s.trim()) : [];
+      const markdown = [result.advice.summary]
+        .concat(suggestions.length ? ['', '**' + mt('Suggested next moves') + '**'].concat(suggestions.map((s) => '- ' + s)) : [])
+        .concat(['', '_' + mt('No actions were taken. This is advice only.') + '_'])
+        .join(String.fromCharCode(10));
+      showThread(prompt, 'Answered', 'Advice', markdown, []);
+      renderInlineActions([{ id: 'follow', label: 'Ask follow-up', action: () => focusComposer('') }]);
+      return;
+    }
     if (!result || result.error || !result.plan) {
       showThread(prompt, 'Error', 'NAgex could not prepare a plan', serverFailure(result, 'The planner did not return a usable plan.'), [
         { state: 'done', label: 'Intent classified', detail: route && route.primaryIntent ? route.primaryIntent : metadata.preferredMode },

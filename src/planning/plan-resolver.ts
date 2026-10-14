@@ -55,6 +55,10 @@ export class PlanResolver {
   // identity: the verified tenant + user the plan is resolved for. Per-user tool availability (a Google connection) is
   // evaluated for them; without it such tools resolve as unavailable instead of borrowing someone else's connection.
   public resolve(plan: PlanPreview, identity?: ToolIdentity): ResolvedPlan {
+    // An advisory answer is advice, never a plan: it cannot be resolved, approved or run (also enforced by "at least one step" below).
+    if (plan && (plan as { kind?: unknown }).kind === 'ADVISORY') {
+      throw new NagexError({ code: 'INVALID_PLAN_PREVIEW', category: 'VALIDATION', message: 'An advisory answer is not an executable plan.', request_id: 'plan_resolve' });
+    }
     if (!plan || typeof plan.goal !== 'string' || typeof plan.summary !== 'string' || typeof plan.reasoningSummary !== 'string' || !Array.isArray(plan.steps) || plan.steps.length === 0) {
       throw new NagexError({ code: 'INVALID_PLAN_PREVIEW', category: 'VALIDATION', message: 'A generated Plan Preview with at least one step is required.', request_id: 'plan_resolve' });
     }
