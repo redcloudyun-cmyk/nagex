@@ -1,0 +1,106 @@
+// TEST-ONLY (not a test file): a LOCAL, deterministic stand-in for the model endpoint and the web-search endpoint, both on 127.0.0.1, so the PRODUCTION server (its real providers, router,
+// AiService, evidence service, creation runtime and stores) can be driven end to end without any network or credential. It is a FAKE: a pass here proves NAgex's own chain
+// (routing, request language, prompts, validation, persistence, ownership, UI), never that a real model or search provider answered. Real-provider runs are separate, opt-in scripts.
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
+
+export interface LocalModelRequest { kind: 'document' | 'plan-advice' | 'plan-action' | 'research' | 'chat' | 'other'; system: string; user: string; korean: boolean }
+
+export interface LocalAiWorld {
+  env: Record<string, string>;
+  modelRequests: LocalModelRequest[];
+  searchQueries: string[];
+  failDocuments: (mode: 'off' | 'http500' | 'empty-content' | 'not-json') => void;
+  failSearch: (on: boolean) => void;
+  setChatDelayMs: (ms: number) => void;
+  close: () => Promise<void>;
+}
+
+const readBody = (req: http.IncomingMessage): Promise<string> => new Promise((resolve) => { let data = ''; req.on('data', (c) => { data += c; }); req.on('end', () => resolve(data)); });
+const listen = (server: http.Server): Promise<number> => new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve((server.address() as AddressInfo).port)));
+
+export async function startLocalAiWorld(): Promise<LocalAiWorld> {
+  const modelRequests: LocalModelRequest[] = [];
+  const searchQueries: string[] = [];
+  let documentMode: 'off' | 'http500' | 'empty-content' | 'not-json' = 'off';
+  let searchDown = false;
+  let chatDelayMs = 0;
+
+  const model = http.createServer(async (req, res) => {
+    const body = JSON.parse((await readBody(req)) || '{}');
+    const messages: Array<{ role: string; content: string }> = Array.isArray(body.messages) ? body.messages : [];
+    const system = String(messages.find((m) => m.role === 'system')?.content ?? '');
+    const user = String(messages.filter((m) => m.role === 'user').slice(-1)[0]?.content ?? '');
+    const korean = /written in Korean|반드시 한국어로/.test(system);
+    const reply = (content: string) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ model: body.model, choices: [{ message: { content }, finish_reason: 'stop' }], usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 } })); };
+    if (/Return JSON with exact structure: \{"title"/.test(system)) {
+      modelRequests.push({ kind: 'document', system, user, korean });
+      if (documentMode === 'http500') { res.writeHead(500, { 'content-type': 'application/json' }); res.end('{"error":"local model failure"}'); return; }
+      if (documentMode === 'not-json') { reply('this is not json at all'); return; }
+      const asked = user.replace(/^Document Request:\s*/, '');
+      const first = asked.split('\n')[0].slice(0, 80);
+      const findings = /FINDINGS:/.test(asked);
+      const sources = (asked.match(/https?:\/\/\S+/g) ?? []).slice(0, 5);
+      const title = korean ? '회의 보고서' : 'Meeting report';
+      const content = documentMode === 'empty-content' ? '   ' : [
+        `# ${title}`, '', korean ? '## 요약' : '## Summary', '',
+        korean ? `요청 내용: ${first}` : `Request: ${first}`, '',
+        findings ? (korean ? '확인된 조사 결과에만 근거해 작성했습니다.' : 'Written only from the verified findings.') : (korean ? '본문입니다. 승인 기반 실행의 핵심은 사람의 승인입니다.' : 'Body text. The core of approval-based execution is the human approval.'),
+        ...(sources.length ? ['', korean ? '## 출처' : '## Sources', ...sources.map((s, i) => `- [${i + 1}] ${s.replace(/[)\]]+$/, '')}`)] : []),
+      ].join('\n');
+      reply(JSON.stringify({ title, summary: korean ? '한 페이지 요약 보고서입니다.' : 'A one-page summary report.', content }));
+      return;
+    }
+    if (/You are the NAgex planning model/.test(system)) {
+      const advisory = /ADVISORY ANSWER:/.test(system);
+      modelRequests.push({ kind: advisory ? 'plan-advice' : 'plan-action', system, user, korean });
+      if (advisory) {
+        reply(JSON.stringify({ responseKind: 'ADVISORY', goal: korean ? '회의 준비' : 'Prepare the meeting', summary: korean ? '안건을 정하고 사전 자료를 공유하세요.' : 'Set the agenda and share the material first.', reasoningSummary: 'r', steps: [], suggestions: korean ? ['회의 전날까지 안건을 세 가지로 정리해 참석자에게 공유하세요.', '각 안건의 담당자와 소요 시간을 미리 정해 두세요.'] : ['Fix three agenda items and share them with attendees the day before.', 'Name an owner and a time box for each item in advance.'] }));
+        return;
+      }
+      const tool = /id="(mcp\.[^"]+)"/.exec(system)?.[1];
+      const message = /"([^"]{1,200})"/.exec(user)?.[1];
+      reply(JSON.stringify(tool && message
+        ? { goal: 'Send a message', summary: korean ? '연결된 도구에 메시지를 보냅니다.' : 'Send the message to the connected tool.', reasoningSummary: 'r', suggestions: [], steps: [{ title: korean ? '메시지 보내기' : 'Send the message', reasoning: 'asked', skill: 'skill.planning', tool, requiresApproval: true, necessity: 'REQUIRED', dependsOn: [], parameters: { message } }] }
+        : { goal: 'Send mail', summary: korean ? '메일을 보냅니다.' : 'Send the mail.', reasoningSummary: 'r', suggestions: [], steps: [{ title: 'Send', reasoning: 'asked', skill: 'skill.email_drafting', tool: 'gmail.send_email', requiresApproval: true, necessity: 'REQUIRED', dependsOn: [], parameters: { to: ['alex@example.com'], subject: 'Report', body: 'Ready.' } }] }));
+      return;
+    }
+    if (/evidence-grounded research assistant/.test(system)) {
+      modelRequests.push({ kind: 'research', system, user, korean });
+      reply(korean ? '최근 AI 도입은 빠르게 늘고 있습니다 [src_1]. 투자도 증가했습니다 [src_2].' : 'AI adoption is growing fast [src_1]; investment also rose [src_2].');
+      return;
+    }
+    modelRequests.push({ kind: /personal AI assistant/.test(system) ? 'chat' : 'other', system, user, korean });
+    if (chatDelayMs) await new Promise((r) => setTimeout(r, chatDelayMs));
+    reply(korean ? '안녕하세요. 질문에 답변드립니다.' : 'Hello. Here is the answer.');
+  });
+
+  const search = http.createServer((req, res) => {
+    const url = new URL(req.url || '/', 'http://127.0.0.1');
+    searchQueries.push(url.searchParams.get('q') ?? '');
+    if (searchDown) { res.writeHead(503, { 'content-type': 'application/json' }); res.end('{}'); return; }
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ results: [
+      { title: 'AI Adoption Survey 2026', url: 'https://example.com/ai-adoption-survey', snippet: 'Adoption of AI assistants grew sharply among knowledge workers.', publishedAt: new Date(Date.now() - 5 * 86400_000).toISOString(), source: 'example.com' },
+      { title: 'AI Investment Report', url: 'https://example.org/ai-investment', snippet: 'Investment in AI tools increased again this year.', publishedAt: new Date(Date.now() - 9 * 86400_000).toISOString(), source: 'example.org' },
+    ] }));
+  });
+
+  const [modelPort, searchPort] = [await listen(model), await listen(search)];
+  return {
+    env: {
+      NEBIUS_API_KEY: 'local-fake-key-not-a-secret',
+      NAGEX_NEBIUS_BASE_URL: `http://127.0.0.1:${modelPort}/v1`,
+      NAGEX_NEBIUS_MODEL: 'nvidia/Nemotron-3_5-Lightning',
+      NAGEX_PROVIDER_PRIORITY: 'nebius',
+      NAGEX_WEB_SEARCH_PROVIDER: 'custom_http',
+      NAGEX_WEB_SEARCH_ENDPOINT: `http://127.0.0.1:${searchPort}/search`,
+    },
+    modelRequests,
+    searchQueries,
+    failDocuments: (mode) => { documentMode = mode; },
+    failSearch: (on) => { searchDown = on; },
+    setChatDelayMs: (ms) => { chatDelayMs = ms; },
+    close: async () => { model.closeAllConnections?.(); search.closeAllConnections?.(); await Promise.all([new Promise((r) => model.close(() => r(null))), new Promise((r) => search.close(() => r(null)))]); },
+  };
+}

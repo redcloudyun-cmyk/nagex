@@ -341,3 +341,41 @@ describe('tools are the caller\'s own', () => {
     assert.equal(server.callsTo('echo'), 0);
   });
 });
+
+describe('capabilities can change between the preview and the request', () => {
+  it('a tool that is disabled, or a server that is removed, after the preview makes the request refuse (re-resolved with the CURRENT state), and nothing is created or called', async () => {
+    const user = 'usr_home_cap_1';
+    const id = await connect(user);
+    const plan = planFor(id);
+    const issued = seal(user, plan);
+    assert.equal((await call('POST', `/api/v1/mcp/servers/${id}/tools/echo`, { enabled: false }, as(user))).status, 200);
+    const refused = await requestRun(user, plan, issued.token);
+    assert.equal(refused.status, 422, JSON.stringify(refused.data));
+    assert.equal((data(await call('GET', '/api/v1/tasks', null, as(user))).tasks as any[]).length, 0);
+    // the refused request did not burn the plan: once the person enables the tool again the SAME reviewed plan can be sent
+    assert.equal((await call('POST', `/api/v1/mcp/servers/${id}/tools/echo`, { enabled: true }, as(user))).status, 200);
+    assert.equal((await requestRun(user, plan, issued.token)).status, 200);
+    assert.equal(server.callsTo('echo'), 0);
+
+    const user2 = 'usr_home_cap_2';
+    const id2 = await connect(user2);
+    const plan2 = planFor(id2, { message: 'second' });
+    const issued2 = seal(user2, plan2);
+    assert.equal((await call('DELETE', `/api/v1/mcp/servers/${id2}`, null, as(user2))).status, 200);
+    assert.equal((await requestRun(user2, plan2, issued2.token)).status, 422);
+    assert.equal(server.callsTo('echo'), 0);
+  });
+
+  it('a tool disabled AFTER the approval was requested cannot be executed by approving: the approval resumes through the broker, which re-checks the tool', async () => {
+    const user = 'usr_home_cap_3';
+    const id = await connect(user);
+    const plan = planFor(id, { message: 'disabled before approval' });
+    const started = data(await requestRun(user, plan, seal(user, plan).token));
+    assert.equal(started.state, 'APPROVAL_REQUIRED');
+    assert.equal((await call('POST', `/api/v1/mcp/servers/${id}/tools/echo`, { enabled: false }, as(user))).status, 200);
+    await call('POST', `/api/v1/approvals/${started.proposal.approval.approvalId}/approve`, {}, as(user));
+    const finished = await waitForRun(user, started.taskId);
+    assert.equal(finished.status, 'FAILED');
+    assert.equal(server.callsTo('echo'), 0, 'a disabled tool is never called, even with a granted approval');
+  });
+});

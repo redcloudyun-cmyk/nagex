@@ -101,6 +101,8 @@ const IMAGE_NOUN = /(이미지|그림|사진|일러스트|삽화|로고|포스�
 const MAKE_VERB_KO = /(만들|만드|작성|써\s*(줘|주|라|봐)|써줘|생성|제작|그려|그리|뽑아|디자인|준비해\s*(줘|주)|정리해서|정리해\s*(줘|주)|바꿔\s*(줘|주)|변환|완성)/;
 const MAKE_VERB_EN = /\b(make|create|write|draft|generate|produce|build|design|draw|compose|put together|prepare|turn (this|it|that) into|convert (this|it|that) (in)?to)\b/i;
 const DRAW_KO = /그려\s*(줘|주세요|줄래|봐)/;
+// "draw me a mountain at dawn" - drawing something is an image request (not "draw a conclusion")
+const DRAW_EN = /\b(draw|sketch|paint|illustrate)\b(?!\s+(a\s+)?(conclusions?|comparisons?|parallels?|attention|blanks?|lines?|lots|straws?|the\s+line))/i;
 
 const RESEARCH_CUE = [
   /(조사|리서치|검색해|검색\s*해|알아봐|알아보|동향|트렌드|시장\s*분석|경쟁사\s*분석|출처|근거를?\s*(들|제시)|레퍼런스|참고\s*자료를?\s*찾)/g,
@@ -112,6 +114,8 @@ const EXPLICIT_RESEARCH = /(조사|리서치|출처|research|investigate|sources
 const KO_ACT_STEM = '(보내|전송|발송|답장|회신|전달|예약|잡아|취소|삭제|지워|지우|제거|초대|수락|거절|연기|미뤄|결제|구매|주문|송금|환불|게시|올려|공유|등록|추가|변경|수정|옮겨|이동|저장|설정|리마인드|연결)';
 const KO_REQUEST_END = '(줘|주세요|주라|줄래|줄\\s*수\\s*있|줄\\s*수\\s*없|해\\s*줘|해\\s*주세요|해\\s*줄래|해\\s*줄\\s*수|해라|하세요|해봐|해\\s*봐|할래|합시다)';
 const KO_ACTION = new RegExp(KO_ACT_STEM + '\\S{0,4}\\s*' + KO_REQUEST_END);
+// "내일 아침 9시에 약 먹으라고 알려줘": telling the person at a time is a reminder, i.e. something to be scheduled
+const KO_REMINDER = /(\d+\s*시|내일|모레|오늘|아침|저녁|매일|매주|다음\s*주|오전|오후)[^.!?\n]{0,30}(라고|으라고|하라고|도록)\s*알려\s*(줘|주세요|줄래)/;
 const KO_ACTION_EVENT = new RegExp('(일정|이벤트|리마인더|알람|약속|예약)[^.!?\\n]{0,10}(잡|등록|추가|만들|생성|변경|수정|취소|옮기)[^.!?\\n]{0,4}' + KO_REQUEST_END);
 const KO_ACTION_MEETING = new RegExp('(회의|미팅)[^.!?\\n]{0,10}(잡|등록|취소|옮기|변경|수정)[^.!?\\n]{0,4}' + KO_REQUEST_END);
 const EN_ACT_VERB = '(send|email|e-mail|reply|respond|forward|schedule|reschedule|book|reserve|invite|cancel|postpone|rsvp|delete|erase|trash|remove|publish|post|tweet|upload|submit|pay|purchase|buy|order|transfer|donate|refund|deploy|install|approve|reject|subscribe|unsubscribe|share|remind me|set up)';
@@ -236,7 +240,7 @@ export function decideRouting(rawText: string, options: { hasAttachment?: boolea
   }
 
   // 3. consequential action: communicate / schedule / change / delete / spend / publish
-  const koAction = KO_ACTION.test(work) || KO_ACTION_EVENT.test(work) || KO_ACTION_MEETING.test(work);
+  const koAction = KO_ACTION.test(work) || KO_ACTION_EVENT.test(work) || KO_ACTION_MEETING.test(work) || KO_REMINDER.test(work);
   const asksAction = koAction || EN_ACTION.test(work) || EN_ACTION_OBJECT.test(work) || TOOL_USE.some((re) => re.test(work));
   const isInfoQuestion = EN_INFO_QUESTION.test(work) || (language === 'ko' && KO_INFO_QUESTION.test(work));
   const conjoinedAction = /\b(and|then|and then)\s+(please\s+)?(send|email|forward|schedule|book|cancel|delete|post|share|publish|pay|buy|order|reply|invite)\b/i.test(work);
@@ -245,7 +249,7 @@ export function decideRouting(rawText: string, options: { hasAttachment?: boolea
   const wantsResearch = RESEARCH_CUE.some((re) => { re.lastIndex = 0; return re.test(work); });
   const wantsDocument = hasDocNoun && makesSomething;
   const wantsSlides = hasSlideNoun && (makesSomething || /\d+\s*(장|페이지|slides?)/i.test(work));
-  const wantsImage = (hasImageNoun && makesSomething) || DRAW_KO.test(work);
+  const wantsImage = (hasImageNoun && makesSomething) || DRAW_KO.test(work) || DRAW_EN.test(work);
 
   if (actionRequested) {
     const destructive = DESTRUCTIVE.some((re) => re.test(work));
