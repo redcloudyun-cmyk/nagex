@@ -151,6 +151,7 @@
       "security_s2e_auth_abuse",
       "nebius_nemotron_provider",
       "nebius_nemotron_routing",
+      "nebius_nemotron_first",
       "jev_shadow_runtime"
     ],
     "personal-home": [
@@ -186,6 +187,7 @@
       "r22_5_task_aware_model_routing",
       "nebius_nemotron_provider",
       "nebius_nemotron_routing",
+      "nebius_nemotron_first",
       "jev_shadow_runtime"
     ],
     "mobile": [

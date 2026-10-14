@@ -134,7 +134,7 @@ test('provider status exposes configuration metadata and never API keys', async 
   const serialized = JSON.stringify(result.data);
   assert.doesNotMatch(serialized, /top-secret|apiKey|OPENAI_API_KEY/);
   const status = (result.data as any).providers[0];
-  assert.deepEqual(Object.keys(status).sort(), ['available', 'configured', 'degradedReason', 'lastCheckedAt', 'model', 'provider', 'status']);
+  assert.deepEqual(Object.keys(status).sort(), ['available', 'configured', 'degradedReason', 'lastCheckedAt', 'model', 'provider', 'retryEligible', 'status']);
   // R7 §2/§3 — the active/fallback summary alongside the per-provider array.
   assert.equal((result.data as any).activeProvider, 'openai');
   assert.equal((result.data as any).activeModel, 'oa');

@@ -88,7 +88,27 @@ export interface ProviderStatus {
   status: ProviderRuntimeStatus;
   lastCheckedAt: string | null;
   degradedReason: string | null;
+  // DEGRADED only describes the LAST call. After a cool-down the provider is eligible for ONE more real attempt (it is never locked out for ever); this
+  // flag says so. It does not make the provider LIVE - only a successful call does.
+  retryEligible?: boolean;
 }
+
+// A content-free record of one routed model call (task kind, provider, model, latency, whether the preferred provider answered). Never a prompt, answer,
+// reasoning text, header or credential.
+export interface ModelCallRecord {
+  at: string;
+  requestId: string;
+  taskKind: string;
+  preferredProvider: string | null;
+  actualProvider: string;
+  model: string;
+  latencyMs: number;
+  fallbackUsed: boolean;
+  fallbackReason: ModelFailureReason | null;
+}
+
+// Receives a fallback so it can be written to the server audit record. Must never throw into the request path.
+export type ModelFallbackAuditSink = (record: ModelCallRecord) => void;
 
 import type { ModelProviderCapabilities } from './model-routing.types.js';
 

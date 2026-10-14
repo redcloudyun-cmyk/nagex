@@ -428,6 +428,11 @@ export class AiService {
     return this.router.activeProviderSummary();
   }
 
+  // Content-free trace of the latest routed calls (task, provider, model, latency, fallback + reason) for the evidence view.
+  public recentModelCalls(limit?: number) {
+    return this.router.recentCalls(limit);
+  }
+
   public async healthCheck() {
     return this.router.healthCheck();
   }

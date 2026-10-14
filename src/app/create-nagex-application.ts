@@ -181,6 +181,19 @@ export function createNagexApplication(): NagexApplication {
   const personalContextService = new PersonalContextService(memoryEngine, (id: string) => pinnedMemories.has(id));
   const conversationMemoryExtractor = new ConversationMemoryExtractor(memoryEngine);
   const modelRouter = new UnifiedModelRouter(createProviders());
+  // A fallback away from the preferred provider (e.g. Nemotron failed or was skipped) is written to the server audit record with its reason.
+  modelRouter.setFallbackAuditSink((record) => {
+    auditLogger.logEvent({
+      actor: { type: 'system', id: 'model-router' },
+      tenant_id: 'system',
+      action: 'model.fallback',
+      resource: { type: 'ModelRequest', id: record.requestId },
+      result: 'SUCCESS',
+      ...(record.fallbackReason ? { reason_code: record.fallbackReason } : {}),
+      request_id: record.requestId,
+      details: { taskKind: record.taskKind, preferredProvider: record.preferredProvider, actualProvider: record.actualProvider, model: record.model, latencyMs: record.latencyMs },
+    });
+  });
   const aiService = new AiService(modelRouter);
   const planResolver = new PlanResolver(canonicalSkillRegistry, canonicalToolRegistry);
   const actionApprovals = new PersistentActionApprovalStore({

@@ -3450,6 +3450,14 @@
         </div>`;
       })
       .join('') || `<p class="setting-sub">${escapeHtml(t('settings.providerNoneConfigured') || 'No model provider is configured on this server.')}</p>`;
+    // Operator evidence (only present when the server owner enabled it): the latest routed calls with provider, model, task and fallback.
+    if (data && Array.isArray(data.recentCalls) && data.recentCalls.length) {
+      const rows = data.recentCalls.map((call) => {
+        const route = call.fallbackUsed ? (t('settings.modelTraceFallback') || 'fallback') + (call.fallbackReason ? ': ' + String(call.fallbackReason) : '') : (t('settings.modelTracePreferred') || 'preferred route');
+        return `<li>${escapeHtml(String(call.taskKind))} · ${escapeHtml(String(call.actualProvider))} · ${escapeHtml(String(call.model))} · ${escapeHtml((Number(call.latencyMs) / 1000).toFixed(1))}s · ${escapeHtml(route)}</li>`;
+      }).join('');
+      el.insertAdjacentHTML('beforeend', `<details class="setting-sub" id="settings-model-trace"><summary>${escapeHtml(t('settings.modelTraceTitle') || 'Recent model calls')}</summary><ul>${rows}</ul></details>`);
+    }
   }
 
   // GitHub built-in connection: state comes from the server per signed-in user (never a local copy).

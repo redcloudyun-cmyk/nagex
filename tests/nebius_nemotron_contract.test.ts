@@ -40,7 +40,7 @@ describe('Nebius / Nemotron — architecture contract', () => {
 
   it('the preference table is routing data, consulted only by the policy comparator, never by an explicit override', () => {
     const policy = stripComments(read('src/model-gateway/model-routing-policy.ts'));
-    assert.match(policy, /DEFAULT_TASK_PROVIDER_PREFERENCES[^=]*= \{\s*PLAN: \['nebius'\],\s*RESEARCH_SYNTHESIS: \['nebius'\],\s*MEETING_PREP: \['nebius'\],\s*\};/);
+    assert.match(policy, /DEFAULT_TASK_PROVIDER_PREFERENCES[^=]*= \{\s*CHAT: \['nebius'\],\s*PLAN: \['nebius'\],\s*RESEARCH_SYNTHESIS: \['nebius'\],\s*MEETING_PREP: \['nebius'\],\s*DOCUMENT_SYNTHESIS: \['nebius'\],\s*\};/);
     assert.match(policy, /ignoreTaskScope: true/, 'only the explicit path skips the automatic task scope');
     const explicitBlock = policy.slice(policy.indexOf('// 1. Explicit Provider Override'), policy.indexOf('// 2. Auto Routing'));
     assert.equal(/compare\(|preferredProvidersFor\(/.test(explicitBlock), false, 'an explicit provider is never re-ranked by the preference');

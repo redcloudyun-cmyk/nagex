@@ -9,14 +9,29 @@ const STATUS_RANK: Record<string, number> = {
   UNCONFIGURED: 3,
 };
 
-// Initial, deliberately small: the high-reasoning personal-AI tasks prefer NVIDIA Nemotron through Nebius Token Factory.
-// Every other task keeps the routing it had (CHAT, STRUCTURED_EXTRACTION, DAILY_BRIEF, DOCUMENT_SYNTHESIS, …). A preference
-// only ranks an ELIGIBLE, CONFIGURED, non-degraded provider first; the rest of the order is the pre-existing one.
+// NVIDIA Nemotron first: the personal-AI tasks the person actually talks to NAgex through - general conversation, planning, research,
+// meeting preparation and document drafting - prefer Nemotron through Nebius Token Factory. Every other task (strict extraction, daily brief,
+// comparison / forecast analysis, ...) keeps the routing it had. A preference only ranks an ELIGIBLE, CONFIGURED provider that is not
+// currently degraded first (a degraded one is retried after its cool-down, see isDegradedNow); the rest of the order is the pre-existing one,
+// so a failing Nemotron falls back to the next verified provider and the reason is recorded.
 export const DEFAULT_TASK_PROVIDER_PREFERENCES: TaskProviderPreferences = {
+  CHAT: ['nebius'],
   PLAN: ['nebius'],
   RESEARCH_SYNTHESIS: ['nebius'],
   MEETING_PREP: ['nebius'],
+  DOCUMENT_SYNTHESIS: ['nebius'],
 };
+
+// DEGRADED = the last real call failed. It only deprioritizes the provider while its cool-down runs; afterwards the provider competes again (as if
+// CONFIGURED) and one real call decides: success -> LIVE, failure -> DEGRADED again with a fresh cool-down. Without this a single transient timeout
+// removed the preferred provider from routing until a restart.
+export function isDegradedNow(status: { status: string; retryEligible?: boolean }): boolean {
+  return status.status === 'DEGRADED' && status.retryEligible !== true;
+}
+function effectiveRank(status: { status: string; retryEligible?: boolean }): number {
+  if (status.status === 'DEGRADED' && status.retryEligible === true) return STATUS_RANK.CONFIGURED;
+  return STATUS_RANK[status.status] ?? 3;
+}
 
 export class ModelRoutingPolicy {
   constructor(private readonly taskPreferences: TaskProviderPreferences = DEFAULT_TASK_PROVIDER_PREFERENCES) {}
@@ -35,14 +50,14 @@ export class ModelRoutingPolicy {
     const preferred = this.preferredProvidersFor(context.taskKind);
     const prefRank = (p: ModelProvider): number => {
       const index = preferred.indexOf(p.name);
-      return index >= 0 && p.status().status !== 'DEGRADED' ? index : 999;
+      return index >= 0 && !isDegradedNow(p.status()) ? index : 999;
     };
     const prefA = prefRank(a);
     const prefB = prefRank(b);
     if (prefA !== prefB) return prefA - prefB;
 
-    const statusA = STATUS_RANK[a.status().status] ?? 3;
-    const statusB = STATUS_RANK[b.status().status] ?? 3;
+    const statusA = effectiveRank(a.status());
+    const statusB = effectiveRank(b.status());
     if (statusA !== statusB) return statusA - statusB;
 
     const rankA = priorityIndexMap.has(a.name) ? priorityIndexMap.get(a.name)! : 999;
@@ -165,7 +180,7 @@ export class ModelRoutingPolicy {
     }
 
     // Check if any provider was degraded to record reason code
-    const hasDegraded = eligibleProviders.some((p) => p.status().status === 'DEGRADED');
+    const hasDegraded = eligibleProviders.some((p) => isDegradedNow(p.status()));
     if (hasDegraded) {
       reasonCodes.push('PROVIDER_DEGRADED_DEPRIORITIZED');
     }
@@ -179,7 +194,7 @@ export class ModelRoutingPolicy {
 
     const selected = sortedCandidates[0];
     const selectedStatus = selected.status().status;
-    if (this.preferredProvidersFor(context.taskKind).includes(selected.name) && selectedStatus !== 'DEGRADED') {
+    if (this.preferredProvidersFor(context.taskKind).includes(selected.name) && !isDegradedNow(selected.status())) {
       reasonCodes.push('TASK_PREFERRED_PROVIDER');
     }
 

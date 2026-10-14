@@ -2,6 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { NagexError } from '../common/errors.js';
 import {
   ModelProviderError,
+  type ModelCallRecord,
+  type ModelFallbackAuditSink,
+  type ModelRoutingTrace,
   classifyModelFailure,
   type ModelFailureReason,
   type ModelMessage,
@@ -12,7 +15,7 @@ import {
   type RoutingMode,
 } from './model-provider.js';
 import { buildJevAdvisoryRecord, buildJevShadowTelemetry, JevShadowEvaluator, validateJevShadowOutput } from './jev-shadow-evaluator.js';
-import { ModelRoutingPolicy } from './model-routing-policy.js';
+import { ModelRoutingPolicy, isDegradedNow } from './model-routing-policy.js';
 import type { ModelRoutingContext, ModelRoutingDecision } from './model-routing.types.js';
 
 export interface RouterLogger {
@@ -59,6 +62,16 @@ export class UnifiedModelRouter {
   private readonly providers: Map<string, ModelProvider>;
   private readonly configuredPriority: string[];
   private readonly routingPolicy: ModelRoutingPolicy;
+  private fallbackAuditSink: ModelFallbackAuditSink | null = null;
+  private readonly recent: ModelCallRecord[] = [];
+
+  // Where fallbacks are written to the server audit record (in addition to the structured log). Optional; never allowed to break a request.
+  public setFallbackAuditSink(sink: ModelFallbackAuditSink | null): void { this.fallbackAuditSink = sink; }
+
+  // The last routed calls, newest first. Content-free: task kind, providers, model, latency, fallback and its reason - nothing from a prompt or an answer.
+  public recentCalls(limit = 20): ModelCallRecord[] {
+    return this.recent.slice(-Math.max(0, Math.min(limit, 50))).reverse().map((record) => ({ ...record }));
+  }
 
   constructor(
     providers: ModelProvider[],
@@ -189,7 +202,20 @@ export class UnifiedModelRouter {
     if (failed) return failed.reason;
     const provider = this.providers.get(preferred);
     if (!provider || !provider.status().configured) return 'NO_PROVIDER_CREDENTIAL';
-    return provider.status().status === 'DEGRADED' ? 'PROVIDER_DEGRADED' : 'UNKNOWN_FAILURE';
+    return isDegradedNow(provider.status()) ? 'PROVIDER_DEGRADED' : 'UNKNOWN_FAILURE';
+  }
+
+  private recordCall(trace: ModelRoutingTrace, model: string, latencyMs: number, requestId: string): void {
+    const record: ModelCallRecord = {
+      at: new Date().toISOString(), requestId, taskKind: trace.taskKind, preferredProvider: trace.preferredProvider, actualProvider: trace.actualProvider,
+      model, latencyMs, fallbackUsed: trace.fallbackUsed, fallbackReason: trace.fallbackReason,
+    };
+    this.recent.push(record);
+    if (this.recent.length > 50) this.recent.splice(0, this.recent.length - 50);
+    if (!trace.fallbackUsed) return;
+    // The reason the preferred provider did not answer is an operational fact worth its own record: structured log AND the server audit sink.
+    this.logger.warn('model_fallback', { requestId, taskKind: record.taskKind, preferredProvider: record.preferredProvider, actualProvider: record.actualProvider, model, fallbackReason: record.fallbackReason });
+    try { this.fallbackAuditSink?.(record); } catch { /* auditing must never fail the request */ }
   }
 
   public async generate(input: GenerateInput): Promise<ModelResponse> {
@@ -266,7 +292,8 @@ export class UnifiedModelRouter {
           provider: result.provider,
           model: result.model,
           latencyMs: result.latencyMs,
-          fallbackUsed,
+          // "fallback" means the provider the routing table prefers did not answer - whether it failed just now or was skipped while degraded.
+          fallbackUsed: trace.fallbackUsed,
           preferredProvider: trace.preferredProvider,
           actualProvider: trace.actualProvider,
           fallbackReason: trace.fallbackReason,
@@ -277,6 +304,7 @@ export class UnifiedModelRouter {
           reasoningAvailable: result.meta?.reasoningAvailable ?? false,
           finishReason: result.meta?.finishReason ?? null,
         });
+        this.recordCall(trace, result.model, result.latencyMs, requestId);
         return { ...result, routing: trace };
       } catch (error) {
         const normalized = error instanceof ModelProviderError

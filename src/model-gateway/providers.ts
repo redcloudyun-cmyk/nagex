@@ -18,6 +18,15 @@ interface ProviderOptions {
   model?: string;
   fetchFn?: FetchFn;
   timeoutMs?: number;
+  // How long a provider whose last call failed stays deprioritized before it may be tried again (default 60 s, bounded 1 s - 10 min).
+  degradedCooldownMs?: number;
+  now?: () => number;
+}
+
+export const DEFAULT_DEGRADED_COOLDOWN_MS = 60_000;
+export function readDegradedCooldownMs(env: NodeJS.ProcessEnv): number {
+  const raw = Number(env.NAGEX_PROVIDER_DEGRADED_COOLDOWN_MS);
+  return Number.isFinite(raw) && raw >= 1_000 && raw <= 600_000 ? Math.floor(raw) : DEFAULT_DEGRADED_COOLDOWN_MS;
 }
 
 abstract class HttpModelProvider implements ModelProvider {
@@ -43,9 +52,14 @@ abstract class HttpModelProvider implements ModelProvider {
   // API key.
   private lastOutcome: 'success' | 'failure' | null = null;
   private lastCheckedAt: string | null = null;
+  private lastCheckedAtMs = 0;
   private lastFailureReason: string | null = null;
+  private readonly degradedCooldownMs: number;
+  private readonly clock: () => number;
 
   constructor(options: ProviderOptions) {
+    this.degradedCooldownMs = options.degradedCooldownMs !== undefined && options.degradedCooldownMs >= 0 ? options.degradedCooldownMs : DEFAULT_DEGRADED_COOLDOWN_MS;
+    this.clock = options.now ?? (() => Date.now());
     this.apiKey = options.apiKey?.trim() || null;
     this.model = options.model?.trim() || null;
     this.fetchFn = options.fetchFn ?? fetch;
@@ -54,7 +68,8 @@ abstract class HttpModelProvider implements ModelProvider {
 
   protected recordOutcome(outcome: 'success' | 'failure', failureReason: string | null): void {
     this.lastOutcome = outcome;
-    this.lastCheckedAt = new Date().toISOString();
+    this.lastCheckedAtMs = this.clock();
+    this.lastCheckedAt = new Date(this.lastCheckedAtMs).toISOString();
     this.lastFailureReason = outcome === 'success' ? null : failureReason;
   }
 
@@ -80,6 +95,8 @@ abstract class HttpModelProvider implements ModelProvider {
       status,
       lastCheckedAt: this.lastCheckedAt,
       degradedReason: status === 'DEGRADED' ? this.lastFailureReason : null,
+      // A failed provider is retried after the cool-down: the failure was one real observation, not a verdict that lasts until restart.
+      retryEligible: status === 'DEGRADED' && this.clock() - this.lastCheckedAtMs >= this.degradedCooldownMs,
     };
   }
 
@@ -284,8 +301,10 @@ const DEFAULT_NEBIUS_TIMEOUT_MS = 60_000;     // a reasoning model legitimately 
 const DEFAULT_NEBIUS_MAX_TOKENS = 8_192;      // includes reasoning tokens
 const NEBIUS_MAX_RETRIES = 1;                  // network failure / 5xx only; never 429, 4xx or timeout
 
-// The tasks NVIDIA Nemotron takes part in through automatic routing. Everything else keeps its existing providers.
-export const NEBIUS_NEMOTRON_TASK_KINDS: ModelTaskKind[] = ['PLAN', 'RESEARCH_SYNTHESIS', 'MEETING_PREP'];
+// The tasks NVIDIA Nemotron (through Nebius Token Factory) takes part in through automatic routing, and prefers: general conversation, planning,
+// research, meeting preparation and document drafting. Everything else (strict extraction, daily brief, comparison / forecast analysis, ...) keeps its
+// existing providers, and non-text creation (images) never goes through this text router at all.
+export const NEBIUS_NEMOTRON_TASK_KINDS: ModelTaskKind[] = ['CHAT', 'PLAN', 'RESEARCH_SYNTHESIS', 'MEETING_PREP', 'DOCUMENT_SYNTHESIS'];
 
 interface NebiusOptions extends ProviderOptions {
   baseUrl?: string;
@@ -458,10 +477,12 @@ function positiveInt(value: string | undefined): number | undefined {
 }
 
 export function createProviders(env: NodeJS.ProcessEnv = process.env, fetchFn?: FetchFn, timeoutMs?: number): ModelProvider[] {
+  const degradedCooldownMs = readDegradedCooldownMs(env);
   const providers = [
-    new OpenAIProvider({ apiKey: env.OPENAI_API_KEY, model: env.NAGEX_OPENAI_MODEL, fetchFn, timeoutMs }),
-    new GeminiProvider({ apiKey: env.GEMINI_API_KEY, model: env.NAGEX_GEMINI_MODEL, fetchFn, timeoutMs }),
+    new OpenAIProvider({ apiKey: env.OPENAI_API_KEY, model: env.NAGEX_OPENAI_MODEL, fetchFn, timeoutMs, degradedCooldownMs }),
+    new GeminiProvider({ apiKey: env.GEMINI_API_KEY, model: env.NAGEX_GEMINI_MODEL, fetchFn, timeoutMs, degradedCooldownMs }),
     new NebiusProvider({
+      degradedCooldownMs,
       apiKey: env.NEBIUS_API_KEY,
       model: env.NAGEX_NEBIUS_MODEL || DEFAULT_NEBIUS_MODEL,
       baseUrl: env.NAGEX_NEBIUS_BASE_URL,

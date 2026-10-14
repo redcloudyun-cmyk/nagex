@@ -5059,6 +5059,21 @@
       "assertionIntent": "Nebius Token Factory / NVIDIA Nemotron provider adapter against a fake and a real local OpenAI-compatible endpoint: the configured provider uses the canonical URL, model and the server-side credential only (an unsafe base URL or a missing key leaves it UNCONFIGURED and sends nothing); success is normalized (content, usage incl. reasoning tokens, finish reason, request id); hidden provider reasoning (reasoning_content, reasoning, inline think blocks) is dropped and never returned, logged or kept; 401/403/429/5xx/network/timeout/malformed/truncated output are each reported with a fixed reason vocabulary, retried at most once for network/5xx only, and never reported as a result; no secret reaches a log, error, status or result.",
       "notes": "Fake fetch plus one local HTTP server on 127.0.0.1. The paid Nebius API is never called; the opt-in real certification is scripts/nebius-live-cert.mjs."
     },
+    "nebius_nemotron_first": {
+      "milestone": "NAGEX-D11-NEMOTRON-FIRST",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "model-routing",
+        "runtime"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Nemotron-first policy through the existing router: general conversation, planning, research, meeting preparation and document drafting prefer Nemotron even over an already-live provider while other tasks are untouched; a failed Nemotron is retried after a bounded cool-down (one trial per window) instead of being locked out for ever; fallbacks are logged (model_fallback) and sent to the server audit sink with their fixed reason; the recent-call trace is content-free, bounded and exposed on the status endpoint only when the owner enables it; non-text creation never reaches the text router.",
+      "notes": "Fake provider endpoints with an injected clock. Proves routing behavior only - it is NOT evidence that a real model answered; real Nebius calls are recorded in docs/evidence/NAGEX_D11_NEMOTRON_FIRST_CERT_20261014.md."
+    },
     "nebius_nemotron_routing": {
       "milestone": "NEBIUS-NEMOTRON-RUNTIME",
       "classification": "CANONICAL_BEHAVIOR",
@@ -5071,7 +5086,7 @@
       "realBrowser": false,
       "sourceImplementationAssertions": false,
       "deterministic": true,
-      "assertionIntent": "Task-aware routing of Nemotron inside the canonical UnifiedModelRouter/ModelRoutingPolicy: PLAN, RESEARCH_SYNTHESIS and MEETING_PREP prefer NEBIUS (even over an already-live provider); every other TaskKind keeps exactly its pre-existing decision and Nemotron is not even a fallback for it; failures of the preferred provider (429, 401/403, 5xx, 404, timeout, network, malformed, validator rejection, no credential, degraded) fall back to the existing approved providers with a recorded preferredProvider/actualProvider/fallbackReason, never as a fabricated success; an explicit provider choice is never overridden; Nemotron's capability declaration is evidence-graded (nothing beyond chat completion is claimed as supported); telemetry carries task, provider, model, latency and token counts but no prompt, answer, reasoning or credential.",
+      "assertionIntent": "Task-aware routing of Nemotron inside the canonical UnifiedModelRouter/ModelRoutingPolicy: CHAT, PLAN, RESEARCH_SYNTHESIS, MEETING_PREP and DOCUMENT_SYNTHESIS prefer NEBIUS (even over an already-live provider); every other TaskKind keeps exactly its pre-existing decision and Nemotron is not even a fallback for it; failures of the preferred provider (429, 401/403, 5xx, 404, timeout, network, malformed, validator rejection, no credential, degraded) fall back to the existing approved providers with a recorded preferredProvider/actualProvider/fallbackReason, never as a fabricated success; an explicit provider choice is never overridden; Nemotron's capability declaration is evidence-graded (nothing beyond chat completion is claimed as supported); telemetry carries task, provider, model, latency and token counts but no prompt, answer, reasoning or credential.",
       "notes": "Real providers with injected fetch; AiService methods drive the TaskKinds. No network, no paid call."
     },
     "r23_6m_m4c_r2g_binding": {

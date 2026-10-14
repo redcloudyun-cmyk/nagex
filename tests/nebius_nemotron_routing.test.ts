@@ -1,7 +1,7 @@
 // NAgex — task-aware routing of NVIDIA Nemotron (Nebius Token Factory) through the canonical router.
 //
 // Proves the integration lives INSIDE the existing UnifiedModelRouter / ModelRoutingPolicy / TaskKind architecture (no second
-// model system): PLAN, RESEARCH_SYNTHESIS and MEETING_PREP prefer NEBIUS/Nemotron; every other task keeps exactly the routing it
+// model system): CHAT, PLAN, RESEARCH_SYNTHESIS, MEETING_PREP and DOCUMENT_SYNTHESIS prefer NEBIUS/Nemotron; every other task keeps exactly the routing it
 // had; an unavailable, rate-limited, rejecting, slow or malformed Nemotron falls back truthfully with a fixed reason code; an
 // explicit provider choice is never overridden; and capability claims carry evidence grades (no unverified guarantee).
 import { describe, it } from 'node:test';
@@ -37,17 +37,17 @@ function build(opts: { nebius?: Kind; gemini?: Kind; openai?: Kind; nebiusTimeou
 }
 const ctx = (taskKind: ModelTaskKind, requiresJson: boolean): ModelRoutingContext => ({ taskKind, requiresJson, requestId: 'r' });
 const ALL_TASKS: ModelTaskKind[] = ['CHAT', 'RESEARCH_SYNTHESIS', 'DOCUMENT_SYNTHESIS', 'PLAN', 'STRUCTURED_EXTRACTION', 'DAILY_BRIEF', 'MEETING_PREP', 'PERSPECTIVE_ANALYSIS', 'PERSPECTIVE_SYNTHESIS', 'FORECAST_ANALYSIS', 'FORECAST_SYNTHESIS'];
-const PREFERRING: ModelTaskKind[] = ['PLAN', 'RESEARCH_SYNTHESIS', 'MEETING_PREP'];
+const PREFERRING: ModelTaskKind[] = ['CHAT', 'PLAN', 'RESEARCH_SYNTHESIS', 'MEETING_PREP', 'DOCUMENT_SYNTHESIS'];
 const REPLY_PLAN_JSON = JSON.stringify({ goal: 'g', summary: 's', reasoningSummary: 'r', suggestions: [], steps: [{ title: 't', reasoning: 'r', skill: 'skill.x', tool: null, requiresApproval: false, necessity: 'REQUIRED', dependsOn: [], parameters: {} }] });
 
 describe('routing table', () => {
-  it('prefers NEBIUS for exactly PLAN, RESEARCH_SYNTHESIS and MEETING_PREP', () => {
+  it('prefers NEBIUS for exactly CHAT, PLAN, RESEARCH_SYNTHESIS, MEETING_PREP and DOCUMENT_SYNTHESIS', () => {
     assert.deepEqual(Object.keys(DEFAULT_TASK_PROVIDER_PREFERENCES).sort(), [...PREFERRING].sort());
     for (const task of PREFERRING) assert.deepEqual(DEFAULT_TASK_PROVIDER_PREFERENCES[task], ['nebius']);
     assert.deepEqual([...NEBIUS_NEMOTRON_TASK_KINDS].sort(), [...PREFERRING].sort());
   });
 
-  for (const [task, json] of [['PLAN', true], ['RESEARCH_SYNTHESIS', false], ['MEETING_PREP', true]] as const) {
+  for (const [task, json] of [['CHAT', false], ['PLAN', true], ['RESEARCH_SYNTHESIS', false], ['MEETING_PREP', true], ['DOCUMENT_SYNTHESIS', true]] as const) {
     it(`${task} → NEBIUS preferred (even when another provider is already LIVE), others are the fallback`, async () => {
       const { providers, router } = build();
       // make gemini LIVE so the pre-existing "LIVE first" status tier would have beaten an unprobed provider
@@ -63,7 +63,7 @@ describe('routing table', () => {
 });
 
 describe('every other task keeps exactly its existing routing', () => {
-  it('adding a configured Nemotron provider changes NO decision for CHAT, STRUCTURED_EXTRACTION, DAILY_BRIEF, DOCUMENT_SYNTHESIS, PERSPECTIVE_*, FORECAST_*', () => {
+  it('adding a configured Nemotron provider changes NO decision for STRUCTURED_EXTRACTION, DAILY_BRIEF, PRESENTATION_SYNTHESIS, PERSPECTIVE_*, FORECAST_*', () => {
     const policy = new ModelRoutingPolicy();
     const without = build({ nebius: 'none' }).providers;
     const withNebius = build().providers;
@@ -79,9 +79,10 @@ describe('every other task keeps exactly its existing routing', () => {
     }
   });
 
-  it('with only Nemotron configured, CHAT / STRUCTURED_EXTRACTION / DAILY_BRIEF have no eligible provider (they are not routed to it)', () => {
+  it('with only Nemotron configured, CHAT is served by it, while STRUCTURED_EXTRACTION / DAILY_BRIEF / PRESENTATION_SYNTHESIS have no eligible provider (they are not routed to it)', () => {
     const only = build({ openai: 'none', gemini: 'none' }).providers;
-    for (const [task, json] of [['CHAT', false], ['STRUCTURED_EXTRACTION', true], ['DAILY_BRIEF', true]] as const) {
+    assert.equal(new ModelRoutingPolicy().select('auto', ctx('CHAT', false), only, ['nebius']).selectedProvider, 'nebius');
+    for (const [task, json] of [['STRUCTURED_EXTRACTION', true], ['DAILY_BRIEF', true], ['PRESENTATION_SYNTHESIS', true]] as const) {
       assert.throws(() => new ModelRoutingPolicy().select('auto', ctx(task, json), only, ['nebius']), (e: any) => e.code === 'NO_MODEL_PROVIDER_CONFIGURED', task);
     }
   });
@@ -102,7 +103,7 @@ describe('every other task keeps exactly its existing routing', () => {
     assert.deepEqual(seen('MEETING_PREP'), ['nebius']);
     assert.deepEqual(seen('RESEARCH_SYNTHESIS'), ['nebius']);
     assert.deepEqual(seen('DAILY_BRIEF'), ['gemini'], 'DAILY_BRIEF keeps its route');
-    assert.ok(seen('CHAT').every((p) => p !== 'nebius'), 'CHAT keeps its route');
+    assert.deepEqual(seen('CHAT'), ['nebius'], 'CHAT is Nemotron-first');
   });
 });
 
