@@ -14,9 +14,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const USAGE = 'usage: data-incident-decision-annex.mjs --logs <dir> [--root <dir>] [--out <new file>] [--max-files N] [--max-seconds N] [--max-file-bytes N] [--max-rows N] [--no-identity-read] [--probe-path <p>]...';
+const USAGE = 'usage: data-incident-decision-annex.mjs --logs <dir> [--root <dir>] [--out <new file>] [--max-files N] [--max-seconds N] [--max-file-bytes N] [--max-rows N] [--no-identity-read] [--skip-dir <top-level-dir>]... [--probe-path <p>]...';
 function parseArgs(argv) {
-  const o = { root: '/var/lib/nagex', out: null, maxFiles: 60000, maxSeconds: 240, maxFileBytes: 2 * 1024 * 1024, maxRows: 5000, identityRead: true, probes: [], logs: null };
+  const o = { root: '/var/lib/nagex', out: null, maxFiles: 60000, maxSeconds: 240, maxFileBytes: 2 * 1024 * 1024, maxRows: 5000, identityRead: true, probes: [], skipDirs: new Set(), logs: null };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     const val = () => { if (i + 1 >= argv.length) throw new Error(`missing value for ${a}`); i += 1; return argv[i]; };
@@ -29,6 +29,7 @@ function parseArgs(argv) {
     else if (a === '--max-rows') o.maxRows = Number(val());
     else if (a === '--no-identity-read') o.identityRead = false;
     else if (a === '--probe-path') o.probes.push(val());
+    else if (a === '--skip-dir') o.skipDirs.add(val());
     else throw new Error(`unknown argument ${a}`);
   }
   for (const k of ['maxFiles', 'maxSeconds', 'maxFileBytes', 'maxRows']) if (!Number.isFinite(o[k]) || o[k] <= 0) throw new Error(`invalid ${k}`);
@@ -130,7 +131,7 @@ try {
   const identityOwners = new Set();
   const refByPre = new Set();
   const dirCounts = {};
-  const skipped = { secretDirs: new Set(), secretFiles: 0, tooLarge: 0, unparseable: 0, identityDirsSkipped: false };
+  const skipped = { secretDirs: new Set(), secretFiles: 0, tooLarge: 0, unparseable: 0, identityDirsSkipped: false, byOperator: new Set() };
   const personalSeen = new Set();
   const tasks = [], approvals = [], durableRuns = { RUNNING: 0, other: 0 }, contWaiting = { n: 0 };
   const walk = (dir, top) => {
@@ -141,6 +142,7 @@ try {
       if (e.isDirectory()) {
         const t = top ?? e.name;
         if (!top && SECRET_DIRS.has(e.name)) { skipped.secretDirs.add(e.name); continue; }
+        if (!top && ARGS.skipDirs.has(e.name)) { skipped.byOperator.add(e.name); continue; }
         if (!top && IDENTITY_DIRS.has(e.name) && !ARGS.identityRead) { skipped.identityDirsSkipped = true; continue; }
         walk(abs, t);
       } else if (e.isFile() && e.name.endsWith('.json')) {
@@ -270,7 +272,7 @@ try {
     tool: 'data-incident-decision-annex v2', mode: 'READ-ONLY: nothing under the data root was modified', bounds: { maxFiles: ARGS.maxFiles, maxSeconds: ARGS.maxSeconds, maxFileBytes: ARGS.maxFileBytes, maxRows: ARGS.maxRows },
     run: { filesRead: FILES_READ, seconds: Math.round((Date.now() - STARTED) / 100) / 10, incidentWindowUtc: [new Date(winStart + 5 * 60000).toISOString(), new Date(winEnd - 5 * 60000).toISOString()] },
     scope: { preexistingJsonRead: Object.values(dirCounts).reduce((a, b) => a + b, 0), skippedSecretDirs: [...skipped.secretDirs].sort(), skippedSecretFiles: skipped.secretFiles, skippedTooLarge: skipped.tooLarge, unparseable: skipped.unparseable,
-      identityRead: ARGS.identityRead, identityDirsSkipped: skipped.identityDirsSkipped, personalContentDirsReadTransiently: [...personalSeen].sort(), identityLikeOwners: identityOwners.size },
+      identityRead: ARGS.identityRead, identityDirsSkipped: skipped.identityDirsSkipped, skippedByOperator: [...skipped.byOperator].sort(), resultsArePartial: skipped.byOperator.size > 0 || !ARGS.identityRead, personalContentDirsReadTransiently: [...personalSeen].sort(), identityLikeOwners: identityOwners.size },
     rows: rows.length, candidates: items.filter((i) => !i.blocked).length, blocked: items.filter((i) => i.blocked).length,
     closure, unresolvedOwnership: { blockedWithNoOwnerClaim: unresolved.length, rowsWithInvalidPath: items.filter((i) => !i.valid).length, jsonRowsNotParsed: items.filter((i) => i.json && !i.parsed).length },
     byGroup: group, blockedOwnerKinds: items.filter((i) => i.blocked).reduce((m, i) => { const k = `${i.tenantKind} / ${i.ownerKind}`; m[k] = (m[k] || 0) + 1; return m; }, {}),
