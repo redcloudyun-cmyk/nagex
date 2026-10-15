@@ -123,6 +123,10 @@ export interface MemoryRecord {
   userConfirmed?: boolean;
   contextRefs?: MemoryContextRefs;
   pinned?: boolean;
+  // Additive (history of a corrected fact). A person's explicit correction makes the new memory ACTIVE and the replaced one SUPERSEDED - kept, linked both ways, provenance intact, restorable.
+  supersedes?: string;
+  supersededBy?: string;
+  supersededAt?: string;
   created_at: string;
   updated_at: string;
   last_used_at?: string;
@@ -289,6 +293,10 @@ export class MemoryEngine {
       memoryOrigin?: MemoryOrigin;
       userConfirmed?: boolean;
       contextRefs?: MemoryContextRefs;
+      // One statement among many under a shared label ("User Preference / preference"): only an IDENTICAL statement is "the same memory"; a different one is a different memory, never a conflict.
+      distinctFact?: boolean;
+      // The id of an ACTIVE memory of this person that this CONFIRMED statement replaces. Honoured only for a confirmed, non-sensitive (not S2) memory; the replaced one is kept as history.
+      supersedes?: string;
     },
   ): MemoryRecord {
     const sensitivity = resolveEffectiveSensitivity(content, options?.sensitivity);
@@ -301,7 +309,9 @@ export class MemoryEngine {
       });
     }
 
-    const existingActive = this.findMatchingMemory(tenantId, ownerId, options?.type, content.subject, content.predicate);
+    const existingActive = options?.distinctFact
+      ? this.findExactDuplicate(tenantId, ownerId, content)
+      : this.findMatchingMemory(tenantId, ownerId, options?.type, content.subject, content.predicate);
     if (existingActive) {
       const existingValStr = JSON.stringify(existingActive.content.value);
       const newValStr = JSON.stringify(content.value);
@@ -353,9 +363,78 @@ export class MemoryEngine {
       updated_at: now,
     };
 
+    // A person's own, confirmed correction replaces the memory it names. The target must be this person's and ACTIVE; anything else is refused, never silently skipped.
+    let replaced: MemoryRecord | undefined;
+    if (options?.supersedes && lifecycle === 'ACTIVE' && userConfirmed) {
+      replaced = this.requireOwned(options.supersedes, tenantId, ownerId);
+      if (replaced.lifecycle !== 'ACTIVE') {
+        throw new NagexError({ code: 'MEMORY_SUPERSEDE_TARGET_NOT_ACTIVE', category: 'CONFLICT', message: `Memory ID ${replaced.id} is ${replaced.lifecycle} and cannot be superseded.`, request_id: 'mem_req' });
+      }
+      record.supersedes = replaced.id;
+    }
+
+    // the successor first: if anything fails in between, both stay ACTIVE (a duplicate, never a loss)
     this.fileStore.writeOrThrow(id, record);
     this.memoryStore.set(id, record);
+    if (replaced) {
+      const retired: MemoryRecord = { ...replaced, lifecycle: 'SUPERSEDED', supersededBy: id, supersededAt: now, updated_at: now };
+      this.fileStore.writeOrThrow(replaced.id, retired);
+      this.memoryStore.set(replaced.id, retired);
+    }
     return record;
+  }
+
+  private findExactDuplicate(tenantId: string, ownerId: string, content: { subject: string; predicate: string; value: unknown }): MemoryRecord | undefined {
+    const value = JSON.stringify(content.value);
+    for (const record of this.memoryStore.values()) {
+      if (record.tenantId === tenantId && record.owner_id === ownerId && record.lifecycle === 'ACTIVE'
+        && record.content.subject.toLowerCase().trim() === content.subject.toLowerCase().trim()
+        && record.content.predicate.toLowerCase().trim() === content.predicate.toLowerCase().trim()
+        && JSON.stringify(record.content.value) === value) return record;
+    }
+    return undefined;
+  }
+
+  /** The person changes their mind back: the replaced memory is ACTIVE again and its successor becomes the history. Only the owner, only a memory that was superseded. */
+  public restoreSuperseded(id: string, tenantId: string, ownerId: string): MemoryRecord {
+    const record = this.requireOwned(id, tenantId, ownerId);
+    if (record.lifecycle !== 'SUPERSEDED') {
+      throw new NagexError({ code: 'MEMORY_NOT_SUPERSEDED', category: 'CONFLICT', message: `Memory ID ${id} was not superseded.`, request_id: 'mem_req' });
+    }
+    const now = getCurrentISOString();
+    const successor = record.supersededBy ? this.memoryStore.get(record.supersededBy) : undefined;
+    if (successor && successor.tenantId === tenantId && successor.owner_id === ownerId && successor.lifecycle === 'ACTIVE') {
+      const retired: MemoryRecord = { ...successor, lifecycle: 'SUPERSEDED', supersededBy: record.id, supersededAt: now, updated_at: now };
+      this.fileStore.writeOrThrow(successor.id, retired);
+      this.memoryStore.set(successor.id, retired);
+    }
+    const { supersededBy: _by, supersededAt: _at, ...rest } = record;
+    const restored: MemoryRecord = { ...rest, lifecycle: 'ACTIVE', updated_at: now };
+    this.fileStore.writeOrThrow(restored.id, restored);
+    this.memoryStore.set(restored.id, restored);
+    return restored;
+  }
+
+  /** The history of a corrected fact, oldest first: every memory linked to this one by supersession (this person's own records only). */
+  public getSupersessionChain(id: string, tenantId: string, ownerId: string): MemoryRecord[] {
+    const start = this.requireOwned(id, tenantId, ownerId);
+    const seen = new Set<string>([start.id]);
+    const chain: MemoryRecord[] = [start];
+    for (let cursor = start; cursor.supersedes;) {
+      const previous = this.memoryStore.get(cursor.supersedes);
+      if (!previous || previous.tenantId !== tenantId || previous.owner_id !== ownerId || seen.has(previous.id)) break;
+      seen.add(previous.id);
+      chain.unshift(previous);
+      cursor = previous;
+    }
+    for (let cursor = start; cursor.supersededBy;) {
+      const next = this.memoryStore.get(cursor.supersededBy);
+      if (!next || next.tenantId !== tenantId || next.owner_id !== ownerId || seen.has(next.id)) break;
+      seen.add(next.id);
+      chain.push(next);
+      cursor = next;
+    }
+    return chain;
   }
 
   public findByCandidateId(candidateId: string): MemoryRecord | undefined {

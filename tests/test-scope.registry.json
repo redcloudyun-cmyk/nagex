@@ -214,6 +214,7 @@
       "vault_write_truthfulness"
     ],
     "memory-context": [
+      "memory_supersession",
       "r22_3_personal_context_memory"
     ],
     "capture": [

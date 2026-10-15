@@ -6470,6 +6470,21 @@
       "deterministic": true,
       "assertionIntent": "The element map reaches controls in open shadow roots and same-origin iframes (nested, bounded), finds the one match among thousands, keeps duplicate labels apart by identity and context, states a limit instead of guessing for cross-origin / sandboxed frames and for anything beyond its bounds, re-resolves a re-rendered control only when exactly one identical control exists, and never reads a password, mutates the page or bypasses approval.",
       "notes": "Real Chromium over deterministic local pages (a second local origin stands in for a cross-origin frame); no external site."
+    },
+    "memory_supersession": {
+      "milestone": "SPRINT03-MEMORY-SUPERSESSION",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "memory-context",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Everything a person explicitly asks NAgex to remember is kept (it used to be silently dropped under one shared key); an explicit correction that carries a replacement cue and has exactly one closest earlier memory replaces it for recall while the old one stays as linked, restorable history with its provenance; other users and tenants are never affected; a secret said in Korean is never stored; states survive a restart.",
+      "notes": "Synthetic people in isolated temp stores; no model, no network."
     }
   }
 }

@@ -9,6 +9,8 @@ const S3_SECRET_PATTERNS = [
   /\b(api[_-]?key|access[_-]?token|secret[_-]?key|password)\s*[:=]\s*['"]?[a-zA-Z0-9\-_]{8,}['"]?/i,
   /sec_[a-zA-Z0-9\-_]{16,}/i,
   /token[_-]?secret/i,
+  // a secret said in Korean: "내 비밀번호는 hunter2", "API 키: sk_live_..." (the value must be a real-looking token: "비밀번호를 바꿔야 해" or "비밀번호는 어렵게" are not secrets)
+  /(비밀번호|패스워드|비번|암호|비밀\s*키|api\s*키|토큰)\s*(?:은|는|이|가)?\s*[:=]?\s*['"]?[A-Za-z0-9!@#$%^&*()_+=-]{4,}/i,
 ];
 
 // Sensitive detection regex (S2)

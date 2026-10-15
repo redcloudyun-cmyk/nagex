@@ -1,6 +1,7 @@
 import { getCurrentISOString } from '../common/utils.js';
 import type { MemoryEngine, MemoryRecord, MemoryType, SensitivityLevel, MemoryProvenance } from './memory.engine.js';
 import { detectContentSensitivity } from './sensitivity.detector.js';
+import { findSupersedeTarget } from './memory-supersession.js';
 
 export interface ExtractionInput {
   tenantId: string;
@@ -22,6 +23,8 @@ export interface ExtractedCandidate {
   userConfirmed: boolean;
   extractor: 'USER_EXPLICIT' | 'RULE_BASED' | 'MODEL_ASSISTED';
   confidence: number;
+  // an explicit "기억해줘" statement is one fact among many under the same label, not a new value of one shared fact
+  distinctFact?: boolean;
 }
 
 // One-off temporary query detection
@@ -97,6 +100,7 @@ export class ConversationMemoryExtractor {
           userConfirmed: sensitivity !== 'S2', // S2 must remain unconfirmed
           extractor: 'USER_EXPLICIT',
           confidence: 1.0,
+          distinctFact: true,
         },
       ];
     }
@@ -177,6 +181,11 @@ export class ConversationMemoryExtractor {
         originalAvailable: true,
       };
 
+      // An explicit statement that clearly replaces one the person made before ("이제 커피 대신 차") replaces it - the old one is kept as history. Needs the person's own words to say so, and exactly one match.
+      const replaces = candidate.extractor === 'USER_EXPLICIT' && candidate.userConfirmed
+        ? findSupersedeTarget(candidate.value, this.memoryEngine.getActiveMemories('PERSONAL', input.tenantId, input.principalId))
+        : null;
+
       const record = this.memoryEngine.proposeMemory(
         'PERSONAL',
         input.tenantId,
@@ -195,6 +204,8 @@ export class ConversationMemoryExtractor {
           provenance,
           memoryOrigin: candidate.extractor === 'USER_EXPLICIT' ? 'EXPLICIT_USER' : 'SUGGESTED',
           userConfirmed: candidate.userConfirmed,
+          ...(candidate.distinctFact ? { distinctFact: true } : {}),
+          ...(replaces ? { supersedes: replaces.memory.id } : {}),
         }
       );
 
