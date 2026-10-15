@@ -782,6 +782,7 @@ export async function handleAsyncApiRequest(
       const presentationResult = await handlePresentationCreationRoutes(method, pathname, body, headers, query, {
         creationRuntime: app.creationRuntime,
         presentationStore: app.presentationStore,
+        presentationExecutor: app.presentationExecutor,
       });
       if (presentationResult) return presentationResult;
     }

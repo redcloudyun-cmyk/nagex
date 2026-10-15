@@ -76,6 +76,9 @@ export interface ClassifyInput {
   hint?: { artifactType?: string | null; capability?: string | null } | null;
   // "Revise" was pressed on one of the person's own documents: the text is an instruction for THAT document (advice about routing only; the revision endpoint still checks ownership)
   revisingDocument?: boolean;
+  // the artifact the person is looking at (advice only - the endpoints still check ownership): "한 장 추가해줘" is about a deck that is open, "이 보고서로 ..." about a document that was just made
+  activeArtifact?: 'DOCUMENT' | 'PRESENTATION' | null;
+  sourceDocument?: boolean;
 }
 
 // ----- cue tables (substring matches for Korean, word-aware for English) -----------------------------------------------------------------------------------
@@ -216,7 +219,28 @@ function asksOnlyAction(text: string): boolean {
 }
 
 // The deterministic decision for a request's own words.
-export function decideRouting(rawText: string, options: { hasAttachment?: boolean; hint?: ClassifyInput['hint']; revisingDocument?: boolean } = {}): RoutingDecision {
+// ----- continuing work on an artifact that is on screen ------------------------------------------------------------------------------------------------------
+
+// "이 보고서로 ...", "the report above": the words point at a document the person made a moment ago
+const REFERS_TO_DOCUMENT = /(이|위|방금|앞서|그|해당|만든|작성한)\s*(만든\s*|작성한\s*)?(보고서|문서|리포트|자료)|\b(this|that|the above|the)\s+(report|document|doc)\b|\bfrom (it|the above)\b/i;
+// an instruction to change the deck that is open: an edit verb AND something that belongs to a deck (a slide, the whole thing, the title, the conclusion ...)
+const DECK_EDIT_VERB_KO = /(추가|넣어|넣고|빼|삭제|제거|줄여|늘려|바꿔|바꾸|수정|고쳐|다시\s*(구성|작성|만들|정리)|재구성|재작성|순서|합쳐|합치|나눠|쪼개|간결|짧게|길게|보강|강조|요약해서)/;
+const DECK_EDIT_VERB_EN = /\b(add|insert|remove|delete|drop|shorten|lengthen|expand|rewrite|restructure|reorder|reorgani[sz]e|merge|split|change|update|replace|revise|rebuild|redo|tighten)\b/i;
+const DECK_PART_KO = /(슬라이드|장|페이지|발표\s*자료|발표자료|덱|전체|표지|제목|결론|도입|목차|마지막|첫)/;
+const DECK_PART_EN = /\b(slides?|deck|presentation|title|conclusion|intro|agenda|last|first|whole|entire|everything|overall)\b/i;
+// not an edit of the deck: another artifact, a brand-new deck, a question, or something that leaves NAgex
+const NOT_A_DECK_EDIT = /(보고서|문서|리포트|이미지|그림|사진|새로|새\s*발표|새로운|\b(report|document|image|picture|from scratch|brand new|new deck|new presentation)\b)|(보내|전송|메일|이메일|공유|게시|발행|공개|예약|결제|구매|일정|회의|\b(send|email|share|publish|post|schedule|book|pay|buy|upload|invite)\b)|(\?|？|뭐야|어떻게|왜\s|\b(how|what|why|which)\b)/i;
+
+// "발표자료는 수정하지 말고 그대로 둬줘", "don't change the deck": the edit verb is refused, not asked for
+const DECK_EDIT_NEGATED = /(수정|변경|바꾸|바꿔|고치|고쳐|추가|삭제|제거|넣|빼|줄이|늘리|건드리)(하)?지(는|를)?\s*(말고|마|말아|말라|않|못)|\b(don'?t|do not|never|no need to|without)\b/i;
+
+export function isDeckEditRequest(text: string): boolean {
+  const t = (text || '').normalize('NFC');
+  if (NOT_A_DECK_EDIT.test(t) || DECK_EDIT_NEGATED.test(t)) return false;
+  return (DECK_EDIT_VERB_KO.test(t) && DECK_PART_KO.test(t)) || (DECK_EDIT_VERB_EN.test(t) && DECK_PART_EN.test(t));
+}
+
+export function decideRouting(rawText: string, options: { hasAttachment?: boolean; hint?: ClassifyInput['hint']; revisingDocument?: boolean; activeArtifact?: ClassifyInput['activeArtifact']; sourceDocument?: boolean } = {}): RoutingDecision {
   const text = (rawText || '').normalize('NFC').trim();
   const language = detectRequestLanguage(text);
   const hasAttachment = options.hasAttachment === true;
@@ -259,6 +283,15 @@ export function decideRouting(rawText: string, options: { hasAttachment?: boolea
     });
   }
 
+  // 2c. a deck is open and the request changes it ("핵심 결론을 한 장 추가하고 전체를 다시 구성해줘"): the edit verbs belong to the deck - not to an external action and not to a chat answer.
+  // The client sends the open deck's own id to the revision endpoint (ownership is checked there); routing only says WHICH path.
+  if (options.activeArtifact === 'PRESENTATION' && !executionNegated && isDeckEditRequest(work)) {
+    return makeDecision({
+      kind: 'CREATE_ARTIFACT', language, targetArtifactType: 'PRESENTATION', needs: [{ capability: 'PRESENTATION', supported: true }], confidence: 0.85, permissionRisk: 'LOCAL_CREATE', executionNegated,
+      reasonCodes: [...reasonCodes, 'ARTIFACT_REQUESTED', 'REVISE_ACTIVE_ARTIFACT'],
+    });
+  }
+
   // 3. consequential action: communicate / schedule / change / delete / spend / publish
   // while revising a document the edit verbs belong to the document; an event/meeting noun or any outward verb keeps the request an action
   const actionWork = options.revisingDocument === true && !KO_ACTION_EVENT.test(work) && !KO_ACTION_MEETING.test(work) ? withoutDocumentEdits(work) : work;
@@ -295,11 +328,13 @@ export function decideRouting(rawText: string, options: { hasAttachment?: boolea
     needs.push({ capability: target, supported: true });
     let topicSource = work;
     for (const re of RESEARCH_CUE) { re.lastIndex = 0; topicSource = topicSource.replace(re, ' '); }
-    const topicless = stripTopicNoise(topicSource).length === 0 && !hasAttachment;
+    // "이 보고서로 발표자료 8장": the topic is the document that was just made, so nothing is missing
+    const fromDocument = target === 'PRESENTATION' && options.sourceDocument === true && REFERS_TO_DOCUMENT.test(work);
+    const topicless = stripTopicNoise(topicSource).length === 0 && !hasAttachment && !fromDocument;
     return makeDecision({
       kind: 'CREATE_ARTIFACT', language, targetArtifactType: target, needs, confidence: topicless ? 0.6 : 0.86, permissionRisk: 'LOCAL_CREATE', executionNegated,
       ambiguity: topicless ? { level: 'HIGH', reason: 'MISSING_TOPIC', clarifyingQuestion: CLARIFY_TOPIC[target as 'DOCUMENT' | 'PRESENTATION' | 'IMAGE'] } : NO_AMBIGUITY,
-      reasonCodes: [...reasonCodes, 'ARTIFACT_REQUESTED', ...(wantsResearch && target === 'IMAGE' ? ['RESEARCH_NOT_USED_FOR_IMAGE'] : []), ...(topicless ? ['MISSING_TOPIC'] : []), ...(CONTEXT_REFERENCE.test(work) ? ['CONTEXT_REFERENCE'] : []), ...(needs.length > 1 ? ['COMPOUND'] : [])],
+      reasonCodes: [...reasonCodes, 'ARTIFACT_REQUESTED', ...(fromDocument ? ['SOURCE_ACTIVE_DOCUMENT'] : []), ...(wantsResearch && target === 'IMAGE' ? ['RESEARCH_NOT_USED_FOR_IMAGE'] : []), ...(topicless ? ['MISSING_TOPIC'] : []), ...(CONTEXT_REFERENCE.test(work) ? ['CONTEXT_REFERENCE'] : []), ...(needs.length > 1 ? ['COMPOUND'] : [])],
     });
   }
 
@@ -365,7 +400,7 @@ export class InputRouter {
         confidence: 0.98,
         reason: 'Input contains file payload',
         normalizedPayload: { rawInput: rawText, mimeType: input.mimeType || 'application/octet-stream' },
-        decision: rawText ? decideRouting(rawText, { hasAttachment, hint: input.hint, revisingDocument: input.revisingDocument === true }) : captureDecision(0.98, 'FILE_PAYLOAD'),
+        decision: rawText ? decideRouting(rawText, { hasAttachment, hint: input.hint, revisingDocument: input.revisingDocument === true, activeArtifact: input.activeArtifact, sourceDocument: input.sourceDocument === true }) : captureDecision(0.98, 'FILE_PAYLOAD'),
       };
     }
 
@@ -412,7 +447,7 @@ export class InputRouter {
     }
 
     // 5. everything else is routed by what the person asked for
-    const decision = decideRouting(rawText, { hasAttachment: false, hint: input.hint, revisingDocument: input.revisingDocument === true });
+    const decision = decideRouting(rawText, { hasAttachment: false, hint: input.hint, revisingDocument: input.revisingDocument === true, activeArtifact: input.activeArtifact, sourceDocument: input.sourceDocument === true });
     const primaryIntent: InputIntent = decision.kind === 'ACTION_PLAN' ? 'COMMAND' : 'ASK';
     return {
       primaryIntent,

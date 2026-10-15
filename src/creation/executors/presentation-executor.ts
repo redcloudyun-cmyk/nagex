@@ -10,6 +10,7 @@ import type { CreationProviderRouter } from '../providers/creation-provider-rout
 import type { PresentationCreationSpec } from '../specs/creation-spec.types.js';
 import { PPTX_MIME } from '../pptx/pptx-writer.js';
 import { requestedSlideCount } from '../slide-count.js';
+import { revisionSlideTarget } from '../slide-revision.js';
 import type { CreationExecutor, CreationKind, CreationRequest, CreationResult } from '../creation-runtime.types.js';
 
 export interface PresentationExecutorDeps {
@@ -40,6 +41,16 @@ function failure(errorCode: string, errorMessage: string): CreationResult {
   };
 }
 
+interface RevisionParams {
+  parentPresentationId: string;
+  instruction: string;
+  tenantId: string;
+  ownerId: string;
+  requestId: string;
+  locale?: 'en' | 'ko';
+  routingMode?: any;
+}
+
 /**
  * R23.7C-D — Presentation / Slides runtime. The model plans the deck; NAgex validates the plan, routes the rendering through the provider-neutral
  * PresentationProviderPort, stores the produced file under a NAgex-owned identity (pres_<24 hex>) and projects it into the artifact store.
@@ -48,7 +59,24 @@ function failure(errorCode: string, errorMessage: string): CreationResult {
 export class PresentationExecutor implements CreationExecutor<CreationRequest, CreationResult> {
   public readonly kind: CreationKind = 'PRESENTATION';
 
+  // Revisions being written right now, by owner + deck + instruction: an identical request while one is in flight joins it (one model call, one stored deck).
+  private readonly revisionsInFlight = new Map<string, Promise<CreationResult>>();
+
   constructor(private readonly deps: PresentationExecutorDeps) {}
+
+  // Source context: only documents the caller owns (an unknown or foreign reference is refused, never silently ignored).
+  private loadSources(request: CreationRequest): { text: string } | { error: CreationResult } {
+    const { tenantId, ownerId } = request;
+    let text = '';
+    for (const ref of request.sourceRefs || []) {
+      if (ref.type !== 'ARTIFACT') continue;
+      const artifact = this.deps.artifactStore?.get(ref.id, tenantId, ownerId);
+      const document = artifact && artifact.type === 'DOCUMENT' ? this.deps.documentStore?.get(artifact.sourceId, tenantId, ownerId) : null;
+      if (!document) return { error: failure('UNAUTHORIZED_REFERENCE', 'A source document for this presentation was not found.') };
+      text += `${text ? '\n\n' : ''}# ${document.title}\n${document.content}`.slice(0, MAX_SOURCE_CHARS);
+    }
+    return { text };
+  }
 
   public async execute(request: CreationRequest): Promise<CreationResult> {
     const { tenantId, ownerId, requestId, prompt, options = {} } = request;
@@ -56,15 +84,9 @@ export class PresentationExecutor implements CreationExecutor<CreationRequest, C
 
     if (!prompt || !prompt.trim()) return failure('INVALID_PROMPT', 'Presentation creation prompt is required.');
 
-    // Source context: only documents the caller owns (an unknown or foreign reference is refused, never silently ignored).
-    let sourceContext = '';
-    for (const ref of request.sourceRefs || []) {
-      if (ref.type !== 'ARTIFACT') continue;
-      const artifact = this.deps.artifactStore?.get(ref.id, tenantId, ownerId);
-      const document = artifact && artifact.type === 'DOCUMENT' ? this.deps.documentStore?.get(artifact.sourceId, tenantId, ownerId) : null;
-      if (!document) return failure('UNAUTHORIZED_REFERENCE', 'A source document for this presentation was not found.');
-      sourceContext += `${sourceContext ? '\n\n' : ''}# ${document.title}\n${document.content}`.slice(0, MAX_SOURCE_CHARS);
-    }
+    const sources = this.loadSources(request);
+    if ('error' in sources) return sources.error;
+    const sourceContext = sources.text;
 
     let outline: PresentationOutline;
     let modelMeta: { provider?: string; model?: string; latencyMs?: number } = {};
@@ -87,6 +109,85 @@ export class PresentationExecutor implements CreationExecutor<CreationRequest, C
     } catch (error: any) {
       return failure(error?.code || 'PRESENTATION_PLANNING_FAILED', error?.message || 'The presentation could not be planned.');
     }
+
+    return this.produce(request, locale, outline, modelMeta, wanted ? { totalSlides: wanted.totalSlides, clamped: wanted.clamped } : null);
+  }
+
+  /**
+   * Revises a deck the person owns. The parent is never changed: the revision is a NEW deck (its own id, file and artifact) that points back to it, like a document revision.
+   * The size follows from the instruction by NAgex's own arithmetic ("한 장 추가" = one content slide more than the deck has now); the model restructures the content.
+   */
+  public executeRevision(params: RevisionParams): Promise<CreationResult> {
+    const key = crypto.createHash('sha256').update(JSON.stringify([params.tenantId, params.ownerId, params.parentPresentationId, params.instruction])).digest('hex');
+    const running = this.revisionsInFlight.get(key);
+    if (running) return running;
+    const started = this.writeRevision(params).finally(() => { this.revisionsInFlight.delete(key); });
+    this.revisionsInFlight.set(key, started);
+    return started;
+  }
+
+  private async writeRevision(params: RevisionParams): Promise<CreationResult> {
+    const { tenantId, ownerId, requestId } = params;
+    const instruction = (params.instruction || '').trim();
+    if (!instruction) return failure('INVALID_PROMPT', 'A revision instruction is required.');
+    const parent = this.deps.presentationStore.get(params.parentPresentationId, tenantId, ownerId);
+    if (!parent) return failure('PRESENTATION_NOT_FOUND', `Presentation ${params.parentPresentationId} not found.`);
+    const locale = params.locale === 'ko' || params.locale === 'en' ? params.locale : parent.locale;
+
+    // the deck's source document, when it still exists and is still the owner's, informs the revision; if it is gone the revision rests on the deck itself
+    let sourceContext = '';
+    const sources = this.loadSources({ creationKind: 'PRESENTATION', prompt: instruction, sourceRefs: parent.sourceRefs, tenantId, ownerId, requestId });
+    if (!('error' in sources)) sourceContext = sources.text;
+
+    const target = revisionSlideTarget(instruction, parent.slides.length);
+    const existing = outlineToMarkdown({ title: parent.title, subtitle: parent.subtitle, slides: parent.slides });
+    const prompt = [
+      'Revise the existing presentation below according to the revision instruction. Keep what the instruction does not ask to change; when it asks for the whole deck to be rebuilt, restructure it end to end.',
+      `Revision instruction: ${instruction}`,
+      '',
+      "EXISTING PRESENTATION (the person's own deck):",
+      existing,
+    ].join('\n');
+
+    let outline: PresentationOutline;
+    let modelMeta: { provider?: string; model?: string; latencyMs?: number } = {};
+    try {
+      const memories = this.deps.getRelevantMemories ? this.deps.getRelevantMemories(tenantId, ownerId, instruction) : [];
+      const outcome = await this.deps.aiService.presentationOutline({
+        prompt,
+        sourceContext: sourceContext || undefined,
+        locale,
+        memories,
+        mode: params.routingMode || 'auto',
+        requestId,
+        contentSlides: target?.contentSlides,
+      });
+      outline = outcome.data;
+      modelMeta = { provider: outcome.provider, model: outcome.model, latencyMs: outcome.latencyMs };
+    } catch (error: any) {
+      return failure(error?.code || 'PRESENTATION_PLANNING_FAILED', error?.message || 'The presentation could not be revised.');
+    }
+
+    return this.produce(
+      { creationKind: 'PRESENTATION', prompt: instruction, sourceRefs: parent.sourceRefs, tenantId, ownerId, requestId, options: { locale } },
+      locale,
+      outline,
+      modelMeta,
+      target ? { totalSlides: target.contentSlides + 1, clamped: false } : null,
+      { parent },
+    );
+  }
+
+  // Everything after the model has planned the deck: validate -> render through the provider port -> store under a NAgex-owned identity -> artifact -> audit -> result.
+  private async produce(
+    request: CreationRequest,
+    locale: 'en' | 'ko',
+    outline: PresentationOutline,
+    modelMeta: { provider?: string; model?: string; latencyMs?: number },
+    wanted: { totalSlides: number; clamped: boolean } | null,
+    revision?: { parent: PresentationRecord },
+  ): Promise<CreationResult> {
+    const { tenantId, ownerId, requestId, options = {} } = request;
 
     const spec: PresentationCreationSpec = {
       creationKind: 'PRESENTATION',
@@ -132,6 +233,9 @@ export class PresentationExecutor implements CreationExecutor<CreationRequest, C
       binaryStoragePath: this.deps.presentationStore.saveBinary(presentationId, buffer),
       sourceRefs: request.sourceRefs || [],
       providerExecutionMetadata: providerResult.metadata,
+      ...(revision
+        ? { parentPresentationId: revision.parent.parentPresentationId || revision.parent.presentationId, revisedFromPresentationId: revision.parent.presentationId, revisionIndex: (revision.parent.revisionIndex ?? 1) + 1 }
+        : {}),
       createdAt: now,
       updatedAt: now,
     };
@@ -157,11 +261,11 @@ export class PresentationExecutor implements CreationExecutor<CreationRequest, C
     this.deps.auditLogger?.logEvent({
       actor: { type: 'user', id: ownerId },
       tenant_id: tenantId,
-      action: 'presentation.created',
+      action: revision ? 'presentation.revised' : 'presentation.created',
       resource: { type: 'PresentationRecord', id: presentationId },
       result: 'SUCCESS',
       request_id: requestId,
-      details: { title: record.title, slides: outline.slides.length, bytes: buffer.length, renderer: providerResult.metadata.providerId, provider: modelMeta.provider, model: modelMeta.model },
+      details: { title: record.title, slides: outline.slides.length, bytes: buffer.length, renderer: providerResult.metadata.providerId, provider: modelMeta.provider, model: modelMeta.model, ...(revision ? { revisedFrom: revision.parent.presentationId } : {}) },
     });
 
     return {
@@ -181,6 +285,7 @@ export class PresentationExecutor implements CreationExecutor<CreationRequest, C
         ...(wanted ? { requestedSlideCount: wanted.totalSlides, ...(wanted.clamped ? { requestedSlideCountReduced: true } : {}) } : {}),
         downloadTarget: `${openTarget}/download`,
         byteLength: buffer.length,
+        ...(revision ? { revisedFrom: revision.parent.presentationId, revisionIndex: record.revisionIndex } : {}),
       },
       createdAt: now,
     };
