@@ -1,0 +1,69 @@
+# THROWAWAY verification workflow (D-09 P0). Lives only on ci/d09-linux-verify-* branches; never merged.
+# Runs on an ephemeral GitHub-hosted Linux runner (an isolated host, not the NAgex service host).
+name: D09 Linux verification - outbound IPv6 policy
+
+on:
+  push:
+    branches: ['ci/d09-linux-verify-ipv6-*']
+
+jobs:
+  fixed:
+    name: fixed branch (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: npm }
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - name: Platform fact - what the Linux resolver does with a bracketed literal
+        run: |
+          node -e "
+          const dns = require('node:dns').promises;
+          (async () => { for (const h of ['[::1]','[::ffff:7f00:1]','[fd00::1]']) { try { console.log(h, 'RESOLVED', JSON.stringify(await dns.lookup(h, { all: true }))); } catch (e) { console.log(h, 'dns.lookup ->', e.code); } } })();"
+      - name: Classification of malicious bracketed literals on Linux
+        run: |
+          node -e "
+          const p = require('./dist/src/security/outbound-url-policy.js');
+          (async () => {
+            let bad = 0;
+            for (const u of ['http://[::1]/','http://[::ffff:7f00:1]/','http://[::ffff:127.0.0.1]/','http://[::ffff:10.0.0.1]/','http://[::ffff:169.254.169.254]/','http://[fd00::1]/','http://[fe80::1]/','http://[64:ff9b::7f00:1]/','http://[2002:7f00:1::]/','http://127.0.0.1/','http://0x7f000001/','http://169.254.169.254/']) {
+              try { await p.validateOutboundUrl(u); console.log('ALLOWED  ', u); bad++; } catch (e) { console.log('REFUSED  ', u, '=>', e.code, '|', e.message); }
+            }
+            try { const ok = await p.validateOutboundUrl('https://[2606:4700:4700::1111]/'); console.log('ALLOWED public literal without DNS =>', ok.resolvedPublicIp); } catch (e) { console.log('public literal refused?!', e.code); bad++; }
+            if (bad) process.exit(1);
+          })();"
+      - name: Focused security tests
+        run: node --require ./dist/tests/_setup.js --test dist/tests/outbound_url_policy.test.js
+      - name: Regression gate
+        run: npm test
+      - name: Browser certification gate
+        run: npm run test:browser-cert
+
+  control:
+    name: control - the UNFIXED base on Linux (documents the original defect)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 2140f9e822e860f6d29691c6072a9d7d7e6cd45d
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: npm }
+      - run: npm ci
+      - run: npm run build
+      - name: Base classification of the same literals
+        continue-on-error: true
+        run: |
+          node -e "
+          const p = require('./dist/src/security/outbound-url-policy.js');
+          (async () => {
+            for (const u of ['http://[::1]/','http://[::ffff:7f00:1]/','http://[::ffff:127.0.0.1]/','http://[fd00::1]/','http://[fe80::1]/']) {
+              try { await p.validateOutboundUrl(u); console.log('ALLOWED  ', u); } catch (e) { console.log('REFUSED  ', u, '=>', (e.code || e.name), '|', e.message); }
+            }
+          })();"
+      - name: Base focused test on Linux
+        continue-on-error: true
+        run: node --require ./dist/tests/_setup.js --test dist/tests/outbound_url_policy.test.js
