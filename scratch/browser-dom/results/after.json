@@ -1,0 +1,226 @@
+{
+ "label": "after",
+ "dist": "F:/nxdom/dist",
+ "reps": 3,
+ "results": [
+  {
+   "rep": 0,
+   "id": "W01",
+   "name": "control: plain button in the page",
+   "ok": true,
+   "error": null,
+   "ms": 499,
+   "toolCalls": 3
+  },
+  {
+   "rep": 0,
+   "id": "W02",
+   "name": "button inside an open Shadow DOM",
+   "ok": true,
+   "error": null,
+   "ms": 287,
+   "toolCalls": 3
+  },
+  {
+   "rep": 0,
+   "id": "W03",
+   "name": "input + button inside nested open Shadow DOM (2 levels)",
+   "ok": true,
+   "error": null,
+   "ms": 335,
+   "toolCalls": 5
+  },
+  {
+   "rep": 0,
+   "id": "W04",
+   "name": "input + button inside a same-origin iframe",
+   "ok": true,
+   "error": null,
+   "ms": 397,
+   "toolCalls": 5
+  },
+  {
+   "rep": 0,
+   "id": "W05",
+   "name": "button inside an iframe inside an iframe (depth 2)",
+   "ok": true,
+   "error": null,
+   "ms": 380,
+   "toolCalls": 3
+  },
+  {
+   "rep": 0,
+   "id": "W06",
+   "name": "cross-origin iframe: the runtime must STATE the limit",
+   "ok": true,
+   "error": null,
+   "ms": 121,
+   "toolCalls": 1,
+   "limitStated": true
+  },
+  {
+   "rep": 0,
+   "id": "W07",
+   "name": "two \"Open\" buttons, one in a Shadow DOM card: pick Card B by context",
+   "ok": true,
+   "error": null,
+   "ms": 287,
+   "toolCalls": 3
+  },
+  {
+   "rep": 0,
+   "id": "W08",
+   "name": "the one matching button after 3000 other controls",
+   "ok": true,
+   "error": null,
+   "ms": 544,
+   "toolCalls": 3
+  },
+  {
+   "rep": 1,
+   "id": "W01",
+   "name": "control: plain button in the page",
+   "ok": true,
+   "error": null,
+   "ms": 291,
+   "toolCalls": 3
+  },
+  {
+   "rep": 1,
+   "id": "W02",
+   "name": "button inside an open Shadow DOM",
+   "ok": true,
+   "error": null,
+   "ms": 319,
+   "toolCalls": 3
+  },
+  {
+   "rep": 1,
+   "id": "W03",
+   "name": "input + button inside nested open Shadow DOM (2 levels)",
+   "ok": true,
+   "error": null,
+   "ms": 349,
+   "toolCalls": 5
+  },
+  {
+   "rep": 1,
+   "id": "W04",
+   "name": "input + button inside a same-origin iframe",
+   "ok": true,
+   "error": null,
+   "ms": 369,
+   "toolCalls": 5
+  },
+  {
+   "rep": 1,
+   "id": "W05",
+   "name": "button inside an iframe inside an iframe (depth 2)",
+   "ok": true,
+   "error": null,
+   "ms": 396,
+   "toolCalls": 3
+  },
+  {
+   "rep": 1,
+   "id": "W06",
+   "name": "cross-origin iframe: the runtime must STATE the limit",
+   "ok": true,
+   "error": null,
+   "ms": 126,
+   "toolCalls": 1,
+   "limitStated": true
+  },
+  {
+   "rep": 1,
+   "id": "W07",
+   "name": "two \"Open\" buttons, one in a Shadow DOM card: pick Card B by context",
+   "ok": true,
+   "error": null,
+   "ms": 327,
+   "toolCalls": 3
+  },
+  {
+   "rep": 1,
+   "id": "W08",
+   "name": "the one matching button after 3000 other controls",
+   "ok": true,
+   "error": null,
+   "ms": 546,
+   "toolCalls": 3
+  },
+  {
+   "rep": 2,
+   "id": "W01",
+   "name": "control: plain button in the page",
+   "ok": true,
+   "error": null,
+   "ms": 320,
+   "toolCalls": 3
+  },
+  {
+   "rep": 2,
+   "id": "W02",
+   "name": "button inside an open Shadow DOM",
+   "ok": true,
+   "error": null,
+   "ms": 319,
+   "toolCalls": 3
+  },
+  {
+   "rep": 2,
+   "id": "W03",
+   "name": "input + button inside nested open Shadow DOM (2 levels)",
+   "ok": true,
+   "error": null,
+   "ms": 333,
+   "toolCalls": 5
+  },
+  {
+   "rep": 2,
+   "id": "W04",
+   "name": "input + button inside a same-origin iframe",
+   "ok": true,
+   "error": null,
+   "ms": 414,
+   "toolCalls": 5
+  },
+  {
+   "rep": 2,
+   "id": "W05",
+   "name": "button inside an iframe inside an iframe (depth 2)",
+   "ok": true,
+   "error": null,
+   "ms": 398,
+   "toolCalls": 3
+  },
+  {
+   "rep": 2,
+   "id": "W06",
+   "name": "cross-origin iframe: the runtime must STATE the limit",
+   "ok": true,
+   "error": null,
+   "ms": 125,
+   "toolCalls": 1,
+   "limitStated": true
+  },
+  {
+   "rep": 2,
+   "id": "W07",
+   "name": "two \"Open\" buttons, one in a Shadow DOM card: pick Card B by context",
+   "ok": true,
+   "error": null,
+   "ms": 297,
+   "toolCalls": 3
+  },
+  {
+   "rep": 2,
+   "id": "W08",
+   "name": "the one matching button after 3000 other controls",
+   "ok": true,
+   "error": null,
+   "ms": 558,
+   "toolCalls": 3
+  }
+ ]
+}

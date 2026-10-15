@@ -1,11 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
+import { chromium, type Browser, type BrowserContext, type FrameLocator, type Locator, type Page } from 'playwright';
 import { NagexError } from '../../common/errors.js';
 import { resolveNagexDataDir } from '../../governance/file-record.store.js';
 import { validateOutboundUrl, type OutboundDnsResolver } from '../../security/outbound-url-policy.js';
 import type { StructuredBrowserSnapshot, FindResult, ExtractResult, ElementMatchCandidate, StructuredLink, StructuredButton, StructuredInput, StructuredForm, InteractiveElementSummary } from './browser.types.js';
-import { mapDescribeInPage, mapScanInPage, pickBest, rankMapElements, type RawMapElement } from './element-map.js';
+import { mapDescribeInPage, mapScanInPage, mapSelectorsInPage, pickBest, rankMapElements, type RawMapElement } from './element-map.js';
 import { OBSERVE_PAGE_ARGS, observePageInPage, observeTargetInPage, readFieldInPage, type FieldState, type PageObservation, type TargetObservation } from './action-verification.js';
 
 // NAgex Browser Runtime — Phase B / Browser Agent MVP (MASTER.md Section
@@ -100,6 +100,35 @@ const MAX_WAIT_MS = 15_000;
 // How many page elements one element-map pass lists (find) and how many of them the snapshot reports.
 const ELEMENT_MAP_SCAN_LIMIT = 400;
 const SNAPSHOT_INTERACTIVE_LIMIT = 60;
+// How far the element map goes into a page: nodes looked at in total (document + open shadow roots), time spent, and how many frames, how deep. Beyond a bound the map says so (`limits`) instead of pretending to be complete.
+const ELEMENT_MAP_NODE_BUDGET = 40_000;
+const ELEMENT_MAP_DEADLINE_MS = 2_500;
+const MAX_MAPPED_FRAMES = 8;
+const MAX_FRAME_DEPTH = 3;
+// Separates the selector of an <iframe> from the selector of a control inside it: `iframe#pay ⟫ button#go`. NAgex's own notation (Playwright cannot express a frame in a plain selector string); it is
+// split outside quotes only, so a page attribute that contains it can never change what a selector means.
+export const FRAME_PATH_SEPARATOR = ' ⟫ ';
+
+// Splits `iframe#a ⟫ iframe#b ⟫ button` into its segments, ignoring a separator that sits inside a quoted attribute value.
+export function splitFramePath(selector: string): string[] {
+  const segments: string[] = [];
+  let current = '';
+  let quote: string | null = null;
+  for (let i = 0; i < selector.length; i++) {
+    const ch = selector[i];
+    if (quote) {
+      current += ch;
+      if (ch === '\\' && i + 1 < selector.length) { current += selector[++i]; continue; }
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'") { quote = ch; current += ch; continue; }
+    if (selector.startsWith(FRAME_PATH_SEPARATOR, i)) { segments.push(current); current = ''; i += FRAME_PATH_SEPARATOR.length - 1; continue; }
+    current += ch;
+  }
+  segments.push(current);
+  return segments;
+}
 
 interface TruncationResult {
   text: string;
@@ -330,19 +359,84 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
     });
 
     const interactive = await this.interactiveSummary(page);
-    return { url, title, text: truncateWithMeta(result.text || '', MAX_SNAPSHOT_TEXT_LENGTH).text, links: result.links, buttons: result.buttons, inputs: result.inputs, forms: result.forms, ...(interactive ? { interactive } : {}) };
+    return { url, title, text: truncateWithMeta(result.text || '', MAX_SNAPSHOT_TEXT_LENGTH).text, links: result.links, buttons: result.buttons, inputs: result.inputs, forms: result.forms, ...(interactive ? { interactive: interactive.list, ...(interactive.limits.length > 0 ? { interactiveLimits: interactive.limits } : {}) } : {}) };
   }
 
   // The interactive element map of the page (element-map.ts). It reads the page and changes nothing in it.
-  private async scanElements(page: Page): Promise<RawMapElement[]> {
-    return page.evaluate(mapScanInPage, { limit: ELEMENT_MAP_SCAN_LIMIT });
+  // The locator for a selector, following a frame path (`iframe#a ⟫ button`) into same-origin frames.
+  private locate(page: Page, selector: string): Locator {
+    const segments = splitFramePath(selector);
+    let scope: Page | FrameLocator = page;
+    for (const frameSelector of segments.slice(0, -1)) scope = scope.frameLocator(frameSelector);
+    return scope.locator(segments[segments.length - 1]);
+  }
+
+  // The whole page as one element map: the top document and its open shadow roots, plus every SAME-ORIGIN iframe (also nested ones), each control carrying a selector that works from the top page.
+  // A frame of another origin (or with an opaque origin, e.g. sandboxed) is NOT entered - the browser's isolation is respected - and is reported in `limits`, as is any bound that cut the scan short.
+  private async scanAll(page: Page, query?: string): Promise<{ elements: RawMapElement[]; limits: string[] }> {
+    const startedAt = Date.now();
+    const limits: string[] = [];
+    const args = (remaining: number) => ({ limit: remaining, ...(query ? { query } : {}), nodeBudget: ELEMENT_MAP_NODE_BUDGET, deadlineMs: Math.max(200, ELEMENT_MAP_DEADLINE_MS - (Date.now() - startedAt)) });
+    const top = await page.evaluate(mapScanInPage, args(ELEMENT_MAP_SCAN_LIMIT));
+    const elements: RawMapElement[] = [...top.elements];
+    if (top.truncated) limits.push('SCAN_TRUNCATED');
+
+    let topOrigin = '';
+    try { topOrigin = new URL(page.url()).origin; } catch { topOrigin = ''; }
+    const prefixes = new Map<unknown, string>([[page.mainFrame(), '']]);
+    let mapped = 0;
+    let crossOrigin = 0;
+    let opaque = 0;
+    for (const frame of page.frames()) {
+      if (frame === page.mainFrame()) continue;
+      let depth = 0;
+      for (let f = frame.parentFrame(); f; f = f.parentFrame()) depth++;
+      if (depth > MAX_FRAME_DEPTH) { if (!limits.includes('FRAME_DEPTH_LIMIT')) limits.push('FRAME_DEPTH_LIMIT'); continue; }
+      const parent = frame.parentFrame();
+      if (!parent || !prefixes.has(parent)) continue; // its parent was not entered
+      if (mapped >= MAX_MAPPED_FRAMES) { if (!limits.includes('FRAME_COUNT_LIMIT')) limits.push('FRAME_COUNT_LIMIT'); continue; }
+      if (Date.now() - startedAt > ELEMENT_MAP_DEADLINE_MS) { if (!limits.includes('SCAN_TRUNCATED')) limits.push('SCAN_TRUNCATED'); break; }
+      const url = frame.url();
+      let origin = '';
+      try { origin = new URL(url).origin; } catch { origin = ''; }
+      const inherits = url === '' || url === 'about:blank' || url === 'about:srcdoc';
+      if (!inherits && origin !== topOrigin) { crossOrigin++; continue; }
+      try {
+        // a sandboxed frame without allow-same-origin has an opaque origin even when its address is ours (window.origin, not location.origin: the latter is derived from the address, and is "null" for an about:srcdoc frame that really has our origin)
+        if ((await frame.evaluate(() => (globalThis as unknown as { origin: string }).origin)) === 'null') { opaque++; continue; }
+        // the selector of the <iframe> element, seen from its parent frame, that Playwright resolves to exactly that one element
+        const handle = await frame.frameElement();
+        const candidates: string[] = await handle.evaluate(mapSelectorsInPage as (el: any) => string[]);
+        const parentPrefix = prefixes.get(parent) as string;
+        let frameSelector: string | null = null;
+        for (const candidate of candidates) {
+          const full = parentPrefix ? `${parentPrefix}${FRAME_PATH_SEPARATOR}${candidate}` : candidate;
+          try { if ((await this.locate(page, full).count()) === 1) { frameSelector = full; break; } } catch { /* try the next */ }
+        }
+        if (!frameSelector) { if (!limits.includes('FRAME_NOT_ADDRESSABLE')) limits.push('FRAME_NOT_ADDRESSABLE'); continue; }
+        prefixes.set(frame, frameSelector);
+        mapped++;
+        const remaining = ELEMENT_MAP_SCAN_LIMIT - elements.length;
+        if (remaining <= 0) { if (!limits.includes('SCAN_TRUNCATED')) limits.push('SCAN_TRUNCATED'); break; }
+        const inner = await frame.evaluate(mapScanInPage, args(remaining));
+        if (inner.truncated && !limits.includes('SCAN_TRUNCATED')) limits.push('SCAN_TRUNCATED');
+        for (const el of inner.elements) {
+          elements.push({ ...el, selectors: el.selectors.map((sel) => `${frameSelector}${FRAME_PATH_SEPARATOR}${sel}`), frame: frameSelector });
+        }
+      } catch {
+        if (!limits.includes('FRAME_NOT_ADDRESSABLE')) limits.push('FRAME_NOT_ADDRESSABLE'); // detached while scanning, or not reachable
+      }
+    }
+    if (crossOrigin > 0) limits.push(`CROSS_ORIGIN_FRAMES:${crossOrigin}`);
+    if (opaque > 0) limits.push(`OPAQUE_ORIGIN_FRAMES:${opaque}`);
+    return { elements: elements.map((el, index) => ({ ...el, index })), limits };
   }
 
   // The map is an addition to the snapshot: if it cannot be built on some page the snapshot is still returned, without it (never a failure of the snapshot, never an invented list).
-  private async interactiveSummary(page: Page): Promise<InteractiveElementSummary[] | null> {
+  private async interactiveSummary(page: Page): Promise<{ list: InteractiveElementSummary[]; limits: string[] } | null> {
     try {
-      const elements = await this.scanElements(page);
-      return elements
+      const scan = await this.scanAll(page);
+      const list = scan.elements
         .filter((el) => el.visible && el.selectors.length > 0)
         .slice(0, SNAPSHOT_INTERACTIVE_LIMIT)
         .map((el, index) => ({
@@ -355,7 +449,10 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
           ...(el.context ? { context: el.context } : {}),
           ...(el.checked !== undefined ? { checked: el.checked } : {}),
           ...(el.expanded !== undefined ? { expanded: el.expanded } : {}),
+          ...(el.frame ? { frame: el.frame } : {}),
+          ...(el.inShadow ? { inShadow: true } : {}),
         }));
+      return { list, limits: scan.limits };
     } catch {
       return null;
     }
@@ -366,7 +463,7 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
   private async verifiedSelector(page: Page, element: RawMapElement): Promise<string> {
     for (const selector of element.selectors) {
       try {
-        if ((await page.locator(selector).count()) === 1) return selector;
+        if ((await this.locate(page, selector).count()) === 1) return selector;
       } catch {
         // a selector the engine cannot parse is skipped
       }
@@ -385,8 +482,8 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
   // their `context`. Finding is not permission: acting on a candidate still needs exactly one match and, for a consequential click, Human Approval.
   public async find(sessionId: string, query: string): Promise<FindResult> {
     const page = this.requirePage(sessionId);
-    const elements = await this.scanElements(page);
-    const { ranked, hiddenMatches } = rankMapElements(elements, query);
+    const scan = await this.scanAll(page, query);
+    const { ranked, hiddenMatches } = rankMapElements(scan.elements, query);
 
     const candidates: ElementMatchCandidate[] = [];
     for (const { element, score } of ranked) {
@@ -401,10 +498,12 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
         enabled: element.enabled,
         inViewport: element.inViewport,
         ...(element.type ? { type: element.type } : {}),
+        ...(element.frame ? { frame: element.frame } : {}),
+        ...(element.inShadow ? { inShadow: true } : {}),
       });
     }
     const best = pickBest(ranked.map((entry, index) => ({ score: entry.score, index })));
-    return { query, candidates, bestMatch: best ? candidates[best.index] : undefined, ...(hiddenMatches > 0 ? { hiddenMatches } : {}) };
+    return { query, candidates, bestMatch: best ? candidates[best.index] : undefined, ...(hiddenMatches > 0 ? { hiddenMatches } : {}), ...(scan.limits.length > 0 ? { limits: scan.limits } : {}) };
   }
 
   public async extract(sessionId: string, target: 'text' | 'links' | 'buttons' | 'inputs' | 'all' = 'all'): Promise<ExtractResult> {
@@ -450,9 +549,34 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
     }
   }
 
+  // A frame path may only lead into frames of the page's own origin. The element map never lists anything else, and a path written by hand (or remembered from before the page changed) gets the same answer:
+  // NAgex does not act inside another origin's frame or a sandboxed one.
+  private async assertFramePathAllowed(sessionId: string, page: Page, frameSegments: string[]): Promise<boolean> {
+    let scope: Page | FrameLocator = page;
+    let topOrigin = '';
+    try { topOrigin = new URL(page.url()).origin; } catch { topOrigin = ''; }
+    for (const segment of frameSegments) {
+      const handle = await scope.locator(segment).first().elementHandle({ timeout: 2_000 }).catch(() => null);
+      const frame = handle ? await handle.contentFrame() : null;
+      if (!frame) return false; // there is no such frame (any more): the selector simply does not resolve
+      const url = frame.url();
+      let origin = '';
+      try { origin = new URL(url).origin; } catch { origin = ''; }
+      const inherits = url === '' || url === 'about:blank' || url === 'about:srcdoc';
+      const opaque = (await frame.evaluate(() => (globalThis as unknown as { origin: string }).origin).catch(() => 'null')) === 'null';
+      if ((!inherits && origin !== topOrigin) || opaque) {
+        throw new NagexError({ code: 'BROWSER_FRAME_NOT_ACCESSIBLE', category: 'POLICY', message: 'This frame belongs to another origin (or is sandboxed). NAgex does not act inside it.', request_id: sessionId });
+      }
+      scope = scope.frameLocator(segment);
+    }
+    return true;
+  }
+
   public async resolveSelector(sessionId: string, selector: string): Promise<BrowserElementMatch> {
     const page = this.requirePage(sessionId);
-    const locator = page.locator(selector);
+    const frameSegments = splitFramePath(selector).slice(0, -1);
+    if (frameSegments.length > 0 && !(await this.assertFramePathAllowed(sessionId, page, frameSegments))) return { count: 0, role: null, text: null, isFormControl: false };
+    const locator = this.locate(page, selector);
     const count = await locator.count();
     if (count === 0) return { count: 0, role: null, text: null, isFormControl: false };
     const first = locator.first();
@@ -480,17 +604,17 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
 
   public async click(sessionId: string, selector: string): Promise<void> {
     const page = this.requirePage(sessionId);
-    await page.locator(selector).first().click({ timeout: 10_000 });
+    await this.locate(page, selector).first().click({ timeout: 10_000 });
   }
 
   public async type(sessionId: string, selector: string, text: string): Promise<void> {
     const page = this.requirePage(sessionId);
-    await page.locator(selector).first().fill(text, { timeout: 10_000 });
+    await this.locate(page, selector).first().fill(text, { timeout: 10_000 });
   }
 
   public async select(sessionId: string, selector: string, value: string): Promise<void> {
     const page = this.requirePage(sessionId);
-    await page.locator(selector).first().selectOption(value, { timeout: 10_000 });
+    await this.locate(page, selector).first().selectOption(value, { timeout: 10_000 });
   }
 
   public async scroll(sessionId: string, direction: 'up' | 'down', amountPx: number): Promise<void> {
@@ -520,7 +644,7 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
   public async observeTarget(sessionId: string, selector: string): Promise<TargetObservation | null> {
     const page = this.requirePage(sessionId);
     try {
-      const locator = page.locator(selector);
+      const locator = this.locate(page, selector);
       if ((await locator.count()) !== 1) return null;
       return await locator.first().evaluate(observeTargetInPage as (el: any) => TargetObservation);
     } catch {
@@ -532,7 +656,7 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
   public async readFieldState(sessionId: string, selector: string, expected: string): Promise<FieldState | null> {
     const page = this.requirePage(sessionId);
     try {
-      const locator = page.locator(selector);
+      const locator = this.locate(page, selector);
       if ((await locator.count()) !== 1) return null;
       return await locator.first().evaluate(readFieldInPage as (el: any, expected: string) => FieldState, expected);
     } catch {

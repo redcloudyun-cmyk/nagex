@@ -1,0 +1,226 @@
+{
+ "label": "before",
+ "dist": "F:/nxintegration/dist",
+ "reps": 3,
+ "results": [
+  {
+   "rep": 0,
+   "id": "W01",
+   "name": "control: plain button in the page",
+   "ok": true,
+   "error": null,
+   "ms": 490,
+   "toolCalls": 3
+  },
+  {
+   "rep": 0,
+   "id": "W02",
+   "name": "button inside an open Shadow DOM",
+   "ok": false,
+   "error": "AGENT_NO_TARGET: no way to target: Open settings",
+   "ms": 139,
+   "toolCalls": 1
+  },
+  {
+   "rep": 0,
+   "id": "W03",
+   "name": "input + button inside nested open Shadow DOM (2 levels)",
+   "ok": false,
+   "error": "AGENT_NO_TARGET: no way to target: Email address",
+   "ms": 129,
+   "toolCalls": 1
+  },
+  {
+   "rep": 0,
+   "id": "W04",
+   "name": "input + button inside a same-origin iframe",
+   "ok": false,
+   "error": "AGENT_NO_TARGET: no way to target: Search",
+   "ms": 125,
+   "toolCalls": 1
+  },
+  {
+   "rep": 0,
+   "id": "W05",
+   "name": "button inside an iframe inside an iframe (depth 2)",
+   "ok": false,
+   "error": "AGENT_NO_TARGET: no way to target: Open details",
+   "ms": 124,
+   "toolCalls": 1
+  },
+  {
+   "rep": 0,
+   "id": "W06",
+   "name": "cross-origin iframe: the runtime must STATE the limit",
+   "ok": false,
+   "error": null,
+   "ms": 125,
+   "toolCalls": 1,
+   "limitStated": false
+  },
+  {
+   "rep": 0,
+   "id": "W07",
+   "name": "two \"Open\" buttons, one in a Shadow DOM card: pick Card B by context",
+   "ok": false,
+   "error": "BROWSER_SELECTOR_AMBIGUOUS: 2 elements matched this selector — refusing to guess which one.",
+   "ms": 160,
+   "toolCalls": 2
+  },
+  {
+   "rep": 0,
+   "id": "W08",
+   "name": "the one matching button after 3000 other controls",
+   "ok": false,
+   "error": "AGENT_NO_TARGET: no way to target: Needle button",
+   "ms": 850,
+   "toolCalls": 1
+  },
+  {
+   "rep": 1,
+   "id": "W01",
+   "name": "control: plain button in the page",
+   "ok": true,
+   "error": null,
+   "ms": 281,
+   "toolCalls": 3
+  },
+  {
+   "rep": 1,
+   "id": "W02",
+   "name": "button inside an open Shadow DOM",
+   "ok": false,
+   "error": "AGENT_NO_TARGET: no way to target: Open settings",
+   "ms": 125,
+   "toolCalls": 1
+  },
+  {
+   "rep": 1,
+   "id": "W03",
+   "name": "input + button inside nested open Shadow DOM (2 levels)",
+   "ok": false,
+   "error": "AGENT_NO_TARGET: no way to target: Email address",
+   "ms": 126,
+   "toolCalls": 1
+  },
+  {
+   "rep": 1,
+   "id": "W04",
+   "name": "input + button inside a same-origin iframe",
+   "ok": false,
+   "error": "AGENT_NO_TARGET: no way to target: Search",
+   "ms": 123,
+   "toolCalls": 1
+  },
+  {
+   "rep": 1,
+   "id": "W05",
+   "name": "button inside an iframe inside an iframe (depth 2)",
+   "ok": false,
+   "error": "AGENT_NO_TARGET: no way to target: Open details",
+   "ms": 122,
+   "toolCalls": 1
+  },
+  {
+   "rep": 1,
+   "id": "W06",
+   "name": "cross-origin iframe: the runtime must STATE the limit",
+   "ok": false,
+   "error": null,
+   "ms": 120,
+   "toolCalls": 1,
+   "limitStated": false
+  },
+  {
+   "rep": 1,
+   "id": "W07",
+   "name": "two \"Open\" buttons, one in a Shadow DOM card: pick Card B by context",
+   "ok": false,
+   "error": "BROWSER_SELECTOR_AMBIGUOUS: 2 elements matched this selector — refusing to guess which one.",
+   "ms": 157,
+   "toolCalls": 2
+  },
+  {
+   "rep": 1,
+   "id": "W08",
+   "name": "the one matching button after 3000 other controls",
+   "ok": false,
+   "error": "AGENT_NO_TARGET: no way to target: Needle button",
+   "ms": 835,
+   "toolCalls": 1
+  },
+  {
+   "rep": 2,
+   "id": "W01",
+   "name": "control: plain button in the page",
+   "ok": true,
+   "error": null,
+   "ms": 296,
+   "toolCalls": 3
+  },
+  {
+   "rep": 2,
+   "id": "W02",
+   "name": "button inside an open Shadow DOM",
+   "ok": false,
+   "error": "AGENT_NO_TARGET: no way to target: Open settings",
+   "ms": 138,
+   "toolCalls": 1
+  },
+  {
+   "rep": 2,
+   "id": "W03",
+   "name": "input + button inside nested open Shadow DOM (2 levels)",
+   "ok": false,
+   "error": "AGENT_NO_TARGET: no way to target: Email address",
+   "ms": 126,
+   "toolCalls": 1
+  },
+  {
+   "rep": 2,
+   "id": "W04",
+   "name": "input + button inside a same-origin iframe",
+   "ok": false,
+   "error": "AGENT_NO_TARGET: no way to target: Search",
+   "ms": 124,
+   "toolCalls": 1
+  },
+  {
+   "rep": 2,
+   "id": "W05",
+   "name": "button inside an iframe inside an iframe (depth 2)",
+   "ok": false,
+   "error": "AGENT_NO_TARGET: no way to target: Open details",
+   "ms": 129,
+   "toolCalls": 1
+  },
+  {
+   "rep": 2,
+   "id": "W06",
+   "name": "cross-origin iframe: the runtime must STATE the limit",
+   "ok": false,
+   "error": null,
+   "ms": 121,
+   "toolCalls": 1,
+   "limitStated": false
+  },
+  {
+   "rep": 2,
+   "id": "W07",
+   "name": "two \"Open\" buttons, one in a Shadow DOM card: pick Card B by context",
+   "ok": false,
+   "error": "BROWSER_SELECTOR_AMBIGUOUS: 2 elements matched this selector — refusing to guess which one.",
+   "ms": 160,
+   "toolCalls": 2
+  },
+  {
+   "rep": 2,
+   "id": "W08",
+   "name": "the one matching button after 3000 other controls",
+   "ok": false,
+   "error": "AGENT_NO_TARGET: no way to target: Needle button",
+   "ms": 817,
+   "toolCalls": 1
+  }
+ ]
+}
