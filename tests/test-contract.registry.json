@@ -6437,6 +6437,22 @@
       "deterministic": true,
       "assertionIntent": "A calendar step the model planned is completed and checked against the person's real clock and timezone; questions about the person's own clock and calendar are not web searches; reminders and the daily window follow the person's timezone; the calendar write still needs approval, a declined approval creates nothing, and nothing is written twice.",
       "notes": "Scripted model endpoint and a simulated Google Calendar API behind the real broker and approval store; this is not a live Google Calendar write."
+    },
+    "browser_action_verification": {
+      "milestone": "SPRINT03-BROWSER-VERIFICATION",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "browser",
+        "runtime"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "A browser action is judged on what the page showed, not on the tool returning: VERIFIED / NOT_VERIFIED / FAILED / USER_ACTION_REQUIRED, a model STOP is only a claim, a repeated action on an unchanged page is stopped with a readable reason (pagination is not), a target that is gone is recovered by re-reading the page within a bound, and approval is never bypassed or repeated.",
+      "notes": "Real Chromium over deterministic local pages and the real Agent loop with a scripted model; no external site, no real model."
     }
   }
 }

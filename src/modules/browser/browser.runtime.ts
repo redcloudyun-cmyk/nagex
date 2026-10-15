@@ -6,6 +6,7 @@ import { resolveNagexDataDir } from '../../governance/file-record.store.js';
 import { validateOutboundUrl, type OutboundDnsResolver } from '../../security/outbound-url-policy.js';
 import type { StructuredBrowserSnapshot, FindResult, ExtractResult, ElementMatchCandidate, StructuredLink, StructuredButton, StructuredInput, StructuredForm, InteractiveElementSummary } from './browser.types.js';
 import { mapDescribeInPage, mapScanInPage, pickBest, rankMapElements, type RawMapElement } from './element-map.js';
+import { OBSERVE_PAGE_ARGS, observePageInPage, observeTargetInPage, readFieldInPage, type FieldState, type PageObservation, type TargetObservation } from './action-verification.js';
 
 // NAgex Browser Runtime — Phase B / Browser Agent MVP (MASTER.md Section
 // 14.5, item 06). This is the ONE concrete implementation of the
@@ -82,6 +83,10 @@ export interface BrowserRuntime {
   // focused element (no selector — mirrors real keyboard input, which has
   // no target of its own beyond whatever already has focus).
   keypress(sessionId: string, key: string): Promise<void>;
+  // Optional observation primitives (action-verification.ts). A runtime that cannot observe leaves them out; the service then reports NOT_VERIFIED / NO_OBSERVATION - it never guesses a result.
+  observePage?(sessionId: string): Promise<PageObservation>;
+  observeTarget?(sessionId: string, selector: string): Promise<TargetObservation | null>;
+  readFieldState?(sessionId: string, selector: string, expected: string): Promise<FieldState | null>;
   shutdown(): Promise<void>;
 }
 
@@ -501,6 +506,38 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
   public async keypress(sessionId: string, key: string): Promise<void> {
     const page = this.requirePage(sessionId);
     await page.keyboard.press(key);
+  }
+
+  // What the page shows right now: address, title, a signature of its content, visible alert / status / error / success messages, invalid form fields, an open dialog. Read-only; the page is not touched.
+  public async observePage(sessionId: string): Promise<PageObservation> {
+    const page = this.requirePage(sessionId);
+    await page.waitForLoadState('domcontentloaded', { timeout: 2_000 }).catch(() => {});
+    const observed = await page.evaluate(observePageInPage, OBSERVE_PAGE_ARGS);
+    return { url: page.url(), title: await page.title(), ...observed, messages: observed.messages as PageObservation['messages'] };
+  }
+
+  // The state of one control (null when it is no longer on the page): connected, visible, enabled, checked / expanded / pressed / selected, a link's destination.
+  public async observeTarget(sessionId: string, selector: string): Promise<TargetObservation | null> {
+    const page = this.requirePage(sessionId);
+    try {
+      const locator = page.locator(selector);
+      if ((await locator.count()) !== 1) return null;
+      return await locator.first().evaluate(observeTargetInPage as (el: any) => TargetObservation);
+    } catch {
+      return null;
+    }
+  }
+
+  // Reads a field back and compares it, inside the page, with the text that was written; the value itself never leaves the page (a password stays private).
+  public async readFieldState(sessionId: string, selector: string, expected: string): Promise<FieldState | null> {
+    const page = this.requirePage(sessionId);
+    try {
+      const locator = page.locator(selector);
+      if ((await locator.count()) !== 1) return null;
+      return await locator.first().evaluate(readFieldInPage as (el: any, expected: string) => FieldState, expected);
+    } catch {
+      return null;
+    }
   }
 }
 

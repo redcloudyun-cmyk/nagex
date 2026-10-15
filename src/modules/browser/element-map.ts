@@ -300,7 +300,7 @@ const HELPERS = [mapClean, mapVisibleText, mapAccessibleName, mapRoleOf, mapIsVi
 
 // Playwright sends `String(pageFunction)` to the page and calls it there (over CDP, not through eval(), so the page's Content-Security-Policy does not apply). The helper functions above must travel
 // together with the entry point, so the function handed to Playwright is a stand-in whose source text is the composed script. The stand-in itself is never run in Node.
-function asPageFunction<T extends (...args: any[]) => any>(source: string): T {
+export function asPageFunction<T extends (...args: any[]) => any>(source: string): T {
   const standIn = function pageOnly() { throw new Error('This function runs inside the page only.'); } as unknown as T;
   standIn.toString = () => source;
   return standIn;
