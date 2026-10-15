@@ -1,0 +1,54 @@
+# THROWAWAY verification workflow (D-09 P0). Lives only on ci/d09-linux-verify-* branches; never merged.
+# Runs on an ephemeral GitHub-hosted Linux runner (an isolated host, not the NAgex service host).
+name: D09 Linux verification - combined candidate (isolation + IPv6 + task-store test)
+
+on:
+  push:
+    branches: ['ci/d09-linux-verify-combined-*']
+
+jobs:
+  combined:
+    name: combined candidate (sentinel /var/lib/nagex must stay untouched)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: npm }
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Plant a writable, populated stand-in for the production data root
+        run: |
+          sudo mkdir -p /var/lib/nagex/rbac-roles /var/lib/nagex/approvals /var/lib/nagex/tasks
+          sudo chown -R "$USER" /var/lib/nagex
+          for r in owner admin member viewer; do
+            printf '{"roleId":"role_builtin_%s","name":"%s","description":"d","isSystem":true,"permissions":[],"createdAt":"2026-01-01T00:00:00.000Z","updatedAt":"2026-01-01T00:00:00.000Z"}' "$r" "$r" > "/var/lib/nagex/rbac-roles/role_builtin_$r.json"
+          done
+          touch -d '2026-01-01 00:00:00' /var/lib/nagex/rbac-roles/*.json
+          find /var/lib/nagex -printf '%p %y %s %T@\n' | sort > "$RUNNER_TEMP/sentinel.before"
+          find /var/lib/nagex -type f -exec sha256sum {} + | sort > "$RUNNER_TEMP/sentinel.sha.before"
+          echo "sentinel entries: $(wc -l < "$RUNNER_TEMP/sentinel.before")"
+          ls -ld "$HOME/.local/share/nagex" "$HOME/.nagex" 2>&1 || true
+      - run: npm run build
+      - name: IPv6 literal classification on Linux
+        run: |
+          node -e "
+          const p = require('./dist/src/security/outbound-url-policy.js');
+          (async () => { let bad = 0; for (const u of ['http://[::ffff:7f00:1]/','http://[::ffff:127.0.0.1]/','http://[fd00::1]/','http://[fe80::1]/','http://[64:ff9b::7f00:1]/']) { try { await p.validateOutboundUrl(u); console.log('ALLOWED', u); bad++; } catch (e) { console.log('REFUSED', u, e.code); if (e.code !== 'OUTBOUND_PRIVATE_IPV6') bad++; } } if (bad) process.exit(1); })();"
+      - name: Regression gate
+        run: npm test
+      - name: Browser certification gate
+        if: always()
+        run: npm run test:browser-cert
+      - name: Sentinel and fallback locations must be unchanged
+        if: always()
+        run: |
+          find /var/lib/nagex -printf '%p %y %s %T@\n' | sort > "$RUNNER_TEMP/sentinel.after"
+          find /var/lib/nagex -type f -exec sha256sum {} + | sort > "$RUNNER_TEMP/sentinel.sha.after"
+          diff "$RUNNER_TEMP/sentinel.before" "$RUNNER_TEMP/sentinel.after" && echo "SENTINEL METADATA IDENTICAL"
+          diff "$RUNNER_TEMP/sentinel.sha.before" "$RUNNER_TEMP/sentinel.sha.after" && echo "SENTINEL CONTENT IDENTICAL"
+          grep -h '"updatedAt"' /var/lib/nagex/rbac-roles/*.json | grep -c '2026-01-01T00:00:00.000Z' | xargs echo "role records still carrying the original updatedAt (expect 4):"
+          if [ -e "$HOME/.local/share/nagex" ]; then echo "FAIL: per-user fallback data dir was created"; ls -la "$HOME/.local/share/nagex"; exit 1; fi
+          if [ -e "$GITHUB_WORKSPACE/.nagex_data" ]; then echo "FAIL: cwd fallback data dir was created"; exit 1; fi
+          echo "NO FALLBACK LOCATION WAS CREATED"
+
