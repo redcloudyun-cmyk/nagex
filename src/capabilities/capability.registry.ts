@@ -64,6 +64,10 @@ export class CapabilityRegistry {
       // approval before ever reaching the isolated desktop.
       { id: 'device.desktop.execute', provider: 'DEVICE_DESKTOP', risk: 'DYNAMIC', approval: 'CONDITIONAL', enabled: true },
 
+      // Vault save (D-9) - the person's own Vault. Not external, but persistent and chosen by an agent, so it is an approval-gated action: the first call only asks, the write happens
+      // after a separate Approve, bound to the exact draft. The generic "save note" (inline Save button, capture prefix) is a different, unchanged path.
+      { id: 'vault.save_note', provider: 'VAULT', risk: 'LOW', approval: 'REQUIRED', enabled: true },
+
       // Web Search (R22.4) — Evidence-first research foundation
       { id: 'web.search', provider: 'WEB_SEARCH', risk: 'READ_ONLY', approval: 'NONE', enabled: true },
     ];

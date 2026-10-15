@@ -313,7 +313,11 @@ export const toolRegistry = new ToolRegistry([
   { id: 'github.read_file', name: 'GitHub File', capability: 'code.repository.file.read', connectionStatus: 'disconnected', sideEffectLevel: 'READ_ONLY', requiresApproval: false, executionMode: 'unavailable', aliases: ['read github file', 'github file', 'read file from github'], getLiveStatus: githubLiveStatus },
   { id: 'notion.create_page', name: 'Notion', capability: 'document.page.create', connectionStatus: 'unavailable', sideEffectLevel: 'REVERSIBLE_WRITE', requiresApproval: true, executionMode: 'unavailable', aliases: ['notion create page', 'create notion page'] },
   { id: 'memory.search', name: 'NAgex Memory', capability: 'memory.read', connectionStatus: 'connected', sideEffectLevel: 'READ_ONLY', requiresApproval: false, executionMode: 'live', aliases: ['memory recall', 'search memory'] },
-  { id: 'workspace.prepare_draft', name: 'Workspace Draft', capability: 'document.draft.prepare', connectionStatus: 'connected', sideEffectLevel: 'REVERSIBLE_WRITE', requiresApproval: true, executionMode: 'live', aliases: ['prepare draft', 'draft document'] },
+  // D-9: this entry used to claim "connected / live" while nothing in the Capability Broker (or anywhere) could execute it - an advertised capability that could not run. It is now
+  // declared for what it is: planned, unavailable. The real, executable owner-local action is vault.save_note below.
+  { id: 'workspace.prepare_draft', name: 'Workspace Draft', capability: 'document.draft.prepare', connectionStatus: 'unavailable', sideEffectLevel: 'REVERSIBLE_WRITE', requiresApproval: true, executionMode: 'unavailable', aliases: ['prepare draft', 'draft document'] },
+  // D-9: save text to the person's own Vault after a separate Approve (VaultSaveService behind the Capability Broker).
+  { id: 'vault.save_note', name: 'Save to Vault', capability: 'vault.item.save', connectionStatus: 'connected', sideEffectLevel: 'REVERSIBLE_WRITE', requiresApproval: true, executionMode: 'live', aliases: ['save to vault', 'save to my vault', 'vault save'] },
   { id: 'web.search', name: 'Web Search', capability: 'web.search', connectionStatus: 'unavailable', sideEffectLevel: 'READ_ONLY', requiresApproval: false, executionMode: 'unavailable', aliases: ['internet search'] },
 
   // Browser Agent MVP (MASTER.md Section 14.5 item 06). open/navigate/

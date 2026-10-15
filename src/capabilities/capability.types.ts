@@ -23,7 +23,7 @@ export interface CapabilityDefinition {
   // instances (deviceControlService vs desktopControlService), so a
   // shared provider string would make isProviderAvailable() truthful for
   // one when only the other is actually configured.
-  provider: 'GOOGLE_CALENDAR' | 'GMAIL' | 'GITHUB' | 'MCP' | 'BROWSER' | 'DEVICE' | 'DEVICE_DESKTOP' | 'WEB_SEARCH';
+  provider: 'GOOGLE_CALENDAR' | 'GMAIL' | 'GITHUB' | 'MCP' | 'BROWSER' | 'DEVICE' | 'DEVICE_DESKTOP' | 'WEB_SEARCH' | 'VAULT';
   risk: CapabilityRisk;
   approval: CapabilityApprovalMode;
   enabled: boolean;

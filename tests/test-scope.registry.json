@@ -71,7 +71,8 @@
       "one_input_intent_browser",
       "home_reviewed_plan_browser",
       "one_input_document_chain_browser",
-      "one_input_slides_chain_browser"
+      "one_input_slides_chain_browser",
+      "vault_save_approval_browser"
     ],
     "google": [
       "google_calendar_connection_state",
@@ -124,7 +125,8 @@
       "workflow_definition",
       "home_reviewed_plan_mcp_e2e",
       "home_reviewed_plan_run_inert_providers",
-      "home_reviewed_plan_security_review"
+      "home_reviewed_plan_security_review",
+      "vault_save_approval"
     ],
     "runtime": [
       "real_life_scenario_library_behavioral_rules",
@@ -165,7 +167,8 @@
       "home_reviewed_plan_mcp_e2e",
       "home_reviewed_plan_run_inert_providers",
       "home_reviewed_plan_security_review",
-      "one_input_intent_dataset"
+      "one_input_intent_dataset",
+      "vault_save_approval"
     ],
     "personal-home": [
       "main_unified_workspace_browser",
@@ -191,7 +194,9 @@
       "one_input_intent_browser",
       "home_reviewed_plan_browser",
       "one_input_document_chain_browser",
-      "one_input_slides_chain_browser"
+      "one_input_slides_chain_browser",
+      "vault_save_approval",
+      "vault_save_approval_browser"
     ],
     "memory-context": [
       "r22_3_personal_context_memory"
@@ -264,7 +269,9 @@
       "connector_catalog",
       "home_reviewed_plan_mcp_e2e",
       "home_reviewed_plan_run_inert_providers",
-      "home_reviewed_plan_security_review"
+      "home_reviewed_plan_security_review",
+      "vault_save_approval",
+      "vault_save_approval_browser"
     ],
     "credential-broker": [
       "google_calendar_connection_state",

@@ -66,7 +66,7 @@ test('ready plan UI: an execution-ready resolved plan shows "Ready to Run" and a
 });
 
 test('approval-required plan UI: a consequential write shows "Review & Approve" and a run button', () => {
-  const resolved = resolver.resolve(planFor('workspace.prepare_draft', 'Planning'));
+  const resolved = resolver.resolve(planFor('vault.save_note', 'Planning'));
   const vmView = planView.buildResolutionViewModel(resolved);
   assert.equal(vmView.status, 'APPROVAL_REQUIRED');
   assert.equal(vmView.statusLabel, 'Review & Approve');

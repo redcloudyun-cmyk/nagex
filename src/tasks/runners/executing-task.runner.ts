@@ -46,6 +46,8 @@ const NATIVE_APPROVAL_WRITE_CAPABILITY_IDS = new Set([
   'gmail.send_email',
   'gmail.reply',
   'gmail.create_draft',
+  // D-9: owner-local Vault save; the Broker holds its approval continuation (VaultSaveService)
+  'vault.save_note',
 ]);
 
 // Only ever constructed for a task whose approvalPolicy is explicitly

@@ -123,6 +123,7 @@ import { LocalPptxPresentationAdapter } from '../creation/providers/adapters/loc
 import { CreationProviderRouter } from '../creation/providers/creation-provider-router.js';
 import { OpenAIImageAdapter } from '../creation/providers/adapters/openai-image-adapter.js';
 import { VaultStore } from '../workspace/vault.store.js';
+import { VaultSaveService } from '../workspace/vault-save.service.js';
 import { ConnectionStore } from '../workspace/connections.store.js';
 import { ActionStore } from '../workspace/action.store.js';
 import { ActionExecutionEngine } from '../actions/action-execution.engine.js';
@@ -406,6 +407,8 @@ export function createNagexApplication(): NagexApplication {
   canonicalToolRegistry.registerDynamicProvider((identity) => mcpService.registeredToolsFor(identity));
   // The planner is told which custom tools THIS user enabled (it can only propose them; resolution + approval + the Broker are unchanged).
   aiService.setUserToolProvider((identity) => mcpService.toolsFor(identity).map((tool) => ({ id: tool.capabilityId, name: `${tool.serverName}: ${tool.toolName}`, description: tool.description, inputSchema: tool.inputSchema })));
+  // D-9: the owner-local "save to my Vault" action. It reuses the SAME approval store, execution store, audit trail, activity feed and Vault store as everything else.
+  const vaultSaveService = new VaultSaveService({ approvals: actionApprovals, vault: vaultStore, activity: activityStore, audit: auditLogger, executions: executionStore });
   const capabilityBroker = new CapabilityBroker(
     googleCalendarService,
     gmailService,
@@ -423,6 +426,7 @@ export function createNagexApplication(): NagexApplication {
     undefined,
     githubConnectionService,
     mcpService,
+    vaultSaveService,
   );
 
   // ─── MASTER.md Section 14 — Main Session + Tasks Foundation ───

@@ -67,7 +67,10 @@ describe('PlanSeal: what proves "this is the plan that was shown, to this person
     let now = 1_000_000;
     const seal = new PlanSeal(() => now, 60_000);
     const issued = seal.seal(who, plan());
-    assert.deepEqual(seal.verify(who, plan(), issued.token), { ok: true, planHash: issued.planHash });
+    const verified = seal.verify(who, plan(), issued.token) as any;
+    assert.equal(verified.ok, true);
+    assert.equal(verified.planHash, issued.planHash);
+    assert.ok(verified.claimKey.startsWith(`${issued.planHash}:`), 'the claim key identifies this preview (plan hash + nonce)');
     assert.equal((seal.verify({ ...who, principalId: 'u2' }, plan(), issued.token) as any).reason, 'PLAN_SEAL_INVALID');
     assert.equal((seal.verify({ ...who, tenantId: 't2' }, plan(), issued.token) as any).reason, 'PLAN_SEAL_INVALID');
     const changed = plan(); changed.steps[0].parameters.to = ['evil@example.com'];
@@ -77,10 +80,25 @@ describe('PlanSeal: what proves "this is the plan that was shown, to this person
       assert.equal(seal.verify(who, plan(), bad as any).ok, false, String(bad));
     }
     // the expiry is inside the MAC: pushing it later invalidates the token instead of extending it
-    const [exp, mac] = issued.token.split('.');
-    assert.equal((seal.verify(who, plan(), `${Number(exp) + 3_600_000}.${mac}`) as any).reason, 'PLAN_SEAL_INVALID');
+    const [exp, nonce, mac] = issued.token.split('.');
+    assert.equal((seal.verify(who, plan(), `${Number(exp) + 3_600_000}.${nonce}.${mac}`) as any).reason, 'PLAN_SEAL_INVALID');
+    assert.equal((seal.verify(who, plan(), `${exp}.AAAAAAAAAAAA.${mac}`) as any).reason, 'PLAN_SEAL_INVALID', 'the nonce is inside the MAC too');
     now += 61_000;
     assert.equal((seal.verify(who, plan(), issued.token) as any).reason, 'PLAN_SEAL_EXPIRED');
+  });
+
+  test('each PREVIEW can be claimed once, but asking again (a fresh preview of the same text, e.g. after a decline or an expired approval) is a new request', () => {
+    const seal = new PlanSeal(() => 1_000_000, 60_000);
+    const first = seal.seal(who, plan());
+    const second = seal.seal(who, plan());
+    assert.equal(first.planHash, second.planHash, 'same plan');
+    assert.notEqual(first.token, second.token, 'a different preview');
+    const k1 = (seal.verify(who, plan(), first.token) as any).claimKey;
+    const k2 = (seal.verify(who, plan(), second.token) as any).claimKey;
+    assert.notEqual(k1, k2);
+    assert.deepEqual(seal.claim(who, k1, { taskId: 't1', runId: null }), { claimed: true });
+    assert.equal((seal.claim(who, k1, { taskId: null, runId: null }) as any).claimed, false, 'the same preview twice (double click / replay) is refused');
+    assert.deepEqual(seal.claim(who, k2, { taskId: 't2', runId: null }), { claimed: true });
   });
 
   test('a sealed plan is claimed once per owner; a claim is released only by its owner path; claims of other owners do not collide', () => {

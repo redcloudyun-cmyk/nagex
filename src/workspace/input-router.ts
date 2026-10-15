@@ -1,5 +1,6 @@
 import { detectRequestLanguage, type RequestLanguage } from '../common/request-language.js';
 import { classifyPlanRequest } from '../model-gateway/plan-request-kind.js';
+import { isVaultSaveRequest } from './vault-save-intent.js';
 
 // Legacy surface (kept compatible for every existing caller: Quick Wake, mobile, tests): what KIND of input arrived.
 export type InputIntent =
@@ -130,8 +131,8 @@ const TOOL_USE = [
 const DESTRUCTIVE = [/(삭제|지워|지우|제거|취소|없애|폐기)\S{0,4}\s*(줘|주세요|해\s*줘|해\s*주세요|해라|하세요|줄래|해\s*줄래)/, /\b(delete|erase|remove|trash|cancel|wipe|discard)\b/i];
 
 // "don't send it" / "보내지 말고": the negated verb is removed before the action check; a negation never creates an action
-const KO_NEGATION = /(보내|전송|발송|답장|회신|삭제|지우|지워|취소|공유|게시|결제|예약|제출|구매|주문|전달|등록)(하)?지(는|를)?\s*(말고|마|말아|말라|않고|못하게|않도록|않게)/g;
-const EN_NEGATION = /\b(don'?t|do not|never|without|no need to|not to|avoid|instead of)\s+(?:\w+\s+){0,2}?(send(ing)?|email(ing)?|post(ing)?|delete|deleting|schedule|scheduling|book(ing)?|cancel(ing)?|publish(ing)?|share|sharing|submit(ting)?|pay(ing)?|buy(ing)?|order(ing)?|forward(ing)?|reply(ing)?|invit(e|ing))\b/gi;
+const KO_NEGATION = /(보내|저장|보관|전송|발송|답장|회신|삭제|지우|지워|취소|공유|게시|결제|예약|제출|구매|주문|전달|등록)(하)?지(는|를)?\s*(말고|마|말아|말라|않고|못하게|않도록|않게)/g;
+const EN_NEGATION = /\b(don'?t|do not|never|without|no need to|not to|avoid|instead of)\s+(?:\w+\s+){0,2}?(send(ing)?|sav(e|ing)|stor(e|ing)|email(ing)?|post(ing)?|delete|deleting|schedule|scheduling|book(ing)?|cancel(ing)?|publish(ing)?|share|sharing|submit(ting)?|pay(ing)?|buy(ing)?|order(ing)?|forward(ing)?|reply(ing)?|invit(e|ing))\b/gi;
 const DRAFT_ONLY = /(초안만|작성만|쓰기만|만들기만|\bdraft (only|just)\b|\bjust (a )?draft\b|\bonly (a )?draft\b|\bdraft it only\b)/i;
 
 // plain information questions are conversation, even when an action word appears inside the question ("how do I send an email?")
@@ -237,6 +238,15 @@ export function decideRouting(rawText: string, options: { hasAttachment?: boolea
   // "make a report ABOUT an app" is a document; only a request to build or run something is a code app
   if (codeRun || (codeApp && !hasDocNoun && !hasSlideNoun && !hasImageNoun)) {
     return makeDecision({ kind: 'UNSUPPORTED', language, targetArtifactType: 'CODE', needs: [{ capability: 'CODE', supported: false }], confidence: 0.85, reasonCodes: [...reasonCodes, 'CODE_APP_NOT_AVAILABLE'] });
+  }
+
+  // 2b. D-9: "save this to my Vault" is an owner-local action that waits for the person's approval (a plan with ONE step, never a chat answer). Quick notes ("메모:", "note ...") are a different,
+  // unchanged path; a question about how to save, or a negated request, is not an action.
+  if (!executionNegated && isVaultSaveRequest(work)) {
+    return makeDecision({
+      kind: 'ACTION_PLAN', language, needs: [{ capability: 'ACTION', supported: true, approvalRequired: true }], confidence: 0.9, permissionRisk: 'LOCAL_CREATE', executionNegated,
+      reasonCodes: [...reasonCodes, 'VAULT_SAVE', 'APPROVAL_REQUIRED'],
+    });
   }
 
   // 3. consequential action: communicate / schedule / change / delete / spend / publish

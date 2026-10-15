@@ -273,7 +273,7 @@ export const handleTasksRunRoutes: AsyncRouteRegistrar<TasksRunRouteDeps> = asyn
       auditLogger.logEvent({ actor: { type: 'user', id: principalId }, tenant_id: tenantId, action: 'plan.run.denied', resource: { type: 'ReviewedPlan', id: verified.planHash }, result: 'DENIED', reason_code: assessment.reasons[0], request_id: requestId, details: { reasons: assessment.reasons, capabilityId: assessment.capabilityId } });
       return fail(422, 'PLAN_NOT_RUNNABLE', 'This plan cannot be sent for approval from Home.', { reasons: assessment.reasons });
     }
-    const claim = seal.claim(identity, verified.planHash, { taskId: null, runId: null });
+    const claim = seal.claim(identity, verified.claimKey, { taskId: null, runId: null });
     if (!claim.claimed) {
       if ('full' in claim) return fail(503, 'PLAN_RUN_CAPACITY', 'NAgex is busy sending plans for approval. Try again in a moment.');
       // a request that is still being created has no task yet: the answer says it was started, without pointing at a task that does not exist
@@ -297,7 +297,7 @@ export const handleTasksRunRoutes: AsyncRouteRegistrar<TasksRunRouteDeps> = asyn
         nextRunAt: null,
       });
       auditLogger.logEvent({ actor: { type: 'user', id: principalId }, tenant_id: tenantId, action: 'task.created', resource: { type: 'Task', id: task.taskId }, result: 'SUCCESS', request_id: requestId, details: { type: task.type, triggerType: task.trigger.type, source: 'REVIEWED_PLAN' } });
-      seal.attachRun(identity, verified.planHash, task.taskId, null);
+      seal.attachRun(identity, verified.claimKey, task.taskId, null);
       const runner = new ExecutingTaskRunner(aiService, planResolver, capabilityBroker, (t, p, q) => getRelevantMemories(t, p, q), taskContinuations, durableTaskRunState);
       // the envelope the broker expects for the tool (MCP: { arguments }); the values are exactly the reviewed ones
       const executable = { steps: resolved.steps.map((s) => ({ ...s, parameters: executionParameters(s.resolvedToolId, s.parameters) })) };
@@ -305,10 +305,10 @@ export const handleTasksRunRoutes: AsyncRouteRegistrar<TasksRunRouteDeps> = asyn
       run = await scheduler.runOne(task);
     } catch (error) {
       // nothing reached an approval: release the claim so a server-side failure never locks the person out of their own plan
-      if (!run) seal.release(identity, verified.planHash);
+      if (!run) seal.release(identity, verified.claimKey);
       return modelErrorResult(error);
     }
-    seal.attachRun(identity, verified.planHash, task.taskId, run.runId);
+    seal.attachRun(identity, verified.claimKey, task.taskId, run.runId);
     // the paused run's approval is the continuation the runner persisted for it (the run record itself carries no result while it waits)
     const approvalId = run.status === 'WAITING_APPROVAL' ? (taskContinuations.listForTask(task.taskId).find((c) => c.runId === run.runId && c.status === 'WAITING')?.approvalId ?? null) : null;
     let approval: { approvalId: string; status: string; expiresAt: string } | null = null;
@@ -325,7 +325,7 @@ export const handleTasksRunRoutes: AsyncRouteRegistrar<TasksRunRouteDeps> = asyn
         runId: run.runId,
         planHash: verified.planHash,
         run,
-        proposal: { capabilityId: assessment.capabilityId, arguments: previewArguments(previewableArguments(step.resolvedToolId, step.parameters)), approval },
+        proposal: { capabilityId: assessment.capabilityId, arguments: previewArguments(previewableArguments(step.resolvedToolId, step.parameters), step.resolvedToolId), approval },
       },
     };
   }
