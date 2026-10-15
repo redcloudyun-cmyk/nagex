@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: d09-pr16-final-${{ github.ref }}-${{ matrix.os }}
+  group: d09-pr16-final-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
