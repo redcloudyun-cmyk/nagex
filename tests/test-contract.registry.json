@@ -6301,6 +6301,51 @@
       "deterministic": true,
       "assertionIntent": "Release hygiene registry entry for universal_life_execution: preserves the committed product contract and prevents the test gate from treating the focused suite as unclassified debt.",
       "notes": "Added during integration hygiene after the suite was committed as part of the current branch baseline."
+    },
+    "document_length": {
+      "milestone": "P0-01-CREATION-COMPLETION",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "model-routing",
+        "runtime"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "A named length (\"3쪽 분량\") reaches the document model call as a concrete minimum size; a draft several times too short is asked for once more (bounded to one extra call) and the longer answer is kept unchanged.",
+      "notes": "Fake provider endpoint: proves the prompt and the control flow, not how a real model obeys it; the real-model run is part of the P0-01 user journey."
+    },
+    "docx_writer": {
+      "milestone": "P0-01-CREATION-COMPLETION",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "The .docx handed out for a document is a well-formed WordprocessingML package built from the stored Markdown: Korean text, headings, lists, tables, bold/italic, A4, escaped markup.",
+      "notes": "Package structure and content only; opening the file in Microsoft Word is part of the real-user E2E."
+    },
+    "document_download_route": {
+      "milestone": "P0-01-CREATION-COMPLETION",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "GET /api/v1/creations/documents/:id/download returns the owner a real .docx and nobody else (other tenant, other owner, anonymous, malformed id); a PDF/HTML document is refused with a clear reason.",
+      "notes": "Real HTTP route handler over disposable stores."
     }
   }
 }

@@ -1,3 +1,4 @@
+import { lengthInstruction, minimumCharacters, requestedPages, tooShortInstruction } from '../creation/document-length.js';
 import { randomUUID } from 'node:crypto';
 import { NagexError } from '../common/errors.js';
 import type { MemoryRecord } from '../context/memory.engine.js';
@@ -793,6 +794,9 @@ export class AiService {
     const requestId = input.requestId || `doc_${randomUUID()}`;
     const mode = input.mode || 'auto';
     const isKo = input.locale === 'ko';
+    // the page count the person asked for, as a concrete size (see creation/document-length.ts)
+    const pages = requestedPages(input.prompt);
+    const lengthLocale: 'en' | 'ko' = isKo ? 'ko' : 'en';
 
     const systemContent = [
       'You are NAgex, an expert Personal AI document and report authoring engine.',
@@ -805,12 +809,13 @@ export class AiService {
       input.documentKind ? `Document type: ${input.documentKind}` : null,
       input.memories && input.memories.length > 0 ? `Relevant personal memory context:\n${summarizeMemories(input.memories)}` : null,
       input.sourceContext ? `Source background & context:\n${input.sourceContext}` : null,
+      pages ? lengthInstruction(pages, lengthLocale) : null,
       'Return JSON with exact structure: {"title":"string","summary":"string (1-2 sentences)","content":"complete markdown text"}',
     ]
       .filter((line): line is string => line !== null)
       .join('\n\n');
 
-    const response = await this.router.generate({
+    const generate = (extraUser?: string) => this.router.generate({
       mode,
       requestId,
       jsonMode: true,
@@ -827,9 +832,19 @@ export class AiService {
       },
       messages: [
         { role: 'system', content: systemContent },
-        { role: 'user', content: `Document Request: ${input.prompt}` },
+        { role: 'user', content: `Document Request: ${input.prompt}${extraUser ? `\n\n${extraUser}` : ''}` },
       ],
     });
+
+    let response = await generate();
+    // A named length that came back several times too short is asked for once more (one bounded extra call, never a loop). The longer of the two answers is kept; NAgex never pads or relabels text.
+    if (pages) {
+      const first = String(parseJsonObject(response.text, requestId, 'document synthesis').content ?? '').length;
+      if (first < minimumCharacters(pages, lengthLocale) * 0.8) {
+        const second = await generate(tooShortInstruction(pages, lengthLocale, first)).catch(() => null);
+        if (second && String(parseJsonObject(second.text, requestId, 'document synthesis').content ?? '').length > first) response = second;
+      }
+    }
 
     const parsed = parseJsonObject(response.text, requestId, 'document synthesis');
     return {
