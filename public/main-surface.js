@@ -19,6 +19,8 @@
     mode: 'AUTO',
     shortcutsOpen: false,
     lastContext: '',
+    lastAnswerFull: '',
+    answerForSave: '',
     web: true,
     personalContext: false,
     planPreview: true,
@@ -482,6 +484,9 @@
   function scrollStreamToEnd() {
     const card = document.getElementById('main-thread-card');
     if (card) card.scrollTop = card.scrollHeight;
+    // phones: the thread is not its own scroller (the canvas is), so the end of the stream is the end of the canvas
+    const canvas = document.querySelector('.center-canvas');
+    if (canvas && canvas.scrollHeight > canvas.clientHeight + 2 && card && card.scrollHeight <= card.clientHeight + 2) canvas.scrollTop = canvas.scrollHeight;
   }
 
   function showThread(prompt, status, title, summary, steps) {
@@ -515,7 +520,7 @@
     if (!block) {
       block = document.createElement('div');
       block.className = 'main-run-block';
-      block.innerHTML = '<div class="main-run-head"><strong class="main-run-state"></strong><button type="button" class="main-tool-btn main-run-cancel" hidden></button></div><div class="main-run-proposal" hidden></div><ol class="main-run-steps"></ol><p class="main-run-note"></p>';
+      block.innerHTML = '<div class="main-run-head"><strong class="main-run-state"></strong><button type="button" class="main-tool-btn main-run-open" hidden></button><button type="button" class="main-tool-btn main-run-cancel" hidden></button></div><div class="main-run-proposal" hidden></div><ol class="main-run-steps"></ol><p class="main-run-note"></p>';
       const anchor = turn.el.querySelector('.main-inline-approvals');
       (anchor && anchor.parentNode ? anchor.parentNode : turn.el).insertBefore(block, anchor || null);
     }
@@ -534,8 +539,14 @@
     const responded = status === 'SUCCEEDED' && result.kind === 'STEP_EXECUTION';
     const declined = status === 'FAILED' && run && run.errorCode === 'APPROVAL_REJECTED';
     const expired = status === 'FAILED' && run && run.errorCode === 'APPROVAL_EXPIRED';
-    block.dataset.runState = planOnly ? 'PLAN_ONLY' : responded ? 'TOOL_RESPONDED' : declined ? 'DECLINED' : expired ? 'EXPIRED' : status;
-    block.querySelector('.main-run-state').textContent = planOnly ? bt('mainRoute.planOnlyState', 'Plan reviewed')
+    // D-9: a Vault save that was read back from the person's own Vault is reported as saved (VERIFIED); a failed one as not saved - never as a tool response
+    const executedSteps = Array.isArray(result.steps) ? result.steps : Array.isArray(result.completedSteps) ? result.completedSteps : [];
+    const savedStep = status === 'SUCCEEDED' ? executedSteps.find((s) => s && s.result && s.result.outcome === 'SAVED_TO_VAULT' && s.result.verification && s.result.verification.status === 'VERIFIED') : null;
+    const vaultFailed = status === 'FAILED' && run && /^VAULT_/.test(String(run.errorCode || ''));
+    block.dataset.runState = savedStep ? 'SAVED_TO_VAULT' : vaultFailed ? 'VAULT_NOT_SAVED' : planOnly ? 'PLAN_ONLY' : responded ? 'TOOL_RESPONDED' : declined ? 'DECLINED' : expired ? 'EXPIRED' : status;
+    block.querySelector('.main-run-state').textContent = savedStep ? bt('mainVault.saved', 'Saved to your Vault')
+      : vaultFailed ? bt('mainVault.notSaved', 'Not saved')
+      : planOnly ? bt('mainRoute.planOnlyState', 'Plan reviewed')
       : responded ? bt('mainRun.toolResponded', 'Tool responded')
       : declined ? bt('mainRun.declined', 'Not run - you declined')
       : expired ? bt('mainRun.expired', 'Not run - the approval expired')
@@ -554,6 +565,8 @@
     let text = note || '';
     if (!text && declined) text = bt('mainRun.declinedNote', 'You declined, so nothing was done.');
     if (!text && expired) text = bt('mainRun.expiredNote', 'The approval expired before it was granted, so nothing was done. Ask again to get a fresh one.');
+    if (!text && savedStep) text = bt('mainVault.savedNote', 'Saved, and read back from your Vault: "{title}".').replace('{title}', String(savedStep.result.title || ''));
+    if (!text && vaultFailed) text = bt('mainVault.failedNote', 'The Vault could not store this, so nothing was saved. The approval was used - ask again to get a fresh one.');
     if (!text && responded) text = bt('mainRun.respondedNote', 'The tool answered. NAgex has not independently checked the result in the real world.');
     if (!text && status === 'WAITING_APPROVAL' && block.dataset.flow === 'reviewed') text = bt('mainRun.waitingNote', 'It will only happen if you approve below.');
     if (!text && status === 'FAILED') text = result && typeof result.reason === 'string' && result.reason ? mt("NAgex couldn't complete this plan.") + ' ' + String(result.reason).slice(0, 200) : mt("NAgex couldn't complete this plan.");
@@ -562,6 +575,14 @@
     if (!text && status === 'CANCELLED') text = mt('The plan was cancelled.');
     noteEl.textContent = text;
     noteEl.hidden = !text;
+    const openBtn = block.querySelector('.main-run-open');
+    if (openBtn) {
+      openBtn.hidden = !savedStep;
+      if (savedStep) {
+        openBtn.textContent = bt('mainVault.open', 'Open in Vault');
+        openBtn.onclick = () => openVaultItem(savedStep.result.vaultItemId);
+      }
+    }
     const cancel = block.querySelector('.main-run-cancel');
     const live = status === 'RUNNING' || status === 'WAITING_APPROVAL';
     cancel.hidden = !live;
@@ -587,7 +608,8 @@
       const latest = runs.slice().sort((a, b) => String(a.startedAt).localeCompare(String(b.startedAt))).pop();
       renderRun(turn, taskId, latest, '');
       if (latest.status === 'WAITING_APPROVAL') loadInlineApprovals(turn);
-      if (latest.status === 'SUCCEEDED' || latest.status === 'FAILED') { turn.runPolling = false; return; }
+      // once the run has ended its approval is no longer pending: re-read the list so "Waiting for your approval" does not stay on screen next to a finished result
+      if (latest.status === 'SUCCEEDED' || latest.status === 'FAILED') { turn.runPolling = false; loadInlineApprovals(turn); return; }
     }
     turn.runPolling = false;
   }
@@ -605,17 +627,85 @@
     box.appendChild(title);
     if (args.length > 0) {
       const list = document.createElement('dl');
+      const vaultSave = proposal.capabilityId === 'vault.save_note';
       args.forEach((a) => {
         const dt = document.createElement('dt');
-        dt.textContent = String(a.name || '');
         const dd = document.createElement('dd');
-        dd.textContent = String(a.value == null ? '' : a.value);
+        if (vaultSave) {
+          // a Vault draft is approved in the person's own words: field names and the source in plain language, the text whole
+          const names = { title: bt('mainVault.fieldTitle', 'Title'), content: bt('mainVault.contentLabel', 'Text to be saved'), source: bt('mainVault.fieldSource', 'Text from') };
+          dt.textContent = names[a.name] || String(a.name || '');
+          dd.textContent = a.name === 'source' ? (a.value === 'USER_MESSAGE' ? bt('mainVault.sourceUser', 'Your message') : bt('mainVault.sourceAnswer', 'The previous answer, unedited')) : String(a.value == null ? '' : a.value);
+          if (a.name === 'content') dd.className = 'main-vault-content';
+        } else {
+          dt.textContent = String(a.name || '');
+          dd.textContent = String(a.value == null ? '' : a.value);
+        }
         list.appendChild(dt);
         list.appendChild(dd);
       });
       box.appendChild(list);
     }
     box.hidden = false;
+    scrollStreamToEnd();
+  }
+
+  // D-9: the exact text that would be saved to the person's Vault, shown BEFORE anything is requested or stored (textContent only - never markup)
+  function renderVaultDraft(turn, plan, draftSource) {
+    if (!turn || !turn.el) return;
+    const step = plan && Array.isArray(plan.steps) ? plan.steps[0] : null;
+    const p = step && step.tool === 'vault.save_note' && step.parameters && typeof step.parameters.content === 'string' ? step.parameters : null;
+    let box = turn.el.querySelector('.main-vault-draft');
+    if (!p) { if (box) box.remove(); return; }
+    if (!box) {
+      box = document.createElement('section');
+      box.className = 'main-vault-draft';
+      const summary = turn.el.querySelector('.main-work-summary');
+      if (summary && summary.parentNode) summary.parentNode.insertBefore(box, summary.nextSibling);
+      else turn.el.appendChild(box);
+    }
+    box.textContent = '';
+    box.setAttribute('role', 'group');
+    box.setAttribute('aria-label', bt('mainVault.draftLabel', 'Draft to save'));
+    const heading = document.createElement('strong');
+    heading.textContent = bt('mainVault.draftHeading', 'Exactly this is saved - only after you approve');
+    box.appendChild(heading);
+    const facts = document.createElement('dl');
+    [[bt('mainVault.fieldTitle', 'Title'), String(p.title || '')], [bt('mainVault.fieldWhere', 'Saved to'), bt('mainVault.destination', 'My Vault')], [bt('mainVault.fieldSource', 'Text from'), p.source === 'USER_MESSAGE' ? bt('mainVault.sourceUser', 'Your message') : bt('mainVault.sourceAnswer', 'The previous answer, unedited')]].forEach((row) => {
+      const dt = document.createElement('dt');
+      dt.textContent = row[0];
+      const dd = document.createElement('dd');
+      dd.textContent = row[1];
+      facts.appendChild(dt);
+      facts.appendChild(dd);
+    });
+    box.appendChild(facts);
+    const body = document.createElement('div');
+    body.className = 'main-vault-draft-text';
+    body.setAttribute('tabindex', '0');
+    body.setAttribute('role', 'region');
+    body.setAttribute('aria-label', bt('mainVault.contentLabel', 'Text to be saved'));
+    body.textContent = p.content;
+    box.appendChild(body);
+    scrollStreamToEnd();
+  }
+
+  // Opens the Vault screen and then the saved item itself (its own preview), so "saved" can be checked by looking at it
+  // The Vault has two real screens: the desktop one (#view-vault, list #vault-recent-list) and the phone's native one (#mobile-view-vault, list #mh-vault-list). The hash switches the
+  // shell to the right one; the item is then opened by THAT screen's own viewer, through the owner-authenticated Vault data it already loads - never a guessed URL.
+  async function openVaultItem(vaultItemId) {
+    const id = String(vaultItemId || '').replace(/[^A-Za-z0-9_-]/g, '');
+    if (!id) return;
+    window.location.hash = '#vault';
+    const app = window.NAGEX || {};
+    for (let i = 0; i < 40; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      const phone = document.getElementById('mobile-view-vault');
+      if (phone && !phone.hidden && typeof app.openMobileVaultItem === 'function') { app.openMobileVaultItem(id); return; }
+      const desk = document.getElementById('vault-recent-list');
+      if (desk && desk.offsetParent !== null && desk.querySelector('[onclick*="' + id + '"]') && typeof app.previewVaultItem === 'function') { app.previewVaultItem(id); return; }
+    }
+    if (typeof app.previewVaultItem === 'function') app.previewVaultItem(id);
   }
 
   function setPlanNote(turn, text) {
@@ -861,6 +951,10 @@
   }
 
   async function dispatchMainRequest(prompt, metadata) {
+    // "save that to my Vault" may use only the answer the person was looking at when they asked: the one from the turn right before this request. Every request takes that answer out of
+    // reach; a Vault-save request puts it back (so asking again after a decline still works), anything else leaves it gone - an old answer never rides along with an unrelated request.
+    state.answerForSave = state.lastAnswerFull;
+    state.lastAnswerFull = '';
     const route = await classifyInput(prompt, metadata);
     if (route.error) {
       showThread(prompt, 'Error', 'NAgex could not classify the request', route.error.message || 'Intent routing is unavailable.', [
@@ -976,6 +1070,14 @@
     renderInlineActions([{ id: 'edit', label: bt('mainRoute.editRequest', 'Edit request'), action: () => putBackInComposer(prompt) }]);
   }
 
+  // The answer on screen is remembered twice: a short copy that travels as context for "make slides from this", and the whole text (bounded) that a "save that to my Vault" request may use.
+  // The whole text is only ever sent when the person asks to save, and it is shown in full, as the draft, before anything is requested or stored.
+  function rememberAnswer(text) {
+    const full = String(text == null ? '' : text);
+    state.lastContext = full.slice(0, 6000);
+    state.lastAnswerFull = full.slice(0, 20001);
+  }
+
   // Only the first N characters of a previous answer ever travel as context for "make slides from this".
   function withContext(prompt) {
     const nl = String.fromCharCode(10);
@@ -1038,7 +1140,7 @@
       ]);
       return;
     }
-    state.lastContext = String(research.answer).slice(0, 6000);
+    rememberAnswer(research.answer);
     const sourceCount = Array.isArray(research.sources) ? research.sources.length : 0;
     const lead = [{ state: 'done', label: 'Sources checked', detail: String(sourceCount) }];
     if (target === 'PRESENTATION') await createPresentation(prompt, metadata, { apiPrompt: researchReportPrompt(prompt, research, 'slides'), leadSteps: lead });
@@ -1081,7 +1183,7 @@
       return;
     }
     const answer = (result.data && result.data.message) || result.message || '';
-    if (answer) state.lastContext = String(answer).slice(0, 6000);
+    if (answer) rememberAnswer(answer);
     showThread(prompt, 'Answered', 'NAgex answered inline', answer || 'NAgex returned an empty answer.', [
       { state: 'done', label: 'Intent classified', detail: routeLabel(routingDecisionOf(route, metadata)) },
       { state: 'done', label: 'Answer prepared', detail: (result.data && result.data.messageId) || result.requestId || '' },
@@ -1270,7 +1372,7 @@
       .map((s, i) => '- [' + (i + 1) + '] [' + String(s.title || s.sourceName || s.url).replace(/[\[\]]/g, '') + '](' + String(s.url).replace(/\s/g, '') + ')');
     const answerText = result.answer || 'Research completed.';
     const markdown = sourceList.length ? answerText + nl + nl + '**' + bt('mainRoute.sources', 'Sources') + '**' + nl + sourceList.join(nl) : answerText;
-    if (result.answer) state.lastContext = String(result.answer).slice(0, 6000);
+    if (result.answer) rememberAnswer(result.answer);
     showThread(prompt, 'Completed', 'Research result', markdown, [
       { state: 'done', label: 'Request captured', detail: 'Research' },
       { state: 'done', label: 'Sources checked', detail: Array.isArray(result.sources) ? String(result.sources.length) : '' },
@@ -1304,11 +1406,23 @@
   }
 
   async function runPlan(prompt, metadata, route) {
+    // "save that to my Vault": the answer on screen goes along ONLY for that request; the server uses it only when the request names no text of its own
+    const savesToVault = ((routingDecisionOf(route, metadata).reasonCodes) || []).indexOf('VAULT_SAVE') >= 0;
     const result = await api('/api/v1/ambient/intent', {
       method: 'POST',
-      body: JSON.stringify({ prompt, requestMetadata: metadata }),
+      body: JSON.stringify(savesToVault && state.answerForSave ? { prompt, requestMetadata: metadata, saveContext: state.answerForSave } : { prompt, requestMetadata: metadata }),
       timeoutMs: 120000,
     });
+    if (savesToVault && state.answerForSave && result && !result.error && (result.status === 'PLAN_PREVIEW' || result.status === 'NEEDS_DETAIL')) state.lastAnswerFull = state.answerForSave;
+    // nothing (or nothing storable) to save: a plain question or reason, no plan, no approval
+    if (result && !result.error && result.status === 'NEEDS_DETAIL' && typeof result.message === 'string') {
+      showThread(prompt, 'Ready', bt('mainRoute.clarifyTitle', 'One quick question'), result.message, [
+        { state: 'done', label: 'Request captured', detail: '' },
+        { state: 'running', label: bt('mainVault.nothingSaved', 'Nothing was saved'), detail: '' },
+      ]);
+      renderInlineActions([{ id: 'edit', label: bt('mainRoute.editRequest', 'Edit request'), action: () => putBackInComposer(prompt) }]);
+      return;
+    }
     // Advice only: the person asked for advice and nothing to be done. It is shown as an answer - no plan, no steps, no Run button, nothing to approve.
     if (result && !result.error && !result.plan && result.status === 'ADVISORY_RESPONSE' && result.executable === false && result.advice && typeof result.advice.summary === 'string') {
       const nl = String.fromCharCode(10);
@@ -1317,7 +1431,7 @@
         .concat(suggestions.length ? ['', '**' + mt('Suggested next moves') + '**'].concat(suggestions.map((s) => '- ' + s)) : [])
         .concat(['', '_' + mt('No actions were taken. This is advice only.') + '_'])
         .join(nl);
-      state.lastContext = String(result.advice.summary + nl + suggestions.join(nl)).slice(0, 6000);
+      rememberAnswer(result.advice.summary + nl + suggestions.join(nl));
       showThread(prompt, 'Answered', 'Advice', markdown, []);
       renderInlineActions([{ id: 'follow', label: 'Ask follow-up', action: () => focusComposer('') }]);
       return;
@@ -1339,6 +1453,7 @@
     showThread(prompt, 'Plan ready', result.plan.summary || 'NAgex prepared a plan.', 'Review the plan inline. Required approvals remain mandatory and cannot be bypassed here.', steps);
     // a plan Home cannot take to approval is a preview, and says why (a separate line: the summary above is a fixed, translated sentence)
     setPlanNote(state.activeTurn, runnable ? '' : bt('mainRun.previewOnly', 'This is a preview only:') + ' ' + runnableReasonText(result.runnable && result.runnable.reasons));
+    renderVaultDraft(state.activeTurn, result.plan, result.draftSource);
     renderInlineActions([
       // Request approval: sends exactly this reviewed plan to the existing approval flow. Nothing runs until the person approves.
       ...(runnable ? [{ id: 'run-plan', label: bt('mainRun.requestApproval', 'Request approval to run'), action: ((turn) => () => startPlanRun(turn, prompt, result.plan, result.planSeal))(state.activeTurn) }] : []),
@@ -1383,6 +1498,8 @@
       btn.addEventListener('click', action.action);
       el.appendChild(btn);
     });
+    // the buttons are the last thing rendered for a turn: the end of the stream includes them (on phones they would otherwise sit under the fixed navigation)
+    if (actions.length) scrollStreamToEnd();
   }
 
   function focusComposer(seed) {
@@ -1828,6 +1945,8 @@
     [/^Task Blocked: (.+)$/, 'mainPattern.task_blocked'],
     [/^Task Completed: (.+)$/, 'mainPattern.task_completed'],
     [/^Task Failed: (.+)$/, 'mainPattern.task_failed'],
+    [/^Saved to Vault: (.+)$/, 'mainPattern.vault_saved'],
+    [/^Could not save to Vault: (.+)$/, 'mainPattern.vault_save_failed'],
     [/^Condition Met: (.+)$/, 'mainPattern.condition_met'],
     [/^"(.+)" needs your attention$/, 'mainPattern.needs_attention'],
     [/^Action "(.+)" was rejected by user\.$/, 'mainPattern.action_rejected'],
@@ -1866,6 +1985,7 @@
     update_event: 'Update calendar event',
     cancel_event: 'Cancel calendar event',
     respond_to_event: 'Respond to calendar event',
+    save_note: 'Save to Vault',
   };
 
   function friendlyToolName(id) {
@@ -2279,6 +2399,10 @@
     hideResult();
     state.result = null;
     state.revisionTarget = null;
+    // a new conversation starts with no earlier answer that could be saved or used as source material
+    state.lastContext = '';
+    state.lastAnswerFull = '';
+    state.answerForSave = '';
     setComposerNotice('');
     state.sessionChecked = true;
     syncBriefingVisibility();

@@ -96,6 +96,13 @@ export async function startLocalAiWorld(): Promise<LocalAiWorld> {
     }
     modelRequests.push({ kind: /personal AI assistant/.test(system) ? 'chat' : 'other', system, user, korean });
     if (chatDelayMs) await new Promise((r) => setTimeout(r, chatDelayMs));
+    // a meeting-summary question gets a realistic multi-line answer (the demo's "save that summary to my Vault" needs real text with line breaks)
+    if (/회의|meeting/i.test(user) && /요약|summar/i.test(user)) {
+      reply(korean
+        ? '## 주간 회의 요약\n\n- 출시일은 다음 주 금요일로 확정했습니다.\n- 담당자: 민수\n\n다음 회의는 목요일 오후 3시입니다.'
+        : '## Weekly meeting summary\n\n- The launch date is confirmed for next Friday.\n- Owner: Dana\n\nThe next meeting is Thursday at 3 PM.');
+      return;
+    }
     reply(korean ? '안녕하세요. 질문에 답변드립니다.' : 'Hello. Here is the answer.');
   });
 

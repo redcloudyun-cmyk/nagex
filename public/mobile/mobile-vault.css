@@ -147,3 +147,36 @@
   font-size: 10.5px;
   color: var(--nagex-text-muted);
 }
+
+/* D-9: opening a saved item shows its text. The sheet scrolls inside the viewport (a long note never pushes the close button off screen); the desktop preview sheet gets the same rule. */
+#mh-vault-detail-modal .mh-detail-modal-card,
+#nagex-text-modal .mh-detail-modal-card {
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.mh-vault-saved-text {
+  max-height: 45vh;
+  overflow: auto;
+  padding: 8px 10px;
+  border: 1px solid var(--nagex-border, #d9e2ef);
+  border-radius: 8px;
+  background: #f8fbff;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+
+.mh-vault-saved-text:focus-visible,
+#mh-vault-detail-modal .mh-detail-modal-close:focus-visible {
+  outline: 2px solid var(--nagex-accent, #2563eb);
+  outline-offset: 2px;
+}
+
+#mh-vault-detail-modal .mh-detail-modal-close,
+#mh-vault-detail-modal .mh-activity-action-btn {
+  min-width: 44px;
+  min-height: 44px;
+}
