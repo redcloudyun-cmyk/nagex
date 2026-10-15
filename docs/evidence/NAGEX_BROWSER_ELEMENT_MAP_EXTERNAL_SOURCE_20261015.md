@@ -80,3 +80,16 @@ Real Chromium end to end through `BrowserToolService`: 22 tests (accessible-name
 - The scripted agent is deliberately simple; an LLM agent would score differently on both builds. The comparison is about what the runtime makes possible, not about a model.
 - Controls inside **iframes and shadow roots**, and pages with more than ~400 candidate elements (scan limit), are not in the map.
 - Loop/stuck detection and a deterministic post-action effect check (URL/field readback) are the next candidates; not done here.
+
+## 10. Sprint 03 follow-up (2026-10-16) - the two "next candidates" and the iframe / shadow-DOM limit are now implemented
+
+Same pinned sources as §2 (browser-use `c75e8476e26d…`, software-agent-sdk `f5f849f5ab51…`; MIT; nothing copied; REA not used). The statements in §9 about iframes / shadow roots and about loop detection / post-action verification describe the state at 7e7cf7e and are superseded by this section.
+
+| Capability | Technique taken from the sources | NAgex implementation (reimplemented) | Evidence |
+|---|---|---|---|
+| Stuck / repeated-action detection | `ActionLoopDetector`, `StuckDetector` (same action + same observation repeated) | `src/device-control/action-loop-guard.ts`: keyed on (action signature, page-state key), so a legitimate repeated click that changes the page (pagination) is not a loop; bounded recovery (`MAX_CONSECUTIVE_RECOVERIES`) | `scratch/browser-verify/results/summary.md`: D06 steps 20 -> 4, D07 (pagination) not terminated |
+| Deterministic post-action effect check | rejected as an LLM judge; replaced by readback of URL, field value, visible error / validation text | `src/modules/browser/action-verification.ts`: VERIFIED / NOT_VERIFIED / FAILED / USER_ACTION_REQUIRED; a STOP by the model is a claim that must not contradict the evidence | false success 9 -> 0, claim without evidence 3 -> 0, verified success 0 -> 9 over 30 runs; cost about +100 ms per verified action |
+| Stale locator recovery | stale-index message + re-read | identity-based re-resolution after a re-render (exactly one identical control, else fail closed) | D08 `BROWSER_SELECTOR_NOT_FOUND` -> completed |
+| Shadow DOM / same-origin iframes / large pages | `serializer` traverses shadow roots and frames | `element-map.ts`: open shadow roots, same-origin iframes through a frame-path selector (`A ⟫ B`), query prefilter and node / time budgets; cross-origin or sandboxed frames are not entered and are reported in `limits` | `scratch/browser-dom/results/summary.md`: 3/24 -> 24/24 (cross-origin: the runtime states the limit instead of guessing) |
+
+Still not covered (reported, not hidden): closed shadow roots, cross-origin and sandboxed frames, pages beyond the node / time budget (the limit is stated in the result), paint-order occlusion beyond a centre-point check.
