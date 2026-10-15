@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { DEFAULT_GOOGLE_TENANT_ID } from '../integrations/google/token.store.js';
+import { assertIsolatedTestPath, isTestDataMode } from '../governance/data-root-isolation.js';
 
 export type ReminderStatus = 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
 
@@ -46,7 +47,11 @@ export class PersonalReminderStore {
   private filePath: string;
 
   constructor(storageDir?: string) {
-    const dir = storageDir || process.env.NAGEX_PERSONAL_REMINDERS_DIR || path.join(process.cwd(), '.nagex_data', 'runtime');
+    let dir = storageDir || process.env.NAGEX_PERSONAL_REMINDERS_DIR || path.join(process.cwd(), '.nagex_data', 'runtime');
+    // test mode: never the working-directory fallback; an explicit location must itself be isolated
+    if (isTestDataMode()) {
+      dir = assertIsolatedTestPath(storageDir || process.env.NAGEX_PERSONAL_REMINDERS_DIR || path.join(process.env.NAGEX_TEST_DATA_ROOT as string, 'personal-reminders'), process.env, 'the personal reminder store');
+    }
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
