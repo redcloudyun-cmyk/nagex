@@ -9,6 +9,7 @@ import { UnifiedModelRouter } from './unified-model-router.js';
 import { classifyPlanRequest, isConcreteSuggestion } from './plan-request-kind.js';
 import { detectRequestLanguage, languageInstruction } from '../common/request-language.js';
 import { normalizePresentationOutline, OUTLINE_LIMITS, type PresentationOutline } from './presentation-outline.js';
+import { parseStructuredJson } from './structured-json.js';
 
 export type PlanStepNecessity = 'REQUIRED' | 'OPTIONAL';
 
@@ -60,14 +61,12 @@ export interface DocumentSynthesisResult {
 }
 
 function parseJsonObject(text: string, requestId: string, context: string = 'structured plan'): Record<string, unknown> {
-  const cleaned = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
-  try {
-    const parsed: unknown = JSON.parse(cleaned);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('not an object');
-    return parsed as Record<string, unknown>;
-  } catch {
-    throw new NagexError({ code: 'INVALID_MODEL_RESPONSE', category: 'PROVIDER', message: `The model returned invalid ${context} JSON.`, request_id: requestId });
+  // strict JSON first; an answer that is intact but wrapped or slightly damaged is repaired without changing any value (see structured-json.ts); a cut-off or non-object answer is rejected
+  const parsed = parseStructuredJson(text);
+  if (!parsed.ok) {
+    throw new NagexError({ code: 'INVALID_MODEL_RESPONSE', category: 'PROVIDER', message: `The model returned invalid ${context} JSON.`, request_id: requestId, details: { structuredFailure: parsed.failure } });
   }
+  return parsed.value;
 }
 
 function requireString(value: unknown, field: string, requestId: string): string {
@@ -791,12 +790,14 @@ export class AiService {
     memories?: MemoryRecord[];
     mode?: RoutingMode;
     requestId?: string;
+    // The words the page count is read from. A revision's prompt carries the whole existing document, whose own text ("see page 2") is not a request - the revision passes only its instruction here.
+    lengthRequest?: string;
   }): Promise<AiServiceResponse<{ title: string; summary: string; content: string }>> {
     const requestId = input.requestId || `doc_${randomUUID()}`;
     const mode = input.mode || 'auto';
     const isKo = input.locale === 'ko';
     // the page count the person asked for, as a concrete size (see creation/document-length.ts)
-    const pages = requestedPages(input.prompt);
+    const pages = requestedPages(input.lengthRequest ?? input.prompt);
     const lengthLocale: 'en' | 'ko' = isKo ? 'ko' : 'en';
 
     const systemContent = [
@@ -820,6 +821,8 @@ export class AiService {
       mode,
       requestId,
       jsonMode: true,
+      // writing a document is a pure model call (nothing is stored or sent before the answer is accepted), so a rejected answer may be asked for again on any provider
+      validationRetries: 1,
       routingContext: {
         taskKind: 'DOCUMENT_SYNTHESIS',
         requiresJson: true,
@@ -899,6 +902,7 @@ export class AiService {
       mode,
       requestId,
       jsonMode: true,
+      validationRetries: 1, // planning a deck is a pure model call: a rejected outline may be asked for again on any provider
       routingContext: { taskKind: 'PRESENTATION_SYNTHESIS', requiresJson: true, requestId },
       validate: (text) => {
         normalizePresentationOutline(parseJsonObject(text, requestId, 'presentation outline'), requestId, { contentSlides: input.contentSlides });

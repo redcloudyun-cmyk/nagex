@@ -286,12 +286,14 @@ export class GeminiProvider extends HttpModelProvider {
         ...(request.jsonMode ? { generationConfig: { responseMimeType: 'application/json' } } : {}),
       },
       request.requestId,
-    ) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>; usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number } };
+    ) as { candidates?: Array<{ finishReason?: string; content?: { parts?: Array<{ text?: string }> } }>; usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number } };
     const text = payload.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('') ?? '';
     const usage = payload.usageMetadata
       ? { inputTokens: payload.usageMetadata.promptTokenCount ?? null, outputTokens: payload.usageMetadata.candidatesTokenCount ?? null, totalTokens: payload.usageMetadata.totalTokenCount ?? null }
       : null;
-    return this.response(text, startedAt, request.requestId, usage);
+    // why the model stopped (STOP, MAX_TOKENS, SAFETY, ...): a content-free fact that tells a cut-off answer from a damaged one in the router's telemetry
+    const finishReason = payload.candidates?.[0]?.finishReason;
+    return this.response(text, startedAt, request.requestId, usage, typeof finishReason === 'string' ? { finishReason } : undefined);
   }
 }
 

@@ -25,6 +25,8 @@ export interface CreationRequest {
     transparentBackground?: boolean;
     privacyMode?: 'STANDARD' | 'LOCAL_ONLY';
     title?: string;
+    // the part of the prompt that is the person's own words (a revision's prompt also carries the existing document): the page count is read from this alone
+    lengthRequest?: string;
   };
   tenantId: string;
   ownerId: string;

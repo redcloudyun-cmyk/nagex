@@ -35,6 +35,9 @@ export interface GenerateInput {
   jsonMode?: boolean;
   routingContext?: ModelRoutingContext;
   validate?: (text: string) => void;
+  // Extra tries (at most MAX_VALIDATION_RETRIES) EVERY provider gets when the validator rejects its answer - not only the preferred one. Only for generation without side effects: a retry
+  // repeats the same model request and nothing else, so it can neither duplicate a stored document nor trigger an external action. Absent = the default policy (see generate()).
+  validationRetries?: number;
   fallbackPolicy?: 'ALLOW' | 'DISALLOW';
   maxOutputTokens?: number;
 }
@@ -60,6 +63,7 @@ type JevAdvisoryEvaluator = {
 
 // How many extra tries the preferred provider gets when its answer is rejected by the task's validator (see generate()).
 export const VALIDATION_RETRIES = 1;
+export const MAX_VALIDATION_RETRIES = 2;
 
 export class UnifiedModelRouter {
   private readonly providers: Map<string, ModelProvider>;
@@ -279,7 +283,8 @@ export class UnifiedModelRouter {
         // A reasoning model sometimes answers with a structure the task validator rejects (a list of objects, a missing field). The PREFERRED provider gets one more try before the
         // request falls back, so a one-off malformed answer does not cost the person the preferred model. Only validator rejections retry; transport errors already have their
         // own bounded handling in the provider, and a fallback provider is never retried.
-        const maxAttempts = input.validate && provider.name === preferredProvider ? 1 + VALIDATION_RETRIES : 1;
+        const optedInRetries = Math.max(0, Math.min(MAX_VALIDATION_RETRIES, Math.floor(input.validationRetries ?? 0)));
+        const maxAttempts = input.validate ? 1 + Math.max(provider.name === preferredProvider ? VALIDATION_RETRIES : 0, optedInRetries) : 1;
         let result!: ModelResponse;
         let attempts = 0;
         for (;;) {
@@ -293,7 +298,16 @@ export class UnifiedModelRouter {
           try { input.validate?.(result.text); break; }
           catch (validationError) {
             if (attempts >= maxAttempts) throw validationError;
-            this.logger.info('model_validation_retry', { requestId, taskKind: context.taskKind, provider: provider.name, attempt: attempts });
+            // Content-free: the rejection's code and fixed failure vocabulary, never the answer itself.
+            this.logger.info('model_validation_retry', {
+              requestId,
+              taskKind: context.taskKind,
+              provider: provider.name,
+              attempt: attempts,
+              rejection: (validationError as { code?: string })?.code ?? 'VALIDATION_REJECTED',
+              structuredFailure: (validationError as { details?: { structuredFailure?: string } })?.details?.structuredFailure ?? null,
+              finishReason: result.meta?.finishReason ?? null,
+            });
           }
         }
         const fallbackUsed = provider.name !== candidateOrder[0];
@@ -343,6 +357,7 @@ export class UnifiedModelRouter {
           code: normalized.code,
           reason,
           retryable: normalized.retryable,
+          structuredFailure: (error as { details?: { structuredFailure?: string } })?.details?.structuredFailure ?? null,
         });
       }
     }
