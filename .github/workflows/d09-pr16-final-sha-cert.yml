@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - release/d09-pr16-p0-integrated-20261015
+      - integration/product-completion-20261015
   workflow_dispatch:
 
 permissions:
