@@ -41,20 +41,54 @@ jobs:
       - name: Linux browser libraries
         if: runner.os == 'Linux'
         run: npx playwright install-deps chromium
+      - name: Prepare writable production-root sentinel (ephemeral Linux runner only)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e /var/lib/nagex || { echo 'Unexpected runner data root; aborting'; exit 1; }
+          sudo install -d -m 0777 /var/lib/nagex
+          sudo chown "$(id -u):$(id -g)" /var/lib/nagex
+          printf '%s\n' '{"sentinel":"must-not-change","updatedAt":"2026-01-01T00:00:00.000Z"}' > /var/lib/nagex/preexisting-record.json
+          python3 - <<'PY'
+          import hashlib, os, pathlib, json
+          root=pathlib.Path('/var/lib/nagex')
+          def snapshot():
+              return {str(p.relative_to(root)): {
+                  "sha256":hashlib.sha256(p.read_bytes()).hexdigest(),
+                  "size":p.stat().st_size,
+                  "mtime_ns":p.stat().st_mtime_ns
+              } for p in root.rglob('*') if p.is_file()}
+          pathlib.Path(os.environ['RUNNER_TEMP'],'nagex-sentinel-before.json').write_text(json.dumps(snapshot(),sort_keys=True))
+          PY
       - name: Build
         run: npm run build
       - name: Regression (isolated stores)
         run: npm test
       - name: Browser cert (isolated stores)
         run: npm run test:browser-cert
-      - name: Test isolation sentinel - Linux
-        if: runner.os == 'Linux'
+      - name: Verify writable production sentinel unchanged (always)
+        if: always() && runner.os == 'Linux'
         shell: bash
         run: |
           set -euo pipefail
-          # This CI machine is disposable; /var/lib/nagex contains NO actual customer data.
-          # Test isolation's own registered regression cases enforce zero writes when the production root is writable.
-          echo 'Isolation sentinel tests already executed within npm test; no service-host test was run.'
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, sys
+          root=pathlib.Path('/var/lib/nagex')
+          before=pathlib.Path(os.environ['RUNNER_TEMP'],'nagex-sentinel-before.json')
+          if not before.is_file():
+              sys.exit('FAIL: production-root sentinel baseline missing')
+          old=json.loads(before.read_text())
+          now={str(p.relative_to(root)): {
+              "sha256":hashlib.sha256(p.read_bytes()).hexdigest(),
+              "size":p.stat().st_size,
+              "mtime_ns":p.stat().st_mtime_ns
+          } for p in root.rglob('*') if p.is_file()}
+          if old!=now:
+              print('FAIL: ephemeral production-root sentinel changed; added:',len(set(now)-set(old)),'removed:',len(set(old)-set(now)),'modified:',len({k for k in old.keys()&now.keys() if old[k]!=now[k]}))
+              sys.exit(1)
+          print('PASS: Linux writable /var/lib/nagex unchanged including content, size and mtime')
+          PY
       - name: Report tested commit
         shell: bash
         run: |
