@@ -10,6 +10,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import { PersonalReminderStore } from '../src/personal/personal-reminder.store.js';
 import { PersonalAssistantEngine } from '../src/personal/personal-assistant.engine.js';
@@ -62,7 +63,8 @@ function fakeModelProvider(reply: () => string | Error, name = 'nebius'): ModelP
 }
 
 test('R20/R21 P1 Personal Proactive Assistant Test Suite', async (t) => {
-  const tmpDir = path.join(process.cwd(), '.nagex_test_r20_' + Date.now());
+  // the OS temp directory, not the working directory: the test data isolation guard (test_data_isolation) only accepts store locations inside the private test root or the OS temp directory
+  const tmpDir = path.join(os.tmpdir(), '.nagex_test_r20_' + Date.now());
   if (!fs.existsSync(tmpDir)) {
     fs.mkdirSync(tmpDir, { recursive: true });
   }
