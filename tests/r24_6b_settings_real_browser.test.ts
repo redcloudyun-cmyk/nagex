@@ -178,6 +178,8 @@ describe('R24.6B real browser — Desktop Settings', () => {
     const ctx = await newContext('desktop', cookie);
     const page = await ctx.newPage();
     await openDesktopSettings(page, 'devices');
+    // the list is fetched after the tab opens; wait for it to be rendered instead of racing the request (a fast server, e.g. with empty isolated stores, used to lose this race)
+    await page.waitForSelector('#cat-panel-devices .settings-device-list-card');
     const text = (await page.textContent('#cat-panel-devices')) ?? '';
     assert.doesNotMatch(text, /Local Desktop Agent|Windows Desktop|Active now/i);
     assert.equal(await page.locator('#cat-panel-devices .badge-status').count(), 0);

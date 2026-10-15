@@ -39,7 +39,9 @@ test('create() produces an ACTIVE task with the given fields', () => {
 });
 
 test('list() only returns tasks for the given tenant+owner, newest first', () => {
-  const store = new TaskStore({ dir: tempDir() });
+  // an injected, strictly increasing clock: with the real clock two creates inside the same millisecond (common on a fast Linux host) carry equal createdAt values and "newest first" is undefined
+  let tick = Date.parse('2026-10-15T00:00:00.000Z');
+  const store = new TaskStore({ dir: tempDir(), now: () => new Date((tick += 1000)).toISOString() });
   const a = store.create(baseInput({ ownerId: 'usr_a', name: 'A' }));
   const b = store.create(baseInput({ ownerId: 'usr_a', name: 'B' }));
   store.create(baseInput({ ownerId: 'usr_b', name: 'C' }));

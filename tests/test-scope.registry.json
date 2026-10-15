@@ -405,6 +405,7 @@
   },
   "fullOnly": [
     "_setup_canary",
+    "test_data_isolation",
     "action_proposals",
     "action_proposals_safety",
     "action_safety_gate",

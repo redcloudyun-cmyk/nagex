@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { decryptJson, encryptJson, loadEncryptionKey, type EncryptedEnvelope } from '../integrations/google/token.crypto.js';
+import { resolveNagexDataFile } from '../governance/file-record.store.js';
 import type { McpJsonSchema } from './mcp-schema.js';
 
 // AUTH_REQUIRED: the server rejected the stored credential (expired, revoked or rotated). Nothing is callable until the owner reconnects with a new one.
@@ -100,9 +101,7 @@ function isRecord(value: unknown): value is McpConnectionRecord {
 }
 
 export function resolveDefaultMcpStorePath(env: NodeJS.ProcessEnv = process.env): string {
-  if (env.NAGEX_MCP_STORE_PATH) return env.NAGEX_MCP_STORE_PATH;
-  const preferred = '/var/lib/nagex/mcp-connections.json';
-  try { fs.accessSync(path.dirname(preferred), fs.constants.W_OK); return preferred; } catch { return path.join(os.homedir(), '.local', 'share', 'nagex', 'mcp-connections.json'); }
+  return resolveNagexDataFile('mcp-connections.json', 'NAGEX_MCP_STORE_PATH', env);
 }
 
 export class PersistentMcpConnectionStore extends InMemoryMcpConnectionStore {
