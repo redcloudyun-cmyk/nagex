@@ -1724,7 +1724,8 @@
     const meta = document.getElementById('main-result-meta');
     const preview = document.getElementById('main-result-preview');
     const revise = document.getElementById('main-result-revise');
-    if (kind) kind.textContent = result.type === 'DOCUMENT' ? 'DOC' : result.type;
+    // the file badge is a 40px chip: "PRESENTATION" was cut off ("PRESE"), so a deck shows the short label PowerPoint users know
+    if (kind) kind.textContent = result.type === 'DOCUMENT' ? 'DOC' : result.type === 'PRESENTATION' ? 'PPT' : result.type;
     if (title) title.textContent = localizeAppText(result.title || 'Result');
     if (meta) meta.textContent = String(result.meta || '').split(' - ').map(localizeAppText).join(' - ');
     if (preview) {

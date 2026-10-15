@@ -292,8 +292,9 @@ test('F2. download names are header-safe and readable', () => {
 test('G. rendering: no bullet on the cover subtitle; long titles and bullets get a smaller size that fits; short text keeps the master size', () => {
   const part = (zip: Buffer, name: string): string => readZip(zip).find((entry) => entry.name === name)!.data.toString('utf8');
   const short = buildPptx({ title: 'Quarterly review', subtitle: 'Strategy', locale: 'en', slides: [{ title: 'Summary', bullets: ['One', 'Two', 'Three'] }] });
-  assert.equal(/ sz="/.test(part(short, 'ppt/slides/slide1.xml')), false, 'a short cover keeps the master sizes');
-  assert.equal(/ sz="/.test(part(short, 'ppt/slides/slide2.xml')), false, 'a short slide keeps the master sizes');
+  // a font-size OVERRIDE is sz="<digits>"; sz="quarter" is the slide-number placeholder's size class
+  assert.equal(/ sz="\d/.test(part(short, 'ppt/slides/slide1.xml')), false, 'a short cover keeps the master sizes');
+  assert.equal(/ sz="\d/.test(part(short, 'ppt/slides/slide2.xml')), false, 'a short slide keeps the master sizes');
   assert.match(part(short, 'ppt/slideLayouts/slideLayout1.xml'), /<a:lvl1pPr marL="0" indent="0" algn="l"><a:buNone\/>/, 'the subtitle placeholder of the cover layout has no bullet');
 
   const longKo = '긴 제목 테스트: 이 제목은 두 줄 이상으로 길어질 수 있도록 일부러 아주 길게 작성했습니다 (long title wrapping check)';

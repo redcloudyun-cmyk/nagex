@@ -6346,6 +6346,21 @@
       "deterministic": true,
       "assertionIntent": "GET /api/v1/creations/documents/:id/download returns the owner a real .docx and nobody else (other tenant, other owner, anonymous, malformed id); a PDF/HTML document is refused with a clear reason.",
       "notes": "Real HTTP route handler over disposable stores."
+    },
+    "pptx_template": {
+      "milestone": "PPTX-QUALITY-TEMPLATE",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "The decks NAgex builds carry their design in the master and layouts (dark cover, accent bar, title rule, footer brand, slide-number placeholders, theme fonts that match the Korean text) while titles and bodies stay real placeholders.",
+      "notes": "Package structure only; the rendered result is verified in Microsoft PowerPoint by the presentation E2E journey."
     }
   }
 }
