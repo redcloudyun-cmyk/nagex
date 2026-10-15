@@ -22,6 +22,24 @@
       "assertionIntent": "observable behavior",
       "notes": "Validates test execution, registry coverage, or harness behavior."
     },
+    "test_data_isolation": {
+      "milestone": "D09-P0-DATA-INCIDENT",
+      "classification": "TEST_HARNESS",
+      "canonical": true,
+      "scopes": [
+        "identity-access",
+        "runtime",
+        "security",
+        "tasks",
+        "test-harness"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "No test may read or write a live NAgex data location: every file-backed store resolves inside the private test root, a sentinel production root is never written, and the process-level tripwire refuses direct writes.",
+      "notes": "Source scan of resolver call sites is intentional: it is the inventory that makes a future store which bypasses the resolver fail. Spawns child node processes only."
+    },
     "action_proposals": {
       "milestone": "Cross-cutting",
       "classification": "CANONICAL_BEHAVIOR",
