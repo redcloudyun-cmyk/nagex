@@ -81,6 +81,7 @@ const before = snapshot(root);
 const r1 = runAnnex(['--max-file-bytes', String(2 * 1024 * 1024)]);
 check('run under --permission exits 0', r1.status === 0, `${r1.status} ${r1.stderr.slice(0, 300)}`);
 const after = snapshot(root);
+if (process.env.ANNEX_SELFTEST_SHOW) console.log(r1.stdout);
 check('P2 data root identical before/after (content, size, mtime, mode; files and directories)', JSON.stringify(before) === JSON.stringify(after));
 const report = r1.status === 0 ? JSON.parse(r1.stdout) : {};
 const table = fs.existsSync(outFile) ? fs.readFileSync(outFile, 'utf8') : '';

@@ -91,7 +91,7 @@ function safeRegularFile(rel) {
 }
 
 const STATUS_RE = /^[A-Z][A-Z_]{1,23}$/;
-const statusOf = (j) => { const s = j && (j.status ?? j.state); return typeof s === 'string' && STATUS_RE.test(s) ? s : s === undefined ? '-' : '(other)'; };
+const statusOf = (j) => { if (!j) return '-'; const s = j.status ?? j.state; return typeof s === 'string' && STATUS_RE.test(s) ? s : s === undefined ? '-' : '(other)'; };
 const ids = (j) => {
   const out = { tenants: new Set(), owners: new Set() };
   const visit = (o, d) => {
@@ -202,7 +202,7 @@ try {
     const dirsMentioned = new Set();
     for (const t of a.x.tenants) for (const d of preTenants.get(t) ?? []) dirsMentioned.add(d);
     return {
-      n: r.n, dir: r.dir, verdict: r.verdict, blocked: r.verdict.startsWith('BLOCKED'), size: r.size, mtime: new Date(r.mt).toISOString(), status: statusOf(a.j),
+      n: r.n, dir: a.valid ? r.dir : '(invalid path)', verdict: r.verdict, blocked: r.verdict.startsWith('BLOCKED'), size: r.size, mtime: new Date(r.mt).toISOString(), status: statusOf(a.j),
       tenantKind: kindOf(a.x.tenants, preTenants), ownerKind: kindOf(a.x.owners, preOwners), viewable, briefTaskRan, refByPre: refByPre.has(r.n) ? 1 : 0,
       dependsOn: [...(dependsOn.get(r.n) ?? [])], dependedBy: [...(dependedBy.get(r.n) ?? [])], sharedDirs: [...dirsMentioned].sort(), valid: a.valid ? 1 : 0, json: a.json ? 1 : 0, parsed: a.j ? 1 : 0,
     };
