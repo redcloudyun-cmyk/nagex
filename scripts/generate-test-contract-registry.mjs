@@ -9,7 +9,7 @@ const architectureTests = new Set([
   'google_modules_boundary', 'http_route_modularization', 'module_contracts',
   'route_inventory', 'task_orchestration_boundary', 'tool_capability_id_alignment',
 ]);
-const harnessTests = new Set(['_setup_canary', 'scoped_test_system', 'test_contract_registry']);
+const harnessTests = new Set(['_setup_canary', 'test_data_isolation', 'scoped_test_system', 'test_contract_registry']);
 const liveExternal = new Map([
   ['astra_real_provider_acceptance', ['OpenAI API', 'internet', 'Chromium']],
   ['cloud_vault_nebius.integration', ['Nebius S3', 'internet', 'S3 credentials']],
