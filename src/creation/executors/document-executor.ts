@@ -23,6 +23,10 @@ export interface DocumentExecutorDeps {
 export class DocumentExecutor implements CreationExecutor<CreationRequest, CreationResult> {
   public readonly kind: CreationKind = 'DOCUMENT';
 
+  // Revisions being written right now, by owner + document + instruction. A second identical request while one is in flight (a double click, a client retry after a slow answer) joins it instead of
+  // writing the revision again - one model call, one stored revision. The entry is gone when the revision settles, so asking again later is a new, deliberate revision.
+  private readonly revisionsInFlight = new Map<string, Promise<CreationResult>>();
+
   constructor(private readonly deps: DocumentExecutorDeps) {}
 
   public async execute(request: CreationRequest): Promise<CreationResult> {
@@ -59,6 +63,7 @@ export class DocumentExecutor implements CreationExecutor<CreationRequest, Creat
         memories,
         mode: options.routingMode || 'auto',
         requestId,
+        ...(options.lengthRequest !== undefined ? { lengthRequest: options.lengthRequest } : {}),
       });
 
       const { title, summary, content } = outcome.data;
@@ -165,7 +170,7 @@ export class DocumentExecutor implements CreationExecutor<CreationRequest, Creat
     }
   }
 
-  public async executeRevision(params: {
+  public executeRevision(params: {
     parentDocumentId: string;
     instruction: string;
     tenantId: string;
@@ -174,7 +179,24 @@ export class DocumentExecutor implements CreationExecutor<CreationRequest, Creat
     locale?: 'en' | 'ko';
     routingMode?: any;
   }): Promise<CreationResult> {
-    const parent = this.deps.documentStore.get(params.parentDocumentId, params.tenantId, params.ownerId);
+    const key = crypto.createHash('sha256').update(JSON.stringify([params.tenantId, params.ownerId, params.parentDocumentId, params.instruction])).digest('hex');
+    const running = this.revisionsInFlight.get(key);
+    if (running) return running;
+    const started = this.writeRevision(params).finally(() => { this.revisionsInFlight.delete(key); });
+    this.revisionsInFlight.set(key, started);
+    return started;
+  }
+
+  private async writeRevision(params: {
+    parentDocumentId: string;
+    instruction: string;
+    tenantId: string;
+    ownerId: string;
+    requestId: string;
+    locale?: 'en' | 'ko';
+    routingMode?: any;
+  }): Promise<CreationResult> {
+    const parent =this.deps.documentStore.get(params.parentDocumentId, params.tenantId, params.ownerId);
     if (!parent) {
       return {
         status: 'FAILED',
@@ -201,6 +223,7 @@ export class DocumentExecutor implements CreationExecutor<CreationRequest, Creat
         style: `Revision of ${parent.documentId}: ${params.instruction}`,
         locale: params.locale || parent.locale,
         routingMode: params.routingMode,
+        lengthRequest: params.instruction,
       },
       tenantId: params.tenantId,
       ownerId: params.ownerId,

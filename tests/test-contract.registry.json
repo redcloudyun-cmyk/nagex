@@ -6376,6 +6376,21 @@
       "deterministic": true,
       "assertionIntent": "A slide count named in the request is the TOTAL including the title slide unless the person says otherwise: the model is told an exact number of content slides, extra slides are cut, nothing is padded, and the finished .pptx has the requested number of slides.",
       "notes": "Fake provider endpoint and the real writer; the real-model run and the PowerPoint check are part of the sprint E2E."
+    },
+    "structured_output_recovery": {
+      "milestone": "SPRINT02-STRUCTURED-OUTPUT",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "model-routing",
+        "runtime"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "A structured model answer that is intact but damaged is repaired without changing a value; a rejected answer is asked for again (bounded, pure model calls only); an exhausted retry fails truthfully and stores nothing; a revision is never stored twice; a revision reads its page count from the instruction only.",
+      "notes": "Scripted Gemini endpoint behind the real provider and router: sanitized deterministic stand-ins for malformed answers. The real-model Korean DOCX revision run is part of the sprint E2E."
     }
   }
 }

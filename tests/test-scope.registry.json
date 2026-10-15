@@ -175,7 +175,8 @@
       "docx_writer",
       "document_download_route",
       "pptx_template",
-      "slide_count"
+      "slide_count",
+      "structured_output_recovery"
     ],
     "personal-home": [
       "main_unified_workspace_browser",
@@ -223,7 +224,8 @@
       "nebius_nemotron_first",
       "advisory_plan",
       "jev_shadow_runtime",
-      "document_length"
+      "document_length",
+      "structured_output_recovery"
     ],
     "mobile": [
       "real_life_scenario_library_behavioral_rules",
