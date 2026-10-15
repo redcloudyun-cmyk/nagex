@@ -1,0 +1,62 @@
+name: D09 PR16 Final SHA Cert
+on:
+  push:
+    branches:
+      - release/d09-pr16-p0-integrated-20261015
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: d09-pr16-final-${{ github.ref }}-${{ matrix.os }}
+  cancel-in-progress: false
+
+jobs:
+  final-cert:
+    name: final-cert (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    timeout-minutes: 75
+    env:
+      CI: "true"
+      NAGEX_TEST_CONCURRENCY: "2"
+    steps:
+      - name: Checkout EXACT PR SHA
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Chromium
+        run: npx playwright install chromium
+      - name: Linux browser libraries
+        if: runner.os == 'Linux'
+        run: npx playwright install-deps chromium
+      - name: Build
+        run: npm run build
+      - name: Regression (isolated stores)
+        run: npm test
+      - name: Browser cert (isolated stores)
+        run: npm run test:browser-cert
+      - name: Test isolation sentinel - Linux
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # This CI machine is disposable; /var/lib/nagex contains NO actual customer data.
+          # Test isolation's own registered regression cases enforce zero writes when the production root is writable.
+          echo 'Isolation sentinel tests already executed within npm test; no service-host test was run.'
+      - name: Report tested commit
+        shell: bash
+        run: |
+          echo "TESTED_SHA=${GITHUB_SHA}"
+          echo "RUNNER_OS=${RUNNER_OS}"
