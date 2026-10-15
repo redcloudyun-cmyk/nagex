@@ -1,0 +1,772 @@
+{
+ "label": "before",
+ "dist": "F:/nxintegration/dist",
+ "reps": 3,
+ "results": [
+  {
+   "rep": 0,
+   "id": "S01",
+   "name": "plain link navigation (control)",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 362,
+   "toolCalls": 3,
+   "calls": {
+    "find": 1,
+    "click": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 0,
+   "id": "S02",
+   "name": "login form: placeholder-only inputs with name attributes + approved sign-in",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 245,
+   "toolCalls": 10,
+   "calls": {
+    "find": 3,
+    "structuredSnapshot": 2,
+    "type": 2,
+    "click": 1,
+    "approvalRequested": 1,
+    "executeApprovedClick": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 0,
+   "id": "S03",
+   "name": "login form: placeholder-only inputs, no name/id (controlled inputs)",
+   "safety": false,
+   "ok": false,
+   "error": "AGENT_NO_TARGET: no way to target: Email",
+   "ms": 146,
+   "toolCalls": 2,
+   "calls": {
+    "find": 1,
+    "structuredSnapshot": 1
+   }
+  },
+  {
+   "rep": 0,
+   "id": "S04",
+   "name": "<label for> inputs without aria-label/placeholder",
+   "safety": false,
+   "ok": false,
+   "error": "AGENT_NO_TARGET: no way to target: Full name",
+   "ms": 135,
+   "toolCalls": 2,
+   "calls": {
+    "find": 1,
+    "structuredSnapshot": 1
+   }
+  },
+  {
+   "rep": 0,
+   "id": "S05",
+   "name": "input id with a colon (user:email)",
+   "safety": false,
+   "ok": false,
+   "error": "Error: locator.count: SyntaxError: Failed to execute 'querySelectorAll' on 'Document': '#user:email' is not a valid s",
+   "ms": 144,
+   "toolCalls": 3,
+   "calls": {
+    "find": 1,
+    "structuredSnapshot": 1,
+    "type": 1
+   }
+  },
+  {
+   "rep": 0,
+   "id": "S06",
+   "name": "icon-only button named by aria-label",
+   "safety": false,
+   "ok": false,
+   "error": "BROWSER_SELECTOR_NOT_FOUND: No matching element was found on the page. The page may have changed.",
+   "ms": 145,
+   "toolCalls": 2,
+   "calls": {
+    "find": 1,
+    "click": 1
+   }
+  },
+  {
+   "rep": 0,
+   "id": "S07",
+   "name": "button text containing double quotes",
+   "safety": false,
+   "ok": false,
+   "error": "Error: locator.count: Unexpected token \"Hello\" while parsing css selector \"button:has-text(\"Say \"Hello\" now\")\". Did y",
+   "ms": 131,
+   "toolCalls": 2,
+   "calls": {
+    "find": 1,
+    "click": 1
+   }
+  },
+  {
+   "rep": 0,
+   "id": "S08",
+   "name": "three identical \"Add to cart\" buttons, target Product B",
+   "safety": false,
+   "ok": false,
+   "error": "BROWSER_SELECTOR_AMBIGUOUS: 3 elements matched this selector — refusing to guess which one.",
+   "ms": 150,
+   "toolCalls": 2,
+   "calls": {
+    "find": 1,
+    "click": 1
+   }
+  },
+  {
+   "rep": 0,
+   "id": "S09",
+   "name": "hidden duplicate \"Search\" button before the visible one",
+   "safety": false,
+   "ok": false,
+   "error": "TimeoutError: locator.click: Timeout 10000ms exceeded.",
+   "ms": 10170,
+   "toolCalls": 2,
+   "calls": {
+    "find": 1,
+    "click": 1
+   }
+  },
+  {
+   "rep": 0,
+   "id": "S10",
+   "name": "disabled \"Next\" before the enabled \"Next\"",
+   "safety": false,
+   "ok": false,
+   "error": "BROWSER_SELECTOR_AMBIGUOUS: 2 elements matched this selector — refusing to guess which one.",
+   "ms": 158,
+   "toolCalls": 2,
+   "calls": {
+    "find": 1,
+    "click": 1
+   }
+  },
+  {
+   "rep": 0,
+   "id": "S11",
+   "name": "clickable div (onclick + pointer cursor, no role)",
+   "safety": false,
+   "ok": false,
+   "error": "AGENT_NO_TARGET: no way to target: Download report",
+   "ms": 123,
+   "toolCalls": 2,
+   "calls": {
+    "find": 1,
+    "structuredSnapshot": 1
+   }
+  },
+  {
+   "rep": 0,
+   "id": "S12",
+   "name": "select named by <label for>",
+   "safety": false,
+   "ok": false,
+   "error": "AGENT_NO_TARGET: no way to target: Country",
+   "ms": 128,
+   "toolCalls": 2,
+   "calls": {
+    "find": 1,
+    "structuredSnapshot": 1
+   }
+  },
+  {
+   "rep": 0,
+   "id": "S13",
+   "name": "Korean label + placeholder-only email + Korean button",
+   "safety": false,
+   "ok": false,
+   "error": "AGENT_NO_TARGET: no way to target: 이메일",
+   "ms": 128,
+   "toolCalls": 2,
+   "calls": {
+    "find": 1,
+    "structuredSnapshot": 1
+   }
+  },
+  {
+   "rep": 0,
+   "id": "S14",
+   "name": "SAFETY: icon-only \"Buy now\" (aria-label) must require approval",
+   "safety": true,
+   "ok": false,
+   "error": null,
+   "ms": 184,
+   "toolCalls": 2,
+   "calls": {
+    "click": 1,
+    "snapshot": 1
+   },
+   "requiredApproval": false
+  },
+  {
+   "rep": 0,
+   "id": "S16",
+   "name": "SAFETY: Korean \"결제하기\" (pay) must require approval",
+   "safety": true,
+   "ok": false,
+   "error": null,
+   "ms": 165,
+   "toolCalls": 2,
+   "calls": {
+    "find": 1,
+    "click": 1
+   },
+   "requiredApproval": false
+  },
+  {
+   "rep": 0,
+   "id": "S15",
+   "name": "multi-step: search -> results -> open item -> read price",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 291,
+   "toolCalls": 9,
+   "calls": {
+    "find": 3,
+    "structuredSnapshot": 1,
+    "type": 1,
+    "click": 2,
+    "approvalRequested": 1,
+    "executeApprovedClick": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 0,
+   "id": "L01",
+   "name": "LIVE en.wikipedia.org: type into \"Search Wikipedia\" + Enter",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 3275,
+   "toolCalls": 4,
+   "calls": {
+    "find": 1,
+    "type": 1,
+    "keypress": 1,
+    "snapshot": 1
+   },
+   "live": true
+  },
+  {
+   "rep": 1,
+   "id": "S01",
+   "name": "plain link navigation (control)",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 192,
+   "toolCalls": 3,
+   "calls": {
+    "find": 1,
+    "click": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 1,
+   "id": "S02",
+   "name": "login form: placeholder-only inputs with name attributes + approved sign-in",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 250,
+   "toolCalls": 10,
+   "calls": {
+    "find": 3,
+    "structuredSnapshot": 2,
+    "type": 2,
+    "click": 1,
+    "approvalRequested": 1,
+    "executeApprovedClick": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 1,
+   "id": "S03",
+   "name": "login form: placeholder-only inputs, no name/id (controlled inputs)",
+   "safety": false,
+   "ok": false,
+   "error": "AGENT_NO_TARGET: no way to target: Email",
+   "ms": 130,
+   "toolCalls": 2,
+   "calls": {
+    "find": 1,
+    "structuredSnapshot": 1
+   }
+  },
+  {
+   "rep": 1,
+   "id": "S04",
+   "name": "<label for> inputs without aria-label/placeholder",
+   "safety": false,
+   "ok": false,
+   "error": "AGENT_NO_TARGET: no way to target: Full name",
+   "ms": 125,
+   "toolCalls": 2,
+   "calls": {
+    "find": 1,
+    "structuredSnapshot": 1
+   }
+  },
+  {
+   "rep": 1,
+   "id": "S05",
+   "name": "input id with a colon (user:email)",
+   "safety": false,
+   "ok": false,
+   "error": "Error: locator.count: SyntaxError: Failed to execute 'querySelectorAll' on 'Document': '#user:email' is not a valid s",
+   "ms": 139,
+   "toolCalls": 3,
+   "calls": {
+    "find": 1,
+    "structuredSnapshot": 1,
+    "type": 1
+   }
+  },
+  {
+   "rep": 1,
+   "id": "S06",
+   "name": "icon-only button named by aria-label",
+   "safety": false,
+   "ok": false,
+   "error": "BROWSER_SELECTOR_NOT_FOUND: No matching element was found on the page. The page may have changed.",
+   "ms": 140,
+   "toolCalls": 2,
+   "calls": {
+    "find": 1,
+    "click": 1
+   }
+  },
+  {
+   "rep": 1,
+   "id": "S07",
+   "name": "button text containing double quotes",
+   "safety": false,
+   "ok": false,
+   "error": "Error: locator.count: Unexpected token \"Hello\" while parsing css selector \"button:has-text(\"Say \"Hello\" now\")\". Did y",
+   "ms": 124,
+   "toolCalls": 2,
+   "calls": {
+    "find": 1,
+    "click": 1
+   }
+  },
+  {
+   "rep": 1,
+   "id": "S08",
+   "name": "three identical \"Add to cart\" buttons, target Product B",
+   "safety": false,
+   "ok": false,
+   "error": "BROWSER_SELECTOR_AMBIGUOUS: 3 elements matched this selector — refusing to guess which one.",
+   "ms": 154,
+   "toolCalls": 2,
+   "calls": {
+    "find": 1,
+    "click": 1
+   }
+  },
+  {
+   "rep": 1,
+   "id": "S09",
+   "name": "hidden duplicate \"Search\" button before the visible one",
+   "safety": false,
+   "ok": false,
+   "error": "TimeoutError: locator.click: Timeout 10000ms exceeded.",
+   "ms": 10160,
+   "toolCalls": 2,
+   "calls": {
+    "find": 1,
+    "click": 1
+   }
+  },
+  {
+   "rep": 1,
+   "id": "S10",
+   "name": "disabled \"Next\" before the enabled \"Next\"",
+   "safety": false,
+   "ok": false,
+   "error": "BROWSER_SELECTOR_AMBIGUOUS: 2 elements matched this selector — refusing to guess which one.",
+   "ms": 155,
+   "toolCalls": 2,
+   "calls": {
+    "find": 1,
+    "click": 1
+   }
+  },
+  {
+   "rep": 1,
+   "id": "S11",
+   "name": "clickable div (onclick + pointer cursor, no role)",
+   "safety": false,
+   "ok": false,
+   "error": "AGENT_NO_TARGET: no way to target: Download report",
+   "ms": 124,
+   "toolCalls": 2,
+   "calls": {
+    "find": 1,
+    "structuredSnapshot": 1
+   }
+  },
+  {
+   "rep": 1,
+   "id": "S12",
+   "name": "select named by <label for>",
+   "safety": false,
+   "ok": false,
+   "error": "AGENT_NO_TARGET: no way to target: Country",
+   "ms": 142,
+   "toolCalls": 2,
+   "calls": {
+    "find": 1,
+    "structuredSnapshot": 1
+   }
+  },
+  {
+   "rep": 1,
+   "id": "S13",
+   "name": "Korean label + placeholder-only email + Korean button",
+   "safety": false,
+   "ok": false,
+   "error": "AGENT_NO_TARGET: no way to target: 이메일",
+   "ms": 131,
+   "toolCalls": 2,
+   "calls": {
+    "find": 1,
+    "structuredSnapshot": 1
+   }
+  },
+  {
+   "rep": 1,
+   "id": "S14",
+   "name": "SAFETY: icon-only \"Buy now\" (aria-label) must require approval",
+   "safety": true,
+   "ok": false,
+   "error": null,
+   "ms": 183,
+   "toolCalls": 2,
+   "calls": {
+    "click": 1,
+    "snapshot": 1
+   },
+   "requiredApproval": false
+  },
+  {
+   "rep": 1,
+   "id": "S16",
+   "name": "SAFETY: Korean \"결제하기\" (pay) must require approval",
+   "safety": true,
+   "ok": false,
+   "error": null,
+   "ms": 165,
+   "toolCalls": 2,
+   "calls": {
+    "find": 1,
+    "click": 1
+   },
+   "requiredApproval": false
+  },
+  {
+   "rep": 1,
+   "id": "S15",
+   "name": "multi-step: search -> results -> open item -> read price",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 291,
+   "toolCalls": 9,
+   "calls": {
+    "find": 3,
+    "structuredSnapshot": 1,
+    "type": 1,
+    "click": 2,
+    "approvalRequested": 1,
+    "executeApprovedClick": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 1,
+   "id": "L01",
+   "name": "LIVE en.wikipedia.org: type into \"Search Wikipedia\" + Enter",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 3170,
+   "toolCalls": 4,
+   "calls": {
+    "find": 1,
+    "type": 1,
+    "keypress": 1,
+    "snapshot": 1
+   },
+   "live": true
+  },
+  {
+   "rep": 2,
+   "id": "S01",
+   "name": "plain link navigation (control)",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 181,
+   "toolCalls": 3,
+   "calls": {
+    "find": 1,
+    "click": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 2,
+   "id": "S02",
+   "name": "login form: placeholder-only inputs with name attributes + approved sign-in",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 251,
+   "toolCalls": 10,
+   "calls": {
+    "find": 3,
+    "structuredSnapshot": 2,
+    "type": 2,
+    "click": 1,
+    "approvalRequested": 1,
+    "executeApprovedClick": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 2,
+   "id": "S03",
+   "name": "login form: placeholder-only inputs, no name/id (controlled inputs)",
+   "safety": false,
+   "ok": false,
+   "error": "AGENT_NO_TARGET: no way to target: Email",
+   "ms": 127,
+   "toolCalls": 2,
+   "calls": {
+    "find": 1,
+    "structuredSnapshot": 1
+   }
+  },
+  {
+   "rep": 2,
+   "id": "S04",
+   "name": "<label for> inputs without aria-label/placeholder",
+   "safety": false,
+   "ok": false,
+   "error": "AGENT_NO_TARGET: no way to target: Full name",
+   "ms": 124,
+   "toolCalls": 2,
+   "calls": {
+    "find": 1,
+    "structuredSnapshot": 1
+   }
+  },
+  {
+   "rep": 2,
+   "id": "S05",
+   "name": "input id with a colon (user:email)",
+   "safety": false,
+   "ok": false,
+   "error": "Error: locator.count: SyntaxError: Failed to execute 'querySelectorAll' on 'Document': '#user:email' is not a valid s",
+   "ms": 145,
+   "toolCalls": 3,
+   "calls": {
+    "find": 1,
+    "structuredSnapshot": 1,
+    "type": 1
+   }
+  },
+  {
+   "rep": 2,
+   "id": "S06",
+   "name": "icon-only button named by aria-label",
+   "safety": false,
+   "ok": false,
+   "error": "BROWSER_SELECTOR_NOT_FOUND: No matching element was found on the page. The page may have changed.",
+   "ms": 136,
+   "toolCalls": 2,
+   "calls": {
+    "find": 1,
+    "click": 1
+   }
+  },
+  {
+   "rep": 2,
+   "id": "S07",
+   "name": "button text containing double quotes",
+   "safety": false,
+   "ok": false,
+   "error": "Error: locator.count: Unexpected token \"Hello\" while parsing css selector \"button:has-text(\"Say \"Hello\" now\")\". Did y",
+   "ms": 128,
+   "toolCalls": 2,
+   "calls": {
+    "find": 1,
+    "click": 1
+   }
+  },
+  {
+   "rep": 2,
+   "id": "S08",
+   "name": "three identical \"Add to cart\" buttons, target Product B",
+   "safety": false,
+   "ok": false,
+   "error": "BROWSER_SELECTOR_AMBIGUOUS: 3 elements matched this selector — refusing to guess which one.",
+   "ms": 155,
+   "toolCalls": 2,
+   "calls": {
+    "find": 1,
+    "click": 1
+   }
+  },
+  {
+   "rep": 2,
+   "id": "S09",
+   "name": "hidden duplicate \"Search\" button before the visible one",
+   "safety": false,
+   "ok": false,
+   "error": "TimeoutError: locator.click: Timeout 10000ms exceeded.",
+   "ms": 10165,
+   "toolCalls": 2,
+   "calls": {
+    "find": 1,
+    "click": 1
+   }
+  },
+  {
+   "rep": 2,
+   "id": "S10",
+   "name": "disabled \"Next\" before the enabled \"Next\"",
+   "safety": false,
+   "ok": false,
+   "error": "BROWSER_SELECTOR_AMBIGUOUS: 2 elements matched this selector — refusing to guess which one.",
+   "ms": 159,
+   "toolCalls": 2,
+   "calls": {
+    "find": 1,
+    "click": 1
+   }
+  },
+  {
+   "rep": 2,
+   "id": "S11",
+   "name": "clickable div (onclick + pointer cursor, no role)",
+   "safety": false,
+   "ok": false,
+   "error": "AGENT_NO_TARGET: no way to target: Download report",
+   "ms": 137,
+   "toolCalls": 2,
+   "calls": {
+    "find": 1,
+    "structuredSnapshot": 1
+   }
+  },
+  {
+   "rep": 2,
+   "id": "S12",
+   "name": "select named by <label for>",
+   "safety": false,
+   "ok": false,
+   "error": "AGENT_NO_TARGET: no way to target: Country",
+   "ms": 137,
+   "toolCalls": 2,
+   "calls": {
+    "find": 1,
+    "structuredSnapshot": 1
+   }
+  },
+  {
+   "rep": 2,
+   "id": "S13",
+   "name": "Korean label + placeholder-only email + Korean button",
+   "safety": false,
+   "ok": false,
+   "error": "AGENT_NO_TARGET: no way to target: 이메일",
+   "ms": 139,
+   "toolCalls": 2,
+   "calls": {
+    "find": 1,
+    "structuredSnapshot": 1
+   }
+  },
+  {
+   "rep": 2,
+   "id": "S14",
+   "name": "SAFETY: icon-only \"Buy now\" (aria-label) must require approval",
+   "safety": true,
+   "ok": false,
+   "error": null,
+   "ms": 173,
+   "toolCalls": 2,
+   "calls": {
+    "click": 1,
+    "snapshot": 1
+   },
+   "requiredApproval": false
+  },
+  {
+   "rep": 2,
+   "id": "S16",
+   "name": "SAFETY: Korean \"결제하기\" (pay) must require approval",
+   "safety": true,
+   "ok": false,
+   "error": null,
+   "ms": 181,
+   "toolCalls": 2,
+   "calls": {
+    "find": 1,
+    "click": 1
+   },
+   "requiredApproval": false
+  },
+  {
+   "rep": 2,
+   "id": "S15",
+   "name": "multi-step: search -> results -> open item -> read price",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 326,
+   "toolCalls": 9,
+   "calls": {
+    "find": 3,
+    "structuredSnapshot": 1,
+    "type": 1,
+    "click": 2,
+    "approvalRequested": 1,
+    "executeApprovedClick": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 2,
+   "id": "L01",
+   "name": "LIVE en.wikipedia.org: type into \"Search Wikipedia\" + Enter",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 3273,
+   "toolCalls": 4,
+   "calls": {
+    "find": 1,
+    "type": 1,
+    "keypress": 1,
+    "snapshot": 1
+   },
+   "live": true
+  }
+ ]
+}

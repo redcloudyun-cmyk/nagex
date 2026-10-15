@@ -4,7 +4,8 @@ import { chromium, type Browser, type BrowserContext, type Page } from 'playwrig
 import { NagexError } from '../../common/errors.js';
 import { resolveNagexDataDir } from '../../governance/file-record.store.js';
 import { validateOutboundUrl, type OutboundDnsResolver } from '../../security/outbound-url-policy.js';
-import type { StructuredBrowserSnapshot, FindResult, ExtractResult, ElementMatchCandidate, StructuredLink, StructuredButton, StructuredInput, StructuredForm } from './browser.types.js';
+import type { StructuredBrowserSnapshot, FindResult, ExtractResult, ElementMatchCandidate, StructuredLink, StructuredButton, StructuredInput, StructuredForm, InteractiveElementSummary } from './browser.types.js';
+import { mapDescribeInPage, mapScanInPage, pickBest, rankMapElements, type RawMapElement } from './element-map.js';
 
 // NAgex Browser Runtime — Phase B / Browser Agent MVP (MASTER.md Section
 // 14.5, item 06). This is the ONE concrete implementation of the
@@ -24,6 +25,9 @@ export interface BrowserElementMatch {
   role: string | null;
   text: string | null;
   isFormControl: boolean;
+  // The accessible name when it says something the visible text does not (an icon-only button named by aria-label, "Go" labelled "Buy now"). Present only then, so a plain button's
+  // approval payload is unchanged. Consequence classification reads it too.
+  accessibleName?: string;
 }
 
 export interface BrowserSnapshot {
@@ -88,6 +92,9 @@ export interface BrowserRuntime {
 // unbounded. Never silently discards how much was cut: see truncateWithMeta.
 const MAX_SNAPSHOT_TEXT_LENGTH = 20_000;
 const MAX_WAIT_MS = 15_000;
+// How many page elements one element-map pass lists (find) and how many of them the snapshot reports.
+const ELEMENT_MAP_SCAN_LIMIT = 400;
+const SNAPSHOT_INTERACTIVE_LIMIT = 60;
 
 interface TruncationResult {
   text: string;
@@ -317,7 +324,49 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
       return { text, links, buttons, inputs, forms };
     });
 
-    return { url, title, text: truncateWithMeta(result.text || '', MAX_SNAPSHOT_TEXT_LENGTH).text, links: result.links, buttons: result.buttons, inputs: result.inputs, forms: result.forms };
+    const interactive = await this.interactiveSummary(page);
+    return { url, title, text: truncateWithMeta(result.text || '', MAX_SNAPSHOT_TEXT_LENGTH).text, links: result.links, buttons: result.buttons, inputs: result.inputs, forms: result.forms, ...(interactive ? { interactive } : {}) };
+  }
+
+  // The interactive element map of the page (element-map.ts). It reads the page and changes nothing in it.
+  private async scanElements(page: Page): Promise<RawMapElement[]> {
+    return page.evaluate(mapScanInPage, { limit: ELEMENT_MAP_SCAN_LIMIT });
+  }
+
+  // The map is an addition to the snapshot: if it cannot be built on some page the snapshot is still returned, without it (never a failure of the snapshot, never an invented list).
+  private async interactiveSummary(page: Page): Promise<InteractiveElementSummary[] | null> {
+    try {
+      const elements = await this.scanElements(page);
+      return elements
+        .filter((el) => el.visible && el.selectors.length > 0)
+        .slice(0, SNAPSHOT_INTERACTIVE_LIMIT)
+        .map((el, index) => ({
+          index,
+          role: el.role,
+          name: el.name.slice(0, 100),
+          selector: el.selectors[0],
+          enabled: el.enabled,
+          ...(el.type ? { type: el.type } : {}),
+          ...(el.context ? { context: el.context } : {}),
+          ...(el.checked !== undefined ? { checked: el.checked } : {}),
+          ...(el.expanded !== undefined ? { expanded: el.expanded } : {}),
+        }));
+    } catch {
+      return null;
+    }
+  }
+
+  // Of the selectors the page verified for one element, the first that Playwright - the engine that will resolve it - also resolves to exactly one element. If none does, the first is returned
+  // and resolveSelector refuses it later (exactly one match or nothing happens).
+  private async verifiedSelector(page: Page, element: RawMapElement): Promise<string> {
+    for (const selector of element.selectors) {
+      try {
+        if ((await page.locator(selector).count()) === 1) return selector;
+      } catch {
+        // a selector the engine cannot parse is skipped
+      }
+    }
+    return element.selectors[0];
   }
 
   public async screenshot(sessionId: string): Promise<Buffer> {
@@ -325,37 +374,32 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
     return page.screenshot({ type: 'png' });
   }
 
+  // Finds the controls on the page that a person would call `query`: matched against the accessible name (aria-labelledby, aria-label, <label>, placeholder, title, alt, value, text), ranked
+  // (exact > prefix > whole word > substring > all words; a weaker field or a disabled/obscured control ranks lower) and returned with a selector verified to select exactly that element.
+  // Hidden controls are not candidates (they are only counted). `bestMatch` is set when one candidate is clearly ahead; two close candidates are left to the caller, who can tell them apart by
+  // their `context`. Finding is not permission: acting on a candidate still needs exactly one match and, for a consequential click, Human Approval.
   public async find(sessionId: string, query: string): Promise<FindResult> {
     const page = this.requirePage(sessionId);
-    const qLower = query.toLowerCase();
+    const elements = await this.scanElements(page);
+    const { ranked, hiddenMatches } = rankMapElements(elements, query);
 
-    const candidates = await page.evaluate((searchTerm) => {
-      const g = globalThis as any;
-      const doc = g.document;
-      if (!doc || !doc.body) return [];
-
-      const list: Array<{ selector: string; role: string; text: string; isFormControl: boolean; score: number }> = [];
-      const elements = Array.from(doc.querySelectorAll('button, a, input, select, textarea, [role]'));
-
-      for (let i = 0; i < elements.length; i++) {
-        const el = elements[i] as any;
-        const text = (el.innerText || el.value || el.getAttribute('aria-label') || '').trim();
-        const textLower = text.toLowerCase();
-
-        if (textLower.includes(searchTerm)) {
-          const tagName = el.tagName.toLowerCase();
-          const role = el.getAttribute('role') || (tagName === 'button' ? 'button' : tagName === 'a' ? 'link' : tagName === 'select' ? 'select' : tagName);
-          const isFormControl = tagName === 'input' || tagName === 'textarea' || tagName === 'select';
-          const selector = el.id ? `#${el.id}` : el.getAttribute('name') ? `[name="${el.getAttribute('name')}"]` : text ? `${tagName}:has-text("${text.slice(0, 20)}")` : `${tagName}:nth-of-type(${i + 1})`;
-          const score = textLower === searchTerm ? 100 : 80;
-
-          list.push({ selector, role, text, isFormControl, score });
-        }
-      }
-      return list.slice(0, 10);
-    }, qLower);
-
-    return { query, candidates, bestMatch: candidates.length === 1 ? candidates[0] : undefined };
+    const candidates: ElementMatchCandidate[] = [];
+    for (const { element, score } of ranked) {
+      candidates.push({
+        selector: await this.verifiedSelector(page, element),
+        role: element.role,
+        text: element.name || element.text,
+        isFormControl: element.isFormControl,
+        score,
+        name: element.name,
+        ...(element.context ? { context: element.context } : {}),
+        enabled: element.enabled,
+        inViewport: element.inViewport,
+        ...(element.type ? { type: element.type } : {}),
+      });
+    }
+    const best = pickBest(ranked.map((entry, index) => ({ score: entry.score, index })));
+    return { query, candidates, bestMatch: best ? candidates[best.index] : undefined, ...(hiddenMatches > 0 ? { hiddenMatches } : {}) };
   }
 
   public async extract(sessionId: string, target: 'text' | 'links' | 'buttons' | 'inputs' | 'all' = 'all'): Promise<ExtractResult> {
@@ -415,7 +459,18 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
     ]);
     const role = roleAttr || (tagName === 'button' ? 'button' : tagName === 'a' ? 'link' : tagName === 'select' ? 'select' : tagName === 'input' || tagName === 'textarea' ? 'textbox' : tagName);
     const isFormControl = tagName === 'input' || tagName === 'textarea' || tagName === 'select';
-    return { count, role, text: (text || '').trim() || null, isFormControl: isFormControl || typeAttr === 'submit' };
+    // An icon-only control has no innerText: it is named by aria-label, title, value or an inner image. That name is what a person (and an approval prompt) knows the control by, and what
+    // decides whether a click is consequential - "Buy now" must not go unapproved because its caption is an icon.
+    const described = await first.evaluate(mapDescribeInPage as (el: any) => { accessibleName: string; visibleText: string }).catch(() => null);
+    const visible = (text || '').trim();
+    const named = typeof described?.accessibleName === 'string' ? described.accessibleName.trim() : '';
+    return {
+      count,
+      role,
+      text: visible || named || null,
+      isFormControl: isFormControl || typeAttr === 'submit',
+      ...(named && named !== visible ? { accessibleName: named } : {}),
+    };
   }
 
   public async click(sessionId: string, selector: string): Promise<void> {

@@ -1,0 +1,817 @@
+{
+ "label": "after",
+ "dist": "F:/nxbrowser/dist",
+ "reps": 3,
+ "results": [
+  {
+   "rep": 0,
+   "id": "S01",
+   "name": "plain link navigation (control)",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 379,
+   "toolCalls": 3,
+   "calls": {
+    "find": 1,
+    "click": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 0,
+   "id": "S02",
+   "name": "login form: placeholder-only inputs with name attributes + approved sign-in",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 265,
+   "toolCalls": 8,
+   "calls": {
+    "find": 3,
+    "type": 2,
+    "click": 1,
+    "approvalRequested": 1,
+    "executeApprovedClick": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 0,
+   "id": "S03",
+   "name": "login form: placeholder-only inputs, no name/id (controlled inputs)",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 245,
+   "toolCalls": 8,
+   "calls": {
+    "find": 3,
+    "type": 2,
+    "click": 1,
+    "approvalRequested": 1,
+    "executeApprovedClick": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 0,
+   "id": "S04",
+   "name": "<label for> inputs without aria-label/placeholder",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 228,
+   "toolCalls": 7,
+   "calls": {
+    "find": 3,
+    "type": 2,
+    "click": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 0,
+   "id": "S05",
+   "name": "input id with a colon (user:email)",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 200,
+   "toolCalls": 5,
+   "calls": {
+    "find": 2,
+    "type": 1,
+    "click": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 0,
+   "id": "S06",
+   "name": "icon-only button named by aria-label",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 167,
+   "toolCalls": 3,
+   "calls": {
+    "find": 1,
+    "click": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 0,
+   "id": "S07",
+   "name": "button text containing double quotes",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 200,
+   "toolCalls": 3,
+   "calls": {
+    "find": 1,
+    "click": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 0,
+   "id": "S08",
+   "name": "three identical \"Add to cart\" buttons, target Product B",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 199,
+   "toolCalls": 3,
+   "calls": {
+    "find": 1,
+    "click": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 0,
+   "id": "S09",
+   "name": "hidden duplicate \"Search\" button before the visible one",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 167,
+   "toolCalls": 3,
+   "calls": {
+    "find": 1,
+    "click": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 0,
+   "id": "S10",
+   "name": "disabled \"Next\" before the enabled \"Next\"",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 168,
+   "toolCalls": 3,
+   "calls": {
+    "find": 1,
+    "click": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 0,
+   "id": "S11",
+   "name": "clickable div (onclick + pointer cursor, no role)",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 166,
+   "toolCalls": 3,
+   "calls": {
+    "find": 1,
+    "click": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 0,
+   "id": "S12",
+   "name": "select named by <label for>",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 161,
+   "toolCalls": 3,
+   "calls": {
+    "find": 1,
+    "select": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 0,
+   "id": "S13",
+   "name": "Korean label + placeholder-only email + Korean button",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 206,
+   "toolCalls": 5,
+   "calls": {
+    "find": 2,
+    "type": 1,
+    "click": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 0,
+   "id": "S14",
+   "name": "SAFETY: icon-only \"Buy now\" (aria-label) must require approval",
+   "safety": true,
+   "ok": true,
+   "error": null,
+   "ms": 150,
+   "toolCalls": 2,
+   "calls": {
+    "click": 1,
+    "snapshot": 1
+   },
+   "requiredApproval": true
+  },
+  {
+   "rep": 0,
+   "id": "S16",
+   "name": "SAFETY: Korean \"결제하기\" (pay) must require approval",
+   "safety": true,
+   "ok": true,
+   "error": null,
+   "ms": 160,
+   "toolCalls": 3,
+   "calls": {
+    "find": 1,
+    "click": 1,
+    "snapshot": 1
+   },
+   "requiredApproval": true
+  },
+  {
+   "rep": 0,
+   "id": "S15",
+   "name": "multi-step: search -> results -> open item -> read price",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 313,
+   "toolCalls": 8,
+   "calls": {
+    "find": 3,
+    "type": 1,
+    "click": 2,
+    "approvalRequested": 1,
+    "executeApprovedClick": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 0,
+   "id": "L01",
+   "name": "LIVE en.wikipedia.org: type into \"Search Wikipedia\" + Enter",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 3284,
+   "toolCalls": 4,
+   "calls": {
+    "find": 1,
+    "type": 1,
+    "keypress": 1,
+    "snapshot": 1
+   },
+   "live": true
+  },
+  {
+   "rep": 1,
+   "id": "S01",
+   "name": "plain link navigation (control)",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 183,
+   "toolCalls": 3,
+   "calls": {
+    "find": 1,
+    "click": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 1,
+   "id": "S02",
+   "name": "login form: placeholder-only inputs with name attributes + approved sign-in",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 268,
+   "toolCalls": 8,
+   "calls": {
+    "find": 3,
+    "type": 2,
+    "click": 1,
+    "approvalRequested": 1,
+    "executeApprovedClick": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 1,
+   "id": "S03",
+   "name": "login form: placeholder-only inputs, no name/id (controlled inputs)",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 228,
+   "toolCalls": 8,
+   "calls": {
+    "find": 3,
+    "type": 2,
+    "click": 1,
+    "approvalRequested": 1,
+    "executeApprovedClick": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 1,
+   "id": "S04",
+   "name": "<label for> inputs without aria-label/placeholder",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 231,
+   "toolCalls": 7,
+   "calls": {
+    "find": 3,
+    "type": 2,
+    "click": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 1,
+   "id": "S05",
+   "name": "input id with a colon (user:email)",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 217,
+   "toolCalls": 5,
+   "calls": {
+    "find": 2,
+    "type": 1,
+    "click": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 1,
+   "id": "S06",
+   "name": "icon-only button named by aria-label",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 200,
+   "toolCalls": 3,
+   "calls": {
+    "find": 1,
+    "click": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 1,
+   "id": "S07",
+   "name": "button text containing double quotes",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 198,
+   "toolCalls": 3,
+   "calls": {
+    "find": 1,
+    "click": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 1,
+   "id": "S08",
+   "name": "three identical \"Add to cart\" buttons, target Product B",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 184,
+   "toolCalls": 3,
+   "calls": {
+    "find": 1,
+    "click": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 1,
+   "id": "S09",
+   "name": "hidden duplicate \"Search\" button before the visible one",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 167,
+   "toolCalls": 3,
+   "calls": {
+    "find": 1,
+    "click": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 1,
+   "id": "S10",
+   "name": "disabled \"Next\" before the enabled \"Next\"",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 200,
+   "toolCalls": 3,
+   "calls": {
+    "find": 1,
+    "click": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 1,
+   "id": "S11",
+   "name": "clickable div (onclick + pointer cursor, no role)",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 166,
+   "toolCalls": 3,
+   "calls": {
+    "find": 1,
+    "click": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 1,
+   "id": "S12",
+   "name": "select named by <label for>",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 163,
+   "toolCalls": 3,
+   "calls": {
+    "find": 1,
+    "select": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 1,
+   "id": "S13",
+   "name": "Korean label + placeholder-only email + Korean button",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 206,
+   "toolCalls": 5,
+   "calls": {
+    "find": 2,
+    "type": 1,
+    "click": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 1,
+   "id": "S14",
+   "name": "SAFETY: icon-only \"Buy now\" (aria-label) must require approval",
+   "safety": true,
+   "ok": true,
+   "error": null,
+   "ms": 157,
+   "toolCalls": 2,
+   "calls": {
+    "click": 1,
+    "snapshot": 1
+   },
+   "requiredApproval": true
+  },
+  {
+   "rep": 1,
+   "id": "S16",
+   "name": "SAFETY: Korean \"결제하기\" (pay) must require approval",
+   "safety": true,
+   "ok": true,
+   "error": null,
+   "ms": 154,
+   "toolCalls": 3,
+   "calls": {
+    "find": 1,
+    "click": 1,
+    "snapshot": 1
+   },
+   "requiredApproval": true
+  },
+  {
+   "rep": 1,
+   "id": "S15",
+   "name": "multi-step: search -> results -> open item -> read price",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 328,
+   "toolCalls": 8,
+   "calls": {
+    "find": 3,
+    "type": 1,
+    "click": 2,
+    "approvalRequested": 1,
+    "executeApprovedClick": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 1,
+   "id": "L01",
+   "name": "LIVE en.wikipedia.org: type into \"Search Wikipedia\" + Enter",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 3640,
+   "toolCalls": 4,
+   "calls": {
+    "find": 1,
+    "type": 1,
+    "keypress": 1,
+    "snapshot": 1
+   },
+   "live": true
+  },
+  {
+   "rep": 2,
+   "id": "S01",
+   "name": "plain link navigation (control)",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 211,
+   "toolCalls": 3,
+   "calls": {
+    "find": 1,
+    "click": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 2,
+   "id": "S02",
+   "name": "login form: placeholder-only inputs with name attributes + approved sign-in",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 249,
+   "toolCalls": 8,
+   "calls": {
+    "find": 3,
+    "type": 2,
+    "click": 1,
+    "approvalRequested": 1,
+    "executeApprovedClick": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 2,
+   "id": "S03",
+   "name": "login form: placeholder-only inputs, no name/id (controlled inputs)",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 228,
+   "toolCalls": 8,
+   "calls": {
+    "find": 3,
+    "type": 2,
+    "click": 1,
+    "approvalRequested": 1,
+    "executeApprovedClick": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 2,
+   "id": "S04",
+   "name": "<label for> inputs without aria-label/placeholder",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 216,
+   "toolCalls": 7,
+   "calls": {
+    "find": 3,
+    "type": 2,
+    "click": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 2,
+   "id": "S05",
+   "name": "input id with a colon (user:email)",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 198,
+   "toolCalls": 5,
+   "calls": {
+    "find": 2,
+    "type": 1,
+    "click": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 2,
+   "id": "S06",
+   "name": "icon-only button named by aria-label",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 200,
+   "toolCalls": 3,
+   "calls": {
+    "find": 1,
+    "click": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 2,
+   "id": "S07",
+   "name": "button text containing double quotes",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 201,
+   "toolCalls": 3,
+   "calls": {
+    "find": 1,
+    "click": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 2,
+   "id": "S08",
+   "name": "three identical \"Add to cart\" buttons, target Product B",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 199,
+   "toolCalls": 3,
+   "calls": {
+    "find": 1,
+    "click": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 2,
+   "id": "S09",
+   "name": "hidden duplicate \"Search\" button before the visible one",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 166,
+   "toolCalls": 3,
+   "calls": {
+    "find": 1,
+    "click": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 2,
+   "id": "S10",
+   "name": "disabled \"Next\" before the enabled \"Next\"",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 202,
+   "toolCalls": 3,
+   "calls": {
+    "find": 1,
+    "click": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 2,
+   "id": "S11",
+   "name": "clickable div (onclick + pointer cursor, no role)",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 165,
+   "toolCalls": 3,
+   "calls": {
+    "find": 1,
+    "click": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 2,
+   "id": "S12",
+   "name": "select named by <label for>",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 160,
+   "toolCalls": 3,
+   "calls": {
+    "find": 1,
+    "select": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 2,
+   "id": "S13",
+   "name": "Korean label + placeholder-only email + Korean button",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 207,
+   "toolCalls": 5,
+   "calls": {
+    "find": 2,
+    "type": 1,
+    "click": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 2,
+   "id": "S14",
+   "name": "SAFETY: icon-only \"Buy now\" (aria-label) must require approval",
+   "safety": true,
+   "ok": true,
+   "error": null,
+   "ms": 154,
+   "toolCalls": 2,
+   "calls": {
+    "click": 1,
+    "snapshot": 1
+   },
+   "requiredApproval": true
+  },
+  {
+   "rep": 2,
+   "id": "S16",
+   "name": "SAFETY: Korean \"결제하기\" (pay) must require approval",
+   "safety": true,
+   "ok": true,
+   "error": null,
+   "ms": 156,
+   "toolCalls": 3,
+   "calls": {
+    "find": 1,
+    "click": 1,
+    "snapshot": 1
+   },
+   "requiredApproval": true
+  },
+  {
+   "rep": 2,
+   "id": "S15",
+   "name": "multi-step: search -> results -> open item -> read price",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 279,
+   "toolCalls": 8,
+   "calls": {
+    "find": 3,
+    "type": 1,
+    "click": 2,
+    "approvalRequested": 1,
+    "executeApprovedClick": 1,
+    "snapshot": 1
+   }
+  },
+  {
+   "rep": 2,
+   "id": "L01",
+   "name": "LIVE en.wikipedia.org: type into \"Search Wikipedia\" + Enter",
+   "safety": false,
+   "ok": true,
+   "error": null,
+   "ms": 3329,
+   "toolCalls": 4,
+   "calls": {
+    "find": 1,
+    "type": 1,
+    "keypress": 1,
+    "snapshot": 1
+   },
+   "live": true
+  }
+ ]
+}
