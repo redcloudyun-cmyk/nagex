@@ -1,3 +1,4 @@
+import { resolveScheduleText, wallTimeToInstant, zonedParts } from '../common/time-context.js';
 import crypto from 'node:crypto';
 import { PersonalReminderStore } from './personal-reminder.store.js';
 import { NotificationStore } from '../notifications/notification.store.js';
@@ -205,29 +206,13 @@ export class PersonalAssistantEngine {
       const mins = parseInt(minMatch[1], 10);
       scheduledDate = new Date(referenceTime.getTime() + mins * 60 * 1000);
     } else {
-      // Check for "오후 3시" / "3pm" / "15:00" / "내일" / "tomorrow"
-      const isTomorrow = /내일|tomorrow/i.test(text);
-      if (isTomorrow) {
-        scheduledDate.setDate(scheduledDate.getDate() + 1);
-      }
-
-      const pmMatch = text.match(/(?:오후|pm)\s*(\d{1,2})\s*시?/i);
-      const amMatch = text.match(/(?:오전|am)\s*(\d{1,2})\s*시?/i);
-      const timeMatch = text.match(/(\d{1,2}):(\d{2})/);
-
-      if (pmMatch) {
-        let hour = parseInt(pmMatch[1], 10);
-        if (hour < 12) hour += 12;
-        scheduledDate.setHours(hour, 0, 0, 0);
-      } else if (amMatch) {
-        let hour = parseInt(amMatch[1], 10);
-        if (hour === 12) hour = 0;
-        scheduledDate.setHours(hour, 0, 0, 0);
-      } else if (timeMatch) {
-        scheduledDate.setHours(parseInt(timeMatch[1], 10), parseInt(timeMatch[2], 10), 0, 0);
-      } else if (text.includes('저녁 7시')) {
-        scheduledDate.setHours(19, 0, 0, 0);
-      }
+      // "내일 오후 3시": read in the PERSON'S timezone (the old code set hours on the server's local clock, so a server in UTC reminded a Seoul user nine hours early).
+      // No date -> the date of one hour from now; no time -> the time of one hour from now; both are the person's wall clock.
+      const slots = resolveScheduleText(text, referenceTime.getTime(), timezone);
+      const ahead = zonedParts(scheduledDate.getTime(), timezone);
+      const date = slots.date ?? ahead;
+      const time = slots.time ?? { hour: ahead.hour, minute: ahead.minute };
+      scheduledDate = new Date(wallTimeToInstant({ year: date.year, month: date.month, day: date.day, hour: time.hour, minute: time.minute }, timezone).ms);
     }
 
     cleanTitle = cleanTitle
@@ -235,6 +220,7 @@ export class PersonalAssistantEngine {
       .replace(/(?:내일|tomorrow|오늘|today)\s*/gi, '')
       .replace(/(?:오전|오후|am|pm|\d{1,2}시|\d{1,2}:\d{2})\s*/gi, '')
       .replace(/(?:에|후|뒤)?\s*(?:하라고|라고|해주라고|해달라고)?\s*(?:알려줘|확인해줘|해줘|remind me to|remind me)?$/gi, '')
+      .replace(/^\s*(?:에는|에)\s+/, '') // the particle that followed the date / time words ("내일 오후 3시에 ...")
       .trim();
 
     if (!cleanTitle) {

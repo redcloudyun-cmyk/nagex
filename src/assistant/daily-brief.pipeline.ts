@@ -12,6 +12,7 @@ import type { GoogleCalendarService } from '../modules/calendar/index.js';
 import type { GmailService } from '../modules/gmail/index.js';
 import type { AiService, BriefActionItem } from '../model-gateway/ai-service.js';
 import type { TaskStore } from '../tasks/task.store.js';
+import { endOfLocalDayMs, isValidTimeZone } from '../common/time-context.js';
 import type { ActivityStore } from '../governance/activity.store.js';
 import { dailyBriefDateKey, type DailyBriefRecord } from '../governance/daily-brief.store.js';
 
@@ -45,6 +46,8 @@ export async function generateDailyBriefOnce(
   requestId: string,
   isSourceRefresh: boolean,
   source: 'SCHEDULED' | 'MANUAL' = 'MANUAL',
+  // the person's own timezone when one is known for sure (a timezone they chose, or the schedule's): "today" for the calendar window is THEIR day, not the server's midnight
+  options: { timezone?: string } = {},
 ): Promise<GeneratedDailyBrief> {
   const guardKey = `${tenantId}::${principalId}`;
   const today = dailyBriefDateKey();
@@ -68,7 +71,8 @@ export async function generateDailyBriefOnce(
     try {
       const now = new Date();
       const endOfDay = new Date(now);
-      endOfDay.setHours(23, 59, 59, 999);
+      if (isValidTimeZone(options.timezone)) endOfDay.setTime(endOfLocalDayMs(now.getTime(), options.timezone));
+      else endOfDay.setHours(23, 59, 59, 999);
       schedule = await calendarService.listUpcomingEvents({ tenantId, principalId, timeMin: now.toISOString(), timeMax: endOfDay.toISOString(), maxResults: 20, requestId });
     } catch (error) {
       schedule = [];

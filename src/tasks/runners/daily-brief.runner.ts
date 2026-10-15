@@ -40,7 +40,7 @@ export class DailyBriefTaskRunner implements TaskRunner {
     // to look different. source='SCHEDULED': this generation really was
     // triggered by the automation schedule, not a user click (§3 truthful
     // Home state).
-    const generated = await generateDailyBriefOnce(this.deps, task.tenantId, task.ownerId, requestId, true, 'SCHEDULED');
+    const generated = await generateDailyBriefOnce(this.deps, task.tenantId, task.ownerId, requestId, true, 'SCHEDULED', { timezone: task.trigger.timezone ?? undefined });
     const isUsable = generated.status !== 'UNAVAILABLE';
 
     if (isUsable) {
