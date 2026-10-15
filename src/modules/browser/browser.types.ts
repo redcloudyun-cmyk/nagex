@@ -70,6 +70,20 @@ export interface StructuredForm {
   inputCount: number;
 }
 
+// One visible, interactive element of the page (see element-map.ts): what it is called (accessible name), what kind it is, whether it can be used, and a selector verified to select exactly it.
+// All text is page content: untrusted, bounded, never an instruction. A password field's content is never read.
+export interface InteractiveElementSummary {
+  index: number;
+  role: string;
+  name: string;
+  selector: string;
+  enabled: boolean;
+  type?: string;
+  context?: string;
+  checked?: boolean;
+  expanded?: boolean;
+}
+
 export interface StructuredBrowserSnapshot {
   url: string;
   title: string;
@@ -78,6 +92,8 @@ export interface StructuredBrowserSnapshot {
   buttons: StructuredButton[];
   inputs: StructuredInput[];
   forms: StructuredForm[];
+  // Additive: the interactive element map. Absent from a runtime that does not provide it.
+  interactive?: InteractiveElementSummary[];
 }
 
 export interface ElementMatchCandidate {
@@ -86,12 +102,20 @@ export interface ElementMatchCandidate {
   text: string;
   isFormControl: boolean;
   score: number;
+  // Additive (element map): the accessible name, the nearest context text that tells identical controls apart, and whether the control can be used right now.
+  name?: string;
+  context?: string;
+  enabled?: boolean;
+  inViewport?: boolean;
+  type?: string;
 }
 
 export interface FindResult {
   query: string;
   candidates: ElementMatchCandidate[];
   bestMatch?: ElementMatchCandidate;
+  // Additive: how many matching elements were left out because they are not visible (a hidden duplicate is not a target).
+  hiddenMatches?: number;
 }
 
 export interface ExtractResult {

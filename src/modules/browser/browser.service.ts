@@ -33,6 +33,10 @@ const CONSEQUENTIAL_ACTION_KEYWORDS = [
   'delete', 'remove', 'cancel subscription', 'publish', 'post', 'confirm', 'book',
   'reserve', 'complete booking', 'change password', 'update settings', 'save changes',
   'transfer', 'donate', 'subscribe', 'unsubscribe', 'sign', 'agree', 'accept',
+  // Korean wording of the same actions (NAgex is used on Korean sites, where an English-only list let "결제하기" through unapproved). A substring of a longer label counts: "주문 취소" and
+  // "구독 해지" are caught by 주문 / 구독, deliberately - they are as consequential as the action itself.
+  '결제', '구매', '주문', '삭제', '제거', '전송', '보내기', '발송', '제출', '예약', '신청', '가입', '탈퇴',
+  '송금', '이체', '후원', '구독', '동의', '수락', '확인', '게시', '등록',
 ];
 
 // Explicit keyword table for CAPTCHA/MFA/human-verification detection —
@@ -47,7 +51,7 @@ const HUMAN_VERIFICATION_KEYWORDS = [
 export function classifyClickConsequence(text: string | null, isFormControl: boolean): boolean {
   if (isFormControl) return true; // a type="submit" control is inherently consequential
   if (!text) return false;
-  const normalized = text.toLowerCase();
+  const normalized = text.normalize('NFC').toLowerCase();
   return CONSEQUENTIAL_ACTION_KEYWORDS.some((kw) => normalized.includes(kw));
 }
 
@@ -440,7 +444,9 @@ export class BrowserToolService {
     const match = await this.runtime.resolveSelector(record.browserSessionId, input.selector);
     this.assertSelectorResolved(match, input);
 
-    if (!input.forceApproval && !classifyClickConsequence(match.text, match.isFormControl)) {
+    // Both what the control says and what it is called count: "Go" labelled "Buy now", or an icon-only button named only by aria-label, is as consequential as a button that says "Buy now".
+    const classifiedText = [match.text, match.accessibleName].filter(Boolean).join(' ') || null;
+    if (!input.forceApproval && !classifyClickConsequence(classifiedText, match.isFormControl)) {
       await this.runtime.click(record.browserSessionId, input.selector);
       const page = await this.runtime.snapshot(record.browserSessionId);
       this.sessions.updateUrl(record.browserSessionId, page.url);
@@ -453,7 +459,7 @@ export class BrowserToolService {
     // freezes exactly what will be clicked: the session, the selector, and
     // the visible text a human reviewed, so a payload-hash mismatch catches
     // any change to the target between request and execution.
-    const payload = { browserSessionId: record.browserSessionId, selector: input.selector, targetText: match.text, url: record.currentUrl };
+    const payload = { browserSessionId: record.browserSessionId, selector: input.selector, targetText: match.text, ...(match.accessibleName ? { accessibleName: match.accessibleName } : {}), url: record.currentUrl };
     const approval = this.approvals.request({ toolId: BROWSER_CLICK_TOOL_ID, tenantId: input.tenantId, principalId: input.ownerId, payload });
     this.auditAction(BROWSER_CLICK_TOOL_ID, 'approval.requested', input, 'PENDING_APPROVAL', { selector: input.selector, targetText: match.text });
     return { status: 'APPROVAL_REQUIRED', approval };
@@ -496,7 +502,7 @@ export class BrowserToolService {
     // too, before the approval is even consumed.
     const match = await this.runtime.resolveSelector(record.browserSessionId, input.selector);
     this.assertSelectorResolved(match, input);
-    const payload = { browserSessionId: input.browserSessionId, selector: input.selector, targetText: match.text, url: record.currentUrl };
+    const payload = { browserSessionId: input.browserSessionId, selector: input.selector, targetText: match.text, ...(match.accessibleName ? { accessibleName: match.accessibleName } : {}), url: record.currentUrl };
 
     try {
       this.approvals.consume(input.approvalId, input.tenantId, input.ownerId, BROWSER_CLICK_TOOL_ID, payload, input.requestId, executionId);
