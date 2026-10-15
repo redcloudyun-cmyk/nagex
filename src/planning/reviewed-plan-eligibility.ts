@@ -30,6 +30,7 @@ export const HOME_RUNNABLE_NATIVE_TOOLS: ReadonlySet<string> = new Set([
   'gmail.send_email',
   'gmail.reply',
   'gmail.create_draft',
+  'vault.save_note',
 ]);
 
 export function isHomeRunnableTool(toolId: string | null | undefined): boolean {
@@ -54,11 +55,13 @@ export function assessReviewedPlan(resolved: ResolvedPlan): RunnableAssessment {
 
 // A preview of the arguments the person is about to approve: short, flat, with anything credential-like removed. Never the model's reasoning, never a secret.
 const SECRET_KEY = /(token|secret|password|passwd|authorization|api[-_]?key|credential|cookie|bearer)/i;
-export function previewArguments(parameters: unknown): Array<{ name: string; value: string }> {
+export function previewArguments(parameters: unknown, toolId?: string | null): Array<{ name: string; value: string }> {
   if (!parameters || typeof parameters !== 'object' || Array.isArray(parameters)) return [];
   const out: Array<{ name: string; value: string }> = [];
   for (const [name, value] of Object.entries(parameters as Record<string, unknown>).slice(0, 12)) {
     if (SECRET_KEY.test(name)) { out.push({ name, value: '[hidden]' }); continue; }
+    // a Vault draft is approved as the EXACT text that will be stored: shown whole (bounded by the draft limits), line breaks kept - never shortened to a snippet
+    if (toolId === 'vault.save_note' && name === 'content' && typeof value === 'string') { out.push({ name, value: value.slice(0, 20000) }); continue; }
     const text = typeof value === 'string' ? value : JSON.stringify(value);
     out.push({ name, value: (text ?? '').replace(/\s+/g, ' ').slice(0, 160) });
   }

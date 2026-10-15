@@ -67,7 +67,7 @@ test('mock registered tools are never treated as live or execution-ready', () =>
 });
 
 test('a live reversible write requires human approval', () => {
-  const step = resolver.resolve(planFor('workspace.prepare_draft', 'Planning')).steps[0];
+  const step = resolver.resolve(planFor('vault.save_note', 'Planning')).steps[0];
   assert.equal(step.sideEffectLevel, 'REVERSIBLE_WRITE');
   assert.equal(step.approvalRequired, true);
   assert.equal(step.executionReadiness, 'APPROVAL_REQUIRED');
@@ -88,11 +88,11 @@ test('unresolved skills fail closed even when the tool is safe', () => {
 });
 
 test('POST /api/v1/plans/resolve returns preparation status without executing', async () => {
-  const response = await handleAsyncApiRequest('POST', '/api/v1/plans/resolve', { plan: planFor('workspace.prepare_draft') });
+  const response = await handleAsyncApiRequest('POST', '/api/v1/plans/resolve', { plan: planFor('vault.save_note') });
   assert.equal(response.status, 200);
   const resolved = response.data as { status: string; steps: Array<{ resolvedToolId: string; executionReadiness: string }> };
   assert.equal(resolved.status, 'APPROVAL_REQUIRED');
-  assert.equal(resolved.steps[0].resolvedToolId, 'workspace.prepare_draft');
+  assert.equal(resolved.steps[0].resolvedToolId, 'vault.save_note');
   assert.equal(resolved.steps[0].executionReadiness, 'APPROVAL_REQUIRED');
 });
 

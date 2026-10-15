@@ -19,6 +19,7 @@ import type { WebSearchService } from '../research/web-search.service.js';
 import type { EvidencePackService } from '../research/evidence-pack.service.js';
 import type { GitHubConnectionService } from '../integrations/github/github-connection.js';
 import type { McpService } from '../mcp/mcp.service.js';
+import type { VaultSaveService } from '../workspace/vault-save.service.js';
 
 export interface CapabilityIdempotencyRecord {
   key: string;
@@ -61,6 +62,8 @@ const NATIVE_APPROVAL_CAPABILITIES = new Set([
   // flow (DesktopControlService.startSession/resumeSession), never a
   // hard REQUIRED block that would also stop OBSERVE-only calls.
   'device.desktop.execute',
+  // D-9 - an owner-local Vault save: its own native approval continuation (VaultSaveService), never a hard REQUIRED block.
+  'vault.save_note',
 ]);
 
 import { ModuleRegistry, canonicalModuleRegistry } from '../modules/module.registry.js';
@@ -97,6 +100,8 @@ export class CapabilityBroker {
     private readonly githubService?: Pick<GitHubConnectionService, 'listRepositories' | 'listDirectory' | 'readFile'>,
     // User-registered MCP servers. Additive, optional, trailing: absent, MCP capabilities report unavailable.
     private readonly mcpService?: Pick<McpService, 'requestToolApproval' | 'executeApprovedTool'>,
+    // D-9 owner-local Vault save. Additive, optional, trailing: absent, VAULT capabilities report unavailable.
+    private readonly vaultSaveService?: Pick<VaultSaveService, 'requestApproval' | 'executeApproved'>,
   ) {
     this.permissionDecisionService = permissionDecisionService ?? new PermissionDecisionService(this.auditLogger);
     const dataDir = resolveNagexDataDir(idempotencyDirName, idempotencyEnvVar);
@@ -290,6 +295,7 @@ export class CapabilityBroker {
     if (provider === 'DEVICE_DESKTOP') return Boolean(this.desktopControlService) && this.desktopControlService!.isReady();
     if (provider === 'GITHUB') return Boolean(this.githubService);
     if (provider === 'MCP') return Boolean(this.mcpService);
+    if (provider === 'VAULT') return Boolean(this.vaultSaveService);
     if (provider === 'WEB_SEARCH') return Boolean(this.evidencePackService) && this.evidencePackService!.isWebSearchAvailable();
     return false;
   }
@@ -496,6 +502,18 @@ export class CapabilityBroker {
         return { status: 'EXECUTED', capabilityId: request.capabilityId, result };
       }
       const approval = this.mcpService.requestToolApproval({ ...identity, capabilityId: request.capabilityId, payload: request.payload });
+      this.logApprovalRequired(request, def);
+      return { status: 'APPROVAL_REQUIRED', capabilityId: request.capabilityId, approval };
+    }
+
+    // Vault save (owner-local, approval REQUIRED). Identity is the request's server-derived tenant + principal; the payload is the frozen draft the approval is bound to.
+    if (def.provider === 'VAULT' && this.vaultSaveService) {
+      const identity = { tenantId: request.tenantId, principalId: request.principalId, requestId: request.requestId };
+      if (request.approvalId) {
+        const result = await this.vaultSaveService.executeApproved({ ...identity, payload: request.payload, approvalId: request.approvalId });
+        return { status: 'EXECUTED', capabilityId: request.capabilityId, result };
+      }
+      const approval = this.vaultSaveService.requestApproval({ ...identity, payload: request.payload });
       this.logApprovalRequired(request, def);
       return { status: 'APPROVAL_REQUIRED', capabilityId: request.capabilityId, approval };
     }

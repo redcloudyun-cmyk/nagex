@@ -195,7 +195,9 @@ describe('plan preview -> approval request -> approval -> execution -> result, w
     // forge an expired token with the right owner binding is impossible: re-sealing with a clock in the past is not possible either, so test the verifier directly
     const verifier = new PlanSeal(() => clock, 1000);
     const fresh = verifier.seal({ tenantId: TENANT, principalId: user }, plan);
-    assert.deepEqual(verifier.verify({ tenantId: TENANT, principalId: user }, plan, fresh.token), { ok: true, planHash: fresh.planHash });
+    const accepted = verifier.verify({ tenantId: TENANT, principalId: user }, plan, fresh.token) as any;
+    assert.equal(accepted.ok, true);
+    assert.equal(accepted.planHash, fresh.planHash);
     clock += 5000;
     assert.deepEqual(verifier.verify({ tenantId: TENANT, principalId: user }, plan, fresh.token), { ok: false, reason: 'PLAN_SEAL_EXPIRED' });
     const missing = await call('POST', '/api/v1/tasks/from-reviewed-plan', { plan }, as(user));

@@ -21,6 +21,9 @@ import { parseRoutingMode } from '../../model-gateway/ai-service.js';
 import type { PlanResolver } from '../../planning/plan-resolver.js';
 import { defaultPlanSeal, type PlanSeal } from '../../planning/plan-seal.js';
 import { assessReviewedPlan } from '../../planning/reviewed-plan-eligibility.js';
+import { buildVaultSavePlan } from '../../planning/vault-save-plan.js';
+import { decideRouting } from '../../workspace/input-router.js';
+import { VAULT_SAVE_LIMITS } from '../../workspace/vault-save-intent.js';
 import type { SessionStore } from '../../sessions/session.store.js';
 import type { ConversationStore } from '../../conversations/conversation.store.js';
 import type { ConversationContextService } from '../../conversations/conversation-context.service.js';
@@ -284,6 +287,37 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
       request_id: requestId,
       details: { sessionId: session.sessionId, messageId: userMsgRecord.messageId, role: 'USER', source: 'WEB' },
     });
+
+    // D-9: "save this to my Vault" is planned by NAgex itself from the person's own words (no model, nothing invented). The screen may send the answer it is showing as `saveContext`;
+    // it is only ever used when the request names no text of its own, and it is shown whole in the plan the person approves.
+    if (decideRouting(prompt).reasonCodes.includes('VAULT_SAVE')) {
+      const saveContext = typeof body?.saveContext === 'string' ? body.saveContext.slice(0, VAULT_SAVE_LIMITS.contentChars + 1) : null;
+      const built = buildVaultSavePlan({ prompt, contextText: saveContext });
+      const reply = built.kind === 'PLAN' ? built.plan.summary : (built.language === 'ko' ? built.message.ko : built.message.en);
+      const vaultAssistant = convStore.append({ tenantId, principalId, sessionId: session.sessionId, role: 'ASSISTANT', source: 'WEB', content: reply, requestId });
+      auditLogger.logEvent({
+        actor: { type: 'user', id: principalId },
+        tenant_id: tenantId,
+        action: 'conversation.message.created',
+        resource: { type: 'ConversationMessage', id: vaultAssistant.messageId },
+        result: 'SUCCESS',
+        request_id: requestId,
+        details: { sessionId: session.sessionId, messageId: vaultAssistant.messageId, role: 'ASSISTANT', source: 'WEB' },
+      });
+      if (built.kind !== 'PLAN') {
+        return { status: 200, data: { status: 'NEEDS_DETAIL', executable: false, reason: built.kind === 'INVALID' ? built.problem : 'NEEDS_CONTENT', message: reply, language: built.language, requestId } };
+      }
+      const vaultIdentity = { tenantId, principalId };
+      const vaultSeal = (deps.planSeal ?? defaultPlanSeal).seal(vaultIdentity, built.plan);
+      let vaultRunnable: { ok: boolean; reasons: string[]; capabilityId: string | null };
+      try {
+        const assessment = assessReviewedPlan(planResolver.resolve(built.plan, vaultIdentity));
+        vaultRunnable = { ok: assessment.ok, reasons: assessment.reasons, capabilityId: assessment.capabilityId };
+      } catch {
+        vaultRunnable = { ok: false, reasons: ['PLAN_BLOCKED'], capabilityId: null };
+      }
+      return { status: 200, data: { status: 'PLAN_PREVIEW', message: 'Plan generated. Review it before anything is saved.', plan: built.plan, planSeal: vaultSeal, runnable: vaultRunnable, draftSource: built.source, provider: 'nagex', model: null, latencyMs: 0, requestId } };
+    }
 
     const conversation = convContextService.buildContext({
       tenantId,

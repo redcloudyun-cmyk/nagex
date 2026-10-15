@@ -5205,6 +5205,40 @@
       "notes": "Production server in-process with a LOCAL deterministic model and search endpoint (tests/_local_ai_world.ts); slides are not a Nemotron task so the fixed Gemini URL is redirected to the local fake for this in-process server only. Proves NAgex's own chain, not that a real provider answered.",
       "writesRepositoryArtifacts": false
     },
+    "vault_save_approval": {
+      "milestone": "NAGEX-D09-VAULT-SAVE",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "permission-approval-hardening",
+        "personal-home",
+        "tasks",
+        "runtime"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Natural language -> exact draft -> sealed plan -> request approval -> existing ActionApprovalStore -> Approve -> TaskContinuationCoordinator -> CapabilityBroker -> VaultSaveService writes exactly one owner-visible Vault item that is read back; nothing is written before Approve; decline, expiry, tamper, replay, restart, concurrent triggers, storage failure and another owner write or reveal nothing; audit and Activity never carry the text",
+      "notes": "Local and deterministic: temp stores, no network, no model (the draft is built from the person's own words). Plan-seal claims are per preview."
+    },
+    "vault_save_approval_browser": {
+      "milestone": "NAGEX-D09-VAULT-SAVE",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "permission-approval-hardening",
+        "personal-home"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "From a real signed-in Chromium session the production HTTP surface carries the approval-gated Vault save end to end (EN/KR): plan route builds the exact draft, nothing is stored on preview or on request, the person's Approve stores exactly one item that a brand-new session opens again, Activity records the title only; decline, replay, tamper, double click, no session, another person and a Vault that cannot write all store nothing more",
+      "notes": "Real browser as a client of the real endpoints (same-origin fetch with the real session) - NOT a Home screen test: the Home affordance is deferred to the integrator (public/** is out of this track). Disposable stores, no model.",
+      "writesRepositoryArtifacts": false
+    },
     "advisory_plan": {
       "milestone": "NAGEX-D11-ADVISORY-PLAN",
       "classification": "CANONICAL_BEHAVIOR",

@@ -50,30 +50,36 @@ export class PlanSeal {
     this.key = key ?? crypto.randomBytes(32);
   }
 
-  private mac(identity: PlanSealIdentity, planHash: string, expiresAtMs: number): string {
-    return crypto.createHmac('sha256', this.key).update(`${identity.tenantId}|${identity.principalId}|${planHash}|${expiresAtMs}`).digest('base64url');
+  private mac(identity: PlanSealIdentity, planHash: string, expiresAtMs: number, nonce: string): string {
+    return crypto.createHmac('sha256', this.key).update(`${identity.tenantId}|${identity.principalId}|${planHash}|${expiresAtMs}|${nonce}`).digest('base64url');
   }
 
   public seal(identity: PlanSealIdentity, plan: unknown): PlanSealIssue {
     const planHash = reviewedPlanHash(plan);
     const expiresAtMs = this.now() + this.ttlMs;
-    return { planHash, token: `${expiresAtMs}.${this.mac(identity, planHash, expiresAtMs)}`, expiresAt: new Date(expiresAtMs).toISOString() };
+    // every preview gets its own nonce: ONE PREVIEW can be claimed once (a double click or a replay of the same token is refused), while asking again - a fresh preview of the same text,
+    // for example after declining or after the approval expired - is a new, deliberate request with its own approval.
+    const nonce = crypto.randomBytes(9).toString('base64url');
+    return { planHash, token: `${expiresAtMs}.${nonce}.${this.mac(identity, planHash, expiresAtMs, nonce)}`, expiresAt: new Date(expiresAtMs).toISOString() };
   }
 
   // Verifies the plan the caller sends back against the token that was issued for THIS owner. Never says which part was wrong beyond the reason code.
-  public verify(identity: PlanSealIdentity, plan: unknown, token: unknown): { ok: true; planHash: string } | { ok: false; reason: PlanSealFailure } {
+  // `claimKey` identifies THIS preview (plan hash + its nonce): pass it to claim / attachRun / release.
+  public verify(identity: PlanSealIdentity, plan: unknown, token: unknown): { ok: true; planHash: string; claimKey: string } | { ok: false; reason: PlanSealFailure } {
     if (typeof token !== 'string' || token.length < 10 || token.length > 200) return { ok: false, reason: 'PLAN_SEAL_MISSING' };
-    const dot = token.indexOf('.');
-    const expiresAtMs = Number(token.slice(0, dot));
-    const given = token.slice(dot + 1);
-    if (dot < 1 || !Number.isFinite(expiresAtMs)) return { ok: false, reason: 'PLAN_SEAL_INVALID' };
+    const parts = token.split('.');
+    if (parts.length !== 3) return { ok: false, reason: 'PLAN_SEAL_INVALID' };
+    const expiresAtMs = Number(parts[0]);
+    const nonce = parts[1];
+    const given = parts[2];
+    if (!Number.isFinite(expiresAtMs) || !/^[A-Za-z0-9_-]{8,16}$/.test(nonce)) return { ok: false, reason: 'PLAN_SEAL_INVALID' };
     const planHash = reviewedPlanHash(plan);
-    const expected = this.mac(identity, planHash, expiresAtMs);
+    const expected = this.mac(identity, planHash, expiresAtMs, nonce);
     const a = Buffer.from(given);
     const b = Buffer.from(expected);
     if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return { ok: false, reason: 'PLAN_SEAL_INVALID' };
     if (this.now() > expiresAtMs) return { ok: false, reason: 'PLAN_SEAL_EXPIRED' };
-    return { ok: true, planHash };
+    return { ok: true, planHash, claimKey: `${planHash}:${nonce}` };
   }
 
   // One run per reviewed plan and owner. Synchronous (no await between the check and the claim), so two concurrent clicks cannot both start.
