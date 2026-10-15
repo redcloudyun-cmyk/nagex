@@ -23,6 +23,10 @@ export interface PresentationRecord {
   sourceRefs: CreationSourceRef[];
   providerExecutionMetadata: ProviderExecutionMetadata;
   artifactId?: string;
+  // Additive (revisions): a revised deck is a NEW deck that points back; the first deck of a family has none of these. revisionIndex 1 = the original.
+  parentPresentationId?: string;
+  revisedFromPresentationId?: string;
+  revisionIndex?: number;
   createdAt: string;
   updatedAt: string;
 }

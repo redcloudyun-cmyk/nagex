@@ -57,7 +57,11 @@ export const handleWorkspaceRoutes: AsyncRouteRegistrar<WorkspaceRouteDeps> = as
     const activeContext = meta?.activeContext && typeof meta.activeContext === 'object' ? meta.activeContext as Record<string, unknown> : null;
     const revisionDocumentId = activeContext?.revisionDocumentId;
     const revisingDocument = typeof revisionDocumentId === 'string' && /^doc_[0-9a-f]{24}$/.test(revisionDocumentId);
-    const classification = InputRouter.classify({ text, hasFile, hasAudio, mimeType, hint, revisingDocument });
+    // What is on screen (advice for routing only): a deck that is open can be revised by its own id; a document that was just made can be the source of a deck. Anything else is ignored.
+    const activeKind = activeContext?.artifactType === 'PRESENTATION' && typeof activeContext?.presentationId === 'string' && /^pres_[0-9a-f]{24}$/.test(activeContext.presentationId) ? 'PRESENTATION'
+      : activeContext?.artifactType === 'DOCUMENT' ? 'DOCUMENT' : null;
+    const sourceDocument = typeof activeContext?.sourceDocumentArtifactId === 'string' && /^art_[0-9a-f]{24}$/.test(activeContext.sourceDocumentArtifactId);
+    const classification = InputRouter.classify({ text, hasFile, hasAudio, mimeType, hint, revisingDocument, activeArtifact: activeKind, sourceDocument });
     return { status: 200, data: classification };
   }
 

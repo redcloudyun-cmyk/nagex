@@ -179,6 +179,7 @@
       "document_download_route",
       "pptx_template",
       "slide_count",
+      "creation_continuity",
       "structured_output_recovery",
       "time_context",
       "schedule_grounding"
@@ -417,7 +418,8 @@
       "home_vault_save_browser",
       "docx_writer",
       "pptx_template",
-      "slide_count"
+      "slide_count",
+      "creation_continuity"
     ],
     "knowledge": [
       "r24_5c_knowledge_live"

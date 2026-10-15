@@ -29,6 +29,8 @@
     attachments: [],
     result: null,
     revisionTarget: null,
+    // the last document that was made or opened: "이 보고서로 발표자료 ..." can name it even after another result replaced it on screen
+    recentDocument: null,
     voiceState: 'IDLE',
     voiceAdapter: null,
     voiceMode: null,
@@ -66,6 +68,13 @@
     try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch (e) { return null; }
   }
 
+  // the id of the deck on screen (NAgex-owned identity from its open path), or null
+  function openPresentationId() {
+    const target = state.result && state.result.type === 'PRESENTATION' ? String(state.result.openTarget || '') : '';
+    const match = /\/api\/v1\/creations\/presentations\/(pres_[0-9a-f]{24})$/.exec(target);
+    return match ? match[1] : null;
+  }
+
   function requestMetadata() {
     const mode = MODES.find((m) => m.id === state.mode) || AUTO_MODE;
     return {
@@ -82,6 +91,10 @@
         artifactId: state.result && state.result.artifactId ? state.result.artifactId : null,
         documentId: state.result && state.result.documentId ? state.result.documentId : null,
         revisionDocumentId: state.revisionTarget && state.revisionTarget.documentId ? state.revisionTarget.documentId : null,
+        // what is open (advice for routing; every endpoint still checks ownership): a deck can be revised by its id, a recent document can be a deck's source
+        artifactType: state.result && (state.result.type === 'PRESENTATION' || state.result.type === 'DOCUMENT') ? state.result.type : null,
+        presentationId: openPresentationId(),
+        sourceDocumentArtifactId: state.recentDocument && state.recentDocument.artifactId ? state.recentDocument.artifactId : null,
       },
     };
   }
@@ -1003,6 +1016,12 @@
       return;
     }
 
+    // A deck is open and the request changes it ("한 장 추가하고 전체를 다시 구성해줘"): the revision endpoint of THAT deck, which creates a new deck and leaves the original as it was.
+    if (decision.kind === 'CREATE_ARTIFACT' && (decision.reasonCodes || []).indexOf('REVISE_ACTIVE_ARTIFACT') >= 0 && openPresentationId()) {
+      await createPresentation(prompt, metadata, { revisionOf: openPresentationId() });
+      return;
+    }
+
     // The server decided WHICH existing path serves the request. Each path below is the unchanged route with its own rights and its own approval:
     // an action is only ever a plan that waits for the person's approval; what NAgex cannot do is said plainly; nothing falls through to a chat answer
     // that pretends to be the deliverable.
@@ -1118,7 +1137,11 @@
       else { showClarification(prompt, decision); return; }
     }
     if (target === 'DOCUMENT') await createDocument(prompt, metadata, { apiPrompt });
-    else if (target === 'PRESENTATION') await createPresentation(prompt, metadata, { apiPrompt });
+    else if (target === 'PRESENTATION') {
+      // "이 보고서로 발표자료 8장": the deck is built from that document (read by the server, which checks that it is the person's own)
+      const fromDocument = (decision.reasonCodes || []).indexOf('SOURCE_ACTIVE_DOCUMENT') >= 0 && state.recentDocument && state.recentDocument.artifactId;
+      await createPresentation(prompt, metadata, { apiPrompt, ...(fromDocument ? { sourceArtifactIds: [state.recentDocument.artifactId] } : {}) });
+    }
     else if (target === 'IMAGE') await createImage(prompt, metadata, { researchSkipped: (decision.reasonCodes || []).indexOf('RESEARCH_NOT_USED_FOR_IMAGE') >= 0 });
     else showUnsupported(prompt, decision);
   }
@@ -1301,13 +1324,16 @@
   async function createPresentation(prompt, metadata, options) {
     const opts = options || {};
     const lead = Array.isArray(opts.leadSteps) ? opts.leadSteps : [];
-    const result = await api('/api/v1/creations/presentations', {
+    const revisionOf = opts.revisionOf || null;
+    const result = await api(revisionOf ? '/api/v1/creations/presentations/' + encodeURIComponent(revisionOf) + '/revisions' : '/api/v1/creations/presentations', {
       method: 'POST',
-      body: JSON.stringify({ prompt: opts.apiPrompt || prompt, locale: requestLocale(prompt), requestMetadata: metadata }),
+      body: JSON.stringify(revisionOf
+        ? { instruction: prompt, locale: requestLocale(prompt) }
+        : { prompt: opts.apiPrompt || prompt, locale: requestLocale(prompt), requestMetadata: metadata, ...(Array.isArray(opts.sourceArtifactIds) && opts.sourceArtifactIds.length > 0 ? { sourceArtifactIds: opts.sourceArtifactIds } : {}) }),
       timeoutMs: 180000,
     });
     if (!result || result.error || result.status === 'FAILED' || result.status === 'UNAVAILABLE') {
-      showThread(prompt, 'Error', bt('mainSlides.failedTitle', 'Presentation could not be created'), serverFailure(result, bt('mainSlides.failedBody', 'No presentation was produced.')), lead.concat([
+      showThread(prompt, 'Error', revisionOf ? bt('mainSlides.reviseFailedTitle', 'Presentation could not be revised') : bt('mainSlides.failedTitle', 'Presentation could not be created'), serverFailure(result, bt('mainSlides.failedBody', 'No presentation was produced.')), lead.concat([
         { state: 'done', label: 'Request captured', detail: 'Slides' },
         { state: 'running', label: 'Creation failed', detail: '' },
       ]));
@@ -1317,7 +1343,7 @@
     const deck = viewer && viewer.presentation ? viewer.presentation : null;
     const artifact = result.artifactId ? await api('/api/v1/artifacts/' + encodeURIComponent(result.artifactId)) : null;
     const projection = artifact && artifact.projection ? artifact.projection : null;
-    showThread(prompt, 'Completed', bt('mainSlides.createdTitle', 'Presentation created'), bt('mainSlides.createdBody', 'The presentation is ready in the right panel. Download the .pptx to edit it in PowerPoint or Keynote.'), lead.concat([
+    showThread(prompt, 'Completed', revisionOf ? bt('mainSlides.revisedTitle', 'Presentation revised') : bt('mainSlides.createdTitle', 'Presentation created'), revisionOf ? bt('mainSlides.revisedBody', 'A revised presentation is ready in the right panel. The original is unchanged.') : bt('mainSlides.createdBody', 'The presentation is ready in the right panel. Download the .pptx to edit it in PowerPoint or Keynote.'), lead.concat([
       { state: 'done', label: 'Request captured', detail: 'Slides' },
       { state: 'done', label: bt('mainSlides.stepPlanned', 'Deck planned'), detail: '' },
       { state: 'done', label: bt('mainSlides.stepFile', 'Presentation file created'), detail: '' },
@@ -1734,6 +1760,9 @@
 
   function showResult(result) {
     state.result = result;
+    if (result && result.type === 'DOCUMENT' && /^art_[0-9a-f]{24}$/.test(String(result.artifactId || '')) && /^doc_[0-9a-f]{24}$/.test(String(result.documentId || ''))) {
+      state.recentDocument = { artifactId: result.artifactId, documentId: result.documentId, title: result.title || '' };
+    }
     // a result gives the room to the result: My Day closes (one click reopens it)
     state.myDayOpen = false;
     const root = document.getElementById('nagex-main-surface');
