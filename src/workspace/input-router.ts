@@ -74,6 +74,8 @@ export interface ClassifyInput {
   mimeType?: string;
   // the optional shortcut the person picked (never required, never authority)
   hint?: { artifactType?: string | null; capability?: string | null } | null;
+  // "Revise" was pressed on one of the person's own documents: the text is an instruction for THAT document (advice about routing only; the revision endpoint still checks ownership)
+  revisingDocument?: boolean;
 }
 
 // ----- cue tables (substring matches for Korean, word-aware for English) -----------------------------------------------------------------------------------
@@ -133,6 +135,14 @@ const DESTRUCTIVE = [/(삭제|지워|지우|제거|취소|없애|폐기)\S{0,4}\
 // "don't send it" / "보내지 말고": the negated verb is removed before the action check; a negation never creates an action
 const KO_NEGATION = /(보내|저장|보관|전송|발송|답장|회신|삭제|지우|지워|취소|공유|게시|결제|예약|제출|구매|주문|전달|등록)(하)?지(는|를)?\s*(말고|마|말아|말라|않고|못하게|않도록|않게)/g;
 const EN_NEGATION = /\b(don'?t|do not|never|without|no need to|not to|avoid|instead of)\s+(?:\w+\s+){0,2}?(send(ing)?|sav(e|ing)|stor(e|ing)|email(ing)?|post(ing)?|delete|deleting|schedule|scheduling|book(ing)?|cancel(ing)?|publish(ing)?|share|sharing|submit(ting)?|pay(ing)?|buy(ing)?|order(ing)?|forward(ing)?|reply(ing)?|invit(e|ing))\b/gi;
+// An instruction typed after "Revise" edits the document in front of the person: "한 문단 추가해줘", "이 부분 삭제해줘", "shorten the intro" are edits, not actions in the world. Only these EDIT verbs are
+// set aside (and only when the text names no event / meeting); anything that reaches outside the document (send, share, schedule, pay ...) is still an action that waits for approval.
+const KO_DOC_EDIT = new RegExp('(추가|수정|변경|삭제|지워|지우|제거|옮겨|이동|등록|보강|고쳐|바꿔|줄여|늘려|덧붙여|넣어|빼|빼서|다듬어)\\S{0,4}\\s*' + KO_REQUEST_END, 'g');
+const EN_DOC_EDIT = /\b(add|insert|append|remove|delete|drop|replace|change|update|edit|fix|move|shorten|expand)\b/gi;
+function withoutDocumentEdits(text: string): string {
+  return text.replace(KO_DOC_EDIT, ' ').replace(EN_DOC_EDIT, ' ');
+}
+
 const DRAFT_ONLY = /(초안만|작성만|쓰기만|만들기만|\bdraft (only|just)\b|\bjust (a )?draft\b|\bonly (a )?draft\b|\bdraft it only\b)/i;
 
 // plain information questions are conversation, even when an action word appears inside the question ("how do I send an email?")
@@ -206,7 +216,7 @@ function asksOnlyAction(text: string): boolean {
 }
 
 // The deterministic decision for a request's own words.
-export function decideRouting(rawText: string, options: { hasAttachment?: boolean; hint?: ClassifyInput['hint'] } = {}): RoutingDecision {
+export function decideRouting(rawText: string, options: { hasAttachment?: boolean; hint?: ClassifyInput['hint']; revisingDocument?: boolean } = {}): RoutingDecision {
   const text = (rawText || '').normalize('NFC').trim();
   const language = detectRequestLanguage(text);
   const hasAttachment = options.hasAttachment === true;
@@ -250,8 +260,10 @@ export function decideRouting(rawText: string, options: { hasAttachment?: boolea
   }
 
   // 3. consequential action: communicate / schedule / change / delete / spend / publish
-  const koAction = KO_ACTION.test(work) || KO_ACTION_EVENT.test(work) || KO_ACTION_MEETING.test(work) || KO_REMINDER.test(work);
-  const asksAction = koAction || EN_ACTION.test(work) || EN_ACTION_OBJECT.test(work) || TOOL_USE.some((re) => re.test(work));
+  // while revising a document the edit verbs belong to the document; an event/meeting noun or any outward verb keeps the request an action
+  const actionWork = options.revisingDocument === true && !KO_ACTION_EVENT.test(work) && !KO_ACTION_MEETING.test(work) ? withoutDocumentEdits(work) : work;
+  const koAction = KO_ACTION.test(actionWork) || KO_ACTION_EVENT.test(work) || KO_ACTION_MEETING.test(work) || KO_REMINDER.test(work);
+  const asksAction = koAction || EN_ACTION.test(actionWork) || EN_ACTION_OBJECT.test(work) || TOOL_USE.some((re) => re.test(work));
   const isInfoQuestion = EN_INFO_QUESTION.test(work) || (language === 'ko' && KO_INFO_QUESTION.test(work));
   const conjoinedAction = /\b(and|then|and then)\s+(please\s+)?(send|email|forward|schedule|book|cancel|delete|post|share|publish|pay|buy|order|reply|invite)\b/i.test(work);
   // "how do I send an email?" asks for information; "explain it and send it to Alex" still asks for the send
@@ -353,7 +365,7 @@ export class InputRouter {
         confidence: 0.98,
         reason: 'Input contains file payload',
         normalizedPayload: { rawInput: rawText, mimeType: input.mimeType || 'application/octet-stream' },
-        decision: rawText ? decideRouting(rawText, { hasAttachment, hint: input.hint }) : captureDecision(0.98, 'FILE_PAYLOAD'),
+        decision: rawText ? decideRouting(rawText, { hasAttachment, hint: input.hint, revisingDocument: input.revisingDocument === true }) : captureDecision(0.98, 'FILE_PAYLOAD'),
       };
     }
 
@@ -400,7 +412,7 @@ export class InputRouter {
     }
 
     // 5. everything else is routed by what the person asked for
-    const decision = decideRouting(rawText, { hasAttachment: false, hint: input.hint });
+    const decision = decideRouting(rawText, { hasAttachment: false, hint: input.hint, revisingDocument: input.revisingDocument === true });
     const primaryIntent: InputIntent = decision.kind === 'ACTION_PLAN' ? 'COMMAND' : 'ASK';
     return {
       primaryIntent,

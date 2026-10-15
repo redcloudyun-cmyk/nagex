@@ -255,6 +255,18 @@ describe('the real HTTP route returns the same decision, and creates nothing', (
     assert.equal((overridden.data as any).primaryIntent, 'COMMAND');
   });
 
+  it('route-input with a "Revise" context (activeContext.revisionDocumentId, as the Main surface sends it) keeps an edit instruction out of the action path - and ignores a malformed id', async () => {
+    const headers = authAs('ten_one_input_rev', 'usr_one_input_rev');
+    const text = '도입 시 주의할 점을 한 문단 추가해줘';
+    const route = async (activeContext?: Record<string, unknown>) => (await handleAsyncApiRequest('POST', '/api/v1/workspace/route-input', { text, requestMetadata: activeContext ? { activeContext } : {} }, headers)).data as any;
+    assert.equal((await route()).decision.kind, 'ACTION_PLAN');
+    assert.notEqual((await route({ revisionDocumentId: 'doc_0123456789abcdef01234567' })).decision.kind, 'ACTION_PLAN');
+    assert.equal((await route({ revisionDocumentId: 'not-a-document-id' })).decision.kind, 'ACTION_PLAN');
+    // an outward verb is still an approval-gated action in the same context
+    const outward = (await handleAsyncApiRequest('POST', '/api/v1/workspace/route-input', { text: '이 문서를 김대리에게 메일로 보내줘', requestMetadata: { activeContext: { revisionDocumentId: 'doc_0123456789abcdef01234567' } } }, headers)).data as any;
+    assert.equal(outward.decision.kind, 'ACTION_PLAN');
+  });
+
   it('route-input leaves the person\'s approvals, tasks and executions exactly as they were', async () => {
     const headers = authAs('ten_one_input_b', 'usr_one_input_b');
     const count = async (path: string, key: string) => ((await handleAsyncApiRequest('GET', path, null, headers)).data as any)?.[key]?.length ?? -1;
@@ -316,5 +328,42 @@ describe('the model prompts carry the language of the request', () => {
       assert.match(en, /LANGUAGE: write every text the person will read in the same language as the request/);
       assert.doesNotMatch(en, /written in Korean/);
     }
+  });
+});
+
+// "Revise" on a document: the instruction edits THAT document. Edit verbs (add / change / delete a paragraph) must not turn it into an action in the world (found in the real UI: "...한 문단 추가해줘" was
+// planned as an external action and never reached the revision endpoint). Anything that reaches outside the document stays an approval-gated action.
+describe('a revision instruction is routed as an edit of the document, never as an action in the world', () => {
+  const revising = (text: string) => decideRouting(text, { revisingDocument: true });
+  it('Korean edit instructions that contain action-looking verbs are not actions while revising - and ARE actions without the revision context (behaviour unchanged elsewhere)', () => {
+    for (const text of [
+      '결론과 제언을 더 구체적으로 보강하고, 도입 시 주의할 점을 한 문단 추가해줘',
+      '두 번째 문단을 삭제해줘',
+      '서론의 표현을 수정해줘',
+      '표를 하나 추가해주세요',
+      '마지막 문장을 바꿔줘',
+      '전체 분량을 조금 줄여줘',
+    ]) {
+      assert.notEqual(revising(text).kind, 'ACTION_PLAN', `${text} while revising`);
+    }
+    assert.equal(decideRouting('결론과 제언을 더 구체적으로 보강하고, 도입 시 주의할 점을 한 문단 추가해줘').kind, 'ACTION_PLAN', 'without the revision context the old routing is unchanged');
+    assert.equal(decideRouting('두 번째 문단을 삭제해줘').kind, 'ACTION_PLAN');
+  });
+  it('English edit instructions are edits while revising', () => {
+    for (const text of ['Add a paragraph about risks', 'Remove the second section', 'Replace the intro with a shorter one', 'Please shorten the conclusion']) {
+      assert.notEqual(revising(text).kind, 'ACTION_PLAN', text);
+    }
+  });
+  it('anything that reaches OUTSIDE the document is still an approval-gated action while revising', () => {
+    for (const text of ['이 문서를 김대리에게 메일로 보내줘', '이 내용을 슬랙에 공유해줘', '내일 오후 3시에 이 문서 리뷰 회의 잡아줘', '일정 추가해줘', 'Send this to Alex', 'Email this report to the team', 'Schedule a meeting to review it']) {
+      const d = revising(text);
+      assert.equal(d.kind, 'ACTION_PLAN', text);
+      assert.equal(d.permissionRisk, 'EXTERNAL_CONSEQUENTIAL', text);
+    }
+  });
+  it('the route only honours a well-formed document id from the client, and the flag carries no authority (it can only keep an edit out of the action path)', () => {
+    const viaClassify = (text: string, revisingDocument: boolean) => InputRouter.classify({ text, revisingDocument }).decision.kind;
+    assert.notEqual(viaClassify('한 문단 추가해줘', true), 'ACTION_PLAN');
+    assert.equal(viaClassify('한 문단 추가해줘', false), 'ACTION_PLAN');
   });
 });

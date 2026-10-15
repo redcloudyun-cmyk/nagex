@@ -4,6 +4,7 @@ import type { DocumentStore } from '../../creation/document.store.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
 import { NagexError } from '../../common/errors.js';
 import { detectRequestLanguage } from '../../common/request-language.js';
+import { buildDocx, DOCX_MIME, docxFileName } from '../../creation/docx/docx-writer.js';
 import { callerIdentity, tryGetCallerIdentity } from '../request-identity.js';
 
 export interface DocumentCreationRouteDeps {
@@ -44,6 +45,11 @@ export const handleDocumentCreationRoutes: AsyncRouteRegistrar<DocumentCreationR
       };
     }
 
+    // The stored content is Markdown and the file export is DOCX. A PDF/HTML document that is really Markdown would be a false deliverable, so it is refused instead of silently relabelled.
+    if (body?.format !== undefined && body.format !== 'MARKDOWN' && body.format !== 'DOCX') {
+      return { status: 400, data: { error: 'FORMAT_UNSUPPORTED', message: `The ${String(body.format).slice(0, 12)} format is not available. Documents are created as Markdown text and can be downloaded as DOCX.`, request_id: requestId } };
+    }
+
     // an explicit locale wins; otherwise the document follows the language the person wrote the request in (a Korean request gets a Korean document)
     const locale = body?.locale === 'ko' || body?.locale === 'en' ? body.locale : (detectRequestLanguage(prompt) === 'ko' ? 'ko' : 'en');
     const result = await creationRuntime.create({
@@ -54,7 +60,7 @@ export const handleDocumentCreationRoutes: AsyncRouteRegistrar<DocumentCreationR
         style: typeof body?.style === 'string' ? body.style : undefined,
         targetAudience: typeof body?.targetAudience === 'string' ? body.targetAudience : undefined,
         locale,
-        format: body?.format === 'HTML' || body?.format === 'PDF' ? body.format : 'MARKDOWN',
+        format: 'MARKDOWN',
         routingMode: typeof body?.routingMode === 'string' ? (body.routingMode as any) : undefined,
       },
       tenantId,
@@ -110,6 +116,27 @@ export const handleDocumentCreationRoutes: AsyncRouteRegistrar<DocumentCreationR
     }
 
     return { status: 201, data: result };
+  }
+
+  // A real .docx of the person's own document, built from the stored Markdown (no second copy is stored). Unknown id, malformed id, foreign tenant and foreign owner are indistinguishable.
+  const downloadMatch = pathname.match(/^\/api\/v1\/creations\/documents\/(doc_[0-9a-f]{24})\/download$/);
+  if (downloadMatch && method === 'GET') {
+    const record = documentStore.get(downloadMatch[1], tenantId, principalId);
+    if (!record || !record.content.trim()) {
+      return { status: 404, data: { error: 'DOCUMENT_NOT_FOUND', message: 'Document not found.', request_id: requestId } };
+    }
+    const bytes = buildDocx({ title: record.title, markdown: record.content, locale: record.locale === 'ko' ? 'ko' : 'en' });
+    return {
+      status: 200,
+      data: bytes,
+      contentType: DOCX_MIME,
+      isBinary: true,
+      headers: {
+        'Content-Disposition': `attachment; filename="document.docx"; filename*=UTF-8''${encodeURIComponent(docxFileName(record.title))}`,
+        'Cache-Control': 'private, no-store',
+        'X-Content-Type-Options': 'nosniff',
+      },
+    };
   }
 
   if (pathname.startsWith('/api/v1/creations/documents/') && method === 'GET') {

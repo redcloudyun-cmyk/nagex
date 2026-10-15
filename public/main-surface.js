@@ -1222,7 +1222,7 @@
     showResult({
       type: 'DOCUMENT',
       title: result.title || (projection && projection.title) || 'Generated document',
-      meta: [result.format || 'DOCX', result.artifactId ? 'artifact ready' : 'artifact unavailable'].join(' - '),
+      meta: [documentId ? 'DOCX' : 'Markdown', result.artifactId ? 'artifact ready' : 'artifact unavailable'].join(' - '),
       preview: result.content || (projection && projection.preview) || 'The document was created, but no inline preview is available.',
       artifactId: result.artifactId,
       documentId,
@@ -1344,7 +1344,7 @@
     showResult({
       type: 'DOCUMENT',
       title: result.title || (projection && projection.title) || target.title || 'Revised document',
-      meta: [result.format || 'DOCX', 'revision ready'].join(' - '),
+      meta: [documentId ? 'DOCX' : 'Markdown', 'revision ready'].join(' - '),
       preview: result.content || (projection && projection.preview) || 'The document revision was created, but no inline preview is available.',
       artifactId: result.artifactId || target.artifactId,
       documentId,
@@ -1744,6 +1744,15 @@
       openButton.disabled = result.type === 'PRESENTATION';
       openButton.title = result.type === 'PRESENTATION' ? bt('mainSlides.openHint', 'Presentations open in this panel. Download the .pptx to edit them.') : '';
     }
+    // the file the person can actually take away: the deck's .pptx, or the document as a .docx - and nothing else (no button that promises a file that does not exist)
+    const download = document.getElementById('main-result-download');
+    const downloadTarget = result.type === 'PRESENTATION' ? String(result.downloadTarget || '')
+      : result.type === 'DOCUMENT' && /^doc_[0-9a-f]{24}$/.test(String(result.documentId || '')) ? '/api/v1/creations/documents/' + result.documentId + '/download' : '';
+    state.downloadTarget = downloadTarget;
+    if (download) {
+      download.disabled = !downloadTarget;
+      download.title = downloadTarget ? '' : bt('mainResult.noDownload', 'There is no file to download for this result.');
+    }
     if (revise) {
       revise.disabled = !result.documentId;
       revise.title = result.documentId ? mt('Create a bounded document revision from Main.') : mt('Revision is available only for document artifacts.');
@@ -1899,6 +1908,15 @@
     document.getElementById('main-result-expand')?.addEventListener('click', () => document.body.classList.toggle('main-result-fullscreen'));
     document.getElementById('main-result-open')?.addEventListener('click', openResult);
     document.getElementById('main-result-revise')?.addEventListener('click', reviseResult);
+    document.getElementById('main-result-download')?.addEventListener('click', () => {
+      if (!state.downloadTarget) return;
+      const link = document.createElement('a');
+      link.href = state.downloadTarget;
+      link.download = '';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    });
   }
 
   // ── Home personal briefing (Today / Since Yesterday / Suggestions) ───────────────────────────────────────

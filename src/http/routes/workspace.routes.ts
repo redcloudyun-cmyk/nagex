@@ -53,7 +53,11 @@ export const handleWorkspaceRoutes: AsyncRouteRegistrar<WorkspaceRouteDeps> = as
     const hint = meta
       ? { artifactType: typeof meta.preferredArtifactType === 'string' ? meta.preferredArtifactType : null, capability: typeof meta.preferredCapability === 'string' ? meta.preferredCapability : null }
       : null;
-    const classification = InputRouter.classify({ text, hasFile, hasAudio, mimeType, hint });
+    // "Revise" on a document: the client names the document; routing treats the text as an edit instruction for it (no authority - the revision endpoint checks ownership)
+    const activeContext = meta?.activeContext && typeof meta.activeContext === 'object' ? meta.activeContext as Record<string, unknown> : null;
+    const revisionDocumentId = activeContext?.revisionDocumentId;
+    const revisingDocument = typeof revisionDocumentId === 'string' && /^doc_[0-9a-f]{24}$/.test(revisionDocumentId);
+    const classification = InputRouter.classify({ text, hasFile, hasAudio, mimeType, hint, revisingDocument });
     return { status: 200, data: classification };
   }
 

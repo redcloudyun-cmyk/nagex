@@ -170,7 +170,10 @@
       "home_reviewed_plan_security_review",
       "one_input_intent_dataset",
       "vault_save_approval",
-      "vault_write_truthfulness"
+      "vault_write_truthfulness",
+      "document_length",
+      "docx_writer",
+      "document_download_route"
     ],
     "personal-home": [
       "main_unified_workspace_browser",
@@ -217,7 +220,8 @@
       "nebius_nemotron_routing",
       "nebius_nemotron_first",
       "advisory_plan",
-      "jev_shadow_runtime"
+      "jev_shadow_runtime",
+      "document_length"
     ],
     "mobile": [
       "real_life_scenario_library_behavioral_rules",
@@ -397,10 +401,14 @@
       "home_reviewed_plan_browser",
       "one_input_document_chain_browser",
       "one_input_slides_chain_browser",
-      "home_vault_save_browser"
+      "home_vault_save_browser",
+      "docx_writer"
     ],
     "knowledge": [
       "r24_5c_knowledge_live"
+    ],
+    "security": [
+      "document_download_route"
     ]
   },
   "fullOnly": [
