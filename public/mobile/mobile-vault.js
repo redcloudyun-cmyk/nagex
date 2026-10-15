@@ -63,6 +63,7 @@
     if (s.includes('CONVERSATION')) return t('mobileVault.sourceConversation', 'Saved from Conversation');
     if (s.includes('RESEARCH')) return t('mobileVault.sourceResearch', 'Saved from Research result');
     if (s.includes('UPLOAD')) return t('mobileVault.sourceUpload', 'Uploaded');
+    if (s.includes('APPROVED_SAVE')) return t('mobileVault.sourceApproved', 'Saved with your approval');
     if (s.includes('MANUAL') || s.includes('USER_SAVE')) return t('mobileVault.sourceManual', 'Manual save');
     if (s.includes('AMBIENT')) return t('mobileVault.sourceAmbient', 'Saved from Ambient result');
     return t('mobileVault.sourceGeneric', 'Saved item');
@@ -205,14 +206,20 @@
     const updated = item.updatedAt ? new Date(item.updatedAt).toLocaleString() : '';
     const safeSummary = (item.metadata && typeof item.metadata.summary === 'string' ? item.metadata.summary : '') ||
                         (item.metadata && typeof item.metadata.description === 'string' ? item.metadata.description : '');
+    // a saved note carries its own text; it is shown whole (escaped, line breaks kept), because "opening" a saved item has to show what was saved
+    const savedText = item.metadata && typeof item.metadata.contentText === 'string' ? item.metadata.contentText : '';
 
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', String(item.title || ''));
     modal.innerHTML = `
       <div class="mh-detail-modal-card">
         <div class="mh-detail-modal-header">
           <h3>${escapeHtml(item.title)}</h3>
-          <button class="mh-detail-modal-close" onclick="document.getElementById('mh-vault-detail-modal').style.display='none'">&times;</button>
+          <button class="mh-detail-modal-close" id="mh-vault-detail-close" aria-label="${escapeHtml(t('mobileVault.close', 'Close'))}" onclick="document.getElementById('mh-vault-detail-modal').style.display='none'">&times;</button>
         </div>
         <div class="mh-detail-modal-body">
+          ${savedText ? `<div class="mh-vault-saved-text" id="mh-vault-saved-text" tabindex="0" role="region" aria-label="${escapeHtml(t('mobileVault.savedText', 'Saved text'))}">${escapeHtml(savedText)}</div>` : ''}
           ${safeSummary ? `<p class="mh-detail-desc">${escapeHtml(safeSummary)}</p>` : ''}
           <div class="mh-detail-meta-row">
             <span class="mh-detail-label">${escapeHtml(t('mobileCommon.type', 'Type:'))}</span>
@@ -237,6 +244,12 @@
         </div>
       </div>`;
     modal.style.display = 'flex';
+    const closeBtn = document.getElementById('mh-vault-detail-close');
+    if (closeBtn) closeBtn.focus();
+    if (!modal.dataset.escBound) {
+      modal.dataset.escBound = '1';
+      document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && modal.style.display !== 'none') modal.style.display = 'none'; });
+    }
   }
 
   function renderVaultItemCard(item) {
@@ -323,6 +336,25 @@
     });
   }
 
+  // Opens one saved item in the phone's Vault viewer (Home's "Open in Vault"). The list is re-read from the owner's Vault first, so an item saved a moment ago is found; an id that is
+  // not in the owner's own Vault opens nothing.
+  async function openMobileVaultItem(vaultItemId) {
+    const find = () => {
+      const state = window.NAGEX.getState && window.NAGEX.getState();
+      const items = (state && (state.vaultItems || (state.vault && state.vault.items))) || [];
+      return items.find((v) => v.vaultItemId === vaultItemId);
+    };
+    let item = find();
+    if (!item) {
+      await refreshVaultData();
+      renderVaultList();
+      item = find();
+    }
+    if (item) showVaultDetailModal(item);
+    return Boolean(item);
+  }
+
   window.NAGEX = window.NAGEX || {};
   window.NAGEX.renderMobileVault = renderMobileVault;
+  window.NAGEX.openMobileVaultItem = openMobileVaultItem;
 })();

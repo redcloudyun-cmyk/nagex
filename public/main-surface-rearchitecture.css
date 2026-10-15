@@ -1613,3 +1613,129 @@
   color: var(--nagex-ink-2);
   font-size: var(--nagex-fs-control);
 }
+
+/* D-9: the exact text that would be saved to the person's Vault, shown before anything is requested or stored */
+.main-vault-draft {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--nagex-line);
+  border-radius: var(--nagex-r-control);
+  background: #f8fbff;
+  font-size: var(--nagex-fs-control);
+}
+
+.main-vault-draft dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 12px;
+  margin: 8px 0;
+}
+
+.main-vault-draft dt {
+  color: var(--nagex-ink-3);
+}
+
+.main-vault-draft dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.main-vault-draft-text,
+.main-run-proposal dd.main-vault-content {
+  max-height: 220px;
+  overflow: auto;
+  padding: 8px 10px;
+  border: 1px solid var(--nagex-line);
+  border-radius: var(--nagex-r-control);
+  background: #ffffff;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.main-vault-draft-text:focus-visible {
+  outline: 2px solid var(--nagex-accent, #2563eb);
+  outline-offset: 2px;
+}
+
+.main-run-block[data-run-state="SAVED_TO_VAULT"] .main-run-state {
+  color: #0b6b3a;
+}
+
+.main-run-block[data-run-state="VAULT_NOT_SAVED"] .main-run-state {
+  color: #a11d1d;
+}
+
+.main-run-block .main-run-open[hidden] {
+  display: none !important;
+}
+
+@media (max-width: 860px) {
+  .main-run-block .main-run-open {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* D-9 integration - phones: the conversation was invisible. The phone rules above force .app-wrapper and .workspace-grid to display:block, which removes the flex height chain the
+   conversation layout relies on; the thread card (flex: 1 1 0 inside an auto-height column) then collapsed to ~4px and every answer, plan, draft and approval sat behind the composer.
+   Restore the chain (these two are flex columns in their base styles), let the canvas be the one scroller, and let the thread take its content height. Desktop is untouched. */
+@media (max-width: 860px) {
+  body:has(#view-home.active-view #nagex-main-surface) .app-wrapper {
+    display: flex !important;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  body:has(#view-home.active-view #nagex-main-surface) .workspace-grid {
+    display: flex !important;
+    flex-direction: column;
+    flex: 1 1 0;
+    min-height: 0;
+  }
+
+  /* the transparent header search button is only a 40px tap target: its (invisible) label wrapped over the conversation and swallowed taps meant for the content below */
+  .app-header .desktop-global-search-target {
+    overflow: hidden;
+  }
+
+  body:has(#view-home.active-view #nagex-main-surface) .center-canvas {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    /* the fixed bottom navigation must never cover the end of the conversation (the composer and its send button) */
+    padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)) !important; /* desktop-home.css sets the canvas padding with !important */
+  }
+
+  /* the conversation view is a bounded 100%-height workspace on desktop; on phones it grows with its content so nothing overflows its own box */
+  body:has(#view-home.active-view #nagex-main-surface) .tab-view.main-conversing,
+  body:has(#view-home.active-view #nagex-main-surface) .tab-view.main-conversing .nagex-main-surface {
+    height: auto;
+  }
+
+  .nagex-main-surface[data-session-state="CONVERSATION"] .nagex-main-left,
+  .nagex-main-surface[data-session-state="RESULT"] .nagex-main-left {
+    height: auto;
+  }
+
+  .nagex-main-surface[data-session-state="CONVERSATION"] .main-thread-card,
+  .nagex-main-surface[data-session-state="RESULT"] .main-thread-card {
+    flex: 0 0 auto;
+    overflow: visible;
+  }
+}
+
+/* D-9: on narrow screens the label/value grids of the draft and of the approval proposal stack (label above value), so the text being approved gets the full width instead of a sliver. */
+@media (max-width: 520px) {
+  .main-vault-draft dl,
+  .main-run-proposal dl {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px 0;
+  }
+
+  .main-vault-draft dd,
+  .main-run-proposal dd {
+    margin-bottom: 6px;
+  }
+}

@@ -5239,6 +5239,40 @@
       "notes": "Real browser as a client of the real endpoints (same-origin fetch with the real session) - NOT a Home screen test: the Home affordance is deferred to the integrator (public/** is out of this track). Disposable stores, no model.",
       "writesRepositoryArtifacts": false
     },
+    "home_vault_save_browser": {
+      "milestone": "NAGEX-D09-HOME-VAULT",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "personal-home",
+        "ux",
+        "permission-approval-hardening"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "On the real Home and Vault screens (EN/KR at 1440/430/390/360) an answer on screen becomes a saved Vault item only through: exact draft shown (nothing stored), request, the person's own Approve, save read back; Open shows the saved text on the desktop or the phone-native Vault; a fresh browser lists it; Activity records the title only. Decline, ask again, double click, nothing to save, answer binding, a Vault that cannot write and another person store or reveal nothing; quick notes and the inline Save button are unchanged",
+      "notes": "Production server in-process with a LOCAL deterministic model for the answer on screen (tests/_local_ai_world.ts); the Vault plan needs no model. Includes keyboard focus and 44px targets.",
+      "writesRepositoryArtifacts": false
+    },
+    "vault_write_truthfulness": {
+      "milestone": "NAGEX-D09-HOME-VAULT",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime",
+        "personal-home",
+        "permission-approval-hardening"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "A Vault write that did not persist is never answered as saved: POST /workspace/vault and the Inbox save-to-Vault return a server error on an unwritable Vault, hand out no item id, and leave the capture un-actioned; a normal write is unchanged",
+      "notes": "Pre-existing defect: VaultStore.saveItem swallowed disk-write errors (FileRecordStore.write logs and returns), giving a 201 for an item that was never stored. Local, disposable data root; the Vault directory is made unwritable for the duration of each case."
+    },
     "advisory_plan": {
       "milestone": "NAGEX-D11-ADVISORY-PLAN",
       "classification": "CANONICAL_BEHAVIOR",

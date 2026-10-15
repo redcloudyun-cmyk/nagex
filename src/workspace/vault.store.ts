@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import type { SaveVaultItemParams, VaultItem } from './vault.types.js';
 import { FileRecordStore, resolveNagexDataDir } from '../governance/file-record.store.js';
+import { NagexError } from '../common/errors.js';
 
 export class VaultStore {
   private readonly store: FileRecordStore<VaultItem>;
@@ -33,7 +34,13 @@ export class VaultStore {
       updatedAt: now,
     };
 
-    this.store.write(vaultItemId, item);
+    // FileRecordStore.write() logs and swallows a failed disk write; answering "saved" (201 with an item id) for something that was not stored is a fake success, so a write that does not
+    // persist is an error here too. Callers that mark other records as done only after this call (the Inbox) therefore never do so for an item that does not exist.
+    try {
+      this.store.writeOrThrow(vaultItemId, item);
+    } catch {
+      throw new NagexError({ code: 'VAULT_WRITE_FAILED', category: 'INTERNAL', message: 'The Vault could not store this item, so nothing was saved.' });
+    }
     return item;
   }
 
