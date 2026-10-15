@@ -1,0 +1,16 @@
+# THROWAWAY (never merged): runs the annex self-test on a disposable Linux runner against a SYNTHETIC data root only. No production data, no secrets.
+name: D09 annex self-test (Linux, synthetic data only)
+on:
+  push:
+    branches: ['ci/d09-annex-selftest-*']
+jobs:
+  selftest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: '24' }
+      - run: node --version
+      - run: node scripts/ops/data-incident-decision-annex.selftest.mjs
