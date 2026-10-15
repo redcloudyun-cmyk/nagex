@@ -25,6 +25,10 @@ const html = (title: string, body: string) => `<!doctype html><html><head><meta 
 const defineShadow = (tag: string, inner: string, script = '') => `<script>customElements.define('${tag}', class extends HTMLElement { constructor(){ super(); const r = this.attachShadow({mode:'open'}); r.innerHTML = ${JSON.stringify(inner)}; ${script} } });</script>`;
 let crossPort = 0;
 let orders = 0;
+// The /replace pages swap their control only when the test says so (a page timer raced the model's observation on a slow runner: once the control was swapped BEFORE it was observed, there was nothing stale to re-resolve).
+let swapAllowed = false;
+let swapped = false;
+const AWAIT_SWAP = `function awaitSwap(fn){ (function poll(){ fetch('/swap-gate').then(function(r){ return r.text(); }).then(function(v){ if (v === '1') { fn(); fetch('/swapped'); } else { setTimeout(poll, 40); } }); })(); }`;
 let mutationRecords = 0;
 const hugeList = Array.from({ length: 3000 }, (_, i) => `<button type="button">Filler ${i}</button>`).join('');
 const vastList = Array.from({ length: 30000 }, (_, i) => `<button type="button">Item ${i}</button>`).join('');
@@ -52,9 +56,9 @@ const PAGES: Record<string, () => string> = {
   '/huge': () => html('start', `${hugeList}<button type="button" onclick="document.title='found'">Needle button</button>`),
   '/vast': () => html('start', `${vastList}<button type="button">Needle at the very end</button>`),
   '/mutation': () => html('start', `<script>let n=0;new MutationObserver(function(r){n+=r.length;fetch('/beacon?n='+n)}).observe(document,{subtree:true,attributes:true,childList:true,characterData:true});</script><x-m></x-m>${defineShadow('x-m', '<button type="button">Shadow action</button>')}<iframe src="/frame-inner" style="width:300px;height:100px"></iframe>`),
-  '/replace': () => html('start', `<div id="host"><button id="old" type="button" onclick="document.title='clicked-old'">Continue</button></div><script>setTimeout(function(){ document.getElementById('host').innerHTML='<button id="fresh" type="button" onclick="document.title=\\'clicked-new\\'">Continue</button>'; }, 700);</script>`),
-  '/replace-twice': () => html('start', `<div id="host"><button id="old" type="button">Continue</button></div><script>setTimeout(function(){ document.getElementById('host').innerHTML='<button id="a" type="button" onclick="document.title=\\'a\\'">Continue</button><button id="b" type="button" onclick="document.title=\\'b\\'">Continue</button>'; }, 700);</script>`),
-  '/replace-buy': () => html('start', `<div id="host"><button id="old" type="button">Buy now</button></div><script>setTimeout(function(){ document.getElementById('host').innerHTML='<button id="fresh" type="button" onclick="fetch(\\'/order\\',{method:\\'POST\\'});document.title=\\'ordered\\'">Buy now</button>'; }, 700);</script>`),
+  '/replace': () => html('start', `<div id="host"><button id="old" type="button" onclick="document.title='clicked-old'">Continue</button></div><script>${AWAIT_SWAP}awaitSwap(function(){ document.getElementById('host').innerHTML='<button id="fresh" type="button" onclick="document.title=\\'clicked-new\\'">Continue</button>'; });</script>`),
+  '/replace-twice': () => html('start', `<div id="host"><button id="old" type="button">Continue</button></div><script>${AWAIT_SWAP}awaitSwap(function(){ document.getElementById('host').innerHTML='<button id="a" type="button" onclick="document.title=\\'a\\'">Continue</button><button id="b" type="button" onclick="document.title=\\'b\\'">Continue</button>'; });</script>`),
+  '/replace-buy': () => html('start', `<div id="host"><button id="old" type="button">Buy now</button></div><script>${AWAIT_SWAP}awaitSwap(function(){ document.getElementById('host').innerHTML='<button id="fresh" type="button" onclick="fetch(\\'/order\\',{method:\\'POST\\'});document.title=\\'ordered\\'">Buy now</button>'; });</script>`),
 };
 const CROSS = html('cross', '<button type="button">Cross origin button</button>');
 
@@ -69,6 +73,9 @@ const handler = (isCross: boolean) => (req: http.IncomingMessage, res: http.Serv
   const url = new URL(req.url || '/', 'http://x');
   if (url.pathname === '/beacon') { mutationRecords = Math.max(mutationRecords, Number(url.searchParams.get('n') || 0)); res.statusCode = 204; res.end(); return; }
   if (url.pathname === '/order') { orders++; res.end('ok'); return; }
+  if (url.pathname === '/swap-gate') { res.end(swapAllowed ? '1' : '0'); return; }
+  if (url.pathname === '/swapped') { swapped = true; res.statusCode = 204; res.end(); return; }
+  if (url.pathname.startsWith('/replace')) { swapAllowed = false; swapped = false; }
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   if (isCross || url.pathname === '/cross') { res.end(CROSS); return; }
   const page = PAGES[url.pathname];
@@ -338,7 +345,14 @@ describe('a control that was re-rendered between looking and acting', () => {
   const staleClick = (afterSelector: ProposedDeviceAction) => (n: number, ctx: ProposeNextActionInput) => {
     if (n === 0) {
       const seen = (ctx.structuredSnapshot.interactive ?? []).find((e) => /^(continue|buy now)$/i.test(e.name));
-      return new Promise<ProposedDeviceAction>((resolve) => setTimeout(() => resolve(A('CLICK', seen?.selector)), 1200)) as unknown as ProposedDeviceAction;
+      // the observation above is the old control; only now may the page swap it, and the click is proposed once the swap has happened
+      swapAllowed = true;
+      return (async () => {
+        const deadline = Date.now() + 15_000;
+        while (!swapped && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 25));
+        assert.equal(swapped, true, 'the page swapped the control');
+        return A('CLICK', seen?.selector);
+      })() as unknown as ProposedDeviceAction;
     }
     return n === 1 ? afterSelector : undefined;
   };
