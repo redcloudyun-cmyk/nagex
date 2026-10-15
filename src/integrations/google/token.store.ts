@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { NagexError } from '../../common/errors.js';
+import { resolveNagexDataFile } from '../../governance/file-record.store.js';
 import { refreshGoogleAccessToken, revokeGoogleToken, type GoogleOAuthConfig, type GoogleTokenResponse } from './oauth.client.js';
 import { loadEncryptionKey, encryptJson, decryptJson, type EncryptedEnvelope } from './token.crypto.js';
 
@@ -334,14 +335,7 @@ function splitOwnerKey(key: string): { tenantId: string; principalId: string } {
 // a per-user data directory when that path doesn't exist or isn't writable
 // yet (fresh checkout, local dev, Windows) rather than crashing the process.
 export function resolveDefaultGoogleTokenStorePath(env: NodeJS.ProcessEnv = process.env): string {
-  if (env.NAGEX_GOOGLE_TOKEN_STORE_PATH) return env.NAGEX_GOOGLE_TOKEN_STORE_PATH;
-  const preferred = '/var/lib/nagex/google-oauth.json';
-  try {
-    fs.accessSync(path.dirname(preferred), fs.constants.W_OK);
-    return preferred;
-  } catch {
-    return path.join(os.homedir(), '.local', 'share', 'nagex', 'google-oauth.json');
-  }
+  return resolveNagexDataFile('google-oauth.json', 'NAGEX_GOOGLE_TOKEN_STORE_PATH', env);
 }
 
 // Persists the full tenant->token map as one AES-256-GCM encrypted envelope
