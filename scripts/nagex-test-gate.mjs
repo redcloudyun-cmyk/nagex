@@ -40,6 +40,24 @@ const LEGACY_CLASSIFICATIONS = new Set(['IMPLEMENTATION_COUPLED', 'SUPERSEDED_CO
 // Each gate's `select` runs against a registry entry (plus its own `name`)
 // and returns true/false. Selection is the ONLY thing that differs between
 // gates — build, spawn, and reporting are identical for all of them.
+// Browser certification launches a headless Chromium AND a production server per test file. At node's default (cpus - 1 workers; 11 on a 12-thread workstation) that saturates every core
+// (measured: total CPU above 90% for 73% of a default-parallelism run) and fixed-budget waits (10-30 s `waitForSelector`, `route.fetch`) then expire intermittently - a different suite each
+// time, on untouched trees too, every one of them passing alone. A bounded worker count removes the contention without changing a single test, assertion or timeout. 4 is the measured
+// default; NAGEX_TEST_CONCURRENCY=<n> overrides it for any gate (a larger value is a deliberate stress run, not a policy).
+const GATE_CONCURRENCY = { browser: 4 };
+function resolveConcurrency(gateName) {
+  const raw = process.env.NAGEX_TEST_CONCURRENCY;
+  if (raw !== undefined && raw !== '') {
+    const n = Number(raw);
+    if (!Number.isInteger(n) || n < 1 || n > 64) {
+      process.stderr.write(`NAgex Test Gate: NAGEX_TEST_CONCURRENCY must be an integer from 1 to 64 (got "${raw}").\n`);
+      process.exit(1);
+    }
+    return n;
+  }
+  return GATE_CONCURRENCY[gateName] ?? null;
+}
+
 const GATES = {
   regression: {
     description: 'Deterministic canonical regression: CANONICAL_BEHAVIOR / CANONICAL_ARCHITECTURE / TEST_HARNESS, canonical=true, non-browser. This is the R22 release/closure gate.',
@@ -217,7 +235,9 @@ function main() {
   process.stdout.write(`${gate.description}\n`);
   process.stdout.write(`Classification: ${Object.entries(classificationCounts).map(([c, n]) => `${c}=${n}`).join(', ')}\n`);
   process.stdout.write(`Build: ${noBuild ? 'skipped (--no-build)' : 'yes'}\n`);
+  const concurrency = resolveConcurrency(gateName);
   process.stdout.write(`Setup: ${path.relative(ROOT, SETUP_PATH).replace(/\\/g, '/')}\n`);
+  process.stdout.write(`Concurrency: ${concurrency === null ? 'node default' : `${concurrency} test file(s) at a time`}\n`);
   process.stdout.write(`Selected tests (${selected.length}):\n`);
   for (const { name, classification } of selected) process.stdout.write(`  ${name} [${classification}]\n`);
 
@@ -229,7 +249,7 @@ function main() {
 
   const result = spawnSync(
     process.execPath,
-    ['--require', SETUP_PATH, '--test', ...testFiles],
+    ['--require', SETUP_PATH, '--test', ...(concurrency === null ? [] : [`--test-concurrency=${concurrency}`]), ...testFiles],
     { cwd: ROOT, stdio: 'inherit' },
   );
 

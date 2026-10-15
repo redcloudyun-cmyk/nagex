@@ -72,7 +72,8 @@
       "home_reviewed_plan_browser",
       "one_input_document_chain_browser",
       "one_input_slides_chain_browser",
-      "vault_save_approval_browser"
+      "vault_save_approval_browser",
+      "home_vault_save_browser"
     ],
     "google": [
       "google_calendar_connection_state",
@@ -168,7 +169,8 @@
       "home_reviewed_plan_run_inert_providers",
       "home_reviewed_plan_security_review",
       "one_input_intent_dataset",
-      "vault_save_approval"
+      "vault_save_approval",
+      "vault_write_truthfulness"
     ],
     "personal-home": [
       "main_unified_workspace_browser",
@@ -196,7 +198,9 @@
       "one_input_document_chain_browser",
       "one_input_slides_chain_browser",
       "vault_save_approval",
-      "vault_save_approval_browser"
+      "vault_save_approval_browser",
+      "home_vault_save_browser",
+      "vault_write_truthfulness"
     ],
     "memory-context": [
       "r22_3_personal_context_memory"
@@ -271,7 +275,9 @@
       "home_reviewed_plan_run_inert_providers",
       "home_reviewed_plan_security_review",
       "vault_save_approval",
-      "vault_save_approval_browser"
+      "vault_save_approval_browser",
+      "home_vault_save_browser",
+      "vault_write_truthfulness"
     ],
     "credential-broker": [
       "google_calendar_connection_state",
@@ -390,7 +396,8 @@
       "one_input_intent_browser",
       "home_reviewed_plan_browser",
       "one_input_document_chain_browser",
-      "one_input_slides_chain_browser"
+      "one_input_slides_chain_browser",
+      "home_vault_save_browser"
     ],
     "knowledge": [
       "r24_5c_knowledge_live"
