@@ -1,0 +1,386 @@
+﻿{
+    "file":  "pptxgenjs_plain.pptx",
+    "opened":  true,
+    "slides":  [
+                   {
+                       "index":  1,
+                       "layout":  "TITLE_SLIDE",
+                       "shapeCount":  2,
+                       "notesChars":  0,
+                       "shapes":  [
+                                      {
+                                          "name":  "Text 0",
+                                          "type":  1,
+                                          "placeholder":  false,
+                                          "left":  120,
+                                          "top":  130,
+                                          "width":  720,
+                                          "height":  173,
+                                          "textChars":  21,
+                                          "fontName":  "Malgun Gothic",
+                                          "fontNameFarEast":  "Malgun Gothic",
+                                          "fontSizePt":  40,
+                                          "boundHeight":  48,
+                                          "boundBottom":  299,
+                                          "overflowPt":  0,
+                                          "beyondSlidePt":  0
+                                      },
+                                      {
+                                          "name":  "Text 1",
+                                          "type":  1,
+                                          "placeholder":  false,
+                                          "left":  120,
+                                          "top":  310,
+                                          "width":  720,
+                                          "height":  101,
+                                          "textChars":  31,
+                                          "fontName":  "Malgun Gothic",
+                                          "fontNameFarEast":  "Malgun Gothic",
+                                          "fontSizePt":  24,
+                                          "boundHeight":  29,
+                                          "boundBottom":  342,
+                                          "overflowPt":  0,
+                                          "beyondSlidePt":  0
+                                      }
+                                  ]
+                   },
+                   {
+                       "index":  2,
+                       "layout":  "CONTENT",
+                       "shapeCount":  2,
+                       "notesChars":  0,
+                       "shapes":  [
+                                      {
+                                          "name":  "Text 0",
+                                          "type":  1,
+                                          "placeholder":  false,
+                                          "left":  66,
+                                          "top":  29,
+                                          "width":  828,
+                                          "height":  104,
+                                          "textChars":  15,
+                                          "fontName":  "Malgun Gothic",
+                                          "fontNameFarEast":  "Malgun Gothic",
+                                          "fontSizePt":  40,
+                                          "boundHeight":  48,
+                                          "boundBottom":  105,
+                                          "overflowPt":  0,
+                                          "beyondSlidePt":  0
+                                      },
+                                      {
+                                          "name":  "Text 1",
+                                          "type":  1,
+                                          "placeholder":  false,
+                                          "left":  66,
+                                          "top":  144,
+                                          "width":  828,
+                                          "height":  343,
+                                          "textChars":  105,
+                                          "fontName":  null,
+                                          "fontNameFarEast":  null,
+                                          "fontSizePt":  24,
+                                          "boundHeight":  102,
+                                          "boundBottom":  250,
+                                          "overflowPt":  0,
+                                          "beyondSlidePt":  0
+                                      }
+                                  ]
+                   },
+                   {
+                       "index":  3,
+                       "layout":  "CONTENT",
+                       "shapeCount":  2,
+                       "notesChars":  0,
+                       "shapes":  [
+                                      {
+                                          "name":  "Text 0",
+                                          "type":  1,
+                                          "placeholder":  false,
+                                          "left":  66,
+                                          "top":  29,
+                                          "width":  828,
+                                          "height":  104,
+                                          "textChars":  12,
+                                          "fontName":  "Malgun Gothic",
+                                          "fontNameFarEast":  "Malgun Gothic",
+                                          "fontSizePt":  40,
+                                          "boundHeight":  48,
+                                          "boundBottom":  105,
+                                          "overflowPt":  0,
+                                          "beyondSlidePt":  0
+                                      },
+                                      {
+                                          "name":  "Text 1",
+                                          "type":  1,
+                                          "placeholder":  false,
+                                          "left":  66,
+                                          "top":  144,
+                                          "width":  828,
+                                          "height":  343,
+                                          "textChars":  172,
+                                          "fontName":  null,
+                                          "fontNameFarEast":  null,
+                                          "fontSizePt":  24,
+                                          "boundHeight":  168,
+                                          "boundBottom":  316,
+                                          "overflowPt":  0,
+                                          "beyondSlidePt":  0
+                                      }
+                                  ]
+                   },
+                   {
+                       "index":  4,
+                       "layout":  "CONTENT",
+                       "shapeCount":  2,
+                       "notesChars":  0,
+                       "shapes":  [
+                                      {
+                                          "name":  "Text 0",
+                                          "type":  1,
+                                          "placeholder":  false,
+                                          "left":  66,
+                                          "top":  29,
+                                          "width":  828,
+                                          "height":  104,
+                                          "textChars":  20,
+                                          "fontName":  "Malgun Gothic",
+                                          "fontNameFarEast":  "Malgun Gothic",
+                                          "fontSizePt":  40,
+                                          "boundHeight":  48,
+                                          "boundBottom":  105,
+                                          "overflowPt":  0,
+                                          "beyondSlidePt":  0
+                                      },
+                                      {
+                                          "name":  "Text 1",
+                                          "type":  1,
+                                          "placeholder":  false,
+                                          "left":  66,
+                                          "top":  144,
+                                          "width":  828,
+                                          "height":  343,
+                                          "textChars":  107,
+                                          "fontName":  null,
+                                          "fontNameFarEast":  null,
+                                          "fontSizePt":  24,
+                                          "boundHeight":  139,
+                                          "boundBottom":  287,
+                                          "overflowPt":  0,
+                                          "beyondSlidePt":  0
+                                      }
+                                  ]
+                   },
+                   {
+                       "index":  5,
+                       "layout":  "CONTENT",
+                       "shapeCount":  2,
+                       "notesChars":  0,
+                       "shapes":  [
+                                      {
+                                          "name":  "Text 0",
+                                          "type":  1,
+                                          "placeholder":  false,
+                                          "left":  66,
+                                          "top":  29,
+                                          "width":  828,
+                                          "height":  104,
+                                          "textChars":  13,
+                                          "fontName":  "Malgun Gothic",
+                                          "fontNameFarEast":  "Malgun Gothic",
+                                          "fontSizePt":  40,
+                                          "boundHeight":  48,
+                                          "boundBottom":  105,
+                                          "overflowPt":  0,
+                                          "beyondSlidePt":  0
+                                      },
+                                      {
+                                          "name":  "Text 1",
+                                          "type":  1,
+                                          "placeholder":  false,
+                                          "left":  66,
+                                          "top":  144,
+                                          "width":  828,
+                                          "height":  343,
+                                          "textChars":  172,
+                                          "fontName":  null,
+                                          "fontNameFarEast":  null,
+                                          "fontSizePt":  24,
+                                          "boundHeight":  176,
+                                          "boundBottom":  324,
+                                          "overflowPt":  0,
+                                          "beyondSlidePt":  0
+                                      }
+                                  ]
+                   },
+                   {
+                       "index":  6,
+                       "layout":  "CONTENT",
+                       "shapeCount":  2,
+                       "notesChars":  0,
+                       "shapes":  [
+                                      {
+                                          "name":  "Text 0",
+                                          "type":  1,
+                                          "placeholder":  false,
+                                          "left":  66,
+                                          "top":  29,
+                                          "width":  828,
+                                          "height":  104,
+                                          "textChars":  15,
+                                          "fontName":  "Malgun Gothic",
+                                          "fontNameFarEast":  "Malgun Gothic",
+                                          "fontSizePt":  40,
+                                          "boundHeight":  48,
+                                          "boundBottom":  105,
+                                          "overflowPt":  0,
+                                          "beyondSlidePt":  0
+                                      },
+                                      {
+                                          "name":  "Text 1",
+                                          "type":  1,
+                                          "placeholder":  false,
+                                          "left":  66,
+                                          "top":  144,
+                                          "width":  828,
+                                          "height":  343,
+                                          "textChars":  55,
+                                          "fontName":  null,
+                                          "fontNameFarEast":  null,
+                                          "fontSizePt":  24,
+                                          "boundHeight":  102,
+                                          "boundBottom":  250,
+                                          "overflowPt":  0,
+                                          "beyondSlidePt":  0
+                                      }
+                                  ]
+                   },
+                   {
+                       "index":  7,
+                       "layout":  "CONTENT",
+                       "shapeCount":  2,
+                       "notesChars":  0,
+                       "shapes":  [
+                                      {
+                                          "name":  "Text 0",
+                                          "type":  1,
+                                          "placeholder":  false,
+                                          "left":  66,
+                                          "top":  29,
+                                          "width":  828,
+                                          "height":  104,
+                                          "textChars":  10,
+                                          "fontName":  "Malgun Gothic",
+                                          "fontNameFarEast":  "Malgun Gothic",
+                                          "fontSizePt":  40,
+                                          "boundHeight":  48,
+                                          "boundBottom":  105,
+                                          "overflowPt":  0,
+                                          "beyondSlidePt":  0
+                                      },
+                                      {
+                                          "name":  "Text 1",
+                                          "type":  1,
+                                          "placeholder":  false,
+                                          "left":  66,
+                                          "top":  144,
+                                          "width":  828,
+                                          "height":  343,
+                                          "textChars":  142,
+                                          "fontName":  null,
+                                          "fontNameFarEast":  null,
+                                          "fontSizePt":  24,
+                                          "boundHeight":  102,
+                                          "boundBottom":  250,
+                                          "overflowPt":  0,
+                                          "beyondSlidePt":  0
+                                      }
+                                  ]
+                   },
+                   {
+                       "index":  8,
+                       "layout":  "CONTENT",
+                       "shapeCount":  2,
+                       "notesChars":  0,
+                       "shapes":  [
+                                      {
+                                          "name":  "Text 0",
+                                          "type":  1,
+                                          "placeholder":  false,
+                                          "left":  66,
+                                          "top":  29,
+                                          "width":  828,
+                                          "height":  104,
+                                          "textChars":  58,
+                                          "fontName":  "Malgun Gothic",
+                                          "fontNameFarEast":  "Malgun Gothic",
+                                          "fontSizePt":  40,
+                                          "boundHeight":  144,
+                                          "boundBottom":  153,
+                                          "overflowPt":  20,
+                                          "beyondSlidePt":  0
+                                      },
+                                      {
+                                          "name":  "Text 1",
+                                          "type":  1,
+                                          "placeholder":  false,
+                                          "left":  66,
+                                          "top":  144,
+                                          "width":  828,
+                                          "height":  343,
+                                          "textChars":  102,
+                                          "fontName":  null,
+                                          "fontNameFarEast":  null,
+                                          "fontSizePt":  24,
+                                          "boundHeight":  102,
+                                          "boundBottom":  250,
+                                          "overflowPt":  0,
+                                          "beyondSlidePt":  0
+                                      }
+                                  ]
+                   },
+                   {
+                       "index":  9,
+                       "layout":  "CONTENT",
+                       "shapeCount":  2,
+                       "notesChars":  0,
+                       "shapes":  [
+                                      {
+                                          "name":  "Text 0",
+                                          "type":  1,
+                                          "placeholder":  false,
+                                          "left":  66,
+                                          "top":  29,
+                                          "width":  828,
+                                          "height":  104,
+                                          "textChars":  5,
+                                          "fontName":  "Malgun Gothic",
+                                          "fontNameFarEast":  "Malgun Gothic",
+                                          "fontSizePt":  40,
+                                          "boundHeight":  48,
+                                          "boundBottom":  105,
+                                          "overflowPt":  0,
+                                          "beyondSlidePt":  0
+                                      },
+                                      {
+                                          "name":  "Text 1",
+                                          "type":  1,
+                                          "placeholder":  false,
+                                          "left":  66,
+                                          "top":  144,
+                                          "width":  828,
+                                          "height":  343,
+                                          "textChars":  87,
+                                          "fontName":  null,
+                                          "fontNameFarEast":  null,
+                                          "fontSizePt":  24,
+                                          "boundHeight":  102,
+                                          "boundBottom":  250,
+                                          "overflowPt":  0,
+                                          "beyondSlidePt":  0
+                                      }
+                                  ]
+                   }
+               ],
+    "slideWidthPt":  960,
+    "slideHeightPt":  540
+}

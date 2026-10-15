@@ -170,7 +170,8 @@
       "home_reviewed_plan_security_review",
       "one_input_intent_dataset",
       "vault_save_approval",
-      "vault_write_truthfulness"
+      "vault_write_truthfulness",
+      "pptx_template"
     ],
     "personal-home": [
       "main_unified_workspace_browser",
@@ -397,7 +398,8 @@
       "home_reviewed_plan_browser",
       "one_input_document_chain_browser",
       "one_input_slides_chain_browser",
-      "home_vault_save_browser"
+      "home_vault_save_browser",
+      "pptx_template"
     ],
     "knowledge": [
       "r24_5c_knowledge_live"

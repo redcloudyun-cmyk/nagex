@@ -6301,6 +6301,21 @@
       "deterministic": true,
       "assertionIntent": "Release hygiene registry entry for universal_life_execution: preserves the committed product contract and prevents the test gate from treating the focused suite as unclassified debt.",
       "notes": "Added during integration hygiene after the suite was committed as part of the current branch baseline."
+    },
+    "pptx_template": {
+      "milestone": "PPTX-QUALITY-TEMPLATE",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "The decks NAgex builds carry their design in the master and layouts (dark cover, accent bar, title rule, footer brand, slide-number placeholders, theme fonts that match the Korean text) while titles and bodies stay real placeholders.",
+      "notes": "Package structure only; the rendered result is verified in Microsoft PowerPoint by the presentation E2E journey."
     }
   }
 }
