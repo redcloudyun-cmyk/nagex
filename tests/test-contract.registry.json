@@ -5140,6 +5140,71 @@
       "notes": "Only the plan route is stubbed (no model in the harness); its seal is issued by the server's real PlanSeal and verified by the real run route.",
       "writesRepositoryArtifacts": false
     },
+    "home_reviewed_plan_security_review": {
+      "milestone": "NAGEX-D10-OVERNIGHT-SECURITY",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime",
+        "tasks",
+        "permission-approval-hardening"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Independent review of the Home reviewed-plan path made executable: PlanSeal binds owner, plan and expiry (every deciding field changes the hash; a forged expiry invalidates the token; claims are never forgotten while replayable and the table fails closed when full); a run waiting for approval survives a process restart and resumes exactly once with the frozen step; a decline stays declined; an approval that EXPIRES ends the waiting run by itself with nothing sent; a granted approval is not rewritten by a later expiry; and the run route never reads the runnable verdict, resolved plan, approval id, tool or identity from the request, never calls the broker itself, never approves, and never asks the model.",
+      "notes": "Local only: temp directories, persistent approval / task / continuation stores rebuilt as a restart, a counting stub in place of Google."
+    },
+    "one_input_document_chain_browser": {
+      "milestone": "NAGEX-D10-OVERNIGHT-DOCUMENT",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "personal-home",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "From ONE natural-language request (Korean or English, no mode selected, screen language deliberately different) the production server routes to the document route, writes in the language of the request, stores the document and its Recent artifact, and a brand-new browser lists and opens it again; another signed-in person sees nothing and cannot fetch it by id; a failing, non-JSON or empty model answer is never shown as created and stores nothing; a double click makes one document; research then report asks research first and the report prompt and stored report carry only the returned findings and links, and with the search provider down no report is written; a store that cannot save makes creation fail with no artifact.",
+      "notes": "Production server in-process with a LOCAL deterministic model and search endpoint on 127.0.0.1 (tests/_local_ai_world.ts): proves NAgex's own chain, not that a real model or search provider answered (the real Nemotron run is scripts/document-roundtrip-live-cert.mjs).",
+      "writesRepositoryArtifacts": false
+    },
+    "one_input_intent_dataset": {
+      "milestone": "NAGEX-D10-OVERNIGHT-INTENT",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime",
+        "capture"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "81 realistic Korean/English phrasings across advice, schedule, research, document, slides, image, unsupported, compound, explain+send, destructive, negated, vague and connected-tool requests route to the safe decision; action, destructive, negated, unsupported and plain-question rows are exact",
+      "notes": "Pure classification, no model, no network. Guards what people actually type, not only the examples the router rules were written for."
+    },
+    "one_input_slides_chain_browser": {
+      "milestone": "NAGEX-D10-OVERNIGHT-SLIDES",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "personal-home",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "From ONE natural-language request (Korean or English) research runs first and the slide deck is planned only from the returned findings and links, then stored as a presentation artifact; with the search provider down no deck is planned or stored and the person is told the research step could not be completed",
+      "notes": "Production server in-process with a LOCAL deterministic model and search endpoint (tests/_local_ai_world.ts); slides are not a Nemotron task so the fixed Gemini URL is redirected to the local fake for this in-process server only. Proves NAgex's own chain, not that a real provider answered.",
+      "writesRepositoryArtifacts": false
+    },
     "advisory_plan": {
       "milestone": "NAGEX-D11-ADVISORY-PLAN",
       "classification": "CANONICAL_BEHAVIOR",

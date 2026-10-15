@@ -196,15 +196,20 @@ export function createNagexApplication(): NagexApplication {
   });
   const aiService = new AiService(modelRouter);
   const planResolver = new PlanResolver(canonicalSkillRegistry, canonicalToolRegistry);
+  // Things that must follow an approval's expiry (registered once the Task continuation coordinator exists; the store may notice an expiry while it is still being restored).
+  const approvalExpiryHooks: Array<(record: { approvalId: string }) => void> = [];
   const actionApprovals = new PersistentActionApprovalStore({
-    onExpired: (record) => auditLogger.logEvent({
-      actor: { type: 'user', id: record.principalId },
-      tenant_id: record.tenantId,
-      action: 'approval.expired',
-      resource: { type: 'ActionApproval', id: record.approvalId },
-      result: 'DENIED',
-      request_id: `req_appr_expired_${Date.now()}`,
-    }),
+    onExpired: (record) => {
+      auditLogger.logEvent({
+        actor: { type: 'user', id: record.principalId },
+        tenant_id: record.tenantId,
+        action: 'approval.expired',
+        resource: { type: 'ActionApproval', id: record.approvalId },
+        result: 'DENIED',
+        request_id: `req_appr_expired_${Date.now()}`,
+      });
+      for (const hook of approvalExpiryHooks) hook(record);
+    },
   });
   const executionStore = new ExecutionStore();
   // Resolved at call time, not captured at startup, so the Google clients always use the current global fetch.
@@ -710,6 +715,8 @@ export function createNagexApplication(): NagexApplication {
   // (no poller): a no-op whenever the given approvalId has no associated
   // Task continuation.
   const taskContinuationCoordinator = new TaskContinuationCoordinator(taskContinuations, durableTaskRunState, executingTaskRunner, taskStore, taskRunStore, auditLogger, undefined, notificationEngine);
+  // an approval that expires ends the run that was waiting on it (truthfully, without executing anything)
+  approvalExpiryHooks.push((record) => taskContinuationCoordinator.onExpired(record.approvalId));
   // P03 — startup recovery: resumes any run this process's previous life
   // left genuinely mid-flight (see durable-task-runtime.ts). server_web.ts
   // registers recoverOnStartup() as a LifecycleManager start hook, run once

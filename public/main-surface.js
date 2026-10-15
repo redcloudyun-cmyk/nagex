@@ -996,7 +996,7 @@
     }
     if (target === 'DOCUMENT') await createDocument(prompt, metadata, { apiPrompt });
     else if (target === 'PRESENTATION') await createPresentation(prompt, metadata, { apiPrompt });
-    else if (target === 'IMAGE') await createImage(prompt, metadata);
+    else if (target === 'IMAGE') await createImage(prompt, metadata, { researchSkipped: (decision.reasonCodes || []).indexOf('RESEARCH_NOT_USED_FOR_IMAGE') >= 0 });
     else showUnsupported(prompt, decision);
   }
 
@@ -1004,12 +1004,12 @@
     return (Array.isArray(sources) ? sources : []).slice(0, 12).map((s, i) => '[' + (i + 1) + '] ' + String(s.title || s.sourceName || s.url || '').slice(0, 160) + (s.url ? ' - ' + s.url : ''));
   }
 
-  function researchReportPrompt(prompt, research) {
+  function researchReportPrompt(prompt, research, artifact) {
     const nl = String.fromCharCode(10);
     return [
       prompt,
       '',
-      'Write the report ONLY from these verified research findings. Cite the numbered sources where they support a statement. Do not add facts that are not in the findings or the sources.',
+      'Write the ' + (artifact || 'report') + ' ONLY from these verified research findings. Cite the numbered sources where they support a statement. Do not add facts that are not in the findings or the sources.',
       '',
       'FINDINGS:',
       String(research.answer || ''),
@@ -1041,7 +1041,7 @@
     state.lastContext = String(research.answer).slice(0, 6000);
     const sourceCount = Array.isArray(research.sources) ? research.sources.length : 0;
     const lead = [{ state: 'done', label: 'Sources checked', detail: String(sourceCount) }];
-    if (target === 'PRESENTATION') await createPresentation(prompt, metadata, { apiPrompt: researchReportPrompt(prompt, research), leadSteps: lead });
+    if (target === 'PRESENTATION') await createPresentation(prompt, metadata, { apiPrompt: researchReportPrompt(prompt, research, 'slides'), leadSteps: lead });
     else await createDocument(prompt, metadata, { apiPrompt: researchReportPrompt(prompt, research), leadSteps: lead });
   }
 
@@ -1129,7 +1129,10 @@
     });
   }
 
-  async function createImage(prompt, metadata) {
+  async function createImage(prompt, metadata, opts) {
+    opts = opts || {};
+    // "research X and draw it": the image is made from the description only - say so instead of implying a research step that did not run
+    const noResearch = opts.researchSkipped ? ' ' + bt('mainRoute.imageNoResearch', 'Images are made from your description - no research step is run for images.') : '';
     const result = await api('/api/v1/creations/generate', {
       method: 'POST',
       body: JSON.stringify({
@@ -1142,7 +1145,7 @@
       timeoutMs: 120000,
     });
     if (!result || result.error || result.status === 'FAILED' || result.status === 'UNAVAILABLE') {
-      showThread(prompt, 'Unavailable', 'Image generation is unavailable', serverFailure(result, 'No configured image provider produced a real image.'), [
+      showThread(prompt, 'Unavailable', 'Image generation is unavailable', serverFailure(result, 'No configured image provider produced a real image.') + noResearch, [
         { state: 'done', label: 'Request captured', detail: 'Image' },
         { state: 'running', label: 'Image provider unavailable', detail: (result && (result.error || result.errorCode || result.status)) || '' },
       ]);
@@ -1151,7 +1154,7 @@
     const artifact = result.artifactId ? await api('/api/v1/artifacts/' + encodeURIComponent(result.artifactId)) : null;
     const projection = artifact && artifact.projection ? artifact.projection : null;
     const imageUrl = result.imageUrl || result.outputAssetUrl || result.openTarget || (projection && projection.openTarget);
-    showThread(prompt, 'Completed', 'Image created', 'The image result is ready in the right panel.', [
+    showThread(prompt, 'Completed', 'Image created', 'The image result is ready in the right panel.' + noResearch, [
       { state: 'done', label: 'Request captured', detail: 'Image' },
       { state: 'done', label: 'Image generated', detail: result.creationId || '' },
       { state: 'done', label: 'Result panel opened', detail: result.artifactId || '' },

@@ -10,10 +10,11 @@ import crypto from 'node:crypto';
 export interface PlanSealIdentity { tenantId: string; principalId: string }
 export interface PlanSealIssue { planHash: string; token: string; expiresAt: string }
 export type PlanSealFailure = 'PLAN_SEAL_MISSING' | 'PLAN_SEAL_INVALID' | 'PLAN_SEAL_EXPIRED';
-export interface PlanSealClaim { taskId: string; runId: string | null }
+export interface PlanSealClaim { taskId: string | null; runId: string | null }
 
 const DEFAULT_TTL_MS = 30 * 60_000;
-const MAX_CLAIMS = 5000;
+export const MAX_PLAN_CLAIMS = 5000;
+const MAX_CLAIMS = MAX_PLAN_CLAIMS;
 
 // stable, key-sorted JSON: the same plan always hashes the same, whatever the key order the client sends back
 export function canonicalJson(value: unknown): string {
@@ -43,7 +44,7 @@ export function reviewedPlanHash(plan: unknown): string {
 
 export class PlanSeal {
   private readonly key: Buffer;
-  private readonly claims = new Map<string, PlanSealClaim & { tenantId: string; principalId: string }>();
+  private readonly claims = new Map<string, PlanSealClaim & { tenantId: string; principalId: string; claimedAt: number }>();
 
   constructor(private readonly now: () => number = () => Date.now(), private readonly ttlMs: number = DEFAULT_TTL_MS, key?: Buffer) {
     this.key = key ?? crypto.randomBytes(32);
@@ -76,18 +77,25 @@ export class PlanSeal {
   }
 
   // One run per reviewed plan and owner. Synchronous (no await between the check and the claim), so two concurrent clicks cannot both start.
-  public claim(identity: PlanSealIdentity, planHash: string, claim: PlanSealClaim): { claimed: true } | { claimed: false; existing: PlanSealClaim } {
+  public claim(identity: PlanSealIdentity, planHash: string, claim: PlanSealClaim): { claimed: true } | { claimed: false; existing: PlanSealClaim } | { claimed: false; full: true } {
     const key = `${identity.tenantId}|${identity.principalId}|${planHash}`;
     const existing = this.claims.get(key);
     if (existing) return { claimed: false, existing: { taskId: existing.taskId, runId: existing.runId } };
-    if (this.claims.size >= MAX_CLAIMS) this.claims.delete(this.claims.keys().next().value as string);
-    this.claims.set(key, { ...claim, ...identity });
+    const now = this.now();
+    // a claim older than the seal lifetime can never be replayed (its token has expired), so only those are forgotten; if the table is still full of live claims the request is refused,
+    // never allowed to push an old live claim out (that would make its plan claimable a second time)
+    if (this.claims.size >= MAX_CLAIMS) {
+      for (const [k, v] of this.claims) if (now - v.claimedAt > this.ttlMs) this.claims.delete(k);
+      if (this.claims.size >= MAX_CLAIMS) return { claimed: false, full: true };
+    }
+    this.claims.set(key, { ...claim, ...identity, claimedAt: now });
     return { claimed: true };
   }
 
   public attachRun(identity: PlanSealIdentity, planHash: string, taskId: string, runId: string | null): void {
     const key = `${identity.tenantId}|${identity.principalId}|${planHash}`;
-    if (this.claims.has(key)) this.claims.set(key, { taskId, runId, ...identity });
+    const current = this.claims.get(key);
+    if (current) this.claims.set(key, { ...current, taskId, runId });
   }
 
   // A claim whose run could not even be created is released so the person is not locked out by a server-side failure.

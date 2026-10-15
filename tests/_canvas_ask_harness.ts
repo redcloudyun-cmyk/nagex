@@ -42,11 +42,13 @@ export interface CanvasAskHarness {
   close(): Promise<void>;
 }
 
-export async function startCanvasAskHarness(opts: { scrubProviders: boolean }): Promise<CanvasAskHarness> {
+// opts.env: variables applied AFTER the provider scrub and BEFORE the production server is imported (for example a local, loopback model endpoint). Nothing else changes.
+export async function startCanvasAskHarness(opts: { scrubProviders: boolean; env?: Record<string, string> }): Promise<CanvasAskHarness> {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-r247b-browser-'));
   process.env.NAGEX_ARTIFACTS_DIR = path.join(dataDir, 'artifacts');
   process.env.NAGEX_DOCUMENTS_DIR = path.join(dataDir, 'documents');
   if (opts.scrubProviders) for (const key of PROVIDER_ENV_KEYS) delete process.env[key];
+  for (const [key, value] of Object.entries(opts.env ?? {})) process.env[key] = value;
 
   // Dynamic import AFTER the environment is prepared: the production composition root runs at module load.
   const server = await import('../src/server_web.js');
