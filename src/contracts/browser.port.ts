@@ -10,7 +10,7 @@
 // BrowserRetrievalPort below (Phase 04, added on real evidence from the
 // QuickCaptureService -> CaptureProcessor -> Browser chain, not
 // speculatively).
-import type { BrowserSessionRecord, BrowserContentTrustMetadata, UntrustedFindResult, UntrustedExtractResult, UntrustedStructuredBrowserSnapshot } from '../modules/browser/index.js';
+import type { BrowserVerification, BrowserSessionRecord, BrowserContentTrustMetadata, UntrustedFindResult, UntrustedExtractResult, UntrustedStructuredBrowserSnapshot } from '../modules/browser/index.js';
 import type { ActionApprovalRecord } from '../governance/action-approval.store.js';
 
 // Mirrors modules/browser/browser.runtime.ts's BrowserSnapshot — inlined
@@ -39,6 +39,8 @@ export interface BrowserActionRequest {
 export interface BrowserNavigationResult {
   url: string;
   title: string;
+  // Additive: what the page showed after the action. `status: 'EXECUTED'` only means the call ran; this says whether its effect was seen (VERIFIED / NOT_VERIFIED / FAILED / USER_ACTION_REQUIRED).
+  verification?: BrowserVerification;
 }
 
 export interface BrowserClickExecutedResult extends BrowserNavigationResult {

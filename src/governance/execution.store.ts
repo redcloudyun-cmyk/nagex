@@ -14,6 +14,8 @@ export interface ExecutionRecord {
   startedAt: string;
   completedAt: string | null;
   errorCode: string | null;
+  // Additive (browser actions): what the observed result showed - VERIFIED / NOT_VERIFIED / FAILED / USER_ACTION_REQUIRED. SUCCEEDED means the tool call ran; this says whether its effect was seen.
+  verificationOutcome?: string;
 }
 
 export function isExecutionRecord(value: unknown): value is ExecutionRecord {
@@ -59,7 +61,7 @@ export class ExecutionStore {
     return full;
   }
 
-  public succeed(executionId: string, result: { externalId: string; externalUrl: string; completedAt: string }): void {
+  public succeed(executionId: string, result: { externalId: string; externalUrl: string; completedAt: string; verificationOutcome?: string }): void {
     const existing = this.fileStore.read(executionId);
     if (!existing) return;
     this.fileStore.write(executionId, { ...existing, status: 'SUCCEEDED', ...result });

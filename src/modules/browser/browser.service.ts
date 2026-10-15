@@ -11,6 +11,7 @@ import { FileRecordStore, resolveNagexDataDir } from '../../governance/file-reco
 import { BrowserSessionStore, type BrowserSessionRecord, generateEvidenceId } from './browser-session.store.js';
 import { isBrowserRuntimeAvailableSync, type BrowserRuntime, type BrowserSnapshot } from './browser.runtime.js';
 import { assertUrlSafe } from './browser-url-validator.js';
+import { humanVerificationRequired, verifyClick, verifyFieldWrite, verifyNavigation, type BrowserVerification, type ClickExpectation, type PageObservation, type TargetObservation } from './action-verification.js';
 import { createBrowserContentTrustMetadata, type UntrustedFindResult, type UntrustedExtractResult, type UntrustedStructuredBrowserSnapshot } from './browser.types.js';
 
 // Browser Agent MVP tool service (MASTER.md Section 14.5 item 06). Reuses
@@ -63,11 +64,22 @@ export function detectsHumanVerification(snapshot: { title: string; text: string
 export interface BrowserActionResult {
   url: string;
   title: string;
+  // Additive: what the page showed after the action (action-verification.ts). Absent when the runtime cannot observe a page.
+  verification?: BrowserVerification;
 }
 
 export interface BrowserClickExecuted extends BrowserActionResult {
+  // EXECUTED means the click was performed. Whether it achieved anything is `verification`, never this word.
   status: 'EXECUTED';
 }
+
+export interface BrowserFieldWriteResult {
+  verification: BrowserVerification;
+}
+
+// after an action the page gets a moment to react (a request, a re-render); the observation is taken once its content has stopped changing - bounded, never a wait for network idle
+const SETTLE_MS = 100;
+const SETTLE_ROUNDS = 3;
 
 export interface BrowserClickApprovalRequired {
   status: 'APPROVAL_REQUIRED';
@@ -235,8 +247,9 @@ export class BrowserToolService {
       this.sessions.updateUrl(record.browserSessionId, result.url);
       const snapshot = await this.runtime.snapshot(record.browserSessionId);
       await this.checkHumanVerification(input, snapshot);
-      this.auditAction('browser.navigate', 'tool.execution.succeeded', input, 'SUCCESS', { url: result.url });
-      return result;
+      const verification = verifyNavigation(safeUrl, result.url);
+      this.auditAction('browser.navigate', 'tool.execution.succeeded', input, 'SUCCESS', { url: result.url, verificationOutcome: verification.outcome });
+      return { ...result, verification };
     } catch (error) {
       const code = error instanceof NagexError ? error.code : 'BROWSER_NAVIGATE_FAILED';
       if (code !== 'BROWSER_HUMAN_VERIFICATION_REQUIRED') this.auditAction('browser.navigate', 'tool.execution.failed', input, 'FAILED', { url: input.url }, code);
@@ -405,24 +418,34 @@ export class BrowserToolService {
     this.auditAction('browser.keypress', 'tool.execution.succeeded', input, 'SUCCESS', { key: input.key });
   }
 
-  public async type(input: BrowserActionInput & { selector: string; text: string }): Promise<void> {
+  public async type(input: BrowserActionInput & { selector: string; text: string }): Promise<BrowserFieldWriteResult> {
     this.requireAvailable(input.requestId);
     const record = this.requireSession(input.browserSessionId, input.tenantId, input.ownerId, input.requestId);
     const match = await this.runtime.resolveSelector(record.browserSessionId, input.selector);
     this.assertSelectorResolved(match, input, 'browser.type');
     await this.runtime.type(record.browserSessionId, input.selector, input.text);
+    // the field is read back and compared inside the page: written means the field now holds exactly this text (the value itself is never returned or logged)
+    const verification = await this.verifyFieldWrite(record.browserSessionId, input.selector, input.text, record.currentUrl);
     // Never audits the typed text itself — only that a field was filled —
     // mirroring gmail.service.ts's rule of never logging body/subject content.
-    this.auditAction('browser.type', 'tool.execution.succeeded', input, 'SUCCESS', { selector: input.selector });
+    this.auditAction('browser.type', 'tool.execution.succeeded', input, 'SUCCESS', { selector: input.selector, verificationOutcome: verification.outcome });
+    return { verification };
   }
 
-  public async select(input: BrowserActionInput & { selector: string; value: string }): Promise<void> {
+  public async select(input: BrowserActionInput & { selector: string; value: string }): Promise<BrowserFieldWriteResult> {
     this.requireAvailable(input.requestId);
     const record = this.requireSession(input.browserSessionId, input.tenantId, input.ownerId, input.requestId);
     const match = await this.runtime.resolveSelector(record.browserSessionId, input.selector);
     this.assertSelectorResolved(match, input, 'browser.select');
     await this.runtime.select(record.browserSessionId, input.selector, input.value);
-    this.auditAction('browser.select', 'tool.execution.succeeded', input, 'SUCCESS', { selector: input.selector, value: input.value });
+    const verification = await this.verifyFieldWrite(record.browserSessionId, input.selector, input.value, record.currentUrl);
+    this.auditAction('browser.select', 'tool.execution.succeeded', input, 'SUCCESS', { selector: input.selector, value: input.value, verificationOutcome: verification.outcome });
+    return { verification };
+  }
+
+  private async verifyFieldWrite(sessionId: string, selector: string, expected: string, urlAfter: string | null): Promise<BrowserVerification> {
+    if (typeof this.runtime.readFieldState !== 'function') return verifyFieldWrite(null, urlAfter ?? undefined);
+    try { return verifyFieldWrite(await this.runtime.readFieldState(sessionId, selector, expected), urlAfter ?? undefined); } catch { return verifyFieldWrite(null, urlAfter ?? undefined); }
   }
 
   private assertSelectorResolved(match: { count: number }, input: BrowserActionInput, toolId: string = BROWSER_CLICK_TOOL_ID): void {
@@ -436,9 +459,43 @@ export class BrowserToolService {
     }
   }
 
+  // ── result verification ────────────────────────────────────────────────
+
+  private async observePageNow(sessionId: string): Promise<PageObservation | null> {
+    if (typeof this.runtime.observePage !== 'function') return null;
+    try { return await this.runtime.observePage(sessionId); } catch { return null; }
+  }
+
+  private async observeSettled(sessionId: string): Promise<PageObservation | null> {
+    if (typeof this.runtime.observePage !== 'function') return null;
+    try {
+      let last = await this.runtime.observePage(sessionId);
+      for (let round = 0; round < SETTLE_ROUNDS; round++) {
+        await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
+        const next = await this.runtime.observePage(sessionId);
+        if (next.signature === last.signature && next.url === last.url) return next;
+        last = next;
+      }
+      return last;
+    } catch {
+      return null;
+    }
+  }
+
+  private async observeTargetNow(sessionId: string, selector: string): Promise<TargetObservation | null> {
+    if (typeof this.runtime.observeTarget !== 'function') return null;
+    try { return await this.runtime.observeTarget(sessionId, selector); } catch { return null; }
+  }
+
+  private async verifyAfterClick(sessionId: string, selector: string, pageBefore: PageObservation | null, targetBefore: TargetObservation | null, expectation: ClickExpectation | undefined, sideEffectPossible: boolean): Promise<BrowserVerification> {
+    const pageAfter = await this.observeSettled(sessionId);
+    const targetAfter = await this.observeTargetNow(sessionId, selector);
+    return verifyClick({ before: pageBefore, after: pageAfter, targetBefore, targetAfter, expectation, sideEffectPossible });
+  }
+
   // ── click: context-dependent — navigation vs. consequential ─────────────
 
-  public async click(input: BrowserActionInput & { selector: string; forceApproval?: boolean }): Promise<BrowserClickResult> {
+  public async click(input: BrowserActionInput & { selector: string; forceApproval?: boolean; expect?: ClickExpectation }): Promise<BrowserClickResult> {
     this.requireAvailable(input.requestId);
     const record = this.requireSession(input.browserSessionId, input.tenantId, input.ownerId, input.requestId);
     const match = await this.runtime.resolveSelector(record.browserSessionId, input.selector);
@@ -447,12 +504,15 @@ export class BrowserToolService {
     // Both what the control says and what it is called count: "Go" labelled "Buy now", or an icon-only button named only by aria-label, is as consequential as a button that says "Buy now".
     const classifiedText = [match.text, match.accessibleName].filter(Boolean).join(' ') || null;
     if (!input.forceApproval && !classifyClickConsequence(classifiedText, match.isFormControl)) {
+      const pageBefore = await this.observePageNow(record.browserSessionId);
+      const targetBefore = await this.observeTargetNow(record.browserSessionId, input.selector);
       await this.runtime.click(record.browserSessionId, input.selector);
       const page = await this.runtime.snapshot(record.browserSessionId);
       this.sessions.updateUrl(record.browserSessionId, page.url);
       await this.checkHumanVerification(input, page);
-      this.auditAction(BROWSER_CLICK_TOOL_ID, 'tool.execution.succeeded', input, 'SUCCESS', { selector: input.selector, consequential: false, url: page.url });
-      return { status: 'EXECUTED', url: page.url, title: page.title };
+      const verification = await this.verifyAfterClick(record.browserSessionId, input.selector, pageBefore, targetBefore, input.expect, false);
+      this.auditAction(BROWSER_CLICK_TOOL_ID, 'tool.execution.succeeded', input, 'SUCCESS', { selector: input.selector, consequential: false, url: page.url, verificationOutcome: verification.outcome, verificationBasis: verification.basis });
+      return { status: 'EXECUTED', url: page.url, title: page.title, verification };
     }
 
     // Consequential — never clicked without approval. The canonical payload
@@ -481,7 +541,7 @@ export class BrowserToolService {
     return record;
   }
 
-  public async executeApprovedClick(input: { approvalId: string; browserSessionId: string; selector: string; tenantId: string; ownerId: string; requestId: string }): Promise<BrowserClickExecuted> {
+  public async executeApprovedClick(input: { approvalId: string; browserSessionId: string; selector: string; tenantId: string; ownerId: string; requestId: string; expect?: ClickExpectation }): Promise<BrowserClickExecuted> {
     this.requireAvailable(input.requestId);
     const record = this.requireSession(input.browserSessionId, input.tenantId, input.ownerId, input.requestId);
     const executionId = generateResourceId('exe');
@@ -515,13 +575,17 @@ export class BrowserToolService {
     this.executions.start({ executionId, toolId: BROWSER_CLICK_TOOL_ID, approvalId: input.approvalId, tenantId: input.tenantId, principalId: input.ownerId, startedAt });
 
     try {
+      const pageBefore = await this.observePageNow(record.browserSessionId);
+      const targetBefore = await this.observeTargetNow(record.browserSessionId, input.selector);
       await this.runtime.click(record.browserSessionId, input.selector);
       const page = await this.runtime.snapshot(record.browserSessionId);
       this.sessions.updateUrl(record.browserSessionId, page.url);
       await this.checkHumanVerification(input, page);
+      // an approved consequential click: an external effect may have happened whatever the page shows, so the result is judged on evidence and is never retried on a guess
+      const verification = await this.verifyAfterClick(record.browserSessionId, input.selector, pageBefore, targetBefore, input.expect, true);
       const completedAt = getCurrentISOString();
-      this.executions.succeed(executionId, { externalId: executionId, externalUrl: page.url, completedAt });
-      this.auditAction(BROWSER_CLICK_TOOL_ID, 'tool.execution.succeeded', input, 'SUCCESS', { selector: input.selector, consequential: true, url: page.url });
+      this.executions.succeed(executionId, { externalId: executionId, externalUrl: page.url, completedAt, verificationOutcome: verification.outcome });
+      this.auditAction(BROWSER_CLICK_TOOL_ID, 'tool.execution.succeeded', input, 'SUCCESS', { selector: input.selector, consequential: true, url: page.url, verificationOutcome: verification.outcome, verificationBasis: verification.basis });
 
       // R23.5B — the target label and destination URL are controlled by the
       // observed page. They are untrusted external content and must never be
@@ -529,7 +593,7 @@ export class BrowserToolService {
       // succeeded. The authoritative execution/audit records already preserve
       // the system fact that the action occurred.
 
-      return { status: 'EXECUTED', url: page.url, title: page.title };
+      return { status: 'EXECUTED', url: page.url, title: page.title, verification };
     } catch (error) {
       const code = error instanceof NagexError ? error.code : 'BROWSER_CLICK_FAILED';
       const completedAt = getCurrentISOString();
