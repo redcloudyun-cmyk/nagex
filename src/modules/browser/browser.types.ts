@@ -82,6 +82,9 @@ export interface InteractiveElementSummary {
   context?: string;
   checked?: boolean;
   expanded?: boolean;
+  // set when the control is in a same-origin iframe (the selector of that frame) or inside an open shadow root
+  frame?: string;
+  inShadow?: boolean;
 }
 
 export interface StructuredBrowserSnapshot {
@@ -94,6 +97,8 @@ export interface StructuredBrowserSnapshot {
   forms: StructuredForm[];
   // Additive: the interactive element map. Absent from a runtime that does not provide it.
   interactive?: InteractiveElementSummary[];
+  // Where the map stopped short, if it did: SCAN_TRUNCATED, CROSS_ORIGIN_FRAMES:n, OPAQUE_ORIGIN_FRAMES:n, FRAME_COUNT_LIMIT, FRAME_DEPTH_LIMIT, FRAME_NOT_ADDRESSABLE. Absent = nothing was left out.
+  interactiveLimits?: string[];
 }
 
 export interface ElementMatchCandidate {
@@ -108,6 +113,8 @@ export interface ElementMatchCandidate {
   enabled?: boolean;
   inViewport?: boolean;
   type?: string;
+  frame?: string;
+  inShadow?: boolean;
 }
 
 export interface FindResult {
@@ -116,6 +123,8 @@ export interface FindResult {
   bestMatch?: ElementMatchCandidate;
   // Additive: how many matching elements were left out because they are not visible (a hidden duplicate is not a target).
   hiddenMatches?: number;
+  // Where the search stopped short, if it did (see StructuredBrowserSnapshot.interactiveLimits): a control that is not found there may be in a frame or beyond a bound that NAgex did not enter.
+  limits?: string[];
 }
 
 export interface ExtractResult {

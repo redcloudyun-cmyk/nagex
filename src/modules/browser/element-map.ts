@@ -37,12 +37,22 @@ export interface RawMapElement {
   obscured: boolean;
   isFormControl: boolean;
   context: string;
+  /** inside an open shadow root */
+  inShadow?: boolean;
+  /** the iframe chain this control is in (set by the runtime; absent for the top page) */
+  frame?: string;
   checked?: boolean;
   expanded?: boolean;
 }
 
 export interface ElementMapOptions {
   limit: number;
+  /** when given, only controls that could match it are described in full (a layout-free prefilter) */
+  query?: string;
+  /** most nodes gathered across the document and its open shadow roots */
+  nodeBudget: number;
+  /** wall-clock budget of the scan inside the page */
+  deadlineMs: number;
 }
 
 // ----------------------------------------------------------------------------------------------------------------------------------------------
@@ -70,7 +80,8 @@ function mapAccessibleName(el: any): string {
   const attr = (n: string) => (el.getAttribute ? el.getAttribute(n) : null);
   const labelledby = attr('aria-labelledby');
   if (labelledby) {
-    const joined = labelledby.split(/\s+/).map((id: string) => { const t = doc.getElementById(id); return t ? mapClean(t.innerText !== undefined ? t.innerText : t.textContent, 120) : ''; }).filter(Boolean).join(' ');
+    const root = el.getRootNode ? el.getRootNode() : doc;
+    const joined = labelledby.split(/\s+/).map((id: string) => { const t = root && root.getElementById ? root.getElementById(id) : doc.getElementById(id); return t ? mapClean(t.innerText !== undefined ? t.innerText : t.textContent, 120) : ''; }).filter(Boolean).join(' ');
     if (joined) return mapClean(joined, 120);
   }
   const aria = mapClean(attr('aria-label'), 120);
@@ -143,26 +154,87 @@ function mapIsEnabled(el: any): boolean {
   return !(el.getAttribute && el.getAttribute('aria-disabled') === 'true');
 }
 
+// Every root a page has: the document and every OPEN shadow root inside it (closed shadow roots are, by definition, not reachable from script). Breadth first, bounded.
+function mapRoots(): any[] {
+  const g = globalThis as any;
+  const doc = g.document;
+  const roots: any[] = [doc];
+  const MAX_ROOTS = 200;
+  const MAX_NODES_PER_ROOT = 30000;
+  for (let i = 0; i < roots.length && roots.length < MAX_ROOTS; i++) {
+    const all = roots[i].querySelectorAll('*');
+    const limit = Math.min(all.length, MAX_NODES_PER_ROOT);
+    for (let j = 0; j < limit && roots.length < MAX_ROOTS; j++) {
+      const shadow = all[j].shadowRoot;
+      if (shadow) roots.push(shadow);
+    }
+  }
+  return roots;
+}
+
+function mapQueryAll(roots: any[], selector: string): any[] {
+  const out: any[] = [];
+  for (const root of roots) {
+    try {
+      const found = root.querySelectorAll(selector);
+      for (let i = 0; i < found.length; i++) out.push(found[i]);
+    } catch {
+      // not a valid selector for this root
+    }
+  }
+  return out;
+}
+
+// The parent in the FLAT page: the parent element, or the shadow host when the element is the top of a shadow root.
+function mapParentOrHost(node: any): any {
+  if (node.parentElement) return node.parentElement;
+  const root = node.getRootNode ? node.getRootNode() : null;
+  return root && root.host ? root.host : null;
+}
+
 function mapContextOf(el: any, ownName: string): string {
-  let node = el.parentElement;
-  for (let depth = 0; node && depth < 5; depth++, node = node.parentElement) {
+  let node = mapParentOrHost(el);
+  for (let depth = 0; node && depth < 5; depth++, node = mapParentOrHost(node)) {
     const tag = String(node.tagName || '').toLowerCase();
     if (tag === 'body' || tag === 'html') break;
     let text = mapClean(node.innerText !== undefined ? node.innerText : node.textContent, 400);
+    // a shadow host's own text is only its light-DOM children; its shadow content is part of the flat page, so read the host's rendered text above and fall back to the root's text
+    if (!text && node.shadowRoot) text = mapClean(node.shadowRoot.textContent, 400);
     if (ownName) text = mapClean(text.split(ownName).join(' '), 400);
     if (text.length >= 3 && text.length <= 300) return mapClean(text, 80);
   }
   return '';
 }
 
-function mapSelectorsFor(el: any): string[] {
+// "nth-child" path of an element inside ONE root, then the same for its shadow host in the root above, joined with a descendant combinator (which Playwright's CSS engine follows into open shadow roots).
+function mapStructuralPath(el: any): string {
+  const parts: string[] = [];
+  let node = el;
+  for (let depth = 0; node && depth < 8; depth++) {
+    const inner: string[] = [];
+    let cur = node;
+    while (cur) {
+      const parent = cur.parentElement;
+      const container = parent || (cur.getRootNode ? cur.getRootNode() : null);
+      const siblings = container && container.children ? Array.from(container.children as ArrayLike<any>) : [];
+      inner.unshift(`${String(cur.tagName).toLowerCase()}:nth-child(${siblings.indexOf(cur) + 1})`);
+      cur = parent;
+    }
+    parts.unshift(inner.join(' > '));
+    const root = node.getRootNode ? node.getRootNode() : null;
+    node = root && root.host ? root.host : null;
+  }
+  return parts.join(' ');
+}
+
+function mapSelectorsFor(el: any, roots: any[]): string[] {
   const g = globalThis as any;
-  const doc = g.document;
   const out: string[] = [];
   const tag = String(el.tagName || '').toLowerCase();
   const quote = (v: string) => `"${v.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
   const usable = (v: unknown) => typeof v === 'string' && v.length > 0 && v.length <= 80 && !/[\n\r\u0000-\u001F]/.test(v);
-  const unique = (sel: string) => { try { const found = doc.querySelectorAll(sel); return found.length === 1 && found[0] === el; } catch { return false; } };
+  // unique across the document AND its open shadow roots: Playwright's CSS engine pierces them, so a selector that is unique in the light DOM alone can still match twice
+  const unique = (sel: string) => { const found = mapQueryAll(roots, sel); return found.length === 1 && found[0] === el; };
   const add = (sel: string) => { if (!out.includes(sel) && unique(sel)) out.push(sel); };
   const norm = (s: string) => String(s).replace(/\s+/g, ' ').trim().toLowerCase();
 
@@ -178,26 +250,32 @@ function mapSelectorsFor(el: any): string[] {
   // visible text, in the form Playwright resolves: tag:has-text("..."). Uniqueness is checked here by the same rule (same tag, normalized text contains the phrase) and again by the runtime.
   const phrase = mapClean(typeof el.innerText === 'string' ? el.innerText : '', 40);
   if (usable(phrase) && ['a', 'button', 'summary', 'label'].includes(tag)) {
-    const same = Array.from(doc.querySelectorAll(tag) as ArrayLike<any>).filter((n: any) => norm(n.textContent || '').includes(norm(phrase)));
+    const same = mapQueryAll(roots, tag).filter((n: any) => norm(n.textContent || '').includes(norm(phrase)));
     if (same.length === 1 && same[0] === el) out.push(`${tag}:has-text(${quote(phrase)})`);
   }
   for (const attrName of ['aria-label', 'placeholder', 'title', 'alt']) { const v = el.getAttribute(attrName); if (usable(v)) add(`${tag}[${attrName}=${quote(v)}]`); }
   if (tag === 'a') { const href = el.getAttribute('href'); if (usable(href)) add(`a[href=${quote(href)}]`); }
   if (tag === 'input') { const v = el.getAttribute('value'); const t = el.getAttribute('type'); if (usable(v) && usable(t)) add(`input[type=${quote(t)}][value=${quote(v)}]`); }
   if (out.length === 0) {
-    // structural path from the nearest ancestor with a unique id (or the body)
-    const parts: string[] = [];
-    let node = el;
-    while (node && node.parentElement && String(node.tagName).toLowerCase() !== 'body') {
-      const parent = node.parentElement;
-      const position = Array.from(parent.children as ArrayLike<any>).indexOf(node) + 1;
-      parts.unshift(`${String(node.tagName).toLowerCase()}:nth-child(${position})`);
-      const pid = parent.getAttribute && parent.getAttribute('id');
-      if (usable(pid) && g.CSS && typeof g.CSS.escape === 'function' && doc.querySelectorAll(`#${g.CSS.escape(pid)}`).length === 1) { parts.unshift(`#${g.CSS.escape(pid)}`); break; }
-      node = parent;
+    const root = el.getRootNode ? el.getRootNode() : null;
+    if (root && root.host) {
+      // inside an open shadow root: a path through the hosts. It cannot be checked here (the check needs the CSS engine that will follow it), so the runtime verifies it.
+      out.push(mapStructuralPath(el));
+    } else {
+      // structural path from the nearest ancestor with a unique id (or the body)
+      const parts: string[] = [];
+      let node = el;
+      while (node && node.parentElement && String(node.tagName).toLowerCase() !== 'body') {
+        const parent = node.parentElement;
+        const position = Array.from(parent.children as ArrayLike<any>).indexOf(node) + 1;
+        parts.unshift(`${String(node.tagName).toLowerCase()}:nth-child(${position})`);
+        const pid = parent.getAttribute && parent.getAttribute('id');
+        if (usable(pid) && g.CSS && typeof g.CSS.escape === 'function' && mapQueryAll(roots, `#${g.CSS.escape(pid)}`).length === 1) { parts.unshift(`#${g.CSS.escape(pid)}`); break; }
+        node = parent;
+      }
+      if (parts.length > 0 && parts[0].charAt(0) !== '#') parts.unshift('body');
+      add(parts.join(' > '));
     }
-    if (parts.length > 0 && parts[0].charAt(0) !== '#') parts.unshift('body');
-    add(parts.join(' > '));
   }
   return out.slice(0, 4);
 }
@@ -221,33 +299,69 @@ function mapIsInteractive(el: any, pointerOk: boolean): boolean {
   return pointerOk;
 }
 
-function mapScan(args: { limit: number }): RawMapElement[] {
+function mapScan(args: { limit: number; query?: string; nodeBudget: number; deadlineMs: number }): { elements: RawMapElement[]; truncated: boolean } {
   const g = globalThis as any;
   const doc = g.document;
-  if (!doc || !doc.body) return [];
+  if (!doc || !doc.body) return { elements: [], truncated: false };
+  const startedAt = Date.now();
+  const roots = mapRoots();
   const viewportW = g.innerWidth || 0;
   const viewportH = g.innerHeight || 0;
+  let truncated = false;
+
+  // With a query, a control is only described in full when something about it could match the query (a cheap, layout-free test: attributes, text content, its label's text). Everything the
+  // ranking could have matched passes this test, so a page with thousands of controls is searched in full instead of being cut off after the first few hundred.
+  const normalize = (s: string) => String(s).normalize('NFC').toLowerCase().replace(/\s+/g, ' ').trim();
+  const q = args.query ? normalize(args.query) : '';
+  const words = q ? q.split(' ').filter(Boolean) : [];
+  const mayMatch = (el: any): boolean => {
+    if (!q) return true;
+    const parts: string[] = [el.textContent || '', el.getAttribute('aria-label') || '', el.getAttribute('placeholder') || '', el.getAttribute('title') || '', el.getAttribute('alt') || '', el.getAttribute('value') || '', el.getAttribute('id') || '', el.getAttribute('name') || ''];
+    if (el.labels) for (const l of Array.from(el.labels as ArrayLike<any>)) parts.push(l.textContent || '');
+    const labelledby = el.getAttribute('aria-labelledby');
+    if (labelledby) {
+      const root = el.getRootNode ? el.getRootNode() : doc;
+      for (const id of labelledby.split(/\s+/)) { const ref = root.getElementById ? root.getElementById(id) : null; if (ref) parts.push(ref.textContent || ''); }
+    }
+    const hay = normalize(parts.join(' '));
+    return hay.includes(q) || (words.length >= 2 && words.every((w) => hay.includes(w)));
+  };
+
   const seen = new Set<any>();
   const nodes: any[] = [];
-  const push = (n: any) => { if (!seen.has(n)) { seen.add(n); nodes.push(n); } };
-  // the legacy search universe first (so nothing findable before disappears), then the rest of the interactive candidates
-  for (const n of Array.from(doc.querySelectorAll('button, a, input, select, textarea, [role]') as ArrayLike<any>)) push(n);
-  for (const n of Array.from(doc.querySelectorAll('summary, label, [tabindex], [onclick], [contenteditable], [data-testid]') as ArrayLike<any>)) push(n);
-  let pointerBudget = 600;
-  for (const n of Array.from(doc.querySelectorAll('div, span, li, img, svg, td, i, p') as ArrayLike<any>)) {
-    if (pointerBudget-- <= 0) break;
-    if (!seen.has(n)) push(n);
+  let gathered = 0;
+  const POINTER_CAP = q ? 20000 : 600;
+  for (const root of roots) {
+    const inRoot: any[] = [];
+    const take = (list: ArrayLike<any>, cap: number) => {
+      let count = 0;
+      for (let i = 0; i < list.length; i++) {
+        if (count++ >= cap) { if (cap === POINTER_CAP && !q) break; truncated = true; break; }
+        if (gathered >= args.nodeBudget) { truncated = true; break; }
+        const n = list[i];
+        if (!seen.has(n)) { seen.add(n); inRoot.push(n); gathered++; }
+      }
+    };
+    take(root.querySelectorAll('button, a, input, select, textarea, [role]'), args.nodeBudget);
+    take(root.querySelectorAll('summary, label, [tabindex], [onclick], [contenteditable], [data-testid]'), args.nodeBudget);
+    take(root.querySelectorAll('div, span, li, img, svg, td, i, p'), POINTER_CAP);
+    inRoot.sort((a: any, b: any) => (a.compareDocumentPosition(b) & 4 ? -1 : a === b ? 0 : 1));
+    for (const n of inRoot) nodes.push(n);
+    if (gathered >= args.nodeBudget) break;
   }
-  nodes.sort((a: any, b: any) => (a.compareDocumentPosition(b) & 4 ? -1 : a === b ? 0 : 1));
 
   const out: RawMapElement[] = [];
+  let processed = 0;
   for (const el of nodes) {
-    if (out.length >= args.limit) break;
+    if (out.length >= args.limit) { truncated = true; break; }
+    if ((processed++ & 31) === 0 && Date.now() - startedAt > args.deadlineMs) { truncated = true; break; }
+    if (!mayMatch(el)) continue;
     let pointerOk = false;
     const tag = String(el.tagName || '').toLowerCase();
     if (['div', 'span', 'li', 'img', 'svg', 'td', 'i', 'p'].includes(tag)) {
       const style = g.getComputedStyle(el);
-      const parentStyle = el.parentElement ? g.getComputedStyle(el.parentElement) : null;
+      const parent = mapParentOrHost(el);
+      const parentStyle = parent ? g.getComputedStyle(parent) : null;
       pointerOk = Boolean(style && style.cursor === 'pointer' && !(parentStyle && parentStyle.cursor === 'pointer')) && Boolean(mapAccessibleName(el));
     }
     if (!mapIsInteractive(el, pointerOk)) continue;
@@ -256,18 +370,20 @@ function mapScan(args: { limit: number }): RawMapElement[] {
     const type = String(el.getAttribute('type') || '').toLowerCase();
     const rect = el.getBoundingClientRect();
     const inViewport = visible && rect.bottom > 0 && rect.right > 0 && rect.top < viewportH && rect.left < viewportW;
+    const root = el.getRootNode ? el.getRootNode() : doc;
     let obscured = false;
-    if (visible && inViewport && typeof doc.elementFromPoint === 'function') {
+    if (visible && inViewport) {
+      const finder = root && typeof root.elementFromPoint === 'function' ? root : doc;
       const cx = Math.min(Math.max(rect.left + rect.width / 2, 0), viewportW - 1);
       const cy = Math.min(Math.max(rect.top + rect.height / 2, 0), viewportH - 1);
-      const hit = doc.elementFromPoint(cx, cy);
+      const hit = finder.elementFromPoint(cx, cy);
       obscured = Boolean(hit) && hit !== el && !el.contains(hit) && !hit.contains(el);
     }
     const labelText = el.labels ? mapClean(Array.from(el.labels as ArrayLike<any>).map((l: any) => mapVisibleText(l)).join(' '), 120) : '';
     const isCheckable = tag === 'input' && (type === 'checkbox' || type === 'radio');
     out.push({
       index: out.length,
-      selectors: visible ? mapSelectorsFor(el) : [],
+      selectors: visible ? mapSelectorsFor(el, roots) : [],
       tag,
       role: mapRoleOf(el),
       name,
@@ -285,18 +401,24 @@ function mapScan(args: { limit: number }): RawMapElement[] {
       obscured,
       isFormControl: tag === 'input' || tag === 'textarea' || tag === 'select',
       context: visible ? mapContextOf(el, name) : '',
+      ...(root && root.host ? { inShadow: true } : {}),
       ...(isCheckable ? { checked: Boolean(el.checked) } : {}),
       ...(el.hasAttribute('aria-expanded') ? { expanded: el.getAttribute('aria-expanded') === 'true' } : {}),
     });
   }
-  return out;
+  return { elements: out, truncated };
+}
+
+// the selectors of one element (an <iframe>, seen from its parent frame)
+function mapSelectorsOfElement(el: any): string[] {
+  return mapSelectorsFor(el, mapRoots());
 }
 
 function mapDescribeOne(el: any): { accessibleName: string; visibleText: string } {
   return { accessibleName: mapAccessibleName(el), visibleText: mapVisibleText(el) };
 }
 
-const HELPERS = [mapClean, mapVisibleText, mapAccessibleName, mapRoleOf, mapIsVisible, mapIsEnabled, mapContextOf, mapSelectorsFor, mapIsInteractive].map((fn) => fn.toString()).join('\n');
+const HELPERS = [mapClean, mapVisibleText, mapAccessibleName, mapRoleOf, mapIsVisible, mapIsEnabled, mapRoots, mapQueryAll, mapParentOrHost, mapContextOf, mapStructuralPath, mapSelectorsFor, mapIsInteractive].map((fn) => fn.toString()).join('\n');
 
 // Playwright sends `String(pageFunction)` to the page and calls it there (over CDP, not through eval(), so the page's Content-Security-Policy does not apply). The helper functions above must travel
 // together with the entry point, so the function handed to Playwright is a stand-in whose source text is the composed script. The stand-in itself is never run in Node.
@@ -306,8 +428,10 @@ export function asPageFunction<T extends (...args: any[]) => any>(source: string
   return standIn;
 }
 
-/** (args) => RawMapElement[] */
-export const mapScanInPage = asPageFunction<(args: ElementMapOptions) => RawMapElement[]>(`(args) => {\n${HELPERS}\n${mapScan.toString()}\nreturn mapScan(args);\n}`);
+/** (args) => { elements, truncated } */
+export const mapScanInPage = asPageFunction<(args: ElementMapOptions) => { elements: RawMapElement[]; truncated: boolean }>(`(args) => {\n${HELPERS}\n${mapScan.toString()}\nreturn mapScan(args);\n}`);
+/** (iframe element) => its verified selectors, as seen from the frame that contains it */
+export const mapSelectorsInPage = asPageFunction<(el: unknown) => string[]>(`(el) => {\n${HELPERS}\n${mapSelectorsOfElement.toString()}\nreturn mapSelectorsOfElement(el);\n}`);
 /** (element) => { accessibleName, visibleText } */
 export const mapDescribeInPage = asPageFunction<(el: unknown) => { accessibleName: string; visibleText: string }>(`(el) => {\n${HELPERS}\n${mapDescribeOne.toString()}\nreturn mapDescribeOne(el);\n}`);
 

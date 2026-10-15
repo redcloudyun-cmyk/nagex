@@ -6453,6 +6453,23 @@
       "deterministic": true,
       "assertionIntent": "A browser action is judged on what the page showed, not on the tool returning: VERIFIED / NOT_VERIFIED / FAILED / USER_ACTION_REQUIRED, a model STOP is only a claim, a repeated action on an unchanged page is stopped with a readable reason (pagination is not), a target that is gone is recovered by re-reading the page within a bound, and approval is never bypassed or repeated.",
       "notes": "Real Chromium over deterministic local pages and the real Agent loop with a scripted model; no external site, no real model."
+    },
+    "browser_advanced_dom": {
+      "milestone": "SPRINT03-BROWSER-ADVANCED-DOM",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "browser",
+        "browser-untrusted-boundary",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "The element map reaches controls in open shadow roots and same-origin iframes (nested, bounded), finds the one match among thousands, keeps duplicate labels apart by identity and context, states a limit instead of guessing for cross-origin / sandboxed frames and for anything beyond its bounds, re-resolves a re-rendered control only when exactly one identical control exists, and never reads a password, mutates the page or bypasses approval.",
+      "notes": "Real Chromium over deterministic local pages (a second local origin stands in for a cross-origin frame); no external site."
     }
   }
 }

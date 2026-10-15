@@ -316,7 +316,7 @@ export class DeviceControlService {
         }
       }
 
-      const outcome = await this.executeAction(current, proposed, requestId);
+      const outcome = await this.executeAction(current, proposed, requestId, structuredSnapshot);
       if (outcome.kind === 'WAITING_APPROVAL') return outcome;
       if (outcome.kind === 'TERMINATED') return outcome;
 
@@ -354,6 +354,8 @@ export class DeviceControlService {
     session: DeviceExecutionSessionRecord,
     action: ProposedDeviceAction,
     requestId: string,
+    snapshot: UntrustedStructuredBrowserSnapshot,
+    reResolved = false,
   ): Promise<{ kind: 'CONTINUE'; session: DeviceExecutionSessionRecord; outcomeDescription: string; verification?: BrowserVerification; recoverableFailure?: string } | { kind: 'WAITING_APPROVAL'; deviceExecutionSessionId: string; approval: ActionApprovalRecord } | { kind: 'TERMINATED'; deviceExecutionSessionId: string; status: 'FAILED' | 'BLOCKED_NEEDS_HUMAN'; terminationReason: string }> {
     const base = { tenantId: session.tenantId, ownerId: session.ownerPrincipalId, requestId, browserSessionId: session.browserSessionId };
 
@@ -400,11 +402,44 @@ export class DeviceControlService {
       // A CLICK or TYPE that failed BEFORE it touched the page (the element is gone, several elements match, the page was too slow to act on, the selector was not valid) changed nothing, so it is
       // safe to hand back to the model: the next turn re-reads the page. A policy refusal, a closed session or anything that may have touched the page ends the session as before.
       if (isRecoverableFailure(action.action, error)) {
+        // The control was on the page when the model looked and is gone now (a component re-rendered, a list was replaced). If the page still has exactly ONE control that is the same thing - same kind, same
+        // name, same surroundings - the action is performed once more on that control, through exactly the same checks (classification, approval) as any click. Anything less certain goes back to the model.
+        if (!reResolved && error instanceof NagexError && error.code === 'BROWSER_SELECTOR_NOT_FOUND' && action.target?.selector) {
+          const replacement = await this.reResolveTarget(base, action.target.selector, snapshot);
+          if (replacement) {
+            const retried = await this.executeAction(session, { ...action, target: { ...action.target, selector: replacement.selector } }, requestId, snapshot, true);
+            if (retried.kind === 'CONTINUE') return { ...retried, outcomeDescription: `RE-RESOLVED: ${replacement.note} ${retried.outcomeDescription}` };
+            return retried;
+          }
+        }
         const reason = code === 'DEVICE_ACTION_EXECUTION_FAILED' ? 'ACTION_COULD_NOT_BE_PERFORMED' : code;
         return { kind: 'CONTINUE', session: this.recordExecutedStep(session), outcomeDescription: `FAILED: ${reason} - the element was not found, was ambiguous or could not be acted on; the page has changed or the target was wrong. Read the page again and choose a different target.`, recoverableFailure: reason };
       }
       this.sessions.fail(session.deviceExecutionSessionId, session.tenantId, session.ownerPrincipalId, code);
       return { kind: 'TERMINATED', deviceExecutionSessionId: session.deviceExecutionSessionId, status: 'FAILED', terminationReason: code };
+    }
+  }
+
+  // The identity of the control the model meant (from the observation it was shown) is looked up again on the page as it is now. Exactly one enabled control of the same kind with the same name (and the same
+  // surroundings, when they were known) is "the same control"; zero or several is not, and nothing is guessed.
+  private async reResolveTarget(
+    base: { tenantId: string; ownerId: string; requestId: string; browserSessionId: string },
+    failedSelector: string,
+    snapshot: UntrustedStructuredBrowserSnapshot,
+  ): Promise<{ selector: string; note: string } | null> {
+    const meant = (snapshot.interactive ?? []).find((entry) => entry.selector === failedSelector);
+    if (!meant || !meant.name) return null;
+    try {
+      const found = await this.browser.find({ ...base, query: meant.name });
+      const same = found.candidates.filter((candidate) =>
+        candidate.role === meant.role
+        && (candidate.name ?? candidate.text).trim().toLowerCase() === meant.name.trim().toLowerCase()
+        && candidate.enabled !== false
+        && (!meant.context || candidate.context === meant.context));
+      if (same.length !== 1) return null;
+      return { selector: same[0].selector, note: `the same control (${meant.role} "${meant.name.slice(0, 60)}") was found again on the page.` };
+    } catch {
+      return null;
     }
   }
 
