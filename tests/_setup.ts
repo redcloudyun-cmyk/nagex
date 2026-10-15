@@ -164,3 +164,17 @@ if (!alreadyOwnedByThisProcess) {
 
 process.env.NODE_ENV ??= 'test';
 process.env.NAGEX_ALLOW_LOCAL_TEST_URLS ??= '1';
+
+// P0 (2026-10-15) — TEST DATA ISOLATION. The block above gives every process a private data root and (via NAGEX_TEST_DATA_ROOT + OWNER_PID) switches the data-root resolver into test mode, in which
+// ANY store that has no explicit directory still resolves under that root and any path that would reach /var/lib/nagex, the per-user data dir or <cwd>/.nagex_data throws before it is created.
+// The tripwire below is the backstop for code that does not use the resolver: it makes every filesystem mutation aimed at those locations throw before it reaches the OS. It is also handed to every
+// child process (servers and workers the tests spawn do not run this file) through NODE_OPTIONS.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+require('./_fs_write_guard.js');
+{
+  // forward slashes: inside the quoted NODE_OPTIONS value a backslash is an escape character
+  const guardPath = path.join(__dirname, '_fs_write_guard.js').split(path.sep).join('/');
+  const flag = `--require "${guardPath}"`;
+  const current = process.env.NODE_OPTIONS ?? '';
+  if (!current.includes('_fs_write_guard.js')) process.env.NODE_OPTIONS = current ? `${current} ${flag}` : flag;
+}

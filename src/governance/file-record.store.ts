@@ -2,22 +2,49 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { assertIsolatedTestPath, isTestDataMode, PRODUCTION_DATA_ROOT } from './data-root-isolation.js';
 
 // Resolves a NAgex data subdirectory the same way the Google OAuth token
 // store resolves its file: an explicit env override, else /var/lib/nagex/<subdir>
 // if that base directory exists and is writable (see docs/canonical/NAgex_Operations_and_Deployment.md for
 // the one-time server setup), else a per-user fallback so local dev and
 // tests never require /var/lib/nagex to exist.
-export function resolveNagexDataDir(subdir: string, envVar: string, env: NodeJS.ProcessEnv = process.env): string {
+//
+// TEST MODE (see data-root-isolation.ts): every store resolves under the private test root, an explicit override must itself be inside the test root / OS temp directory, and anything that
+// would reach a live data location throws here - before any directory is created. Production (no test root) is unchanged.
+export function resolveNagexDataDir(subdir: string, envVar: string, env: NodeJS.ProcessEnv = process.env, options: { productionRoot?: string } = {}): string {
+  if (isTestDataMode(env)) {
+    const override = env[envVar];
+    if (override) return assertIsolatedTestPath(override, env, envVar);
+    return assertIsolatedTestPath(path.isAbsolute(subdir) ? subdir : path.join(env.NAGEX_TEST_DATA_ROOT as string, subdir), env, `the store "${subdir}"`);
+  }
   const override = env[envVar];
   if (override) return override;
   if (path.isAbsolute(subdir)) return subdir;
-  const base = '/var/lib/nagex';
+  const base = options.productionRoot ?? PRODUCTION_DATA_ROOT;
   try {
     fs.accessSync(base, fs.constants.W_OK);
     return path.join(base, subdir);
   } catch {
     return path.join(os.homedir(), '.local', 'share', 'nagex', subdir);
+  }
+}
+
+// The single-FILE sibling of resolveNagexDataDir (OAuth token files, the MCP connection file): an explicit env override, else /var/lib/nagex/<filename> when that directory is writable, else a
+// per-user fallback - and in test mode only ever a file inside the private test root.
+export function resolveNagexDataFile(filename: string, envVar: string, env: NodeJS.ProcessEnv = process.env, options: { productionRoot?: string } = {}): string {
+  if (isTestDataMode(env)) {
+    const override = env[envVar];
+    return assertIsolatedTestPath(override || path.join(env.NAGEX_TEST_DATA_ROOT as string, filename), env, override ? envVar : `the file "${filename}"`);
+  }
+  const override = env[envVar];
+  if (override) return override;
+  const base = options.productionRoot ?? PRODUCTION_DATA_ROOT;
+  try {
+    fs.accessSync(base, fs.constants.W_OK);
+    return path.join(base, filename);
+  } catch {
+    return path.join(os.homedir(), '.local', 'share', 'nagex', filename);
   }
 }
 
