@@ -102,6 +102,11 @@ check('daily-brief scheduler correlation: the real owner\'s DAILY_BRIEF task ran
 check('task timing and approvals summarised without names', report.tasksTiming?.total === 2 && report.tasksTiming?.byStatus?.PAUSED === 1 && report.approvalsTiming?.pending === 1);
 check('unknown root entries are reported by name (store names only)', report.stateLocations?.unknownRootEntries?.includes('stray-test-dir'));
 
+const outS = path.join(logs, 'annex-skip.tsv');
+const rs = runAnnex(['--skip-dir', 'tasks', '--no-identity-read'], outS);
+const repS = rs.status === 0 ? JSON.parse(rs.stdout) : {};
+check('operator scope reduction: --skip-dir and --no-identity-read are honoured and the report says it is partial', repS.scope?.skippedByOperator?.[0] === 'tasks' && repS.tasksTiming?.total === 0 && repS.scope?.identityDirsSkipped === true && repS.scope?.resultsArePartial === true, JSON.stringify(repS.scope));
+
 // ---- P5 bounds -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 const outB = path.join(logs, 'annex-bounded.tsv');
 const rb = runAnnex(['--max-files', '3'], outB);
