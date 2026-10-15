@@ -1,0 +1,78 @@
+# THROWAWAY verification workflow (D-09 P0). Lives only on ci/d09-linux-verify-* branches; never merged.
+# Runs on an ephemeral GitHub-hosted Linux runner (an isolated host, not the NAgex service host).
+name: D09 Linux verification - test data isolation
+
+on:
+  push:
+    branches: ['ci/d09-linux-verify-isolation-*']
+
+jobs:
+  fixed:
+    name: fixed branch (sentinel /var/lib/nagex must stay untouched)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: npm }
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Plant a writable, populated stand-in for the production data root
+        run: |
+          sudo mkdir -p /var/lib/nagex/rbac-roles /var/lib/nagex/approvals /var/lib/nagex/tasks
+          sudo chown -R "$USER" /var/lib/nagex
+          for r in owner admin member viewer; do
+            printf '{"roleId":"role_builtin_%s","name":"%s","description":"d","isSystem":true,"permissions":[],"createdAt":"2026-01-01T00:00:00.000Z","updatedAt":"2026-01-01T00:00:00.000Z"}' "$r" "$r" > "/var/lib/nagex/rbac-roles/role_builtin_$r.json"
+          done
+          touch -d '2026-01-01 00:00:00' /var/lib/nagex/rbac-roles/*.json
+          find /var/lib/nagex -printf '%p %y %s %T@\n' | sort > "$RUNNER_TEMP/sentinel.before"
+          find /var/lib/nagex -type f -exec sha256sum {} + | sort > "$RUNNER_TEMP/sentinel.sha.before"
+          echo "sentinel entries: $(wc -l < "$RUNNER_TEMP/sentinel.before")"
+          ls -ld "$HOME/.local/share/nagex" "$HOME/.nagex" 2>&1 || true
+      - run: npm run build
+      - name: Regression gate
+        run: npm test
+      - name: Browser certification gate
+        run: npm run test:browser-cert
+      - name: Sentinel and fallback locations must be unchanged
+        if: always()
+        run: |
+          find /var/lib/nagex -printf '%p %y %s %T@\n' | sort > "$RUNNER_TEMP/sentinel.after"
+          find /var/lib/nagex -type f -exec sha256sum {} + | sort > "$RUNNER_TEMP/sentinel.sha.after"
+          diff "$RUNNER_TEMP/sentinel.before" "$RUNNER_TEMP/sentinel.after" && echo "SENTINEL METADATA IDENTICAL"
+          diff "$RUNNER_TEMP/sentinel.sha.before" "$RUNNER_TEMP/sentinel.sha.after" && echo "SENTINEL CONTENT IDENTICAL"
+          grep -h '"updatedAt"' /var/lib/nagex/rbac-roles/*.json | grep -c '2026-01-01T00:00:00.000Z' | xargs echo "role records still carrying the original updatedAt (expect 4):"
+          if [ -e "$HOME/.local/share/nagex" ]; then echo "FAIL: per-user fallback data dir was created"; ls -la "$HOME/.local/share/nagex"; exit 1; fi
+          if [ -e "$GITHUB_WORKSPACE/.nagex_data" ]; then echo "FAIL: cwd fallback data dir was created"; exit 1; fi
+          echo "NO FALLBACK LOCATION WAS CREATED"
+
+  control:
+    name: control - the UNFIXED base writes into the same sentinel (proves the check is sensitive)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 2140f9e822e860f6d29691c6072a9d7d7e6cd45d
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: npm }
+      - run: npm ci
+      - name: Plant the same sentinel
+        run: |
+          sudo mkdir -p /var/lib/nagex/rbac-roles
+          sudo chown -R "$USER" /var/lib/nagex
+          for r in owner admin member viewer; do
+            printf '{"roleId":"role_builtin_%s","name":"%s","description":"d","isSystem":true,"permissions":[],"createdAt":"2026-01-01T00:00:00.000Z","updatedAt":"2026-01-01T00:00:00.000Z"}' "$r" "$r" > "/var/lib/nagex/rbac-roles/role_builtin_$r.json"
+          done
+          touch -d '2026-01-01 00:00:00' /var/lib/nagex/rbac-roles/*.json
+          find /var/lib/nagex -type f | wc -l | xargs echo "sentinel files before:"
+      - run: npm run build
+      - name: Run the regression suite on the unfixed base (failures here are irrelevant; only the sentinel matters)
+        continue-on-error: true
+        run: npm test
+      - name: Report what the unfixed base did to the sentinel
+        if: always()
+        run: |
+          find /var/lib/nagex -type f | wc -l | xargs echo "sentinel files after (unfixed base):"
+          grep -L '2026-01-01T00:00:00.000Z' /var/lib/nagex/rbac-roles/role_builtin_*.json | wc -l | xargs echo "role records whose updatedAt CHANGED (unfixed base):"
+          echo "CONTROL DONE"
