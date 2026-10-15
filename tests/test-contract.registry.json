@@ -6408,6 +6408,35 @@
       "deterministic": true,
       "assertionIntent": "The Browser Runtime names controls the way a person does (label, placeholder, aria-label, text), tells identical controls apart by context, leaves hidden ones out, prefers enabled ones and returns a selector that selects exactly that element - without mutating the page, reading a password, or making finding a permission: consequential clicks (icon-only, renamed, Korean) still need Human Approval and an approval is bound to the control it was granted for.",
       "notes": "Real Chromium over deterministic local pages; no external site."
+    },
+    "time_context": {
+      "milestone": "SPRINT03-DATE-CALENDAR",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "The person's effective timezone and the deterministic date / time / duration layer: zoned date math across midnight, month and year ends, leap days and DST; Korean and English schedule expressions; and a refusal to guess when the text is ambiguous.",
+      "notes": "Pure functions of (text, instant, timezone); no network, no model."
+    },
+    "schedule_grounding": {
+      "milestone": "SPRINT03-DATE-CALENDAR",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "approvals",
+        "runtime"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "A calendar step the model planned is completed and checked against the person's real clock and timezone; questions about the person's own clock and calendar are not web searches; reminders and the daily window follow the person's timezone; the calendar write still needs approval, a declined approval creates nothing, and nothing is written twice.",
+      "notes": "Scripted model endpoint and a simulated Google Calendar API behind the real broker and approval store; this is not a live Google Calendar write."
     }
   }
 }

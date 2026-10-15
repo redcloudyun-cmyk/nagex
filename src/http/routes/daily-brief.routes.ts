@@ -15,6 +15,7 @@ import type { GoogleCalendarService } from '../../modules/calendar/index.js';
 import type { GmailService } from '../../modules/gmail/index.js';
 import { dailyBriefDateKey, type DailyBriefRecord, type DailyBriefStore } from '../../governance/daily-brief.store.js';
 import { generateDailyBriefOnce } from '../../assistant/daily-brief.pipeline.js';
+import { isValidTimeZone } from '../../common/time-context.js';
 import { detectMeaningfulChanges, dispatchDetectedChanges } from '../../assistant/daily-brief-change-detection.js';
 import { generateProposalsFromChanges } from '../../assistant/action-proposal-generator.js';
 import type { ActionProposalStore } from '../../assistant/action-proposal.store.js';
@@ -37,6 +38,12 @@ function getHeaderValue(headers: Record<string, string | string[] | undefined>, 
 // reported with freshness:'STALE' on read, never silently treated as
 // current.
 const DAILY_BRIEF_STALE_MS = 60 * 60 * 1000;
+
+// The timezone the person chose in their profile, or undefined: the account default "UTC" is a placeholder, not a choice.
+function explicitProfileTimezone(identityStore: IdentityStore | undefined, principalId: string): string | undefined {
+  const zone = identityStore?.getProfile(principalId)?.timezone;
+  return zone && isValidTimeZone(zone) && zone.toUpperCase() !== 'UTC' ? zone : undefined;
+}
 
 function computeBriefFreshness(generatedAt: string): 'FRESH' | 'STALE' {
   return Date.now() - Date.parse(generatedAt) > DAILY_BRIEF_STALE_MS ? 'STALE' : 'FRESH';
@@ -182,6 +189,8 @@ export const handleDailyBriefRoutes: AsyncRouteRegistrar<DailyBriefRouteDeps> = 
     const generated = await generateDailyBriefOnce(
       { calendarService, gmailApiService, aiService: service, taskStore, activityStore },
       tenantId, principalId, requestId, isExplicitRefresh, 'MANUAL',
+      // only a timezone the person chose themselves (the profile default "UTC" is a placeholder) changes the window; otherwise the behavior is what it was
+      { timezone: explicitProfileTimezone(deps.identityStore, principalId) },
     );
 
     // R9 §2 — a failed refresh must never overwrite (or be reported as)

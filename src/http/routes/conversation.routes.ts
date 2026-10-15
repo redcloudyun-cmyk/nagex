@@ -40,6 +40,21 @@ import type { ConversationMemoryExtractor } from '../../context/conversation-mem
 import type { EvidencePackService } from '../../research/evidence-pack.service.js';
 import type { EvidencePack } from '../../research/evidence-pack.types.js';
 import { callerIdentity } from '../request-identity.js';
+import { resolveEffectiveTimeZone } from '../../common/time-context.js';
+import { classifyPlanRequest } from '../../model-gateway/plan-request-kind.js';
+import { detectRequestLanguage } from '../../common/request-language.js';
+import type { ScheduleClock } from '../../planning/schedule-grounding.js';
+import { calendarQuestionRange, renderCalendarContext, type CalendarWindowReader } from '../../planning/calendar-context.js';
+
+// The person's own clock for this request: the server's "now" (never the browser's) and their effective timezone - a timezone they set in their profile, else the one of the device that sent the
+// request, else UTC. See common/time-context.ts.
+function clockFor(deps: ConversationRouteDeps, principalId: string, body: Record<string, any> | null | undefined): ScheduleClock {
+  const zone = resolveEffectiveTimeZone({
+    profileTimezone: deps.getProfileTimezone ? deps.getProfileTimezone(principalId) : undefined,
+    clientTimezone: body?.requestMetadata && typeof body.requestMetadata === 'object' ? body.requestMetadata.timezone : undefined,
+  });
+  return { nowMs: (deps.now ?? Date.now)(), timezone: zone.timezone, timezoneSource: zone.source };
+}
 
 export interface ConversationRouteDeps {
   service: AiService;
@@ -53,6 +68,11 @@ export interface ConversationRouteDeps {
   evidencePackService?: EvidencePackService;
   // the seal of reviewed plans (one per process); optional so tests can inject a clock
   planSeal?: PlanSeal;
+  // the timezone saved in the person's profile (undefined when none), and the server clock (injectable for tests)
+  getProfileTimezone?: (principalId: string) => string | undefined;
+  now?: () => number;
+  // reads the person's own calendar for a window (read-only); absent when the calendar integration is not wired
+  readCalendarWindow?: CalendarWindowReader;
 }
 
 export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps> = async (method, pathname, body, headers, _query, deps): Promise<ApiResult | undefined> => {
@@ -227,6 +247,21 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
       }
     }
 
+    // the person's real clock goes into every answer; a question about their own calendar gets the events read from it (or the honest reason there are none)
+    const clock = clockFor(deps, principalId, body);
+    let personalContext: string | undefined;
+    // The "personal context" switch of the screen governs what NAgex adds on its own to a question. A question that names the calendar is the person asking NAgex to read it, so it is read (read-only,
+    // their own events) whatever that switch says - the Main screen sends it OFF by default, which would otherwise make the question unanswerable.
+    const calendarRange = calendarQuestionRange(message, clock);
+    if (calendarRange) {
+      const locale = detectRequestLanguage(message) === 'ko' ? 'ko' : 'en';
+      let read = null;
+      if (deps.readCalendarWindow) {
+        try { read = await deps.readCalendarWindow({ tenantId, principalId, timeMin: new Date(calendarRange.startMs).toISOString(), timeMax: new Date(calendarRange.endMs).toISOString(), requestId }); } catch { read = { state: 'ERROR', events: [] }; }
+      }
+      personalContext = renderCalendarContext(calendarRange, clock, read, locale);
+    }
+
     const result = await service.chat({
       message,
       conversation,
@@ -234,6 +269,8 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
       evidencePack,
       mode: parseRoutingMode(body?.provider, process.env.NAGEX_MODEL_PROVIDER),
       requestId,
+      clock,
+      ...(personalContext ? { personalContext } : {}),
     });
 
     // Section 6: Persist ASSISTANT message AFTER successful AI response
@@ -325,6 +362,18 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
       sessionId: session.sessionId,
     });
 
+    // an advice request about the person's own calendar ("이번 주 남은 일정을 정리해줘") is given the events read from it, exactly like a chat question
+    const planClock = clockFor(deps, principalId, body);
+    const planCalendarRange = classifyPlanRequest(prompt).kind === 'ADVISORY' ? calendarQuestionRange(prompt, planClock) : null; // never for a request to schedule something
+    let planPersonalContext: string | undefined;
+    if (planCalendarRange) {
+      let read = null;
+      if (deps.readCalendarWindow) {
+        try { read = await deps.readCalendarWindow({ tenantId, principalId, timeMin: new Date(planCalendarRange.startMs).toISOString(), timeMax: new Date(planCalendarRange.endMs).toISOString(), requestId }); } catch { read = { state: 'ERROR', events: [] }; }
+      }
+      planPersonalContext = renderCalendarContext(planCalendarRange, planClock, read, detectRequestLanguage(prompt) === 'ko' ? 'ko' : 'en');
+    }
+
     const result = await service.plan({
       prompt,
       memories: getRelevantMemories(tenantId, principalId, prompt),
@@ -334,6 +383,9 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
       identity: { tenantId, principalId },
       // The person reads this answer: an advice-only request may be answered with advice (no steps). Everything that can ever execute still needs a real plan.
       allowAdvisory: true,
+      // dates in the plan are resolved and checked against the person's real clock and timezone
+      clock: planClock,
+      ...(planPersonalContext ? { personalContext: planPersonalContext } : {}),
     });
 
     const advisory = result.data.kind === 'ADVISORY';

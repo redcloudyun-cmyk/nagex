@@ -177,7 +177,9 @@
       "document_download_route",
       "pptx_template",
       "slide_count",
-      "structured_output_recovery"
+      "structured_output_recovery",
+      "time_context",
+      "schedule_grounding"
     ],
     "personal-home": [
       "main_unified_workspace_browser",

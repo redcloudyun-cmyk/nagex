@@ -61,9 +61,15 @@
     return (window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale()) === 'ko' ? 'ko' : 'en';
   }
 
+  // The timezone of THIS device (an IANA name such as Asia/Seoul): the server uses it to read "tomorrow at 2 pm" in the person's own day when their profile sets none. The clock itself is the server's.
+  function clientTimezone() {
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch (e) { return null; }
+  }
+
   function requestMetadata() {
     const mode = MODES.find((m) => m.id === state.mode) || AUTO_MODE;
     return {
+      timezone: clientTimezone(),
       preferredMode: mode.id,
       preferredCapability: mode.capability || null,
       preferredArtifactType: mode.artifactType || null,
@@ -614,6 +620,15 @@
     turn.runPolling = false;
   }
 
+  // "2026-10-17T14:00:00" (a wall-clock time in the timezone shown beside it) -> "2026-10-17 (토) 14:00". Anything else is shown as it is.
+  function calendarWhen(value) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(String(value == null ? '' : value));
+    if (!m) return String(value == null ? '' : value);
+    const weekdays = (window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale() === 'ko') ? ['일', '월', '화', '수', '목', '금', '토'] : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const weekday = weekdays[new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))).getUTCDay()];
+    return m[1] + '-' + m[2] + '-' + m[3] + ' (' + weekday + ') ' + m[4] + ':' + m[5];
+  }
+
   // What the person is about to approve, in their own words and values: the action and its exact arguments. Never an id, never a secret (the server already hid those).
   function renderProposal(turn, proposal) {
     const block = runBlockFor(turn);
@@ -628,10 +643,16 @@
     if (args.length > 0) {
       const list = document.createElement('dl');
       const vaultSave = proposal.capabilityId === 'vault.save_note';
+      const calendarCreate = proposal.capabilityId === 'google_calendar.create_event';
       args.forEach((a) => {
         const dt = document.createElement('dt');
         const dd = document.createElement('dd');
-        if (vaultSave) {
+        if (calendarCreate) {
+          // a calendar event is approved as a person reads it: what, exactly when (date, weekday, time, timezone) and in which calendar - never raw field names
+          const names = { summary: bt('mainCalendar.title', 'Title'), start: bt('mainCalendar.starts', 'Starts'), end: bt('mainCalendar.ends', 'Ends'), timezone: bt('mainCalendar.timezone', 'Timezone'), calendarId: bt('mainCalendar.calendar', 'Calendar'), description: bt('mainCalendar.notes', 'Notes'), attendees: bt('mainCalendar.guests', 'Guests') };
+          dt.textContent = names[a.name] || String(a.name || '');
+          dd.textContent = a.name === 'start' || a.name === 'end' ? calendarWhen(a.value) : a.name === 'calendarId' && a.value === 'primary' ? bt('mainCalendar.primary', 'Primary calendar') : a.name === 'attendees' && (a.value === '[]' || !a.value) ? bt('mainCalendar.noGuests', 'None') : String(a.value == null ? '' : a.value);
+        } else if (vaultSave) {
           // a Vault draft is approved in the person's own words: field names and the source in plain language, the text whole
           const names = { title: bt('mainVault.fieldTitle', 'Title'), content: bt('mainVault.contentLabel', 'Text to be saved'), source: bt('mainVault.fieldSource', 'Text from') };
           dt.textContent = names[a.name] || String(a.name || '');

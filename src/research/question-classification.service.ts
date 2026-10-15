@@ -55,11 +55,21 @@ const RESEARCH_INTENT_PREFIXES = [
   '최신 동향',
 ];
 
+// Questions about the person's OWN clock, calendar or to-dos ("지금 몇 시야?", "오늘 일정 알려줘", "what is on my calendar today?"). The words "today" / "오늘" / "now" / "지금" in them mean the person's day,
+// not breaking news: the answer comes from NAgex's clock and the person's connected calendar, never from a web search - and when those are unavailable the reply must say so, not claim that "live web
+// search is unavailable".
+const PERSONAL_CLOCK_QUESTION = /(지금|현재)\s*(몇\s*시|시간|날짜|며칠)|몇\s*시(야|예요|입니까|인가요|지)|몇\s*일(이야|이에요|인가요)|무슨\s*요일|오늘\s*(날짜|며칠|무슨\s*요일)|what('?s| is)\s+(the\s+)?(current\s+)?(time|date|day)\b|what\s+(time|day)\s+is\s+it|today'?s\s+date/i;
+const PERSONAL_PLANNER_QUESTION = /((오늘|내일|모레|이번\s*주|다음\s*주|이번\s*달)[^\n]{0,20}(일정|스케줄|캘린더|약속|할\s*일)|(일정|스케줄|캘린더|약속|할\s*일)[^\n]{0,20}(오늘|내일|모레|이번\s*주|다음\s*주))|\b(my|on my)\s+(calendar|schedule|agenda|to-?do|tasks?|meetings?|appointments?)\b|\bwhat('?s| is)\s+(on\s+)?(my\s+)?(calendar|schedule|agenda)\b/i;
+
 export class QuestionClassificationService {
   public classify(prompt: string): QuestionClassification {
     const text = (prompt || '').trim();
     if (!text) {
       return { freshness: 'NONE', category: 'GENERAL', reason: 'Empty prompt requires no external search.' };
+    }
+
+    if (PERSONAL_CLOCK_QUESTION.test(text) || PERSONAL_PLANNER_QUESTION.test(text)) {
+      return { freshness: 'NONE', category: 'GENERAL', reason: "A question about the person's own clock, calendar or tasks is answered from their clock and connected sources, not the web." };
     }
 
     const lower = text.toLowerCase();

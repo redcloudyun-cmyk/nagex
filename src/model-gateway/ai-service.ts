@@ -10,6 +10,8 @@ import { classifyPlanRequest, isConcreteSuggestion } from './plan-request-kind.j
 import { detectRequestLanguage, languageInstruction } from '../common/request-language.js';
 import { normalizePresentationOutline, OUTLINE_LIMITS, type PresentationOutline } from './presentation-outline.js';
 import { parseStructuredJson } from './structured-json.js';
+import { buildTimeContext, timeContextPromptLines } from '../common/time-context.js';
+import { groundScheduleSteps, type ScheduleClock } from '../planning/schedule-grounding.js';
 
 export type PlanStepNecessity = 'REQUIRED' | 'OPTIONAL';
 
@@ -603,11 +605,17 @@ export class AiService {
     conversation?: Array<{ role: 'user' | 'assistant'; content: string }>;
     memories?: MemoryRecord[];
     evidencePack?: EvidencePack;
+    // the person's real clock and timezone (common/time-context.ts); without it the model has no idea what day it is
+    clock?: ScheduleClock;
+    // facts NAgex read for this request from the person's own connected sources (their calendar), or the honest reason there are none
+    personalContext?: string;
   }): Promise<AiServiceResponse<{ message: string; evidencePackId?: string; sources?: EvidenceSource[] }>> {
     const requestId = input.requestId || `chat_${randomUUID()}`;
     const systemContent = [
       'You are NAgex, a personal AI assistant. Be concise and do not claim that tools were executed.',
       languageInstruction(detectRequestLanguage(input.message)),
+      ...(input.clock ? timeContextPromptLines(buildTimeContext(input.clock.nowMs, { timezone: input.clock.timezone, source: input.clock.timezoneSource }), input.clock.nowMs, 'chat') : []),
+      input.personalContext ? input.personalContext : null,
       input.memories && input.memories.length > 0
         ? `Relevant personal memory:\n${summarizeMemories(input.memories)}`
         : null,
@@ -925,7 +933,7 @@ export class AiService {
   // allowAdvisory is for an INTERACTIVE caller that shows the answer to the person (the Home route). Only then, and only when the person's own words ask for advice and
   // for nothing to be done (classifyPlanRequest), may the answer be an ADVISORY one with no steps. Every other caller (background / task runners, chat-channel services,
   // an explicit action request) keeps the strict rule: at least one step, otherwise the answer is rejected and the next provider is tried.
-  public async plan(input: { prompt: string; memories: MemoryRecord[]; mode: RoutingMode; requestId?: string; conversation?: Array<{ role: 'user' | 'assistant'; content: string }>; identity?: { tenantId: string; principalId: string }; allowAdvisory?: boolean }): Promise<AiServiceResponse<PlanPreview>> {
+  public async plan(input: { prompt: string; memories: MemoryRecord[]; mode: RoutingMode; requestId?: string; conversation?: Array<{ role: 'user' | 'assistant'; content: string }>; identity?: { tenantId: string; principalId: string }; allowAdvisory?: boolean; clock?: ScheduleClock; personalContext?: string }): Promise<AiServiceResponse<PlanPreview>> {
     const requestId = input.requestId || `plan_${randomUUID()}`;
     const advisoryAllowed = input.allowAdvisory === true && classifyPlanRequest(input.prompt).kind === 'ADVISORY';
     const response = await this.router.generate({
@@ -969,6 +977,8 @@ export class AiService {
               'If the request actually needs something to be done with a tool, do not use ADVISORY: return the normal plan with "responseKind":"ACTION_PLAN" and at least one step.',
             ] : []),
             languageInstruction(detectRequestLanguage(input.prompt)),
+            ...(input.clock ? timeContextPromptLines(buildTimeContext(input.clock.nowMs, { timezone: input.clock.timezone, source: input.clock.timezoneSource }), input.clock.nowMs, 'plan') : []),
+            ...(input.personalContext ? [input.personalContext] : []),
             ...this.userToolLines(input.identity),
           ].join('\n'),
         },
@@ -982,7 +992,10 @@ export class AiService {
         },
       ],
     });
-    return { data: normalizePlan(response.text, requestId, advisoryAllowed), provider: response.provider, model: response.model, latencyMs: response.latencyMs, requestId: response.requestId };
+    const planned = normalizePlan(response.text, requestId, advisoryAllowed);
+    // calendar steps are completed and checked against the person's real clock and timezone (planning/schedule-grounding.ts) - the model never has the last word on a date
+    const grounded = input.clock ? groundScheduleSteps(planned, input.prompt, input.clock, detectRequestLanguage(input.prompt) === 'ko' ? 'ko' : 'en') : planned;
+    return { data: grounded, provider: response.provider, model: response.model, latencyMs: response.latencyMs, requestId: response.requestId };
   }
 
   // Real, model-backed understanding of captured TEXT content (Phase 1

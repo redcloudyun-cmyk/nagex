@@ -548,7 +548,15 @@ export async function handleAsyncApiRequest(
     // (conversations/main GET/POST-messages/DELETE, ai/chat, ambient/
     // intent, plans/resolve).
     {
-      const conversationResult = await handleConversationRoutes(method, pathname, body, headers, query, { service, planResolver, sessionStore, convStore, convContextService, auditLogger, getRelevantMemories, memoryExtractor: app.conversationMemoryExtractor, evidencePackService: app.evidencePackService });
+      const conversationResult = await handleConversationRoutes(method, pathname, body, headers, query, {
+        service, planResolver, sessionStore, convStore, convContextService, auditLogger, getRelevantMemories, memoryExtractor: app.conversationMemoryExtractor, evidencePackService: app.evidencePackService,
+        // the person's own timezone (profile) and calendar (read-only) for date-aware answers and plans
+        getProfileTimezone: (principalId) => (customDeps?.identityStore ?? identityStore).getProfile(principalId)?.timezone,
+        readCalendarWindow: async ({ tenantId, principalId, timeMin, timeMax, requestId }) => {
+          const read = await calendarConnectionFor(calendarService).readEvents({ tenantId, principalId, requestId }, { timeMin, timeMax, maxResults: 20 });
+          return { state: read.connection.state, events: read.events };
+        },
+      });
       if (conversationResult) return conversationResult;
     }
     // R22.4 — Live Research Endpoint (POST /api/v1/research)
