@@ -1,0 +1,386 @@
+﻿{
+    "file":  "baseline.pptx",
+    "opened":  true,
+    "slides":  [
+                   {
+                       "index":  1,
+                       "layout":  "Title Slide",
+                       "shapeCount":  2,
+                       "notesChars":  0,
+                       "shapes":  [
+                                      {
+                                          "name":  "Title 1",
+                                          "type":  14,
+                                          "placeholder":  true,
+                                          "left":  120,
+                                          "top":  88,
+                                          "width":  720,
+                                          "height":  188,
+                                          "textChars":  21,
+                                          "fontName":  "Calibri",
+                                          "fontNameFarEast":  "Malgun Gothic",
+                                          "fontSizePt":  40,
+                                          "boundHeight":  43,
+                                          "boundBottom":  273,
+                                          "overflowPt":  0,
+                                          "beyondSlidePt":  0
+                                      },
+                                      {
+                                          "name":  "Subtitle 2",
+                                          "type":  14,
+                                          "placeholder":  true,
+                                          "left":  120,
+                                          "top":  284,
+                                          "width":  720,
+                                          "height":  130,
+                                          "textChars":  31,
+                                          "fontName":  "Calibri",
+                                          "fontNameFarEast":  "Malgun Gothic",
+                                          "fontSizePt":  24,
+                                          "boundHeight":  29,
+                                          "boundBottom":  316,
+                                          "overflowPt":  0,
+                                          "beyondSlidePt":  0
+                                      }
+                                  ]
+                   },
+                   {
+                       "index":  2,
+                       "layout":  "Title and Content",
+                       "shapeCount":  2,
+                       "notesChars":  0,
+                       "shapes":  [
+                                      {
+                                          "name":  "Title 1",
+                                          "type":  14,
+                                          "placeholder":  true,
+                                          "left":  66,
+                                          "top":  29,
+                                          "width":  828,
+                                          "height":  104,
+                                          "textChars":  15,
+                                          "fontName":  "Calibri",
+                                          "fontNameFarEast":  "Malgun Gothic",
+                                          "fontSizePt":  40,
+                                          "boundHeight":  43,
+                                          "boundBottom":  103,
+                                          "overflowPt":  0,
+                                          "beyondSlidePt":  0
+                                      },
+                                      {
+                                          "name":  "Content Placeholder 2",
+                                          "type":  14,
+                                          "placeholder":  true,
+                                          "left":  66,
+                                          "top":  144,
+                                          "width":  828,
+                                          "height":  343,
+                                          "textChars":  105,
+                                          "fontName":  "Calibri",
+                                          "fontNameFarEast":  "Malgun Gothic",
+                                          "fontSizePt":  24,
+                                          "boundHeight":  102,
+                                          "boundBottom":  250,
+                                          "overflowPt":  0,
+                                          "beyondSlidePt":  0
+                                      }
+                                  ]
+                   },
+                   {
+                       "index":  3,
+                       "layout":  "Title and Content",
+                       "shapeCount":  2,
+                       "notesChars":  0,
+                       "shapes":  [
+                                      {
+                                          "name":  "Title 1",
+                                          "type":  14,
+                                          "placeholder":  true,
+                                          "left":  66,
+                                          "top":  29,
+                                          "width":  828,
+                                          "height":  104,
+                                          "textChars":  12,
+                                          "fontName":  "Calibri",
+                                          "fontNameFarEast":  "Malgun Gothic",
+                                          "fontSizePt":  40,
+                                          "boundHeight":  43,
+                                          "boundBottom":  103,
+                                          "overflowPt":  0,
+                                          "beyondSlidePt":  0
+                                      },
+                                      {
+                                          "name":  "Content Placeholder 2",
+                                          "type":  14,
+                                          "placeholder":  true,
+                                          "left":  66,
+                                          "top":  144,
+                                          "width":  828,
+                                          "height":  343,
+                                          "textChars":  172,
+                                          "fontName":  "Calibri",
+                                          "fontNameFarEast":  "Malgun Gothic",
+                                          "fontSizePt":  24,
+                                          "boundHeight":  168,
+                                          "boundBottom":  315,
+                                          "overflowPt":  0,
+                                          "beyondSlidePt":  0
+                                      }
+                                  ]
+                   },
+                   {
+                       "index":  4,
+                       "layout":  "Title and Content",
+                       "shapeCount":  2,
+                       "notesChars":  0,
+                       "shapes":  [
+                                      {
+                                          "name":  "Title 1",
+                                          "type":  14,
+                                          "placeholder":  true,
+                                          "left":  66,
+                                          "top":  29,
+                                          "width":  828,
+                                          "height":  104,
+                                          "textChars":  20,
+                                          "fontName":  "Calibri",
+                                          "fontNameFarEast":  "Malgun Gothic",
+                                          "fontSizePt":  40,
+                                          "boundHeight":  43,
+                                          "boundBottom":  103,
+                                          "overflowPt":  0,
+                                          "beyondSlidePt":  0
+                                      },
+                                      {
+                                          "name":  "Content Placeholder 2",
+                                          "type":  14,
+                                          "placeholder":  true,
+                                          "left":  66,
+                                          "top":  144,
+                                          "width":  828,
+                                          "height":  343,
+                                          "textChars":  107,
+                                          "fontName":  "Calibri",
+                                          "fontNameFarEast":  "Malgun Gothic",
+                                          "fontSizePt":  24,
+                                          "boundHeight":  139,
+                                          "boundBottom":  287,
+                                          "overflowPt":  0,
+                                          "beyondSlidePt":  0
+                                      }
+                                  ]
+                   },
+                   {
+                       "index":  5,
+                       "layout":  "Title and Content",
+                       "shapeCount":  2,
+                       "notesChars":  0,
+                       "shapes":  [
+                                      {
+                                          "name":  "Title 1",
+                                          "type":  14,
+                                          "placeholder":  true,
+                                          "left":  66,
+                                          "top":  29,
+                                          "width":  828,
+                                          "height":  104,
+                                          "textChars":  13,
+                                          "fontName":  "Calibri",
+                                          "fontNameFarEast":  "Malgun Gothic",
+                                          "fontSizePt":  40,
+                                          "boundHeight":  43,
+                                          "boundBottom":  103,
+                                          "overflowPt":  0,
+                                          "beyondSlidePt":  0
+                                      },
+                                      {
+                                          "name":  "Content Placeholder 2",
+                                          "type":  14,
+                                          "placeholder":  true,
+                                          "left":  66,
+                                          "top":  144,
+                                          "width":  828,
+                                          "height":  343,
+                                          "textChars":  172,
+                                          "fontName":  "Calibri",
+                                          "fontNameFarEast":  "Malgun Gothic",
+                                          "fontSizePt":  24,
+                                          "boundHeight":  176,
+                                          "boundBottom":  323,
+                                          "overflowPt":  0,
+                                          "beyondSlidePt":  0
+                                      }
+                                  ]
+                   },
+                   {
+                       "index":  6,
+                       "layout":  "Title and Content",
+                       "shapeCount":  2,
+                       "notesChars":  0,
+                       "shapes":  [
+                                      {
+                                          "name":  "Title 1",
+                                          "type":  14,
+                                          "placeholder":  true,
+                                          "left":  66,
+                                          "top":  29,
+                                          "width":  828,
+                                          "height":  104,
+                                          "textChars":  15,
+                                          "fontName":  "Calibri",
+                                          "fontNameFarEast":  "Malgun Gothic",
+                                          "fontSizePt":  40,
+                                          "boundHeight":  43,
+                                          "boundBottom":  103,
+                                          "overflowPt":  0,
+                                          "beyondSlidePt":  0
+                                      },
+                                      {
+                                          "name":  "Content Placeholder 2",
+                                          "type":  14,
+                                          "placeholder":  true,
+                                          "left":  66,
+                                          "top":  144,
+                                          "width":  828,
+                                          "height":  343,
+                                          "textChars":  55,
+                                          "fontName":  "Calibri",
+                                          "fontNameFarEast":  "Malgun Gothic",
+                                          "fontSizePt":  24,
+                                          "boundHeight":  102,
+                                          "boundBottom":  250,
+                                          "overflowPt":  0,
+                                          "beyondSlidePt":  0
+                                      }
+                                  ]
+                   },
+                   {
+                       "index":  7,
+                       "layout":  "Title and Content",
+                       "shapeCount":  2,
+                       "notesChars":  0,
+                       "shapes":  [
+                                      {
+                                          "name":  "Title 1",
+                                          "type":  14,
+                                          "placeholder":  true,
+                                          "left":  66,
+                                          "top":  29,
+                                          "width":  828,
+                                          "height":  104,
+                                          "textChars":  10,
+                                          "fontName":  "Calibri",
+                                          "fontNameFarEast":  "Malgun Gothic",
+                                          "fontSizePt":  40,
+                                          "boundHeight":  43,
+                                          "boundBottom":  103,
+                                          "overflowPt":  0,
+                                          "beyondSlidePt":  0
+                                      },
+                                      {
+                                          "name":  "Content Placeholder 2",
+                                          "type":  14,
+                                          "placeholder":  true,
+                                          "left":  66,
+                                          "top":  144,
+                                          "width":  828,
+                                          "height":  343,
+                                          "textChars":  142,
+                                          "fontName":  "Calibri",
+                                          "fontNameFarEast":  "Malgun Gothic",
+                                          "fontSizePt":  24,
+                                          "boundHeight":  102,
+                                          "boundBottom":  250,
+                                          "overflowPt":  0,
+                                          "beyondSlidePt":  0
+                                      }
+                                  ]
+                   },
+                   {
+                       "index":  8,
+                       "layout":  "Title and Content",
+                       "shapeCount":  2,
+                       "notesChars":  0,
+                       "shapes":  [
+                                      {
+                                          "name":  "Title 1",
+                                          "type":  14,
+                                          "placeholder":  true,
+                                          "left":  66,
+                                          "top":  29,
+                                          "width":  828,
+                                          "height":  104,
+                                          "textChars":  58,
+                                          "fontName":  "Calibri",
+                                          "fontNameFarEast":  "Malgun Gothic",
+                                          "fontSizePt":  34,
+                                          "boundHeight":  73,
+                                          "boundBottom":  118,
+                                          "overflowPt":  0,
+                                          "beyondSlidePt":  0
+                                      },
+                                      {
+                                          "name":  "Content Placeholder 2",
+                                          "type":  14,
+                                          "placeholder":  true,
+                                          "left":  66,
+                                          "top":  144,
+                                          "width":  828,
+                                          "height":  343,
+                                          "textChars":  102,
+                                          "fontName":  "Calibri",
+                                          "fontNameFarEast":  "Malgun Gothic",
+                                          "fontSizePt":  24,
+                                          "boundHeight":  102,
+                                          "boundBottom":  250,
+                                          "overflowPt":  0,
+                                          "beyondSlidePt":  0
+                                      }
+                                  ]
+                   },
+                   {
+                       "index":  9,
+                       "layout":  "Title and Content",
+                       "shapeCount":  2,
+                       "notesChars":  0,
+                       "shapes":  [
+                                      {
+                                          "name":  "Title 1",
+                                          "type":  14,
+                                          "placeholder":  true,
+                                          "left":  66,
+                                          "top":  29,
+                                          "width":  828,
+                                          "height":  104,
+                                          "textChars":  5,
+                                          "fontName":  "Calibri",
+                                          "fontNameFarEast":  "Malgun Gothic",
+                                          "fontSizePt":  40,
+                                          "boundHeight":  43,
+                                          "boundBottom":  103,
+                                          "overflowPt":  0,
+                                          "beyondSlidePt":  0
+                                      },
+                                      {
+                                          "name":  "Content Placeholder 2",
+                                          "type":  14,
+                                          "placeholder":  true,
+                                          "left":  66,
+                                          "top":  144,
+                                          "width":  828,
+                                          "height":  343,
+                                          "textChars":  87,
+                                          "fontName":  "Calibri",
+                                          "fontNameFarEast":  "Malgun Gothic",
+                                          "fontSizePt":  24,
+                                          "boundHeight":  102,
+                                          "boundBottom":  250,
+                                          "overflowPt":  0,
+                                          "beyondSlidePt":  0
+                                      }
+                                  ]
+                   }
+               ],
+    "slideWidthPt":  960,
+    "slideHeightPt":  540
+}
