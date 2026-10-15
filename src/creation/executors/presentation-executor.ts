@@ -9,6 +9,7 @@ import type { PresentationStore, PresentationRecord } from '../presentation.stor
 import type { CreationProviderRouter } from '../providers/creation-provider-router.js';
 import type { PresentationCreationSpec } from '../specs/creation-spec.types.js';
 import { PPTX_MIME } from '../pptx/pptx-writer.js';
+import { requestedSlideCount } from '../slide-count.js';
 import type { CreationExecutor, CreationKind, CreationRequest, CreationResult } from '../creation-runtime.types.js';
 
 export interface PresentationExecutorDeps {
@@ -67,6 +68,8 @@ export class PresentationExecutor implements CreationExecutor<CreationRequest, C
 
     let outline: PresentationOutline;
     let modelMeta: { provider?: string; model?: string; latencyMs?: number } = {};
+    // "8장짜리": the number the person named is the TOTAL (title slide included) unless they say otherwise; the model is told an exact number of content slides
+    const wanted = requestedSlideCount(prompt);
     try {
       const memories = this.deps.getRelevantMemories ? this.deps.getRelevantMemories(tenantId, ownerId, prompt) : [];
       const outcome = await this.deps.aiService.presentationOutline({
@@ -77,6 +80,7 @@ export class PresentationExecutor implements CreationExecutor<CreationRequest, C
         memories,
         mode: options.routingMode || 'auto',
         requestId,
+        contentSlides: wanted?.contentSlides,
       });
       outline = outcome.data;
       modelMeta = { provider: outcome.provider, model: outcome.model, latencyMs: outcome.latencyMs };
@@ -171,7 +175,13 @@ export class PresentationExecutor implements CreationExecutor<CreationRequest, C
       artifactId,
       mimeType: PPTX_MIME,
       // provider/model identity stays in the audit trail and the stored record, never in what the product shows
-      metadata: { slideCount: outline.slides.length, downloadTarget: `${openTarget}/download`, byteLength: buffer.length },
+      // slideCount = content slides (as before; the file has one more, the title slide); requestedSlideCount only when the person named a size, so a shortfall is visible. A request without a named size keeps exactly the old keys.
+      metadata: {
+        slideCount: outline.slides.length,
+        ...(wanted ? { requestedSlideCount: wanted.totalSlides, ...(wanted.clamped ? { requestedSlideCountReduced: true } : {}) } : {}),
+        downloadTarget: `${openTarget}/download`,
+        byteLength: buffer.length,
+      },
       createdAt: now,
     };
   }

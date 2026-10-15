@@ -6361,6 +6361,21 @@
       "deterministic": true,
       "assertionIntent": "The decks NAgex builds carry their design in the master and layouts (dark cover, accent bar, title rule, footer brand, slide-number placeholders, theme fonts that match the Korean text) while titles and bodies stay real placeholders.",
       "notes": "Package structure only; the rendered result is verified in Microsoft PowerPoint by the presentation E2E journey."
+    },
+    "slide_count": {
+      "milestone": "SPRINT02-SLIDE-COUNT",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "A slide count named in the request is the TOTAL including the title slide unless the person says otherwise: the model is told an exact number of content slides, extra slides are cut, nothing is padded, and the finished .pptx has the requested number of slides.",
+      "notes": "Fake provider endpoint and the real writer; the real-model run and the PowerPoint check are part of the sprint E2E."
     }
   }
 }

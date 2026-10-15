@@ -31,7 +31,11 @@ function clean(value: unknown, max: number): string {
   return `${text.slice(0, Math.max(1, max - 1)).trimEnd()}…`;
 }
 
-export function normalizePresentationOutline(parsed: Record<string, unknown>, requestId: string): PresentationOutline {
+// `contentSlides`: the person named the size of the deck (see creation/slide-count.ts). Slides beyond it are cut (the first ones are kept - never padded, never reordered) and a deck of exactly that
+// size is acceptable even when it is smaller than the usual minimum of two content slides.
+export function normalizePresentationOutline(parsed: Record<string, unknown>, requestId: string, options: { contentSlides?: number } = {}): PresentationOutline {
+  const limit = options.contentSlides ? Math.min(options.contentSlides, OUTLINE_LIMITS.maxContentSlides) : OUTLINE_LIMITS.maxContentSlides;
+  const minimum = options.contentSlides ? Math.min(options.contentSlides, OUTLINE_LIMITS.minContentSlides) : OUTLINE_LIMITS.minContentSlides;
   const title = clean(parsed.title, OUTLINE_LIMITS.maxTitleChars);
   if (!title) {
     throw new NagexError({ code: 'INVALID_MODEL_RESPONSE', category: 'PROVIDER', message: 'The model response is missing the deck title.', request_id: requestId });
@@ -49,9 +53,9 @@ export function normalizePresentationOutline(parsed: Record<string, unknown>, re
       .slice(0, OUTLINE_LIMITS.maxBulletsPerSlide);
     if (!slideTitle || bullets.length === 0) continue; // a slide without a title or without any content is dropped, never invented
     slides.push({ title: slideTitle, bullets });
-    if (slides.length >= OUTLINE_LIMITS.maxContentSlides) break;
+    if (slides.length >= limit) break;
   }
-  if (slides.length < OUTLINE_LIMITS.minContentSlides) {
+  if (slides.length < minimum) {
     throw new NagexError({ code: 'EMPTY_GENERATION', category: 'PROVIDER', message: 'The model did not return enough usable slides for a presentation.', request_id: requestId });
   }
   return { title, subtitle: clean(parsed.subtitle, OUTLINE_LIMITS.maxSubtitleChars), slides };
