@@ -52,8 +52,20 @@ async function openHome(page: Page): Promise<void> {
   await page.waitForFunction(() => document.querySelector('#nagex-main-surface')?.dataset.sessionState === 'EMPTY_HOME', undefined, { timeout: 20000 });
 }
 const ask = async (page: Page, text: string) => { await page.fill('#main-surface-input', text); await page.click('#main-send'); };
-const waitTask = (page: Page, state: string, timeout = 120000) =>
-  page.waitForFunction((s: string) => { const b = document.querySelectorAll('.main-btask-block'); return b.length > 0 && b[b.length - 1].getAttribute('data-task-state') === s; }, state, { timeout });
+async function waitTask(page: Page, state: string, timeout = 120000): Promise<void> {
+  try {
+    await page.waitForFunction((s: string) => { const b = document.querySelectorAll('.main-btask-block'); return b.length > 0 && b[b.length - 1].getAttribute('data-task-state') === s; }, state, { timeout });
+  } catch (error) {
+    // a bare "Timeout exceeded" says nothing: report what the server and the card said at that moment
+    let where = '';
+    try {
+      const tasks = (await (await page.context().request.get(`${h.origin}/api/v1/browser-tasks`)).json()).tasks ?? [];
+      const cards = await page.evaluate(() => (Array.from(document.querySelectorAll('.main-btask-block')) as any[]).map((b) => `${b.getAttribute('data-task-state')}: ${String(b.innerText).replace(/\s+/g, ' ').slice(0, 240)}`));
+      where = ` | WAITED_FOR=${state} SERVER_TASKS=${JSON.stringify(tasks.map((t: any) => ({ state: t.state, steps: t.steps?.length, now: t.now, failure: t.failure, pausedBecause: t.pausedBecause, last: t.steps?.[t.steps.length - 1]?.outcome })))} CARDS=${JSON.stringify(cards)}`;
+    } catch (inner) { where = ` | (no diagnostics: ${inner instanceof Error ? inner.message : String(inner)})`; }
+    throw new Error(`${error instanceof Error ? error.message : String(error)}${where}`);
+  }
+}
 const card = (page: Page) => page.locator('.main-btask-block').last();
 const cardText = (page: Page) => card(page).innerText();
 
