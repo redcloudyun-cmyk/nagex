@@ -382,11 +382,14 @@
         });
       } catch (error) {
         const denied = error && (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError');
-        const state = denied ? STATES.PERMISSION_DENIED : STATES.ERROR;
+        const missing = error && (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError');
+        const busy = error && (error.name === 'NotReadableError' || error.name === 'TrackStartError');
+        const reason = missing ? 'NO_MICROPHONE' : busy ? 'MICROPHONE_BUSY' : undefined;
+        const state = denied ? STATES.PERMISSION_DENIED : missing ? STATES.UNAVAILABLE : STATES.ERROR;
         this.diagnose('MEDIA_STREAM_ERROR', { name: error && error.name, message: error && error.message, state });
         this.cleanup();
-        this.transition(state, { error, session: this.activeSession });
-        return { fail: { state, transcript: '', processor } };
+        this.transition(state, { error, reason, session: this.activeSession });
+        return { fail: { state, transcript: '', reason, processor } };
       }
       if (runId !== this.runId || this.cancelled) {
         this.cleanup();
