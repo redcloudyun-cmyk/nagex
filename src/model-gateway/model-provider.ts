@@ -15,6 +15,8 @@ export interface ModelRequest {
   // Upper bound on generated tokens (reasoning tokens included for reasoning models). Optional: an adapter that has no
   // such control ignores it. There is deliberately no temperature here — no caller needs one yet.
   maxOutputTokens?: number;
+  // How long THIS request may take (milliseconds), for a generation that legitimately outlasts the provider's default (a whole website's files). Bounded by the adapter (1 s - 5 min); absent = the provider's own default.
+  timeoutMs?: number;
 }
 
 // Real token counts only, taken directly from whatever usage object the

@@ -182,6 +182,9 @@ export interface NagexApplication {
   videoJobService: import('../creation/video-job.service.js').VideoJobService;
   // Browser tasks ("do this on that website") over the Agent loop; undefined when no planner is configured.
   browserTaskService: import('../device-control/browser-task.service.js').BrowserTaskService | undefined;
+  // AI Product Builder: a persistent, resumable project from a request to a verified deployment, with the person deciding at four gates; and the signer of the sandboxed-preview links.
+  productBuilderService: import('../product-builder/product-builder.service.js').ProductBuilderService;
+  previewLinkSigner: import('../product-builder/product-preview-link.js').PreviewLinkSigner;
   // R23.7C-D — the presentation runtime: executor + the store the download/viewer routes read.
   presentationStore: import('../creation/presentation.store.js').PresentationStore;
   presentationExecutor: import('../creation/executors/presentation-executor.js').PresentationExecutor;

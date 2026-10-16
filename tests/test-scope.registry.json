@@ -17,7 +17,8 @@
       "security_s2c_authority_contract",
       "security_s2d_ownership_contract",
       "security_s2e_authabuse_contract",
-      "nebius_nemotron_contract"
+      "nebius_nemotron_contract",
+      "product_build_routing"
     ],
     "device": [
       "device_agent_foundation",
@@ -97,7 +98,10 @@
       "vault_save_approval_browser",
       "home_vault_save_browser",
       "desktop_task_browser",
-      "jev_decision_port"
+      "jev_decision_port",
+      "product_builder_site_tester_browser",
+      "product_builder_browser",
+      "product_builder_live"
     ],
     "google": [
       "google_calendar_connection_state",
@@ -215,7 +219,12 @@
       "todo_next_actions",
       "structured_output_recovery",
       "time_context",
-      "schedule_grounding"
+      "schedule_grounding",
+      "product_builder_workflow",
+      "product_builder_adapters",
+      "product_builder_site_tester_browser",
+      "product_build_routing",
+      "model_gateway_request_budget"
     ],
     "personal-home": [
       "main_unified_workspace_browser",
@@ -270,7 +279,9 @@
       "jev_shadow_runtime",
       "document_length",
       "structured_output_recovery",
-      "jev_decision_port"
+      "jev_decision_port",
+      "product_builder_live",
+      "model_gateway_request_budget"
     ],
     "mobile": [
       "real_life_scenario_library_behavioral_rules",
@@ -335,7 +346,10 @@
       "desktop_plan_executor",
       "device_enrollment",
       "desktop_task_browser",
-      "jev_decision_port"
+      "jev_decision_port",
+      "product_builder_workflow",
+      "product_builder_adapters",
+      "product_builder_browser"
     ],
     "credential-broker": [
       "google_calendar_connection_state",
@@ -477,7 +491,8 @@
       "voice_input_browser",
       "browser_task_browser",
       "desktop_request_routing",
-      "desktop_task_browser"
+      "desktop_task_browser",
+      "product_builder_browser"
     ],
     "knowledge": [
       "r24_5c_knowledge_live"
@@ -500,7 +515,12 @@
       "device_enrollment",
       "desktop_request_routing",
       "desktop_task_browser",
-      "jev_decision_port"
+      "jev_decision_port",
+      "product_builder_workflow",
+      "product_builder_adapters",
+      "product_builder_site_tester_browser",
+      "product_builder_browser",
+      "product_build_routing"
     ]
   },
   "fullOnly": [

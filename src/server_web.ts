@@ -77,6 +77,7 @@ import { handleDocumentCreationRoutes } from './http/routes/document-creation.ro
 import { handlePresentationCreationRoutes } from './http/routes/presentation-creation.routes.js';
 import { handleVideoCreationRoutes } from './http/routes/video-creation.routes.js';
 import { handleBrowserTaskRoutes } from './http/routes/browser-task.routes.js';
+import { handleProductBuilderRoutes } from './http/routes/product-builder.routes.js';
 import { handleCaptureRoutes } from './http/routes/capture.routes.js';
 import { handleInboxRoutes } from './http/routes/inbox.routes.js';
 import { handleVaultRoutes } from './http/routes/vault.routes.js';
@@ -613,7 +614,7 @@ export async function handleAsyncApiRequest(
     // (route-input, storage/status, inbox, vault, uploads, captures, items,
     // candidates, activity) now resolve through one registrar call.
     {
-      const workspaceResult = await handleWorkspaceRoutes(method, pathname, body, headers, query, { quickCaptureService, artifactStore: app.artifactStore, isVideoAvailable: () => app.videoJobService.isAvailable(), isBrowserTaskAvailable: () => Boolean(app.browserTaskService), isDesktopTaskAvailable: (tenantId, principalId) => deviceIdentityStore.listOwned(tenantId, principalId).some((device) => device.status === 'ACTIVE' && device.capabilityInventory.includes(DESKTOP_APP_CAPABILITY.NOTEPAD)) });
+      const workspaceResult = await handleWorkspaceRoutes(method, pathname, body, headers, query, { quickCaptureService, artifactStore: app.artifactStore, isVideoAvailable: () => app.videoJobService.isAvailable(), isBrowserTaskAvailable: () => Boolean(app.browserTaskService), isProductBuilderAvailable: () => app.productBuilderService.capability().available, isDesktopTaskAvailable: (tenantId, principalId) => deviceIdentityStore.listOwned(tenantId, principalId).some((device) => device.status === 'ACTIVE' && device.capabilityInventory.includes(DESKTOP_APP_CAPABILITY.NOTEPAD)) });
       if (workspaceResult) return workspaceResult;
 
       const commandContextResult = await handleCommandContextRoutes(method, pathname, body, headers, query, { commandService: multimodalCommandService, sessionStore: customDeps?.sessionStore ?? sessionStore });
@@ -817,6 +818,12 @@ export async function handleAsyncApiRequest(
     {
       const browserTaskResult = await handleBrowserTaskRoutes(method, pathname, body, headers, query, { browserTaskService: app.browserTaskService });
       if (browserTaskResult) return browserTaskResult;
+    }
+
+    // AI Product Builder: plan, mockups, design, build, test, preview, deploy - four gates, each decided by the person
+    {
+      const productBuilderResult = await handleProductBuilderRoutes(method, pathname, body, headers, query, { productBuilderService: app.productBuilderService, previewSigner: app.previewLinkSigner });
+      if (productBuilderResult) return productBuilderResult;
     }
 
     // Video creation: price + approval, status, owner-only playback / download
@@ -1320,6 +1327,9 @@ export async function startNagexServer(): Promise<{ server: http.Server }> {
       }
       // scheduled runs with no durable record (daily brief, condition watch, plan preview) that the previous process life died in
       // browser tasks whose loop (or whose waiting page) died with the previous process end as FAILED, with the reason
+      // a product project that was in the middle of a step is taken up again (a deployment whose outcome is unknown is NOT re-sent: it waits for the person)
+      const resumedProducts = app.productBuilderService.recoverAfterRestart();
+      if (resumedProducts > 0) console.log(JSON.stringify({ event: 'product_projects_resumed', resumed: resumedProducts }));
       const endedBrowserTasks = app.browserTaskService?.recoverAfterRestart() ?? 0;
       if (endedBrowserTasks > 0) console.log(JSON.stringify({ event: 'interrupted_browser_tasks_failed', ended: endedBrowserTasks }));
       const interrupted = durableTaskRuntime.failInterruptedRuns();

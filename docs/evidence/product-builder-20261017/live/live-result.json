@@ -1,0 +1,309 @@
+{
+  "providers": [
+    "GEMINI"
+  ],
+  "startedAt": "2026-10-16T16:14:04.604Z",
+  "plan": {
+    "summary": "A responsive client-side customer management website featuring a dashboard with metrics, customer records management, and real-time search capabilities, using browser storage.",
+    "audience": "Small business owners or freelancers who need a simple, local way to track and manage their customers.",
+    "pages": [
+      {
+        "id": "dashboard",
+        "title": "Dashboard",
+        "purpose": "Provide an overview of customer metrics and quick access to recent activity."
+      },
+      {
+        "id": "customers",
+        "title": "Customer Records",
+        "purpose": "List, add, edit, and delete customer profiles."
+      }
+    ],
+    "features": [
+      {
+        "id": "customer-crud",
+        "title": "Customer Records",
+        "detail": "Add, edit, and delete customer details such as name, email, phone, and notes."
+      },
+      {
+        "id": "search-filter",
+        "title": "Search and Filter",
+        "detail": "Instantly search through customer records by name or email."
+      },
+      {
+        "id": "dashboard-metrics",
+        "title": "Dashboard Overview",
+        "detail": "Display summary metrics like total customers and recent additions."
+      },
+      {
+        "id": "local-storage",
+        "title": "Browser Data Persistence",
+        "detail": "Save customer records locally in the browser so data remains between sessions."
+      },
+      {
+        "id": "responsive-design",
+        "title": "Responsive Layout",
+        "detail": "Ensure the site works seamlessly on mobile, tablet, and desktop screens."
+      }
+    ],
+    "dataModel": [
+      {
+        "entity": "Customer",
+        "fields": [
+          "id",
+          "name",
+          "email",
+          "phone",
+          "notes",
+          "createdAt"
+        ]
+      }
+    ],
+    "nonGoals": [
+      "Backend server deployment or cloud database storage",
+      "User authentication or multi-user access control",
+      "Automated email communication with customers",
+      "Payment processing or invoicing integration"
+    ],
+    "assumptions": [
+      "The website will be published statically using GitHub Pages or a similar static host.",
+      "Data privacy is managed entirely within the user's browser using localStorage."
+    ],
+    "openQuestions": [
+      "Would you like the ability to export your customer records as a CSV file?"
+    ]
+  },
+  "afterPlanApproval": {
+    "state": "BLOCKED",
+    "blocker": {
+      "code": "IMAGE_QUOTA_EXCEEDED",
+      "need": "QUOTA",
+      "message": "The image provider (google) has no quota left for pictures. The image service's quota or billing limit was reached: You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor Another image provider is available (stand-in-images-NOT-REAL): choose it to continue.",
+      "blockedAt": "MOCKUP_GENERATING"
+    }
+  },
+  "design": {
+    "layout": "sidebar navigation on desktop, collapsible bottom or top bar on mobile, flexible card grids for dashboard metrics, and a responsive table/card list view for customer records.",
+    "typography": {
+      "heading": "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+      "body": "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+      "scale": "1rem base with modular type scale for headings"
+    },
+    "colors": {
+      "primary": "#2563eb",
+      "background": "#f8fafc",
+      "text": "#0f172a",
+      "accent": "#3b82f6"
+    },
+    "components": [
+      "Dashboard metrics cards",
+      "Customer list table and cards",
+      "Add/Edit customer modal form",
+      "Real-time search input",
+      "Local storage data sync indicator"
+    ],
+    "navigation": "Sidebar containing links to Dashboard and Customer Records, collapsing to a compact top/bottom bar on mobile viewports.",
+    "responsive": {
+      "breakpoints": [
+        "390",
+        "768",
+        "1280"
+      ],
+      "notes": "Uses CSS Grid and Flexbox with relative units (percentages, rems, vw) to prevent horizontal scrolling and ensure seamless stacking on small screens."
+    },
+    "states": [
+      "empty",
+      "no results",
+      "loading",
+      "success"
+    ]
+  },
+  "buildPlan": {
+    "engine": {
+      "id": "gateway-static-site",
+      "kind": "one-shot static-site generator through the Model Gateway (writes files only; runs nothing)",
+      "note": "Writes the files; nothing is executed on this computer."
+    },
+    "framework": "Static HTML, CSS and JavaScript (no build step, no server)",
+    "database": "None - the prototype keeps its sample data in the page",
+    "deployTarget": {
+      "provider": "none",
+      "kind": "static-hosting"
+    },
+    "costEstimate": {
+      "usd": null,
+      "note": "not estimated"
+    },
+    "credentialsNeeded": [
+      "A hosting account (none connected)"
+    ],
+    "steps": [
+      "Initialize the project structure with a single-page HTML layout containing navigation for dashboard and customer records.",
+      "Write CSS styles using CSS Grid and Flexbox for a responsive sidebar layout and metric cards.",
+      "Implement client-side data management using browser localStorage for customer persistence.",
+      "Build the dashboard view with summary metric counters and recent activity overview.",
+      "Implement the customer management table with modal forms for adding, editing, and deleting records.",
+      "Add real-time filtering capabilities to instantly search customer records by name or email."
+    ],
+    "testChecks": [
+      {
+        "id": "check-dashboard",
+        "description": "Verify dashboard metric cards are visible on initial load",
+        "kind": "ELEMENT_PRESENT",
+        "selector": "#dashboard"
+      },
+      {
+        "id": "check-title",
+        "description": "Verify the main site title is displayed",
+        "kind": "TEXT_PRESENT",
+        "text": "Customer Management"
+      },
+      {
+        "id": "check-search",
+        "description": "Verify the search input is present on initial load",
+        "kind": "ELEMENT_PRESENT",
+        "selector": "#search"
+      },
+      {
+        "id": "check-customer-list",
+        "description": "Verify the customer list container is visible",
+        "kind": "ELEMENT_PRESENT",
+        "selector": "#customer-list"
+      },
+      {
+        "id": "check-filter",
+        "description": "Verify searching narrows down the customer list",
+        "kind": "SEARCH_FILTERS",
+        "inputSelector": "#search",
+        "query": "Alice",
+        "expectText": "Alice Smith",
+        "hideText": "Bob Jones"
+      }
+    ]
+  },
+  "final": {
+    "state": "PREVIEW_READY",
+    "blocker": null,
+    "failure": null,
+    "repairAttempts": 0,
+    "test": {
+      "ranAt": "2026-10-16T16:15:40.533Z",
+      "passed": true,
+      "checks": [
+        {
+          "id": "builtin.loads",
+          "description": "The page opens",
+          "passed": true,
+          "detail": "opened (HTTP 200) with the title \"Customer Management Portal\""
+        },
+        {
+          "id": "builtin.no-sideways-scroll-1280",
+          "description": "No sideways scrolling at 1280px",
+          "passed": true,
+          "detail": "fits the width"
+        },
+        {
+          "id": "builtin.no-sideways-scroll-768",
+          "description": "No sideways scrolling at 768px",
+          "passed": true,
+          "detail": "fits the width"
+        },
+        {
+          "id": "builtin.no-sideways-scroll-390",
+          "description": "No sideways scrolling at 390px",
+          "passed": true,
+          "detail": "fits the width"
+        },
+        {
+          "id": "check-dashboard",
+          "description": "Verify dashboard metric cards are visible on initial load",
+          "passed": true,
+          "detail": "#dashboard is visible"
+        },
+        {
+          "id": "check-title",
+          "description": "Verify the main site title is displayed",
+          "passed": true,
+          "detail": "the text is visible"
+        },
+        {
+          "id": "check-search",
+          "description": "Verify the search input is present on initial load",
+          "passed": true,
+          "detail": "#search is visible"
+        },
+        {
+          "id": "check-customer-list",
+          "description": "Verify the customer list container is visible",
+          "passed": true,
+          "detail": "#customer-list is visible"
+        },
+        {
+          "id": "check-filter",
+          "description": "Verify searching narrows down the customer list",
+          "passed": true,
+          "detail": "searching \"Alice\" keeps \"Alice Smith\" and hides \"Bob Jones\""
+        },
+        {
+          "id": "builtin.no-console-errors",
+          "description": "No errors in the browser console",
+          "passed": true,
+          "detail": "none"
+        },
+        {
+          "id": "builtin.no-external-requests",
+          "description": "Makes no request to any other address",
+          "passed": true,
+          "detail": "none"
+        }
+      ],
+      "screenshots": [
+        {
+          "width": 1280,
+          "fileName": "shot-1280.png"
+        },
+        {
+          "width": 768,
+          "fileName": "shot-768.png"
+        },
+        {
+          "width": 390,
+          "fileName": "shot-390.png"
+        }
+      ],
+      "consoleErrors": [],
+      "blockedRequests": 0
+    },
+    "files": [
+      {
+        "path": "index.html",
+        "bytes": 10495,
+        "sha256": "bbfe4cffdca16571de43bd32bc29665cef5cd95096d91d16dc10354159b55a4d"
+      },
+      {
+        "path": "css/site.css",
+        "bytes": 10639,
+        "sha256": "e6f864d8464e23842d90246a9e7fb98d860e47cf646b1ab6b6ac60fcb404dad0"
+      },
+      {
+        "path": "js/app.js",
+        "bytes": 12286,
+        "sha256": "6770b8fd1e1e7cdb29923c3674b2d38d82617fd7977c4401edb521b3b3bddb74"
+      }
+    ],
+    "history": [
+      "PROJECT_CREATED",
+      "PLAN_DRAFTED",
+      "PLAN_GATE_PASSED",
+      "PLAN_APPROVED_NEXT_MOCKUPS",
+      "BLOCKED:IMAGE_QUOTA_EXCEEDED",
+      "BLOCKER_RESOLVED_BY_PERSON",
+      "MOCKUPS_AND_DESIGN_READY",
+      "DESIGN_GATE_PASSED",
+      "BUILD_PLAN_DRAFTED",
+      "BUILD_GATE_PASSED",
+      "BUILD_APPROVED_NEXT_IMPLEMENT",
+      "IMPLEMENTED",
+      "TESTS_PASSED"
+    ]
+  }
+}

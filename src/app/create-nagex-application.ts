@@ -49,7 +49,18 @@ import { DeviceExecutionSessionStore } from '../device-control/device-execution-
 import { DeviceControlService } from '../device-control/device-control.service.js';
 import { GatewayExecutionModelAdapter } from '../device-control/gateway-execution-model.adapter.js';
 import { HybridExecutionModelAdapter } from '../device-control/hybrid-execution-model.adapter.js';
+import path from 'node:path';
 import { BrowserTaskService } from '../device-control/browser-task.service.js';
+import { ProductBuilderService } from '../product-builder/product-builder.service.js';
+import { ProductProjectStore } from '../product-builder/product-builder.store.js';
+import { ProductWorkspaceStore } from '../product-builder/product-workspace.js';
+import { PreviewLinkSigner } from '../product-builder/product-preview-link.js';
+import { GatewayPlanningAdapter } from '../product-builder/adapters/gateway-planning.adapter.js';
+import { ImageProviderMockupAdapter } from '../product-builder/adapters/image-provider-mockup.adapter.js';
+import { GatewayStaticSiteEngine } from '../product-builder/adapters/gateway-static-site.engine.js';
+import { PlaywrightSiteTester } from '../product-builder/adapters/playwright-site-tester.js';
+import { HttpDeployVerifier } from '../product-builder/adapters/http-deploy-verifier.js';
+import { VercelDeployAdapter } from '../product-builder/adapters/vercel-deploy.adapter.js';
 import { DecisionAdvisor } from '../device-control/decision-port.js';
 import { JevDecisionPort } from '../device-control/jev-decision.adapter.js';
 import { AstraVisualExecutionModelAdapter } from '../device-control/astra-visual-execution-model.adapter.js';
@@ -637,6 +648,27 @@ export function createNagexApplication(): NagexApplication {
   // R23.7C-D: NAgex's own in-process PresentationML renderer (text slides). Always available; no network, no third party.
   creationProviderRouter.registerPresentationProvider(new LocalPptxPresentationAdapter());
 
+  // AI Product Builder: request -> plan -> mockups -> design -> build plan -> isolated build -> test -> preview -> deploy, with the person deciding at four gates (the same Approval Authority as every other
+  // consequential action). Each capability is a replaceable adapter; one that is not set up simply reports so and the project stops at that step with the reason. Nothing is built before Gate 3 or deployed
+  // before Gate 4, and generated files are never executed on this host.
+  const productLocalUrls = process.env.NAGEX_ALLOW_LOCAL_TEST_URLS === '1'; // the established test-only switch for loopback fixtures; real runs never set it
+  const productPlanning = new GatewayPlanningAdapter(modelRouter);
+  const productSiteTester = new PlaywrightSiteTester();
+  const productProjectStore = new ProductProjectStore();
+  const productBuilderService = new ProductBuilderService({
+    store: productProjectStore,
+    workspaces: new ProductWorkspaceStore(path.join(productProjectStore.baseDir, 'workspaces')),
+    approvals: actionApprovals,
+    planning: productPlanning.configured() ? productPlanning : null,
+    mockups: creationProviderRouter.listImageProviders().map((provider) => new ImageProviderMockupAdapter(provider)),
+    engine: new GatewayStaticSiteEngine(modelRouter),
+    tester: productSiteTester,
+    deployers: [new VercelDeployAdapter(productLocalUrls ? { pollMs: 200, allowLocalHttp: true } : {})],
+    verifier: new HttpDeployVerifier(productSiteTester, productLocalUrls ? { allowLocal: true, attempts: 4, delayMs: 250 } : {}),
+    audit: auditLogger,
+  });
+  const previewLinkSigner = new PreviewLinkSigner();
+
   const imageStore = new ImageStore();
   const imageExecutor = new ImageExecutor({
     imageStore,
@@ -993,6 +1025,8 @@ export function createNagexApplication(): NagexApplication {
     imageStore,
     videoJobService,
     browserTaskService,
+    productBuilderService,
+    previewLinkSigner,
     presentationStore,
     presentationExecutor,
     creationRuntime,

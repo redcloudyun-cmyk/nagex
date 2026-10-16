@@ -42,6 +42,8 @@ export interface WorkspaceRouteDeps {
   isVideoAvailable?: () => boolean;
   // true when browser tasks are possible (a planner is configured); the router then treats "open <address> and do X" as a browser task instead of leaving it a plan or an answer
   isBrowserTaskAvailable?: () => boolean;
+  /** a planning model is configured, so "build me a website" can start a Product Builder project instead of being 'not available' */
+  isProductBuilderAvailable?: () => boolean;
   /** this person has an enrolled, active PC that reports it can drive Notepad */
   isDesktopTaskAvailable?: (tenantId: string, principalId: string) => boolean;
 }
@@ -67,7 +69,7 @@ export const handleWorkspaceRoutes: AsyncRouteRegistrar<WorkspaceRouteDeps> = as
     const activeKind = activeContext?.artifactType === 'PRESENTATION' && typeof activeContext?.presentationId === 'string' && /^pres_[0-9a-f]{24}$/.test(activeContext.presentationId) ? 'PRESENTATION'
       : activeContext?.artifactType === 'DOCUMENT' ? 'DOCUMENT' : null;
     const sourceDocument = typeof activeContext?.sourceDocumentArtifactId === 'string' && /^art_[0-9a-f]{24}$/.test(activeContext.sourceDocumentArtifactId);
-    const classification = InputRouter.classify({ text, hasFile, hasAudio, mimeType, hint, revisingDocument, activeArtifact: activeKind, sourceDocument, videoAvailable: deps.isVideoAvailable?.() === true, browserTaskAvailable: deps.isBrowserTaskAvailable?.() === true, desktopTaskAvailable: deps.isDesktopTaskAvailable?.(callerIdentity(headers).tenantId, callerIdentity(headers).principalId) === true });
+    const classification = InputRouter.classify({ text, hasFile, hasAudio, mimeType, hint, revisingDocument, activeArtifact: activeKind, sourceDocument, videoAvailable: deps.isVideoAvailable?.() === true, browserTaskAvailable: deps.isBrowserTaskAvailable?.() === true, productBuilderAvailable: deps.isProductBuilderAvailable?.() === true, desktopTaskAvailable: deps.isDesktopTaskAvailable?.(callerIdentity(headers).tenantId, callerIdentity(headers).principalId) === true });
     return { status: 200, data: classification };
   }
 

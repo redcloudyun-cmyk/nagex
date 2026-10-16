@@ -135,15 +135,15 @@ abstract class HttpModelProvider implements ModelProvider {
   // Thin wrapper around postJsonInner solely to record the real observed
   // outcome (success/failure) of this actual network attempt — the single
   // real signal status()'s LIVE/DEGRADED distinction is built on (R7 §4).
-  protected async postJson(url: string, headers: Record<string, string>, body: unknown, requestId: string): Promise<unknown> {
-    return (await this.postJsonDetailed(url, headers, body, requestId)).payload;
+  protected async postJson(url: string, headers: Record<string, string>, body: unknown, requestId: string, timeoutMs?: number): Promise<unknown> {
+    return (await this.postJsonDetailed(url, headers, body, requestId, timeoutMs)).payload;
   }
 
   // Same as postJson, additionally returning the response headers (for a provider's request id). The request headers —
   // which carry the credential — are never returned, stored or logged.
-  protected async postJsonDetailed(url: string, headers: Record<string, string>, body: unknown, requestId: string): Promise<{ payload: unknown; responseHeaders: Headers | undefined }> {
+  protected async postJsonDetailed(url: string, headers: Record<string, string>, body: unknown, requestId: string, timeoutMs?: number): Promise<{ payload: unknown; responseHeaders: Headers | undefined }> {
     try {
-      const result = await this.postJsonInner(url, headers, body, requestId);
+      const result = await this.postJsonInner(url, headers, body, requestId, timeoutMs);
       this.recordOutcome('success', null);
       return result;
     } catch (error) {
@@ -153,9 +153,11 @@ abstract class HttpModelProvider implements ModelProvider {
     }
   }
 
-  private async postJsonInner(url: string, headers: Record<string, string>, body: unknown, requestId: string): Promise<{ payload: unknown; responseHeaders: Headers | undefined }> {
+  private async postJsonInner(url: string, headers: Record<string, string>, body: unknown, requestId: string, timeoutOverrideMs?: number): Promise<{ payload: unknown; responseHeaders: Headers | undefined }> {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+    // a request may ask for longer than the provider's default (a whole website's files), but never for unbounded: 1 second to 5 minutes
+    const budgetMs = typeof timeoutOverrideMs === 'number' && Number.isFinite(timeoutOverrideMs) ? Math.min(300_000, Math.max(1_000, Math.floor(timeoutOverrideMs))) : this.timeoutMs;
+    const timeout = setTimeout(() => controller.abort(), budgetMs);
     try {
       const response = await this.fetchFn(url, {
         method: 'POST',
@@ -246,8 +248,9 @@ export class OpenAIProvider extends HttpModelProvider {
     const payload = await this.postJson(
       'https://api.openai.com/v1/responses',
       { Authorization: `Bearer ${apiKey}` },
-      { model, input: request.messages, store: false },
+      { model, input: request.messages, store: false, ...(request.maxOutputTokens && request.maxOutputTokens > 0 ? { max_output_tokens: Math.floor(request.maxOutputTokens) } : {}) },
       request.requestId,
+      request.timeoutMs,
     ) as { output_text?: string; output?: Array<{ content?: Array<{ type?: string; text?: string }> }>; usage?: { input_tokens?: number; output_tokens?: number; total_tokens?: number } };
     const text = payload.output_text ?? payload.output?.flatMap((item) => item.content ?? []).find((item) => item.type === 'output_text')?.text ?? '';
     const usage = payload.usage
@@ -283,9 +286,10 @@ export class GeminiProvider extends HttpModelProvider {
       {
         ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
         contents,
-        ...(request.jsonMode ? { generationConfig: { responseMimeType: 'application/json' } } : {}),
+        ...(request.jsonMode || (request.maxOutputTokens && request.maxOutputTokens > 0) ? { generationConfig: { ...(request.jsonMode ? { responseMimeType: 'application/json' } : {}), ...(request.maxOutputTokens && request.maxOutputTokens > 0 ? { maxOutputTokens: Math.floor(request.maxOutputTokens) } : {}) } } : {}),
       },
       request.requestId,
+      request.timeoutMs,
     ) as { candidates?: Array<{ finishReason?: string; content?: { parts?: Array<{ text?: string }> } }>; usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number } };
     const text = payload.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('') ?? '';
     const usage = payload.usageMetadata
@@ -428,7 +432,7 @@ export class NebiusProvider extends HttpModelProvider {
     let detailed: { payload: unknown; responseHeaders: Headers | undefined } | undefined;
     for (let attempt = 0; !detailed; attempt++) {
       try {
-        detailed = await this.postJsonDetailed(this.endpoint!, { Authorization: `Bearer ${apiKey}` }, body, request.requestId);
+        detailed = await this.postJsonDetailed(this.endpoint!, { Authorization: `Bearer ${apiKey}` }, body, request.requestId, request.timeoutMs);
       } catch (error) {
         if (attempt < NEBIUS_MAX_RETRIES && this.isTransient(error)) continue;
         throw error;
