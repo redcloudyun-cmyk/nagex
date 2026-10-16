@@ -27,7 +27,7 @@ export interface SaveCompletedArtifactInput {
   openTarget: string;
 }
 
-export type ArtifactPreviewKind = 'IMAGE' | 'TEXT' | 'PLANNED' | 'UNKNOWN';
+export type ArtifactPreviewKind = 'IMAGE' | 'TEXT' | 'VIDEO' | 'PLANNED' | 'UNKNOWN';
 
 // R24.7B — the single source of truth for which artifact types support
 // contextual Canvas Ask, and why the others do not. The UI never decides this
@@ -88,9 +88,15 @@ export function toArtifactUxProjection(record: ArtifactRecord): ArtifactUxProjec
     previewTarget = null;
     canvasTarget = '';
   } else if (type === 'VIDEO') {
-    previewKind = 'PLANNED';
-    previewTarget = null;
-    canvasTarget = ''; // non-routable for planned/future extension
+    // A stored video (a finished job) has its own owner-checked media path; a VIDEO record without an open target is still only a placeholder.
+    if (record.openTarget) {
+      previewKind = 'VIDEO';
+      previewTarget = `${record.openTarget}/media`;
+    } else {
+      previewKind = 'PLANNED';
+      previewTarget = null;
+    }
+    canvasTarget = ''; // opened in the Main result panel, not in a Canvas route
   } else {
     previewKind = 'UNKNOWN';
     previewTarget = null;

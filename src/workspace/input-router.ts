@@ -80,6 +80,8 @@ export interface ClassifyInput {
   // the artifact the person is looking at (advice only - the endpoints still check ownership): "한 장 추가해줘" is about a deck that is open, "이 보고서로 ..." about a document that was just made
   activeArtifact?: 'DOCUMENT' | 'PRESENTATION' | null;
   sourceDocument?: boolean;
+  // a video service is configured (the server knows; the router only follows it). Without it a video request stays an honest 'not available'.
+  videoAvailable?: boolean;
 }
 
 // ----- cue tables (substring matches for Korean, word-aware for English) -----------------------------------------------------------------------------------
@@ -184,19 +186,22 @@ function stripTopicNoise(text: string): string {
   return text.replace(TOPIC_STRIP, ' ').replace(/[\s.,!?;:'"“”‘’()\[\]{}\-~·…]+/g, ' ').trim();
 }
 
-const CLARIFY_TOPIC: Record<'DOCUMENT' | 'PRESENTATION' | 'IMAGE', { ko: string; en: string }> = {
+const CLARIFY_TOPIC: Record<'DOCUMENT' | 'PRESENTATION' | 'IMAGE' | 'VIDEO', { ko: string; en: string }> = {
   DOCUMENT: { ko: '어떤 내용으로 문서를 만들까요? 주제나 담을 내용을 알려주세요.', en: 'What should the document be about? Tell me the topic or what it should cover.' },
   PRESENTATION: { ko: '슬라이드 주제와 대략적인 장수를 알려주세요.', en: 'What is the presentation about, and roughly how many slides?' },
   IMAGE: { ko: '어떤 이미지를 원하세요? 무엇을 담을지 한 줄로 설명해 주세요.', en: 'What image would you like? Describe what it should show in a line.' },
+  VIDEO: { ko: '어떤 영상을 원하세요? 장면이나 분위기를 한두 문장으로 설명해 주세요.', en: 'What video would you like? Describe the scene or mood in a sentence or two.' },
 };
 const CLARIFY_VAGUE = { ko: '무엇을 도와드릴까요? 하고 싶은 일을 한 문장으로 알려주세요.', en: 'What would you like help with? Tell me what you want to get done in one sentence.' };
 
 // "make slides from THIS topic": the words point at something said before; the client may supply that context, otherwise it asks
 const CONTEXT_REFERENCE = /(이\s*주제|이\s*내용|위\s*내용|위의|이것|이거|이걸|이런|그런|방금|앞서|\bthis (topic|content|conversation)\b|\bthe above\b|\bwhat you (just )?said\b|\b(from|about) (this|that|above)\b)/i;
 
-function hintTarget(hint: ClassifyInput['hint']): 'DOCUMENT' | 'PRESENTATION' | 'IMAGE' | 'RESEARCH' | null {
+function hintTarget(hint: ClassifyInput['hint'], videoAvailable = false): 'DOCUMENT' | 'PRESENTATION' | 'IMAGE' | 'VIDEO' | 'RESEARCH' | null {
   const type = typeof hint?.artifactType === 'string' ? hint.artifactType.toUpperCase() : '';
   if (type === 'DOCUMENT' || type === 'PRESENTATION' || type === 'IMAGE') return type;
+  // the Video shortcut counts only where a video service exists; otherwise it is ignored like any shortcut for something NAgex cannot do
+  if (type === 'VIDEO' && videoAvailable) return 'VIDEO';
   const capability = typeof hint?.capability === 'string' ? hint.capability.toUpperCase() : '';
   return capability === 'RESEARCH' ? 'RESEARCH' : null;
 }
@@ -248,7 +253,7 @@ export function isDeckEditRequest(text: string): boolean {
   return (DECK_EDIT_VERB_KO.test(t) && DECK_PART_KO.test(t)) || (DECK_EDIT_VERB_EN.test(t) && DECK_PART_EN.test(t));
 }
 
-export function decideRouting(rawText: string, options: { hasAttachment?: boolean; hint?: ClassifyInput['hint']; revisingDocument?: boolean; activeArtifact?: ClassifyInput['activeArtifact']; sourceDocument?: boolean } = {}): RoutingDecision {
+export function decideRouting(rawText: string, options: { hasAttachment?: boolean; hint?: ClassifyInput['hint']; revisingDocument?: boolean; activeArtifact?: ClassifyInput['activeArtifact']; sourceDocument?: boolean; videoAvailable?: boolean } = {}): RoutingDecision {
   const text = (rawText || '').normalize('NFC').trim();
   const language = detectRequestLanguage(text);
   const hasAttachment = options.hasAttachment === true;
@@ -273,6 +278,17 @@ export function decideRouting(rawText: string, options: { hasAttachment?: boolea
 
   // 2. unsupported creation kinds are detected BEFORE anything else: they must never fall through to a chat answer that pretends to be the deliverable
   if (VIDEO_MAKE.some((re) => re.test(work))) {
+    // With a configured video service this is a real (paid, approval-gated) creation; without one it stays an honest 'not available'.
+    if (options.videoAvailable === true) {
+      const topicless = stripTopicNoise(work.replace(/(영상|비디오|동영상|애니메이션|쇼츠|릴스|트레일러|\b(videos?|animation|clip|reel|trailer|movie|film)\b)/gi, ' ')).length === 0;
+      return makeDecision({
+        kind: 'CREATE_ARTIFACT', language, targetArtifactType: 'VIDEO', needs: [{ capability: 'VIDEO', supported: true, approvalRequired: true }], confidence: topicless ? 0.6 : 0.86,
+        // a video is a paid job at an outside service: the person approves the price before anything is sent
+        permissionRisk: 'EXTERNAL_CONSEQUENTIAL', executionNegated,
+        ambiguity: topicless ? { level: 'HIGH', reason: 'MISSING_TOPIC', clarifyingQuestion: CLARIFY_TOPIC.VIDEO } : NO_AMBIGUITY,
+        reasonCodes: [...reasonCodes, 'ARTIFACT_REQUESTED', 'VIDEO_REQUESTED', ...(topicless ? ['MISSING_TOPIC'] : [])],
+      });
+    }
     return makeDecision({ kind: 'UNSUPPORTED', language, targetArtifactType: 'VIDEO', needs: [{ capability: 'VIDEO', supported: false }], confidence: 0.9, reasonCodes: [...reasonCodes, 'VIDEO_NOT_AVAILABLE'] });
   }
   const codeRun = CODE_RUN.some((re) => re.test(work));
@@ -364,14 +380,15 @@ export function decideRouting(rawText: string, options: { hasAttachment?: boolea
   }
 
   // 6. the optional shortcut biases a plain request toward what the person picked - never an action, never an unsupported kind (those returned above)
-  const hinted = hintTarget(options.hint);
+  const hinted = hintTarget(options.hint, options.videoAvailable === true);
   if (hinted === 'RESEARCH') {
     return makeDecision({ kind: 'RESEARCH', language, needs: [{ capability: 'RESEARCH', supported: true }], confidence: 0.8, permissionRisk: 'EXTERNAL_READ', executionNegated, reasonCodes: [...reasonCodes, 'EXPLICIT_SHORTCUT'] });
   }
   if (hinted) {
     const topicless = stripTopicNoise(work).length === 0 && !hasAttachment;
     return makeDecision({
-      kind: 'CREATE_ARTIFACT', language, targetArtifactType: hinted, needs: [{ capability: hinted, supported: true }], confidence: 0.8, permissionRisk: 'LOCAL_CREATE', executionNegated,
+      kind: 'CREATE_ARTIFACT', language, targetArtifactType: hinted, needs: [hinted === 'VIDEO' ? { capability: 'VIDEO', supported: true, approvalRequired: true } : { capability: hinted, supported: true }], confidence: 0.8,
+      permissionRisk: hinted === 'VIDEO' ? 'EXTERNAL_CONSEQUENTIAL' : 'LOCAL_CREATE', executionNegated,
       ambiguity: topicless ? { level: 'HIGH', reason: 'MISSING_TOPIC', clarifyingQuestion: CLARIFY_TOPIC[hinted] } : NO_AMBIGUITY,
       reasonCodes: [...reasonCodes, 'EXPLICIT_SHORTCUT', ...(topicless ? ['MISSING_TOPIC'] : []), ...(CONTEXT_REFERENCE.test(work) ? ['CONTEXT_REFERENCE'] : [])],
     });
@@ -420,7 +437,7 @@ export class InputRouter {
         confidence: 0.98,
         reason: 'Input contains file payload',
         normalizedPayload: { rawInput: rawText, mimeType: input.mimeType || 'application/octet-stream' },
-        decision: rawText ? decideRouting(rawText, { hasAttachment, hint: input.hint, revisingDocument: input.revisingDocument === true, activeArtifact: input.activeArtifact, sourceDocument: input.sourceDocument === true }) : captureDecision(0.98, 'FILE_PAYLOAD'),
+        decision: rawText ? decideRouting(rawText, { hasAttachment, hint: input.hint, revisingDocument: input.revisingDocument === true, activeArtifact: input.activeArtifact, sourceDocument: input.sourceDocument === true, videoAvailable: input.videoAvailable === true }) : captureDecision(0.98, 'FILE_PAYLOAD'),
       };
     }
 
@@ -467,7 +484,7 @@ export class InputRouter {
     }
 
     // 5. everything else is routed by what the person asked for
-    const decision = decideRouting(rawText, { hasAttachment: false, hint: input.hint, revisingDocument: input.revisingDocument === true, activeArtifact: input.activeArtifact, sourceDocument: input.sourceDocument === true });
+    const decision = decideRouting(rawText, { hasAttachment: false, hint: input.hint, revisingDocument: input.revisingDocument === true, activeArtifact: input.activeArtifact, sourceDocument: input.sourceDocument === true, videoAvailable: input.videoAvailable === true });
     const primaryIntent: InputIntent = decision.kind === 'ACTION_PLAN' ? 'COMMAND' : 'ASK';
     return {
       primaryIntent,

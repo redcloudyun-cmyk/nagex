@@ -5,7 +5,7 @@
 **Base:** integration `9631e0cedaa74258c8c3c87514d8342793a01c41` → branch `topic/image-video-20261016`
 **RELEASE = NO-GO.**
 
-The directive that opened this work was cut off after its Astra section (nothing about Higgsfield and Veo reached the session beyond their names). Everything below about Higgsfield and Veo is therefore an assessment from the code and from probes of the available key, not a response to a specification. Please resend the missing part.
+The directive that opened this work was cut off after its Astra section; the missing part (Higgsfield and Veo) was resent later and is answered in `NAGEX_VIDEO_GENERATION_20261016.md`. This document covers the image half.
 
 ## 1. Status per scenario
 
@@ -15,8 +15,8 @@ The directive that opened this work was cut off after its Astra section (nothing
 | Real text-to-image through NAgex (Google image models) | **PARTIAL — implemented and tested against a loopback stand-in; LIVE = BLOCKED** | §2, §3. |
 | LIVE image from a real provider | **BLOCKED** | Every real request through the final adapter is answered `429 RESOURCE_EXHAUSTED` (free-tier quota / no billing) — §4. |
 | OpenAI image (`gpt-image-*`) | unchanged, unverified live | adapter and 8 unit tests exist; no OpenAI key on this machine. |
-| Higgsfield | **BLOCKED — unknown interface** | No adapter, no credential, no specification in the repository or in the received directive. Nothing was built. |
-| Video (Google Veo) | **BLOCKED** | See §5. Not implemented; video stays listed as **not available** in the product (`capability-brief.ts`, router `VIDEO` unsupported). |
+| Higgsfield video | **IMPLEMENTED against its documented REST API; LIVE = BLOCKED (no credentials)** | Superseded by `NAGEX_VIDEO_GENERATION_20261016.md` (adapter, job runtime, routes, UI, tests). |
+| Video (Google Veo) | **IMPLEMENTED (adapter + shared job runtime); OFF unless the operator enables it; LIVE = BLOCKED (paid-only, no authorised spend)** | Same document. |
 
 ## 2. What changed
 
@@ -49,15 +49,12 @@ gemini-3.1-flash-image-preview -> FAILED PROVIDER_QUOTA_EXCEEDED  (294 ms)
 
 Earlier probes with plain `generateContent` on three image models of this key gave the same 429. Because the quota check can precede request validation, this does not show the request body is accepted either: **the live shape is unverified** until a key with image quota is available. No purchase or plan change was made. Unblock: a Gemini key with billing enabled (then `npm run test:live`-style single probe through the adapter), or an OpenAI key for the existing adapter.
 
-## 5. Video (Veo) — why nothing was built
+## 5. Video
 
-* The key lists `veo-3.1-*-preview`, but video generation is a paid, long-running operation (submit → poll the operation → download a time-limited file URI); a request cannot be verified without billing.
-* The product has `VideoProviderPort` and a router slot but no adapter, no `VideoExecutor`, no video store, no serving route, no UI. A faithful vertical (adapter + executor + store + owner-only serving + Main UI + approval for cost) is several packages of work that could not be exercised live, and building it from memory of an API shape would risk advertising a capability that has never run.
-* MASTER §4/§7: unsupported capability must never be advertised. The chat capability brief therefore still says video is not available, and the router answers a video request honestly (`영상 만들기는 아직 지원하지 않아요`). That stays true.
+The first version of this document recorded video as not built because the second half of the directive had been cut off. The directive was then resent and video was built; see `NAGEX_VIDEO_GENERATION_20261016.md`.
 
 ## 6. Open items
 
-* Resend the cut-off part of the directive (Higgsfield and Veo requirements, acceptance).
 * A key with image quota → one live probe, then a real-browser run with the real model, then record the result here.
 * Decide whether Main should offer aspect-ratio and variation controls (server ready).
-* Veo / Higgsfield: spec and credentials first, then adapter → executor → store → serving → UI → approval for cost.
+* Video: see the video evidence document (credentials and an authorised spend limit are the only things missing for a live run).

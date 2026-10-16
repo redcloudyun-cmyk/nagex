@@ -123,6 +123,10 @@ import { LocalPptxPresentationAdapter } from '../creation/providers/adapters/loc
 import { CreationProviderRouter } from '../creation/providers/creation-provider-router.js';
 import { OpenAIImageAdapter } from '../creation/providers/adapters/openai-image-adapter.js';
 import { GoogleImageAdapter } from '../creation/providers/adapters/google-image-adapter.js';
+import { HiggsfieldVideoAdapter } from '../creation/providers/adapters/higgsfield-video-adapter.js';
+import { VeoVideoAdapter } from '../creation/providers/adapters/veo-video-adapter.js';
+import { VideoStore } from '../creation/video.store.js';
+import { VideoJobService } from '../creation/video-job.service.js';
 import { VaultStore } from '../workspace/vault.store.js';
 import { VaultSaveService } from '../workspace/vault-save.service.js';
 import { ConnectionStore } from '../workspace/connections.store.js';
@@ -606,6 +610,10 @@ export function createNagexApplication(): NagexApplication {
   creationProviderRouter.registerImageProvider(new OpenAIImageAdapter());
   // Registered after OpenAI: the router takes the first configured provider, so Google serves images only when no OpenAI credential exists (or when asked for by id).
   creationProviderRouter.registerImageProvider(new GoogleImageAdapter());
+  // Video: asynchronous, paid jobs. Each adapter reports UNCONFIGURED until its own credential (and, for Veo, the operator's explicit NAGEX_VEO_ENABLED) exists,
+  // so with neither configured video stays 'not available' everywhere (router, capability brief, UI).
+  creationProviderRouter.registerVideoProvider(new HiggsfieldVideoAdapter());
+  creationProviderRouter.registerVideoProvider(new VeoVideoAdapter());
   // R23.7C-D: NAgex's own in-process PresentationML renderer (text slides). Always available; no network, no third party.
   creationProviderRouter.registerPresentationProvider(new LocalPptxPresentationAdapter());
 
@@ -616,6 +624,11 @@ export function createNagexApplication(): NagexApplication {
     providerRouter: creationProviderRouter,
     auditLogger,
   });
+
+  // Video jobs: priced and approved through the existing ActionApprovalStore, then submitted, polled and stored. The driver is started by the server lifecycle.
+  const videoStore = new VideoStore();
+  const videoJobService = new VideoJobService({ store: videoStore, providerRouter: creationProviderRouter, approvalStore: actionApprovals, artifactStore, imageStore, auditLogger });
+  aiService.setCapabilityProbe(() => ({ video: videoJobService.isAvailable() }));
 
   const presentationStore = new PresentationStore();
   const presentationExecutor = new PresentationExecutor({
@@ -958,6 +971,7 @@ export function createNagexApplication(): NagexApplication {
     todoService,
     imageExecutor,
     imageStore,
+    videoJobService,
     presentationStore,
     presentationExecutor,
     creationRuntime,

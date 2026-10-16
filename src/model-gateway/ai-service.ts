@@ -12,7 +12,7 @@ import { normalizePresentationOutline, OUTLINE_LIMITS, type PresentationOutline 
 import { parseStructuredJson } from './structured-json.js';
 import { buildTimeContext, timeContextPromptLines } from '../common/time-context.js';
 import { groundScheduleSteps, type ScheduleClock } from '../planning/schedule-grounding.js';
-import { capabilityBriefLines } from './capability-brief.js';
+import { capabilityBriefFor, capabilityBriefLines } from './capability-brief.js';
 import { analyzeRequest, checkCoverage, coverageCorrection, requestShapeInstructions } from './request-analysis.js';
 
 export type PlanStepNecessity = 'REQUIRED' | 'OPTIONAL';
@@ -463,6 +463,12 @@ export class AiService {
 
   constructor(private readonly router: UnifiedModelRouter) {}
 
+  // Which optional capabilities this installation really has (video needs a configured video service). Absent = none, which is the shipped brief.
+  private capabilityProbe?: () => { video?: boolean };
+  public setCapabilityProbe(probe: () => { video?: boolean }): void {
+    this.capabilityProbe = probe;
+  }
+
   // Per-user tools offered to the planner; absent or empty = the planning prompt is exactly what it always was.
   public setUserToolProvider(provider: PlanUserToolProvider): void {
     this.userToolProvider = provider;
@@ -621,7 +627,7 @@ export class AiService {
         'Answer in the language of the request. Be accurate and useful: complete (every instruction in the request is answered), specific (concrete explanations and examples, no generic filler), and proportionate (short for a simple question, thorough for a multi-part one). Never repeat yourself.',
         'If you do not know something or a capability is not available, say so plainly instead of guessing.',
       ].join('\n'),
-      capabilityBriefLines().join('\n'),
+      capabilityBriefLines(capabilityBriefFor(this.capabilityProbe ? (() => { try { return this.capabilityProbe!(); } catch { return {}; } })() : {})).join('\n'),
       requestShapeInstructions(shape).join('\n'),
       languageInstruction(detectRequestLanguage(input.message)),
       ...(input.clock ? timeContextPromptLines(buildTimeContext(input.clock.nowMs, { timezone: input.clock.timezone, source: input.clock.timezoneSource }), input.clock.nowMs, 'chat') : []),

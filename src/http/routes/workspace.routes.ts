@@ -38,6 +38,8 @@ function getHeaderValue(headers: Record<string, string | string[] | undefined>, 
 export interface WorkspaceRouteDeps {
   quickCaptureService: QuickCaptureService;
   artifactStore?: ArtifactStore;
+  // true when a video service is configured; the router then treats a video request as a real (approval-gated) creation instead of 'not available'
+  isVideoAvailable?: () => boolean;
 }
 
 export const handleWorkspaceRoutes: AsyncRouteRegistrar<WorkspaceRouteDeps> = async (method, pathname, body, headers, query, deps): Promise<ApiResult | undefined> => {
@@ -61,7 +63,7 @@ export const handleWorkspaceRoutes: AsyncRouteRegistrar<WorkspaceRouteDeps> = as
     const activeKind = activeContext?.artifactType === 'PRESENTATION' && typeof activeContext?.presentationId === 'string' && /^pres_[0-9a-f]{24}$/.test(activeContext.presentationId) ? 'PRESENTATION'
       : activeContext?.artifactType === 'DOCUMENT' ? 'DOCUMENT' : null;
     const sourceDocument = typeof activeContext?.sourceDocumentArtifactId === 'string' && /^art_[0-9a-f]{24}$/.test(activeContext.sourceDocumentArtifactId);
-    const classification = InputRouter.classify({ text, hasFile, hasAudio, mimeType, hint, revisingDocument, activeArtifact: activeKind, sourceDocument });
+    const classification = InputRouter.classify({ text, hasFile, hasAudio, mimeType, hint, revisingDocument, activeArtifact: activeKind, sourceDocument, videoAvailable: deps.isVideoAvailable?.() === true });
     return { status: 200, data: classification };
   }
 

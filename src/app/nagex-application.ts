@@ -178,6 +178,8 @@ export interface NagexApplication {
   // R23.7C-C — same ImageStore instance imageExecutor writes through,
   // exposed so the canonical image-serving HTTP route reads real state.
   imageStore: import('../creation/image.store.js').ImageStore;
+  // Video jobs (Higgsfield / Veo): price, approval, submission, polling, stored MP4. Its availability is what lets the router and the capability brief offer video.
+  videoJobService: import('../creation/video-job.service.js').VideoJobService;
   // R23.7C-D — the presentation runtime: executor + the store the download/viewer routes read.
   presentationStore: import('../creation/presentation.store.js').PresentationStore;
   presentationExecutor: import('../creation/executors/presentation-executor.js').PresentationExecutor;

@@ -100,4 +100,6 @@ export interface VideoCreationSpec extends CanonicalCreationSpecBase {
     voiceLanguage?: 'en' | 'ko';
   };
   storyboard: VideoSceneSpec[];
+  /** image-to-video: the person's own image (read from NAgex's image store by the service), used as the first frame */
+  sourceImage?: { bytes: Buffer; mimeType: string; imageId?: string };
 }

@@ -74,6 +74,7 @@ import { handleScimRoutes } from './http/routes/scim.routes.js';
 import { handleCreationRoutes } from './http/routes/creation.routes.js';
 import { handleDocumentCreationRoutes } from './http/routes/document-creation.routes.js';
 import { handlePresentationCreationRoutes } from './http/routes/presentation-creation.routes.js';
+import { handleVideoCreationRoutes } from './http/routes/video-creation.routes.js';
 import { handleCaptureRoutes } from './http/routes/capture.routes.js';
 import { handleInboxRoutes } from './http/routes/inbox.routes.js';
 import { handleVaultRoutes } from './http/routes/vault.routes.js';
@@ -610,7 +611,7 @@ export async function handleAsyncApiRequest(
     // (route-input, storage/status, inbox, vault, uploads, captures, items,
     // candidates, activity) now resolve through one registrar call.
     {
-      const workspaceResult = await handleWorkspaceRoutes(method, pathname, body, headers, query, { quickCaptureService, artifactStore: app.artifactStore });
+      const workspaceResult = await handleWorkspaceRoutes(method, pathname, body, headers, query, { quickCaptureService, artifactStore: app.artifactStore, isVideoAvailable: () => app.videoJobService.isAvailable() });
       if (workspaceResult) return workspaceResult;
 
       const commandContextResult = await handleCommandContextRoutes(method, pathname, body, headers, query, { commandService: multimodalCommandService, sessionStore: customDeps?.sessionStore ?? sessionStore });
@@ -808,6 +809,12 @@ export async function handleAsyncApiRequest(
         versionService: app.artifactVersionService,
       });
       if (presentationResult) return presentationResult;
+    }
+
+    // Video creation: price + approval, status, owner-only playback / download
+    {
+      const videoResult = await handleVideoCreationRoutes(method, pathname, body, headers, query, { videoJobService: app.videoJobService });
+      if (videoResult) return videoResult;
     }
 
     // R17 — Creation Routes (generate, variation, list, get)
@@ -1325,6 +1332,13 @@ export async function startNagexServer(): Promise<{ server: http.Server }> {
     stop: () => {
       if (schedulerIntervalHandle) clearInterval(schedulerIntervalHandle);
     },
+  });
+
+  lifecycle.register({
+    name: 'video-job-driver',
+    // picks up unfinished video jobs (also after a restart) and polls them on a bounded schedule
+    start: () => app.videoJobService.startDriver(),
+    stop: () => app.videoJobService.stopDriver(),
   });
 
   lifecycle.register({

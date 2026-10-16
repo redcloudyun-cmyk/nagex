@@ -110,6 +110,7 @@ const EXPECTED_ROUTE_MODULE_COUNTS: Record<string, number> = {
   'telegram.routes.ts': 7,
   'todo.routes.ts': 3, // next actions: GET list, POST suggest, POST :id/start and :id/link
   'vault.routes.ts': 4,
+  'video-creation.routes.ts': 8, // video jobs: POST prepare, GET list, GET capability, GET :id, POST :id/approve|decline|cancel, GET :id/media
   'workspace.routes.ts': 25,
 };
 
@@ -133,13 +134,14 @@ test('ROUTE-INV-002: every route module\'s method-check-block count exactly matc
   assert.deepEqual(mismatches, [], `Route module endpoint-count drift detected:\n${mismatches.join('\n')}`);
 });
 
-test('ROUTE-INV-003: the total domain endpoint count across all route modules is exactly 367 — any change requires an intentional manifest update', () => {
+test('ROUTE-INV-003: the total domain endpoint count across all route modules is exactly 375 — any change requires an intentional manifest update', () => {
   // R23.7C-C — +1: GET /api/v1/creations/images/:imageId, the canonical
   // image-serving route fixing the BROKEN_SUCCESS_CONTRACT root cause.
   // Integration of R23.7 recovery + AGEX/MCP: 347 (R23.7 incl. restored device-agent 10 and social-auth 8) + connector-catalog 1 + MCP reconnect 1.
   // R26-D: +7 on top of 357 (list / compare / restore of the versions of a document and of a deck, plus the lookup of the newest report that has earlier versions).
   // Next actions (TODOs): +3 method-check blocks (list, suggest, start/link) = 367.
-  assert.equal(TOTAL_DOMAIN_ENDPOINTS, 367);
+  // Video creation: +8 (prepare, list, capability, status, approve, decline, cancel, media) = 375.
+  assert.equal(TOTAL_DOMAIN_ENDPOINTS, 375);
   let actualTotal = 0;
   for (const file of listRouteModuleFiles()) {
     actualTotal += countMethodChecks(readSourceWithoutComments(path.join(ROUTES_DIR, file)));
