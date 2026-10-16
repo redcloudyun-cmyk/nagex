@@ -673,6 +673,8 @@ async function enrollThisPc(gatewayUrl: string): Promise<void> {
       credentialStore,
       agentVersion: app.getVersion(),
       capabilityInventory: wiring.capabilityInventory,
+      deviceName: os.hostname(),
+      platform: process.platform,
     });
     if (!result.enrolled) {
       tell(result.reason === 'NOT_SIGNED_IN' ? 'Sign in to NAgex first' : 'This PC could not be enrolled', result.reason === 'NOT_SIGNED_IN' ? 'Enrollment uses the account you are signed in with in this app.' : 'NAgex could not register this PC right now. Nothing was changed.');

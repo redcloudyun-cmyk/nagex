@@ -1,4 +1,5 @@
 import { detectRequestLanguage, type RequestLanguage } from '../common/request-language.js';
+import { isDesktopWriteRequest } from '../device-agent/desktop-request-interpreter.js';
 import { classifyPlanRequest } from '../model-gateway/plan-request-kind.js';
 import { isVaultSaveRequest } from './vault-save-intent.js';
 import { detectVersionIntent } from './version-intent.js';
@@ -84,6 +85,8 @@ export interface ClassifyInput {
   videoAvailable?: boolean;
   // a browser agent is configured (the server knows). Without it a request to operate a website is routed as before.
   browserTaskAvailable?: boolean;
+  // a PC of the signed-in person is enrolled and can drive Notepad (the server knows). Without one a "write this in Notepad and save it" request is an honest 'not available'.
+  desktopTaskAvailable?: boolean;
 }
 
 // ----- cue tables (substring matches for Korean, word-aware for English) -----------------------------------------------------------------------------------
@@ -262,7 +265,7 @@ export function isDeckEditRequest(text: string): boolean {
   return (DECK_EDIT_VERB_KO.test(t) && DECK_PART_KO.test(t)) || (DECK_EDIT_VERB_EN.test(t) && DECK_PART_EN.test(t));
 }
 
-export function decideRouting(rawText: string, options: { hasAttachment?: boolean; hint?: ClassifyInput['hint']; revisingDocument?: boolean; activeArtifact?: ClassifyInput['activeArtifact']; sourceDocument?: boolean; videoAvailable?: boolean; browserTaskAvailable?: boolean } = {}): RoutingDecision {
+export function decideRouting(rawText: string, options: { hasAttachment?: boolean; hint?: ClassifyInput['hint']; revisingDocument?: boolean; activeArtifact?: ClassifyInput['activeArtifact']; sourceDocument?: boolean; videoAvailable?: boolean; browserTaskAvailable?: boolean; desktopTaskAvailable?: boolean } = {}): RoutingDecision {
   const text = (rawText || '').normalize('NFC').trim();
   const language = detectRequestLanguage(text);
   const hasAttachment = options.hasAttachment === true;
@@ -289,6 +292,15 @@ export function decideRouting(rawText: string, options: { hasAttachment?: boolea
   // asking before anything consequential. Reading a page, or just a link, is not this.
   if (options.browserTaskAvailable === true && BROWSER_TASK_ADDRESS.test(text) && BROWSER_TASK_WORDS.some((re) => re.test(text))) {
     return makeDecision({ kind: 'ACTION_PLAN', language, needs: [{ capability: 'ACTION', supported: true, approvalRequired: true }], confidence: 0.85, permissionRisk: 'EXTERNAL_CONSEQUENTIAL', executionNegated, reasonCodes: [...reasonCodes, 'BROWSER_TASK'] });
+  }
+
+  // 1c. Operating the person's own PC: "open Notepad, write ..., save it as ... in my Documents folder". It is carried out on an enrolled PC of theirs, after their approval, on their screen. A question about how
+  // to do it, or a request not to, is not this; and without an enrolled PC that can do it, the answer is an honest 'not available' - never a chat answer that pretends it happened.
+  if (!executionNegated && isDesktopWriteRequest(work)) {
+    if (options.desktopTaskAvailable === true) {
+      return makeDecision({ kind: 'ACTION_PLAN', language, needs: [{ capability: 'ACTION', supported: true, approvalRequired: true }], confidence: 0.88, permissionRisk: 'LOCAL_CREATE', executionNegated, reasonCodes: [...reasonCodes, 'DESKTOP_TASK', 'APPROVAL_REQUIRED'] });
+    }
+    return makeDecision({ kind: 'UNSUPPORTED', language, needs: [{ capability: 'ACTION', supported: false }], confidence: 0.85, reasonCodes: [...reasonCodes, 'DESKTOP_DEVICE_UNAVAILABLE'] });
   }
 
   // 2. unsupported creation kinds are detected BEFORE anything else: they must never fall through to a chat answer that pretends to be the deliverable
@@ -452,7 +464,7 @@ export class InputRouter {
         confidence: 0.98,
         reason: 'Input contains file payload',
         normalizedPayload: { rawInput: rawText, mimeType: input.mimeType || 'application/octet-stream' },
-        decision: rawText ? decideRouting(rawText, { hasAttachment, hint: input.hint, revisingDocument: input.revisingDocument === true, activeArtifact: input.activeArtifact, sourceDocument: input.sourceDocument === true, videoAvailable: input.videoAvailable === true, browserTaskAvailable: input.browserTaskAvailable === true }) : captureDecision(0.98, 'FILE_PAYLOAD'),
+        decision: rawText ? decideRouting(rawText, { hasAttachment, hint: input.hint, revisingDocument: input.revisingDocument === true, activeArtifact: input.activeArtifact, sourceDocument: input.sourceDocument === true, videoAvailable: input.videoAvailable === true, browserTaskAvailable: input.browserTaskAvailable === true, desktopTaskAvailable: input.desktopTaskAvailable === true }) : captureDecision(0.98, 'FILE_PAYLOAD'),
       };
     }
 
@@ -499,7 +511,7 @@ export class InputRouter {
     }
 
     // 5. everything else is routed by what the person asked for
-    const decision = decideRouting(rawText, { hasAttachment: false, hint: input.hint, revisingDocument: input.revisingDocument === true, activeArtifact: input.activeArtifact, sourceDocument: input.sourceDocument === true, videoAvailable: input.videoAvailable === true, browserTaskAvailable: input.browserTaskAvailable === true });
+    const decision = decideRouting(rawText, { hasAttachment: false, hint: input.hint, revisingDocument: input.revisingDocument === true, activeArtifact: input.activeArtifact, sourceDocument: input.sourceDocument === true, videoAvailable: input.videoAvailable === true, browserTaskAvailable: input.browserTaskAvailable === true, desktopTaskAvailable: input.desktopTaskAvailable === true });
     const primaryIntent: InputIntent = decision.kind === 'ACTION_PLAN' ? 'COMMAND' : 'ASK';
     return {
       primaryIntent,

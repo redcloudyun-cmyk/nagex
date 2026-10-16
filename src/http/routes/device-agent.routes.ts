@@ -46,6 +46,7 @@ import type { KakaoAccessibilityApprovalService } from '../../mobile/kakaotalk-a
 import { ANDROID_ACCESSIBILITY_ROUTE, KAKAOTALK_PROVIDER, SELECT_KAKAO_DIRECT_CONVERSATION_ACTION, SEND_KAKAO_DIRECT_MESSAGE_ACTION } from '../../mobile/kakaotalk-accessibility-approval.service.js';
 import { buildKakaoAccessibilityMessageHash } from '../../mobile/kakao-accessibility-draft.types.js';
 import type { ActionApprovalStore } from '../../governance/action-approval.store.js';
+import { interpretDesktopWriteRequest } from '../../device-agent/desktop-request-interpreter.js';
 import {
   DESKTOP_APP_CAPABILITY, DESKTOP_PLAN_MAX_TTL_MS, DESKTOP_WRITE_SAVE_TOOL_ID, desktopWriteAndSaveApprovalPayload, validateDesktopWriteAndSave,
   type DesktopPlanAppId, type DesktopPlanRootAlias,
@@ -172,7 +173,9 @@ export const handleDeviceAgentRoutes: AsyncRouteRegistrar<DeviceAgentRouteDeps> 
     if (!publicKey.trim() || !agentVersion.trim()) {
       throw new NagexError({ code: 'DEVICE_ENROLL_FIELDS_REQUIRED', category: 'VALIDATION', message: 'publicKey and agentVersion are required.', request_id: requestId });
     }
-    const device = deviceIdentityStore.enroll({ tenantId, ownerId, publicKey, agentVersion, capabilityInventory });
+    // a name for the person to recognise this PC by (its host name) and its platform: plain, short, printable text only
+    const plain = (value: unknown, max: number): string | null => { if (typeof value !== 'string') return null; const clean = value.replace(/[ -<>]/g, ' ').replace(/s+/g, ' ').trim().slice(0, max); return clean || null; };
+    const device = deviceIdentityStore.enroll({ tenantId, ownerId, publicKey, agentVersion, capabilityInventory, systemDeviceName: plain(body?.deviceName, 60), os: plain(body?.platform, 20) });
     return { status: 201, data: device };
   }
 
@@ -221,6 +224,21 @@ export const handleDeviceAgentRoutes: AsyncRouteRegistrar<DeviceAgentRouteDeps> 
       rootAlias: (typeof body?.rootAlias === 'string' ? body.rootAlias : 'DOCUMENTS') as DesktopPlanRootAlias,
       fileName: typeof body?.fileName === 'string' ? body.fileName : '',
     };
+    // The person's own words: read into the same fields (never an authority - the approval card shows what was understood, and nothing runs until it is approved). What cannot be read is asked for.
+    const prompt = typeof body?.prompt === 'string' ? body.prompt : '';
+    if (prompt && !request.text && !request.fileName) {
+      const read = interpretDesktopWriteRequest(prompt);
+      if (!read.ok) throw new NagexError({ code: `DESKTOP_REQUEST_UNCLEAR_${read.missing}`, category: 'VALIDATION', message: 'The request does not say everything NAgex needs.', request_id: requestId });
+      request.appId = read.appId; request.text = read.text; request.fileName = read.fileName; request.rootAlias = read.rootAlias;
+    }
+    // no device named: the person's most recently seen PC that can do this
+    if (!request.deviceId) {
+      const capable = deviceIdentityStore.listOwned(session.tenantId, session.principalId)
+        .filter((candidate) => candidate.status === 'ACTIVE' && candidate.capabilityInventory.includes(DESKTOP_APP_CAPABILITY[request.appId] ?? ''))
+        .sort((a, b) => String(b.lastSeenAt ?? '').localeCompare(String(a.lastSeenAt ?? '')));
+      if (capable.length === 0) throw new NagexError({ code: 'DESKTOP_DEVICE_UNAVAILABLE', category: 'NOT_FOUND', message: 'No PC of yours is connected that can do this.', request_id: requestId });
+      request.deviceId = capable[0].deviceId;
+    }
     const valid = validateDesktopWriteAndSave(request);
     if (!valid.ok) throw new NagexError({ code: valid.code, category: 'VALIDATION', message: valid.message, request_id: requestId });
     // ask only for what this device can really do: no approval is created for something that cannot happen
@@ -236,7 +254,12 @@ export const handleDeviceAgentRoutes: AsyncRouteRegistrar<DeviceAgentRouteDeps> 
         approvalId: approval.approvalId,
         status: approval.status,
         expiresAt: approval.expiresAt,
-        summary: { deviceName: device.nickname || device.systemDeviceName || device.deviceId, appId: request.appId, rootAlias: request.rootAlias, fileName: request.fileName, textPreview: request.text.slice(0, 120), onYourScreen: true },
+        // everything the person is asked to approve, in the clear; `deviceConnected` is what the server knows right now (a PC that is off is told, not hidden)
+        summary: {
+          deviceName: device.nickname || device.systemDeviceName || device.deviceId, appId: request.appId, rootAlias: request.rootAlias, fileName: request.fileName,
+          text: request.text, textPreview: request.text.slice(0, 120), onYourScreen: true,
+          deviceConnected: deps.deviceConnectionStatusStore?.getStatus(device.deviceId, session.tenantId, session.principalId)?.connectionState === 'CONNECTED',
+        },
       },
     };
   }
