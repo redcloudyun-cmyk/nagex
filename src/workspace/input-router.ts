@@ -123,10 +123,16 @@ const KO_ACTION = new RegExp(KO_ACT_STEM + '\\S{0,4}\\s*' + KO_REQUEST_END);
 // "내일 아침 9시에 약 먹으라고 알려줘": telling the person at a time is a reminder, i.e. something to be scheduled
 const KO_REMINDER = /(\d+\s*시|내일|모레|오늘|아침|저녁|매일|매주|다음\s*주|오전|오후)[^.!?\n]{0,30}(라고|으라고|하라고|도록)\s*알려\s*(줘|주세요|줄래)/;
 const KO_ACTION_EVENT = new RegExp('(일정|이벤트|리마인더|알람|약속|예약)[^.!?\\n]{0,10}(잡|등록|추가|만들|생성|변경|수정|취소|옮기)[^.!?\\n]{0,4}' + KO_REQUEST_END);
+// Moving an event the person already has ("방금 만든 회의를 한 시간 늦춰줘", "프로젝트 리뷰를 3시로 옮겨줘", "push the meeting back an hour"): changing the calendar, so a plan that waits for approval - never a chat answer
+const KO_ACTION_RESCHEDULE = new RegExp('(회의|미팅|일정|약속|이벤트|면담|인터뷰|점심|저녁|세미나|발표|리뷰|스탠드업|싱크|수업)[^.!?\\n]{0,24}(늦춰|늦추|미뤄|미루|당겨|당기|앞당겨|앞당기|옮겨|옮기|조정|연기)[^.!?\\n]{0,4}' + KO_REQUEST_END);
+const KO_RESCHEDULE_JUST = new RegExp('(방금|아까|조금\\s*전)[^.!?\\n]{0,16}(만든|잡은|등록한|추가한)[^.!?\\n]{0,16}(늦춰|늦추|미뤄|미루|당겨|당기|앞당겨|앞당기|옮겨|옮기|조정|연기)[^.!?\\n]{0,4}' + KO_REQUEST_END);
 const KO_ACTION_MEETING = new RegExp('(회의|미팅)[^.!?\\n]{0,10}(잡|등록|취소|옮기|변경|수정)[^.!?\\n]{0,4}' + KO_REQUEST_END);
 const EN_ACT_VERB = '(send|email|e-mail|reply|respond|forward|schedule|reschedule|book|reserve|invite|cancel|postpone|rsvp|delete|erase|trash|remove|publish|post|tweet|upload|submit|pay|purchase|buy|order|transfer|donate|refund|deploy|install|approve|reject|subscribe|unsubscribe|share|remind me|set up)';
 const EN_ACTION_LEAD = '(?:^|[.!?;,:]\\s*|\\b(?:and|then|please|also|just|now|first|next|can you|could you|would you|will you|go ahead and|i want you to|i need you to|i\'d like you to|i would like you to|i need to|i want to|i have to|i\'d like to|let\'s)\\s+)';
 const EN_ACTION = new RegExp(EN_ACTION_LEAD + '(?:please\\s+)?' + EN_ACT_VERB + '\\b', 'i');
+const EN_RESCHEDULE_TIME = '(?=[^.!?\\n]*(?:\\b(?:back|forward|earlier|later|tomorrow|next|noon|morning|afternoon|evening|tonight)\\b|\\b(?:mon|tues|wednes|thurs|fri|satur|sun)day\\b|\\d|\\bhours?\\b|\\bminutes?\\b))';
+const EN_ACTION_RESCHEDULE = new RegExp(EN_ACTION_LEAD + '(?:please\\s+)?(?:push|move|bring|shift|delay|put)\\b[^.!?\\n]{0,50}\\b(?:meeting|event|appointment|call|standup|sync|interview|lunch|dinner|review|session|class)\\b(?!\\s+(?:notes|agenda|minutes|summary|doc|document|folder|file|invite|invitation))' + EN_RESCHEDULE_TIME, 'i');
+const EN_RESCHEDULE_JUST = new RegExp(EN_ACTION_LEAD + '(?:please\\s+)?(?:push|move|bring|shift|delay)\\b[^.!?\\n]{0,40}\\bjust\\s+(?:created|made|scheduled|added|booked|set up)\\b' + EN_RESCHEDULE_TIME, 'i');
 const EN_ACTION_OBJECT = /\b(create|add|make|set up|put|schedule)\b[^.!?\n]{0,16}\b(calendar event|event|meeting|appointment|reminder|task|to-?do|call)\b(?!\s+(agenda|summary|notes|minutes|report|doc|document|brief|template|invitation|invite))/i;
 // asking NAgex to USE something the person connected ("use my test tool to ...", "도구로 ... 실행해줘") is an action on that tool: a plan whose tool step waits for approval
 const TOOL_USE = [
@@ -295,8 +301,8 @@ export function decideRouting(rawText: string, options: { hasAttachment?: boolea
   // 3. consequential action: communicate / schedule / change / delete / spend / publish
   // while revising a document the edit verbs belong to the document; an event/meeting noun or any outward verb keeps the request an action
   const actionWork = options.revisingDocument === true && !KO_ACTION_EVENT.test(work) && !KO_ACTION_MEETING.test(work) ? withoutDocumentEdits(work) : work;
-  const koAction = KO_ACTION.test(actionWork) || KO_ACTION_EVENT.test(work) || KO_ACTION_MEETING.test(work) || KO_REMINDER.test(work);
-  const asksAction = koAction || EN_ACTION.test(actionWork) || EN_ACTION_OBJECT.test(work) || TOOL_USE.some((re) => re.test(work));
+  const koAction = KO_ACTION.test(actionWork) || KO_ACTION_EVENT.test(work) || KO_ACTION_MEETING.test(work) || KO_REMINDER.test(work) || KO_ACTION_RESCHEDULE.test(work) || KO_RESCHEDULE_JUST.test(work);
+  const asksAction = koAction || EN_ACTION.test(actionWork) || EN_ACTION_OBJECT.test(work) || EN_ACTION_RESCHEDULE.test(work) || EN_RESCHEDULE_JUST.test(work) || TOOL_USE.some((re) => re.test(work));
   const isInfoQuestion = EN_INFO_QUESTION.test(work) || (language === 'ko' && KO_INFO_QUESTION.test(work));
   const conjoinedAction = /\b(and|then|and then)\s+(please\s+)?(send|email|forward|schedule|book|cancel|delete|post|share|publish|pay|buy|order|reply|invite)\b/i.test(work);
   // "how do I send an email?" asks for information; "explain it and send it to Alex" still asks for the send

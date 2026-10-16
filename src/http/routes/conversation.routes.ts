@@ -45,6 +45,8 @@ import { classifyPlanRequest } from '../../model-gateway/plan-request-kind.js';
 import { detectRequestLanguage } from '../../common/request-language.js';
 import type { ScheduleClock } from '../../planning/schedule-grounding.js';
 import { calendarQuestionRange, renderCalendarContext, type CalendarWindowReader } from '../../planning/calendar-context.js';
+import { buildCalendarReschedulePlan, parseRescheduleRequest } from '../../planning/calendar-reschedule.js';
+import type { DirectoryResult } from '../../planning/calendar-event-directory.js';
 
 // The person's own clock for this request: the server's "now" (never the browser's) and their effective timezone - a timezone they set in their profile, else the one of the device that sent the
 // request, else UTC. See common/time-context.ts.
@@ -73,6 +75,8 @@ export interface ConversationRouteDeps {
   now?: () => number;
   // reads the person's own calendar for a window (read-only); absent when the calendar integration is not wired
   readCalendarWindow?: CalendarWindowReader;
+  // the events a request like "방금 만든 회의를 한 시간 늦춰줘" can mean (what NAgex created lately + the calendar window); absent when the calendar integration is not wired
+  rescheduleCandidates?: (input: { tenantId: string; principalId: string; clock: ScheduleClock; requestId: string }) => Promise<DirectoryResult>;
 }
 
 export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps> = async (method, pathname, body, headers, _query, deps): Promise<ApiResult | undefined> => {
@@ -354,6 +358,43 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
         vaultRunnable = { ok: false, reasons: ['PLAN_BLOCKED'], capabilityId: null };
       }
       return { status: 200, data: { status: 'PLAN_PREVIEW', message: 'Plan generated. Review it before anything is saved.', plan: built.plan, planSeal: vaultSeal, runnable: vaultRunnable, draftSource: built.source, provider: 'nagex', model: null, latencyMs: 0, requestId } };
+    }
+
+    // Moving an event the person already has ("방금 만든 회의를 한 시간 늦춰줘") is planned by NAgex itself from their words: which event, and what the new time works out to, are facts a model cannot know.
+    // One match becomes a reviewed plan with the exact before -> after (approval is still required); several matches, none, or no new time is a plain question - nothing is changed or invented.
+    {
+      const rescheduleClock = clockFor(deps, principalId, body);
+      // the calendar is only read for a request that says how a time changes ("한 시간 늦춰", "3시로 옮겨") - never for an ordinary plan request
+      const looksLikeReschedule = parseRescheduleRequest(prompt, rescheduleClock) !== null;
+      const directory = looksLikeReschedule && deps.rescheduleCandidates ? await deps.rescheduleCandidates({ tenantId, principalId, clock: rescheduleClock, requestId }) : { events: [], calendarState: 'UNAVAILABLE' };
+      const rescheduled = buildCalendarReschedulePlan({ prompt, clock: rescheduleClock, candidates: directory.events, calendarState: directory.calendarState });
+      if (rescheduled.kind !== 'NOT_RESCHEDULE') {
+        const language = rescheduled.kind === 'PLAN' ? (detectRequestLanguage(prompt) === 'ko' ? 'ko' : 'en') : rescheduled.language;
+        const reply = rescheduled.kind === 'PLAN' ? rescheduled.plan.summary : (rescheduled.message[language]);
+        const rescheduleAssistant = convStore.append({ tenantId, principalId, sessionId: session.sessionId, role: 'ASSISTANT', source: 'WEB', content: reply, requestId });
+        auditLogger.logEvent({
+          actor: { type: 'user', id: principalId },
+          tenant_id: tenantId,
+          action: 'conversation.message.created',
+          resource: { type: 'ConversationMessage', id: rescheduleAssistant.messageId },
+          result: 'SUCCESS',
+          request_id: requestId,
+          details: { sessionId: session.sessionId, messageId: rescheduleAssistant.messageId, role: 'ASSISTANT', source: 'WEB' },
+        });
+        if (rescheduled.kind === 'NEEDS_DETAIL') {
+          return { status: 200, data: { status: 'NEEDS_DETAIL', executable: false, reason: rescheduled.reason, message: reply, language, ...(rescheduled.candidates ? { candidates: rescheduled.candidates } : {}), requestId } };
+        }
+        const rescheduleIdentity = { tenantId, principalId };
+        const rescheduleSeal = (deps.planSeal ?? defaultPlanSeal).seal(rescheduleIdentity, rescheduled.plan);
+        let rescheduleRunnable: { ok: boolean; reasons: string[]; capabilityId: string | null };
+        try {
+          const assessment = assessReviewedPlan(planResolver.resolve(rescheduled.plan, rescheduleIdentity));
+          rescheduleRunnable = { ok: assessment.ok, reasons: assessment.reasons, capabilityId: assessment.capabilityId };
+        } catch {
+          rescheduleRunnable = { ok: false, reasons: ['PLAN_BLOCKED'], capabilityId: null };
+        }
+        return { status: 200, data: { status: 'PLAN_PREVIEW', message: 'Plan generated. Review it before anything is changed.', plan: rescheduled.plan, planSeal: rescheduleSeal, runnable: rescheduleRunnable, provider: 'nagex', model: null, latencyMs: 0, requestId } };
+      }
     }
 
     const conversation = convContextService.buildContext({

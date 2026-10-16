@@ -125,13 +125,15 @@ test('respond payload validation: responseStatus must be one of accepted/decline
 
 // ── execution success ────────────────────────────────────────────────────────
 
-test('execution success: update PATCHes the event and returns the updated htmlLink', async () => {
-  let calledUrl = '';
-  let calledMethod = '';
+// The mutation is followed by a READ-BACK of the event: provider acceptance alone is not a verified change (see calendar-verification.ts). These mocks answer both the change and the read-back.
+test('execution success: update PATCHes the event, returns the updated htmlLink and reads the event back (VERIFIED)', async () => {
+  const calls: Array<{ method: string; url: string }> = [];
+  let stored: Record<string, unknown> = { id: 'evt_123', htmlLink: 'https://calendar.google.com/event?eid=updated', summary: 'Client Strategy Sync', status: 'confirmed' };
   const fetchFn: typeof fetch = async (url, init) => {
-    calledUrl = String(url);
-    calledMethod = String(init?.method);
-    return jsonResponse({ id: 'evt_123', htmlLink: 'https://calendar.google.com/event?eid=updated' });
+    const method = String(init?.method || 'GET');
+    calls.push({ method, url: String(url) });
+    if (method === 'PATCH') stored = { ...stored, ...JSON.parse(String(init?.body)) };
+    return jsonResponse(stored);
   };
   const { tokenStore, service } = buildHarness(fetchFn);
   tokenStore.saveForPrincipal('t1', 'usr_1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
@@ -140,19 +142,24 @@ test('execution success: update PATCHes the event and returns the updated htmlLi
   service.approve(created.approvalId, 't1', 'usr_1', 'req_2');
   const result = await service.executeUpdateEvent({ approvalId: created.approvalId, payload: created.canonicalPayload, tenantId: 't1', principalId: 'usr_1', requestId: 'req_3' });
 
-  assert.match(calledUrl, /\/calendar\/v3\/calendars\/primary\/events\/evt_123$/);
-  assert.equal(calledMethod, 'PATCH');
+  const patches = calls.filter((c) => c.method === 'PATCH');
+  assert.equal(patches.length, 1, 'exactly one change was sent');
+  assert.match(patches[0].url, /\/calendar\/v3\/calendars\/primary\/events\/evt_123$/);
+  assert.deepEqual(calls.map((c) => c.method), ['PATCH', 'GET'], 'the change, then the read-back');
   assert.equal(result.status, 'SUCCEEDED');
   assert.equal(result.externalId, 'evt_123');
   assert.equal(result.externalUrl, 'https://calendar.google.com/event?eid=updated');
+  assert.equal(result.verification?.outcome, 'VERIFIED');
 });
 
-test('execution success: cancel DELETEs the event (no body returned) and still yields a usable result', async () => {
-  let calledMethod = '';
+test('execution success: cancel DELETEs the event (no body returned), still yields a usable result, and the read-back shows it gone (VERIFIED)', async () => {
+  const calls: string[] = [];
   const fetchFn: typeof fetch = async (url, init) => {
-    calledMethod = String(init?.method);
+    const method = String(init?.method || 'GET');
+    calls.push(method);
     assert.match(String(url), /\/calendar\/v3\/calendars\/primary\/events\/evt_123$/);
-    return new Response(null, { status: 204 });
+    if (method === 'DELETE') return new Response(null, { status: 204 });
+    return jsonResponse({ error: { message: 'Resource has been deleted' } }, 410);
   };
   const { tokenStore, service } = buildHarness(fetchFn);
   tokenStore.saveForPrincipal('t1', 'usr_1', { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
@@ -161,28 +168,31 @@ test('execution success: cancel DELETEs the event (no body returned) and still y
   service.approve(created.approvalId, 't1', 'usr_1', 'req_2');
   const result = await service.executeCancelEvent({ approvalId: created.approvalId, payload: created.canonicalPayload, tenantId: 't1', principalId: 'usr_1', requestId: 'req_3' });
 
-  assert.equal(calledMethod, 'DELETE');
+  assert.deepEqual(calls, ['DELETE', 'GET']);
   assert.equal(result.status, 'SUCCEEDED');
   assert.equal(result.externalId, 'evt_123');
   assert.match(result.externalUrl, /calendar\.google\.com/);
+  assert.equal(result.verification?.outcome, 'VERIFIED');
 });
 
-test('execution success: respond reads the event, updates only the self attendee, and PATCHes it back', async () => {
+test('execution success: respond reads the event, updates only the self attendee, PATCHes it back and reads the answer back (VERIFIED)', async () => {
   let getCount = 0;
   let patchedBody: Record<string, unknown> | null = null;
+  let current: Record<string, unknown> = {
+    id: 'evt_123',
+    attendees: [
+      { email: 'organizer@example.com', self: false, responseStatus: 'accepted' },
+      { email: 'me@example.com', self: true, responseStatus: 'needsAction' },
+    ],
+  };
   const fetchFn: typeof fetch = async (url, init) => {
     const method = init?.method || 'GET';
     if (method === 'GET') {
       getCount += 1;
-      return jsonResponse({
-        id: 'evt_123',
-        attendees: [
-          { email: 'organizer@example.com', self: false, responseStatus: 'accepted' },
-          { email: 'me@example.com', self: true, responseStatus: 'needsAction' },
-        ],
-      });
+      return jsonResponse(current);
     }
     patchedBody = JSON.parse(String(init?.body));
+    current = { ...current, ...(patchedBody as object) };
     return jsonResponse({ id: 'evt_123', htmlLink: 'https://calendar.google.com/event?eid=rsvp' });
   };
   const { tokenStore, service } = buildHarness(fetchFn);
@@ -192,8 +202,9 @@ test('execution success: respond reads the event, updates only the self attendee
   service.approve(created.approvalId, 't1', 'usr_1', 'req_2');
   const result = await service.executeRespondToEvent({ approvalId: created.approvalId, payload: created.canonicalPayload, tenantId: 't1', principalId: 'usr_1', requestId: 'req_3' });
 
-  assert.equal(getCount, 1);
+  assert.equal(getCount, 2, 'one read before the change, one read-back after it');
   assert.equal(result.status, 'SUCCEEDED');
+  assert.equal(result.verification?.outcome, 'VERIFIED');
   const attendees = (patchedBody as unknown as { attendees: Array<{ email: string; self: boolean; responseStatus: string }> }).attendees;
   assert.equal(attendees.find((a) => a.self)?.responseStatus, 'declined');
   assert.equal(attendees.find((a) => !a.self)?.responseStatus, 'accepted'); // other attendees are never touched

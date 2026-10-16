@@ -93,11 +93,19 @@ async function googleApiRequest(
   return payload;
 }
 
+export interface CreateEventOptions {
+  /** a client-chosen event id (base32hex): the same id can never create a second event - Google answers 409 instead */
+  eventId?: string;
+  /** private extended property that ties the event to the approved request that created it */
+  nagexKey?: string;
+}
+
 export async function createCalendarEvent(
   accessToken: string,
   payload: CalendarEventPayload,
   fetchFn: FetchFn,
   requestId: string,
+  options: CreateEventOptions = {},
 ): Promise<CreatedCalendarEvent> {
   const calendarId = encodeURIComponent(payload.calendarId || 'primary');
   const wantsConference = payload.conferenceData === true;
@@ -108,6 +116,8 @@ export async function createCalendarEvent(
     end: { dateTime: payload.end, timeZone: payload.timezone },
     attendees: payload.attendees.map((email) => ({ email })),
   };
+  if (options.eventId) body.id = options.eventId;
+  if (options.nagexKey) body.extendedProperties = { private: { nagexKey: options.nagexKey } };
   if (wantsConference) {
     body.conferenceData = {
       createRequest: { requestId: `nagex_${requestId}`, conferenceSolutionKey: { type: 'hangoutsMeet' } },
@@ -130,6 +140,24 @@ export async function createCalendarEvent(
   return { externalId, externalUrl };
 }
 
+/** One event as the calendar holds it now, or null when it is gone (404 / 410). Used to read a change back; never returned to callers raw. */
+export async function getCalendarEvent(
+  accessToken: string,
+  params: { calendarId: string; eventId: string },
+  fetchFn: FetchFn,
+  requestId: string,
+): Promise<Record<string, unknown> | null> {
+  const calendarId = encodeURIComponent(params.calendarId || 'primary');
+  const eventId = encodeURIComponent(params.eventId);
+  try {
+    return await googleApiRequest(`https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${eventId}`, 'GET', accessToken, null, fetchFn, requestId);
+  } catch (error) {
+    const status = (error as { details?: { httpStatus?: number } })?.details?.httpStatus;
+    if (status === 404 || status === 410) return null;
+    throw error;
+  }
+}
+
 export interface UpdateCalendarEventPayload {
   calendarId: string;
   eventId: string;
@@ -139,6 +167,8 @@ export interface UpdateCalendarEventPayload {
   end?: string;
   timezone?: string;
   attendees?: string[];
+  /** what the event looked like when the change was proposed (shown to the person before approving; not sent to Google) */
+  before?: { summary?: string; start?: string; end?: string; timezone?: string };
 }
 
 export async function updateCalendarEvent(
