@@ -2,6 +2,7 @@ import { getCurrentISOString } from '../common/utils.js';
 import type { MemoryEngine, MemoryRecord, MemoryType, SensitivityLevel, MemoryProvenance } from './memory.engine.js';
 import { detectContentSensitivity } from './sensitivity.detector.js';
 import { findSupersedeTarget } from './memory-supersession.js';
+import { inferMemoryExpiry } from './memory-expiry.js';
 
 export interface ExtractionInput {
   tenantId: string;
@@ -12,6 +13,9 @@ export interface ExtractionInput {
   workspaceId?: string;
   modelProvider?: string;
   modelName?: string;
+  // the person's clock, for a statement that bounds itself in time ("금요일까지"); the server's now and their timezone
+  nowMs?: number;
+  timezone?: string;
 }
 
 export interface ExtractedCandidate {
@@ -186,6 +190,9 @@ export class ConversationMemoryExtractor {
         ? findSupersedeTarget(candidate.value, this.memoryEngine.getActiveMemories('PERSONAL', input.tenantId, input.principalId))
         : null;
 
+      // explicitly time-bound context ("다음 주 금요일까지 출장 중") records when it ends; anything without a stated end never expires
+      const expiry = inferMemoryExpiry(candidate.value, input.nowMs ?? Date.now(), input.timezone ?? 'UTC');
+
       const record = this.memoryEngine.proposeMemory(
         'PERSONAL',
         input.tenantId,
@@ -206,6 +213,7 @@ export class ConversationMemoryExtractor {
           userConfirmed: candidate.userConfirmed,
           ...(candidate.distinctFact ? { distinctFact: true } : {}),
           ...(replaces ? { supersedes: replaces.memory.id } : {}),
+          ...(expiry ? { expiresAt: expiry.expiresAt } : {}),
         }
       );
 

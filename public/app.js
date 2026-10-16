@@ -6598,6 +6598,9 @@
   window.NAGEX.renderMemory = renderMemory;
   window.NAGEX.confirmPersonalContext = confirmPersonalContext;
   window.NAGEX.editPersonalContext = editPersonalContext;
+  window.NAGEX.savePersonalContextCorrection = savePersonalContextCorrection;
+  window.NAGEX.togglePersonalContextHistory = togglePersonalContextHistory;
+  window.NAGEX.restorePersonalContext = restorePersonalContext;
   window.NAGEX.togglePinPersonalContext = togglePinPersonalContext;
   window.NAGEX.deletePersonalContext = deletePersonalContext;
   window.NAGEX.openLinkCaptureModal = openLinkCaptureModal;
@@ -6668,6 +6671,7 @@
           <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
             <span class="badge-status status-READY" style="font-size: 0.75rem; font-weight: 600;">${escapeHtml(typeLabel)}</span>
             <div style="display: flex; gap: 0.4rem; align-items: center;">
+              ${m.expiresAt ? `<span class="badge-status mem-until" style="background: rgba(245,158,11,0.15); color: #b45309; font-size: 0.7rem;">${escapeHtml(t('personalContext.until') || 'Until')} ${escapeHtml(new Date(m.expiresAt).toLocaleDateString())}</span>` : ''}
               ${isPinned ? `<span class="badge-status" style="background: rgba(13,148,136,0.15); color: #0d9488; font-size: 0.7rem;">📌 Pinned</span>` : ''}
               ${isConfirmed ? `<span class="badge-status" style="background: rgba(34,197,94,0.15); color: #16a34a; font-size: 0.7rem;">✓ Confirmed</span>` : ''}
             </div>
@@ -6682,9 +6686,12 @@
           <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; border-top: 1px dashed var(--border-subtle); padding-top: 0.5rem;">
             ${!isConfirmed ? `<button type="button" class="btn-secondary" style="font-size: 0.72rem; padding: 2px 8px;" onclick="window.NAGEX.confirmPersonalContext('${m.id}')">${escapeHtml(t('personalContext.confirm') || 'Confirm')}</button>` : ''}
             <button type="button" class="btn-secondary" style="font-size: 0.72rem; padding: 2px 8px;" onclick="window.NAGEX.editPersonalContext('${m.id}')">${escapeHtml(t('personalContext.edit') || 'Edit')}</button>
+            ${m.hasHistory || m.supersedes ? `<button type="button" class="btn-secondary mem-history-btn" style="font-size: 0.72rem; padding: 2px 8px;" onclick="window.NAGEX.togglePersonalContextHistory('${m.id}')">${escapeHtml(t('personalContext.history') || 'History')}</button>` : ''}
             <button type="button" class="btn-secondary" style="font-size: 0.72rem; padding: 2px 8px;" onclick="window.NAGEX.togglePinPersonalContext('${m.id}')">${isPinned ? escapeHtml(t('personalContext.unpin') || 'Unpin') : escapeHtml(t('personalContext.pin') || 'Pin')}</button>
             <button type="button" class="btn-secondary danger" style="font-size: 0.72rem; padding: 2px 8px;" onclick="window.NAGEX.deletePersonalContext('${m.id}')">${escapeHtml(t('personalContext.delete') || 'Delete')}</button>
           </div>
+          <div id="mem-editor-${m.id}" class="mem-editor" hidden></div>
+          <div id="mem-history-${m.id}" class="mem-history" hidden></div>
         </div>`;
     }
 
@@ -6704,6 +6711,8 @@
     } else {
       container.innerHTML = unpinnedMemories.map(renderCard).join('');
     }
+
+    await renderMemoryExpired();
 
     document.querySelectorAll('.memory-categories-tabs .mem-tab-btn').forEach((btn) => {
       if (!btn.dataset.wired) {
@@ -6729,17 +6738,111 @@
     await renderMemory();
   }
 
-  async function editPersonalContext(id) {
+  // R26-C: the edit is a CORRECTION, never an overwrite: the new text becomes the current memory, the old one stays in History and can be restored. An explicit end date makes it time-bound.
+  function memoryText(key, fallback) {
+    const t = window.NAGEX_I18N ? window.NAGEX_I18N.t : (k) => k;
+    const value = t(key);
+    return value && value !== key ? value : fallback;
+  }
+
+  function editPersonalContext(id) {
     const mem = (state.memories || []).find((m) => m.id === id);
-    if (!mem) return;
+    const box = document.getElementById('mem-editor-' + id);
+    if (!mem || !box) return;
+    if (!box.hidden) { box.hidden = true; box.innerHTML = ''; return; }
     const currentVal = typeof mem.content?.value === 'object' ? JSON.stringify(mem.content.value) : String(mem.content?.value || '');
-    const newVal = window.prompt('Edit context value:', currentVal);
-    if (newVal === null || newVal.trim() === currentVal) return;
-    await apiFetch(`/api/v1/memory/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ value: newVal.trim() }),
-    });
+    box.innerHTML = '<label class="mem-editor-label">' + escapeHtml(memoryText('personalContext.correctLabel', 'Corrected text')) + '</label>'
+      + '<textarea id="mem-edit-text-' + id + '" class="form-input" rows="3" maxlength="2000" style="width:100%"></textarea>'
+      + '<label class="mem-editor-label">' + escapeHtml(memoryText('personalContext.validUntil', 'Valid until (optional)')) + '</label>'
+      + '<input type="date" id="mem-edit-until-' + id + '" class="form-input" />'
+      + '<p class="mem-editor-note" style="font-size:0.75rem;color:var(--text-muted)">' + escapeHtml(memoryText('personalContext.correctNote', 'The earlier version stays in History and can be restored.')) + '</p>'
+      + '<p class="mem-editor-error" id="mem-edit-error-' + id + '" role="alert" hidden style="color:#b91c1c;font-size:0.8rem"></p>'
+      + '<div style="display:flex;gap:0.5rem"><button type="button" class="btn-secondary" id="mem-edit-save-' + id + '" onclick="window.NAGEX.savePersonalContextCorrection(\'' + id + '\')">' + escapeHtml(memoryText('personalContext.save', 'Save correction')) + '</button>'
+      + '<button type="button" class="btn-secondary" onclick="window.NAGEX.editPersonalContext(\'' + id + '\')">' + escapeHtml(memoryText('personalContext.cancel', 'Cancel')) + '</button></div>';
+    box.hidden = false;
+    const textarea = document.getElementById('mem-edit-text-' + id);
+    if (textarea) { textarea.value = currentVal; textarea.focus(); }
+  }
+
+  async function savePersonalContextCorrection(id) {
+    const textarea = document.getElementById('mem-edit-text-' + id);
+    const until = document.getElementById('mem-edit-until-' + id);
+    const errorEl = document.getElementById('mem-edit-error-' + id);
+    if (!textarea) return;
+    const showError = (message) => { if (errorEl) { errorEl.textContent = message; errorEl.hidden = !message; } };
+    showError('');
+    const value = textarea.value.trim();
+    if (!value) { showError(memoryText('personalContext.errEmpty', 'Write the corrected text first.')); return; }
+    const body = { value, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, ...(until && until.value ? { expiresOn: until.value } : {}) };
+    const res = await apiFetch('/api/v1/memory/' + encodeURIComponent(id) + '/correct', { method: 'POST', body: JSON.stringify(body) });
+    if (!res || res.error || !res.current) {
+      // the server answers either { error: 'CODE' } (route validation) or { error: { code } } (a refused operation)
+      const code = res && (res.error && typeof res.error === 'object' ? res.error.code : res.error || res.code);
+      showError(code === 'SECRET_MEMORY_REJECTED' ? memoryText('personalContext.errSecret', 'This looks like a secret (a password or key), so it is not stored as a memory.')
+        : code === 'MEMORY_UNCHANGED' ? memoryText('personalContext.errUnchanged', 'That is the same as the current text.')
+        : code === 'MEMORY_EXPIRY_INVALID' ? memoryText('personalContext.errExpiry', 'The end date must be a future day.')
+        : memoryText('personalContext.errGeneric', 'The correction could not be saved. Nothing was changed.'));
+      return;
+    }
     await renderMemory();
+  }
+
+  async function togglePersonalContextHistory(id) {
+    const box = document.getElementById('mem-history-' + id);
+    if (!box) return;
+    if (!box.hidden) { box.hidden = true; box.innerHTML = ''; return; }
+    const res = await apiFetch('/api/v1/memory/history');
+    const group = res && Array.isArray(res.groups) ? res.groups.find((g) => g.versions.some((v) => v.id === id)) : null;
+    const earlier = group ? group.versions.filter((v) => v.id !== id).reverse() : [];
+    const sourceName = (v) => (v.extractor === 'USER_EXPLICIT' ? memoryText('personalContext.srcYou', 'You said or corrected it') : v.sourceType === 'CONVERSATION' ? memoryText('personalContext.srcConversation', 'Learned from a conversation') : memoryText('personalContext.srcOther', 'Learned context'));
+    box.innerHTML = '<h4 style="font-size:0.82rem;margin:0.5rem 0 0.25rem">' + escapeHtml(memoryText('personalContext.previousVersions', 'Earlier versions')) + '</h4>'
+      + (earlier.length === 0 ? '<p style="font-size:0.8rem;color:var(--text-muted)">' + escapeHtml(memoryText('personalContext.noEarlier', 'No earlier versions.')) + '</p>'
+        : earlier.map((v) => '<div class="mem-version" style="border-top:1px dashed var(--border-subtle);padding:0.4rem 0">'
+          + '<div class="mem-version-value">' + escapeHtml(v.value) + '</div>'
+          + '<div style="font-size:0.74rem;color:var(--text-muted)">' + escapeHtml(sourceName(v)) + ' · ' + escapeHtml(new Date(v.createdAt).toLocaleDateString())
+          + (v.supersededAt ? ' · ' + escapeHtml(memoryText('personalContext.replacedOn', 'Replaced on')) + ' ' + escapeHtml(new Date(v.supersededAt).toLocaleDateString()) : '') + '</div>'
+          + (v.lifecycle === 'SUPERSEDED' ? '<button type="button" class="btn-secondary mem-restore-btn" style="font-size:0.72rem;padding:2px 8px;margin-top:0.25rem" onclick="window.NAGEX.restorePersonalContext(\'' + v.id + '\')">' + escapeHtml(memoryText('personalContext.restoreVersion', 'Restore this version')) + '</button>' : '')
+          + '</div>').join(''));
+    box.hidden = false;
+  }
+
+  // a short, visible message above the list (an error never disappears silently)
+  function memoryNotice(message) {
+    const list = document.getElementById('memory-cards-container');
+    if (!list || !list.parentNode) return;
+    let el = document.getElementById('memory-notice');
+    if (!el) { el = document.createElement('p'); el.id = 'memory-notice'; el.setAttribute('role', 'alert'); el.style.color = '#b91c1c'; list.parentNode.insertBefore(el, list); }
+    el.textContent = message;
+    el.hidden = !message;
+  }
+
+  async function restorePersonalContext(id) {
+    const res = await apiFetch('/api/v1/memory/' + encodeURIComponent(id) + '/restore', { method: 'POST', body: JSON.stringify({}) });
+    if (!res || res.error) { memoryNotice(memoryText('personalContext.errRestore', 'It could not be restored. Nothing was changed.')); return; }
+    await renderMemory();
+  }
+
+  // Memories whose explicit end has passed: kept, not current, and one click brings one back.
+  async function renderMemoryExpired() {
+    const list = document.getElementById('memory-cards-container');
+    if (!list || !list.parentNode) return;
+    let section = document.getElementById('memory-expired-section');
+    if (!section) {
+      section = document.createElement('div');
+      section.id = 'memory-expired-section';
+      section.style.marginTop = '1.5rem';
+      list.parentNode.insertBefore(section, list.nextSibling);
+    }
+    const res = await apiFetch('/api/v1/memory/history');
+    const expired = res && !res.error && Array.isArray(res.expired) ? res.expired : [];
+    if (expired.length === 0) { section.hidden = true; section.innerHTML = ''; return; }
+    section.hidden = false;
+    section.innerHTML = '<h3 style="font-size:0.9rem;font-weight:600;margin-bottom:0.25rem">' + escapeHtml(memoryText('personalContext.expiredTitle', 'Expired')) + '</h3>'
+      + '<p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.5rem">' + escapeHtml(memoryText('personalContext.expiredHint', 'These had an end date that has passed. NAgex no longer treats them as current.')) + '</p>'
+      + expired.map((v) => '<div class="personal-context-card mem-expired" id="mem-expired-' + v.id + '" style="border:1px solid var(--border-subtle);padding:0.75rem;border-radius:10px;margin-bottom:0.5rem">'
+        + '<div>' + escapeHtml(v.value) + '</div>'
+        + '<div style="font-size:0.74rem;color:var(--text-muted)">' + escapeHtml(memoryText('personalContext.expiredOn', 'Ended')) + ' ' + escapeHtml(new Date(v.expiresAt || v.expiredAt).toLocaleDateString()) + '</div>'
+        + '<button type="button" class="btn-secondary mem-keep-btn" style="font-size:0.72rem;padding:2px 8px;margin-top:0.25rem" onclick="window.NAGEX.restorePersonalContext(\'' + v.id + '\')">' + escapeHtml(memoryText('personalContext.keepAgain', 'Keep again')) + '</button></div>').join('');
   }
 
   async function togglePinPersonalContext(id) {

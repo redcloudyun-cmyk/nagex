@@ -199,6 +199,9 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
         sessionId: session.sessionId,
         messageId: userMsgRecord.messageId,
         content: message,
+        // a statement that bounds itself in time ("금요일까지") is judged on the person's own clock
+        nowMs: clockFor(deps, principalId, body).nowMs,
+        timezone: clockFor(deps, principalId, body).timezone,
       });
     }
 

@@ -6566,6 +6566,38 @@
       "assertionIntent": "The element map reaches controls in open shadow roots and same-origin iframes (nested, bounded), finds the one match among thousands, keeps duplicate labels apart by identity and context, states a limit instead of guessing for cross-origin / sandboxed frames and for anything beyond its bounds, re-resolves a re-rendered control only when exactly one identical control exists, and never reads a password, mutates the page or bypasses approval.",
       "notes": "Real Chromium over deterministic local pages (a second local origin stands in for a cross-origin frame); no external site."
     },
+    "memory_control": {
+      "milestone": "R26C-MEMORY-CONTROL",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "memory-context",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "A person can see and correct what NAgex remembers without losing it: a correction is a NEW current memory (confirmed by the person, provenance MANUAL / USER_EXPLICIT, sensitivity never lowered) and the old one is kept SUPERSEDED, linked both ways and restorable; an old memory never overrides the newer fact in recall, a restore swaps them back and the history of a restored memory stays reachable; a statement that explicitly ends (\"금요일까지\") is EXPIRED after its end - kept, never recalled as current, renewable on request; a secret said in English or Korean is never stored (as a memory or as a correction); another person or tenant gets \"not found\" for history, correction and restoration; the audit trail carries ids, never the text of a memory.",
+      "notes": "Real MemoryEngine on an isolated file store, real PersonalContextService and route handler, an injected clock for expiry; no model."
+    },
+    "memory_control_browser": {
+      "milestone": "R26C-MEMORY-CONTROL",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "memory-context",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "On the \"What NAgex Knows\" screen (Korean and English) an edit is a correction: the new text is current, the old one is not shown as current but kept under History with when it was replaced, one click restores it (the very same memory, provenance intact) and the correction becomes the other version; a secret is refused with the reason and the memory is unchanged; a memory that explicitly ended is listed as expired, not shown as current, and \"keep again\" makes it current; another signed-in person sees no history and gets 404 for correct / restore; no internal ids or raw i18n keys are shown.",
+      "notes": "Production server in-process with disposable signed-in users; no model, no network.",
+      "writesRepositoryArtifacts": false
+    },
     "memory_supersession": {
       "milestone": "SPRINT03-MEMORY-SUPERSESSION",
       "classification": "CANONICAL_BEHAVIOR",

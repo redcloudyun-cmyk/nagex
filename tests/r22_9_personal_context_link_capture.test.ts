@@ -523,31 +523,38 @@ test('R22.9 — Browser Behavioral Certification (Real Clicks: Confirm, Edit, Pi
     await confirmBtn.click();
     await page.waitForSelector(`#mem-card-${unconfirmedId} span:has-text("✓ Confirmed")`);
 
-    // 2. Edit action via click
-    page.once('dialog', (dialog) => dialog.accept('Updated Click Value 2026'));
+    // 2. Edit action via click. Since R26-C an edit is a CORRECTION: the new text becomes the current memory (a new id), the old text stays in History - it is never overwritten.
     const editBtn = page.locator(`#mem-card-${memId} button:has-text("Edit")`);
     await editBtn.click();
-    await page.waitForTimeout(200);
-    const updatedValText = await page.textContent(`#mem-val-${memId}`);
+    await page.fill(`#mem-edit-text-${memId}`, 'Updated Click Value 2026');
+    await page.click(`#mem-edit-save-${memId}`);
+    await page.waitForSelector('.personal-context-card:has-text("Updated Click Value 2026")');
+    const editedId = ((await page.locator('.personal-context-card', { hasText: 'Updated Click Value 2026' }).first().getAttribute('id')) as string).replace('mem-card-', '');
+    assert.notEqual(editedId, memId, 'a correction makes a new current memory');
+    assert.equal(await page.locator(`#mem-card-${memId}`).count(), 0, 'the old text is no longer shown as current');
+    const updatedValText = await page.textContent(`#mem-val-${editedId}`);
     assert.ok(updatedValText?.includes('Updated Click Value 2026'));
+    await page.locator(`#mem-card-${editedId} button:has-text("History")`).click();
+    await page.waitForSelector(`#mem-history-${editedId}:not([hidden])`);
+    assert.ok((await page.textContent(`#mem-history-${editedId}`))?.includes(`Initial Click Value ${testRunId}`), 'the earlier version is kept in History');
 
     // 3. Pin action via click
-    const pinBtn = page.locator(`#mem-card-${memId} button:has-text("Pin")`);
+    const pinBtn = page.locator(`#mem-card-${editedId} button:has-text("Pin")`);
     await pinBtn.click();
-    await page.waitForSelector(`#mem-card-${memId} span:has-text("📌 Pinned")`);
+    await page.waitForSelector(`#mem-card-${editedId} span:has-text("📌 Pinned")`);
 
     // 4. Unpin action via click
-    const unpinBtn = page.locator(`#mem-card-${memId} button:has-text("Unpin")`);
+    const unpinBtn = page.locator(`#mem-card-${editedId} button:has-text("Unpin")`);
     await unpinBtn.click();
     await page.waitForTimeout(200);
-    const pinBadgeCount = await page.locator(`#mem-card-${memId} span:has-text("📌 Pinned")`).count();
+    const pinBadgeCount = await page.locator(`#mem-card-${editedId} span:has-text("📌 Pinned")`).count();
     assert.equal(pinBadgeCount, 0);
 
     // 5. Delete action via click
-    const deleteBtn = page.locator(`#mem-card-${memId} button:has-text("Delete")`);
+    const deleteBtn = page.locator(`#mem-card-${editedId} button:has-text("Delete")`);
     await deleteBtn.click();
     await page.waitForTimeout(300);
-    const cardCount = await page.locator(`#mem-card-${memId}`).count();
+    const cardCount = await page.locator(`#mem-card-${editedId}`).count();
     assert.equal(cardCount, 0, 'Card must be removed from UI after successful delete');
 
     await page.close();

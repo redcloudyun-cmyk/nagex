@@ -9,6 +9,9 @@ const S3_SECRET_PATTERNS = [
   /\b(api[_-]?key|access[_-]?token|secret[_-]?key|password)\s*[:=]\s*['"]?[a-zA-Z0-9\-_]{8,}['"]?/i,
   /sec_[a-zA-Z0-9\-_]{16,}/i,
   /token[_-]?secret/i,
+  // a secret said in plain English: "my password is hunter2", "password: hunter2", "the api key is sk-abc123xyz", "my pin is 4821". The value must look like a credential (a digit or a symbol in it) so that
+  // "the password is required" or "I forgot my password" are not secrets.
+  /\b(?:password|passcode|passphrase|pin(?:\s*code)?|api[\s_-]?key|access[\s_-]?token|secret[\s_-]?key|private[\s_-]?key|auth[\s_-]?token)\b\s*(?:is|are|was|=|:)\s*['"]?(?=[^\s'"]*[\d!@#$%^&*_+=\-])[^\s'"]{4,}/i,
   // a secret said in Korean: "내 비밀번호는 hunter2", "API 키: sk_live_..." (the value must be a real-looking token: "비밀번호를 바꿔야 해" or "비밀번호는 어렵게" are not secrets)
   /(비밀번호|패스워드|비번|암호|비밀\s*키|api\s*키|토큰)\s*(?:은|는|이|가)?\s*[:=]?\s*['"]?[A-Za-z0-9!@#$%^&*()_+=-]{4,}/i,
 ];
