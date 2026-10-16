@@ -189,6 +189,7 @@
       "research_source_fetcher",
       "research_report",
       "artifact_versions",
+      "microsoft_integration_state",
       "structured_output_recovery",
       "time_context",
       "schedule_grounding"
@@ -446,6 +447,7 @@
       "document_download_route",
       "memory_control",
       "artifact_versions",
+      "microsoft_integration_state",
       "research_source_fetcher"
     ]
   },

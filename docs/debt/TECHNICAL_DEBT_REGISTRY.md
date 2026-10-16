@@ -786,6 +786,29 @@ status: OPEN
 
 ---
 
+```yaml
+id: DEBT-0016
+area: identity / social sign-in (Google, Microsoft)
+description: >
+  Found while assessing the Microsoft integration (docs/evidence/NAGEX_R26E_MICROSOFT_INTEGRATION_ASSESSMENT_20261016.md): (1) a social sign-in that finds no existing account
+  creates a new account from the provider's e-mail claim without requiring the provider to have verified that address - Google reports email_verified, Microsoft's
+  OIDC userinfo does not carry it at all, and for work/school directories the e-mail attribute is not guaranteed to be verified; (2) because Microsoft never reports a verified
+  address, a legacy password account can never be migrated to Microsoft sign-in (status=link-required) - the safe direction, pinned by tests/microsoft_integration_state.test.ts.
+  Accounts are bound by the provider subject, so an existing account cannot be taken over by (1); the exposure is that someone can register an address they do not own before the owner does.
+severity: medium
+introduced: the social sign-in implementation (R21)
+reason: >
+  Closing it needs a decision on the verified-address signal (the xms_edov optional claim configured in the Microsoft application registration, or a confirmation e-mail) and
+  belongs to the security track; nothing here may register an application or change identity semantics unasked.
+risk: >
+  Pre-registration of another person's address through a provider that does not verify it; later the real owner is told "link-required" when signing in.
+target: require a verified-address signal before creating or linking a social account, or mark such an account unverified and confirm the address before it is used for anything that trusts the e-mail.
+owner: NAGEX
+status: OPEN
+```
+
+---
+
 ## Explicitly classified as NON-GOAL, not debt
 
 Per the R11 directive's own explicit instruction not to silently call every disclosed limitation "debt":
