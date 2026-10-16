@@ -102,6 +102,7 @@ import type { EnterpriseIdentityStore } from './enterprise-identity/enterprise-i
 import type { SsoFlowStore } from './enterprise-identity/sso-flow.store.js';
 import { createNagexApplication } from './app/create-nagex-application.js';
 import { canonicalPublicUrl, describePublicUrl } from './config/public-url.js';
+import { handleTodoRoutes } from './http/routes/todo.routes.js';
 
 const PORT = Number(process.env.PORT || 8085);
 const PUBLIC_DIR = path.join(process.cwd(), 'public');
@@ -787,6 +788,15 @@ export async function handleAsyncApiRequest(
         versionService: app.artifactVersionService,
       });
       if (docCreationResult) return docCreationResult;
+    }
+
+    // Next actions (TODOs)
+    {
+      const todoResult = await handleTodoRoutes(method, pathname, body, headers, query, {
+        todoService: app.todoService,
+        getProfileTimezone: (principalId) => (customDeps?.identityStore ?? identityStore).getProfile(principalId)?.timezone,
+      });
+      if (todoResult) return todoResult;
     }
 
     // R23.7C-D — Presentation / Slides Creation Runtime Routes

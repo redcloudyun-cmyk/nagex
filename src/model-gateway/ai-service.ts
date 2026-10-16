@@ -12,6 +12,8 @@ import { normalizePresentationOutline, OUTLINE_LIMITS, type PresentationOutline 
 import { parseStructuredJson } from './structured-json.js';
 import { buildTimeContext, timeContextPromptLines } from '../common/time-context.js';
 import { groundScheduleSteps, type ScheduleClock } from '../planning/schedule-grounding.js';
+import { capabilityBriefLines } from './capability-brief.js';
+import { analyzeRequest, checkCoverage, coverageCorrection, requestShapeInstructions } from './request-analysis.js';
 
 export type PlanStepNecessity = 'REQUIRED' | 'OPTIONAL';
 
@@ -611,8 +613,16 @@ export class AiService {
     personalContext?: string;
   }): Promise<AiServiceResponse<{ message: string; evidencePackId?: string; sources?: EvidenceSource[] }>> {
     const requestId = input.requestId || `chat_${randomUUID()}`;
+    // what the request asks for (parts, an exact count of items, how big an answer it deserves) is told to the model and checked afterwards
+    const shape = analyzeRequest(input.message);
     const systemContent = [
-      'You are NAgex, a personal AI assistant. Be concise and do not claim that tools were executed.',
+      [
+        'You are NAgex, a personal AI assistant. Do not claim that any tool was executed or that anything outside this conversation was done: in this answer you only talk.',
+        'Answer in the language of the request. Be accurate and useful: complete (every instruction in the request is answered), specific (concrete explanations and examples, no generic filler), and proportionate (short for a simple question, thorough for a multi-part one). Never repeat yourself.',
+        'If you do not know something or a capability is not available, say so plainly instead of guessing.',
+      ].join('\n'),
+      capabilityBriefLines().join('\n'),
+      requestShapeInstructions(shape).join('\n'),
       languageInstruction(detectRequestLanguage(input.message)),
       ...(input.clock ? timeContextPromptLines(buildTimeContext(input.clock.nowMs, { timezone: input.clock.timezone, source: input.clock.timezoneSource }), input.clock.nowMs, 'chat') : []),
       input.personalContext ? input.personalContext : null,
@@ -638,7 +648,7 @@ export class AiService {
     if (!lastItem || lastItem.role !== 'user' || lastItem.content !== input.message) {
       messages.push({ role: 'user', content: input.message });
     }
-    const response = await this.router.generate({
+    const generateChat = (turns: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>) => this.router.generate({
       mode: input.mode,
       requestId,
       routingContext: {
@@ -647,8 +657,16 @@ export class AiService {
         requiresEvidenceGrounding: Boolean(input.evidencePack && input.evidencePack.sources.length > 0),
         requestId,
       },
-      messages,
+      messages: turns,
     });
+    let response = await generateChat(messages);
+    // An answer that misses what can be checked mechanically (an asked-for number of items, a numbered request's numbers) is asked for once more - one bounded extra call, never a loop.
+    // The better of the two is kept; NAgex never pads or rewrites the model's text itself.
+    const issues = checkCoverage(shape, response.text);
+    if (issues.length > 0) {
+      const second = await generateChat([...messages, { role: 'assistant', content: response.text }, { role: 'user', content: coverageCorrection(issues, shape) }]).catch(() => null);
+      if (second && checkCoverage(shape, second.text).length < issues.length) response = second;
+    }
     return {
       data: {
         message: response.text,
@@ -932,6 +950,7 @@ export class AiService {
         : 'Create a professional, comprehensive, and well-structured document or report based on the user\'s intent and context. Write in English.',
       'Produce clear Markdown output with a title, executive summary, and well-organized sections.',
       'Do not claim to have taken external actions. Do not invent fake facts or fake sources.',
+      'Do not invent statistics, percentages, prices, market shares, dates, names of companies or people, or quotations. When a figure or a name is needed and neither the request nor the context gives it, write a clearly marked assumption ("Assumption: ..." / "가정: ...") or an input placeholder ("[to be provided]" / "[입력 필요]"); comparisons without data are qualitative.',
       input.instructions ? `Specific instructions: ${input.instructions}` : null,
       input.documentKind ? `Document type: ${input.documentKind}` : null,
       input.memories && input.memories.length > 0 ? `Relevant personal memory context:\n${summarizeMemories(input.memories)}` : null,
@@ -1047,6 +1066,40 @@ export class AiService {
     };
   }
 
+  // The next actions of a conversation - only called when the person asked for a to-do list / next steps. The answer is split into things NAgex can do (each a complete request the person can
+  // choose to run) and advice the person has to act on themselves. The model proposes; the router (todos/todo-classification.ts) decides which proposals are executable.
+  public async proposeFollowUps(input: { message: string; answer?: string; conversation?: Array<{ role: 'user' | 'assistant'; content: string }>; clock?: ScheduleClock; mode?: RoutingMode; requestId?: string }): Promise<AiServiceResponse<{ todos: Array<{ title: string; prompt: string }>; recommendations: string[] }>> {
+    const requestId = input.requestId || `todo_${randomUUID()}`;
+    const language = detectRequestLanguage(input.message);
+    const response = await this.router.generate({
+      mode: input.mode || 'auto',
+      requestId,
+      jsonMode: true,
+      routingContext: { taskKind: 'PLAN', requiresJson: true, requestId },
+      validate: (text) => { normalizeFollowUps(text, requestId); },
+      messages: [
+        {
+          role: 'system',
+          content: [
+            'You turn a conversation into the NEXT ACTIONS the person asked for. Return JSON only.',
+            'A "todo" is something NAgex itself can do for the person if they choose it: write a document or report, make a presentation, research a topic with sources, put an event on their calendar, draft or send an email, save a result to their Vault. Give each as {"title":"a short label","prompt":"a complete request in the first person, exactly as the person would type it"}.',
+            'In a todo prompt use ONLY details that appear in the conversation. Never invent a date, a time, a name, an address or a number; if a detail is missing, leave it out of the prompt.',
+            'A "recommendation" is advice the person has to act on themselves, or something NAgex cannot do (for example anything outside the abilities above, phoning someone, meeting someone). Give each as one plain sentence.',
+            'Only include what the conversation actually supports - at most 5 todos and 5 recommendations, none that repeat each other. If there is nothing, return empty arrays.',
+            'Return exactly: {"todos":[{"title":"string","prompt":"string"}],"recommendations":["string"]}',
+            languageInstruction(language),
+            ...(input.clock ? timeContextPromptLines(buildTimeContext(input.clock.nowMs, { timezone: input.clock.timezone, source: input.clock.timezoneSource }), input.clock.nowMs, 'plan') : []),
+          ].join('\n'),
+        },
+        {
+          role: 'user',
+          content: [`The person asked:\n${input.message}`, input.answer ? `NAgex answered:\n${input.answer.slice(0, 6000)}` : '', `Recent conversation:\n${summarizeConversation(input.conversation)}`].filter(Boolean).join('\n\n'),
+        },
+      ],
+    });
+    return { data: normalizeFollowUps(response.text, requestId), provider: response.provider, model: response.model, latencyMs: response.latencyMs, requestId: response.requestId };
+  }
+
   // allowAdvisory is for an INTERACTIVE caller that shows the answer to the person (the Home route). Only then, and only when the person's own words ask for advice and
   // for nothing to be done (classifyPlanRequest), may the answer be an ADVISORY one with no steps. Every other caller (background / task runners, chat-channel services,
   // an explicit action request) keeps the strict rule: at least one step, otherwise the answer is rejected and the next provider is tried.
@@ -1148,6 +1201,34 @@ export class AiService {
     });
     return { data: normalizeUnderstanding(response.text, requestId), provider: response.provider, model: response.model, latencyMs: response.latencyMs, requestId: response.requestId };
   }
+}
+
+// The answer of proposeFollowUps, held to its shape: short labels, complete requests, a handful of each, no duplicates.
+function normalizeFollowUps(text: string, requestId: string): { todos: Array<{ title: string; prompt: string }>; recommendations: string[] } {
+  const parsed = parseJsonObject(text, requestId, 'follow-ups');
+  const rawTodos = Array.isArray(parsed.todos) ? parsed.todos : [];
+  const rawRecommendations = Array.isArray(parsed.recommendations) ? parsed.recommendations : [];
+  if (!Array.isArray(parsed.todos) && !Array.isArray(parsed.recommendations)) throw new NagexError({ code: 'INVALID_MODEL_RESPONSE', category: 'PROVIDER', message: 'The follow-ups answer has neither todos nor recommendations.', request_id: requestId });
+  const seen = new Set<string>();
+  const todos: Array<{ title: string; prompt: string }> = [];
+  for (const entry of rawTodos) {
+    if (!entry || typeof entry !== 'object') continue;
+    const title = String((entry as { title?: unknown }).title ?? '').replace(/\s+/g, ' ').trim().slice(0, 120);
+    const prompt = String((entry as { prompt?: unknown }).prompt ?? '').replace(/\s+/g, ' ').trim().slice(0, 500);
+    const key = prompt.toLowerCase();
+    if (!title || prompt.length < 6 || seen.has(key)) continue;
+    seen.add(key);
+    todos.push({ title, prompt });
+    if (todos.length >= 5) break;
+  }
+  const recommendations: string[] = [];
+  for (const entry of rawRecommendations) {
+    const sentence = String(entry ?? '').replace(/\s+/g, ' ').trim().slice(0, 300);
+    if (sentence.length < 6 || recommendations.includes(sentence)) continue;
+    recommendations.push(sentence);
+    if (recommendations.length >= 5) break;
+  }
+  return { todos, recommendations };
 }
 
 export function parseRoutingMode(value: unknown, fallback: string | undefined): RoutingMode {

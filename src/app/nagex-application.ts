@@ -172,6 +172,8 @@ export interface NagexApplication {
   researchReportService: import('../research/research-report.service.js').ResearchReportService;
   // R26-D — versions of documents and decks
   artifactVersionService: import('../creation/artifact-version.service.js').ArtifactVersionService;
+  // Next actions (TODOs) - offered, chosen one at a time, state read from the task engine and the artifact store
+  todoService: import('../todos/todo.service.js').TodoService;
   imageExecutor: import('../creation/executors/image-executor.js').ImageExecutor;
   // R23.7C-C — same ImageStore instance imageExecutor writes through,
   // exposed so the canonical image-serving HTTP route reads real state.

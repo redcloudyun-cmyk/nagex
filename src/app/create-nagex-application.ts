@@ -159,6 +159,8 @@ import { SourceFetcher } from '../research/source-fetcher.js';
 import { ResearchRunStore } from '../research/research-run.store.js';
 import { ResearchReportService } from '../research/research-report.service.js';
 import { ArtifactVersionService } from '../creation/artifact-version.service.js';
+import { TodoService } from '../todos/todo.service.js';
+import { TodoStore } from '../todos/todo.store.js';
 import { CompetitorPricingBaselineStore } from '../agents/competitor-pricing-baseline.store.js';
 import { CompetitorPricingRunStore } from '../agents/competitor-pricing-run.store.js';
 import { CompetitorPricingRunService } from '../agents/competitor-pricing-run.service.js';
@@ -626,6 +628,20 @@ export function createNagexApplication(): NagexApplication {
   const creationRuntime = new CreationRuntime([documentExecutor, imageExecutor, presentationExecutor]);
   // R26-D: versions of documents and decks (built from the revision relationships already stored)
   const artifactVersionService = new ArtifactVersionService({ documentStore, presentationStore });
+  // Next actions (TODOs): their state is READ from the task engine's own runs and from the artifact store - this service keeps no second approval and no second run record
+  const todoService = new TodoService({
+    store: new TodoStore(),
+    artifactStore,
+    readTask: (tenantId, ownerId, taskId) => {
+      const task = taskStore.get(taskId, tenantId, ownerId);
+      if (!task) return null;
+      const runs = taskRunStore.listForTask(taskId).slice().sort((a, b) => String(a.startedAt).localeCompare(String(b.startedAt)));
+      const latest = runs[runs.length - 1];
+      return latest ? { status: latest.status, errorCode: latest.errorCode, result: latest.result } : { status: 'RUNNING', errorCode: null, result: null };
+    },
+    proposer: aiService,
+    audit: (event) => { auditLogger.logEvent({ actor: { type: 'user', id: event.ownerId }, tenant_id: event.tenantId, action: event.action, resource: { type: 'Todo', id: event.todoId }, result: 'SUCCESS', request_id: `req_todo_${Date.now()}`, details: event.details }); },
+  });
 
   // R26-A: cited research reports. The report is composed by NAgex from claims it verified against pages it retrieved (robots.txt, SSRF policy and rate limits apply); the model only proposes.
   const researchRunStore = new ResearchRunStore();
@@ -936,6 +952,7 @@ export function createNagexApplication(): NagexApplication {
     researchRunStore,
     researchReportService,
     artifactVersionService,
+    todoService,
     imageExecutor,
     imageStore,
     presentationStore,

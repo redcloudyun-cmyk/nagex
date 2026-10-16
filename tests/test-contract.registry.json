@@ -6708,6 +6708,51 @@
       "notes": "Production server in-process; the identity providers are scripted (navigation answered locally, server token calls stubbed); every outside request is blocked and listed.",
       "writesRepositoryArtifacts": false
     },
+    "response_quality": {
+      "milestone": "QUALITY-TODO",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "The chat answer is built from what NAgex really is and does: the system prompt carries the capability brief (no more \"Be concise\") and that brief agrees with the runtime (unsupported kinds are unsupported, approvals promised are required, Microsoft is only planned); the request's own shape (numbered parts, an exact count of items, how big an answer it deserves) is read from its words, told to the model, and the checkable part (a number of items, the numbers of a numbered request) is verified - a miss is asked for once more, never in a loop, the better answer is kept and a worse one is never swapped in; a simple question stays simple and is answered once.",
+      "notes": "Scripted model endpoint; the real-model before / after run is in the sprint evidence."
+    },
+    "todo_next_actions": {
+      "milestone": "QUALITY-TODO",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Next actions are TODOs only when the router would send them to creation, research or the plan -> approval engine - advice, something NAgex cannot do, a request that needs more from the person and a negated one are recommendations without a button; a plain question never gets a list and the model is not asked; a report offers one deterministic follow-up (a deck from that very document), idempotently; a request for next steps is split by the router; starting moves it to IN_PROGRESS once; a result is linked only if it is the owner's and newer than the start and a client can never declare success; a task's state is the task engine's (approval pending, running, a reviewed plan is not done, a calendar change is done only when read back, declined / expired / failed / cancelled / missing); a reported failure may be retried and an abandoned plan is offered again; another person, an unknown and a malformed id are all not found; English event requests with modifiers are actions while documents about a meeting are not.",
+      "notes": "Real stores and route handler; the proposing model and the task engine are scripted. No network."
+    },
+    "todo_next_actions_browser": {
+      "milestone": "QUALITY-TODO",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "In real Chromium (KR and EN, 360 / 390 / 430px): a report offers a deck TODO under it and a plain question offers nothing and asks the model nothing; pressing the TODO runs the same request path as typing (the deck is planned from that report's content) and the TODO is Done only because the deck exists; a request for next steps shows runnable TODOs with a button and advice without one; only the chosen calendar TODO starts, as a plan preview with nothing on the calendar, then the person's own request-approval makes it APPROVAL_REQUIRED, approving runs it once and it is Done only after the read-back (VERIFIED) while the unchosen one never ran; declining leaves it FAILED (\"you declined it\") with nothing on the calendar and a retry button; another person cannot see, start or link it; the block fits phones with a touch-size button.",
+      "notes": "Production server in-process; the model is a local deterministic stand-in and Google Calendar a local fake: a pass proves NAgex's own chain, not that a real model or Google answered.",
+      "writesRepositoryArtifacts": false
+    },
     "memory_supersession": {
       "milestone": "SPRINT03-MEMORY-SUPERSESSION",
       "classification": "CANONICAL_BEHAVIOR",
