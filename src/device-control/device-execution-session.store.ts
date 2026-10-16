@@ -22,7 +22,27 @@ export type DeviceExecutionSessionStatus =
   | 'COMPLETED'
   | 'FAILED'
   | 'CANCELLED'
+  | 'PAUSED'
   | 'BLOCKED_NEEDS_HUMAN';
+
+// One thing the Agent did, as the person can read it afterwards. Typed text is never kept (only how long it was); a page's own words are bounded and are data, not instructions.
+export interface DeviceStepLogEntry {
+  n: number;
+  at: string;
+  action: string;
+  /** the control acted on (a verified selector) and what it is called */
+  target?: string;
+  description?: string;
+  /** a NAVIGATE address, 'N characters' for typed text, the option chosen, the length of an expectation - never the typed text itself */
+  detail?: string;
+  outcome: string;
+  /** what NAgex observed: VERIFIED / NOT_VERIFIED / FAILED / USER_ACTION_REQUIRED, or null when the action has nothing to observe */
+  verification: string | null;
+  mutating: boolean;
+  pageUrl?: string;
+}
+
+export const MAX_STEP_LOG = 80;
 
 export interface DeviceExecutionSessionRecord {
   deviceExecutionSessionId: string;
@@ -44,12 +64,17 @@ export interface DeviceExecutionSessionRecord {
   lastObservationRef: string | null;
   result: unknown;
   terminationReason: string | null;
+  // Additive (older records have neither): the log of executed steps, and a stop the person asked for that the running loop has not reached yet.
+  steps?: DeviceStepLogEntry[];
+  controlRequest?: 'PAUSE' | 'CANCEL' | null;
+  /** why a PAUSED session is paused when the person did not ask for it (the planning model was unavailable) */
+  pauseReason?: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
 const VALID_STATUSES: ReadonlySet<string> = new Set<DeviceExecutionSessionStatus>([
-  'RUNNING', 'WAITING_APPROVAL', 'COMPLETED', 'FAILED', 'CANCELLED', 'BLOCKED_NEEDS_HUMAN',
+  'RUNNING', 'WAITING_APPROVAL', 'COMPLETED', 'FAILED', 'CANCELLED', 'PAUSED', 'BLOCKED_NEEDS_HUMAN',
 ]);
 
 export function isDeviceExecutionSessionRecord(value: unknown): value is DeviceExecutionSessionRecord {
@@ -202,6 +227,66 @@ export class DeviceExecutionSessionStore {
     record.status = 'FAILED';
     record.terminationReason = terminationReason;
     return this.persist(record);
+  }
+
+  // The step is appended AFTER it ran, bounded to the most recent MAX_STEP_LOG entries.
+  public appendStep(deviceExecutionSessionId: string, tenantId: string, ownerPrincipalId: string, entry: Omit<DeviceStepLogEntry, 'n' | 'at'>): DeviceExecutionSessionRecord | null {
+    const record = this.getOwned(deviceExecutionSessionId, tenantId, ownerPrincipalId);
+    if (!record) return null;
+    const steps = record.steps ?? [];
+    const n = (steps.length > 0 ? steps[steps.length - 1].n : 0) + 1;
+    record.steps = [...steps, { n, at: this.now(), ...entry }].slice(-MAX_STEP_LOG);
+    return this.persist(record);
+  }
+
+  // The person asked to pause or cancel. A loop that is running sees this at its next boundary (it is never interrupted in the middle of an action).
+  public requestControl(deviceExecutionSessionId: string, tenantId: string, ownerPrincipalId: string, kind: 'PAUSE' | 'CANCEL'): DeviceExecutionSessionRecord | null {
+    const record = this.getOwned(deviceExecutionSessionId, tenantId, ownerPrincipalId);
+    if (!record) return null;
+    if (record.controlRequest === 'CANCEL') return record; // a cancel is never downgraded to a pause
+    record.controlRequest = kind;
+    return this.persist(record);
+  }
+
+  public pause(deviceExecutionSessionId: string, tenantId: string, ownerPrincipalId: string, reason: string | null = null): DeviceExecutionSessionRecord | null {
+    const record = this.getOwned(deviceExecutionSessionId, tenantId, ownerPrincipalId);
+    if (!record) return null;
+    record.status = 'PAUSED';
+    record.controlRequest = null;
+    record.pauseReason = reason;
+    return this.persist(record);
+  }
+
+  public resumeFromPause(deviceExecutionSessionId: string, tenantId: string, ownerPrincipalId: string): DeviceExecutionSessionRecord | null {
+    const record = this.getOwned(deviceExecutionSessionId, tenantId, ownerPrincipalId);
+    if (!record || record.status !== 'PAUSED') return null;
+    record.status = 'RUNNING';
+    record.controlRequest = null;
+    record.pauseReason = null;
+    return this.persist(record);
+  }
+
+  public cancel(deviceExecutionSessionId: string, tenantId: string, ownerPrincipalId: string, terminationReason: string): DeviceExecutionSessionRecord | null {
+    const record = this.getOwned(deviceExecutionSessionId, tenantId, ownerPrincipalId);
+    if (!record) return null;
+    record.status = 'CANCELLED';
+    record.terminationReason = terminationReason;
+    record.pendingAction = null;
+    record.controlRequest = null;
+    return this.persist(record);
+  }
+
+  /** one person's sessions, newest first */
+  public listForOwner(tenantId: string, ownerPrincipalId: string): DeviceExecutionSessionRecord[] {
+    return this.fileStore
+      .readAll()
+      .filter((record) => record.tenantId === tenantId && record.ownerPrincipalId === ownerPrincipalId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  /** unfinished sessions of every owner (a restart found them RUNNING): the caller decides what to do with them */
+  public listByStatus(status: DeviceExecutionSessionStatus): DeviceExecutionSessionRecord[] {
+    return this.fileStore.readAll().filter((record) => record.status === status);
   }
 
   public blockNeedsHuman(deviceExecutionSessionId: string, tenantId: string, ownerPrincipalId: string, terminationReason: string): DeviceExecutionSessionRecord | null {

@@ -75,6 +75,7 @@ import { handleCreationRoutes } from './http/routes/creation.routes.js';
 import { handleDocumentCreationRoutes } from './http/routes/document-creation.routes.js';
 import { handlePresentationCreationRoutes } from './http/routes/presentation-creation.routes.js';
 import { handleVideoCreationRoutes } from './http/routes/video-creation.routes.js';
+import { handleBrowserTaskRoutes } from './http/routes/browser-task.routes.js';
 import { handleCaptureRoutes } from './http/routes/capture.routes.js';
 import { handleInboxRoutes } from './http/routes/inbox.routes.js';
 import { handleVaultRoutes } from './http/routes/vault.routes.js';
@@ -611,7 +612,7 @@ export async function handleAsyncApiRequest(
     // (route-input, storage/status, inbox, vault, uploads, captures, items,
     // candidates, activity) now resolve through one registrar call.
     {
-      const workspaceResult = await handleWorkspaceRoutes(method, pathname, body, headers, query, { quickCaptureService, artifactStore: app.artifactStore, isVideoAvailable: () => app.videoJobService.isAvailable() });
+      const workspaceResult = await handleWorkspaceRoutes(method, pathname, body, headers, query, { quickCaptureService, artifactStore: app.artifactStore, isVideoAvailable: () => app.videoJobService.isAvailable(), isBrowserTaskAvailable: () => Boolean(app.browserTaskService) });
       if (workspaceResult) return workspaceResult;
 
       const commandContextResult = await handleCommandContextRoutes(method, pathname, body, headers, query, { commandService: multimodalCommandService, sessionStore: customDeps?.sessionStore ?? sessionStore });
@@ -809,6 +810,12 @@ export async function handleAsyncApiRequest(
         versionService: app.artifactVersionService,
       });
       if (presentationResult) return presentationResult;
+    }
+
+    // Browser tasks: "do this on that website" with the person approving anything consequential
+    {
+      const browserTaskResult = await handleBrowserTaskRoutes(method, pathname, body, headers, query, { browserTaskService: app.browserTaskService });
+      if (browserTaskResult) return browserTaskResult;
     }
 
     // Video creation: price + approval, status, owner-only playback / download
@@ -1311,6 +1318,9 @@ export async function startNagexServer(): Promise<{ server: http.Server }> {
         console.log(JSON.stringify({ event: 'durable_task_run_recovery_completed', recovered, failed }));
       }
       // scheduled runs with no durable record (daily brief, condition watch, plan preview) that the previous process life died in
+      // browser tasks whose loop (or whose waiting page) died with the previous process end as FAILED, with the reason
+      const endedBrowserTasks = app.browserTaskService?.recoverAfterRestart() ?? 0;
+      if (endedBrowserTasks > 0) console.log(JSON.stringify({ event: 'interrupted_browser_tasks_failed', ended: endedBrowserTasks }));
       const interrupted = durableTaskRuntime.failInterruptedRuns();
       if (interrupted > 0) {
         console.log(JSON.stringify({ event: 'interrupted_task_runs_failed', interrupted }));

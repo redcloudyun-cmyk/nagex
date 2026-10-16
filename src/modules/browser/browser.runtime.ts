@@ -6,6 +6,8 @@ import { resolveNagexDataDir } from '../../governance/file-record.store.js';
 import { validateOutboundUrl, type OutboundDnsResolver } from '../../security/outbound-url-policy.js';
 import type { StructuredBrowserSnapshot, FindResult, ExtractResult, ElementMatchCandidate, StructuredLink, StructuredButton, StructuredInput, StructuredForm, InteractiveElementSummary } from './browser.types.js';
 import { mapDescribeInPage, mapScanInPage, mapSelectorsInPage, pickBest, rankMapElements, type RawMapElement } from './element-map.js';
+import { keyActivationInPage, type KeyActivation, type KeyActivationKind } from './key-activation.js';
+import { EXPECTATION_SURFACE_CHARS, readExpectationSurfaceInPage, type ExpectationSurface } from './expectation.js';
 import { OBSERVE_PAGE_ARGS, observePageInPage, observeTargetInPage, readFieldInPage, type FieldState, type PageObservation, type TargetObservation } from './action-verification.js';
 
 // NAgex Browser Runtime — Phase B / Browser Agent MVP (MASTER.md Section
@@ -29,6 +31,8 @@ export interface BrowserElementMatch {
   // The accessible name when it says something the visible text does not (an icon-only button named by aria-label, "Go" labelled "Buy now"). Present only then, so a plain button's
   // approval payload is unchanged. Consequence classification reads it too.
   accessibleName?: string;
+  // The field is for a secret (a password, a one-time code): NAgex never types into it, whoever asks.
+  sensitiveField?: boolean;
 }
 
 export interface BrowserSnapshot {
@@ -83,6 +87,10 @@ export interface BrowserRuntime {
   // focused element (no selector — mirrors real keyboard input, which has
   // no target of its own beyond whatever already has focus).
   keypress(sessionId: string, key: string): Promise<void>;
+  // What pressing `key` now would activate (a button, a link, a form's submit button), without pressing it. A runtime that cannot tell leaves it out, and Enter / Space are then not pressed.
+  describeKeyActivation?(sessionId: string, key: string): Promise<KeyActivation>;
+  // The visible text (and the values of visible fields) of the page, or of one element, for a deterministic check of what the page must show.
+  readExpectationSurface?(sessionId: string, selector: string | null): Promise<ExpectationSurface>;
   // Optional observation primitives (action-verification.ts). A runtime that cannot observe leaves them out; the service then reports NOT_VERIFIED / NO_OBSERVATION - it never guesses a result.
   observePage?(sessionId: string): Promise<PageObservation>;
   observeTarget?(sessionId: string, selector: string): Promise<TargetObservation | null>;
@@ -448,6 +456,7 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
           ...(el.type ? { type: el.type } : {}),
           ...(el.context ? { context: el.context } : {}),
           ...(el.checked !== undefined ? { checked: el.checked } : {}),
+          ...(el.value ? { value: el.value } : {}),
           ...(el.expanded !== undefined ? { expanded: el.expanded } : {}),
           ...(el.frame ? { frame: el.frame } : {}),
           ...(el.inShadow ? { inShadow: true } : {}),
@@ -580,12 +589,14 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
     const count = await locator.count();
     if (count === 0) return { count: 0, role: null, text: null, isFormControl: false };
     const first = locator.first();
-    const [text, tagName, roleAttr, typeAttr] = await Promise.all([
+    const [text, tagName, roleAttr, typeAttr, autocompleteAttr] = await Promise.all([
       first.innerText().catch(() => first.getAttribute('aria-label').then((v) => v || '').catch(() => '')),
       first.evaluate((el) => el.tagName.toLowerCase()).catch(() => ''),
       first.getAttribute('role').catch(() => null),
       first.getAttribute('type').catch(() => null),
+      first.getAttribute('autocomplete').catch(() => null),
     ]);
+    const sensitiveField = tagName === 'input' && ((typeAttr || '').toLowerCase() === 'password' || /(one-time-code|current-password|new-password|cc-number|cc-csc)/i.test(autocompleteAttr || ''));
     const role = roleAttr || (tagName === 'button' ? 'button' : tagName === 'a' ? 'link' : tagName === 'select' ? 'select' : tagName === 'input' || tagName === 'textarea' ? 'textbox' : tagName);
     const isFormControl = tagName === 'input' || tagName === 'textarea' || tagName === 'select';
     // An icon-only control has no innerText: it is named by aria-label, title, value or an inner image. That name is what a person (and an approval prompt) knows the control by, and what
@@ -599,6 +610,7 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
       text: visible || named || null,
       isFormControl: isFormControl || typeAttr === 'submit',
       ...(named && named !== visible ? { accessibleName: named } : {}),
+      ...(sensitiveField ? { sensitiveField: true } : {}),
     };
   }
 
@@ -630,6 +642,30 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
   public async keypress(sessionId: string, key: string): Promise<void> {
     const page = this.requirePage(sessionId);
     await page.keyboard.press(key);
+  }
+
+  public async readExpectationSurface(sessionId: string, selector: string | null): Promise<ExpectationSurface> {
+    const page = this.requirePage(sessionId);
+    const locator = selector ? this.locate(page, selector) : page.locator('body');
+    if ((await locator.count()) !== 1) return { found: false, texts: [], truncated: false };
+    return await locator.first().evaluate(readExpectationSurfaceInPage as (el: any, maxChars: number) => ExpectationSurface, EXPECTATION_SURFACE_CHARS);
+  }
+
+  public async describeKeyActivation(sessionId: string, key: string): Promise<KeyActivation> {
+    const page = this.requirePage(sessionId);
+    const handle = await page.evaluateHandle(keyActivationInPage as (key: string) => { kind: KeyActivationKind; el: unknown }, key);
+    try {
+      const kind = (await (await handle.getProperty('kind')).jsonValue()) as KeyActivationKind;
+      if (kind === 'NONE' || kind === 'IMPLICIT_SUBMIT_UNRESOLVED') return { kind };
+      const element = (await handle.getProperty('el')).asElement();
+      if (!element) return { kind: 'NONE' };
+      // a control inside a frame cannot be named by a selector of the top page: the caller must not press the key
+      if ((await element.ownerFrame()) !== page.mainFrame()) return { kind: 'UNRESOLVED_FRAME' };
+      const selectors = await element.evaluate(mapSelectorsInPage as (el: any) => string[]);
+      return { kind, selectors: Array.isArray(selectors) ? selectors : [] };
+    } finally {
+      await handle.dispose().catch(() => undefined);
+    }
   }
 
   // What the page shows right now: address, title, a signature of its content, visible alert / status / error / success messages, invalid form fields, an open dialog. Read-only; the page is not touched.

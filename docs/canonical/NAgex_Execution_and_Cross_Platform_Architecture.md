@@ -191,6 +191,17 @@ Web provides the main Personal AI experience and server-connected capabilities.
 
 Browser execution is a separate governed plane. Page content is untrusted and cannot become permission authority.
 
+### 10.1 Browser task agent (as built, 2026-10-16)
+
+A user request that names a website becomes a **browser task** (`BrowserTaskService`, `/api/v1/browser-tasks`), run by the bounded loop `OBSERVE → PLAN → AUTHORIZE → ACT → VERIFY → REPEAT/STOP` in `DeviceControlService`.
+
+- The planner is a replaceable port (`VisualExecutionModelPort`). The default composition plans DOM-first through the Model Gateway and falls back to a vision planner only when a page has nothing actionable; every switch is reported. A planner outage pauses the task; it does not fail it.
+- The model only **proposes** one action from a bounded vocabulary (Navigate, Observe, Click, Type, Select, Scroll, Keypress, Wait, Verify, Stop). NAgex validates the proposal against the elements it offered, applies the domain allow-list, loop/step/time limits and risk policy, and holds consequential actions (including Enter/Space activation) for the existing Approval Authority.
+- "The page shows X" and "the field holds Y" are decided by NAgex, not by the model; a claimed success contradicted by a failed expectation is not reported as done.
+- Password fields are never typed by the agent; login, MFA and CAPTCHA end the task as "a person needs to step in".
+- Sessions are **managed** (a NAgex-controlled Chromium profile per owner). Reuse of the user's own browser session is **not implemented** and must not be claimed.
+- Not implemented: file upload action, live human takeover of the managed browser, a real third-party-site pilot. Evidence and per-capability status: `docs/research/NAGEX_COMPUTER_USE_GAP_REPORT.md`.
+
 ## 11. Windows Desktop
 
 Desktop is valuable for:

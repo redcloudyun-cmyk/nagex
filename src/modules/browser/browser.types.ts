@@ -82,6 +82,8 @@ export interface InteractiveElementSummary {
   context?: string;
   checked?: boolean;
   expanded?: boolean;
+  // what a text field or dropdown holds right now (bounded, never a secret); absent when empty
+  value?: string;
   // set when the control is in a same-origin iframe (the selector of that frame) or inside an open shadow root
   frame?: string;
   inShadow?: boolean;

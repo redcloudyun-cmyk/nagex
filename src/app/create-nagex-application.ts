@@ -47,6 +47,9 @@ import { GmailService } from '../modules/gmail/index.js';
 import { BrowserToolService, browserRuntime, browserSessionStore } from '../modules/browser/index.js';
 import { DeviceExecutionSessionStore } from '../device-control/device-execution-session.store.js';
 import { DeviceControlService } from '../device-control/device-control.service.js';
+import { GatewayExecutionModelAdapter } from '../device-control/gateway-execution-model.adapter.js';
+import { HybridExecutionModelAdapter } from '../device-control/hybrid-execution-model.adapter.js';
+import { BrowserTaskService } from '../device-control/browser-task.service.js';
 import { AstraVisualExecutionModelAdapter } from '../device-control/astra-visual-execution-model.adapter.js';
 import { DeviceIdentityStore } from '../device-agent/device-identity.store.js';
 import { RecipientRefStore } from '../mobile/recipient-ref.store.js';
@@ -263,9 +266,21 @@ export function createNagexApplication(): NagexApplication {
     // bare evidenceId lookup.
     readScreenshot: (evidenceId, tenantId, ownerId, requestId) => browserService.readEvidenceOwned(evidenceId, tenantId, ownerId, requestId),
   });
-  const deviceControlService = astraVisualExecutionModelAdapter.status().configured
-    ? new DeviceControlService(deviceExecutionSessionStore, browserService, astraVisualExecutionModelAdapter)
+  // The Agent loop is available when ANY planner is: the DOM / accessibility planner runs on whichever model the Gateway routes to (no vendor key of its own), the vision planner (Astra) only when
+  // its OpenAI key exists. Semantic first; pixels when a page has nothing actionable. NAGEX_BROWSER_AGENT=off removes the capability altogether.
+  const domPlanner = new GatewayExecutionModelAdapter(modelRouter);
+  const browserAgentOff = String(process.env.NAGEX_BROWSER_AGENT || '').toLowerCase() === 'off';
+  const hybridPlanner = new HybridExecutionModelAdapter({
+    dom: !browserAgentOff && domPlanner.status().configured ? domPlanner : null,
+    vision: !browserAgentOff && astraVisualExecutionModelAdapter.status().configured ? astraVisualExecutionModelAdapter : null,
+    // a screenshot going to a different provider is never silent
+    onFallback: (event) => auditLogger.logEvent({ actor: { type: 'system', id: 'device-planner' }, tenant_id: event.tenantId, action: 'device.planner.vision_fallback', resource: { type: 'DeviceExecution', id: event.requestId }, result: 'SUCCESS', request_id: event.requestId, details: { reason: event.reason, detail: event.detail } }),
+  });
+  const deviceControlService = hybridPlanner.status().configured
+    ? new DeviceControlService(deviceExecutionSessionStore, browserService, hybridPlanner)
     : undefined;
+  // The person-facing browser task (start, watch, approve, pause, cancel) over the Agent loop: present exactly when the loop is.
+  const browserTaskService = deviceControlService ? new BrowserTaskService({ deviceControl: deviceControlService, sessions: deviceExecutionSessionStore, browser: browserService }) : undefined;
   // DC3-A — Local Device Agent identity/session/transport foundation.
   const deviceIdentityStore = new DeviceIdentityStore();
   const desktopExecutionSessionStore = new DesktopExecutionSessionStore();
@@ -972,6 +987,7 @@ export function createNagexApplication(): NagexApplication {
     imageExecutor,
     imageStore,
     videoJobService,
+    browserTaskService,
     presentationStore,
     presentationExecutor,
     creationRuntime,
