@@ -1425,6 +1425,7 @@
       meta: [result.mimeType || 'image/png', result.artifactId ? 'artifact ready' : 'artifact unavailable'].join(' - '),
       preview: result.prompt || prompt,
       imageUrl,
+      mimeType: result.mimeType,
       artifactId: result.artifactId,
       openTarget: result.openTarget || imageUrl,
       projection,
@@ -2135,7 +2136,7 @@
         const link = result.downloadTarget ? `<p><a class="main-result-download" href="${esc(result.downloadTarget)}" download>${esc(bt('mainSlides.download', 'Download .pptx'))}</a></p>` : '';
         preview.innerHTML = `<article class="main-doc-page main-deck-page"><div><strong>NAgex</strong><br><small>${esc(mt('Your Personal AI'))}</small></div><h1>${esc(result.title || 'Presentation')}</h1>${result.subtitle ? `<p>${esc(result.subtitle)}</p>` : ''}${outline ? `<ol class="main-deck-outline">${outline}</ol>` : `<p>${esc(result.preview || '')}</p>`}${link}</article>`;
       } else if (result.type === 'IMAGE' && result.imageUrl) {
-        preview.innerHTML = `<article class="main-doc-page main-image-page"><div><strong>NAgex</strong><br><small>${esc(mt('Your Personal AI'))}</small></div><h1>${esc(localizeAppText(result.title || 'Generated image'))}</h1><img src="${esc(result.imageUrl)}" alt="${esc(localizeAppText(result.title || 'Generated image'))}" loading="lazy"><p>${esc(localizeAppText(result.preview || 'Image artifact'))}</p></article>`;
+        preview.innerHTML = `<article class="main-doc-page main-image-page"><div><strong>NAgex</strong><br><small>${esc(mt('Your Personal AI'))}</small></div><h1>${esc(localizeAppText(result.title || 'Generated image'))}</h1><img src="${esc(result.imageUrl)}" alt="${esc(localizeAppText(result.title || 'Generated image'))}" loading="lazy"><p>${esc(localizeAppText(result.preview || 'Image artifact'))}</p>${imageDownloadLink(result)}</article>`;
       } else {
         preview.innerHTML = `<article class="main-doc-page"><div><strong>NAgex</strong><br><small>${esc(mt('Your Personal AI'))}</small></div><h1>${esc(localizeAppText(result.title || 'Generated result'))}</h1><p>${esc(localizeAppText(result.preview || 'Preview is unavailable for this result.'))}</p></article>`;
       }
@@ -2187,6 +2188,15 @@
 
   // The only image source an opened artifact may display: the NAgex-owned canonical path (never a provider URL, data: URL or any other path).
   const CANONICAL_IMAGE_PATH = /^\/api\/v1\/creations\/images\/img_[0-9a-f]{24}$/;
+  const IMAGE_EXTENSION = { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp' };
+
+  // The file the person gets is the exact stored image; its extension comes from the type the provider reported (none when that is unknown).
+  function imageDownloadLink(result) {
+    const url = String(result.imageUrl || '');
+    if (!CANONICAL_IMAGE_PATH.test(url)) return '';
+    const name = 'nagex-' + url.slice(url.lastIndexOf('/') + 1) + (IMAGE_EXTENSION[String(result.mimeType || '').toLowerCase()] || '');
+    return `<p><a class="main-result-download" href="${esc(url)}" download="${esc(name)}">${esc(bt('mainImage.download', 'Download image'))}</a></p>`;
+  }
 
   async function openArtifactResult(artifactId) {
     if (!artifactId) return false;
@@ -2716,9 +2726,13 @@
 
   // Servers answer with { error: { message } } or { error: 'CODE', message }. The first non-empty, truthful wording wins; the
   // "no model provider" case is worded for the user instead of echoing the internal sentence.
+  const IMAGE_FAILURE_CODES = ['PROVIDER_QUOTA_EXCEEDED', 'PROVIDER_AUTH_FAILED', 'PROVIDER_MODEL_NOT_FOUND', 'CONTENT_REJECTED', 'TIMEOUT', 'PROVIDER_UNAVAILABLE_ERROR', 'EMPTY_PROVIDER_RESULT', 'UNSUPPORTED_ASPECT_RATIO'];
+
   function serverFailure(result, fallback) {
     if (result && result.error === 'NO_MODEL_PROVIDER_CONFIGURED') return bt('mainError.noModel', "NAgex can't do this right now because no AI model is available.");
     if (result && result.error === 'NO_CREATION_PROVIDER_AVAILABLE') return bt('mainError.noImageProvider', "NAgex can't create images right now because no image service is set up.");
+    // image failures: the real reason in the screen's language (the provider's own English text is for the audit trail, not for the person)
+    if (result && typeof result.error === 'string' && IMAGE_FAILURE_CODES.indexOf(result.error) >= 0) return bt('mainError.image.' + result.error, result.message || result.error);
     if (result && result.error && typeof result.error === 'object' && result.error.message) return result.error.message;
     if (result && typeof result.message === 'string' && result.message) return result.message;
     if (result && typeof result.errorMessage === 'string' && result.errorMessage) return result.errorMessage;

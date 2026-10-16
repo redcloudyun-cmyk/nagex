@@ -80,6 +80,7 @@
       "voice_input_browser",
       "canonical_domain_browser",
       "todo_next_actions_browser",
+      "image_generation_browser",
       "calendar_reschedule_browser",
       "one_input_slides_chain_browser",
       "vault_save_approval_browser",
@@ -195,6 +196,7 @@
       "artifact_versions",
       "microsoft_integration_state",
       "public_url_config",
+      "google_image_adapter",
       "response_quality",
       "todo_next_actions",
       "structured_output_recovery",
@@ -222,6 +224,7 @@
       "r23_7c_c_final_non_paid_closure_cert",
       "r23_7c_c_session_artifact_delivery_cert",
       "openai-image-adapter",
+      "google_image_adapter",
       "one_input_intent_browser",
       "home_reviewed_plan_browser",
       "one_input_document_chain_browser",
@@ -461,6 +464,7 @@
       "todo_next_actions",
       "canonical_domain_browser",
       "todo_next_actions_browser",
+      "image_generation_browser",
       "research_source_fetcher"
     ]
   },

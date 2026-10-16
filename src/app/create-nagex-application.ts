@@ -122,6 +122,7 @@ import { PresentationStore } from '../creation/presentation.store.js';
 import { LocalPptxPresentationAdapter } from '../creation/providers/adapters/local-pptx-adapter.js';
 import { CreationProviderRouter } from '../creation/providers/creation-provider-router.js';
 import { OpenAIImageAdapter } from '../creation/providers/adapters/openai-image-adapter.js';
+import { GoogleImageAdapter } from '../creation/providers/adapters/google-image-adapter.js';
 import { VaultStore } from '../workspace/vault.store.js';
 import { VaultSaveService } from '../workspace/vault-save.service.js';
 import { ConnectionStore } from '../workspace/connections.store.js';
@@ -603,6 +604,8 @@ export function createNagexApplication(): NagexApplication {
   });
   const creationProviderRouter = new CreationProviderRouter();
   creationProviderRouter.registerImageProvider(new OpenAIImageAdapter());
+  // Registered after OpenAI: the router takes the first configured provider, so Google serves images only when no OpenAI credential exists (or when asked for by id).
+  creationProviderRouter.registerImageProvider(new GoogleImageAdapter());
   // R23.7C-D: NAgex's own in-process PresentationML renderer (text slides). Always available; no network, no third party.
   creationProviderRouter.registerPresentationProvider(new LocalPptxPresentationAdapter());
 

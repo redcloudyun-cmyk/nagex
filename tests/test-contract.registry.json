@@ -4454,6 +4454,41 @@
         "NAGEX_DEPLOYED_URL"
       ]
     },
+    "google_image_adapter": {
+      "milestone": "IMAGE-VIDEO-20261016",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "creation-runtime",
+        "images",
+        "model-routing",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "The Google image adapter builds the right request for its model family (gemini generateContent / imagen predict), sends the key in a header and never in the URL, returns the real bytes with the type the provider reported, and turns quota, credential, unknown-model, safety, text-only, timeout and unconfigured outcomes into distinct truthful errors; its capabilities claim only text-to-image; the router prefers OpenAI when configured and never hands Google a transparent-background request; through the real ImageExecutor and ImageStore the stored bytes equal the provider's, another tenant / user cannot read them, a variation builds on the first image, and a failed generation leaves nothing behind.",
+      "notes": "Loopback HTTP stand-in for the Generative Language API. No network, no real provider; a pass proves NAgex's request/response handling, not that Google accepts it or what a real model draws."
+    },
+    "image_generation_browser": {
+      "milestone": "IMAGE-VIDEO-20261016",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "ux",
+        "creation-runtime",
+        "images"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "In real Chromium against the production server (front end, input router, creations route, ImageExecutor, the real Google adapter): a request becomes a stored image shown in the result panel from a NAgex-owned path with a download link whose file is exactly what the provider produced, only its owner can fetch it, the provider receives the person's own words and the key only in a header; a quota or credential failure is stated plainly in the screen's language (Korean and English) with no image, no raw provider text and no internal code.",
+      "notes": "The Generative Language API is a loopback stand-in selected through NAGEX_IMAGE_GOOGLE_BASE_URL; every real provider credential is scrubbed. Proves NAgex's own chain, not a live Google image.",
+      "writesRepositoryArtifacts": false
+    },
     "openai-image-adapter": {
       "milestone": "R23.7C-C",
       "classification": "CANONICAL_BEHAVIOR",
