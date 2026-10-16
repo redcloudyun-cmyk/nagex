@@ -155,6 +155,9 @@ import { LifecycleManager } from './lifecycle-manager.js';
 import { QuestionClassificationService } from '../research/question-classification.service.js';
 import { WebSearchService } from '../research/web-search.service.js';
 import { EvidencePackService } from '../research/evidence-pack.service.js';
+import { SourceFetcher } from '../research/source-fetcher.js';
+import { ResearchRunStore } from '../research/research-run.store.js';
+import { ResearchReportService } from '../research/research-report.service.js';
 import { CompetitorPricingBaselineStore } from '../agents/competitor-pricing-baseline.store.js';
 import { CompetitorPricingRunStore } from '../agents/competitor-pricing-run.store.js';
 import { CompetitorPricingRunService } from '../agents/competitor-pricing-run.service.js';
@@ -621,6 +624,18 @@ export function createNagexApplication(): NagexApplication {
 
   const creationRuntime = new CreationRuntime([documentExecutor, imageExecutor, presentationExecutor]);
 
+  // R26-A: cited research reports. The report is composed by NAgex from claims it verified against pages it retrieved (robots.txt, SSRF policy and rate limits apply); the model only proposes.
+  const researchRunStore = new ResearchRunStore();
+  const researchReportService = new ResearchReportService({
+    aiService,
+    evidencePackService,
+    fetcher: new SourceFetcher(),
+    runStore: researchRunStore,
+    documentExecutor,
+    providerName: () => webSearchService.getProviderName(),
+    auditLogger,
+  });
+
 
 
   // P02 — one persisted continuation record per paused (WAITING_APPROVAL)
@@ -914,6 +929,8 @@ export function createNagexApplication(): NagexApplication {
     creationService,
     documentStore,
     documentExecutor,
+    researchRunStore,
+    researchReportService,
     imageExecutor,
     imageStore,
     presentationStore,

@@ -180,6 +180,8 @@
       "pptx_template",
       "slide_count",
       "creation_continuity",
+      "research_source_fetcher",
+      "research_report",
       "structured_output_recovery",
       "time_context",
       "schedule_grounding"
@@ -419,13 +421,15 @@
       "docx_writer",
       "pptx_template",
       "slide_count",
-      "creation_continuity"
+      "creation_continuity",
+      "research_report"
     ],
     "knowledge": [
       "r24_5c_knowledge_live"
     ],
     "security": [
-      "document_download_route"
+      "document_download_route",
+      "research_source_fetcher"
     ]
   },
   "fullOnly": [

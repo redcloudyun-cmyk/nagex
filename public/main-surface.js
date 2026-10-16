@@ -174,7 +174,7 @@
             <button type="button" class="main-result-icon-btn" id="main-result-close" aria-label="Close result" data-i18n-aria-label="mainText.Close_result">x</button>
           </div>
           <div class="main-result-tabs">
-            <button type="button" class="active" data-i18n="mainText.Preview">Preview</button>
+            <button type="button" class="active" id="main-result-preview-tab" data-i18n="mainText.Preview">Preview</button>
             <button type="button" id="main-result-sources" data-i18n="mainText.Sources" disabled>Sources</button>
             <button type="button" id="main-result-versions" data-i18n="mainText.Versions" disabled>Versions</button>
             <button type="button" class="main-result-expand" id="main-result-expand" data-i18n="mainText.Expand">Expand</button>
@@ -1127,7 +1127,9 @@
   async function runCreation(prompt, metadata, decision) {
     const target = decision.targetArtifactType;
     if ((target === 'DOCUMENT' || target === 'PRESENTATION') && (decision.needs || []).some((n) => n.capability === 'RESEARCH')) {
-      await runResearchThenCreate(prompt, metadata, decision);
+      // a report is searched, retrieved, verified and composed on the server (the document carries its own source list); slides are still written from the research answer
+      if (target === 'DOCUMENT') await runResearchReport(prompt, metadata, decision);
+      else await runResearchThenCreate(prompt, metadata, decision);
       return;
     }
     let apiPrompt = prompt;
@@ -1189,6 +1191,66 @@
     const lead = [{ state: 'done', label: 'Sources checked', detail: String(sourceCount) }];
     if (target === 'PRESENTATION') await createPresentation(prompt, metadata, { apiPrompt: researchReportPrompt(prompt, research, 'slides'), leadSteps: lead });
     else await createDocument(prompt, metadata, { apiPrompt: researchReportPrompt(prompt, research), leadSteps: lead });
+  }
+
+  // "Research X and write a report with sources": the server searches with the configured provider, fetches the pages it is allowed to read, keeps only statements it could verify in the retrieved text,
+  // composes the report itself and saves it as a document. If a step cannot be done the person is told which one - and no report exists.
+  function researchSteps(steps, failureLabel, failureDetail) {
+    const labels = {
+      PLAN: bt('mainResearch.stepPlan', 'Planning the searches'),
+      SEARCH: bt('mainResearch.stepSearch', 'Searching for sources'),
+      RETRIEVE: bt('mainResearch.stepRetrieve', 'Reading the sources'),
+      EXTRACT: bt('mainResearch.stepExtract', 'Checking statements against the sources'),
+      COMPOSE: bt('mainResearch.stepCompose', 'Writing the report from verified statements'),
+      PUBLISH: bt('mainResearch.stepPublish', 'Saving the report'),
+    };
+    const out = [{ state: 'done', label: 'Request captured', detail: '' }];
+    (Array.isArray(steps) ? steps : []).forEach((s) => {
+      if (s.status === 'FAILED') return;
+      out.push({ state: 'done', label: labels[s.step] || s.step, detail: s.detail || '' });
+    });
+    if (failureLabel) out.push({ state: 'running', label: failureLabel, detail: failureDetail || '' });
+    return out;
+  }
+
+  function researchStopMessage(result) {
+    const code = String((result && result.code) || '');
+    if (code === 'SEARCH_UNAVAILABLE') return { title: bt('mainResearch.unavailableTitle', 'Research is not available'), body: bt('mainResearch.unavailableBody', 'Live web search is not configured, so no research was performed and no report was written.') };
+    if (code === 'SEARCH_AUTH_FAILED' || code === 'SEARCH_RATE_LIMITED' || code === 'SEARCH_PROVIDER_ERROR' || code === 'SEARCH_TIMEOUT' || code === 'SEARCH_FAILED' || code === 'SEARCH_INVALID_RESPONSE') return { title: bt('mainResearch.searchFailedTitle', 'The search did not work'), body: bt('mainResearch.searchFailedBody', 'The search provider could not be used right now, so no report was written. Try again later.') };
+    if (code === 'SEARCH_NO_RESULTS') return { title: bt('mainResearch.noResultsTitle', 'No sources found'), body: bt('mainResearch.noResultsBody', 'The search found no sources for this question, so no report was written.') };
+    if (code === 'NO_SOURCE_RETRIEVED' || code === 'NO_VERIFIABLE_CLAIMS' || code === 'NO_SUPPORTED_REPORT') return { title: bt('mainResearch.noEvidenceTitle', 'Not enough verifiable evidence'), body: bt('mainResearch.noEvidenceBody', 'The sources that could be read did not contain enough statements that could be checked against their text, so no report was written rather than one that is not backed by sources.') };
+    return { title: bt('mainResearch.failedTitle', 'The research could not be completed'), body: bt('mainResearch.failedBody', 'A step of the research failed, so no report was written.') };
+  }
+
+  async function runResearchReport(prompt, metadata, decision) {
+    setStep([
+      { state: 'done', label: 'Request captured', detail: '' },
+      { state: 'done', label: 'Intent classified', detail: routeLabel(decision) },
+      { state: 'running', label: bt('mainResearch.stepRunning', 'Searching, reading and checking sources'), detail: '' },
+      { state: 'pending', label: bt('mainResearch.stepThenWrite', 'Then write the report from what was verified'), detail: '' },
+    ]);
+    const result = await api('/api/v1/research/reports', { method: 'POST', body: JSON.stringify({ query: prompt, locale: requestLocale(prompt) }), timeoutMs: 300000 });
+    if (!result || result.error || result.status !== 'SUCCESS') {
+      const stop = researchStopMessage(result);
+      showThread(prompt, result && result.status === 'UNAVAILABLE' ? 'Unavailable' : 'Error', stop.title, stop.body, researchSteps(result && result.steps, bt('mainResearch.stopped', 'Research stopped'), result && result.code ? result.code : '').concat([{ state: 'pending', label: bt('mainRoute.nothingCreated', 'Nothing was created or run'), detail: '' }]));
+      return;
+    }
+    const full = result.documentId ? await api('/api/v1/creations/documents/' + encodeURIComponent(result.documentId)) : null;
+    const artifact = result.artifactId ? await api('/api/v1/artifacts/' + encodeURIComponent(result.artifactId)) : null;
+    const projection = artifact && artifact.projection ? artifact.projection : null;
+    const cited = Array.isArray(result.sources) ? result.sources.length : 0;
+    showThread(prompt, 'Completed', bt('mainResearch.createdTitle', 'Research report created'), bt('mainResearch.createdBody', '{n} sources were read and cited. Every statement was checked against the retrieved text. Open the report to see the sources and how they were read.').replace('{n}', String(cited)), researchSteps(result.steps).concat([{ state: 'done', label: 'Result panel opened', detail: result.artifactId || '' }]));
+    showResult({
+      type: 'DOCUMENT',
+      title: result.title || (projection && projection.title) || 'Research report',
+      meta: ['DOCX', cited + ' ' + bt('mainResearch.sourcesMeta', 'sources')].join(' - '),
+      preview: (full && full.document && full.document.content) || (projection && projection.preview) || result.summary || '',
+      artifactId: result.artifactId,
+      documentId: result.documentId,
+      researchRunId: result.runId,
+      openTarget: result.openTarget,
+      projection,
+    });
   }
 
   async function captureInput(prompt, route) {
@@ -1789,6 +1851,24 @@
         preview.innerHTML = `<article class="main-doc-page"><div><strong>NAgex</strong><br><small>${esc(mt('Your Personal AI'))}</small></div><h1>${esc(localizeAppText(result.title || 'Generated result'))}</h1><p>${esc(localizeAppText(result.preview || 'Preview is unavailable for this result.'))}</p></article>`;
       }
     }
+    // a research report is Markdown with headings, a source list and a method section: it is shown as such (safe DOM, no raw HTML), and its Sources tab shows where every source came from
+    if (preview && result.type === 'DOCUMENT' && result.researchRunId) {
+      const holder = preview.querySelector('.main-doc-page p');
+      if (holder) {
+        const body = document.createElement('div');
+        body.className = 'main-doc-md';
+        holder.replaceWith(body);
+        renderMarkdown(body, String(result.preview || '').replace(/^#\s+[^\n]*\n+/, ''));
+      }
+    }
+    const sourcesTab = document.getElementById('main-result-sources');
+    if (sourcesTab) {
+      sourcesTab.disabled = !(result.type === 'DOCUMENT' && result.researchRunId);
+      sourcesTab.dataset.run = result.researchRunId || '';
+    }
+    const previewTab = document.getElementById('main-result-preview-tab');
+    if (previewTab) previewTab.classList.add('active');
+    if (sourcesTab) sourcesTab.classList.remove('active');
     const openButton = document.getElementById('main-result-open');
     if (openButton) {
       // a presentation opens in this panel (outline + download); there is no separate Canvas viewer for decks
@@ -1839,10 +1919,66 @@
       preview: (document && document.content) || projection.preview || projection.summary || 'This artifact has no inline preview.',
       artifactId,
       documentId,
+      researchRunId: document && /^run_[0-9a-f]{24}$/.test(String(document.researchRunId || '')) ? document.researchRunId : undefined,
       openTarget: projection.openTarget,
       projection,
     });
     return true;
+  }
+
+  // The provenance of a research report: every source that was read, whether the report cites it, where and when it was retrieved, and how (whole page or only the search provider's excerpt).
+  async function showResearchSources(runId) {
+    const preview = document.getElementById('main-result-preview');
+    if (!preview || !/^run_[0-9a-f]{24}$/.test(String(runId || ''))) return;
+    document.getElementById('main-result-sources')?.classList.add('active');
+    document.getElementById('main-result-preview-tab')?.classList.remove('active');
+    const response = await api('/api/v1/research/runs/' + encodeURIComponent(runId));
+    const run = response && response.run ? response.run : null;
+    preview.textContent = '';
+    const article = document.createElement('article');
+    article.className = 'main-doc-page main-research-sources';
+    const heading = document.createElement('h1');
+    heading.textContent = bt('mainText.Sources', 'Sources');
+    article.appendChild(heading);
+    if (!run) {
+      const failed = document.createElement('p');
+      failed.textContent = bt('mainResearch.srcLoadFailed', 'The source details could not be loaded.');
+      article.appendChild(failed);
+      preview.appendChild(article);
+      return;
+    }
+    const summary = document.createElement('p');
+    summary.textContent = bt('mainResearch.srcSummary', '{v} statements were checked against the retrieved text; {r} were refused. Search provider: {p}.').replace('{v}', String((run.claims || []).length)).replace('{r}', String(run.rejectedClaims || 0)).replace('{p}', String(run.provider || ''));
+    article.appendChild(summary);
+    const cited = new Set(run.citedSourceIds || []);
+    const list = document.createElement('ol');
+    const day = (iso) => (iso ? String(iso).slice(0, 10) : '');
+    (run.sources || []).forEach((source) => {
+      const item = document.createElement('li');
+      const safe = mdSafeUrl(source.finalUrl || source.url);
+      const title = document.createElement(safe ? 'a' : 'strong');
+      title.textContent = source.title || source.publisher || '';
+      if (safe) { title.href = safe; title.target = '_blank'; title.rel = 'noopener noreferrer nofollow'; }
+      item.appendChild(title);
+      const meta = document.createElement('div');
+      meta.className = 'main-research-source-meta';
+      const parts = [source.publisher];
+      if (source.publishedAt) parts.push(bt('mainResearch.srcPublished', 'Published') + ' ' + day(source.publishedAt));
+      if (source.updatedAt) parts.push(bt('mainResearch.srcUpdated', 'Updated') + ' ' + day(source.updatedAt));
+      if (source.retrievedAt) parts.push(bt('mainResearch.srcRetrieved', 'Retrieved') + ' ' + new Date(source.retrievedAt).toLocaleString());
+      parts.push(source.basis === 'FULL_TEXT' ? bt('mainResearch.srcFull', 'Full page read') : bt('mainResearch.srcSnippet', "Search provider's excerpt only"));
+      parts.push(cited.has(source.sourceId) ? bt('mainResearch.srcCited', 'Cited in the report') : bt('mainResearch.srcNotCited', 'Read but not cited'));
+      meta.textContent = parts.filter(Boolean).join(' · ');
+      item.appendChild(meta);
+      list.appendChild(item);
+    });
+    article.appendChild(list);
+    if (!(run.sources || []).length) {
+      const none = document.createElement('p');
+      none.textContent = bt('mainResearch.srcNone', 'No sources are listed for this report.');
+      article.appendChild(none);
+    }
+    preview.appendChild(article);
   }
 
   function parseDocumentId(openTarget) {
@@ -1956,6 +2092,8 @@
       renderAttachments();
     });
     document.getElementById('main-result-close')?.addEventListener('click', hideResult);
+    document.getElementById('main-result-sources')?.addEventListener('click', (event) => { const run = event.currentTarget && event.currentTarget.dataset ? event.currentTarget.dataset.run : ''; if (run) showResearchSources(run); });
+    document.getElementById('main-result-preview-tab')?.addEventListener('click', () => { if (state.result) showResult(state.result); });
     document.getElementById('main-result-expand')?.addEventListener('click', () => document.body.classList.toggle('main-result-fullscreen'));
     document.getElementById('main-result-open')?.addEventListener('click', openResult);
     document.getElementById('main-result-revise')?.addEventListener('click', reviseResult);

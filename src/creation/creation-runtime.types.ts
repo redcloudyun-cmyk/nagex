@@ -77,6 +77,8 @@ export interface DocumentRecord {
   parentDocumentId?: string;
   revisionIndex: number;
   artifactId?: string;
+  // Additive: the research run (sources, retrieval times, verified claims) this report was composed from
+  researchRunId?: string;
   createdAt: string;
   updatedAt: string;
 }

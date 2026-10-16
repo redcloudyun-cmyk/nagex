@@ -5,6 +5,9 @@ import type { MemoryRecord } from '../../context/memory.engine.js';
 import type { ArtifactStore } from '../../artifacts/artifact.store.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
 import { callerIdentity } from '../request-identity.js';
+import { detectRequestLanguage } from '../../common/request-language.js';
+import type { ResearchReportService } from '../../research/research-report.service.js';
+import type { ResearchRunStore } from '../../research/research-run.store.js';
 
 export interface ResearchRouteDeps {
   aiService: AiService;
@@ -12,6 +15,9 @@ export interface ResearchRouteDeps {
   artifactStore?: ArtifactStore;
   getRelevantMemories?: (tenantId: string, ownerId: string, query: string) => MemoryRecord[];
   modelErrorResult: (error: unknown) => ApiResult;
+  // R26-A: optional so existing wiring keeps compiling; without it the report route answers truthfully that it is unavailable
+  researchReportService?: ResearchReportService;
+  researchRunStore?: ResearchRunStore;
 }
 
 export const handleResearchRoutes: AsyncRouteRegistrar<ResearchRouteDeps> = async (
@@ -23,6 +29,34 @@ export const handleResearchRoutes: AsyncRouteRegistrar<ResearchRouteDeps> = asyn
   deps
 ): Promise<ApiResult | undefined> => {
   const { aiService, evidencePackService, getRelevantMemories, modelErrorResult } = deps;
+
+  // A cited research report: searched, retrieved, verified, composed by NAgex and saved as a real document. Domain outcomes other than success (no search provider, nothing retrievable, nothing verifiable) are
+  // answered 200 with their status and reason - the same contract as POST /api/v1/research - and no document exists for them.
+  if (pathname === '/api/v1/research/reports' && method === 'POST') {
+    const { tenantId, principalId } = callerIdentity(headers);
+    const headerRequestId = headers['x-request-id'] || headers['X-Request-Id'];
+    const requestId = (Array.isArray(headerRequestId) ? headerRequestId[0] : headerRequestId) || `req_rrep_${Date.now()}`;
+    const query = typeof body?.query === 'string' ? body.query.trim() : '';
+    if (!query || query.length > 600) {
+      return { status: 400, data: { error: 'INVALID_QUERY', message: 'A research question of 1 to 600 characters is required.', request_id: requestId } };
+    }
+    if (!deps.researchReportService) {
+      return { status: 503, data: { error: 'RESEARCH_REPORT_UNAVAILABLE', message: 'Research reports are not available right now.', request_id: requestId } };
+    }
+    const locale: 'en' | 'ko' = body?.locale === 'ko' || body?.locale === 'en' ? body.locale : (detectRequestLanguage(query) === 'ko' ? 'ko' : 'en');
+    const outcome = await deps.researchReportService.run({ query, tenantId, ownerId: principalId, requestId, locale });
+    return { status: outcome.status === 'SUCCESS' ? 201 : 200, data: { query, ...outcome } };
+  }
+
+  // The provenance of a report: what was searched, retrieved and verified. Unknown, malformed, foreign-tenant and foreign-owner run ids are indistinguishable.
+  const runMatch = pathname.match(/^\/api\/v1\/research\/runs\/([^/]+)$/);
+  if (runMatch && method === 'GET') {
+    const { tenantId, principalId } = callerIdentity(headers);
+    const record = deps.researchRunStore?.get(runMatch[1], tenantId, principalId) ?? null;
+    if (!record) return { status: 404, data: { error: 'RESEARCH_RUN_NOT_FOUND', message: 'Research run not found.' } };
+    const { tenantId: _t, ownerId: _o, ...visible } = record;
+    return { status: 200, data: { run: visible } };
+  }
 
   if (pathname === '/api/v1/research' && method === 'POST') {
     const tenantId = callerIdentity(headers).tenantId;

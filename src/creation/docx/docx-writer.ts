@@ -17,10 +17,34 @@ export interface DocxInput {
   locale: 'en' | 'ko';
 }
 
-type Run = { text: string; bold?: boolean; italic?: boolean; code?: boolean };
+type Run = { text: string; bold?: boolean; italic?: boolean; code?: boolean; href?: string };
+
+// External addresses found while a document is being built; each becomes a real hyperlink relationship. Set only for the duration of buildDocx (synchronous, single-threaded).
+let hyperlinkSink: string[] | null = null;
+function hyperlinkId(href: string): string {
+  const sink = hyperlinkSink!;
+  let index = sink.indexOf(href);
+  if (index < 0) { sink.push(href); index = sink.length - 1; }
+  return `rId${3 + index}`; // rId1 / rId2 are styles and numbering
+}
+
+// A bare http(s) address is literal text - never reinterpreted as emphasis (an underscore in a path stays an underscore) - and a real, clickable hyperlink. Trailing punctuation is not part of it.
+const URL_PATTERN = /https?:\/\/[^\s<>"'`]*[^\s<>"'`.,;:!?)\]}]/g;
+function parseInline(text: string): Run[] {
+  const runs: Run[] = [];
+  let last = 0;
+  for (const match of text.matchAll(URL_PATTERN)) {
+    const index = match.index ?? 0;
+    if (index > last) runs.push(...parseEmphasis(text.slice(last, index)));
+    runs.push({ text: match[0], href: match[0] });
+    last = index + match[0].length;
+  }
+  if (last < text.length) runs.push(...parseEmphasis(text.slice(last)));
+  return runs.length ? runs : [{ text: '' }];
+}
 
 // **bold**, *italic* / _italic_, `code`. Anything else is literal text; unmatched markers stay as written.
-function parseInline(text: string): Run[] {
+function parseEmphasis(text: string): Run[] {
   const runs: Run[] = [];
   const pattern = /(\*\*[^*\n]+\*\*|`[^`\n]+`|\*[^*\s][^*\n]*\*|_[^_\s][^_\n]*_)/g;
   let last = 0;
@@ -38,6 +62,9 @@ function parseInline(text: string): Run[] {
 }
 
 function runXml(run: Run): string {
+  if (run.href && hyperlinkSink) {
+    return `<w:hyperlink r:id="${hyperlinkId(run.href)}" w:history="1"><w:r><w:rPr><w:color w:val="0563C1"/><w:u w:val="single"/></w:rPr><w:t xml:space="preserve">${xmlText(run.text)}</w:t></w:r></w:hyperlink>`;
+  }
   // CT_RPr child order: rFonts, b, i, ..., shd
   const props = `${run.code ? '<w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="D2Coding"/>' : ''}${run.bold ? '<w:b/>' : ''}${run.italic ? '<w:i/>' : ''}${run.code ? '<w:shd w:val="clear" w:color="auto" w:fill="F2F2F2"/>' : ''}`;
   return `<w:r>${props ? `<w:rPr>${props}</w:rPr>` : ''}<w:t xml:space="preserve">${xmlText(run.text)}</w:t></w:r>`;
@@ -155,13 +182,22 @@ function numbering(): string {
 
 export function buildDocx(input: DocxInput): Buffer {
   const title = (input.title || '').trim() || (input.locale === 'ko' ? '문서' : 'Document');
-  const body = `${paragraph(title, { style: 'Title' })}${markdownToBodyXml(input.markdown, title)}`;
+  hyperlinkSink = [];
+  let body: string;
+  let links: string[];
+  try {
+    body = `${paragraph(title, { style: 'Title' })}${markdownToBodyXml(input.markdown, title)}`;
+    links = hyperlinkSink;
+  } finally {
+    hyperlinkSink = null;
+  }
+  const linkRels = links.map((href, i) => `<Relationship Id="rId${3 + i}" Type="${REL}/hyperlink" Target="${xmlText(href)}" TargetMode="External"/>`).join('');
   const document = `${XML_HEAD}<w:document xmlns:w="${NS_W}" xmlns:r="${NS_R}"><w:body>${body}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="567" w:footer="567" w:gutter="0"/></w:sectPr></w:body></w:document>`;
   const now = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
   const entries: ZipEntry[] = [
     { name: '[Content_Types].xml', data: Buffer.from(`${XML_HEAD}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>`, 'utf8') },
     { name: '_rels/.rels', data: Buffer.from(`${XML_HEAD}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${REL}/officeDocument" Target="word/document.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/></Relationships>`, 'utf8') },
-    { name: 'word/_rels/document.xml.rels', data: Buffer.from(`${XML_HEAD}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${REL}/styles" Target="styles.xml"/><Relationship Id="rId2" Type="${REL}/numbering" Target="numbering.xml"/></Relationships>`, 'utf8') },
+    { name: 'word/_rels/document.xml.rels', data: Buffer.from(`${XML_HEAD}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${REL}/styles" Target="styles.xml"/><Relationship Id="rId2" Type="${REL}/numbering" Target="numbering.xml"/>${linkRels}</Relationships>`, 'utf8') },
     { name: 'word/document.xml', data: Buffer.from(document, 'utf8') },
     { name: 'word/styles.xml', data: Buffer.from(styles(input.locale), 'utf8') },
     { name: 'word/numbering.xml', data: Buffer.from(numbering(), 'utf8') },
