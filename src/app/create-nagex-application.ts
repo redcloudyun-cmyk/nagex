@@ -369,7 +369,7 @@ export function createNagexApplication(): NagexApplication {
 
   const questionClassificationService = new QuestionClassificationService();
   const webSearchService = new WebSearchService();
-  const evidencePackService = new EvidencePackService(questionClassificationService, webSearchService);
+  const evidencePackService = new EvidencePackService(questionClassificationService, webSearchService, { allowLocalTestDestinations: process.env.NAGEX_ALLOW_LOCAL_TEST_URLS === '1' });
   const perspectiveCompareService = new PerspectiveCompareService(modelRouter, evidencePackService);
   const forecastCompareService = new ForecastCompareService(modelRouter, evidencePackService);
 

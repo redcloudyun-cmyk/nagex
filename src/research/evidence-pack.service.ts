@@ -26,7 +26,9 @@ export function mapSearchStatusToEvidenceStatus(status: string): EvidencePackSta
 export class EvidencePackService {
   constructor(
     private readonly classifier: QuestionClassificationService = new QuestionClassificationService(),
-    private readonly webSearchService: WebSearchService = new WebSearchService()
+    private readonly webSearchService: WebSearchService = new WebSearchService(),
+    // Test-world switch, decided by the composition root and never read from the environment here: a service built without it rejects loopback and private destinations
+    private readonly options: { allowLocalTestDestinations?: boolean } = {}
   ) {}
 
   public isWebSearchAvailable(): boolean {
@@ -170,7 +172,7 @@ export class EvidencePackService {
 
   public async isValidPublicUrl(urlString: string): Promise<boolean> {
     try {
-      await validateOutboundUrl(urlString, { allowLocalTestDestinations: process.env.NAGEX_ALLOW_LOCAL_TEST_URLS === '1' });
+      await validateOutboundUrl(urlString, { allowLocalTestDestinations: this.options.allowLocalTestDestinations === true });
       return true;
     } catch {
       return false;
