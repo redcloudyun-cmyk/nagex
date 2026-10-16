@@ -201,6 +201,17 @@ DecisionProviderPort
 
 The architecture may preserve this extension point before JEV itself becomes a production requirement.
 
+### 10.1 As built for the device loop (2026-10-16)
+
+`DecisionPort` (`src/device-control/decision-port.ts`) is the provider-independent seam for the browser/device loop; `JevDecisionPort` (`jev-decision.adapter.ts`) is one replaceable provider behind it. It is composed only when `NAGEX_JEV_DECISION_ENABLED=true` **and** `NAGEX_JEV_API_KEY` is set; otherwise the loop runs exactly as it does without it (every other suite runs with no advisor).
+
+- **Where it sits.** After every hard check (domain allow-list, allowed actions, risk ceiling) and before the action - so it is only ever asked about an action that already passed them.
+- **What it can say** (validated whole by `normalizeAdvice`; unknown or not-offered ids, out-of-range numbers, unknown enumerations and self-contradiction are rejected): `recommendedActionId` (PROCEED / OBSERVE / WAIT / HANDOFF), `actionConfidence`, a risk probability (the escalation flag is derived by NAgex from it, never taken from the provider), `retryRecommendation`, `completionAssessment`, `decisionReasonCode`.
+- **What it can change - tightenings only:** hold a CLICK for the person's approval (the existing `forceApproval` path), or hand the task to the person (`BLOCKED_NEEDS_HUMAN`). No input can remove a check, approve, widen a domain or reach a credential. Advice about completion and about which action is better is recorded, not acted on.
+- **Privacy.** A request can hold only enumerated kinds, counts and outcome categories; the goal, page text, typed text, control names and addresses have nowhere to go.
+- **Failure.** Disabled, no credential, slow (2.5 s), down, malformed, not-offered, inconsistent - all are "no advice"; a provider that fails twice in a session is not asked again in that session.
+- **Verified vs not.** The System One request/answer shape (`choice` / `noul` questions; `answers.<name>.{choice|probability|score, confidence}`) is the one the repository already uses (`model-gateway/jev-provider.ts`, recorded live benchmark). The four questions asked for this loop (action, risk, retry, completion) are NAgex's own and have **not** been run against the live service - no credential was available; tests use a simulated provider of that shape. Evidence: `docs/evidence/NAGEX_JEV_DECISION_PORT_20261016.md`.
+
 ## 11. Three-Level Intelligence Model
 
 ```text

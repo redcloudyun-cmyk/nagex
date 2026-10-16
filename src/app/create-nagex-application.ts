@@ -50,6 +50,8 @@ import { DeviceControlService } from '../device-control/device-control.service.j
 import { GatewayExecutionModelAdapter } from '../device-control/gateway-execution-model.adapter.js';
 import { HybridExecutionModelAdapter } from '../device-control/hybrid-execution-model.adapter.js';
 import { BrowserTaskService } from '../device-control/browser-task.service.js';
+import { DecisionAdvisor } from '../device-control/decision-port.js';
+import { JevDecisionPort } from '../device-control/jev-decision.adapter.js';
 import { AstraVisualExecutionModelAdapter } from '../device-control/astra-visual-execution-model.adapter.js';
 import { DeviceIdentityStore } from '../device-agent/device-identity.store.js';
 import { RecipientRefStore } from '../mobile/recipient-ref.store.js';
@@ -276,8 +278,11 @@ export function createNagexApplication(): NagexApplication {
     // a screenshot going to a different provider is never silent
     onFallback: (event) => auditLogger.logEvent({ actor: { type: 'system', id: 'device-planner' }, tenant_id: event.tenantId, action: 'device.planner.vision_fallback', resource: { type: 'DeviceExecution', id: event.requestId }, result: 'SUCCESS', request_id: event.requestId, details: { reason: event.reason, detail: event.detail } }),
   });
+  // An optional, advisory, tighten-only decision provider (JEV). Off unless NAGEX_JEV_DECISION_ENABLED=true AND a key is configured; without either the loop is exactly what it is without it.
+  const jevDecisionKey = String(process.env.NAGEX_JEV_API_KEY || '').trim();
+  const decisionAdvisor = process.env.NAGEX_JEV_DECISION_ENABLED === 'true' && jevDecisionKey ? new DecisionAdvisor(new JevDecisionPort({ apiKey: jevDecisionKey })) : null;
   const deviceControlService = hybridPlanner.status().configured
-    ? new DeviceControlService(deviceExecutionSessionStore, browserService, hybridPlanner)
+    ? new DeviceControlService(deviceExecutionSessionStore, browserService, hybridPlanner, decisionAdvisor)
     : undefined;
   // The person-facing browser task (start, watch, approve, pause, cancel) over the Agent loop: present exactly when the loop is.
   const browserTaskService = deviceControlService ? new BrowserTaskService({ deviceControl: deviceControlService, sessions: deviceExecutionSessionStore, browser: browserService }) : undefined;

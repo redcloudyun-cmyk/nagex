@@ -96,7 +96,8 @@
       "one_input_slides_chain_browser",
       "vault_save_approval_browser",
       "home_vault_save_browser",
-      "desktop_task_browser"
+      "desktop_task_browser",
+      "jev_decision_port"
     ],
     "google": [
       "google_calendar_connection_state",
@@ -268,7 +269,8 @@
       "advisory_plan",
       "jev_shadow_runtime",
       "document_length",
-      "structured_output_recovery"
+      "structured_output_recovery",
+      "jev_decision_port"
     ],
     "mobile": [
       "real_life_scenario_library_behavioral_rules",
@@ -332,7 +334,8 @@
       "desktop_plan_command",
       "desktop_plan_executor",
       "device_enrollment",
-      "desktop_task_browser"
+      "desktop_task_browser",
+      "jev_decision_port"
     ],
     "credential-broker": [
       "google_calendar_connection_state",
@@ -496,7 +499,8 @@
       "desktop_plan_executor",
       "device_enrollment",
       "desktop_request_routing",
-      "desktop_task_browser"
+      "desktop_task_browser",
+      "jev_decision_port"
     ]
   },
   "fullOnly": [
