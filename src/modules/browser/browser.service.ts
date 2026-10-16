@@ -85,6 +85,9 @@ export interface BrowserFieldWriteResult {
 }
 
 // after an action the page gets a moment to react (a request, a re-render); the observation is taken once its content has stopped changing - bounded, never a wait for network idle
+/** a VERIFY waits at most this long for the page to show what was expected (bounded: a page that never shows it is still reported as "not shown") */
+const EXPECTATION_SETTLE_MS = 1500;
+const EXPECTATION_POLL_MS = 150;
 const SETTLE_MS = 100;
 const SETTLE_ROUNDS = 3;
 
@@ -159,6 +162,8 @@ export class BrowserToolService {
     // google-calendar.service.ts use for getConfig — never a mock of the
     // runtime itself, just this one availability check.
     private readonly isRuntimeAvailable: () => boolean = isBrowserRuntimeAvailableSync,
+    // how long a VERIFY waits for the page to show what was expected before it says "not shown" (pages recompute totals, results and messages a moment after a change)
+    private readonly expectationSettleMs: number = EXPECTATION_SETTLE_MS,
   ) {
     this.evidenceMetadataStore = new FileRecordStore<BrowserEvidenceMetadataRecord>(this.evidenceDir, isBrowserEvidenceMetadataRecord);
   }
@@ -498,8 +503,15 @@ export class BrowserToolService {
       const match = await this.runtime.resolveSelector(record.browserSessionId, input.selector);
       this.assertSelectorResolved(match, input, 'browser.verify');
     }
-    const surface = await this.runtime.readExpectationSurface(record.browserSessionId, input.selector ?? null);
-    const matched = matchExpectation(expected, surface);
+    // A page often recomputes a total or shows a message a moment after the last change. "Not shown" is only said after the page has had a short, bounded chance to show it.
+    const deadline = Date.now() + Math.max(0, this.expectationSettleMs);
+    let surface = await this.runtime.readExpectationSurface(record.browserSessionId, input.selector ?? null);
+    let matched = matchExpectation(expected, surface);
+    while (!matched.found && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, EXPECTATION_POLL_MS));
+      surface = await this.runtime.readExpectationSurface(record.browserSessionId, input.selector ?? null);
+      matched = matchExpectation(expected, surface);
+    }
     const verification = verifyExpectation(matched.found, record.currentUrl ?? undefined);
     // what was expected is not logged (it may be an amount or a name); only that a check ran and how it ended
     this.auditAction('browser.verify', 'tool.execution.succeeded', input, 'SUCCESS', { scoped: Boolean(input.selector), expectedLength: expected.length, verificationOutcome: verification.outcome });

@@ -394,7 +394,12 @@ export class DeviceControlService {
       }
 
       const observeInput = { tenantId: current.tenantId, ownerId: current.ownerPrincipalId, requestId, browserSessionId: current.browserSessionId };
-      const structuredSnapshot: UntrustedStructuredBrowserSnapshot = await this.browser.structuredSnapshot(observeInput);
+      let structuredSnapshot: UntrustedStructuredBrowserSnapshot;
+      try {
+        structuredSnapshot = await this.browser.structuredSnapshot(observeInput);
+      } catch (error) {
+        return this.observationFailed(current, requestId, 'snapshot', error);
+      }
       if (!isUntrustedBrowserContentTrust(structuredSnapshot.trust)) {
         return this.terminate(current, requestId, 'FAILED', 'DEVICE_BROWSER_TRUST_PROVENANCE_MISSING');
       }
@@ -410,7 +415,12 @@ export class DeviceControlService {
         return this.terminate(current, requestId, 'FAILED', `DEVICE_DOMAIN_NOT_ALLOWED:${currentHostname}`);
       }
 
-      const screenshot = await this.browser.screenshot(observeInput);
+      let screenshot: Awaited<ReturnType<BrowserToolService['screenshot']>>;
+      try {
+        screenshot = await this.browser.screenshot(observeInput);
+      } catch (error) {
+        return this.observationFailed(current, requestId, 'screenshot', error);
+      }
 
       let proposed: ProposedDeviceAction;
       try {
@@ -598,6 +608,8 @@ export class DeviceControlService {
         return { kind: 'TERMINATED', deviceExecutionSessionId: session.deviceExecutionSessionId, status: 'BLOCKED_NEEDS_HUMAN', terminationReason: 'BROWSER_HUMAN_VERIFICATION_REQUIRED' };
       }
       const code = error instanceof NagexError ? error.code : 'DEVICE_ACTION_EXECUTION_FAILED';
+      // Say what actually went wrong in the log (the person is told a plain sentence; an operator needs the cause). First line only, clipped; it is the tool's own message, never the typed text.
+      console.error(JSON.stringify({ event: 'device_action_failed', action: action.action, code, recoverable: isRecoverableFailure(action.action, error), message: clipText((error instanceof Error ? error.message : String(error)).split('\n')[0], 240) }));
       // A CLICK or TYPE that failed BEFORE it touched the page (the element is gone, several elements match, the page was too slow to act on, the selector was not valid) changed nothing, so it is
       // safe to hand back to the model: the next turn re-reads the page. A policy refusal, a closed session or anything that may have touched the page ends the session as before.
       if (isRecoverableFailure(action.action, error)) {
@@ -617,6 +629,12 @@ export class DeviceControlService {
       this.sessions.fail(session.deviceExecutionSessionId, session.tenantId, session.ownerPrincipalId, code);
       return { kind: 'TERMINATED', deviceExecutionSessionId: session.deviceExecutionSessionId, status: 'FAILED', terminationReason: code };
     }
+  }
+
+  // Looking at the page failed (the browser is gone, or too slow to answer): the session ends with a named reason instead of being left RUNNING. Nothing was acted on in this turn.
+  private observationFailed(session: DeviceExecutionSessionRecord, requestId: string, what: string, error: unknown): DeviceControlOutcome {
+    console.error(JSON.stringify({ event: 'device_observation_failed', what, message: clipText((error instanceof Error ? error.message : String(error)).split('\n')[0], 240) }));
+    return this.terminate(session, requestId, 'FAILED', error instanceof NagexError ? error.code : 'DEVICE_OBSERVATION_FAILED');
   }
 
   // The identity of the control the model meant (from the observation it was shown) is looked up again on the page as it is now. Exactly one enabled control of the same kind with the same name (and the same

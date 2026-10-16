@@ -99,7 +99,14 @@ export function nextInvoiceAction(view: PageView, variant: InvoiceVariant, baseU
     // the form is not ready until the page shows the expected total: look again instead of pressing a button that is not enabled
     if (!verified('expected text')) return { action: 'OBSERVE' };
     const next = byName(/^Continue to review$/i);
-    if (next) return { action: 'CLICK', target: { selector: next.selector, description: 'Continue to review' }, expectedResult: 'The review page opens' };
+    if (next) {
+      // after pressing Continue the page may take a moment to move on: look again (a bounded number of times) instead of pressing the same button on an unchanged page
+      let lastContinue = -1;
+      for (let i = view.prior.length - 1; i >= 0; i -= 1) { if (view.prior[i].action === 'CLICK' && /continue/i.test(view.prior[i].selector ?? '')) { lastContinue = i; break; } }
+      const waitsSince = lastContinue < 0 ? 0 : view.prior.slice(lastContinue + 1).filter((p) => p.action === 'WAIT').length;
+      if (lastContinue >= 0 && waitsSince < 8) return { action: 'WAIT', value: '400' };
+      return { action: 'CLICK', target: { selector: next.selector, description: 'Continue to review' }, expectedResult: 'The review page opens' };
+    }
     return { action: 'WAIT', value: '300' };
   }
 
@@ -110,7 +117,9 @@ export function nextInvoiceAction(view: PageView, variant: InvoiceVariant, baseU
     }
     const save = byName(/^Save draft$/i);
     // where this review page began: the last click that NAVIGATED here (the observation says so: the address changed); a click on Save draft stays on the page
-    const arrivedAt = (() => { for (let i = view.prior.length - 1; i >= 0; i -= 1) { const p = view.prior[i]; if (p.action === 'CLICK' && /URL_CHANGED|NAVIGATED_TO_LINK_TARGET/.test(p.outcome)) return i; } return -1; })();
+    // (a click that leads here reports URL_CHANGED only if the page had navigated by the time the click was judged; on a slow machine it reports DOM_CHANGED_ONLY while the page is still the form, so the
+    // press of the form's own "Continue" button counts as the arrival too - otherwise the form's total check would be mistaken for a check of this page)
+    const arrivedAt = (() => { for (let i = view.prior.length - 1; i >= 0; i -= 1) { const p = view.prior[i]; if (p.action === 'CLICK' && (/URL_CHANGED|NAVIGATED_TO_LINK_TARGET/.test(p.outcome) || /continue/i.test(p.selector ?? ''))) return i; } return -1; })();
     const checksHere = view.prior.slice(arrivedAt + 1).filter((p) => p.action === 'VERIFY').length;
     if (checksHere === 0) return { action: 'VERIFY', value: 'Total: ' + money(total), expectedResult: 'the review page shows the total' };
     if (checksHere === 1) return { action: 'VERIFY', value: task.customerName, expectedResult: 'the review page shows the customer' };
