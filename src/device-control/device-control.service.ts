@@ -19,6 +19,7 @@
 //     executes exactly that frozen action, never re-proposes (Section 11).
 import { NagexError } from '../common/errors.js';
 import type { BrowserToolService, BrowserVerification } from '../modules/browser/index.js';
+import { advisoryEffect, type DecisionAdvisor, type DecisionRequest, type RecentOutcome } from './decision-port.js';
 import { isUntrustedBrowserContentTrust, type UntrustedStructuredBrowserSnapshot } from '../modules/browser/index.js';
 import type { CapabilityRisk } from '../capabilities/capability.types.js';
 import type { ActionApprovalRecord } from '../governance/action-approval.store.js';
@@ -157,6 +158,8 @@ export class DeviceControlService {
     private readonly sessions: DeviceExecutionSessionStore,
     private readonly browser: BrowserToolService,
     private readonly model: VisualExecutionModelPort,
+    // optional, advisory, tighten-only (decision-port.ts). Absent or without credentials it is as if it did not exist.
+    private readonly advisor: DecisionAdvisor | null = null,
   ) {}
 
   // A caller that must answer immediately (an HTTP request starting a task that takes minutes) begins the session and runs it separately; startSession does both.
@@ -363,6 +366,7 @@ export class DeviceControlService {
       return await this.runLoopInner(session, requestId, priorActions, seedEvidence);
     } finally {
       this.activeLoops.delete(session.deviceExecutionSessionId);
+      this.advisor?.forget(session.deviceExecutionSessionId);
     }
   }
 
@@ -493,7 +497,22 @@ export class DeviceControlService {
         }
       }
 
-      const outcome = await this.executeAction(current, proposed, requestId, structuredSnapshot);
+      // An optional second opinion. It is asked only now - about an action that has already passed every hard check - and it can only ADD caution: hold a click for approval, or hand the task to the person.
+      // No answer (disabled, unreachable, slow, malformed, inconsistent) means the loop goes on exactly as it would without it.
+      let advisory: { forceApproval: boolean } = { forceApproval: false };
+      if (this.advisor?.enabled && proposed.action !== 'OBSERVE' && proposed.action !== 'WAIT' && proposed.action !== 'VERIFY') {
+        const consulted = await this.advisor.consult(current.deviceExecutionSessionId, this.decisionRequest(current, proposed, structuredSnapshot, evidence));
+        const effect = advisoryEffect(consulted.advice, proposed);
+        if (effect.handoff) {
+          this.logStep(current, proposed, structuredSnapshot.url, 'HANDED TO YOU: the decision helper advised that a person should take over at this step.', null);
+          const reason = 'AGENT_BLOCKED:A decision helper advised that a person should take over at this step.';
+          this.sessions.blockNeedsHuman(current.deviceExecutionSessionId, current.tenantId, current.ownerPrincipalId, reason);
+          return { kind: 'TERMINATED', deviceExecutionSessionId: current.deviceExecutionSessionId, status: 'BLOCKED_NEEDS_HUMAN', terminationReason: reason };
+        }
+        advisory = { forceApproval: effect.forceApproval };
+      }
+
+      const outcome = await this.executeAction(current, proposed, requestId, structuredSnapshot, false, advisory);
       if (outcome.kind === 'WAITING_APPROVAL') {
         this.logStep(current, proposed, structuredSnapshot.url, 'WAITING FOR APPROVAL: this changes something outside the page, so the person decides first.', null);
         return outcome;
@@ -537,12 +556,13 @@ export class DeviceControlService {
     requestId: string,
     snapshot: UntrustedStructuredBrowserSnapshot,
     reResolved = false,
+    advisory: { forceApproval: boolean } = { forceApproval: false },
   ): Promise<{ kind: 'CONTINUE'; session: DeviceExecutionSessionRecord; outcomeDescription: string; verification?: BrowserVerification; recoverableFailure?: string } | { kind: 'WAITING_APPROVAL'; deviceExecutionSessionId: string; approval: ActionApprovalRecord } | { kind: 'TERMINATED'; deviceExecutionSessionId: string; status: 'FAILED' | 'BLOCKED_NEEDS_HUMAN'; terminationReason: string }> {
     const base = { tenantId: session.tenantId, ownerId: session.ownerPrincipalId, requestId, browserSessionId: session.browserSessionId };
 
     try {
       if (action.action === 'CLICK') {
-        const clickResult = await this.browser.click({ ...base, selector: action.target!.selector! });
+        const clickResult = await this.browser.click({ ...base, selector: action.target!.selector!, ...(advisory.forceApproval ? { forceApproval: true } : {}) });
         if (clickResult.status === 'APPROVAL_REQUIRED') {
           this.sessions.waitForApproval(session.deviceExecutionSessionId, session.tenantId, session.ownerPrincipalId, action, clickResult.approval.approvalId);
           return { kind: 'WAITING_APPROVAL', deviceExecutionSessionId: session.deviceExecutionSessionId, approval: clickResult.approval };
@@ -618,7 +638,7 @@ export class DeviceControlService {
         if (!reResolved && error instanceof NagexError && error.code === 'BROWSER_SELECTOR_NOT_FOUND' && action.target?.selector) {
           const replacement = await this.reResolveTarget(base, action.target.selector, snapshot);
           if (replacement) {
-            const retried = await this.executeAction(session, { ...action, target: { ...action.target, selector: replacement.selector } }, requestId, snapshot, true);
+            const retried = await this.executeAction(session, { ...action, target: { ...action.target, selector: replacement.selector } }, requestId, snapshot, true, advisory);
             if (retried.kind === 'CONTINUE') return { ...retried, outcomeDescription: `RE-RESOLVED: ${replacement.note} ${retried.outcomeDescription}` };
             return retried;
           }
@@ -629,6 +649,25 @@ export class DeviceControlService {
       this.sessions.fail(session.deviceExecutionSessionId, session.tenantId, session.ownerPrincipalId, code);
       return { kind: 'TERMINATED', deviceExecutionSessionId: session.deviceExecutionSessionId, status: 'FAILED', terminationReason: code };
     }
+  }
+
+  // What a decision provider is told: kinds, counts and outcome categories - never the goal, the page, typed text, control names or an address (the type has no place for them).
+  private decisionRequest(session: DeviceExecutionSessionRecord, proposed: ProposedDeviceAction, snapshot: UntrustedStructuredBrowserSnapshot, evidence: readonly StepEvidence[]): DecisionRequest {
+    const target = proposed.target?.selector ? (snapshot.interactive ?? []).find((entry) => entry.selector === proposed.target?.selector) : undefined;
+    const role = target?.role ?? null;
+    const category = (outcome: StepEvidence['outcome']): RecentOutcome => (outcome === 'VERIFIED' || outcome === 'NOT_VERIFIED' || outcome === 'FAILED' || outcome === 'USER_ACTION_REQUIRED' ? outcome : 'NONE');
+    const signature = actionSignature(proposed);
+    const stateKey = snapshotStateKey(snapshot);
+    return {
+      stepNumber: session.stepCount + 1,
+      remainingSteps: Math.max(session.maxSteps - session.stepCount, 0),
+      proposed: { action: proposed.action, targetRole: role ? String(role).slice(0, 24) : null, formControl: role ? /textbox|combobox|select|checkbox|radio|spinbutton|searchbox/.test(String(role)) : false },
+      candidates: ['PROCEED', 'OBSERVE', 'WAIT', 'HANDOFF'],
+      recent: evidence.slice(-6).map((entry) => ({ action: entry.action, outcome: category(entry.outcome) })),
+      repeats: evidence.filter((entry) => entry.signature === signature && entry.stateKey === stateKey).length,
+      expectationsMet: evidence.filter((entry) => entry.action === 'VERIFY' && entry.outcome === 'VERIFIED').length,
+      expectationsNotMet: evidence.filter((entry) => entry.action === 'VERIFY' && entry.outcome === 'FAILED').length,
+    };
   }
 
   // Looking at the page failed (the browser is gone, or too slow to answer): the session ends with a named reason instead of being left RUNNING. Nothing was acted on in this turn.

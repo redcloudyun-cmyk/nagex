@@ -4596,6 +4596,19 @@
       "notes": "Real server, real enrollment, real signed transport, real device executor; the native Windows controller is a scripted stand-in (tests/_fake_desktop_port.ts) so this runs on any machine. A real application is proven by the opt-in desktop_windows_notepad_real.",
       "writesRepositoryArtifacts": false
     },
+    "jev_decision_port": {
+      "milestone": "COMPUTER-USE-20261016",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": ["browser", "security", "permission-approval-hardening", "model-routing"],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "The optional, replaceable, ADVISORY DecisionPort (JEV is one provider behind it): advice is validated whole (unknown or not-offered action ids, out-of-range numbers, unknown enumerations and self-contradiction rejected; the escalation is derived by NAgex, never taken from the provider); what advice may change is a closed list of tightenings (hold a click for approval, hand the task to the person) and no input can remove a check; with no provider, no credential, a slow, failing, nonsensical or wrong provider it is 'no advice' and a provider that keeps failing in a session is not asked again; the JEV adapter speaks the System One shape the repository already uses (choice / noul questions) and sends only enumerated facts; in real Chromium on the invoice back-office a provider that agrees changes nothing and is told nothing about the person, the page or the goal, a provider cannot allow what the policy holds ('Issue invoice' stays held whatever it says), a high risk estimate holds a benign click for approval before the page is touched, a confident hand-over stops before anything is touched, and every failure mode completes the task exactly as without a provider.",
+      "notes": "The provider is SIMULATED (the request/answer shape is the repository's existing JEV System One shape); no live JEV call was made - no credential was available. Deterministic flows never need JEV: every other suite runs with the advisor absent.",
+      "writesRepositoryArtifacts": false
+    },
     "computer_use_keyboard_approval": {
       "milestone": "COMPUTER-USE-20261016",
       "classification": "REAL_BROWSER_CERT",
