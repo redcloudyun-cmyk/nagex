@@ -5,7 +5,7 @@
 **Branch:** `topic/computer-use-20261016` · BASE `39ecfffc1f833be119432bb953a01004d005e5dd` · slice commit `32e4059`
 **Release posture:** RELEASE = NO-GO · no deployment · `main` untouched
 
-This report covers **browser P0-1 / P0-2** only (multi-step browser workflow and browser gap closure). Native Windows desktop, Android proof, JEV `DecisionPort` and the other Phase E scenarios are **not done**; see `NAGEX_COMPUTER_USE_GAP_REPORT.md`.
+This report covers **browser P0-1 / P0-2** only (multi-step browser workflow and browser gap closure). The Windows desktop route has its own evidence (`docs/evidence/NAGEX_WINDOWS_DESKTOP_CONTROL_E2E_20261016.md`: a real Notepad run). Android proof, JEV `DecisionPort` and the other Phase E scenarios are **not done**; see `NAGEX_COMPUTER_USE_GAP_REPORT.md`.
 
 ## 1. What "E2E" means here
 
@@ -95,7 +95,7 @@ Limits: one run, one small model, one synthetic site. It shows the NAgex loop wo
 - No live human takeover of the managed browser (login/MFA/CAPTCHA end as `NEEDS_PERSON`).
 - No upload action.
 - Phase E scenarios 2 (email-reply preparation) and 3 (research + form entry): not built.
-- No Windows desktop run, no Android run, no JEV integration: **REAL_WINDOWS_E2E = NOT RUN**.
+- Windows desktop: a **fixed recipe for one application** (Notepad) ran for real on the dev PC and saved a verified file — separate evidence, not a planner-driven desktop loop. No Android run, no JEV integration.
 
 ## 6. Final report block (browser slice)
 
@@ -108,7 +108,7 @@ LICENSE_REVIEW              Skyvern AGPL-3.0 rejected for embedding; Open Interp
 EXISTING_CAPABILITIES_REUSED DeviceControlService loop, BrowserToolService/PlaywrightBrowserRuntime, ActionApprovalStore, Model Gateway/UnifiedModelRouter, element map, session stores
 IMPLEMENTED_CAPABILITIES    SELECT/WAIT/VERIFY/STOP, NAgex-side expectations, field read-back, loop guard, Gateway + Hybrid planners, planner-outage pause, BrowserTaskService + 6 routes, Main task card (KO/EN), NAGEX_BROWSER_AGENT kill-switch
 REAL_BROWSER_E2E            PASS (real Chromium; synthetic loopback site; stand-in planner) + one real-model live run (Gemini flash-lite) COMPLETED — single sample
-REAL_WINDOWS_E2E            NOT RUN
+REAL_WINDOWS_E2E            PASS for the fixed Notepad recipe (see the Windows evidence document); NOT a general desktop agent; Electron shell not run
 APPROVAL_SECURITY_TESTS     PASS (§3 table)
 REGRESSION_TESTS            3482 tests / 0 fail / 8 skipped; browser gate 424 / 0 fail / 6 skipped
 REMAINING_BLOCKERS          Windows enrollment + native controller (Mission B); real-site pilot needs authorised session; no Nebius/NVIDIA credential locally; upload; live takeover; local-session reuse; JEV DecisionPort; Android route proof

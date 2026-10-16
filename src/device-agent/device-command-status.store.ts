@@ -16,7 +16,27 @@ export interface DeviceCommandStatusRecord {
   completedAt: string | null;
   failedAt: string | null;
   resultCode: string | null;
+  /** what the device reports it saw and did, bounded and flat (see sanitizeCommandEvidence); never the content of a person's documents */
+  evidence?: Record<string, unknown> | null;
   updatedAt: string;
+}
+
+const MAX_EVIDENCE_BYTES = 4096;
+const MAX_EVIDENCE_KEYS = 24;
+const MAX_EVIDENCE_STRING = 200;
+
+/** Evidence arrives from a device: only plain, small, flat facts are kept (strings, numbers, booleans, and short lists of those); anything else is dropped. */
+export function sanitizeCommandEvidence(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const out: Record<string, unknown> = {};
+  for (const [key, raw] of Object.entries(value as Record<string, unknown>).slice(0, MAX_EVIDENCE_KEYS)) {
+    if (!/^[A-Za-z][A-Za-z0-9_]{0,40}$/.test(key)) continue;
+    if (typeof raw === 'string') out[key] = raw.slice(0, MAX_EVIDENCE_STRING);
+    else if (typeof raw === 'number' && Number.isFinite(raw)) out[key] = raw;
+    else if (typeof raw === 'boolean') out[key] = raw;
+    else if (Array.isArray(raw)) out[key] = raw.slice(0, 16).filter((item) => typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean').map((item) => (typeof item === 'string' ? item.slice(0, MAX_EVIDENCE_STRING) : item));
+  }
+  return Buffer.byteLength(JSON.stringify(out), 'utf8') <= MAX_EVIDENCE_BYTES ? out : null;
 }
 
 function isDeviceCommandStatusRecord(value: unknown): value is DeviceCommandStatusRecord {
@@ -98,6 +118,16 @@ export class DeviceCommandStatusStore {
     if (stage === 'FAILED') record.failedAt = record.failedAt ?? now;
     record.resultCode = resultCode ?? record.resultCode;
     record.updatedAt = now;
+    this.fileStore.writeOrThrow(commandId, record);
+    return record;
+  }
+
+  /** What a device reported it saw while carrying out a command the server queued as a desktop plan; sanitised (flat, small). Nothing else about the record changes. */
+  public attachEvidence(commandId: string, evidence: unknown): DeviceCommandStatusRecord | null {
+    const record = this.fileStore.read(commandId);
+    if (!record || evidence === undefined) return record;
+    record.evidence = sanitizeCommandEvidence(evidence);
+    record.updatedAt = this.now();
     this.fileStore.writeOrThrow(commandId, record);
     return record;
   }

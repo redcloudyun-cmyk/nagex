@@ -36,7 +36,11 @@
       "astra_visual_execution_adapter",
       "astra_real_provider_acceptance",
       "browser_session_ownership_isolation",
-      "r23_3t_permission_approval_hardening"
+      "r23_3t_permission_approval_hardening",
+      "desktop_plan_command",
+      "desktop_plan_executor",
+      "device_enrollment",
+      "desktop_windows_notepad_real"
     ],
     "browser": [
       "sidebar_navigation_certification_browser",
@@ -321,7 +325,10 @@
       "vault_save_approval",
       "vault_save_approval_browser",
       "home_vault_save_browser",
-      "vault_write_truthfulness"
+      "vault_write_truthfulness",
+      "desktop_plan_command",
+      "desktop_plan_executor",
+      "device_enrollment"
     ],
     "credential-broker": [
       "google_calendar_connection_state",
@@ -478,7 +485,10 @@
       "image_generation_browser",
       "video_generation_browser",
       "research_source_fetcher",
-      "browser_task_browser"
+      "browser_task_browser",
+      "desktop_plan_command",
+      "desktop_plan_executor",
+      "device_enrollment"
     ]
   },
   "fullOnly": [

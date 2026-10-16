@@ -219,6 +219,18 @@ Desktop is valuable for:
 
 The cross-platform audit treats a thin desktop shell over shared web/product logic as preferable to a second independent product codebase.
 
+### 11.1 Desktop application control (as built, 2026-10-16)
+
+One canonical action is carried to a Windows PC end to end: **write a single line of text into a new document of an allowlisted application and save it under a plain name in an allowlisted folder** (`desktop.document.write_and_save`, command `DESKTOP_EXECUTE_PLAN` version 1). Only Notepad is supported. Evidence and limits: `docs/evidence/NAGEX_WINDOWS_DESKTOP_CONTROL_E2E_20261016.md`.
+
+- **WHAT / WHERE / HOW.** The server states *what* (application id, text, folder alias, file name) for *one of the person's own enrolled devices*. It never sends a program path, a folder path, UI steps, coordinates or keystrokes. *How* is the device's own execution route (UI Automation on the user's desktop) and its own rules.
+- **Authority.** The plan is proposed through the Approval Authority, approved by the person, and consumed exactly once against a hash of *all* approved fields (text, name, folder, application, device, route). A device must have reported the capability. The command is delivered once on the device's heartbeat and expires.
+- **The device decides again.** It checks its own identity, the schema version, the expiry, that the command was never taken on before (also across restarts), one plan at a time, its own application allowlist and its own folder policy (no `AppData`/temp folders, an existing folder, never replacing a file). A command that fails half-way is not retried behind the person's back.
+- **Window identity is the window handle.** A packaged application cannot run on the hidden desktop and a second window of an application that is already open belongs to the *same process* as the person's own window; process id identifies nothing. The window is the one new top-level window of the expected class owned by the expected process image. Windows that were already open are counted, never read or touched.
+- **Truthful completion.** The device reads the saved file back itself and compares it with the approved text; only then is the plan reported `COMPLETED`. Reports carry small flat evidence (steps, sizes, hashes), never the document text or a folder path. On any failure the device closes only the window it opened and discards only what it typed.
+- **No input injection.** The native worker uses UI Automation patterns and, for the classic Win32 file dialog whose controls expose no patterns, targeted control messages (`WM_SETTEXT`/`WM_CHAR`/`BM_CLICK`) to one verified child window handle of the application window it opened. There is no `SendInput`, no `keybd_event`/`mouse_event`, no shell and no generic "press this key" action.
+- **Not built:** a planner-driven desktop loop (this route is a fixed, verified recipe for one application, not a general desktop agent), other applications, multi-line text, an Android proof under the same amendment, and a run of the Electron shell itself.
+
 ## 12. Android
 
 Android is the priority mobile execution plane for capabilities that benefit from:

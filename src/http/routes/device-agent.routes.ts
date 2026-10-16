@@ -45,6 +45,11 @@ import type { DeviceCommandStatusStore } from '../../device-agent/device-command
 import type { KakaoAccessibilityApprovalService } from '../../mobile/kakaotalk-accessibility-approval.service.js';
 import { ANDROID_ACCESSIBILITY_ROUTE, KAKAOTALK_PROVIDER, SELECT_KAKAO_DIRECT_CONVERSATION_ACTION, SEND_KAKAO_DIRECT_MESSAGE_ACTION } from '../../mobile/kakaotalk-accessibility-approval.service.js';
 import { buildKakaoAccessibilityMessageHash } from '../../mobile/kakao-accessibility-draft.types.js';
+import type { ActionApprovalStore } from '../../governance/action-approval.store.js';
+import {
+  DESKTOP_APP_CAPABILITY, DESKTOP_PLAN_MAX_TTL_MS, DESKTOP_WRITE_SAVE_TOOL_ID, desktopWriteAndSaveApprovalPayload, validateDesktopWriteAndSave,
+  type DesktopPlanAppId, type DesktopPlanRootAlias,
+} from '../../device-agent/desktop-plan.types.js';
 import type { SessionStore } from '../../sessions/session.store.js';
 import { getSessionIdFromHeaders } from './auth.routes.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
@@ -64,6 +69,8 @@ export interface DeviceAgentRouteDeps {
   deviceConnectionStatusStore?: DeviceConnectionStatusStore;
   deviceCommandStatusStore?: DeviceCommandStatusStore;
   kakaoAccessibilityApprovalService?: KakaoAccessibilityApprovalService;
+  /** the one approval authority; desktop plans are proposed, approved and consumed through it like every other consequential action */
+  actionApprovals?: ActionApprovalStore;
 }
 
 function publicKeyFingerprint(publicKey: string): string {
@@ -192,6 +199,92 @@ export const handleDeviceAgentRoutes: AsyncRouteRegistrar<DeviceAgentRouteDeps> 
       throw new NagexError({ code: 'DEVICE_BINDING_NOT_AUTHORIZED', category: 'AUTHORIZATION', message: 'Device binding could not be validated for this session.', request_id: requestId });
     }
     return { status: 200, data: { deviceId: device.deviceId, status: device.status, tenantId: device.tenantId, ownerId: device.ownerId } };
+  }
+
+  // ---- Desktop plans: one canonical action for one of the person's own devices (write a line of text into an allowlisted application and save it in an allowlisted folder) ----------------------------
+  // ask -> the person approves it (the normal approvals API) -> dispatch -> the device reports. Nothing is queued without an approval of exactly these fields; the device is told WHAT, never HOW.
+  const desktopSession = (requestId: string) => {
+    const sessionId = getSessionIdFromHeaders(headers);
+    const found = sessionId ? sessionStore.getSession(sessionId) : null;
+    if (!found) throw new NagexError({ code: 'DEVICE_COMMAND_AUTH_REQUIRED', category: 'AUTHENTICATION', message: 'A valid authenticated session is required for a desktop plan.', request_id: requestId });
+    return found;
+  };
+
+  if (pathname === '/api/v1/device-agent/desktop-plans' && method === 'POST') {
+    const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+    const session = desktopSession(requestId);
+    if (!deps.actionApprovals) throw new NagexError({ code: 'DEVICE_COMMAND_SERVICE_UNAVAILABLE', category: 'INTERNAL', message: 'Approvals are not configured.', request_id: requestId });
+    const request = {
+      deviceId: typeof body?.deviceId === 'string' ? body.deviceId : '',
+      appId: (typeof body?.appId === 'string' ? body.appId : 'NOTEPAD') as DesktopPlanAppId,
+      text: typeof body?.text === 'string' ? body.text : '',
+      rootAlias: (typeof body?.rootAlias === 'string' ? body.rootAlias : 'DOCUMENTS') as DesktopPlanRootAlias,
+      fileName: typeof body?.fileName === 'string' ? body.fileName : '',
+    };
+    const valid = validateDesktopWriteAndSave(request);
+    if (!valid.ok) throw new NagexError({ code: valid.code, category: 'VALIDATION', message: valid.message, request_id: requestId });
+    // ask only for what this device can really do: no approval is created for something that cannot happen
+    const device = deviceIdentityStore.getOwned(request.deviceId, session.tenantId, session.principalId);
+    if (!device || device.status !== 'ACTIVE') throw new NagexError({ code: 'DEVICE_NOT_FOUND', category: 'NOT_FOUND', message: 'Device was not found for this tenant/user.', request_id: requestId });
+    if (!device.capabilityInventory.includes(DESKTOP_APP_CAPABILITY[request.appId])) {
+      throw new NagexError({ code: 'DESKTOP_CAPABILITY_UNAVAILABLE', category: 'POLICY', message: 'This device has not reported that it can control this application.', request_id: requestId });
+    }
+    const approval = deps.actionApprovals.request({ toolId: DESKTOP_WRITE_SAVE_TOOL_ID, tenantId: session.tenantId, principalId: session.principalId, payload: desktopWriteAndSaveApprovalPayload(request) });
+    return {
+      status: 201,
+      data: {
+        approvalId: approval.approvalId,
+        status: approval.status,
+        expiresAt: approval.expiresAt,
+        summary: { deviceName: device.nickname || device.systemDeviceName || device.deviceId, appId: request.appId, rootAlias: request.rootAlias, fileName: request.fileName, textPreview: request.text.slice(0, 120), onYourScreen: true },
+      },
+    };
+  }
+
+  if (pathname === '/api/v1/device-agent/desktop-plans/dispatch' && method === 'POST') {
+    const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+    const session = desktopSession(requestId);
+    if (!deps.actionApprovals || !deviceCommandService) throw new NagexError({ code: 'DEVICE_COMMAND_SERVICE_UNAVAILABLE', category: 'INTERNAL', message: 'Device command service is not configured.', request_id: requestId });
+    const approvalId = typeof body?.approvalId === 'string' ? body.approvalId : '';
+    if (!approvalId) throw new NagexError({ code: 'DESKTOP_PLAN_APPROVAL_REQUIRED', category: 'VALIDATION', message: 'approvalId is required.', request_id: requestId });
+    // owner-scoped, tool-bound, approved, unexpired, unused - or a precise error. The plan is rebuilt from what was APPROVED, never from fields the caller sends now.
+    const approval = deps.actionApprovals.assertExecutable(approvalId, session.tenantId, session.principalId, DESKTOP_WRITE_SAVE_TOOL_ID, requestId);
+    const approved = approval.canonicalPayload as Record<string, unknown>;
+    const planId = `dplan_${approvalId}`;
+    const expiresAt = new Date(Date.now() + Math.min(10 * 60 * 1000, DESKTOP_PLAN_MAX_TTL_MS)).toISOString();
+    const result = deviceCommandService.enqueueDesktopWriteAndSave({
+      tenantId: session.tenantId,
+      principalId: session.principalId,
+      requestId,
+      deviceId: String(approved.deviceId ?? ''),
+      approvalRef: approvalId,
+      planId,
+      appId: String(approved.appId ?? '') as DesktopPlanAppId,
+      text: String(approved.text ?? ''),
+      rootAlias: String(approved.rootAlias ?? '') as DesktopPlanRootAlias,
+      fileName: String(approved.fileName ?? ''),
+      expiresAt,
+    });
+    deps.deviceCommandStatusStore?.markQueued({ commandId: result.command.commandId, tenantId: session.tenantId, ownerId: session.principalId, deviceId: result.command.deviceId, executionId: String(result.command.data.executionId ?? '') || null });
+    return { status: result.status === 'QUEUED' ? 202 : 200, data: { status: result.status, commandId: result.command.commandId, planId, deviceId: result.command.deviceId, queuedAt: result.command.queuedAt, expiresAt } };
+  }
+
+  const desktopPlanStatus = pathname.match(/^\/api\/v1\/device-agent\/desktop-plans\/(cmd_[A-Za-z0-9_-]+)$/);
+  if (desktopPlanStatus && method === 'GET') {
+    const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+    const session = desktopSession(requestId);
+    const record = deps.deviceCommandStatusStore?.get(desktopPlanStatus[1]) ?? null;
+    // someone else's command is exactly as absent as one that never existed
+    if (!record || record.tenantId !== session.tenantId || record.ownerId !== session.principalId) {
+      throw new NagexError({ code: 'DESKTOP_PLAN_NOT_FOUND', category: 'NOT_FOUND', message: 'No such desktop plan.', request_id: requestId });
+    }
+    return {
+      status: 200,
+      data: {
+        commandId: record.commandId, stage: record.stage, resultCode: record.resultCode, evidence: record.evidence ?? null,
+        queuedAt: record.updatedAt, deliveredAt: record.deliveredAt, claimedAt: record.claimedAt, executingAt: record.executingAt, completedAt: record.completedAt, failedAt: record.failedAt, updatedAt: record.updatedAt,
+      },
+    };
   }
 
   if (pathname === '/api/v1/device-agent/accessibility-plans' && method === 'POST') {

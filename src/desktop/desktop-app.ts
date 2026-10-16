@@ -1,9 +1,11 @@
-import { app, BrowserWindow, globalShortcut, Tray, Menu, Notification, shell, ipcMain, screen, safeStorage, powerMonitor } from 'electron';
+import { app, BrowserWindow, globalShortcut, Tray, Menu, Notification, shell, ipcMain, screen, safeStorage, powerMonitor, session as electronSession } from 'electron';
 import path from 'node:path';
 import os from 'node:os';
 import { DesktopConfigStore } from './desktop-config.store.js';
 import { LocalDeviceCredentialStore, PlaintextLocalStorageFallback, type LocalSecureStorage } from '../device-agent/local-device-credential.store.js';
 import { LocalDeviceAgentRuntime, type LocalDeviceAgentConnectionState } from '../device-agent/local-device-agent-runtime.js';
+import { createDesktopPlanWiring } from '../device-agent/desktop-plan-wiring.js';
+import { enrollThisDevice } from '../device-agent/device-enrollment.js';
 import { resolveExistingPublicAsset } from './asset-path.resolver.js';
 
 let mainWindow: BrowserWindow | null = null;
@@ -261,6 +263,8 @@ function rebuildTrayMenu(gatewayUrl: string): void {
   if (!tray) return;
   const contextMenu = Menu.buildFromTemplate([
     { label: deviceAgentTrayLabel(deviceAgentState), enabled: false },
+    // Only while this PC is not enrolled: it registers this PC as a device of whoever is signed in to NAgex in this app. It grants no permission to act - every action still needs an approval.
+    ...(deviceAgentState === 'UNENROLLED' ? [{ label: 'Enroll this PC (sign in to NAgex first)', click: () => { void enrollThisPc(gatewayUrl); } }] : []),
     { type: 'separator' },
     {
       label: 'Open NAgex',
@@ -623,6 +627,65 @@ function buildLocalSecureStorage(): LocalSecureStorage {
   return new PlaintextLocalStorageFallback();
 }
 
+let deviceCredentialStore: LocalDeviceCredentialStore | null = null;
+const deviceDesktopDir = path.join(os.homedir(), '.nagex', 'desktop');
+
+// DC3-B1-R1 — construct and start the one Local Device Agent runtime for this process. No hardcoded
+// usr_admin_001/ten_production_01 here — identity comes only from the local enrolled credential, if one
+// exists; if not, the runtime reports UNENROLLED and the desktop shell continues normally (no fallback
+// identity is ever fabricated). The runtime is built here and only here (launch, and again after an
+// enrollment), so there is never more than one.
+async function startDeviceAgent(gatewayUrl: string): Promise<void> {
+  deviceCredentialStore ??= new LocalDeviceCredentialStore(path.join(deviceDesktopDir, 'device-credential.enc'), buildLocalSecureStorage());
+  const credentialStore = deviceCredentialStore;
+  // What this device does with a desktop plan lives in desktop-plan-wiring.ts / desktop-plan-executor.ts; this shell only supplies the folder it may write to and the report path.
+  const wiring = createDesktopPlanWiring({
+    credentialStore,
+    dataDir: deviceDesktopDir,
+    resolveRoot: (alias) => (alias === 'DOCUMENTS' ? app.getPath('documents') : null),
+    report: async (commandId, executionId, stage, resultCode, evidence) => (deviceAgentRuntime ? deviceAgentRuntime.reportCommand(commandId, executionId, stage, resultCode, evidence) : false),
+  });
+  deviceAgentRuntime = new LocalDeviceAgentRuntime({
+    credentialStore,
+    serverBaseUrl: gatewayUrl,
+    agentVersion: app.getVersion(),
+    capabilityInventory: wiring.capabilityInventory,
+    onStateChange: (state) => {
+      deviceAgentState = state;
+      rebuildTrayMenu(gatewayUrl);
+    },
+    onPendingCommand: wiring.onPendingCommand,
+  });
+  await deviceAgentRuntime.start();
+}
+
+// Registers this PC as a device of the person who is signed in to NAgex in this app. The session comes from the app's own cookie jar; the server derives tenant and owner from it.
+async function enrollThisPc(gatewayUrl: string): Promise<void> {
+  const tell = (summary: string, detail: string) => showCompactPopup({ type: 'INFO', summary, detail, goalId: 'device-enrollment', executionId: 'device-enrollment', actions: [] });
+  try {
+    const credentialStore = deviceCredentialStore;
+    if (!credentialStore) return;
+    const cookies = await electronSession.defaultSession.cookies.get({ url: gatewayUrl, name: 'nagex_session' });
+    const wiring = createDesktopPlanWiring({ credentialStore, dataDir: deviceDesktopDir, report: async () => false });
+    const result = await enrollThisDevice({
+      serverBaseUrl: gatewayUrl,
+      sessionId: cookies[0]?.value ?? '',
+      credentialStore,
+      agentVersion: app.getVersion(),
+      capabilityInventory: wiring.capabilityInventory,
+    });
+    if (!result.enrolled) {
+      tell(result.reason === 'NOT_SIGNED_IN' ? 'Sign in to NAgex first' : 'This PC could not be enrolled', result.reason === 'NOT_SIGNED_IN' ? 'Enrollment uses the account you are signed in with in this app.' : 'NAgex could not register this PC right now. Nothing was changed.');
+      return;
+    }
+    await deviceAgentRuntime?.stop();
+    await startDeviceAgent(gatewayUrl);
+    tell('This PC is enrolled', 'NAgex can now ask this PC to do things you approve.');
+  } catch {
+    tell('This PC could not be enrolled', 'NAgex could not register this PC right now. Nothing was changed.');
+  }
+}
+
 app.whenReady().then(async () => {
   const { gatewayUrl, ready } = await startWebServerIfNeeded();
   await createWindow(gatewayUrl, ready);
@@ -635,23 +698,7 @@ app.whenReady().then(async () => {
   const config = configStore.get();
   app.setLoginItemSettings({ openAtLogin: config.openAtLogin });
 
-  // DC3-B1-R1 — construct and start the one Local Device Agent runtime
-  // for this process. No hardcoded usr_admin_001/ten_production_01 here —
-  // identity comes only from the local enrolled credential, if one
-  // exists; if not, the runtime reports UNENROLLED and the desktop shell
-  // continues normally (no fallback identity is ever fabricated).
-  const credentialPath = path.join(os.homedir(), '.nagex', 'desktop', 'device-credential.enc');
-  const credentialStore = new LocalDeviceCredentialStore(credentialPath, buildLocalSecureStorage());
-  deviceAgentRuntime = new LocalDeviceAgentRuntime({
-    credentialStore,
-    serverBaseUrl: gatewayUrl,
-    agentVersion: app.getVersion(),
-    onStateChange: (state) => {
-      deviceAgentState = state;
-      rebuildTrayMenu(gatewayUrl);
-    },
-  });
-  await deviceAgentRuntime.start();
+  await startDeviceAgent(gatewayUrl);
 
   // Section 7/8 — never assume a connection survives sleep or a session
   // boundary; every one of these fails safe (disconnect now) rather than

@@ -140,6 +140,12 @@ export class LocalDeviceAgentClient {
     return pendingCommand;
   }
 
+  // The device's own truthful report on a command it took on: where it is (EXECUTING / COMPLETED / FAILED), a result code and bounded evidence. Claiming a stage is the device's word; what the
+  // server believes of it (e.g. that a file was saved) is whatever the device verified and said, never inferred from the command having been delivered.
+  public async reportCommand(commandId: string, executionId: string | null, stage: 'EXECUTING' | 'COMPLETED' | 'FAILED', resultCode: string, evidence: Record<string, unknown>): Promise<void> {
+    await this.send('ACK', null, { commandId, ...(executionId ? { executionId } : {}), stage, resultCode, evidence });
+  }
+
   public async openSession(mode: 'BACKGROUND' | 'ASSISTED' | 'TAKEOVER', ttlMs?: number): Promise<string> {
     const response = await this.send('SESSION_OPEN', null, { mode, ...(ttlMs ? { ttlMs } : {}) });
     return (response.result as { executionSessionId: string }).executionSessionId;

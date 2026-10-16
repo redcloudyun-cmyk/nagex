@@ -4522,6 +4522,55 @@
       "notes": "The planning model is the deterministic stand-in behind the local AI world; the website is a loopback fixture. Proves the user-facing layer (card, controls, history, approval view), not a model's quality.",
       "writesRepositoryArtifacts": false
     },
+    "desktop_plan_command": {
+      "milestone": "WINDOWS-DESKTOP-20261016",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["device","security","permission-approval-hardening"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "The desktop plan command (DESKTOP_EXECUTE_PLAN v1) is governed: validated as a plain single-line text written to a plain .txt name in an allowlisted folder of an allowlisted application; queued only with an approval of exactly these fields (text, name, folder, application, device); refused for a device that is unknown, belongs to another person or tenant, is revoked, or has not reported the capability; refused when pending, declined, for another tool, expired or already used; refused when expired, valid too long, or behind another pending command; delivered once over the real signed transport; the device report is kept as small flat evidence; routes ask / dispatch / status are session-authenticated and owner-scoped and rebuild the plan from what was approved.",
+      "notes": "Real stores, real Ed25519 keys, real signed transport; nothing executes on a device here."
+    },
+    "desktop_plan_executor": {
+      "milestone": "WINDOWS-DESKTOP-20261016",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["device","security","permission-approval-hardening"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "The device-side executor decides before it touches anything (own identity, schema version, expiry, tampered text, replay - also across a restart, one plan at a time, its own application allowlist and folder policy: no AppData/Temp, no missing folder, never replacing a file), drives a narrow controller port (window by handle, blank document, text entered and read back, Save As, file name read back, file read back from disk and compared), reports COMPLETED only after that verification, cleans up its own unsaved window on every failure, and never puts the document text or a folder path in what it reports.",
+      "notes": "The native controller is a scripted FAKE port: proves the executor's decisions, NOT a real application run (see desktop_windows_notepad_real)."
+    },
+    "device_enrollment": {
+      "milestone": "WINDOWS-DESKTOP-20261016",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["device","security"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Enrolling a PC: the key pair is generated on the device, only the public key goes to the server with the person's own session (tenant and owner come from the session, never the request), the private key is only saved locally, and the saved credential really authenticates over the signed transport; no session, an unknown session, an unreachable or refusing server, and an already-enrolled PC leave things unchanged.",
+      "notes": "Real route handler, real session store, real keys."
+    },
+    "desktop_windows_notepad_real": {
+      "milestone": "WINDOWS-DESKTOP-20261016",
+      "classification": "LIVE_EXTERNAL",
+      "canonical": false,
+      "scopes": ["device","security"],
+      "externalDependencies": ["Windows 11 PC","interactive desktop session","packaged Notepad","native controller build (native/windows-desktop-controller/build.ps1)"],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": false,
+      "assertionIntent": "On a real Windows PC with the native controller built: enrollment of this PC, approval through the normal API, dispatch, the real Local Device Agent runtime and the real native controller opening a real Notepad window, entering the text, completing Save As, the file read back from disk byte for byte, the device report, the pre-existing Notepad windows unchanged, a used approval refused, the device refusing to replace an existing file.",
+      "notes": "Opt-in (NAGEX_REAL_WINDOWS_E2E=1); drives a real application on the interactive desktop; skipped with an explicit reason otherwise, never reported as passed. The Electron shell is not part of it.",
+      "requiresEnv": ["NAGEX_REAL_WINDOWS_E2E"]
+    },
     "computer_use_keyboard_approval": {
       "milestone": "COMPUTER-USE-20261016",
       "classification": "REAL_BROWSER_CERT",

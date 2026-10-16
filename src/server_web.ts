@@ -765,7 +765,7 @@ export async function handleAsyncApiRequest(
 
     // R10.2-D Increment 5 — Device Agent outbound transport route.
     {
-      const deviceAgentResult = await handleDeviceAgentRoutes(method, pathname, body, headers, query, { deviceAgentTransportEndpoint, deviceCommandService: app.deviceCommandService, deviceIdentityStore, sessionStore, deviceConnectionStatusStore: app.deviceConnectionStatusStore, devicePendingCommandStore: app.devicePendingCommandStore, deviceCommandStatusStore: app.deviceCommandStatusStore, kakaoAccessibilityApprovalService: app.kakaoAccessibilityApprovalService });
+      const deviceAgentResult = await handleDeviceAgentRoutes(method, pathname, body, headers, query, { deviceAgentTransportEndpoint, deviceCommandService: app.deviceCommandService, deviceIdentityStore, sessionStore, deviceConnectionStatusStore: app.deviceConnectionStatusStore, devicePendingCommandStore: app.devicePendingCommandStore, deviceCommandStatusStore: app.deviceCommandStatusStore, kakaoAccessibilityApprovalService: app.kakaoAccessibilityApprovalService, actionApprovals: app.actionApprovals });
       if (deviceAgentResult) return deviceAgentResult;
     }
 
