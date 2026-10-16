@@ -232,7 +232,8 @@ describe('NAgex Main surface hard rebuild', () => {
       (window as any).__nagexVoiceMediaUnavailable = true;
     });
     await page.click('#main-mic');
-    await expectInlineVoiceNotice(page, /failed|unavailable|supported browser/i);
+    // a missing microphone is named as such (and the operating system's own dictation is offered as the way to still talk)
+    await expectInlineVoiceNotice(page, /No microphone was found/i);
     await page.evaluate(() => { (window as any).__nagexVoiceMediaUnavailable = false; });
 
     await page.evaluate(() => { (window as any).__nagexVoiceError = 'no-speech'; });

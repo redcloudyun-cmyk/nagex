@@ -6661,6 +6661,22 @@
       "notes": "Production server in-process with disposable signed-in users; chat and plan endpoints stubbed behind the real routing decision; no model, no network.",
       "writesRepositoryArtifacts": false
     },
+    "voice_input_browser": {
+      "milestone": "VOICE-INPUT-COMPOSER",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "The existing microphone button dictates into the canonical Main box in the language of the screen (Korean ko-KR / English en-US) through the browser speech engine and NAgex's own consent flow: nothing is recorded or even requested before the person allows the vendor to hear the audio; interim text shows while speaking, the final text stays in the box (never duplicated, added after what was already typed), the end of recognition submits nothing, and the text is edited and sent with the same Enter / Send handler as typed text; permission denied, no microphone, microphone in use and an unsupported browser each give a truthful notice (no recording is started) and name the operating system dictation as the way to still talk (Win + H on Windows, system dictation on macOS, the keyboard microphone key on phones - NAgex presses and automates nothing); repeated clicks never open a second recording, Stop keeps and Cancel / Escape discard the dictation, typing while it listens ends it and a late result never overwrites what was typed, Enter or Send while recording stop it and keep the text for review, leaving the screen releases the microphone every time; an action dictated by voice and sent with Enter is only a plan preview (no approval or execution call); the Enter that confirms a Korean IME composition after dictation sends nothing; at 360 / 390 / 430px the microphone is a touch target, the status and the consent prompt fit the screen.",
+      "notes": "Production server in-process; the browser speech engine and getUserMedia are scripted so every state can be driven; no model, no network. The real-engine check (Chrome + Google speech + the PC microphone) is scripts/voice-real-browser-check.mjs and is not part of this gate.",
+      "writesRepositoryArtifacts": false
+    },
     "memory_supersession": {
       "milestone": "SPRINT03-MEMORY-SUPERSESSION",
       "classification": "CANONICAL_BEHAVIOR",

@@ -77,6 +77,7 @@
       "memory_control_browser",
       "artifact_versions_browser",
       "enter_to_send_browser",
+      "voice_input_browser",
       "calendar_reschedule_browser",
       "one_input_slides_chain_browser",
       "vault_save_approval_browser",
@@ -440,7 +441,8 @@
       "research_report",
       "artifact_versions",
       "artifact_versions_browser",
-      "enter_to_send_browser"
+      "enter_to_send_browser",
+      "voice_input_browser"
     ],
     "knowledge": [
       "r24_5c_knowledge_live"

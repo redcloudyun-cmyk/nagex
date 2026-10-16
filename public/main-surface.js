@@ -874,7 +874,7 @@
     });
   }
 
-  function setComposerNotice(message, tone) {
+  function setComposerNotice(message, tone, raw) {
     const notice = document.getElementById('main-composer-notice');
     if (!notice) return;
     if (!message) {
@@ -885,7 +885,8 @@
     }
     notice.hidden = false;
     notice.dataset.tone = tone || 'info';
-    notice.textContent = localizeAppText(message);
+    // raw: the text is already in the screen language and complete (a translated sentence plus a platform hint) - looking it up again could match the sentence alone and drop the hint
+    notice.textContent = raw ? message : localizeAppText(message);
   }
 
   // Inline prompt inside the composer notice: message plus choices. Used for voice-processing consent.
@@ -951,6 +952,12 @@
     const input = document.getElementById('main-surface-input');
     const send = document.getElementById('main-send');
     const prompt = input ? input.value.trim() : '';
+    if (state.voiceAdapter && state.voiceAdapter.isActive()) {
+      // the same handler for Enter and the button: stop recording, let the person read what was heard, and send only on the next press
+      if (state.voiceMode === 'DICTATION') setComposerNotice(bt('mainVoice.stopFirst', 'Recording stopped. Check the text, then press Enter or Send.'), 'info');
+      await state.voiceAdapter.stop();
+      return;
+    }
     if (!prompt || state.busy) return;
     setComposerNotice('');
     state.busy = true;
@@ -1684,7 +1691,29 @@
     return fallback || 'Voice ready';
   }
 
+  // The language the microphone listens in: the language of the screen (Korean or English)
+  function voiceLang() {
+    return window.NAGEX_I18N && window.NAGEX_I18N.getLocale && window.NAGEX_I18N.getLocale() === 'ko' ? 'ko-KR' : 'en-US';
+  }
+
+  // A truthful way to still talk when the browser cannot listen: the operating system's own dictation, named as what it is (nothing here presses a key or opens a program).
+  function voiceFallbackHint() {
+    const ua = (navigator.userAgent || '') + ' ' + ((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '');
+    if (/Android|iPhone|iPad|iPod/i.test(ua)) return ' ' + bt('mainVoice.hintTouch', 'You can also tap the microphone key on your keyboard.');
+    if (/Windows|Win32|Win64/i.test(ua)) return ' ' + bt('mainVoice.hintWindows', 'You can also use Windows voice typing: click in the box and press Win + H.');
+    if (/Mac/i.test(ua)) return ' ' + bt('mainVoice.hintApple', 'You can also use your system dictation in this box (turn it on in the keyboard settings).');
+    return '';
+  }
+
   function userVoiceFailureMessage(result) {
+    const hint = voiceFallbackHint();
+    if (result && (result.reason === 'NO_MICROPHONE' || result.reason === 'audio-capture')) return bt('mainVoice.noMicrophone', 'No microphone was found. Connect one, or type your request.') + hint;
+    if (result && result.reason === 'MICROPHONE_BUSY') return bt('mainVoice.micBusy', 'The microphone is in use by another app. Close it and try again, or type your request.') + hint;
+    if (result && (result.state === 'UNAVAILABLE' || result.reason === 'PROVIDER_UNKNOWN' || result.reason === 'DESKTOP_RUNTIME_NO_STT' || result.reason === 'LOCAL_PROCESSING_NOT_VERIFIED')) return localizeAppText(voiceFailureMessage(result)) + hint;
+    return localizeAppText(voiceFailureMessage(result));
+  }
+
+  function voiceFailureMessage(result) {
     if (!result) return 'Voice input did not start. Try again or type your request.';
     if (result.state === 'PERMISSION_DENIED') {
       return 'Microphone permission is blocked. Enable microphone access in the browser and try again.';
@@ -1726,7 +1755,7 @@
         label: 'Install on-device speech',
         action: async () => {
           setComposerNotice('Downloading the on-device speech model. No audio is sent.', 'info');
-          const installed = await window.NAGEX_RENDERER_VOICE.installLocalModel('ko-KR');
+          const installed = await window.NAGEX_RENDERER_VOICE.installLocalModel(voiceLang());
           if (installed) setComposerNotice('On-device speech is ready. Press the microphone to start.', 'info');
           else setComposerNotice('On-device speech could not be installed. You can allow ' + processor.label + ' speech or type your request.', 'warning');
         },
@@ -1761,7 +1790,7 @@
     }
     if (!window.NAGEX_RENDERER_VOICE || !window.NAGEX_RENDERER_VOICE.RendererVoiceAdapter) {
       setVoiceState('ERROR', 'Unavailable');
-      setComposerNotice('Voice input is unavailable in this browser. You can type your request or try a supported browser.', 'error');
+      setComposerNotice(localizeAppText('Voice input is unavailable in this browser. You can type your request or try a supported browser.') + voiceFallbackHint(), 'error', true);
       return;
     }
     setComposerNotice('');
@@ -1795,7 +1824,7 @@
       },
       onTranscript: ({ finalTranscript, interimTranscript }) => {
         const current = document.getElementById('main-surface-input');
-        if (!current) return;
+        if (!current || current.dataset.voiceFrozen === '1') return;
         const hasVoiceBase = Object.prototype.hasOwnProperty.call(current.dataset, 'voiceBase');
         const base = hasVoiceBase ? current.dataset.voiceBase : current.value;
         current.value = [base, finalTranscript, interimTranscript].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
@@ -1803,7 +1832,7 @@
       },
     });
     const result = await state.voiceAdapter.start({
-      lang: 'ko-KR',
+      lang: voiceLang(),
       continuous: mode === 'SESSION',
       session: {
         mode,
@@ -1812,7 +1841,7 @@
         revisionTarget: state.revisionTarget,
       },
     });
-    if (input) delete input.dataset.voiceBase;
+    if (input) { delete input.dataset.voiceBase; delete input.dataset.voiceFrozen; }
     state.voiceMode = null;
     state.voiceProcessor = null;
     if (result.state === 'COMPLETED' && result.transcript) {
@@ -1838,7 +1867,7 @@
       }
       setVoiceState('IDLE', result.reason === 'no-speech' || result.reason === 'NO_TRANSCRIPT' ? 'Try again' : 'cancelled');
       if (result.reason === 'no-speech' || result.reason === 'NO_TRANSCRIPT') {
-        setComposerNotice(userVoiceFailureMessage(result), 'warning');
+        setComposerNotice(userVoiceFailureMessage(result), 'warning', true);
       } else {
         setComposerNotice('');
       }
@@ -1846,7 +1875,7 @@
     }
     if (result.state === 'PERMISSION_DENIED' || result.state === 'UNAVAILABLE' || result.state === 'ERROR') {
       setVoiceState('ERROR', userVoiceStatus(result.reason, 'Unavailable'));
-      setComposerNotice(userVoiceFailureMessage(result), 'error');
+      setComposerNotice(userVoiceFailureMessage(result), 'error', true);
     }
   }
 
@@ -2380,6 +2409,16 @@
         state.voiceAdapter.cancel();
       }
     });
+    // dictation ends when the person types, leaves the screen or the page goes away: no microphone is left open
+    input?.addEventListener('beforeinput', () => {
+      if (state.voiceAdapter && state.voiceAdapter.isActive() && state.voiceMode === 'DICTATION') {
+        input.dataset.voiceFrozen = '1';
+        state.voiceAdapter.stop();
+      }
+    });
+    const stopVoiceCapture = () => { if (state.voiceAdapter && state.voiceAdapter.isActive()) state.voiceAdapter.cancel(); };
+    window.addEventListener('pagehide', stopVoiceCapture);
+    window.addEventListener('hashchange', () => { if (location.hash && location.hash !== '#home') stopVoiceCapture(); });
     document.getElementById('main-mic')?.addEventListener('click', () => startVoiceRecognition('DICTATION'));
     document.getElementById('main-voice')?.addEventListener('click', () => startVoiceRecognition('SESSION'));
     // Enter sends - through the very same handler as the Send button (no second path). Shift+Enter is a new line. Enter that confirms an IME composition (Korean, Japanese, Chinese) is never a send.
@@ -2399,6 +2438,8 @@
       if (!withModifier && touchFirst()) return;
       event.preventDefault();
       if (event.repeat) return;
+      // while recording, Enter is the same as the Send button: stop recording and keep the text for review
+      if (state.voiceAdapter && state.voiceAdapter.isActive()) { sendRequest(); return; }
       if (!input.value.trim()) return;
       if (state.busy) { setComposerNotice(bt('mainComposer.busy', 'NAgex is still working on your last request.'), 'busy'); return; }
       sendRequest();
