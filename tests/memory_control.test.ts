@@ -172,7 +172,8 @@ describe('secrets are never stored as memory - said in English or Korean', () =>
     for (const fine of ['the password is required to log in', 'I forgot my password', 'password managers are great', 'my pin number is on the card', 'update the api key rotation policy', 'access token expires after an hour']) {
       assert.doesNotThrow(() => e.proposeMemory('PERSONAL', T, U, { subject: 'User Preference', predicate: 'preference', value: fine }, undefined, { type: 'FACT', userConfirmed: true, distinctFact: true }), fine);
     }
-    assert.equal(e.listMemories(T, U).some((m) => /hunter2|sk-abc|4821|a1b2c3d4e5|abc123def/.test(JSON.stringify(m))), false);
+    // what was said is what is checked: the memory's random id (mem_<hex>) can contain "4821" by chance, so the whole record is not searched
+    assert.equal(e.listMemories(T, U).some((m) => /hunter2|sk-abc|4821|a1b2c3d4e5|abc123def/.test(JSON.stringify(m.content))), false);
   });
   it('said in a conversation ("기억해줘"), a secret is not captured', () => {
     const { engine: e } = engine();
