@@ -323,8 +323,8 @@
  *  agent task     the same stream, with real plan/step/approval blocks and the result panel beside it
  */
 .nagex-main-surface:not(.has-result) .nagex-main-left {
-  width: min(1120px, 100%);
-  max-width: 1120px;
+  width: min(960px, 100%);
+  max-width: 960px;
 }
 
 .main-hero-row {
@@ -1824,3 +1824,25 @@
   :root:not([data-theme="light"]) .main-diff-fold { background: #1a2436; color: #9fb0cc; }
   :root:not([data-theme="light"]) .main-diff-slide { border-color: #2c3b57; }
 }
+
+/* AI trust notice: always directly under the request box (idle, writing, waiting, finished, failed), small, grey, centred. It is part of the screen's template - there is nothing to close or hide. */
+.main-trust-notice {
+  margin: calc(6px - var(--nagex-gap-card, 16px)) 0 0;
+  padding: 0 8px;
+  text-align: center;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: #667085;
+  overflow-wrap: anywhere;
+}
+
+.nagex-main-surface[data-session-state="CONVERSATION"] .main-trust-notice,
+.nagex-main-surface[data-session-state="RESULT"] .main-trust-notice {
+  order: 4;
+  flex: 0 0 auto;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .main-trust-notice { color: #9aa7bd; }
+}
+:root[data-theme="dark"] .main-trust-notice { color: #9aa7bd; }

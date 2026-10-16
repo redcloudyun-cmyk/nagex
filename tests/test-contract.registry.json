@@ -6645,6 +6645,22 @@
       "assertionIntent": "Microsoft is sign-in only and says so: a Microsoft sign-in calls exactly the token and OIDC userinfo endpoints and keeps none of the tokens it received (nothing on disk, nothing returned to the browser); an existing password account is never linked by an e-mail Microsoft did not verify (link-required, no session, nothing linked); the connections API never reports Microsoft as connected and connect-style actions answer not-supported (501) instead of success; Outlook, OneDrive / SharePoint and Teams are PLANNED in the catalog and no brokered capability belongs to Microsoft. When a Graph capability is really added this test must change in the same commit.",
       "notes": "Scripted Microsoft endpoints, real route handlers and stores; no Microsoft account, application registration or network is involved. LIVE_E2E is BLOCKED by design (no credentials may be registered)."
     },
+    "enter_to_send_browser": {
+      "milestone": "UI-ENTER-TRUST-NOTICE",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Enter in the Main box sends through the very same handler as the Send button (same requests, same turn), Shift+Enter is a new line, the Enter that confirms a Korean IME composition never sends (real CDP composition, isComposing / keyCode 229 / compositionend-first signals), an empty or blank box sends nothing and adds no line, five quick Enters and a held key send once, a request in flight is not sent twice and the person is told, a failed request keeps its words in the box, an action request sent with Enter is only a plan preview (no approval or execution call); on a touch-first phone the virtual keyboard Enter is a new line and the Send button sends; the AI trust notice (canonical KR/EN copy) sits directly under the box once - idle, running, finished and failed - small, grey and centred, follows the language switch, has nothing to dismiss and clears the bottom navigation at 360/390/430px; the conversation stream and the box share one centred column of at most 960px at 1280 and 1920px.",
+      "notes": "Production server in-process with disposable signed-in users; chat and plan endpoints stubbed behind the real routing decision; no model, no network.",
+      "writesRepositoryArtifacts": false
+    },
     "memory_supersession": {
       "milestone": "SPRINT03-MEMORY-SUPERSESSION",
       "classification": "CANONICAL_BEHAVIOR",
