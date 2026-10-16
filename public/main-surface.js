@@ -147,6 +147,7 @@
               <div class="main-composer-notice" id="main-composer-notice" role="status" aria-live="polite" hidden></div>
             </div>
           </section>
+          <p class="main-trust-notice" id="main-trust-notice" role="note" data-i18n="mainTrust.notice">AI responses and actions may contain errors. Review important decisions and results.</p>
           <div class="main-conversation-bar" id="main-conversation-bar">
             <button type="button" class="main-tool-btn main-myday-toggle" id="main-myday-toggle" aria-expanded="false" aria-controls="main-home-briefing">My Day</button>
             <button type="button" class="main-tool-btn" id="main-new-conversation" hidden>New conversation</button>
@@ -515,6 +516,7 @@
     if (!turn || !turn.el.isConnected || turn.prompt !== prompt) turn = beginTurn(prompt);
     if (!turn) return;
     turn.kind = turnKindFor(status);
+    turn.status = status;
     turn.el.dataset.kind = turn.kind;
     const statusEl = turn.el.querySelector('.main-message-status');
     if (statusEl) { statusEl.textContent = localizeAppText(status); statusEl.dataset.status = status; }
@@ -974,10 +976,26 @@
     try {
       await dispatchMainRequest(prompt, metadata);
       offerRetryAfterFailure(prompt);
+    } catch (error) {
+      showThread(prompt, 'Error', bt('mainError.requestFailedTitle', 'NAgex could not finish this request'), bt('mainError.requestFailedBody', 'Something went wrong while handling this request. Your request is still in the box.'), [
+        { state: 'done', label: 'Request captured', detail: '' },
+        { state: 'running', label: bt('mainError.requestFailedStep', 'Request failed'), detail: '' },
+      ]);
     } finally {
       state.busy = false;
       if (send) send.disabled = false;
+      keepRequestAfterFailure(prompt);
+      const notice = document.getElementById('main-composer-notice');
+      if (notice && notice.dataset.tone === 'busy') setComposerNotice('');
     }
+  }
+
+  // A request that did not work is not lost: its words go back into the box (only when the box is empty - anything newer the person typed meanwhile stays) so it can be sent again or edited.
+  function keepRequestAfterFailure(prompt) {
+    const turn = state.activeTurn;
+    if (!turn || turn.prompt !== prompt || (turn.status !== 'Error' && turn.status !== 'Unavailable')) return;
+    const input = document.getElementById('main-surface-input');
+    if (input && !input.value.trim()) { input.value = prompt; autoGrow(input); }
   }
 
   // A request that ended in an error/unavailable notice can be put back in the composer with one click.
@@ -2364,8 +2382,26 @@
     });
     document.getElementById('main-mic')?.addEventListener('click', () => startVoiceRecognition('DICTATION'));
     document.getElementById('main-voice')?.addEventListener('click', () => startVoiceRecognition('SESSION'));
+    // Enter sends - through the very same handler as the Send button (no second path). Shift+Enter is a new line. Enter that confirms an IME composition (Korean, Japanese, Chinese) is never a send.
+    // An empty box and a held key send nothing, and a request in flight is not sent twice. On a touch-first device the virtual keyboard's Enter key is a new line and the Send button sends.
+    let composing = false;
+    let compositionEndedAt = 0;
+    const touchFirst = () => !!(window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)').matches);
+    if (input) input.setAttribute('enterkeyhint', touchFirst() ? 'enter' : 'send');
+    input?.addEventListener('compositionstart', () => { composing = true; });
+    input?.addEventListener('compositionend', () => { composing = false; compositionEndedAt = Date.now(); });
     input?.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && !event.isComposing) sendRequest();
+      if (event.key !== 'Enter') return;
+      // the key that confirms an IME composition: some browsers report it as isComposing, some as keyCode 229, Safari fires compositionend first
+      if (event.isComposing || composing || event.keyCode === 229 || Date.now() - compositionEndedAt < 80) return;
+      if (event.shiftKey || event.altKey) return;
+      const withModifier = event.ctrlKey || event.metaKey;
+      if (!withModifier && touchFirst()) return;
+      event.preventDefault();
+      if (event.repeat) return;
+      if (!input.value.trim()) return;
+      if (state.busy) { setComposerNotice(bt('mainComposer.busy', 'NAgex is still working on your last request.'), 'busy'); return; }
+      sendRequest();
     });
     document.getElementById('main-attach')?.addEventListener('click', () => document.getElementById('main-file-input')?.click());
     document.getElementById('main-file-input')?.addEventListener('change', (event) => uploadFile(event.target.files && event.target.files[0]));

@@ -162,7 +162,10 @@ describe('Unified Main workspace', () => {
     const composer = await box(page, '.main-composer-card');
     const canvas = await box(page, 'main.center-canvas');
     assert.ok(thread.bottom <= composer.top + 1, 'the stream is above the composer');
-    assert.ok(canvas.bottom - composer.bottom < 40, `the composer sits at the bottom (gap ${Math.round(canvas.bottom - composer.bottom)}px)`);
+    // the AI trust notice is the last line under the box (it is always shown there), so the bottom of the workspace is the notice's
+    const notice = await box(page, '#main-trust-notice');
+    assert.ok(notice.top >= composer.bottom - 1 && notice.top - composer.bottom < 32, 'the trust notice sits directly under the composer');
+    assert.ok(canvas.bottom - notice.bottom < 40, `the composer and its notice sit at the bottom (gap ${Math.round(canvas.bottom - notice.bottom)}px)`);
     assert.ok(composer.bottom <= 900 + 0.5);
 
     // a plain answer is just the answer: no agent dashboard, no internal routing identifiers
