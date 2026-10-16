@@ -145,6 +145,20 @@ export class LocalDeviceAgentRuntime {
     }
   }
 
+  // A report on a command this device took on. A few bounded attempts (the connection may be mid-reconnect); it never throws - a report that could not be delivered is returned as false.
+  public async reportCommand(commandId: string, executionId: string | null, stage: 'EXECUTING' | 'COMPLETED' | 'FAILED', resultCode: string, evidence: Record<string, unknown>): Promise<boolean> {
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      if (this.client) {
+        try {
+          await this.client.reportCommand(commandId, executionId, stage, resultCode, evidence);
+          return true;
+        } catch { /* try again */ }
+      }
+      await new Promise((resolve) => setTimeout(resolve, 250 * 2 ** attempt));
+    }
+    return false;
+  }
+
   // Section 7 — sleep/suspend must never assume the connection survives:
   // stop the timer and disconnect now, rather than letting a stale timer
   // fire into a suspended OS state.

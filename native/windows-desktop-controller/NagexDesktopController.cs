@@ -60,9 +60,23 @@ namespace NagexDesktopController
         public const uint DESKTOP_CREATEWINDOW = 0x0002, DESKTOP_ENUMERATE = 0x0040, DESKTOP_READOBJECTS = 0x0001, DESKTOP_WRITEOBJECTS = 0x0080;
     }
 
+    // One element of the application window, named by what it is (see DesktopWorker.cs). Passed through to the worker unchanged.
+    internal class SelectorDto
+    {
+        public string automationId;
+        public string name;
+        public string[] names;
+        public string className;
+        public string controlType;
+    }
+
     internal class NodeCommand
     {
-        public string cmd; // INIT | OPEN_APP | OBSERVE | MUTATE | CLOSE_APP | CANCEL | SHUTDOWN
+        public string cmd; // INIT | OPEN_APP | OBSERVE | MUTATE | DIALOG | CLOSE_APP | CLOSE_DISCARD | CANCEL | SHUTDOWN
+        public string mode; // INIT / OPEN_APP: ISOLATED (default) | INTERACTIVE
+        public string expectClass, expectImage; // OPEN_APP INTERACTIVE
+        public string dialogAction; // DIALOG: SET_FILENAME | PRESS
+        public SelectorDto selector; // OBSERVE / MUTATE
         public string requestId;
         public string appExePath, appArgs;
         public string pattern; // MUTATE only: SET_VALUE|INVOKE|TOGGLE|SELECT|SCROLL
@@ -122,13 +136,24 @@ namespace NagexDesktopController
                             HandleInit(cmd, workerExe);
                             break;
                         case "OPEN_APP":
-                            ForwardToWorker(new { protocolVersion = ProtocolVersion, token = _workerToken, nonce = Guid.NewGuid().ToString("N"), requestId = cmd.requestId, action = "OPEN_APP", appExePath = cmd.appExePath, appArgs = cmd.appArgs });
+                            ForwardToWorker(new { protocolVersion = ProtocolVersion, token = _workerToken, nonce = Guid.NewGuid().ToString("N"), requestId = cmd.requestId, action = "OPEN_APP", appExePath = cmd.appExePath, appArgs = cmd.appArgs, mode = cmd.mode, expectClass = cmd.expectClass, expectImage = cmd.expectImage });
                             break;
                         case "OBSERVE":
-                            ForwardToWorker(new { protocolVersion = ProtocolVersion, token = _workerToken, nonce = Guid.NewGuid().ToString("N"), requestId = cmd.requestId, action = "OBSERVE", target = cmd.target });
+                            ForwardToWorker(new { protocolVersion = ProtocolVersion, token = _workerToken, nonce = Guid.NewGuid().ToString("N"), requestId = cmd.requestId, action = "OBSERVE", target = cmd.target, selector = cmd.selector });
                             break;
                         case "MUTATE":
-                            ForwardToWorker(new { protocolVersion = ProtocolVersion, token = _workerToken, nonce = Guid.NewGuid().ToString("N"), requestId = cmd.requestId, action = cmd.pattern, target = cmd.target, value = cmd.value });
+                            ForwardToWorker(new { protocolVersion = ProtocolVersion, token = _workerToken, nonce = Guid.NewGuid().ToString("N"), requestId = cmd.requestId, action = cmd.pattern, target = cmd.target, value = cmd.value, selector = cmd.selector });
+                            break;
+                        case "DIALOG":
+                            if (cmd.dialogAction != "SET_FILENAME" && cmd.dialogAction != "PRESS")
+                            {
+                                Reply(new NodeResponse { requestId = cmd.requestId, status = "ERR", errorCode = "UNKNOWN_DIALOG_ACTION" });
+                                break;
+                            }
+                            ForwardToWorker(new { protocolVersion = ProtocolVersion, token = _workerToken, nonce = Guid.NewGuid().ToString("N"), requestId = cmd.requestId, action = cmd.dialogAction == "SET_FILENAME" ? "DIALOG_SET_FILENAME" : "DIALOG_PRESS", value = cmd.value });
+                            break;
+                        case "CLOSE_DISCARD":
+                            ForwardToWorker(new { protocolVersion = ProtocolVersion, token = _workerToken, nonce = Guid.NewGuid().ToString("N"), requestId = cmd.requestId, action = "CLOSE_DISCARD" });
                             break;
                         case "CLOSE_APP":
                             ForwardToWorker(new { protocolVersion = ProtocolVersion, token = _workerToken, nonce = Guid.NewGuid().ToString("N"), requestId = cmd.requestId, action = "CLOSE_APP" });
@@ -156,26 +181,29 @@ namespace NagexDesktopController
 
         private static void HandleInit(NodeCommand cmd, string workerExe)
         {
+            bool interactive = cmd.mode == "INTERACTIVE";
             string desktopName = "NagexExecution-" + Guid.NewGuid().ToString("N").Substring(0, 12);
             string pipeName = "NagexExecPipe-" + Guid.NewGuid().ToString("N").Substring(0, 12);
             _workerToken = Guid.NewGuid().ToString("N");
 
             uint access = NativeMethods.DESKTOP_CREATEWINDOW | NativeMethods.DESKTOP_ENUMERATE | NativeMethods.DESKTOP_READOBJECTS | NativeMethods.DESKTOP_WRITEOBJECTS;
-            _hDesktop = NativeMethods.CreateDesktop(desktopName, IntPtr.Zero, IntPtr.Zero, 0, access, IntPtr.Zero);
-            if (_hDesktop == IntPtr.Zero)
+            // INTERACTIVE: the application cannot run on a hidden desktop (a packaged Windows application is activated on the user's desktop), so no desktop is created and the worker runs on this
+            // process's own - the user's. The worker then identifies the application's window by handle, never by process id.
+            if (!interactive) _hDesktop = NativeMethods.CreateDesktop(desktopName, IntPtr.Zero, IntPtr.Zero, 0, access, IntPtr.Zero);
+            if (!interactive && _hDesktop == IntPtr.Zero)
             {
                 Reply(new NodeResponse { requestId = cmd.requestId, status = "ERR", errorCode = "DESKTOP_CREATE_FAILED" });
                 return;
             }
 
-            var si = new NativeMethods.STARTUPINFO { cb = Marshal.SizeOf(typeof(NativeMethods.STARTUPINFO)), lpDesktop = desktopName };
+            var si = new NativeMethods.STARTUPINFO { cb = Marshal.SizeOf(typeof(NativeMethods.STARTUPINFO)), lpDesktop = interactive ? null : desktopName };
             NativeMethods.PROCESS_INFORMATION pi;
             var cmdLine = new StringBuilder("\"" + workerExe + "\" " + pipeName + " " + _workerToken, 1024);
             bool created = NativeMethods.CreateProcess(workerExe, cmdLine, IntPtr.Zero, IntPtr.Zero, false, 0, IntPtr.Zero, Path.GetDirectoryName(workerExe), ref si, out pi);
             if (!created)
             {
                 Reply(new NodeResponse { requestId = cmd.requestId, status = "ERR", errorCode = "WORKER_CREATE_FAILED" });
-                NativeMethods.CloseDesktop(_hDesktop);
+                if (_hDesktop != IntPtr.Zero) NativeMethods.CloseDesktop(_hDesktop);
                 _hDesktop = IntPtr.Zero;
                 return;
             }

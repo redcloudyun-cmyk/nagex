@@ -12,9 +12,12 @@
 //
 // This class never touches Win32 APIs directly and never uses SendInput —
 // it only ever forwards the bounded action vocabulary (OPEN_APP/
-// CLOSE_APP/OBSERVE/SET_VALUE/INVOKE/TOGGLE/SELECT/SCROLL/CANCEL/
-// SHUTDOWN) and maps native responses onto NAgex's own truthful status
-// vocabulary. It is not an authorization system: every call here is made
+// CLOSE_APP/OBSERVE/SET_VALUE/INVOKE/TOGGLE/SELECT/SCROLL/EXPAND/CANCEL/
+// SHUTDOWN, plus the file-dialog primitives DIALOG_SET_FILENAME / DIALOG_PRESS
+// and the failure clean-up CLOSE_DISCARD) and maps native responses onto
+// NAgex's own truthful status vocabulary. The mode is ISOLATED (a hidden
+// desktop) or INTERACTIVE (the user's desktop, for applications that cannot
+// run hidden). It is not an authorization system: every call here is made
 // only after DesktopControlService has already validated tenant/owner/
 // device/session/policy/approval/allowlist — this class trusts its own
 // caller within the process, exactly as the worker trusts this class.
@@ -35,6 +38,26 @@ export type DesktopMutationStatus =
   | 'CLOSE_UNSAFE'
   | 'CANCELLED'
   | 'ERR';
+
+export type DesktopMode = 'ISOLATED' | 'INTERACTIVE';
+
+/** One element of the application window, named by what it is. Exactly one match is required to act on it. */
+export interface DesktopElementSelector {
+  automationId?: string;
+  name?: string;
+  /** any of these accessible names: the same control under several display languages */
+  names?: string[];
+  className?: string;
+  controlType?: 'Document' | 'MenuItem' | 'Button' | 'Edit' | 'Window' | 'Text' | 'Pane';
+}
+
+export interface DesktopOpenAppOptions {
+  mode?: DesktopMode;
+  /** INTERACTIVE: the window class the application's window must have */
+  expectClass?: string;
+  /** INTERACTIVE: a file name the owning process image must contain */
+  expectImage?: string;
+}
 
 export interface DesktopWorkerResult {
   requestId: string | null;
@@ -75,7 +98,7 @@ export class WindowsIsolatedDesktopController {
     }
   }
 
-  public async init(executionSessionId: string): Promise<DesktopWorkerResult> {
+  public async init(executionSessionId: string, mode: DesktopMode = 'ISOLATED'): Promise<DesktopWorkerResult> {
     if (this.sessions.has(executionSessionId)) {
       throw new Error(`WindowsIsolatedDesktopController: session ${executionSessionId} already initialized`);
     }
@@ -93,24 +116,44 @@ export class WindowsIsolatedDesktopController {
       }
     });
 
-    return this.send(executionSessionId, { cmd: 'INIT', requestId: 'init' });
+    return this.send(executionSessionId, { cmd: 'INIT', requestId: 'init', ...(mode === 'INTERACTIVE' ? { mode } : {}) });
   }
 
-  public async openApp(executionSessionId: string, appExePath: string, appArgs: string): Promise<DesktopWorkerResult> {
-    return this.send(executionSessionId, { cmd: 'OPEN_APP', requestId: this.newRequestId(), appExePath, appArgs });
+  public async openApp(executionSessionId: string, appExePath: string, appArgs: string, options: DesktopOpenAppOptions = {}): Promise<DesktopWorkerResult> {
+    return this.send(executionSessionId, {
+      cmd: 'OPEN_APP', requestId: this.newRequestId(), appExePath, appArgs,
+      ...(options.mode === 'INTERACTIVE' ? { mode: 'INTERACTIVE', expectClass: options.expectClass, expectImage: options.expectImage } : {}),
+    });
   }
 
-  public async observe(executionSessionId: string, target: string): Promise<DesktopWorkerResult> {
-    return this.send(executionSessionId, { cmd: 'OBSERVE', requestId: this.newRequestId(), target });
+  /** `target` is an AutomationId; '@window' reads the title of the window this execution opened; a selector replaces the target */
+  public async observe(executionSessionId: string, target: string, selector?: DesktopElementSelector): Promise<DesktopWorkerResult> {
+    return this.send(executionSessionId, { cmd: 'OBSERVE', requestId: this.newRequestId(), target, ...(selector ? { selector } : {}) });
   }
 
   public async mutate(
     executionSessionId: string,
-    pattern: 'SET_VALUE' | 'INVOKE' | 'TOGGLE' | 'SELECT' | 'SCROLL',
+    pattern: 'SET_VALUE' | 'INVOKE' | 'TOGGLE' | 'SELECT' | 'SCROLL' | 'EXPAND',
     target: string,
-    value?: string
+    value?: string,
+    selector?: DesktopElementSelector
   ): Promise<DesktopWorkerResult> {
-    return this.send(executionSessionId, { cmd: 'MUTATE', requestId: this.newRequestId(), pattern, target, value });
+    return this.send(executionSessionId, { cmd: 'MUTATE', requestId: this.newRequestId(), pattern, target, value, ...(selector ? { selector } : {}) });
+  }
+
+  /** The full path goes into the open file dialog's file-name box (entered and read back inside the native worker). */
+  public async dialogSetFilename(executionSessionId: string, absolutePath: string): Promise<DesktopWorkerResult> {
+    return this.send(executionSessionId, { cmd: 'DIALOG', requestId: this.newRequestId(), dialogAction: 'SET_FILENAME', value: absolutePath });
+  }
+
+  /** SAVE / CANCEL press the dialog's own buttons; NO answers its "replace the file?" prompt. */
+  public async dialogPress(executionSessionId: string, which: 'SAVE' | 'CANCEL' | 'NO'): Promise<DesktopWorkerResult> {
+    return this.send(executionSessionId, { cmd: 'DIALOG', requestId: this.newRequestId(), dialogAction: 'PRESS', value: which });
+  }
+
+  /** Failure clean-up of the window this execution opened: close it and answer "do not save" to the application's question. */
+  public async closeDiscard(executionSessionId: string): Promise<DesktopWorkerResult> {
+    return this.send(executionSessionId, { cmd: 'CLOSE_DISCARD', requestId: this.newRequestId() });
   }
 
   public async closeApp(executionSessionId: string): Promise<DesktopWorkerResult> {

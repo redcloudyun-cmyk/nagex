@@ -6,6 +6,10 @@ import type { DeviceIdentityStore } from './device-identity.store.js';
 import type { DevicePendingCommand } from './device-agent-protocol.js';
 import type { DevicePendingCommandStore } from './device-pending-command.store.js';
 import { KAKAOTALK_ACCESSIBILITY_DRAFT_TOOL_ID, mobileAccessibilityDraftPayload } from '../mobile/mobile-accessibility-approval.service.js';
+import {
+  DESKTOP_APP_CAPABILITY, DESKTOP_PLAN_COMMAND_VERSION, DESKTOP_PLAN_MAX_TTL_MS, DESKTOP_PLAN_OPERATION, DESKTOP_PLAN_ROUTE, DESKTOP_WRITE_SAVE_TOOL_ID,
+  desktopTextSha256, desktopWriteAndSaveApprovalPayload, validateDesktopWriteAndSave, type DesktopPlanAppId, type DesktopPlanRootAlias,
+} from './desktop-plan.types.js';
 
 export const ACCESSIBILITY_PLAN_TOOL_ID = KAKAOTALK_ACCESSIBILITY_DRAFT_TOOL_ID;
 
@@ -52,6 +56,21 @@ export interface EnqueueAccessibilityPlanInput {
   expiresAt: string;
   steps: AccessibilityPlanStepInput[];
   budget?: Record<string, unknown>;
+}
+
+export interface EnqueueDesktopWriteAndSaveInput {
+  tenantId: string;
+  principalId: string;
+  requestId: string;
+  deviceId: string;
+  approvalRef: string;
+  planId: string;
+  appId: DesktopPlanAppId;
+  text: string;
+  rootAlias: DesktopPlanRootAlias;
+  fileName: string;
+  /** when the plan stops being valid; the device refuses it afterwards and the server never delivers it */
+  expiresAt: string;
 }
 
 export interface EnqueueAccessibilityPlanResult {
@@ -173,6 +192,58 @@ export class DeviceCommandService {
       expiresAt: input.expiresAt,
       requiresForeground: true,
       requiresUserPresence: true,
+    });
+    return { status: 'QUEUED', command };
+  }
+
+  // The desktop counterpart: one canonical action (write a line of text into an allowlisted application's document and save it under a name in an allowlisted folder) for ONE of the person's devices.
+  // Nothing about HOW the device does it travels here - no UI steps, no program path, no keystrokes. The approval is consumed here, exactly once, against the payload rebuilt from these fields: a command
+  // that differs in any approved field (text, name, folder, application, device, route) is refused before anything is queued.
+  public enqueueDesktopWriteAndSave(input: EnqueueDesktopWriteAndSaveInput): EnqueueAccessibilityPlanResult {
+    const reject = (code: string, category: 'NOT_FOUND' | 'POLICY' | 'VALIDATION' | 'CONFLICT', message: string): never => {
+      throw new NagexError({ code, category, message, request_id: input.requestId });
+    };
+    const device = this.devices.getOwned(input.deviceId, input.tenantId, input.principalId);
+    if (!device) reject('DEVICE_NOT_FOUND', 'NOT_FOUND', 'Device was not found for this tenant/user.');
+    if (device!.status !== 'ACTIVE') reject('DEVICE_NOT_ACTIVE', 'POLICY', 'Device is not active.');
+    const valid = validateDesktopWriteAndSave({ deviceId: input.deviceId, appId: input.appId, text: input.text, rootAlias: input.rootAlias, fileName: input.fileName });
+    if (!valid.ok) reject(valid.code, 'VALIDATION', valid.message);
+    // a device only advertises an application it can really drive (its native executor is present); a device that does not is not asked
+    if (!device!.capabilityInventory.includes(DESKTOP_APP_CAPABILITY[input.appId])) {
+      reject('DESKTOP_CAPABILITY_UNAVAILABLE', 'POLICY', 'This device has not reported that it can control this application.');
+    }
+    if (!input.planId.trim()) reject('DESKTOP_PLAN_ID_REQUIRED', 'VALIDATION', 'A plan id is required.');
+    const expiresAtMs = Date.parse(input.expiresAt);
+    if (!Number.isFinite(expiresAtMs) || expiresAtMs <= this.now()) reject('DESKTOP_PLAN_EXPIRED', 'POLICY', 'The plan has expired.');
+    if (expiresAtMs - this.now() > DESKTOP_PLAN_MAX_TTL_MS) reject('DESKTOP_PLAN_TTL_TOO_LONG', 'VALIDATION', 'A plan may stay valid for at most 15 minutes.');
+
+    const duplicate = this.pendingCommands.findByPlanId(input.deviceId, input.tenantId, input.principalId, input.planId, this.now());
+    if (duplicate) return { status: 'DUPLICATE_RETURNED', command: duplicate };
+    const active = this.pendingCommands.listPendingForDevice(input.deviceId, input.tenantId, input.principalId, this.now());
+    if (active.length > 0) reject('DEVICE_COMMAND_ALREADY_PENDING', 'CONFLICT', 'A pending command already exists for this device.');
+
+    const executionId = `dplan_exec_${input.planId}`;
+    const payload = desktopWriteAndSaveApprovalPayload({ deviceId: input.deviceId, appId: input.appId, text: input.text, rootAlias: input.rootAlias, fileName: input.fileName });
+    // throws APPROVAL_NOT_GRANTED / EXPIRED / ALREADY_CONSUMED / TOOL_MISMATCH / PAYLOAD_MISMATCH - each with its own code
+    this.approvals.consume(input.approvalRef, input.tenantId, input.principalId, DESKTOP_WRITE_SAVE_TOOL_ID, payload, input.requestId, executionId);
+
+    const command = this.pendingCommands.enqueue(input.deviceId, input.tenantId, input.principalId, 'DESKTOP_EXECUTE_PLAN', null, {
+      commandVersion: DESKTOP_PLAN_COMMAND_VERSION,
+      planId: input.planId,
+      executionId,
+      operation: DESKTOP_PLAN_OPERATION,
+      appId: input.appId,
+      route: DESKTOP_PLAN_ROUTE,
+      text: input.text,
+      textSha256: desktopTextSha256(input.text),
+      rootAlias: input.rootAlias,
+      fileName: input.fileName,
+      overwrite: false,
+      approvalRef: input.approvalRef,
+      deviceId: input.deviceId,
+      principalId: input.principalId,
+      tenantId: input.tenantId,
+      expiresAt: input.expiresAt,
     });
     return { status: 'QUEUED', command };
   }

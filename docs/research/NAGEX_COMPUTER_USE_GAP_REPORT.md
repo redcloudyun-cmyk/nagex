@@ -82,7 +82,7 @@
 
 | Route | Status | Note |
 |---|---|---|
-| Native Windows desktop (Notepad + verified saved file) | **MISSING / not started** | enrollment, versioned desktop command, `onPendingCommand` wiring and the native controller build are Mission B; the dev PC is not enrolled; no real-device claim is made |
+| Native Windows desktop (Notepad + verified saved file) | **PARTIAL — IMPLEMENTED_AND_REAL_E2E_PASS for one fixed recipe** | enrollment, versioned `DESKTOP_EXECUTE_PLAN`, `onPendingCommand` wiring, native controller (built, extended) and a real Notepad run that saved and verified `Documents\NAgex-Test.txt` — see `docs/evidence/NAGEX_WINDOWS_DESKTOP_CONTROL_E2E_20261016.md`. **Not** a planner-driven desktop loop; one application, one line of text, `ko-KR` verified; the Electron shell itself was not run |
 | Android via the existing Accessibility runtime | IMPLEMENTED_NOT_REAL_E2E_VERIFIED | `src/execution/mobile-app-accessibility-execution.ts` and device-agent transport exist; no real-device proof in this slice |
 | JEV Decision Intelligence (`DecisionPort`) | MISSING | not started; the existing JEV *shadow advisory* in the router is separate and unchanged |
 | Email-reply preparation / research + form entry scenarios | MISSING | Phase E scenarios 2 and 3 not yet built |

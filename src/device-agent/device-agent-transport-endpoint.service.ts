@@ -166,6 +166,23 @@ export class DeviceAgentTransportEndpoint {
           const normalizedStage = stage === 'WAITING_FOR_PRECONDITION' || stage === 'EXECUTING' || stage === 'COMPLETED' || stage === 'FAILED' ? stage : 'CLAIMED';
           const resultCode = typeof payload.data.resultCode === 'string' ? payload.data.resultCode : null;
           this.commandStatuses.report(commandId, device.tenantId, device.ownerId, device.deviceId, normalizedStage, resultCode);
+          // Evidence is accepted only for a command the SERVER queued as a desktop plan for THIS device (its own record says so - not the device's claim); every other command keeps stage + result code only.
+          const queued = this.commandStatuses.get(commandId);
+          const isDesktopPlan = Boolean(queued && queued.deviceId === device.deviceId && queued.tenantId === device.tenantId && queued.ownerId === device.ownerId && (queued.executionId ?? '').startsWith('dplan_exec_'));
+          if (isDesktopPlan) this.commandStatuses.attachEvidence(commandId, payload.data.evidence);
+          if (isDesktopPlan && normalizedStage === 'COMPLETED' && resultCode === 'DESKTOP_SAVED_VERIFIED' && this.activityStore) {
+            // only after the device itself read the saved file back and it matched what was approved
+            this.activityStore.record({
+              tenantId: device.tenantId,
+              principalId: device.ownerId,
+              type: 'desktop.document.saved',
+              title: 'Wrote and saved a document on your PC',
+              description: 'Verified on the device · Completed',
+              status: 'COMPLETED',
+              source: { executionId: typeof payload.data.executionId === 'string' ? payload.data.executionId : undefined },
+              dedupeKey: `device-command:${commandId}:DESKTOP_SAVED_VERIFIED`,
+            });
+          }
           if (normalizedStage === 'COMPLETED' && resultCode === 'SENT_VERIFIED' && this.activityStore) {
             const target = typeof payload.data.target === 'string' && payload.data.target.trim() ? payload.data.target.trim() : 'KakaoTalk';
             this.activityStore.record({
@@ -227,6 +244,11 @@ export class DeviceAgentTransportEndpoint {
           run = mobileMessages.reportSendResult(runId, device.tenantId, device.ownerId, device.deviceId, requestId, result as MobileMessageSendResult);
         }
         return { status: 'OK', commandType: 'MOBILE_MESSAGE_STATUS', result: { runId: run.runId, status: run.status } };
+      }
+
+      case 'DESKTOP_EXECUTE_PLAN': {
+        // A server-issued, approval-bound plan: an agent echoing it back is only acknowledged as received. Completion is reported by the executing device through ACK, with evidence.
+        return { status: 'OK', commandType: payload.commandType, result: { acknowledged: true, confirmation: 'DESKTOP_PLAN_NOT_COMPLETION' } };
       }
 
       case 'APP_LINK_OPEN': {

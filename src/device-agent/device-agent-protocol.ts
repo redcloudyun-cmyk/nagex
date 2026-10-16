@@ -27,7 +27,9 @@ export type DeviceAgentCommandType =
   | 'APP_LINK_OPEN'
   | 'MOBILE_MESSAGE_PREPARE' | 'MOBILE_MESSAGE_EXECUTE' | 'MOBILE_MESSAGE_STATUS'
   | 'MESSAGING_HANDOFF_AUTHORIZE' | 'MESSAGING_HANDOFF_STARTED' | 'MESSAGING_HANDOFF_UNAVAILABLE'
-  | 'ACCESSIBILITY_EXECUTE_PLAN';
+  | 'ACCESSIBILITY_EXECUTE_PLAN'
+  // a versioned desktop plan (desktop-plan.types.ts): one canonical action for the device to carry out by its own route and to report on truthfully
+  | 'DESKTOP_EXECUTE_PLAN';
 
 const VALID_COMMAND_TYPES: ReadonlySet<string> = new Set<DeviceAgentCommandType>([
   'CONNECT', 'DISCONNECT', 'HEARTBEAT', 'PING', 'SESSION_OPEN', 'SESSION_CLOSE', 'CANCEL', 'STATUS', 'ACK',
@@ -35,6 +37,7 @@ const VALID_COMMAND_TYPES: ReadonlySet<string> = new Set<DeviceAgentCommandType>
   'MOBILE_MESSAGE_PREPARE', 'MOBILE_MESSAGE_EXECUTE', 'MOBILE_MESSAGE_STATUS',
   'MESSAGING_HANDOFF_AUTHORIZE', 'MESSAGING_HANDOFF_STARTED', 'MESSAGING_HANDOFF_UNAVAILABLE',
   'ACCESSIBILITY_EXECUTE_PLAN',
+  'DESKTOP_EXECUTE_PLAN',
 ]);
 
 // Section 3 — "receive bounded command envelope... verify server-issued
