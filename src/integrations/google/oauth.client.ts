@@ -1,4 +1,5 @@
 import { NagexError } from '../../common/errors.js';
+import { OAUTH_CALLBACK_PATHS, redirectUriFor } from '../../config/public-url.js';
 
 // Scopes configured on the NAgex Google Cloud OAuth client — must match exactly
 // what was registered there, not a broader or narrower set chosen independently.
@@ -48,7 +49,7 @@ export function isAbortOrTimeout(error: unknown): boolean {
 export function readGoogleOAuthConfig(env: NodeJS.ProcessEnv = process.env): GoogleOAuthConfig | null {
   const clientId = env.GOOGLE_CLIENT_ID?.trim();
   const clientSecret = env.GOOGLE_CLIENT_SECRET?.trim();
-  const redirectUri = env.GOOGLE_REDIRECT_URI?.trim();
+  const redirectUri = redirectUriFor(env.GOOGLE_REDIRECT_URI, OAUTH_CALLBACK_PATHS.googleConnection, env);
   if (!clientId || !clientSecret || !redirectUri) return null;
   return { clientId, clientSecret, redirectUri };
 }

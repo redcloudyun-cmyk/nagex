@@ -5,6 +5,7 @@ import type { SessionStore } from '../../sessions/session.store.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
 import { sessionCookieHeader } from '../session-cookie.js';
 import type { IdentityAuditStore } from '../../identity/identity.audit.js';
+import { OAUTH_CALLBACK_PATHS, redirectUriFor } from '../../config/public-url.js';
 
 interface Deps { identityStore: IdentityStore; socialIdentityStore: SocialIdentityStore; sessionStore: SessionStore; identityAuditStore?: IdentityAuditStore }
 const pendingStates = new Map<string, { provider: SocialProvider; expiresAt: number }>();
@@ -16,10 +17,10 @@ const COOKIE = (id: string) => ({ 'Set-Cookie': sessionCookieHeader(id) });
 
 export function socialAuthProviderConfig(provider: SocialProvider, env: NodeJS.ProcessEnv = process.env): { clientId: string; clientSecret: string; redirectUri: string; authorize: string; token: string; scopes: string[] } | null {
   if (provider === 'google') {
-    const clientId = env.NAGEX_GOOGLE_LOGIN_CLIENT_ID; const clientSecret = env.NAGEX_GOOGLE_LOGIN_CLIENT_SECRET; const redirectUri = env.NAGEX_GOOGLE_LOGIN_REDIRECT_URI;
+    const clientId = env.NAGEX_GOOGLE_LOGIN_CLIENT_ID; const clientSecret = env.NAGEX_GOOGLE_LOGIN_CLIENT_SECRET; const redirectUri = redirectUriFor(env.NAGEX_GOOGLE_LOGIN_REDIRECT_URI, OAUTH_CALLBACK_PATHS.googleLogin, env);
     return clientId && clientSecret && redirectUri ? { clientId, clientSecret, redirectUri, authorize: 'https://accounts.google.com/o/oauth2/v2/auth', token: 'https://oauth2.googleapis.com/token', scopes: ['openid', 'email', 'profile'] } : null;
   }
-  const clientId = env.NAGEX_MICROSOFT_LOGIN_CLIENT_ID; const clientSecret = env.NAGEX_MICROSOFT_LOGIN_CLIENT_SECRET; const redirectUri = env.NAGEX_MICROSOFT_LOGIN_REDIRECT_URI;
+  const clientId = env.NAGEX_MICROSOFT_LOGIN_CLIENT_ID; const clientSecret = env.NAGEX_MICROSOFT_LOGIN_CLIENT_SECRET; const redirectUri = redirectUriFor(env.NAGEX_MICROSOFT_LOGIN_REDIRECT_URI, OAUTH_CALLBACK_PATHS.microsoftLogin, env);
   return clientId && clientSecret && redirectUri ? { clientId, clientSecret, redirectUri, authorize: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize', token: 'https://login.microsoftonline.com/common/oauth2/v2.0/token', scopes: ['openid', 'email', 'profile'] } : null;
 }
 

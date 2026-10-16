@@ -18,7 +18,7 @@ import { authAs } from './_s1_session_auth.js';
 // GitHub itself is replaced by a scripted fetch; everything NAgex-side (token store, connection service, broker, tool registry,
 // routes, sessions) is the production code.
 
-const config: GitHubOAuthConfig = { clientId: 'gh-cid', clientSecret: 'gh-secret', redirectUri: 'https://nagex-test.agex.site/api/v1/oauth/github/callback', scopes: ['read:user', 'repo'] };
+const config: GitHubOAuthConfig = { clientId: 'gh-cid', clientSecret: 'gh-secret', redirectUri: 'https://nagex.agex.site/api/v1/oauth/github/callback', scopes: ['read:user', 'repo'] };
 const json = (data: unknown, status = 200, headers: Record<string, string> = {}): Response => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', ...headers } });
 const timeoutError = (): Error => Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' });
 

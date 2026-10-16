@@ -17,7 +17,7 @@
 // certification evidence always comes from the real public origin:
 //
 //   NAGEX_DEPLOYED_URL       — the public browser origin (e.g.
-//                              https://nagex-test.agex.site). Chromium
+//                              https://nagex.agex.site). Chromium
 //                              ALWAYS navigates and authenticates here —
 //                              this is what makes the certification real.
 //   NAGEX_CERT_CONTROL_URL   — server-side control plane for signup/

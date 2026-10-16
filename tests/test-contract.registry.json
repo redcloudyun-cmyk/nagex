@@ -4400,7 +4400,7 @@
       "sourceImplementationAssertions": true,
       "deterministic": false,
       "assertionIntent": "non-paid, real-browser certification that a real signup->verify-email->login (R13) session cookie, issued by the browser's own login request against the public deployed origin, authenticates a native same-origin <img> request against the canonical image-serving route with zero custom identity headers, that a valid session overrides spoofed X-NAgex-Tenant/X-Principal-Id headers, and that no session is denied (404) — never calling an image-generation provider",
-      "notes": "Complements r23_7c_c_artifact_delivery_identity (deterministic, local, mocked identity) with a real-server, real-session proof. Two explicit origins: NAGEX_DEPLOYED_URL (public, e.g. https://nagex-test.agex.site) is what Chromium always navigates to and logs into — the real nagex_session cookie is issued naturally by that origin's own Set-Cookie response, never forged, never copied via context.addCookies(); NAGEX_CERT_CONTROL_URL (optional, defaults to NAGEX_DEPLOYED_URL) is a server-side loopback used ONLY for signup/verify-email on hosts where outbound Node fetch() to the public Cloudflare-fronted origin is unreliable — a control-plane cookie is never treated as browser certification evidence. Writes a deterministic local PNG fixture directly through production ImageStore under the browser-authenticated session's real tenantId/principalId (no debug/public fixture route, no hand-edited JSON), then drives real Chromium to load it as a plain <img src>. GENERATION_POST_COUNT must be 0 throughout. Never touches the historical img_93b85a5d7a103e7bdaaeff97/art_d563e825e91dbfbb1b52f8f2 evidence. Must run on the same host as the deployed nagex.service so the ImageStore fixture write lands in the directories the live server actually reads. Never runs as part of regression, browser-cert, or any implicit gate — requires NAGEX_DEPLOYED_URL.",
+      "notes": "Complements r23_7c_c_artifact_delivery_identity (deterministic, local, mocked identity) with a real-server, real-session proof. Two explicit origins: NAGEX_DEPLOYED_URL (public, e.g. https://nagex.agex.site) is what Chromium always navigates to and logs into — the real nagex_session cookie is issued naturally by that origin's own Set-Cookie response, never forged, never copied via context.addCookies(); NAGEX_CERT_CONTROL_URL (optional, defaults to NAGEX_DEPLOYED_URL) is a server-side loopback used ONLY for signup/verify-email on hosts where outbound Node fetch() to the public Cloudflare-fronted origin is unreliable — a control-plane cookie is never treated as browser certification evidence. Writes a deterministic local PNG fixture directly through production ImageStore under the browser-authenticated session's real tenantId/principalId (no debug/public fixture route, no hand-edited JSON), then drives real Chromium to load it as a plain <img src>. GENERATION_POST_COUNT must be 0 throughout. Never touches the historical img_93b85a5d7a103e7bdaaeff97/art_d563e825e91dbfbb1b52f8f2 evidence. Must run on the same host as the deployed nagex.service so the ImageStore fixture write lands in the directories the live server actually reads. Never runs as part of regression, browser-cert, or any implicit gate — requires NAGEX_DEPLOYED_URL.",
       "writesRepositoryArtifacts": true,
       "requiresEnv": [
         "NAGEX_DEPLOYED_URL"
@@ -6675,6 +6675,37 @@
       "deterministic": true,
       "assertionIntent": "The existing microphone button dictates into the canonical Main box in the language of the screen (Korean ko-KR / English en-US) through the browser speech engine and NAgex's own consent flow: nothing is recorded or even requested before the person allows the vendor to hear the audio; interim text shows while speaking, the final text stays in the box (never duplicated, added after what was already typed), the end of recognition submits nothing, and the text is edited and sent with the same Enter / Send handler as typed text; permission denied, no microphone, microphone in use and an unsupported browser each give a truthful notice (no recording is started) and name the operating system dictation as the way to still talk (Win + H on Windows, system dictation on macOS, the keyboard microphone key on phones - NAgex presses and automates nothing); repeated clicks never open a second recording, Stop keeps and Cancel / Escape discard the dictation, typing while it listens ends it and a late result never overwrites what was typed, Enter or Send while recording stop it and keep the text for review, leaving the screen releases the microphone every time; an action dictated by voice and sent with Enter is only a plan preview (no approval or execution call); the Enter that confirms a Korean IME composition after dictation sends nothing; at 360 / 390 / 430px the microphone is a touch target, the status and the consent prompt fit the screen.",
       "notes": "Production server in-process; the browser speech engine and getUserMedia are scripted so every state can be driven; no model, no network. The real-engine check (Chrome + Google speech + the PC microphone) is scripts/voice-real-browser-check.mjs and is not part of this gate.",
+      "writesRepositoryArtifacts": false
+    },
+    "public_url_config": {
+      "milestone": "CANONICAL-DOMAIN",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "The deployment address is configuration, not code: NAGEX_PUBLIC_URL is an origin (https, or http on loopback; anything else is ignored and named); the OAuth redirect URIs of Google / Microsoft sign-in, the Google Calendar / Gmail connection and GitHub, and the enterprise-SSO public base, are derived from it unless the integration has its own explicit setting, and an address alone enables nothing; the callback paths in the configuration are the paths the routes serve and the deployment README registers exactly those; the session cookie is HttpOnly + Secure + SameSite=Lax and host-only (no Domain); behind the Cloudflare tunnel the client address is the connecting address read only through a trusted proxy (a forged left entry never counts); CORS grants neither the canonical nor the legacy host; and no maintained source, script, template or test names the legacy test host or its internal port as a default.",
+      "notes": "Pure configuration functions, the real route handlers and an in-process server; the guard reads the maintained sources (sourceImplementationAssertions) so the legacy host cannot come back unnoticed. No network."
+    },
+    "canonical_domain_browser": {
+      "milestone": "CANONICAL-DOMAIN",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "In real Chromium with only NAGEX_PUBLIC_URL (https://nagex.agex.site) and the sign-in credentials configured, \"Continue with Google\" and \"Continue with Microsoft\" lead to the provider with a redirect_uri on the canonical host (identity-only scope, select_account, a state), finishing the sign-in with a scripted provider leaves a session cookie that is HttpOnly, Secure, SameSite=Lax, path / and host-only and lands the person on Main, the cookie is unreadable by script, a replayed state is refused, and nothing outside the local server (no identity provider) is contacted.",
+      "notes": "Production server in-process; the identity providers are scripted (navigation answered locally, server token calls stubbed); every outside request is blocked and listed.",
       "writesRepositoryArtifacts": false
     },
     "memory_supersession": {

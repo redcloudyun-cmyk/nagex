@@ -26,7 +26,7 @@ function jsonResponse(data: unknown, status = 200): Response {
 }
 
 const FULL_SCOPE_STRING = GOOGLE_OAUTH_SCOPES.join(' ');
-const config: GoogleOAuthConfig = { clientId: 'cid', clientSecret: 'csecret', redirectUri: 'https://nagex-test.agex.site/api/v1/oauth/google/callback' };
+const config: GoogleOAuthConfig = { clientId: 'cid', clientSecret: 'csecret', redirectUri: 'https://nagex.agex.site/api/v1/oauth/google/callback' };
 
 function harness() {
   const taskStore = new TaskStore({ dir: fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-tasks-safety-')) });

@@ -50,7 +50,7 @@ Why fallback:
 ## Required On-Screen Proof
 
 - Product name: NAgex.
-- Demo URL: https://nagex-test.agex.site
+- Demo URL: https://nagex.agex.site (the canonical NAgex service; Cloudflare Access protects it - the demo runs with an authorized Access session)
 - Provider: Nebius Token Factory.
 - Model: nvidia/Nemotron-3_5-Lightning.
 - Runtime tasks: PLAN, MEETING_PREP; optionally RESEARCH_SYNTHESIS if time allows.

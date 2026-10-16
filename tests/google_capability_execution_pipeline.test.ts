@@ -38,7 +38,7 @@ interface TestProviderResult { externalId: string; externalUrl: string }
 function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 }
-const config = { clientId: 'cid', clientSecret: 'csecret', redirectUri: 'https://nagex-test.agex.site/api/v1/oauth/google/callback' };
+const config = { clientId: 'cid', clientSecret: 'csecret', redirectUri: 'https://nagex.agex.site/api/v1/oauth/google/callback' };
 
 function testDefinition(overrides: Partial<MutationCapabilityDefinition<TestPayload>> = {}): MutationCapabilityDefinition<TestPayload> {
   return {

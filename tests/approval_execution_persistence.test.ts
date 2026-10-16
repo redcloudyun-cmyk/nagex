@@ -41,7 +41,7 @@ function validPayload(overrides: Record<string, unknown> = {}) {
   };
 }
 
-const config: GoogleOAuthConfig = { clientId: 'x', clientSecret: 'y', redirectUri: 'https://nagex-test.agex.site/api/v1/oauth/google/callback' };
+const config: GoogleOAuthConfig = { clientId: 'x', clientSecret: 'y', redirectUri: 'https://nagex.agex.site/api/v1/oauth/google/callback' };
 
 // ── approval persistence across restart ─────────────────────────────────────
 

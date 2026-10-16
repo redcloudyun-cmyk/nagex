@@ -74,7 +74,7 @@ require_command date
 
 cd "${PROJECT_DIR}"
 
-BASE="${NAGEX_BASE_URL:-http://127.0.0.1:4100}"
+BASE="${NAGEX_BASE_URL:-http://127.0.0.1:8085}"
 
 # Deterministic acceptance identities (per the governing directive, Section 4).
 TENANT_A="ten_approval_accept_a"

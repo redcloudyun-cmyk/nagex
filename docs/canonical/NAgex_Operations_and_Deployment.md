@@ -128,10 +128,10 @@ Failure behavior is fail-closed: with the secret missing, empty or unusable ever
 
 ## 7b. Trusted Proxies (client address for abuse throttling)
 
-Node reports the TCP peer as the client address. Behind a reverse proxy (the deployed chain is Cloudflare tunnel → nginx → Node on `127.0.0.1`) that peer is the proxy, so the proxy must be declared (ADR-0011):
+Node reports the TCP peer as the client address. Behind a reverse proxy (the legacy test host: Cloudflare tunnel → nginx → Node on `127.0.0.1`; the canonical host `nagex.agex.site`: Cloudflare tunnel → Node directly on `127.0.0.1:8085`) that peer is the proxy, so the proxy must be declared (ADR-0011):
 
 - `NAGEX_TRUSTED_PROXIES` — comma-separated IPs and/or CIDRs of the proxies that sit directly in front of Node, e.g. `127.0.0.1,::1` for a same-host nginx. Not a hop count; no Cloudflare range is built in. An empty, absent or invalid value trusts nothing, so `X-Forwarded-For` is ignored and the TCP peer is used.
-- The proxy hop must **append** the address it observed (nginx `proxy_add_x_forwarded_for`) and must be the only network path to Node (Node listens on `127.0.0.1`). `CF-Connecting-IP` is never read.
+- The proxy hop must **append** the address it observed (nginx `proxy_add_x_forwarded_for`; on the tunnel path Cloudflare's edge appends the connecting address, so entries to its left are ignored as forgeable) and must be the only network path to Node (Node listens on `127.0.0.1`). `CF-Connecting-IP` is never read.
 - Until it is set behind a proxy, every client shares the proxy address for the per-IP and pair throttles and the server logs one `forwarded_for_ignored_no_trusted_proxy` warning.
 - After changing it, re-verify on the public path that a forged `X-Forwarded-For` does not evade the login throttle.
 
@@ -237,7 +237,16 @@ OAUTH_CORRUPTION_REPORTED_CONNECTED = 0
 EXPIRED_APPROVAL_EXECUTABLE = 0
 ```
 
-## 16. Source Provenance
+## 16. Canonical Service Address
+
+The canonical NAgex service is `https://nagex.agex.site` (host `nagex-server`, internal API `127.0.0.1:8085`, Cloudflare Tunnel `nagex-server`, Cloudflare Access: Administrator only). The previous test endpoint `nagex-test.agex.site` (`redcloud-server`, tunnel `coregex`) is being retired; its retirement is an operator procedure that is prepared but is never executed by development work (`docs/evidence/NAGEX_LEGACY_TEST_SERVICE_RETIREMENT_PLAN_20261016.md`).
+
+- **The address is configuration.** `NAGEX_PUBLIC_URL` (an origin: https, or http for loopback) is the single setting; the OAuth redirect URIs (Google / Microsoft sign-in, the Google Calendar / Gmail connection, GitHub) and the enterprise-SSO public base are derived from it, and an integration's explicit `*_REDIRECT_URI` overrides its own. Source files do not name hosts (guarded by `tests/public_url_config.test.ts`).
+- **TLS ends at Cloudflare.** Node sees plain http from `cloudflared` on loopback; session cookies stay `HttpOnly; Secure; SameSite=Lax` and host-only (no `Domain`), so a session belongs to `nagex.agex.site` alone. A change of address means signing in again; sessions and data are not migrated by it.
+- **Cloudflare Access sits in front of NAgex's own sign-in, approvals and signed webhooks; it replaces none of them.** Telegram and Slack webhooks carry no Access session: the two paths (`POST /api/v1/integrations/telegram/webhook`, `POST /api/v1/integrations/slack/events`) need an Access Bypass and are verified by their own signature inside NAgex.
+- Install / update, the environment file, the unit, the tunnel route and the redirect URIs to register are in `deploy/nagex/` and `.env.example`.
+
+## 17. Source Provenance
 
 Consolidated from:
 

@@ -36,7 +36,7 @@ function jsonResponse(data: unknown, status = 200): Response {
 }
 
 const GRANTED_SCOPE_STRING = GOOGLE_CALENDAR_SCOPES.join(' ');
-const config: GoogleOAuthConfig = { clientId: 'cid', clientSecret: 'csecret', redirectUri: 'https://nagex-test.agex.site/api/v1/oauth/google/callback' };
+const config: GoogleOAuthConfig = { clientId: 'cid', clientSecret: 'csecret', redirectUri: 'https://nagex.agex.site/api/v1/oauth/google/callback' };
 
 function buildHarness(fetchFn: typeof fetch, now: () => number = Date.now) {
   const tokenStore = new InMemoryGoogleOAuthTokenStore();
@@ -322,7 +322,7 @@ test('full flow through the real HTTP routes: request -> approve -> cancel-event
     assert.equal(init?.method, 'DELETE');
     return new Response(null, { status: 204 });
   };
-  const testConfig: GoogleOAuthConfig = { clientId: 'x', clientSecret: 'y', redirectUri: 'https://nagex-test.agex.site/api/v1/oauth/google/callback' };
+  const testConfig: GoogleOAuthConfig = { clientId: 'x', clientSecret: 'y', redirectUri: 'https://nagex.agex.site/api/v1/oauth/google/callback' };
   const testCalendarService = new GoogleCalendarService(sharedGoogleTokenStore, sharedActionApprovals, new AuditLogger(), new MemoryEngine(), mockFetch, () => testConfig);
 
   sharedGoogleTokenStore.saveForPrincipal(LIVE_ID.tenantId, LIVE_ID.principalId, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });

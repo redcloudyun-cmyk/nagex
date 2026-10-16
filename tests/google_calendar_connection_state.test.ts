@@ -25,7 +25,7 @@ import crypto from 'node:crypto';
 // service, routes, sessions) is the production code.
 
 const CALENDAR_SCOPES = GOOGLE_CALENDAR_SCOPES.join(' ');
-const config: GoogleOAuthConfig = { clientId: 'cid', clientSecret: 'csecret', redirectUri: 'https://nagex-test.agex.site/api/v1/oauth/google/callback' };
+const config: GoogleOAuthConfig = { clientId: 'cid', clientSecret: 'csecret', redirectUri: 'https://nagex.agex.site/api/v1/oauth/google/callback' };
 const json = (data: unknown, status = 200): Response => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 const timeoutError = (): Error => Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' });
 

@@ -8,7 +8,7 @@ process.env.NAGEX_OPENAI_MODEL = process.env.NAGEX_OPENAI_MODEL || 'gpt-4o';
 // for PersonalAssistantEngine's real logic, which is what's under test.
 process.env.GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || 'test_google_client_id';
 process.env.GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || 'test_google_client_secret';
-process.env.GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'https://nagex-test.agex.site/api/v1/oauth/google/callback';
+process.env.GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'https://nagex.agex.site/api/v1/oauth/google/callback';
 
 const MEETING_ATTENDEE = 'sarah@client.example.com';
 const MEETING_START = new Date(Date.now() + 45 * 60 * 1000);

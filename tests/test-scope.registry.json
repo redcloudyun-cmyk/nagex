@@ -78,6 +78,7 @@
       "artifact_versions_browser",
       "enter_to_send_browser",
       "voice_input_browser",
+      "canonical_domain_browser",
       "calendar_reschedule_browser",
       "one_input_slides_chain_browser",
       "vault_save_approval_browser",
@@ -192,6 +193,7 @@
       "research_report",
       "artifact_versions",
       "microsoft_integration_state",
+      "public_url_config",
       "structured_output_recovery",
       "time_context",
       "schedule_grounding"
@@ -452,6 +454,8 @@
       "memory_control",
       "artifact_versions",
       "microsoft_integration_state",
+      "public_url_config",
+      "canonical_domain_browser",
       "research_source_fetcher"
     ]
   },

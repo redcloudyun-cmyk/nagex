@@ -32,8 +32,8 @@ require_command node
 
 cd "${PROJECT_DIR}"
 
-BASE="${NAGEX_BASE_URL:-http://127.0.0.1:4100}"
-PUBLIC_BASE="${NAGEX_PUBLIC_URL:-https://nagex-test.agex.site}"
+BASE="${NAGEX_BASE_URL:-http://127.0.0.1:8085}"
+PUBLIC_BASE="${NAGEX_PUBLIC_URL:-https://nagex.agex.site}"
 TENANT="${NAGEX_TEST_TENANT:-ten_production_01}"
 PRINCIPAL="${NAGEX_TEST_PRINCIPAL:-usr_admin_001}"
 
@@ -286,7 +286,7 @@ if [ -n "$SESSION_ID" ]; then
   fi
 
   # Browser SSRF Protection via Broker
-  SSRF_PAYLOAD="$(node -e 'console.log(JSON.stringify({capabilityId:"browser.navigate",payload:{browserSessionId:"'$SESSION_ID'",url:"http://127.0.0.1:4100/"}}))')"
+  SSRF_PAYLOAD="$(node -e 'console.log(JSON.stringify({capabilityId:"browser.navigate",payload:{browserSessionId:"'$SESSION_ID'",url:"'$BASE'/"}}))')"
   SSRF_RESP="$(curl -s -X POST -H "Content-Type: application/json" -H "x-nagex-tenant: ${TENANT}" -H "x-principal-id: ${PRINCIPAL}" -d "$SSRF_PAYLOAD" "${BASE}/api/v1/capabilities/execute" 2>/dev/null || echo "{}")"
   SSRF_ERR_CODE="$(json_get "$SSRF_RESP" 'data.error ? data.error.code : (data.code || "")')"
   if [ "$SSRF_ERR_CODE" = "BROWSER_UNSAFE_URL" ]; then
