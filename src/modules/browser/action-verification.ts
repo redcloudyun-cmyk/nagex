@@ -169,7 +169,12 @@ function verifyReadField(el: any, expected: string): { found: boolean; matches: 
   const tag = String(el.tagName || '').toLowerCase();
   const type = String((el.getAttribute && el.getAttribute('type')) || '').toLowerCase();
   let value: string;
-  if (tag === 'select') value = String(el.value);
+  if (tag === 'select') {
+    // a choice made by the option's value ("10") or by what the person reads ("10% (VAT)") is the same choice
+    const labels = Array.prototype.slice.call(el.selectedOptions || []).map((o: any) => String(o.text || o.label || '').replace(/\s+/g, ' ').trim());
+    value = String(el.value);
+    return { found: true, matches: value === expected || labels.indexOf(String(expected).replace(/\s+/g, ' ').trim()) >= 0, length: value.length, password: false };
+  }
   else if (tag === 'input' || tag === 'textarea') value = String(el.value);
   else value = String(el.innerText !== undefined ? el.innerText : el.textContent || '');
   return { found: true, matches: value === expected, length: value.length, password: type === 'password' };
@@ -227,6 +232,13 @@ function build(outcome: BrowserActionOutcome, basis: VerificationBasis[], input:
     ...(input.urlBefore ? { urlBefore: input.urlBefore } : {}),
     ...(input.urlAfter ? { urlAfter: input.urlAfter } : {}),
   };
+}
+
+/** The page was checked for something the Agent said it must show: shown -> VERIFIED, not shown -> FAILED (the expectation is the evidence, never a model's word). */
+export function verifyExpectation(found: boolean, urlAfter?: string): BrowserVerification {
+  return found
+    ? build('VERIFIED', ['EXPECTATION_MET'], { sideEffectPossible: false, urlAfter })
+    : build('FAILED', ['EXPECTATION_NOT_MET'], { sideEffectPossible: false, urlAfter });
 }
 
 export interface ClickVerificationInput {

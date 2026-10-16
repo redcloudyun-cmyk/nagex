@@ -33,6 +33,8 @@ export function mapDeviceActionToRisk(actionType: Exclude<DeviceActionType, 'CLI
     case 'OBSERVE':
     case 'STOP':
     case 'SCROLL':
+    case 'WAIT':
+    case 'VERIFY':
       return { risk: 'READ_ONLY', approval: 'NONE' };
 
     case 'KEYPRESS':
@@ -44,6 +46,7 @@ export function mapDeviceActionToRisk(actionType: Exclude<DeviceActionType, 'CLI
       // approval pause.
       return { risk: 'LOW', approval: 'NONE' };
 
+    case 'SELECT': // choosing an option fills a field exactly like typing: the submitting click is the consequential step
     case 'TYPE':
       // CONDITIONAL per Section 10's table, but nothing in this slice
       // escalates a TYPE to REQUIRED — filling a field is never itself

@@ -43,6 +43,8 @@ export interface RawMapElement {
   frame?: string;
   checked?: boolean;
   expanded?: boolean;
+  /** what a text field / dropdown holds right now (bounded); absent for secrets (password, one-time code), file inputs, buttons and boxes */
+  value?: string;
 }
 
 export interface ElementMapOptions {
@@ -381,6 +383,14 @@ function mapScan(args: { limit: number; query?: string; nodeBudget: number; dead
     }
     const labelText = el.labels ? mapClean(Array.from(el.labels as ArrayLike<any>).map((l: any) => mapVisibleText(l)).join(' '), 120) : '';
     const isCheckable = tag === 'input' && (type === 'checkbox' || type === 'radio');
+    // What a field holds is part of what the screen shows, so a planner can tell "empty" from "already filled". A secret is never read: a password, a one-time code, a card number, a file path.
+    let value: string | undefined;
+    if (tag === 'input' || tag === 'textarea') {
+      const secret = type === 'password' || type === 'hidden' || type === 'file' || /(one-time-code|current-password|new-password|cc-number|cc-csc)/i.test(String(el.getAttribute('autocomplete') || ''));
+      if (!secret && ['checkbox', 'radio', 'button', 'submit', 'reset', 'image'].indexOf(type) < 0) value = mapClean(el.value, 100);
+    } else if (tag === 'select') {
+      value = mapClean(Array.from((el.selectedOptions || []) as ArrayLike<any>).map((o: any) => o.text).join(', '), 100);
+    }
     out.push({
       index: out.length,
       selectors: visible ? mapSelectorsFor(el, roots) : [],
@@ -403,6 +413,7 @@ function mapScan(args: { limit: number; query?: string; nodeBudget: number; dead
       context: visible ? mapContextOf(el, name) : '',
       ...(root && root.host ? { inShadow: true } : {}),
       ...(isCheckable ? { checked: Boolean(el.checked) } : {}),
+      ...(value !== undefined && value !== '' ? { value } : {}),
       ...(el.hasAttribute('aria-expanded') ? { expanded: el.getAttribute('aria-expanded') === 'true' } : {}),
     });
   }

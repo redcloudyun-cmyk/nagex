@@ -27,6 +27,15 @@ export interface PriorDeviceActionContext {
 // allowedDomains/riskCeiling/stepNumber/remainingSteps are genuinely new
 // required model input per DC2's own Section 3, not derivable from any
 // existing field.
+// The model could not be reached right now (an outage, a timeout, rate limiting) - not an invalid answer. A task that meets it PAUSES with that reason, so the person can continue when the model is back,
+// instead of losing the work done so far.
+export class PlannerUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PlannerUnavailableError';
+  }
+}
+
 export interface ProposeNextActionInput {
   tenantId: string;
   ownerId: string;

@@ -50,6 +50,9 @@
       "browser_element_map",
       "browser_action_verification",
       "computer_use_keyboard_approval",
+      "computer_use_expectation",
+      "computer_use_invoice_e2e",
+      "browser_task_browser",
       "browser_advanced_dom",
       "browser_ambient_wiring",
       "browser_approval_ui",
@@ -347,6 +350,8 @@
       "browser_element_map",
       "browser_action_verification",
       "computer_use_keyboard_approval",
+      "computer_use_expectation",
+      "computer_use_invoice_e2e",
       "browser_advanced_dom",
       "browser_module_boundary",
       "browser_session_ownership_isolation",
@@ -455,7 +460,8 @@
       "artifact_versions",
       "artifact_versions_browser",
       "enter_to_send_browser",
-      "voice_input_browser"
+      "voice_input_browser",
+      "browser_task_browser"
     ],
     "knowledge": [
       "r24_5c_knowledge_live"
@@ -471,7 +477,8 @@
       "todo_next_actions_browser",
       "image_generation_browser",
       "video_generation_browser",
-      "research_source_fetcher"
+      "research_source_fetcher",
+      "browser_task_browser"
     ]
   },
   "fullOnly": [

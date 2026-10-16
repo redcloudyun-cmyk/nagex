@@ -180,6 +180,8 @@ export interface NagexApplication {
   imageStore: import('../creation/image.store.js').ImageStore;
   // Video jobs (Higgsfield / Veo): price, approval, submission, polling, stored MP4. Its availability is what lets the router and the capability brief offer video.
   videoJobService: import('../creation/video-job.service.js').VideoJobService;
+  // Browser tasks ("do this on that website") over the Agent loop; undefined when no planner is configured.
+  browserTaskService: import('../device-control/browser-task.service.js').BrowserTaskService | undefined;
   // R23.7C-D — the presentation runtime: executor + the store the download/viewer routes read.
   presentationStore: import('../creation/presentation.store.js').PresentationStore;
   presentationExecutor: import('../creation/executors/presentation-executor.js').PresentationExecutor;

@@ -8,10 +8,10 @@ import type { CapabilityRisk } from '../capabilities/capability.types.js';
 // Deliberately the exact primitive set DC1 actually wires end to end
 // (Section 8 — reuse existing + keypress only). STOP is the model's own
 // signal that the goal is satisfied or unreachable; it executes nothing.
-export type DeviceActionType = 'OBSERVE' | 'NAVIGATE' | 'CLICK' | 'TYPE' | 'SCROLL' | 'KEYPRESS' | 'STOP';
+export type DeviceActionType = 'OBSERVE' | 'NAVIGATE' | 'CLICK' | 'TYPE' | 'SELECT' | 'SCROLL' | 'KEYPRESS' | 'WAIT' | 'VERIFY' | 'STOP';
 
 const DEVICE_ACTION_TYPES: ReadonlySet<string> = new Set<DeviceActionType>([
-  'OBSERVE', 'NAVIGATE', 'CLICK', 'TYPE', 'SCROLL', 'KEYPRESS', 'STOP',
+  'OBSERVE', 'NAVIGATE', 'CLICK', 'TYPE', 'SELECT', 'SCROLL', 'KEYPRESS', 'WAIT', 'VERIFY', 'STOP',
 ]);
 
 export interface ProposedDeviceActionTarget {
@@ -53,7 +53,7 @@ export function isProposedDeviceAction(value: unknown): value is ProposedDeviceA
 
   // Actions that act on the page must name a selector — a CLICK/TYPE/
   // SCROLL/KEYPRESS with no target is malformed, not "act on nothing".
-  if (['CLICK', 'TYPE'].includes(v.action) && !(v.target as ProposedDeviceActionTarget | undefined)?.selector) return false;
+  if (['CLICK', 'TYPE', 'SELECT'].includes(v.action) && !(v.target as ProposedDeviceActionTarget | undefined)?.selector) return false;
   // NAVIGATE must carry its destination in `value` (the URL) — reusing
   // `value` rather than inventing a second field, mirroring how TYPE
   // reuses `value` for the text to enter.
@@ -61,6 +61,14 @@ export function isProposedDeviceAction(value: unknown): value is ProposedDeviceA
   // TYPE must carry the text to enter, even if it's an empty string —
   // `undefined`/missing is malformed, not "type nothing".
   if (v.action === 'TYPE' && typeof v.value !== 'string') return false;
+  // STOP says whether the goal is reached (value omitted or "DONE") or a person has to act ("BLOCKED": a sign-in, a verification wall, a control that is not there). Anything else is malformed.
+  if (v.action === 'STOP' && v.value !== undefined && v.value !== null && v.value !== 'DONE' && v.value !== 'BLOCKED') return false;
+  // SELECT chooses an option of a dropdown: `value` is the option's value or its visible label (never empty - choosing nothing is not a choice).
+  if (v.action === 'SELECT' && (typeof v.value !== 'string' || v.value.length === 0 || v.value.length > 200)) return false;
+  // WAIT lets a page settle: `value` is a number of milliseconds, 100-5000. Waiting is never open-ended.
+  if (v.action === 'WAIT' && !(typeof v.value === 'string' && /^\d{3,4}$/.test(v.value) && Number(v.value) >= 100 && Number(v.value) <= 5000)) return false;
+  // VERIFY states what the page must show (`value`, one short piece of text, optionally within `target.selector`); NAgex checks it against the page.
+  if (v.action === 'VERIFY' && (typeof v.value !== 'string' || v.value.trim().length === 0 || v.value.length > 300)) return false;
   // SCROLL reuses `value` for direction (mirrors how NAVIGATE/TYPE reuse
   // `value` for their own single piece of required data) — must be exactly
   // "up" or "down", never guessed.

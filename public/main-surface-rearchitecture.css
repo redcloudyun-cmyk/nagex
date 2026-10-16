@@ -1919,3 +1919,38 @@
   :root:not([data-theme="light"]) .main-video-block[data-video-state="DECLINED"], :root:not([data-theme="light"]) .main-video-block[data-video-state="CANCELLED"] { background: #1c2030; border-left-color: #8a93a8; }
   :root:not([data-theme="light"]) .main-video-facts dt, :root:not([data-theme="light"]) .main-video-note { color: #9fb0cc; }
 }
+
+/* Browser task: the card of a task done on a website */
+.main-btask-block { margin: 12px 0 4px; padding: 12px 14px; border: 1px solid #d7def0; border-left: 4px solid #3b6fd0; border-radius: 10px; background: #f6f9ff; }
+.main-btask-block[data-task-state="WAITING_APPROVAL"] { border-left-color: #b9770e; background: #fff9ee; }
+.main-btask-block[data-task-state="COMPLETED"] { border-left-color: #14633a; background: #f4fbf6; }
+.main-btask-block[data-task-state="FAILED"], .main-btask-block[data-task-state="NEEDS_PERSON"] { border-left-color: #8b1d1d; background: #fdf6f6; }
+.main-btask-block[data-task-state="CANCELLED"], .main-btask-block[data-task-state="PAUSED"] { border-left-color: #8a93a8; background: #f7f8fb; }
+.main-btask-head { display: flex; flex-direction: column; gap: 2px; }
+.main-btask-state { font-size: .95rem; }
+.main-btask-meta { color: #55637d; overflow-wrap: anywhere; }
+.main-btask-now { margin: 8px 0 0; font-size: .9rem; overflow-wrap: anywhere; }
+.main-btask-approval { margin-top: 8px; }
+.main-btask-approval-text { margin: 0 0 8px; font-size: .9rem; overflow-wrap: anywhere; }
+.main-btask-shot { display: block; width: 100%; max-height: 320px; object-fit: contain; object-position: top left; border: 1px solid #dce7f5; border-radius: 8px; background: #fff; }
+.main-btask-result { margin-top: 8px; font-size: .88rem; color: #33405b; }
+.main-btask-result p { margin: 4px 0; overflow-wrap: anywhere; }
+.main-btask-steps { margin-top: 8px; font-size: .85rem; }
+.main-btask-steps summary { cursor: pointer; color: #55637d; min-height: 28px; }
+.main-btask-steps ol { margin: 6px 0 0; padding-left: 20px; }
+.main-btask-steps li { margin: 2px 0; overflow-wrap: anywhere; }
+.main-btask-badge { padding: 0 7px; border-radius: 999px; font-size: .74rem; background: #eceffa; color: #3d4a6b; }
+.main-btask-badge.verified { background: #e1f5e8; color: #14633a; }
+.main-btask-badge.failed { background: #fde7e7; color: #8b1d1d; }
+.main-btask-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.main-btask-actions:empty { display: none; }
+.main-btask-actions .main-tool-btn { min-height: 40px; padding: 0 14px; }
+.main-btask-approve { font-weight: 600; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .main-btask-block { background: #14213b; border-color: #2a3a63; border-left-color: #7fa8ff; }
+  :root:not([data-theme="light"]) .main-btask-block[data-task-state="WAITING_APPROVAL"] { background: #2b2412; border-left-color: #e0a84a; }
+  :root:not([data-theme="light"]) .main-btask-block[data-task-state="COMPLETED"] { background: #11291a; border-left-color: #5fcf8a; }
+  :root:not([data-theme="light"]) .main-btask-block[data-task-state="FAILED"], :root:not([data-theme="light"]) .main-btask-block[data-task-state="NEEDS_PERSON"] { background: #2b1414; border-left-color: #f08a8a; }
+  :root:not([data-theme="light"]) .main-btask-block[data-task-state="CANCELLED"], :root:not([data-theme="light"]) .main-btask-block[data-task-state="PAUSED"] { background: #1c2030; border-left-color: #8a93a8; }
+  :root:not([data-theme="light"]) .main-btask-meta, :root:not([data-theme="light"]) .main-btask-result, :root:not([data-theme="light"]) .main-btask-steps summary { color: #9fb0cc; }
+}

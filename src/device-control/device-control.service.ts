@@ -25,11 +25,12 @@ import type { ActionApprovalRecord } from '../governance/action-approval.store.j
 import {
   DeviceExecutionSessionStore,
   type DeviceExecutionSessionRecord,
+  type DeviceStepLogEntry,
 } from './device-execution-session.store.js';
 import { isProposedDeviceAction, type DeviceActionType, type ProposedDeviceAction } from './device-action.types.js';
 import { mapDeviceActionToRisk } from './device-action-policy.js';
 import { ActionLoopGuard, LOOP_THRESHOLD, actionSignature, snapshotStateKey, summarizeCompletion, type StepEvidence } from './action-loop-guard.js';
-import type { PriorDeviceActionContext, VisualExecutionModelPort } from './visual-execution-model.port.js';
+import { PlannerUnavailableError, type PriorDeviceActionContext, type VisualExecutionModelPort } from './visual-execution-model.port.js';
 
 // DYNAMIC has no fixed rank of its own (it resolves to a concrete level at
 // execution time — see browser.click) — ranked alongside CONSEQUENTIAL
@@ -38,7 +39,7 @@ import type { PriorDeviceActionContext, VisualExecutionModelPort } from './visua
 const RISK_ORDER: Record<CapabilityRisk, number> = { READ_ONLY: 0, LOW: 1, CONSEQUENTIAL: 2, DYNAMIC: 2, RESTRICTED: 3 };
 
 export const DEFAULT_DEVICE_ALLOWED_ACTIONS: DeviceActionType[] = [
-  'OBSERVE', 'NAVIGATE', 'CLICK', 'TYPE', 'SCROLL', 'KEYPRESS', 'STOP',
+  'OBSERVE', 'NAVIGATE', 'CLICK', 'TYPE', 'SELECT', 'SCROLL', 'KEYPRESS', 'WAIT', 'VERIFY', 'STOP',
 ];
 
 // Caller-tunable but capped by an absolute ceiling this session type will
@@ -71,7 +72,10 @@ export type DeviceControlOutcome =
   // `result.completion` says whether the task was actually seen to be done - the model's STOP is only a claim (see action-loop-guard.ts: summarizeCompletion)
   | { kind: 'COMPLETED'; deviceExecutionSessionId: string; result: unknown }
   | { kind: 'WAITING_APPROVAL'; deviceExecutionSessionId: string; approval: ActionApprovalRecord }
-  | { kind: 'TERMINATED'; deviceExecutionSessionId: string; status: 'FAILED' | 'BLOCKED_NEEDS_HUMAN'; terminationReason: string };
+  | { kind: 'TERMINATED'; deviceExecutionSessionId: string; status: 'FAILED' | 'BLOCKED_NEEDS_HUMAN'; terminationReason: string }
+  // the person paused it (continueSession picks it up) or cancelled it; nothing further happens by itself
+  | { kind: 'PAUSED'; deviceExecutionSessionId: string }
+  | { kind: 'CANCELLED'; deviceExecutionSessionId: string; terminationReason: string };
 
 export interface StartDeviceSessionInput {
   tenantId: string;
@@ -117,9 +121,9 @@ function describeOutcome(executed: string, verification: BrowserVerification | u
 }
 
 // Errors that mean "this target could not be acted on" - raised before the page was touched.
-const RECOVERABLE_CODES: ReadonlySet<string> = new Set(['BROWSER_SELECTOR_NOT_FOUND', 'BROWSER_SELECTOR_AMBIGUOUS', 'BROWSER_KEYPRESS_ACTIVATION_UNKNOWN']);
+const RECOVERABLE_CODES: ReadonlySet<string> = new Set(['BROWSER_SELECTOR_NOT_FOUND', 'BROWSER_SELECTOR_AMBIGUOUS', 'BROWSER_KEYPRESS_ACTIVATION_UNKNOWN', 'BROWSER_SENSITIVE_FIELD_BLOCKED']);
 function isRecoverableFailure(action: string, error: unknown): boolean {
-  if (action !== 'CLICK' && action !== 'TYPE' && action !== 'KEYPRESS') return false;
+  if (action !== 'CLICK' && action !== 'TYPE' && action !== 'SELECT' && action !== 'KEYPRESS' && action !== 'VERIFY') return false;
   if (error instanceof NagexError) return RECOVERABLE_CODES.has(error.code);
   // not one of ours: Playwright said the element could not be acted on (timeout waiting for it, strict-mode violation, an invalid selector)
   const name = error instanceof Error ? error.name : '';
@@ -127,14 +131,42 @@ function isRecoverableFailure(action: string, error: unknown): boolean {
   return name === 'TimeoutError' || /locator\.|strict mode violation|not a valid selector|Unexpected token/.test(message);
 }
 
+function clipText(value: unknown, max: number): string {
+  return String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
+}
+
+// A stored address keeps no query string or fragment (those can carry tokens).
+function plainUrl(url: string): string {
+  return clipText(String(url).split('#')[0].split('?')[0], 200);
+}
+
+const MUTATING_ACTIONS: ReadonlySet<string> = new Set(['CLICK', 'TYPE', 'SELECT']);
+
+export interface ControlSessionInput {
+  tenantId: string;
+  ownerId: string;
+  requestId: string;
+  deviceExecutionSessionId: string;
+}
+
 export class DeviceControlService {
+  /** sessions whose loop is running in THIS process (a RUNNING record without one was left behind by a restart) */
+  private readonly activeLoops = new Set<string>();
+
   constructor(
     private readonly sessions: DeviceExecutionSessionStore,
     private readonly browser: BrowserToolService,
     private readonly model: VisualExecutionModelPort,
   ) {}
 
+  // A caller that must answer immediately (an HTTP request starting a task that takes minutes) begins the session and runs it separately; startSession does both.
   public async startSession(input: StartDeviceSessionInput): Promise<DeviceControlOutcome> {
+    const session = await this.beginSession(input);
+    return this.runSession(session, input.requestId);
+  }
+
+  /** Opens the task's browser and records the session. Nothing has been done on any page yet. */
+  public async beginSession(input: StartDeviceSessionInput): Promise<DeviceExecutionSessionRecord> {
     const allowedDomains = input.allowedDomains.map((d) => d.toLowerCase());
     if (allowedDomains.length === 0) {
       throw new NagexError({ code: 'DEVICE_ALLOWED_DOMAINS_REQUIRED', category: 'VALIDATION', message: 'At least one allowed domain is required to start a device execution session.', request_id: input.requestId });
@@ -142,7 +174,7 @@ export class DeviceControlService {
 
     const browserSession = await this.browser.open({ tenantId: input.tenantId, ownerId: input.ownerId, requestId: input.requestId });
 
-    let session = this.sessions.create({
+    const session = this.sessions.create({
       tenantId: input.tenantId,
       ownerPrincipalId: input.ownerId,
       taskId: input.taskId ?? null,
@@ -155,9 +187,13 @@ export class DeviceControlService {
       maxDurationMs: Math.min(input.maxDurationMs ?? DEFAULT_MAX_DURATION_MS, HARD_MAX_DURATION_MS),
       riskCeiling: FIXED_RISK_CEILING,
     });
+    return session;
+  }
 
+  /** Runs the bounded loop of a session that was begun. Every exit is an explicit, durable state. */
+  public async runSession(session: DeviceExecutionSessionRecord, requestId: string): Promise<DeviceControlOutcome> {
     try {
-      return await this.runLoop(session, input.requestId, []);
+      return await this.runLoop(session, requestId, []);
     } catch (error) {
       // The loop itself never throws on a normal termination path (every
       // boundary hit returns a TERMINATED outcome) — an exception here is
@@ -208,6 +244,7 @@ export class DeviceControlService {
       lastObservationRef: resumed.lastObservationRef,
     })!;
 
+    this.logStep(resumed, frozenAction, clickResult.status === 'EXECUTED' ? clickResult.url : '', describeOutcome('EXECUTED: the approved click', clickResult.verification), clickResult.verification?.outcome ?? null);
     const priorActions: PriorDeviceActionContext[] = [{ action: frozenAction, outcome: describeOutcome(`EXECUTED: ${clickResult.status === 'EXECUTED' ? clickResult.url : 'ok'}`, clickResult.verification) }];
     // the approved click ran once; what the page showed afterwards is the first evidence of this resumed run
     const evidence: StepEvidence[] = [{ action: 'CLICK', signature: actionSignature(frozenAction), stateKey: 'approved', outcome: clickResult.verification?.outcome ?? 'NONE', basis: clickResult.verification?.basis ?? [], mutating: true }];
@@ -220,16 +257,134 @@ export class DeviceControlService {
     }
   }
 
+  // ── what the person can do with a running task ────────────────────────────────────────────────────────────────────────────────
+
+  /** Pause: a running loop stops between two actions; a task waiting for approval or already paused is left as it is. */
+  public pauseSession(input: ControlSessionInput): DeviceExecutionSessionRecord {
+    const session = this.requireOwned(input);
+    if (session.status === 'PAUSED' || session.status === 'WAITING_APPROVAL') return session;
+    if (session.status !== 'RUNNING') throw new NagexError({ code: 'DEVICE_SESSION_NOT_ACTIVE', category: 'CONFLICT', message: 'This task is no longer running, so it cannot be paused.', request_id: input.requestId });
+    return this.sessions.requestControl(session.deviceExecutionSessionId, session.tenantId, session.ownerPrincipalId, 'PAUSE')!;
+  }
+
+  /** Cancel: a running loop ends between two actions; a waiting approval is rejected (so it can never be used); nothing further runs. A finished task is returned as it is. */
+  public cancelSession(input: ControlSessionInput): DeviceExecutionSessionRecord {
+    const session = this.requireOwned(input);
+    if (['COMPLETED', 'FAILED', 'CANCELLED', 'BLOCKED_NEEDS_HUMAN'].includes(session.status)) return session;
+    if (session.status === 'RUNNING' && this.activeLoops.has(session.deviceExecutionSessionId)) {
+      return this.sessions.requestControl(session.deviceExecutionSessionId, session.tenantId, session.ownerPrincipalId, 'CANCEL')!;
+    }
+    if (session.status === 'WAITING_APPROVAL' && session.approvalId) {
+      try { this.browser.reject(session.approvalId, session.tenantId, session.ownerPrincipalId, input.requestId); } catch { /* already decided or expired: the task is cancelled either way */ }
+    }
+    return this.sessions.cancel(session.deviceExecutionSessionId, session.tenantId, session.ownerPrincipalId, 'DEVICE_CANCELLED_BY_USER')!;
+  }
+
+  /** Continue a paused task from where it stopped (what it already did is read back from its own step log). */
+  public async continueSession(input: ControlSessionInput): Promise<DeviceControlOutcome> {
+    const session = this.requireOwned(input);
+    if (session.status !== 'PAUSED') throw new NagexError({ code: 'DEVICE_SESSION_NOT_PAUSED', category: 'CONFLICT', message: 'This task is not paused.', request_id: input.requestId });
+    const resumed = this.sessions.resumeFromPause(session.deviceExecutionSessionId, session.tenantId, session.ownerPrincipalId)!;
+    const steps = resumed.steps ?? [];
+    try {
+      return await this.runLoop(resumed, input.requestId, this.priorFromSteps(steps), this.evidenceFromSteps(steps));
+    } catch (error) {
+      this.sessions.fail(resumed.deviceExecutionSessionId, resumed.tenantId, resumed.ownerPrincipalId, `DEVICE_UNEXPECTED_ERROR:${error instanceof Error ? error.message : 'unknown'}`);
+      throw error;
+    }
+  }
+
+  /**
+   * After a restart: a session that was RUNNING lost its loop, and one that was waiting for approval lost the browser page its click belongs to. Neither can be continued honestly,
+   * so both end as FAILED with the reason, instead of looking alive forever. Returns how many were ended.
+   */
+  public failInterruptedSessions(): number {
+    let ended = 0;
+    for (const record of this.sessions.listByStatus('RUNNING')) {
+      if (this.activeLoops.has(record.deviceExecutionSessionId)) continue;
+      this.sessions.fail(record.deviceExecutionSessionId, record.tenantId, record.ownerPrincipalId, 'DEVICE_INTERRUPTED_BY_RESTART');
+      ended += 1;
+    }
+    for (const record of this.sessions.listByStatus('WAITING_APPROVAL')) {
+      this.sessions.fail(record.deviceExecutionSessionId, record.tenantId, record.ownerPrincipalId, 'DEVICE_BROWSER_PAGE_LOST_ON_RESTART');
+      ended += 1;
+    }
+    return ended;
+  }
+
+  private requireOwned(input: ControlSessionInput): DeviceExecutionSessionRecord {
+    const session = this.sessions.getOwned(input.deviceExecutionSessionId, input.tenantId, input.ownerId);
+    if (!session) throw new NagexError({ code: 'DEVICE_SESSION_NOT_FOUND', category: 'NOT_FOUND', message: `Device execution session ${input.deviceExecutionSessionId} was not found.`, request_id: input.requestId });
+    return session;
+  }
+
+  private logStep(session: DeviceExecutionSessionRecord, action: ProposedDeviceAction, pageUrl: string, outcome: string, verification: string | null): void {
+    const value = String(action.value ?? '');
+    // typed text is never kept (only its length); an address, a key, a direction or an option label is not a secret
+    const detail = action.action === 'TYPE' ? `${value.length} characters`
+      : action.action === 'SELECT' ? 'option chosen'
+      : action.action === 'VERIFY' ? `expects a text of ${value.length} characters`
+      : action.action === 'NAVIGATE' ? plainUrl(value)
+      : ['KEYPRESS', 'WAIT', 'SCROLL'].includes(action.action) ? clipText(value, 40)
+      : undefined;
+    this.sessions.appendStep(session.deviceExecutionSessionId, session.tenantId, session.ownerPrincipalId, {
+      action: action.action,
+      ...(action.target?.selector ? { target: clipText(action.target.selector, 160) } : {}),
+      ...(action.target?.description ? { description: clipText(action.target.description, 120) } : {}),
+      ...(detail ? { detail } : {}),
+      outcome: clipText(outcome, 240),
+      verification,
+      mutating: MUTATING_ACTIONS.has(action.action),
+      ...(pageUrl ? { pageUrl: plainUrl(pageUrl) } : {}),
+    });
+  }
+
+  private priorFromSteps(steps: readonly DeviceStepLogEntry[]): PriorDeviceActionContext[] {
+    return steps.slice(-8).map((s) => ({ action: { action: s.action as ProposedDeviceAction['action'], ...(s.target ? { target: { selector: s.target } } : {}) }, outcome: s.outcome }));
+  }
+
+  private evidenceFromSteps(steps: readonly DeviceStepLogEntry[]): StepEvidence[] {
+    return steps.map((s) => ({
+      action: s.action as StepEvidence['action'],
+      signature: `${s.action}|${s.target ?? ''}|${s.detail ?? ''}`,
+      stateKey: s.pageUrl ?? '',
+      outcome: (s.verification as StepEvidence['outcome']) ?? 'NONE',
+      basis: [],
+      mutating: s.mutating,
+    }));
+  }
+
   // The bounded loop itself: observe -> propose -> validate -> enforce
   // boundaries -> execute (or pause for approval) -> repeat. Every exit is
   // an explicit, durable session-status transition — never a silent stop.
   private async runLoop(session: DeviceExecutionSessionRecord, requestId: string, priorActions: PriorDeviceActionContext[], seedEvidence: StepEvidence[] = []): Promise<DeviceControlOutcome> {
+    this.activeLoops.add(session.deviceExecutionSessionId);
+    try {
+      return await this.runLoopInner(session, requestId, priorActions, seedEvidence);
+    } finally {
+      this.activeLoops.delete(session.deviceExecutionSessionId);
+    }
+  }
+
+  private async runLoopInner(session: DeviceExecutionSessionRecord, requestId: string, priorActions: PriorDeviceActionContext[], seedEvidence: StepEvidence[] = []): Promise<DeviceControlOutcome> {
     let current = session;
     const guard = new ActionLoopGuard();
     const evidence: StepEvidence[] = [...seedEvidence];
     let consecutiveRecoveries = 0;
 
     while (true) {
+      // A pause or a cancel the person asked for is honoured here, between actions - never in the middle of one.
+      const fresh = this.sessions.getOwned(current.deviceExecutionSessionId, current.tenantId, current.ownerPrincipalId);
+      if (fresh) current = fresh;
+      if (current.controlRequest === 'CANCEL') {
+        this.sessions.cancel(current.deviceExecutionSessionId, current.tenantId, current.ownerPrincipalId, 'DEVICE_CANCELLED_BY_USER');
+        return { kind: 'CANCELLED', deviceExecutionSessionId: current.deviceExecutionSessionId, terminationReason: 'DEVICE_CANCELLED_BY_USER' };
+      }
+      if (current.controlRequest === 'PAUSE') {
+        this.sessions.pause(current.deviceExecutionSessionId, current.tenantId, current.ownerPrincipalId);
+        return { kind: 'PAUSED', deviceExecutionSessionId: current.deviceExecutionSessionId };
+      }
+
       const elapsedMs = Date.now() - new Date(current.createdAt).getTime();
       if (elapsedMs > current.maxDurationMs) {
         return this.terminate(current, requestId, 'FAILED', 'DEVICE_MAX_DURATION_EXCEEDED');
@@ -274,6 +429,11 @@ export class DeviceControlService {
           requestId,
         });
       } catch (error) {
+        // The model could not be reached (not: it answered badly): the work so far is kept and the person can continue when it is back.
+        if (error instanceof PlannerUnavailableError) {
+          this.sessions.pause(current.deviceExecutionSessionId, current.tenantId, current.ownerPrincipalId, 'DEVICE_MODEL_UNAVAILABLE');
+          return { kind: 'PAUSED', deviceExecutionSessionId: current.deviceExecutionSessionId };
+        }
         return this.terminate(current, requestId, 'FAILED', `DEVICE_MODEL_PROPOSAL_FAILED:${error instanceof Error ? error.message : 'unknown'}`);
       }
 
@@ -290,6 +450,13 @@ export class DeviceControlService {
       })!;
 
       if (proposed.action === 'STOP') {
+        this.logStep(current, proposed, structuredSnapshot.url, `STOP: ${clipText(proposed.expectedResult ?? 'the planner considers the goal reached or unreachable', 200)}`, null);
+        // "a person has to act" is not "done": the task ends as blocked, with the reason, and is never reported as completed
+        if (proposed.value === 'BLOCKED') {
+          const reason = `AGENT_BLOCKED:${clipText(proposed.expectedResult ?? 'a person has to act', 160)}`;
+          this.sessions.blockNeedsHuman(current.deviceExecutionSessionId, current.tenantId, current.ownerPrincipalId, reason);
+          return { kind: 'TERMINATED', deviceExecutionSessionId: current.deviceExecutionSessionId, status: 'BLOCKED_NEEDS_HUMAN', terminationReason: reason };
+        }
         // "done" is the model's claim. What the actions that could change something actually showed decides what NAgex reports.
         const completion = summarizeCompletion(evidence);
         if (completion.outcome === 'FAILED') return this.terminate(current, requestId, 'FAILED', `DEVICE_STOP_CONTRADICTED_BY_EVIDENCE:${completion.basis[0] ?? 'FAILED'}`);
@@ -317,11 +484,15 @@ export class DeviceControlService {
       }
 
       const outcome = await this.executeAction(current, proposed, requestId, structuredSnapshot);
-      if (outcome.kind === 'WAITING_APPROVAL') return outcome;
+      if (outcome.kind === 'WAITING_APPROVAL') {
+        this.logStep(current, proposed, structuredSnapshot.url, 'WAITING FOR APPROVAL: this changes something outside the page, so the person decides first.', null);
+        return outcome;
+      }
       if (outcome.kind === 'TERMINATED') return outcome;
 
       current = outcome.session;
       let description = outcome.outcomeDescription;
+      this.logStep(current, proposed, structuredSnapshot.url, description, outcome.recoverableFailure ? 'FAILED' : outcome.verification?.outcome ?? null);
 
       if (outcome.recoverableFailure) {
         consecutiveRecoveries++;
@@ -336,7 +507,7 @@ export class DeviceControlService {
         stateKey: snapshotStateKey(structuredSnapshot),
         outcome: outcome.recoverableFailure ? 'FAILED' : outcome.verification?.outcome ?? 'NONE',
         basis: outcome.verification?.basis ?? [],
-        mutating: proposed.action === 'CLICK' || proposed.action === 'TYPE',
+        mutating: MUTATING_ACTIONS.has(proposed.action),
       };
       evidence.push(step);
       const verdict = guard.record(step);
@@ -371,8 +542,30 @@ export class DeviceControlService {
       }
 
       if (action.action === 'TYPE') {
-        const typed = await this.browser.type({ ...base, selector: action.target!.selector!, text: action.value ?? '' });
+        const typed = await this.browser.type({ ...base, selector: action.target!.selector!, text: action.value ?? '', blockSensitiveField: true });
         return { kind: 'CONTINUE', session: this.recordExecutedStep(session), outcomeDescription: describeOutcome('EXECUTED: typed into field', typed.verification), verification: typed.verification };
+      }
+
+      if (action.action === 'SELECT') {
+        const chosen = await this.browser.select({ ...base, selector: action.target!.selector!, value: action.value! });
+        return { kind: 'CONTINUE', session: this.recordExecutedStep(session), outcomeDescription: describeOutcome('EXECUTED: option chosen', chosen.verification), verification: chosen.verification };
+      }
+
+      if (action.action === 'WAIT') {
+        await this.browser.wait({ ...base, ms: Number(action.value) });
+        return { kind: 'CONTINUE', session: this.recordExecutedStep(session), outcomeDescription: `EXECUTED: waited ${action.value} ms` };
+      }
+
+      if (action.action === 'VERIFY') {
+        // the page is checked for what the Agent said it must show; a miss is not an error to retry, it is evidence (and a later STOP that claims "done" is contradicted by it)
+        const checked = await this.browser.verifyExpectation({ ...base, expected: action.value!, ...(action.target?.selector ? { selector: action.target.selector } : {}) });
+        const shown = checked.verification.outcome === 'VERIFIED';
+        return {
+          kind: 'CONTINUE',
+          session: this.recordExecutedStep(session),
+          outcomeDescription: shown ? `VERIFIED: the page shows the expected text (${checked.matchedAs === 'NUMBER' ? 'as the same number' : 'as written'}).` : `NOT SHOWN: the page does not show the expected text. Nothing was changed; look at the page again and correct the entry, or stop and say what is wrong.`,
+          verification: checked.verification,
+        };
       }
 
       if (action.action === 'SCROLL') {

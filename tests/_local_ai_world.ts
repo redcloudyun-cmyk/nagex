@@ -4,7 +4,7 @@
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 
-export interface LocalModelRequest { kind: 'followups' | 'document' | 'presentation' | 'plan-advice' | 'plan-action' | 'research' | 'research-plan' | 'research-extract' | 'research-report' | 'chat' | 'other'; system: string; user: string; korean: boolean }
+export interface LocalModelRequest { kind: 'browser-planner' | 'followups' | 'document' | 'presentation' | 'plan-advice' | 'plan-action' | 'research' | 'research-plan' | 'research-extract' | 'research-report' | 'chat' | 'other'; system: string; user: string; korean: boolean }
 
 export interface LocalAiWorld {
   env: Record<string, string>;
@@ -19,6 +19,9 @@ export interface LocalAiWorld {
   setChatDelayMs: (ms: number) => void;
   // what an ACTION plan is: the default send-mail plan, or a calendar event (for the next-actions journey)
   setActionPlan: (kind: 'mail' | 'calendar') => void;
+  // the browser Agent's planner: given the Gateway adapter's own prompt, answers the next action as JSON (null = the planner says a person must act). Lets the production server's Agent loop run on the local model.
+  // returning null makes the endpoint answer HTTP 503 (a model outage)
+  setBrowserPlanner: (planner: ((system: string, user: string) => string | null) | null) => void;
   // OPT-IN: slides are not a Nemotron task, so they go to another provider. The Gemini endpoint is a fixed public URL; this redirects ONLY that host to the local model for the
   // IN-PROCESS production server (global fetch, restored on close) and returns the fake key env to start the harness with. Nothing leaves the machine.
   installGeminiBridge: () => Record<string, string>;
@@ -36,6 +39,7 @@ export async function startLocalAiWorld(): Promise<LocalAiWorld> {
   let localPages = false;
   let searchPort = 0;
   let chatDelayMs = 0;
+  let browserPlanner: ((system: string, user: string) => string | null) | null = null;
   let actionPlan: 'mail' | 'calendar' = 'mail';
 
   const model = http.createServer(async (req, res) => {
@@ -151,6 +155,13 @@ export async function startLocalAiWorld(): Promise<LocalAiWorld> {
         : { goal: 'Send mail', summary: korean ? '메일을 보냅니다.' : 'Send the mail.', reasoningSummary: 'r', suggestions: [], steps: [{ title: 'Send', reasoning: 'asked', skill: 'skill.email_drafting', tool: 'gmail.send_email', requiresApproval: true, necessity: 'REQUIRED', dependsOn: [], parameters: { to: ['alex@example.com'], subject: 'Report', body: 'Ready.' } }] }));
       return;
     }
+    if (/action planner of a personal assistant that operates a web browser/.test(system)) {
+      modelRequests.push({ kind: 'browser-planner', system, user, korean });
+      const answer = browserPlanner ? browserPlanner(system, user) : JSON.stringify({ action: 'STOP', value: 'BLOCKED', expectedResult: 'No planner is scripted for this test.' });
+      if (answer === null) { res.writeHead(503, { 'content-type': 'application/json' }); res.end('{"error":"overloaded"}'); return; }
+      reply(answer);
+      return;
+    }
     if (/evidence-grounded research assistant/.test(system)) {
       modelRequests.push({ kind: 'research', system, user, korean });
       reply(korean ? '최근 AI 도입은 빠르게 늘고 있습니다 [src_1]. 투자도 증가했습니다 [src_2].' : 'AI adoption is growing fast [src_1]; investment also rose [src_2].');
@@ -219,6 +230,7 @@ export async function startLocalAiWorld(): Promise<LocalAiWorld> {
     pageUrl: (name) => `http://127.0.0.1:${searchPort}/pages/${name}`,
     setChatDelayMs: (ms) => { chatDelayMs = ms; },
     setActionPlan: (kind) => { actionPlan = kind; },
+    setBrowserPlanner: (planner) => { browserPlanner = planner; },
     close: async () => { globalThis.fetch = realFetch; model.closeAllConnections?.(); search.closeAllConnections?.(); await Promise.all([new Promise((r) => model.close(() => r(null))), new Promise((r) => search.close(() => r(null)))]); },
   };
 }

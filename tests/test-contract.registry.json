@@ -4471,6 +4471,57 @@
       "assertionIntent": "A video is priced and approved before anything is sent: prepare sends nothing to the provider, the approval (the existing ActionApprovalStore) binds the exact request and price, a price that rose needs a new approval, a declined / expired / lost approval never starts a job, a double approve or a repeated identical request starts one paid job, and the provider call carries a stable idempotency key (a lost answer is retried once with it where the provider de-duplicates, otherwise reported as uncertain; a restart mid-submission is resolved the same way); states come only from the provider (PENDING -> RUNNING -> COMPLETED), waiting is bounded, a download is accepted only if it is a structurally valid MP4 and is stored for its owner (another person / tenant gets nothing, Range playback and download work), provider errors (credentials, credits, quota, billing, content, busy, unreachable) are distinct and truthful, the Higgsfield adapter follows its documented REST contract and never follows a status address from a response, the Veo adapter is offered only when the operator enabled it and prices from the published table, and image-to-video uploads the person's own image only after approval.",
       "notes": "Loopback HTTP stand-ins written from the providers' public documentation; no network, no real provider, no spend. A pass proves NAgex's side of the contract, not that Higgsfield or Google answer this way today and not what a real model draws."
     },
+    "computer_use_expectation": {
+      "milestone": "COMPUTER-USE-20261016",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "runtime",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "The deterministic parts of Universal Computer Use: \"the page shows X\" is decided by NAgex (a labelled value matches whatever currency marks, separators, spacing and case the page uses; \"Total\" is not inside \"Subtotal\" and 1,100,000 is not inside 11,000,000; a bare number matches only a standalone number); a repeated identical field write, option choice or check on an unchanged page is a loop while a verified click that paged on is progress; a failed expectation after the last change contradicts \"done\", a shown one backs it, and the counts are reported; SELECT / WAIT / VERIFY / STOP carry exactly what they need and any other action (script, shell, download, upload) is invalid; issuing wording (Issue invoice, Approve, 발행) is consequential as whole words; the planner adapter accepts only an allowed action with an offered selector and gives the model the reason otherwise; the DOM planner is used first and the vision planner only when a page has nothing actionable or the DOM planner failed, with every switch reported.",
+      "notes": "Pure logic and scripted inputs; no browser, no model, no network."
+    },
+    "computer_use_invoice_e2e": {
+      "milestone": "COMPUTER-USE-20261016",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "security",
+        "permission-approval-hardening"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "A real multi-step browser task in real Chromium against a synthetic invoice back-office that counts what really happens: open the system, find the right customer through a dynamic search with a look-alike, enter two line items, tax and date, have the totals checked by NAgex against the page, review, save a draft and STOP before issuing - the site shows one saved draft, the right customer, the right totals, zero issued invoices; an invalid quantity is corrected after the page complains; a wrong total is caught and the claim of success is contradicted; a sign-in wall ends the task as needing a person and a password is never typed; an Issue invoice click is held for approval whatever the planner (also one that obeys a planted instruction), a rejection or a changed control issues nothing, an approval issues exactly once; pause / continue, cancel (a waiting approval is rejected) and a restart behave and the persisted history keeps no typed text; the same journey runs through the real Gateway adapter with its prompt marking the page as untrusted, and invalid proposals are repaired once or fail closed.",
+      "notes": "The planning model is a deterministic stand-in that decides from what the page shows; the website is a loopback fixture. Proves NAgex (perception, loop, verification, approval, history), not a model's quality. A real model is run separately (scripts/computer-use-live-check.mjs, reported in the E2E report).",
+      "writesRepositoryArtifacts": false
+    },
+    "browser_task_browser": {
+      "milestone": "COMPUTER-USE-20261016",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "ux",
+        "security",
+        "permission-approval-hardening"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "The browser task as the person lives it, in real Chromium on the real Main surface (Korean and English): a request that names a website becomes a task card; the invoice is worked through three pages, NAgex checks the totals itself, one draft is saved and none issued; the finished task and its step history are served back by the server while another person gets an empty list and a 404 for the task, its screenshot and every control; a planner that reaches for Issue invoice is held, the card says what and where and shows the real page, nothing is issued, Decline ends the task, an approval issues exactly once, a waiting approval survives a page refresh, and a second task cannot start while one is in progress; pause stops between two actions and continue finishes the same invoice with one draft, cancel ends a task waiting for approval for good; a sign-in wall ends the task as a person needs to step in without a password being typed; a planning model that goes away pauses the task with the work kept and Continue finishes it; a missing address, a private address, a missing goal and an anonymous caller are refused before anything starts.",
+      "notes": "The planning model is the deterministic stand-in behind the local AI world; the website is a loopback fixture. Proves the user-facing layer (card, controls, history, approval view), not a model's quality.",
+      "writesRepositoryArtifacts": false
+    },
     "computer_use_keyboard_approval": {
       "milestone": "COMPUTER-USE-20261016",
       "classification": "REAL_BROWSER_CERT",

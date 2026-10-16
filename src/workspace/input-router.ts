@@ -82,9 +82,18 @@ export interface ClassifyInput {
   sourceDocument?: boolean;
   // a video service is configured (the server knows; the router only follows it). Without it a video request stays an honest 'not available'.
   videoAvailable?: boolean;
+  // a browser agent is configured (the server knows). Without it a request to operate a website is routed as before.
+  browserTaskAvailable?: boolean;
 }
 
 // ----- cue tables (substring matches for Korean, word-aware for English) -----------------------------------------------------------------------------------
+
+// a web address, and verbs that DO something on a site (not read it): the router never decides from a model
+const BROWSER_TASK_ADDRESS = /https?:\/\/[^\s]+/i;
+const BROWSER_TASK_WORDS = [
+  /\b(fill(?:\s+(?:in|out))?|enter|type|select|choose|click|press|add|create|prepare|draft|register|book|reserve|order|apply|submit|upload|sign\s?in|log\s?in)\b/i,
+  /(입력|채워|작성해|클릭|눌러|선택해|추가해|준비해|예약|신청|등록|제출|주문|로그인|만들어)/,
+];
 
 const VIDEO_MAKE = [
   /(영상|비디오|동영상|애니메이션|쇼츠|릴스|트레일러)[^.!?\n]{0,10}(만들|만드|제작|생성|뽑아)/,
@@ -253,7 +262,7 @@ export function isDeckEditRequest(text: string): boolean {
   return (DECK_EDIT_VERB_KO.test(t) && DECK_PART_KO.test(t)) || (DECK_EDIT_VERB_EN.test(t) && DECK_PART_EN.test(t));
 }
 
-export function decideRouting(rawText: string, options: { hasAttachment?: boolean; hint?: ClassifyInput['hint']; revisingDocument?: boolean; activeArtifact?: ClassifyInput['activeArtifact']; sourceDocument?: boolean; videoAvailable?: boolean } = {}): RoutingDecision {
+export function decideRouting(rawText: string, options: { hasAttachment?: boolean; hint?: ClassifyInput['hint']; revisingDocument?: boolean; activeArtifact?: ClassifyInput['activeArtifact']; sourceDocument?: boolean; videoAvailable?: boolean; browserTaskAvailable?: boolean } = {}): RoutingDecision {
   const text = (rawText || '').normalize('NFC').trim();
   const language = detectRequestLanguage(text);
   const hasAttachment = options.hasAttachment === true;
@@ -275,6 +284,12 @@ export function decideRouting(rawText: string, options: { hasAttachment?: boolea
   const hasDocNoun = DOC_NOUN.test(work);
   const hasSlideNoun = SLIDE_NOUN.test(work);
   const hasImageNoun = IMAGE_NOUN.test(work);
+
+  // 1b. Operating a website: a web address the person wrote AND something to do there (fill in, enter, select, click, book, prepare, ...). NAgex does it step by step in a browser on exactly that site,
+  // asking before anything consequential. Reading a page, or just a link, is not this.
+  if (options.browserTaskAvailable === true && BROWSER_TASK_ADDRESS.test(text) && BROWSER_TASK_WORDS.some((re) => re.test(text))) {
+    return makeDecision({ kind: 'ACTION_PLAN', language, needs: [{ capability: 'ACTION', supported: true, approvalRequired: true }], confidence: 0.85, permissionRisk: 'EXTERNAL_CONSEQUENTIAL', executionNegated, reasonCodes: [...reasonCodes, 'BROWSER_TASK'] });
+  }
 
   // 2. unsupported creation kinds are detected BEFORE anything else: they must never fall through to a chat answer that pretends to be the deliverable
   if (VIDEO_MAKE.some((re) => re.test(work))) {
@@ -437,7 +452,7 @@ export class InputRouter {
         confidence: 0.98,
         reason: 'Input contains file payload',
         normalizedPayload: { rawInput: rawText, mimeType: input.mimeType || 'application/octet-stream' },
-        decision: rawText ? decideRouting(rawText, { hasAttachment, hint: input.hint, revisingDocument: input.revisingDocument === true, activeArtifact: input.activeArtifact, sourceDocument: input.sourceDocument === true, videoAvailable: input.videoAvailable === true }) : captureDecision(0.98, 'FILE_PAYLOAD'),
+        decision: rawText ? decideRouting(rawText, { hasAttachment, hint: input.hint, revisingDocument: input.revisingDocument === true, activeArtifact: input.activeArtifact, sourceDocument: input.sourceDocument === true, videoAvailable: input.videoAvailable === true, browserTaskAvailable: input.browserTaskAvailable === true }) : captureDecision(0.98, 'FILE_PAYLOAD'),
       };
     }
 
@@ -484,7 +499,7 @@ export class InputRouter {
     }
 
     // 5. everything else is routed by what the person asked for
-    const decision = decideRouting(rawText, { hasAttachment: false, hint: input.hint, revisingDocument: input.revisingDocument === true, activeArtifact: input.activeArtifact, sourceDocument: input.sourceDocument === true, videoAvailable: input.videoAvailable === true });
+    const decision = decideRouting(rawText, { hasAttachment: false, hint: input.hint, revisingDocument: input.revisingDocument === true, activeArtifact: input.activeArtifact, sourceDocument: input.sourceDocument === true, videoAvailable: input.videoAvailable === true, browserTaskAvailable: input.browserTaskAvailable === true });
     const primaryIntent: InputIntent = decision.kind === 'ACTION_PLAN' ? 'COMMAND' : 'ASK';
     return {
       primaryIntent,

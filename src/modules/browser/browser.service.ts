@@ -11,8 +11,9 @@ import { FileRecordStore, resolveNagexDataDir } from '../../governance/file-reco
 import { BrowserSessionStore, type BrowserSessionRecord, generateEvidenceId } from './browser-session.store.js';
 import { isBrowserRuntimeAvailableSync, type BrowserRuntime, type BrowserSnapshot } from './browser.runtime.js';
 import type { KeyActivation } from './key-activation.js';
+import { MAX_EXPECTATION_CHARS, matchExpectation } from './expectation.js';
 import { assertUrlSafe } from './browser-url-validator.js';
-import { humanVerificationRequired, verifyClick, verifyFieldWrite, verifyNavigation, type BrowserVerification, type ClickExpectation, type PageObservation, type TargetObservation } from './action-verification.js';
+import { humanVerificationRequired, verifyClick, verifyExpectation, verifyFieldWrite, verifyNavigation, type BrowserVerification, type ClickExpectation, type PageObservation, type TargetObservation } from './action-verification.js';
 import { createBrowserContentTrustMetadata, type UntrustedFindResult, type UntrustedExtractResult, type UntrustedStructuredBrowserSnapshot } from './browser.types.js';
 
 // Browser Agent MVP tool service (MASTER.md Section 14.5 item 06). Reuses
@@ -448,7 +449,7 @@ export class BrowserToolService {
         const classifiedText = [match.text, match.accessibleName].filter(Boolean).join(' ') || null;
         // submitting a form is inherently consequential, whatever its button says
         if (activation.kind === 'FORM_SUBMIT' || classifyClickConsequence(classifiedText, match.isFormControl)) {
-          const payload = { browserSessionId: record.browserSessionId, selector, targetText: match.text, ...(match.accessibleName ? { accessibleName: match.accessibleName } : {}), url: record.currentUrl };
+          const payload = { browserSessionId: record.browserSessionId, selector, targetText: match.text, ...(match.accessibleName ? { accessibleName: match.accessibleName } : {}), url: (await this.observePageNow(record.browserSessionId))?.url ?? record.currentUrl };
           const approval = this.approvals.request({ toolId: BROWSER_CLICK_TOOL_ID, tenantId: input.tenantId, principalId: input.ownerId, payload });
           this.auditAction(BROWSER_CLICK_TOOL_ID, 'approval.requested', input, 'PENDING_APPROVAL', { selector, targetText: match.text, via: 'keypress', key: input.key });
           return { status: 'APPROVAL_REQUIRED', approval, selector };
@@ -461,11 +462,18 @@ export class BrowserToolService {
     return { status: 'EXECUTED' };
   }
 
-  public async type(input: BrowserActionInput & { selector: string; text: string }): Promise<BrowserFieldWriteResult> {
+  // `blockSensitiveField`: the caller is a MODEL-driven loop (the Agent). A model's proposal is never allowed to put text into a password / one-time-code / card field. A direct, person-initiated
+  // call (and the credential path that is built for it) is a different caller and leaves the flag off.
+  public async type(input: BrowserActionInput & { selector: string; text: string; blockSensitiveField?: boolean }): Promise<BrowserFieldWriteResult> {
     this.requireAvailable(input.requestId);
     const record = this.requireSession(input.browserSessionId, input.tenantId, input.ownerId, input.requestId);
     const match = await this.runtime.resolveSelector(record.browserSessionId, input.selector);
     this.assertSelectorResolved(match, input, 'browser.type');
+    // A password, a one-time code or a card number is never typed on a model's proposal. The person signs in or enters it themselves.
+    if (input.blockSensitiveField && match.sensitiveField) {
+      this.auditAction('browser.type', 'tool.execution.failed', input, 'DENIED', { selector: input.selector }, 'BROWSER_SENSITIVE_FIELD_BLOCKED');
+      throw new NagexError({ code: 'BROWSER_SENSITIVE_FIELD_BLOCKED', category: 'POLICY', message: 'This field is for a password, a one-time code or a card number. NAgex does not type those: a person must sign in or enter it.', request_id: input.requestId });
+    }
     await this.runtime.type(record.browserSessionId, input.selector, input.text);
     // the field is read back and compared inside the page: written means the field now holds exactly this text (the value itself is never returned or logged)
     const verification = await this.verifyFieldWrite(record.browserSessionId, input.selector, input.text, record.currentUrl);
@@ -473,6 +481,29 @@ export class BrowserToolService {
     // mirroring gmail.service.ts's rule of never logging body/subject content.
     this.auditAction('browser.type', 'tool.execution.succeeded', input, 'SUCCESS', { selector: input.selector, verificationOutcome: verification.outcome });
     return { verification };
+  }
+
+  // Does the page (or one element of it) show what the Agent says it must? Decided by NAgex from the page itself; the result is evidence, a model's "it looks right" is not.
+  public async verifyExpectation(input: BrowserActionInput & { expected: string; selector?: string }): Promise<BrowserFieldWriteResult & { matchedAs: 'TEXT' | 'NUMBER' | null; truncated: boolean }> {
+    this.requireAvailable(input.requestId);
+    const record = this.requireSession(input.browserSessionId, input.tenantId, input.ownerId, input.requestId);
+    const expected = String(input.expected ?? '').trim();
+    if (!expected || expected.length > MAX_EXPECTATION_CHARS) {
+      throw new NagexError({ code: 'BROWSER_EXPECTATION_INVALID', category: 'VALIDATION', message: `An expectation is one short piece of text (1-${MAX_EXPECTATION_CHARS} characters).`, request_id: input.requestId });
+    }
+    if (typeof this.runtime.readExpectationSurface !== 'function') {
+      throw new NagexError({ code: 'BROWSER_EXPECTATION_UNSUPPORTED', category: 'POLICY', message: 'This browser runtime cannot read the page to check an expectation.', request_id: input.requestId });
+    }
+    if (input.selector) {
+      const match = await this.runtime.resolveSelector(record.browserSessionId, input.selector);
+      this.assertSelectorResolved(match, input, 'browser.verify');
+    }
+    const surface = await this.runtime.readExpectationSurface(record.browserSessionId, input.selector ?? null);
+    const matched = matchExpectation(expected, surface);
+    const verification = verifyExpectation(matched.found, record.currentUrl ?? undefined);
+    // what was expected is not logged (it may be an amount or a name); only that a check ran and how it ended
+    this.auditAction('browser.verify', 'tool.execution.succeeded', input, 'SUCCESS', { scoped: Boolean(input.selector), expectedLength: expected.length, verificationOutcome: verification.outcome });
+    return { verification, matchedAs: matched.found ? matched.as : null, truncated: surface.truncated };
   }
 
   public async select(input: BrowserActionInput & { selector: string; value: string }): Promise<BrowserFieldWriteResult> {
@@ -554,6 +585,8 @@ export class BrowserToolService {
       this.sessions.updateUrl(record.browserSessionId, page.url);
       await this.checkHumanVerification(input, page);
       const verification = await this.verifyAfterClick(record.browserSessionId, input.selector, pageBefore, targetBefore, input.expect, false);
+      const settled = await this.observePageNow(record.browserSessionId);
+      if (settled?.url) this.sessions.updateUrl(record.browserSessionId, settled.url);
       this.auditAction(BROWSER_CLICK_TOOL_ID, 'tool.execution.succeeded', input, 'SUCCESS', { selector: input.selector, consequential: false, url: page.url, verificationOutcome: verification.outcome, verificationBasis: verification.basis });
       return { status: 'EXECUTED', url: page.url, title: page.title, verification };
     }
@@ -562,7 +595,7 @@ export class BrowserToolService {
     // freezes exactly what will be clicked: the session, the selector, and
     // the visible text a human reviewed, so a payload-hash mismatch catches
     // any change to the target between request and execution.
-    const payload = { browserSessionId: record.browserSessionId, selector: input.selector, targetText: match.text, ...(match.accessibleName ? { accessibleName: match.accessibleName } : {}), url: record.currentUrl };
+    const payload = { browserSessionId: record.browserSessionId, selector: input.selector, targetText: match.text, ...(match.accessibleName ? { accessibleName: match.accessibleName } : {}), url: (await this.observePageNow(record.browserSessionId))?.url ?? record.currentUrl };
     const approval = this.approvals.request({ toolId: BROWSER_CLICK_TOOL_ID, tenantId: input.tenantId, principalId: input.ownerId, payload });
     this.auditAction(BROWSER_CLICK_TOOL_ID, 'approval.requested', input, 'PENDING_APPROVAL', { selector: input.selector, targetText: match.text });
     return { status: 'APPROVAL_REQUIRED', approval };
@@ -605,7 +638,7 @@ export class BrowserToolService {
     // too, before the approval is even consumed.
     const match = await this.runtime.resolveSelector(record.browserSessionId, input.selector);
     this.assertSelectorResolved(match, input);
-    const payload = { browserSessionId: input.browserSessionId, selector: input.selector, targetText: match.text, ...(match.accessibleName ? { accessibleName: match.accessibleName } : {}), url: record.currentUrl };
+    const payload = { browserSessionId: input.browserSessionId, selector: input.selector, targetText: match.text, ...(match.accessibleName ? { accessibleName: match.accessibleName } : {}), url: (await this.observePageNow(record.browserSessionId))?.url ?? record.currentUrl };
 
     try {
       this.approvals.consume(input.approvalId, input.tenantId, input.ownerId, BROWSER_CLICK_TOOL_ID, payload, input.requestId, executionId);

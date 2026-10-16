@@ -49,7 +49,10 @@ export class ActionLoopGuard {
     this.steps.push(step);
     if (this.steps.length > this.window) this.steps.shift();
     const same = this.steps.filter((s) => s.signature === step.signature && s.stateKey === step.stateKey);
-    const progressed = same.some((s) => s.outcome === 'VERIFIED');
+    // A click that was VERIFIED may be real progress (a "Next" that paged on). Writing the same text into the same field again, choosing the same option again, or checking the same expectation again
+    // changes nothing however it is reported: repeating it on an unchanged page is a loop, not progress.
+    const idempotent = step.action === 'TYPE' || step.action === 'SELECT' || step.action === 'VERIFY';
+    const progressed = !idempotent && same.some((s) => s.outcome === 'VERIFIED');
     return { loop: same.length >= this.threshold && !progressed, repeats: same.length };
   }
 
@@ -67,6 +70,9 @@ export interface CompletionVerdict {
   verifiedActions: number;
   unverifiedActions: number;
   failedActions: number;
+  /** how many times NAgex checked the page for something the Agent said it must show: shown / not shown */
+  expectationsMet: number;
+  expectationsNotMet: number;
 }
 
 /**
@@ -79,14 +85,22 @@ export interface CompletionVerdict {
 export function summarizeCompletion(evidence: readonly StepEvidence[]): CompletionVerdict {
   const mutating = evidence.filter((e) => e.mutating);
   const last = mutating[mutating.length - 1];
+  // What the Agent said the page must show is checked by NAgex (VERIFY). The latest such check made AFTER the last change decides: shown -> the page itself backs "done"; not shown -> it contradicts it.
+  const lastChangeAt = last ? evidence.lastIndexOf(last) : -1;
+  const checks = evidence.slice(lastChangeAt + 1).filter((e) => e.action === 'VERIFY');
+  const latestCheck = checks[checks.length - 1];
   const counts = {
     verifiedActions: mutating.filter((e) => e.outcome === 'VERIFIED').length,
     unverifiedActions: mutating.filter((e) => e.outcome === 'NOT_VERIFIED' || e.outcome === 'NONE').length,
     failedActions: mutating.filter((e) => e.outcome === 'FAILED').length,
+    expectationsMet: evidence.filter((e) => e.action === 'VERIFY' && e.outcome === 'VERIFIED').length,
+    expectationsNotMet: evidence.filter((e) => e.action === 'VERIFY' && e.outcome === 'FAILED').length,
   };
-  if (!last) return { outcome: 'NOT_VERIFIED', basis: ['NO_ACTION_TAKEN'], ...counts };
+  if (latestCheck && latestCheck.outcome === 'FAILED') return { outcome: 'FAILED', basis: ['EXPECTATION_NOT_MET'], ...counts };
+  if (!last) return latestCheck && latestCheck.outcome === 'VERIFIED' ? { outcome: 'VERIFIED', basis: ['EXPECTATION_MET'], ...counts } : { outcome: 'NOT_VERIFIED', basis: ['NO_ACTION_TAKEN'], ...counts };
   if (last.outcome === 'FAILED') return { outcome: 'FAILED', basis: last.basis, ...counts };
-  if (last.outcome === 'VERIFIED') return { outcome: 'VERIFIED', basis: last.basis, ...counts };
+  if (last.outcome === 'VERIFIED') return { outcome: 'VERIFIED', basis: latestCheck?.outcome === 'VERIFIED' ? ['EXPECTATION_MET', ...last.basis] : last.basis, ...counts };
+  if (latestCheck && latestCheck.outcome === 'VERIFIED' && last.outcome === 'NOT_VERIFIED') return { outcome: 'VERIFIED', basis: ['EXPECTATION_MET'], ...counts };
   if (last.outcome === 'USER_ACTION_REQUIRED') return { outcome: 'USER_ACTION_REQUIRED', basis: last.basis, ...counts };
   return { outcome: 'NOT_VERIFIED', basis: last.basis.length > 0 ? last.basis : ['NO_OBSERVABLE_CHANGE'], ...counts };
 }

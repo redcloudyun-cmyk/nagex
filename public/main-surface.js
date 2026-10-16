@@ -1074,6 +1074,12 @@
     // The server decided WHICH existing path serves the request. Each path below is the unchanged route with its own rights and its own approval:
     // an action is only ever a plan that waits for the person's approval; what NAgex cannot do is said plainly; nothing falls through to a chat answer
     // that pretends to be the deliverable.
+    // "open <site> and fill in ...": operated step by step in a browser, with the person approving anything consequential. Only when the server says it can (a planner is configured).
+    if (decision.kind === 'ACTION_PLAN' && (decision.reasonCodes || []).indexOf('BROWSER_TASK') >= 0) {
+      await runBrowserTask(prompt, metadata, decision);
+      return;
+    }
+
     switch (decision.kind) {
       case 'CLARIFY':
         showClarification(prompt, decision);
@@ -1433,6 +1439,212 @@
     });
   }
 
+  // ── Browser task: "do this on that website", with the person in control ─────────────────────────────────────────────────────────────
+  // What is on screen is the task's own record on the server: its state, the steps it took, what NAgex observed after each, the one action it is waiting on and the verified result. There is no percentage
+  // (nothing measures one); the step counter is a count. A consequential action waits here for the person; a sign-in or verification wall is handed back to the person, never worked around.
+  const BTASK_TERMINAL = ['COMPLETED', 'NEEDS_PERSON', 'FAILED', 'CANCELLED'];
+  const BTASK_STATE = {
+    RUNNING: ['mainTask.state.running', 'Working on it'],
+    WAITING_APPROVAL: ['mainTask.state.waiting', 'Waiting for your approval'],
+    PAUSED: ['mainTask.state.paused', 'Paused'],
+    COMPLETED: ['mainTask.state.completed', 'Done'],
+    NEEDS_PERSON: ['mainTask.state.needsPerson', 'A person needs to step in'],
+    FAILED: ['mainTask.state.failed', 'Could not finish'],
+    CANCELLED: ['mainTask.state.cancelled', 'Cancelled'],
+  };
+  const BTASK_VERB = {
+    NAVIGATE: ['mainTask.verb.NAVIGATE', 'Opening {detail}'],
+    CLICK: ['mainTask.verb.CLICK', 'Clicking {label}'],
+    TYPE: ['mainTask.verb.TYPE', 'Entering text in {label}'],
+    SELECT: ['mainTask.verb.SELECT', 'Choosing an option in {label}'],
+    VERIFY: ['mainTask.verb.VERIFY', 'Checking that the page shows what was expected'],
+    WAIT: ['mainTask.verb.WAIT', 'Waiting for the page to update'],
+    SCROLL: ['mainTask.verb.SCROLL', 'Scrolling the page'],
+    KEYPRESS: ['mainTask.verb.KEYPRESS', 'Pressing a key'],
+    OBSERVE: ['mainTask.verb.OBSERVE', 'Looking at the page'],
+    STOP: ['mainTask.verb.STOP', 'Finishing'],
+  };
+  const BTASK_ERRORS = ['BROWSER_TASK_GOAL_INVALID', 'BROWSER_TASK_DOMAIN_REQUIRED', 'BROWSER_TASK_DOMAIN_NOT_ALLOWED', 'BROWSER_TASK_ALREADY_ACTIVE', 'BROWSER_TASK_UNAVAILABLE', 'BROWSER_TASK_NOT_WAITING',
+    'APPROVAL_EXPIRED', 'APPROVAL_NOT_FOUND', 'BROWSER_RUNTIME_UNAVAILABLE'];
+  const BTASK_PROBLEMS = ['ACTION_COULD_NOT_BE_PERFORMED', 'BROWSER_SELECTOR_NOT_FOUND', 'BROWSER_SELECTOR_AMBIGUOUS', 'BROWSER_KEYPRESS_ACTIVATION_UNKNOWN', 'BROWSER_SENSITIVE_FIELD_BLOCKED', 'EXPECTATION_NOT_SHOWN'];
+  const BTASK_FAILURES = ['DEVICE_MAX_STEPS_EXCEEDED', 'DEVICE_MAX_DURATION_EXCEEDED', 'DEVICE_DOMAIN_NOT_ALLOWED', 'DEVICE_MODEL_PROPOSAL_FAILED', 'DEVICE_MALFORMED_ACTION_PROPOSAL', 'DEVICE_STOP_CONTRADICTED_BY_EVIDENCE',
+    'DEVICE_REPEATED_ACTION_LOOP', 'DEVICE_RECOVERY_EXHAUSTED', 'DEVICE_INTERRUPTED_BY_RESTART', 'DEVICE_BROWSER_PAGE_LOST_ON_RESTART', 'DEVICE_CANCELLED_BY_USER', 'DEVICE_ACTION_NOT_ALLOWED', 'DEVICE_UNEXPECTED_ERROR', 'BROWSER_UNSAFE_URL'];
+
+  function btaskText(key, fallback, values) {
+    let text = bt(key, fallback);
+    Object.keys(values || {}).forEach((name) => { text = text.split('{' + name + '}').join(String(values[name])); });
+    return text;
+  }
+
+  function btaskStepLine(step) {
+    const verb = BTASK_VERB[step.action] || ['mainTask.verb.OBSERVE', 'Looking at the page'];
+    let text = btaskText(verb[0], verb[1], { detail: step.detail || '', label: step.label ? '“' + step.label + '”' : btaskText('mainTask.aControl', 'a control') });
+    if (step.action === 'TYPE' && step.detail) text += ' (' + step.detail + ')';
+    return text;
+  }
+
+  function btaskBadge(step) {
+    if (step.problem) return { cls: 'failed', text: btaskText('mainTask.problem.' + step.problem, BTASK_PROBLEMS.indexOf(step.problem) >= 0 ? step.problem : 'did not work') };
+    const map = { VERIFIED: ['verified', 'mainTask.v.VERIFIED', 'confirmed'], NOT_VERIFIED: ['unconfirmed', 'mainTask.v.NOT_VERIFIED', 'not confirmed'], FAILED: ['failed', 'mainTask.v.FAILED', 'did not work'], USER_ACTION_REQUIRED: ['failed', 'mainTask.v.USER_ACTION_REQUIRED', 'needs a person'] };
+    const hit = map[step.verification];
+    return hit ? { cls: hit[0], text: bt(hit[1], hit[2]) } : null;
+  }
+
+  function btaskBlockFor(turn) {
+    let block = turn.el.querySelector('.main-btask-block');
+    if (!block) {
+      block = document.createElement('div');
+      block.className = 'main-btask-block';
+      block.innerHTML = '<div class="main-btask-head"><strong class="main-btask-state"></strong><small class="main-btask-meta"></small></div><p class="main-btask-now" hidden></p>'
+        + '<div class="main-btask-approval" hidden></div><div class="main-btask-result" hidden></div>'
+        + '<details class="main-btask-steps"><summary></summary><ol></ol></details><div class="main-btask-actions"></div>';
+      const anchor = turn.el.querySelector('.main-inline-approvals');
+      (anchor && anchor.parentNode ? anchor.parentNode : turn.el).insertBefore(block, anchor || null);
+    }
+    return block;
+  }
+
+  function renderBrowserTask(turn, task, note) {
+    const block = btaskBlockFor(turn);
+    turn.btaskId = task.taskId;
+    block.dataset.taskState = task.state;
+    block.dataset.taskId = task.taskId;
+    const stateText = BTASK_STATE[task.state] || ['', task.state];
+    block.querySelector('.main-btask-state').textContent = stateText[0] ? bt(stateText[0], stateText[1]) : stateText[1];
+    block.querySelector('.main-btask-meta').textContent = btaskText('mainTask.meta', 'On {sites} - step {n} (at most {max})', { sites: (task.allowedDomains || []).join(', '), n: task.stepCount, max: task.maxSteps });
+
+    const now = block.querySelector('.main-btask-now');
+    now.hidden = !task.now || task.state === 'COMPLETED';
+    now.textContent = task.now ? bt('mainTask.now', 'Now:') + ' ' + btaskStepLine(task.now) : '';
+
+    // the one action the task is waiting on, with the real picture of the page it would be done on
+    const approval = block.querySelector('.main-btask-approval');
+    approval.textContent = '';
+    approval.hidden = !task.approval;
+    if (task.approval) {
+      const p = document.createElement('p');
+      p.className = 'main-btask-approval-text';
+      p.textContent = btaskText('mainTask.approval', 'NAgex is about to press “{what}” on {where}. This can change something outside NAgex, so it will only happen if you approve.', { what: task.approval.what || btaskText('mainTask.aControl', 'a control'), where: task.approval.where || (task.allowedDomains || [])[0] || '' });
+      approval.appendChild(p);
+      if (task.hasScreenshot) {
+        const img = document.createElement('img');
+        img.className = 'main-btask-shot';
+        img.alt = bt('mainTask.shotAlt', 'The page as NAgex sees it right now');
+        img.src = '/api/v1/browser-tasks/' + encodeURIComponent(task.taskId) + '/screenshot?t=' + Date.now();
+        img.loading = 'lazy';
+        approval.appendChild(img);
+      }
+    }
+
+    const result = block.querySelector('.main-btask-result');
+    result.textContent = '';
+    let resultLines = [];
+    if (task.state === 'COMPLETED' && task.result) {
+      const r = task.result;
+      resultLines.push(bt('mainTask.result.checked', 'Checked by NAgex:') + ' ' + btaskText('mainTask.result.counts', '{met} thing(s) the page was expected to show were shown, {notMet} were not.', { met: r.expectationsMet, notMet: r.expectationsNotMet }));
+      resultLines.push(r.verification === 'VERIFIED' ? bt('mainTask.result.verified', 'The last change was confirmed on the page.') : bt('mainTask.result.unverified', 'NAgex could not independently confirm that everything is finished - please check the page.'));
+      if (r.finalPage) resultLines.push(btaskText('mainTask.result.lastPage', 'Last page: {page}', { page: r.finalPage }));
+      if (r.reportedByAgent) resultLines.push(bt('mainTask.result.report', "The assistant's own report:") + ' ' + r.reportedByAgent);
+    } else if (task.state === 'NEEDS_PERSON') {
+      resultLines.push(bt('mainTask.needsPerson', 'NAgex stopped because a person has to do this part (for example sign in or pass a verification check). NAgex never types passwords or solves CAPTCHAs. Do that on the website yourself, then ask again.'));
+      if (task.needsPerson && task.needsPerson.detail) resultLines.push(task.needsPerson.detail);
+    } else if (task.state === 'PAUSED' && task.pausedBecause === 'MODEL_UNAVAILABLE') {
+      resultLines.push(bt('mainTask.pausedModel', 'NAgex paused this task because the AI model could not be reached. Nothing was lost - press Continue to try again.'));
+    } else if (task.state === 'FAILED' || task.state === 'CANCELLED') {
+      const code = task.failure ? task.failure.code : '';
+      resultLines.push(btaskText('mainTask.failure.' + code, BTASK_FAILURES.indexOf(code) >= 0 ? code : bt('mainTask.failure.generic', 'The task stopped.')));
+    }
+    if (note) resultLines.push(note);
+    result.hidden = resultLines.length === 0;
+    resultLines.forEach((line) => { const p = document.createElement('p'); p.textContent = line; result.appendChild(p); });
+
+    const steps = block.querySelector('.main-btask-steps');
+    steps.hidden = !task.steps || task.steps.length === 0;
+    steps.querySelector('summary').textContent = btaskText('mainTask.stepsTitle', 'Steps so far ({n})', { n: (task.steps || []).length });
+    const list = steps.querySelector('ol');
+    list.textContent = '';
+    (task.steps || []).forEach((step) => {
+      const li = document.createElement('li');
+      li.textContent = btaskStepLine(step);
+      const badge = btaskBadge(step);
+      if (badge) { const span = document.createElement('small'); span.className = 'main-btask-badge ' + badge.cls; span.textContent = badge.text; li.appendChild(document.createTextNode(' ')); li.appendChild(span); }
+      list.appendChild(li);
+    });
+
+    const actions = block.querySelector('.main-btask-actions');
+    actions.textContent = '';
+    const act = async (path, button) => {
+      button.disabled = true;
+      const res = await api('/api/v1/browser-tasks/' + encodeURIComponent(task.taskId) + '/' + path, { method: 'POST', body: JSON.stringify({}) });
+      if (res && !res.error && res.task) { renderBrowserTask(turn, res.task); watchBrowserTask(turn, res.task.taskId); }
+      else { button.disabled = false; renderBrowserTask(turn, task, btaskErrorText(res)); }
+    };
+    if (task.controls && task.controls.canApprove) {
+      const approve = addVideoButton(actions, bt('mainTask.approve', 'Approve'), 'main-btask-approve', () => act('approve', approve));
+      addVideoButton(actions, bt('mainTask.decline', 'Decline'), 'main-btask-decline', () => act('decline', approve));
+    }
+    if (task.controls && task.controls.canPause) addVideoButton(actions, bt('mainTask.pause', 'Pause'), 'main-btask-pause', (event) => act('pause', event.currentTarget));
+    if (task.controls && task.controls.canContinue) addVideoButton(actions, bt('mainTask.continue', 'Continue'), 'main-btask-continue', (event) => act('continue', event.currentTarget));
+    if (task.controls && task.controls.canCancel) addVideoButton(actions, bt('mainTask.cancel', 'Cancel task'), 'main-btask-cancel', (event) => act('cancel', event.currentTarget));
+    scrollStreamToEnd();
+  }
+
+  function btaskErrorText(res) {
+    const code = res && typeof res.error === 'string' ? res.error : '';
+    if (code && BTASK_ERRORS.indexOf(code) >= 0) return bt('mainTask.err.' + code, res.message || code);
+    return (res && (res.message || (res.error && res.error.message))) || bt('mainTask.err.generic', 'NAgex could not do that.');
+  }
+
+  // The task is read from the server on a calm interval while it can still change; a failed read is waited out (within bounds), not shown as an outcome.
+  async function watchBrowserTask(turn, taskId) {
+    if (turn.btaskWatching) return;
+    turn.btaskWatching = true;
+    for (let i = 0; i < 1800 && turn.el.isConnected; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, i < 20 ? 1200 : 3000));
+      if (!turn.el.isConnected) break;
+      const res = await api('/api/v1/browser-tasks/' + encodeURIComponent(taskId));
+      if (!res || res.error || !res.task) continue;
+      renderBrowserTask(turn, res.task);
+      if (BTASK_TERMINAL.indexOf(res.task.state) >= 0) break;
+    }
+    turn.btaskWatching = false;
+  }
+
+  async function runBrowserTask(prompt, metadata, decision) {
+    const result = await api('/api/v1/browser-tasks', { method: 'POST', body: JSON.stringify({ goal: prompt }), timeoutMs: 60000 });
+    if (!result || result.error || !result.task) {
+      showThread(prompt, 'Unavailable', bt('mainTask.unavailableTitle', 'NAgex could not start this on the website'), btaskErrorText(result), [
+        { state: 'done', label: 'Request captured', detail: '' },
+        { state: 'running', label: bt('mainTask.notStarted', 'Nothing was started'), detail: '' },
+      ]);
+      return;
+    }
+    showThread(prompt, 'Working', bt('mainTask.title', 'Doing this on the website'), bt('mainTask.intro', 'NAgex works on the website step by step. It asks you before anything that changes something outside NAgex, and it never types passwords.'), [
+      { state: 'done', label: 'Request captured', detail: '' },
+      { state: 'running', label: bt('mainTask.inProgress', 'Working on the website'), detail: '' },
+    ]);
+    if (state.activeTurn) {
+      renderBrowserTask(state.activeTurn, result.task);
+      watchBrowserTask(state.activeTurn, result.task.taskId);
+    }
+  }
+
+  // After a refresh: a task that is still going (or waiting for the person, or paused) comes back as a card.
+  async function resumeBrowserTasks() {
+    if (state.activeTurn) return;
+    const list = await api('/api/v1/browser-tasks');
+    const tasks = list && !list.error && Array.isArray(list.tasks) ? list.tasks : [];
+    const open = tasks.filter((t) => BTASK_TERMINAL.indexOf(t.state) < 0 && Date.now() - Date.parse(t.startedAt) < 6 * 3600 * 1000).slice(0, 1);
+    for (const task of open) {
+      showThread(task.goal, 'Working', bt('mainTask.title', 'Doing this on the website'), '', []);
+      if (!state.activeTurn) continue;
+      const turn = state.activeTurn;
+      renderBrowserTask(turn, task);
+      watchBrowserTask(turn, task.taskId);
+      state.activeTurn = null;
+    }
+  }
+
   // ── Video: a price the person approves -> a real job at an outside service -> a stored MP4 ─────────────────────────────
   // Everything on screen is what the server's job record says (priced, waiting for approval, queued, running, finished, failed, declined). There is no
   // progress bar: the service does not report one, so none is drawn. The finished video is played and downloaded only from NAgex's own owner-checked path.
@@ -1654,6 +1866,12 @@
       if (job.status !== 'AWAITING_APPROVAL') watchVideo(turn, job.jobId);
       state.activeTurn = null;
     }
+  }
+
+  async function initBrowserTaskSupport() {
+    const capability = await api('/api/v1/browser-tasks/capability');
+    if (!capability || capability.error || capability.available !== true) return;
+    resumeBrowserTasks();
   }
 
   async function initVideoSupport() {
@@ -3555,6 +3773,7 @@
     wireAttentionBell();
     initHomeBriefing();
     initVideoSupport();
+    initBrowserTaskSupport();
     window.NAGEX_MAIN_SURFACE = Object.freeze({
       openArtifactResult,
       getControlMatrix: () => [
