@@ -75,6 +75,7 @@
       "home_reviewed_plan_browser",
       "one_input_document_chain_browser",
       "memory_control_browser",
+      "artifact_versions_browser",
       "calendar_reschedule_browser",
       "one_input_slides_chain_browser",
       "vault_save_approval_browser",
@@ -187,6 +188,7 @@
       "creation_continuity",
       "research_source_fetcher",
       "research_report",
+      "artifact_versions",
       "structured_output_recovery",
       "time_context",
       "schedule_grounding"
@@ -433,7 +435,9 @@
       "pptx_template",
       "slide_count",
       "creation_continuity",
-      "research_report"
+      "research_report",
+      "artifact_versions",
+      "artifact_versions_browser"
     ],
     "knowledge": [
       "r24_5c_knowledge_live"
@@ -441,6 +445,7 @@
     "security": [
       "document_download_route",
       "memory_control",
+      "artifact_versions",
       "research_source_fetcher"
     ]
   },

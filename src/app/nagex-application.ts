@@ -170,6 +170,8 @@ export interface NagexApplication {
   // R26-A — cited research reports and their provenance
   researchRunStore: import('../research/research-run.store.js').ResearchRunStore;
   researchReportService: import('../research/research-report.service.js').ResearchReportService;
+  // R26-D — versions of documents and decks
+  artifactVersionService: import('../creation/artifact-version.service.js').ArtifactVersionService;
   imageExecutor: import('../creation/executors/image-executor.js').ImageExecutor;
   // R23.7C-C — same ImageStore instance imageExecutor writes through,
   // exposed so the canonical image-serving HTTP route reads real state.

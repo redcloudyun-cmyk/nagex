@@ -1,6 +1,7 @@
 import { detectRequestLanguage, type RequestLanguage } from '../common/request-language.js';
 import { classifyPlanRequest } from '../model-gateway/plan-request-kind.js';
 import { isVaultSaveRequest } from './vault-save-intent.js';
+import { detectVersionIntent } from './version-intent.js';
 
 // Legacy surface (kept compatible for every existing caller: Quick Wake, mobile, tests): what KIND of input arrived.
 export type InputIntent =
@@ -287,6 +288,18 @@ export function decideRouting(rawText: string, options: { hasAttachment?: boolea
       kind: 'ACTION_PLAN', language, needs: [{ capability: 'ACTION', supported: true, approvalRequired: true }], confidence: 0.9, permissionRisk: 'LOCAL_CREATE', executionNegated,
       reasonCodes: [...reasonCodes, 'VAULT_SAVE', 'APPROVAL_REQUIRED'],
     });
+  }
+
+  // 2b-2. R26-D: "지난번 보고서 수정 전 버전과 지금 버전을 비교해줘" / "이전 버전으로 되돌려줘" - about the versions of a document or deck the person made. Nothing is created or sent: the client opens the Versions view
+  // (the comparison is computed by NAgex; restoring is a button there). Not a new routing kind on purpose: a client that does not know the reason code answers in chat, which is the safe default.
+  if (!executionNegated) {
+    const versions = detectVersionIntent(work, { activeArtifact: options.activeArtifact });
+    if (versions) {
+      return makeDecision({
+        kind: 'CONVERSATION', language, targetArtifactType: versions.target, needs: [{ capability: 'ANSWER', supported: true }], confidence: 0.86, executionNegated,
+        reasonCodes: [...reasonCodes, versions.action === 'COMPARE' ? 'COMPARE_VERSIONS' : 'RESTORE_VERSION'],
+      });
+    }
   }
 
   // 2c. a deck is open and the request changes it ("핵심 결론을 한 장 추가하고 전체를 다시 구성해줘"): the edit verbs belong to the deck - not to an external action and not to a chat answer.

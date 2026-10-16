@@ -6,11 +6,14 @@ import { NagexError } from '../../common/errors.js';
 import { detectRequestLanguage } from '../../common/request-language.js';
 import { buildDocx, DOCX_MIME, docxFileName } from '../../creation/docx/docx-writer.js';
 import { callerIdentity, tryGetCallerIdentity } from '../request-identity.js';
+import type { ArtifactVersionService } from '../../creation/artifact-version.service.js';
 
 export interface DocumentCreationRouteDeps {
   creationRuntime: CreationRuntime;
   documentExecutor: DocumentExecutor;
   documentStore: DocumentStore;
+  // R26-D: versions, comparison and restoration of documents and decks (optional so existing wiring keeps compiling; absent -> 503)
+  versionService?: ArtifactVersionService;
 }
 
 function getHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
@@ -23,7 +26,7 @@ export const handleDocumentCreationRoutes: AsyncRouteRegistrar<DocumentCreationR
   pathname,
   body,
   headers,
-  _query,
+  query,
   deps
 ): Promise<ApiResult | undefined> => {
   const { creationRuntime, documentExecutor, documentStore } = deps;
@@ -137,6 +140,43 @@ export const handleDocumentCreationRoutes: AsyncRouteRegistrar<DocumentCreationR
         'X-Content-Type-Options': 'nosniff',
       },
     };
+  }
+
+  // ---- R26-D: versions. A wrong tenant, a wrong owner, a malformed and an unknown id are all "not found".
+  const notFound = (what: string): ApiResult => ({ status: 404, data: { error: `${what}_NOT_FOUND`, message: `${what === 'DOCUMENT' ? 'Document' : 'Presentation'} not found.`, request_id: requestId } });
+  const unavailable = (): ApiResult => ({ status: 503, data: { error: 'VERSIONS_UNAVAILABLE', message: 'Version history is not available right now.', request_id: requestId } });
+
+  // the newest report (or deck) that has more than one version: what "지난번 보고서" means when nothing is open
+  if (pathname === '/api/v1/creations/versions/latest' && method === 'GET') {
+    if (!deps.versionService) return unavailable();
+    const kind = query?.kind === 'PRESENTATION' ? 'PRESENTATION' : 'DOCUMENT';
+    const family = deps.versionService.latestFamily(kind, tenantId, principalId);
+    if (!family) return { status: 404, data: { error: 'NO_VERSIONS', message: 'There is nothing with an earlier version yet.', request_id: requestId } };
+    return { status: 200, data: family };
+  }
+
+  const versionsMatch = pathname.match(/^\/api\/v1\/creations\/documents\/(doc_[0-9a-f]{24})\/(versions|compare|restore)$/);
+  if (versionsMatch) {
+    const [, documentId, action] = versionsMatch;
+    if (!deps.versionService) return unavailable();
+    if (action === 'versions' && method === 'GET') {
+      const family = deps.versionService.listDocumentVersions(documentId, tenantId, principalId);
+      return family ? { status: 200, data: family } : notFound('DOCUMENT');
+    }
+    if (action === 'compare' && method === 'GET') {
+      const to = typeof query?.to === 'string' && query.to ? query.to : undefined;
+      if (to !== undefined && !/^doc_[0-9a-f]{24}$/.test(to)) return notFound('DOCUMENT');
+      const result = deps.versionService.compareDocuments(documentId, to, tenantId, principalId);
+      if (result === 'NOT_FOUND') return notFound('DOCUMENT');
+      if (result === 'VERSIONS_NOT_RELATED') return { status: 400, data: { error: 'VERSIONS_NOT_RELATED', message: 'These two documents are not versions of the same document.', request_id: requestId } };
+      return { status: 200, data: { comparison: result } };
+    }
+    if (action === 'restore' && method === 'POST') {
+      const restored = documentExecutor.restoreVersion({ sourceDocumentId: documentId, tenantId, ownerId: principalId, requestId });
+      if (restored.status === 'SUCCESS') return { status: 201, data: restored };
+      const status = restored.errorCode === 'DOCUMENT_NOT_FOUND' ? 404 : restored.errorCode === 'VERSION_ALREADY_CURRENT' ? 409 : 500;
+      return { status, data: { error: restored.errorCode || 'RESTORE_FAILED', message: restored.errorMessage || 'The version could not be restored.', request_id: requestId } };
+    }
   }
 
   if (pathname.startsWith('/api/v1/creations/documents/') && method === 'GET') {

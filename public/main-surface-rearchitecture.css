@@ -1784,3 +1784,43 @@
   color: #5b6b86;
   font-size: .85rem;
 }
+
+/* R26-D — Versions tab: the list of versions and the comparison. Added/removed are told by a mark (+ / −) and a label as well as by colour. */
+.main-versions h1 { margin-bottom: 10px; }
+.main-versions-notice { margin: 0 0 12px; padding: 8px 12px; border-left: 3px solid #1f5fd6; background: #f4f8fe; color: #26334f; }
+.main-versions-list { list-style: none; margin: 0; padding: 0; }
+.main-version-item { margin: 0 0 12px; padding: 12px 14px; border: 1px solid #d5deec; border-radius: 10px; background: #fff; }
+.main-version-item.current { border-color: #1f5fd6; background: #f7faff; }
+.main-version-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.main-version-tag { display: inline-block; padding: 1px 8px; border-radius: 999px; background: #e3edff; color: #1c4fb4; font-size: .78rem; font-weight: 600; }
+.main-version-meta { margin-top: 4px; color: #55637d; font-size: .85rem; }
+.main-version-title { margin-top: 4px; overflow-wrap: anywhere; }
+.main-version-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.main-versions-hint { color: #55637d; font-size: .85rem; }
+.main-diff-head { color: #26334f; font-weight: 600; overflow-wrap: anywhere; }
+.main-diff-stats { color: #55637d; }
+.main-diff { margin: 10px 0 14px; border: 1px solid #d5deec; border-radius: 8px; overflow: hidden; font-size: .92rem; }
+.main-diff-line { display: flex; gap: 8px; padding: 2px 10px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.main-diff-mark { flex: 0 0 1.1em; font-weight: 700; text-align: center; }
+.main-diff-text { flex: 1 1 auto; min-width: 0; }
+.main-diff-line.added { background: #e8f6ec; color: #14532d; }
+.main-diff-line.removed { background: #fdecec; color: #7f1d1d; }
+.main-diff-line.removed .main-diff-text { text-decoration: line-through; text-decoration-color: rgba(127, 29, 29, .45); }
+.main-diff-fold { padding: 3px 10px; background: #f1f4f9; color: #55637d; font-size: .82rem; text-align: center; }
+.main-diff-slide { margin: 0 0 12px; padding: 10px 12px; border: 1px solid #d5deec; border-radius: 8px; }
+.main-diff-slide.added { border-color: #86c79a; }
+.main-diff-slide.removed { border-color: #e29a9a; }
+.main-diff-slide.changed { border-color: #e0c06a; }
+.main-diff-slide.unchanged { opacity: .72; }
+.main-diff-slide-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .main-versions-notice { background: #16233b; color: #d6e2f7; }
+  :root:not([data-theme="light"]) .main-version-item { background: #141c2b; border-color: #2c3b57; }
+  :root:not([data-theme="light"]) .main-version-item.current { background: #17233a; border-color: #4c82e6; }
+  :root:not([data-theme="light"]) .main-version-tag { background: #1d3358; color: #b9d0f7; }
+  :root:not([data-theme="light"]) .main-diff { border-color: #2c3b57; }
+  :root:not([data-theme="light"]) .main-diff-line.added { background: #12311d; color: #b7e6c3; }
+  :root:not([data-theme="light"]) .main-diff-line.removed { background: #3a1818; color: #f2c1c1; }
+  :root:not([data-theme="light"]) .main-diff-fold { background: #1a2436; color: #9fb0cc; }
+  :root:not([data-theme="light"]) .main-diff-slide { border-color: #2c3b57; }
+}

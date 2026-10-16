@@ -79,6 +79,8 @@ export interface DocumentRecord {
   artifactId?: string;
   // Additive: the research run (sources, retrieval times, verified claims) this report was composed from
   researchRunId?: string;
+  // Additive: this version was made by bringing an older version back (the older version itself is untouched)
+  restoredFromDocumentId?: string;
   createdAt: string;
   updatedAt: string;
 }

@@ -1,5 +1,6 @@
 import type { CreationRuntime } from '../../creation/creation-runtime.js';
 import type { PresentationExecutor } from '../../creation/executors/presentation-executor.js';
+import type { ArtifactVersionService } from '../../creation/artifact-version.service.js';
 import type { PresentationStore } from '../../creation/presentation.store.js';
 import { PRESENTATION_ID_PATTERN } from '../../creation/presentation.store.js';
 import type { ApiResult, AsyncRouteRegistrar } from '../http-types.js';
@@ -11,6 +12,8 @@ export interface PresentationCreationRouteDeps {
   presentationStore: PresentationStore;
   // optional so existing wiring keeps compiling; without it the revision route answers truthfully that revising is unavailable
   presentationExecutor?: PresentationExecutor;
+  // R26-D: versions, comparison and restoration (optional; absent -> 503)
+  versionService?: ArtifactVersionService;
 }
 
 function getHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
@@ -40,7 +43,7 @@ export const handlePresentationCreationRoutes: AsyncRouteRegistrar<PresentationC
   pathname,
   body,
   headers,
-  _query,
+  query,
   deps
 ): Promise<ApiResult | undefined> => {
   if (!pathname.startsWith('/api/v1/creations/presentations')) return undefined;
@@ -98,6 +101,34 @@ export const handlePresentationCreationRoutes: AsyncRouteRegistrar<PresentationC
       return { status: STATUS_BY_CODE[code] ?? 500, data: { error: code, message: result.errorMessage || 'Presentation revision failed.', request_id: requestId } };
     }
     return { status: 201, data: result };
+  }
+
+  // ---- R26-D: versions of a deck. Unknown, malformed, foreign-tenant and foreign-owner ids are indistinguishable.
+  const versionsMatch = pathname.match(/^\/api\/v1\/creations\/presentations\/([^/]+)\/(versions|compare|restore)$/);
+  if (versionsMatch) {
+    const [, presentationId, action] = versionsMatch;
+    const missing: ApiResult = { status: 404, data: { error: 'PRESENTATION_NOT_FOUND', message: 'Presentation not found.', request_id: requestId } };
+    if (!PRESENTATION_ID_PATTERN.test(presentationId)) return missing;
+    if (!deps.versionService) return { status: 503, data: { error: 'VERSIONS_UNAVAILABLE', message: 'Version history is not available right now.', request_id: requestId } };
+    if (action === 'versions' && method === 'GET') {
+      const family = deps.versionService.listPresentationVersions(presentationId, tenantId, principalId);
+      return family ? { status: 200, data: family } : missing;
+    }
+    if (action === 'compare' && method === 'GET') {
+      const to = typeof query?.to === 'string' && query.to ? query.to : undefined;
+      if (to !== undefined && !PRESENTATION_ID_PATTERN.test(to)) return missing;
+      const result = deps.versionService.comparePresentations(presentationId, to, tenantId, principalId);
+      if (result === 'NOT_FOUND') return missing;
+      if (result === 'VERSIONS_NOT_RELATED') return { status: 400, data: { error: 'VERSIONS_NOT_RELATED', message: 'These two presentations are not versions of the same presentation.', request_id: requestId } };
+      return { status: 200, data: { comparison: result } };
+    }
+    if (action === 'restore' && method === 'POST') {
+      if (!deps.presentationExecutor) return { status: 503, data: { error: 'VERSIONS_UNAVAILABLE', message: 'Version history is not available right now.', request_id: requestId } };
+      const restored = deps.presentationExecutor.restoreVersion({ sourcePresentationId: presentationId, tenantId, ownerId: principalId, requestId });
+      if (restored.status === 'SUCCESS') return { status: 201, data: restored };
+      const status = restored.errorCode === 'PRESENTATION_NOT_FOUND' ? 404 : restored.errorCode === 'VERSION_ALREADY_CURRENT' ? 409 : restored.errorCode === 'PRESENTATION_FILE_MISSING' ? 410 : 500;
+      return { status, data: { error: restored.errorCode || 'RESTORE_FAILED', message: restored.errorMessage || 'The version could not be restored.', request_id: requestId } };
+    }
   }
 
   const match = pathname.match(/^\/api\/v1\/creations\/presentations\/([^/]+)(\/download)?$/);

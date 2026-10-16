@@ -27,6 +27,8 @@ export interface PresentationRecord {
   parentPresentationId?: string;
   revisedFromPresentationId?: string;
   revisionIndex?: number;
+  // Additive: this deck was made by bringing an older version back (the older version and its file are untouched)
+  restoredFromPresentationId?: string;
   createdAt: string;
   updatedAt: string;
 }

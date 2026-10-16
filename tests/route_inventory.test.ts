@@ -75,7 +75,7 @@ const EXPECTED_ROUTE_MODULE_COUNTS: Record<string, number> = {
   'daily-brief.routes.ts': 6,
   'desktop.routes.ts': 3,
   'device-agent.routes.ts': 10, // accessibility plan delivery and result ack routes
-  'document-creation.routes.ts': 4,
+  'document-creation.routes.ts': 8, // R26-D: + GET versions/latest, GET :id/versions, GET :id/compare, POST :id/restore
   'forecast-compare.routes.ts': 1,
   'gmail.routes.ts': 5,
   'google-oauth.routes.ts': 5,
@@ -92,7 +92,7 @@ const EXPECTED_ROUTE_MODULE_COUNTS: Record<string, number> = {
   'personal-assistant.routes.ts': 16,
   'personal-context.routes.ts': 3,
   'personal-home.routes.ts': 1,
-  'presentation-creation.routes.ts': 3, // R23.7C-D: POST create, GET viewer/download; POST revisions
+  'presentation-creation.routes.ts': 6, // R23.7C-D: POST create, GET viewer/download; POST revisions; R26-D: GET :id/versions, GET :id/compare, POST :id/restore
   'proactive-suggestions.routes.ts': 0, // not counted by this methodology (see command-context)
   'perspective-compare.routes.ts': 1,
   'providers.routes.ts': 2,
@@ -132,11 +132,12 @@ test('ROUTE-INV-002: every route module\'s method-check-block count exactly matc
   assert.deepEqual(mismatches, [], `Route module endpoint-count drift detected:\n${mismatches.join('\n')}`);
 });
 
-test('ROUTE-INV-003: the total domain endpoint count across all route modules is exactly 357 — any change requires an intentional manifest update', () => {
+test('ROUTE-INV-003: the total domain endpoint count across all route modules is exactly 364 — any change requires an intentional manifest update', () => {
   // R23.7C-C — +1: GET /api/v1/creations/images/:imageId, the canonical
   // image-serving route fixing the BROKEN_SUCCESS_CONTRACT root cause.
   // Integration of R23.7 recovery + AGEX/MCP: 347 (R23.7 incl. restored device-agent 10 and social-auth 8) + connector-catalog 1 + MCP reconnect 1.
-  assert.equal(TOTAL_DOMAIN_ENDPOINTS, 357);
+  // R26-D: +7 on top of 357 (list / compare / restore of the versions of a document and of a deck, plus the lookup of the newest report that has earlier versions).
+  assert.equal(TOTAL_DOMAIN_ENDPOINTS, 364);
   let actualTotal = 0;
   for (const file of listRouteModuleFiles()) {
     actualTotal += countMethodChecks(readSourceWithoutComments(path.join(ROUTES_DIR, file)));
