@@ -66,6 +66,15 @@ export interface GoogleCapabilityExecutionPipelineDeps {
   fetchFn: FetchFn;
 }
 
+// What the provider's own state showed AFTER the change was accepted. SUCCEEDED means the provider accepted the call; only VERIFIED says the change is really there.
+export interface MutationVerification {
+  outcome: 'VERIFIED' | 'MISMATCH' | 'NOT_VERIFIED';
+  checks: Array<{ field: string; expected: string; actual: string | null; ok: boolean }>;
+  /** why it could not be read back (NOT_VERIFIED) */
+  note?: string;
+  readAt: string;
+}
+
 export interface NormalizedMutationResult {
   executionId: string;
   toolId: string;
@@ -74,6 +83,8 @@ export interface NormalizedMutationResult {
   externalUrl: string;
   startedAt: string;
   completedAt: string;
+  // Additive: present for capabilities that read the change back from the provider.
+  verification?: MutationVerification;
 }
 
 export interface ExecuteMutationInput<TPayload, TProviderResult extends { externalId: string; externalUrl: string }> {
@@ -86,6 +97,9 @@ export interface ExecuteMutationInput<TPayload, TProviderResult extends { extern
   // throw here is caught, logged, and never rethrown or allowed to alter
   // the (already truthful) SUCCEEDED result returned to the caller (§12).
   afterSuccess?: (payload: TPayload, result: TProviderResult, context: MutationExecutionContext<TPayload>) => void;
+  // Reads the change back from the provider (inside the same credential boundary, right after the mutation). It never throws into the caller: a read-back that cannot be done is NOT_VERIFIED,
+  // a read-back that shows something else is MISMATCH - the mutation itself stays recorded as what it was.
+  verifyProvider?: (accessToken: string, payload: TPayload, result: TProviderResult, requestId: string) => Promise<MutationVerification>;
 }
 
 export class GoogleCapabilityExecutionPipeline {
@@ -233,7 +247,7 @@ export class GoogleCapabilityExecutionPipeline {
   public async execute<TPayload, TProviderResult extends { externalId: string; externalUrl: string }>(
     input: ExecuteMutationInput<TPayload, TProviderResult>,
   ): Promise<NormalizedMutationResult> {
-    const { definition, context, executeProvider, afterSuccess } = input;
+    const { definition, context, executeProvider, afterSuccess, verifyProvider } = input;
 
     // Missing identity/context must DENY (§7) — TypeScript already
     // requires these fields, but a runtime guard protects against a
@@ -263,6 +277,7 @@ export class GoogleCapabilityExecutionPipeline {
     });
 
     let result: TProviderResult;
+    let verification: MutationVerification | undefined;
     try {
       result = await this.withAccessToken({
         tenantId: context.tenantId,
@@ -296,8 +311,9 @@ export class GoogleCapabilityExecutionPipeline {
 
         this.deps.executions.start({ executionId, toolId: definition.toolId, approvalId: context.approvalId, tenantId: context.tenantId, principalId: context.principalId, startedAt });
 
+        let provided: TProviderResult;
         try {
-          return await executeProvider(accessToken, payload, context.requestId);
+          provided = await executeProvider(accessToken, payload, context.requestId);
         } catch (error) {
           const code = error instanceof NagexError ? error.code : `${definition.service}_EXECUTION_FAILED`;
           const completedAt = getCurrentISOString();
@@ -314,6 +330,14 @@ export class GoogleCapabilityExecutionPipeline {
           });
           throw error;
         }
+        if (verifyProvider) {
+          try {
+            verification = await verifyProvider(accessToken, payload, provided, context.requestId);
+          } catch (verifyError) {
+            verification = { outcome: 'NOT_VERIFIED', checks: [], note: verifyError instanceof NagexError ? verifyError.code : 'READBACK_FAILED', readAt: getCurrentISOString() };
+          }
+        }
+        return provided;
       });
     } catch (error) {
       // Credential-resolution failures occur before approval consumption.
@@ -337,7 +361,7 @@ export class GoogleCapabilityExecutionPipeline {
     // durably recorded as such — nothing below this line may ever cause
     // the caller to be told it failed.
     const completedAt = getCurrentISOString();
-    this.deps.executions.succeed(executionId, { externalId: result.externalId, externalUrl: result.externalUrl, completedAt });
+    this.deps.executions.succeed(executionId, { externalId: result.externalId, externalUrl: result.externalUrl, completedAt, ...(verification ? { verificationOutcome: verification.outcome } : {}) });
     this.deps.audit.logEvent({
       actor: { type: 'user', id: context.principalId },
       tenant_id: context.tenantId,
@@ -345,7 +369,7 @@ export class GoogleCapabilityExecutionPipeline {
       resource: { type: 'ToolExecution', id: executionId },
       result: 'SUCCESS',
       request_id: context.requestId,
-      details: { toolId: definition.toolId, [definition.successExternalIdAuditKey ?? 'externalId']: result.externalId },
+      details: { toolId: definition.toolId, [definition.successExternalIdAuditKey ?? 'externalId']: result.externalId, ...(verification ? { verification: verification.outcome } : {}) },
     });
 
     if (afterSuccess) {
@@ -365,6 +389,6 @@ export class GoogleCapabilityExecutionPipeline {
       }
     }
 
-    return { executionId, toolId: definition.toolId, status: 'SUCCEEDED', externalId: result.externalId, externalUrl: result.externalUrl, startedAt, completedAt };
+    return { executionId, toolId: definition.toolId, status: 'SUCCEEDED', externalId: result.externalId, externalUrl: result.externalUrl, startedAt, completedAt, ...(verification ? { verification } : {}) };
   }
 }

@@ -1540,6 +1540,23 @@
       "assertionIntent": "observable behavior",
       "notes": "Observable deterministic product/service contract."
     },
+    "calendar_verification": {
+      "milestone": "R26B-CALENDAR",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "google",
+        "approvals",
+        "security",
+        "runtime"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "A Google Calendar change is read back from the calendar before it is called done (VERIFIED / MISMATCH / NOT_VERIFIED, never \"confirmed\" on provider acceptance alone); a create carries an id derived from what was approved so a retry, a second approval or a concurrent duplicate finds the existing event instead of making another; an approved payload that is changed in any way - time, target event, the shown \"before\" snapshot - is refused before Google is called; tokens never appear in results, records or audit.",
+      "notes": "Real token store, approval store, execution pipeline and calendar service against a faithful fake of the Calendar REST API (409 / 410 / ids / offsets, injectable faults); the live run needs an authorized account."
+    },
     "google_calendar_e2e": {
       "milestone": "Cross-cutting",
       "classification": "CANONICAL_BEHAVIOR",

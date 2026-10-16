@@ -11,6 +11,7 @@ import {
   queryFreeBusy,
   computeFreeSlots,
   listUpcomingCalendarEvents,
+  getCalendarEvent,
   type CalendarEventPayload,
   type UpdateCalendarEventPayload,
   type CalendarRsvpResponseStatus,
@@ -19,7 +20,8 @@ import {
 } from './calendar.client.js';
 import { readGoogleOAuthConfig, type GoogleOAuthConfig } from '../../integrations/google/oauth.client.js';
 import { type GoogleOAuthTokenStore } from '../../integrations/google/token.store.js';
-import { GoogleCapabilityExecutionPipeline, type NormalizedMutationResult } from '../../capabilities/google-capability-execution-pipeline.js';
+import { GoogleCapabilityExecutionPipeline, type MutationVerification, type NormalizedMutationResult } from '../../capabilities/google-capability-execution-pipeline.js';
+import { eventIdFromKey, idempotencyKeyFor, normalizeReadback, notVerified, verifyCancelled, verifyCreated, verifyResponded, verifyUpdated } from './calendar-verification.js';
 import type { MutationCapabilityDefinition } from '../../capabilities/mutation-registry.js';
 import { CredentialBrokerService, GoogleCredentialAccessService } from '../../security/credentials/index.js';
 
@@ -119,6 +121,7 @@ function assertValidUpdatePayload(payload: unknown, requestId: string): asserts 
     p &&
     typeof p.calendarId === 'string' && p.calendarId &&
     typeof p.eventId === 'string' && p.eventId &&
+    (p.before === undefined || (p.before !== null && typeof p.before === 'object' && !Array.isArray(p.before))) &&
     (p.summary === undefined || typeof p.summary === 'string') &&
     (p.description === undefined || typeof p.description === 'string') &&
     (p.start === undefined || typeof p.start === 'string') &&
@@ -317,6 +320,33 @@ export class GoogleCalendarService {
     return this.pipeline.reject(approvalId, tenantId, principalId, requestId);
   }
 
+  // The same approved event can never become two events: it is created under an id derived from what was approved, so a retry (a lost response, a second approval of the same request) meets
+  // Google's 409 for that id and finds the event that already exists instead of making another. The calendar is then read back and compared with what was approved.
+  private async createOnce(accessToken: string, payload: CalendarEventPayload, key: string, requestId: string): Promise<{ externalId: string; externalUrl: string; replayed: boolean }> {
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      const eventId = eventIdFromKey(key, attempt);
+      try {
+        const created = await createCalendarEvent(accessToken, payload, this.fetchFn, requestId, { eventId, nagexKey: key });
+        return { ...created, replayed: false };
+      } catch (error) {
+        if (!(error instanceof NagexError) || error.code !== 'GOOGLE_CALENDAR_HTTP_409') throw error;
+        const existing = normalizeReadback(await getCalendarEvent(accessToken, { calendarId: payload.calendarId, eventId }, this.fetchFn, requestId));
+        if (existing && existing.status !== 'cancelled') return { externalId: existing.id, externalUrl: existing.htmlLink ?? `https://calendar.google.com/calendar/u/0/r/eventedit/${encodeURIComponent(existing.id)}`, replayed: true };
+        // the id belongs to an event that was deleted (Google never frees an id): the next derived id is used once
+        if (attempt === 2) throw error;
+      }
+    }
+    throw new NagexError({ code: 'GOOGLE_CALENDAR_CREATE_FAILED', category: 'PROVIDER', message: 'The event could not be created.', request_id: requestId });
+  }
+
+  private async readBack(accessToken: string, calendarId: string, eventId: string, requestId: string): Promise<{ event: ReturnType<typeof normalizeReadback>; failed: null } | { event: null; failed: string }> {
+    try {
+      return { event: normalizeReadback(await getCalendarEvent(accessToken, { calendarId, eventId }, this.fetchFn, requestId)), failed: null };
+    } catch (error) {
+      return { event: null, failed: error instanceof NagexError ? error.code : 'READBACK_FAILED' };
+    }
+  }
+
   public async executeCreateEvent(input: {
     approvalId: string;
     payload: unknown;
@@ -324,11 +354,24 @@ export class GoogleCalendarService {
     principalId: string;
     requestId: string;
   }): Promise<NormalizedMutationResult> {
+    const definition = CALENDAR_MUTATION_BY_TOOL_ID.get(GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID)! as MutationCapabilityDefinition<CalendarEventPayload>;
+    // the key is computed from the payload NAgex validated, before anything is sent
+    const validated = definition.validatePayload(input.payload, input.requestId) as CalendarEventPayload;
+    const key = idempotencyKeyFor(input.tenantId, input.principalId, validated);
     return this.pipeline.execute({
-      definition: CALENDAR_MUTATION_BY_TOOL_ID.get(GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID)! as MutationCapabilityDefinition<CalendarEventPayload>,
+      definition,
       context: { tenantId: input.tenantId, principalId: input.principalId, toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, approvalId: input.approvalId, payload: input.payload, requestId: input.requestId },
-      executeProvider: (accessToken, payload: CalendarEventPayload, requestId) => createCalendarEvent(accessToken, payload, this.fetchFn, requestId),
-      afterSuccess: (payload: CalendarEventPayload) => {
+      executeProvider: (accessToken, payload: CalendarEventPayload, requestId) => this.createOnce(accessToken, payload, key, requestId),
+      verifyProvider: async (accessToken, payload: CalendarEventPayload, created, requestId): Promise<MutationVerification> => {
+        const read = await this.readBack(accessToken, payload.calendarId, created.externalId, requestId);
+        const readAt = new Date().toISOString();
+        if (read.failed) return notVerified(read.failed, readAt);
+        if (!read.event) return { outcome: 'MISMATCH', checks: [{ field: 'event', expected: 'present on the calendar', actual: 'not found', ok: false }], readAt };
+        return verifyCreated(payload, read.event, readAt);
+      },
+      afterSuccess: (payload: CalendarEventPayload, created) => {
+        // an event that already existed (a retry of the same approved request) is not scheduled again in memory
+        if (created.replayed) return;
         const scheduledFor = formatScheduledFor(payload.start, payload.timezone);
         const memoryRecord = this.memory.proposeMemory('USER', input.tenantId, input.principalId, {
           subject: 'Calendar Event', predicate: 'scheduled', value: `Scheduled ${payload.summary} for ${scheduledFor}.`,
@@ -366,6 +409,13 @@ export class GoogleCalendarService {
       definition: CALENDAR_MUTATION_BY_TOOL_ID.get(GOOGLE_CALENDAR_UPDATE_EVENT_TOOL_ID)! as MutationCapabilityDefinition<UpdateEventApprovalPayload>,
       context: { tenantId: input.tenantId, principalId: input.principalId, toolId: GOOGLE_CALENDAR_UPDATE_EVENT_TOOL_ID, approvalId: input.approvalId, payload: input.payload, requestId: input.requestId },
       executeProvider: (accessToken, payload: UpdateEventApprovalPayload, requestId) => updateCalendarEvent(accessToken, payload, this.fetchFn, requestId),
+      verifyProvider: async (accessToken, payload: UpdateEventApprovalPayload, updated, requestId): Promise<MutationVerification> => {
+        const read = await this.readBack(accessToken, payload.calendarId, updated.externalId, requestId);
+        const readAt = new Date().toISOString();
+        if (read.failed) return notVerified(read.failed, readAt);
+        if (!read.event) return { outcome: 'MISMATCH', checks: [{ field: 'event', expected: 'present on the calendar', actual: 'not found', ok: false }], readAt };
+        return verifyUpdated(payload, read.event, readAt);
+      },
       afterSuccess: (payload: UpdateEventApprovalPayload) => {
         const memoryRecord = this.memory.proposeMemory('USER', input.tenantId, input.principalId, { subject: 'Calendar Event', predicate: 'updated', value: `Updated "${payload.summary || payload.eventId}" on the calendar.` });
         this.memory.activateMemory(memoryRecord.id, input.tenantId, input.principalId);
@@ -378,6 +428,12 @@ export class GoogleCalendarService {
       definition: CALENDAR_MUTATION_BY_TOOL_ID.get(GOOGLE_CALENDAR_CANCEL_EVENT_TOOL_ID)! as MutationCapabilityDefinition<CancelEventApprovalPayload>,
       context: { tenantId: input.tenantId, principalId: input.principalId, toolId: GOOGLE_CALENDAR_CANCEL_EVENT_TOOL_ID, approvalId: input.approvalId, payload: input.payload, requestId: input.requestId },
       executeProvider: (accessToken, payload: CancelEventApprovalPayload, requestId) => cancelCalendarEvent(accessToken, payload, this.fetchFn, requestId),
+      verifyProvider: async (accessToken, payload: CancelEventApprovalPayload, cancelled, requestId): Promise<MutationVerification> => {
+        const read = await this.readBack(accessToken, payload.calendarId, cancelled.externalId, requestId);
+        const readAt = new Date().toISOString();
+        if (read.failed) return notVerified(read.failed, readAt);
+        return verifyCancelled(read.event, readAt);
+      },
       afterSuccess: (payload: CancelEventApprovalPayload) => {
         const memoryRecord = this.memory.proposeMemory('USER', input.tenantId, input.principalId, { subject: 'Calendar Event', predicate: 'cancelled', value: `Cancelled "${payload.summary}".` });
         this.memory.activateMemory(memoryRecord.id, input.tenantId, input.principalId);
@@ -390,6 +446,13 @@ export class GoogleCalendarService {
       definition: CALENDAR_MUTATION_BY_TOOL_ID.get(GOOGLE_CALENDAR_RESPOND_EVENT_TOOL_ID)! as MutationCapabilityDefinition<RespondToEventApprovalPayload>,
       context: { tenantId: input.tenantId, principalId: input.principalId, toolId: GOOGLE_CALENDAR_RESPOND_EVENT_TOOL_ID, approvalId: input.approvalId, payload: input.payload, requestId: input.requestId },
       executeProvider: (accessToken, payload: RespondToEventApprovalPayload, requestId) => respondToCalendarEvent(accessToken, payload, this.fetchFn, requestId),
+      verifyProvider: async (accessToken, payload: RespondToEventApprovalPayload, responded, requestId): Promise<MutationVerification> => {
+        const read = await this.readBack(accessToken, payload.calendarId, responded.externalId, requestId);
+        const readAt = new Date().toISOString();
+        if (read.failed) return notVerified(read.failed, readAt);
+        if (!read.event) return { outcome: 'MISMATCH', checks: [{ field: 'event', expected: 'present on the calendar', actual: 'not found', ok: false }], readAt };
+        return verifyResponded(payload.responseStatus, read.event, readAt);
+      },
       afterSuccess: (payload: RespondToEventApprovalPayload) => {
         const memoryRecord = this.memory.proposeMemory('USER', input.tenantId, input.principalId, { subject: 'Calendar Event', predicate: 'responded', value: `Responded "${payload.responseStatus}" to "${payload.summary}".` });
         this.memory.activateMemory(memoryRecord.id, input.tenantId, input.principalId);
