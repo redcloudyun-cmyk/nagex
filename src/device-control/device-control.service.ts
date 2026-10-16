@@ -117,9 +117,9 @@ function describeOutcome(executed: string, verification: BrowserVerification | u
 }
 
 // Errors that mean "this target could not be acted on" - raised before the page was touched.
-const RECOVERABLE_CODES: ReadonlySet<string> = new Set(['BROWSER_SELECTOR_NOT_FOUND', 'BROWSER_SELECTOR_AMBIGUOUS']);
+const RECOVERABLE_CODES: ReadonlySet<string> = new Set(['BROWSER_SELECTOR_NOT_FOUND', 'BROWSER_SELECTOR_AMBIGUOUS', 'BROWSER_KEYPRESS_ACTIVATION_UNKNOWN']);
 function isRecoverableFailure(action: string, error: unknown): boolean {
-  if (action !== 'CLICK' && action !== 'TYPE') return false;
+  if (action !== 'CLICK' && action !== 'TYPE' && action !== 'KEYPRESS') return false;
   if (error instanceof NagexError) return RECOVERABLE_CODES.has(error.code);
   // not one of ours: Playwright said the element could not be acted on (timeout waiting for it, strict-mode violation, an invalid selector)
   const name = error instanceof Error ? error.name : '';
@@ -381,7 +381,13 @@ export class DeviceControlService {
       }
 
       if (action.action === 'KEYPRESS') {
-        await this.browser.keypress({ ...base, key: action.value! });
+        const pressed = await this.browser.keypress({ ...base, key: action.value! });
+        if (pressed.status === 'APPROVAL_REQUIRED') {
+          // the key would have pressed a consequential control: the session waits for the same approval a click on it needs, and what resumes is that click (never a free key press)
+          const frozen: ProposedDeviceAction = { action: 'CLICK', target: { selector: pressed.selector, description: `${action.value} would activate this control` }, expectedResult: action.expectedResult };
+          this.sessions.waitForApproval(session.deviceExecutionSessionId, session.tenantId, session.ownerPrincipalId, frozen, pressed.approval.approvalId);
+          return { kind: 'WAITING_APPROVAL', deviceExecutionSessionId: session.deviceExecutionSessionId, approval: pressed.approval };
+        }
         return { kind: 'CONTINUE', session: this.recordExecutedStep(session), outcomeDescription: `EXECUTED: pressed ${action.value}` };
       }
 

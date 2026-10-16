@@ -4471,6 +4471,23 @@
       "assertionIntent": "A video is priced and approved before anything is sent: prepare sends nothing to the provider, the approval (the existing ActionApprovalStore) binds the exact request and price, a price that rose needs a new approval, a declined / expired / lost approval never starts a job, a double approve or a repeated identical request starts one paid job, and the provider call carries a stable idempotency key (a lost answer is retried once with it where the provider de-duplicates, otherwise reported as uncertain; a restart mid-submission is resolved the same way); states come only from the provider (PENDING -> RUNNING -> COMPLETED), waiting is bounded, a download is accepted only if it is a structurally valid MP4 and is stored for its owner (another person / tenant gets nothing, Range playback and download work), provider errors (credentials, credits, quota, billing, content, busy, unreachable) are distinct and truthful, the Higgsfield adapter follows its documented REST contract and never follows a status address from a response, the Veo adapter is offered only when the operator enabled it and prices from the published table, and image-to-video uploads the person's own image only after approval.",
       "notes": "Loopback HTTP stand-ins written from the providers' public documentation; no network, no real provider, no spend. A pass proves NAgex's side of the contract, not that Higgsfield or Google answer this way today and not what a real model draws."
     },
+    "computer_use_keyboard_approval": {
+      "milestone": "COMPUTER-USE-20261016",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "security",
+        "permission-approval-hardening"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "The keyboard is held to the same approval rule as the mouse, in real Chromium against a page that records every submission: Enter in a field of a form with a submit button, or Enter / Space on a focused consequential button, needs approval and submits nothing until it is granted (once, no replay; a rejected approval submits nothing); a harmless button is pressed; Enter that would submit a form with no submit button, or in a frame, is refused; letters, Tab, arrows, Enter in a textarea, Space on a checkbox and Enter in a multi-field form without a button are unaffected; a runtime that cannot say what the key would activate does not press Enter / Space; in the Agent loop the session pauses for approval, resumes by clicking the very control, and a refused key goes back to the model.",
+      "notes": "Local HTTP page and the real Playwright Chromium runtime; the model is the scripted fake adapter. Found by auditing the Browser Agent for Universal Computer Use: before the fix a KEYPRESS Enter submitted the form with no approval.",
+      "writesRepositoryArtifacts": false
+    },
     "video_generation_browser": {
       "milestone": "IMAGE-VIDEO-20261016",
       "classification": "REAL_BROWSER_CERT",

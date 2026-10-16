@@ -6,6 +6,7 @@ import { resolveNagexDataDir } from '../../governance/file-record.store.js';
 import { validateOutboundUrl, type OutboundDnsResolver } from '../../security/outbound-url-policy.js';
 import type { StructuredBrowserSnapshot, FindResult, ExtractResult, ElementMatchCandidate, StructuredLink, StructuredButton, StructuredInput, StructuredForm, InteractiveElementSummary } from './browser.types.js';
 import { mapDescribeInPage, mapScanInPage, mapSelectorsInPage, pickBest, rankMapElements, type RawMapElement } from './element-map.js';
+import { keyActivationInPage, type KeyActivation, type KeyActivationKind } from './key-activation.js';
 import { OBSERVE_PAGE_ARGS, observePageInPage, observeTargetInPage, readFieldInPage, type FieldState, type PageObservation, type TargetObservation } from './action-verification.js';
 
 // NAgex Browser Runtime — Phase B / Browser Agent MVP (MASTER.md Section
@@ -83,6 +84,8 @@ export interface BrowserRuntime {
   // focused element (no selector — mirrors real keyboard input, which has
   // no target of its own beyond whatever already has focus).
   keypress(sessionId: string, key: string): Promise<void>;
+  // What pressing `key` now would activate (a button, a link, a form's submit button), without pressing it. A runtime that cannot tell leaves it out, and Enter / Space are then not pressed.
+  describeKeyActivation?(sessionId: string, key: string): Promise<KeyActivation>;
   // Optional observation primitives (action-verification.ts). A runtime that cannot observe leaves them out; the service then reports NOT_VERIFIED / NO_OBSERVATION - it never guesses a result.
   observePage?(sessionId: string): Promise<PageObservation>;
   observeTarget?(sessionId: string, selector: string): Promise<TargetObservation | null>;
@@ -630,6 +633,23 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
   public async keypress(sessionId: string, key: string): Promise<void> {
     const page = this.requirePage(sessionId);
     await page.keyboard.press(key);
+  }
+
+  public async describeKeyActivation(sessionId: string, key: string): Promise<KeyActivation> {
+    const page = this.requirePage(sessionId);
+    const handle = await page.evaluateHandle(keyActivationInPage as (key: string) => { kind: KeyActivationKind; el: unknown }, key);
+    try {
+      const kind = (await (await handle.getProperty('kind')).jsonValue()) as KeyActivationKind;
+      if (kind === 'NONE' || kind === 'IMPLICIT_SUBMIT_UNRESOLVED') return { kind };
+      const element = (await handle.getProperty('el')).asElement();
+      if (!element) return { kind: 'NONE' };
+      // a control inside a frame cannot be named by a selector of the top page: the caller must not press the key
+      if ((await element.ownerFrame()) !== page.mainFrame()) return { kind: 'UNRESOLVED_FRAME' };
+      const selectors = await element.evaluate(mapSelectorsInPage as (el: any) => string[]);
+      return { kind, selectors: Array.isArray(selectors) ? selectors : [] };
+    } finally {
+      await handle.dispose().catch(() => undefined);
+    }
   }
 
   // What the page shows right now: address, title, a signature of its content, visible alert / status / error / success messages, invalid form fields, an open dialog. Read-only; the page is not touched.

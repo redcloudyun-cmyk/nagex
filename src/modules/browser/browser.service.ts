@@ -10,6 +10,7 @@ import { MemoryEngine } from '../../context/memory.engine.js';
 import { FileRecordStore, resolveNagexDataDir } from '../../governance/file-record.store.js';
 import { BrowserSessionStore, type BrowserSessionRecord, generateEvidenceId } from './browser-session.store.js';
 import { isBrowserRuntimeAvailableSync, type BrowserRuntime, type BrowserSnapshot } from './browser.runtime.js';
+import type { KeyActivation } from './key-activation.js';
 import { assertUrlSafe } from './browser-url-validator.js';
 import { humanVerificationRequired, verifyClick, verifyFieldWrite, verifyNavigation, type BrowserVerification, type ClickExpectation, type PageObservation, type TargetObservation } from './action-verification.js';
 import { createBrowserContentTrustMetadata, type UntrustedFindResult, type UntrustedExtractResult, type UntrustedStructuredBrowserSnapshot } from './browser.types.js';
@@ -38,7 +39,12 @@ const CONSEQUENTIAL_ACTION_KEYWORDS = [
   // "구독 해지" are caught by 주문 / 구독, deliberately - they are as consequential as the action itself.
   '결제', '구매', '주문', '삭제', '제거', '전송', '보내기', '발송', '제출', '예약', '신청', '가입', '탈퇴',
   '송금', '이체', '후원', '구독', '동의', '수락', '확인', '게시', '등록',
+  // issuing / finalising / approving / filing, in Korean: the wording of invoices, tax documents and back-office tools (a measured gap: "발행" was not in the table)
+  '발행', '발급', '확정', '승인', '결재', '납부', '청구', '출금', '신고',
 ];
+
+// The same wording in English, matched as WHOLE WORDS: "Issue invoice" and "Approve" are consequential; "Issues" (a tab), "tissue" or "executive summary" are not.
+const CONSEQUENTIAL_ACTION_WORDS = /\b(issue|finali[sz]e|approve|authori[sz]e|execute|withdraw)\b/i;
 
 // Explicit keyword table for CAPTCHA/MFA/human-verification detection —
 // never bypassed, never solved automatically (item 11: "Never bypass
@@ -53,7 +59,7 @@ export function classifyClickConsequence(text: string | null, isFormControl: boo
   if (isFormControl) return true; // a type="submit" control is inherently consequential
   if (!text) return false;
   const normalized = text.normalize('NFC').toLowerCase();
-  return CONSEQUENTIAL_ACTION_KEYWORDS.some((kw) => normalized.includes(kw));
+  return CONSEQUENTIAL_ACTION_KEYWORDS.some((kw) => normalized.includes(kw)) || CONSEQUENTIAL_ACTION_WORDS.test(normalized);
 }
 
 export function detectsHumanVerification(snapshot: { title: string; text: string }): boolean {
@@ -87,6 +93,9 @@ export interface BrowserClickApprovalRequired {
 }
 
 export type BrowserClickResult = BrowserClickExecuted | BrowserClickApprovalRequired;
+
+// A key press either happened, or it would have activated a consequential control and now waits for the same approval a click on that control needs.
+export type BrowserKeypressResult = { status: 'EXECUTED' } | { status: 'APPROVAL_REQUIRED'; approval: ActionApprovalRecord; selector: string };
 
 export interface BrowserEvidence {
   evidenceId: string;
@@ -411,11 +420,45 @@ export class BrowserToolService {
   // exact requireAvailable/requireSession/runtime-call/audit shape every
   // other action here already uses. No selector: a keypress acts on
   // whatever element already has focus, exactly like real keyboard input.
-  public async keypress(input: BrowserActionInput & { key: string }): Promise<void> {
+  public async keypress(input: BrowserActionInput & { key: string }): Promise<BrowserKeypressResult> {
     this.requireAvailable(input.requestId);
     const record = this.requireSession(input.browserSessionId, input.tenantId, input.ownerId, input.requestId);
+
+    // Enter and Space can press the focused button, follow a link or submit a form. Before such a key is pressed NAgex asks what it would activate and applies the click rules to THAT control:
+    // a consequential one needs approval exactly as a click does (the keyboard must not be a way around the mouse's approval), and anything NAgex cannot name is not pressed.
+    const base = String(input.key || '').split('+').pop() || '';
+    if (base === 'Enter' || base === 'NumpadEnter' || base === ' ' || base === 'Space') {
+      const unknown = (reason: string): NagexError => {
+        this.auditAction('browser.keypress', 'tool.execution.failed', input, 'DENIED', { key: input.key }, 'BROWSER_KEYPRESS_ACTIVATION_UNKNOWN');
+        return new NagexError({ code: 'BROWSER_KEYPRESS_ACTIVATION_UNKNOWN', category: 'POLICY', message: `NAgex did not press ${input.key}: ${reason} Click the visible button instead.`, request_id: input.requestId });
+      };
+      if (typeof this.runtime.describeKeyActivation !== 'function') throw unknown('it cannot tell what this key would activate on the page.');
+      let activation: KeyActivation;
+      try { activation = await this.runtime.describeKeyActivation(record.browserSessionId, input.key); } catch { throw unknown('it could not check what this key would activate.'); }
+      if (activation.kind === 'IMPLICIT_SUBMIT_UNRESOLVED') throw unknown('it would submit a form that has no visible submit button.');
+      if (activation.kind === 'UNRESOLVED_FRAME') throw unknown('the focused control is inside a frame NAgex does not act in.');
+      if (activation.kind === 'CONTROL' || activation.kind === 'FORM_SUBMIT') {
+        let selector = '';
+        let match: Awaited<ReturnType<BrowserRuntime['resolveSelector']>> | null = null;
+        for (const candidate of activation.selectors ?? []) {
+          const resolved = await this.runtime.resolveSelector(record.browserSessionId, candidate);
+          if (resolved.count === 1) { selector = candidate; match = resolved; break; }
+        }
+        if (!match) throw unknown('the control it would activate cannot be identified exactly.');
+        const classifiedText = [match.text, match.accessibleName].filter(Boolean).join(' ') || null;
+        // submitting a form is inherently consequential, whatever its button says
+        if (activation.kind === 'FORM_SUBMIT' || classifyClickConsequence(classifiedText, match.isFormControl)) {
+          const payload = { browserSessionId: record.browserSessionId, selector, targetText: match.text, ...(match.accessibleName ? { accessibleName: match.accessibleName } : {}), url: record.currentUrl };
+          const approval = this.approvals.request({ toolId: BROWSER_CLICK_TOOL_ID, tenantId: input.tenantId, principalId: input.ownerId, payload });
+          this.auditAction(BROWSER_CLICK_TOOL_ID, 'approval.requested', input, 'PENDING_APPROVAL', { selector, targetText: match.text, via: 'keypress', key: input.key });
+          return { status: 'APPROVAL_REQUIRED', approval, selector };
+        }
+      }
+    }
+
     await this.runtime.keypress(record.browserSessionId, input.key);
     this.auditAction('browser.keypress', 'tool.execution.succeeded', input, 'SUCCESS', { key: input.key });
+    return { status: 'EXECUTED' };
   }
 
   public async type(input: BrowserActionInput & { selector: string; text: string }): Promise<BrowserFieldWriteResult> {
