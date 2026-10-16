@@ -3,8 +3,10 @@
 // (routing, request language, prompts, validation, persistence, ownership, UI), never that a real model or search provider answered. Real-provider runs are separate, opt-in scripts.
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { PRODUCT_BUILD_STEPS, PRODUCT_CHECKS, PRODUCT_DESIGN, productPlan, productSiteAnswer } from './_product_site_fixture.js';
+import { TINY_PNG } from './_product_builder_fakes.js';
 
-export interface LocalModelRequest { kind: 'browser-planner' | 'followups' | 'document' | 'presentation' | 'plan-advice' | 'plan-action' | 'research' | 'research-plan' | 'research-extract' | 'research-report' | 'chat' | 'other'; system: string; user: string; korean: boolean }
+export interface LocalModelRequest { kind: 'browser-planner' | 'product-plan' | 'product-design' | 'product-build-plan' | 'product-engine' | 'followups' | 'document' | 'presentation' | 'plan-advice' | 'plan-action' | 'research' | 'research-plan' | 'research-extract' | 'research-report' | 'chat' | 'other'; system: string; user: string; korean: boolean }
 
 export interface LocalAiWorld {
   env: Record<string, string>;
@@ -22,6 +24,9 @@ export interface LocalAiWorld {
   // the browser Agent's planner: given the Gateway adapter's own prompt, answers the next action as JSON (null = the planner says a person must act). Lets the production server's Agent loop run on the local model.
   // returning null makes the endpoint answer HTTP 503 (a model outage)
   setBrowserPlanner: (planner: ((system: string, user: string) => string | null) | null) => void;
+  // The AI Product Builder's stand-in model and image endpoint: what the engine answers (a function of the repair prompt, so a broken first attempt can be followed by a good one), and whether the image endpoint has quota.
+  setProductBuilder: (options: { engine?: ((user: string, attempt: number) => string) | null; images?: 'ok' | 'quota' }) => void;
+  productBuilderCalls: () => { engine: number; images: number };
   // OPT-IN: slides are not a Nemotron task, so they go to another provider. The Gemini endpoint is a fixed public URL; this redirects ONLY that host to the local model for the
   // IN-PROCESS production server (global fetch, restored on close) and returns the fake key env to start the harness with. Nothing leaves the machine.
   installGeminiBridge: () => Record<string, string>;
@@ -41,6 +46,10 @@ export async function startLocalAiWorld(): Promise<LocalAiWorld> {
   let chatDelayMs = 0;
   let browserPlanner: ((system: string, user: string) => string | null) | null = null;
   let actionPlan: 'mail' | 'calendar' = 'mail';
+  let productEngine: ((user: string, attempt: number) => string) | null = null;
+  let productImages: 'ok' | 'quota' = 'ok';
+  let productEngineCalls = 0;
+  let productImageCalls = 0;
 
   const model = http.createServer(async (req, res) => {
     const body = JSON.parse((await readBody(req)) || '{}');
@@ -55,6 +64,24 @@ export async function startLocalAiWorld(): Promise<LocalAiWorld> {
     const user = String(messages.filter((m) => m.role === 'user').slice(-1)[0]?.content ?? '');
     const korean = /written in Korean|반드시 한국어로|Write in Korean/.test(system);
     const reply = (content: string) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(gemini ? JSON.stringify({ candidates: [{ content: { parts: [{ text: content }] } }], usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 10, totalTokenCount: 20 } }) : JSON.stringify({ model: body.model, choices: [{ message: { content }, finish_reason: 'stop' }], usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 } })); };
+    // ---- the AI Product Builder: image endpoint (the Google image adapter's wire shape), then the planner / designer / build planner / engine prompts
+    if (gemini && Array.isArray(body.generationConfig?.responseModalities) && body.generationConfig.responseModalities.includes('IMAGE')) {
+      productImageCalls += 1;
+      if (productImages === 'quota') { res.writeHead(429, { 'content-type': 'application/json' }); res.end(JSON.stringify({ error: { code: 429, status: 'RESOURCE_EXHAUSTED', message: 'You exceeded your current quota, please check your plan and billing details.' } })); return; }
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ candidates: [{ content: { parts: [{ inlineData: { mimeType: 'image/png', data: TINY_PNG.toString('base64') } }] }, finishReason: 'STOP' }] }));
+      return;
+    }
+    const productKorean = /natural Korean/.test(system);
+    if (/You are the product planner of a personal assistant/.test(system)) { modelRequests.push({ kind: 'product-plan', system, user, korean: productKorean }); reply(JSON.stringify(productPlan(productKorean))); return; }
+    if (/You are the interface designer of a personal assistant/.test(system)) { modelRequests.push({ kind: 'product-design', system, user, korean: productKorean }); reply(JSON.stringify(PRODUCT_DESIGN)); return; }
+    if (/You are the technical lead of a personal assistant/.test(system)) { modelRequests.push({ kind: 'product-build-plan', system, user, korean: productKorean }); reply(JSON.stringify({ steps: PRODUCT_BUILD_STEPS, testChecks: PRODUCT_CHECKS })); return; }
+    if (/You write the files of a small, complete, self-contained static website/.test(system)) {
+      modelRequests.push({ kind: 'product-engine', system, user, korean: false });
+      productEngineCalls += 1;
+      reply((productEngine ?? ((_u: string, _n: number) => productSiteAnswer()))(user, productEngineCalls));
+      return;
+    }
     // ---- the cited research report: three model steps (the model only proposes; NAgex verifies against the pages it fetched from the search server below)
     if (/You plan web searches for a research question/.test(system)) {
       modelRequests.push({ kind: 'research-plan', system, user, korean });
@@ -225,6 +252,8 @@ export async function startLocalAiWorld(): Promise<LocalAiWorld> {
     modelRequests,
     searchQueries,
     failDocuments: (mode) => { documentMode = mode; },
+    setProductBuilder: (options) => { if (options.engine !== undefined) productEngine = options.engine; if (options.images) productImages = options.images; },
+    productBuilderCalls: () => ({ engine: productEngineCalls, images: productImageCalls }),
     failSearch: (on) => { searchDown = on; },
     useLocalPages: (on) => { localPages = on; },
     pageUrl: (name) => `http://127.0.0.1:${searchPort}/pages/${name}`,

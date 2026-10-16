@@ -70,6 +70,7 @@ export const ROUTE_ACCESS_RULES: readonly RouteAccessRule[] = [
   rule(['GET'], /^\/api\/v1\/connectors\/catalog$/, 'SELF_AUTHENTICATED', 'connector catalog with the signed-in user\'s real connection state, requires a session'),
   rule('*', /^\/api\/v1\/mobile\/messages(\/|$)/, 'SELF_AUTHENTICATED', 'requires a session'),
   rule(['POST'], /^\/api\/v1\/device-agent\/enroll$/, 'SELF_AUTHENTICATED', 'requires a session'),
+  rule(['GET', 'HEAD'], /^\/api\/v1\/product-builder\/preview\/[^/]+\/.*$/, 'SELF_AUTHENTICATED', 'sandboxed preview of generated content: the frame sends no session, so the signed, owner- and workspace-bound, short-lived link in the path is the credential; anything else is a 404'),
   rule(['POST'], /^\/api\/v1\/device-agent\/devices\/[^/]+\/validate$/, 'SELF_AUTHENTICATED', 'requires a session and validates a cached local binding'),
   rule('*', /^\/api\/v1\/(quickwake|autonomy)\/config$/, 'SELF_AUTHENTICATED', 'personal settings, requires a session'),
   rule('*', /^\/api\/v1\/memory\/settings$/, 'SELF_AUTHENTICATED', 'personal settings, requires a session'),

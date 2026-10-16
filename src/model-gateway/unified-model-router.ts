@@ -40,6 +40,8 @@ export interface GenerateInput {
   validationRetries?: number;
   fallbackPolicy?: 'ALLOW' | 'DISALLOW';
   maxOutputTokens?: number;
+  // see ModelRequest.timeoutMs
+  timeoutMs?: number;
 }
 
 export interface JevAdvisoryConfig {
@@ -294,6 +296,7 @@ export class UnifiedModelRouter {
             requestId,
             jsonMode: input.jsonMode,
             ...(input.maxOutputTokens !== undefined ? { maxOutputTokens: input.maxOutputTokens } : {}),
+            ...(input.timeoutMs !== undefined ? { timeoutMs: input.timeoutMs } : {}),
           });
           try { input.validate?.(result.text); break; }
           catch (validationError) {

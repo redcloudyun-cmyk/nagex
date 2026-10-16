@@ -1079,6 +1079,11 @@
       await runBrowserTask(prompt, metadata, decision);
       return;
     }
+    // "build me a website": a project with four decisions of the person's - plan, design, build, deploy
+    if (decision.kind === 'ACTION_PLAN' && (decision.reasonCodes || []).indexOf('PRODUCT_BUILD') >= 0) {
+      await runProductBuild(prompt, metadata, decision);
+      return;
+    }
     // "open Notepad, write ..., save it as ... in my Documents": one card on an enrolled PC of the person's, after their approval
     if (decision.kind === 'ACTION_PLAN' && (decision.reasonCodes || []).indexOf('DESKTOP_TASK') >= 0) {
       await runDesktopTask(prompt, metadata, decision);
@@ -1845,6 +1850,509 @@
       { state: 'running', label: bt('mainDesktop.waitingApproval', 'Waiting for your approval'), detail: '' },
     ]);
     if (state.activeTurn) renderDesktopTask(state.activeTurn, { phase: 'APPROVAL', ask: asked, approvalState: 'PENDING' });
+  }
+
+  // ── AI Product Builder: "build me this website" -> a plan, pictures, a design, a build plan, a tested preview, and - only after you approve - a deployment ─────────────────────────────────────────────
+  // Four decisions are the person's: the PLAN, the DESIGN (with real generated pictures), the BUILD (scope, workspace, permissions, limits) and the DEPLOYMENT (where, under what name, how exposed, at what cost).
+  // Everything on this card is the project record the server keeps (it survives a refresh and a restart): the state, the artifact waiting for a decision, the reason something is blocked, the test results, the
+  // address that was checked. Nothing is progress NAgex made up; "online" appears only after the address answered with this build.
+  const PB_TRANSIENT = ['REQUIREMENTS_DRAFT', 'PLAN_APPROVED', 'MOCKUP_GENERATING', 'DESIGN_APPROVED', 'BUILD_APPROVED', 'IMPLEMENTING', 'TESTING', 'DEPLOYING'];
+  const PB_TERMINAL = ['DEPLOYED_VERIFIED', 'FAILED', 'CANCELLED'];
+  const PB_STATE_TEXT = {
+    REQUIREMENTS_DRAFT: ['mainProduct.state.REQUIREMENTS_DRAFT', 'Writing the plan'],
+    PLAN_PENDING_APPROVAL: ['mainProduct.state.PLAN_PENDING_APPROVAL', 'The plan is ready - waiting for your approval'],
+    PLAN_APPROVED: ['mainProduct.state.PLAN_APPROVED', 'Plan approved'],
+    MOCKUP_GENERATING: ['mainProduct.state.MOCKUP_GENERATING', 'Making the visual mockups'],
+    DESIGN_PENDING_APPROVAL: ['mainProduct.state.DESIGN_PENDING_APPROVAL', 'Pictures and design are ready - waiting for your approval'],
+    DESIGN_APPROVED: ['mainProduct.state.DESIGN_APPROVED', 'Design approved'],
+    BUILD_PLAN_PENDING_APPROVAL: ['mainProduct.state.BUILD_PLAN_PENDING_APPROVAL', 'The build plan is ready - waiting for your approval'],
+    BUILD_APPROVED: ['mainProduct.state.BUILD_APPROVED', 'Build approved'],
+    IMPLEMENTING: ['mainProduct.state.IMPLEMENTING', 'Building the product in an isolated workspace'],
+    TESTING: ['mainProduct.state.TESTING', 'Testing the product in an isolated browser'],
+    PREVIEW_READY: ['mainProduct.state.PREVIEW_READY', 'The preview is ready - nothing is online'],
+    DEPLOY_PENDING_APPROVAL: ['mainProduct.state.DEPLOY_PENDING_APPROVAL', 'Ready to put online - waiting for your approval'],
+    DEPLOYING: ['mainProduct.state.DEPLOYING', 'Sending it to the hosting service'],
+    DEPLOYED_VERIFIED: ['mainProduct.state.DEPLOYED_VERIFIED', 'Online - and checked at its address'],
+    FAILED: ['mainProduct.state.FAILED', 'This could not be finished'],
+    BLOCKED: ['mainProduct.state.BLOCKED', 'Stopped - something is needed first'],
+    CANCELLED: ['mainProduct.state.CANCELLED', 'Cancelled'],
+  };
+  const PB_STAGES = [['plan', 'mainProduct.stage.plan', 'Plan'], ['design', 'mainProduct.stage.design', 'Design'], ['build', 'mainProduct.stage.build', 'Build plan'], ['test', 'mainProduct.stage.test', 'Build and test'], ['preview', 'mainProduct.stage.preview', 'Preview'], ['online', 'mainProduct.stage.online', 'Online']];
+  const PB_STAGE_OF = { REQUIREMENTS_DRAFT: 0, PLAN_PENDING_APPROVAL: 0, PLAN_APPROVED: 0, MOCKUP_GENERATING: 1, DESIGN_PENDING_APPROVAL: 1, DESIGN_APPROVED: 1, BUILD_PLAN_PENDING_APPROVAL: 2, BUILD_APPROVED: 2, IMPLEMENTING: 3, TESTING: 3, PREVIEW_READY: 4, DEPLOY_PENDING_APPROVAL: 4, DEPLOYING: 5, DEPLOYED_VERIFIED: 5 };
+  const PB_BLOCKERS = ['IMAGE_QUOTA_EXCEEDED', 'IMAGE_PROVIDER_AUTH_FAILED', 'IMAGE_PROVIDER_UNAVAILABLE', 'NO_IMAGE_PROVIDER', 'IMAGE_CONTENT_REJECTED', 'IMAGE_GENERATION_FAILED', 'NO_MOCKUPS_RETURNED', 'PLANNER_UNAVAILABLE', 'PLANNER_OUTPUT_INVALID', 'PLANNING_UNAVAILABLE',
+    'NO_CODING_ENGINE', 'CODING_ENGINE_UNAVAILABLE', 'ENGINE_MODEL_UNAVAILABLE', 'ENGINE_OUTPUT_INVALID', 'NO_ISOLATED_TEST_RUNNER', 'DEPLOY_NOT_CONFIGURED', 'DEPLOY_STATE_UNCERTAIN', 'NO_DEPLOY_VERIFIER', 'HOST_AUTH_FAILED', 'HOST_PAYMENT_REQUIRED', 'HOST_RATE_LIMITED',
+    'HOST_REQUEST_REJECTED', 'HOST_SERVER_ERROR', 'HOST_RESPONSE_UNREADABLE', 'HOST_DEPLOY_FAILED', 'HOST_DEPLOY_CANCELED', 'DEPLOY_TIMEOUT', 'DEPLOY_NETWORK_ERROR', 'DEPLOY_NOT_READY_IN_TIME', 'HOST_REFUSED'];
+  const PB_FAILURES = ['TESTS_FAILED', 'DEPLOY_NOT_VERIFIED', 'NO_INDEX_HTML', 'STEP_FAILED', 'REVISION_FAILED', 'BUILD_GATE_NOT_PASSED', 'DEPLOY_GATE_NOT_PASSED'];
+  const PB_ERRORS = ['PRODUCT_REQUEST_REQUIRED', 'PRODUCT_REQUEST_TOO_LONG', 'PRODUCT_FEEDBACK_REQUIRED', 'PRODUCT_MOCKUP_PROVIDER_UNKNOWN', 'PRODUCT_PLAN_INVALID', 'PRODUCT_PROJECT_NOT_FOUND', 'PRODUCT_GATE_NOT_WAITING', 'PRODUCT_NOT_BLOCKED', 'PRODUCT_NOT_READY_FOR_DEPLOY',
+    'PRODUCT_DEPLOY_NOT_CONFIGURED', 'PRODUCT_TOO_MANY_ACTIVE', 'PRODUCT_BUILDER_UNAVAILABLE', 'PRODUCT_PLANNER_UNAVAILABLE', 'PRODUCT_NO_PREVIEW', 'APPROVAL_EXPIRED', 'APPROVAL_NOT_FOUND', 'APPROVAL_NOT_PENDING'];
+
+  function pbText(key, fallback, values) {
+    let text = bt(key, fallback);
+    Object.keys(values || {}).forEach((name) => { text = text.split('{' + name + '}').join(String(values[name])); });
+    return text;
+  }
+
+  function pbErrorText(res) {
+    const raw = res && res.error;
+    const code = typeof raw === 'string' ? raw : (raw && typeof raw === 'object' && raw.code) || (res && res.code) || '';
+    if (code && PB_ERRORS.indexOf(code) >= 0) return bt('mainProduct.err.' + code, code);
+    return bt('mainProduct.err.generic', 'NAgex could not do that.');
+  }
+
+  function pbEl(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined && text !== null) node.textContent = String(text);
+    return node;
+  }
+
+  function pbList(items, className) {
+    const list = pbEl('ul', className || 'main-pb-list');
+    (items || []).forEach((item) => list.appendChild(pbEl('li', '', item)));
+    return list;
+  }
+
+  function pbSection(title, node) {
+    const wrap = pbEl('div', 'main-pb-section');
+    wrap.appendChild(pbEl('h4', 'main-pb-h', title));
+    if (node) wrap.appendChild(node);
+    return wrap;
+  }
+
+  function pbBlockFor(turn) {
+    let block = turn.el.querySelector('.main-pb-block');
+    if (!block) {
+      block = pbEl('div', 'main-btask-block main-pb-block');
+      block.innerHTML = '<div class="main-btask-head"><strong class="main-btask-state"></strong><small class="main-btask-meta"></small></div><ol class="main-pb-stages"></ol><p class="main-btask-now" hidden></p>'
+        + '<div class="main-pb-body"></div><div class="main-btask-actions main-pb-actions"></div>';
+      const anchor = turn.el.querySelector('.main-inline-approvals');
+      (anchor && anchor.parentNode ? anchor.parentNode : turn.el).insertBefore(block, anchor || null);
+    }
+    return block;
+  }
+
+  function pbStageIndex(view) {
+    if (view.state === 'BLOCKED' && view.blocker) return PB_STAGE_OF[view.blocker.blockedAt] != null ? PB_STAGE_OF[view.blocker.blockedAt] : 0;
+    if (view.state === 'FAILED' && view.failure) return PB_STAGE_OF[view.failure.at] != null ? PB_STAGE_OF[view.failure.at] : 0;
+    return PB_STAGE_OF[view.state] != null ? PB_STAGE_OF[view.state] : -1;
+  }
+
+  function pbDecisionBox(turn, view, gate, labels) {
+    const box = pbEl('div', 'main-pb-decision');
+    box.dataset.gate = gate;
+    const gateInfo = view.gates && view.gates[gate];
+    const declined = gateInfo && gateInfo.status === 'REJECTED';
+    if (declined) box.appendChild(pbEl('p', 'main-pb-declined', bt('mainProduct.declinedNote', 'You declined this. Nothing moves forward until you ask for changes or approve a new version.')));
+    const actions = pbEl('div', 'main-btask-actions');
+    if (!declined) {
+      const approve = addVideoButton(actions, labels.approve, 'main-btask-approve main-pb-approve', () => pbDecide(turn, gate, 'approve', approve));
+      addVideoButton(actions, bt('mainProduct.decline', 'Decline'), 'main-btask-decline main-pb-decline', () => pbDecide(turn, gate, 'decline', approve));
+    }
+    const change = addVideoButton(actions, bt('mainProduct.requestChanges', 'Ask for changes'), 'main-pb-change', () => {
+      form.hidden = !form.hidden;
+      change.setAttribute('aria-expanded', String(!form.hidden));
+      if (!form.hidden) input.focus();
+    });
+    box.appendChild(actions);
+    const form = pbEl('div', 'main-pb-change-form');
+    form.hidden = true;
+    const input = document.createElement('textarea');
+    input.className = 'main-pb-change-input';
+    input.rows = 2;
+    input.maxLength = 1500;
+    input.placeholder = bt('mainProduct.changePlaceholder', 'What should be different?');
+    input.setAttribute('aria-label', bt('mainProduct.changePlaceholder', 'What should be different?'));
+    const send = addVideoButton(form, bt('mainProduct.sendChanges', 'Send changes'), 'main-pb-send-changes', () => {
+      const feedback = input.value.trim();
+      if (!feedback) { input.focus(); return; }
+      pbRevise(turn, gate, feedback, send);
+    });
+    form.insertBefore(input, send);
+    box.appendChild(form);
+    change.setAttribute('aria-expanded', 'false');
+    return box;
+  }
+
+  function pbPlanSection(view) {
+    const plan = view.plan && view.plan.content;
+    const wrap = pbEl('div', 'main-pb-artifact');
+    if (!plan) return wrap;
+    wrap.appendChild(pbEl('p', 'main-pb-summary', plan.summary));
+    wrap.appendChild(pbEl('p', 'main-pb-audience', pbText('mainProduct.audience', 'For: {who}', { who: plan.audience })));
+    wrap.appendChild(pbSection(bt('mainProduct.pages', 'Pages'), pbList(plan.pages.map((p) => p.title + ' - ' + p.purpose))));
+    wrap.appendChild(pbSection(bt('mainProduct.features', 'Features'), pbList(plan.features.map((f) => f.title + ' - ' + f.detail))));
+    if (plan.dataModel && plan.dataModel.length > 0) wrap.appendChild(pbSection(bt('mainProduct.data', 'Information it keeps'), pbList(plan.dataModel.map((d) => d.entity + ': ' + d.fields.join(', ')))));
+    if (plan.nonGoals && plan.nonGoals.length > 0) wrap.appendChild(pbSection(bt('mainProduct.nonGoals', 'Not included'), pbList(plan.nonGoals)));
+    if (plan.assumptions && plan.assumptions.length > 0) wrap.appendChild(pbSection(bt('mainProduct.assumptions', 'What NAgex assumed'), pbList(plan.assumptions)));
+    if (plan.openQuestions && plan.openQuestions.length > 0) wrap.appendChild(pbSection(bt('mainProduct.questions', 'Questions for you (answer them with "Ask for changes")'), pbList(plan.openQuestions)));
+    wrap.appendChild(pbEl('p', 'main-pb-version', pbText('mainProduct.version', 'Version {n}', { n: view.plan.version })));
+    return wrap;
+  }
+
+  function pbMockupsSection(view) {
+    const wrap = pbEl('div', 'main-pb-artifact');
+    if (view.mockups) {
+      const grid = pbEl('div', 'main-pb-mockups');
+      view.mockups.items.forEach((item) => {
+        const figure = pbEl('figure', 'main-pb-mockup');
+        const img = document.createElement('img');
+        img.src = item.url;
+        img.alt = item.caption;
+        img.loading = 'lazy';
+        figure.appendChild(img);
+        figure.appendChild(pbEl('figcaption', '', item.caption + ' - ' + item.providerId));
+        grid.appendChild(figure);
+      });
+      wrap.appendChild(pbSection(bt('mainProduct.mockups', 'Visual mockups (generated pictures)'), grid));
+    }
+    const design = view.design && view.design.content;
+    if (design) {
+      const rows = pbEl('dl', 'main-pb-facts');
+      const fact = (label, value) => { rows.appendChild(pbEl('dt', '', label)); rows.appendChild(pbEl('dd', '', value)); };
+      fact(bt('mainProduct.layout', 'Layout'), design.layout);
+      fact(bt('mainProduct.navigation', 'Navigation'), design.navigation);
+      fact(bt('mainProduct.type', 'Type'), design.typography.heading + ' / ' + design.typography.body);
+      fact(bt('mainProduct.components', 'Components'), design.components.join(', '));
+      fact(bt('mainProduct.responsive', 'Screens'), design.responsive.breakpoints.join(' / ') + ' px - ' + design.responsive.notes);
+      const colors = pbEl('div', 'main-pb-colors');
+      Object.keys(design.colors).forEach((name) => {
+        const chip = pbEl('span', 'main-pb-color', name + ' ' + design.colors[name]);
+        if (/^#[0-9a-fA-F]{3,8}$/.test(design.colors[name])) chip.style.borderLeftColor = design.colors[name];
+        colors.appendChild(chip);
+      });
+      wrap.appendChild(pbSection(bt('mainProduct.design', 'Design'), rows));
+      wrap.appendChild(colors);
+      wrap.appendChild(pbEl('p', 'main-pb-version', pbText('mainProduct.designVersion', 'Design version {n}', { n: view.design.version })));
+    }
+    return wrap;
+  }
+
+  function pbBuildPlanSection(view) {
+    const build = view.buildPlan && view.buildPlan.content;
+    const wrap = pbEl('div', 'main-pb-artifact');
+    if (!build) return wrap;
+    const rows = pbEl('dl', 'main-pb-facts');
+    const fact = (label, value) => { rows.appendChild(pbEl('dt', '', label)); rows.appendChild(pbEl('dd', '', value)); };
+    fact(bt('mainProduct.engine', 'Built by'), build.engine.kind + ' (' + build.engine.id + ')');
+    fact(bt('mainProduct.framework', 'Made with'), build.framework);
+    fact(bt('mainProduct.database', 'Data'), build.database);
+    fact(bt('mainProduct.hosting', 'Hosting'), build.deployTarget.provider);
+    wrap.appendChild(rows);
+    wrap.appendChild(pbSection(bt('mainProduct.steps', 'Steps'), pbList(build.steps)));
+    wrap.appendChild(pbSection(bt('mainProduct.checks', 'It must pass these checks before you see it'), pbList(build.testChecks.map((c) => c.description))));
+    const frozen = view.gates && view.gates.BUILD && view.gates.BUILD.extra && view.gates.BUILD.extra.frozen;
+    if (frozen) {
+      wrap.appendChild(pbSection(bt('mainProduct.frozenAllows', 'Approving lets NAgex'), pbList(frozen.permissions)));
+      wrap.appendChild(pbSection(bt('mainProduct.frozenForbids', 'It will not'), pbList(frozen.notPermitted)));
+      wrap.appendChild(pbEl('p', 'main-pb-limits', pbText('mainProduct.limits', 'Fixed for this approval: plan v{p}, design v{d}, build plan v{b}; up to {n} repair attempts; at most {files} files.', { p: frozen.planVersion, d: frozen.designVersion, b: frozen.buildPlanVersion, n: frozen.limits.repairAttempts, files: frozen.workspace.maxFiles })));
+    }
+    if (build.credentialsNeeded && build.credentialsNeeded.length > 0) wrap.appendChild(pbSection(bt('mainProduct.needsFirst', 'Needed before this can finish'), pbList(build.credentialsNeeded)));
+    return wrap;
+  }
+
+  function pbTestSection(view) {
+    const wrap = pbEl('div', 'main-pb-artifact');
+    const test = view.test;
+    if (!test) return wrap;
+    const list = pbEl('ul', 'main-pb-checks');
+    test.checks.forEach((check) => {
+      const li = pbEl('li', 'main-pb-check');
+      li.dataset.passed = check.passed ? 'true' : 'false';
+      li.appendChild(pbEl('span', 'main-pb-check-mark', check.passed ? '✓' : '✗'));
+      li.appendChild(pbEl('span', 'main-pb-check-text', check.description + (check.passed ? '' : ' - ' + check.detail)));
+      list.appendChild(li);
+    });
+    wrap.appendChild(pbSection(test.passed ? bt('mainProduct.testPassed', 'Checked in an isolated browser: all passed') : bt('mainProduct.testFailed', 'Checked in an isolated browser: some failed'), list));
+    if (test.screenshots && test.screenshots.length > 0) {
+      const strip = pbEl('div', 'main-pb-shots');
+      test.screenshots.forEach((shot) => {
+        const figure = pbEl('figure', 'main-pb-shot');
+        const img = document.createElement('img');
+        img.src = shot.url;
+        img.alt = pbText('mainProduct.shotAlt', 'How it looks at {w} px wide', { w: shot.width });
+        img.loading = 'lazy';
+        figure.appendChild(img);
+        figure.appendChild(pbEl('figcaption', '', shot.width + ' px'));
+        strip.appendChild(figure);
+      });
+      wrap.appendChild(strip);
+    }
+    if (view.workspace) wrap.appendChild(pbEl('p', 'main-pb-version', pbText('mainProduct.files', '{n} files in an isolated workspace', { n: view.workspace.files.length })));
+    return wrap;
+  }
+
+  function pbPreviewControls(turn, view) {
+    const wrap = pbEl('div', 'main-pb-preview-wrap');
+    const open = addVideoButton(wrap, bt('mainProduct.showPreview', 'Show the preview'), 'main-pb-open-preview', async () => {
+      open.disabled = true;
+      const link = await api('/api/v1/product-builder/projects/' + encodeURIComponent(view.projectId) + '/preview-link', { method: 'POST', body: JSON.stringify({}) });
+      open.disabled = false;
+      if (!link || link.error || typeof link.url !== 'string' || link.url.indexOf('/api/v1/product-builder/preview/') !== 0) { renderProduct(turn, Object.assign({}, view, { note: pbErrorText(link) })); return; }
+      let frame = wrap.querySelector('iframe');
+      if (!frame) {
+        frame = document.createElement('iframe');
+        frame.className = 'main-pb-preview';
+        // scripts and forms run, but with no access to NAgex: an opaque origin, no popups, no top navigation (and the server adds a Content-Security-Policy sandbox of its own)
+        frame.setAttribute('sandbox', 'allow-scripts allow-forms');
+        frame.setAttribute('referrerpolicy', 'no-referrer');
+        frame.setAttribute('title', bt('mainProduct.previewTitle', 'Preview of your website'));
+        wrap.appendChild(frame);
+        wrap.appendChild(pbEl('p', 'main-pb-preview-note', bt('mainProduct.previewNote', 'This runs in an isolated frame, only for you. What you type here is not saved and may reset when it reloads.')));
+      }
+      frame.src = link.url;
+    });
+    return wrap;
+  }
+
+  // a short, readable address name from what the plan says (the person can change it); Korean plans have no Latin words, so they get a neutral one
+  function pbSuggestName(view) {
+    const source = (view.plan && view.plan.content && view.plan.content.summary) || view.title || '';
+    const skip = ['a', 'an', 'the', 'with', 'and', 'for', 'of', 'to', 'responsive', 'simple', 'small', 'new'];
+    const words = String(source).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ').filter((w) => w && skip.indexOf(w) < 0);
+    return words.slice(0, 3).join('-').slice(0, 40) || 'my-site';
+  }
+
+  function pbDeployTargetSection(view) {
+    const deploy = view.deploy;
+    const wrap = pbEl('div', 'main-pb-artifact');
+    if (!deploy) return wrap;
+    const target = deploy.target;
+    const rows = pbEl('dl', 'main-pb-facts');
+    const fact = (label, value) => { rows.appendChild(pbEl('dt', '', label)); rows.appendChild(pbEl('dd', '', value)); };
+    fact(bt('mainProduct.deploy.where', 'Where'), target.provider);
+    fact(bt('mainProduct.deploy.account', 'Account'), target.account || bt('mainProduct.deploy.accountUnknown', 'the connected account'));
+    fact(bt('mainProduct.deploy.name', 'Name'), target.appName);
+    fact(bt('mainProduct.deploy.exposure', 'Who can open it'), bt('mainProduct.deploy.public', 'Anyone who has the address (public on the internet)'));
+    fact(bt('mainProduct.deploy.cost', 'Cost'), target.costLimitUsd == null ? bt('mainProduct.deploy.costUncontrolled', 'Set by your hosting plan. NAgex does not control or limit it.') : '$' + Number(target.costLimitUsd).toFixed(2));
+    fact(bt('mainProduct.deploy.secrets', 'Secrets sent'), (target.envSecretNames || []).length === 0 ? bt('mainProduct.deploy.none', 'None') : target.envSecretNames.join(', '));
+    fact(bt('mainProduct.deploy.database', 'Database'), target.database === 'none' ? bt('mainProduct.deploy.none', 'None') : target.database);
+    fact(bt('mainProduct.deploy.files', 'Files'), pbText('mainProduct.deploy.filesCount', '{n} files - exactly the tested preview', { n: view.workspace ? view.workspace.files.length : 0 }));
+    fact(bt('mainProduct.deploy.rollback', 'How to undo'), target.rollback);
+    wrap.appendChild(rows);
+    return wrap;
+  }
+
+  function pbBlockedSection(turn, view) {
+    const blocker = view.blocker;
+    const wrap = pbEl('div', 'main-pb-blocked');
+    wrap.dataset.code = blocker.code;
+    wrap.appendChild(pbEl('p', 'main-pb-blocked-head', PB_BLOCKERS.indexOf(blocker.code) >= 0 ? bt('mainProduct.blocker.' + blocker.code, blocker.message) : blocker.message));
+    // the server's own sentence says exactly what was reported (a provider's reason); shown as detail so nothing is lost in translation
+    wrap.appendChild(pbEl('p', 'main-pb-blocked-detail', blocker.message));
+    wrap.appendChild(pbEl('p', 'main-pb-blocked-need', bt('mainProduct.need.' + blocker.need, blocker.need)));
+    return wrap;
+  }
+
+  function renderProduct(turn, view) {
+    const block = pbBlockFor(turn);
+    turn.product = view;
+    block.dataset.taskState = view.state;
+    block.dataset.projectId = view.projectId;
+    const stateText = PB_STATE_TEXT[view.state] || ['', view.state];
+    block.querySelector('.main-btask-state').textContent = stateText[0] ? bt(stateText[0], stateText[1]) : stateText[1];
+    block.querySelector('.main-btask-meta').textContent = view.title;
+
+    // the six stages: what is done, what is current, what is blocked
+    const stages = block.querySelector('.main-pb-stages');
+    stages.textContent = '';
+    const current = pbStageIndex(view);
+    PB_STAGES.forEach((stage, index) => {
+      const li = pbEl('li', 'main-pb-stage', bt(stage[1], stage[2]));
+      const done = view.state === 'DEPLOYED_VERIFIED' || index < current;
+      li.dataset.stage = stage[0];
+      li.dataset.state = done ? 'done' : index === current ? (view.state === 'BLOCKED' ? 'blocked' : view.state === 'FAILED' ? 'failed' : PB_TRANSIENT.indexOf(view.state) >= 0 ? 'working' : 'waiting') : 'todo';
+      stages.appendChild(li);
+    });
+
+    const statusEl = turn.el.querySelector('.main-message-status');
+    if (statusEl) { statusEl.textContent = view.state === 'DEPLOYED_VERIFIED' ? bt('mainProduct.status.Completed', 'Completed') : view.state === 'FAILED' ? bt('mainProduct.status.Failed', 'Failed') : view.state === 'CANCELLED' ? bt('mainProduct.status.Cancelled', 'Cancelled') : bt('mainProduct.status.Working', 'Working'); statusEl.dataset.status = view.state === 'DEPLOYED_VERIFIED' ? 'Completed' : view.state === 'FAILED' ? 'Failed' : view.state === 'CANCELLED' ? 'Cancelled' : 'Working'; }
+    const introEl = turn.el.querySelector('.main-work-summary');
+    if (introEl) introEl.textContent = '';
+
+    const now = block.querySelector('.main-btask-now');
+    now.textContent = view.note || '';
+    now.hidden = !view.note;
+
+    const body = block.querySelector('.main-pb-body');
+    body.textContent = '';
+    const actions = block.querySelector('.main-pb-actions');
+    actions.textContent = '';
+
+    if (view.state === 'BLOCKED' && view.blocker) {
+      body.appendChild(pbBlockedSection(turn, view));
+      if (view.blocker.code !== 'DEPLOY_STATE_UNCERTAIN') {
+        const alternatives = (view.mockupProviders || []).filter((p) => p.available && p.providerId !== view.mockupProviderInUse && view.mockups == null && view.blocker.blockedAt === 'MOCKUP_GENERATING');
+        alternatives.forEach((p) => addVideoButton(actions, pbText('mainProduct.useProvider', 'Use {name} for the pictures', { name: p.providerId }), 'main-pb-use-provider', () => pbResolve(turn, { mockupProviderId: p.providerId })));
+        addVideoButton(actions, bt('mainProduct.tryAgain', "I've sorted it out - try again"), 'main-pb-resolve', () => pbResolve(turn, {}));
+      }
+      addVideoButton(actions, bt('mainProduct.cancel', 'Cancel this project'), 'main-btask-decline main-pb-cancel', () => pbCancel(turn));
+    } else if (view.state === 'FAILED' && view.failure) {
+      const failed = pbEl('div', 'main-pb-failed');
+      failed.appendChild(pbEl('p', 'main-pb-failed-head', PB_FAILURES.indexOf(view.failure.code) >= 0 ? bt('mainProduct.failure.' + view.failure.code, view.failure.message) : view.failure.message));
+      failed.appendChild(pbEl('p', 'main-pb-blocked-detail', view.failure.message));
+      body.appendChild(failed);
+      if (view.test && !view.test.passed) body.appendChild(pbTestSection(view));
+    } else if (view.state === 'CANCELLED') {
+      body.appendChild(pbEl('p', 'main-pb-cancelled', bt('mainProduct.cancelledNote', 'Cancelled. Nothing further will be built or put online.')));
+    } else if (view.state === 'PLAN_PENDING_APPROVAL') {
+      body.appendChild(pbPlanSection(view));
+      const mock = view.gates.PLAN && view.gates.PLAN.extra && view.gates.PLAN.extra.mockups;
+      if (mock) body.appendChild(pbEl('p', 'main-pb-consequence', mock.providerId ? pbText('mainProduct.planConsequence', 'If you approve: NAgex asks {provider} for {n} visual mockups of this plan. Nothing is built yet.', { provider: mock.providerId, n: mock.count }) : bt('mainProduct.planNoImages', 'If you approve: no image service is set up, so NAgex will stop before the pictures and tell you what is needed.')));
+      body.appendChild(pbDecisionBox(turn, view, 'PLAN', { approve: bt('mainProduct.approvePlan', 'Approve the plan') }));
+    } else if (view.state === 'DESIGN_PENDING_APPROVAL') {
+      body.appendChild(pbMockupsSection(view));
+      body.appendChild(pbEl('p', 'main-pb-consequence', bt('mainProduct.designConsequence', 'If you approve: NAgex writes the build plan. No code is written before you approve that too.')));
+      body.appendChild(pbDecisionBox(turn, view, 'DESIGN', { approve: bt('mainProduct.approveDesign', 'Approve the design') }));
+    } else if (view.state === 'BUILD_PLAN_PENDING_APPROVAL') {
+      body.appendChild(pbBuildPlanSection(view));
+      body.appendChild(pbDecisionBox(turn, view, 'BUILD', { approve: bt('mainProduct.approveBuild', 'Approve the build') }));
+    } else if (view.state === 'PREVIEW_READY') {
+      body.appendChild(pbTestSection(view));
+      body.appendChild(pbPreviewControls(turn, view));
+      const form = pbEl('div', 'main-pb-deploy-form');
+      if (view.canRequestDeploy) {
+        const name = document.createElement('input');
+        name.type = 'text';
+        name.className = 'main-pb-appname';
+        name.maxLength = 40;
+        name.value = pbSuggestName(view);
+        name.setAttribute('aria-label', bt('mainProduct.appName', 'Name for the website address'));
+        form.appendChild(name);
+        const ask = addVideoButton(form, bt('mainProduct.putOnline', 'Put it online...'), 'main-btask-approve main-pb-deploy-request', () => pbRequestDeploy(turn, name.value, ask));
+        form.appendChild(pbEl('p', 'main-pb-consequence', bt('mainProduct.putOnlineNote', 'This only asks. You see exactly where it would go and approve it before anything is sent.')));
+      } else {
+        form.appendChild(pbEl('p', 'main-pb-consequence main-pb-no-host', bt('mainProduct.noHost', 'No hosting account is connected to NAgex, so it cannot be put online from here. The preview above is the tested result.')));
+      }
+      body.appendChild(form);
+    } else if (view.state === 'DEPLOY_PENDING_APPROVAL') {
+      body.appendChild(pbDeployTargetSection(view));
+      body.appendChild(pbEl('p', 'main-pb-consequence', bt('mainProduct.deployConsequence', 'If you approve: exactly these files are sent to this service and made public. NAgex then opens the address to check it before saying it is online.')));
+      body.appendChild(pbDecisionBox(turn, view, 'DEPLOY', { approve: bt('mainProduct.approveDeploy', 'Approve and put it online') }));
+    } else if (view.state === 'DEPLOYED_VERIFIED' && view.deploy) {
+      const done = pbEl('div', 'main-pb-online');
+      const link = document.createElement('a');
+      link.className = 'main-pb-url';
+      link.textContent = view.deploy.url;
+      if (/^https?:\/\//i.test(view.deploy.url || '')) { link.href = view.deploy.url; link.target = '_blank'; link.rel = 'noopener noreferrer'; }
+      done.appendChild(link);
+      const v = view.deploy.verification;
+      if (v) done.appendChild(pbEl('p', 'main-pb-verified', pbText('mainProduct.verified', 'Checked just now: the address answers (HTTP {status}), it serves this build, and its checks pass.', { status: v.status })));
+      body.appendChild(done);
+      body.appendChild(pbDeployTargetSection(view));
+      body.appendChild(pbTestSection(view));
+    } else if (PB_TRANSIENT.indexOf(view.state) >= 0) {
+      const working = pbEl('p', 'main-pb-working', bt('mainProduct.working', 'Working. You can leave this open; the project keeps its place.'));
+      body.appendChild(working);
+      if (view.state === 'DEPLOYING') body.appendChild(pbEl('p', 'main-pb-consequence', bt('mainProduct.deployingNote', 'It is not called online until NAgex has opened the address and checked it.')));
+    }
+    scrollStreamToEnd();
+  }
+
+  async function pbCall(turn, path, body, button) {
+    const view = turn.product;
+    if (!view || view.busy) return null;
+    view.busy = true;
+    if (button) button.disabled = true;
+    const res = await api('/api/v1/product-builder/projects/' + encodeURIComponent(view.projectId) + path, { method: 'POST', body: JSON.stringify(body || {}), timeoutMs: 120000 });
+    view.busy = false;
+    if (button) button.disabled = false;
+    if (!res || res.error || !res.project) { renderProduct(turn, Object.assign({}, view, { note: pbErrorText(res) })); return null; }
+    renderProduct(turn, res.project);
+    watchProduct(turn);
+    return res.project;
+  }
+
+  function pbDecide(turn, gate, action, button) { return pbCall(turn, '/gates/' + gate + '/' + action, {}, button); }
+  function pbRevise(turn, gate, feedback, button) { return pbCall(turn, '/gates/' + gate + '/revise', { feedback }, button); }
+  function pbResolve(turn, body) { return pbCall(turn, '/resolve', body, null); }
+  function pbCancel(turn) { return pbCall(turn, '/cancel', {}, null); }
+  function pbRequestDeploy(turn, appName, button) { return pbCall(turn, '/deploy-request', { appName: String(appName || '').trim() }, button); }
+
+  function pbSettled(view) {
+    if (PB_TERMINAL.indexOf(view.state) >= 0 || view.state === 'BLOCKED') return true;
+    if (PB_TRANSIENT.indexOf(view.state) >= 0) return false;
+    return !view.running;
+  }
+
+  async function watchProduct(turn) {
+    if (turn.productWatching) return;
+    turn.productWatching = true;
+    for (let i = 0; i < 2400 && turn.el.isConnected; i += 1) {
+      const view = turn.product;
+      if (!view) break;
+      if (pbSettled(view) && i > 0) break;
+      await new Promise((resolve) => setTimeout(resolve, i < 90 ? 1500 : 4000));
+      if (!turn.el.isConnected || !turn.product) break;
+      const res = await api('/api/v1/product-builder/projects/' + encodeURIComponent(turn.product.projectId));
+      if (res && !res.error && res.project) {
+        // a decision form the person is typing in must not be thrown away by a refresh of an unchanged state
+        const changed = res.project.updatedAt !== turn.product.updatedAt || res.project.state !== turn.product.state || res.project.running !== turn.product.running;
+        if (changed) renderProduct(turn, res.project);
+        if (pbSettled(res.project)) break;
+      }
+    }
+    turn.productWatching = false;
+  }
+
+  // what is missing is said BEFORE the person starts, not discovered at the end
+  function pbCapabilityNotes(capability) {
+    const notes = [];
+    if (!capability.mockups || !capability.mockups.some((m) => m.available)) notes.push(bt('mainProduct.cap.noImages', 'No image service is set up: NAgex will stop after you approve the plan and say what is needed for the pictures.'));
+    if (!capability.engine || !capability.engine.available) notes.push(bt('mainProduct.cap.noEngine', 'No coding engine is available: the build step will stop with the reason.'));
+    if (!capability.tester) notes.push(bt('mainProduct.cap.noTester', 'There is no isolated browser to test the product in: it cannot be built here.'));
+    if (!capability.deployers || !capability.deployers.some((d) => d.configured)) notes.push(bt('mainProduct.cap.noHost', 'No hosting account is connected: you can plan, design, build and preview, but not put it online.'));
+    return notes;
+  }
+
+  async function runProductBuild(prompt, metadata, decision) {
+    const capability = await api('/api/v1/product-builder/capability');
+    if (!capability || capability.error || capability.available !== true) {
+      showThread(prompt, 'Unavailable', bt('mainProduct.unavailableTitle', 'NAgex cannot build websites here yet'), bt('mainProduct.unavailableBody', 'No planning model is set up, so a website cannot be planned. Nothing was started.'), [
+        { state: 'done', label: 'Request captured', detail: '' },
+        { state: 'running', label: bt('mainProduct.notStarted', 'Nothing was started'), detail: '' },
+      ]);
+      renderInlineActions([{ id: 'edit', label: bt('mainRoute.editRequest', 'Edit request'), action: () => putBackInComposer(prompt) }]);
+      return;
+    }
+    showThread(prompt, 'Working', bt('mainProduct.title', 'Building your website'), bt('mainProduct.intro', 'NAgex plans it, shows you pictures, builds it in an isolated workspace, tests it, and puts it online only after you approve each step.'), [
+      { state: 'done', label: 'Request captured', detail: '' },
+      { state: 'running', label: bt('mainProduct.writingPlan', 'Writing the plan'), detail: '' },
+    ]);
+    const turn = state.activeTurn;
+    if (!turn) return;
+    const created = await api('/api/v1/product-builder/projects', { method: 'POST', body: JSON.stringify({ request: prompt, locale: requestLocale(prompt) }), timeoutMs: 30000 });
+    if (!created || created.error || !created.project) {
+      showThread(prompt, 'Unavailable', bt('mainProduct.unavailableTitle', 'NAgex cannot build websites here yet'), pbErrorText(created), [
+        { state: 'done', label: 'Request captured', detail: '' },
+        { state: 'running', label: bt('mainProduct.notStarted', 'Nothing was started'), detail: '' },
+      ]);
+      renderInlineActions([{ id: 'edit', label: bt('mainRoute.editRequest', 'Edit request'), action: () => putBackInComposer(prompt) }]);
+      return;
+    }
+    const notes = pbCapabilityNotes(capability);
+    renderProduct(turn, Object.assign({}, created.project, notes.length > 0 ? { note: bt('mainProduct.cap.lead', 'Before you start: ') + notes.join(' ') } : {}));
+    watchProduct(turn);
+  }
+
+  async function resumeProducts() {
+    if (state.activeTurn) return;
+    const list = await api('/api/v1/product-builder/projects');
+    const projects = list && !list.error && Array.isArray(list.projects) ? list.projects : [];
+    const open = projects.filter((p) => PB_TERMINAL.indexOf(p.state) < 0 && Date.now() - Date.parse(p.updatedAt) < 7 * 24 * 3600 * 1000).slice(0, 1);
+    for (const project of open) {
+      showThread(project.request, 'Working', bt('mainProduct.title', 'Building your website'), '', []);
+      if (!state.activeTurn) continue;
+      const turn = state.activeTurn;
+      renderProduct(turn, project);
+      watchProduct(turn);
+      state.activeTurn = null;
+    }
+  }
+
+  async function initProductBuilderSupport() {
+    const capability = await api('/api/v1/product-builder/capability');
+    if (!capability || capability.error || capability.available !== true) return;
+    resumeProducts();
   }
 
   // ── Video: a price the person approves -> a real job at an outside service -> a stored MP4 ─────────────────────────────
@@ -3976,6 +4484,7 @@
     initHomeBriefing();
     initVideoSupport();
     initBrowserTaskSupport();
+    initProductBuilderSupport();
     window.NAGEX_MAIN_SURFACE = Object.freeze({
       openArtifactResult,
       getControlMatrix: () => [

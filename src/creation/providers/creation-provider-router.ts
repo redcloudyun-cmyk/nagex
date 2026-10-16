@@ -30,6 +30,11 @@ export class CreationProviderRouter {
     this.imageProviders.set(provider.providerId.toLowerCase(), provider);
   }
 
+  /** every registered image provider, in registration order (the first configured one is the default) */
+  public listImageProviders(): ImageProviderPort[] {
+    return Array.from(this.imageProviders.values());
+  }
+
   public registerPresentationProvider(provider: PresentationProviderPort): void {
     this.presentationProviders.set(provider.providerId.toLowerCase(), provider);
   }

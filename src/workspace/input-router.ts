@@ -85,6 +85,8 @@ export interface ClassifyInput {
   videoAvailable?: boolean;
   // a browser agent is configured (the server knows). Without it a request to operate a website is routed as before.
   browserTaskAvailable?: boolean;
+  // a planning model is configured (the server knows): "build me a website" then starts a Product Builder project. Without it the request stays an honest 'not available'.
+  productBuilderAvailable?: boolean;
   // a PC of the signed-in person is enrolled and can drive Notepad (the server knows). Without one a "write this in Notepad and save it" request is an honest 'not available'.
   desktopTaskAvailable?: boolean;
 }
@@ -111,6 +113,14 @@ const CODE_APP = [
   /(만들|개발|구현|제작|코딩)[^.!?\n]{0,10}(웹\s*사이트|웹사이트|웹\s*앱|웹앱|홈페이지|앱|어플|챗봇|게임)/,
   /\b(build|create|make|develop|code|deploy|host|launch)\b[^.!?\n]{0,24}\b(web ?site|web ?app|app|application|chatbot|bot|game|landing page)\b/i,
 ];
+// a WEBSITE (static pages) the person wants built - what the Product Builder can really make. An app, a bot or a game is not this and stays 'not available'.
+const PRODUCT_SITE = [
+  /(웹\s*사이트|웹사이트|홈페이지|랜딩\s*페이지|웹\s*앱|웹앱|웹\s*페이지|사이트)[^.!?\n]{0,24}(만들|개발|구현|제작|코딩|짜\s*(줘|주)|배포|호스팅|올려|띄워)/,
+  /(만들|개발|구현|제작|코딩)[^.!?\n]{0,16}(웹\s*사이트|웹사이트|홈페이지|랜딩\s*페이지|웹\s*앱|웹앱|웹\s*페이지)/,
+  /\b(build|create|make|develop|code|design)\b[^.!?\n]{0,70}\b(web ?site|website|web ?app|landing page|web page|web ?portal)\b/i,
+];
+// a QUESTION about building a website ("how do I build a website?", "웹사이트 만드는 방법") is a question, not a request to build one
+const PRODUCT_QUESTION = /^\s*(how|what|why|which|where|when|who|can i|could you explain|explain|is it|are there)\b|(어떻게|방법|하는\s*법|뭐가|무엇을|왜\s)/i;
 const CODE_RUN = [
   /(코드|소스|스크립트|프로그램)[^.!?\n]{0,12}(실행|돌려|배포|호스팅)|(실행|배포|호스팅)[^.!?\n]{0,12}(코드|소스|스크립트|프로그램)/,
   /\b(run|execute|deploy)\b[^.!?\n]{0,16}\b(code|script|program)\b|\b(code|script|program)\b[^.!?\n]{0,16}\b(run|execute|deploy)\b/i,
@@ -265,7 +275,7 @@ export function isDeckEditRequest(text: string): boolean {
   return (DECK_EDIT_VERB_KO.test(t) && DECK_PART_KO.test(t)) || (DECK_EDIT_VERB_EN.test(t) && DECK_PART_EN.test(t));
 }
 
-export function decideRouting(rawText: string, options: { hasAttachment?: boolean; hint?: ClassifyInput['hint']; revisingDocument?: boolean; activeArtifact?: ClassifyInput['activeArtifact']; sourceDocument?: boolean; videoAvailable?: boolean; browserTaskAvailable?: boolean; desktopTaskAvailable?: boolean } = {}): RoutingDecision {
+export function decideRouting(rawText: string, options: { hasAttachment?: boolean; hint?: ClassifyInput['hint']; revisingDocument?: boolean; activeArtifact?: ClassifyInput['activeArtifact']; sourceDocument?: boolean; videoAvailable?: boolean; browserTaskAvailable?: boolean; productBuilderAvailable?: boolean; desktopTaskAvailable?: boolean } = {}): RoutingDecision {
   const text = (rawText || '').normalize('NFC').trim();
   const language = detectRequestLanguage(text);
   const hasAttachment = options.hasAttachment === true;
@@ -320,8 +330,15 @@ export function decideRouting(rawText: string, options: { hasAttachment?: boolea
   }
   const codeRun = CODE_RUN.some((re) => re.test(work));
   const codeApp = CODE_APP.some((re) => re.test(work));
+  // 2a. "build me a website (and put it online)": a Product Builder project - plan, pictures, design, build, test, preview, deploy - with the person deciding at four gates. Nothing is built or deployed by this
+  // routing decision; it only chooses the path. "make a report ABOUT a website" is a document and is left to the paths below.
+  const productSite = !executionNegated && !codeRun && !hasDocNoun && !hasSlideNoun && !hasImageNoun && !PRODUCT_QUESTION.test(text) && PRODUCT_SITE.some((re) => re.test(work));
+  if (options.productBuilderAvailable === true && productSite) {
+    return makeDecision({ kind: 'ACTION_PLAN', language, targetArtifactType: 'CODE', needs: [{ capability: 'CODE', supported: true, approvalRequired: true }], confidence: 0.86, permissionRisk: 'EXTERNAL_CONSEQUENTIAL', executionNegated, reasonCodes: [...reasonCodes, 'PRODUCT_BUILD', 'APPROVAL_REQUIRED'] });
+  }
   // "make a report ABOUT an app" is a document; only a request to build or run something is a code app
-  if (codeRun || (codeApp && !hasDocNoun && !hasSlideNoun && !hasImageNoun)) {
+  // (a long way of asking for a website - "build me a responsive customer management website ..." - is the same unsupported request when no planning model is set up, never a chat answer posing as the site)
+  if (codeRun || productSite || (codeApp && !hasDocNoun && !hasSlideNoun && !hasImageNoun)) {
     return makeDecision({ kind: 'UNSUPPORTED', language, targetArtifactType: 'CODE', needs: [{ capability: 'CODE', supported: false }], confidence: 0.85, reasonCodes: [...reasonCodes, 'CODE_APP_NOT_AVAILABLE'] });
   }
 
@@ -464,7 +481,7 @@ export class InputRouter {
         confidence: 0.98,
         reason: 'Input contains file payload',
         normalizedPayload: { rawInput: rawText, mimeType: input.mimeType || 'application/octet-stream' },
-        decision: rawText ? decideRouting(rawText, { hasAttachment, hint: input.hint, revisingDocument: input.revisingDocument === true, activeArtifact: input.activeArtifact, sourceDocument: input.sourceDocument === true, videoAvailable: input.videoAvailable === true, browserTaskAvailable: input.browserTaskAvailable === true, desktopTaskAvailable: input.desktopTaskAvailable === true }) : captureDecision(0.98, 'FILE_PAYLOAD'),
+        decision: rawText ? decideRouting(rawText, { hasAttachment, hint: input.hint, revisingDocument: input.revisingDocument === true, activeArtifact: input.activeArtifact, sourceDocument: input.sourceDocument === true, videoAvailable: input.videoAvailable === true, browserTaskAvailable: input.browserTaskAvailable === true, productBuilderAvailable: input.productBuilderAvailable === true, desktopTaskAvailable: input.desktopTaskAvailable === true }) : captureDecision(0.98, 'FILE_PAYLOAD'),
       };
     }
 
@@ -511,7 +528,7 @@ export class InputRouter {
     }
 
     // 5. everything else is routed by what the person asked for
-    const decision = decideRouting(rawText, { hasAttachment: false, hint: input.hint, revisingDocument: input.revisingDocument === true, activeArtifact: input.activeArtifact, sourceDocument: input.sourceDocument === true, videoAvailable: input.videoAvailable === true, browserTaskAvailable: input.browserTaskAvailable === true, desktopTaskAvailable: input.desktopTaskAvailable === true });
+    const decision = decideRouting(rawText, { hasAttachment: false, hint: input.hint, revisingDocument: input.revisingDocument === true, activeArtifact: input.activeArtifact, sourceDocument: input.sourceDocument === true, videoAvailable: input.videoAvailable === true, browserTaskAvailable: input.browserTaskAvailable === true, productBuilderAvailable: input.productBuilderAvailable === true, desktopTaskAvailable: input.desktopTaskAvailable === true });
     const primaryIntent: InputIntent = decision.kind === 'ACTION_PLAN' ? 'COMMAND' : 'ASK';
     return {
       primaryIntent,

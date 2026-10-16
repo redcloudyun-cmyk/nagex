@@ -60,6 +60,10 @@ Read:
 `MASTER` + AI/Decision + Trust + relevant provider contract + Testing.
 Add Creation only when the provider is a creation provider.
 
+### Product Builder / "build me a website" task
+Read:
+`MASTER` + Creation (§20) + Trust + Execution + Testing + `docs/adr/ADR-0016-ai-product-builder.md` + `docs/evidence/NAGEX_PRODUCT_BUILDER_E2E_20261017.md`.
+
 ### Security/auth/approval task
 Read:
 `MASTER` + Trust + relevant ADR/debt + Testing.
