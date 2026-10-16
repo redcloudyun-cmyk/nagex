@@ -74,6 +74,7 @@
       "one_input_intent_browser",
       "home_reviewed_plan_browser",
       "one_input_document_chain_browser",
+      "memory_control_browser",
       "calendar_reschedule_browser",
       "one_input_slides_chain_browser",
       "vault_save_approval_browser",
@@ -222,6 +223,8 @@
     ],
     "memory-context": [
       "memory_supersession",
+      "memory_control",
+      "memory_control_browser",
       "r22_3_personal_context_memory"
     ],
     "capture": [
@@ -422,6 +425,7 @@
       "one_input_intent_browser",
       "home_reviewed_plan_browser",
       "one_input_document_chain_browser",
+      "memory_control_browser",
       "calendar_reschedule_browser",
       "one_input_slides_chain_browser",
       "home_vault_save_browser",
@@ -436,6 +440,7 @@
     ],
     "security": [
       "document_download_route",
+      "memory_control",
       "research_source_fetcher"
     ]
   },

@@ -895,7 +895,7 @@ export function handleApiRequest(
   }
 
   {
-    const memoryResult = handleMemoryRoutes(method, pathname, body, headers, {}, { memoryEngine, pinnedMemories, tenantId, principal, modelErrorResult, sessionStore, identityStore });
+    const memoryResult = handleMemoryRoutes(method, pathname, body, headers, {}, { memoryEngine, pinnedMemories, tenantId, principal, modelErrorResult, sessionStore, identityStore, auditLogger });
     if (memoryResult) return memoryResult;
   }
 

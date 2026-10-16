@@ -127,6 +127,9 @@ export interface MemoryRecord {
   supersedes?: string;
   supersededBy?: string;
   supersededAt?: string;
+  // Additive (explicitly time-bound context: "금요일까지 부산 출장 중"). After this instant the memory is EXPIRED: kept, visible in the person's history, never recalled as current.
+  expiresAt?: string;
+  expiredAt?: string;
   created_at: string;
   updated_at: string;
   last_used_at?: string;
@@ -154,6 +157,32 @@ export interface MemoryEngineOptions {
   dir?: string;
   settingsDir?: string;
   env?: NodeJS.ProcessEnv;
+  /** the clock expiry is judged by (tests) */
+  now?: () => number;
+}
+
+/** One memory as the person's history view shows it. */
+export interface MemoryHistoryVersion {
+  id: string;
+  value: string;
+  lifecycle: MemoryLifecycle;
+  /** the version that is current now */
+  current: boolean;
+  sensitivity: SensitivityLevel;
+  origin: MemoryOrigin | undefined;
+  sourceType: MemorySourceType | undefined;
+  extractor: MemoryProvenance['extractor'] | undefined;
+  createdAt: string;
+  supersededAt?: string;
+  expiresAt?: string;
+  expiredAt?: string;
+}
+
+export interface MemoryHistoryGroup {
+  subject: string;
+  predicate: string;
+  /** oldest first; the current version (if any) is flagged */
+  versions: MemoryHistoryVersion[];
 }
 
 export class MemoryEngine {
@@ -161,8 +190,10 @@ export class MemoryEngine {
   private readonly memoryStore: Map<string, MemoryRecord> = new Map();
   private readonly settingsFileStore: FileRecordStore<MemoryUserSettingsRecord>;
   private readonly settingsMap: Map<string, MemoryUserSettingsRecord> = new Map();
+  private readonly now: () => number;
 
   constructor(options?: MemoryEngineOptions) {
+    this.now = options?.now ?? Date.now;
     const dir = options?.dir ?? resolveNagexDataDir('memories', 'NAGEX_MEMORIES_DIR', options?.env);
     this.fileStore = new FileRecordStore<MemoryRecord>(dir, isMemoryRecord);
 
@@ -257,6 +288,7 @@ export class MemoryEngine {
     subject: string,
     predicate: string
   ): MemoryRecord | undefined {
+    this.expireDue(tenantId, ownerId);
     const normSubj = subject.toLowerCase().trim();
     const normPred = predicate.toLowerCase().trim();
 
@@ -297,6 +329,8 @@ export class MemoryEngine {
       distinctFact?: boolean;
       // The id of an ACTIVE memory of this person that this CONFIRMED statement replaces. Honoured only for a confirmed, non-sensitive (not S2) memory; the replaced one is kept as history.
       supersedes?: string;
+      // When the statement is explicitly time-bound ("금요일까지"): the instant after which it is no longer current.
+      expiresAt?: string;
     },
   ): MemoryRecord {
     const sensitivity = resolveEffectiveSensitivity(content, options?.sensitivity);
@@ -359,6 +393,7 @@ export class MemoryEngine {
       memoryOrigin,
       userConfirmed,
       contextRefs: options?.contextRefs,
+      ...(options?.expiresAt && Number.isFinite(Date.parse(options.expiresAt)) ? { expiresAt: new Date(Date.parse(options.expiresAt)).toISOString() } : {}),
       created_at: now,
       updated_at: now,
     };
@@ -415,6 +450,149 @@ export class MemoryEngine {
     return restored;
   }
 
+  // ---- time-bound context, correction and history (R26-C) ---------------------------------------------------------------------------------------------------
+
+  /** Memories whose explicit end has passed become EXPIRED - kept, never deleted, never current. Only this person's records are touched. */
+  public expireDue(tenantId: string, ownerId: string): number {
+    const nowMs = this.now();
+    let expired = 0;
+    for (const record of this.memoryStore.values()) {
+      if (record.tenantId !== tenantId || record.owner_id !== ownerId || !record.expiresAt) continue;
+      if (record.lifecycle !== 'ACTIVE' && record.lifecycle !== 'PROPOSED') continue;
+      if (Date.parse(record.expiresAt) > nowMs) continue;
+      const at = new Date(nowMs).toISOString();
+      const next: MemoryRecord = { ...record, lifecycle: 'EXPIRED', expiredAt: at, updated_at: at };
+      this.fileStore.writeOrThrow(record.id, next);
+      this.memoryStore.set(record.id, next);
+      expired += 1;
+    }
+    return expired;
+  }
+
+  /**
+   * The person corrects a memory of their own ("오래된 내용을 수정"): the new text becomes the current memory and the old one is kept, linked both ways, as history that can be restored. Never an overwrite.
+   * The person's own typing is the confirmation; a secret (S3) is still refused; the sensitivity never drops; provenance records that this was a correction by the owner.
+   */
+  public correctMemory(id: string, tenantId: string, ownerId: string, input: { value: string; expiresAt?: string | null }): { current: MemoryRecord; previous: MemoryRecord } {
+    const previous = this.requireOwned(id, tenantId, ownerId);
+    if (previous.lifecycle !== 'ACTIVE') {
+      throw new NagexError({ code: 'MEMORY_NOT_ACTIVE', category: 'CONFLICT', message: `Memory ID ${id} is ${previous.lifecycle} and cannot be corrected.`, request_id: 'mem_req' });
+    }
+    const value = typeof input.value === 'string' ? input.value.replace(/\s+/g, ' ').trim() : '';
+    if (!value || value.length > 2000) {
+      throw new NagexError({ code: 'MEMORY_VALUE_INVALID', category: 'VALIDATION', message: 'A memory needs 1 to 2000 characters.', request_id: 'mem_req' });
+    }
+    if (typeof previous.content.value === 'string' && previous.content.value.replace(/\s+/g, ' ').trim() === value) {
+      throw new NagexError({ code: 'MEMORY_UNCHANGED', category: 'CONFLICT', message: 'The correction is the same as the memory.', request_id: 'mem_req' });
+    }
+    const content = { subject: previous.content.subject, predicate: previous.content.predicate, value };
+    const sensitivity = resolveEffectiveSensitivity(content, previous.sensitivity);
+    if (sensitivity === 'S3') {
+      throw new NagexError({ code: 'SECRET_MEMORY_REJECTED', category: 'POLICY', message: 'Secret context (S3) must not be persisted as durable memory.', request_id: 'mem_req' });
+    }
+    let expiresAt: string | undefined;
+    if (input.expiresAt) {
+      const ms = Date.parse(input.expiresAt);
+      const nowMs = this.now();
+      if (!Number.isFinite(ms) || ms <= nowMs || ms > nowMs + 5 * 365 * 24 * 3600_000) {
+        throw new NagexError({ code: 'MEMORY_EXPIRY_INVALID', category: 'VALIDATION', message: 'The end date must be in the future (within five years).', request_id: 'mem_req' });
+      }
+      expiresAt = new Date(ms).toISOString();
+    }
+    const nowIso = new Date(this.now()).toISOString();
+    const current: MemoryRecord = {
+      id: generateResourceId('mem'),
+      scope: previous.scope,
+      ...(previous.type ? { type: previous.type } : {}),
+      tenantId,
+      owner_id: ownerId,
+      ...(previous.workspaceId ? { workspaceId: previous.workspaceId } : {}),
+      lifecycle: 'ACTIVE',
+      content,
+      confidence: 1,
+      sensitivity,
+      provenance: { sourceType: 'MANUAL', sourceRef: `correction_of:${previous.id}`, extractedAt: nowIso, extractor: 'USER_EXPLICIT', originalAvailable: true },
+      sourceRef: `correction_of:${previous.id}`,
+      memoryOrigin: 'EXPLICIT_USER',
+      userConfirmed: true,
+      ...(previous.contextRefs ? { contextRefs: previous.contextRefs } : {}),
+      ...(previous.pinned ? { pinned: previous.pinned } : {}),
+      ...(expiresAt ? { expiresAt } : {}),
+      supersedes: previous.id,
+      created_at: nowIso,
+      updated_at: nowIso,
+    };
+    // the successor first: if anything fails in between, both stay ACTIVE (a duplicate, never a loss)
+    this.fileStore.writeOrThrow(current.id, current);
+    this.memoryStore.set(current.id, current);
+    const retired: MemoryRecord = { ...previous, lifecycle: 'SUPERSEDED', supersededBy: current.id, supersededAt: nowIso, updated_at: nowIso };
+    this.fileStore.writeOrThrow(previous.id, retired);
+    this.memoryStore.set(previous.id, retired);
+    return { current, previous: retired };
+  }
+
+  /** An expired memory the person still wants: it is current again, with a new end date or none. Only the owner, only an EXPIRED memory. */
+  public renewExpired(id: string, tenantId: string, ownerId: string, expiresAt?: string | null): MemoryRecord {
+    const record = this.requireOwned(id, tenantId, ownerId);
+    if (record.lifecycle !== 'EXPIRED') {
+      throw new NagexError({ code: 'MEMORY_NOT_EXPIRED', category: 'CONFLICT', message: `Memory ID ${id} is not expired.`, request_id: 'mem_req' });
+    }
+    let next: string | undefined;
+    if (expiresAt) {
+      const ms = Date.parse(expiresAt);
+      const nowMs = this.now();
+      if (!Number.isFinite(ms) || ms <= nowMs || ms > nowMs + 5 * 365 * 24 * 3600_000) {
+        throw new NagexError({ code: 'MEMORY_EXPIRY_INVALID', category: 'VALIDATION', message: 'The end date must be in the future (within five years).', request_id: 'mem_req' });
+      }
+      next = new Date(ms).toISOString();
+    }
+    const { expiresAt: _e, expiredAt: _x, ...rest } = record;
+    const renewed: MemoryRecord = { ...rest, lifecycle: 'ACTIVE', ...(next ? { expiresAt: next } : {}), updated_at: new Date(this.now()).toISOString() };
+    this.fileStore.writeOrThrow(renewed.id, renewed);
+    this.memoryStore.set(renewed.id, renewed);
+    return renewed;
+  }
+
+  private toHistoryVersion(record: MemoryRecord): MemoryHistoryVersion {
+    const value = typeof record.content.value === 'string' ? record.content.value : JSON.stringify(record.content.value ?? '');
+    return {
+      id: record.id,
+      value,
+      lifecycle: record.lifecycle,
+      current: record.lifecycle === 'ACTIVE',
+      sensitivity: record.sensitivity ?? 'S1',
+      origin: record.memoryOrigin,
+      sourceType: record.provenance?.sourceType,
+      extractor: record.provenance?.extractor,
+      createdAt: record.created_at,
+      ...(record.supersededAt ? { supersededAt: record.supersededAt } : {}),
+      ...(record.expiresAt ? { expiresAt: record.expiresAt } : {}),
+      ...(record.expiredAt ? { expiredAt: record.expiredAt } : {}),
+    };
+  }
+
+  /**
+   * What the person sees under "history": every corrected fact with its versions (oldest first, the current one flagged) and every memory that expired. Only this person's own records; never another
+   * person's, never a deleted one.
+   */
+  public history(tenantId: string, ownerId: string): { groups: MemoryHistoryGroup[]; expired: MemoryHistoryVersion[] } {
+    this.expireDue(tenantId, ownerId);
+    const mine = [...this.memoryStore.values()].filter((r) => r.tenantId === tenantId && r.owner_id === ownerId && r.lifecycle !== 'DELETED');
+    const done = new Set<string>();
+    const groups: MemoryHistoryGroup[] = [];
+    for (const record of mine) {
+      if (done.has(record.id) || (!record.supersedes && !record.supersededBy)) continue;
+      const chain = this.getSupersessionChain(record.id, tenantId, ownerId).filter((r) => r.lifecycle !== 'DELETED');
+      for (const member of chain) done.add(member.id);
+      if (chain.length < 2) continue;
+      const newest = chain[chain.length - 1];
+      groups.push({ subject: newest.content.subject, predicate: newest.content.predicate, versions: chain.map((r) => this.toHistoryVersion(r)) });
+    }
+    groups.sort((a, b) => Date.parse(b.versions[b.versions.length - 1].createdAt) - Date.parse(a.versions[a.versions.length - 1].createdAt));
+    const expired = mine.filter((r) => r.lifecycle === 'EXPIRED').sort((a, b) => Date.parse(b.expiredAt ?? b.updated_at) - Date.parse(a.expiredAt ?? a.updated_at)).map((r) => this.toHistoryVersion(r));
+    return { groups, expired };
+  }
+
   /** The history of a corrected fact, oldest first: every memory linked to this one by supersession (this person's own records only). */
   public getSupersessionChain(id: string, tenantId: string, ownerId: string): MemoryRecord[] {
     const start = this.requireOwned(id, tenantId, ownerId);
@@ -427,8 +605,11 @@ export class MemoryEngine {
       chain.unshift(previous);
       cursor = previous;
     }
-    for (let cursor = start; cursor.supersededBy;) {
-      const next = this.memoryStore.get(cursor.supersededBy);
+    // forward: the forward link (supersededBy) is cleared when a memory is restored, so the successor is also found by its own backward link (supersedes) - the history of a restored memory stays reachable
+    for (let cursor: MemoryRecord | undefined = start; cursor;) {
+      const current: MemoryRecord = cursor;
+      const next: MemoryRecord | undefined = (current.supersededBy ? this.memoryStore.get(current.supersededBy) : undefined)
+        ?? [...this.memoryStore.values()].find((r) => r.supersedes === current.id && r.tenantId === tenantId && r.owner_id === ownerId);
       if (!next || next.tenantId !== tenantId || next.owner_id !== ownerId || seen.has(next.id)) break;
       seen.add(next.id);
       chain.push(next);
@@ -580,6 +761,7 @@ export class MemoryEngine {
   }
 
   public getActiveMemories(scope: MemoryScope, tenantId: string, ownerId: string): MemoryRecord[] {
+    this.expireDue(tenantId, ownerId);
     const active: MemoryRecord[] = [];
     for (const record of this.memoryStore.values()) {
       if (record.scope === scope && record.tenantId === tenantId && record.owner_id === ownerId && record.lifecycle === 'ACTIVE') {
@@ -632,6 +814,8 @@ export class MemoryEngine {
     memoryOrigin?: MemoryOrigin;
     userConfirmed?: boolean;
     contextRefs?: MemoryContextRefs;
+    // an explicit end ("until Friday"): after it the memory is EXPIRED, kept but never current
+    expiresAt?: string;
   }): MemoryRecord {
     const sensitivity = resolveEffectiveSensitivity(params.content, params.sensitivity);
     if (sensitivity === 'S3') {
@@ -691,6 +875,7 @@ export class MemoryEngine {
       memoryOrigin,
       userConfirmed,
       contextRefs: params.contextRefs,
+      ...(params.expiresAt && Number.isFinite(Date.parse(params.expiresAt)) ? { expiresAt: new Date(Date.parse(params.expiresAt)).toISOString() } : {}),
       created_at: now,
       updated_at: now,
       last_used_at: now,
@@ -762,6 +947,7 @@ export class MemoryEngine {
   }
 
   public listMemories(tenantId: string, ownerId: string, scope?: MemoryScope, workspaceId?: string): MemoryRecord[] {
+    this.expireDue(tenantId, ownerId);
     const results: MemoryRecord[] = [];
     for (const record of this.memoryStore.values()) {
       if (record.tenantId === tenantId && record.owner_id === ownerId && !TERMINAL_MEMORY_STATES.has(record.lifecycle)) {

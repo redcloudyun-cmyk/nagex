@@ -5,6 +5,9 @@ import { getCurrentISOString } from '../../common/utils.js';
 import type { IdentityStore } from '../../identity/identity.store.js';
 import type { SessionStore } from '../../sessions/session.store.js';
 import { resolveAuthenticatedIdentity } from '../request-identity.js';
+import type { AuditLogger } from '../../governance/audit.logger.js';
+import { inferMemoryExpiry } from '../../context/memory-expiry.js';
+import { isValidTimeZone, wallTimeToInstant, addDays } from '../../common/time-context.js';
 
 export interface MemoryRouteDeps {
   memoryEngine: MemoryEngine;
@@ -16,6 +19,8 @@ export interface MemoryRouteDeps {
   // session. Absent stores fail closed (401).
   sessionStore?: SessionStore;
   identityStore?: IdentityStore;
+  // R26-C: corrections and restorations are audited (ids only - never the text of a memory)
+  auditLogger?: Pick<AuditLogger, 'logEvent'>;
 }
 
 const VALID_SCOPES = new Set(['PERSONAL', 'USER', 'ORGANIZATION', 'WORKSPACE', 'SESSION', 'AGENT', 'TENANT']);
@@ -25,6 +30,24 @@ const VALID_SENSITIVITIES = new Set(['S0', 'S1', 'S2', 'S3']);
 
 export const handleMemoryRoutes: SyncRouteRegistrar<MemoryRouteDeps> = (method, pathname, body, headers, _query, deps): ApiResult | undefined => {
   const { memoryEngine, pinnedMemories, tenantId, principal, modelErrorResult } = deps;
+
+  // ---- R26-C: history, correction (never an overwrite), restoration, time-bound context. Owner and tenant come from the session; another person's memory is indistinguishable from none.
+  const audit = (action: string, resourceId: string, details: Record<string, unknown>) => {
+    deps.auditLogger?.logEvent({ actor: { type: 'user', id: principal.id }, tenant_id: tenantId, action, resource: { type: 'Memory', id: resourceId }, result: 'SUCCESS', request_id: `req_mem_${Date.now()}`, details });
+  };
+  const timezoneOf = (b: Record<string, unknown> | null | undefined): string => (typeof b?.timezone === 'string' && isValidTimeZone(b.timezone) ? b.timezone : 'UTC');
+  // an explicit end: an ISO instant, or a day ("2026-10-23") that ends at the end of that day in the person's timezone
+  const explicitExpiry = (b: Record<string, unknown> | null | undefined): { ok: true; expiresAt?: string } | { ok: false } => {
+    if (typeof b?.expiresAt === 'string' && b.expiresAt) return Number.isFinite(Date.parse(b.expiresAt)) ? { ok: true, expiresAt: new Date(Date.parse(b.expiresAt)).toISOString() } : { ok: false };
+    if (typeof b?.expiresOn === 'string' && b.expiresOn) {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(b.expiresOn);
+      if (!m) return { ok: false };
+      const next = addDays({ year: Number(m[1]), month: Number(m[2]), day: Number(m[3]) }, 1);
+      return { ok: true, expiresAt: new Date(wallTimeToInstant({ year: next.year, month: next.month, day: next.day, hour: 0, minute: 0 }, timezoneOf(b)).ms - 1).toISOString() };
+    }
+    return { ok: true };
+  };
+
 
   if (pathname === '/api/v1/memory/settings' && (method === 'GET' || method === 'POST' || method === 'PATCH')) {
     // Ownership from the session ONLY — the header-derived tenantId/principal
@@ -69,6 +92,14 @@ export const handleMemoryRoutes: SyncRouteRegistrar<MemoryRouteDeps> = (method, 
       const sourceId = typeof body?.sourceId === 'string' ? body.sourceId : undefined;
       const sensitivity = typeof body?.sensitivity === 'string' ? (body.sensitivity as any) : 'S1';
 
+      // an explicit end ("until 2026-10-30") or one the text states itself ("금요일까지"); the end must be a future instant within five years
+      const explicit = explicitExpiry(body);
+      if (!explicit.ok) return { status: 400, data: { error: 'MEMORY_EXPIRY_INVALID', message: 'The end date is not valid.' } };
+      const expiresAt = explicit.expiresAt ?? (typeof value === 'string' ? inferMemoryExpiry(value, Date.now(), timezoneOf(body))?.expiresAt : undefined);
+      if (expiresAt && (Date.parse(expiresAt) <= Date.now() || Date.parse(expiresAt) > Date.now() + 5 * 365 * 24 * 3600_000)) {
+        return { status: 400, data: { error: 'MEMORY_EXPIRY_INVALID', message: 'The end date must be in the future (within five years).' } };
+      }
+
       const record = memoryEngine.createMemory({
         scope,
         type,
@@ -85,6 +116,7 @@ export const handleMemoryRoutes: SyncRouteRegistrar<MemoryRouteDeps> = (method, 
           extractedAt: getCurrentISOString(),
           extractor: 'USER_EXPLICIT',
         },
+        ...(expiresAt ? { expiresAt } : {}),
       });
 
       if (body?.pinned) pinnedMemories.add(record.id);
@@ -102,8 +134,56 @@ export const handleMemoryRoutes: SyncRouteRegistrar<MemoryRouteDeps> = (method, 
     for (const m of [...activeMemories, ...proposedMemories]) {
       combinedMap.set(m.id, m);
     }
-    const allMemories = Array.from(combinedMap.values()).map((m) => ({ ...m, pinned: pinnedMemories.has(m.id) }));
+    // hasHistory: this fact was corrected (or restored) before - its earlier versions are one click away
+    const allMemories = Array.from(combinedMap.values()).map((m) => ({ ...m, pinned: pinnedMemories.has(m.id), hasHistory: memoryEngine.getSupersessionChain(m.id, tenantId, principal.id).length > 1 }));
     return { status: 200, data: { memories: allMemories, total: allMemories.length } };
+  }
+
+  if (pathname === '/api/v1/memory/history' && method === 'GET') {
+    const { groups, expired } = memoryEngine.history(tenantId, principal.id);
+    return { status: 200, data: { groups, expired } };
+  }
+
+  const correctMatch = /^\/api\/v1\/memory\/([A-Za-z0-9_-]{4,80})\/correct$/.exec(pathname);
+  if (correctMatch && method === 'POST') {
+    const memId = correctMatch[1];
+    const value = typeof body?.value === 'string' ? body.value : '';
+    if (!value.trim()) return { status: 400, data: { error: 'MEMORY_VALUE_INVALID', message: 'The corrected text is required.' } };
+    const explicit = explicitExpiry(body);
+    if (!explicit.ok) return { status: 400, data: { error: 'MEMORY_EXPIRY_INVALID', message: 'The end date is not valid.' } };
+    try {
+      if (!memoryEngine.get(memId, tenantId, principal.id)) return { status: 404, data: { error: 'MEMORY_NOT_FOUND', message: `Memory ${memId} was not found.` } };
+      // no end typed: a correction that bounds itself in time ("금요일까지") is time-bound like any statement
+      const inferred = explicit.expiresAt ? null : inferMemoryExpiry(value, Date.now(), timezoneOf(body));
+      const expiresAt = explicit.expiresAt ?? inferred?.expiresAt;
+      const { current, previous } = memoryEngine.correctMemory(memId, tenantId, principal.id, { value, expiresAt: expiresAt ?? null });
+      if (pinnedMemories.has(previous.id)) { pinnedMemories.delete(previous.id); pinnedMemories.add(current.id); }
+      audit('memory.corrected', current.id, { replaced: previous.id, sensitivity: current.sensitivity, timeBound: Boolean(current.expiresAt) });
+      return { status: 200, data: { current: { ...current, pinned: pinnedMemories.has(current.id) }, previous: { ...previous, pinned: false }, ...(inferred ? { expiryInferredFrom: inferred.basis } : {}) } };
+    } catch (error) {
+      return modelErrorResult(error);
+    }
+  }
+
+  const restoreMatch = /^\/api\/v1\/memory\/([A-Za-z0-9_-]{4,80})\/restore$/.exec(pathname);
+  if (restoreMatch && method === 'POST') {
+    const memId = restoreMatch[1];
+    try {
+      const existing = memoryEngine.get(memId, tenantId, principal.id);
+      if (!existing) return { status: 404, data: { error: 'MEMORY_NOT_FOUND', message: `Memory ${memId} was not found.` } };
+      if (existing.lifecycle === 'EXPIRED') {
+        const explicit = explicitExpiry(body);
+        if (!explicit.ok) return { status: 400, data: { error: 'MEMORY_EXPIRY_INVALID', message: 'The end date is not valid.' } };
+        const renewed = memoryEngine.renewExpired(memId, tenantId, principal.id, explicit.expiresAt ?? null);
+        audit('memory.renewed', renewed.id, { sensitivity: renewed.sensitivity, timeBound: Boolean(renewed.expiresAt) });
+        return { status: 200, data: { restored: { ...renewed, pinned: pinnedMemories.has(renewed.id) } } };
+      }
+      const restored = memoryEngine.restoreSuperseded(memId, tenantId, principal.id);
+      audit('memory.restored', restored.id, { sensitivity: restored.sensitivity });
+      return { status: 200, data: { restored: { ...restored, pinned: pinnedMemories.has(restored.id) } } };
+    } catch (error) {
+      return modelErrorResult(error);
+    }
   }
 
   if (pathname.startsWith('/api/v1/memory/') && pathname.endsWith('/confirm') && method === 'POST') {

@@ -82,7 +82,7 @@ const EXPECTED_ROUTE_MODULE_COUNTS: Record<string, number> = {
   'governance.routes.ts': 5,
   'health.routes.ts': 2,
   'inbox.routes.ts': 6,
-  'memory.routes.ts': 13,
+  'memory.routes.ts': 16, // R26-C: GET history, POST :id/correct, POST :id/restore
   'mobile-device.routes.ts': 1,
   'mobile-message.routes.ts': 4,
   'modules.routes.ts': 3,
@@ -132,11 +132,11 @@ test('ROUTE-INV-002: every route module\'s method-check-block count exactly matc
   assert.deepEqual(mismatches, [], `Route module endpoint-count drift detected:\n${mismatches.join('\n')}`);
 });
 
-test('ROUTE-INV-003: the total domain endpoint count across all route modules is exactly 354 — any change requires an intentional manifest update', () => {
+test('ROUTE-INV-003: the total domain endpoint count across all route modules is exactly 357 — any change requires an intentional manifest update', () => {
   // R23.7C-C — +1: GET /api/v1/creations/images/:imageId, the canonical
   // image-serving route fixing the BROKEN_SUCCESS_CONTRACT root cause.
   // Integration of R23.7 recovery + AGEX/MCP: 347 (R23.7 incl. restored device-agent 10 and social-auth 8) + connector-catalog 1 + MCP reconnect 1.
-  assert.equal(TOTAL_DOMAIN_ENDPOINTS, 354);
+  assert.equal(TOTAL_DOMAIN_ENDPOINTS, 357);
   let actualTotal = 0;
   for (const file of listRouteModuleFiles()) {
     actualTotal += countMethodChecks(readSourceWithoutComments(path.join(ROUTES_DIR, file)));
